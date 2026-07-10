@@ -1,0 +1,48 @@
+# Python 字节码 / 缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+*.whl
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+
+# 虚拟环境
+.venv/
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# VS Code 配置（含本地 MCP 绝对路径）
+.vscode/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+
+# 日志和调试输出
+logs/
+debug_report.txt
+*.log
+
+# 操作系统文件
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Jupyter Notebook 临时文件
+.ipynb_checkpoints/
+
+# 环境文件
+.env
+.env.local
