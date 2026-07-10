@@ -1,0 +1,16 @@
+{
+    "snake-game": {
+        "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
+        "args": [
+            "projects\\snake\\snake_mcp_server.py"
+        ],
+        "cwd": "E:\\DemoStudio"
+    },
+    "editor-control": {
+        "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
+        "args": [
+            "editor\\editor_mcp_server.py"
+        ],
+        "cwd": "E:\\DemoStudio"
+    }
+}

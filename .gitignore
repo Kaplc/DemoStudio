@@ -20,9 +20,6 @@ env/
 pip-log.txt
 pip-delete-this-directory.txt
 
-# VS Code 配置（含本地 MCP 绝对路径）
-.vscode/
-
 # IDE
 .idea/
 *.swp
