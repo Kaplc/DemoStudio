@@ -126,12 +126,20 @@ class UITheme:
         self.transparent: color = kwargs.get('transparent', color.rgba(0, 0, 0, 0))
 
         # ─── 控件样式 ───
-        self.button = _ButtonStyle(**kwargs.get('button', {}))
-        self.input = _InputStyle(**kwargs.get('input', {}))
-        self.slider = _SliderStyle(**kwargs.get('slider', {}))
-        self.toggle = _ToggleStyle(**kwargs.get('toggle', {}))
-        self.window = _WindowStyle(**kwargs.get('window', {}))
-        self.scroll = _ScrollStyle(**kwargs.get('scroll', {}))
+        def _resolve_style(style_cls, key):
+            """支持传入 dict 或已构造的样式对象"""
+            val = kwargs.get(key, {})
+            if isinstance(val, dict):
+                return style_cls(**val)
+            # 已是样式对象 — 用其 __dict__ 复制一份
+            return style_cls(**{k: v for k, v in val.__dict__.items()
+                                if not k.startswith('_')})
+        self.button = _resolve_style(_ButtonStyle, 'button')
+        self.input = _resolve_style(_InputStyle, 'input')
+        self.slider = _resolve_style(_SliderStyle, 'slider')
+        self.toggle = _resolve_style(_ToggleStyle, 'toggle')
+        self.window = _resolve_style(_WindowStyle, 'window')
+        self.scroll = _resolve_style(_ScrollStyle, 'scroll')
 
     def copy(self) -> 'UITheme':
         """创建当前主题的副本 (可安全修改)"""
@@ -155,6 +163,13 @@ class UITheme:
             info=self.info,
             border=self.border,
             transparent=self.transparent,
+            # 复制样式对象
+            button=self.button,
+            input=self.input,
+            slider=self.slider,
+            toggle=self.toggle,
+            window=self.window,
+            scroll=self.scroll,
         )
 
 

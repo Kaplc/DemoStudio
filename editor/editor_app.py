@@ -1,15 +1,15 @@
 """
-Simple game editor / launcher (Ursina Engine UI)
-- Standalone window with engine-rendered UI
-- Click 'Start Snake' to launch the game as a subprocess
-- Returns to editor when game window closes
+DemoStudio Editor — 通过 core.canvas 框架渲染的编辑器 UI
+=====================================================
+- 使用 UICanvas / CanvasManager 加载 editor_ui.json 并渲染到 camera.ui
+- 底层控件为 UIPanel / UIButton / UIText (core.ui)
+- 支持工程切换、游戏启动/停止、控制台、MCP 集成
 """
-import sys, os
+import sys
 import subprocess
 import atexit
 from pathlib import Path
 
-# ensure core/ and game/ packages are importable
 _root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_root))
 
@@ -18,10 +18,18 @@ from ursina import *
 from core.logger import get_logger
 from core.console import Console
 from core.project_manager import discover_projects, PROJECTS_DIR
+from core.ui import (
+    UIWidget, UIButton, UIText, UIPanel,
+    Anchor, DARK_THEME,
+)
+from core.assets import AssetManager
+from core.canvas import UICanvas, CanvasManager, CanvasSettings, CanvasLayer
 
 logger = get_logger('editor')
 
-# --- Editor App ---
+# ════════════════════════════════════════
+#  编辑器初始化
+# ════════════════════════════════════════
 
 app = Ursina(
     title='DemoStudio Editor',
@@ -30,81 +38,52 @@ app = Ursina(
     editor_ui_enabled=False,
     development_mode=False,
 )
-
-# maximise window (fill screen, keep window decorations)
 window.size = window.windowed_size
 window.center_on_screen()
 
-# Editor colour theme
-THEME = {
-    'bg': color.hex('#1a1a2e'),
-    'panel': color.hex('#16213e'),
-    'panel_light': color.hex('#1e2a4a'),
-    'accent': color.hex('#e94560'),
-    'accent_hover': color.hex('#ff6b81'),
-    'text': color.hex('#e0e0e0'),
-    'text_dim': color.hex('#8899aa'),
-    'success': color.hex('#44ff88'),
-    'warning': color.hex('#ffaa44'),
-}
+# ─── 编辑器主题（UE 5 Dark 配色） ───
+from core.ui.theme import _ButtonStyle as _UEButtonStyle
+editor_theme = DARK_THEME.copy()
+# 覆盖为 UE 5 Dark 配色
+editor_theme.background        = color.hex('#1e1e1e')   # 主背景 (深灰)
+editor_theme.surface           = color.hex('#252526')   # 工具栏表面
+editor_theme.surface_light     = color.hex('#2d2d30')   # 次级表面
+editor_theme.text              = color.hex('#cccccc')   # 主文字
+editor_theme.text_dim          = color.hex('#858585')   # 暗淡文字
+editor_theme.accent            = color.hex('#007acc')   # UE 蓝 (选中/启动)
+editor_theme.accent_hover      = color.hex('#1f8ad2')   # 蓝悬停
+editor_theme.success           = color.hex('#4ec9b0')   # 青绿 (成功)
+editor_theme.warning           = color.hex('#dcdcaa')   # 淡黄 (警告)
+editor_theme.error             = color.hex('#f48771')   # 橙红 (错误)
+editor_theme.info              = color.hex('#75beff')   # 浅蓝 (信息)
+editor_theme.border            = color.hex('#3f3f46')   # 常规边框
+editor_theme.button = _UEButtonStyle(
+    normal=color.hex('#3e3e42'),
+    hover=color.hex('#505054'),
+    pressed=color.hex('#2a2a2c'),
+    disabled=color.hex('#2d2d30'),
+    text=color.hex('#cccccc'),
+    text_disabled=color.hex('#6a6a6a'),
+    outline=color.hex('#3f3f46'),
+)
 
-# --- Editor State ---
-
+# ─── 全局状态 ───
 game_process: subprocess.Popen | None = None
 game_running = False
-
-# Editor MCP server subprocess (started/stopped with editor)
 mcp_process: subprocess.Popen | None = None
 mcp_running = False
-
-# Console instance (will be created after UI)
 console: Console | None = None
 
-# Project management
-_all_projects = []            # all discovered projects
-current_project = None        # selected Project object
-_dropdown_open = False
-dropdown_bg = None
-dropdown_items = []
-menu_project_text = None
+_all_projects = []            # 所有发现的工程
+current_project = None        # 当前选中的 Project 对象
 
-# Dynamic UI elements (rebuilt on project switch)
-_dynamic_project_texts = []   # Text elements in project panel
-center_title_text = None
-center_info_text = None
-launch_btn = None
+# UI 渲染框架 (core.canvas: UICanvas / CanvasManager)
+asset_manager = AssetManager()
+canvas_manager = CanvasManager()
+editor_canvas = None            # 编辑器主画布 (UICanvas), 构建后填充
 
-
-# --- Layout Components ---
-
-class EditorPanel(Entity):
-    """Base editor panel with title bar and background"""
-
-    def __init__(self, title='Panel', x=0, y=0, w=0.3, h=0.8, **kwargs):
-        super().__init__(parent=camera.ui, **kwargs)
-        self.bg = Entity(
-            parent=self,
-            model='quad',
-            scale=(w, h, 1),
-            position=(x, y, 0),
-            color=THEME['panel'],
-        )
-        # title bar
-        title_bar = Entity(
-            parent=self,
-            model='quad',
-            scale=(w, 0.035, 1),
-            position=(x, y + h/2 - 0.02, 0.001),
-            color=THEME['panel_light'],
-        )
-        self.title_text = Text(
-            parent=self,
-            text=title,
-            position=(x - w/2 + 0.02, y + h/2 - 0.025),
-            scale=1.0,
-            color=THEME['text_dim'],
-            origin=(-0.5, 0),
-        )
+# 动态引用的 UI 控件
+main_btn = None
 
 
 def launch_game():
@@ -211,22 +190,11 @@ def check_mcp():
 
 
 def update_ui_state():
-    """Update button text and status bar"""
+    """Update editor state (no-op for now)"""
     if game_running:
-        if launch_btn:
-            launch_btn.text = '[x] Stop Game'
-            launch_btn.color = THEME['warning']
-            launch_btn.highlight_color = color.hex('#cc8833')
-        status_text.text = 'Status: Game Running'
-        status_text.color = THEME['success']
+        logger.info("[ui] Game running (state updated)")
     else:
-        if launch_btn:
-            proj_name = current_project.name if current_project else '?'
-            launch_btn.text = f'[>] Start {proj_name}'
-            launch_btn.color = THEME['accent']
-            launch_btn.highlight_color = THEME['accent_hover']
-        status_text.text = 'Status: Ready'
-        status_text.color = THEME['text_dim']
+        logger.info("[ui] Game stopped (state updated)")
 
 
 def stop_game():
@@ -254,76 +222,38 @@ def on_launch_click():
         launch_game()
 
 
-# --- Build Editor UI ---
-
-# background
-Entity(model='quad', scale=(2, 2, 1), parent=camera.ui, color=THEME['bg'])
-
-
 # ════════════════════════════════════════
-#  Menu Bar
+#  构建编辑器 UI（通过 core.canvas 框架渲染 editor/assets/editor_ui.json）
 # ════════════════════════════════════════
 
-# Menu bar background
-Entity(
-    parent=camera.ui,
-    model='quad',
-    scale=(2, 0.045, 1),
-    position=(0, 0.477, 0),
-    color=THEME['panel'],
+LAYOUT_PATH = _root / 'editor' / 'assets' / 'editor_ui.json'
+logger.info(f'[ui] Loading editor UI from {LAYOUT_PATH} via UICanvas')
+logger.info(f'[ui] context vars: bg={editor_theme.background}, surface={editor_theme.surface}, accent={editor_theme.accent}')
+
+# 用 UICanvas 加载并构建控件树, 再由 CanvasManager 统一管理显示/层级
+editor_canvas = UICanvas(
+    LAYOUT_PATH,
+    name='editor',
+    settings=CanvasSettings(layer=CanvasLayer.DEFAULT, validate=True),
+    asset_manager=asset_manager,
+    canvas_manager=canvas_manager,
 )
+canvas_manager.register('editor', editor_canvas)
 
-# Menu: Project (dropdown)
-def _open_project_menu():
-    """打开/关闭 Project 下拉菜单"""
-    global _dropdown_open
-    _dropdown_open = not _dropdown_open
-    _render_dropdown()
+if not editor_canvas.is_ready:
+    logger.error('[ui] Failed to load editor UI layout!')
+else:
+    logger.info(f'[ui] Canvas built: {editor_canvas.widget_count} widgets')
+    # 缓存控件引用
+    w = editor_canvas.get_widget('main_btn')
+    if w is not None:
+        main_btn = w
+        logger.info('[ui] main_btn resolved')
+    else:
+        logger.warning('[ui] main_btn not found in layout')
 
-def _render_dropdown():
-    """渲染项目选择下拉菜单"""
-    global dropdown_bg, dropdown_items, _dropdown_open
-
-    # 销毁旧的下拉
-    if dropdown_bg:
-        destroy(dropdown_bg)
-        dropdown_bg = None
-    for item in dropdown_items:
-        destroy(item)
-    dropdown_items.clear()
-
-    if not _dropdown_open or not _all_projects:
-        return
-
-    # 下拉背景
-    item_h = 0.035
-    total_h = len(_all_projects) * item_h + 0.01
-    dropdown_bg = Entity(
-        parent=camera.ui,
-        model='quad',
-        scale=(0.22, total_h, 1),
-        position=(-0.85, 0.477 - 0.025 - total_h / 2, 0.01),
-        color=color.rgba(30, 40, 70, 240),
-    )
-
-    for i, proj in enumerate(_all_projects):
-        y_pos = 0.477 - 0.025 - 0.005 - i * item_h - item_h / 2
-        is_active = (proj == current_project)
-        item = Button(
-            parent=camera.ui,
-            text=proj.name,
-            position=(-0.85, y_pos, 0.02),
-            scale=(0.22, item_h),
-            color=THEME['accent'] if is_active else color.rgba(40, 50, 80, 240),
-            highlight_color=THEME['accent_hover'],
-            origin=(0, 0),
-        )
-        # 绑定点击事件
-        def make_handler(p):
-            return lambda: (_select_project(p), _open_project_menu())[0]
-        item.on_click = make_handler(proj)
-        dropdown_items.append(item)
-
+# 显示编辑器主画布
+canvas_manager.open('editor', animated=False)
 
 def _select_project(project):
     """切换当前工程"""
@@ -333,20 +263,6 @@ def _select_project(project):
     current_project = project
     logger.info("Switched to project: {} v{}", project.name, project.version)
 
-    # 更新菜单栏文字
-    if menu_project_text:
-        menu_project_text.text = f'Project: {project.name}  ▼'
-
-    # 更新中心面板
-    _update_center_panel()
-
-    # 更新右侧 Project 面板
-    _rebuild_project_panel(project)
-
-    # 更新启动按钮
-    if launch_btn and not game_running:
-        launch_btn.text = f'[>] Start {project.name}'
-
     # 更新控制台状态回调
     if console and hasattr(console, '_editor_status_cb'):
         def editor_status():
@@ -354,229 +270,28 @@ def _select_project(project):
         console._editor_status_cb = editor_status
 
 
-# Menu bar buttons
-menu_project_text = Text(
-    parent=camera.ui,
-    text='Project: ▼',
-    position=(-0.90, 0.476),
-    scale=0.9,
-    color=THEME['text'],
-    origin=(-0.5, 0),
-)
+# ════════════════════════════════════════
+#  UI 事件绑定
+# ════════════════════════════════════════
 
-# Invisible click zone for Project menu
-menu_project_btn = Button(
-    parent=camera.ui,
-    text='',
-    position=(-0.78, 0.477, 0.001),
-    scale=(0.18, 0.04),
-    color=color.clear,
-    highlight_color=color.rgba(255, 255, 255, 20),
-    origin=(0, 0),
-)
-menu_project_btn.on_click = _open_project_menu
-
-# Editor title text
-Text(
-    parent=camera.ui,
-    text='DemoStudio Editor',
-    position=(0, 0.477),
-    scale=1.1,
-    color=THEME['accent'],
-    origin=(0, 0),
-)
-
-# Right-side menu items placeholder for future expansion
-
-# Close dropdown when clicking elsewhere
-def _close_dropdown():
-    global _dropdown_open
-    if _dropdown_open:
-        _dropdown_open = False
-        _render_dropdown()
+def on_main_btn_click():
+    """中央按钮点击回调"""
+    logger.info('[ui] main_btn clicked!')
+    # 可在此扩展: 切换游戏启动/停止、打开面板等
 
 
-# --- Left panel: Hierarchy ---
-hierarchy_panel = EditorPanel(
-    title='Hierarchy',
-    x=-0.65, y=0.0, w=0.28, h=0.80,
-)
-hierarchy_items = [
-    '> Scene',
-    '  +- Camera',
-    '  +- Directional Light',
-    '  +- Floor',
-    '  +- Walls',
-    '  +- Snake (Game)',
-]
-for i, item in enumerate(hierarchy_items):
-    Text(
-        parent=hierarchy_panel,
-        text=item,
-        position=(-0.65 + 0.02, 0.36 - i * 0.035),
-        scale=0.8,
-        color=THEME['text_dim'] if item.startswith('  ') else THEME['text'],
-        origin=(-0.5, 0),
-    )
-
-# --- Right panel: Project files ---
-project_panel = EditorPanel(
-    title='Project Files',
-    x=0.65, y=0.0, w=0.28, h=0.80,
-)
-
-# Functions to rebuild the project file list dynamically
-def _rebuild_project_panel(project):
-    """根据当前工程重建右侧文件列表"""
-    global _dynamic_project_texts
-
-    # 销毁旧的文字
-    for t in _dynamic_project_texts:
-        destroy(t)
-    _dynamic_project_texts.clear()
-
-    if not project:
-        return
-
-    # 构建文件树
-    items = [f'[+] {project.folder.name}/']
-    for child in sorted(project.folder.iterdir()):
-        if child.name.startswith('__') or child.name == 'project.json':
-            continue
-        if child.is_dir():
-            items.append(f'  [+-] {child.name}/')
-        else:
-            items.append(f'  |- {child.name}')
-
-    # 添加 core/ 和 editor/ 等公共目录
-    items.append('')
-    items.append('[+] core/')
-    for child in sorted((PROJECTS_DIR.parent / 'core').iterdir()):
-        if child.name.startswith('__') or child.name.startswith('.'):
-            continue
-        items.append(f'  |- {child.name}')
-    items.append('[+] editor/')
-    for child in sorted((PROJECTS_DIR.parent / 'editor').iterdir()):
-        if child.name.startswith('__') or child.name.startswith('.'):
-            continue
-        items.append(f'  |- {child.name}')
-
-    for i, line in enumerate(items):
-        t = Text(
-            parent=project_panel,
-            text=line,
-            position=(0.65 + 0.02, 0.36 - i * 0.03),
-            scale=0.65,
-            color=THEME['text_dim'] if line.startswith('  ') else THEME['text'],
-            origin=(-0.5, 0),
-        )
-        _dynamic_project_texts.append(t)
+def _bind_editor_events():
+    """绑定编辑器 UI 交互事件"""
+    if main_btn is not None:
+        main_btn.on_click(on_main_btn_click)
+    if editor_canvas is not None:
+        editor_canvas.on('main_btn', 'click', on_main_btn_click)
+    logger.info('[ui] Editor events bound (main_btn)')
 
 
-# --- Center: Launch panel ---
-
-# --- Center: Launch panel ---
-# decorative preview box
-preview_border = Entity(
-    parent=camera.ui,
-    model='quad',
-    scale=(0.36, 0.30, 1),
-    position=(0, 0.08, 0),
-    color=THEME['panel'],
-)
-preview_inner = Entity(
-    parent=camera.ui,
-    model='quad',
-    scale=(0.34, 0.28, 1),
-    position=(0, 0.08, 0.001),
-    color=THEME['bg'],
-)
-# placeholder text (dynamic)
-def _update_center_panel():
-    """更新中央预览面板的信息"""
-    global center_title_text, center_info_text
-
-    if not current_project:
-        if center_title_text:
-            center_title_text.text = 'No project selected'
-            center_info_text.text = 'Select a project from the menu above'
-        return
-
-    proj = current_project
-    if center_title_text:
-        center_title_text.text = proj.name
-        tags_str = '  |  '.join(proj.tags) if proj.tags else ''
-        center_info_text.text = f'v{proj.version}  |  {proj.description}'
-        if tags_str:
-            center_info_text.text += f'  |  {tags_str}'
-
-
-center_title_text = Text(
-    parent=camera.ui,
-    text='Select a Project',
-    position=(0, 0.15),
-    scale=1.8,
-    color=THEME['text_dim'],
-    origin=(0, 0),
-)
-center_info_text = Text(
-    parent=camera.ui,
-    text='Use the Project menu above',
-    position=(0, 0.06),
-    scale=0.8,
-    color=THEME['text_dim'],
-    origin=(0, 0),
-)
-
-# --- Launch button ---
-launch_btn = Button(
-    parent=camera.ui,
-    text='[>] Start',
-    position=(0, -0.12),
-    scale=(0.3, 0.06),
-    color=THEME['accent'],
-    highlight_color=THEME['accent_hover'],
-    origin=(0, 0),
-)
-launch_btn.on_click = on_launch_click
-
-# --- Console hint (左下角) ---
-console_hint = Text(
-    parent=camera.ui,
-    text='` console',
-    position=(-0.92, -0.455),
-    scale=0.55,
-    color=color.hex('#667788'),
-    origin=(-0.5, 0),
-)
-
-# --- Status bar ---
-Entity(
-    parent=camera.ui,
-    model='quad',
-    scale=(2, 0.035, 1),
-    position=(0, -0.482, 0),
-    color=THEME['panel'],
-)
-status_text = Text(
-    parent=camera.ui,
-    text='Status: Ready',
-    position=(-0.92, -0.484),
-    scale=0.8,
-    color=THEME['text_dim'],
-    origin=(-0.5, 0),
-)
-Text(
-    parent=camera.ui,
-    text='Ursina Engine  |  Panda3D',
-    position=(0.92, -0.484),
-    scale=0.7,
-    color=THEME['text_dim'],
-    origin=(0.5, 0),
-)
-
-
-# --- Register console commands ---
+# ════════════════════════════════════════
+#  控制台命令注册
+# ════════════════════════════════════════
 
 def _register_console_commands():
     """Register editor commands with the console"""
@@ -595,8 +310,121 @@ def _register_console_commands():
     console.register('projects', lambda a: _console_list_projects(), 'List available projects')
     console.register('project', lambda a: _console_switch_project(a), 'Switch project: project <name>')
 
+    # ─── 调试命令: 截图 / UI 结构 dump ───
+    console.register('screenshot', lambda a: _cmd_screenshot(a), 'Capture current frame to PNG: screenshot [filename]')
+    console.register('shot', lambda a: _cmd_screenshot(a), 'Alias for screenshot')
+    console.register('ui_dump', lambda a: _cmd_ui_dump(a), 'Dump UI tree structure to logs/ui_dump.txt')
+    console.register('ui', lambda a: _cmd_ui_dump(a), 'Alias for ui_dump')
 
-# --- Editor main loop ---
+    # ─── UI 热重载: 从 JSON 文件重新构建控件树 ───
+    def _cmd_reload_ui(args):
+        global editor_canvas
+        if editor_canvas is None:
+            return 'No editor canvas to reload'
+        try:
+            editor_canvas.reload()
+            return 'UI layout reloaded from JSON'
+        except Exception as e:
+            return f'Reload failed: {e}'
+    console.register('reload_ui', lambda a: _cmd_reload_ui(a), 'Reload UI layout from JSON file')
+
+    # ─── 在所有函数已定义后, 真正绑定 UI 事件 ───
+    _bind_editor_events()
+
+
+def _cmd_screenshot(args):
+    """通过 Panda3D base.screenshot() 捕获当前帧到 PNG"""
+    from pathlib import Path
+    from datetime import datetime
+    name = args[0] if args else f'editor_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+    out = Path('logs') / name
+    out.parent.mkdir(exist_ok=True)
+    logger.info(f'[screenshot] requested file: {out} (Panda3D may add timestamp suffix)')
+    try:
+        import builtins
+        base = builtins.base
+        logger.info(f'[screenshot] base={base}, calling base.screenshot("{out}", defaultFilename=False)')
+        result = base.screenshot(str(out), defaultFilename=False)
+        logger.info(f'[screenshot] result={result}')
+        return f'Screenshot written: {result or out}'
+    except Exception as e:
+        logger.error(f'[screenshot] FAILED: {e!r}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return f'Screenshot failed: {e}'
+
+
+def _cmd_ui_dump(args):
+    """把所有 camera.ui 子控件的位置/尺寸/文字 dump 到 logs/ui_dump.txt"""
+    from pathlib import Path
+    from ursina import camera
+    import builtins
+    render = builtins.base.render
+    out = Path('logs/ui_dump.txt')
+    out.parent.mkdir(exist_ok=True)
+    logger.info(f'[ui_dump] start, camera.ui.children = {len(camera.ui.children)}')
+
+    lines = []
+    lines.append('=' * 70)
+    lines.append('EDITOR UI DUMP')
+    lines.append('=' * 70)
+    lines.append(f'camera.ui children: {len(camera.ui.children)}')
+    lines.append('')
+
+    def dump(e, indent=0):
+        cls = type(e).__name__
+        try:
+            pos = f'({e.x:+.3f}, {e.y:+.3f})'
+        except Exception:
+            pos = '(?)'
+        try:
+            scl = f'({e.scale_x:.3f}, {e.scale_y:.3f})'
+        except Exception:
+            scl = '(?)'
+        # world position (Panda3D 渲染用的真实位置)
+        try:
+            wp = e.get_pos(render)
+            wp_str = f'wp=({wp.x:+.3f},{wp.y:+.3f})'
+        except Exception:
+            wp_str = 'wp=(?)'
+        # 文字
+        txt = ''
+        if hasattr(e, '_text_entity') and hasattr(e._text_entity, 'text'):
+            txt = repr(e._text_entity.text)[:30]
+        elif hasattr(e, 'text'):
+            txt = repr(e.text)[:30]
+        if hasattr(e, '_title'):
+            txt = f'[title={e._title!r}]'
+        attr = ''
+        if hasattr(e, '_anchor'):
+            attr = f' a=({e._anchor.x:+.2f},{e._anchor.y:+.2f}) off=({e._offset.x:+.3f},{e._offset.y:+.3f}) sz=({e._size.x:.3f},{e._size.y:.3f})'
+        prefix = '  ' * indent
+        vis = 'ON' if getattr(e, 'enabled', True) else 'OFF'
+        # parent 名字
+        try:
+            pname = type(e.parent).__name__ if e.parent else 'None'
+        except Exception:
+            pname = '?'
+        lines.append(f'{prefix}- [{vis}] {cls} pos={pos} {wp_str} scl={scl} parent={pname} text={txt}{attr}')
+        for ch in e.children:
+            if ch is e:
+                continue
+            dump(ch, indent + 1)
+
+    for c in camera.ui.children:
+        dump(c, 0)
+
+    out.write_text('\n'.join(lines), encoding='utf-8')
+    logger.info(f'[ui_dump] wrote {len(lines)} lines to {out}')
+    # 同时在控制台输出前 60 行方便实时查看
+    for ln in lines[:60]:
+        logger.info(f'[ui_dump] {ln}')
+    return f'UI dump written: {out} ({len(lines)} lines). See logs/ui_dump.txt and editor console.'
+
+
+# ════════════════════════════════════════
+#  控制台辅助命令
+# ════════════════════════════════════════
 
 def _console_list_projects():
     """控制台命令: 列出所有工程"""
@@ -621,9 +449,13 @@ def _console_switch_project(args):
     return f"Project '{target}' not found. Try: projects"
 
 
+# ════════════════════════════════════════
+#  主循环与输入
+# ════════════════════════════════════════
+
 def update():
-    """Check game process status + MCP + console every frame"""
-    global console
+    """每帧检测：画布动画 + 游戏进程 + MCP + 控制台"""
+    canvas_manager.update()
     check_game()
     check_mcp()
     if console:
@@ -631,56 +463,39 @@ def update():
         console.update(time.dt)
 
 
-# --- Console input handler ---
-
 def input(key):
-    """Handle keyboard input, routing to console first"""
+    """处理键盘输入，优先路由到控制台"""
     global console
-    # Backtick always toggles console
     if key == '`':
         if console:
             console.toggle()
         return
 
-    # If console is open, route all keys to it
     if console and console.enabled:
         console.handle_key(key)
         return
 
-    # Normal editor input handling goes here (if any)
 
-    # Close dropdown when clicking elsewhere
-    if key == 'left mouse down' and _dropdown_open:
-        _close_dropdown()
-
-
-# --- Launch Editor ---
+# ════════════════════════════════════════
+#  启动编辑器
+# ════════════════════════════════════════
 
 if __name__ == '__main__':
-    # Discover projects
     _all_projects[:] = discover_projects()
     logger.info("Discovered {} project(s)", len(_all_projects))
 
-    # Create console after app is ready
     console = Console()
     _register_console_commands()
 
-    # Auto-select first project (after console is ready for status callback)
     if _all_projects:
         _select_project(_all_projects[0])
 
-    # Start built-in MCP server (will stop when editor closes)
     logger.info("Starting built-in Editor MCP server...")
     _start_editor_mcp()
     atexit.register(_stop_editor_mcp)
 
-    # Update menu text
-    if menu_project_text and current_project:
-        menu_project_text.text = f'Project: {current_project.name}  ▼'
-
     logger.info("=" * 50)
-    logger.info("  DemoStudio Editor")
+    logger.info("  DemoStudio Editor (minimal)")
     logger.info("  Press ` to open console")
-    logger.info("  Use Project menu to switch projects")
     logger.info("=" * 50)
     app.run()

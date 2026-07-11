@@ -1,0 +1,126 @@
+{
+    "$schema": "1.0",
+    "metadata": {
+        "name": "Inspector Panel",
+        "description": "属性检查器面板",
+        "version": "1.0.0"
+    },
+    "variables": {
+        "surface_color": "$surface",
+        "text_color": "$text"
+    },
+    "ui": {
+        "type": "UIWindow",
+        "id": "inspector_win",
+        "title": "检查器",
+        "anchor": "MIDDLE_RIGHT",
+        "offset": [-0.25, 0],
+        "size": [0.22, 0.6],
+        "closable": true,
+        "draggable": true,
+        "children": [
+            {
+                "type": "UIText",
+                "id": "inspector_title",
+                "text": "选中对象: 未选择",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.06],
+                "font_size": 0.55,
+                "color": "$text_dim"
+            },
+            {
+                "type": "UISeparator",
+                "id": "inspector_sep",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.09],
+                "size": [0.18, 0.002]
+            },
+            {
+                "type": "UIScrollView",
+                "id": "inspector_scroll",
+                "anchor": "CENTER",
+                "offset": [0, -0.03],
+                "size": [0.2, 0.42],
+                "scroll_speed": 0.002,
+                "children": [
+                    {
+                        "type": "UIText",
+                        "id": "prop_name_label",
+                        "text": "名称",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.02],
+                        "font_size": 0.5,
+                        "color": "$text_color"
+                    },
+                    {
+                        "type": "UIInputField",
+                        "id": "prop_name_input",
+                        "placeholder": "对象名称",
+                        "default_text": "NewObject",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.06],
+                        "size": [0.16, 0.03]
+                    },
+                    {
+                        "type": "UIText",
+                        "id": "prop_pos_label",
+                        "text": "位置",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.11],
+                        "font_size": 0.5,
+                        "color": "$text_color"
+                    },
+                    {
+                        "type": "UIInputField",
+                        "id": "prop_pos_x",
+                        "placeholder": "X",
+                        "default_text": "0.0",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.15],
+                        "size": [0.045, 0.03]
+                    },
+                    {
+                        "type": "UIInputField",
+                        "id": "prop_pos_y",
+                        "placeholder": "Y",
+                        "default_text": "0.0",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.02, -0.15],
+                        "size": [0.045, 0.03]
+                    },
+                    {
+                        "type": "UIInputField",
+                        "id": "prop_pos_z",
+                        "placeholder": "Z",
+                        "default_text": "0.0",
+                        "anchor": "TOP_LEFT",
+                        "offset": [0.04, -0.15],
+                        "size": [0.045, 0.03]
+                    },
+                    {
+                        "type": "UIText",
+                        "id": "prop_visible_label",
+                        "text": "可见性",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.20],
+                        "font_size": 0.5,
+                        "color": "$text_color"
+                    },
+                    {
+                        "type": "UIToggle",
+                        "id": "prop_visible_toggle",
+                        "text": "可见",
+                        "default_value": true,
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.08, -0.24],
+                        "size": [0.14, 0.035]
+                    }
+                ]
+            }
+        ]
+    },
+    "bindings": {
+        "prop_name_input": { "on_submit": "on_name_changed" },
+        "prop_visible_toggle": { "on_value_changed": "on_visible_changed" }
+    }
+}

@@ -1,0 +1,121 @@
+{
+    "$schema": "1.0",
+    "metadata": {
+        "name": "Settings Panel",
+        "description": "设置面板布局",
+        "version": "1.0.0"
+    },
+    "variables": {
+        "panel_w": 0.35,
+        "panel_h": 0.45,
+        "label_color": "$text"
+    },
+    "ui": {
+        "type": "UIPanel",
+        "id": "settings_panel",
+        "title": "设置",
+        "anchor": "CENTER",
+        "size": [0.35, 0.45],
+        "children": [
+            {
+                "type": "UIGroupBox",
+                "id": "audio_group",
+                "title": "音频",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.05],
+                "size": [0.3, 0.12],
+                "children": [
+                    {
+                        "type": "UIText",
+                        "id": "vol_label",
+                        "text": "音量",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.12, -0.03],
+                        "font_size": 0.55,
+                        "color": "$label_color"
+                    },
+                    {
+                        "type": "UISlider",
+                        "id": "volume_slider",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.12, -0.07],
+                        "size": [0.22, 0.025],
+                        "min_value": 0,
+                        "max_value": 100,
+                        "default_value": 80,
+                        "step": 1,
+                        "show_label": true
+                    },
+                    {
+                        "type": "UICheckbox",
+                        "id": "mute_checkbox",
+                        "text": "静音",
+                        "anchor": "TOP_LEFT",
+                        "offset": [0.15, -0.03],
+                        "default_value": false
+                    }
+                ]
+            },
+            {
+                "type": "UIGroupBox",
+                "id": "display_group",
+                "title": "显示",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.20],
+                "size": [0.3, 0.12],
+                "children": [
+                    {
+                        "type": "UIText",
+                        "id": "theme_label",
+                        "text": "主题",
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.12, -0.03],
+                        "font_size": 0.55,
+                        "color": "$label_color"
+                    },
+                    {
+                        "type": "UIDropdown",
+                        "id": "theme_dropdown",
+                        "items": ["暗色主题", "亮色主题", "HUD 半透明"],
+                        "default_index": 0,
+                        "anchor": "TOP_LEFT",
+                        "offset": [-0.12, -0.07],
+                        "size": [0.22, 0.035]
+                    }
+                ]
+            },
+            {
+                "type": "UIHorizontalLayout",
+                "id": "btn_bar",
+                "anchor": "BOTTOM_CENTER",
+                "offset": [0, 0.04],
+                "size": [0.28, 0.045],
+                "spacing": 0.015,
+                "padding": 0.005,
+                "children": [
+                    {
+                        "type": "UIButton",
+                        "id": "save_btn",
+                        "text": "保存",
+                        "color": "#4a9f6a",
+                        "highlight_color": "#5abf7a"
+                    },
+                    {
+                        "type": "UIButton",
+                        "id": "cancel_btn",
+                        "text": "取消",
+                        "color": "#5a5a6a",
+                        "highlight_color": "#7a7a8a"
+                    }
+                ]
+            }
+        ]
+    },
+    "bindings": {
+        "save_btn": { "on_click": "save_settings" },
+        "cancel_btn": { "on_click": "cancel_settings" },
+        "volume_slider": { "on_value_changed": "on_volume_changed" },
+        "mute_checkbox": { "on_value_changed": "on_mute_changed" },
+        "theme_dropdown": { "on_selected": "on_theme_selected" }
+    }
+}

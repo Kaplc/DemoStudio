@@ -1,0 +1,112 @@
+{
+    "$schema": "1.0",
+    "metadata": {
+        "name": "Main Menu",
+        "description": "DemoStudio 主菜单布局",
+        "version": "1.0.0",
+        "author": "DemoStudio"
+    },
+    "variables": {
+        "primary_color": "#4a6fa5",
+        "hover_color": "#5a8fd5",
+        "accent_color": "$accent",
+        "bg_color": "$background",
+        "title_color": "$accent",
+        "btn_width": 0.25,
+        "btn_height": 0.05,
+        "spacing_val": 0.012
+    },
+    "ui": {
+        "type": "UIWindow",
+        "id": "main_win",
+        "title": "DemoStudio",
+        "anchor": "CENTER",
+        "size": [0.4, 0.5],
+        "color": "$bg_color",
+        "closable": false,
+        "draggable": true,
+        "children": [
+            {
+                "type": "UIText",
+                "id": "title_text",
+                "text": "🎮 DemoStudio",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.08],
+                "font_size": 1.4,
+                "color": "$title_color"
+            },
+            {
+                "type": "UIText",
+                "id": "subtitle_text",
+                "text": "基于 Ursina Engine 的创意工坊",
+                "anchor": "TOP_CENTER",
+                "offset": [0, -0.14],
+                "font_size": 0.6,
+                "color": "$text_dim"
+            },
+            {
+                "type": "UISeparator",
+                "id": "sep1",
+                "anchor": "CENTER",
+                "offset": [0, 0.08],
+                "size": [0.3, 0.003]
+            },
+            {
+                "type": "UIVerticalLayout",
+                "id": "btn_layout",
+                "anchor": "CENTER",
+                "offset": [0, -0.04],
+                "size": [0.3, 0.22],
+                "spacing": 0.012,
+                "padding": 0.005,
+                "children": [
+                    {
+                        "type": "UIButton",
+                        "id": "start_btn",
+                        "text": "▶ 启动游戏",
+                        "color": "#4a9f6a",
+                        "highlight_color": "#5abf7a",
+                        "pressed_color": "#3a8f5a"
+                    },
+                    {
+                        "type": "UIButton",
+                        "id": "settings_btn",
+                        "text": "⚙ 设置",
+                        "color": "$primary_color",
+                        "highlight_color": "$hover_color"
+                    },
+                    {
+                        "type": "UIButton",
+                        "id": "editor_btn",
+                        "text": "✎ 编辑器",
+                        "color": "$primary_color",
+                        "highlight_color": "$hover_color"
+                    },
+                    {
+                        "type": "UIButton",
+                        "id": "quit_btn",
+                        "text": "✕ 退出",
+                        "color": "#e94560",
+                        "highlight_color": "#ff6b81",
+                        "pressed_color": "#c93550"
+                    }
+                ]
+            },
+            {
+                "type": "UIText",
+                "id": "version_text",
+                "text": "v1.0.0",
+                "anchor": "BOTTOM_CENTER",
+                "offset": [0, 0.03],
+                "font_size": 0.45,
+                "color": "$text_dim"
+            }
+        ]
+    },
+    "bindings": {
+        "start_btn": { "on_click": "start_game" },
+        "settings_btn": { "on_click": "open_settings" },
+        "editor_btn": { "on_click": "open_editor" },
+        "quit_btn": { "on_click": "quit_app" }
+    }
+}

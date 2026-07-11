@@ -33,13 +33,49 @@ from typing import Optional, Callable
 
 
 # ──────────────────────────────────────────────
+# 反缩放补偿 — 子 Text 避免继承父级非均匀缩放
+# ──────────────────────────────────────────────
+
+def compensated_text_scale(font_size, entity):
+    """计算子 Text 的局部 scale，补偿实体及其所有祖先的非均匀缩放
+
+    递归遍历整个祖先链，累积所有父级 scale 的乘积作为世界空间缩放，
+    然后反缩放，使 Text 在世界空间始终渲染为 font_size 大小。
+
+    Parameters
+    ----------
+    font_size : float
+        目标世界空间字号
+    entity : Entity
+        子 Text 将要挂载的父级实体
+
+    Returns
+    -------
+    tuple[float, float, float]
+        补偿后的 (scale_x, scale_y, scale_z)
+    """
+    world_sx = 1.0
+    world_sy = 1.0
+    p = entity
+    while p is not None:
+        if hasattr(p, 'scale_x'):
+            world_sx *= max(abs(p.scale_x), 0.001)
+            world_sy *= max(abs(p.scale_y), 0.001)
+        p = getattr(p, 'parent', None)
+    inv_x = 1.0 / world_sx
+    inv_y = 1.0 / world_sy
+    return (font_size * inv_x, font_size * inv_y, font_size)
+
+
+# ──────────────────────────────────────────────
 # 锚点预设 (九宫格定位)
 # ──────────────────────────────────────────────
 
 class Anchor:
-    """锚点常量 — 对应父级归一化坐标的 9 个定位点
+    """锚点常量
     
-    每个值是 (x, y) 元组，表示在父级空间中的锚定位置。
+    9 个标准定位点对应父级归一化坐标的九宫格位置。
+    FULL 为全锚定（stretch），控件自动填满父级四边。
     """
     TOP_LEFT      = (-0.5,  0.5)
     TOP_CENTER    = ( 0.0,  0.5)
@@ -50,6 +86,7 @@ class Anchor:
     BOTTOM_LEFT   = (-0.5, -0.5)
     BOTTOM_CENTER = ( 0.0, -0.5)
     BOTTOM_RIGHT  = ( 0.5, -0.5)
+    FULL          = 'FULL'    # 全锚定 (stretch)，填满父级
 
 
 # ──────────────────────────────────────────────
@@ -97,9 +134,21 @@ class UIWidget(Entity):
             from ursina import camera
             parent = camera.ui
 
+        # 是否全锚定 (stretch)
+        is_full = (anchor is Anchor.FULL or anchor == 'FULL')
+        if is_full:
+            from ursina import window
+            anchor = Anchor.CENTER  # 位置 (0,0)
+            # FULL = 填满父级可视区域（宽屏水平伸展，窄屏垂直填满）
+            # 宽屏: aspect>=1 → scale=(aspect, 1) 填满水平两侧
+            # 窄屏: aspect<1  → scale=(aspect, 1) 填满水平（垂直自动填满）
+            # 非 FULL 子控件自动补偿父级缩放，世界空间尺寸不变
+            size = (window.aspect_ratio, 1)
+
         self._anchor = Vec2(*anchor)
         self._offset = Vec2(*offset)
         self._size = Vec2(*size)
+        self._is_full = is_full
         self._stretch_left = None
         self._stretch_right = None
         self._stretch_top = None
@@ -110,21 +159,42 @@ class UIWidget(Entity):
         if pivot is None:
             pivot = anchor
 
-        # 计算实际位置: 锚点 + 偏移
-        pos = (self._anchor.x + self._offset.x,
-               self._anchor.y + self._offset.y)
+        # 如果传入了自定义 position，优先使用
+        custom_pos = kwargs.pop('position', None)
+        custom_z = kwargs.pop('z', None)
+        if custom_pos is not None:
+            pos = (custom_pos[0], custom_pos[1])
+        else:
+            # 计算实际位置: 锚点 + 偏移
+            # 补偿父级的 origin (视觉轴心偏移)，使 anchor 相对于父级的可视范围
+            pox = -parent.origin_x if hasattr(parent, 'origin_x') else 0
+            poy = -parent.origin_y if hasattr(parent, 'origin_y') else 0
+            pos = (self._anchor.x + self._offset.x + pox,
+                   self._anchor.y + self._offset.y + poy)
+
+        # 显式渲染层级: 正值越大越靠前 (内部取反为 Panda3D 负 z = 靠近摄像机)
+        z_val = -(custom_z if custom_z is not None else 0)
 
         # 提取其他 Entity 参数，避免 scale 被覆盖
         scale = kwargs.pop('scale', None)
+        kwargs.pop('stretch', None)  # stretch 由 FULL 内部处理，不传给 Entity
 
         super().__init__(
             parent=parent,
             model=model,
             origin=pivot,
-            position=(pos[0], pos[1], 0),
+            position=(pos[0], pos[1], z_val),
             scale=(size[0], size[1], 1) if scale is None else scale,
             **kwargs,
         )
+
+        # 非 FULL 锚点：对齐的是父级的一个点，不是填满面
+        # 因此补偿父级缩放，使子控件的世界空间大小不受父级非均匀缩放影响
+        if not is_full and parent is not None and hasattr(parent, 'scale_x'):
+            psx = max(abs(parent.scale_x), 0.001)
+            psy = max(abs(parent.scale_y), 0.001)
+            self.scale_x = self.scale_x / psx
+            self.scale_y = self.scale_y / psy
 
         self._click_handler: Optional[Callable] = None
         self._hover_handler: Optional[Callable] = None
@@ -164,12 +234,18 @@ class UIWidget(Entity):
     @ui_size.setter
     def ui_size(self, value: tuple):
         self._size = Vec2(*value)
-        self.scale = (value[0], value[1], self.scale_z or 1)
+        # 补偿父级缩放，使 size 保持世界空间语义 (非 FULL 锚点对齐的是点)
+        psx = max(abs(self.parent.scale_x), 0.001) if self.parent and hasattr(self.parent, 'scale_x') else 1
+        psy = max(abs(self.parent.scale_y), 0.001) if self.parent and hasattr(self.parent, 'scale_y') else 1
+        self.scale = (value[0] / psx, value[1] / psy, self.scale_z or 1)
 
     def _update_position(self):
-        """根据 anchor + offset 更新位置"""
-        self.x = self._anchor.x + self._offset.x
-        self.y = self._anchor.y + self._offset.y
+        """根据 anchor + offset 更新位置（补偿父级 origin）"""
+        parent = self.parent
+        pox = -parent.origin_x if parent and hasattr(parent, 'origin_x') else 0
+        poy = -parent.origin_y if parent and hasattr(parent, 'origin_y') else 0
+        self.x = self._anchor.x + self._offset.x + pox
+        self.y = self._anchor.y + self._offset.y + poy
 
     # ─── 填充拉伸 (类似 Unity 的 stretch) ───
 
@@ -196,18 +272,58 @@ class UIWidget(Entity):
 
     def _apply_stretch(self):
         """根据拉伸约束计算位置和大小"""
-        # 简化实现：水平填充
         if self._stretch_left is not None and self._stretch_right is not None:
             cx = (self._stretch_left + self._stretch_right) / 2
             w = abs(self._stretch_right - self._stretch_left)
             self.x = cx
             self.scale_x = w
-        # 垂直填充
         if self._stretch_bottom is not None and self._stretch_top is not None:
             cy = (self._stretch_bottom + self._stretch_top) / 2
             h = abs(self._stretch_top - self._stretch_bottom)
             self.y = cy
             self.scale_y = h
+
+    # ─── 窗口重绘 (响应 resize) ───
+
+    def refresh(self):
+        """窗口 resize 后重新计算布局
+
+        自顶向下递归遍历控件树：
+        - FULL 控件：根据当前 window.aspect_ratio 重新计算尺寸
+        - 非 FULL 控件：重新补偿父级缩放 + 更新锚点位置
+        - 所有控件：重新应用 stretch（若已设置）
+        """
+        from ursina import window
+
+        if self._is_full:
+            # FULL: 重新计算尺寸匹配当前窗口
+            aspect = window.aspect_ratio
+            self._size = Vec2(aspect, 1)
+            self.scale = (aspect, 1, self.scale_z or 1)
+            self.x = 0
+            self.y = 0
+        else:
+            # 非 FULL: 重新补偿父级缩放
+            parent = self.parent
+            if parent is not None and hasattr(parent, 'scale_x'):
+                psx = max(abs(parent.scale_x), 0.001)
+                psy = max(abs(parent.scale_y), 0.001)
+                self.scale_x = self._size.x / psx
+                self.scale_y = self._size.y / psy
+            # 更新锚点位置
+            self._update_position()
+
+        # 重新应用 stretch（若有）
+        if any(x is not None for x in [
+            self._stretch_left, self._stretch_right,
+            self._stretch_top, self._stretch_bottom,
+        ]):
+            self._apply_stretch()
+
+        # 递归刷新子控件（父级先更新，子级再补偿父级的新缩放）
+        for child in self.children:
+            if isinstance(child, UIWidget):
+                child.refresh()
 
     # ─── 显示/隐藏 ───
 
@@ -216,14 +332,9 @@ class UIWidget(Entity):
         self.enabled = True
         return self
 
-    def hide(self):
-        """隐藏控件"""
-        self.enabled = False
-        return self
-
     def toggle_visible(self):
         """切换可见性"""
-        self.enabled = not self.enabled
+        self.visible = not self.visible
         return self
 
     # ─── 启用/禁用 ───
@@ -312,14 +423,45 @@ class UIWidget(Entity):
         self.ui_size = (w, h)
         return self
 
+    # ─── 子控件查找 (声明式 JSON 支持) ───
+
+    def _find_child(self, child_id: str):
+        """按 _widget_id 查找已构建的子控件 (由 _on_children_built 使用)
+
+        Parameters
+        ----------
+        child_id : str
+            子控件的 id (JSON 中 "id" 字段)
+
+        Returns
+        -------
+        Entity 或 None
+        """
+        for child in self.children:
+            if getattr(child, '_widget_id', None) == child_id:
+                return child
+        return None
+
+    def _find_children_by_type(self, widget_type: str):
+        """按类型查找已构建的子控件"""
+        return [c for c in self.children if type(c).__name__ == widget_type]
+
+    def _on_children_built(self):
+        """子控件构建完成后回调 (由 UILayoutLoader 在构建完所有子控件后调用)
+
+        声明式控件的子类应重写此方法，从 self.children 中按 id 获取
+        JSON 中声明的子控件并建立引用。
+        """
+        pass
+
     # ─── 销毁 ───
 
     def destroy(self):
         """销毁控件及其子控件"""
+        from ursina import destroy as _destroy
         for child in self.children:
-            if hasattr(child, 'destroy'):
-                child.destroy()
-        super().destroy()
+            _destroy(child)
+        _destroy(self)
 
     def __repr__(self):
         return f'<{self.__class__.__name__} anchor={self._anchor} size={self._size}>'

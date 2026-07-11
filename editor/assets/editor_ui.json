@@ -1,0 +1,109 @@
+{
+  "$schema": "1.0",
+  "metadata": {
+    "name": "DemoStudio Editor",
+    "description": "DemoStudio 编辑器主界面 (精简版)",
+    "version": "4.0.0",
+    "author": "DemoStudio"
+  },
+  "ui": {
+    "type": "UIPanel",
+    "id": "editor_root",
+    "anchor": "FULL",
+    "size": [
+      0.5,
+      0.5
+    ],
+    "color": "#1a1a2e",
+    "alpha": 1.0,
+    "z": 0.0,
+    "children": [
+      {
+        "type": "UIButton",
+        "id": "main_btn",
+        "anchor": "CENTER",
+        "offset": [
+          0,
+          0
+        ],
+        "size": [
+          0.2,
+          0.06
+        ],
+        "color": "#e94560",
+        "z": 0.001,
+        "children": [
+          {
+            "type": "UIText",
+            "id": "main_btn_text",
+            "text": "Hello DemoStudio",
+            "anchor": "CENTER",
+            "offset": [
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "font_size": 21,
+            "color": "#e0e0e0",
+            "z": 0.002
+          },
+          {
+            "type": "UIPanel",
+            "id": "sub_plane",
+            "anchor": "TOP_RIGHT",
+            "offset": [
+              0,
+              0
+            ],
+            "size": [
+              0.5,
+              0.5
+            ],
+            "color": "#4CAF50",
+            "z": 0.003,
+            "children": [
+              {
+                "type": "UIText",
+                "id": "sub_text",
+                "text": "Sub",
+                "anchor": "BOTTOM_RIGHT",
+                "size": [
+                  1,
+                  1
+                ],
+                "offset": [
+                  0,
+                  0
+                ],
+                "font_size": 10,
+                "color": "#ffffff",
+                "z": 0.004
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "UIButton",
+        "id": "top_right_btn",
+        "text": "x",
+        "anchor": "TOP_RIGHT",
+        "offset": [
+          0,
+          0
+        ],
+        "size": [
+          0.05,
+          0.05
+        ],
+        "color": "#ff6b6b",
+        "z": 0.01
+      }
+    ]
+  },
+  "bindings": {},
+  "variables": {}
+}

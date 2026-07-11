@@ -1,16 +1,28 @@
 {
-    "snake-game": {
-        "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
-        "args": [
-            "projects\\snake\\snake_mcp_server.py"
-        ],
-        "cwd": "E:\\DemoStudio"
-    },
-    "editor-control": {
-        "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
-        "args": [
-            "editor\\editor_mcp_server.py"
-        ],
-        "cwd": "E:\\DemoStudio"
+    "servers": {
+        "snake-game": {
+            "type": "stdio",
+            "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
+            "args": [
+                "projects\\snake\\snake_mcp_server.py"
+            ],
+            "cwd": "E:\\DemoStudio"
+        },
+        "editor-control": {
+            "type": "stdio",
+            "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
+            "args": [
+                "editor\\editor_mcp_server.py"
+            ],
+            "cwd": "E:\\DemoStudio"
+        },
+        "widget-editor": {
+            "type": "stdio",
+            "command": "E:\\DemoStudio\\.venv\\Scripts\\python.exe",
+            "args": [
+                "editor\\widget_mcp_server.py"
+            ],
+            "cwd": "E:\\DemoStudio"
+        }
     }
 }
