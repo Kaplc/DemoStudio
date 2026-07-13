@@ -35,11 +35,18 @@ class UIText(UIWidget):
         **kwargs,
     ):
         self._custom_font_size = font_size
+        self._resolved_font_size = font_size if font_size else ui_theme.font_size
         self._text_entity = None
 
-        # 文字颜色 + 字号
-        text_color_val = color if color else ui_theme.text
-        fs = font_size if font_size else ui_theme.font_size
+        # 文字颜色 + 字号（支持字符串颜色如 '#ffffff'）
+        if isinstance(color, str):
+            try:
+                text_color_val = _ucolor.hex(color)
+            except Exception:
+                text_color_val = ui_theme.text
+        else:
+            text_color_val = color if color else ui_theme.text
+        fs = self._resolved_font_size
 
         # 统一使用 UIWidget 定位: anchor + offset 计算位置
         # 容器透明，仅提供定位锚点，不贡献视觉
@@ -62,6 +69,13 @@ class UIText(UIWidget):
         )
         self._text = text
         self._color = text_color_val
+
+    def refresh(self):
+        """窗口 resize 后刷新布局 + 重新补偿祖先链路缩放"""
+        super().refresh()
+        if self._text_entity:
+            self._text_entity.scale = compensated_text_scale(
+                self._resolved_font_size, self)
 
     @property
     def text(self) -> str:

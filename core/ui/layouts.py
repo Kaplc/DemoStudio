@@ -9,8 +9,11 @@
 
 from ursina import color
 from core.ui.widget import UIWidget, Anchor
+from core.logger import get_logger
 
 from typing import List
+
+logger = get_logger('ui.layout')
 
 
 # ═══════════════════════════════════════════════
@@ -37,30 +40,77 @@ class UIHorizontalLayout(UIWidget):
         size: tuple = (0.4, 0.06),
         **kwargs,
     ):
+        # 从 kwargs 提取 color，若未提供则默认透明
+        _color = kwargs.pop('color', color.clear)
         super().__init__(
             parent=parent, anchor=anchor, offset=offset,
-            size=size, color=color.clear, **kwargs,
+            size=size, color=_color, **kwargs,
         )
         self._spacing = spacing
         self._padding = padding
         self._layout_children: List[UIWidget] = []
 
     def rebuild(self):
+        # 从 JSON 构建的子控件是 Entity children，补充到 _layout_children
+        if not self._layout_children:
+            for c in self.children:
+                if isinstance(c, UIWidget):
+                    self._layout_children.append(c)
+            logger.info('UIHorizontalLayout.rebuild: 从 self.children 收集了 {} 个控件', len(self._layout_children))
         if not self._layout_children:
             return
         n = len(self._layout_children)
         total_spacing = self._spacing * (n - 1)
         total_padding = self._padding * 2
         avail_w = self._size.x - total_padding - total_spacing
-        child_w = avail_w / n if n > 0 else 0
+        child_w = max(avail_w / n, 0.001) if n > 0 else 0
         child_h = self._size.y - self._padding * 2
 
-        start_x = -self._size.x / 2 + self._padding + child_w / 2
+        # 补偿容器自身的非均匀缩放（UIWidget 的父级缩放补偿）
+        psx = max(abs(self.scale_x), 0.001)
+        psy = max(abs(self.scale_y), 0.001)
+
+        start_x = self._padding + child_w / 2  # 从左边缘开始排列
         for i, child in enumerate(self._layout_children):
-            child.x = start_x + i * (child_w + self._spacing)
+            child.x = (start_x + i * (child_w + self._spacing)) / psx
             child.y = 0
-            child.scale_x = child_w * 0.9
-            child.scale_y = child_h * 0.9
+            child.scale_x = (child_w * 0.9) / psx
+            child.scale_y = (child_h * 0.9) / psy
+            # 若子控件有文字实体，同步更新其缩放补偿
+            self._refresh_child_text(child)
+            # 缩放改变后，重置 collider 以匹配新大小（若有）
+            if hasattr(child, 'collider') and child.collider:
+                child.collider = 'box'
+        logger.info('UIHorizontalLayout.rebuild: 排列了 {} 个子控件 (spacing={}, child_w={:.4f}, start_x={:.4f}, psx={:.4f})', n, self._spacing, child_w, start_x, psx)
+        for i, child in enumerate(self._layout_children):
+            logger.info('  [{}] {}: x={:.4f} y={:.4f} sx={:.4f} sy={:.4f}',
+                i, getattr(child, '_widget_id', type(child).__name__),
+                child.x, child.y, child.scale_x, child.scale_y)
+
+    @staticmethod
+    def _refresh_child_text(child):
+        """若子控件有文字实体，同步更新其缩放补偿
+
+        支持两种情况:
+        - child 自身就是 UIText (有 _text_entity)
+        - child 内部有 UIText 子控件 (如 UIButton → UIText → _text_entity)
+        """
+        # 情况 1: child 自身就是 UIText
+        text_entity = getattr(child, '_text_entity', None)
+        if text_entity is not None:
+            fs = getattr(child, '_resolved_font_size', None)
+            if fs:
+                from core.ui.widget import compensated_text_scale
+                text_entity.scale = compensated_text_scale(fs, child)
+            return
+        # 情况 2: 遍历子控件查找 UIText
+        for c in child.children:
+            te = getattr(c, '_text_entity', None)
+            if te is not None:
+                fs = getattr(c, '_resolved_font_size', None)
+                if fs:
+                    from core.ui.widget import compensated_text_scale
+                    te.scale = compensated_text_scale(fs, c)
 
     def add(self, widget: UIWidget):
         widget.parent = self
@@ -78,6 +128,11 @@ class UIHorizontalLayout(UIWidget):
         self._layout_children.clear()
 
     def on_enable(self):
+        self.rebuild()
+
+    def refresh(self):
+        """窗口 resize 后：刷新自身布局 + 重新排列子控件"""
+        super().refresh()
         self.rebuild()
 
     def destroy(self):
@@ -110,9 +165,11 @@ class UIVerticalLayout(UIWidget):
         size: tuple = (0.2, 0.25),
         **kwargs,
     ):
+        # 从 kwargs 提取 color，若未提供则默认透明
+        _color = kwargs.pop('color', color.clear)
         super().__init__(
             parent=parent, anchor=anchor, offset=offset,
-            size=size, color=color.clear, **kwargs,
+            size=size, color=_color, **kwargs,
         )
         self._spacing = spacing
         self._padding = padding
@@ -134,6 +191,8 @@ class UIVerticalLayout(UIWidget):
             child.x = 0
             child.scale_y = child_h * 0.9
             child.scale_x = child_w
+            # 若子控件有文字实体，同步更新其缩放补偿
+            UIHorizontalLayout._refresh_child_text(child)
 
     def add(self, widget: UIWidget):
         widget.parent = self
@@ -151,6 +210,11 @@ class UIVerticalLayout(UIWidget):
         self._layout_children.clear()
 
     def on_enable(self):
+        self.rebuild()
+
+    def refresh(self):
+        """窗口 resize 后：刷新自身布局 + 重新排列子控件"""
+        super().refresh()
         self.rebuild()
 
     def destroy(self):

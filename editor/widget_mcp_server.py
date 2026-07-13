@@ -16,6 +16,7 @@ Register in VS Code .vscode/mcp.json:
 """
 import sys
 import os
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -168,6 +169,9 @@ def add_child(
     color: Optional[str] = None,
     font_size: Optional[float] = None,
     z: Optional[float] = None,
+    highlight_color: Optional[str] = None,
+    pressed_color: Optional[str] = None,
+    text_color: Optional[str] = None,
 ) -> dict:
     """添加子控件到指定父级
 
@@ -175,17 +179,18 @@ def add_child(
         parent_id: 父控件 id
         widget_id: 新控件 id
         widget_type: 控件类型 (UIWidget, UIButton, UIText, UIPanel 等)
-        text: 文字内容
+        text: 文字内容（UIButton 会自动创建 UIText 子控件显示文字）
         anchor: 锚点 (如 CENTER, TOP_LEFT)
         offset_x, offset_y: 偏移量
         width, height: 尺寸
         color: 颜色 #hex
         font_size: 字号
         z: 渲染层级
+        highlight_color: 悬停颜色 (仅 UIButton)
+        pressed_color: 按下颜色 (仅 UIButton)
+        text_color: 文字颜色 (仅 UIButton)
     """
     props = {}
-    if text is not None:
-        props['text'] = text
     if anchor is not None:
         props['anchor'] = anchor
     if offset_x is not None and offset_y is not None:
@@ -194,10 +199,30 @@ def add_child(
         props['size'] = [width, height]
     if color is not None:
         props['color'] = color
-    if font_size is not None:
-        props['font_size'] = font_size
     if z is not None:
         props['z'] = z
+    if highlight_color is not None:
+        props['highlight_color'] = highlight_color
+    if pressed_color is not None:
+        props['pressed_color'] = pressed_color
+
+    # UIButton 的文字通过 UIText 子控件实现（UIButton 自身不渲染 text）
+    has_text = text is not None or font_size is not None or text_color is not None
+    if widget_type == 'UIButton' and has_text:
+        text_child = {
+            'type': 'UIText',
+            'id': f'{widget_id}_text',
+            'anchor': 'CENTER',
+            'size': [1, 1],
+            'z': 0.001,
+        }
+        if text is not None:
+            text_child['text'] = text
+        if font_size is not None:
+            text_child['font_size'] = font_size
+        if text_color is not None:
+            text_child['color'] = text_color
+        props['children'] = [text_child]
 
     patcher = _patcher()
     try:
@@ -242,6 +267,78 @@ def get_widget_info(widget_id: str) -> dict:
     if node is None:
         return {"status": "error", "message": f"Widget '{widget_id}' not found"}
     return {"status": "ok", "widget": node}
+
+
+@mcp.tool(name="get_widget", description="通过 id 获取控件对象及其所有属性")
+def get_widget(widget_id: str) -> dict:
+    """通过 id 获取控件对象，返回结构化属性
+
+    Args:
+        widget_id: 控件的 id
+
+    Returns:
+        包含控件类型、位置、尺寸、颜色、文字等全部属性的字典
+    """
+    patcher = _patcher()
+    node = patcher.find_widget(widget_id)
+    if node is None:
+        return {"status": "error", "message": f"Widget '{widget_id}' not found"}
+
+    # 提取关键属性，返回清晰的结构
+    info = {
+        "id": widget_id,
+        "type": node.get("type", "?"),
+        "anchor": node.get("anchor"),
+        "offset": node.get("offset"),
+        "size": node.get("size"),
+        "position": node.get("position"),
+        "pivot": node.get("pivot"),
+        "color": node.get("color"),
+        "alpha": node.get("alpha"),
+        "z": node.get("z"),
+        "text": node.get("text"),
+        "font_size": node.get("font_size"),
+        "stretch": node.get("stretch"),
+        "children_count": len(node.get("children", [])),
+        "children_ids": [c.get("id", "?") for c in node.get("children", []) if "id" in c],
+    }
+    # 过滤掉 None 值，只返回有值的属性
+    info = {k: v for k, v in info.items() if v is not None}
+    return {"status": "ok", "widget": info}
+
+
+@mcp.tool(name="get_widget_positions", description="通过 IPC 获取运行时控件屏幕位置（相对于窗口左下角）")
+def get_widget_positions() -> dict:
+    """获取当前所有控件的运行时屏幕位置
+
+    Returns:
+        每个控件的屏幕坐标 (screen_x, screen_y 相对于窗口左下角)、尺寸 (像素) 等
+    """
+    # 1. 通过 IPC 触发编辑器 dump 控件位置
+    ok = send_editor_command("dump_widget_positions")
+    if not ok:
+        return {"status": "error", "message": "Failed to send IPC command. Is the editor running?"}
+
+    # 2. 读取结果文件
+    import time
+    result_path = _root / 'projects' / 'snake' / 'widget_positions.json'
+    for _ in range(20):
+        if result_path.exists():
+            try:
+                data = json.loads(result_path.read_text(encoding='utf-8'))
+                result_path.unlink(missing_ok=True)
+                widgets = data.get('widgets', [])
+                win_size = data.get('window_size', [0, 0])
+                return {
+                    "status": "ok",
+                    "widgets": widgets,
+                    "count": len(widgets),
+                    "window_size": f"{win_size[0]}x{win_size[1]}",
+                }
+            except Exception as e:
+                return {"status": "error", "message": f"Failed to parse result: {e}"}
+        time.sleep(0.05)
+    return {"status": "error", "message": "Timeout waiting for editor response"}
 
 
 @mcp.tool(name="print_hierarchy", description="打印完整控件层级树")

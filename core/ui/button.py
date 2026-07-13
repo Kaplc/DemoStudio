@@ -116,6 +116,26 @@ class UIButton(UIWidget):
         self.normal_color = c
         return self
 
+    # ─── 事件绑定（覆盖 UIWidget 避免倍 Ursina mouse.input 重复触发）───
+
+    def on_click(self, callback=None):
+        """绑定点击事件（纯设置器，UIButton 通过 input(key) 触发）"""
+        if callback is not None:
+            self._click_handler = callback
+            return self
+
+    def on_hover(self, callback=None):
+        """绑定悬停进入事件（纯设置器，通过 on_mouse_enter 触发）"""
+        if callback is not None:
+            self._hover_handler = callback
+            return self
+
+    def on_unhover(self, callback=None):
+        """绑定悬停离开事件（纯设置器，通过 on_mouse_exit 触发）"""
+        if callback is not None:
+            self._unhover_handler = callback
+            return self
+
     def _setup_events(self):
         def _on_mouse_enter():
             if not self._enabled:

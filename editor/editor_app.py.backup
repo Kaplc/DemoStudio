@@ -1,7 +1,8 @@
 """
-DemoStudio Editor — ImGui 驱动的编辑器 UI
-=========================================
-- 使用 p3dimgui (Dear ImGui) 实现编辑器界面
+DemoStudio Editor — 通过 core.canvas 框架渲染的编辑器 UI
+=====================================================
+- 使用 UICanvas / CanvasManager 加载 editor_ui.json 并渲染到 camera.ui
+- 底层控件为 UIPanel / UIButton / UIText (core.ui)
 - 支持工程切换、游戏启动/停止、控制台、MCP 集成
 - 使用原生 Win32 窗口（标题栏拖拽 + 边缘调整大小）
 """
@@ -14,26 +15,16 @@ _root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_root))
 
 from ursina import *
-from ursina import Vec2
-
-from imgui_bundle import imgui
 
 from core.logger import get_logger
 from core.console import Console
 from core.project_manager import discover_projects, PROJECTS_DIR
-from core.ui import DARK_THEME
-
-# ─── ImGui UI 模块 ───
-from editor import editor_ui
-from editor.editor_ui import (
-    setup_imgui,
-    update_transform,
-    toggle_visibility,
-    is_visible,
+from core.ui import (
+    UIWidget, UIButton, UIText, UIPanel,
+    Anchor, DARK_THEME,
 )
-
-# ─── 游戏视口 ───
-from editor.game_viewport import GameViewport
+from core.assets import AssetManager
+from core.canvas import UICanvas, CanvasManager, CanvasSettings, CanvasLayer
 
 logger = get_logger('editor')
 
@@ -47,12 +38,9 @@ app = Ursina(
     vsync=True,
     editor_ui_enabled=False,
     development_mode=False,
-    size=Vec2(1536, 864),
 )
+window.size = window.windowed_size
 window.center_on_screen()
-
-# ─── ImGui 初始化（独立模块 editor_ui.py） ───
-setup_imgui()
 
 # ─── 编辑器主题（UE 5 Dark 配色） ───
 from core.ui.theme import _ButtonStyle as _UEButtonStyle
@@ -81,6 +69,7 @@ editor_theme.button = _UEButtonStyle(
 )
 
 # ─── 全局状态 ───
+game_process: subprocess.Popen | None = None
 game_running = False
 mcp_process: subprocess.Popen | None = None
 mcp_running = False
@@ -89,45 +78,58 @@ console: Console | None = None
 _all_projects = []            # 所有发现的工程
 current_project = None        # 当前选中的 Project 对象
 
-# 游戏视口
-viewport: GameViewport | None = None
+# UI 渲染框架 (core.canvas: UICanvas / CanvasManager)
+asset_manager = AssetManager()
+canvas_manager = CanvasManager()
+editor_canvas = None            # 编辑器主画布 (UICanvas), 构建后填充
 
-# 用于工程选择弹窗
-_show_project_selector = False
-_selected_project_index = 0
+# 动态引用的 UI 控件
+main_btn = None
 
 
 def launch_game():
-    """在当前进程中启动游戏场景"""
-    global game_running, viewport, current_project
+    """Launch the current project's game as a subprocess"""
+    global game_process, game_running, current_project
 
     if game_running or current_project is None:
         return
 
+    game_path = current_project.main_path
+    venv_python = _root / '.venv' / 'Scripts' / 'python.exe'
+
+    if not game_path:
+        logger.error("No main file for project '{}'", current_project.name)
+        return
+
+    python_exe = str(venv_python) if venv_python.exists() else 'python'
+
     try:
-        # 创建游戏视口 (480x360 预分配)
-        viewport = GameViewport(width=480, height=360)
-        viewport.setup(game_world=base.render)
-        viewport.start_game()
+        game_process = subprocess.Popen(
+            [python_exe, str(game_path)],
+            cwd=str(game_path.parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         game_running = True
-
-        # 通知 editor_ui 显示视口
-        editor_ui.set_viewport(viewport)
-
-        logger.info('[game] launched in-process: {}', current_project.name)
+        update_ui_state()
+        logger.info("Game '{}' started (PID: {})", current_project.name, game_process.pid)
     except Exception as e:
-        logger.error('[game] launch failed: {}', e)
-        import traceback
-        logger.error(traceback.format_exc())
-        if viewport:
-            viewport.cleanup()
-            viewport = None
-        game_running = False
+        logger.error("Failed to start: {}", e)
 
 
 def check_game():
-    """检查游戏进程状态（保留接口，内容为空）"""
-    pass
+    """Poll game process; clean up when it exits"""
+    global game_process, game_running
+
+    if not game_running or game_process is None:
+        return
+
+    ret = game_process.poll()
+    if ret is not None:
+        logger.info("Game exited (code: {})", ret)
+        game_process = None
+        game_running = False
+        update_ui_state()
 
 
 # ─── Editor MCP 进程管理 ───
@@ -189,19 +191,25 @@ def check_mcp():
 
 
 def update_ui_state():
-    """Update editor state (no-op)"""
-    pass
+    """Update editor state (no-op for now)"""
+    if game_running:
+        logger.info("[ui] Game running (state updated)")
+    else:
+        logger.info("[ui] Game stopped (state updated)")
 
 
 def stop_game():
-    """停止游戏并清理"""
-    global game_running, viewport
+    """Terminate the game subprocess"""
+    global game_process, game_running
 
-    if viewport:
-        viewport.stop_game()
-        viewport.cleanup()
-        viewport = None
-        editor_ui.set_viewport(None)
+    if game_process is not None:
+        game_process.terminate()
+        try:
+            game_process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            game_process.kill()
+            game_process.wait()
+        game_process = None
 
     game_running = False
     update_ui_state()
@@ -215,6 +223,38 @@ def on_launch_click():
         launch_game()
 
 
+# ════════════════════════════════════════
+#  构建编辑器 UI（通过 core.canvas 框架渲染 editor/assets/editor_ui.json）
+# ════════════════════════════════════════
+
+LAYOUT_PATH = _root / 'editor' / 'assets' / 'editor_ui.json'
+logger.info(f'[ui] Loading editor UI from {LAYOUT_PATH} via UICanvas')
+logger.info(f'[ui] context vars: bg={editor_theme.background}, surface={editor_theme.surface}, accent={editor_theme.accent}')
+
+# 用 UICanvas 加载并构建控件树, 再由 CanvasManager 统一管理显示/层级
+editor_canvas = UICanvas(
+    LAYOUT_PATH,
+    name='editor',
+    settings=CanvasSettings(layer=CanvasLayer.DEFAULT, validate=True),
+    asset_manager=asset_manager,
+    canvas_manager=canvas_manager,
+)
+canvas_manager.register('editor', editor_canvas)
+
+if not editor_canvas.is_ready:
+    logger.error('[ui] Failed to load editor UI layout!')
+else:
+    logger.info(f'[ui] Canvas built: {editor_canvas.widget_count} widgets')
+    # 缓存控件引用
+    w = editor_canvas.get_widget('main_btn')
+    if w is not None:
+        main_btn = w
+        logger.info('[ui] main_btn resolved')
+    else:
+        logger.warning('[ui] main_btn not found in layout')
+
+# 显示编辑器主画布
+canvas_manager.open('editor', animated=False)
 
 def _select_project(project):
     """切换当前工程"""
@@ -229,6 +269,25 @@ def _select_project(project):
         def editor_status():
             return f'Project: {current_project.name}  |  Game running: {game_running}'
         console._editor_status_cb = editor_status
+
+
+# ════════════════════════════════════════
+#  UI 事件绑定
+# ════════════════════════════════════════
+
+def on_main_btn_click():
+    """中央按钮点击回调"""
+    logger.info('[ui] main_btn clicked!')
+    # 可在此扩展: 切换游戏启动/停止、打开面板等
+
+
+def _bind_editor_events():
+    """绑定编辑器 UI 交互事件"""
+    if main_btn is not None:
+        main_btn.on_click(on_main_btn_click)
+    if editor_canvas is not None:
+        editor_canvas.on('main_btn', 'click', on_main_btn_click)
+    logger.info('[ui] Editor events bound (main_btn)')
 
 
 # ════════════════════════════════════════
@@ -257,6 +316,18 @@ def _register_console_commands():
     console.register('shot', lambda a: _cmd_screenshot(a), 'Alias for screenshot')
     console.register('ui_dump', lambda a: _cmd_ui_dump(a), 'Dump UI tree structure to logs/ui_dump.txt')
     console.register('ui', lambda a: _cmd_ui_dump(a), 'Alias for ui_dump')
+
+    # ─── UI 热重载: 从 JSON 文件重新构建控件树 ───
+    def _cmd_reload_ui(args):
+        global editor_canvas
+        if editor_canvas is None:
+            return 'No editor canvas to reload'
+        try:
+            editor_canvas.reload()
+            return 'UI layout reloaded from JSON'
+        except Exception as e:
+            return f'Reload failed: {e}'
+    console.register('reload_ui', lambda a: _cmd_reload_ui(a), 'Reload UI layout from JSON file')
 
     # ─── 控件位置 dump: MCP 通过 IPC 调用，结果写到 JSON 供 MCP 读取 ───
     def _cmd_dump_widget_positions(args):
@@ -324,6 +395,8 @@ def _register_console_commands():
     console.register('dump_widget_positions', lambda a: _cmd_dump_widget_positions(a),
                      'Dump widget screen positions to JSON file')
 
+    # ─── 在所有函数已定义后, 真正绑定 UI 事件 ───
+    _bind_editor_events()
 
 
 def _cmd_screenshot(args):
@@ -452,7 +525,8 @@ def _console_switch_project(args):
 
 def update():
     """每帧检测：画布动画 + 游戏进程 + MCP + 控制台"""
-    update_transform()
+    canvas_manager.update()
+
     check_game()
     check_mcp()
     if console:
@@ -461,19 +535,10 @@ def update():
 
 
 def input(key):
-    """处理键盘输入"""
-    global console, viewport, game_running
+    """处理键盘输入，优先路由到控制台"""
+    global console
 
-    # 先传给游戏视口
-    if viewport and game_running:
-        viewport.input(key)
-
-    # Ctrl+G 切换 ImGui 可见性
-    if key == 'g' and held_keys.get('control'):
-        toggle_visibility()
-        return
-
-    # 反引号切换控制台
+    # 反引号切换控制台 (最高优先级)
     if key == '`':
         if console:
             console.toggle()
@@ -502,113 +567,8 @@ if __name__ == '__main__':
     _start_editor_mcp()
     atexit.register(_stop_editor_mcp)
 
-    # ─── ImGui UI 构建 task（闭包，直接引用当前模块变量） ───
-    def build_imgui_task(task):
-        global _show_project_selector, _selected_project_index
-        if not is_visible():
-            return task.cont
-
-        imgui.begin_main_menu_bar()
-
-        if imgui.begin_menu("File", True):
-            imgui.menu_item("New Project", "", False)
-            if imgui.menu_item("Open Project", "Ctrl+O", False)[0]:
-                _show_project_selector = True
-                imgui.open_popup("Select Project")
-            imgui.separator()
-            if imgui.menu_item("Exit", "", False)[0]:
-                application.quit()
-            imgui.end_menu()
-
-        if imgui.begin_menu("Project", True):
-            if imgui.menu_item("Launch Game", "F5", False)[0]:
-                launch_game()
-            if imgui.menu_item("Stop Game", "Shift+F5", False)[0]:
-                stop_game()
-            imgui.separator()
-            if imgui.menu_item("Project Settings", "", False)[0]:
-                print("[ImGui] Project Settings")
-            imgui.end_menu()
-
-        if imgui.begin_menu("View", True):
-            if imgui.menu_item("Console", "`", False)[0]:
-                if console:
-                    console.toggle()
-            imgui.separator()
-            if imgui.menu_item("Toggle Ursina UI", "F12", False)[0]:
-                from ursina import window as _w
-                if _w.editor_ui:
-                    _w.editor_ui.enabled = not _w.editor_ui.enabled
-            if imgui.menu_item("Toggle ImGui", "Ctrl+G", False)[0]:
-                toggle_visibility()
-            imgui.end_menu()
-
-        if imgui.begin_menu("Help", True):
-            if imgui.menu_item("About DemoStudio", "", False)[0]:
-                print("[ImGui] About DemoStudio Editor v0.1")
-            imgui.end_menu()
-
-        # ─── 项目名称居中 ───
-        pname = current_project.name if current_project else 'No project'
-        fps = int(1 / max(time.dt_unscaled, 0.001))
-        center_x = window.size.x // 2 - 60
-        imgui.same_line(center_x)
-        imgui.text_colored(imgui.ImVec4(0.6, 0.6, 0.6, 1), f"  {pname}  |  {fps} FPS  ")
-        if game_running:
-            imgui.same_line()
-            imgui.text_colored(imgui.ImVec4(0.3, 0.9, 0.5, 1), "● Running")
-
-        imgui.end_main_menu_bar()
-
-        # ─── 工程选择弹窗 ───
-        if _show_project_selector:
-            imgui.open_popup("Select Project")
-            _show_project_selector = False
-
-        if imgui.begin_popup_modal("Select Project", None,
-                                    imgui.WindowFlags_.always_auto_resize.value)[0]:
-            imgui.text("选择要打开的工程:")
-            imgui.separator()
-
-            for i, p in enumerate(_all_projects):
-                selected = (p == current_project)
-                flags = imgui.SelectableFlags_.span_all_columns.value
-                if imgui.selectable(f"  {p.name}  v{p.version}  — {p.description}",
-                                    selected, flags)[0]:
-                    _selected_project_index = i
-
-                if imgui.is_item_hovered() and imgui.is_mouse_double_clicked(0):
-                    _select_project(p)
-                    imgui.close_current_popup()
-
-            imgui.separator()
-            if imgui.button("  打开  "):
-                if _all_projects:
-                    _select_project(_all_projects[_selected_project_index])
-                imgui.close_current_popup()
-            imgui.same_line()
-            if imgui.button("  取消  "):
-                imgui.close_current_popup()
-            imgui.end_popup()
-
-        # ─── 游戏视口窗口 ───
-        vp = editor_ui.get_viewport()
-        if game_running and vp is not None:
-            imgui.set_next_window_size(imgui.ImVec2(480, 360), imgui.Cond_.first_use_ever.value)
-            imgui.set_next_window_pos(imgui.ImVec2(window.size.x - 500, 60), imgui.Cond_.first_use_ever.value)
-            imgui.begin("Game", None,
-                        imgui.WindowFlags_.no_scrollbar.value)
-            vp.draw_imgui()
-            imgui.end()
-
-        return task.cont
-
-    base.taskMgr.add(build_imgui_task, 'imgui-build-ui', sort=20)
-
     logger.info("=" * 50)
-    logger.info("  DemoStudio Editor (ImGui + Game Viewport)")
+    logger.info("  DemoStudio Editor (minimal)")
     logger.info("  Press ` to open console")
-    logger.info("  Press Ctrl+G to toggle ImGui")
-    logger.info("  Project > Launch Game to start")
     logger.info("=" * 50)
     app.run()

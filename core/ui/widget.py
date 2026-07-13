@@ -177,7 +177,7 @@ class UIWidget(Entity):
 
         # 提取其他 Entity 参数，避免 scale 被覆盖
         scale = kwargs.pop('scale', None)
-        kwargs.pop('stretch', None)  # stretch 由 FULL 内部处理，不传给 Entity
+        stretch_data = kwargs.pop('stretch', None)  # stretch 由 FULL 内部处理，不传给 Entity
 
         super().__init__(
             parent=parent,
@@ -195,6 +195,13 @@ class UIWidget(Entity):
             psy = max(abs(parent.scale_y), 0.001)
             self.scale_x = self.scale_x / psx
             self.scale_y = self.scale_y / psy
+
+        # 应用填充拉伸 (stretch) — 覆盖位置/尺寸
+        if stretch_data is not None:
+            if isinstance(stretch_data, dict):
+                self.set_stretch(**stretch_data)
+            elif stretch_data is True:
+                self.set_stretch(left=-0.5, right=0.5, bottom=-0.5, top=0.5)
 
         self._click_handler: Optional[Callable] = None
         self._hover_handler: Optional[Callable] = None
@@ -360,20 +367,38 @@ class UIWidget(Entity):
 
     # ─── 事件绑定 ───
 
-    def on_click(self, callback: Callable):
-        """绑定点击事件"""
-        self._click_handler = callback
-        return self
+    def on_click(self, callback: Callable = None):
+        """绑定点击事件（Ursina 兼容）
 
-    def on_hover(self, callback: Callable):
-        """绑定悬停进入事件"""
-        self._hover_handler = callback
-        return self
+        Ursina 的 mouse.input() 在点击时会无参调用 entity.on_click()，
+        因此需兼容两种调用方式:
+        - widget.on_click(handler) — 绑定处理器 (返回 self 支持链式)
+        - entity.on_click() — 触发已绑定的 _click_handler
+        """
+        if callback is None:
+            if self._click_handler:
+                self._click_handler()
+        else:
+            self._click_handler = callback
+            return self
 
-    def on_unhover(self, callback: Callable):
-        """绑定悬停离开事件"""
-        self._unhover_handler = callback
-        return self
+    def on_hover(self, callback: Callable = None):
+        """绑定悬停进入事件（Ursina 兼容）"""
+        if callback is None:
+            if self._hover_handler:
+                self._hover_handler()
+        else:
+            self._hover_handler = callback
+            return self
+
+    def on_unhover(self, callback: Callable = None):
+        """绑定悬停离开事件（Ursina 兼容）"""
+        if callback is None:
+            if self._unhover_handler:
+                self._unhover_handler()
+        else:
+            self._unhover_handler = callback
+            return self
 
     # ─── 链式配置 ───
 
