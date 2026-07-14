@@ -5,11 +5,6 @@ export interface Vec2 {
   z: number
 }
 
-export interface SnakeSegment {
-  position: Vec2
-  mesh: THREE.Mesh
-}
-
 export interface GameConfig {
   gridSize: number
   cellSize: number

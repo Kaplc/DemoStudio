@@ -3,11 +3,17 @@ import * as THREE from 'three'
 import { SceneManager, logger } from '../engine'
 import { World } from '../framework'
 import { SnakeGameMode, SnakePawn, SnakePlayerController, SnakeScene3D } from '../games/snake'
+import { AxisIndicator } from './AxisIndicator'
 import { useEditorStore } from '../stores/editorStore'
 
 type ViewportTab = 'scene' | 'game'
 
-export function Viewport() {
+interface ViewportProps {
+  /** 初始化完成后回调 */
+  onReady?: () => void
+}
+
+export function Viewport({ onReady }: ViewportProps) {
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   const gameContainerRef = useRef<HTMLDivElement>(null)
 
@@ -27,6 +33,10 @@ export function Viewport() {
   const [activeTab, setActiveTab] = useState<ViewportTab>('scene')
   const [localScore, setLocalScore] = useState(0)
   const [localPhase, setLocalPhase] = useState<string>('waiting')
+  const [camPos, setCamPos] = useState({ x: 0, y: 0, z: 0 })
+  const [camAxisDirs, setCamAxisDirs] = useState<{ x: number; y: number }[]>([
+    { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 },
+  ])
 
   const editorState = useEditorStore((s) => s.gameState)
   const currentProject = useEditorStore((s) => s.currentProject)
@@ -81,7 +91,7 @@ export function Viewport() {
       addDefaultContent: false,
     })
     gameMgr.setWASDControl(true)
-    gameMgr.camera.position.set(0, 20, 0.01)
+    gameMgr.camera.position.set(17, 17, 17)
     const gc = gameMgr.controls!
     gc.target.set(0, 0, 0)
     gc.update()
@@ -94,6 +104,9 @@ export function Viewport() {
     obs1.observe(sceneContainerRef.current)
     const obs2 = new ResizeObserver(() => gameMgr.resize())
     obs2.observe(gameContainerRef.current)
+
+    // 通知外部加载完成
+    onReady?.()
 
     return () => {
       unsub()
@@ -177,11 +190,15 @@ export function Viewport() {
       const spawn = gm.SpawnPlayer()
       if (spawn) {
         const pawn = spawn.pawn as SnakePawn
-        pawn.InitGame() // 初始化蛇/食物/摄像机
+        pawn.InitGame() // 初始化蛇
         world.SpawnActor(pawn)
         spawn.controller.Possess(pawn)
         controllerRef.current = spawn.controller as SnakePlayerController
         pawnRef.current = pawn
+
+        // 通过 GameMode 的 SpawnComponent 创建食物 Pawn
+        gm.SpawnInitialFood(pawn.getSnakePositions())
+
         logger.info(`玩家生成: ${pawn.name}`)
       }
 
@@ -224,8 +241,8 @@ export function Viewport() {
         if (gameMgr.controls) gameMgr.controls.enabled = false
         gameMgr.stop()
         gameMgr.clearFrame()
-        // 恢复俯视视角
-        gameMgr.camera.position.set(0, 20, 0.01)
+        // 恢复 45 度俯视视角
+        gameMgr.camera.position.set(17, 17, 17)
         const gc = gameMgr.controls
         if (gc) {
           gc.target.set(0, 0, 0)
@@ -250,6 +267,40 @@ export function Viewport() {
       gameSceneRef.current?.resize()
     }
   }, [activeTab])
+
+  // ─── 实时追踪 Scene 摄像机坐标 + 轴方向 ───
+  useEffect(() => {
+    const tmpV = new THREE.Vector3()
+    let rafId: number
+    const poll = () => {
+      const mgr = sceneRef.current
+      if (mgr) {
+        const cam = mgr.camera
+        setCamPos({
+          x: cam.position.x,
+          y: cam.position.y,
+          z: cam.position.z,
+        })
+        // 将世界轴方向转换到相机空间，取 (x,y) 作为屏幕 2D 方向
+        // 不归一化，保留长度（朝向/远离摄像机时轴变短，产生 3D 纵深感）
+        const invQuat = cam.quaternion.clone().invert()
+        const dirs: { x: number; y: number }[] = []
+        const worldAxes = [
+          { x: 1, y: 0, z: 0 },
+          { x: 0, y: 1, z: 0 },
+          { x: 0, y: 0, z: 1 },
+        ]
+        for (const a of worldAxes) {
+          tmpV.set(a.x, a.y, a.z).applyQuaternion(invQuat)
+          dirs.push({ x: tmpV.x, y: -tmpV.y }) // SVG y 轴向下
+        }
+        setCamAxisDirs(dirs)
+      }
+      rafId = requestAnimationFrame(poll)
+    }
+    rafId = requestAnimationFrame(poll)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
 
   // ─── 键盘 ───
   useEffect(() => {
@@ -333,6 +384,7 @@ export function Viewport() {
                 : '📐 选择工程后在此显示场景资源'}
           </div>
         )}
+        <AxisIndicator cameraPos={camPos} axisDirs={camAxisDirs} />
       </div>
 
       {/* Game 视图 */}

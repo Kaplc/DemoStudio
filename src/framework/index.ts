@@ -16,6 +16,7 @@
 
 export { Actor } from './Actor'
 export { Component } from './Component'
+export { SpawnComponent } from './SpawnComponent'
 export { Pawn } from './Pawn'
 export { PlayerController } from './PlayerController'
 export { GameMode } from './GameMode'

@@ -8,6 +8,7 @@ import { StatusBar } from './components/StatusBar'
 import { ProjectSelector } from './components/ProjectSelector'
 import { ResizeHandle } from './components/ResizeHandle'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
+import { LoadingScreen } from './components/LoadingScreen'
 import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
 
@@ -18,6 +19,14 @@ export default function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(220)
   const [rightPanelWidth, setRightPanelWidth] = useState(280)
   const [consoleHeight, setConsoleHeight] = useState(180)
+  const [loading, setLoading] = useState(true)
+
+  // ─── Viewport 就绪后通知 Electron 关闭加载窗口 ───
+  useEffect(() => {
+    if (!loading && window.electronAPI?.sendAppReady) {
+      window.electronAPI.sendAppReady()
+    }
+  }, [loading])
 
   useEffect(() => {
     discoverProjects()
@@ -148,6 +157,7 @@ export default function App() {
 
   return (
     <div className="editor-layout">
+      <LoadingScreen loading={loading} />
       <KeyboardShortcuts />
       <MenuBar />
       <div className="editor-main">
@@ -159,7 +169,7 @@ export default function App() {
         </div>
         <div className="editor-content">
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <Viewport />
+            <Viewport onReady={() => setLoading(false)} />
           </div>
           {consoleVisible && (
             <div style={{ height: consoleHeight, flexShrink: 0, position: 'relative' }}>

@@ -1,6 +1,12 @@
 /**
  * DemoStudio Electron 主进程
  * 管理窗口生命周期、IPC 通信、原生菜单
+ *
+ * 启动流程:
+ *   1. 创建无边框加载窗口 (loading.html)
+ *   2. 等待 Vite 开发服务器就绪 / 直接加载打包文件
+ *   3. 关闭加载窗口，创建有边框编辑器主窗口
+ *   4. 加载完成后 React LoadingScreen 自动淡出
  */
 import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
 import path from 'path'
@@ -8,18 +14,54 @@ import fs from 'fs'
 import http from 'http'
 
 let mainWindow: BrowserWindow | null = null
+let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 let _gameScore = 0
 
 const isDev = !app.isPackaged
 
 const LOG_DIR = isDev
-  ? path.join(__dirname, '..', 'logs')       // 开发 → 项目根目录/logs/
-  : path.join(app.getPath('userData'), 'logs') // 生产 → userData/logs/
+  ? path.join(__dirname, '..', 'logs')
+  : path.join(app.getPath('userData'), 'logs')
 
 const CONSOLE_LOG_FILE = path.join(LOG_DIR, 'console.log')
 
-function createWindow() {
+// ═══════════════════════════════════════
+//  第一阶段：无边框加载窗口
+// ═══════════════════════════════════════
+
+function showLoadingWindow() {
+  loadingWindow = new BrowserWindow({
+    width: 480,
+    height: 320,
+    frame: false,
+    resizable: false,
+    center: true,
+    backgroundColor: '#1a1a2e',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  loadingWindow.loadFile(path.join(__dirname, '../electron/loading.html'))
+
+  loadingWindow.once('ready-to-show', () => {
+    loadingWindow?.show()
+  })
+
+  loadingWindow.on('closed', () => {
+    loadingWindow = null
+  })
+}
+
+// ═══════════════════════════════════════
+//  第二阶段：有边框编辑器主窗口
+// ═══════════════════════════════════════
+
+function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1536,
     height: 864,
@@ -34,7 +76,7 @@ function createWindow() {
       nodeIntegration: false,
     },
     frame: true,
-    show: false,
+    show: false, // 由 app-ready 控制显示
   })
 
   // 使用 React 自定义菜单栏，隐藏 Electron 原生菜单
@@ -47,10 +89,6 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
-  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -65,6 +103,61 @@ function createWindow() {
       ensureLogDir()
       fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
     } catch {}
+  })
+}
+
+// ═══════════════════════════════════════
+//  等待 Vite 开发服务器就绪
+// ═══════════════════════════════════════
+
+const VITE_URL = 'http://localhost:5173'
+const VITE_POLL_INTERVAL = 300
+
+async function waitForDevServer(): Promise<void> {
+  return new Promise((resolve) => {
+    const check = async () => {
+      try {
+        const resp = await fetch(VITE_URL, { signal: AbortSignal.timeout(1000) })
+        if (resp.ok || resp.status === 304) {
+          resolve()
+          return
+        }
+      } catch {}
+      setTimeout(check, VITE_POLL_INTERVAL)
+    }
+    check()
+  })
+}
+
+// ═══════════════════════════════════════
+//  启动流程
+// ═══════════════════════════════════════
+
+async function startApp() {
+  // 1. 显示无边框加载窗口（持续可见直到编辑器就绪）
+  showLoadingWindow()
+
+  // 2. 启动 MCP HTTP API
+  startMCPServer()
+
+  // 3. 等待开发服务器就绪（开发模式）
+  if (isDev) {
+    await waitForDevServer()
+  }
+
+  // 4. 后台创建主窗口（不显示、不关闭加载窗口）
+  createMainWindow()
+
+  // 5. 等待渲染进程发来 app-ready 信号
+  ipcMain.once('app-ready', () => {
+    // 关闭加载窗口
+    if (loadingWindow && !loadingWindow.isDestroyed()) {
+      loadingWindow.close()
+    }
+    // 显示主窗口（延迟一帧确保首次渲染完成）
+    setTimeout(() => {
+      mainWindow?.show()
+    }, 100)
   })
 }
 
@@ -246,8 +339,7 @@ function startMCPServer() {
 // ─── 应用生命周期 ───
 
 app.whenReady().then(() => {
-  createWindow()
-  startMCPServer()
+  startApp()
 })
 
 app.on('window-all-closed', () => {
@@ -258,6 +350,6 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    startApp()
   }
 })

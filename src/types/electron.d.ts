@@ -11,6 +11,7 @@ export interface ElectronAPI {
   onMenuAction: (callback: (action: string) => void) => () => void
   onMCPCommand: (callback: (command: string, params: any) => void) => () => void
   reportGameState: (state: { running: boolean; score?: number }) => Promise<void>
+  sendAppReady: () => void
   writeLogFile: (level: string, message: string) => Promise<void>
   toggleDevTools?: () => Promise<void>
 }

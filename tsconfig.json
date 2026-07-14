@@ -15,11 +15,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src", "electron"],
   "references": [{ "path": "./tsconfig.node.json" }]

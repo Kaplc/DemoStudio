@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 应用信息 ───
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
 
+  // ─── 应用就绪通知（关闭加载窗口） ───
+  sendAppReady: () => ipcRenderer.send('app-ready'),
+
   // ─── 文件对话框 ───
   openFileDialog: (options: any) => ipcRenderer.invoke('open-file-dialog', options),
   saveFileDialog: (options: any) => ipcRenderer.invoke('save-file-dialog', options),

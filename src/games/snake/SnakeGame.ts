@@ -142,7 +142,7 @@ export class SnakeGame {
       const geo = new THREE.BoxGeometry(this.config.cellSize * 0.9, 0.8, this.config.cellSize * 0.9)
       const mat = isHead ? this.headMat : this.bodyMat
       const mesh = new THREE.Mesh(geo, mat)
-      mesh.position.set(seg.x, 0.4, seg.z)
+      mesh.position.set(seg.x + 0.5, 0.4, seg.z + 0.5)
       mesh.castShadow = true
       this.group.add(mesh)
       this.snakeMeshes.push(mesh)
@@ -174,7 +174,7 @@ export class SnakeGame {
     this.foodPos = pos
     const geo = new THREE.SphereGeometry(0.4, 12, 12)
     this.foodMesh = new THREE.Mesh(geo, this.foodMat)
-    this.foodMesh.position.set(pos.x, 0.4, pos.z)
+    this.foodMesh.position.set(pos.x + 0.5, 0.4, pos.z + 0.5)
     this.foodMesh.castShadow = true
     this.group.add(this.foodMesh)
   }

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DemoStudio 加载中</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a1a2e;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-app-region: drag;
+  }
+  .container {
+    text-align: center;
+  }
+  .logo {
+    font-size: 28px;
+    font-weight: 700;
+    color: #e0e0e0;
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+  .progress-track {
+    width: 220px;
+    height: 3px;
+    background: #2a2a4a;
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 auto 20px;
+  }
+  .progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #4a90d9, #64b4ff);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .status {
+    font-size: 12px;
+    color: #aaa;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .dot {
+    display: inline-block;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">DemoStudio</div>
+  <div class="subtitle">Editor v4.0.0</div>
+  <div class="progress-track">
+    <div class="progress-bar" id="bar"></div>
+  </div>
+  <div class="status" id="status">正在启动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+</div>
+<script>
+  const bar = document.getElementById('bar')
+  const status = document.getElementById('status')
+  const stages = [
+    { p: 15,  t: '初始化引擎...' },
+    { p: 35,  t: '加载依赖...' },
+    { p: 55,  t: '编译资源...' },
+    { p: 75,  t: '准备界面...' },
+    { p: 90,  t: '即将就绪...' },
+  ]
+
+  let i = 0
+  function advance() {
+    if (i < stages.length) {
+      const s = stages[i]
+      bar.style.width = s.p + '%'
+      status.textContent = s.t
+      i++
+      setTimeout(advance, 600 + Math.random() * 400)
+    }
+  }
+
+  // 监听进度更新（来自 Electron main 进程）
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.progress !== undefined) {
+      bar.style.width = Math.min(e.data.progress, 100) + '%'
+    }
+    if (e.data && e.data.status) {
+      status.textContent = e.data.status
+    }
+  })
+
+  // 启动动画
+  setTimeout(advance, 300)
+</script>
+</body>
+</html>

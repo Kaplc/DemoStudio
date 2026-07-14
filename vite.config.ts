@@ -7,6 +7,7 @@ import path from 'path'
 export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
+    outDir: 'dist',
   },
   plugins: [
     react(),
@@ -43,8 +44,5 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
-  },
-  build: {
-    outDir: 'dist',
   },
 })
