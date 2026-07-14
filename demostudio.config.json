@@ -1,0 +1,31 @@
+{
+  "name": "DemoStudio",
+  "description": "DemoStudio 项目约定与配置",
+  "version": "4.0.0",
+
+  "ui": {
+    "theme": "dark",
+    "accent_color": "#007acc",
+    "font_family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "mono_font": "'Cascadia Code', 'Fira Code', monospace"
+  },
+
+  "editor": {
+    "default_width": 1536,
+    "default_height": 864,
+    "viewport_width": 480,
+    "viewport_height": 360,
+    "show_grid": true,
+    "show_helpers": true
+  },
+
+  "projects": [
+    {
+      "name": "Snake",
+      "description": "经典 2.5D 贪吃蛇游戏",
+      "version": "1.0.0",
+      "tags": ["game", "snake", "2.5d"],
+      "main": "src/games/snake/index.ts"
+    }
+  ]
+}
