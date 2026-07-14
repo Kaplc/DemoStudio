@@ -1,20 +1,52 @@
 /**
  * DemoStudio Three.js 引擎核心
  * 封装场景、摄像机、渲染器管理
+ * 支持两种控制模式:
+ *   'orbit' — 轨道控制（Game 视口使用）
+ *   'fly'   — 第一人称飞行摄像机（Scene 视口使用, 左键旋转自身）
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+
+export type ControlMode = 'orbit' | 'fly'
+
+export interface SceneManagerOptions {
+  controlMode?: ControlMode
+  /** 外部共享场景（两个视口渲染同一场景） */
+  sharedScene?: THREE.Scene
+  /** 是否添加默认光照和辅助工具（共享场景时只需加一次） */
+  addDefaultContent?: boolean
+}
 
 export class SceneManager {
   public scene: THREE.Scene
   public camera: THREE.PerspectiveCamera
   public renderer: THREE.WebGLRenderer
-  public controls: OrbitControls
+  public controls: OrbitControls | null = null
   private animationId: number | null = null
   private lastTime = 0
   private updateCallbacks: Array<(dt: number) => void> = []
+  private container: HTMLElement
 
-  constructor(container: HTMLElement) {
+  // ─── WASD 漫游 ───
+  private wasdEnabled = false
+  private wasdKeys = new Set<string>()
+  private wasdSpeed = 8
+
+  // ─── Fly 摄像机状态 ───
+  private controlMode: ControlMode
+  private euler = new THREE.Euler(0, 0, 0, 'YXZ')
+  private isLeftDown = false
+  private isRightDown = false
+  private prevMouseX = 0
+  private prevMouseY = 0
+  private flySpeed = 10
+  private flySensitivity = 0.0015
+
+  constructor(container: HTMLElement, options: SceneManagerOptions = {}) {
+    this.container = container
+    this.controlMode = options.controlMode ?? 'orbit'
+
     // ─── 渲染器 ───
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -27,10 +59,14 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(this.renderer.domElement)
 
-    // ─── 场景 ───
-    this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x1a1a2e)
-    this.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
+    // ─── 场景（共享或独立） ───
+    if (options.sharedScene) {
+      this.scene = options.sharedScene
+    } else {
+      this.scene = new THREE.Scene()
+      this.scene.background = new THREE.Color(0x1a1a2e)
+      this.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
+    }
 
     // ─── 摄像机 ───
     const aspect = container.clientWidth / container.clientHeight
@@ -38,24 +74,95 @@ export class SceneManager {
     this.camera.position.set(15, 20, 15)
     this.camera.lookAt(0, 0, 0)
 
-    // ─── 轨道控制 ───
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableDamping = true
-    this.controls.dampingFactor = 0.08
-    this.controls.minDistance = 5
-    this.controls.maxDistance = 80
-    this.controls.maxPolarAngle = Math.PI / 2.1
-    this.controls.target.set(0, 0, 0)
-    this.controls.update()
+    // ─── 控制 ───
+    if (this.controlMode === 'orbit') {
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+      this.controls.enableDamping = true
+      this.controls.dampingFactor = 0.08
+      this.controls.minDistance = 5
+      this.controls.maxDistance = 80
+      this.controls.maxPolarAngle = Math.PI / 2.1
+      this.controls.target.set(0, 0, 0)
+      this.controls.update()
+    } else {
+      this.initFlyEuler()
+      this.setupFlyMouse()
+    }
 
-    // ─── 基础光照 ───
-    this.setupLighting()
+    // ─── 默认内容（仅独立场景 / 共享场景只加一次） ───
+    const addDefault = options.addDefaultContent ?? true
+    if (addDefault) {
+      this.setupLighting()
+      this.setupHelpers()
+    }
+  }
 
-    // ─── 辅助工具 ───
-    this.setupHelpers()
+  private initFlyEuler() {
+    const dir = new THREE.Vector3()
+    this.camera.getWorldDirection(dir)
+    this.euler.setFromQuaternion(this.camera.quaternion)
+    this.euler.order = 'YXZ'
+  }
 
-    // ─── 窗口 Resize ───
-    window.addEventListener('resize', () => this.handleResize(container))
+  private setupFlyMouse() {
+    const canvas = this.renderer.domElement
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 0) {
+        this.isLeftDown = true
+        this.prevMouseX = e.clientX
+        this.prevMouseY = e.clientY
+      }
+      if (e.button === 2) {
+        this.isRightDown = true
+        this.prevMouseX = e.clientX
+        this.prevMouseY = e.clientY
+      }
+    })
+
+    window.addEventListener('mousemove', (e) => {
+      if (!this.isLeftDown && !this.isRightDown) return
+
+      const dx = e.clientX - this.prevMouseX
+      const dy = e.clientY - this.prevMouseY
+      this.prevMouseX = e.clientX
+      this.prevMouseY = e.clientY
+
+      if (this.isLeftDown) {
+        // 左键拖拽: 旋转摄像机自身
+        this.euler.y -= dx * this.flySensitivity
+        this.euler.x -= dy * this.flySensitivity
+        // 限制俯仰角度，防止翻转
+        this.euler.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.euler.x))
+        this.camera.quaternion.setFromEuler(this.euler)
+      }
+
+      if (this.isRightDown) {
+        // 右键拖拽: 在当前朝向垂直平面上平移
+        const dir = new THREE.Vector3()
+        this.camera.getWorldDirection(dir)
+        const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize()
+        const up = new THREE.Vector3().crossVectors(right, dir).normalize()
+        const panSpeed = 0.03
+        this.camera.position.addScaledVector(right, -dx * panSpeed)
+        this.camera.position.addScaledVector(up, dy * panSpeed)
+      }
+    })
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.isLeftDown = false
+      if (e.button === 2) this.isRightDown = false
+    })
+
+    // 滚轮缩放
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault()
+      const dir = new THREE.Vector3()
+      this.camera.getWorldDirection(dir)
+      this.camera.position.addScaledVector(dir, -e.deltaY * 0.02)
+    }, { passive: false })
   }
 
   private setupLighting() {
@@ -94,9 +201,11 @@ export class SceneManager {
     this.scene.add(grid)
   }
 
-  private handleResize(container: HTMLElement) {
-    const width = container.clientWidth
-    const height = container.clientHeight
+  /** 公开方法：供外部在容器尺寸变化时调用，触发渲染器与摄像机更新 */
+  resize() {
+    const width = this.container.clientWidth
+    const height = this.container.clientHeight
+    if (width === 0 || height === 0) return
     this.renderer.setSize(width, height)
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
@@ -110,7 +219,10 @@ export class SceneManager {
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
       this.lastTime = time
 
-      this.controls.update()
+      // WASD 漫游
+      this.updateWASD(dt)
+
+      this.controls?.update()
 
       // 执行更新回调
       for (const cb of this.updateCallbacks) {
@@ -130,10 +242,79 @@ export class SceneManager {
     }
   }
 
+  /** 清除画布残留画面 */
+  clearFrame() {
+    this.renderer.clear()
+  }
+
   onUpdate(callback: (dt: number) => void) {
     this.updateCallbacks.push(callback)
     return () => {
       this.updateCallbacks = this.updateCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  // ─── WASD 漫游控制 ───
+
+  /** 启用或禁用 WASD 漫游摄像机控制 */
+  setWASDControl(enabled: boolean) {
+    this.wasdEnabled = enabled
+    if (this.controls) {
+      if (enabled) {
+        this.controls.minDistance = 0
+        this.controls.maxDistance = Infinity
+        this.controls.maxPolarAngle = Math.PI / 1.8
+      } else {
+        this.wasdKeys.clear()
+        this.controls.minDistance = 5
+        this.controls.maxDistance = 80
+        this.controls.maxPolarAngle = Math.PI / 2.1
+      }
+    }
+  }
+
+  /** 处理 WASD 按键按下（由外部传入） */
+  onWASDKeyDown(key: string) {
+    if (!this.wasdEnabled) return
+    this.wasdKeys.add(key.toLowerCase())
+  }
+
+  /** 处理 WASD 按键释放（由外部传入） */
+  onWASDKeyUp(key: string) {
+    this.wasdKeys.delete(key.toLowerCase())
+  }
+
+  /** 清除所有按键状态 */
+  clearWASDKeys() {
+    this.wasdKeys.clear()
+  }
+
+  private updateWASD(dt: number) {
+    if (!this.wasdEnabled || this.wasdKeys.size === 0) return
+
+    const speed = this.wasdSpeed * dt
+
+    // 摄像机完整朝向（含俯仰），W/S 沿视线方向前进/后退
+    const forward = new THREE.Vector3()
+    this.camera.getWorldDirection(forward)
+
+    // 水平右向量（A/D 侧移用），保持水平不随俯仰倾斜
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
+    // 垂直上向量（Q/E 升降用），始终朝世界 Y 轴
+    const worldUp = new THREE.Vector3(0, 1, 0)
+
+    if (this.wasdKeys.has('w')) this.camera.position.addScaledVector(forward, speed)
+    if (this.wasdKeys.has('s')) this.camera.position.addScaledVector(forward, -speed)
+    if (this.wasdKeys.has('a')) this.camera.position.addScaledVector(right, -speed)
+    if (this.wasdKeys.has('d')) this.camera.position.addScaledVector(right, speed)
+    if (this.wasdKeys.has('q')) this.camera.position.addScaledVector(worldUp, -speed)
+    if (this.wasdKeys.has('e')) this.camera.position.addScaledVector(worldUp, speed)
+
+    // Fly 模式下同步 controls target（如果 controls 存在）
+    if (this.controlMode === 'fly' && this.controls) {
+      const fwd = new THREE.Vector3()
+      this.camera.getWorldDirection(fwd)
+      this.controls.target.copy(this.camera.position).add(fwd.clone().multiplyScalar(10))
     }
   }
 
@@ -172,8 +353,12 @@ export class SceneManager {
       distance * Math.sin(phi),
       distance * Math.cos(phi) * Math.cos(theta)
     )
-    this.controls.target.set(0, 0, 0)
-    this.controls.update()
+    this.controls?.target?.set(0, 0, 0)
+    this.controls?.update()
+    if (!this.controls) {
+      this.camera.lookAt(0, 0, 0)
+      this.initFlyEuler()
+    }
   }
 
   // ─── 清理 ───

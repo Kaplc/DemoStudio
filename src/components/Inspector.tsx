@@ -2,10 +2,10 @@ import React from 'react'
 import { useEditorStore } from '../stores/editorStore'
 
 export function Inspector() {
-  const { currentProject, gameState } = useEditorStore()
+  const { currentProject, gameState, launchGame, stopGame } = useEditorStore()
 
   return (
-    <div className="panel side-panel-right" style={{ borderRight: 'none', borderLeft: '1px solid var(--border)' }}>
+    <div className="panel">
       <div className="panel-header">
         <span>Inspector</span>
       </div>
@@ -67,7 +67,7 @@ export function Inspector() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                 <button
                   className="btn btn-primary"
-                  onClick={() => {}}
+                  onClick={() => gameState.running ? stopGame() : launchGame()}
                 >
                   {gameState.running ? '■ Stop Game' : '▶ Launch Game'}
                 </button>

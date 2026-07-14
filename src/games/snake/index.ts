@@ -1,3 +1,5 @@
-export { SnakeGame } from './SnakeGame'
+export { SnakePawn } from './SnakePawn'
+export { SnakePlayerController } from './SnakePlayerController'
+export { SnakeGameMode } from './SnakeGameMode'
 export { SnakeScene3D } from './Scene3D'
 export * from './types'

@@ -20,4 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('menu-action')
     }
   },
+
+  // ─── 日志 ───
+  writeLogFile: (level: string, message: string) =>
+    ipcRenderer.invoke('write-log-file', level, message),
+
+  // ─── DevTools ───
+  toggleDevTools: () => ipcRenderer.invoke('toggle-dev-tools'),
 })

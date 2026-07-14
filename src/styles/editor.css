@@ -297,15 +297,17 @@ html, body, #root {
 /* ═══ 左侧面板 (Project) ═══ */
 
 .side-panel-left {
-  width: 220px;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ═══ 右侧面板 (Inspector) ═══ */
 
 .side-panel-right {
-  width: 280px;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-right: none;
   border-left: 1px solid var(--border);
 }
@@ -346,7 +348,7 @@ html, body, #root {
 /* ═══ 底部面板 (Console) ═══ */
 
 .bottom-panel {
-  height: 180px;
+  height: 100%;
   flex-shrink: 0;
   border-top: 1px solid var(--border);
   display: flex;
@@ -407,7 +409,7 @@ html, body, #root {
   justify-content: space-between;
   height: var(--status-bar-height);
   padding: 0 12px;
-  background: var(--accent);
+  background: #1a2744;
   color: #fff;
   font-size: 11px;
   flex-shrink: 0;
@@ -519,6 +521,132 @@ html, body, #root {
 
 .btn-secondary:hover {
   background: var(--border);
+}
+
+/* ═══ 拖拽调整大小手柄 ═══ */
+
+/* 水平手柄（左右面板用，保持 absolute 定位） */
+.resize-handle--horizontal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle--horizontal.resize-handle--right {
+  right: -2px;
+}
+
+.resize-handle--horizontal.resize-handle--left {
+  left: -2px;
+}
+
+/* 垂直手柄（Console 用 absolute 定位在容器顶部边界） */
+.resize-handle--vertical.resize-handle--top {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  z-index: 30;
+  background: transparent;
+}
+.resize-handle--vertical.resize-handle--top:hover,
+.resize-handle--vertical.resize-handle--top:active {
+  background: transparent;
+}
+.resize-handle--vertical.resize-handle--top .resize-handle__line {
+  width: 48px;
+  height: 3px;
+}
+.resize-handle--vertical.resize-handle--top::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: auto;
+}
+
+/* 垂直手柄（Scene 底部 absolute 定位） */
+.resize-handle--vertical.resize-handle--bottom {
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 18px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background 0.1s;
+  cursor: row-resize;
+}
+.resize-handle--vertical.resize-handle--bottom:hover,
+.resize-handle--vertical.resize-handle--bottom:active {
+  background: rgba(255, 255, 255, 0.04);
+}
+.resize-handle--vertical.resize-handle--bottom .resize-handle__line {
+  height: 4px;
+  width: 48px;
+  border-radius: 3px;
+  background: var(--border-light);
+  pointer-events: none;
+  transition: background 0.15s, height 0.15s, width 0.15s;
+}
+.resize-handle--vertical.resize-handle--bottom:hover .resize-handle__line,
+.resize-handle--vertical.resize-handle--bottom:active .resize-handle__line {
+  background: var(--accent);
+  height: 5px;
+  width: 56px;
+}
+.resize-handle--vertical.resize-handle--bottom::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: auto;
+}
+
+/* 垂直手柄（通用 fallback） */
+.resize-handle--vertical:not(.resize-handle--top):not(.resize-handle--bottom) {
+  position: relative;
+  height: 12px;
+  cursor: row-resize;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  background: transparent;
+  transition: background 0.1s;
+}
+
+/* 垂直手柄内部拖拽条 */
+.resize-handle--vertical .resize-handle__line {
+  height: 3px;
+  width: 48px;
+  border-radius: 3px;
+  background: var(--border-light);
+  pointer-events: none;
+  transition: background 0.15s, height 0.15s, width 0.15s;
+}
+.resize-handle--vertical:hover .resize-handle__line,
+.resize-handle--vertical:active .resize-handle__line {
+  background: var(--accent);
+  height: 5px;
+  width: 56px;
+}
+
+/* 水平手柄 */
+.resize-handle--horizontal .resize-handle__line {
+  width: 1px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s, width 0.15s;
 }
 
 /* ═══ 滚动条 ═══ */

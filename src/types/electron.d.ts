@@ -9,6 +9,8 @@ export interface ElectronAPI {
   saveFileDialog: (options: any) => Promise<any>
   showMessageBox: (options: any) => Promise<any>
   onMenuAction: (callback: (action: string) => void) => () => void
+  writeLogFile: (level: string, message: string) => Promise<void>
+  toggleDevTools?: () => Promise<void>
 }
 
 declare global {

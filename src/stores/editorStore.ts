@@ -24,6 +24,8 @@ export interface EditorState {
 
   // ─── 游戏 ───
   gameState: GameState
+  /** 启动计数器，每次 launchGame 递增，用于触发 Viewport 重新创建游戏实例 */
+  launchCount: number
 
   // ─── 面板 ───
   panels: Record<PanelId, { visible: boolean }>
@@ -43,6 +45,9 @@ export interface EditorState {
   toggleConsole: () => void
   addConsoleOutput: (text: string) => void
   clearConsole: () => void
+
+  launchGame: () => void
+  stopGame: () => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -50,6 +55,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   projects: [],
   currentProject: null,
   showProjectSelector: false,
+
+  launchCount: 0,
 
   gameState: {
     running: false,
@@ -78,6 +85,18 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({ gameState: { ...state.gameState, score } })),
   setGameOver: (gameOver) =>
     set((state) => ({ gameState: { ...state.gameState, gameOver } })),
+
+  launchGame: () =>
+    set((state) => ({
+      launchCount: state.launchCount + 1,
+      gameState: { running: true, score: 0, gameOver: false },
+      consoleOutput: [...state.consoleOutput.slice(-199), '🎮 启动贪吃蛇游戏...', '', '  方向键控制方向', '  Ctrl+Enter 停止游戏'],
+    })),
+  stopGame: () =>
+    set((state) => ({
+      gameState: { running: false, score: 0, gameOver: false },
+      consoleOutput: [...state.consoleOutput.slice(-199), '🛑 游戏已停止'],
+    })),
 
   togglePanel: (panel) =>
     set((state) => ({

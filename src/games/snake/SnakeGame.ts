@@ -70,10 +70,12 @@ export class SnakeGame {
 
   // ─── 生命周期 ───
 
-  init() {
-    // 构建 3D 场景
-    const sceneGroup = this.scene3D.build(this.config.gridSize)
-    this.group.add(sceneGroup)
+  init(options?: { skipArena?: boolean }) {
+    if (!options?.skipArena) {
+      // 构建 3D 场景（竞技场）
+      const sceneGroup = this.scene3D.build(this.config.gridSize)
+      this.group.add(sceneGroup)
+    }
 
     this.reset()
   }

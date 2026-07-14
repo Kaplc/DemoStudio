@@ -4,10 +4,15 @@
  */
 import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
 import path from 'path'
+import fs from 'fs'
 
 let mainWindow: BrowserWindow | null = null
 
 const isDev = !app.isPackaged
+
+const LOG_DIR = isDev
+  ? path.join(__dirname, '..', 'logs')       // 开发 → 项目根目录/logs/
+  : path.join(app.getPath('userData'), 'logs') // 生产 → userData/logs/
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -27,117 +32,8 @@ function createWindow() {
     show: false,
   })
 
-  // 构建原生菜单
-  const menuTemplate: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: 'File',
-      submenu: [
-        {
-          label: 'New Project',
-          accelerator: 'CmdOrCtrl+N',
-          click: () => mainWindow?.webContents.send('menu-action', 'new-project'),
-        },
-        {
-          label: 'Open Project',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => mainWindow?.webContents.send('menu-action', 'open-project'),
-        },
-        { type: 'separator' },
-        {
-          label: 'Save',
-          accelerator: 'CmdOrCtrl+S',
-          click: () => mainWindow?.webContents.send('menu-action', 'save'),
-        },
-        {
-          label: 'Save As...',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => mainWindow?.webContents.send('menu-action', 'save-as'),
-        },
-        { type: 'separator' },
-        {
-          label: 'Exit',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4',
-          click: () => app.quit(),
-        },
-      ],
-    },
-    {
-      label: 'Project',
-      submenu: [
-        {
-          label: 'Launch Game',
-          accelerator: 'F5',
-          click: () => mainWindow?.webContents.send('menu-action', 'launch-game'),
-        },
-        {
-          label: 'Stop Game',
-          accelerator: 'Shift+F5',
-          click: () => mainWindow?.webContents.send('menu-action', 'stop-game'),
-        },
-        { type: 'separator' },
-        {
-          label: 'Project Settings',
-          click: () => mainWindow?.webContents.send('menu-action', 'project-settings'),
-        },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Toggle Console',
-          accelerator: '`',
-          click: () => mainWindow?.webContents.send('menu-action', 'toggle-console'),
-        },
-        { type: 'separator' },
-        {
-          label: 'Toggle Developer Tools',
-          accelerator: 'F12',
-          click: () => mainWindow?.webContents.toggleDevTools(),
-        },
-        {
-          label: 'Reload',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => mainWindow?.webContents.reload(),
-        },
-      ],
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'About DemoStudio',
-          click: () => {
-            dialog.showMessageBox(mainWindow!, {
-              type: 'info',
-              title: 'About DemoStudio',
-              message: 'DemoStudio Editor v4.0.0',
-              detail: '基于 Three.js + Electron + React 的游戏编辑器',
-            })
-          },
-        },
-      ],
-    },
-  ]
-
-  // macOS 应用菜单
-  if (process.platform === 'darwin') {
-    menuTemplate.unshift({
-      label: app.name,
-      submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    })
-  }
-
-  const menu = Menu.buildFromTemplate(menuTemplate)
-  Menu.setApplicationMenu(menu)
+  // 使用 React 自定义菜单栏，隐藏 Electron 原生菜单
+  Menu.setApplicationMenu(null)
 
   // 加载应用
   if (isDev) {
@@ -180,6 +76,37 @@ ipcMain.handle('save-file-dialog', async (_event, options: Electron.SaveDialogOp
 ipcMain.handle('show-message-box', async (_event, options: Electron.MessageBoxOptions) => {
   const result = await dialog.showMessageBox(mainWindow!, options)
   return result
+})
+
+ipcMain.handle('toggle-dev-tools', () => {
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    win.webContents.toggleDevTools()
+  }
+})
+
+// ─── 日志文件写入 ───
+
+function ensureLogDir() {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true })
+  }
+}
+
+function getLogFilePath(): string {
+  const date = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  return path.join(LOG_DIR, `${date}.log`)
+}
+
+ipcMain.handle('write-log-file', async (_event, level: string, message: string) => {
+  try {
+    ensureLogDir()
+    const filePath = getLogFilePath()
+    const line = `${message}\n`
+    fs.appendFileSync(filePath, line, 'utf-8')
+  } catch (err) {
+    console.error('日志写入失败:', err)
+  }
 })
 
 // ─── 应用生命周期 ───
