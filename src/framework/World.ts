@@ -32,9 +32,15 @@ export class World {
   // ═══════════════════════════════════
 
   SetGameMode(gm: GameMode) {
+    // GameMode 是 Actor，手动设置 world 引用但不加入 allActors（由 World 显式管理其生命周期）
+    gm.world = this
     this.gameMode = gm
     gm.InitGame()
     gm.StartPlay()
+    if (this._running) {
+      gm.BeginPlay()
+      if (gm.gameState) gm.gameState.BeginPlay()
+    }
   }
 
   get gameState() {
@@ -156,8 +162,9 @@ export class World {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
 
-    // 3. Tick GameMode
+    // 3. Tick GameMode + GameState
     this.gameMode?.Tick(dt)
+    this.gameMode?.gameState?.Tick(dt)
 
     // 4. 更新摄像机
     this.gameMode?.cameraManager.UpdateCamera()
@@ -174,6 +181,9 @@ export class World {
     for (const actor of this.allActors) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
+    // 非 allActors 的 Actor（GameMode/GameState）
+    if (this.gameMode && !this.gameMode.bHasBegunPlay) this.gameMode.BeginPlay()
+    if (this.gameMode?.gameState && !this.gameMode.gameState.bHasBegunPlay) this.gameMode.gameState.BeginPlay()
   }
 
   /** 暂停运行（外部驱动模式） */
@@ -200,7 +210,10 @@ export class World {
     for (const actor of this.allActors) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
+    // GameMode 的 Tick（包含其 Component 的 Tick）
     this.gameMode?.Tick(dt)
+    // GameState 的 Tick
+    this.gameMode?.gameState?.Tick(dt)
     for (const cb of this._tickCallbacks) {
       cb(dt)
     }
@@ -220,6 +233,9 @@ export class World {
 
   Destroy() {
     this.Stop()
+    // 清理 GameMode/GameState
+    this.gameMode?.gameState?.EndPlay()
+    this.gameMode?.EndPlay()
     // 从后往前销毁所有 Actor
     const all = [...this.allActors]
     for (let i = all.length - 1; i >= 0; i--) {

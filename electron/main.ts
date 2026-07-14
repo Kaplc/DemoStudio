@@ -5,14 +5,19 @@
 import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import http from 'http'
 
 let mainWindow: BrowserWindow | null = null
+let _gameRunning = false
+let _gameScore = 0
 
 const isDev = !app.isPackaged
 
 const LOG_DIR = isDev
   ? path.join(__dirname, '..', 'logs')       // 开发 → 项目根目录/logs/
   : path.join(app.getPath('userData'), 'logs') // 生产 → userData/logs/
+
+const CONSOLE_LOG_FILE = path.join(LOG_DIR, 'console.log')
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -49,6 +54,17 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // 将浏览器控制台输出重定向到文件日志
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const logLevel = ['verbose', 'info', 'warning', 'error'][level] || 'info'
+    const now = new Date().toISOString()
+    const lineStr = `[${now}][CONSOLE:${logLevel.toUpperCase()}] ${message} (${sourceId}:${line})\n`
+    try {
+      ensureLogDir()
+      fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
+    } catch {}
   })
 }
 
@@ -109,9 +125,130 @@ ipcMain.handle('write-log-file', async (_event, level: string, message: string) 
   }
 })
 
+// ─── MCP 游戏状态 ───
+
+ipcMain.handle('mcp-report-state', (_event, state: { running: boolean; score?: number }) => {
+  _gameRunning = state.running
+  if (state.score !== undefined) _gameScore = state.score
+})
+
+// ─── MCP HTTP API 服务器 ───
+// 让 MCP 服务器 (editor/mcp-server.mjs) 可以通过 HTTP 控制编辑器
+
+const MCP_API_PORT = 9877
+
+interface MCPCommand {
+  command: string
+  params?: Record<string, any>
+}
+
+function startMCPServer() {
+  const server = http.createServer((req, res) => {
+    // CORS
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/api/command') {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        try {
+          const cmd: MCPCommand = JSON.parse(body)
+          // 发送 IPC 给渲染进程
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('mcp-command', cmd)
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'ok', command: cmd.command }))
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'error', message: String(err) }))
+        }
+      })
+      return
+    }
+
+    // 蛇游戏详细状态查询（从渲染进程实时读取）
+    if (req.method === 'GET' && req.url === '/api/game-state') {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'error', message: '编辑器窗口不可用' }))
+        return
+      }
+      mainWindow.webContents.executeJavaScript(
+        'JSON.stringify((window as any).__snakeGameData || null)'
+      ).then((result) => {
+        const data = result ? JSON.parse(result) : null
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          status: 'ok',
+          data,
+        }))
+      }).catch((err) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'error', message: String(err) }))
+      })
+      return
+    }
+
+    if (req.method === 'GET' && req.url === '/api/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        status: 'running',
+        editor: 'DemoStudio Editor v4.0.0',
+        platform: process.platform,
+        gameRunning: _gameRunning,
+        gameScore: _gameScore,
+      }))
+      return
+    }
+
+    // 获取浏览器控制台日志
+    if (req.method === 'GET' && req.url === '/api/console-logs') {
+      try {
+        ensureLogDir()
+        if (fs.existsSync(CONSOLE_LOG_FILE)) {
+          const content = fs.readFileSync(CONSOLE_LOG_FILE, 'utf-8')
+          const lines = content.split('\n').filter(Boolean).slice(-50) // 最近50条
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'ok', logs: lines }))
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'ok', logs: [] }))
+        }
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'error', message: String(err) }))
+      }
+      return
+    }
+
+    res.writeHead(404)
+    res.end('Not found')
+  })
+
+  server.listen(MCP_API_PORT, '127.0.0.1', () => {
+    console.log(`[MCP-API] HTTP 服务器已启动: http://127.0.0.1:${MCP_API_PORT}`)
+  })
+
+  server.on('error', (err) => {
+    console.error('[MCP-API] 服务器启动失败:', err.message)
+  })
+}
+
 // ─── 应用生命周期 ───
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  startMCPServer()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

@@ -57,8 +57,44 @@ export default function App() {
           default: addConsoleOutput(`[菜单] ${action}`)
         }
       })
+      // 监听 MCP 命令
+      let mcpCleanup: (() => void) | undefined
+      if (window.electronAPI.onMCPCommand) {
+        mcpCleanup = window.electronAPI.onMCPCommand((command, params) => {
+          addConsoleOutput(`[MCP] 收到命令: ${command}`)
+          switch (command) {
+            case 'launchGame':
+            case 'start_game':
+              // 先选中 Snake 工程（加载竞技场），再启动游戏
+              const project = useEditorStore.getState().projects.find(p => p.name === 'Snake')
+              if (project) useEditorStore.getState().setCurrentProject(project)
+              onLaunchGame()
+              break
+            case 'stopGame':
+            case 'stop_game':
+              onStopGame()
+              break
+            case 'toggle_game':
+              onLaunchGame()
+              break
+            case 'addConsoleOutput':
+              if (params?.text) addConsoleOutput(params.text)
+              break
+            case 'send_input':
+              if (params?.key) {
+                // 派发键盘事件到 window
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))
+                addConsoleOutput(`[MCP] 发送按键: ${params.key}`)
+              }
+              break
+            default:
+              addConsoleOutput(`[MCP] 未知命令: ${command}`)
+          }
+        })
+      }
       return () => {
         cleanup()
+        mcpCleanup?.()
         window.removeEventListener('shortcut-toggle-console', onToggleConsole)
         window.removeEventListener('shortcut-open-project', onOpenProject)
         window.removeEventListener('shortcut-new-project', onNewProject)
@@ -80,10 +116,17 @@ export default function App() {
     }
   }, [gameState.running]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 实时状态更新
+  // 实时状态更新 + 上报给 Electron main
   useEffect(() => {
     let frame = 0
     let lastTime = performance.now()
+    // 上报游戏状态
+    if (window.electronAPI?.reportGameState) {
+      window.electronAPI.reportGameState({
+        running: gameState.running,
+        score: gameState.score,
+      })
+    }
     const id = setInterval(() => {
       const now = performance.now()
       const fps = Math.round((frame * 1000) / (now - lastTime))

@@ -4,10 +4,22 @@
  */
 import * as THREE from 'three'
 import { Pawn, CameraComponent } from '../../framework'
+import { logger } from '../../engine'
 import { SnakeScene3D } from './Scene3D'
 import { DEFAULT_CONFIG, DIRECTION_VECTORS } from './types'
 import type { Vec2, Direction, GameConfig } from './types'
 import type { SnakeGameMode } from './SnakeGameMode'
+
+// 全局游戏状态快照类型
+export interface SnakeGameSnapshot {
+  phase: string
+  score: number
+  snakeLength: number
+  headPosition: { x: number; z: number } | null
+  foodPosition: { x: number; z: number }
+  currentDirection: { x: number; z: number }
+  pendingDirection: { x: number; z: number }
+}
 
 export class SnakePawn extends Pawn {
   private config: GameConfig
@@ -63,7 +75,14 @@ export class SnakePawn extends Pawn {
     this.resetState()
     this.rebuildSnake()
     this.spawnFood()
-    this.updateGameCamera()
+    // 固定 2.5D 俯视摄像机
+    // 直接设置 Actor root 位置，让 SyncFromActor 每帧正确同步
+    const cam = this.gameCamera.camera
+    cam.position.set(0, 20, 0.01)
+    cam.lookAt(0, 0, 0)
+    // 通过 SyncToActor 把摄像机姿态固话到 Actor root
+    this.gameCamera.SyncToActor();
+    (window as any).__snakeGameData = this.getSnapshot()
   }
 
   private resetState() {
@@ -99,6 +118,7 @@ export class SnakePawn extends Pawn {
     const vec = DIRECTION_VECTORS[dir]
     if (vec.x + this.currentDir.x === 0 && vec.z + this.currentDir.z === 0) return
     this.nextDir = vec
+    logger.info(`方向: ${dir} → (${vec.x}, ${vec.z})`)
   }
 
   private moveSnake() {
@@ -113,6 +133,7 @@ export class SnakePawn extends Pawn {
     // 撞墙
     const half = this.config.gridHalf
     if (Math.abs(newHead.x) >= half || Math.abs(newHead.z) >= half) {
+      logger.warn(`撞墙! 位置: (${newHead.x}, ${newHead.z})`)
       this.onGameOver()
       return
     }
@@ -120,6 +141,7 @@ export class SnakePawn extends Pawn {
     // 撞自身
     for (const seg of this.snake) {
       if (seg.x === newHead.x && seg.z === newHead.z) {
+        logger.warn(`撞自身! 位置: (${newHead.x}, ${newHead.z})`)
         this.onGameOver()
         return
       }
@@ -132,12 +154,17 @@ export class SnakePawn extends Pawn {
       const gm = this.world?.gameMode as SnakeGameMode
       gm?.OnEatFood()
       this.spawnFood()
+      logger.info(`吃食物! 蛇长: ${this.snake.length}`)
     } else {
       this.snake.pop()
     }
 
+    logger.info(`移动: (${head.x}, ${head.z}) → (${newHead.x}, ${newHead.z}) | 蛇长: ${this.snake.length}`)
     this.rebuildSnake()
-    this.updateGameCamera()
+    // 更新全局游戏状态快照
+    if (typeof window !== 'undefined') {
+      (window as any).__snakeGameData = this.getSnapshot()
+    }
   }
 
   /** 更新游戏摄像机位置（固定俯视 2.5D 视角，不跟随蛇头） */
@@ -152,6 +179,23 @@ export class SnakePawn extends Pawn {
     this.StopMoving()
     const gm = this.world?.gameMode as SnakeGameMode
     gm?.OnSnakeDied()
+    if (typeof window !== 'undefined') {
+      (window as any).__snakeGameData = this.getSnapshot()
+    }
+  }
+
+  /** 获取游戏状态快照（供 MCP 查询） */
+  getSnapshot() {
+    const head = this.snake.length > 0 ? this.snake[0] : null
+    return {
+      phase: (this.world?.gameMode as SnakeGameMode)?.gameState.phase || 'waiting',
+      score: (this.world?.gameMode as SnakeGameMode)?.gameState.score || 0,
+      snakeLength: this.snake.length,
+      headPosition: head ? { x: head.x, z: head.z } : null,
+      foodPosition: { x: this.foodPos.x, z: this.foodPos.z },
+      currentDirection: this.currentDir,
+      pendingDirection: this.nextDir,
+    }
   }
 
   // ═══ 3D 表现 ═══

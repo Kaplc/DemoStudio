@@ -2,7 +2,7 @@
   "name": "Snake",
   "description": "Classic 2.5D snake game with MCP control",
   "version": "1.0.0",
-  "main": "snake_game.py",
-  "mcp_server": "snake_mcp_server.py",
+  "main": "src/games/snake/SnakePawn.ts",
+  "mcp_server": "editor/mcp-server.mjs",
   "tags": ["game", "snake", "mcp", "2.5d"]
 }

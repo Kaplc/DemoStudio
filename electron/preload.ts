@@ -21,9 +21,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
+  // ─── MCP 命令（从 Electron main → renderer） ───
+  onMCPCommand: (callback: (command: string, params: any) => void) => {
+    ipcRenderer.on('mcp-command', (_event, data: { command: string; params?: any }) => {
+      callback(data.command, data.params)
+    })
+    return () => {
+      ipcRenderer.removeAllListeners('mcp-command')
+    }
+  },
+
   // ─── 日志 ───
   writeLogFile: (level: string, message: string) =>
     ipcRenderer.invoke('write-log-file', level, message),
+
+  // ─── MCP 报告游戏状态 ───
+  reportGameState: (state: { running: boolean; score?: number }) =>
+    ipcRenderer.invoke('mcp-report-state', state),
 
   // ─── DevTools ───
   toggleDevTools: () => ipcRenderer.invoke('toggle-dev-tools'),

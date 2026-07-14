@@ -310,11 +310,13 @@ export class SceneManager {
     if (this.wasdKeys.has('q')) this.camera.position.addScaledVector(worldUp, -speed)
     if (this.wasdKeys.has('e')) this.camera.position.addScaledVector(worldUp, speed)
 
-    // Fly 模式下同步 controls target（如果 controls 存在）
     if (this.controlMode === 'fly' && this.controls) {
       const fwd = new THREE.Vector3()
       this.camera.getWorldDirection(fwd)
       this.controls.target.copy(this.camera.position).add(fwd.clone().multiplyScalar(10))
+    } else if (this.controlMode === 'orbit' && this.controls) {
+      // Orbit 模式：target 在地面跟随 camera 水平位置
+      this.controls.target.set(this.camera.position.x, 0, this.camera.position.z)
     }
   }
 

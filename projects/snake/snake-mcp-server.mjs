@@ -1,13 +1,12 @@
 /**
- * DemoStudio MCP 服务器（基于 @modelcontextprotocol/sdk）
- * 提供 VS Code MCP 工具来控制编辑器
- * 通过 HTTP 与 Electron 主进程通信
+ * Snake Game MCP 服务器（基于 @modelcontextprotocol/sdk）
+ * 独立于编辑器 MCP，提供贪吃蛇游戏专用控制工具
  *
  * VS Code MCP 配置 (.vscode/mcp.json):
- *   "demostudio-editor": {
+ *   "snake-game": {
  *     "type": "stdio",
  *     "command": "node",
- *     "args": ["editor/mcp-server.mjs"],
+ *     "args": ["projects/snake/snake-mcp-server.mjs"],
  *     "cwd": "E:\\DemoStudio"
  *   }
  */
@@ -34,9 +33,9 @@ async function callEditor(command, params = {}) {
   }
 }
 
-async function getEditorStatus() {
+async function getGameState() {
   try {
-    const resp = await fetch(`${EDITOR_API}/api/status`)
+    const resp = await fetch(`${EDITOR_API}/api/game-state`)
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     return await resp.json()
   } catch (err) {
@@ -44,9 +43,9 @@ async function getEditorStatus() {
   }
 }
 
-async function fetchConsoleLogs() {
+async function getStatus() {
   try {
-    const resp = await fetch(`${EDITOR_API}/api/console-logs`)
+    const resp = await fetch(`${EDITOR_API}/api/status`)
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     return await resp.json()
   } catch (err) {
@@ -57,7 +56,7 @@ async function fetchConsoleLogs() {
 // ─── 创建 MCP 服务器 ───
 
 const server = new Server(
-  { name: 'demostudio-editor', version: '1.0.0' },
+  { name: 'snake-game', version: '1.0.0' },
   { capabilities: { tools: {} } },
 )
 
@@ -67,12 +66,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'start_game',
-      description: '从编辑器启动贪吃蛇游戏',
+      description: '启动贪吃蛇游戏',
       inputSchema: { type: 'object', properties: {} },
     },
     {
       name: 'stop_game',
-      description: '停止正在运行的游戏',
+      description: '停止贪吃蛇游戏',
       inputSchema: { type: 'object', properties: {} },
     },
     {
@@ -81,38 +80,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: { type: 'object', properties: {} },
     },
     {
-      name: 'get_status',
-      description: '获取编辑器状态（游戏是否运行、分数等）',
-      inputSchema: { type: 'object', properties: {} },
-    },
-    {
-      name: 'send_command',
-      description: '发送控制台命令到编辑器',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: '控制台命令文本' },
-        },
-        required: ['command'],
-      },
-    },
-    {
       name: 'send_input',
-      description: '发送键盘按键到编辑器（方向键控制蛇移动）',
+      description: '发送方向键控制蛇移动',
       inputSchema: {
         type: 'object',
         properties: {
           key: {
             type: 'string',
-            description: '按键名，如 ArrowUp/ArrowDown/ArrowLeft/ArrowRight',
+            description: '方向键: ArrowUp / ArrowDown / ArrowLeft / ArrowRight',
           },
         },
         required: ['key'],
       },
     },
     {
-      name: 'get_console_logs',
-      description: '获取浏览器控制台最近日志（含报错信息）',
+      name: 'get_game_state',
+      description: '获取贪吃蛇实时状态（蛇头位置、分数、方向、食物位置等）',
       inputSchema: { type: 'object', properties: {} },
     },
   ],
@@ -137,47 +120,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
     case 'toggle_game': {
-      const status = await getEditorStatus()
+      const status = await getStatus()
       if (status.gameRunning) {
-        return (await callEditor('stop_game'))
+        const result = await callEditor('stop_game')
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        }
       } else {
-        return (await callEditor('start_game'))
-      }
-    }
-    case 'get_status': {
-      const info = await getEditorStatus()
-      return {
-        content: [{ type: 'text', text: JSON.stringify(info, null, 2) }],
-      }
-    }
-    case 'send_command': {
-      const cmd = args?.command || ''
-      await callEditor('addConsoleOutput', { text: `> ${cmd}` })
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'ok', command: cmd }, null, 2) }],
+        const result = await callEditor('start_game')
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        }
       }
     }
     case 'send_input': {
       const key = args?.key || ''
-      await callEditor('send_input', { key })
+      const result = await callEditor('send_input', { key })
       return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'ok', key }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       }
     }
-    case 'get_console_logs': {
-      const result = await fetchConsoleLogs()
-      const logs = result.logs || []
-      const errorLogs = logs.filter(l => l.includes('[CONSOLE:ERROR]') || l.includes('[CONSOLE:WARNING]'))
-      const text = logs.length === 0
-        ? JSON.stringify({ status: 'ok', message: '暂无控制台日志' }, null, 2)
-        : JSON.stringify({
+    case 'get_game_state': {
+      const result = await getGameState()
+      const data = result.data
+      if (!data) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({
             status: 'ok',
-            total: logs.length,
-            errors: errorLogs.length,
-            logs,
-          }, null, 2)
+            message: '游戏未运行，没有实时数据',
+            data: null,
+          }, null, 2) }],
+        }
+      }
+      // 格式化输出为更可读的结构
+      const formatted = {
+        status: 'ok',
+        game: {
+          phase: data.phase,
+          score: data.score,
+          snakeLength: data.snakeLength,
+          headPosition: data.headPosition,
+          foodPosition: data.foodPosition,
+          currentDirection: data.currentDirection,
+        },
+        summary: data.phase === 'gameover'
+          ? `💀 Game Over · 得分: ${data.score} · 蛇长: ${data.snakeLength}`
+          : data.phase === 'playing'
+            ? `🐍 运行中 · 得分: ${data.score} · 蛇长: ${data.snakeLength} · 蛇头: (${data.headPosition?.x}, ${data.headPosition?.z}) · 食物: (${data.foodPosition.x}, ${data.foodPosition.z})`
+            : `⏳ 等待中`,
+      }
       return {
-        content: [{ type: 'text', text }],
+        content: [{ type: 'text', text: JSON.stringify(formatted, null, 2) }],
       }
     }
     default:
@@ -190,7 +183,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('[MCP] DemoStudio Editor MCP Server 已启动 (SDK)')
+  console.error('[MCP] Snake Game MCP Server 已启动')
 }
 
 main().catch((err) => {

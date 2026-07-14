@@ -1,17 +1,22 @@
 /**
  * GameState — 可观察的游戏全局状态
- * 模仿 UE GameState，React 可通过 subscribe 监听变化
+ * 模仿 UE GameState（Actor），React 可通过 subscribe 监听变化
  */
+import { Actor } from './Actor'
 
 export type GamePhase = 'waiting' | 'playing' | 'paused' | 'gameover'
 
-export class GameState {
+export class GameState extends Actor {
   public score = 0
   public phase: GamePhase = 'waiting'
   public timeElapsed = 0
   public gameOver = false
 
   private listeners = new Set<() => void>()
+
+  constructor() {
+    super('GameState')
+  }
 
   subscribe(cb: () => void): () => void {
     this.listeners.add(cb)

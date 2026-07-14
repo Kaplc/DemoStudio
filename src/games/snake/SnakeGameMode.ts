@@ -2,15 +2,11 @@
  * SnakeGameMode — 贪吃蛇游戏规则
  * 控制：食物生成、计分、游戏结束判断
  */
-import { GameMode, type World } from '../../framework'
+import { GameMode } from '../../framework'
 import { SnakePawn } from './SnakePawn'
 import { SnakePlayerController } from './SnakePlayerController'
 
 export class SnakeGameMode extends GameMode {
-  constructor(world: World) {
-    super(world)
-  }
-
   override InitGame() {
     super.InitGame()
   }

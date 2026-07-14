@@ -1,14 +1,23 @@
 /**
  * PlayerController — 处理玩家输入并控制 Pawn
- * 模仿 UE PlayerController
+ * 模仿 UE PlayerController（Actor）
+ * 输入路由：Viewport → PlayerController.ProcessInput() → InputComponent → 回调
  */
+import { Actor } from './Actor'
+import { InputComponent } from './InputComponent'
 import type { Pawn } from './Pawn'
+import type { InputEventType } from './InputComponent'
 
-export abstract class PlayerController {
-  /** 当前控制的 Pawn */
+export abstract class PlayerController extends Actor {
   public pawn: Pawn | null = null
+  public inputComponent: InputComponent
 
-  /** 占据一个 Pawn */
+  constructor() {
+    super('PlayerController')
+    this.inputComponent = new InputComponent(this, 'PlayerInput')
+    this.addComponent(this.inputComponent)
+  }
+
   Possess(pawn: Pawn) {
     if (this.pawn) this.Unpossess()
     this.pawn = pawn
@@ -16,7 +25,6 @@ export abstract class PlayerController {
     this.OnPossess(pawn)
   }
 
-  /** 释放当前 Pawn */
   Unpossess() {
     if (this.pawn) {
       this.pawn.Unpossessed()
@@ -25,12 +33,14 @@ export abstract class PlayerController {
     }
   }
 
-  /** 占据后调用（子类重写绑定输入） */
   protected OnPossess(_pawn: Pawn): void {}
 
-  /** 释放后调用 */
-  protected OnUnpossess(_pawn: Pawn): void {}
+  protected OnUnpossess(_pawn: Pawn): void {
+    this.inputComponent.ClearBindings()
+  }
 
-  /** 处理键盘事件（由外部转发） */
-  abstract HandleInput(key: string, eventType: 'pressed' | 'released'): void
+  ProcessInput(key: string, eventType: InputEventType): boolean {
+    if (!this.pawn) return false
+    return this.inputComponent.ProcessInput(key, eventType)
+  }
 }

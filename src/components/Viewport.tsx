@@ -48,7 +48,7 @@ export function Viewport() {
 
     // World（绑定共享场景）
     const world = new World(shared)
-    const gameMode = new SnakeGameMode(world)
+    const gameMode = new SnakeGameMode()
     world.SetGameMode(gameMode)
     world.Stop()
     worldRef.current = world
@@ -69,6 +69,7 @@ export function Viewport() {
       addDefaultContent: false,
     })
     sceneMgr.setWASDControl(true)
+    sceneMgr.setCameraOrbit(45, 30, 20) // 45°水平, 30°俯视, 距离20 → (12,10,12)
     sceneMgr.start()
     sceneRef.current = sceneMgr
     logger.info('Scene 视图初始化完成 (Fly 摄像机)')
@@ -79,6 +80,7 @@ export function Viewport() {
       sharedScene: shared,
       addDefaultContent: false,
     })
+    gameMgr.setWASDControl(true)
     gameMgr.camera.position.set(0, 20, 0.01)
     const gc = gameMgr.controls!
     gc.target.set(0, 0, 0)
@@ -253,24 +255,29 @@ export function Viewport() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (['w', 'W', 'a', 'A', 's', 'S', 'd', 'D', 'q', 'Q', 'e', 'E'].includes(e.key)) {
-        sceneRef.current?.onWASDKeyDown(e.key)
+        // Scene 激活 → WASD 控制 Scene 摄像机
+        // Game 激活 → WASD 控制 Game 摄像机
+        const mgr = activeTab === 'scene' ? sceneRef.current : gameSceneRef.current
+        mgr?.onWASDKeyDown(e.key)
         return
       }
-      if (editorState.running) {
-        controllerRef.current?.HandleInput(e.key, 'pressed')
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-          e.preventDefault()
-        }
+      // 游戏运行时方向键路由到 PlayerController → InputComponent
+      if (editorState.running && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        controllerRef.current?.ProcessInput(e.key, 'pressed')
+        e.preventDefault()
       }
     }
-    const onKeyUp = (e: KeyboardEvent) => sceneRef.current?.onWASDKeyUp(e.key)
+    const onKeyUp = (e: KeyboardEvent) => {
+      const mgr = activeTab === 'scene' ? sceneRef.current : gameSceneRef.current
+      mgr?.onWASDKeyUp(e.key)
+    }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [editorState.running])
+  }, [editorState.running, activeTab])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>

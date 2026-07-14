@@ -5,6 +5,9 @@ import electronRenderer from 'vite-plugin-electron-renderer'
 import path from 'path'
 
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   plugins: [
     react(),
     electron([

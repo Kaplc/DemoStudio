@@ -8,7 +8,10 @@
  * ├── PlayerController  玩家输入处理 → Pawn
  * ├── GameMode      游戏规则权威
  * ├── GameState     可观察的全局游戏状态
- * └── World         Actor 管理 + Tick 循环
+ * ├── World         Actor 管理 + Tick 循环
+ * ├── CameraComponent     Actor 可挂载的摄像机
+ * ├── PlayerCameraManager 游戏摄像机管理
+ * └── InputComponent      输入绑定组件（按键 → 动作）
  */
 
 export { Actor } from './Actor'
@@ -20,3 +23,5 @@ export { GameState } from './GameState'
 export { World } from './World'
 export { CameraComponent } from './CameraComponent'
 export { PlayerCameraManager } from './PlayerCameraManager'
+export { InputComponent } from './InputComponent'
+export type { InputEventType } from './InputComponent'
