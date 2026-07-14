@@ -221,6 +221,8 @@ export function Viewport({ onReady }: ViewportProps) {
       }
       logger.info('游戏已启动')
     } else {
+      // StrictMode 兼容：避免游戏从未启动时打印"停止游戏"
+      if (!controllerRef.current && !pawnRef.current) return
       logger.info('停止游戏...')
       if (removeUpdateRef.current) {
         removeUpdateRef.current()
