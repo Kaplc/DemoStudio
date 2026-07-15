@@ -2,7 +2,7 @@
  * SnakeGameMode — 贪吃蛇游戏规则
  * 控制：食物生成、计分、游戏结束判断
  */
-import { GameMode, SpawnComponent, CameraComponent } from '../../framework'
+import { GameMode, SpawnComponent, CameraComponent } from '@/engine'
 import { SnakePawn } from './SnakePawn'
 import { SnakeFoodPawn } from './SnakeFoodPawn'
 import { SnakePlayerController } from './SnakePlayerController'

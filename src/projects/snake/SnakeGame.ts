@@ -1,5 +1,5 @@
 /**
- * 贪吃蛇游戏逻辑 — Three.js 版
+ * 贪吃蛇游戏逻辑 — Three.js 版（遗留实现，保留参考）
  * 完整移植自 Python/Panda3D 版本
  */
 import * as THREE from 'three'
@@ -72,11 +72,9 @@ export class SnakeGame {
 
   init(options?: { skipArena?: boolean }) {
     if (!options?.skipArena) {
-      // 构建 3D 场景（竞技场）
-      const sceneGroup = this.scene3D.build(this.config.gridSize)
-      this.group.add(sceneGroup)
+      const sceneGroup = this.scene3D.build({ gridSize: this.config.gridSize })
+      this.group.add(sceneGroup.group)
     }
-
     this.reset()
   }
 
@@ -95,11 +93,9 @@ export class SnakeGame {
   }
 
   reset() {
-    // 清除蛇
     this.clearSnake()
     this.clearFood()
 
-    // 重置状态
     const half = this.config.gridHalf
     this.snake = [
       { x: 0, z: 0 },
@@ -112,10 +108,7 @@ export class SnakeGame {
     this.moveTimer = 0
     this.status = 'idle'
 
-    // 重建蛇
     this.rebuildSnake()
-
-    // 生成食物
     this.spawnFood()
 
     this.onScoreChange?.(this.score)
@@ -185,92 +178,5 @@ export class SnakeGame {
       this.foodMesh.geometry.dispose()
       this.foodMesh = null
     }
-  }
-
-  // ─── 输入 ───
-
-  setDirection(dir: Direction) {
-    const vec = DIRECTION_VECTORS[dir]
-    // 禁止 180 度掉头
-    if (vec.x + this.currentDir.x === 0 && vec.z + this.currentDir.z === 0) {
-      return
-    }
-    this.nextDir = vec
-  }
-
-  // ─── 更新 ───
-
-  update(dt: number) {
-    if (this.status !== 'running') return
-
-    this.moveTimer += dt
-    if (this.moveTimer < this.config.moveInterval) return
-    this.moveTimer = 0
-
-    this.moveSnake()
-  }
-
-  private moveSnake() {
-    this.currentDir = { ...this.nextDir }
-
-    // 计算新头部位置
-    const head = this.snake[0]
-    const newHead: Vec2 = {
-      x: head.x + this.currentDir.x,
-      z: head.z + this.currentDir.z,
-    }
-
-    // 碰撞检测：墙壁
-    const half = this.config.gridHalf
-    if (Math.abs(newHead.x) >= half || Math.abs(newHead.z) >= half) {
-      this.gameOver()
-      return
-    }
-
-    // 碰撞检测：自身
-    for (const seg of this.snake) {
-      if (seg.x === newHead.x && seg.z === newHead.z) {
-        this.gameOver()
-        return
-      }
-    }
-
-    // 移动蛇
-    this.snake.unshift(newHead)
-
-    // 吃食物
-    if (newHead.x === this.foodPos.x && newHead.z === this.foodPos.z) {
-      this.score++
-      this.onScoreChange?.(this.score)
-      this.spawnFood()
-    } else {
-      this.snake.pop()
-    }
-
-    // 更新 3D 表现
-    this.rebuildSnake()
-  }
-
-  private gameOver() {
-    this.status = 'gameover'
-    this.onStatusChange?.(this.status)
-  }
-
-  // ─── 状态查询 ───
-
-  getStatus(): GameStatus {
-    return this.status
-  }
-
-  getScore(): number {
-    return this.score
-  }
-
-  getSnakePositions(): Vec2[] {
-    return [...this.snake]
-  }
-
-  getFoodPosition(): Vec2 {
-    return { ...this.foodPos }
   }
 }

@@ -226,10 +226,36 @@ html, body, #root {
   gap: 4px;
 }
 
+/* 侧边面板内的页签 */
+.panel-header .viewport-tab {
+  height: 26px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  border-radius: 4px;
+  padding: 2px 8px;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.panel-header .viewport-tab.active {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
 .panel-body {
   flex: 1;
   overflow: auto;
   padding: 8px;
+}
+
+/* 日志和 Console 面板允许文字选择/复制 */
+.panel-body .console-output,
+.panel-body pre,
+.console-output {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 /* ═══ 视口 ═══ */

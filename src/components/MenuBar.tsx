@@ -30,7 +30,7 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { toggleConsole, togglePanel, addConsoleOutput, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
+  const { toggleConsole, togglePanel, addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState } = useEditorStore()
 
   const closeMenu = () => setMenu({ open: null })
 
@@ -44,6 +44,9 @@ export function MenuBar() {
         break
       case 'open-project':
         setShowProjectSelector(true)
+        break
+      case 'new-project':
+        setShowNewProjectDialog(true)
         break
       case 'launch-game':
         launchGame()

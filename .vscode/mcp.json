@@ -12,7 +12,7 @@
             "type": "stdio",
             "command": "node",
             "args": [
-                "projects/snake/snake-mcp-server.mjs"
+                "src/projects/snake/snake-mcp-server.mjs"
             ],
             "cwd": "E:\\DemoStudio"
         }

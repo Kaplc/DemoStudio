@@ -25,7 +25,7 @@
       "description": "经典 2.5D 贪吃蛇游戏",
       "version": "1.0.0",
       "tags": ["game", "snake", "2.5d"],
-      "main": "src/games/snake/index.ts"
+      "main": "src/projects/snake/index.ts"
     }
   ]
 }

@@ -6,6 +6,7 @@ interface ProjectStore {
   loading: boolean
 
   discoverProjects: () => Promise<void>
+  setProjects: (projects: Project[]) => void
 }
 
 // 预设示例工程
@@ -25,9 +26,26 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 
   discoverProjects: async () => {
     set({ loading: true })
-    // 模拟异步发现工程
-    // 实际实现中可以从文件系统扫描 projects/ 目录
-    await new Promise((r) => setTimeout(r, 300))
-    set({ projects: DEFAULT_PROJECTS, loading: false })
+    try {
+      // 优先通过 Electron IPC 扫描文件系统
+      if (window.electronAPI?.discoverProjectsScan) {
+        const scanned = await window.electronAPI.discoverProjectsScan()
+        if (scanned.length > 0) {
+          set({ projects: scanned, loading: false })
+          return
+        }
+      }
+    } catch {
+      // IPC 失败则回退到预设列表
+    }
+    // 回退：确保 Snake 始终在列表中
+    const existing = useProjectStore.getState().projects
+    if (!existing.some(p => p.folder === 'snake')) {
+      set({ projects: [...existing, ...DEFAULT_PROJECTS.filter(p => !existing.some(e => e.folder === p.folder))], loading: false })
+    } else {
+      set({ loading: false })
+    }
   },
+
+  setProjects: (projects) => set({ projects }),
 }))

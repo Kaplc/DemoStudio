@@ -1,56 +1,120 @@
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorStore } from '../stores/editorStore'
+
+type PanelTab = 'project' | 'logs'
 
 export function ProjectPanel() {
   const { projects, loading } = useProjectStore()
   const { currentProject, setCurrentProject, addConsoleOutput } = useEditorStore()
 
+  const [activeTab, setActiveTab] = useState<PanelTab>('project')
+  const [logContent, setLogContent] = useState('')
+  const [logError, setLogError] = useState<string | null>(null)
+  const logEndRef = useRef<HTMLDivElement>(null)
+
+  // ─── 日志轮询 ───
+  useEffect(() => {
+    if (activeTab !== 'logs') return
+    const fetchLog = async () => {
+      if (!window.electronAPI?.readLogFile) {
+        setLogError('日志读取仅支持 Electron 环境')
+        return
+      }
+      try {
+        const text = await window.electronAPI.readLogFile({ tail: 200 })
+        setLogContent(text)
+        setLogError(null)
+      } catch {
+        setLogError('日志读取失败')
+      }
+    }
+    fetchLog()
+    const interval = setInterval(fetchLog, 2000)
+    return () => clearInterval(interval)
+  }, [activeTab])
+
+  // ─── 自动滚动到底部 ───
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logContent, activeTab])
+
   return (
     <div className="panel">
-      <div className="panel-header">
-        <span>Project</span>
+      <div className="panel-header" style={{ display: 'flex', gap: 2, padding: '0 4px' }}>
+        <button
+          className={`viewport-tab${activeTab === 'project' ? ' active' : ''}`}
+          onClick={() => setActiveTab('project')}
+          style={{ flex: 1, fontSize: 10, justifyContent: 'center' }}
+        >
+          项目
+        </button>
+        <button
+          className={`viewport-tab${activeTab === 'logs' ? ' active' : ''}`}
+          onClick={() => setActiveTab('logs')}
+          style={{ flex: 1, fontSize: 10, justifyContent: 'center' }}
+        >
+          日志
+        </button>
       </div>
-      <div className="panel-body">
-        {loading ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>扫描中...</div>
-        ) : projects.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>暂无工程</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {projects.map((p) => (
-              <div
-                key={p.name}
-                className={`project-card ${currentProject?.name === p.name ? 'selected' : ''}`}
-                onClick={() => {
-                  setCurrentProject(p)
-                  addConsoleOutput(`切换到工程: ${p.name}`)
-                }}
-                style={{ border: '1px solid transparent', ...(currentProject?.name === p.name ? { borderColor: 'var(--accent)', background: 'var(--bg-active)' } : {}) }}
-              >
-                <div className="project-name">{p.name}</div>
-                <div className="project-desc">{p.description}</div>
-                <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                  {p.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
+
+      {activeTab === 'project' && (
+        <div className="panel-body">
+          {loading ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>扫描中...</div>
+          ) : projects.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>暂无工程</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {projects.map((p) => (
+                <div
+                  key={p.name}
+                  className={`project-card ${currentProject?.name === p.name ? 'selected' : ''}`}
+                  onClick={() => {
+                    setCurrentProject(p)
+                    addConsoleOutput(`切换到工程: ${p.name}`)
+                  }}
+                  style={{ borderWidth: 1, borderStyle: 'solid', borderColor: currentProject?.name === p.name ? 'var(--accent)' : 'transparent', ...(currentProject?.name === p.name ? { background: 'var(--bg-active)' } : {}) }}
+                >
+                  <div className="project-name">{p.name}</div>
+                  <div className="project-desc">{p.description}</div>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    {p.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        style={{
+                          fontSize: 10,
+                          padding: '1px 6px',
+                          borderRadius: 3,
+                          background: 'var(--bg-tertiary)',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'logs' && (
+        <div className="panel-body" style={{ padding: 0, fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5 }}>
+          {logError ? (
+            <div style={{ padding: 8, color: 'var(--error)' }}>{logError}</div>
+          ) : (
+            <pre style={{ margin: 0, padding: '4px 8px', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--text-primary)' }}>
+              {logContent || '等待日志...'}
+              <div ref={logEndRef} />
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   )
 }

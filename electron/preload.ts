@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFileDialog: (options: any) => ipcRenderer.invoke('save-file-dialog', options),
   showMessageBox: (options: any) => ipcRenderer.invoke('show-message-box', options),
 
+  // ─── 游戏输入事件（方向键，从 main process before-input-event 转发）───
+  onGameInput: (callback: (key: string) => void) => {
+    ipcRenderer.on('game-input', (_event, key: string) => callback(key))
+    return () => {
+      ipcRenderer.removeAllListeners('game-input')
+    }
+  },
+
   // ─── 菜单事件 ───
   onMenuAction: (callback: (action: string) => void) => {
     ipcRenderer.on('menu-action', (_event, action: string) => callback(action))
@@ -37,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 日志 ───
   writeLogFile: (level: string, message: string) =>
     ipcRenderer.invoke('write-log-file', level, message),
+  readLogFile: (options?: { tail?: number }) =>
+    ipcRenderer.invoke('read-log-file', options),
 
   // ─── MCP 报告游戏状态 ───
   reportGameState: (state: { running: boolean; score?: number }) =>
@@ -44,4 +54,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ─── DevTools ───
   toggleDevTools: () => ipcRenderer.invoke('toggle-dev-tools'),
+
+  // ─── 创建工程 ───
+  createProject: (projectName: string) => ipcRenderer.invoke('create-project', projectName),
+
+  // ─── 扫描工程目录 ───
+  discoverProjectsScan: () => ipcRenderer.invoke('discover-projects'),
 })

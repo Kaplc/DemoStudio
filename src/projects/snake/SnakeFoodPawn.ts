@@ -3,7 +3,7 @@
  * 继承 Pawn，拥有食物球体网格，由 GameMode 通过 SpawnComponent 创建和放置
  */
 import * as THREE from 'three'
-import { Pawn } from '../../framework'
+import { Pawn } from '@/engine'
 import { DEFAULT_CONFIG } from './types'
 
 export class SnakeFoodPawn extends Pawn {

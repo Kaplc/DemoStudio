@@ -21,6 +21,7 @@ export interface EditorState {
   projects: Project[]
   currentProject: Project | null
   showProjectSelector: boolean
+  showNewProjectDialog: boolean
 
   // ─── 游戏 ───
   gameState: GameState
@@ -36,6 +37,7 @@ export interface EditorState {
   setProjects: (projects: Project[]) => void
   setCurrentProject: (project: Project | null) => void
   setShowProjectSelector: (show: boolean) => void
+  setShowNewProjectDialog: (show: boolean) => void
 
   setGameRunning: (running: boolean) => void
   setGameScore: (score: number) => void
@@ -55,6 +57,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   projects: [],
   currentProject: null,
   showProjectSelector: false,
+  showNewProjectDialog: false,
 
   launchCount: 0,
 
@@ -78,6 +81,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setProjects: (projects) => set({ projects }),
   setCurrentProject: (project) => set({ currentProject: project }),
   setShowProjectSelector: (show) => set({ showProjectSelector: show }),
+  setShowNewProjectDialog: (show) => set({ showNewProjectDialog: show }),
 
   setGameRunning: (running) =>
     set((state) => ({ gameState: { ...state.gameState, running } })),

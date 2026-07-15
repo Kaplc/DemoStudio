@@ -1,10 +1,12 @@
 /**
  * 贪吃蛇 3D 场景构建
  * 使用 Three.js 创建棋盘格地板、围墙、柱子等
+ * 实现 WorldBuilder 接口，支持通过 WorldRegistry 注册
  */
 import * as THREE from 'three'
+import type { WorldBuilder, WorldBuildConfig, WorldAsset } from '@/engine'
 
-export class SnakeScene3D {
+export class SnakeScene3D implements WorldBuilder {
   public group: THREE.Group
   private meshes: THREE.Mesh[] = []
 
@@ -12,7 +14,8 @@ export class SnakeScene3D {
     this.group = new THREE.Group()
   }
 
-  build(gridSize: number): THREE.Group {
+  build(config: WorldBuildConfig): WorldAsset {
+    const gridSize = (config.gridSize ?? 20) as number
     const half = gridSize / 2
 
     // 地基
@@ -69,14 +72,14 @@ export class SnakeScene3D {
       [half, half],
     ]
     for (const [px, pz] of pillarPositions) {
-      this.addBox(0.5, 5, 0.5, px, 2.5, pz, 0x5599dd)
-      this.addBox(0.7, 0.15, 0.7, px, 5, pz, 0x77bbff)
+      this.addBox(0.5, 5, 0.5, px as number, 2.5, pz as number, 0x5599dd)
+      this.addBox(0.7, 0.15, 0.7, px as number, 5, pz as number, 0x77bbff)
 
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(0.2, 12, 12),
         new THREE.MeshBasicMaterial({ color: 0x64b4ff })
       )
-      sphere.position.set(px, 5.3, pz)
+      sphere.position.set(px as number, 5.3, pz as number)
       this.group.add(sphere)
       this.meshes.push(sphere)
     }
@@ -119,7 +122,7 @@ export class SnakeScene3D {
       this.meshes.push(cap)
     }
 
-    return this.group
+    return { group: this.group, name: 'Snake', dispose: () => this.dispose() }
   }
 
   private addBox(w: number, h: number, d: number, x: number, y: number, z: number, color: number) {

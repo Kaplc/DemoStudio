@@ -6,11 +6,14 @@ import { Inspector } from './components/Inspector'
 import { Console } from './components/Console'
 import { StatusBar } from './components/StatusBar'
 import { ProjectSelector } from './components/ProjectSelector'
+import { NewProjectDialog } from './components/NewProjectDialog'
 import { ResizeHandle } from './components/ResizeHandle'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
+import { WorldRegistry, GameFactoryRegistry } from './engine'
+import { SnakeScene3D, SnakeGameInstance } from './projects/snake'
 
 export default function App() {
   const { consoleVisible, addConsoleOutput, toggleConsole, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
@@ -31,6 +34,15 @@ export default function App() {
   useEffect(() => {
     discoverProjects()
     addConsoleOutput('DemoStudio Editor v4.0.0 已启动')
+
+    // 注册 Snake 世界构建器
+    WorldRegistry.register('Snake', new SnakeScene3D())
+    addConsoleOutput('[World] Snake 世界构建器已注册')
+
+    // 注册 Snake 游戏实例工厂
+    GameFactoryRegistry.register('Snake', (scene) => new SnakeGameInstance(scene))
+    addConsoleOutput('[Game] Snake 游戏工厂已注册')
+
     addConsoleOutput('基于 Three.js + Electron + React')
     addConsoleOutput('')
 
@@ -144,7 +156,7 @@ export default function App() {
       setAppInfo((prev) => ({
         ...prev,
         fps,
-        project: gameState.running ? `Snake (Score: ${gameState.score})` : 'No project',
+        project: gameState.running ? '🐍 Snake' : 'No project',
       }))
     }, 1000)
     const countFrame = () => {
@@ -192,6 +204,7 @@ export default function App() {
         projectName={appInfo.project}
       />
       <ProjectSelector />
+      <NewProjectDialog />
     </div>
   )
 }

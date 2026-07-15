@@ -26,6 +26,7 @@ export class SceneManager {
   private animationId: number | null = null
   private lastTime = 0
   private updateCallbacks: Array<(dt: number) => void> = []
+  private afterRenderCallbacks: Array<() => void> = []
   private container: HTMLElement
 
   // ─── 强制画面比例（canvas 物理缩放，CSS flex 居中）───
@@ -259,6 +260,10 @@ export class SceneManager {
       }
 
       this.renderer.render(this.scene, this.camera)
+      // 渲染后回调（UI 覆盖层等）
+      for (const cb of this.afterRenderCallbacks) {
+        cb()
+      }
       this.animationId = requestAnimationFrame(animate)
     }
     this.animationId = requestAnimationFrame(animate)
@@ -283,7 +288,20 @@ export class SceneManager {
     }
   }
 
+  /** 注册渲染后回调（每帧主场景渲染完毕后调用，用于 UI 覆盖层） */
+  onAfterRender(callback: () => void): () => void {
+    this.afterRenderCallbacks.push(callback)
+    return () => {
+      this.afterRenderCallbacks = this.afterRenderCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
   // ─── WASD 漫游控制 ───
+
+  /** WASD 是否有键正在被按下（用于外部判断是否需要暂停相机同步） */
+  get isWASDActive(): boolean {
+    return this.wasdKeys.size > 0
+  }
 
   /** 启用或禁用 WASD 漫游摄像机控制 */
   setWASDControl(enabled: boolean) {

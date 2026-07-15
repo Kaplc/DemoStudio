@@ -3,8 +3,7 @@
  * 继承 Pawn，拥有蛇身网格、移动、碰撞、进食逻辑
  */
 import * as THREE from 'three'
-import { Pawn } from '../../framework'
-import { logger } from '../../engine'
+import { Pawn, logger } from '@/engine'
 import { DEFAULT_CONFIG, DIRECTION_VECTORS } from './types'
 import type { Vec2, Direction, GameConfig } from './types'
 import type { SnakeGameMode } from './SnakeGameMode'

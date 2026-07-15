@@ -2,7 +2,10 @@
   "name": "Snake",
   "description": "Classic 2.5D snake game with MCP control",
   "version": "1.0.0",
-  "main": "src/games/snake/SnakePawn.ts",
+  "main": "src/projects/snake/SnakePawn.ts",
   "mcp_server": "editor/mcp-server.mjs",
-  "tags": ["game", "snake", "mcp", "2.5d"]
+  "tags": ["game", "snake", "mcp", "2.5d"],
+  "worldConfig": {
+    "gridSize": 20
+  }
 }

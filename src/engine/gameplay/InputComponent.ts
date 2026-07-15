@@ -4,11 +4,13 @@
  * 挂载到 PlayerController（Actor）上
  */
 import { Component } from './Component'
+import { logger } from '..'
 import type { Actor } from './Actor'
 
 export type InputEventType = 'pressed' | 'released'
 
 interface Binding {
+  action?: string
   key: string
   eventType: InputEventType
   callback: () => void
@@ -23,7 +25,7 @@ export class InputComponent extends Component {
   }
 
   BindAction(action: string, key: string, eventType: InputEventType, callback: () => void): void {
-    this.bindings.push({ key, eventType, callback })
+    this.bindings.push({ key, eventType, callback, action })
   }
 
   UnbindKey(key: string): void {
@@ -31,13 +33,20 @@ export class InputComponent extends Component {
   }
 
   ProcessInput(key: string, eventType: InputEventType): boolean {
-    if (!this.bEnabled) return false
+    if (!this.bEnabled) {
+      logger.info(`InputComponent.ProcessInput: DISABLED (bEnabled=false) key=${key}`)
+      return false
+    }
     let handled = false
     for (const binding of this.bindings) {
       if (binding.key === key && binding.eventType === eventType) {
+        logger.info(`InputComponent.ProcessInput: MATCH key=${key} callback=${binding.action || '?'}`)
         binding.callback()
         handled = true
       }
+    }
+    if (!handled) {
+      logger.info(`InputComponent.ProcessInput: NO MATCH key=${key} bindings=[${this.bindings.map(b => `${b.key}:${b.eventType}`).join(', ')}]`)
     }
     return handled
   }

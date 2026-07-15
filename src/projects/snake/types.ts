@@ -1,5 +1,4 @@
 /** 贪吃蛇游戏类型定义 */
-
 export interface Vec2 {
   x: number
   z: number

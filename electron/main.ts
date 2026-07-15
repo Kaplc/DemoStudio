@@ -104,6 +104,24 @@ function createMainWindow() {
       fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
     } catch {}
   })
+
+  // 拦截方向键：Chromium 会消费方向键使 JS 收不到
+  // before-input-event 在 Chromium 处理之前触发 → 直接 executeJavaScript 手动派发
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(input.key)) {
+      const now = new Date().toISOString()
+      try {
+        ensureLogDir()
+        // 第1层 log：主进程收到
+        fs.appendFileSync(CONSOLE_LOG_FILE, `[${now}][MAIN] before-input-event: ${input.key}\n`, 'utf-8')
+      } catch {}
+      mainWindow?.webContents.executeJavaScript(`
+        console.log('[MAIN→RENDER] executeJavaScript: ${input.key}');
+        var evt = new KeyboardEvent('keydown', { key: '${input.key}', bubbles: true, cancelable: true });
+        document.dispatchEvent(evt);
+      `).catch(() => {})
+    }
+  })
 }
 
 // ═══════════════════════════════════════
@@ -215,6 +233,97 @@ ipcMain.handle('write-log-file', async (_event, level: string, message: string) 
     fs.appendFileSync(filePath, line, 'utf-8')
   } catch (err) {
     console.error('日志写入失败:', err)
+  }
+})
+
+// ─── 读取日志 ───
+
+ipcMain.handle('read-log-file', async (_event, options?: { tail?: number }) => {
+  try {
+    const filePath = CONSOLE_LOG_FILE
+    if (!fs.existsSync(filePath)) return '暂无日志'
+    const content = fs.readFileSync(filePath, 'utf-8')
+    if (options?.tail) {
+      const lines = content.split('\n')
+      return lines.slice(-options.tail).join('\n')
+    }
+    return content
+  } catch (err) {
+    console.error('日志读取失败:', err)
+    return '日志读取失败'
+  }
+})
+
+// ─── 创建工程 ───
+
+ipcMain.handle('create-project', async (_event, projectName: string) => {
+  try {
+    const projectDir = path.join(__dirname, '..', 'src', 'projects', projectName.toLowerCase())
+    if (fs.existsSync(projectDir)) {
+      return { success: false, error: `工程 "${projectName}" 已存在` }
+    }
+
+    // 创建目录
+    fs.mkdirSync(projectDir, { recursive: true })
+
+    // project.json
+    const projectJson = {
+      name: projectName,
+      description: `${projectName} 游戏项目`,
+      version: '1.0.0',
+      main: `src/projects/${projectName.toLowerCase()}/index.ts`,
+      tags: ['game'],
+      worldConfig: { gridSize: 20 },
+    }
+    fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(projectJson, null, 2), 'utf-8')
+
+    // index.ts
+    fs.writeFileSync(path.join(projectDir, 'index.ts'), `/**
+ * ${projectName} — 游戏入口
+ * 自动生成的工程模板
+ */
+export { }
+`, 'utf-8')
+
+    return { success: true, path: projectDir }
+  } catch (err) {
+    console.error('创建工程失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
+// ─── 扫描工程目录 ───
+
+ipcMain.handle('discover-projects', async () => {
+  try {
+    const projectsDir = path.join(__dirname, '..', 'src', 'projects')
+    if (!fs.existsSync(projectsDir)) return []
+
+    const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
+    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string }> = []
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const jsonPath = path.join(projectsDir, entry.name, 'project.json')
+      if (!fs.existsSync(jsonPath)) continue
+      try {
+        const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
+        projects.push({
+          name: data.name || entry.name,
+          description: data.description || '',
+          version: data.version || '1.0.0',
+          tags: data.tags || [],
+          folder: entry.name,
+        })
+      } catch {
+        // 单个 project.json 解析失败不影响其他
+      }
+    }
+
+    return projects
+  } catch (err) {
+    console.error('扫描工程目录失败:', err)
+    return []
   }
 })
 
