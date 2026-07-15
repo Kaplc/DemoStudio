@@ -9,7 +9,6 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import * as THREE from 'three'
 import { SceneManager, logger } from '..'
 import { GameInstance } from './GameInstance'
 import { GameUI } from './GameUI'
@@ -22,7 +21,6 @@ export class Game {
   private gameMgr: SceneManager | null = null
   private removeTick: (() => void) | null = null
   private removeCamSync: (() => void) | null = null
-  private removeUiRender: (() => void) | null = null
 
   constructor(instance: GameInstance, sceneMgr?: SceneManager | null, gameMgr?: SceneManager | null) {
     this._instance = instance
@@ -51,16 +49,28 @@ export class Game {
   launch(): boolean {
     logger.info('[Game] 启动游戏...')
 
-    // 启用 Game 渲染
+    // UI 覆盖层：先挂载到 Game 视口容器上（确保 React 渲染时元素已在 DOM 中）
     if (this.gameMgr) {
-      if (this.gameMgr.controls) this.gameMgr.controls.enabled = true
-      this.gameMgr.start()
+      const container = this.gameMgr.renderer.domElement.parentElement
+      if (container) {
+        // 确保容器支持绝对定位
+        if (getComputedStyle(container).position === 'static') {
+          container.style.position = 'relative'
+        }
+        container.appendChild(this.ui.el)
+      }
     }
 
     // 注入 UI 系统 + 启动游戏实例
     this._instance.ui = this.ui
     const ok = this.instance.start()
     if (!ok) return false
+
+    // 启用 Game 渲染
+    if (this.gameMgr) {
+      if (this.gameMgr.controls) this.gameMgr.controls.enabled = true
+      this.gameMgr.start()
+    }
 
     // Tick 挂到 Scene View 的 rAF 上
     if (this.sceneMgr) {
@@ -77,20 +87,6 @@ export class Game {
       })
     }
 
-    // UI 渲染：Game 视口渲染完毕后覆盖 UI
-    if (this.gameMgr) {
-      this.removeUiRender = this.gameMgr.onAfterRender(() => {
-        const mgr = this.gameMgr!
-        // 更新 UI 尺寸（跟随游戏视口）
-        if (mgr.camera.aspect !== this.ui['width'] / this.ui['height']) {
-          const w = mgr.renderer.domElement.width
-          const h = mgr.renderer.domElement.height
-          if (w > 0 && h > 0) this.ui.resize(w, h)
-        }
-        this.ui.render(mgr.renderer)
-      })
-    }
-
     logger.info('[Game] 游戏已启动')
     return true
   }
@@ -104,11 +100,15 @@ export class Game {
     this.removeTick = null
     this.removeCamSync?.()
     this.removeCamSync = null
-    this.removeUiRender?.()
-    this.removeUiRender = null
 
     // 停止游戏实例
     this.instance.stop()
+
+    // 移除 UI 覆盖层 + 清空残留元素
+    if (this.ui.el.parentElement) {
+      this.ui.el.remove()
+    }
+    this.ui.clearElements()
 
     // 禁用 Game 渲染、重置视角
     if (this.gameMgr) {

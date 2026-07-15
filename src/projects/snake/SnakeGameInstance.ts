@@ -1,12 +1,15 @@
 /**
  * SnakeGameInstance — 贪吃蛇游戏实例
  * 封装 World + GameMode + 玩家生命周期，供 Viewport 使用
- * 职责：创建/销毁游戏、Tick 转发、摄像机同步、状态回调
+ * 使用 React 组件渲染游戏 HUD
  */
 import * as THREE from 'three'
+import React from 'react'
 import { GameInstance, World, logger } from '@/engine'
-import type { GameInstanceCallbacks, GameUIElement } from '@/engine'
+import type { GameInstanceCallbacks } from '@/engine'
 import { SnakeGameMode, SnakePawn, SnakePlayerController } from './'
+import { GameHud } from './components/GameHud'
+import type { GameHudProps } from './components/GameHud'
 
 export class SnakeGameInstance extends GameInstance {
   readonly world: World
@@ -15,9 +18,8 @@ export class SnakeGameInstance extends GameInstance {
   private _controller: SnakePlayerController | null = null
   pawn: SnakePawn | null = null
 
-  // UI 元素
-  private uiScore: GameUIElement | null = null
-  private uiGameOver: GameUIElement | null = null
+  /** 缓存 HUD props，避免每帧创建新对象 */
+  private _hudProps: GameHudProps = { score: 0, phase: 'waiting' }
 
   override get controller(): SnakePlayerController | null {
     return this._controller
@@ -66,26 +68,9 @@ export class SnakeGameInstance extends GameInstance {
     logger.info(`[GameInstance] 玩家生成: ${pawn.name}`)
     this.world.BeginPlay()
 
-    // 创建 UI 元素
-    if (this.ui) {
-      this.uiScore = this.ui.createText({
-        text: 'Score: 0',
-        x: 0,
-        y: this.ui['height'] / 2 - 30,
-        fontSize: 24,
-        color: '#ffffff',
-        fontFamily: 'monospace',
-      })
-      this.uiGameOver = this.ui.createText({
-        text: '',
-        x: 0,
-        y: 0,
-        fontSize: 40,
-        color: '#ff4444',
-        fontFamily: 'monospace',
-      })
-      this.uiGameOver.setVisible(false)
-    }
+    // 首次渲染 React HUD
+    this._hudProps = { score: 0, phase: 'playing' }
+    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
 
     logger.info('[GameInstance] 游戏已启动')
     return true
@@ -93,15 +78,11 @@ export class SnakeGameInstance extends GameInstance {
 
   override tick(dt: number) {
     this.world.manualTick(dt)
-    // 更新 UI
+    // 更新 React HUD（React diff 确保只更新变化的 DOM）
     const gs = this.gameMode.gameState
-    if (this.uiScore) {
-      this.uiScore.setText(`Score: ${gs.score}`)
-    }
-    if (gs.phase === 'gameover' && this.uiGameOver) {
-      this.uiGameOver.setVisible(true)
-      this.uiGameOver.setText('GAME OVER')
-    }
+    this._hudProps.score = gs.score
+    this._hudProps.phase = gs.phase as GameHudProps['phase']
+    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
   override syncCamera(targetCamera: THREE.PerspectiveCamera, aspect: number) {
