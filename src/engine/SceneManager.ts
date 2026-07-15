@@ -28,6 +28,15 @@ export class SceneManager {
   private updateCallbacks: Array<(dt: number) => void> = []
   private container: HTMLElement
 
+  // ─── 强制画面比例（canvas 物理缩放，CSS flex 居中）───
+  private targetAspect: number | null = null
+
+  /** 设置强制画面比例（例如 16/9 = 1.777），null=自由拉伸 */
+  setTargetAspect(ratio: number | null) {
+    this.targetAspect = ratio
+    this.resize()
+  }
+
   // ─── WASD 漫游 ───
   private wasdEnabled = false
   private wasdKeys = new Set<string>()
@@ -206,8 +215,28 @@ export class SceneManager {
     const width = this.container.clientWidth
     const height = this.container.clientHeight
     if (width === 0 || height === 0) return
-    this.renderer.setSize(width, height)
-    this.camera.aspect = width / height
+
+    if (this.targetAspect) {
+      // canvas 物理尺寸按比例缩放（通过 CSS flex 居中，黑底由容器背景填充）
+      const containerAspect = width / height
+      let canvasW: number, canvasH: number
+
+      if (containerAspect > this.targetAspect) {
+        // 容器更宽 → canvas 按高度撑满，左右黑边
+        canvasH = height
+        canvasW = height * this.targetAspect
+      } else {
+        // 容器更高 → canvas 按宽度撑满，上下黑边
+        canvasW = width
+        canvasH = width / this.targetAspect
+      }
+
+      this.renderer.setSize(Math.round(canvasW), Math.round(canvasH))
+      this.camera.aspect = this.targetAspect
+    } else {
+      this.renderer.setSize(width, height)
+      this.camera.aspect = width / height
+    }
     this.camera.updateProjectionMatrix()
   }
 
@@ -322,6 +351,11 @@ export class SceneManager {
 
   // ─── 场景道具 ───
 
+  setFov(fov: number) {
+    this.camera.fov = fov
+    this.camera.updateProjectionMatrix()
+  }
+
   addObject(object: THREE.Object3D) {
     this.scene.add(object)
   }
@@ -367,6 +401,8 @@ export class SceneManager {
 
   dispose() {
     this.stop()
+    // 必须先强制丢失上下文再 dispose，否则 WebGL 上下文会泄漏
+    this.renderer.forceContextLoss()
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }

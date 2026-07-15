@@ -37,6 +37,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const [camAxisDirs, setCamAxisDirs] = useState<{ x: number; y: number }[]>([
     { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 },
   ])
+  const [gameAspectRatio, setGameAspectRatio] = useState<string>('16/9')
 
   const editorState = useEditorStore((s) => s.gameState)
   const currentProject = useEditorStore((s) => s.currentProject)
@@ -99,6 +100,13 @@ export function Viewport({ onReady }: ViewportProps) {
     gameMgr.stop()       // 未启动游戏时不渲染
     gameSceneRef.current = gameMgr
 
+    // 初始应用画面比例（首次初始化时两边同步）
+    if (gameAspectRatio) {
+      const [aw, ah] = gameAspectRatio.split('/').map(Number)
+      sceneMgr.setTargetAspect(aw / ah)
+      gameMgr.setTargetAspect(aw / ah)
+    }
+
     // Resize
     const obs1 = new ResizeObserver(() => sceneMgr.resize())
     obs1.observe(sceneContainerRef.current)
@@ -138,6 +146,15 @@ export function Viewport({ onReady }: ViewportProps) {
     grid.position.y = -0.01
     scene.add(grid)
   }
+
+  // ─── 画面比例同步到 Scene + Game SceneManager（两边同步）───
+  useEffect(() => {
+    const ratio = gameAspectRatio
+      ? (() => { const [aw, ah] = gameAspectRatio.split('/').map(Number); return aw / ah })()
+      : null
+    sceneRef.current?.setTargetAspect(ratio)
+    gameSceneRef.current?.setTargetAspect(ratio)
+  }, [gameAspectRatio])
 
   // ─── 切换工程 → 竞技场 ───
   useEffect(() => {
@@ -213,9 +230,8 @@ export function Viewport({ onReady }: ViewportProps) {
 
       // Game 摄像机从 PlayerCameraManager 同步
       if (gameMgr) {
-        const aspect = gameMgr.camera.aspect
         const camRm = gameMgr.onUpdate(() => {
-          gm.cameraManager.ApplyToRenderer(gameMgr.camera, aspect)
+          gm.cameraManager.ApplyToRenderer(gameMgr.camera, gameMgr.camera.aspect)
         })
         gameCamUpdateRef.current = camRm
       }
@@ -358,6 +374,29 @@ export function Viewport({ onReady }: ViewportProps) {
             <span style={{ marginLeft: 6, color: '#4ade80', fontSize: 10 }}>●</span>
           )}
         </button>
+        <select
+          value={gameAspectRatio}
+          onChange={(e) => setGameAspectRatio(e.target.value)}
+          style={{
+            marginLeft: 8,
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            padding: '2px 6px',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            outline: 'none',
+          }}
+        >
+          <option value="">Free</option>
+          <option value="16/9">16:9</option>
+          <option value="16/10">16:10</option>
+          <option value="4/3">4:3</option>
+          <option value="21/9">21:9</option>
+          <option value="1/1">1:1</option>
+        </select>
         <div className="menu-spacer" />
         {activeTab === 'scene' && (
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
@@ -374,7 +413,7 @@ export function Viewport({ onReady }: ViewportProps) {
       {/* Scene 视图 */}
       <div
         ref={sceneContainerRef}
-        className="viewport-container"
+        className="viewport-container viewport-container-game"
         style={{ flex: 1, display: activeTab === 'scene' ? undefined : 'none' }}
       >
         {activeTab === 'scene' && (
@@ -392,7 +431,7 @@ export function Viewport({ onReady }: ViewportProps) {
       {/* Game 视图 */}
       <div
         ref={gameContainerRef}
-        className="viewport-container"
+        className="viewport-container viewport-container-game"
         style={{ flex: 1, display: activeTab === 'game' ? undefined : 'none' }}
       >
         {activeTab === 'game' && !editorState.running && (
