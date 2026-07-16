@@ -1,0 +1,15 @@
+{
+  "name": "Demo2D",
+  "objects": [
+    {
+      "type": "plane",
+      "size": [40, 40, 1],
+      "pos": [0, 0, -1],
+      "material": { "color": "#12122a", "kind": "basic" }
+    },
+    { "type": "sprite", "size": [2, 2], "pos": [-12, 12, -0.5], "material": { "color": "#3a5cbf", "kind": "basic" } },
+    { "type": "sprite", "size": [2, 2], "pos": [12, 12, -0.5], "material": { "color": "#3a5cbf", "kind": "basic" } },
+    { "type": "sprite", "size": [2, 2], "pos": [-12, -12, -0.5], "material": { "color": "#3a5cbf", "kind": "basic" } },
+    { "type": "sprite", "size": [2, 2], "pos": [12, -12, -0.5], "material": { "color": "#3a5cbf", "kind": "basic" } }
+  ]
+}

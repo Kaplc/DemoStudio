@@ -20,6 +20,8 @@ export type Vec3 = [number, number, number]
 /** 通用材质参数（所有节点共享，字段全可选，缺失走 loader 默认） */
 export interface MaterialProps {
   color?: ColorHex
+  /** 纹理路径（可选，加载后作为 map；与 color 叠加，通常配 color=#ffffff） */
+  texture?: string
   roughness?: number
   metalness?: number
   opacity?: number
@@ -107,8 +109,21 @@ export interface WallRingNode extends BaseNode {
   capMaterial?: MaterialProps
 }
 
+/** sprite 原子节点 — 2D 精灵：XY 平面 PlaneGeometry（法线 +Z，面向 -Z 相机），可纯色或贴图 */
+export interface SpriteNode extends BaseNode {
+  type: 'sprite'
+  /** 宽高 [w, h]（世界单位） */
+  size: Vec2
+  pos?: Vec3
+  /** 旋转 [x,y,z] 弧度 */
+  rot?: Vec3
+  /** 纹理路径（顶层便捷字段；缺失时用 material.texture / material.color） */
+  texture?: string
+  material?: MaterialProps
+}
+
 export type SceneNode =
-  | BoxNode | PlaneNode | SphereNode
+  | BoxNode | PlaneNode | SphereNode | SpriteNode
   | CheckerFloorNode | GridLinesNode | PillarNode | WallRingNode
 
 /** 场景资产根文档 */

@@ -1,0 +1,6 @@
+export { Demo2DPawn } from './Demo2DPawn'
+export { Demo2DCoin } from './Demo2DCoin'
+export { Demo2DPlayerController } from './Demo2DPlayerController'
+export { Demo2DGameMode } from './Demo2DGameMode'
+export { Demo2DGameInstance } from './Demo2DGameInstance'
+export * from './types'

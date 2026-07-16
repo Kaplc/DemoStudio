@@ -1,0 +1,14 @@
+{
+  "name": "FishMaster",
+  "objects": [
+    { "type": "plane", "size": [60, 36, 1], "pos": [0, 0, -3], "material": { "color": "#0a2a4a", "kind": "basic" } },
+    { "type": "sprite", "size": [0.6, 4], "pos": [-14, -8.5, -1], "material": { "color": "#1b5e20", "kind": "basic" } },
+    { "type": "sprite", "size": [0.6, 5], "pos": [-7, -8.5, -1], "material": { "color": "#2e7d32", "kind": "basic" } },
+    { "type": "sprite", "size": [0.5, 3], "pos": [-2, -8.5, -1], "material": { "color": "#388e3c", "kind": "basic" } },
+    { "type": "sprite", "size": [0.6, 4.5], "pos": [4, -8.5, -1], "material": { "color": "#2e7d32", "kind": "basic" } },
+    { "type": "sprite", "size": [0.5, 3.5], "pos": [10, -8.5, -1], "material": { "color": "#1b5e20", "kind": "basic" } },
+    { "type": "sprite", "size": [0.6, 5], "pos": [15, -8.5, -1], "material": { "color": "#388e3c", "kind": "basic" } },
+    { "type": "sprite", "size": [1.2, 0.8], "pos": [-10, -9, -0.8], "material": { "color": "#ff7043", "kind": "basic" } },
+    { "type": "sprite", "size": [1.0, 0.7], "pos": [8, -9, -0.8], "material": { "color": "#ec407a", "kind": "basic" } }
+  ]
+}

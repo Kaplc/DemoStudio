@@ -51,17 +51,31 @@ export class PlayerCameraManager {
   }
 
   /** 将外部渲染器的摄像机与游戏摄像机同步 */
-  ApplyToRenderer(gameCamera: THREE.PerspectiveCamera, aspect: number) {
-    if (this.activeCamera && this.activeCamera.bEnabled) {
-      const cam = this.activeCamera.camera
-      gameCamera.position.copy(cam.position)
-      gameCamera.quaternion.copy(cam.quaternion)
+  ApplyToRenderer(gameCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera, aspect: number) {
+    if (!this.activeCamera || !this.activeCamera.bEnabled) return
+    const cam = this.activeCamera.camera
+    gameCamera.position.copy(cam.position)
+    gameCamera.quaternion.copy(cam.quaternion)
+
+    if (gameCamera instanceof THREE.PerspectiveCamera && cam instanceof THREE.PerspectiveCamera) {
+      // 透视:同步 fov/near/far/aspect
       gameCamera.fov = cam.fov
       gameCamera.near = cam.near
       gameCamera.far = cam.far
       if (aspect > 0) gameCamera.aspect = aspect
-      gameCamera.updateProjectionMatrix()
+    } else if (gameCamera instanceof THREE.OrthographicCamera && cam instanceof THREE.OrthographicCamera) {
+      // 正交:按源相机 orthoSize + aspect 重算 frustum(orthoSize 为半高)
+      const halfH = this.activeCamera.orthoSize
+      const halfW = halfH * (aspect > 0 ? aspect : 1)
+      gameCamera.left = -halfW
+      gameCamera.right = halfW
+      gameCamera.top = halfH
+      gameCamera.bottom = -halfH
+      gameCamera.near = cam.near
+      gameCamera.far = cam.far
+      gameCamera.zoom = cam.zoom
     }
+    gameCamera.updateProjectionMatrix()
   }
 
   /** 没有活跃摄像机时使用一个默认位置 */

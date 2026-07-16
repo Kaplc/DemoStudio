@@ -9,9 +9,19 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 export type ControlMode = 'orbit' | 'fly'
+/** 相机投影模式：'perspective' 透视(3D)/ 'orthographic' 正交(2D) */
+export type CameraMode = 'perspective' | 'orthographic'
+
+// clientToWorld 复用临时对象（避免每次调用分配）
+const _raycaster = new THREE.Raycaster()
+const _planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
+const _ndc = new THREE.Vector2()
+const _worldOut = new THREE.Vector3()
 
 export interface SceneManagerOptions {
   controlMode?: ControlMode
+  /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
+  cameraMode?: CameraMode
   /** 外部共享场景（两个视口渲染同一场景） */
   sharedScene?: THREE.Scene
   /** 是否添加默认光照和辅助工具（共享场景时只需加一次） */
@@ -20,7 +30,7 @@ export interface SceneManagerOptions {
 
 export class SceneManager {
   public scene: THREE.Scene
-  public camera: THREE.PerspectiveCamera
+  public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
   public renderer: THREE.WebGLRenderer
   public controls: OrbitControls | null = null
   /** UI 覆盖层宿主：尺寸/位置始终跟随 canvas 实际渲染矩形（letterbox 后的居中区域） */
@@ -30,6 +40,15 @@ export class SceneManager {
   private updateCallbacks: Array<(dt: number) => void> = []
   private afterRenderCallbacks: Array<() => void> = []
   private container: HTMLElement
+
+  // ─── 相机模式与视口宽高比 ───
+  private cameraMode: CameraMode
+  /** 正交模式半高（世界单位），仅 orthographic 时生效 */
+  public orthoSize = 5
+  /** 当前视口宽高比（OrthographicCamera 无 aspect 字段，统一由此维护） */
+  private _aspect = 1
+  /** 只读访问当前 aspect（供 Game.syncCamera 等外部使用） */
+  get aspect(): number { return this._aspect }
 
   // ─── 强制画面比例（canvas 物理缩放，CSS flex 居中）───
   private targetAspect: number | null = null
@@ -90,11 +109,10 @@ export class SceneManager {
       this.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     }
 
-    // ─── 摄像机 ───
-    const aspect = container.clientWidth / container.clientHeight
-    this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 200)
-    this.camera.position.set(15, 20, 15)
-    this.camera.lookAt(0, 0, 0)
+    // ─── 摄像机（按 cameraMode 创建透视或正交） ───
+    this._aspect = container.clientWidth / container.clientHeight
+    this.cameraMode = options.cameraMode ?? 'perspective'
+    this.camera = this.createCamera()
 
     // ─── 控制 ───
     if (this.controlMode === 'orbit') {
@@ -117,6 +135,47 @@ export class SceneManager {
       this.setupLighting()
       this.setupHelpers()
     }
+  }
+
+  /** 按 cameraMode 创建相机并置于该模式默认视角 */
+  private createCamera(): THREE.PerspectiveCamera | THREE.OrthographicCamera {
+    if (this.cameraMode === 'orthographic') {
+      const halfH = this.orthoSize
+      const halfW = halfH * this._aspect
+      const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 200)
+      // 2D 约定：相机在 +Z 朝 -Z 看，物体在 z=0 的 XY 平面
+      cam.position.set(0, 0, 20)
+      cam.lookAt(0, 0, 0)
+      return cam
+    }
+    const cam = new THREE.PerspectiveCamera(60, this._aspect, 0.1, 200)
+    cam.position.set(15, 20, 15)
+    cam.lookAt(0, 0, 0)
+    return cam
+  }
+
+  /** 切换相机模式：重建相机 + 重置默认视角 + 刷新投影（OrbitControls 原生兼容正交相机） */
+  setCameraMode(mode: CameraMode) {
+    this.cameraMode = mode
+    // 记录旧 controls 交互开关，重建后保持（避免切换项目时意外开启/关闭交互）
+    const prevEnabled = this.controls?.enabled ?? true
+    // orbit 控制器绑定具体相机对象，需解绑后重建
+    if (this.controlMode === 'orbit' && this.controls) {
+      this.controls.dispose()
+      this.controls = null
+    }
+    this.camera = this.createCamera()
+    if (this.controlMode === 'orbit') {
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+      this.controls.enableDamping = true
+      this.controls.dampingFactor = 0.08
+      this.controls.target.set(0, 0, 0)
+      this.controls.update()
+      this.controls.enabled = prevEnabled
+    } else {
+      this.initFlyEuler()
+    }
+    this.resize()
   }
 
   private initFlyEuler() {
@@ -231,6 +290,7 @@ export class SceneManager {
 
     let canvasW: number
     let canvasH: number
+    let aspect: number
 
     if (this.targetAspect) {
       // canvas 物理尺寸按比例缩放（通过 CSS flex 居中，黑底由容器背景填充）
@@ -244,17 +304,31 @@ export class SceneManager {
         canvasW = width
         canvasH = width / this.targetAspect
       }
-      this.camera.aspect = this.targetAspect
+      aspect = this.targetAspect
     } else {
       canvasW = width
       canvasH = height
-      this.camera.aspect = width / height
+      aspect = width / height
+    }
+
+    // 统一维护 _aspect；按相机类型更新投影（正交无 aspect 字段）
+    this._aspect = aspect
+    const cam = this.camera
+    if (cam instanceof THREE.PerspectiveCamera) {
+      cam.aspect = aspect
+    } else {
+      const halfH = this.orthoSize
+      const halfW = halfH * aspect
+      cam.left = -halfW
+      cam.right = halfW
+      cam.top = halfH
+      cam.bottom = -halfH
     }
 
     const w = Math.round(canvasW)
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
-    this.camera.updateProjectionMatrix()
+    cam.updateProjectionMatrix()
 
     // UI 覆盖层宿主跟随 canvas 实际渲染矩形，使 React HUD 对齐画面而非黑边
     this.uiLayer.style.width = `${w}px`
@@ -390,8 +464,26 @@ export class SceneManager {
   // ─── 场景道具 ───
 
   setFov(fov: number) {
-    this.camera.fov = fov
-    this.camera.updateProjectionMatrix()
+    if (this.camera instanceof THREE.PerspectiveCamera) {
+      this.camera.fov = fov
+      this.camera.updateProjectionMatrix()
+    }
+  }
+
+  /**
+   * 把鼠标 client 坐标转为世界坐标（投影到 z=0 平面），供 2D 鼠标拾取。
+   * 用 Raycaster.setFromCamera + 射线与 z=0 平面求交，对正交/透视相机都正确。
+   * canvas 实际矩形用 getBoundingClientRect（已含 letterbox 缩放）。
+   */
+  clientToWorld(clientX: number, clientY: number, out: THREE.Vector3 = _worldOut): THREE.Vector3 {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    _ndc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    _raycaster.setFromCamera(_ndc, this.camera)
+    _raycaster.ray.intersectPlane(_planeZ0, out)
+    return out
   }
 
   addObject(object: THREE.Object3D) {
@@ -405,8 +497,8 @@ export class SceneManager {
   clearScene() {
     while (this.scene.children.length > 0) {
       const child = this.scene.children[0]
-      if (child.type === 'Scene' || child.type === 'PerspectiveCamera') {
-        // 跳过场景和摄像机
+      if (child.type === 'Scene' || child instanceof THREE.Camera) {
+        // 跳过场景和摄像机（透视/正交通用）
         this.scene.children.shift()
         continue
       }

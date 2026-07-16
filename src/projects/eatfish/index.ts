@@ -1,5 +1,10 @@
-/**
- * EatFish — 游戏入口
- * 自动生成的工程模板
- */
-export { }
+/** EatFish — 大鱼吃小鱼游戏入口 */
+export { EatFishPawn } from './EatFishPawn'
+export { EatFishFoodPawn } from './EatFishFoodPawn'
+export { EatFishPredatorPawn } from './EatFishPredatorPawn'
+export { EatFishPlayerController } from './EatFishPlayerController'
+export { EatFishGameMode } from './EatFishGameMode'
+export { EatFishGameInstance } from './EatFishGameInstance'
+export { EatFishWorldBuilder } from './EatFishWorldBuilder'
+export { FishSchool } from './FishSchool'
+export * from './types'

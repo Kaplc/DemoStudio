@@ -32,8 +32,8 @@ export abstract class GameInstance {
   /** 每帧绘制调试 Gizmos（默认空操作；拥有 World 的实例可重写为 world.drawGizmos()） */
   drawGizmos(): void {}
 
-  /** 从 PlayerCameraManager 同步到目标摄像机 */
-  abstract syncCamera(targetCamera: THREE.PerspectiveCamera, aspect: number): void
+  /** 从 PlayerCameraManager 同步到目标摄像机(透视或正交) */
+  abstract syncCamera(targetCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera, aspect: number): void
 
   /** 停止游戏：销毁 Actor、暂停运行 */
   abstract stop(): void

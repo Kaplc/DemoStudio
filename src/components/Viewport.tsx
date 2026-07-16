@@ -4,6 +4,9 @@ import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGam
 import type { WorldAsset } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
 
+// 鼠标→世界坐标复用（clientToWorld 输出缓冲）
+const _ptrWorld = new THREE.Vector3()
+
 type ViewportTab = 'scene' | 'game'
 
 interface ViewportProps {
@@ -205,8 +208,9 @@ export function Viewport({ onReady }: ViewportProps) {
     gizmos.beginFrame()
     gizmos.flush()
 
-    // 3. 加载新竞技场
+    // 3. 按项目渲染模式切换 Game 视口相机（2D→正交，3D→透视），再加载新竞技场
     if (currentProject) {
+      gameSceneRef.current?.setCameraMode(currentProject.renderMode === '2d' ? 'orthographic' : 'perspective')
       const builder = WorldRegistry.get(currentProject.name)
       if (builder) {
         logger.info(`加载竞技场: ${currentProject.name}`)
@@ -311,9 +315,15 @@ export function Viewport({ onReady }: ViewportProps) {
       }
     }
     const onUp = (e: KeyboardEvent) => {
-      if (activeTab !== 'scene') return
-      if (!['w','W','a','A','s','S','d','D','q','Q','e','E'].includes(e.key)) return
-      sceneRef.current?.onWASDKeyUp(e.key)
+      if (activeTab === 'scene') {
+        if (!['w','W','a','A','s','S','d','D','q','Q','e','E'].includes(e.key)) return
+        sceneRef.current?.onWASDKeyUp(e.key)
+      } else if (activeTab === 'game') {
+        const ctrl = gameRef.current?.instance.controller
+        if (ctrl) {
+          ctrl.ProcessInput(e.key, 'released')
+        }
+      }
     }
     window.addEventListener('keydown', onDown, true)
     window.addEventListener('keyup', onUp, true)
@@ -322,6 +332,42 @@ export function Viewport({ onReady }: ViewportProps) {
       window.removeEventListener('keyup', onUp, true)
     }
   }, [activeTab, viewportFocused])
+
+  // ─── 鼠标输入路由（仅 Game 标签 + 游戏运行时）───
+  useEffect(() => {
+    if (activeTab !== 'game' || !editorState.running) return
+    const canvas = gameSceneRef.current?.renderer.domElement
+    if (!canvas) return
+    const ctrl = () => gameRef.current?.instance.controller
+    const toWorld = (e: MouseEvent) => {
+      gameSceneRef.current?.clientToWorld(e.clientX, e.clientY, _ptrWorld)
+      return _ptrWorld
+    }
+    const onMove = (e: MouseEvent) => ctrl()?.OnPointerMove(toWorld(e))
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0) return
+      ctrl()?.OnPointerDown(toWorld(e))
+    }
+    const onUp = (e: MouseEvent) => {
+      if (e.button !== 0) return
+      ctrl()?.OnPointerUp(toWorld(e))
+    }
+    canvas.addEventListener('mousedown', onDown)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    // 滚轮切换炮等级
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      ctrl()?.OnScroll(e.deltaY)
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      canvas.removeEventListener('mousedown', onDown)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      canvas.removeEventListener('wheel', onWheel)
+    }
+  }, [activeTab, editorState.running])
 
   return (
     <div

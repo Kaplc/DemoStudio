@@ -56,7 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleDevTools: () => ipcRenderer.invoke('toggle-dev-tools'),
 
   // ─── 创建工程 ───
-  createProject: (projectName: string) => ipcRenderer.invoke('create-project', projectName),
+  createProject: (projectName: string, mode: '2d' | '3d' = '3d') =>
+    ipcRenderer.invoke('create-project', projectName, mode),
 
   // ─── 读取 JSON 文件（场景资产）───
   readJsonFile: (relativePath: string) => ipcRenderer.invoke('read-json-file', relativePath),

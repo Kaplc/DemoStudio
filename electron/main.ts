@@ -260,7 +260,7 @@ ipcMain.handle('read-log-file', async (_event, options?: { tail?: number }) => {
 
 // ─── 创建工程 ───
 
-ipcMain.handle('create-project', async (_event, projectName: string) => {
+ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' | '3d' = '3d') => {
   try {
     const projectDir = path.join(__dirname, '..', 'src', 'projects', projectName.toLowerCase())
     if (fs.existsSync(projectDir)) {
@@ -270,24 +270,42 @@ ipcMain.handle('create-project', async (_event, projectName: string) => {
     // 创建目录
     fs.mkdirSync(projectDir, { recursive: true })
 
-    // project.json
-    const projectJson = {
+    // project.json（2D 工程写入 renderMode: "2d"，编辑器据此启用正交相机）
+    const projectJson: Record<string, unknown> = {
       name: projectName,
       description: `${projectName} 游戏项目`,
       version: '1.0.0',
       main: `src/projects/${projectName.toLowerCase()}/index.ts`,
-      tags: ['game'],
-      worldConfig: { gridSize: 20 },
+      tags: ['game', mode === '2d' ? '2d' : '3d'],
+      renderMode: mode === '2d' ? '2d' : '3d',
     }
     fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(projectJson, null, 2), 'utf-8')
 
-    // index.ts
-    fs.writeFileSync(path.join(projectDir, 'index.ts'), `/**
+    // index.ts（2D 给出正交相机 + Sprite 用法注释骨架，3D 维持空模板）
+    const indexTs = mode === '2d'
+      ? `/**
+ * ${projectName} — 2D 游戏入口（自动生成）
+ *
+ * 2D 约定：物体放在 XY 平面（z=0），正交相机沿 +Z 朝 -Z 看，x→右、y→上。
+ * 引擎已就绪的 2D 能力：
+ *   - 正交相机： new CameraComponent(this, 'GameCamera', 'orthographic')
+ *                cam.SetOrtho(size, near, far)  （size=半高世界单位）
+ *   - 2D 精灵： new SpriteComponent(this, w, h)
+ *               .setTexture(path) / .setColor(hex) / .setOpacity(o)
+ *   - 声明式场景： scene.json 用 { "type": "sprite", "size": [w,h], "texture": "..." }
+ *
+ * 参照 src/projects/demo2d 实现 GameMode/GameInstance/Pawn，
+ * 随后在 src/App.tsx 注册 WorldRegistry + GameFactoryRegistry。
+ */
+export { }
+`
+      : `/**
  * ${projectName} — 游戏入口
  * 自动生成的工程模板
  */
 export { }
-`, 'utf-8')
+`
+    fs.writeFileSync(path.join(projectDir, 'index.ts'), indexTs, 'utf-8')
 
     return { success: true, path: projectDir }
   } catch (err) {
@@ -319,7 +337,7 @@ ipcMain.handle('discover-projects', async () => {
     if (!fs.existsSync(projectsDir)) return []
 
     const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
-    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string }> = []
+    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d' }> = []
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -333,6 +351,7 @@ ipcMain.handle('discover-projects', async () => {
           version: data.version || '1.0.0',
           tags: data.tags || [],
           folder: entry.name,
+          renderMode: data.renderMode === '2d' ? '2d' : '3d',
         })
       } catch {
         // 单个 project.json 解析失败不影响其他

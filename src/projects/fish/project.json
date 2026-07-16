@@ -1,0 +1,8 @@
+{
+  "name": "FishMaster",
+  "description": "捕鱼达人 — 鼠标瞄准发射、多炮等级、Boss、金币经济",
+  "version": "1.0.0",
+  "main": "src/projects/fish/index.ts",
+  "tags": ["game", "fish", "2d"],
+  "renderMode": "2d"
+}

@@ -75,7 +75,7 @@ export class Game {
       this.removeCamSync = this.gameMgr.onUpdate(() => {
         const mgr = this.gameMgr!
         if (!mgr.isWASDActive) {
-          this.instance.syncCamera(mgr.camera, mgr.camera.aspect)
+          this.instance.syncCamera(mgr.camera, mgr.aspect)
         }
       })
     }

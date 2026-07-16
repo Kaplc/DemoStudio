@@ -16,9 +16,9 @@ export interface ElectronAPI {
   writeLogFile: (level: string, message: string) => Promise<void>
   readLogFile: (options?: { tail?: number }) => Promise<string>
   toggleDevTools?: () => Promise<void>
-  createProject: (projectName: string) => Promise<{ success: boolean; error?: string; path?: string }>
+  createProject: (projectName: string, mode?: '2d' | '3d') => Promise<{ success: boolean; error?: string; path?: string }>
   readJsonFile: (relativePath: string) => Promise<{ success: boolean; data?: any; error?: string }>
-  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string }>>
+  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d' }>>
 }
 
 declare global {

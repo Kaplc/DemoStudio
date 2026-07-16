@@ -9,6 +9,7 @@
  *   - 网格线/墙共享同一 material 实例（与旧 lineMat / wallMat 一致）
  */
 import * as THREE from 'three'
+import { loadTexture } from './TextureLoader'
 import type { WorldAsset } from './WorldAsset'
 import type {
   SceneAsset,
@@ -64,15 +65,18 @@ function makeMaterial(
 ): THREE.Material {
   const kind = mp.kind ?? defaultKind
   const transparent = mp.transparent ?? (mp.opacity !== undefined && mp.opacity < 1)
+  const map = mp.texture ? loadTexture(mp.texture) : null
   if (kind === 'basic') {
     return new THREE.MeshBasicMaterial({
       color: mp.color ? toColor(mp.color) : 0xffffff,
+      map,
       transparent,
       opacity: mp.opacity ?? 1,
     })
   }
   return new THREE.MeshStandardMaterial({
     color: mp.color ? toColor(mp.color) : 0xffffff,
+    map,
     roughness: mp.roughness ?? defaultRough,
     metalness: mp.metalness ?? defaultMetal,
     transparent,
@@ -106,6 +110,26 @@ function expandNode(node: SceneNode, track: (m: THREE.Mesh) => void): void {
       if (node.rot) mesh.rotation.set(node.rot[0], node.rot[1], node.rot[2])
       mesh.castShadow = node.material?.castShadow ?? false
       mesh.receiveShadow = node.material?.receiveShadow ?? false
+      track(mesh)
+      break
+    }
+    case 'sprite': {
+      const [w, h] = node.size
+      const tex = node.texture ?? node.material?.texture
+      const mat = new THREE.MeshBasicMaterial({
+        color: node.material?.color ? toColor(node.material.color) : 0xffffff,
+        transparent: (node.material?.opacity ?? 1) < 1,
+        opacity: node.material?.opacity ?? 1,
+      })
+      if (tex) {
+        mat.map = loadTexture(tex)
+        mat.color.set(0xffffff) // 贴图时白色基底，避免叠加染色
+        mat.needsUpdate = true
+      }
+      // sprite 位于 XY 平面，法线 +Z，天然面向 -Z 正交相机，无需旋转
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat)
+      mesh.position.fromArray(node.pos ?? [0, 0, 0])
+      if (node.rot) mesh.rotation.set(node.rot[0], node.rot[1], node.rot[2])
       track(mesh)
       break
     }

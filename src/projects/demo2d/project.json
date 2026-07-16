@@ -1,0 +1,8 @@
+{
+  "name": "Demo2D",
+  "description": "2D 正交相机 + Sprite 演示项目（方向键移动收集金币）",
+  "version": "1.0.0",
+  "main": "src/projects/demo2d/index.ts",
+  "tags": ["game", "2d", "sprite", "ortho"],
+  "renderMode": "2d"
+}

@@ -14,6 +14,10 @@ import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
 import { WorldRegistry, GameFactoryRegistry, FileSceneAssetBuilder } from './engine'
 import { SnakeGameInstance } from './projects/snake'
+import { EatFishGameInstance, EatFishWorldBuilder } from './projects/eatfish'
+import { Demo2DGameInstance } from './projects/demo2d'
+import { RacingGameInstance, RacingWorldBuilder } from './projects/racing'
+import { FishGameInstance } from './projects/fish'
 
 export default function App() {
   const { consoleVisible, addConsoleOutput, toggleConsole, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
@@ -42,6 +46,38 @@ export default function App() {
     // 注册 Snake 游戏实例工厂
     GameFactoryRegistry.register('Snake', (scene) => new SnakeGameInstance(scene))
     addConsoleOutput('[Game] Snake 游戏工厂已注册')
+
+    // 注册 EatFish 世界构建器（水下场景）
+    WorldRegistry.register('EatFish', new EatFishWorldBuilder())
+    addConsoleOutput('[World] EatFish 世界构建器已注册')
+
+    // 注册 EatFish 游戏实例工厂
+    GameFactoryRegistry.register('EatFish', (scene) => new EatFishGameInstance(scene))
+    addConsoleOutput('[Game] EatFish 游戏工厂已注册')
+
+    // 注册 Demo2D 世界构建器（2D 场景，声明式 JSON 资产，支持热更新）
+    WorldRegistry.register('Demo2D', new FileSceneAssetBuilder('src/projects/demo2d/demo2d.scene.json'))
+    addConsoleOutput('[World] Demo2D 世界构建器已注册')
+
+    // 注册 Demo2D 游戏实例工厂（2D 正交相机 + Sprite）
+    GameFactoryRegistry.register('Demo2D', (scene) => new Demo2DGameInstance(scene))
+    addConsoleOutput('[Game] Demo2D 游戏工厂已注册')
+
+    // 注册 Racing 世界构建器（赛道场景）
+    WorldRegistry.register('Racing', new RacingWorldBuilder())
+    addConsoleOutput('[World] Racing 世界构建器已注册')
+
+    // 注册 Racing 游戏实例工厂
+    GameFactoryRegistry.register('Racing', (scene) => new RacingGameInstance(scene))
+    addConsoleOutput('[Game] Racing 游戏工厂已注册')
+
+    // 注册 FishMaster 世界构建器（捕鱼达人，2D 正交 + 鼠标瞄准）
+    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/fish.scene.json'))
+    addConsoleOutput('[World] FishMaster 世界构建器已注册')
+
+    // 注册 FishMaster 游戏实例工厂
+    GameFactoryRegistry.register('FishMaster', (scene) => new FishGameInstance(scene))
+    addConsoleOutput('[Game] FishMaster 游戏工厂已注册')
 
     addConsoleOutput('基于 Three.js + Electron + React')
     addConsoleOutput('')
@@ -86,9 +122,12 @@ export default function App() {
           switch (command) {
             case 'launchGame':
             case 'start_game':
-              // 先选中 Snake 工程（加载竞技场），再启动游戏
-              const project = useEditorStore.getState().projects.find(p => p.name === 'Snake')
-              if (project) useEditorStore.getState().setCurrentProject(project)
+              // 选中当前工程（加载竞技场），再启动游戏
+              const projects = useEditorStore.getState().projects
+              const current = useEditorStore.getState().currentProject
+              if (!current && projects.length > 0) {
+                useEditorStore.getState().setCurrentProject(projects[0])
+              }
               onLaunchGame()
               break
             case 'stopGame':
@@ -156,7 +195,7 @@ export default function App() {
       setAppInfo((prev) => ({
         ...prev,
         fps,
-        project: gameState.running ? '🐍 Snake' : 'No project',
+        project: gameState.running ? (useEditorStore.getState().currentProject?.name ?? 'Game') : 'No project',
       }))
     }, 1000)
     const countFrame = () => {

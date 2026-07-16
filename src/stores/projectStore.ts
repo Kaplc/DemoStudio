@@ -18,6 +18,36 @@ const DEFAULT_PROJECTS: Project[] = [
     tags: ['game', 'snake', '2.5d'],
     folder: 'snake',
   },
+  {
+    name: 'EatFish',
+    description: '大鱼吃小鱼 3D 水下生存游戏',
+    version: '1.0.0',
+    tags: ['game', 'eatfish', '3d', 'underwater'],
+    folder: 'eatfish',
+  },
+  {
+    name: 'Demo2D',
+    description: '2D 正交相机 + Sprite 演示（移动收集金币）',
+    version: '1.0.0',
+    tags: ['game', '2d', 'sprite'],
+    folder: 'demo2d',
+    renderMode: '2d',
+  },
+  {
+    name: 'Racing',
+    description: '3D 环形赛道赛车游戏（加速/刹车/圈数计时）',
+    version: '1.0.0',
+    tags: ['game', 'racing', '3d', 'car'],
+    folder: 'racing',
+  },
+  {
+    name: 'FishMaster',
+    description: '捕鱼达人 — 鼠标瞄准发射、多炮等级、Boss、金币经济',
+    version: '1.0.0',
+    tags: ['game', 'fish', '2d'],
+    folder: 'fish',
+    renderMode: '2d',
+  },
 ]
 
 export const useProjectStore = create<ProjectStore>((set) => ({

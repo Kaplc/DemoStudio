@@ -6,6 +6,8 @@ export interface Project {
   version: string
   tags: string[]
   folder: string
+  /** 渲染模式：'2d'=正交相机 2D，'3d'=透视 3D（默认） */
+  renderMode?: '2d' | '3d'
 }
 
 export interface GameState {
@@ -91,11 +93,21 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({ gameState: { ...state.gameState, gameOver } })),
 
   launchGame: () =>
-    set((state) => ({
-      launchCount: state.launchCount + 1,
-      gameState: { running: true, score: 0, gameOver: false },
-      consoleOutput: [...state.consoleOutput.slice(-199), '🎮 启动贪吃蛇游戏...', '', '  方向键控制方向', '  Ctrl+Enter 停止游戏'],
-    })),
+    set((state) => {
+      const name = state.currentProject?.name ?? 'Game'
+      const tips = name === 'Snake'
+        ? ['  方向键/WASD控制方向', '  Ctrl+Enter 停止游戏']
+        : name === 'EatFish'
+        ? ['  WASD/方向键控制游动', '  吃小鱼长大 · 避开大鱼', '  Ctrl+Enter 停止游戏']
+        : name === 'Racing'
+        ? ['  ↑/W 油门, ↓/S 刹车, ←/A 左转, →/D 右转', '  空格手刹 · 完成3圈获胜', '  Ctrl+Enter 停止游戏']
+        : ['  Ctrl+Enter 停止游戏']
+      return {
+        launchCount: state.launchCount + 1,
+        gameState: { running: true, score: 0, gameOver: false },
+        consoleOutput: [...state.consoleOutput.slice(-199), `🎮 启动${name}游戏...`, '', ...tips],
+      }
+    }),
   stopGame: () =>
     set((state) => ({
       gameState: { running: false, score: 0, gameOver: false },
