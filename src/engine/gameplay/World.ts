@@ -5,6 +5,7 @@
 import * as THREE from 'three'
 import { Actor } from './Actor'
 import { GameMode } from './GameMode'
+import { gizmos } from './Gizmos'
 import type { Pawn } from './Pawn'
 import type { PlayerController } from './PlayerController'
 
@@ -225,6 +226,27 @@ export class World {
     return () => {
       this._tickCallbacks = this._tickCallbacks.filter((c) => c !== cb)
     }
+  }
+
+  // ═══════════════════════════════════
+  //  Gizmos 调试绘制
+  // ═══════════════════════════════════
+
+  /**
+   * 绘制一帧的调试 Gizmos（由外部渲染循环每帧调用）。
+   * 始终执行 beginFrame/flush，保证停止或关闭时画面被清空，不留残影。
+   */
+  drawGizmos() {
+    gizmos.beginFrame()
+    if (gizmos.enabled) {
+      // GameMode（及其 Component，如 SpawnComponent）不在 allActors 中，单独绘制
+      this.gameMode?.drawGizmos()
+      for (const actor of this.allActors) {
+        if (actor.bPendingDestroy) continue
+        actor.drawGizmos()
+      }
+    }
+    gizmos.flush()
   }
 
   // ═══════════════════════════════════

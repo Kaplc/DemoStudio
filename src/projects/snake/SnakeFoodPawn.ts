@@ -3,7 +3,7 @@
  * 继承 Pawn，拥有食物球体网格，由 GameMode 通过 SpawnComponent 创建和放置
  */
 import * as THREE from 'three'
-import { Pawn } from '@/engine'
+import { Pawn, gizmos } from '@/engine'
 import { DEFAULT_CONFIG } from './types'
 
 export class SnakeFoodPawn extends Pawn {
@@ -33,6 +33,12 @@ export class SnakeFoodPawn extends Pawn {
    */
   SpawnAtGrid(gx: number, gz: number): void {
     this.setPosition(gx + 0.5, 0.4, gz + 0.5)
+  }
+
+  /** 绘制食物拾取范围（黄色线框球） */
+  override OnDrawGizmos() {
+    gizmos.color = 0xffe600
+    gizmos.DrawWireSphere(this.position, 0.7, 12)
   }
 
   override EndPlay() {

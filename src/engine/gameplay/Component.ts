@@ -18,6 +18,8 @@ export abstract class Component {
   BeginPlay(): void {}
   /** 每帧调用 */
   Tick(_deltaTime: number): void {}
+  /** 绘制调试 Gizmos（由所属 Actor 每帧调用，可重写） */
+  OnDrawGizmos(): void {}
   /** 销毁时调用 */
   EndPlay(): void {}
 

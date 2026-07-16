@@ -29,6 +29,9 @@ export abstract class GameInstance {
   /** 每帧 Tick（由外部渲染循环驱动） */
   abstract tick(dt: number): void
 
+  /** 每帧绘制调试 Gizmos（默认空操作；拥有 World 的实例可重写为 world.drawGizmos()） */
+  drawGizmos(): void {}
+
   /** 从 PlayerCameraManager 同步到目标摄像机 */
   abstract syncCamera(targetCamera: THREE.PerspectiveCamera, aspect: number): void
 

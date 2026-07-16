@@ -85,6 +85,11 @@ export class SnakeGameInstance extends GameInstance {
     this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
+  /** 每帧绘制蛇的调试 Gizmos（方向射线 / 蛇身格 / 食物 / 场地范围） */
+  override drawGizmos() {
+    this.world.drawGizmos()
+  }
+
   override syncCamera(targetCamera: THREE.PerspectiveCamera, aspect: number) {
     this.gameMode.cameraManager.ApplyToRenderer(targetCamera, aspect)
   }

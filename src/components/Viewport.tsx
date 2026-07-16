@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance } from '../engine'
+import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
 import type { WorldAsset } from '../engine'
 import { AxisIndicator } from './AxisIndicator'
 import { useEditorStore } from '../stores/editorStore'
@@ -35,6 +35,7 @@ export function Viewport({ onReady }: ViewportProps) {
     { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 },
   ])
   const [gameAspectRatio, setGameAspectRatio] = useState<string>('16/9')
+  const [gizmosOn, setGizmosOn] = useState(true)
 
   const editorState = useEditorStore((s) => s.gameState)
   const currentProject = useEditorStore((s) => s.currentProject)
@@ -53,6 +54,8 @@ export function Viewport({ onReady }: ViewportProps) {
     shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     addDefaultContent(shared)
     sharedSceneRef.current = shared
+    // 挂载全局 Gizmos 调试绘制层（共享场景，两个视口都会渲染）
+    gizmos.attach(shared)
 
     // 游戏实例 — 初始创建一个空实例（后续切换工程时通过工厂重建）
     const gameInst = currentProject && GameFactoryRegistry.has(currentProject.name)
@@ -104,6 +107,11 @@ export function Viewport({ onReady }: ViewportProps) {
     const game = new Game(gameInst, sceneMgr, gameMgr)
     gameRef.current = game
 
+    // 每帧驱动 Gizmos 绘制（始终运行：停止/关闭时也会 flush 空内容以清空残影）
+    const removeGizmoFlush = sceneMgr.onUpdate(() => {
+      gameRef.current?.instance?.drawGizmos()
+    })
+
     // Resize
     const obs1 = new ResizeObserver(() => sceneMgr.resize())
     obs1.observe(sceneContainerRef.current)
@@ -116,9 +124,11 @@ export function Viewport({ onReady }: ViewportProps) {
     return () => {
       obs1.disconnect()
       obs2.disconnect()
+      removeGizmoFlush()
       game.destroy()
       sceneMgr.dispose()
       gameMgr.dispose()
+      gizmos.detach()
       sceneRef.current = null
       gameSceneRef.current = null
       gameRef.current = null
@@ -391,6 +401,24 @@ export function Viewport({ onReady }: ViewportProps) {
           <option value="21/9">21:9</option>
           <option value="1/1">1:1</option>
         </select>
+        <button
+          onClick={() => setGizmosOn((v) => { const nv = !v; gizmos.enabled = nv; return nv })}
+          title="切换 Gizmos 调试绘制"
+          style={{
+            marginLeft: 6,
+            background: gizmosOn ? 'rgba(74,222,128,0.15)' : 'var(--bg-tertiary)',
+            color: gizmosOn ? '#4ade80' : 'var(--text-dim)',
+            border: `1px solid ${gizmosOn ? 'rgba(74,222,128,0.4)' : 'var(--border)'}`,
+            borderRadius: 4,
+            padding: '2px 8px',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            outline: 'none',
+          }}
+        >
+          ◇ Gizmos
+        </button>
         <div className="menu-spacer" />
         {activeTab === 'scene' && (
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>

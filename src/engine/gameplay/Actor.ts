@@ -46,6 +46,17 @@ export abstract class Actor {
     }
   }
 
+  /** 绘制调试 Gizmos（由 World 每帧调用，可重写） */
+  OnDrawGizmos(): void {}
+
+  /** 引擎入口：绘制自身 + 所有启用 Component 的 Gizmos */
+  drawGizmos(): void {
+    this.OnDrawGizmos()
+    for (const c of this.components) {
+      if (c.bEnabled) c.OnDrawGizmos()
+    }
+  }
+
   /** 销毁前调用 */
   EndPlay(): void {
     for (let i = this.components.length - 1; i >= 0; i--) {

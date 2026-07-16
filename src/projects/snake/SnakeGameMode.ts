@@ -2,12 +2,18 @@
  * SnakeGameMode — 贪吃蛇游戏规则
  * 控制：食物生成、计分、游戏结束判断
  */
-import { GameMode, SpawnComponent, CameraComponent } from '@/engine'
+import * as THREE from 'three'
+import { GameMode, SpawnComponent, CameraComponent, gizmos } from '@/engine'
 import { SnakePawn } from './SnakePawn'
 import { SnakeFoodPawn } from './SnakeFoodPawn'
 import { SnakePlayerController } from './SnakePlayerController'
 import { DEFAULT_CONFIG } from './types'
 import type { Vec2 } from './types'
+
+// Gizmos 复用临时对象
+const _center = new THREE.Vector3()
+const _size = new THREE.Vector3()
+const _top = new THREE.Vector3()
 
 export class SnakeGameMode extends GameMode {
   public spawnComponent: SpawnComponent
@@ -112,5 +118,28 @@ export class SnakeGameMode extends GameMode {
     const pawn = this.spawnComponent.SpawnPawn(new SnakePawn(), 0)
 
     return { controller, pawn }
+  }
+
+  // ═══ Gizmos 调试绘制 ═══
+
+  /** 仅运行时绘制：场地范围（白色线框）+ 生成点标记（绿色） */
+  override OnDrawGizmos() {
+    if (!this.world?.running) return
+
+    // 场地活动范围
+    gizmos.color = 0xffffff
+    _center.set(0, 0.5, 0)
+    _size.set(DEFAULT_CONFIG.gridSize, 1, DEFAULT_CONFIG.gridSize)
+    gizmos.DrawWireCube(_center, _size)
+
+    // 生成点标记（小球 + 向上竖线）
+    gizmos.color = 0x4ade80
+    const count = this.spawnComponent.GetSpawnPointCount()
+    for (let i = 0; i < count; i++) {
+      const pt = this.spawnComponent.GetSpawnPoint(i)
+      if (!pt) continue
+      gizmos.DrawWireSphere(pt.position, 0.3, 8)
+      gizmos.DrawLine(pt.position, _top.copy(pt.position).setY(pt.position.y + 2))
+    }
   }
 }

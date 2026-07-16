@@ -3,7 +3,7 @@
  * 继承 Pawn，拥有蛇身网格、移动、碰撞、进食逻辑
  */
 import * as THREE from 'three'
-import { Pawn, logger } from '@/engine'
+import { Pawn, logger, gizmos } from '@/engine'
 import { DEFAULT_CONFIG, DIRECTION_VECTORS } from './types'
 import type { Vec2, Direction, GameConfig } from './types'
 import type { SnakeGameMode } from './SnakeGameMode'
@@ -18,6 +18,11 @@ export interface SnakeGameSnapshot {
   currentDirection: { x: number; z: number }
   pendingDirection: { x: number; z: number }
 }
+
+// Gizmos 复用临时对象（避免每帧分配）
+const _segPos = new THREE.Vector3()
+const _segSize = new THREE.Vector3(DEFAULT_CONFIG.cellSize * 0.9, 0.8, DEFAULT_CONFIG.cellSize * 0.9)
+const _headDir = new THREE.Vector3()
 
 export class SnakePawn extends Pawn {
   private config: GameConfig
@@ -198,5 +203,28 @@ export class SnakePawn extends Pawn {
 
   getSnakePositions(): Vec2[] {
     return [...this.snake]
+  }
+
+  // ═══ Gizmos 调试绘制 ═══
+
+  /** 绘制蛇身格子（青色线框）+ 蛇头朝向（红色射线） */
+  override OnDrawGizmos() {
+    const base = this.position
+
+    // 蛇身每一节的线框
+    gizmos.color = 0x00e5ff
+    for (const seg of this.snake) {
+      _segPos.set(seg.x + 0.5, 0.4, seg.z + 0.5).add(base)
+      gizmos.DrawWireCube(_segPos, _segSize)
+    }
+
+    // 蛇头移动方向射线
+    if (this.snake.length > 0) {
+      const head = this.snake[0]
+      _segPos.set(head.x + 0.5, 0.4, head.z + 0.5).add(base)
+      _headDir.set(this.currentDir.x, 0, this.currentDir.z)
+      gizmos.color = 0xff3030
+      gizmos.DrawRay(_segPos, _headDir, 3)
+    }
   }
 }
