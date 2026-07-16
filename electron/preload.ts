@@ -58,6 +58,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 创建工程 ───
   createProject: (projectName: string) => ipcRenderer.invoke('create-project', projectName),
 
+  // ─── 读取 JSON 文件（场景资产）───
+  readJsonFile: (relativePath: string) => ipcRenderer.invoke('read-json-file', relativePath),
+
   // ─── 扫描工程目录 ───
   discoverProjectsScan: () => ipcRenderer.invoke('discover-projects'),
 })

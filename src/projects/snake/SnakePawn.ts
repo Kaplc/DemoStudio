@@ -105,9 +105,9 @@ export class SnakePawn extends Pawn {
       z: head.z + this.currentDir.z,
     }
 
-    // 撞墙
+    // 撞墙（棋盘格范围 -half ≤ x < half, -half ≤ z < half）
     const half = this.config.gridHalf
-    if (Math.abs(newHead.x) >= half || Math.abs(newHead.z) >= half) {
+    if (newHead.x < -half || newHead.x >= half || newHead.z < -half || newHead.z >= half) {
       logger.warn(`撞墙! 位置: (${newHead.x}, ${newHead.z})`)
       this.onGameOver()
       return

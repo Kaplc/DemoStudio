@@ -24,7 +24,11 @@ const LOG_DIR = isDev
   ? path.join(__dirname, '..', 'logs')
   : path.join(app.getPath('userData'), 'logs')
 
-const CONSOLE_LOG_FILE = path.join(LOG_DIR, 'console.log')
+// 每次启动生成独立的日志文件：console_2026-07-16_143025.log
+const now = new Date()
+const pad = (n: number) => String(n).padStart(2, '0')
+const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+const CONSOLE_LOG_FILE = path.join(LOG_DIR, `console_${timestamp}.log`)
 
 // ═══════════════════════════════════════
 //  第一阶段：无边框加载窗口
@@ -288,6 +292,21 @@ export { }
     return { success: true, path: projectDir }
   } catch (err) {
     console.error('创建工程失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
+// ─── 读取 JSON 文件（场景资产等）───
+
+ipcMain.handle('read-json-file', async (_event, relativePath: string) => {
+  try {
+    const fullPath = path.join(__dirname, '..', relativePath)
+    if (!fs.existsSync(fullPath)) {
+      return { success: false, error: `文件不存在: ${relativePath}` }
+    }
+    const content = fs.readFileSync(fullPath, 'utf-8')
+    return { success: true, data: JSON.parse(content) }
+  } catch (err) {
     return { success: false, error: String(err) }
   }
 })

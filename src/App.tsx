@@ -12,8 +12,8 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
-import { WorldRegistry, GameFactoryRegistry } from './engine'
-import { SnakeScene3D, SnakeGameInstance } from './projects/snake'
+import { WorldRegistry, GameFactoryRegistry, FileSceneAssetBuilder } from './engine'
+import { SnakeGameInstance } from './projects/snake'
 
 export default function App() {
   const { consoleVisible, addConsoleOutput, toggleConsole, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
@@ -35,8 +35,8 @@ export default function App() {
     discoverProjects()
     addConsoleOutput('DemoStudio Editor v4.0.0 已启动')
 
-    // 注册 Snake 世界构建器
-    WorldRegistry.register('Snake', new SnakeScene3D())
+    // 注册 Snake 世界构建器（场景内容从文件路径加载，支持热更新）
+    WorldRegistry.register('Snake', new FileSceneAssetBuilder('src/projects/snake/snake.scene.json'))
     addConsoleOutput('[World] Snake 世界构建器已注册')
 
     // 注册 Snake 游戏实例工厂

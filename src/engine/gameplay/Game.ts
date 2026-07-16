@@ -49,16 +49,9 @@ export class Game {
   launch(): boolean {
     logger.info('[Game] 启动游戏...')
 
-    // UI 覆盖层：先挂载到 Game 视口容器上（确保 React 渲染时元素已在 DOM 中）
+    // UI 覆盖层：挂载到 Game 视口的 UI 层（尺寸/位置跟随 canvas 实际渲染矩形，与画面对齐）
     if (this.gameMgr) {
-      const container = this.gameMgr.renderer.domElement.parentElement
-      if (container) {
-        // 确保容器支持绝对定位
-        if (getComputedStyle(container).position === 'static') {
-          container.style.position = 'relative'
-        }
-        container.appendChild(this.ui.el)
-      }
+      this.gameMgr.uiLayer.appendChild(this.ui.el)
     }
 
     // 注入 UI 系统 + 启动游戏实例

@@ -122,15 +122,34 @@ export class SnakeGameMode extends GameMode {
 
   // ═══ Gizmos 调试绘制 ═══
 
-  /** 仅运行时绘制：场地范围（白色线框）+ 生成点标记（绿色） */
+  /** 棋盘格范围（地面网格线）+ 运行时线框 + 生成点标记 */
   override OnDrawGizmos() {
+    const half = DEFAULT_CONFIG.gridHalf
+    const y = 0.02 // 贴在地板表面
+
+    // 外框 + 内部网格线（始终可见）
+    gizmos.color = 0x4488cc
+    // 沿 X 方向
+    const _a = _top, _b = _center
+    for (let x = -half; x <= half; x++) {
+      _a.set(x, y, -half)
+      _b.set(x, y, half)
+      gizmos.DrawLine(_a, _b)
+    }
+    // 沿 Z 方向
+    for (let z = -half; z <= half; z++) {
+      _a.set(-half, y, z)
+      _b.set(half, y, z)
+      gizmos.DrawLine(_a, _b)
+    }
+
     if (!this.world?.running) return
 
-    // 场地活动范围
+    // 场地活动范围（白色线框）
     gizmos.color = 0xffffff
-    _center.set(0, 0.5, 0)
+    _a.set(0, 0.5, 0)
     _size.set(DEFAULT_CONFIG.gridSize, 1, DEFAULT_CONFIG.gridSize)
-    gizmos.DrawWireCube(_center, _size)
+    gizmos.DrawWireCube(_a, _size)
 
     // 生成点标记（小球 + 向上竖线）
     gizmos.color = 0x4ade80

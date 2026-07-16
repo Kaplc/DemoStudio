@@ -25,6 +25,6 @@ export interface WorldAsset {
 
 /** 世界构建器接口 — 每个游戏实现此接口 */
 export interface WorldBuilder {
-  /** 构建世界场景 */
-  build(config: WorldBuildConfig): WorldAsset
+  /** 构建世界场景（支持同步或异步） */
+  build(config: WorldBuildConfig): WorldAsset | Promise<WorldAsset>
 }

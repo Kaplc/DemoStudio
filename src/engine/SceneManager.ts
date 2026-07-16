@@ -23,6 +23,8 @@ export class SceneManager {
   public camera: THREE.PerspectiveCamera
   public renderer: THREE.WebGLRenderer
   public controls: OrbitControls | null = null
+  /** UI 覆盖层宿主：尺寸/位置始终跟随 canvas 实际渲染矩形（letterbox 后的居中区域） */
+  readonly uiLayer: HTMLDivElement
   private animationId: number | null = null
   private lastTime = 0
   private updateCallbacks: Array<(dt: number) => void> = []
@@ -68,6 +70,16 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(this.renderer.domElement)
+
+    // UI 覆盖层宿主：绝对定位居中，尺寸由 resize() 同步为 canvas 实际渲染矩形，
+    // 使挂载其上的 React HUD 与画面对齐（而非铺满含黑边的整个容器）
+    this.uiLayer = document.createElement('div')
+    this.uiLayer.className = 'scene-ui-layer'
+    this.uiLayer.style.cssText =
+      'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;overflow:hidden;z-index:100;'
+    this.uiLayer.style.width = `${container.clientWidth}px`
+    this.uiLayer.style.height = `${container.clientHeight}px`
+    container.appendChild(this.uiLayer)
 
     // ─── 场景（共享或独立） ───
     if (options.sharedScene) {
@@ -217,11 +229,12 @@ export class SceneManager {
     const height = this.container.clientHeight
     if (width === 0 || height === 0) return
 
+    let canvasW: number
+    let canvasH: number
+
     if (this.targetAspect) {
       // canvas 物理尺寸按比例缩放（通过 CSS flex 居中，黑底由容器背景填充）
       const containerAspect = width / height
-      let canvasW: number, canvasH: number
-
       if (containerAspect > this.targetAspect) {
         // 容器更宽 → canvas 按高度撑满，左右黑边
         canvasH = height
@@ -231,14 +244,21 @@ export class SceneManager {
         canvasW = width
         canvasH = width / this.targetAspect
       }
-
-      this.renderer.setSize(Math.round(canvasW), Math.round(canvasH))
       this.camera.aspect = this.targetAspect
     } else {
-      this.renderer.setSize(width, height)
+      canvasW = width
+      canvasH = height
       this.camera.aspect = width / height
     }
+
+    const w = Math.round(canvasW)
+    const h = Math.round(canvasH)
+    this.renderer.setSize(w, h)
     this.camera.updateProjectionMatrix()
+
+    // UI 覆盖层宿主跟随 canvas 实际渲染矩形，使 React HUD 对齐画面而非黑边
+    this.uiLayer.style.width = `${w}px`
+    this.uiLayer.style.height = `${h}px`
   }
 
   // ─── 动画循环 ───
@@ -423,5 +443,6 @@ export class SceneManager {
     this.renderer.forceContextLoss()
     this.renderer.dispose()
     this.renderer.domElement.remove()
+    this.uiLayer.remove()
   }
 }

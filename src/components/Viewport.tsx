@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
 import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
 import type { WorldAsset } from '../engine'
-import { AxisIndicator } from './AxisIndicator'
 import { useEditorStore } from '../stores/editorStore'
 
 type ViewportTab = 'scene' | 'game'
@@ -30,10 +29,6 @@ export function Viewport({ onReady }: ViewportProps) {
   const [viewportFocused, setViewportFocused] = useState(false)
   const [localScore, setLocalScore] = useState(0)
   const [localPhase, setLocalPhase] = useState<string>('waiting')
-  const [camPos, setCamPos] = useState({ x: 0, y: 0, z: 0 })
-  const [camAxisDirs, setCamAxisDirs] = useState<{ x: number; y: number }[]>([
-    { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 },
-  ])
   const [gameAspectRatio, setGameAspectRatio] = useState<string>('16/9')
   const [gizmosOn, setGizmosOn] = useState(true)
 
@@ -206,18 +201,24 @@ export function Viewport({ onReady }: ViewportProps) {
       if (child instanceof THREE.GridHelper) child.visible = true
     })
 
+    // 强制清除 Gizmos 残影（当前帧 buffer → flush 隐藏）
+    gizmos.beginFrame()
+    gizmos.flush()
+
     // 3. 加载新竞技场
     if (currentProject) {
       const builder = WorldRegistry.get(currentProject.name)
       if (builder) {
         logger.info(`加载竞技场: ${currentProject.name}`)
-        const asset = builder.build({ gridSize: 20 })
-        shared.children.forEach((child) => {
-          if (child instanceof THREE.GridHelper) child.visible = false
-        })
-        shared.add(asset.group)
-        arenaRef.current = asset
-        logger.info(`${currentProject.name} 竞技场加载完成`)
+        ;(async () => {
+          const asset = await builder.build({})
+          shared.children.forEach((child) => {
+            if (child instanceof THREE.GridHelper) child.visible = false
+          })
+          shared.add(asset.group)
+          arenaRef.current = asset
+          logger.info(`${currentProject.name} 竞技场加载完成`)
+        })()
       }
     }
   }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -226,6 +227,21 @@ export function Viewport({ onReady }: ViewportProps) {
   useEffect(() => {
     const game = gameRef.current
     if (!game || !editorState.running) return
+
+    // 如果是重新启动（launchCount > 1），先销毁旧实例，从工厂创建新的
+    // 这样改 GameMode / GameInstance 代码后 Stop → Launch 就能生效
+    if (launchCount > 1) {
+      const shared = sharedSceneRef.current
+      if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
+        const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
+        newInst.setCallbacks({
+          onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
+          onPhaseChange: (phase) => setLocalPhase(phase),
+          onGameOver: () => setGameOver(true),
+        })
+        game.setInstance(newInst)
+      }
+    }
 
     game.launch()
 
@@ -249,40 +265,6 @@ export function Viewport({ onReady }: ViewportProps) {
       gameSceneRef.current?.resize()
     }
   }, [activeTab])
-
-  // ─── 实时追踪 Scene 摄像机坐标 + 轴方向 ───
-  useEffect(() => {
-    const tmpV = new THREE.Vector3()
-    let rafId: number
-    const poll = () => {
-      const mgr = sceneRef.current
-      if (mgr) {
-        const cam = mgr.camera
-        setCamPos({
-          x: cam.position.x,
-          y: cam.position.y,
-          z: cam.position.z,
-        })
-        // 将世界轴方向转换到相机空间，取 (x,y) 作为屏幕 2D 方向
-        // 不归一化，保留长度（朝向/远离摄像机时轴变短，产生 3D 纵深感）
-        const invQuat = cam.quaternion.clone().invert()
-        const dirs: { x: number; y: number }[] = []
-        const worldAxes = [
-          { x: 1, y: 0, z: 0 },
-          { x: 0, y: 1, z: 0 },
-          { x: 0, y: 0, z: 1 },
-        ]
-        for (const a of worldAxes) {
-          tmpV.set(a.x, a.y, a.z).applyQuaternion(invQuat)
-          dirs.push({ x: tmpV.x, y: -tmpV.y }) // SVG y 轴向下
-        }
-        setCamAxisDirs(dirs)
-      }
-      rafId = requestAnimationFrame(poll)
-    }
-    rafId = requestAnimationFrame(poll)
-    return () => cancelAnimationFrame(rafId)
-  }, [])
 
   // ─── 键盘控制（仅 Viewport 获得焦点时生效）───
   useEffect(() => {
@@ -447,7 +429,6 @@ export function Viewport({ onReady }: ViewportProps) {
                 : '📐 选择工程后在此显示场景资源'}
           </div>
         )}
-        <AxisIndicator cameraPos={camPos} axisDirs={camAxisDirs} />
       </div>
 
       {/* Game 视图 */}

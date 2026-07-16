@@ -1,0 +1,17 @@
+{
+  "name": "Snake",
+  "objects": [
+    { "type": "box", "size": [21, 0.3, 21], "pos": [0, -0.15, 0],
+      "material": { "color": "#2a2a3a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } },
+
+    { "type": "box", "size": [20, 0.2, 20], "pos": [0, 0, 0],
+      "material": { "color": "#3a3a4a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } },
+
+    { "type": "checkerFloor", "gridSize": 20,
+      "colors": ["#4a4a5a", "#5a5a6a"], "tileSize": 0.96, "y": 0.02,
+      "material": { "roughness": 0.8, "metalness": 0.1, "receiveShadow": true } },
+
+    { "type": "gridLines", "gridSize": 20,
+      "color": "#444466", "opacity": 0.15, "thickness": 0.02, "y": 0.025 }
+  ]
+}
