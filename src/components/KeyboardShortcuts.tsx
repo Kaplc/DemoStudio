@@ -20,6 +20,20 @@ export function KeyboardShortcuts() {
         return
       }
 
+      // F6 — 快速存档
+      if (e.key === 'F6') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('shortcut-quick-save'))
+        return
+      }
+
+      // F9 — 快速读档
+      if (e.key === 'F9') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('shortcut-quick-load'))
+        return
+      }
+
       // Ctrl+Enter / Cmd+Enter — 启动/停止游戏
       if (e.key === 'Enter' && isMod && !e.shiftKey) {
         e.preventDefault()

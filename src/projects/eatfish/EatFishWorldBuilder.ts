@@ -4,7 +4,8 @@
  */
 import * as THREE from 'three'
 import type { WorldBuilder, WorldBuildConfig, WorldAsset } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
+import { ConfigRegistry } from '@/engine'
+import type { GameConfig } from './types'
 
 export class EatFishWorldBuilder implements WorldBuilder {
   readonly name = 'EatFish'
@@ -13,7 +14,7 @@ export class EatFishWorldBuilder implements WorldBuilder {
     const group = new THREE.Group()
     group.name = 'EatFishArena'
 
-    const half = DEFAULT_CONFIG.arenaHalf
+    const half = ConfigRegistry.getConfig<GameConfig>('eatfish').arenaHalf
 
     // ─── 海底（半透明蓝色平面） ───
     const floorGeo = new THREE.PlaneGeometry(half * 2, half * 2)

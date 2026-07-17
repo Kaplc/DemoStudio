@@ -12,20 +12,26 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useEditorStore } from './stores/editorStore'
 import { useProjectStore } from './stores/projectStore'
-import { WorldRegistry, GameFactoryRegistry, FileSceneAssetBuilder } from './engine'
+import { useEditorPrefsStore } from './stores/editorPrefsStore'
+import { useSaveStore } from './stores/saveStore'
+import { WorldRegistry, GameFactoryRegistry, FileSceneAssetBuilder, ConfigRegistry } from './engine'
 import { SnakeGameInstance } from './projects/snake'
-import { EatFishGameInstance, EatFishWorldBuilder } from './projects/eatfish'
+import { EatFishGameInstance, EatFishWorldBuilder, DEFAULT_CONFIG, parseHexColor } from './projects/eatfish'
+import type { GameConfig, FishArchetype } from './projects/eatfish'
 import { Demo2DGameInstance } from './projects/demo2d'
 import { RacingGameInstance, RacingWorldBuilder } from './projects/racing'
 import { FishGameInstance } from './projects/fish'
 
 export default function App() {
-  const { consoleVisible, addConsoleOutput, toggleConsole, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, launchGame, stopGame, gameState, currentProject } = useEditorStore()
   const { discoverProjects } = useProjectStore()
+  const consoleVisible = useEditorPrefsStore((s) => s.consoleVisible)
+  const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
+  const layout = useEditorPrefsStore((s) => s.layout)
+  const setLayout = useEditorPrefsStore((s) => s.setLayout)
+  const setLastProject = useEditorPrefsStore((s) => s.setLastProject)
+  const pushRecent = useEditorPrefsStore((s) => s.pushRecent)
   const [appInfo, setAppInfo] = useState({ fps: 0, project: 'No project' })
-  const [leftPanelWidth, setLeftPanelWidth] = useState(220)
-  const [rightPanelWidth, setRightPanelWidth] = useState(280)
-  const [consoleHeight, setConsoleHeight] = useState(180)
   const [loading, setLoading] = useState(true)
 
   // ─── Viewport 就绪后通知 Electron 关闭加载窗口 ───
@@ -36,7 +42,14 @@ export default function App() {
   }, [loading])
 
   useEffect(() => {
-    discoverProjects()
+    // 扫描工程完成后，恢复上次打开的项目
+    void discoverProjects().then(() => {
+      const lastFolder = useEditorPrefsStore.getState().lastProjectFolder
+      if (lastFolder && !useEditorStore.getState().currentProject) {
+        const match = useProjectStore.getState().projects.find((p) => p.folder === lastFolder)
+        if (match) useEditorStore.getState().setCurrentProject(match)
+      }
+    })
     addConsoleOutput('DemoStudio Editor v4.0.0 已启动')
 
     // 注册 Snake 世界构建器（场景内容从文件路径加载，支持热更新）
@@ -54,6 +67,19 @@ export default function App() {
     // 注册 EatFish 游戏实例工厂
     GameFactoryRegistry.register('EatFish', (scene) => new EatFishGameInstance(scene))
     addConsoleOutput('[Game] EatFish 游戏工厂已注册')
+
+    // 注册 EatFish 配置表系统（默认值作同步 fallback，JSON 异步加载覆盖）
+    ConfigRegistry.registerDefaults('eatfish', DEFAULT_CONFIG)
+    void ConfigRegistry.loadConfig<GameConfig>('eatfish', 'src/projects/eatfish/eatfish.config.json', (raw): GameConfig => ({
+      ...raw,
+      schoolColors: (raw.schoolColors ?? []).map((theme: string[]) => theme.map(parseHexColor)),
+    }))
+    // 加载鱼类原型 DataTable（演示）
+    void ConfigRegistry.loadTable<FishArchetype>('eatfish.fish', 'src/projects/eatfish/fish.table.json', (row): FishArchetype => ({
+      ...row,
+      color: parseHexColor(row.color),
+    }))
+    addConsoleOutput('[Config] EatFish 配置表已注册')
 
     // 注册 Demo2D 世界构建器（2D 场景，声明式 JSON 资产，支持热更新）
     WorldRegistry.register('Demo2D', new FileSceneAssetBuilder('src/projects/demo2d/demo2d.scene.json'))
@@ -86,8 +112,9 @@ export default function App() {
     const onToggleConsole = () => toggleConsole()
     const onOpenProject = () => setShowProjectSelector(true)
     const onNewProject = () => addConsoleOutput('[菜单] New Project')
-    const onSave = () => addConsoleOutput('[菜单] Save')
-    const onSaveAs = () => addConsoleOutput('[菜单] Save As...')
+    const onSave = () => { void useSaveStore.getState().saveGame('quick') }
+    const onSaveAs = () => { void useSaveStore.getState().saveGame('auto') }
+    const onQuickLoad = () => { void useSaveStore.getState().loadGame('quick') }
     const onLaunchGame = () => {
       if (gameState.gameOver || !gameState.running) {
         launchGame()
@@ -102,6 +129,8 @@ export default function App() {
     window.addEventListener('shortcut-new-project', onNewProject)
     window.addEventListener('shortcut-save', onSave)
     window.addEventListener('shortcut-save-as', onSaveAs)
+    window.addEventListener('shortcut-quick-save', onSave)
+    window.addEventListener('shortcut-quick-load', onQuickLoad)
     window.addEventListener('shortcut-launch-game', onLaunchGame)
     window.addEventListener('shortcut-stop-game', onStopGame)
 
@@ -160,6 +189,8 @@ export default function App() {
         window.removeEventListener('shortcut-new-project', onNewProject)
         window.removeEventListener('shortcut-save', onSave)
         window.removeEventListener('shortcut-save-as', onSaveAs)
+        window.removeEventListener('shortcut-quick-save', onSave)
+        window.removeEventListener('shortcut-quick-load', onQuickLoad)
         window.removeEventListener('shortcut-launch-game', onLaunchGame)
         window.removeEventListener('shortcut-stop-game', onStopGame)
       }
@@ -171,10 +202,20 @@ export default function App() {
       window.removeEventListener('shortcut-new-project', onNewProject)
       window.removeEventListener('shortcut-save', onSave)
       window.removeEventListener('shortcut-save-as', onSaveAs)
+      window.removeEventListener('shortcut-quick-save', onSave)
+      window.removeEventListener('shortcut-quick-load', onQuickLoad)
       window.removeEventListener('shortcut-launch-game', onLaunchGame)
       window.removeEventListener('shortcut-stop-game', onStopGame)
     }
   }, [gameState.running]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 记忆当前项目（持久化最后打开 + 最近列表）
+  useEffect(() => {
+    if (currentProject) {
+      setLastProject(currentProject.folder)
+      pushRecent(currentProject.folder)
+    }
+  }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 实时状态更新 + 上报给 Electron main
   useEffect(() => {
@@ -212,10 +253,11 @@ export default function App() {
       <KeyboardShortcuts />
       <MenuBar />
       <div className="editor-main">
-        <div style={{ width: leftPanelWidth, flexShrink: 0, position: 'relative' }} className="side-panel-left">
+        <div style={{ width: layout.left, flexShrink: 0, position: 'relative' }} className="side-panel-left">
           <ProjectPanel />
           <ResizeHandle direction="horizontal" onResize={(delta) => {
-            setLeftPanelWidth(w => Math.max(150, Math.min(500, w + delta)))
+            const cur = useEditorPrefsStore.getState().layout.left
+            setLayout('left', Math.max(150, Math.min(500, cur + delta)))
           }} />
         </div>
         <div className="editor-content">
@@ -223,17 +265,19 @@ export default function App() {
             <Viewport onReady={() => setLoading(false)} />
           </div>
           {consoleVisible && (
-            <div style={{ height: consoleHeight, flexShrink: 0, position: 'relative' }}>
+            <div style={{ height: layout.console, flexShrink: 0, position: 'relative' }}>
               <ResizeHandle direction="vertical" position="top" onResize={(delta) => {
-                setConsoleHeight(h => Math.max(60, Math.min(600, h - delta)))
+                const cur = useEditorPrefsStore.getState().layout.console
+                setLayout('console', Math.max(60, Math.min(600, cur - delta)))
               }} />
               <Console />
             </div>
           )}
         </div>
-        <div style={{ width: rightPanelWidth, flexShrink: 0, position: 'relative' }} className="side-panel-right">
+        <div style={{ width: layout.right, flexShrink: 0, position: 'relative' }} className="side-panel-right">
           <ResizeHandle direction="horizontal" position="left" onResize={(delta) => {
-            setRightPanelWidth(w => Math.max(200, Math.min(500, w - delta)))
+            const cur = useEditorPrefsStore.getState().layout.right
+            setLayout('right', Math.max(200, Math.min(500, cur - delta)))
           }} />
           <Inspector />
         </div>

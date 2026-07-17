@@ -3,8 +3,7 @@
  * 支持两种模式：独立随机游动 / 鱼群编队游动
  */
 import * as THREE from 'three'
-import { Pawn, logger, gizmos } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
+import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
 import type { GameConfig } from './types'
 
 const _dir = new THREE.Vector3()
@@ -15,6 +14,8 @@ export class EatFishFoodPawn extends Pawn {
   private _sizeScale: number
   /** 移动方向 (公开供 FishSchool 读写) */
   public moveDir: THREE.Vector3
+  /** 数据表原型分值（DataTable 加载时由 GameMode 赋值；吃鱼时优先用，否则回退按大小计分） */
+  public archetypeScore?: number
   private dirChangeTimer = 0
   private speed: number
 
@@ -35,7 +36,7 @@ export class EatFishFoodPawn extends Pawn {
 
   constructor() {
     super('EatFishFoodPawn')
-    this.config = { ...DEFAULT_CONFIG }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
 
     this._sizeScale = this.config.foodFishMinScale +
       Math.random() * (this.config.foodFishMaxScale - this.config.foodFishMinScale)

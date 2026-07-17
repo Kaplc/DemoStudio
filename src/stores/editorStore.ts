@@ -30,9 +30,7 @@ export interface EditorState {
   /** 启动计数器，每次 launchGame 递增，用于触发 Viewport 重新创建游戏实例 */
   launchCount: number
 
-  // ─── 面板 ───
-  panels: Record<PanelId, { visible: boolean }>
-  consoleVisible: boolean
+  // ─── 控制台 ───
   consoleOutput: string[]
 
   // ─── Actions ───
@@ -45,8 +43,6 @@ export interface EditorState {
   setGameScore: (score: number) => void
   setGameOver: (gameOver: boolean) => void
 
-  togglePanel: (panel: PanelId) => void
-  toggleConsole: () => void
   addConsoleOutput: (text: string) => void
   clearConsole: () => void
 
@@ -69,14 +65,6 @@ export const useEditorStore = create<EditorState>((set) => ({
     gameOver: false,
   },
 
-  panels: {
-    scene: { visible: true },
-    game: { visible: true },
-    inspector: { visible: true },
-    console: { visible: true },
-    project: { visible: true },
-  },
-  consoleVisible: false,
   consoleOutput: ['DemoStudio Editor v4.0.0 已启动', '输入 help 查看命令列表'],
 
   // ─── Actions ───
@@ -113,17 +101,6 @@ export const useEditorStore = create<EditorState>((set) => ({
       gameState: { running: false, score: 0, gameOver: false },
       consoleOutput: [...state.consoleOutput.slice(-199), '🛑 游戏已停止'],
     })),
-
-  togglePanel: (panel) =>
-    set((state) => ({
-      panels: {
-        ...state.panels,
-        [panel]: { visible: !state.panels[panel].visible },
-      },
-    })),
-
-  toggleConsole: () =>
-    set((state) => ({ consoleVisible: !state.consoleVisible })),
 
   addConsoleOutput: (text) =>
     set((state) => ({

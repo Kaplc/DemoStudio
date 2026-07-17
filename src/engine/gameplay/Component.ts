@@ -27,4 +27,9 @@ export abstract class Component {
   setEnabled(enabled: boolean) {
     this.bEnabled = enabled
   }
+
+  /** 序列化（预留；子类按需 override 返回自定义数据） */
+  serialize(): Record<string, unknown> {
+    return {}
+  }
 }

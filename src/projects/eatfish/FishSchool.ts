@@ -3,8 +3,7 @@
  * 管理一群鱼的编队游动：领航鱼 + 跟随者 + 基础集群行为
  */
 import * as THREE from 'three'
-import { logger } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
+import { logger, ConfigRegistry } from '@/engine'
 import type { GameConfig } from './types'
 import { EatFishFoodPawn } from './EatFishFoodPawn'
 
@@ -47,7 +46,7 @@ export class FishSchool {
 
   constructor(
     colors: number[],
-    config: GameConfig = DEFAULT_CONFIG,
+    config: GameConfig = ConfigRegistry.getConfig<GameConfig>('eatfish'),
   ) {
     this.colors = colors
     this.radius = config.schoolRadius

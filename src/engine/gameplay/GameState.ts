@@ -45,4 +45,23 @@ export class GameState extends Actor {
     if (phase === 'gameover') this.gameOver = true
     this.notify()
   }
+
+  /** 序列化为可存档结构 */
+  serialize(): Record<string, unknown> {
+    return {
+      score: this.score,
+      phase: this.phase,
+      timeElapsed: this.timeElapsed,
+      gameOver: this.gameOver,
+    }
+  }
+
+  /** 从结构恢复，并触发 notify 同步订阅者（HUD 等） */
+  restoreFrom(data: Record<string, unknown>): void {
+    this.score = (data.score as number) ?? 0
+    this.phase = (data.phase as GamePhase) ?? 'waiting'
+    this.timeElapsed = (data.timeElapsed as number) ?? 0
+    this.gameOver = (data.gameOver as boolean) ?? false
+    this.notify()
+  }
 }

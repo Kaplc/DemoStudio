@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useEditorStore } from '../stores/editorStore'
+import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 
 interface MenuState {
   open: string | null
@@ -30,7 +31,8 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { toggleConsole, togglePanel, addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState } = useEditorStore()
+  const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
 
   const closeMenu = () => setMenu({ open: null })
 

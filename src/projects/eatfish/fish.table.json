@@ -1,0 +1,6 @@
+{
+  "_comment": "EatFish 鱼类原型表（DataTable 演示）。键=行名，值=原型。被 SpawnFoodFish 用于独立散兵的着色与计分；表缺失时回退到 GameConfig 标量。颜色为 #rrggbb。",
+  "SmallFish": { "label": "小鱼", "scale": 0.3, "speed": 2.0, "score": 1, "color": "#ff7043" },
+  "MidFish": { "label": "中鱼", "scale": 0.5, "speed": 1.6, "score": 3, "color": "#42a5f5" },
+  "BigFish": { "label": "大鱼", "scale": 0.7, "speed": 1.2, "score": 6, "color": "#ab47bc" }
+}

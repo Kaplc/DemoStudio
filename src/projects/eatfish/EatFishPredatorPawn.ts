@@ -3,8 +3,7 @@
  * 比玩家大，会追逐玩家。玩家必须避开它。
  */
 import * as THREE from 'three'
-import { Pawn, logger, gizmos } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
+import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
 import type { GameConfig } from './types'
 import { EatFishPawn } from './EatFishPawn'
 
@@ -28,7 +27,7 @@ export class EatFishPredatorPawn extends Pawn {
   constructor() {
     super('EatFishPredatorPawn')
 
-    this.config = { ...DEFAULT_CONFIG }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
 
     // 捕食者比玩家初始大
     this._sizeScale = this.config.playerInitialScale * this.config.predatorScaleMultiplier +

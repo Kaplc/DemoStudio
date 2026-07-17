@@ -77,6 +77,18 @@ export class SnakeGameMode extends GameMode {
     this.SpawnInitialFood(snakePositions)
   }
 
+  /** 读档：把食物放到指定网格位（重建 foodPawn，非随机） */
+  setFoodAt(pos: Vec2): void {
+    this.foodGridPos = { x: pos.x, z: pos.z }
+    if (this.foodPawn) {
+      this.foodPawn.destroy()
+      this.foodPawn = null
+    }
+    this.foodPawn = new SnakeFoodPawn()
+    this.spawnComponent.SpawnPawnAt(this.foodPawn, pos.x + 0.5, 0.4, pos.z + 0.5)
+    this.world?.SpawnActor(this.foodPawn)
+  }
+
   /** 吃食物时调用 */
   OnEatFood(snakePositions: Vec2[]): void {
     this.gameState.addScore(1)

@@ -205,6 +205,30 @@ export class SnakePawn extends Pawn {
     return [...this.snake]
   }
 
+  // ═══ 存档（与 MCP 用的 getSnapshot 解耦，存档需要完整蛇身才能重建） ═══
+
+  /** 存档：返回重建所需的完整逻辑状态（深拷贝，不含 3D 对象） */
+  getSaveData(): { snake: Vec2[]; currentDir: Vec2; nextDir: Vec2; moveTimer: number } {
+    return {
+      snake: this.snake.map((p) => ({ x: p.x, z: p.z })),
+      currentDir: { ...this.currentDir },
+      nextDir: { ...this.nextDir },
+      moveTimer: this.moveTimer,
+    }
+  }
+
+  /** 读档：覆盖逻辑状态并按新蛇身重建 3D 表现（须在 InitGame 之后调用） */
+  applySaveData(data: { snake: Vec2[]; currentDir: Vec2; nextDir: Vec2; moveTimer: number }): void {
+    this.snake = data.snake.map((p) => ({ x: p.x, z: p.z }))
+    this.currentDir = { ...data.currentDir }
+    this.nextDir = { ...data.nextDir }
+    this.moveTimer = data.moveTimer
+    this.rebuildSnake()
+    if (typeof window !== 'undefined') {
+      ;(window as any).__snakeGameData = this.getSnapshot()
+    }
+  }
+
   // ═══ Gizmos 调试绘制 ═══
 
   /** 绘制蛇身格子（青色线框）+ 蛇头朝向（红色射线） */

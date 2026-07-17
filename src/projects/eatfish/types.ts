@@ -55,6 +55,28 @@ export interface GameConfig {
   schoolColors: number[][]
 }
 
+/**
+ * 数据表行：鱼类原型（DataTable 示例，见 fish.table.json）。
+ * color 为数字（加载时由 "#rrggbb" 经 parseHexColor 转换）。
+ */
+export interface FishArchetype {
+  /** 显示名 */
+  label: string
+  /** 体型缩放 */
+  scale: number
+  /** 游动速度 */
+  speed: number
+  /** 分数 */
+  score: number
+  /** 颜色（数字 hex，如 0xff7043） */
+  color: number
+}
+
+/**
+ * EatFish 默认配置。双重角色：
+ *   1. ConfigRegistry.registerDefaults 注册的同步 fallback（JSON 未加载 / 读取失败时兜底）。
+ *   2. eatfish.config.json 的镜像源（JSON 颜色为 "#rrggbb" 字符串，此处为数字字面量）。
+ */
 export const DEFAULT_CONFIG: GameConfig = {
   arenaHalf: 15,
   playerInitialScale: 1.0,
@@ -101,4 +123,14 @@ export interface SchoolMemberInfo {
   offsetZ: number
   /** 游动相位 (用于差异化动画) */
   phase: number
+}
+
+/**
+ * 解析 CSS hex 颜色字符串 → 数字。
+ * 用于把 JSON 中的 "#rrggbb" 转换为消费方（setBodyColor / setHex）所需的数字。
+ * 支持 "#ff7043" / "ff7043" / "0xff7043" 三种写法。
+ */
+export function parseHexColor(s: string): number {
+  const hex = s.replace(/^#/, '').replace(/^0x/, '')
+  return parseInt(hex, 16)
 }

@@ -3,11 +3,12 @@ import * as THREE from 'three'
 import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
 import type { WorldAsset } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
+import { useEditorPrefsStore } from '../stores/editorPrefsStore'
+import type { ViewportTab } from '../stores/editorPrefsStore'
+import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
 
 // 鼠标→世界坐标复用（clientToWorld 输出缓冲）
 const _ptrWorld = new THREE.Vector3()
-
-type ViewportTab = 'scene' | 'game'
 
 interface ViewportProps {
   /** 初始化完成后回调 */
@@ -28,12 +29,16 @@ export function Viewport({ onReady }: ViewportProps) {
   // 竞技场资源
   const arenaRef = useRef<WorldAsset | null>(null)
 
-  const [activeTab, setActiveTab] = useState<ViewportTab>('scene')
+  const prefsViewport = useEditorPrefsStore((s) => s.viewport)
+  const setViewportPref = useEditorPrefsStore((s) => s.setViewport)
+  const activeTab = prefsViewport.activeTab
+  const gameAspectRatio = prefsViewport.aspectRatio
+  const gizmosOn = prefsViewport.gizmos
+  const setActiveTab = (tab: ViewportTab) => setViewportPref({ activeTab: tab })
+  const setGameAspectRatio = (ratio: string) => setViewportPref({ aspectRatio: ratio })
   const [viewportFocused, setViewportFocused] = useState(false)
   const [localScore, setLocalScore] = useState(0)
   const [localPhase, setLocalPhase] = useState<string>('waiting')
-  const [gameAspectRatio, setGameAspectRatio] = useState<string>('16/9')
-  const [gizmosOn, setGizmosOn] = useState(true)
 
   const editorState = useEditorStore((s) => s.gameState)
   const currentProject = useEditorStore((s) => s.currentProject)
@@ -94,9 +99,10 @@ export function Viewport({ onReady }: ViewportProps) {
     gameMgr.stop()       // 未启动游戏时不渲染
     gameSceneRef.current = gameMgr
 
-    // 初始应用画面比例（首次初始化时两边同步）
-    if (gameAspectRatio) {
-      const [aw, ah] = gameAspectRatio.split('/').map(Number)
+    // 初始应用画面比例（首次初始化时两边同步；读 rehydrated 后的最新值）
+    const ar = useEditorPrefsStore.getState().viewport.aspectRatio
+    if (ar) {
+      const [aw, ah] = ar.split('/').map(Number)
       sceneMgr.setTargetAspect(aw / ah)
       gameMgr.setTargetAspect(aw / ah)
     }
@@ -248,6 +254,13 @@ export function Viewport({ onReady }: ViewportProps) {
     }
 
     game.launch()
+
+    // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
+    setCurrentGameInstance(game.instance)
+    const pending = useSaveStore.getState().consumePendingRestore()
+    if (pending) {
+      game.instance.restoreSnapshot(pending.payload)
+    }
 
     return () => {
       game.shutdown()
@@ -430,7 +443,7 @@ export function Viewport({ onReady }: ViewportProps) {
           <option value="1/1">1:1</option>
         </select>
         <button
-          onClick={() => setGizmosOn((v) => { const nv = !v; gizmos.enabled = nv; return nv })}
+          onClick={() => { const nv = !gizmosOn; gizmos.enabled = nv; setViewportPref({ gizmos: nv }) }}
           title="切换 Gizmos 调试绘制"
           style={{
             marginLeft: 6,

@@ -1,0 +1,30 @@
+{
+  "_comment": "EatFish 单例配置。颜色用 #rrggbb（加载时转为数字）。省略字段回退到 DEFAULT_CONFIG。修改后 Stop→Launch 生效（getConfig 缓存）。",
+  "arenaHalf": 15,
+  "playerInitialScale": 1.0,
+  "playerSpeed": 6,
+  "playerRotateSpeed": 2.5,
+  "foodFishCount": 18,
+  "foodFishMinScale": 0.25,
+  "foodFishMaxScale": 0.7,
+  "foodFishSpeed": 2,
+  "predatorCount": 2,
+  "predatorScaleMultiplier": 1.8,
+  "predatorSpeed": 3.5,
+  "predatorChaseRange": 12,
+  "growPerEat": 0.08,
+  "invincibleTime": 2,
+  "schoolCount": 3,
+  "fishPerSchool": 6,
+  "schoolRadius": 4,
+  "schoolSeparation": 0.6,
+  "schoolFollowStrength": 0.6,
+  "schoolColors": [
+    ["#ff7043", "#ff8a65", "#ffab91"],
+    ["#42a5f5", "#64b5f6", "#90caf9"],
+    ["#66bb6a", "#81c784", "#a5d6a7"],
+    ["#ab47bc", "#ce93d8", "#e1bee7"],
+    ["#ffca28", "#ffd54f", "#ffe082"],
+    ["#ec407a", "#f06292", "#f48fb1"]
+  ]
+}

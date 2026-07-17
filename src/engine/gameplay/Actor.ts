@@ -167,4 +167,28 @@ export abstract class Actor {
   removeFromScene(scene: THREE.Scene) {
     scene.remove(this.root)
   }
+
+  // ═══════════════════════════════════
+  //  序列化（为未来场景保存预留；当前存档系统不遍历调用）
+  // ═══════════════════════════════════
+
+  /** 序列化：默认仅 name + transform，子类 override 追加自定义数据 */
+  serialize(): Record<string, unknown> {
+    return {
+      name: this.name,
+      position: [this.position.x, this.position.y, this.position.z],
+      rotation: [this.rotation.x, this.rotation.y, this.rotation.z],
+      scale: [this.scale.x, this.scale.y, this.scale.z],
+    }
+  }
+
+  /** 反序列化：默认仅恢复 transform（name 在构造时确定） */
+  deserialize(data: Record<string, unknown>): void {
+    const pos = data.position as [number, number, number] | undefined
+    if (pos) this.setPosition(pos[0], pos[1], pos[2])
+    const rot = data.rotation as [number, number, number] | undefined
+    if (rot) this.setRotation(rot[0], rot[1], rot[2])
+    const scl = data.scale as [number, number, number] | undefined
+    if (scl) this.setScale(scl[0], scl[1], scl[2])
+  }
 }

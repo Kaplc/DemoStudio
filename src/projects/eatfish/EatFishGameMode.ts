@@ -3,14 +3,14 @@
  * 控制：小鱼生成、碰撞检测、计分、游戏结束
  */
 import * as THREE from 'three'
-import { GameMode, SpawnComponent, CameraComponent, gizmos, logger } from '@/engine'
+import { GameMode, SpawnComponent, CameraComponent, gizmos, logger, ConfigRegistry } from '@/engine'
+import type { DataTable } from '@/engine'
 import { EatFishPawn } from './EatFishPawn'
 import { EatFishFoodPawn } from './EatFishFoodPawn'
 import { EatFishPredatorPawn } from './EatFishPredatorPawn'
 import { EatFishPlayerController } from './EatFishPlayerController'
 import { FishSchool } from './FishSchool'
-import { DEFAULT_CONFIG } from './types'
-import type { GameConfig } from './types'
+import type { GameConfig, FishArchetype } from './types'
 
 const _v3 = new THREE.Vector3()
 const _v3b = new THREE.Vector3()
@@ -25,6 +25,8 @@ export class EatFishGameMode extends GameMode {
   /** 鱼群列表 */
   private schools: FishSchool[] = []
   private config: GameConfig
+  /** 鱼类原型数据表（DataTable 演示；表未加载时为 null） */
+  private fishTable: DataTable<FishArchetype> | null = null
 
   /** 玩家引用（每帧用于摄像机跟随） */
   playerRef: EatFishPawn | null = null
@@ -34,7 +36,7 @@ export class EatFishGameMode extends GameMode {
 
   constructor() {
     super()
-    this.config = { ...DEFAULT_CONFIG }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
     this.spawnComponent = new SpawnComponent(this)
     this.addComponent(this.spawnComponent)
 
@@ -52,6 +54,9 @@ export class EatFishGameMode extends GameMode {
     this.schools = []
     this.playerRef = null
     this.eatCount = 0
+
+    // 取鱼类原型数据表（DataTable 演示；未加载时为 null，下游用 if 守卫）
+    this.fishTable = ConfigRegistry.getTable<FishArchetype>('eatfish.fish') ?? null
 
     // 配置生成点
     this.spawnComponent.ClearSpawnPoints()
@@ -76,6 +81,15 @@ export class EatFishGameMode extends GameMode {
   /** 生成食物鱼（独立鱼，不属于鱼群） */
   SpawnFoodFish() {
     const food = new EatFishFoodPawn()
+    // DataTable 演示：若原型表已加载，用随机原型行的颜色着色并记录原型分值
+    if (this.fishTable && this.fishTable.size > 0) {
+      const names = this.fishTable.getRowNames()
+      const row = this.fishTable.getRow(names[Math.floor(Math.random() * names.length)])
+      if (row) {
+        food.setBodyColor(row.color)
+        food.archetypeScore = row.score
+      }
+    }
     this.foodFish.push(food)
     this.world?.SpawnActor(food)
   }
@@ -231,7 +245,8 @@ export class EatFishGameMode extends GameMode {
   /** 吃食物鱼 */
   OnEatFood(player: EatFishPawn, food: EatFishFoodPawn) {
     const foodSize = food.getSizeScale()
-    const points = Math.max(1, Math.floor((1 / foodSize) * 3))
+    // 表加载时按原型分值计分；否则回退到按大小计算的分数
+    const points = food.archetypeScore ?? Math.max(1, Math.floor((1 / foodSize) * 3))
     this.gameState.addScore(points)
     player.Grow(this.config.growPerEat)
     this.eatCount++

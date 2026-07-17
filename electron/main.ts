@@ -365,6 +365,67 @@ ipcMain.handle('discover-projects', async () => {
   }
 })
 
+// ─── 存档系统（userData-scoped，跨重装保留）───
+
+const SAVES_DIR = path.join(app.getPath('userData'), 'saves')
+const saveDirOf = (game: string) => path.join(SAVES_DIR, game)
+const savePathOf = (game: string, slot: string) => path.join(saveDirOf(game), `${slot}.json`)
+
+ipcMain.handle('save-game-file', async (_event, game: string, slot: string, data: unknown) => {
+  try {
+    fs.mkdirSync(saveDirOf(game), { recursive: true })
+    fs.writeFileSync(savePathOf(game, slot), JSON.stringify(data, null, 2), 'utf-8')
+    return { success: true, savedAt: (data as any)?.meta?.savedAt }
+  } catch (err) {
+    console.error('写入存档失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('load-game-file', async (_event, game: string, slot: string) => {
+  try {
+    const p = savePathOf(game, slot)
+    if (!fs.existsSync(p)) return { success: false, error: '存档不存在' }
+    const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
+    return { success: true, data }
+  } catch (err) {
+    console.error('读取存档失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('list-game-saves', async (_event, game: string) => {
+  try {
+    const dir = saveDirOf(game)
+    if (!fs.existsSync(dir)) return []
+    const result: Array<{ slot: string; meta: unknown }> = []
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.json')) continue
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
+        result.push({ slot: f.replace(/\.json$/, ''), meta: data.meta })
+      } catch {
+        // 单个存档文件损坏则跳过，不影响其余槽位
+      }
+    }
+    return result
+  } catch (err) {
+    console.error('列出存档失败:', err)
+    return []
+  }
+})
+
+ipcMain.handle('delete-game-save', async (_event, game: string, slot: string) => {
+  try {
+    const p = savePathOf(game, slot)
+    if (fs.existsSync(p)) fs.unlinkSync(p)
+    return { success: true }
+  } catch (err) {
+    console.error('删除存档失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── MCP 游戏状态 ───
 
 ipcMain.handle('mcp-report-state', (_event, state: { running: boolean; score?: number }) => {

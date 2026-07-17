@@ -3,8 +3,7 @@
  * 自由 3D 游泳，通过 WASD 控制方向，吃小鱼长大
  */
 import * as THREE from 'three'
-import { Pawn, logger, gizmos } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
+import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
 import type { GameConfig } from './types'
 
 // ─── 复用临时对象 ───
@@ -45,7 +44,7 @@ export class EatFishPawn extends Pawn {
 
   constructor() {
     super('EatFishPawn')
-    this.config = { ...DEFAULT_CONFIG }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
     this.fishScale = this.config.playerInitialScale
 
     // ─── 材质 ───
