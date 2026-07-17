@@ -21,6 +21,8 @@ import type { GameConfig, FishArchetype } from './projects/eatfish'
 import { Demo2DGameInstance } from './projects/demo2d'
 import { RacingGameInstance, RacingWorldBuilder } from './projects/racing'
 import { FishGameInstance } from './projects/fish'
+import type { CannonConfig, BossConfig, FishConfig, SchoolConfig } from './projects/fish'
+import { DEFAULT_CANNON_CONFIG, DEFAULT_BOSS_CONFIG, DEFAULT_FISH_CONFIG, DEFAULT_SCHOOL_CONFIG } from './projects/fish'
 
 export default function App() {
   const { addConsoleOutput, setShowProjectSelector, launchGame, stopGame, gameState, currentProject } = useEditorStore()
@@ -98,12 +100,23 @@ export default function App() {
     addConsoleOutput('[Game] Racing 游戏工厂已注册')
 
     // 注册 FishMaster 世界构建器（捕鱼达人，2D 正交 + 鼠标瞄准）
-    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/fish.scene.json'))
+    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/scene/fish.scene.json'))
     addConsoleOutput('[World] FishMaster 世界构建器已注册')
 
     // 注册 FishMaster 游戏实例工厂
     GameFactoryRegistry.register('FishMaster', (scene) => new FishGameInstance(scene))
     addConsoleOutput('[Game] FishMaster 游戏工厂已注册')
+
+    // 注册 FishMaster 配置表系统（默认值作同步 fallback，JSON 异步加载覆盖）
+    ConfigRegistry.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)
+    void ConfigRegistry.loadConfig<CannonConfig>('fish.cannon', 'src/projects/fish/config/cannon.config.json')
+    ConfigRegistry.registerDefaults('fish.boss', DEFAULT_BOSS_CONFIG)
+    void ConfigRegistry.loadConfig<BossConfig>('fish.boss', 'src/projects/fish/config/boss.config.json')
+    ConfigRegistry.registerDefaults('fish.fish', DEFAULT_FISH_CONFIG)
+    void ConfigRegistry.loadConfig<FishConfig>('fish.fish', 'src/projects/fish/config/fish.config.json')
+    ConfigRegistry.registerDefaults('fish.school', DEFAULT_SCHOOL_CONFIG)
+    void ConfigRegistry.loadConfig<SchoolConfig>('fish.school', 'src/projects/fish/config/school.config.json')
+    addConsoleOutput('[Config] FishMaster 配置表已注册')
 
     addConsoleOutput('基于 Three.js + Electron + React')
     addConsoleOutput('')

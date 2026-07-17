@@ -8,14 +8,14 @@ import { useEditorStore } from '../../../stores/editorStore'
 export interface GameHudProps {
   coins: number
   score: number
-  level: 1 | 2 | 3
+  level: number
   bossActive: boolean
   bossHp: number
   bossMaxHp: number
   phase: 'waiting' | 'playing' | 'gameover'
 }
 
-const LEVEL_NAME = ['', 'I', 'II', 'III']
+const LEVEL_NAME = ['', 'I', 'II', 'III', 'IV', 'V']
 
 const panelStyle: React.CSSProperties = {
   padding: '8px 14px',

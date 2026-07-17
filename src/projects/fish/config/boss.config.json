@@ -1,0 +1,17 @@
+{
+  "_comment": "Boss 配置（ConfigRegistry 加载）。被 FishGameMode 处理 Boss 生成与数据。\n可添加多种 Boss 类型，生成时随机选取一种。\n字段含义：\n  bossInterval = 两次 Boss 出现间隔（秒）；\n  key = 唯一标识；size = [宽, 高] 世界单位；\n  speed = 游速；score = 捕获得分（金币）；\n  hp = 生命值；radius = 碰撞半径；\n  captureChance = 基础捕获率（0~1，越大越易捕获）；\n  art = 美术变体（对应 textures.ts 的绘制风格）。",
+  "bossInterval": 45,
+  "bossTypes": [
+    {
+      "key": "shark",
+      "name": "鲨鱼 Boss",
+      "size": [5.5, 3.0],
+      "speed": 1.5,
+      "score": 300,
+      "hp": 130,
+      "radius": 2.4,
+      "captureChance": 0.008,
+      "art": "boss"
+    }
+  ]
+}

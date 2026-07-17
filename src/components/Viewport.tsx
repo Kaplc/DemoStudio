@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
 import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
-import type { WorldAsset } from '../engine'
+import type { WorldAsset, SkyboxConfig } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import type { ViewportTab } from '../stores/editorPrefsStore'
@@ -157,6 +157,23 @@ export function Viewport({ onReady }: ViewportProps) {
     scene.add(grid)
   }
 
+  /** 根据 SkyboxConfig 更新场景背景/天空盒/雾效 */
+  function applySkybox(scene: THREE.Scene, config: SkyboxConfig): void {
+    // 天空盒立方体贴图（优先于纯色背景）
+    if (config.skyboxPath) {
+      const ext = config.skyboxExt ?? '.jpg'
+      const faces = ['px', 'nx', 'py', 'ny', 'pz', 'nz']
+      const urls = faces.map(s => `${config.skyboxPath}_${s}${ext}`)
+      scene.background = new THREE.CubeTextureLoader().load(urls)
+    } else if (config.backgroundColor) {
+      scene.background = new THREE.Color(config.backgroundColor)
+    }
+    // 雾效
+    if (config.fogColor && config.fogNear !== undefined && config.fogFar !== undefined) {
+      scene.fog = new THREE.Fog(config.fogColor, config.fogNear, config.fogFar)
+    }
+  }
+
   // ─── 画面比例同步到 Scene + Game SceneManager（两边同步）───
   useEffect(() => {
     const ratio = gameAspectRatio
@@ -179,6 +196,10 @@ export function Viewport({ onReady }: ViewportProps) {
       game?.shutdown()
       useEditorStore.getState().setGameRunning(false)
     }
+
+    // 1.5 重置场景背景和雾效为默认值，防止前一个工程的背景残留
+    shared.background = new THREE.Color(0x1a1a2e)
+    shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
 
     // 2. 切换游戏实例 — 从工厂创建新实例 + 重置 UI 状态
     setLocalScore(0)
@@ -227,6 +248,10 @@ export function Viewport({ onReady }: ViewportProps) {
           })
           shared.add(asset.group)
           arenaRef.current = asset
+          // 应用场景氛围配置（天空盒/背景/雾效）
+          if (asset.skybox) {
+            applySkybox(shared, asset.skybox)
+          }
           logger.info(`${currentProject.name} 竞技场加载完成`)
         })()
       }

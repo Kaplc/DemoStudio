@@ -14,7 +14,7 @@ export const AREA_H = 9.5
 export const CANNON_Y = -AREA_H + 1.5
 
 /** 美术变体（对应 textures.ts 的绘制函数） */
-export type FishArt = 'small' | 'medium' | 'large' | 'fast' | 'rare' | 'boss'
+export type FishArt = 'small' | 'medium' | 'large' | 'fast' | 'rare' | 'boss' | 'puffer' | 'eel' | 'clown' | 'manta'
 
 /** 鱼种配置 */
 export interface FishType {
@@ -40,19 +40,28 @@ export interface FishType {
   schoolSize: [number, number]
 }
 
-/** 鱼种表（权重>0 的进随机池；shark 仅 Boss 定时器生成） */
-export const FISH_TYPES: FishType[] = [
-  { key: 'guppy', name: '小鱼',   size: [1.4, 0.9], speed: 3.2, score: 3,   hp: 3,   radius: 0.6, captureChance: 0.15,  weight: 30, art: 'small', schoolSize: [6, 12] },
-  { key: 'angel', name: '神仙鱼', size: [2.0, 1.4], speed: 2.6, score: 8,   hp: 8,   radius: 0.9, captureChance: 0.07,  weight: 24, art: 'medium', schoolSize: [4, 8] },
-  { key: 'tuna',  name: '金枪鱼', size: [3.0, 1.8], speed: 2.0, score: 28,  hp: 22,  radius: 1.3, captureChance: 0.035, weight: 14, art: 'large', schoolSize: [2, 4] },
-  { key: 'dart',  name: '飞鱼',   size: [1.2, 0.7], speed: 5.5, score: 9,   hp: 5,   radius: 0.5, captureChance: 0.09,  weight: 14, art: 'fast', schoolSize: [5, 10] },
-  { key: 'glow',  name: '发光鱼', size: [2.2, 1.5], speed: 2.8, score: 45,  hp: 16,  radius: 1.0, captureChance: 0.025, weight: 6,  art: 'rare', schoolSize: [2, 4] },
-  { key: 'shark', name: '鲨鱼 Boss', size: [5.5, 3.0], speed: 1.5, score: 300, hp: 130, radius: 2.4, captureChance: 0.008, weight: 0, art: 'boss', boss: true, schoolSize: [1, 1] },
-]
+/** 鱼种配置（对应 fish.config.json） */
+export interface FishConfig {
+  fishTypes: FishType[]
+}
+
+export const DEFAULT_FISH_CONFIG: FishConfig = {
+  fishTypes: [
+    { key: 'guppy', name: '小鱼',   size: [1.4, 0.9], speed: 3.2, score: 3,   hp: 3,   radius: 0.6, captureChance: 0.15,  weight: 30, art: 'small', schoolSize: [6, 12] },
+    { key: 'clown', name: '小丑鱼', size: [1.2, 0.8], speed: 3.5, score: 4,   hp: 3,   radius: 0.5, captureChance: 0.18,  weight: 28, art: 'clown', schoolSize: [8, 14] },
+    { key: 'angel', name: '神仙鱼', size: [2.0, 1.4], speed: 2.6, score: 8,   hp: 8,   radius: 0.9, captureChance: 0.07,  weight: 24, art: 'medium', schoolSize: [4, 8] },
+    { key: 'dart',  name: '飞鱼',   size: [1.2, 0.7], speed: 5.5, score: 9,   hp: 5,   radius: 0.5, captureChance: 0.09,  weight: 14, art: 'fast', schoolSize: [5, 10] },
+    { key: 'puffer',name: '河豚',   size: [2.0, 2.0], speed: 1.8, score: 15,  hp: 20,  radius: 1.1, captureChance: 0.04,  weight: 12, art: 'puffer',schoolSize: [2, 3] },
+    { key: 'eel',   name: '电鳗',   size: [3.5, 0.8], speed: 4.0, score: 20,  hp: 10,  radius: 0.7, captureChance: 0.05,  weight: 10, art: 'eel',   schoolSize: [1, 2] },
+    { key: 'tuna',  name: '金枪鱼', size: [3.0, 1.8], speed: 2.0, score: 28,  hp: 22,  radius: 1.3, captureChance: 0.035, weight: 14, art: 'large', schoolSize: [2, 4] },
+    { key: 'glow',  name: '发光鱼', size: [2.2, 1.5], speed: 2.8, score: 45,  hp: 16,  radius: 1.0, captureChance: 0.025, weight: 6,  art: 'rare', schoolSize: [2, 4] },
+    { key: 'manta', name: '魔鬼鱼', size: [4.0, 3.0], speed: 2.2, score: 55,  hp: 35,  radius: 1.8, captureChance: 0.015, weight: 4,  art: 'manta', schoolSize: [1, 2] },
+  ],
+}
 
 /** 炮等级配置 */
 export interface CannonLevel {
-  level: 1 | 2 | 3
+  level: number
   name: string
   /** 单发消耗金币 */
   cost: number
@@ -68,15 +77,108 @@ export interface CannonLevel {
   fireCooldown: number
 }
 
-export const CANNON_LEVELS: CannonLevel[] = [
-  { level: 1, name: 'I 型炮',   cost: 1, power: 1, captureBonus: 1.0, netRadius: 0.8, netSpeed: 18, fireCooldown: 0.28 },
-  { level: 2, name: 'II 型炮',  cost: 2, power: 3, captureBonus: 1.3, netRadius: 1.1, netSpeed: 20, fireCooldown: 0.22 },
-  { level: 3, name: 'III 型炮', cost: 4, power: 6, captureBonus: 1.7, netRadius: 1.5, netSpeed: 22, fireCooldown: 0.18 },
-]
+/** 炮台配置（对应 cannon.config.json） */
+export interface CannonConfig {
+  initialLevel: number
+  levels: CannonLevel[]
+}
+
+export const DEFAULT_CANNON_CONFIG: CannonConfig = {
+  initialLevel: 1,
+  levels: [
+    { level: 1, name: 'I 型炮',   cost: 1, power: 1, captureBonus: 1.0, netRadius: 0.8, netSpeed: 18, fireCooldown: 0.28 },
+    { level: 2, name: 'II 型炮',  cost: 2, power: 3, captureBonus: 1.3, netRadius: 1.1, netSpeed: 20, fireCooldown: 0.22 },
+    { level: 3, name: 'III 型炮', cost: 4, power: 6, captureBonus: 1.7, netRadius: 1.5, netSpeed: 22, fireCooldown: 0.18 },
+    { level: 4, name: 'IV 型炮',  cost: 7, power: 10, captureBonus: 2.2, netRadius: 2.0, netSpeed: 24, fireCooldown: 0.15 },
+    { level: 5, name: 'V 型炮',   cost: 12, power: 16, captureBonus: 3.0, netRadius: 2.6, netSpeed: 26, fireCooldown: 0.12 },
+  ],
+}
+
+/** Boss 类型配置（扩展自 FishType，不含 weight/schoolSize） */
+export interface BossType {
+  key: string
+  name: string
+  size: [number, number]
+  speed: number
+  score: number
+  hp: number
+  radius: number
+  captureChance: number
+  art: FishArt
+}
+
+/** Boss 配置（对应 boss.config.json） */
+export interface BossConfig {
+  /** Boss 出现间隔（秒） */
+  bossInterval: number
+  /** Boss 类型列表，生成时随机选一个 */
+  bossTypes: BossType[]
+}
+
+export const DEFAULT_BOSS_CONFIG: BossConfig = {
+  bossInterval: 45,
+  bossTypes: [
+    { key: 'shark', name: '鲨鱼 Boss', size: [5.5, 3.0], speed: 1.5, score: 300, hp: 130, radius: 2.4, captureChance: 0.008, art: 'boss' },
+  ],
+}
+
+/** 鱼群生成节奏配置（对应 school.config.json） */
+export interface SchoolTimingConfig {
+  /** 基础间隔（秒） */
+  baseInterval: number
+  /** 最小间隔（秒，难度递增后不低于此值） */
+  minInterval: number
+  /** 衰减率（每秒减少量） */
+  decayRate: number
+  /** 随机区间下限（乘法系数） */
+  timerRandomLow: number
+  /** 随机区间上限（乘法系数） */
+  timerRandomHigh: number
+}
+
+/** 鱼群/散兵生成配置（对应 school.config.json） */
+export interface SchoolConfig {
+  school: SchoolTimingConfig
+  single: SchoolTimingConfig
+  spawn: {
+    /** 鱼群垂直散布因子（× 鱼 size[1]） */
+    schoolSpreadFactor: number
+    /** 鱼群游速变化下限 */
+    speedVariationMin: number
+    /** 鱼群游速变化随机幅度 */
+    speedVariationMax: number
+    /** 边缘出生外扩量（世界单位） */
+    spawnMargin: number
+    /** 散兵 Y 方向内外边距（世界单位） */
+    singleYSpawnMargin: number
+  }
+}
+
+export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
+  school: {
+    baseInterval: 5.0,
+    minInterval: 2.0,
+    decayRate: 0.025,
+    timerRandomLow: 0.6,
+    timerRandomHigh: 0.8,
+  },
+  single: {
+    baseInterval: 1.8,
+    minInterval: 0.6,
+    decayRate: 0.015,
+    timerRandomLow: 0.5,
+    timerRandomHigh: 1.0,
+  },
+  spawn: {
+    schoolSpreadFactor: 1.8,
+    speedVariationMin: 0.85,
+    speedVariationMax: 0.3,
+    spawnMargin: 1.0,
+    singleYSpawnMargin: 2.0,
+  },
+}
 
 /** 初始金币 */
 export const INITIAL_COINS = 100
-/** Boss 出现间隔（秒） */
-export const BOSS_INTERVAL = 45
 /** 网最大飞行距离（世界单位，超出销毁） */
 export const NET_MAX_DISTANCE = 24

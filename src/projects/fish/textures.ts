@@ -37,6 +37,10 @@ const FISH_COLORS: Record<FishArt, { body: string; belly: string; fin: string; e
   fast:   { body: '#e57373', belly: '#ffcdd2', fin: '#ef5350', eye: '#222' },
   rare:   { body: '#ba68c8', belly: '#e1bee7', fin: '#9c27b0', eye: '#4a148c' },
   boss:   { body: '#90a4ae', belly: '#cfd8dc', fin: '#455a64', eye: '#b71c1c' },
+  puffer: { body: '#a5d6a7', belly: '#c8e6c9', fin: '#66bb6a', eye: '#1b5e20' },
+  eel:    { body: '#5c6bc0', belly: '#9fa8da', fin: '#3949ab', eye: '#1a237e' },
+  clown:  { body: '#ff8a65', belly: '#ffccbc', fin: '#ff5722', eye: '#222' },
+  manta:  { body: '#4a148c', belly: '#7b1fa2', fin: '#6a1b9a', eye: '#0d0221' },
 }
 
 /** 多层眼睛（眼白 + 虹膜 + 瞳孔 + 高光） */
@@ -148,14 +152,99 @@ export function makeFishTexture(art: FishArt): THREE.Texture {
       ctx.fill()
     }
   }
+  if (art === 'puffer') {
+    // 河豚：圆滚滚身体 + 小刺
+    ctx.strokeStyle = shade(col.body, -0.3)
+    ctx.lineWidth = 1.5
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2
+      const sx = bx + Math.cos(angle) * 32
+      const sy = cy + Math.sin(angle) * 18
+      ctx.beginPath()
+      ctx.moveTo(sx, sy)
+      ctx.lineTo(sx + Math.cos(angle) * 6, sy + Math.sin(angle) * 6)
+      ctx.stroke()
+    }
+    // 圆眼（河豚特色大眼）
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath(); ctx.arc(bx + 36, cy - 12, 10, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = col.eye
+    ctx.beginPath(); ctx.arc(bx + 38, cy - 11, 6, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#000'
+    ctx.beginPath(); ctx.arc(bx + 39, cy - 10, 3, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.beginPath(); ctx.arc(bx + 35, cy - 15, 2, 0, Math.PI * 2); ctx.fill()
+    // 小嘴
+    ctx.strokeStyle = shade(col.body, -0.4)
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(bx + 52, cy + 4, 4, 0, Math.PI); ctx.stroke()
+  }
+  if (art === 'eel') {
+    // 电鳗：闪电纹
+    ctx.strokeStyle = 'rgba(255,235,59,0.6)'
+    ctx.lineWidth = 2
+    for (let i = 0; i < 5; i++) {
+      const lx = bx - 30 + i * 14
+      ctx.beginPath()
+      ctx.moveTo(lx, cy - 12 + (i % 2) * 6)
+      ctx.lineTo(lx + 6, cy + 8 - (i % 2) * 6)
+      ctx.lineTo(lx + 12, cy - 4 + (i % 2) * 6)
+      ctx.stroke()
+    }
+    // 亮黄眼睛
+    ctx.fillStyle = '#ffeb3b'
+    ctx.beginPath(); ctx.arc(bx + 42, cy - 8, 4, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = col.eye
+    ctx.beginPath(); ctx.arc(bx + 43, cy - 7, 2, 0, Math.PI * 2); ctx.fill()
+  }
+  if (art === 'clown') {
+    // 小丑鱼：白色斑纹
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.beginPath()
+    ctx.ellipse(bx - 14, cy, 8, 20, -0.1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(bx + 18, cy, 6, 18, 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    // 黑色眼线
+    ctx.strokeStyle = '#222'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(bx + 38, cy - 10, 9, 0, Math.PI * 2); ctx.stroke()
+  }
+  if (art === 'manta') {
+    // 魔鬼鱼：宽体流线 + 腹部纹理
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'
+    ctx.beginPath()
+    ctx.ellipse(bx - 6, cy + 6, 24, 12, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // 翼尖高光
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(bx - 52, cy - 18)
+    ctx.quadraticCurveTo(bx - 60, cy, bx - 52, cy + 18)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(bx + 52, cy - 18)
+    ctx.quadraticCurveTo(bx + 60, cy, bx + 52, cy + 18)
+    ctx.stroke()
+    // 细长尾刺
+    ctx.strokeStyle = shade(col.body, -0.3)
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(bx - 54, cy)
+    ctx.quadraticCurveTo(bx - 70, cy - 4, bx - 80, cy)
+    ctx.stroke()
+  }
 
   return toTexture(c)
 }
 
 /** 金属质感炮台（渐变底座 + 渐变炮管 + 等级宝石） */
-export function makeCannonTexture(level: 1 | 2 | 3): THREE.Texture {
+export function makeCannonTexture(level: number): THREE.Texture {
   const [c, ctx] = makeCanvas(96, 96)
-  const gem = ['#66bb6a', '#42a5f5', '#ab47bc'][level - 1]
+  const gems = ['#66bb6a', '#42a5f5', '#ab47bc', '#ff7043', '#ffd600']
+  const gem = gems[Math.min(level - 1, gems.length - 1)]
   // 底座（金属渐变）
   const base = ctx.createRadialGradient(40, 56, 6, 48, 64, 38)
   base.addColorStop(0, '#78909c')

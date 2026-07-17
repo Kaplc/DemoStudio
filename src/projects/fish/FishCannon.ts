@@ -4,16 +4,16 @@
  * 炮口闪光直接用 Sprite 挂在炮台下，不依赖对象池。
  */
 import * as THREE from 'three'
-import { Pawn, SpriteComponent, logger } from '@/engine'
+import { Pawn, SpriteComponent, ConfigRegistry, logger } from '@/engine'
 import { makeCannonTexture, makeFlashTexture } from './textures'
-import { CANNON_LEVELS, CANNON_Y } from './types'
-import type { CannonLevel } from './types'
+import { CANNON_Y } from './types'
+import type { CannonConfig } from './types'
 
 // 炮台纹理按等级缓存
 const _cannonTex = new Map<number, THREE.Texture>()
 function cannonTexture(level: number): THREE.Texture {
   let t = _cannonTex.get(level)
-  if (!t) { t = makeCannonTexture(level as 1 | 2 | 3); _cannonTex.set(level, t) }
+  if (!t) { t = makeCannonTexture(level); _cannonTex.set(level, t) }
   return t
 }
 
@@ -28,7 +28,7 @@ interface CoinWallet { coins: number; spendCoins(n: number): void }
 
 export class FishCannon extends Pawn {
   private sprite: SpriteComponent
-  level: 1 | 2 | 3 = 1
+  level: number = 1
   private aim = new THREE.Vector2(0, 1)
   private firing = false
   private cooldown = 0
@@ -74,13 +74,16 @@ export class FishCannon extends Pawn {
 
   SetFiring(on: boolean) { this.firing = on }
 
-  SetLevel(n: 1 | 2 | 3) {
+  SetLevel(n: number) {
     if (n === this.level) return
     this.level = n
     this.sprite.setTexture(cannonTexture(n))
   }
 
-  get levelConfig(): CannonLevel { return CANNON_LEVELS[this.level - 1] }
+  get levelConfig() {
+    const cfg = ConfigRegistry.getConfig<CannonConfig>('fish.cannon')
+    return cfg.levels[this.level - 1] ?? cfg.levels[0]
+  }
 
   override Tick(dt: number) {
     super.Tick(dt)

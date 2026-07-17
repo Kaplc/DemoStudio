@@ -39,6 +39,7 @@ export function loadScene(asset: SceneAsset): WorldAsset {
   return {
     group,
     name: asset.name,
+    skybox: asset.skybox,
     dispose: () => {
       if (disposed) return
       for (const d of disposables) {

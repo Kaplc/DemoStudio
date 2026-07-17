@@ -1,5 +1,11 @@
 {
   "name": "FishMaster",
+  "skybox": {
+    "backgroundColor": "#0a2a4a",
+    "fogColor": "#0a2a4a",
+    "fogNear": 20,
+    "fogFar": 50
+  },
   "objects": [
     { "type": "plane", "size": [60, 36, 1], "pos": [0, 0, -3], "material": { "color": "#0a2a4a", "kind": "basic" } },
     { "type": "sprite", "size": [0.6, 4], "pos": [-14, -8.5, -1], "material": { "color": "#1b5e20", "kind": "basic" } },

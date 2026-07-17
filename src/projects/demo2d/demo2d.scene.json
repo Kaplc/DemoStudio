@@ -1,5 +1,11 @@
 {
   "name": "Demo2D",
+  "skybox": {
+    "backgroundColor": "#12122a",
+    "fogColor": "#12122a",
+    "fogNear": 30,
+    "fogFar": 60
+  },
   "objects": [
     {
       "type": "plane",

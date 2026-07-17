@@ -13,12 +13,24 @@ export interface WorldBuildConfig {
   [key: string]: unknown
 }
 
+/** 天空盒/场景氛围配置（与 SceneAsset.SkyboxConfig 一致，便于 JSON 场景文件描述） */
+export interface SkyboxConfig {
+  backgroundColor?: string
+  fogColor?: string
+  fogNear?: number
+  fogFar?: number
+  skyboxPath?: string
+  skyboxExt?: string
+}
+
 /** 世界构建结果 */
 export interface WorldAsset {
   /** 构建出的 3D 对象组 */
   readonly group: THREE.Group
   /** 资源名称（对应游戏名） */
   readonly name: string
+  /** 天空盒/场景氛围配置（可选，由 SceneAsset JSON 或自定义 builder 提供） */
+  readonly skybox?: SkyboxConfig
   /** 释放资源 */
   dispose(): void
 }

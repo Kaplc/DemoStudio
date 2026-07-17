@@ -81,13 +81,12 @@ export class EatFishGameMode extends GameMode {
   /** 生成食物鱼（独立鱼，不属于鱼群） */
   SpawnFoodFish() {
     const food = new EatFishFoodPawn()
-    // DataTable 演示：若原型表已加载，用随机原型行的颜色着色并记录原型分值
+    // DataTable 演示：若原型表已加载，用随机原型行设置完整属性（颜色/大小/速度/分值）
     if (this.fishTable && this.fishTable.size > 0) {
       const names = this.fishTable.getRowNames()
       const row = this.fishTable.getRow(names[Math.floor(Math.random() * names.length)])
       if (row) {
-        food.setBodyColor(row.color)
-        food.archetypeScore = row.score
+        food.setArchetype(row)
       }
     }
     this.foodFish.push(food)

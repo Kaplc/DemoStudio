@@ -99,6 +99,15 @@ export class EatFishFoodPawn extends Pawn {
     this.tailMat.color.copy(this.bodyMat.color).multiplyScalar(0.7)
   }
 
+  /** 根据 DataTable 原型设置鱼的全部属性（颜色/大小/速度/分值） */
+  setArchetype(archetype: { color: number; scale: number; speed: number; score: number }) {
+    this.setBodyColor(archetype.color)
+    this._sizeScale = archetype.scale
+    this.bodyGroup.scale.set(this._sizeScale, this._sizeScale, this._sizeScale)
+    this.speed = archetype.speed
+    this.archetypeScore = archetype.score
+  }
+
   /** 随机位置 */
   randomizePosition() {
     const half = this.config.arenaHalf - 2

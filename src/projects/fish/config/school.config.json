@@ -1,0 +1,27 @@
+{
+  "_comment": "鱼群/散兵生成配置（ConfigRegistry 加载）。被 FishGameMode 用于控制生成节奏与难度曲线。\n所有 timerRandomLow/High 构成随机系数区间：实际间隔 = 计算值 × random(Low, High)。\n字段含义：\n  baseInterval = 初始间隔（秒）；minInterval = 最小间隔（秒），难度递增后不低于此值；\n  decayRate = 每秒衰减量，interval = max(minInterval, baseInterval - elapsed × decayRate)。",
+  "school": {
+    "_comment": "鱼群（成群结队）的生成节奏。",
+    "baseInterval": 5.0,
+    "minInterval": 2.0,
+    "decayRate": 0.025,
+    "timerRandomLow": 0.6,
+    "timerRandomHigh": 0.8
+  },
+  "single": {
+    "_comment": "散兵（单条游鱼）的生成节奏。间隔比鱼群短得多。",
+    "baseInterval": 1.8,
+    "minInterval": 0.6,
+    "decayRate": 0.015,
+    "timerRandomLow": 0.5,
+    "timerRandomHigh": 1.0
+  },
+  "spawn": {
+    "_comment": "鱼出生位置参数。\n  schoolSpreadFactor = 鱼群垂直散布系数（× 鱼体型 height）；\n  speedVariationMin/Max = 群游时速度浮动区间 [Min, Min+random×Max]；\n  spawnMargin = 左右边缘外出生偏移；singleYSpawnMargin = 散兵上下边距。",
+    "schoolSpreadFactor": 1.8,
+    "speedVariationMin": 0.85,
+    "speedVariationMax": 0.3,
+    "spawnMargin": 1.0,
+    "singleYSpawnMargin": 2.0
+  }
+}

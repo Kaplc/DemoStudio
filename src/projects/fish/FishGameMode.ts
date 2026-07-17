@@ -4,7 +4,7 @@
  * 金币经济（开炮消耗 / 捕鱼获得 / 归零 Game Over）、Boss 定时。
  */
 import * as THREE from 'three'
-import { GameMode, CameraComponent, gizmos, logger } from '@/engine'
+import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger } from '@/engine'
 import { FishCannon } from './FishCannon'
 import { FishPawn } from './FishPawn'
 import { FishBullet } from './FishBullet'
@@ -14,16 +14,14 @@ import { FishPlayerController } from './FishPlayerController'
 import { FishObjectPools } from './FishObjectPools'
 import { makeRingTexture } from './textures'
 import {
-  FISH_TYPES, CAMERA_ORTHO_SIZE, AREA_W, AREA_H,
-  INITIAL_COINS, BOSS_INTERVAL,
+  CAMERA_ORTHO_SIZE, AREA_W, AREA_H,
+  INITIAL_COINS,
 } from './types'
-import type { FishType } from './types'
+import type { FishType, BossConfig, FishConfig, SchoolConfig } from './types'
 
 // Gizmos 复用临时对象
 const _a = new THREE.Vector3()
 const _b = new THREE.Vector3()
-
-const BOSS_TYPE = FISH_TYPES.find((f) => f.boss)!
 
 // 捕获扩散光环纹理单例
 let _ringTex: THREE.Texture | null = null
@@ -110,22 +108,25 @@ export class FishGameMode extends GameMode {
     this.schoolTimer -= dt
     if (this.schoolTimer <= 0) {
       this.spawnFishSchool(this.pickFishType(true))
-      const interval = Math.max(2.0, 5.0 - this.elapsed * 0.025)
-      this.schoolTimer = interval * (0.6 + Math.random() * 0.8)
+      const cfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school').school
+      const interval = Math.max(cfg.minInterval, cfg.baseInterval - this.elapsed * cfg.decayRate)
+      this.schoolTimer = interval * (cfg.timerRandomLow + Math.random() * (cfg.timerRandomHigh - cfg.timerRandomLow))
     }
 
     // ─── 普通鱼散兵（单条或两三条，间隔较短）───
     this.singleTimer -= dt
     if (this.singleTimer <= 0) {
       this.spawnSingleFish(this.pickFishType(false))
-      const interval = Math.max(0.6, 1.8 - this.elapsed * 0.015)
-      this.singleTimer = interval * (0.5 + Math.random() * 1.0)
+      const cfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school').single
+      const interval = Math.max(cfg.minInterval, cfg.baseInterval - this.elapsed * cfg.decayRate)
+      this.singleTimer = interval * (cfg.timerRandomLow + Math.random() * (cfg.timerRandomHigh - cfg.timerRandomLow))
     }
 
     // Boss 定时（在场时不计时，死后重新计时）
     if (!this.bossActive) {
       this.bossTimer += dt
-      if (this.bossTimer >= BOSS_INTERVAL) {
+      const bossCfg = ConfigRegistry.getConfig<BossConfig>('fish.boss')
+      if (this.bossTimer >= bossCfg.bossInterval) {
         this.bossTimer = 0
         this.spawnBoss()
       }
@@ -152,7 +153,8 @@ export class FishGameMode extends GameMode {
   /** 加权随机选鱼种
    *  @param forSchool true=鱼群(偏爱群居性小鱼)，false=散兵(普通加权) */
   private pickFishType(forSchool: boolean): FishType {
-    const pool = FISH_TYPES.filter((f) => !f.boss && f.weight > 0)
+    const allTypes = ConfigRegistry.getConfig<FishConfig>('fish.fish').fishTypes
+    const pool = allTypes.filter((f) => !f.boss && f.weight > 0)
     let weights: number[]
     if (forSchool) {
       // 鱼群：偏爱群居性小鱼（guppy、dart、angel），权重偏向 schoolSize 大的
@@ -180,11 +182,12 @@ export class FishGameMode extends GameMode {
     const fromLeft = Math.random() < 0.5
     const edgeX = fromLeft ? -AREA_W - 1 : AREA_W + 1
     // 随机鱼群大小
+    const spawnCfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school').spawn
     const count = type.schoolSize[0] + Math.floor(Math.random() * (type.schoolSize[1] - type.schoolSize[0] + 1))
     // 鱼群中心 Y
     const centerY = -AREA_H + 2.5 + Math.random() * (AREA_H * 2 - 5)
     // 垂直散布范围（随鱼种体型增大而增大）
-    const spread = Math.max(1.5, type.size[1] * 1.8)
+    const spread = Math.max(1.5, type.size[1] * spawnCfg.schoolSpreadFactor)
 
     for (let i = 0; i < count; i++) {
       // 错开鱼的出生 X（前后错开，群游效果）
@@ -194,16 +197,17 @@ export class FishGameMode extends GameMode {
       const fish = new FishPawn(type, fromLeft)
       fish.spawnAt(edgeX + offsetX, centerY + yOffset)
       // 给每个鱼微调游动速度和相位，产生错落感
-      fish.setSpeedVariation(0.85 + Math.random() * 0.3)
+      fish.setSpeedVariation(spawnCfg.speedVariationMin + Math.random() * spawnCfg.speedVariationMax)
       this.world?.SpawnActor(fish)
     }
   }
 
   /** 生成单条普通鱼（散兵） */
   private spawnSingleFish(type: FishType) {
+    const spawnCfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school').spawn
     const fromLeft = Math.random() < 0.5
-    const edgeX = fromLeft ? -AREA_W - 1 : AREA_W + 1
-    const y = -AREA_H + 2 + Math.random() * (AREA_H * 2 - 4)
+    const edgeX = fromLeft ? -AREA_W - spawnCfg.spawnMargin : AREA_W + spawnCfg.spawnMargin
+    const y = -AREA_H + spawnCfg.singleYSpawnMargin + Math.random() * (AREA_H * 2 - spawnCfg.singleYSpawnMargin * 2)
     const fish = new FishPawn(type, fromLeft)
     fish.spawnAt(edgeX, y)
     this.world?.SpawnActor(fish)
@@ -211,13 +215,24 @@ export class FishGameMode extends GameMode {
 
   /** 生成 Boss（中央高度，记录引用供 HUD 血条） */
   private spawnBoss() {
+    const bossCfg = ConfigRegistry.getConfig<BossConfig>('fish.boss')
+    const types = bossCfg.bossTypes
+    const bt = types[Math.floor(Math.random() * types.length)]
+    const fishType: FishType = {
+      key: bt.key, name: bt.name, size: bt.size,
+      speed: bt.speed, score: bt.score, hp: bt.hp,
+      radius: bt.radius, captureChance: bt.captureChance,
+      art: bt.art, weight: 0, boss: true,
+      schoolSize: [1, 1],
+    }
     const fromLeft = Math.random() < 0.5
-    const fish = new FishPawn(BOSS_TYPE, fromLeft)
-    fish.spawnAt(fromLeft ? -AREA_W - 1 : AREA_W + 1, 0)
+    const fish = new FishPawn(fishType, fromLeft)
+    const spawnCfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school').spawn
+    fish.spawnAt(fromLeft ? -AREA_W - spawnCfg.spawnMargin : AREA_W + spawnCfg.spawnMargin, 0)
     this.bossPawn = fish
     this.bossActive = true
     this.world?.SpawnActor(fish)
-    logger.info('[Fish] Boss 出现！')
+    logger.info(`[Fish] Boss 出现: ${bt.name}`)
   }
 
   /** 子弹碰鱼→张网；张开的网→范围捕获 */

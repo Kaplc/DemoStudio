@@ -126,8 +126,27 @@ export type SceneNode =
   | BoxNode | PlaneNode | SphereNode | SpriteNode
   | CheckerFloorNode | GridLinesNode | PillarNode | WallRingNode
 
+/** 天空盒/场景氛围配置 */
+export interface SkyboxConfig {
+  /** 背景颜色 (#rrggbb)，不设置则使用引擎默认 (0x1a1a2e) */
+  backgroundColor?: ColorHex
+  /** 雾效颜色 (#rrggbb) */
+  fogColor?: ColorHex
+  /** 雾效近裁剪距离 */
+  fogNear?: number
+  /** 雾效远裁剪距离 */
+  fogFar?: number
+  /** 天空盒立方体贴图路径前缀（如 /textures/skybox/sky），
+   *  6 张图片命名约定为 {skyboxPath}_px.{ext}, _nx, _py, _ny, _pz, _nz */
+  skyboxPath?: string
+  /** 立方体贴图文件后缀，默认 .jpg */
+  skyboxExt?: string
+}
+
 /** 场景资产根文档 */
 export interface SceneAsset {
   name: string
   objects: SceneNode[]
+  /** 天空盒/背景/雾效配置（可选） */
+  skybox?: SkyboxConfig
 }
