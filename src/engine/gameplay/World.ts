@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { Actor } from './Actor'
 import { GameMode } from './GameMode'
 import { gizmos } from './Gizmos'
+import { logger } from '../Logger'
 import type { Pawn } from './Pawn'
 import type { PlayerController } from './PlayerController'
 
@@ -33,6 +34,10 @@ export class World {
   // ═══════════════════════════════════
 
   SetGameMode(gm: GameMode) {
+    // 先清理旧 GameMode
+    if (this.gameMode) {
+      this.gameMode.EndPlay()
+    }
     // GameMode 是 Actor，手动设置 world 引用但不加入 allActors（由 World 显式管理其生命周期）
     gm.world = this
     this.gameMode = gm
@@ -106,6 +111,18 @@ export class World {
 
   GetAllActors(): Actor[] {
     return [...this.allActors]
+  }
+
+  /** 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例 */
+  getAllComponents<T extends import('./Component').Component>(
+    type: new (...args: any[]) => T,
+  ): T[] {
+    const result: T[] = []
+    for (const actor of this.allActors) {
+      const comps = actor.getComponents(type)
+      result.push(...comps)
+    }
+    return result
   }
 
   SpawnPlayer(
@@ -194,6 +211,7 @@ export class World {
 
   /** 销毁所有 Actor（立即执行，不等待 tick） */
   DestroyAllActors() {
+    const count = this.allActors.size
     for (const actor of [...this.allActors]) {
       actor.EndPlay()
       this.scene.remove(actor.root)
@@ -201,6 +219,7 @@ export class World {
     this.allActors.clear()
     this.pendingSpawn = []
     this.pendingDestroy = []
+    logger.debug(`[World] DestroyAllActors: 销毁 ${count} 个 Actor`)
   }
 
   /** 手动触发一次 Tick（由外部渲染循环驱动） */

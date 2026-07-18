@@ -97,6 +97,14 @@ export class GameUI {
     this.reactRoot.render(element)
   }
 
+  /** 卸载 React root（在 DOM 移除前调用，避免 removeChild 错误） */
+  unmountReact() {
+    if (this.reactRoot) {
+      this.reactRoot.unmount()
+      this.reactRoot = null
+    }
+  }
+
   // ════════════════════════════════════════════
   //  旧 DOM API（向后兼容）
   // ════════════════════════════════════════════
@@ -232,10 +240,9 @@ export class GameUI {
     }
     this.elements = []
 
-    // 保留 React root，仅渲染空内容以清空可见 UI
-    if (this.reactRoot) {
-      this.reactRoot.render(null)
-    } else {
+    // 保留 React root，仅清空 DOM 子节点（不触发 React reconciliation，
+    // 避免在 React commit 阶段被调用时产生冲突）
+    if (!this.reactRoot) {
       this.el.innerHTML = ''
     }
   }

@@ -246,6 +246,7 @@ export function Viewport({ onReady }: ViewportProps) {
           shared.children.forEach((child) => {
             if (child instanceof THREE.GridHelper) child.visible = false
           })
+          asset.group.name = asset.name
           shared.add(asset.group)
           arenaRef.current = asset
           // 应用场景氛围配置（天空盒/背景/雾效）
@@ -381,10 +382,23 @@ export function Viewport({ onReady }: ViewportProps) {
       gameSceneRef.current?.clientToWorld(e.clientX, e.clientY, _ptrWorld)
       return _ptrWorld
     }
-    const onMove = (e: MouseEvent) => ctrl()?.OnPointerMove(toWorld(e))
+    const onMove = (e: MouseEvent) => {
+      const inst = gameRef.current?.instance
+      if (inst) {
+        const controller = inst.controller
+        const worldPos = toWorld(e)
+        inst.inputSys.handlePointerMove(e.clientX, e.clientY, worldPos, controller)
+      }
+    }
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return
-      ctrl()?.OnPointerDown(toWorld(e))
+      logger.debug(`[Viewport] mousedown at (${e.clientX}, ${e.clientY})`)
+      const inst = gameRef.current?.instance
+      if (inst) {
+        const controller = inst.controller
+        const worldPos = toWorld(e)
+        inst.inputSys.handlePointerDown(e.clientX, e.clientY, worldPos, controller)
+      }
     }
     const onUp = (e: MouseEvent) => {
       if (e.button !== 0) return

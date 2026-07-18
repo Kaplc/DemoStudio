@@ -7,8 +7,8 @@ import * as THREE from 'three'
 import { Actor, SpriteComponent, ObjectPool } from '@/engine'
 import type { IPoolable } from '@/engine'
 import { FishNet } from './FishNet'
-import { makeBulletTexture } from './textures'
-import { NET_MAX_DISTANCE } from './types'
+import { makeBulletTexture } from '../common/textures'
+import { NET_MAX_DISTANCE } from '../common/types'
 
 let _tex: THREE.Texture | null = null
 function bulletTexture(): THREE.Texture {

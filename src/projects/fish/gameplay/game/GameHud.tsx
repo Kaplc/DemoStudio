@@ -3,16 +3,18 @@
  * 左上：金币 / 分数 / 炮等级；顶部：Boss 提示；Game Over 覆盖层（金币耗尽）。
  */
 import React from 'react'
-import { useEditorStore } from '../../../stores/editorStore'
+import { useEditorStore } from '../../../../stores/editorStore'
 
 export interface GameHudProps {
   coins: number
   score: number
   level: number
   bossActive: boolean
+  bossName: string
   bossHp: number
   bossMaxHp: number
   phase: 'waiting' | 'playing' | 'gameover'
+  onReturnToBase?: () => void
 }
 
 const LEVEL_NAME = ['', 'I', 'II', 'III', 'IV', 'V']
@@ -36,7 +38,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 3,
 }
 
-export function GameHud({ coins, score, level, bossActive, bossHp, bossMaxHp, phase }: GameHudProps) {
+export function GameHud({ coins, score, level, bossActive, bossName, bossHp, bossMaxHp, phase, onReturnToBase }: GameHudProps) {
   const handleRestart = React.useCallback(() => {
     useEditorStore.getState().launchGame()
   }, [])
@@ -81,7 +83,7 @@ export function GameHud({ coins, score, level, bossActive, bossHp, bossMaxHp, ph
       {bossActive && bossMaxHp > 0 && phase === 'playing' && (
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', width: 340, maxWidth: '70%' }}>
           <div style={{ textAlign: 'center', fontSize: 12, color: '#ff6b6b', fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>
-            ⚠ 鲨鱼 BOSS
+            ⚠ {bossName}
           </div>
           <div style={{ height: 12, background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,80,80,0.6)', borderRadius: 6, overflow: 'hidden' }}>
             <div
@@ -94,6 +96,36 @@ export function GameHud({ coins, score, level, bossActive, bossHp, bossMaxHp, ph
             />
           </div>
         </div>
+      )}
+
+      {/* 返回基地按钮（右上角，游戏中始终可见） */}
+      {phase === 'playing' && onReturnToBase && (
+        <button
+          onClick={onReturnToBase}
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            padding: '8px 18px',
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'rgba(255,255,255,0.85)',
+            background: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontFamily: 'monospace',
+            letterSpacing: 1,
+            pointerEvents: 'auto',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(30,136,229,0.5)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.45)' }}
+        >
+          🏠 返回基地
+        </button>
       )}
 
       {/* Game Over */}

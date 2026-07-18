@@ -36,7 +36,11 @@ const FISH_COLORS: Record<FishArt, { body: string; belly: string; fin: string; e
   large:  { body: '#7986cb', belly: '#c5cae9', fin: '#5c6bc0', eye: '#222' },
   fast:   { body: '#e57373', belly: '#ffcdd2', fin: '#ef5350', eye: '#222' },
   rare:   { body: '#ba68c8', belly: '#e1bee7', fin: '#9c27b0', eye: '#4a148c' },
-  boss:   { body: '#90a4ae', belly: '#cfd8dc', fin: '#455a64', eye: '#b71c1c' },
+  boss_shark:  { body: '#90a4ae', belly: '#cfd8dc', fin: '#455a64', eye: '#b71c1c' },
+  boss_kraken: { body: '#7b1fa2', belly: '#ce93d8', fin: '#4a148c', eye: '#ffeb3b' },
+  boss_dragon: { body: '#e53935', belly: '#ffcdd2', fin: '#b71c1c', eye: '#ffd600' },
+  boss_whale:  { body: '#1565c0', belly: '#90caf9', fin: '#0d47a1', eye: '#ffffff' },
+  boss_crab:   { body: '#d84315', belly: '#ffab91', fin: '#bf360c', eye: '#1a237e' },
   puffer: { body: '#a5d6a7', belly: '#c8e6c9', fin: '#66bb6a', eye: '#1b5e20' },
   eel:    { body: '#5c6bc0', belly: '#9fa8da', fin: '#3949ab', eye: '#1a237e' },
   clown:  { body: '#ff8a65', belly: '#ffccbc', fin: '#ff5722', eye: '#222' },
@@ -140,7 +144,7 @@ export function makeFishTexture(art: FishArt): THREE.Texture {
     ctx.fillStyle = rg
     ctx.fillRect(0, 0, 192, 128)
   }
-  if (art === 'boss') {
+  if (art === 'boss_shark') {
     // 鲨鱼利牙
     ctx.fillStyle = '#ffffff'
     for (let i = 0; i < 6; i++) {
@@ -151,6 +155,180 @@ export function makeFishTexture(art: FishArt): THREE.Texture {
       ctx.closePath()
       ctx.fill()
     }
+    // 背鳍缺口
+    ctx.fillStyle = shade(col.body, -0.25)
+    ctx.beginPath()
+    ctx.moveTo(bx - 6, cy - 28)
+    ctx.lineTo(bx + 2, cy - 34)
+    ctx.lineTo(bx + 10, cy - 26)
+    ctx.closePath()
+    ctx.fill()
+  }
+  if (art === 'boss_kraken') {
+    // 克拉肯：圆头 + 多条触手
+    ctx.fillStyle = shade(col.body, -0.1)
+    ctx.beginPath()
+    ctx.ellipse(bx - 4, cy, 28, 26, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = col.fin
+    ctx.lineWidth = 5
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 6; i++) {
+      const len = 18 + Math.random() * 14
+      ctx.beginPath()
+      ctx.moveTo(bx - 12, cy + 8 + (i - 2.5) * 4)
+      ctx.quadraticCurveTo(bx - 20, cy + (i - 2.5) * 8 + len * 0.5, bx - 28, cy + (i - 2.5) * 6 + len)
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(255,235,59,0.3)'
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath()
+      ctx.arc(bx - 22 + (i - 2) * 6, cy + 4 + (i % 2) * 12, 2.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = '#ffeb3b'
+    ctx.beginPath(); ctx.arc(bx + 14, cy - 14, 6, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(bx + 14, cy + 14, 6, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#000'
+    ctx.beginPath(); ctx.arc(bx + 15, cy - 13, 2.5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(bx + 15, cy + 15, 2.5, 0, Math.PI * 2); ctx.fill()
+  }
+  if (art === 'boss_dragon') {
+    // 海龙：长蛇身 + 背鳍
+    ctx.strokeStyle = col.body
+    ctx.lineWidth = 20
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(bx - 48, cy + 4)
+    ctx.quadraticCurveTo(bx - 18, cy - 22, bx + 8, cy + 2)
+    ctx.quadraticCurveTo(bx + 30, cy + 22, bx + 54, cy - 2)
+    ctx.stroke()
+    ctx.strokeStyle = col.belly
+    ctx.lineWidth = 10
+    ctx.beginPath()
+    ctx.moveTo(bx - 44, cy + 8)
+    ctx.quadraticCurveTo(bx - 16, cy - 12, bx + 8, cy + 6)
+    ctx.quadraticCurveTo(bx + 28, cy + 22, bx + 50, cy + 2)
+    ctx.stroke()
+    ctx.fillStyle = col.fin
+    for (let i = 0; i < 5; i++) {
+      const fx = bx - 28 + i * 16
+      const fy = cy - 14 + Math.sin(i * 1.8) * 6
+      ctx.beginPath()
+      ctx.moveTo(fx, fy)
+      ctx.lineTo(fx + 4, fy - 14 - (i % 2) * 6)
+      ctx.lineTo(fx + 8, fy)
+      ctx.closePath()
+      ctx.fill()
+    }
+    ctx.fillStyle = col.eye
+    ctx.beginPath(); ctx.ellipse(bx + 44, cy - 8, 4, 8, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#000'
+    ctx.beginPath(); ctx.ellipse(bx + 44, cy - 8, 2, 6, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = col.fin
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(bx + 48, cy + 6)
+    ctx.quadraticCurveTo(bx + 56, cy + 18, bx + 64, cy + 10)
+    ctx.stroke()
+  }
+  if (art === 'boss_whale') {
+    // 巨鲸：庞大椭圆体 + 尾鳍
+    ctx.fillStyle = col.body
+    ctx.beginPath()
+    ctx.ellipse(bx, cy, 44, 28, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = col.belly
+    ctx.beginPath()
+    ctx.ellipse(bx - 4, cy + 6, 30, 16, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = col.fin
+    ctx.beginPath()
+    ctx.moveTo(bx - 40, cy)
+    ctx.lineTo(bx - 62, cy - 22)
+    ctx.lineTo(bx - 62, cy + 22)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath(); ctx.arc(bx + 34, cy - 10, 5, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = col.eye
+    ctx.beginPath(); ctx.arc(bx + 35, cy - 9, 3, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = 'rgba(180,230,255,0.5)'
+    ctx.lineWidth = 2
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath()
+      ctx.moveTo(bx - 4 + i * 6, cy - 26)
+      ctx.quadraticCurveTo(bx - 6 + i * 10, cy - 38, bx + 2 + i * 6, cy - 44)
+      ctx.stroke()
+    }
+    ctx.strokeStyle = shade(col.body, -0.3)
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(bx + 22, cy + 10)
+    ctx.quadraticCurveTo(bx + 36, cy + 14, bx + 44, cy + 8)
+    ctx.stroke()
+  }
+  if (art === 'boss_crab') {
+    // 巨蟹王：宽甲壳 + 巨螯
+    ctx.fillStyle = col.body
+    ctx.beginPath()
+    ctx.ellipse(bx, cy, 34, 24, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = shade(col.body, -0.25)
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.ellipse(bx, cy, 34, 24, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(bx, cy, 18, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(bx, cy - 22)
+    ctx.lineTo(bx, cy + 22)
+    ctx.stroke()
+    ctx.fillStyle = col.fin
+    ctx.beginPath()
+    ctx.arc(bx + 44, cy - 10, 18, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = shade(col.fin, -0.2)
+    ctx.beginPath()
+    ctx.arc(bx + 44, cy + 10, 18, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = col.body
+    ctx.beginPath()
+    ctx.moveTo(bx + 58, cy - 14)
+    ctx.lineTo(bx + 66, cy - 10)
+    ctx.lineTo(bx + 66, cy - 18)
+    ctx.closePath()
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(bx + 58, cy + 14)
+    ctx.lineTo(bx + 66, cy + 10)
+    ctx.lineTo(bx + 66, cy + 18)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = col.fin
+    ctx.lineWidth = 3
+    for (let i = 0; i < 3; i++) {
+      const side = (i % 2 === 0) ? 1 : -1
+      ctx.beginPath()
+      ctx.moveTo(bx - 24, cy - 8 + i * 12)
+      ctx.lineTo(bx - 40, cy - 8 + i * 14 + side * 6)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(bx + 16, cy - 2 + i * 8)
+      ctx.lineTo(bx + 32, cy - 2 + i * 12 + side * 4)
+      ctx.stroke()
+    }
+    ctx.fillStyle = col.eye
+    ctx.beginPath(); ctx.arc(bx + 12, cy - 18, 3.5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(bx + 20, cy - 18, 3.5, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#000'
+    ctx.beginPath(); ctx.arc(bx + 12, cy - 18, 1.5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(bx + 20, cy - 18, 1.5, 0, Math.PI * 2); ctx.fill()
   }
   if (art === 'puffer') {
     // 河豚：圆滚滚身体 + 小刺

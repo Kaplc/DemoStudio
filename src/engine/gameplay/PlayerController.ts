@@ -45,7 +45,7 @@ export abstract class PlayerController extends Actor {
     return this.inputComponent.ProcessInput(key, eventType)
   }
 
-  // ─── 鼠标输入（2D 正交场景）默认空实现，子类按需 override ───
+  // ─── 鼠标输入（世界坐标）默认空实现，子类按需 override ───
   /** 鼠标移动到世界坐标 world（每帧鼠标移动时调用） */
   OnPointerMove(_world: THREE.Vector3): void {}
   /** 鼠标按下（世界坐标） */
@@ -54,4 +54,19 @@ export abstract class PlayerController extends Actor {
   OnPointerUp(_world: THREE.Vector3): void {}
   /** 滚轮滚动（delta >0 向下滚，<0 向上滚） */
   OnScroll(_delta: number): void {}
+
+  // ═══════════════════════════════════
+  //  屏幕坐标输入（由 InputSys.handlePointerDown/Move 转发）
+  // ═══════════════════════════════════
+
+  /**
+   * 初始化物理系统（阶段切换时由 GameInstance 调用）。
+   * 由 GameInstance 在切换阶段时直接调用 phySys.setup()。
+   */
+  initRaycaster(camera: THREE.Camera, uiEl: HTMLElement): void {}
+
+  /** 鼠标按下（屏幕坐标），子类可 override 做额外处理 */
+  OnPointerDownScreen(_screenX: number, _screenY: number): void {}
+  /** 鼠标移动（屏幕坐标），子类可 override 做额外处理 */
+  OnPointerMoveScreen(_screenX: number, _screenY: number): void {}
 }

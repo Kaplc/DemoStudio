@@ -5,7 +5,7 @@
 import * as THREE from 'three'
 import { Actor, SpriteComponent, ObjectPool } from '@/engine'
 import type { IPoolable } from '@/engine'
-import { makeNetTexture } from './textures'
+import { makeNetTexture } from '../common/textures'
 
 let _netTex: THREE.Texture | null = null
 function netTexture(): THREE.Texture {

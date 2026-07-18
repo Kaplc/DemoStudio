@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three'
 import { PlayerController } from './PlayerController'
+import { InputSys } from './InputSys'
 import type { GameUI } from './GameUI'
 
 export interface GameInstanceCallbacks {
@@ -16,6 +17,9 @@ export interface GameInstanceCallbacks {
 export abstract class GameInstance {
   /** GameUI 引用（由 Game 在 launch 时注入） */
   ui: GameUI | null = null
+
+  /** 输入系统（Viewport → Controller 路由） */
+  readonly inputSys = new InputSys()
 
   /** 当前玩家控制器（用于输入路由） */
   abstract get controller(): PlayerController | null
@@ -31,6 +35,8 @@ export abstract class GameInstance {
 
   /** 每帧绘制调试 Gizmos（默认空操作；拥有 World 的实例可重写为 world.drawGizmos()） */
   drawGizmos(): void {}
+
+  /** onPointerDown/onPointerMove 已废弃 — 由 Viewport → inputSys 统一路由 */
 
   /**
    * 捕获存档快照（游戏自定义结构）。

@@ -5,8 +5,8 @@
 import * as THREE from 'three'
 import { Actor, SpriteComponent, ObjectPool } from '@/engine'
 import type { IPoolable } from '@/engine'
-import { makeBubbleTexture } from './textures'
-import { AREA_H } from './types'
+import { makeBubbleTexture } from '../common/textures'
+import { AREA_H } from '../common/types'
 
 let _tex: ReturnType<typeof makeBubbleTexture> | null = null
 function tex() {

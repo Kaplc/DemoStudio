@@ -5,9 +5,9 @@
  */
 import * as THREE from 'three'
 import { Pawn, SpriteComponent, ConfigRegistry, logger } from '@/engine'
-import { makeCannonTexture, makeFlashTexture } from './textures'
-import { CANNON_Y } from './types'
-import type { CannonConfig } from './types'
+import { makeCannonTexture, makeFlashTexture } from '../common/textures'
+import { CANNON_Y } from '../common/types'
+import type { CannonConfig } from '../common/types'
 
 // 炮台纹理按等级缓存
 const _cannonTex = new Map<number, THREE.Texture>()

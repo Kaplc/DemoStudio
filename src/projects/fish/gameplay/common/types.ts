@@ -14,7 +14,8 @@ export const AREA_H = 9.5
 export const CANNON_Y = -AREA_H + 1.5
 
 /** 美术变体（对应 textures.ts 的绘制函数） */
-export type FishArt = 'small' | 'medium' | 'large' | 'fast' | 'rare' | 'boss' | 'puffer' | 'eel' | 'clown' | 'manta'
+export type FishArt = 'small' | 'medium' | 'large' | 'fast' | 'rare' | 'puffer' | 'eel' | 'clown' | 'manta'
+  | 'boss_shark' | 'boss_kraken' | 'boss_dragon' | 'boss_whale' | 'boss_crab'
 
 /** 鱼种配置 */
 export interface FishType {
@@ -116,9 +117,13 @@ export interface BossConfig {
 }
 
 export const DEFAULT_BOSS_CONFIG: BossConfig = {
-  bossInterval: 45,
+  bossInterval: 40,
   bossTypes: [
-    { key: 'shark', name: '鲨鱼 Boss', size: [5.5, 3.0], speed: 1.5, score: 300, hp: 130, radius: 2.4, captureChance: 0.008, art: 'boss' },
+    { key: 'shark',  name: '大白鲨', size: [5.5, 3.0], speed: 1.8, score: 300, hp: 130, radius: 2.4, captureChance: 0.008, art: 'boss_shark' },
+    { key: 'kraken', name: '克拉肯', size: [6.0, 4.0], speed: 1.2, score: 500, hp: 200, radius: 2.8, captureChance: 0.005, art: 'boss_kraken' },
+    { key: 'dragon', name: '海龙',   size: [5.0, 3.5], speed: 2.5, score: 400, hp: 160, radius: 2.5, captureChance: 0.006, art: 'boss_dragon' },
+    { key: 'whale',  name: '巨鲸',   size: [7.0, 4.5], speed: 0.8, score: 800, hp: 350, radius: 3.2, captureChance: 0.003, art: 'boss_whale' },
+    { key: 'crab',   name: '巨蟹王', size: [4.5, 4.0], speed: 1.0, score: 600, hp: 250, radius: 2.6, captureChance: 0.004, art: 'boss_crab' },
   ],
 }
 

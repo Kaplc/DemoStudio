@@ -77,10 +77,10 @@ class LoggerInstance {
     const formatted = this.formatMessage(level, message, ...args)
     const fileLine = this.toFileLine(level, message, ...args)
 
-    // 1. 终端输出
+    // 终端输出（console.debug 在多数浏览器默认隐藏，改用 console.log）
     switch (level) {
       case 'debug':
-        console.debug(formatted)
+        console.log(formatted)
         break
       case 'info':
         console.info(formatted)

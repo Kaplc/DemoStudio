@@ -12,12 +12,12 @@ import { FishNet } from './FishNet'
 import { FishCoinFly } from './FishCoinFly'
 import { FishPlayerController } from './FishPlayerController'
 import { FishObjectPools } from './FishObjectPools'
-import { makeRingTexture } from './textures'
+import { makeRingTexture } from '../common/textures'
 import {
   CAMERA_ORTHO_SIZE, AREA_W, AREA_H,
   INITIAL_COINS,
-} from './types'
-import type { FishType, BossConfig, FishConfig, SchoolConfig } from './types'
+} from '../common/types'
+import type { FishType, BossConfig, FishConfig, SchoolConfig } from '../common/types'
 
 // Gizmos 复用临时对象
 const _a = new THREE.Vector3()
@@ -126,7 +126,9 @@ export class FishGameMode extends GameMode {
     if (!this.bossActive) {
       this.bossTimer += dt
       const bossCfg = ConfigRegistry.getConfig<BossConfig>('fish.boss')
-      if (this.bossTimer >= bossCfg.bossInterval) {
+      // 难度递增：间隔从 bossInterval 秒逐渐缩短到 20 秒
+      const interval = Math.max(20, bossCfg.bossInterval - this.elapsed * 0.08)
+      if (this.bossTimer >= interval) {
         this.bossTimer = 0
         this.spawnBoss()
       }

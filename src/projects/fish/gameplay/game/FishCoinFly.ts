@@ -4,8 +4,8 @@
  */
 import * as THREE from 'three'
 import { Actor, SpriteComponent } from '@/engine'
-import { makeCoinTexture } from './textures'
-import { AREA_W, AREA_H } from './types'
+import { makeCoinTexture } from '../common/textures'
+import { AREA_W, AREA_H } from '../common/types'
 
 let _coinTex: THREE.Texture | null = null
 function coinTexture(): THREE.Texture {

@@ -1,0 +1,10 @@
+{
+  "name": "FishMenu",
+  "skybox": {
+    "backgroundColor": "#1a1a2e",
+    "fogColor": "#1a1a2e",
+    "fogNear": 30,
+    "fogFar": 60
+  },
+  "objects": []
+}

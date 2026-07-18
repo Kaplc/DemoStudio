@@ -97,10 +97,9 @@ export class Game {
     // 停止游戏实例
     this.instance.stop()
 
-    // 移除 UI 覆盖层 + 清空残留元素
-    if (this.ui.el.parentElement) {
-      this.ui.el.remove()
-    }
+    // DOM / React 清理由 React 生命周期自然处理（this.ui.el 作为 uiLayer 的子节点，
+    // 会在 Viewport 卸载时由 React 自动清理）。此处不做手动 unmount/remove，
+    // 避免与 React reconciliation 中的 DOM 操作冲突。
     this.ui.clearElements()
 
     // 禁用 Game 渲染、重置视角

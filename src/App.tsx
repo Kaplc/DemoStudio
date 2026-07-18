@@ -100,7 +100,7 @@ export default function App() {
     addConsoleOutput('[Game] Racing 游戏工厂已注册')
 
     // 注册 FishMaster 世界构建器（捕鱼达人，2D 正交 + 鼠标瞄准）
-    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/scene/fish.scene.json'))
+    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/asset/fish.scene.json'))
     addConsoleOutput('[World] FishMaster 世界构建器已注册')
 
     // 注册 FishMaster 游戏实例工厂

@@ -5,8 +5,8 @@
  */
 import * as THREE from 'three'
 import { Actor, SpriteComponent } from '@/engine'
-import { makeFishTexture } from './textures'
-import type { FishType } from './types'
+import { makeFishTexture } from '../common/textures'
+import type { FishType } from '../common/types'
 
 // 鱼纹理按 art 缓存
 const _texCache = new Map<string, THREE.Texture>()
