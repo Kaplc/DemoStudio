@@ -146,6 +146,8 @@ export interface SkyboxConfig {
 /** 场景资产根文档 */
 export interface SceneAsset {
   name: string
+  /** 场景对应的游戏阶段/模式标识（如 "menu"、"base"、"game"），由 GameInstance 据此决定启动哪个 GameMode */
+  mode?: string
   objects: SceneNode[]
   /** 天空盒/背景/雾效配置（可选） */
   skybox?: SkyboxConfig

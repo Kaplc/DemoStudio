@@ -6,8 +6,8 @@
  */
 import * as THREE from 'three'
 import React from 'react'
-import { GameInstance, World, PhySys, logger, loadScene, CameraComponent, PlayerController } from '@/engine'
-import type { GameInstanceCallbacks, WorldAsset, SceneAsset } from '@/engine'
+import { GameInstance, World, PhySys, logger, loadScene, CameraComponent, PlayerController, StaticMeshActor } from '@/engine'
+import type { GameInstanceCallbacks, SceneGroup, SceneAsset } from '@/engine'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
@@ -19,6 +19,7 @@ import { FishBaseUI } from './base/hud/FishBaseUI'
 import type { GameHudProps } from './game/hud/GameHud'
 import menuSceneData from '../asset/fish_menu.scene.json'
 import baseSceneData from '../asset/fish_base.scene.json'
+import gameSceneData from '../asset/fish.scene.json'
 
 type Phase = 'menu' | 'base' | 'game'
 
@@ -42,22 +43,12 @@ export class FishGameInstance extends GameInstance {
   private _hudProps: GameHudProps = { coins: 100, score: 0, level: 1, bossActive: false, bossName: '', bossHp: 0, bossMaxHp: 0, phase: 'waiting' }
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
-  /** 当前阶段的场景资产组 */
-  private _sceneAsset: WorldAsset | null = null
-  /** 竞技场（fish.scene.json）的 THREE.Group，由 Viewport 加载到共享场景中 */
-  private _arenaGroup: THREE.Group | null = null
+  /** 防止 stop() 被重复调用 */
+  private _stopped = false
 
   constructor(sharedScene: THREE.Scene) {
     super()
     this.world = new World(sharedScene)
-
-    // 在共享场景中查找竞技场 group（由 Viewport 加载的 fish.scene.json）
-    for (const child of sharedScene.children) {
-      if (child instanceof THREE.Group && child.name === 'FishMaster') {
-        this._arenaGroup = child
-        break
-      }
-    }
 
     // 主菜单 GameMode（初始）
     this.mainMenuGameMode = new FishMainMenuGameMode()
@@ -81,10 +72,26 @@ export class FishGameInstance extends GameInstance {
   }
 
   // ════════════════════════════════════════════
-  //  Phase: 主菜单
+  //  Phase 路由：根据 initialMode 决定启动哪个阶段
   // ════════════════════════════════════════════
 
   override start(): boolean {
+    if (this.initialMode === 'base') {
+      // 让世界进入运行态（与主菜单 start 一致），再切换到基地模式
+      this.world.Pause()
+      this.world.BeginPlay()
+      this.enterBase()
+      return true
+    }
+    if (this.initialMode === 'game') {
+      // startGameplay 内部会调用 SetGameMode + BeginPlay
+      return this.startGameplay()
+    }
+    // 默认：主菜单模式
+    return this.startMenuMode()
+  }
+
+  private startMenuMode(): boolean {
     logger.info('[Fish] 显示主菜单...')
     this._phase = 'menu'
     this.world.Pause()
@@ -106,9 +113,6 @@ export class FishGameInstance extends GameInstance {
     this.ui?.renderReact(React.createElement(FishMainMenuUI, {
       onStartGame: () => this.mainMenuGameMode.startGame(),
     }))
-
-    // 菜单阶段：隐藏竞技场（水下背景/水草等只属于 game 阶段）
-    if (this._arenaGroup) this._arenaGroup.visible = false
 
     logger.info('[Fish] 等待玩家点击开始')
     return true
@@ -203,17 +207,8 @@ export class FishGameInstance extends GameInstance {
     // 恢复世界运行（returnToBase 中调用了 Pause，_running=false 导致后续 Actor 不 BeginPlay）
     this.world.BeginPlay()
 
-    // 进入游戏阶段：移除菜单/基地场景（游戏使用 Viewport 加载的 arena 场景）
-    this.unloadScene()
-
-    // 显示竞技场（fish.scene.json 的水下场景）
-    if (this._arenaGroup) this._arenaGroup.visible = true
-
-    // 应用游戏场景氛围（fish.scene.json 的 skybox，由 Viewport 作为 arena 加载，
-    // 但 arena 的 skybox 仅在项目加载时应用一次，此处显式设置以覆盖上一阶段）
-    const scene = this.world.scene
-    scene.background = new THREE.Color(0x0a2a4a)
-    scene.fog = new THREE.Fog(0x0a2a4a, 20, 50)
+    // 进入游戏阶段：加载水下场景（fish.scene.json）作为 StaticMeshActor
+    this.loadPhaseScene('game')
 
     // 游戏相机
     this._gameMode.cameraManager.RegisterCamera(this._gameMode.gameCamera)
@@ -282,9 +277,6 @@ export class FishGameInstance extends GameInstance {
   private returnToBase() {
     logger.info('[Fish] 返回基地...')
     this._phase = 'base'
-
-    // 隐藏竞技场（水草等只属于 game 阶段）
-    if (this._arenaGroup) this._arenaGroup.visible = false
 
     // 清理游戏状态
     if (this._gameMode) {
@@ -397,11 +389,10 @@ export class FishGameInstance extends GameInstance {
   //  场景资产加载（按阶段切换 JSON 场景）
   // ════════════════════════════════════════════
 
-  /** 加载当前阶段的场景资产并添加到共享场景 */
+  /** 加载当前阶段的场景资产，每个对象作为 StaticMeshActor 生成 */
   private loadPhaseScene(phase: Phase) {
-    this.unloadScene()
     const scene = this.world.scene
-    let asset: WorldAsset | null = null
+    let asset: SceneGroup | null = null
 
     switch (phase) {
       case 'menu':
@@ -413,13 +404,24 @@ export class FishGameInstance extends GameInstance {
         logger.debug(`[Fish] loadPhaseScene(base): 加载完成, objects=${baseSceneData.objects.length}`)
         break
       case 'game':
-        // 游戏阶段使用 fish.scene.json（由 Viewport 作为 arena 加载），此处不重复
+        asset = loadScene(gameSceneData as SceneAsset)
+        logger.debug(`[Fish] loadPhaseScene(game): 加载完成, objects=${gameSceneData.objects.length}`)
         break
     }
 
     if (asset) {
-      logger.debug(`[Fish] 添加场景资产组到 world.scene, group.children=${asset.group.children.length}`)
-      scene.add(asset.group)
+      // 将加载的网格从 group 剥离，每个创建为 StaticMeshActor → 参与 Actor 生命周期
+      const meshes: THREE.Mesh[] = []
+      asset.group.traverse((node) => {
+        if (node instanceof THREE.Mesh) meshes.push(node)
+      })
+      for (const mesh of meshes) {
+        asset.group.remove(mesh)
+        const actor = new StaticMeshActor(mesh, `Scene_${phase}_${mesh.name || ''}`)
+        this.world.SpawnActor(actor)
+      }
+      logger.debug(`[Fish] loadPhaseScene(${phase}): 生成 ${meshes.length} 个 StaticMeshActor, pendingSpawn=${this.world.pendingSpawnCount}`)
+      // group 已空，不调用 dispose() — geometry/material 由 actor 的 EndPlay 负责释放
 
       // 应用 skybox 配置（背景色 + 雾效）
       if (asset.skybox) {
@@ -434,34 +436,23 @@ export class FishGameInstance extends GameInstance {
           )
         }
       }
-
-      this._sceneAsset = asset
     } else {
       logger.debug(`[Fish] loadPhaseScene(${phase}): asset 为空`)
     }
   }
 
-  /** 卸载当前场景资产 */
-  private unloadScene() {
-    if (!this._sceneAsset) return
-    const scene = this.world.scene
-    scene.remove(this._sceneAsset.group)
-    this._sceneAsset.dispose()
-
-    // 重置场景氛围到中性默认值
-    scene.background = new THREE.Color(0x1a1a2e)
-    scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
-
-    logger.debug(`[Fish] unloadScene: ${this._sceneAsset.name} 已卸载`)
-    this._sceneAsset = null
-  }
-
   override stop() {
-    this.unloadScene()
-    // 恢复竞技场显示
-    if (this._arenaGroup) this._arenaGroup.visible = true
+    if (this._stopped) return
+    this._stopped = true
     logger.info('[Fish] 停止游戏...')
+    // 通知当前 GameMode 清理其直接添加到场景的 3D 对象（棕榈树/海鸟/炮台 etc.）
+    this.world.gameMode?.EndPlay()
+    this.world.gameMode = null
+    // 销毁所有 Actor（含 StaticMeshActor 场景资产），自动释放 geometry/material
     this.world.DestroyAllActors()
+    // 重置场景氛围到中性默认值
+    this.world.scene.background = new THREE.Color(0x1a1a2e)
+    this.world.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     this.world.Pause()
     this.mainMenuGameMode.cameraManager.Clear()
     this.baseGameMode.cameraManager.Clear()

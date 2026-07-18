@@ -1,5 +1,6 @@
 {
   "name": "FishMenu",
+  "mode": "menu",
   "skybox": {
     "backgroundColor": "#1a1a2e",
     "fogColor": "#1a1a2e",

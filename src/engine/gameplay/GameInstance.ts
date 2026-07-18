@@ -21,6 +21,12 @@ export abstract class GameInstance {
   /** 输入系统（Viewport → Controller 路由） */
   readonly inputSys = new InputSys()
 
+  /**
+   * 初始场景阶段/模式标识，由 Viewport 从 defaultScene 的 SceneAsset.mode 读取并注入。
+   * 子类在 start() 中据此决定启动哪个 GameMode。
+   */
+  initialMode?: string
+
   /** 当前玩家控制器（用于输入路由） */
   abstract get controller(): PlayerController | null
 

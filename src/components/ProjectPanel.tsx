@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorStore } from '../stores/editorStore'
+import { LogPoller } from '../editor'
 
 type PanelTab = 'project' | 'logs'
 
@@ -12,26 +13,26 @@ export function ProjectPanel() {
   const [logContent, setLogContent] = useState('')
   const [logError, setLogError] = useState<string | null>(null)
   const logEndRef = useRef<HTMLDivElement>(null)
+  const pollerRef = useRef<LogPoller | null>(null)
 
   // ─── 日志轮询 ───
   useEffect(() => {
-    if (activeTab !== 'logs') return
-    const fetchLog = async () => {
-      if (!window.electronAPI?.readLogFile) {
-        setLogError('日志读取仅支持 Electron 环境')
-        return
-      }
-      try {
-        const text = await window.electronAPI.readLogFile({ tail: 200 })
-        setLogContent(text)
-        setLogError(null)
-      } catch {
-        setLogError('日志读取失败')
-      }
+    if (activeTab !== 'logs') {
+      pollerRef.current?.stop()
+      return
     }
-    fetchLog()
-    const interval = setInterval(fetchLog, 2000)
-    return () => clearInterval(interval)
+
+    const poller = new LogPoller()
+    pollerRef.current = poller
+    poller.start((content, error) => {
+      setLogContent(content)
+      setLogError(error)
+    })
+
+    return () => {
+      poller.stop()
+      pollerRef.current = null
+    }
   }, [activeTab])
 
   // ─── 自动滚动到底部 ───

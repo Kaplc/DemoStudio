@@ -4,5 +4,6 @@
   "version": "1.0.0",
   "main": "src/projects/fish/index.ts",
   "tags": ["game", "fish", "2d"],
-  "renderMode": "2d"
+  "renderMode": "2d",
+  "defaultScene": "src/projects/fish/asset/fish_menu.scene.json"
 }

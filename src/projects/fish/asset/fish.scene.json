@@ -1,5 +1,6 @@
 {
   "name": "FishMaster",
+  "mode": "game",
   "skybox": {
     "backgroundColor": "#0a2a4a",
     "fogColor": "#0a2a4a",

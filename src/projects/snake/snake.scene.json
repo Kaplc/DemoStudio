@@ -1,5 +1,6 @@
 {
   "name": "Snake",
+  "mode": "game",
   "objects": [
     { "type": "box", "size": [21, 0.3, 21], "pos": [0, -0.15, 0],
       "material": { "color": "#2a2a3a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } },

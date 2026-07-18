@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { logger } from '../engine'
+import { executeCommand } from '../editor'
 
 export function Console() {
   const { consoleOutput, addConsoleOutput, clearConsole, gameState, launchGame, stopGame } = useEditorStore()
@@ -31,60 +32,13 @@ export function Console() {
     if (!cmd) return
 
     addConsoleOutput(`> ${cmd}`)
-
-    const parts = cmd.split(/\s+/)
-    const command = parts[0].toLowerCase()
-    const args = parts.slice(1)
-
-    switch (command) {
-      case 'help':
-        addConsoleOutput('可用命令:')
-        addConsoleOutput('  help           - 显示此帮助')
-        addConsoleOutput('  clear          - 清空控制台')
-        addConsoleOutput('  echo <text>    - 输出文字')
-        addConsoleOutput('  status         - 显示编辑器状态')
-        addConsoleOutput('  start_game     - 启动贪吃蛇游戏')
-        addConsoleOutput('  stop_game      - 停止贪吃蛇游戏')
-        addConsoleOutput('  toggle_game    - 切换游戏运行状态')
-        addConsoleOutput('')
-        addConsoleOutput(`当前游戏状态: ${gameState.running ? '🎮 运行中' : '⏹ 已停止'}`)
-        addConsoleOutput(`  Ctrl+Enter - 启动/停止 | Shift+F5 - 停止`)
-        break
-      case 'clear':
-        clearConsole()
-        break
-      case 'echo':
-        addConsoleOutput(args.join(' '))
-        break
-      case 'status':
-        addConsoleOutput('DemoStudio Editor v4.0.0')
-        addConsoleOutput('Engine: Three.js + Electron + React')
-        addConsoleOutput(`游戏状态: ${gameState.running ? '🎮 运行中 (分数: ' + gameState.score + ')' : '⏹ 已停止'}`)
-        break
-      case 'start_game':
-        if (gameState.running) {
-          addConsoleOutput('⚠ 游戏已在运行中')
-        } else {
-          launchGame()
-        }
-        break
-      case 'stop_game':
-        if (!gameState.running) {
-          addConsoleOutput('⚠ 游戏未在运行')
-        } else {
-          stopGame()
-        }
-        break
-      case 'toggle_game':
-        if (gameState.running) {
-          stopGame()
-        } else {
-          launchGame()
-        }
-        break
-      default:
-        addConsoleOutput(`未知命令: ${command}。输入 help 查看可用命令。`)
-    }
+    executeCommand(cmd, {
+      output: addConsoleOutput,
+      clear: clearConsole,
+      gameState,
+      launchGame,
+      stopGame,
+    })
   }
 
   return (

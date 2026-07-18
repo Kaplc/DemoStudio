@@ -1,0 +1,131 @@
+/**
+ * EditorInitializer — 编辑器初始化逻辑
+ *
+ * 委托 projects/registry.ts 自动扫描注册所有项目。
+ * 不再直接感知具体项目类，新增项目只需在 projects/registry.ts 注册即可。
+ */
+import { registerAllProjectModules } from '../projects/registry'
+
+export type InitLogger = (message: string) => void
+
+/**
+ * 注册所有内置项目到编辑器的各个注册表中
+ * 委托 registerAllProjectModules 自动完成 GameFactoryRegistry / ConfigRegistry 注册
+ * @param log 日志输出回调
+ */
+export function registerAllProjects(log: InitLogger = console.log): void {
+  registerAllProjectModules(log)
+}
+
+/**
+ * 注册快捷键与 Electron 菜单的全局事件监听
+ * @param callbacks 事件回调
+ * @returns 清理函数
+ */
+export function registerGlobalEventListeners(callbacks: {
+  toggleConsole: () => void
+  setShowProjectSelector: (show: boolean) => void
+  addConsoleOutput: (text: string) => void
+  saveGame: (slot: string) => void
+  loadGame: (slot: string) => void
+  launchGame: () => void
+  stopGame: () => void
+  setCurrentProject: (project: any) => void
+}): () => void {
+  const {
+    toggleConsole,
+    setShowProjectSelector,
+    addConsoleOutput,
+    saveGame,
+    loadGame,
+    launchGame,
+    stopGame,
+    setCurrentProject,
+  } = callbacks
+
+  const onToggleConsole = () => toggleConsole()
+  const onOpenProject = () => setShowProjectSelector(true)
+  const onNewProject = () => addConsoleOutput('[菜单] New Project')
+  const onSave = () => saveGame('quick')
+  const onSaveAs = () => saveGame('auto')
+  const onQuickLoad = () => loadGame('quick')
+  const onLaunchGame = () => {
+    // 逻辑由调用方useEditorStore的状态决定，这里简单委托
+    launchGame()
+  }
+  const onStopGame = () => stopGame()
+
+  window.addEventListener('shortcut-toggle-console', onToggleConsole)
+  window.addEventListener('shortcut-open-project', onOpenProject)
+  window.addEventListener('shortcut-new-project', onNewProject)
+  window.addEventListener('shortcut-save', onSave)
+  window.addEventListener('shortcut-save-as', onSaveAs)
+  window.addEventListener('shortcut-quick-save', onSave)
+  window.addEventListener('shortcut-quick-load', onQuickLoad)
+  window.addEventListener('shortcut-launch-game', onLaunchGame)
+  window.addEventListener('shortcut-stop-game', onStopGame)
+
+  // Electron 菜单事件
+  let electronCleanup: (() => void) | undefined
+  let mcpCleanup: (() => void) | undefined
+
+  if (window.electronAPI) {
+    electronCleanup = window.electronAPI.onMenuAction((action) => {
+      switch (action) {
+        case 'launch-game':
+          onLaunchGame()
+          break
+        case 'stop-game':
+          onStopGame()
+          break
+        default:
+          addConsoleOutput(`[菜单] ${action}`)
+      }
+    })
+
+    if (window.electronAPI.onMCPCommand) {
+      mcpCleanup = window.electronAPI.onMCPCommand((command, params) => {
+        addConsoleOutput(`[MCP] 收到命令: ${command}`)
+        switch (command) {
+          case 'launchGame':
+          case 'start_game':
+            setCurrentProject(null) // 触发自动选中
+            onLaunchGame()
+            break
+          case 'stopGame':
+          case 'stop_game':
+            onStopGame()
+            break
+          case 'toggle_game':
+            onLaunchGame()
+            break
+          case 'addConsoleOutput':
+            if (params?.text) addConsoleOutput(params.text)
+            break
+          case 'send_input':
+            if (params?.key) {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))
+              addConsoleOutput(`[MCP] 发送按键: ${params.key}`)
+            }
+            break
+          default:
+            addConsoleOutput(`[MCP] 未知命令: ${command}`)
+        }
+      })
+    }
+  }
+
+  return () => {
+    window.removeEventListener('shortcut-toggle-console', onToggleConsole)
+    window.removeEventListener('shortcut-open-project', onOpenProject)
+    window.removeEventListener('shortcut-new-project', onNewProject)
+    window.removeEventListener('shortcut-save', onSave)
+    window.removeEventListener('shortcut-save-as', onSaveAs)
+    window.removeEventListener('shortcut-quick-save', onSave)
+    window.removeEventListener('shortcut-quick-load', onQuickLoad)
+    window.removeEventListener('shortcut-launch-game', onLaunchGame)
+    window.removeEventListener('shortcut-stop-game', onStopGame)
+    electronCleanup?.()
+    mcpCleanup?.()
+  }
+}

@@ -5,6 +5,7 @@
   "main": "src/projects/snake/SnakePawn.ts",
   "mcp_server": "editor/mcp-server.mjs",
   "tags": ["game", "snake", "mcp", "2.5d"],
+  "defaultScene": "src/projects/snake/snake.scene.json",
   "worldConfig": {
     "gridSize": 20
   }

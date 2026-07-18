@@ -140,6 +140,11 @@ export class World {
 
   get running() { return this._running }
 
+  /** 当前等待生成和已生成的 Actor 总数（用于日志/调试） */
+  get actorCount(): number { return this.allActors.size }
+  get pendingSpawnCount(): number { return this.pendingSpawn.length }
+  get pendingDestroyCount(): number { return this.pendingDestroy.length }
+
   Start() {
     if (this._running) return
     this._running = true
@@ -211,14 +216,19 @@ export class World {
 
   /** 销毁所有 Actor（立即执行，不等待 tick） */
   DestroyAllActors() {
-    const count = this.allActors.size
+    let count = this.allActors.size + this.pendingSpawn.length
+    // 清理已提交的 Actor
     for (const actor of [...this.allActors]) {
       actor.EndPlay()
       this.scene.remove(actor.root)
     }
     this.allActors.clear()
-    this.pendingSpawn = []
     this.pendingDestroy = []
+    // 清理等待生成的 Actor（从未进入场景，仍需释放 GPU 资源）
+    for (const actor of this.pendingSpawn) {
+      actor.EndPlay()
+    }
+    this.pendingSpawn = []
     logger.debug(`[World] DestroyAllActors: 销毁 ${count} 个 Actor`)
   }
 

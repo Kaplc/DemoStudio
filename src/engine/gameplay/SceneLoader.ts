@@ -1,25 +1,29 @@
 /**
  * SceneLoader — 把声明式 SceneAsset 展开为 THREE.Group
  *
- * loadScene(asset) 返回 WorldAsset（group + name + dispose）。
- * 几何参数逐项对齐 snake 旧版 Scene3D 程序生成实现，保证 JSON 化后视觉一致：
- *   - shadow 设置精确按旧码：地基/主地板/柱身/柱顶 cast+receive；棋盘只 receive；
- *     网格线/柱顶球/墙顶盖 无 shadow；墙只 cast 不 receive
- *   - 棋盘 parity 用 Math.abs((round(x)+round(z))%2)，避免负坐标越界
- *   - 网格线/墙共享同一 material 实例（与旧 lineMat / wallMat 一致）
+ * loadScene(asset) 返回 SceneGroup（group + name + mode + skybox + dispose）。
  */
 import * as THREE from 'three'
 import { loadTexture } from './TextureLoader'
-import type { WorldAsset } from './WorldAsset'
 import type {
   SceneAsset,
   SceneNode,
   MaterialProps,
   ColorHex,
+  SkyboxConfig,
 } from './SceneAsset'
 
-/** 入口：声明式资产 → WorldAsset（group + name + dispose） */
-export function loadScene(asset: SceneAsset): WorldAsset {
+/** 加载结果：包含 THREE.Group、场景元数据、资源释放 */
+export interface SceneGroup {
+  readonly group: THREE.Group
+  readonly name: string
+  readonly mode?: string
+  readonly skybox?: SkyboxConfig
+  dispose(): void
+}
+
+/** 入口：声明式资产 → SceneGroup */
+export function loadScene(asset: SceneAsset): SceneGroup {
   const group = new THREE.Group()
   const disposables: { geo: THREE.BufferGeometry; mats: THREE.Material[] }[] = []
 
@@ -39,6 +43,7 @@ export function loadScene(asset: SceneAsset): WorldAsset {
   return {
     group,
     name: asset.name,
+    mode: asset.mode,
     skybox: asset.skybox,
     dispose: () => {
       if (disposed) return

@@ -4,6 +4,8 @@
  * 支持两种控制模式:
  *   'orbit' — 轨道控制（Game 视口使用）
  *   'fly'   — 第一人称飞行摄像机（Scene 视口使用, 左键旋转自身）
+ *
+ * PreviewSceneManager — 编辑器 Scene 视口/预览专用渲染器。
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -18,7 +20,7 @@ const _planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _ndc = new THREE.Vector2()
 const _worldOut = new THREE.Vector3()
 
-export interface SceneManagerOptions {
+export interface PreviewSceneManagerOptions {
   controlMode?: ControlMode
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
   cameraMode?: CameraMode
@@ -28,7 +30,7 @@ export interface SceneManagerOptions {
   addDefaultContent?: boolean
 }
 
-export class SceneManager {
+export class PreviewSceneManager {
   public scene: THREE.Scene
   public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
   public renderer: THREE.WebGLRenderer
@@ -74,7 +76,7 @@ export class SceneManager {
   private flySpeed = 10
   private flySensitivity = 0.0015
 
-  constructor(container: HTMLElement, options: SceneManagerOptions = {}) {
+  constructor(container: HTMLElement, options: PreviewSceneManagerOptions = {}) {
     this.container = container
     this.controlMode = options.controlMode ?? 'orbit'
 

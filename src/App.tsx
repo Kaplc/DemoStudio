@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { MenuBar } from './components/MenuBar'
 import { ProjectPanel } from './components/ProjectPanel'
 import { Viewport } from './components/Viewport'
@@ -11,30 +11,44 @@ import { ResizeHandle } from './components/ResizeHandle'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useEditorStore } from './stores/editorStore'
-import { useProjectStore } from './stores/projectStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
-import { useSaveStore } from './stores/saveStore'
-import { WorldRegistry, GameFactoryRegistry, FileSceneAssetBuilder, ConfigRegistry } from './engine'
-import { SnakeGameInstance } from './projects/snake'
-import { EatFishGameInstance, EatFishWorldBuilder, DEFAULT_CONFIG, parseHexColor } from './projects/eatfish'
-import type { GameConfig, FishArchetype } from './projects/eatfish'
-import { Demo2DGameInstance } from './projects/demo2d'
-import { RacingGameInstance, RacingWorldBuilder } from './projects/racing'
-import { FishGameInstance } from './projects/fish'
-import type { CannonConfig, BossConfig, FishConfig, SchoolConfig } from './projects/fish'
-import { DEFAULT_CANNON_CONFIG, DEFAULT_BOSS_CONFIG, DEFAULT_FISH_CONFIG, DEFAULT_SCHOOL_CONFIG } from './projects/fish'
+import { Editor } from './editor'
 
 export default function App() {
-  const { addConsoleOutput, setShowProjectSelector, launchGame, stopGame, gameState, currentProject } = useEditorStore()
-  const { discoverProjects } = useProjectStore()
+  const { addConsoleOutput, setShowProjectSelector, launchGame, stopGame, gameState } = useEditorStore()
   const consoleVisible = useEditorPrefsStore((s) => s.consoleVisible)
-  const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
   const layout = useEditorPrefsStore((s) => s.layout)
   const setLayout = useEditorPrefsStore((s) => s.setLayout)
-  const setLastProject = useEditorPrefsStore((s) => s.setLastProject)
-  const pushRecent = useEditorPrefsStore((s) => s.pushRecent)
   const [appInfo, setAppInfo] = useState({ fps: 0, project: 'No project' })
   const [loading, setLoading] = useState(true)
+  const editorRef = useRef<Editor | null>(null)
+
+  // ─── 编辑器初始化（仅执行一次） ───
+  useEffect(() => {
+    const editor = new Editor()
+    editorRef.current = editor
+
+    editor.init({
+      addConsoleOutput,
+      setShowProjectSelector,
+      launchGame: () => {
+        const state = useEditorStore.getState()
+        if (state.gameState.gameOver || !state.gameState.running) {
+          state.launchGame()
+        } else {
+          state.stopGame()
+        }
+      },
+      stopGame: () => useEditorStore.getState().stopGame(),
+      setAppInfo,
+      setLoading,
+    })
+
+    return () => {
+      editor.destroy()
+      editorRef.current = null
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Viewport 就绪后通知 Electron 关闭加载窗口 ───
   useEffect(() => {
@@ -42,223 +56,6 @@ export default function App() {
       window.electronAPI.sendAppReady()
     }
   }, [loading])
-
-  useEffect(() => {
-    // 扫描工程完成后，恢复上次打开的项目
-    void discoverProjects().then(() => {
-      const lastFolder = useEditorPrefsStore.getState().lastProjectFolder
-      if (lastFolder && !useEditorStore.getState().currentProject) {
-        const match = useProjectStore.getState().projects.find((p) => p.folder === lastFolder)
-        if (match) useEditorStore.getState().setCurrentProject(match)
-      }
-    })
-    addConsoleOutput('DemoStudio Editor v4.0.0 已启动')
-
-    // 注册 Snake 世界构建器（场景内容从文件路径加载，支持热更新）
-    WorldRegistry.register('Snake', new FileSceneAssetBuilder('src/projects/snake/snake.scene.json'))
-    addConsoleOutput('[World] Snake 世界构建器已注册')
-
-    // 注册 Snake 游戏实例工厂
-    GameFactoryRegistry.register('Snake', (scene) => new SnakeGameInstance(scene))
-    addConsoleOutput('[Game] Snake 游戏工厂已注册')
-
-    // 注册 EatFish 世界构建器（水下场景）
-    WorldRegistry.register('EatFish', new EatFishWorldBuilder())
-    addConsoleOutput('[World] EatFish 世界构建器已注册')
-
-    // 注册 EatFish 游戏实例工厂
-    GameFactoryRegistry.register('EatFish', (scene) => new EatFishGameInstance(scene))
-    addConsoleOutput('[Game] EatFish 游戏工厂已注册')
-
-    // 注册 EatFish 配置表系统（默认值作同步 fallback，JSON 异步加载覆盖）
-    ConfigRegistry.registerDefaults('eatfish', DEFAULT_CONFIG)
-    void ConfigRegistry.loadConfig<GameConfig>('eatfish', 'src/projects/eatfish/eatfish.config.json', (raw): GameConfig => ({
-      ...raw,
-      schoolColors: (raw.schoolColors ?? []).map((theme: string[]) => theme.map(parseHexColor)),
-    }))
-    // 加载鱼类原型 DataTable（演示）
-    void ConfigRegistry.loadTable<FishArchetype>('eatfish.fish', 'src/projects/eatfish/fish.table.json', (row): FishArchetype => ({
-      ...row,
-      color: parseHexColor(row.color),
-    }))
-    addConsoleOutput('[Config] EatFish 配置表已注册')
-
-    // 注册 Demo2D 世界构建器（2D 场景，声明式 JSON 资产，支持热更新）
-    WorldRegistry.register('Demo2D', new FileSceneAssetBuilder('src/projects/demo2d/demo2d.scene.json'))
-    addConsoleOutput('[World] Demo2D 世界构建器已注册')
-
-    // 注册 Demo2D 游戏实例工厂（2D 正交相机 + Sprite）
-    GameFactoryRegistry.register('Demo2D', (scene) => new Demo2DGameInstance(scene))
-    addConsoleOutput('[Game] Demo2D 游戏工厂已注册')
-
-    // 注册 Racing 世界构建器（赛道场景）
-    WorldRegistry.register('Racing', new RacingWorldBuilder())
-    addConsoleOutput('[World] Racing 世界构建器已注册')
-
-    // 注册 Racing 游戏实例工厂
-    GameFactoryRegistry.register('Racing', (scene) => new RacingGameInstance(scene))
-    addConsoleOutput('[Game] Racing 游戏工厂已注册')
-
-    // 注册 FishMaster 世界构建器（捕鱼达人，2D 正交 + 鼠标瞄准）
-    WorldRegistry.register('FishMaster', new FileSceneAssetBuilder('src/projects/fish/asset/fish.scene.json'))
-    addConsoleOutput('[World] FishMaster 世界构建器已注册')
-
-    // 注册 FishMaster 游戏实例工厂
-    GameFactoryRegistry.register('FishMaster', (scene) => new FishGameInstance(scene))
-    addConsoleOutput('[Game] FishMaster 游戏工厂已注册')
-
-    // 注册 FishMaster 配置表系统（默认值作同步 fallback，JSON 异步加载覆盖）
-    ConfigRegistry.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)
-    void ConfigRegistry.loadConfig<CannonConfig>('fish.cannon', 'src/projects/fish/config/cannon.config.json')
-    ConfigRegistry.registerDefaults('fish.boss', DEFAULT_BOSS_CONFIG)
-    void ConfigRegistry.loadConfig<BossConfig>('fish.boss', 'src/projects/fish/config/boss.config.json')
-    ConfigRegistry.registerDefaults('fish.fish', DEFAULT_FISH_CONFIG)
-    void ConfigRegistry.loadConfig<FishConfig>('fish.fish', 'src/projects/fish/config/fish.config.json')
-    ConfigRegistry.registerDefaults('fish.school', DEFAULT_SCHOOL_CONFIG)
-    void ConfigRegistry.loadConfig<SchoolConfig>('fish.school', 'src/projects/fish/config/school.config.json')
-    addConsoleOutput('[Config] FishMaster 配置表已注册')
-
-    addConsoleOutput('基于 Three.js + Electron + React')
-    addConsoleOutput('')
-
-    // 监听快捷键
-    const onToggleConsole = () => toggleConsole()
-    const onOpenProject = () => setShowProjectSelector(true)
-    const onNewProject = () => addConsoleOutput('[菜单] New Project')
-    const onSave = () => { void useSaveStore.getState().saveGame('quick') }
-    const onSaveAs = () => { void useSaveStore.getState().saveGame('auto') }
-    const onQuickLoad = () => { void useSaveStore.getState().loadGame('quick') }
-    const onLaunchGame = () => {
-      if (gameState.gameOver || !gameState.running) {
-        launchGame()
-      } else {
-        stopGame()
-      }
-    }
-    const onStopGame = () => stopGame()
-
-    window.addEventListener('shortcut-toggle-console', onToggleConsole)
-    window.addEventListener('shortcut-open-project', onOpenProject)
-    window.addEventListener('shortcut-new-project', onNewProject)
-    window.addEventListener('shortcut-save', onSave)
-    window.addEventListener('shortcut-save-as', onSaveAs)
-    window.addEventListener('shortcut-quick-save', onSave)
-    window.addEventListener('shortcut-quick-load', onQuickLoad)
-    window.addEventListener('shortcut-launch-game', onLaunchGame)
-    window.addEventListener('shortcut-stop-game', onStopGame)
-
-    // 监听 Electron 菜单事件
-    if (window.electronAPI) {
-      const cleanup = window.electronAPI.onMenuAction((action) => {
-        switch (action) {
-          case 'launch-game': onLaunchGame(); break
-          case 'stop-game': onStopGame(); break
-          default: addConsoleOutput(`[菜单] ${action}`)
-        }
-      })
-      // 监听 MCP 命令
-      let mcpCleanup: (() => void) | undefined
-      if (window.electronAPI.onMCPCommand) {
-        mcpCleanup = window.electronAPI.onMCPCommand((command, params) => {
-          addConsoleOutput(`[MCP] 收到命令: ${command}`)
-          switch (command) {
-            case 'launchGame':
-            case 'start_game':
-              // 选中当前工程（加载竞技场），再启动游戏
-              const projects = useEditorStore.getState().projects
-              const current = useEditorStore.getState().currentProject
-              if (!current && projects.length > 0) {
-                useEditorStore.getState().setCurrentProject(projects[0])
-              }
-              onLaunchGame()
-              break
-            case 'stopGame':
-            case 'stop_game':
-              onStopGame()
-              break
-            case 'toggle_game':
-              onLaunchGame()
-              break
-            case 'addConsoleOutput':
-              if (params?.text) addConsoleOutput(params.text)
-              break
-            case 'send_input':
-              if (params?.key) {
-                // 派发键盘事件到 window
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))
-                addConsoleOutput(`[MCP] 发送按键: ${params.key}`)
-              }
-              break
-            default:
-              addConsoleOutput(`[MCP] 未知命令: ${command}`)
-          }
-        })
-      }
-      return () => {
-        cleanup()
-        mcpCleanup?.()
-        window.removeEventListener('shortcut-toggle-console', onToggleConsole)
-        window.removeEventListener('shortcut-open-project', onOpenProject)
-        window.removeEventListener('shortcut-new-project', onNewProject)
-        window.removeEventListener('shortcut-save', onSave)
-        window.removeEventListener('shortcut-save-as', onSaveAs)
-        window.removeEventListener('shortcut-quick-save', onSave)
-        window.removeEventListener('shortcut-quick-load', onQuickLoad)
-        window.removeEventListener('shortcut-launch-game', onLaunchGame)
-        window.removeEventListener('shortcut-stop-game', onStopGame)
-      }
-    }
-
-    return () => {
-      window.removeEventListener('shortcut-toggle-console', onToggleConsole)
-      window.removeEventListener('shortcut-open-project', onOpenProject)
-      window.removeEventListener('shortcut-new-project', onNewProject)
-      window.removeEventListener('shortcut-save', onSave)
-      window.removeEventListener('shortcut-save-as', onSaveAs)
-      window.removeEventListener('shortcut-quick-save', onSave)
-      window.removeEventListener('shortcut-quick-load', onQuickLoad)
-      window.removeEventListener('shortcut-launch-game', onLaunchGame)
-      window.removeEventListener('shortcut-stop-game', onStopGame)
-    }
-  }, [gameState.running]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 记忆当前项目（持久化最后打开 + 最近列表）
-  useEffect(() => {
-    if (currentProject) {
-      setLastProject(currentProject.folder)
-      pushRecent(currentProject.folder)
-    }
-  }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 实时状态更新 + 上报给 Electron main
-  useEffect(() => {
-    let frame = 0
-    let lastTime = performance.now()
-    // 上报游戏状态
-    if (window.electronAPI?.reportGameState) {
-      window.electronAPI.reportGameState({
-        running: gameState.running,
-        score: gameState.score,
-      })
-    }
-    const id = setInterval(() => {
-      const now = performance.now()
-      const fps = Math.round((frame * 1000) / (now - lastTime))
-      frame = 0
-      lastTime = now
-      setAppInfo((prev) => ({
-        ...prev,
-        fps,
-        project: gameState.running ? (useEditorStore.getState().currentProject?.name ?? 'Game') : 'No project',
-      }))
-    }, 1000)
-    const countFrame = () => {
-      frame++
-      requestAnimationFrame(countFrame)
-    }
-    requestAnimationFrame(countFrame)
-    return () => clearInterval(id)
-  }, [gameState.score, gameState.running])
 
   return (
     <div className="editor-layout">

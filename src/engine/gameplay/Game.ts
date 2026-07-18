@@ -9,7 +9,7 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import { SceneManager, logger } from '..'
+import { PreviewSceneManager, GameSceneManager, logger } from '..'
 import { GameInstance } from './GameInstance'
 import { GameUI } from './GameUI'
 
@@ -17,16 +17,19 @@ export class Game {
   private _instance: GameInstance
   readonly ui: GameUI
 
-  private sceneMgr: SceneManager | null = null
-  private gameMgr: SceneManager | null = null
+  private sceneMgr: PreviewSceneManager | null = null
+  private gameMgr: GameSceneManager | null = null
   private removeTick: (() => void) | null = null
   private removeCamSync: (() => void) | null = null
+  /** 防止 shutdown 被重复调用（effect cleanup 和切换工程可能同时触发） */
+  private _shutdown = true
 
-  constructor(instance: GameInstance, sceneMgr?: SceneManager | null, gameMgr?: SceneManager | null) {
+  constructor(instance: GameInstance, sceneMgr?: PreviewSceneManager | null, gameMgr?: GameSceneManager | null) {
     this._instance = instance
     this.ui = new GameUI()
     this.sceneMgr = sceneMgr ?? null
     this.gameMgr = gameMgr ?? null
+    this._shutdown = false  // 初始状态允许 shutdown
   }
 
   get instance(): GameInstance { return this._instance }
@@ -37,10 +40,11 @@ export class Game {
     this.shutdown()
     this._instance.destroy()
     this._instance = newInstance
+    this._shutdown = false  // 新实例需要新的 shutdown 生命周期
   }
 
   /** 关联渲染器（可在构造后设置） */
-  setRenderers(sceneMgr: SceneManager, gameMgr: SceneManager) {
+  setRenderers(sceneMgr: PreviewSceneManager, gameMgr: GameSceneManager) {
     this.sceneMgr = sceneMgr
     this.gameMgr = gameMgr
   }
@@ -49,9 +53,9 @@ export class Game {
   launch(): boolean {
     logger.info('[Game] 启动游戏...')
 
-    // UI 覆盖层：挂载到 Game 视口的 UI 层（尺寸/位置跟随 canvas 实际渲染矩形，与画面对齐）
+    // UI 覆盖层：挂载到 Game 视口的 UI 层
     if (this.gameMgr) {
-      this.gameMgr.uiLayer.appendChild(this.ui.el)
+      this.gameMgr.mountGameUI(this.ui)
     }
 
     // 注入 UI 系统 + 启动游戏实例
@@ -61,7 +65,7 @@ export class Game {
 
     // 启用 Game 渲染
     if (this.gameMgr) {
-      if (this.gameMgr.controls) this.gameMgr.controls.enabled = true
+      this.gameMgr.setControlsEnabled(true)
       this.gameMgr.start()
     }
 
@@ -70,13 +74,10 @@ export class Game {
       this.removeTick = this.sceneMgr.onUpdate((dt) => this.instance.tick(dt))
     }
 
-    // Game 摄像机同步（WASD 激活时跳过）
+    // Game 摄像机同步
     if (this.gameMgr) {
       this.removeCamSync = this.gameMgr.onUpdate(() => {
-        const mgr = this.gameMgr!
-        if (!mgr.isWASDActive) {
-          this.instance.syncCamera(mgr.camera, mgr.aspect)
-        }
+        this.instance.syncCamera(this.gameMgr!.camera, this.gameMgr!.aspect)
       })
     }
 
@@ -86,6 +87,8 @@ export class Game {
 
   /** 停止游戏 */
   shutdown() {
+    if (this._shutdown) return
+    this._shutdown = true
     logger.info('[Game] 停止游戏...')
 
     // 注销回调
@@ -104,15 +107,10 @@ export class Game {
 
     // 禁用 Game 渲染、重置视角
     if (this.gameMgr) {
-      if (this.gameMgr.controls) this.gameMgr.controls.enabled = false
+      this.gameMgr.setControlsEnabled(false)
       this.gameMgr.stop()
       this.gameMgr.clearFrame()
-      this.gameMgr.camera.position.set(17, 17, 17)
-      const gc = this.gameMgr.controls
-      if (gc) {
-        gc.target.set(0, 0, 0)
-        gc.update()
-      }
+      this.gameMgr.resetView()
     }
   }
 

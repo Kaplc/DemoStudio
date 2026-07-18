@@ -8,6 +8,8 @@ export interface Project {
   folder: string
   /** 渲染模式：'2d'=正交相机 2D，'3d'=透视 3D（默认） */
   renderMode?: '2d' | '3d'
+  /** 默认场景资产路径（相对于项目根），点击项目时加载此场景并读取其 mode */
+  defaultScene?: string
 }
 
 export interface GameState {

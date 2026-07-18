@@ -1,14 +1,22 @@
 import React, { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { SceneManager, logger, Game, WorldRegistry, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
-import type { WorldAsset, SkyboxConfig } from '../engine'
+import { PreviewSceneManager, GameSceneManager, logger, Game, GameFactoryRegistry, NullGameInstance, gizmos, loadScene } from '../engine'
+import type { SceneGroup } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import type { ViewportTab } from '../stores/editorPrefsStore'
 import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
-
-// 鼠标→世界坐标复用（clientToWorld 输出缓冲）
-const _ptrWorld = new THREE.Vector3()
+import {
+  setupScene,
+  handleKeyDown,
+  handleKeyUp,
+  handleMouseMove,
+  handleMouseDown,
+  handleMouseUp,
+  handleWheel,
+  _ptrWorld,
+  applySkybox,
+} from '../editor'
 
 interface ViewportProps {
   /** 初始化完成后回调 */
@@ -20,14 +28,18 @@ export function Viewport({ onReady }: ViewportProps) {
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   const gameContainerRef = useRef<HTMLDivElement>(null)
 
-  const sceneRef = useRef<SceneManager | null>(null)
-  const gameSceneRef = useRef<SceneManager | null>(null)
+  const sceneRef = useRef<PreviewSceneManager | null>(null)
+  const gameSceneRef = useRef<GameSceneManager | null>(null)
   const gameRef = useRef<Game | null>(null)
 
   // 共享场景
   const sharedSceneRef = useRef<THREE.Scene | null>(null)
-  // 竞技场资源
-  const arenaRef = useRef<WorldAsset | null>(null)
+  // 当前 defaultScene 读取的 mode
+  const sceneModeRef = useRef<string | undefined>(undefined)
+  // 当前预览场景组（选项目时加载的 defaultScene，启动后被游戏实例接管）
+  const previewRef = useRef<SceneGroup | null>(null)
+  // setupScene 返回的清理函数
+  const cleanupRef = useRef<(() => void) | null>(null)
 
   const prefsViewport = useEditorPrefsStore((s) => s.viewport)
   const setViewportPref = useEditorPrefsStore((s) => s.setViewport)
@@ -46,133 +58,38 @@ export function Viewport({ onReady }: ViewportProps) {
   const setGameScore = useEditorStore((s) => s.setGameScore)
   const setGameOver = useEditorStore((s) => s.setGameOver)
 
-  // ─── 一次初始化：共享场景 + World + 两个 SceneManager ───
+  // ─── 一次初始化：使用 SceneSetup 创建共享场景 + 两个 SceneManager + Game ───
   useEffect(() => {
     if (!sceneContainerRef.current || !gameContainerRef.current) return
-    logger.info('初始化 Viewport 引擎系统...')
 
-    // 共享场景
-    const shared = new THREE.Scene()
-    shared.background = new THREE.Color(0x1a1a2e)
-    shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
-    addDefaultContent(shared)
-    sharedSceneRef.current = shared
-    // 挂载全局 Gizmos 调试绘制层（共享场景，两个视口都会渲染）
-    gizmos.attach(shared)
-
-    // 游戏实例 — 初始创建一个空实例（后续切换工程时通过工厂重建）
-    const gameInst = currentProject && GameFactoryRegistry.has(currentProject.name)
-      ? GameFactoryRegistry.create(currentProject.name, shared)!
-      : new NullGameInstance()
-    if (gameInst.setCallbacks) {
-      gameInst.setCallbacks({
+    const { sharedScene, sceneMgr, gameMgr, game, cleanup } = setupScene(
+      sceneContainerRef.current,
+      gameContainerRef.current,
+      {
         onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
         onPhaseChange: (phase) => setLocalPhase(phase),
         onGameOver: () => setGameOver(true),
-      })
-    }
+      },
+      useEditorPrefsStore.getState().viewport.aspectRatio,
+      onReady,
+    )
 
-    // Scene View — 飞越摄像机
-    const sceneMgr = new SceneManager(sceneContainerRef.current, {
-      controlMode: 'fly',
-      sharedScene: shared,
-      addDefaultContent: false,
-    })
-    sceneMgr.setWASDControl(true)
-    sceneMgr.setCameraOrbit(45, 30, 20) // 45°水平, 30°俯视, 距离20 → (12,10,12)
-    sceneMgr.start()
+    sharedSceneRef.current = sharedScene
     sceneRef.current = sceneMgr
-    logger.info('Scene 视图初始化完成 (Fly 摄像机)')
-
-    // Game View — 轨道摄像机（2.5D 俯视）
-    const gameMgr = new SceneManager(gameContainerRef.current, {
-      controlMode: 'orbit',
-      sharedScene: shared,
-      addDefaultContent: false,
-    })
-    gameMgr.setWASDControl(true)
-    gameMgr.camera.position.set(17, 17, 17)
-    const gc = gameMgr.controls!
-    gc.target.set(0, 0, 0)
-    gc.update()
-    gc.enabled = false   // 未启动游戏时禁用交互
-    gameMgr.stop()       // 未启动游戏时不渲染
     gameSceneRef.current = gameMgr
-
-    // 初始应用画面比例（首次初始化时两边同步；读 rehydrated 后的最新值）
-    const ar = useEditorPrefsStore.getState().viewport.aspectRatio
-    if (ar) {
-      const [aw, ah] = ar.split('/').map(Number)
-      sceneMgr.setTargetAspect(aw / ah)
-      gameMgr.setTargetAspect(aw / ah)
-    }
-
-    // 游戏入口（管理 Tick/Camera 同步的注册/注销）— 必须在 sceneMgr/gameMgr 之后
-    const game = new Game(gameInst, sceneMgr, gameMgr)
     gameRef.current = game
-
-    // 每帧驱动 Gizmos 绘制（始终运行：停止/关闭时也会 flush 空内容以清空残影）
-    const removeGizmoFlush = sceneMgr.onUpdate(() => {
-      gameRef.current?.instance?.drawGizmos()
-    })
-
-    // Resize
-    const obs1 = new ResizeObserver(() => sceneMgr.resize())
-    obs1.observe(sceneContainerRef.current)
-    const obs2 = new ResizeObserver(() => gameMgr.resize())
-    obs2.observe(gameContainerRef.current)
-
-    // 通知外部加载完成
-    onReady?.()
+    cleanupRef.current = cleanup
 
     return () => {
-      obs1.disconnect()
-      obs2.disconnect()
-      removeGizmoFlush()
-      game.destroy()
-      sceneMgr.dispose()
-      gameMgr.dispose()
-      gizmos.detach()
+      cleanup()
+      cleanupRef.current = null
       sceneRef.current = null
       gameSceneRef.current = null
       gameRef.current = null
       sharedSceneRef.current = null
+      previewRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function addDefaultContent(scene: THREE.Scene) {
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-    scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3a3a4a, 0.4))
-    const dl = new THREE.DirectionalLight(0xffffff, 1.2)
-    dl.position.set(20, 30, 10)
-    dl.castShadow = true
-    dl.shadow.mapSize.width = 2048
-    dl.shadow.mapSize.height = 2048
-    scene.add(dl)
-    const fl = new THREE.DirectionalLight(0x8888ff, 0.3)
-    fl.position.set(-10, 15, -10)
-    scene.add(fl)
-    const grid = new THREE.GridHelper(40, 40, 0x444466, 0x333355)
-    grid.position.y = -0.01
-    scene.add(grid)
-  }
-
-  /** 根据 SkyboxConfig 更新场景背景/天空盒/雾效 */
-  function applySkybox(scene: THREE.Scene, config: SkyboxConfig): void {
-    // 天空盒立方体贴图（优先于纯色背景）
-    if (config.skyboxPath) {
-      const ext = config.skyboxExt ?? '.jpg'
-      const faces = ['px', 'nx', 'py', 'ny', 'pz', 'nz']
-      const urls = faces.map(s => `${config.skyboxPath}_${s}${ext}`)
-      scene.background = new THREE.CubeTextureLoader().load(urls)
-    } else if (config.backgroundColor) {
-      scene.background = new THREE.Color(config.backgroundColor)
-    }
-    // 雾效
-    if (config.fogColor && config.fogNear !== undefined && config.fogFar !== undefined) {
-      scene.fog = new THREE.Fog(config.fogColor, config.fogNear, config.fogFar)
-    }
-  }
 
   // ─── 画面比例同步到 Scene + Game SceneManager（两边同步）───
   useEffect(() => {
@@ -183,80 +100,90 @@ export function Viewport({ onReady }: ViewportProps) {
     gameSceneRef.current?.setTargetAspect(ratio)
   }, [gameAspectRatio])
 
-  // ─── 切换工程 → 停止游戏 + 清理旧竞技场 + 加载新竞技场 ───
+  // ─── 切换工程 → 停止游戏 + 读取 defaultScene 预览 ───
   useEffect(() => {
     const shared = sharedSceneRef.current
-    if (!shared) return
-
-    // 1. 先停止当前游戏（如果有）
     const game = gameRef.current
-    const wasRunning = editorState.running
-    if (wasRunning) {
-      logger.info('切换工程: 停止当前游戏...')
-      game?.shutdown()
-      useEditorStore.getState().setGameRunning(false)
-    }
+    if (!shared || !game) return
 
-    // 1.5 重置场景背景和雾效为默认值，防止前一个工程的背景残留
-    shared.background = new THREE.Color(0x1a1a2e)
-    shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
+    const switchProject = async () => {
+      // 1. 无论游戏是否运行，先停止
+      if (editorState.running) {
+        logger.info('切换工程: 停止当前游戏...')
+        game.shutdown()
+        useEditorStore.getState().setGameRunning(false)
+      } else {
+        gameSceneRef.current?.stop()
+        gameSceneRef.current?.clearFrame()
+      }
 
-    // 2. 切换游戏实例 — 从工厂创建新实例 + 重置 UI 状态
-    setLocalScore(0)
-    setLocalPhase('waiting')
-    setGameScore(0)
-    setGameOver(false)
-    if (currentProject && GameFactoryRegistry.has(currentProject.name)) {
-      const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
-      newInst.setCallbacks({
-        onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-        onPhaseChange: (phase) => setLocalPhase(phase),
-        onGameOver: () => setGameOver(true),
-      })
-      game?.setInstance(newInst)
-    } else if (game) {
-      // 没有匹配的工厂 → 用空实例
-      game.setInstance(new NullGameInstance())
-    }
+      // 2. 清除旧的预览场景
+      if (previewRef.current) {
+        shared.remove(previewRef.current.group)
+        previewRef.current.dispose()
+        previewRef.current = null
+      }
 
-    // 3. 清理旧的竞技场
-    if (arenaRef.current) {
-      logger.info(`卸载竞技场: ${arenaRef.current.name}`)
-      shared.remove(arenaRef.current.group)
-      arenaRef.current.dispose()
-      arenaRef.current = null
-    }
-    // 恢复默认元素（GridHelper）
-    shared.children.forEach((child) => {
-      if (child instanceof THREE.GridHelper) child.visible = true
-    })
+      // 3. 重置场景为默认状态
+      shared.background = new THREE.Color(0x1a1a2e)
+      shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
+      gizmos.beginFrame()
+      gizmos.flush()
 
-    // 强制清除 Gizmos 残影（当前帧 buffer → flush 隐藏）
-    gizmos.beginFrame()
-    gizmos.flush()
+      // 4. 重置 UI 状态 & 切换游戏实例
+      setLocalScore(0)
+      setLocalPhase('waiting')
+      setGameScore(0)
+      setGameOver(false)
 
-    // 3. 按项目渲染模式切换 Game 视口相机（2D→正交，3D→透视），再加载新竞技场
-    if (currentProject) {
-      gameSceneRef.current?.setCameraMode(currentProject.renderMode === '2d' ? 'orthographic' : 'perspective')
-      const builder = WorldRegistry.get(currentProject.name)
-      if (builder) {
-        logger.info(`加载竞技场: ${currentProject.name}`)
-        ;(async () => {
-          const asset = await builder.build({})
-          shared.children.forEach((child) => {
-            if (child instanceof THREE.GridHelper) child.visible = false
-          })
-          asset.group.name = asset.name
-          shared.add(asset.group)
-          arenaRef.current = asset
-          // 应用场景氛围配置（天空盒/背景/雾效）
-          if (asset.skybox) {
-            applySkybox(shared, asset.skybox)
+      if (currentProject && GameFactoryRegistry.has(currentProject.name)) {
+        const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
+        newInst.initialMode = sceneModeRef.current
+        newInst.setCallbacks({
+          onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
+          onPhaseChange: (phase) => setLocalPhase(phase),
+          onGameOver: () => setGameOver(true),
+        })
+        game.setInstance(newInst)
+      } else {
+        game.setInstance(new NullGameInstance())
+      }
+
+      // 5. 按项目渲染模式切换相机
+      if (currentProject) {
+        gameSceneRef.current?.setCameraMode(
+          currentProject.renderMode === '2d' ? 'orthographic' : 'perspective',
+        )
+
+        // 6. 读取 defaultScene JSON 作为预览场景
+        const { defaultScene, name } = currentProject
+        const readJsonFile = window.electronAPI?.readJsonFile
+        if (defaultScene && readJsonFile) {
+          try {
+            const result = await readJsonFile(defaultScene)
+            if (result.success && result.data) {
+              // 加载场景并记录 mode
+              const sceneResult = loadScene(result.data)
+              sceneModeRef.current = sceneResult.mode
+              if (gameRef.current?.instance) {
+                gameRef.current.instance.initialMode = sceneResult.mode
+              }
+              // 挂到共享场景预览
+              shared.add(sceneResult.group)
+              if (sceneResult.skybox) {
+                applySkybox(shared, sceneResult.skybox)
+              }
+              previewRef.current = sceneResult
+              logger.info(`[Viewport] 加载 ${name} 预览场景: ${sceneResult.name}`)
+            }
+          } catch (err) {
+            logger.warn(`[Viewport] 读取 ${name} defaultScene 失败: ${err}`)
           }
-          logger.info(`${currentProject.name} 竞技场加载完成`)
-        })()
+        }
       }
     }
+
+    switchProject()
   }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 启动/停止游戏 ───
@@ -270,6 +197,7 @@ export function Viewport({ onReady }: ViewportProps) {
       const shared = sharedSceneRef.current
       if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
         const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
+        newInst.initialMode = sceneModeRef.current
         newInst.setCallbacks({
           onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
           onPhaseChange: (phase) => setLocalPhase(phase),
@@ -328,42 +256,20 @@ export function Viewport({ onReady }: ViewportProps) {
     return () => root.removeEventListener('mousedown', onMouseDown, true)
   }, [])
 
-  // 失焦时清除 Scene 的 WASD 按键状态，防止卡键
+  // 失焦时清除 WASD 按键状态，防止卡键
   useEffect(() => {
     if (!viewportFocused) {
       sceneRef.current?.clearWASDKeys()
-      gameSceneRef.current?.clearWASDKeys()
     }
   }, [viewportFocused])
 
   useEffect(() => {
     if (!viewportFocused) return
 
-    const onDown = (e: KeyboardEvent) => {
-      if (activeTab === 'scene') {
-        if (['w', 'W', 'a', 'A', 's', 'S', 'd', 'D', 'q', 'Q', 'e', 'E'].includes(e.key)) {
-          sceneRef.current?.onWASDKeyDown(e.key)
-          e.preventDefault()
-        }
-      } else if (activeTab === 'game') {
-        const ctrl = gameRef.current?.instance.controller
-        if (ctrl) {
-          ctrl.ProcessInput(e.key, 'pressed')
-        }
-        e.preventDefault()
-      }
-    }
-    const onUp = (e: KeyboardEvent) => {
-      if (activeTab === 'scene') {
-        if (!['w','W','a','A','s','S','d','D','q','Q','e','E'].includes(e.key)) return
-        sceneRef.current?.onWASDKeyUp(e.key)
-      } else if (activeTab === 'game') {
-        const ctrl = gameRef.current?.instance.controller
-        if (ctrl) {
-          ctrl.ProcessInput(e.key, 'released')
-        }
-      }
-    }
+    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTab }
+    const onDown = (e: KeyboardEvent) => handleKeyDown(e, ctx)
+    const onUp = (e: KeyboardEvent) => handleKeyUp(e, ctx)
+
     window.addEventListener('keydown', onDown, true)
     window.addEventListener('keyup', onUp, true)
     return () => {
@@ -377,42 +283,19 @@ export function Viewport({ onReady }: ViewportProps) {
     if (activeTab !== 'game' || !editorState.running) return
     const canvas = gameSceneRef.current?.renderer.domElement
     if (!canvas) return
-    const ctrl = () => gameRef.current?.instance.controller
-    const toWorld = (e: MouseEvent) => {
-      gameSceneRef.current?.clientToWorld(e.clientX, e.clientY, _ptrWorld)
-      return _ptrWorld
-    }
-    const onMove = (e: MouseEvent) => {
-      const inst = gameRef.current?.instance
-      if (inst) {
-        const controller = inst.controller
-        const worldPos = toWorld(e)
-        inst.inputSys.handlePointerMove(e.clientX, e.clientY, worldPos, controller)
-      }
-    }
-    const onDown = (e: MouseEvent) => {
-      if (e.button !== 0) return
-      logger.debug(`[Viewport] mousedown at (${e.clientX}, ${e.clientY})`)
-      const inst = gameRef.current?.instance
-      if (inst) {
-        const controller = inst.controller
-        const worldPos = toWorld(e)
-        inst.inputSys.handlePointerDown(e.clientX, e.clientY, worldPos, controller)
-      }
-    }
-    const onUp = (e: MouseEvent) => {
-      if (e.button !== 0) return
-      ctrl()?.OnPointerUp(toWorld(e))
-    }
+
+    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTab }
+
+    const onMove = (e: MouseEvent) => handleMouseMove(e, ctx, _ptrWorld)
+    const onDown = (e: MouseEvent) => handleMouseDown(e, ctx, _ptrWorld)
+    const onUp = (e: MouseEvent) => handleMouseUp(e, ctx, _ptrWorld)
+    const onWheel = (e: WheelEvent) => handleWheel(e, ctx)
+
     canvas.addEventListener('mousedown', onDown)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-    // 滚轮切换炮等级
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      ctrl()?.OnScroll(e.deltaY)
-    }
     canvas.addEventListener('wheel', onWheel, { passive: false })
+
     return () => {
       canvas.removeEventListener('mousedown', onDown)
       window.removeEventListener('mousemove', onMove)

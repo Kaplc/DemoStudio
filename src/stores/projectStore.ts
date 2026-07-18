@@ -17,6 +17,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'snake', '2.5d'],
     folder: 'snake',
+    defaultScene: 'src/projects/snake/snake.scene.json',
   },
   {
     name: 'EatFish',
@@ -32,6 +33,7 @@ const DEFAULT_PROJECTS: Project[] = [
     tags: ['game', '2d', 'sprite'],
     folder: 'demo2d',
     renderMode: '2d',
+    defaultScene: 'src/projects/demo2d/demo2d.scene.json',
   },
   {
     name: 'Racing',
@@ -47,6 +49,7 @@ const DEFAULT_PROJECTS: Project[] = [
     tags: ['game', 'fish', '2d'],
     folder: 'fish',
     renderMode: '2d',
+    defaultScene: 'src/projects/fish/asset/fish_menu.scene.json',
   },
 ]
 

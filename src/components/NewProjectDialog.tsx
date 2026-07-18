@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import type { Project } from '../stores/editorStore'
+import { validateProjectName } from '../editor'
 
 type ProjectMode = '2d' | '3d'
 
@@ -16,17 +17,9 @@ export function NewProjectDialog() {
   if (!showNewProjectDialog) return null
 
   const handleCreate = async () => {
-    const trimmed = name.trim()
-    if (!trimmed) {
-      setError('请输入工程名称')
-      return
-    }
-    if (!/^[a-zA-Z一-龥][a-zA-Z0-9一-龥_-]*$/.test(trimmed)) {
-      setError('工程名只能包含字母、中文、数字、下划线和连字符')
-      return
-    }
-    if (projects.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
-      setError('工程名已存在')
+    const validation = validateProjectName(name, projects.map((p) => p.name))
+    if (!validation.valid) {
+      setError(validation.error)
       return
     }
 
@@ -35,9 +28,10 @@ export function NewProjectDialog() {
 
     try {
       // 通过 IPC 创建目录和模板文件
+      const projectName = name.trim()
       let result: { success: boolean; error?: string; path?: string }
       if (window.electronAPI?.createProject) {
-        result = await window.electronAPI.createProject(trimmed, mode)
+        result = await window.electronAPI.createProject(projectName, mode)
       } else {
         // 非 Electron 环境（开发测试）
         result = { success: true }
@@ -45,15 +39,15 @@ export function NewProjectDialog() {
 
       if (result.success) {
         const newProject: Project = {
-          name: trimmed,
-          description: `${trimmed} ${mode === '2d' ? '2D' : '3D'} 游戏项目`,
+          name: projectName,
+          description: `${projectName} ${mode === '2d' ? '2D' : '3D'} 游戏项目`,
           version: '1.0.0',
           tags: ['game', mode === '2d' ? '2d' : '3d'],
-          folder: trimmed.toLowerCase(),
+          folder: projectName.toLowerCase(),
           renderMode: mode,
         }
         setProjects([...projects, newProject])
-        addConsoleOutput(`✅ 工程 "${trimmed}" (${mode.toUpperCase()}) 已创建`)
+        addConsoleOutput(`✅ 工程 "${projectName}" (${mode.toUpperCase()}) 已创建`)
         setShowNewProjectDialog(false)
         setName('')
         setMode('3d')

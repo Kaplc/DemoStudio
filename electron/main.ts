@@ -278,6 +278,7 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
       main: `src/projects/${projectName.toLowerCase()}/index.ts`,
       tags: ['game', mode === '2d' ? '2d' : '3d'],
       renderMode: mode === '2d' ? '2d' : '3d',
+      defaultScene: `src/projects/${projectName.toLowerCase()}/${projectName.toLowerCase()}.scene.json`,
     }
     fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(projectJson, null, 2), 'utf-8')
 
@@ -337,7 +338,7 @@ ipcMain.handle('discover-projects', async () => {
     if (!fs.existsSync(projectsDir)) return []
 
     const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
-    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d' }> = []
+    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }> = []
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -352,6 +353,7 @@ ipcMain.handle('discover-projects', async () => {
           tags: data.tags || [],
           folder: entry.name,
           renderMode: data.renderMode === '2d' ? '2d' : '3d',
+          defaultScene: data.defaultScene || undefined,
         })
       } catch {
         // 单个 project.json 解析失败不影响其他

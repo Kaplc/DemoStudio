@@ -18,7 +18,7 @@ export interface ElectronAPI {
   toggleDevTools?: () => Promise<void>
   createProject: (projectName: string, mode?: '2d' | '3d') => Promise<{ success: boolean; error?: string; path?: string }>
   readJsonFile: (relativePath: string) => Promise<{ success: boolean; data?: any; error?: string }>
-  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d' }>>
+  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }>>
 
   // ─── 存档系统（userData-scoped；meta 结构与 ISaveData.SaveMeta 对齐）───
   saveGameFile: (game: string, slot: string, data: unknown) => Promise<{ success: boolean; error?: string; savedAt?: string }>
