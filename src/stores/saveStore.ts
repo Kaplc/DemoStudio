@@ -17,6 +17,10 @@ let _currentInstance: GameInstance | null = null
 export function setCurrentGameInstance(inst: GameInstance | null): void {
   _currentInstance = inst
 }
+/** 获取当前游戏实例（供 Outline 等组件读取场景对象） */
+export function getCurrentGameInstance(): GameInstance | null {
+  return _currentInstance
+}
 
 interface SaveStore {
   slots: SaveSlotInfo[]

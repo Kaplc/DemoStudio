@@ -2,7 +2,7 @@
  * GameState — 可观察的游戏全局状态
  * 模仿 UE GameState（Actor），React 可通过 subscribe 监听变化
  */
-import { Actor } from './Actor'
+import { Actor } from '../entity/Actor'
 
 export type GamePhase = 'waiting' | 'playing' | 'paused' | 'gameover'
 

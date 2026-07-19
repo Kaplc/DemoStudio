@@ -3,12 +3,12 @@
  * 模仿 UE World，管理 Actor 注册、生命周期、Tick 循环
  */
 import * as THREE from 'three'
-import { Actor } from './Actor'
+import { Actor } from '../entity/Actor'
 import { GameMode } from './GameMode'
-import { gizmos } from './Gizmos'
-import { logger } from '../Logger'
-import type { Pawn } from './Pawn'
-import type { PlayerController } from './PlayerController'
+import { gizmos } from '../tools/Gizmos'
+import { logger } from '../../Logger'
+import type { Pawn } from '../entity/Pawn'
+import type { PlayerController } from '../input/PlayerController'
 
 export class World {
   public readonly scene: THREE.Scene
@@ -114,7 +114,7 @@ export class World {
   }
 
   /** 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例 */
-  getAllComponents<T extends import('./Component').Component>(
+  getAllComponents<T extends import('../entity/Component').Component>(
     type: new (...args: any[]) => T,
   ): T[] {
     const result: T[] = []

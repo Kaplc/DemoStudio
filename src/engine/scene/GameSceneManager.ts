@@ -11,7 +11,7 @@
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { GameUI } from './gameplay/GameUI'
+import type { GameUI } from '../gameplay/ui/GameUI'
 import type { CameraMode } from './PreviewSceneManager'
 
 // clientToWorld 复用临时对象

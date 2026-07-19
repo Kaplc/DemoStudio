@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorStore } from '../stores/editorStore'
 import { LogPoller } from '../editor'
+import { Outline } from './Outline'
 
-type PanelTab = 'project' | 'logs'
+type PanelTab = 'project' | 'outline' | 'logs'
 
 export function ProjectPanel() {
   const { projects, loading } = useProjectStore()
@@ -53,6 +54,13 @@ export function ProjectPanel() {
           项目
         </button>
         <button
+          className={`viewport-tab${activeTab === 'outline' ? ' active' : ''}`}
+          onClick={() => setActiveTab('outline')}
+          style={{ flex: 1, fontSize: 10, justifyContent: 'center' }}
+        >
+          大纲
+        </button>
+        <button
           className={`viewport-tab${activeTab === 'logs' ? ' active' : ''}`}
           onClick={() => setActiveTab('logs')}
           style={{ flex: 1, fontSize: 10, justifyContent: 'center' }}
@@ -60,6 +68,10 @@ export function ProjectPanel() {
           日志
         </button>
       </div>
+
+      {activeTab === 'outline' && (
+        <Outline />
+      )}
 
       {activeTab === 'project' && (
         <div className="panel-body">

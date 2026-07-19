@@ -8,7 +8,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { useSaveStore } from '../stores/saveStore'
-import { registerAllProjects, registerGlobalEventListeners, initProjectConfigs } from './index'
+import { registerAllProjects, registerGlobalEventListeners } from './index'
 import { FpsTracker } from './FpsTracker'
 import { LogPoller } from './LogPoller'
 
@@ -86,13 +86,12 @@ export class Editor {
     addConsoleOutput('基于 Three.js + Electron + React')
     addConsoleOutput('')
 
-    // 5. 记忆当前项目 + 延迟加载配置表
+    // 5. 记忆当前项目（配置表由各 GameMode 自身在构造时加载）
     const unsubProject = useEditorStore.subscribe((state, prev) => {
       if (state.currentProject !== prev.currentProject && state.currentProject) {
         useEditorPrefsStore.getState().setLastProject(state.currentProject.folder)
         useEditorPrefsStore.getState().pushRecent(state.currentProject.folder)
-        // 项目切换时延迟加载该项目的配置表（不再编辑器启动时全部加载）
-        initProjectConfigs(state.currentProject.name, addConsoleOutput)
+        // 配置表由各项目的 GameMode 自身在构造时加载，无需在此触发
       }
     })
     this.cleanupFns.push(unsubProject)

@@ -18,6 +18,7 @@ import {
   INITIAL_COINS,
 } from '../common/types'
 import type { FishType, BossConfig, FishConfig, SchoolConfig } from '../common/types'
+import { initFishConfigs } from '../../config/FishConfigLoader'
 
 // Gizmos 复用临时对象
 const _a = new THREE.Vector3()
@@ -53,6 +54,8 @@ export class FishGameMode extends GameMode {
 
   constructor() {
     super()
+    // 自身管理配置加载：确保 registerDefaults 在 getConfig 前完成
+    initFishConfigs((msg) => logger.info(msg))
     this.gameCamera = new CameraComponent(this, 'GameCamera', 'orthographic')
     this.gameCamera.SetOrtho(CAMERA_ORTHO_SIZE, 0.1, 200)
     this.gameCamera.priority = 10

@@ -2,7 +2,7 @@
  * Pawn — 可被 PlayerController 控制的 Actor
  * 模仿 UE Pawn，是玩家在世界中的化身
  */
-import type { PlayerController } from './PlayerController'
+import type { PlayerController } from '../input/PlayerController'
 import { Actor } from './Actor'
 
 export abstract class Pawn extends Actor {

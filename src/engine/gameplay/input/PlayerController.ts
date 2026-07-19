@@ -4,9 +4,9 @@
  * 输入路由：Viewport → PlayerController.ProcessInput() → InputComponent → 回调
  */
 import * as THREE from 'three'
-import { Actor } from './Actor'
+import { Actor } from '../entity/Actor'
 import { InputComponent } from './InputComponent'
-import type { Pawn } from './Pawn'
+import type { Pawn } from '../entity/Pawn'
 import type { InputEventType } from './InputComponent'
 
 export abstract class PlayerController extends Actor {

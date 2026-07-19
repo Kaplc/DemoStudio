@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import { Component } from './Component'
-import type { Actor } from './Actor'
+import { Component } from '../entity/Component'
+import type { Actor } from '../entity/Actor'
 
 /** 摄像机投影模式 */
 export type CameraMode = 'perspective' | 'orthographic'

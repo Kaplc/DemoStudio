@@ -3,9 +3,9 @@
  * 仿 UE InputComponent，支持按键绑定到动作（Action）
  * 挂载到 PlayerController（Actor）上
  */
-import { Component } from './Component'
+import { Component } from '../entity/Component'
 import { logger } from '..'
-import type { Actor } from './Actor'
+import type { Actor } from '../entity/Actor'
 
 export type InputEventType = 'pressed' | 'released'
 

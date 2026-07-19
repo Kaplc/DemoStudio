@@ -161,3 +161,10 @@ gameplay/{mode}/module/
 3. 更新所有 import 路径引用
 4. 更新 `index.ts` 导出路径
 5. 验证项目可正常构建运行
+
+## 配置表加载规则
+
+1. **配置表由各 GameMode 自身在构造时加载**，不允许在编辑器启动时提前加载
+2. 在 `GameMode.constructor` 中调用项目的 `initXxxConfigs(logger.info)`，保证 `registerDefaults` 先于 `getConfig` 执行
+3. `registerAllProjectModules()` 只注册 GameFactoryRegistry，不调用 `initConfigs`
+4. 编辑器项目切换时不触发配置加载，遵循"不用不加载"原则

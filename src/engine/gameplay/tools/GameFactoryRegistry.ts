@@ -4,7 +4,7 @@
  * 每个游戏注册自己的工厂，Viewport 根据项目名创建对应的 GameInstance
  */
 import type * as THREE from 'three'
-import type { GameInstance } from './GameInstance'
+import type { GameInstance } from '../gameflow/GameInstance'
 
 export type GameInstanceFactory = (sharedScene: THREE.Scene) => GameInstance
 

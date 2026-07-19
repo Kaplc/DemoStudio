@@ -85,3 +85,7 @@ export type { InputRouterContext } from './InputRouter'
 
 export { LogPoller } from './LogPoller'
 export type { LogContentCallback } from './LogPoller'
+
+export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
+export { TransformGizmo } from './TransformGizmo'
+export { injectMockElectronAPI, clearMockSaves } from './MockElectronAPI'

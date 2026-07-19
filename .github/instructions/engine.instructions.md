@@ -1,0 +1,110 @@
+---
+description: "Use when creating or modifying files under src/engine/. Defines the layer separation rules between core engine infrastructure (src/engine/) and gameplay framework (src/engine/gameplay/)."
+applyTo: "src/engine/**"
+---
+# src/engine 分层规则：engine/ 与 engine/gameplay/ 的职责边界
+
+`src/engine/` 分为两层：
+
+| 层 | 路径 | 职责 |
+|---|------|------|
+| **核心引擎** | `src/engine/` | Three.js 渲染管线、编辑器集成、底层基础设施 |
+| **游戏框架** | `src/engine/gameplay/` | UE 风格的游戏玩法框架、实体系统、输入/物理/工具 |
+
+---
+
+## 核心引擎 `src/engine/` — 放什么
+
+**职责范围：** 不依赖 gameplay 概念的底层基础设施、渲染器管理、编辑器视图集成。
+
+### 内部目录结构
+
+`src/engine/` 根目录下的文件应按功能模块划分子目录存放，通用/基础设施类文件留在根目录：
+
+```
+src/engine/
+├── index.ts              # 统一导出（通用 — 留在根目录）
+├── Logger.ts             # 全局日志系统（通用 — 留在根目录）
+│
+├── scene/                # 场景/渲染管理
+├── renderer/             # 渲染管线（后处理、特效等）
+├── assets/               # 资产管理（资源加载、缓存、打包）
+├── input/                # 编辑器级输入路由
+└── editor/               # 编辑器集成工具（视情况也可放在 src/editor/）
+```
+
+**规则：**
+1. 每个子目录对应一个独立的功能领域，目录名使用单数、小驼峰（如 `scene/`、`renderer/`）
+2. **通用/基础设施**文件（如 `Logger.ts`、`index.ts`）直接放在 `src/engine/` 根目录
+3. **功能模块**文件必须放入对应的子目录，不得散落在根目录
+4. 如果某个功能模块文件数超过 3-5 个，应考虑进一步拆分子目录
+5. 核心引擎文件**禁止 import `engine/gameplay/` 下的任何模块**（Logger 例外，因为它无 gameplay 依赖）
+6. 必须是与编辑器/视口渲染直接相关、且不涉及"游戏实体/规则/输入路由"的基础设施
+7. 如果文件引用了 `Actor`、`World`、`GameMode` 等 gameplay 类型，则**必须**放在 `gameplay/` 下
+
+---
+
+## 游戏框架 `src/engine/gameplay/` — 放什么
+
+**职责范围：** UE 风格的游戏玩法框架，供各游戏项目（`src/projects/`）继承使用。
+
+### 内部目录结构
+
+`src/engine/gameplay/` 也应按功能模块划分子目录存放，通用/基类文件留在根目录：
+
+```
+src/engine/gameplay/
+├── index.ts              # 统一导出（通用 — 留在根目录）
+│
+├── entity/               # 实体系统（Actor、Component、Pawn、StaticMeshActor 等）
+├── gameflow/             # 游戏流程（GameMode、GameState、GameInstance、Game、World 等）
+├── input/                # 玩家输入与控制（PlayerController、PlayerCameraManager、InputComponent 等）
+├── physics/              # 物理与交互（PhySys、ClickableComponent 等）
+├── scene/                # 场景与资产（SceneLoader、SceneAsset、TextureLoader 等）
+├── tools/                # 工具/系统（ObjectPool、SaveSystem、DataTable、ConfigRegistry、Gizmos 等）
+├── ui/                   # 游戏 UI（GameUI 等）
+└── rendering/            # 渲染组件（SpriteComponent 等）
+```
+
+**规则：**
+1. 每个子目录对应一个独立的功能领域，目录名使用单数、小驼峰（如 `entity/`、`gameflow/`、`physics/`）
+2. **通用/基类**文件（如 `index.ts`、基础类型定义）直接放在 `src/engine/gameplay/` 根目录
+3. **功能模块**文件必须放入对应的子目录，不得散落在 `gameplay/` 根目录
+4. 如果某个子目录文件数超过 3-5 个，应考虑进一步拆分子目录
+
+---
+
+## 判断决策树
+
+### 一、判断层级：`engine/` vs `engine/gameplay/`
+
+当你往 `src/engine/` 下新增文件时，按以下流程判断归属：
+
+```
+这个文件的功能是？
+├── Three.js 渲染/视口管理、日志、编辑器集成 → 放 src/engine/（然后看第二步）
+├── 游戏实体/规则/输入/物理/工具类 → 放 src/engine/gameplay/
+└── 不确定 → 询问用户，让用户决定放 engine/ 还是 gameplay/
+```
+
+### 二、判断位置：`src/engine/` 内部子目录
+
+确定文件属于 `src/engine/` 后，按以下流程判断放哪个子目录：
+
+```
+这个文件是通用基础设施吗？
+├── 是（日志、类型定义、统一导出入口）→ 直接放 src/engine/ 根目录
+└── 否 → 属于哪个功能领域？
+    ├── 场景/渲染管理（SceneManager 等）→ scene/
+    ├── 渲染管线/特效 → renderer/
+    ├── 资产管理/加载/缓存 → assets/
+    ├── 编辑器级输入路由 → input/
+    ├── 编辑器集成工具 → editor/
+    └── 无法判断 → 询问用户，让用户决定放哪个子目录或新建目录
+```
+
+## 例外与边界情况
+
+1. **跨层引用**：`engine/index.ts` 负责 re-export `gameplay/` 的公共 API，这是唯一允许的跨层引用通道
+2. **World 引用 Logger**：`World.ts` 通过 `import { logger } from '../Logger'` 引用核心引擎的 Logger，这是**允许的**（核心引擎不依赖 gameplay，但 gameplay 可以依赖核心引擎）
+3. **gameplay → engine 反向依赖**：gameplay 层可以 import engine 层的 Logger 等基础设施模块，反之则禁止

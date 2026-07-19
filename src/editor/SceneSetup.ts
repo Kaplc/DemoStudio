@@ -15,6 +15,7 @@ import {
   gizmos,
 } from '../engine'
 import { addDefaultContent } from './index'
+import { getTransformGizmo } from './SelectionManager'
 import { createSceneViewport } from './SceneViewport'
 import { createGameViewport } from './GameViewport'
 import { useEditorStore } from '../stores/editorStore'
@@ -68,6 +69,17 @@ export function setupScene(
   // ─── Scene 视口 ───
   const sceneMgr = createSceneViewport(sceneContainerEl, shared)
 
+  // ─── TransformGizmo 初始化 ───
+  const gizmo = getTransformGizmo()
+  gizmo.setup(
+    shared,
+    sceneMgr.camera,
+    sceneMgr.renderer,
+    // 拖拽时冻结 Scene 视口输入
+    () => sceneMgr.setInputEnabled(false),
+    () => sceneMgr.setInputEnabled(true),
+  )
+
   // ─── Game 视口 ───
   const gameMgr = createGameViewport(gameContainerEl, shared)
 
@@ -81,9 +93,13 @@ export function setupScene(
   // ─── Game 入口 ───
   const game = new Game(gameInst, sceneMgr, gameMgr)
 
-  // 每帧驱动 Gizmos 绘制
+  // 每帧驱动 Gizmos 绘制 + TransformGizmo 变换同步
   const removeGizmoFlush = sceneMgr.onUpdate(() => {
     game.instance?.drawGizmos()
+    // 每帧同步 TransformGizmo 位置/缩放（跟随目标移动或相机距离变化）
+    if (gizmo.visible) {
+      gizmo.syncTransform()
+    }
   })
 
   // ─── ResizeObserver ───
@@ -102,6 +118,7 @@ export function setupScene(
     sceneMgr.dispose()
     gameMgr.dispose()
     gizmos.detach()
+    gizmo.detach() // 分离 TransformGizmo 目标
   }
 
   return {

@@ -1,5 +1,6 @@
 /**
  * DemoStudio 日志系统
+ * 单例模式，全局统一实例
  * 支持多级别日志、文件输出（通过 Electron IPC）、Console 面板输出
  */
 
@@ -31,16 +32,34 @@ interface LoggerOptions {
 }
 
 class LoggerInstance {
+  private static instance: LoggerInstance
+
   private minLevel: number
   private module: string
   private enableFile: boolean
   private onOutput?: (text: string) => void
 
-  constructor(options: LoggerOptions = {}) {
+  private constructor(options: LoggerOptions = {}) {
     this.minLevel = LEVEL_ORDER[options.minLevel ?? 'info']
     this.module = options.module ?? 'App'
     this.enableFile = options.enableFile ?? true
     this.onOutput = options.onOutput
+  }
+
+  /** 获取全局单例 */
+  static getInstance(options?: LoggerOptions): LoggerInstance {
+    if (!LoggerInstance.instance) {
+      LoggerInstance.instance = new LoggerInstance(options)
+    }
+    return LoggerInstance.instance
+  }
+
+  /** 初始化单例（仅在首次调用前生效） */
+  static init(options: LoggerOptions): LoggerInstance {
+    if (!LoggerInstance.instance) {
+      LoggerInstance.instance = new LoggerInstance(options)
+    }
+    return LoggerInstance.instance
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -97,7 +116,7 @@ class LoggerInstance {
     this.onOutput?.(formatted)
 
     // 3. 写入文件（Electron IPC）
-    if (this.enableFile && typeof window !== 'undefined' && window.electronAPI?.writeLogFile) {
+    if (this.enableFile && typeof window !== 'undefined' && typeof window.electronAPI?.writeLogFile === 'function') {
       window.electronAPI.writeLogFile(level, fileLine).catch(() => {})
     }
   }
@@ -113,25 +132,9 @@ class LoggerInstance {
   setOutputCallback(cb: (text: string) => void) {
     this.onOutput = cb
   }
-
-  /** 创建子 Logger（继承父级配置） */
-  child(module: string): LoggerInstance {
-    const child = new LoggerInstance({
-      minLevel: Object.keys(LEVEL_ORDER).find(k => LEVEL_ORDER[k as LogLevel] === this.minLevel) as LogLevel,
-      module: `${this.module}:${module}`,
-      enableFile: this.enableFile,
-      onOutput: this.onOutput,
-    })
-    return child
-  }
 }
 
-/** 全局默认 Logger */
-export const logger = new LoggerInstance({ module: 'DemoStudio', minLevel: 'debug' })
-
-/** 创建独立 Logger */
-export function createLogger(options: LoggerOptions): LoggerInstance {
-  return new LoggerInstance(options)
-}
+/** 全局默认 Logger 单例 */
+export const logger = LoggerInstance.getInstance({ module: 'DemoStudio', minLevel: 'debug' })
 
 export { LoggerInstance as Logger }

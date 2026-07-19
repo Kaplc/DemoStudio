@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three'
 import type { Component } from './Component'
-import type { World } from './World'
+import type { World } from '../gameflow/World'
 
 export abstract class Actor {
   public readonly name: string

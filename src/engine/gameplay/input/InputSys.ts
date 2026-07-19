@@ -10,7 +10,7 @@
  * GameViewport 不再直接调用 PlayerController。
  */
 import * as THREE from 'three'
-import { PhySys } from './PhySys'
+import { PhySys } from '../physics/PhySys'
 import type { PlayerController } from './PlayerController'
 
 export class InputSys {

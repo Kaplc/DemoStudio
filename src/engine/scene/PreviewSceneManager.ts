@@ -52,6 +52,23 @@ export class PreviewSceneManager {
   /** 只读访问当前 aspect（供 Game.syncCamera 等外部使用） */
   get aspect(): number { return this._aspect }
 
+  // ─── 输入控制（用于 TransformGizmo 临时冻结摄像机操作）───
+  private _inputEnabled = true
+
+  /** 是否允许摄像机输入（鼠标/键盘） */
+  get inputEnabled(): boolean { return this._inputEnabled }
+
+  /**
+   * 临时启用/禁用摄像机输入。
+   * 用于 TransformGizmo 拖拽时冻结视角，防止与飞越/轨道控制冲突。
+   */
+  setInputEnabled(v: boolean) {
+    this._inputEnabled = v
+    if (this.controls) {
+      this.controls.enabled = v
+    }
+  }
+
   // ─── 强制画面比例（canvas 物理缩放，CSS flex 居中）───
   private targetAspect: number | null = null
 
@@ -193,6 +210,7 @@ export class PreviewSceneManager {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
     canvas.addEventListener('mousedown', (e) => {
+      // 始终记录鼠标状态（即使 inputEnabled=false 也要正确跟踪按键）
       if (e.button === 0) {
         this.isLeftDown = true
         this.prevMouseX = e.clientX
@@ -206,6 +224,7 @@ export class PreviewSceneManager {
     })
 
     window.addEventListener('mousemove', (e) => {
+      if (!this._inputEnabled) return
       if (!this.isLeftDown && !this.isRightDown) return
 
       const dx = e.clientX - this.prevMouseX
@@ -235,12 +254,14 @@ export class PreviewSceneManager {
     })
 
     window.addEventListener('mouseup', (e) => {
+      // 始终清除鼠标状态（即使 inputEnabled=false 也要正确跟踪按键）
       if (e.button === 0) this.isLeftDown = false
       if (e.button === 2) this.isRightDown = false
     })
 
     // 滚轮缩放
     canvas.addEventListener('wheel', (e) => {
+      if (!this._inputEnabled) return
       e.preventDefault()
       const dir = new THREE.Vector3()
       this.camera.getWorldDirection(dir)
@@ -525,6 +546,38 @@ export class PreviewSceneManager {
     this.controls?.update()
     if (!this.controls) {
       this.camera.lookAt(0, 0, 0)
+      this.initFlyEuler()
+    }
+  }
+
+  /**
+   * 聚焦到指定对象上（移动 Scene 摄像机看向目标）。
+   * @param target  目标 Object3D
+   * @param distance 距目标距离（默认自动计算）
+   */
+  focusOn(target: THREE.Object3D, distance?: number): void {
+    // 获取对象世界中心
+    const center = new THREE.Vector3()
+    const box = new THREE.Box3().setFromObject(target)
+    box.getCenter(center)
+
+    // 计算包围盒大小，确定合适的观察距离
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const maxDim = Math.max(size.x, size.y, size.z, 0.5)
+    const dist = distance ?? maxDim * 2.5 + 3
+
+    if (this.controls) {
+      // orbit 模式：移动 controls.target + 调整相机位置保持距离
+      this.controls.target.copy(center)
+      const dir = new THREE.Vector3()
+      this.camera.getWorldDirection(dir)
+      this.camera.position.copy(center).add(dir.multiplyScalar(-dist))
+      this.controls.update()
+    } else {
+      // fly 模式：直接设置位置和朝向
+      this.camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist)
+      this.camera.lookAt(center)
       this.initFlyEuler()
     }
   }

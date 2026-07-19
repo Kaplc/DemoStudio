@@ -1,0 +1,145 @@
+/**
+ * SelectionManager — 场景对象选择管理
+ *
+ * 模块级引用 + 递增 key 驱动 React 重渲染。
+ * Outline 选中某个对象时记录引用，Inspector 读取其信息展示。
+ * 同时持有 sharedScene 引用，使 Outline 能遍历场景中所有对象。
+ */
+import * as THREE from 'three'
+import type { Actor } from '../engine'
+import { TransformGizmo } from './TransformGizmo'
+
+// ─── TransformGizmo 单例 ───
+
+const _gizmo = new TransformGizmo()
+
+/** 获取全局 TransformGizmo 实例 */
+export function getTransformGizmo(): TransformGizmo {
+  return _gizmo
+}
+
+// ─── sharedScene 引用（Viewport 初始化时设置）───
+
+let _sharedScene: THREE.Scene | null = null
+let _sceneMgr: import('../engine').PreviewSceneManager | null = null
+
+/** 设置共享场景引用（由 Viewport 在 setupScene 后调用） */
+export function setSharedScene(scene: THREE.Scene | null): void {
+  _sharedScene = scene
+  _sceneKey++
+  _onChange?.()
+  if (!scene) _gizmo.detach()
+}
+
+/** 设置 Scene 视口的 PreviewSceneManager（由 Viewport 在 setupScene 后调用） */
+export function setSceneMgr(mgr: import('../engine').PreviewSceneManager | null): void {
+  _sceneMgr = mgr
+}
+
+/** 获取 Scene 视口的 PreviewSceneManager */
+export function getSceneMgr(): import('../engine').PreviewSceneManager | null {
+  return _sceneMgr
+}
+
+/** 获取共享场景引用 */
+export function getSharedScene(): THREE.Scene | null {
+  return _sharedScene
+}
+
+/** 将 Scene 摄像机聚焦到指定 3D 对象上 */
+export function focusOn(target: THREE.Object3D, distance?: number): void {
+  _sceneMgr?.focusOn(target, distance)
+}
+
+// ─── 选中对象管理 ───
+
+type Selectable = Actor | THREE.Object3D
+
+/** 当前选中的对象 */
+let _selected: Selectable | null = null
+
+/** 递增 key，每次选中/场景变化时 +1，驱动 React 重渲染 */
+let _selectionKey = 0
+let _sceneKey = 0
+let _onChange: (() => void) | null = null
+
+/** 获取当前选中对象 */
+export function getSelected(): Selectable | null {
+  return _selected
+}
+
+/** 获取当前选中对象（Actor 兼容） */
+export function getSelectedActor(): Actor | null {
+  if (_selected instanceof THREE.Object3D && (_selected as any).userData?.actorRef) {
+    return (_selected as any).userData.actorRef as Actor
+  }
+  return _selected as Actor | null
+}
+
+/** 选中某个对象 */
+export function select(obj: Selectable | null): void {
+  _selected = obj
+  _selectionKey++
+  _onChange?.()
+
+  // 同步 TransformGizmo：选中对象时显示 Gizmo，取消选中时隐藏
+  if (obj && _gizmo) {
+    _gizmo.attach(obj)
+  } else {
+    _gizmo.detach()
+  }
+}
+
+/** 选中某个 Actor（保持向后兼容） */
+export function selectActor(actor: Actor | null): void {
+  select(actor)
+}
+
+/** 获取当前选中 key（用于 React key / deps 触发重渲染） */
+export function getSelectionKey(): number {
+  return _selectionKey + _sceneKey
+}
+
+/** 注册选中变化回调 */
+export function onSelectionChange(cb: () => void): () => void {
+  _onChange = cb
+  return () => { _onChange = null }
+}
+
+/**
+ * 遍历场景树，返回平铺节点列表（带缩进级别、类型、actorRef）
+ */
+export interface SceneTreeNode {
+  object: THREE.Object3D
+  depth: number
+  name: string
+  isActor: boolean
+  actor: Actor | null
+}
+
+export function getSceneTree(): SceneTreeNode[] {
+  const result: SceneTreeNode[] = []
+  if (!_sharedScene) return result
+
+  function walk(obj: THREE.Object3D, depth: number) {
+    // 跳过内部保留对象（GridHelper、AmbientLight 等编辑器基础设施）
+    if (!obj.visible && obj.type !== 'Scene') return
+    if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
+
+    const actorRef = (obj as any).userData?.actorRef as Actor | undefined
+    result.push({
+      object: obj,
+      depth,
+      name: obj.name || obj.type,
+      isActor: !!actorRef,
+      actor: actorRef ?? null,
+    })
+
+    for (const child of obj.children) {
+      walk(child, depth + 1)
+    }
+  }
+
+  walk(_sharedScene, 0)
+  return result
+}

@@ -11,6 +11,7 @@ import { EatFishPredatorPawn } from './EatFishPredatorPawn'
 import { EatFishPlayerController } from './EatFishPlayerController'
 import { FishSchool } from './FishSchool'
 import type { GameConfig, FishArchetype } from './types'
+import { initEatFishConfigs } from './EatFishConfigLoader'
 
 const _v3 = new THREE.Vector3()
 const _v3b = new THREE.Vector3()
@@ -36,6 +37,8 @@ export class EatFishGameMode extends GameMode {
 
   constructor() {
     super()
+    // 自身管理配置加载：确保 registerDefaults 在 getConfig 前完成
+    initEatFishConfigs((msg) => logger.info(msg))
     this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
     this.spawnComponent = new SpawnComponent(this)
     this.addComponent(this.spawnComponent)

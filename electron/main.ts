@@ -30,6 +30,42 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
 const CONSOLE_LOG_FILE = path.join(LOG_DIR, `console_${timestamp}.log`)
 
+// 滚动删除：最多保留 10 个 console_ 日志文件 + 10 个日期日志文件
+const MAX_CONSOLE_LOG_FILES = 10
+const MAX_DAILY_LOG_FILES = 10
+
+function cleanOldLogs() {
+  try {
+    ensureLogDir()
+    const files = fs.readdirSync(LOG_DIR)
+
+    // 清理 console_ 日志（按修改时间排序，保留最新的 10 个）
+    const consoleLogs = files
+      .filter(f => f.startsWith('console_') && f.endsWith('.log'))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(LOG_DIR, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)
+    if (consoleLogs.length > MAX_CONSOLE_LOG_FILES) {
+      for (const f of consoleLogs.slice(MAX_CONSOLE_LOG_FILES)) {
+        fs.unlinkSync(path.join(LOG_DIR, f.name))
+      }
+    }
+
+    // 清理日期日志（YYYY-MM-DD.log，保留最新的 10 个）
+    const dailyLogs = files
+      .filter(f => /^\d{4}-\d{2}-\d{2}\.log$/.test(f))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(LOG_DIR, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)
+    if (dailyLogs.length > MAX_DAILY_LOG_FILES) {
+      for (const f of dailyLogs.slice(MAX_DAILY_LOG_FILES)) {
+        fs.unlinkSync(path.join(LOG_DIR, f.name))
+      }
+    }
+  } catch { /* 日志清理失败不影响主流程 */ }
+}
+
+// 启动时执行一次日志清理
+cleanOldLogs()
+
 // ═══════════════════════════════════════
 //  第一阶段：无边框加载窗口
 // ═══════════════════════════════════════

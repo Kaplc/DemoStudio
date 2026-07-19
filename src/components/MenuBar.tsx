@@ -31,7 +31,7 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject } = useEditorStore()
   const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
 
   const closeMenu = () => setMenu({ open: null })
@@ -145,8 +145,21 @@ export function MenuBar() {
         </div>
       ))}
       <div className="menu-spacer" />
-      <div className="menu-status">
-        <span>DemoStudio Editor</span>
+
+      {/* 中间: 启动/停止按钮 */}
+      <div className="menu-status" style={{ gap: 8 }}>
+        {currentProject && (
+          <button
+            className={`btn ${gameState.running ? 'btn-danger' : 'btn-primary'}`}
+            style={{ fontSize: 11, padding: '1px 10px', height: 20 }}
+            onClick={() => gameState.running ? stopGame() : launchGame()}
+          >
+            {gameState.running ? '■ Stop' : '▶ Launch'}
+          </button>
+        )}
+        <span>{currentProject?.name || 'No project'}</span>
+        <span style={{ color: 'var(--text-dim)' }}>|</span>
+        <span>{gameState.running ? 'Running' : 'Stopped'}</span>
       </div>
     </div>
   )

@@ -7,9 +7,9 @@
  * 避免大量重复几何体创建/销毁的 GC 开销。
  */
 import * as THREE from 'three'
-import { Component } from './Component'
-import type { Actor } from './Actor'
-import { loadTexture } from './TextureLoader'
+import { Component } from '../entity/Component'
+import type { Actor } from '../entity/Actor'
+import { loadTexture } from '../scene/TextureLoader'
 
 export class SpriteComponent extends Component {
   /** 所有 SpriteComponent 共享的单位平面几何体 */

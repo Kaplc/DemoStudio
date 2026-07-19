@@ -11,7 +11,7 @@
  * 无需手动管理。
  */
 import * as THREE from 'three'
-import { Component } from './Component'
+import { Component } from '../entity/Component'
 import { PhySys } from './PhySys'
 
 export class ClickableComponent extends Component {
@@ -30,7 +30,7 @@ export class ClickableComponent extends Component {
   /** 显式指定的检测目标 */
   private _explicitTargets: THREE.Object3D[] | null = null
 
-  constructor(owner: import('./Actor').Actor) {
+  constructor(owner: import('../entity/Actor').Actor) {
     super(owner)
     this.name = 'ClickableComponent'
   }

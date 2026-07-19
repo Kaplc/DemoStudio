@@ -9,9 +9,9 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import { PreviewSceneManager, GameSceneManager, logger } from '..'
+import { PreviewSceneManager, GameSceneManager, logger } from '../..'
 import { GameInstance } from './GameInstance'
-import { GameUI } from './GameUI'
+import { GameUI } from '../ui/GameUI'
 
 export class Game {
   private _instance: GameInstance

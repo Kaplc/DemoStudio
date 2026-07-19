@@ -1,190 +1,43 @@
 {
-  "$schema": "1.0",
-  "metadata": {
-    "name": "DemoStudio Editor",
-    "description": "DemoStudio 编辑器主界面 (精简版)",
-    "version": "4.0.0",
-    "author": "DemoStudio"
-  },
-  "ui": {
-    "type": "UIPanel",
-    "id": "editor_root",
-    "anchor": "FULL",
-    "size": [
-      0.5,
-      0.5
-    ],
-    "color": "#1a1a2e",
-    "alpha": 1.0,
-    "z": 0.0,
-    "children": [
-      {
-        "type": "UIPanel",
-        "id": "menu_bar",
-        "stretch": {
-          "left": -0.5,
-          "right": 0.5,
-          "top": 0.5,
-          "bottom": 0.462
-        },
-        "color": "#252526",
-        "z": 0.1,
-        "children": [
-          {
-            "type": "UIHorizontalLayout",
-            "id": "menu_items",
-            "anchor": "MIDDLE_LEFT",
-            "offset": [0.02, 0],
-            "size": [0.5, 0.04],
-            "spacing": 0.008,
-            "z": 0.101,
-            "children": [
-              {
-                "type": "UIDropdown",
-                "id": "menu_file",
-                "items": ["New Project", "Open...", "Save", "Save As...", "Exit"],
-                "color": "#00000000",
-                "z": 0.102,
-                "children": [
-                  {
-                    "type": "UIText",
-                    "id": "_label",
-                    "text": "File",
-                    "anchor": "CENTER",
-                    "font_size": 12,
-                    "color": "#ffffff",
-                    "z": 0.103
-                  }
-                ]
-              },
-              {
-                "type": "UIDropdown",
-                "id": "menu_edit",
-                "items": ["Undo", "Redo", "Cut", "Copy", "Paste"],
-                "color": "#00000000",
-                "z": 0.102,
-                "children": [
-                  {
-                    "type": "UIText",
-                    "id": "_label",
-                    "text": "Edit",
-                    "anchor": "CENTER",
-                    "font_size": 12,
-                    "color": "#ffffff",
-                    "z": 0.103
-                  }
-                ]
-              },
-              {
-                "type": "UIDropdown",
-                "id": "menu_view",
-                "items": ["Scene View", "Game View", "Inspector", "Project", "Console"],
-                "color": "#00000000",
-                "z": 0.102,
-                "children": [
-                  {
-                    "type": "UIText",
-                    "id": "_label",
-                    "text": "View",
-                    "anchor": "CENTER",
-                    "font_size": 12,
-                    "color": "#cccccc",
-                    "z": 0.103
-                  }
-                ]
-              },
-              {
-                "type": "UIDropdown",
-                "id": "menu_help",
-                "items": ["Documentation", "About"],
-                "color": "#00000000",
-                "z": 0.102,
-                "children": [
-                  {
-                    "type": "UIText",
-                    "id": "_label",
-                    "text": "Help",
-                    "anchor": "CENTER",
-                    "font_size": 12,
-                    "color": "#ffffff",
-                    "z": 0.103
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "UIButton",
-        "id": "main_btn",
+    "$schema": "1.0",
+    "metadata": {
+        "name": "DemoStudio Editor",
+        "description": "DemoStudio 编辑器主界面 (精简版)",
+        "version": "4.0.0",
+        "author": "DemoStudio"
+    },
+    "variables": {},
+    "ui": {
+        "type": "UIWidget",
+        "id": "editor_root",
         "anchor": "CENTER",
-        "offset": [
-          0,
-          0
-        ],
-        "size": [
-          0.2,
-          0.06
-        ],
-        "color": "#e94560",
-        "z": 0.001,
+        "size": ["$aspect", 1.0],
+        "color": "$background",
+        "alpha": 0.0,
+        "z": 0.0,
         "children": [
-          {
-            "type": "UIText",
-            "id": "main_btn_text",
-            "text": "Hello DemoStudio",
-            "anchor": "CENTER",
-            "offset": [
-              0,
-              0
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "font_size": 21,
-            "color": "#e0e0e0",
-            "z": 0.002
-          },
-          {
-            "type": "UIPanel",
-            "id": "sub_plane",
-            "anchor": "TOP_RIGHT",
-            "offset": [
-              0,
-              0
-            ],
-            "size": [
-                0.1,
-                0.03
-            ],
-            "color": "#4CAF50",
-            "z": 0.003,
-            "children": [
-              {
-                "type": "UIText",
-                "id": "sub_text",
-                "text": "Sub",
-                "anchor": "BOTTOM_RIGHT",
-                "size": [
-                  1,
-                  1
-                ],
-                "offset": [
-                  0,
-                  0
-                ],
-                "font_size": 10,
-                "color": "#ffffff",
-                "z": 0.004
-              }
-            ]
-          }
+            {
+                "type": "UIButton",
+                "id": "main_btn",
+                "anchor": "CENTER",
+                "offset": [0, 0],
+                "size": [0.2, 0.06],
+                "color": "$accent",
+                "z": 0.001,
+                "children": [
+                    {
+                        "type": "UIText",
+                        "id": "main_btn_text",
+                        "text": "Hello DemoStudio",
+                        "anchor": "CENTER",
+                        "offset": [0, 0],
+                        "font_size": 0.64,
+                        "color": "$text",
+                        "z": 0.002
+                    }
+                ]
+            }
         ]
-      }
-    ]
-  },
-  "bindings": {},
-  "variables": {}
+    },
+    "bindings": {}
 }

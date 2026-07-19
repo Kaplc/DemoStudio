@@ -4,9 +4,9 @@
  * 子类需实现：start/tick/syncCamera/stop/destroy 以及 controller 属性
  */
 import * as THREE from 'three'
-import { PlayerController } from './PlayerController'
-import { InputSys } from './InputSys'
-import type { GameUI } from './GameUI'
+import { PlayerController } from '../input/PlayerController'
+import { InputSys } from '../input/InputSys'
+import type { GameUI } from '../ui/GameUI'
 
 export interface GameInstanceCallbacks {
   onScoreChange?: (score: number) => void

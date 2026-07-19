@@ -16,6 +16,9 @@ import {
   handleWheel,
   _ptrWorld,
   applySkybox,
+  setSharedScene,
+  setSceneMgr,
+  getTransformGizmo,
 } from '../editor'
 
 interface ViewportProps {
@@ -79,8 +82,13 @@ export function Viewport({ onReady }: ViewportProps) {
     gameSceneRef.current = gameMgr
     gameRef.current = game
     cleanupRef.current = cleanup
+    // 暴露共享场景 + Scene 视口给 SelectionManager
+    setSharedScene(sharedScene)
+    setSceneMgr(sceneMgr)
 
     return () => {
+      setSharedScene(null)
+      setSceneMgr(null)
       cleanup()
       cleanupRef.current = null
       sceneRef.current = null
@@ -301,6 +309,53 @@ export function Viewport({ onReady }: ViewportProps) {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       canvas.removeEventListener('wheel', onWheel)
+    }
+  }, [activeTab, editorState.running])
+
+  // ─── TransformGizmo 交互（仅 Scene 标签 + 未运行时）───
+  useEffect(() => {
+    if (activeTab !== 'scene' || editorState.running) return
+    const canvas = sceneRef.current?.renderer.domElement
+    if (!canvas) return
+
+    const gizmo = getTransformGizmo()
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return // 仅左键
+      if (!gizmo.visible) return
+
+      const axis = gizmo.hitTest(e.clientX, e.clientY)
+      if (axis) {
+        gizmo.startDrag(axis, e.clientX, e.clientY)
+        canvas.setPointerCapture(e.pointerId)
+        e.preventDefault()
+      }
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      gizmo.hoverTest(e.clientX, e.clientY)
+      if (gizmo.isDragging) {
+        gizmo.updateDrag(e.clientX, e.clientY)
+      }
+    }
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (gizmo.isDragging) {
+        gizmo.endDrag()
+        try { canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      // 结束正在进行的拖拽
+      if (gizmo.isDragging) gizmo.endDrag()
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', onPointerUp)
     }
   }, [activeTab, editorState.running])
 
