@@ -11,6 +11,7 @@ import type {
   MaterialProps,
   ColorHex,
   SkyboxConfig,
+  BlueprintNode,
 } from './SceneAsset'
 
 /** 加载结果：包含 THREE.Group、场景元数据、资源释放 */
@@ -19,6 +20,8 @@ export interface SceneGroup {
   readonly name: string
   readonly mode?: string
   readonly skybox?: SkyboxConfig
+  /** blueprint 节点（loadScene 过滤收集，交由 World 层实例化） */
+  readonly blueprintNodes?: BlueprintNode[]
   dispose(): void
 }
 
@@ -26,6 +29,7 @@ export interface SceneGroup {
 export function loadScene(asset: SceneAsset): SceneGroup {
   const group = new THREE.Group()
   const disposables: { geo: THREE.BufferGeometry; mats: THREE.Material[] }[] = []
+  const blueprintNodes: BlueprintNode[] = []
 
   const track = (mesh: THREE.Mesh) => {
     group.add(mesh)
@@ -36,6 +40,11 @@ export function loadScene(asset: SceneAsset): SceneGroup {
   }
 
   for (const node of asset.objects) {
+    // blueprint 节点透传给 World 层实例化，不在 loader 展开
+    if (node.type === 'blueprint') {
+      blueprintNodes.push(node)
+      continue
+    }
     expandNode(node, track, node.name)
   }
 
@@ -45,6 +54,7 @@ export function loadScene(asset: SceneAsset): SceneGroup {
     name: asset.name,
     mode: asset.mode,
     skybox: asset.skybox,
+    blueprintNodes,
     dispose: () => {
       if (disposed) return
       for (const d of disposables) {

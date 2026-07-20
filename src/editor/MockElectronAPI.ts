@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * MockElectronAPI — 浏览器调试模式 Electron API 替代层
  *
@@ -28,6 +30,17 @@ const sceneJsonModules = import.meta.glob<Record<string, unknown>>(
   { eager: true, import: 'default' },
 )
 
+const blueprintJsonModules = import.meta.glob<Record<string, unknown>>(
+  '../projects/**/*.blueprint.json',
+  { eager: true, import: 'default' },
+)
+
+// 所有项目文件路径（仅取 glob keys，不 import 内容；供 listProjectAssets 列资产用）
+const allFileKeys = Object.keys(import.meta.glob('../projects/**/*.*'))
+
+/** 代码扩展名（列资产时排除） */
+const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts']
+
 // ─── 构建 JSON 路径 → 内容映射 ───
 
 const jsonCache = new Map<string, unknown>()
@@ -46,6 +59,12 @@ for (const [key, data] of Object.entries(projectJsonModules)) {
 
 // 注册所有 scene.json
 for (const [key, data] of Object.entries(sceneJsonModules)) {
+  jsonCache.set(normalizePath(key), data)
+}
+
+// 注册所有 blueprint.json（运行时由 register.ts 注册到 BlueprintRegistry，
+// 此处预加载供编辑器 readJsonFile 读取蓝图资产）
+for (const [key, data] of Object.entries(blueprintJsonModules)) {
   jsonCache.set(normalizePath(key), data)
 }
 
@@ -132,7 +151,9 @@ const mockAPI: ElectronAPI = {
   },
 
   createProject: async (_projectName: string, _mode?: '2d' | '3d') => {
-    return { success: false, error: 'Browser mode: createProject not available' }
+    // 浏览器调试模式：不实际创建文件，仅返回成功让 UI 走完创建流程
+    console.log(`[Mock] createProject: "${_projectName}" (${_mode ?? '3d'}) — browser mode, skipping file creation`)
+    return { success: true }
   },
 
   readJsonFile: async (relativePath: string) => {
@@ -159,8 +180,36 @@ const mockAPI: ElectronAPI = {
     return { success: false, error: `Mock: file not found: ${relativePath}` }
   },
 
+  writeJsonFile: async (relativePath: string, data: unknown) => {
+    // 浏览器调试模式：写回内存缓存，使后续 readJsonFile 反映编辑（不落盘）
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    jsonCache.set(relativePath, data)
+    console.log(`[Mock] writeJsonFile: ${relativePath}（仅写入内存缓存）`)
+    return { success: true }
+  },
+
+  onBlueprintRequest: () => (() => { /* 浏览器调试模式无外部 MCP，忽略 */ }),
+
+  sendBlueprintResponse: () => { /* no-op */ },
+
   discoverProjectsScan: async () => {
     return scanProjects()
+  },
+
+  listProjectAssets: async (folder: string) => {
+    const prefix = `../projects/${folder}/asset/`
+    const result: Array<{ path: string; ext: string; size: number }> = []
+    for (const key of allFileKeys) {
+      if (!key.startsWith(prefix)) continue
+      const filename = key.slice(key.lastIndexOf('/') + 1)
+      const dotIdx = filename.lastIndexOf('.')
+      const ext = dotIdx >= 0 ? filename.slice(dotIdx).toLowerCase() : ''
+      if (CODE_EXTENSIONS.includes(ext)) continue
+      result.push({ path: normalizePath(key), ext, size: 0 })
+    }
+    return result
   },
 
   // ─── 存档系统（localStorage） ───

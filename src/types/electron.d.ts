@@ -18,7 +18,13 @@ export interface ElectronAPI {
   toggleDevTools?: () => Promise<void>
   createProject: (projectName: string, mode?: '2d' | '3d') => Promise<{ success: boolean; error?: string; path?: string }>
   readJsonFile: (relativePath: string) => Promise<{ success: boolean; data?: any; error?: string }>
+  writeJsonFile: (relativePath: string, data: unknown) => Promise<{ success: boolean; error?: string }>
+  /** 蓝图编辑 MCP 往返：主进程转发外部请求到渲染进程处理 */
+  onBlueprintRequest: (callback: (requestId: string, op: string, params: any) => void) => () => void
+  /** 蓝图编辑 MCP 往返：渲染进程回传结果给主进程 */
+  sendBlueprintResponse: (requestId: string, result: unknown) => void
   discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }>>
+  listProjectAssets: (folder: string) => Promise<Array<{ path: string; ext: string; size: number }>>
 
   // ─── 存档系统（userData-scoped；meta 结构与 ISaveData.SaveMeta 对齐）───
   saveGameFile: (game: string, slot: string, data: unknown) => Promise<{ success: boolean; error?: string; savedAt?: string }>

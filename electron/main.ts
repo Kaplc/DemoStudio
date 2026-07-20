@@ -18,6 +18,16 @@ let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 let _gameScore = 0
 
+// ─── 蓝图编辑 MCP 往返：requestId → 待解析的 HTTP 响应 ───
+let _blueprintReqSeq = 0
+interface PendingBlueprintReq {
+  resolve: (v: unknown) => void
+  reject: (e: Error) => void
+  timer: NodeJS.Timeout
+}
+const _blueprintPending = new Map<string, PendingBlueprintReq>()
+const BLUEPRINT_REQ_TIMEOUT = 20000 // 渲染进程处理超时（含文件 IO）
+
 const isDev = !app.isPackaged
 
 const LOG_DIR = isDev
@@ -366,6 +376,33 @@ ipcMain.handle('read-json-file', async (_event, relativePath: string) => {
   }
 })
 
+// ─── 写入 JSON 文件（蓝图资产编辑等）───
+
+ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unknown) => {
+  try {
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    // 仅允许 .json，防止误写代码文件
+    if (!relativePath.toLowerCase().endsWith('.json')) {
+      return { success: false, error: '仅允许写入 .json 文件' }
+    }
+    const baseDir = path.join(__dirname, '..')
+    const fullPath = path.resolve(baseDir, relativePath)
+    // 路径逃逸防护：解析后必须仍在 baseDir 内
+    const rel = path.relative(baseDir, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: `非法路径: ${relativePath}` }
+    }
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+    fs.writeFileSync(fullPath, JSON.stringify(data, null, 2) + '\n', 'utf-8')
+    return { success: true }
+  } catch (err) {
+    console.error('写入 JSON 失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── 扫描工程目录 ───
 
 ipcMain.handle('discover-projects', async () => {
@@ -399,6 +436,42 @@ ipcMain.handle('discover-projects', async () => {
     return projects
   } catch (err) {
     console.error('扫描工程目录失败:', err)
+    return []
+  }
+})
+
+// ─── 列出项目资产文件（递归，排除代码扩展名）───
+
+const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts']
+
+ipcMain.handle('list-project-assets', async (_event, folder: string) => {
+  try {
+    const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder, 'asset')
+    if (!fs.existsSync(projectRoot)) return []
+
+    const rootAbs = path.join(__dirname, '..')
+    const result: Array<{ path: string; ext: string; size: number }> = []
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+          continue
+        }
+        if (!entry.isFile()) continue
+        const ext = path.extname(entry.name).toLowerCase()
+        if (CODE_EXTENSIONS.includes(ext)) continue
+        const rel = path.relative(rootAbs, full).replace(/\\/g, '/')
+        let size = 0
+        try { size = fs.statSync(full).size } catch { /* ignore */ }
+        result.push({ path: rel, ext, size })
+      }
+    }
+    walk(projectRoot)
+    return result
+  } catch (err) {
+    console.error('列出项目资产失败:', err)
     return []
   }
 })
@@ -471,6 +544,16 @@ ipcMain.handle('mcp-report-state', (_event, state: { running: boolean; score?: n
   if (state.score !== undefined) _gameScore = state.score
 })
 
+// ─── 蓝图编辑 MCP 往返：渲染进程回传结果，解析挂起的 HTTP 响应 ───
+
+ipcMain.on('blueprint-response', (_event, payload: { requestId: string; result: unknown }) => {
+  const pending = _blueprintPending.get(payload.requestId)
+  if (!pending) return // 超时或已清理
+  clearTimeout(pending.timer)
+  _blueprintPending.delete(payload.requestId)
+  pending.resolve(payload.result)
+})
+
 // ─── MCP HTTP API 服务器 ───
 // 让 MCP 服务器 (editor/mcp-server.mjs) 可以通过 HTTP 控制编辑器
 
@@ -509,6 +592,52 @@ function startMCPServer() {
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ status: 'error', message: String(err) }))
+        }
+      })
+      return
+    }
+
+    // ─── 蓝图编辑（往返）：外部 AI 经 MCP 服务器调用，渲染进程处理后回传结果 ───
+    if (req.method === 'POST' && req.url === '/api/blueprint') {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        try {
+          const { op, params } = JSON.parse(body) as { op: string; params?: Record<string, unknown> }
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            res.writeHead(503, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: '编辑器窗口不可用' }))
+            return
+          }
+          const requestId = `bp-${++_blueprintReqSeq}`
+          // 超时兜底：渲染进程未回传则返回 504，避免 HTTP 挂起
+          const timer = setTimeout(() => {
+            if (_blueprintPending.delete(requestId)) {
+              try {
+                res.writeHead(504, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ ok: false, error: `编辑器处理超时 (${BLUEPRINT_REQ_TIMEOUT}ms)` }))
+              } catch { /* response already closed */ }
+            }
+          }, BLUEPRINT_REQ_TIMEOUT)
+          _blueprintPending.set(requestId, {
+            resolve: (result) => {
+              try {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify(result))
+              } catch { /* response already closed */ }
+            },
+            reject: (err) => {
+              try {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ ok: false, error: String(err) }))
+              } catch { /* ignore */ }
+            },
+            timer,
+          })
+          mainWindow.webContents.send('blueprint-request', { requestId, op, params: params ?? {} })
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: String(err) }))
         }
       })
       return

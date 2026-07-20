@@ -7,7 +7,7 @@
  * 通过 PhySys 单例统一调度。
  */
 import * as THREE from 'three'
-import { GameMode, CameraComponent, logger } from '@/engine'
+import { GameMode, CameraComponent, StaticMeshActor, type World, logger } from '@/engine'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { FishHouseActor } from './FishHouseActor'
@@ -15,14 +15,12 @@ import { FishHouseActor } from './FishHouseActor'
 export class FishBaseGameMode extends GameMode {
   readonly gameCamera: CameraComponent
 
-  /** 停泊炮台 */
-  private dockedCannon: THREE.Group | null = null
-  /** 装饰鸟群 */
-  private decorBirds: THREE.Mesh[] = []
   /** 基地房子 Actor */
   private houseActor: FishHouseActor | null = null
-  /** 程序化生成的棕榈树 groups */
-  private palmTrees: THREE.Group[] = []
+  /** 所有通过 World.SpawnActor 生成的装饰 StaticMeshActor */
+  private decorActors: StaticMeshActor[] = []
+  /** 海鸟 StaticMeshActor（独立跟踪以在 Tick 中更新动画） */
+  private birdActors: StaticMeshActor[] = []
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
   onStartFishing: (() => void) | null = null
@@ -60,16 +58,15 @@ export class FishBaseGameMode extends GameMode {
 
   override Tick(dt: number) {
     super.Tick(dt)
-    // 鸟群缓慢盘旋
-    for (let i = 0; i < this.decorBirds.length; i++) {
-      const bird = this.decorBirds[i]
-      const phase = bird.userData.phase + dt * bird.userData.speed
-      bird.userData.phase = phase
-      const baseX = bird.userData.baseX
-      const baseY = bird.userData.baseY
-      bird.position.x = baseX + Math.sin(phase * 0.3) * 0.5
-      bird.position.y = baseY + Math.sin(phase * 0.7) * 0.3
-      bird.rotation.z = Math.sin(phase * 0.5) * 0.1
+    // 鸟群缓慢盘旋（StaticMeshActor 的 root 持有基础位置，子 mesh 为动画偏移）
+    for (let i = 0; i < this.birdActors.length; i++) {
+      const actor = this.birdActors[i]
+      const bird = actor.root.children[0] as THREE.Mesh
+      const ud = bird.userData
+      ud.phase += dt * ud.speed
+      bird.position.x = Math.sin(ud.phase * 0.3) * 0.5
+      bird.position.y = Math.sin(ud.phase * 0.7) * 0.3
+      actor.root.rotation.z = Math.sin(ud.phase * 0.5) * 0.1
     }
   }
 
@@ -97,190 +94,144 @@ export class FishBaseGameMode extends GameMode {
       logger.debug('[BaseGM] spawnBaseDecor: world 为空')
       return
     }
-    const scene = world.scene
 
-    // ─── 停泊炮台（3D 方块搭建） ───
-    const cannonGroup = new THREE.Group()
+    // ─── 停泊炮台（使用 World 工厂方法构建）→ StaticMeshActor ───
+    const cannonGroup = world.createGroup()
 
     // 底座
-    const baseMat = new THREE.MeshBasicMaterial({ color: 0x5d4037 })
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.6), baseMat)
+    const base = world.createBoxMesh(0.6, 0.15, 0.6, 0x5d4037)
     base.position.y = 0.15
     cannonGroup.add(base)
 
-    // 炮身（圆柱用 box 近似）
-    const barrelMat = new THREE.MeshBasicMaterial({ color: 0x455a64 })
-    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.6), barrelMat)
+    // 炮身
+    const barrel = world.createBoxMesh(0.2, 0.15, 0.6, 0x455a64)
     barrel.position.set(0, 0.35, 0.2)
     cannonGroup.add(barrel)
 
     // 炮管口
-    const tipMat = new THREE.MeshBasicMaterial({ color: 0x37474f })
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.1), tipMat)
+    const tip = world.createBoxMesh(0.25, 0.12, 0.1, 0x37474f)
     tip.position.set(0, 0.35, 0.55)
     cannonGroup.add(tip)
 
     // 轮子（小方块）
-    const wheelMat = new THREE.MeshBasicMaterial({ color: 0x3e2723 })
-    const wl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), wheelMat)
+    const wl = world.createBoxMesh(0.1, 0.1, 0.05, 0x3e2723)
     wl.position.set(-0.3, 0.08, 0.2)
     cannonGroup.add(wl)
-    const wr = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), wheelMat)
+    const wr = world.createBoxMesh(0.1, 0.1, 0.05, 0x3e2723)
     wr.position.set(0.3, 0.08, 0.2)
     cannonGroup.add(wr)
 
     cannonGroup.position.set(2.5, 0, 2.5)
-    scene.add(cannonGroup)
+    const cannonActor = new StaticMeshActor(cannonGroup, 'Cannon')
+    world.SpawnActor(cannonActor)
+    this.decorActors.push(cannonActor)
 
-    // ─── 棕榈树（程序化生成，补充 JSON 场景） ───
-    this.spawnPalmTree(scene, -3, 0, -5, 0.9)
-    this.spawnPalmTree(scene, 4, 0, -6, 1.1)
-    this.spawnPalmTree(scene, -5, 0, 4, 1.0)
-    this.spawnPalmTree(scene, 7, 0, 3, 0.8)
-    this.spawnPalmTree(scene, -7, 0, -3, 0.7)
-    this.spawnPalmTree(scene, 0, 0, -8, 1.2)
+    // ─── 棕榈树（程序化生成，补充 JSON 场景）→ StaticMeshActor ───
+    const treePositions = [[-3, -5, 0.9], [4, -6, 1.1], [-5, 4, 1.0], [7, 3, 0.8], [-7, -3, 0.7], [0, -8, 1.2]]
+    for (const [tx, tz, tscale] of treePositions) {
+      const group = this.buildPalmTree(world, tx, tz, tscale)
+      const actor = new StaticMeshActor(group, 'PalmTree')
+      world.SpawnActor(actor)
+      this.decorActors.push(actor)
+    }
 
-    // ─── 沙滩灌木 ───
-    this.spawnBush(scene, -2.5, 0, -2, 0.5)
-    this.spawnBush(scene, 3, 0, -2.5, 0.4)
-    this.spawnBush(scene, -3, 0, 3, 0.6)
-    this.spawnBush(scene, 1.5, 0, 4, 0.35)
-    this.spawnBush(scene, -1, 0, -4, 0.45)
+    // ─── 沙滩灌木 → StaticMeshActor ───
+    const bushPositions = [[-2.5, -2, 0.5], [3, -2.5, 0.4], [-3, 3, 0.6], [1.5, 4, 0.35], [-1, -4, 0.45]]
+    for (const [bx, bz, bscale] of bushPositions) {
+      const group = this.buildBush(world, bx, bz, bscale)
+      const actor = new StaticMeshActor(group, 'Bush')
+      world.SpawnActor(actor)
+      this.decorActors.push(actor)
+    }
 
-    // ─── 海鸟在天空盘旋 ───
+    // ─── 海鸟在天空盘旋 → StaticMeshActor ───
     for (let i = 0; i < 5; i++) {
-      const birdGeo = new THREE.PlaneGeometry(0.3, 0.1)
-      const birdMat = new THREE.MeshBasicMaterial({
-        color: 0x37474f,
-        transparent: true,
-        opacity: 0.5,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
-      const bird = new THREE.Mesh(birdGeo, birdMat)
+      const bird = world.createPlaneMesh(0.3, 0.1, 0x37474f, true, 0.5, THREE.DoubleSide)
       const angle = (i / 5) * Math.PI * 2
       const radius = 8 + Math.random() * 4
       const baseX = Math.cos(angle) * radius
       const baseY = 4 + Math.random() * 2
-      bird.position.set(baseX, baseY, Math.sin(angle) * radius)
-      bird.rotation.x = 0.2
       bird.userData = {
-        baseX,
-        baseY,
         phase: Math.random() * Math.PI * 2,
         speed: 0.4 + Math.random() * 0.3,
       }
-      scene.add(bird)
-      this.decorBirds.push(bird)
+      const birdActor = new StaticMeshActor(bird, 'Bird')
+      birdActor.root.position.set(baseX, baseY, Math.sin(angle) * radius)
+      birdActor.root.rotation.x = 0.2
+      world.SpawnActor(birdActor)
+      this.birdActors.push(birdActor)
     }
 
-    // ─── 房子 Actor ───
-    this.houseActor = new FishHouseActor('BeachHouse')
+    // ─── 房子 Actor → 从 Blueprint 实例化（beach_house，行为类 blueprint 范例）───
+    const house = world.SpawnActorFromBlueprint('beach_house')
+    if (house) {
+      this.houseActor = house as FishHouseActor
+    } else {
+      // 回退：blueprint / baseClass 未注册时直接构造，保证功能可用
+      this.houseActor = new FishHouseActor('BeachHouse')
+      world.SpawnActor(this.houseActor)
+    }
     this.houseActor.onClaimCoins = () => this.onClaimCoins?.()
-    this.houseActor.world = world
-    world.scene.add(this.houseActor.root)
-    this.houseActor.BeginPlay()
-    logger.debug('[BaseGM] 海岛小屋 Actor 已生成')
+    logger.debug('[BaseGM] 海岛小屋 Actor 已生成（blueprint: beach_house）')
   }
 
-  /** 生成一棵程序化棕榈树 */
-  private spawnPalmTree(scene: THREE.Scene, x: number, _y: number, z: number, scale: number) {
-    const group = new THREE.Group()
+  /** 构建一棵程序化棕榈树，返回已定位的 Group */
+  private buildPalmTree(world: World, x: number, z: number, scale: number): THREE.Group {
+    const group = world.createGroup()
 
     // 树干
-    const trunkMat = new THREE.MeshBasicMaterial({ color: 0x6d4c41 })
-    const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.12 * scale, 1.5 * scale, 0.12 * scale), trunkMat)
+    const trunk = world.createBoxMesh(0.12 * scale, 1.5 * scale, 0.12 * scale, 0x6d4c41)
     trunk.position.y = 0.75 * scale
     trunk.rotation.z = (Math.random() - 0.5) * 0.15
     trunk.rotation.x = (Math.random() - 0.5) * 0.15
     group.add(trunk)
 
     // 树冠（多层球体）
-    const leafMat = new THREE.MeshBasicMaterial({ color: 0x2e7d32 })
-    const crown1 = new THREE.Mesh(new THREE.SphereGeometry(0.6 * scale, 6, 6), leafMat)
+    const crown1 = world.createSphereMesh(0.6 * scale, 0x2e7d32, 6)
     crown1.position.set(0, 1.6 * scale, 0)
     group.add(crown1)
 
-    const leafMat2 = new THREE.MeshBasicMaterial({ color: 0x388e3c })
-    const crown2 = new THREE.Mesh(new THREE.SphereGeometry(0.5 * scale, 6, 6), leafMat2)
+    const crown2 = world.createSphereMesh(0.5 * scale, 0x388e3c, 6)
     crown2.position.set(0.3 * scale, 1.8 * scale, 0.2 * scale)
     group.add(crown2)
 
-    const crown3 = new THREE.Mesh(new THREE.SphereGeometry(0.45 * scale, 6, 6), leafMat2)
+    const crown3 = world.createSphereMesh(0.45 * scale, 0x388e3c, 6)
     crown3.position.set(-0.25 * scale, 1.9 * scale, -0.2 * scale)
     group.add(crown3)
 
-    const crown4 = new THREE.Mesh(new THREE.SphereGeometry(0.4 * scale, 6, 6), leafMat)
+    const crown4 = world.createSphereMesh(0.4 * scale, 0x2e7d32, 6)
     crown4.position.set(0.1 * scale, 2.0 * scale, -0.3 * scale)
     group.add(crown4)
 
     group.position.set(x, 0, z)
-    scene.add(group)
-    this.palmTrees.push(group)
+    return group
   }
 
-  /** 生成一株灌木 */
-  private spawnBush(scene: THREE.Scene, x: number, _y: number, z: number, scale: number) {
-    const group = new THREE.Group()
+  /** 构建一株灌木，返回已定位的 Group */
+  private buildBush(world: World, x: number, z: number, scale: number): THREE.Group {
+    const group = world.createGroup()
 
-    const mat1 = new THREE.MeshBasicMaterial({ color: 0x43a047 })
-    const b1 = new THREE.Mesh(new THREE.SphereGeometry(0.3 * scale, 5, 5), mat1)
+    const b1 = world.createSphereMesh(0.3 * scale, 0x43a047, 5)
     b1.position.set(0, 0.15 * scale, 0)
     group.add(b1)
 
-    const mat2 = new THREE.MeshBasicMaterial({ color: 0x66bb6a })
-    const b2 = new THREE.Mesh(new THREE.SphereGeometry(0.25 * scale, 5, 5), mat2)
+    const b2 = world.createSphereMesh(0.25 * scale, 0x66bb6a, 5)
     b2.position.set(0.2 * scale, 0.1 * scale, 0.1 * scale)
     group.add(b2)
 
-    const b3 = new THREE.Mesh(new THREE.SphereGeometry(0.2 * scale, 5, 5), mat2)
+    const b3 = world.createSphereMesh(0.2 * scale, 0x66bb6a, 5)
     b3.position.set(-0.15 * scale, 0.08 * scale, -0.1 * scale)
     group.add(b3)
 
     group.position.set(x, 0, z)
-    scene.add(group)
+    return group
   }
 
   private clearBaseDecor() {
-    const scene = this.world?.scene
-    if (!scene) return
-
-    if (this.dockedCannon) {
-      scene.remove(this.dockedCannon)
-      this.dockedCannon.traverse((node) => {
-        if (node instanceof THREE.Mesh) {
-          node.geometry.dispose()
-          ;(node.material as THREE.MeshBasicMaterial).dispose()
-        }
-      })
-      this.dockedCannon = null
-    }
-
-    // 销毁房子 Actor
-    if (this.houseActor) {
-      this.houseActor.EndPlay()
-      scene.remove(this.houseActor.root)
-      this.houseActor = null
-    }
-
-    // 清除鸟群
-    for (const b of this.decorBirds) {
-      scene.remove(b)
-      b.geometry.dispose()
-      ;(b.material as THREE.MeshBasicMaterial).dispose()
-    }
-    this.decorBirds = []
-
-    // 清除棕榈树
-    for (const g of this.palmTrees) {
-      scene.remove(g)
-      g.traverse((node) => {
-        if (node instanceof THREE.Mesh) {
-          node.geometry.dispose()
-          ;(node.material as THREE.MeshBasicMaterial).dispose()
-        }
-      })
-    }
-    this.palmTrees = []
+    // 所有装饰 Actor（炮台/棕榈树/灌木/海鸟/房子）已由 World.DestroyAllActors()
+    // 自动调用 EndPlay() 释放 geometry/material 并从场景移除，此处仅清空引用
+    this.houseActor = null
+    this.decorActors = []
+    this.birdActors = []
   }
 }

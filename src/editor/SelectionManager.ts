@@ -84,7 +84,9 @@ export function select(obj: Selectable | null): void {
 
   // 同步 TransformGizmo：选中对象时显示 Gizmo，取消选中时隐藏
   if (obj && _gizmo) {
-    _gizmo.attach(obj)
+    // Actor → 取其 root Group，普通 Object3D → 直接使用
+    const target = obj instanceof THREE.Object3D ? obj : (obj as Actor).root
+    _gizmo.attach(target)
   } else {
     _gizmo.detach()
   }
@@ -125,6 +127,8 @@ export function getSceneTree(): SceneTreeNode[] {
     // 跳过内部保留对象（GridHelper、AmbientLight 等编辑器基础设施）
     if (!obj.visible && obj.type !== 'Scene') return
     if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
+    // 跳过编辑 gizmo（TransformGizmo 及其子对象）
+    if (obj.name === 'TransformGizmo') return
 
     const actorRef = (obj as any).userData?.actorRef as Actor | undefined
     result.push({

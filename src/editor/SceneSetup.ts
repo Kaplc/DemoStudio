@@ -10,7 +10,6 @@ import {
   PreviewSceneManager,
   logger,
   Game,
-  GameFactoryRegistry,
   NullGameInstance,
   gizmos,
 } from '../engine'
@@ -18,9 +17,9 @@ import { addDefaultContent } from './index'
 import { getTransformGizmo } from './SelectionManager'
 import { createSceneViewport } from './SceneViewport'
 import { createGameViewport } from './GameViewport'
-import { useEditorStore } from '../stores/editorStore'
 
 export interface SceneSetupResult {
+  /** 共享场景（Scene 视口预览 + Game 视口游戏共用一个 THREE.Scene） */
   sharedScene: THREE.Scene
   sceneMgr: PreviewSceneManager
   gameMgr: GameSceneManager
@@ -47,7 +46,7 @@ export function setupScene(
 ): SceneSetupResult {
   logger.info('初始化 Viewport 引擎系统...')
 
-  // ─── 共享场景 ───
+  // ─── 共享场景（Scene 视口和 Game 视口共用）───
   const shared = new THREE.Scene()
   shared.background = new THREE.Color(0x1a1a2e)
   shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
@@ -56,11 +55,8 @@ export function setupScene(
 
   const sceneModeRef: { current: string | undefined } = { current: undefined }
 
-  // ─── 游戏实例 ───
-  const currentProject = useEditorStore.getState().currentProject
-  const gameInst = currentProject && GameFactoryRegistry.has(currentProject.name)
-    ? GameFactoryRegistry.create(currentProject.name, shared)!
-    : new NullGameInstance()
+  // ─── 游戏实例（仅作占位，真正实例在 Viewport 启动游戏时创建）───
+  const gameInst = new NullGameInstance()
 
   if (gameInst.setCallbacks) {
     gameInst.setCallbacks(callbacks)

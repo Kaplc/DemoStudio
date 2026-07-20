@@ -9,14 +9,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PanelId } from './editorStore'
 
-export type ViewportTab = 'scene' | 'game'
-
 interface EditorPrefs {
   // ─── 面板与布局 ───
   panels: Record<PanelId, { visible: boolean }>
   consoleVisible: boolean
   layout: { left: number; right: number; console: number }
-  viewport: { activeTab: ViewportTab; aspectRatio: string; gizmos: boolean }
+  viewport: { aspectRatio: string; gizmos: boolean }
 
   // ─── 项目记忆 ───
   lastProjectFolder: string | null
@@ -43,7 +41,7 @@ export const useEditorPrefsStore = create<EditorPrefs>()(
       },
       consoleVisible: false,
       layout: { left: 220, right: 280, console: 180 },
-      viewport: { activeTab: 'scene', aspectRatio: '16/9', gizmos: true },
+      viewport: { aspectRatio: '16/9', gizmos: true },
       lastProjectFolder: null,
       recentProjects: [],
 

@@ -11,6 +11,10 @@
 import type * as THREE from 'three'
 import {
   GameFactoryRegistry,
+  registerBuiltinComponents,
+  registerBuiltinActors,
+  BlueprintRegistry,
+  AssetRegistry,
 } from '../engine'
 import type { GameInstance } from '../engine'
 
@@ -25,6 +29,12 @@ export interface ProjectModule {
 
   /** 初始化配置表（可选）。异步加载 JSON 覆盖默认值 */
   initConfigs?: (log: (message: string) => void) => void
+
+  /**
+   * 注册项目资产（可选）。打开工程时调用，自动扫描项目 asset/ 目录并注册到 AssetRegistry / BlueprintRegistry。
+   * 确保在 createGameInstance、BlueprintEditor 等工作之前，资产已就绪。
+   */
+  registerAssets?: () => void
 }
 
 // ─── 逐个导入项目注册模块 ───
@@ -62,6 +72,10 @@ for (const p of ALL_PROJECTS) {
 export function registerAllProjectModules(
   log: (message: string) => void = console.log,
 ): void {
+  // 注册引擎内置 Component / Actor（Blueprint 系统的工厂基础，幂等）
+  registerBuiltinComponents()
+  registerBuiltinActors()
+
   for (const project of ALL_PROJECTS) {
     // 游戏实例工厂
     GameFactoryRegistry.register(project.name, (scene) => project.createGameInstance(scene))
@@ -85,4 +99,24 @@ export function initProjectConfigs(
   if (project?.initConfigs) {
     project.initConfigs(log)
   }
+}
+
+/**
+ * 打开工程时调用：清空前一个工程的资产，注册当前工程的资产。
+ * @param name   项目名称（ProjectModule.name）
+ */
+export function registerProjectAssets(name: string): void {
+  // 清空上一个工程的资产
+  clearProjectAssets()
+
+  const project = projectModuleMap.get(name)
+  if (project?.registerAssets) {
+    project.registerAssets()
+  }
+}
+
+/** 清空当前工程的资产（关闭工程 / 切换工程时调用） */
+export function clearProjectAssets(): void {
+  AssetRegistry.reset()
+  BlueprintRegistry.clearAll()
 }

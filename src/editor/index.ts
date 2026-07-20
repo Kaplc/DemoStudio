@@ -19,6 +19,8 @@
  * - LogPoller        日志文件轮询器
  */
 
+export { BlueprintPreviewManager } from './BlueprintPreviewManager'
+
 export { Editor } from './Editor'
 export type { EditorCallbacks } from './Editor'
 

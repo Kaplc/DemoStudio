@@ -21,7 +21,7 @@ export class LogPoller {
 
     const fetchLog = async () => {
       try {
-        const text = await window.electronAPI.readLogFile!({ tail: 200 })
+        const text = await window.electronAPI!.readLogFile!({ tail: 200 })
         callback(text, null)
       } catch {
         callback('', '日志读取失败')

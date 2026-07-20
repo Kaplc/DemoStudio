@@ -1,17 +1,15 @@
 /**
  * FishHouseActor — 基地海岛小屋 Actor
  *
- * 茅草屋顶的沙滩小屋风格，
- * 通过 ClickableComponent 提供点击/悬停检测，
- * 子类可重写 buildHouse() 自定义房子外观。
+ * 网格外观由 Blueprint 的 scene 字段引用 BeachHouseParts 场景资产生成，
+ * 此类仅负责交互行为：点击检测、悬停高亮。
+ *
+ * clickZone / glow 等交互元素仍在此处程序化生成（不变）。
  */
 import * as THREE from 'three'
-import { Actor, ClickableComponent, logger } from '@/engine'
+import { Actor, ClickableComponent, type World, logger } from '@/engine'
 
 export class FishHouseActor extends Actor {
-  /** 房子各部分的 Mesh 列表（用于统一清理） */
-  protected houseMeshes: THREE.Mesh[] = []
-
   /** 不可见点击碰撞体 */
   protected clickZone: THREE.Mesh | null = null
 
@@ -34,7 +32,6 @@ export class FishHouseActor extends Actor {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    this.buildHouse()
     this.buildClickZone()
     this.buildGlow()
     this.initClickable()
@@ -45,97 +42,13 @@ export class FishHouseActor extends Actor {
     super.EndPlay()
   }
 
-  // ═══════════════════════════════════
-  //  海岛小屋构建（子类可重写）
-  // ═══════════════════════════════════
-
-  protected buildHouse(): void {
-    // ─── 木制地板平台 ───
-    const floorMat = new THREE.MeshBasicMaterial({ color: 0xa67c52 })
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 2.4), floorMat)
-    floor.position.y = 0.3
-    this.addHouseMesh(floor)
-
-    // ─── 竹制墙壁（浅色） ───
-    const wallMat = new THREE.MeshBasicMaterial({
-      color: 0xc9b99a,
-      transparent: true,
-      opacity: 0.9,
-    })
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 2.0), wallMat)
-    wall.position.y = 1.0
-    this.addHouseMesh(wall)
-
-    // ─── 茅草屋顶（两层，暖色） ───
-    const thatchMat = new THREE.MeshBasicMaterial({
-      color: 0x8b6f47,
-      transparent: true,
-      opacity: 0.9,
-    })
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.3, 2.6), thatchMat)
-    roof.position.y = 1.75
-    this.addHouseMesh(roof)
-
-    const roofTopMat = new THREE.MeshBasicMaterial({
-      color: 0x6d4c41,
-    })
-    const roofTop = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.2, 2.0), roofTopMat)
-    roofTop.position.y = 2.0
-    this.addHouseMesh(roofTop)
-
-    // ─── 门（开口） ───
-    const doorMat = new THREE.MeshBasicMaterial({ color: 0x5d4037 })
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.05), doorMat)
-    door.position.set(0, 0.65, 1.01)
-    this.addHouseMesh(door)
-
-    // ─── 窗户 ───
-    const winMat = new THREE.MeshBasicMaterial({
-      color: 0x81d4fa,
-      transparent: true,
-      opacity: 0.7,
-    })
-    const winL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), winMat)
-    winL.position.set(-0.6, 1.1, 1.01)
-    this.addHouseMesh(winL)
-
-    const winR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), winMat)
-    winR.position.set(0.6, 1.1, 1.01)
-    this.addHouseMesh(winR)
-
-    // ─── 门廊支柱 ───
-    const pillarMat = new THREE.MeshBasicMaterial({ color: 0x8d6e63 })
-    const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.8, 0.08), pillarMat)
-    p1.position.set(-1.1, 1.1, 1.1)
-    this.addHouseMesh(p1)
-    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.8, 0.08), pillarMat)
-    p2.position.set(1.1, 1.1, 1.1)
-    this.addHouseMesh(p2)
-    const p3 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.8, 0.08), pillarMat)
-    p3.position.set(-1.1, 1.1, -1.1)
-    this.addHouseMesh(p3)
-    const p4 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.8, 0.08), pillarMat)
-    p4.position.set(1.1, 1.1, -1.1)
-    this.addHouseMesh(p4)
-
-    // ─── 房梁（横跨屋顶） ───
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0x6d4c41 })
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.06, 0.06), beamMat)
-    beam.position.y = 2.1
-    this.addHouseMesh(beam)
-  }
-
   /**
    * 构建不可见点击碰撞体。
    * 子类可重写以调整大小/位置。
    */
   protected buildClickZone(): void {
-    const geo = new THREE.BoxGeometry(2.4, 2.0, 2.4)
-    const mat = new THREE.MeshBasicMaterial({
-      visible: false,
-      depthWrite: false,
-    })
-    this.clickZone = new THREE.Mesh(geo, mat)
+    const w = this.world as World
+    this.clickZone = w.createInvisibleBox(2.4, 2.0, 2.4)
     this.clickZone.position.y = 1.2
     this.clickZone.userData.isHouse = true
     this.root.add(this.clickZone)
@@ -146,13 +59,8 @@ export class FishHouseActor extends Actor {
    * 子类可重写以调整大小/位置/颜色。
    */
   protected buildGlow(): void {
-    const glowGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(2.8, 2.4, 2.8))
-    const glowMat = new THREE.LineBasicMaterial({
-      color: 0xffd700,
-      transparent: true,
-      opacity: 0.8,
-    })
-    this.glowWireframe = new THREE.LineSegments(glowGeo, glowMat)
+    const w = this.world as World
+    this.glowWireframe = w.createEdgesBox(2.8, 2.4, 2.8, 0xffd700, true, 0.8)
     this.glowWireframe.position.y = 1.2
     this.glowWireframe.visible = false
     this.root.add(this.glowWireframe)
@@ -187,17 +95,7 @@ export class FishHouseActor extends Actor {
     this.addComponent(this.clickable)
   }
 
-  // ═══════════════════════════════════
-  //  工具方法
-  // ═══════════════════════════════════
-
-  /** 向房子添加一个 Mesh 部件（自动受生命周期管理） */
-  protected addHouseMesh(mesh: THREE.Mesh): void {
-    this.houseMeshes.push(mesh)
-    this.root.add(mesh)
-  }
-
-  /** 清理所有房子资源 */
+  /** 清理交互元素（网格场景子对象由 World.DestroyAllActors 自动清理） */
   private destroyHouse(): void {
     // ClickableComponent 由 Actor.EndPlay 的 component 遍历自动清理
     this.clickable = null
@@ -217,22 +115,5 @@ export class FishHouseActor extends Actor {
       ;(this.clickZone.material as THREE.MeshBasicMaterial).dispose()
       this.clickZone = null
     }
-
-    // 清除房子 Mesh
-    for (const mesh of this.houseMeshes) {
-      this.root.remove(mesh)
-      mesh.geometry.dispose()
-      if (mesh.material) {
-        const mat = mesh.material
-        if (Array.isArray(mat)) {
-          mat.forEach((m) => m.dispose())
-        } else {
-          mat.dispose()
-        }
-      }
-    }
-    this.houseMeshes = []
-
-    logger.debug(`[${this.name}] 房子资源已清理`)
   }
 }

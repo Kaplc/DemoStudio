@@ -5,6 +5,8 @@
  * 不再直接感知具体项目类，新增项目只需在 projects/registry.ts 注册即可。
  */
 import { registerAllProjectModules } from '../projects/registry'
+import { installBlueprintWindowApi } from './blueprintEdit/windowApi'
+import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
 
 export type InitLogger = (message: string) => void
 
@@ -68,6 +70,10 @@ export function registerGlobalEventListeners(callbacks: {
   // Electron 菜单事件
   let electronCleanup: (() => void) | undefined
   let mcpCleanup: (() => void) | undefined
+  let blueprintMcpCleanup: (() => void) | undefined
+
+  // 暴露 window.blueprintEditor（页面内 / 控制台调用）
+  installBlueprintWindowApi()
 
   if (window.electronAPI) {
     electronCleanup = window.electronAPI.onMenuAction((action) => {
@@ -113,6 +119,19 @@ export function registerGlobalEventListeners(callbacks: {
         }
       })
     }
+
+    // 蓝图编辑 MCP 往返：外部 AI（经 MCP 服务器 + HTTP /api/blueprint）→ 主进程 → 此处处理
+    if (window.electronAPI.onBlueprintRequest) {
+      blueprintMcpCleanup = window.electronAPI.onBlueprintRequest(async (requestId, op, params) => {
+        let result
+        try {
+          result = await BlueprintEditorService.dispatch(op, params ?? {})
+        } catch (err) {
+          result = { ok: false, error: String(err) }
+        }
+        window.electronAPI?.sendBlueprintResponse(requestId, result)
+      })
+    }
   }
 
   return () => {
@@ -127,5 +146,6 @@ export function registerGlobalEventListeners(callbacks: {
     window.removeEventListener('shortcut-stop-game', onStopGame)
     electronCleanup?.()
     mcpCleanup?.()
+    blueprintMcpCleanup?.()
   }
 }

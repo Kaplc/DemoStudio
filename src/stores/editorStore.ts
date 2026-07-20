@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { registerProjectAssets, clearProjectAssets } from '../projects/registry'
 
 export interface Project {
   name: string
@@ -20,6 +21,31 @@ export interface GameState {
 
 export type PanelId = 'scene' | 'game' | 'inspector' | 'console' | 'project'
 
+/** 视口页签定义（持久标签 + 动态标签：蓝图 / 场景预览） */
+export interface ViewportTabDef {
+  id: string
+  type: 'scene' | 'game' | 'blueprint' | 'scenePreview'
+  label: string
+  permanent: boolean
+  assetPath?: string
+}
+
+/** 蓝图编辑器选择（点击组件/子 Actor 时设置，供 Inspector 面板展示信息） */
+export interface BlueprintSelection {
+  assetPath: string
+  type: 'component' | 'child' | 'defaults'
+  index: number
+  label: string
+  /** 组件 type（仅 type='component' 时） */
+  compType?: string
+  /** 组件完整数据 */
+  compData?: { type: string; props?: Record<string, unknown>; _remove?: boolean }
+  /** 子 Actor 引用（仅 type='child' 时） */
+  childRef?: string
+  /** 子 Actor 完整数据 */
+  childData?: { blueprint?: string; actor?: string; name?: string; overrides?: Record<string, unknown>; _remove?: boolean }
+}
+
 export interface EditorState {
   // ─── 工程 ───
   projects: Project[]
@@ -31,6 +57,23 @@ export interface EditorState {
   gameState: GameState
   /** 启动计数器，每次 launchGame 递增，用于触发 Viewport 重新创建游戏实例 */
   launchCount: number
+
+  // ─── 视口页签 ───
+  /** 动态页签（蓝图编辑器 / 场景预览，scene/game 为内置持久标签） */
+  dynamicTabs: ViewportTabDef[]
+  /** 当前活跃的视口页签 id */
+  activeTabId: string
+
+  // ─── 蓝图编辑器选择 ───
+  blueprintSelection: BlueprintSelection | null
+
+  /**
+   * 蓝图编辑刷新信号：每次外部/内部编辑蓝图资产时 bump。
+   * BlueprintEditor 订阅它，变化时重新读盘 + 刷新预览。
+   * lastEditedBlueprintPath 记录最近被编辑的资产路径，供定向刷新。
+   */
+  blueprintEditNonce: number
+  lastEditedBlueprintPath: string | null
 
   // ─── 控制台 ───
   consoleOutput: string[]
@@ -50,6 +93,21 @@ export interface EditorState {
 
   launchGame: () => void
   stopGame: () => void
+
+  /** 打开蓝图编辑器页签（如果已打开则激活） */
+  openBlueprintEditor: (assetPath: string, label: string) => void
+  /** 打开场景预览页签（如果已打开则激活） */
+  openScenePreview: (assetPath: string, label: string) => void
+  /** 关闭动态页签 */
+  closeDynamicTab: (tabId: string) => void
+  /** 切换活跃页签 */
+  setActiveTabId: (tabId: string) => void
+
+  /** 蓝图编辑器选择状态（组件或子 Actor） */
+  setBlueprintSelection: (sel: BlueprintSelection | null) => void
+
+  /** bump 蓝图编辑刷新信号（编辑资产后调用，触发打开的编辑器重新读盘） */
+  bumpBlueprintEdit: (assetPath: string) => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -61,6 +119,12 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   launchCount: 0,
 
+  dynamicTabs: [],
+  activeTabId: 'scene',
+  blueprintSelection: null,
+  blueprintEditNonce: 0,
+  lastEditedBlueprintPath: null,
+
   gameState: {
     running: false,
     score: 0,
@@ -71,7 +135,15 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   // ─── Actions ───
   setProjects: (projects) => set({ projects }),
-  setCurrentProject: (project) => set({ currentProject: project }),
+  // 切项目时清空动态页签 + 资产，避免残留旧项目数据
+  setCurrentProject: (project) => {
+    if (project) {
+      registerProjectAssets(project.name)
+    } else {
+      clearProjectAssets()
+    }
+    set({ currentProject: project, dynamicTabs: [], activeTabId: 'scene' })
+  },
   setShowProjectSelector: (show) => set({ showProjectSelector: show }),
   setShowNewProjectDialog: (show) => set({ showNewProjectDialog: show }),
 
@@ -110,4 +182,69 @@ export const useEditorStore = create<EditorState>((set) => ({
     })),
 
   clearConsole: () => set({ consoleOutput: [] }),
+
+  openBlueprintEditor: (assetPath, label) =>
+    set((state) => {
+      const existing = state.dynamicTabs.find((t) => t.assetPath === assetPath)
+      if (existing) {
+        return { activeTabId: existing.id }
+      }
+      const newTab: ViewportTabDef = {
+        id: `bp:${assetPath}`,
+        type: 'blueprint',
+        label,
+        permanent: false,
+        assetPath,
+      }
+      return {
+        dynamicTabs: [...state.dynamicTabs, newTab],
+        activeTabId: newTab.id,
+      }
+    }),
+  openScenePreview: (assetPath, label) =>
+    set((state) => {
+      const existing = state.dynamicTabs.find((t) => t.assetPath === assetPath)
+      if (existing) {
+        return { activeTabId: existing.id }
+      }
+      const newTab: ViewportTabDef = {
+        id: `sp:${assetPath}`,
+        type: 'scenePreview',
+        label,
+        permanent: false,
+        assetPath,
+      }
+      return {
+        dynamicTabs: [...state.dynamicTabs, newTab],
+        activeTabId: newTab.id,
+      }
+    }),
+  closeDynamicTab: (tabId) =>
+    set((state) => {
+      const idx = state.dynamicTabs.findIndex((t) => t.id === tabId)
+      if (idx === -1) return {}
+      const next = [...state.dynamicTabs]
+      next.splice(idx, 1)
+      let nextActive = state.activeTabId
+      if (state.activeTabId === tabId) {
+        if (next.length > 0) {
+          const fallback = next[Math.min(idx, next.length - 1)]
+          nextActive = fallback.id
+        } else {
+          nextActive = 'scene'
+        }
+      }
+      return {
+        dynamicTabs: next,
+        activeTabId: nextActive,
+        blueprintSelection: state.activeTabId === tabId ? null : state.blueprintSelection,
+      }
+    }),
+  setActiveTabId: (tabId) => set({ activeTabId: tabId }),
+  setBlueprintSelection: (sel) => set({ blueprintSelection: sel }),
+  bumpBlueprintEdit: (assetPath) =>
+    set((state) => ({
+      blueprintEditNonce: state.blueprintEditNonce + 1,
+      lastEditedBlueprintPath: assetPath,
+    })),
 }))

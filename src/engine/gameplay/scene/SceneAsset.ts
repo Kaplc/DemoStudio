@@ -11,6 +11,8 @@
  * 与旧代码 0x 数字颜色结果完全一致。
  */
 
+import type { PropertyPatch } from '../tools/deepMerge'
+
 /** 颜色：CSS hex 字符串 "#rrggbb" */
 export type ColorHex = string
 
@@ -122,9 +124,22 @@ export interface SpriteNode extends BaseNode {
   material?: MaterialProps
 }
 
+/** blueprint 节点 — 在此处引用并实例化一个 Blueprint（由 World.SpawnActorFromBlueprint 处理，SceneLoader 不展开） */
+export interface BlueprintNode extends BaseNode {
+  type: 'blueprint'
+  /** 引用的 Blueprint id（BlueprintRegistry key） */
+  blueprint: string
+  pos?: Vec3
+  rot?: Vec3
+  scale?: Vec3
+  /** 实例级属性覆盖（叠加在蓝图 CDO 之上） */
+  overrides?: PropertyPatch
+}
+
 export type SceneNode =
   | BoxNode | PlaneNode | SphereNode | SpriteNode
   | CheckerFloorNode | GridLinesNode | PillarNode | WallRingNode
+  | BlueprintNode
 
 /** 天空盒/场景氛围配置 */
 export interface SkyboxConfig {

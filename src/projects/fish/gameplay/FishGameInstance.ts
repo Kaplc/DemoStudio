@@ -6,8 +6,8 @@
  */
 import * as THREE from 'three'
 import React from 'react'
-import { GameInstance, World, PhySys, logger, loadScene, CameraComponent, PlayerController, StaticMeshActor } from '@/engine'
-import type { GameInstanceCallbacks, SceneGroup, SceneAsset } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController } from '@/engine'
+import type { GameInstanceCallbacks } from '@/engine'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
@@ -17,16 +17,15 @@ import { GameHud } from './game/hud/GameHud'
 import { FishMainMenuUI } from './menu/hud/FishMainMenuUI'
 import { FishBaseUI } from './base/hud/FishBaseUI'
 import type { GameHudProps } from './game/hud/GameHud'
-import menuSceneData from '../asset/fish_menu.scene.json'
-import baseSceneData from '../asset/fish_base.scene.json'
-import gameSceneData from '../asset/fish.scene.json'
 
 type Phase = 'menu' | 'base' | 'game'
 
 export class FishGameInstance extends GameInstance {
   readonly world: World
-  readonly mainMenuGameMode: FishMainMenuGameMode
-  readonly baseGameMode: FishBaseGameMode
+
+  /** 各阶段 GameMode 引用（由 SwitchToScene 创建后存入，供 syncCamera 等使用） */
+  private _menuGameMode: FishMainMenuGameMode | null = null
+  private _baseGameMode: FishBaseGameMode | null = null
   private _gameMode: FishGameMode | null = null
 
   private _phase: Phase = 'menu'
@@ -49,18 +48,7 @@ export class FishGameInstance extends GameInstance {
   constructor(sharedScene: THREE.Scene) {
     super()
     this.world = new World(sharedScene)
-
-    // 主菜单 GameMode（初始）
-    this.mainMenuGameMode = new FishMainMenuGameMode()
-    this.world.SetGameMode(this.mainMenuGameMode)
-    this.world.Stop()
-    this.world.Pause()
-    this.mainMenuGameMode.onStartGame = () => this.enterBase()
-
-    // 基地 GameMode（预创建，不激活）
-    this.baseGameMode = new FishBaseGameMode()
-    this.baseGameMode.onStartFishing = () => this.startGameplay()
-    this.baseGameMode.onClaimCoins = () => this.claimCoins()
+    // GameMode 实例由 start() / SwitchToScene 按需创建
   }
 
   override get controller(): PlayerController | null {
@@ -76,200 +64,141 @@ export class FishGameInstance extends GameInstance {
   // ════════════════════════════════════════════
 
   override start(): boolean {
-    if (this.initialMode === 'base') {
-      // 让世界进入运行态（与主菜单 start 一致），再切换到基地模式
-      this.world.Pause()
-      this.world.BeginPlay()
-      this.enterBase()
-      return true
-    }
-    if (this.initialMode === 'game') {
-      // startGameplay 内部会调用 SetGameMode + BeginPlay
-      return this.startGameplay()
-    }
-    // 默认：主菜单模式
-    return this.startMenuMode()
+    if (this.initialMode === 'base') return this.switchToPhase('base')
+    if (this.initialMode === 'game') return this.switchToPhase('game')
+    return this.switchToPhase('menu')
   }
 
-  private startMenuMode(): boolean {
-    logger.info('[Fish] 显示主菜单...')
-    this._phase = 'menu'
-    this.world.Pause()
-    this.world.BeginPlay()
-    // 加载主菜单场景资产
-    this.loadPhaseScene('menu')
+  /**
+   * 通用阶段切换：通过 World.SwitchToScene(name) 自动从 AssetRegistry 查找场景资产。
+   * SwitchToScene 内部：Pause → DestroyAllActors → SetGameMode → loadSceneAsActors → extraSetup → BeginPlay
+   */
+  private switchToPhase(phase: Phase): boolean {
+    this._phase = phase
+    const sceneName = phase === 'menu' ? 'FishMenu' : phase === 'base' ? 'FishBaseIsland' : 'FishMaster'
 
-    // 菜单相机
-    this.setupCamera(this.mainMenuGameMode.gameCamera, 0, 0, 20)
-    this.mainMenuGameMode.cameraManager.RegisterCamera(this.mainMenuGameMode.gameCamera)
+    return this.world.SwitchToScene(sceneName, () => {
+      switch (phase) {
+        case 'menu': this.setupMenuPhase(); break
+        case 'base': this.setupBasePhase(); break
+        case 'game': this.setupGamePhase(); break
+      }
+    })
+  }
 
-    // ─── 创建菜单 Controller ───
-    const menuSpawn = this.mainMenuGameMode.SpawnPlayer()
-    if (menuSpawn) {
-      menuSpawn.controller.Possess(menuSpawn.pawn)
-      this._controller = menuSpawn.controller
-    }
-
+  /** 菜单阶段设置（在 SwitchToScene extraSetup 中执行，世界处于暂停态） */
+  private setupMenuPhase(): void {
+    const mode = this.world.gameMode as FishMainMenuGameMode
+    this._menuGameMode = mode
+    mode.onStartGame = () => this.enterBase()
+    this.setupCamera(mode.gameCamera, 0, 0, 20)
+    mode.cameraManager.RegisterCamera(mode.gameCamera)
+    const spawn = mode.SpawnPlayer()
+    if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
     this.ui?.renderReact(React.createElement(FishMainMenuUI, {
-      onStartGame: () => this.mainMenuGameMode.startGame(),
+      onStartGame: () => mode.startGame(),
     }))
-
     logger.info('[Fish] 等待玩家点击开始')
-    return true
   }
 
-  // ════════════════════════════════════════════
-  //  Phase: 基地
-  // ════════════════════════════════════════════
-
-  private enterBase() {
-    logger.info('[Fish] 进入基地...')
-    this._phase = 'base'
-
-    // 清理菜单残留
-    this.world.DestroyAllActors()
-    this.mainMenuGameMode.cameraManager.Clear()
-
-    // 切换至基地 GameMode（會自動調用 InitGame + StartPlay + BeginPlay）
-    this.world.SetGameMode(this.baseGameMode)
-
-    // 加载基地场景资产
-    this.loadPhaseScene('base')
-
-    // 统计场景对象
-    const sceneChildren = this.world.scene.children.length
-    logger.debug(`[Fish] 进入基地后场景子对象数: ${sceneChildren}`)
-
-    // 3D 基地相机
-    this.setupCamera(this.baseGameMode.gameCamera, 8, 6, 10)
-    this.baseGameMode.cameraManager.RegisterCamera(this.baseGameMode.gameCamera)
-    const cam = this.baseGameMode.gameCamera.camera
-    logger.debug(`[Fish] 基地相机位置: (${cam.position.x.toFixed(2)}, ${cam.position.y.toFixed(2)}, ${cam.position.z.toFixed(2)})`)
-
-    // 物理系统绑定相机
-    if (this.ui?.el) {
-      PhySys.setup(this.baseGameMode.gameCamera.camera, this.ui.el)
-    }
-
-    // ─── 创建基地 Controller ───
-    const baseSpawn = this.baseGameMode.SpawnPlayer()
-    if (baseSpawn) {
-      baseSpawn.controller.Possess(baseSpawn.pawn)
-      this._controller = baseSpawn.controller
-    }
-
-    // 渲染基地 UI
+  /** 基地阶段设置 */
+  private setupBasePhase(): void {
+    const mode = this.world.gameMode as FishBaseGameMode
+    this._baseGameMode = mode
+    mode.onStartFishing = () => this.startGameplay()
+    mode.onClaimCoins = () => this.claimCoins()
+    this.setupCamera(mode.gameCamera, 8, 6, 10)
+    mode.cameraManager.RegisterCamera(mode.gameCamera)
+    if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
+    const spawn = mode.SpawnPlayer()
+    if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
     this.ui?.renderReact(React.createElement(FishBaseUI, {
-      coins: this._coins,
-      score: this._score,
+      coins: this._coins, score: this._score,
       cannonLevel: this._lastCannonLevel,
-      onStartFishing: () => this.baseGameMode.startFishing(),
+      onStartFishing: () => mode.startFishing(),
     }))
-
     logger.info('[Fish] 已进入基地')
   }
 
-  /** 领取初始金币 */
-  private claimCoins() {
-    this._coins = 100
-    // 刷新基地 UI 显示
-    this.ui?.renderReact(React.createElement(FishBaseUI, {
-      coins: this._coins,
-      score: this._score,
-      cannonLevel: this._lastCannonLevel,
-      onStartFishing: () => this.baseGameMode.startFishing(),
-    }))
-    logger.info(`[Fish] 领取初始金币，当前金币: ${this._coins}`)
-  }
+  /** 游戏阶段设置 */
+  private setupGamePhase(): void {
+    const mode = this.world.gameMode as FishGameMode
+    this._gameMode = mode
+    mode.coins = this._coins
+    mode.cameraManager.RegisterCamera(mode.gameCamera)
+    this.setupCamera(mode.gameCamera, 0, 0, 20)
 
-  // ════════════════════════════════════════════
-  //  Phase: 出海捕鱼
-  // ════════════════════════════════════════════
-
-  private startGameplay(): boolean {
-    logger.info('[Fish] 出海捕鱼...')
-    this._phase = 'game'
-
-    // 清理基地 Controller
-    if (this._controller) {
-      this._controller.Unpossess()
-    }
-    this._controller = null
-
-    // 清理基地装饰
-    this.baseGameMode.cameraManager.Clear()
-    this.world.DestroyAllActors()
-
-    // 创建并设置游戏 GameMode（SetGameMode 会自动 EndPlay baseGameMode）
-    this._gameMode = new FishGameMode()
-    this.world.SetGameMode(this._gameMode)
-
-    // 恢复世界运行（returnToBase 中调用了 Pause，_running=false 导致后续 Actor 不 BeginPlay）
-    this.world.BeginPlay()
-
-    // 进入游戏阶段：加载水下场景（fish.scene.json）作为 StaticMeshActor
-    this.loadPhaseScene('game')
-
-    // 游戏相机
-    this._gameMode.cameraManager.RegisterCamera(this._gameMode.gameCamera)
-    this.setupCamera(this._gameMode.gameCamera, 0, 0, 20)
-
-    // 同步持久数据
-    this._gameMode.coins = this._coins
-
-    // 生成玩家
-    const spawn = this._gameMode.SpawnPlayer()
-    if (!spawn) {
-      logger.error('[Fish] SpawnPlayer 返回空')
-      return false
-    }
+    const spawn = mode.SpawnPlayer()
+    if (!spawn) { logger.error('[Fish] SpawnPlayer 返回空'); return }
     const pawn = spawn.pawn as FishCannon
     this.world.SpawnActor(pawn)
     spawn.controller.Possess(pawn)
     this._controller = spawn.controller as FishPlayerController
     this.pawn = pawn
 
-    // 监听 GameOver / 得分
-    this.unsubGameState = this._gameMode.gameState.subscribe(() => {
-      const gs = this._gameMode!.gameState
+    this.unsubGameState = mode.gameState.subscribe(() => {
+      const gs = mode.gameState
       this._score = gs.score
-      this._coins = this._gameMode!.coins
+      this._coins = mode.coins as number
       this._lastCannonLevel = this.pawn?.level ?? 1
       this.callbacks.onScoreChange?.(gs.score)
       this.callbacks.onPhaseChange?.(gs.phase)
       if (gs.phase === 'gameover' && !this._returningToBase) {
         this.callbacks.onGameOver?.()
-        // Game Over 后返回基地
         this.returnToBase()
       }
     })
 
     this._hudProps = {
-      coins: this._coins,
-      score: this._score,
-      level: pawn.level,
-      bossActive: false,
-      bossName: '',
-      bossHp: 0,
-      bossMaxHp: 0,
-      phase: 'playing',
+      coins: this._coins, score: this._score, level: pawn.level,
+      bossActive: false, bossName: '', bossHp: 0, bossMaxHp: 0, phase: 'playing',
       onReturnToBase: () => this.manualReturnToBase(),
     }
     this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
-
     this.callbacks.onPhaseChange?.('playing')
     logger.info('[Fish] 游戏已启动')
-    return true
+  }
+
+  /** 领取初始金币 */
+  private claimCoins() {
+    this._coins = 100
+    this.ui?.renderReact(React.createElement(FishBaseUI, {
+      coins: this._coins, score: this._score,
+      cannonLevel: this._lastCannonLevel,
+      onStartFishing: () => this._baseGameMode?.startFishing(),
+    }))
+    logger.info(`[Fish] 领取初始金币，当前金币: ${this._coins}`)
+  }
+
+  // ════════════════════════════════════════════
+  //  阶段路由
+  // ════════════════════════════════════════════
+
+  /** 切换到菜单阶段 */
+  private startMenuMode(): boolean {
+    logger.info('[Fish] 显示主菜单...')
+    return this.switchToPhase('menu')
+  }
+
+  /** 进入基地（从菜单） */
+  private enterBase() {
+    logger.info('[Fish] 进入基地...')
+    this.switchToPhase('base')
+  }
+
+  /** 出海捕鱼 */
+  private startGameplay(): boolean {
+    logger.info('[Fish] 出海捕鱼...')
+    this._phase = 'game'
+    if (this._controller) { this._controller.Unpossess(); this._controller = null }
+    this._baseGameMode?.cameraManager.Clear()
+    return this.switchToPhase('game')
   }
 
   /** 玩家手动点击"返回基地" */
   private manualReturnToBase() {
     if (this._returningToBase || this._phase !== 'game') return
     this._returningToBase = true
-    // 停止游戏世界逻辑
-    if (this._gameMode) {
-      this.world.Pause()
-    }
     this.returnToBase()
   }
 
@@ -278,50 +207,13 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] 返回基地...')
     this._phase = 'base'
 
-    // 清理游戏状态
-    if (this._gameMode) {
-      this._gameMode.cameraManager.Clear()
-      this._gameMode = null
-    }
-    this.world.DestroyAllActors()
-    if (this._controller) {
-      this._controller.Unpossess()
-    }
-    this._controller = null
+    if (this.unsubGameState) { this.unsubGameState(); this.unsubGameState = null }
+    if (this._gameMode) { this._gameMode.cameraManager.Clear(); this._gameMode = null }
+    if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this.pawn = null
     this._returningToBase = false
 
-    // 重新切换至基地 GameMode（自動調用 InitGame + StartPlay + BeginPlay，重置裝飾）
-    this.world.SetGameMode(this.baseGameMode)
-
-    // 加载基地场景资产
-    this.loadPhaseScene('base')
-
-    // 3D 基地相机
-    this.setupCamera(this.baseGameMode.gameCamera, 8, 6, 10)
-    this.baseGameMode.cameraManager.RegisterCamera(this.baseGameMode.gameCamera)
-
-    // 物理系统绑定相机
-    if (this.ui?.el) {
-      PhySys.setup(this.baseGameMode.gameCamera.camera, this.ui.el)
-    }
-
-    // ─── 创建基地 Controller ───
-    const baseSpawn = this.baseGameMode.SpawnPlayer()
-    if (baseSpawn) {
-      baseSpawn.controller.Possess(baseSpawn.pawn)
-      this._controller = baseSpawn.controller
-    }
-
-    // 渲染基地 UI（保留金币和分数）
-    this.ui?.renderReact(React.createElement(FishBaseUI, {
-      coins: this._coins,
-      score: this._score,
-      cannonLevel: this._lastCannonLevel,
-      onStartFishing: () => this.baseGameMode.startFishing(),
-
-    }))
-
+    this.switchToPhase('base')
     logger.info(`[Fish] 返回基地，当前金币: ${this._coins}`)
   }
 
@@ -361,10 +253,10 @@ export class FishGameInstance extends GameInstance {
   override syncCamera(targetCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera, aspect: number) {
     switch (this._phase) {
       case 'menu':
-        this.mainMenuGameMode.cameraManager.ApplyToRenderer(targetCamera, aspect)
+        this._menuGameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
         break
       case 'base':
-        this.baseGameMode.cameraManager.ApplyToRenderer(targetCamera, aspect)
+        this._baseGameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
         break
       case 'game':
         this._gameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
@@ -385,80 +277,23 @@ export class FishGameInstance extends GameInstance {
     cameraComp.SyncToActor()
   }
 
-  // ════════════════════════════════════════════
-  //  场景资产加载（按阶段切换 JSON 场景）
-  // ════════════════════════════════════════════
-
-  /** 加载当前阶段的场景资产，每个对象作为 StaticMeshActor 生成 */
-  private loadPhaseScene(phase: Phase) {
-    const scene = this.world.scene
-    let asset: SceneGroup | null = null
-
-    switch (phase) {
-      case 'menu':
-        asset = loadScene(menuSceneData as SceneAsset)
-        logger.debug(`[Fish] loadPhaseScene(menu): 加载完成`)
-        break
-      case 'base':
-        asset = loadScene(baseSceneData as SceneAsset)
-        logger.debug(`[Fish] loadPhaseScene(base): 加载完成, objects=${baseSceneData.objects.length}`)
-        break
-      case 'game':
-        asset = loadScene(gameSceneData as SceneAsset)
-        logger.debug(`[Fish] loadPhaseScene(game): 加载完成, objects=${gameSceneData.objects.length}`)
-        break
-    }
-
-    if (asset) {
-      // 将加载的网格从 group 剥离，每个创建为 StaticMeshActor → 参与 Actor 生命周期
-      const meshes: THREE.Mesh[] = []
-      asset.group.traverse((node) => {
-        if (node instanceof THREE.Mesh) meshes.push(node)
-      })
-      for (const mesh of meshes) {
-        asset.group.remove(mesh)
-        const actor = new StaticMeshActor(mesh, `Scene_${phase}_${mesh.name || ''}`)
-        this.world.SpawnActor(actor)
-      }
-      logger.debug(`[Fish] loadPhaseScene(${phase}): 生成 ${meshes.length} 个 StaticMeshActor, pendingSpawn=${this.world.pendingSpawnCount}`)
-      // group 已空，不调用 dispose() — geometry/material 由 actor 的 EndPlay 负责释放
-
-      // 应用 skybox 配置（背景色 + 雾效）
-      if (asset.skybox) {
-        if (asset.skybox.backgroundColor) {
-          scene.background = new THREE.Color(asset.skybox.backgroundColor)
-        }
-        if (asset.skybox.fogColor) {
-          scene.fog = new THREE.Fog(
-            asset.skybox.fogColor,
-            asset.skybox.fogNear ?? 30,
-            asset.skybox.fogFar ?? 60,
-          )
-        }
-      }
-    } else {
-      logger.debug(`[Fish] loadPhaseScene(${phase}): asset 为空`)
-    }
-  }
-
   override stop() {
     if (this._stopped) return
     this._stopped = true
     logger.info('[Fish] 停止游戏...')
-    // 通知当前 GameMode 清理其直接添加到场景的 3D 对象（棕榈树/海鸟/炮台 etc.）
     this.world.gameMode?.EndPlay()
     this.world.gameMode = null
-    // 销毁所有 Actor（含 StaticMeshActor 场景资产），自动释放 geometry/material
     this.world.DestroyAllActors()
-    // 重置场景氛围到中性默认值
     this.world.scene.background = new THREE.Color(0x1a1a2e)
     this.world.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     this.world.Pause()
-    this.mainMenuGameMode.cameraManager.Clear()
-    this.baseGameMode.cameraManager.Clear()
-    if (this._gameMode) this._gameMode.cameraManager.Clear()
+    this._menuGameMode?.cameraManager.Clear()
+    this._baseGameMode?.cameraManager.Clear()
+    this._gameMode?.cameraManager.Clear()
     this._controller = null
     this.pawn = null
+    this._menuGameMode = null
+    this._baseGameMode = null
     this._gameMode = null
     this._phase = 'menu'
   }

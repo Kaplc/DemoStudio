@@ -1,0 +1,9 @@
+{
+  "id": "beach_house_luxury",
+  "baseClass": "FishHouse",
+  "parent": "beach_house",
+  "defaults": {
+    "houseColors": { "roof": "#d4af37" },
+    "houseScale": 1.25
+  }
+}

@@ -35,17 +35,43 @@ applyTo: "src/projects/**"
 
 ### asset/ — 场景资产文件
 
-放置 `.scene.json` 场景资产文件。程序化生成场景的项目（如使用 WorldBuilder）可省略此文件夹。
+放置 `.scene.json` 场景资产文件和 `blueprints/` 蓝图资产文件。
 
 ```
 asset/
 ├── fish.scene.json
 ├── fish_menu.scene.json
-└── ...
+├── fish_base.scene.json
+└── blueprints/
+    ├── beach_house.blueprint.json
+    └── seaweed_sprite.blueprint.json
 ```
 
 规则：
 - **禁止**将 `.scene.json` 文件放在项目根目录或 `gameplay/` 内
+- **场景资产**：`asset/*.scene.json`（不包含子目录）
+- **蓝图资产**：`asset/blueprints/*.blueprint.json`
+- **自动扫描**：新增文件无需修改代码，`import.meta.glob` 在 `asset/index.ts` 中自动发现并注册
+- **注册时机**：打开工程时触发（`setCurrentProject` → `registerFishAssets()` → `AssetRegistry.registerAll()`）
+- **asset/index.ts 模板**：
+
+```typescript
+// src/projects/{name}/asset/index.ts
+import { AssetRegistry } from '@/engine'
+import type { SceneAsset, BlueprintAsset } from '@/engine'
+
+export function register{Name}Assets(): void {
+  const scenes = Object.values(
+    import.meta.glob<{ default: SceneAsset }>('./*.scene.json', { eager: true })
+  ).map((m) => m.default as SceneAsset)
+  const blueprints = Object.values(
+    import.meta.glob<{ default: BlueprintAsset }>('./blueprints/*.blueprint.json', { eager: true })
+  ).map((m) => m.default as BlueprintAsset)
+  AssetRegistry.registerAll({ scenes, blueprints })
+}
+```
+
+### config/ — 配置文件
 
 ### config/ — 配置文件
 
@@ -145,22 +171,94 @@ gameplay/{mode}/module/
 
 **禁止**将场景文件（`.scene.json`）、配置文件（`.config.json` / `.table.json`）、UI 组件（`.tsx`）直接放在项目根目录。
 
-## 迁移指南
-
 ### 新项目搭建步骤
-1. 创建 `asset/`、`config/`、`gameplay/` 文件夹
+1. 创建 `asset/`（含 `blueprints/`）、`config/`、`gameplay/` 文件夹
 2. 在 `gameplay/` 下创建 `common/` 放置共享类型和工具
 3. 按阶段在 `gameplay/` 下创建 `{mode}/` 文件夹
 4. 在每个 mode 文件夹下创建 `hud/` 放置 UI 组件
-5. 创建 `index.ts` 导出所有公开 API
-6. 创建 `project.json` 配置项目元信息
+5. 创建 `asset/index.ts` 用 `import.meta.glob` 自动扫描注册资产
+6. 在 `register.ts` 中规定 `registerAssets` 字段（指向 `asset/index.ts` 的注册函数）
+7. 创建 `index.ts` 导出所有公开 API
+8. 创建 `project.json` 配置项目元信息
 
-### 现有项目迁移步骤
-1. 创建目标文件夹
-2. 移动文件到对应文件夹
-3. 更新所有 import 路径引用
-4. 更新 `index.ts` 导出路径
-5. 验证项目可正常构建运行
+## 程序化生成规则（World 工厂方法）
+
+**项目代码中禁止直接调用 `new THREE.Mesh()`、`new THREE.BoxGeometry()`、`new THREE.SphereGeometry()`、`new THREE.PlaneGeometry()`、`new THREE.MeshBasicMaterial()` 等 THREE 构造函数创建几何体。**
+
+所有程序化生成的基础图元必须通过 `World` 提供的工厂方法创建：
+
+| 方法 | 用途 |
+|------|------|
+| `world.createGroup()` | 空 Group（组合体容器） |
+| `world.createBoxMesh(w, h, d, color, transparent?, opacity?)` | Box 网格 |
+| `world.createSphereMesh(radius, color, segments?, transparent?, opacity?)` | 球体网格 |
+| `world.createPlaneMesh(w, h, color, transparent, opacity, side)` | 平面网格 |
+| `world.createInvisibleBox(w, h, d)` | 不可见 Box（点击碰撞体） |
+| `world.createEdgesBox(w, h, d, color, transparent?, opacity?)` | Box 线框 |
+
+生成的物体应包装为 `StaticMeshActor`，通过 `world.SpawnActor()` 注册到 Actor 生命周期，由 `World.DestroyAllActors()` 统一清理（自动 `EndPlay()` + 释放 geometry/material + 从场景移除）。
+
+```typescript
+// ✅ 正确做法
+const group = world.createGroup()
+const mesh = world.createBoxMesh(1, 1, 1, 0xff0000)
+group.add(mesh)
+const actor = new StaticMeshActor(group, 'MyDecor')
+world.SpawnActor(actor)
+
+// ❌ 禁止做法
+const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xff0000 }))
+scene.add(mesh)
+```
+
+参考实现：`src/projects/fish/gameplay/base/FishBaseGameMode.ts`、`FishHouseActor.ts`
+
+## 场景切换方法（World.SwitchToScene）
+
+阶段性场景切换必须使用 `World.SwitchToScene(sceneAsset, extraSetup?)`，它会自动：
+
+1. 读取 `sceneAsset.mode`
+2. 从 `GameModeRegistry` 查找对应 GameMode 构造函数并实例化
+3. `Pause` → `DestroyAllActors` → `SetGameMode`
+4. `loadSceneAsActors(sceneAsset)` — 将场景资产文件中的对象加载为 `StaticMeshActor`
+5. 执行 `extraSetup` 回调（相机、Controller、UI 等项目专属设置）
+6. `BeginPlay()` — 恢复世界运行
+
+**使用步骤：**
+
+### 1. 注册 mode → GameMode 映射
+
+在每个项目的 `register.ts` 文件中注册：
+
+```typescript
+// src/projects/fish/register.ts
+import { GameModeRegistry } from '@/engine'
+import { FishMainMenuGameMode } from './gameplay/menu/FishMainMenuGameMode'
+import { FishBaseGameMode } from './gameplay/base/FishBaseGameMode'
+import { FishGameMode } from './gameplay/game/FishGameMode'
+
+// 注册各场景 mode 对应的 GameMode
+GameModeRegistry.register('menu', FishMainMenuGameMode)
+GameModeRegistry.register('base', FishBaseGameMode)
+GameModeRegistry.register('game', FishGameMode)
+```
+
+### 2. 使用 SwitchToScene 切换
+
+```typescript
+// 在 GameInstance 中
+world.SwitchToScene(baseSceneData, () => {
+    // 项目专属设置（处于暂停态，安全执行）
+    setupCamera(gameMode.gameCamera, 8, 6, 10)
+    gameMode.cameraManager.RegisterCamera(gameMode.gameCamera)
+    PhySys.setup(gameMode.gameCamera.camera, ui.el)
+    const spawn = gameMode.SpawnPlayer()
+    spawn?.controller.Possess(spawn.pawn)
+    ui.renderReact(React.createElement(FishBaseUI, { ... }))
+})
+```
+
+**禁止**手动拼凑 `Pause → DestroyAllActors → SetGameMode → loadPhaseScene → setup → BeginPlay`，统一使用 `SwitchToScene`。
 
 ## 配置表加载规则
 

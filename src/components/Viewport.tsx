@@ -1,11 +1,12 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { PreviewSceneManager, GameSceneManager, logger, Game, GameFactoryRegistry, NullGameInstance, gizmos, loadScene } from '../engine'
-import type { SceneGroup } from '../engine'
-import { useEditorStore } from '../stores/editorStore'
+import { PreviewSceneManager, GameSceneManager, logger, Game, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
+import type { SceneGroup, SceneAsset } from '../engine'
+import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
-import type { ViewportTab } from '../stores/editorPrefsStore'
 import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
+import { BlueprintEditor } from './BlueprintEditor'
+import { ScenePreviewEditor } from './ScenePreviewEditor'
 import {
   setupScene,
   handleKeyDown,
@@ -35,21 +36,19 @@ export function Viewport({ onReady }: ViewportProps) {
   const gameSceneRef = useRef<GameSceneManager | null>(null)
   const gameRef = useRef<Game | null>(null)
 
-  // 共享场景
+  // 共享场景（Scene 视口和 Game 视口共用）
   const sharedSceneRef = useRef<THREE.Scene | null>(null)
   // 当前 defaultScene 读取的 mode
   const sceneModeRef = useRef<string | undefined>(undefined)
-  // 当前预览场景组（选项目时加载的 defaultScene，启动后被游戏实例接管）
+  // 当前预览场景组（选项目时加载的 defaultScene）
   const previewRef = useRef<SceneGroup | null>(null)
   // setupScene 返回的清理函数
   const cleanupRef = useRef<(() => void) | null>(null)
 
   const prefsViewport = useEditorPrefsStore((s) => s.viewport)
   const setViewportPref = useEditorPrefsStore((s) => s.setViewport)
-  const activeTab = prefsViewport.activeTab
   const gameAspectRatio = prefsViewport.aspectRatio
   const gizmosOn = prefsViewport.gizmos
-  const setActiveTab = (tab: ViewportTab) => setViewportPref({ activeTab: tab })
   const setGameAspectRatio = (ratio: string) => setViewportPref({ aspectRatio: ratio })
   const [viewportFocused, setViewportFocused] = useState(false)
   const [localScore, setLocalScore] = useState(0)
@@ -60,6 +59,19 @@ export function Viewport({ onReady }: ViewportProps) {
   const launchCount = useEditorStore((s) => s.launchCount)
   const setGameScore = useEditorStore((s) => s.setGameScore)
   const setGameOver = useEditorStore((s) => s.setGameOver)
+
+  // 动态页签
+  const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
+  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const setActiveTabId = useEditorStore((s) => s.setActiveTabId)
+  const closeDynamicTab = useEditorStore((s) => s.closeDynamicTab)
+
+  // 合并所有页签：持久页签 + 动态页签
+  const allTabs: ViewportTabDef[] = useMemo(() => [
+    { id: 'scene', type: 'scene', label: 'Scene', permanent: true },
+    { id: 'game', type: 'game', label: 'Game', permanent: true },
+    ...dynamicTabs,
+  ], [dynamicTabs])
 
   // ─── 一次初始化：使用 SceneSetup 创建共享场景 + 两个 SceneManager + Game ───
   useEffect(() => {
@@ -82,7 +94,6 @@ export function Viewport({ onReady }: ViewportProps) {
     gameSceneRef.current = gameMgr
     gameRef.current = game
     cleanupRef.current = cleanup
-    // 暴露共享场景 + Scene 视口给 SelectionManager
     setSharedScene(sharedScene)
     setSceneMgr(sceneMgr)
 
@@ -107,6 +118,36 @@ export function Viewport({ onReady }: ViewportProps) {
     sceneRef.current?.setTargetAspect(ratio)
     gameSceneRef.current?.setTargetAspect(ratio)
   }, [gameAspectRatio])
+
+  // ─── 加载一个 scene.json 到共享场景预览 ───
+  const loadDefaultScenePreview = useCallback(async (path: string, label: string) => {
+    const shared = sharedSceneRef.current
+    if (!shared) return
+    const readJsonFile = window.electronAPI?.readJsonFile
+    if (!readJsonFile) return
+    try {
+      const result = await readJsonFile(path)
+      if (!result.success || !result.data) return
+      // 动态导入 loadScene（保持 tree-shaking）
+      const { loadScene } = await import('../engine/gameplay/scene/SceneLoader')
+      // 清除旧预览
+      if (previewRef.current) {
+        shared.remove(previewRef.current.group)
+        previewRef.current.dispose()
+        previewRef.current = null
+      }
+      const sceneResult = loadScene(result.data)
+      sceneModeRef.current = sceneResult.mode
+      shared.add(sceneResult.group)
+      if (sceneResult.skybox) {
+        applySkybox(shared, sceneResult.skybox)
+      }
+      previewRef.current = sceneResult
+      logger.info(`[Viewport] 加载默认场景 (${label}): ${sceneResult.name}`)
+    } catch (err) {
+      logger.warn(`[Viewport] 加载默认场景失败 (${label}): ${err}`)
+    }
+  }, [])
 
   // ─── 切换工程 → 停止游戏 + 读取 defaultScene 预览 ───
   useEffect(() => {
@@ -138,55 +179,21 @@ export function Viewport({ onReady }: ViewportProps) {
       gizmos.beginFrame()
       gizmos.flush()
 
-      // 4. 重置 UI 状态 & 切换游戏实例
+      // 4. 重置 UI 状态
       setLocalScore(0)
       setLocalPhase('waiting')
       setGameScore(0)
       setGameOver(false)
 
-      if (currentProject && GameFactoryRegistry.has(currentProject.name)) {
-        const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
-        newInst.initialMode = sceneModeRef.current
-        newInst.setCallbacks({
-          onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-          onPhaseChange: (phase) => setLocalPhase(phase),
-          onGameOver: () => setGameOver(true),
-        })
-        game.setInstance(newInst)
-      } else {
-        game.setInstance(new NullGameInstance())
-      }
-
-      // 5. 按项目渲染模式切换相机
+      // 5. 按项目渲染模式切换相机 + 读取 defaultScene 预览
       if (currentProject) {
         gameSceneRef.current?.setCameraMode(
           currentProject.renderMode === '2d' ? 'orthographic' : 'perspective',
         )
 
-        // 6. 读取 defaultScene JSON 作为预览场景
         const { defaultScene, name } = currentProject
-        const readJsonFile = window.electronAPI?.readJsonFile
-        if (defaultScene && readJsonFile) {
-          try {
-            const result = await readJsonFile(defaultScene)
-            if (result.success && result.data) {
-              // 加载场景并记录 mode
-              const sceneResult = loadScene(result.data)
-              sceneModeRef.current = sceneResult.mode
-              if (gameRef.current?.instance) {
-                gameRef.current.instance.initialMode = sceneResult.mode
-              }
-              // 挂到共享场景预览
-              shared.add(sceneResult.group)
-              if (sceneResult.skybox) {
-                applySkybox(shared, sceneResult.skybox)
-              }
-              previewRef.current = sceneResult
-              logger.info(`[Viewport] 加载 ${name} 预览场景: ${sceneResult.name}`)
-            }
-          } catch (err) {
-            logger.warn(`[Viewport] 读取 ${name} defaultScene 失败: ${err}`)
-          }
+        if (defaultScene) {
+          await loadDefaultScenePreview(defaultScene, `${name}/defaultScene`)
         }
       }
     }
@@ -199,20 +206,16 @@ export function Viewport({ onReady }: ViewportProps) {
     const game = gameRef.current
     if (!game || !editorState.running) return
 
-    // 如果是重新启动（launchCount > 1），先销毁旧实例，从工厂创建新的
-    // 这样改 GameMode / GameInstance 代码后 Stop → Launch 就能生效
-    if (launchCount > 1) {
-      const shared = sharedSceneRef.current
-      if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
-        const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
-        newInst.initialMode = sceneModeRef.current
-        newInst.setCallbacks({
-          onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-          onPhaseChange: (phase) => setLocalPhase(phase),
-          onGameOver: () => setGameOver(true),
-        })
-        game.setInstance(newInst)
-      }
+    // 每次启动都创建新的游戏实例（确保代码变更生效）
+    const shared = sharedSceneRef.current
+    if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
+      const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
+      newInst.setCallbacks({
+        onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
+        onPhaseChange: (phase) => setLocalPhase(phase),
+        onGameOver: () => setGameOver(true),
+      })
+      game.setInstance(newInst)
     }
 
     game.launch()
@@ -232,18 +235,33 @@ export function Viewport({ onReady }: ViewportProps) {
   // ─── 启动游戏自动切换到 Game 标签 ───
   useEffect(() => {
     if (editorState.running) {
-      setActiveTab('game')
+      setActiveTabId('game')
+    }
+  }, [editorState.running])
+
+  // ─── 停止游戏时隐藏 Game 视口的渲染器和 UI 层 ───
+  useEffect(() => {
+    const gameMgr = gameSceneRef.current
+    if (!gameMgr) return
+    const canvas = gameMgr.renderer.domElement
+    const uiLayer = gameMgr.uiLayer
+    if (editorState.running) {
+      canvas.style.display = ''
+      uiLayer.style.display = ''
+    } else {
+      canvas.style.display = 'none'
+      uiLayer.style.display = 'none'
     }
   }, [editorState.running])
 
   // ─── 切换标签时刷新尺寸 ───
   useEffect(() => {
-    if (activeTab === 'scene') {
+    if (activeTabId === 'scene') {
       sceneRef.current?.resize()
-    } else {
+    } else if (activeTabId === 'game') {
       gameSceneRef.current?.resize()
     }
-  }, [activeTab])
+  }, [activeTabId])
 
   // ─── 键盘控制（仅 Viewport 获得焦点时生效）───
   useEffect(() => {
@@ -274,7 +292,7 @@ export function Viewport({ onReady }: ViewportProps) {
   useEffect(() => {
     if (!viewportFocused) return
 
-    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTab }
+    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTabId }
     const onDown = (e: KeyboardEvent) => handleKeyDown(e, ctx)
     const onUp = (e: KeyboardEvent) => handleKeyUp(e, ctx)
 
@@ -284,15 +302,15 @@ export function Viewport({ onReady }: ViewportProps) {
       window.removeEventListener('keydown', onDown, true)
       window.removeEventListener('keyup', onUp, true)
     }
-  }, [activeTab, viewportFocused])
+  }, [activeTabId, viewportFocused])
 
   // ─── 鼠标输入路由（仅 Game 标签 + 游戏运行时）───
   useEffect(() => {
-    if (activeTab !== 'game' || !editorState.running) return
+    if (activeTabId !== 'game' || !editorState.running) return
     const canvas = gameSceneRef.current?.renderer.domElement
     if (!canvas) return
 
-    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTab }
+    const ctx = { sceneMgr: sceneRef.current, gameMgr: gameSceneRef.current, game: gameRef.current, activeTabId }
 
     const onMove = (e: MouseEvent) => handleMouseMove(e, ctx, _ptrWorld)
     const onDown = (e: MouseEvent) => handleMouseDown(e, ctx, _ptrWorld)
@@ -310,11 +328,11 @@ export function Viewport({ onReady }: ViewportProps) {
       window.removeEventListener('mouseup', onUp)
       canvas.removeEventListener('wheel', onWheel)
     }
-  }, [activeTab, editorState.running])
+  }, [activeTabId, editorState.running])
 
   // ─── TransformGizmo 交互（仅 Scene 标签 + 未运行时）───
   useEffect(() => {
-    if (activeTab !== 'scene' || editorState.running) return
+    if (activeTabId !== 'scene' || editorState.running) return
     const canvas = sceneRef.current?.renderer.domElement
     if (!canvas) return
 
@@ -357,7 +375,7 @@ export function Viewport({ onReady }: ViewportProps) {
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
     }
-  }, [activeTab, editorState.running])
+  }, [activeTabId, editorState.running])
 
   return (
     <div
@@ -374,28 +392,51 @@ export function Viewport({ onReady }: ViewportProps) {
     >
       {/* 标签栏 */}
       <div className="viewport-tabs">
-        <button
-          className={`viewport-tab${activeTab === 'scene' ? ' active' : ''}`}
-          onClick={() => setActiveTab('scene')}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-          </svg>
-          Scene
-        </button>
-        <button
-          className={`viewport-tab${activeTab === 'game' ? ' active' : ''}`}
-          onClick={() => setActiveTab('game')}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="6" width="20" height="12" rx="2" />
-            <path d="M6 12h4" /><path d="M8 10v4" />
-          </svg>
-          Game
-          {editorState.running && (
-            <span style={{ marginLeft: 6, color: '#4ade80', fontSize: 10 }}>●</span>
-          )}
-        </button>
+        {allTabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`viewport-tab${activeTabId === tab.id ? ' active' : ''}`}
+            onClick={() => setActiveTabId(tab.id)}
+            title={tab.permanent ? undefined : tab.assetPath}
+          >
+            {tab.type === 'scene' && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              </svg>
+            )}
+            {tab.type === 'game' && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="6" width="20" height="12" rx="2" />
+                <path d="M6 12h4" /><path d="M8 10v4" />
+              </svg>
+            )}
+            {tab.type === 'blueprint' && (
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🧩</span>
+            )}
+            {tab.type === 'scenePreview' && (
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🎬</span>
+            )}
+            {tab.label}
+            {tab.type === 'game' && editorState.running && (
+              <span style={{ marginLeft: 4, color: '#4ade80', fontSize: 10 }}>●</span>
+            )}
+            {/* 非持久标签的关闭按钮 */}
+            {!tab.permanent && (
+              <span
+                onClick={(e) => { e.stopPropagation(); closeDynamicTab(tab.id) }}
+                style={{
+                  marginLeft: 6, padding: '0 3px', fontSize: 14, lineHeight: 1,
+                  borderRadius: 2, opacity: 0.6, cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.6'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                title="关闭"
+              >
+                ×
+              </span>
+            )}
+          </button>
+        ))}
         <select
           value={gameAspectRatio}
           onChange={(e) => setGameAspectRatio(e.target.value)}
@@ -438,12 +479,12 @@ export function Viewport({ onReady }: ViewportProps) {
           ◇ Gizmos
         </button>
         <div className="menu-spacer" />
-        {activeTab === 'scene' && (
+        {activeTabId === 'scene' && (
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
             WASD 漫游 · 左键旋转 · 右键平移 · 滚轮缩放
           </span>
         )}
-        {activeTab === 'game' && editorState.running && currentProject && (
+        {activeTabId === 'game' && editorState.running && currentProject && (
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
             {localPhase === 'gameover' ? 'Game Over' : `Score: ${localScore}`}
           </span>
@@ -454,9 +495,9 @@ export function Viewport({ onReady }: ViewportProps) {
       <div
         ref={sceneContainerRef}
         className="viewport-container viewport-container-game"
-        style={{ flex: 1, display: activeTab === 'scene' ? undefined : 'none' }}
+        style={{ flex: 1, display: activeTabId === 'scene' ? undefined : 'none' }}
       >
-        {activeTab === 'scene' && (
+        {activeTabId === 'scene' && (
           <div className="viewport-overlay">
             {editorState.running
               ? '🎮 游戏运行中 · 自由漫游查看'
@@ -472,9 +513,9 @@ export function Viewport({ onReady }: ViewportProps) {
         ref={gameContainerRef}
         className="viewport-container viewport-container-game"
         tabIndex={-1}
-        style={{ flex: 1, display: activeTab === 'game' ? undefined : 'none', outline: 'none' }}
+        style={{ flex: 1, display: activeTabId === 'game' ? undefined : 'none', outline: 'none' }}
       >
-        {activeTab === 'game' && !editorState.running && (
+        {activeTabId === 'game' && !editorState.running && (
           <div className="viewport-overlay" style={{
             position: 'absolute', inset: 0, display: 'flex',
             alignItems: 'center', justifyContent: 'center',
@@ -484,6 +525,21 @@ export function Viewport({ onReady }: ViewportProps) {
           </div>
         )}
       </div>
+
+      {/* 动态页签视图 */}
+      {dynamicTabs.map((tab) => (
+        <div
+          key={tab.id}
+          style={{ flex: 1, display: activeTabId === tab.id ? undefined : 'none' }}
+        >
+          {tab.assetPath && tab.type === 'blueprint' && (
+            <BlueprintEditor assetPath={tab.assetPath} />
+          )}
+          {tab.assetPath && tab.type === 'scenePreview' && (
+            <ScenePreviewEditor assetPath={tab.assetPath} />
+          )}
+        </div>
+      ))}
     </div>
   )
 }

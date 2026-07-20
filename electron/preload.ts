@@ -62,8 +62,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 读取 JSON 文件（场景资产）───
   readJsonFile: (relativePath: string) => ipcRenderer.invoke('read-json-file', relativePath),
 
+  // ─── 写入 JSON 文件（蓝图资产编辑等）───
+  writeJsonFile: (relativePath: string, data: unknown) =>
+    ipcRenderer.invoke('write-json-file', relativePath, data),
+
+  // ─── 蓝图编辑 MCP 往返：主进程 → 渲染进程 ───
+  onBlueprintRequest: (callback: (requestId: string, op: string, params: any) => void) => {
+    const handler = (_event: unknown, payload: { requestId: string; op: string; params?: any }) => {
+      callback(payload.requestId, payload.op, payload.params ?? {})
+    }
+    ipcRenderer.on('blueprint-request', handler)
+    return () => {
+      ipcRenderer.removeListener('blueprint-request', handler)
+    }
+  },
+
+  // ─── 蓝图编辑 MCP 往返：渲染进程 → 主进程（回传结果）───
+  sendBlueprintResponse: (requestId: string, result: unknown) =>
+    ipcRenderer.send('blueprint-response', { requestId, result }),
+
   // ─── 扫描工程目录 ───
   discoverProjectsScan: () => ipcRenderer.invoke('discover-projects'),
+
+  // ─── 列出项目资产文件（排除代码）───
+  listProjectAssets: (folder: string) => ipcRenderer.invoke('list-project-assets', folder),
 
   // ─── 存档系统（userData-scoped）───
   saveGameFile: (game: string, slot: string, data: unknown) =>

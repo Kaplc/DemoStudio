@@ -466,7 +466,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 16000; /* 高于全屏启动选择器 (15000) */
 }
 
 .modal-content {
@@ -709,4 +709,156 @@ html, body, #root {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
+}
+
+/* ═══ 全屏启动工程选择器 ═══ */
+
+.startup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  font-family: var(--font-sans);
+}
+
+.startup-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 520px;
+  max-height: 90vh;
+}
+
+.startup-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.startup-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #e0e0e0;
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+
+.startup-subtitle {
+  font-size: 14px;
+  color: #888;
+  letter-spacing: 1px;
+}
+
+.startup-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 20px;
+  overflow-y: auto;
+  max-height: 50vh;
+  padding: 4px;
+}
+
+.startup-project-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.04);
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.startup-project-card:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+
+.startup-project-card.selected {
+  background: rgba(0,122,204,0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(0,122,204,0.1);
+}
+
+.startup-project-icon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+
+.startup-project-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.startup-project-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 3px;
+}
+
+.startup-project-desc {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.3;
+}
+
+.startup-checkmark {
+  font-size: 18px;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.startup-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.startup-btn {
+  padding: 10px 40px !important;
+  font-size: 14px !important;
+  font-weight: 500;
+  border-radius: 6px !important;
+  transition: all 0.15s ease;
+}
+
+.startup-btn-new {
+  background: rgba(255,255,255,0.08) !important;
+  color: #ccc !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+}
+
+.startup-btn-new:hover {
+  background: rgba(255,255,255,0.14) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,0.3) !important;
+}
+
+.startup-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.startup-footer {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
 }

@@ -46,15 +46,9 @@ export class Editor {
     // 1. 注册所有项目（世界构建器、游戏工厂、配置表）
     registerAllProjects(addConsoleOutput)
 
-    // 2. 扫描工程并恢复上次打开的项目
+    // 2. 扫描工程（启动时不再自动恢复，由用户在全屏选择器中选取）
     const { discoverProjects } = useProjectStore.getState()
-    void discoverProjects().then(() => {
-      const lastFolder = useEditorPrefsStore.getState().lastProjectFolder
-      if (lastFolder && !useEditorStore.getState().currentProject) {
-        const match = useProjectStore.getState().projects.find((p) => p.folder === lastFolder)
-        if (match) useEditorStore.getState().setCurrentProject(match)
-      }
-    })
+    void discoverProjects()
 
     // 3. 注册全局事件监听（快捷键、Electron 菜单、MCP）
     const cleanupEvents = registerGlobalEventListeners({

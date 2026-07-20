@@ -21,7 +21,8 @@ export interface InputRouterContext {
   sceneMgr: PreviewSceneManager | null
   gameMgr: GameSceneManager | null
   game: Game | null
-  activeTab: 'scene' | 'game'
+  /** 当前活跃的视口页签 id（'scene' | 'game' | 'bp:...'） */
+  activeTabId: string
 }
 
 /**
@@ -32,9 +33,10 @@ export function handleKeyDown(
   e: KeyboardEvent,
   ctx: InputRouterContext,
 ): boolean {
-  if (ctx.activeTab === 'scene') {
+  if (ctx.activeTabId === 'scene') {
     return handleSceneKeyDown(e, ctx.sceneMgr)
   }
+  if (ctx.activeTabId !== 'game') return false
   return handleGameKeyDown(e, ctx.game)
 }
 
@@ -45,9 +47,10 @@ export function handleKeyUp(
   e: KeyboardEvent,
   ctx: InputRouterContext,
 ): boolean {
-  if (ctx.activeTab === 'scene') {
+  if (ctx.activeTabId === 'scene') {
     return handleSceneKeyUp(e, ctx.sceneMgr)
   }
+  if (ctx.activeTabId !== 'game') return false
   return handleGameKeyUp(e, ctx.game)
 }
 

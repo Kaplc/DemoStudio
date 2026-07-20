@@ -7,7 +7,7 @@ import { validateProjectName } from '../editor'
 type ProjectMode = '2d' | '3d'
 
 export function NewProjectDialog() {
-  const { showNewProjectDialog, setShowNewProjectDialog, addConsoleOutput } = useEditorStore()
+  const { showNewProjectDialog, setShowNewProjectDialog, setCurrentProject, addConsoleOutput } = useEditorStore()
   const { projects, setProjects } = useProjectStore()
   const [name, setName] = useState('')
   const [mode, setMode] = useState<ProjectMode>('3d')
@@ -48,6 +48,7 @@ export function NewProjectDialog() {
         }
         setProjects([...projects, newProject])
         addConsoleOutput(`✅ 工程 "${projectName}" (${mode.toUpperCase()}) 已创建`)
+        setCurrentProject(newProject) // 自动选中新建的工程并进入编辑器
         setShowNewProjectDialog(false)
         setName('')
         setMode('3d')

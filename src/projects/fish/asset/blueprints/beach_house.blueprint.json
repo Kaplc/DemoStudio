@@ -1,0 +1,64 @@
+{
+  "id": "beach_house",
+  "baseClass": "FishHouse",
+  "defaults": {
+    "position": [0, 0, 0],
+    "houseScale": 1,
+    "houseColors": {
+      "floor": "#a67c52",
+      "wall": "#c9b99a",
+      "roof": "#8b6f47",
+      "roofTop": "#6d4c41",
+      "door": "#5d4037"
+    }
+  },
+  "children": [
+    {
+      "name": "Foundation",
+      "objects": [
+        { "type": "box", "size": [2.4, 0.15, 2.4], "pos": [0, 0.3, 0], "material": { "color": "#a67c52", "kind": "basic" } }
+      ]
+    },
+    {
+      "name": "Body",
+      "children": [
+        {
+          "name": "Walls",
+          "objects": [
+            { "type": "box", "size": [2.0, 1.4, 2.0], "pos": [0, 1.0, 0], "material": { "color": "#c9b99a", "kind": "basic", "transparent": true, "opacity": 0.9 } }
+          ]
+        },
+        {
+          "name": "Door",
+          "objects": [
+            { "type": "box", "size": [0.5, 0.8, 0.05], "pos": [0, 0.65, 1.01], "material": { "color": "#5d4037", "kind": "basic" } }
+          ]
+        },
+        {
+          "name": "Windows",
+          "objects": [
+            { "type": "box", "size": [0.3, 0.3, 0.05], "pos": [-0.6, 1.1, 1.01], "material": { "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } },
+            { "type": "box", "size": [0.3, 0.3, 0.05], "pos": [0.6, 1.1, 1.01], "material": { "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } }
+          ]
+        },
+        {
+          "name": "Pillars",
+          "objects": [
+            { "type": "box", "size": [0.08, 1.8, 0.08], "pos": [-1.1, 1.1, 1.1], "material": { "color": "#8d6e63", "kind": "basic" } },
+            { "type": "box", "size": [0.08, 1.8, 0.08], "pos": [1.1, 1.1, 1.1], "material": { "color": "#8d6e63", "kind": "basic" } },
+            { "type": "box", "size": [0.08, 1.8, 0.08], "pos": [-1.1, 1.1, -1.1], "material": { "color": "#8d6e63", "kind": "basic" } },
+            { "type": "box", "size": [0.08, 1.8, 0.08], "pos": [1.1, 1.1, -1.1], "material": { "color": "#8d6e63", "kind": "basic" } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Roof",
+      "objects": [
+        { "type": "box", "size": [2.6, 0.3, 2.6], "pos": [0, 1.75, 0], "material": { "color": "#8b6f47", "kind": "basic", "transparent": true, "opacity": 0.9 } },
+        { "type": "box", "size": [2.0, 0.2, 2.0], "pos": [0, 2.0, 0], "material": { "color": "#6d4c41", "kind": "basic" } },
+        { "type": "box", "size": [2.6, 0.06, 0.06], "pos": [0, 2.1, 0], "material": { "color": "#6d4c41", "kind": "basic" } }
+      ]
+    }
+  ]
+}

@@ -5,8 +5,13 @@
 import * as THREE from 'three'
 import type { Component } from './Component'
 import type { World } from '../gameflow/World'
+import type { PropertyPatch } from '../tools/deepMerge'
+import { clonePatch } from '../tools/deepMerge'
 
 export abstract class Actor {
+  /** 全局唯一整数 ID，每个 Actor 构造时自动分配 */
+  public readonly uid: number
+
   public readonly name: string
   public readonly root: THREE.Group
   public world: World | null = null
@@ -15,15 +20,22 @@ export abstract class Actor {
   public bHasBegunPlay = false
   public bPendingDestroy = false
 
+  /** Blueprint 实例元数据（由 SpawnActorFromBlueprint 设置；非蓝图实例为 null） */
+  public blueprintRef: { id: string; overrides?: PropertyPatch } | null = null
+
+  private static _nextUid = 1
+
   private components: Component[] = []
   private children: Actor[] = []
   private _parent: Actor | null = null
 
   constructor(name = 'Actor') {
+    this.uid = Actor._nextUid++
     this.name = name
     this.root = new THREE.Group()
     this.root.name = name
     this.root.userData.actorRef = this
+    this.root.userData.actorUid = this.uid
   }
 
   // ═══════════════════════════════════
@@ -167,6 +179,42 @@ export abstract class Actor {
   removeFromScene(scene: THREE.Scene) {
     scene.remove(this.root)
   }
+
+  // ═══════════════════════════════════
+  //  Blueprint 数据驱动
+  // ═══════════════════════════════════
+
+  /**
+   * 应用属性补丁（Blueprint 实例化注入 CDO 默认值、运行时覆盖共用）。
+   *
+   * 先解析约定 transform 字段（position / rotation / scale，number[3]）调对应 setter，
+   * 剩余字段深拷贝后交给 applyCustomDefaults（行为类 override 读取自定义参数）。
+   *
+   * 注意：本方法不触碰 world / 不构建几何；行为类的几何构建仍留 BeginPlay。
+   */
+  applyPatch(patch: PropertyPatch): void {
+    const pos = patch.position
+    if (Array.isArray(pos)) this.setPosition(pos[0], pos[1], pos[2])
+    const rot = patch.rotation
+    if (Array.isArray(rot)) this.setRotation(rot[0], rot[1], rot[2])
+    const scl = patch.scale
+    if (Array.isArray(scl)) this.setScale(scl[0], scl[1], scl[2])
+
+    const rest: PropertyPatch = {}
+    for (const k of Object.keys(patch)) {
+      if (k !== 'position' && k !== 'rotation' && k !== 'scale') rest[k] = patch[k]
+    }
+    if (Object.keys(rest).length > 0) {
+      this.applyCustomDefaults(clonePatch(rest))
+    }
+  }
+
+  /**
+   * 子类 override：从补丁读取自定义参数（如 FishHouseActor 读 houseSize / houseColors）。
+   * 默认实现忽略。约束：只赋值字段，绝不触碰 world 或构建几何。
+   * 收到的 patch 已是深拷贝，可安全直接赋值。
+   */
+  applyCustomDefaults(_patch: PropertyPatch): void {}
 
   // ═══════════════════════════════════
   //  序列化（为未来场景保存预留；当前存档系统不遍历调用）

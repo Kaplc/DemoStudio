@@ -1,0 +1,18 @@
+{
+  "id": "seaweed_sprite",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "type": "sprite",
+      "props": {
+        "width": 0.5,
+        "height": 1.4,
+        "color": "#2e7d32",
+        "opacity": 0.9
+      }
+    }
+  ],
+  "defaults": {
+    "position": [0, 0.7, 0]
+  }
+}
