@@ -87,6 +87,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 列出项目资产文件（排除代码）───
   listProjectAssets: (folder: string) => ipcRenderer.invoke('list-project-assets', folder),
 
+  // ─── 资产目录监听：文件变化通知（供 AssetLint 事件驱动检查，替代定时轮询）───
+  watchProjectAssets: (folder: string) => ipcRenderer.invoke('watch-project-assets', folder),
+  stopWatchProjectAssets: () => ipcRenderer.invoke('stop-watch-project-assets'),
+  onAssetChanged: (callback: (folder: string) => void) => {
+    const handler = (_event: unknown, payload: { folder: string }) => callback(payload?.folder)
+    ipcRenderer.on('asset-changed', handler)
+    return () => {
+      ipcRenderer.removeListener('asset-changed', handler)
+    }
+  },
+
   // ─── 存档系统（userData-scoped）───
   saveGameFile: (game: string, slot: string, data: unknown) =>
     ipcRenderer.invoke('save-game-file', game, slot, data),

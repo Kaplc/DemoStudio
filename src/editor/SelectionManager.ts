@@ -112,10 +112,8 @@ export function onSelectionChange(cb: () => void): () => void {
  * 遍历场景树，返回平铺节点列表（带缩进级别、类型、actorRef）
  */
 export interface SceneTreeNode {
-  object: THREE.Object3D
   depth: number
   name: string
-  isActor: boolean
   actor: Actor | null
 }
 
@@ -130,17 +128,21 @@ export function getSceneTree(): SceneTreeNode[] {
     // 跳过编辑 gizmo（TransformGizmo 及其子对象）
     if (obj.name === 'TransformGizmo') return
 
-    const actorRef = (obj as any).userData?.actorRef as Actor | undefined
-    result.push({
-      object: obj,
-      depth,
-      name: obj.name || obj.type,
-      isActor: !!actorRef,
-      actor: actorRef ?? null,
-    })
+    // 跳过场景根节点自身（它只是一个容器，没有 actor）
+    const isRoot = obj === _sharedScene
+    if (!isRoot) {
+      const actorRef = (obj as any).userData?.actorRef as Actor | undefined
+      result.push({
+        depth,
+        name: obj.name || obj.type,
+        actor: actorRef ?? null,
+      })
+    }
 
+    // 根节点不加深 depth，直接平铺
+    const nextDepth = isRoot ? depth : depth + 1
     for (const child of obj.children) {
-      walk(child, depth + 1)
+      walk(child, nextDepth)
     }
   }
 

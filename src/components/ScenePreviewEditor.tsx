@@ -1,12 +1,10 @@
 /**
  * ScenePreviewEditor — 场景资产预览编辑器
  *
- * 左侧展示场景结构化数据（名称/mode/对象列表/skybox 配置），
- * 右侧提供 3D 视口实时预览场景。
+ * 全屏 3D 视口实时预览场景，objects 树在 Outline 面板中展示。
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { ScenePreviewManager } from '../editor/ScenePreviewManager'
-import { ResizeHandle } from './ResizeHandle'
 import type { SceneAsset } from '../engine'
 
 interface ScenePreviewEditorProps {
@@ -24,7 +22,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   const [data, setData] = useState<SceneData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [leftWidth, setLeftWidth] = useState(320)
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const previewMgrRef = useRef<ScenePreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
@@ -84,7 +81,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!WASD_KEYS.has(e.key)) return
-      // 避免在输入框中触发
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       previewMgrRef.current?.onWASDKeyDown(e.key)
       e.preventDefault()
@@ -95,7 +91,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       previewMgrRef.current?.onWASDKeyUp(e.key)
     }
 
-    // 失焦时清除按键状态
     const handleBlur = () => {
       previewMgrRef.current?.clearWASDKeys()
     }
@@ -136,7 +131,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   }
 
   const filename = assetPath.split('/').pop() ?? assetPath
-  const objects = (data.objects ?? []) as Array<Record<string, unknown>>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
@@ -154,88 +148,27 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
         </div>
       </div>
 
-      {/* 主体：左数据 + 右 3D 预览 */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* 左侧：结构化数据 */}
-        <div style={{ width: leftWidth, minWidth: 240, maxWidth: 800, overflow: 'auto', padding: '12px 16px', flexShrink: 0, position: 'relative' }}>
-          {/* 基本信息 */}
-          <Section title="Info">
-            <Row label="Name" value={data.name} />
-            {data.mode && <Row label="Mode" value={data.mode} highlight />}
-          </Section>
-
-          {/* 对象列表 */}
-          <Section title={`Objects (${objects.length})`}>
-            {objects.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>无对象</div>
-            ) : (
-              <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                {objects.map((obj, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: '3px 8px', marginBottom: 2, borderRadius: 3,
-                      background: 'var(--bg-tertiary)',
-                      color: 'var(--text-primary)',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}
-                  >
-                    <span style={{ color: 'var(--accent)', fontWeight: 600, minWidth: 60 }}>{obj.type as string}</span>
-                    {(obj.name as string) && <span style={{ color: 'var(--text-dim)' }}>{obj.name as string}</span>}
-                    {(obj.pos as number[]) && (
-                      <span style={{ color: 'var(--text-dim)', marginLeft: 'auto', fontSize: 10 }}>
-                        [{(obj.pos as number[]).map((v: number) => v.toFixed(1)).join(', ')}]
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {/* Skybox */}
-          {data.skybox && (
-            <Section title="Skybox">
-              <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                {Object.entries(data.skybox).map(([k, v]) => (
-                  <div key={k} style={{ padding: '2px 8px', color: 'var(--text-primary)' }}>
-                    <span style={{ color: 'var(--text-dim)' }}>{k}: </span>
-                    {JSON.stringify(v)}
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <ResizeHandle
-            direction="horizontal"
-            onResize={(delta) => setLeftWidth((w) => Math.max(200, Math.min(800, w + delta)))}
-            position="right"
-          />
-        </div>
-
-        {/* 右侧：3D 预览视口 */}
-        <div style={{ flex: 1, position: 'relative', background: '#1a1a2e', overflow: 'hidden' }}>
-          <div
-            ref={previewContainerRef}
-            style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
-          />
-          {!previewReady && (
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-dim)', fontSize: 12, pointerEvents: 'none',
-            }}>
-              预览加载中...
-            </div>
-          )}
+      {/* 全屏 3D 预览视口 */}
+      <div style={{ flex: 1, position: 'relative', background: '#1a1a2e', overflow: 'hidden' }}>
+        <div
+          ref={previewContainerRef}
+          style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+        />
+        {!previewReady && (
           <div style={{
-            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-            fontSize: 10, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none',
-            whiteSpace: 'nowrap',
+            position: 'absolute', inset: 0, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-dim)', fontSize: 12, pointerEvents: 'none',
           }}>
-            左键旋转视角 · 右键平移 · 滚轮进退 · WASD 移动 · Q/E 升降
+            预览加载中...
           </div>
+        )}
+        <div style={{
+          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          fontSize: 10, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+        }}>
+          左键旋转视角 · 右键平移 · 滚轮进退 · WASD 移动 · Q/E 升降
         </div>
       </div>
 
@@ -248,35 +181,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
         <span>Scene: {data.name}</span>
         <span>File: {filename}</span>
       </div>
-    </div>
-  )
-}
-
-/** 区块标题 */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{
-        fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
-        textTransform: 'uppercase', letterSpacing: '0.5px',
-        marginBottom: 6, paddingBottom: 4,
-        borderBottom: '1px solid var(--border)',
-      }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-/** 属性行 */
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div style={{ fontSize: 12, padding: '3px 0', display: 'flex', gap: 12 }}>
-      <span style={{ color: 'var(--text-dim)', minWidth: 80 }}>{label}</span>
-      <span style={{ color: highlight ? 'var(--success)' : 'var(--text-primary)' }}>
-        {value}
-      </span>
     </div>
   )
 }

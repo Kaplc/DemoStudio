@@ -476,6 +476,57 @@ ipcMain.handle('list-project-assets', async (_event, folder: string) => {
   }
 })
 
+// ─── 资产目录监听：文件变化时通知渲染进程（替代定时轮询）───
+
+let assetWatcher: fs.FSWatcher | null = null
+let assetWatchDebounce: NodeJS.Timeout | null = null
+
+/** 开始监听某工程 asset 目录（覆盖上一次监听）。仅 *.scene.json / *.blueprint.json 变化才通知。 */
+ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
+  if (assetWatcher) {
+    try { assetWatcher.close() } catch { /* ignore */ }
+    assetWatcher = null
+  }
+  if (assetWatchDebounce) {
+    clearTimeout(assetWatchDebounce)
+    assetWatchDebounce = null
+  }
+
+  const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder, 'asset')
+  if (!fs.existsSync(projectRoot)) return { ok: false }
+  try {
+    assetWatcher = fs.watch(projectRoot, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return
+      // 只关心场景/蓝图资产；代码/其它文件忽略
+      if (!/\.(scene|blueprint)\.json$/i.test(filename)) return
+      // 去抖：编辑器保存常触发多次事件
+      if (assetWatchDebounce) clearTimeout(assetWatchDebounce)
+      assetWatchDebounce = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('asset-changed', { folder })
+        }
+      }, 300)
+    })
+    return { ok: true }
+  } catch (err) {
+    console.error('监听资产目录失败:', err)
+    return { ok: false }
+  }
+})
+
+/** 停止资产目录监听（关闭工程/切换工程时调用）。 */
+ipcMain.handle('stop-watch-project-assets', async () => {
+  if (assetWatcher) {
+    try { assetWatcher.close() } catch { /* ignore */ }
+    assetWatcher = null
+  }
+  if (assetWatchDebounce) {
+    clearTimeout(assetWatchDebounce)
+    assetWatchDebounce = null
+  }
+  return { ok: true }
+})
+
 // ─── 存档系统（userData-scoped，跨重装保留）───
 
 const SAVES_DIR = path.join(app.getPath('userData'), 'saves')

@@ -17,6 +17,7 @@
  * - GameViewport     Game 视口初始化与输入
  * - InputRouter      Viewport 输入路由（委托给 SceneViewport / GameViewport）
  * - LogPoller        日志文件轮询器
+ * - AssetLintEngine  可扩展 JSON 资产格式检查器（插件式 schema 校验 + 定时扫描）
  */
 
 export { BlueprintPreviewManager } from './BlueprintPreviewManager'
@@ -87,6 +88,8 @@ export type { InputRouterContext } from './InputRouter'
 
 export { LogPoller } from './LogPoller'
 export type { LogContentCallback } from './LogPoller'
+
+export { assetLintEngine } from './assetLint/AssetLintEngine'
 
 export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'

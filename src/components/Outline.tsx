@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  getSelectedActor, selectActor, select, getSelectionKey, onSelectionChange,
-  setSharedScene, getSharedScene, getSceneTree, focusOn,
+  getSelectedActor, select, getSelectionKey, onSelectionChange,
+  getSharedScene, getSceneTree, focusOn,
 } from '../editor/SelectionManager'
-import type { SceneTreeNode } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
 import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
 
@@ -18,6 +17,79 @@ interface BlueprintChildNode {
   _remove?: boolean
 }
 
+/** 场景资产数据结构 */
+interface SceneOutlineData {
+  name: string
+  mode?: string
+  objects?: Array<Record<string, unknown>>
+  skybox?: Record<string, unknown>
+}
+
+/** 场景对象树渲染组件（扁平列表风格） */
+function SceneTreeView({ data }: { data: SceneOutlineData }) {
+  const objects = (data.objects ?? []) as Array<Record<string, unknown>>
+
+  /** 递归展开 objects 为带 depth 的扁平行 */
+  function flatten(
+    objs: Array<Record<string, unknown>>,
+    startDepth: number,
+  ): Array<{ obj: Record<string, unknown>; depth: number }> {
+    const rows: Array<{ obj: Record<string, unknown>; depth: number }> = []
+    for (const obj of objs) {
+      rows.push({ obj, depth: startDepth })
+      const children = obj.children as Array<Record<string, unknown>> | undefined
+      if (children && children.length > 0) {
+        rows.push(...flatten(children, startDepth + 1))
+      }
+    }
+    return rows
+  }
+
+  const flatRows = flatten(objects, 0)
+
+  return (
+    <div style={{ fontSize: 11, fontFamily: 'monospace', padding: '8px 4px' }}>
+      <div style={{ padding: '3px 6px', fontWeight: 600, color: 'var(--text-primary)' }}>
+        {data.name} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>[Scene]</span>
+      </div>
+
+      {flatRows.length === 0 ? (
+        <div style={{ padding: '2px 4px 2px 16px', color: 'var(--text-dim)', fontSize: 10 }}>（空）</div>
+      ) : (
+        flatRows.map(({ obj, depth }, i) => {
+          const type = (obj.type as string) ?? ''
+          const name = (obj.name as string) ?? ''
+          const label = name ? `${type} "${name}"` : (type || `Object #${i}`)
+          return (
+            <div
+              key={i}
+              style={{
+                padding: '2px 4px',
+                paddingLeft: 8 + depth * 14,
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              {label}
+            </div>
+          )
+        })
+      )}
+
+      {data.skybox && (
+        <div style={{ padding: '2px 4px 2px 8px', fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+          🌄 Skybox
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** 蓝图资产数据结构（与 BlueprintEditor 中的 BlueprintData 一致） */
 interface BlueprintOutlineData {
   id: string
@@ -30,104 +102,27 @@ interface BlueprintOutlineData {
   defaults?: Record<string, unknown>
 }
 
-/** 递归渲染子节点树 */
-function ChildNodeView({ children, depth, selName }: { children?: BlueprintChildNode[]; depth: number; selName: string | null }) {
-  if (!children || children.length === 0) return null
-  return (
-    <>
-      {children.map((child, i) => {
-        const label = child.name ?? child.blueprint ?? child.actor ?? `Child #${i}`
-        const hasNested = (child.children && child.children.length > 0) || (child.objects && child.objects.length > 0)
-        const subLabel = child.objects ? ` (${child.objects.length} meshes)` : ''
-        const focusName = child.name || child.blueprint || child.actor || ''
-        const isSelected = selName === focusName && !!focusName
+/** 蓝图树渲染组件（扁平列表风格） */
+function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selName: string | null }) {
+  const isRootSelected = selName === data.id
 
-        if (!hasNested) {
-          return (
-            <div key={i} style={{
-              padding: `2px 4px 2px ${16 + depth * 12}px`,
-              color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer',
-              background: isSelected ? 'var(--accent)' : 'transparent',
-            }}
-              onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
-              onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
-            >
-              <span style={{ color: isSelected ? '#fff' : undefined }}>
-              {child.blueprint ? (
-                <span>{child.blueprint}</span>
-              ) : child.actor ? (
-                <span style={{ color: isSelected ? '#fff' : 'var(--warning)' }}>{child.actor}</span>
-              ) : (
-                <span>{label}{subLabel}</span>
-              )}
-              </span>
-              {child._remove && <span style={{ color: 'var(--error)', fontSize: 10, marginLeft: 4 }}>removed</span>}
-            </div>
-          )
-        }
-
-        return (
-          <CollapsibleNode key={i} label={`${label}${subLabel}`} depth={depth} focusName={focusName} isSelected={isSelected}>
-            {child.objects && child.objects.map((obj: any, j: number) => (
-              <div key={j} style={{
-                padding: `2px 4px 2px ${32 + depth * 12}px`,
-                fontSize: 10, color: 'var(--text-dim)', cursor: 'pointer',
-              }}
-                onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
-              >
-                {obj.type} {obj.name ? `"${obj.name}"` : `#${j}`}
-              </div>
-            ))}
-            <ChildNodeView children={child.children} depth={depth + 1} selName={selName} />
-          </CollapsibleNode>
-        )
-      })}
-    </>
-  )
-}
-
-/** 折叠节点 */
-function CollapsibleNode({ label, depth, focusName, isSelected, children }: { label: string; depth: number; focusName?: string; isSelected?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true)
-
-  const doFocus = () => {
-    if (focusName) BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)
+  /** 递归展开子节点为扁平数组 */
+  function flatten(
+    children: BlueprintChildNode[] | undefined,
+    startDepth: number,
+  ): Array<{ node: BlueprintChildNode; depth: number }> {
+    if (!children) return []
+    const rows: Array<{ node: BlueprintChildNode; depth: number }> = []
+    for (const child of children) {
+      rows.push({ node: child, depth: startDepth })
+      if (child.children && child.children.length > 0) {
+        rows.push(...flatten(child.children, startDepth + 1))
+      }
+    }
+    return rows
   }
 
-  return (
-    <div>
-      <div
-        style={{
-          padding: `2px 4px 2px ${12 + depth * 12}px`,
-          display: 'flex', alignItems: 'center', gap: 4,
-          fontWeight: 500, fontSize: 11, userSelect: 'none',
-          background: isSelected ? 'var(--accent)' : 'transparent',
-        }}
-      >
-        <span
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-          style={{ cursor: 'pointer', color: 'var(--text-dim)', fontSize: 10, flexShrink: 0 }}
-        >
-          {open ? '▼' : '▶'}
-        </span>
-        <span
-          onClick={doFocus}
-          onDoubleClick={doFocus}
-          style={{ cursor: 'pointer', color: isSelected ? '#fff' : 'var(--text-secondary)', flex: 1 }}
-        >
-          {label}
-        </span>
-      </div>
-      {open && children}
-    </div>
-  )
-}
-
-/** 蓝图树渲染组件（可折叠文件夹结构） */
-function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selName: string | null }) {
-  const hasChildren = (data.children ?? []).length > 0
-  const hasObjects = (data.objects ?? []).length > 0
-  const isRootSelected = selName === data.id
+  const flatChildren = flatten(data.children, 0)
 
   return (
     <div style={{ fontSize: 11, fontFamily: 'monospace', padding: '8px 4px' }}>
@@ -144,19 +139,41 @@ function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selN
         {data.id} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>[{data.baseClass}]</span>
       </div>
 
-      {/* 根级 objects */}
-      {hasObjects && (
-        <div style={{ padding: '2px 4px 2px 12px', fontSize: 10, color: 'var(--text-dim)' }}>
-          {data.objects!.length} 个网格
-        </div>
-      )}
-
-      {/* 递归子 Actor 树 */}
-      <ChildNodeView children={data.children} depth={0} selName={selName} />
-
-      {/* 空状态 */}
-      {!hasObjects && !hasChildren && (
+      {flatChildren.length === 0 ? (
         <div style={{ padding: '2px 4px 2px 24px', color: 'var(--text-dim)' }}>（空）</div>
+      ) : (
+        flatChildren.map(({ node, depth }, i) => {
+          const focusName = node.actor || node.blueprint || node.name || ''
+          const isSelected = selName === focusName && !!focusName
+          const label = node.name ?? node.blueprint ?? node.actor ?? `Child #${i}`
+
+          return (
+            <div
+              key={i}
+              style={{
+                padding: '2px 4px',
+                paddingLeft: 8 + depth * 14,
+                cursor: 'pointer',
+                background: isSelected ? 'var(--accent)' : 'transparent',
+                color: isSelected ? '#fff' : 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
+              onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
+              onMouseEnter={(e) => {
+                if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
+              }}
+            >
+              {label}
+              {node._remove && <span style={{ color: 'var(--error)', fontSize: 10, marginLeft: 4 }}>removed</span>}
+            </div>
+          )
+        })
       )}
     </div>
   )
@@ -169,17 +186,20 @@ export function Outline() {
   const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
   const [bpData, setBpData] = useState<BlueprintOutlineData | null>(null)
   const [bpLoading, setBpLoading] = useState(false)
+  const [sceneData, setSceneData] = useState<SceneOutlineData | null>(null)
+  const [sceneLoading, setSceneLoading] = useState(false)
 
-  // 判断当前是否为蓝图标签
+  // 判断当前标签类型
   const isBlueprintTab = activeTabId.startsWith('bp:')
-  const currentBpTab = useMemo(
+  const isScenePreviewTab = activeTabId.startsWith('sp:')
+  const currentTab = useMemo(
     () => dynamicTabs.find((t) => t.id === activeTabId),
     [dynamicTabs, activeTabId],
   )
 
   // 蓝图标签：读取蓝图 JSON 展示树形结构
   useEffect(() => {
-    if (!isBlueprintTab || !currentBpTab?.assetPath) {
+    if (!isBlueprintTab || !currentTab?.assetPath) {
       setBpData(null)
       setBpLoading(false)
       return
@@ -188,7 +208,7 @@ export function Outline() {
     if (!read) return
     let cancelled = false
     setBpLoading(true)
-    read(currentBpTab.assetPath).then((r) => {
+    read(currentTab.assetPath).then((r) => {
       if (cancelled) return
       if (r.success && r.data) {
         setBpData(r.data as BlueprintOutlineData)
@@ -196,7 +216,28 @@ export function Outline() {
       setBpLoading(false)
     })
     return () => { cancelled = true }
-  }, [isBlueprintTab, currentBpTab?.assetPath])
+  }, [isBlueprintTab, currentTab?.assetPath])
+
+  // 场景预览标签：读取场景 JSON 展示对象树
+  useEffect(() => {
+    if (!isScenePreviewTab || !currentTab?.assetPath) {
+      setSceneData(null)
+      setSceneLoading(false)
+      return
+    }
+    const read = window.electronAPI?.readJsonFile
+    if (!read) return
+    let cancelled = false
+    setSceneLoading(true)
+    read(currentTab.assetPath).then((r) => {
+      if (cancelled) return
+      if (r.success && r.data) {
+        setSceneData(r.data as SceneOutlineData)
+      }
+      setSceneLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [isScenePreviewTab, currentTab?.assetPath])
 
   // 订阅选中/场景变化
   useEffect(() => {
@@ -219,7 +260,20 @@ export function Outline() {
 
   return (
     <div className="panel-body" style={{ padding: 0 }}>
-      {isBlueprintTab ? (
+      {isScenePreviewTab ? (
+        /* 场景预览标签：显示场景资产对象树 */
+        sceneLoading ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
+            场景加载中...
+          </div>
+        ) : sceneData ? (
+          <SceneTreeView data={sceneData} />
+        ) : (
+          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
+            无场景数据
+          </div>
+        )
+      ) : isBlueprintTab ? (
         /* 蓝图标签：显示蓝图资产树形结构 */
         bpLoading ? (
           <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
@@ -243,12 +297,11 @@ export function Outline() {
       ) : (
         <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
           {visibleTree.map((node, i) => {
-            const isSelected = selected === (node.actor || node.object)
+            const isSelected = selected === node.actor
             const isBlueprint = !!node.actor?.blueprintRef
-            const icon = node.isActor ? '◆ ' : '◈ '
             return (
               <div
-                key={node.object.id + '-' + i}
+                key={node.actor ? node.actor.root.id : 'node-' + i}
                 style={{
                   padding: '2px 4px',
                   paddingLeft: 8 + node.depth * 14,
@@ -259,8 +312,8 @@ export function Outline() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
-                onClick={() => select(isSelected ? null : (node.actor || node.object))}
-                onDoubleClick={() => node.object && focusOn(node.object)}
+                onClick={() => select(isSelected ? null : node.actor)}
+                onDoubleClick={() => node.actor && focusOn(node.actor.root)}
                 onMouseEnter={(e) => {
                   if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
                 }}
@@ -268,13 +321,13 @@ export function Outline() {
                   if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
                 }}
               >
-                {icon}{node.name}
+                {node.name}
                 {isBlueprint && (
                   <span style={{ color: 'var(--accent)', marginLeft: 4, fontSize: 10 }}>[BP]</span>
                 )}
-                {node.isActor && (
+                {node.actor && (
                   <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
-                    [{node.actor!.constructor.name}]
+                    [{node.actor.constructor.name}]
                   </span>
                 )}
               </div>

@@ -212,6 +212,11 @@ const mockAPI: ElectronAPI = {
     return result
   },
 
+  // 浏览器 Mock 无真实文件监听：watch 失败、onAssetChanged 永不触发
+  watchProjectAssets: async () => ({ ok: false }),
+  stopWatchProjectAssets: async () => ({ ok: false }),
+  onAssetChanged: () => (() => {}),
+
   // ─── 存档系统（localStorage） ───
 
   saveGameFile: async (game: string, slot: string, data: unknown) => {
