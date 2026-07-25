@@ -953,7 +953,7 @@
     },
     {
       "type": "blueprint",
-      "blueprint": "seaweed_sprite",
+      "blueprint": 500,
       "pos": [
         -2,
         0.7,
@@ -963,7 +963,7 @@
     },
     {
       "type": "blueprint",
-      "blueprint": "seaweed_sprite",
+      "blueprint": 500,
       "pos": [
         2,
         0.7,
@@ -973,7 +973,7 @@
     },
     {
       "type": "blueprint",
-      "blueprint": "seaweed_sprite",
+      "blueprint": 500,
       "pos": [
         0,
         0.7,

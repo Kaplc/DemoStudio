@@ -8,7 +8,7 @@ import { GenericActor } from '../entity/GenericActor'
 import { GameMode } from './GameMode'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../../Logger'
-import { StaticMeshActor } from '../entity/StaticMeshActor'
+import { MeshComponent } from '../rendering/MeshComponent'
 import { loadScene } from '../scene/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
@@ -154,7 +154,7 @@ export class World {
    * 注入时序（关键，全部在 SpawnActor / BeginPlay 之前完成）：
    *   1. resolve(id) → 扁平 CDO（继承链已合并）
    *   2. ActorRegistry.create(baseClass) 构造
-   *   3. applyPatch(defaults) 注入 CDO 默认属性
+   *   3. 应用继承链合并后的 position/rotation/scale
    *   4. 挂 Component（ComponentRegistry.create + addComponent）
    *   5. 递归子 Actor（各自 SpawnActorFromBlueprint 或 ActorRegistry.create + attachTo）
    *   6. applyPatch(overrides) 应用调用方覆盖
@@ -162,10 +162,10 @@ export class World {
    *   8. SpawnActor（进 pendingSpawn，后续 commitSpawn → BeginPlay）
    *
    * @param id        Blueprint id
-   * @param overrides 实例级覆盖（position/rotation/scale/自定义参数），叠加在 CDO 之上
+   * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
-  SpawnActorFromBlueprint(id: string, overrides?: PropertyPatch): Actor | null {
+  SpawnActorFromBlueprint(id: number, overrides?: PropertyPatch): Actor | null {
     let resolved
     try {
       resolved = BlueprintRegistry.resolve(id)
@@ -180,18 +180,19 @@ export class World {
       return null
     }
 
-    // 1. CDO 默认属性（仅赋值字段，不碰 world/几何）
-    if (resolved.defaults && Object.keys(resolved.defaults).length > 0) {
-      actor.applyPatch(resolved.defaults)
-    }
+    // 1. Transform（继承链合并后的位置/旋转/缩放）
+    if (resolved.position) actor.setPosition(resolved.position[0], resolved.position[1], resolved.position[2])
+    if (resolved.rotation) actor.setRotation(resolved.rotation[0], resolved.rotation[1], resolved.rotation[2])
+    if (resolved.scale) actor.setScale(resolved.scale[0], resolved.scale[1], resolved.scale[2])
 
     // 2. Component（SpawnActor 前挂完，随 BeginPlay 一起激活）
     for (const cdef of resolved.components) {
-      const comp = ComponentRegistry.create(actor, cdef.type, cdef.props)
+      const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
+        if (cdef.name) comp.name = cdef.name
         actor.addComponent(comp)
       } else {
-        logger.warn(`[World] SpawnActorFromBlueprint("${id}"): Component 类型 "${cdef.type}" 未注册，已跳过`)
+        logger.warn(`[World] SpawnActorFromBlueprint("${id}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
       }
     }
 
@@ -202,32 +203,46 @@ export class World {
         let childActor: Actor | null = null
         if (child.blueprint) {
           childActor = this.SpawnActorFromBlueprint(child.blueprint, child.overrides)
-        } else if (child.actor) {
-          childActor = ActorRegistry.create(child.actor)
-          if (childActor && child.overrides && Object.keys(child.overrides).length > 0) {
-            childActor.applyPatch(child.overrides)
+        } else if (child.baseClass) {
+          childActor = ActorRegistry.create(child.baseClass)
+          if (childActor) {
+            if (child.overrides && Object.keys(child.overrides).length > 0) {
+              childActor.applyPatch(child.overrides)
+            }
+            // 挂载内联组件
+            if (child.components) {
+              for (const cdef of child.components) {
+                const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
+                if (comp) {
+                  if (cdef.name) comp.name = cdef.name
+                  childActor.addComponent(comp)
+                } else {
+                  logger.warn(`[World] SpawnActorFromBlueprint("${id}"): 子节点组件 "${cdef.baseClass}" 未注册，已跳过`)
+                }
+              }
+            }
           }
         }
-        // 纯容器节点（无 blueprint/actor，仅用来承载 objects 或嵌套 children）
-        if (!childActor && (child.objects?.length || child.children?.length)) {
+        // 纯容器节点（无 blueprint/baseClass，仅用来承载嵌套 children）
+        if (!childActor && child.children?.length) {
           childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
         }
         if (!childActor) {
           logger.warn(
-            `[World] SpawnActorFromBlueprint("${id}"): 子节点生成失败 (blueprint=${child.blueprint ?? '-'}, actor=${child.actor ?? '-'})`,
+            `[World] SpawnActorFromBlueprint("${id}"): 子节点生成失败 (blueprint=${child.blueprint ?? '-'}, baseClass=${child.baseClass ?? '-'})`,
           )
           continue
         }
         childActor.attachTo(parentActor)
 
+        // 子节点的本地 Transform
+        if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
+        if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
+        if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
+
         // 把 child.name 设置到 root 上（供 Outline 按名称查找）
         if (child.name) {
           childActor.root.name = child.name
-        }
-
-        // 展开此子节点的内联网格
-        if (child.objects && child.objects.length > 0) {
-          this.spawnInlineObjects(child.objects, childActor)
         }
 
         // 递归展开此子节点的嵌套 children
@@ -237,35 +252,9 @@ export class World {
       }
     }
 
-    // 根级内联网格 → 直接挂到 actor 上
-    if (resolved.objects && resolved.objects.length > 0) {
-      this.spawnInlineObjects(resolved.objects, actor)
-    }
-
     // 展开所有子 Actor 树
     if (resolved.children.length > 0) {
       spawnChildObjects(resolved.children, actor)
-    }
-
-    // 3b. (已弃用) 场景子对象 — 保留兼容，优先使用内联 objects
-    if (resolved.scene) {
-      const sceneAsset = AssetRegistry.getScene(resolved.scene)
-      if (sceneAsset) {
-        const sceneGroup = loadScene(sceneAsset)
-        const meshes: THREE.Mesh[] = []
-        sceneGroup.group.traverse((node) => {
-          if (node instanceof THREE.Mesh) meshes.push(node)
-        })
-        for (const mesh of meshes) {
-          sceneGroup.group.remove(mesh)
-          const childActor = new StaticMeshActor(mesh, `Scene_${sceneAsset.name}_${mesh.name || ''}`)
-          childActor.attachTo(actor)
-          this.SpawnActor(childActor)
-        }
-        logger.debug(`[World] SpawnActorFromBlueprint("${id}"): 加载场景 "${resolved.scene}"，生成 ${meshes.length} 个 StaticMeshActor`)
-      } else {
-        logger.warn(`[World] SpawnActorFromBlueprint("${id}"): 场景 "${resolved.scene}" 未在 AssetRegistry 注册`)
-      }
     }
 
     // 4. 调用方实例覆盖
@@ -279,26 +268,6 @@ export class World {
     // 6. 进 World
     this.SpawnActor(actor)
     return actor
-  }
-
-  /**
-   * 将 SceneNode[] 展开为 StaticMeshActor 并挂到 parentActor 下。
-   * 内部复用 loadScene 的网格创建逻辑（不关心 skybox/背景）。
-   */
-  private spawnInlineObjects(nodes: import('../scene/SceneAsset').SceneNode[], parentActor: Actor): void {
-    const sceneGroup = loadScene({ name: '_inline', objects: nodes })
-    const meshes: THREE.Mesh[] = []
-    sceneGroup.group.traverse((node) => {
-      if (node instanceof THREE.Mesh) meshes.push(node)
-    })
-    for (const mesh of meshes) {
-      sceneGroup.group.remove(mesh)
-      const childActor = new StaticMeshActor(mesh, `Mesh_${mesh.name || mesh.uuid.substring(0, 8)}`)
-      childActor.attachTo(parentActor)
-      this.SpawnActor(childActor)
-    }
-    // 清理空 group（几何体已移走，无需 dispose）
-    sceneGroup.group.clear()
   }
 
   // ═══════════════════════════════════
@@ -472,7 +441,7 @@ export class World {
   }
 
   /**
-   * 加载场景资产数据，将其中所有 Mesh 创建为 StaticMeshActor 并生成到世界。
+   * 加载场景资产数据，将其中所有 Mesh 创建为 GenericActor + MeshComponent 并生成到世界。
    * 同时应用场景的 skybox 配置（背景色 + 雾效）。
    * 返回生成的 Actor 数量。
    */
@@ -480,14 +449,15 @@ export class World {
     const asset = loadScene(sceneAsset)
     let count = 0
 
-    // 几何节点 → StaticMeshActor
+    // 几何节点 → GenericActor + MeshComponent
     const meshes: THREE.Mesh[] = []
     asset.group.traverse((node) => {
       if (node instanceof THREE.Mesh) meshes.push(node)
     })
     for (const mesh of meshes) {
       asset.group.remove(mesh)
-      const actor = new StaticMeshActor(mesh, `Scene_${sceneAsset.name}_${mesh.name || ''}`)
+      const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
+      actor.addComponent(new MeshComponent(actor, mesh))
       this.SpawnActor(actor)
       count++
     }

@@ -73,7 +73,7 @@ export abstract class GameInstance {
 /** 空游戏实例 — 未选择/未注册工程时使用 */
 export class NullGameInstance extends GameInstance {
   override get controller() { return null }
-  override setCallbacks() {}
+  override setCallbacks(_cbs?: GameInstanceCallbacks) {}
   override start() { return false }
   override tick() {}
   override syncCamera() {}

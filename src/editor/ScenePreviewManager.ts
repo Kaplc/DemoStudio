@@ -8,14 +8,14 @@
  * 特性：
  *  - 独立的 THREE.Scene（默认光照 + 网格地面）
  *  - 专用 WebGLRenderer
- *  - 通过 loadScene 加载场景资产并将网格生成为 StaticMeshActor
+ *  - 通过 loadScene 加载场景资产并将网格生成为 GenericActor + MeshComponent
  *  - 自动清理（dispose）
  */
 import * as THREE from 'three'
 import { World } from '../engine'
 import { logger } from '../engine'
 import { loadScene } from '../engine'
-import { StaticMeshActor } from '../engine/gameplay/entity/StaticMeshActor'
+import { GenericActor, MeshComponent } from '../engine'
 import type { SceneAsset } from '../engine'
 
 export class ScenePreviewManager {
@@ -211,7 +211,8 @@ export class ScenePreviewManager {
     })
     for (const mesh of meshes) {
       result.group.remove(mesh)
-      const actor = new StaticMeshActor(mesh, `Preview_${mesh.name || ''}`)
+      const actor = new GenericActor(`Preview_${mesh.name || ''}`)
+      actor.addComponent(new MeshComponent(actor, mesh))
       this.world.SpawnActor(actor)
     }
     // 应用 skybox

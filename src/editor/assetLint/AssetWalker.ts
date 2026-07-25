@@ -3,10 +3,10 @@
  *
  * 区分 scene / blueprint 文档根，产出 DispatchTask[]：
  *   - 场景：doc:scene + 每个 objects[] 节点 → node:<type>
- *   - 蓝图：doc:blueprint + 根 objects[] + 每个 component → comp:<type> + 递归 children.objects[]
+ *   - 蓝图：doc:blueprint + 根 components[] + 递归 children[].components[] → comp:<type>
  *
- * 蓝图 SceneNode 出现在"根 objects + children.objects（递归）"两处；场景 objects 为扁平数组。
- * 每条 task 带 nodePath 定位串（如 'children[0].objects[1] (box)'）。
+ * 场景 objects 为扁平数组；蓝图中每个 child 的 components 递归遍历。
+ * 每条 task 带 nodePath 定位串（如 'children[0].components[1] (mesh)'）。
  * 未知 type 不抛错（由 engine 记一条 warn）。
  */
 import type { CheckerKind } from './types'
@@ -32,9 +32,9 @@ export function walkDocument(doc: unknown): WalkResult {
 
   // 场景根：有 name + objects 数组
   const isScene = typeof root.name === 'string' && Array.isArray(root.objects)
-  // 蓝图根：有 id + 任一蓝图特征字段
+  // 蓝图根：有 id（number） + 任一蓝图特征字段
   const isBlueprint =
-    typeof root.id === 'string' &&
+    typeof root.id === 'number' &&
     ('baseClass' in root || 'components' in root || 'children' in root || 'parent' in root)
 
   if (isScene) {
@@ -45,12 +45,11 @@ export function walkDocument(doc: unknown): WalkResult {
 
   if (isBlueprint) {
     tasks.push({ kind: 'doc:blueprint', node: root, nodePath: '<blueprint 根>' })
-    if (Array.isArray(root.objects)) walkNodes(root.objects, tasks, 'objects')
     if (Array.isArray(root.components)) {
       ;(root.components as unknown[]).forEach((c, i) => {
-        if (c && typeof (c as Record<string, unknown>).type === 'string') {
-          const type = (c as Record<string, unknown>).type as string
-          tasks.push({ kind: `comp:${type}`, node: c, nodePath: `components[${i}] (${type})` })
+        if (c && typeof (c as Record<string, unknown>).baseClass === 'string') {
+          const bc = (c as Record<string, unknown>).baseClass as string
+          tasks.push({ kind: `comp:${bc}`, node: c, nodePath: `components[${i}] (${bc})` })
         }
       })
     }
@@ -71,13 +70,20 @@ function walkNodes(nodes: unknown[], tasks: DispatchTask[], base: string): void 
   })
 }
 
-/** 递归蓝图 children：每个 child 的 objects[] 派发，再深入 child.children。 */
+/** 递归蓝图 children（后续可扩展为派发 child 的 components） */
 function walkChildren(children: unknown[], tasks: DispatchTask[], base: string): void {
   children.forEach((c, i) => {
     if (!c || typeof c !== 'object') return
     const here = `${base}[${i}]`
     const child = c as Record<string, unknown>
-    if (Array.isArray(child.objects)) walkNodes(child.objects, tasks, `${here}.objects`)
+    if (Array.isArray(child.components)) {
+      ;(child.components as unknown[]).forEach((comp, j) => {
+        if (comp && typeof (comp as Record<string, unknown>).baseClass === 'string') {
+          const bc = (comp as Record<string, unknown>).baseClass as string
+          tasks.push({ kind: `comp:${bc}`, node: comp, nodePath: `${here}.components[${j}] (${bc})` })
+        }
+      })
+    }
     if (Array.isArray(child.children)) walkChildren(child.children, tasks, `${here}.children`)
   })
 }

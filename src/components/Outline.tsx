@@ -8,11 +8,11 @@ import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
 
 /** 子 Actor 节点（递归） */
 interface BlueprintChildNode {
-  blueprint?: string
-  actor?: string
+  blueprint?: number
+  baseClass?: string
   name?: string
-  overrides?: Record<string, unknown>
-  objects?: Array<Record<string, unknown>>
+  id?: number
+  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
   _remove?: boolean
 }
@@ -92,19 +92,17 @@ function SceneTreeView({ data }: { data: SceneOutlineData }) {
 
 /** 蓝图资产数据结构（与 BlueprintEditor 中的 BlueprintData 一致） */
 interface BlueprintOutlineData {
-  id: string
+  id: number
+  name: string
   baseClass: string
-  parent?: string
-  scene?: string
-  objects?: Array<Record<string, unknown>>
-  components?: Array<{ type: string; props?: Record<string, unknown>; _remove?: boolean }>
+  parent?: number
+  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
-  defaults?: Record<string, unknown>
 }
 
 /** 蓝图树渲染组件（扁平列表风格） */
-function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selName: string | null }) {
-  const isRootSelected = selName === data.id
+function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selName: string | number | null }) {
+  const isRootSelected = selName === data.name
 
   /** 递归展开子节点为扁平数组 */
   function flatten(
@@ -133,19 +131,22 @@ function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selN
           color: isRootSelected ? '#fff' : 'var(--text-primary)',
           background: isRootSelected ? 'var(--accent)' : 'transparent',
         }}
-        onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.id)}
-        onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.id)}
+        onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.name)}
+        onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.name)}
       >
-        {data.id} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>[{data.baseClass}]</span>
+        {data.name} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>[{data.baseClass}]</span>
       </div>
 
       {flatChildren.length === 0 ? (
         <div style={{ padding: '2px 4px 2px 24px', color: 'var(--text-dim)' }}>（空）</div>
       ) : (
         flatChildren.map(({ node, depth }, i) => {
-          const focusName = node.actor || node.blueprint || node.name || ''
+          const focusName = node.baseClass || String(node.blueprint ?? '') || node.name || ''
           const isSelected = selName === focusName && !!focusName
-          const label = node.name ?? node.blueprint ?? node.actor ?? `Child #${i}`
+          const label = node.name
+            ?? (node.blueprint != null ? `#${node.blueprint}` : undefined)
+            ?? node.baseClass
+            ?? `Child #${i}`
 
           return (
             <div

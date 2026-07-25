@@ -21,7 +21,7 @@ export abstract class Actor {
   public bPendingDestroy = false
 
   /** Blueprint 实例元数据（由 SpawnActorFromBlueprint 设置；非蓝图实例为 null） */
-  public blueprintRef: { id: string; overrides?: PropertyPatch } | null = null
+  public blueprintRef: { id: number; overrides?: PropertyPatch } | null = null
 
   private static _nextUid = 1
 

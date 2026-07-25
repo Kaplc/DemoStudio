@@ -13,7 +13,6 @@
  *  - 语义与 BlueprintRegistry.resolve 对齐：
  *      · addComponent / setComponentProps：本地无该 type 时新建 { type, props }（合并到继承链）
  *      · removeComponent：本地无该 type 时写 { type, _remove: true }（继承覆盖标记）
- *      · setDefault：点路径（"houseColors.roof"）；value=null 表示删除（与 PropertyPatch 一致）
  *      · removeChild：本地无具名子节点时写 { name, _remove: true }
  */
 import type {
@@ -54,7 +53,8 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 /** 校验资产顶层形状，返回错误信息或 null */
 export function validateAssetShape(a: unknown): string | null {
   if (!isPlainObject(a)) return '资产必须是对象'
-  if (typeof a.id !== 'string' || !a.id) return '缺少合法 id（非空字符串）'
+  if (typeof a.id !== 'number' || !Number.isFinite(a.id)) return '缺少合法 id（数字）'
+  if (typeof a.name !== 'string' || !a.name) return '缺少合法 name（非空字符串）'
   if (typeof a.baseClass !== 'string' || !a.baseClass) return '缺少合法 baseClass（非空字符串）'
   return null
 }
@@ -67,22 +67,32 @@ export function validateAssetShape(a: unknown): string | null {
  * 添加 Component（若已存在则取消 _remove 标记并深合并 props）。
  * @param props 可选初始属性（构造参数 + 可配置属性）
  */
+/**
+ * 添加 Component（按 baseClass）。
+ * 若已存在同 baseClass 的组件，深合并 properties。
+ */
 export function addComponent(
   asset: BlueprintAsset,
-  type: string,
-  props?: PropertyPatch,
+  baseClass: string,
+  properties?: PropertyPatch,
+  id?: number,
+  name?: string,
 ): OpResult {
-  if (typeof type !== 'string' || !type) return fail('type 必须是非空字符串')
+  if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
   const components = asset.components ? asset.components.slice() : []
-  const existing = components.find((c) => c.type === type)
+  const existing = components.find((c) => c.baseClass === baseClass)
   if (existing) {
     if (existing._remove) delete existing._remove
-    if (props && Object.keys(props).length) {
-      existing.props = mergePatch(existing.props ?? {}, clonePatch(props))
+    if (properties && Object.keys(properties).length) {
+      existing.properties = mergePatch(existing.properties ?? {}, clonePatch(properties))
     }
+    if (id !== undefined) existing.id = id
+    if (name !== undefined) existing.name = name
   } else {
-    const def: BlueprintComponentDef = { type }
-    if (props && Object.keys(props).length) def.props = clonePatch(props)
+    const def: BlueprintComponentDef = { baseClass }
+    if (id !== undefined) def.id = id
+    if (name !== undefined) def.name = name
+    if (properties && Object.keys(properties).length) def.properties = clonePatch(properties)
     components.push(def)
   }
   asset.components = components
@@ -90,49 +100,50 @@ export function addComponent(
 }
 
 /**
- * 移除 Component。
- * 本地存在该 type → 删除本地定义；本地不存在 → 写 { type, _remove: true } 继承覆盖标记。
+ * 移除 Component（按 baseClass）。
+ * 本地存在 → 删除本地定义；本地不存在 → 写 { baseClass, _remove: true } 继承覆盖标记。
  */
-export function removeComponent(asset: BlueprintAsset, type: string): OpResult {
-  if (typeof type !== 'string' || !type) return fail('type 必须是非空字符串')
+export function removeComponent(asset: BlueprintAsset, baseClass: string): OpResult {
+  if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
   const components = asset.components ? asset.components.slice() : []
-  const idx = components.findIndex((c) => c.type === type)
+  const idx = components.findIndex((c) => c.baseClass === baseClass)
   if (idx >= 0) {
     components.splice(idx, 1)
     asset.components = components.length ? components : undefined
     return ok(asset)
   }
   // 本地无 → 写继承覆盖移除标记
-  asset.components = [...components, { type, _remove: true }]
-  return ok(asset, [`本地无 "${type}" 组件，已写入 _remove 继承覆盖标记`])
+  asset.components = [...components, { baseClass, _remove: true }]
+  return ok(asset, [`本地无 "${baseClass}" 组件，已写入 _remove 继承覆盖标记`])
 }
 
 /**
- * 深合并 props 到指定类型 Component（本地不存在则新建 { type, props }）。
+ * 深合并 properties 到指定 baseClass 的 Component。
+ * 本地不存在则新建 { baseClass, properties }。
  */
 export function setComponentProps(
   asset: BlueprintAsset,
-  type: string,
-  patch: PropertyPatch,
+  baseClass: string,
+  properties: PropertyPatch,
 ): OpResult {
-  if (typeof type !== 'string' || !type) return fail('type 必须是非空字符串')
-  if (!isPlainObject(patch)) return fail('patch 必须是对象')
-  const components = asset.components ? asset.components.slice() : []
-  let existing = components.find((c) => c.type === type)
+  if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
+  if (!isPlainObject(properties)) return fail('properties 必须是对象')
+  const comps = asset.components ? asset.components.slice() : []
+  let existing = comps.find((c) => c.baseClass === baseClass)
   if (!existing) {
-    existing = { type }
-    components.push(existing)
-    asset.components = components
+    existing = { baseClass }
+    comps.push(existing)
+    asset.components = comps
   }
   if (existing._remove) delete existing._remove
-  existing.props = mergePatch(existing.props ?? {}, clonePatch(patch))
+  existing.properties = mergePatch(existing.properties ?? {}, clonePatch(properties))
   return ok(asset)
 }
 
-/** 读取本地 Component 的 props（不存在返回 null） */
-export function getComponentProps(asset: BlueprintAsset, type: string): PropertyPatch | null {
-  const c = (asset.components ?? []).find((x) => x.type === type)
-  return c ? (c.props ?? {}) : null
+/** 读取本地 Component 的 properties（不存在返回 null） */
+export function getComponentProps(asset: BlueprintAsset, baseClass: string): PropertyPatch | null {
+  const c = (asset.components ?? []).find((x) => x.baseClass === baseClass)
+  return c ? (c.properties ?? {}) : null
 }
 
 // ══════════════════════════════════════
@@ -142,27 +153,36 @@ export function getComponentProps(asset: BlueprintAsset, type: string): Property
 /** 子节点定位：按具名（继承合并键）或本地数组索引 */
 export type ChildLocator = { name: string } | { index: number }
 
+function isVec3(v: unknown): v is [number, number, number] {
+  return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number')
+}
+
 function validateChildDef(child: BlueprintChildDef): string | null {
   if (!isPlainObject(child)) return '子节点必须是对象'
-  if (!child.blueprint && !child.actor) return '子节点必须指定 blueprint 或 actor'
-  if (child.blueprint && child.actor) return 'blueprint 与 actor 互斥，只能指定一个'
+  if (!child.blueprint && !child.baseClass) return '子节点必须指定 blueprint 或 baseClass'
+  if (child.blueprint && child.baseClass) return 'blueprint 与 baseClass 互斥，只能指定一个'
+  if (!isVec3(child.position)) return '缺少合法 position（[x, y, z] 数字数组）'
+  if (!isVec3(child.rotation)) return '缺少合法 rotation（[x, y, z] 数字数组）'
+  if (!isVec3(child.scale)) return '缺少合法 scale（[x, y, z] 数字数组）'
   return null
 }
 
 function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
-  const out: BlueprintChildDef = {}
+  const out: BlueprintChildDef = { position: child.position, rotation: child.rotation, scale: child.scale }
   if (child.blueprint) out.blueprint = child.blueprint
-  if (child.actor) out.actor = child.actor
+  if (child.baseClass) out.baseClass = child.baseClass
   if (child.name) out.name = child.name
   if (child.overrides && Object.keys(child.overrides).length) out.overrides = clonePatch(child.overrides)
+  if (child.components) out.components = child.components.map((c) => ({ ...c, properties: c.properties ? clonePatch(c.properties) : undefined }))
+  if (child.children) out.children = child.children.map((c) => cloneChildDef(c))
   return out
 }
 
-/** 把 patch 合并到 base 子节点定义（覆盖 blueprint/actor/name，深合并 overrides） */
+/** 把 patch 合并到 base 子节点定义（覆盖 blueprint/baseClass/name，深合并 overrides） */
 function mergeChildDef(base: BlueprintChildDef, patch: BlueprintChildDef): BlueprintChildDef {
-  const out: BlueprintChildDef = { ...base }
+  const out: BlueprintChildDef = { ...base, position: patch.position ?? base.position, rotation: patch.rotation ?? base.rotation, scale: patch.scale ?? base.scale }
   if (patch.blueprint !== undefined) out.blueprint = patch.blueprint
-  if (patch.actor !== undefined) out.actor = patch.actor
+  if (patch.baseClass !== undefined) out.baseClass = patch.baseClass
   if (patch.name !== undefined) out.name = patch.name
   if (patch.overrides && Object.keys(patch.overrides).length) {
     out.overrides = mergePatch(clonePatch(out.overrides ?? {}), clonePatch(patch.overrides))
@@ -197,7 +217,7 @@ export function addChild(asset: BlueprintAsset, child: BlueprintChildDef): OpRes
 }
 
 /**
- * 更新子 Actor（覆盖 blueprint/actor/name，深合并 overrides）。
+ * 更新子 Actor（覆盖 blueprint/baseClass/name，深合并 overrides）。
  * 按具名找不到时，新建一个 override 节点（继承链合并）。
  */
 export function updateChild(
@@ -206,12 +226,12 @@ export function updateChild(
   patch: BlueprintChildDef,
 ): OpResult {
   if (!isPlainObject(patch)) return fail('patch 必须是对象')
-  if (patch.blueprint && patch.actor) return fail('blueprint 与 actor 互斥')
+  if (patch.blueprint && patch.baseClass) return fail('blueprint 与 baseClass 互斥')
   const children = asset.children ? asset.children.slice() : []
   const idx = locateChild(children, locator)
   if (idx === -1) {
     if ('name' in locator) {
-      const node: BlueprintChildDef = { name: locator.name }
+      const node: BlueprintChildDef = { name: locator.name, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
       const merged = mergeChildDef(node, patch)
       // mergeChildDef 会保留空 name，确保带上
       children.push(merged)
@@ -238,7 +258,7 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
     return ok(asset)
   }
   if ('name' in locator) {
-    children.push({ name: locator.name, _remove: true })
+    children.push({ name: locator.name, _remove: true, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] })
     asset.children = children
     return ok(asset, [`本地无具名子节点 "${locator.name}"，已写入 _remove 继承覆盖标记`])
   }
@@ -249,62 +269,36 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
 //  Defaults（CDO 默认属性）
 // ══════════════════════════════════════
 
-/** 深合并一个 patch 到 defaults（父 → 子覆盖语义） */
-export function setDefaults(asset: BlueprintAsset, patch: PropertyPatch): OpResult {
-  if (!isPlainObject(patch)) return fail('patch 必须是对象')
-  asset.defaults = mergePatch(asset.defaults ? clonePatch(asset.defaults) : {}, clonePatch(patch))
+/** 设置蓝图顶层位置 */
+export function setPosition(asset: BlueprintAsset, pos: [number, number, number]): OpResult {
+  if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number')) 
+    return fail('position 必须是 [x, y, z] 数字数组')
+  asset.position = pos
   return ok(asset)
 }
 
-/**
- * 按点路径设置单个默认值（如 "houseColors.roof"）。
- * value=null 表示删除该键（与 PropertyPatch 语义一致）。
- */
-export function setDefault(asset: BlueprintAsset, dottedPath: string, value: unknown): OpResult {
-  if (typeof dottedPath !== 'string' || !dottedPath) return fail('dottedPath 必须是非空字符串')
-  const root = asset.defaults ? clonePatch(asset.defaults) : {}
-  setDotted(root, dottedPath.split('.'), value)
-  asset.defaults = root
+/** 设置蓝图顶层旋转 */
+export function setRotation(asset: BlueprintAsset, rot: [number, number, number]): OpResult {
+  if (!Array.isArray(rot) || rot.length !== 3 || !rot.every((n) => typeof n === 'number'))
+    return fail('rotation 必须是 [x, y, z] 数字数组')
+  asset.rotation = rot
   return ok(asset)
 }
 
-/** 按点路径删除默认值 */
-export function deleteDefaults(asset: BlueprintAsset, dottedPath: string): OpResult {
-  if (typeof dottedPath !== 'string' || !dottedPath) return fail('dottedPath 必须是非空字符串')
-  const root = asset.defaults ? clonePatch(asset.defaults) : {}
-  deleteDotted(root, dottedPath.split('.'))
-  asset.defaults = root
+/** 设置蓝图顶层缩放 */
+export function setScale(asset: BlueprintAsset, s: [number, number, number]): OpResult {
+  if (!Array.isArray(s) || s.length !== 3 || !s.every((n) => typeof n === 'number'))
+    return fail('scale 必须是 [x, y, z] 数字数组')
+  asset.scale = s
   return ok(asset)
-}
-
-function setDotted(obj: Record<string, unknown>, keys: string[], value: unknown): void {
-  let cur = obj
-  for (let i = 0; i < keys.length - 1; i++) {
-    const k = keys[i]
-    if (!isPlainObject(cur[k])) cur[k] = {}
-    cur = cur[k] as Record<string, unknown>
-  }
-  const last = keys[keys.length - 1]
-  if (value === null) delete cur[last]
-  else cur[last] = value
-}
-
-function deleteDotted(obj: Record<string, unknown>, keys: string[]): void {
-  let cur = obj
-  for (let i = 0; i < keys.length - 1; i++) {
-    const k = keys[i]
-    if (!isPlainObject(cur[k])) return
-    cur = cur[k] as Record<string, unknown>
-  }
-  delete cur[keys[keys.length - 1]]
 }
 
 // ══════════════════════════════════════
 //  元信息（id / baseClass / parent）
 // ══════════════════════════════════════
 
-export function setId(asset: BlueprintAsset, id: string): OpResult {
-  if (typeof id !== 'string' || !id) return fail('id 必须是非空字符串')
+export function setId(asset: BlueprintAsset, id: number): OpResult {
+  if (typeof id !== 'number' || !Number.isFinite(id)) return fail('id 必须是数字')
   asset.id = id
   return ok(asset)
 }
@@ -316,12 +310,12 @@ export function setBaseClass(asset: BlueprintAsset, baseClass: string): OpResult
 }
 
 /** 设置父蓝图；parent=null 表示解除继承 */
-export function setParent(asset: BlueprintAsset, parent: string | null): OpResult {
+export function setParent(asset: BlueprintAsset, parent: number | null): OpResult {
   if (parent === null) {
     delete asset.parent
     return ok(asset)
   }
-  if (typeof parent !== 'string' || !parent) return fail('parent 必须是非空字符串或 null')
+  if (typeof parent !== 'number' || !Number.isFinite(parent)) return fail('parent 必须是数字或 null')
   asset.parent = parent
   return ok(asset)
 }

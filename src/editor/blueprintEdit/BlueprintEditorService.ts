@@ -24,7 +24,7 @@ import { useEditorStore } from '../../stores/editorStore'
 export interface BlueprintTypes {
   actors: string[]
   components: string[]
-  blueprints: string[]
+  blueprints: number[]
 }
 
 /** 对外统一结果 */
@@ -65,11 +65,19 @@ async function writeAsset(assetPath: string, data: BlueprintAsset): Promise<{ ok
 
 // ─── 参数归一化 ───
 
+function isVec3(v: unknown): v is [number, number, number] {
+  return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number')
+}
+
 function pickChildDef(p: Record<string, unknown>): BlueprintChildDef {
   if (p.child && typeof p.child === 'object') return p.child as BlueprintChildDef
-  const def: BlueprintChildDef = {}
-  if (typeof p.blueprint === 'string') def.blueprint = p.blueprint
-  if (typeof p.actor === 'string') def.actor = p.actor
+  const def: BlueprintChildDef = {
+    position: isVec3(p.position) ? p.position : [0, 0, 0],
+    rotation: isVec3(p.rotation) ? p.rotation : [0, 0, 0],
+    scale: isVec3(p.scale) ? p.scale : [1, 1, 1],
+  }
+  if (typeof p.blueprint === 'number') def.blueprint = p.blueprint
+  if (typeof p.baseClass === 'string') def.baseClass = p.baseClass
   if (typeof p.name === 'string') def.name = p.name
   if (p.overrides && typeof p.overrides === 'object') def.overrides = p.overrides as PropertyPatch
   return def
@@ -85,11 +93,11 @@ function pickLocator(p: Record<string, unknown>): ChildLocator | null {
 function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): OpResult {
   switch (op) {
     case 'addComponent':
-      return ops.addComponent(asset, p.type as string, p.props as PropertyPatch | undefined)
+      return ops.addComponent(asset, (p.baseClass ?? p.type) as string, (p.properties ?? p.props) as PropertyPatch | undefined, p.id as number | undefined, p.name as string | undefined)
     case 'removeComponent':
-      return ops.removeComponent(asset, p.type as string)
+      return ops.removeComponent(asset, (p.baseClass ?? p.type) as string)
     case 'setComponentProps':
-      return ops.setComponentProps(asset, p.type as string, (p.patch ?? p.props) as PropertyPatch)
+      return ops.setComponentProps(asset, (p.baseClass ?? p.type) as string, (p.properties ?? p.patch ?? p.props) as PropertyPatch)
     case 'addChild':
       return ops.addChild(asset, pickChildDef(p))
     case 'updateChild': {
@@ -102,18 +110,18 @@ function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): O
       if (!loc) return { ok: false, error: 'removeChild 需要 name 或 index 定位' }
       return ops.removeChild(asset, loc)
     }
-    case 'setDefault':
-      return ops.setDefault(asset, (p.path ?? p.key) as string, p.value)
-    case 'setDefaults':
-      return ops.setDefaults(asset, (p.patch ?? p.defaults) as PropertyPatch)
-    case 'deleteDefaults':
-      return ops.deleteDefaults(asset, (p.path ?? p.key) as string)
     case 'setBaseClass':
       return ops.setBaseClass(asset, (p.baseClass ?? p.class) as string)
     case 'setParent':
-      return ops.setParent(asset, p.parent === undefined ? null : (p.parent as string))
+      return ops.setParent(asset, p.parent === undefined ? null : (p.parent as number))
     case 'setId':
-      return ops.setId(asset, p.id as string)
+      return ops.setId(asset, p.id as number)
+    case 'setPosition':
+      return ops.setPosition(asset, p.position as [number, number, number])
+    case 'setRotation':
+      return ops.setRotation(asset, p.rotation as [number, number, number])
+    case 'setScale':
+      return ops.setScale(asset, p.scale as [number, number, number])
     case 'replace':
       return ops.replaceAsset(asset, p.asset as BlueprintAsset)
     default:
@@ -230,17 +238,17 @@ export class BlueprintEditorService {
     warnings: string[],
   ): void {
     if (op === 'addComponent' || op === 'setComponentProps') {
-      const t = p.type as string
+      const t = p.baseClass as string
       if (t && !ComponentRegistry.has(t)) warnings.push(`Component 类型 "${t}" 未注册（可能延迟注册）`)
     } else if (op === 'setBaseClass') {
       const cls = (p.baseClass ?? p.class) as string
       if (cls && !ActorRegistry.has(cls)) warnings.push(`Actor 类型 "${cls}" 未注册`)
     } else if (op === 'setParent') {
-      const parent = p.parent as string
-      if (parent && !BlueprintRegistry.has(parent)) warnings.push(`父蓝图 "${parent}" 未注册`)
+      const parent = p.parent as number
+      if (parent != null && !BlueprintRegistry.has(parent)) warnings.push(`父蓝图 #${parent} 未注册`)
     } else if (op === 'addChild' || op === 'updateChild') {
-      const bp = (p.blueprint ?? (p.child as { blueprint?: string })?.blueprint) as string | undefined
-      if (bp && !BlueprintRegistry.has(bp)) warnings.push(`子蓝图 "${bp}" 未注册`)
+      const bp = (p.blueprint ?? (p.child as { blueprint?: number })?.blueprint) as number | undefined
+      if (bp != null && !BlueprintRegistry.has(bp)) warnings.push(`子蓝图 #${bp} 未注册`)
     }
   }
 }

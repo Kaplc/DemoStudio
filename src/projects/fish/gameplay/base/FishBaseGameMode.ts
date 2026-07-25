@@ -7,7 +7,7 @@
  * 通过 PhySys 单例统一调度。
  */
 import * as THREE from 'three'
-import { GameMode, CameraComponent, StaticMeshActor, type World, logger } from '@/engine'
+import { GameMode, CameraComponent, Actor, GenericActor, MeshComponent, type World, logger } from '@/engine'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { FishHouseActor } from './FishHouseActor'
@@ -17,10 +17,10 @@ export class FishBaseGameMode extends GameMode {
 
   /** 基地房子 Actor */
   private houseActor: FishHouseActor | null = null
-  /** 所有通过 World.SpawnActor 生成的装饰 StaticMeshActor */
-  private decorActors: StaticMeshActor[] = []
-  /** 海鸟 StaticMeshActor（独立跟踪以在 Tick 中更新动画） */
-  private birdActors: StaticMeshActor[] = []
+  /** 所有通过 World.SpawnActor 生成的装饰 Actor */
+  private decorActors: Actor[] = []
+  /** 海鸟 Actor（独立跟踪以在 Tick 中更新动画） */
+  private birdActors: Actor[] = []
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
   onStartFishing: (() => void) | null = null
@@ -58,7 +58,7 @@ export class FishBaseGameMode extends GameMode {
 
   override Tick(dt: number) {
     super.Tick(dt)
-    // 鸟群缓慢盘旋（StaticMeshActor 的 root 持有基础位置，子 mesh 为动画偏移）
+    // 鸟群缓慢盘旋（Actor 的 root 持有基础位置，子 mesh 为动画偏移）
     for (let i = 0; i < this.birdActors.length; i++) {
       const actor = this.birdActors[i]
       const bird = actor.root.children[0] as THREE.Mesh
@@ -95,7 +95,7 @@ export class FishBaseGameMode extends GameMode {
       return
     }
 
-    // ─── 停泊炮台（使用 World 工厂方法构建）→ StaticMeshActor ───
+    // ─── 停泊炮台（使用 World 工厂方法构建）→ GenericActor + MeshComponent ───
     const cannonGroup = world.createGroup()
 
     // 底座
@@ -121,30 +121,50 @@ export class FishBaseGameMode extends GameMode {
     wr.position.set(0.3, 0.08, 0.2)
     cannonGroup.add(wr)
 
-    cannonGroup.position.set(2.5, 0, 2.5)
-    const cannonActor = new StaticMeshActor(cannonGroup, 'Cannon')
+    const cannonActor = new GenericActor('Cannon')
+    for (const child of [...cannonGroup.children]) {
+      if (child instanceof THREE.Mesh) {
+        cannonGroup.remove(child)
+        cannonActor.addComponent(new MeshComponent(cannonActor, child))
+      }
+    }
+    cannonActor.setPosition(2.5, 0, 2.5)
     world.SpawnActor(cannonActor)
     this.decorActors.push(cannonActor)
 
-    // ─── 棕榈树（程序化生成，补充 JSON 场景）→ StaticMeshActor ───
+    // ─── 棕榈树（程序化生成，补充 JSON 场景）→ GenericActor + MeshComponent ───
     const treePositions = [[-3, -5, 0.9], [4, -6, 1.1], [-5, 4, 1.0], [7, 3, 0.8], [-7, -3, 0.7], [0, -8, 1.2]]
     for (const [tx, tz, tscale] of treePositions) {
       const group = this.buildPalmTree(world, tx, tz, tscale)
-      const actor = new StaticMeshActor(group, 'PalmTree')
+      const actor = new GenericActor('PalmTree')
+      for (const child of [...group.children]) {
+        if (child instanceof THREE.Mesh) {
+          group.remove(child)
+          actor.addComponent(new MeshComponent(actor, child))
+        }
+      }
+      actor.root.position.copy(group.position)
       world.SpawnActor(actor)
       this.decorActors.push(actor)
     }
 
-    // ─── 沙滩灌木 → StaticMeshActor ───
+    // ─── 沙滩灌木 → GenericActor + MeshComponent ───
     const bushPositions = [[-2.5, -2, 0.5], [3, -2.5, 0.4], [-3, 3, 0.6], [1.5, 4, 0.35], [-1, -4, 0.45]]
     for (const [bx, bz, bscale] of bushPositions) {
       const group = this.buildBush(world, bx, bz, bscale)
-      const actor = new StaticMeshActor(group, 'Bush')
+      const actor = new GenericActor('Bush')
+      for (const child of [...group.children]) {
+        if (child instanceof THREE.Mesh) {
+          group.remove(child)
+          actor.addComponent(new MeshComponent(actor, child))
+        }
+      }
+      actor.root.position.copy(group.position)
       world.SpawnActor(actor)
       this.decorActors.push(actor)
     }
 
-    // ─── 海鸟在天空盘旋 → StaticMeshActor ───
+    // ─── 海鸟在天空盘旋 → GenericActor + MeshComponent ───
     for (let i = 0; i < 5; i++) {
       const bird = world.createPlaneMesh(0.3, 0.1, 0x37474f, true, 0.5, THREE.DoubleSide)
       const angle = (i / 5) * Math.PI * 2
@@ -155,7 +175,8 @@ export class FishBaseGameMode extends GameMode {
         phase: Math.random() * Math.PI * 2,
         speed: 0.4 + Math.random() * 0.3,
       }
-      const birdActor = new StaticMeshActor(bird, 'Bird')
+      const birdActor = new GenericActor('Bird')
+      birdActor.addComponent(new MeshComponent(birdActor, bird))
       birdActor.root.position.set(baseX, baseY, Math.sin(angle) * radius)
       birdActor.root.rotation.x = 0.2
       world.SpawnActor(birdActor)
@@ -163,7 +184,7 @@ export class FishBaseGameMode extends GameMode {
     }
 
     // ─── 房子 Actor → 从 Blueprint 实例化（beach_house，行为类 blueprint 范例）───
-    const house = world.SpawnActorFromBlueprint('beach_house')
+    const house = world.SpawnActorFromBlueprint(103)
     if (house) {
       this.houseActor = house as FishHouseActor
     } else {

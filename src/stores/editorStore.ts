@@ -36,14 +36,14 @@ export interface BlueprintSelection {
   type: 'component' | 'child' | 'defaults'
   index: number
   label: string
-  /** 组件 type（仅 type='component' 时） */
+  /** 组件 baseClass（仅 type='component' 时） */
   compType?: string
   /** 组件完整数据 */
-  compData?: { type: string; props?: Record<string, unknown>; _remove?: boolean }
+  compData?: { id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }
   /** 子 Actor 引用（仅 type='child' 时） */
   childRef?: string
   /** 子 Actor 完整数据 */
-  childData?: { blueprint?: string; actor?: string; name?: string; overrides?: Record<string, unknown>; _remove?: boolean }
+  childData?: { blueprint?: number; baseClass?: string; name?: string; id?: number; overrides?: Record<string, unknown>; components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>; position?: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number]; _remove?: boolean }
 }
 
 export interface EditorState {

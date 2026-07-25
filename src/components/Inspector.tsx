@@ -82,6 +82,26 @@ function BlueprintRefView({ actor }: { actor: Actor }) {
   )
 }
 
+// ─── 只读键值展示（替代蓝图编辑中的 KVEditor）───
+function ReadOnlyKV({ data }: { data: Record<string, unknown> | undefined }) {
+  const entries = Object.entries(data ?? {})
+  if (entries.length === 0) {
+    return <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '2px 0' }}>（空）</div>
+  }
+  return (
+    <>
+      {entries.map(([k, v]) => (
+        <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
+          <span style={{ flex: '0 0 80px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
+          <span style={{ flex: 1, fontSize: 11, color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>
+            {displayValue(v)}
+          </span>
+        </div>
+      ))}
+    </>
+  )
+}
+
 // ─── 通用键值编辑器（用于组件 props / 子物体 overrides / CDO defaults）───
 // 所有编辑都通过 BlueprintEditorService 落盘，不直接改 JSON。
 
@@ -183,18 +203,28 @@ function KVEditor({
   )
 }
 
-// ─── 蓝图编辑器选中组件详情（可编辑）───
+// ─── 蓝图编辑器选中组件详情（只读）───
 function BlueprintComponentDetail({ data, selection }: { data: NonNullable<BlueprintSelection['compData']>; selection: BlueprintSelection }) {
-  const [busy, setBusy] = useState(false)
-  const assetPath = selection.assetPath
   return (
     <>
       <div className="property-group">
-        <div className="property-group-title">Component — {data.type}</div>
+        <div className="property-group-title">Component — {data.name || data.baseClass}</div>
         <div className="property-row">
-          <span className="property-label">Type</span>
-          <span className="property-value" style={{ fontSize: 11, color: 'var(--accent)' }}>{data.type}</span>
+          <span className="property-label">baseClass</span>
+          <span className="property-value" style={{ fontSize: 11, color: 'var(--accent)' }}>{data.baseClass}</span>
         </div>
+        {data.id !== undefined && (
+          <div className="property-row">
+            <span className="property-label">ID</span>
+            <span className="property-value" style={{ fontSize: 11 }}>#{data.id}</span>
+          </div>
+        )}
+        {data.name && (
+          <div className="property-row">
+            <span className="property-label">Name</span>
+            <span className="property-value" style={{ fontSize: 11 }}>{data.name}</span>
+          </div>
+        )}
         <div className="property-row">
           <span className="property-label">Index</span>
           <span className="property-value" style={{ fontSize: 11 }}>#{selection.index}</span>
@@ -207,37 +237,15 @@ function BlueprintComponentDetail({ data, selection }: { data: NonNullable<Bluep
         )}
       </div>
       <div className="property-group">
-        <div className="property-group-title">Properties（可编辑）</div>
-        <KVEditor
-          initial={data.props}
-          disabled={busy}
-          onSave={async (patch) => {
-            setBusy(true)
-            await BlueprintEditorService.apply(assetPath, 'setComponentProps', { type: data.type, patch })
-            setBusy(false)
-          }}
-        />
-        <div style={{ marginTop: 6 }}>
-          <button
-            className="btn btn-danger"
-            disabled={busy}
-            onClick={async () => { setBusy(true); await BlueprintEditorService.apply(assetPath, 'removeComponent', { type: data.type }); setBusy(false) }}
-            style={{ padding: '3px 12px', fontSize: 11 }}
-          >
-            删除组件
-          </button>
-        </div>
+        <div className="property-group-title">Properties（只读）</div>
+        <ReadOnlyKV data={data.properties} />
       </div>
     </>
   )
 }
 
-// ─── 蓝图编辑器选中子 Actor 详情（可编辑）───
+// ─── 蓝图编辑器选中子 Actor 详情（只读）───
 function BlueprintChildDetail({ data, selection }: { data: NonNullable<BlueprintSelection['childData']>; selection: BlueprintSelection }) {
-  const [busy, setBusy] = useState(false)
-  const assetPath = selection.assetPath
-  // 具名子节点按 name 定位，否则按本地索引
-  const locatorProps = data.name ? { name: data.name } : { index: selection.index }
   return (
     <>
       <div className="property-group">
@@ -254,10 +262,16 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
             <span className="property-value" style={{ fontSize: 11, color: 'var(--info)' }}>🧩 {data.blueprint}</span>
           </div>
         )}
-        {!data.blueprint && data.actor && (
+        {!data.blueprint && data.baseClass && (
           <div className="property-row">
-            <span className="property-label">Actor</span>
-            <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>⚙️ {data.actor}</span>
+            <span className="property-label">baseClass</span>
+            <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>⚙️ {data.baseClass}</span>
+          </div>
+        )}
+        {data.id !== undefined && (
+          <div className="property-row">
+            <span className="property-label">ID</span>
+            <span className="property-value" style={{ fontSize: 11 }}>#{data.id}</span>
           </div>
         )}
         <div className="property-row">
@@ -272,33 +286,15 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
         )}
       </div>
       <div className="property-group">
-        <div className="property-group-title">Overrides（可编辑）</div>
-        <KVEditor
-          initial={data.overrides}
-          disabled={busy}
-          onSave={async (patch) => {
-            setBusy(true)
-            await BlueprintEditorService.apply(assetPath, 'updateChild', { ...locatorProps, overrides: patch })
-            setBusy(false)
-          }}
-        />
-        <div style={{ marginTop: 6 }}>
-          <button
-            className="btn btn-danger"
-            disabled={busy}
-            onClick={async () => { setBusy(true); await BlueprintEditorService.apply(assetPath, 'removeChild', locatorProps); setBusy(false) }}
-            style={{ padding: '3px 12px', fontSize: 11 }}
-          >
-            删除子物体
-          </button>
-        </div>
+        <div className="property-group-title">Overrides（只读）</div>
+        <ReadOnlyKV data={data.overrides} />
       </div>
     </>
   )
 }
 
-// ─── 蓝图根：CDO Defaults 编辑（未选中任何元素时）───
-function BlueprintDefaultsDetail({ assetPath }: { assetPath: string }) {
+// ─── 蓝图根：Transform + Components + Children 总览（未选中任何元素时）───
+function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
   const [busy, setBusy] = useState(false)
   const [asset, setAsset] = useState<BlueprintAsset | null>(null)
   const nonce = useEditorStore((s) => s.blueprintEditNonce)
@@ -317,6 +313,12 @@ function BlueprintDefaultsDetail({ assetPath }: { assetPath: string }) {
     return <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>加载蓝图…</div>
   }
 
+  const p = asset.position ?? [0, 0, 0]
+  const r = asset.rotation ?? [0, 0, 0]
+  const s = asset.scale ?? [1, 1, 1]
+  const compCount = asset.components?.length ?? 0
+  const childCount = asset.children?.length ?? 0
+
   return (
     <>
       <div className="property-group">
@@ -332,18 +334,74 @@ function BlueprintDefaultsDetail({ assetPath }: { assetPath: string }) {
           </div>
         )}
       </div>
+
       <div className="property-group">
-        <div className="property-group-title">Defaults (CDO) — 可编辑</div>
-        <KVEditor
-          initial={asset.defaults}
-          disabled={busy}
-          saveLabel="保存 Defaults"
-          onSave={async (patch) => {
-            setBusy(true)
-            await BlueprintEditorService.apply(assetPath, 'setDefaults', { patch })
-            setBusy(false)
-          }}
-        />
+        <div className="property-group-title">Transform</div>
+        <div className="property-row">
+          <span className="property-label">Position</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            <input type="number" step="0.01" defaultValue={p[0]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[0] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={p[1]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[1] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={p[2]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[2] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+          </span>
+        </div>
+        <div className="property-row">
+          <span className="property-label">Rotation</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            <input type="number" step="0.01" defaultValue={r[0]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[0] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={r[1]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[1] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={r[2]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[2] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+          </span>
+        </div>
+        <div className="property-row">
+          <span className="property-label">Scale</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            <input type="number" step="0.01" defaultValue={s[0]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[0] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={s[1]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[1] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" defaultValue={s[2]} style={{ width: 50, ...kvValStyle }}
+              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[2] = v }}
+              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+          </span>
+        </div>
+      </div>
+
+      <div className="property-group">
+        <div className="property-group-title">Components（{compCount}）</div>
+        {(asset.components ?? []).map((comp, i) => (
+          <div key={i} className="property-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <span className="property-label" style={{ fontWeight: 600 }}>{comp.name || comp.baseClass}</span>
+            {comp._remove && <span className="property-value" style={{ fontSize: 10, color: 'var(--error)' }}>Removed</span>}
+          </div>
+        ))}
+      </div>
+
+      <div className="property-group">
+        <div className="property-group-title">Children（{childCount}）</div>
+        {(asset.children ?? []).map((ch, i) => (
+          <div key={i} className="property-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <span className="property-label" style={{ fontWeight: 600 }}>{ch.name || `#${i}`}</span>
+            <span className="property-value" style={{ fontSize: 10 }}>
+              {ch.id !== undefined ? `#${ch.id} ` : ''}{ch.blueprint ? `🧩 bp:${ch.blueprint}` : ch.baseClass ? `⚙️ ${ch.baseClass}` : ''}
+              {ch._remove ? ' · Removed' : ''}
+            </span>
+          </div>
+        ))}
       </div>
     </>
   )
@@ -445,7 +503,7 @@ export function Inspector() {
       if (cancelled || !r.success || !r.data) return
       const asset = r.data as BlueprintAsset
       if (cur.type === 'component') {
-        const comp = (asset.components ?? []).find((c, i) => c.type === cur.compType || i === cur.index)
+        const comp = (asset.components ?? []).find((c, i) => c.baseClass === cur.compType || i === cur.index)
         if (comp) useEditorStore.getState().setBlueprintSelection({ ...cur, compData: comp })
       } else if (cur.type === 'child') {
         const name = cur.childData?.name
@@ -491,7 +549,7 @@ export function Inspector() {
             <BlueprintGeneralInfo selection={blueprintSelection} />
           )
         ) : isBlueprintTab && activeTabId.length > 3 ? (
-          <BlueprintDefaultsDetail assetPath={activeTabId.slice(3)} />
+          <BlueprintOverviewDetail assetPath={activeTabId.slice(3)} />
         ) : selected ? (
           isActor && actorTarget ? (
             <>

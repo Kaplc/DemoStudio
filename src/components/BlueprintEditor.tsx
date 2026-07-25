@@ -17,26 +17,25 @@ interface BlueprintEditorProps {
   assetPath: string
 }
 
-/** 子 Actor 节点（递归，含内联 objects 和嵌套 children） */
+/** 子 Actor 节点（递归，与 BlueprintAsset 结构一致） */
 interface BlueprintChildNode {
-  blueprint?: string
-  actor?: string
+  blueprint?: number
+  baseClass?: string
   name?: string
+  id?: number
   overrides?: Record<string, unknown>
-  objects?: Array<Record<string, unknown>>
+  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
   _remove?: boolean
 }
 
 interface BlueprintData {
-  id: string
+  id: number
+  name: string
   baseClass: string
-  parent?: string
-  scene?: string
-  objects?: Array<Record<string, unknown>>
-  components?: Array<{ type: string; props?: Record<string, unknown>; _remove?: boolean }>
+  parent?: number
+  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
-  defaults?: Record<string, unknown>
 }
 
 export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
@@ -50,7 +49,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const [leftWidth, setLeftWidth] = useState(320)
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
-  const setBlueprintSelection = useEditorStore((s) => s.setBlueprintSelection)
 
   // ─── 读取蓝图 JSON ───
   useEffect(() => {
@@ -180,7 +178,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         background: 'var(--bg-secondary)',
         display: 'flex', alignItems: 'center', gap: 12, fontSize: 12,
       }}>
-        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.id}</span>
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
         <span style={{ color: 'var(--success)' }}>{data.baseClass}</span>
         {data.parent && <span style={{ color: 'var(--accent)' }}>extends {data.parent}</span>}
       </div>
@@ -192,7 +190,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
           {/* Parent 继承 */}
           {data.parent && (
             <Section title="Parent Blueprint">
-              <Row label="Inherits From" value={data.parent} link />
+              <Row label="Inherits From" value={String(data.parent)} link />
             </Section>
           )}
 
@@ -201,32 +199,20 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
             {(data.components ?? []).length === 0 ? (
               <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>无组件</div>
             ) : (
-              (data.components ?? []).map((comp, i) => {
-                const isSelected = useEditorStore.getState().blueprintSelection?.type === 'component' &&
-                  useEditorStore.getState().blueprintSelection?.index === i
-                return (
-                  <div
-                    key={i}
-                    onClick={() => setBlueprintSelection({
-                      assetPath,
-                      type: 'component',
-                      index: i,
-                      label: comp.type,
-                      compType: comp.type,
-                      compData: comp,
-                    })}
-                    style={{
-                      padding: '4px 10px', marginBottom: 2, borderRadius: 3, cursor: 'pointer',
-                      background: isSelected ? 'var(--accent)' : 'var(--bg-tertiary)',
-                      color: isSelected ? '#fff' : 'var(--text-primary)',
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: 12, color: isSelected ? '#fff' : 'var(--accent)' }}>{comp.type}</span>
-                    {comp._remove && <span style={{ color: 'var(--error)', fontSize: 10 }}>removed</span>}
-                  </div>
-                )
-              })
+              (data.components ?? []).map((comp, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '4px 10px', marginBottom: 2, borderRadius: 3,
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--accent)' }}>{comp.name || comp.baseClass}</span>
+                  {comp._remove && <span style={{ color: 'var(--error)', fontSize: 10 }}>removed</span>}
+                </div>
+              ))
             )}
           </Section>
 
@@ -270,7 +256,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         fontSize: 10, color: 'var(--text-dim)', background: 'var(--bg-secondary)',
         display: 'flex', gap: 16,
       }}>
-        <span>Blueprint: {data.id}</span>
+        <span>Blueprint: {data.name} (#{data.id})</span>
         <span>Class: {data.baseClass}</span>
         <span>File: {filename}</span>
       </div>

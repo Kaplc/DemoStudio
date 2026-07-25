@@ -32,7 +32,7 @@ export class BlueprintPreviewManager {
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
-  private _currentBlueprintId: string | null = null
+  private _currentBlueprintId: number | null = null
 
   /** 当前预览的 Actor 根节点缓存，用于快速重建 */
   private previewRoot: THREE.Object3D | null = null
@@ -214,7 +214,7 @@ export class BlueprintPreviewManager {
   //  蓝图加载
   // ═══════════════════════════════════
 
-  loadBlueprint(blueprintId: string): boolean {
+  loadBlueprint(blueprintId: number): boolean {
     this.clearPreview()
 
     const actor = this.world.SpawnActorFromBlueprint(blueprintId)
@@ -241,7 +241,7 @@ export class BlueprintPreviewManager {
     this.previewRoot = null
   }
 
-  get currentBlueprintId(): string | null {
+  get currentBlueprintId(): number | null {
     return this._currentBlueprintId
   }
 
@@ -347,7 +347,7 @@ export class BlueprintPreviewManager {
     const allActors = this.world.GetAllActors()
     let target: Actor | null = null
     for (const actor of allActors) {
-      if (actor.name === actorName || actor.root.name === actorName || actor.blueprintRef?.id === actorName) {
+      if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
         target = actor
         break
       }

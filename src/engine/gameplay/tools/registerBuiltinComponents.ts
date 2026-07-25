@@ -13,7 +13,8 @@
  *     ClickableComponent 默认自动收集 owner.root 下所有 Mesh 作为检测目标。
  *   - InputComponent 的按键绑定、SpawnComponent 的生成点由代码配置，不进 props。
  */
-import type * as THREE from 'three'
+import * as THREE from 'three'
+import { MeshComponent } from '../rendering/MeshComponent'
 import { ComponentRegistry } from './ComponentRegistry'
 import { SpriteComponent } from '../rendering/SpriteComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
@@ -77,4 +78,43 @@ export function registerBuiltinComponents(): void {
 
   // ─── spawn ─── 构造即用，生成点由代码 AddSpawnPoint 配置
   ComponentRegistry.register('spawn', (owner) => new SpawnComponent(owner))
+
+  // ─── mesh ─── props: { geometry?, size?, color?, opacity?, name? }
+  // geometry 取值: 'box'（默认）| 'sphere' | 'plane'
+  // size 按几何类型: box→[w,h,d], sphere→[radius], plane→[w,h]
+  ComponentRegistry.register(
+    'mesh',
+    (owner, p = {}) => {
+      const geometryType = (p.geometry as string) ?? 'box'
+      const size = p.size as number[] | undefined
+      let geo: THREE.BufferGeometry
+      switch (geometryType) {
+        case 'sphere':
+          geo = new THREE.SphereGeometry(size?.[0] ?? 0.5, 16, 16)
+          break
+        case 'plane':
+          geo = new THREE.PlaneGeometry(size?.[0] ?? 1, size?.[1] ?? 1)
+          break
+        default:
+          geo = new THREE.BoxGeometry(size?.[0] ?? 1, size?.[1] ?? 1, size?.[2] ?? 1)
+      }
+      const color = (p.color as number | string) ?? 0xffffff
+      const mat = new THREE.MeshStandardMaterial({ color })
+      if (p.opacity !== undefined) {
+        mat.transparent = true
+        mat.opacity = p.opacity as number
+      }
+      const mesh = new THREE.Mesh(geo, mat)
+      return new MeshComponent(owner, mesh, (p.name as string) ?? 'MeshComponent')
+    },
+    (c, p) => {
+      const mc = c as MeshComponent
+      const mat = mc.mesh.material as THREE.MeshStandardMaterial
+      if (p.color !== undefined) mat.color.set(p.color as THREE.ColorRepresentation)
+      if (p.opacity !== undefined) {
+        mat.transparent = true
+        mat.opacity = p.opacity as number
+      }
+    },
+  )
 }

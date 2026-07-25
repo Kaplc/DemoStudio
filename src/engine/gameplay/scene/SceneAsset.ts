@@ -128,7 +128,7 @@ export interface SpriteNode extends BaseNode {
 export interface BlueprintNode extends BaseNode {
   type: 'blueprint'
   /** 引用的 Blueprint id（BlueprintRegistry key） */
-  blueprint: string
+  blueprint: number
   pos?: Vec3
   rot?: Vec3
   scale?: Vec3

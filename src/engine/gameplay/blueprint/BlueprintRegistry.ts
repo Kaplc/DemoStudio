@@ -24,15 +24,14 @@ import type {
   ResolvedChildDef,
   ResolvedComponentDef,
 } from './BlueprintAsset'
-import type { SceneNode } from '../scene/SceneAsset'
 
 export class BlueprintRegistry {
-  private static assets = new Map<string, BlueprintAsset>()
-  private static cache = new Map<string, ResolvedBlueprint>()
+  private static assets = new Map<number, BlueprintAsset>()
+  private static cache = new Map<number, ResolvedBlueprint>()
   /** parent → 直接子 id 集合（用于失效传播） */
-  private static childrenIndex = new Map<string, Set<string>>()
+  private static childrenIndex = new Map<number, Set<number>>()
   /** id → 自身的 parent（用于重新注册时清理旧索引） */
-  private static reverseParent = new Map<string, string | undefined>()
+  private static reverseParent = new Map<number, number | undefined>()
 
   /** 注册一个蓝图资产（覆盖同名，并失效自身及后代缓存） */
   static register(asset: BlueprintAsset): void {
@@ -43,7 +42,7 @@ export class BlueprintRegistry {
     }
     const newParent = asset.parent
     BlueprintRegistry.reverseParent.set(id, newParent)
-    if (newParent) {
+    if (newParent !== undefined) {
       let set = BlueprintRegistry.childrenIndex.get(newParent)
       if (!set) {
         set = new Set()
@@ -56,17 +55,17 @@ export class BlueprintRegistry {
   }
 
   /** 从 JSON 注册（id 覆盖 json.id，便于文件名与 id 解耦） */
-  static loadFromJson(id: string, json: BlueprintAsset): void {
+  static loadFromJson(id: number, json: BlueprintAsset): void {
     BlueprintRegistry.register({ ...json, id })
   }
 
   /** 检查是否已注册 */
-  static has(id: string): boolean {
+  static has(id: number): boolean {
     return BlueprintRegistry.assets.has(id)
   }
 
   /** 获取所有已注册的蓝图 id */
-  static getRegisteredIds(): string[] {
+  static getRegisteredIds(): number[] {
     return [...BlueprintRegistry.assets.keys()]
   }
 
@@ -79,7 +78,7 @@ export class BlueprintRegistry {
   }
 
   /** 获取原始资产（未解析继承） */
-  static get(id: string): BlueprintAsset | null {
+  static get(id: number): BlueprintAsset | null {
     return BlueprintRegistry.assets.get(id) ?? null
   }
 
@@ -87,12 +86,12 @@ export class BlueprintRegistry {
    * 解析继承链，返回扁平 CDO（带缓存）。环或缺失父级时抛错。
    * 返回对象视为只读 —— 实例化时不应修改。
    */
-  static resolve(id: string): ResolvedBlueprint {
+  static resolve(id: number): ResolvedBlueprint {
     return BlueprintRegistry.resolveInternal(id, new Set())
   }
 
   /** 递归失效 id 及其后代的缓存 */
-  private static invalidate(id: string): void {
+  private static invalidate(id: number): void {
     BlueprintRegistry.cache.delete(id)
     const kids = BlueprintRegistry.childrenIndex.get(id)
     if (kids) {
@@ -100,7 +99,7 @@ export class BlueprintRegistry {
     }
   }
 
-  private static resolveInternal(id: string, ancestors: Set<string>): ResolvedBlueprint {
+  private static resolveInternal(id: number, ancestors: Set<number>): ResolvedBlueprint {
     const cached = BlueprintRegistry.cache.get(id)
     if (cached) return cached
 
@@ -117,49 +116,51 @@ export class BlueprintRegistry {
     let baseClass = asset.baseClass
     let components: ResolvedComponentDef[] = []
     let children: ResolvedChildDef[] = []
-    let defaults: PropertyPatch = {}
-    let scene: string | undefined
-    let objects: SceneNode[] | undefined
+    let position: [number, number, number] | undefined
+    let rotation: [number, number, number] | undefined
+    let scale: [number, number, number] | undefined
 
     if (asset.parent) {
       const parentAncestors = new Set(ancestors)
       parentAncestors.add(id)
       const parent = BlueprintRegistry.resolveInternal(asset.parent, parentAncestors)
       baseClass = asset.baseClass ?? parent.baseClass
-      components = parent.components.map((c) => ({ type: c.type, props: clonePatch(c.props) }))
+      components = parent.components.map((c) => ({
+        id: c.id,
+        name: c.name,
+        baseClass: c.baseClass,
+        properties: clonePatch(c.properties),
+      }))
       children = parent.children.map((ch) => ({
         ...ch,
         overrides: clonePatch(ch.overrides),
-        objects: ch.objects ? [...ch.objects] : undefined,
+        components: ch.components ? ch.components.map((c) => ({ ...c, properties: clonePatch(c.properties ?? {}) })) : undefined,
         children: ch.children ? ch.children.map((rc) => ({ ...rc, overrides: clonePatch(rc.overrides) })) : undefined,
       }))
-      defaults = clonePatch(parent.defaults)
-      scene = parent.scene
-      objects = parent.objects ? [...parent.objects] : undefined
-    }
-
-    // 本层 scene 覆盖父级（已弃用，保留兼容）
-    if (asset.scene !== undefined) {
-      scene = asset.scene
-    }
-
-    // 本层 objects 覆盖父级（根级内联网格）
-    if (asset.objects !== undefined) {
-      objects = asset.objects
+      position = parent.position
+      rotation = parent.rotation
+      scale = parent.scale
     }
 
     // 合并本层的 components
     if (asset.components) {
       for (const cdef of asset.components) {
         if (cdef._remove) {
-          components = components.filter((c) => c.type !== cdef.type)
+          components = components.filter((c) => c.baseClass !== cdef.baseClass)
           continue
         }
-        const existing = components.find((c) => c.type === cdef.type)
+        const existing = components.find((c) => c.baseClass === cdef.baseClass)
         if (existing) {
-          if (cdef.props) mergePatch(existing.props, clonePatch(cdef.props))
+          if (cdef.properties) mergePatch(existing.properties, clonePatch(cdef.properties))
+          if (cdef.name !== undefined) existing.name = cdef.name
+          if (cdef.id !== undefined) existing.id = cdef.id
         } else {
-          components.push({ type: cdef.type, props: clonePatch(cdef.props ?? {}) })
+          components.push({
+            id: cdef.id,
+            name: cdef.name,
+            baseClass: cdef.baseClass,
+            properties: clonePatch(cdef.properties ?? {}),
+          })
         }
       }
     }
@@ -177,11 +178,10 @@ export class BlueprintRegistry {
           if (existing) {
             if (chdef.overrides) mergePatch(existing.overrides, clonePatch(chdef.overrides))
             if (chdef.blueprint) existing.blueprint = chdef.blueprint
-            if (chdef.actor) existing.actor = chdef.actor
-            // 本层 objects 覆盖父级（子优先）
-            if (chdef.objects !== undefined) {
-              existing.objects = chdef.objects
-            }
+          if (chdef.baseClass) existing.baseClass = chdef.baseClass
+            if (chdef.position !== undefined) existing.position = chdef.position
+            if (chdef.rotation !== undefined) existing.rotation = chdef.rotation
+            if (chdef.scale !== undefined) existing.scale = chdef.scale
             // 合并递归 children
             if (chdef.children) {
               existing.children = BlueprintRegistry.mergeNestedChildren(existing.children ?? [], chdef.children)
@@ -193,10 +193,10 @@ export class BlueprintRegistry {
       }
     }
 
-    // 合并本层的 defaults
-    if (asset.defaults) {
-      mergePatch(defaults, clonePatch(asset.defaults))
-    }
+    // 顶层 position/rotation/scale 覆盖父级
+    if (asset.position !== undefined) position = asset.position
+    if (asset.rotation !== undefined) rotation = asset.rotation
+    if (asset.scale !== undefined) scale = asset.scale
 
     // children 的 blueprint 引用环检测：递归 resolve 子蓝图，带上含本 id 的祖先集
     const childAncestors = new Set(ancestors)
@@ -210,19 +210,28 @@ export class BlueprintRegistry {
       }
     }
 
-    const resolved: ResolvedBlueprint = { id, baseClass, scene, objects, components, children, defaults }
+    const resolved: ResolvedBlueprint = { id, name: asset.name, baseClass, components, children, position, rotation, scale }
     BlueprintRegistry.cache.set(id, resolved)
-    logger.debug(`[BlueprintRegistry] resolve(${id}) → base=${baseClass}, scene=${scene ?? '-'}, objects=${objects?.length ?? 0}, comps=${components.length}, kids=${children.length}`)
+    logger.debug(`[BlueprintRegistry] resolve(${id}) → base=${baseClass}, comps=${components.length}, kids=${children.length}`)
     return resolved
   }
 
   private static cloneChildDef(chdef: BlueprintChildDef): ResolvedChildDef {
     return {
       blueprint: chdef.blueprint,
-      actor: chdef.actor,
+      baseClass: chdef.baseClass,
       name: chdef.name,
+      id: chdef.id,
       overrides: clonePatch(chdef.overrides ?? {}),
-      objects: chdef.objects ? [...chdef.objects] : undefined,
+      components: chdef.components
+        ? chdef.components.map((c) => ({
+            ...c,
+            properties: clonePatch(c.properties ?? {}),
+          }))
+        : undefined,
+      position: chdef.position,
+      rotation: chdef.rotation,
+      scale: chdef.scale,
       children: chdef.children
         ? chdef.children.map((c) => BlueprintRegistry.cloneChildDef(c) as ResolvedChildDef)
         : undefined,
@@ -234,12 +243,11 @@ export class BlueprintRegistry {
     base: ResolvedChildDef[],
     overlay: BlueprintChildDef[],
   ): ResolvedChildDef[] {
-    const result = base.map((ch) => ({
+    const result: ResolvedChildDef[] = base.map((ch) => ({
       ...ch,
       overrides: clonePatch(ch.overrides),
-      objects: ch.objects ? [...ch.objects] : undefined,
       children: ch.children
-        ? ch.children.map((rc) => ({ ...rc, overrides: clonePatch(rc.overrides) }))
+        ? ch.children.map((rc) => ({ ...rc, overrides: clonePatch(rc.overrides) } as ResolvedChildDef))
         : undefined,
     }))
     for (const chdef of overlay) {
@@ -254,8 +262,22 @@ export class BlueprintRegistry {
         if (existing) {
           if (chdef.overrides) mergePatch(existing.overrides, clonePatch(chdef.overrides))
           if (chdef.blueprint) existing.blueprint = chdef.blueprint
-          if (chdef.actor) existing.actor = chdef.actor
-          if (chdef.objects !== undefined) existing.objects = chdef.objects
+          if (chdef.baseClass) existing.baseClass = chdef.baseClass
+          if (chdef.components) {
+            // 子节点 components 合并（同 baseClass 覆盖，异 baseClass 追加）
+            for (const cdef of chdef.components) {
+              const ec = (existing.components ?? []).find((c) => c.baseClass === cdef.baseClass)
+              if (ec) {
+                if (cdef.properties) mergePatch(ec.properties, clonePatch(cdef.properties))
+              } else {
+                if (!existing.components) existing.components = []
+                existing.components.push({
+                  ...cdef,
+                  properties: clonePatch(cdef.properties ?? {}),
+                })
+              }
+            }
+          }
           if (chdef.children) {
             existing.children = BlueprintRegistry.mergeNestedChildren(existing.children ?? [], chdef.children)
           }

@@ -8,31 +8,42 @@
  * 数据（Component 组合 / 子 Actor / 默认属性 / 继承）由本资产描述。不引入可视化脚本。
  */
 import type { PropertyPatch } from '../tools/deepMerge'
-import type { SceneNode } from '../scene/SceneAsset'
 
 /** 蓝图中的 Component 描述 */
 export interface BlueprintComponentDef {
-  /** Component 类型（ComponentRegistry key），如 'sprite' */
-  type: string
-  /** 默认 props（构造参数 + 可配置属性） */
-  props?: PropertyPatch
-  /** 变体继承时：true 表示从父级移除该类型 Component */
+  /** 组件 id（该蓝图内唯一） */
+  id?: number
+  /** 组件显示名称 */
+  name?: string
+  /** Component 注册类型（ComponentRegistry key），如 'sprite' */
+  baseClass: string
+  /** 组件特有属性（构造参数 + 可配置属性） */
+  properties?: PropertyPatch
+  /** 变体继承时：true 表示从父级移除该 id 的 Component */
   _remove?: boolean
 }
 
-/** 蓝图中的子 Actor 描述 */
+/** 蓝图中的子 Actor 描述（与 BlueprintAsset 结构一致，仅多 name/blueprint/overrides/_remove） */
 export interface BlueprintChildDef {
-  /** 引用另一个 Blueprint 实例化（与 actor 二选一） */
-  blueprint?: string
-  /** 或内联一个 ActorRegistry 类型 */
-  actor?: string
+  /** 引用另一个 Blueprint id（与 baseClass 二选一） */
+  blueprint?: number
+  /** 内联的 ActorRegistry 类型（同根级 baseClass） */
+  baseClass?: string
   /** 子 Actor 名（具名子节点用于继承链合并定位；无 name 则纯追加） */
   name?: string
-  /** 子 Actor 的默认属性覆盖 */
+  /** 本文件内唯一 id（用于编辑器定位/资产校验） */
+  id?: number
+  /** 子 Actor 的默认属性覆盖（仅 blueprint 引用时有效） */
   overrides?: PropertyPatch
-  /** 内联网格列表（复用 SceneAsset 的节点类型：box/plane/sphere/sprite 等） */
-  objects?: SceneNode[]
-  /** 递归嵌套子 Actor（形成完整对象树） */
+  /** 内联组件列表（同根级 components） */
+  components?: BlueprintComponentDef[]
+  /** 世界坐标位置 */
+  position: [number, number, number]
+  /** 欧拉旋转角（弧度） */
+  rotation: [number, number, number]
+  /** 缩放 */
+  scale: [number, number, number]
+  /** 递归嵌套子 Actor */
   children?: BlueprintChildDef[]
   /** 变体继承时：true 表示从父级移除该具名子节点 */
   _remove?: boolean
@@ -41,46 +52,58 @@ export interface BlueprintChildDef {
 /** 蓝图资产（JSON 文档根） */
 export interface BlueprintAsset {
   /** 蓝图唯一 id（注册到 BlueprintRegistry） */
-  id: string
+  id: number
+  /** 蓝图显示名称 */
+  name: string
   /** baseClass（ActorRegistry key），如 'Actor' / 'FishHouse' */
   baseClass: string
   /** 父级 Blueprint id（继承 / 变体） */
-  parent?: string
+  parent?: number
   /** 默认挂载的 Component */
   components?: BlueprintComponentDef[]
   /** 子 Actor */
   children?: BlueprintChildDef[]
-  /** (已弃用) 场景资产名称。推荐用 children.objects 内联定义网格。保留兼容 */  scene?: string
-  /** 根级内联网格列表 */
-  objects?: SceneNode[]
-  /** CDO 默认属性（transform + 行为类参数） */
-  defaults?: PropertyPatch
+  /** 世界坐标位置 */
+  position?: [number, number, number]
+  /** 欧拉旋转角（弧度） */
+  rotation?: [number, number, number]
+  /** 缩放 */
+  scale?: [number, number, number]
 }
 
 // ─── resolve 后的扁平化结果（继承链已合并，视为只读） ───
 
 export interface ResolvedComponentDef {
-  type: string
-  props: PropertyPatch
+  id?: number
+  name?: string
+  baseClass: string
+  properties: PropertyPatch
 }
 
 export interface ResolvedChildDef {
-  blueprint?: string
-  actor?: string
+  blueprint?: number
+  baseClass?: string
   name?: string
+  id?: number
   overrides: PropertyPatch
-  objects?: SceneNode[]
+  components?: ResolvedComponentDef[]
+  position: [number, number, number]
+  rotation: [number, number, number]
+  scale: [number, number, number]
   children?: ResolvedChildDef[]
 }
 
 /** resolve(id) 的产物：继承链合并后的扁平 CDO（只读） */
 export interface ResolvedBlueprint {
-  id: string
+  id: number
+  name: string
   baseClass: string
-  /** (已弃用) 保留兼容 */  scene?: string
-  /** 根级内联网格 */
-  objects?: SceneNode[]
   components: ResolvedComponentDef[]
   children: ResolvedChildDef[]
-  defaults: PropertyPatch
+  /** 继承链合并后的世界坐标位置 */
+  position?: [number, number, number]
+  /** 继承链合并后的欧拉旋转角（弧度） */
+  rotation?: [number, number, number]
+  /** 继承链合并后的缩放 */
+  scale?: [number, number, number]
 }
