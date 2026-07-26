@@ -7,13 +7,15 @@
  *  - 自由漫游控制（左键旋转 · 右键平移 · 滚轮缩放 · WASD 漫游）
  *  - 内置 World，通过 SpawnActorFromBlueprint 实例化蓝图 Actor
  *  - 自动清理（dispose）
- *  - 支持从 Outline 选中聚焦 + 显示坐标轴标记
+ *  - 支持从 Outline 选中聚焦 + 坐标轴 Gizmo
  */
 import * as THREE from 'three'
 import { World } from '../engine'
 import { logger } from '../engine'
 import { Actor } from '../engine/gameplay/entity/Actor'
 import { select } from './SelectionManager'
+import { TransformGizmo } from './TransformGizmo'
+import type { SceneTreeNode } from './SelectionManager'
 
 export class BlueprintPreviewManager {
   /** 全局活动实例（供 Outline 访问） */
@@ -37,8 +39,23 @@ export class BlueprintPreviewManager {
   /** 当前预览的 Actor 根节点缓存，用于快速重建 */
   private previewRoot: THREE.Object3D | null = null
 
-  // ─── 聚焦标记 ───
-  private focusMarker: THREE.Group | null = null
+  /** 变换 Gizmo */
+  readonly gizmo: TransformGizmo
+
+  // ─── 树变化回调 ───
+  private _onChangeCallbacks: Array<() => void> = []
+
+  onChange(cb: () => void): () => void {
+    this._onChangeCallbacks.push(cb)
+    return () => {
+      const i = this._onChangeCallbacks.indexOf(cb)
+      if (i >= 0) this._onChangeCallbacks.splice(i, 1)
+    }
+  }
+
+  private notifyChange() {
+    for (const cb of this._onChangeCallbacks) cb()
+  }
 
   // ─── Fly 自由漫游 ───
   private euler = new THREE.Euler(0, 0, 0, 'YXZ')
@@ -80,6 +97,10 @@ export class BlueprintPreviewManager {
     // ─── 输入 ───
     this.initFlyEuler()
     this.setupFlyMouse()
+
+    // ─── TransformGizmo ───
+    this.gizmo = new TransformGizmo()
+    this.gizmo.setup(this.scene, this.camera, this.renderer)
 
     // ─── World ───
     this.world = new World(this.scene)
@@ -229,6 +250,7 @@ export class BlueprintPreviewManager {
     this._currentBlueprintId = blueprintId
 
     this.fitToActor(actor.root)
+    this.notifyChange()
 
     logger.info(`[BlueprintPreview] 加载蓝图预览: ${blueprintId}`)
     return true
@@ -236,13 +258,44 @@ export class BlueprintPreviewManager {
 
   clearPreview() {
     select(null)
+    this.gizmo.detach()
     this.world.DestroyAllActors()
     this._currentBlueprintId = null
     this.previewRoot = null
+    this.notifyChange()
   }
 
   get currentBlueprintId(): number | null {
     return this._currentBlueprintId
+  }
+
+  getActorTree(): SceneTreeNode[] {
+    const result: SceneTreeNode[] = []
+
+    function walk(obj: THREE.Object3D, depth: number) {
+      if (!obj.visible && obj.type !== 'Scene') return
+      if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
+      if (obj.name === 'TransformGizmo' || obj.name === '__bp_focus_marker__') return
+
+      const isRoot = obj.type === 'Scene'
+      if (!isRoot) {
+        const actorRef = (obj as any).userData?.actorRef as Actor | undefined
+        if (!actorRef) return
+        result.push({
+          depth,
+          name: obj.name || obj.type,
+          actor: actorRef,
+        })
+      }
+
+      const nextDepth = isRoot ? depth : depth + 1
+      for (const child of obj.children) {
+        walk(child, nextDepth)
+      }
+    }
+
+    walk(this.scene, 0)
+    return result
   }
 
   private fitToActor(root: THREE.Object3D) {
@@ -286,6 +339,7 @@ export class BlueprintPreviewManager {
       this.lastTime = time
 
       this.updateWASD(dt)
+      if (this.gizmo.visible) this.gizmo.syncTransform()
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -322,7 +376,8 @@ export class BlueprintPreviewManager {
 
   dispose() {
     this.stop()
-    this.clearFocus()
+    select(null)
+    this.gizmo.dispose()
     this.world.DestroyAllActors()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
@@ -336,66 +391,34 @@ export class BlueprintPreviewManager {
   }
 
   // ═══════════════════════════════════
-  //  聚焦 & 标记
+  //  选中 & 聚焦
   // ═══════════════════════════════════
 
-  focusOnActor(actorName: string): boolean {
-    // 清除旧标记
-    this.clearFocus()
+  selectActor(actor: Actor | null) {
+    if (actor) {
+      select(actor)
+      this.gizmo.attach(actor.root)
+    } else {
+      select(null)
+      this.gizmo.detach()
+    }
+  }
 
-    // 在世界中搜索匹配名称的 Actor
+  focusActor(actor: Actor) {
+    this.selectActor(actor)
+    this.fitToActor(actor.root)
+  }
+
+  /** 按名称查找并聚焦（供 BlueprintTreeView 回落使用） */
+  focusOnActor(actorName: string): boolean {
     const allActors = this.world.GetAllActors()
-    let target: Actor | null = null
     for (const actor of allActors) {
       if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
-        target = actor
-        break
+        this.focusActor(actor)
+        return true
       }
     }
-    if (!target) {
-      logger.warn(`[BlueprintPreview] focusOnActor("${actorName}"): 未找到匹配 Actor`)
-      return false
-    }
-
-    // 选中（SelectionManager → Outline 高亮 + Inspector 显示详情）
-    select(target)
-
-    // 聚焦摄像机
-    this.fitToActor(target.root)
-
-    // 创建坐标轴标记
-    this.buildFocusMarker(target.root)
-
-    logger.info(`[BlueprintPreview] 聚焦 Actor: ${actorName}`)
-    return true
-  }
-
-  /** 清除聚焦标记 */
-  clearFocus() {
-    if (this.focusMarker) {
-      this.scene.remove(this.focusMarker)
-      this.focusMarker = null
-    }
-  }
-
-  /** 在目标对象上创建坐标轴 AxesHelper */
-  private buildFocusMarker(target: THREE.Object3D) {
-    const group = new THREE.Group()
-    group.name = '__bp_focus_marker__'
-
-    // 3 轴箭头
-    const axes = new THREE.AxesHelper(0.6)
-    group.add(axes)
-
-    // 包围盒线框（白色闪烁）
-    const box = new THREE.Box3().setFromObject(target)
-    const size = box.getSize(new THREE.Vector3())
-    if (size.length() > 0.01) {
-      const boxHelper = new THREE.BoxHelper(target, 0xffffff)
-      group.add(boxHelper)
-    }
-
-    this.scene.add(group)
-    this.focusMarker = group
+    logger.warn(`[BlueprintPreview] focusOnActor("${actorName}"): 未找到匹配 Actor`)
+    return false
   }
 }

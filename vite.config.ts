@@ -9,6 +9,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     outDir: 'dist',
   },
+  server: {
+    watch: {
+      ignored: ['**/*.blueprint.json', '**/*.scene.json'],
+    },
+  },
   plugins: [
     react(),
     electron([

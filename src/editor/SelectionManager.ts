@@ -108,6 +108,11 @@ export function onSelectionChange(cb: () => void): () => void {
   return () => { _onChange = null }
 }
 
+/** 触发选中变化通知（无副作用，仅刷新 UI） */
+export function notifySelectionChange(): void {
+  _onChange?.()
+}
+
 /**
  * 遍历场景树，返回平铺节点列表（带缩进级别、类型、actorRef）
  */

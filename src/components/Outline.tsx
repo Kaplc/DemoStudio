@@ -6,17 +6,6 @@ import {
 import { useEditorStore } from '../stores/editorStore'
 import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
 
-/** 子 Actor 节点（递归） */
-interface BlueprintChildNode {
-  blueprint?: number
-  baseClass?: string
-  name?: string
-  id?: number
-  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
-  children?: BlueprintChildNode[]
-  _remove?: boolean
-}
-
 /** 场景资产数据结构 */
 interface SceneOutlineData {
   name: string
@@ -90,103 +79,11 @@ function SceneTreeView({ data }: { data: SceneOutlineData }) {
   )
 }
 
-/** 蓝图资产数据结构（与 BlueprintEditor 中的 BlueprintData 一致） */
-interface BlueprintOutlineData {
-  id: number
-  name: string
-  baseClass: string
-  parent?: number
-  components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
-  children?: BlueprintChildNode[]
-}
-
-/** 蓝图树渲染组件（扁平列表风格） */
-function BlueprintTreeView({ data, selName }: { data: BlueprintOutlineData; selName: string | number | null }) {
-  const isRootSelected = selName === data.name
-
-  /** 递归展开子节点为扁平数组 */
-  function flatten(
-    children: BlueprintChildNode[] | undefined,
-    startDepth: number,
-  ): Array<{ node: BlueprintChildNode; depth: number }> {
-    if (!children) return []
-    const rows: Array<{ node: BlueprintChildNode; depth: number }> = []
-    for (const child of children) {
-      rows.push({ node: child, depth: startDepth })
-      if (child.children && child.children.length > 0) {
-        rows.push(...flatten(child.children, startDepth + 1))
-      }
-    }
-    return rows
-  }
-
-  const flatChildren = flatten(data.children, 0)
-
-  return (
-    <div style={{ fontSize: 11, fontFamily: 'monospace', padding: '8px 4px' }}>
-      {/* 根节点 */}
-      <div
-        style={{
-          padding: '3px 6px', fontWeight: 600, cursor: 'pointer',
-          color: isRootSelected ? '#fff' : 'var(--text-primary)',
-          background: isRootSelected ? 'var(--accent)' : 'transparent',
-        }}
-        onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.name)}
-        onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(data.name)}
-      >
-        {data.name} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>[{data.baseClass}]</span>
-      </div>
-
-      {flatChildren.length === 0 ? (
-        <div style={{ padding: '2px 4px 2px 24px', color: 'var(--text-dim)' }}>（空）</div>
-      ) : (
-        flatChildren.map(({ node, depth }, i) => {
-          const focusName = node.baseClass || String(node.blueprint ?? '') || node.name || ''
-          const isSelected = selName === focusName && !!focusName
-          const label = node.name
-            ?? (node.blueprint != null ? `#${node.blueprint}` : undefined)
-            ?? node.baseClass
-            ?? `Child #${i}`
-
-          return (
-            <div
-              key={i}
-              style={{
-                padding: '2px 4px',
-                paddingLeft: 8 + depth * 14,
-                cursor: 'pointer',
-                background: isSelected ? 'var(--accent)' : 'transparent',
-                color: isSelected ? '#fff' : 'var(--text-primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              onClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
-              onDoubleClick={() => BlueprintPreviewManager.getActiveInstance()?.focusOnActor(focusName)}
-              onMouseEnter={(e) => {
-                if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
-              {label}
-              {node._remove && <span style={{ color: 'var(--error)', fontSize: 10, marginLeft: 4 }}>removed</span>}
-            </div>
-          )
-        })
-      )}
-    </div>
-  )
-}
-
 export function Outline() {
   const [selectionKey, setSelectionKey] = useState(getSelectionKey())
   const selected = getSelectedActor()
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
-  const [bpData, setBpData] = useState<BlueprintOutlineData | null>(null)
-  const [bpLoading, setBpLoading] = useState(false)
   const [sceneData, setSceneData] = useState<SceneOutlineData | null>(null)
   const [sceneLoading, setSceneLoading] = useState(false)
 
@@ -197,27 +94,6 @@ export function Outline() {
     () => dynamicTabs.find((t) => t.id === activeTabId),
     [dynamicTabs, activeTabId],
   )
-
-  // 蓝图标签：读取蓝图 JSON 展示树形结构
-  useEffect(() => {
-    if (!isBlueprintTab || !currentTab?.assetPath) {
-      setBpData(null)
-      setBpLoading(false)
-      return
-    }
-    const read = window.electronAPI?.readJsonFile
-    if (!read) return
-    let cancelled = false
-    setBpLoading(true)
-    read(currentTab.assetPath).then((r) => {
-      if (cancelled) return
-      if (r.success && r.data) {
-        setBpData(r.data as BlueprintOutlineData)
-      }
-      setBpLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [isBlueprintTab, currentTab?.assetPath])
 
   // 场景预览标签：读取场景 JSON 展示对象树
   useEffect(() => {
@@ -275,18 +151,60 @@ export function Outline() {
           </div>
         )
       ) : isBlueprintTab ? (
-        /* 蓝图标签：显示蓝图资产树形结构 */
-        bpLoading ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
-            蓝图加载中...
-          </div>
-        ) : bpData ? (
-          <BlueprintTreeView data={bpData} selName={selName} />
-        ) : (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
-            无蓝图数据
-          </div>
-        )
+        (() => {
+          const bpMgr = BlueprintPreviewManager.getActiveInstance()
+          const hasLivePreview = bpMgr && bpMgr.currentBlueprintId != null
+          const bpTree = hasLivePreview ? bpMgr!.getActorTree() : null
+
+          if (bpTree && bpTree.length > 0) {
+            return (
+              <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                {bpTree.map((node, i) => {
+                  const isSelected = selected === node.actor
+                  return (
+                    <div
+                      key={node.actor ? node.actor.root.id : 'bp-node-' + i}
+                      style={{
+                        padding: '2px 4px',
+                        paddingLeft: 8 + node.depth * 14,
+                        cursor: 'pointer',
+                        background: isSelected ? 'var(--accent)' : 'transparent',
+                        color: isSelected ? '#fff' : 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      onClick={() => {
+                        if (node.actor) {
+                          if (isSelected) bpMgr!.selectActor(null)
+                          else bpMgr!.focusActor(node.actor)
+                        }
+                      }}
+                      onDoubleClick={() => node.actor && bpMgr!.focusActor(node.actor)}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
+                      }}
+                    >
+                      {node.name}
+                      {node.actor && (
+                        <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
+                          [{node.actor.constructor.name}]
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          }
+
+          return (
+            <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
+          )
+        })()
       ) : !getSharedScene() ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
           场景初始化中...

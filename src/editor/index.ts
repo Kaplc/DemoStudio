@@ -91,6 +91,6 @@ export type { LogContentCallback } from './LogPoller'
 
 export { assetLintEngine } from './assetLint/AssetLintEngine'
 
-export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
+export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'
 export { injectMockElectronAPI, clearMockSaves } from './MockElectronAPI'

@@ -66,6 +66,9 @@ export class TransformGizmo {
   private _box3 = new THREE.Box3()
   private _center = new THREE.Vector3()
 
+  // ─── 拖拽移动回调（用于实时更新 Inspector） ───
+  onDragMove: (() => void) | null = null
+
   // ─── 缩放常量屏幕尺寸 ───
   private _screenScale = 0.08
 
@@ -73,6 +76,7 @@ export class TransformGizmo {
     this.group = new THREE.Group()
     this.group.name = 'TransformGizmo'
     this.group.visible = false
+    this.group.renderOrder = 999
     this.buildArrows()
   }
 
@@ -89,12 +93,14 @@ export class TransformGizmo {
 
     for (const { dir, color } of axisDefs) {
       const g = new THREE.Group()
+      g.renderOrder = 999
 
       // 轴杆（圆柱）
       const shaftGeo = new THREE.CylinderGeometry(SHAFT_RADIUS, SHAFT_RADIUS, SHAFT_LENGTH, 8)
       const shaftMat = new THREE.MeshBasicMaterial({
         color,
         depthTest: false,
+        depthWrite: false,
         transparent: true,
         opacity: 0.85,
       })
@@ -108,6 +114,7 @@ export class TransformGizmo {
       const coneMat = new THREE.MeshBasicMaterial({
         color,
         depthTest: false,
+        depthWrite: false,
         transparent: true,
         opacity: 0.85,
       })
@@ -301,6 +308,7 @@ export class TransformGizmo {
     const newPos = new THREE.Vector3().copy(this._dragStartPos).addScaledVector(this._dragAxis, dot)
     this._target.position.copy(newPos)
     this.syncTransform()
+    this.onDragMove?.()
   }
 
   /** 结束拖拽 */

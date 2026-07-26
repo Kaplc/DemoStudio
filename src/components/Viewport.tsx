@@ -20,6 +20,7 @@ import {
   setSharedScene,
   setSceneMgr,
   getTransformGizmo,
+  notifySelectionChange,
 } from '../editor'
 
 interface ViewportProps {
@@ -338,6 +339,8 @@ export function Viewport({ onReady }: ViewportProps) {
 
     const gizmo = getTransformGizmo()
 
+    gizmo.onDragMove = notifySelectionChange
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return // 仅左键
       if (!gizmo.visible) return
@@ -371,6 +374,7 @@ export function Viewport({ onReady }: ViewportProps) {
     return () => {
       // 结束正在进行的拖拽
       if (gizmo.isDragging) gizmo.endDrag()
+      gizmo.onDragMove = null
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)

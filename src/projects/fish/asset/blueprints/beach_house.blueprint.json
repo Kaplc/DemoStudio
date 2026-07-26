@@ -37,7 +37,7 @@
           "name": "Walls",
           "baseClass": "Actor",
           "id": 10003,
-          "position": [0, 1.0, 0],
+          "position": [0, 1, 0],
           "rotation": [0, 0, 0],
           "scale": [1, 1, 1],
           "components": [
@@ -45,7 +45,7 @@
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [2.0, 1.4, 2.0],
+                "size": [2, 1.4, 2],
                 "color": "#c9b99a",
                 "opacity": 0.9,
                 "name": "WallsMesh"
@@ -214,7 +214,7 @@
       "name": "RoofTop",
       "baseClass": "Actor",
       "id": 10012,
-      "position": [0, 2.0, 0],
+      "position": [0, 2, 0],
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
@@ -222,7 +222,7 @@
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
-            "size": [2.0, 0.2, 2.0],
+            "size": [2, 0.2, 2],
             "color": "#6d4c41",
             "name": "RoofTopMesh"
           }

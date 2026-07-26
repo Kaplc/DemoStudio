@@ -8,10 +8,11 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
-import { BlueprintRegistry } from '../engine'
+import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { ResizeHandle } from './ResizeHandle'
 import { useEditorStore } from '../stores/editorStore'
+import { notifySelectionChange } from '../editor'
 
 interface BlueprintEditorProps {
   assetPath: string
@@ -144,6 +145,127 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     }
   }, [])
 
+  // ─── TransformGizmo 交互 ───
+  useEffect(() => {
+    const mgr = previewMgrRef.current
+    if (!mgr || !previewReady) return
+    const canvas = mgr.renderer.domElement
+    const gizmo = mgr.gizmo
+    gizmo.onDragMove = notifySelectionChange
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return
+      if (!gizmo.visible) return
+      const axis = gizmo.hitTest(e.clientX, e.clientY)
+      if (axis) {
+        gizmo.startDrag(axis, e.clientX, e.clientY)
+        canvas.setPointerCapture(e.pointerId)
+        e.preventDefault()
+      }
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      gizmo.hoverTest(e.clientX, e.clientY)
+      if (gizmo.isDragging) gizmo.updateDrag(e.clientX, e.clientY)
+    }
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (gizmo.isDragging) {
+        gizmo.endDrag()
+        try { canvas.releasePointerCapture(e.pointerId) } catch { }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      if (gizmo.isDragging) gizmo.endDrag()
+      gizmo.onDragMove = null
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [previewReady])
+
+  // ─── 保存 ───
+  const handleSave = async () => {
+    const mgr = previewMgrRef.current
+    if (!mgr || !data) {
+      console.log('[Save] 跳过: mgr 或 data 为空')
+      return
+    }
+    console.log(`[Save] 开始保存: ${assetPath}`)
+
+    const writeJsonFile = window.electronAPI?.writeJsonFile
+    if (!writeJsonFile) {
+      console.log('[Save] 跳过: writeJsonFile 不可用')
+      return
+    }
+
+    // 从大纲 actor 树构建 blueprintRef.id → Actor 映射
+    const actorById = new Map<number, Actor>()
+    const tree = mgr.getActorTree()
+    console.log(`[Save] 大纲 actor 树节点数: ${tree.length}`)
+    for (const node of tree) {
+      if (!node.actor) continue
+      const ref = node.actor.blueprintRef?.id
+      console.log(`[Save] 节点 name="${node.name}" actor=${node.actor.name} blueprintRef=${ref}`)
+      if (ref != null) actorById.set(ref, node.actor)
+    }
+    console.log(`[Save] actorById 映射: ${JSON.stringify([...actorById.keys()])}`)
+
+    const cloned: Record<string, unknown> = JSON.parse(JSON.stringify(data))
+    const logs: string[] = []
+
+    function updateNode(node: Record<string, unknown>, nodeId?: number, path?: string) {
+      if (nodeId == null) {
+        logs.push(`  ${path}: 无 id，跳过`)
+        return
+      }
+      const actor = actorById.get(nodeId)
+      if (!actor) {
+        logs.push(`  ${path}: id=${nodeId} 无匹配 actor，跳过`)
+        return
+      }
+      const pos = [actor.position.x, actor.position.y, actor.position.z]
+      const rot = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+      const scl = [actor.scale.x, actor.scale.y, actor.scale.z]
+      node.position = pos
+      node.rotation = rot
+      node.scale = scl
+      logs.push(`  ${path}: id=${nodeId} pos=${JSON.stringify(pos)} rot=${JSON.stringify(rot)} scl=${JSON.stringify(scl)}`)
+    }
+
+    updateNode(cloned, data.id, 'root')
+    const rootLog = logs[0]
+    logs.length = 0
+    console.log(`[Save] 根节点:\n${rootLog}`)
+
+    function walkChildren(children: unknown[], parentPath: string) {
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i] as Record<string, unknown>
+        const path = `${parentPath}.children[${i}]`
+        updateNode(child, child.id as number | undefined, path)
+        if (child.children) walkChildren(child.children as unknown[], path)
+      }
+    }
+    if (cloned.children) {
+      walkChildren(cloned.children as unknown[], 'root')
+    }
+
+    console.log(`[Save] 子节点更新:\n${logs.join('\n')}`)
+    console.log(`[Save] 写入文件: ${assetPath}`)
+    await writeJsonFile(assetPath, cloned)
+
+    // 更新注册表缓存并重新加载预览
+    console.log('[Save] 重新加载预览')
+    BlueprintRegistry.loadFromJson(data.id, cloned as unknown as BlueprintAsset)
+    mgr.loadBlueprint(data.id)
+    console.log('[Save] 保存完成')
+  }
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
@@ -181,6 +303,16 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
         <span style={{ color: 'var(--success)' }}>{data.baseClass}</span>
         {data.parent && <span style={{ color: 'var(--accent)' }}>extends {data.parent}</span>}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={handleSave}
+          style={{
+            fontSize: 11, padding: '3px 12px', cursor: 'pointer',
+            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 3,
+          }}
+        >
+          保存
+        </button>
       </div>
 
       {/* 主体：左数据 + 右 3D 预览 */}
