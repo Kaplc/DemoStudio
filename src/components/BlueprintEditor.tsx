@@ -21,6 +21,7 @@ interface BlueprintEditorProps {
 /** 子 Actor 节点（递归，与 BlueprintAsset 结构一致） */
 interface BlueprintChildNode {
   blueprint?: number
+  ref?: string
   baseClass?: string
   name?: string
   id?: number

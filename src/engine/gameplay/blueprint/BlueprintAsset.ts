@@ -27,6 +27,8 @@ export interface BlueprintComponentDef {
 export interface BlueprintChildDef {
   /** 引用另一个 Blueprint id（与 baseClass 二选一） */
   blueprint?: number
+  /** 引用资产文件路径（与 blueprint/baseClass 三选一） */
+  ref?: string
   /** 内联的 ActorRegistry 类型（同根级 baseClass） */
   baseClass?: string
   /** 子 Actor 名（具名子节点用于继承链合并定位；无 name 则纯追加） */
@@ -82,6 +84,7 @@ export interface ResolvedComponentDef {
 
 export interface ResolvedChildDef {
   blueprint?: number
+  ref?: string
   baseClass?: string
   name?: string
   id?: number

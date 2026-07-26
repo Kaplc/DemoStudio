@@ -77,6 +77,7 @@ function pickChildDef(p: Record<string, unknown>): BlueprintChildDef {
     scale: isVec3(p.scale) ? p.scale : [1, 1, 1],
   }
   if (typeof p.blueprint === 'number') def.blueprint = p.blueprint
+  if (typeof p.ref === 'string') def.ref = p.ref
   if (typeof p.baseClass === 'string') def.baseClass = p.baseClass
   if (typeof p.name === 'string') def.name = p.name
   if (p.overrides && typeof p.overrides === 'object') def.overrides = p.overrides as PropertyPatch

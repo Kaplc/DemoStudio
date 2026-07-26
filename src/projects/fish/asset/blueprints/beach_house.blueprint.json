@@ -2,6 +2,7 @@
   "id": 101,
   "name": "BeachHouse",
   "baseClass": "FishHouse",
+  "components": [],
   "position": [0, 0, 0],
   "rotation": [0, 0, 0],
   "scale": [1, 1, 1],
@@ -23,7 +24,8 @@
             "name": "FoundationMesh"
           }
         }
-      ]
+      ],
+      "children": []
     },
     {
       "name": "Body",
@@ -32,6 +34,7 @@
       "position": [0, 0, 0],
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
+      "components": [],
       "children": [
         {
           "name": "Walls",
@@ -51,7 +54,8 @@
                 "name": "WallsMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "Door",
@@ -70,7 +74,8 @@
                 "name": "DoorMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "WindowL",
@@ -90,7 +95,8 @@
                 "name": "WindowMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "WindowR",
@@ -110,7 +116,8 @@
                 "name": "WindowMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "PillarFL",
@@ -129,7 +136,8 @@
                 "name": "PillarMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "PillarFR",
@@ -148,7 +156,8 @@
                 "name": "PillarMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "PillarBL",
@@ -186,7 +195,8 @@
                 "name": "PillarMesh"
               }
             }
-          ]
+          ],
+          "children": []
         }
       ]
     },
@@ -208,7 +218,8 @@
             "name": "RoofBaseMesh"
           }
         }
-      ]
+      ],
+      "children": []
     },
     {
       "name": "RoofTop",
@@ -227,7 +238,8 @@
             "name": "RoofTopMesh"
           }
         }
-      ]
+      ],
+      "children": []
     },
     {
       "name": "RoofCrest",
@@ -246,7 +258,8 @@
             "name": "RoofCrestMesh"
           }
         }
-      ]
+      ],
+      "children": []
     }
   ]
 }

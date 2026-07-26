@@ -159,8 +159,12 @@ function isVec3(v: unknown): v is [number, number, number] {
 
 function validateChildDef(child: BlueprintChildDef): string | null {
   if (!isPlainObject(child)) return '子节点必须是对象'
-  if (!child.blueprint && !child.baseClass) return '子节点必须指定 blueprint 或 baseClass'
-  if (child.blueprint && child.baseClass) return 'blueprint 与 baseClass 互斥，只能指定一个'
+  const hasBp = !!child.blueprint
+  const hasRef = !!child.ref
+  const hasBase = !!child.baseClass
+  const count = (hasBp ? 1 : 0) + (hasRef ? 1 : 0) + (hasBase ? 1 : 0)
+  if (count === 0) return '子节点必须指定 blueprint / ref / baseClass 之一'
+  if (count > 1) return 'blueprint / ref / baseClass 互斥，只能指定一个'
   if (!isVec3(child.position)) return '缺少合法 position（[x, y, z] 数字数组）'
   if (!isVec3(child.rotation)) return '缺少合法 rotation（[x, y, z] 数字数组）'
   if (!isVec3(child.scale)) return '缺少合法 scale（[x, y, z] 数字数组）'
@@ -170,6 +174,7 @@ function validateChildDef(child: BlueprintChildDef): string | null {
 function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
   const out: BlueprintChildDef = { position: child.position, rotation: child.rotation, scale: child.scale }
   if (child.blueprint) out.blueprint = child.blueprint
+  if (child.ref) out.ref = child.ref
   if (child.baseClass) out.baseClass = child.baseClass
   if (child.name) out.name = child.name
   if (child.overrides && Object.keys(child.overrides).length) out.overrides = clonePatch(child.overrides)
@@ -182,6 +187,7 @@ function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
 function mergeChildDef(base: BlueprintChildDef, patch: BlueprintChildDef): BlueprintChildDef {
   const out: BlueprintChildDef = { ...base, position: patch.position ?? base.position, rotation: patch.rotation ?? base.rotation, scale: patch.scale ?? base.scale }
   if (patch.blueprint !== undefined) out.blueprint = patch.blueprint
+  if (patch.ref !== undefined) out.ref = patch.ref
   if (patch.baseClass !== undefined) out.baseClass = patch.baseClass
   if (patch.name !== undefined) out.name = patch.name
   if (patch.overrides && Object.keys(patch.overrides).length) {

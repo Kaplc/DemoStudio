@@ -24,15 +24,16 @@ registerAssetChecker('doc:scene', SceneDocChecker)
 
 /** BlueprintChildDef 字段规格 */
 const CHILD_SCHEMA: FieldSpec[] = [
-  { field: 'name', type: 'string', label: '子节点名' },
+  { field: 'name', type: 'string', required: true, label: '子节点名' },
   { field: 'baseClass', type: 'string', label: '子节点基类' },
+  { field: 'id', type: 'number', required: true, label: '子节点 id' },
+  { field: 'position', type: 'vec3', required: true, label: '位置' },
+  { field: 'rotation', type: 'vec3', required: true, label: '旋转' },
+  { field: 'scale', type: 'vec3', required: true, label: '缩放' },
+  { field: 'components', type: 'array', required: true, label: '组件列表' },
+  { field: 'children', type: 'array', required: true, label: '子 Actor 列表' },
   { field: 'blueprint', type: 'number', label: '引用蓝图 id' },
-  { field: 'id', type: 'number', label: '子节点 id' },
-  { field: 'position', type: 'vec3', label: '位置' },
-  { field: 'rotation', type: 'vec3', label: '旋转' },
-  { field: 'scale', type: 'vec3', label: '缩放' },
-  { field: 'components', type: 'array', label: '组件列表' },
-  { field: 'children', type: 'array', label: '子 Actor 列表' },
+  { field: 'ref', type: 'string', label: '引用资产文件' },
   { field: 'overrides', type: 'object', label: '实例覆盖' },
   { field: '_remove', type: 'boolean', label: '继承移除标记' },
 ]
@@ -75,13 +76,23 @@ function validateChildren(
     }
     issues.push(...validateBySchema(c, CHILD_SCHEMA, childCtx))
 
-    // baseClass 与 blueprint 互斥
-    if (child.baseClass && child.blueprint) {
-      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-bp-baseclass-conflict', 'error', 'baseClass 与 blueprint 互斥，只能指定一个'))
+    // blueprint / ref / baseClass 三者互斥
+    const hasBp = !!child.blueprint
+    const hasRef = !!child.ref
+    const hasBase = !!child.baseClass
+    if ((hasBp ? 1 : 0) + (hasRef ? 1 : 0) + (hasBase ? 1 : 0) > 1) {
+      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-bp-ref-conflict', 'error', 'blueprint / ref / baseClass 互斥，只能指定一个'))
     }
-    // 至少有一个 baseClass 或 blueprint
-    if (!child.baseClass && !child.blueprint) {
-      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-missing-type', 'error', '子节点必须指定 baseClass 或 blueprint'))
+    if (!hasBp && !hasRef && !hasBase) {
+      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-missing-type', 'error', '子节点必须指定 blueprint / ref / baseClass 之一'))
+    }
+
+    // ref 路径合理性检查：需指向已有的资产文件
+    if (hasRef) {
+      const refPath = child.ref as string
+      if (!/^[^/]+\/asset\/.+\.blueprint\.json$/.test(refPath)) {
+        issues.push(makeIssue(ctx.filePath, childPath, 'ref', 'ref-invalid-path', 'error', 'ref 路径格式应为 project/asset/.../*.blueprint.json'))
+      }
     }
 
     // id 唯一性
@@ -147,13 +158,13 @@ class BlueprintDocChecker extends AbstractAssetChecker {
   readonly kind = 'doc:blueprint'
   schema: FieldSpec[] = [
     { field: 'id', type: 'number', required: true, label: '蓝图 id' },
+    { field: 'name', type: 'string', required: true, label: '蓝图名' },
     { field: 'baseClass', type: 'string', required: true, label: '基类' },
-    { field: 'parent', type: 'number', label: '父蓝图 id' },
-    { field: 'position', type: 'vec3', label: '位置' },
-    { field: 'rotation', type: 'vec3', label: '旋转' },
-    { field: 'scale', type: 'vec3', label: '缩放' },
-    { field: 'components', type: 'array', label: '组件列表' },
-    { field: 'children', type: 'array', label: '子 Actor 列表' },
+    { field: 'position', type: 'vec3', required: true, label: '位置' },
+    { field: 'rotation', type: 'vec3', required: true, label: '旋转' },
+    { field: 'scale', type: 'vec3', required: true, label: '缩放' },
+    { field: 'components', type: 'array', required: true, label: '组件列表' },
+    { field: 'children', type: 'array', required: true, label: '子 Actor 列表' },
   ]
 
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {

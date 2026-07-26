@@ -222,14 +222,17 @@ export class World {
               }
             }
           }
+        } else if (child.ref) {
+          // ref 字段：引用资产文件路径 — 运行时需预注册，暂未实现自动加载
+          logger.warn(`[World] SpawnActorFromBlueprint("${id}"): 子节点 ref="${child.ref}" 暂不支持运行时自动加载`)
         }
-        // 纯容器节点（无 blueprint/baseClass，仅用来承载嵌套 children）
+        // 纯容器节点（无 blueprint/baseClass/ref，仅用来承载嵌套 children）
         if (!childActor && child.children?.length) {
           childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
         }
         if (!childActor) {
           logger.warn(
-            `[World] SpawnActorFromBlueprint("${id}"): 子节点生成失败 (blueprint=${child.blueprint ?? '-'}, baseClass=${child.baseClass ?? '-'})`,
+            `[World] SpawnActorFromBlueprint("${id}"): 子节点生成失败 (blueprint=${child.blueprint ?? '-'}, ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`,
           )
           continue
         }

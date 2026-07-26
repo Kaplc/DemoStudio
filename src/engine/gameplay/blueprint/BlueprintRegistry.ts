@@ -133,6 +133,7 @@ export class BlueprintRegistry {
       }))
       children = parent.children.map((ch) => ({
         ...ch,
+        ref: ch.ref,
         overrides: clonePatch(ch.overrides),
         components: ch.components ? ch.components.map((c) => ({ ...c, properties: clonePatch(c.properties ?? {}) })) : undefined,
         children: ch.children ? ch.children.map((rc) => ({ ...rc, overrides: clonePatch(rc.overrides) })) : undefined,
@@ -177,7 +178,8 @@ export class BlueprintRegistry {
           const existing = children.find((c) => c.name === named)
           if (existing) {
             if (chdef.overrides) mergePatch(existing.overrides, clonePatch(chdef.overrides))
-            if (chdef.blueprint) existing.blueprint = chdef.blueprint
+          if (chdef.blueprint) existing.blueprint = chdef.blueprint
+          if (chdef.ref) existing.ref = chdef.ref
           if (chdef.baseClass) existing.baseClass = chdef.baseClass
             if (chdef.position !== undefined) existing.position = chdef.position
             if (chdef.rotation !== undefined) existing.rotation = chdef.rotation
@@ -219,6 +221,7 @@ export class BlueprintRegistry {
   private static cloneChildDef(chdef: BlueprintChildDef): ResolvedChildDef {
     return {
       blueprint: chdef.blueprint,
+      ref: chdef.ref,
       baseClass: chdef.baseClass,
       name: chdef.name,
       id: chdef.id,
