@@ -1,18 +1,42 @@
 {
-  "id": 104,
+  "path": "fish/asset/blueprints/beach_house_luxury.blueprint.json",
   "name": "BeachHouseLuxury",
   "baseClass": "FishHouse",
   "components": [],
-  "position": [0, 0, 0],
-  "rotation": [0, 0, 0],
-  "scale": [1, 1, 1],
+  "position": [
+    0,
+    0,
+    0
+  ],
+  "rotation": [
+    0,
+    0,
+    0
+  ],
+  "scale": [
+    1,
+    1,
+    1
+  ],
   "children": [
     {
       "name": "MainHouse",
       "id": 20001,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [],
       "children": [],
       "ref": "fish/asset/blueprints/beach_house.blueprint.json"

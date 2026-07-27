@@ -76,15 +76,14 @@ function validateChildren(
     }
     issues.push(...validateBySchema(c, CHILD_SCHEMA, childCtx))
 
-    // blueprint / ref / baseClass 三者互斥
-    const hasBp = !!child.blueprint
+    // ref / baseClass 两者互斥
     const hasRef = !!child.ref
     const hasBase = !!child.baseClass
-    if ((hasBp ? 1 : 0) + (hasRef ? 1 : 0) + (hasBase ? 1 : 0) > 1) {
-      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-bp-ref-conflict', 'error', 'blueprint / ref / baseClass 互斥，只能指定一个'))
+    if (hasRef && hasBase) {
+      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-bp-ref-conflict', 'error', 'ref / baseClass 互斥，只能指定一个'))
     }
-    if (!hasBp && !hasRef && !hasBase) {
-      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-missing-type', 'error', '子节点必须指定 blueprint / ref / baseClass 之一'))
+    if (!hasRef && !hasBase) {
+      issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-missing-type', 'error', '子节点必须指定 ref / baseClass 之一'))
     }
 
     // ref 路径合理性检查：需指向已有的资产文件
@@ -157,7 +156,7 @@ function makeIssue(
 class BlueprintDocChecker extends AbstractAssetChecker {
   readonly kind = 'doc:blueprint'
   schema: FieldSpec[] = [
-    { field: 'id', type: 'number', required: true, label: '蓝图 id' },
+    { field: 'path', type: 'string', required: true, label: '蓝图路径' },
     { field: 'name', type: 'string', required: true, label: '蓝图名' },
     { field: 'baseClass', type: 'string', required: true, label: '基类' },
     { field: 'position', type: 'vec3', required: true, label: '位置' },

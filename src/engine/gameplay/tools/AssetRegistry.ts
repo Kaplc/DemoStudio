@@ -48,13 +48,13 @@ export class AssetRegistry {
     // 注册蓝图
     if (assets.blueprints) {
       for (const bp of assets.blueprints) {
-        const id = bp.id
-        if (!id) {
-          logger.warn('[AssetRegistry] 蓝图缺少 id，跳过')
+        const path = bp.path
+        if (!path) {
+          logger.warn('[AssetRegistry] 蓝图缺少 path，跳过')
           continue
         }
-        BlueprintRegistry.loadFromJson(id, bp)
-        logger.debug(`[AssetRegistry] 注册蓝图: ${id}`)
+        BlueprintRegistry.loadFromJson(path, bp)
+        logger.debug(`[AssetRegistry] 注册蓝图: ${path}`)
       }
     }
 

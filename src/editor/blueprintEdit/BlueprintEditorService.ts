@@ -24,7 +24,7 @@ import { useEditorStore } from '../../stores/editorStore'
 export interface BlueprintTypes {
   actors: string[]
   components: string[]
-  blueprints: number[]
+  blueprints: string[]
 }
 
 /** 对外统一结果 */
@@ -76,7 +76,6 @@ function pickChildDef(p: Record<string, unknown>): BlueprintChildDef {
     rotation: isVec3(p.rotation) ? p.rotation : [0, 0, 0],
     scale: isVec3(p.scale) ? p.scale : [1, 1, 1],
   }
-  if (typeof p.blueprint === 'number') def.blueprint = p.blueprint
   if (typeof p.ref === 'string') def.ref = p.ref
   if (typeof p.baseClass === 'string') def.baseClass = p.baseClass
   if (typeof p.name === 'string') def.name = p.name
@@ -113,10 +112,6 @@ function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): O
     }
     case 'setBaseClass':
       return ops.setBaseClass(asset, (p.baseClass ?? p.class) as string)
-    case 'setParent':
-      return ops.setParent(asset, p.parent === undefined ? null : (p.parent as number))
-    case 'setId':
-      return ops.setId(asset, p.id as number)
     case 'setPosition':
       return ops.setPosition(asset, p.position as [number, number, number])
     case 'setRotation':
@@ -138,7 +133,7 @@ export class BlueprintEditorService {
     return {
       actors: ActorRegistry.getRegisteredTypes(),
       components: ComponentRegistry.getRegisteredTypes(),
-      blueprints: BlueprintRegistry.getRegisteredIds(),
+      blueprints: BlueprintRegistry.getRegisteredPaths(),
     }
   }
 
@@ -147,8 +142,8 @@ export class BlueprintEditorService {
     const r = await readAsset(assetPath)
     if (!r.ok) return { ok: false, error: r.error, types: this.listTypes() }
     // 编辑器打开时尚未注册的蓝图，读取时补注册（供预览 / resolve 校验）
-    if (!BlueprintRegistry.has(r.asset.id)) {
-      BlueprintRegistry.loadFromJson(r.asset.id, r.asset)
+    if (!BlueprintRegistry.has(r.asset.path)) {
+      BlueprintRegistry.loadFromJson(r.asset.path, r.asset)
     }
     return { ok: true, asset: r.asset, types: this.listTypes() }
   }
@@ -176,17 +171,17 @@ export class BlueprintEditorService {
     this.pushRegistryWarnings(newAsset, op, params ?? {}, warnings)
 
     // 乐观注册后 resolve 探测继承/引用环
-    BlueprintRegistry.loadFromJson(newAsset.id, newAsset)
+    BlueprintRegistry.loadFromJson(newAsset.path, newAsset)
     try {
-      BlueprintRegistry.resolve(newAsset.id)
+      BlueprintRegistry.resolve(newAsset.path)
     } catch (e) {
       const msg = String((e as Error)?.message ?? e)
       if (msg.includes('循环')) {
         // 命中环：回滚注册表，不写盘
-        BlueprintRegistry.loadFromJson(oldAsset.id, oldAsset)
+        BlueprintRegistry.loadFromJson(oldAsset.path, oldAsset)
         return {
           ok: false,
-          error: `蓝图继承/引用存在循环: ${msg}`,
+          error: `蓝图引用存在循环: ${msg}`,
           asset: oldAsset,
           types: this.listTypes(),
         }
@@ -198,7 +193,7 @@ export class BlueprintEditorService {
     // 写盘
     const written = await writeAsset(assetPath, newAsset)
     if (!written.ok) {
-      BlueprintRegistry.loadFromJson(oldAsset.id, oldAsset)
+      BlueprintRegistry.loadFromJson(oldAsset.path, oldAsset)
       return { ok: false, error: written.error, asset: oldAsset, types: this.listTypes() }
     }
 
@@ -244,12 +239,9 @@ export class BlueprintEditorService {
     } else if (op === 'setBaseClass') {
       const cls = (p.baseClass ?? p.class) as string
       if (cls && !ActorRegistry.has(cls)) warnings.push(`Actor 类型 "${cls}" 未注册`)
-    } else if (op === 'setParent') {
-      const parent = p.parent as number
-      if (parent != null && !BlueprintRegistry.has(parent)) warnings.push(`父蓝图 #${parent} 未注册`)
     } else if (op === 'addChild' || op === 'updateChild') {
-      const bp = (p.blueprint ?? (p.child as { blueprint?: number })?.blueprint) as number | undefined
-      if (bp != null && !BlueprintRegistry.has(bp)) warnings.push(`子蓝图 #${bp} 未注册`)
+      const ref = (p.ref ?? (p.child as { ref?: string })?.ref) as string | undefined
+      if (ref != null && !BlueprintRegistry.has(ref)) warnings.push(`子蓝图 ref="${ref}" 未注册`)
     }
   }
 }

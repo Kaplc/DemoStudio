@@ -32,10 +32,10 @@ export function walkDocument(doc: unknown): WalkResult {
 
   // 场景根：有 name + objects 数组
   const isScene = typeof root.name === 'string' && Array.isArray(root.objects)
-  // 蓝图根：有 id（number） + 任一蓝图特征字段
+  // 蓝图根：有 path（string） + baseClass
   const isBlueprint =
-    typeof root.id === 'number' &&
-    ('baseClass' in root || 'components' in root || 'children' in root || 'parent' in root)
+    typeof root.path === 'string' &&
+    typeof root.baseClass === 'string'
 
   if (isScene) {
     tasks.push({ kind: 'doc:scene', node: root, nodePath: '<scene 根>' })

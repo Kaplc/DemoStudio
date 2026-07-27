@@ -55,11 +55,11 @@ class WallRingChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('node:wallRing', WallRingChecker)
 
-/** node:blueprint — 场景中引用蓝图的节点：blueprint 引用 id 必填。 */
+/** node:blueprint — 场景中引用蓝图的节点：blueprint 路径必填。 */
 class BlueprintNodeChecker extends AbstractAssetChecker {
   readonly kind = 'node:blueprint'
   schema: FieldSpec[] = [
-    { field: 'blueprint', type: 'number', required: true, label: '蓝图引用' },
+    { field: 'blueprint', type: 'string', required: true, label: '蓝图引用' },
     { field: 'pos', type: 'vec3', label: '位置' },
     { field: 'rot', type: 'vec3', label: '旋转' },
     { field: 'scale', type: 'vec3', label: '缩放' },

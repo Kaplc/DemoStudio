@@ -23,11 +23,9 @@ export interface BlueprintComponentDef {
   _remove?: boolean
 }
 
-/** 蓝图中的子 Actor 描述（与 BlueprintAsset 结构一致，仅多 name/blueprint/overrides/_remove） */
+/** 蓝图中的子 Actor 描述（与 BlueprintAsset 结构一致，仅多 name/ref/overrides/_remove） */
 export interface BlueprintChildDef {
-  /** 引用另一个 Blueprint id（与 baseClass 二选一） */
-  blueprint?: number
-  /** 引用资产文件路径（与 blueprint/baseClass 三选一） */
+  /** 引用另一个蓝图资产文件的路径（与 baseClass 二选一） */
   ref?: string
   /** 内联的 ActorRegistry 类型（同根级 baseClass） */
   baseClass?: string
@@ -53,14 +51,12 @@ export interface BlueprintChildDef {
 
 /** 蓝图资产（JSON 文档根） */
 export interface BlueprintAsset {
-  /** 蓝图唯一 id（注册到 BlueprintRegistry） */
-  id: number
+  /** 蓝图路径（相对于 src/projects/，如 fish/asset/blueprints/foundation.blueprint.json） */
+  path: string
   /** 蓝图显示名称 */
   name: string
   /** baseClass（ActorRegistry key），如 'Actor' / 'FishHouse' */
   baseClass: string
-  /** 父级 Blueprint id（继承 / 变体） */
-  parent?: number
   /** 默认挂载的 Component */
   components?: BlueprintComponentDef[]
   /** 子 Actor */
@@ -83,7 +79,6 @@ export interface ResolvedComponentDef {
 }
 
 export interface ResolvedChildDef {
-  blueprint?: number
   ref?: string
   baseClass?: string
   name?: string
@@ -96,17 +91,14 @@ export interface ResolvedChildDef {
   children?: ResolvedChildDef[]
 }
 
-/** resolve(id) 的产物：继承链合并后的扁平 CDO（只读） */
+/** resolve(path) 的产物：使用 path 作为 key，不参与继承（parent 已移除） */
 export interface ResolvedBlueprint {
-  id: number
+  path: string
   name: string
   baseClass: string
   components: ResolvedComponentDef[]
   children: ResolvedChildDef[]
-  /** 继承链合并后的世界坐标位置 */
   position?: [number, number, number]
-  /** 继承链合并后的欧拉旋转角（弧度） */
   rotation?: [number, number, number]
-  /** 继承链合并后的缩放 */
   scale?: [number, number, number]
 }

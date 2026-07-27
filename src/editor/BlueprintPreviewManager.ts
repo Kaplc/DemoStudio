@@ -34,7 +34,7 @@ export class BlueprintPreviewManager {
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
-  private _currentBlueprintId: number | null = null
+  private _currentBlueprintPath: string | null = null
 
   /** 当前预览的 Actor 根节点缓存，用于快速重建 */
   private previewRoot: THREE.Object3D | null = null
@@ -235,24 +235,24 @@ export class BlueprintPreviewManager {
   //  蓝图加载
   // ═══════════════════════════════════
 
-  loadBlueprint(blueprintId: number): boolean {
+  loadBlueprint(path: string): boolean {
     this.clearPreview()
 
-    const actor = this.world.SpawnActorFromBlueprint(blueprintId)
+    const actor = this.world.SpawnActorFromBlueprint(path)
     if (!actor) {
-      logger.warn(`[BlueprintPreview] SpawnActorFromBlueprint("${blueprintId}") 失败`)
+      logger.warn(`[BlueprintPreview] SpawnActorFromBlueprint("${path}") 失败`)
       return false
     }
 
     this.world.BeginPlay()
     this.world.manualTick(0)
 
-    this._currentBlueprintId = blueprintId
+    this._currentBlueprintPath = path
 
     this.fitToActor(actor.root)
     this.notifyChange()
 
-    logger.info(`[BlueprintPreview] 加载蓝图预览: ${blueprintId}`)
+    logger.info(`[BlueprintPreview] 加载蓝图预览: ${path}`)
     return true
   }
 
@@ -260,13 +260,13 @@ export class BlueprintPreviewManager {
     select(null)
     this.gizmo.detach()
     this.world.DestroyAllActors()
-    this._currentBlueprintId = null
+    this._currentBlueprintPath = null
     this.previewRoot = null
     this.notifyChange()
   }
 
-  get currentBlueprintId(): number | null {
-    return this._currentBlueprintId
+  get currentBlueprintId(): string | null {
+    return this._currentBlueprintPath
   }
 
   getActorTree(): SceneTreeNode[] {
@@ -286,6 +286,8 @@ export class BlueprintPreviewManager {
           name: obj.name || obj.type,
           actor: actorRef,
         })
+        // ref 实例（类似预制体）不展开其内部子 Actor
+        if (actorRef.isRefInstance) return
       }
 
       const nextDepth = isRoot ? depth : depth + 1

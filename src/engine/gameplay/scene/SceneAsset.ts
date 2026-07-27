@@ -127,8 +127,8 @@ export interface SpriteNode extends BaseNode {
 /** blueprint 节点 — 在此处引用并实例化一个 Blueprint（由 World.SpawnActorFromBlueprint 处理，SceneLoader 不展开） */
 export interface BlueprintNode extends BaseNode {
   type: 'blueprint'
-  /** 引用的 Blueprint id（BlueprintRegistry key） */
-  blueprint: number
+  /** 引用的 Blueprint 路径 */
+  blueprint: string
   pos?: Vec3
   rot?: Vec3
   scale?: Vec3

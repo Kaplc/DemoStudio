@@ -256,13 +256,13 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
             <span className="property-value" style={{ fontSize: 11, fontWeight: 600 }}>{data.name}</span>
           </div>
         )}
-        {data.blueprint && (
+        {data.ref && (
           <div className="property-row">
-            <span className="property-label">Blueprint</span>
-            <span className="property-value" style={{ fontSize: 11, color: 'var(--info)' }}>🧩 {data.blueprint}</span>
+            <span className="property-label">Ref</span>
+            <span className="property-value" style={{ fontSize: 11, color: 'var(--info)' }}>🧩 {data.ref}</span>
           </div>
         )}
-        {!data.blueprint && data.baseClass && (
+        {!data.ref && data.baseClass && (
           <div className="property-row">
             <span className="property-label">baseClass</span>
             <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>⚙️ {data.baseClass}</span>
@@ -322,17 +322,11 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
   return (
     <>
       <div className="property-group">
-        <div className="property-group-title">{asset.id} · Class</div>
+        <div className="property-group-title">{asset.path} · Class</div>
         <div className="property-row">
           <span className="property-label">baseClass</span>
           <span className="property-value" style={{ fontSize: 11, color: 'var(--success)' }}>{asset.baseClass}</span>
         </div>
-        {asset.parent && (
-          <div className="property-row">
-            <span className="property-label">Parent</span>
-            <span className="property-value" style={{ fontSize: 11, color: 'var(--accent)' }}>extends {asset.parent}</span>
-          </div>
-        )}
       </div>
 
       <div className="property-group">
@@ -397,7 +391,7 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
           <div key={i} className="property-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
             <span className="property-label" style={{ fontWeight: 600 }}>{ch.name || `#${i}`}</span>
             <span className="property-value" style={{ fontSize: 10 }}>
-              {ch.id !== undefined ? `#${ch.id} ` : ''}{ch.blueprint ? `🧩 bp:${ch.blueprint}` : ch.baseClass ? `⚙️ ${ch.baseClass}` : ''}
+              {ch.id !== undefined ? `#${ch.id} ` : ''}{ch.ref ? `🧩 ref:${ch.ref}` : ch.baseClass ? `⚙️ ${ch.baseClass}` : ''}
               {ch._remove ? ' · Removed' : ''}
             </span>
           </div>

@@ -69,10 +69,10 @@ class RegistryAssetSource implements AssetSource {
     }
 
     // 蓝图资产
-    for (const id of BlueprintRegistry.getRegisteredIds()) {
-      const bp = BlueprintRegistry.get(id)
+    for (const p of BlueprintRegistry.getRegisteredPaths()) {
+      const bp = BlueprintRegistry.get(p)
       if (bp) {
-        files.push({ path: `blueprints/${id}.blueprint.json`, ext: '.blueprint.json', ok: true, doc: bp })
+        files.push({ path: p, ext: '.blueprint.json', ok: true, doc: bp })
       }
     }
 

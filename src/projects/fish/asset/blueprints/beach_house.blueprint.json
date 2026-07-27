@@ -1,5 +1,5 @@
 {
-  "id": 101,
+  "path": "fish/asset/blueprints/beach_house.blueprint.json",
   "name": "BeachHouse",
   "baseClass": "FishHouse",
   "components": [],
@@ -176,7 +176,8 @@
                 "name": "PillarMesh"
               }
             }
-          ]
+          ],
+          "children": []
         },
         {
           "name": "PillarBR",

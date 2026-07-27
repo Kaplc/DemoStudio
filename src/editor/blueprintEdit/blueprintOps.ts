@@ -53,7 +53,6 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 /** 校验资产顶层形状，返回错误信息或 null */
 export function validateAssetShape(a: unknown): string | null {
   if (!isPlainObject(a)) return '资产必须是对象'
-  if (typeof a.id !== 'number' || !Number.isFinite(a.id)) return '缺少合法 id（数字）'
   if (typeof a.name !== 'string' || !a.name) return '缺少合法 name（非空字符串）'
   if (typeof a.baseClass !== 'string' || !a.baseClass) return '缺少合法 baseClass（非空字符串）'
   return null
@@ -159,12 +158,11 @@ function isVec3(v: unknown): v is [number, number, number] {
 
 function validateChildDef(child: BlueprintChildDef): string | null {
   if (!isPlainObject(child)) return '子节点必须是对象'
-  const hasBp = !!child.blueprint
   const hasRef = !!child.ref
   const hasBase = !!child.baseClass
-  const count = (hasBp ? 1 : 0) + (hasRef ? 1 : 0) + (hasBase ? 1 : 0)
-  if (count === 0) return '子节点必须指定 blueprint / ref / baseClass 之一'
-  if (count > 1) return 'blueprint / ref / baseClass 互斥，只能指定一个'
+  const count = (hasRef ? 1 : 0) + (hasBase ? 1 : 0)
+  if (count === 0) return '子节点必须指定 ref / baseClass 之一'
+  if (count > 1) return 'ref / baseClass 互斥，只能指定一个'
   if (!isVec3(child.position)) return '缺少合法 position（[x, y, z] 数字数组）'
   if (!isVec3(child.rotation)) return '缺少合法 rotation（[x, y, z] 数字数组）'
   if (!isVec3(child.scale)) return '缺少合法 scale（[x, y, z] 数字数组）'
@@ -173,7 +171,6 @@ function validateChildDef(child: BlueprintChildDef): string | null {
 
 function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
   const out: BlueprintChildDef = { position: child.position, rotation: child.rotation, scale: child.scale }
-  if (child.blueprint) out.blueprint = child.blueprint
   if (child.ref) out.ref = child.ref
   if (child.baseClass) out.baseClass = child.baseClass
   if (child.name) out.name = child.name
@@ -186,7 +183,6 @@ function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
 /** 把 patch 合并到 base 子节点定义（覆盖 blueprint/baseClass/name，深合并 overrides） */
 function mergeChildDef(base: BlueprintChildDef, patch: BlueprintChildDef): BlueprintChildDef {
   const out: BlueprintChildDef = { ...base, position: patch.position ?? base.position, rotation: patch.rotation ?? base.rotation, scale: patch.scale ?? base.scale }
-  if (patch.blueprint !== undefined) out.blueprint = patch.blueprint
   if (patch.ref !== undefined) out.ref = patch.ref
   if (patch.baseClass !== undefined) out.baseClass = patch.baseClass
   if (patch.name !== undefined) out.name = patch.name
@@ -232,7 +228,7 @@ export function updateChild(
   patch: BlueprintChildDef,
 ): OpResult {
   if (!isPlainObject(patch)) return fail('patch 必须是对象')
-  if (patch.blueprint && patch.baseClass) return fail('blueprint 与 baseClass 互斥')
+  if (patch.ref && patch.baseClass) return fail('ref 与 baseClass 互斥')
   const children = asset.children ? asset.children.slice() : []
   const idx = locateChild(children, locator)
   if (idx === -1) {
@@ -303,26 +299,9 @@ export function setScale(asset: BlueprintAsset, s: [number, number, number]): Op
 //  元信息（id / baseClass / parent）
 // ══════════════════════════════════════
 
-export function setId(asset: BlueprintAsset, id: number): OpResult {
-  if (typeof id !== 'number' || !Number.isFinite(id)) return fail('id 必须是数字')
-  asset.id = id
-  return ok(asset)
-}
-
 export function setBaseClass(asset: BlueprintAsset, baseClass: string): OpResult {
   if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
   asset.baseClass = baseClass
-  return ok(asset)
-}
-
-/** 设置父蓝图；parent=null 表示解除继承 */
-export function setParent(asset: BlueprintAsset, parent: number | null): OpResult {
-  if (parent === null) {
-    delete asset.parent
-    return ok(asset)
-  }
-  if (typeof parent !== 'number' || !Number.isFinite(parent)) return fail('parent 必须是数字或 null')
-  asset.parent = parent
   return ok(asset)
 }
 

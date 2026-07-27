@@ -1,5 +1,5 @@
 {
-  "id": 102,
+  "path": "fish/asset/blueprints/foundation.blueprint.json",
   "name": "Foundation",
   "baseClass": "Actor",
   "components": [],

@@ -142,6 +142,8 @@ export function getSceneTree(): SceneTreeNode[] {
         name: obj.name || obj.type,
         actor: actorRef ?? null,
       })
+      // ref 实例（类似预制体）不展开其内部子 Actor
+      if (actorRef?.isRefInstance) return
     }
 
     // 根节点不加深 depth，直接平铺

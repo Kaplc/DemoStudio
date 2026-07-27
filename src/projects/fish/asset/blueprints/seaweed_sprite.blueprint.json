@@ -1,5 +1,5 @@
 {
-  "id": 500,
+  "path": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
   "name": "SeaweedSprite",
   "baseClass": "Actor",
   "position": [0, 0.7, 0],

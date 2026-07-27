@@ -43,7 +43,7 @@ export interface BlueprintSelection {
   /** 子 Actor 引用（仅 type='child' 时） */
   childRef?: string
   /** 子 Actor 完整数据 */
-  childData?: { blueprint?: number; baseClass?: string; name?: string; id?: number; overrides?: Record<string, unknown>; components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>; position?: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number]; _remove?: boolean }
+  childData?: { ref?: string; baseClass?: string; name?: string; id?: number; overrides?: Record<string, unknown>; components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>; position?: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number]; _remove?: boolean }
 }
 
 export interface EditorState {

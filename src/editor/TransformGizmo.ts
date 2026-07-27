@@ -307,6 +307,7 @@ export class TransformGizmo {
     // 新位置 = 起点 + 轴方向 × 投影量
     const newPos = new THREE.Vector3().copy(this._dragStartPos).addScaledVector(this._dragAxis, dot)
     this._target.position.copy(newPos)
+    console.log(`[Gizmo] 拖动: ${this._target.name} pos=${newPos.x.toFixed(3)}, ${newPos.y.toFixed(3)}, ${newPos.z.toFixed(3)}`)
     this.syncTransform()
     this.onDragMove?.()
   }

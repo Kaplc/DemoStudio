@@ -165,51 +165,57 @@ export class World {
    * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
-  SpawnActorFromBlueprint(id: number, overrides?: PropertyPatch): Actor | null {
+  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
     let resolved
     try {
-      resolved = BlueprintRegistry.resolve(id)
+      resolved = BlueprintRegistry.resolve(path)
     } catch (e) {
-      logger.warn(`[World] SpawnActorFromBlueprint("${id}") 解析失败: ${(e as Error).message}`)
+      logger.warn(`[World] SpawnActorFromBlueprint("${path}") 解析失败: ${(e as Error).message}`)
       return null
     }
 
     const actor = ActorRegistry.create(resolved.baseClass)
     if (!actor) {
-      logger.warn(`[World] SpawnActorFromBlueprint("${id}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
+      logger.warn(`[World] SpawnActorFromBlueprint("${path}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
       return null
     }
 
-    // 1. Transform（继承链合并后的位置/旋转/缩放）
+    // 1. Transform
     if (resolved.position) actor.setPosition(resolved.position[0], resolved.position[1], resolved.position[2])
     if (resolved.rotation) actor.setRotation(resolved.rotation[0], resolved.rotation[1], resolved.rotation[2])
     if (resolved.scale) actor.setScale(resolved.scale[0], resolved.scale[1], resolved.scale[2])
 
-    // 2. Component（SpawnActor 前挂完，随 BeginPlay 一起激活）
+    // 2. Component
     for (const cdef of resolved.components) {
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
         actor.addComponent(comp)
       } else {
-        logger.warn(`[World] SpawnActorFromBlueprint("${id}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
+        logger.warn(`[World] SpawnActorFromBlueprint("${path}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
       }
     }
 
-    // 3. 子 Actor（attachTo 父；blueprint 子自带 overrides，actor 子在此应用 overrides）
-    //    每个子 Actor 还可能包含内联 objects + 递归 children，统一在此展开
+    // 3. 子 Actor
     const spawnChildObjects = (childDefs: typeof resolved.children, parentActor: Actor) => {
       for (const child of childDefs) {
         let childActor: Actor | null = null
-        if (child.blueprint) {
-          childActor = this.SpawnActorFromBlueprint(child.blueprint, child.overrides)
+        let isRefChild = false
+        if (child.ref) {
+          isRefChild = true
+          // ref 引用：作为独立子 Actor 生成（类似 Unity 预制体），transform 通过 overrides 传入
+          const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
+          if (child.position) refOverrides.position = child.position
+          if (child.rotation) refOverrides.rotation = child.rotation
+          if (child.scale) refOverrides.scale = child.scale
+          childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
+          if (childActor) childActor.isRefInstance = true
         } else if (child.baseClass) {
           childActor = ActorRegistry.create(child.baseClass)
           if (childActor) {
             if (child.overrides && Object.keys(child.overrides).length > 0) {
               childActor.applyPatch(child.overrides)
             }
-            // 挂载内联组件
             if (child.components) {
               for (const cdef of child.components) {
                 const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
@@ -217,45 +223,41 @@ export class World {
                   if (cdef.name) comp.name = cdef.name
                   childActor.addComponent(comp)
                 } else {
-                  logger.warn(`[World] SpawnActorFromBlueprint("${id}"): 子节点组件 "${cdef.baseClass}" 未注册，已跳过`)
+                  logger.warn(`[World] SpawnActorFromBlueprint("${path}"): 子节点组件 "${cdef.baseClass}" 未注册，已跳过`)
                 }
               }
             }
           }
-        } else if (child.ref) {
-          // ref 字段：引用资产文件路径 — 运行时需预注册，暂未实现自动加载
-          logger.warn(`[World] SpawnActorFromBlueprint("${id}"): 子节点 ref="${child.ref}" 暂不支持运行时自动加载`)
         }
-        // 纯容器节点（无 blueprint/baseClass/ref，仅用来承载嵌套 children）
+        // 纯容器节点（仅用来承载嵌套 children）
         if (!childActor && child.children?.length) {
           childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
         }
         if (!childActor) {
           logger.warn(
-            `[World] SpawnActorFromBlueprint("${id}"): 子节点生成失败 (blueprint=${child.blueprint ?? '-'}, ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`,
+            `[World] SpawnActorFromBlueprint("${path}"): 子节点生成失败 (baseClass=${child.baseClass ?? '-'})`,
           )
           continue
         }
         childActor.attachTo(parentActor)
 
-        // 子节点的本地 Transform
-        if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
-        if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
-        if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
+        // ref 子节点的 transform 已在 SpawnActorFromBlueprint 通过 overrides 应用
+        if (!isRefChild) {
+          if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
+          if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
+          if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
+        }
 
-        // 把 child.name 设置到 root 上（供 Outline 按名称查找）
         if (child.name) {
           childActor.root.name = child.name
         }
 
-        // 递归展开此子节点的嵌套 children
         if (child.children && child.children.length > 0) {
           spawnChildObjects(child.children, childActor)
         }
       }
     }
 
-    // 展开所有子 Actor 树
     if (resolved.children.length > 0) {
       spawnChildObjects(resolved.children, actor)
     }
@@ -265,8 +267,8 @@ export class World {
       actor.applyPatch(overrides)
     }
 
-    // 5. 蓝图元数据（供编辑器 Outline/Inspector 识别）
-    actor.blueprintRef = { id, overrides }
+    // 5. 蓝图元数据
+    actor.blueprintRef = { id: path, overrides }
 
     // 6. 进 World
     this.SpawnActor(actor)

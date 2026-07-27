@@ -32,10 +32,9 @@ interface BlueprintChildNode {
 }
 
 interface BlueprintData {
-  id: number
+  path: string
   name: string
   baseClass: string
-  parent?: number
   components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
 }
@@ -88,15 +87,15 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     if (!data || !previewContainerRef.current) return
 
     // 确保蓝图已注册（编辑器打开时，蓝图可能尚未注册到 BlueprintRegistry）
-    if (!BlueprintRegistry.has(data.id)) {
-      BlueprintRegistry.loadFromJson(data.id, data as unknown as BlueprintAsset)
+    if (!BlueprintRegistry.has(data.path)) {
+      BlueprintRegistry.loadFromJson(data.path, data as unknown as BlueprintAsset)
     }
 
     const mgr = new BlueprintPreviewManager(previewContainerRef.current)
     previewMgrRef.current = mgr
 
     // 加载蓝图 Actor
-    const ok = mgr.loadBlueprint(data.id)
+    const ok = mgr.loadBlueprint(data.path)
     if (ok) {
       setPreviewReady(true)
     }
@@ -206,21 +205,23 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     }
 
     // 从大纲 actor 树构建 blueprintRef.id → Actor 映射
-    const actorById = new Map<number, Actor>()
+    const actorById = new Map<string | number, Actor>()
     const tree = mgr.getActorTree()
     console.log(`[Save] 大纲 actor 树节点数: ${tree.length}`)
+    console.log(`[Save] data.path=${data.path}`)
     for (const node of tree) {
       if (!node.actor) continue
       const ref = node.actor.blueprintRef?.id
-      console.log(`[Save] 节点 name="${node.name}" actor=${node.actor.name} blueprintRef=${ref}`)
+      console.log(`[Save] 节点 name="${node.name}" actor=${node.actor.name} blueprintRef="${ref}" pos=${node.actor.position.x.toFixed(3)},${node.actor.position.y.toFixed(3)},${node.actor.position.z.toFixed(3)}`)
       if (ref != null) actorById.set(ref, node.actor)
     }
-    console.log(`[Save] actorById 映射: ${JSON.stringify([...actorById.keys()])}`)
+    console.log(`[Save] actorById keys: ${JSON.stringify([...actorById.keys()])}`)
+    console.log(`[Save] actorById has data.path? ${actorById.has(data.path)}`)
 
     const cloned: Record<string, unknown> = JSON.parse(JSON.stringify(data))
     const logs: string[] = []
 
-    function updateNode(node: Record<string, unknown>, nodeId?: number, path?: string) {
+    function updateNode(node: Record<string, unknown>, nodeId?: string | number, path?: string) {
       if (nodeId == null) {
         logs.push(`  ${path}: 无 id，跳过`)
         return
@@ -239,7 +240,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       logs.push(`  ${path}: id=${nodeId} pos=${JSON.stringify(pos)} rot=${JSON.stringify(rot)} scl=${JSON.stringify(scl)}`)
     }
 
-    updateNode(cloned, data.id, 'root')
+    updateNode(cloned, data.path, 'root')
     const rootLog = logs[0]
     logs.length = 0
     console.log(`[Save] 根节点:\n${rootLog}`)
@@ -258,12 +259,13 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     console.log(`[Save] 子节点更新:\n${logs.join('\n')}`)
     console.log(`[Save] 写入文件: ${assetPath}`)
+    console.log(`[Save] 写入位置: ${JSON.stringify(cloned.position)}`)
     await writeJsonFile(assetPath, cloned)
 
     // 更新注册表缓存并重新加载预览
     console.log('[Save] 重新加载预览')
-    BlueprintRegistry.loadFromJson(data.id, cloned as unknown as BlueprintAsset)
-    mgr.loadBlueprint(data.id)
+    BlueprintRegistry.loadFromJson(data.path, cloned as unknown as BlueprintAsset)
+    mgr.loadBlueprint(data.path)
     console.log('[Save] 保存完成')
   }
 
@@ -303,7 +305,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       }}>
         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
         <span style={{ color: 'var(--success)' }}>{data.baseClass}</span>
-        {data.parent && <span style={{ color: 'var(--accent)' }}>extends {data.parent}</span>}
         <div style={{ flex: 1 }} />
         <button
           onClick={handleSave}
@@ -320,13 +321,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* 左侧：结构化数据 */}
         <div style={{ width: leftWidth, minWidth: 240, maxWidth: 800, overflow: 'auto', padding: '12px 16px', flexShrink: 0, position: 'relative' }}>
-          {/* Parent 继承 */}
-          {data.parent && (
-            <Section title="Parent Blueprint">
-              <Row label="Inherits From" value={String(data.parent)} link />
-            </Section>
-          )}
-
           {/* Components — 组件列表 */}
           <Section title={`Components (${data.components?.length ?? 0})`}>
             {(data.components ?? []).length === 0 ? (
@@ -389,7 +383,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         fontSize: 10, color: 'var(--text-dim)', background: 'var(--bg-secondary)',
         display: 'flex', gap: 16,
       }}>
-        <span>Blueprint: {data.name} (#{data.id})</span>
+        <span>Blueprint: {data.name} ({data.path})</span>
         <span>Class: {data.baseClass}</span>
         <span>File: {filename}</span>
       </div>
