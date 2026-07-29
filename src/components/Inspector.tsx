@@ -246,6 +246,9 @@ function BlueprintComponentDetail({ data, selection }: { data: NonNullable<Bluep
 
 // ─── 蓝图编辑器选中子 Actor 详情（只读）───
 function BlueprintChildDetail({ data, selection }: { data: NonNullable<BlueprintSelection['childData']>; selection: BlueprintSelection }) {
+  const p = data.position ?? [0, 0, 0]
+  const r = data.rotation ?? [0, 0, 0]
+  const s = data.scale ?? [1, 1, 1]
   return (
     <>
       <div className="property-group">
@@ -284,6 +287,27 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
             <span className="property-value" style={{ color: 'var(--error)' }}>Removed (inherited)</span>
           </div>
         )}
+      </div>
+      <div className="property-group">
+        <div className="property-group-title">Transform（JSON）</div>
+        <div className="property-row">
+          <span className="property-label">Position</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            X:{fmt(p[0])} Y:{fmt(p[1])} Z:{fmt(p[2])}
+          </span>
+        </div>
+        <div className="property-row">
+          <span className="property-label">Rotation</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            X:{fmt(r[0])} Y:{fmt(r[1])} Z:{fmt(r[2])}
+          </span>
+        </div>
+        <div className="property-row">
+          <span className="property-label">Scale</span>
+          <span className="property-value" style={{ fontSize: 11 }}>
+            X:{fmt(s[0])} Y:{fmt(s[1])} Z:{fmt(s[2])}
+          </span>
+        </div>
       </div>
       <div className="property-group">
         <div className="property-group-title">Overrides（只读）</div>
@@ -480,6 +504,8 @@ export function Inspector() {
   const isBlueprintTab = activeTabId.startsWith('bp:')
   // 蓝图被编辑后刷新当前选中元素的数据，避免显示陈旧快照
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
+  // Gizmo 拖拽/选择变化时 bump，驱动实时刷新 Transform 显示
+  const selectionNonce = useEditorStore((s) => s.selectionNonce)
 
   useEffect(() => {
     const unsub = onSelectionChange(() => setSelectionKey(getSelectionKey()))
@@ -523,6 +549,14 @@ export function Inspector() {
           >
             ✕
           </button>
+        ) : isBlueprintTab && selected ? (
+          <button
+            className="btn"
+            style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 6px' }}
+            onClick={() => select(null)}
+          >
+            ✕
+          </button>
         ) : selected ? (
           <button
             className="btn"
@@ -542,6 +576,24 @@ export function Inspector() {
           ) : (
             <BlueprintGeneralInfo selection={blueprintSelection} />
           )
+        ) : isBlueprintTab && selected && isActor && actorTarget ? (
+          /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：显示实时 Transform */
+          <>
+            <div className="property-group">
+              <div className="property-group-title">{actorTarget.name}（Blueprint 预览）</div>
+              <div className="property-row">
+                <span className="property-label">Type</span>
+                <span className="property-value" style={{ fontSize: 11 }}>{actorTarget.constructor.name}</span>
+              </div>
+              <div className="property-row">
+                <span className="property-label">Active</span>
+                <span className="property-value">{actorTarget.bHasBegunPlay ? '✓' : '✗'}</span>
+              </div>
+            </div>
+            <BlueprintRefView actor={actorTarget} />
+            <ActorTransformView actor={actorTarget} />
+            <ActorComponentsView actor={actorTarget} />
+          </>
         ) : isBlueprintTab && activeTabId.length > 3 ? (
           <BlueprintOverviewDetail assetPath={activeTabId.slice(3)} />
         ) : selected ? (

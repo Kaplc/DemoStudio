@@ -108,6 +108,10 @@ export interface EditorState {
 
   /** bump 蓝图编辑刷新信号（编辑资产后调用，触发打开的编辑器重新读盘） */
   bumpBlueprintEdit: (assetPath: string) => void
+
+  /** Gizmo 拖拽/选择变化刷新信号（notifySelectionChange 时 bump，供 Inspector 实时刷新 Transform） */
+  selectionNonce: number
+  bumpSelectionNonce: () => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -124,6 +128,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   blueprintSelection: null,
   blueprintEditNonce: 0,
   lastEditedBlueprintPath: null,
+  selectionNonce: 0,
 
   gameState: {
     running: false,
@@ -246,5 +251,9 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({
       blueprintEditNonce: state.blueprintEditNonce + 1,
       lastEditedBlueprintPath: assetPath,
+    })),
+  bumpSelectionNonce: () =>
+    set((state) => ({
+      selectionNonce: state.selectionNonce + 1,
     })),
 }))
