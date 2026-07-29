@@ -217,6 +217,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     // 更新注册表缓存并重新加载预览（重建映射）
     BlueprintRegistry.loadFromJson(data.path, saveData as unknown as BlueprintAsset)
     mgr.loadBlueprint(data.path)
+
+    // 通知其他页签/面板刷新：Inspector、Outline、以及同一个蓝图的其他打开页签
+    useEditorStore.getState().bumpBlueprintEdit(assetPath)
   }
 
   if (loading) {
