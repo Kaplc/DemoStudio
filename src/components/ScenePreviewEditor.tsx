@@ -1,10 +1,13 @@
 /**
  * ScenePreviewEditor — 场景资产预览编辑器
  *
- * 全屏 3D 视口实时预览场景，objects 树在 Outline 面板中展示。
+ * 全屏 3D 视口实时预览场景，支持 Gizmo 拖拽编辑 Transform + 保存落盘。
+ * 与 BlueprintEditor 保持一致的交互风格。
  */
 import React, { useEffect, useRef, useState } from 'react'
-import { ScenePreviewManager } from '../editor/ScenePreviewManager'
+import { ScenePreviewManager, AssetPreviewManager } from '../editor'
+import { useEditorStore } from '../stores/editorStore'
+import { notifySelectionChange, editorBus, EditorEvent } from '../editor'
 import type { SceneAsset } from '../engine'
 
 interface ScenePreviewEditorProps {
@@ -25,7 +28,14 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const previewMgrRef = useRef<ScenePreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const assetPathRef = useRef(assetPath)
+  assetPathRef.current = assetPath
 
+  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const isTabActive = activeTabId === `sp:${assetPath}`
+
+  // ─── 读取场景 JSON ───
   useEffect(() => {
     const readJsonFile = window.electronAPI?.readJsonFile
     if (!readJsonFile) {
@@ -62,7 +72,10 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
     previewMgrRef.current = mgr
 
     const ok = mgr.loadSceneAsset(data as unknown as SceneAsset)
-    if (ok) setPreviewReady(true)
+    if (ok) {
+      AssetPreviewManager.register(assetPath, mgr)
+      setPreviewReady(true)
+    }
 
     const ro = new ResizeObserver(() => mgr.resize())
     ro.observe(previewContainerRef.current)
@@ -74,6 +87,12 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       setPreviewReady(false)
     }
   }, [data])
+
+  // ─── 页签激活时登记为活动预览实例（驱动 Outline 同步） ───
+  useEffect(() => {
+    if (!isTabActive || !previewReady) return
+    previewMgrRef.current?.activate(assetPath)
+  }, [isTabActive, previewReady])
 
   // ─── WASD 键盘事件 ───
   useEffect(() => {
@@ -106,6 +125,90 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
     }
   }, [])
 
+  // ─── TransformGizmo 交互 ───
+  useEffect(() => {
+    const mgr = previewMgrRef.current
+    if (!mgr || !previewReady) return
+    const canvas = mgr.renderer.domElement
+    const gizmo = mgr.gizmo
+    gizmo.onDragMove = notifySelectionChange
+
+    let dragDidMove = false
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return
+      if (!gizmo.visible) return
+      const axis = gizmo.hitTest(e.clientX, e.clientY)
+      if (axis) {
+        dragDidMove = false
+        gizmo.startDrag(axis, e.clientX, e.clientY)
+        canvas.setPointerCapture(e.pointerId)
+        e.preventDefault()
+      }
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      gizmo.hoverTest(e.clientX, e.clientY)
+      if (gizmo.isDragging) {
+        dragDidMove = true
+        gizmo.updateDrag(e.clientX, e.clientY)
+      }
+    }
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (gizmo.isDragging) {
+        gizmo.endDrag()
+        if (dragDidMove) {
+          editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, assetPathRef.current)
+        }
+        try { canvas.releasePointerCapture(e.pointerId) } catch { }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      if (gizmo.isDragging) gizmo.endDrag()
+      gizmo.onDragMove = null
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [previewReady])
+
+  // ─── 保存 ───
+  const handleSave = async () => {
+    const mgr = previewMgrRef.current
+    if (!mgr || !data || saving) return
+
+    const writeJsonFile = window.electronAPI?.writeJsonFile
+    if (!writeJsonFile) return
+
+    const saveData = mgr.collectSaveData()
+    if (!saveData) return
+
+    // 记住当前摄像机位姿，重新加载后恢复
+    const camPos = mgr.camera.position.clone()
+    const camQuat = mgr.camera.quaternion.clone()
+
+    setSaving(true)
+    try {
+      await writeJsonFile(assetPath, saveData)
+
+      // 重新加载预览
+      mgr.loadSceneAsset(saveData as unknown as SceneAsset)
+
+      // 恢复摄像机位姿（含 fly euler 同步）
+      mgr.restoreCamera(camPos, camQuat)
+
+      editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
@@ -135,17 +238,36 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
       {/* 头部 */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>🎬</span>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-              {filename}
-              {data.mode && <span style={{ marginLeft: 8, color: 'var(--accent)' }}>mode: {data.mode}</span>}
-            </div>
-          </div>
-        </div>
+      <div style={{
+        padding: '6px 16px', borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-secondary)',
+        display: 'flex', alignItems: 'center', gap: 12, fontSize: 12,
+      }}>
+        <span style={{ fontSize: 14, lineHeight: 1 }}>🎬</span>
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
+        {data.mode && <span style={{ color: 'var(--accent)' }}>{data.mode}</span>}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            fontSize: 11, padding: '3px 12px', cursor: saving ? 'default' : 'pointer',
+            background: saving ? 'var(--bg-tertiary)' : 'var(--accent)',
+            color: saving ? 'var(--text-dim)' : '#fff',
+            border: 'none', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          {saving ? (
+            <span style={{
+              width: 12, height: 12, border: '2px solid var(--text-dim)',
+              borderTopColor: 'transparent', borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'spin 0.6s linear infinite',
+            }} />
+          ) : null}
+          {saving ? '保存中' : '保存'}
+        </button>
       </div>
 
       {/* 全屏 3D 预览视口 */}

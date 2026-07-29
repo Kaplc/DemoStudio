@@ -145,6 +145,14 @@ export class BlueprintPreviewManager {
     this.euler.order = 'YXZ'
   }
 
+  /** 外部调用：保存后恢复摄像机位姿（含 fly euler 同步，避免下次鼠标移动跳动） */
+  restoreCamera(pos: THREE.Vector3, quat: THREE.Quaternion) {
+    // logger.debug(`[BlueprintPreview] restoreCamera pos=${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}`)
+    this.camera.position.copy(pos)
+    this.camera.quaternion.copy(quat)
+    this.initFlyEuler()
+  }
+
   private setupFlyMouse() {
     const canvas = this.renderer.domElement
 
@@ -239,7 +247,9 @@ export class BlueprintPreviewManager {
   // ═══════════════════════════════════
 
   loadBlueprint(path: string): boolean {
+    // logger.debug(`[BlueprintPreview] loadBlueprint 开始 path=${path} 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.clearPreview()
+    // logger.debug(`[BlueprintPreview] clearPreview 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
 
     // 持有蓝图 JSON 的可变深拷贝
     const asset = BlueprintRegistry.get(path)
@@ -269,7 +279,9 @@ export class BlueprintPreviewManager {
 
     this._currentBlueprintPath = path
 
+    // logger.debug(`[BlueprintPreview] fitToActor 前摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.fitToActor(actor.root)
+    // logger.debug(`[BlueprintPreview] fitToActor 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.notifyChange()
 
     logger.info(`[BlueprintPreview] 加载蓝图预览: ${path}`)
@@ -277,6 +289,7 @@ export class BlueprintPreviewManager {
   }
 
   clearPreview() {
+    // logger.debug(`[BlueprintPreview] clearPreview 开始 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     select(null)
     this.gizmo.detach()
     this.world.DestroyAllActors()
@@ -286,6 +299,7 @@ export class BlueprintPreviewManager {
     this._actorJsonMap = null
     this._actorTreeCache = null
     this.notifyChange()
+    // logger.debug(`[BlueprintPreview] clearPreview 结束 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
   }
 
   get currentBlueprintId(): string | null {

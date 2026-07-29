@@ -5,108 +5,428 @@
       "type": "actor",
       "name": "Foundation",
       "baseClass": "Actor",
-      "position": [0, 0.3, 0],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.4, 0.15, 2.4], "color": "#a67c52", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              2.4,
+              0.15,
+              2.4
+            ],
+            "color": "#a67c52",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "Walls",
       "baseClass": "Actor",
-      "position": [0, 1.0, 0],
+      "position": [
+        0,
+        1,
+        0
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.0, 1.4, 2.0], "color": "#c9b99a", "kind": "basic", "transparent": true, "opacity": 0.9 } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              2,
+              1.4,
+              2
+            ],
+            "color": "#c9b99a",
+            "kind": "basic",
+            "transparent": true,
+            "opacity": 0.9
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "RoofBase",
       "baseClass": "Actor",
-      "position": [0, 1.75, 0],
+      "position": [
+        0,
+        1.75,
+        0
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.6, 0.3, 2.6], "color": "#8b6f47", "kind": "basic", "transparent": true, "opacity": 0.9 } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              2.6,
+              0.3,
+              2.6
+            ],
+            "color": "#8b6f47",
+            "kind": "basic",
+            "transparent": true,
+            "opacity": 0.9
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "RoofTop",
       "baseClass": "Actor",
-      "position": [0, 2.0, 0],
+      "position": [
+        0,
+        2,
+        0
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.0, 0.2, 2.0], "color": "#6d4c41", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              2,
+              0.2,
+              2
+            ],
+            "color": "#6d4c41",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "Door",
       "baseClass": "Actor",
-      "position": [0, 0.65, 1.01],
+      "position": [
+        0,
+        0.65,
+        1.01
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.5, 0.8, 0.05], "color": "#5d4037", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.5,
+              0.8,
+              0.05
+            ],
+            "color": "#5d4037",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "WindowLeft",
       "baseClass": "Actor",
-      "position": [-0.6, 1.1, 1.01],
+      "position": [
+        -0.6,
+        1.1,
+        1.01
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.3, 0.3, 0.05], "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.3,
+              0.3,
+              0.05
+            ],
+            "color": "#81d4fa",
+            "kind": "basic",
+            "transparent": true,
+            "opacity": 0.7
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "WindowRight",
       "baseClass": "Actor",
-      "position": [0.6, 1.1, 1.01],
+      "position": [
+        0.6,
+        1.1,
+        1.01
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.3, 0.3, 0.05], "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.3,
+              0.3,
+              0.05
+            ],
+            "color": "#81d4fa",
+            "kind": "basic",
+            "transparent": true,
+            "opacity": 0.7
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "PillarFL",
       "baseClass": "Actor",
-      "position": [-1.1, 1.1, 1.1],
+      "position": [
+        -1.1,
+        1.1,
+        1.1
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.08,
+              1.8,
+              0.08
+            ],
+            "color": "#8d6e63",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "PillarFR",
       "baseClass": "Actor",
-      "position": [1.1, 1.1, 1.1],
+      "position": [
+        1.1,
+        1.1,
+        1.1
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.08,
+              1.8,
+              0.08
+            ],
+            "color": "#8d6e63",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "PillarBL",
       "baseClass": "Actor",
-      "position": [-1.1, 1.1, -1.1],
+      "position": [
+        -1.1,
+        1.1,
+        -1.1
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.08,
+              1.8,
+              0.08
+            ],
+            "color": "#8d6e63",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "PillarBR",
       "baseClass": "Actor",
-      "position": [1.1, 1.1, -1.1],
+      "position": [
+        1.1,
+        1.1,
+        -1.1
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              0.08,
+              1.8,
+              0.08
+            ],
+            "color": "#8d6e63",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     },
     {
       "type": "actor",
       "name": "Ridge",
       "baseClass": "Actor",
-      "position": [0, 2.1, 0],
+      "position": [
+        0,
+        3.7271654440602053,
+        0
+      ],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.6, 0.06, 0.06], "color": "#6d4c41", "kind": "basic" } }
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "size": [
+              2.6,
+              0.06,
+              0.06
+            ],
+            "color": "#6d4c41",
+            "kind": "basic"
+          }
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
       ]
     }
   ]

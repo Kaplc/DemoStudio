@@ -862,3 +862,9 @@ html, body, #root {
   color: #666;
   text-align: center;
 }
+
+/* ═══ 保存按钮 loading 旋转动画 ═══ */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

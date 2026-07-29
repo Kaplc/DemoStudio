@@ -15,18 +15,43 @@ import * as THREE from 'three'
 import { World } from '../engine'
 import { logger } from '../engine'
 import { loadScene } from '../engine'
-import { GenericActor, MeshComponent } from '../engine'
+import { GenericActor, MeshComponent, Actor } from '../engine'
 import type { SceneAsset } from '../engine'
+import { select, notifySelectionChange } from './SelectionManager'
+import { TransformGizmo } from './TransformGizmo'
+import { AssetPreviewManager } from './AssetPreviewManager'
 
 export class ScenePreviewManager {
   readonly scene: THREE.Scene
   readonly camera: THREE.PerspectiveCamera
   readonly renderer: THREE.WebGLRenderer
   readonly world: World
+  readonly gizmo: TransformGizmo
 
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
+  private _currentScenePath: string | null = null
+
+  // ─── 场景数据（编辑用） ───
+  private _sceneAsset: SceneAsset | null = null
+  private _actorTreeCache: SceneTreeNode[] | null = null
+
+  // ─── 树变化回调 ───
+  private _onChangeCallbacks: Array<() => void> = []
+
+  onChange(cb: () => void): () => void {
+    this._onChangeCallbacks.push(cb)
+    return () => {
+      const i = this._onChangeCallbacks.indexOf(cb)
+      if (i >= 0) this._onChangeCallbacks.splice(i, 1)
+    }
+  }
+
+  private notifyChange() {
+    this._actorTreeCache = null
+    for (const cb of this._onChangeCallbacks) cb()
+  }
 
   // ─── Fly 自由漫游 ───
   private euler = new THREE.Euler(0, 0, 0, 'YXZ')
@@ -65,6 +90,11 @@ export class ScenePreviewManager {
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 200)
     this.camera.position.set(5, 4, 5)
     this.camera.lookAt(0, 0, 0)
+
+    // ─── Gizmo ───
+    this.gizmo = new TransformGizmo()
+    this.gizmo.setup(this.scene, this.camera, this.renderer)
+    this.scene.add(this.gizmo.group)
 
     // ─── 输入 ───
     this.initFlyEuler()
@@ -105,6 +135,14 @@ export class ScenePreviewManager {
     this.camera.getWorldDirection(dir)
     this.euler.setFromQuaternion(this.camera.quaternion)
     this.euler.order = 'YXZ'
+  }
+
+  /** 外部调用：保存后恢复摄像机位姿（含 fly euler 同步，避免下次鼠标移动跳动） */
+  restoreCamera(pos: THREE.Vector3, quat: THREE.Quaternion) {
+    // logger.debug(`[ScenePreview] restoreCamera pos=${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}`)
+    this.camera.position.copy(pos)
+    this.camera.quaternion.copy(quat)
+    this.initFlyEuler()
   }
 
   private setupFlyMouse() {
@@ -200,21 +238,65 @@ export class ScenePreviewManager {
   //  场景资产加载
   // ════════════════════════════════════════
 
-  /** 加载并预览场景资产 */
+  /** 加载并预览场景资产（保持与 World.loadSceneAsActors 一致的层级结构） */
   loadSceneAsset(sceneData: SceneAsset): boolean {
     this.clearPreview()
+    this._sceneAsset = sceneData
 
     const result = loadScene(sceneData)
+
+    // 场景根 Actor
+    const rootActor = new GenericActor(sceneData.name)
+    this.world.SpawnActor(rootActor)
+
+    // 标记已有 actor/ref 节点的 mesh（避免与新格式重复创建 GenericActor）
+    const actorRefNames = new Set<string>()
+    for (const an of (result.actorNodes ?? [])) { if (an.name) actorRefNames.add(an.name) }
+    for (const rn of (result.refNodes ?? [])) { if (rn.name) actorRefNames.add(rn.name) }
+    for (const bp of (result.blueprintNodes ?? [])) { if (bp.name) actorRefNames.add(bp.name) }
+
+    // 几何节点 → GenericActor + MeshComponent（跳过已有 actor/ref 的 mesh）
     const meshes: THREE.Mesh[] = []
     result.group.traverse((node) => {
       if (node instanceof THREE.Mesh) meshes.push(node)
     })
     for (const mesh of meshes) {
+      const ownerName = mesh.name?.split('_mesh')[0] ?? ''
+      if (ownerName && actorRefNames.has(ownerName)) continue
+
       result.group.remove(mesh)
       const actor = new GenericActor(`Preview_${mesh.name || ''}`)
       actor.addComponent(new MeshComponent(actor, mesh))
+      actor.attachTo(rootActor)
       this.world.SpawnActor(actor)
     }
+
+    // ref 节点 → SpawnActorFromBlueprint（标记为整体，大纲不展开内部）
+    for (const rn of (result.refNodes ?? [])) {
+      const overrides: Record<string, unknown> = { ...(rn.overrides ?? {}) }
+      overrides.position = rn.position
+      overrides.rotation = rn.rotation
+      overrides.scale = rn.scale
+      const actor = this.world.SpawnActorFromBlueprint(rn.ref, overrides)
+      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor) }
+    }
+
+    // blueprint 节点（旧格式兼容，标记为整体）
+    for (const bp of (result.blueprintNodes ?? [])) {
+      const overrides: Record<string, unknown> = { ...(bp.overrides ?? {}) }
+      if (bp.pos) overrides.position = bp.pos
+      if (bp.rot) overrides.rotation = bp.rot
+      if (bp.scale) overrides.scale = bp.scale
+      const actor = this.world.SpawnActorFromBlueprint(bp.blueprint, overrides)
+      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor) }
+    }
+
+    // 内联 Actor 节点 → spawnInlineActor（含递归子级）
+    for (const an of (result.actorNodes ?? [])) {
+      const actor = this.world.spawnInlineActor(an)
+      if (actor) actor.attachTo(rootActor)
+    }
+
     // 应用 skybox
     if (result.skybox) {
       if (result.skybox.backgroundColor) {
@@ -232,15 +314,28 @@ export class ScenePreviewManager {
     this.world.BeginPlay()
     this.world.manualTick(0)
 
-    // 聚焦
-    this.fitToScene(result.group)
+    this.notifyChange()
 
-    logger.info(`[ScenePreview] 加载场景预览: ${sceneData.name}, ${meshes.length} 个网格`)
+    // 聚焦
+    // logger.debug(`[ScenePreview] loadSceneAsset fitToScene 前摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+    this.fitToScene(result.group)
+    // logger.debug(`[ScenePreview] loadSceneAsset fitToScene 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+
+    const actorCount = this.world.actorCount
+    logger.info(`[ScenePreview] 加载场景预览: ${sceneData.name}, ${actorCount} 个 Actor（网格=${meshes.length}, ref=${(result.refNodes ?? []).length}, actor=${(result.actorNodes ?? []).length}）`)
     return true
   }
 
   clearPreview() {
+    // logger.debug(`[ScenePreview] clearPreview 开始 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+    select(null)
+    this.gizmo.detach()
     this.world.DestroyAllActors()
+    this._sceneAsset = null
+    this._currentScenePath = null
+    this._actorTreeCache = null
+    this.notifyChange()
+    // logger.debug(`[ScenePreview] clearPreview 结束 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
   }
 
   private fitToScene(group: THREE.Group) {
@@ -260,6 +355,117 @@ export class ScenePreviewManager {
     this.camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist * 0.6)
     this.camera.lookAt(center)
     this.initFlyEuler()
+  }
+
+  get currentScenePath(): string | null {
+    return this._currentScenePath
+  }
+
+  /**
+   * 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新。
+   */
+  activate(assetPath?: string): void {
+    if (assetPath) {
+      this._currentScenePath = assetPath
+      AssetPreviewManager.setActive(assetPath)
+    }
+    this.notifyChange()
+    notifySelectionChange()
+  }
+
+  // ════════════════════════════════════════
+  //  选中 & 聚焦（同 BlueprintPreviewManager）
+  // ════════════════════════════════════════
+
+  selectActor(actor: Actor | null) {
+    if (actor) {
+      select(actor)
+      this.gizmo.attach(actor.root)
+    } else {
+      select(null)
+      this.gizmo.detach()
+    }
+  }
+
+  focusActor(actor: Actor) {
+    this.selectActor(actor)
+    const box = new THREE.Box3().setFromObject(actor.root)
+    const size = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
+
+    if (size.length() < 0.01) {
+      this.camera.position.set(5, 4, 5)
+      this.camera.lookAt(0, 0, 0)
+      return
+    }
+
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const dist = maxDim * 2.5 + 2
+    this.camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist * 0.6)
+    this.camera.lookAt(center)
+    this.initFlyEuler()
+  }
+
+  getActorTree(): SceneTreeNode[] {
+    if (this._actorTreeCache) return this._actorTreeCache
+
+    const result: SceneTreeNode[] = []
+
+    function walk(obj: THREE.Object3D, depth: number) {
+      if (!obj.visible && obj.type !== 'Scene') return
+      if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
+      if (obj.name === 'TransformGizmo') return
+
+      const isRoot = obj.type === 'Scene'
+      if (!isRoot) {
+        const actorRef = (obj as any).userData?.actorRef as Actor | undefined
+        if (!actorRef) return
+        result.push({ depth, name: obj.name || obj.type, actor: actorRef })
+        if (actorRef.isRefInstance) return
+      }
+
+      const nextDepth = isRoot ? depth : depth + 1
+      for (const child of obj.children) walk(child, nextDepth)
+    }
+
+    walk(this.scene, 0)
+    this._actorTreeCache = result
+    return result
+  }
+
+  /**
+   * 收集保存数据：遍历大纲 Actor，将实时 transform 回写到 _sceneAsset.objects 对应的节点。
+   * 只更新 position，因为旧格式节点无 rotation/scale（除 blueprint 外）。
+   */
+  collectSaveData(): Record<string, unknown> | null {
+    if (!this._sceneAsset) return null
+
+    const objects = this._sceneAsset.objects as unknown as Array<Record<string, unknown>>
+    const actors = this.world.GetAllActors()
+
+    // 按名称建立 Actor → JSON 节点索引
+    for (const obj of objects) {
+      const name = obj.name as string | undefined
+      if (!name) continue
+
+      // 匹配场景中的 Actor（根 Actor 跳过）
+      for (const actor of actors) {
+        if (actor.root.name === name || actor.name === name) {
+          // 统一用 position/rotation/scale（新格式）
+          if (obj.type === 'actor' || obj.type === 'ref') {
+            obj.position = [actor.position.x, actor.position.y, actor.position.z]
+            obj.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+            obj.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+          } else {
+            // 旧格式：只更新 pos
+            obj.pos = [actor.position.x, actor.position.y, actor.position.z]
+          }
+          break
+        }
+      }
+    }
+
+    return JSON.parse(JSON.stringify(this._sceneAsset)) as Record<string, unknown>
   }
 
   // ════════════════════════════════════════
@@ -285,6 +491,9 @@ export class ScenePreviewManager {
       // WASD 漫游
       this.updateWASD(dt)
 
+      // Gizmo 同步
+      if (this.gizmo.visible) this.gizmo.syncTransform()
+
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -296,11 +505,17 @@ export class ScenePreviewManager {
       cancelAnimationFrame(this.animationId)
       this.animationId = null
     }
+    select(null)
+    this.gizmo.detach()
+    this.gizmo.dispose()
     this.world.DestroyAllActors()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement)
     }
+    this._sceneAsset = null
+    this._actorTreeCache = null
+    this._onChangeCallbacks = []
   }
 
   // ════════════════════════════════════════
@@ -323,4 +538,11 @@ export class ScenePreviewManager {
     if (this.wasdKeys.has('q')) this.camera.position.addScaledVector(worldUp, -speed)
     if (this.wasdKeys.has('e')) this.camera.position.addScaledVector(worldUp, speed)
   }
+}
+
+/** 大纲树节点（同 SelectionManager.SceneTreeNode） */
+export interface SceneTreeNode {
+  depth: number
+  name: string
+  actor: Actor | null
 }

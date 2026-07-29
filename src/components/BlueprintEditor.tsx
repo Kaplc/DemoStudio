@@ -7,6 +7,7 @@
  * 类似 UE 的 Blueprint Class Editor 简化版。
  */
 import React, { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
 import { BlueprintPreviewManager, AssetPreviewManager } from '../editor'
 import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
@@ -46,11 +47,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const previewMgrRef = useRef<BlueprintPreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
+  const [saving, setSaving] = useState(false)
   /** 左侧面板宽度（px），可由 ResizeHandle 拖动调整 */
   const [leftWidth, setLeftWidth] = useState(320)
   /** 保存 assetPath 引用供事件回调使用（避免闭包捕获旧值） */
   const assetPathRef = useRef(assetPath)
   assetPathRef.current = assetPath
+  /** 保存后待恢复的摄像机位姿（bumpBlueprintEdit → setData → useEffect 重建预览后恢复） */
+  const pendingCamRef = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion } | null>(null)
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
@@ -106,6 +110,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       // 用页签的相对路径注册到总管理器，供 Outline 按 assetPath 直接查找
       AssetPreviewManager.register(assetPath, mgr)
       setPreviewReady(true)
+
+      // 保存后重建预览：恢复之前保存的摄像机位姿
+      const pending = pendingCamRef.current
+      if (pending) {
+        // logger.info(`[BlueprintEditor] useEffect 重建预览后恢复摄像机=${pending.pos.x.toFixed(3)},...`)
+        mgr.restoreCamera(pending.pos, pending.quat)
+        pendingCamRef.current = null
+      }
     }
 
     // ResizeObserver 同步尺寸
@@ -215,7 +227,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   // ─── 保存 ───
   const handleSave = async () => {
     const mgr = previewMgrRef.current
-    if (!mgr || !data) return
+    if (!mgr || !data || saving) return
 
     const writeJsonFile = window.electronAPI?.writeJsonFile
     if (!writeJsonFile) return
@@ -224,15 +236,25 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     const saveData = mgr.collectSaveData()
     if (!saveData) return
 
-    await writeJsonFile(assetPath, saveData)
+    setSaving(true)
+    try {
+      // 记住当前摄像机位姿，写入 pendingCamRef 供 useEffect 重建预览后恢复
+      pendingCamRef.current = {
+        pos: mgr.camera.position.clone(),
+        quat: mgr.camera.quaternion.clone(),
+      }
 
-    // 更新注册表缓存并重新加载预览（重建映射）
-    BlueprintRegistry.loadFromJson(data.path, saveData as unknown as BlueprintAsset)
-    mgr.loadBlueprint(data.path)
+      await writeJsonFile(assetPath, saveData)
 
-    // 通知其他页签/面板刷新：Inspector、Outline、以及同一个蓝图的其他打开页签
-    useEditorStore.getState().bumpBlueprintEdit(assetPath)
-    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+      // 更新注册表缓存（预览重建由 bumpBlueprintEdit → setData → useEffect 驱动，不在此手动 load）
+      BlueprintRegistry.loadFromJson(data.path, saveData as unknown as BlueprintAsset)
+
+      // 通知其他页签/面板刷新 + 触发行内 useEffect 重建预览
+      useEditorStore.getState().bumpBlueprintEdit(assetPath)
+      editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -274,12 +296,24 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         <div style={{ flex: 1 }} />
         <button
           onClick={handleSave}
+          disabled={saving}
           style={{
-            fontSize: 11, padding: '3px 12px', cursor: 'pointer',
-            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 3,
+            fontSize: 11, padding: '3px 12px', cursor: saving ? 'default' : 'pointer',
+            background: saving ? 'var(--bg-tertiary)' : 'var(--accent)',
+            color: saving ? 'var(--text-dim)' : '#fff',
+            border: 'none', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
           }}
         >
-          保存
+          {saving ? (
+            <span className="btn-spinner" style={{
+              width: 12, height: 12, border: '2px solid var(--text-dim)',
+              borderTopColor: 'transparent', borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'spin 0.6s linear infinite',
+            }} />
+          ) : null}
+          {saving ? '保存中' : '保存'}
         </button>
       </div>
 

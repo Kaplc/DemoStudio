@@ -452,7 +452,10 @@ export class World {
   }
 
   /**
-   * 加载场景资产数据，将其中所有 Mesh 创建为 GenericActor + MeshComponent 并生成到世界。
+   * 加载场景资产数据，将其中所有对象创建为 Actor 并生成到世界。
+   * 新格式（actor/ref 节点）保持 BlueprintChildDef 风格层级；
+   * 旧格式（box/plane 等几何捷径）降级为 GenericActor + MeshComponent。
+   * 所有顶层 Actor 挂载到场景根 Actor 下，供 Outline 展示统一树形结构。
    * 同时应用场景的 skybox 配置（背景色 + 雾效）。
    * 返回生成的 Actor 数量。
    */
@@ -460,20 +463,43 @@ export class World {
     const asset = loadScene(sceneAsset)
     let count = 0
 
-    // 几何节点 → GenericActor + MeshComponent
+    // 场景根 Actor（Outline 中作为树的根节点展示）
+    const rootActor = new GenericActor(sceneAsset.name)
+    this.SpawnActor(rootActor)
+    count++
+
+    // 几何节点 → GenericActor + MeshComponent（旧格式兼容）
+    // 仅处理没有对应 actor/ref 节点的 mesh（避免与新格式重复）
+    const actorRefPaths = new Set<string>()
+    for (const an of (asset.actorNodes ?? [])) {
+      // actor 节点的 mesh 会在 spawnInlineActor 中创建，这里标记跳过
+      if (an.name) actorRefPaths.add(an.name)
+    }
+    for (const rn of (asset.refNodes ?? [])) {
+      if (rn.name) actorRefPaths.add(rn.name)
+    }
+    for (const bp of (asset.blueprintNodes ?? [])) {
+      if (bp.name) actorRefPaths.add(bp.name)
+    }
+
     const meshes: THREE.Mesh[] = []
     asset.group.traverse((node) => {
       if (node instanceof THREE.Mesh) meshes.push(node)
     })
     for (const mesh of meshes) {
+      // 跳过已有 actor/ref 节点的 mesh（它们在后面会作为正式 Actor 创建）
+      const ownerName = mesh.name?.split('_mesh')[0] ?? ''
+      if (ownerName && actorRefPaths.has(ownerName)) continue
+
       asset.group.remove(mesh)
       const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
       actor.addComponent(new MeshComponent(actor, mesh))
+      actor.attachTo(rootActor)
       this.SpawnActor(actor)
       count++
     }
 
-    // blueprint 节点（旧格式兼容）→ SpawnActorFromBlueprint
+    // blueprint 节点（旧格式兼容）→ SpawnActorFromBlueprint（标记为整体，大纲不展开内部） */
     const bpNodes = asset.blueprintNodes ?? []
     for (const bp of bpNodes) {
       const overrides: PropertyPatch = { ...(bp.overrides ?? {}) }
@@ -481,10 +507,10 @@ export class World {
       if (bp.rot) overrides.rotation = bp.rot
       if (bp.scale) overrides.scale = bp.scale
       const actor = this.SpawnActorFromBlueprint(bp.blueprint, overrides)
-      if (actor) count++
+      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
     }
 
-    // ref 节点（新格式，含 RefNode + BlueprintNode 归一化）→ SpawnActorFromBlueprint
+    // ref 节点（新格式）→ SpawnActorFromBlueprint（标记为整体） */
     const refNodes = asset.refNodes ?? []
     for (const rn of refNodes) {
       const overrides: PropertyPatch = { ...(rn.overrides ?? {}) }
@@ -492,14 +518,14 @@ export class World {
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
       const actor = this.SpawnActorFromBlueprint(rn.ref, overrides)
-      if (actor) count++
+      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
     }
 
-    // 内联 Actor 节点 → 直接 spawn Actor（类似 SpawnActorFromBlueprint 的子节点逻辑）
+    // 内联 Actor 节点 → spawnInlineActor（已内置 attachTo 子级层级）
     const actorNodes = asset.actorNodes ?? []
     for (const an of actorNodes) {
       const actor = this.spawnInlineActor(an)
-      if (actor) count++
+      if (actor) { actor.attachTo(rootActor); count++ }
     }
 
     // 应用 skybox（背景色 + 雾效）
@@ -516,7 +542,7 @@ export class World {
       }
     }
     logger.debug(
-      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（mesh=${meshes.length}, blueprint=${bpNodes.length}, ref=${refNodes.length}, actor=${actorNodes.length}）`,
+      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（根=${1}, mesh=${meshes.length}, blueprint=${bpNodes.length}, ref=${refNodes.length}, actor=${actorNodes.length}）`,
     )
     return count
   }
@@ -524,8 +550,9 @@ export class World {
   /**
    * 从 ActorNode spawn 一个内联 Actor（含递归子节点）。
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
+   * 供外部调用（ScenePreviewManager 等）。
    */
-  private spawnInlineActor(node: import('../scene/SceneAsset').ActorNode): Actor | null {
+  spawnInlineActor(node: import('../scene/SceneAsset').ActorNode): Actor | null {
     const actor = ActorRegistry.create(node.baseClass)
     if (!actor) {
       logger.warn(`[World] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
