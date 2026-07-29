@@ -16,6 +16,7 @@ class BoxChecker extends AbstractAssetChecker {
     { field: 'size', type: 'vec3', required: true, min: 0, minExclusive: true, label: '尺寸' },
     { field: 'pos', type: 'vec3', label: '位置' },
     { field: 'rot', type: 'vec3', label: '旋转' },
+    { field: 'scale', type: 'vec3', label: '缩放' },
     ...materialFieldSpecs,
   ]
   validate(node: unknown, ctx: CheckerContext): LintIssue[] {
@@ -31,6 +32,7 @@ class PlaneChecker extends AbstractAssetChecker {
     { field: 'size', type: 'vec3', required: true, label: '尺寸' },
     { field: 'pos', type: 'vec3', label: '位置' },
     { field: 'rot', type: 'vec3', label: '旋转' },
+    { field: 'scale', type: 'vec3', label: '缩放' },
     ...materialFieldSpecs,
   ]
   validate(node: unknown, ctx: CheckerContext): LintIssue[] {
@@ -46,6 +48,8 @@ class SphereChecker extends AbstractAssetChecker {
     { field: 'radius', type: 'number', required: true, min: 0, minExclusive: true, label: '半径' },
     { field: 'segments', type: 'integer', min: 3, label: '分段' },
     { field: 'pos', type: 'vec3', label: '位置' },
+    { field: 'rot', type: 'vec3', label: '旋转' },
+    { field: 'scale', type: 'vec3', label: '缩放' },
     ...materialFieldSpecs,
   ]
   validate(node: unknown, ctx: CheckerContext): LintIssue[] {
@@ -61,6 +65,7 @@ class SpriteChecker extends AbstractAssetChecker {
     { field: 'size', type: 'vec2', required: true, min: 0, minExclusive: true, label: '宽高' },
     { field: 'pos', type: 'vec3', label: '位置' },
     { field: 'rot', type: 'vec3', label: '旋转' },
+    { field: 'scale', type: 'vec3', label: '缩放' },
     { field: 'texture', type: 'string', label: '纹理' },
     ...materialFieldSpecs,
   ]

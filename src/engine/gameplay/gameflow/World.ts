@@ -473,7 +473,7 @@ export class World {
       count++
     }
 
-    // blueprint 节点 → SpawnActorFromBlueprint（pos/rot/scale 转为实例覆盖）
+    // blueprint 节点（旧格式兼容）→ SpawnActorFromBlueprint
     const bpNodes = asset.blueprintNodes ?? []
     for (const bp of bpNodes) {
       const overrides: PropertyPatch = { ...(bp.overrides ?? {}) }
@@ -481,6 +481,24 @@ export class World {
       if (bp.rot) overrides.rotation = bp.rot
       if (bp.scale) overrides.scale = bp.scale
       const actor = this.SpawnActorFromBlueprint(bp.blueprint, overrides)
+      if (actor) count++
+    }
+
+    // ref 节点（新格式，含 RefNode + BlueprintNode 归一化）→ SpawnActorFromBlueprint
+    const refNodes = asset.refNodes ?? []
+    for (const rn of refNodes) {
+      const overrides: PropertyPatch = { ...(rn.overrides ?? {}) }
+      overrides.position = rn.position
+      overrides.rotation = rn.rotation
+      overrides.scale = rn.scale
+      const actor = this.SpawnActorFromBlueprint(rn.ref, overrides)
+      if (actor) count++
+    }
+
+    // 内联 Actor 节点 → 直接 spawn Actor（类似 SpawnActorFromBlueprint 的子节点逻辑）
+    const actorNodes = asset.actorNodes ?? []
+    for (const an of actorNodes) {
+      const actor = this.spawnInlineActor(an)
       if (actor) count++
     }
 
@@ -498,9 +516,100 @@ export class World {
       }
     }
     logger.debug(
-      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（mesh=${meshes.length}, blueprint=${bpNodes.length}）`,
+      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（mesh=${meshes.length}, blueprint=${bpNodes.length}, ref=${refNodes.length}, actor=${actorNodes.length}）`,
     )
     return count
+  }
+
+  /**
+   * 从 ActorNode spawn 一个内联 Actor（含递归子节点）。
+   * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
+   */
+  private spawnInlineActor(node: import('../scene/SceneAsset').ActorNode): Actor | null {
+    const actor = ActorRegistry.create(node.baseClass)
+    if (!actor) {
+      logger.warn(`[World] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
+      return null
+    }
+
+    if (node.name) actor.root.name = node.name
+    if (node.position) actor.setPosition(node.position[0], node.position[1], node.position[2])
+    if (node.rotation) actor.setRotation(node.rotation[0], node.rotation[1], node.rotation[2])
+    if (node.scale) actor.setScale(node.scale[0], node.scale[1], node.scale[2])
+
+    // 挂 Component
+    for (const cdef of (node.components ?? [])) {
+      const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
+      if (comp) {
+        if (cdef.name) comp.name = cdef.name
+        actor.addComponent(comp)
+      } else {
+        logger.warn(`[World] spawnInlineActor: Component "${cdef.baseClass}" 未注册，已跳过`)
+      }
+    }
+
+    // 递归子节点
+    this.spawnInlineChildren(node.children ?? [], actor)
+
+    this.SpawnActor(actor)
+    return actor
+  }
+
+  /** 递归 spawn 内联 ActorNode 的子节点 */
+  private spawnInlineChildren(
+    children: import('../../gameplay/blueprint/BlueprintAsset').BlueprintChildDef[],
+    parentActor: Actor,
+  ): void {
+    for (const child of children) {
+      let childActor: Actor | null = null
+      let isRefChild = false
+
+      if (child.ref) {
+        // ref 引用 → 递归 SpawnActorFromBlueprint
+        isRefChild = true
+        const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
+        if (child.position) refOverrides.position = child.position
+        if (child.rotation) refOverrides.rotation = child.rotation
+        if (child.scale) refOverrides.scale = child.scale
+        childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
+        if (childActor) childActor.isRefInstance = true
+      } else if (child.baseClass) {
+        // 内联 baseClass → 直接创建
+        childActor = ActorRegistry.create(child.baseClass)
+        if (childActor) {
+          if (child.overrides && Object.keys(child.overrides).length > 0) {
+            childActor.applyPatch(child.overrides)
+          }
+          if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
+          if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
+          if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
+          if (child.name) childActor.root.name = child.name
+          // 挂组件
+          for (const cdef of (child.components ?? [])) {
+            const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
+            if (comp) {
+              if (cdef.name) comp.name = cdef.name
+              childActor.addComponent(comp)
+            }
+          }
+        }
+      }
+
+      // 纯容器节点（只有 children，没有 baseClass / ref）
+      if (!childActor && (child.children?.length ?? 0) > 0) {
+        childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
+      }
+
+      if (!childActor) {
+        logger.warn(`[World] spawnInlineChildren: 子节点生成失败 (ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`)
+        continue
+      }
+
+      childActor.attachTo(parentActor)
+      if (child.children?.length) {
+        this.spawnInlineChildren(child.children, childActor)
+      }
+    }
   }
 
   /**

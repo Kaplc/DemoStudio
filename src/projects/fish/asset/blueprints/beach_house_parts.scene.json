@@ -2,96 +2,112 @@
   "name": "BeachHouseParts",
   "objects": [
     {
-      "type": "box",
-      "size": [2.4, 0.15, 2.4],
-      "pos": [0, 0.3, 0],
-      "material": { "color": "#a67c52", "kind": "basic" }
+      "type": "actor",
+      "name": "Foundation",
+      "baseClass": "Actor",
+      "position": [0, 0.3, 0],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.4, 0.15, 2.4], "color": "#a67c52", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [2.0, 1.4, 2.0],
-      "pos": [0, 1.0, 0],
-      "material": {
-        "color": "#c9b99a",
-        "kind": "basic",
-        "transparent": true,
-        "opacity": 0.9
-      }
+      "type": "actor",
+      "name": "Walls",
+      "baseClass": "Actor",
+      "position": [0, 1.0, 0],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.0, 1.4, 2.0], "color": "#c9b99a", "kind": "basic", "transparent": true, "opacity": 0.9 } }
+      ]
     },
     {
-      "type": "box",
-      "size": [2.6, 0.3, 2.6],
-      "pos": [0, 1.75, 0],
-      "material": {
-        "color": "#8b6f47",
-        "kind": "basic",
-        "transparent": true,
-        "opacity": 0.9
-      }
+      "type": "actor",
+      "name": "RoofBase",
+      "baseClass": "Actor",
+      "position": [0, 1.75, 0],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.6, 0.3, 2.6], "color": "#8b6f47", "kind": "basic", "transparent": true, "opacity": 0.9 } }
+      ]
     },
     {
-      "type": "box",
-      "size": [2.0, 0.2, 2.0],
-      "pos": [0, 2.0, 0],
-      "material": { "color": "#6d4c41", "kind": "basic" }
+      "type": "actor",
+      "name": "RoofTop",
+      "baseClass": "Actor",
+      "position": [0, 2.0, 0],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.0, 0.2, 2.0], "color": "#6d4c41", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.5, 0.8, 0.05],
-      "pos": [0, 0.65, 1.01],
-      "material": { "color": "#5d4037", "kind": "basic" }
+      "type": "actor",
+      "name": "Door",
+      "baseClass": "Actor",
+      "position": [0, 0.65, 1.01],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.5, 0.8, 0.05], "color": "#5d4037", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.3, 0.3, 0.05],
-      "pos": [-0.6, 1.1, 1.01],
-      "material": {
-        "color": "#81d4fa",
-        "kind": "basic",
-        "transparent": true,
-        "opacity": 0.7
-      }
+      "type": "actor",
+      "name": "WindowLeft",
+      "baseClass": "Actor",
+      "position": [-0.6, 1.1, 1.01],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.3, 0.3, 0.05], "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.3, 0.3, 0.05],
-      "pos": [0.6, 1.1, 1.01],
-      "material": {
-        "color": "#81d4fa",
-        "kind": "basic",
-        "transparent": true,
-        "opacity": 0.7
-      }
+      "type": "actor",
+      "name": "WindowRight",
+      "baseClass": "Actor",
+      "position": [0.6, 1.1, 1.01],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.3, 0.3, 0.05], "color": "#81d4fa", "kind": "basic", "transparent": true, "opacity": 0.7 } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.08, 1.8, 0.08],
-      "pos": [-1.1, 1.1, 1.1],
-      "material": { "color": "#8d6e63", "kind": "basic" }
+      "type": "actor",
+      "name": "PillarFL",
+      "baseClass": "Actor",
+      "position": [-1.1, 1.1, 1.1],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.08, 1.8, 0.08],
-      "pos": [1.1, 1.1, 1.1],
-      "material": { "color": "#8d6e63", "kind": "basic" }
+      "type": "actor",
+      "name": "PillarFR",
+      "baseClass": "Actor",
+      "position": [1.1, 1.1, 1.1],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.08, 1.8, 0.08],
-      "pos": [-1.1, 1.1, -1.1],
-      "material": { "color": "#8d6e63", "kind": "basic" }
+      "type": "actor",
+      "name": "PillarBL",
+      "baseClass": "Actor",
+      "position": [-1.1, 1.1, -1.1],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [0.08, 1.8, 0.08],
-      "pos": [1.1, 1.1, -1.1],
-      "material": { "color": "#8d6e63", "kind": "basic" }
+      "type": "actor",
+      "name": "PillarBR",
+      "baseClass": "Actor",
+      "position": [1.1, 1.1, -1.1],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [0.08, 1.8, 0.08], "color": "#8d6e63", "kind": "basic" } }
+      ]
     },
     {
-      "type": "box",
-      "size": [2.6, 0.06, 0.06],
-      "pos": [0, 2.1, 0],
-      "material": { "color": "#6d4c41", "kind": "basic" }
+      "type": "actor",
+      "name": "Ridge",
+      "baseClass": "Actor",
+      "position": [0, 2.1, 0],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [2.6, 0.06, 0.06], "color": "#6d4c41", "kind": "basic" } }
+      ]
     }
   ]
 }

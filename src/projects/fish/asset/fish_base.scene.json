@@ -952,9 +952,9 @@
       "name": "sphere_33"
     },
     {
-      "type": "blueprint",
-      "blueprint": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
-      "pos": [
+      "type": "ref",
+      "ref": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
+      "position": [
         -2,
         0.7,
         3
@@ -962,9 +962,9 @@
       "name": "seaweed_1"
     },
     {
-      "type": "blueprint",
-      "blueprint": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
-      "pos": [
+      "type": "ref",
+      "ref": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
+      "position": [
         2,
         0.7,
         3
@@ -972,9 +972,9 @@
       "name": "seaweed_2"
     },
     {
-      "type": "blueprint",
-      "blueprint": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
-      "pos": [
+      "type": "ref",
+      "ref": "fish/asset/blueprints/seaweed_sprite.blueprint.json",
+      "position": [
         0,
         0.7,
         4.5

@@ -24,14 +24,14 @@ registerAssetChecker('doc:scene', SceneDocChecker)
 
 /** BlueprintChildDef 字段规格 */
 const CHILD_SCHEMA: FieldSpec[] = [
-  { field: 'name', type: 'string', required: true, label: '子节点名' },
+  { field: 'name', type: 'string', label: '子节点名' },
   { field: 'baseClass', type: 'string', label: '子节点基类' },
   { field: 'id', type: 'number', required: true, label: '子节点 id' },
-  { field: 'position', type: 'vec3', required: true, label: '位置' },
-  { field: 'rotation', type: 'vec3', required: true, label: '旋转' },
-  { field: 'scale', type: 'vec3', required: true, label: '缩放' },
-  { field: 'components', type: 'array', required: true, label: '组件列表' },
-  { field: 'children', type: 'array', required: true, label: '子 Actor 列表' },
+  { field: 'position', type: 'vec3', label: '位置' },
+  { field: 'rotation', type: 'vec3', label: '旋转' },
+  { field: 'scale', type: 'vec3', label: '缩放' },
+  { field: 'components', type: 'array', label: '组件列表' },
+  { field: 'children', type: 'array', label: '子 Actor 列表' },
   { field: 'blueprint', type: 'number', label: '引用蓝图 id' },
   { field: 'ref', type: 'string', label: '引用资产文件' },
   { field: 'overrides', type: 'object', label: '实例覆盖' },

@@ -60,13 +60,31 @@ export function walkDocument(doc: unknown): WalkResult {
   return { rootKind: null, tasks }
 }
 
-/** 遍历 SceneNode 数组，每个节点按 type 派发 node:<type>。 */
+/** 遍历 SceneNode 数组，每个节点按 type 派发 node:<type>；actor 节点递归派发其 components。 */
 function walkNodes(nodes: unknown[], tasks: DispatchTask[], base: string): void {
   nodes.forEach((n, i) => {
     if (!n || typeof n !== 'object') return
-    const type = (n as Record<string, unknown>).type
+    const node = n as Record<string, unknown>
+    const type = node.type
     if (typeof type !== 'string') return
     tasks.push({ kind: `node:${type}`, node: n, nodePath: `${base}[${i}] (${type})` })
+
+    // actor 节点：递归派发其 components（与蓝图 doc:blueprint 逻辑一致）
+    if (type === 'actor') {
+      const here = `${base}[${i}] (actor)`
+      if (Array.isArray(node.components)) {
+        ;(node.components as unknown[]).forEach((comp, j) => {
+          if (comp && typeof (comp as Record<string, unknown>).baseClass === 'string') {
+            const bc = (comp as Record<string, unknown>).baseClass as string
+            tasks.push({ kind: `comp:${bc}`, node: comp, nodePath: `${here}.components[${j}] (${bc})` })
+          }
+        })
+      }
+      // 递归 actor 的 children（含内联 baseClass 和 ref）
+      if (Array.isArray(node.children)) {
+        walkChildren(node.children, tasks, `${here}.children`)
+      }
+    }
   })
 }
 

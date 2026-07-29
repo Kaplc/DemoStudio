@@ -12,7 +12,19 @@ import type {
   ColorHex,
   SkyboxConfig,
   BlueprintNode,
+  RefNode,
+  ActorNode,
 } from './SceneAsset'
+
+/** 归一化后的引用节点（兼容 BlueprintNode 旧格式） */
+export interface NormalizedRefNode {
+  ref: string
+  position: [number, number, number]
+  rotation: [number, number, number]
+  scale: [number, number, number]
+  overrides?: import('./SceneAsset').BlueprintNode['overrides']
+  name?: string
+}
 
 /** 加载结果：包含 THREE.Group、场景元数据、资源释放 */
 export interface SceneGroup {
@@ -22,6 +34,10 @@ export interface SceneGroup {
   readonly skybox?: SkyboxConfig
   /** blueprint 节点（loadScene 过滤收集，交由 World 层实例化） */
   readonly blueprintNodes?: BlueprintNode[]
+  /** 归一化后的引用节点（RefNode + BlueprintNode 统一为此格式） */
+  readonly refNodes?: NormalizedRefNode[]
+  /** 内联 Actor 节点（loadScene 收集，preview 已渲染 mesh） */
+  readonly actorNodes?: ActorNode[]
   dispose(): void
 }
 
@@ -30,6 +46,8 @@ export function loadScene(asset: SceneAsset): SceneGroup {
   const group = new THREE.Group()
   const disposables: { geo: THREE.BufferGeometry; mats: THREE.Material[] }[] = []
   const blueprintNodes: BlueprintNode[] = []
+  const refNodes: NormalizedRefNode[] = []
+  const actorNodes: ActorNode[] = []
 
   const track = (mesh: THREE.Mesh) => {
     group.add(mesh)
@@ -43,6 +61,33 @@ export function loadScene(asset: SceneAsset): SceneGroup {
     // blueprint 节点透传给 World 层实例化，不在 loader 展开
     if (node.type === 'blueprint') {
       blueprintNodes.push(node)
+      // 同时归一化到 refNodes
+      refNodes.push({
+        ref: node.blueprint,
+        position: node.pos ?? [0, 0, 0],
+        rotation: node.rot ?? [0, 0, 0],
+        scale: node.scale ?? [1, 1, 1],
+        overrides: node.overrides,
+        name: node.name,
+      })
+      continue
+    }
+    // ref 节点 — 新格式：引用蓝图
+    if (node.type === 'ref') {
+      refNodes.push({
+        ref: node.ref,
+        position: node.position ?? node.pos ?? [0, 0, 0],
+        rotation: node.rotation ?? node.rot ?? [0, 0, 0],
+        scale: node.scale ?? [1, 1, 1],
+        overrides: node.overrides,
+        name: node.name,
+      })
+      continue
+    }
+    // actor 节点 — 内联 Actor：渲染 mesh 组件预览，收集供 World 层 spawn
+    if (node.type === 'actor') {
+      actorNodes.push(node)
+      renderActorMesh(node, track)
       continue
     }
     expandNode(node, track, node.name)
@@ -55,6 +100,8 @@ export function loadScene(asset: SceneAsset): SceneGroup {
     mode: asset.mode,
     skybox: asset.skybox,
     blueprintNodes,
+    refNodes,
+    actorNodes,
     dispose: () => {
       if (disposed) return
       for (const d of disposables) {
@@ -65,6 +112,121 @@ export function loadScene(asset: SceneAsset): SceneGroup {
       disposed = true
     },
   }
+}
+
+/**
+ * 将内联 Actor / BlueprintChildDef 节点中的 mesh 组件渲染为预览用的 THREE.Mesh。
+ * 只处理 baseClass === 'mesh' 的组件。
+ * 使用 Group 正确表达父子变换层级。
+ */
+function renderActorMesh(node: ActorNode, track: (m: THREE.Mesh) => void): void {
+  const actorGroup = new THREE.Group()
+  actorGroup.name = node.name ?? 'actor'
+
+  // 渲染自身的 mesh 组件
+  const comps = node.components ?? []
+  for (const comp of comps) {
+    const mesh = componentToMesh(comp, node.name ?? 'actor_mesh')
+    if (mesh) actorGroup.add(mesh)
+  }
+
+  // 递归渲染 children 的 mesh（只处理内联 baseClass 的，ref 跳过）
+  for (const child of (node.children ?? [])) {
+    if (child.ref) continue
+    const childGroup = childDefToGroup(child)
+    if (childGroup) actorGroup.add(childGroup)
+  }
+
+  // 应用 Actor 的 transform
+  const p = node.position ?? [0, 0, 0]
+  const r = node.rotation ?? [0, 0, 0]
+  const s = node.scale ?? [1, 1, 1]
+  actorGroup.position.set(p[0], p[1], p[2])
+  actorGroup.rotation.set(r[0], r[1], r[2])
+  actorGroup.scale.set(s[0], s[1], s[2])
+
+  // 展开 Group 中的 mesh 并 track
+  actorGroup.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) track(obj)
+  })
+}
+
+/** 将 BlueprintChildDef（内联 baseClass）递归转为 THREE.Group */
+function childDefToGroup(child: import('../../gameplay/blueprint/BlueprintAsset').BlueprintChildDef): THREE.Group | null {
+  const g = new THREE.Group()
+  g.name = child.name ?? 'child'
+
+  const comps = child.components ?? []
+  let hasMesh = false
+  for (const comp of comps) {
+    const mesh = componentToMesh(comp, child.name ?? 'child_mesh')
+    if (mesh) { g.add(mesh); hasMesh = true }
+  }
+
+  // 递归子节点
+  for (const sub of (child.children ?? [])) {
+    if (sub.ref) continue
+    const subGroup = childDefToGroup(sub)
+    if (subGroup) g.add(subGroup)
+  }
+
+  // 纯容器节点（没有 mesh 也没有子节点）→ 跳过
+  if (!hasMesh && g.children.length === 0) return null
+
+  const cp = child.position ?? [0, 0, 0]
+  const cr = child.rotation ?? [0, 0, 0]
+  const cs = child.scale ?? [1, 1, 1]
+  g.position.set(cp[0], cp[1], cp[2])
+  g.rotation.set(cr[0], cr[1], cr[2])
+  g.scale.set(cs[0], cs[1], cs[2])
+  return g
+}
+
+/** 单个 mesh 组件 → THREE.Mesh */
+function componentToMesh(
+  comp: { baseClass: string; properties?: Record<string, unknown> },
+  fallbackName: string,
+): THREE.Mesh | null {
+  if (comp.baseClass !== 'mesh') return null
+  const props = (comp.properties ?? {}) as Record<string, unknown>
+  const geoType = (props.geometry as string) ?? 'box'
+  const color = (props.color as string) ?? '#ffffff'
+  const name = (props.name as string) ?? fallbackName
+
+  let geo: THREE.BufferGeometry
+  let mat: THREE.Material
+
+  switch (geoType) {
+    case 'box': {
+      const size = (props.size as [number, number, number]) ?? [1, 1, 1]
+      geo = new THREE.BoxGeometry(size[0], size[1], size[2])
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+      break
+    }
+    case 'plane': {
+      const sz = (props.size as [number, number, number]) ?? [1, 1]
+      geo = new THREE.PlaneGeometry(sz[0], sz[1])
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+      break
+    }
+    case 'sphere': {
+      const radius = (props.radius as number) ?? 1
+      const segs = (props.segments as number) ?? 12
+      geo = new THREE.SphereGeometry(radius, segs, segs)
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+      break
+    }
+    default: {
+      geo = new THREE.BoxGeometry(1, 1, 1)
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+    }
+  }
+
+  const mesh = new THREE.Mesh(geo, mat)
+  mesh.name = `${name}_mesh`
+  mesh.castShadow = props.castShadow !== false
+  mesh.receiveShadow = props.receiveShadow !== false
+  return mesh
 }
 
 /** 颜色字符串 → THREE.Color（"#rrggbb" / "rrggbb" 均可） */

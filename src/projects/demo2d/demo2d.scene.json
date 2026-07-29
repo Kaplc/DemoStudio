@@ -9,90 +9,17 @@
   },
   "objects": [
     {
-      "type": "plane",
-      "size": [
-        40,
-        40,
-        1
-      ],
-      "pos": [
-        0,
-        0,
-        -1
-      ],
-      "material": {
-        "color": "#12122a",
-        "kind": "basic"
-      },
-      "name": "plane_1"
+      "type": "actor",
+      "name": "plane_1",
+      "baseClass": "Actor",
+      "position": [0, 0, -1],
+      "components": [
+        { "baseClass": "mesh", "properties": { "geometry": "plane", "size": [40, 40, 1], "color": "#12122a", "kind": "basic" } }
+      ]
     },
-    {
-      "type": "sprite",
-      "size": [
-        2,
-        2
-      ],
-      "pos": [
-        -12,
-        12,
-        -0.5
-      ],
-      "material": {
-        "color": "#3a5cbf",
-        "kind": "basic"
-      },
-      "name": "sprite_1"
-    },
-    {
-      "type": "sprite",
-      "size": [
-        2,
-        2
-      ],
-      "pos": [
-        12,
-        12,
-        -0.5
-      ],
-      "material": {
-        "color": "#3a5cbf",
-        "kind": "basic"
-      },
-      "name": "sprite_2"
-    },
-    {
-      "type": "sprite",
-      "size": [
-        2,
-        2
-      ],
-      "pos": [
-        -12,
-        -12,
-        -0.5
-      ],
-      "material": {
-        "color": "#3a5cbf",
-        "kind": "basic"
-      },
-      "name": "sprite_3"
-    },
-    {
-      "type": "sprite",
-      "size": [
-        2,
-        2
-      ],
-      "pos": [
-        12,
-        -12,
-        -0.5
-      ],
-      "material": {
-        "color": "#3a5cbf",
-        "kind": "basic"
-      },
-      "name": "sprite_4"
-    }
+    { "type": "actor", "name": "sprite_1", "baseClass": "Actor", "position": [-12, 12, -0.5],  "components": [{ "baseClass": "sprite", "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" } }] },
+    { "type": "actor", "name": "sprite_2", "baseClass": "Actor", "position": [12, 12, -0.5],   "components": [{ "baseClass": "sprite", "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" } }] },
+    { "type": "actor", "name": "sprite_3", "baseClass": "Actor", "position": [-12, -12, -0.5], "components": [{ "baseClass": "sprite", "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" } }] },
+    { "type": "actor", "name": "sprite_4", "baseClass": "Actor", "position": [12, -12, -0.5],  "components": [{ "baseClass": "sprite", "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" } }] }
   ]
 }

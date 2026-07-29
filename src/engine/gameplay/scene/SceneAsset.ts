@@ -124,7 +124,25 @@ export interface SpriteNode extends BaseNode {
   material?: MaterialProps
 }
 
-/** blueprint 节点 — 在此处引用并实例化一个 Blueprint（由 World.SpawnActorFromBlueprint 处理，SceneLoader 不展开） */
+/** 引用节点 — 引用另一个蓝图资产（类似 BlueprintChildDef.ref），由 World.SpawnActorFromBlueprint 实例化 */
+export interface RefNode extends BaseNode {
+  type: 'ref'
+  /** 引用的蓝图路径 */ // @deprecated blueprint
+  ref: string
+  /** 也兼容旧的 `blueprint` 字段名 */
+  blueprint?: string
+  /** 世界坐标位置（兼容旧字段 pos） */
+  position?: Vec3
+  pos?: Vec3
+  /** 欧拉旋转角弧度（兼容旧字段 rot） */
+  rotation?: Vec3
+  rot?: Vec3
+  scale?: Vec3
+  /** 实例级属性覆盖（叠加在蓝图 CDO 之上） */
+  overrides?: PropertyPatch
+}
+
+/** blueprint 节点 — 旧格式，兼容保留；新场景应使用 RefNode */
 export interface BlueprintNode extends BaseNode {
   type: 'blueprint'
   /** 引用的 Blueprint 路径 */
@@ -136,10 +154,27 @@ export interface BlueprintNode extends BaseNode {
   overrides?: PropertyPatch
 }
 
+/** 内联 Actor 节点 — 直接在场景中定义一个 Actor（类似 BlueprintChildDef，baseClass + components + children） */
+export interface ActorNode extends BaseNode {
+  type: 'actor'
+  /** ActorRegistry 类型名（如 'Actor'、'FishHouse' 等） */
+  baseClass: string
+  /** 世界坐标位置 */
+  position?: Vec3
+  /** 欧拉旋转角弧度 */
+  rotation?: Vec3
+  /** 缩放 */
+  scale?: Vec3
+  /** 默认挂载的 Component */
+  components?: import('../../gameplay/blueprint/BlueprintAsset').BlueprintComponentDef[]
+  /** 子 Actor（递归，支持内联和引用） */
+  children?: import('../../gameplay/blueprint/BlueprintAsset').BlueprintChildDef[]
+}
+
 export type SceneNode =
   | BoxNode | PlaneNode | SphereNode | SpriteNode
   | CheckerFloorNode | GridLinesNode | PillarNode | WallRingNode
-  | BlueprintNode
+  | BlueprintNode | RefNode | ActorNode
 
 /** 天空盒/场景氛围配置 */
 export interface SkyboxConfig {
