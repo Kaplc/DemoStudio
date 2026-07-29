@@ -12,20 +12,14 @@
 import * as THREE from 'three'
 import { World } from '../engine'
 import { logger } from '../engine'
+import { BlueprintRegistry } from '../engine'
 import { Actor } from '../engine/gameplay/entity/Actor'
-import { select } from './SelectionManager'
+import { select, notifySelectionChange } from './SelectionManager'
 import { TransformGizmo } from './TransformGizmo'
+import { AssetPreviewManager } from './AssetPreviewManager'
 import type { SceneTreeNode } from './SelectionManager'
 
 export class BlueprintPreviewManager {
-  /** 全局活动实例（供 Outline 访问） */
-  private static _activeInstance: BlueprintPreviewManager | null = null
-
-  /** 获取当前活动实例 */
-  static getActiveInstance(): BlueprintPreviewManager | null {
-    return BlueprintPreviewManager._activeInstance
-  }
-
   readonly scene: THREE.Scene
   readonly camera: THREE.PerspectiveCamera
   readonly renderer: THREE.WebGLRenderer
@@ -36,8 +30,20 @@ export class BlueprintPreviewManager {
   private lastTime = 0
   private _currentBlueprintPath: string | null = null
 
+  /**
+   * 当前预览蓝图 JSON 的可变深拷贝。loadBlueprint 时建立，
+   * collectSaveData 据此生成保存数据。
+   */
+  private _jsonTree: Record<string, unknown> | null = null
+
+  /** Actor → JSON 节点映射（以对象引用为 key），由 loadBlueprint 在 spawn 后构建 */
+  private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
+
   /** 当前预览的 Actor 根节点缓存，用于快速重建 */
   private previewRoot: THREE.Object3D | null = null
+
+  /** 大纲树缓存：结构不变时复用，避免每次 render 都遍历场景 */
+  private _actorTreeCache: SceneTreeNode[] | null = null
 
   /** 变换 Gizmo */
   readonly gizmo: TransformGizmo
@@ -104,9 +110,6 @@ export class BlueprintPreviewManager {
 
     // ─── World ───
     this.world = new World(this.scene)
-
-    // ─── 注册为全局活动实例 ───
-    BlueprintPreviewManager._activeInstance = this
 
     // ─── 默认内容 ───
     this.setupLighting()
@@ -238,11 +241,28 @@ export class BlueprintPreviewManager {
   loadBlueprint(path: string): boolean {
     this.clearPreview()
 
-    const actor = this.world.SpawnActorFromBlueprint(path)
+    // 持有蓝图 JSON 的可变深拷贝
+    const asset = BlueprintRegistry.get(path)
+    this._jsonTree = asset ? (JSON.parse(JSON.stringify(asset)) as Record<string, unknown>) : null
+
+    const actor = this.world.SpawnActorFromBlueprint(path, undefined)
     if (!actor) {
       logger.warn(`[BlueprintPreview] SpawnActorFromBlueprint("${path}") 失败`)
       return false
     }
+
+    // 构建 Actor.uid → JSON 节点映射（跳过 ref 实例，它们属于另一文件）
+    if (!this._jsonTree) return false
+    this._actorJsonMap = new Map()
+    const buildMapping = (a: Actor, jsonNode: Record<string, unknown>) => {
+      this._actorJsonMap!.set(a, jsonNode)
+      const childActors = a.getChildren().filter((c) => !c.isRefInstance)
+      const jsonChildren = (jsonNode.children as Array<Record<string, unknown>> | undefined) ?? []
+      for (let i = 0; i < Math.min(childActors.length, jsonChildren.length); i++) {
+        buildMapping(childActors[i], jsonChildren[i])
+      }
+    }
+    buildMapping(actor, this._jsonTree)
 
     this.world.BeginPlay()
     this.world.manualTick(0)
@@ -262,6 +282,9 @@ export class BlueprintPreviewManager {
     this.world.DestroyAllActors()
     this._currentBlueprintPath = null
     this.previewRoot = null
+    this._jsonTree = null
+    this._actorJsonMap = null
+    this._actorTreeCache = null
     this.notifyChange()
   }
 
@@ -270,6 +293,8 @@ export class BlueprintPreviewManager {
   }
 
   getActorTree(): SceneTreeNode[] {
+    if (this._actorTreeCache) return this._actorTreeCache
+
     const result: SceneTreeNode[] = []
 
     function walk(obj: THREE.Object3D, depth: number) {
@@ -286,7 +311,6 @@ export class BlueprintPreviewManager {
           name: obj.name || obj.type,
           actor: actorRef,
         })
-        // ref 实例（类似预制体）不展开其内部子 Actor
         if (actorRef.isRefInstance) return
       }
 
@@ -297,7 +321,30 @@ export class BlueprintPreviewManager {
     }
 
     walk(this.scene, 0)
+    this._actorTreeCache = result
     return result
+  }
+
+  /**
+   * 收集保存数据：遍历大纲 Actor，通过 _actorJsonMap 把实时 transform 回写到各 Actor
+   * 对应的 JSON 节点，返回一份干净的深拷贝供写入磁盘。
+   *
+   * 相比按字符串 ref 反查 JSON：O(1) 直查、零歧义，且覆盖内联 baseClass / 容器子节点
+   * （它们没有 blueprintRef，旧方案无法保存）。
+   */
+  collectSaveData(): Record<string, unknown> | null {
+    if (!this._jsonTree || !this._actorJsonMap) return null
+
+    for (const treeNode of this.getActorTree()) {
+      const actor = treeNode.actor
+      const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
+      if (!actor || !jsonNode) continue
+      jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
+      jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+      jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+    }
+
+    return JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
   }
 
   private fitToActor(root: THREE.Object3D) {
@@ -385,11 +432,11 @@ export class BlueprintPreviewManager {
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement)
     }
-    if (BlueprintPreviewManager._activeInstance === this) {
-      BlueprintPreviewManager._activeInstance = null
-    }
-    // 清空 SelectionManager 选中（避免选中已销毁的 Actor）
-    select(null)
+    this._actorJsonMap = null
+    this._jsonTree = null
+    this.previewRoot = null
+    this._actorTreeCache = null
+    this._currentBlueprintPath = null
   }
 
   // ═══════════════════════════════════
@@ -404,6 +451,19 @@ export class BlueprintPreviewManager {
       select(null)
       this.gizmo.detach()
     }
+  }
+
+  /**
+   * 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新。
+   *
+   * 背景：所有蓝图页签常驻挂载（display:none 切换），每个 BlueprintEditor 各持一个
+   * BlueprintPreviewManager。若仅靠构造函数写 _activeInstance，活动实例会停留在
+   * 「最后构造」的页签而非「当前激活」的页签。故切到某页签时需显式 activate。
+   */
+  activate(assetPath?: string): void {
+    if (assetPath) AssetPreviewManager.setActive(assetPath)
+    this.notifyChange()
+    notifySelectionChange()
   }
 
   focusActor(actor: Actor) {

@@ -4,7 +4,7 @@
   "baseClass": "FishHouse",
   "components": [],
   "position": [
-    0,
+    5.007997138233898,
     0,
     0
   ],
@@ -25,7 +25,7 @@
       "position": [
         0,
         0,
-        0
+        0.5703591325146711
       ],
       "rotation": [
         0,

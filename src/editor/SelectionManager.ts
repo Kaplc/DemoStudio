@@ -108,8 +108,9 @@ export function onSelectionChange(cb: () => void): () => void {
   return () => { _onChange = null }
 }
 
-/** 触发选中变化通知（无副作用，仅刷新 UI） */
+/** 触发选中变化通知（带 key 递增，驱动 React 重渲染） */
 export function notifySelectionChange(): void {
+  _selectionKey++
   _onChange?.()
 }
 

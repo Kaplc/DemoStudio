@@ -21,6 +21,7 @@
  */
 
 export { BlueprintPreviewManager } from './BlueprintPreviewManager'
+export { AssetPreviewManager } from './AssetPreviewManager'
 
 export { Editor } from './Editor'
 export type { EditorCallbacks } from './Editor'

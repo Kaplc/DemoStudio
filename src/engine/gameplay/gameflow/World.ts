@@ -197,8 +197,12 @@ export class World {
     }
 
     // 3. 子 Actor
-    const spawnChildObjects = (childDefs: typeof resolved.children, parentActor: Actor) => {
-      for (const child of childDefs) {
+    const spawnChildObjects = (
+      childDefs: typeof resolved.children,
+      parentActor: Actor,
+    ) => {
+      for (let i = 0; i < childDefs.length; i++) {
+        const child = childDefs[i]
         let childActor: Actor | null = null
         let isRefChild = false
         if (child.ref) {
@@ -208,6 +212,7 @@ export class World {
           if (child.position) refOverrides.position = child.position
           if (child.rotation) refOverrides.rotation = child.rotation
           if (child.scale) refOverrides.scale = child.scale
+          // ref 子节点的内部属于另一文件，递归实例化时不传 jsonTree
           childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
           if (childActor) childActor.isRefInstance = true
         } else if (child.baseClass) {
@@ -239,6 +244,7 @@ export class World {
           )
           continue
         }
+
         childActor.attachTo(parentActor)
 
         // ref 子节点的 transform 已在 SpawnActorFromBlueprint 通过 overrides 应用

@@ -4,7 +4,7 @@ import {
   getSharedScene, getSceneTree, focusOn,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
-import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
+import { AssetPreviewManager } from '../editor/AssetPreviewManager'
 
 /** 场景资产数据结构 */
 interface SceneOutlineData {
@@ -84,6 +84,7 @@ export function Outline() {
   const selected = getSelectedActor()
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
+  const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   const [sceneData, setSceneData] = useState<SceneOutlineData | null>(null)
   const [sceneLoading, setSceneLoading] = useState(false)
 
@@ -124,16 +125,121 @@ export function Outline() {
     return unsub
   }, [])
 
-  // 从共享场景获取完整对象树（不管游戏是否启动）
-  const tree = getSceneTree()
+  // ─── 缓存：场景树数据 ───
+  // 仅 Scene/Game 页签需要，选中变化时重建；蓝图/场景预览页签不构建
+  const tree = useMemo(() => {
+    if (isBlueprintTab || isScenePreviewTab) return []
+    return getSceneTree()
+  }, [selectionKey, isBlueprintTab, isScenePreviewTab])
 
-  // 蓝图树选中名称（优先 blueprintRef.id，其次 Actor.name）
-  const selName = selected?.blueprintRef?.id ?? selected?.name ?? null
-
-  // 过滤掉无意义的内置对象
-  const visibleTree = tree.filter(n =>
-    n.name !== '' && !n.name.startsWith('__')
+  const visibleTree = useMemo(
+    () => tree.filter(n => n.name !== '' && !n.name.startsWith('__')),
+    [tree],
   )
+
+  // ─── 缓存：蓝图树数据 ───
+  // 按当前页签 assetPath 直接查找对应的预览管理器，不再依赖 getActiveInstance() 的激活时序
+  const bpAssetPath = isBlueprintTab ? currentTab?.assetPath : null
+  const bpTree = useMemo(() => {
+    if (!bpAssetPath) return null
+    const bpMgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(bpAssetPath)
+    if (!bpMgr || bpMgr.currentBlueprintId == null) return null
+    return bpMgr.getActorTree()
+  }, [bpAssetPath, selectionKey, blueprintEditNonce])
+
+  // ─── 缓存：蓝图树渲染元素 ───
+  // 树结构或选中引用变化时重建，避免每次 React 渲染都创建新的 DOM 元素
+  const bpTreeElements = useMemo(() => {
+    if (!bpTree || bpTree.length === 0) return null
+    // 闭包捕获当前 assetPath，供事件回调中使用
+    const assetPath = bpAssetPath
+    return bpTree.map((node, i) => {
+      const isSelected = selected === node.actor
+      return (
+        <div
+          key={node.actor ? node.actor.root.id : 'bp-node-' + i}
+          style={{
+            padding: '2px 4px',
+            paddingLeft: 8 + node.depth * 14,
+            cursor: 'pointer',
+            background: isSelected ? 'var(--accent)' : 'transparent',
+            color: isSelected ? '#fff' : 'var(--text-primary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          onClick={() => {
+            if (node.actor) {
+              const mgr = assetPath ? AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(assetPath) : null
+              if (isSelected) mgr?.selectActor(null)
+              else mgr?.focusActor(node.actor)
+            }
+          }}
+          onDoubleClick={() => {
+            if (node.actor) {
+              const mgr = assetPath ? AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(assetPath) : null
+              mgr?.focusActor(node.actor)
+            }
+          }}
+          onMouseEnter={(e) => {
+            if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          {node.name}
+          {node.actor && (
+            <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
+              [{node.actor.constructor.name}]
+            </span>
+          )}
+        </div>
+      )
+    })
+  }, [bpTree, selected, bpAssetPath])
+
+  // ─── 缓存：场景树渲染元素 ───
+  const sceneTreeElements = useMemo(() => {
+    if (visibleTree.length === 0) return null
+    return visibleTree.map((node, i) => {
+      const isSelected = selected === node.actor
+      const isBlueprint = !!node.actor?.blueprintRef
+      return (
+        <div
+          key={node.actor ? node.actor.root.id : 'node-' + i}
+          style={{
+            padding: '2px 4px',
+            paddingLeft: 8 + node.depth * 14,
+            cursor: 'pointer',
+            background: isSelected ? 'var(--accent)' : 'transparent',
+            color: isSelected ? '#fff' : 'var(--text-primary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          onClick={() => select(isSelected ? null : node.actor)}
+          onDoubleClick={() => node.actor && focusOn(node.actor.root)}
+          onMouseEnter={(e) => {
+            if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          {node.name}
+          {isBlueprint && (
+            <span style={{ color: 'var(--accent)', marginLeft: 4, fontSize: 10 }}>[BP]</span>
+          )}
+          {node.actor && (
+            <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
+              [{node.actor.constructor.name}]
+            </span>
+          )}
+        </div>
+      )
+    })
+  }, [visibleTree, selected])
 
   return (
     <div className="panel-body" style={{ padding: 0 }}>
@@ -151,107 +257,16 @@ export function Outline() {
           </div>
         )
       ) : isBlueprintTab ? (
-        (() => {
-          const bpMgr = BlueprintPreviewManager.getActiveInstance()
-          const hasLivePreview = bpMgr && bpMgr.currentBlueprintId != null
-          const bpTree = hasLivePreview ? bpMgr!.getActorTree() : null
-
-          if (bpTree && bpTree.length > 0) {
-            return (
-              <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                {bpTree.map((node, i) => {
-                  const isSelected = selected === node.actor
-                  return (
-                    <div
-                      key={node.actor ? node.actor.root.id : 'bp-node-' + i}
-                      style={{
-                        padding: '2px 4px',
-                        paddingLeft: 8 + node.depth * 14,
-                        cursor: 'pointer',
-                        background: isSelected ? 'var(--accent)' : 'transparent',
-                        color: isSelected ? '#fff' : 'var(--text-primary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                      onClick={() => {
-                        if (node.actor) {
-                          if (isSelected) bpMgr!.selectActor(null)
-                          else bpMgr!.focusActor(node.actor)
-                        }
-                      }}
-                      onDoubleClick={() => node.actor && bpMgr!.focusActor(node.actor)}
-                      onMouseEnter={(e) => {
-                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
-                      }}
-                    >
-                      {node.name}
-                      {node.actor && (
-                        <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
-                          [{node.actor.constructor.name}]
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          }
-
-          return (
-            <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
-          )
-        })()
+        bpTreeElements ?? (
+          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
+        )
       ) : !getSharedScene() ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
           场景初始化中...
         </div>
-      ) : visibleTree.length === 0 ? (
+      ) : sceneTreeElements ?? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
           场景中暂无对象
-        </div>
-      ) : (
-        <div style={{ fontSize: 11, fontFamily: 'monospace' }}>
-          {visibleTree.map((node, i) => {
-            const isSelected = selected === node.actor
-            const isBlueprint = !!node.actor?.blueprintRef
-            return (
-              <div
-                key={node.actor ? node.actor.root.id : 'node-' + i}
-                style={{
-                  padding: '2px 4px',
-                  paddingLeft: 8 + node.depth * 14,
-                  cursor: 'pointer',
-                  background: isSelected ? 'var(--accent)' : 'transparent',
-                  color: isSelected ? '#fff' : 'var(--text-primary)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                onClick={() => select(isSelected ? null : node.actor)}
-                onDoubleClick={() => node.actor && focusOn(node.actor.root)}
-                onMouseEnter={(e) => {
-                  if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
-                }}
-              >
-                {node.name}
-                {isBlueprint && (
-                  <span style={{ color: 'var(--accent)', marginLeft: 4, fontSize: 10 }}>[BP]</span>
-                )}
-                {node.actor && (
-                  <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10 }}>
-                    [{node.actor.constructor.name}]
-                  </span>
-                )}
-              </div>
-            )
-          })}
         </div>
       )}
     </div>

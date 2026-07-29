@@ -7,7 +7,7 @@
  * 类似 UE 的 Blueprint Class Editor 简化版。
  */
 import React, { useEffect, useRef, useState } from 'react'
-import { BlueprintPreviewManager } from '../editor/BlueprintPreviewManager'
+import { BlueprintPreviewManager, AssetPreviewManager } from '../editor'
 import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { ResizeHandle } from './ResizeHandle'
@@ -50,6 +50,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const [leftWidth, setLeftWidth] = useState(320)
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
+  /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
+  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const isTabActive = activeTabId === `bp:${assetPath}`
 
   // ─── 读取蓝图 JSON ───
   useEffect(() => {
@@ -97,6 +100,8 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     // 加载蓝图 Actor
     const ok = mgr.loadBlueprint(data.path)
     if (ok) {
+      // 用页签的相对路径注册到总管理器，供 Outline 按 assetPath 直接查找
+      AssetPreviewManager.register(assetPath, mgr)
       setPreviewReady(true)
     }
 
@@ -113,6 +118,12 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       setPreviewReady(false)
     }
   }, [data])
+
+  // ─── 页签激活时登记为活动预览实例（驱动 Outline 同步） ───
+  useEffect(() => {
+    if (!isTabActive || !previewReady) return
+    previewMgrRef.current?.activate(assetPath)
+  }, [isTabActive, previewReady])
 
   // ─── WASD 键盘事件（自由漫游） ───
   useEffect(() => {
@@ -192,81 +203,20 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   // ─── 保存 ───
   const handleSave = async () => {
     const mgr = previewMgrRef.current
-    if (!mgr || !data) {
-      console.log('[Save] 跳过: mgr 或 data 为空')
-      return
-    }
-    console.log(`[Save] 开始保存: ${assetPath}`)
+    if (!mgr || !data) return
 
     const writeJsonFile = window.electronAPI?.writeJsonFile
-    if (!writeJsonFile) {
-      console.log('[Save] 跳过: writeJsonFile 不可用')
-      return
-    }
+    if (!writeJsonFile) return
 
-    // 从大纲 actor 树构建 blueprintRef.id → Actor 映射
-    const actorById = new Map<string | number, Actor>()
-    const tree = mgr.getActorTree()
-    console.log(`[Save] 大纲 actor 树节点数: ${tree.length}`)
-    console.log(`[Save] data.path=${data.path}`)
-    for (const node of tree) {
-      if (!node.actor) continue
-      const ref = node.actor.blueprintRef?.id
-      console.log(`[Save] 节点 name="${node.name}" actor=${node.actor.name} blueprintRef="${ref}" pos=${node.actor.position.x.toFixed(3)},${node.actor.position.y.toFixed(3)},${node.actor.position.z.toFixed(3)}`)
-      if (ref != null) actorById.set(ref, node.actor)
-    }
-    console.log(`[Save] actorById keys: ${JSON.stringify([...actorById.keys()])}`)
-    console.log(`[Save] actorById has data.path? ${actorById.has(data.path)}`)
+    // 通过 spawn 时建立的 actor↔json 映射，把大纲各 Actor 的实时 transform 回写到 JSON
+    const saveData = mgr.collectSaveData()
+    if (!saveData) return
 
-    const cloned: Record<string, unknown> = JSON.parse(JSON.stringify(data))
-    const logs: string[] = []
+    await writeJsonFile(assetPath, saveData)
 
-    function updateNode(node: Record<string, unknown>, nodeId?: string | number, path?: string) {
-      if (nodeId == null) {
-        logs.push(`  ${path}: 无 id，跳过`)
-        return
-      }
-      const actor = actorById.get(nodeId)
-      if (!actor) {
-        logs.push(`  ${path}: id=${nodeId} 无匹配 actor，跳过`)
-        return
-      }
-      const pos = [actor.position.x, actor.position.y, actor.position.z]
-      const rot = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
-      const scl = [actor.scale.x, actor.scale.y, actor.scale.z]
-      node.position = pos
-      node.rotation = rot
-      node.scale = scl
-      logs.push(`  ${path}: id=${nodeId} pos=${JSON.stringify(pos)} rot=${JSON.stringify(rot)} scl=${JSON.stringify(scl)}`)
-    }
-
-    updateNode(cloned, data.path, 'root')
-    const rootLog = logs[0]
-    logs.length = 0
-    console.log(`[Save] 根节点:\n${rootLog}`)
-
-    function walkChildren(children: unknown[], parentPath: string) {
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i] as Record<string, unknown>
-        const path = `${parentPath}.children[${i}]`
-        updateNode(child, child.id as number | undefined, path)
-        if (child.children) walkChildren(child.children as unknown[], path)
-      }
-    }
-    if (cloned.children) {
-      walkChildren(cloned.children as unknown[], 'root')
-    }
-
-    console.log(`[Save] 子节点更新:\n${logs.join('\n')}`)
-    console.log(`[Save] 写入文件: ${assetPath}`)
-    console.log(`[Save] 写入位置: ${JSON.stringify(cloned.position)}`)
-    await writeJsonFile(assetPath, cloned)
-
-    // 更新注册表缓存并重新加载预览
-    console.log('[Save] 重新加载预览')
-    BlueprintRegistry.loadFromJson(data.path, cloned as unknown as BlueprintAsset)
+    // 更新注册表缓存并重新加载预览（重建映射）
+    BlueprintRegistry.loadFromJson(data.path, saveData as unknown as BlueprintAsset)
     mgr.loadBlueprint(data.path)
-    console.log('[Save] 保存完成')
   }
 
   if (loading) {
