@@ -54,6 +54,7 @@ export type { ProjectValidationResult } from './ProjectValidator'
 export {
   registerAllProjects,
   registerGlobalEventListeners,
+  installEventBridge,
 } from './EditorInitializer'
 export type { InitLogger } from './EditorInitializer'
 
@@ -94,4 +95,6 @@ export { assetLintEngine } from './assetLint/AssetLintEngine'
 
 export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'
+export { editorBus } from './EditorEvents'
+export { EditorEvent } from './EditorEventNames'
 export { injectMockElectronAPI, clearMockSaves } from './MockElectronAPI'

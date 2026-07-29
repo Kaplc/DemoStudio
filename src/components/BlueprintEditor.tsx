@@ -12,7 +12,7 @@ import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { ResizeHandle } from './ResizeHandle'
 import { useEditorStore } from '../stores/editorStore'
-import { notifySelectionChange } from '../editor'
+import { notifySelectionChange, editorBus, EditorEvent } from '../editor'
 
 interface BlueprintEditorProps {
   assetPath: string
@@ -48,6 +48,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const [previewReady, setPreviewReady] = useState(false)
   /** 左侧面板宽度（px），可由 ResizeHandle 拖动调整 */
   const [leftWidth, setLeftWidth] = useState(320)
+  /** 保存 assetPath 引用供事件回调使用（避免闭包捕获旧值） */
+  const assetPathRef = useRef(assetPath)
+  assetPathRef.current = assetPath
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
@@ -164,11 +167,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     const gizmo = mgr.gizmo
     gizmo.onDragMove = notifySelectionChange
 
+    let dragDidMove = false
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return
       if (!gizmo.visible) return
       const axis = gizmo.hitTest(e.clientX, e.clientY)
       if (axis) {
+        dragDidMove = false
         gizmo.startDrag(axis, e.clientX, e.clientY)
         canvas.setPointerCapture(e.pointerId)
         e.preventDefault()
@@ -177,12 +183,18 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     const onPointerMove = (e: PointerEvent) => {
       gizmo.hoverTest(e.clientX, e.clientY)
-      if (gizmo.isDragging) gizmo.updateDrag(e.clientX, e.clientY)
+      if (gizmo.isDragging) {
+        dragDidMove = true
+        gizmo.updateDrag(e.clientX, e.clientY)
+      }
     }
 
     const onPointerUp = (e: PointerEvent) => {
       if (gizmo.isDragging) {
         gizmo.endDrag()
+        if (dragDidMove) {
+          editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, assetPathRef.current)
+        }
         try { canvas.releasePointerCapture(e.pointerId) } catch { }
       }
     }
@@ -220,6 +232,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     // 通知其他页签/面板刷新：Inspector、Outline、以及同一个蓝图的其他打开页签
     useEditorStore.getState().bumpBlueprintEdit(assetPath)
+    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
   }
 
   if (loading) {

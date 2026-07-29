@@ -66,6 +66,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const setActiveTabId = useEditorStore((s) => s.setActiveTabId)
   const closeDynamicTab = useEditorStore((s) => s.closeDynamicTab)
+  const dirtyBlueprints = useEditorStore((s) => s.dirtyBlueprints)
 
   // 合并所有页签：持久页签 + 动态页签
   const allTabs: ViewportTabDef[] = useMemo(() => [
@@ -421,6 +422,9 @@ export function Viewport({ onReady }: ViewportProps) {
               <span style={{ fontSize: 14, lineHeight: 1 }}>🎬</span>
             )}
             {tab.label}
+            {tab.type === 'blueprint' && tab.assetPath && dirtyBlueprints[tab.assetPath] && (
+              <span style={{ color: 'var(--warning)', marginLeft: 2 }}>*</span>
+            )}
             {tab.type === 'game' && editorState.running && (
               <span style={{ marginLeft: 4, color: '#4ade80', fontSize: 10 }}>●</span>
             )}

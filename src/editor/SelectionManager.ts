@@ -8,7 +8,8 @@
 import * as THREE from 'three'
 import type { Actor } from '../engine'
 import { TransformGizmo } from './TransformGizmo'
-import { useEditorStore } from '../stores/editorStore'
+import { editorBus } from './EditorEvents'
+import { EditorEvent } from './EditorEventNames'
 
 // ─── TransformGizmo 单例 ───
 
@@ -113,8 +114,8 @@ export function onSelectionChange(cb: () => void): () => void {
 export function notifySelectionChange(): void {
   _selectionKey++
   _onChange?.()
-  // 同步 bump Zustand store，确保 Inspector 在 onSelectionChange 回调被覆盖时仍能刷新
-  useEditorStore.getState().bumpSelectionNonce()
+  // 通过事件总线通知（不再直接耦合 Zustand store）
+  editorBus.emit(EditorEvent.SELECTION_CHANGED)
 }
 
 /**

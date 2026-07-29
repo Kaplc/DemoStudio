@@ -19,6 +19,8 @@ import type { BlueprintAsset, BlueprintChildDef, PropertyPatch } from '../../eng
 import * as ops from './blueprintOps'
 import type { ChildLocator, OpResult } from './blueprintOps'
 import { useEditorStore } from '../../stores/editorStore'
+import { editorBus } from '../EditorEvents'
+import { EditorEvent } from '../EditorEventNames'
 
 /** 注册表快照（返回给调用方，便于 AI 选型） */
 export interface BlueprintTypes {
@@ -199,6 +201,9 @@ export class BlueprintEditorService {
 
     // 通知打开的编辑器刷新数据 + 预览
     useEditorStore.getState().bumpBlueprintEdit(assetPath)
+
+    // 通知脏标记已保存落盘
+    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
 
     logger.info(`[BlueprintEdit] ${op} → ${assetPath}`)
     return {

@@ -8,7 +8,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { useSaveStore } from '../stores/saveStore'
-import { registerAllProjects, registerGlobalEventListeners } from './index'
+import { registerAllProjects, registerGlobalEventListeners, installEventBridge } from './index'
 import { FpsTracker } from './FpsTracker'
 import { LogPoller } from './LogPoller'
 import { assetLintEngine } from './assetLint/AssetLintEngine'
@@ -64,6 +64,10 @@ export class Editor {
       setCurrentProject: (project) => { if (project) useEditorStore.getState().setCurrentProject(project) },
     })
     this.cleanupFns.push(cleanupEvents)
+
+    // 3.5 安装编辑器事件 → Zustand store 桥接（SelectionManager 等底层模块发事件，store 响应）
+    const cleanupBridge = installEventBridge()
+    this.cleanupFns.push(cleanupBridge)
 
     // 4. 启动 FPS 跟踪与游戏状态上报
     this.fpsTracker.start((fps, project) => {

@@ -7,8 +7,42 @@
 import { registerAllProjectModules } from '../projects/registry'
 import { installBlueprintWindowApi } from './blueprintEdit/windowApi'
 import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
+import { editorBus } from './EditorEvents'
+import { EditorEvent } from './EditorEventNames'
+import { useEditorStore } from '../stores/editorStore'
 
 export type InitLogger = (message: string) => void
+
+/**
+ * 注册编辑器事件到 Zustand store 的桥接。
+ * 底层模块（SelectionManager、BlueprintEditor 等）只负责 emit 事件，
+ * 此函数将事件翻译为 store 状态更新，供 React 组件订阅。
+ *
+ * 调用一次即可，返回清理函数。
+ */
+export function installEventBridge(): () => void {
+  const unsubs: Array<() => void> = []
+
+  unsubs.push(
+    editorBus.on(EditorEvent.SELECTION_CHANGED, () => {
+      useEditorStore.getState().bumpSelectionNonce()
+    }),
+  )
+
+  unsubs.push(
+    editorBus.on(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, (path: string) => {
+      useEditorStore.getState().markBlueprintDirty(path)
+    }),
+  )
+
+  unsubs.push(
+    editorBus.on(EditorEvent.BLUEPRINT_SAVED, (path: string) => {
+      useEditorStore.getState().markBlueprintClean(path)
+    }),
+  )
+
+  return () => unsubs.forEach((u) => u())
+}
 
 /**
  * 注册所有内置项目到编辑器的各个注册表中

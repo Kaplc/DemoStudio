@@ -112,6 +112,15 @@ export interface EditorState {
   /** Gizmo 拖拽/选择变化刷新信号（notifySelectionChange 时 bump，供 Inspector 实时刷新 Transform） */
   selectionNonce: number
   bumpSelectionNonce: () => void
+
+  /**
+   * 未保存修改的蓝图路径集合。
+   * Gizmo 拖拽位置等预览态修改不自动落盘，页签标题显示 * 提示。
+   * key = assetPath, value = true。
+   */
+  dirtyBlueprints: Record<string, boolean>
+  markBlueprintDirty: (path: string) => void
+  markBlueprintClean: (path: string) => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -129,6 +138,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   blueprintEditNonce: 0,
   lastEditedBlueprintPath: null,
   selectionNonce: 0,
+  dirtyBlueprints: {},
 
   gameState: {
     running: false,
@@ -256,4 +266,14 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({
       selectionNonce: state.selectionNonce + 1,
     })),
+  markBlueprintDirty: (path) =>
+    set((state) => ({
+      dirtyBlueprints: { ...state.dirtyBlueprints, [path]: true },
+    })),
+  markBlueprintClean: (path) =>
+    set((state) => {
+      const next = { ...state.dirtyBlueprints }
+      delete next[path]
+      return { dirtyBlueprints: next }
+    }),
 }))
