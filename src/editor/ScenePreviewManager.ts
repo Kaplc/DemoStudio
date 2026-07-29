@@ -317,9 +317,11 @@ export class ScenePreviewManager {
     this.notifyChange()
 
     // 聚焦
-    // logger.debug(`[ScenePreview] loadSceneAsset fitToScene 前摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.fitToScene(result.group)
-    // logger.debug(`[ScenePreview] loadSceneAsset fitToScene 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+
+    // 通知 UI 刷新（Outline 依赖 selectionKey 重建树）
+    logger.debug(`[OutlinerTrace] loadSceneAsset 完成, 调用 notifySelectionChange, currentScenePath=${this._currentScenePath}, actorCount=${this.world.actorCount}`)
+    notifySelectionChange()
 
     const actorCount = this.world.actorCount
     logger.info(`[ScenePreview] 加载场景预览: ${sceneData.name}, ${actorCount} 个 Actor（网格=${meshes.length}, ref=${(result.refNodes ?? []).length}, actor=${(result.actorNodes ?? []).length}）`)
@@ -327,7 +329,7 @@ export class ScenePreviewManager {
   }
 
   clearPreview() {
-    // logger.debug(`[ScenePreview] clearPreview 开始 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+    logger.debug(`[OutlinerTrace] clearPreview → select(null) → _selectionKey++, currentScenePath 将变 null`)
     select(null)
     this.gizmo.detach()
     this.world.DestroyAllActors()
@@ -335,7 +337,7 @@ export class ScenePreviewManager {
     this._currentScenePath = null
     this._actorTreeCache = null
     this.notifyChange()
-    // logger.debug(`[ScenePreview] clearPreview 结束 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
+    logger.debug(`[OutlinerTrace] clearPreview 完成, currentScenePath=${this._currentScenePath}, actorCount=${this.world.actorCount}`)
   }
 
   private fitToScene(group: THREE.Group) {
@@ -365,6 +367,7 @@ export class ScenePreviewManager {
    * 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新。
    */
   activate(assetPath?: string): void {
+    logger.debug(`[OutlinerTrace] activate(${assetPath}) → _currentScenePath=${assetPath}, 调用 notifySelectionChange`)
     if (assetPath) {
       this._currentScenePath = assetPath
       AssetPreviewManager.setActive(assetPath)

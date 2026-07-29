@@ -200,6 +200,10 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       // 重新加载预览
       mgr.loadSceneAsset(saveData as unknown as SceneAsset)
 
+      // loadSceneAsset 内部 clearPreview 会清掉 _currentScenePath，
+      // 必须重新 activate 恢复路径，否则 Outline 判断 currentScenePath==null 返回空树
+      mgr.activate(assetPath)
+
       // 恢复摄像机位姿（含 fly euler 同步）
       mgr.restoreCamera(camPos, camQuat)
 

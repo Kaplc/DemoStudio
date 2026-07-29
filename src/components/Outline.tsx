@@ -5,6 +5,7 @@ import {
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
 import { AssetPreviewManager } from '../editor/AssetPreviewManager'
+import { logger } from '../engine'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
 
@@ -114,10 +115,13 @@ export function Outline() {
   // ─── 缓存：场景预览树数据 ───
   const spAssetPath = isScenePreviewTab ? currentTab?.assetPath : null
   const spTree = useMemo(() => {
-    if (!spAssetPath) return null
+    if (!spAssetPath) { logger.debug(`[OutlinerTrace] spTree: spAssetPath=null`); return null }
     const spMgr = AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(spAssetPath)
-    if (!spMgr || spMgr.currentScenePath == null) return null
-    return spMgr.getActorTree()
+    if (!spMgr) { logger.debug(`[OutlinerTrace] spTree: spMgr=null for ${spAssetPath}`); return null }
+    if (spMgr.currentScenePath == null) { logger.debug(`[OutlinerTrace] spTree: currentScenePath=null, actorCount=${spMgr.world.actorCount}`); return null }
+    const tree = spMgr.getActorTree()
+    logger.debug(`[OutlinerTrace] spTree: ${tree.length} 个节点, currentScenePath=${spMgr.currentScenePath}`)
+    return tree
   }, [spAssetPath, selectionKey, blueprintEditNonce])
 
   // ─── 缓存：蓝图树渲染元素 ───
