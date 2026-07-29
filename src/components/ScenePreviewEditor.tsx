@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ScenePreviewManager, AssetPreviewManager } from '../editor'
 import { useEditorStore } from '../stores/editorStore'
-import { notifySelectionChange, editorBus, EditorEvent } from '../editor'
+import { notifySelectionChange, editorBus, EditorEvent, getSelectedActor } from '../editor'
 import type { SceneAsset } from '../engine'
 
 interface ScenePreviewEditorProps {
@@ -189,9 +189,12 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
     const saveData = mgr.collectSaveData()
     if (!saveData) return
 
-    // 记住当前摄像机位姿，重新加载后恢复
+    // 记住当前摄像机位姿 + 选中节点，重新加载后恢复
     const camPos = mgr.camera.position.clone()
     const camQuat = mgr.camera.quaternion.clone()
+    const sel = getSelectedActor()
+    const selName = sel ? sel.root.name : null
+    console.log('[SelectRestore-Scene] 保存前选中:', selName, 'sel:', sel?.constructor.name)
 
     setSaving(true)
     try {
@@ -204,8 +207,17 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       // 必须重新 activate 恢复路径，否则 Outline 判断 currentScenePath==null 返回空树
       mgr.activate(assetPath)
 
-      // 恢复摄像机位姿（含 fly euler 同步）
+      // 恢复摄像机位姿
       mgr.restoreCamera(camPos, camQuat)
+
+      // 恢复选中节点
+      if (selName) {
+        const tree = mgr.getActorTree()
+        console.log('[SelectRestore-Scene] 重建后 Actor 树:', tree.map(n => `${n.name}[${n.actor?.constructor.name}]`).join(', '))
+        const node = tree.find((n) => n.name === selName && n.actor)
+        console.log('[SelectRestore-Scene] 查找', selName, '结果:', node?.actor?.constructor.name)
+        if (node?.actor) { mgr.selectActor(node.actor); console.log('[SelectRestore-Scene] selectActor 完成') }
+      }
 
       editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
     } finally {

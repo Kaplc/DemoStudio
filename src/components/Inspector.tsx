@@ -19,26 +19,62 @@ function fmt(v: number): string {
   return v.toFixed(2)
 }
 
+/** Actor Transform 可编辑输入框（与 BlueprintOverviewDetail 统一风格） */
+const transformInputStyle: React.CSSProperties = {
+  flex: 1, minWidth: 56, maxWidth: 80,
+  background: 'var(--bg-tertiary)', color: 'var(--success)',
+  border: '1px solid var(--border)', borderRadius: 3, padding: '2px 5px', fontSize: 11,
+  fontFamily: 'var(--font-mono)', outline: 'none',
+}
+
 function ActorTransformView({ actor }: { actor: Actor }) {
+  const p = [actor.position.x, actor.position.y, actor.position.z]
+  const r = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+  const s = [actor.scale.x, actor.scale.y, actor.scale.z]
+
   return (
     <div className="property-group">
       <div className="property-group-title">Transform</div>
       <div className="property-row">
         <span className="property-label">Position</span>
-        <span className="property-value" style={{ fontSize: 11 }}>
-          X:{fmt(actor.position.x)} Y:{fmt(actor.position.y)} Z:{fmt(actor.position.z)}
+        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+          <input type="number" step="0.01" defaultValue={p[0]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[0] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={p[1]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[1] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={p[2]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[2] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+          />
         </span>
       </div>
       <div className="property-row">
         <span className="property-label">Rotation</span>
-        <span className="property-value" style={{ fontSize: 11 }}>
-          X:{fmt(actor.rotation.x)} Y:{fmt(actor.rotation.y)} Z:{fmt(actor.rotation.z)}
+        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+          <input type="number" step="0.01" defaultValue={r[0]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[0] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={r[1]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[1] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={r[2]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[2] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+          />
         </span>
       </div>
       <div className="property-row">
         <span className="property-label">Scale</span>
-        <span className="property-value" style={{ fontSize: 11 }}>
-          X:{fmt(actor.scale.x)} Y:{fmt(actor.scale.y)} Z:{fmt(actor.scale.z)}
+        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+          <input type="number" step="0.01" defaultValue={s[0]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[0] = v; actor.setScale(s[0], s[1], s[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={s[1]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[1] = v; actor.setScale(s[0], s[1], s[2]) } }}
+          />
+          <input type="number" step="0.01" defaultValue={s[2]} style={transformInputStyle}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[2] = v; actor.setScale(s[0], s[1], s[2]) } }}
+          />
         </span>
       </div>
     </div>
@@ -357,42 +393,42 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         <div className="property-group-title">Transform</div>
         <div className="property-row">
           <span className="property-label">Position</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            <input type="number" step="0.01" defaultValue={p[0]} style={{ width: 50, ...kvValStyle }}
+          <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+            <input type="number" step="0.01" defaultValue={p[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[0] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={p[1]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={p[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[1] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={p[2]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={p[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[2] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
           </span>
         </div>
         <div className="property-row">
           <span className="property-label">Rotation</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            <input type="number" step="0.01" defaultValue={r[0]} style={{ width: 50, ...kvValStyle }}
+          <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+            <input type="number" step="0.01" defaultValue={r[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[0] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={r[1]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={r[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[1] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={r[2]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={r[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[2] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
           </span>
         </div>
         <div className="property-row">
           <span className="property-label">Scale</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            <input type="number" step="0.01" defaultValue={s[0]} style={{ width: 50, ...kvValStyle }}
+          <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
+            <input type="number" step="0.01" defaultValue={s[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[0] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={s[1]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={s[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[1] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={s[2]} style={{ width: 50, ...kvValStyle }}
+            <input type="number" step="0.01" defaultValue={s[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[2] = v }}
               onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
           </span>
@@ -591,7 +627,7 @@ export function Inspector() {
               </div>
             </div>
             <BlueprintRefView actor={actorTarget} />
-            <ActorTransformView actor={actorTarget} />
+            <ActorTransformView key={selectionNonce} actor={actorTarget} />
             <ActorComponentsView actor={actorTarget} />
           </>
         ) : isBlueprintTab && activeTabId.length > 3 ? (
@@ -611,7 +647,7 @@ export function Inspector() {
                 </div>
               </div>
               <BlueprintRefView actor={actorTarget} />
-              <ActorTransformView actor={actorTarget} />
+              <ActorTransformView key={selectionNonce} actor={actorTarget} />
               <ActorComponentsView actor={actorTarget} />
             </>
           ) : selected instanceof THREE.Object3D ? (

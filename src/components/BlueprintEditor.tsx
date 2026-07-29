@@ -13,7 +13,7 @@ import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { ResizeHandle } from './ResizeHandle'
 import { useEditorStore } from '../stores/editorStore'
-import { notifySelectionChange, editorBus, EditorEvent } from '../editor'
+import { notifySelectionChange, editorBus, EditorEvent, getSelectedActor } from '../editor'
 
 interface BlueprintEditorProps {
   assetPath: string
@@ -55,6 +55,8 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   assetPathRef.current = assetPath
   /** 保存后待恢复的摄像机位姿（bumpBlueprintEdit → setData → useEffect 重建预览后恢复） */
   const pendingCamRef = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion } | null>(null)
+  /** 保存前选中的 Actor 名称，保存完成重建预览后自动恢复选中 */
+  const pendingSelectRef = useRef<string | null>(null)
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
@@ -111,12 +113,24 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       AssetPreviewManager.register(assetPath, mgr)
       setPreviewReady(true)
 
-      // 保存后重建预览：恢复之前保存的摄像机位姿
+      // 保存后重建预览：恢复之前保存的摄像机位姿 + 选中节点
       const pending = pendingCamRef.current
       if (pending) {
-        // logger.info(`[BlueprintEditor] useEffect 重建预览后恢复摄像机=${pending.pos.x.toFixed(3)},...`)
         mgr.restoreCamera(pending.pos, pending.quat)
         pendingCamRef.current = null
+      }
+      const selName = pendingSelectRef.current
+      if (selName) {
+        pendingSelectRef.current = null
+        // 通过 getActorTree() 遍历场景图查找（GetAllActors 可能漏掉递归子 Actor）
+        const tree = mgr.getActorTree()
+        console.log('[SelectRestore] 重建后 Actor 树:', tree.map(n => `${n.name}[${n.actor?.constructor.name}]`).join(', '))
+        const node = tree.find((n) => n.name === selName && n.actor)
+        console.log('[SelectRestore] 查找', selName, '结果:', node?.actor?.constructor.name)
+        if (node?.actor) {
+          mgr.selectActor(node.actor)
+          console.log('[SelectRestore] selectActor 完成')
+        }
       }
     }
 
@@ -238,11 +252,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     setSaving(true)
     try {
-      // 记住当前摄像机位姿，写入 pendingCamRef 供 useEffect 重建预览后恢复
+      // 记住当前摄像机位姿 + 选中节点，供 useEffect 重建预览后恢复
       pendingCamRef.current = {
         pos: mgr.camera.position.clone(),
         quat: mgr.camera.quaternion.clone(),
       }
+      const sel = getSelectedActor()
+      pendingSelectRef.current = sel ? sel.root.name : null
+      console.log('[SelectRestore] 保存前选中:', pendingSelectRef.current, 'sel:', sel?.constructor.name)
 
       await writeJsonFile(assetPath, saveData)
 
