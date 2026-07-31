@@ -8,7 +8,7 @@
  *   asset/*.scene.json               → 场景资产（按 name 字段注册到 AssetRegistry）
  *   asset/blueprints/*.blueprint.json → 蓝图资产（按 id 字段注册到 BlueprintRegistry）
  */
-import { AssetRegistry } from '@/engine'
+import { AssetRegistry, logger } from '@/engine'
 import type { SceneAsset, BlueprintAsset } from '@/engine'
 
 /** 注册 FishMaster 项目的所有资产 */
@@ -17,9 +17,21 @@ export function registerFishAssets(): void {
   const sceneModules = import.meta.glob<{ default: SceneAsset }>('./**/*.scene.json', { eager: true })
   const scenes = Object.values(sceneModules).map((m) => m.default as SceneAsset)
 
-  // 自动扫描所有 .blueprint.json（在 blueprints/ 子目录下）
-  const bpModules = import.meta.glob<{ default: BlueprintAsset }>('./blueprints/*.blueprint.json', { eager: true })
-  const blueprints = Object.values(bpModules).map((m) => m.default as BlueprintAsset)
+  // 自动扫描所有蓝图：blueprints/**/*.blueprint.json（通用蓝图）
+  // + blueprints/ui/**/*.json（UI widget，命名如 main_menu.widget.json，不带 .blueprint 后缀）
+  // 传入 glob 原始结果（blueprintModules），注册路径由 AssetRegistry 从 key 自动推导（asset/...），
+  // 蓝图 JSON 内无需再写 path 字段。
+  const bpModules = import.meta.glob<{ default: BlueprintAsset }>(
+    ['./blueprints/**/*.blueprint.json', './blueprints/ui/**/*.json'],
+    { eager: true },
+  )
 
-  AssetRegistry.registerAll({ scenes, blueprints })
+  AssetRegistry.registerAll({
+    scenes,
+    blueprintModules: bpModules,
+  })
+
+  logger.info(
+    `[Fish/Asset] 注册完成: 场景=${scenes.map(s => s.name).join(', ')} | 蓝图=${Object.keys(bpModules).map(k => k.replace(/^\.\//, 'asset/')).join(', ')}`,
+  )
 }

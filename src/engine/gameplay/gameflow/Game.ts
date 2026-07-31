@@ -56,22 +56,31 @@ export class Game {
     // UI 覆盖层：挂载到 Game 视口的 UI 层
     if (this.gameMgr) {
       this.gameMgr.mountGameUI(this.ui)
+      logger.info('[Game] GameUI 容器已挂载到 GameSceneManager.uiLayer')
+    } else {
+      logger.warn('[Game] gameMgr 为空，GameUI 容器未挂载')
     }
 
     // 注入 UI 系统 + 启动游戏实例
     this._instance.ui = this.ui
+    logger.info(`[Game] 启动游戏实例: ${this._instance.constructor.name}`)
     const ok = this.instance.start()
-    if (!ok) return false
+    if (!ok) {
+      logger.error(`[Game] 游戏实例 start() 返回 false，启动失败: ${this._instance.constructor.name}`)
+      return false
+    }
 
     // 启用 Game 渲染
     if (this.gameMgr) {
       this.gameMgr.setControlsEnabled(true)
       this.gameMgr.start()
+      logger.info('[Game] GameSceneManager 渲染循环已启动')
     }
 
     // Tick 挂到 Scene View 的 rAF 上
     if (this.sceneMgr) {
       this.removeTick = this.sceneMgr.onUpdate((dt) => this.instance.tick(dt))
+      logger.info('[Game] GameInstance.tick 已挂到 Scene 视口 rAF')
     }
 
     // Game 摄像机同步
@@ -79,6 +88,7 @@ export class Game {
       this.removeCamSync = this.gameMgr.onUpdate(() => {
         this.instance.syncCamera(this.gameMgr!.camera, this.gameMgr!.aspect)
       })
+      logger.info('[Game] 摄像机同步回调已注册')
     }
 
     logger.info('[Game] 游戏已启动')
@@ -96,9 +106,11 @@ export class Game {
     this.removeTick = null
     this.removeCamSync?.()
     this.removeCamSync = null
+    logger.info('[Game] Tick/相机同步回调已注销')
 
     // 停止游戏实例
     this.instance.stop()
+    logger.info('[Game] 游戏实例已停止')
 
     // DOM / React 清理由 React 生命周期自然处理（this.ui.el 作为 uiLayer 的子节点，
     // 会在 Viewport 卸载时由 React 自动清理）。此处不做手动 unmount/remove，

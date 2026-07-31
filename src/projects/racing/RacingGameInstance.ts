@@ -2,12 +2,9 @@
  * RacingGameInstance — 赛车游戏实例
  */
 import * as THREE from 'three'
-import React from 'react'
 import { GameInstance, World, logger } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { RacingGameMode, RacingCarPawn, RacingPlayerController } from './'
-import { GameHud } from './components/GameHud'
-import type { GameHudProps } from './components/GameHud'
 
 export class RacingGameInstance extends GameInstance {
   readonly world: World
@@ -15,12 +12,6 @@ export class RacingGameInstance extends GameInstance {
 
   private _controller: RacingPlayerController | null = null
   pawn: RacingCarPawn | null = null
-
-  private _hudProps: GameHudProps = {
-    speed: 0, lap: 0, totalLaps: 3,
-    raceTime: 0, bestLap: 0,
-    phase: 'countdown', countdown: 3,
-  }
 
   override get controller(): RacingPlayerController | null {
     return this._controller
@@ -84,14 +75,6 @@ export class RacingGameInstance extends GameInstance {
     logger.info(`[RacingGameInstance] 赛车生成: ${pawn.name}`)
     this.world.BeginPlay()
 
-    // HUD
-    this._hudProps = {
-      speed: 0, lap: 0, totalLaps: pawn['config'].lapsToWin ?? 3,
-      raceTime: 0, bestLap: 0,
-      phase: 'countdown', countdown: 3,
-    }
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
-
     logger.info('[RacingGameInstance] 游戏已启动')
     return true
   }
@@ -99,22 +82,6 @@ export class RacingGameInstance extends GameInstance {
   override tick(dt: number) {
     this._controller?.ProcessKeys(dt)
     this.world.manualTick(dt)
-
-    const pawn = this.pawn
-    if (!pawn) return
-
-    this._hudProps.speed = pawn.getSpeedKmh()
-    this._hudProps.lap = pawn.lapCount
-    this._hudProps.raceTime = pawn.raceTime
-    this._hudProps.bestLap = pawn.bestLapTime === Infinity ? 0 : pawn.bestLapTime
-
-    const phase = this.gameMode.currentPhase
-    this._hudProps.phase = phase as GameHudProps['phase']
-    if (phase === 'countdown') {
-      this._hudProps.countdown = Math.ceil(this.gameMode.countdownTimer)
-    }
-
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
   override drawGizmos() {

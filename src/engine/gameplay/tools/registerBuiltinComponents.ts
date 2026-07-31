@@ -21,6 +21,11 @@ import { ClickableComponent } from '../physics/ClickableComponent'
 import { CameraComponent, type CameraMode } from '../input/CameraComponent'
 import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
+import { UITextComponent } from '../ui/UITextComponent'
+import { UIImageComponent } from '../ui/UIImageComponent'
+import { UIButtonComponent } from '../ui/UIButtonComponent'
 
 let _registered = false
 
@@ -115,6 +120,121 @@ export function registerBuiltinComponents(): void {
         mat.transparent = true
         mat.opacity = p.opacity as number
       }
+    },
+  )
+
+  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name? }
+  ComponentRegistry.register(
+    'canvasui',
+    (owner, p = {}) =>
+      new CanvasUIComponent(owner, {
+        width: p.width ?? 512,
+        height: p.height ?? 256,
+        worldWidth: p.worldWidth ?? 5,
+        worldHeight: p.worldHeight ?? 2.5,
+        doubleSided: (p.doubleSided as boolean) ?? true,
+        name: p.name ?? 'CanvasUIComponent',
+        zOrder: p.zOrder as number | undefined,
+      }),
+    (c, p) => {
+      const ui = c as CanvasUIComponent
+      if (p.worldWidth != null || p.worldHeight != null) {
+        ui.setWorldSize(p.worldWidth ?? 5, p.worldHeight ?? 2.5)
+      }
+      if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
+      if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number
+    },
+  )
+
+  // ─── troika ─── props: { text?, fontSize?, color?, maxWidth?, textAlign?, outlineWidth?, name? }
+  ComponentRegistry.register(
+    'troika',
+    (owner, p = {}) =>
+      new TroikaTextComponent(owner, (p.text as string) ?? '', {
+        fontSize: p.fontSize ?? 0.3,
+        color: (p.color as string) ?? '#ffffff',
+        maxWidth: p.maxWidth as number | undefined,
+        textAlign: p.textAlign as 'left' | 'center' | 'right' | undefined,
+        outlineWidth: p.outlineWidth as number | undefined,
+        outlineColor: p.outlineColor as string | undefined,
+        name: p.name ?? 'TroikaTextComponent',
+      }),
+    (c, p) => {
+      const txt = c as TroikaTextComponent
+      if (p.text !== undefined) txt.setText(p.text as string)
+      if (p.color !== undefined) txt.setColor(p.color as string)
+    },
+  )
+
+  // ─── uitext ─── props: { text?, fontSize?, color?, bold?, align?, width?, height?, ... }
+  ComponentRegistry.register(
+    'uitext',
+    (owner, p = {}) =>
+      new UITextComponent(owner, {
+        text: p.text as string | undefined,
+        fontSize: p.fontSize as number | undefined,
+        color: p.color as string | undefined,
+        bold: p.bold as boolean | undefined,
+        italic: p.italic as boolean | undefined,
+        align: p.align as 'left' | 'center' | 'right' | undefined,
+        fontFamily: p.fontFamily as string | undefined,
+        lineHeight: p.lineHeight as number | undefined,
+        shadowColor: p.shadowColor as string | undefined,
+        shadowBlur: p.shadowBlur as number | undefined,
+        letterSpacing: p.letterSpacing as number | undefined,
+        width: p.width as number | undefined,
+        height: p.height as number | undefined,
+      }),
+    (c, p) => {
+      const t = c as UITextComponent
+      if (p.text !== undefined) t.text = p.text as string
+      if (p.fontSize !== undefined) t.fontSize = p.fontSize as number
+      if (p.color !== undefined) t.color = p.color as string
+      if (p.align !== undefined) t.align = p.align as 'left' | 'center' | 'right'
+      if (p.zOrder !== undefined) t.zOrder = p.zOrder as number
+    },
+  )
+
+  // ─── uiimage ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight? }
+  ComponentRegistry.register(
+    'uiimage',
+    (owner, p = {}) =>
+      new UIImageComponent(owner, {
+        color: p.color as string | undefined,
+        radius: p.radius as number | undefined,
+        opacity: p.opacity as number | undefined,
+        src: p.src as string | undefined,
+        worldWidth: p.worldWidth as number | undefined,
+        worldHeight: p.worldHeight as number | undefined,
+        width: p.width as number | undefined,
+        height: p.height as number | undefined,
+      }),
+    (c, p) => {
+      const img = c as UIImageComponent
+      if (p.color !== undefined) img.color = p.color as string
+      if (p.radius !== undefined) img.radius = p.radius as number
+      if (p.src !== undefined) img.loadImage(p.src as string)
+      if (p.zOrder !== undefined) img.zOrder = p.zOrder as number
+    },
+  )
+
+  // ─── uibutton ─── props: { label?, colors?, textOptions?, onClick? (代码设置) }
+  ComponentRegistry.register(
+    'uibutton',
+    (owner, p = {}) =>
+      new UIButtonComponent(owner, {
+        label: p.label as string | undefined,
+        colors: p.colors as Record<string, string> | undefined,
+        textOptions: p.textOptions as Record<string, unknown> | undefined,
+        worldWidth: p.worldWidth as number | undefined,
+        worldHeight: p.worldHeight as number | undefined,
+        color: p.color as string | undefined,
+        radius: p.radius as number | undefined,
+      }),
+    (c, p) => {
+      const btn = c as UIButtonComponent
+      if (p.label !== undefined) btn.label = p.label as string
+      if (p.zOrder !== undefined) btn.zOrder = p.zOrder as number
     },
   )
 }

@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { Compositor2D } from './Compositor2D'
 
 export type ControlMode = 'orbit' | 'fly'
 /** 相机投影模式：'perspective' 透视(3D)/ 'orthographic' 正交(2D) */
@@ -580,6 +581,21 @@ export class PreviewSceneManager {
       this.camera.lookAt(center)
       this.initFlyEuler()
     }
+  }
+
+  // ─── 2D 叠加合成 ───
+
+  /** 创建 2D 叠加层并自动接入每帧渲染循环，返回 Compositor2D 实例 */
+  createCompositor2D(): Compositor2D {
+    const comp = new Compositor2D(this.renderer)
+    const remove = this.onAfterRender(() => comp.render())
+    // 在 Compositor2D 上挂一个清理方法，避免外部需要额外注册 cleanup
+    const origDispose = comp.dispose.bind(comp)
+    comp.dispose = () => {
+      remove()
+      origDispose()
+    }
+    return comp
   }
 
   // ─── 清理 ───

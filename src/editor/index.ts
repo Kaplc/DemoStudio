@@ -21,6 +21,7 @@
  */
 
 export { BlueprintPreviewManager } from './BlueprintPreviewManager'
+export { UIPreviewManager } from './UIPreviewManager'
 export { ScenePreviewManager } from './ScenePreviewManager'
 export { AssetPreviewManager } from './AssetPreviewManager'
 

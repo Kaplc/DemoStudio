@@ -152,7 +152,7 @@ function renderActorMesh(node: ActorNode, track: (m: THREE.Mesh) => void): void 
 }
 
 /** 将 BlueprintChildDef（内联 baseClass）递归转为 THREE.Group */
-function childDefToGroup(child: import('../../gameplay/blueprint/BlueprintAsset').BlueprintChildDef): THREE.Group | null {
+function childDefToGroup(child: import('../gameplay/blueprint/BlueprintAsset').BlueprintChildDef): THREE.Group | null {
   const g = new THREE.Group()
   g.name = child.name ?? 'child'
 
@@ -378,92 +378,6 @@ function expandNode(node: SceneNode, track: (m: THREE.Mesh) => void, defaultName
         vLine.rotation.x = -Math.PI / 2
         vLine.position.set(i, y, 0)
         track(vLine)
-        gridIdx++
-      }
-      break
-    }
-    case 'pillar': {
-      const [px, pz] = node.pos
-      const c = node.colors ?? {}
-      // 柱身
-      const shaft = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 5, 0.5),
-        new THREE.MeshStandardMaterial({
-          color: toColor(c.shaft ?? '#5599dd'),
-          roughness: 0.7,
-          metalness: 0.1,
-        }),
-      )
-      shaft.name = `${nodeName}_shaft`
-      shaft.position.set(px, 2.5, pz)
-      shaft.castShadow = true
-      shaft.receiveShadow = true
-      track(shaft)
-      // 顶盖
-      const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 0.15, 0.7),
-        new THREE.MeshStandardMaterial({
-          color: toColor(c.cap ?? '#77bbff'),
-          roughness: 0.7,
-          metalness: 0.1,
-        }),
-      )
-      cap.name = `${nodeName}_cap`
-      cap.position.set(px, 5, pz)
-      cap.castShadow = true
-      cap.receiveShadow = true
-      track(cap)
-      // 顶部球（basic，无 shadow）
-      const orb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.2, 12, 12),
-        new THREE.MeshBasicMaterial({ color: toColor(c.orb ?? '#64b4ff') }),
-      )
-      orb.name = `${nodeName}_orb`
-      orb.position.set(px, 5.3, pz)
-      track(orb)
-      break
-    }
-    case 'wallRing': {
-      const gs = node.gridSize
-      const half = gs / 2
-      const H = node.height ?? 1.2
-      const th = node.thickness ?? 0.3
-      const wallMat = new THREE.MeshStandardMaterial({
-        color: toColor(node.wallColor ?? '#336699'),
-        roughness: node.wallMaterial?.roughness ?? 0.6,
-        metalness: node.wallMaterial?.metalness ?? 0.2,
-      })
-      const capMat = new THREE.MeshStandardMaterial({
-        color: toColor(node.capColor ?? '#5588bb'),
-        roughness: node.capMaterial?.roughness ?? 0.5,
-        metalness: node.capMaterial?.metalness ?? 0.3,
-      })
-      let wallIdx = 0
-      // Z 轴两堵（长度沿 X）
-      for (const z of [-half, half]) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(gs, H, th), wallMat)
-        wall.name = `${nodeName}_wall${wallIdx}`
-        wall.position.set(0, H / 2, z)
-        wall.castShadow = true // 旧码只设 castShadow，receive 保持 false
-        track(wall)
-        const cap = new THREE.Mesh(new THREE.BoxGeometry(gs - 0.1, 0.08, th + 0.05), capMat)
-        cap.name = `${nodeName}_cap${wallIdx}`
-        cap.position.set(0, H, z)
-        track(cap)
-        wallIdx++
-      }
-      // X 轴两堵（长度沿 Z）
-      for (const x of [-half, half]) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(th, H, gs), wallMat)
-        wall.name = `${nodeName}_wall${wallIdx}`
-        wall.position.set(x, H / 2, 0)
-        wall.castShadow = true
-        track(wall)
-        const cap = new THREE.Mesh(new THREE.BoxGeometry(th + 0.05, 0.08, gs - 0.1), capMat)
-        cap.name = `${nodeName}_cap${wallIdx}`
-        cap.position.set(x, H, 0)
-        track(cap)
-        wallIdx++
       }
       break
     }

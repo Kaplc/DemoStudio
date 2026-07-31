@@ -5,7 +5,6 @@
  * 并通过场景资产（JSON）切换海底氛围。
  */
 import * as THREE from 'three'
-import React from 'react'
 import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -13,10 +12,6 @@ import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
 import { FishPlayerController } from './game/FishPlayerController'
 import type { FishCannon } from './game/FishCannon'
-import { GameHud } from './game/hud/GameHud'
-import { FishMainMenuUI } from './menu/hud/FishMainMenuUI'
-import { FishBaseUI } from './base/hud/FishBaseUI'
-import type { GameHudProps } from './game/hud/GameHud'
 
 type Phase = 'menu' | 'base' | 'game'
 
@@ -39,7 +34,6 @@ export class FishGameInstance extends GameInstance {
   /** 防止手动返回和 GameOver 回调重复触发 */
   private _returningToBase = false
 
-  private _hudProps: GameHudProps = { coins: 100, score: 0, level: 1, bossActive: false, bossName: '', bossHp: 0, bossMaxHp: 0, phase: 'waiting' }
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
   /** 防止 stop() 被重复调用 */
@@ -64,6 +58,7 @@ export class FishGameInstance extends GameInstance {
   // ════════════════════════════════════════════
 
   override start(): boolean {
+    logger.info(`[Fish] 游戏实例启动, initialMode=${this.initialMode ?? '(未设置, 默认 menu)'}`)
     if (this.initialMode === 'base') return this.switchToPhase('base')
     if (this.initialMode === 'game') return this.switchToPhase('game')
     return this.switchToPhase('menu')
@@ -76,18 +71,22 @@ export class FishGameInstance extends GameInstance {
   private switchToPhase(phase: Phase): boolean {
     this._phase = phase
     const sceneName = phase === 'menu' ? 'FishMenu' : phase === 'base' ? 'FishBaseIsland' : 'FishMaster'
+    logger.info(`[Fish] 切换阶段 → ${phase} (场景: ${sceneName})`)
 
-    return this.world.SwitchToScene(sceneName, () => {
+    const ok = this.world.SwitchToScene(sceneName, () => {
       switch (phase) {
         case 'menu': this.setupMenuPhase(); break
         case 'base': this.setupBasePhase(); break
         case 'game': this.setupGamePhase(); break
       }
     })
+    if (!ok) logger.error(`[Fish] 切换阶段失败 → ${phase}`)
+    return ok
   }
 
   /** 菜单阶段设置（在 SwitchToScene extraSetup 中执行，世界处于暂停态） */
   private setupMenuPhase(): void {
+    logger.info('[Fish] setupMenuPhase: 配置主菜单...')
     const mode = this.world.gameMode as FishMainMenuGameMode
     this._menuGameMode = mode
     mode.onStartGame = () => this.enterBase()
@@ -95,14 +94,13 @@ export class FishGameInstance extends GameInstance {
     mode.cameraManager.RegisterCamera(mode.gameCamera)
     const spawn = mode.SpawnPlayer()
     if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
-    this.ui?.renderReact(React.createElement(FishMainMenuUI, {
-      onStartGame: () => mode.startGame(),
-    }))
-    logger.info('[Fish] 等待玩家点击开始')
+    else logger.error('[Fish] setupMenuPhase: SpawnPlayer 返回空')
+    logger.info('[Fish] setupMenuPhase: 完成（等待玩家点击开始）')
   }
 
   /** 基地阶段设置 */
   private setupBasePhase(): void {
+    logger.info('[Fish] setupBasePhase: 配置海底基地...')
     const mode = this.world.gameMode as FishBaseGameMode
     this._baseGameMode = mode
     mode.onStartFishing = () => this.startGameplay()
@@ -112,16 +110,13 @@ export class FishGameInstance extends GameInstance {
     if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
     const spawn = mode.SpawnPlayer()
     if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
-    this.ui?.renderReact(React.createElement(FishBaseUI, {
-      coins: this._coins, score: this._score,
-      cannonLevel: this._lastCannonLevel,
-      onStartFishing: () => mode.startFishing(),
-    }))
-    logger.info('[Fish] 已进入基地')
+    else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
+    logger.info('[Fish] setupBasePhase: 完成（已进入基地）')
   }
 
   /** 游戏阶段设置 */
   private setupGamePhase(): void {
+    logger.info('[Fish] setupGamePhase: 配置出海捕鱼...')
     const mode = this.world.gameMode as FishGameMode
     this._gameMode = mode
     mode.coins = this._coins
@@ -149,12 +144,6 @@ export class FishGameInstance extends GameInstance {
       }
     })
 
-    this._hudProps = {
-      coins: this._coins, score: this._score, level: pawn.level,
-      bossActive: false, bossName: '', bossHp: 0, bossMaxHp: 0, phase: 'playing',
-      onReturnToBase: () => this.manualReturnToBase(),
-    }
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
     this.callbacks.onPhaseChange?.('playing')
     logger.info('[Fish] 游戏已启动')
   }
@@ -162,11 +151,6 @@ export class FishGameInstance extends GameInstance {
   /** 领取初始金币 */
   private claimCoins() {
     this._coins = 100
-    this.ui?.renderReact(React.createElement(FishBaseUI, {
-      coins: this._coins, score: this._score,
-      cannonLevel: this._lastCannonLevel,
-      onStartFishing: () => this._baseGameMode?.startFishing(),
-    }))
     logger.info(`[Fish] 领取初始金币，当前金币: ${this._coins}`)
   }
 
@@ -193,13 +177,6 @@ export class FishGameInstance extends GameInstance {
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this._baseGameMode?.cameraManager.Clear()
     return this.switchToPhase('game')
-  }
-
-  /** 玩家手动点击"返回基地" */
-  private manualReturnToBase() {
-    if (this._returningToBase || this._phase !== 'game') return
-    this._returningToBase = true
-    this.returnToBase()
   }
 
   /** 从游戏返回基地（Game Over / 手动返回） */
@@ -232,17 +209,8 @@ export class FishGameInstance extends GameInstance {
     if (this._phase === 'game' && this._gameMode) {
       this.world.manualTick(dt)
       const gs = this._gameMode.gameState
-      this._hudProps.coins = this._gameMode.coins
-      this._hudProps.score = gs.score
-      this._hudProps.level = this.pawn?.level ?? 1
-      this._hudProps.bossActive = this._gameMode.bossActive
-      const boss = this._gameMode.bossPawn
-      this._hudProps.bossName = boss ? boss.config.name : ''
-      this._hudProps.bossMaxHp = boss ? boss.config.hp : 0
-      this._hudProps.bossHp = boss && !boss.captured ? boss.hp : 0
-      this._hudProps.phase = gs.phase as GameHudProps['phase']
-      this._hudProps.onReturnToBase = () => this.manualReturnToBase()
-      this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
+      this.callbacks.onScoreChange?.(gs.score)
+      this.callbacks.onPhaseChange?.(gs.phase)
     }
   }
 

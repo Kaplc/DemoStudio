@@ -16,7 +16,7 @@
  * 颜色等需在加载时归一化的字段，通过 transform 钩子转换（如 "#rrggbb" → 数字）。
  * 顶层以 `_` 开头的键（如 _comment）会被剔除，便于在 JSON 中写注释。
  */
-import { logger } from '..'
+import { logger } from '../Logger'
 import { DataTable } from './DataTable'
 
 export class ConfigRegistry {

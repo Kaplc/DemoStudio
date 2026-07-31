@@ -32,9 +32,9 @@ export function walkDocument(doc: unknown): WalkResult {
 
   // 场景根：有 name + objects 数组
   const isScene = typeof root.name === 'string' && Array.isArray(root.objects)
-  // 蓝图根：有 path（string） + baseClass
+  // 蓝图根：有 name + baseClass（path 已移除，注册 key 由文件路径推导）
   const isBlueprint =
-    typeof root.path === 'string' &&
+    typeof root.name === 'string' &&
     typeof root.baseClass === 'string'
 
   if (isScene) {

@@ -481,7 +481,7 @@ ipcMain.handle('list-project-assets', async (_event, folder: string) => {
 let assetWatcher: fs.FSWatcher | null = null
 let assetWatchDebounce: NodeJS.Timeout | null = null
 
-/** 开始监听某工程 asset 目录（覆盖上一次监听）。仅 *.scene.json / *.blueprint.json 变化才通知。 */
+/** 开始监听某工程 asset 目录（覆盖上一次监听）。仅 *.scene.json / *.blueprint.json / *.widget.json 变化才通知。 */
 ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
   if (assetWatcher) {
     try { assetWatcher.close() } catch { /* ignore */ }
@@ -497,8 +497,8 @@ ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
   try {
     assetWatcher = fs.watch(projectRoot, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
-      // 只关心场景/蓝图资产；代码/其它文件忽略
-      if (!/\.(scene|blueprint)\.json$/i.test(filename)) return
+      // 只关心场景/蓝图/widget 资产；代码/其它文件忽略
+      if (!/\.(scene|blueprint|widget)\.json$/i.test(filename)) return
       // 去抖：编辑器保存常触发多次事件
       if (assetWatchDebounce) clearTimeout(assetWatchDebounce)
       assetWatchDebounce = setTimeout(() => {

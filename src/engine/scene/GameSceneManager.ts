@@ -11,6 +11,7 @@
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { logger } from '../Logger'
 import type { GameUI } from '../gameplay/ui/GameUI'
 import type { CameraMode } from './PreviewSceneManager'
 
@@ -108,6 +109,7 @@ export class GameSceneManager {
 
     // 初始停止渲染
     this.stop()
+    logger.info(`[GameSceneManager] 创建: ${container.clientWidth}x${container.clientHeight}, cameraMode=${this.cameraMode}`)
   }
 
   // ════════════════════════════════════════════
@@ -116,6 +118,7 @@ export class GameSceneManager {
 
   /** 将 GameUI 根元素挂载到 UI 覆盖层 */
   mountGameUI(ui: GameUI): void {
+    logger.info(`[GameSceneManager] 挂载 GameUI 容器 (el=${ui.el.className})`)
     this.uiLayer.appendChild(ui.el)
   }
 
@@ -250,6 +253,7 @@ export class GameSceneManager {
   // ════════════════════════════════════════════
 
   start() {
+    logger.info('[GameSceneManager] 渲染循环启动')
     this.lastTime = performance.now()
     const animate = (time: number) => {
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
@@ -273,6 +277,7 @@ export class GameSceneManager {
 
   stop() {
     if (this.animationId !== null) {
+      logger.info('[GameSceneManager] 渲染循环停止')
       cancelAnimationFrame(this.animationId)
       this.animationId = null
     }

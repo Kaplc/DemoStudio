@@ -7,7 +7,7 @@
  * 设计取舍：行为逻辑由 baseClass（TS Actor 子类）承载；
  * 数据（Component 组合 / 子 Actor / 默认属性 / 继承）由本资产描述。不引入可视化脚本。
  */
-import type { PropertyPatch } from '../tools/deepMerge'
+import type { PropertyPatch } from '../../tools/deepMerge'
 
 /** 蓝图中的 Component 描述 */
 export interface BlueprintComponentDef {
@@ -51,8 +51,6 @@ export interface BlueprintChildDef {
 
 /** 蓝图资产（JSON 文档根） */
 export interface BlueprintAsset {
-  /** 蓝图路径（相对于 src/projects/，如 fish/asset/blueprints/foundation.blueprint.json） */
-  path: string
   /** 蓝图显示名称 */
   name: string
   /** baseClass（ActorRegistry key），如 'Actor' / 'FishHouse' */

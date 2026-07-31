@@ -184,7 +184,7 @@ export class FishBaseGameMode extends GameMode {
     }
 
     // ─── 房子 Actor → 从 Blueprint 实例化（beach_house，行为类 blueprint 范例）───
-    const house = world.SpawnActorFromBlueprint('fish/asset/blueprints/beach_house.blueprint.json')
+    const house = world.SpawnActorFromBlueprint('asset/blueprints/beach_house.blueprint.json')
     if (house) {
       this.houseActor = house as FishHouseActor
     } else {

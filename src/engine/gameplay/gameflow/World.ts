@@ -6,23 +6,27 @@ import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { GameMode } from './GameMode'
-import { gizmos } from '../tools/Gizmos'
+import { gizmos } from '../../tools/Gizmos'
 import { logger } from '../../Logger'
+import { UIManager } from '../ui/UIManager'
 import { MeshComponent } from '../rendering/MeshComponent'
-import { loadScene } from '../scene/SceneLoader'
+import { loadScene } from '../../scene/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
 import { AssetRegistry } from '../tools/AssetRegistry'
-import type { PropertyPatch } from '../tools/deepMerge'
-import type { SceneAsset } from '../scene/SceneAsset'
+import type { PropertyPatch } from '../../tools/deepMerge'
+import type { SceneAsset } from '../../scene/SceneAsset'
 import type { Pawn } from '../entity/Pawn'
 import type { PlayerController } from '../input/PlayerController'
 
 export class World {
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
+
+  /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理） */
+  public readonly ui: UIManager
 
   private allActors = new Set<Actor>()
   private pendingSpawn: Actor[] = []
@@ -34,6 +38,7 @@ export class World {
 
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
     this.scene = scene
+    this.ui = new UIManager(this)
     if (gameMode) {
       this.SetGameMode(gameMode)
     }
@@ -44,6 +49,7 @@ export class World {
   // ═══════════════════════════════════
 
   SetGameMode(gm: GameMode) {
+    logger.info(`[World] SetGameMode: ${gm.constructor.name}`)
     // 先清理旧 GameMode
     if (this.gameMode) {
       this.gameMode.EndPlay()
@@ -166,19 +172,21 @@ export class World {
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
   SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
+    logger.info(`[World] SpawnActorFromBlueprint: 实例化 "${path}"`)
     let resolved
     try {
       resolved = BlueprintRegistry.resolve(path)
     } catch (e) {
-      logger.warn(`[World] SpawnActorFromBlueprint("${path}") 解析失败: ${(e as Error).message}`)
+      logger.error(`[World] SpawnActorFromBlueprint("${path}") 解析失败: ${(e as Error).message}`)
       return null
     }
 
     const actor = ActorRegistry.create(resolved.baseClass)
     if (!actor) {
-      logger.warn(`[World] SpawnActorFromBlueprint("${path}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
+      logger.error(`[World] SpawnActorFromBlueprint("${path}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
       return null
     }
+    logger.info(`[World] SpawnActorFromBlueprint("${path}"): baseClass="${resolved.baseClass}"，组件数=${resolved.components.length}，子节点数=${resolved.children.length}`)
 
     // 1. Transform
     if (resolved.position) actor.setPosition(resolved.position[0], resolved.position[1], resolved.position[2])
@@ -191,8 +199,9 @@ export class World {
       if (comp) {
         if (cdef.name) comp.name = cdef.name
         actor.addComponent(comp)
+        logger.info(`[World]   └ 组件: "${cdef.baseClass}" name="${comp.name}"`)
       } else {
-        logger.warn(`[World] SpawnActorFromBlueprint("${path}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
+        logger.error(`[World] SpawnActorFromBlueprint("${path}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
       }
     }
 
@@ -278,6 +287,7 @@ export class World {
 
     // 6. 进 World
     this.SpawnActor(actor)
+    logger.info(`[World] SpawnActorFromBlueprint("${path}"): Actor "${actor.name}" 已生成（uid=${actor.uid}）`)
     return actor
   }
 
@@ -347,7 +357,12 @@ export class World {
 
   /** 标记运行但不启动自己的 rAF（由外部驱动 render/update 时使用） */
   BeginPlay() {
+    logger.info(`[World] BeginPlay: 恢复运行（actorCount=${this.allActors.size}, pendingSpawn=${this.pendingSpawn.length}）`)
     this._running = true
+    // 先提交等待生成的 Actor（否则 SpawnActorFromBlueprint 生成的 Actor 永远停在
+    // pendingSpawn 队列，不进场景、不 BeginPlay，UI/游戏对象不会渲染）
+    this.commitSpawn()
+    this.commitDestroy()
     for (const actor of this.allActors) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
@@ -358,6 +373,7 @@ export class World {
 
   /** 暂停运行（外部驱动模式） */
   Pause() {
+    logger.info('[World] Pause: 暂停运行')
     this._running = false
   }
 
@@ -376,6 +392,8 @@ export class World {
       actor.EndPlay()
     }
     this.pendingSpawn = []
+    // HUD 已随 allActors 销毁，清空 UIManager 引用避免悬空
+    this.ui.clear()
     logger.debug(`[World] DestroyAllActors: 销毁 ${count} 个 Actor`)
   }
 
@@ -436,19 +454,28 @@ export class World {
    * 1. Pause() 暂停 Tick 循环
    * 2. DestroyAllActors() 销毁并释放所有 Actor
    * 3. SetGameMode(newMode) 切换 GameMode（InitGame + StartPlay，因 _running=false 不触发 BeginPlay）
-   * 4. 执行可选的 setup 回调（加载场景资产、设置相机、生成玩家等）
-   * 5. BeginPlay() 恢复世界运行，触发新 GameMode.BeginPlay + commitSpawn
+   * 4. 创建 HUD（若 newMode.HUDClass 声明）— UI 对象创建由 World 统一管理
+   * 5. 执行可选的 setup 回调（加载场景资产、设置相机、生成玩家等）
+   * 6. BeginPlay() 恢复世界运行，触发新 GameMode.BeginPlay + commitSpawn
    *
    * @param newMode  目标 GameMode
    * @param setup    在 BeginPlay 之前执行的设置回调（场景加载、相机、Controller 等）
    */
   SwitchScene(newMode: GameMode, setup?: () => void): void {
+    logger.info(`[World] SwitchScene: 暂停世界 → 销毁旧 Actor → 切换 GameMode(${newMode.constructor.name})`)
     this.Pause()
     this.DestroyAllActors()
     this.SetGameMode(newMode)
+    // 创建 HUD（模仿 UE：GameMode.HUDClass → UIManager 统一创建 UI）
+    if (newMode.HUDClass) {
+      this.ui.createHUD(newMode.HUDClass)
+    } else {
+      logger.info('[World] SwitchScene: GameMode 未声明 HUDClass，跳过 HUD 创建')
+    }
+    logger.info('[World] SwitchScene: 执行 setup 回调（加载场景资产 / 项目专属设置）...')
     setup?.()
     this.BeginPlay()
-    logger.info(`[World] SwitchScene → ${newMode.constructor.name}`)
+    logger.info(`[World] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.allActors.size}）`)
   }
 
   /**
@@ -460,6 +487,7 @@ export class World {
    * 返回生成的 Actor 数量。
    */
   loadSceneAsActors(sceneAsset: SceneAsset): number {
+    logger.info(`[World] loadSceneAsActors: 加载场景资产 "${sceneAsset.name}" (objects=${sceneAsset.objects?.length ?? 0})`)
     const asset = loadScene(sceneAsset)
     let count = 0
 
@@ -552,7 +580,7 @@ export class World {
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
    * 供外部调用（ScenePreviewManager 等）。
    */
-  spawnInlineActor(node: import('../scene/SceneAsset').ActorNode): Actor | null {
+  spawnInlineActor(node: import('../../scene/SceneAsset').ActorNode): Actor | null {
     const actor = ActorRegistry.create(node.baseClass)
     if (!actor) {
       logger.warn(`[World] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
@@ -667,9 +695,10 @@ export class World {
   SwitchToScene(sceneOrName: SceneAsset | string, extraSetup?: () => void): boolean {
     // 字符串 → 从 AssetRegistry 查找
     if (typeof sceneOrName === 'string') {
+      logger.info(`[World] SwitchToScene: 按名称查找场景 "${sceneOrName}"`)
       const asset = AssetRegistry.getScene(sceneOrName)
       if (!asset) {
-        logger.warn(`[World] SwitchToScene: 场景 "${sceneOrName}" 未在 AssetRegistry 中注册`)
+        logger.error(`[World] SwitchToScene: 场景 "${sceneOrName}" 未在 AssetRegistry 中注册`)
         return false
       }
       return this.SwitchToScene(asset, extraSetup)
@@ -677,11 +706,13 @@ export class World {
 
     const sceneAsset = sceneOrName
     const mode = sceneAsset.mode
+    logger.info(`[World] SwitchToScene: 加载场景 "${sceneAsset.name}" (mode=${mode}, objects=${sceneAsset.objects?.length ?? 0})`)
     if (!mode || !GameModeRegistry.has(mode)) {
-      logger.warn(`[World] SwitchToScene: mode "${mode}" 未注册，无法切换`)
+      logger.error(`[World] SwitchToScene: mode "${mode}" 未注册，无法切换`)
       return false
     }
     const newMode = GameModeRegistry.create(mode)!
+    logger.info(`[World] SwitchToScene: 创建 GameMode "${newMode.constructor.name}"，开始切换...`)
     this.SwitchScene(newMode, () => {
       this.loadSceneAsActors(sceneAsset)
       extraSetup?.()

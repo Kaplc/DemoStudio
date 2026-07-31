@@ -131,7 +131,7 @@ export function Viewport({ onReady }: ViewportProps) {
       const result = await readJsonFile(path)
       if (!result.success || !result.data) return
       // 动态导入 loadScene（保持 tree-shaking）
-      const { loadScene } = await import('../engine/gameplay/scene/SceneLoader')
+      const { loadScene } = await import('../engine/scene/SceneLoader')
       // 清除旧预览
       if (previewRef.current) {
         shared.remove(previewRef.current.group)

@@ -11,7 +11,7 @@
  * 项目行为类（如 FishHouse）在各项目 register.ts 中注册。
  */
 import type { Actor } from '../entity/Actor'
-import type { PropertyPatch } from './deepMerge'
+import type { PropertyPatch } from '../../tools/deepMerge'
 
 /** Actor 工厂：用 params 创建实例 */
 export type ActorFactory = (params?: PropertyPatch) => Actor

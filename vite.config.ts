@@ -10,9 +10,10 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
-    watch: {
-      ignored: ['**/*.blueprint.json', '**/*.scene.json'],
-    },
+    // 资产 JSON（scene/blueprint）必须参与文件监听，
+    // 否则修改 .scene.json / .blueprint.json 不会触发 Vite 重载，
+    // import.meta.glob 读取到的始终是缓存旧内容。
+    watch: {},
   },
   plugins: [
     react(),

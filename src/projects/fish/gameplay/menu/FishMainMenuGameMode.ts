@@ -14,6 +14,9 @@ export class FishMainMenuGameMode extends GameMode {
   /** 外部设置：玩家点击开始后的回调 */
   onStartGame: (() => void) | null = null
 
+  /** HUD 蓝图：主菜单 UI（由 World.SwitchScene 统一创建） */
+  override HUDClass = 'asset/blueprints/ui/main_menu.widget.json'
+
   constructor() {
     super()
     this.gameCamera = new CameraComponent(this, 'MenuCamera', 'orthographic')

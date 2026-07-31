@@ -11,6 +11,8 @@ import type { FieldSpec, LintIssue, CheckerContext, FieldType } from './types'
 
 /** CSS hex 颜色：#rgb / #rgba / #rrggbb / #rrggbbaa */
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+/** CSS rgb()/rgba() 颜色：数字分量 + 可选 alpha */
+const RGB_RE = /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0?\.\d+|\d(?:\.\d+)?%?)\s*)?\)$/
 
 /** 按 dot 路径取值；中间 undefined 直接返回 undefined（不报中间缺失）。 */
 function getByPath(obj: unknown, path: string): unknown {
@@ -35,7 +37,7 @@ function matchesType(value: unknown, type: FieldType): boolean {
     case 'boolean':
       return typeof value === 'boolean'
     case 'color':
-      return typeof value === 'string' && HEX_RE.test(value)
+      return typeof value === 'string' && (HEX_RE.test(value) || RGB_RE.test(value))
     case 'object':
       return typeof value === 'object' && value !== null && !Array.isArray(value)
     case 'array':

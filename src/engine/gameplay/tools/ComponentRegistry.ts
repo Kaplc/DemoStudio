@@ -12,7 +12,7 @@
  */
 import type { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
-import type { PropertyPatch } from './deepMerge'
+import type { PropertyPatch } from '../../tools/deepMerge'
 
 /** Component 工厂：用 owner 与 props 构造实例（props 可含构造所需参数） */
 export type ComponentFactory = (owner: Actor, props?: PropertyPatch) => Component

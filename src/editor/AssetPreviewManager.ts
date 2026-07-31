@@ -6,9 +6,10 @@
  * 按资产路径操作对应的预览实例，不直接持有静态引用。
  */
 import { BlueprintPreviewManager } from './BlueprintPreviewManager'
+import { UIPreviewManager } from './UIPreviewManager'
 import { ScenePreviewManager } from './ScenePreviewManager'
 
-type PreviewInstance = BlueprintPreviewManager | ScenePreviewManager
+type PreviewInstance = BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager
 
 export class AssetPreviewManager {
   /** 资产路径 → 预览实例 */

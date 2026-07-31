@@ -11,7 +11,7 @@
  *   - resolve 结果缓存在 cache，register / loadFromJson 时 invalidate 对应 path。
  */
 import { logger } from '../../Logger'
-import { clonePatch, type PropertyPatch } from '../tools/deepMerge'
+import { clonePatch, type PropertyPatch } from '../../tools/deepMerge'
 import type {
   BlueprintAsset,
   BlueprintChildDef,
@@ -24,15 +24,15 @@ export class BlueprintRegistry {
   private static assets = new Map<string, BlueprintAsset>()
   private static cache = new Map<string, ResolvedBlueprint>()
 
-  /** 注册一个蓝图资产（覆盖同名，并失效缓存） */
-  static register(asset: BlueprintAsset): void {
-    BlueprintRegistry.assets.set(asset.path, asset)
-    BlueprintRegistry.cache.delete(asset.path)
+  /** 注册一个蓝图资产（path 为注册 key，覆盖同名并失效缓存） */
+  static register(path: string, asset: BlueprintAsset): void {
+    BlueprintRegistry.assets.set(path, asset)
+    BlueprintRegistry.cache.delete(path)
   }
 
-  /** 从 JSON 注册（使用 json.path） */
+  /** 从 JSON 注册（key 由外部传入，资产内不保存 path） */
   static loadFromJson(path: string, json: BlueprintAsset): void {
-    BlueprintRegistry.register({ ...json, path })
+    BlueprintRegistry.register(path, json)
   }
 
   /** 检查是否已注册 */

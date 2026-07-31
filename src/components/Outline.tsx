@@ -35,7 +35,7 @@ function renderActorTreeNodes(
         onClick={() => {
           if (!node.actor || !assetPath) return
           if (kind === 'blueprint') {
-            const mgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(assetPath)
+            const mgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)
             if (isSelected) mgr?.selectActor(null)
             else mgr?.focusActor(node.actor)
           } else {
@@ -47,7 +47,7 @@ function renderActorTreeNodes(
         onDoubleClick={() => {
           if (!node.actor || !assetPath) return
           if (kind === 'blueprint') {
-            AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(assetPath)?.focusActor(node.actor)
+            AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)?.focusActor(node.actor)
           } else {
             AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(assetPath)?.focusActor(node.actor)
           }
@@ -107,7 +107,7 @@ export function Outline() {
   const bpAssetPath = isBlueprintTab ? currentTab?.assetPath : null
   const bpTree = useMemo(() => {
     if (!bpAssetPath) return null
-    const bpMgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager>(bpAssetPath)
+    const bpMgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(bpAssetPath)
     if (!bpMgr || bpMgr.currentBlueprintId == null) return null
     return bpMgr.getActorTree()
   }, [bpAssetPath, selectionKey, blueprintEditNonce])

@@ -47,14 +47,24 @@ interface FileResult {
   error?: string
 }
 
-async function readAsset(assetPath: string): Promise<{ ok: true; asset: BlueprintAsset } | { ok: false; error: string }> {
+/** 磁盘路径 → 蓝图注册 key（asset/...）。输入如 src/projects/fish/asset/blueprints/foo.blueprint.json */
+function diskPathToAssetKey(diskPath: string): string {
+  // 取 "asset/" 之后的部分；找不到则原样返回
+  const idx = diskPath.indexOf('/asset/')
+  if (idx >= 0) return diskPath.slice(idx + 1)
+  return diskPath
+}
+
+async function readAsset(assetPath: string): Promise<{ ok: true; asset: BlueprintAsset; key: string } | { ok: false; error: string }> {
   const read = window.electronAPI?.readJsonFile
   if (!read) return { ok: false, error: '读取蓝图需要 Electron 环境（readJsonFile 不可用）' }
   const r = (await read(assetPath)) as FileResult
   if (!r.success || !r.data) return { ok: false, error: r.error ?? '读取蓝图文件失败' }
   const err = ops.validateAssetShape(r.data)
   if (err) return { ok: false, error: `蓝图格式非法: ${err}` }
-  return { ok: true, asset: r.data as BlueprintAsset }
+  // 注册 key 由磁盘路径推导（asset/...），资产内不保存 path
+  const asset = r.data as BlueprintAsset
+  return { ok: true, asset, key: diskPathToAssetKey(assetPath) }
 }
 
 async function writeAsset(assetPath: string, data: BlueprintAsset): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -144,8 +154,8 @@ export class BlueprintEditorService {
     const r = await readAsset(assetPath)
     if (!r.ok) return { ok: false, error: r.error, types: this.listTypes() }
     // 编辑器打开时尚未注册的蓝图，读取时补注册（供预览 / resolve 校验）
-    if (!BlueprintRegistry.has(r.asset.path)) {
-      BlueprintRegistry.loadFromJson(r.asset.path, r.asset)
+    if (!BlueprintRegistry.has(r.key)) {
+      BlueprintRegistry.loadFromJson(r.key, r.asset)
     }
     return { ok: true, asset: r.asset, types: this.listTypes() }
   }
@@ -161,6 +171,7 @@ export class BlueprintEditorService {
     const read = await readAsset(assetPath)
     if (!read.ok) return { ok: false, error: read.error, types: this.listTypes() }
     const oldAsset = read.asset
+    const key = read.key
 
     const res = runOp(oldAsset, op, params ?? {})
     if (!res.ok) {
@@ -172,15 +183,15 @@ export class BlueprintEditorService {
     // 注册表层软告警
     this.pushRegistryWarnings(newAsset, op, params ?? {}, warnings)
 
-    // 乐观注册后 resolve 探测继承/引用环
-    BlueprintRegistry.loadFromJson(newAsset.path, newAsset)
+    // 乐观注册后 resolve 探测继承/引用环（key 由磁盘路径推导）
+    BlueprintRegistry.loadFromJson(key, newAsset)
     try {
-      BlueprintRegistry.resolve(newAsset.path)
+      BlueprintRegistry.resolve(key)
     } catch (e) {
       const msg = String((e as Error)?.message ?? e)
       if (msg.includes('循环')) {
         // 命中环：回滚注册表，不写盘
-        BlueprintRegistry.loadFromJson(oldAsset.path, oldAsset)
+        BlueprintRegistry.loadFromJson(key, oldAsset)
         return {
           ok: false,
           error: `蓝图引用存在循环: ${msg}`,
@@ -195,7 +206,7 @@ export class BlueprintEditorService {
     // 写盘
     const written = await writeAsset(assetPath, newAsset)
     if (!written.ok) {
-      BlueprintRegistry.loadFromJson(oldAsset.path, oldAsset)
+      BlueprintRegistry.loadFromJson(key, oldAsset)
       return { ok: false, error: written.error, asset: oldAsset, types: this.listTypes() }
     }
 

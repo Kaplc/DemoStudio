@@ -382,7 +382,7 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
   return (
     <>
       <div className="property-group">
-        <div className="property-group-title">{asset.path} · Class</div>
+        <div className="property-group-title">{assetPath} · Class</div>
         <div className="property-row">
           <span className="property-label">baseClass</span>
           <span className="property-value" style={{ fontSize: 11, color: 'var(--success)' }}>{asset.baseClass}</span>

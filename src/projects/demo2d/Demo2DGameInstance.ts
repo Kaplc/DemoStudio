@@ -1,14 +1,11 @@
 /**
  * Demo2DGameInstance — 2D 演示游戏实例
- * 封装 World + GameMode + 玩家生命周期，React HUD 渲染。
+ * 封装 World + GameMode + 玩家生命周期
  */
 import * as THREE from 'three'
-import React from 'react'
 import { GameInstance, World, logger } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { Demo2DGameMode, Demo2DPawn, Demo2DPlayerController } from './'
-import { GameHud } from './components/GameHud'
-import type { GameHudProps } from './components/GameHud'
 
 export class Demo2DGameInstance extends GameInstance {
   readonly world: World
@@ -17,7 +14,6 @@ export class Demo2DGameInstance extends GameInstance {
   private _controller: Demo2DPlayerController | null = null
   pawn: Demo2DPawn | null = null
 
-  private _hudProps: GameHudProps = { score: 0, phase: 'waiting' }
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
 
@@ -63,19 +59,12 @@ export class Demo2DGameInstance extends GameInstance {
     this.gameMode.SpawnInitialCoin()
     this.world.BeginPlay()
 
-    this._hudProps = { score: 0, phase: 'playing' }
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
-
     logger.info('[Demo2D] 游戏已启动')
     return true
   }
 
   override tick(dt: number) {
     this.world.manualTick(dt)
-    const gs = this.gameMode.gameState
-    this._hudProps.score = gs.score
-    this._hudProps.phase = gs.phase as GameHudProps['phase']
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
   override drawGizmos() {

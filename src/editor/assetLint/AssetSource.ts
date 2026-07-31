@@ -16,8 +16,8 @@ export interface AssetSource {
   list(folder: string): Promise<AssetFile[]>
 }
 
-/** 仅收场景/蓝图资产（按命名约定）。 */
-const ASSET_EXT_RE = /\.(scene|blueprint)\.json$/i
+/** 仅收场景/蓝图/widget 资产（按命名约定）。 */
+const ASSET_EXT_RE = /\.(scene|blueprint|widget)\.json$/i
 
 function errMsg(err: unknown): string {
   if (err instanceof Error) return err.message

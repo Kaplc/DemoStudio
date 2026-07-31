@@ -5,23 +5,20 @@
  * 让 asset/ 文件夹实现"自动映射、注册和管理"：
  *
  * - 场景资产按 name 注册，可通过 name / mode 查找
- * - 蓝图资产自动注册到 BlueprintRegistry
- * - 项目中只需在 asset/index.ts 中导入，剩余由 registerAll() 自动完成
+ * - 蓝图资产从 import.meta.glob 的 key 自动推导注册路径（asset/...）并注册到 BlueprintRegistry
+ * - 项目中只需在 asset/index.ts 中 glob 扫描，剩余由 registerAll() 自动完成
  *
  * 用法（每个项目的 asset/index.ts）：
  *   import { AssetRegistry } from '@/engine'
- *   import menuScene from './fish_menu.scene.json'
- *   import baseScene from './fish_base.scene.json'
- *   import beachHouseBp from './blueprints/beach_house.blueprint.json'
+ *   import type { SceneAsset, BlueprintAsset } from '@/engine'
  *
- *   AssetRegistry.registerAll({
- *     scenes: [menuScene, baseScene] as SceneAsset[],
- *     blueprints: [beachHouseBp] as BlueprintAsset[],
- *   })
+ *   // 用 import.meta.glob 扫描（eager: true），传入 blueprintModules 后
+ *   // 注册 key 由文件路径自动推导（asset/...），JSON 内无需写 path
+ *   AssetRegistry.registerAll({ scenes, blueprintModules: bpModules })
  *
  * 然后即可通过 World.SwitchToScene('FishMenu') 按场景名称切换。
  */
-import type { SceneAsset } from '../scene/SceneAsset'
+import type { SceneAsset } from '../../scene/SceneAsset'
 import type { BlueprintAsset } from '../blueprint/BlueprintAsset'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
 import { logger } from '../../Logger'
@@ -29,7 +26,16 @@ import { logger } from '../../Logger'
 /** 资产注册批量参数 */
 export interface ProjectAssets {
   scenes?: SceneAsset[]
-  blueprints?: BlueprintAsset[]
+  /** import.meta.glob 结果：key = 相对 asset/ 的文件路径（如 "./blueprints/beach_house.blueprint.json"），
+   *  由 key 自动推导注册路径（asset/...），无需在 JSON 内写 path */
+  blueprintModules?: Record<string, { default: BlueprintAsset }>
+}
+
+/** 将 import.meta.glob key（相对 asset/，如 "./blueprints/foo.blueprint.json"）转为注册路径（asset/...） */
+function globKeyToAssetPath(key: string): string {
+  // "./blueprints/foo.blueprint.json" → "asset/blueprints/foo.blueprint.json"
+  const cleaned = key.replace(/^\.\//, '')
+  return cleaned.startsWith('asset/') ? cleaned : `asset/${cleaned}`
 }
 
 export class AssetRegistry {
@@ -42,19 +48,17 @@ export class AssetRegistry {
 
   /**
    * 批量注册项目的所有资产。
-   * 蓝图自动注册到 BlueprintRegistry，场景按 name 索引。
+   * 蓝图自动注册到 BlueprintRegistry（注册 key 由 glob key 推导为 asset/...），
+   * 场景按 name 索引。
    */
   static registerAll(assets: ProjectAssets): void {
-    // 注册蓝图
-    if (assets.blueprints) {
-      for (const bp of assets.blueprints) {
-        const path = bp.path
-        if (!path) {
-          logger.warn('[AssetRegistry] 蓝图缺少 path，跳过')
-          continue
-        }
+    // 注册蓝图（从 glob key 推导注册路径）
+    if (assets.blueprintModules) {
+      for (const [key, mod] of Object.entries(assets.blueprintModules)) {
+        const bp = mod.default
+        const path = globKeyToAssetPath(key)
         BlueprintRegistry.loadFromJson(path, bp)
-        logger.debug(`[AssetRegistry] 注册蓝图: ${path}`)
+        logger.debug(`[AssetRegistry] 注册蓝图: ${path} (来自 ${key})`)
       }
     }
 
@@ -74,7 +78,7 @@ export class AssetRegistry {
     logger.info(
       `[AssetRegistry] 注册完成: ` +
         `场景=${assets.scenes?.length ?? 0}, ` +
-        `蓝图=${assets.blueprints?.length ?? 0}`,
+        `蓝图=${assets.blueprintModules ? Object.keys(assets.blueprintModules).length : 0}`,
     )
   }
 

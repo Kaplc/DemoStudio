@@ -1,5 +1,4 @@
 {
-  "path": "fish/asset/blueprints/beach_house_luxury.blueprint.json",
   "name": "BeachHouseLuxury",
   "baseClass": "FishHouse",
   "components": [],
@@ -39,7 +38,7 @@
       ],
       "components": [],
       "children": [],
-      "ref": "fish/asset/blueprints/beach_house.blueprint.json"
+      "ref": "asset/blueprints/beach_house.blueprint.json"
     }
   ]
 }

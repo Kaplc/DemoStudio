@@ -18,6 +18,7 @@ interface AssetKind {
 const ASSET_PATTERNS: AssetKind[] = [
   { re: /\.scene\.json$/i, kind: 'scene', icon: '🎬' },
   { re: /\.blueprint\.json$/i, kind: 'blueprint', icon: '🧩' },
+  { re: /\.widget\.json$/i, kind: 'widget', icon: '🪟' },
   { re: /\.config\.json$/i, kind: 'config', icon: '⚙️' },
   { re: /\.(png|jpe?g|gif|svg)$/i, kind: 'image', icon: '🖼️' },
 ]
@@ -136,8 +137,8 @@ export function AssetBrowser() {
     if (node.kind?.kind === 'scene') {
       const label = node.name.replace(/\.scene\.json$/i, '')
       openScenePreview(node.path, label)
-    } else if (node.kind?.kind === 'blueprint') {
-      const label = node.name.replace(/\.blueprint\.json$/i, '')
+    } else if (node.kind?.kind === 'blueprint' || node.kind?.kind === 'widget') {
+      const label = node.name.replace(/\.(blueprint|widget)\.json$/i, '')
       openBlueprintEditor(node.path, label)
     }
   }

@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { BlueprintPreviewManager, AssetPreviewManager } from '../editor'
+import { BlueprintPreviewManager, UIPreviewManager, AssetPreviewManager } from '../editor'
 import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { ResizeHandle } from './ResizeHandle'
@@ -33,11 +33,21 @@ interface BlueprintChildNode {
 }
 
 interface BlueprintData {
-  path: string
   name: string
   baseClass: string
   components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
+}
+
+/** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
+function diskPathToAssetKey(diskPath: string): string {
+  const idx = diskPath.indexOf('/asset/')
+  return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
+}
+
+/** widget 资产（.widget.json）→ UI 正交预览模式 */
+function isWidgetAsset(assetPath: string): boolean {
+  return /\.widget\.json$/i.test(assetPath)
 }
 
 export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
@@ -45,7 +55,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
-  const previewMgrRef = useRef<BlueprintPreviewManager | null>(null)
+  const previewMgrRef = useRef<BlueprintPreviewManager | UIPreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
   const [saving, setSaving] = useState(false)
   /** 左侧面板宽度（px），可由 ResizeHandle 拖动调整 */
@@ -98,16 +108,23 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   useEffect(() => {
     if (!data || !previewContainerRef.current) return
 
+    // 注册 key 由磁盘路径推导（asset/...）
+    const assetKey = diskPathToAssetKey(assetPath)
+
     // 确保蓝图已注册（编辑器打开时，蓝图可能尚未注册到 BlueprintRegistry）
-    if (!BlueprintRegistry.has(data.path)) {
-      BlueprintRegistry.loadFromJson(data.path, data as unknown as BlueprintAsset)
+    if (!BlueprintRegistry.has(assetKey)) {
+      BlueprintRegistry.loadFromJson(assetKey, data as unknown as BlueprintAsset)
     }
 
-    const mgr = new BlueprintPreviewManager(previewContainerRef.current)
+    // widget 资产用 UI 正交预览管理器；其余蓝图用 3D 预览管理器
+    const isUi = isWidgetAsset(assetPath)
+    const mgr = isUi
+      ? new UIPreviewManager(previewContainerRef.current)
+      : new BlueprintPreviewManager(previewContainerRef.current)
     previewMgrRef.current = mgr
 
     // 加载蓝图 Actor
-    const ok = mgr.loadBlueprint(data.path)
+    const ok = mgr.loadBlueprint(assetKey)
     if (ok) {
       // 用页签的相对路径注册到总管理器，供 Outline 按 assetPath 直接查找
       AssetPreviewManager.register(assetPath, mgr)
@@ -264,7 +281,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       await writeJsonFile(assetPath, saveData)
 
       // 更新注册表缓存（预览重建由 bumpBlueprintEdit → setData → useEffect 驱动，不在此手动 load）
-      BlueprintRegistry.loadFromJson(data.path, saveData as unknown as BlueprintAsset)
+      BlueprintRegistry.loadFromJson(diskPathToAssetKey(assetPath), saveData as unknown as BlueprintAsset)
 
       // 通知其他页签/面板刷新 + 触发行内 useEffect 重建预览
       useEditorStore.getState().bumpBlueprintEdit(assetPath)
@@ -389,7 +406,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
             fontSize: 10, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none',
             whiteSpace: 'nowrap',
           }}>
-            左键旋转视角 · 右键平移 · 滚轮进退 · WASD 移动 · Q/E 升降
+            {isWidgetAsset(assetPath)
+              ? '左键/右键平移 · 滚轮缩放 · WASD 平移'
+              : '左键旋转视角 · 右键平移 · 滚轮进退 · WASD 移动 · Q/E 升降'}
           </div>
         </div>
       </div>
@@ -400,7 +419,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         fontSize: 10, color: 'var(--text-dim)', background: 'var(--bg-secondary)',
         display: 'flex', gap: 16,
       }}>
-        <span>Blueprint: {data.name} ({data.path})</span>
+        <span>Blueprint: {data.name} ({diskPathToAssetKey(assetPath)})</span>
         <span>Class: {data.baseClass}</span>
         <span>File: {filename}</span>
       </div>

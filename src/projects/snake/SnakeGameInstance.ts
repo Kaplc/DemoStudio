@@ -1,15 +1,11 @@
 /**
  * SnakeGameInstance — 贪吃蛇游戏实例
  * 封装 World + GameMode + 玩家生命周期，供 Viewport 使用
- * 使用 React 组件渲染游戏 HUD
  */
 import * as THREE from 'three'
-import React from 'react'
 import { GameInstance, World, logger } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { SnakeGameMode, SnakePawn, SnakePlayerController } from './'
-import { GameHud } from './components/GameHud'
-import type { GameHudProps } from './components/GameHud'
 import type { Vec2 } from './types'
 
 /** Snake 存档 payload（captureSnapshot 输出 / restoreSnapshot 输入） */
@@ -25,9 +21,6 @@ export class SnakeGameInstance extends GameInstance {
 
   private _controller: SnakePlayerController | null = null
   pawn: SnakePawn | null = null
-
-  /** 缓存 HUD props，避免每帧创建新对象 */
-  private _hudProps: GameHudProps = { score: 0, phase: 'waiting' }
 
   override get controller(): SnakePlayerController | null {
     return this._controller
@@ -76,21 +69,12 @@ export class SnakeGameInstance extends GameInstance {
     logger.info(`[GameInstance] 玩家生成: ${pawn.name}`)
     this.world.BeginPlay()
 
-    // 首次渲染 React HUD
-    this._hudProps = { score: 0, phase: 'playing' }
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
-
     logger.info('[GameInstance] 游戏已启动')
     return true
   }
 
   override tick(dt: number) {
     this.world.manualTick(dt)
-    // 更新 React HUD（React diff 确保只更新变化的 DOM）
-    const gs = this.gameMode.gameState
-    this._hudProps.score = gs.score
-    this._hudProps.phase = gs.phase as GameHudProps['phase']
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
   /** 每帧绘制蛇的调试 Gizmos（方向射线 / 蛇身格 / 食物 / 场地范围） */

@@ -1,40 +1,46 @@
 /**
- * HUD — UI 逻辑控制器基类
+ * HUD — 屏幕空间 UI 根容器
+ * 模仿 UE AHUD（Actor），承载 GameMode 指定的 HUD 蓝图 UI 树。
  *
- * 模仿 UE HUD，负责管理 UI 生命周期和逻辑，与 TSX 视图分离：
- * - TSX 文件只做纯展示（Props → View），不管理 UI 逻辑
- * - HUD 子类管理状态、生命周期、何时渲染/卸载
- * - GameMode 持有 HUD 引用，自动转发 BeginPlay/EndPlay/Tick
+ * 职责（纯容器）：
+ *  - 由 GameMode.HUDClass（blueprint 路径）声明
+ *  - 承载 UI 树：UI Actor（从蓝图生成）attach 到本 HUD，随 HUD 进出场景
+ *  - 不参与 UI 生成逻辑 —— UI Actor 的创建统一由 UIManager 负责
  *
- * 用法：
- *   class MyGameHUD extends HUD {
- *     BeginPlay() { this.renderReact(React.createElement(MyView, this.props)) }
- *     setScore(s: number) { this.props.score = s; this.renderReact() }
- *   }
+ * 生命周期：
+ *  - 创建：UIManager.createHUD() → new HUD() → SpawnActor → attachUI(uiActor)
+ *  - 销毁：World.DestroyAllActors 遍历时 EndPlay（UI Actor 同时也在 allActors，
+ *          由 World 统一 EndPlay，HUD 只清引用）
  */
-import type { ReactElement } from 'react'
-import type { GameUI } from './GameUI'
+import { Actor } from '../entity/Actor'
 
-export abstract class HUD {
-  /** GameUI 引用（由 GameMode.InitGame 或外部注入） */
-  ui: GameUI | null = null
+export class HUD extends Actor {
+  /** 该 HUD 使用的蓝图路径（由 GameMode.HUDClass 声明） */
+  blueprintPath: string | null = null
 
-  /** 初始化（GameMode.InitGame 时调用） */
-  Init(): void {}
+  /** 蓝图实例化的 UI 根 Actor（attach 到本 HUD） */
+  private _uiActor: Actor | null = null
 
-  /** 开始播放（GameMode.BeginPlay 时调用，通常在此首次渲染） */
-  BeginPlay(): void {}
-
-  /** 结束播放（GameMode.EndPlay 时调用，通常在此清理 UI） */
-  EndPlay(): void {
-    this.renderReact(null)
+  constructor(name = 'HUD') {
+    super(name)
   }
 
-  /** 每帧更新 */
-  Tick(_dt: number): void {}
+  /** 当前 UI Actor（可空） */
+  get uiActor(): Actor | null { return this._uiActor }
 
-  /** 渲染 React 组件（由子类在适当时机调用） */
-  protected renderReact(element: ReactElement | null): void {
-    this.ui?.renderReact(element)
+  /** 是否已有 UI 内容 */
+  get hasUI(): boolean { return this._uiActor !== null }
+
+  /** 挂载 UI 根 Actor（由 UIManager 调用） */
+  attachUI(uiActor: Actor): void {
+    this._uiActor = uiActor
+    uiActor.attachTo(this)
+  }
+
+  override EndPlay(): void {
+    // UI Actor 同时也在 World.allActors 中，由 World 统一遍历 EndPlay。
+    // 这里只清引用，不手动 destroy（避免双 EndPlay 重复释放 GPU 资源）。
+    this._uiActor = null
+    super.EndPlay()
   }
 }

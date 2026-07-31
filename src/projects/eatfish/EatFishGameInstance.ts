@@ -3,12 +3,9 @@
  * 封装 World + GameMode + 玩家生命周期
  */
 import * as THREE from 'three'
-import React from 'react'
 import { GameInstance, World, logger } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { EatFishGameMode, EatFishPawn, EatFishPlayerController } from './'
-import { GameHud } from './components/GameHud'
-import type { GameHudProps } from './components/GameHud'
 
 export class EatFishGameInstance extends GameInstance {
   readonly world: World
@@ -16,8 +13,6 @@ export class EatFishGameInstance extends GameInstance {
 
   private _controller: EatFishPlayerController | null = null
   pawn: EatFishPawn | null = null
-
-  private _hudProps: GameHudProps = { score: 0, fishSize: 1, phase: 'waiting' }
 
   override get controller(): EatFishPlayerController | null {
     return this._controller
@@ -89,10 +84,6 @@ export class EatFishGameInstance extends GameInstance {
     logger.info(`[EatFishGameInstance] 玩家生成: ${pawn.name}`)
     this.world.BeginPlay()
 
-    // 首次渲染 HUD
-    this._hudProps = { score: 0, fishSize: pawn.getScale(), phase: 'playing' }
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
-
     logger.info('[EatFishGameInstance] 游戏已启动')
     return true
   }
@@ -103,14 +94,6 @@ export class EatFishGameInstance extends GameInstance {
 
     // Tick 世界
     this.world.manualTick(dt)
-
-    // 更新 HUD
-    const gs = this.gameMode.gameState
-    const fs = this.pawn?.getScale() ?? 1
-    this._hudProps.score = gs.score
-    this._hudProps.fishSize = fs
-    this._hudProps.phase = gs.phase as GameHudProps['phase']
-    this.ui?.renderReact(React.createElement(GameHud, this._hudProps))
   }
 
   override drawGizmos() {

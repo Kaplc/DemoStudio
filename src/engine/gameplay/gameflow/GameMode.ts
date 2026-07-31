@@ -5,7 +5,6 @@
 import { Actor } from '../entity/Actor'
 import { GameState } from './GameState'
 import { PlayerCameraManager } from '../input/PlayerCameraManager'
-import { HUD } from '../ui/HUD'
 import type { Pawn } from '../entity/Pawn'
 import type { PlayerController } from '../input/PlayerController'
 
@@ -13,8 +12,11 @@ export abstract class GameMode extends Actor {
   public readonly gameState: GameState
   public readonly cameraManager: PlayerCameraManager
 
-  /** HUD 控制器（由子类在构造时创建并赋值） */
-  hud: HUD | null = null
+  /**
+   * HUD 蓝图路径（模仿 UE GameMode.HUDClass）。
+   * World 在场景切换时据此调用 UIManager.createHUD 创建 HUD，UI Actor 的生成由 UIManager 统一管理。
+   */
+  HUDClass?: string
 
   constructor() {
     super('GameMode')
@@ -24,7 +26,6 @@ export abstract class GameMode extends Actor {
 
   InitGame(): void {
     this.gameState.reset()
-    this.hud?.Init()
   }
 
   StartPlay(): void {
@@ -33,17 +34,14 @@ export abstract class GameMode extends Actor {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    this.hud?.BeginPlay()
   }
 
   override EndPlay(): void {
-    this.hud?.EndPlay()
     super.EndPlay()
   }
 
   override Tick(dt: number): void {
     super.Tick(dt) // component ticks
-    this.hud?.Tick(dt)
   }
 
   OnPlayerDied(_pawn: Pawn): void {}

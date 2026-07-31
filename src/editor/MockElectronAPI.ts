@@ -35,6 +35,11 @@ const blueprintJsonModules = import.meta.glob<Record<string, unknown>>(
   { eager: true, import: 'default' },
 )
 
+const widgetJsonModules = import.meta.glob<Record<string, unknown>>(
+  '../projects/**/*.widget.json',
+  { eager: true, import: 'default' },
+)
+
 // 所有项目文件路径（仅取 glob keys，不 import 内容；供 listProjectAssets 列资产用）
 const allFileKeys = Object.keys(import.meta.glob('../projects/**/*.*'))
 
@@ -65,6 +70,11 @@ for (const [key, data] of Object.entries(sceneJsonModules)) {
 // 注册所有 blueprint.json（运行时由 register.ts 注册到 BlueprintRegistry，
 // 此处预加载供编辑器 readJsonFile 读取蓝图资产）
 for (const [key, data] of Object.entries(blueprintJsonModules)) {
+  jsonCache.set(normalizePath(key), data)
+}
+
+// 注册所有 widget.json（UI widget 蓝图）
+for (const [key, data] of Object.entries(widgetJsonModules)) {
   jsonCache.set(normalizePath(key), data)
 }
 
