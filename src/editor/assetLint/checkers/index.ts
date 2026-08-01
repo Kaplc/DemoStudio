@@ -8,6 +8,5 @@
  *   2. 在此加一行 import './YourChecker'
  */
 import './docCheckers'
-import './primitiveNodeCheckers'
-import './templateNodeCheckers'
+import './nodeCheckers'
 import './componentChecker'

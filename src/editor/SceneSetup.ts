@@ -49,7 +49,6 @@ export function setupScene(
   // ─── 共享场景（Scene 视口和 Game 视口共用）───
   const shared = new THREE.Scene()
   shared.background = new THREE.Color(0x1a1a2e)
-  shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
   addDefaultContent(shared)
   gizmos.attach(shared)
 

@@ -28,7 +28,6 @@ export class EatFishGameInstance extends GameInstance {
     this.sharedScene = sharedScene
     // 设置水下场景氛围
     sharedScene.background = new THREE.Color(0x0a3d6b)
-    sharedScene.fog = new THREE.Fog(0x0a3d6b, 20, 45)
     // 环境光加强水下效果
     const ambient = sharedScene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
     if (ambient) {
@@ -115,7 +114,6 @@ export class EatFishGameInstance extends GameInstance {
     this.pawn = null
     // 恢复场景背景
     this.sharedScene.background = new THREE.Color(0x1a1a2e)
-    this.sharedScene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
   }
 
   override destroy() {

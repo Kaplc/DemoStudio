@@ -2,64 +2,131 @@
   "name": "FishBaseIsland",
   "mode": "base",
   "skybox": {
-    "backgroundColor": "#87ceeb",
-    "fogColor": "#b0e0e6",
-    "fogNear": 40,
-    "fogFar": 70
+    "backgroundColor": "#87ceeb"
   },
   "objects": [
     {
-      "type": "plane",
-      "size": [
-        80,
-        80,
-        1
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "plane_1",
+      "baseClass": "Actor",
+      "position": [
         0,
         -0.2,
         0
       ],
-      "rot": [
+      "rotation": [
         -1.5708,
         0,
         0
       ],
-      "material": {
-        "color": "#1e88e5",
-        "kind": "basic"
-      },
-      "name": "plane_1"
-    },
-    {
-      "type": "plane",
-      "size": [
-        30,
-        30,
+      "scale": [
+        1,
+        1,
         1
       ],
-      "pos": [
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              -0.2,
+              0
+            ],
+            "rotation": [
+              -1.5708,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "plane",
+            "color": "#1e88e5",
+            "name": "plane_1",
+            "size": [
+              80,
+              80,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "plane_2",
+      "baseClass": "Actor",
+      "position": [
         0,
         -0.05,
         0
       ],
-      "rot": [
+      "rotation": [
         -1.5708,
         0,
         0
       ],
-      "material": {
-        "color": "#a4d1a2",
-        "kind": "basic"
-      },
-      "name": "plane_2"
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              -0.05,
+              0
+            ],
+            "rotation": [
+              -1.5708,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "plane",
+            "color": "#a4d1a2",
+            "name": "plane_2",
+            "size": [
+              30,
+              30,
+              1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 15,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_1",
+      "baseClass": "Actor",
+      "position": [
         0,
         -2,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
         0
       ],
       "scale": [
@@ -67,889 +134,2962 @@
         0.08,
         1
       ],
-      "material": {
-        "color": "#c2a06e",
-        "opacity": 0.6,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_1"
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              -2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              0.08,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#c2a06e",
+            "name": "sphere_1",
+            "size": [
+              15
+            ],
+            "opacity": 0.6
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        8,
-        0.3,
-        8
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_1",
+      "baseClass": "Actor",
+      "position": [
         0,
         0.1,
         0
       ],
-      "material": {
-        "color": "#d4b886",
-        "kind": "basic"
-      },
-      "name": "box_1"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.1,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#d4b886",
+            "name": "box_1",
+            "size": [
+              8,
+              0.3,
+              8
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        7,
-        0.2,
-        7
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_2",
+      "baseClass": "Actor",
+      "position": [
         0,
         0.3,
         0
       ],
-      "material": {
-        "color": "#c9a96e",
-        "kind": "basic"
-      },
-      "name": "box_2"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.3,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#c9a96e",
+            "name": "box_2",
+            "size": [
+              7,
+              0.2,
+              7
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_3",
+      "baseClass": "Actor",
+      "position": [
         0,
         0.35,
         4.5
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_3"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.35,
+              4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_3",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_4",
+      "baseClass": "Actor",
+      "position": [
         0,
         0.55,
         4.5
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_4"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.55,
+              4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_4",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_5",
+      "baseClass": "Actor",
+      "position": [
         0,
         0.75,
         4.5
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_5"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.75,
+              4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_5",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.1,
-        0.8,
-        0.1
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_6",
+      "baseClass": "Actor",
+      "position": [
         -1.3,
         0.5,
         4.5
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_6"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -1.3,
+              0.5,
+              4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_6",
+            "size": [
+              0.1,
+              0.8,
+              0.1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.1,
-        0.8,
-        0.1
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_7",
+      "baseClass": "Actor",
+      "position": [
         1.3,
         0.5,
         4.5
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_7"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              1.3,
+              0.5,
+              4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_7",
+            "size": [
+              0.1,
+              0.8,
+              0.1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_8",
+      "baseClass": "Actor",
+      "position": [
         4.5,
         0.35,
         0
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_8"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.5,
+              0.35,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_8",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_9",
+      "baseClass": "Actor",
+      "position": [
         4.5,
         0.55,
         0
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_9"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.5,
+              0.55,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_9",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        2.8,
-        0.3,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_10",
+      "baseClass": "Actor",
+      "position": [
         4.5,
         0.75,
         0
       ],
-      "material": {
-        "color": "#8d6e63",
-        "kind": "basic"
-      },
-      "name": "box_10"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.5,
+              0.75,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#8d6e63",
+            "name": "box_10",
+            "size": [
+              2.8,
+              0.3,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.1,
-        0.8,
-        0.1
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_11",
+      "baseClass": "Actor",
+      "position": [
         4.5,
         0.5,
         -1.3
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_11"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.5,
+              0.5,
+              -1.3
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_11",
+            "size": [
+              0.1,
+              0.8,
+              0.1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.1,
-        0.8,
-        0.1
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_12",
+      "baseClass": "Actor",
+      "position": [
         4.5,
         0.5,
         1.3
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_12"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.5,
+              0.5,
+              1.3
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_12",
+            "size": [
+              0.1,
+              0.8,
+              0.1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.15,
-        4.0,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_13",
+      "baseClass": "Actor",
+      "position": [
         -6,
         1.8,
         -4
       ],
-      "material": {
-        "color": "#5d4037",
-        "kind": "basic"
-      },
-      "name": "box_13"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -6,
+              1.8,
+              -4
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#5d4037",
+            "name": "box_13",
+            "size": [
+              0.15,
+              4,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.2,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_2",
+      "baseClass": "Actor",
+      "position": [
         -6,
         4.2,
         -4
       ],
-      "material": {
-        "color": "#388e3c",
-        "kind": "basic"
-      },
-      "name": "sphere_2"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -6,
+              4.2,
+              -4
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#388e3c",
+            "name": "sphere_2",
+            "size": [
+              1.2
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.8,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_3",
+      "baseClass": "Actor",
+      "position": [
         -6.8,
         3.5,
         -4.5
       ],
-      "material": {
-        "color": "#2e7d32",
-        "kind": "basic"
-      },
-      "name": "sphere_3"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -6.8,
+              3.5,
+              -4.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#2e7d32",
+            "name": "sphere_3",
+            "size": [
+              0.8
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.9,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_4",
+      "baseClass": "Actor",
+      "position": [
         -5.2,
         3.8,
         -3.5
       ],
-      "material": {
-        "color": "#43a047",
-        "kind": "basic"
-      },
-      "name": "sphere_4"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -5.2,
+              3.8,
+              -3.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#43a047",
+            "name": "sphere_4",
+            "size": [
+              0.9
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.12,
-        5.0,
-        0.12
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_14",
+      "baseClass": "Actor",
+      "position": [
         6,
         2.2,
         -5
       ],
-      "material": {
-        "color": "#5d4037",
-        "kind": "basic"
-      },
-      "name": "box_14"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              6,
+              2.2,
+              -5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#5d4037",
+            "name": "box_14",
+            "size": [
+              0.12,
+              5,
+              0.12
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_5",
+      "baseClass": "Actor",
+      "position": [
         6,
         5.2,
         -5
       ],
-      "material": {
-        "color": "#388e3c",
-        "kind": "basic"
-      },
-      "name": "sphere_5"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              6,
+              5.2,
+              -5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#388e3c",
+            "name": "sphere_5",
+            "size": [
+              1.5
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.0,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_6",
+      "baseClass": "Actor",
+      "position": [
         6.8,
         4.2,
         -5.5
       ],
-      "material": {
-        "color": "#43a047",
-        "kind": "basic"
-      },
-      "name": "sphere_6"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              6.8,
+              4.2,
+              -5.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#43a047",
+            "name": "sphere_6",
+            "size": [
+              1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.12,
-        3.5,
-        0.12
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_15",
+      "baseClass": "Actor",
+      "position": [
         4,
         1.5,
         -7
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_15"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4,
+              1.5,
+              -7
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_15",
+            "size": [
+              0.12,
+              3.5,
+              0.12
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.0,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_7",
+      "baseClass": "Actor",
+      "position": [
         4,
         3.5,
         -7
       ],
-      "material": {
-        "color": "#2e7d32",
-        "kind": "basic"
-      },
-      "name": "sphere_7"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4,
+              3.5,
+              -7
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#2e7d32",
+            "name": "sphere_7",
+            "size": [
+              1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.15,
-        6.0,
-        0.15
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_16",
+      "baseClass": "Actor",
+      "position": [
         -8,
         2.8,
         6
       ],
-      "material": {
-        "color": "#5d4037",
-        "kind": "basic"
-      },
-      "name": "box_16"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -8,
+              2.8,
+              6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#5d4037",
+            "name": "box_16",
+            "size": [
+              0.15,
+              6,
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.8,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_8",
+      "baseClass": "Actor",
+      "position": [
         -8,
         6.2,
         6
       ],
-      "material": {
-        "color": "#1b5e20",
-        "kind": "basic"
-      },
-      "name": "sphere_8"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -8,
+              6.2,
+              6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#1b5e20",
+            "name": "sphere_8",
+            "size": [
+              1.8
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.2,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_9",
+      "baseClass": "Actor",
+      "position": [
         -9,
-        5.0,
+        5,
         5
       ],
-      "material": {
-        "color": "#388e3c",
-        "kind": "basic"
-      },
-      "name": "sphere_9"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -9,
+              5,
+              5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#388e3c",
+            "name": "sphere_9",
+            "size": [
+              1.2
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.0,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_10",
+      "baseClass": "Actor",
+      "position": [
         -7,
         5.5,
         7
       ],
-      "material": {
-        "color": "#2e7d32",
-        "kind": "basic"
-      },
-      "name": "sphere_10"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -7,
+              5.5,
+              7
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#2e7d32",
+            "name": "sphere_10",
+            "size": [
+              1
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.12,
-        4.5,
-        0.12
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_17",
+      "baseClass": "Actor",
+      "position": [
         8,
-        2.0,
+        2,
         6
       ],
-      "material": {
-        "color": "#6d4c41",
-        "kind": "basic"
-      },
-      "name": "box_17"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              8,
+              2,
+              6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#6d4c41",
+            "name": "box_17",
+            "size": [
+              0.12,
+              4.5,
+              0.12
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.3,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_11",
+      "baseClass": "Actor",
+      "position": [
         8,
         4.5,
         6
       ],
-      "material": {
-        "color": "#388e3c",
-        "kind": "basic"
-      },
-      "name": "sphere_11"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              8,
+              4.5,
+              6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#388e3c",
+            "name": "sphere_11",
+            "size": [
+              1.3
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_12",
+      "baseClass": "Actor",
+      "position": [
         -4,
         0.2,
         -2
       ],
-      "material": {
-        "color": "#66bb6a",
-        "kind": "basic"
-      },
-      "name": "sphere_12"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -4,
+              0.2,
+              -2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#66bb6a",
+            "name": "sphere_12",
+            "size": [
+              0.5
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.4,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_13",
+      "baseClass": "Actor",
+      "position": [
         -3.5,
         0.15,
         -1.5
       ],
-      "material": {
-        "color": "#81c784",
-        "kind": "basic"
-      },
-      "name": "sphere_13"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -3.5,
+              0.15,
+              -1.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#81c784",
+            "name": "sphere_13",
+            "size": [
+              0.4
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.6,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_14",
+      "baseClass": "Actor",
+      "position": [
         3.5,
         0.2,
         -2
       ],
-      "material": {
-        "color": "#4caf50",
-        "kind": "basic"
-      },
-      "name": "sphere_14"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              3.5,
+              0.2,
+              -2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#4caf50",
+            "name": "sphere_14",
+            "size": [
+              0.6
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.35,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_15",
+      "baseClass": "Actor",
+      "position": [
         4,
         0.15,
         -1.5
       ],
-      "material": {
-        "color": "#66bb6a",
-        "kind": "basic"
-      },
-      "name": "sphere_15"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4,
+              0.15,
+              -1.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#66bb6a",
+            "name": "sphere_15",
+            "size": [
+              0.35
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.4,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_16",
+      "baseClass": "Actor",
+      "position": [
         -5,
         0.15,
         5
       ],
-      "material": {
-        "color": "#81c784",
-        "kind": "basic"
-      },
-      "name": "sphere_16"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -5,
+              0.15,
+              5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#81c784",
+            "name": "sphere_16",
+            "size": [
+              0.4
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_17",
+      "baseClass": "Actor",
+      "position": [
         5,
         0.2,
         5
       ],
-      "material": {
-        "color": "#4caf50",
-        "kind": "basic"
-      },
-      "name": "sphere_17"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              5,
+              0.2,
+              5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#4caf50",
+            "name": "sphere_17",
+            "size": [
+              0.5
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.3,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_18",
+      "baseClass": "Actor",
+      "position": [
         -3,
         0.1,
         6
       ],
-      "material": {
-        "color": "#66bb6a",
-        "kind": "basic"
-      },
-      "name": "sphere_18"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -3,
+              0.1,
+              6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#66bb6a",
+            "name": "sphere_18",
+            "size": [
+              0.3
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.45,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_19",
+      "baseClass": "Actor",
+      "position": [
         3,
         0.15,
         6.5
       ],
-      "material": {
-        "color": "#81c784",
-        "kind": "basic"
-      },
-      "name": "sphere_19"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              3,
+              0.15,
+              6.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#81c784",
+            "name": "sphere_19",
+            "size": [
+              0.45
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.15,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_20",
+      "baseClass": "Actor",
+      "position": [
         -3.5,
         0.3,
         -1.5
       ],
-      "material": {
-        "color": "#ff7043",
-        "kind": "basic"
-      },
-      "name": "sphere_20"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -3.5,
+              0.3,
+              -1.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ff7043",
+            "name": "sphere_20",
+            "size": [
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.12,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_21",
+      "baseClass": "Actor",
+      "position": [
         -4.2,
         0.35,
         -2.2
       ],
-      "material": {
-        "color": "#f44336",
-        "kind": "basic"
-      },
-      "name": "sphere_21"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -4.2,
+              0.35,
+              -2.2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#f44336",
+            "name": "sphere_21",
+            "size": [
+              0.12
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.15,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_22",
+      "baseClass": "Actor",
+      "position": [
         4.2,
         0.35,
         -1.8
       ],
-      "material": {
-        "color": "#ff7043",
-        "kind": "basic"
-      },
-      "name": "sphere_22"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4.2,
+              0.35,
+              -1.8
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ff7043",
+            "name": "sphere_22",
+            "size": [
+              0.15
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.08,
-        0.15,
-        0.08
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_18",
+      "baseClass": "Actor",
+      "position": [
         -8.5,
         2.2,
         -5.5
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.6,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "box_18"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -8.5,
+              2.2,
+              -5.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#ffffff",
+            "name": "box_18",
+            "size": [
+              0.08,
+              0.15,
+              0.08
+            ],
+            "opacity": 0.6
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.08,
-        0.12,
-        0.08
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_19",
+      "baseClass": "Actor",
+      "position": [
         -7.2,
         1.8,
         -6
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.5,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "box_19"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -7.2,
+              1.8,
+              -6
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#ffffff",
+            "name": "box_19",
+            "size": [
+              0.08,
+              0.12,
+              0.08
+            ],
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.06,
-        0.1,
-        0.06
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_20",
+      "baseClass": "Actor",
+      "position": [
         5.5,
-        3.0,
+        3,
         -6.5
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.5,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "box_20"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              5.5,
+              3,
+              -6.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#ffffff",
+            "name": "box_20",
+            "size": [
+              0.06,
+              0.1,
+              0.06
+            ],
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.06,
-        0.1,
-        0.06
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_21",
+      "baseClass": "Actor",
+      "position": [
         7,
-        4.0,
+        4,
         -5.5
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "box_21"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              7,
+              4,
+              -5.5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#ffffff",
+            "name": "box_21",
+            "size": [
+              0.06,
+              0.1,
+              0.06
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "box",
-      "size": [
-        0.08,
-        0.15,
-        0.08
-      ],
-      "pos": [
+      "type": "actor",
+      "name": "box_22",
+      "baseClass": "Actor",
+      "position": [
         -9,
         5.5,
         7
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.5,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "box_22"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -9,
+              5.5,
+              7
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "box",
+            "color": "#ffffff",
+            "name": "box_22",
+            "size": [
+              0.08,
+              0.15,
+              0.08
+            ],
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.8,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_23",
+      "baseClass": "Actor",
+      "position": [
         -12,
         -0.5,
         0
       ],
-      "material": {
-        "color": "#90a4ae",
-        "opacity": 0.5,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_23"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -12,
+              -0.5,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#90a4ae",
+            "name": "sphere_23",
+            "size": [
+              0.8
+            ],
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_24",
+      "baseClass": "Actor",
+      "position": [
         -11.5,
         -0.4,
         1
       ],
-      "material": {
-        "color": "#78909c",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_24"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -11.5,
+              -0.4,
+              1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#78909c",
+            "name": "sphere_24",
+            "size": [
+              0.5
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.9,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_25",
+      "baseClass": "Actor",
+      "position": [
         12,
         -0.5,
         0
       ],
-      "material": {
-        "color": "#90a4ae",
-        "opacity": 0.5,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_25"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              12,
+              -0.5,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#90a4ae",
+            "name": "sphere_25",
+            "size": [
+              0.9
+            ],
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.6,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_26",
+      "baseClass": "Actor",
+      "position": [
         13,
         -0.4,
         -1
       ],
-      "material": {
-        "color": "#78909c",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_26"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              13,
+              -0.4,
+              -1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#78909c",
+            "name": "sphere_26",
+            "size": [
+              0.6
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_27",
+      "baseClass": "Actor",
+      "position": [
         -3,
         -0.3,
         -12
       ],
-      "material": {
-        "color": "#90a4ae",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_27"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -3,
+              -0.3,
+              -12
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#90a4ae",
+            "name": "sphere_27",
+            "size": [
+              0.5
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 0.4,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_28",
+      "baseClass": "Actor",
+      "position": [
         4,
         -0.3,
         -13
       ],
-      "material": {
-        "color": "#78909c",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_28"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              4,
+              -0.3,
+              -13
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#78909c",
+            "name": "sphere_28",
+            "size": [
+              0.4
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.5,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_29",
+      "baseClass": "Actor",
+      "position": [
         -20,
         4,
         10
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_29"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -20,
+              4,
+              10
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ffffff",
+            "name": "sphere_29",
+            "size": [
+              1.5
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 2.0,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_30",
+      "baseClass": "Actor",
+      "position": [
         15,
         5,
         12
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.35,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_30"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              15,
+              5,
+              12
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ffffff",
+            "name": "sphere_30",
+            "size": [
+              2
+            ],
+            "opacity": 0.35
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.8,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_31",
+      "baseClass": "Actor",
+      "position": [
         -10,
         6,
         -15
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.3,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_31"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -10,
+              6,
+              -15
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ffffff",
+            "name": "sphere_31",
+            "size": [
+              1.8
+            ],
+            "opacity": 0.3
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.2,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_32",
+      "baseClass": "Actor",
+      "position": [
         22,
         3.5,
         -8
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.4,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_32"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              22,
+              3.5,
+              -8
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ffffff",
+            "name": "sphere_32",
+            "size": [
+              1.2
+            ],
+            "opacity": 0.4
+          }
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "radius": 1.6,
-      "pos": [
+      "type": "actor",
+      "name": "sphere_33",
+      "baseClass": "Actor",
+      "position": [
         -25,
         4.5,
         -5
       ],
-      "material": {
-        "color": "#ffffff",
-        "opacity": 0.3,
-        "kind": "basic",
-        "transparent": true
-      },
-      "name": "sphere_33"
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -25,
+              4.5,
+              -5
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "mesh",
+          "properties": {
+            "geometry": "sphere",
+            "color": "#ffffff",
+            "name": "sphere_33",
+            "size": [
+              1.6
+            ],
+            "opacity": 0.3
+          }
+        }
+      ]
     },
     {
       "type": "ref",

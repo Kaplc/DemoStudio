@@ -1,8 +1,7 @@
 /**
  * BlueprintEditor — 蓝图资产编辑器
  *
- * 左侧展示蓝图结构化数据（继承链、Components、Children、Defaults），
- * 右侧提供 3D 视口实时预览蓝图 Actor。
+ * 全屏 3D/UI 视口实时预览蓝图 Actor，支持平移/旋转/缩放与选中联动。
  *
  * 类似 UE 的 Blueprint Class Editor 简化版。
  */
@@ -11,7 +10,6 @@ import * as THREE from 'three'
 import { BlueprintPreviewManager, UIPreviewManager, AssetPreviewManager } from '../editor'
 import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
-import { ResizeHandle } from './ResizeHandle'
 import { useEditorStore } from '../stores/editorStore'
 import { notifySelectionChange, editorBus, EditorEvent, getSelectedActor } from '../editor'
 
@@ -58,8 +56,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const previewMgrRef = useRef<BlueprintPreviewManager | UIPreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
   const [saving, setSaving] = useState(false)
-  /** 左侧面板宽度（px），可由 ResizeHandle 拖动调整 */
-  const [leftWidth, setLeftWidth] = useState(320)
   /** 保存 assetPath 引用供事件回调使用（避免闭包捕获旧值） */
   const assetPathRef = useRef(assetPath)
   assetPathRef.current = assetPath
@@ -351,42 +347,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         </button>
       </div>
 
-      {/* 主体：左数据 + 右 3D 预览 */}
+      {/* 主体：全屏预览视口 */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* 左侧：结构化数据 */}
-        <div style={{ width: leftWidth, minWidth: 240, maxWidth: 800, overflow: 'auto', padding: '12px 16px', flexShrink: 0, position: 'relative' }}>
-          {/* Components — 组件列表 */}
-          <Section title={`Components (${data.components?.length ?? 0})`}>
-            {(data.components ?? []).length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>无组件</div>
-            ) : (
-              (data.components ?? []).map((comp, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: '4px 10px', marginBottom: 2, borderRadius: 3,
-                    background: 'var(--bg-tertiary)',
-                    color: 'var(--text-primary)',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}
-                >
-                  <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--accent)' }}>{comp.name || comp.baseClass}</span>
-                  {comp._remove && <span style={{ color: 'var(--error)', fontSize: 10 }}>removed</span>}
-                </div>
-              ))
-            )}
-          </Section>
-
-
-          {/* 拖拽分割条（定位在左侧面板右边缘） */}
-          <ResizeHandle
-            direction="horizontal"
-            onResize={(delta) => setLeftWidth((w) => Math.max(200, Math.min(800, w + delta)))}
-            position="right"
-          />
-        </div>
-
-        {/* 右侧：3D 预览视口 */}
+        {/* 预览视口 */}
         <div style={{ flex: 1, position: 'relative', background: '#1a1a2e', overflow: 'hidden' }}>
           <div
             ref={previewContainerRef}
@@ -423,23 +386,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         <span>Class: {data.baseClass}</span>
         <span>File: {filename}</span>
       </div>
-    </div>
-  )
-}
-
-/** 区块标题 */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{
-        fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
-        textTransform: 'uppercase', letterSpacing: '0.5px',
-        marginBottom: 6, paddingBottom: 4,
-        borderBottom: '1px solid var(--border)',
-      }}>
-        {title}
-      </div>
-      {children}
     </div>
   )
 }

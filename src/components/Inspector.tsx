@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
 import { useSaveStore } from '../stores/saveStore'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
-import { Actor, Component } from '../engine'
+import { Actor, Component, TransformComponent } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 
@@ -28,6 +28,12 @@ const transformInputStyle: React.CSSProperties = {
 }
 
 function ActorTransformView({ actor }: { actor: Actor }) {
+  // 变换修改能力组件化：优先经 TransformComponent 读写；无组件（普通 3D actor）回退 Actor 内置方法
+  const tf = actor.getComponent(TransformComponent)
+  const setPos = (x: number, y: number, z: number) => (tf ? tf.setPosition(x, y, z) : actor.setPosition(x, y, z))
+  const setRot = (x: number, y: number, z: number) => (tf ? tf.setRotation(x, y, z) : actor.setRotation(x, y, z))
+  const setScl = (x: number, y: number, z: number) => (tf ? tf.setScale(x, y, z) : actor.setScale(x, y, z))
+
   const p = [actor.position.x, actor.position.y, actor.position.z]
   const r = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
   const s = [actor.scale.x, actor.scale.y, actor.scale.z]
@@ -39,13 +45,13 @@ function ActorTransformView({ actor }: { actor: Actor }) {
         <span className="property-label">Position</span>
         <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
           <input type="number" step="0.01" defaultValue={p[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[0] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[0] = v; setPos(p[0], p[1], p[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={p[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[1] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[1] = v; setPos(p[0], p[1], p[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={p[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[2] = v; actor.setPosition(p[0], p[1], p[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[2] = v; setPos(p[0], p[1], p[2]) } }}
           />
         </span>
       </div>
@@ -53,13 +59,13 @@ function ActorTransformView({ actor }: { actor: Actor }) {
         <span className="property-label">Rotation</span>
         <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
           <input type="number" step="0.01" defaultValue={r[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[0] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[0] = v; setRot(r[0], r[1], r[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={r[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[1] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[1] = v; setRot(r[0], r[1], r[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={r[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[2] = v; actor.setRotation(r[0], r[1], r[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[2] = v; setRot(r[0], r[1], r[2]) } }}
           />
         </span>
       </div>
@@ -67,13 +73,13 @@ function ActorTransformView({ actor }: { actor: Actor }) {
         <span className="property-label">Scale</span>
         <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
           <input type="number" step="0.01" defaultValue={s[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[0] = v; actor.setScale(s[0], s[1], s[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[0] = v; setScl(s[0], s[1], s[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={s[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[1] = v; actor.setScale(s[0], s[1], s[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[1] = v; setScl(s[0], s[1], s[2]) } }}
           />
           <input type="number" step="0.01" defaultValue={s[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[2] = v; actor.setScale(s[0], s[1], s[2]) } }}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[2] = v; setScl(s[0], s[1], s[2]) } }}
           />
         </span>
       </div>

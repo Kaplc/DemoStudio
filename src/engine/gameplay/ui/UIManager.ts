@@ -20,6 +20,7 @@
  */
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
+import { ensureTransformComponent } from '../entity/TransformComponent'
 import { HUD } from './HUD'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
@@ -81,6 +82,9 @@ export class UIManager {
       }
     }
 
+    // 2.5 Transform 组件化约定：数据未显式配置时自动补挂（保证每个 UI Actor 都有变换组件）
+    ensureTransformComponent(actor)
+
     // 3. 递归子 Actor
     const spawnChildObjects = (childDefs: ResolvedChildDef[], parentActor: Actor) => {
       for (const child of childDefs) {
@@ -114,6 +118,8 @@ export class UIManager {
                 }
               }
             }
+            // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
+            ensureTransformComponent(childActor)
           }
         }
         // 纯容器节点（仅用来承载嵌套 children）
@@ -124,6 +130,9 @@ export class UIManager {
           logger.warn(`[UIManager] 子节点生成失败 (ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`)
           continue
         }
+
+        // Transform 组件化约定：容器节点也补挂变换组件
+        ensureTransformComponent(childActor)
 
         childActor.attachTo(parentActor)
 

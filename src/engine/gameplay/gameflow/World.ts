@@ -5,6 +5,7 @@
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
+import { ensureTransformComponent } from '../entity/TransformComponent'
 import { GameMode } from './GameMode'
 import { gizmos } from '../../tools/Gizmos'
 import { logger } from '../../Logger'
@@ -205,6 +206,9 @@ export class World {
       }
     }
 
+    // 2.5 Transform 组件化约定：数据未显式配置时自动补挂（保证每个 Actor 都有变换组件）
+    ensureTransformComponent(actor)
+
     // 3. 子 Actor
     const spawnChildObjects = (
       childDefs: typeof resolved.children,
@@ -241,6 +245,8 @@ export class World {
                 }
               }
             }
+            // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
+            ensureTransformComponent(childActor)
           }
         }
         // 纯容器节点（仅用来承载嵌套 children）
@@ -253,6 +259,9 @@ export class World {
           )
           continue
         }
+
+        // Transform 组件化约定：容器节点也补挂变换组件
+        ensureTransformComponent(childActor)
 
         childActor.attachTo(parentActor)
 
@@ -556,17 +565,10 @@ export class World {
       if (actor) { actor.attachTo(rootActor); count++ }
     }
 
-    // 应用 skybox（背景色 + 雾效）
+    // 应用 skybox（背景色）
     if (asset.skybox) {
       if (asset.skybox.backgroundColor) {
         this.scene.background = new THREE.Color(asset.skybox.backgroundColor)
-      }
-      if (asset.skybox.fogColor) {
-        this.scene.fog = new THREE.Fog(
-          asset.skybox.fogColor,
-          asset.skybox.fogNear ?? 30,
-          asset.skybox.fogFar ?? 60,
-        )
       }
     }
     logger.debug(
@@ -602,6 +604,9 @@ export class World {
         logger.warn(`[World] spawnInlineActor: Component "${cdef.baseClass}" 未注册，已跳过`)
       }
     }
+
+    // Transform 组件化约定：内联 Actor 未显式配置时自动补挂
+    ensureTransformComponent(actor)
 
     // 递归子节点
     this.spawnInlineChildren(node.children ?? [], actor)
@@ -647,6 +652,8 @@ export class World {
               childActor.addComponent(comp)
             }
           }
+          // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
+          ensureTransformComponent(childActor)
         }
       }
 
@@ -659,6 +666,9 @@ export class World {
         logger.warn(`[World] spawnInlineChildren: 子节点生成失败 (ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`)
         continue
       }
+
+      // Transform 组件化约定：容器节点也补挂变换组件
+      ensureTransformComponent(childActor)
 
       childActor.attachTo(parentActor)
       if (child.children?.length) {

@@ -3,15 +3,21 @@
   "baseClass": "Actor",
   "components": [
     {
-      "baseClass": "uiimage",
+      "baseClass": "transform",
       "properties": {
-        "color": "#0a2850",
-        "opacity": 0.85,
-        "worldWidth": 9.6,
-        "worldHeight": 5.4,
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "canvasui",
+      "properties": {
         "width": 1920,
         "height": 1080,
-        "name": "Background"
+        "worldWidth": 9.6,
+        "worldHeight": 5.4,
+        "name": "Canvas"
       }
     }
   ],
@@ -20,6 +26,44 @@
   "scale": [1, 1, 1],
   "children": [
     {
+      "name": "Background",
+      "baseClass": "Actor",
+      "id": 10000,
+      "position": [0, 0, 0],
+      "rotation": [0, 0, 0],
+      "scale": [1, 1, 1],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "canvasui",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker"
+          }
+        },
+        {
+          "baseClass": "uiimage",
+          "properties": {
+            "color": "#0a2850",
+            "opacity": 0.85,
+            "worldWidth": 9.6,
+            "worldHeight": 5.4,
+            "width": 1920,
+            "height": 1080,
+            "name": "Background"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
       "name": "Title",
       "baseClass": "Actor",
       "id": 10001,
@@ -27,6 +71,21 @@
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "canvasui",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker"
+          }
+        },
         {
           "baseClass": "uitext",
           "properties": {
@@ -56,6 +115,21 @@
       "scale": [1, 1, 1],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "canvasui",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker"
+          }
+        },
+        {
           "baseClass": "uitext",
           "properties": {
             "text": "— FISH MASTER —",
@@ -81,6 +155,21 @@
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "canvasui",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker"
+          }
+        },
         {
           "baseClass": "uibutton",
           "properties": {
@@ -110,6 +199,21 @@
           "rotation": [0, 0, 0],
           "scale": [1, 1, 1],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1]
+              }
+            },
+            {
+              "baseClass": "canvasui",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker"
+              }
+            },
             {
               "baseClass": "uitext",
               "properties": {
@@ -142,6 +246,21 @@
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "canvasui",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker"
+          }
+        },
         {
           "baseClass": "uitext",
           "properties": {

@@ -21,6 +21,7 @@ import { ClickableComponent } from '../physics/ClickableComponent'
 import { CameraComponent, type CameraMode } from '../input/CameraComponent'
 import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
+import { TransformComponent } from '../entity/TransformComponent'
 import { CanvasUIComponent, type AnchorPreset } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
@@ -33,6 +34,24 @@ let _registered = false
 export function registerBuiltinComponents(): void {
   if (_registered) return
   _registered = true
+
+  // ─── transform ─── props: { position?, rotation?, scale? }
+  // 变换修改能力组件化：位置/旋转/缩放经组件读写（底层仍为 owner.root）
+  ComponentRegistry.register(
+    'transform',
+    (owner, p = {}) =>
+      new TransformComponent(owner, {
+        position: p.position as [number, number, number] | undefined,
+        rotation: p.rotation as [number, number, number] | undefined,
+        scale: p.scale as [number, number, number] | undefined,
+      }),
+    (c, p) => {
+      const tf = c as TransformComponent
+      if (Array.isArray(p.position)) tf.setPosition(p.position[0], p.position[1], p.position[2])
+      if (Array.isArray(p.rotation)) tf.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
+      if (Array.isArray(p.scale)) tf.setScale(p.scale[0], p.scale[1], p.scale[2])
+    },
+  )
 
   // ─── sprite ─── props: { width?, height?, color?, opacity?, texture?, name? }
   ComponentRegistry.register(
@@ -123,7 +142,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, anchor?, anchorOffset? }
+  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, anchor?, anchorOffset?, markerOnly? }
   ComponentRegistry.register(
     'canvasui',
     (owner, p = {}) =>
@@ -137,6 +156,7 @@ export function registerBuiltinComponents(): void {
         zOrder: p.zOrder as number | undefined,
         anchor: p.anchor as AnchorPreset | undefined,
         anchorOffset: p.anchorOffset as [number, number] | undefined,
+        markerOnly: (p.markerOnly as boolean) ?? false,
       }),
     (c, p) => {
       const ui = c as CanvasUIComponent

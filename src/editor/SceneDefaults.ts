@@ -32,7 +32,7 @@ export function addDefaultContent(scene: THREE.Scene): void {
 }
 
 /**
- * 根据 SkyboxConfig 更新场景背景/天空盒/雾效
+ * 根据 SkyboxConfig 更新场景背景/天空盒
  */
 export function applySkybox(scene: THREE.Scene, config: SkyboxConfig): void {
   // 天空盒立方体贴图（优先于纯色背景）
@@ -43,9 +43,5 @@ export function applySkybox(scene: THREE.Scene, config: SkyboxConfig): void {
     scene.background = new THREE.CubeTextureLoader().load(urls)
   } else if (config.backgroundColor) {
     scene.background = new THREE.Color(config.backgroundColor)
-  }
-  // 雾效
-  if (config.fogColor && config.fogNear !== undefined && config.fogFar !== undefined) {
-    scene.fog = new THREE.Fog(config.fogColor, config.fogNear, config.fogFar)
   }
 }

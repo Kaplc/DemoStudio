@@ -21,6 +21,17 @@ class SpriteComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:sprite', SpriteComponentChecker)
 
+/** comp:transform — 变换组件：位置/旋转/缩放均为 vec3。 */
+class TransformComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:transform'
+  schema: FieldSpec[] = [
+    { field: 'properties.position', type: 'vec3', label: '位置' },
+    { field: 'properties.rotation', type: 'vec3', label: '旋转' },
+    { field: 'properties.scale', type: 'vec3', label: '缩放' },
+  ]
+}
+registerAssetChecker('comp:transform', TransformComponentChecker)
+
 /** comp:camera — mode 枚举；fov/near/far > 0。 */
 class CameraComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:camera'
@@ -54,6 +65,21 @@ class MeshComponentChecker extends AbstractAssetChecker {
   ]
 }
 registerAssetChecker('comp:mesh', MeshComponentChecker)
+
+/** comp:troika — 3D 文本：text/字号/颜色/对齐/描边。 */
+class TroikaTextComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:troika'
+  schema: FieldSpec[] = [
+    { field: 'properties.text', type: 'string', label: '文本内容' },
+    { field: 'properties.fontSize', type: 'number', min: 0, minExclusive: true, label: '字号' },
+    { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.maxWidth', type: 'number', min: 0, minExclusive: true, label: '最大宽度' },
+    { field: 'properties.textAlign', type: 'string', enum: ['left', 'center', 'right'], label: '对齐' },
+    { field: 'properties.outlineWidth', type: 'number', min: 0, label: '描边宽度' },
+    { field: 'properties.outlineColor', type: 'color', label: '描边颜色' },
+  ]
+}
+registerAssetChecker('comp:troika', TroikaTextComponentChecker)
 
 /** comp:uitext — 文本属性 + 字体参数 + UI 定位 */
 class UITextComponentChecker extends AbstractAssetChecker {
@@ -143,7 +169,7 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:uibutton', UIButtonComponentChecker)
 
-/** comp:canvasui — UI 画布根组件（像素画布 + 世界尺寸 + UI 层级） */
+/** comp:canvasui — UI 画布根组件（像素画布 + 世界尺寸 + UI 层级 + 标记模式） */
 class CanvasUIComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:canvasui'
   schema: FieldSpec[] = [
@@ -153,6 +179,7 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
     {
       field: 'properties.anchor',
       type: 'string',

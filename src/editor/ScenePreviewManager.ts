@@ -302,13 +302,6 @@ export class ScenePreviewManager {
       if (result.skybox.backgroundColor) {
         this.scene.background = new THREE.Color(result.skybox.backgroundColor)
       }
-      if (result.skybox.fogColor) {
-        this.scene.fog = new THREE.Fog(
-          result.skybox.fogColor,
-          result.skybox.fogNear ?? 30,
-          result.skybox.fogFar ?? 60,
-        )
-      }
     }
 
     this.world.BeginPlay()

@@ -1,24 +1,93 @@
 {
   "name": "BeachHouse",
   "baseClass": "FishHouse",
-  "components": [],
-  "position": [0, 0, 0],
-  "rotation": [0, 0, 0],
-  "scale": [1, 1, 1],
+  "components": [
+    {
+      "baseClass": "transform",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "position": [
+    0,
+    0,
+    0
+  ],
+  "rotation": [
+    0,
+    0,
+    0
+  ],
+  "scale": [
+    1,
+    1,
+    1
+  ],
   "children": [
     {
       "name": "Foundation",
       "baseClass": "Actor",
       "id": 10001,
-      "position": [0, 0.3, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.3,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
-            "size": [2.4, 0.15, 2.4],
+            "size": [
+              2.4,
+              0.15,
+              2.4
+            ],
             "color": "#a67c52",
             "name": "FoundationMesh"
           }
@@ -30,24 +99,93 @@
       "name": "Body",
       "baseClass": "Actor",
       "id": 10002,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
-      "components": [],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ],
       "children": [
         {
           "name": "Walls",
           "baseClass": "Actor",
           "id": 10003,
-          "position": [0, 1, 0],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            0,
+            1,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  0,
+                  1,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [2, 1.4, 2],
+                "size": [
+                  2,
+                  1.4,
+                  2
+                ],
                 "color": "#c9b99a",
                 "opacity": 0.9,
                 "name": "WallsMesh"
@@ -60,15 +198,51 @@
           "name": "Door",
           "baseClass": "Actor",
           "id": 10004,
-          "position": [0.17320230878118625, 0.65, 1.3099844261352287],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            0.17320230878118625,
+            0.65,
+            1.3099844261352287
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  0.17320230878118625,
+                  0.65,
+                  1.3099844261352287
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.5, 0.8, 0.05],
+                "size": [
+                  0.5,
+                  0.8,
+                  0.05
+                ],
                 "color": "#5d4037",
                 "name": "DoorMesh"
               }
@@ -80,15 +254,51 @@
           "name": "WindowL",
           "baseClass": "Actor",
           "id": 10005,
-          "position": [-0.6, 1.1, 1.01],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            -0.6,
+            1.1,
+            1.01
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  -0.6,
+                  1.1,
+                  1.01
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.3, 0.3, 0.05],
+                "size": [
+                  0.3,
+                  0.3,
+                  0.05
+                ],
                 "color": "#81d4fa",
                 "opacity": 0.7,
                 "name": "WindowMesh"
@@ -101,15 +311,51 @@
           "name": "WindowR",
           "baseClass": "Actor",
           "id": 10006,
-          "position": [0.6, 1.1, 1.01],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            0.6,
+            1.1,
+            1.01
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  0.6,
+                  1.1,
+                  1.01
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.3, 0.3, 0.05],
+                "size": [
+                  0.3,
+                  0.3,
+                  0.05
+                ],
                 "color": "#81d4fa",
                 "opacity": 0.7,
                 "name": "WindowMesh"
@@ -122,15 +368,51 @@
           "name": "PillarFL",
           "baseClass": "Actor",
           "id": 10007,
-          "position": [-1.1, 1.1, 1.1],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            -1.1,
+            1.1,
+            1.1
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  -1.1,
+                  1.1,
+                  1.1
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.08, 1.8, 0.08],
+                "size": [
+                  0.08,
+                  1.8,
+                  0.08
+                ],
                 "color": "#8d6e63",
                 "name": "PillarMesh"
               }
@@ -142,15 +424,51 @@
           "name": "PillarFR",
           "baseClass": "Actor",
           "id": 10008,
-          "position": [1.1, 1.1, 1.1],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  1.1,
+                  1.1,
+                  1.1
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.08, 1.8, 0.08],
+                "size": [
+                  0.08,
+                  1.8,
+                  0.08
+                ],
                 "color": "#8d6e63",
                 "name": "PillarMesh"
               }
@@ -163,16 +481,50 @@
           "baseClass": "Actor",
           "id": 10009,
           "position": [
-            2.7130540542825905, 2.02846051999476, 0.21778856695977789
+            2.7130540542825905,
+            2.02846051999476,
+            0.21778856695977789
           ],
-          "rotation": [0.47, 0, 0],
-          "scale": [1.46, 1, 1],
+          "rotation": [
+            0.47,
+            0,
+            0
+          ],
+          "scale": [
+            1.46,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  2.7130540542825905,
+                  2.02846051999476,
+                  0.21778856695977789
+                ],
+                "rotation": [
+                  0.47,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1.46,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.08, 1.8, 0.08],
+                "size": [
+                  0.08,
+                  1.8,
+                  0.08
+                ],
                 "color": "#8d6e63",
                 "name": "PillarMesh"
               }
@@ -184,15 +536,51 @@
           "name": "PillarBR",
           "baseClass": "Actor",
           "id": 10010,
-          "position": [1.1, 1.1, -1.1],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            1.1,
+            1.1,
+            -1.1
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
+            {
+              "baseClass": "transform",
+              "properties": {
+                "position": [
+                  1.1,
+                  1.1,
+                  -1.1
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
             {
               "baseClass": "mesh",
               "properties": {
                 "geometry": "box",
-                "size": [0.08, 1.8, 0.08],
+                "size": [
+                  0.08,
+                  1.8,
+                  0.08
+                ],
                 "color": "#8d6e63",
                 "name": "PillarMesh"
               }
@@ -206,15 +594,51 @@
       "name": "RoofBase",
       "baseClass": "Actor",
       "id": 10011,
-      "position": [0, 1.75, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        1.75,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              1.75,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
-            "size": [2.6, 0.3, 2.6],
+            "size": [
+              2.6,
+              0.3,
+              2.6
+            ],
             "color": "#8b6f47",
             "opacity": 0.9,
             "name": "RoofBaseMesh"
@@ -227,15 +651,51 @@
       "name": "RoofTop",
       "baseClass": "Actor",
       "id": 10012,
-      "position": [0, 2, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        2,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
-            "size": [2, 0.2, 2],
+            "size": [
+              2,
+              0.2,
+              2
+            ],
             "color": "#6d4c41",
             "name": "RoofTopMesh"
           }
@@ -247,15 +707,51 @@
       "name": "RoofCrest",
       "baseClass": "Actor",
       "id": 10013,
-      "position": [0, 2.1, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        2.1,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              2.1,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
-            "size": [2.6, 0.06, 0.06],
+            "size": [
+              2.6,
+              0.06,
+              0.06
+            ],
             "color": "#6d4c41",
             "name": "RoofCrestMesh"
           }

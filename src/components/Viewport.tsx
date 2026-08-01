@@ -177,7 +177,6 @@ export function Viewport({ onReady }: ViewportProps) {
 
       // 3. 重置场景为默认状态
       shared.background = new THREE.Color(0x1a1a2e)
-      shared.fog = new THREE.Fog(0x1a1a2e, 30, 60)
       gizmos.beginFrame()
       gizmos.flush()
 

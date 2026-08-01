@@ -1,0 +1,74 @@
+/**
+ * TransformComponent — 变换组件
+ *
+ * 模仿 Unity Transform：把 Actor 的"位置/旋转/缩放修改能力"组件化。
+ * 数据驱动：blueprint { baseClass: 'transform', properties: { position?, rotation?, scale? } }。
+ *
+ * 与 Actor 内置 setPosition/setRotation/setScale 的关系：
+ *  - 本组件是"修改能力"的组件化入口（编辑器/数据流统一经组件读写）
+ *  - 底层仍操作 owner.root（Actor.root 是唯一变换来源，二者等价）
+ *  - Actor 内置方法保留（引擎内部与游戏逻辑仍在用，不受影响）
+ */
+import type { Actor } from './Actor'
+import { Component } from './Component'
+import { logger } from '../../Logger'
+
+export interface TransformComponentOptions {
+  /** 世界位置 [x, y, z]，默认 [0, 0, 0] */
+  position?: [number, number, number]
+  /** 欧拉旋转 [x, y, z]（度），默认 [0, 0, 0] */
+  rotation?: [number, number, number]
+  /** 缩放 [x, y, z]，默认 [1, 1, 1] */
+  scale?: [number, number, number]
+}
+
+export class TransformComponent extends Component {
+  constructor(owner: Actor, options: TransformComponentOptions = {}) {
+    super(owner)
+    this.name = 'TransformComponent'
+    if (options.position) this.setPosition(options.position[0], options.position[1], options.position[2])
+    if (options.rotation) this.setRotation(options.rotation[0], options.rotation[1], options.rotation[2])
+    if (options.scale) this.setScale(options.scale[0], options.scale[1], options.scale[2])
+    logger.debug(
+      `[TransformComponent] 创建 "${this.name}": position=${this.owner.position.x},${this.owner.position.y},${this.owner.position.z}`,
+    )
+  }
+
+  // ─── 读取（转发 owner.root） ───
+
+  get position() { return this.owner.position }
+  get rotation() { return this.owner.rotation }
+  get scale() { return this.owner.scale }
+
+  // ─── 修改（组件化入口） ───
+
+  setPosition(x: number, y: number, z: number): void {
+    this.owner.setPosition(x, y, z)
+    logger.debug(`[TransformComponent] "${this.name}" 设置位置: ${x}, ${y}, ${z}`)
+  }
+
+  setRotation(x: number, y: number, z: number): void {
+    this.owner.setRotation(x, y, z)
+    logger.debug(`[TransformComponent] "${this.name}" 设置旋转: ${x}, ${y}, ${z}`)
+  }
+
+  setScale(x: number, y: number, z: number): void {
+    this.owner.setScale(x, y, z)
+    logger.debug(`[TransformComponent] "${this.name}" 设置缩放: ${x}, ${y}, ${z}`)
+  }
+}
+
+/**
+ * 确保 Actor 已挂载 TransformComponent（组件化约定：每个 Actor 都有变换组件）。
+ * 数据里显式配置了 transform 组件（widget 等）则复用；否则以当前变换补挂。
+ * 实例化入口（World / UIManager）在组件循环后调用。
+ */
+export function ensureTransformComponent(actor: Actor): TransformComponent {
+  let tf = actor.getComponent(TransformComponent)
+  if (!tf) {
+    tf = new TransformComponent(actor)
+    actor.addComponent(tf)
+    logger.debug(`[TransformComponent] 自动补挂到 "${actor.name}" (uid=${actor.uid})`)
+  }
+  return tf
+}

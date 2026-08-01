@@ -253,7 +253,6 @@ export class FishGameInstance extends GameInstance {
     this.world.gameMode = null
     this.world.DestroyAllActors()
     this.world.scene.background = new THREE.Color(0x1a1a2e)
-    this.world.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     this.world.Pause()
     this._menuGameMode?.cameraManager.Clear()
     this._baseGameMode?.cameraManager.Clear()

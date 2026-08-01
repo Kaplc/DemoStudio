@@ -12,6 +12,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.3,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -46,6 +66,26 @@
         0
       ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              1,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
@@ -84,6 +124,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              1.75,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -121,6 +181,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -156,6 +236,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              0.65,
+              1.01
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -190,6 +290,26 @@
         1.01
       ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -0.6,
+              1.1,
+              1.01
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
@@ -228,6 +348,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0.6,
+              1.1,
+              1.01
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -265,6 +405,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -1.1,
+              1.1,
+              1.1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -299,6 +459,26 @@
         1.1
       ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              1.1,
+              1.1,
+              1.1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {
@@ -335,6 +515,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              -1.1,
+              2.5650664339716704,
+              -1.1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -370,6 +570,26 @@
       ],
       "components": [
         {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              1.1,
+              1.1,
+              -1.1
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
           "baseClass": "mesh",
           "properties": {
             "geometry": "box",
@@ -404,6 +624,26 @@
         0
       ],
       "components": [
+        {
+          "baseClass": "transform",
+          "properties": {
+            "position": [
+              0,
+              3.7271654440602053,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
         {
           "baseClass": "mesh",
           "properties": {

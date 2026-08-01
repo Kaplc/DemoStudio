@@ -26,7 +26,6 @@ export class RacingGameInstance extends GameInstance {
     super()
     this.sharedScene = sharedScene
     sharedScene.background = new THREE.Color(0x87ceeb)
-    sharedScene.fog = new THREE.Fog(0x87ceeb, 50, 90)
 
     const ambient = sharedScene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
     if (ambient) { ambient.intensity = 0.6; ambient.color.setHex(0xffffff) }
@@ -101,7 +100,6 @@ export class RacingGameInstance extends GameInstance {
     this._controller = null
     this.pawn = null
     this.sharedScene.background = new THREE.Color(0x1a1a2e)
-    this.sharedScene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
   }
 
   override destroy() {

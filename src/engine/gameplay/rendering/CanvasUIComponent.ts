@@ -56,16 +56,27 @@ export interface CanvasUIOptions {
   anchor?: AnchorPreset
   /** 相对锚点的世界偏移 [x, y]，默认 [0, 0] */
   anchorOffset?: [number, number]
+  /**
+   * 仅标记模式（默认 false）：只把 Actor 标记为 UI 元素，不创建渲染 mesh。
+   * 用于"每个 UI Actor 挂一个 canvasui 作为 UI 标识"的约定；
+   * 不参与 findContainerSize 容器查找（子元素锚点仍以真正的画布为基准）。
+   */
+  markerOnly?: boolean
 }
 
 export class CanvasUIComponent extends Component {
-  public panel: THREE.Mesh
+  /** 渲染面板；markerOnly 模式下为 null */
+  public panel: THREE.Mesh | null
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   private texture: THREE.CanvasTexture
   private _width: number
   private _height: number
+  private _worldW = 5
+  private _worldH = 2.5
   private _zOrder = 0
+  /** 仅标记模式（不渲染） */
+  private _markerOnly: boolean
 
   /** 九宫格锚点（null = 不自动定位，沿用 position） */
   private _anchor: AnchorPreset | null = null
@@ -77,6 +88,7 @@ export class CanvasUIComponent extends Component {
     this.name = options.name ?? 'CanvasUIComponent'
     this._width = options.width ?? 512
     this._height = options.height ?? 256
+    this._markerOnly = options.markerOnly ?? false
 
     // 1. 离屏 Canvas
     this.canvas = document.createElement('canvas')
@@ -89,31 +101,43 @@ export class CanvasUIComponent extends Component {
     this.texture.minFilter = THREE.LinearFilter
     this.texture.magFilter = THREE.LinearFilter
 
-    // 3. Texture → Plane Mesh（共享单位几何体，scale 控制尺寸）
-    const geo = new THREE.PlaneGeometry(1, 1)
-    const mat = new THREE.MeshBasicMaterial({
-      map: this.texture,
-      transparent: true,
-      side: (options.doubleSided ?? true) ? THREE.DoubleSide : THREE.FrontSide,
-    })
-    this.panel = new THREE.Mesh(geo, mat)
-
     const ww = options.worldWidth ?? 5
     const wh = options.worldHeight ?? 2.5
-    this.panel.scale.set(ww, wh, 1)
-    owner.root.add(this.panel)
+    this._worldW = ww
+    this._worldH = wh
+
+    if (this._markerOnly) {
+      // 仅标记模式：不创建 mesh、不挂到场景，仅声明"本 Actor 是 UI"
+      this.panel = null
+      logger.info(`[CanvasUIComponent] 创建 "${this.name}": 仅标记模式（不渲染，标记 Actor 为 UI）`)
+    } else {
+      // 3. Texture → Plane Mesh（共享单位几何体，scale 控制尺寸）
+      const geo = new THREE.PlaneGeometry(1, 1)
+      const mat = new THREE.MeshBasicMaterial({
+        map: this.texture,
+        transparent: true,
+        side: (options.doubleSided ?? true) ? THREE.DoubleSide : THREE.FrontSide,
+      })
+      this.panel = new THREE.Mesh(geo, mat)
+      this.panel.scale.set(ww, wh, 1)
+      owner.root.add(this.panel)
+      logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}`)
+    }
 
     if (options.zOrder !== undefined) this.zOrder = options.zOrder
     if (options.anchor !== undefined) this._anchor = options.anchor
     if (options.anchorOffset !== undefined) this._anchorOffset = options.anchorOffset
     else if (this._anchor) this._anchorOffset = [0, 0]
-    logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}`)
   }
+
+  /** 仅标记模式（不渲染，仅作 UI 标识） */
+  get isMarkerOnly(): boolean { return this._markerOnly }
 
   /** UI 层级（越大越靠前）：设置 renderOrder + panel z 偏移分层 */
   get zOrder(): number { return this._zOrder }
   set zOrder(v: number) {
     this._zOrder = v
+    if (!this.panel) return
     this.panel.renderOrder = v
     // z 偏移分层：zOrder 每 +1 对应 0.001 世界单位前移（正交相机下无透视变形）
     this.panel.position.z = v * 0.001
@@ -169,12 +193,13 @@ export class CanvasUIComponent extends Component {
     logger.info(`[CanvasUIComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
   }
 
-  /** 向上查找最近的父画布尺寸（父 Actor 上的 CanvasUIComponent 世界尺寸） */
+  /** 向上查找最近的父画布尺寸（父 Actor 上的 CanvasUIComponent 世界尺寸；跳过仅标记组件） */
   private findContainerSize(): [number, number] | null {
     let p = this.owner.parent
     let hops = 0
     while (p) {
-      const comp = p.getComponent(CanvasUIComponent)
+      // 取该 Actor 上第一个"真正画布"（非仅标记）——markerOnly 组件只作 UI 标识，不作为容器
+      const comp = p.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
       if (comp) {
         const size = comp.getWorldSize()
         logger.debug(`[CanvasUIComponent] "${this.name}" 找到父画布: Actor="${p.name}" 尺寸=${size[0]}x${size[1]} (${hops + 1} 级向上)`)
@@ -202,17 +227,20 @@ export class CanvasUIComponent extends Component {
 
   /** 设置 3D 世界尺寸（单位：米） */
   setWorldSize(w: number, h: number) {
-    this.panel.scale.set(w, h, 1)
+    this._worldW = w
+    this._worldH = h
+    this.panel?.scale.set(w, h, 1)
   }
 
   /** 获取 3D 世界尺寸 */
   getWorldSize(): [number, number] {
-    return [this.panel.scale.x, this.panel.scale.y]
+    return [this._worldW, this._worldH]
   }
 
   /** 设置不透明度 */
   setOpacity(opacity: number) {
-    (this.panel.material as THREE.MeshBasicMaterial).opacity = opacity
+    if (!this.panel) return
+    ;(this.panel.material as THREE.MeshBasicMaterial).opacity = opacity
     ;(this.panel.material as THREE.MeshBasicMaterial).transparent = opacity < 1
   }
 
@@ -232,6 +260,7 @@ export class CanvasUIComponent extends Component {
   override EndPlay() {
     logger.info(`[CanvasUIComponent] 销毁 "${this.name}"`)
     super.EndPlay()
+    if (!this.panel) return // 仅标记模式无渲染资源
     this.owner.root.remove(this.panel)
     this.texture.dispose()
     this.panel.geometry.dispose()

@@ -89,7 +89,6 @@ export class GameSceneManager {
     } else {
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(0x1a1a2e)
-      this.scene.fog = new THREE.Fog(0x1a1a2e, 30, 60)
     }
 
     // ─── 摄像机 ───
