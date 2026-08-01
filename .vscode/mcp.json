@@ -7,22 +7,6 @@
                 "editor/mcp-server.mjs"
             ],
             "cwd": "E:\\DemoStudio"
-        },
-        "snake-game": {
-            "type": "stdio",
-            "command": "node",
-            "args": [
-                "src/projects/snake/snake-mcp-server.mjs"
-            ],
-            "cwd": "E:\\DemoStudio"
-        },
-        "demostudio-blueprint": {
-            "type": "stdio",
-            "command": "node",
-            "args": [
-                "editor/blueprint-mcp-server.mjs"
-            ],
-            "cwd": "E:\\DemoStudio"
         }
     }
 }

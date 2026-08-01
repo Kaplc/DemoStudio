@@ -16,6 +16,7 @@ import {
   BlueprintRegistry,
   AssetRegistry,
 } from '../engine'
+import { registerBuiltinAIHandlers } from '../engine/ai'
 import type { GameInstance } from '../engine'
 
 // ─── 项目注册模块接口 ───
@@ -75,6 +76,9 @@ export function registerAllProjectModules(
   // 注册引擎内置 Component / Actor（Blueprint 系统的工厂基础，幂等）
   registerBuiltinComponents()
   registerBuiltinActors()
+
+  // 注册内置 AI 事件处理器（AI 经 MCP 控制游戏场景的事件总线，幂等）
+  registerBuiltinAIHandlers()
 
   for (const project of ALL_PROJECTS) {
     // 游戏实例工厂

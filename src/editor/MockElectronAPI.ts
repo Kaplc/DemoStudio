@@ -140,6 +140,8 @@ const mockAPI: ElectronAPI = {
 
   onMCPCommand: () => (() => {}),
 
+  sendMCPResponse: () => {},
+
   reportGameState: async () => {},
 
   sendAppReady: () => {},

@@ -10,6 +10,11 @@ import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
 import { editorBus } from './EditorEvents'
 import { EditorEvent } from './EditorEventNames'
 import { useEditorStore } from '../stores/editorStore'
+import { AIModule } from '../engine/ai'
+import { Actor } from '../engine/gameplay'
+import { AssetPreviewManager } from './AssetPreviewManager'
+import { getSceneTree, select, notifySelectionChange } from './SelectionManager'
+import { logger } from '../engine/Logger'
 
 export type InitLogger = (message: string) => void
 
@@ -45,12 +50,130 @@ export function installEventBridge(): () => void {
 }
 
 /**
+ * 注册编辑器层的 AI 事件处理器（gizmos 选中/拖动等编辑器能力）。
+ * 与引擎层内置处理器（registerBuiltinAIHandlers，操作 World）互补：
+ *  - ai.selectActor / ai.dragActor 操作编辑器选中与 gizmo
+ * 调用一次即可，返回清理函数。
+ */
+function registerEditorAIHandlers(): () => void {
+  const ai = AIModule.instance
+  const unsubs: Array<() => void> = []
+
+  // ─── ai.selectActor — 在编辑器场景/预览中选中 Actor（gizmo 显示） ───
+  unsubs.push(
+    ai.register('ai.selectActor', (payload: unknown) => {
+      const p = (payload ?? {}) as { name?: string }
+      const name = p.name ?? ''
+      if (!name) return { ok: false, error: '缺少 name' }
+
+      // 1. 优先查活动预览管理器（widget/场景预览）
+      const activePath = AssetPreviewManager.getActivePath()
+      if (activePath) {
+        const mgr = AssetPreviewManager.getActive()
+        // 用 getActorTree() 遍历所有嵌套 Actor（GetAllActors 只返回顶层）
+        const tree = mgr ? (mgr as any).getActorTree?.() : null
+        const node = Array.isArray(tree)
+          ? tree.find((n: { name?: string; actor?: Actor | null }) => n.actor && (n.name === name || n.actor!.name === name))
+          : null
+        if (node?.actor) {
+          // 预览管理器统一走 selectActor（同步 gizmo + 包围盒）
+          ;(mgr as any).selectActor?.(node.actor)
+          logger.info(`[AI][Editor] selectActor(预览): ${name}`)
+          return { ok: true, name, source: 'preview' }
+        }
+      }
+
+      // 2. 回退到编辑器场景树（Scene 视口）
+      const tree = getSceneTree()
+      const node = tree.find((n) => n.actor && (n.name === name || n.actor!.name === name))
+      if (!node?.actor) return { ok: false, error: `未找到 Actor: ${name}` }
+      select(node.actor)
+      logger.info(`[AI][Editor] selectActor(场景): ${name}`)
+      return { ok: true, name, source: 'scene' }
+    }),
+  )
+
+  // ─── ai.dragActor — 拖动 Actor（沿轴增量移动，等价 gizmo 拖拽结果） ───
+  unsubs.push(
+    ai.register('ai.dragActor', (payload: unknown) => {
+      const p = (payload ?? {}) as { name?: string; axis?: 'x' | 'y' | 'z'; delta?: number; position?: [number, number, number] }
+      const name = p.name ?? ''
+      if (!name) return { ok: false, error: '缺少 name' }
+
+      // 查找目标：活动预览管理器优先，回退场景树
+      let target: Actor | null = null
+      const activePath = AssetPreviewManager.getActivePath()
+      if (activePath) {
+        const mgr = AssetPreviewManager.getActive()
+        // 用 getActorTree() 遍历所有嵌套 Actor
+        const tree = mgr ? (mgr as any).getActorTree?.() : null
+        const node = Array.isArray(tree)
+          ? tree.find((n: { name?: string; actor?: Actor | null }) => n.actor && (n.name === name || n.actor!.name === name))
+          : null
+        target = node?.actor ?? null
+        if (target) {
+          // 确保选中（显示 gizmo），预览管理器会 attach
+          ;(mgr as any).selectActor?.(target)
+        }
+      }
+      if (!target) {
+        const tree = getSceneTree()
+        const node = tree.find((n) => n.actor && (n.name === name || n.actor!.name === name))
+        if (!node?.actor) return { ok: false, error: `未找到 Actor: ${name}` }
+        target = node.actor
+        select(target)
+      }
+
+      // 应用移动：position 覆盖 或 axis+delta 增量
+      const pos = target.position
+      if (Array.isArray(p.position)) {
+        target.setPosition(p.position[0], p.position[1], p.position[2])
+      } else if (p.axis && typeof p.delta === 'number') {
+        const d = p.delta
+        if (p.axis === 'x') target.setPosition(pos.x + d, pos.y, pos.z)
+        else if (p.axis === 'y') target.setPosition(pos.x, pos.y + d, pos.z)
+        else if (p.axis === 'z') target.setPosition(pos.x, pos.y, pos.z + d)
+        else return { ok: false, error: `未知轴: ${p.axis}` }
+      } else {
+        return { ok: false, error: '缺少 position 或 axis+delta' }
+      }
+
+      // 通知选中变化（gizmo 同步 + React 刷新）
+      notifySelectionChange()
+      logger.info(`[AI][Editor] dragActor: ${name} → (${target.position.x.toFixed(2)}, ${target.position.y.toFixed(2)}, ${target.position.z.toFixed(2)})`)
+      return { ok: true, name, position: [target.position.x, target.position.y, target.position.z] }
+    }),
+  )
+
+  logger.info(`[AIModule] 编辑器层 AI 事件已注册: ai.selectActor, ai.dragActor`)
+
+  // 浏览器调试入口（Playwright / 控制台验证用）：window.__ai.emit('ai.selectActor', { name })
+  ;(window as any).__ai = {
+    emit: (event: string, payload?: unknown) => ai.emit(event, payload),
+    listEvents: () => ai.listEvents(),
+  }
+
+  return () => {
+    delete (window as any).__ai
+    unsubs.forEach((u) => u())
+  }
+}
+
+/** 编辑器层 AI 事件处理器注册标记（避免重复注册） */
+let _editorAIHandlersInstalled = false
+
+/**
  * 注册所有内置项目到编辑器的各个注册表中
  * 委托 registerAllProjectModules 自动完成 GameFactoryRegistry / ConfigRegistry 注册
  * @param log 日志输出回调
  */
 export function registerAllProjects(log: InitLogger = console.log): void {
   registerAllProjectModules(log)
+  // 编辑器层 AI 事件（gizmos 选中/拖动），幂等
+  if (!_editorAIHandlersInstalled) {
+    _editorAIHandlersInstalled = true
+    registerEditorAIHandlers()
+  }
 }
 
 /**
@@ -124,7 +247,7 @@ export function registerGlobalEventListeners(callbacks: {
     })
 
     if (window.electronAPI.onMCPCommand) {
-      mcpCleanup = window.electronAPI.onMCPCommand((command, params) => {
+      mcpCleanup = window.electronAPI.onMCPCommand((command, params, requestId) => {
         addConsoleOutput(`[MCP] 收到命令: ${command}`)
         switch (command) {
           case 'launchGame':
@@ -141,6 +264,36 @@ export function registerGlobalEventListeners(callbacks: {
             break
           case 'addConsoleOutput':
             if (params?.text) addConsoleOutput(params.text)
+            break
+          case 'ai_event': {
+            // AI 事件模式：MCP 发送 { event, payload } → AIModule 分发到引擎处理器
+            const event = params?.event as string | undefined
+            if (!event) {
+              const msg = { status: 'error', message: '缺少 event 参数' }
+              addConsoleOutput('[MCP] ai_event: 缺少 event 参数')
+              if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, msg)
+              break
+            }
+            const result = AIModule.instance.emit(event, params?.payload)
+            addConsoleOutput(
+              `[MCP][AI] 事件 ${event} → ${result.handled ? `已处理 (${result.results.length} 处理器)` : '无处理器（未注册）'}`,
+            )
+            // 汇总返回值：取最后一个非 undefined 结果（getState 等查询事件）
+            let ret: unknown = undefined
+            if (result.handled) {
+              for (let i = result.results.length - 1; i >= 0; i--) {
+                if (result.results[i] !== undefined && result.results[i] !== null) { ret = result.results[i]; break }
+              }
+            }
+            const response = { status: 'ok', event, handled: result.handled, result: ret ?? null }
+            if (ret !== undefined && ret !== null) {
+              try { addConsoleOutput(`[MCP][AI] 返回: ${JSON.stringify(ret).slice(0, 500)}`) } catch { /* 非序列化值 */ }
+            }
+            if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, response)
+            break
+          }
+          case 'ai_list_events':
+            addConsoleOutput(`[MCP][AI] 已注册事件: ${AIModule.instance.listEvents().join(', ') || '（无）'}`)
             break
           case 'send_input':
             if (params?.key) {

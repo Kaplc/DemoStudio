@@ -12,6 +12,8 @@
 import { PreviewSceneManager, GameSceneManager, logger } from '../..'
 import { GameInstance } from './GameInstance'
 import { GameUI } from '../ui/GameUI'
+import { AIModule } from '../../ai/AIModule'
+import type { World } from './World'
 
 export class Game {
   private _instance: GameInstance
@@ -92,6 +94,14 @@ export class Game {
     }
 
     logger.info('[Game] 游戏已启动')
+
+    // AI 事件模块：附加运行上下文（world 来自游戏实例的 duck-typed 字段）
+    const world = (this._instance as unknown as { world?: World }).world
+    if (world) {
+      AIModule.instance.attachContext(world, this._instance)
+    } else {
+      logger.warn('[Game] 游戏实例无 world 字段，AI 事件模块上下文未附加')
+    }
     return true
   }
 
@@ -111,6 +121,9 @@ export class Game {
     // 停止游戏实例
     this.instance.stop()
     logger.info('[Game] 游戏实例已停止')
+
+    // AI 事件模块：清空运行上下文
+    AIModule.instance.detachContext()
 
     // DOM / React 清理由 React 生命周期自然处理（this.ui.el 作为 uiLayer 的子节点，
     // 会在 Viewport 卸载时由 React 自动清理）。此处不做手动 unmount/remove，

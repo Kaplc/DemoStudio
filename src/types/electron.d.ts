@@ -10,7 +10,9 @@ export interface ElectronAPI {
   showMessageBox: (options: any) => Promise<any>
   onMenuAction: (callback: (action: string) => void) => () => void
   onGameInput: (callback: (key: string) => void) => () => void
-  onMCPCommand: (callback: (command: string, params: any) => void) => () => void
+  onMCPCommand: (callback: (command: string, params: any, requestId?: string) => void) => () => void
+  /** MCP 往返响应（renderer → main，ai_event 等往返请求回传） */
+  sendMCPResponse: (requestId: string, result: unknown) => void
   reportGameState: (state: { running: boolean; score?: number }) => Promise<void>
   sendAppReady: () => void
   writeLogFile: (level: string, message: string) => Promise<void>

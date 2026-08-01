@@ -33,13 +33,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ─── MCP 命令（从 Electron main → renderer） ───
-  onMCPCommand: (callback: (command: string, params: any) => void) => {
-    ipcRenderer.on('mcp-command', (_event, data: { command: string; params?: any }) => {
-      callback(data.command, data.params)
+  onMCPCommand: (callback: (command: string, params: any, requestId?: string) => void) => {
+    ipcRenderer.on('mcp-command', (_event, data: { command: string; params?: any; requestId?: string }) => {
+      callback(data.command, data.params, data.requestId)
     })
     return () => {
       ipcRenderer.removeAllListeners('mcp-command')
     }
+  },
+
+  // ─── MCP 响应（renderer → main，往返请求回传） ───
+  sendMCPResponse: (requestId: string, result: unknown) => {
+    ipcRenderer.send('mcp-response', { requestId, result })
   },
 
   // ─── 日志 ───

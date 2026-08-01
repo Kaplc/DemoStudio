@@ -605,6 +605,15 @@ ipcMain.on('blueprint-response', (_event, payload: { requestId: string; result: 
   pending.resolve(payload.result)
 })
 
+// MCP 往返响应（renderer → main，ai_event 等往返请求回传）
+ipcMain.on('mcp-response', (_event, payload: { requestId: string; result: unknown }) => {
+  const pending = _blueprintPending.get(payload.requestId)
+  if (!pending) return // 超时或已清理
+  clearTimeout(pending.timer)
+  _blueprintPending.delete(payload.requestId)
+  pending.resolve(payload.result)
+})
+
 // ─── MCP HTTP API 服务器 ───
 // 让 MCP 服务器 (editor/mcp-server.mjs) 可以通过 HTTP 控制编辑器
 
@@ -634,6 +643,40 @@ function startMCPServer() {
       req.on('end', () => {
         try {
           const cmd: MCPCommand = JSON.parse(body)
+          // ai_event：往返模式，等渲染进程处理完回传结果（AI 需要拿到事件返回值）
+          if (cmd.command === 'ai_event') {
+            if (!mainWindow || mainWindow.isDestroyed()) {
+              res.writeHead(503, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ status: 'error', message: '编辑器窗口不可用' }))
+              return
+            }
+            const requestId = `ai-${++_blueprintReqSeq}`
+            const timer = setTimeout(() => {
+              if (_blueprintPending.delete(requestId)) {
+                try {
+                  res.writeHead(504, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify({ status: 'error', message: `编辑器处理超时 (${BLUEPRINT_REQ_TIMEOUT}ms)` }))
+                } catch { /* response already closed */ }
+              }
+            }, BLUEPRINT_REQ_TIMEOUT)
+            _blueprintPending.set(requestId, {
+              resolve: (result) => {
+                try {
+                  res.writeHead(200, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify(result))
+                } catch { /* response already closed */ }
+              },
+              reject: (err) => {
+                try {
+                  res.writeHead(500, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify({ status: 'error', message: String(err) }))
+                } catch { /* ignore */ }
+              },
+              timer,
+            })
+            mainWindow.webContents.send('mcp-command', { ...cmd, requestId })
+            return
+          }
           // 发送 IPC 给渲染进程
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('mcp-command', cmd)

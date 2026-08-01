@@ -28,6 +28,33 @@ export { InputComponent } from './gameplay/input/InputComponent'
 export type { InputEventType } from './gameplay/input/InputComponent'
 export type { SkyboxConfig } from './scene/SceneAsset'
 export { loadScene } from './scene/SceneLoader'
+
+// AI 事件模块（AI 经 MCP 控制游戏场景的事件总线）
+export { AIModule, registerBuiltinAIHandlers } from './ai'
+export type { AIEventContext, AIEventHandler, AIEmitResult } from './ai'
+export {
+  AI_EVENT_NOTIFY,
+  AI_EVENT_SPAWN_ACTOR,
+  AI_EVENT_DESTROY_ACTOR,
+  AI_EVENT_TRANSFORM_ACTOR,
+  AI_EVENT_SET_SCORE,
+  AI_EVENT_ADD_SCORE,
+  AI_EVENT_GAME_OVER,
+  AI_EVENT_SWITCH_SCENE,
+  AI_EVENT_GET_STATE,
+  AI_EVENT_SHOW_MESSAGE,
+} from './ai'
+export type {
+  AINotifyPayload,
+  AISpawnActorPayload,
+  AIDestroyActorPayload,
+  AITransformActorPayload,
+  AISetScorePayload,
+  AIAddScorePayload,
+  AISwitchScenePayload,
+  AIShowMessagePayload,
+  AIGameStateSnapshot,
+} from './ai'
 export type { SceneGroup } from './scene/SceneLoader'
 export type { SceneAsset, SceneNode, SpriteNode, MaterialProps } from './scene/SceneAsset'
 export { GameFactoryRegistry } from './gameplay/tools/GameFactoryRegistry'

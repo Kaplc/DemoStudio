@@ -115,6 +115,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: '获取浏览器控制台最近日志（含报错信息）',
       inputSchema: { type: 'object', properties: {} },
     },
+    {
+      name: 'ai_event',
+      description:
+        '发送 AI 事件到引擎（事件模式，控制游戏场景或编辑器选中/gizmo）。' +
+        '游戏事件(需运行): ai.notify(通知), ai.spawnActor({blueprint|baseClass,name?,position?,rotation?,scale?}), ' +
+        'ai.destroyActor({name}), ai.transformActor({name,position?,rotation?,scale?}), ' +
+        'ai.setScore({score}), ai.addScore({amount}), ai.gameOver, ' +
+        'ai.switchScene({scene}), ai.getState(查询运行状态), ai.showMessage({text})。' +
+        '编辑器事件(无需运行): ai.selectActor({name}) 选中场景 Actor 显示 gizmo, ' +
+        'ai.dragActor({name,axis:"x"|"y"|"z",delta} 或 {name,position:[x,y,z]}) 拖动 Actor(等价 gizmo 拖拽)。' +
+        'notify/getState/selectActor/dragActor 无需游戏运行。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          event: { type: 'string', description: '事件名，如 ai.spawnActor / ai.getState' },
+          payload: {
+            type: 'object',
+            description: '事件参数（事件名对应的 payload）',
+            additionalProperties: true,
+          },
+        },
+        required: ['event'],
+      },
+    },
+    {
+      name: 'ai_list_events',
+      description: '列出引擎当前已注册的 AI 事件名',
+      inputSchema: { type: 'object', properties: {} },
+    },
   ],
 }))
 
@@ -178,6 +207,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }, null, 2)
       return {
         content: [{ type: 'text', text }],
+      }
+    }
+    case 'ai_event': {
+      const event = args?.event || ''
+      if (!event) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 event 参数' }, null, 2) }],
+        }
+      }
+      const result = await callEditor('ai_event', { event, payload: args?.payload ?? {} })
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      }
+    }
+    case 'ai_list_events': {
+      const result = await callEditor('ai_list_events', {})
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       }
     }
     default:
