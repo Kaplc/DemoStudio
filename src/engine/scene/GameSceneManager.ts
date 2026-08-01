@@ -36,6 +36,9 @@ export class GameSceneManager {
   /** UI 覆盖层宿主 */
   readonly uiLayer: HTMLDivElement
 
+  /** UI 独立场景（widget 等，与主 3D 场景分离，叠加渲染时 UI 永远在顶层） */
+  private _uiScene: THREE.Scene | null = null
+
   /** 正交模式半高（世界单位） */
   public orthoSize = 5
 
@@ -251,6 +254,15 @@ export class GameSceneManager {
   //   动画循环
   // ════════════════════════════════════════════
 
+  /**
+   * 挂载 UI 独立场景：主场景渲染后叠加渲染（autoClear=false + clearDepth，
+   * UI 不参与 3D 深度测试 → 永远在顶层）。与主场景共用同一相机（世界坐标对齐）。
+   */
+  attachUIScene(scene: THREE.Scene | null): void {
+    this._uiScene = scene
+    logger.info(`[GameSceneManager] UI 场景${scene ? '已挂载' : '已分离'}`)
+  }
+
   start() {
     logger.info('[GameSceneManager] 渲染循环启动')
     this.lastTime = performance.now()
@@ -265,6 +277,15 @@ export class GameSceneManager {
       }
 
       this.renderer.render(this.scene, this.camera)
+
+      // UI 独立场景叠加渲染（UI 永远在顶层）
+      if (this._uiScene) {
+        const prevAutoClear = this.renderer.autoClear
+        this.renderer.autoClear = false
+        this.renderer.clearDepth()
+        this.renderer.render(this._uiScene, this.camera)
+        this.renderer.autoClear = prevAutoClear
+      }
 
       for (const cb of this.afterRenderCallbacks) {
         cb()

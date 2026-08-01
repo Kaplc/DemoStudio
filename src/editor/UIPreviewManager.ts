@@ -452,6 +452,8 @@ export class UIPreviewManager {
     }
 
     walk(this.scene, 0)
+    // UI 独立场景（widget Actor 挂载于此，与主场景分离，由 UIManager 持有）
+    walk(this.world.ui.scene, 0)
     this._actorTreeCache = result
     return result
   }
@@ -557,6 +559,14 @@ export class UIPreviewManager {
       if (this.gizmo.visible) this.gizmo.syncTransform()
       if (this.boundsTarget) this.updateBounds()
       this.renderer.render(this.scene, this.camera)
+      // UI 独立场景叠加渲染（widget Actor 与主场景分离，场景由 UIManager 持有）
+      if (this.world.ui.scene) {
+        const prevAutoClear = this.renderer.autoClear
+        this.renderer.autoClear = false
+        this.renderer.clearDepth()
+        this.renderer.render(this.world.ui.scene, this.camera)
+        this.renderer.autoClear = prevAutoClear
+      }
       this.animationId = requestAnimationFrame(animate)
     }
     this.animationId = requestAnimationFrame(animate)

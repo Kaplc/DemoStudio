@@ -122,7 +122,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         '游戏事件(需运行): ai.notify(通知), ai.spawnActor({blueprint|baseClass,name?,position?,rotation?,scale?}), ' +
         'ai.destroyActor({name}), ai.transformActor({name,position?,rotation?,scale?}), ' +
         'ai.setScore({score}), ai.addScore({amount}), ai.gameOver, ' +
-        'ai.switchScene({scene}), ai.getState(查询运行状态), ai.showMessage({text})。' +
+        'ai.switchScene({scene}), ai.clickActor({name}) 按大纲名点击 UI 按钮(无需鼠标坐标), ' +
+        'ai.getState(查询运行状态), ai.showMessage({text})。' +
         '编辑器事件(无需运行): ai.selectActor({name}) 选中场景 Actor 显示 gizmo, ' +
         'ai.dragActor({name,axis:"x"|"y"|"z",delta} 或 {name,position:[x,y,z]}) 拖动 Actor(等价 gizmo 拖拽)。' +
         'notify/getState/selectActor/dragActor 无需游戏运行。',

@@ -7,6 +7,7 @@
 import * as THREE from 'three'
 import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
+import { UIButtonComponent } from '@/engine/gameplay/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
@@ -95,6 +96,23 @@ export class FishGameInstance extends GameInstance {
     const spawn = mode.SpawnPlayer()
     if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
     else logger.error('[Fish] setupMenuPhase: SpawnPlayer 返回空')
+
+    // UI 点击：初始化 PhySys 射线检测（相机 + 屏幕坐标换算容器）
+    if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
+
+    // 把 HUD 中所有 UIButtonComponent 的点击接到"开始游戏"
+    const uiTree = this.world.ui.hud?.uiActor
+    if (uiTree) {
+      const bindButtons = (actor: import('@/engine').Actor) => {
+        for (const comp of actor.getComponents(UIButtonComponent)) {
+          if (comp.onClick) continue
+          comp.onClick = () => mode.onStartGame?.()
+          logger.info(`[Fish] 菜单按钮绑定 onClick: ${actor.name}`)
+        }
+        for (const child of actor.getChildren()) bindButtons(child)
+      }
+      bindButtons(uiTree)
+    }
     logger.info('[Fish] setupMenuPhase: 完成（等待玩家点击开始）')
   }
 

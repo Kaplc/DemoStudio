@@ -20,6 +20,7 @@ import {
   AI_EVENT_SWITCH_SCENE,
   AI_EVENT_GET_STATE,
   AI_EVENT_SHOW_MESSAGE,
+  AI_EVENT_CLICK_ACTOR,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -28,11 +29,14 @@ import {
   type AIAddScorePayload,
   type AISwitchScenePayload,
   type AIShowMessagePayload,
+  type AIClickActorPayload,
   type AIGameStateSnapshot,
 } from './AIEvents'
 import { logger } from '../Logger'
 import { World } from '../gameplay/gameflow/World'
 import { ActorRegistry } from '../gameplay/tools/ActorRegistry'
+import { UIButtonComponent } from '../gameplay/ui/UIButtonComponent'
+import { ClickableComponent } from '../gameplay/physics/ClickableComponent'
 
 /** 需要运行中 World 的守卫：返回 world 或 null（并提示） */
 function requireWorld(ctx: AIEventContext): World | null {
@@ -43,11 +47,21 @@ function requireWorld(ctx: AIEventContext): World | null {
   return ctx.world
 }
 
-/** 按名称查找 Actor（name 或 root.name） */
+/** 按名称查找 Actor（name 或 root.name，递归子节点） */
 function findActorByName(world: World, name: string) {
-  return world.GetAllActors().find(
-    (a) => a.name === name || a.root.name === name,
-  ) ?? null
+  const walk = (a: import('../gameplay/entity/Actor').Actor): import('../gameplay/entity/Actor').Actor | null => {
+    if (a.name === name || a.root.name === name) return a
+    for (const child of a.getChildren()) {
+      const hit = walk(child)
+      if (hit) return hit
+    }
+    return null
+  }
+  for (const a of world.GetAllActors()) {
+    const hit = walk(a)
+    if (hit) return hit
+  }
+  return null
 }
 
 let _registered = false
@@ -200,6 +214,36 @@ export function registerBuiltinAIHandlers(): void {
         : [],
     }
     return snapshot
+  })
+
+  // ─── ai.clickActor — 按名称触发 UI 按钮点击（不依赖鼠标坐标） ───
+  ai.register(AI_EVENT_CLICK_ACTOR, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AIClickActorPayload
+    if (!p.name) return { ok: false, error: '缺少 name' }
+
+    // 递归查找（按钮通常在 HUD 树的子节点上）
+    const actor = findActorByName(world, p.name)
+    if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
+
+    // 优先触发 UI 按钮（UIButtonComponent 构造时自动挂 ClickableComponent）
+    const buttons = actor.getComponents(UIButtonComponent)
+    if (buttons.length > 0) {
+      for (const b of buttons) b.triggerClick()
+      logger.info(`[AI] clickActor: ${p.name} 触发 ${buttons.length} 个按钮`)
+      return { ok: true, clicked: buttons.length, type: 'button' }
+    }
+
+    // 兜底：触发普通可点击组件
+    const clickables = actor.getComponents(ClickableComponent)
+    if (clickables.length > 0) {
+      for (const c of clickables) c.onClick?.()
+      logger.info(`[AI] clickActor: ${p.name} 触发 ${clickables.length} 个可点击组件`)
+      return { ok: true, clicked: clickables.length, type: 'clickable' }
+    }
+
+    return { ok: false, error: `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

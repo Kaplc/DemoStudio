@@ -34,6 +34,9 @@ export const AI_EVENT_GET_STATE = 'ai.getState'
 /** 在 UI 上显示一条消息（无现成 toast 时回退为日志通知） */
 export const AI_EVENT_SHOW_MESSAGE = 'ai.showMessage'
 
+/** 点击指定 Actor 上的 UI 按钮（按名称，不依赖鼠标坐标） */
+export const AI_EVENT_CLICK_ACTOR = 'ai.clickActor'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════
@@ -87,6 +90,12 @@ export interface AIShowMessagePayload {
   /** 展示时长秒（预留，当前实现为日志通知） */
   duration?: number
   level?: 'info' | 'warn' | 'error'
+}
+
+/** ai.clickActor payload：按 Actor 名称触发其上 UI 按钮的点击 */
+export interface AIClickActorPayload {
+  /** Actor 名称（精确匹配 .name 或 root.name） */
+  name: string
 }
 
 /** getState 返回的运行状态摘要 */

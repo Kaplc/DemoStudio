@@ -27,3 +27,4 @@ export function StatusBar({ fps, projectName }: StatusBarProps) {
     </div>
   )
 }
+// hmr-test

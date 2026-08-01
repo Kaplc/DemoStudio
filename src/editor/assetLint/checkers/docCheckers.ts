@@ -152,6 +152,40 @@ function makeIssue(
   return { filePath, nodePath, field, ruleId, severity, message, value }
 }
 
+/**
+ * 递归校验 name 唯一性（同一资产内 name 必须唯一）。
+ * AI 按 name 定位控件（ai.clickActor / ai.dragActor / ai.selectActor），重复名会导致定位歧义。
+ */
+function validateNameUniqueness(
+  nodes: unknown[],
+  ctx: CheckerContext,
+  basePath: string,
+  seenNames: Map<string, string>,
+  issues: LintIssue[],
+): void {
+  for (let i = 0; i < nodes.length; i++) {
+    const c = nodes[i]
+    if (!c || typeof c !== 'object') continue
+    const childPath = `${basePath}[${i}]`
+    const child = c as Record<string, unknown>
+    if (typeof child.name === 'string' && child.name) {
+      const prev = seenNames.get(child.name)
+      if (prev !== undefined) {
+        issues.push(makeIssue(
+          ctx.filePath, childPath, 'name', 'duplicate-name', 'error',
+          `name "${child.name}" 与 ${prev} 重复：同一资产内 name 必须唯一（AI 按 name 定位控件）`,
+          child.name,
+        ))
+      } else {
+        seenNames.set(child.name, childPath)
+      }
+    }
+    if (Array.isArray(child.children)) {
+      validateNameUniqueness(child.children, ctx, `${childPath}.children`, seenNames, issues)
+    }
+  }
+}
+
 /** doc:blueprint — 蓝图资产根校验。递归检查 children/components 完整性。 */
 class BlueprintDocChecker extends AbstractAssetChecker {
   readonly kind = 'doc:blueprint'
@@ -180,6 +214,13 @@ class BlueprintDocChecker extends AbstractAssetChecker {
     // 递归校验 children（含 id 唯一性 + 子级 components）
     if (Array.isArray(root.children)) {
       validateChildren(root.children, ctx, 'children', seenIds, issues)
+    }
+
+    // name 唯一性：同一资产内 name 必须唯一（AI 按 name 定位控件）
+    const seenNames = new Map<string, string>()
+    if (typeof root.name === 'string' && root.name) seenNames.set(root.name, '<根>')
+    if (Array.isArray(root.children)) {
+      validateNameUniqueness(root.children, ctx, 'children', seenNames, issues)
     }
 
     return issues

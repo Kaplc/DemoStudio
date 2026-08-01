@@ -26,7 +26,7 @@ export class World {
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
 
-  /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理） */
+  /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene） */
   public readonly ui: UIManager
 
   private allActors = new Set<Actor>()
@@ -39,6 +39,7 @@ export class World {
 
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
     this.scene = scene
+    // UI 管理器：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
     this.ui = new UIManager(this)
     if (gameMode) {
       this.SetGameMode(gameMode)
@@ -86,7 +87,11 @@ export class World {
       // 仅顶层 Actor 加到场景；已 attachTo 父的子 Actor 已在父 root 下，
       // scene.add 会把它从父节点拆出，故跳过。
       if (!actor.parent) {
-        this.scene.add(actor.root)
+        if (this.ui.isUIActor(actor)) {
+          this.ui.add(actor)
+        } else {
+          this.scene.add(actor.root)
+        }
       }
       if (this._running) {
         actor.BeginPlay()
@@ -106,6 +111,7 @@ export class World {
       if (this.allActors.has(actor)) {
         actor.EndPlay()
         this.scene.remove(actor.root)
+        this.ui.remove(actor)
         this.allActors.delete(actor)
       }
     }
@@ -393,6 +399,7 @@ export class World {
     for (const actor of [...this.allActors]) {
       actor.EndPlay()
       this.scene.remove(actor.root)
+      this.ui.remove(actor)
     }
     this.allActors.clear()
     this.pendingDestroy = []
@@ -800,6 +807,7 @@ export class World {
     for (let i = all.length - 1; i >= 0; i--) {
       all[i].EndPlay()
       this.scene.remove(all[i].root)
+      this.ui.remove(all[i])
     }
     this.allActors.clear()
     this.pendingSpawn = []

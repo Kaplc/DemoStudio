@@ -75,8 +75,13 @@ export class Game {
     // 启用 Game 渲染
     if (this.gameMgr) {
       this.gameMgr.setControlsEnabled(true)
+      // UI 独立场景接入叠加渲染（widget 与 3D 场景分离，场景由 UIManager 持有）
+      const world = (this._instance as unknown as { world?: World }).world
+      if (world?.ui?.scene) {
+        this.gameMgr.attachUIScene(world.ui.scene)
+      }
       this.gameMgr.start()
-      logger.info('[Game] GameSceneManager 渲染循环已启动')
+      logger.info('[GameSceneManager] 渲染循环已启动')
     }
 
     // Tick 挂到 Scene View 的 rAF 上
@@ -133,6 +138,7 @@ export class Game {
     // 禁用 Game 渲染、重置视角
     if (this.gameMgr) {
       this.gameMgr.setControlsEnabled(false)
+      this.gameMgr.attachUIScene(null)
       this.gameMgr.stop()
       this.gameMgr.clearFrame()
       this.gameMgr.resetView()

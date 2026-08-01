@@ -8,6 +8,7 @@
  * 应由独立子 Actor 挂 UITextComponent 提供（如 blueprints/ui/main_menu.widget.json）。
  */
 import { UIImageComponent, type UIImageComponentOptions } from './UIImageComponent'
+import { ClickableComponent } from '../physics/ClickableComponent'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
@@ -40,6 +41,17 @@ export class UIButtonComponent extends UIImageComponent {
 
     this.redraw()
     logger.info(`[UIButtonComponent] 创建: world=${this.getWorldSize()[0]}x${this.getWorldSize()[1]}`)
+
+    // 自动挂载可点击组件：命中按钮面板 → triggerClick（PhySys 射线分发，无需额外代码）
+    // 复用已有 ClickableComponent（数据显式配置时），否则新建
+    let clickable = owner.getComponent(ClickableComponent)
+    if (!clickable) {
+      clickable = new ClickableComponent(owner)
+      owner.addComponent(clickable)
+    }
+    clickable.onClick = () => {
+      this.triggerClick()
+    }
   }
 
   get state(): ButtonState { return this._state }
@@ -50,6 +62,10 @@ export class UIButtonComponent extends UIImageComponent {
     this.redraw()
     logger.info(`[UIButtonComponent] "${this.name}" 状态 -> ${v}`)
   }
+
+  /** 点击回调（外部绑定，如菜单按钮 → 开始游戏） */
+  get onClick(): (() => void) | null { return this._onClick }
+  set onClick(fn: (() => void) | null) { this._onClick = fn }
 
   /** 触发点击（外部输入系统调用） */
   triggerClick(): void {

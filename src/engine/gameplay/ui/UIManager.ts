@@ -7,9 +7,9 @@
  *  - 维护当前 HUD 引用
  *
  * 职责划分：
- *  - UIManager：UI 对象的"生成/挂载/清空"（含完整蓝图解析与实例化流程）
+ *  - UIManager：UI 对象的"生成/挂载/清空"（含完整蓝图解析与实例化流程）+ UI 场景（uiScene）持有与 Actor 归类
  *  - HUD：纯容器（Actor），承载 UI 树，不参与生成逻辑
- *  - World：UI 对象生成后经 world.SpawnActor(actor) 进入统一生命周期管理
+ *  - World：UI 对象生成后经 world.SpawnActor(actor) 进入统一生命周期管理（场景挂载分流走 world.ui）
  *
  * 用法：
  *   // World 内部（SwitchScene）：
@@ -18,10 +18,12 @@
  *   // 代码动态生成 UI（挂到当前 HUD）：
  *   const panel = world.ui.spawnUIActor('asset/blueprints/ui/some_panel.blueprint.json')
  */
+import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { ensureUITransformComponent } from './UITransformComponent'
 import { HUD } from './HUD'
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
@@ -34,12 +36,43 @@ export class UIManager {
   private world: World
   private _hud: HUD | null = null
 
+  /** UI 独立场景：UI Actor（widget/HUD）挂载于此，与 3D 场景分离，由渲染层叠加渲染（UI 永远在顶层） */
+  public readonly scene: THREE.Scene
+
   constructor(world: World) {
     this.world = world
+    // UI 场景：独立于主场景（透明背景，叠加渲染时保留主画面）
+    this.scene = new THREE.Scene()
   }
 
   /** 当前 HUD（可空） */
   get hud(): HUD | null { return this._hud }
+
+  /**
+   * 判断 Actor 是否属于 UI：自身或子树含 CanvasUIComponent，或是 HUD 容器。
+   * 返回 true 的 Actor 由 add() 挂到独立 UI 场景（与 3D 场景分离，叠加渲染）。
+   */
+  isUIActor(actor: Actor): boolean {
+    if (actor instanceof HUD) return true
+    const walk = (a: Actor): boolean => {
+      if (a.getComponent(CanvasUIComponent)) return true
+      for (const c of a.getChildren()) {
+        if (walk(c)) return true
+      }
+      return false
+    }
+    return walk(actor)
+  }
+
+  /** 将 Actor 挂到 UI 场景（仅当属于 UI） */
+  add(actor: Actor): void {
+    if (this.isUIActor(actor)) this.scene.add(actor.root)
+  }
+
+  /** 将 Actor 从 UI 场景移除 */
+  remove(actor: Actor): void {
+    this.scene.remove(actor.root)
+  }
 
   /**
    * 从蓝图生成一个 UI Actor，并挂到指定父 Actor（默认当前 HUD）。
