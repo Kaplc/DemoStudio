@@ -57,6 +57,13 @@ export class UIPreviewManager {
   // ─── 树变化回调 ───
   private _onChangeCallbacks: Array<() => void> = []
 
+  // ─── 选中包围盒（显示当前节点的大小范围）───
+  private boundsHelper: THREE.BoxHelper | null = null
+  private boundsLabel: THREE.Sprite | null = null
+  private boundsTarget: Actor | null = null
+  private boundsCanvas = document.createElement('canvas')
+  private boundsCtx: CanvasRenderingContext2D
+
   onChange(cb: () => void): () => void {
     this._onChangeCallbacks.push(cb)
     return () => {
@@ -99,6 +106,11 @@ export class UIPreviewManager {
     // ─── TransformGizmo ───
     this.gizmo = new TransformGizmo()
     this.gizmo.setup(this.scene, this.camera, this.renderer)
+
+    // ─── 选中包围盒（大小范围显示）───
+    this.boundsCanvas.width = 512
+    this.boundsCanvas.height = 96
+    this.boundsCtx = this.boundsCanvas.getContext('2d')!
 
     // ─── World ───
     this.world = new World(this.scene)
@@ -356,6 +368,7 @@ export class UIPreviewManager {
 
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
+      if (this.boundsTarget) this.updateBounds()
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -384,6 +397,18 @@ export class UIPreviewManager {
     this.stop()
     select(null)
     this.gizmo.dispose()
+    this.detachBounds()
+    if (this.boundsHelper) {
+      this.scene.remove(this.boundsHelper)
+      this.boundsHelper.dispose()
+      this.boundsHelper = null
+    }
+    if (this.boundsLabel) {
+      this.scene.remove(this.boundsLabel)
+      ;(this.boundsLabel.material as THREE.SpriteMaterial).dispose()
+      this.boundsLabel = null
+    }
+    this.boundsTarget = null
     this.world.DestroyAllActors()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
@@ -403,10 +428,90 @@ export class UIPreviewManager {
     if (actor) {
       select(actor)
       this.gizmo.attach(actor.root)
+      this.attachBounds(actor)
     } else {
       select(null)
       this.gizmo.detach()
+      this.detachBounds()
     }
+  }
+
+  // ═══════════════════════════════════
+  //  选中包围盒（显示当前节点的大小范围）
+  // ═══════════════════════════════════
+
+  /** 挂载选中包围盒（线框 + 尺寸标签）到 Actor */
+  private attachBounds(actor: Actor) {
+    this.boundsTarget = actor
+    if (!this.boundsHelper) {
+      this.boundsHelper = new THREE.BoxHelper(new THREE.Object3D(), 0x00e5ff)
+      const mat = this.boundsHelper.material as THREE.LineBasicMaterial
+      mat.depthTest = false
+      mat.depthWrite = false
+      mat.transparent = true
+      mat.opacity = 0.9
+      this.boundsHelper.renderOrder = 998
+      this.scene.add(this.boundsHelper)
+    }
+    if (!this.boundsLabel) {
+      const tex = new THREE.CanvasTexture(this.boundsCanvas)
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+      })
+      this.boundsLabel = new THREE.Sprite(mat)
+      this.boundsLabel.renderOrder = 998
+      this.scene.add(this.boundsLabel)
+    }
+    this.updateBounds()
+  }
+
+  /** 移除选中包围盒 */
+  private detachBounds() {
+    this.boundsTarget = null
+    if (this.boundsHelper) this.boundsHelper.visible = false
+    if (this.boundsLabel) this.boundsLabel.visible = false
+  }
+
+  /** 每帧更新包围盒几何与尺寸标签（跟随节点变换） */
+  private updateBounds() {
+    if (!this.boundsTarget || !this.boundsHelper) return
+    const root = this.boundsTarget.root
+    this.boundsHelper.setFromObject(root)
+    this.boundsHelper.update()
+    this.boundsHelper.visible = true
+
+    // 尺寸标签：计算世界包围盒，绘制 "W × H" 文本
+    if (!this.boundsLabel) return
+    const box = new THREE.Box3().setFromObject(root)
+    const size = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
+
+    // 绘制标签画布
+    const ctx = this.boundsCtx
+    const cw = this.boundsCanvas.width
+    const ch = this.boundsCanvas.height
+    ctx.clearRect(0, 0, cw, ch)
+    const text = `${size.x.toFixed(2)} × ${size.y.toFixed(2)}`
+    ctx.font = 'bold 40px monospace'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    const tw = ctx.measureText(text).width
+    ctx.fillRect(cw / 2 - tw / 2 - 14, ch / 2 - 26, tw + 28, 52)
+    ctx.fillStyle = '#00e5ff'
+    ctx.fillText(text, cw / 2, ch / 2)
+
+    const tex = this.boundsLabel.material.map as THREE.CanvasTexture
+    tex.needsUpdate = true
+
+    // 标签放在包围盒右上角外侧（保持固定屏幕大小）
+    const labelScale = 1.2
+    this.boundsLabel.scale.set(cw / 96 * labelScale * 0.12, ch / 96 * labelScale * 0.12, 1)
+    this.boundsLabel.position.set(box.max.x + 0.3, box.max.y + 0.25, 0.01)
+    this.boundsLabel.visible = true
   }
 
   /** 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新 */

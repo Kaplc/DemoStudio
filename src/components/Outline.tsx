@@ -36,16 +36,19 @@ function renderActorTreeNodes(
           if (!node.actor || !assetPath) return
           if (kind === 'blueprint') {
             const mgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)
+            // 单击：仅选中（显示 gizmos + 包围盒），不聚焦摄像机
             if (isSelected) mgr?.selectActor(null)
-            else mgr?.focusActor(node.actor)
+            else mgr?.selectActor(node.actor)
           } else {
             const mgr = AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(assetPath)
+            // 单击：仅选中，不聚焦摄像机
             if (isSelected) mgr?.selectActor(null)
-            else mgr?.focusActor(node.actor)
+            else mgr?.selectActor(node.actor)
           }
         }}
         onDoubleClick={() => {
           if (!node.actor || !assetPath) return
+          // 双击：聚焦摄像机到节点
           if (kind === 'blueprint') {
             AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)?.focusActor(node.actor)
           } else {
