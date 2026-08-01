@@ -7,7 +7,7 @@
  * 在 CanvasUIComponent 基础上：把 draw(filler) 分离为 render(ctx) 钩子，
  * setter 自动触发 markDirty + 重绘。
  */
-import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { CanvasUIComponent, type AnchorPreset } from '../rendering/CanvasUIComponent'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
@@ -34,6 +34,10 @@ export interface UITextComponentOptions {
   worldWidth?: number
   /** 3D 世界高（默认 2.5） */
   worldHeight?: number
+  /** 九宫格锚点（相对父容器画布） */
+  anchor?: AnchorPreset
+  /** 相对锚点的世界偏移 */
+  anchorOffset?: [number, number]
 }
 
 export class UITextComponent extends CanvasUIComponent {
@@ -66,7 +70,7 @@ export class UITextComponent extends CanvasUIComponent {
     } else if (worldHeight == null) {
       worldHeight = worldWidth / (width / height)
     }
-    super(owner, { width, height, worldWidth, worldHeight })
+    super(owner, { width, height, worldWidth, worldHeight, anchor: options.anchor, anchorOffset: options.anchorOffset })
     this.name = 'UITextComponent'
     this._text = options.text ?? ''
     this._fontSize = options.fontSize ?? 28

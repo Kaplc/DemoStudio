@@ -21,7 +21,7 @@ import { ClickableComponent } from '../physics/ClickableComponent'
 import { CameraComponent, type CameraMode } from '../input/CameraComponent'
 import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
-import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { CanvasUIComponent, type AnchorPreset } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
@@ -123,7 +123,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name? }
+  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, anchor?, anchorOffset? }
   ComponentRegistry.register(
     'canvasui',
     (owner, p = {}) =>
@@ -135,6 +135,8 @@ export function registerBuiltinComponents(): void {
         doubleSided: (p.doubleSided as boolean) ?? true,
         name: p.name ?? 'CanvasUIComponent',
         zOrder: p.zOrder as number | undefined,
+        anchor: p.anchor as AnchorPreset | undefined,
+        anchorOffset: p.anchorOffset as [number, number] | undefined,
       }),
     (c, p) => {
       const ui = c as CanvasUIComponent
@@ -143,6 +145,8 @@ export function registerBuiltinComponents(): void {
       }
       if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
       if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number
+      if (p.anchor !== undefined) ui.anchor = p.anchor as AnchorPreset
+      if (p.anchorOffset !== undefined) ui.anchorOffset = p.anchorOffset as [number, number]
     },
   )
 
@@ -184,6 +188,8 @@ export function registerBuiltinComponents(): void {
         letterSpacing: p.letterSpacing as number | undefined,
         width: p.width as number | undefined,
         height: p.height as number | undefined,
+        anchor: p.anchor as AnchorPreset | undefined,
+        anchorOffset: p.anchorOffset as [number, number] | undefined,
       }),
     (c, p) => {
       const t = c as UITextComponent
@@ -192,10 +198,12 @@ export function registerBuiltinComponents(): void {
       if (p.color !== undefined) t.color = p.color as string
       if (p.align !== undefined) t.align = p.align as 'left' | 'center' | 'right'
       if (p.zOrder !== undefined) t.zOrder = p.zOrder as number
+      if (p.anchor !== undefined) t.anchor = p.anchor as AnchorPreset
+      if (p.anchorOffset !== undefined) t.anchorOffset = p.anchorOffset as [number, number]
     },
   )
 
-  // ─── uiimage ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight? }
+  // ─── uiimage ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight?, anchor?, anchorOffset? }
   ComponentRegistry.register(
     'uiimage',
     (owner, p = {}) =>
@@ -208,6 +216,8 @@ export function registerBuiltinComponents(): void {
         worldHeight: p.worldHeight as number | undefined,
         width: p.width as number | undefined,
         height: p.height as number | undefined,
+        anchor: p.anchor as AnchorPreset | undefined,
+        anchorOffset: p.anchorOffset as [number, number] | undefined,
       }),
     (c, p) => {
       const img = c as UIImageComponent
@@ -215,26 +225,30 @@ export function registerBuiltinComponents(): void {
       if (p.radius !== undefined) img.radius = p.radius as number
       if (p.src !== undefined) img.loadImage(p.src as string)
       if (p.zOrder !== undefined) img.zOrder = p.zOrder as number
+      if (p.anchor !== undefined) img.anchor = p.anchor as AnchorPreset
+      if (p.anchorOffset !== undefined) img.anchorOffset = p.anchorOffset as [number, number]
     },
   )
 
-  // ─── uibutton ─── props: { label?, colors?, textOptions?, onClick? (代码设置) }
+  // ─── uibutton ─── props: { colors?, anchor?, anchorOffset?, onClick? (代码设置) }
+  // 仅交互功能：背景色随状态变化；文字由独立子 Actor 挂 uitext 提供。
   ComponentRegistry.register(
     'uibutton',
     (owner, p = {}) =>
       new UIButtonComponent(owner, {
-        label: p.label as string | undefined,
         colors: p.colors as Record<string, string> | undefined,
-        textOptions: p.textOptions as Record<string, unknown> | undefined,
         worldWidth: p.worldWidth as number | undefined,
         worldHeight: p.worldHeight as number | undefined,
         color: p.color as string | undefined,
         radius: p.radius as number | undefined,
+        anchor: p.anchor as AnchorPreset | undefined,
+        anchorOffset: p.anchorOffset as [number, number] | undefined,
       }),
     (c, p) => {
       const btn = c as UIButtonComponent
-      if (p.label !== undefined) btn.label = p.label as string
       if (p.zOrder !== undefined) btn.zOrder = p.zOrder as number
+      if (p.anchor !== undefined) btn.anchor = p.anchor as AnchorPreset
+      if (p.anchorOffset !== undefined) btn.anchorOffset = p.anchorOffset as [number, number]
     },
   )
 }

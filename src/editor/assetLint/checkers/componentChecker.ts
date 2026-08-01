@@ -55,7 +55,7 @@ class MeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:mesh', MeshComponentChecker)
 
-/** comp:uitext — 文本属性 + 字体参数 */
+/** comp:uitext — 文本属性 + 字体参数 + UI 定位 */
 class UITextComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uitext'
   schema: FieldSpec[] = [
@@ -72,11 +72,25 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.shadowBlur', type: 'number', min: 0, label: '阴影模糊' },
     { field: 'properties.shadowOffsetX', type: 'number', label: '阴影 X 偏移' },
     { field: 'properties.shadowOffsetY', type: 'number', label: '阴影 Y 偏移' },
+    { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
+    { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
+    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    {
+      field: 'properties.anchor',
+      type: 'string',
+      enum: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-center', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right',
+      ],
+      label: '九宫格锚点',
+    },
+    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uitext', UITextComponentChecker)
 
-/** comp:uiimage — 颜色/圆角/不透明度/图片源 */
+/** comp:uiimage — 颜色/圆角/不透明度/图片源 + UI 定位 */
 class UIImageComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uiimage'
   schema: FieldSpec[] = [
@@ -88,20 +102,68 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
     { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
+    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    {
+      field: 'properties.anchor',
+      type: 'string',
+      enum: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-center', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right',
+      ],
+      label: '九宫格锚点',
+    },
+    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uiimage', UIImageComponentChecker)
 
-/** comp:uibutton — 按钮颜色状态 + 标签 */
+/** comp:uibutton — 按钮交互组件（仅状态色 + 圆角，文字由子 uitext 提供） + UI 定位 */
 class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uibutton'
   schema: FieldSpec[] = [
-    { field: 'properties.label', type: 'string', label: '按钮文字' },
     { field: 'properties.color', type: 'color', label: '正常态颜色' },
     { field: 'properties.radius', type: 'number', min: 0, label: '圆角' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
     { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
+    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    {
+      field: 'properties.anchor',
+      type: 'string',
+      enum: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-center', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right',
+      ],
+      label: '九宫格锚点',
+    },
+    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uibutton', UIButtonComponentChecker)
+
+/** comp:canvasui — UI 画布根组件（像素画布 + 世界尺寸 + UI 层级） */
+class CanvasUIComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:canvasui'
+  schema: FieldSpec[] = [
+    { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
+    { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
+    { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
+    { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
+    { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
+    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    {
+      field: 'properties.anchor',
+      type: 'string',
+      enum: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-center', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right',
+      ],
+      label: '九宫格锚点',
+    },
+    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
+  ]
+}
+registerAssetChecker('comp:canvasui', CanvasUIComponentChecker)

@@ -46,9 +46,15 @@ export abstract class Actor {
 
   /** 游戏开始，所有组件就绪后调用一次 */
   BeginPlay(): void {
+    if (this.bHasBegunPlay) return
     this.bHasBegunPlay = true
     for (const c of this.components) {
       if (c.bEnabled) c.BeginPlay()
+    }
+    // 递归子 Actor（内联子节点经 attachTo 挂载，不在 World.allActors 中，
+    // 由父链传播 BeginPlay；bHasBegunPlay 防止 ref 子节点重复调用）
+    for (const child of this.children) {
+      child.BeginPlay()
     }
   }
 

@@ -23,7 +23,7 @@
       "name": "Title",
       "baseClass": "Actor",
       "id": 10001,
-      "position": [0, 1.0, 0],
+      "position": [0, 0, 0],
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
@@ -40,6 +40,7 @@
             "width": 2048,
             "height": 128,
             "zOrder": 2,
+            "anchor": "top-center",
             "name": "TitleText"
           }
         }
@@ -50,7 +51,7 @@
       "name": "Subtitle",
       "baseClass": "Actor",
       "id": 10002,
-      "position": [0, 0.6, 0],
+      "position": [0, 0, 0],
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
@@ -64,6 +65,8 @@
             "width": 1024,
             "height": 48,
             "zOrder": 2,
+            "anchor": "middle-center",
+            "anchorOffset": [0, 0.5],
             "name": "SubtitleText"
           }
         }
@@ -81,7 +84,6 @@
         {
           "baseClass": "uibutton",
           "properties": {
-            "label": "🎮 开始游戏",
             "zOrder": 3,
             "colors": {
               "normal": "#ff6f00",
@@ -94,25 +96,49 @@
             "worldHeight": 0.4,
             "width": 512,
             "height": 128,
-            "textOptions": {
-              "fontSize": 32,
-              "color": "#ffffff",
-              "bold": true,
-              "align": "center",
-              "shadowColor": "rgba(0,0,0,0.4)",
-              "shadowBlur": 4
-            },
+            "anchor": "center",
             "name": "StartBtn"
           }
         }
       ],
-      "children": []
+      "children": [
+        {
+          "name": "StartBtnText",
+          "baseClass": "Actor",
+          "id": 10005,
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1],
+          "components": [
+            {
+              "baseClass": "uitext",
+              "properties": {
+                "text": "🎮 开始游戏",
+                "fontSize": 32,
+                "color": "#ffffff",
+                "bold": true,
+                "align": "center",
+                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowBlur": 4,
+                "width": 512,
+                "height": 128,
+                "worldWidth": 1.6,
+                "worldHeight": 0.4,
+                "zOrder": 4,
+                "anchor": "center",
+                "name": "StartBtnText"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "name": "Tip",
       "baseClass": "Actor",
       "id": 10004,
-      "position": [0, -0.7, 0],
+      "position": [0, 0, 0],
       "rotation": [0, 0, 0],
       "scale": [1, 1, 1],
       "components": [
@@ -127,6 +153,8 @@
             "width": 1400,
             "height": 80,
             "zOrder": 1,
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 0.1],
             "name": "TipText"
           }
         }

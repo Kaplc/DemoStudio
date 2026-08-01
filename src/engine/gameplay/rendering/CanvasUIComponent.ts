@@ -27,6 +27,23 @@ import { Component } from '../entity/Component'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
+/**
+ * 九宫格锚点预设（相对父容器，Unity Anchor Preset 风格）
+ *  - 决定 UI 元素中心在父容器九宫格上的对齐位置
+ *  - 默认贴合容器内边（不溢出），可用 anchorOffset 微调
+ */
+export type AnchorPreset =
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'middle-left' | 'middle-center' | 'center' | 'middle-right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right'
+
+/** 锚点 → 方向因子（x: -1 左/0 中/+1 右，y: -1 下/0 中/+1 上） */
+const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
+  'top-left': [-1, 1], 'top-center': [0, 1], 'top-right': [1, 1],
+  'middle-left': [-1, 0], 'middle-center': [0, 0], 'center': [0, 0], 'middle-right': [1, 0],
+  'bottom-left': [-1, -1], 'bottom-center': [0, -1], 'bottom-right': [1, -1],
+}
+
 export interface CanvasUIOptions {
   width?: number           // canvas 像素宽，默认 512
   height?: number          // canvas 像素高，默认 256
@@ -35,6 +52,10 @@ export interface CanvasUIOptions {
   doubleSided?: boolean    // 是否双面可见，默认 true
   name?: string
   zOrder?: number          // UI 层级（越大越靠前），默认 0
+  /** 九宫格锚点（相对父容器画布），默认 null（不自动定位，用 position） */
+  anchor?: AnchorPreset
+  /** 相对锚点的世界偏移 [x, y]，默认 [0, 0] */
+  anchorOffset?: [number, number]
 }
 
 export class CanvasUIComponent extends Component {
@@ -45,6 +66,11 @@ export class CanvasUIComponent extends Component {
   private _width: number
   private _height: number
   private _zOrder = 0
+
+  /** 九宫格锚点（null = 不自动定位，沿用 position） */
+  private _anchor: AnchorPreset | null = null
+  /** 相对锚点的世界偏移 */
+  private _anchorOffset: [number, number] = [0, 0]
 
   constructor(owner: Actor, options: CanvasUIOptions = {}) {
     super(owner)
@@ -78,6 +104,9 @@ export class CanvasUIComponent extends Component {
     owner.root.add(this.panel)
 
     if (options.zOrder !== undefined) this.zOrder = options.zOrder
+    if (options.anchor !== undefined) this._anchor = options.anchor
+    if (options.anchorOffset !== undefined) this._anchorOffset = options.anchorOffset
+    else if (this._anchor) this._anchorOffset = [0, 0]
     logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}`)
   }
 
@@ -88,6 +117,82 @@ export class CanvasUIComponent extends Component {
     this.panel.renderOrder = v
     // z 偏移分层：zOrder 每 +1 对应 0.001 世界单位前移（正交相机下无透视变形）
     this.panel.position.z = v * 0.001
+  }
+
+  /** 九宫格锚点（null = 不自动定位，沿用 position） */
+  get anchor(): AnchorPreset | null { return this._anchor }
+  set anchor(v: AnchorPreset | null) {
+    logger.debug(`[CanvasUIComponent] "${this.name}" 设置锚点: ${v ?? 'null'}（offset=${JSON.stringify(this._anchorOffset)}）`)
+    this._anchor = v
+    this.applyAnchor()
+  }
+
+  /** 相对锚点的世界偏移 */
+  get anchorOffset(): [number, number] { return this._anchorOffset }
+  set anchorOffset(v: [number, number]) {
+    logger.debug(`[CanvasUIComponent] "${this.name}" 设置锚点偏移: [${v[0]}, ${v[1]}]`)
+    this._anchorOffset = v
+    this.applyAnchor()
+  }
+
+  /**
+   * 应用九宫格锚点：按父容器画布尺寸把元素中心放到锚点位置。
+   * 语义（Unity Anchor Preset）：
+   *  - 元素边缘贴合容器内边（不溢出），中心 = 父中心 + 方向因子 × (父半尺寸 − 自身半尺寸)
+   *  - anchorOffset 在此基准上微调
+   *  - 找不到父画布（根画布自身）时跳过，沿用 position
+   */
+  applyAnchor(): void {
+    logger.debug(`[CanvasUIComponent] "${this.name}" applyAnchor 进入 (anchor=${this._anchor ?? 'null'})`)
+    if (!this._anchor) {
+      logger.debug(`[CanvasUIComponent] "${this.name}" 无锚点，跳过定位（沿用 position）`)
+      return
+    }
+    const container = this.findContainerSize()
+    if (!container) {
+      logger.warn(`[CanvasUIComponent] "${this.name}" 未找到父画布容器，跳过锚点 ${this._anchor}（树未构建？）`)
+      return
+    }
+    const factors = ANCHOR_FACTORS[this._anchor]
+    if (!factors) {
+      logger.error(`[CanvasUIComponent] "${this.name}" 未知锚点值 "${this._anchor}"，已跳过`)
+      return
+    }
+    const [fx, fy] = factors
+    const [cw, ch] = container
+    const [sw, sh] = this.getWorldSize()
+    const ox = this._anchorOffset[0] ?? 0
+    const oy = this._anchorOffset[1] ?? 0
+    const x = fx * (cw / 2 - sw / 2) + ox
+    const y = fy * (ch / 2 - sh / 2) + oy
+    this.owner.setPosition(x, y, this.owner.root.position.z)
+    logger.info(`[CanvasUIComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
+  }
+
+  /** 向上查找最近的父画布尺寸（父 Actor 上的 CanvasUIComponent 世界尺寸） */
+  private findContainerSize(): [number, number] | null {
+    let p = this.owner.parent
+    let hops = 0
+    while (p) {
+      const comp = p.getComponent(CanvasUIComponent)
+      if (comp) {
+        const size = comp.getWorldSize()
+        logger.debug(`[CanvasUIComponent] "${this.name}" 找到父画布: Actor="${p.name}" 尺寸=${size[0]}x${size[1]} (${hops + 1} 级向上)`)
+        return size
+      }
+      p = p.parent
+      hops++
+    }
+    logger.debug(`[CanvasUIComponent] "${this.name}" 未找到父画布（parent=${this.owner.parent?.name ?? 'null'}）`)
+    return null
+  }
+
+  override BeginPlay() {
+    logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入 (anchor=${this._anchor ?? 'null'})`)
+    super.BeginPlay()
+    // 树构建完成（所有 attachTo 已就绪）后应用锚点定位
+    this.applyAnchor()
+    logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 退出`)
   }
 
   /** 获取 canvas 像素尺寸 */
