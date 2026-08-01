@@ -301,19 +301,24 @@
           }
         },
         {
-          "baseClass": "uibutton",
+          "baseClass": "uiimage",
           "properties": {
             "zOrder": 3,
-            "colors": {
-              "normal": "#ff6f00",
-              "hover": "#ffab00",
-              "pressed": "#c44000"
-            },
             "color": "#ff6f00",
             "radius": 24,
             "width": 512,
             "height": 128,
             "name": "StartBtn"
+          }
+        },
+        {
+          "baseClass": "uibutton",
+          "properties": {
+            "colors": {
+              "normal": "#ff6f00",
+              "hover": "#ffab00",
+              "pressed": "#c44000"
+            }
           }
         }
       ],

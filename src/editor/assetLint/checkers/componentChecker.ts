@@ -144,14 +144,11 @@ class UIImageComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:uiimage', UIImageComponentChecker)
 
-/** comp:uibutton — 按钮交互组件（仅状态色 + 圆角，文字由子 uitext 提供） + UI 定位 */
+/** comp:uibutton — 按钮纯交互组件（状态色映射 colors；背景渲染由同 Actor 的 uiimage 提供） */
 class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uibutton'
   schema: FieldSpec[] = [
-    { field: 'properties.color', type: 'color', label: '正常态颜色' },
-    { field: 'properties.radius', type: 'number', min: 0, label: '圆角' },
-    { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
-    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.colors', type: 'object', label: '状态色映射' },
   ]
 }
 registerAssetChecker('comp:uibutton', UIButtonComponentChecker)

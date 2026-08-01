@@ -27,6 +27,8 @@ import type { SceneTreeNode } from './SelectionManager'
 
 export class UIPreviewManager {
   readonly scene: THREE.Scene
+  /** 编辑器覆盖层：gizmo / 选中包围盒 / 把手 / 标签专用。渲染顺序在主场景和 UI 场景之后，永远最顶层 */
+  readonly overlayScene: THREE.Scene
   readonly camera: THREE.OrthographicCamera
   readonly renderer: THREE.WebGLRenderer
   readonly world: World
@@ -114,6 +116,9 @@ export class UIPreviewManager {
     this.scene = new THREE.Scene()
     this.scene.background = new THREE.Color(0x1a1a2e)
 
+    // ─── 编辑器覆盖层：gizmo/包围盒/把手挂这里，渲染永远在 UI 之上 ───
+    this.overlayScene = new THREE.Scene()
+
     // ─── 正交相机：Z 正对 UI，世界坐标与视口 1:1 ───
     const aspect = container.clientWidth / container.clientHeight
     this.camera = new THREE.OrthographicCamera(-aspect * 5, aspect * 5, 5, -5, 0.1, 200)
@@ -123,9 +128,9 @@ export class UIPreviewManager {
     // ─── 输入 ───
     this.setupMouse()
 
-    // ─── TransformGizmo ───
+    // ─── TransformGizmo（挂覆盖层，保证始终在 UI 之上）───
     this.gizmo = new TransformGizmo()
-    this.gizmo.setup(this.scene, this.camera, this.renderer)
+    this.gizmo.setup(this.overlayScene, this.camera, this.renderer)
 
     // ─── 选中包围盒（大小范围显示）───
     this.boundsCanvas.width = 512
@@ -558,13 +563,22 @@ export class UIPreviewManager {
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
       if (this.boundsTarget) this.updateBounds()
+      // 第 1 层：主场景（清屏）
       this.renderer.render(this.scene, this.camera)
-      // UI 独立场景叠加渲染（widget Actor 与主场景分离，场景由 UIManager 持有）
+      // 第 2 层：UI 独立场景叠加渲染（widget Actor 与主场景分离，场景由 UIManager 持有）
       if (this.world.ui.scene) {
         const prevAutoClear = this.renderer.autoClear
         this.renderer.autoClear = false
         this.renderer.clearDepth()
         this.renderer.render(this.world.ui.scene, this.camera)
+        this.renderer.autoClear = prevAutoClear
+      }
+      // 第 3 层：编辑器覆盖层（gizmo/包围盒/把手/标签）——始终最顶层，不被 UI 面板遮挡
+      if (this.overlayScene.children.length > 0) {
+        const prevAutoClear = this.renderer.autoClear
+        this.renderer.autoClear = false
+        this.renderer.clearDepth()
+        this.renderer.render(this.overlayScene, this.camera)
         this.renderer.autoClear = prevAutoClear
       }
       this.animationId = requestAnimationFrame(animate)
@@ -596,18 +610,18 @@ export class UIPreviewManager {
     this.gizmo.dispose()
     this.detachBounds()
     if (this.boundsHelper) {
-      this.scene.remove(this.boundsHelper)
+      this.overlayScene.remove(this.boundsHelper)
       this.boundsHelper.dispose()
       this.boundsHelper = null
     }
     if (this.boundsLabel) {
-      this.scene.remove(this.boundsLabel)
+      this.overlayScene.remove(this.boundsLabel)
       ;(this.boundsLabel.material as THREE.SpriteMaterial).dispose()
       this.boundsLabel = null
     }
     // 清理角把手
     if (this.cornerHandleGroup) {
-      this.scene.remove(this.cornerHandleGroup)
+      this.overlayScene.remove(this.cornerHandleGroup)
       for (const h of this.cornerHandles) {
         h.geometry.dispose()
         ;(h.material as THREE.MeshBasicMaterial).dispose()
@@ -649,7 +663,7 @@ export class UIPreviewManager {
   //  选中包围盒（显示当前节点的大小范围）
   // ═══════════════════════════════════
 
-  /** 挂载选中包围盒（线框 + 尺寸标签 + 4 角拖拽把手）到 Actor */
+  /** 挂载选中包围盒（线框 + 尺寸标签 + 4 角拖拽把手）到 Actor。全部挂在 overlayScene，保证不被 UI 面板遮挡 */
   private attachBounds(actor: Actor) {
     this.boundsTarget = actor
     if (!this.boundsHelper) {
@@ -660,7 +674,7 @@ export class UIPreviewManager {
       mat.transparent = true
       mat.opacity = 0.9
       this.boundsHelper.renderOrder = 998
-      this.scene.add(this.boundsHelper)
+      this.overlayScene.add(this.boundsHelper)
     }
     if (!this.boundsLabel) {
       const tex = new THREE.CanvasTexture(this.boundsCanvas)
@@ -672,13 +686,13 @@ export class UIPreviewManager {
       })
       this.boundsLabel = new THREE.Sprite(mat)
       this.boundsLabel.renderOrder = 998
-      this.scene.add(this.boundsLabel)
+      this.overlayScene.add(this.boundsLabel)
     }
     this.ensureCornerHandles()
     this.updateBounds()
   }
 
-  /** 创建/复用 4 角拖拽把手（TL/TR/BL/BR，青色方块） */
+  /** 创建/复用 4 角拖拽把手（TL/TR/BL/BR，青色方块）。挂在 overlayScene，始终在 UI 面板之上 */
   private ensureCornerHandles() {
     if (this.cornerHandleGroup) return
     const group = new THREE.Group()
@@ -700,7 +714,7 @@ export class UIPreviewManager {
       this.cornerHandles.push(mesh)
     }
     this.cornerHandleGroup = group
-    this.scene.add(group)
+    this.overlayScene.add(group)
   }
 
   /** 移除选中包围盒 */

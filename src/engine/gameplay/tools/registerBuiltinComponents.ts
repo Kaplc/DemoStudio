@@ -27,7 +27,7 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
-import { UIButtonComponent } from '../ui/UIButtonComponent'
+import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
 
 let _registered = false
 
@@ -270,20 +270,17 @@ export function registerBuiltinComponents(): void {
   )
 
   // ─── uibutton ─── props: { colors?, onClick? (代码设置) }
-  // 仅交互功能：背景色随状态变化；文字由独立子 Actor 挂 uitext 提供。
+  // 纯交互组件：背景渲染由同 Actor 的 uiimage 提供（Unity Button.targetGraphic 模式），
+  // 状态切换时 uibutton 驱动 uiimage 的颜色；文字由独立子 Actor 挂 uitext 提供。
   ComponentRegistry.register(
     'uibutton',
     (owner, p = {}) =>
       new UIButtonComponent(owner, {
         colors: p.colors as Record<string, string> | undefined,
-        worldWidth: p.worldWidth as number | undefined,
-        worldHeight: p.worldHeight as number | undefined,
-        color: p.color as string | undefined,
-        radius: p.radius as number | undefined,
       }),
     (c, p) => {
       const btn = c as UIButtonComponent
-      if (p.zOrder !== undefined) btn.zOrder = p.zOrder as number
+      if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
     },
   )
 }
