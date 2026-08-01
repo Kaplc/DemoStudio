@@ -54,8 +54,8 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── uitransform ─── props: { position?, rotation?, scale?, anchor?, anchorOffset? }
-  // UI 专用变换组件：继承 transform，额外提供九宫格锚点定位（Unity Anchor Preset 风格）
+  // ─── uitransform ─── props: { position?, rotation?, scale?, worldWidth?, worldHeight?, anchor?, anchorOffset? }
+  // UI 专用变换组件：继承 transform，额外承载尺寸 + 九宫格锚点定位（Unity RectTransform 风格）
   ComponentRegistry.register(
     'uitransform',
     (owner, p = {}) =>
@@ -63,6 +63,8 @@ export function registerBuiltinComponents(): void {
         position: p.position as [number, number, number] | undefined,
         rotation: p.rotation as [number, number, number] | undefined,
         scale: p.scale as [number, number, number] | undefined,
+        worldWidth: p.worldWidth as number | undefined,
+        worldHeight: p.worldHeight as number | undefined,
         anchor: p.anchor as AnchorPreset | undefined,
         anchorOffset: p.anchorOffset as [number, number] | undefined,
       }),
@@ -71,6 +73,10 @@ export function registerBuiltinComponents(): void {
       if (Array.isArray(p.position)) tf.setPosition(p.position[0], p.position[1], p.position[2])
       if (Array.isArray(p.rotation)) tf.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
       if (Array.isArray(p.scale)) tf.setScale(p.scale[0], p.scale[1], p.scale[2])
+      if (p.worldWidth != null || p.worldHeight != null) {
+        // 同步所有真实画布面板 scale（兜底组件创建顺序问题）
+        tf.setWorldSize(p.worldWidth ?? 5, p.worldHeight ?? 2.5)
+      }
       if (p.anchor !== undefined) tf.anchor = p.anchor as AnchorPreset
       if (p.anchorOffset !== undefined) tf.anchorOffset = p.anchorOffset as [number, number]
     },
@@ -166,14 +172,16 @@ export function registerBuiltinComponents(): void {
   )
 
   // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly? }
+  // 世界尺寸已在 uitransform 上（Unity RectTransform 风格），此处只传显式值，
+  // 未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取（避免默认值覆盖）
   ComponentRegistry.register(
     'canvasui',
     (owner, p = {}) =>
       new CanvasUIComponent(owner, {
         width: p.width ?? 512,
         height: p.height ?? 256,
-        worldWidth: p.worldWidth ?? 5,
-        worldHeight: p.worldHeight ?? 2.5,
+        ...(p.worldWidth != null ? { worldWidth: p.worldWidth } : {}),
+        ...(p.worldHeight != null ? { worldHeight: p.worldHeight } : {}),
         doubleSided: (p.doubleSided as boolean) ?? true,
         name: p.name ?? 'CanvasUIComponent',
         zOrder: p.zOrder as number | undefined,

@@ -347,15 +347,16 @@ export class UIPreviewManager {
   private resizeBoundsByCorner(cornerIndex: number, wx: number, wy: number) {
     const ui = this.boundsTarget!.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
     if (!ui) return
+    const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
+    if (!uiTf) return
     // 角方向因子：TL/TR/BL/BR
     const fx = cornerIndex === 0 || cornerIndex === 2 ? -1 : 1
     const fy = cornerIndex === 0 || cornerIndex === 1 ? 1 : -1
     const newW = Math.max(0.1, Math.abs(wx - this.dragCenter.x) * 2)
     const newH = Math.max(0.1, Math.abs(wy - this.dragCenter.y) * 2)
-    ui.setWorldSize(newW, newH)
-    // 有 UI 专用变换组件则重算锚点位置（保持锚点语义）
-    const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
-    if (uiTf) uiTf.applyAnchor()
+    // 尺寸权威在 uitransform：设置尺寸 + 重算锚点位置（保持锚点语义）
+    uiTf.setWorldSize(newW, newH)
+    uiTf.applyAnchor()
     void fx
     void fy
   }
@@ -470,16 +471,13 @@ export class UIPreviewManager {
       jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
       jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
 
-      // 范围大小：把实时世界尺寸回写到 JSON 中对应画布组件（角把手拖拽的结果可保存）
-      const uiComp = actor.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
-      if (!uiComp) continue
+      // 范围大小：从 uitransform 读取实时世界尺寸，回写到 JSON 的 uitransform 节点（角把手拖拽的结果可保存）
+      const uiTf = actor.getComponent(UITransformComponent)
+      if (!uiTf) continue
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      const target = jsonComps.find((c) => {
-        const p = (c.properties ?? {}) as Record<string, unknown>
-        return !p.markerOnly && ['canvasui', 'uiimage', 'uitext', 'uibutton'].includes(c.baseClass as string)
-      })
+      const target = jsonComps.find((c) => c.baseClass === 'uitransform')
       if (target) {
-        const [ww, wh] = uiComp.getWorldSize()
+        const [ww, wh] = uiTf.getWorldSize()
         const props = (target.properties ?? {}) as Record<string, unknown>
         props.worldWidth = ww
         props.worldHeight = wh

@@ -32,13 +32,15 @@ class TransformComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:transform', TransformComponentChecker)
 
-/** comp:uitransform — UI 专用变换组件：变换 + 九宫格锚点。 */
+/** comp:uitransform — UI 专用变换组件：变换 + 尺寸 + 九宫格锚点（Unity RectTransform 风格）。 */
 class UITransformComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uitransform'
   schema: FieldSpec[] = [
     { field: 'properties.position', type: 'vec3', label: '位置' },
     { field: 'properties.rotation', type: 'vec3', label: '旋转' },
     { field: 'properties.scale', type: 'vec3', label: '缩放' },
+    { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
+    { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     {
       field: 'properties.anchor',
       type: 'string',
@@ -137,8 +139,6 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.src', type: 'string', label: '图片源' },
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
-    { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
-    { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
   ]
 }
@@ -151,8 +151,6 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
     { field: 'properties.color', type: 'color', label: '正常态颜色' },
     { field: 'properties.radius', type: 'number', min: 0, label: '圆角' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
-    { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
-    { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
   ]
 }
@@ -164,8 +162,6 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
   schema: FieldSpec[] = [
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
-    { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
-    { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },

@@ -8,6 +8,7 @@
  * setter 自动触发 markDirty + 重绘。
  */
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { UITransformComponent } from './UITransformComponent'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
@@ -54,19 +55,30 @@ export class UITextComponent extends CanvasUIComponent {
   constructor(owner: Actor, options: UITextComponentOptions = {}) {
     const width = options.width ?? 512
     const height = options.height ?? 128
-    // 世界尺寸：未显式指定时按 canvas 宽高比自动推算（避免文字被拉伸变形）
-    let worldWidth = options.worldWidth
-    let worldHeight = options.worldHeight
-    if (worldWidth == null && worldHeight == null) {
-      // 默认世界高度 2.5（与 CanvasUIComponent 一致），宽度按 canvas 比例
-      worldHeight = 2.5
-      worldWidth = worldHeight * (width / height)
-    } else if (worldWidth == null) {
-      worldWidth = worldHeight! * (width / height)
-    } else if (worldHeight == null) {
-      worldHeight = worldWidth / (width / height)
+    // 世界尺寸：尺寸权威在 uitransform（Unity RectTransform 风格）。
+    //  - tsf 已显式设置尺寸 → 不传，由 CanvasUIComponent 读取 tsf 值
+    //  - 未显式 → 按 canvas 宽高比自动推算（避免文字被拉伸变形），传入并同步回 tsf
+    const uiTf = owner.getComponent(UITransformComponent)
+    const tsfHasSize = uiTf?.worldSizeExplicit ?? false
+    let worldWidth = tsfHasSize ? undefined : options.worldWidth
+    let worldHeight = tsfHasSize ? undefined : options.worldHeight
+    if (!tsfHasSize) {
+      if (worldWidth == null && worldHeight == null) {
+        // 默认世界高度 2.5（与 CanvasUIComponent 一致），宽度按 canvas 比例
+        worldHeight = 2.5
+        worldWidth = worldHeight * (width / height)
+      } else if (worldWidth == null) {
+        worldWidth = worldHeight! * (width / height)
+      } else if (worldHeight == null) {
+        worldHeight = worldWidth / (width / height)
+      }
     }
-    super(owner, { width, height, worldWidth, worldHeight })
+    super(owner, {
+      width,
+      height,
+      ...(worldWidth !== undefined ? { worldWidth } : {}),
+      ...(worldHeight !== undefined ? { worldHeight } : {}),
+    })
     this.name = 'UITextComponent'
     this._text = options.text ?? ''
     this._fontSize = options.fontSize ?? 28

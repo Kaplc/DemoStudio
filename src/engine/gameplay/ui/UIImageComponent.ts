@@ -35,8 +35,9 @@ export class UIImageComponent extends CanvasUIComponent {
     super(owner, {
       width,
       height,
-      worldWidth: options.worldWidth ?? 1,
-      worldHeight: options.worldHeight ?? 1,
+      // 只传显式世界尺寸；未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取
+      ...(options.worldWidth !== undefined ? { worldWidth: options.worldWidth } : {}),
+      ...(options.worldHeight !== undefined ? { worldHeight: options.worldHeight } : {}),
     })
     this.name = 'UIImageComponent'
     this._color = options.color ?? '#ffffff'

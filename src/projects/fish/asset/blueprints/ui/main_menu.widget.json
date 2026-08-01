@@ -5,9 +5,23 @@
     {
       "baseClass": "uitransform",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 9.6,
+        "worldHeight": 5.4
       }
     },
     {
@@ -15,30 +29,66 @@
       "properties": {
         "width": 1920,
         "height": 1080,
-        "worldWidth": 9.6,
-        "worldHeight": 5.4,
         "name": "Canvas"
       }
     }
   ],
-  "position": [0, 0, 0],
-  "rotation": [0, 0, 0],
-  "scale": [1, 1, 1],
+  "position": [
+    0,
+    0,
+    0
+  ],
+  "rotation": [
+    0,
+    0,
+    0
+  ],
+  "scale": [
+    1,
+    1,
+    1
+  ],
   "children": [
     {
       "name": "Background",
       "baseClass": "Actor",
       "id": 10000,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
         {
           "baseClass": "uitransform",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 9.6,
+            "worldHeight": 5.4
           }
         },
         {
@@ -53,8 +103,6 @@
           "properties": {
             "color": "#0a2850",
             "opacity": 0.85,
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
             "width": 1920,
             "height": 1080,
             "name": "Background"
@@ -67,17 +115,43 @@
       "name": "Title",
       "baseClass": "Actor",
       "id": 10001,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        1.4500000000000002,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
         {
           "baseClass": "uitransform",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "top-center"
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "anchor": "top-center",
+            "worldWidth": 40,
+            "worldHeight": 2.5
           }
         },
         {
@@ -110,18 +184,47 @@
       "name": "Subtitle",
       "baseClass": "Actor",
       "id": 10002,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0.05291138036778431,
+        0.5634936564413418,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
         {
           "baseClass": "uitransform",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "middle-center",
-            "anchorOffset": [0, 0.5]
+            "anchorOffset": [
+              0,
+              0.5
+            ],
+            "worldWidth": 7.571728176100191,
+            "worldHeight": 0.5725194992165429
           }
         },
         {
@@ -151,17 +254,43 @@
       "name": "StartButton",
       "baseClass": "Actor",
       "id": 10003,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
         {
           "baseClass": "uitransform",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "center"
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "anchor": "center",
+            "worldWidth": 1.6,
+            "worldHeight": 0.4
           }
         },
         {
@@ -182,8 +311,6 @@
             },
             "color": "#ff6f00",
             "radius": 24,
-            "worldWidth": 1.6,
-            "worldHeight": 0.4,
             "width": 512,
             "height": 128,
             "name": "StartBtn"
@@ -195,17 +322,43 @@
           "name": "StartBtnText",
           "baseClass": "Actor",
           "id": 10005,
-          "position": [0, 0, 0],
-          "rotation": [0, 0, 0],
-          "scale": [1, 1, 1],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "components": [
             {
               "baseClass": "uitransform",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center"
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "center",
+                "worldWidth": 1.6,
+                "worldHeight": 0.4
               }
             },
             {
@@ -227,8 +380,6 @@
                 "shadowBlur": 4,
                 "width": 512,
                 "height": 128,
-                "worldWidth": 1.6,
-                "worldHeight": 0.4,
                 "zOrder": 4,
                 "name": "StartBtnText"
               }
@@ -242,18 +393,47 @@
       "name": "Tip",
       "baseClass": "Actor",
       "id": 10004,
-      "position": [0, 0, 0],
-      "rotation": [0, 0, 0],
-      "scale": [1, 1, 1],
+      "position": [
+        0,
+        -1.35,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
       "components": [
         {
           "baseClass": "uitransform",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 0.1]
+            "anchorOffset": [
+              0,
+              0.1
+            ],
+            "worldWidth": 43.75,
+            "worldHeight": 2.5
           }
         },
         {

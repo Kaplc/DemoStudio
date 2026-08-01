@@ -26,6 +26,8 @@ import * as THREE from 'three'
 import { Component } from '../entity/Component'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
+// 循环引用（UITransformComponent → CanvasUIComponent）：ESM 活绑定，构造时使用安全
+import { UITransformComponent } from '../ui/UITransformComponent'
 
 export interface CanvasUIOptions {
   width?: number           // canvas 像素宽，默认 512
@@ -75,8 +77,19 @@ export class CanvasUIComponent extends Component {
     this.texture.minFilter = THREE.LinearFilter
     this.texture.magFilter = THREE.LinearFilter
 
-    const ww = options.worldWidth ?? 5
-    const wh = options.worldHeight ?? 2.5
+    // 世界尺寸：优先 uitransform（尺寸归 transform 管，Unity RectTransform 风格）。
+    //  - tsf 已显式设置且组件未传 → 用 tsf 值（JSON 迁移后标准）
+    //  - 组件显式传入（uitext 推导 / 旧数据兼容）→ 组件值并同步回 tsf
+    let ww = options.worldWidth ?? 5
+    let wh = options.worldHeight ?? 2.5
+    const uiTf = owner.getComponent(UITransformComponent)
+    if (uiTf) {
+      if (uiTf.worldSizeExplicit && options.worldWidth === undefined && options.worldHeight === undefined) {
+        ;[ww, wh] = uiTf.getWorldSize()
+      } else if (options.worldWidth !== undefined || options.worldHeight !== undefined) {
+        uiTf.setWorldSize(ww, wh)
+      }
+    }
     this._worldW = ww
     this._worldH = wh
 
@@ -125,25 +138,26 @@ export class CanvasUIComponent extends Component {
     return [this._width, this._height]
   }
 
-  /** 设置 3D 世界尺寸（单位：米） */
+  /** 设置 3D 世界尺寸（单位：米）；同步到 owner 的 uitransform（尺寸权威在 transform） */
   setWorldSize(w: number, h: number) {
     this._worldW = w
     this._worldH = h
     this.panel?.scale.set(w, h, 1)
+    this.owner.getComponent(UITransformComponent)?.setWorldSize(w, h)
   }
 
-  /** 获取 3D 世界尺寸 */
+  /** 获取 3D 世界尺寸；优先读 owner 的 uitransform */
   getWorldSize(): [number, number] {
+    const uiTf = this.owner.getComponent(UITransformComponent)
+    if (uiTf) return uiTf.getWorldSize()
     return [this._worldW, this._worldH]
   }
 
-  /** Inspector 属性展示 */
+  /** Inspector 属性展示（世界尺寸在 uitransform 上展示） */
   override getProperties(): Record<string, unknown> {
     const [cw, ch] = this.getSize()
-    const [ww, wh] = this.getWorldSize()
     return {
       Canvas: `${cw}×${ch}px`,
-      WorldSize: `${this.round2(ww)}×${this.round2(wh)}`,
       ZOrder: this._zOrder,
       MarkerOnly: this._markerOnly,
     }
