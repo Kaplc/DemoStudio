@@ -82,8 +82,8 @@ class RefNodeChecker extends AbstractAssetChecker {
     if (!node || typeof node !== 'object') return issues
     const n = node as Record<string, unknown>
     const ref = n.ref as string
-    if (ref && !/^[^/]+\/asset\/.+\.blueprint\.json$/.test(ref)) {
-      issues.push(ctx.issue('ref', 'ref-invalid-path', 'ref 路径格式应为 project/asset/.../*.blueprint.json', 'error'))
+    if (ref && !/^(?:[^/]+\/)?asset\/.+\.blueprint\.json$/.test(ref)) {
+      issues.push(ctx.issue('ref', 'ref-invalid-path', 'ref 路径格式应为 asset/.../*.blueprint.json', 'error'))
     }
     return issues
   }

@@ -86,11 +86,11 @@ function validateChildren(
       issues.push(makeIssue(ctx.filePath, childPath, 'baseClass', 'child-missing-type', 'error', '子节点必须指定 ref / baseClass 之一'))
     }
 
-    // ref 路径合理性检查：需指向已有的资产文件
+    // ref 路径合理性检查：需指向已有的资产文件（格式 asset/.../*.blueprint.json，可带 project 前缀）
     if (hasRef) {
       const refPath = child.ref as string
-      if (!/^[^/]+\/asset\/.+\.blueprint\.json$/.test(refPath)) {
-        issues.push(makeIssue(ctx.filePath, childPath, 'ref', 'ref-invalid-path', 'error', 'ref 路径格式应为 project/asset/.../*.blueprint.json'))
+      if (!/^(?:[^/]+\/)?asset\/.+\.blueprint\.json$/.test(refPath)) {
+        issues.push(makeIssue(ctx.filePath, childPath, 'ref', 'ref-invalid-path', 'error', 'ref 路径格式应为 asset/.../*.blueprint.json'))
       }
     }
 
@@ -156,7 +156,6 @@ function makeIssue(
 class BlueprintDocChecker extends AbstractAssetChecker {
   readonly kind = 'doc:blueprint'
   schema: FieldSpec[] = [
-    { field: 'path', type: 'string', required: true, label: '蓝图路径' },
     { field: 'name', type: 'string', required: true, label: '蓝图名' },
     { field: 'baseClass', type: 'string', required: true, label: '基类' },
     { field: 'position', type: 'vec3', required: true, label: '位置' },
