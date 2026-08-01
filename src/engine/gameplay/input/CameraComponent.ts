@@ -28,7 +28,21 @@ export class CameraComponent extends Component {
 
   /** 投影用 aspect(由 SetAspect 维护,正交时用于推算左右边界) */
   private aspect = 16 / 9
-
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const props: Record<string, unknown> = {
+      Mode: this.mode,
+      Near: this.near,
+      Far: this.far,
+      Priority: this.priority,
+    }
+    if (this.mode === 'perspective') {
+      props.FOV = this.fov
+    } else {
+      props.OrthoSize = this.orthoSize
+    }
+    return props
+  }
   constructor(owner: Actor, name = 'CameraComponent', mode: CameraMode = 'perspective') {
     super(owner)
     this.name = name

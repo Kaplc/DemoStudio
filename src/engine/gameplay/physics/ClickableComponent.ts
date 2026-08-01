@@ -48,6 +48,16 @@ export class ClickableComponent extends Component {
     this._hovering = false
   }
 
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    return {
+      ClickCooldown: `${this.clickCooldown}ms`,
+      Hovering: this._hovering,
+      HasOnClick: this.onClick !== null,
+      HasOnHover: this.onHover !== null,
+    }
+  }
+
   // ═══════════════════════════════════
   //  目标管理
   // ═══════════════════════════════════

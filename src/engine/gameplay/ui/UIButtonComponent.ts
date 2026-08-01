@@ -60,4 +60,14 @@ export class UIButtonComponent extends UIImageComponent {
     // 复位状态下一帧执行（简化版）
     setTimeout(() => { if (this._state === 'pressed') this.state = 'normal' }, 100)
   }
+
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const base = super.getProperties()
+    return {
+      ...base,
+      State: this._state,
+      Colors: { ...this._colors },
+    }
+  }
 }

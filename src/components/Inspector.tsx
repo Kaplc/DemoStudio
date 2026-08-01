@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
 import { useSaveStore } from '../stores/saveStore'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
-import { Actor, Component, TransformComponent } from '../engine'
+import { Actor, Component } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 
@@ -19,7 +19,7 @@ function fmt(v: number): string {
   return v.toFixed(2)
 }
 
-/** Actor Transform 可编辑输入框（与 BlueprintOverviewDetail 统一风格） */
+/** Actor Transform 可编辑输入框（蓝图根 Transform 编辑用） */
 const transformInputStyle: React.CSSProperties = {
   flex: 1, minWidth: 56, maxWidth: 80,
   background: 'var(--bg-tertiary)', color: 'var(--success)',
@@ -27,99 +27,66 @@ const transformInputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', outline: 'none',
 }
 
-function ActorTransformView({ actor }: { actor: Actor }) {
-  // 变换修改能力组件化：优先经 TransformComponent 读写；无组件（普通 3D actor）回退 Actor 内置方法
-  const tf = actor.getComponent(TransformComponent)
-  const setPos = (x: number, y: number, z: number) => (tf ? tf.setPosition(x, y, z) : actor.setPosition(x, y, z))
-  const setRot = (x: number, y: number, z: number) => (tf ? tf.setRotation(x, y, z) : actor.setRotation(x, y, z))
-  const setScl = (x: number, y: number, z: number) => (tf ? tf.setScale(x, y, z) : actor.setScale(x, y, z))
-
-  const p = [actor.position.x, actor.position.y, actor.position.z]
-  const r = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
-  const s = [actor.scale.x, actor.scale.y, actor.scale.z]
-
-  return (
-    <div className="property-group">
-      <div className="property-group-title">Transform</div>
-      <div className="property-row">
-        <span className="property-label">Position</span>
-        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-          <input type="number" step="0.01" defaultValue={p[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[0] = v; setPos(p[0], p[1], p[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={p[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[1] = v; setPos(p[0], p[1], p[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={p[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { p[2] = v; setPos(p[0], p[1], p[2]) } }}
-          />
-        </span>
-      </div>
-      <div className="property-row">
-        <span className="property-label">Rotation</span>
-        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-          <input type="number" step="0.01" defaultValue={r[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[0] = v; setRot(r[0], r[1], r[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={r[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[1] = v; setRot(r[0], r[1], r[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={r[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { r[2] = v; setRot(r[0], r[1], r[2]) } }}
-          />
-        </span>
-      </div>
-      <div className="property-row">
-        <span className="property-label">Scale</span>
-        <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-          <input type="number" step="0.01" defaultValue={s[0]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[0] = v; setScl(s[0], s[1], s[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={s[1]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[1] = v; setScl(s[0], s[1], s[2]) } }}
-          />
-          <input type="number" step="0.01" defaultValue={s[2]} style={transformInputStyle}
-            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) { s[2] = v; setScl(s[0], s[1], s[2]) } }}
-          />
-        </span>
-      </div>
-    </div>
-  )
+// ─── 组件垂直列表：每个组件一个区块，显示名称 + 属性键值 ───
+/**
+ * 把组件名转成正常大小写的显示名（去掉 Component 后缀并在单词边界拆词）：
+ * TransformComponent → Transform；CanvasUIComponent → Canvas UI；
+ * UIButtonComponent → UI Button；自定义名（如 UIMarker）→ UI Marker
+ */
+function humanizeComponentName(name: string): string {
+  return name
+    .replace(/Component$/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
 }
 
 function ActorComponentsView({ actor }: { actor: Actor }) {
   const components = (actor as any).components as Component[] | undefined
-  if (!components || components.length === 0) return null
-  return (
-    <div className="property-group">
-      <div className="property-group-title">Components ({components.length})</div>
-      {components.map((comp, i) => (
-        <div key={i} className="property-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-          <span className="property-label" style={{ fontWeight: 600 }}>{comp.name || comp.constructor.name}</span>
-          <span className="property-value" style={{ fontSize: 10 }}>Enabled: {comp.bEnabled ? '✓' : '✗'}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function BlueprintRefView({ actor }: { actor: Actor }) {
-  const ref = actor.blueprintRef
-  if (!ref) return null
-  const overrideKeys = ref.overrides ? Object.keys(ref.overrides) : []
-  return (
-    <div className="property-group">
-      <div className="property-group-title">Blueprint</div>
-      <div className="property-row">
-        <span className="property-label">ID</span>
-        <span className="property-value" style={{ fontSize: 11 }}>{ref.id}</span>
+  if (!components || components.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>
+        该 Actor 没有组件
       </div>
-      <div className="property-row">
-        <span className="property-label">Overrides</span>
-        <span className="property-value" style={{ fontSize: 11 }}>
-          {overrideKeys.length > 0 ? overrideKeys.join(', ') : '（无）'}
-        </span>
-      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {components.map((comp, i) => {
+        const props = comp.getProperties ? comp.getProperties() : {}
+        const entries = Object.entries(props)
+        return (
+          <div key={i} className="property-group">
+            <div className="property-group-title">
+              <span>{humanizeComponentName(comp.name || comp.constructor.name)}</span>
+              <span
+                style={{
+                  float: 'right', fontWeight: 400, fontSize: 10,
+                  color: comp.bEnabled ? 'var(--success)' : 'var(--text-dim)',
+                }}
+              >
+                {comp.bEnabled ? '✓ 启用' : '✗ 禁用'}
+              </span>
+            </div>
+            {entries.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '2px 0' }}>（无属性）</div>
+            ) : (
+              entries.map(([k, v]) => (
+                <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
+                  <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
+                  <span
+                    style={{
+                      flex: 1, fontSize: 11, color: 'var(--success)',
+                      fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
+                    }}
+                  >
+                    {displayValue(v)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -486,53 +453,33 @@ function BlueprintGeneralInfo({ selection }: { selection: BlueprintSelection }) 
 
 function Object3DInfoView({ obj }: { obj: THREE.Object3D }) {
   const actorRef = (obj as any).userData?.actorRef as Actor | undefined
+  if (actorRef) {
+    // 有 Actor 关联：只显示组件列表
+    return (
+      <>
+        <div className="property-group-title" style={{ marginBottom: 6 }}>{obj.name || obj.type}</div>
+        <ActorComponentsView actor={actorRef} />
+      </>
+    )
+  }
   return (
-    <>
-      <div className="property-group">
-        <div className="property-group-title">{obj.name || obj.type}</div>
-        <div className="property-row">
-          <span className="property-label">Type</span>
-          <span className="property-value" style={{ fontSize: 11 }}>{obj.type}</span>
-        </div>
-        {obj.parent && (
-          <div className="property-row">
-            <span className="property-label">Parent</span>
-            <span className="property-value" style={{ fontSize: 11 }}>{obj.parent.name || obj.parent.type}</span>
-          </div>
-        )}
-        <div className="property-row">
-          <span className="property-label">Children</span>
-          <span className="property-value" style={{ fontSize: 11 }}>{obj.children.length}</span>
-        </div>
-        {actorRef && (
-          <div className="property-row">
-            <span className="property-label">Actor</span>
-            <span className="property-value" style={{ fontSize: 11 }}>{actorRef.constructor.name} (Active: {actorRef.bHasBegunPlay ? '✓' : '✗'})</span>
-          </div>
-        )}
+    <div className="property-group">
+      <div className="property-group-title">{obj.name || obj.type}</div>
+      <div className="property-row">
+        <span className="property-label">Type</span>
+        <span className="property-value" style={{ fontSize: 11 }}>{obj.type}</span>
       </div>
-      <div className="property-group">
-        <div className="property-group-title">Transform</div>
+      {obj.parent && (
         <div className="property-row">
-          <span className="property-label">Position</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            X:{fmt(obj.position.x)} Y:{fmt(obj.position.y)} Z:{fmt(obj.position.z)}
-          </span>
+          <span className="property-label">Parent</span>
+          <span className="property-value" style={{ fontSize: 11 }}>{obj.parent.name || obj.parent.type}</span>
         </div>
-        <div className="property-row">
-          <span className="property-label">Rotation</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            X:{fmt(obj.rotation.x)} Y:{fmt(obj.rotation.y)} Z:{fmt(obj.rotation.z)}
-          </span>
-        </div>
-        <div className="property-row">
-          <span className="property-label">Scale</span>
-          <span className="property-value" style={{ fontSize: 11 }}>
-            X:{fmt(obj.scale.x)} Y:{fmt(obj.scale.y)} Z:{fmt(obj.scale.z)}
-          </span>
-        </div>
+      )}
+      <div className="property-row">
+        <span className="property-label">Children</span>
+        <span className="property-value" style={{ fontSize: 11 }}>{obj.children.length}</span>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -546,8 +493,6 @@ export function Inspector() {
   const isBlueprintTab = activeTabId.startsWith('bp:')
   // 蓝图被编辑后刷新当前选中元素的数据，避免显示陈旧快照
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
-  // Gizmo 拖拽/选择变化时 bump，驱动实时刷新 Transform 显示
-  const selectionNonce = useEditorStore((s) => s.selectionNonce)
 
   useEffect(() => {
     const unsub = onSelectionChange(() => setSelectionKey(getSelectionKey()))
@@ -619,21 +564,9 @@ export function Inspector() {
             <BlueprintGeneralInfo selection={blueprintSelection} />
           )
         ) : isBlueprintTab && selected && isActor && actorTarget ? (
-          /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：显示实时 Transform */
+          /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：只显示组件列表 */
           <>
-            <div className="property-group">
-              <div className="property-group-title">{actorTarget.name}（Blueprint 预览）</div>
-              <div className="property-row">
-                <span className="property-label">Type</span>
-                <span className="property-value" style={{ fontSize: 11 }}>{actorTarget.constructor.name}</span>
-              </div>
-              <div className="property-row">
-                <span className="property-label">Active</span>
-                <span className="property-value">{actorTarget.bHasBegunPlay ? '✓' : '✗'}</span>
-              </div>
-            </div>
-            <BlueprintRefView actor={actorTarget} />
-            <ActorTransformView key={selectionNonce} actor={actorTarget} />
+            <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
             <ActorComponentsView actor={actorTarget} />
           </>
         ) : isBlueprintTab && activeTabId.length > 3 ? (
@@ -641,19 +574,7 @@ export function Inspector() {
         ) : selected ? (
           isActor && actorTarget ? (
             <>
-              <div className="property-group">
-                <div className="property-group-title">{actorTarget.name}</div>
-                <div className="property-row">
-                  <span className="property-label">Type</span>
-                  <span className="property-value" style={{ fontSize: 11 }}>{actorTarget.constructor.name}</span>
-                </div>
-                <div className="property-row">
-                  <span className="property-label">Active</span>
-                  <span className="property-value">{actorTarget.bHasBegunPlay ? '✓' : '✗'}</span>
-                </div>
-              </div>
-              <BlueprintRefView actor={actorTarget} />
-              <ActorTransformView key={selectionNonce} actor={actorTarget} />
+              <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
               <ActorComponentsView actor={actorTarget} />
             </>
           ) : selected instanceof THREE.Object3D ? (

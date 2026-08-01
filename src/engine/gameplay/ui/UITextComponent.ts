@@ -98,6 +98,23 @@ export class UITextComponent extends CanvasUIComponent {
   get align(): 'left' | 'center' | 'right' { return this._align }
   set align(v: 'left' | 'center' | 'right') { this._align = v; this.redraw() }
 
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const base = super.getProperties()
+    return {
+      ...base,
+      Text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
+      FontSize: this._fontSize,
+      FontFamily: this._fontFamily,
+      Color: this._color,
+      Bold: this._bold,
+      Italic: this._italic,
+      Align: this._align,
+      LineHeight: Math.round(this._lineHeight * 100) / 100,
+      LetterSpacing: this._letterSpacing,
+    }
+  }
+
   /** 重绘 */
   protected redraw(): void {
     this.draw((ctx, w, h) => this.render(ctx, w, h))

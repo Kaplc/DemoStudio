@@ -32,4 +32,13 @@ export abstract class Component {
   serialize(): Record<string, unknown> {
     return {}
   }
+
+  /**
+   * 获取组件可展示属性（Inspector 用）。
+   * 返回扁平的键值对，值应为可 JSON 化的基础类型（string/number/boolean/数组/对象）。
+   * 子类按需 override；基类默认返回空对象。
+   */
+  getProperties(): Record<string, unknown> {
+    return {}
+  }
 }

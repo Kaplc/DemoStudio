@@ -69,6 +69,17 @@ export class SpriteComponent extends Component {
     this.material.needsUpdate = true
   }
 
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const size = this.getSize()
+    return {
+      Size: `${round2(size[0])}×${round2(size[1])}`,
+      Color: `#${this.material.color.getHexString()}`,
+      Opacity: round2(this.material.opacity),
+      Texture: this.material.map ? '有' : '（无）',
+    }
+  }
+
   /** 获取网格宽高 */
   getSize(): [number, number] {
     return [this._width, this._height]
@@ -80,4 +91,9 @@ export class SpriteComponent extends Component {
     this.material.dispose()
     // 注意：不 dispose sharedGeo，它被所有实例共享
   }
+}
+
+/** 保留 2 位小数 */
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
 }

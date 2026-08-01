@@ -164,4 +164,20 @@ export class TroikaTextComponent extends Component {
       })
     }
   }
+
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const o = this._options
+    return {
+      Text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
+      FontSize: o.fontSize,
+      Color: o.color,
+      MaxWidth: o.maxWidth ?? '∞',
+      TextAlign: o.textAlign ?? 'left',
+      Anchor: `${o.anchorX ?? 'center'}/${o.anchorY ?? 'middle'}`,
+      OutlineWidth: o.outlineWidth ?? 0,
+      OutlineColor: o.outlineColor ?? '（无）',
+      Ready: this._ready,
+    }
+  }
 }

@@ -61,6 +61,16 @@ export class UIImageComponent extends CanvasUIComponent {
   get radius(): number { return this._radius }
   set radius(v: number) { this._radius = v; this.redraw() }
 
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const base = super.getProperties()
+    return {
+      ...base,
+      Color: this._color,
+      Radius: this._radius,
+    }
+  }
+
   /** 异步加载图片，完成后自动重绘 */
   loadImage(src: string): void {
     logger.info(`[UIImageComponent] 加载图片: ${src}`)

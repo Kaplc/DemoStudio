@@ -56,6 +56,24 @@ export class TransformComponent extends Component {
     this.owner.setScale(x, y, z)
     logger.debug(`[TransformComponent] "${this.name}" 设置缩放: ${x}, ${y}, ${z}`)
   }
+
+  // ─── Inspector 属性展示 ───
+
+  override getProperties(): Record<string, unknown> {
+    const p = this.position
+    const r = this.rotation
+    const s = this.scale
+    return {
+      Position: [round3(p.x), round3(p.y), round3(p.z)],
+      Rotation: [round3(r.x), round3(r.y), round3(r.z)],
+      Scale: [round3(s.x), round3(s.y), round3(s.z)],
+    }
+  }
+}
+
+/** 保留 3 位小数的数值（Inspector 展示用） */
+function round3(v: number): number {
+  return Math.round(v * 1000) / 1000
 }
 
 /**

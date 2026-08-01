@@ -237,6 +237,25 @@ export class CanvasUIComponent extends Component {
     return [this._worldW, this._worldH]
   }
 
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const [cw, ch] = this.getSize()
+    const [ww, wh] = this.getWorldSize()
+    return {
+      Canvas: `${cw}×${ch}px`,
+      WorldSize: `${this.round2(ww)}×${this.round2(wh)}`,
+      ZOrder: this._zOrder,
+      Anchor: this._anchor ?? '（无）',
+      AnchorOffset: `[${this._anchorOffset[0]}, ${this._anchorOffset[1]}]`,
+      MarkerOnly: this._markerOnly,
+    }
+  }
+
+  /** 保留 2 位小数的数值 */
+  protected round2(v: number): number {
+    return Math.round(v * 100) / 100
+  }
+
   /** 设置不透明度 */
   setOpacity(opacity: number) {
     if (!this.panel) return

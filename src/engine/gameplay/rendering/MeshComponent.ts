@@ -39,4 +39,29 @@ export class MeshComponent extends Component {
     }
     super.EndPlay()
   }
+
+  /** Inspector 属性展示 */
+  override getProperties(): Record<string, unknown> {
+    const props: Record<string, unknown> = {
+      Geometry: this.mesh.geometry.type,
+      Visible: this.mesh.visible,
+    }
+    const params = (this.mesh.geometry as any).parameters as Record<string, unknown> | undefined
+    if (params) {
+      for (const key of ['width', 'height', 'depth', 'radius', 'segments']) {
+        if (typeof params[key] === 'number') props[capitalize(key)] = round2(params[key] as number)
+      }
+    }
+    return props
+  }
+}
+
+/** 保留 2 位小数 */
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}
+
+/** 首字母大写 */
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
