@@ -66,6 +66,8 @@ export { UIImageComponent } from './gameplay/ui/UIImageComponent'
 export type { UIImageComponentOptions } from './gameplay/ui/UIImageComponent'
 export { UIButtonComponent } from './gameplay/ui/UIButtonComponent'
 export type { UIButtonComponentOptions, ButtonState } from './gameplay/ui/UIButtonComponent'
+export { UITransformComponent, ensureUITransformComponent } from './gameplay/ui/UITransformComponent'
+export type { UITransformComponentOptions, AnchorPreset } from './gameplay/ui/UITransformComponent'
 
 export { Gizmos, gizmos } from './tools/Gizmos'
 export type { GizmoColor } from './tools/Gizmos'

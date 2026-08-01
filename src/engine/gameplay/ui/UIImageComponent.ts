@@ -4,7 +4,7 @@
  * 模仿 Unity Image。支持纯色填充、可选圆角、可选贴图（同步加载）。
  */
 import * as THREE from 'three'
-import { CanvasUIComponent, type AnchorPreset } from '../rendering/CanvasUIComponent'
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
@@ -22,10 +22,6 @@ export interface UIImageComponentOptions {
   /** 3D 世界尺寸（默认 1×1 米） */
   worldWidth?: number
   worldHeight?: number
-  /** 九宫格锚点（相对父容器画布） */
-  anchor?: AnchorPreset
-  /** 相对锚点的世界偏移 */
-  anchorOffset?: [number, number]
 }
 
 export class UIImageComponent extends CanvasUIComponent {
@@ -41,8 +37,6 @@ export class UIImageComponent extends CanvasUIComponent {
       height,
       worldWidth: options.worldWidth ?? 1,
       worldHeight: options.worldHeight ?? 1,
-      anchor: options.anchor,
-      anchorOffset: options.anchorOffset,
     })
     this.name = 'UIImageComponent'
     this._color = options.color ?? '#ffffff'

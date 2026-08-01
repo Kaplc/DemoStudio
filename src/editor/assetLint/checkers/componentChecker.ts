@@ -32,6 +32,28 @@ class TransformComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:transform', TransformComponentChecker)
 
+/** comp:uitransform — UI 专用变换组件：变换 + 九宫格锚点。 */
+class UITransformComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:uitransform'
+  schema: FieldSpec[] = [
+    { field: 'properties.position', type: 'vec3', label: '位置' },
+    { field: 'properties.rotation', type: 'vec3', label: '旋转' },
+    { field: 'properties.scale', type: 'vec3', label: '缩放' },
+    {
+      field: 'properties.anchor',
+      type: 'string',
+      enum: [
+        'top-left', 'top-center', 'top-right',
+        'middle-left', 'middle-center', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right',
+      ],
+      label: '九宫格锚点',
+    },
+    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
+  ]
+}
+registerAssetChecker('comp:uitransform', UITransformComponentChecker)
+
 /** comp:camera — mode 枚举；fov/near/far > 0。 */
 class CameraComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:camera'
@@ -101,17 +123,6 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    {
-      field: 'properties.anchor',
-      type: 'string',
-      enum: [
-        'top-left', 'top-center', 'top-right',
-        'middle-left', 'middle-center', 'center', 'middle-right',
-        'bottom-left', 'bottom-center', 'bottom-right',
-      ],
-      label: '九宫格锚点',
-    },
-    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uitext', UITextComponentChecker)
@@ -129,17 +140,6 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
     { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    {
-      field: 'properties.anchor',
-      type: 'string',
-      enum: [
-        'top-left', 'top-center', 'top-right',
-        'middle-left', 'middle-center', 'center', 'middle-right',
-        'bottom-left', 'bottom-center', 'bottom-right',
-      ],
-      label: '九宫格锚点',
-    },
-    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uiimage', UIImageComponentChecker)
@@ -154,17 +154,6 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
     { field: 'properties.worldWidth', type: 'number', min: 0, minExclusive: true, label: '世界宽' },
     { field: 'properties.worldHeight', type: 'number', min: 0, minExclusive: true, label: '世界高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    {
-      field: 'properties.anchor',
-      type: 'string',
-      enum: [
-        'top-left', 'top-center', 'top-right',
-        'middle-left', 'middle-center', 'center', 'middle-right',
-        'bottom-left', 'bottom-center', 'bottom-right',
-      ],
-      label: '九宫格锚点',
-    },
-    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:uibutton', UIButtonComponentChecker)
@@ -180,17 +169,6 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
-    {
-      field: 'properties.anchor',
-      type: 'string',
-      enum: [
-        'top-left', 'top-center', 'top-right',
-        'middle-left', 'middle-center', 'center', 'middle-right',
-        'bottom-left', 'bottom-center', 'bottom-right',
-      ],
-      label: '九宫格锚点',
-    },
-    { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
   ]
 }
 registerAssetChecker('comp:canvasui', CanvasUIComponentChecker)

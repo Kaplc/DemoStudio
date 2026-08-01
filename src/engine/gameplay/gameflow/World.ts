@@ -5,7 +5,7 @@
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
-import { ensureTransformComponent } from '../entity/TransformComponent'
+import { ensureTransformForActor } from '../ui/UITransformComponent'
 import { GameMode } from './GameMode'
 import { gizmos } from '../../tools/Gizmos'
 import { logger } from '../../Logger'
@@ -206,8 +206,8 @@ export class World {
       }
     }
 
-    // 2.5 Transform 组件化约定：数据未显式配置时自动补挂（保证每个 Actor 都有变换组件）
-    ensureTransformComponent(actor)
+    // 2.5 Transform 组件化约定：数据未显式配置时自动补挂（UI Actor 挂 UITransformComponent 含锚点能力）
+    ensureTransformForActor(actor)
 
     // 3. 子 Actor
     const spawnChildObjects = (
@@ -246,7 +246,7 @@ export class World {
               }
             }
             // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
-            ensureTransformComponent(childActor)
+            ensureTransformForActor(childActor)
           }
         }
         // 纯容器节点（仅用来承载嵌套 children）
@@ -261,7 +261,7 @@ export class World {
         }
 
         // Transform 组件化约定：容器节点也补挂变换组件
-        ensureTransformComponent(childActor)
+        ensureTransformForActor(childActor)
 
         childActor.attachTo(parentActor)
 
@@ -606,7 +606,7 @@ export class World {
     }
 
     // Transform 组件化约定：内联 Actor 未显式配置时自动补挂
-    ensureTransformComponent(actor)
+    ensureTransformForActor(actor)
 
     // 递归子节点
     this.spawnInlineChildren(node.children ?? [], actor)
@@ -653,7 +653,7 @@ export class World {
             }
           }
           // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
-          ensureTransformComponent(childActor)
+          ensureTransformForActor(childActor)
         }
       }
 
@@ -668,7 +668,7 @@ export class World {
       }
 
       // Transform 组件化约定：容器节点也补挂变换组件
-      ensureTransformComponent(childActor)
+      ensureTransformForActor(childActor)
 
       childActor.attachTo(parentActor)
       if (child.children?.length) {

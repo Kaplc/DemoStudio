@@ -565,6 +565,29 @@ html, body, #root {
   background: var(--border);
 }
 
+/* Inspector 搜索框清除按钮：暗色风格，与搜索输入框视觉统一 */
+.search-clear-btn {
+  flex-shrink: 0;
+  padding: 0 9px;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.search-clear-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
 /* ═══ 拖拽调整大小手柄 ═══ */
 
 /* 水平手柄（左右面板用，保持 absolute 定位） */

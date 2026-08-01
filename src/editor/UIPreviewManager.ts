@@ -18,6 +18,8 @@ import { World } from '../engine'
 import { logger } from '../engine'
 import { BlueprintRegistry } from '../engine'
 import { Actor } from '../engine/gameplay/entity/Actor'
+import { CanvasUIComponent } from '../engine/gameplay/rendering/CanvasUIComponent'
+import { UITransformComponent } from '../engine/gameplay/ui/UITransformComponent'
 import { select, notifySelectionChange } from './SelectionManager'
 import { TransformGizmo } from './TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
@@ -49,6 +51,10 @@ export class UIPreviewManager {
   private isRightDown = false
   private prevMouseX = 0
   private prevMouseY = 0
+  // ─── 点击判定：按下后移动超过阈值才算平移，否则 mouseup 时视为点击拾取 ───
+  private potentialClick = false
+  private pressX = 0
+  private pressY = 0
 
   // ─── WASD ───
   private wasdKeys = new Set<string>()
@@ -63,6 +69,15 @@ export class UIPreviewManager {
   private boundsTarget: Actor | null = null
   private boundsCanvas = document.createElement('canvas')
   private boundsCtx: CanvasRenderingContext2D
+
+  // ─── 包围盒 4 角拖拽把手（拖动实时调整范围大小）───
+  private cornerHandleGroup: THREE.Group | null = null
+  private cornerHandles: THREE.Mesh[] = []
+  private draggingCornerIndex: number | null = null
+  private dragCenter = new THREE.Vector3()
+  private raycaster = new THREE.Raycaster()
+  private _mouseWorld = new THREE.Vector3()
+  private _ndc = new THREE.Vector2()
 
   onChange(cb: () => void): () => void {
     this._onChangeCallbacks.push(cb)
@@ -147,7 +162,18 @@ export class UIPreviewManager {
 
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
+        // 优先检测包围盒角把手（命中则进入拖拽，不再触发平移/点击）
+        const handleIndex = this.pickCornerHandle(e)
+        if (handleIndex >= 0) {
+          this.draggingCornerIndex = handleIndex
+          const box = new THREE.Box3().setFromObject(this.boundsTarget!.root)
+          box.getCenter(this.dragCenter)
+          return
+        }
         this.isLeftDown = true
+        this.potentialClick = true
+        this.pressX = e.clientX
+        this.pressY = e.clientY
         this.prevMouseX = e.clientX
         this.prevMouseY = e.clientY
       }
@@ -159,6 +185,20 @@ export class UIPreviewManager {
     })
 
     window.addEventListener('mousemove', (e) => {
+      // 角把手拖拽：实时调整范围大小（以中心为基准，把手跟随鼠标）
+      if (this.draggingCornerIndex !== null && this.boundsTarget) {
+        const world = this.mouseToWorld(e)
+        this.resizeBoundsByCorner(this.draggingCornerIndex, world.x, world.y)
+        return
+      }
+
+      // 移动超过阈值 → 取消点击判定（转为平移）
+      if (this.isLeftDown && this.potentialClick) {
+        const dx = e.clientX - this.pressX
+        const dy = e.clientY - this.pressY
+        if (Math.hypot(dx, dy) > 4) this.potentialClick = false
+      }
+
       if (!this.isLeftDown && !this.isRightDown) return
 
       const dx = e.clientX - this.prevMouseX
@@ -173,7 +213,19 @@ export class UIPreviewManager {
     })
 
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.isLeftDown = false
+      if (e.button === 0) {
+        this.isLeftDown = false
+        if (this.draggingCornerIndex !== null) {
+          // 拖拽结束：把手回位并通知变更（保存按钮/大纲刷新）
+          this.draggingCornerIndex = null
+          this.notifyChange()
+        } else if (this.potentialClick) {
+          // 点击拾取：命中 UI 元素则选中，空白处取消选中
+          this.potentialClick = false
+          const actor = this.pickActor(e)
+          this.selectActor(actor)
+        }
+      }
       if (e.button === 2) this.isRightDown = false
     })
 
@@ -184,6 +236,77 @@ export class UIPreviewManager {
       this.camera.zoom = Math.max(0.1, Math.min(20, this.camera.zoom))
       this.camera.updateProjectionMatrix()
     }, { passive: false })
+  }
+
+  /** 射线检测 4 角把手，返回命中下标（-1 = 未命中） */
+  private pickCornerHandle(e: MouseEvent): number {
+    if (!this.boundsTarget || this.cornerHandles.length === 0) return -1
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this._ndc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    this.raycaster.setFromCamera(this._ndc, this.camera)
+    const hits = this.raycaster.intersectObjects(this.cornerHandles, false)
+    if (hits.length === 0) return -1
+    return this.cornerHandles.indexOf(hits[0].object as THREE.Mesh)
+  }
+
+  /** 鼠标屏幕坐标 → 世界坐标（z=0 平面，正交相机投影方向平行 z 轴，直接取 unproject 的 x/y） */
+  private mouseToWorld(e: MouseEvent): THREE.Vector3 {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this._ndc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    return this._mouseWorld.set(this._ndc.x, this._ndc.y, 0).unproject(this.camera)
+  }
+
+  /**
+   * 点击拾取 UI 元素：raycast 命中 mesh → 向上找到所属 Actor。
+   * 命中多个时取 distance 最近的（zOrder 大的 panel z 更靠前，距离更近），
+   * 即视觉上最前面的元素。未命中返回 null。
+   */
+  private pickActor(e: MouseEvent): Actor | null {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this._ndc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    this.raycaster.setFromCamera(this._ndc, this.camera)
+
+    // 收集所有 Actor root 下的 Mesh，建立 mesh → actor 映射
+    const meshes: THREE.Mesh[] = []
+    const actorByMesh = new Map<THREE.Object3D, Actor>()
+    for (const actor of this.world.GetAllActors()) {
+      actor.root.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          meshes.push(obj as THREE.Mesh)
+          actorByMesh.set(obj, actor)
+        }
+      })
+    }
+    const hits = this.raycaster.intersectObjects(meshes, false)
+    if (hits.length === 0) return null
+    logger.info(`[UIPreview] 点击拾取: ${hits[0].object.name || 'mesh'} → ${actorByMesh.get(hits[0].object)?.name ?? '?'}`)
+    return actorByMesh.get(hits[0].object) ?? null
+  }
+
+  /** 按角把手下标 + 鼠标世界坐标调整范围大小（保持中心不变） */
+  private resizeBoundsByCorner(cornerIndex: number, wx: number, wy: number) {
+    const ui = this.boundsTarget!.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
+    if (!ui) return
+    // 角方向因子：TL/TR/BL/BR
+    const fx = cornerIndex === 0 || cornerIndex === 2 ? -1 : 1
+    const fy = cornerIndex === 0 || cornerIndex === 1 ? 1 : -1
+    const newW = Math.max(0.1, Math.abs(wx - this.dragCenter.x) * 2)
+    const newH = Math.max(0.1, Math.abs(wy - this.dragCenter.y) * 2)
+    ui.setWorldSize(newW, newH)
+    // 有 UI 专用变换组件则重算锚点位置（保持锚点语义）
+    const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
+    if (uiTf) uiTf.applyAnchor()
+    void fx
+    void fy
   }
 
   // ═══════════════════════════════════
@@ -295,6 +418,21 @@ export class UIPreviewManager {
       jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
       jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
       jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+
+      // 范围大小：把实时世界尺寸回写到 JSON 中对应画布组件（角把手拖拽的结果可保存）
+      const uiComp = actor.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
+      if (!uiComp) continue
+      const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
+      const target = jsonComps.find((c) => {
+        const p = (c.properties ?? {}) as Record<string, unknown>
+        return !p.markerOnly && ['canvasui', 'uiimage', 'uitext', 'uibutton'].includes(c.baseClass as string)
+      })
+      if (target) {
+        const [ww, wh] = uiComp.getWorldSize()
+        const props = (target.properties ?? {}) as Record<string, unknown>
+        props.worldWidth = ww
+        props.worldHeight = wh
+      }
     }
 
     return JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
@@ -408,7 +546,18 @@ export class UIPreviewManager {
       ;(this.boundsLabel.material as THREE.SpriteMaterial).dispose()
       this.boundsLabel = null
     }
+    // 清理角把手
+    if (this.cornerHandleGroup) {
+      this.scene.remove(this.cornerHandleGroup)
+      for (const h of this.cornerHandles) {
+        h.geometry.dispose()
+        ;(h.material as THREE.MeshBasicMaterial).dispose()
+      }
+      this.cornerHandles = []
+      this.cornerHandleGroup = null
+    }
     this.boundsTarget = null
+    this.draggingCornerIndex = null
     this.world.DestroyAllActors()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
@@ -427,7 +576,8 @@ export class UIPreviewManager {
   selectActor(actor: Actor | null) {
     if (actor) {
       select(actor)
-      this.gizmo.attach(actor.root)
+      // UI 预览不显示坐标轴 gizmo，只显示范围包围盒（4 角可拖把手调整大小）
+      this.gizmo.detach()
       this.attachBounds(actor)
     } else {
       select(null)
@@ -440,7 +590,7 @@ export class UIPreviewManager {
   //  选中包围盒（显示当前节点的大小范围）
   // ═══════════════════════════════════
 
-  /** 挂载选中包围盒（线框 + 尺寸标签）到 Actor */
+  /** 挂载选中包围盒（线框 + 尺寸标签 + 4 角拖拽把手）到 Actor */
   private attachBounds(actor: Actor) {
     this.boundsTarget = actor
     if (!this.boundsHelper) {
@@ -465,14 +615,42 @@ export class UIPreviewManager {
       this.boundsLabel.renderOrder = 998
       this.scene.add(this.boundsLabel)
     }
+    this.ensureCornerHandles()
     this.updateBounds()
+  }
+
+  /** 创建/复用 4 角拖拽把手（TL/TR/BL/BR，青色方块） */
+  private ensureCornerHandles() {
+    if (this.cornerHandleGroup) return
+    const group = new THREE.Group()
+    group.name = '__ui_bounds_handles__'
+    const geo = new THREE.PlaneGeometry(0.22, 0.22)
+    for (let i = 0; i < 4; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x00e5ff,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+      })
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.renderOrder = 999
+      mesh.visible = false
+      group.add(mesh)
+      this.cornerHandles.push(mesh)
+    }
+    this.cornerHandleGroup = group
+    this.scene.add(group)
   }
 
   /** 移除选中包围盒 */
   private detachBounds() {
+    this.draggingCornerIndex = null
     this.boundsTarget = null
     if (this.boundsHelper) this.boundsHelper.visible = false
     if (this.boundsLabel) this.boundsLabel.visible = false
+    for (const h of this.cornerHandles) h.visible = false
   }
 
   /** 每帧更新包围盒几何与尺寸标签（跟随节点变换） */
@@ -512,6 +690,19 @@ export class UIPreviewManager {
     this.boundsLabel.scale.set(cw / 96 * labelScale * 0.12, ch / 96 * labelScale * 0.12, 1)
     this.boundsLabel.position.set(box.max.x + 0.3, box.max.y + 0.25, 0.01)
     this.boundsLabel.visible = true
+
+    // 4 角把手跟随包围盒顶点（TL/TR/BL/BR）
+    const z = 0.02
+    const corners: [number, number][] = [
+      [box.min.x, box.max.y],
+      [box.max.x, box.max.y],
+      [box.min.x, box.min.y],
+      [box.max.x, box.min.y],
+    ]
+    for (let i = 0; i < this.cornerHandles.length; i++) {
+      this.cornerHandles[i].position.set(corners[i][0], corners[i][1], z)
+      this.cornerHandles[i].visible = true
+    }
   }
 
   /** 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新 */

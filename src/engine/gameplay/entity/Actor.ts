@@ -133,6 +133,14 @@ export abstract class Actor {
     return component
   }
 
+  /** 移除组件（若已 BeginPlay 则先 EndPlay） */
+  removeComponent(component: Component): void {
+    const idx = this.components.indexOf(component)
+    if (idx < 0) return
+    this.components.splice(idx, 1)
+    if (this.bHasBegunPlay) component.EndPlay()
+  }
+
   getComponents<T extends Component>(type: new (...args: any[]) => T): T[] {
     return this.components.filter((c) => c instanceof type) as T[]
   }

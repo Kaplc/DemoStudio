@@ -3,7 +3,7 @@
   "baseClass": "Actor",
   "components": [
     {
-      "baseClass": "transform",
+      "baseClass": "uitransform",
       "properties": {
         "position": [0, 0, 0],
         "rotation": [0, 0, 0],
@@ -34,7 +34,7 @@
       "scale": [1, 1, 1],
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "uitransform",
           "properties": {
             "position": [0, 0, 0],
             "rotation": [0, 0, 0],
@@ -72,11 +72,12 @@
       "scale": [1, 1, 1],
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "uitransform",
           "properties": {
             "position": [0, 0, 0],
             "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
+            "scale": [1, 1, 1],
+            "anchor": "top-center"
           }
         },
         {
@@ -99,7 +100,6 @@
             "width": 2048,
             "height": 128,
             "zOrder": 2,
-            "anchor": "top-center",
             "name": "TitleText"
           }
         }
@@ -115,11 +115,13 @@
       "scale": [1, 1, 1],
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "uitransform",
           "properties": {
             "position": [0, 0, 0],
             "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
+            "scale": [1, 1, 1],
+            "anchor": "middle-center",
+            "anchorOffset": [0, 0.5]
           }
         },
         {
@@ -139,8 +141,6 @@
             "width": 1024,
             "height": 48,
             "zOrder": 2,
-            "anchor": "middle-center",
-            "anchorOffset": [0, 0.5],
             "name": "SubtitleText"
           }
         }
@@ -156,11 +156,12 @@
       "scale": [1, 1, 1],
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "uitransform",
           "properties": {
             "position": [0, 0, 0],
             "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
+            "scale": [1, 1, 1],
+            "anchor": "center"
           }
         },
         {
@@ -185,7 +186,6 @@
             "worldHeight": 0.4,
             "width": 512,
             "height": 128,
-            "anchor": "center",
             "name": "StartBtn"
           }
         }
@@ -200,11 +200,12 @@
           "scale": [1, 1, 1],
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "uitransform",
               "properties": {
                 "position": [0, 0, 0],
                 "rotation": [0, 0, 0],
-                "scale": [1, 1, 1]
+                "scale": [1, 1, 1],
+                "anchor": "center"
               }
             },
             {
@@ -229,7 +230,6 @@
                 "worldWidth": 1.6,
                 "worldHeight": 0.4,
                 "zOrder": 4,
-                "anchor": "center",
                 "name": "StartBtnText"
               }
             }
@@ -247,11 +247,13 @@
       "scale": [1, 1, 1],
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "uitransform",
           "properties": {
             "position": [0, 0, 0],
             "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 0.1]
           }
         },
         {
@@ -272,8 +274,6 @@
             "width": 1400,
             "height": 80,
             "zOrder": 1,
-            "anchor": "bottom-center",
-            "anchorOffset": [0, 0.1],
             "name": "TipText"
           }
         }

@@ -28,20 +28,24 @@ const transformInputStyle: React.CSSProperties = {
 }
 
 // ─── 组件垂直列表：每个组件一个区块，显示名称 + 属性键值 ───
-/**
- * 把组件名转成正常大小写的显示名（去掉 Component 后缀并在单词边界拆词）：
- * TransformComponent → Transform；CanvasUIComponent → Canvas UI；
- * UIButtonComponent → UI Button；自定义名（如 UIMarker）→ UI Marker
- */
-function humanizeComponentName(name: string): string {
-  return name
-    .replace(/Component$/, '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-}
-
 function ActorComponentsView({ actor }: { actor: Actor }) {
   const components = (actor as any).components as Component[] | undefined
+  // 折叠状态：组件名 → 是否折叠（默认展开；切换选中对象时重置）
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setCollapsed(new Set())
+  }, [actor])
+
+  const toggleCollapse = (name: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
   if (!components || components.length === 0) {
     return (
       <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>
@@ -54,39 +58,135 @@ function ActorComponentsView({ actor }: { actor: Actor }) {
       {components.map((comp, i) => {
         const props = comp.getProperties ? comp.getProperties() : {}
         const entries = Object.entries(props)
+        const compName = comp.name || comp.constructor.name
+        const isCollapsed = collapsed.has(compName)
         return (
           <div key={i} className="property-group">
-            <div className="property-group-title">
-              <span>{humanizeComponentName(comp.name || comp.constructor.name)}</span>
+            <div
+              className="property-group-title"
+              style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+              onClick={() => toggleCollapse(compName)}
+              title={isCollapsed ? '展开组件属性' : '折叠组件属性'}
+            >
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', width: 12, flexShrink: 0 }}>
+                {isCollapsed ? '▸' : '▾'}
+              </span>
+              <span style={{ textTransform: 'none' }}>{compName}</span>
               <span
                 style={{
-                  float: 'right', fontWeight: 400, fontSize: 10,
+                  marginLeft: 'auto', fontWeight: 400, fontSize: 10,
                   color: comp.bEnabled ? 'var(--success)' : 'var(--text-dim)',
                 }}
               >
                 {comp.bEnabled ? '✓ 启用' : '✗ 禁用'}
               </span>
             </div>
-            {entries.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '2px 0' }}>（无属性）</div>
-            ) : (
-              entries.map(([k, v]) => (
-                <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
-                  <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
-                  <span
-                    style={{
-                      flex: 1, fontSize: 11, color: 'var(--success)',
-                      fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
-                    }}
-                  >
-                    {displayValue(v)}
-                  </span>
-                </div>
-              ))
-            )}
+            {!isCollapsed &&
+              (entries.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '2px 0' }}>（无属性）</div>
+              ) : (
+                entries.map(([k, v]) => (
+                  <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
+                    <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
+                    <span
+                      style={{
+                        flex: 1, fontSize: 11, color: 'var(--success)',
+                        fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
+                      }}
+                    >
+                      {displayValue(v)}
+                    </span>
+                  </div>
+                ))
+              ))}
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ─── 组件属性搜索（类似 UE 细节面板）───
+/** 高亮文本中匹配搜索词的部分 */
+function highlightMatch(text: string, query: string): React.ReactNode {
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ background: 'var(--accent)', color: '#000', borderRadius: 2, padding: '0 1px' }}>
+        {text.slice(idx, idx + query.length)}
+      </span>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
+/**
+ * 搜索组件属性：按"组件名匹配 → 显示整组；属性名匹配 → 只显示匹配属性"过滤，
+ * 结果仍按组件分组展示，保留所属组标题（UE 风格）。
+ */
+function ComponentSearchResults({ actor, query }: { actor: Actor; query: string }) {
+  const components = (actor as any).components as Component[] | undefined
+  const q = query.trim()
+  if (!components || components.length === 0 || !q) return null
+
+  const ql = q.toLowerCase()
+  const groups: { name: string; enabled: boolean; entries: [string, unknown][] }[] = []
+
+  for (const comp of components) {
+    const props = comp.getProperties ? comp.getProperties() : {}
+    const allEntries = Object.entries(props)
+    const compName = comp.name || comp.constructor.name
+    // 组件名匹配 → 显示该组全部属性
+    if (compName.toLowerCase().includes(ql)) {
+      groups.push({ name: compName, enabled: comp.bEnabled, entries: allEntries })
+      continue
+    }
+    // 属性名匹配 → 只显示匹配的属性
+    const matched = allEntries.filter(([k]) => k.toLowerCase().includes(ql))
+    if (matched.length > 0) groups.push({ name: compName, enabled: comp.bEnabled, entries: matched })
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '10px 0', textAlign: 'center' }}>
+        未找到匹配 “{q}” 的属性
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {groups.map((g, i) => (
+        <div key={i} className="property-group">
+          <div className="property-group-title" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', width: 12, flexShrink: 0 }}>▾</span>
+            <span style={{ textTransform: 'none' }}>{highlightMatch(g.name, q)}</span>
+            <span
+              style={{
+                marginLeft: 'auto', fontWeight: 400, fontSize: 10,
+                color: g.enabled ? 'var(--success)' : 'var(--text-dim)',
+              }}
+            >
+              {g.enabled ? '✓ 启用' : '✗ 禁用'}
+            </span>
+          </div>
+          {g.entries.map(([k, v]) => (
+            <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
+              <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{highlightMatch(k, q)}</span>
+              <span
+                style={{
+                  flex: 1, fontSize: 11, color: 'var(--success)',
+                  fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
+                }}
+              >
+                {displayValue(v)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
@@ -486,6 +586,7 @@ function Object3DInfoView({ obj }: { obj: THREE.Object3D }) {
 // ─── 主 Inspector 组件 ───
 export function Inspector() {
   const [selectionKey, setSelectionKey] = useState(getSelectionKey())
+  const [searchQuery, setSearchQuery] = useState('')
   const selected = getSelected()
   const selectedActor = getSelectedActor()
   const blueprintSelection = useEditorStore((s) => s.blueprintSelection)
@@ -495,7 +596,11 @@ export function Inspector() {
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
 
   useEffect(() => {
-    const unsub = onSelectionChange(() => setSelectionKey(getSelectionKey()))
+    const unsub = onSelectionChange(() => {
+      setSelectionKey(getSelectionKey())
+      // 切换选中对象时清空搜索，避免残留旧的过滤状态
+      setSearchQuery('')
+    })
     return unsub
   }, [])
 
@@ -555,33 +660,65 @@ export function Inspector() {
         ) : null}
       </div>
       <div className="panel-body">
-        {blueprintSelection && isBlueprintTab ? (
-          blueprintSelection.type === 'component' && blueprintSelection.compData ? (
-            <BlueprintComponentDetail data={blueprintSelection.compData} selection={blueprintSelection} />
-          ) : blueprintSelection.type === 'child' && blueprintSelection.childData ? (
-            <BlueprintChildDetail data={blueprintSelection.childData} selection={blueprintSelection} />
-          ) : (
-            <BlueprintGeneralInfo selection={blueprintSelection} />
-          )
-        ) : isBlueprintTab && selected && isActor && actorTarget ? (
-          /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：只显示组件列表 */
-          <>
-            <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
-            <ActorComponentsView actor={actorTarget} />
-          </>
-        ) : isBlueprintTab && activeTabId.length > 3 ? (
-          <BlueprintOverviewDetail assetPath={activeTabId.slice(3)} />
-        ) : selected ? (
-          isActor && actorTarget ? (
-            <>
-              <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
-              <ActorComponentsView actor={actorTarget} />
-            </>
-          ) : selected instanceof THREE.Object3D ? (
-            <Object3DInfoView obj={selected} />
-          ) : null
+        {actorTarget && !blueprintSelection && (
+          <div style={{ marginBottom: 8, display: 'flex', gap: 4 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery('') }}
+              placeholder="🔍 搜索组件/属性…"
+              autoComplete="off"
+              spellCheck={false}
+              style={{
+                flex: 1, minWidth: 0, background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: 3, padding: '3px 8px', fontSize: 11, outline: 'none',
+              }}
+            />
+            {searchQuery && (
+              <button
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                title="清除搜索 (Esc)"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+        {actorTarget && !blueprintSelection && searchQuery.trim() ? (
+          <ComponentSearchResults actor={actorTarget} query={searchQuery} />
         ) : (
-          <ProjectInfoView />
+          <>
+            {blueprintSelection && isBlueprintTab ? (
+              blueprintSelection.type === 'component' && blueprintSelection.compData ? (
+                <BlueprintComponentDetail data={blueprintSelection.compData} selection={blueprintSelection} />
+              ) : blueprintSelection.type === 'child' && blueprintSelection.childData ? (
+                <BlueprintChildDetail data={blueprintSelection.childData} selection={blueprintSelection} />
+              ) : (
+                <BlueprintGeneralInfo selection={blueprintSelection} />
+              )
+            ) : isBlueprintTab && selected && isActor && actorTarget ? (
+              /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：只显示组件列表 */
+              <>
+                <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
+                <ActorComponentsView actor={actorTarget} />
+              </>
+            ) : isBlueprintTab && activeTabId.length > 3 ? (
+              <BlueprintOverviewDetail assetPath={activeTabId.slice(3)} />
+            ) : selected ? (
+              isActor && actorTarget ? (
+                <>
+                  <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
+                  <ActorComponentsView actor={actorTarget} />
+                </>
+              ) : selected instanceof THREE.Object3D ? (
+                <Object3DInfoView obj={selected} />
+              ) : null
+            ) : (
+              <ProjectInfoView />
+            )}
+          </>
         )}
       </div>
     </div>
