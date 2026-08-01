@@ -79,6 +79,11 @@ export class UIPreviewManager {
   private _mouseWorld = new THREE.Vector3()
   private _ndc = new THREE.Vector2()
 
+  // ─── 节点拖动（选中节点后，在节点范围内按住左键拖动调整位置）───
+  private draggingActor: Actor | null = null
+  private dragStartWorld = new THREE.Vector3()
+  private dragStartActorPos = new THREE.Vector3()
+
   onChange(cb: () => void): () => void {
     this._onChangeCallbacks.push(cb)
     return () => {
@@ -170,6 +175,15 @@ export class UIPreviewManager {
           box.getCenter(this.dragCenter)
           return
         }
+        // 其次：点中当前选中节点的范围 → 进入节点拖动（调整位置）
+        if (this.boundsTarget && this.pickBoundsTargetMesh(e)) {
+          this.draggingActor = this.boundsTarget
+          this.dragStartWorld.copy(this.mouseToWorld(e))
+          this.dragStartActorPos.copy(this.boundsTarget.position)
+          this.potentialClick = false
+          logger.info(`[UIPreview] 开始拖动节点: ${this.boundsTarget.name}`)
+          return
+        }
         this.isLeftDown = true
         this.potentialClick = true
         this.pressX = e.clientX
@@ -189,6 +203,19 @@ export class UIPreviewManager {
       if (this.draggingCornerIndex !== null && this.boundsTarget) {
         const world = this.mouseToWorld(e)
         this.resizeBoundsByCorner(this.draggingCornerIndex, world.x, world.y)
+        return
+      }
+
+      // 节点拖动：实时移动选中节点位置（跟随鼠标世界坐标位移）
+      if (this.draggingActor) {
+        const world = this.mouseToWorld(e)
+        this.draggingActor.setPosition(
+          this.dragStartActorPos.x + (world.x - this.dragStartWorld.x),
+          this.dragStartActorPos.y + (world.y - this.dragStartWorld.y),
+          this.dragStartActorPos.z,
+        )
+        // 通知 Inspector/选中状态实时刷新（包围盒由渲染循环 updateBounds 每帧跟随）
+        notifySelectionChange()
         return
       }
 
@@ -218,6 +245,11 @@ export class UIPreviewManager {
         if (this.draggingCornerIndex !== null) {
           // 拖拽结束：把手回位并通知变更（保存按钮/大纲刷新）
           this.draggingCornerIndex = null
+          this.notifyChange()
+        } else if (this.draggingActor) {
+          // 节点拖动结束：通知变更（保存按钮/大纲刷新）
+          logger.info(`[UIPreview] 结束拖动节点: ${this.draggingActor.name} → (${this.draggingActor.position.x.toFixed(2)}, ${this.draggingActor.position.y.toFixed(2)}, ${this.draggingActor.position.z.toFixed(2)})`)
+          this.draggingActor = null
           this.notifyChange()
         } else if (this.potentialClick) {
           // 点击拾取：命中 UI 元素则选中，空白处取消选中
@@ -250,6 +282,25 @@ export class UIPreviewManager {
     const hits = this.raycaster.intersectObjects(this.cornerHandles, false)
     if (hits.length === 0) return -1
     return this.cornerHandles.indexOf(hits[0].object as THREE.Mesh)
+  }
+
+  /** 检测鼠标是否命中当前选中节点（boundsTarget）范围内的 mesh（用于节点拖动判定） */
+  private pickBoundsTargetMesh(e: MouseEvent): boolean {
+    if (!this.boundsTarget) return false
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this._ndc.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    this.raycaster.setFromCamera(this._ndc, this.camera)
+    // 收集选中节点 root 下的所有 mesh（画布/图片/按钮/文本均为 mesh）
+    const meshes: THREE.Object3D[] = []
+    this.boundsTarget.root.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) meshes.push(obj)
+    })
+    if (meshes.length === 0) return false
+    const hits = this.raycaster.intersectObjects(meshes, false)
+    return hits.length > 0
   }
 
   /** 鼠标屏幕坐标 → 世界坐标（z=0 平面，正交相机投影方向平行 z 轴，直接取 unproject 的 x/y） */
