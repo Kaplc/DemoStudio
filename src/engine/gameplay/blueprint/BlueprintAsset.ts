@@ -37,12 +37,12 @@ export interface BlueprintChildDef {
   overrides?: PropertyPatch
   /** 内联组件列表（同根级 components） */
   components?: BlueprintComponentDef[]
-  /** 世界坐标位置 */
-  position: [number, number, number]
-  /** 欧拉旋转角（弧度） */
-  rotation: [number, number, number]
-  /** 缩放 */
-  scale: [number, number, number]
+  /** 世界坐标位置（旧格式已废弃：位置必须写在 transform/uitransform 组件，此处可选仅为兼容） */
+  position?: [number, number, number]
+  /** 欧拉旋转角（弧度，旧格式已废弃，同上） */
+  rotation?: [number, number, number]
+  /** 缩放（旧格式已废弃，同上） */
+  scale?: [number, number, number]
   /** 递归嵌套子 Actor */
   children?: BlueprintChildDef[]
   /** 变体继承时：true 表示从父级移除该具名子节点 */
@@ -83,9 +83,10 @@ export interface ResolvedChildDef {
   id?: number
   overrides: PropertyPatch
   components?: ResolvedComponentDef[]
-  position: [number, number, number]
-  rotation: [number, number, number]
-  scale: [number, number, number]
+  /** 旧格式已废弃：位置必须写在 transform/uitransform 组件（可选仅为兼容） */
+  position?: [number, number, number]
+  rotation?: [number, number, number]
+  scale?: [number, number, number]
   children?: ResolvedChildDef[]
 }
 

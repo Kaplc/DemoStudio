@@ -5,8 +5,8 @@
  * 蓝图的 doc:blueprint 校验根及递归校验所有 children/components。
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
-import { registerAssetChecker } from '../AssetCheckerRegistry'
-import { validateBySchema } from '../schemaEngine'
+import { registerAssetChecker, getChecker } from '../AssetCheckerRegistry'
+import { validateBySchema, validateUnknownProperties } from '../schemaEngine'
 import type { CheckerContext, FieldSpec, LintIssue } from '../types'
 
 /** doc:scene — 场景资产根：name 必填、objects 必填非空。 */
@@ -106,12 +106,66 @@ function validateChildren(
     // 递归校验 components
     if (Array.isArray(child.components)) {
       validateComponents(child.components, ctx, `${childPath}.components`, issues)
+      // 顶层 transform 与 transform/uitransform 组件一致性：以组件为权威，不一致 → error，一致 → warn
+      checkTopTransformMismatch(child, childPath, ctx, issues)
+    } else {
+      // 无组件节点：位置必须由 transform/uitransform 组件承载，顶层 position/rotation/scale 是废弃格式
+      checkMissingTransformComponent(child, childPath, ctx, issues)
     }
 
     // 递归校验嵌套 children
     if (Array.isArray(child.children)) {
       validateChildren(child.children, ctx, `${childPath}.children`, seenIds, issues)
     }
+  }
+}
+
+/**
+ * 组件优先约定：节点必须用 transform/uitransform 组件承载位置。
+ * 无变换组件却声明了顶层 position/rotation/scale → error（旧格式兜底已废弃）。
+ */
+function checkMissingTransformComponent(
+  child: Record<string, unknown>,
+  childPath: string,
+  ctx: CheckerContext,
+  issues: LintIssue[],
+): void {
+  const topFields = (['position', 'rotation', 'scale'] as const).filter((k) => child[k] !== undefined)
+  if (topFields.length === 0) return // 纯容器节点，合法
+  issues.push(makeIssue(
+    ctx.filePath, childPath, topFields[0], 'missing-transform-component', 'error',
+    `节点缺少 transform/uitransform 组件，但声明了顶层 ${topFields.join('/')}：位置必须写在组件（组件优先约定，旧格式已废弃）`,
+    child[topFields[0]],
+  ))
+}
+
+/** 向量逐分量容差比较（一致 → true）。 */
+/**
+ * 顶层 transform 禁止检查（组件优先约定，旧格式已废弃）。
+ * 节点含 transform/uitransform 组件时，位置以组件 properties 为权威；
+ * 顶层 position/rotation/scale 字段无论值如何一律禁止 → error。
+ * 无变换组件时由 checkMissingTransformComponent 单独处理。
+ */
+function checkTopTransformMismatch(
+  child: Record<string, unknown>,
+  childPath: string,
+  ctx: CheckerContext,
+  issues: LintIssue[],
+): void {
+  const comps = child.components
+  if (!Array.isArray(comps)) return
+  const hasTsf = (comps as Array<Record<string, unknown>>).some(
+    (c) => c && (c.baseClass === 'transform' || c.baseClass === 'uitransform'),
+  )
+  if (!hasTsf) return
+  for (const k of ['position', 'rotation', 'scale'] as const) {
+    const top = child[k]
+    if (top === undefined) continue // 新格式：顶层缺失，正常
+    issues.push(makeIssue(
+      ctx.filePath, childPath, k, 'top-transform-forbidden', 'error',
+      `顶层 ${k} ${JSON.stringify(top)} 已废弃：位置必须写在 transform/uitransform 组件（组件优先约定），请删除顶层 ${k} 字段`,
+      top,
+    ))
   }
 }
 
@@ -136,6 +190,30 @@ function validateComponents(
         makeIssue(ctx.filePath, compPath, field, ruleId, severity ?? 'warn', message, value),
     }
     issues.push(...validateBySchema(c, COMP_SCHEMA, compCtx))
+
+    const comp = c as Record<string, unknown>
+    const baseClass = typeof comp.baseClass === 'string' ? comp.baseClass : ''
+    const props = comp.properties
+
+    // 位置/旋转/缩放只允许出现在 transform/uitransform（tsf）组件，其他组件一律禁止
+    if (props && typeof props === 'object' && !Array.isArray(props)) {
+      const isTransformComp = baseClass === 'transform' || baseClass === 'uitransform'
+      if (!isTransformComp) {
+        for (const k of ['position', 'rotation', 'scale']) {
+          if (k in (props as Record<string, unknown>)) {
+            issues.push(makeIssue(
+              ctx.filePath, compPath, `properties.${k}`, 'comp-forbidden-transform', 'error',
+              `属性 "properties.${k}" 只允许出现在 transform/uitransform 组件，不允许出现在 ${baseClass} 组件`,
+              (props as Record<string, unknown>)[k],
+            ))
+          }
+        }
+      }
+      // 未知属性检查：按该组件类型注册的 schema 校验 properties 里没有的字段
+      const checker = getChecker(`comp:${baseClass}` as never)
+      const compSchema = checker?.schema ?? []
+      issues.push(...validateUnknownProperties(props, compSchema, compCtx))
+    }
   }
 }
 
@@ -192,11 +270,9 @@ class BlueprintDocChecker extends AbstractAssetChecker {
   schema: FieldSpec[] = [
     { field: 'name', type: 'string', required: true, label: '蓝图名' },
     { field: 'baseClass', type: 'string', required: true, label: '基类' },
-    { field: 'position', type: 'vec3', required: true, label: '位置' },
-    { field: 'rotation', type: 'vec3', required: true, label: '旋转' },
-    { field: 'scale', type: 'vec3', required: true, label: '缩放' },
     { field: 'components', type: 'array', required: true, label: '组件列表' },
     { field: 'children', type: 'array', required: true, label: '子 Actor 列表' },
+    // 新格式（组件优先）：顶层 position/rotation/scale 已废弃，不再声明（存在由 validate 报错）
   ]
 
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
@@ -209,6 +285,11 @@ class BlueprintDocChecker extends AbstractAssetChecker {
     // 校验根级 components
     if (Array.isArray(root.components)) {
       validateComponents(root.components, ctx, 'components', issues)
+      // 根级顶层 transform 与 tsf 组件一致性
+      checkTopTransformMismatch(root, '<根>', ctx, issues)
+    } else {
+      // 根节点无组件但带顶层 position/rotation/scale → error
+      checkMissingTransformComponent(root, '<根>', ctx, issues)
     }
 
     // 递归校验 children（含 id 唯一性 + 子级 components）

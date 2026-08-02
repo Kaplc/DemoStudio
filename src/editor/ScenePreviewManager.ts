@@ -66,6 +66,11 @@ export class ScenePreviewManager {
   private wasdKeys = new Set<string>()
   private wasdSpeed = 8
 
+  // ─── WebGL 上下文丢失/恢复 ───
+  private contextLost = false
+  private _onContextLost: ((e: Event) => void) | null = null
+  private _onContextRestored: (() => void) | null = null
+
   constructor(container: HTMLElement) {
     this.container = container
 
@@ -107,8 +112,46 @@ export class ScenePreviewManager {
     this.setupLighting()
     this.setupHelpers()
 
+    // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
+    this._onContextLost = (e: Event) => {
+      e.preventDefault() // 阻止浏览器永久销毁上下文，允许后续恢复
+      this.contextLost = true
+      this.stop()
+      logger.warn('[ScenePreview] WebGL 上下文丢失，已暂停渲染，等待浏览器恢复…')
+    }
+    this._onContextRestored = () => {
+      logger.info('[ScenePreview] WebGL 上下文已恢复，重建纹理并恢复渲染')
+      this.restoreAllTextures()
+      this.contextLost = false
+      this.start()
+    }
+    this.renderer.domElement.addEventListener('webglcontextlost', this._onContextLost, false)
+    this.renderer.domElement.addEventListener('webglcontextrestored', this._onContextRestored, false)
+
     // ─── 启动渲染循环 ───
     this.start()
+  }
+
+  /**
+   * WebGL 上下文恢复后，GPU 上的纹理数据已全部失效。
+   * 遍历场景内所有材质，将纹理标记 needsUpdate 强制重新上传。
+   */
+  private restoreAllTextures() {
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh
+      const mat = (mesh as THREE.Mesh).material
+      if (!mat) return
+      const mats = Array.isArray(mat) ? mat : [mat]
+      for (const m of mats) {
+        const anyMat = m as THREE.Material & Record<string, unknown>
+        for (const key of Object.keys(anyMat)) {
+          const value = anyMat[key]
+          if (value instanceof THREE.Texture) {
+            value.needsUpdate = true
+          }
+        }
+      }
+    })
   }
 
   /** 处理 WASD 按键按下 */
@@ -481,6 +524,11 @@ export class ScenePreviewManager {
   private start() {
     this.lastTime = performance.now()
     const animate = (time: number) => {
+      // 上下文丢失期间跳过渲染，避免对失效 GL 上下文上传纹理报错
+      if (this.contextLost) {
+        this.animationId = requestAnimationFrame(animate)
+        return
+      }
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
       this.lastTime = time
 
@@ -496,10 +544,23 @@ export class ScenePreviewManager {
     this.animationId = requestAnimationFrame(animate)
   }
 
-  dispose() {
+  private stop() {
     if (this.animationId !== null) {
       cancelAnimationFrame(this.animationId)
       this.animationId = null
+    }
+  }
+
+  dispose() {
+    this.stop()
+    // 移除 WebGL 上下文事件监听，避免内存泄漏
+    if (this._onContextLost) {
+      this.renderer.domElement.removeEventListener('webglcontextlost', this._onContextLost, false)
+      this._onContextLost = null
+    }
+    if (this._onContextRestored) {
+      this.renderer.domElement.removeEventListener('webglcontextrestored', this._onContextRestored, false)
+      this._onContextRestored = null
     }
     select(null)
     this.gizmo.detach()

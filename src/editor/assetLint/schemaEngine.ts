@@ -195,3 +195,49 @@ export function validateBySchema(node: unknown, schema: FieldSpec[], ctx: Checke
 
   return issues
 }
+
+/**
+ * 未知属性检查：schema 声明了哪些 properties.* 字段，节点 properties 里出现
+ * 未声明的 key 就报 unknown-property 违规（error），防止资产出现 schema 外脏字段
+ * （如给 uiimage 写 position、随意添加组件不支持的自定义字段等）。
+ *
+ * 只收集 schema 中 'properties.' 前缀的 field 名；非 properties 段的字段（如顶层
+ * position/rotation/scale、id/name 等）不参与。未提供 schema（[]）时视为无约束，跳过。
+ *
+ * @param props   组件节点上的 properties 对象（必须为 object，否则返回空）
+ * @param schema  该组件类型注册的 FieldSpec 列表
+ * @param ctx     运行时上下文（构造带定位的 issue）
+ */
+export function validateUnknownProperties(
+  props: unknown,
+  schema: FieldSpec[],
+  ctx: CheckerContext,
+): LintIssue[] {
+  const issues: LintIssue[] = []
+  if (typeof props !== 'object' || props === null || Array.isArray(props)) return issues
+  if (!schema || schema.length === 0) return issues
+
+  // 收集 schema 允许的 properties.* key（按首个 '.' 截断，properties.a.b → a）
+  const allowed = new Set<string>()
+  for (const spec of schema) {
+    if (!spec.field.startsWith('properties.')) continue
+    const rest = spec.field.slice('properties.'.length)
+    const key = rest.includes('.') ? rest.slice(0, rest.indexOf('.')) : rest
+    allowed.add(key)
+  }
+
+  for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+    if (!allowed.has(k)) {
+      issues.push(
+        ctx.issue(
+          `properties.${k}`,
+          'unknown-property',
+          `未知属性 "properties.${k}"：该组件不允许此字段（schema 未声明）`,
+          'error',
+          v,
+        ),
+      )
+    }
+  }
+  return issues
+}

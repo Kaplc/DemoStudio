@@ -22,6 +22,26 @@ import type { SceneAsset } from '../../scene/SceneAsset'
 import type { Pawn } from '../entity/Pawn'
 import type { PlayerController } from '../input/PlayerController'
 
+/**
+ * 严格模式校验子节点 transform 数据（组件优先）：
+ * 顶层 position/rotation/scale 字段已废弃（无论是否声明变换组件）—— 存在即报错，不应用顶层值；
+ * 位置/旋转/缩放一律由 transform/uitransform 组件的 properties 承载。
+ */
+function childTransformViolation(child: {
+  name?: string
+  components?: Array<{ baseClass?: string }>
+  position?: unknown
+  rotation?: unknown
+  scale?: unknown
+} | null | undefined): string | null {
+  if (!child) return null
+  const hasTop = ['position', 'rotation', 'scale'].some((k) => (child as Record<string, unknown>)[k] !== undefined)
+  if (hasTop) {
+    return `节点 "${child.name ?? '-'}" 声明了废弃的顶层 position/rotation/scale：位置必须写在 transform/uitransform 组件（组件优先约定）`
+  }
+  return null
+}
+
 export class World {
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
@@ -195,10 +215,27 @@ export class World {
     }
     logger.info(`[World] SpawnActorFromBlueprint("${path}"): baseClass="${resolved.baseClass}"，组件数=${resolved.components.length}，子节点数=${resolved.children.length}`)
 
-    // 1. Transform
-    if (resolved.position) actor.setPosition(resolved.position[0], resolved.position[1], resolved.position[2])
-    if (resolved.rotation) actor.setRotation(resolved.rotation[0], resolved.rotation[1], resolved.rotation[2])
-    if (resolved.scale) actor.setScale(resolved.scale[0], resolved.scale[1], resolved.scale[2])
+    // 严格模式（组件优先）：蓝图根位置必须写在 transform/uitransform 组件。
+    // 根级顶层 position/rotation/scale 是旧格式兜底，已废弃 —— 存在即报错
+    const rootViolation = childTransformViolation({
+      name: resolved.name,
+      components: resolved.components,
+      position: resolved.position,
+      rotation: resolved.rotation,
+      scale: resolved.scale,
+    })
+    if (rootViolation) {
+      logger.error(`[World] SpawnActorFromBlueprint("${path}"): 根节点${rootViolation.slice(rootViolation.indexOf('：'))}`)
+    }
+
+    // 1. Transform（仅当蓝图根声明了变换组件时应用其 properties 值）
+    const rootTsf = resolved.components.find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+    if (rootTsf) {
+      const p = rootTsf.properties ?? {}
+      if (Array.isArray(p.position)) actor.setPosition(p.position[0], p.position[1], p.position[2])
+      if (Array.isArray(p.rotation)) actor.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
+      if (Array.isArray(p.scale)) actor.setScale(p.scale[0], p.scale[1], p.scale[2])
+    }
 
     // 2. Component
     for (const cdef of resolved.components) {
@@ -226,12 +263,14 @@ export class World {
         let isRefChild = false
         if (child.ref) {
           isRefChild = true
-          // ref 引用：作为独立子 Actor 生成（类似 Unity 预制体），transform 通过 overrides 传入
+          // ref 引用：作为独立子 Actor 生成（类似 Unity 预制体）。
+          // 严格模式（组件优先）：位置只写在被引用蓝图的 transform/uitransform 组件，
+          // 子节点顶层 position/rotation/scale 不再注入 overrides（旧格式兜底已废弃，直接报错）
+          const violation = childTransformViolation(child)
+          if (violation) {
+            logger.error(`[World] SpawnActorFromBlueprint("${path}"): ${violation}（ref 子节点）`)
+          }
           const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
-          if (child.position) refOverrides.position = child.position
-          if (child.rotation) refOverrides.rotation = child.rotation
-          if (child.scale) refOverrides.scale = child.scale
-          // ref 子节点的内部属于另一文件，递归实例化时不传 jsonTree
           childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
           if (childActor) childActor.isRefInstance = true
         } else if (child.baseClass) {
@@ -271,11 +310,14 @@ export class World {
 
         childActor.attachTo(parentActor)
 
-        // ref 子节点的 transform 已在 SpawnActorFromBlueprint 通过 overrides 应用
+        // ref 子节点的 transform 已由被引用蓝图的 transform 组件负责。
+        // 严格模式（组件优先）：内联子节点不再应用顶层 position/rotation/scale，
+        // 缺组件却声明顶层字段的节点已在上方报错
         if (!isRefChild) {
-          if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
-          if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
-          if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
+          const violation = childTransformViolation(child)
+          if (violation) {
+            logger.error(`[World] SpawnActorFromBlueprint("${path}"): ${violation}`)
+          }
         }
 
         if (child.name) {
@@ -597,9 +639,19 @@ export class World {
     }
 
     if (node.name) actor.root.name = node.name
-    if (node.position) actor.setPosition(node.position[0], node.position[1], node.position[2])
-    if (node.rotation) actor.setRotation(node.rotation[0], node.rotation[1], node.rotation[2])
-    if (node.scale) actor.setScale(node.scale[0], node.scale[1], node.scale[2])
+
+    // 严格模式（组件优先）：内联 Actor 位置只写在 transform/uitransform 组件，
+    // 顶层 position/rotation/scale 是旧格式兜底，存在即报错
+    const violation = childTransformViolation({
+      name: node.name,
+      components: node.components,
+      position: node.position,
+      rotation: node.rotation,
+      scale: node.scale,
+    })
+    if (violation) {
+      logger.error(`[World] spawnInlineActor: ${violation}`)
+    }
 
     // 挂 Component
     for (const cdef of (node.components ?? [])) {
@@ -632,24 +684,27 @@ export class World {
       let isRefChild = false
 
       if (child.ref) {
-        // ref 引用 → 递归 SpawnActorFromBlueprint
+        // ref 引用 → 递归 SpawnActorFromBlueprint。
+        // 严格模式（组件优先）：位置只写在被引用蓝图的 transform 组件，顶层字段不再注入 overrides
         isRefChild = true
+        const violation = childTransformViolation(child)
+        if (violation) {
+          logger.error(`[World] spawnInlineChildren: ${violation}（ref 子节点）`)
+        }
         const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
-        if (child.position) refOverrides.position = child.position
-        if (child.rotation) refOverrides.rotation = child.rotation
-        if (child.scale) refOverrides.scale = child.scale
         childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
         if (childActor) childActor.isRefInstance = true
       } else if (child.baseClass) {
-        // 内联 baseClass → 直接创建
+        // 内联 baseClass → 直接创建（位置由子节点 transform 组件负责，不再应用顶层字段）
+        const violation = childTransformViolation(child)
+        if (violation) {
+          logger.error(`[World] spawnInlineChildren: ${violation}`)
+        }
         childActor = ActorRegistry.create(child.baseClass)
         if (childActor) {
           if (child.overrides && Object.keys(child.overrides).length > 0) {
             childActor.applyPatch(child.overrides)
           }
-          if (child.position) childActor.setPosition(child.position[0], child.position[1], child.position[2])
-          if (child.rotation) childActor.setRotation(child.rotation[0], child.rotation[1], child.rotation[2])
-          if (child.scale) childActor.setScale(child.scale[0], child.scale[1], child.scale[2])
           if (child.name) childActor.root.name = child.name
           // 挂组件
           for (const cdef of (child.components ?? [])) {

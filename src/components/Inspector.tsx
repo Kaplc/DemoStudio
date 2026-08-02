@@ -355,9 +355,12 @@ function BlueprintComponentDetail({ data, selection }: { data: NonNullable<Bluep
 
 // ─── 蓝图编辑器选中子 Actor 详情（只读）───
 function BlueprintChildDetail({ data, selection }: { data: NonNullable<BlueprintSelection['childData']>; selection: BlueprintSelection }) {
-  const p = data.position ?? [0, 0, 0]
-  const r = data.rotation ?? [0, 0, 0]
-  const s = data.scale ?? [1, 1, 1]
+  // 组件优先约定：位置/旋转/缩放写在 transform/uitransform 组件 properties（顶层字段已废弃）
+  const tsf = (data.components ?? []).find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  const tsfProps = (tsf?.properties ?? {}) as Record<string, unknown>
+  const p = Array.isArray(tsfProps.position) ? (tsfProps.position as number[]) : [0, 0, 0]
+  const r = Array.isArray(tsfProps.rotation) ? (tsfProps.rotation as number[]) : [0, 0, 0]
+  const s = Array.isArray(tsfProps.scale) ? (tsfProps.scale as number[]) : [1, 1, 1]
   return (
     <>
       <div className="property-group">
@@ -398,7 +401,14 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
         )}
       </div>
       <div className="property-group">
-        <div className="property-group-title">Transform（JSON）</div>
+        <div className="property-group-title">Transform（组件）</div>
+        {!tsf && (
+          <div className="property-row">
+            <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>
+              ⚠️ 缺少 transform/uitransform 组件（位置必须写在变换组件）
+            </span>
+          </div>
+        )}
         <div className="property-row">
           <span className="property-label">Position</span>
           <span className="property-value" style={{ fontSize: 11 }}>
@@ -446,9 +456,13 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
     return <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>加载蓝图…</div>
   }
 
-  const p = asset.position ?? [0, 0, 0]
-  const r = asset.rotation ?? [0, 0, 0]
-  const s = asset.scale ?? [1, 1, 1]
+  // 组件优先约定：蓝图根位置/旋转/缩放写在 transform/uitransform 组件 properties（旧格式顶层字段已废弃）
+  const tsf = (asset.components ?? []).find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  const tsfProps = (tsf?.properties ?? {}) as Record<string, unknown>
+  const p = Array.isArray(tsfProps.position) ? (tsfProps.position as number[]) : [0, 0, 0]
+  const r = Array.isArray(tsfProps.rotation) ? (tsfProps.rotation as number[]) : [0, 0, 0]
+  const s = Array.isArray(tsfProps.scale) ? (tsfProps.scale as number[]) : [1, 1, 1]
+  const noTsf = !tsf
   const compCount = asset.components?.length ?? 0
   const childCount = asset.children?.length ?? 0
 
@@ -463,47 +477,54 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
       </div>
 
       <div className="property-group">
-        <div className="property-group-title">Transform</div>
+        <div className="property-group-title">Transform（组件）</div>
+        {noTsf && (
+          <div className="property-row">
+            <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>
+              ⚠️ 缺少 transform/uitransform 组件：位置必须写在变换组件（组件优先约定）
+            </span>
+          </div>
+        )}
         <div className="property-row">
           <span className="property-label">Position</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" defaultValue={p[0]} style={transformInputStyle}
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[0] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={p[1]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[1] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={p[2]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[2] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
           </span>
         </div>
         <div className="property-row">
           <span className="property-label">Rotation</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" defaultValue={r[0]} style={transformInputStyle}
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[0] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={r[1]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[1] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={r[2]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[2] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
           </span>
         </div>
         <div className="property-row">
           <span className="property-label">Scale</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" defaultValue={s[0]} style={transformInputStyle}
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[0] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={s[1]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[1] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" defaultValue={s[2]} style={transformInputStyle}
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[2] = v }}
-              onBlur={() => { if (busy) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
+              onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
           </span>
         </div>
       </div>

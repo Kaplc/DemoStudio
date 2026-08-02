@@ -23,17 +23,22 @@ import { logger } from '../../Logger'
  * 九宫格锚点预设（相对父容器，Unity Anchor Preset 风格）
  *  - 决定 UI 元素中心在父容器九宫格上的对齐位置
  *  - 默认贴合容器内边（不溢出），可用 anchorOffset 微调
+ *  - stretch（全锚）：元素填满父容器——尺寸跟随父容器（父变 → 自身尺寸/位置同步），
+ *    通常配合父容器比例切换（如视口 16:9 → 4:3）让背景/面板自动铺满
  */
 export type AnchorPreset =
   | 'top-left' | 'top-center' | 'top-right'
   | 'middle-left' | 'middle-center' | 'center' | 'middle-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right'
+  | 'stretch'
 
 /** 锚点 → 方向因子（x: -1 左/0 中/+1 右，y: -1 下/0 中/+1 上） */
 const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
   'top-left': [-1, 1], 'top-center': [0, 1], 'top-right': [1, 1],
   'middle-left': [-1, 0], 'middle-center': [0, 0], 'center': [0, 0], 'middle-right': [1, 0],
   'bottom-left': [-1, -1], 'bottom-center': [0, -1], 'bottom-right': [1, -1],
+  // stretch 走 applyAnchor 的专用分支，不经过方向因子（占位）
+  'stretch': [0, 0],
 }
 
 export interface UITransformComponentOptions extends TransformComponentOptions {
@@ -120,6 +125,15 @@ export class UITransformComponent extends TransformComponent {
     const container = this.findContainerSize()
     if (!container) {
       logger.warn(`[UITransformComponent] "${this.name}" 未找到父画布容器，跳过锚点 ${this._anchor}（树未构建？）`)
+      return
+    }
+    // 全锚（stretch）：填满父容器——自身尺寸 = 容器尺寸，位置 = 父中心（相对父为 0,0）。
+    // 父容器尺寸变化（视口比例切换等）→ 再次 applyAnchor 时尺寸/位置自动跟随
+    if (this._anchor === 'stretch') {
+      const [cw, ch] = container
+      this.setWorldSize(cw, ch)
+      this.owner.setPosition(0, 0, this.owner.root.position.z)
+      logger.info(`[UITransformComponent] "${this.name}" 全锚 stretch → 填满父容器 ${cw.toFixed(3)}x${ch.toFixed(3)}`)
       return
     }
     const factors = ANCHOR_FACTORS[this._anchor]

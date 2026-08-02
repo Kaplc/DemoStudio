@@ -17,17 +17,19 @@ class SpriteComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', required: true, min: 0, minExclusive: true, label: '高度' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:sprite', SpriteComponentChecker)
 
-/** comp:transform — 变换组件：位置/旋转/缩放均为 vec3。 */
+/** comp:transform — 变换组件：位置/旋转/缩放均为 vec3（唯一允许 position/rotation/scale 的组件之一）。 */
 class TransformComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:transform'
   schema: FieldSpec[] = [
     { field: 'properties.position', type: 'vec3', label: '位置' },
     { field: 'properties.rotation', type: 'vec3', label: '旋转' },
     { field: 'properties.scale', type: 'vec3', label: '缩放' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:transform', TransformComponentChecker)
@@ -48,10 +50,12 @@ class UITransformComponentChecker extends AbstractAssetChecker {
         'top-left', 'top-center', 'top-right',
         'middle-left', 'middle-center', 'center', 'middle-right',
         'bottom-left', 'bottom-center', 'bottom-right',
+        'stretch',
       ],
-      label: '九宫格锚点',
+      label: '锚点',
     },
     { field: 'properties.anchorOffset', type: 'vec2', label: '锚点偏移' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:uitransform', UITransformComponentChecker)
@@ -66,6 +70,7 @@ class CameraComponentChecker extends AbstractAssetChecker {
     { field: 'properties.near', type: 'number', min: 0, minExclusive: true, label: '近裁剪' },
     { field: 'properties.far', type: 'number', min: 0, minExclusive: true, label: '远裁剪' },
     { field: 'properties.priority', type: 'integer', label: '优先级' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:camera', CameraComponentChecker)
@@ -73,7 +78,10 @@ registerAssetChecker('comp:camera', CameraComponentChecker)
 /** comp:clickable — clickCooldown ≥ 0。 */
 class ClickableComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:clickable'
-  schema: FieldSpec[] = [{ field: 'properties.clickCooldown', type: 'number', min: 0, label: '点击冷却' }]
+  schema: FieldSpec[] = [
+    { field: 'properties.clickCooldown', type: 'number', min: 0, label: '点击冷却' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
 }
 registerAssetChecker('comp:clickable', ClickableComponentChecker)
 
@@ -101,6 +109,7 @@ class TroikaTextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.textAlign', type: 'string', enum: ['left', 'center', 'right'], label: '对齐' },
     { field: 'properties.outlineWidth', type: 'number', min: 0, label: '描边宽度' },
     { field: 'properties.outlineColor', type: 'color', label: '描边颜色' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:troika', TroikaTextComponentChecker)
@@ -125,6 +134,7 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:uitext', UITextComponentChecker)
@@ -140,6 +150,7 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:uiimage', UIImageComponentChecker)
@@ -149,6 +160,7 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:uibutton'
   schema: FieldSpec[] = [
     { field: 'properties.colors', type: 'object', label: '状态色映射' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:uibutton', UIButtonComponentChecker)
@@ -162,6 +174,7 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:canvasui', CanvasUIComponentChecker)

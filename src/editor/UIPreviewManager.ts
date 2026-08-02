@@ -74,6 +74,11 @@ export class UIPreviewManager {
   // ─── 树变化回调 ───
   private _onChangeCallbacks: Array<() => void> = []
 
+  // ─── WebGL 上下文丢失/恢复 ───
+  private contextLost = false
+  private _onContextLost: ((e: Event) => void) | null = null
+  private _onContextRestored: (() => void) | null = null
+
   // ─── 选中包围盒（显示当前节点的大小范围）───
   private boundsHelper: THREE.BoxHelper | null = null
   private boundsLabel: THREE.Sprite | null = null
@@ -159,8 +164,49 @@ export class UIPreviewManager {
     // ─── World ───
     this.world = new World(this.scene)
 
+    // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
+    this._onContextLost = (e: Event) => {
+      e.preventDefault() // 阻止浏览器永久销毁上下文，允许后续恢复
+      this.contextLost = true
+      this.stop()
+      logger.warn('[UIPreview] WebGL 上下文丢失，已暂停渲染，等待浏览器恢复…')
+    }
+    this._onContextRestored = () => {
+      logger.info('[UIPreview] WebGL 上下文已恢复，重建纹理并恢复渲染')
+      this.restoreAllTextures()
+      this.contextLost = false
+      this.start()
+    }
+    this.renderer.domElement.addEventListener('webglcontextlost', this._onContextLost, false)
+    this.renderer.domElement.addEventListener('webglcontextrestored', this._onContextRestored, false)
+
     // ─── 启动渲染循环 ───
     this.start()
+  }
+
+  /**
+   * WebGL 上下文恢复后，GPU 上的纹理数据已全部失效。
+   * 遍历所有场景（主场景 / UI 场景 / 覆盖层）的材质，将纹理标记 needsUpdate 强制重新上传。
+   */
+  private restoreAllTextures() {
+    const scenes = [this.scene, this.overlayScene, this.world.ui.scene].filter(Boolean) as THREE.Scene[]
+    for (const scene of scenes) {
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh
+        const mat = (mesh as THREE.Mesh).material
+        if (!mat) return
+        const mats = Array.isArray(mat) ? mat : [mat]
+        for (const m of mats) {
+          const anyMat = m as THREE.Material & Record<string, unknown>
+          for (const key of Object.keys(anyMat)) {
+            const value = anyMat[key]
+            if (value instanceof THREE.Texture) {
+              value.needsUpdate = true
+            }
+          }
+        }
+      })
+    }
   }
 
   /** 处理 WASD 按键按下 */
@@ -682,13 +728,21 @@ export class UIPreviewManager {
       const actor = treeNode.actor
       const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
       if (!actor || !jsonNode) continue
-      jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
-      jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
-      jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+
+      // 组件优先：含 transform/uitransform 组件的节点，位置/旋转/缩放只写在组件 properties，
+      // 顶层 position/rotation/scale 冗余字段直接删除（引擎加载时组件为权威，无需兜底）
+      const uiTf = actor.getComponent(UITransformComponent)
+      if (!uiTf) {
+        jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
+        jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+        jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+        continue
+      }
 
       // 范围大小：从 uitransform 读取实时世界尺寸，回写到 JSON 的 uitransform 节点（角把手拖拽的结果可保存）
-      const uiTf = actor.getComponent(UITransformComponent)
-      if (!uiTf) continue
+      delete jsonNode.position
+      delete jsonNode.rotation
+      delete jsonNode.scale
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       const target = jsonComps.find((c) => c.baseClass === 'uitransform')
       if (target) {
@@ -696,6 +750,10 @@ export class UIPreviewManager {
         const props = (target.properties ?? {}) as Record<string, unknown>
         props.worldWidth = ww
         props.worldHeight = wh
+        // tsf.properties 里的 position/rotation/scale 是最终权威：重载时 TransformComponent 构造会读取
+        props.position = [actor.position.x, actor.position.y, actor.position.z]
+        props.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+        props.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
       }
     }
 
@@ -765,6 +823,11 @@ export class UIPreviewManager {
   private start() {
     this.lastTime = performance.now()
     const animate = (time: number) => {
+      // 上下文丢失期间跳过渲染，避免对失效 GL 上下文上传纹理报错
+      if (this.contextLost) {
+        this.animationId = requestAnimationFrame(animate)
+        return
+      }
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
       this.lastTime = time
 
@@ -814,6 +877,15 @@ export class UIPreviewManager {
 
   dispose() {
     this.stop()
+    // 移除 WebGL 上下文事件监听，避免内存泄漏
+    if (this._onContextLost) {
+      this.renderer.domElement.removeEventListener('webglcontextlost', this._onContextLost, false)
+      this._onContextLost = null
+    }
+    if (this._onContextRestored) {
+      this.renderer.domElement.removeEventListener('webglcontextrestored', this._onContextRestored, false)
+      this._onContextRestored = null
+    }
     select(null)
     this.gizmo.dispose()
     this.detachBounds()

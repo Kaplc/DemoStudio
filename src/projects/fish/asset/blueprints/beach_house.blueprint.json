@@ -23,41 +23,11 @@
       }
     }
   ],
-  "position": [
-    0,
-    0,
-    0
-  ],
-  "rotation": [
-    0,
-    0,
-    0
-  ],
-  "scale": [
-    1,
-    1,
-    1
-  ],
   "children": [
     {
       "name": "Foundation",
       "baseClass": "Actor",
       "id": 10001,
-      "position": [
-        0,
-        0.3,
-        0
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
       "components": [
         {
           "baseClass": "transform",
@@ -99,21 +69,6 @@
       "name": "Body",
       "baseClass": "Actor",
       "id": 10002,
-      "position": [
-        0,
-        0,
-        0
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
       "components": [
         {
           "baseClass": "transform",
@@ -141,21 +96,6 @@
           "name": "Walls",
           "baseClass": "Actor",
           "id": 10003,
-          "position": [
-            0,
-            1,
-            0
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -198,21 +138,6 @@
           "name": "Door",
           "baseClass": "Actor",
           "id": 10004,
-          "position": [
-            0.17320230878118625,
-            0.65,
-            1.3099844261352287
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -254,21 +179,6 @@
           "name": "WindowL",
           "baseClass": "Actor",
           "id": 10005,
-          "position": [
-            -0.6,
-            1.1,
-            1.01
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -311,21 +221,6 @@
           "name": "WindowR",
           "baseClass": "Actor",
           "id": 10006,
-          "position": [
-            0.6,
-            1.1,
-            1.01
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -368,21 +263,6 @@
           "name": "PillarFL",
           "baseClass": "Actor",
           "id": 10007,
-          "position": [
-            -1.1,
-            1.1,
-            1.1
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -424,21 +304,6 @@
           "name": "PillarFR",
           "baseClass": "Actor",
           "id": 10008,
-          "position": [
-            1.1,
-            1.1,
-            1.1
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -480,21 +345,6 @@
           "name": "PillarBL",
           "baseClass": "Actor",
           "id": 10009,
-          "position": [
-            2.7130540542825905,
-            2.02846051999476,
-            0.21778856695977789
-          ],
-          "rotation": [
-            0.47,
-            0,
-            0
-          ],
-          "scale": [
-            1.46,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -536,21 +386,6 @@
           "name": "PillarBR",
           "baseClass": "Actor",
           "id": 10010,
-          "position": [
-            1.1,
-            1.1,
-            -1.1
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": [
-            1,
-            1,
-            1
-          ],
           "components": [
             {
               "baseClass": "transform",
@@ -594,21 +429,6 @@
       "name": "RoofBase",
       "baseClass": "Actor",
       "id": 10011,
-      "position": [
-        0,
-        1.75,
-        0
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
       "components": [
         {
           "baseClass": "transform",
@@ -651,21 +471,6 @@
       "name": "RoofTop",
       "baseClass": "Actor",
       "id": 10012,
-      "position": [
-        0,
-        2,
-        0
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
       "components": [
         {
           "baseClass": "transform",
@@ -707,21 +512,6 @@
       "name": "RoofCrest",
       "baseClass": "Actor",
       "id": 10013,
-      "position": [
-        0,
-        2.1,
-        0
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
       "components": [
         {
           "baseClass": "transform",

@@ -77,17 +77,11 @@ async function writeAsset(assetPath: string, data: BlueprintAsset): Promise<{ ok
 
 // ─── 参数归一化 ───
 
-function isVec3(v: unknown): v is [number, number, number] {
-  return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number')
-}
-
 function pickChildDef(p: Record<string, unknown>): BlueprintChildDef {
   if (p.child && typeof p.child === 'object') return p.child as BlueprintChildDef
-  const def: BlueprintChildDef = {
-    position: isVec3(p.position) ? p.position : [0, 0, 0],
-    rotation: isVec3(p.rotation) ? p.rotation : [0, 0, 0],
-    scale: isVec3(p.scale) ? p.scale : [1, 1, 1],
-  }
+  // 组件优先约定：新建子节点不再生成顶层 position/rotation/scale（旧格式已废弃），
+  // 位置由调用方在 components 里声明 transform/uitransform 组件承载
+  const def: BlueprintChildDef = {}
   if (typeof p.ref === 'string') def.ref = p.ref
   if (typeof p.baseClass === 'string') def.baseClass = p.baseClass
   if (typeof p.name === 'string') def.name = p.name

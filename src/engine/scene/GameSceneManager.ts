@@ -48,6 +48,11 @@ export class GameSceneManager {
   private afterRenderCallbacks: Array<() => void> = []
   private container: HTMLElement
 
+  // ─── WebGL 上下文丢失/恢复 ───
+  private contextLost = false
+  private _onContextLost: ((e: Event) => void) | null = null
+  private _onContextRestored: (() => void) | null = null
+
   // ─── 相机模式与宽高比 ───
   private cameraMode: CameraMode
   private _aspect = 1
@@ -109,9 +114,50 @@ export class GameSceneManager {
     // ─── Game 视口默认视角 ───
     this.camera.position.set(17, 17, 17)
 
+    // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
+    this._onContextLost = (e: Event) => {
+      e.preventDefault() // 阻止浏览器永久销毁上下文，允许后续恢复
+      this.contextLost = true
+      this.stop()
+      logger.warn('[GameSceneManager] WebGL 上下文丢失，已暂停渲染，等待浏览器恢复…')
+    }
+    this._onContextRestored = () => {
+      logger.info('[GameSceneManager] WebGL 上下文已恢复，重建纹理并恢复渲染')
+      this.restoreAllTextures()
+      this.contextLost = false
+      this.start()
+    }
+    this.renderer.domElement.addEventListener('webglcontextlost', this._onContextLost, false)
+    this.renderer.domElement.addEventListener('webglcontextrestored', this._onContextRestored, false)
+
     // 初始停止渲染
     this.stop()
     logger.info(`[GameSceneManager] 创建: ${container.clientWidth}x${container.clientHeight}, cameraMode=${this.cameraMode}`)
+  }
+
+  /**
+   * WebGL 上下文恢复后，GPU 上的纹理数据已全部失效。
+   * 遍历场景内所有材质，将纹理标记 needsUpdate 强制重新上传。
+   */
+  private restoreAllTextures() {
+    const scenes = [this.scene, this._uiScene].filter(Boolean) as THREE.Scene[]
+    for (const scene of scenes) {
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh
+        const mat = (mesh as THREE.Mesh).material
+        if (!mat) return
+        const mats = Array.isArray(mat) ? mat : [mat]
+        for (const m of mats) {
+          const anyMat = m as THREE.Material & Record<string, unknown>
+          for (const key of Object.keys(anyMat)) {
+            const value = anyMat[key]
+            if (value instanceof THREE.Texture) {
+              value.needsUpdate = true
+            }
+          }
+        }
+      })
+    }
   }
 
   // ════════════════════════════════════════════
@@ -267,6 +313,11 @@ export class GameSceneManager {
     logger.info('[GameSceneManager] 渲染循环启动')
     this.lastTime = performance.now()
     const animate = (time: number) => {
+      // 上下文丢失期间跳过渲染，避免对失效 GL 上下文上传纹理报错
+      if (this.contextLost) {
+        this.animationId = requestAnimationFrame(animate)
+        return
+      }
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
       this.lastTime = time
 
@@ -365,6 +416,15 @@ export class GameSceneManager {
 
   dispose() {
     this.stop()
+    // 移除 WebGL 上下文事件监听，避免内存泄漏
+    if (this._onContextLost) {
+      this.renderer.domElement.removeEventListener('webglcontextlost', this._onContextLost, false)
+      this._onContextLost = null
+    }
+    if (this._onContextRestored) {
+      this.renderer.domElement.removeEventListener('webglcontextrestored', this._onContextRestored, false)
+      this._onContextRestored = null
+    }
     this.renderer.forceContextLoss()
     this.renderer.dispose()
     this.renderer.domElement.remove()

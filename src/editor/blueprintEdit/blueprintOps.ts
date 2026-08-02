@@ -163,14 +163,19 @@ function validateChildDef(child: BlueprintChildDef): string | null {
   const count = (hasRef ? 1 : 0) + (hasBase ? 1 : 0)
   if (count === 0) return '子节点必须指定 ref / baseClass 之一'
   if (count > 1) return 'ref / baseClass 互斥，只能指定一个'
-  if (!isVec3(child.position)) return '缺少合法 position（[x, y, z] 数字数组）'
-  if (!isVec3(child.rotation)) return '缺少合法 rotation（[x, y, z] 数字数组）'
-  if (!isVec3(child.scale)) return '缺少合法 scale（[x, y, z] 数字数组）'
+  // 组件优先约定（旧格式已废弃）：顶层 position/rotation/scale 一律禁止填写，位置必须写在 transform/uitransform 组件
+  const topFields = (['position', 'rotation', 'scale'] as const).filter((k) => child[k] !== undefined)
+  if (topFields.length > 0) {
+    return `顶层 ${topFields.join('/')} 已废弃：位置必须写在 transform/uitransform 组件（组件优先约定）`
+  }
   return null
 }
 
 function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
-  const out: BlueprintChildDef = { position: child.position, rotation: child.rotation, scale: child.scale }
+  const out: BlueprintChildDef = {}
+  if (child.position) out.position = [...child.position]
+  if (child.rotation) out.rotation = [...child.rotation]
+  if (child.scale) out.scale = [...child.scale]
   if (child.ref) out.ref = child.ref
   if (child.baseClass) out.baseClass = child.baseClass
   if (child.name) out.name = child.name
@@ -182,7 +187,10 @@ function cloneChildDef(child: BlueprintChildDef): BlueprintChildDef {
 
 /** 把 patch 合并到 base 子节点定义（覆盖 blueprint/baseClass/name，深合并 overrides） */
 function mergeChildDef(base: BlueprintChildDef, patch: BlueprintChildDef): BlueprintChildDef {
-  const out: BlueprintChildDef = { ...base, position: patch.position ?? base.position, rotation: patch.rotation ?? base.rotation, scale: patch.scale ?? base.scale }
+  const out: BlueprintChildDef = { ...base }
+  if (patch.position !== undefined) out.position = [...patch.position]
+  if (patch.rotation !== undefined) out.rotation = [...patch.rotation]
+  if (patch.scale !== undefined) out.scale = [...patch.scale]
   if (patch.ref !== undefined) out.ref = patch.ref
   if (patch.baseClass !== undefined) out.baseClass = patch.baseClass
   if (patch.name !== undefined) out.name = patch.name
@@ -233,7 +241,7 @@ export function updateChild(
   const idx = locateChild(children, locator)
   if (idx === -1) {
     if ('name' in locator) {
-      const node: BlueprintChildDef = { name: locator.name, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
+      const node: BlueprintChildDef = { name: locator.name }
       const merged = mergeChildDef(node, patch)
       // mergeChildDef 会保留空 name，确保带上
       children.push(merged)
@@ -260,7 +268,7 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
     return ok(asset)
   }
   if ('name' in locator) {
-    children.push({ name: locator.name, _remove: true, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] })
+    children.push({ name: locator.name, _remove: true })
     asset.children = children
     return ok(asset, [`本地无具名子节点 "${locator.name}"，已写入 _remove 继承覆盖标记`])
   }
@@ -271,28 +279,41 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
 //  Defaults（CDO 默认属性）
 // ══════════════════════════════════════
 
-/** 设置蓝图顶层位置 */
+/**
+ * 组件优先约定：设置蓝图根节点 transform 字段（position/rotation/scale）。
+ * 一律写入 transform/uitransform 组件的 properties（引擎/检查器权威来源），
+ * 不再写顶层字段（旧格式已废弃）。资产缺少变换组件 → 返回错误。
+ */
+function setTopTransform(
+  asset: BlueprintAsset,
+  field: 'position' | 'rotation' | 'scale',
+  value: [number, number, number],
+): OpResult {
+  if (!Array.isArray(value) || value.length !== 3 || !value.every((n) => typeof n === 'number'))
+    return fail(`${field} 必须是 [x, y, z] 数字数组`)
+  const comps = asset.components ?? []
+  const tsf = comps.find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  if (!tsf) {
+    return fail(`资产缺少 transform/uitransform 组件：${field} 必须写在变换组件（组件优先约定）`)
+  }
+  const props = (tsf.properties ?? {}) as Record<string, unknown>
+  props[field] = value
+  return ok(asset)
+}
+
+/** 设置蓝图根位置（组件优先，写入 transform/uitransform 组件 properties） */
 export function setPosition(asset: BlueprintAsset, pos: [number, number, number]): OpResult {
-  if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number')) 
-    return fail('position 必须是 [x, y, z] 数字数组')
-  asset.position = pos
-  return ok(asset)
+  return setTopTransform(asset, 'position', pos)
 }
 
-/** 设置蓝图顶层旋转 */
+/** 设置蓝图根旋转（组件优先，写入 transform/uitransform 组件 properties） */
 export function setRotation(asset: BlueprintAsset, rot: [number, number, number]): OpResult {
-  if (!Array.isArray(rot) || rot.length !== 3 || !rot.every((n) => typeof n === 'number'))
-    return fail('rotation 必须是 [x, y, z] 数字数组')
-  asset.rotation = rot
-  return ok(asset)
+  return setTopTransform(asset, 'rotation', rot)
 }
 
-/** 设置蓝图顶层缩放 */
+/** 设置蓝图根缩放（组件优先，写入 transform/uitransform 组件 properties） */
 export function setScale(asset: BlueprintAsset, s: [number, number, number]): OpResult {
-  if (!Array.isArray(s) || s.length !== 3 || !s.every((n) => typeof n === 'number'))
-    return fail('scale 必须是 [x, y, z] 数字数组')
-  asset.scale = s
-  return ok(asset)
+  return setTopTransform(asset, 'scale', s)
 }
 
 // ══════════════════════════════════════
