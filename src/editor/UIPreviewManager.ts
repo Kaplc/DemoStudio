@@ -198,8 +198,9 @@ export class UIPreviewManager {
         if (handleIndex >= 0) {
           this.draggingCornerIndex = handleIndex
           // 非对称缩放：记录被拖角/边与对角/对边（固定）的世界坐标。
-          // 拖动中被拖点跟随鼠标、固定点不动 → 中心随之移动（Unity 拖拽行为）
-          const box = new THREE.Box3().setFromObject(this.boundsTarget!.root)
+          // 拖动中被拖点跟随鼠标、固定点不动 → 中心随之移动（Unity 拖拽行为）。
+          // 包围盒基准统一用 uitransform 尺寸矩形（文本控件字形几何会随字号重排变化，不能用）
+          const box = this.getBoundsBox()
           const minX = box.min.x, maxX = box.max.x, minY = box.min.y, maxY = box.max.y
           const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
           // 8 个把手位置：0-3 角（TL/TR/BL/BR），4-7 边中点（T/R/B/L）
@@ -352,6 +353,46 @@ export class UIPreviewManager {
       }
     }
     return best
+  }
+
+  /**
+   * 选中控件包围盒基准：
+   *  - UI 控件（有 uitransform）→ 用 worldWidth/worldHeight 尺寸矩形（图片/文本统一，
+   *    对角固定语义成立；文本字形几何会随字号重排变化，不能作为基准）
+   *  - 非 UI 节点 → 退化用几何包围盒
+   */
+  private getBoundsBox(): THREE.Box3 {
+    const root = this.boundsTarget!.root
+    const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
+    if (uiTf) {
+      const [ww, wh] = uiTf.getWorldSize()
+      if (ww > 0 && wh > 0) {
+        const p = root.position
+        return new THREE.Box3(
+          new THREE.Vector3(p.x - ww / 2, p.y - wh / 2, -1),
+          new THREE.Vector3(p.x + ww / 2, p.y + wh / 2, 1),
+        )
+      }
+    }
+    return new THREE.Box3().setFromObject(root)
+  }
+
+  /** 用指定 box 直接更新线框包围盒顶点（BoxHelper 内部顶点顺序） */
+  private setBoundsHelperBox(box: THREE.Box3) {
+    if (!this.boundsHelper) return
+    const position = this.boundsHelper.geometry.attributes.position as THREE.BufferAttribute
+    const a = position.array as Float32Array
+    const min = box.min, max = box.max
+    a[0] = max.x; a[1] = max.y; a[2] = max.z
+    a[3] = min.x; a[4] = max.y; a[5] = max.z
+    a[6] = min.x; a[7] = min.y; a[8] = max.z
+    a[9] = max.x; a[10] = min.y; a[11] = max.z
+    a[12] = max.x; a[13] = max.y; a[14] = min.z
+    a[15] = min.x; a[16] = max.y; a[17] = min.z
+    a[18] = min.x; a[19] = min.y; a[20] = min.z
+    a[21] = max.x; a[22] = min.y; a[23] = min.z
+    position.needsUpdate = true
+    this.boundsHelper.geometry.computeBoundingSphere()
   }
 
   /** 检测鼠标是否命中当前选中节点（boundsTarget）范围内的 mesh（用于节点拖动判定） */
@@ -865,14 +906,13 @@ export class UIPreviewManager {
   /** 每帧更新包围盒几何与尺寸标签（跟随节点变换） */
   private updateBounds() {
     if (!this.boundsTarget || !this.boundsHelper) return
-    const root = this.boundsTarget.root
-    this.boundsHelper.setFromObject(root)
-    this.boundsHelper.update()
+    // 统一用 uitransform 尺寸矩形基准（图片/文本一致，对角固定）
+    const box = this.getBoundsBox()
+    this.setBoundsHelperBox(box)
     this.boundsHelper.visible = true
 
     // 尺寸标签：计算世界包围盒，绘制 "W × H" 文本
     if (!this.boundsLabel) return
-    const box = new THREE.Box3().setFromObject(root)
     const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
 
