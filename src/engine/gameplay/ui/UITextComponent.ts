@@ -1,12 +1,24 @@
 /**
- * UITextComponent — 文本控件 Component（基于 CanvasUIComponent）
+ * UITextComponent — 文本控件 Component（troika 矢量渲染）
  *
- * 模仿 Unity Text。挂到 Actor 上即可参与 Actor 生命周期，
+ * 基于 troika-three-text 的 GPU 字形 mesh：字形轮廓三角化渲染，任意缩放不模糊（矢量）。
  * 通过 blueprint { baseClass: 'uitext', properties: {...} } 配置。
  *
- * 在 CanvasUIComponent 基础上：把 draw(filler) 分离为 render(ctx) 钩子，
- * setter 自动触发 markDirty + 重绘。
+ * 实现要点：
+ *  - 继承 CanvasUIComponent（markerOnly）保持"UI 组件"身份（isUIActor 判定 / 锚点 /
+ *    尺寸权威在 uitransform），但不创建位图画布 mesh——文本由 troika mesh 渲染
+ *  - fontSize 语义保持 canvas 像素（如 32px，映射基准 height=128px canvas）：
+ *    世界字号 = worldHeight × fontSize / height
+ *  - 尺寸权威在 uitransform：tsf 显式 → 读 tsf；未显式 → 按 canvas 比例推导
+ *  - 字体：默认 'Microsoft YaHei'（系统字体，支持中文）；fontFamily 可覆盖
+ *  - 局限：troika 为单色轮廓字形，彩色 emoji 会退化为单色/空白；shadow* 属性
+ *    仅保留展示（troika 不支持 canvas 阴影，可用 outline 替代）
  */
+import * as THREE from 'three'
+import { Text as TroikaText } from 'troika-three-text'
+// 思源黑体（简体中文子集，支持中文/emoji 单色字形）——troika 只接受字体文件 URL，且不支持 woff2（用 woff）
+import notoSansSC400Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff?url'
+import notoSansSC700Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff?url'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { UITransformComponent } from './UITransformComponent'
 import { logger } from '../../Logger'
@@ -21,20 +33,33 @@ export interface UITextComponentOptions {
   italic?: boolean
   align?: 'left' | 'center' | 'right'
   lineHeight?: number
-  /** 字体阴影（CSS 颜色） */
+  /** 字体阴影（CSS 颜色）——troika 不支持，仅保留展示 */
   shadowColor?: string
   shadowBlur?: number
   shadowOffsetX?: number
   shadowOffsetY?: number
   letterSpacing?: number
-  /** canvas 像素宽（默认 512） */
+  /** canvas 像素宽（默认 512；作为 fontSize 映射基准） */
   width?: number
-  /** canvas 像素高（默认 128） */
+  /** canvas 像素高（默认 128；作为 fontSize 映射基准） */
   height?: number
   /** 3D 世界宽（默认按 canvas 比例自动推算，高度 2.5） */
   worldWidth?: number
   /** 3D 世界高（默认 2.5） */
   worldHeight?: number
+  /** UI 层级（越大越靠前） */
+  zOrder?: number
+}
+
+/**
+ * 解析 troika 字体 URL：
+ *  - fontFamily 为 URL（http/https/data:/blob:/绝对路径）→ 直接用
+ *  - 否则（CSS 字体名 / 未设置）→ 用内置思源黑体（支持中文；bold 用 700 变体）
+ * troika 的 font 属性只接受字体文件 URL（XHR 加载），不支持 CSS font-family 名。
+ */
+function resolveFontURL(family: string | undefined, bold: boolean): string {
+  if (family && /^(https?:|data:|blob:|\/)/.test(family)) return family
+  return bold ? notoSansSC700Url : notoSansSC400Url
 }
 
 export class UITextComponent extends CanvasUIComponent {
@@ -51,6 +76,9 @@ export class UITextComponent extends CanvasUIComponent {
   protected _shadowOffsetX: number
   protected _shadowOffsetY: number
   protected _letterSpacing: number
+
+  /** troika 文本 mesh（构造即创建；字形几何异步生成，属性同步设置） */
+  private mesh: TroikaText | null = null
 
   constructor(owner: Actor, options: UITextComponentOptions = {}) {
     const width = options.width ?? 512
@@ -73,16 +101,19 @@ export class UITextComponent extends CanvasUIComponent {
         worldHeight = worldWidth / (width / height)
       }
     }
+    // markerOnly：保持 UI 组件身份，但不创建位图画布 mesh（矢量文本不需要）
     super(owner, {
       width,
       height,
       ...(worldWidth !== undefined ? { worldWidth } : {}),
       ...(worldHeight !== undefined ? { worldHeight } : {}),
+      markerOnly: true,
+      ...(options.zOrder !== undefined ? { zOrder: options.zOrder } : {}),
     })
     this.name = 'UITextComponent'
     this._text = options.text ?? ''
     this._fontSize = options.fontSize ?? 28
-    this._fontFamily = options.fontFamily ?? 'sans-serif'
+    this._fontFamily = options.fontFamily ?? ''
     this._color = options.color ?? '#ffffff'
     this._bold = options.bold ?? false
     this._italic = options.italic ?? false
@@ -93,18 +124,87 @@ export class UITextComponent extends CanvasUIComponent {
     this._shadowOffsetX = options.shadowOffsetX ?? 1
     this._shadowOffsetY = options.shadowOffsetY ?? 2
     this._letterSpacing = options.letterSpacing ?? 0
-    this.redraw()
+
+    this.initTroika()
     logger.info(`[UITextComponent] 创建: text="${this._text.slice(0, 40)}", fontSize=${this._fontSize}, color=${this._color}`)
   }
 
+  /** 像素 → 世界单位换算（基于映射基准 canvas 高） */
+  private toWorldUnits(px: number): number {
+    const wh = this.getWorldSize()[1]
+    return (px / this._heightPx) * wh
+  }
+
+  private get _heightPx(): number {
+    return this.getSize()[1]
+  }
+
+  /** 创建 troika 文本 mesh（sync 内部异步加载字体/生成字形） */
+  private initTroika(): void {
+    const mesh = new TroikaText()
+    mesh.name = 'UITextMesh'
+    this.mesh = mesh
+    // zOrder 分层：与面板一致（zOrder 每 +1 前移 0.001），文本额外 +0.0002 避免与面板 z-fighting
+    mesh.renderOrder = this.zOrder
+    mesh.position.z = this.zOrder * 0.001 + 0.0002
+    this.owner.root.add(mesh)
+    this.applyAll()
+  }
+
+  /** 同步所有属性到 troika mesh（属性即时存储，sync 生成字形几何） */
+  protected applyAll(): void {
+    const mesh = this.mesh
+    if (!mesh) return
+    const [ww, wh] = this.getWorldSize()
+    mesh.text = this._text
+    // canvas 像素字号 → 世界字号：fontSize / 基准高 × 世界高
+    mesh.fontSize = (this._fontSize / this._heightPx) * wh
+    mesh.maxWidth = ww
+    mesh.textAlign = this._align
+    mesh.anchorX = this._align
+    mesh.anchorY = 'middle'
+    mesh.color = this._color
+    // troika 只接受字体文件 URL：CSS 名回退到内置思源黑体（bold 用 700 变体）
+    mesh.font = resolveFontURL(this._fontFamily, this._bold)
+    // troika 类型声明缺失 fontWeight/fontStyle（运行时支持）
+    ;(mesh as unknown as { fontWeight: number | string }).fontWeight = this._bold ? 700 : 400
+    ;(mesh as unknown as { fontStyle: string }).fontStyle = this._italic ? 'italic' : 'normal'
+    mesh.letterSpacing = this.toWorldUnits(this._letterSpacing)
+    mesh.lineHeight = this.toWorldUnits(this._lineHeight)
+    // unicode fallback（emoji/生僻字）：走本地缓存代理（首次下载后永久本地，不再联网）。
+    // 必须绝对 URL——troika 的 fetch 在 worker 里执行，相对路径无法解析
+    ;(mesh as unknown as { unicodeFontsURL: string }).unicodeFontsURL = `${location.origin}/__unicode_fonts`
+    mesh.sync()
+  }
+
+  override BeginPlay(): void {
+    super.BeginPlay()
+    // 确保属性最终一致（尺寸可能已在 BeginPlay 前由 tsf 应用）
+    this.applyAll()
+  }
+
   get text(): string { return this._text }
-  set text(v: string) { this._text = v; this.redraw() }
+  set text(v: string) { this._text = v; this.applyAll() }
   get fontSize(): number { return this._fontSize }
-  set fontSize(v: number) { this._fontSize = v; this.redraw() }
+  set fontSize(v: number) { this._fontSize = v; this.applyAll() }
   get color(): string { return this._color }
-  set color(v: string) { this._color = v; this.redraw() }
+  set color(v: string) { this._color = v; this.applyAll() }
   get align(): 'left' | 'center' | 'right' { return this._align }
-  set align(v: 'left' | 'center' | 'right') { this._align = v; this.redraw() }
+  set align(v: 'left' | 'center' | 'right') { this._align = v; this.applyAll() }
+  get bold(): boolean { return this._bold }
+  set bold(v: boolean) { this._bold = v; this.applyAll() }
+  get italic(): boolean { return this._italic }
+  set italic(v: boolean) { this._italic = v; this.applyAll() }
+
+  /** UI 层级（越大越靠前）：面板（继承）+ troika mesh 同步分层 */
+  override get zOrder(): number { return super.zOrder }
+  override set zOrder(v: number) {
+    super.zOrder = v
+    if (this.mesh) {
+      this.mesh.renderOrder = v
+      this.mesh.position.z = v * 0.001 + 0.0002
+    }
+  }
 
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
@@ -120,56 +220,27 @@ export class UITextComponent extends CanvasUIComponent {
       Align: this._align,
       LineHeight: Math.round(this._lineHeight * 100) / 100,
       LetterSpacing: this._letterSpacing,
+      Render: '矢量（troika）',
     }
   }
 
-  /** 重绘 */
-  protected redraw(): void {
-    this.draw((ctx, w, h) => this.render(ctx, w, h))
-  }
-
-  /** 实际 Canvas 2D 绘制（子类可重写） */
-  protected render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    ctx.font = `${this._italic ? 'italic ' : ''}${this._bold ? 'bold ' : ''}${this._fontSize}px ${this._fontFamily}`
-    ctx.textBaseline = 'top'
-    ctx.textAlign = 'left'
-
-    if (this._shadowColor) {
-      ctx.shadowColor = this._shadowColor
-      ctx.shadowBlur = this._shadowBlur
-      ctx.shadowOffsetX = this._shadowOffsetX
-      ctx.shadowOffsetY = this._shadowOffsetY
-    }
-
-    const lines = this._text.split('\n')
-    const totalH = lines.length * this._lineHeight
-    const startY = Math.max(0, (h - totalH) / 2)
-
-    lines.forEach((line, i) => {
-      const y = startY + i * this._lineHeight
-      let x: number
-      const lineWidth = ctx.measureText(line).width
-      if (this._align === 'center') x = (w - lineWidth) / 2
-      else if (this._align === 'right') x = w - lineWidth
-      else x = 0
-
-      if (this._letterSpacing > 0) {
-        // 字间距：逐字绘制
-        let cx = x
-        for (const ch of Array.from(line)) {
-          ctx.fillStyle = this._color
-          ctx.fillText(ch, cx, y)
-          cx += ctx.measureText(ch).width + this._letterSpacing
+  override EndPlay(): void {
+    if (this.mesh) {
+      this.owner.root.remove(this.mesh)
+      this.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry?.dispose()
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose())
+          } else {
+            child.material?.dispose()
+          }
         }
-      } else {
-        ctx.fillStyle = this._color
-        ctx.fillText(line, x, y)
-      }
-    })
-
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
+      })
+      this.mesh.dispose?.()
+      this.mesh = null
+    }
+    super.EndPlay()
   }
 }
+

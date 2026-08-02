@@ -125,3 +125,6 @@ Desktop.ini
 # 环境文件
 .env
 .env.local
+
+# unicode 字体本地缓存（troika fallback 首次下载后本地复用）
+cache/unicode-fonts/
