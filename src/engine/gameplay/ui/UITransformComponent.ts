@@ -75,13 +75,16 @@ export class UITransformComponent extends TransformComponent {
     return [this._worldW, this._worldH]
   }
 
-  /** 设置世界尺寸并同步 owner 上所有真实画布面板（panel.scale） */
+  /** 设置世界尺寸并同步 owner 上所有 UI 组件（真实画布面板 panel.scale + 尺寸变化钩子） */
   setWorldSize(w: number, h: number) {
     this._worldW = w
     this._worldH = h
     this._worldSizeExplicit = true
     for (const ui of this.owner.getComponents(CanvasUIComponent)) {
+      // 真实画布：同步面板缩放
       if (!ui.isMarkerOnly && ui.panel) ui.panel.scale.set(w, h, 1)
+      // 所有 UI 组件（含 markerOnly 文本）：通知尺寸变化，让子类重算内部布局（如 troika 字号）
+      ui.onWorldSizeChange()
     }
   }
 

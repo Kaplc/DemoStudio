@@ -146,6 +146,12 @@ export class CanvasUIComponent extends Component {
     this.owner.getComponent(UITransformComponent)?.setWorldSize(w, h)
   }
 
+  /**
+   * 世界尺寸变化钩子：由 UITransformComponent.setWorldSize 遍历调用（含 markerOnly 组件）。
+   * 子类可覆写以响应尺寸变化（如 UITextComponent 重算字形字号）。
+   */
+  onWorldSizeChange(): void {}
+
   /** 获取 3D 世界尺寸；优先读 owner 的 uitransform */
   getWorldSize(): [number, number] {
     const uiTf = this.owner.getComponent(UITransformComponent)

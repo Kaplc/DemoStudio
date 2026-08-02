@@ -350,7 +350,8 @@ export class UIPreviewManager {
 
   /** 按角把手下标 + 鼠标世界坐标调整范围大小（保持中心不变） */
   private resizeBoundsByCorner(cornerIndex: number, wx: number, wy: number) {
-    const ui = this.boundsTarget!.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
+    // 放宽为任意 UI 组件（含 markerOnly 文本控件——troika 矢量文本无真实画布面板）
+    const ui = this.boundsTarget!.getComponent(CanvasUIComponent)
     if (!ui) return
     const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
     if (!uiTf) return

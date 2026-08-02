@@ -183,6 +183,11 @@ export class UITextComponent extends CanvasUIComponent {
     this.applyAll()
   }
 
+  /** 世界尺寸变化（gizmo 拖拽 / Inspector 修改）：重算字形字号与换行宽度 */
+  override onWorldSizeChange(): void {
+    this.applyAll()
+  }
+
   get text(): string { return this._text }
   set text(v: string) { this._text = v; this.applyAll() }
   get fontSize(): number { return this._fontSize }
