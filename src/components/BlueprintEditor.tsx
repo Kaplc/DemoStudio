@@ -11,6 +11,7 @@ import { BlueprintPreviewManager, UIPreviewManager, AssetPreviewManager } from '
 import { BlueprintRegistry, Actor } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
+import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { notifySelectionChange, editorBus, EditorEvent, getSelectedActor } from '../editor'
 
 interface BlueprintEditorProps {
@@ -166,6 +167,23 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     if (!isTabActive || !previewReady) return
     previewMgrRef.current?.activate(assetPath)
   }, [isTabActive, previewReady])
+
+  // ─── 视口比例同步：widget 预览时根画布跟随比例选择器（保持高度，按比例调宽） ───
+  useEffect(() => {
+    if (!previewMgrRef.current) return
+    if (!isWidgetAsset(assetPath)) return
+    const unsub = useEditorPrefsStore.subscribe((state, prev) => {
+      if (state.viewport.aspectRatio !== prev.viewport.aspectRatio) {
+        const ratioStr = state.viewport.aspectRatio
+        const ratio = ratioStr
+          ? (() => { const [aw, ah] = ratioStr.split('/').map(Number); return aw / ah })()
+          : null
+        // widget 资产必然创建 UIPreviewManager（isWidgetAsset 已判定）
+        ;(previewMgrRef.current as UIPreviewManager | null)?.setViewportAspect?.(ratio)
+      }
+    })
+    return unsub
+  }, [assetPath, previewReady])
 
   // ─── WASD 键盘事件（自由漫游） ───
   useEffect(() => {

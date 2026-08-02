@@ -51,6 +51,9 @@ export class UIPreviewManager {
   /** Actor → JSON 节点映射（以对象引用为 key），由 loadWidget 在 spawn 后构建 */
   private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
 
+  /** 当前 widget 根 Actor（setViewportAspect 调整根画布尺寸用） */
+  private _rootActor: Actor | null = null
+
   /** 大纲树缓存：结构不变时复用 */
   private _actorTreeCache: SceneTreeNode[] | null = null
 
@@ -559,6 +562,7 @@ export class UIPreviewManager {
       logger.warn(`[UIPreview] SpawnActorFromBlueprint("${path}") 失败`)
       return false
     }
+    this._rootActor = actor
 
     // 构建 Actor.uid → JSON 节点映射（跳过 ref 实例，它们属于另一文件）
     if (!this._jsonTree) return false
@@ -589,11 +593,39 @@ export class UIPreviewManager {
     select(null)
     this.gizmo.detach()
     this.world.DestroyAllActors()
+    this._rootActor = null
     this._currentWidgetPath = null
     this._jsonTree = null
     this._actorJsonMap = null
     this._actorTreeCache = null
     this.notifyChange()
+  }
+
+  /**
+   * 按视口比例调整根画布尺寸（保持高度不变，宽度 = 高度 × ratio）。
+   *  - ratio：宽/高（如 16/9 ≈ 1.7778、4/3 ≈ 1.3333、21/9 ≈ 2.3333）
+   *  - null = Free：不调整，沿用 widget 自带画布比例
+   * 调整后递归重算所有子控件锚点（容器尺寸变化 → 锚点位置变化），并重新适配相机。
+   */
+  setViewportAspect(ratio: number | null): void {
+    const root = this._rootActor
+    if (!root || ratio == null || ratio <= 0) return
+    const uiTf = root.getComponent(UITransformComponent)
+    if (!uiTf) return
+    const [ww, wh] = uiTf.getWorldSize()
+    if (wh <= 0 || Math.abs(ww - wh * ratio) < 1e-6) return
+    uiTf.setWorldSize(wh * ratio, wh)
+    // 容器尺寸变化：递归重算所有子控件锚点
+    const applyAnchors = (a: Actor) => {
+      for (const child of a.getChildren()) {
+        child.getComponent(UITransformComponent)?.applyAnchor()
+        applyAnchors(child)
+      }
+    }
+    applyAnchors(root)
+    this.fitToWidget(root.root)
+    this.notifyChange()
+    logger.info(`[UIPreview] 视口比例 ${(ratio * 100).toFixed(0)}:100 → 根画布 ${(wh * ratio).toFixed(2)}x${wh.toFixed(2)}`)
   }
 
   get currentWidgetId(): string | null {
