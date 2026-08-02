@@ -8,6 +8,7 @@ export type { LogLevel } from './Logger'
 // Gameplay Framework (位于 engine/gameplay 下)
 export { Actor } from './gameplay/entity/Actor'
 export { Component } from './gameplay/entity/Component'
+export type { EditableProperty, EditablePropertyType } from './gameplay/entity/Component'
 export { SpawnComponent } from './gameplay/entity/SpawnComponent'
 export { TransformComponent } from './gameplay/entity/TransformComponent'
 export { Pawn } from './gameplay/entity/Pawn'

@@ -86,6 +86,9 @@ export class UIPreviewManager {
   private boundsCanvas = document.createElement('canvas')
   private boundsCtx: CanvasRenderingContext2D
 
+  // ─── Game 渲染视口范围框（常显）：显示放到 Game 时实际会被渲染的世界范围（= 根画布尺寸，跟随视口比例）───
+  private viewportBounds: THREE.LineSegments | null = null
+
   // ─── 包围盒 8 把手拖拽（4 角 + 4 边中点，拖动实时调整范围大小）───
   private cornerHandleGroup: THREE.Group | null = null
   private cornerHandles: THREE.Mesh[] = []
@@ -629,10 +632,51 @@ export class UIPreviewManager {
     this._currentWidgetPath = path
 
     this.fitToWidget(actor.root)
+    // Game 渲染视口范围框：以根画布世界尺寸为范围（切换视口比例后再次更新）
+    this.updateViewportBounds()
     this.notifyChange()
 
     logger.info(`[UIPreview] 加载 UI 资产预览: ${path}`)
     return true
+  }
+
+  /**
+   * Game 渲染视口范围框：常显白色线框（透明度 0.8），表示该 widget 放入 Game 后
+   * 实际会被渲染的世界范围（= 根画布 worldWidth×worldHeight）。
+   * 切换视口比例（setViewportAspect）时根画布尺寸变化，范围框自动跟随。
+   */
+  private ensureViewportBounds(): void {
+    if (this.viewportBounds) return
+    const geo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1))
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.8,
+    })
+    const lines = new THREE.LineSegments(geo, mat)
+    lines.name = '__ui_viewport_bounds__'
+    lines.renderOrder = 996 // 低于选中包围盒(998)/把手(999)，选中时不被遮挡关系干扰
+    lines.visible = false
+    this.overlayScene.add(lines)
+    this.viewportBounds = lines
+  }
+
+  /** 更新 Game 渲染视口范围框：尺寸 = 根画布世界尺寸（无根画布时隐藏） */
+  private updateViewportBounds(): void {
+    this.ensureViewportBounds()
+    const lines = this.viewportBounds
+    if (!lines) return
+    const root = this._rootActor
+    const uiTf = root?.getComponent(UITransformComponent)
+    if (!root || !uiTf) {
+      lines.visible = false
+      return
+    }
+    const [ww, wh] = uiTf.getWorldSize()
+    lines.scale.set(ww, wh, 1)
+    lines.visible = true
   }
 
   clearPreview() {
@@ -644,6 +688,7 @@ export class UIPreviewManager {
     this._jsonTree = null
     this._actorJsonMap = null
     this._actorTreeCache = null
+    if (this.viewportBounds) this.viewportBounds.visible = false
     this.notifyChange()
   }
 
@@ -670,6 +715,8 @@ export class UIPreviewManager {
     }
     applyAnchors(root)
     this.fitToWidget(root.root)
+    // 根画布尺寸已变化 → 更新 Game 渲染视口范围框
+    this.updateViewportBounds()
     this.notifyChange()
     logger.info(`[UIPreview] 视口比例 ${(ratio * 100).toFixed(0)}:100 → 根画布 ${(wh * ratio).toFixed(2)}x${wh.toFixed(2)}`)
   }
@@ -889,6 +936,13 @@ export class UIPreviewManager {
     select(null)
     this.gizmo.dispose()
     this.detachBounds()
+    // 清理 Game 渲染视口范围框
+    if (this.viewportBounds) {
+      this.overlayScene.remove(this.viewportBounds)
+      this.viewportBounds.geometry.dispose()
+      ;(this.viewportBounds.material as THREE.LineBasicMaterial).dispose()
+      this.viewportBounds = null
+    }
     if (this.boundsHelper) {
       this.overlayScene.remove(this.boundsHelper)
       this.boundsHelper.dispose()
@@ -952,7 +1006,7 @@ export class UIPreviewManager {
       mat.depthTest = false
       mat.depthWrite = false
       mat.transparent = true
-      mat.opacity = 0.9
+      mat.opacity = 0.8
       this.boundsHelper.renderOrder = 998
       this.overlayScene.add(this.boundsHelper)
     }
@@ -985,7 +1039,7 @@ export class UIPreviewManager {
         depthTest: false,
         depthWrite: false,
         transparent: true,
-        opacity: 0.95,
+        opacity: 0.8,
         side: THREE.DoubleSide,
       })
       const mesh = new THREE.Mesh(geo, mat)

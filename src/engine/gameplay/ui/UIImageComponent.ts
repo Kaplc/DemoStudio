@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { type EditableProperty } from '../entity/Component'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 
@@ -64,6 +65,24 @@ export class UIImageComponent extends CanvasUIComponent {
       Color: this._color,
       Radius: this._radius,
     }
+  }
+
+  /** Inspector 可编辑属性：颜色（color 选择器）、圆角（number） */
+  override getEditableProperties(): EditableProperty[] {
+    const base = super.getEditableProperties()
+    return [
+      ...base,
+      {
+        key: 'Color', type: 'color',
+        get: () => this._color,
+        set: (v) => { this.color = v as string },
+      },
+      {
+        key: 'Radius', type: 'number', step: 1, min: 0, max: 512,
+        get: () => this._radius,
+        set: (v) => { this.radius = v as number },
+      },
+    ]
   }
 
   /** 异步加载图片，完成后自动重绘 */

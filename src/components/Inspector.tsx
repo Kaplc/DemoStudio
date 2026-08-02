@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
 import { useSaveStore } from '../stores/saveStore'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
-import { Actor, Component } from '../engine'
+import { Actor, Component, type EditableProperty } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 
@@ -28,13 +28,213 @@ const transformInputStyle: React.CSSProperties = {
 }
 
 // ─── 组件垂直列表：每个组件一个区块，显示名称 + 属性键值 ───
+
+/** 可编辑属性控件统一样式 */
+const editableInputStyle: React.CSSProperties = {
+  flex: 1, minWidth: 0, background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+  border: '1px solid var(--border)', borderRadius: 3, padding: '2px 5px', fontSize: 11, outline: 'none',
+  fontFamily: 'var(--font-mono)',
+}
+
+/** 向量分量输入框（vec2/vec3 用） */
+const vecAxisInputStyle: React.CSSProperties = {
+  flex: 1, minWidth: 32, maxWidth: 56, background: 'var(--bg-tertiary)', color: 'var(--success)',
+  border: '1px solid var(--border)', borderRadius: 3, padding: '2px 4px', fontSize: 11,
+  fontFamily: 'var(--font-mono)', outline: 'none', textAlign: 'center',
+}
+
+/**
+ * 可编辑属性输入控件：根据 EditableProperty.type 渲染对应编辑器。
+ * - number → 数字输入（blur/Enter 提交）
+ * - string → 文本输入（blur/Enter 提交）
+ * - boolean → 复选框（即时提交）
+ * - enum → 下拉框（即时提交）
+ * - vec2/vec3 → 分量数字输入（blur/Enter 提交）
+ * - color → 颜色选择器（即时提交）
+ */
+function EditablePropertyInput({ prop, onEdited }: { prop: EditableProperty; onEdited: () => void }) {
+  const [val, setVal] = useState<unknown>(prop.get())
+
+  // 外部变更（如锚点修改导致位置联动）时同步本地值
+  useEffect(() => {
+    setVal(prop.get())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prop])
+
+  const commit = (v: unknown) => {
+    setVal(v)
+    prop.set(v)
+    onEdited()
+  }
+
+  switch (prop.type) {
+    case 'number': {
+      const n = (typeof val === 'number' ? val : 0)
+      return (
+        <input
+          type="number"
+          style={editableInputStyle}
+          value={String(n)}
+          step={prop.step ?? 1}
+          min={prop.min}
+          max={prop.max}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value)
+            if (!isNaN(v)) setVal(v)
+          }}
+          onBlur={() => {
+            const v = typeof val === 'number' ? val : parseFloat(String(val))
+            commit(isNaN(v) ? 0 : v)
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        />
+      )
+    }
+    case 'string': {
+      const s = typeof val === 'string' ? val : String(val ?? '')
+      return (
+        <input
+          type="text"
+          style={editableInputStyle}
+          value={s}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={() => commit(s)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        />
+      )
+    }
+    case 'boolean': {
+      return (
+        <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!val}
+            onChange={(e) => commit(e.target.checked)}
+            style={{ accentColor: 'var(--accent)', width: 13, height: 13, cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 11, color: val ? '#fff' : 'var(--text-dim)' }}>
+            {val ? 'true' : 'false'}
+          </span>
+        </label>
+      )
+    }
+    case 'enum': {
+      const opts = prop.options ?? []
+      const cur = String(val ?? opts[0] ?? '')
+      return (
+        <select
+          style={{ ...editableInputStyle, cursor: 'pointer' }}
+          value={cur}
+          onChange={(e) => commit(e.target.value)}
+        >
+          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )
+    }
+    case 'color': {
+      const c = typeof val === 'string' ? val : '#ffffff'
+      // 兼容 3 位短 hex
+      const fullHex = /^#[0-9a-fA-F]{3}$/.test(c)
+        ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`
+        : c
+      return (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(fullHex) ? fullHex : '#ffffff'}
+            onChange={(e) => commit(e.target.value)}
+            style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', cursor: 'pointer' }}
+          />
+          <input
+            type="text"
+            style={{ ...editableInputStyle, fontSize: 10 }}
+            value={c}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={() => commit(c)}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          />
+        </div>
+      )
+    }
+    case 'vec2':
+    case 'vec3': {
+      const dims = prop.type === 'vec3' ? 3 : 2
+      const arr = Array.isArray(val) ? (val as number[]).slice(0, dims) : Array(dims).fill(0)
+      const labels = prop.type === 'vec3' ? ['x', 'y', 'z'] : ['x', 'y']
+      return (
+        <div style={{ flex: 1, display: 'flex', gap: 3, minWidth: 0 }}>
+          {Array.from({ length: dims }).map((_, idx) => {
+            const v = typeof arr[idx] === 'number' ? arr[idx] : 0
+            return (
+              <div key={idx} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
+                <span style={{ fontSize: 9, color: 'var(--text-dim)', flexShrink: 0 }}>{labels[idx]}</span>
+                <input
+                  type="number"
+                  style={vecAxisInputStyle}
+                  value={String(v)}
+                  step={prop.step ?? 0.1}
+                  onChange={(e) => {
+                    const nv = parseFloat(e.target.value)
+                    const next = [...arr]
+                    next[idx] = isNaN(nv) ? v : nv
+                    setVal(next)
+                  }}
+                  onBlur={() => {
+                    const next = arr.map((x) => (typeof x === 'number' ? x : 0))
+                    commit(next)
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    default:
+      return <span style={{ flex: 1, fontSize: 11, color: 'var(--text-dim)' }}>{String(val)}</span>
+  }
+}
+
+/**
+ * 单条属性行：注册了可编辑属性 → 渲染编辑器；否则 → 只读展示。
+ */
+function ComponentPropertyRow({
+  comp, k, v, onEdited,
+}: {
+  comp: Component; k: string; v: unknown; onEdited: () => void
+}) {
+  const editable = (comp.getEditableProperties ? comp.getEditableProperties() : [])
+    .find((p) => p.key === k)
+  return (
+    <div className="property-row" style={{ gap: 4, padding: '2px 0', alignItems: 'center' }}>
+      <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{k}</span>
+      {editable ? (
+        <EditablePropertyInput prop={editable} onEdited={onEdited} />
+      ) : (
+        <span
+          style={{
+            flex: 1, fontSize: 11, color: 'var(--text-dim)',
+            fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
+          }}
+        >
+          {displayValue(v)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ActorComponentsView({ actor }: { actor: Actor }) {
   const components = (actor as any).components as Component[] | undefined
   // 折叠状态：组件名 → 是否折叠（默认展开；切换选中对象时重置）
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // 属性编辑后递增，强制刷新所有输入框（联动值同步）
+  const [editNonce, setEditNonce] = useState(0)
 
   useEffect(() => {
     setCollapsed(new Set())
+    setEditNonce(0)
   }, [actor])
 
   const toggleCollapse = (name: string) => {
@@ -86,17 +286,13 @@ function ActorComponentsView({ actor }: { actor: Actor }) {
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '2px 0' }}>（无属性）</div>
               ) : (
                 entries.map(([k, v]) => (
-                  <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
-                    <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
-                    <span
-                      style={{
-                        flex: 1, fontSize: 11, color: 'var(--success)',
-                        fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
-                      }}
-                    >
-                      {displayValue(v)}
-                    </span>
-                  </div>
+                  <ComponentPropertyRow
+                    key={k}
+                    comp={comp}
+                    k={k}
+                    v={v}
+                    onEdited={() => setEditNonce((n) => n + 1)}
+                  />
                 ))
               ))}
           </div>
@@ -128,11 +324,12 @@ function highlightMatch(text: string, query: string): React.ReactNode {
  */
 function ComponentSearchResults({ actor, query }: { actor: Actor; query: string }) {
   const components = (actor as any).components as Component[] | undefined
+  const [editNonce, setEditNonce] = useState(0)
   const q = query.trim()
   if (!components || components.length === 0 || !q) return null
 
   const ql = q.toLowerCase()
-  const groups: { name: string; enabled: boolean; entries: [string, unknown][] }[] = []
+  const groups: { comp: Component; name: string; enabled: boolean; entries: [string, unknown][] }[] = []
 
   for (const comp of components) {
     const props = comp.getProperties ? comp.getProperties() : {}
@@ -140,12 +337,12 @@ function ComponentSearchResults({ actor, query }: { actor: Actor; query: string 
     const compName = comp.name || comp.constructor.name
     // 组件名匹配 → 显示该组全部属性
     if (compName.toLowerCase().includes(ql)) {
-      groups.push({ name: compName, enabled: comp.bEnabled, entries: allEntries })
+      groups.push({ comp, name: compName, enabled: comp.bEnabled, entries: allEntries })
       continue
     }
     // 属性名匹配 → 只显示匹配的属性
     const matched = allEntries.filter(([k]) => k.toLowerCase().includes(ql))
-    if (matched.length > 0) groups.push({ name: compName, enabled: comp.bEnabled, entries: matched })
+    if (matched.length > 0) groups.push({ comp, name: compName, enabled: comp.bEnabled, entries: matched })
   }
 
   if (groups.length === 0) {
@@ -174,15 +371,29 @@ function ComponentSearchResults({ actor, query }: { actor: Actor; query: string 
           </div>
           {g.entries.map(([k, v]) => (
             <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
-              <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-dim)' }}>{highlightMatch(k, q)}</span>
-              <span
-                style={{
-                  flex: 1, fontSize: 11, color: 'var(--success)',
-                  fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
-                }}
-              >
-                {displayValue(v)}
-              </span>
+              {(() => {
+                const editable = (g.comp.getEditableProperties ? g.comp.getEditableProperties() : [])
+                  .find((p) => p.key === k)
+                return (
+                  <>
+                    <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)' }}>
+                      {highlightMatch(k, q)}
+                    </span>
+                    {editable ? (
+                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} />
+                    ) : (
+                      <span
+                        style={{
+                          flex: 1, fontSize: 11, color: 'var(--text-dim)',
+                          fontFamily: 'var(--font-mono)', wordBreak: 'break-all',
+                        }}
+                      >
+                        {displayValue(v)}
+                      </span>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -201,8 +412,8 @@ function ReadOnlyKV({ data }: { data: Record<string, unknown> | undefined }) {
     <>
       {entries.map(([k, v]) => (
         <div key={k} className="property-row" style={{ gap: 4, padding: '2px 0' }}>
-          <span style={{ flex: '0 0 80px', fontSize: 11, color: 'var(--text-dim)' }}>{k}</span>
-          <span style={{ flex: 1, fontSize: 11, color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ flex: '0 0 80px', fontSize: 11, color: 'var(--text-primary)' }}>{k}</span>
+          <span style={{ flex: 1, fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
             {displayValue(v)}
           </span>
         </div>
@@ -472,7 +683,7 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         <div className="property-group-title">{assetPath} · Class</div>
         <div className="property-row">
           <span className="property-label">baseClass</span>
-          <span className="property-value" style={{ fontSize: 11, color: 'var(--success)' }}>{asset.baseClass}</span>
+          <span className="property-value" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{asset.baseClass}</span>
         </div>
       </div>
 
@@ -692,7 +903,7 @@ export function Inspector() {
               autoComplete="off"
               spellCheck={false}
               style={{
-                flex: 1, minWidth: 0, background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                flex: 1, minWidth: 0, background: 'var(--bg-tertiary)', color: '#fff',
                 border: '1px solid var(--border)', borderRadius: 3, padding: '3px 8px', fontSize: 11, outline: 'none',
               }}
             />

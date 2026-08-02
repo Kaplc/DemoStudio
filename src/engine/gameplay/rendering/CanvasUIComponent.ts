@@ -23,7 +23,7 @@
  *   ui.setWorldSize(5, 2.5)  // 设置 3D 世界尺寸（米）
  */
 import * as THREE from 'three'
-import { Component } from '../entity/Component'
+import { Component, type EditableProperty } from '../entity/Component'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
 // 循环引用（UITransformComponent → CanvasUIComponent）：ESM 活绑定，构造时使用安全
@@ -167,6 +167,17 @@ export class CanvasUIComponent extends Component {
       ZOrder: this._zOrder,
       MarkerOnly: this._markerOnly,
     }
+  }
+
+  /** Inspector 可编辑属性：UI 层级（number） */
+  override getEditableProperties(): EditableProperty[] {
+    return [
+      {
+        key: 'ZOrder', type: 'number', step: 1, min: 0, max: 100,
+        get: () => this._zOrder,
+        set: (v) => { this.zOrder = v as number },
+      },
+    ]
   }
 
   /** 保留 2 位小数的数值 */

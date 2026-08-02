@@ -10,7 +10,7 @@
  *  - Actor 内置方法保留（引擎内部与游戏逻辑仍在用，不受影响）
  */
 import type { Actor } from './Actor'
-import { Component } from './Component'
+import { Component, type EditableProperty } from './Component'
 import { logger } from '../../Logger'
 
 export interface TransformComponentOptions {
@@ -68,6 +68,27 @@ export class TransformComponent extends Component {
       Rotation: [round3(r.x), round3(r.y), round3(r.z)],
       Scale: [round3(s.x), round3(s.y), round3(s.z)],
     }
+  }
+
+  /** Inspector 可编辑属性：位置/旋转/缩放（vec3） */
+  override getEditableProperties(): EditableProperty[] {
+    return [
+      {
+        key: 'Position', type: 'vec3', step: 0.01,
+        get: () => [round3(this.position.x), round3(this.position.y), round3(this.position.z)],
+        set: (v) => this.setPosition((v as number[])[0], (v as number[])[1], (v as number[])[2]),
+      },
+      {
+        key: 'Rotation', type: 'vec3', step: 1,
+        get: () => [round3(this.rotation.x), round3(this.rotation.y), round3(this.rotation.z)],
+        set: (v) => this.setRotation((v as number[])[0], (v as number[])[1], (v as number[])[2]),
+      },
+      {
+        key: 'Scale', type: 'vec3', step: 0.01,
+        get: () => [round3(this.scale.x), round3(this.scale.y), round3(this.scale.z)],
+        set: (v) => this.setScale((v as number[])[0], (v as number[])[1], (v as number[])[2]),
+      },
+    ]
   }
 }
 

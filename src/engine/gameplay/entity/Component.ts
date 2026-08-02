@@ -5,6 +5,30 @@
 
 import type { Actor } from './Actor'
 
+/** 可编辑属性的数据类型（Inspector 根据类型渲染对应编辑器控件） */
+export type EditablePropertyType = 'number' | 'string' | 'boolean' | 'enum' | 'vec2' | 'vec3' | 'color'
+
+/**
+ * 可编辑属性描述。组件注册后，Inspector 中该属性从"只读展示"变为"可编辑控件"。
+ * - vec2/vec3：值用 [number, number] / [number, number, number] 表示
+ * - enum：值用 string，options 提供可选值
+ * - color：值用 '#rrggbb' 十六进制字符串
+ */
+export interface EditableProperty<T = unknown> {
+  /** 属性标识（与 getProperties() 返回的 key 对应，Inspector 据此匹配渲染） */
+  key: string
+  type: EditablePropertyType
+  /** 读取当前值（每次渲染调用，保证显示实时） */
+  get: () => T
+  /** 写回组件（setter 内部应触发重绘/同步） */
+  set: (v: T) => void
+  /** enum 类型的可选值 */
+  options?: string[]
+  min?: number
+  max?: number
+  step?: number
+}
+
 export abstract class Component {
   public readonly owner: Actor
   public bEnabled = true
@@ -40,5 +64,15 @@ export abstract class Component {
    */
   getProperties(): Record<string, unknown> {
     return {}
+  }
+
+  /**
+   * 获取组件可编辑属性（Inspector 用）。
+   * 子类注册后，对应 key 的属性在 Inspector 中渲染为可编辑控件（number/string/boolean/
+   * enum 下拉/vec2/vec3 向量/color 颜色）。未注册的属性保持只读展示。
+   * 基类默认返回空数组（全部只读）。
+   */
+  getEditableProperties(): EditableProperty[] {
+    return []
   }
 }

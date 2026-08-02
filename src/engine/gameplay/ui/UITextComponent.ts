@@ -20,6 +20,7 @@ import { Text as TroikaText } from 'troika-three-text'
 import notoSansSC400Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff?url'
 import notoSansSC700Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff?url'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
 import { logger } from '../../Logger'
 import type { Actor } from '../entity/Actor'
@@ -227,6 +228,44 @@ export class UITextComponent extends CanvasUIComponent {
       LetterSpacing: this._letterSpacing,
       Render: '矢量（troika）',
     }
+  }
+
+  /** Inspector 可编辑属性：文本/字号/颜色/对齐/加粗/斜体 */
+  override getEditableProperties(): EditableProperty[] {
+    const base = super.getEditableProperties()
+    return [
+      ...base,
+      {
+        key: 'Text', type: 'string',
+        get: () => this._text,
+        set: (v) => { this.text = v as string },
+      },
+      {
+        key: 'FontSize', type: 'number', step: 1, min: 4, max: 400,
+        get: () => this._fontSize,
+        set: (v) => { this.fontSize = v as number },
+      },
+      {
+        key: 'Color', type: 'color',
+        get: () => this._color,
+        set: (v) => { this.color = v as string },
+      },
+      {
+        key: 'Align', type: 'enum', options: ['left', 'center', 'right'],
+        get: () => this._align,
+        set: (v) => { this.align = v as 'left' | 'center' | 'right' },
+      },
+      {
+        key: 'Bold', type: 'boolean',
+        get: () => this._bold,
+        set: (v) => { this.bold = v as boolean },
+      },
+      {
+        key: 'Italic', type: 'boolean',
+        get: () => this._italic,
+        set: (v) => { this.italic = v as boolean },
+      },
+    ]
   }
 
   override EndPlay(): void {

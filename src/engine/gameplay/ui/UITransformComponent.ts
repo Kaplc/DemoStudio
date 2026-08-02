@@ -16,6 +16,7 @@
  */
 import type { Actor } from '../entity/Actor'
 import { TransformComponent, ensureTransformComponent, type TransformComponentOptions } from '../entity/TransformComponent'
+import { type EditableProperty } from '../entity/Component'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { logger } from '../../Logger'
 
@@ -192,6 +193,36 @@ export class UITransformComponent extends TransformComponent {
       Anchor: this._anchor ?? '（无）',
       AnchorOffset: `[${this._anchorOffset[0]}, ${this._anchorOffset[1]}]`,
     }
+  }
+
+  /** Inspector 可编辑属性：世界尺寸（vec2）、锚点（枚举下拉）、锚点偏移（vec2） */
+  override getEditableProperties(): EditableProperty[] {
+    const base = super.getEditableProperties()
+    const ANCHOR_OPTIONS: string[] = [
+      '（无）',
+      'top-left', 'top-center', 'top-right',
+      'middle-left', 'middle-center', 'center', 'middle-right',
+      'bottom-left', 'bottom-center', 'bottom-right',
+      'stretch',
+    ]
+    return [
+      ...base,
+      {
+        key: 'WorldSize', type: 'vec2', step: 0.01,
+        get: () => [this.round2(this._worldW), this.round2(this._worldH)],
+        set: (v) => this.setWorldSize((v as number[])[0], (v as number[])[1]),
+      },
+      {
+        key: 'Anchor', type: 'enum', options: ANCHOR_OPTIONS,
+        get: () => this._anchor ?? '（无）',
+        set: (v) => { this.anchor = (v === '（无）' ? null : v as AnchorPreset) },
+      },
+      {
+        key: 'AnchorOffset', type: 'vec2', step: 0.01,
+        get: () => [this.round2(this._anchorOffset[0]), this.round2(this._anchorOffset[1])],
+        set: (v) => { this.anchorOffset = [(v as number[])[0], (v as number[])[1]] },
+      },
+    ]
   }
 
   /** 保留 2 位小数的数值 */
