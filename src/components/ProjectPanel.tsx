@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef } from 'react'
 import { LogPoller } from '../editor'
 import { Outline } from './Outline'
 import { AssetBrowser } from './AssetBrowser'
+import { useEditorStore } from '../stores/editorStore'
 
 type PanelTab = 'outline' | 'assets' | 'logs'
 
 export function ProjectPanel() {
-  const [activeTab, setActiveTab] = useState<PanelTab>('outline')
+  // 左侧面板页签状态提升到 editorStore：资产双击打开时自动切到大纲
+  const activeTab = useEditorStore((s) => s.leftPanelTab)
+  const setActiveTab = useEditorStore((s) => s.setLeftPanelTab)
   const [logContent, setLogContent] = useState('')
   const [logError, setLogError] = useState<string | null>(null)
   const logEndRef = useRef<HTMLDivElement>(null)

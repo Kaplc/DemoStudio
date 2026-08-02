@@ -64,6 +64,10 @@ export interface EditorState {
   /** 当前活跃的视口页签 id */
   activeTabId: string
 
+  // ─── 左侧面板页签（大纲/资产/日志）───
+  leftPanelTab: 'outline' | 'assets' | 'logs'
+  setLeftPanelTab: (tab: 'outline' | 'assets' | 'logs') => void
+
   // ─── 蓝图编辑器选择 ───
   blueprintSelection: BlueprintSelection | null
 
@@ -134,6 +138,8 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   dynamicTabs: [],
   activeTabId: 'scene',
+  leftPanelTab: 'outline',
+  setLeftPanelTab: (tab) => set({ leftPanelTab: tab }),
   blueprintSelection: null,
   blueprintEditNonce: 0,
   lastEditedBlueprintPath: null,
@@ -202,7 +208,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => {
       const existing = state.dynamicTabs.find((t) => t.assetPath === assetPath)
       if (existing) {
-        return { activeTabId: existing.id }
+        return { activeTabId: existing.id, leftPanelTab: 'outline' }
       }
       const newTab: ViewportTabDef = {
         id: `bp:${assetPath}`,
@@ -214,13 +220,15 @@ export const useEditorStore = create<EditorState>((set) => ({
       return {
         dynamicTabs: [...state.dynamicTabs, newTab],
         activeTabId: newTab.id,
+        // 打开蓝图后自动切到左侧大纲，方便直接看到 Actor 树
+        leftPanelTab: 'outline',
       }
     }),
   openScenePreview: (assetPath, label) =>
     set((state) => {
       const existing = state.dynamicTabs.find((t) => t.assetPath === assetPath)
       if (existing) {
-        return { activeTabId: existing.id }
+        return { activeTabId: existing.id, leftPanelTab: 'outline' }
       }
       const newTab: ViewportTabDef = {
         id: `sp:${assetPath}`,
@@ -232,6 +240,8 @@ export const useEditorStore = create<EditorState>((set) => ({
       return {
         dynamicTabs: [...state.dynamicTabs, newTab],
         activeTabId: newTab.id,
+        // 打开场景预览后自动切到左侧大纲，方便直接看到场景 Actor 树
+        leftPanelTab: 'outline',
       }
     }),
   closeDynamicTab: (tabId) =>

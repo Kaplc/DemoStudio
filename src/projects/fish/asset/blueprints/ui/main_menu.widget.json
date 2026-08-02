@@ -43,8 +43,8 @@
           "baseClass": "uitransform",
           "properties": {
             "position": [
-              -0.16140893742499696,
-              0.14795819263958032,
+              0,
+              0,
               0
             ],
             "rotation": [
@@ -57,8 +57,8 @@
               1,
               1
             ],
-            "worldWidth": 12.597938387859239,
-            "worldHeight": 6.257142743922301
+            "worldWidth": 9.6,
+            "worldHeight": 5.4
           }
         },
         {
