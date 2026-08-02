@@ -25,6 +25,12 @@ import { TransformGizmo } from './TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import type { SceneTreeNode } from './SelectionManager'
 
+/** 把手悬停光标：0-3 角（TL/TR/BL/BR），4-7 边（T/R/B/L） */
+const CORNER_CURSORS = [
+  'nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize', // TL TR BL BR
+  'ns-resize', 'ew-resize', 'ns-resize', 'ew-resize',           // T  R  B  L
+] as const
+
 export class UIPreviewManager {
   readonly scene: THREE.Scene
   /** 编辑器覆盖层：gizmo / 选中包围盒 / 把手 / 标签专用。渲染顺序在主场景和 UI 场景之后，永远最顶层 */
@@ -72,18 +78,28 @@ export class UIPreviewManager {
   private boundsCanvas = document.createElement('canvas')
   private boundsCtx: CanvasRenderingContext2D
 
-  // ─── 包围盒 4 角拖拽把手（拖动实时调整范围大小）───
+  // ─── 包围盒 8 把手拖拽（4 角 + 4 边中点，拖动实时调整范围大小）───
   private cornerHandleGroup: THREE.Group | null = null
   private cornerHandles: THREE.Mesh[] = []
   private draggingCornerIndex: number | null = null
-  private dragCenter = new THREE.Vector3()
+  /** 角把手拖拽：按下瞬间记录的鼠标原始窗口坐标 */
+  private cornerStartClientX = 0
+  private cornerStartClientY = 0
+  /** 角把手拖拽：按下瞬间被拖角/边的起始世界坐标（跟随鼠标） */
+  private cornerDragWorld = new THREE.Vector3()
+  /** 角把手拖拽：对角/对边（固定不动）的世界坐标 */
+  private cornerFixedWorld = new THREE.Vector3()
+  /** 角把手拖拽：按下瞬间控件起始尺寸 [w, h]（边把手保持另一维不变） */
+  private cornerStartSize: [number, number] = [0, 0]
   private raycaster = new THREE.Raycaster()
   private _mouseWorld = new THREE.Vector3()
   private _ndc = new THREE.Vector2()
 
   // ─── 节点拖动（选中节点后，在节点范围内按住左键拖动调整位置）───
   private draggingActor: Actor | null = null
-  private dragStartWorld = new THREE.Vector3()
+  /** 节点拖动：按下瞬间记录的鼠标原始窗口坐标（后续移动 = 当前窗口坐标 − 此值 → 世界增量） */
+  private dragStartClientX = 0
+  private dragStartClientY = 0
   private dragStartActorPos = new THREE.Vector3()
 
   onChange(cb: () => void): () => void {
@@ -170,20 +186,43 @@ export class UIPreviewManager {
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
+    // 鼠标移出预览画布：未在拖拽时恢复默认光标
+    canvas.addEventListener('mouseleave', () => {
+      if (this.draggingCornerIndex === null) canvas.style.cursor = ''
+    })
+
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
-        // 优先检测包围盒角把手（命中则进入拖拽，不再触发平移/点击）
+        // 优先检测包围盒把手（4 角 + 4 边，命中则进入拖拽，不再触发平移/点击）
         const handleIndex = this.pickCornerHandle(e)
         if (handleIndex >= 0) {
           this.draggingCornerIndex = handleIndex
+          // 非对称缩放：记录被拖角/边与对角/对边（固定）的世界坐标。
+          // 拖动中被拖点跟随鼠标、固定点不动 → 中心随之移动（Unity 拖拽行为）
           const box = new THREE.Box3().setFromObject(this.boundsTarget!.root)
-          box.getCenter(this.dragCenter)
+          const minX = box.min.x, maxX = box.max.x, minY = box.min.y, maxY = box.max.y
+          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+          // 8 个把手位置：0-3 角（TL/TR/BL/BR），4-7 边中点（T/R/B/L）
+          const pts: [number, number][] = [
+            [minX, maxY], [maxX, maxY], [minX, minY], [maxX, minY],
+            [cx, maxY], [maxX, cy], [cx, minY], [minX, cy],
+          ]
+          const opp = [3, 2, 1, 0, 6, 7, 4, 5] // 对角：TL↔BR, TR↔BL；对边：T↔B, R↔L
+          this.cornerDragWorld.set(pts[handleIndex][0], pts[handleIndex][1], 0)
+          this.cornerFixedWorld.set(pts[opp[handleIndex]][0], pts[opp[handleIndex]][1], 0)
+          // 记录按下瞬间的鼠标原始窗口坐标与控件起始尺寸（增量式调整大小）
+          this.cornerStartClientX = e.clientX
+          this.cornerStartClientY = e.clientY
+          const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
+          if (uiTf) this.cornerStartSize = uiTf.getWorldSize()
           return
         }
         // 其次：点中当前选中节点的范围 → 进入节点拖动（调整位置）
         if (this.boundsTarget && this.pickBoundsTargetMesh(e)) {
           this.draggingActor = this.boundsTarget
-          this.dragStartWorld.copy(this.mouseToWorld(e))
+          // 记录按下瞬间的鼠标原始窗口坐标：后续移动 = 当前窗口坐标 − 起始坐标 → 世界增量
+          this.dragStartClientX = e.clientX
+          this.dragStartClientY = e.clientY
           this.dragStartActorPos.copy(this.boundsTarget.position)
           this.potentialClick = false
           logger.info(`[UIPreview] 开始拖动节点: ${this.boundsTarget.name}`)
@@ -204,19 +243,31 @@ export class UIPreviewManager {
     })
 
     window.addEventListener('mousemove', (e) => {
-      // 角把手拖拽：实时调整范围大小（以中心为基准，把手跟随鼠标）
+      // 悬停角把手 → resize 方向光标（拖拽中也保持）；未命中恢复默认
+      if (this.draggingCornerIndex !== null) {
+        canvas.style.cursor = CORNER_CURSORS[this.draggingCornerIndex] ?? ''
+      } else {
+        const hoverHandle = this.boundsTarget ? this.pickCornerHandle(e) : -1
+        canvas.style.cursor = hoverHandle >= 0 ? (CORNER_CURSORS[hoverHandle] ?? '') : ''
+      }
+
+      // 角把手拖拽：实时调整范围大小（以中心为基准，屏幕增量 → 世界增量）
       if (this.draggingCornerIndex !== null && this.boundsTarget) {
-        const world = this.mouseToWorld(e)
-        this.resizeBoundsByCorner(this.draggingCornerIndex, world.x, world.y)
+        this.resizeBoundsByCorner(
+          this.draggingCornerIndex,
+          this.cornerStartClientX, this.cornerStartClientY,
+          e.clientX, e.clientY,
+        )
         return
       }
 
-      // 节点拖动：实时移动选中节点位置（跟随鼠标世界坐标位移）
+      // 节点拖动：实时移动选中节点位置（屏幕增量 → 世界增量，与 zoom 精确 1:1）
       if (this.draggingActor) {
-        const world = this.mouseToWorld(e)
+        const worldPerPx = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
         this.draggingActor.setPosition(
-          this.dragStartActorPos.x + (world.x - this.dragStartWorld.x),
-          this.dragStartActorPos.y + (world.y - this.dragStartWorld.y),
+          this.dragStartActorPos.x + (e.clientX - this.dragStartClientX) * worldPerPx,
+          // 屏幕 y 向下为正，世界 y 向上为正 → 取反
+          this.dragStartActorPos.y - (e.clientY - this.dragStartClientY) * worldPerPx,
           this.dragStartActorPos.z,
         )
         // 通知 Inspector/选中状态实时刷新（包围盒由渲染循环 updateBounds 每帧跟随）
@@ -238,10 +289,12 @@ export class UIPreviewManager {
       this.prevMouseX = e.clientX
       this.prevMouseY = e.clientY
 
-      // UI 模式：左键/右键均为平移（保持正面观察）
-      const panSpeed = 0.03
-      this.camera.position.x -= dx * panSpeed
-      this.camera.position.y += dy * panSpeed
+      // UI 模式：左键/右键均为平移（保持正面观察）。
+      // 平移速度按 zoom 换算：屏幕 1px 对应的世界距离 = 视口高 / 画布像素高 / zoom，
+      // 保证放大后拖动与鼠标 1:1（固定 panSpeed 在 zoom 大时会导致"动一点画面飞很远"）
+      const worldPerPx = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
+      this.camera.position.x -= dx * worldPerPx
+      this.camera.position.y += dy * worldPerPx
     })
 
     window.addEventListener('mouseup', (e) => {
@@ -275,18 +328,30 @@ export class UIPreviewManager {
     }, { passive: false })
   }
 
-  /** 射线检测 4 角把手，返回命中下标（-1 = 未命中） */
+  /** 拾取把手（8 个：4 角 + 4 边）。把手很小，用屏幕距离判定：把手中心投影到屏幕，与鼠标距离 < 阈值即命中 */
   private pickCornerHandle(e: MouseEvent): number {
     if (!this.boundsTarget || this.cornerHandles.length === 0) return -1
+    // 强制刷新把手矩阵（不依赖渲染循环时序，保证悬停/按下瞬间矩阵是最新的）
+    if (this.cornerHandleGroup) this.cornerHandleGroup.updateWorldMatrix(true, true)
     const rect = this.renderer.domElement.getBoundingClientRect()
-    this._ndc.set(
-      ((e.clientX - rect.left) / rect.width) * 2 - 1,
-      -((e.clientY - rect.top) / rect.height) * 2 + 1,
-    )
-    this.raycaster.setFromCamera(this._ndc, this.camera)
-    const hits = this.raycaster.intersectObjects(this.cornerHandles, false)
-    if (hits.length === 0) return -1
-    return this.cornerHandles.indexOf(hits[0].object as THREE.Mesh)
+    // 命中阈值（屏幕像素）：角 12px，边 8px（屏幕恒定，任意 zoom 下手感一致）
+    const hitPx = [12, 12, 12, 12, 8, 8, 8, 8]
+    let best = -1
+    let bestDist = Infinity
+    for (let i = 0; i < this.cornerHandles.length; i++) {
+      const h = this.cornerHandles[i]
+      if (!h.visible) continue
+      // 把手世界位置 → 屏幕
+      const wp = h.position.clone().project(this.camera)
+      const sx = rect.left + (wp.x * 0.5 + 0.5) * rect.width
+      const sy = rect.top + (-wp.y * 0.5 + 0.5) * rect.height
+      const dist = Math.hypot(e.clientX - sx, e.clientY - sy)
+      if (dist <= hitPx[i] && dist < bestDist) {
+        best = i
+        bestDist = dist
+      }
+    }
+    return best
   }
 
   /** 检测鼠标是否命中当前选中节点（boundsTarget）范围内的 mesh（用于节点拖动判定） */
@@ -305,7 +370,60 @@ export class UIPreviewManager {
     })
     if (meshes.length === 0) return false
     const hits = this.raycaster.intersectObjects(meshes, false)
-    return hits.length > 0
+    if (hits.length > 0) return true
+
+    // 宽松命中：raycast 未命中（如 troika 矢量文本字形之间有间隙、笔画区域很小）时，
+    // 用控件自身的世界尺寸矩形（uitransform worldWidth/worldHeight）投影到屏幕 + padding 判定，
+    // 保证文本控件在文字整体区域（含间隙与周边空白）内都能拖动，而不是误判为相机平移
+    this.boundsTarget.root.updateWorldMatrix(true, true)
+    const PAD = 8
+    const uiTf = this.boundsTarget.getComponent(UITransformComponent)
+    if (uiTf) {
+      const [ww, wh] = uiTf.getWorldSize()
+      if (ww > 0 && wh > 0) {
+        const cx = this.boundsTarget.root.position.x
+        const cy = this.boundsTarget.root.position.y
+        if (this.pointInScreenRect(e, rect, cx - ww / 2, cy - wh / 2, cx + ww / 2, cy + wh / 2, PAD)) {
+          return true
+        }
+      }
+    }
+    // fallback：无 uitransform 或无有效尺寸时，用 mesh 几何包围盒（如纯 3D 节点）
+    for (const obj of meshes) {
+      const mesh = obj as THREE.Mesh
+      const geo = mesh.geometry
+      if (!geo) continue
+      if (!geo.boundingBox) geo.computeBoundingBox()
+      if (!geo.boundingBox) continue
+      const box = geo.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+      if (this.pointInScreenRect(e, rect, box.min.x, box.min.y, box.max.x, box.max.y, PAD)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /** 判断鼠标是否落在世界轴对齐矩形 [minX,minY]–[maxX,maxY] 投影到屏幕后的范围内（+padding） */
+  private pointInScreenRect(
+    e: MouseEvent,
+    rect: DOMRect,
+    minX: number, minY: number, maxX: number, maxY: number,
+    pad: number,
+  ): boolean {
+    const corners: [number, number][] = [
+      [minX, minY], [minX, maxY],
+      [maxX, minY], [maxX, maxY],
+    ]
+    let sxMin = Infinity, sxMax = -Infinity, syMin = Infinity, syMax = -Infinity
+    for (const [wx, wy] of corners) {
+      this._mouseWorld.set(wx, wy, 0).project(this.camera)
+      const sx = rect.left + (this._mouseWorld.x * 0.5 + 0.5) * rect.width
+      const sy = rect.top + (-this._mouseWorld.y * 0.5 + 0.5) * rect.height
+      sxMin = Math.min(sxMin, sx); sxMax = Math.max(sxMax, sx)
+      syMin = Math.min(syMin, sy); syMax = Math.max(syMax, sy)
+    }
+    return e.clientX >= sxMin - pad && e.clientX <= sxMax + pad &&
+           e.clientY >= syMin - pad && e.clientY <= syMax + pad
   }
 
   /** 鼠标屏幕坐标 → 世界坐标（z=0 平面，正交相机投影方向平行 z 轴，直接取 unproject 的 x/y） */
@@ -348,23 +466,39 @@ export class UIPreviewManager {
     return actorByMesh.get(hits[0].object) ?? null
   }
 
-  /** 按角把手下标 + 鼠标世界坐标调整范围大小（保持中心不变） */
-  private resizeBoundsByCorner(cornerIndex: number, wx: number, wy: number) {
+  /**
+   * 把手拖拽调整范围大小（非对称：被拖点跟随鼠标，对角/对边固定不动，中心随拖点移动）。
+   * 基于按下瞬间记录的起始窗口坐标 + 被拖点/固定点世界坐标做增量计算：
+   *   被拖点新位置 = 起始拖点位置 + 屏幕增量→世界增量
+   *   角把手（0-3）：宽高双轴缩放；边把手（4-7）：单轴缩放，另一维保持起始尺寸
+   */
+  private resizeBoundsByCorner(handleIndex: number, startX: number, startY: number, curX: number, curY: number) {
     // 放宽为任意 UI 组件（含 markerOnly 文本控件——troika 矢量文本无真实画布面板）
     const ui = this.boundsTarget!.getComponent(CanvasUIComponent)
     if (!ui) return
     const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
     if (!uiTf) return
-    // 角方向因子：TL/TR/BL/BR
-    const fx = cornerIndex === 0 || cornerIndex === 2 ? -1 : 1
-    const fy = cornerIndex === 0 || cornerIndex === 1 ? 1 : -1
-    const newW = Math.max(0.1, Math.abs(wx - this.dragCenter.x) * 2)
-    const newH = Math.max(0.1, Math.abs(wy - this.dragCenter.y) * 2)
-    // 尺寸权威在 uitransform：设置尺寸 + 重算锚点位置（保持锚点语义）
+    // 屏幕增量 → 世界增量（当前 zoom 下 1px 对应的世界距离；屏幕 y 向下为正，世界 y 向上为正 → 取反）
+    const worldPerPx = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
+    const worldDx = (curX - startX) * worldPerPx
+    const worldDy = -(curY - startY) * worldPerPx
+    // 被拖点新位置（跟随鼠标），固定点保持不动
+    const dx = this.cornerDragWorld.x + worldDx
+    const dy = this.cornerDragWorld.y + worldDy
+    const fx = this.cornerFixedWorld.x
+    const fy = this.cornerFixedWorld.y
+    // 角把手（0-3）双轴；边把手：R/L(5,7) 只改宽，T/B(4,6) 只改高
+    const isCorner = handleIndex < 4
+    const isH = handleIndex === 5 || handleIndex === 7
+    const isV = handleIndex === 4 || handleIndex === 6
+    const newW = isCorner || isH ? Math.max(0.1, Math.abs(dx - fx)) : this.cornerStartSize[0]
+    const newH = isCorner || isV ? Math.max(0.1, Math.abs(dy - fy)) : this.cornerStartSize[1]
+    // 新中心：被拖轴取中点，未拖轴保持当前位置（边拖动只动一侧）
+    const cx = isCorner || isH ? (dx + fx) / 2 : this.boundsTarget!.position.x
+    const cy = isCorner || isV ? (dy + fy) / 2 : this.boundsTarget!.position.y
+    // 尺寸权威在 uitransform：设置尺寸 + 更新中心位置（不能 applyAnchor——锚点定位会把它拉回）
     uiTf.setWorldSize(newW, newH)
-    uiTf.applyAnchor()
-    void fx
-    void fy
+    this.boundsTarget!.setPosition(cx, cy, this.boundsTarget!.position.z)
   }
 
   // ═══════════════════════════════════
@@ -594,11 +728,11 @@ export class UIPreviewManager {
     }
   }
 
-  /** WASD 平面平移（无飞行，保持正面观察） */
+  /** WASD 平面平移（无飞行，保持正面观察）。速度按 zoom 换算：以 zoom=1 为基准，放大后减速保持与鼠标操作一致 */
   private updateWASD(dt: number) {
     if (this.wasdKeys.size === 0) return
 
-    const speed = this.wasdSpeed * dt
+    const speed = (this.wasdSpeed / this.camera.zoom) * dt
     if (this.wasdKeys.has('w')) this.camera.position.y += speed
     if (this.wasdKeys.has('s')) this.camera.position.y -= speed
     if (this.wasdKeys.has('a')) this.camera.position.x -= speed
@@ -693,15 +827,16 @@ export class UIPreviewManager {
     this.updateBounds()
   }
 
-  /** 创建/复用 4 角拖拽把手（TL/TR/BL/BR，青色方块）。挂在 overlayScene，始终在 UI 面板之上 */
+  /** 创建/复用 8 个拖拽把手（4 角 TL/TR/BL/BR + 4 边中点 T/R/B/L，青色）。挂在 overlayScene，始终在 UI 面板之上 */
   private ensureCornerHandles() {
     if (this.cornerHandleGroup) return
     const group = new THREE.Group()
     group.name = '__ui_bounds_handles__'
-    const geo = new THREE.PlaneGeometry(0.22, 0.22)
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 8; i++) {
+      // 几何统一为半径 1 的圆，实际尺寸在 updateBounds 按 zoom 换算的世界比例设置 scale（屏幕恒定大小）
+      const geo = new THREE.CircleGeometry(1, 24)
       const mat = new THREE.MeshBasicMaterial({
-        color: 0x00e5ff,
+        color: 0xffffff,
         depthTest: false,
         depthWrite: false,
         transparent: true,
@@ -765,17 +900,31 @@ export class UIPreviewManager {
     this.boundsLabel.position.set(box.max.x + 0.3, box.max.y + 0.25, 0.01)
     this.boundsLabel.visible = true
 
-    // 4 角把手跟随包围盒顶点（TL/TR/BL/BR）
+    // 8 个把手跟随包围盒（4 角 + 4 边中点），尺寸按 zoom 换算保持屏幕恒定（放大变小/缩小变大）
     const z = 0.02
-    const corners: [number, number][] = [
-      [box.min.x, box.max.y],
-      [box.max.x, box.max.y],
-      [box.min.x, box.min.y],
-      [box.max.x, box.min.y],
+    const cx = (box.min.x + box.max.x) / 2
+    const cy = (box.min.y + box.max.y) / 2
+    const pts: [number, number][] = [
+      [box.min.x, box.max.y], // TL
+      [box.max.x, box.max.y], // TR
+      [box.min.x, box.min.y], // BL
+      [box.max.x, box.min.y], // BR
+      [cx, box.max.y],        // T
+      [box.max.x, cy],        // R
+      [cx, box.min.y],        // B
+      [box.min.x, cy],        // L
+    ]
+    // 目标屏幕直径（px）：角 2.5，边 1.75（圆形把手；几何半径 1 → scale = 直径 × wpp）
+    const wpp = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
+    const sizes: [number, number][] = [
+      [2.5, 2.5], [2.5, 2.5], [2.5, 2.5], [2.5, 2.5],
+      [1.75, 1.75], [1.75, 1.75], [1.75, 1.75], [1.75, 1.75],
     ]
     for (let i = 0; i < this.cornerHandles.length; i++) {
-      this.cornerHandles[i].position.set(corners[i][0], corners[i][1], z)
-      this.cornerHandles[i].visible = true
+      const h = this.cornerHandles[i]
+      h.position.set(pts[i][0], pts[i][1], z)
+      h.scale.set(sizes[i][0] * wpp, sizes[i][1] * wpp, 1)
+      h.visible = true
     }
   }
 
