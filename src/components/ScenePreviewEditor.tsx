@@ -194,7 +194,6 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
     const camQuat = mgr.camera.quaternion.clone()
     const sel = getSelectedActor()
     const selName = sel ? sel.root.name : null
-    console.log('[SelectRestore-Scene] 保存前选中:', selName, 'sel:', sel?.constructor.name)
 
     setSaving(true)
     try {
@@ -213,10 +212,8 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       // 恢复选中节点
       if (selName) {
         const tree = mgr.getActorTree()
-        console.log('[SelectRestore-Scene] 重建后 Actor 树:', tree.map(n => `${n.name}[${n.actor?.constructor.name}]`).join(', '))
         const node = tree.find((n) => n.name === selName && n.actor)
-        console.log('[SelectRestore-Scene] 查找', selName, '结果:', node?.actor?.constructor.name)
-        if (node?.actor) { mgr.selectActor(node.actor); console.log('[SelectRestore-Scene] selectActor 完成') }
+        if (node?.actor) { mgr.selectActor(node.actor) }
       }
 
       editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)

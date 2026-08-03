@@ -22,6 +22,7 @@ import { CanvasUIComponent } from '../engine/gameplay/rendering/CanvasUIComponen
 import { UITransformComponent } from '../engine/gameplay/ui/UITransformComponent'
 import { select, notifySelectionChange } from './SelectionManager'
 import { TransformGizmo } from './TransformGizmo'
+import { AnchorGizmo } from './AnchorGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import type { SceneTreeNode } from './SelectionManager'
 
@@ -39,6 +40,8 @@ export class UIPreviewManager {
   readonly renderer: THREE.WebGLRenderer
   readonly world: World
   readonly gizmo: TransformGizmo
+  /** UI 锚点 gizmo（Unity 风格：父容器范围 + 4 小三角形锚点图标） */
+  readonly anchorGizmo: AnchorGizmo
 
   private container: HTMLElement
   private animationId: number | null = null
@@ -128,6 +131,8 @@ export class UIPreviewManager {
 
   constructor(container: HTMLElement) {
     this.container = container
+    // TEMP 调试桥（验证锚点 gizmo 后移除）
+    ;(window as unknown as Record<string, unknown>).__uiPreviewMgr = this
 
     // ─── 渲染器 ───
     this.renderer = new THREE.WebGLRenderer({
@@ -158,6 +163,10 @@ export class UIPreviewManager {
     // ─── TransformGizmo（挂覆盖层，保证始终在 UI 之上）───
     this.gizmo = new TransformGizmo()
     this.gizmo.setup(this.overlayScene, this.camera, this.renderer)
+
+    // ─── AnchorGizmo（UI 锚点：父容器范围 + 锚点图标，挂覆盖层）───
+    this.anchorGizmo = new AnchorGizmo()
+    this.overlayScene.add(this.anchorGizmo.group)
 
     // ─── 选中包围盒（大小范围显示）───
     this.boundsCanvas.width = 512
@@ -682,6 +691,7 @@ export class UIPreviewManager {
   clearPreview() {
     select(null)
     this.gizmo.detach()
+    this.anchorGizmo.detach()
     this.world.DestroyAllActors()
     this._rootActor = null
     this._currentWidgetPath = null
@@ -894,7 +904,14 @@ export class UIPreviewManager {
 
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
-      if (this.boundsTarget) this.updateBounds()
+      if (this.boundsTarget) {
+        try {
+          this.updateBounds()
+        } catch (e) {
+          // 包围盒/gizmo 更新失败不应杀死渲染循环
+          logger.error(`[UIPreview] updateBounds 异常: ${String(e)}`)
+        }
+      }
       // 第 1 层：主场景（清屏）
       this.renderer.render(this.scene, this.camera)
       // 第 2 层：UI 独立场景叠加渲染（widget Actor 与主场景分离，场景由 UIManager 持有）
@@ -949,6 +966,7 @@ export class UIPreviewManager {
     }
     select(null)
     this.gizmo.dispose()
+    this.anchorGizmo.dispose()
     this.detachBounds()
     // 清理 Game 渲染视口范围框
     if (this.viewportBounds) {
@@ -997,9 +1015,10 @@ export class UIPreviewManager {
   selectActor(actor: Actor | null) {
     if (actor) {
       select(actor)
-      // UI 预览不显示坐标轴 gizmo，只显示范围包围盒（4 角可拖把手调整大小）
+      // UI 预览不显示坐标轴 gizmo，只显示范围包围盒（4 角可拖把手调整大小）+ 锚点 gizmo
       this.gizmo.detach()
       this.attachBounds(actor)
+      this.anchorGizmo.attach(actor)
     } else {
       select(null)
       this.gizmo.detach()
@@ -1073,6 +1092,7 @@ export class UIPreviewManager {
     if (this.boundsHelper) this.boundsHelper.visible = false
     if (this.boundsLabel) this.boundsLabel.visible = false
     for (const h of this.cornerHandles) h.visible = false
+    this.anchorGizmo.detach()
   }
 
   /** 每帧更新包围盒几何与尺寸标签（跟随节点变换） */
@@ -1138,6 +1158,9 @@ export class UIPreviewManager {
       h.scale.set(sizes[i][0] * wpp, sizes[i][1] * wpp, 1)
       h.visible = true
     }
+
+    // ─── 锚点 gizmo：父容器范围（白色半透明）+ 锚点图标，屏幕恒定尺寸 ───
+    this.anchorGizmo.update(wpp)
   }
 
   /** 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新 */

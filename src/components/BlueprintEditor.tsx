@@ -138,12 +138,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         pendingSelectRef.current = null
         // 通过 getActorTree() 遍历场景图查找（GetAllActors 可能漏掉递归子 Actor）
         const tree = mgr.getActorTree()
-        console.log('[SelectRestore] 重建后 Actor 树:', tree.map(n => `${n.name}[${n.actor?.constructor.name}]`).join(', '))
         const node = tree.find((n) => n.name === selName && n.actor)
-        console.log('[SelectRestore] 查找', selName, '结果:', node?.actor?.constructor.name)
         if (node?.actor) {
           mgr.selectActor(node.actor)
-          console.log('[SelectRestore] selectActor 完成')
         }
       }
     }
@@ -290,7 +287,6 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       }
       const sel = getSelectedActor()
       pendingSelectRef.current = sel ? sel.root.name : null
-      console.log('[SelectRestore] 保存前选中:', pendingSelectRef.current, 'sel:', sel?.constructor.name)
 
       await writeJsonFile(assetPath, saveData)
 
