@@ -776,6 +776,20 @@ export class UIPreviewManager {
       const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
       if (!actor || !jsonNode) continue
 
+      // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
+      const jsonCompsAll = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
+      for (const comp of actor.getAllComponents()) {
+        if (!comp.persistType) continue
+        const target = jsonCompsAll.find((c) => c.baseClass === comp.persistType)
+        if (!target) continue
+        const props = (target.properties ?? {}) as Record<string, unknown>
+        const persist = comp.getPersistentProps()
+        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
+        for (const [k, v] of Object.entries(persist)) {
+          props[k] = v
+        }
+      }
+
       // 组件优先：含 transform/uitransform 组件的节点，位置/旋转/缩放只写在组件 properties，
       // 顶层 position/rotation/scale 冗余字段直接删除（引擎加载时组件为权威，无需兜底）
       const uiTf = actor.getComponent(UITransformComponent)
@@ -791,7 +805,7 @@ export class UIPreviewManager {
       delete jsonNode.rotation
       delete jsonNode.scale
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      const target = jsonComps.find((c) => c.baseClass === 'uitransform')
+      const target = jsonComps.find((c) => c.baseClass === 'UITransformComponent')
       if (target) {
         const [ww, wh] = uiTf.getWorldSize()
         const props = (target.properties ?? {}) as Record<string, unknown>

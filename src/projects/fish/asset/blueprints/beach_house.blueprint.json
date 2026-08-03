@@ -3,7 +3,7 @@
   "baseClass": "FishHouse",
   "components": [
     {
-      "baseClass": "transform",
+      "baseClass": "TransformComponent",
       "properties": {
         "position": [
           0,
@@ -30,7 +30,7 @@
       "id": 10001,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,
@@ -50,7 +50,7 @@
           }
         },
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -71,7 +71,7 @@
       "id": 10002,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,
@@ -98,7 +98,7 @@
           "id": 10003,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   0,
@@ -118,7 +118,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -140,7 +140,7 @@
           "id": 10004,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   0.17320230878118625,
@@ -160,7 +160,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -181,7 +181,7 @@
           "id": 10005,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   -0.6,
@@ -201,7 +201,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -223,7 +223,7 @@
           "id": 10006,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   0.6,
@@ -243,7 +243,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -265,7 +265,7 @@
           "id": 10007,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   -1.1,
@@ -285,7 +285,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -306,7 +306,7 @@
           "id": 10008,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   1.1,
@@ -326,7 +326,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -347,7 +347,7 @@
           "id": 10009,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   2.7130540542825905,
@@ -367,7 +367,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -388,7 +388,7 @@
           "id": 10010,
           "components": [
             {
-              "baseClass": "transform",
+              "baseClass": "TransformComponent",
               "properties": {
                 "position": [
                   1.1,
@@ -408,7 +408,7 @@
               }
             },
             {
-              "baseClass": "mesh",
+              "baseClass": "MeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -431,7 +431,7 @@
       "id": 10011,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,
@@ -451,7 +451,7 @@
           }
         },
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -473,7 +473,7 @@
       "id": 10012,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,
@@ -493,7 +493,7 @@
           }
         },
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -514,7 +514,7 @@
       "id": 10013,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,
@@ -534,7 +534,7 @@
           }
         },
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "box",
             "size": [

@@ -16,7 +16,7 @@
       ],
       "components": [
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "plane",
             "size": [
@@ -41,7 +41,7 @@
       ],
       "components": [
         {
-          "baseClass": "sprite",
+          "baseClass": "SpriteComponent",
           "properties": {
             "width": 2,
             "height": 2,
@@ -62,7 +62,7 @@
       ],
       "components": [
         {
-          "baseClass": "sprite",
+          "baseClass": "SpriteComponent",
           "properties": {
             "width": 2,
             "height": 2,
@@ -83,7 +83,7 @@
       ],
       "components": [
         {
-          "baseClass": "sprite",
+          "baseClass": "SpriteComponent",
           "properties": {
             "width": 2,
             "height": 2,
@@ -104,7 +104,7 @@
       ],
       "components": [
         {
-          "baseClass": "sprite",
+          "baseClass": "SpriteComponent",
           "properties": {
             "width": 2,
             "height": 2,

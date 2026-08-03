@@ -235,10 +235,10 @@ export function registerBuiltinAIHandlers(): void {
       return { ok: true, clicked: buttons.length, type: 'button' }
     }
 
-    // 兜底：触发普通可点击组件
+    // 兜底：触发普通可点击组件（AI 触发无 raycast hit，传空对象占位）
     const clickables = actor.getComponents(ClickableComponent)
     if (clickables.length > 0) {
-      for (const c of clickables) c.onClick?.()
+      for (const c of clickables) c.onClick?.(undefined as never)
       logger.info(`[AI] clickActor: ${p.name} 触发 ${clickables.length} 个可点击组件`)
       return { ok: true, clicked: clickables.length, type: 'clickable' }
     }

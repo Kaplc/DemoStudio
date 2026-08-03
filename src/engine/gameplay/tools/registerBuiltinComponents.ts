@@ -36,10 +36,10 @@ export function registerBuiltinComponents(): void {
   if (_registered) return
   _registered = true
 
-  // ─── transform ─── props: { position?, rotation?, scale? }
+  // ─── TransformComponent ─── props: { position?, rotation?, scale? }
   // 变换修改能力组件化：位置/旋转/缩放经组件读写（底层仍为 owner.root）
   ComponentRegistry.register(
-    'transform',
+    'TransformComponent',
     (owner, p = {}) =>
       new TransformComponent(owner, {
         position: p.position as [number, number, number] | undefined,
@@ -54,10 +54,10 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── uitransform ─── props: { position?, rotation?, scale?, worldWidth?, worldHeight?, anchor?, anchorOffset? }
+  // ─── UITransformComponent ─── props: { position?, rotation?, scale?, worldWidth?, worldHeight?, anchor?, anchorOffset? }
   // UI 专用变换组件：继承 transform，额外承载尺寸 + 九宫格锚点定位（Unity RectTransform 风格）
   ComponentRegistry.register(
-    'uitransform',
+    'UITransformComponent',
     (owner, p = {}) =>
       new UITransformComponent(owner, {
         position: p.position as [number, number, number] | undefined,
@@ -82,9 +82,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── sprite ─── props: { width?, height?, color?, opacity?, texture?, name? }
+  // ─── SpriteComponent ─── props: { width?, height?, color?, opacity?, texture?, name? }
   ComponentRegistry.register(
-    'sprite',
+    'SpriteComponent',
     (owner, p = {}) =>
       new SpriteComponent(owner, p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
     (c, p) => {
@@ -95,15 +95,15 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── clickable ─── props: { clickCooldown? }
-  ComponentRegistry.register('clickable', (owner) => new ClickableComponent(owner), (c, p) => {
+  // ─── ClickableComponent ─── props: { clickCooldown? }
+  ComponentRegistry.register('ClickableComponent', (owner) => new ClickableComponent(owner), (c, p) => {
     const ck = c as ClickableComponent
     if (p.clickCooldown !== undefined) ck.clickCooldown = p.clickCooldown as number
   })
 
-  // ─── camera ─── props: { mode?, fov?, orthoSize?, near?, far?, priority?, name? }
+  // ─── CameraComponent ─── props: { mode?, fov?, orthoSize?, near?, far?, priority?, name? }
   ComponentRegistry.register(
-    'camera',
+    'CameraComponent',
     (owner, p = {}) =>
       new CameraComponent(owner, p.name ?? 'CameraComponent', (p.mode as CameraMode) ?? 'perspective'),
     (c, p) => {
@@ -126,17 +126,17 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── input ─── 构造即用，按键绑定由代码 BindAction 完成
-  ComponentRegistry.register('input', (owner, p = {}) => new InputComponent(owner, p.name ?? 'InputComponent'))
+  // ─── InputComponent ─── 构造即用，按键绑定由代码 BindAction 完成
+  ComponentRegistry.register('InputComponent', (owner, p = {}) => new InputComponent(owner, p.name ?? 'InputComponent'))
 
-  // ─── spawn ─── 构造即用，生成点由代码 AddSpawnPoint 配置
-  ComponentRegistry.register('spawn', (owner) => new SpawnComponent(owner))
+  // ─── SpawnComponent ─── 构造即用，生成点由代码 AddSpawnPoint 配置
+  ComponentRegistry.register('SpawnComponent', (owner) => new SpawnComponent(owner))
 
-  // ─── mesh ─── props: { geometry?, size?, color?, opacity?, name? }
+  // ─── MeshComponent ─── props: { geometry?, size?, color?, opacity?, name? }
   // geometry 取值: 'box'（默认）| 'sphere' | 'plane'
   // size 按几何类型: box→[w,h,d], sphere→[radius], plane→[w,h]
   ComponentRegistry.register(
-    'mesh',
+    'MeshComponent',
     (owner, p = {}) => {
       const geometryType = (p.geometry as string) ?? 'box'
       const size = p.size as number[] | undefined
@@ -171,11 +171,11 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── canvasui ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly? }
+  // ─── CanvasUIComponent ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly? }
   // 世界尺寸已在 uitransform 上（Unity RectTransform 风格），此处只传显式值，
   // 未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取（避免默认值覆盖）
   ComponentRegistry.register(
-    'canvasui',
+    'CanvasUIComponent',
     (owner, p = {}) =>
       new CanvasUIComponent(owner, {
         width: p.width ?? 512,
@@ -197,9 +197,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── troika ─── props: { text?, fontSize?, color?, maxWidth?, textAlign?, outlineWidth?, name? }
+  // ─── TroikaTextComponent ─── props: { text?, fontSize?, color?, maxWidth?, textAlign?, outlineWidth?, name? }
   ComponentRegistry.register(
-    'troika',
+    'TroikaTextComponent',
     (owner, p = {}) =>
       new TroikaTextComponent(owner, (p.text as string) ?? '', {
         fontSize: p.fontSize ?? 0.3,
@@ -217,9 +217,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── uitext ─── props: { text?, fontSize?, color?, bold?, align?, width?, height?, ... }
+  // ─── UITextComponent ─── props: { text?, fontSize?, color?, bold?, align?, width?, height?, ... }
   ComponentRegistry.register(
-    'uitext',
+    'UITextComponent',
     (owner, p = {}) =>
       new UITextComponent(owner, {
         text: p.text as string | undefined,
@@ -246,9 +246,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── uiimage ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight? }
+  // ─── UIImageComponent ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight? }
   ComponentRegistry.register(
-    'uiimage',
+    'UIImageComponent',
     (owner, p = {}) =>
       new UIImageComponent(owner, {
         color: p.color as string | undefined,
@@ -269,11 +269,11 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── uibutton ─── props: { colors?, onClick? (代码设置) }
+  // ─── UIButtonComponent ─── props: { colors?, onClick? (代码设置) }
   // 纯交互组件：背景渲染由同 Actor 的 uiimage 提供（Unity Button.targetGraphic 模式），
-  // 状态切换时 uibutton 驱动 uiimage 的颜色；文字由独立子 Actor 挂 uitext 提供。
+  // 状态切换时 UIButtonComponent 驱动 uiimage 的颜色；文字由独立子 Actor 挂 UITextComponent 提供。
   ComponentRegistry.register(
-    'uibutton',
+    'UIButtonComponent',
     (owner, p = {}) =>
       new UIButtonComponent(owner, {
         colors: p.colors as Record<string, string> | undefined,

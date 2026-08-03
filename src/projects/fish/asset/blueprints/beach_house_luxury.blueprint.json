@@ -3,7 +3,7 @@
   "baseClass": "FishHouse",
   "components": [
     {
-      "baseClass": "transform",
+      "baseClass": "TransformComponent",
       "properties": {
         "position": [
           5.007997138233898,
@@ -29,7 +29,7 @@
       "id": 20001,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               0,

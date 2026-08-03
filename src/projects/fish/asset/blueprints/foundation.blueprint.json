@@ -3,7 +3,7 @@
   "baseClass": "Actor",
   "components": [
     {
-      "baseClass": "transform",
+      "baseClass": "TransformComponent",
       "properties": {
         "position": [
           0,
@@ -30,7 +30,7 @@
       "id": 201,
       "components": [
         {
-          "baseClass": "transform",
+          "baseClass": "TransformComponent",
           "properties": {
             "position": [
               1,
@@ -50,7 +50,7 @@
           }
         },
         {
-          "baseClass": "mesh",
+          "baseClass": "MeshComponent",
           "properties": {
             "geometry": "box",
             "size": [

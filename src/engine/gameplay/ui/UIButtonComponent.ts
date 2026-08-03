@@ -8,7 +8,7 @@
  * 注意：
  *  - 本组件不创建任何画布/mesh，点击命中依赖同 Actor（或子树）上其他 UI 组件的 mesh
  *  - 按钮文字由独立子 Actor 挂 UITextComponent 提供（如 blueprints/ui/main_menu.widget.json）
- *  - 数据配置：{ baseClass: 'uibutton', properties: { colors: { normal, hover, pressed, disabled } } }
+ *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { colors: { normal, hover, pressed, disabled } } }
  */
 import { Component } from '../entity/Component'
 import { ClickableComponent } from '../physics/ClickableComponent'

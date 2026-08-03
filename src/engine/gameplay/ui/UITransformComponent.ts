@@ -10,7 +10,7 @@
  *  - 自身尺寸：本组件持有的 worldWidth/worldHeight
  *  - 容器尺寸：向上查找父 Actor 的画布（跳过 markerOnly）
  *
- * 数据驱动：blueprint { baseClass: 'uitransform', properties: { position?, rotation?, scale?, worldWidth?, worldHeight?, anchor?, anchorOffset? } }
+ * 数据驱动：blueprint { baseClass: 'UITransformComponent', properties: { position?, rotation?, scale?, worldWidth?, worldHeight?, anchor?, anchorOffset? } }
  * UI Actor 约定：每个 UI Actor 挂 uitransform + canvasui(markerOnly) + 功能组件（uitext/uiimage/uibutton），
  * 锚点与尺寸统一由本组件的 uitransform 承载。
  */
@@ -189,15 +189,16 @@ export class UITransformComponent extends TransformComponent {
     const base = super.getProperties()
     return {
       ...base,
-      WorldSize: `${this.round2(this._worldW)}×${this.round2(this._worldH)}`,
-      Anchor: this._anchor ?? '（无）',
-      AnchorOffset: `[${this._anchorOffset[0]}, ${this._anchorOffset[1]}]`,
+      worldWidth: this.round2(this._worldW),
+      worldHeight: this.round2(this._worldH),
+      anchor: this._anchor ?? '（无）',
+      anchorOffset: [this.round2(this._anchorOffset[0]), this.round2(this._anchorOffset[1])],
     }
   }
 
-  /** Inspector 可编辑属性：世界尺寸（vec2）、锚点（枚举下拉）、锚点偏移（vec2） */
+  /** Inspector 可编辑属性：世界宽/高（number）、锚点（枚举下拉）、锚点偏移（vec2） */
   override getEditableProperties(): EditableProperty[] {
-    const base = super.getEditableProperties()
+    const base = super.getEditableProperties() // position/rotation/scale（由 collectSaveData 回写）
     const ANCHOR_OPTIONS: string[] = [
       '（无）',
       'top-left', 'top-center', 'top-right',
@@ -208,21 +209,40 @@ export class UITransformComponent extends TransformComponent {
     return [
       ...base,
       {
-        key: 'WorldSize', type: 'vec2', step: 0.01,
-        get: () => [this.round2(this._worldW), this.round2(this._worldH)],
-        set: (v) => this.setWorldSize((v as number[])[0], (v as number[])[1]),
+        key: 'worldWidth', type: 'number', step: 0.01, min: 0,
+        get: () => this.round2(this._worldW),
+        set: (v) => this.setWorldSize(v as number, this._worldH),
       },
       {
-        key: 'Anchor', type: 'enum', options: ANCHOR_OPTIONS,
+        key: 'worldHeight', type: 'number', step: 0.01, min: 0,
+        get: () => this.round2(this._worldH),
+        set: (v) => this.setWorldSize(this._worldW, v as number),
+      },
+      {
+        key: 'anchor', type: 'enum', options: ANCHOR_OPTIONS,
         get: () => this._anchor ?? '（无）',
         set: (v) => { this.anchor = (v === '（无）' ? null : v as AnchorPreset) },
       },
       {
-        key: 'AnchorOffset', type: 'vec2', step: 0.01,
+        key: 'anchorOffset', type: 'vec2', step: 0.01,
         get: () => [this.round2(this._anchorOffset[0]), this.round2(this._anchorOffset[1])],
         set: (v) => { this.anchorOffset = [(v as number[])[0], (v as number[])[1]] },
       },
     ]
+  }
+
+  /**
+   * 持久化：worldWidth/worldHeight/anchor/anchorOffset 由可编辑属性扫描收集
+   * （camelCase key 与 JSON 属性名一致）；position/rotation/scale 由 collectSaveData 回写。
+   * 注意：anchor 输出原始值（null = 无锚点），'（无）' 仅是 Inspector 显示占位，不落盘。
+   */
+  override getPersistentProps(): Record<string, unknown> {
+    return {
+      worldWidth: this.round2(this._worldW),
+      worldHeight: this.round2(this._worldH),
+      anchor: this._anchor,
+      anchorOffset: [this.round2(this._anchorOffset[0]), this.round2(this._anchorOffset[1])],
+    }
   }
 
   /** 保留 2 位小数的数值 */

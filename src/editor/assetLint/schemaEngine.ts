@@ -199,7 +199,7 @@ export function validateBySchema(node: unknown, schema: FieldSpec[], ctx: Checke
 /**
  * 未知属性检查：schema 声明了哪些 properties.* 字段，节点 properties 里出现
  * 未声明的 key 就报 unknown-property 违规（error），防止资产出现 schema 外脏字段
- * （如给 uiimage 写 position、随意添加组件不支持的自定义字段等）。
+ * （如给 UIImageComponent 写 position、随意添加组件不支持的自定义字段等）。
  *
  * 只收集 schema 中 'properties.' 前缀的 field 名；非 properties 段的字段（如顶层
  * position/rotation/scale、id/name 等）不参与。未提供 schema（[]）时视为无约束，跳过。

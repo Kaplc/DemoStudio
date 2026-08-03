@@ -163,9 +163,9 @@ export class CanvasUIComponent extends Component {
   override getProperties(): Record<string, unknown> {
     const [cw, ch] = this.getSize()
     return {
-      Canvas: `${cw}×${ch}px`,
-      ZOrder: this._zOrder,
-      MarkerOnly: this._markerOnly,
+      canvas: `${cw}×${ch}px`,
+      zOrder: this._zOrder,
+      markerOnly: this._markerOnly,
     }
   }
 
@@ -173,7 +173,7 @@ export class CanvasUIComponent extends Component {
   override getEditableProperties(): EditableProperty[] {
     return [
       {
-        key: 'ZOrder', type: 'number', step: 1, min: 0, max: 100,
+        key: 'zOrder', type: 'number', step: 1, min: 0, max: 100,
         get: () => this._zOrder,
         set: (v) => { this.zOrder = v as number },
       },

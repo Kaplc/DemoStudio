@@ -132,7 +132,7 @@ export class UIManager {
     }
 
     // 1. Transform（仅当蓝图根声明了变换组件时应用其 properties 值）
-    const rootTsf = resolved.components.find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+    const rootTsf = resolved.components.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
     if (rootTsf) {
       const p = rootTsf.properties ?? {}
       if (Array.isArray(p.position)) actor.setPosition(p.position[0], p.position[1], p.position[2])

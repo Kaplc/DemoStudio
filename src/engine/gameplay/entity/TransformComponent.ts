@@ -2,7 +2,7 @@
  * TransformComponent — 变换组件
  *
  * 模仿 Unity Transform：把 Actor 的"位置/旋转/缩放修改能力"组件化。
- * 数据驱动：blueprint { baseClass: 'transform', properties: { position?, rotation?, scale? } }。
+ * 数据驱动：blueprint { baseClass: 'TransformComponent', properties: { position?, rotation?, scale? } }。
  *
  * 与 Actor 内置 setPosition/setRotation/setScale 的关系：
  *  - 本组件是"修改能力"的组件化入口（编辑器/数据流统一经组件读写）
@@ -64,31 +64,39 @@ export class TransformComponent extends Component {
     const r = this.rotation
     const s = this.scale
     return {
-      Position: [round3(p.x), round3(p.y), round3(p.z)],
-      Rotation: [round3(r.x), round3(r.y), round3(r.z)],
-      Scale: [round3(s.x), round3(s.y), round3(s.z)],
+      position: [round3(p.x), round3(p.y), round3(p.z)],
+      rotation: [round3(r.x), round3(r.y), round3(r.z)],
+      scale: [round3(s.x), round3(s.y), round3(s.z)],
     }
   }
 
-  /** Inspector 可编辑属性：位置/旋转/缩放（vec3） */
+  /** Inspector 可编辑属性：位置/旋转/缩放（vec3，camelCase 与 JSON 属性名一致） */
   override getEditableProperties(): EditableProperty[] {
     return [
       {
-        key: 'Position', type: 'vec3', step: 0.01,
+        key: 'position', type: 'vec3', step: 0.01,
         get: () => [round3(this.position.x), round3(this.position.y), round3(this.position.z)],
         set: (v) => this.setPosition((v as number[])[0], (v as number[])[1], (v as number[])[2]),
       },
       {
-        key: 'Rotation', type: 'vec3', step: 1,
+        key: 'rotation', type: 'vec3', step: 1,
         get: () => [round3(this.rotation.x), round3(this.rotation.y), round3(this.rotation.z)],
         set: (v) => this.setRotation((v as number[])[0], (v as number[])[1], (v as number[])[2]),
       },
       {
-        key: 'Scale', type: 'vec3', step: 0.01,
+        key: 'scale', type: 'vec3', step: 0.01,
         get: () => [round3(this.scale.x), round3(this.scale.y), round3(this.scale.z)],
         set: (v) => this.setScale((v as number[])[0], (v as number[])[1], (v as number[])[2]),
       },
     ]
+  }
+
+  /**
+   * 持久化：position/rotation/scale 由 collectSaveData 统一回写
+   * （含 gizmo 拖拽 / 角把手拖拽结果，与 actor 实时变换一致），此处不输出。
+   */
+  override getPersistentProps(): Record<string, unknown> {
+    return {}
   }
 }
 

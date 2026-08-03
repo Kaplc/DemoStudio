@@ -292,7 +292,7 @@ function setTopTransform(
   if (!Array.isArray(value) || value.length !== 3 || !value.every((n) => typeof n === 'number'))
     return fail(`${field} 必须是 [x, y, z] 数字数组`)
   const comps = asset.components ?? []
-  const tsf = comps.find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  const tsf = comps.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
   if (!tsf) {
     return fail(`资产缺少 transform/uitransform 组件：${field} 必须写在变换组件（组件优先约定）`)
   }

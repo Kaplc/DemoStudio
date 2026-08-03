@@ -208,7 +208,7 @@ function ComponentPropertyRow({
     .find((p) => p.key === k)
   return (
     <div className="property-row" style={{ gap: 4, padding: '2px 0', alignItems: 'center' }}>
-      <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{k}</span>
+      <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{humanizeKey(k)}</span>
       {editable ? (
         <EditablePropertyInput prop={editable} onEdited={onEdited} />
       ) : (
@@ -377,7 +377,7 @@ function ComponentSearchResults({ actor, query }: { actor: Actor; query: string 
                 return (
                   <>
                     <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)' }}>
-                      {highlightMatch(k, q)}
+                      {highlightMatch(humanizeKey(k), q)}
                     </span>
                     {editable ? (
                       <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} />
@@ -450,6 +450,16 @@ function lenientParse(v: string): unknown {
 function displayValue(v: unknown): string {
   if (typeof v === 'string') return v
   return JSON.stringify(v)
+}
+
+/**
+ * camelCase 键 → 可读标签（属性键与 JSON/TS 属性名一致为 camelCase，仅展示层美化）：
+ * 'fontSize' → 'Font Size'，'worldWidth' → 'World Width'，'zOrder' → 'Z Order'，'position' → 'Position'
+ */
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^./, (c) => c.toUpperCase())
 }
 
 function KVEditor({
@@ -566,8 +576,8 @@ function BlueprintComponentDetail({ data, selection }: { data: NonNullable<Bluep
 
 // ─── 蓝图编辑器选中子 Actor 详情（只读）───
 function BlueprintChildDetail({ data, selection }: { data: NonNullable<BlueprintSelection['childData']>; selection: BlueprintSelection }) {
-  // 组件优先约定：位置/旋转/缩放写在 transform/uitransform 组件 properties（顶层字段已废弃）
-  const tsf = (data.components ?? []).find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  // 组件优先约定：位置/旋转/缩放写在 TransformComponent/UITransformComponent 组件 properties（顶层字段已废弃）
+  const tsf = (data.components ?? []).find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
   const tsfProps = (tsf?.properties ?? {}) as Record<string, unknown>
   const p = Array.isArray(tsfProps.position) ? (tsfProps.position as number[]) : [0, 0, 0]
   const r = Array.isArray(tsfProps.rotation) ? (tsfProps.rotation as number[]) : [0, 0, 0]
@@ -616,7 +626,7 @@ function BlueprintChildDetail({ data, selection }: { data: NonNullable<Blueprint
         {!tsf && (
           <div className="property-row">
             <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>
-              ⚠️ 缺少 transform/uitransform 组件（位置必须写在变换组件）
+              ⚠️ 缺少 TransformComponent/UITransformComponent 组件（位置必须写在变换组件）
             </span>
           </div>
         )}
@@ -667,8 +677,8 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
     return <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>加载蓝图…</div>
   }
 
-  // 组件优先约定：蓝图根位置/旋转/缩放写在 transform/uitransform 组件 properties（旧格式顶层字段已废弃）
-  const tsf = (asset.components ?? []).find((c) => c.baseClass === 'transform' || c.baseClass === 'uitransform')
+  // 组件优先约定：蓝图根位置/旋转/缩放写在 TransformComponent/UITransformComponent 组件 properties（旧格式顶层字段已废弃）
+  const tsf = (asset.components ?? []).find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
   const tsfProps = (tsf?.properties ?? {}) as Record<string, unknown>
   const p = Array.isArray(tsfProps.position) ? (tsfProps.position as number[]) : [0, 0, 0]
   const r = Array.isArray(tsfProps.rotation) ? (tsfProps.rotation as number[]) : [0, 0, 0]
@@ -692,7 +702,7 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         {noTsf && (
           <div className="property-row">
             <span className="property-value" style={{ fontSize: 11, color: 'var(--warning)' }}>
-              ⚠️ 缺少 transform/uitransform 组件：位置必须写在变换组件（组件优先约定）
+              ⚠️ 缺少 TransformComponent/UITransformComponent 组件：位置必须写在变换组件（组件优先约定）
             </span>
           </div>
         )}

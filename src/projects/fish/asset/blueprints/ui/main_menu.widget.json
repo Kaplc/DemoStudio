@@ -3,7 +3,7 @@
   "baseClass": "Actor",
   "components": [
     {
-      "baseClass": "uitransform",
+      "baseClass": "UITransformComponent",
       "properties": {
         "position": [
           0,
@@ -25,7 +25,7 @@
       }
     },
     {
-      "baseClass": "canvasui",
+      "baseClass": "CanvasUIComponent",
       "properties": {
         "width": 1920,
         "height": 1080,
@@ -40,7 +40,7 @@
       "id": 10000,
       "components": [
         {
-          "baseClass": "uitransform",
+          "baseClass": "UITransformComponent",
           "properties": {
             "position": [
               0,
@@ -62,14 +62,14 @@
           }
         },
         {
-          "baseClass": "canvasui",
+          "baseClass": "CanvasUIComponent",
           "properties": {
             "markerOnly": true,
             "name": "UIMarker"
           }
         },
         {
-          "baseClass": "uiimage",
+          "baseClass": "UIImageComponent",
           "properties": {
             "color": "#0a2850",
             "opacity": 0.85,
@@ -87,7 +87,7 @@
       "id": 10001,
       "components": [
         {
-          "baseClass": "uitransform",
+          "baseClass": "UITransformComponent",
           "properties": {
             "position": [
               0,
@@ -110,14 +110,14 @@
           }
         },
         {
-          "baseClass": "canvasui",
+          "baseClass": "CanvasUIComponent",
           "properties": {
             "markerOnly": true,
             "name": "UIMarker"
           }
         },
         {
-          "baseClass": "uitext",
+          "baseClass": "UITextComponent",
           "properties": {
             "text": "🐟 捕鱼达人",
             "fontSize": 72,
@@ -141,7 +141,7 @@
       "id": 10002,
       "components": [
         {
-          "baseClass": "uitransform",
+          "baseClass": "UITransformComponent",
           "properties": {
             "position": [
               0,
@@ -168,14 +168,14 @@
           }
         },
         {
-          "baseClass": "canvasui",
+          "baseClass": "CanvasUIComponent",
           "properties": {
             "markerOnly": true,
             "name": "UIMarker"
           }
         },
         {
-          "baseClass": "uitext",
+          "baseClass": "UITextComponent",
           "properties": {
             "text": "— FISH MASTER —",
             "fontSize": 22,
@@ -196,7 +196,7 @@
       "id": 10003,
       "components": [
         {
-          "baseClass": "uitransform",
+          "baseClass": "UITransformComponent",
           "properties": {
             "position": [
               0,
@@ -219,14 +219,14 @@
           }
         },
         {
-          "baseClass": "canvasui",
+          "baseClass": "CanvasUIComponent",
           "properties": {
             "markerOnly": true,
             "name": "UIMarker"
           }
         },
         {
-          "baseClass": "uiimage",
+          "baseClass": "UIImageComponent",
           "properties": {
             "zOrder": 3,
             "color": "#ff6f00",
@@ -237,7 +237,7 @@
           }
         },
         {
-          "baseClass": "uibutton",
+          "baseClass": "UIButtonComponent",
           "properties": {
             "colors": {
               "normal": "#ff6f00",
@@ -254,7 +254,7 @@
           "id": 10005,
           "components": [
             {
-              "baseClass": "uitransform",
+              "baseClass": "UITransformComponent",
               "properties": {
                 "position": [
                   0,
@@ -277,14 +277,14 @@
               }
             },
             {
-              "baseClass": "canvasui",
+              "baseClass": "CanvasUIComponent",
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker"
               }
             },
             {
-              "baseClass": "uitext",
+              "baseClass": "UITextComponent",
               "properties": {
                 "text": "🎮 开始游戏",
                 "fontSize": 32,
@@ -310,7 +310,7 @@
       "id": 10004,
       "components": [
         {
-          "baseClass": "uitransform",
+          "baseClass": "UITransformComponent",
           "properties": {
             "position": [
               0,
@@ -337,14 +337,14 @@
           }
         },
         {
-          "baseClass": "canvasui",
+          "baseClass": "CanvasUIComponent",
           "properties": {
             "markerOnly": true,
             "name": "UIMarker"
           }
         },
         {
-          "baseClass": "uitext",
+          "baseClass": "UITextComponent",
           "properties": {
             "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n捕获鱼类赚取金币 · 金币归零则游戏结束",
             "fontSize": 18,

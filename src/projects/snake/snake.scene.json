@@ -8,7 +8,7 @@
       "baseClass": "Actor",
       "position": [0, -0.15, 0],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [21, 0.3, 21], "color": "#2a2a3a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } }
+        { "baseClass": "MeshComponent", "properties": { "geometry": "box", "size": [21, 0.3, 21], "color": "#2a2a3a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } }
       ]
     },
     {
@@ -17,7 +17,7 @@
       "baseClass": "Actor",
       "position": [0, 0, 0],
       "components": [
-        { "baseClass": "mesh", "properties": { "geometry": "box", "size": [20, 0.2, 20], "color": "#3a3a4a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } }
+        { "baseClass": "MeshComponent", "properties": { "geometry": "box", "size": [20, 0.2, 20], "color": "#3a3a4a", "roughness": 0.7, "metalness": 0.1, "castShadow": true, "receiveShadow": true } }
       ]
     },
     { "type": "checkerFloor", "gridSize": 20, "colors": ["#4a4a5a", "#5a5a6a"], "tileSize": 0.96, "y": 0.02, "material": { "roughness": 0.8, "metalness": 0.1, "receiveShadow": true }, "name": "checkerFloor_1" },

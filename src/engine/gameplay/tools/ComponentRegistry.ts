@@ -36,6 +36,7 @@ export class ComponentRegistry {
     const entry = ComponentRegistry.entries.get(type)
     if (!entry) return null
     const comp = entry.factory(owner, props)
+    // persistType 默认即完整类名（this.constructor.name），无需注入
     if (entry.configure && props) {
       entry.configure(comp, props)
     }

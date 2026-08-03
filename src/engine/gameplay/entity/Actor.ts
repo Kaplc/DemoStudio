@@ -149,6 +149,11 @@ export abstract class Actor {
     return this.components.find((c) => c instanceof type) as T ?? null
   }
 
+  /** 获取该 Actor 挂载的全部组件实例（Inspector/持久化遍历用） */
+  getAllComponents(): Component[] {
+    return [...this.components]
+  }
+
   // ═══════════════════════════════════
   //  层级关系
   // ═══════════════════════════════════

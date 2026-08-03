@@ -15,7 +15,7 @@ export interface BlueprintComponentDef {
   id?: number
   /** 组件显示名称 */
   name?: string
-  /** Component 注册类型（ComponentRegistry key），如 'sprite' */
+  /** Component 注册类型（ComponentRegistry key），如 'SpriteComponent' */
   baseClass: string
   /** 组件特有属性（构造参数 + 可配置属性） */
   properties?: PropertyPatch

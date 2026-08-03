@@ -15,7 +15,12 @@ export type EditablePropertyType = 'number' | 'string' | 'boolean' | 'enum' | 'v
  * - color：值用 '#rrggbb' 十六进制字符串
  */
 export interface EditableProperty<T = unknown> {
-  /** 属性标识（与 getProperties() 返回的 key 对应，Inspector 据此匹配渲染） */
+  /**
+   * 属性标识（camelCase，与 TS 组件属性名 / JSON properties 键名完全一致）。
+   * 例如 Text → 'text'，FontSize → 'fontSize'，WorldWidth → 'worldWidth'。
+   * 该 key 同时用于：Inspector 渲染匹配（与 getProperties() 的键对应）、
+   * 持久化写盘（getPersistentProps 直接读此 key）。
+   */
   key: string
   type: EditablePropertyType
   /** 读取当前值（每次渲染调用，保证显示实时） */
@@ -36,6 +41,15 @@ export abstract class Component {
 
   constructor(owner: Actor) {
     this.owner = owner
+  }
+
+  /**
+   * 持久化时该组件在 JSON 中对应的 baseClass 标识。
+   * 约定：baseClass 直接用完整 TS 类名（如 'UITransformComponent'），
+   * 默认即 this.constructor.name——组件无需任何手动标记。
+   */
+  get persistType(): string {
+    return this.constructor.name
   }
 
   /** 游戏开始/激活时调用 */
@@ -74,5 +88,19 @@ export abstract class Component {
    */
   getEditableProperties(): EditableProperty[] {
     return []
+  }
+
+  /**
+   * 获取需要持久化的属性键值对（保存蓝图时写回 JSON properties）。
+   * 默认实现：遍历 getEditableProperties()，直接取每个属性的当前值。
+   * key 即 camelCase 的 JSON 属性名（约定），无需任何转换。
+   * 子类可 override 增删（如 uitransform 拆分 worldWidth/worldHeight）。
+   */
+  getPersistentProps(): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const p of this.getEditableProperties()) {
+      out[p.key] = p.get()
+    }
+    return out
   }
 }

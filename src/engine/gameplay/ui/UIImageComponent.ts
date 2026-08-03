@@ -62,8 +62,8 @@ export class UIImageComponent extends CanvasUIComponent {
     const base = super.getProperties()
     return {
       ...base,
-      Color: this._color,
-      Radius: this._radius,
+      color: this._color,
+      radius: this._radius,
     }
   }
 
@@ -73,12 +73,12 @@ export class UIImageComponent extends CanvasUIComponent {
     return [
       ...base,
       {
-        key: 'Color', type: 'color',
+        key: 'color', type: 'color',
         get: () => this._color,
         set: (v) => { this.color = v as string },
       },
       {
-        key: 'Radius', type: 'number', step: 1, min: 0, max: 512,
+        key: 'radius', type: 'number', step: 1, min: 0, max: 512,
         get: () => this._radius,
         set: (v) => { this.radius = v as number },
       },

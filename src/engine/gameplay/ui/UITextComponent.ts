@@ -2,7 +2,7 @@
  * UITextComponent — 文本控件 Component（troika 矢量渲染）
  *
  * 基于 troika-three-text 的 GPU 字形 mesh：字形轮廓三角化渲染，任意缩放不模糊（矢量）。
- * 通过 blueprint { baseClass: 'uitext', properties: {...} } 配置。
+ * 通过 blueprint { baseClass: 'UITextComponent', properties: {...} } 配置。
  *
  * 实现要点：
  *  - 继承 CanvasUIComponent（markerOnly）保持"UI 组件"身份（isUIActor 判定 / 锚点 /
@@ -217,51 +217,51 @@ export class UITextComponent extends CanvasUIComponent {
     const base = super.getProperties()
     return {
       ...base,
-      Text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
-      FontSize: this._fontSize,
-      FontFamily: this._fontFamily,
-      Color: this._color,
-      Bold: this._bold,
-      Italic: this._italic,
-      Align: this._align,
-      LineHeight: Math.round(this._lineHeight * 100) / 100,
-      LetterSpacing: this._letterSpacing,
-      Render: '矢量（troika）',
+      text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
+      fontSize: this._fontSize,
+      fontFamily: this._fontFamily,
+      color: this._color,
+      bold: this._bold,
+      italic: this._italic,
+      align: this._align,
+      lineHeight: Math.round(this._lineHeight * 100) / 100,
+      letterSpacing: this._letterSpacing,
+      render: '矢量（troika）',
     }
   }
 
-  /** Inspector 可编辑属性：文本/字号/颜色/对齐/加粗/斜体 */
+  /** Inspector 可编辑属性：文本/字号/颜色/对齐/加粗/斜体（camelCase 与 JSON 属性名一致） */
   override getEditableProperties(): EditableProperty[] {
     const base = super.getEditableProperties()
     return [
       ...base,
       {
-        key: 'Text', type: 'string',
+        key: 'text', type: 'string',
         get: () => this._text,
         set: (v) => { this.text = v as string },
       },
       {
-        key: 'FontSize', type: 'number', step: 1, min: 4, max: 400,
+        key: 'fontSize', type: 'number', step: 1, min: 4, max: 400,
         get: () => this._fontSize,
         set: (v) => { this.fontSize = v as number },
       },
       {
-        key: 'Color', type: 'color',
+        key: 'color', type: 'color',
         get: () => this._color,
         set: (v) => { this.color = v as string },
       },
       {
-        key: 'Align', type: 'enum', options: ['left', 'center', 'right'],
+        key: 'align', type: 'enum', options: ['left', 'center', 'right'],
         get: () => this._align,
         set: (v) => { this.align = v as 'left' | 'center' | 'right' },
       },
       {
-        key: 'Bold', type: 'boolean',
+        key: 'bold', type: 'boolean',
         get: () => this._bold,
         set: (v) => { this.bold = v as boolean },
       },
       {
-        key: 'Italic', type: 'boolean',
+        key: 'italic', type: 'boolean',
         get: () => this._italic,
         set: (v) => { this.italic = v as boolean },
       },

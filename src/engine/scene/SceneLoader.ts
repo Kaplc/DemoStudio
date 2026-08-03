@@ -116,7 +116,7 @@ export function loadScene(asset: SceneAsset): SceneGroup {
 
 /**
  * 将内联 Actor / BlueprintChildDef 节点中的 mesh 组件渲染为预览用的 THREE.Mesh。
- * 只处理 baseClass === 'mesh' 的组件。
+ * 只处理 baseClass === 'MeshComponent' 的组件。
  * 使用 Group 正确表达父子变换层级。
  */
 function renderActorMesh(node: ActorNode, track: (m: THREE.Mesh) => void): void {
@@ -187,7 +187,7 @@ function componentToMesh(
   comp: { baseClass: string; properties?: Record<string, unknown> },
   fallbackName: string,
 ): THREE.Mesh | null {
-  if (comp.baseClass !== 'mesh') return null
+  if (comp.baseClass !== 'MeshComponent') return null
   const props = (comp.properties ?? {}) as Record<string, unknown>
   const geoType = (props.geometry as string) ?? 'box'
   const color = (props.color as string) ?? '#ffffff'

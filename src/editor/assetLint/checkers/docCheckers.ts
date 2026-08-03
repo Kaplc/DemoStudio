@@ -106,10 +106,10 @@ function validateChildren(
     // 递归校验 components
     if (Array.isArray(child.components)) {
       validateComponents(child.components, ctx, `${childPath}.components`, issues)
-      // 顶层 transform 与 transform/uitransform 组件一致性：以组件为权威，不一致 → error，一致 → warn
+      // 顶层 transform 与 TransformComponent/UITransformComponent 组件一致性：以组件为权威，不一致 → error，一致 → warn
       checkTopTransformMismatch(child, childPath, ctx, issues)
     } else {
-      // 无组件节点：位置必须由 transform/uitransform 组件承载，顶层 position/rotation/scale 是废弃格式
+      // 无组件节点：位置必须由 TransformComponent/UITransformComponent 组件承载，顶层 position/rotation/scale 是废弃格式
       checkMissingTransformComponent(child, childPath, ctx, issues)
     }
 
@@ -121,7 +121,7 @@ function validateChildren(
 }
 
 /**
- * 组件优先约定：节点必须用 transform/uitransform 组件承载位置。
+ * 组件优先约定：节点必须用 TransformComponent/UITransformComponent 组件承载位置。
  * 无变换组件却声明了顶层 position/rotation/scale → error（旧格式兜底已废弃）。
  */
 function checkMissingTransformComponent(
@@ -134,7 +134,7 @@ function checkMissingTransformComponent(
   if (topFields.length === 0) return // 纯容器节点，合法
   issues.push(makeIssue(
     ctx.filePath, childPath, topFields[0], 'missing-transform-component', 'error',
-    `节点缺少 transform/uitransform 组件，但声明了顶层 ${topFields.join('/')}：位置必须写在组件（组件优先约定，旧格式已废弃）`,
+    `节点缺少 TransformComponent/UITransformComponent 组件，但声明了顶层 ${topFields.join('/')}：位置必须写在组件（组件优先约定，旧格式已废弃）`,
     child[topFields[0]],
   ))
 }
@@ -142,7 +142,7 @@ function checkMissingTransformComponent(
 /** 向量逐分量容差比较（一致 → true）。 */
 /**
  * 顶层 transform 禁止检查（组件优先约定，旧格式已废弃）。
- * 节点含 transform/uitransform 组件时，位置以组件 properties 为权威；
+ * 节点含 TransformComponent/UITransformComponent 组件时，位置以组件 properties 为权威；
  * 顶层 position/rotation/scale 字段无论值如何一律禁止 → error。
  * 无变换组件时由 checkMissingTransformComponent 单独处理。
  */
@@ -155,7 +155,7 @@ function checkTopTransformMismatch(
   const comps = child.components
   if (!Array.isArray(comps)) return
   const hasTsf = (comps as Array<Record<string, unknown>>).some(
-    (c) => c && (c.baseClass === 'transform' || c.baseClass === 'uitransform'),
+    (c) => c && (c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent'),
   )
   if (!hasTsf) return
   for (const k of ['position', 'rotation', 'scale'] as const) {
@@ -163,7 +163,7 @@ function checkTopTransformMismatch(
     if (top === undefined) continue // 新格式：顶层缺失，正常
     issues.push(makeIssue(
       ctx.filePath, childPath, k, 'top-transform-forbidden', 'error',
-      `顶层 ${k} ${JSON.stringify(top)} 已废弃：位置必须写在 transform/uitransform 组件（组件优先约定），请删除顶层 ${k} 字段`,
+      `顶层 ${k} ${JSON.stringify(top)} 已废弃：位置必须写在 TransformComponent/UITransformComponent 组件（组件优先约定），请删除顶层 ${k} 字段`,
       top,
     ))
   }
@@ -195,15 +195,15 @@ function validateComponents(
     const baseClass = typeof comp.baseClass === 'string' ? comp.baseClass : ''
     const props = comp.properties
 
-    // 位置/旋转/缩放只允许出现在 transform/uitransform（tsf）组件，其他组件一律禁止
+    // 位置/旋转/缩放只允许出现在 TransformComponent/UITransformComponent（tsf）组件，其他组件一律禁止
     if (props && typeof props === 'object' && !Array.isArray(props)) {
-      const isTransformComp = baseClass === 'transform' || baseClass === 'uitransform'
+      const isTransformComp = baseClass === 'TransformComponent' || baseClass === 'UITransformComponent'
       if (!isTransformComp) {
         for (const k of ['position', 'rotation', 'scale']) {
           if (k in (props as Record<string, unknown>)) {
             issues.push(makeIssue(
               ctx.filePath, compPath, `properties.${k}`, 'comp-forbidden-transform', 'error',
-              `属性 "properties.${k}" 只允许出现在 transform/uitransform 组件，不允许出现在 ${baseClass} 组件`,
+              `属性 "properties.${k}" 只允许出现在 TransformComponent/UITransformComponent 组件，不允许出现在 ${baseClass} 组件`,
               (props as Record<string, unknown>)[k],
             ))
           }
