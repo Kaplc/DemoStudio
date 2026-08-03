@@ -68,13 +68,21 @@ export class AnchorGizmo {
     this.parentBounds = lines
   }
 
-  /** 4 个小三角形：单位等腰三角形几何（底边 1×1，尖角朝 +Y），scale/rotation 控制大小与朝向 */
+  /** 4 个空心小三角形：等腰三角形外轮廓 + 内缩孔（环形边框），scale/rotation 控制大小与朝向 */
   private buildTriangles() {
+    // 外三角形：底边 1×1 等腰，尖角朝 +Y；质心 = (0, −1/6)
     const shape = new THREE.Shape()
     shape.moveTo(-0.5, -0.5)
     shape.lineTo(0.5, -0.5)
     shape.lineTo(0, 0.5)
     shape.closePath()
+    // 内缩孔（0.6× 质心缩放）：形成空心环形，边框厚度 ≈ 0.13~0.27
+    const hole = new THREE.Path()
+    hole.moveTo(-0.3, -0.3667)
+    hole.lineTo(0, 0.2333)
+    hole.lineTo(0.3, -0.3667)
+    hole.closePath()
+    shape.holes.push(hole)
     const geo = new THREE.ShapeGeometry(shape)
     for (let i = 0; i < 4; i++) {
       const mat = new THREE.MeshBasicMaterial({
