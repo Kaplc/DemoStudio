@@ -455,7 +455,10 @@ export class UIPreviewManager {
     if (uiTf) {
       const [ww, wh] = uiTf.getWorldSize()
       if (ww > 0 && wh > 0) {
-        const p = root.position
+        // 必须用世界位置：子节点（如按钮内的文本）root.position 是局部坐标，
+        // 父节点移动后局部≠世界，包围盒会画在父移动前的位置
+        root.updateWorldMatrix(true, true)
+        const p = root.getWorldPosition(new THREE.Vector3())
         return new THREE.Box3(
           new THREE.Vector3(p.x - ww / 2, p.y - wh / 2, -1),
           new THREE.Vector3(p.x + ww / 2, p.y + wh / 2, 1),
@@ -510,8 +513,10 @@ export class UIPreviewManager {
     if (uiTf) {
       const [ww, wh] = uiTf.getWorldSize()
       if (ww > 0 && wh > 0) {
-        const cx = this.boundsTarget.root.position.x
-        const cy = this.boundsTarget.root.position.y
+        // 世界位置（子节点局部坐标在父移动后会偏）
+        const wp = this.boundsTarget.root.getWorldPosition(new THREE.Vector3())
+        const cx = wp.x
+        const cy = wp.y
         if (this.pointInScreenRect(e, rect, cx - ww / 2, cy - wh / 2, cx + ww / 2, cy + wh / 2, PAD)) {
           return true
         }

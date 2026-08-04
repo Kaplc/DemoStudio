@@ -366,7 +366,7 @@
               0,
               0.1
             ],
-            "worldWidth": 43.75,
+            "worldWidth": 10,
             "worldHeight": 2.5
           }
         },
@@ -382,8 +382,8 @@
           "baseClass": "UITextComponent",
           "properties": {
             "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n捕获鱼类赚取金币 · 金币归零则游戏结束",
-            "fontSize": 18,
-            "color": "#888888",
+            "fontSize": 12,
+            "color": "#ffffff",
             "align": "center",
             "lineHeight": 26,
             "width": 1400,
