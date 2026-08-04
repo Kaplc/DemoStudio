@@ -242,10 +242,14 @@ export class UIPreviewManager {
     this.wasdKeys.clear()
   }
 
-  /** 外部调用：保存后恢复摄像机位姿（UI 模式四元数恒为正面，主要恢复位置） */
-  restoreCamera(pos: THREE.Vector3, quat: THREE.Quaternion) {
+  /** 外部调用：保存后恢复摄像机位姿（UI 模式四元数恒为正面，主要恢复位置）+ zoom（正交缩放） */
+  restoreCamera(pos: THREE.Vector3, quat: THREE.Quaternion, zoom?: number) {
     this.camera.position.copy(pos)
     this.camera.quaternion.copy(quat)
+    if (zoom) {
+      this.camera.zoom = zoom
+      this.camera.updateProjectionMatrix()
+    }
   }
 
   private setupMouse() {

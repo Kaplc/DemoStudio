@@ -68,9 +68,13 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const assetPathRef = useRef(assetPath)
   assetPathRef.current = assetPath
   /** 保存后待恢复的摄像机位姿（bumpBlueprintEdit → setData → useEffect 重建预览后恢复） */
-  const pendingCamRef = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion } | null>(null)
+  const pendingCamRef = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion; zoom?: number } | null>(null)
   /** 保存前选中的 Actor 名称，保存完成重建预览后自动恢复选中 */
   const pendingSelectRef = useRef<string | null>(null)
+  /** 重建前自动记忆的摄像机位姿（编辑/撤销/重做触发的重建也保持视角） */
+  const lastCamRef = useRef<{ pos: THREE.Vector3; quat: THREE.Quaternion; zoom?: number } | null>(null)
+  /** 重建前自动记忆的选中 Actor 名称 */
+  const lastSelectRef = useRef<string | null>(null)
   /** 蓝图编辑刷新信号：外部/内部编辑后 bump，触发重新读盘 + 刷新预览 */
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
@@ -128,13 +132,15 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       AssetPreviewManager.register(assetPath, mgr)
       setPreviewReady(true)
 
-      // 保存后重建预览：恢复之前保存的摄像机位姿 + 选中节点
-      const pending = pendingCamRef.current
-      if (pending) {
-        mgr.restoreCamera(pending.pos, pending.quat)
+      // 重建预览后恢复摄像机位姿：保存时显式设置优先，否则沿用重建前记忆
+      // （编辑/撤销/重做都会触发重建，恢复后视角不再被 fitToWidget 重置）
+      const cam = pendingCamRef.current ?? lastCamRef.current
+      if (cam) {
+        mgr.restoreCamera(cam.pos, cam.quat, cam.zoom)
         pendingCamRef.current = null
       }
-      const selName = pendingSelectRef.current
+      // 恢复选中：同理（编辑后保持选中，不跳回总览）
+      const selName = pendingSelectRef.current ?? lastSelectRef.current
       if (selName) {
         pendingSelectRef.current = null
         // 通过 getActorTree() 遍历场景图查找（GetAllActors 可能漏掉递归子 Actor）
@@ -154,6 +160,16 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     return () => {
       ro.disconnect()
+      // 重建前记忆相机位姿 + 选中节点（重建后恢复：编辑/撤销/重做不再重置视角与选中）
+      if (previewMgrRef.current) {
+        lastCamRef.current = {
+          pos: previewMgrRef.current.camera.position.clone(),
+          quat: previewMgrRef.current.camera.quaternion.clone(),
+          zoom: previewMgrRef.current.camera.zoom,
+        }
+        const sel = getSelectedActor()
+        if (sel) lastSelectRef.current = sel.root.name
+      }
       mgr.dispose()
       previewMgrRef.current = null
       setPreviewReady(false)
