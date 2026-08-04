@@ -276,11 +276,31 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
 }
 
 /**
+ * 递归查找具名子节点（深度优先，支持任意嵌套层级）。
+ * 返回 { arr, idx }：arr 是目标节点所在 children 数组，idx 是其在数组中的索引。
+ * 找不到返回 null。仅按 name 匹配（locator 为 index 时不走此函数）。
+ */
+function findChildNodeDeep(
+  children: BlueprintChildDef[] | undefined,
+  name: string,
+): { arr: BlueprintChildDef[]; idx: number } | null {
+  if (!children) return null
+  const idx = children.findIndex((c) => c.name === name)
+  if (idx >= 0) return { arr: children, idx }
+  for (const child of children) {
+    if (!child.children || child.children.length === 0) continue
+    const found = findChildNodeDeep(child.children, name)
+    if (found) return found
+  }
+  return null
+}
+
+/**
  * 设置子 Actor 的组件属性（Inspector 选中子控件的组件编辑器走这里）。
- * 定位：按 name 定位子节点；组件按 baseClass 匹配（同 setComponentProps 语义）。
- *  - 本地有该子节点 → 合并进其 components（本地无该组件 → 新建 { baseClass, properties }，继承覆盖）
+ * 定位：按 name **递归**定位子节点（支持嵌套层级，如按钮内的文本控件）；组件按 baseClass 匹配。
+ *  - 找到 → 合并进其 components（本地无该组件 → 新建 { baseClass, properties }，继承覆盖）
  *  - 本地无该具名子节点：strict=true → 返回错误（防止 ref 子节点等无法映射回本资产的情况误建节点）；
- *    strict=false → 新建覆盖节点
+ *    strict=false → 在顶层新建覆盖节点
  */
 export function setChildComponentProps(
   asset: BlueprintAsset,
@@ -291,19 +311,32 @@ export function setChildComponentProps(
 ): OpResult {
   if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
   if (!isPlainObject(properties)) return fail('properties 必须是对象')
-  const children = asset.children ? asset.children.slice() : []
-  let idx = locateChild(children, locator)
   const warnings: string[] = []
-  if (idx === -1) {
+  let node: BlueprintChildDef | undefined
+
+  if ('name' in locator) {
+    // 递归查找（支持嵌套层级）
+    const found = findChildNodeDeep(asset.children, locator.name)
+    if (found) node = found.arr[found.idx]
+  } else {
+    // 索引定位仅支持顶层（保持旧语义）
+    const idx = locateChild(asset.children ?? [], locator)
+    if (idx >= 0) node = (asset.children ?? [])[idx]
+  }
+
+  // 未找到 → 严格模式报错 / 宽松模式顶层新建覆盖节点
+  if (!node) {
     if (!('name' in locator)) return fail(`子节点索引越界: ${locator.index}`)
     if (strict) {
       return fail(`子节点 "${locator.name}" 不在本资产中（可能是 ref 引用实例，无法就地编辑）`)
     }
-    children.push({ name: locator.name })
-    idx = children.length - 1
+    const children = asset.children ? asset.children.slice() : []
+    node = { name: locator.name }
+    children.push(node)
+    asset.children = children
     warnings.push(`具名子节点 "${locator.name}" 本地不存在，已新建覆盖节点`)
   }
-  const node = children[idx]
+
   const comps = (node.components ? node.components.slice() : []) as BlueprintComponentDef[]
   let existing = comps.find((c) => c.baseClass === baseClass)
   if (!existing) {
@@ -313,7 +346,6 @@ export function setChildComponentProps(
   if (existing._remove) delete existing._remove
   existing.properties = mergePatch(existing.properties ?? {}, clonePatch(properties))
   node.components = comps
-  asset.children = children
   return ok(asset, warnings.length ? warnings : undefined)
 }
 
