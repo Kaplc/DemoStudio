@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
 import { useSaveStore } from '../stores/saveStore'
@@ -59,10 +59,17 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
   assetTarget?: EditablePropertyAssetTarget
 }) {
   const [val, setVal] = useState<unknown>(prop.get())
+  /** 输入框聚焦中（用户正在编辑）：跳过外部同步，避免每次重渲染把输入重置回旧值 */
+  const editingRef = useRef(false)
 
-  // 外部变更（如锚点修改导致位置联动）时同步本地值
+  // 外部变更（如锚点修改导致位置联动 / 蓝图重建）时同步本地值。
+  // ⚠️ prop 每次渲染都是新引用（getEditableProperties 每次新建对象），不能直接依赖：
+  //   · 聚焦中跳过（否则 onChange → 重渲染 → setVal(prop.get())=旧值 → 输入被吞，"打架"）
+  //   · 函数式 setVal + 值比较：值没变返回原引用（vec3/数组类型避免无限重渲染）
   useEffect(() => {
-    setVal(prop.get())
+    if (editingRef.current) return
+    const next = prop.get()
+    setVal((prev: unknown) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prop])
 
@@ -101,7 +108,9 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
             const v = parseFloat(e.target.value)
             if (!isNaN(v)) setVal(v)
           }}
+          onFocus={() => { editingRef.current = true }}
           onBlur={() => {
+            editingRef.current = false
             const v = typeof val === 'number' ? val : parseFloat(String(val))
             commit(isNaN(v) ? 0 : v)
           }}
@@ -117,7 +126,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
           style={editableInputStyle}
           value={s}
           onChange={(e) => setVal(e.target.value)}
-          onBlur={() => commit(s)}
+          onFocus={() => { editingRef.current = true }}
+          onBlur={() => { editingRef.current = false; commit(s) }}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
         />
       )
@@ -169,7 +179,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
             style={{ ...editableInputStyle, fontSize: 10 }}
             value={c}
             onChange={(e) => setVal(e.target.value)}
-            onBlur={() => commit(c)}
+            onFocus={() => { editingRef.current = true }}
+            onBlur={() => { editingRef.current = false; commit(c) }}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
           />
         </div>
@@ -198,7 +209,9 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
                     next[idx] = isNaN(nv) ? v : nv
                     setVal(next)
                   }}
+                  onFocus={() => { editingRef.current = true }}
                   onBlur={() => {
+                    editingRef.current = false
                     const next = arr.map((x) => (typeof x === 'number' ? x : 0))
                     commit(next)
                   }}
