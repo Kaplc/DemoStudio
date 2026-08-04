@@ -13,6 +13,8 @@ import * as THREE from 'three'
 import { World } from '../engine'
 import { logger } from '../engine'
 import { BlueprintRegistry } from '../engine'
+import { GenericActor, LightComponent } from '../engine'
+import type { LightComponentOptions } from '../engine'
 import { Actor } from '../engine/gameplay/entity/Actor'
 import { TransformComponent } from '../engine/gameplay/entity/TransformComponent'
 import { select, notifySelectionChange } from './SelectionManager'
@@ -262,22 +264,22 @@ export class BlueprintPreviewManager {
   // ═══════════════════════════════════
 
   private setupLighting() {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7)
-    this.scene.add(ambient)
-
-    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a3a4a, 0.5)
-    this.scene.add(hemi)
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5)
-    dirLight.position.set(10, 15, 8)
-    dirLight.castShadow = true
-    dirLight.shadow.mapSize.width = 1024
-    dirLight.shadow.mapSize.height = 1024
-    this.scene.add(dirLight)
-
-    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4)
-    fillLight.position.set(-5, 10, -8)
-    this.scene.add(fillLight)
+    // 灯光 actor 化：灯光挂到 Actor（LightComponent），大纲显示为可选中/可编辑的节点
+    const makeLightActor = (name: string, options: LightComponentOptions): void => {
+      const actor = new GenericActor(name)
+      actor.addComponent(new LightComponent(actor, options))
+      this.scene.add(actor.root)
+    }
+    makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.7 })
+    makeLightActor('HemisphereLight', { type: 'hemisphere', color: '#87ceeb', intensity: 0.5 })
+    makeLightActor('KeyLight', {
+      type: 'directional', color: '#ffffff', intensity: 1.5,
+      position: [10, 15, 8], castShadow: true,
+    })
+    makeLightActor('FillLight', {
+      type: 'directional', color: '#8888ff', intensity: 0.4,
+      position: [-5, 10, -8],
+    })
   }
 
   private setupHelpers() {

@@ -16,6 +16,8 @@ import { World } from '../engine'
 import { logger } from '../engine'
 import { loadScene } from '../engine'
 import { GenericActor, MeshComponent, Actor } from '../engine'
+import { LightComponent } from '../engine'
+import type { LightComponentOptions } from '../engine'
 import type { SceneAsset } from '../engine'
 import { select, notifySelectionChange } from './SelectionManager'
 import { TransformGizmo } from './TransformGizmo'
@@ -253,22 +255,29 @@ export class ScenePreviewManager {
   // ════════════════════════════════════════
 
   private setupLighting() {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7)
-    this.scene.add(ambient)
+    // 灯光 actor 化：灯光挂到 Actor 上（LightComponent），大纲显示为可选中/可编辑的节点
+    // 用 world.SpawnActor 挂载（带生命周期；与场景内 actor 一致）
+    const makeLightActor = (name: string, options: LightComponentOptions) => {
+      const actor = new GenericActor(name)
+      actor.addComponent(new LightComponent(actor, options))
+      this.world.SpawnActor(actor)
+      return actor
+    }
 
-    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a3a4a, 0.5)
-    this.scene.add(hemi)
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5)
-    dirLight.position.set(10, 15, 8)
-    dirLight.castShadow = true
-    dirLight.shadow.mapSize.width = 1024
-    dirLight.shadow.mapSize.height = 1024
-    this.scene.add(dirLight)
-
-    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4)
-    fillLight.position.set(-5, 10, -8)
-    this.scene.add(fillLight)
+    // 环境光
+    makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.7 })
+    // 半球光
+    makeLightActor('HemisphereLight', { type: 'hemisphere', color: '#87ceeb', intensity: 0.5 })
+    // 主方向光（带阴影）
+    makeLightActor('KeyLight', {
+      type: 'directional', color: '#ffffff', intensity: 1.5,
+      position: [10, 15, 8], castShadow: true,
+    })
+    // 补光
+    makeLightActor('FillLight', {
+      type: 'directional', color: '#8888ff', intensity: 0.4,
+      position: [-5, 10, -8],
+    })
   }
 
   private setupHelpers() {

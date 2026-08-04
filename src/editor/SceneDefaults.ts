@@ -6,26 +6,33 @@
  * - applySkybox: 根据 SkyboxConfig 更新场景背景/天空盒/雾效
  */
 import * as THREE from 'three'
-import type { SkyboxConfig } from '../engine'
+import { GenericActor, LightComponent } from '../engine'
+import type { LightComponentOptions, SkyboxConfig } from '../engine'
 
 /** 鼠标→世界坐标复用缓冲 */
 export const _ptrWorld = new THREE.Vector3()
 
 /**
- * 向场景添加默认内容（环境光、半球光、方向光、网格辅助线）
+ * 向场景添加默认内容（环境光、半球光、方向光、网格辅助线）。
+ * 灯光 actor 化：灯光挂到 Actor（LightComponent），大纲显示为可选中/可编辑的节点，
+ * 而不是裸 THREE 灯光对象（裸对象无 actorRef，大纲显示类型名且无法选中）。
  */
 export function addDefaultContent(scene: THREE.Scene): void {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-  scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3a3a4a, 0.4))
-  const dl = new THREE.DirectionalLight(0xffffff, 1.2)
-  dl.position.set(20, 30, 10)
-  dl.castShadow = true
-  dl.shadow.mapSize.width = 2048
-  dl.shadow.mapSize.height = 2048
-  scene.add(dl)
-  const fl = new THREE.DirectionalLight(0x8888ff, 0.3)
-  fl.position.set(-10, 15, -10)
-  scene.add(fl)
+  const makeLightActor = (name: string, options: LightComponentOptions): void => {
+    const actor = new GenericActor(name)
+    actor.addComponent(new LightComponent(actor, options))
+    scene.add(actor.root)
+  }
+  makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.6 })
+  makeLightActor('HemisphereLight', { type: 'hemisphere', color: '#87ceeb', intensity: 0.4 })
+  makeLightActor('KeyLight', {
+    type: 'directional', color: '#ffffff', intensity: 1.2,
+    position: [20, 30, 10], castShadow: true,
+  })
+  makeLightActor('FillLight', {
+    type: 'directional', color: '#8888ff', intensity: 0.3,
+    position: [-10, 15, -10],
+  })
   const grid = new THREE.GridHelper(40, 40, 0x444466, 0x333355)
   grid.position.y = -0.01
   scene.add(grid)

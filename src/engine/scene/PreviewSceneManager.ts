@@ -11,6 +11,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Compositor2D } from './Compositor2D'
 import { logger } from '../Logger'
+import { GenericActor } from '../gameplay/entity/GenericActor'
+import { LightComponent } from '../gameplay/rendering/LightComponent'
 
 export type ControlMode = 'orbit' | 'fly'
 /** 相机投影模式：'perspective' 透视(3D)/ 'orthographic' 正交(2D) */
@@ -314,32 +316,29 @@ export class PreviewSceneManager {
   }
 
   private setupLighting() {
+    // 灯光 actor 化：灯光挂到 Actor 上（LightComponent），大纲显示为可选中/可编辑的节点
+    // （Actor.root 带 userData.actorRef，getSceneTree 会正确显示名字而非裸 THREE 类型）
+    const makeLightActor = (name: string, options: import('../gameplay/rendering/LightComponent').LightComponentOptions) => {
+      const actor = new GenericActor(name)
+      actor.addComponent(new LightComponent(actor, options))
+      this.scene.add(actor.root)
+      return actor
+    }
+
     // 环境光
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6)
-    this.scene.add(ambient)
-
+    makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.6 })
     // 半球光
-    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a3a4a, 0.4)
-    this.scene.add(hemi)
-
-    // 主方向光
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2)
-    dirLight.position.set(20, 30, 10)
-    dirLight.castShadow = true
-    dirLight.shadow.mapSize.width = 2048
-    dirLight.shadow.mapSize.height = 2048
-    dirLight.shadow.camera.near = 1
-    dirLight.shadow.camera.far = 60
-    dirLight.shadow.camera.left = -25
-    dirLight.shadow.camera.right = 25
-    dirLight.shadow.camera.top = 25
-    dirLight.shadow.camera.bottom = -25
-    this.scene.add(dirLight)
-
+    makeLightActor('HemisphereLight', { type: 'hemisphere', color: '#87ceeb', intensity: 0.4 })
+    // 主方向光（带阴影）
+    makeLightActor('KeyLight', {
+      type: 'directional', color: '#ffffff', intensity: 1.2,
+      position: [20, 30, 10], castShadow: true,
+    })
     // 补光
-    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3)
-    fillLight.position.set(-10, 15, -10)
-    this.scene.add(fillLight)
+    makeLightActor('FillLight', {
+      type: 'directional', color: '#8888ff', intensity: 0.3,
+      position: [-10, 15, -10],
+    })
   }
 
   private setupHelpers() {

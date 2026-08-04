@@ -28,6 +28,7 @@ import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
+import { LightComponent, type LightType } from '../rendering/LightComponent'
 
 let _registered = false
 
@@ -281,6 +282,30 @@ export function registerBuiltinComponents(): void {
     (c, p) => {
       const btn = c as UIButtonComponent
       if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
+    },
+  )
+
+  // ─── LightComponent ─── props: { type?, color?, intensity?, castShadow?, position?, ... }
+  // 灯光挂载到 Actor（灯光 Actor 模式）：Scene 视口默认灯光与场景资产灯光声明均走此组件。
+  ComponentRegistry.register(
+    'LightComponent',
+    (owner, p = {}) =>
+      new LightComponent(owner, {
+        type: p.type as LightType | undefined,
+        color: p.color as string | number | undefined,
+        intensity: p.intensity as number | undefined,
+        distance: p.distance as number | undefined,
+        decay: p.decay as number | undefined,
+        angle: p.angle as number | undefined,
+        penumbra: p.penumbra as number | undefined,
+        castShadow: p.castShadow as boolean | undefined,
+        position: p.position as [number, number, number] | undefined,
+      }),
+    (c, p) => {
+      const lc = c as LightComponent
+      if (p.color !== undefined) lc.color = p.color as string
+      if (p.intensity !== undefined) lc.intensity = p.intensity as number
+      if (p.castShadow !== undefined) lc.castShadow = p.castShadow as boolean
     },
   )
 }

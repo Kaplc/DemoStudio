@@ -135,9 +135,10 @@ export function getSceneTree(): SceneTreeNode[] {
   if (!_sharedScene) return result
 
   function walk(obj: THREE.Object3D, depth: number) {
-    // 跳过内部保留对象（GridHelper、AmbientLight 等编辑器基础设施）
+    // 跳过内部保留对象（GridHelper、AxesHelper、所有灯光——灯光挂载在灯光 Actor 的 root 下，
+    // 是组件的渲染对象而非独立节点；灯光本身经 LightComponent 由父 Actor 表达）
     if (!obj.visible && obj.type !== 'Scene') return
-    if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
+    if ((obj as THREE.Light).isLight || obj.type === 'GridHelper' || obj.type === 'AxesHelper') return
     // 跳过编辑 gizmo（TransformGizmo 及其子对象）
     if (obj.name === 'TransformGizmo') return
 
@@ -145,13 +146,18 @@ export function getSceneTree(): SceneTreeNode[] {
     const isRoot = obj === _sharedScene
     if (!isRoot) {
       const actorRef = (obj as any).userData?.actorRef as Actor | undefined
-      result.push({
-        depth,
-        name: obj.name || obj.type,
-        actor: actorRef ?? null,
-      })
-      // ref 实例（类似预制体）不展开其内部子 Actor
-      if (actorRef?.isRefInstance) return
+      // 只显示有 Actor 的节点：无 actorRef 的纯容器 Group / 场景资产 mesh / 灯光子对象
+      // 不显示（与 BlueprintPreviewManager/ScenePreviewManager 的 getActorTree 语义一致），
+      // 但继续递归子节点，不遗漏嵌套的 Actor
+      if (actorRef) {
+        result.push({
+          depth,
+          name: obj.name || obj.type,
+          actor: actorRef,
+        })
+        // ref 实例（类似预制体）不展开其内部子 Actor
+        if (actorRef.isRefInstance) return
+      }
     }
 
     // 根节点不加深 depth，直接平铺
