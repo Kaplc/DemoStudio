@@ -61,6 +61,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
   const [val, setVal] = useState<unknown>(prop.get())
   /** 输入框聚焦中（用户正在编辑）：跳过外部同步，避免每次重渲染把输入重置回旧值 */
   const editingRef = useRef(false)
+  /** 蓝图模式 color picker 防抖（拖动停止后才提交，避免连续重建卡死） */
+  const colorDebounceRef = useRef<number | null>(null)
 
   // 外部变更（如锚点修改导致位置联动 / 蓝图重建）时同步本地值。
   // ⚠️ prop 每次渲染都是新引用（getEditableProperties 每次新建对象），不能直接依赖：
@@ -166,12 +168,23 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
       const fullHex = /^#[0-9a-fA-F]{3}$/.test(c)
         ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`
         : c
+      // color picker 拖动时 onChange 连续触发（即时提交）。蓝图模式每次提交都触发
+      // 全量重建（销毁+重实例化+troika 字体重载）→ 防抖：停止拖动后才提交一次
+      const debouncedCommit = (v: string) => {
+        setVal(v)
+        if (!assetTarget) { commit(v); return } // 游戏模式即时改组件，无重建，无需防抖
+        if (colorDebounceRef.current !== null) window.clearTimeout(colorDebounceRef.current)
+        colorDebounceRef.current = window.setTimeout(() => {
+          colorDebounceRef.current = null
+          commit(v)
+        }, 400)
+      }
       return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
           <input
             type="color"
             value={/^#[0-9a-fA-F]{6}$/.test(fullHex) ? fullHex : '#ffffff'}
-            onChange={(e) => commit(e.target.value)}
+            onChange={(e) => debouncedCommit(e.target.value)}
             style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', cursor: 'pointer' }}
           />
           <input
