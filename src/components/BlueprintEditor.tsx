@@ -13,6 +13,8 @@ import type { BlueprintAsset } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { notifySelectionChange, editorBus, EditorEvent, getSelectedActor } from '../editor'
+import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
+import { UndoManager } from '../editor/blueprintEdit/UndoManager'
 
 interface BlueprintEditorProps {
   assetPath: string
@@ -57,6 +59,11 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const previewMgrRef = useRef<BlueprintPreviewManager | UIPreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
   const [saving, setSaving] = useState(false)
+  /** 撤销/重做按钮可用状态与忙碌标记（historyVersion 递增触发重查） */
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const [historyBusy, setHistoryBusy] = useState(false)
+  const [historyVersion, setHistoryVersion] = useState(0)
   /** 保存 assetPath 引用供事件回调使用（避免闭包捕获旧值） */
   const assetPathRef = useRef(assetPath)
   assetPathRef.current = assetPath
@@ -70,24 +77,18 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const isTabActive = activeTabId === `bp:${assetPath}`
 
-  // ─── 读取蓝图 JSON ───
+  // ─── 读取蓝图 JSON（走服务层：有工作副本时返回内存最新态，避免 undo/redo 后读到磁盘旧数据）───
   useEffect(() => {
-    const readJsonFile = window.electronAPI?.readJsonFile
-    if (!readJsonFile) {
-      setError('读取蓝图需要 Electron 环境')
-      setLoading(false)
-      return
-    }
     let cancelled = false
     setLoading(true)
     setError(null)
-    readJsonFile(assetPath)
-      .then((result) => {
+    BlueprintEditorService.read(assetPath)
+      .then((r) => {
         if (cancelled) return
-        if (result.success && result.data) {
-          setData(result.data as BlueprintData)
+        if (r.ok && r.asset) {
+          setData(r.asset as unknown as BlueprintData)
         } else {
-          setError('读取蓝图文件失败')
+          setError(r.error ?? '读取蓝图文件失败')
         }
         setLoading(false)
       })
@@ -97,7 +98,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         setLoading(false)
       })
     return () => { cancelled = true }
-    // blueprintEditNonce：任何蓝图被编辑后重新读盘（自己的文件）
+    // blueprintEditNonce：任何蓝图被编辑后重新读盘（工作副本优先）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetPath, blueprintEditNonce])
 
@@ -243,10 +244,13 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       }
     }
 
-    const onPointerUp = (e: PointerEvent) => {
+    const onPointerUp = async (e: PointerEvent) => {
       if (gizmo.isDragging) {
         gizmo.endDrag()
         if (dragDidMove) {
+          // 3D 蓝图拖动松手：同步预览内存态到工作副本（撤销点），再标记脏
+          const data = mgr.collectSaveData?.()
+          if (data) await BlueprintEditorService.updateFromPreview(assetPathRef.current, data as unknown as BlueprintAsset)
           editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, assetPathRef.current)
         }
         try { canvas.releasePointerCapture(e.pointerId) } catch { }
@@ -266,17 +270,77 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     }
   }, [previewReady])
 
+  // ─── 撤销/重做（Ctrl+Z / Ctrl+Y，仅激活页签响应）───
+  useEffect(() => {
+    const onUndo = () => {
+      if (!isTabActive) return
+      console.log(`[BlueprintEditor] 快捷键撤销 (Ctrl+Z): ${assetPath}`)
+      const sel = getSelectedActor()
+      if (sel) pendingSelectRef.current = sel.root.name   // 重建后恢复选中
+      BlueprintEditorService.undo(assetPath)
+    }
+    const onRedo = () => {
+      if (!isTabActive) return
+      console.log(`[BlueprintEditor] 快捷键重做 (Ctrl+Y): ${assetPath}`)
+      const sel = getSelectedActor()
+      if (sel) pendingSelectRef.current = sel.root.name
+      BlueprintEditorService.redo(assetPath)
+    }
+    window.addEventListener('shortcut-undo', onUndo)
+    window.addEventListener('shortcut-redo', onRedo)
+    return () => {
+      window.removeEventListener('shortcut-undo', onUndo)
+      window.removeEventListener('shortcut-redo', onRedo)
+    }
+  }, [isTabActive, assetPath])
+
+  // ─── 撤销/重做按钮 ───
+  // 拖动松手（updateFromPreview 新增撤销点但不 bump）时刷新按钮可用状态
+  useEffect(() => {
+    const onTransformDirty = () => setHistoryVersion((v) => v + 1)
+    const off = editorBus.on(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, onTransformDirty)
+    return off
+  }, [])
+
+  // 编辑（nonce 变化）/ 撤销/重做（historyVersion 变化）后重查栈状态
+  useEffect(() => {
+    const key = diskPathToAssetKey(assetPath)
+    setCanUndo(UndoManager.canUndo(key))
+    setCanRedo(UndoManager.canRedo(key))
+  }, [assetPath, blueprintEditNonce, historyVersion])
+
+  const handleUndo = async () => {
+    if (historyBusy || !canUndo) return
+    console.log(`[BlueprintEditor] 点击撤销按钮: ${assetPath}（canUndo=${canUndo}）`)
+    const sel = getSelectedActor()
+    if (sel) pendingSelectRef.current = sel.root.name   // 重建后恢复选中
+    setHistoryBusy(true)
+    try {
+      await BlueprintEditorService.undo(assetPath)
+    } finally {
+      setHistoryBusy(false)
+      setHistoryVersion((v) => v + 1)
+    }
+  }
+
+  const handleRedo = async () => {
+    if (historyBusy || !canRedo) return
+    console.log(`[BlueprintEditor] 点击重做按钮: ${assetPath}（canRedo=${canRedo}）`)
+    const sel = getSelectedActor()
+    if (sel) pendingSelectRef.current = sel.root.name
+    setHistoryBusy(true)
+    try {
+      await BlueprintEditorService.redo(assetPath)
+    } finally {
+      setHistoryBusy(false)
+      setHistoryVersion((v) => v + 1)
+    }
+  }
+
   // ─── 保存 ───
   const handleSave = async () => {
     const mgr = previewMgrRef.current
     if (!mgr || !data || saving) return
-
-    const writeJsonFile = window.electronAPI?.writeJsonFile
-    if (!writeJsonFile) return
-
-    // 通过 spawn 时建立的 actor↔json 映射，把大纲各 Actor 的实时 transform 回写到 JSON
-    const saveData = mgr.collectSaveData()
-    if (!saveData) return
 
     setSaving(true)
     try {
@@ -288,14 +352,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       const sel = getSelectedActor()
       pendingSelectRef.current = sel ? sel.root.name : null
 
-      await writeJsonFile(assetPath, saveData)
-
-      // 更新注册表缓存（预览重建由 bumpBlueprintEdit → setData → useEffect 驱动，不在此手动 load）
-      BlueprintRegistry.loadFromJson(diskPathToAssetKey(assetPath), saveData as unknown as BlueprintAsset)
+      // 保存前先把预览内存态同步进工作副本（拖动松手已同步，此处兜底），再 flush 落盘
+      const saveData = mgr.collectSaveData()
+      if (saveData) BlueprintEditorService.updateFromPreview(assetPath, saveData as unknown as BlueprintAsset)
+      const r = await BlueprintEditorService.save(assetPath)
+      if (!r.ok) console.error('[BlueprintEditor] 保存失败:', r.error)
 
       // 通知其他页签/面板刷新 + 触发行内 useEffect 重建预览
       useEditorStore.getState().bumpBlueprintEdit(assetPath)
-      editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
     } finally {
       setSaving(false)
     }
@@ -338,6 +402,34 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
         <span style={{ color: 'var(--success)' }}>{data.baseClass}</span>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={handleUndo}
+          disabled={historyBusy || !canUndo}
+          title="撤销 (Ctrl+Z)"
+          style={{
+            fontSize: 11, padding: '3px 10px', cursor: (historyBusy || !canUndo) ? 'default' : 'pointer',
+            background: 'var(--bg-tertiary)',
+            color: (historyBusy || !canUndo) ? 'var(--text-dim)' : 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          ↶ 撤销
+        </button>
+        <button
+          onClick={handleRedo}
+          disabled={historyBusy || !canRedo}
+          title="重做 (Ctrl+Y)"
+          style={{
+            fontSize: 11, padding: '3px 10px', cursor: (historyBusy || !canRedo) ? 'default' : 'pointer',
+            background: 'var(--bg-tertiary)',
+            color: (historyBusy || !canRedo) ? 'var(--text-dim)' : 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          ↷ 重做
+        </button>
         <button
           onClick={handleSave}
           disabled={saving}

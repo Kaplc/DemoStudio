@@ -169,15 +169,17 @@ const mockAPI: ElectronAPI = {
   },
 
   readJsonFile: async (relativePath: string) => {
+    // 深拷贝返回，模拟真实 Electron IPC 序列化（防止调用方原地修改污染内存缓存）
+    const clone = (v: unknown) => JSON.parse(JSON.stringify(v)) as unknown
     // 尝试直接命中缓存
     if (jsonCache.has(relativePath)) {
-      return { success: true, data: jsonCache.get(relativePath) }
+      return { success: true, data: clone(jsonCache.get(relativePath)) }
     }
     // 尝试相对于 src/ 的路径（去除前导 src/ 再匹配）
     const altPath = relativePath.replace(/^src\//, '')
     for (const [key, data] of jsonCache.entries()) {
       if (key.endsWith(altPath) || key === relativePath) {
-        return { success: true, data }
+        return { success: true, data: clone(data) }
       }
     }
     // 回退：通过 fetch 尝试加载（用于非预缓存的 JSON）
@@ -186,7 +188,7 @@ const mockAPI: ElectronAPI = {
       if (resp.ok) {
         const data = await resp.json()
         jsonCache.set(relativePath, data)
-        return { success: true, data }
+        return { success: true, data: clone(data) }
       }
     } catch { /* ignore */ }
     return { success: false, error: `Mock: file not found: ${relativePath}` }

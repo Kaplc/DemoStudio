@@ -59,6 +59,16 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     match: (e) => e.key === 's' && (e.ctrlKey || e.metaKey) && e.shiftKey,
     eventName: 'shortcut-save-as',
   },
+  {
+    match: (e) => (e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && !e.shiftKey,
+    eventName: 'shortcut-undo',
+  },
+  {
+    match: (e) =>
+      ((e.key === 'y' || e.key === 'Y') && (e.ctrlKey || e.metaKey)) ||
+      ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && e.shiftKey),
+    eventName: 'shortcut-redo',
+  },
 ]
 
 /**

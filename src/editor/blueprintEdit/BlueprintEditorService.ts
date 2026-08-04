@@ -1,15 +1,15 @@
 /**
  * BlueprintEditorService — 蓝图资产编辑编排层
  *
- * 把 blueprintOps 的纯函数包装成"读盘 → 应用 op → 写盘 → 重注册 → 通知刷新"的完整流程，
- * 供三类调用方共用：
+ * 把 blueprintOps 的纯函数包装成"读盘 → 应用 op → 写盘 → 重注册 → 通知刷新"的完整流程,
+ * 供三类调用方共用:
  *  - 交互式 UI（Inspector / BlueprintEditor）
  *  - 外部 AI（经 MCP 服务器 → HTTP /api/blueprint → 渲染进程）
  *  - 代码脚本（window.blueprintEditor）
  *
  * 调用方永远不直接碰 JSON 文件，统一走 dispatch(op, params)。
  *
- * 校验策略：
+ * 校验策略:
  *  - 结构校验：在 blueprintOps 内硬阻断（非法参数直接失败）。
  *  - 注册表校验：补 warnings（未注册类型可能是延迟注册，不阻断）。
  *  - 继承/引用环：乐观注册后 resolve 探测；命中环则回滚并返回失败。
@@ -18,6 +18,7 @@ import { BlueprintRegistry, ComponentRegistry, ActorRegistry, logger } from '../
 import type { BlueprintAsset, BlueprintChildDef, PropertyPatch } from '../../engine'
 import * as ops from './blueprintOps'
 import type { ChildLocator, OpResult } from './blueprintOps'
+import { UndoManager } from './UndoManager'   
 import { useEditorStore } from '../../stores/editorStore'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
@@ -75,11 +76,39 @@ async function writeAsset(assetPath: string, data: BlueprintAsset): Promise<{ ok
   return { ok: true }
 }
 
+// ─── 日志辅助 ───
+
+/** 提取资产根 transform/uitransform 组件 position 用于日志追踪（无组件返回 'n/a'） */
+function logPos(asset: BlueprintAsset | undefined): string {
+  if (!asset) return 'n/a'
+  const tsf = (asset.components ?? []).find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
+  const p = tsf?.properties?.position
+  return Array.isArray(p) ? `[${(p as number[]).join(',')}]` : 'n/a'
+}
+
+/** 日志用参数摘要：剔除 assetPath 等大字段，保留 op 关键参数 */
+function logParams(op: string, p: Record<string, unknown>): string {
+  switch (op) {
+    case 'setPosition': return `position=${JSON.stringify(p.position)}`
+    case 'setRotation': return `rotation=${JSON.stringify(p.rotation)}`
+    case 'setScale': return `scale=${JSON.stringify(p.scale)}`
+    case 'addComponent': return `type=${p.baseClass ?? p.type}`
+    case 'removeComponent': return `type=${p.baseClass ?? p.type}`
+    case 'setComponentProps': return `type=${p.baseClass ?? p.type}`
+    case 'addChild': return `name=${(p.child as { name?: string })?.name ?? p.name}`
+    case 'updateChild': return `name=${p.name ?? p.index}`
+    case 'removeChild': return `name=${p.name ?? p.index}`
+    case 'setChildComponentProps': return `child=${p.name ?? p.index}, type=${p.baseClass ?? p.type}`
+    case 'setBaseClass': return `class=${p.baseClass ?? p.class}`
+    default: return Object.keys(p ?? {}).join(',')
+  }
+}
+
 // ─── 参数归一化 ───
 
 function pickChildDef(p: Record<string, unknown>): BlueprintChildDef {
   if (p.child && typeof p.child === 'object') return p.child as BlueprintChildDef
-  // 组件优先约定：新建子节点不再生成顶层 position/rotation/scale（旧格式已废弃），
+  // 组件优先约定：新建子节点不再生成顶层 position/rotation/scale（旧格式已废弃）,
   // 位置由调用方在 components 里声明 transform/uitransform 组件承载
   const def: BlueprintChildDef = {}
   if (typeof p.ref === 'string') def.ref = p.ref
@@ -116,6 +145,17 @@ function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): O
       if (!loc) return { ok: false, error: 'removeChild 需要 name 或 index 定位' }
       return ops.removeChild(asset, loc)
     }
+    case 'setChildComponentProps': {
+      const loc = pickLocator(p)
+      if (!loc) return { ok: false, error: 'setChildComponentProps 需要 name 或 index 定位' }
+      return ops.setChildComponentProps(
+        asset,
+        loc,
+        (p.baseClass ?? p.type) as string,
+        (p.properties ?? p.patch ?? p.props) as PropertyPatch,
+        p.strict === true,
+      )
+    }
     case 'setBaseClass':
       return ops.setBaseClass(asset, (p.baseClass ?? p.class) as string)
     case 'setPosition':
@@ -134,6 +174,11 @@ function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): O
 // ─── 服务 ───
 
 export class BlueprintEditorService {
+  /** 内存工作副本：注册 key → 最新资产。UI 编辑只改这里，不写盘（假保存） */
+  private static workingCopies = new Map<string, BlueprintAsset>()
+  /** 脏标记：副本与磁盘不一致（存在未保存修改） */
+  private static dirtyKeys = new Set<string>()
+
   /** 当前可用类型快照 */
   static listTypes(): BlueprintTypes {
     return {
@@ -143,32 +188,69 @@ export class BlueprintEditorService {
     }
   }
 
-  /** 读取蓝图资产（确保已注册到 BlueprintRegistry） */
+  /** 读取蓝图资产（确保已注册到 BlueprintRegistry）。有工作副本时返回副本（内存最新状态）
+   *  返回深拷贝，防止调用方原地修改污染工作副本 */
   static async read(assetPath: string): Promise<BlueprintEditResult> {
+    const key = diskPathToAssetKey(assetPath)
+    const cached = this.workingCopies.get(key)
+    if (cached) {
+      if (!BlueprintRegistry.has(key)) BlueprintRegistry.loadFromJson(key, cached)
+      return { ok: true, asset: JSON.parse(JSON.stringify(cached)) as BlueprintAsset, types: this.listTypes() }
+    }
     const r = await readAsset(assetPath)
     if (!r.ok) return { ok: false, error: r.error, types: this.listTypes() }
-    // 编辑器打开时尚未注册的蓝图，读取时补注册（供预览 / resolve 校验）
     if (!BlueprintRegistry.has(r.key)) {
       BlueprintRegistry.loadFromJson(r.key, r.asset)
     }
     return { ok: true, asset: r.asset, types: this.listTypes() }
   }
 
+    /** 取得工作副本；无则从磁盘读取建立（首次编辑/打开时） */
+  private static async getWorkingCopy(
+    assetPath: string,
+  ): Promise<{ ok: true; key: string; asset: BlueprintAsset } | { ok: false; error: string }> {
+    const key = diskPathToAssetKey(assetPath)
+    const cached = this.workingCopies.get(key)
+    if (cached) {
+      logger.debug(`[BlueprintEdit] 工作副本命中: ${key}`)
+      return { ok: true, key, asset: cached }
+    }
+    const read = await readAsset(assetPath)
+    if (!read.ok) {
+      logger.error(`[BlueprintEdit] 工作副本建立失败（读盘）: ${key}: ${read.error}`)
+      return { ok: false, error: read.error }
+    }
+    this.workingCopies.set(key, read.asset)
+    logger.info(`[BlueprintEdit] 工作副本建立（读盘）: ${key}`)
+    return { ok: true, key, asset: read.asset }
+  }
+
   /**
-   * 应用一次编辑：读盘 → op → 注册表软告警 → 注册并探测环 → 写盘 → 通知刷新。
+   * 应用一次编辑：改工作副本 → 注册表软告警 → 注册并探测环 →（可选写盘）→ 通知刷新。
+   * persist=false（默认，UI 编辑）：只改内存副本 + push 撤销快照，不碰磁盘（假保存）。
+   * persist=true（MCP/脚本 dispatch）：保持旧语义立即落盘。
    */
   static async apply(
     assetPath: string,
     op: string,
     params: Record<string, unknown>,
+    opts: { persist?: boolean } = {},
   ): Promise<BlueprintEditResult> {
-    const read = await readAsset(assetPath)
-    if (!read.ok) return { ok: false, error: read.error, types: this.listTypes() }
-    const oldAsset = read.asset
-    const key = read.key
+    const persist = opts.persist ?? false
+    const wc = await this.getWorkingCopy(assetPath)
+    if (!wc.ok) return { ok: false, error: wc.error, types: this.listTypes() }
+    const { key } = wc
+    const oldAsset = wc.asset
+    // 动作前快照（深拷贝），供撤销回退
+    const oldSnapshot = JSON.parse(JSON.stringify(oldAsset)) as BlueprintAsset
+
+    const dBefore = UndoManager.depth(key)
+    const oldPosLog = logPos(oldAsset)
+    logger.info(`[BlueprintEdit] apply 开始: ${op}(${logParams(op, params ?? {})}) → ${key}（persist=${persist}，pos ${oldPosLog}，undo 栈 ${dBefore.undo}）`)
 
     const res = runOp(oldAsset, op, params ?? {})
     if (!res.ok) {
+      logger.warn(`[BlueprintEdit] apply 被拒: ${op} → ${key}: ${res.error}`)
       return { ok: false, error: res.error, asset: oldAsset, types: this.listTypes() }
     }
     const newAsset = res.asset!
@@ -184,8 +266,9 @@ export class BlueprintEditorService {
     } catch (e) {
       const msg = String((e as Error)?.message ?? e)
       if (msg.includes('循环')) {
-        // 命中环：回滚注册表，不写盘
+        // 命中环：回滚注册表与副本，不提交
         BlueprintRegistry.loadFromJson(key, oldAsset)
+        logger.warn(`[BlueprintEdit] apply 回滚（引用环）: ${op} → ${key}: ${msg}`)
         return {
           ok: false,
           error: `蓝图引用存在循环: ${msg}`,
@@ -197,26 +280,127 @@ export class BlueprintEditorService {
       warnings.push(`resolve 探测跳过（可能依赖尚未注册的蓝图）: ${msg}`)
     }
 
-    // 写盘
-    const written = await writeAsset(assetPath, newAsset)
-    if (!written.ok) {
-      BlueprintRegistry.loadFromJson(key, oldAsset)
-      return { ok: false, error: written.error, asset: oldAsset, types: this.listTypes() }
+    // 提交到工作副本 + 撤销快照（动作前状态）
+    UndoManager.push(key, oldSnapshot)
+    this.workingCopies.set(key, newAsset)
+    this.dirtyKeys.add(key)
+
+    // 仅显式保存时写盘
+    if (persist) {
+      const written = await writeAsset(assetPath, newAsset)
+      if (!written.ok) {
+        // 写盘失败：回滚副本 + 注册表
+        this.workingCopies.set(key, oldSnapshot)
+        BlueprintRegistry.loadFromJson(key, oldAsset)
+        logger.error(`[BlueprintEdit] 写盘失败，回滚: ${key}: ${written.error}`)
+        return { ok: false, error: written.error, asset: oldAsset, types: this.listTypes() }
+      }
+      this.dirtyKeys.delete(key)
+      editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
     }
 
     // 通知打开的编辑器刷新数据 + 预览
     useEditorStore.getState().bumpBlueprintEdit(assetPath)
 
-    // 通知脏标记已保存落盘
-    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
-
-    logger.info(`[BlueprintEdit] ${op} → ${assetPath}`)
+    logger.info(`[BlueprintEdit] apply 完成: ${op} → ${key}（pos ${oldPosLog}→${logPos(newAsset)}，undo 栈 ${dBefore.undo}→${UndoManager.depth(key).undo}）${persist ? '（已落盘）' : ''}`)
     return {
       ok: true,
       asset: newAsset,
       warnings: warnings.length ? warnings : undefined,
       types: this.listTypes(),
     }
+  }
+
+  /** 显式保存：把工作副本 flush 到磁盘（Ctrl+S / 保存按钮）。不 bump（由调用方决定重建时机） */
+  static async save(assetPath: string): Promise<BlueprintEditResult> {
+    const key = diskPathToAssetKey(assetPath)
+    const asset = this.workingCopies.get(key)
+    if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
+    logger.info(`[BlueprintEdit] save 开始: ${key}（pos ${logPos(asset)}，dirty=${this.dirtyKeys.has(key)}）`)
+    const written = await writeAsset(assetPath, asset)
+    if (!written.ok) {
+      logger.error(`[BlueprintEdit] save 失败: ${key}: ${written.error}`)
+      return { ok: false, error: written.error, asset, types: this.listTypes() }
+    }
+    this.dirtyKeys.delete(key)
+    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+    logger.info(`[BlueprintEdit] save 完成（已落盘）: ${key}`)
+    return { ok: true, asset, types: this.listTypes() }
+  }
+
+  /**
+   * 预览管理器在拖动/拖拽松手后调用：把预览内存态同步进工作副本（不写盘）。
+   * 内部 push 当前副本（= 动作前状态）作为撤销快照，所以每次松手 = 一个撤销点。
+   * 不 bump：预览自身已是最新内存态，无需重建。
+   */
+  static async updateFromPreview(assetPath: string, data: BlueprintAsset): Promise<void> {
+    // 确保工作副本存在：首次拖拽（无副本）先读盘建立，撤销快照 = 动作前真实磁盘状态
+    const wc = await this.getWorkingCopy(assetPath)
+    if (!wc.ok) {
+      logger.error(`[BlueprintEdit] 预览同步失败（无法建立工作副本）: ${assetPath}: ${wc.error}`)
+      return
+    }
+    const key = wc.key
+    const cur = this.workingCopies.get(key) ?? wc.asset
+    UndoManager.push(key, cur)
+    this.workingCopies.set(key, data)
+    this.dirtyKeys.add(key)
+    // 注册表同步（撤销/保存后 spawn 用新数据；预览自身已是内存最新，无需 bump）
+    BlueprintRegistry.loadFromJson(key, data)
+    try { BlueprintRegistry.resolve(key) } catch { /* 探测失败仅告警级，不阻断 */ }
+    logger.info(`[BlueprintEdit] 预览同步工作副本: ${key}（pos ${logPos(cur)}→${logPos(data)}，undo 栈 ${UndoManager.depth(key).undo}）`)
+  }
+
+  /** 撤销：恢复上一个快照 → 更新副本/注册表 → bump 重建预览 */
+  static async undo(assetPath: string): Promise<BlueprintEditResult> {
+    const key = diskPathToAssetKey(assetPath)
+    const cur = this.workingCopies.get(key)
+    const dBefore = UndoManager.depth(key)
+    const snap = UndoManager.undo(key, cur)
+    if (snap == null) {
+      logger.warn(`[BlueprintEdit] undo 无历史可撤: ${key}`)
+      return { ok: false, error: '没有可撤销的历史', types: this.listTypes() }
+    }
+    const asset = snap as BlueprintAsset
+    this.workingCopies.set(key, asset)
+    this.dirtyKeys.add(key)
+    BlueprintRegistry.loadFromJson(key, asset)
+    try { BlueprintRegistry.resolve(key) } catch { }
+    useEditorStore.getState().bumpBlueprintEdit(assetPath)
+    logger.info(`[BlueprintEdit] undo: ${key} pos ${logPos(cur)}→${logPos(asset)}（undo 栈 ${dBefore.undo}→${UndoManager.depth(key).undo}，redo ${dBefore.redo}→${UndoManager.depth(key).redo}）`)
+    return { ok: true, asset, types: this.listTypes() }
+  }
+
+  /** 重做：恢复 redo 快照 → 更新副本/注册表 → bump 重建预览 */
+  static async redo(assetPath: string): Promise<BlueprintEditResult> {
+    const key = diskPathToAssetKey(assetPath)
+    const cur = this.workingCopies.get(key)
+    const dBefore = UndoManager.depth(key)
+    const snap = UndoManager.redo(key, cur)
+    if (snap == null) {
+      logger.warn(`[BlueprintEdit] redo 无历史可重做: ${key}`)
+      return { ok: false, error: '没有可重做的历史', types: this.listTypes() }
+    }
+    const asset = snap as BlueprintAsset
+    this.workingCopies.set(key, asset)
+    this.dirtyKeys.add(key)
+    BlueprintRegistry.loadFromJson(key, asset)
+    try { BlueprintRegistry.resolve(key) } catch { }
+    useEditorStore.getState().bumpBlueprintEdit(assetPath)
+    logger.info(`[BlueprintEdit] redo: ${key} pos ${logPos(cur)}→${logPos(asset)}（undo 栈 ${dBefore.undo}→${UndoManager.depth(key).undo}，redo ${dBefore.redo}→${UndoManager.depth(key).redo}）`)
+    return { ok: true, asset, types: this.listTypes() }
+  }
+
+  /** 副本是否与磁盘不一致（存在未保存修改） */
+  static isDirty(assetPath: string): boolean {
+    return this.dirtyKeys.has(diskPathToAssetKey(assetPath))
+  }
+
+  /** 切换工程/关闭时清理全部副本与历史 */
+  static clearCache(): void {
+    this.workingCopies.clear()
+    this.dirtyKeys.clear()
+    UndoManager.clearAll()
   }
 
   /**
@@ -232,7 +416,11 @@ export class BlueprintEditorService {
     }
     const assetPath = params.assetPath as string | undefined
     if (!assetPath) return { ok: false, error: `${op} 需要 assetPath` }
-    return this.apply(assetPath, op, params)
+    // 外部入口（MCP / window API）：保持"立即落盘"语义
+    if (op === 'save') return this.save(assetPath)
+    if (op === 'undo') return this.undo(assetPath)
+    if (op === 'redo') return this.redo(assetPath)
+    return this.apply(assetPath, op, params, { persist: true })
   }
 
   // ─── 软告警：类型未注册时提示（不阻断） ───
@@ -243,7 +431,7 @@ export class BlueprintEditorService {
     p: Record<string, unknown>,
     warnings: string[],
   ): void {
-    if (op === 'addComponent' || op === 'setComponentProps') {
+    if (op === 'addComponent' || op === 'setComponentProps' || op === 'setChildComponentProps') {
       const t = p.baseClass as string
       if (t && !ComponentRegistry.has(t)) warnings.push(`Component 类型 "${t}" 未注册（可能延迟注册）`)
     } else if (op === 'setBaseClass') {

@@ -9,6 +9,21 @@ import type { Actor } from './Actor'
 export type EditablePropertyType = 'number' | 'string' | 'boolean' | 'enum' | 'vec2' | 'vec3' | 'color'
 
 /**
+ * 蓝图资产持久化目标（蓝图预览模式下由 Inspector 注入到可编辑属性上）。
+ * 有值 → 编辑提交额外走 BlueprintEditorService.apply('setChildComponentProps')：
+ * 改工作副本 + 进撤销栈（蓝图编辑语义）；
+ * 无值 → 保持 prop.set() 直接改运行时组件（游戏模式/非蓝图语义）。
+ */
+export interface EditablePropertyAssetTarget {
+  /** 蓝图资产路径（BlueprintEditorService.apply 的第一参） */
+  assetPath: string
+  /** 资产 children 中定位子节点的名称（= actor.root.name；找不到匹配时 op 返回错误，不新建节点） */
+  childName: string
+  /** 组件 baseClass（资产 components 定义按 baseClass 匹配，本地无则新建继承覆盖节点） */
+  baseClass: string
+}
+
+/**
  * 可编辑属性描述。组件注册后，Inspector 中该属性从"只读展示"变为"可编辑控件"。
  * - vec2/vec3：值用 [number, number] / [number, number, number] 表示
  * - enum：值用 string，options 提供可选值
@@ -32,6 +47,12 @@ export interface EditableProperty<T = unknown> {
   min?: number
   max?: number
   step?: number
+  /**
+   * 是否可持久化到资产 JSON（默认 true）。
+   * 运行时派生值 / 临时状态（如锚点联动计算值）置 false，
+   * 蓝图预览模式下 Inspector 会跳过这些属性，不写资产、不进撤销。
+   */
+  persistent?: boolean
 }
 
 export abstract class Component {

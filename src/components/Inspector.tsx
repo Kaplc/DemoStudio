@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
 import { useSaveStore } from '../stores/saveStore'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
-import { Actor, Component, type EditableProperty } from '../engine'
+import { Actor, Component, type EditableProperty, type EditablePropertyAssetTarget } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 
@@ -52,7 +52,12 @@ const vecAxisInputStyle: React.CSSProperties = {
  * - vec2/vec3 → 分量数字输入（blur/Enter 提交）
  * - color → 颜色选择器（即时提交）
  */
-function EditablePropertyInput({ prop, onEdited }: { prop: EditableProperty; onEdited: () => void }) {
+function EditablePropertyInput({ prop, onEdited, assetTarget }: {
+  prop: EditableProperty
+  onEdited: () => void
+  /** 蓝图预览模式注入：提交走资产通道（工作副本 + 撤销快照）；无 → 运行时 prop.set 直改 */
+  assetTarget?: EditablePropertyAssetTarget
+}) {
   const [val, setVal] = useState<unknown>(prop.get())
 
   // 外部变更（如锚点修改导致位置联动）时同步本地值
@@ -63,7 +68,21 @@ function EditablePropertyInput({ prop, onEdited }: { prop: EditableProperty; onE
 
   const commit = (v: unknown) => {
     setVal(v)
-    prop.set(v)
+    if (assetTarget) {
+      // 蓝图预览模式：走 BlueprintEditorService（工作副本 + 撤销快照 + 预览重建），
+      // 运行时组件不改——apply 成功后 bump 触发蓝图重建，场景值由重建刷新
+      BlueprintEditorService.apply(assetTarget.assetPath, 'setChildComponentProps', {
+        name: assetTarget.childName,
+        baseClass: assetTarget.baseClass,
+        properties: { [prop.key]: v },
+        strict: true,
+      }).then((r) => {
+        if (!r.ok) console.warn(`[Inspector] 子控件属性写入资产失败: ${assetTarget.childName}.${prop.key} → ${r.error}`)
+      })
+    } else {
+      // 游戏模式/非蓝图：直接改运行时组件
+      prop.set(v)
+    }
     onEdited()
   }
 
@@ -200,17 +219,21 @@ function EditablePropertyInput({ prop, onEdited }: { prop: EditableProperty; onE
  * 单条属性行：注册了可编辑属性 → 渲染编辑器；否则 → 只读展示。
  */
 function ComponentPropertyRow({
-  comp, k, v, onEdited,
+  comp, k, v, onEdited, assetTarget,
 }: {
   comp: Component; k: string; v: unknown; onEdited: () => void
+  /** 蓝图预览模式注入的资产持久化目标（组件级）；null → 运行时直改 */
+  assetTarget?: EditablePropertyAssetTarget | null
 }) {
   const editable = (comp.getEditableProperties ? comp.getEditableProperties() : [])
     .find((p) => p.key === k)
+  // 组件声明为非持久化的运行时派生值（persistent=false）→ 不注入资产通道，保持 prop.set
+  const target = assetTarget && editable && editable.persistent !== false ? assetTarget : null
   return (
     <div className="property-row" style={{ gap: 4, padding: '2px 0', alignItems: 'center' }}>
       <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{humanizeKey(k)}</span>
       {editable ? (
-        <EditablePropertyInput prop={editable} onEdited={onEdited} />
+        <EditablePropertyInput prop={editable} onEdited={onEdited} assetTarget={target ?? undefined} />
       ) : (
         <span
           style={{
@@ -225,7 +248,7 @@ function ComponentPropertyRow({
   )
 }
 
-function ActorComponentsView({ actor }: { actor: Actor }) {
+function ActorComponentsView({ actor, assetPath = null }: { actor: Actor; assetPath?: string | null }) {
   const components = (actor as any).components as Component[] | undefined
   // 折叠状态：组件名 → 是否折叠（默认展开；切换选中对象时重置）
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -236,6 +259,11 @@ function ActorComponentsView({ actor }: { actor: Actor }) {
     setCollapsed(new Set())
     setEditNonce(0)
   }, [actor])
+
+  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）
+  const childName = actor.root?.name || undefined
+  const makeTarget = (baseClass: string): EditablePropertyAssetTarget | undefined =>
+    assetPath && childName ? { assetPath, childName, baseClass } : undefined
 
   const toggleCollapse = (name: string) => {
     setCollapsed((prev) => {
@@ -291,6 +319,7 @@ function ActorComponentsView({ actor }: { actor: Actor }) {
                     comp={comp}
                     k={k}
                     v={v}
+                    assetTarget={makeTarget(comp.persistType)}
                     onEdited={() => setEditNonce((n) => n + 1)}
                   />
                 ))
@@ -322,13 +351,17 @@ function highlightMatch(text: string, query: string): React.ReactNode {
  * 搜索组件属性：按"组件名匹配 → 显示整组；属性名匹配 → 只显示匹配属性"过滤，
  * 结果仍按组件分组展示，保留所属组标题（UE 风格）。
  */
-function ComponentSearchResults({ actor, query }: { actor: Actor; query: string }) {
+function ComponentSearchResults({ actor, query, assetPath = null }: { actor: Actor; query: string; assetPath?: string | null }) {
   const components = (actor as any).components as Component[] | undefined
   const [editNonce, setEditNonce] = useState(0)
   const q = query.trim()
   if (!components || components.length === 0 || !q) return null
 
   const ql = q.toLowerCase()
+  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）
+  const childName = actor.root?.name || undefined
+  const makeTarget = (baseClass: string): EditablePropertyAssetTarget | undefined =>
+    assetPath && childName ? { assetPath, childName, baseClass } : undefined
   const groups: { comp: Component; name: string; enabled: boolean; entries: [string, unknown][] }[] = []
 
   for (const comp of components) {
@@ -374,13 +407,16 @@ function ComponentSearchResults({ actor, query }: { actor: Actor; query: string 
               {(() => {
                 const editable = (g.comp.getEditableProperties ? g.comp.getEditableProperties() : [])
                   .find((p) => p.key === k)
+                // 组件声明为非持久化的运行时派生值 → 不注入资产通道
+                const target = makeTarget(g.comp.persistType)
+                const assetT = target && editable && editable.persistent !== false ? target : undefined
                 return (
                   <>
                     <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)' }}>
                       {highlightMatch(humanizeKey(k), q)}
                     </span>
                     {editable ? (
-                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} />
+                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} assetTarget={assetT} />
                     ) : (
                       <span
                         style={{
@@ -664,11 +700,9 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
   const nonce = useEditorStore((s) => s.blueprintEditNonce)
 
   useEffect(() => {
-    const read = window.electronAPI?.readJsonFile
-    if (!read) return
     let cancelled = false
-    read(assetPath).then((r) => {
-      if (!cancelled && r.success && r.data) setAsset(r.data as BlueprintAsset)
+    BlueprintEditorService.read(assetPath).then((r) => {
+      if (!cancelled && r.ok && r.asset) setAsset(r.asset)
     })
     return () => { cancelled = true }
   }, [assetPath, nonce])
@@ -709,13 +743,13 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         <div className="property-row">
           <span className="property-label">Position</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[0]} style={transformInputStyle}
+            <input key={`px-${p[0]}`} type="number" step="0.01" disabled={noTsf} defaultValue={p[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[0] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[1]} style={transformInputStyle}
+            <input key={`py-${p[1]}`} type="number" step="0.01" disabled={noTsf} defaultValue={p[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[1] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={p[2]} style={transformInputStyle}
+            <input key={`pz-${p[2]}`} type="number" step="0.01" disabled={noTsf} defaultValue={p[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) p[2] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setPosition', { position: [p[0], p[1], p[2]] }).finally(() => setBusy(false)) }} />
           </span>
@@ -723,13 +757,13 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         <div className="property-row">
           <span className="property-label">Rotation</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[0]} style={transformInputStyle}
+            <input key={`rx-${r[0]}`} type="number" step="0.01" disabled={noTsf} defaultValue={r[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[0] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[1]} style={transformInputStyle}
+            <input key={`ry-${r[1]}`} type="number" step="0.01" disabled={noTsf} defaultValue={r[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[1] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={r[2]} style={transformInputStyle}
+            <input key={`rz-${r[2]}`} type="number" step="0.01" disabled={noTsf} defaultValue={r[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) r[2] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setRotation', { rotation: [r[0], r[1], r[2]] }).finally(() => setBusy(false)) }} />
           </span>
@@ -737,13 +771,13 @@ function BlueprintOverviewDetail({ assetPath }: { assetPath: string }) {
         <div className="property-row">
           <span className="property-label">Scale</span>
           <span className="property-value" style={{ fontSize: 11, display: 'flex', gap: 2 }}>
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[0]} style={transformInputStyle}
+            <input key={`sx-${s[0]}`} type="number" step="0.01" disabled={noTsf} defaultValue={s[0]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[0] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[1]} style={transformInputStyle}
+            <input key={`sy-${s[1]}`} type="number" step="0.01" disabled={noTsf} defaultValue={s[1]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[1] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
-            <input type="number" step="0.01" disabled={noTsf} defaultValue={s[2]} style={transformInputStyle}
+            <input key={`sz-${s[2]}`} type="number" step="0.01" disabled={noTsf} defaultValue={s[2]} style={transformInputStyle}
               onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) s[2] = v }}
               onBlur={() => { if (busy || noTsf) return; setBusy(true); BlueprintEditorService.apply(assetPath, 'setScale', { scale: [s[0], s[1], s[2]] }).finally(() => setBusy(false)) }} />
           </span>
@@ -850,12 +884,10 @@ export function Inspector() {
     if (!blueprintEditNonce) return
     const cur = useEditorStore.getState().blueprintSelection
     if (!cur) return
-    const read = window.electronAPI?.readJsonFile
-    if (!read) return
     let cancelled = false
-    read(cur.assetPath).then((r) => {
-      if (cancelled || !r.success || !r.data) return
-      const asset = r.data as BlueprintAsset
+    BlueprintEditorService.read(cur.assetPath).then((r) => {
+      if (cancelled || !r.ok || !r.asset) return
+      const asset = r.asset
       if (cur.type === 'component') {
         const comp = (asset.components ?? []).find((c, i) => c.baseClass === cur.compType || i === cur.index)
         if (comp) useEditorStore.getState().setBlueprintSelection({ ...cur, compData: comp })
@@ -929,7 +961,7 @@ export function Inspector() {
           </div>
         )}
         {actorTarget && !blueprintSelection && searchQuery.trim() ? (
-          <ComponentSearchResults actor={actorTarget} query={searchQuery} />
+          <ComponentSearchResults actor={actorTarget} query={searchQuery} assetPath={isBlueprintTab ? activeTabId.slice(3) : null} />
         ) : (
           <>
             {blueprintSelection && isBlueprintTab ? (
@@ -941,10 +973,11 @@ export function Inspector() {
                 <BlueprintGeneralInfo selection={blueprintSelection} />
               )
             ) : isBlueprintTab && selected && isActor && actorTarget ? (
-              /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：只显示组件列表 */
+              /* 蓝图预览中通过 Outline 点击或 Gizmo 附着选中了子 Actor：只显示组件列表
+                 注入资产路径 → 组件编辑走 setChildComponentProps 进撤销系统 */
               <>
                 <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
-                <ActorComponentsView actor={actorTarget} />
+                <ActorComponentsView actor={actorTarget} assetPath={activeTabId.slice(3)} />
               </>
             ) : isBlueprintTab && activeTabId.length > 3 ? (
               <BlueprintOverviewDetail assetPath={activeTabId.slice(3)} />

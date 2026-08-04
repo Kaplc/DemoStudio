@@ -275,6 +275,48 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
   return fail(`子节点索引越界: ${locator.index}`)
 }
 
+/**
+ * 设置子 Actor 的组件属性（Inspector 选中子控件的组件编辑器走这里）。
+ * 定位：按 name 定位子节点；组件按 baseClass 匹配（同 setComponentProps 语义）。
+ *  - 本地有该子节点 → 合并进其 components（本地无该组件 → 新建 { baseClass, properties }，继承覆盖）
+ *  - 本地无该具名子节点：strict=true → 返回错误（防止 ref 子节点等无法映射回本资产的情况误建节点）；
+ *    strict=false → 新建覆盖节点
+ */
+export function setChildComponentProps(
+  asset: BlueprintAsset,
+  locator: ChildLocator,
+  baseClass: string,
+  properties: PropertyPatch,
+  strict = false,
+): OpResult {
+  if (typeof baseClass !== 'string' || !baseClass) return fail('baseClass 必须是非空字符串')
+  if (!isPlainObject(properties)) return fail('properties 必须是对象')
+  const children = asset.children ? asset.children.slice() : []
+  let idx = locateChild(children, locator)
+  const warnings: string[] = []
+  if (idx === -1) {
+    if (!('name' in locator)) return fail(`子节点索引越界: ${locator.index}`)
+    if (strict) {
+      return fail(`子节点 "${locator.name}" 不在本资产中（可能是 ref 引用实例，无法就地编辑）`)
+    }
+    children.push({ name: locator.name })
+    idx = children.length - 1
+    warnings.push(`具名子节点 "${locator.name}" 本地不存在，已新建覆盖节点`)
+  }
+  const node = children[idx]
+  const comps = (node.components ? node.components.slice() : []) as BlueprintComponentDef[]
+  let existing = comps.find((c) => c.baseClass === baseClass)
+  if (!existing) {
+    existing = { baseClass }
+    comps.push(existing)
+  }
+  if (existing._remove) delete existing._remove
+  existing.properties = mergePatch(existing.properties ?? {}, clonePatch(properties))
+  node.components = comps
+  asset.children = children
+  return ok(asset, warnings.length ? warnings : undefined)
+}
+
 // ══════════════════════════════════════
 //  Defaults（CDO 默认属性）
 // ══════════════════════════════════════

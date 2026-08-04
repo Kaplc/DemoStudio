@@ -24,6 +24,10 @@ import { select, notifySelectionChange } from './SelectionManager'
 import { TransformGizmo } from './TransformGizmo'
 import { AnchorGizmo } from './AnchorGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
+import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
+import { editorBus } from './EditorEvents'
+import { EditorEvent } from './EditorEventNames'
+import type { BlueprintAsset } from '../engine'
 import type { SceneTreeNode } from './SelectionManager'
 
 /** 把手悬停光标：0-3 角（TL/TR/BL/BR），4-7 边（T/R/B/L） */
@@ -115,6 +119,10 @@ export class UIPreviewManager {
   private dragStartClientX = 0
   private dragStartClientY = 0
   private dragStartActorPos = new THREE.Vector3()
+  /** 节点拖动：目标有锚点时改 anchorOffset（重建后 position 会被 applyAnchor 覆盖，offset 才是持久偏移） */
+  private dragViaAnchorOffset = false
+  /** 节点拖动：按下瞬间的 anchorOffset（锚点模式增量基准） */
+  private dragStartOffset: [number, number] = [0, 0]
 
   onChange(cb: () => void): () => void {
     this._onChangeCallbacks.push(cb)
@@ -131,8 +139,6 @@ export class UIPreviewManager {
 
   constructor(container: HTMLElement) {
     this.container = container
-    // TEMP 调试桥（验证锚点 gizmo 后移除）
-    ;(window as unknown as Record<string, unknown>).__uiPreviewMgr = this
 
     // ─── 渲染器 ───
     this.renderer = new THREE.WebGLRenderer({
@@ -286,8 +292,12 @@ export class UIPreviewManager {
           this.dragStartClientX = e.clientX
           this.dragStartClientY = e.clientY
           this.dragStartActorPos.copy(this.boundsTarget.position)
+          // 锚点节点：拖动偏移持久化到 anchorOffset（applyAnchor 重建会覆盖 position，offset 才能保留）
+          const uiTf = this.boundsTarget.getComponent(UITransformComponent)
+          this.dragViaAnchorOffset = !!uiTf && !!uiTf.anchor
+          this.dragStartOffset = uiTf ? [...uiTf.anchorOffset] : [0, 0]
           this.potentialClick = false
-          logger.info(`[UIPreview] 开始拖动节点: ${this.boundsTarget.name}`)
+          logger.info(`[UIPreview] 开始拖动节点: ${this.boundsTarget.name}${this.dragViaAnchorOffset ? '（锚点模式 → anchorOffset）' : ''}`)
           return
         }
         this.isLeftDown = true
@@ -326,12 +336,23 @@ export class UIPreviewManager {
       // 节点拖动：实时移动选中节点位置（屏幕增量 → 世界增量，与 zoom 精确 1:1）
       if (this.draggingActor) {
         const worldPerPx = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
-        this.draggingActor.setPosition(
-          this.dragStartActorPos.x + (e.clientX - this.dragStartClientX) * worldPerPx,
-          // 屏幕 y 向下为正，世界 y 向上为正 → 取反
-          this.dragStartActorPos.y - (e.clientY - this.dragStartClientY) * worldPerPx,
-          this.dragStartActorPos.z,
-        )
+        const dx = (e.clientX - this.dragStartClientX) * worldPerPx
+        // 屏幕 y 向下为正，世界 y 向上为正 → 取反
+        const dy = -(e.clientY - this.dragStartClientY) * worldPerPx
+        if (this.dragViaAnchorOffset) {
+          // 锚点模式：偏移增量写 anchorOffset（JSON 持久化此值），applyAnchor 重算位置使视觉跟随
+          const uiTf = this.draggingActor.getComponent(UITransformComponent)
+          if (uiTf) {
+            uiTf.anchorOffset = [this.dragStartOffset[0] + dx, this.dragStartOffset[1] + dy]
+            uiTf.applyAnchor()
+          }
+        } else {
+          this.draggingActor.setPosition(
+            this.dragStartActorPos.x + dx,
+            this.dragStartActorPos.y + dy,
+            this.dragStartActorPos.z,
+          )
+        }
         // 通知 Inspector/选中状态实时刷新（包围盒由渲染循环 updateBounds 每帧跟随）
         notifySelectionChange()
         return
@@ -366,11 +387,13 @@ export class UIPreviewManager {
           // 拖拽结束：把手回位并通知变更（保存按钮/大纲刷新）
           this.draggingCornerIndex = null
           this.notifyChange()
+          this.commitPreviewEdit()                    // 松手 = 一个撤销点（同步工作副本，不写盘）
         } else if (this.draggingActor) {
           // 节点拖动结束：通知变更（保存按钮/大纲刷新）
           logger.info(`[UIPreview] 结束拖动节点: ${this.draggingActor.name} → (${this.draggingActor.position.x.toFixed(2)}, ${this.draggingActor.position.y.toFixed(2)}, ${this.draggingActor.position.z.toFixed(2)})`)
           this.draggingActor = null
           this.notifyChange()
+          this.commitPreviewEdit()                    // 松手 = 一个撤销点（同步工作副本，不写盘）
         } else if (this.potentialClick) {
           // 点击拾取：命中 UI 元素则选中，空白处取消选中
           this.potentialClick = false
@@ -829,6 +852,16 @@ export class UIPreviewManager {
     }
 
     return JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
+  }
+
+  /** 拖动/拖拽松手后调用：把预览内存态同步进工作副本（不写盘），产生一个撤销点 */
+  private async commitPreviewEdit() {
+    if (!this._currentWidgetPath) return
+    const data = this.collectSaveData()
+    if (!data) return
+    await BlueprintEditorService.updateFromPreview(this._currentWidgetPath, data as unknown as BlueprintAsset)
+    // 与 3D gizmo 拖动松手对齐：updateFromPreview 不 bump，靠此事件刷新撤销/保存按钮
+    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, this._currentWidgetPath)
   }
 
   /**

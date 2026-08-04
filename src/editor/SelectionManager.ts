@@ -29,7 +29,7 @@ let _sceneMgr: import('../engine').PreviewSceneManager | null = null
 export function setSharedScene(scene: THREE.Scene | null): void {
   _sharedScene = scene
   _sceneKey++
-  _onChange?.()
+  for (const cb of _onChangeCallbacks) cb()
   if (!scene) _gizmo.detach()
 }
 
@@ -63,7 +63,8 @@ let _selected: Selectable | null = null
 /** 递增 key，每次选中/场景变化时 +1，驱动 React 重渲染 */
 let _selectionKey = 0
 let _sceneKey = 0
-let _onChange: (() => void) | null = null
+/** 选中变化回调集合（多槽：Outline / Inspector 各自注册，互不覆盖） */
+const _onChangeCallbacks = new Set<() => void>()
 
 /** 获取当前选中对象 */
 export function getSelected(): Selectable | null {
@@ -82,7 +83,7 @@ export function getSelectedActor(): Actor | null {
 export function select(obj: Selectable | null): void {
   _selected = obj
   _selectionKey++
-  _onChange?.()
+  for (const cb of _onChangeCallbacks) cb()
 
   // 同步 TransformGizmo：选中对象时显示 Gizmo，取消选中时隐藏
   if (obj && _gizmo) {
@@ -104,16 +105,18 @@ export function getSelectionKey(): number {
   return _selectionKey + _sceneKey
 }
 
-/** 注册选中变化回调 */
+/** 注册选中变化回调（多槽：多个组件可同时订阅，互不覆盖） */
 export function onSelectionChange(cb: () => void): () => void {
-  _onChange = cb
-  return () => { _onChange = null }
+  _onChangeCallbacks.add(cb)
+  return () => {
+    _onChangeCallbacks.delete(cb)
+  }
 }
 
 /** 触发选中变化通知（带 key 递增，驱动 React 重渲染） */
 export function notifySelectionChange(): void {
   _selectionKey++
-  _onChange?.()
+  for (const cb of _onChangeCallbacks) cb()
   // 通过事件总线通知（不再直接耦合 Zustand store）
   editorBus.emit(EditorEvent.SELECTION_CHANGED)
 }
