@@ -17,7 +17,8 @@ function renderActorTreeNodes(
   kind: 'blueprint' | 'scenePreview',
 ): React.ReactElement[] {
   return tree.map((node, i) => {
-    const isSelected = selected === node.actor
+    // 防止 null === null：selected 为 null（无选中）时，无 actor 节点（DirectionalLight/Group 等）不能高亮
+    const isSelected = selected !== null && selected === node.actor
     const key = node.actor ? node.actor.root.id : `${kind}-node-${i}`
     return (
       <div
@@ -143,7 +144,8 @@ export function Outline() {
   const sceneTreeElements = useMemo(() => {
     if (visibleTree.length === 0) return null
     return visibleTree.map((node, i) => {
-      const isSelected = selected === node.actor
+      // 防止 null === null：selected 为 null（无选中）时，无 actor 节点不能高亮
+      const isSelected = selected !== null && selected === node.actor
       const isBlueprint = !!node.actor?.blueprintRef
       return (
         <div
