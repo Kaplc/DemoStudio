@@ -21,6 +21,7 @@
 import type { SceneAsset } from '../scene/SceneAsset'
 import type { BlueprintAsset } from '../blueprint/BlueprintAsset'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
+import { ScriptRegistry, type ScriptModules } from '../script/ScriptRegistry'
 import { logger } from '../Logger'
 
 /** 资产注册批量参数 */
@@ -29,6 +30,9 @@ export interface ProjectAssets {
   /** import.meta.glob 结果：key = 相对 asset/ 的文件路径（如 "./blueprints/beach_house.blueprint.json"），
    *  由 key 自动推导注册路径（asset/...），无需在 JSON 内写 path */
   blueprintModules?: Record<string, { default: BlueprintAsset }>
+  /** import.meta.glob 结果：key = 相对 asset/ 的脚本文件路径（如 "../gameplay/base/Foo.script.ts"），
+   *  由 ScriptRegistry 从 key 自动推导脚本 id（无需手写 register） */
+  scriptModules?: ScriptModules
 }
 
 /** 将 import.meta.glob key（相对 asset/，如 "./blueprints/foo.blueprint.json"）转为注册路径（asset/...） */
@@ -75,10 +79,16 @@ export class AssetRegistry {
       }
     }
 
+    // 注册行为脚本（供 UIScriptComponent 按 id 挂载）：交由 ScriptRegistry 从 glob key 推导 id
+    if (assets.scriptModules) {
+      ScriptRegistry.registerAll(assets.scriptModules)
+    }
+
     logger.info(
       `[AssetRegistry] 注册完成: ` +
         `场景=${assets.scenes?.length ?? 0}, ` +
-        `蓝图=${assets.blueprintModules ? Object.keys(assets.blueprintModules).length : 0}`,
+        `蓝图=${assets.blueprintModules ? Object.keys(assets.blueprintModules).length : 0}, ` +
+        `脚本=${assets.scriptModules ? Object.keys(assets.scriptModules).length : 0}`,
     )
   }
 

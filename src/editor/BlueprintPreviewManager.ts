@@ -358,7 +358,8 @@ export class BlueprintPreviewManager {
     const result: SceneTreeNode[] = []
 
     function walk(obj: THREE.Object3D, depth: number) {
-      if (!obj.visible && obj.type !== 'Scene') return
+      // 大纲眼睛隐藏的节点（__outlineHidden）仅预览不渲染，树中仍保留显示
+      if (!obj.visible && !(obj as any).userData?.__outlineHidden && obj.type !== 'Scene') return
       if (obj.type === 'GridHelper' || obj.type === 'AxesHelper' || obj.type === 'AmbientLight' || obj.type === 'HemisphereLight') return
       if (obj.name === 'TransformGizmo' || obj.name === '__bp_focus_marker__') return
 

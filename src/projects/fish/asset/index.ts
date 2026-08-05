@@ -9,7 +9,7 @@
  *   asset/blueprints/*.blueprint.json → 蓝图资产（按 id 字段注册到 BlueprintRegistry）
  */
 import { AssetRegistry, logger } from '@/engine'
-import type { SceneAsset, BlueprintAsset } from '@/engine'
+import type { SceneAsset, BlueprintAsset, BehaviourScriptConstructor } from '@/engine'
 
 /** 注册 FishMaster 项目的所有资产 */
 export function registerFishAssets(): void {
@@ -26,12 +26,21 @@ export function registerFishAssets(): void {
     { eager: true },
   )
 
+  // 自动扫描 UI 行为脚本：gameplay/**/*.script.ts（默认导出 BehaviourScript 子类），
+  // 由 AssetRegistry → ScriptRegistry 按路径推导 id（如 'gameplay/base/BaseHud'）注册，
+  // 供 widget 资产里的 UIScriptComponent 引用。新增 .script.ts 无需改本文件。
+  const scriptModules = import.meta.glob<{ default: BehaviourScriptConstructor }>(
+    '../gameplay/**/*.script.ts',
+    { eager: true },
+  )
+
   AssetRegistry.registerAll({
     scenes,
     blueprintModules: bpModules,
+    scriptModules,
   })
 
   logger.info(
-    `[Fish/Asset] 注册完成: 场景=${scenes.map(s => s.name).join(', ')} | 蓝图=${Object.keys(bpModules).map(k => k.replace(/^\.\//, 'asset/')).join(', ')}`,
+    `[Fish/Asset] 注册完成: 场景=${scenes.map(s => s.name).join(', ')} | 蓝图=${Object.keys(bpModules).map(k => k.replace(/^\.\//, 'asset/')).join(', ')} | 脚本=${Object.keys(scriptModules).map(k => k.replace(/^\.\.\//, '').replace(/\.script\.ts$/, '')).join(', ')}`,
   )
 }

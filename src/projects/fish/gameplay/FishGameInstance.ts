@@ -131,28 +131,10 @@ export class FishGameInstance extends GameInstance {
     if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
     else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
 
-    // ─── HUD：双摄像机方案下 HUD 面板由独立 UI 正交相机渲染（固定铺满屏幕，无需手动定位），
-    // 只需绑定建筑菜单按钮 ───
-    const hud = this.world.ui.hud?.uiActor
-    if (hud) {
-      const bindButtons = (actor: import('@/engine').Actor) => {
-        for (const comp of actor.getComponents(UIButtonComponent)) {
-          if (comp.onClick) continue
-          const name = actor.root.name
-          if (name.startsWith('Btn_')) {
-            const id = name.slice(4)
-            comp.onClick = () => {
-              if (id === 'delete') mode.deleteSelectedBuilding()
-              else mode.selectBuildingType(id)
-            }
-            logger.info(`[Fish] 基地 HUD 按钮绑定 onClick: ${name}`)
-          }
-        }
-        for (const child of actor.getChildren()) bindButtons(child)
-      }
-      bindButtons(hud)
-    }
-    logger.info('[Fish] setupBasePhase: 完成（已进入基地）')
+    // 基地 HUD 的建筑菜单按钮绑定由 widget 资产上挂载的 BaseHudScript
+    // （UIScriptComponent, script="gameplay/base/BaseHud"）在 BeginPlay 时接管，
+    // 这里不再手写遍历 UI 树绑定——UI 结构（资产）与行为（脚本）解耦。
+    logger.info('[Fish] setupBasePhase: 完成（已进入基地，HUD 按钮由 BaseHudScript 绑定）')
   }
 
   /** 游戏阶段设置 */

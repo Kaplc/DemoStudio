@@ -15,6 +15,7 @@ import {
   registerBuiltinActors,
   BlueprintRegistry,
   AssetRegistry,
+  ScriptRegistry,
 } from '../engine'
 import { registerBuiltinAIHandlers } from '../engine/ai'
 import type { GameInstance } from '../engine'
@@ -123,4 +124,5 @@ export function registerProjectAssets(name: string): void {
 export function clearProjectAssets(): void {
   AssetRegistry.reset()
   BlueprintRegistry.clearAll()
+  ScriptRegistry.clearAll()
 }

@@ -37,6 +37,12 @@
         "name": "Canvas",
         "zOrder": 0
       }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/base/BaseHud"
+      }
     }
   ],
   "children": [

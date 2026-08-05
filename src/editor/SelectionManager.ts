@@ -137,7 +137,8 @@ export function getSceneTree(): SceneTreeNode[] {
   function walk(obj: THREE.Object3D, depth: number) {
     // 跳过内部保留对象（GridHelper、AxesHelper、所有灯光——灯光挂载在灯光 Actor 的 root 下，
     // 是组件的渲染对象而非独立节点；灯光本身经 LightComponent 由父 Actor 表达）
-    if (!obj.visible && obj.type !== 'Scene') return
+    // 大纲眼睛隐藏的节点（__outlineHidden）仅预览不渲染，树中仍保留显示
+    if (!obj.visible && !(obj as any).userData?.__outlineHidden && obj.type !== 'Scene') return
     if ((obj as THREE.Light).isLight || obj.type === 'GridHelper' || obj.type === 'AxesHelper') return
     // 跳过编辑 gizmo（TransformGizmo 及其子对象）
     if (obj.name === 'TransformGizmo') return

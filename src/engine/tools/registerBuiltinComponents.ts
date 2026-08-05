@@ -28,6 +28,7 @@ import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
+import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
 
 let _registered = false
@@ -282,6 +283,25 @@ export function registerBuiltinComponents(): void {
     (c, p) => {
       const btn = c as UIButtonComponent
       if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
+    },
+  )
+
+  // ─── UIScriptComponent ─── props: { script?, args? }
+  // UI 资产「挂载脚本」组件（Unity MonoBehaviour 挂载点）：BeginPlay 时按 script id
+  // 从 ScriptRegistry 实例化脚本并注入宿主，转发 onStart/onUpdate/onDestroy。
+  // 脚本 id 由项目 asset/index.ts 的 import.meta.glob 自动扫描注册。
+  ComponentRegistry.register(
+    'UIScriptComponent',
+    (owner, p = {}) => {
+      const comp = new UIScriptComponent(owner)
+      if (p.script !== undefined) comp.script = p.script as string
+      if (p.args !== undefined) comp.args = p.args as Record<string, unknown>
+      return comp
+    },
+    (c, p) => {
+      const sc = c as UIScriptComponent
+      if (p.script !== undefined) sc.script = p.script as string
+      if (p.args !== undefined) sc.args = p.args as Record<string, unknown>
     },
   )
 
