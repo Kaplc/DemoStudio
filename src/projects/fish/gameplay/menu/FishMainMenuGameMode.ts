@@ -5,9 +5,14 @@
  */
 import * as THREE from 'three'
 import { GameMode, CameraComponent } from '@/engine'
-import { CAMERA_ORTHO_SIZE } from '../common/types'
 import { FishMainMenuPlayerController } from './FishMainMenuPlayerController'
 import { FishMainMenuPawn } from './FishMainMenuPawn'
+
+/**
+ * 主菜单相机正交半高：匹配 UI 根画布世界尺寸（9.6×5.4，设计分辨率 1920×1080）。
+ * 使 UI 恰好铺满视口（halfH = 5.4/2 = 2.7，halfW = 2.7×aspect 在 16:9 下 = 4.8 = 9.6/2）。
+ */
+const MENU_ORTHO_SIZE = 2.7
 
 export class FishMainMenuGameMode extends GameMode {
   readonly gameCamera: CameraComponent
@@ -20,7 +25,7 @@ export class FishMainMenuGameMode extends GameMode {
   constructor() {
     super()
     this.gameCamera = new CameraComponent(this, 'MenuCamera', 'orthographic')
-    this.gameCamera.SetOrtho(CAMERA_ORTHO_SIZE, 0.1, 200)
+    this.gameCamera.SetOrtho(MENU_ORTHO_SIZE, 0.1, 200)
     this.gameCamera.priority = 10
     this.addComponent(this.gameCamera)
   }
