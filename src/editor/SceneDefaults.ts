@@ -14,14 +14,24 @@ export const _ptrWorld = new THREE.Vector3()
 
 /**
  * 向场景添加默认内容（环境光、半球光、方向光、网格辅助线）。
+ *
  * 灯光 actor 化：灯光挂到 Actor（LightComponent），大纲显示为可选中/可编辑的节点，
  * 而不是裸 THREE 灯光对象（裸对象无 actorRef，大纲显示类型名且无法选中）。
+ *
+ * 统一层级：所有默认内容挂在一个 "Default" 容器 Actor 下（scene.add 顶层），
+ * 与场景资产根 "Root" 并列，大纲呈现：
+ *   Root [GenericActor]     ← 场景资产对象（loadSceneAsActors 创建）
+ *   └─ plane_1 ...
+ *   Default [GenericActor]  ← 编辑器默认内容（灯光、网格）
+ *   └─ AmbientLight / HemisphereLight / KeyLight / FillLight
  */
-export function addDefaultContent(scene: THREE.Scene): void {
+export function addDefaultContent(scene: THREE.Scene): GenericActor {
+  const container = new GenericActor('Default')
+
   const makeLightActor = (name: string, options: LightComponentOptions): void => {
     const actor = new GenericActor(name)
     actor.addComponent(new LightComponent(actor, options))
-    scene.add(actor.root)
+    actor.attachTo(container)
   }
   makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.6 })
   makeLightActor('HemisphereLight', { type: 'hemisphere', color: '#87ceeb', intensity: 0.4 })
@@ -35,7 +45,10 @@ export function addDefaultContent(scene: THREE.Scene): void {
   })
   const grid = new THREE.GridHelper(40, 40, 0x444466, 0x333355)
   grid.position.y = -0.01
-  scene.add(grid)
+  container.root.add(grid)
+
+  scene.add(container.root)
+  return container
 }
 
 /**

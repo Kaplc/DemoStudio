@@ -549,8 +549,9 @@ export class World {
     const asset = loadScene(sceneAsset)
     let count = 0
 
-    // 场景根 Actor（Outline 中作为树的根节点展示）
-    const rootActor = new GenericActor(sceneAsset.name)
+    // 场景根 Actor（Outline 中作为树的根节点展示，统一名为 "Root"，
+    // 区别于编辑器默认内容根 "Default"）
+    const rootActor = new GenericActor('Root')
     this.SpawnActor(rootActor)
     count++
 
