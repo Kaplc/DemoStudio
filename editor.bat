@@ -6,6 +6,10 @@ echo   DemoStudio Editor - Electron Desktop
 echo ============================================
 echo.
 
+REM ─── 国内镜像源（加速依赖下载） ───
+set "NPM_REGISTRY=https://registry.npmmirror.com"
+set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
+
 REM ─── 检测 Node.js ───
 where node >nul 2>nul
 if errorlevel 1 (
@@ -29,19 +33,38 @@ echo.
 
 REM ─── 检查 node_modules 是否存在 ───
 if not exist "node_modules" (
-    echo [Setup] 未检测到 node_modules，正在安装依赖...
+    echo [Setup] 未检测到 node_modules，正在安装依赖（使用国内镜像源）...
     echo.
-    call npm install
+    call npm install --registry=%NPM_REGISTRY% --no-audit --no-fund
     if errorlevel 1 (
         echo.
         echo [ERROR] npm install 失败！请检查网络连接后手动运行:
-        echo   npm install
+        echo   npm install --registry=https://registry.npmmirror.com
         pause
         exit /b 1
     )
     echo.
     echo [Setup] 依赖安装完成
     echo.
+) else (
+    REM ─── 依赖完整性自动检查（缺失时用国内源自动补装） ───
+    node scripts/check-deps.mjs --check
+    if errorlevel 1 (
+        echo.
+        echo [Setup] 检测到依赖不完整，正在自动修复（使用国内镜像源）...
+        echo.
+        node scripts/check-deps.mjs --install
+        if errorlevel 1 (
+            echo.
+            echo [ERROR] 依赖自动修复失败！请检查网络连接后手动运行:
+            echo   npm install --registry=https://registry.npmmirror.com
+            pause
+            exit /b 1
+        )
+        echo.
+        echo [Setup] 依赖修复完成
+        echo.
+    )
 )
 
 echo [Launch] 正在启动 Electron 编辑器...
