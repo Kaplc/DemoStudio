@@ -801,15 +801,37 @@ function startMCPServer() {
   })
 
   server.on('error', (err) => {
-    console.error('[MCP-API] 服务器启动失败:', err.message)
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'EADDRINUSE') {
+      console.error(`[MCP-API] 端口 ${MCP_API_PORT} 已被占用（可能已有编辑器实例在运行，或存在残留进程）`)
+      console.error('[MCP-API] 请关闭重复实例，或使用任务管理器结束残留的 electron 进程后重启编辑器')
+    } else {
+      console.error('[MCP-API] 服务器启动失败:', err.message)
+    }
   })
 }
 
 // ─── 应用生命周期 ───
 
-app.whenReady().then(() => {
-  startApp()
-})
+// 单实例锁：防止重复启动导致 MCP 端口 (9877) 冲突与 GPU 缓存目录争用
+// 已有实例运行时，新启动的实例直接退出，并聚焦已有实例窗口
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  console.log('[App] 检测到已有编辑器实例在运行，当前实例退出（端口 9877 由既有实例占用）')
+  app.quit()
+} else {
+  // 用户再次双击启动时，唤醒已有实例窗口
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+
+  app.whenReady().then(() => {
+    startApp()
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
