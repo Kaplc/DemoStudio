@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { PreviewSceneManager, GameSceneManager, logger, Game, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
-import type { SceneGroup, SceneAsset } from '../engine'
+import { PreviewSceneManager, GameSceneManager, logger, Game, World, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
+import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
@@ -41,8 +41,10 @@ export function Viewport({ onReady }: ViewportProps) {
   const sharedSceneRef = useRef<THREE.Scene | null>(null)
   // 当前 defaultScene 读取的 mode
   const sceneModeRef = useRef<string | undefined>(undefined)
-  // 当前预览场景组（选项目时加载的 defaultScene）
-  const previewRef = useRef<SceneGroup | null>(null)
+  // 当前预览场景 World（actor 化加载：场景资产对象 → Actor，大纲可选中/编辑）
+  const previewWorldRef = useRef<World | null>(null)
+  // 最后加载的 defaultScene 路径（防止停止游戏恢复与切换工程重复加载）
+  const lastPreviewPathRef = useRef<string | null>(null)
   // setupScene 返回的清理函数
   const cleanupRef = useRef<(() => void) | null>(null)
 
@@ -108,7 +110,9 @@ export function Viewport({ onReady }: ViewportProps) {
       gameSceneRef.current = null
       gameRef.current = null
       sharedSceneRef.current = null
-      previewRef.current = null
+      previewWorldRef.current?.DestroyAllActors()
+      previewWorldRef.current = null
+      lastPreviewPathRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -121,7 +125,7 @@ export function Viewport({ onReady }: ViewportProps) {
     gameSceneRef.current?.setTargetAspect(ratio)
   }, [gameAspectRatio])
 
-  // ─── 加载一个 scene.json 到共享场景预览 ───
+  // ─── 加载一个 scene.json 到共享场景预览（actor 化：对象 → GenericActor + MeshComponent）───
   const loadDefaultScenePreview = useCallback(async (path: string, label: string) => {
     const shared = sharedSceneRef.current
     if (!shared) return
@@ -130,22 +134,29 @@ export function Viewport({ onReady }: ViewportProps) {
     try {
       const result = await readJsonFile(path)
       if (!result.success || !result.data) return
-      // 动态导入 loadScene（保持 tree-shaking）
-      const { loadScene } = await import('../engine/scene/SceneLoader')
-      // 清除旧预览
-      if (previewRef.current) {
-        shared.remove(previewRef.current.group)
-        previewRef.current.dispose()
-        previewRef.current = null
+      // 防重复：同一路径且已有预览 world 时跳过（停止游戏恢复 vs 切换工程并发）
+      if (lastPreviewPathRef.current === path && previewWorldRef.current) return
+      const sceneData = result.data as SceneAsset
+      // 清除旧预览 world
+      if (previewWorldRef.current) {
+        previewWorldRef.current.DestroyAllActors()
+        previewWorldRef.current = null
       }
-      const sceneResult = loadScene(result.data)
-      sceneModeRef.current = sceneResult.mode
-      shared.add(sceneResult.group)
-      if (sceneResult.skybox) {
-        applySkybox(shared, sceneResult.skybox)
+      // actor 化加载：与游戏运行时 World.loadSceneAsActors 同构，
+      // 每个 mesh/ref/actor 节点 → Actor，大纲可选中、可编辑
+      const world = new World(shared)
+      world.loadSceneAsActors(sceneData)
+      world.BeginPlay()
+      world.manualTick(0)
+      previewWorldRef.current = world
+      lastPreviewPathRef.current = path
+      sceneModeRef.current = sceneData.mode
+      if (sceneData.skybox) {
+        applySkybox(shared, sceneData.skybox)
       }
-      previewRef.current = sceneResult
-      logger.info(`[Viewport] 加载默认场景 (${label}): ${sceneResult.name}`)
+      // 通知大纲刷新（getSceneTree 依赖 selectionKey 重建，加载 actors 后必须触发）
+      notifySelectionChange()
+      logger.info(`[Viewport] 加载默认场景 (${label}): ${sceneData.name}（actor 化预览，${world.actorCount} 个 Actor）`)
     } catch (err) {
       logger.warn(`[Viewport] 加载默认场景失败 (${label}): ${err}`)
     }
@@ -168,12 +179,12 @@ export function Viewport({ onReady }: ViewportProps) {
         gameSceneRef.current?.clearFrame()
       }
 
-      // 2. 清除旧的预览场景
-      if (previewRef.current) {
-        shared.remove(previewRef.current.group)
-        previewRef.current.dispose()
-        previewRef.current = null
+      // 2. 清除旧的预览场景（actor 化 World）
+      if (previewWorldRef.current) {
+        previewWorldRef.current.DestroyAllActors()
+        previewWorldRef.current = null
       }
+      lastPreviewPathRef.current = null
 
       // 3. 重置场景为默认状态
       shared.background = new THREE.Color(0x1a1a2e)
@@ -207,6 +218,13 @@ export function Viewport({ onReady }: ViewportProps) {
     const game = gameRef.current
     if (!game || !editorState.running) return
 
+    // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 sharedScene，
+    // 避免与游戏 actors 叠加/大纲重名冲突）
+    if (previewWorldRef.current) {
+      previewWorldRef.current.DestroyAllActors()
+      previewWorldRef.current = null
+    }
+
     // 每次启动都创建新的游戏实例（确保代码变更生效）
     const shared = sharedSceneRef.current
     if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
@@ -239,6 +257,16 @@ export function Viewport({ onReady }: ViewportProps) {
       setActiveTabId('game')
     }
   }, [editorState.running])
+
+  // ─── 停止游戏后恢复 Scene 页签的 defaultScene actor 预览 ───
+  useEffect(() => {
+    if (editorState.running) return
+    const proj = currentProject
+    if (!proj?.defaultScene) return
+    // 已有预览 world（切换工程已加载 / 从未启动过游戏）则跳过
+    if (previewWorldRef.current) return
+    loadDefaultScenePreview(proj.defaultScene, `${proj.name}/defaultScene`)
+  }, [editorState.running, currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 停止游戏时隐藏 Game 视口的渲染器和 UI 层 ───
   useEffect(() => {

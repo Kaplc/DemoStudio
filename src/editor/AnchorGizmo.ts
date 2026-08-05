@@ -9,9 +9,9 @@
  * 全部挂在编辑器 overlayScene，始终渲染在 UI 之上。
  */
 import * as THREE from 'three'
-import type { Actor } from '../engine/gameplay/entity/Actor'
-import { UITransformComponent, type AnchorPreset } from '../engine/gameplay/ui/UITransformComponent'
-import { CanvasUIComponent } from '../engine/gameplay/rendering/CanvasUIComponent'
+import type { Actor } from '../engine/entity/Actor'
+import { UITransformComponent, type AnchorPreset } from '../engine/ui/UITransformComponent'
+import { CanvasUIComponent } from '../engine/rendering/CanvasUIComponent'
 
 /** 锚点 → 方向因子（x: -1 左/0 中/+1 右，y: -1 下/0 中/+1 上） */
 const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BlueprintAsset — Blueprint 资产类型定义
  *
  * 一个 Blueprint = "这个 Actor 子类默认长什么样" + 可选继承（parent）。
@@ -7,7 +7,7 @@
  * 设计取舍：行为逻辑由 baseClass（TS Actor 子类）承载；
  * 数据（Component 组合 / 子 Actor / 默认属性 / 继承）由本资产描述。不引入可视化脚本。
  */
-import type { PropertyPatch } from '../../tools/deepMerge'
+import type { PropertyPatch } from '../tools/deepMerge'
 
 /** 蓝图中的 Component 描述 */
 export interface BlueprintComponentDef {

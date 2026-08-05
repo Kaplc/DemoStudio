@@ -1,12 +1,12 @@
-/**
+﻿/**
  * Actor — 世界中的基础实体
  * 模仿 UE Actor，拥有 Transform、生命周期、Component 挂载
  */
 import * as THREE from 'three'
 import type { Component } from './Component'
 import type { World } from '../gameflow/World'
-import type { PropertyPatch } from '../../tools/deepMerge'
-import { clonePatch } from '../../tools/deepMerge'
+import type { PropertyPatch } from '../tools/deepMerge'
+import { clonePatch } from '../tools/deepMerge'
 
 export abstract class Actor {
   /** 全局唯一整数 ID，每个 Actor 构造时自动分配 */

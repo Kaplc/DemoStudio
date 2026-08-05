@@ -11,8 +11,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { Compositor2D } from './Compositor2D'
 import { logger } from '../Logger'
-import { GenericActor } from '../gameplay/entity/GenericActor'
-import { LightComponent } from '../gameplay/rendering/LightComponent'
+import { GenericActor } from '../entity/GenericActor'
+import { LightComponent } from '../rendering/LightComponent'
 
 export type ControlMode = 'orbit' | 'fly'
 /** 相机投影模式：'perspective' 透视(3D)/ 'orthographic' 正交(2D) */
@@ -318,7 +318,7 @@ export class PreviewSceneManager {
   private setupLighting() {
     // 灯光 actor 化：灯光挂到 Actor 上（LightComponent），大纲显示为可选中/可编辑的节点
     // （Actor.root 带 userData.actorRef，getSceneTree 会正确显示名字而非裸 THREE 类型）
-    const makeLightActor = (name: string, options: import('../gameplay/rendering/LightComponent').LightComponentOptions) => {
+    const makeLightActor = (name: string, options: import('../rendering/LightComponent').LightComponentOptions) => {
       const actor = new GenericActor(name)
       actor.addComponent(new LightComponent(actor, options))
       this.scene.add(actor.root)

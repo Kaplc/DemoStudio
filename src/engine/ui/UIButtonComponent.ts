@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UIButtonComponent — 按钮交互组件（纯交互，不负责渲染）
  *
  * 模仿 Unity Button 的交互部分：状态切换（normal / hover / pressed / disabled）
@@ -13,7 +13,7 @@
 import { Component } from '../entity/Component'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { UIImageComponent } from './UIImageComponent'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 
 export type ButtonState = 'normal' | 'hover' | 'pressed' | 'disabled'

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CanvasUIComponent — 基于 CanvasTexture 的 3D 世界空间 UI 面板
  *
  * 用 <canvas> 2D API 自绘 UI → 贴到 THREE.PlaneGeometry 上 → 挂载为 Actor 的 Component。
@@ -24,7 +24,7 @@
  */
 import * as THREE from 'three'
 import { Component, type EditableProperty } from '../entity/Component'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 // 循环引用（UITransformComponent → CanvasUIComponent）：ESM 活绑定，构造时使用安全
 import { UITransformComponent } from '../ui/UITransformComponent'

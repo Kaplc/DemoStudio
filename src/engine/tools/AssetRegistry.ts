@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AssetRegistry — 资产注册中心
  *
  * 统一管理项目中所有场景资产（.scene.json）和蓝图资产（.blueprint.json），
@@ -18,10 +18,10 @@
  *
  * 然后即可通过 World.SwitchToScene('FishMenu') 按场景名称切换。
  */
-import type { SceneAsset } from '../../scene/SceneAsset'
+import type { SceneAsset } from '../scene/SceneAsset'
 import type { BlueprintAsset } from '../blueprint/BlueprintAsset'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 
 /** 资产注册批量参数 */
 export interface ProjectAssets {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SpriteComponent — 2D 精灵组件
  * 在 Actor 上挂一个位于 XY 平面、法线 +Z 的平面（PlaneGeometry），
  * 面向 -Z 方向的正交相机。支持纯色或纹理贴图。
@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 import { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
-import { loadTexture } from '../../scene/TextureLoader'
+import { loadTexture } from '../scene/TextureLoader'
 
 export class SpriteComponent extends Component {
   /** 所有 SpriteComponent 共享的单位平面几何体 */

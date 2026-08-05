@@ -152,7 +152,7 @@ function renderActorMesh(node: ActorNode, track: (m: THREE.Mesh) => void): void 
 }
 
 /** 将 BlueprintChildDef（内联 baseClass）递归转为 THREE.Group */
-function childDefToGroup(child: import('../gameplay/blueprint/BlueprintAsset').BlueprintChildDef): THREE.Group | null {
+function childDefToGroup(child: import('../blueprint/BlueprintAsset').BlueprintChildDef): THREE.Group | null {
   const g = new THREE.Group()
   g.name = child.name ?? 'child'
 

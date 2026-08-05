@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UITransformComponent — UI 专用变换组件
  *
  * 继承 TransformComponent，为 UI Actor 增加"尺寸 + 九宫格锚点定位"能力
@@ -18,7 +18,7 @@ import type { Actor } from '../entity/Actor'
 import { TransformComponent, ensureTransformComponent, type TransformComponentOptions } from '../entity/TransformComponent'
 import { type EditableProperty } from '../entity/Component'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 
 /**
  * 九宫格锚点预设（相对父容器，Unity Anchor Preset 风格）

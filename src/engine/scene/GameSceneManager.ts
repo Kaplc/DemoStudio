@@ -12,7 +12,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
-import type { GameUI } from '../gameplay/ui/GameUI'
+import type { GameUI } from '../ui/GameUI'
 import type { CameraMode } from './PreviewSceneManager'
 
 // clientToWorld 复用临时对象

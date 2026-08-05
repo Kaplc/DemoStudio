@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UICamera — 2D UI 渲染摄像机
  *
  * 为游戏 UI 提供独立的 2D 正交渲染层，拥有自己的 THREE.Scene 和 OrthographicCamera。
@@ -21,7 +21,7 @@
  *   })
  */
 import * as THREE from 'three'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 
 export class UICamera {
   readonly scene: THREE.Scene

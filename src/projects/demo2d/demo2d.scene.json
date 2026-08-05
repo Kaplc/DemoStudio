@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "Demo2D",
   "mode": "game",
   "skybox": {
@@ -9,21 +9,13 @@
       "type": "actor",
       "name": "plane_1",
       "baseClass": "Actor",
-      "position": [
-        0,
-        0,
-        -1
-      ],
       "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [0, 0, -1] } },
         {
           "baseClass": "MeshComponent",
           "properties": {
             "geometry": "plane",
-            "size": [
-              40,
-              40,
-              1
-            ],
+            "size": [40, 40, 1],
             "color": "#12122a",
             "kind": "basic"
           }
@@ -34,20 +26,11 @@
       "type": "actor",
       "name": "sprite_1",
       "baseClass": "Actor",
-      "position": [
-        -12,
-        12,
-        -0.5
-      ],
       "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-12, 12, -0.5] } },
         {
           "baseClass": "SpriteComponent",
-          "properties": {
-            "width": 2,
-            "height": 2,
-            "color": "#3a5cbf",
-            "kind": "basic"
-          }
+          "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" }
         }
       ]
     },
@@ -55,20 +38,11 @@
       "type": "actor",
       "name": "sprite_2",
       "baseClass": "Actor",
-      "position": [
-        12,
-        12,
-        -0.5
-      ],
       "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [12, 12, -0.5] } },
         {
           "baseClass": "SpriteComponent",
-          "properties": {
-            "width": 2,
-            "height": 2,
-            "color": "#3a5cbf",
-            "kind": "basic"
-          }
+          "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" }
         }
       ]
     },
@@ -76,20 +50,11 @@
       "type": "actor",
       "name": "sprite_3",
       "baseClass": "Actor",
-      "position": [
-        -12,
-        -12,
-        -0.5
-      ],
       "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-12, -12, -0.5] } },
         {
           "baseClass": "SpriteComponent",
-          "properties": {
-            "width": 2,
-            "height": 2,
-            "color": "#3a5cbf",
-            "kind": "basic"
-          }
+          "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" }
         }
       ]
     },
@@ -97,20 +62,11 @@
       "type": "actor",
       "name": "sprite_4",
       "baseClass": "Actor",
-      "position": [
-        12,
-        -12,
-        -0.5
-      ],
       "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [12, -12, -0.5] } },
         {
           "baseClass": "SpriteComponent",
-          "properties": {
-            "width": 2,
-            "height": 2,
-            "color": "#3a5cbf",
-            "kind": "basic"
-          }
+          "properties": { "width": 2, "height": 2, "color": "#3a5cbf", "kind": "basic" }
         }
       ]
     }

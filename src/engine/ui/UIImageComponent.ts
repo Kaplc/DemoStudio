@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UIImageComponent — 图像控件 Component
  *
  * 模仿 Unity Image。支持纯色填充、可选圆角、可选贴图（同步加载）。
@@ -6,7 +6,7 @@
 import * as THREE from 'three'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 
 export interface UIImageComponentOptions {

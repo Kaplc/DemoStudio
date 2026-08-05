@@ -166,9 +166,9 @@ export interface ActorNode extends BaseNode {
   /** 缩放 */
   scale?: Vec3
   /** 默认挂载的 Component */
-  components?: import('../gameplay/blueprint/BlueprintAsset').BlueprintComponentDef[]
+  components?: import('../blueprint/BlueprintAsset').BlueprintComponentDef[]
   /** 子 Actor（递归，支持内联和引用） */
-  children?: import('../gameplay/blueprint/BlueprintAsset').BlueprintChildDef[]
+  children?: import('../blueprint/BlueprintAsset').BlueprintChildDef[]
 }
 
 export type SceneNode =

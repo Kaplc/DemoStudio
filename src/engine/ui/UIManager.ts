@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UIManager — 世界 UI 统一管理器
  *
  * 由 World 持有，专门负责 UI 对象的创建与管理：
@@ -27,7 +27,7 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 import type { World } from '../gameflow/World'
 import type { ResolvedChildDef } from '../blueprint/BlueprintAsset'
 

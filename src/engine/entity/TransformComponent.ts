@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TransformComponent — 变换组件
  *
  * 模仿 Unity Transform：把 Actor 的"位置/旋转/缩放修改能力"组件化。
@@ -11,7 +11,7 @@
  */
 import type { Actor } from './Actor'
 import { Component, type EditableProperty } from './Component'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 
 export interface TransformComponentOptions {
   /** 世界位置 [x, y, z]，默认 [0, 0, 0] */

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Game — 游戏入口类
  * Viewport 通过此类管理游戏的生命周期
  * 职责：包装 GameInstance、管理 Tick/Camera 同步的注册/注销、输入路由
@@ -9,10 +9,10 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import { PreviewSceneManager, GameSceneManager, logger } from '../..'
+import { PreviewSceneManager, GameSceneManager, logger } from '..'
 import { GameInstance } from './GameInstance'
 import { GameUI } from '../ui/GameUI'
-import { AIModule } from '../../ai/AIModule'
+import { AIModule } from '../ai/AIModule'
 import type { World } from './World'
 
 export class Game {

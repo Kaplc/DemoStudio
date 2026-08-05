@@ -17,8 +17,8 @@
  *   AIModule.instance.unregister('ai.myEvent', handler)
  */
 import { logger } from '../Logger'
-import type { World } from '../gameplay/gameflow/World'
-import type { GameInstance } from '../gameplay/gameflow/GameInstance'
+import type { World } from '../gameflow/World'
+import type { GameInstance } from '../gameflow/GameInstance'
 
 /** 事件处理器上下文（引擎运行时的可操作对象） */
 export interface AIEventContext {

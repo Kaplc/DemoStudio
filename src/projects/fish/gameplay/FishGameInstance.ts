@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
-import { UIButtonComponent } from '@/engine/gameplay/ui/UIButtonComponent'
+import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'

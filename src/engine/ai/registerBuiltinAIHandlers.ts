@@ -33,10 +33,10 @@ import {
   type AIGameStateSnapshot,
 } from './AIEvents'
 import { logger } from '../Logger'
-import { World } from '../gameplay/gameflow/World'
-import { ActorRegistry } from '../gameplay/tools/ActorRegistry'
-import { UIButtonComponent } from '../gameplay/ui/UIButtonComponent'
-import { ClickableComponent } from '../gameplay/physics/ClickableComponent'
+import { World } from '../gameflow/World'
+import { ActorRegistry } from '../tools/ActorRegistry'
+import { UIButtonComponent } from '../ui/UIButtonComponent'
+import { ClickableComponent } from '../physics/ClickableComponent'
 
 /** 需要运行中 World 的守卫：返回 world 或 null（并提示） */
 function requireWorld(ctx: AIEventContext): World | null {
@@ -49,7 +49,7 @@ function requireWorld(ctx: AIEventContext): World | null {
 
 /** 按名称查找 Actor（name 或 root.name，递归子节点） */
 function findActorByName(world: World, name: string) {
-  const walk = (a: import('../gameplay/entity/Actor').Actor): import('../gameplay/entity/Actor').Actor | null => {
+  const walk = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
     if (a.name === name || a.root.name === name) return a
     for (const child of a.getChildren()) {
       const hit = walk(child)

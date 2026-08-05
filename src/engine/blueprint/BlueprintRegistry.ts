@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BlueprintRegistry — Blueprint 蓝图注册中心
  *
  * 以蓝图资产文件路径（相对于 src/projects/）为 key 管理 BlueprintAsset。
@@ -10,8 +10,8 @@
  * 缓存与失效：
  *   - resolve 结果缓存在 cache，register / loadFromJson 时 invalidate 对应 path。
  */
-import { logger } from '../../Logger'
-import { clonePatch, type PropertyPatch } from '../../tools/deepMerge'
+import { logger } from '../Logger'
+import { clonePatch, type PropertyPatch } from '../tools/deepMerge'
 import type {
   BlueprintAsset,
   BlueprintChildDef,

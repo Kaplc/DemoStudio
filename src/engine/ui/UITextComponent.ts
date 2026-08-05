@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UITextComponent — 文本控件 Component（troika 矢量渲染）
  *
  * 基于 troika-three-text 的 GPU 字形 mesh：字形轮廓三角化渲染，任意缩放不模糊（矢量）。
@@ -22,7 +22,7 @@ import notoSansSC700Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chines
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
-import { logger } from '../../Logger'
+import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 
 export interface UITextComponentOptions {
