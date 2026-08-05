@@ -99,6 +99,38 @@ export abstract class Actor {
   }
 
   // ═══════════════════════════════════
+  //  Active（激活状态）
+  // ═══════════════════════════════════
+
+  private _bActive = true
+
+  /**
+   * 是否激活（默认 true）。
+   * false = 节点已创建但不渲染，同时作用于整个子树（子节点继承父节点失活）。
+   * 组件/脚本生命周期照常运行，仅控制可见性（root.visible）。
+   * 注：命名避开对象池语义的 active（FishBullet 等池化 Actor 用 active 表示"池中占用"）。
+   */
+  get bActive(): boolean { return this._bActive }
+
+  set bActive(v: boolean) {
+    if (this._bActive === v) return
+    this._bActive = v
+    // 从根重新应用整个祖先链，保证"父失活 → 子树全部隐藏"的一致性
+    let top: Actor = this
+    while (top.parent) top = top.parent
+    top.applyActiveTree(true)
+  }
+
+  /** 递归应用可见性（内部）：visible = 自身激活 && 祖先链有效 */
+  private applyActiveTree(parentEffective: boolean): void {
+    const effective = this._bActive && parentEffective
+    this.root.visible = effective
+    for (const child of this.children) {
+      child.applyActiveTree(effective)
+    }
+  }
+
+  // ═══════════════════════════════════
   //  Transform
   // ═══════════════════════════════════
 

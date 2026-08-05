@@ -37,6 +37,8 @@ export interface BlueprintChildDef {
   overrides?: PropertyPatch
   /** 内联组件列表（同根级 components） */
   components?: BlueprintComponentDef[]
+  /** 是否激活（false = 已创建但不渲染，作用于该节点及整个子树，默认 true） */
+  active?: boolean
   /** 世界坐标位置（旧格式已废弃：位置必须写在 transform/uitransform 组件，此处可选仅为兼容） */
   position?: [number, number, number]
   /** 欧拉旋转角（弧度，旧格式已废弃，同上） */
@@ -59,6 +61,8 @@ export interface BlueprintAsset {
   components?: BlueprintComponentDef[]
   /** 子 Actor */
   children?: BlueprintChildDef[]
+  /** 是否激活（false = 已创建但不渲染，作用于该节点及整个子树，默认 true） */
+  active?: boolean
   /** 世界坐标位置 */
   position?: [number, number, number]
   /** 欧拉旋转角（弧度） */
@@ -83,6 +87,8 @@ export interface ResolvedChildDef {
   id?: number
   overrides: PropertyPatch
   components?: ResolvedComponentDef[]
+  /** 是否激活（false = 已创建但不渲染，作用于该节点及整个子树，默认 true） */
+  active?: boolean
   /** 旧格式已废弃：位置必须写在 transform/uitransform 组件（可选仅为兼容） */
   position?: [number, number, number]
   rotation?: [number, number, number]
@@ -97,6 +103,8 @@ export interface ResolvedBlueprint {
   baseClass: string
   components: ResolvedComponentDef[]
   children: ResolvedChildDef[]
+  /** 是否激活（false = 已创建但不渲染，作用于该节点及整个子树，默认 true） */
+  active?: boolean
   position?: [number, number, number]
   rotation?: [number, number, number]
   scale?: [number, number, number]

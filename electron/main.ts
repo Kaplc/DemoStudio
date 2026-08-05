@@ -159,6 +159,10 @@ function createMainWindow() {
 
   // 将浏览器控制台输出重定向到文件日志
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    // 过滤 DevTools 面板自身的内部噪音（如 "Unknown VE context" / "Autofill.* failed"），
+    // 这些来自 devtools:// 源，与应用代码无关
+    if (sourceId.startsWith('devtools://')) return
+
     const logLevel = ['verbose', 'info', 'warning', 'error'][level] || 'info'
     const now = new Date().toISOString()
     const lineStr = `[${now}][CONSOLE:${logLevel.toUpperCase()}] ${message} (${sourceId}:${line})\n`

@@ -207,6 +207,9 @@ export class UIManager {
 
         childActor.attachTo(parentActor)
 
+        // 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
+        if (child.active === false) childActor.bActive = false
+
         // ref 子节点 transform 已由被引用蓝图的 transform 组件负责。
         // 严格模式（组件优先）：内联子节点不再应用顶层 position/rotation/scale，
         // 缺组件却声明顶层字段的节点已在上方报错
@@ -231,6 +234,9 @@ export class UIManager {
     // 4. 蓝图元数据 + 进 World 统一管理
     actor.blueprintRef = { id: path }
     this.world.SpawnActor(actor)
+
+    // 4.5 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
+    if (resolved.active === false) actor.bActive = false
 
     // 5. 挂载到父 Actor
     const p = parent ?? this._hud

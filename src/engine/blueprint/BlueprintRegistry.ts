@@ -78,7 +78,7 @@ export class BlueprintRegistry {
 
     const children = BlueprintRegistry.resolveChildren(asset.children ?? [], new Set([path]))
 
-    const resolved: ResolvedBlueprint = { path, name: asset.name, baseClass: asset.baseClass, components, children, position: asset.position, rotation: asset.rotation, scale: asset.scale }
+    const resolved: ResolvedBlueprint = { path, name: asset.name, baseClass: asset.baseClass, components, children, position: asset.position, rotation: asset.rotation, scale: asset.scale, active: asset.active }
     BlueprintRegistry.cache.set(path, resolved)
     logger.debug(`[BlueprintRegistry] resolve(${path}) → base=${asset.baseClass}, comps=${components.length}, kids=${children.length}`)
     return resolved
@@ -102,6 +102,7 @@ export class BlueprintRegistry {
         name: chdef.name,
         id: chdef.id,
         overrides: clonePatch(chdef.overrides ?? {}),
+        active: chdef.active,
         components: chdef.components
           ? chdef.components.map((c) => ({
               ...c,

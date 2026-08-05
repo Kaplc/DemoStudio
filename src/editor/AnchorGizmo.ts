@@ -5,6 +5,8 @@
  *  - 父容器范围：白色半透明线框（opacity 0.5），标出锚点所在的父画布边界
  *  - 锚点图标：
  *      - 普通锚点（top-left / center 等单点锚）：4 个小三角形尖角聚合在锚点位置（风车形）
+ *        ——锚点位置 = 父容器上的参考点（top-left → 父左上角，center → 父中心），
+ *        与元素自身尺寸、anchorOffset 无关（Unity Anchor 语义）
  *      - stretch（全锚）：4 个小三角形分布在矩形四角，尖角指向矩形内部
  * 全部挂在编辑器 overlayScene，始终渲染在 UI 之上。
  */
@@ -154,11 +156,12 @@ export class AnchorGizmo {
       return
     }
 
-    // ─── 父容器范围：最近的父画布（非 markerOnly），白色半透明线框 ───
-    const parent = this.findParentCanvas(actor)
-    if (parent) {
-      const [cw, ch] = parent.getWorldSize()
-      const p = parent.owner.root.position
+    // ─── 父容器范围：最近的父容器（与 applyAnchor 的 findContainerSize 语义一致：
+    // 父 Actor 显式 uitransform 尺寸优先，markerOnly 容器也算；兜底真实画布），白色半透明线框 ───
+    const container = this.findParentContainer(actor)
+    if (container) {
+      const [cw, ch] = container.size
+      const p = container.actor.root.position
       this.parentBounds!.visible = true
       this.parentBounds!.position.set(p.x, p.y, -0.02)
       this.parentBounds!.scale.set(cw, ch, 1)
@@ -182,7 +185,7 @@ export class AnchorGizmo {
       this.layoutStretch(actor, uiTf, size)
     } else {
       // 单点锚：4 个小三角形在锚点位置聚合，尖角指向中心（风车形）
-      this.layoutPoint(actor, uiTf, parent, size)
+      this.layoutPoint(actor, uiTf, container, size)
     }
   }
 
@@ -220,23 +223,23 @@ export class AnchorGizmo {
   private layoutPoint(
     actor: Actor,
     uiTf: UITransformComponent,
-    parent: CanvasUIComponent | null,
+    container: { actor: Actor; size: [number, number] } | null,
     size: number,
   ) {
-    // 锚点位置 = applyAnchor 语义：父中心 + 方向因子 × (父半尺寸 − 自身半尺寸) + offset
-    const [sw, sh] = uiTf.getWorldSize()
-    let x: number
-    let y: number
+    // 锚点 = 父容器上的参考点（Unity 语义）：父中心 + 方向因子 × 父半尺寸。
+    // 与自身尺寸、anchorOffset 无关——锚点图标标示"锚在父控件上的哪个位置"
+    // （top-left 锚点 → 父控件左上角，center → 父中心，bottom-right → 父右下角）。
     const anchor = uiTf.anchor!
     const [fx, fy] = ANCHOR_FACTORS[anchor]
-    const [ox, oy] = uiTf.anchorOffset
-    if (parent) {
-      const [cw, ch] = parent.getWorldSize()
-      const pp = parent.owner.root.position
-      x = pp.x + fx * (cw / 2 - sw / 2) + ox
-      y = pp.y + fy * (ch / 2 - sh / 2) + oy
+    let x: number
+    let y: number
+    if (container) {
+      const [cw, ch] = container.size
+      const pp = container.actor.root.position
+      x = pp.x + fx * (cw / 2)
+      y = pp.y + fy * (ch / 2)
     } else {
-      // 无父画布：锚点退化显示在元素当前位置
+      // 无父容器：锚点退化显示在元素当前位置
       x = actor.root.position.x
       y = actor.root.position.y
     }
@@ -265,12 +268,25 @@ export class AnchorGizmo {
     }
   }
 
-  /** 向上查找最近的父画布（非仅标记模式） */
-  private findParentCanvas(actor: Actor): CanvasUIComponent | null {
+  /**
+   * 向上查找最近的父容器（与 applyAnchor 的 findContainerSize 语义一致）：
+   *   1. 父 Actor 的 UITransformComponent 且 worldSizeExplicit（显式设置了 worldWidth/worldHeight）
+   *      —— markerOnly 容器（如 TopBar/BottomBar）也有明确世界尺寸，它就是子元素的布局容器
+   *   2. 父 Actor 上的真实画布（非 markerOnly CanvasUIComponent），兜底
+   */
+  private findParentContainer(actor: Actor): { actor: Actor; size: [number, number] } | null {
     let p = actor.parent
     while (p) {
+      // 1. 父 Actor 显式设置的 uitransform 尺寸 → 容器基准
+      const tf = p.getComponent(UITransformComponent)
+      if (tf && tf.worldSizeExplicit) {
+        return { actor: p, size: tf.getWorldSize() }
+      }
+      // 2. 兜底：真实画布（非仅标记）——markerOnly 组件只作 UI 标识，不作为容器
       const comp = p.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
-      if (comp) return comp
+      if (comp) {
+        return { actor: p, size: comp.getWorldSize() }
+      }
       p = p.parent
     }
     return null

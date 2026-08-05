@@ -164,7 +164,7 @@
                   1,
                   1
                 ],
-                "anchor": "middle-left",
+                "anchor": "top-left",
                 "anchorOffset": [
                   0.3,
                   0
@@ -282,7 +282,7 @@
                   1,
                   1
                 ],
-                "anchor": "middle-right",
+                "anchor": "top-right",
                 "anchorOffset": [
                   -0.3,
                   0
