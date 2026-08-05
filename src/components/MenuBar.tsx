@@ -78,7 +78,7 @@ export function MenuBar() {
     items: Array<{ label: string; shortcut?: string; action?: string } | 'separator'>
   }> = [
     {
-      label: 'File',
+      label: 'Project',
       items: [
         { label: 'New Project', shortcut: 'Ctrl+N', action: 'new-project' },
         { label: 'Open Project...', shortcut: 'Ctrl+O', action: 'open-project' },
@@ -90,7 +90,7 @@ export function MenuBar() {
       ],
     },
     {
-      label: 'Project',
+      label: 'Game',
       items: [
         { label: 'Launch Game', shortcut: 'Ctrl+Enter', action: 'launch-game' },
         { label: 'Stop Game', shortcut: 'Shift+F5', action: 'stop-game' },

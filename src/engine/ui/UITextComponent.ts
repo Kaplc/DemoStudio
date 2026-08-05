@@ -161,8 +161,11 @@ export class UITextComponent extends CanvasUIComponent {
     // canvas 像素字号 → 世界字号：fontSize / 基准高 × 世界高
     mesh.fontSize = (this._fontSize / this._heightPx) * wh
     mesh.maxWidth = ww
+    // textAlign 控制文本在 maxWidth 尺寸框内的对齐；anchorX 固定 center——
+    // mesh 原点 = 元素中心（UITransform 锚点定位基准），若把 anchorX 也设成 align，
+    // 左对齐时文本左边缘会被钉在元素中心，开头就不在左边缘了
     mesh.textAlign = this._align
-    mesh.anchorX = this._align
+    mesh.anchorX = 'center'
     mesh.anchorY = 'middle'
     mesh.color = this._color
     // troika 只接受字体文件 URL：CSS 名回退到内置思源黑体（bold 用 700 变体）
