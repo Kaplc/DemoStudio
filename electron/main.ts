@@ -12,6 +12,7 @@ import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import http from 'http'
+import net from 'net'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
@@ -29,6 +30,18 @@ const _blueprintPending = new Map<string, PendingBlueprintReq>()
 const BLUEPRINT_REQ_TIMEOUT = 20000 // 渲染进程处理超时（含文件 IO）
 
 const isDev = !app.isPackaged
+
+// ─── 多实例支持 ───
+// 每个实例使用独立的磁盘缓存目录，避免多实例同时读写 GPU/磁盘缓存导致冲突
+// （必须在 app ready 之前设置）
+app.commandLine.appendSwitch(
+  'disk-cache-dir',
+  path.join(app.getPath('userData'), 'disk-cache', `instance-${process.pid}`)
+)
+
+// 开发服务器地址：vite-plugin-electron 会注入 VITE_DEV_SERVER_URL（包含实际端口，
+// 多实例时 Vite 自动递增端口：5173 → 5174 → ...）
+const VITE_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
 
 const LOG_DIR = isDev
   ? path.join(__dirname, '..', 'logs')
@@ -134,7 +147,7 @@ function createMainWindow() {
 
   // 加载应用
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL(VITE_URL)
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
@@ -178,7 +191,6 @@ function createMainWindow() {
 //  等待 Vite 开发服务器就绪
 // ═══════════════════════════════════════
 
-const VITE_URL = 'http://localhost:5173'
 const VITE_POLL_INTERVAL = 300
 
 async function waitForDevServer(): Promise<void> {
@@ -205,8 +217,8 @@ async function startApp() {
   // 1. 显示无边框加载窗口（持续可见直到编辑器就绪）
   showLoadingWindow()
 
-  // 2. 启动 MCP HTTP API
-  startMCPServer()
+  // 2. 启动 MCP HTTP API（多实例自动分配端口）
+  await startMCPServer()
 
   // 3. 等待开发服务器就绪（开发模式）
   if (isDev) {
@@ -616,15 +628,40 @@ ipcMain.on('mcp-response', (_event, payload: { requestId: string; result: unknow
 
 // ─── MCP HTTP API 服务器 ───
 // 让 MCP 服务器 (editor/mcp-server.mjs) 可以通过 HTTP 控制编辑器
+// 多实例支持：端口从 9877 开始自动寻找空闲端口（9877 → 9878 → ...）
 
-const MCP_API_PORT = 9877
+const MCP_API_PORT_START = 9877
+const MCP_API_PORT_MAX = 9927 // 最多尝试 50 个端口
+let MCP_API_PORT = MCP_API_PORT_START
 
 interface MCPCommand {
   command: string
   params?: Record<string, any>
 }
 
-function startMCPServer() {
+/** 从 start 开始寻找第一个可监听的端口（用于多实例自动分配 MCP 端口） */
+function findFreePort(start: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port: number) => {
+      if (port > MCP_API_PORT_MAX) {
+        reject(new Error(`未找到可用端口（${MCP_API_PORT_START}-${MCP_API_PORT_MAX} 均被占用）`))
+        return
+      }
+      const srv = net.createServer()
+      srv.unref()
+      srv.once('error', () => tryPort(port + 1))
+      srv.listen(port, '127.0.0.1', () => {
+        const addr = srv.address() as net.AddressInfo
+        srv.close(() => resolve(addr.port))
+      })
+    }
+    tryPort(start)
+  })
+}
+
+async function startMCPServer() {
+  // 多实例：当前实例端口 = 9877 + 已占用数量（自动递增）
+  MCP_API_PORT = await findFreePort(MCP_API_PORT_START)
   const server = http.createServer((req, res) => {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -798,13 +835,15 @@ function startMCPServer() {
 
   server.listen(MCP_API_PORT, '127.0.0.1', () => {
     console.log(`[MCP-API] HTTP 服务器已启动: http://127.0.0.1:${MCP_API_PORT}`)
+    if (MCP_API_PORT !== MCP_API_PORT_START) {
+      console.log(`[MCP-API] 注意：${MCP_API_PORT_START} 已被其他实例占用，本实例使用端口 ${MCP_API_PORT}`)
+    }
   })
 
   server.on('error', (err) => {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'EADDRINUSE') {
-      console.error(`[MCP-API] 端口 ${MCP_API_PORT} 已被占用（可能已有编辑器实例在运行，或存在残留进程）`)
-      console.error('[MCP-API] 请关闭重复实例，或使用任务管理器结束残留的 electron 进程后重启编辑器')
+      console.error(`[MCP-API] 端口 ${MCP_API_PORT} 被占用且自动递增也失败，请稍后重试或检查残留进程`)
     } else {
       console.error('[MCP-API] 服务器启动失败:', err.message)
     }
@@ -813,25 +852,11 @@ function startMCPServer() {
 
 // ─── 应用生命周期 ───
 
-// 单实例锁：防止重复启动导致 MCP 端口 (9877) 冲突与 GPU 缓存目录争用
-// 已有实例运行时，新启动的实例直接退出，并聚焦已有实例窗口
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
-if (!gotSingleInstanceLock) {
-  console.log('[App] 检测到已有编辑器实例在运行，当前实例退出（端口 9877 由既有实例占用）')
-  app.quit()
-} else {
-  // 用户再次双击启动时，唤醒已有实例窗口
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
-  })
-
-  app.whenReady().then(() => {
-    startApp()
-  })
-}
+// 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
+// Vite 端口 (5173+) 与 MCP 端口 (9877+) 均自动递增分配，互不冲突
+app.whenReady().then(() => {
+  startApp()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

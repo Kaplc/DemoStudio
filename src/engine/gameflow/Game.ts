@@ -9,7 +9,7 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import { PreviewSceneManager, GameSceneManager, logger } from '..'
+import { PreviewSceneManager, GameSceneManager, logger, PhySys } from '..'
 import { GameInstance } from './GameInstance'
 import { GameUI } from '../ui/GameUI'
 import { AIModule } from '../ai/AIModule'
@@ -79,6 +79,8 @@ export class Game {
       const world = (this._instance as unknown as { world?: World }).world
       if (world?.ui?.scene) {
         this.gameMgr.attachUIScene(world.ui.scene)
+        // 双摄像机：PhySys 注入 UI 独立相机，UI 层点击用平行射线（优先于 3D）
+        PhySys.setupUI(this.gameMgr.uiCamera)
       }
       this.gameMgr.start()
       logger.info('[GameSceneManager] 渲染循环已启动')
@@ -139,6 +141,7 @@ export class Game {
     if (this.gameMgr) {
       this.gameMgr.setControlsEnabled(false)
       this.gameMgr.attachUIScene(null)
+      PhySys.setupUI(null)
       this.gameMgr.stop()
       this.gameMgr.clearFrame()
       this.gameMgr.resetView()

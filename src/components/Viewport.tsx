@@ -7,6 +7,7 @@ import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
 import { BlueprintEditor } from './BlueprintEditor'
 import { ScenePreviewEditor } from './ScenePreviewEditor'
+import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 import {
   setupScene,
   handleKeyDown,
@@ -169,6 +170,9 @@ export function Viewport({ onReady }: ViewportProps) {
     if (!shared || !game) return
 
     const switchProject = async () => {
+      // 0. 清空蓝图编辑缓存（工作副本/撤销栈），避免残留到下一个工程
+      BlueprintEditorService.clearCache()
+
       // 1. 无论游戏是否运行，先停止
       if (editorState.running) {
         logger.info('切换工程: 停止当前游戏...')
@@ -458,7 +462,14 @@ export function Viewport({ onReady }: ViewportProps) {
             {/* 非持久标签的关闭按钮 */}
             {!tab.permanent && (
               <span
-                onClick={(e) => { e.stopPropagation(); closeDynamicTab(tab.id) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // 关闭蓝图页签：清理该资产的撤回缓存（工作副本/撤销栈），重新打开为干净磁盘状态
+                  if (tab.type === 'blueprint' && tab.assetPath) {
+                    BlueprintEditorService.closeAsset(tab.assetPath)
+                  }
+                  closeDynamicTab(tab.id)
+                }}
                 style={{
                   marginLeft: 6, padding: '0 3px', fontSize: 14, lineHeight: 1,
                   borderRadius: 2, opacity: 0.6, cursor: 'pointer',

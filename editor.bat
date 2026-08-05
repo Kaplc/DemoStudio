@@ -71,6 +71,8 @@ echo [Launch] 正在启动 Electron 编辑器...
 echo.
 echo   ※ Vite 开发服务器将自动启动
 echo   ※ Electron 窗口将在 Vite 就绪后打开
+echo   ※ 支持多实例：可重复双击本文件启动多个编辑器
+echo     （Vite 端口 5173+ / MCP 端口 9877+ 自动递增分配）
 echo.
 
 npm run electron:dev

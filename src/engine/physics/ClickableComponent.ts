@@ -15,6 +15,13 @@ import { Component } from '../entity/Component'
 import { PhySys } from './PhySys'
 
 export class ClickableComponent extends Component {
+  /**
+   * 所属层：
+   *  - 'world'：3D 世界（主相机射线检测，默认）
+   *  - 'ui'：屏幕空间 UI（独立 UI 相机平行射线检测，由 UIButtonComponent 等设置）
+   */
+  layer: 'ui' | 'world' = 'world'
+
   /** 点击回调：传入命中的 Intersection 信息 */
   onClick: ((hit: THREE.Intersection) => void) | null = null
   /** 悬停回调：传入命中信息（null 表示离开） */

@@ -61,7 +61,12 @@ export class UndoManager {
     return (this.stacks.get(key)?.redo.length ?? 0) > 0
   }
 
-  /** 切换工程/关闭资产时清空 */
+  /** 关闭单个资产/页签时清空其栈（重新打开回到干净状态，不残留旧历史） */
+  static clear(key: string): void {
+    this.stacks.delete(key)
+  }
+
+  /** 切换工程/关闭全部资产时清空所有栈 */
   static clearAll(): void {
     this.stacks.clear()
   }

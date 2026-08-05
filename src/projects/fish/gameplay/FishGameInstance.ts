@@ -118,17 +118,40 @@ export class FishGameInstance extends GameInstance {
 
   /** 基地阶段设置 */
   private setupBasePhase(): void {
-    logger.info('[Fish] setupBasePhase: 配置海底基地...')
+    logger.info('[Fish] setupBasePhase: 配置部落冲突基地...')
     const mode = this.world.gameMode as FishBaseGameMode
     this._baseGameMode = mode
     mode.onStartFishing = () => this.startGameplay()
     mode.onClaimCoins = () => this.claimCoins()
-    this.setupCamera(mode.gameCamera, 8, 6, 10)
+    // 部落冲突基地：相机拉高俯瞰地图（地图 11x11 在原点附近）
+    this.setupCamera(mode.gameCamera, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.gameCamera)
     if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
     const spawn = mode.SpawnPlayer()
     if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
     else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
+
+    // ─── HUD：双摄像机方案下 HUD 面板由独立 UI 正交相机渲染（固定铺满屏幕，无需手动定位），
+    // 只需绑定建筑菜单按钮 ───
+    const hud = this.world.ui.hud?.uiActor
+    if (hud) {
+      const bindButtons = (actor: import('@/engine').Actor) => {
+        for (const comp of actor.getComponents(UIButtonComponent)) {
+          if (comp.onClick) continue
+          const name = actor.root.name
+          if (name.startsWith('Btn_')) {
+            const id = name.slice(4)
+            comp.onClick = () => {
+              if (id === 'delete') mode.deleteSelectedBuilding()
+              else mode.selectBuildingType(id)
+            }
+            logger.info(`[Fish] 基地 HUD 按钮绑定 onClick: ${name}`)
+          }
+        }
+        for (const child of actor.getChildren()) bindButtons(child)
+      }
+      bindButtons(hud)
+    }
     logger.info('[Fish] setupBasePhase: 完成（已进入基地）')
   }
 

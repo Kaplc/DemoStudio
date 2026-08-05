@@ -21,6 +21,13 @@ const _planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _ndc = new THREE.Vector2()
 const _worldOut = new THREE.Vector3()
 
+/**
+ * UI 独立叠加相机的正交半高（世界单位）。
+ * 匹配 UI 根画布世界尺寸（9.6×5.4 → halfH=2.7，halfW=2.7×aspect 在 16:9 下 = 4.8 = 9.6/2），
+ * 使 UI 场景在任何投影模式的主相机下都精确铺满视口，不随主相机移动。
+ */
+const UI_ORTHO_HALF_H = 2.7
+
 export interface GameSceneManagerOptions {
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
   cameraMode?: CameraMode
@@ -38,6 +45,18 @@ export class GameSceneManager {
 
   /** UI 独立场景（widget 等，与主 3D 场景分离，叠加渲染时 UI 永远在顶层） */
   private _uiScene: THREE.Scene | null = null
+
+  /**
+   * UI 独立叠加相机（正交，世界单位视锥 halfH=2.7 匹配 UI 画布 9.6×5.4）。
+   * 渲染 UI 场景时用此相机而非主相机 → UI 固定铺满视口、不随主相机移动/缩放。
+   * 与主相机共用同一渲染器（autoClear=false + clearDepth 叠加）。
+   */
+  private _uiCamera: THREE.OrthographicCamera | null = null
+
+  /** 当前 UI 叠加相机（未挂载 UI 场景时为 null） */
+  get uiCamera(): THREE.OrthographicCamera | null {
+    return this._uiCamera
+  }
 
   /** 正交模式半高（世界单位） */
   public orthoSize = 5
@@ -292,6 +311,17 @@ export class GameSceneManager {
     this.renderer.setSize(w, h)
     cam.updateProjectionMatrix()
 
+    // 同步 UI 独立叠加相机视锥：半高固定 2.7（匹配 UI 画布 9.6×5.4），半宽随视口比例
+    if (this._uiCamera) {
+      const halfH = UI_ORTHO_HALF_H
+      const halfW = halfH * aspect
+      this._uiCamera.left = -halfW
+      this._uiCamera.right = halfW
+      this._uiCamera.top = halfH
+      this._uiCamera.bottom = -halfH
+      this._uiCamera.updateProjectionMatrix()
+    }
+
     this.uiLayer.style.width = `${w}px`
     this.uiLayer.style.height = `${h}px`
   }
@@ -302,11 +332,25 @@ export class GameSceneManager {
 
   /**
    * 挂载 UI 独立场景：主场景渲染后叠加渲染（autoClear=false + clearDepth，
-   * UI 不参与 3D 深度测试 → 永远在顶层）。与主场景共用同一相机（世界坐标对齐）。
+   * UI 不参与 3D 深度测试 → 永远在顶层）。
+   *
+   * 双摄像机方案：UI 场景使用独立正交相机（_uiCamera，视锥匹配 UI 画布世界尺寸），
+   * 不再复用主相机 → UI 固定铺满视口，不受主相机（透视/正交、位置/视角）影响。
    */
   attachUIScene(scene: THREE.Scene | null): void {
     this._uiScene = scene
-    logger.info(`[GameSceneManager] UI 场景${scene ? '已挂载' : '已分离'}`)
+    if (scene && !this._uiCamera) {
+      // UI 正交相机：位置 (0,0,10) 看向原点，z=0 为 UI 面板平面（zOrder 偏移量级为 0.001）
+      this._uiCamera = new THREE.OrthographicCamera(-4.8, 4.8, 2.7, -2.7, 0.1, 200)
+      this._uiCamera.position.set(0, 0, 10)
+      this._uiCamera.lookAt(0, 0, 0)
+      this.resize()
+      logger.info('[GameSceneManager] UI 独立叠加相机已创建（正交 halfH=2.7）')
+    }
+    if (!scene) {
+      this._uiCamera = null
+    }
+    logger.info(`[GameSceneManager] UI 场景${scene ? '已挂载' : '已分离'}${scene ? '（双摄像机叠加渲染）' : ''}`)
   }
 
   start() {
@@ -329,12 +373,13 @@ export class GameSceneManager {
 
       this.renderer.render(this.scene, this.camera)
 
-      // UI 独立场景叠加渲染（UI 永远在顶层）
+      // UI 独立场景叠加渲染（UI 永远在顶层）：
+      // 双摄像机——UI 用独立正交相机（_uiCamera），不随主相机移动/缩放
       if (this._uiScene) {
         const prevAutoClear = this.renderer.autoClear
         this.renderer.autoClear = false
         this.renderer.clearDepth()
-        this.renderer.render(this._uiScene, this.camera)
+        this.renderer.render(this._uiScene, this._uiCamera ?? this.camera)
         this.renderer.autoClear = prevAutoClear
       }
 

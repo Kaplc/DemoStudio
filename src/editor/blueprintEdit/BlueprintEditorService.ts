@@ -396,6 +396,21 @@ export class BlueprintEditorService {
     return this.dirtyKeys.has(diskPathToAssetKey(assetPath))
   }
 
+  /**
+   * 关闭蓝图页签（不保存）时清理该资产的全部缓存：工作副本/脏标记/撤销栈。
+   * 重新打开同一资产时回到干净的磁盘状态，撤回历史不复用。
+   * 各资产缓存本就按 key 独立，互不干扰；此方法保证关闭即丢弃。
+   */
+  static closeAsset(assetPath: string): void {
+    const key = diskPathToAssetKey(assetPath)
+    this.workingCopies.delete(key)
+    this.dirtyKeys.delete(key)
+    UndoManager.clear(key)
+    // 同步清掉页签上的"未保存"星标（dirtyBlueprints 以原始 assetPath 为 key）
+    useEditorStore.getState().markBlueprintClean(assetPath)
+    logger.info(`[BlueprintEdit] 关闭资产，缓存已清理: ${key}`)
+  }
+
   /** 切换工程/关闭时清理全部副本与历史 */
   static clearCache(): void {
     this.workingCopies.clear()

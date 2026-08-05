@@ -29,6 +29,9 @@ export class InputSys {
     controller?: PlayerController | null,
   ): boolean {
     const consumed = PhySys.raycastClick(screenX, screenY)
+    // 已被 ClickableComponent 消费（UI 按钮/建筑点击）→ 不再下发 controller，
+    // 避免同一击既触发按钮又触发放置/移动等地面逻辑（跨帧 clickConsumed 标记会吞掉下一次点击）
+    if (consumed) return true
     controller?.OnPointerDownScreen(screenX, screenY)
     if (worldPos) controller?.OnPointerDown(worldPos)
     return consumed

@@ -55,6 +55,8 @@ export class UIButtonComponent extends Component {
       clickable = new ClickableComponent(owner)
       owner.addComponent(clickable)
     }
+    // UI 层：独立 UI 相机平行射线检测（双摄像机方案，UI 命中优先于 3D）
+    clickable.layer = 'ui'
     clickable.onClick = () => {
       this.triggerClick()
     }

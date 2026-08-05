@@ -159,12 +159,27 @@ export class UITransformComponent extends TransformComponent {
     return [this._worldW, this._worldH]
   }
 
-  /** 向上查找最近的父画布尺寸（父 Actor 上的 CanvasUIComponent 世界尺寸；跳过仅标记组件） */
+  /**
+   * 向上查找最近的父容器尺寸（UI 层级语义）。
+   *
+   * 规则（优先级从高到低）：
+   *  1. 父 Actor 的 UITransformComponent 且 worldSizeExplicit（显式设置了 worldWidth/worldHeight）
+   *     —— markerOnly 容器（如 BottomBar）也有明确世界尺寸，它就是子元素的布局容器；
+   *     若跳过它直接找根画布，子元素锚点会相对根画布再次叠加父容器的锚点偏移 → 双重叠加掉出画布
+   *  2. 父 Actor 上的真实画布（非 markerOnly CanvasUIComponent），兜底
+   */
   private findContainerSize(): [number, number] | null {
     let p = this.owner.parent
     let hops = 0
     while (p) {
-      // 取该 Actor 上第一个"真正画布"（非仅标记）——markerOnly 组件只作 UI 标识，不作为容器
+      // 1. 父 Actor 显式设置的 uitransform 尺寸 → 容器基准
+      const tf = p.getComponent(UITransformComponent)
+      if (tf && tf.worldSizeExplicit) {
+        const size = tf.getWorldSize()
+        logger.debug(`[UITransformComponent] "${this.name}" 找到父容器: Actor="${p.name}" 尺寸=${size[0]}x${size[1]}（uitransform 显式，${hops + 1} 级向上）`)
+        return size
+      }
+      // 2. 兜底：真实画布（非仅标记）——markerOnly 组件只作 UI 标识，不作为容器
       const comp = p.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
       if (comp) {
         const size = comp.getWorldSize()

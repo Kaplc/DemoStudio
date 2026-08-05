@@ -10,6 +10,11 @@
  *     "args": ["editor/mcp-server.mjs"],
  *     "cwd": "E:\\DemoStudio"
  *   }
+ *
+ * 多实例支持：
+ *   第一个编辑器实例的 MCP API 端口为 9877，后续实例自动递增（9878、9879...）。
+ *   连接指定实例时传入 --port 参数，例如:
+ *     node editor/mcp-server.mjs --port 9878
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -18,7 +23,20 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 
-const EDITOR_API = 'http://127.0.0.1:9877'
+// 解析 --port 参数（多实例场景下连接指定编辑器实例）
+function resolveEditorPort() {
+  const idx = process.argv.indexOf('--port')
+  if (idx !== -1 && process.argv[idx + 1]) {
+    const port = Number(process.argv[idx + 1])
+    if (Number.isInteger(port) && port > 0) return port
+  }
+  return 9877
+}
+
+const EDITOR_PORT = resolveEditorPort()
+const EDITOR_API = `http://127.0.0.1:${EDITOR_PORT}`
+
+console.error(`[MCP] 连接编辑器实例: ${EDITOR_API}`)
 
 async function callEditor(command, params = {}) {
   try {
