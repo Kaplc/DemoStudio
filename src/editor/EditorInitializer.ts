@@ -10,6 +10,7 @@ import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
 import { editorBus } from './EditorEvents'
 import { EditorEvent } from './EditorEventNames'
 import { useEditorStore } from '../stores/editorStore'
+import { useProjectStore } from '../stores/projectStore'
 import { AIModule } from '../engine/ai'
 import { Actor } from '../engine/entity/Actor'
 import { AssetPreviewManager } from './AssetPreviewManager'
@@ -58,6 +59,11 @@ export function installEventBridge(): () => void {
 function registerEditorAIHandlers(): () => void {
   const ai = AIModule.instance
   const unsubs: Array<() => void> = []
+
+  // HMR 场景：模块重载后 _editorAIHandlersInstalled 重置，但 AIModule 单例仍保留旧处理器，
+  // 先清除编辑器层事件旧处理器，避免重复注册（ai.selectActor 曾累积到 10 个）
+  ai.clearEvent('ai.selectActor')
+  ai.clearEvent('ai.dragActor')
 
   // ─── ai.selectActor — 在编辑器场景/预览中选中 Actor（gizmo 显示） ───
   unsubs.push(
@@ -247,14 +253,42 @@ export function registerGlobalEventListeners(callbacks: {
     })
 
     if (window.electronAPI.onMCPCommand) {
-      mcpCleanup = window.electronAPI.onMCPCommand((command, params, requestId) => {
+      mcpCleanup = window.electronAPI.onMCPCommand(async (command, params, requestId) => {
         addConsoleOutput(`[MCP] 收到命令: ${command}`)
         switch (command) {
           case 'launchGame':
-          case 'start_game':
-            setCurrentProject(null) // 触发自动选中
+          case 'start_game': {
+            // 支持指定项目启动：params.project = 项目名（AI 测试指定场景用）
+            // 否则无项目时自动选中第一个可用项目（页面重载后项目状态会丢失）。
+            // 切换项目会触发 Viewport 的停止流程（异步 effect），等待其完成再启动，避免竞争
+            let needWait = false
+            const targetName = (params?.project as string | undefined)?.trim()
+            const cur = useEditorStore.getState().currentProject
+            if (targetName && cur?.name !== targetName) {
+              const target = useProjectStore.getState().projects.find((p) => p.name === targetName)
+              if (target) {
+                useEditorStore.getState().setCurrentProject(target)
+                addConsoleOutput(`[MCP] 切换项目: ${target.name}`)
+                needWait = true
+              } else {
+                addConsoleOutput(`[MCP] start_game: 未找到项目 "${targetName}"`)
+                break
+              }
+            } else if (!cur) {
+              const first = useProjectStore.getState().projects[0]
+              if (first) {
+                useEditorStore.getState().setCurrentProject(first)
+                addConsoleOutput(`[MCP] 自动选中项目: ${first.name}`)
+                needWait = true
+              } else {
+                addConsoleOutput('[MCP] start_game: 无可用项目')
+                break
+              }
+            }
+            if (needWait) await new Promise((r) => setTimeout(r, 600))
             onLaunchGame()
             break
+          }
           case 'stopGame':
           case 'stop_game':
             onStopGame()

@@ -21,6 +21,7 @@ import {
   AI_EVENT_GET_STATE,
   AI_EVENT_SHOW_MESSAGE,
   AI_EVENT_CLICK_ACTOR,
+  AI_EVENT_GET_ACTOR,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -30,6 +31,8 @@ import {
   type AISwitchScenePayload,
   type AIShowMessagePayload,
   type AIClickActorPayload,
+  type AIGetActorPayload,
+  type AIActorInfo,
   type AIGameStateSnapshot,
 } from './AIEvents'
 import { logger } from '../Logger'
@@ -64,14 +67,31 @@ function findActorByName(world: World, name: string) {
   return null
 }
 
-let _registered = false
+/** 内置事件名全集（注册前先清除旧处理器，保证 HMR 重载后不重复注册） */
+const BUILTIN_EVENTS = [
+  AI_EVENT_NOTIFY,
+  AI_EVENT_SHOW_MESSAGE,
+  AI_EVENT_SPAWN_ACTOR,
+  AI_EVENT_DESTROY_ACTOR,
+  AI_EVENT_TRANSFORM_ACTOR,
+  AI_EVENT_SET_SCORE,
+  AI_EVENT_ADD_SCORE,
+  AI_EVENT_GAME_OVER,
+  AI_EVENT_SWITCH_SCENE,
+  AI_EVENT_GET_STATE,
+  AI_EVENT_CLICK_ACTOR,
+  AI_EVENT_GET_ACTOR,
+]
 
-/** 注册全部内置 AI 事件（幂等） */
+/**
+ * 注册全部内置 AI 事件（幂等）。
+ * HMR 场景：模块重载后本文件重新求值，但 AIModule 单例仍保留旧处理器，
+ * 直接注册会导致事件重复触发（如 ai.notify 出现 8 个处理器）。
+ * 因此每次调用都先清除内置事件旧处理器再注册 —— 始终只保留最新一份。
+ */
 export function registerBuiltinAIHandlers(): void {
-  if (_registered) return
-  _registered = true
-
   const ai = AIModule.instance
+  for (const ev of BUILTIN_EVENTS) ai.clearEvent(ev)
 
   // ─── ai.notify — 通用通知（无需游戏运行） ───
   ai.register(AI_EVENT_NOTIFY, (payload: unknown) => {
@@ -210,7 +230,12 @@ export function registerBuiltinAIHandlers(): void {
       gameOver: world?.gameState?.gameOver ?? false,
       actorCount: world?.actorCount ?? 0,
       actors: world
-        ? world.GetAllActors().map((a) => ({ name: a.name, type: a.constructor.name }))
+        ? world.GetAllActors().map((a) => ({
+            name: a.name,
+            type: a.constructor.name,
+            scale: [a.root.scale.x, a.root.scale.y, a.root.scale.z] as [number, number, number],
+            active: a.bActive,
+          }))
         : [],
     }
     return snapshot
@@ -244,6 +269,33 @@ export function registerBuiltinAIHandlers(): void {
     }
 
     return { ok: false, error: `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
+  })
+
+  // ─── ai.getActor — 查询单个 Actor 详细信息（含按钮状态/缩放，递归查找） ───
+  ai.register(AI_EVENT_GET_ACTOR, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AIGetActorPayload
+    if (!p.name) return { ok: false, error: '缺少 name' }
+
+    const actor = findActorByName(world, p.name)
+    if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
+
+    const info: AIActorInfo = {
+      name: actor.name,
+      type: actor.constructor.name,
+      position: [actor.root.position.x, actor.root.position.y, actor.root.position.z],
+      rotation: [actor.root.rotation.x, actor.root.rotation.y, actor.root.rotation.z],
+      scale: [actor.root.scale.x, actor.root.scale.y, actor.root.scale.z],
+      active: actor.bActive,
+      children: actor.getChildren().map((c) => ({ name: c.name, type: c.constructor.name })),
+    }
+    // 按钮状态摘要（验证按下缩放动效：state=pressed 时 scale 应为原始 × pressScale）
+    const buttons = actor.getComponents(UIButtonComponent)
+    if (buttons.length > 0) {
+      info.buttons = buttons.map((b) => ({ state: b.state, pressScale: b.pressScale }))
+    }
+    return { ok: true, actor: info }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

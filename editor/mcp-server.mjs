@@ -85,8 +85,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'start_game',
-      description: '从编辑器启动贪吃蛇游戏',
-      inputSchema: { type: 'object', properties: {} },
+      description: '从编辑器启动游戏（可选 project 参数指定项目名，如 FishMaster）',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: '项目名（如 Snake / FishMaster / Demo2D / Racing / EatFish）' },
+        },
+      },
     },
     {
       name: 'stop_game',
@@ -173,7 +178,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   switch (name) {
     case 'start_game': {
-      const result = await callEditor('start_game')
+      const project = args?.project || undefined
+      const result = await callEditor('start_game', project ? { project } : {})
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       }

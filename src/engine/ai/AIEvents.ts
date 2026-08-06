@@ -37,6 +37,9 @@ export const AI_EVENT_SHOW_MESSAGE = 'ai.showMessage'
 /** 点击指定 Actor 上的 UI 按钮（按名称，不依赖鼠标坐标） */
 export const AI_EVENT_CLICK_ACTOR = 'ai.clickActor'
 
+/** 查询单个 Actor 的详细信息（位置/缩放/激活/按钮状态等，按名称递归查找，含 HUD 子节点） */
+export const AI_EVENT_GET_ACTOR = 'ai.getActor'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════
@@ -98,6 +101,26 @@ export interface AIClickActorPayload {
   name: string
 }
 
+/** ai.getActor payload：按名称查询单个 Actor 详细信息 */
+export interface AIGetActorPayload {
+  /** Actor 名称（精确匹配 .name 或 root.name，递归查找） */
+  name: string
+}
+
+/** 单个 Actor 的详细信息（ai.getActor 返回） */
+export interface AIActorInfo {
+  name: string
+  type: string
+  position: [number, number, number]
+  rotation: [number, number, number]
+  scale: [number, number, number]
+  /** 是否激活（UI 失活属性，false = 已创建但不渲染） */
+  active: boolean
+  /** 挂载的 UIButtonComponent 摘要（状态机 + 按下缩放配置） */
+  buttons?: Array<{ state: string; pressScale: number }>
+  children: Array<{ name: string; type: string }>
+}
+
 /** getState 返回的运行状态摘要 */
 export interface AIGameStateSnapshot {
   running: boolean
@@ -105,5 +128,12 @@ export interface AIGameStateSnapshot {
   score: number
   gameOver: boolean
   actorCount: number
-  actors: Array<{ name: string; type: string }>
+  actors: Array<{
+    name: string
+    type: string
+    /** 世界缩放 [x, y, z]（用于验证 transformActor / 按钮按下缩放动效等） */
+    scale: [number, number, number]
+    /** 是否激活（UI 失活属性，false = 已创建但不渲染） */
+    active: boolean
+  }>
 }
