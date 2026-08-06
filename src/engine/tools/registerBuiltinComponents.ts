@@ -173,9 +173,10 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── CanvasUIComponent ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly? }
+  // ─── CanvasUIComponent ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly?, active? }
   // 世界尺寸已在 uitransform 上（Unity RectTransform 风格），此处只传显式值，
   // 未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取（避免默认值覆盖）
+  // active 是本组件持有的节点级显隐开关（applyActive 级联到自身 panel + 子树全部渲染组件）
   ComponentRegistry.register(
     'CanvasUIComponent',
     (owner, p = {}) =>
@@ -188,6 +189,7 @@ export function registerBuiltinComponents(): void {
         name: p.name ?? 'CanvasUIComponent',
         zOrder: p.zOrder as number | undefined,
         markerOnly: (p.markerOnly as boolean) ?? false,
+        ...(p.active !== undefined ? { active: p.active as boolean } : {}),
       }),
     (c, p) => {
       const ui = c as CanvasUIComponent
@@ -196,6 +198,7 @@ export function registerBuiltinComponents(): void {
       }
       if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
       if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number
+      if (p.active !== undefined) ui.bActive = p.active as boolean
     },
   )
 
@@ -219,7 +222,8 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UITextComponent ─── props: { text?, fontSize?, color?, bold?, align?, width?, height?, ... }
+  // ─── UITextComponent ─── props: { text?, fontSize?, color?, ..., width?, height?, ... }
+  // 显隐由同/父节点的 CanvasUIComponent.active 统一控制（节点级级联），UIText 不再消费 active。
   ComponentRegistry.register(
     'UITextComponent',
     (owner, p = {}) =>
@@ -248,7 +252,8 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIImageComponent ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight? }
+  // ─── UIImageComponent ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight?, ... }
+  // 显隐由同/父节点的 CanvasUIComponent.active 统一控制（节点级级联），UIImage 不再消费 active。
   ComponentRegistry.register(
     'UIImageComponent',
     (owner, p = {}) =>

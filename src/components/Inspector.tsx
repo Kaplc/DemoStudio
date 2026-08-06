@@ -63,33 +63,73 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
   const editingRef = useRef(false)
   /** 蓝图模式 color picker 防抖（拖动停止后才提交，避免连续重建卡死） */
   const colorDebounceRef = useRef<number | null>(null)
+  /**
+   * 最近一次提交的值（提交后未解除）。蓝图模式下 apply 只改资产、运行时组件值不变，
+   * 重建前 prop.get() 仍是旧值——若立即同步会把用户刚提交的值弹回（"点击无效"）。
+   * 保护规则：提交后保持显示提交值，直到外部组件值追上提交值才解除并接管。
+   */
+  const lastCommittedRef = useRef<unknown>(null)
 
   // 外部变更（如锚点修改导致位置联动 / 蓝图重建）时同步本地值。
   // ⚠️ prop 每次渲染都是新引用（getEditableProperties 每次新建对象），不能直接依赖：
   //   · 聚焦中跳过（否则 onChange → 重渲染 → setVal(prop.get())=旧值 → 输入被吞，"打架"）
+  //   · 提交保护：上次提交未确认前保持提交值显示（蓝图模式等重建；游戏模式 prop.set 已同步，
+  //     组件值==提交值立即解除）
   //   · 函数式 setVal + 值比较：值没变返回原引用（vec3/数组类型避免无限重渲染）
   useEffect(() => {
     if (editingRef.current) return
     const next = prop.get()
+    const committed = lastCommittedRef.current
+    if (committed !== null) {
+      // 外部值已追上提交值（游戏模式立即 / 蓝图重建后）→ 解除保护，接管为外部值
+      if (JSON.stringify(next) === JSON.stringify(committed)) {
+        lastCommittedRef.current = null
+        setVal(next)
+      }
+      // 否则保持提交值显示（蓝图重建完成前的窗口期）
+      return
+    }
     setVal((prev: unknown) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prop])
 
   const commit = (v: unknown) => {
     setVal(v)
+    // 提交保护：在外部值确认前保持显示提交值（修复蓝图模式下复选框/输入被 useEffect 弹回）
+    lastCommittedRef.current = v
     if (assetTarget) {
       // 蓝图预览模式：走 BlueprintEditorService（工作副本 + 撤销快照 + 预览重建），
-      // 运行时组件不改——apply 成功后 bump 触发蓝图重建，场景值由重建刷新
-      BlueprintEditorService.apply(assetTarget.assetPath, 'setChildComponentProps', {
-        name: assetTarget.childName,
-        baseClass: assetTarget.baseClass,
-        properties: { [prop.key]: v },
-        strict: true,
-      }).then((r) => {
-        if (!r.ok) console.warn(`[Inspector] 子控件属性写入资产失败: ${assetTarget.childName}.${prop.key} → ${r.error}`)
-      })
+      // 运行时组件不改——apply 成功后 bump 触发蓝图重建，场景值由重建刷新。
+      // 根节点组件（assetTarget.root）作用于 asset.components → setComponentProps；
+      // 子节点组件 → setChildComponentProps（按 name 递归定位 children）
+      const applyParams = assetTarget.root
+        ? {
+            baseClass: assetTarget.baseClass,
+            properties: { [prop.key]: v },
+          }
+        : {
+            name: assetTarget.childName,
+            baseClass: assetTarget.baseClass,
+            properties: { [prop.key]: v },
+            strict: true,
+          }
+      BlueprintEditorService.apply(assetTarget.assetPath, assetTarget.root ? 'setComponentProps' : 'setChildComponentProps', applyParams)
+        .then((r) => {
+          if (!r.ok) {
+            console.warn(`[Inspector] ${assetTarget.root ? '根组件' : '子控件'}属性写入资产失败: ${assetTarget.childName}.${prop.key} → ${r.error}`)
+            // 写入失败：解除提交保护并恢复真实值，避免界面停留在错误的提交值上
+            lastCommittedRef.current = null
+            setVal(prop.get())
+          } else {
+            console.log(
+              `[Inspector] 属性已提交: ${assetTarget.childName}.${prop.key} = ${JSON.stringify(v)} ` +
+              `(${assetTarget.root ? '根组件→setComponentProps' : '子控件→setChildComponentProps'}, baseClass=${assetTarget.baseClass}, apply=${r.ok})`,
+            )
+          }
+        })
     } else {
       // 游戏模式/非蓝图：直接改运行时组件
+      console.log(`[Inspector] 属性已提交(运行时直改): ${prop.key} = ${JSON.stringify(v)}`)
       prop.set(v)
     }
     onEdited()
@@ -286,10 +326,13 @@ function ActorComponentsView({ actor, assetPath = null }: { actor: Actor; assetP
     setEditNonce(0)
   }, [actor])
 
-  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）
+  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）。
+  // 顶层 Actor（无 parent）= 资产根节点 → root=true（组件编辑走 setComponentProps）；
+  // 否则为 children 中的子节点 → 走 setChildComponentProps
   const childName = actor.root?.name || undefined
+  const isRoot = !!assetPath && !actor.parent
   const makeTarget = (baseClass: string): EditablePropertyAssetTarget | undefined =>
-    assetPath && childName ? { assetPath, childName, baseClass } : undefined
+    assetPath && childName ? { assetPath, childName, baseClass, root: isRoot } : undefined
 
   const toggleCollapse = (name: string) => {
     setCollapsed((prev) => {
@@ -384,10 +427,12 @@ function ComponentSearchResults({ actor, query, assetPath = null }: { actor: Act
   if (!components || components.length === 0 || !q) return null
 
   const ql = q.toLowerCase()
-  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）
+  // 蓝图预览模式：构建资产定位（子节点名 = actor.root.name，组件按 baseClass 匹配）。
+  // 顶层 Actor（无 parent）= 资产根节点 → root=true（组件编辑走 setComponentProps）
   const childName = actor.root?.name || undefined
+  const isRoot = !!assetPath && !actor.parent
   const makeTarget = (baseClass: string): EditablePropertyAssetTarget | undefined =>
-    assetPath && childName ? { assetPath, childName, baseClass } : undefined
+    assetPath && childName ? { assetPath, childName, baseClass, root: isRoot } : undefined
   const groups: { comp: Component; name: string; enabled: boolean; entries: [string, unknown][] }[] = []
 
   for (const comp of components) {

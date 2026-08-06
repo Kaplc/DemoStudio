@@ -21,6 +21,12 @@ export interface EditablePropertyAssetTarget {
   childName: string
   /** 组件 baseClass（资产 components 定义按 baseClass 匹配，本地无则新建继承覆盖节点） */
   baseClass: string
+  /**
+   * 是否为资产根节点（无 parent 的顶层 Actor）。
+   * true → 编辑走 setComponentProps（作用于 asset.components）；
+   * false/undefined → 走 setChildComponentProps（递归定位 asset.children）。
+   */
+  root?: boolean
 }
 
 /**

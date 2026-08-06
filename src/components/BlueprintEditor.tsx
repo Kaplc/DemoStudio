@@ -86,18 +86,22 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     let cancelled = false
     setLoading(true)
     setError(null)
+    console.log(`[BlueprintEditor] 读盘/工作副本: ${assetPath}（nonce=${blueprintEditNonce}）`)
     BlueprintEditorService.read(assetPath)
       .then((r) => {
         if (cancelled) return
         if (r.ok && r.asset) {
+          console.log(`[BlueprintEditor] 读盘成功: ${assetPath}`)
           setData(r.asset as unknown as BlueprintData)
         } else {
+          console.warn(`[BlueprintEditor] 读盘失败: ${assetPath} → ${r.error ?? '未知错误'}`)
           setError(r.error ?? '读取蓝图文件失败')
         }
         setLoading(false)
       })
       .catch((e) => {
         if (cancelled) return
+        console.warn(`[BlueprintEditor] 读盘异常: ${assetPath} → ${String(e)}`)
         setError(String(e))
         setLoading(false)
       })
@@ -109,6 +113,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   // ─── 创建/销毁 3D 预览 ───
   useEffect(() => {
     if (!data || !previewContainerRef.current) return
+    console.log(`[BlueprintEditor] 重建预览: ${assetPath}（data 变更触发，组件=${data.components?.length ?? 0} 子节点=${data.children?.length ?? 0}）`)
 
     // 注册 key 由磁盘路径推导（asset/...）
     const assetKey = diskPathToAssetKey(assetPath)

@@ -200,10 +200,9 @@ export function Outline() {
   const [hiddenKeys, setHiddenKeys] = useState<Set<number>>(new Set())
   const toggleHidden = useCallback((actor: Actor, hidden: boolean) => {
     const id = actor.root.id
-    // 渲染层：root.visible=false → Three.js 跳过该节点及全部子树渲染
-    actor.root.visible = !hidden
-    // 树遍历层：打标记让大纲遍历豁免跳过（节点仍显示在树中，可随时恢复）
-    actor.root.userData.__outlineHidden = hidden
+    // 走 Actor 提供的临时隐藏入口：不动 active/资产，只改预览显隐；
+    // 与 CanvasUIComponent.active / Actor.bActive 解耦，切换 active 时仍保持大纲预览意图
+    actor.setPreviewHidden(hidden)
     setHiddenKeys((prev) => {
       const next = new Set(prev)
       if (hidden) next.add(id)
@@ -250,12 +249,15 @@ export function Outline() {
   // ─── 缓存：场景预览树数据 ───
   const spAssetPath = isScenePreviewTab ? currentTab?.assetPath : null
   const spTree = useMemo(() => {
-    if (!spAssetPath) { logger.debug(`[OutlinerTrace] spTree: spAssetPath=null`); return null }
+    // if (!spAssetPath) { logger.debug(`[OutlinerTrace] spTree: spAssetPath=null`); return null }
+    if (!spAssetPath) return null
     const spMgr = AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(spAssetPath)
-    if (!spMgr) { logger.debug(`[OutlinerTrace] spTree: spMgr=null for ${spAssetPath}`); return null }
-    if (spMgr.currentScenePath == null) { logger.debug(`[OutlinerTrace] spTree: currentScenePath=null, actorCount=${spMgr.world.actorCount}`); return null }
+    // if (!spMgr) { logger.debug(`[OutlinerTrace] spTree: spMgr=null for ${spAssetPath}`); return null }
+    if (!spMgr) return null
+    // if (spMgr.currentScenePath == null) { logger.debug(`[OutlinerTrace] spTree: currentScenePath=null, actorCount=${spMgr.world.actorCount}`); return null }
+    if (spMgr.currentScenePath == null) return null
     const tree = spMgr.getActorTree()
-    logger.debug(`[OutlinerTrace] spTree: ${tree.length} 个节点, currentScenePath=${spMgr.currentScenePath}`)
+    // logger.debug(`[OutlinerTrace] spTree: ${tree.length} 个节点, currentScenePath=${spMgr.currentScenePath}`)
     return tree
   }, [spAssetPath, selectionKey, blueprintEditNonce])
 

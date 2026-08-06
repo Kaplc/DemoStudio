@@ -20,7 +20,7 @@ import type {
   BlueprintComponentDef,
   BlueprintChildDef,
 } from '../../engine'
-import { mergePatch, clonePatch } from '../../engine'
+import { mergePatch, clonePatch, logger } from '../../engine'
 import type { PropertyPatch } from '../../engine'
 
 // ─── 结果类型 ───
@@ -346,6 +346,8 @@ export function setChildComponentProps(
   if (existing._remove) delete existing._remove
   existing.properties = mergePatch(existing.properties ?? {}, clonePatch(properties))
   node.components = comps
+  // [flow log] 实际写入的组件 properties（用于排查 properties.active 写入后但重建未读到）
+  logger.info(`[blueprintOps] setChildComponentProps: child="${('name' in locator ? locator.name : locator.index)}", baseClass=${baseClass}, patch=${JSON.stringify(properties)}, mergedProperties=${JSON.stringify(existing.properties)}`)
   return ok(asset, warnings.length ? warnings : undefined)
 }
 

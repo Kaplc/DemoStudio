@@ -29,9 +29,10 @@ export class TransformComponent extends Component {
     if (options.position) this.setPosition(options.position[0], options.position[1], options.position[2])
     if (options.rotation) this.setRotation(options.rotation[0], options.rotation[1], options.rotation[2])
     if (options.scale) this.setScale(options.scale[0], options.scale[1], options.scale[2])
-    logger.debug(
-      `[TransformComponent] 创建 "${this.name}": position=${this.owner.position.x},${this.owner.position.y},${this.owner.position.z}`,
-    )
+    // 注释：每组件一条的高频噪音，必要时用 logger.debug 还原
+    // logger.debug(
+    //   `[TransformComponent] 创建 "${this.name}": position=${this.owner.position.x},${this.owner.position.y},${this.owner.position.z}`,
+    // )
   }
 
   // ─── 读取（转发 owner.root） ───
@@ -44,17 +45,17 @@ export class TransformComponent extends Component {
 
   setPosition(x: number, y: number, z: number): void {
     this.owner.setPosition(x, y, z)
-    logger.debug(`[TransformComponent] "${this.name}" 设置位置: ${x}, ${y}, ${z}`)
+    // logger.debug(`[TransformComponent] "${this.name}" 设置位置: ${x}, ${y}, ${z}`)
   }
 
   setRotation(x: number, y: number, z: number): void {
     this.owner.setRotation(x, y, z)
-    logger.debug(`[TransformComponent] "${this.name}" 设置旋转: ${x}, ${y}, ${z}`)
+    // logger.debug(`[TransformComponent] "${this.name}" 设置旋转: ${x}, ${y}, ${z}`)
   }
 
   setScale(x: number, y: number, z: number): void {
     this.owner.setScale(x, y, z)
-    logger.debug(`[TransformComponent] "${this.name}" 设置缩放: ${x}, ${y}, ${z}`)
+    // logger.debug(`[TransformComponent] "${this.name}" 设置缩放: ${x}, ${y}, ${z}`)
   }
 
   // ─── Inspector 属性展示 ───

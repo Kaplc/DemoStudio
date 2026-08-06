@@ -35,7 +35,8 @@
         "width": 1920,
         "height": 1080,
         "name": "Canvas",
-        "zOrder": 0
+        "zOrder": 0,
+        "active": true
       }
     },
     {
@@ -83,7 +84,8 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 0,
+            "active": false
           }
         }
       ],

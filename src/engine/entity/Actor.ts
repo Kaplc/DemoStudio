@@ -103,6 +103,13 @@ export abstract class Actor {
   // ═══════════════════════════════════
 
   private _bActive = true
+  /**
+   * 大纲"小眼睛"的临时预览隐藏（仅影响渲染表现，不写入资产/蓝图）。
+   * 与 _bActive 解耦：active 控制节点级语义并参与 save/load；
+   * previewHidden 仅用于编辑器预览，调用 setPreviewHidden 切换。
+   * applyActiveTree 计算最终 visible 时综合两者：visible = effective && !previewHidden。
+   */
+  private _previewHidden = false
 
   /**
    * 是否激活（默认 true）。
@@ -121,10 +128,27 @@ export abstract class Actor {
     top.applyActiveTree(true)
   }
 
-  /** 递归应用可见性（内部）：visible = 自身激活 && 祖先链有效 */
+  /** 仅编辑器大纲使用：临时预览隐藏，不修改 active、不写入资产/蓝图 */
+  get previewHidden(): boolean { return this._previewHidden }
+
+  /**
+   * 大纲"小眼睛"调用的临时隐藏入口。
+   * 仅切换 _previewHidden 并重算 visible，不动 _bActive、不触发蓝图层 active 变更。
+   * @param hidden true = 暂时隐藏（仅预览），false = 恢复（受 active 接管）
+   */
+  setPreviewHidden(hidden: boolean): void {
+    if (this._previewHidden === hidden) return
+    this._previewHidden = hidden
+    // 从根重新应用祖先链，让 previewHidden 与 active 共同决定的 visible 生效
+    let top: Actor = this
+    while (top.parent) top = top.parent
+    top.applyActiveTree(true)
+  }
+
+  /** 递归应用可见性（内部）：visible = 自身激活 && 祖先链有效 && 未预览隐藏 */
   private applyActiveTree(parentEffective: boolean): void {
     const effective = this._bActive && parentEffective
-    this.root.visible = effective
+    this.root.visible = effective && !this._previewHidden
     for (const child of this.children) {
       child.applyActiveTree(effective)
     }

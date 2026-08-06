@@ -38,6 +38,11 @@ export interface CanvasUIOptions {
   name?: string
   zOrder?: number          // UI 层级（越大越靠前），默认 0
   /**
+   * 是否激活（默认 true）。false = 该 UI 画布节点已创建但不渲染（panel.visible=false）。
+   * 仅控制本组件渲染；节点级失活（含子树）用 Actor.bActive。
+   */
+  active?: boolean
+  /**
    * 仅标记模式（默认 false）：只把 Actor 标记为 UI 元素，不创建渲染 mesh。
    * 用于"每个 UI Actor 挂一个 canvasui 作为 UI 标识"的约定；
    * 不参与锚点容器查找（子元素锚点由 UITransformComponent 以真正的画布为基准）。
@@ -56,8 +61,18 @@ export class CanvasUIComponent extends Component {
   private _worldW = 5
   private _worldH = 2.5
   private _zOrder = 0
+  /** 是否激活（false = 已创建但不渲染 panel） */
+  private _bActive: boolean
   /** 仅标记模式（不渲染） */
   private _markerOnly: boolean
+  /**
+   * 子组件（如 UIText 的 troika mesh）注册到本 canvas 的渲染对象列表。
+   * canvas 组件作为本 UI 节点的"显隐控制中心"：
+   *  - active=false 时统一隐藏 panel + 所有已注册的渲染对象
+   *  - active=true 时统一恢复
+   * 子类不要自己持有 bActive；显隐唯一入口是 canvas 组件的 active。
+   */
+  private readonly _registeredObjects: THREE.Object3D[] = []
 
   constructor(owner: Actor, options: CanvasUIOptions = {}) {
     super(owner)
@@ -65,6 +80,7 @@ export class CanvasUIComponent extends Component {
     this._width = options.width ?? 512
     this._height = options.height ?? 256
     this._markerOnly = options.markerOnly ?? false
+    this._bActive = options.active ?? true
 
     // 1. 离屏 Canvas
     this.canvas = document.createElement('canvas')
@@ -96,7 +112,8 @@ export class CanvasUIComponent extends Component {
     if (this._markerOnly) {
       // 仅标记模式：不创建 mesh、不挂到场景，仅声明"本 Actor 是 UI"
       this.panel = null
-      logger.info(`[CanvasUIComponent] 创建 "${this.name}": 仅标记模式（不渲染，标记 Actor 为 UI）`)
+      // 注释：每个 UI 子元素都会创建 UIMarker，属高频噪音
+      // logger.info(`[CanvasUIComponent] 创建 "${this.name}": 仅标记模式（不渲染，标记 Actor 为 UI）`)
     } else {
       // 3. Texture → Plane Mesh（共享单位几何体，scale 控制尺寸）
       const geo = new THREE.PlaneGeometry(1, 1)
@@ -107,8 +124,9 @@ export class CanvasUIComponent extends Component {
       })
       this.panel = new THREE.Mesh(geo, mat)
       this.panel.scale.set(ww, wh, 1)
+      this.panel.visible = this._bActive // 激活属性：false = 不渲染
       owner.root.add(this.panel)
-      logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}`)
+      logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}, active=${this._bActive}`)
     }
 
     if (options.zOrder !== undefined) this.zOrder = options.zOrder
@@ -116,6 +134,46 @@ export class CanvasUIComponent extends Component {
 
   /** 仅标记模式（不渲染，仅作 UI 标识） */
   get isMarkerOnly(): boolean { return this._markerOnly }
+
+  /**
+   * 是否激活（默认 true）。false = 该 UI 节点（自身 + 子对象的所有渲染组件）不渲染。
+   * 运行时切换即时生效；Inspector/资产通过 editable property 'active' 读写。
+   * canvas 是 UI 节点的显隐控制中心：切换时统一控制自身 panel + 注册的渲染对象 +
+   * 递归控制整个子树的渲染（经 owner.bActive → applyActiveTree）。
+   */
+  get bActive(): boolean { return this._bActive }
+  set bActive(v: boolean) {
+    if (this._bActive === v) return
+    this._bActive = v
+    this.applyActive()
+    logger.debug(`[CanvasUIComponent] "${this.name}" 激活 -> ${v}`)
+  }
+
+  /** 激活状态应用到渲染对象（panel + 注册对象 + 节点级级联） */
+  protected applyActive(): void {
+    if (this.panel) this.panel.visible = this._bActive
+    for (const obj of this._registeredObjects) obj.visible = this._bActive
+    // 节点级显隐开关：canvas active 统一控制自身 + 子对象所有渲染组件（Actor.applyActiveTree 递归）
+    this.owner.bActive = this._bActive
+  }
+
+  /**
+   * 子组件注册自有的渲染对象（如 UIText 的 troika mesh）到本 canvas。
+   * canvas active 切换时会自动同步该对象的 visible 状态。
+   * 子组件自身不再持有 bActive；显隐统一由 canvas 组件管理。
+   */
+  registerRenderObject(obj: THREE.Object3D): void {
+    if (!this._registeredObjects.includes(obj)) {
+      this._registeredObjects.push(obj)
+      obj.visible = this._bActive
+    }
+  }
+
+  /** 注销渲染对象（一般在子组件 EndPlay 销毁自身 mesh 时调用） */
+  unregisterRenderObject(obj: THREE.Object3D): void {
+    const i = this._registeredObjects.indexOf(obj)
+    if (i >= 0) this._registeredObjects.splice(i, 1)
+  }
 
   /** UI 层级（越大越靠前）：设置 renderOrder + panel z 偏移分层 */
   get zOrder(): number { return this._zOrder }
@@ -128,9 +186,13 @@ export class CanvasUIComponent extends Component {
   }
 
   override BeginPlay() {
-    logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
+    // 注释：每个 UI 组件（UIMarker/UIText/UIImage/Canvas）都会触发，属高频噪音
+    // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
     super.BeginPlay()
-    logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 退出`)
+    // 子树挂载完成后应用初始 active（构造时子节点未挂载，无法级联到子树）。
+    // 仅当失活时需要主动下推；激活为默认态，交由 applyActiveTree 统一计算。
+    if (!this._bActive) this.owner.bActive = false
+    // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 退出`)
   }
 
   /** 获取 canvas 像素尺寸 */
@@ -165,13 +227,23 @@ export class CanvasUIComponent extends Component {
     return {
       canvas: `${cw}×${ch}px`,
       zOrder: this._zOrder,
+      active: this._bActive,
       markerOnly: this._markerOnly,
     }
   }
 
-  /** Inspector 可编辑属性：UI 层级（number） */
+  /**
+   * Inspector 可编辑属性：激活（boolean）+ UI 层级（number）。
+   * active 是节点级显隐开关（统一控制自身 + 子对象所有渲染组件），所有 canvas 组件
+   * （含 markerOnly 的 UIMarker 占位）都可编辑。
+   */
   override getEditableProperties(): EditableProperty[] {
     return [
+      {
+        key: 'active', type: 'boolean',
+        get: () => this._bActive,
+        set: (v) => { this.bActive = v as boolean },
+      },
       {
         key: 'zOrder', type: 'number', step: 1, min: 0, max: 100,
         get: () => this._zOrder,
@@ -196,13 +268,13 @@ export class CanvasUIComponent extends Component {
   draw(fn: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
     this.ctx.clearRect(0, 0, this._width, this._height)
     fn(this.ctx, this._width, this._height)
-    logger.debug(`[CanvasUIComponent] "${this.name}" 重绘 (${this._width}x${this._height})`)
+    // logger.debug(`[CanvasUIComponent] "${this.name}" 重绘 (${this._width}x${this._height})`)
   }
 
   /** 只标记纹理更新（外部已通过 this.ctx 直接绘制） */
   markDirty() {
     this.texture.needsUpdate = true
-    logger.debug(`[CanvasUIComponent] "${this.name}" 纹理标记脏`)
+    // logger.debug(`[CanvasUIComponent] "${this.name}" 纹理标记脏`)
   }
 
   override EndPlay() {

@@ -47,7 +47,7 @@ export class UIImageComponent extends CanvasUIComponent {
 
     if (options.opacity !== undefined) this.setOpacity(options.opacity)
     this.redraw()
-    logger.info(`[UIImageComponent] 创建: color=${this._color}, radius=${this._radius}, src=${options.src ?? '无'}`)
+    // logger.info(`[UIImageComponent] 创建: color=${this._color}, radius=${this._radius}, src=${options.src ?? '无'}`)
 
     if (!this._image && options.src) this.loadImage(options.src)
   }
@@ -67,9 +67,19 @@ export class UIImageComponent extends CanvasUIComponent {
     }
   }
 
+  /**
+   * 激活状态只同步自身 panel；节点级显隐由同/父节点的 CanvasUIComponent
+   * 统一控制（canvas active → owner.bActive → 递归子树）。
+   * 覆写基类避免本组件把自身 bActive 下推到 owner（UIImage 不是节点开关）。
+   */
+  protected override applyActive(): void {
+    if (this.panel) this.panel.visible = this.bActive
+  }
+
   /** Inspector 可编辑属性：颜色（color 选择器）、圆角（number） */
   override getEditableProperties(): EditableProperty[] {
-    const base = super.getEditableProperties()
+    // UIImage 不是节点显隐开关：active 由同/父节点的 CanvasUIComponent 统一控制，这里过滤掉
+    const base = super.getEditableProperties().filter((p) => p.key !== 'active')
     return [
       ...base,
       {

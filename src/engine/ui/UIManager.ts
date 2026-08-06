@@ -208,7 +208,10 @@ export class UIManager {
         childActor.attachTo(parentActor)
 
         // 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
-        if (child.active === false) childActor.bActive = false
+        if (child.active === false) {
+          childActor.bActive = false
+          logger.info(`[UIManager] 子节点失活: "${child.name ?? childActor.name}" (parent=${parentActor.root.name}) → bActive=false`)
+        }
 
         // ref 子节点 transform 已由被引用蓝图的 transform 组件负责。
         // 严格模式（组件优先）：内联子节点不再应用顶层 position/rotation/scale，
@@ -236,7 +239,10 @@ export class UIManager {
     this.world.SpawnActor(actor)
 
     // 4.5 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
-    if (resolved.active === false) actor.bActive = false
+    if (resolved.active === false) {
+      actor.bActive = false
+      logger.info(`[UIManager] 根节点失活: "${resolved.name}" (${path}) → bActive=false`)
+    }
 
     // 5. 挂载到父 Actor
     const p = parent ?? this._hud

@@ -118,6 +118,13 @@ export interface AIActorInfo {
   active: boolean
   /** 挂载的 UIButtonComponent 摘要（状态机 + 按下缩放配置） */
   buttons?: Array<{ state: string; pressScale: number }>
+  /** 组件渲染状态（验证 active 是否真正控制渲染） */
+  components?: Array<{
+    type: string
+    enabled: boolean
+    componentActive?: boolean
+    renderVisible?: boolean
+  }>
   children: Array<{ name: string; type: string }>
 }
 

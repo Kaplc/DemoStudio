@@ -50,6 +50,8 @@ export interface UITextComponentOptions {
   worldHeight?: number
   /** UI 层级（越大越靠前） */
   zOrder?: number
+  /** 是否激活（默认 true；false = troika mesh 不渲染） */
+  active?: boolean
 }
 
 /**
@@ -148,8 +150,19 @@ export class UITextComponent extends CanvasUIComponent {
     // zOrder 分层：与面板一致（zOrder 每 +1 前移 0.001），文本额外 +0.0002 避免与面板 z-fighting
     mesh.renderOrder = this.zOrder
     mesh.position.z = this.zOrder * 0.001 + 0.0002
+    // 渲染对象的显隐统一归 canvas 组件管：注册后由 CanvasUIComponent.applyActive 同步 visible
     this.owner.root.add(mesh)
+    this.registerRenderObject(mesh)
     this.applyAll()
+  }
+
+  /**
+   * 激活状态只同步自身 troika mesh；节点级显隐由同/父节点的 CanvasUIComponent
+   * 统一控制（canvas active → owner.bActive → 递归子树）。
+   * 覆写基类避免本组件把自身 bActive 下推到 owner（UIText 不是节点开关）。
+   */
+  protected override applyActive(): void {
+    if (this.mesh) this.mesh.visible = this.bActive
   }
 
   /** 同步所有属性到 troika mesh（属性即时存储，sync 生成字形几何） */
@@ -235,7 +248,8 @@ export class UITextComponent extends CanvasUIComponent {
 
   /** Inspector 可编辑属性：文本/字号/颜色/对齐/加粗/斜体（camelCase 与 JSON 属性名一致） */
   override getEditableProperties(): EditableProperty[] {
-    const base = super.getEditableProperties()
+    // UIText 不是节点显隐开关：active 由同/父节点的 CanvasUIComponent 统一控制，这里过滤掉
+    const base = super.getEditableProperties().filter((p) => p.key !== 'active')
     return [
       ...base,
       {
@@ -273,6 +287,7 @@ export class UITextComponent extends CanvasUIComponent {
 
   override EndPlay(): void {
     if (this.mesh) {
+      this.unregisterRenderObject(this.mesh)
       this.owner.root.remove(this.mesh)
       this.mesh.traverse((child) => {
         if (child instanceof THREE.Mesh) {

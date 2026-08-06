@@ -397,15 +397,29 @@ export class BlueprintEditorService {
   }
 
   /**
-   * 关闭蓝图页签（不保存）时清理该资产的全部缓存：工作副本/脏标记/撤销栈。
+   * 关闭蓝图页签（不保存）时清理该资产的全部缓存：工作副本/脏标记/撤销栈，
+   * 并恢复 BlueprintRegistry 注册表到磁盘版本。
    * 重新打开同一资产时回到干净的磁盘状态，撤回历史不复用。
    * 各资产缓存本就按 key 独立，互不干扰；此方法保证关闭即丢弃。
+   *
+   * 注意：apply() 时 BlueprintRegistry 会被更新为修改版（loadFromJson），
+   * 若关闭时不恢复，重新打开页签时 loadBlueprint 会读到残留的修改版，
+   * 导致"关闭未保存的修改仍然生效"。此处异步读盘覆盖注册表。
    */
   static closeAsset(assetPath: string): void {
     const key = diskPathToAssetKey(assetPath)
     this.workingCopies.delete(key)
     this.dirtyKeys.delete(key)
     UndoManager.clear(key)
+    // 恢复注册表到磁盘版本（apply 时注册表被更新为修改版，必须回滚）
+    readAsset(assetPath).then((read) => {
+      if (read.ok) {
+        BlueprintRegistry.loadFromJson(key, read.asset)
+        logger.info(`[BlueprintEdit] 关闭资产，注册表已恢复磁盘版本: ${key}`)
+      } else {
+        logger.warn(`[BlueprintEdit] 关闭资产时读盘失败，注册表可能残留修改版: ${key}: ${read.error}`)
+      }
+    })
     // 同步清掉页签上的"未保存"星标（dirtyBlueprints 以原始 assetPath 为 key）
     useEditorStore.getState().markBlueprintClean(assetPath)
     logger.info(`[BlueprintEdit] 关闭资产，缓存已清理: ${key}`)
@@ -435,6 +449,11 @@ export class BlueprintEditorService {
     if (op === 'save') return this.save(assetPath)
     if (op === 'undo') return this.undo(assetPath)
     if (op === 'redo') return this.redo(assetPath)
+    // 关闭资产：清理工作副本/撤销栈并恢复注册表到磁盘版本（与页签关闭同语义）
+    if (op === 'close') {
+      this.closeAsset(assetPath)
+      return { ok: true, types: this.listTypes() }
+    }
     return this.apply(assetPath, op, params, { persist: true })
   }
 

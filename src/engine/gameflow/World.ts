@@ -239,6 +239,10 @@ export class World {
 
     // 2. Component
     for (const cdef of resolved.components) {
+      // [flow log] 根级组件 properties 入参（含 CanvasUIComponent.active）
+      if (cdef.baseClass === 'CanvasUIComponent') {
+        logger.info(`[World]   ┌ 根组件 "${cdef.baseClass}" properties=${JSON.stringify(cdef.properties ?? {})}`)
+      }
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
@@ -280,7 +284,12 @@ export class World {
               childActor.applyPatch(child.overrides)
             }
             if (child.components) {
+              const childName = child.name ?? `<inline#${i}>`
               for (const cdef of child.components) {
+                // [flow log] 子节点组件 properties 入参（含 CanvasUIComponent.active）
+                if (cdef.baseClass === 'CanvasUIComponent') {
+                  logger.info(`[World]   ┌ 子节点 ${childName} 组件 "${cdef.baseClass}" properties=${JSON.stringify(cdef.properties ?? {})}`)
+                }
                 const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
                 if (comp) {
                   if (cdef.name) comp.name = cdef.name

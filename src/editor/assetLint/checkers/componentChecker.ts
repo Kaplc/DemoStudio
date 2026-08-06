@@ -114,7 +114,7 @@ class TroikaTextComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:TroikaTextComponent', TroikaTextComponentChecker)
 
-/** comp:UITextComponent — 文本属性 + 字体参数 + UI 定位 */
+/** comp:UITextComponent — 文本属性 + 字体参数 + UI 定位（显隐由节点 CanvasUIComponent 统一控制） */
 class UITextComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UITextComponent'
   schema: FieldSpec[] = [
@@ -139,7 +139,7 @@ class UITextComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UITextComponent', UITextComponentChecker)
 
-/** comp:UIImageComponent — 颜色/圆角/不透明度/图片源 + UI 定位 */
+/** comp:UIImageComponent — 颜色/圆角/不透明度/图片源 + UI 定位（显隐由节点 CanvasUIComponent 统一控制） */
 class UIImageComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIImageComponent'
   schema: FieldSpec[] = [
@@ -174,7 +174,19 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.doubleSided', type: 'boolean', label: '双面可见' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
+    { field: 'properties.active', type: 'boolean', label: '激活（false = 不渲染）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:CanvasUIComponent', CanvasUIComponentChecker)
+
+/** comp:UIScriptComponent — UI 资产「挂载脚本」组件（Unity MonoBehaviour 挂载点） */
+class UIScriptComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIScriptComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.script', type: 'string', label: '脚本 id（从项目 asset 自动扫描注册）' },
+    { field: 'properties.args', type: 'object', label: '脚本启动参数' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIScriptComponent', UIScriptComponentChecker)

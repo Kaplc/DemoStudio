@@ -70,7 +70,6 @@ export class UITransformComponent extends TransformComponent {
     if (options.anchor !== undefined) this._anchor = options.anchor
     if (options.anchorOffset !== undefined) this._anchorOffset = options.anchorOffset
     else if (this._anchor) this._anchorOffset = [0, 0]
-    logger.debug(`[UITransformComponent] 创建 "${this.name}": size=${this._worldW}x${this._worldH}, anchor=${this._anchor ?? 'null'}, offset=${JSON.stringify(this._anchorOffset)}`)
   }
 
   /** 世界尺寸是否显式设置（JSON 数据给出时 true） */
@@ -97,7 +96,7 @@ export class UITransformComponent extends TransformComponent {
   /** 九宫格锚点（null = 不自动定位，沿用 position） */
   get anchor(): AnchorPreset | null { return this._anchor }
   set anchor(v: AnchorPreset | null) {
-    logger.debug(`[UITransformComponent] "${this.name}" 设置锚点: ${v ?? 'null'}（offset=${JSON.stringify(this._anchorOffset)}）`)
+    // logger.debug(`[UITransformComponent] "${this.name}" 设置锚点: ${v ?? 'null'}（offset=${JSON.stringify(this._anchorOffset)}）`)
     this._anchor = v
     this.applyAnchor()
   }
@@ -105,7 +104,7 @@ export class UITransformComponent extends TransformComponent {
   /** 相对锚点的世界偏移 */
   get anchorOffset(): [number, number] { return this._anchorOffset }
   set anchorOffset(v: [number, number]) {
-    logger.debug(`[UITransformComponent] "${this.name}" 设置锚点偏移: [${v[0]}, ${v[1]}]`)
+    // logger.debug(`[UITransformComponent] "${this.name}" 设置锚点偏移: [${v[0]}, ${v[1]}]`)
     this._anchorOffset = v
     this.applyAnchor()
   }
@@ -118,14 +117,15 @@ export class UITransformComponent extends TransformComponent {
    *  - 找不到父画布（根画布自身）或自身无真实画布时跳过，沿用 position
    */
   applyAnchor(): void {
-    logger.debug(`[UITransformComponent] "${this.name}" applyAnchor 进入 (anchor=${this._anchor ?? 'null'})`)
+    // logger.debug(`[UITransformComponent] "${this.name}" applyAnchor 进入 (anchor=${this._anchor ?? 'null'})`)
     if (!this._anchor) {
-      logger.debug(`[UITransformComponent] "${this.name}" 无锚点，跳过定位（沿用 position）`)
+      // logger.debug(`[UITransformComponent] "${this.name}" 无锚点，跳过定位（沿用 position）`)
       return
     }
     const container = this.findContainerSize()
     if (!container) {
-      logger.warn(`[UITransformComponent] "${this.name}" 未找到父画布容器，跳过锚点 ${this._anchor}（树未构建？）`)
+      // 注释：构建期必然触发（构造时树未建好），属预期噪音，不是真警告
+      // logger.warn(`[UITransformComponent] "${this.name}" 未找到父画布容器，跳过锚点 ${this._anchor}（树未构建？）`)
       return
     }
     // 全锚（stretch）：填满父容器——自身尺寸 = 容器尺寸，位置 = 父中心（相对父为 0,0）。
@@ -134,7 +134,7 @@ export class UITransformComponent extends TransformComponent {
       const [cw, ch] = container
       this.setWorldSize(cw, ch)
       this.owner.setPosition(0, 0, this.owner.root.position.z)
-      logger.info(`[UITransformComponent] "${this.name}" 全锚 stretch → 填满父容器 ${cw.toFixed(3)}x${ch.toFixed(3)}`)
+      // logger.info(`[UITransformComponent] "${this.name}" 全锚 stretch → 填满父容器 ${cw.toFixed(3)}x${ch.toFixed(3)}`)
       return
     }
     const factors = ANCHOR_FACTORS[this._anchor]
@@ -151,7 +151,7 @@ export class UITransformComponent extends TransformComponent {
     const x = fx * (cw / 2 - sw / 2) + ox
     const y = fy * (ch / 2 - sh / 2) + oy
     this.owner.setPosition(x, y, this.owner.root.position.z)
-    logger.info(`[UITransformComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
+    // logger.info(`[UITransformComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
   }
 
   /** 自身世界尺寸：本组件持有的 worldWidth/worldHeight（尺寸已迁移到 transform 上） */
@@ -176,20 +176,20 @@ export class UITransformComponent extends TransformComponent {
       const tf = p.getComponent(UITransformComponent)
       if (tf && tf.worldSizeExplicit) {
         const size = tf.getWorldSize()
-        logger.debug(`[UITransformComponent] "${this.name}" 找到父容器: Actor="${p.name}" 尺寸=${size[0]}x${size[1]}（uitransform 显式，${hops + 1} 级向上）`)
+        // logger.debug(`[UITransformComponent] "${this.name}" 找到父容器: Actor="${p.name}" 尺寸=${size[0]}x${size[1]}（uitransform 显式，${hops + 1} 级向上）`)
         return size
       }
       // 2. 兜底：真实画布（非仅标记）——markerOnly 组件只作 UI 标识，不作为容器
       const comp = p.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
       if (comp) {
         const size = comp.getWorldSize()
-        logger.debug(`[UITransformComponent] "${this.name}" 找到父画布: Actor="${p.name}" 尺寸=${size[0]}x${size[1]} (${hops + 1} 级向上)`)
+        // logger.debug(`[UITransformComponent] "${this.name}" 找到父画布: Actor="${p.name}" 尺寸=${size[0]}x${size[1]} (${hops + 1} 级向上)`)
         return size
       }
       p = p.parent
       hops++
     }
-    logger.debug(`[UITransformComponent] "${this.name}" 未找到父画布（parent=${this.owner.parent?.name ?? 'null'}）`)
+    // logger.debug(`[UITransformComponent] "${this.name}" 未找到父画布（parent=${this.owner.parent?.name ?? 'null'}）`)
     return null
   }
 

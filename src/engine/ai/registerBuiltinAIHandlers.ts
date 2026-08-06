@@ -289,6 +289,18 @@ export function registerBuiltinAIHandlers(): void {
       scale: [actor.root.scale.x, actor.root.scale.y, actor.root.scale.z],
       active: actor.bActive,
       children: actor.getChildren().map((c) => ({ name: c.name, type: c.constructor.name })),
+      // UI 组件渲染状态（验证 active 属性是否真正控制渲染）
+      components: actor.getAllComponents().map((c) => {
+        const anyC = c as unknown as { bActive?: boolean; mesh?: { visible?: boolean } }
+        const panelVis = (c as unknown as { panel?: { visible?: boolean } }).panel?.visible
+        const meshVis = anyC.mesh?.visible
+        return {
+          type: c.constructor.name,
+          enabled: c.bEnabled,
+          componentActive: anyC.bActive ?? undefined,
+          renderVisible: panelVis ?? meshVis ?? undefined,
+        }
+      }),
     }
     // 按钮状态摘要（验证按下缩放动效：state=pressed 时 scale 应为原始 × pressScale）
     const buttons = actor.getComponents(UIButtonComponent)
