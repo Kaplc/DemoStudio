@@ -128,6 +128,7 @@ export function handleGameWheel(
 ): void {
   e.preventDefault()
   const inst = game?.instance
+  logger.debug(`[GameViewport] wheel deltaY=${e.deltaY}, inst=${inst?.constructor.name}, controller=${(inst as unknown as { controller?: { root?: { name?: string } } })?.controller?.root?.name ?? 'N/A'}`)
   if (inst) {
     inst.inputSys.handleScroll(e.deltaY, inst.controller)
   }

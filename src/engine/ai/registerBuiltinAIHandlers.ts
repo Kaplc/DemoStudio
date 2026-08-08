@@ -22,6 +22,7 @@ import {
   AI_EVENT_SHOW_MESSAGE,
   AI_EVENT_CLICK_ACTOR,
   AI_EVENT_GET_ACTOR,
+  AI_EVENT_SCROLL_CAMERA,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -32,6 +33,7 @@ import {
   type AIShowMessagePayload,
   type AIClickActorPayload,
   type AIGetActorPayload,
+  type AIScrollCameraPayload,
   type AIActorInfo,
   type AIGameStateSnapshot,
 } from './AIEvents'
@@ -81,6 +83,7 @@ const BUILTIN_EVENTS = [
   AI_EVENT_GET_STATE,
   AI_EVENT_CLICK_ACTOR,
   AI_EVENT_GET_ACTOR,
+  AI_EVENT_SCROLL_CAMERA,
 ]
 
 /**
@@ -308,6 +311,60 @@ export function registerBuiltinAIHandlers(): void {
       info.buttons = buttons.map((b) => ({ state: b.state, pressScale: b.pressScale }))
     }
     return { ok: true, actor: info }
+  })
+
+  // ─── ai.scrollCamera — 模拟鼠标滚轮缩放摄像机（delta>0 拉远 / <0 拉近，与 PlayerController.OnScroll 一致） ───
+  ai.register(AI_EVENT_SCROLL_CAMERA, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AIScrollCameraPayload
+    if (typeof p.delta !== 'number' || !Number.isFinite(p.delta)) {
+      return { ok: false, error: '缺少 delta（数字）' }
+    }
+
+    // 目标摄像机：优先按名称指定，否则用当前 GameMode 上第一个带 zoom 方法的摄像机
+    // （鸭子类型：engine 不依赖 projects，FishBaseGameMode.baseCamera 等均可命中）
+    let target: { zoom?: (delta: number) => void } | null = null
+    if (p.camera) {
+      const actor = findActorByName(world, p.camera)
+      if (!actor) return { ok: false, error: `未找到 Actor: ${p.camera}` }
+      const actorZoomable = actor as unknown as { zoom?: (d: number) => void }
+      if (typeof actorZoomable.zoom === 'function') target = actorZoomable
+      else {
+        const comp = actor
+          .getAllComponents()
+          .find((c) => typeof (c as { zoom?: unknown }).zoom === 'function')
+        target = (comp as { zoom?: (d: number) => void } | undefined) ?? null
+      }
+      if (!target) return { ok: false, error: `${p.camera} 上没有可调用的 zoom 方法` }
+    } else {
+      const gm = world.gameMode as Record<string, unknown> | null
+      if (gm) {
+        for (const v of Object.values(gm)) {
+          if (v && typeof (v as { zoom?: unknown }).zoom === 'function') {
+            target = v as { zoom?: (d: number) => void }
+            break
+          }
+        }
+      }
+      if (!target) return { ok: false, error: '当前 GameMode 上没有可缩放摄像机（需运行基地阶段）' }
+    }
+
+    target.zoom?.(p.delta)
+    // 读取缩放后距离（zoom 更新 camera.position 并经 SyncToActor 写回 root.position）
+    const anyT = target as {
+      camera?: { position?: { x: number; y: number; z: number } }
+      root?: { position?: { x: number; y: number; z: number } }
+      target?: { x: number; y: number; z: number }
+      position?: { x: number; y: number; z: number }
+    }
+    const pos = anyT.camera?.position ?? anyT.root?.position ?? anyT.position
+    const distance =
+      anyT.target && pos
+        ? Math.hypot(pos.x - anyT.target.x, pos.y - anyT.target.y, pos.z - anyT.target.z)
+        : undefined
+    logger.info(`[AI] scrollCamera: delta=${p.delta} distance=${distance?.toFixed(2) ?? '?'}`)
+    return { ok: true, delta: p.delta, distance }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

@@ -123,12 +123,16 @@ export class FishGameInstance extends GameInstance {
     this._baseGameMode = mode
     mode.onStartFishing = () => this.startGameplay()
     mode.onClaimCoins = () => this.claimCoins()
-    // 部落冲突基地：相机拉高俯瞰地图（地图 11x11 在原点附近）
-    this.setupCamera(mode.gameCamera, 12, 16, 18)
-    mode.cameraManager.RegisterCamera(mode.gameCamera)
-    if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
+    // 部落冲突基地：游戏自己的摄像机 actor（BaseCameraActor，每 new 一次都是新摄像机）
+    this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
+    mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
+    if (this.ui?.el) PhySys.setup(mode.baseCamera.camera, this.ui.el)
     const spawn = mode.SpawnPlayer()
-    if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
+    if (spawn) {
+      spawn.controller.Possess(spawn.pawn)
+      this._controller = spawn.controller
+      logger.info(`[Fish] setupBasePhase: controller 已切换 → ${spawn.controller.root.name}（pawn=${spawn.pawn.root.name}）`)
+    }
     else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
 
     // 基地 HUD 的建筑菜单按钮绑定由 widget 资产上挂载的 BaseHudScript
@@ -252,6 +256,16 @@ export class FishGameInstance extends GameInstance {
       case 'game':
         this._gameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
         break
+    }
+  }
+
+  /** 渲染器委托：返回当前阶段的主摄像机（游戏自己创建的摄像机 actor） */
+  override getActiveCamera(): THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
+    switch (this._phase) {
+      case 'menu': return this._menuGameMode?.cameraManager.GetActiveCameraObject() ?? null
+      case 'base': return this._baseGameMode?.cameraManager.GetActiveCameraObject() ?? null
+      case 'game': return this._gameMode?.cameraManager.GetActiveCameraObject() ?? null
+      default: return null
     }
   }
 

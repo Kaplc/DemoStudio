@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three'
 import { CameraComponent } from './CameraComponent'
+import { logger } from '../Logger'
 
 export class PlayerCameraManager {
   /** 所有注册的摄像机 */
@@ -43,16 +44,30 @@ export class PlayerCameraManager {
     return this.activeCamera
   }
 
+  /** 获取当前活跃摄像机的 THREE.Camera 对象（渲染器委托直接使用；无活跃相机返回 null） */
+  GetActiveCameraObject(): THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
+    return this.activeCamera?.camera ?? null
+  }
+
   /** 同步摄像机 Transform（每帧调用） */
   UpdateCamera() {
     if (this.activeCamera && this.activeCamera.bEnabled) {
       this.activeCamera.SyncFromActor()
+      const cam = this.activeCamera.camera
+      const root = this.activeCamera.owner.root
+      logger.debug(
+        `[CameraMgr] UpdateCamera: active=${this.activeCamera.name}, root=(${root.position.x.toFixed(2)}, ${root.position.y.toFixed(2)}, ${root.position.z.toFixed(2)}), cam=(${cam.position.x.toFixed(2)}, ${cam.position.y.toFixed(2)}, ${cam.position.z.toFixed(2)})`,
+      )
+    } else {
+      logger.debug('[CameraMgr] UpdateCamera: 无活跃相机')
     }
   }
 
   /** 将外部渲染器的摄像机与游戏摄像机同步 */
   ApplyToRenderer(gameCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera, aspect: number) {
-    if (!this.activeCamera || !this.activeCamera.bEnabled) return
+    if (!this.activeCamera || !this.activeCamera.bEnabled) {
+      return
+    }
     const cam = this.activeCamera.camera
     gameCamera.position.copy(cam.position)
     gameCamera.quaternion.copy(cam.quaternion)

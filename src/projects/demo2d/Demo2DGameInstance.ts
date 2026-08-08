@@ -75,6 +75,10 @@ export class Demo2DGameInstance extends GameInstance {
     this.gameMode.cameraManager.ApplyToRenderer(targetCamera, aspect)
   }
 
+  override getActiveCamera(): THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
+    return this.gameMode.cameraManager.GetActiveCameraObject()
+  }
+
   override stop() {
     if (!this._controller && !this.pawn) return
     logger.info('[Demo2D] 停止游戏...')

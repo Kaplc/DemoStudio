@@ -12,6 +12,7 @@
 import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
 import type { PlayerController } from './PlayerController'
+import { logger } from '../Logger'
 
 export class InputSys {
   // ════════════════════════════════════════════
@@ -77,6 +78,7 @@ export class InputSys {
 
   /** 滚轮滚动 */
   handleScroll(delta: number, controller?: PlayerController | null): void {
+    logger.debug(`[InputSys] handleScroll delta=${delta}, controller=${controller?.root?.name ?? '<无>'}`)
     controller?.OnScroll(delta)
   }
 }

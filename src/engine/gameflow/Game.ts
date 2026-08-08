@@ -22,7 +22,6 @@ export class Game {
   private sceneMgr: PreviewSceneManager | null = null
   private gameMgr: GameSceneManager | null = null
   private removeTick: (() => void) | null = null
-  private removeCamSync: (() => void) | null = null
   /** 防止 shutdown 被重复调用（effect cleanup 和切换工程可能同时触发） */
   private _shutdown = true
 
@@ -92,12 +91,10 @@ export class Game {
       logger.info('[Game] GameInstance.tick 已挂到 Scene 视口 rAF')
     }
 
-    // Game 摄像机同步
+    // Game 摄像机：注册委托，渲染器每帧从游戏实例获取当前主摄像机直接渲染
     if (this.gameMgr) {
-      this.removeCamSync = this.gameMgr.onUpdate(() => {
-        this.instance.syncCamera(this.gameMgr!.camera, this.gameMgr!.aspect)
-      })
-      logger.info('[Game] 摄像机同步回调已注册')
+      this.gameMgr.setCameraProvider(() => this.instance.getActiveCamera())
+      logger.info('[Game] 相机委托已注册（渲染器从游戏实例获取主摄像机）')
     }
 
     logger.info('[Game] 游戏已启动')
@@ -121,9 +118,7 @@ export class Game {
     // 注销回调
     this.removeTick?.()
     this.removeTick = null
-    this.removeCamSync?.()
-    this.removeCamSync = null
-    logger.info('[Game] Tick/相机同步回调已注销')
+    logger.info('[Game] Tick 回调已注销')
 
     // 停止游戏实例
     this.instance.stop()
@@ -137,8 +132,9 @@ export class Game {
     // 避免与 React reconciliation 中的 DOM 操作冲突。
     this.ui.clearElements()
 
-    // 禁用 Game 渲染、重置视角
+    // 禁用 Game 渲染、解除相机委托、重置视角
     if (this.gameMgr) {
+      this.gameMgr.setCameraProvider(null)
       this.gameMgr.setControlsEnabled(false)
       this.gameMgr.attachUIScene(null)
       PhySys.setupUI(null)

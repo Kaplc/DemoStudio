@@ -37,11 +37,41 @@ export interface GameSceneManagerOptions {
 
 export class GameSceneManager {
   public scene: THREE.Scene
-  public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
+  /** 当前渲染相机（由 cameraProvider 委托每帧获取；null = 不渲染 3D 主场景） */
+  public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null = null
   public renderer: THREE.WebGLRenderer
   public controls: OrbitControls | null = null
   /** UI 覆盖层宿主 */
   readonly uiLayer: HTMLDivElement
+
+  /**
+   * 相机委托：每帧从 GameInstance 获取当前主摄像机直接渲染（不再复制同步）。
+   * 由 Game.launch 注册；返回 null 时跳过主场景渲染（UI 仍可叠加）。
+   */
+  private cameraProvider: (() => THREE.PerspectiveCamera | THREE.OrthographicCamera | null) | null = null
+
+  /** 注册相机委托（每帧调用获取当前主摄像机） */
+  setCameraProvider(
+    provider: (() => THREE.PerspectiveCamera | THREE.OrthographicCamera | null) | null,
+  ): void {
+    this.cameraProvider = provider
+    // 立即取一次相机，以便重建 OrbitControls（跟随新相机，仍禁止交互）
+    this.camera = provider ? provider() : null
+    if (this.controls) {
+      this.controls.dispose()
+      this.controls = null
+    }
+    if (this.camera) {
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+      this.controls.enableRotate = false
+      this.controls.enablePan = false
+      this.controls.enableZoom = false
+      this.controls.enableDamping = false
+      this.controls.enabled = false
+    }
+    this.resize()
+    logger.info(`[GameSceneManager] setCameraProvider: ${this.camera ? this.camera.type : 'null'}`)
+  }
 
   /** UI 独立场景（widget 等，与主 3D 场景分离，叠加渲染时 UI 永远在顶层） */
   private _uiScene: THREE.Scene | null = null
@@ -119,19 +149,8 @@ export class GameSceneManager {
     }
 
     // ─── 摄像机 ───
+    // 不再创建默认相机：渲染相机由游戏自己创建并通过 setCamera() 注入
     this._aspect = container.clientWidth / container.clientHeight
-    this.camera = this.createCamera()
-
-    // ─── OrbitControls（纯跟随，禁止交互）───
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableRotate = false
-    this.controls.enablePan = false
-    this.controls.enableZoom = false
-    this.controls.enableDamping = false
-    this.controls.enabled = false
-
-    // ─── Game 视口默认视角 ───
-    this.camera.position.set(17, 17, 17)
 
     // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
     this._onContextLost = (e: Event) => {
@@ -194,8 +213,32 @@ export class GameSceneManager {
     // Game 视口的摄像机由游戏逻辑（syncCamera）驱动，不开放手动交互
   }
 
-  /** 重置摄像机到默认视角 */
+  /**
+   * 注入渲染相机（已废弃：改由 setCameraProvider 委托每帧获取）。
+   * 传入 null 表示游戏未提供相机（此时不渲染 3D 主场景）。
+   */
+  setCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null): void {
+    this.camera = camera
+    // 相机更换后重建 OrbitControls（跟随新相机，仍禁止交互）
+    if (this.controls) {
+      this.controls.dispose()
+      this.controls = null
+    }
+    if (camera) {
+      this.controls = new OrbitControls(camera, this.renderer.domElement)
+      this.controls.enableRotate = false
+      this.controls.enablePan = false
+      this.controls.enableZoom = false
+      this.controls.enableDamping = false
+      this.controls.enabled = false
+    }
+    this.resize()
+    logger.info(`[GameSceneManager] setCamera: ${camera ? camera.type : 'null'}`)
+  }
+
+  /** 重置摄像机到默认视角（无相机时跳过） */
   resetView(): void {
+    if (!this.camera) return
     this.camera.position.set(17, 17, 17)
     if (this.controls) {
       this.controls.target.set(0, 0, 0)
@@ -222,24 +265,13 @@ export class GameSceneManager {
     return cam
   }
 
-  /** 切换相机投影模式 */
+  /** 切换相机投影模式（仅记录模式；实际相机由游戏创建注入） */
   setCameraMode(mode: CameraMode) {
     this.cameraMode = mode
-    if (this.controls) {
-      this.controls.dispose()
-      this.controls = null
-    }
-    this.camera = this.createCamera()
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableRotate = false
-    this.controls.enablePan = false
-    this.controls.enableZoom = false
-    this.controls.enableDamping = false
-    this.controls.enabled = false
     this.resize()
   }
 
-  /** 设置视场角（仅透视） */
+  /** 设置视场角（仅透视，且已有相机） */
   setFov(fov: number) {
     if (this.camera instanceof THREE.PerspectiveCamera) {
       this.camera.fov = fov
@@ -247,8 +279,9 @@ export class GameSceneManager {
     }
   }
 
-  /** 预设摄像机轨道角度 */
+  /** 预设摄像机轨道角度（无相机时跳过） */
   setCameraOrbit(azimuth: number, elevation: number, distance: number) {
+    if (!this.camera) return
     const theta = (azimuth * Math.PI) / 180
     const phi = (elevation * Math.PI) / 180
     this.camera.position.set(
@@ -294,22 +327,18 @@ export class GameSceneManager {
     }
 
     this._aspect = aspect
-    const cam = this.camera
+    const cam = this.cameraProvider ? this.cameraProvider() : this.camera
     if (cam instanceof THREE.PerspectiveCamera) {
+      // 透视：跟随视口比例（游戏相机对象引用，直接生效）
       cam.aspect = aspect
-    } else {
-      const halfH = this.orthoSize
-      const halfW = halfH * aspect
-      cam.left = -halfW
-      cam.right = halfW
-      cam.top = halfH
-      cam.bottom = -halfH
+      cam.updateProjectionMatrix()
     }
+    // 正交：视锥由游戏相机自己管理（CameraComponent.SetOrtho/SetAspect），
+    // 渲染器不覆盖，避免与游戏 orthoSize 冲突
 
     const w = Math.round(canvasW)
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
-    cam.updateProjectionMatrix()
 
     // 同步 UI 独立叠加相机视锥：半高固定 2.7（匹配 UI 画布 9.6×5.4），半宽随视口比例
     if (this._uiCamera) {
@@ -365,21 +394,49 @@ export class GameSceneManager {
       const dt = Math.min((time - this.lastTime) / 1000, 0.05)
       this.lastTime = time
 
+      // 每帧从委托获取当前主摄像机（游戏自己创建的摄像机 actor）
+      this.camera = this.cameraProvider ? this.cameraProvider() : this.camera
+      const cam = this.camera
+
+      // 每帧同步宽高比到游戏相机（渲染器直接用它渲染，需保证 aspect 最新）
+      if (cam instanceof THREE.PerspectiveCamera) {
+        if (Math.abs(cam.aspect - this._aspect) > 1e-6) {
+          cam.aspect = this._aspect
+          cam.updateProjectionMatrix()
+        }
+      } else if (cam instanceof THREE.OrthographicCamera) {
+        // 正交：半高保持不变（游戏设定），半宽按视口比例伸缩
+        const halfH = cam.top
+        const halfW = halfH * this._aspect
+        if (cam.right !== halfW || cam.top !== halfH) {
+          cam.left = -halfW
+          cam.right = halfW
+          cam.top = halfH
+          cam.bottom = -halfH
+          cam.updateProjectionMatrix()
+        }
+      }
+
       this.controls?.update()
 
       for (const cb of this.updateCallbacks) {
         cb(dt)
       }
 
-      this.renderer.render(this.scene, this.camera)
+      // 主场景：直接用游戏相机的引用渲染（不再复制同步）
+      if (cam) {
+        this.renderer.render(this.scene, cam)
+      } else {
+        this.renderer.clear()
+      }
 
       // UI 独立场景叠加渲染（UI 永远在顶层）：
       // 双摄像机——UI 用独立正交相机（_uiCamera），不随主相机移动/缩放
-      if (this._uiScene) {
+      if (this._uiScene && this._uiCamera) {
         const prevAutoClear = this.renderer.autoClear
         this.renderer.autoClear = false
         this.renderer.clearDepth()
-        this.renderer.render(this._uiScene, this._uiCamera ?? this.camera)
+        this.renderer.render(this._uiScene, this._uiCamera)
         this.renderer.autoClear = prevAutoClear
       }
 
@@ -450,8 +507,10 @@ export class GameSceneManager {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     )
-    _raycaster.setFromCamera(_ndc, this.camera)
-    _raycaster.ray.intersectPlane(_planeZ0, out)
+    if (this.camera) {
+      _raycaster.setFromCamera(_ndc, this.camera)
+      _raycaster.ray.intersectPlane(_planeZ0, out)
+    }
     return out
   }
 

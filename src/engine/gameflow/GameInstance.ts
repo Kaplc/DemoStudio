@@ -60,8 +60,19 @@ export abstract class GameInstance {
    */
   restoreSnapshot(_snapshot: unknown): void {}
 
-  /** 从 PlayerCameraManager 同步到目标摄像机(透视或正交) */
+  /**
+   * 从 PlayerCameraManager 同步到目标摄像机(透视或正交)。
+   * 已废弃：改为 getActiveCamera() 委托（渲染器直接用游戏相机渲染，不再复制）。
+   */
   abstract syncCamera(targetCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera, aspect: number): void
+
+  /**
+   * 获取当前主摄像机（渲染器每帧调用此委托，直接用返回的相机渲染）。
+   * 子类从自己的 CameraManager 返回活跃相机；返回 null = 暂不渲染主场景。
+   */
+  getActiveCamera(): THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
+    return null
+  }
 
   /** 停止游戏：销毁 Actor、暂停运行 */
   abstract stop(): void
@@ -77,6 +88,7 @@ export class NullGameInstance extends GameInstance {
   override start() { return false }
   override tick() {}
   override syncCamera() {}
+  override getActiveCamera() { return null }
   override stop() {}
   override destroy() {}
 }

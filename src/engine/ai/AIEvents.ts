@@ -40,6 +40,9 @@ export const AI_EVENT_CLICK_ACTOR = 'ai.clickActor'
 /** 查询单个 Actor 的详细信息（位置/缩放/激活/按钮状态等，按名称递归查找，含 HUD 子节点） */
 export const AI_EVENT_GET_ACTOR = 'ai.getActor'
 
+/** 模拟鼠标滚轮（缩放摄像机，delta 约定与 PlayerController.OnScroll 一致：正=拉远，负=拉近） */
+export const AI_EVENT_SCROLL_CAMERA = 'ai.scrollCamera'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════
@@ -105,6 +108,14 @@ export interface AIClickActorPayload {
 export interface AIGetActorPayload {
   /** Actor 名称（精确匹配 .name 或 root.name，递归查找） */
   name: string
+}
+
+/** ai.scrollCamera payload：模拟鼠标滚轮控制摄像机缩放 */
+export interface AIScrollCameraPayload {
+  /** 滚轮 delta（约定与 PlayerController.OnScroll 一致：正=拉远，负=拉近，如 -100 拉近 / 100 拉远） */
+  delta: number
+  /** 摄像机名称（可选，默认当前游戏模式的主摄像机） */
+  camera?: string
 }
 
 /** 单个 Actor 的详细信息（ai.getActor 返回） */

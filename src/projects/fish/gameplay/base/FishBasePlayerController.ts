@@ -3,11 +3,11 @@
  *
  * 接收 Viewport 转发的鼠标事件，并转发给 GameMode 的部落冲突建造系统
  * （放置建筑 / 移动选中建筑 / 预览跟随）。
- * 滚轮事件转发给 GameMode 上的 CameraZoomComponent 做基地相机缩放。
+ * 滚轮事件转发给 GameMode 上的 BaseCameraActor 做基地相机缩放。
  * 基类 PlayerController.OnPointerDownScreen / OnPointerMoveScreen
  * 已由 InputSys 调用，这里只需转发屏幕坐标。
  */
-import { PlayerController } from '@/engine'
+import { PlayerController, logger } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
 
 export class FishBasePlayerController extends PlayerController {
@@ -27,8 +27,13 @@ export class FishBasePlayerController extends PlayerController {
     this.gameMode?.onScreenMove(screenX, screenY)
   }
 
-  /** 滚轮缩放基地相机（委托给 GameMode 上的 CameraZoomComponent） */
+  /** 滚轮缩放基地相机（委托给 GameMode 上的 BaseCameraActor 摄像机类） */
   override OnScroll(delta: number): void {
-    this.gameMode?.cameraZoom.zoom(delta)
+    if (!this.gameMode) {
+      logger.warn(`[BaseController] OnScroll: gameMode 为空，无法缩放 (delta=${delta})`)
+      return
+    }
+    logger.info(`[BaseController] OnScroll: delta=${delta} -> baseCamera.zoom`)
+    this.gameMode.baseCamera.zoom(delta)
   }
 }

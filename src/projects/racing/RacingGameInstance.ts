@@ -91,6 +91,10 @@ export class RacingGameInstance extends GameInstance {
     this.gameMode.cameraManager.ApplyToRenderer(targetCamera, aspect)
   }
 
+  override getActiveCamera(): THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
+    return this.gameMode.cameraManager.GetActiveCameraObject()
+  }
+
   override stop() {
     if (!this._controller && !this.pawn) return
     logger.info('[RacingGameInstance] 停止游戏...')

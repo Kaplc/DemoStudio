@@ -146,7 +146,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         'ai.destroyActor({name}), ai.transformActor({name,position?,rotation?,scale?}), ' +
         'ai.setScore({score}), ai.addScore({amount}), ai.gameOver, ' +
         'ai.switchScene({scene}), ai.clickActor({name}) 按大纲名点击 UI 按钮(无需鼠标坐标), ' +
-        'ai.getState(查询运行状态), ai.showMessage({text})。' +
+        'ai.getState(查询运行状态), ai.showMessage({text}), ' +
+        'ai.scrollCamera({delta, camera?}) 模拟鼠标滚轮缩放摄像机(delta>0 拉远 / <0 拉近, 如 -100 拉近; camera 可选指定摄像机 Actor 名, 默认当前 GameMode 的缩放摄像机)。' +
         '编辑器事件(无需运行): ai.selectActor({name}) 选中场景 Actor 显示 gizmo, ' +
         'ai.dragActor({name,axis:"x"|"y"|"z",delta} 或 {name,position:[x,y,z]}) 拖动 Actor(等价 gizmo 拖拽)。' +
         'notify/getState/selectActor/dragActor 无需游戏运行。',
