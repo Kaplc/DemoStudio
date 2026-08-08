@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { ensureTransformForActor } from '../ui/UITransformComponent'
+import { AObject } from '../entity/AObject'
 import { GameMode } from './GameMode'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
@@ -42,7 +43,7 @@ function childTransformViolation(child: {
   return null
 }
 
-export class World {
+export class World extends AObject {
   /** 静态实例计数器（日志区分多个 World 实例用） */
   private static _nextId = 1
   /** 本实例 ID */
@@ -65,6 +66,7 @@ export class World {
   private _tickCallbacks: Array<(dt: number) => void> = []
 
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
+    super()
     this.id = World._nextId++
     this.scene = scene
     // UI 管理器：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
@@ -208,7 +210,7 @@ export class World {
   }
 
   /** 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例 */
-  getAllComponents<T extends import('../entity/Component').Component>(
+  getAllActorComponents<T extends import('../entity/Component').Component>(
     type: new (...args: any[]) => T,
   ): T[] {
     const result: T[] = []

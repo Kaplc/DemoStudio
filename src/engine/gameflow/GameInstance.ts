@@ -6,6 +6,7 @@
 import * as THREE from 'three'
 import { PlayerController } from '../input/PlayerController'
 import { InputSys } from '../input/InputSys'
+import { AObject } from '../entity/AObject'
 import type { GameUI } from '../ui/GameUI'
 
 export interface GameInstanceCallbacks {
@@ -14,7 +15,7 @@ export interface GameInstanceCallbacks {
   onGameOver?: () => void
 }
 
-export abstract class GameInstance {
+export abstract class GameInstance extends AObject {
   /** GameUI 引用（由 Game 在 launch 时注入） */
   ui: GameUI | null = null
 
