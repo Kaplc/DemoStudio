@@ -10,7 +10,7 @@ import {
   logger,
   gizmos,
 } from '../engine'
-import type { GameSceneManager } from '../engine'
+import type { SceneRendererComponent } from '../engine'
 import { addDefaultContent } from './index'
 import { getTransformGizmo } from './SelectionManager'
 import { createSceneViewport } from './SceneViewport'
@@ -21,7 +21,7 @@ export interface SceneSetupResult {
   sharedScene: THREE.Scene
   sceneMgr: PreviewSceneManager
   /** Game 视口渲染器（由 Game 启动时创建并归 World 持有；未启动时为 null） */
-  gameMgr: GameSceneManager | null
+  gameMgr: SceneRendererComponent | null
   sceneModeRef: { current: string | undefined }
   cleanup: () => void
 }

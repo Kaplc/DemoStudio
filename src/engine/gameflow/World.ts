@@ -7,7 +7,7 @@ import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { ensureTransformForActor } from '../ui/UITransformComponent'
 import { AObject } from '../entity/AObject'
-import { GameSceneManager } from '../rendering/GameSceneManager'
+import { SceneRendererComponent } from './SceneRendererComponent'
 import { GameMode } from './GameMode'
 import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
@@ -66,8 +66,8 @@ export class World extends AObject {
    * Game 视口渲染器组件（由 Game 启动时从 instance.renderContainer 取 DOM 创建并挂到 World；
    * 未启动游戏时为 null）
    */
-  get gameRenderer(): GameSceneManager | null {
-    return this.getComponent(GameSceneManager) ?? null
+  get gameRenderer(): SceneRendererComponent | null {
+    return this.getComponent(SceneRendererComponent) ?? null
   }
 
   /**
@@ -75,13 +75,13 @@ export class World extends AObject {
    * DOM 容器由组件内部自行从当前活跃实例（GameInstance.current.renderContainer）获取；
    * 无活跃实例/无渲染容器时返回 null（不创建）。
    */
-  ensureGameRenderer(): GameSceneManager | null {
-    const existing = this.getComponent(GameSceneManager)
+  ensureGameRenderer(): SceneRendererComponent | null {
+    const existing = this.getComponent(SceneRendererComponent)
     if (existing) return existing
     if (!GameInstance.current?.renderContainer) return null
-    const mgr = new GameSceneManager(this, { sharedScene: this.scene })
+    const mgr = new SceneRendererComponent(this, { sharedScene: this.scene })
     this.addComponent(mgr)
-    logger.info('[World] GameSceneManager 组件已创建并挂到 World（DOM 来自 GameInstance.current.renderContainer）')
+    logger.info('[World] SceneRendererComponent 已创建并挂到 World（DOM 来自 GameInstance.current.renderContainer）')
     return mgr
   }
 

@@ -64,7 +64,7 @@ class PhySysImpl {
     return this._uiEl
   }
 
-  /** 设置 UI 独立叠加相机（由 Game 启动时传入 GameSceneManager.uiCamera） */
+  /** 设置 UI 独立叠加相机（由 Game 启动时传入 SceneRendererComponent.uiCamera） */
   setupUI(camera: THREE.Camera | null): void {
     this._uiCamera = camera
   }

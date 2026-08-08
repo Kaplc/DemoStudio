@@ -4,7 +4,7 @@
  * 根据 activeTab 判断当前视口，委托给 SceneViewport 或 GameViewport 处理。
  */
 import * as THREE from 'three'
-import { GameSceneManager } from '../engine'
+import { SceneRendererComponent } from '../engine'
 import type { Game } from '../engine'
 import type { PreviewSceneManager } from './SceneViewport'
 import { handleSceneKeyDown, handleSceneKeyUp } from './SceneViewport'
@@ -20,7 +20,7 @@ import {
 
 export interface InputRouterContext {
   sceneMgr: PreviewSceneManager | null
-  gameMgr: GameSceneManager | null
+  gameMgr: SceneRendererComponent | null
   game: Game | null
   /** 当前活跃的视口页签 id（'scene' | 'game' | 'bp:...'） */
   activeTabId: string

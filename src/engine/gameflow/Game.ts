@@ -10,12 +10,12 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  *
- * Game 视口渲染器（GameSceneManager）由 World.ensureGameRenderer 创建并挂载，
+ * Game 视口渲染器（SceneRendererComponent）由 World.ensureGameRenderer 创建并挂载，
  * DOM 由组件内部从 GameInstance.current.renderContainer 获取。
  */
 import * as THREE from 'three'
 import { logger, PhySys } from '..'
-import type { GameSceneManager } from '../rendering/GameSceneManager'
+import type { SceneRendererComponent } from './SceneRendererComponent'
 import type { SceneRenderHost } from '../rendering/SceneRenderHost'
 import { GameInstance } from './GameInstance'
 import type { GameInstanceCallbacks } from './GameInstance'
@@ -68,7 +68,7 @@ export class Game {
     }
     inst.setCallbacks(this._callbacks)
     this._instance = inst
-    // 单例：当前活跃实例（GameSceneManager 等组件自行从 GameInstance.current 获取 DOM）
+    // 单例：当前活跃实例（SceneRendererComponent 等组件自行从 GameInstance.current 获取 DOM）
     GameInstance.setCurrent(inst)
     this._shutdown = false  // 新实例需要新的 shutdown 生命周期
     logger.info(`[Game] 游戏实例已创建: ${inst.constructor.name} (${projectName})`)
@@ -79,7 +79,7 @@ export class Game {
    * 当前 Game 视口渲染器组件（创建/挂载由 World.ensureGameRenderer 负责，
    * DOM 由组件内部从 GameInstance.current.renderContainer 获取；无容器时为 null）
    */
-  private ensureGameMgr(): GameSceneManager | null {
+  private ensureGameMgr(): SceneRendererComponent | null {
     const world = this._instance ? (this._instance as unknown as { world?: World }).world : null
     if (!world) return null
     return world.ensureGameRenderer()
@@ -122,7 +122,7 @@ export class Game {
         PhySys.setupUI(gameMgr.uiCamera)
       }
       gameMgr.start()
-      logger.info('[GameSceneManager] 渲染循环已启动')
+      logger.info('[SceneRendererComponent] 渲染循环已启动')
     }
 
     // Tick + Gizmos 绘制挂到 Scene View 的 rAF 上

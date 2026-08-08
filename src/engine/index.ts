@@ -1,4 +1,4 @@
-export { GameSceneManager } from './rendering/GameSceneManager'
+export { SceneRendererComponent } from './gameflow/SceneRendererComponent'
 export { Compositor2D } from './rendering/Compositor2D'
 export type { SceneRenderHost } from './rendering/SceneRenderHost'
 export { logger, Logger } from './Logger'

@@ -6,11 +6,11 @@
  *  - Game 视口鼠标输入路由（→ InputSys / PlayerController）
  *  - 坐标转换
  *
- * 注：GameSceneManager（渲染器）由 Game 启动时从 instance.renderContainer
+ * 注：SceneRendererComponent（渲染器）由 Game 启动时从 instance.renderContainer
  * 取 DOM 创建并交给 World 持有，本文件不再负责创建。
  */
 import * as THREE from 'three'
-import { GameSceneManager, logger } from '../engine'
+import { SceneRendererComponent, logger } from '../engine'
 import type { Game } from '../engine'
 
 // ════════════════════════════════════════════
@@ -58,7 +58,7 @@ export function handleGameKeyUp(
 export function handleGameMouseMove(
   e: MouseEvent,
   game: Game | null,
-  gameMgr: GameSceneManager | null,
+  gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): void {
   const inst = game?.instance
@@ -74,7 +74,7 @@ export function handleGameMouseMove(
 export function handleGameMouseDown(
   e: MouseEvent,
   game: Game | null,
-  gameMgr: GameSceneManager | null,
+  gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): void {
   if (e.button !== 0) return
@@ -92,7 +92,7 @@ export function handleGameMouseDown(
 export function handleGameMouseUp(
   e: MouseEvent,
   game: Game | null,
-  gameMgr: GameSceneManager | null,
+  gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): void {
   if (e.button !== 0) return
@@ -127,7 +127,7 @@ export function handleGameWheel(
 export function clientToWorld(
   clientX: number,
   clientY: number,
-  gameMgr: GameSceneManager | null,
+  gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): THREE.Vector3 {
   return gameMgr?.clientToWorld(clientX, clientY, _ptrWorld) ?? _ptrWorld

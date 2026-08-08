@@ -1,7 +1,8 @@
 /**
- * GameSceneManager — 游戏视口专用渲染器
+ * SceneRendererComponent — 游戏视口场景渲染器组件
  *
- * 与编辑器层 Scene 视口渲染器（PreviewSceneManager）完全独立的实现，专用于 Game 视口。
+ * 挂载在 World 上的场景渲染组件（负责游戏视口渲染），
+ * 与编辑器层 Scene 视口渲染器（PreviewSceneManager）完全独立。
  * 职责：
  *  - 管理 WebGL 渲染器、共享场景、摄像机
  *  - orbit 摄像机控制
@@ -12,9 +13,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
 import { AObjectComponent } from '../entity/AObjectComponent'
-import { GameInstance } from '../gameflow/GameInstance'
-import type { World } from '../gameflow/World'
-import type { CameraMode } from './CameraComponent'
+import { GameInstance } from './GameInstance'
+import type { World } from './World'
+import type { CameraMode } from '../rendering/CameraComponent'
 
 // clientToWorld 复用临时对象
 const _raycaster = new THREE.Raycaster()
@@ -23,20 +24,23 @@ const _ndc = new THREE.Vector2()
 const _worldOut = new THREE.Vector3()
 
 /**
- * UI 独立叠加相机的正交半高（世界单位）。
- * 匹配 UI 根画布世界尺寸（9.6×5.4 → halfH=2.7，halfW=2.7×aspect 在 16:9 下 = 4.8 = 9.6/2），
- * 使 UI 场景在任何投影模式的主相机下都精确铺满视口，不随主相机移动。
+ * UI 根画布世界尺寸（资产约定：widget 蓝图根节点 worldWidth/worldHeight）。
+ * UI 独立叠加相机始终完整显示该画布（contain）：
+ *  - 视口 16:9 → 画布正好铺满
+ *  - 视口更宽/更窄 → 画布完整居中，多余空间留空（与主场景 letterbox 行为一致），
+ *    不再按视口比例裁切画布（旧实现 halfW=halfH×aspect 在窄视口下会裁掉左右）
  */
-const UI_ORTHO_HALF_H = 2.7
+const UI_CANVAS_W = 9.6
+const UI_CANVAS_H = 5.4
 
-export interface GameSceneManagerOptions {
+export interface SceneRendererComponentOptions {
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
   cameraMode?: CameraMode
   /** 外部共享场景 */
   sharedScene?: THREE.Scene
 }
 
-export class GameSceneManager extends AObjectComponent<World> {
+export class SceneRendererComponent extends AObjectComponent<World> {
   public scene: THREE.Scene
   /** 当前渲染相机（由 cameraProvider 委托每帧获取；null = 不渲染 3D 主场景） */
   public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null = null
@@ -71,7 +75,7 @@ export class GameSceneManager extends AObjectComponent<World> {
       this.controls.enabled = false
     }
     this.resize()
-    logger.info(`[GameSceneManager] setCameraProvider: ${this.camera ? this.camera.type : 'null'}`)
+    logger.info(`[SceneRendererComponent] setCameraProvider: ${this.camera ? this.camera.type : 'null'}`)
   }
 
   /** UI 独立场景（widget 等，与主 3D 场景分离，叠加渲染时 UI 永远在顶层） */
@@ -121,11 +125,11 @@ export class GameSceneManager extends AObjectComponent<World> {
    * DOM 容器自行从当前活跃实例获取（GameInstance.current.renderContainer）。
    * 由 World.ensureGameRenderer 负责创建并挂载到 World；调用方须保证已有活跃实例且带渲染容器。
    */
-  constructor(owner: World, options: GameSceneManagerOptions = {}) {
+  constructor(owner: World, options: SceneRendererComponentOptions = {}) {
     super(owner)
     const container = GameInstance.current?.renderContainer
     if (!container) {
-      throw new Error('[GameSceneManager] 无当前 GameInstance 或 renderContainer，无法创建渲染器（请先 Game.createInstance）')
+      throw new Error('[SceneRendererComponent] 无当前 GameInstance 或 renderContainer，无法创建渲染器（请先 Game.createInstance）')
     }
     this.container = container
     this.cameraMode = options.cameraMode ?? 'perspective'
@@ -168,10 +172,10 @@ export class GameSceneManager extends AObjectComponent<World> {
       e.preventDefault() // 阻止浏览器永久销毁上下文，允许后续恢复
       this.contextLost = true
       this.stop()
-      logger.warn('[GameSceneManager] WebGL 上下文丢失，已暂停渲染，等待浏览器恢复…')
+      logger.warn('[SceneRendererComponent] WebGL 上下文丢失，已暂停渲染，等待浏览器恢复…')
     }
     this._onContextRestored = () => {
-      logger.info('[GameSceneManager] WebGL 上下文已恢复，重建纹理并恢复渲染')
+      logger.info('[SceneRendererComponent] WebGL 上下文已恢复，重建纹理并恢复渲染')
       this.restoreAllTextures()
       this.contextLost = false
       this.start()
@@ -181,7 +185,7 @@ export class GameSceneManager extends AObjectComponent<World> {
 
     // 初始停止渲染
     this.stop()
-    logger.info(`[GameSceneManager] 创建: ${container.clientWidth}x${container.clientHeight}, cameraMode=${this.cameraMode}`)
+    logger.info(`[SceneRendererComponent] 创建: ${container.clientWidth}x${container.clientHeight}, cameraMode=${this.cameraMode}`)
   }
 
   /**
@@ -238,7 +242,7 @@ export class GameSceneManager extends AObjectComponent<World> {
       this.controls.enabled = false
     }
     this.resize()
-    logger.info(`[GameSceneManager] setCamera: ${camera ? camera.type : 'null'}`)
+    logger.info(`[SceneRendererComponent] setCamera: ${camera ? camera.type : 'null'}`)
   }
 
   /** 重置摄像机到默认视角（无相机时跳过） */
@@ -345,10 +349,12 @@ export class GameSceneManager extends AObjectComponent<World> {
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
 
-    // 同步 UI 独立叠加相机视锥：半高固定 2.7（匹配 UI 画布 9.6×5.4），半宽随视口比例
+    // 同步 UI 独立叠加相机视锥：contain —— 完整显示 UI 画布（9.6×5.4），
+    // 非 16:9 视口时画布完整居中、两侧留空（不裁切）
     if (this._uiCamera) {
-      const halfH = UI_ORTHO_HALF_H
-      const halfW = halfH * aspect
+      const scale = Math.min(w / UI_CANVAS_W, h / UI_CANVAS_H)
+      const halfW = (w / scale) / 2
+      const halfH = (h / scale) / 2
       this._uiCamera.left = -halfW
       this._uiCamera.right = halfW
       this._uiCamera.top = halfH
@@ -379,16 +385,16 @@ export class GameSceneManager extends AObjectComponent<World> {
       this._uiCamera.position.set(0, 0, 10)
       this._uiCamera.lookAt(0, 0, 0)
       this.resize()
-      logger.info('[GameSceneManager] UI 独立叠加相机已创建（正交 halfH=2.7）')
+      logger.info('[SceneRendererComponent] UI 独立叠加相机已创建（正交 halfH=2.7）')
     }
     if (!scene) {
       this._uiCamera = null
     }
-    logger.info(`[GameSceneManager] UI 场景${scene ? '已挂载' : '已分离'}${scene ? '（双摄像机叠加渲染）' : ''}`)
+    logger.info(`[SceneRendererComponent] UI 场景${scene ? '已挂载' : '已分离'}${scene ? '（双摄像机叠加渲染）' : ''}`)
   }
 
   start() {
-    logger.info('[GameSceneManager] 渲染循环启动')
+    logger.info('[SceneRendererComponent] 渲染循环启动')
     this.lastTime = performance.now()
     const animate = (time: number) => {
       // 上下文丢失期间跳过渲染，避免对失效 GL 上下文上传纹理报错
@@ -455,7 +461,7 @@ export class GameSceneManager extends AObjectComponent<World> {
 
   stop() {
     if (this.animationId !== null) {
-      logger.info('[GameSceneManager] 渲染循环停止')
+      logger.info('[SceneRendererComponent] 渲染循环停止')
       cancelAnimationFrame(this.animationId)
       this.animationId = null
     }

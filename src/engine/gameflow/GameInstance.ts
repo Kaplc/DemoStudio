@@ -18,7 +18,7 @@ export abstract class GameInstance extends AObject {
   // ─── 单例：当前活跃的游戏实例（由 Game.createInstance 设置、shutdown 清除）───
   private static _current: GameInstance | null = null
 
-  /** 当前活跃实例（全局唯一；GameSceneManager 等组件自行从此处获取 DOM/实例） */
+  /** 当前活跃实例（全局唯一；SceneRendererComponent 等组件自行从此处获取 DOM/实例） */
   static get current(): GameInstance | null {
     return GameInstance._current
   }
@@ -33,7 +33,7 @@ export abstract class GameInstance extends AObject {
 
   /**
    * Game 视口渲染容器（启动游戏时由 Viewport 传入）。
-   * 传递给 World 用于创建 GameSceneManager（游戏视口渲染器）。
+   * 传递给 World 用于创建 SceneRendererComponent（游戏视口渲染器）。
    */
   renderContainer: HTMLElement | null = null
 

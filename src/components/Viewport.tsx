@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { GameSceneManager, logger, Game, World, gizmos } from '../engine'
+import { SceneRendererComponent, logger, Game, World, gizmos } from '../engine'
 import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
@@ -36,7 +36,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
 
   const sceneRef = useRef<PreviewSceneManager | null>(null)
-  const gameSceneRef = useRef<GameSceneManager | null>(null)
+  const gameSceneRef = useRef<SceneRendererComponent | null>(null)
   const gameRef = useRef<Game | null>(null)
 
   // 共享场景（Scene 视口和 Game 视口共用）
@@ -217,7 +217,7 @@ export function Viewport({ onReady }: ViewportProps) {
     if (!editorState.running) return
 
     // 每次启动都创建新的 Game + 游戏实例（确保代码变更生效）
-    // Game 视口渲染容器：createInstance 传入 → instance → World 创建 GameSceneManager
+    // Game 视口渲染容器：createInstance 传入 → instance → World 创建 SceneRendererComponent
     const game = new Game(sceneRef.current)
     game.setCallbacks({
       onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
