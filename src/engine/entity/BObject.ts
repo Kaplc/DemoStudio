@@ -1,27 +1,29 @@
 /**
- * BaseObject — 世界对象的通用基类
+ * BObject — 世界对象的通用基类
  *
  * 模仿 UE UObject：世界内一切对象的根基，提供：
  *  - uid / name：唯一标识
- *  - world：所属 World 引用
- *  - 生命周期：BeginPlay / Tick / EndPlay / destroy
- *  - 组件系统：addComponent / getComponent / getComponents（组件可挂任意 BaseObject）
+ *  - 组件系统（继承自 AObject）
+ *  - 生命周期：BeginPlay / Tick / EndPlay
  *  - 序列化（预留）
  *
+ * 注意：world 引用属于场景对象（Actor），非场景对象（GameMode 等）自行持有。
+ *
  * 分层：
- *   BaseObject（本类，无渲染依赖）
- *    ├── Actor（场景对象：+ root/Transform/可见性/层级）
- *    ├── PlayerController / GameMode / GameState（非场景对象）
+ *   OObject（完全空，仅标记）
+ *    └── AObject（组件系统）
+ *         └── BObject（本类：+ uid/name + 生命周期 + 序列化，无渲染依赖）
+ *              ├── Actor（场景对象：+ root/Transform/可见性/层级 + world 引用）
+ *              ├── PlayerController / GameMode / GameState（非场景对象）
  */
-import type { Component } from './Component'
-import type { World } from '../gameflow/World'
+import { AObject } from './AObject'
+import type { BObjectComponent } from './BObjectComponent'
 
-export abstract class BaseObject {
-  /** 全局唯一整数 ID，每个 BaseObject 构造时自动分配 */
+export abstract class BObject extends AObject {
+  /** 全局唯一整数 ID，每个 BObject 构造时自动分配 */
   public readonly uid: number
 
   public readonly name: string
-  public world: World | null = null
 
   /** 生命周期状态 */
   public bHasBegunPlay = false
@@ -29,10 +31,9 @@ export abstract class BaseObject {
 
   private static _nextUid = 1
 
-  private components: Component[] = []
-
-  constructor(name = 'BaseObject') {
-    this.uid = BaseObject._nextUid++
+  constructor(name = 'BObject') {
+    super()
+    this.uid = BObject._nextUid++
     this.name = name
   }
 
@@ -44,7 +45,7 @@ export abstract class BaseObject {
   BeginPlay(): void {
     if (this.bHasBegunPlay) return
     this.bHasBegunPlay = true
-    for (const c of this.components) {
+    for (const c of this.getAllComponents()) {
       if (c.bEnabled) c.BeginPlay()
     }
   }
@@ -52,7 +53,7 @@ export abstract class BaseObject {
   /** 每帧更新 */
   Tick(_deltaTime: number): void {
     if (this.bPendingDestroy) return
-    for (const c of this.components) {
+    for (const c of this.getAllComponents()) {
       if (c.bEnabled) c.Tick(_deltaTime)
     }
   }
@@ -63,61 +64,42 @@ export abstract class BaseObject {
   /** 引擎入口：绘制自身 + 所有启用 Component 的 Gizmos */
   drawGizmos(): void {
     this.OnDrawGizmos()
-    for (const c of this.components) {
+    for (const c of this.getAllComponents()) {
       if (c.bEnabled) c.OnDrawGizmos()
     }
   }
 
   /** 销毁前调用 */
   EndPlay(): void {
-    for (let i = this.components.length - 1; i >= 0; i--) {
-      this.components[i].EndPlay()
+    const comps = this.getAllComponents()
+    for (let i = comps.length - 1; i >= 0; i--) {
+      comps[i].EndPlay()
     }
     this.bHasBegunPlay = false
   }
 
-  /** 销毁自己，由 World 实际清理 */
-  destroy() {
-    if (this.bPendingDestroy) return
-    this.bPendingDestroy = true
-    if (this.world) {
-      this.world.DestroyObject(this)
-    }
-  }
-
   // ═══════════════════════════════════
-  //  Component 管理
+  //  Component 管理（覆写：BObject 组件收窄为 BObjectComponent，BeginPlay 后挂载自动 BeginPlay）
   // ═══════════════════════════════════
 
-  addComponent<T extends Component<any>>(component: T): T {
-    this.components.push(component)
+  // 方法参数双变（method bivariance）：参数从 AObjectComponent 收窄为 BObjectComponent，
+  // BObject 挂载的组件均有生命周期钩子，可直接调用 BeginPlay/EndPlay
+  override addComponent(component: BObjectComponent): BObjectComponent {
+    super.addComponent(component)
     if (this.bHasBegunPlay && component.bEnabled) {
       component.BeginPlay()
     }
     return component
   }
 
-  /** 移除组件（若已 BeginPlay 则先 EndPlay） */
-  removeComponent(component: Component): void {
-    const idx = this.components.indexOf(component)
-    if (idx < 0) return
-    this.components.splice(idx, 1)
+  override removeComponent(component: BObjectComponent): void {
+    super.removeComponent(component)
     if (this.bHasBegunPlay) component.EndPlay()
   }
-
-  getComponents<T extends Component<any>>(type: new (...args: any[]) => T): T[] {
-    return this.components.filter((c) => c instanceof type) as T[]
+  /** 组件列表收窄为 BObjectComponent（生命周期钩子 BeginPlay/Tick/EndPlay 存在） */
+  override getAllComponents(): BObjectComponent[] {
+    return super.getAllComponents() as BObjectComponent[]
   }
-
-  getComponent<T extends Component<any>>(type: new (...args: any[]) => T): T | null {
-    return this.components.find((c) => c instanceof type) as T ?? null
-  }
-
-  /** 获取该 BaseObject 挂载的全部组件实例（Inspector/持久化遍历用） */
-  getAllComponents(): Component[] {
-    return [...this.components]
-  }
-
   // ═══════════════════════════════════
   //  序列化（为未来场景保存预留；当前存档系统不遍历调用）
   // ═══════════════════════════════════

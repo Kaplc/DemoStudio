@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { MeshComponent } from '../rendering/MeshComponent'
+import { LineComponent } from '../rendering/LineComponent'
 import { ComponentRegistry } from './ComponentRegistry'
 import { SpriteComponent } from '../rendering/SpriteComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
@@ -30,6 +31,11 @@ import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
+import type { Actor } from '../entity/Actor'
+import type { BObject } from '../entity/BObject'
+
+/** 注册工厂 owner 收窄：渲染类组件需要 Actor（挂场景节点）；逻辑类组件接受任意 BObject */
+const asActor = (owner: BObject): Actor => owner as Actor
 
 let _registered = false
 
@@ -43,7 +49,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'TransformComponent',
     (owner, p = {}) =>
-      new TransformComponent(owner, {
+      new TransformComponent(asActor(owner), {
         position: p.position as [number, number, number] | undefined,
         rotation: p.rotation as [number, number, number] | undefined,
         scale: p.scale as [number, number, number] | undefined,
@@ -61,7 +67,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITransformComponent',
     (owner, p = {}) =>
-      new UITransformComponent(owner, {
+      new UITransformComponent(asActor(owner), {
         position: p.position as [number, number, number] | undefined,
         rotation: p.rotation as [number, number, number] | undefined,
         scale: p.scale as [number, number, number] | undefined,
@@ -88,7 +94,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'SpriteComponent',
     (owner, p = {}) =>
-      new SpriteComponent(owner, p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
+      new SpriteComponent(asActor(owner), p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
     (c, p) => {
       const sp = c as SpriteComponent
       if (p.color !== undefined) sp.setColor(p.color as THREE.ColorRepresentation)
@@ -98,7 +104,7 @@ export function registerBuiltinComponents(): void {
   )
 
   // ─── ClickableComponent ─── props: { clickCooldown? }
-  ComponentRegistry.register('ClickableComponent', (owner) => new ClickableComponent(owner), (c, p) => {
+  ComponentRegistry.register('ClickableComponent', (owner) => new ClickableComponent(asActor(owner)), (c, p) => {
     const ck = c as ClickableComponent
     if (p.clickCooldown !== undefined) ck.clickCooldown = p.clickCooldown as number
   })
@@ -134,6 +140,18 @@ export function registerBuiltinComponents(): void {
   // ─── SpawnComponent ─── 构造即用，生成点由代码 AddSpawnPoint 配置
   ComponentRegistry.register('SpawnComponent', (owner) => new SpawnComponent(owner))
 
+  // ─── LineComponent ─── 线框/线段渲染（选中高亮、网格线等），EndPlay 自动释放资源
+  // line 对象由代码构造传入，props 仅支持 name
+  ComponentRegistry.register(
+    'LineComponent',
+    (owner, p = {}) =>
+      new LineComponent(
+        asActor(owner),
+        new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial()),
+        (p.name as string) ?? 'LineComponent',
+      ),
+  )
+
   // ─── MeshComponent ─── props: { geometry?, size?, color?, opacity?, name? }
   // geometry 取值: 'box'（默认）| 'sphere' | 'plane'
   // size 按几何类型: box→[w,h,d], sphere→[radius], plane→[w,h]
@@ -160,7 +178,7 @@ export function registerBuiltinComponents(): void {
         mat.opacity = p.opacity as number
       }
       const mesh = new THREE.Mesh(geo, mat)
-      return new MeshComponent(owner, mesh, (p.name as string) ?? 'MeshComponent')
+      return new MeshComponent(asActor(owner), mesh, (p.name as string) ?? 'MeshComponent')
     },
     (c, p) => {
       const mc = c as MeshComponent
@@ -180,7 +198,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'CanvasUIComponent',
     (owner, p = {}) =>
-      new CanvasUIComponent(owner, {
+      new CanvasUIComponent(asActor(owner), {
         width: p.width ?? 512,
         height: p.height ?? 256,
         ...(p.worldWidth != null ? { worldWidth: p.worldWidth } : {}),
@@ -206,7 +224,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'TroikaTextComponent',
     (owner, p = {}) =>
-      new TroikaTextComponent(owner, (p.text as string) ?? '', {
+      new TroikaTextComponent(asActor(owner), (p.text as string) ?? '', {
         fontSize: p.fontSize ?? 0.3,
         color: (p.color as string) ?? '#ffffff',
         maxWidth: p.maxWidth as number | undefined,
@@ -227,7 +245,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITextComponent',
     (owner, p = {}) =>
-      new UITextComponent(owner, {
+      new UITextComponent(asActor(owner), {
         text: p.text as string | undefined,
         fontSize: p.fontSize as number | undefined,
         color: p.color as string | undefined,
@@ -257,7 +275,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIImageComponent',
     (owner, p = {}) =>
-      new UIImageComponent(owner, {
+      new UIImageComponent(asActor(owner), {
         color: p.color as string | undefined,
         radius: p.radius as number | undefined,
         opacity: p.opacity as number | undefined,
@@ -282,7 +300,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIButtonComponent',
     (owner, p = {}) =>
-      new UIButtonComponent(owner, {
+      new UIButtonComponent(asActor(owner), {
         colors: p.colors as Record<string, string> | undefined,
       }),
     (c, p) => {
@@ -298,7 +316,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIScriptComponent',
     (owner, p = {}) => {
-      const comp = new UIScriptComponent(owner)
+      const comp = new UIScriptComponent(asActor(owner))
       if (p.script !== undefined) comp.script = p.script as string
       if (p.args !== undefined) comp.args = p.args as Record<string, unknown>
       return comp
@@ -315,7 +333,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'LightComponent',
     (owner, p = {}) =>
-      new LightComponent(owner, {
+      new LightComponent(asActor(owner), {
         type: p.type as LightType | undefined,
         color: p.color as string | number | undefined,
         intensity: p.intensity as number | undefined,

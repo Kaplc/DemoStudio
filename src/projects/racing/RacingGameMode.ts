@@ -202,7 +202,7 @@ export class RacingGameMode extends GameMode {
     this.gameCamera.SyncToActor()
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new RacingPlayerController()
     const pawn = this.spawnComponent.SpawnPawn(new RacingCarPawn(), 0)
     this.playerRef = pawn as RacingCarPawn

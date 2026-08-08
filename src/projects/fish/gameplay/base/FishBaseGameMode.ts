@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger } from '@/engine'
+import { GameMode, PhySys, logger, GenericActor, MeshComponent, LineComponent } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -33,11 +33,13 @@ export class FishBaseGameMode extends GameMode {
   /** HUD 蓝图：部落冲突建筑菜单 UI（由 World.SwitchScene 统一创建） */
   override HUDClass = 'asset/blueprints/ui/base_hud.widget.json'
 
-  /** 垫底地面（直接挂 scene，非 Actor） */
+  /** 装饰根 Actor（地面/草地/网格线/预览块统一挂载，经 World 托管生命周期） */
+  private clashDecor: GenericActor | null = null
+  /** 垫底地面（挂 clashDecor，MeshComponent 托管） */
   private baseGround: THREE.Mesh | null = null
-  /** 草地网格（直接挂 scene，非 Actor） */
+  /** 草地网格（挂 clashDecor，MeshComponent 托管） */
   private clashGrass: THREE.Mesh | null = null
-  /** 网格线（直接挂 scene，非 Actor） */
+  /** 网格线（挂 clashDecor，LineComponent 托管） */
   private gridLines: THREE.LineSegments | null = null
   /** 已放置的建筑 */
   private clashBuildings: ClashBuildingActor[] = []
@@ -47,7 +49,8 @@ export class FishBaseGameMode extends GameMode {
   private selectedType: ClashBuildingType | null = null
   /** 当前选中的已放置建筑 */
   private selectedBuilding: ClashBuildingActor | null = null
-  /** 放置模式跟随鼠标的半透明预览 */
+  /** 放置模式跟随鼠标的半透明预览（MeshComponent 托管，showPreview 时替换） */
+  private previewComp: MeshComponent | null = null
   private previewMesh: THREE.Mesh | null = null
 
 
@@ -90,7 +93,7 @@ export class FishBaseGameMode extends GameMode {
     this.baseCamera.rig.setMouseScreen(sx, sy)
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new FishBasePlayerController()
     controller.gameMode = this
     const pawn = new FishBasePawn()
@@ -117,18 +120,22 @@ export class FishBaseGameMode extends GameMode {
       return
     }
 
+    // ─── 装饰根 Actor：地面/草地/网格线统一挂载，经 World 托管生命周期 ───
+    // （DestroyAllActors/Destroy 时组件 EndPlay 自动释放 geometry/material）
+    const decor = new GenericActor('ClashDecor')
+
     // ─── 垫底地面（场景资产已清空，提供整体地面承接装饰）───
     const ground = world.createPlaneMesh(48, 48, 0x2e7d32)
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -0.05
-    world.scene.add(ground)
+    decor.addComponent(new MeshComponent(decor, ground, 'GroundMesh'))
     this.baseGround = ground
 
     // ─── 草地（部落冲突风格：方形草地地图，中央区域）───
     const grass = world.createPlaneMesh(11, 11, 0x7cb342)
     grass.rotation.x = -Math.PI / 2
     grass.position.y = -0.02
-    world.scene.add(grass)
+    decor.addComponent(new MeshComponent(decor, grass, 'GrassMesh'))
     this.clashGrass = grass
 
     // ─── 网格线（11x11 格子，每格 1 单位）───
@@ -140,9 +147,14 @@ export class FishBaseGameMode extends GameMode {
     }
     const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints)
     const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
-    this.gridLines = new THREE.LineSegments(lineGeo, lineMat)
-    this.gridLines.position.y = -0.015
-    world.scene.add(this.gridLines)
+    const gridLines = new THREE.LineSegments(lineGeo, lineMat)
+    gridLines.position.y = -0.015
+    decor.addComponent(new LineComponent(decor, gridLines, 'GridLines'))
+    this.gridLines = gridLines
+
+    // 装饰 Actor 进 World 统一管理
+    this.clashDecor = decor
+    world.SpawnActor(decor)
 
     // ─── 初始建筑（部落冲突开局布局）───
     this.placeBuilding('townhall', 0, 0)
@@ -300,9 +312,15 @@ export class FishBaseGameMode extends GameMode {
     const w = this.world
     if (!w) return
     this.hidePreview()
-    this.previewMesh = w.createBoxMesh(type.size, type.height, type.size, type.color, true, 0.5)
-    this.previewMesh.visible = false
-    w.scene.add(this.previewMesh)
+    const mesh = w.createBoxMesh(type.size, type.height, type.size, type.color, true, 0.5)
+    mesh.visible = false
+    // 替换装饰 Actor 上的预览组件（旧组件移除时自动释放旧 mesh 资源）
+    if (this.clashDecor) {
+      if (this.previewComp) this.clashDecor.removeComponent(this.previewComp)
+      this.previewComp = new MeshComponent(this.clashDecor, mesh, 'PreviewMesh')
+      this.clashDecor.addComponent(this.previewComp)
+    }
+    this.previewMesh = mesh
   }
 
   private hidePreview() {
@@ -329,31 +347,14 @@ export class FishBaseGameMode extends GameMode {
 
   /** 清理部落冲突建造系统资源 */
   private clearClashBase() {
-    if (this.baseGround) {
-      this.world?.scene.remove(this.baseGround)
-      this.baseGround.geometry.dispose()
-      ;(this.baseGround.material as THREE.Material).dispose()
-      this.baseGround = null
-    }
-    if (this.clashGrass) {
-      this.world?.scene.remove(this.clashGrass)
-      this.clashGrass.geometry.dispose()
-      ;(this.clashGrass.material as THREE.Material).dispose()
-      this.clashGrass = null
-    }
-    if (this.gridLines) {
-      this.world?.scene.remove(this.gridLines)
-      this.gridLines.geometry.dispose()
-      ;(this.gridLines.material as THREE.Material).dispose()
-      this.gridLines = null
-    }
-    this.hidePreview()
-    if (this.previewMesh) {
-      this.world?.scene.remove(this.previewMesh)
-      this.previewMesh.geometry.dispose()
-      ;(this.previewMesh.material as THREE.Material).dispose()
-      this.previewMesh = null
-    }
+    // 装饰根 Actor（地面/草地/网格线/预览块）由 World.DestroyAllActors 统一销毁，
+    // 组件 EndPlay 自动释放 geometry/material（不再手动 scene.remove）
+    this.clashDecor = null
+    this.previewComp = null
+    this.baseGround = null
+    this.clashGrass = null
+    this.gridLines = null
+    this.previewMesh = null
     this.clashBuildings = []
     this.gridOccupied.clear()
     this.selectedType = null

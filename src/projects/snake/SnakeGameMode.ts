@@ -122,7 +122,7 @@ export class SnakeGameMode extends GameMode {
     return this.gameState.phase === 'gameover'
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     // 先创建 Controller
     const controller = new SnakePlayerController()
 

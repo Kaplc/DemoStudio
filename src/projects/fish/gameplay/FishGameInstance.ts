@@ -94,7 +94,10 @@ export class FishGameInstance extends GameInstance {
     this.setupCamera(mode.gameCamera, 0, 0, 20)
     mode.cameraManager.RegisterCamera(mode.gameCamera)
     const spawn = mode.SpawnPlayer()
-    if (spawn) { spawn.controller.Possess(spawn.pawn); this._controller = spawn.controller }
+    if (spawn) {
+      this._controller = spawn.controller
+      logger.info(`[Fish] setupMenuPhase: controller 已就绪 → ${spawn.controller.name}`)
+    }
     else logger.error('[Fish] setupMenuPhase: SpawnPlayer 返回空')
 
     // UI 点击：初始化 PhySys 射线检测（相机 + 屏幕坐标换算容器）
@@ -131,7 +134,6 @@ export class FishGameInstance extends GameInstance {
     if (this.ui?.el) PhySys.setup(mode.baseCamera.camera, this.ui.el)
     const spawn = mode.SpawnPlayer()
     if (spawn) {
-      spawn.controller.Possess(spawn.pawn)
       this._controller = spawn.controller
       logger.info(`[Fish] setupBasePhase: controller 已切换 → ${spawn.controller.name}（pawn=${spawn.pawn.root.name}）`)
     }
@@ -155,8 +157,6 @@ export class FishGameInstance extends GameInstance {
     const spawn = mode.SpawnPlayer()
     if (!spawn) { logger.error('[Fish] SpawnPlayer 返回空'); return }
     const pawn = spawn.pawn as FishCannon
-    this.world.SpawnActor(pawn)
-    spawn.controller.Possess(pawn)
     this._controller = spawn.controller as FishPlayerController
     this.pawn = pawn
 

@@ -7,7 +7,7 @@
  * clickZone / glow 等交互元素仍在此处程序化生成（不变）。
  */
 import * as THREE from 'three'
-import { Actor, ClickableComponent, type World, logger } from '@/engine'
+import { Actor, ClickableComponent, MeshComponent, LineComponent, type World, logger } from '@/engine'
 
 export class FishHouseActor extends Actor {
   /** 不可见点击碰撞体 */
@@ -51,7 +51,8 @@ export class FishHouseActor extends Actor {
     this.clickZone = w.createInvisibleBox(2.4, 2.0, 2.4)
     this.clickZone.position.y = 1.2
     this.clickZone.userData.isHouse = true
-    this.root.add(this.clickZone)
+    // MeshComponent 托管：挂 root + EndPlay 自动释放资源
+    this.addComponent(new MeshComponent(this, this.clickZone, 'ClickZoneMesh'))
   }
 
   /**
@@ -63,7 +64,8 @@ export class FishHouseActor extends Actor {
     this.glowWireframe = w.createEdgesBox(2.8, 2.4, 2.8, 0xffd700, true, 0.8)
     this.glowWireframe.position.y = 1.2
     this.glowWireframe.visible = false
-    this.root.add(this.glowWireframe)
+    // LineComponent 托管：挂 root + EndPlay 自动释放资源
+    this.addComponent(new LineComponent(this, this.glowWireframe, 'GlowLine'))
   }
 
   // ═══════════════════════════════════
@@ -95,25 +97,12 @@ export class FishHouseActor extends Actor {
     this.addComponent(this.clickable)
   }
 
-  /** 清理交互元素（网格场景子对象由 World.DestroyAllActors 自动清理） */
+  /** 清理交互元素（clickZone/glowWireframe 由组件 EndPlay 自动释放；网格场景子对象由 World.DestroyAllActors 自动清理） */
   private destroyHouse(): void {
     // ClickableComponent 由 Actor.EndPlay 的 component 遍历自动清理
     this.clickable = null
-
-    // 清除高亮线框
-    if (this.glowWireframe) {
-      this.root.remove(this.glowWireframe)
-      this.glowWireframe.geometry.dispose()
-      ;(this.glowWireframe.material as THREE.LineBasicMaterial).dispose()
-      this.glowWireframe = null
-    }
-
-    // 清除点击区域
-    if (this.clickZone) {
-      this.root.remove(this.clickZone)
-      this.clickZone.geometry.dispose()
-      ;(this.clickZone.material as THREE.MeshBasicMaterial).dispose()
-      this.clickZone = null
-    }
+    // clickZone / glowWireframe 由 MeshComponent / LineComponent 的 EndPlay 自动释放
+    this.glowWireframe = null
+    this.clickZone = null
   }
 }

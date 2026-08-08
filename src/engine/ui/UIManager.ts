@@ -5,14 +5,16 @@
  *  - 生成 UI Actor（从蓝图实例化）—— 生成逻辑自持，不依赖 World.SpawnActorFromBlueprint
  *  - 创建/销毁 HUD（模仿 UE GameMode.HUDClass → 场景切换时创建）
  *  - 维护当前 HUD 引用
+ *  - 独立管理 UI Actor 生命周期（与 3D Actor 分离，不受 World.allActors 管控）
  *
  * 职责划分：
  *  - UIManager：UI 对象的"生成/挂载/清空"（含完整蓝图解析与实例化流程）+ UI 场景（uiScene）持有与 Actor 归类
  *  - HUD：纯容器（Actor），承载 UI 树，不参与生成逻辑
- *  - World：UI 对象生成后经 world.SpawnActor(actor) 进入统一生命周期管理（场景挂载分流走 world.ui）
+ *  - World：3D Actor 的生命周期管理，UI Actor 委托给 UIManager
  *
  * 用法：
  *   // World 内部（SwitchScene）：
+ *   this.ui.destroyAll()
  *   if (newMode.HUDClass) this.ui.createHUD(newMode.HUDClass)
  *
  *   // 代码动态生成 UI（挂到当前 HUD）：
@@ -57,6 +59,16 @@ export class UIManager {
 
   /** UI 独立场景：UI Actor（widget/HUD）挂载于此，与 3D 场景分离，由渲染层叠加渲染（UI 永远在顶层） */
   public readonly scene: THREE.Scene
+
+  // ─── UI Actor 独立生命周期管理 ───
+  /** UI Actor 集合（与 World.allActors 完全分离） */
+  private _uiActors = new Set<Actor>()
+  /** 待生成的 UI Actor */ 
+  private _pendingSpawn: Actor[] = []
+  /** 待销毁的 UI Actor */
+  private _pendingDestroy: Actor[] = []
+  /** UI 是否正在运行 */
+  private _running = false
 
   constructor(world: World) {
     this.world = world
@@ -268,6 +280,110 @@ export class UIManager {
     this._hud = hud
     logger.info(`[UIManager] HUD 已创建: ${hudClass} (hasUI=${hud.hasUI})`)
     return hud
+  }
+
+  // ════════════════════════════════════════════
+  //  UI Actor 独立生命周期
+  // ════════════════════════════════════════════
+
+  /** 将 Actor 纳入 UI 管理（由 World.commitSpawn 委托调用，替代加入 allActors） */
+  addUIActor(actor: Actor): void {
+    this._pendingSpawn.push(actor)
+  }
+
+  /** UI Actor 数量 */
+  get actorCount(): number { return this._uiActors.size }
+  get pendingSpawnCount(): number { return this._pendingSpawn.length }
+
+  /** 处理待生成的 UI Actor */
+  private commitSpawn() {
+    for (const actor of this._pendingSpawn) {
+      this._uiActors.add(actor)
+      if (!actor.parent) {
+        this.scene.add(actor.root)
+      }
+      if (this._running) {
+        actor.BeginPlay()
+      }
+    }
+    this._pendingSpawn = []
+  }
+
+  /** 处理待销毁的 UI Actor */
+  private commitDestroy() {
+    for (const actor of this._pendingDestroy) {
+      if (this._uiActors.has(actor)) {
+        actor.EndPlay()
+        this.scene.remove(actor.root)
+        this._uiActors.delete(actor)
+      }
+    }
+    this._pendingDestroy = []
+  }
+
+  /** 销毁 UI Actor（延迟到 tick 提交） */
+  destroyUIActor(actor: Actor): void {
+    if (actor.bPendingDestroy && !this._uiActors.has(actor)) return
+    actor.bPendingDestroy = true
+    this._pendingDestroy.push(actor)
+  }
+
+  /** UI 子系统恢复运行（场景切换 BeginPlay 时调用） */
+  beginPlay() {
+    this._running = true
+    this.commitSpawn()
+    this.commitDestroy()
+    for (const actor of this._uiActors) {
+      if (!actor.bHasBegunPlay) actor.BeginPlay()
+    }
+  }
+
+  /** 驱动所有 UI Actor 的 Tick */
+  tickUI(dt: number) {
+    if (!this._running) return
+    this.commitSpawn()
+    this.commitDestroy()
+    for (const actor of this._uiActors) {
+      if (!actor.bPendingDestroy) actor.Tick(dt)
+    }
+  }
+
+  /** 查找 UI 子系统中的 Actor */
+  findUIActor<T extends Actor>(type: new (...args: any[]) => T): T | null {
+    for (const actor of this._uiActors) {
+      if (actor instanceof type) return actor
+    }
+    for (const actor of this._pendingSpawn) {
+      if (actor instanceof type) return actor
+    }
+    return null
+  }
+
+  /** 获取所有 UI Actor */
+  getAllUIActors(): Actor[] {
+    return [...this._uiActors]
+  }
+
+  /**
+   * 销毁所有 UI Actor 并清空状态。
+   * 场景切换时由 World.SwitchScene 显式调用，与 3D Actor 销毁分离。
+   */
+  destroyAll(): void {
+    this._running = false
+    // 清理已提交的 UI Actor
+    for (const actor of [...this._uiActors]) {
+      actor.EndPlay()
+      this.scene.remove(actor.root)
+    }
+    this._uiActors.clear()
+    this._pendingDestroy = []
+    // 清理等待生成的 UI Actor（从未进入场景，仍需释放）
+    for (const actor of this._pendingSpawn) {
+      actor.EndPlay()
+    }
+    this._pendingSpawn = []
+    // 清空 HUD 引用
+    this._hud = null
   }
 
   /** 清空当前 HUD 引用（World 统一销毁 Actor 时调用，避免悬空引用） */

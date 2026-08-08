@@ -66,8 +66,6 @@ export class RacingGameInstance extends GameInstance {
 
     const pawn = spawn.pawn as RacingCarPawn
     pawn.InitGame()
-    this.world.SpawnActor(pawn)
-    spawn.controller.Possess(pawn)
     this._controller = spawn.controller as RacingPlayerController
     this.pawn = pawn
 

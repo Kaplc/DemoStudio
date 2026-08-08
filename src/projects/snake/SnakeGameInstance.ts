@@ -61,8 +61,6 @@ export class SnakeGameInstance extends GameInstance {
     }
     const pawn = spawn.pawn as SnakePawn
     pawn.InitGame()
-    this.world.SpawnActor(pawn)
-    spawn.controller.Possess(pawn)
     this._controller = spawn.controller as SnakePlayerController
     this.pawn = pawn
     this.gameMode.SpawnInitialFood(pawn.getSnakePositions())

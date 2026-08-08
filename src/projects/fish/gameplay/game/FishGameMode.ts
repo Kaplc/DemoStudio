@@ -85,7 +85,7 @@ export class FishGameMode extends GameMode {
     this.gameCamera.SyncToActor()
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new FishPlayerController()
     const pawn = new FishCannon()
     return { controller, pawn }

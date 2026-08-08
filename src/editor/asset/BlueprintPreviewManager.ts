@@ -16,6 +16,7 @@ import { BlueprintRegistry } from '../../engine'
 import { GenericActor, LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { Actor } from '../../engine/entity/Actor'
+import type { ActorComponent } from '../../engine/entity/ActorComponent'
 import { TransformComponent } from '../../engine/entity/TransformComponent'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
@@ -405,7 +406,7 @@ export class BlueprintPreviewManager {
 
       // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      for (const comp of actor.getAllComponents()) {
+      for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
         const target = jsonComps.find((c) => c.baseClass === comp.persistType)
         if (!target) continue

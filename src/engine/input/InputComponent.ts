@@ -1,11 +1,11 @@
 /**
  * InputComponent — 输入处理组件
  * 仿 UE InputComponent，支持按键绑定到动作（Action）
- * 挂载到 PlayerController（BaseObject，非场景对象）上
+ * 挂载到 PlayerController（BObject，非场景对象）上
  */
-import { Component } from '../entity/Component'
+import { BObjectComponent } from '../entity/BObjectComponent'
 import { logger } from '..'
-import type { BaseObject } from '../entity/BaseObject'
+import type { BObject } from '../entity/BObject'
 
 export type InputEventType = 'pressed' | 'released'
 
@@ -19,12 +19,12 @@ interface Binding {
 /** 滚轮事件回调（delta >0 向下滚，<0 向上滚） */
 export type ScrollCallback = (delta: number) => void
 
-export class InputComponent extends Component<BaseObject> {
+export class InputComponent extends BObjectComponent<BObject> {
   private bindings: Binding[] = []
   /** 滚轮事件订阅者（外部组件可绑定监听，如摄像机云台缩放） */
   private scrollListeners: ScrollCallback[] = []
 
-  constructor(owner: BaseObject, name = 'InputComponent') {
+  constructor(owner: BObject, name = 'InputComponent') {
     super(owner)
     this.name = name
   }

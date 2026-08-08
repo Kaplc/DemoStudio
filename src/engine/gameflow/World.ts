@@ -43,10 +43,13 @@ function childTransformViolation(child: {
 }
 
 export class World {
+  /** 静态实例计数器（日志区分多个 World 实例用） */
+  private static _nextId = 1
+  /** 本实例 ID */
+  readonly id: number
+
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
-  /** 当前玩家控制器（由 World 创建/托管，随场景切换清理） */
-  public controller: PlayerController | null = null
 
   /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene） */
   public readonly ui: UIManager
@@ -54,12 +57,15 @@ export class World {
   private allActors = new Set<Actor>()
   private pendingSpawn: Actor[] = []
   private pendingDestroy: Actor[] = []
+  /** Pawn 生成完成回调（commitSpawn 时触发，用于 GameMode 通知 Controller Possess） */
+  private _pawnSpawnCallbacks: Array<{ pawn: Pawn; cb: (pawn: Pawn) => void }> = []
   private animationId: number | null = null
   private lastTime = 0
   private _running = false
   private _tickCallbacks: Array<(dt: number) => void> = []
 
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
+    this.id = World._nextId++
     this.scene = scene
     // UI 管理器：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
     this.ui = new UIManager(this)
@@ -73,7 +79,7 @@ export class World {
   // ═══════════════════════════════════
 
   SetGameMode(gm: GameMode) {
-    logger.info(`[World] SetGameMode: ${gm.constructor.name}`)
+    logger.info(`[World#${this.id}] SetGameMode: ${gm.constructor.name}`)
     // 先清理旧 GameMode
     if (this.gameMode) {
       this.gameMode.EndPlay()
@@ -85,7 +91,6 @@ export class World {
     gm.StartPlay()
     if (this._running) {
       gm.BeginPlay()
-      if (gm.gameState) gm.gameState.BeginPlay()
     }
   }
 
@@ -105,25 +110,51 @@ export class World {
 
   private commitSpawn() {
     for (const actor of this.pendingSpawn) {
-      this.allActors.add(actor)
-      // 仅顶层 Actor 加到场景；已 attachTo 父的子 Actor 已在父 root 下，
-      // scene.add 会把它从父节点拆出，故跳过。
-      if (!actor.parent) {
-        if (this.ui.isUIActor(actor)) {
-          this.ui.add(actor)
-        } else {
+      // UI Actor 交给 UIManager 独立管理（不进 allActors）
+      if (this.ui.isUIActor(actor)) {
+        this.ui.addUIActor(actor)
+      } else {
+        this.allActors.add(actor)
+        // 仅顶层 3D Actor 加到场景；已 attachTo 父的子 Actor 已在父 root 下
+        if (!actor.parent) {
           this.scene.add(actor.root)
         }
-      }
-      if (this._running) {
-        actor.BeginPlay()
+        if (this._running) {
+          actor.BeginPlay()
+        }
       }
     }
     this.pendingSpawn = []
+    // Pawn 生成完成回调（生成进世界后经 GameMode 通知 Controller Possess）
+    if (this._pawnSpawnCallbacks.length > 0) {
+      const callbacks = this._pawnSpawnCallbacks
+      this._pawnSpawnCallbacks = []
+      for (const { pawn, cb } of callbacks) {
+        cb(pawn)
+      }
+    }
+  }
+
+  /**
+   * 生成 Pawn 到世界：进入待生成队列，commitSpawn 实际生成后调用 onSpawned 回调。
+   * 用于 GameMode.SpawnPlayer → World 生成 → 通知 Controller（Possess）的完整链路。
+   */
+  SpawnPawn(pawn: Pawn, onSpawned?: (pawn: Pawn) => void): Pawn {
+    this.SpawnActor(pawn)
+    if (onSpawned) {
+      this._pawnSpawnCallbacks.push({ pawn, cb: onSpawned })
+    }
+    return pawn
   }
 
   DestroyActor(actor: Actor) {
-    if (actor.bPendingDestroy && !this.allActors.has(actor)) return
+    if (actor.bPendingDestroy) return
+    // UI Actor 交给 UIManager 独立销毁
+    if (this.ui.isUIActor(actor)) {
+      this.ui.destroyUIActor(actor)
+      return
+    }
+    if (!this.allActors.has(actor)) return
     actor.bPendingDestroy = true
     this.pendingDestroy.push(actor)
   }
@@ -133,7 +164,7 @@ export class World {
    * 场景对象（Actor）走 pendingDestroy 队列（tick 时提交清理）；
    * 非场景对象（GameMode/GameState/Controller 等）立即 EndPlay。
    */
-  DestroyObject(obj: import('../entity/BaseObject').BaseObject): void {
+  DestroyObject(obj: import('../entity/BObject').BObject): void {
     if (obj instanceof Actor) {
       this.DestroyActor(obj)
       return
@@ -148,7 +179,6 @@ export class World {
       if (this.allActors.has(actor)) {
         actor.EndPlay()
         this.scene.remove(actor.root)
-        this.ui.remove(actor)
         this.allActors.delete(actor)
       }
     }
@@ -187,24 +217,6 @@ export class World {
       result.push(...comps)
     }
     return result
-  }
-
-  SpawnPlayer(
-    controller: PlayerController,
-    pawn: Pawn,
-  ) {
-    // 清理旧 controller（场景切换时残留）
-    if (this.controller && this.controller !== controller) {
-      this.controller.EndPlay()
-    }
-    controller.world = this
-    this.controller = controller
-    this.SpawnActor(pawn)
-    controller.Possess(pawn)
-    if (this._running && !controller.bHasBegunPlay) {
-      controller.BeginPlay()
-    }
-    return { controller, pawn }
   }
 
   /**
@@ -429,18 +441,16 @@ export class World {
     this.commitSpawn()
     this.commitDestroy()
 
-    // 2. Tick 所有 Actor
+    // 2. Tick 所有 3D Actor（UI Actor 由 UIManager 独立驱动）
     for (const actor of this.allActors) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
 
-    // 3. Tick GameMode + GameState + Controller
-    this.gameMode?.Tick(dt)
-    this.gameMode?.gameState?.Tick(dt)
-    this.controller?.Tick(dt)
+    // 3. Tick UI 子系统
+    this.ui.tickUI(dt)
 
-    // 4. 更新摄像机
-    this.gameMode?.cameraManager.UpdateCamera()
+    // 4. Tick GameMode（内部统一驱动 GameState + Controller + 摄像机）
+    this.gameMode?.Tick(dt)
 
     // 5. 外部回调
     for (const cb of this._tickCallbacks) {
@@ -450,19 +460,19 @@ export class World {
 
   /** 标记运行但不启动自己的 rAF（由外部驱动 render/update 时使用） */
   BeginPlay() {
-    logger.info(`[World] BeginPlay: 恢复运行（actorCount=${this.allActors.size}, pendingSpawn=${this.pendingSpawn.length}）`)
+    logger.info(`[World#${this.id}] BeginPlay: 恢复运行（actorCount=${this.allActors.size}, pendingSpawn=${this.pendingSpawn.length}）`)
     this._running = true
     // 先提交等待生成的 Actor（否则 SpawnActorFromBlueprint 生成的 Actor 永远停在
     // pendingSpawn 队列，不进场景、不 BeginPlay，UI/游戏对象不会渲染）
     this.commitSpawn()
     this.commitDestroy()
+    // UI 子系统恢复运行
+    this.ui.beginPlay()
     for (const actor of this.allActors) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
-    // 非 allActors 的 Actor（GameMode/GameState）+ Controller
+    // GameMode（其 BeginPlay 内部统一驱动 GameState + Controller）
     if (this.gameMode && !this.gameMode.bHasBegunPlay) this.gameMode.BeginPlay()
-    if (this.gameMode?.gameState && !this.gameMode.gameState.bHasBegunPlay) this.gameMode.gameState.BeginPlay()
-    if (this.controller && !this.controller.bHasBegunPlay) this.controller.BeginPlay()
   }
 
   /** 暂停运行（外部驱动模式） */
@@ -471,19 +481,17 @@ export class World {
     this._running = false
   }
 
-  /** 销毁所有 Actor（立即执行，不等待 tick） */
+  /** 销毁所有 3D Actor 与 UI Actor（Controller 由 GameMode.EndPlay 负责） */
   DestroyAllActors() {
     let count = this.allActors.size + this.pendingSpawn.length
-    // 清理 controller（场景切换时随 Actor 一起结束生命周期）
-    if (this.controller) {
-      this.controller.EndPlay()
-      this.controller = null
-    }
-    // 清理已提交的 Actor
+    // 先清 UI 子系统
+    const uiCount = this.ui.actorCount + this.ui.pendingSpawnCount
+    this.ui.destroyAll()
+    count += uiCount
+    // 清理已提交的 3D Actor
     for (const actor of [...this.allActors]) {
       actor.EndPlay()
       this.scene.remove(actor.root)
-      this.ui.remove(actor)
     }
     this.allActors.clear()
     this.pendingDestroy = []
@@ -492,9 +500,9 @@ export class World {
       actor.EndPlay()
     }
     this.pendingSpawn = []
-    // HUD 已随 allActors 销毁，清空 UIManager 引用避免悬空
-    this.ui.clear()
-    logger.debug(`[World] DestroyAllActors: 销毁 ${count} 个 Actor`)
+    // 清理未触发的 Pawn 生成回调（世界已销毁，不再通知 Controller）
+    this._pawnSpawnCallbacks = []
+    logger.debug(`[World#${this.id}] DestroyAllActors: 销毁 ${count} 个 Actor`)
   }
 
   /** 手动触发一次 Tick（由外部渲染循环驱动） */
@@ -505,11 +513,8 @@ export class World {
     for (const actor of this.allActors) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
-    // GameMode 的 Tick（包含其 Component 的 Tick）+ Controller
+    // GameMode 统一驱动 GameState + Controller + 摄像机
     this.gameMode?.Tick(dt)
-    // GameState 的 Tick
-    this.gameMode?.gameState?.Tick(dt)
-    this.controller?.Tick(dt)
     for (const cb of this._tickCallbacks) {
       cb(dt)
     }
@@ -563,7 +568,7 @@ export class World {
    * @param setup    在 BeginPlay 之前执行的设置回调（场景加载、相机、Controller 等）
    */
   SwitchScene(newMode: GameMode, setup?: () => void): void {
-    logger.info(`[World] SwitchScene: 暂停世界 → 销毁旧 Actor → 切换 GameMode(${newMode.constructor.name})`)
+    logger.info(`[World#${this.id}] SwitchScene: 暂停世界 → 销毁旧 Actor → 切换 GameMode(${newMode.constructor.name})`)
     this.Pause()
     this.DestroyAllActors()
     this.SetGameMode(newMode)
@@ -576,7 +581,7 @@ export class World {
     logger.info('[World] SwitchScene: 执行 setup 回调（加载场景资产 / 项目专属设置）...')
     setup?.()
     this.BeginPlay()
-    logger.info(`[World] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.allActors.size}）`)
+    logger.info(`[World#${this.id}] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.allActors.size}）`)
   }
 
   /**
@@ -811,7 +816,7 @@ export class World {
   SwitchToScene(sceneOrName: SceneAsset | string, extraSetup?: () => void): boolean {
     // 字符串 → 从 AssetRegistry 查找
     if (typeof sceneOrName === 'string') {
-      logger.info(`[World] SwitchToScene: 按名称查找场景 "${sceneOrName}"`)
+      logger.info(`[World#${this.id}] SwitchToScene: 按名称查找场景 "${sceneOrName}"`)
       const asset = AssetRegistry.getScene(sceneOrName)
       if (!asset) {
         logger.error(`[World] SwitchToScene: 场景 "${sceneOrName}" 未在 AssetRegistry 中注册`)
@@ -822,13 +827,13 @@ export class World {
 
     const sceneAsset = sceneOrName
     const mode = sceneAsset.mode
-    logger.info(`[World] SwitchToScene: 加载场景 "${sceneAsset.name}" (mode=${mode}, objects=${sceneAsset.objects?.length ?? 0})`)
+    logger.info(`[World#${this.id}] SwitchToScene: 加载场景 "${sceneAsset.name}" (mode=${mode}, objects=${sceneAsset.objects?.length ?? 0})`)
     if (!mode || !GameModeRegistry.has(mode)) {
       logger.error(`[World] SwitchToScene: mode "${mode}" 未注册，无法切换`)
       return false
     }
     const newMode = GameModeRegistry.create(mode)!
-    logger.info(`[World] SwitchToScene: 创建 GameMode "${newMode.constructor.name}"，开始切换...`)
+    logger.info(`[World#${this.id}] SwitchToScene: 创建 GameMode "${newMode.constructor.name}"，开始切换...`)
     this.SwitchScene(newMode, () => {
       this.loadSceneAsActors(sceneAsset)
       extraSetup?.()
@@ -898,22 +903,21 @@ export class World {
 
   Destroy() {
     this.Stop()
-    // 清理 Controller + GameMode/GameState
-    this.controller?.EndPlay()
-    this.controller = null
-    this.gameMode?.gameState?.EndPlay()
+    // 清理 UI 子系统
+    this.ui.destroyAll()
+    // GameMode（其 EndPlay 内部统一驱动 GameState + Controller）
     this.gameMode?.EndPlay()
-    // 从后往前销毁所有 Actor
+    // 从后往前销毁所有 3D Actor
     const all = [...this.allActors]
     for (let i = all.length - 1; i >= 0; i--) {
       all[i].EndPlay()
       this.scene.remove(all[i].root)
-      this.ui.remove(all[i])
     }
     this.allActors.clear()
     this.pendingSpawn = []
     this.pendingDestroy = []
     this._tickCallbacks = []
+    this._pawnSpawnCallbacks = []
     this.gameMode = null
   }
 }

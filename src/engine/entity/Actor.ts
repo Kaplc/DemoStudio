@@ -1,17 +1,20 @@
 ﻿/**
  * Actor — 世界中的场景对象
- * 模仿 UE Actor，继承 BaseObject 并拥有 Transform（root）、可见性树、子节点层级。
+ * 模仿 UE Actor，继承 BObject 并拥有 Transform（root）、可见性树、子节点层级。
  * 凡是要出现在 3D 场景里的实体（Pawn / 建筑 / UI / 摄像机 / 装饰）都继承本类。
  */
 import * as THREE from 'three'
-import { BaseObject } from './BaseObject'
+import { BObject } from './BObject'
 import type { Component } from './Component'
 import type { World } from '../gameflow/World'
 import type { PropertyPatch } from '../tools/deepMerge'
 import { clonePatch } from '../tools/deepMerge'
 
-export abstract class Actor extends BaseObject {
+export abstract class Actor extends BObject {
   public readonly root: THREE.Group
+
+  /** 所属世界（由 World.SpawnActor 设置；场景对象专属，非场景对象不持有） */
+  public world: World | null = null
 
   /** Blueprint 实例元数据（由 SpawnActorFromBlueprint 设置；非蓝图实例为 null） */
   public blueprintRef: { id: string; overrides?: PropertyPatch } | null = null
@@ -51,6 +54,20 @@ export abstract class Actor extends BaseObject {
     for (const child of [...this.children]) {
       child.destroy()
     }
+  }
+
+  /** 销毁自己，由 World 实际清理（场景对象专属） */
+  destroy() {
+    if (this.bPendingDestroy) return
+    this.bPendingDestroy = true
+    if (this.world) {
+      this.world.DestroyObject(this)
+    }
+  }
+
+  /** 组件列表收窄为 ActorComponent（含可编辑属性体系 persistType/getPersistentProps） */
+  override getAllComponents(): import('./ActorComponent').ActorComponent[] {
+    return super.getAllComponents() as import('./ActorComponent').ActorComponent[]
   }
 
   // ═══════════════════════════════════

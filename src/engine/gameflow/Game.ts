@@ -36,11 +36,11 @@ export class Game {
 
   get instance(): GameInstance { return this._instance }
 
-  /** 更换游戏实例（切换工程时使用），会先停止当前实例 */
+  /** 更换游戏实例（切换工程时使用），会先完全销毁当前实例 */
   setInstance(newInstance: GameInstance) {
     if (this._instance === newInstance) return
+    // shutdown 内部已调用 instance.destroy()，此处不再重复
     this.shutdown()
-    this._instance.destroy()
     this._instance = newInstance
     this._shutdown = false  // 新实例需要新的 shutdown 生命周期
   }
@@ -121,9 +121,9 @@ export class Game {
     this.removeTick = null
     logger.info('[Game] Tick 回调已注销')
 
-    // 停止游戏实例
-    this.instance.stop()
-    logger.info('[Game] 游戏实例已停止')
+    // 完全销毁游戏实例（stop + world.Destroy + 组件注销）
+    this.instance.destroy()
+    logger.info('[Game] 游戏实例已销毁')
 
     // AI 事件模块：清空运行上下文
     AIModule.instance.detachContext()
@@ -143,6 +143,9 @@ export class Game {
       this.gameMgr.clearFrame()
       this.gameMgr.resetView()
     }
+
+    // 清理 PhySys 全局状态（物理解耦模块引用，避免多实例串扰）
+    PhySys.clear()
   }
 
   /** 每帧更新（如未通过 onUpdate 自动驱动时手动调用） */
@@ -154,6 +157,5 @@ export class Game {
   destroy() {
     this.shutdown()
     this.ui.dispose()
-    this.instance.destroy()
   }
 }

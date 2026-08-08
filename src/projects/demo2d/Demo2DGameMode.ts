@@ -44,7 +44,7 @@ export class Demo2DGameMode extends GameMode {
     this.gameCamera.SyncToActor()
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new Demo2DPlayerController()
     const pawn = this.spawnComponent.SpawnPawn(new Demo2DPawn(), 0)
     return { controller, pawn }

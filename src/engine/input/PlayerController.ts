@@ -1,15 +1,15 @@
 /**
  * PlayerController — 处理玩家输入并控制 Pawn
- * 模仿 UE PlayerController（BaseObject，非场景对象）
+ * 模仿 UE PlayerController（BObject，非场景对象）
  * 输入路由：Viewport → PlayerController.ProcessInput() → InputComponent → 回调
  */
 import * as THREE from 'three'
-import { BaseObject } from '../entity/BaseObject'
+import { BObject } from '../entity/BObject'
 import { InputComponent } from './InputComponent'
 import type { Pawn } from '../entity/Pawn'
 import type { InputEventType } from './InputComponent'
 
-export abstract class PlayerController extends BaseObject {
+export abstract class PlayerController extends BObject {
   public pawn: Pawn | null = null
   public inputComponent: InputComponent
 

@@ -72,8 +72,6 @@ export class EatFishGameInstance extends GameInstance {
 
     const pawn = spawn.pawn as EatFishPawn
     pawn.InitGame()
-    this.world.SpawnActor(pawn)
-    spawn.controller.Possess(pawn)
     this._controller = spawn.controller as EatFishPlayerController
     this.pawn = pawn
 

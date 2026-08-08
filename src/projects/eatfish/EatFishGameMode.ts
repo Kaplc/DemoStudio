@@ -362,7 +362,7 @@ export class EatFishGameMode extends GameMode {
     return this.gameState.phase === 'gameover'
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new EatFishPlayerController()
     const pawn = this.spawnComponent.SpawnPawn(new EatFishPawn(), 0)
     this.playerRef = pawn as EatFishPawn

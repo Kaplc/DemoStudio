@@ -9,8 +9,7 @@
  *
  * 生命周期：
  *  - 创建：UIManager.createHUD() → new HUD() → SpawnActor → attachUI(uiActor)
- *  - 销毁：World.DestroyAllActors 遍历时 EndPlay（UI Actor 同时也在 allActors，
- *          由 World 统一 EndPlay，HUD 只清引用）
+ *  - 销毁：UIManager.destroyAll() 遍历 _uiActors 时 EndPlay（UI 子系统独立管理，不与 World.allActors 混管）
  */
 import { Actor } from '../entity/Actor'
 

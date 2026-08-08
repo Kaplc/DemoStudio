@@ -8,9 +8,9 @@
  *   3. 通过 SpawnComponent.SpawnPawn() 在对应坐标位置创建 Pawn
  */
 import * as THREE from 'three'
-import { Component } from './Component'
+import { BObjectComponent } from './BObjectComponent'
 import type { Pawn } from './Pawn'
-import type { BaseObject } from './BaseObject'
+import type { BObject } from './BObject'
 
 export interface SpawnPoint {
   position: THREE.Vector3
@@ -18,10 +18,10 @@ export interface SpawnPoint {
   name: string
 }
 
-export class SpawnComponent extends Component<BaseObject> {
+export class SpawnComponent extends BObjectComponent<BObject> {
   private spawnPoints: SpawnPoint[] = []
 
-  constructor(owner: BaseObject) {
+  constructor(owner: BObject) {
     super(owner)
     this.name = 'SpawnComponent'
   }

@@ -6,7 +6,7 @@
  * 点击回调转发给 GameMode 的建造系统（选中/删除）。
  */
 import * as THREE from 'three'
-import { GenericActor, MeshComponent, ClickableComponent, logger } from '@/engine'
+import { GenericActor, MeshComponent, ClickableComponent, LineComponent, logger } from '@/engine'
 
 /** 部落冲突建筑类型定义（不同颜色/尺寸立方体） */
 export interface ClashBuildingType {
@@ -68,11 +68,11 @@ export class ClashBuildingActor extends GenericActor {
     body.position.y = 0.15 + this.type.height / 2
     this.addComponent(new MeshComponent(this, body, 'BodyMesh'))
 
-    // ─── 选中高亮线框 ───
+    // ─── 选中高亮线框（LineComponent 托管：挂 root + EndPlay 自动释放资源）───
     this.glow = w.createEdgesBox(this.type.size + 0.25, this.type.height + 0.25, this.type.size + 0.25, 0xffd700, true, 0.9)
     this.glow.position.y = 0.15 + this.type.height / 2
     this.glow.visible = false
-    this.root.add(this.glow)
+    this.addComponent(new LineComponent(this, this.glow, 'GlowLine'))
 
     // ─── 点击：选中/取消选中 ───
     const clickable = new ClickableComponent(this)
@@ -95,12 +95,8 @@ export class ClashBuildingActor extends GenericActor {
   }
 
   override EndPlay(): void {
-    if (this.glow) {
-      this.root.remove(this.glow)
-      this.glow.geometry.dispose()
-      ;(this.glow.material as THREE.LineBasicMaterial).dispose()
-      this.glow = null
-    }
+    // glow 由 LineComponent.EndPlay 自动释放 geometry/material
+    this.glow = null
     super.EndPlay()
   }
 }

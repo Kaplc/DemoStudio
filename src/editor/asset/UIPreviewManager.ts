@@ -18,6 +18,7 @@ import { World } from '../../engine'
 import { logger } from '../../engine'
 import { BlueprintRegistry } from '../../engine'
 import { Actor } from '../../engine/entity/Actor'
+import type { ActorComponent } from '../../engine/entity/ActorComponent'
 import { CanvasUIComponent } from '../../engine/rendering/CanvasUIComponent'
 import { UITransformComponent } from '../../engine/ui/UITransformComponent'
 import { select, notifySelectionChange } from '../SelectionManager'
@@ -823,7 +824,7 @@ export class UIPreviewManager {
 
       // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
       const jsonCompsAll = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      for (const comp of actor.getAllComponents()) {
+      for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
         const target = jsonCompsAll.find((c) => c.baseClass === comp.persistType)
         if (!target) continue

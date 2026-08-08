@@ -52,7 +52,7 @@ function requireWorld(ctx: AIEventContext): World | null {
   return ctx.world
 }
 
-/** 按名称查找 Actor（name 或 root.name，递归子节点） */
+/** 按名称查找 Actor（name 或 root.name，递归子节点，同时搜索 3D 和 UI Actor） */
 function findActorByName(world: World, name: string) {
   const walk = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
     if (a.name === name || a.root.name === name) return a
@@ -62,7 +62,13 @@ function findActorByName(world: World, name: string) {
     }
     return null
   }
+  // 搜索 3D Actor
   for (const a of world.GetAllActors()) {
+    const hit = walk(a)
+    if (hit) return hit
+  }
+  // 搜索 UI Actor（UIManager 独立管理）
+  for (const a of world.ui.getAllUIActors()) {
     const hit = walk(a)
     if (hit) return hit
   }
@@ -226,19 +232,23 @@ export function registerBuiltinAIHandlers(): void {
   // ─── ai.getState — 查询运行状态 ───
   ai.register(AI_EVENT_GET_STATE, (_payload: unknown, ctx: AIEventContext) => {
     const world = ctx.world
+    const mapActor = (a: import('../entity/Actor').Actor) => ({
+      name: a.name,
+      type: a.constructor.name,
+      scale: [a.root.scale.x, a.root.scale.y, a.root.scale.z] as [number, number, number],
+      active: a.bActive,
+    })
     const snapshot: AIGameStateSnapshot = {
       running: !!world?.running,
       phase: world?.gameState?.phase ?? 'idle',
       score: world?.gameState?.score ?? 0,
       gameOver: world?.gameState?.gameOver ?? false,
-      actorCount: world?.actorCount ?? 0,
+      actorCount: (world?.actorCount ?? 0) + (world?.ui.actorCount ?? 0),
       actors: world
-        ? world.GetAllActors().map((a) => ({
-            name: a.name,
-            type: a.constructor.name,
-            scale: [a.root.scale.x, a.root.scale.y, a.root.scale.z] as [number, number, number],
-            active: a.bActive,
-          }))
+        ? [
+            ...world.GetAllActors().map(mapActor),
+            ...world.ui.getAllUIActors().map(mapActor),
+          ]
         : [],
     }
     return snapshot
@@ -261,6 +271,24 @@ export function registerBuiltinAIHandlers(): void {
       for (const b of buttons) b.triggerClick()
       logger.info(`[AI] clickActor: ${p.name} 触发 ${buttons.length} 个按钮`)
       return { ok: true, clicked: buttons.length, type: 'button' }
+    }
+
+    // 兜底：目标 actor 自身无按钮时，递归其子树找第一个带 UIButtonComponent 的子 actor
+    // （蓝图生成的按钮多为无名 GenericActor，按父容器名点击即可命中）
+    const findButtonActor = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
+      if (a.getComponents(UIButtonComponent).length > 0) return a
+      for (const child of a.getChildren()) {
+        const hit = findButtonActor(child)
+        if (hit) return hit
+      }
+      return null
+    }
+    const buttonActor = findButtonActor(actor)
+    if (buttonActor) {
+      const bs = buttonActor.getComponents(UIButtonComponent)
+      for (const b of bs) b.triggerClick()
+      logger.info(`[AI] clickActor: ${p.name} 子树命中按钮 actor "${buttonActor.name}"，触发 ${bs.length} 个按钮`)
+      return { ok: true, clicked: bs.length, type: 'button' }
     }
 
     // 兜底：触发普通可点击组件（AI 触发无 raycast hit，传空对象占位）

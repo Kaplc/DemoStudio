@@ -9,16 +9,19 @@
  *   - configure(comp, props): 构造后用剩余 props 调各 setter（setColor / setOpacity ...）
  *
  * 内置 Component 由 registerBuiltinComponents() 集中注册。
+ * owner 类型为 BObject：组件可挂 Actor（渲染类）也可挂 GameMode/PlayerController（逻辑类）。
+ * 返回类型为 BObjectComponent（含生命周期钩子）：注册的组件均继承 BObjectComponent 或其子类
+ * （ActorComponent 等），可直接挂到 BObject.addComponent。
  */
-import type { Component } from '../entity/Component'
-import type { Actor } from '../entity/Actor'
+import type { BObjectComponent } from '../entity/BObjectComponent'
+import type { BObject } from '../entity/BObject'
 import type { PropertyPatch } from '../tools/deepMerge'
 
 /** Component 工厂：用 owner 与 props 构造实例（props 可含构造所需参数） */
-export type ComponentFactory = (owner: Actor, props?: PropertyPatch) => Component
+export type ComponentFactory = (owner: BObject, props?: PropertyPatch) => BObjectComponent
 
 /** Component 配置器：构造后用 props 调各 setter */
-export type ComponentConfigurator = (comp: Component, props: PropertyPatch) => void
+export type ComponentConfigurator = (comp: BObjectComponent, props: PropertyPatch) => void
 
 export class ComponentRegistry {
   private static entries = new Map<string, { factory: ComponentFactory; configure?: ComponentConfigurator }>()
@@ -32,7 +35,7 @@ export class ComponentRegistry {
    * 创建并配置一个 Component（不 addComponent，由调用方决定是否挂载）。
    * 未注册的类型返回 null。
    */
-  static create(owner: Actor, type: string, props?: PropertyPatch): Component | null {
+  static create(owner: BObject, type: string, props?: PropertyPatch): BObjectComponent | null {
     const entry = ComponentRegistry.entries.get(type)
     if (!entry) return null
     const comp = entry.factory(owner, props)

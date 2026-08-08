@@ -45,7 +45,7 @@ export class FishMainMenuGameMode extends GameMode {
     // 菜单模式不执行游戏逻辑，仅保留相机更新
   }
 
-  override SpawnPlayer() {
+  override spawnPlayerInternal() {
     const controller = new FishMainMenuPlayerController()
     const pawn = new FishMainMenuPawn()
     return { controller, pawn }

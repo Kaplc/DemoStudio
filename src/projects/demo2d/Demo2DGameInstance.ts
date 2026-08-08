@@ -52,8 +52,6 @@ export class Demo2DGameInstance extends GameInstance {
       return false
     }
     const pawn = spawn.pawn as Demo2DPawn
-    this.world.SpawnActor(pawn)
-    spawn.controller.Possess(pawn)
     this._controller = spawn.controller as Demo2DPlayerController
     this.pawn = pawn
     this.gameMode.SpawnInitialCoin()
