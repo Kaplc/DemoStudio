@@ -45,6 +45,8 @@ function childTransformViolation(child: {
 export class World {
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
+  /** 当前玩家控制器（由 World 创建/托管，随场景切换清理） */
+  public controller: PlayerController | null = null
 
   /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene） */
   public readonly ui: UIManager
@@ -126,6 +128,21 @@ export class World {
     this.pendingDestroy.push(actor)
   }
 
+  /**
+   * 通用对象销毁入口（Object.destroy 调用）。
+   * 场景对象（Actor）走 pendingDestroy 队列（tick 时提交清理）；
+   * 非场景对象（GameMode/GameState/Controller 等）立即 EndPlay。
+   */
+  DestroyObject(obj: import('../entity/BaseObject').BaseObject): void {
+    if (obj instanceof Actor) {
+      this.DestroyActor(obj)
+      return
+    }
+    if (obj.bPendingDestroy) return
+    obj.bPendingDestroy = true
+    obj.EndPlay()
+  }
+
   private commitDestroy() {
     for (const actor of this.pendingDestroy) {
       if (this.allActors.has(actor)) {
@@ -176,8 +193,17 @@ export class World {
     controller: PlayerController,
     pawn: Pawn,
   ) {
+    // 清理旧 controller（场景切换时残留）
+    if (this.controller && this.controller !== controller) {
+      this.controller.EndPlay()
+    }
+    controller.world = this
+    this.controller = controller
     this.SpawnActor(pawn)
     controller.Possess(pawn)
+    if (this._running && !controller.bHasBegunPlay) {
+      controller.BeginPlay()
+    }
     return { controller, pawn }
   }
 
@@ -408,9 +434,10 @@ export class World {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
 
-    // 3. Tick GameMode + GameState
+    // 3. Tick GameMode + GameState + Controller
     this.gameMode?.Tick(dt)
     this.gameMode?.gameState?.Tick(dt)
+    this.controller?.Tick(dt)
 
     // 4. 更新摄像机
     this.gameMode?.cameraManager.UpdateCamera()
@@ -432,9 +459,10 @@ export class World {
     for (const actor of this.allActors) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
-    // 非 allActors 的 Actor（GameMode/GameState）
+    // 非 allActors 的 Actor（GameMode/GameState）+ Controller
     if (this.gameMode && !this.gameMode.bHasBegunPlay) this.gameMode.BeginPlay()
     if (this.gameMode?.gameState && !this.gameMode.gameState.bHasBegunPlay) this.gameMode.gameState.BeginPlay()
+    if (this.controller && !this.controller.bHasBegunPlay) this.controller.BeginPlay()
   }
 
   /** 暂停运行（外部驱动模式） */
@@ -446,6 +474,11 @@ export class World {
   /** 销毁所有 Actor（立即执行，不等待 tick） */
   DestroyAllActors() {
     let count = this.allActors.size + this.pendingSpawn.length
+    // 清理 controller（场景切换时随 Actor 一起结束生命周期）
+    if (this.controller) {
+      this.controller.EndPlay()
+      this.controller = null
+    }
     // 清理已提交的 Actor
     for (const actor of [...this.allActors]) {
       actor.EndPlay()
@@ -472,10 +505,11 @@ export class World {
     for (const actor of this.allActors) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
-    // GameMode 的 Tick（包含其 Component 的 Tick）
+    // GameMode 的 Tick（包含其 Component 的 Tick）+ Controller
     this.gameMode?.Tick(dt)
     // GameState 的 Tick
     this.gameMode?.gameState?.Tick(dt)
+    this.controller?.Tick(dt)
     for (const cb of this._tickCallbacks) {
       cb(dt)
     }
@@ -864,7 +898,9 @@ export class World {
 
   Destroy() {
     this.Stop()
-    // 清理 GameMode/GameState
+    // 清理 Controller + GameMode/GameState
+    this.controller?.EndPlay()
+    this.controller = null
     this.gameMode?.gameState?.EndPlay()
     this.gameMode?.EndPlay()
     // 从后往前销毁所有 Actor

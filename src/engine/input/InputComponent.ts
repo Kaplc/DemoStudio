@@ -1,11 +1,11 @@
 /**
- * InputComponent — 输入处理组件（ActorComponent）
+ * InputComponent — 输入处理组件
  * 仿 UE InputComponent，支持按键绑定到动作（Action）
- * 挂载到 PlayerController（Actor）上
+ * 挂载到 PlayerController（BaseObject，非场景对象）上
  */
 import { Component } from '../entity/Component'
 import { logger } from '..'
-import type { Actor } from '../entity/Actor'
+import type { BaseObject } from '../entity/BaseObject'
 
 export type InputEventType = 'pressed' | 'released'
 
@@ -16,16 +16,40 @@ interface Binding {
   callback: () => void
 }
 
-export class InputComponent extends Component {
-  private bindings: Binding[] = []
+/** 滚轮事件回调（delta >0 向下滚，<0 向上滚） */
+export type ScrollCallback = (delta: number) => void
 
-  constructor(owner: Actor, name = 'InputComponent') {
+export class InputComponent extends Component<BaseObject> {
+  private bindings: Binding[] = []
+  /** 滚轮事件订阅者（外部组件可绑定监听，如摄像机云台缩放） */
+  private scrollListeners: ScrollCallback[] = []
+
+  constructor(owner: BaseObject, name = 'InputComponent') {
     super(owner)
     this.name = name
   }
 
   BindAction(action: string, key: string, eventType: InputEventType, callback: () => void): void {
     this.bindings.push({ key, eventType, callback, action })
+  }
+
+  /**
+   * 订阅滚轮事件（输入系统 handleScroll → ProcessScroll 触发）。
+   * 返回取消订阅函数。
+   */
+  BindScroll(callback: ScrollCallback): () => void {
+    this.scrollListeners.push(callback)
+    return () => {
+      this.scrollListeners = this.scrollListeners.filter((cb) => cb !== callback)
+    }
+  }
+
+  /** 触发滚轮事件（由 InputSys.handleScroll 调用） */
+  ProcessScroll(delta: number): void {
+    if (!this.bEnabled) return
+    for (const cb of this.scrollListeners) {
+      cb(delta)
+    }
   }
 
   UnbindKey(key: string): void {
@@ -53,6 +77,7 @@ export class InputComponent extends Component {
 
   ClearBindings(): void {
     this.bindings = []
+    this.scrollListeners = []
   }
 
   override EndPlay(): void {

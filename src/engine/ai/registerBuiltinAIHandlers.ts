@@ -323,42 +323,51 @@ export function registerBuiltinAIHandlers(): void {
     }
 
     // 目标摄像机：优先按名称指定，否则用当前 GameMode 上第一个带 zoom 方法的摄像机
-    // （鸭子类型：engine 不依赖 projects，FishBaseGameMode.baseCamera 等均可命中）
+    // （鸭子类型：engine 不依赖 projects。支持 Actor 方法（zoom）或组件（rig.zoom）两种形态）
+    const findZoomable = (obj: unknown): { zoom?: (delta: number) => void } | null => {
+      const o = obj as { zoom?: (d: number) => void; getComponents?: (t: unknown) => unknown[] }
+      if (o && typeof o.zoom === 'function') return o
+      // 组件形态：遍历 getComponents 找带 zoom 的组件（如 CameraRigComponent）
+      if (o && typeof o.getComponents === 'function') {
+        const all = (o as unknown as { getAllComponents?: () => unknown[] }).getAllComponents?.() ?? []
+        for (const c of all) {
+          const z = c as { zoom?: (d: number) => void }
+          if (z && typeof z.zoom === 'function') return z
+        }
+      }
+      return null
+    }
+
     let target: { zoom?: (delta: number) => void } | null = null
     if (p.camera) {
       const actor = findActorByName(world, p.camera)
       if (!actor) return { ok: false, error: `未找到 Actor: ${p.camera}` }
-      const actorZoomable = actor as unknown as { zoom?: (d: number) => void }
-      if (typeof actorZoomable.zoom === 'function') target = actorZoomable
-      else {
-        const comp = actor
-          .getAllComponents()
-          .find((c) => typeof (c as { zoom?: unknown }).zoom === 'function')
-        target = (comp as { zoom?: (d: number) => void } | undefined) ?? null
-      }
+      // 鸭子类型：Actor 方法（zoom）或 rig 组件（CameraRigComponent）
+      const actorRig = (actor as unknown as { rig?: unknown }).rig
+      target = findZoomable(actor) ?? findZoomable(actorRig)
       if (!target) return { ok: false, error: `${p.camera} 上没有可调用的 zoom 方法` }
     } else {
       const gm = world.gameMode as Record<string, unknown> | null
       if (gm) {
         for (const v of Object.values(gm)) {
-          if (v && typeof (v as { zoom?: unknown }).zoom === 'function') {
-            target = v as { zoom?: (d: number) => void }
-            break
-          }
+          target = findZoomable(v) ?? findZoomable((v as { rig?: unknown })?.rig)
+          if (target) break
         }
       }
       if (!target) return { ok: false, error: '当前 GameMode 上没有可缩放摄像机（需运行基地阶段）' }
     }
 
     target.zoom?.(p.delta)
-    // 读取缩放后距离（zoom 更新 camera.position 并经 SyncToActor 写回 root.position）
+    // 读取缩放后距离：target 可能是组件（rig，有 target 注视点 + owner 是摄像机 actor）
     const anyT = target as {
+      owner?: { camera?: { position?: { x: number; y: number; z: number } }; root?: { position?: { x: number; y: number; z: number } } }
       camera?: { position?: { x: number; y: number; z: number } }
       root?: { position?: { x: number; y: number; z: number } }
       target?: { x: number; y: number; z: number }
       position?: { x: number; y: number; z: number }
     }
-    const pos = anyT.camera?.position ?? anyT.root?.position ?? anyT.position
+    const ownerCam = anyT.owner?.camera?.position ?? anyT.owner?.root?.position
+    const pos = ownerCam ?? anyT.camera?.position ?? anyT.root?.position ?? anyT.position
     const distance =
       anyT.target && pos
         ? Math.hypot(pos.x - anyT.target.x, pos.y - anyT.target.y, pos.z - anyT.target.z)

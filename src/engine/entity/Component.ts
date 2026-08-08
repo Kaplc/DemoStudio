@@ -1,9 +1,11 @@
 /**
- * Component — 可附加到 Actor 上的行为模块
- * 模仿 UE ActorComponent
+ * Component — 可附加到 BaseObject 上的行为模块
+ * 模仿 UE ActorComponent。泛型 T 限定所属对象类型：
+ * 渲染类组件用 Component<Actor>（可访问 owner.root），
+ * 逻辑类组件可挂任意 BaseObject（如 InputComponent 挂 PlayerController）。
  */
 
-import type { Actor } from './Actor'
+import type { BaseObject } from './BaseObject'
 
 /** 可编辑属性的数据类型（Inspector 根据类型渲染对应编辑器控件） */
 export type EditablePropertyType = 'number' | 'string' | 'boolean' | 'enum' | 'vec2' | 'vec3' | 'color'
@@ -61,12 +63,12 @@ export interface EditableProperty<T = unknown> {
   persistent?: boolean
 }
 
-export abstract class Component {
-  public readonly owner: Actor
+export abstract class Component<T extends BaseObject = BaseObject> {
+  public readonly owner: T
   public bEnabled = true
   public name = 'Component'
 
-  constructor(owner: Actor) {
+  constructor(owner: T) {
     this.owner = owner
   }
 

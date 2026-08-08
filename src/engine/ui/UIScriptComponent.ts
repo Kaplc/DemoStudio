@@ -17,7 +17,7 @@ import { BehaviourScript } from '../script/BehaviourScript'
 import { ScriptRegistry } from '../script/ScriptRegistry'
 import { logger } from '../Logger'
 
-export class UIScriptComponent extends Component {
+export class UIScriptComponent extends Component<Actor> {
   /** 已注册的脚本 id（路径式，如 'gameplay/base/BaseHud'） */
   public script = ''
   /** 传给脚本 onStart 的可选参数 */

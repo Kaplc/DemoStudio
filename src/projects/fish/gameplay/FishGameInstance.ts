@@ -124,6 +124,8 @@ export class FishGameInstance extends GameInstance {
     mode.onStartFishing = () => this.startGameplay()
     mode.onClaimCoins = () => this.claimCoins()
     // 部落冲突基地：游戏自己的摄像机 actor（BaseCameraActor，每 new 一次都是新摄像机）
+    // 交给 World 托管（SpawnActor）：由 World 自动驱动 Tick（边缘平移检测）/BeginPlay/销毁生命周期
+    this.world.SpawnActor(mode.baseCamera)
     this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
     if (this.ui?.el) PhySys.setup(mode.baseCamera.camera, this.ui.el)
@@ -131,7 +133,7 @@ export class FishGameInstance extends GameInstance {
     if (spawn) {
       spawn.controller.Possess(spawn.pawn)
       this._controller = spawn.controller
-      logger.info(`[Fish] setupBasePhase: controller 已切换 → ${spawn.controller.root.name}（pawn=${spawn.pawn.root.name}）`)
+      logger.info(`[Fish] setupBasePhase: controller 已切换 → ${spawn.controller.name}（pawn=${spawn.pawn.root.name}）`)
     }
     else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
 

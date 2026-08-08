@@ -12,9 +12,10 @@
  */
 import * as THREE from 'three'
 import { Component } from '../entity/Component'
+import type { Actor } from '../entity/Actor'
 import { PhySys } from './PhySys'
 
-export class ClickableComponent extends Component {
+export class ClickableComponent extends Component<Actor> {
   /**
    * 所属层：
    *  - 'world'：3D 世界（主相机射线检测，默认）

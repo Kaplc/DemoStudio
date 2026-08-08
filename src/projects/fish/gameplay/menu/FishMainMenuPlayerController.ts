@@ -9,7 +9,6 @@ import { PlayerController } from '@/engine'
 
 export class FishMainMenuPlayerController extends PlayerController {
   constructor() {
-    super()
-    this.root.name = 'FishMainMenuPlayerController'
+    super('FishMainMenuPlayerController')
   }
 }

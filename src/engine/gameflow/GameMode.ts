@@ -1,14 +1,14 @@
 /**
  * GameMode — 游戏规则权威
- * 模仿 UE GameMode（Actor），控制游戏流程
+ * 模仿 UE GameMode（BaseObject，非场景对象），控制游戏流程
  */
-import { Actor } from '../entity/Actor'
+import { BaseObject } from '../entity/BaseObject'
 import { GameState } from './GameState'
-import { PlayerCameraManager } from '../input/PlayerCameraManager'
+import { PlayerCameraManager } from '../rendering/PlayerCameraManager'
 import type { Pawn } from '../entity/Pawn'
 import type { PlayerController } from '../input/PlayerController'
 
-export abstract class GameMode extends Actor {
+export abstract class GameMode extends BaseObject {
   public readonly gameState: GameState
   public readonly cameraManager: PlayerCameraManager
 

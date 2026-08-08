@@ -22,7 +22,7 @@ export interface TransformComponentOptions {
   scale?: [number, number, number]
 }
 
-export class TransformComponent extends Component {
+export class TransformComponent extends Component<Actor> {
   constructor(owner: Actor, options: TransformComponentOptions = {}) {
     super(owner)
     this.name = 'TransformComponent'

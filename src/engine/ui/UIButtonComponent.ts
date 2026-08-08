@@ -28,7 +28,7 @@ export interface UIButtonComponentOptions {
   pressScale?: number
 }
 
-export class UIButtonComponent extends Component {
+export class UIButtonComponent extends Component<Actor> {
   private _state: ButtonState = 'normal'
   private _colors: Required<Record<ButtonState, string>>
   private _onClick: (() => void) | null

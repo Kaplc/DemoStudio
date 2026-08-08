@@ -1,12 +1,12 @@
 /**
  * GameState — 可观察的游戏全局状态
- * 模仿 UE GameState（Actor），React 可通过 subscribe 监听变化
+ * 模仿 UE GameState（BaseObject，非场景对象），React 可通过 subscribe 监听变化
  */
-import { Actor } from '../entity/Actor'
+import { BaseObject } from '../entity/BaseObject'
 
 export type GamePhase = 'waiting' | 'playing' | 'paused' | 'gameover'
 
-export class GameState extends Actor {
+export class GameState extends BaseObject {
   public score = 0
   public phase: GamePhase = 'waiting'
   public timeElapsed = 0

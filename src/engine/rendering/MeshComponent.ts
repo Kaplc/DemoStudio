@@ -18,7 +18,7 @@ import * as THREE from 'three'
 import { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
 
-export class MeshComponent extends Component {
+export class MeshComponent extends Component<Actor> {
   public mesh: THREE.Mesh
 
   constructor(owner: Actor, mesh: THREE.Mesh, name = 'MeshComponent') {

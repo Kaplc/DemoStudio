@@ -10,7 +10,7 @@
 import * as THREE from 'three'
 import { Component } from './Component'
 import type { Pawn } from './Pawn'
-import type { Actor } from './Actor'
+import type { BaseObject } from './BaseObject'
 
 export interface SpawnPoint {
   position: THREE.Vector3
@@ -18,10 +18,10 @@ export interface SpawnPoint {
   name: string
 }
 
-export class SpawnComponent extends Component {
+export class SpawnComponent extends Component<BaseObject> {
   private spawnPoints: SpawnPoint[] = []
 
-  constructor(owner: Actor) {
+  constructor(owner: BaseObject) {
     super(owner)
     this.name = 'SpawnComponent'
   }

@@ -63,7 +63,7 @@ async function loadTroika(): Promise<any> {
   }
 }
 
-export class TroikaTextComponent extends Component {
+export class TroikaTextComponent extends Component<Actor> {
   /** 实际 troika Text mesh，未加载时为空 */
   public mesh: THREE.Object3D | null = null
 

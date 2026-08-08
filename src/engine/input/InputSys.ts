@@ -78,7 +78,11 @@ export class InputSys {
 
   /** 滚轮滚动 */
   handleScroll(delta: number, controller?: PlayerController | null): void {
-    logger.debug(`[InputSys] handleScroll delta=${delta}, controller=${controller?.root?.name ?? '<无>'}`)
-    controller?.OnScroll(delta)
+    logger.debug(`[InputSys] handleScroll delta=${delta}, controller=${controller?.name ?? '<无>'}`)
+    if (!controller) return
+    // 输入系统触发到 Controller 的输入组件（外部组件可 BindScroll 订阅）
+    controller.inputComponent.ProcessScroll(delta)
+    // 兼容：仍调用 OnScroll 虚方法（子类旧实现）
+    controller.OnScroll(delta)
   }
 }

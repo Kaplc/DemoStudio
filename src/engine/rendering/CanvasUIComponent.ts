@@ -50,7 +50,7 @@ export interface CanvasUIOptions {
   markerOnly?: boolean
 }
 
-export class CanvasUIComponent extends Component {
+export class CanvasUIComponent extends Component<Actor> {
   /** 渲染面板；markerOnly 模式下为 null */
   public panel: THREE.Mesh | null
   readonly canvas: HTMLCanvasElement

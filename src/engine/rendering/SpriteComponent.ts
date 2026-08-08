@@ -11,7 +11,7 @@ import { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
 import { loadTexture } from '../scene/TextureLoader'
 
-export class SpriteComponent extends Component {
+export class SpriteComponent extends Component<Actor> {
   /** 所有 SpriteComponent 共享的单位平面几何体 */
   private static sharedGeo: THREE.PlaneGeometry | null = null
 

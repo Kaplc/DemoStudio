@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import { Component } from '../entity/Component'
-import type { Object as EngineObject } from '../entity/Object'
+import type { BaseObject } from '../entity/BaseObject'
 import { Actor } from '../entity/Actor'
 
 /** 摄像机投影模式 */
 export type CameraMode = 'perspective' | 'orthographic'
 
 /**
- * CameraComponent — 可挂载的摄像机组件（挂任意 Object：GameMode/Pawn/Actor 均可）
+ * CameraComponent — 可挂载的摄像机组件（挂任意 BaseObject：GameMode/Pawn/Actor 均可）
  * 支持两种投影:
  *   'perspective'  — 透视(3D 场景默认)
  *   'orthographic' — 正交(2D 场景,无近大远小)
@@ -15,7 +15,7 @@ export type CameraMode = 'perspective' | 'orthographic'
  * 构造签名保持向后兼容:第二参数仍为 name(snake/eatfish 用 new CameraComponent(this, 'GameCamera')),
  * mode 作为第三参数,默认 'perspective'。2D 项目传 'orthographic'。
  */
-export class CameraComponent extends Component<EngineObject> {
+export class CameraComponent extends Component<BaseObject> {
   public mode: CameraMode
   public readonly camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
   public priority = 0
@@ -44,7 +44,7 @@ export class CameraComponent extends Component<EngineObject> {
     }
     return props
   }
-  constructor(owner: EngineObject, name = 'CameraComponent', mode: CameraMode = 'perspective') {
+  constructor(owner: BaseObject, name = 'CameraComponent', mode: CameraMode = 'perspective') {
     super(owner)
     this.name = name
     this.mode = mode

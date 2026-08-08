@@ -57,7 +57,7 @@ function createLight(type: LightType, color: THREE.ColorRepresentation, intensit
   }
 }
 
-export class LightComponent extends Component {
+export class LightComponent extends Component<Actor> {
   readonly light: THREE.Light
   private _lightType: LightType
   private _castShadow: boolean

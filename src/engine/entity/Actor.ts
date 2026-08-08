@@ -1,39 +1,28 @@
 ﻿/**
- * Actor — 世界中的基础实体
- * 模仿 UE Actor，拥有 Transform、生命周期、Component 挂载
+ * Actor — 世界中的场景对象
+ * 模仿 UE Actor，继承 BaseObject 并拥有 Transform（root）、可见性树、子节点层级。
+ * 凡是要出现在 3D 场景里的实体（Pawn / 建筑 / UI / 摄像机 / 装饰）都继承本类。
  */
 import * as THREE from 'three'
+import { BaseObject } from './BaseObject'
 import type { Component } from './Component'
 import type { World } from '../gameflow/World'
 import type { PropertyPatch } from '../tools/deepMerge'
 import { clonePatch } from '../tools/deepMerge'
 
-export abstract class Actor {
-  /** 全局唯一整数 ID，每个 Actor 构造时自动分配 */
-  public readonly uid: number
-
-  public readonly name: string
+export abstract class Actor extends BaseObject {
   public readonly root: THREE.Group
-  public world: World | null = null
-
-  /** Actor 生命周期 */
-  public bHasBegunPlay = false
-  public bPendingDestroy = false
 
   /** Blueprint 实例元数据（由 SpawnActorFromBlueprint 设置；非蓝图实例为 null） */
   public blueprintRef: { id: string; overrides?: PropertyPatch } | null = null
   /** 由 ref 子节点生成，大纲中不展开其内部子 Actor */
   public isRefInstance = false
 
-  private static _nextUid = 1
-
-  private components: Component[] = []
   private children: Actor[] = []
   private _parent: Actor | null = null
 
   constructor(name = 'Actor') {
-    this.uid = Actor._nextUid++
-    this.name = name
+    super(name)
     this.root = new THREE.Group()
     this.root.name = name
     this.root.userData.actorRef = this
@@ -41,16 +30,13 @@ export abstract class Actor {
   }
 
   // ═══════════════════════════════════
-  //  生命周期
+  //  生命周期（扩展：递归子 Actor）
   // ═══════════════════════════════════
 
   /** 游戏开始，所有组件就绪后调用一次 */
-  BeginPlay(): void {
+  override BeginPlay(): void {
     if (this.bHasBegunPlay) return
-    this.bHasBegunPlay = true
-    for (const c of this.components) {
-      if (c.bEnabled) c.BeginPlay()
-    }
+    super.BeginPlay()
     // 递归子 Actor（内联子节点经 attachTo 挂载，不在 World.allActors 中，
     // 由父链传播 BeginPlay；bHasBegunPlay 防止 ref 子节点重复调用）
     for (const child of this.children) {
@@ -58,43 +44,12 @@ export abstract class Actor {
     }
   }
 
-  /** 每帧更新 */
-  Tick(_deltaTime: number): void {
-    if (this.bPendingDestroy) return
-    for (const c of this.components) {
-      if (c.bEnabled) c.Tick(_deltaTime)
-    }
-  }
-
-  /** 绘制调试 Gizmos（由 World 每帧调用，可重写） */
-  OnDrawGizmos(): void {}
-
-  /** 引擎入口：绘制自身 + 所有启用 Component 的 Gizmos */
-  drawGizmos(): void {
-    this.OnDrawGizmos()
-    for (const c of this.components) {
-      if (c.bEnabled) c.OnDrawGizmos()
-    }
-  }
-
   /** 销毁前调用 */
-  EndPlay(): void {
-    for (let i = this.components.length - 1; i >= 0; i--) {
-      this.components[i].EndPlay()
-    }
+  override EndPlay(): void {
+    super.EndPlay()
     // 递归销毁子 Actor
     for (const child of [...this.children]) {
       child.destroy()
-    }
-    this.bHasBegunPlay = false
-  }
-
-  /** 销毁自己，由 World 实际清理 */
-  destroy() {
-    if (this.bPendingDestroy) return
-    this.bPendingDestroy = true
-    if (this.world) {
-      this.world.DestroyActor(this)
     }
   }
 
@@ -175,39 +130,6 @@ export abstract class Actor {
     const v = new THREE.Vector3()
     this.root.getWorldPosition(v)
     return v
-  }
-
-  // ═══════════════════════════════════
-  //  Component 管理
-  // ═══════════════════════════════════
-
-  addComponent<T extends Component>(component: T): T {
-    this.components.push(component)
-    if (this.bHasBegunPlay && component.bEnabled) {
-      component.BeginPlay()
-    }
-    return component
-  }
-
-  /** 移除组件（若已 BeginPlay 则先 EndPlay） */
-  removeComponent(component: Component): void {
-    const idx = this.components.indexOf(component)
-    if (idx < 0) return
-    this.components.splice(idx, 1)
-    if (this.bHasBegunPlay) component.EndPlay()
-  }
-
-  getComponents<T extends Component>(type: new (...args: any[]) => T): T[] {
-    return this.components.filter((c) => c instanceof type) as T[]
-  }
-
-  getComponent<T extends Component>(type: new (...args: any[]) => T): T | null {
-    return this.components.find((c) => c instanceof type) as T ?? null
-  }
-
-  /** 获取该 Actor 挂载的全部组件实例（Inspector/持久化遍历用） */
-  getAllComponents(): Component[] {
-    return [...this.components]
   }
 
   // ═══════════════════════════════════
@@ -297,10 +219,10 @@ export abstract class Actor {
   //  序列化（为未来场景保存预留；当前存档系统不遍历调用）
   // ═══════════════════════════════════
 
-  /** 序列化：默认仅 name + transform，子类 override 追加自定义数据 */
-  serialize(): Record<string, unknown> {
+  /** 序列化：name + transform，子类 override 追加自定义数据 */
+  override serialize(): Record<string, unknown> {
     return {
-      name: this.name,
+      ...super.serialize(),
       position: [this.position.x, this.position.y, this.position.z],
       rotation: [this.rotation.x, this.rotation.y, this.rotation.z],
       scale: [this.scale.x, this.scale.y, this.scale.z],
@@ -308,7 +230,8 @@ export abstract class Actor {
   }
 
   /** 反序列化：默认仅恢复 transform（name 在构造时确定） */
-  deserialize(data: Record<string, unknown>): void {
+  override deserialize(data: Record<string, unknown>): void {
+    super.deserialize(data)
     const pos = data.position as [number, number, number] | undefined
     if (pos) this.setPosition(pos[0], pos[1], pos[2])
     const rot = data.rotation as [number, number, number] | undefined
