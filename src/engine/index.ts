@@ -35,8 +35,8 @@ export { loadTexture, clearTextureCache } from './scene/TextureLoader'
 export { PlayerCameraManager } from './rendering/PlayerCameraManager'
 export { InputComponent } from './input/InputComponent'
 export type { InputEventType } from './input/InputComponent'
-export type { SkyboxConfig } from './scene/SceneAsset'
-export { loadScene } from './scene/SceneLoader'
+export type { SkyboxConfig } from './asset/SceneAsset'
+export { loadScene } from './asset/SceneLoader'
 
 // AI 事件模块（AI 经 MCP 控制游戏场景的事件总线）
 export { AIModule, registerBuiltinAIHandlers } from './ai'
@@ -64,23 +64,23 @@ export type {
   AIShowMessagePayload,
   AIGameStateSnapshot,
 } from './ai'
-export type { SceneGroup } from './scene/SceneLoader'
-export type { SceneAsset, SceneNode, SpriteNode, MaterialProps } from './scene/SceneAsset'
+export type { SceneGroup } from './asset/SceneLoader'
+export type { SceneAsset, SceneNode, SpriteNode, MaterialProps } from './asset/SceneAsset'
 export { GameFactoryRegistry } from './tools/GameFactoryRegistry'
 export type { GameInstanceFactory } from './tools/GameFactoryRegistry'
 export { GameModeRegistry } from './tools/GameModeRegistry'
-export { AssetRegistry } from './tools/AssetRegistry'
+export { AssetRegistry } from './asset/AssetRegistry'
 export { ComponentRegistry } from './tools/ComponentRegistry'
 export type { ComponentFactory, ComponentConfigurator } from './tools/ComponentRegistry'
 export { ActorRegistry } from './tools/ActorRegistry'
 export type { ActorFactory } from './tools/ActorRegistry'
-export { BlueprintRegistry } from './blueprint/BlueprintRegistry'
+export { BlueprintRegistry } from './asset/BlueprintRegistry'
 export type {
   BlueprintAsset,
   BlueprintComponentDef,
   BlueprintChildDef,
   ResolvedBlueprint,
-} from './blueprint/BlueprintAsset'
+} from './asset/BlueprintAsset'
 export { registerBuiltinComponents } from './tools/registerBuiltinComponents'
 export { registerBuiltinActors } from './tools/registerBuiltinActors'
 export { GenericActor } from './entity/GenericActor'

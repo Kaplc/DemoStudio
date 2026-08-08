@@ -24,12 +24,12 @@ import { GenericActor } from '../entity/GenericActor'
 import { ensureUITransformComponent } from './UITransformComponent'
 import { HUD } from './HUD'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
-import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
+import { BlueprintRegistry } from '../asset/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
 import { logger } from '../Logger'
 import type { World } from '../gameflow/World'
-import type { ResolvedChildDef } from '../blueprint/BlueprintAsset'
+import type { ResolvedChildDef } from '../asset/BlueprintAsset'
 
 /**
  * 严格模式校验子节点 transform 数据（组件优先）：

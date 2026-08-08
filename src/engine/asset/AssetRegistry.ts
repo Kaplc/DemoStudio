@@ -18,9 +18,9 @@
  *
  * 然后即可通过 World.SwitchToScene('FishMenu') 按场景名称切换。
  */
-import type { SceneAsset } from '../scene/SceneAsset'
-import type { BlueprintAsset } from '../blueprint/BlueprintAsset'
-import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
+import type { SceneAsset } from './SceneAsset'
+import type { BlueprintAsset } from './BlueprintAsset'
+import { BlueprintRegistry } from './BlueprintRegistry'
 import { ScriptRegistry, type ScriptModules } from '../script/ScriptRegistry'
 import { logger } from '../Logger'
 

@@ -136,7 +136,7 @@ function renderActorTreeNodes(
             if (isSelected) mgr?.selectActor(null)
             else mgr?.selectActor(node.actor)
           } else {
-            const mgr = AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(assetPath)
+            const mgr = AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(assetPath)
             // 单击：仅选中，不聚焦摄像机
             if (isSelected) mgr?.selectActor(null)
             else mgr?.selectActor(node.actor)
@@ -148,7 +148,7 @@ function renderActorTreeNodes(
           if (kind === 'blueprint') {
             AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)?.focusActor(node.actor)
           } else {
-            AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(assetPath)?.focusActor(node.actor)
+            AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(assetPath)?.focusActor(node.actor)
           }
         }}
         onMouseEnter={(e) => {
@@ -251,7 +251,7 @@ export function Outline() {
   const spTree = useMemo(() => {
     // if (!spAssetPath) { logger.debug(`[OutlinerTrace] spTree: spAssetPath=null`); return null }
     if (!spAssetPath) return null
-    const spMgr = AssetPreviewManager.get<import('../editor/ScenePreviewManager').ScenePreviewManager>(spAssetPath)
+    const spMgr = AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(spAssetPath)
     // if (!spMgr) { logger.debug(`[OutlinerTrace] spTree: spMgr=null for ${spAssetPath}`); return null }
     if (!spMgr) return null
     // if (spMgr.currentScenePath == null) { logger.debug(`[OutlinerTrace] spTree: currentScenePath=null, actorCount=${spMgr.world.actorCount}`); return null }

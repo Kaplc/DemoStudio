@@ -11,14 +11,14 @@ import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
 import { UIManager } from '../ui/UIManager'
 import { MeshComponent } from '../rendering/MeshComponent'
-import { loadScene } from '../scene/SceneLoader'
+import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
-import { BlueprintRegistry } from '../blueprint/BlueprintRegistry'
-import { AssetRegistry } from '../tools/AssetRegistry'
+import { BlueprintRegistry } from '../asset/BlueprintRegistry'
+import { AssetRegistry } from '../asset/AssetRegistry'
 import type { PropertyPatch } from '../tools/deepMerge'
-import type { SceneAsset } from '../scene/SceneAsset'
+import type { SceneAsset } from '../asset/SceneAsset'
 import type { Pawn } from '../entity/Pawn'
 import type { PlayerController } from '../input/PlayerController'
 
@@ -675,7 +675,7 @@ export class World {
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
    * 供外部调用（ScenePreviewManager 等）。
    */
-  spawnInlineActor(node: import('../scene/SceneAsset').ActorNode): Actor | null {
+  spawnInlineActor(node: import('../asset/SceneAsset').ActorNode): Actor | null {
     const actor = ActorRegistry.create(node.baseClass)
     if (!actor) {
       logger.warn(`[World] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
@@ -720,7 +720,7 @@ export class World {
 
   /** 递归 spawn 内联 ActorNode 的子节点 */
   private spawnInlineChildren(
-    children: import('../blueprint/BlueprintAsset').BlueprintChildDef[],
+    children: import('../asset/BlueprintAsset').BlueprintChildDef[],
     parentActor: Actor,
   ): void {
     for (const child of children) {
