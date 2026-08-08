@@ -59,6 +59,11 @@ class PhySysImpl {
     this._ready = true
   }
 
+  /** 当前视口 DOM 元素（屏幕坐标 → 世界坐标换算容器，供外部获取视口尺寸/边界） */
+  get viewportElement(): HTMLElement | null {
+    return this._uiEl
+  }
+
   /** 设置 UI 独立叠加相机（由 Game 启动时传入 GameSceneManager.uiCamera） */
   setupUI(camera: THREE.Camera | null): void {
     this._uiCamera = camera

@@ -24,6 +24,8 @@ export class BaseCameraActor extends CameraActor {
   maxDistance = 50
   /** 每次滚动的步长（世界单位） */
   step = 3
+  /** 平移边界：target 可移动的世界范围（x/z 各 ±panLimit） */
+  panLimit = 20
 
   constructor() {
     // 透视相机：俯瞰基地（FishGameInstance.setupBasePhase 会再设位置 12,16,18）
@@ -33,6 +35,28 @@ export class BaseCameraActor extends CameraActor {
     this.cameraComponent.far = 200
     this.cameraComponent.priority = 10
     this.cameraComponent.SetView(35, 0.1, 200)
+  }
+
+  /**
+   * 平移：沿水平方向移动注视目标与相机（保持相对方向/距离不变）。
+   * target 被限制在 [−panLimit, panLimit] 范围内，避免移出基地。
+   * 平移后写回 Actor root，避免每帧 SyncFromActor 把相机位置覆盖回去。
+   * @param dx 世界 X 方向位移（单位：世界单位）
+   * @param dz 世界 Z 方向位移
+   */
+  pan(dx: number, dz: number): void {
+    const cam = this.camera
+    if (!cam || (dx === 0 && dz === 0)) return
+    // 相机相对目标的偏移（保持方向与距离不变）
+    const offset = cam.position.clone().sub(this.target)
+    // 平移注视目标（限制边界）
+    this.target.x = THREE.MathUtils.clamp(this.target.x + dx, -this.panLimit, this.panLimit)
+    this.target.z = THREE.MathUtils.clamp(this.target.z + dz, -this.panLimit, this.panLimit)
+    // 相机跟着目标平移（偏移量不变）
+    cam.position.copy(this.target).add(offset)
+    cam.lookAt(this.target)
+    // 写回 Actor root，否则每帧 SyncFromActor 会把相机位置覆盖回去
+    this.SyncToActor()
   }
 
   /**

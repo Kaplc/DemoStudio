@@ -19,8 +19,19 @@ import { ClashBuildingActor, CLASH_BUILDING_TYPES, type ClashBuildingType } from
 /** 部落冲突地图半边长（格数），地图为 GRID_HALF*2 x GRID_HALF*2 格，每格 1 单位 */
 const GRID_HALF = 5
 
+/** 屏幕边缘触发平移的宽度（像素） */
+const EDGE_PAN_SIZE = 40
+/** 边缘平移最大速度（世界单位/秒，贴边时达到） */
+const EDGE_PAN_SPEED = 10
+
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+/** 边缘平移复用的临时向量 */
+const _tmpForward = new THREE.Vector3()
+const _tmpRight = new THREE.Vector3()
+const _tmpTop = new THREE.Vector3()
+
+const _mouseScreen = { x: -1, y: -1 }
 
 export class FishBaseGameMode extends GameMode {
   /** 基地摄像机 Actor（继承 CameraActor，内置滚轮缩放；游戏实例持有，渲染器通过委托获取） */
@@ -49,6 +60,11 @@ export class FishBaseGameMode extends GameMode {
   private selectedBuilding: ClashBuildingActor | null = null
   /** 放置模式跟随鼠标的半透明预览 */
   private previewMesh: THREE.Mesh | null = null
+  /** 最近鼠标屏幕坐标（client 坐标，由 controller 转发更新；-1 = 未记录） */
+  private mouseX = -1
+  private mouseY = -1
+  /** 边缘平移是否可用（相机存在） */
+  private edgePanEnabled = true
 
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
@@ -82,6 +98,62 @@ export class FishBaseGameMode extends GameMode {
 
   override Tick(dt: number) {
     super.Tick(dt)
+    // 屏幕边缘平移：鼠标贴近视口边缘时持续平移基地相机
+    this.updateEdgePan(dt)
+  }
+
+  /** 记录最近鼠标屏幕坐标（由 FishBasePlayerController 转发） */
+  setMouseScreen(sx: number, sy: number): void {
+    this.mouseX = sx
+    this.mouseY = sy
+  }
+
+  /**
+   * 屏幕边缘平移：鼠标位于视口边缘 EDGE_PAN_SIZE 像素内时，
+   * 按贴近程度（0→1）以 EDGE_PAN_SPEED 速度平移基地相机（部落冲突风格边缘滚动）。
+   * 方向：鼠标靠右 → 画面右移；靠上 → 画面顶部方向（水平面）移动。
+   */
+  private updateEdgePan(dt: number): void {
+    if (!this.edgePanEnabled || this.mouseX < 0 || this.mouseY < 0) return
+    const cam = this.baseCamera.camera
+    if (!cam) return
+    const el = PhySys.viewportElement
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return
+
+    // 鼠标在视口内的相对坐标
+    const x = this.mouseX - rect.left
+    const y = this.mouseY - rect.top
+    // 各方向边缘强度：0（内缘）→ 1（贴边）
+    const left = x < EDGE_PAN_SIZE ? (EDGE_PAN_SIZE - x) / EDGE_PAN_SIZE : 0
+    const right = x > rect.width - EDGE_PAN_SIZE ? (x - (rect.width - EDGE_PAN_SIZE)) / EDGE_PAN_SIZE : 0
+    const top = y < EDGE_PAN_SIZE ? (EDGE_PAN_SIZE - y) / EDGE_PAN_SIZE : 0
+    const bottom = y > rect.height - EDGE_PAN_SIZE ? (y - (rect.height - EDGE_PAN_SIZE)) / EDGE_PAN_SIZE : 0
+    const ix = right - left
+    const iy = top - bottom
+    if (Math.abs(ix) < 1e-3 && Math.abs(iy) < 1e-3) return
+
+    // 屏幕方向 → 世界水平方向：
+    // 右 = 相机局部 +X 投影到水平面；上（画面顶部）= 相机视线方向投影到水平面
+    // （俯瞰相机看向地图中心，屏幕顶部对应视线方向的水平投影，取反会导致上下颠倒）
+    _tmpRight.set(1, 0, 0).applyQuaternion(cam.quaternion)
+    _tmpRight.y = 0
+    _tmpRight.normalize()
+    cam.getWorldDirection(_tmpForward)
+    _tmpTop.set(_tmpForward.x, 0, _tmpForward.z)
+    _tmpTop.normalize()
+    _tmpRight.multiplyScalar(ix)
+    _tmpTop.multiplyScalar(iy)
+    const vx = _tmpRight.x + _tmpTop.x
+    const vz = _tmpRight.z + _tmpTop.z
+    if (Math.abs(vx) < 1e-6 && Math.abs(vz) < 1e-6) return
+
+    // 速度 = 最大边缘强度 × 最大速度（斜向时取 max，避免归一化后变慢）
+    const intensity = Math.max(Math.abs(ix), Math.abs(iy))
+    const len = Math.hypot(vx, vz)
+    const speed = EDGE_PAN_SPEED * intensity * dt
+    this.baseCamera.pan((vx / len) * speed, (vz / len) * speed)
   }
 
   override SpawnPlayer() {

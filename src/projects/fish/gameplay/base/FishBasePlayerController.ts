@@ -24,6 +24,8 @@ export class FishBasePlayerController extends PlayerController {
   }
 
   override OnPointerMoveScreen(screenX: number, screenY: number): void {
+    // 记录鼠标位置供基地 GameMode 做屏幕边缘平移
+    this.gameMode?.setMouseScreen(screenX, screenY)
     this.gameMode?.onScreenMove(screenX, screenY)
   }
 
