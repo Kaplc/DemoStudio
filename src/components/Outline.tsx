@@ -4,7 +4,7 @@ import {
   getSharedScene, getSceneTree, focusOn,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
-import { AssetPreviewManager } from '../editor/AssetPreviewManager'
+import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
 import { logger } from '../engine'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
@@ -131,12 +131,12 @@ function renderActorTreeNodes(
         onClick={() => {
           if (!node.actor || !assetPath) return
           if (kind === 'blueprint') {
-            const mgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)
+            const mgr = AssetPreviewManager.get<import('../editor/asset/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/asset/UIPreviewManager').UIPreviewManager>(assetPath)
             // 单击：仅选中（显示 gizmos + 包围盒），不聚焦摄像机
             if (isSelected) mgr?.selectActor(null)
             else mgr?.selectActor(node.actor)
           } else {
-            const mgr = AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(assetPath)
+            const mgr = AssetPreviewManager.get<import('../editor/asset/ScenePreviewManager').ScenePreviewManager>(assetPath)
             // 单击：仅选中，不聚焦摄像机
             if (isSelected) mgr?.selectActor(null)
             else mgr?.selectActor(node.actor)
@@ -146,9 +146,9 @@ function renderActorTreeNodes(
           if (!node.actor || !assetPath) return
           // 双击：聚焦摄像机到节点
           if (kind === 'blueprint') {
-            AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(assetPath)?.focusActor(node.actor)
+            AssetPreviewManager.get<import('../editor/asset/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/asset/UIPreviewManager').UIPreviewManager>(assetPath)?.focusActor(node.actor)
           } else {
-            AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(assetPath)?.focusActor(node.actor)
+            AssetPreviewManager.get<import('../editor/asset/ScenePreviewManager').ScenePreviewManager>(assetPath)?.focusActor(node.actor)
           }
         }}
         onMouseEnter={(e) => {
@@ -241,7 +241,7 @@ export function Outline() {
   const bpAssetPath = isBlueprintTab ? currentTab?.assetPath : null
   const bpTree = useMemo(() => {
     if (!bpAssetPath) return null
-    const bpMgr = AssetPreviewManager.get<import('../editor/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/UIPreviewManager').UIPreviewManager>(bpAssetPath)
+    const bpMgr = AssetPreviewManager.get<import('../editor/asset/BlueprintPreviewManager').BlueprintPreviewManager | import('../editor/asset/UIPreviewManager').UIPreviewManager>(bpAssetPath)
     if (!bpMgr || bpMgr.currentBlueprintId == null) return null
     return bpMgr.getActorTree()
   }, [bpAssetPath, selectionKey, blueprintEditNonce])
@@ -251,7 +251,7 @@ export function Outline() {
   const spTree = useMemo(() => {
     // if (!spAssetPath) { logger.debug(`[OutlinerTrace] spTree: spAssetPath=null`); return null }
     if (!spAssetPath) return null
-    const spMgr = AssetPreviewManager.get<import('../editor/SceneViewport').ScenePreviewManager>(spAssetPath)
+    const spMgr = AssetPreviewManager.get<import('../editor/asset/ScenePreviewManager').ScenePreviewManager>(spAssetPath)
     // if (!spMgr) { logger.debug(`[OutlinerTrace] spTree: spMgr=null for ${spAssetPath}`); return null }
     if (!spMgr) return null
     // if (spMgr.currentScenePath == null) { logger.debug(`[OutlinerTrace] spTree: currentScenePath=null, actorCount=${spMgr.world.actorCount}`); return null }

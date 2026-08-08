@@ -4,8 +4,9 @@
  * 根据 activeTab 判断当前视口，委托给 SceneViewport 或 GameViewport 处理。
  */
 import * as THREE from 'three'
-import { PreviewSceneManager, GameSceneManager } from '../engine'
+import { GameSceneManager } from '../engine'
 import type { Game } from '../engine'
+import type { PreviewSceneManager } from './SceneViewport'
 import { handleSceneKeyDown, handleSceneKeyUp } from './SceneViewport'
 import {
   handleGameKeyDown,

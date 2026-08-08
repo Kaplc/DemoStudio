@@ -8,7 +8,7 @@
  *
  * 两者都按扩展名过滤只收 *.scene.json / *.blueprint.json。
  */
-import { AssetRegistry, BlueprintRegistry } from '../../engine'
+import { AssetRegistry, BlueprintRegistry } from '../../../engine'
 import type { AssetFile } from './types'
 
 export interface AssetSource {

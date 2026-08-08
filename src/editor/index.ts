@@ -20,10 +20,10 @@
  * - AssetLintEngine  可扩展 JSON 资产格式检查器（插件式 schema 校验 + 定时扫描）
  */
 
-export { BlueprintPreviewManager } from './BlueprintPreviewManager'
-export { UIPreviewManager } from './UIPreviewManager'
-export { ScenePreviewManager } from './ScenePreviewManager'
-export { AssetPreviewManager } from './AssetPreviewManager'
+export { BlueprintPreviewManager } from './asset/BlueprintPreviewManager'
+export { UIPreviewManager } from './asset/UIPreviewManager'
+export { ScenePreviewManager } from './asset/ScenePreviewManager'
+export { AssetPreviewManager } from './asset/AssetPreviewManager'
 
 export { Editor } from './Editor'
 export type { EditorCallbacks } from './Editor'
@@ -68,7 +68,8 @@ export type { FpsCallback } from './FpsTracker'
 export { setupScene } from './SceneSetup'
 export type { SceneSetupResult, SceneSetupCallbacks } from './SceneSetup'
 
-export { createSceneViewport, handleSceneKeyDown, handleSceneKeyUp } from './SceneViewport'
+export { createSceneViewport, handleSceneKeyDown, handleSceneKeyUp, PreviewSceneManager } from './SceneViewport'
+export type { PreviewSceneManagerOptions, ControlMode, CameraMode } from './SceneViewport'
 export {
   createGameViewport,
   handleGameKeyDown,
@@ -93,7 +94,7 @@ export type { InputRouterContext } from './InputRouter'
 export { LogPoller } from './LogPoller'
 export type { LogContentCallback } from './LogPoller'
 
-export { assetLintEngine } from './assetLint/AssetLintEngine'
+export { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 
 export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'

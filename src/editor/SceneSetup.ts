@@ -7,7 +7,6 @@
 import * as THREE from 'three'
 import {
   GameSceneManager,
-  PreviewSceneManager,
   logger,
   Game,
   NullGameInstance,
@@ -16,6 +15,7 @@ import {
 import { addDefaultContent } from './index'
 import { getTransformGizmo } from './SelectionManager'
 import { createSceneViewport } from './SceneViewport'
+import type { PreviewSceneManager } from './SceneViewport'
 import { createGameViewport } from './GameViewport'
 
 export interface SceneSetupResult {

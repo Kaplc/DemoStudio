@@ -23,7 +23,7 @@ export function getTransformGizmo(): TransformGizmo {
 // ─── sharedScene 引用（Viewport 初始化时设置）───
 
 let _sharedScene: THREE.Scene | null = null
-let _sceneMgr: import('../engine').PreviewSceneManager | null = null
+let _sceneMgr: import('./SceneViewport').PreviewSceneManager | null = null
 
 /** 设置共享场景引用（由 Viewport 在 setupScene 后调用） */
 export function setSharedScene(scene: THREE.Scene | null): void {
@@ -34,12 +34,12 @@ export function setSharedScene(scene: THREE.Scene | null): void {
 }
 
 /** 设置 Scene 视口的 PreviewSceneManager（由 Viewport 在 setupScene 后调用） */
-export function setSceneMgr(mgr: import('../engine').PreviewSceneManager | null): void {
+export function setSceneMgr(mgr: import('./SceneViewport').PreviewSceneManager | null): void {
   _sceneMgr = mgr
 }
 
 /** 获取 Scene 视口的 PreviewSceneManager */
-export function getSceneMgr(): import('../engine').PreviewSceneManager | null {
+export function getSceneMgr(): import('./SceneViewport').PreviewSceneManager | null {
   return _sceneMgr
 }
 

@@ -11,8 +11,8 @@ import { useSaveStore } from '../stores/saveStore'
 import { registerAllProjects, registerGlobalEventListeners, installEventBridge } from './index'
 import { FpsTracker } from './FpsTracker'
 import { LogPoller } from './LogPoller'
-import { assetLintEngine } from './assetLint/AssetLintEngine'
-import './assetLint/checkers' // side-effect：注册所有内置资产检查器
+import { assetLintEngine } from './asset/assetLint/AssetLintEngine'
+import './asset/assetLint/checkers' // side-effect：注册所有内置资产检查器
 
 export interface EditorCallbacks {
   addConsoleOutput: (text: string) => void

@@ -1,7 +1,6 @@
-export { PreviewSceneManager } from './scene/PreviewSceneManager'
 export { GameSceneManager } from './scene/GameSceneManager'
 export { Compositor2D } from './scene/Compositor2D'
-export type { PreviewSceneManagerOptions, ControlMode } from './scene/PreviewSceneManager'
+export type { SceneRenderHost } from './scene/SceneRenderHost'
 export { logger, Logger } from './Logger'
 export type { LogLevel } from './Logger'
 

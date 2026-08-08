@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { PreviewSceneManager, GameSceneManager, logger, Game, World, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
+import { GameSceneManager, logger, Game, World, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
+import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'

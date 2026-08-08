@@ -13,7 +13,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { AIModule } from '../engine/ai'
 import { Actor } from '../engine/entity/Actor'
-import { AssetPreviewManager } from './AssetPreviewManager'
+import { AssetPreviewManager } from './asset/AssetPreviewManager'
 import { getSceneTree, select, notifySelectionChange } from './SelectionManager'
 import { logger } from '../engine/Logger'
 

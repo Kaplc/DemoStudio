@@ -2,7 +2,7 @@
  * SceneRenderHost — Scene 视口渲染宿主接口
  *
  * 引擎侧只依赖此接口（不依赖具体实现类）：
- * 编辑器层实现（PreviewSceneManager）提供 rAF 渲染循环，引擎通过
+ * 编辑器层实现（editor/SceneViewport.ts 的 PreviewSceneManager）提供 rAF 渲染循环，引擎通过
  * onUpdate / onAfterRender 挂接游戏 Tick 与叠加渲染。
  *
  * 让引擎 gameflow 可以持有"渲染宿主"而不反向依赖编辑器。

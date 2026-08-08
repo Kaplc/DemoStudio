@@ -12,8 +12,8 @@
  *
  * 违规经 logger.warn/error 输出（自动写日志文件 + 控制台面板），带 [AssetLint] 前缀与节点定位。
  */
-import { logger } from '../../engine/Logger'
-import { useEditorStore } from '../../stores/editorStore'
+import { logger } from '../../../engine/Logger'
+import { useEditorStore } from '../../../stores/editorStore'
 import { createAssetSource, type AssetSource } from './AssetSource'
 import { walkDocument } from './AssetWalker'
 import { getChecker } from './AssetCheckerRegistry'

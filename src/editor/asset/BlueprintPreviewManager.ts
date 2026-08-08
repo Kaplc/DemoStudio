@@ -10,17 +10,17 @@
  *  - 支持从 Outline 选中聚焦 + 坐标轴 Gizmo
  */
 import * as THREE from 'three'
-import { World } from '../engine'
-import { logger } from '../engine'
-import { BlueprintRegistry } from '../engine'
-import { GenericActor, LightComponent } from '../engine'
-import type { LightComponentOptions } from '../engine'
-import { Actor } from '../engine/entity/Actor'
-import { TransformComponent } from '../engine/entity/TransformComponent'
-import { select, notifySelectionChange } from './SelectionManager'
-import { TransformGizmo } from './TransformGizmo'
+import { World } from '../../engine'
+import { logger } from '../../engine'
+import { BlueprintRegistry } from '../../engine'
+import { GenericActor, LightComponent } from '../../engine'
+import type { LightComponentOptions } from '../../engine'
+import type { Actor } from '../../engine/entity/Actor'
+import { TransformComponent } from '../../engine/entity/TransformComponent'
+import { select, notifySelectionChange } from '../SelectionManager'
+import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
-import type { SceneTreeNode } from './SelectionManager'
+import type { SceneTreeNode } from '../SelectionManager'
 
 export class BlueprintPreviewManager {
   readonly scene: THREE.Scene

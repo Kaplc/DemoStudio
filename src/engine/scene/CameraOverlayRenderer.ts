@@ -19,7 +19,7 @@
  *   overlay.dispose()
  */
 import * as THREE from 'three'
-import type { PreviewSceneManager } from './PreviewSceneManager'
+import type { SceneRenderHost } from './SceneRenderHost'
 
 export type OverlayMode = 'pip' | 'split' | 'full'
 export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
@@ -44,7 +44,7 @@ export interface CameraOverlayOptions {
 }
 
 export class CameraOverlayRenderer {
-  private sceneMgr: PreviewSceneManager
+  private sceneMgr: SceneRenderHost
   private scene: THREE.Scene
   private camera: THREE.Camera
   private options: Required<CameraOverlayOptions>
@@ -52,7 +52,7 @@ export class CameraOverlayRenderer {
   private _enabled = true
 
   constructor(
-    sceneMgr: PreviewSceneManager,
+    sceneMgr: SceneRenderHost,
     scene: THREE.Scene,
     camera: THREE.Camera,
     options: CameraOverlayOptions = {},

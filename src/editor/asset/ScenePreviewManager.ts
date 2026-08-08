@@ -12,15 +12,15 @@
  *  - 自动清理（dispose）
  */
 import * as THREE from 'three'
-import { World } from '../engine'
-import { logger } from '../engine'
-import { loadScene } from '../engine'
-import { GenericActor, MeshComponent, Actor } from '../engine'
-import { LightComponent } from '../engine'
-import type { LightComponentOptions } from '../engine'
-import type { SceneAsset } from '../engine'
-import { select, notifySelectionChange } from './SelectionManager'
-import { TransformGizmo } from './TransformGizmo'
+import { World } from '../../engine'
+import { logger } from '../../engine'
+import { loadScene } from '../../engine'
+import { GenericActor, MeshComponent, Actor } from '../../engine'
+import { LightComponent } from '../../engine'
+import type { LightComponentOptions } from '../../engine'
+import type { SceneAsset } from '../../engine'
+import { select, notifySelectionChange } from '../SelectionManager'
+import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 
 export class ScenePreviewManager {

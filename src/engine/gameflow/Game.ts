@@ -9,7 +9,8 @@
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  */
-import { PreviewSceneManager, GameSceneManager, logger, PhySys } from '..'
+import { GameSceneManager, logger, PhySys } from '..'
+import type { SceneRenderHost } from '../scene/SceneRenderHost'
 import { GameInstance } from './GameInstance'
 import { GameUI } from '../ui/GameUI'
 import { AIModule } from '../ai/AIModule'
@@ -19,13 +20,13 @@ export class Game {
   private _instance: GameInstance
   readonly ui: GameUI
 
-  private sceneMgr: PreviewSceneManager | null = null
+  private sceneMgr: SceneRenderHost | null = null
   private gameMgr: GameSceneManager | null = null
   private removeTick: (() => void) | null = null
   /** 防止 shutdown 被重复调用（effect cleanup 和切换工程可能同时触发） */
   private _shutdown = true
 
-  constructor(instance: GameInstance, sceneMgr?: PreviewSceneManager | null, gameMgr?: GameSceneManager | null) {
+  constructor(instance: GameInstance, sceneMgr?: SceneRenderHost | null, gameMgr?: GameSceneManager | null) {
     this._instance = instance
     this.ui = new GameUI()
     this.sceneMgr = sceneMgr ?? null
@@ -45,7 +46,7 @@ export class Game {
   }
 
   /** 关联渲染器（可在构造后设置） */
-  setRenderers(sceneMgr: PreviewSceneManager, gameMgr: GameSceneManager) {
+  setRenderers(sceneMgr: SceneRenderHost, gameMgr: GameSceneManager) {
     this.sceneMgr = sceneMgr
     this.gameMgr = gameMgr
   }

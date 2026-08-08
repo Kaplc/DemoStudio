@@ -1,7 +1,7 @@
 /**
  * GameSceneManager — 游戏视口专用渲染器
  *
- * 与 PreviewSceneManager 完全独立的实现，专用于 Game 视口。
+ * 与编辑器层 Scene 视口渲染器（PreviewSceneManager）完全独立的实现，专用于 Game 视口。
  * 职责：
  *  - 管理 WebGL 渲染器、共享场景、摄像机
  *  - orbit 摄像机控制
@@ -13,7 +13,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
 import type { GameUI } from '../ui/GameUI'
-import type { CameraMode } from './PreviewSceneManager'
+import type { CameraMode } from '../rendering/CameraComponent'
 
 // clientToWorld 复用临时对象
 const _raycaster = new THREE.Raycaster()
