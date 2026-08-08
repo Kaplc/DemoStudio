@@ -6,5 +6,5 @@ import { Demo2DGameInstance } from './Demo2DGameInstance'
 
 export const demo2DProject: ProjectModule = {
   name: 'Demo2D',
-  createGameInstance: (scene) => new Demo2DGameInstance(scene),
+  createGameInstance: (scene, renderContainer) => new Demo2DGameInstance(scene, renderContainer),
 }

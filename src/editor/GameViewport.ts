@@ -2,33 +2,16 @@
  * GameViewport — Game 视口专用逻辑
  *
  * 职责：
- *  - 创建并初始化 GameSceneManager
  *  - Game 视口键盘输入路由（→ PlayerController）
  *  - Game 视口鼠标输入路由（→ InputSys / PlayerController）
  *  - 坐标转换
+ *
+ * 注：GameSceneManager（渲染器）由 Game 启动时从 instance.renderContainer
+ * 取 DOM 创建并交给 World 持有，本文件不再负责创建。
  */
 import * as THREE from 'three'
 import { GameSceneManager, logger } from '../engine'
 import type { Game } from '../engine'
-
-// ════════════════════════════════════════════
-//   Game 视口初始化
-// ════════════════════════════════════════════
-
-/**
- * 创建 Game 视口的 GameSceneManager
- * @param containerEl  DOM 容器
- * @param sharedScene  共享 THREE.Scene
- */
-export function createGameViewport(
-  containerEl: HTMLElement,
-  sharedScene?: THREE.Scene,
-): GameSceneManager {
-  const mgr = new GameSceneManager(containerEl, {
-    sharedScene,
-  })
-  return mgr
-}
 
 // ════════════════════════════════════════════
 //   Game 视口键盘输入

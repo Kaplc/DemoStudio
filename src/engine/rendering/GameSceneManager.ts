@@ -6,14 +6,15 @@
  *  - 管理 WebGL 渲染器、共享场景、摄像机
  *  - orbit 摄像机控制
  *  - 强制画面比例 letterbox
- *  - UI 覆盖层宿主
- *  - 挂载 GameUI
+ *  - UI 覆盖层宿主（挂载 GameUI 已废弃：UI 渲染统一走 UI 摄像机叠加）
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
-import type { GameUI } from '../ui/GameUI'
-import type { CameraMode } from '../rendering/CameraComponent'
+import { AObjectComponent } from '../entity/AObjectComponent'
+import { GameInstance } from '../gameflow/GameInstance'
+import type { World } from '../gameflow/World'
+import type { CameraMode } from './CameraComponent'
 
 // clientToWorld 复用临时对象
 const _raycaster = new THREE.Raycaster()
@@ -35,7 +36,7 @@ export interface GameSceneManagerOptions {
   sharedScene?: THREE.Scene
 }
 
-export class GameSceneManager {
+export class GameSceneManager extends AObjectComponent<World> {
   public scene: THREE.Scene
   /** 当前渲染相机（由 cameraProvider 委托每帧获取；null = 不渲染 3D 主场景） */
   public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null = null
@@ -115,7 +116,17 @@ export class GameSceneManager {
     this.resize()
   }
 
-  constructor(container: HTMLElement, options: GameSceneManagerOptions = {}) {
+  /**
+   * 创建游戏视口渲染器组件。
+   * DOM 容器自行从当前活跃实例获取（GameInstance.current.renderContainer）。
+   * 由 World.ensureGameRenderer 负责创建并挂载到 World；调用方须保证已有活跃实例且带渲染容器。
+   */
+  constructor(owner: World, options: GameSceneManagerOptions = {}) {
+    super(owner)
+    const container = GameInstance.current?.renderContainer
+    if (!container) {
+      throw new Error('[GameSceneManager] 无当前 GameInstance 或 renderContainer，无法创建渲染器（请先 Game.createInstance）')
+    }
     this.container = container
     this.cameraMode = options.cameraMode ?? 'perspective'
 
@@ -201,12 +212,6 @@ export class GameSceneManager {
   // ════════════════════════════════════════════
   //   Game 视口专用方法
   // ════════════════════════════════════════════
-
-  /** 将 GameUI 根元素挂载到 UI 覆盖层 */
-  mountGameUI(ui: GameUI): void {
-    logger.info(`[GameSceneManager] 挂载 GameUI 容器 (el=${ui.el.className})`)
-    this.uiLayer.appendChild(ui.el)
-  }
 
   /** 启用/禁用 OrbitControls 交互（Game 场景不开放手动控制，暂留空） */
   setControlsEnabled(_enabled: boolean): void {

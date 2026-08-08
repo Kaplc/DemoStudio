@@ -40,8 +40,9 @@ export class FishGameInstance extends GameInstance {
   /** 防止 stop() 被重复调用 */
   private _stopped = false
 
-  constructor(sharedScene: THREE.Scene) {
+  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
     super()
+    this.renderContainer = renderContainer ?? null
     this.world = new World(sharedScene)
     // GameMode 实例由 start() / SwitchToScene 按需创建
   }
@@ -100,8 +101,8 @@ export class FishGameInstance extends GameInstance {
     }
     else logger.error('[Fish] setupMenuPhase: SpawnPlayer 返回空')
 
-    // UI 点击：初始化 PhySys 射线检测（相机 + 屏幕坐标换算容器）
-    if (this.ui?.el) PhySys.setup(mode.gameCamera.camera, this.ui.el)
+    // UI 点击：初始化 PhySys 射线检测（相机 + 屏幕坐标换算容器，用 Game 视口 UI 层 DOM）
+    if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.gameCamera.camera, this.world.gameRenderer.uiLayer)
 
     // 把 HUD 中所有 UIButtonComponent 的点击接到"开始游戏"
     const uiTree = this.world.ui.hud?.uiActor
@@ -131,7 +132,7 @@ export class FishGameInstance extends GameInstance {
     this.world.SpawnActor(mode.baseCamera)
     this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
-    if (this.ui?.el) PhySys.setup(mode.baseCamera.camera, this.ui.el)
+    if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.baseCamera.camera, this.world.gameRenderer.uiLayer)
     const spawn = mode.SpawnPlayer()
     if (spawn) {
       this._controller = spawn.controller

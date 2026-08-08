@@ -7,7 +7,9 @@ import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { ensureTransformForActor } from '../ui/UITransformComponent'
 import { AObject } from '../entity/AObject'
+import { GameSceneManager } from '../rendering/GameSceneManager'
 import { GameMode } from './GameMode'
+import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
 import { UIManager } from '../ui/UIManager'
@@ -52,8 +54,37 @@ export class World extends AObject {
   public readonly scene: THREE.Scene
   public gameMode: GameMode | null = null
 
-  /** UI 统一管理器（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene） */
-  public readonly ui: UIManager
+  /**
+   * UI 统一管理器组件（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene）。
+   * 由 World 构造时创建并挂载。
+   */
+  get ui(): UIManager {
+    return this.getComponent(UIManager)!
+  }
+
+  /**
+   * Game 视口渲染器组件（由 Game 启动时从 instance.renderContainer 取 DOM 创建并挂到 World；
+   * 未启动游戏时为 null）
+   */
+  get gameRenderer(): GameSceneManager | null {
+    return this.getComponent(GameSceneManager) ?? null
+  }
+
+  /**
+   * 确保 Game 视口渲染器组件存在（无则创建并挂载到本 World）。
+   * DOM 容器由组件内部自行从当前活跃实例（GameInstance.current.renderContainer）获取；
+   * 无活跃实例/无渲染容器时返回 null（不创建）。
+   */
+  ensureGameRenderer(): GameSceneManager | null {
+    const existing = this.getComponent(GameSceneManager)
+    if (existing) return existing
+    if (!GameInstance.current?.renderContainer) return null
+    const mgr = new GameSceneManager(this, { sharedScene: this.scene })
+    this.addComponent(mgr)
+    logger.info('[World] GameSceneManager 组件已创建并挂到 World（DOM 来自 GameInstance.current.renderContainer）')
+    return mgr
+  }
+
 
   private allActors = new Set<Actor>()
   private pendingSpawn: Actor[] = []
@@ -69,8 +100,9 @@ export class World extends AObject {
     super()
     this.id = World._nextId++
     this.scene = scene
-    // UI 管理器：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
-    this.ui = new UIManager(this)
+    // UI 管理器组件：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
+    this.addComponent(new UIManager(this))
+    // Game 视口渲染器组件：DOM 保存在 instance.renderContainer，由 Game 启动时取出创建
     if (gameMode) {
       this.SetGameMode(gameMode)
     }
@@ -921,5 +953,7 @@ export class World extends AObject {
     this._tickCallbacks = []
     this._pawnSpawnCallbacks = []
     this.gameMode = null
+    // 清理 Game 视口渲染器（由 World 创建，随 World 销毁）
+    this.gameRenderer?.dispose()
   }
 }

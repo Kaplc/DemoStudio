@@ -7,7 +7,6 @@ import * as THREE from 'three'
 import { PlayerController } from '../input/PlayerController'
 import { InputSys } from '../input/InputSys'
 import { AObject } from '../entity/AObject'
-import type { GameUI } from '../ui/GameUI'
 
 export interface GameInstanceCallbacks {
   onScoreChange?: (score: number) => void
@@ -16,11 +15,27 @@ export interface GameInstanceCallbacks {
 }
 
 export abstract class GameInstance extends AObject {
-  /** GameUI 引用（由 Game 在 launch 时注入） */
-  ui: GameUI | null = null
+  // ─── 单例：当前活跃的游戏实例（由 Game.createInstance 设置、shutdown 清除）───
+  private static _current: GameInstance | null = null
+
+  /** 当前活跃实例（全局唯一；GameSceneManager 等组件自行从此处获取 DOM/实例） */
+  static get current(): GameInstance | null {
+    return GameInstance._current
+  }
+
+  /** 设置/清除当前活跃实例（Game 生命周期管理） */
+  static setCurrent(inst: GameInstance | null): void {
+    GameInstance._current = inst
+  }
 
   /** 输入系统（Viewport → Controller 路由） */
   readonly inputSys = new InputSys()
+
+  /**
+   * Game 视口渲染容器（启动游戏时由 Viewport 传入）。
+   * 传递给 World 用于创建 GameSceneManager（游戏视口渲染器）。
+   */
+  renderContainer: HTMLElement | null = null
 
   /**
    * 初始场景阶段/模式标识，由 Viewport 从 defaultScene 的 SceneAsset.mode 读取并注入。
@@ -47,7 +62,7 @@ export abstract class GameInstance extends AObject {
 
   /**
    * 捕获存档快照（游戏自定义结构）。
-   * 不支持存档的游戏 / NullGameInstance 返回 null（默认实现）。
+   * 不支持存档的游戏返回 null（默认实现）。
    * 注意：绝不包含 THREE.Mesh/Material 等 3D 派生数据，只存逻辑状态。
    */
   captureSnapshot(): unknown {
@@ -80,16 +95,4 @@ export abstract class GameInstance extends AObject {
 
   /** 完全销毁：清理所有资源 */
   abstract destroy(): void
-}
-
-/** 空游戏实例 — 未选择/未注册工程时使用 */
-export class NullGameInstance extends GameInstance {
-  override get controller() { return null }
-  override setCallbacks(_cbs?: GameInstanceCallbacks) {}
-  override start() { return false }
-  override tick() {}
-  override syncCamera() {}
-  override getActiveCamera() { return null }
-  override stop() {}
-  override destroy() {}
 }

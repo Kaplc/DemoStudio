@@ -23,7 +23,7 @@ export class EatFishGameInstance extends GameInstance {
 
   private sharedScene: THREE.Scene
 
-  constructor(sharedScene: THREE.Scene) {
+  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
     super()
     this.sharedScene = sharedScene
     // 设置水下场景氛围
@@ -40,6 +40,7 @@ export class EatFishGameInstance extends GameInstance {
       hemi.groundColor.setHex(0x002244)
     }
 
+    this.renderContainer = renderContainer ?? null
     this.world = new World(sharedScene)
     this.gameMode = new EatFishGameMode()
     this.world.SetGameMode(this.gameMode)

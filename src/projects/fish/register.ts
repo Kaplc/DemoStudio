@@ -22,7 +22,7 @@ ActorRegistry.register('FishHouse', () => new FishHouseActor('FishHouse'))
 
 export const fishMasterProject: ProjectModule = {
   name: 'FishMaster',
-  createGameInstance: (scene) => new FishGameInstance(scene),
+  createGameInstance: (scene, renderContainer) => new FishGameInstance(scene, renderContainer),
   registerAssets: registerFishAssets,
   initConfigs: initFishConfigs,
 }

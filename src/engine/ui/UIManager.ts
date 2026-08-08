@@ -23,6 +23,7 @@
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
+import { AObjectComponent } from '../entity/AObjectComponent'
 import { ensureUITransformComponent } from './UITransformComponent'
 import { HUD } from './HUD'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
@@ -53,8 +54,7 @@ function childTransformViolation(child: {
   return null
 }
 
-export class UIManager {
-  private world: World
+export class UIManager extends AObjectComponent<World> {
   private _hud: HUD | null = null
 
   /** UI 独立场景：UI Actor（widget/HUD）挂载于此，与 3D 场景分离，由渲染层叠加渲染（UI 永远在顶层） */
@@ -70,8 +70,8 @@ export class UIManager {
   /** UI 是否正在运行 */
   private _running = false
 
-  constructor(world: World) {
-    this.world = world
+  constructor(owner: World) {
+    super(owner)
     // UI 场景：独立于主场景（透明背景，叠加渲染时保留主画面）
     this.scene = new THREE.Scene()
   }
@@ -248,7 +248,7 @@ export class UIManager {
 
     // 4. 蓝图元数据 + 进 World 统一管理
     actor.blueprintRef = { id: path }
-    this.world.SpawnActor(actor)
+    this.owner.SpawnActor(actor)
 
     // 4.5 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
     if (resolved.active === false) {
@@ -272,7 +272,7 @@ export class UIManager {
   createHUD(hudClass: string): HUD | null {
     const hud = new HUD()
     hud.blueprintPath = hudClass
-    this.world.SpawnActor(hud)
+    this.owner.SpawnActor(hud)
 
     const ui = this.spawnUIActor(hudClass, hud)
     if (ui) hud.attachUI(ui)

@@ -4,7 +4,7 @@
  * loadScene(asset) 返回 SceneGroup（group + name + mode + skybox + dispose）。
  */
 import * as THREE from 'three'
-import { loadTexture } from '../scene/TextureLoader'
+import { loadTexture } from '../rendering/TextureLoader'
 import type {
   SceneAsset,
   SceneNode,

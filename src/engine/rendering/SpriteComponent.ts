@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 import { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
-import { loadTexture } from '../scene/TextureLoader'
+import { loadTexture } from './TextureLoader'
 
 export class SpriteComponent extends Component<Actor> {
   /** 所有 SpriteComponent 共享的单位平面几何体 */

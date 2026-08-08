@@ -66,12 +66,11 @@ export { FpsTracker } from './FpsTracker'
 export type { FpsCallback } from './FpsTracker'
 
 export { setupScene } from './SceneSetup'
-export type { SceneSetupResult, SceneSetupCallbacks } from './SceneSetup'
+export type { SceneSetupResult } from './SceneSetup'
 
 export { createSceneViewport, handleSceneKeyDown, handleSceneKeyUp, PreviewSceneManager } from './SceneViewport'
 export type { PreviewSceneManagerOptions, ControlMode, CameraMode } from './SceneViewport'
 export {
-  createGameViewport,
   handleGameKeyDown,
   handleGameKeyUp,
   handleGameMouseMove,

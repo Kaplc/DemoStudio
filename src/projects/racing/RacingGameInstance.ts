@@ -22,7 +22,7 @@ export class RacingGameInstance extends GameInstance {
 
   private sharedScene: THREE.Scene
 
-  constructor(sharedScene: THREE.Scene) {
+  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
     super()
     this.sharedScene = sharedScene
     sharedScene.background = new THREE.Color(0x87ceeb)
@@ -34,6 +34,7 @@ export class RacingGameInstance extends GameInstance {
     const dl = sharedScene.children.find(c => c instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined
     if (dl) { dl.intensity = 1.5; dl.position.set(30, 40, 20) }
 
+    this.renderContainer = renderContainer ?? null
     this.world = new World(sharedScene)
     this.gameMode = new RacingGameMode()
     this.world.SetGameMode(this.gameMode)

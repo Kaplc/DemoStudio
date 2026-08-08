@@ -6,7 +6,8 @@
 import type * as THREE from 'three'
 import type { GameInstance } from '../gameflow/GameInstance'
 
-export type GameInstanceFactory = (sharedScene: THREE.Scene) => GameInstance
+/** 工厂：sharedScene（共享 3D 场景）+ renderContainer（Game 视口渲染容器，可选） */
+export type GameInstanceFactory = (sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) => GameInstance
 
 export class GameFactoryRegistry {
   private static factories = new Map<string, GameInstanceFactory>()
@@ -17,10 +18,10 @@ export class GameFactoryRegistry {
   }
 
   /** 创建指定游戏的 GameInstance */
-  static create(gameName: string, sharedScene: THREE.Scene): GameInstance | null {
+  static create(gameName: string, sharedScene: THREE.Scene, renderContainer?: HTMLElement | null): GameInstance | null {
     const factory = GameFactoryRegistry.factories.get(gameName)
     if (!factory) return null
-    return factory(sharedScene)
+    return factory(sharedScene, renderContainer)
   }
 
   /** 检查是否已注册 */

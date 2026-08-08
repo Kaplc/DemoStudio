@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { GameSceneManager, logger, Game, World, GameFactoryRegistry, NullGameInstance, gizmos } from '../engine'
+import { GameSceneManager, logger, Game, World, gizmos } from '../engine'
 import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
@@ -79,26 +79,18 @@ export function Viewport({ onReady }: ViewportProps) {
     ...dynamicTabs,
   ], [dynamicTabs])
 
-  // ─── 一次初始化：使用 SceneSetup 创建共享场景 + 两个 SceneManager + Game ───
+  // ─── 一次初始化：使用 SceneSetup 创建共享场景 + Scene 视口 ───
   useEffect(() => {
     if (!sceneContainerRef.current || !gameContainerRef.current) return
 
-    const { sharedScene, sceneMgr, gameMgr, game, cleanup } = setupScene(
+    const { sharedScene, sceneMgr, gameMgr, cleanup } = setupScene(
       sceneContainerRef.current,
-      gameContainerRef.current,
-      {
-        onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-        onPhaseChange: (phase) => setLocalPhase(phase),
-        onGameOver: () => setGameOver(true),
-      },
-      useEditorPrefsStore.getState().viewport.aspectRatio,
       onReady,
     )
 
     sharedSceneRef.current = sharedScene
     sceneRef.current = sceneMgr
     gameSceneRef.current = gameMgr
-    gameRef.current = game
     cleanupRef.current = cleanup
     setSharedScene(sharedScene)
     setSceneMgr(sceneMgr)
@@ -167,17 +159,19 @@ export function Viewport({ onReady }: ViewportProps) {
   // ─── 切换工程 → 停止游戏 + 读取 defaultScene 预览 ───
   useEffect(() => {
     const shared = sharedSceneRef.current
-    const game = gameRef.current
-    if (!shared || !game) return
+    if (!shared) return
 
     const switchProject = async () => {
       // 0. 清空蓝图编辑缓存（工作副本/撤销栈），避免残留到下一个工程
       BlueprintEditorService.clearCache()
 
-      // 1. 无论游戏是否运行，先停止
+      // 1. 游戏运行时先停止（Game 仅在运行时存在）
       if (editorState.running) {
         logger.info('切换工程: 停止当前游戏...')
-        game.shutdown()
+        gameRef.current?.destroy()
+        gameRef.current = null
+        gameSceneRef.current = null
+        setCurrentGameInstance(null)
         useEditorStore.getState().setGameRunning(false)
       } else {
         gameSceneRef.current?.stop()
@@ -218,10 +212,19 @@ export function Viewport({ onReady }: ViewportProps) {
     switchProject()
   }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── 启动/停止游戏 ───
+  // ─── 启动/停止游戏（Game 在点击启动时创建；实例由 Game 读取项目工厂配置创建）───
   useEffect(() => {
-    const game = gameRef.current
-    if (!game || !editorState.running) return
+    if (!editorState.running) return
+
+    // 每次启动都创建新的 Game + 游戏实例（确保代码变更生效）
+    // Game 视口渲染容器：createInstance 传入 → instance → World 创建 GameSceneManager
+    const game = new Game(sceneRef.current)
+    game.setCallbacks({
+      onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
+      onPhaseChange: (phase) => setLocalPhase(phase),
+      onGameOver: () => setGameOver(true),
+    })
+    gameRef.current = game
 
     // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 sharedScene，
     // 避免与游戏 actors 叠加/大纲重名冲突）
@@ -230,29 +233,32 @@ export function Viewport({ onReady }: ViewportProps) {
       previewWorldRef.current = null
     }
 
-    // 每次启动都创建新的游戏实例（确保代码变更生效）
     const shared = sharedSceneRef.current
-    if (shared && currentProject && GameFactoryRegistry.has(currentProject.name)) {
-      const newInst = GameFactoryRegistry.create(currentProject.name, shared)!
-      newInst.setCallbacks({
-        onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-        onPhaseChange: (phase) => setLocalPhase(phase),
-        onGameOver: () => setGameOver(true),
-      })
-      game.setInstance(newInst)
+    if (shared && currentProject) {
+      game.createInstance(currentProject.name, shared, gameContainerRef.current)
     }
+    if (!game.instance) return
 
     game.launch()
 
+    const inst = game.instance!
+
+    // Game 视口渲染器由 World 创建（instance → world.gameRenderer），同步引用供输入路由/显隐控制
+    const world = (inst as unknown as { world?: import('../engine').World }).world
+    gameSceneRef.current = world?.gameRenderer ?? null
+
     // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
-    setCurrentGameInstance(game.instance)
+    setCurrentGameInstance(inst)
     const pending = useSaveStore.getState().consumePendingRestore()
     if (pending) {
-      game.instance.restoreSnapshot(pending.payload)
+      inst.restoreSnapshot(pending.payload)
     }
 
     return () => {
-      game.shutdown()
+      game.destroy()
+      gameRef.current = null
+      gameSceneRef.current = null
+      setCurrentGameInstance(null)
     }
   }, [editorState.running, launchCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
