@@ -14,7 +14,7 @@
  * DOM 由组件内部从 GameInstance.current.renderContainer 获取。
  */
 import * as THREE from 'three'
-import { logger, PhySys } from '..'
+import { logger, PhySys, gizmos } from '..'
 import type { SceneRendererComponent } from './SceneRendererComponent'
 import type { SceneRenderHost } from '../rendering/SceneRenderHost'
 import { GameInstance } from './GameInstance'
@@ -264,6 +264,11 @@ export class Game {
       gameMgr.clearFrame()
       gameMgr.resetView()
     }
+
+    // 清空调试 gizmos 残留（Tick 回调已移除，不再有 drawGizmos 清空缓冲区；
+    // 不清理的话最后帧的调试线会残留在共享场景，Scene 视口可见）
+    gizmos.beginFrame()
+    gizmos.flush()
 
     // 统一回收运行级单例（PhySys 清相机/clickable 注册表，AIModule 清运行上下文）
     for (const s of this._singletons) {
