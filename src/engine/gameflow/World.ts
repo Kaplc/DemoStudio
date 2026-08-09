@@ -562,6 +562,19 @@ export class World extends AObject {
 
   Destroy() {
     this.Stop()
+    // 诊断：销毁前遍历场景，找出未被 Actor 跟踪的 THREE 对象（排查泄漏/未生成对象）
+    const orphans = this.actorMgr.findOrphanObjects()
+    if (orphans.length > 0) {
+      logger.warn(`[World#${this.id}] Destroy: ${orphans.length} 个未被 Actor 跟踪的 THREE 对象:`)
+      for (const o of orphans) {
+        logger.warn(
+          `  - [${o.sceneName}] ${o.obj.type} "${o.obj.name || '(无名)'}" 链=${o.chain} ` +
+          `pos=(${o.obj.position.x.toFixed(2)}, ${o.obj.position.y.toFixed(2)}, ${o.obj.position.z.toFixed(2)})`,
+        )
+      }
+    } else {
+      logger.info(`[World#${this.id}] Destroy: 所有场景对象均被 Actor 跟踪（无孤儿）`)
+    }
     // 清理 UI 子系统
     this.ui.destroyAll()
     // GameMode（其 EndPlay 内部统一驱动 GameState + Controller）

@@ -74,6 +74,10 @@ class PhySysImpl {
     this._uiEl = null
     this._uiCamera = null
     this._ready = false
+    // 清空 clickable 注册表：防止上一次运行残留的组件被再次命中
+    // （残留组件闭包链会指向已销毁的旧 GameInstance/World，导致旧 world 被驱动）
+    this._clickables.clear()
+    this._uiClickables.clear()
   }
 
   get ready(): boolean {

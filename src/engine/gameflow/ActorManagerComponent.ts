@@ -192,6 +192,67 @@ export class ActorManagerComponent extends AObjectComponent<World> {
   get pendingDestroyCount(): number { return this.pendingDestroy.length }
 
   // ═══════════════════════════════════
+  //  诊断：孤儿 THREE 对象
+  // ═══════════════════════════════════
+
+  /** 已知的编辑器/引擎基础设施根对象名（共享场景常驻，非游戏内容，诊断时排除） */
+  private static readonly KNOWN_INFRA_ROOTS = new Set(['Default', 'TransformGizmo'])
+
+  /**
+   * 遍历所有场景（主场景 + UI 场景），找出未被任何 Actor 跟踪的 THREE 对象（孤儿对象）。
+   * 判定规则：对象的祖先链上没有任何 Actor 的 root —— 即不在任何 Actor 子树内。
+   * 已知编辑器基础设施（Default 默认内容 / TransformGizmo / Gizmos 线）自动排除。
+   * 用于排查资源泄漏 / 对象创建后未正确生成进世界的问题（销毁游戏时调用）。
+   *
+   * @returns 孤儿对象数组（obj + 所在场景 + 祖先链描述），供日志输出定位来源
+   */
+  findOrphanObjects(): Array<{ obj: THREE.Object3D; sceneName: string; chain: string }> {
+    // 收集所有被 Actor 跟踪的根节点（3D Actor + UI Actor）
+    const tracked = new Set<THREE.Object3D>()
+    for (const actor of this.allActors) tracked.add(actor.root)
+    for (const actor of this.owner.ui.getAllUIActors()) tracked.add(actor.root)
+
+    const orphans: Array<{ obj: THREE.Object3D; sceneName: string; chain: string }> = []
+    const checkScene = (scene: THREE.Scene | null, sceneName: string) => {
+      if (!scene) return
+      scene.traverse((obj) => {
+        if (obj === scene) return
+        // 沿祖先链查找：任一祖先是被跟踪的 root → 属于 Actor 子树，跳过
+        let p: THREE.Object3D | null = obj
+        while (p) {
+          if (tracked.has(p)) return
+          p = p.parent
+        }
+        // 排除已知编辑器基础设施（其子树一并跳过）
+        for (const infra of ActorManagerComponent.KNOWN_INFRA_ROOTS) {
+          let q: THREE.Object3D | null = obj
+          while (q) {
+            if (q.name === infra) return
+            q = q.parent
+          }
+        }
+        // 排除 Gizmos 调试线（每帧绘制，属编辑器调试层）
+        if (obj.type === 'LineSegments') return
+        // 记录：祖先链（root 显示为 scene 名）
+        const names: string[] = []
+        let n: THREE.Object3D | null = obj
+        while (n && n !== scene) {
+          names.unshift(n.name || '(无名)')
+          n = n.parent
+        }
+        orphans.push({
+          obj,
+          sceneName,
+          chain: names.join(' → '),
+        })
+      })
+    }
+    checkScene(this.owner.scene, '主场景')
+    checkScene(this.owner.ui.scene, 'UI 场景')
+    return orphans
+  }
+
+  // ═══════════════════════════════════
   //  批量清理
   // ═══════════════════════════════════
 
