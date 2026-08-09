@@ -29,6 +29,9 @@ class PhySysImpl implements GameSingleton {
   /** UI 独立叠加相机（双摄像机：UI 层点击用平行射线，与渲染相机一致） */
   private _uiCamera: THREE.Camera | null = null
 
+  /** 当前处于按下状态的 ClickableComponent（mouseup 时向其分发释放；null = 无） */
+  private _pressedClickable: ClickableComponent | null = null
+
   // ═══════════════════════════════════
   //  ClickableComponent 注册表（按层分流）
   // ═══════════════════════════════════
@@ -46,6 +49,8 @@ class PhySysImpl implements GameSingleton {
   unregister(c: ClickableComponent): void {
     this._clickables.delete(c)
     this._uiClickables.delete(c)
+    // 注销的组件不再接收释放分发（防止残留引用）
+    if (this._pressedClickable === c) this._pressedClickable = null
   }
 
   get clickableCount(): number {
@@ -77,6 +82,7 @@ class PhySysImpl implements GameSingleton {
     this._uiEl = null
     this._uiCamera = null
     this._ready = false
+    this._pressedClickable = null
     // 清空 clickable 注册表：防止上一次运行残留的组件被再次命中
     // （残留组件闭包链会指向已销毁的旧 GameInstance/World，导致旧 world 被驱动）
     this._clickables.clear()
@@ -129,7 +135,10 @@ class PhySysImpl implements GameSingleton {
       const uiRay = this.screenToRay(screenX, screenY, this._uiCamera)
       if (uiRay) {
         for (const c of this._uiClickables) {
-          if (c.bEnabled && c.handleClick(uiRay)) return true
+          if (c.bEnabled && c.handleClick(uiRay)) {
+            this._pressedClickable = c
+            return true
+          }
         }
       }
     }
@@ -137,9 +146,22 @@ class PhySysImpl implements GameSingleton {
     const raycaster = this.screenToRay(screenX, screenY)
     if (!raycaster) return false
     for (const c of this._clickables) {
-      if (c.bEnabled && c.handleClick(raycaster)) return true
+      if (c.bEnabled && c.handleClick(raycaster)) {
+        this._pressedClickable = c
+        return true
+      }
     }
     return false
+  }
+
+  /**
+   * 释放检测：鼠标释放时对按中的对象分发 handleRelease（无需射线，
+   * 拖出按钮/窗口外松开也能恢复）。幂等：无按中对象时直接返回。
+   */
+  raycastRelease(): void {
+    const c = this._pressedClickable
+    this._pressedClickable = null
+    if (c && c.bEnabled) c.handleRelease()
   }
 
   /** 悬停检测：UI 层 + 世界层分别处理 */

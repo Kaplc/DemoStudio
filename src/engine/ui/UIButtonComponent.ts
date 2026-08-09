@@ -9,7 +9,8 @@
  *  - 本组件不创建任何画布/mesh，点击命中依赖同 Actor（或子树）上其他 UI 组件的 mesh
  *  - 按钮文字由独立子 Actor 挂 UITextComponent 提供（如 blueprints/ui/main_menu.widget.json）
  *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { colors: { normal, hover, pressed, disabled }, pressScale? } }
- *  - 默认动效：按下（pressed）时 owner 立即微缩（pressScale=0.92），松开立即恢复原始缩放
+ *  - 按下动效：mousedown 命中（onPress）→ 立即微缩（pressScale=0.92）并保持；
+ *    mouseup（onRelease）→ 恢复原始缩放（长按期间持续保持按下态）
  */
 import * as THREE from 'three'
 import { Component } from '../entity/Component'
@@ -40,6 +41,8 @@ export class UIButtonComponent extends Component<Actor> {
   private _pressScale: number
   /** 原始缩放：首次按下时缓存 owner.root.scale（尊重蓝图/Inspector 设置的原始缩放） */
   private _baseScale: THREE.Vector3 | null = null
+  /** 鼠标是否正在按住本按钮（onPress 置位 / onRelease 清除；长按期间保持 pressed 状态） */
+  private _pointerPressed = false
 
   constructor(owner: Actor, options: UIButtonComponentOptions = {}) {
     super(owner)
@@ -66,9 +69,12 @@ export class UIButtonComponent extends Component<Actor> {
     }
     // UI 层：独立 UI 相机平行射线检测（双摄像机方案，UI 命中优先于 3D）
     clickable.layer = 'ui'
+    // 按下：进入 pressed 并保持（长按持续按下，松手由 onRelease 恢复）
+    clickable.onPress = () => this.press()
     clickable.onClick = () => {
       this.triggerClick()
     }
+    clickable.onRelease = () => this.release()
   }
 
   override BeginPlay(): void {
@@ -99,14 +105,35 @@ export class UIButtonComponent extends Component<Actor> {
     this.applyStateColor()
   }
 
-  /** 触发点击（外部输入系统 / AI 事件调用） */
+  /**
+   * 触发点击（外部输入系统 / AI 事件调用）。
+   * 鼠标点击：pressed 状态由 onPress/onRelease 管理（长按保持，松手恢复），这里只触发逻辑；
+   * 非鼠标通道（如 ai.clickActor 瞬时触发）：给出短促按下视觉后自动恢复。
+   */
   triggerClick(): void {
     if (this._state === 'disabled') return
     logger.info(`[UIButtonComponent] "${this.name}" 被点击`)
-    this.state = 'pressed'
+    if (!this._pointerPressed) {
+      // 非鼠标通道（AI 等）：短促按下动效
+      this.state = 'pressed'
+      setTimeout(() => {
+        if (this._state === 'pressed' && !this._pointerPressed) this.state = 'normal'
+      }, 100)
+    }
     this._onClick?.()
-    // 复位状态下一帧执行（简化版）
-    setTimeout(() => { if (this._state === 'pressed') this.state = 'normal' }, 100)
+  }
+
+  /** 鼠标按下（PhySys 命中分发）：进入 pressed 并保持，直到 onRelease 恢复 */
+  private press(): void {
+    if (this._state === 'disabled') return
+    this._pointerPressed = true
+    this.state = 'pressed'
+  }
+
+  /** 鼠标释放（PhySys 释放分发）：无论在哪里松开都恢复非按下态 */
+  private release(): void {
+    this._pointerPressed = false
+    if (this._state === 'pressed') this.state = 'normal'
   }
 
   /** 按下/松开时立即应用缩放：pressed → 微缩，其他状态 → 恢复原始 */

@@ -79,8 +79,11 @@ export class InputSys extends BObject {
   ): void {
     // 广播鼠标按钮事件（如摄像机右键平移结束）
     controller?.inputComponent.ProcessMouseButton(button, 'released')
-    // 左键才走控制器释放逻辑
-    if (button === 0 && worldPos) controller?.OnPointerUp(worldPos)
+    // 左键才走点击释放逻辑：分发按中对象的释放（长按保持按下，松手才恢复）
+    if (button === 0) {
+      PhySys.raycastRelease()
+      if (worldPos) controller?.OnPointerUp(worldPos)
+    }
   }
 
   // ════════════════════════════════════════════

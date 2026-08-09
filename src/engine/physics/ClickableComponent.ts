@@ -25,6 +25,10 @@ export class ClickableComponent extends Component<Actor> {
 
   /** 点击回调：传入命中的 Intersection 信息 */
   onClick: ((hit: THREE.Intersection) => void) | null = null
+  /** 按下回调：mousedown 命中时触发（先于 onClick），长按保持由 onRelease 恢复 */
+  onPress: ((hit: THREE.Intersection) => void) | null = null
+  /** 释放回调：mouseup 时触发（无论鼠标是否仍在按钮上，只要之前按过） */
+  onRelease: (() => void) | null = null
   /** 悬停回调：传入命中信息（null 表示离开） */
   onHover: ((hit: THREE.Intersection | null) => void) | null = null
 
@@ -33,6 +37,8 @@ export class ClickableComponent extends Component<Actor> {
 
   /** 是否正在被悬停 */
   private _hovering = false
+  /** 是否处于按下状态（mousedown 命中置位，mouseup 清除） */
+  private _pressed = false
   /** 防连点时间戳 */
   private _lastClickTime = 0
   /** 显式指定的检测目标 */
@@ -114,7 +120,7 @@ export class ClickableComponent extends Component<Actor> {
   }
 
   /**
-   * 处理点击事件（带防连点）。
+   * 处理点击事件（带防连点）。命中时先触发 onPress（按下），再触发 onClick（点击逻辑）。
    * 返回 true 表示本次点击已命中消费。
    */
   handleClick(raycaster: THREE.Raycaster): boolean {
@@ -126,10 +132,23 @@ export class ClickableComponent extends Component<Actor> {
     const hit = this.hitTest(raycaster)
     if (hit) {
       this._lastClickTime = now
+      this._pressed = true
+      // 按下视觉/状态先于点击逻辑（按钮长按保持按下）
+      this.onPress?.(hit)
       this.onClick?.(hit)
       return true
     }
     return false
+  }
+
+  /**
+   * 处理释放事件（mouseup 时由 PhySys 对按中的对象分发，无需射线）。
+   * 无论鼠标在哪里松开（拖出按钮/窗口外），只要之前按下过就恢复。
+   */
+  handleRelease(): void {
+    if (this.isDestroyed() || this.owner.isDestroyed() || !this._pressed) return
+    this._pressed = false
+    this.onRelease?.()
   }
 
   /**
