@@ -295,7 +295,13 @@ export function Outline() {
             color: isSelected ? '#fff' : 'var(--text-primary)',
             whiteSpace: 'nowrap',            opacity: hidden ? 0.55 : 1,          }}
           onClick={() => select(isSelected ? null : node.actor)}
-          onDoubleClick={() => node.actor && focusOn(node.actor.root)}
+          onDoubleClick={() => {
+            if (!node.actor) return
+            // 双击：先保持选中再聚焦。双击会先触发两次 click（第二次把选中取消掉），
+            // 因此这里必须重新 select，否则聚焦完成后节点处于未选中状态
+            select(node.actor)
+            focusOn(node.actor.root)
+          }}
           onMouseEnter={(e) => {
             if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
           }}

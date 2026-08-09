@@ -54,6 +54,8 @@ export class ActorManagerComponent extends AObjectComponent<World> {
   private pendingDestroy: Actor[] = []
   /** Pawn 生成完成回调（commitSpawn 时触发，用于 GameMode 通知 Controller Possess） */
   private _pawnSpawnCallbacks: Array<{ pawn: Pawn; cb: (pawn: Pawn) => void }> = []
+  /** Actor 列表自上次通知后是否有变化（commitSpawn/commitDestroy/DestroyAllActors 标记，World 消费后通知大纲） */
+  private _actorListDirty = false
 
   // ═══════════════════════════════════
   //  Spawn / Destroy
@@ -67,6 +69,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
   /** 提交待生成队列（由 World.tick / BeginPlay 调用） */
   commitSpawn() {
+    if (this.pendingSpawn.length > 0) this._actorListDirty = true
     for (const actor of this.pendingSpawn) {
       // UI Actor 交给 UIManager 独立管理（不进 allActors）
       if (this.owner.ui.isUIActor(actor)) {
@@ -143,6 +146,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
   /** 提交待销毁队列（由 World.tick 调用） */
   commitDestroy() {
+    if (this.pendingDestroy.length > 0) this._actorListDirty = true
     for (const actor of this.pendingDestroy) {
       if (this.allActors.has(actor)) {
         actor.EndPlay()
@@ -286,7 +290,15 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     this.pendingSpawn = []
     // 清理未触发的 Pawn 生成回调（世界已销毁，不再通知 Controller）
     this._pawnSpawnCallbacks = []
+    if (count > 0) this._actorListDirty = true
     logger.debug(`[ActorManagerComponent] DestroyAllActors: 销毁 ${count} 个 Actor`)
+  }
+
+  /** 读取并清除 Actor 列表变化标记（由 World 在每帧提交后消费，触发 onActorListChanged 通知） */
+  consumeActorListDirty(): boolean {
+    const dirty = this._actorListDirty
+    this._actorListDirty = false
+    return dirty
   }
 
   // ═══════════════════════════════════

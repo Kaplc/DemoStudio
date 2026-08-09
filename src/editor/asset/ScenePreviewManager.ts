@@ -50,6 +50,11 @@ export class ScenePreviewManager {
     }
   }
 
+  /** 使 Actor 树缓存失效（World Actor 列表变化时由 watchWorldActorChanges 调用，大纲即时反映新增/销毁） */
+  invalidateActorTree(): void {
+    this._actorTreeCache = null
+  }
+
   private notifyChange() {
     this._actorTreeCache = null
     for (const cb of this._onChangeCallbacks) cb()

@@ -121,6 +121,28 @@ export function notifySelectionChange(): void {
   editorBus.emit(EditorEvent.SELECTION_CHANGED)
 }
 
+// ─── World Actor 变化 → 大纲刷新（自动连接）───
+
+/** 已连接 Actor 变化监听的 World（WeakSet 防同一 World 重复注册） */
+const _watchedWorlds = new WeakSet<import('../engine').World>()
+
+/**
+ * 连接 World 的 Actor 列表变化 → 刷新大纲（递增 selectionKey + 通知回调）。
+ * 同一 World 只连接一次；invalidate 可选回调用于清预览树缓存（如 getActorTree 缓存）。
+ * 由预览管理器注册（AssetPreviewManager.register）与 Viewport 游戏/预览 World 创建处调用。
+ */
+export function watchWorldActorChanges(
+  world: import('../engine').World | null | undefined,
+  invalidate?: () => void,
+): void {
+  if (!world || _watchedWorlds.has(world)) return
+  _watchedWorlds.add(world)
+  world.onActorListChanged(() => {
+    invalidate?.()
+    notifySelectionChange()
+  })
+}
+
 /**
  * 遍历场景树，返回平铺节点列表（带缩进级别、类型、actorRef）
  */

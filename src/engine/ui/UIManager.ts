@@ -69,6 +69,8 @@ export class UIManager extends AObjectComponent<World> {
   private _pendingDestroy: Actor[] = []
   /** UI 是否正在运行 */
   private _running = false
+  /** UI Actor 列表自上次通知后是否有变化（commitSpawn/commitDestroy/destroyAll 标记，World 消费后通知大纲） */
+  private _uiListDirty = false
 
   constructor(owner: World) {
     super(owner)
@@ -297,6 +299,7 @@ export class UIManager extends AObjectComponent<World> {
 
   /** 处理待生成的 UI Actor */
   private commitSpawn() {
+    if (this._pendingSpawn.length > 0) this._uiListDirty = true
     for (const actor of this._pendingSpawn) {
       this._uiActors.add(actor)
       if (!actor.parent) {
@@ -311,6 +314,7 @@ export class UIManager extends AObjectComponent<World> {
 
   /** 处理待销毁的 UI Actor */
   private commitDestroy() {
+    if (this._pendingDestroy.length > 0) this._uiListDirty = true
     for (const actor of this._pendingDestroy) {
       if (this._uiActors.has(actor)) {
         actor.EndPlay()
@@ -319,6 +323,13 @@ export class UIManager extends AObjectComponent<World> {
       }
     }
     this._pendingDestroy = []
+  }
+
+  /** 读取并清除 UI Actor 列表变化标记（由 World 在每帧提交后消费，触发 onActorListChanged 通知） */
+  consumeUiListDirty(): boolean {
+    const dirty = this._uiListDirty
+    this._uiListDirty = false
+    return dirty
   }
 
   /** 销毁 UI Actor（延迟到 tick 提交；未提交生成时直接取消生成） */
@@ -393,6 +404,7 @@ export class UIManager extends AObjectComponent<World> {
     this._pendingSpawn = []
     // 清空 HUD 引用
     this._hud = null
+    this._uiListDirty = true
   }
 
   /** 清空当前 HUD 引用（World 统一销毁 Actor 时调用，避免悬空引用） */

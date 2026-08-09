@@ -95,7 +95,7 @@ export type { LogContentCallback } from './LogPoller'
 
 export { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 
-export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo } from './SelectionManager'
+export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo, watchWorldActorChanges } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'
 export { editorBus } from './EditorEvents'
 export { EditorEvent } from './EditorEventNames'

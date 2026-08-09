@@ -8,6 +8,7 @@
 import { BlueprintPreviewManager } from './BlueprintPreviewManager'
 import { UIPreviewManager } from './UIPreviewManager'
 import { ScenePreviewManager } from './ScenePreviewManager'
+import { watchWorldActorChanges } from '../SelectionManager'
 
 type PreviewInstance = BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager
 
@@ -21,6 +22,8 @@ export class AssetPreviewManager {
   /** 注册预览实例 */
   static register(path: string, instance: PreviewInstance): void {
     AssetPreviewManager._instances.set(path, instance)
+    // 监听预览 World 的 Actor 变化 → 刷新大纲（清树缓存 + 递增 selectionKey）
+    watchWorldActorChanges(instance.world, () => instance.invalidateActorTree())
   }
 
   /** 注销预览实例 */

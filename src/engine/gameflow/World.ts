@@ -224,8 +224,7 @@ export class World extends AObject {
 
   private tick(dt: number) {
     // 1. 处理待生成/销毁（ActorManagerComponent）
-    this.actorMgr.commitSpawn()
-    this.actorMgr.commitDestroy()
+    this.commitActorChanges()
 
     // 2. Tick 所有 3D Actor（UI Actor 由 UIManager 独立驱动）
     for (const actor of this.actorMgr.GetAllActors()) {
@@ -234,6 +233,10 @@ export class World extends AObject {
 
     // 3. Tick UI 子系统
     this.ui.tickUI(dt)
+    // UI Actor 列表变化（提交/销毁）也通知大纲
+    if (this.ui.consumeUiListDirty()) {
+      this.notifyActorListChanged()
+    }
 
     // 4. Tick GameMode（内部统一驱动 GameState + Controller + 摄像机）
     this.gameMode?.Tick(dt)
@@ -244,16 +247,31 @@ export class World extends AObject {
     }
   }
 
+  /**
+   * 提交待生成/待销毁队列，并在 Actor 列表实际变化时触发 onActorListChanged 通知。
+   * （大纲等编辑器 UI 订阅该事件自动刷新；无变化时零开销）
+   */
+  private commitActorChanges(): void {
+    this.actorMgr.commitSpawn()
+    this.actorMgr.commitDestroy()
+    if (this.actorMgr.consumeActorListDirty()) {
+      this.notifyActorListChanged()
+    }
+  }
+
   /** 标记运行但不启动自己的 rAF（由外部驱动 render/update 时使用） */
   BeginPlay() {
     logger.info(`[World#${this.id}] BeginPlay: 恢复运行（actorCount=${this.actorMgr.actorCount}, pendingSpawn=${this.actorMgr.pendingSpawnCount}）`)
     this._running = true
     // 先提交等待生成的 Actor（否则 SpawnActorFromBlueprint 生成的 Actor 永远停在
     // pendingSpawn 队列，不进场景、不 BeginPlay，UI/游戏对象不会渲染）
-    this.actorMgr.commitSpawn()
-    this.actorMgr.commitDestroy()
+    this.commitActorChanges()
     // UI 子系统恢复运行
     this.ui.beginPlay()
+    // UI Actor 列表变化（HUD/UI 提交）也通知大纲
+    if (this.ui.consumeUiListDirty()) {
+      this.notifyActorListChanged()
+    }
     for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
@@ -270,13 +288,16 @@ export class World extends AObject {
   /** 销毁所有 3D Actor 与 UI Actor（Controller 由 GameMode.EndPlay 负责） */
   DestroyAllActors() {
     this.actorMgr.DestroyAllActors()
+    // 批量销毁后立即通知（无 tick 驱动的场景下大纲也能刷新）
+    if (this.actorMgr.consumeActorListDirty()) {
+      this.notifyActorListChanged()
+    }
   }
 
   /** 手动触发一次 Tick（由外部渲染循环驱动） */
   manualTick(dt: number) {
     if (!this._running) return
-    this.actorMgr.commitSpawn()
-    this.actorMgr.commitDestroy()
+    this.commitActorChanges()
     for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
@@ -292,6 +313,31 @@ export class World extends AObject {
     this._tickCallbacks.push(cb)
     return () => {
       this._tickCallbacks = this._tickCallbacks.filter((c) => c !== cb)
+    }
+  }
+
+  // ═══════════════════════════════════
+  //  Actor 列表变化监听（编辑器大纲刷新）
+  // ═══════════════════════════════════
+
+  /** Actor 列表变化监听（SpawnActor 提交 / 销毁提交时触发，编辑器大纲等订阅自动刷新） */
+  private _actorListChangedListeners = new Set<() => void>()
+
+  /**
+   * 订阅 Actor 列表变化（Actor 实际生成进世界 / 销毁时触发，无变化时不会触发）。
+   * @returns 取消订阅函数
+   */
+  onActorListChanged(cb: () => void): () => void {
+    this._actorListChangedListeners.add(cb)
+    return () => {
+      this._actorListChangedListeners.delete(cb)
+    }
+  }
+
+  /** 触发 Actor 列表变化通知（commitActorChanges / DestroyAllActors 在列表实际变化后调用） */
+  private notifyActorListChanged(): void {
+    for (const cb of this._actorListChangedListeners) {
+      cb()
     }
   }
 

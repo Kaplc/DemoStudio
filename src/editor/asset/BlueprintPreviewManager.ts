@@ -349,6 +349,11 @@ export class BlueprintPreviewManager {
     // logger.debug(`[BlueprintPreview] clearPreview 结束 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
   }
 
+  /** 使 Actor 树缓存失效（World Actor 列表变化时由 watchWorldActorChanges 调用，大纲即时反映新增/销毁） */
+  invalidateActorTree(): void {
+    this._actorTreeCache = null
+  }
+
   get currentBlueprintId(): string | null {
     return this._currentBlueprintPath
   }

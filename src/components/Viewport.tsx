@@ -23,6 +23,7 @@ import {
   setSceneMgr,
   getTransformGizmo,
   notifySelectionChange,
+  watchWorldActorChanges,
 } from '../editor'
 
 interface ViewportProps {
@@ -142,6 +143,8 @@ export function Viewport({ onReady }: ViewportProps) {
       world.loadSceneAsActors(sceneData)
       world.BeginPlay()
       world.manualTick(0)
+      // 监听预览 World 的 Actor 变化 → 大纲自动刷新
+      watchWorldActorChanges(world)
       previewWorldRef.current = world
       lastPreviewPathRef.current = path
       sceneModeRef.current = sceneData.mode
@@ -246,6 +249,8 @@ export function Viewport({ onReady }: ViewportProps) {
     // Game 视口渲染器由 World 创建（instance → world.gameRenderer），同步引用供输入路由/显隐控制
     const world = (inst as unknown as { world?: import('../engine').World }).world
     gameSceneRef.current = world?.gameRenderer ?? null
+    // 监听游戏 World 的 Actor 变化（生成/销毁）→ 大纲自动刷新
+    if (world) watchWorldActorChanges(world)
 
     // 新创建的渲染器需应用编辑器当前设置（比例 + 渲染模式），
     // 比例 effect 只在 gameAspectRatio 变化时触发，不会覆盖启动新建的渲染器

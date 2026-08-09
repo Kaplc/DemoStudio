@@ -735,6 +735,11 @@ export class UIPreviewManager {
     this.notifyChange()
   }
 
+  /** 使 Actor 树缓存失效（World Actor 列表变化时由 watchWorldActorChanges 调用，大纲即时反映新增/销毁） */
+  invalidateActorTree(): void {
+    this._actorTreeCache = null
+  }
+
   /**
    * 按视口比例调整根画布尺寸（保持高度不变，宽度 = 高度 × ratio）。
    *  - ratio：宽/高（如 16/9 ≈ 1.7778、4/3 ≈ 1.3333、21/9 ≈ 2.3333）
