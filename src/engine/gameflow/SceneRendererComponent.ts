@@ -89,6 +89,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
   private updateCallbacks: Array<(dt: number) => void> = []
   private afterRenderCallbacks: Array<() => void> = []
   private container: HTMLElement
+  /** 容器尺寸变化监听（放大窗口/拖动面板时自动刷新画面比例） */
+  private resizeObserver: ResizeObserver | null = null
 
   // ─── WebGL 上下文丢失/恢复 ───
   private contextLost = false
@@ -142,6 +144,10 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     this.uiLayer.style.width = `${container.clientWidth}px`
     this.uiLayer.style.height = `${container.clientHeight}px`
     container.appendChild(this.uiLayer)
+
+    // ─── 容器尺寸变化自动刷新：放大窗口/拖动面板时重算尺寸与宽高比（与 Scene 视口的 ResizeObserver 行为一致）───
+    this.resizeObserver = new ResizeObserver(() => this.resize())
+    this.resizeObserver.observe(container)
 
     // ─── 场景 ───
     if (options.sharedScene) {
@@ -503,6 +509,9 @@ export class SceneRendererComponent extends AObjectComponent<World> {
 
   dispose() {
     this.stop()
+    // 断开容器尺寸监听（防止销毁后仍触发 resize）
+    this.resizeObserver?.disconnect()
+    this.resizeObserver = null
     // 移除 WebGL 上下文事件监听，避免内存泄漏
     if (this._onContextLost) {
       this.renderer.domElement.removeEventListener('webglcontextlost', this._onContextLost, false)
