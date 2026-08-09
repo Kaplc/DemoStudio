@@ -215,6 +215,15 @@ export function Viewport({ onReady }: ViewportProps) {
     switchProject()
   }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── 游戏运行时隐藏共享场景中的编辑器辅助网格（GridHelper 40x40 是草坪格子的来源）───
+  const setEditorGridVisible = useCallback((visible: boolean) => {
+    const shared = sharedSceneRef.current
+    if (!shared) return
+    shared.traverse((obj) => {
+      if (obj.type === 'GridHelper') obj.visible = visible
+    })
+  }, [])
+
   // ─── 启动/停止游戏（Game 在点击启动时创建；实例由 Game 读取项目工厂配置创建）───
   useEffect(() => {
     if (!editorState.running) return
@@ -228,6 +237,9 @@ export function Viewport({ onReady }: ViewportProps) {
       onGameOver: () => setGameOver(true),
     })
     gameRef.current = game
+
+    // 游戏运行时隐藏编辑器辅助网格（GridHelper 挂共享场景，不隐藏会显示在游戏画面）
+    setEditorGridVisible(false)
 
     // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 sharedScene，
     // 避免与游戏 actors 叠加/大纲重名冲突）
@@ -277,6 +289,8 @@ export function Viewport({ onReady }: ViewportProps) {
       gameRef.current = null
       gameSceneRef.current = null
       setCurrentGameInstance(null)
+      // 停止游戏后恢复编辑器辅助网格显示
+      setEditorGridVisible(true)
     }
   }, [editorState.running, launchCount]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -657,6 +657,23 @@ export class World extends AObject {
     )
   }
 
+  /**
+   * 创建一个网格线框（用于放置示意网格等）。
+   * 范围 [-extent/2, extent/2]，每 step 单位一条线（含边界），水平面 y=0。
+   */
+  createGridLines(extent: number, step: number, color: number, transparent?: boolean, opacity?: number): THREE.LineSegments {
+    const points: THREE.Vector3[] = []
+    const half = extent / 2
+    for (let i = -half; i <= half; i += step) {
+      points.push(new THREE.Vector3(i, 0, -half), new THREE.Vector3(i, 0, half))
+      points.push(new THREE.Vector3(-half, 0, i), new THREE.Vector3(half, 0, i))
+    }
+    return new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) }),
+    )
+  }
+
   // ═══════════════════════════════════
   //  清理
   // ═══════════════════════════════════

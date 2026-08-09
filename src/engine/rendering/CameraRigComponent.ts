@@ -74,6 +74,9 @@ export class CameraRigComponent extends Component {
   private dragLastX = -1
   private dragLastY = -1
 
+  /** 右键平移开始回调（外部订阅：如基地 GameMode 取消放置模式） */
+  onRightPanStart: (() => void) | null = null
+
   constructor(owner: Actor, name = 'CameraRig') {
     super(owner)
     this.name = name
@@ -253,6 +256,8 @@ export class CameraRigComponent extends Component {
     // 以最近一次记录的鼠标位置为拖拽起点（若无记录，首次 move 时初始化）
     this.dragLastX = this.mouseX
     this.dragLastY = this.mouseY
+    // 通知外部（如基地 GameMode 取消放置模式：右键平移与放置模式互斥）
+    this.onRightPanStart?.()
   }
 
   /** 右键释放：结束拖拽平移 */

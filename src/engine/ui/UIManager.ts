@@ -248,8 +248,12 @@ export class UIManager extends AObjectComponent<World> {
       spawnChildObjects(resolved.children, actor)
     }
 
-    // 4. 蓝图元数据 + 进 World 统一管理
+    // 4. 蓝图元数据 + 应用根节点 name（子节点已在 spawnChildObjects 应用 child.name，
+    // 根节点遗漏会导致大纲等显示 baseClass 默认名而非资产名）
     actor.blueprintRef = { id: path }
+    if (resolved.name) {
+      actor.root.name = resolved.name
+    }
     this.owner.SpawnActor(actor)
 
     // 4.5 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）

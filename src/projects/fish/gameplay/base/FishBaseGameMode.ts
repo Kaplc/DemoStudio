@@ -10,11 +10,13 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, LineComponent, ScriptComponent } from '@/engine'
+import type { Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
-import { ClashBuildingActor, CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingActor'
+import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
+import ClashBuildingScript from './ClashBuilding.script'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
@@ -33,17 +35,19 @@ export class FishBaseGameMode extends GameMode {
 
   /** 基地地图构建器（专门负责创建地面/草地/初始建筑布局，BeginPlay 创建，EndPlay 回收） */
   private baseBuilder: ClashBaseBuilder | null = null
-  /** 已放置的建筑 */
-  private clashBuildings: ClashBuildingActor[] = []
+  /** 已放置的建筑（蓝图实例，行为由 ClashBuildingScript 脚本提供） */
+  private clashBuildings: Actor[] = []
   /** 网格占用表：`${gx},${gz}` → 建筑 */
-  private gridOccupied = new Map<string, ClashBuildingActor>()
+  private gridOccupied = new Map<string, Actor>()
   /** 当前选择的建筑类型（null = 未进入放置模式） */
   private selectedType: ClashBuildingType | null = null
   /** 当前选中的已放置建筑 */
-  private selectedBuilding: ClashBuildingActor | null = null
+  private selectedBuilding: Actor | null = null
   /** 放置模式跟随鼠标的半透明预览（MeshComponent 托管，showPreview 时替换） */
   private previewComp: MeshComponent | null = null
   private previewMesh: THREE.Mesh | null = null
+  /** 放置示意网格（LineComponent 托管，挂 builder.decor；进入放置模式显示，默认隐藏） */
+  private placeGridLines: THREE.LineSegments | null = null
 
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
@@ -70,6 +74,8 @@ export class FishBaseGameMode extends GameMode {
     // 基地地图由专门的构建类创建（地面/草地/初始建筑布局），放置回调走本 GameMode 的 placeBuilding
     this.baseBuilder = new ClashBaseBuilder(this.world!)
     this.baseBuilder.build((id, gx, gz) => this.placeBuilding(id, gx, gz))
+    // 创建放置示意网格（默认隐藏，进入放置模式时显示）
+    this.createPlaceGrid()
   }
 
   override EndPlay() {
@@ -93,6 +99,8 @@ export class FishBaseGameMode extends GameMode {
     const pawn = new FishBasePawn()
     // 滚轮缩放 + 右键平移：把 controller 的输入组件绑定到基地摄像机云台
     this.baseCamera.rig.bindInput(controller.inputComponent)
+    // 右键平移开始时取消放置模式（右键平移与放置模式互斥）
+    this.baseCamera.rig.onRightPanStart = () => this.cancelPlaceMode()
     // 相机平移边界与放置范围一致（±24，覆盖整个 48x48 地面）
     this.baseCamera.rig.panLimit = PLACE_HALF
     logger.info(`[BaseGM] SpawnPlayer: controller=${controller.name}`)
@@ -117,18 +125,26 @@ export class FishBaseGameMode extends GameMode {
     this.deselectBuilding()
     // 切换选择：再次点击同类型取消
     if (this.selectedType?.id === typeId) {
-      this.selectedType = null
-      this.hidePreview()
+      this.cancelPlaceMode()
       logger.info('[BaseGM] 取消放置模式')
       return
     }
     this.selectedType = CLASH_BUILDING_TYPES.find((t) => t.id === typeId) ?? null
     if (this.selectedType) {
       this.showPreview(this.selectedType)
+      // 进入放置模式 → 显示放置示意网格
+      this.setPlaceGridVisible(true)
       logger.info(`[BaseGM] 选择放置: ${this.selectedType.name}`)
     } else {
       logger.warn(`[BaseGM] 未知建筑类型: ${typeId}`)
     }
+  }
+
+  /** 取消放置模式：清除选中类型 + 隐藏预览 + 隐藏放置示意网格 */
+  private cancelPlaceMode() {
+    this.selectedType = null
+    this.hidePreview()
+    this.setPlaceGridVisible(false)
   }
 
   /** HUD 删除按钮点击：删除当前选中的建筑 */
@@ -138,7 +154,7 @@ export class FishBaseGameMode extends GameMode {
       return
     }
     const b = this.selectedBuilding
-    this.gridOccupied.delete(`${b.gridX},${b.gridZ}`)
+    this.gridOccupied.delete(`${b.root.userData.gridX},${b.root.userData.gridZ}`)
     this.clashBuildings = this.clashBuildings.filter((x) => x !== b)
     b.destroy()
     this.selectedBuilding = null
@@ -147,6 +163,7 @@ export class FishBaseGameMode extends GameMode {
 
   /**
    * 放置建筑（网格吸附，格子坐标 = 世界坐标整数）。
+   * 建筑从蓝图资产生成（结构 + ClashBuildingScript 行为脚本），网格坐标存 root.userData。
    * @returns 是否放置成功
    */
   private placeBuilding(typeId: string, gx: number, gz: number): boolean {
@@ -157,10 +174,15 @@ export class FishBaseGameMode extends GameMode {
     const key = `${gx},${gz}`
     if (this.gridOccupied.has(key)) return false
 
-    const building = new ClashBuildingActor(`Building_${type.id}`, type, gx, gz)
+    const building = world.SpawnActorFromBlueprint(type.blueprint)
+    if (!building) {
+      logger.error(`[BaseGM] 放置建筑失败: 蓝图 "${type.blueprint}" 生成失败 (${type.name})`)
+      return false
+    }
+    // SpawnActorFromBlueprint 内部已入队；这里补网格坐标并定位
+    building.root.userData.gridX = gx
+    building.root.userData.gridZ = gz
     building.setPosition(gx, 0, gz)
-    building.onSelect = (b) => this.onBuildingClick(b)
-    world.SpawnActor(building)
     this.clashBuildings.push(building)
     this.gridOccupied.set(key, building)
     logger.info(`[BaseGM] 放置建筑: ${type.name} @ (${gx}, ${gz})`)
@@ -168,22 +190,30 @@ export class FishBaseGameMode extends GameMode {
   }
 
   /** 点击已放置建筑：选中（高亮）/ 取消选中 */
-  private onBuildingClick(b: ClashBuildingActor) {
+  onBuildingClick(b: Actor) {
     if (this.selectedBuilding === b) {
       this.deselectBuilding()
     } else {
-      this.selectedBuilding?.setSelected(false)
+      this.deselectBuilding()
       this.selectedBuilding = b
-      b.setSelected(true)
+      this.setBuildingSelected(b, true)
       // 退出放置模式，进入移动模式：点击地面移动建筑
-      this.selectedType = null
-      this.hidePreview()
+      this.cancelPlaceMode()
     }
   }
 
+  /** 通过建筑蓝图上的 ClashBuildingScript 设置选中状态（金色线框显隐） */
+  private setBuildingSelected(b: Actor, selected: boolean): void {
+    const sc = b.getComponent(ScriptComponent)?.instance as ClashBuildingScript | null
+    if (sc) sc.setSelected(selected)
+    else logger.warn('[BaseGM] 选中建筑缺少 ClashBuildingScript 脚本实例')
+  }
+
   private deselectBuilding() {
-    this.selectedBuilding?.setSelected(false)
-    this.selectedBuilding = null
+    if (this.selectedBuilding) {
+      this.setBuildingSelected(this.selectedBuilding, false)
+      this.selectedBuilding = null
+    }
   }
 
   // ════════════════════════════════════════════
@@ -263,17 +293,39 @@ export class FishBaseGameMode extends GameMode {
     }
   }
 
+  // ════════════════════════════════════════════
+  //  放置示意网格（放置模式提示：网格吸附位置可视化）
+  // ════════════════════════════════════════════
+
+  /** 创建放置示意网格：覆盖整个放置范围（±PLACE_HALF，每格 1 单位），默认隐藏 */
+  private createPlaceGrid() {
+    const w = this.world
+    const decor = this.baseBuilder?.decor
+    if (!w || !decor || this.placeGridLines) return
+    const lines = w.createGridLines(PLACE_HALF * 2, 1, 0xffffff, true, 0.4)
+    lines.position.y = 0.01
+    lines.visible = false
+    decor.addComponent(new LineComponent(decor, lines, 'PlaceGrid'))
+    this.placeGridLines = lines
+    logger.info('[BaseGM] 放置示意网格已创建（±' + PLACE_HALF + '，默认隐藏）')
+  }
+
+  /** 切换放置示意网格显隐 */
+  private setPlaceGridVisible(visible: boolean): void {
+    if (this.placeGridLines) this.placeGridLines.visible = visible
+  }
+
   /** 移动建筑：先移除旧占用，再放置到新格子 */
-  private placeBuildingAt(b: ClashBuildingActor, gx: number, gz: number): boolean {
+  private placeBuildingAt(b: Actor, gx: number, gz: number): boolean {
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     const other = this.gridOccupied.get(key)
     if (other && other !== b) return false
 
     // 释放旧格子
-    this.gridOccupied.delete(`${b.gridX},${b.gridZ}`)
-    b.gridX = gx
-    b.gridZ = gz
+    this.gridOccupied.delete(`${b.root.userData.gridX},${b.root.userData.gridZ}`)
+    b.root.userData.gridX = gx
+    b.root.userData.gridZ = gz
     b.setPosition(gx, 0, gz)
     this.gridOccupied.set(key, b)
     return true
@@ -281,11 +333,15 @@ export class FishBaseGameMode extends GameMode {
 
   /** 清理部落冲突建造系统资源 */
   private clearClashBase() {
+    // 解除右键平移回调引用（防悬挂）
+    this.baseCamera.rig.onRightPanStart = null
     // 地图构建器 EndPlay：注销对象注册表；装饰 Actor 由 World.DestroyAllActors 统一销毁
     this.baseBuilder?.EndPlay()
     this.baseBuilder = null
     this.previewComp = null
     this.previewMesh = null
+    // 放置网格由 decor 上的 LineComponent.EndPlay 自动释放资源
+    this.placeGridLines = null
     this.clashBuildings = []
     this.gridOccupied.clear()
     this.selectedType = null

@@ -5,11 +5,13 @@
  * 此类仅负责交互行为：点击检测、悬停高亮。
  *
  * clickZone / glow 等交互元素仍在此处程序化生成（不变）。
+ * 继承 BuildingActor 基类：携带建筑显示名（buildingName）与放置占地格子数（footprint）。
  */
 import * as THREE from 'three'
-import { Actor, ClickableComponent, MeshComponent, LineComponent, type World, logger } from '@/engine'
+import { ClickableComponent, MeshComponent, LineComponent, type World, logger } from '@/engine'
+import { BuildingActor } from './BuildingActor'
 
-export class FishHouseActor extends Actor {
+export class FishHouseActor extends BuildingActor {
   /** 不可见点击碰撞体 */
   protected clickZone: THREE.Mesh | null = null
 
@@ -23,7 +25,8 @@ export class FishHouseActor extends Actor {
   onClaimCoins: (() => void) | null = null
 
   constructor(name = 'FishHouseActor') {
-    super(name)
+    // 建筑显示名与占地格子数（基类元数据）：海岛小屋占地约 2.4 世界单位 → 2×2 格
+    super(name, '海岛小屋', 2)
   }
 
   // ═══════════════════════════════════

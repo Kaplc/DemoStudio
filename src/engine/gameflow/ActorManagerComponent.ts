@@ -464,6 +464,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       actor.applyPatch(overrides)
     }
 
+    // 4.5 应用蓝图根节点 name（子节点已在 spawnChildObjects 应用 child.name，
+    // 根节点遗漏会导致大纲等显示 baseClass 默认名如 'Actor' 而非资产名）
+    if (resolved.name) {
+      actor.root.name = resolved.name
+    }
+
     // 5. 蓝图元数据
     actor.blueprintRef = { id: path, overrides }
 
