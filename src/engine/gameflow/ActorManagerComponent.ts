@@ -112,6 +112,15 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       this.owner.ui.destroyUIActor(actor)
       return
     }
+    // 尚未提交生成（pendingSpawn 中）：直接取消生成，避免生成一个已请求销毁的对象
+    const spawnIdx = this.pendingSpawn.indexOf(actor)
+    if (spawnIdx >= 0) {
+      this.pendingSpawn.splice(spawnIdx, 1)
+      actor.bPendingDestroy = true
+      // 从未进入世界，仍需释放资源（EndPlay → markDestroyed → 注册表注销）
+      actor.EndPlay()
+      return
+    }
     if (!this.allActors.has(actor)) return
     actor.bPendingDestroy = true
     this.pendingDestroy.push(actor)

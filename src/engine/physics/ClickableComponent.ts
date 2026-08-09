@@ -117,6 +117,8 @@ export class ClickableComponent extends Component<Actor> {
    * 返回 true 表示本次点击已命中消费。
    */
   handleClick(raycaster: THREE.Raycaster): boolean {
+    // 已销毁的组件（残留注册表）不应再响应点击 —— 直接拒绝
+    if (this.isDestroyed() || this.owner.isDestroyed()) return false
     const now = performance.now()
     if (now - this._lastClickTime < this.clickCooldown) return false
 
@@ -134,6 +136,8 @@ export class ClickableComponent extends Component<Actor> {
    * 返回当前是否正在悬停。
    */
   handleHover(raycaster: THREE.Raycaster): boolean {
+    // 已销毁的组件（残留注册表）不应再响应悬停 —— 直接拒绝
+    if (this.isDestroyed() || this.owner.isDestroyed()) return false
     const hit = this.hitTest(raycaster)
     const hovering = hit !== null
 

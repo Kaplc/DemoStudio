@@ -126,7 +126,6 @@ export class CanvasUIComponent extends Component<Actor> {
       this.panel.scale.set(ww, wh, 1)
       this.panel.visible = this._bActive // 激活属性：false = 不渲染
       owner.root.add(this.panel)
-      logger.info(`[CanvasUIComponent] 创建 "${this.name}": canvas=${this._width}x${this._height}px, world=${ww}x${wh}, zOrder=${this._zOrder}, active=${this._bActive}`)
     }
 
     if (options.zOrder !== undefined) this.zOrder = options.zOrder

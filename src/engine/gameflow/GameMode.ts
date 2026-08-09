@@ -62,6 +62,8 @@ export abstract class GameMode extends BObject {
     this.gameState.EndPlay()
     this.controller?.EndPlay()
     this.controller = null
+    // 相机管理器终态（幂等：BObject.EndPlay 自动 markDestroyed + 注册表注销）
+    this.cameraManager.EndPlay()
     super.EndPlay()
   }
 

@@ -21,7 +21,22 @@ import { GameInstance } from './GameInstance'
 import type { GameInstanceCallbacks } from './GameInstance'
 import { AIModule } from '../ai/AIModule'
 import { GameFactoryRegistry } from '../tools/GameFactoryRegistry'
+import { ObjectRegistry } from '../tools/ObjectRegistry'
+import { ThreeObject } from '../rendering/ThreeObject'
+import { ThreeObjectFactory } from './ThreeObjectFactory'
 import type { World } from './World'
+import type { OObject } from '../entity/OObject'
+
+/**
+ * 游戏运行级单例接口：有运行状态的全局单例（如 PhySys / AIModule）。
+ * 由 Game.launch 注册、Game.shutdown 统一回收 —— 生命周期绑定 Game。
+ */
+export interface GameSingleton {
+  /** 单例名（日志用） */
+  readonly name: string
+  /** 游戏停止时回收运行状态（清相机/注册表/上下文等） */
+  reset(): void
+}
 
 export class Game {
   private _instance: GameInstance | null = null
@@ -33,6 +48,57 @@ export class Game {
 
   /** 实例状态回调（createInstance 创建实例时自动注入） */
   private _callbacks: GameInstanceCallbacks = {}
+
+  /** 运行级单例注册表（launch 时收集，shutdown 时统一回收） */
+  private _singletons: GameSingleton[] = []
+
+  /** THREE 对象工厂（统一创建 + 追踪，shutdown 时 disposeAll 回收） */
+  private readonly _factory = new ThreeObjectFactory()
+
+  /** 启动时对象基线快照（shutdown 时对比，诊断本局创建但未回收的 OObject） */
+  private _objBaseline: ReadonlySet<OObject> | null = null
+
+  // ════════════════════════════════════════
+  //  THREE 对象工厂（禁止裸 new THREE.xxx —— 统一经此创建并追踪）
+  // ════════════════════════════════════════
+
+  /** 创建 Mesh（追踪释放） */
+  createMesh(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[]): ThreeObject<THREE.Mesh> {
+    return this._factory.createMesh(geometry, material)
+  }
+
+  /** 创建 Group（追踪释放） */
+  createGroup(): ThreeObject<THREE.Group> {
+    return this._factory.createGroup()
+  }
+
+  /** 创建 Line / LineSegments（追踪释放） */
+  createLine(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[]): ThreeObject<THREE.LineSegments> {
+    return this._factory.createLine(geometry, material)
+  }
+
+  /** 创建 Sprite（追踪释放） */
+  createSprite(material: THREE.SpriteMaterial): ThreeObject<THREE.Sprite> {
+    return this._factory.createSprite(material)
+  }
+
+  /** 创建 Points（追踪释放） */
+  createPoints(geometry: THREE.BufferGeometry, material: THREE.PointsMaterial): ThreeObject<THREE.Points> {
+    return this._factory.createPoints(geometry, material)
+  }
+
+  /**
+   * 手动创建任意 Object3D（追踪释放）。
+   * 仅在工厂方法未覆盖的类型时使用；工厂方法应优先。
+   */
+  trackObject<T extends THREE.Object3D>(object: T): ThreeObject<T> {
+    return this._factory.trackObject(object)
+  }
+
+  /** 当前追踪的 THREE 对象数（调试用） */
+  get threeObjectCount(): number {
+    return this._factory.count
+  }
 
   constructor(sceneMgr?: SceneRenderHost | null) {
     this.sceneMgr = sceneMgr ?? null
@@ -94,6 +160,9 @@ export class Game {
   launch(): boolean {
     logger.info('[Game] 启动游戏...')
 
+    // 对象基线快照：记录本局运行前已存活的对象（shutdown 时对比诊断未回收对象）
+    this._objBaseline = new Set(ObjectRegistry.snapshot())
+
     const inst = this._instance
     if (!inst) {
       logger.error('[Game] 无游戏实例，请先调用 createInstance()')
@@ -142,6 +211,9 @@ export class Game {
 
     logger.info('[Game] 游戏已启动')
 
+    // 运行级单例注册表：启动时收集（shutdown 时统一回收）
+    this._singletons = [PhySys, AIModule.instance]
+
     // AI 事件模块：附加运行上下文（world 来自游戏实例的 duck-typed 字段）
     const world = (inst as unknown as { world?: World }).world
     if (world) {
@@ -165,12 +237,14 @@ export class Game {
 
     // 完全销毁游戏实例（stop + world.Destroy + 组件注销）
     this._instance?.destroy()
+    // 终态化输入子系统（InputSys 纳入 BObject 体系，随实例销毁回收）
+    this._instance?.teardown()
+    // 显式终态标记（幂等）：world.Destroy 内 reclaimForWorld 依赖 world 字段隐式回收
+    // GameInstance，此处保证注册表一致性（未来子类无 world 字段也不会泄漏）
+    this._instance?.markDestroyed()
     // 单例：清除当前活跃实例
     GameInstance.setCurrent(null)
     logger.info('[Game] 游戏实例已销毁，单例已清除')
-
-    // AI 事件模块：清空运行上下文
-    AIModule.instance.detachContext()
 
     // 禁用 Game 渲染、解除相机委托、重置视角
     const gameMgr = this.ensureGameMgr()
@@ -184,8 +258,63 @@ export class Game {
       gameMgr.resetView()
     }
 
-    // 清理 PhySys 全局状态（物理解耦模块引用，避免多实例串扰）
-    PhySys.clear()
+    // 统一回收运行级单例（PhySys 清相机/clickable 注册表，AIModule 清运行上下文）
+    for (const s of this._singletons) {
+      s.reset()
+      logger.info(`[Game] 单例已回收: ${s.name}`)
+    }
+    this._singletons = []
+
+    // 统一释放本 Game 创建的全部 THREE 对象（GPU 资源：geometry/material/texture）
+    const total = this._factory.count
+    if (total > 0) {
+      const orphans = this._factory.disposeAll()
+      // 兜底诊断：正常路径由组件 EndPlay 释放（disposed=true）；
+      // 未释放的 = 组件销毁链路异常（有 owner）或基础设施（owner=null，预期由本处回收）
+      if (orphans.length > 0) {
+        for (const o of orphans) {
+          logger.warn(
+            `[Game] 兜底释放未回收的 THREE 对象: ${o.object.type}` +
+              `（${o.owner ? `Actor=${o.owner.name}` : '基础设施/无归属'}）`
+          )
+        }
+      }
+      logger.info(
+        `[Game] 已释放 ${total} 个 THREE 对象` +
+          `${orphans.length > 0 ? `（其中 ${orphans.length} 个为兜底回收）` : ''}`
+      )
+    }
+
+    // 对象泄漏诊断：对比启动基线，输出本局创建但未回收的 OObject
+    if (this._objBaseline) {
+      const leaked = ObjectRegistry.diffSince(this._objBaseline)
+      this._objBaseline = null
+      if (leaked.length > 0) {
+        // 按类名分组统计
+        const byClass = new Map<string, number>()
+        for (const o of leaked) {
+          const cls = (o.constructor as { name?: string })?.name ?? 'Unknown'
+          byClass.set(cls, (byClass.get(cls) ?? 0) + 1)
+        }
+        const summary = [...byClass.entries()].map(([c, n]) => `${c}×${n}`).join(', ')
+        logger.warn(`[Game] 对象泄漏诊断：${leaked.length} 个 OObject 未回收（${summary}）`)
+        // 详情（最多列前 10 个，含名字/uid/world 归属）
+        for (const o of leaked.slice(0, 10)) {
+          const anyObj = o as { name?: string; uid?: number; world?: { name?: string } | null }
+          const info = [
+            `类=${(o.constructor as { name?: string })?.name ?? '?'}`,
+            anyObj.name ? `name=${anyObj.name}` : '',
+            anyObj.uid !== undefined ? `uid=${anyObj.uid}` : '',
+            anyObj.world ? `world=${anyObj.world.name ?? '?'}` : '无world',
+          ]
+            .filter(Boolean)
+            .join(', ')
+          logger.warn(`[Game]   └ ${info}`)
+        }
+      } else {
+        logger.info('[Game] 对象泄漏诊断：无未回收对象')
+      }
+    }
   }
 
   /** 每帧更新（如未通过 onUpdate 自动驱动时手动调用） */

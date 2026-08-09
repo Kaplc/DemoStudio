@@ -13,8 +13,11 @@
  */
 import * as THREE from 'three'
 import type { ClickableComponent } from './ClickableComponent'
+import type { GameSingleton } from '../gameflow/Game'
 
-class PhySysImpl {
+class PhySysImpl implements GameSingleton {
+  readonly name = 'PhySys'
+
   /** 全局复用 raycaster */
   readonly raycaster = new THREE.Raycaster()
 
@@ -78,6 +81,11 @@ class PhySysImpl {
     // （残留组件闭包链会指向已销毁的旧 GameInstance/World，导致旧 world 被驱动）
     this._clickables.clear()
     this._uiClickables.clear()
+  }
+
+  /** GameSingleton：游戏停止时回收运行状态（等价 clear） */
+  reset(): void {
+    this.clear()
   }
 
   get ready(): boolean {

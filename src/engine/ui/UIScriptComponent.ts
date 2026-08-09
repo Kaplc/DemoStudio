@@ -66,6 +66,8 @@ export class UIScriptComponent extends Component<Actor> {
     } catch (e) {
       logger.error(`[UIScriptComponent] 脚本 "${this.script}" onDestroy 抛错: ${(e as Error).message}`)
     }
+    // 脚本终态（BObject.EndPlay 自动 markDestroyed + 注册表注销），幂等
+    this.instance?.EndPlay()
     this.instance = null
   }
 

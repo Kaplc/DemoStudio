@@ -5,13 +5,15 @@
  *
  * 所有实例共享一个单位 PlaneGeometry(1,1)，通过 mesh.scale 实现尺寸变化，
  * 避免大量重复几何体创建/销毁的 GC 开销。
+ * 资源释放由 ThreeObjectComponent 基类统一负责（共享 geometry 跳过 dispose）。
  */
 import * as THREE from 'three'
-import { Component } from '../entity/Component'
+import { ThreeObject } from './ThreeObject'
+import { ThreeObjectComponent } from './ThreeObjectComponent'
 import type { Actor } from '../entity/Actor'
 import { loadTexture } from './TextureLoader'
 
-export class SpriteComponent extends Component<Actor> {
+export class SpriteComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh>> {
   /** 所有 SpriteComponent 共享的单位平面几何体 */
   private static sharedGeo: THREE.PlaneGeometry | null = null
 
@@ -23,22 +25,32 @@ export class SpriteComponent extends Component<Actor> {
   }
 
   /** 实际渲染对象，加到 owner.root */
-  public mesh: THREE.Mesh
+  public readonly obj: ThreeObject<THREE.Mesh>
   private material: THREE.MeshBasicMaterial
   /** 逻辑宽高（用于 scale 换算） */
   private _width = 1
   private _height = 1
 
   constructor(owner: Actor, width = 1, height = 1, name = 'SpriteComponent') {
-    super(owner)
-    this.name = name
+    super(owner, name)
     this._width = width
     this._height = height
     this.material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true })
-    this.mesh = new THREE.Mesh(SpriteComponent.getSharedGeo(), this.material)
-    this.mesh.scale.set(width, height, 1)
+    // 共享 geometry 不释放（disposeGeometry=false），材质由 ThreeObject.dispose 释放
+    this.obj = new ThreeObject(new THREE.Mesh(SpriteComponent.getSharedGeo(), this.material), { disposeGeometry: false })
+    this.obj.object.scale.set(width, height, 1)
     // 构造时即挂到 root，保证池对象在 activate 时网格已就位
-    owner.root.add(this.mesh)
+    this.attachToRoot(this.obj)
+  }
+
+  /** 便捷访问（语义化别名） */
+  get mesh(): THREE.Mesh {
+    return this.obj.object
+  }
+
+  /** 便捷访问：底层 THREE 对象 */
+  get object(): THREE.Mesh {
+    return this.obj.object
   }
 
   // BeginPlay 不再需要挂网格 —— 构造时已完成
@@ -47,7 +59,7 @@ export class SpriteComponent extends Component<Actor> {
   setSize(width: number, height: number) {
     this._width = width
     this._height = height
-    this.mesh.scale.set(width, height, 1)
+    this.object.scale.set(width, height, 1)
   }
 
   /** 设置纯色（与纹理互斥：有贴图时设为白色基底避免染色） */
@@ -83,13 +95,6 @@ export class SpriteComponent extends Component<Actor> {
   /** 获取网格宽高 */
   getSize(): [number, number] {
     return [this._width, this._height]
-  }
-
-  override EndPlay() {
-    super.EndPlay()
-    this.owner.root.remove(this.mesh)
-    this.material.dispose()
-    // 注意：不 dispose sharedGeo，它被所有实例共享
   }
 }
 

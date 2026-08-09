@@ -20,6 +20,12 @@ export class CameraComponent extends BObjectComponent<BObject> {
   public readonly camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
   public priority = 0
 
+  /**
+   * 所属的相机管理器（由 PlayerCameraManager.RegisterCamera 注入）。
+   * EndPlay 时自动注销，防止运行中销毁相机后管理器残留已销毁组件。
+   */
+  cameraManager: import('./PlayerCameraManager').PlayerCameraManager | null = null
+
   /** 透视:视场角(度) */
   public fov = 60
   /** 正交:半高(世界单位),宽度 = orthoSize × aspect */
@@ -119,6 +125,12 @@ export class CameraComponent extends BObjectComponent<BObject> {
   }
 
   override EndPlay() {
+    // 从相机管理器注销（运行中销毁相机/切换场景 DestroyAllActors 时，
+    // 防止管理器 GetActiveCamera 拿到已销毁组件）
+    if (this.cameraManager) {
+      this.cameraManager.UnregisterCamera(this)
+      this.cameraManager = null
+    }
     super.EndPlay()
   }
 }

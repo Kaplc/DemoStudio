@@ -8,13 +8,20 @@
  *
  * 所有输入方法统一经由 GameInstance.inputSys 路由，
  * GameViewport 不再直接调用 PlayerController。
+ *
+ * 继承 BObject：纳入引擎对象体系（构造自动注册到 ObjectRegistry），
+ * 由 GameInstance.teardown()（Game.shutdown 调用）驱动 EndPlay 终态化。
  */
 import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
+import { BObject } from '../entity/BObject'
 import type { PlayerController } from './PlayerController'
 import { logger } from '../Logger'
 
-export class InputSys {
+export class InputSys extends BObject {
+  constructor() {
+    super('InputSys')
+  }
   // ════════════════════════════════════════════
   //   鼠标
   // ════════════════════════════════════════════

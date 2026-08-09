@@ -95,4 +95,12 @@ export abstract class GameInstance extends AObject {
 
   /** 完全销毁：清理所有资源 */
   abstract destroy(): void
+
+  /**
+   * 终态化输入子系统（幂等：BObject.EndPlay 自动 markDestroyed + 注册表注销）。
+   * 由 Game.shutdown 在实例 destroy() 之后调用。
+   */
+  teardown(): void {
+    this.inputSys.EndPlay()
+  }
 }

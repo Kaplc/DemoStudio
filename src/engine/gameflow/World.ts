@@ -19,6 +19,7 @@ import { MeshComponent } from '../rendering/MeshComponent'
 import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
+import { ObjectRegistry } from '../tools/ObjectRegistry'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
 import type { Actor } from '../entity/Actor'
@@ -97,6 +98,7 @@ export class World extends AObject {
   // ═══════════════════════════════════
 
   SetGameMode(gm: GameMode) {
+    this.assertValid('调用 SetGameMode') // 已销毁 World 不应再被驱动（旧实例闭包路径）
     logger.info(`[World#${this.id}] SetGameMode: ${gm.constructor.name}`)
     // 先清理旧 GameMode
     if (this.gameMode) {
@@ -122,6 +124,7 @@ export class World extends AObject {
 
   /** 生成 Actor（进待生成队列，tick 时提交：进场景 + BeginPlay） */
   SpawnActor<T extends Actor>(actor: T): T {
+    this.assertValid('调用 SpawnActor') // 已销毁 World 不应再生成对象
     return this.actorMgr.SpawnActor(actor)
   }
 
@@ -173,6 +176,7 @@ export class World extends AObject {
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
   SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
+    this.assertValid('调用 SpawnActorFromBlueprint')
     return this.actorMgr.SpawnActorFromBlueprint(path, overrides)
   }
 
@@ -330,9 +334,18 @@ export class World extends AObject {
    * @param setup    在 BeginPlay 之前执行的设置回调（场景加载、相机、Controller 等）
    */
   SwitchScene(newMode: GameMode, setup?: () => void): void {
+    // 切换前基线：记录当前存活对象（旧场景对象应随切换全部回收）
+    const baseline = new Set(ObjectRegistry.snapshot())
+    const oldModeName = this.gameMode?.constructor.name ?? '无'
     logger.info(`[World#${this.id}] SwitchScene: 暂停世界 → 销毁旧 Actor → 切换 GameMode(${newMode.constructor.name})`)
     this.Pause()
     this.DestroyAllActors()
+    // 强诊断：旧场景 Actor 集合应已清空（在 setup 之前检查，因为 setup 会生成新 Actor）
+    const leftover3D = this.actorMgr.actorCount + this.actorMgr.pendingSpawnCount
+    const leftoverUI = this.ui.actorCount + this.ui.pendingSpawnCount
+    if (leftover3D > 0 || leftoverUI > 0) {
+      logger.warn(`[World#${this.id}] SwitchScene 残留诊断：旧场景 Actor 集合未清空（3D=${leftover3D}, UI=${leftoverUI}）`)
+    }
     this.SetGameMode(newMode)
     // 创建 HUD（模仿 UE：GameMode.HUDClass → UIManager 统一创建 UI）
     if (newMode.HUDClass) {
@@ -343,6 +356,26 @@ export class World extends AObject {
     logger.info('[World] SwitchScene: 执行 setup 回调（加载场景资产 / 项目专属设置）...')
     setup?.()
     this.BeginPlay()
+    // 软诊断：基线中仍存活且归属于本 World 的 BObject = 旧场景对象泄漏
+    const residual = ObjectRegistry.aliveGameObjectsOf(baseline, this)
+    if (residual.length > 0) {
+      const byClass = new Map<string, number>()
+      for (const o of residual) {
+        const cls = (o.constructor as { name?: string })?.name ?? 'Unknown'
+        byClass.set(cls, (byClass.get(cls) ?? 0) + 1)
+      }
+      const summary = [...byClass.entries()].map(([c, n]) => `${c}×${n}`).join(', ')
+      logger.warn(`[World#${this.id}] SwitchScene 残留诊断：${residual.length} 个旧场景对象未回收（${summary}）`)
+      for (const o of residual.slice(0, 10)) {
+        const anyObj = o as { name?: string; uid?: number }
+        logger.warn(
+          `[World#${this.id}]   └ ${(o.constructor as { name?: string })?.name ?? '?'}` +
+            ` name=${anyObj.name ?? '?'} uid=${anyObj.uid}`,
+        )
+      }
+    } else {
+      logger.info(`[World#${this.id}] SwitchScene 残留诊断：旧场景对象全部回收（旧 GameMode=${oldModeName}）`)
+    }
     logger.info(`[World#${this.id}] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.actorMgr.actorCount}）`)
   }
 
@@ -473,6 +506,7 @@ export class World extends AObject {
   SwitchToScene(sceneName: string, extraSetup?: () => void): boolean;
 
   SwitchToScene(sceneOrName: SceneAsset | string, extraSetup?: () => void): boolean {
+    this.assertValid('调用 SwitchToScene') // 已销毁 World 被旧闭包驱动会污染共享场景
     // 字符串 → 从 AssetRegistry 查找
     if (typeof sceneOrName === 'string') {
       logger.info(`[World#${this.id}] SwitchToScene: 按名称查找场景 "${sceneOrName}"`)
@@ -583,6 +617,9 @@ export class World extends AObject {
     this.actorMgr.DestroyAllActors()
     this._tickCallbacks = []
     this.gameMode = null
+    // 兜底回收：遍历全局对象注册表，回收所有归属于本 World 的对象
+    // （GameState / Controller / World 自身组件 / 任何漏网的 BObject 等）
+    ObjectRegistry.reclaimForWorld(this)
     // 清理 Game 视口渲染器（由 World 创建，随 World 销毁）
     this.gameRenderer?.dispose()
   }

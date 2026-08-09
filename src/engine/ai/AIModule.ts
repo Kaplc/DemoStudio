@@ -19,6 +19,7 @@
 import { logger } from '../Logger'
 import type { World } from '../gameflow/World'
 import type { GameInstance } from '../gameflow/GameInstance'
+import type { GameSingleton } from '../gameflow/Game'
 
 /** 事件处理器上下文（引擎运行时的可操作对象） */
 export interface AIEventContext {
@@ -45,7 +46,9 @@ export interface AIEmitResult {
   results: unknown[]
 }
 
-export class AIModule {
+export class AIModule implements GameSingleton {
+  readonly name = 'AIModule'
+
   private static _instance: AIModule | null = null
 
   /** 单例（引擎内全局唯一） */
@@ -80,6 +83,11 @@ export class AIModule {
     this._world = null
     this._gameInstance = null
     logger.info('[AIModule] 上下文已清空（游戏停止）')
+  }
+
+  /** GameSingleton：游戏停止时回收运行状态（等价 detachContext） */
+  reset(): void {
+    this.detachContext()
   }
 
   // ═══════════════════════════════════════

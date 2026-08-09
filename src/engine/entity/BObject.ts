@@ -76,6 +76,8 @@ export abstract class BObject extends AObject {
       comps[i].EndPlay()
     }
     this.bHasBegunPlay = false
+    // 终态死亡标记 + 从全局注册表注销（幂等；允许重复 EndPlay）
+    this.markDestroyed()
   }
 
   // ═══════════════════════════════════

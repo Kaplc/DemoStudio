@@ -321,9 +321,18 @@ export class UIManager extends AObjectComponent<World> {
     this._pendingDestroy = []
   }
 
-  /** 销毁 UI Actor（延迟到 tick 提交） */
+  /** 销毁 UI Actor（延迟到 tick 提交；未提交生成时直接取消生成） */
   destroyUIActor(actor: Actor): void {
     if (actor.bPendingDestroy && !this._uiActors.has(actor)) return
+    // 尚未提交生成（_pendingSpawn 中）：直接取消生成，避免生成一个已请求销毁的对象
+    const spawnIdx = this._pendingSpawn.indexOf(actor)
+    if (spawnIdx >= 0) {
+      this._pendingSpawn.splice(spawnIdx, 1)
+      actor.bPendingDestroy = true
+      // 从未进入 UI 场景，仍需释放资源（EndPlay → markDestroyed → 注册表注销）
+      actor.EndPlay()
+      return
+    }
     actor.bPendingDestroy = true
     this._pendingDestroy.push(actor)
   }

@@ -2,13 +2,16 @@
  * PlayerCameraManager — 管理游戏摄像机
  * 模仿 UE PlayerCameraManager，控制哪个摄像机是活跃的
  * Game 视口从此处读取摄像机进行渲染
+ *
+ * 继承 BObject：纳入引擎对象体系（构造自动注册到 ObjectRegistry，
+ * 由 GameMode.EndPlay 驱动 EndPlay 终态化 —— 泄漏诊断可见）。
  */
 import * as THREE from 'three'
 import { CameraComponent } from './CameraComponent'
-import { Actor } from '../entity/Actor'
+import { BObject } from '../entity/BObject'
 import { logger } from '../Logger'
 
-export class PlayerCameraManager {
+export class PlayerCameraManager extends BObject {
   /** 所有注册的摄像机 */
   private cameras: CameraComponent[] = []
   /** 当前活跃摄像机 */
@@ -18,9 +21,15 @@ export class PlayerCameraManager {
   protected defaultFov = 60
   protected defaultDistance = 10
 
+  constructor() {
+    super('PlayerCameraManager')
+  }
+
   /** 注册一个摄像机 */
   RegisterCamera(cam: CameraComponent) {
     this.cameras.push(cam)
+    // 反向引用：组件 EndPlay 时自动从管理器注销
+    cam.cameraManager = this
     // 按优先级自动选最高
     if (!this.activeCamera || cam.priority >= this.activeCamera.priority) {
       this.SetActiveCamera(cam)
@@ -30,6 +39,7 @@ export class PlayerCameraManager {
   /** 注销摄像机 */
   UnregisterCamera(cam: CameraComponent) {
     this.cameras = this.cameras.filter((c) => c !== cam)
+    if (cam.cameraManager === this) cam.cameraManager = null
     if (this.activeCamera === cam) {
       this.activeCamera = this.cameras.length > 0 ? this.cameras[0] : null
     }
@@ -54,11 +64,6 @@ export class PlayerCameraManager {
   UpdateCamera() {
     if (this.activeCamera && this.activeCamera.bEnabled) {
       this.activeCamera.SyncFromActor()
-      const cam = this.activeCamera.camera
-      const root = this.activeCamera.owner instanceof Actor ? this.activeCamera.owner.root : null
-      logger.debug(
-        `[CameraMgr] UpdateCamera: active=${this.activeCamera.name}, root=(${root?.position.x.toFixed(2) ?? '?'}, ${root?.position.y.toFixed(2) ?? '?'}, ${root?.position.z.toFixed(2) ?? '?'}), cam=(${cam.position.x.toFixed(2)}, ${cam.position.y.toFixed(2)}, ${cam.position.z.toFixed(2)})`,
-      )
     } else {
       logger.debug('[CameraMgr] UpdateCamera: 无活跃相机')
     }

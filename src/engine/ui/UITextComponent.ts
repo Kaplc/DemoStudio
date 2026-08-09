@@ -22,7 +22,6 @@ import notoSansSC700Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chines
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
-import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 
 export interface UITextComponentOptions {
@@ -129,7 +128,6 @@ export class UITextComponent extends CanvasUIComponent {
     this._letterSpacing = options.letterSpacing ?? 0
 
     this.initTroika()
-    logger.info(`[UITextComponent] 创建: text="${this._text.slice(0, 40)}", fontSize=${this._fontSize}, color=${this._color}`)
   }
 
   /** 像素 → 世界单位换算（基于映射基准 canvas 高） */

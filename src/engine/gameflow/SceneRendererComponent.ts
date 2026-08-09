@@ -14,6 +14,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
 import { AObjectComponent } from '../entity/AObjectComponent'
 import { GameInstance } from './GameInstance'
+import { UICamera } from '../rendering/UICamera'
 import type { World } from './World'
 import type { CameraMode } from '../rendering/CameraComponent'
 
@@ -22,16 +23,6 @@ const _raycaster = new THREE.Raycaster()
 const _planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _ndc = new THREE.Vector2()
 const _worldOut = new THREE.Vector3()
-
-/**
- * UI 根画布世界尺寸（资产约定：widget 蓝图根节点 worldWidth/worldHeight）。
- * UI 独立叠加相机始终完整显示该画布（contain）：
- *  - 视口 16:9 → 画布正好铺满
- *  - 视口更宽/更窄 → 画布完整居中，多余空间留空（与主场景 letterbox 行为一致），
- *    不再按视口比例裁切画布（旧实现 halfW=halfH×aspect 在窄视口下会裁掉左右）
- */
-const UI_CANVAS_W = 9.6
-const UI_CANVAS_H = 5.4
 
 export interface SceneRendererComponentOptions {
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
@@ -78,19 +69,16 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     logger.info(`[SceneRendererComponent] setCameraProvider: ${this.camera ? this.camera.type : 'null'}`)
   }
 
-  /** UI 独立场景（widget 等，与主 3D 场景分离，叠加渲染时 UI 永远在顶层） */
-  private _uiScene: THREE.Scene | null = null
-
   /**
-   * UI 独立叠加相机（正交，世界单位视锥 halfH=2.7 匹配 UI 画布 9.6×5.4）。
+   * UI 独立叠加相机（由 UICamera 类封装：正交 contain 模式 + 叠加渲染）。
    * 渲染 UI 场景时用此相机而非主相机 → UI 固定铺满视口、不随主相机移动/缩放。
    * 与主相机共用同一渲染器（autoClear=false + clearDepth 叠加）。
    */
-  private _uiCamera: THREE.OrthographicCamera | null = null
+  private _uiCam: UICamera | null = null
 
-  /** 当前 UI 叠加相机（未挂载 UI 场景时为 null） */
+  /** 当前 UI 叠加相机（未挂载 UI 场景时为 null；PhySys.setupUI 点击检测用） */
   get uiCamera(): THREE.OrthographicCamera | null {
-    return this._uiCamera
+    return this._uiCam?.camera ?? null
   }
 
   /** 正交模式半高（世界单位） */
@@ -193,7 +181,7 @@ export class SceneRendererComponent extends AObjectComponent<World> {
    * 遍历场景内所有材质，将纹理标记 needsUpdate 强制重新上传。
    */
   private restoreAllTextures() {
-    const scenes = [this.scene, this._uiScene].filter(Boolean) as THREE.Scene[]
+    const scenes = [this.scene, this._uiCam?.scene].filter(Boolean) as THREE.Scene[]
     for (const scene of scenes) {
       scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh
@@ -349,18 +337,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
 
-    // 同步 UI 独立叠加相机视锥：contain —— 完整显示 UI 画布（9.6×5.4），
-    // 非 16:9 视口时画布完整居中、两侧留空（不裁切）
-    if (this._uiCamera) {
-      const scale = Math.min(w / UI_CANVAS_W, h / UI_CANVAS_H)
-      const halfW = (w / scale) / 2
-      const halfH = (h / scale) / 2
-      this._uiCamera.left = -halfW
-      this._uiCamera.right = halfW
-      this._uiCamera.top = halfH
-      this._uiCamera.bottom = -halfH
-      this._uiCamera.updateProjectionMatrix()
-    }
+    // 同步 UI 独立叠加相机视锥（UICamera contain 模式：完整显示 9.6×5.4 画布）
+    this._uiCam?.setCanvasSize(w, h)
 
     this.uiLayer.style.width = `${w}px`
     this.uiLayer.style.height = `${h}px`
@@ -374,21 +352,21 @@ export class SceneRendererComponent extends AObjectComponent<World> {
    * 挂载 UI 独立场景：主场景渲染后叠加渲染（autoClear=false + clearDepth，
    * UI 不参与 3D 深度测试 → 永远在顶层）。
    *
-   * 双摄像机方案：UI 场景使用独立正交相机（_uiCamera，视锥匹配 UI 画布世界尺寸），
-   * 不再复用主相机 → UI 固定铺满视口，不受主相机（透视/正交、位置/视角）影响。
+   * 双摄像机方案：UI 场景使用独立正交相机（UICamera，视锥 contain 匹配 UI 画布
+   * 世界尺寸），不再复用主相机 → UI 固定铺满视口，不受主相机（透视/正交、位置/视角）影响。
    */
   attachUIScene(scene: THREE.Scene | null): void {
-    this._uiScene = scene
-    if (scene && !this._uiCamera) {
-      // UI 正交相机：位置 (0,0,10) 看向原点，z=0 为 UI 面板平面（zOrder 偏移量级为 0.001）
-      this._uiCamera = new THREE.OrthographicCamera(-4.8, 4.8, 2.7, -2.7, 0.1, 200)
-      this._uiCamera.position.set(0, 0, 10)
-      this._uiCamera.lookAt(0, 0, 0)
+    if (scene && !this._uiCam) {
+      // UICamera 内置正交相机（contain 模式，画布 9.6×5.4）
+      this._uiCam = new UICamera()
       this.resize()
-      logger.info('[SceneRendererComponent] UI 独立叠加相机已创建（正交 halfH=2.7）')
+      logger.info('[SceneRendererComponent] UI 独立叠加相机已创建（UICamera 正交 contain 9.6×5.4）')
     }
+    this._uiCam?.attach(scene)
     if (!scene) {
-      this._uiCamera = null
+      // 分离即终态（BObject.EndPlay：markDestroyed + 注册表注销），下次挂载重建
+      this._uiCam?.EndPlay()
+      this._uiCam = null
     }
     logger.info(`[SceneRendererComponent] UI 场景${scene ? '已挂载' : '已分离'}${scene ? '（双摄像机叠加渲染）' : ''}`)
   }
@@ -442,14 +420,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
       }
 
       // UI 独立场景叠加渲染（UI 永远在顶层）：
-      // 双摄像机——UI 用独立正交相机（_uiCamera），不随主相机移动/缩放
-      if (this._uiScene && this._uiCamera) {
-        const prevAutoClear = this.renderer.autoClear
-        this.renderer.autoClear = false
-        this.renderer.clearDepth()
-        this.renderer.render(this._uiScene, this._uiCamera)
-        this.renderer.autoClear = prevAutoClear
-      }
+      // 双摄像机——UICamera 持独立正交相机，不随主相机移动/缩放
+      this._uiCam?.render(this.renderer)
 
       for (const cb of this.afterRenderCallbacks) {
         cb()
@@ -543,6 +515,9 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     this.renderer.forceContextLoss()
     this.renderer.dispose()
     this.renderer.domElement.remove()
+    // UI 相机终态兜底（attachUIScene(null) 未调用时的残留）
+    this._uiCam?.EndPlay()
+    this._uiCam = null
     this.uiLayer.remove()
   }
 }
