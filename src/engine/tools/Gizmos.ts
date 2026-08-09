@@ -27,8 +27,50 @@ const _p = new THREE.Vector3()
 const _p0 = new THREE.Vector3()
 
 export class Gizmos {
-  /** 全局开关：关闭后本帧不绘制任何内容 */
-  enabled = true
+  /** 全局开关（关闭后本帧不绘制任何内容）——修改请走 setEnabled（触发委托） */
+  private _enabled = true
+
+  /** 开关变化委托（setEnabled 时触发，各 gizmo 物体注册后自行关闭/显示） */
+  private _enabledListeners = new Set<(enabled: boolean) => void>()
+
+  /** 全局开关（只读；修改用 setEnabled） */
+  get enabled(): boolean {
+    return this._enabled
+  }
+
+  /**
+   * 设置全局开关并通知所有委托（编辑器 Gizmos 按钮调用）。
+   * 委托（TransformGizmo / AnchorGizmo 等）注册后随开关立即关闭/显示。
+   */
+  setEnabled(v: boolean): void {
+    if (this._enabled === v) return
+    this._enabled = v
+    for (const cb of this._enabledListeners) {
+      cb(v)
+    }
+  }
+
+  /**
+   * 注册开关变化委托：开关变化时触发；注册时立即以当前值回调一次（初始化即同步）。
+   * @returns 取消订阅函数
+   */
+  onEnabledChanged(cb: (enabled: boolean) => void): () => void {
+    this._enabledListeners.add(cb)
+    cb(this._enabled)
+    return () => {
+      this._enabledListeners.delete(cb)
+    }
+  }
+
+  /**
+   * 主动广播当前开关状态（不改变开关值）。
+   * 用于选中变化等时机：gizmo 物体新 attach/detach 后立即按当前开关刷新可见性。
+   */
+  refresh(): void {
+    for (const cb of this._enabledListeners) {
+      cb(this._enabled)
+    }
+  }
 
   /** 当前绘制颜色 */
   private _color = new THREE.Color(0xffffff)

@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three'
 import type { Actor } from '../engine'
+import { gizmos } from '../engine'
 import { TransformGizmo } from './TransformGizmo'
 import { editorBus } from './EditorEvents'
 import { EditorEvent } from './EditorEventNames'
@@ -93,6 +94,9 @@ export function select(obj: Selectable | null): void {
   } else {
     _gizmo.detach()
   }
+  // 主动触发 gizmos 开关委托：新 attach/detach 的 gizmo 立即按当前开关刷新可见性
+  // （点击大纲节点 → select → 这里广播，所有注册委托的 gizmo 物体立即显示/隐藏）
+  gizmos.refresh()
 }
 
 /** 选中某个 Actor（保持向后兼容） */

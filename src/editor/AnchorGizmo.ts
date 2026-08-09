@@ -14,6 +14,7 @@ import * as THREE from 'three'
 import type { Actor } from '../engine/entity/Actor'
 import { UITransformComponent, type AnchorPreset } from '../engine/ui/UITransformComponent'
 import { CanvasUIComponent } from '../engine/rendering/CanvasUIComponent'
+import { gizmos } from '../engine'
 
 /** 锚点 → 方向因子（x: -1 左/0 中/+1 右，y: -1 下/0 中/+1 上） */
 const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
@@ -41,6 +42,9 @@ export class AnchorGizmo {
 
   private _target: Actor | null = null
 
+  /** 全局 gizmos 开关委托取消函数（构造注册，dispose 取消；委托驱动显隐） */
+  private _unsubGizmosToggle: (() => void) | null = null
+
   constructor() {
     this.group = new THREE.Group()
     this.group.name = 'AnchorGizmo'
@@ -48,6 +52,12 @@ export class AnchorGizmo {
     this.group.renderOrder = 997
     this.buildParentBounds()
     this.buildTriangles()
+
+    // 监听全局 gizmos 开关（编辑器按钮 setEnabled → 委托触发关闭/显示），
+    // 注册时立即回调当前值（同步初始状态）
+    this._unsubGizmosToggle = gizmos.onEnabledChanged((v) => {
+      if (this._target) this.group.visible = v
+    })
   }
 
   // ─────────────────────────────────────
@@ -107,10 +117,10 @@ export class AnchorGizmo {
   //  生命周期
   // ─────────────────────────────────────
 
-  /** 挂载到目标 Actor（显示 gizmo） */
+  /** 挂载到目标 Actor（显示 gizmo；跟随全局 gizmos.enabled 开关） */
   attach(actor: Actor) {
     this._target = actor
-    this.group.visible = true
+    this.group.visible = gizmos.enabled
     this.update(0)
   }
 
@@ -126,6 +136,9 @@ export class AnchorGizmo {
 
   /** 释放资源 */
   dispose() {
+    // 取消全局 gizmos 开关委托
+    this._unsubGizmosToggle?.()
+    this._unsubGizmosToggle = null
     this.detach()
     this.parentBounds?.geometry.dispose()
     ;(this.parentBounds?.material as THREE.Material | undefined)?.dispose()

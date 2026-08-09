@@ -11,6 +11,7 @@
  *   4. 鼠标释放 → 结束拖拽，恢复摄像机输入
  */
 import * as THREE from 'three'
+import { gizmos } from '../engine'
 
 // ─── 轴颜色 ───
 const AXIS_COLORS = {
@@ -68,6 +69,9 @@ export class TransformGizmo {
 
   // ─── 拖拽移动回调（用于实时更新 Inspector） ───
   onDragMove: (() => void) | null = null
+
+  /** 全局 gizmos 开关委托取消函数（setup 注册，dispose 取消；委托驱动显隐，替代每帧轮询） */
+  private _unsubGizmosToggle: (() => void) | null = null
 
   // ─── 缩放常量屏幕尺寸 ───
   private _screenScale = 0.08
@@ -174,14 +178,20 @@ export class TransformGizmo {
       this.group.removeFromParent()
       scene.add(this.group)
     }
+
+    // 监听全局 gizmos 开关（编辑器按钮 setEnabled → 委托触发关闭/显示），
+    // 注册时立即回调当前值（同步初始状态）；??= 防重复注册（重挂载）
+    this._unsubGizmosToggle ??= gizmos.onEnabledChanged((v) => {
+      if (this._target) this.group.visible = v
+    })
   }
 
-  /** 挂载到目标对象上（显示 Gizmo） */
+  /** 挂载到目标对象上（显示 Gizmo；跟随全局 gizmos.enabled 开关） */
   attach(target: THREE.Object3D) {
     this._target = target
     this._isDragging = false
     this.syncTransform()
-    this.group.visible = true
+    this.group.visible = gizmos.enabled
   }
 
   /** 从目标分离（隐藏 Gizmo） */
@@ -192,7 +202,10 @@ export class TransformGizmo {
     this.resetArrowHighlight()
   }
 
-  /** 每帧同步位置/缩放 */
+  /**
+   * 每帧同步位置/缩放（可见性由 gizmos 开关委托驱动，见 setup）。
+   * 注意：visible 在 attach/detach 与委托回调中维护，此处不覆盖。
+   */
   syncTransform() {
     if (!this._target || !this._camera) return
 
@@ -354,6 +367,9 @@ export class TransformGizmo {
   // ════════════════════════════════════════════
 
   dispose() {
+    // 取消全局 gizmos 开关委托
+    this._unsubGizmosToggle?.()
+    this._unsubGizmosToggle = null
     this.detach()
     this.group.removeFromParent()
     this.group.traverse((child) => {

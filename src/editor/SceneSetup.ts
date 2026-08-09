@@ -59,7 +59,8 @@ export function setupScene(
   )
 
   // 每帧同步 TransformGizmo 位置/缩放（跟随目标移动或相机距离变化）
-  // （Game 实例的 tick/drawGizmos 由 Game.launch 挂载）
+  // （可见性由 gizmos 开关委托驱动，见 TransformGizmo.setup；Game 实例的
+  //   tick/drawGizmos 由 Game.launch 挂载）
   const removeGizmoFlush = sceneMgr.onUpdate(() => {
     if (gizmo.visible) {
       gizmo.syncTransform()

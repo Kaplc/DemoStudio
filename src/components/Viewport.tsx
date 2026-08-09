@@ -235,6 +235,8 @@ export function Viewport({ onReady }: ViewportProps) {
       previewWorldRef.current.DestroyAllActors()
       previewWorldRef.current = null
     }
+    // 游戏运行时隐藏编辑坐标轴（TransformGizmo 挂 sharedScene，不隐藏会泄漏到游戏画面）
+    getTransformGizmo().detach()
 
     const shared = sharedSceneRef.current
     if (shared && currentProject) {
@@ -534,7 +536,7 @@ export function Viewport({ onReady }: ViewportProps) {
           <option value="1/1">1:1</option>
         </select>
         <button
-          onClick={() => { const nv = !gizmosOn; gizmos.enabled = nv; setViewportPref({ gizmos: nv }) }}
+          onClick={() => { const nv = !gizmosOn; gizmos.setEnabled(nv); setViewportPref({ gizmos: nv }) }}
           title="切换 Gizmos 调试绘制"
           style={{
             marginLeft: 6,
