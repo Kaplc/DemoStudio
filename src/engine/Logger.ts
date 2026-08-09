@@ -38,6 +38,8 @@ class LoggerInstance {
   private module: string
   private enableFile: boolean
   private onOutput?: (text: string) => void
+  /** 游戏日志开关：由 Game.launch/shutdown 控制，开启期间日志同时写入独立 game_*.log */
+  private _gameLogActive = false
 
   private constructor(options: LoggerOptions = {}) {
     this.minLevel = LEVEL_ORDER[options.minLevel ?? 'info']
@@ -119,6 +121,34 @@ class LoggerInstance {
     if (this.enableFile && typeof window !== 'undefined' && typeof window.electronAPI?.writeLogFile === 'function') {
       window.electronAPI.writeLogFile(level, fileLine).catch(() => {})
     }
+
+    // 4. 游戏日志（Game.launch 开启后，本局日志同步写入独立 game_*.log 文件）
+    if (this._gameLogActive && typeof window !== 'undefined' && typeof window.electronAPI?.writeGameLog === 'function') {
+      window.electronAPI.writeGameLog(level, fileLine).catch(() => {})
+    }
+  }
+
+  // ─── 游戏日志（每次启动游戏独立文件，滚动删除）───
+
+  /** 开始游戏日志：创建独立 game_*.log 文件，后续日志同时写入 */
+  beginGameLog(projectName?: string): void {
+    this._gameLogActive = true
+    if (typeof window !== 'undefined' && typeof window.electronAPI?.startGameLog === 'function') {
+      window.electronAPI.startGameLog(projectName).catch(() => {})
+    }
+  }
+
+  /** 结束游戏日志：停止写入 game 文件（文件保留，滚动清理） */
+  endGameLog(): void {
+    this._gameLogActive = false
+    if (typeof window !== 'undefined' && typeof window.electronAPI?.stopGameLog === 'function') {
+      window.electronAPI.stopGameLog().catch(() => {})
+    }
+  }
+
+  /** 当前是否处于游戏日志开启状态（调试用） */
+  get gameLogActive(): boolean {
+    return this._gameLogActive
   }
 
   // ─── 公开 API ───

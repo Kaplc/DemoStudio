@@ -58,6 +58,9 @@ export class Game {
   /** 启动时对象基线快照（shutdown 时对比，诊断本局创建但未回收的 OObject） */
   private _objBaseline: ReadonlySet<OObject> | null = null
 
+  /** 当前项目名（createInstance 记录；游戏日志 header 用） */
+  private _projectName = ''
+
   // ════════════════════════════════════════
   //  THREE 对象工厂（禁止裸 new THREE.xxx —— 统一经此创建并追踪）
   // ════════════════════════════════════════
@@ -123,6 +126,7 @@ export class Game {
       this.shutdown()
       this._instance = null
     }
+    this._projectName = projectName
     if (!GameFactoryRegistry.has(projectName)) {
       logger.warn(`[Game] 工程 "${projectName}" 未注册游戏实例工厂，跳过创建`)
       return null
@@ -159,6 +163,9 @@ export class Game {
   /** 启动游戏 */
   launch(): boolean {
     logger.info('[Game] 启动游戏...')
+
+    // 游戏日志：每次启动创建独立 game_*.log 文件（滚动删除），记录本局全部日志
+    logger.beginGameLog(this._projectName)
 
     // 对象基线快照：记录本局运行前已存活的对象（shutdown 时对比诊断未回收对象）
     this._objBaseline = new Set(ObjectRegistry.snapshot())
@@ -284,6 +291,9 @@ export class Game {
           `${orphans.length > 0 ? `（其中 ${orphans.length} 个为兜底回收）` : ''}`
       )
     }
+
+    // 结束游戏日志：本局日志已写入 game_*.log（文件保留，滚动清理）
+    logger.endGameLog()
 
     // 对象泄漏诊断：对比启动基线，输出本局创建但未回收的 OObject
     if (this._objBaseline) {

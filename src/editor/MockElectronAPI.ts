@@ -150,6 +150,19 @@ const mockAPI: ElectronAPI = {
     console.log(`[MockLog:${level}] ${message}`)
   },
 
+  startGameLog: async (projectName?: string) => {
+    console.log(`[Mock] startGameLog${projectName ? `: ${projectName}` : ''} — browser mode, no file`)
+    return null
+  },
+
+  writeGameLog: async (level: string, message: string) => {
+    console.log(`[MockGameLog:${level}] ${message}`)
+  },
+
+  stopGameLog: async () => {
+    console.log('[Mock] stopGameLog — browser mode, no file')
+  },
+
   readLogFile: async (options?: { tail?: number }) => {
     const lines = [
       '[Mock] DemoStudio Editor v5.0.0 已启动 (Browser Mode)',

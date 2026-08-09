@@ -53,6 +53,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readLogFile: (options?: { tail?: number }) =>
     ipcRenderer.invoke('read-log-file', options),
 
+  // ─── 游戏日志（每次启动游戏独立文件）───
+  startGameLog: (projectName?: string) =>
+    ipcRenderer.invoke('start-game-log', projectName),
+  writeGameLog: (level: string, message: string) =>
+    ipcRenderer.invoke('write-game-log', level, message),
+  stopGameLog: () =>
+    ipcRenderer.invoke('stop-game-log'),
+
   // ─── MCP 报告游戏状态 ───
   reportGameState: (state: { running: boolean; score?: number }) =>
     ipcRenderer.invoke('mcp-report-state', state),

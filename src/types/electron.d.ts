@@ -17,6 +17,12 @@ export interface ElectronAPI {
   sendAppReady: () => void
   writeLogFile: (level: string, message: string) => Promise<void>
   readLogFile: (options?: { tail?: number }) => Promise<string>
+  /** 开始游戏日志：创建独立 game_*.log 文件，返回文件路径（失败返回 null） */
+  startGameLog: (projectName?: string) => Promise<string | null>
+  /** 写入游戏日志（需先 startGameLog；无活跃文件时忽略） */
+  writeGameLog: (level: string, message: string) => Promise<void>
+  /** 结束游戏日志：关闭当前 game 文件（文件保留，滚动清理） */
+  stopGameLog: () => Promise<void>
   toggleDevTools?: () => Promise<void>
   createProject: (projectName: string, mode?: '2d' | '3d') => Promise<{ success: boolean; error?: string; path?: string }>
   readJsonFile: (relativePath: string) => Promise<{ success: boolean; data?: any; error?: string }>

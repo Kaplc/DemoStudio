@@ -53,8 +53,12 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
 const CONSOLE_LOG_FILE = path.join(LOG_DIR, `console_${timestamp}.log`)
 
-// 滚动删除：最多保留 10 个 console_ 日志文件 + 10 个日期日志文件
+// 游戏日志：每次启动游戏（Game.launch）创建独立文件 game_*.log，停止时关闭
+let GAME_LOG_FILE: string | null = null
+
+// 滚动删除：最多保留 10 个 console_ 日志 + 10 个 game_ 日志 + 10 个历史日期日志
 const MAX_CONSOLE_LOG_FILES = 10
+const MAX_GAME_LOG_FILES = 10
 const MAX_DAILY_LOG_FILES = 10
 
 function cleanOldLogs() {
@@ -73,11 +77,23 @@ function cleanOldLogs() {
       }
     }
 
-    // 清理日期日志（YYYY-MM-DD.log，保留最新的 10 个）
+    // 清理 game_ 日志（按修改时间排序，保留最新的 10 个）
+    const gameLogs = files
+      .filter(f => f.startsWith('game_') && f.endsWith('.log'))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(LOG_DIR, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)
+    if (gameLogs.length > MAX_GAME_LOG_FILES) {
+      for (const f of gameLogs.slice(MAX_GAME_LOG_FILES)) {
+        fs.unlinkSync(path.join(LOG_DIR, f.name))
+      }
+    }
+
+    // 清理历史遗留的日期日志（YYYY-MM-DD.log，已废弃：日志改由 console_/game_ 轮转文件承载）
     const dailyLogs = files
       .filter(f => /^\d{4}-\d{2}-\d{2}\.log$/.test(f))
       .map(f => ({ name: f, mtime: fs.statSync(path.join(LOG_DIR, f)).mtimeMs }))
       .sort((a, b) => b.mtime - a.mtime)
+    // 保留最新的 10 个（与旧行为一致），超出删除
     if (dailyLogs.length > MAX_DAILY_LOG_FILES) {
       for (const f of dailyLogs.slice(MAX_DAILY_LOG_FILES)) {
         fs.unlinkSync(path.join(LOG_DIR, f.name))
@@ -286,20 +302,43 @@ function ensureLogDir() {
   }
 }
 
-function getLogFilePath(): string {
-  const date = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
-  return path.join(LOG_DIR, `${date}.log`)
-}
+// ─── 旧日期日志写入已废弃：日志改由 console_（编辑器启动）/ game_（游戏启动）轮转文件承载 ───
+// 保留空实现以兼容旧 renderer 调用（writeLogFile IPC 不再写盘）
+ipcMain.handle('write-log-file', async () => {})
 
-ipcMain.handle('write-log-file', async (_event, level: string, message: string) => {
+// ─── 游戏日志（每次启动游戏独立文件，滚动删除）───
+
+/** 开始游戏日志：创建 game_YYYY-MM-DD_HHmmss.log 并写入 header；返回文件路径（失败返回 null） */
+ipcMain.handle('start-game-log', async (_event, projectName?: string) => {
   try {
     ensureLogDir()
-    const filePath = getLogFilePath()
-    const line = `${message}\n`
-    fs.appendFileSync(filePath, line, 'utf-8')
+    const now = new Date()
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+    GAME_LOG_FILE = path.join(LOG_DIR, `game_${ts}.log`)
+    fs.appendFileSync(
+      GAME_LOG_FILE,
+      `[${now.toISOString()}][GAME] === 游戏启动 ===${projectName ? ` 项目: ${projectName}` : ''}\n`,
+      'utf-8',
+    )
+    return GAME_LOG_FILE
   } catch (err) {
-    console.error('日志写入失败:', err)
+    console.error('游戏日志文件创建失败:', err)
+    GAME_LOG_FILE = null
+    return null
   }
+})
+
+/** 写入游戏日志（无活跃 game 文件时忽略） */
+ipcMain.handle('write-game-log', async (_event, _level: string, message: string) => {
+  if (!GAME_LOG_FILE) return
+  try {
+    fs.appendFileSync(GAME_LOG_FILE, `${message}\n`, 'utf-8')
+  } catch {}
+})
+
+/** 结束游戏日志：关闭当前 game 文件（文件保留，滚动清理） */
+ipcMain.handle('stop-game-log', async () => {
+  GAME_LOG_FILE = null
 })
 
 // ─── 读取日志 ───
