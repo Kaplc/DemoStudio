@@ -247,6 +247,17 @@ export function Viewport({ onReady }: ViewportProps) {
     const world = (inst as unknown as { world?: import('../engine').World }).world
     gameSceneRef.current = world?.gameRenderer ?? null
 
+    // 新创建的渲染器需应用编辑器当前设置（比例 + 渲染模式），
+    // 比例 effect 只在 gameAspectRatio 变化时触发，不会覆盖启动新建的渲染器
+    const gameMgr = gameSceneRef.current
+    if (gameMgr) {
+      const ratio = gameAspectRatio
+        ? (() => { const [aw, ah] = gameAspectRatio.split('/').map(Number); return aw / ah })()
+        : null
+      gameMgr.setTargetAspect(ratio)
+      gameMgr.setCameraMode(currentProject?.renderMode === '2d' ? 'orthographic' : 'perspective')
+    }
+
     // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
     setCurrentGameInstance(inst)
     const pending = useSaveStore.getState().consumePendingRestore()
