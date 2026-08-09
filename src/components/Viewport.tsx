@@ -367,17 +367,21 @@ export function Viewport({ onReady }: ViewportProps) {
     const onDown = (e: MouseEvent) => handleMouseDown(e, ctx, _ptrWorld)
     const onUp = (e: MouseEvent) => handleMouseUp(e, ctx, _ptrWorld)
     const onWheel = (e: WheelEvent) => handleWheel(e, ctx)
+    // 阻止右键菜单，保证右键拖拽平移（摄像机）时不会弹出浏览器菜单
+    const onContextMenu = (e: MouseEvent) => e.preventDefault()
 
     canvas.addEventListener('mousedown', onDown)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
+    canvas.addEventListener('contextmenu', onContextMenu)
 
     return () => {
       canvas.removeEventListener('mousedown', onDown)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('contextmenu', onContextMenu)
     }
   }, [activeTabId, editorState.running])
 

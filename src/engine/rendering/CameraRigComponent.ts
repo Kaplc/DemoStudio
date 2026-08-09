@@ -1,14 +1,17 @@
 /**
- * CameraRigComponent — 摄像机云台组件（滚轮缩放 + 平移 + 屏幕边缘平移）
+ * CameraRigComponent — 摄像机云台组件（滚轮缩放 + 平移 + 屏幕边缘平移 + 右键拖拽平移）
  *
  * 挂载到摄像机 Actor 上（与 CameraComponent 同一 Actor），集中管理俯瞰相机
  * （RTS / 基地类）的交互行为：
  *  - zoom(delta)：沿视线方向绕注视目标拉近/拉远（滚轮）
  *  - pan(dx, dz)：水平平移注视目标与相机（含边界限制）
  *  - 屏幕边缘平移：鼠标贴近视口边缘时持续平移（部落冲突风格边缘滚动）
+ *  - 右键拖拽平移：按住右键拖动地图（屏幕位移 → 世界位移，跟手比例）
  *
  * 驱动方式：
  *  - 滚轮：PlayerController.OnScroll → rig.zoom(delta)
+ *  - 右键平移：rig.bindInput(input) 订阅 InputComponent 的鼠标按钮/指针移动事件
+ *    （InputSys.handlePointerDown/Move 广播），无需覆写 Controller
  *  - 边缘平移：外部每帧调用 rig.Tick(dt)（或由持有方在 GameMode.Tick 中驱动），
  *    鼠标位置由 rig.setMouseScreen(sx, sy) 注入（PlayerController.OnPointerMoveScreen 转发）
  *
@@ -48,16 +51,28 @@ export class CameraRigComponent extends Component {
   public edgePanSize = EDGE_PAN_SIZE
   /** 边缘平移最大速度（世界单位/秒，贴边时达到） */
   public edgePanSpeed = EDGE_PAN_SPEED
+  /** 右键拖拽平移灵敏度（1 = 拖动一个视口高度移动对应世界跨度，数值越大移动越快） */
+  public rightPanSensitivity = 1
 
   /** 同一 Actor 上的 CameraComponent（BeginPlay 时查找） */
   private _camera: CameraComponent | null = null
 
   /** 滚轮输入订阅（Controller 的 InputComponent）取消函数 */
   private unsubScroll: (() => void) | null = null
+  /** 鼠标按钮输入订阅（右键按下/释放）取消函数 */
+  private unsubMouseButton: (() => void) | null = null
+  /** 指针移动输入订阅（右键拖拽中）取消函数 */
+  private unsubPointerMove: (() => void) | null = null
 
   /** 最近鼠标屏幕坐标（client 坐标，由 controller 转发更新；-1 = 未记录） */
   private mouseX = -1
   private mouseY = -1
+
+  /** 右键拖拽平移中 */
+  private rightDragging = false
+  /** 右键拖拽上一次记录的鼠标坐标（client 坐标；-1 = 未记录） */
+  private dragLastX = -1
+  private dragLastY = -1
 
   constructor(owner: Actor, name = 'CameraRig') {
     super(owner)
@@ -73,6 +88,7 @@ export class CameraRigComponent extends Component {
       PanLimit: this.panLimit,
       EdgePanSize: this.edgePanSize,
       EdgePanSpeed: this.edgePanSpeed,
+      RightPanSensitivity: this.rightPanSensitivity,
     }
   }
 
@@ -82,23 +98,43 @@ export class CameraRigComponent extends Component {
   }
 
   override EndPlay() {
-    // 取消滚轮输入订阅
+    // 取消滚轮 / 鼠标按钮 / 指针移动输入订阅
     this.unsubScroll?.()
     this.unsubScroll = null
+    this.unsubMouseButton?.()
+    this.unsubMouseButton = null
+    this.unsubPointerMove?.()
+    this.unsubPointerMove = null
+    this.rightDragging = false
     super.EndPlay()
   }
 
   /**
-   * 订阅 Controller 的输入组件滚轮事件（InputSys.handleScroll → InputComponent.ProcessScroll → 本回调 zoom）。
+   * 订阅 Controller 的输入组件事件：
+   *  - 滚轮（InputSys.handleScroll → InputComponent.ProcessScroll → 本回调 zoom）
+   *  - 鼠标按钮（InputSys.handlePointerDown/Up → ProcessMouseButton → 右键按下/释放）
+   *  - 指针移动（InputSys.handlePointerMove → ProcessPointerMove → 右键拖拽平移）
    * 组件销毁（EndPlay）时自动取消订阅。
    */
   bindInput(input: InputComponent | null): void {
     // 先取消旧订阅
     this.unsubScroll?.()
     this.unsubScroll = null
+    this.unsubMouseButton?.()
+    this.unsubMouseButton = null
+    this.unsubPointerMove?.()
+    this.unsubPointerMove = null
     if (!input) return
     // 滚轮缩放：delta 约定与 PlayerController.OnScroll 一致（正=拉远，负=拉近）
     this.unsubScroll = input.BindScroll((delta) => this.zoom(delta))
+    // 鼠标按钮：右键按下开始拖拽平移，右键释放结束
+    this.unsubMouseButton = input.BindMouseButton((button, eventType) => {
+      if (button !== 2) return
+      if (eventType === 'pressed') this.beginRightPan()
+      else this.endRightPan()
+    })
+    // 指针移动：右键按住期间按屏幕位移平移（跟手拖拽地图）
+    this.unsubPointerMove = input.BindPointerMove((sx, sy) => this.onRightPanMove(sx, sy))
   }
 
   /** 记录最近鼠标屏幕坐标（client 坐标；由 PlayerController.OnPointerMoveScreen 转发） */
@@ -161,6 +197,8 @@ export class CameraRigComponent extends Component {
    */
   override Tick(dt: number): void {
     super.Tick(dt)
+    // 右键拖拽平移中 → 屏蔽屏幕边缘平移（避免拖拽时鼠标贴近边缘导致画面乱跳）
+    if (this.rightDragging) return
     if (this.mouseX < 0 || this.mouseY < 0) return
     const cam = this._camera?.camera
     if (!cam) return
@@ -202,5 +240,80 @@ export class CameraRigComponent extends Component {
     const len = Math.hypot(vx, vz)
     const speed = this.edgePanSpeed * intensity * dt
     this.pan((vx / len) * speed, (vz / len) * speed)
+  }
+
+  // ════════════════════════════════════════════
+  //   右键拖拽平移
+  // ════════════════════════════════════════════
+
+  /** 右键按下：开始拖拽平移（记录起始鼠标位置） */
+  beginRightPan(): void {
+    if (this.rightDragging) return
+    this.rightDragging = true
+    // 以最近一次记录的鼠标位置为拖拽起点（若无记录，首次 move 时初始化）
+    this.dragLastX = this.mouseX
+    this.dragLastY = this.mouseY
+  }
+
+  /** 右键释放：结束拖拽平移 */
+  endRightPan(): void {
+    this.rightDragging = false
+    this.dragLastX = -1
+    this.dragLastY = -1
+  }
+
+  /**
+   * 右键拖拽中移动：把屏幕位移换算成世界水平位移并平移（跟手拖拽地图）。
+   * 方向与边缘平移一致：屏幕右 → 相机局部 +X 的水平投影；屏幕下 → 视线方向水平投影。
+   * 缩放比例基于相机距离与视口高度：拖动一个视口高度 = 移动该距离下视口的世界跨度。
+   */
+  onRightPanMove(sx: number, sy: number): void {
+    if (!this.rightDragging) return
+    const cam = this._camera?.camera
+    if (!cam) return
+    // 起点未记录（按下时鼠标尚未移动过）→ 以本次位置为起点
+    if (this.dragLastX < 0 || this.dragLastY < 0) {
+      this.dragLastX = sx
+      this.dragLastY = sy
+      return
+    }
+    const scale = this.rightPanScale(cam)
+    const dx = (sx - this.dragLastX) * scale
+    const dy = (sy - this.dragLastY) * scale
+    this.dragLastX = sx
+    this.dragLastY = sy
+    if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return
+
+    // 屏幕方向 → 世界水平方向（按摄像机自身面朝方向映射）：
+    // 屏幕右 = 相机局部 +X 的水平投影；屏幕下 = 相机面朝方向（forward）的水平投影
+    // 拖拽跟手：鼠标向右拖 → 场景内容向右移动（相机沿屏幕右反方向平移），
+    // 故仅对屏幕右方向（dx 贡献）取反；屏幕下方向（dy 贡献）保持（上下本来就与跟手一致）。
+    // 注意：取反必须按屏幕轴（对 dx/dy 贡献分别处理），不能对整个世界 X 分量取反，
+    // 否则相机有偏航（如基地相机 12,16,18 看向原点）时上下方向会被一并反掉导致扭曲。
+    _tmpRight.set(1, 0, 0).applyQuaternion(cam.quaternion)
+    _tmpRight.y = 0
+    _tmpRight.normalize()
+    cam.getWorldDirection(_tmpForward)
+    _tmpTop.set(_tmpForward.x, 0, _tmpForward.z)
+    _tmpTop.normalize()
+    this.pan(
+      -_tmpRight.x * dx + _tmpTop.x * dy,
+      -_tmpRight.z * dx + _tmpTop.z * dy,
+    )
+  }
+
+  /**
+   * 像素 → 世界单位换算：该距离下视口高度对应的世界跨度 ÷ 视口像素高度。
+   * 相机拉近时比例自动变小（拖动更精细），拉远时变大（跟手不慢）。
+   */
+  private rightPanScale(cam: THREE.Camera): number {
+    const el = PhySys.viewportElement
+    const h = el?.clientHeight ?? 600
+    if (h <= 0) return 0.001
+    const distance = cam.position.distanceTo(this.target)
+    const fov = (cam as THREE.PerspectiveCamera).fov ?? 45
+    // 视口高度对应的世界跨度 ≈ 2·distance·tan(fov/2)
+    const worldPerPixel = (2 * distance * Math.tan(THREE.MathUtils.degToRad(fov / 2))) / h
+    return worldPerPixel * this.rightPanSensitivity
   }
 }

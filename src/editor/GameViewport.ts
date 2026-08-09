@@ -69,7 +69,7 @@ export function handleGameMouseMove(
 }
 
 /**
- * 处理 Game 视口的鼠标按下（→ InputSys.handlePointerDown）
+ * 处理 Game 视口的鼠标按下（→ InputSys.handlePointerDown，携带按键：0=左键, 2=右键）
  */
 export function handleGameMouseDown(
   e: MouseEvent,
@@ -77,17 +77,16 @@ export function handleGameMouseDown(
   gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): void {
-  if (e.button !== 0) return
-  logger.debug(`[GameViewport] mousedown at (${e.clientX}, ${e.clientY})`)
+  logger.debug(`[GameViewport] mousedown button=${e.button} at (${e.clientX}, ${e.clientY})`)
   const inst = game?.instance
   if (!inst) return
   const controller = inst.controller
   const worldPos = clientToWorld(e.clientX, e.clientY, gameMgr, _ptrWorld)
-  inst.inputSys.handlePointerDown(e.clientX, e.clientY, worldPos, controller)
+  inst.inputSys.handlePointerDown(e.clientX, e.clientY, worldPos, controller, e.button)
 }
 
 /**
- * 处理 Game 视口的鼠标释放（→ InputSys.handlePointerUp）
+ * 处理 Game 视口的鼠标释放（→ InputSys.handlePointerUp，携带按键：0=左键, 2=右键）
  */
 export function handleGameMouseUp(
   e: MouseEvent,
@@ -95,11 +94,10 @@ export function handleGameMouseUp(
   gameMgr: SceneRendererComponent | null,
   _ptrWorld: THREE.Vector3,
 ): void {
-  if (e.button !== 0) return
   const inst = game?.instance
   if (!inst) return
   const worldPos = clientToWorld(e.clientX, e.clientY, gameMgr, _ptrWorld)
-  inst.inputSys.handlePointerUp(worldPos, inst.controller)
+  inst.inputSys.handlePointerUp(worldPos, inst.controller, e.button)
 }
 
 /**
