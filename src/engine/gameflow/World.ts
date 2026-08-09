@@ -1,13 +1,15 @@
 ﻿/**
  * World — 核心世界管理
  * 模仿 UE World，管理 Actor 注册、生命周期、Tick 循环
+ *
+ * Actor 的生成/创建/销毁/查询由 ActorManagerComponent 组件承载，
+ * 本类保留同名转发方法（外部 API 兼容）。
  */
 import * as THREE from 'three'
-import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
-import { ensureTransformForActor } from '../ui/UITransformComponent'
 import { AObject } from '../entity/AObject'
 import { SceneRendererComponent } from './SceneRendererComponent'
+import { ActorManagerComponent } from './ActorManagerComponent'
 import { GameMode } from './GameMode'
 import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
@@ -16,34 +18,11 @@ import { UIManager } from '../ui/UIManager'
 import { MeshComponent } from '../rendering/MeshComponent'
 import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
-import { ActorRegistry } from '../tools/ActorRegistry'
-import { ComponentRegistry } from '../tools/ComponentRegistry'
-import { BlueprintRegistry } from '../asset/BlueprintRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
+import type { Actor } from '../entity/Actor'
 import type { Pawn } from '../entity/Pawn'
-import type { PlayerController } from '../input/PlayerController'
-
-/**
- * 严格模式校验子节点 transform 数据（组件优先）：
- * 顶层 position/rotation/scale 字段已废弃（无论是否声明变换组件）—— 存在即报错，不应用顶层值；
- * 位置/旋转/缩放一律由 transform/uitransform 组件的 properties 承载。
- */
-function childTransformViolation(child: {
-  name?: string
-  components?: Array<{ baseClass?: string }>
-  position?: unknown
-  rotation?: unknown
-  scale?: unknown
-} | null | undefined): string | null {
-  if (!child) return null
-  const hasTop = ['position', 'rotation', 'scale'].some((k) => (child as Record<string, unknown>)[k] !== undefined)
-  if (hasTop) {
-    return `节点 "${child.name ?? '-'}" 声明了废弃的顶层 position/rotation/scale：位置必须写在 transform/uitransform 组件（组件优先约定）`
-  }
-  return null
-}
 
 export class World extends AObject {
   /** 静态实例计数器（日志区分多个 World 实例用） */
@@ -86,11 +65,14 @@ export class World extends AObject {
   }
 
 
-  private allActors = new Set<Actor>()
-  private pendingSpawn: Actor[] = []
-  private pendingDestroy: Actor[] = []
-  /** Pawn 生成完成回调（commitSpawn 时触发，用于 GameMode 通知 Controller Possess） */
-  private _pawnSpawnCallbacks: Array<{ pawn: Pawn; cb: (pawn: Pawn) => void }> = []
+  /**
+   * Actor 生成与管理组件（SpawnActor / SpawnActorFromBlueprint / 销毁 / 查询）。
+   * 由 World 构造时创建并挂载。
+   */
+  get actorMgr(): ActorManagerComponent {
+    return this.getComponent(ActorManagerComponent)!
+  }
+
   private animationId: number | null = null
   private lastTime = 0
   private _running = false
@@ -102,6 +84,8 @@ export class World extends AObject {
     this.scene = scene
     // UI 管理器组件：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
     this.addComponent(new UIManager(this))
+    // Actor 管理组件：Actor 生成/销毁/查询
+    this.addComponent(new ActorManagerComponent(this))
     // Game 视口渲染器组件：DOM 保存在 instance.renderContainer，由 Game 启动时取出创建
     if (gameMode) {
       this.SetGameMode(gameMode)
@@ -133,40 +117,12 @@ export class World extends AObject {
   }
 
   // ═══════════════════════════════════
-  //  Actor 管理
+  //  Actor 管理（转发到 ActorManagerComponent）
   // ═══════════════════════════════════
 
+  /** 生成 Actor（进待生成队列，tick 时提交：进场景 + BeginPlay） */
   SpawnActor<T extends Actor>(actor: T): T {
-    actor.world = this
-    this.pendingSpawn.push(actor)
-    return actor
-  }
-
-  private commitSpawn() {
-    for (const actor of this.pendingSpawn) {
-      // UI Actor 交给 UIManager 独立管理（不进 allActors）
-      if (this.ui.isUIActor(actor)) {
-        this.ui.addUIActor(actor)
-      } else {
-        this.allActors.add(actor)
-        // 仅顶层 3D Actor 加到场景；已 attachTo 父的子 Actor 已在父 root 下
-        if (!actor.parent) {
-          this.scene.add(actor.root)
-        }
-        if (this._running) {
-          actor.BeginPlay()
-        }
-      }
-    }
-    this.pendingSpawn = []
-    // Pawn 生成完成回调（生成进世界后经 GameMode 通知 Controller Possess）
-    if (this._pawnSpawnCallbacks.length > 0) {
-      const callbacks = this._pawnSpawnCallbacks
-      this._pawnSpawnCallbacks = []
-      for (const { pawn, cb } of callbacks) {
-        cb(pawn)
-      }
-    }
+    return this.actorMgr.SpawnActor(actor)
   }
 
   /**
@@ -174,23 +130,11 @@ export class World extends AObject {
    * 用于 GameMode.SpawnPlayer → World 生成 → 通知 Controller（Possess）的完整链路。
    */
   SpawnPawn(pawn: Pawn, onSpawned?: (pawn: Pawn) => void): Pawn {
-    this.SpawnActor(pawn)
-    if (onSpawned) {
-      this._pawnSpawnCallbacks.push({ pawn, cb: onSpawned })
-    }
-    return pawn
+    return this.actorMgr.SpawnPawn(pawn, onSpawned)
   }
 
   DestroyActor(actor: Actor) {
-    if (actor.bPendingDestroy) return
-    // UI Actor 交给 UIManager 独立销毁
-    if (this.ui.isUIActor(actor)) {
-      this.ui.destroyUIActor(actor)
-      return
-    }
-    if (!this.allActors.has(actor)) return
-    actor.bPendingDestroy = true
-    this.pendingDestroy.push(actor)
+    this.actorMgr.DestroyActor(actor)
   }
 
   /**
@@ -199,234 +143,37 @@ export class World extends AObject {
    * 非场景对象（GameMode/GameState/Controller 等）立即 EndPlay。
    */
   DestroyObject(obj: import('../entity/BObject').BObject): void {
-    if (obj instanceof Actor) {
-      this.DestroyActor(obj)
-      return
-    }
-    if (obj.bPendingDestroy) return
-    obj.bPendingDestroy = true
-    obj.EndPlay()
-  }
-
-  private commitDestroy() {
-    for (const actor of this.pendingDestroy) {
-      if (this.allActors.has(actor)) {
-        actor.EndPlay()
-        this.scene.remove(actor.root)
-        this.allActors.delete(actor)
-      }
-    }
-    this.pendingDestroy = []
+    this.actorMgr.DestroyObject(obj)
   }
 
   FindActor<T extends Actor>(type: new (...args: any[]) => T): T | null {
-    for (const actor of this.allActors) {
-      if (actor instanceof type) return actor
-    }
-    for (const actor of this.pendingSpawn) {
-      if (actor instanceof type) return actor
-    }
-    return null
+    return this.actorMgr.FindActor(type)
   }
 
   FindActors<T extends Actor>(type: new (...args: any[]) => T): T[] {
-    const result: T[] = []
-    for (const actor of this.allActors) {
-      if (actor instanceof type) result.push(actor)
-    }
-    return result
+    return this.actorMgr.FindActors(type)
   }
 
   GetAllActors(): Actor[] {
-    return [...this.allActors]
+    return this.actorMgr.GetAllActors()
   }
 
   /** 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例 */
   getAllActorComponents<T extends import('../entity/Component').Component>(
     type: new (...args: any[]) => T,
   ): T[] {
-    const result: T[] = []
-    for (const actor of this.allActors) {
-      const comps = actor.getComponents(type)
-      result.push(...comps)
-    }
-    return result
+    return this.actorMgr.getAllActorComponents(type)
   }
 
   /**
    * 从 Blueprint 实例化一个 Actor 到世界（统一 Unity Prefab / UE Blueprint Class）。
-   *
-   * 注入时序（关键，全部在 SpawnActor / BeginPlay 之前完成）：
-   *   1. resolve(id) → 扁平 CDO（继承链已合并）
-   *   2. ActorRegistry.create(baseClass) 构造
-   *   3. 应用继承链合并后的 position/rotation/scale
-   *   4. 挂 Component（ComponentRegistry.create + addComponent）
-   *   5. 递归子 Actor（各自 SpawnActorFromBlueprint 或 ActorRegistry.create + attachTo）
-   *   6. applyPatch(overrides) 应用调用方覆盖
-   *   7. 设 blueprintRef 元数据
-   *   8. SpawnActor（进 pendingSpawn，后续 commitSpawn → BeginPlay）
-   *
-   * @param id        Blueprint id
+   * 完整实例化逻辑见 ActorManagerComponent.SpawnActorFromBlueprint。
+   * @param path      Blueprint id
    * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
   SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
-    logger.info(`[World] SpawnActorFromBlueprint: 实例化 "${path}"`)
-    let resolved
-    try {
-      resolved = BlueprintRegistry.resolve(path)
-    } catch (e) {
-      logger.error(`[World] SpawnActorFromBlueprint("${path}") 解析失败: ${(e as Error).message}`)
-      return null
-    }
-
-    const actor = ActorRegistry.create(resolved.baseClass)
-    if (!actor) {
-      logger.error(`[World] SpawnActorFromBlueprint("${path}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
-      return null
-    }
-    logger.info(`[World] SpawnActorFromBlueprint("${path}"): baseClass="${resolved.baseClass}"，组件数=${resolved.components.length}，子节点数=${resolved.children.length}`)
-
-    // 严格模式（组件优先）：蓝图根位置必须写在 transform/uitransform 组件。
-    // 根级顶层 position/rotation/scale 是旧格式兜底，已废弃 —— 存在即报错
-    const rootViolation = childTransformViolation({
-      name: resolved.name,
-      components: resolved.components,
-      position: resolved.position,
-      rotation: resolved.rotation,
-      scale: resolved.scale,
-    })
-    if (rootViolation) {
-      logger.error(`[World] SpawnActorFromBlueprint("${path}"): 根节点${rootViolation.slice(rootViolation.indexOf('：'))}`)
-    }
-
-    // 1. Transform（仅当蓝图根声明了变换组件时应用其 properties 值）
-    const rootTsf = resolved.components.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
-    if (rootTsf) {
-      const p = rootTsf.properties ?? {}
-      if (Array.isArray(p.position)) actor.setPosition(p.position[0], p.position[1], p.position[2])
-      if (Array.isArray(p.rotation)) actor.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
-      if (Array.isArray(p.scale)) actor.setScale(p.scale[0], p.scale[1], p.scale[2])
-    }
-
-    // 2. Component
-    for (const cdef of resolved.components) {
-      // [flow log] 根级组件 properties 入参（含 CanvasUIComponent.active）
-      if (cdef.baseClass === 'CanvasUIComponent') {
-        logger.info(`[World]   ┌ 根组件 "${cdef.baseClass}" properties=${JSON.stringify(cdef.properties ?? {})}`)
-      }
-      const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
-      if (comp) {
-        if (cdef.name) comp.name = cdef.name
-        actor.addComponent(comp)
-        logger.info(`[World]   └ 组件: "${cdef.baseClass}" name="${comp.name}"`)
-      } else {
-        logger.error(`[World] SpawnActorFromBlueprint("${path}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
-      }
-    }
-
-    // 2.5 Transform 组件化约定：数据未显式配置时自动补挂（UI Actor 挂 UITransformComponent 含锚点能力）
-    ensureTransformForActor(actor)
-
-    // 3. 子 Actor
-    const spawnChildObjects = (
-      childDefs: typeof resolved.children,
-      parentActor: Actor,
-    ) => {
-      for (let i = 0; i < childDefs.length; i++) {
-        const child = childDefs[i]
-        let childActor: Actor | null = null
-        let isRefChild = false
-        if (child.ref) {
-          isRefChild = true
-          // ref 引用：作为独立子 Actor 生成（类似 Unity 预制体）。
-          // 严格模式（组件优先）：位置只写在被引用蓝图的 transform/uitransform 组件，
-          // 子节点顶层 position/rotation/scale 不再注入 overrides（旧格式兜底已废弃，直接报错）
-          const violation = childTransformViolation(child)
-          if (violation) {
-            logger.error(`[World] SpawnActorFromBlueprint("${path}"): ${violation}（ref 子节点）`)
-          }
-          const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
-          childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
-          if (childActor) childActor.isRefInstance = true
-        } else if (child.baseClass) {
-          childActor = ActorRegistry.create(child.baseClass)
-          if (childActor) {
-            if (child.overrides && Object.keys(child.overrides).length > 0) {
-              childActor.applyPatch(child.overrides)
-            }
-            if (child.components) {
-              const childName = child.name ?? `<inline#${i}>`
-              for (const cdef of child.components) {
-                // [flow log] 子节点组件 properties 入参（含 CanvasUIComponent.active）
-                if (cdef.baseClass === 'CanvasUIComponent') {
-                  logger.info(`[World]   ┌ 子节点 ${childName} 组件 "${cdef.baseClass}" properties=${JSON.stringify(cdef.properties ?? {})}`)
-                }
-                const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
-                if (comp) {
-                  if (cdef.name) comp.name = cdef.name
-                  childActor.addComponent(comp)
-                } else {
-                  logger.warn(`[World] SpawnActorFromBlueprint("${path}"): 子节点组件 "${cdef.baseClass}" 未注册，已跳过`)
-                }
-              }
-            }
-            // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
-            ensureTransformForActor(childActor)
-          }
-        }
-        // 纯容器节点（仅用来承载嵌套 children）
-        if (!childActor && child.children?.length) {
-          childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
-        }
-        if (!childActor) {
-          logger.warn(
-            `[World] SpawnActorFromBlueprint("${path}"): 子节点生成失败 (baseClass=${child.baseClass ?? '-'})`,
-          )
-          continue
-        }
-
-        // Transform 组件化约定：容器节点也补挂变换组件
-        ensureTransformForActor(childActor)
-
-        childActor.attachTo(parentActor)
-
-        // ref 子节点的 transform 已由被引用蓝图的 transform 组件负责。
-        // 严格模式（组件优先）：内联子节点不再应用顶层 position/rotation/scale，
-        // 缺组件却声明顶层字段的节点已在上方报错
-        if (!isRefChild) {
-          const violation = childTransformViolation(child)
-          if (violation) {
-            logger.error(`[World] SpawnActorFromBlueprint("${path}"): ${violation}`)
-          }
-        }
-
-        if (child.name) {
-          childActor.root.name = child.name
-        }
-
-        if (child.children && child.children.length > 0) {
-          spawnChildObjects(child.children, childActor)
-        }
-      }
-    }
-
-    if (resolved.children.length > 0) {
-      spawnChildObjects(resolved.children, actor)
-    }
-
-    // 4. 调用方实例覆盖
-    if (overrides && Object.keys(overrides).length > 0) {
-      actor.applyPatch(overrides)
-    }
-
-    // 5. 蓝图元数据
-    actor.blueprintRef = { id: path, overrides }
-
-    // 6. 进 World
-    this.SpawnActor(actor)
-    logger.info(`[World] SpawnActorFromBlueprint("${path}"): Actor "${actor.name}" 已生成（uid=${actor.uid}）`)
-    return actor
+    return this.actorMgr.SpawnActorFromBlueprint(path, overrides)
   }
 
   // ═══════════════════════════════════
@@ -436,9 +183,9 @@ export class World extends AObject {
   get running() { return this._running }
 
   /** 当前等待生成和已生成的 Actor 总数（用于日志/调试） */
-  get actorCount(): number { return this.allActors.size }
-  get pendingSpawnCount(): number { return this.pendingSpawn.length }
-  get pendingDestroyCount(): number { return this.pendingDestroy.length }
+  get actorCount(): number { return this.actorMgr.actorCount }
+  get pendingSpawnCount(): number { return this.actorMgr.pendingSpawnCount }
+  get pendingDestroyCount(): number { return this.actorMgr.pendingDestroyCount }
 
   Start() {
     if (this._running) return
@@ -446,7 +193,7 @@ export class World extends AObject {
     this.lastTime = performance.now()
 
     // 为所有已生成的 Actor 调用 BeginPlay
-    for (const actor of this.allActors) {
+    for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
 
@@ -471,12 +218,12 @@ export class World extends AObject {
   }
 
   private tick(dt: number) {
-    // 1. 处理待生成/销毁
-    this.commitSpawn()
-    this.commitDestroy()
+    // 1. 处理待生成/销毁（ActorManagerComponent）
+    this.actorMgr.commitSpawn()
+    this.actorMgr.commitDestroy()
 
     // 2. Tick 所有 3D Actor（UI Actor 由 UIManager 独立驱动）
-    for (const actor of this.allActors) {
+    for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
 
@@ -494,15 +241,15 @@ export class World extends AObject {
 
   /** 标记运行但不启动自己的 rAF（由外部驱动 render/update 时使用） */
   BeginPlay() {
-    logger.info(`[World#${this.id}] BeginPlay: 恢复运行（actorCount=${this.allActors.size}, pendingSpawn=${this.pendingSpawn.length}）`)
+    logger.info(`[World#${this.id}] BeginPlay: 恢复运行（actorCount=${this.actorMgr.actorCount}, pendingSpawn=${this.actorMgr.pendingSpawnCount}）`)
     this._running = true
     // 先提交等待生成的 Actor（否则 SpawnActorFromBlueprint 生成的 Actor 永远停在
     // pendingSpawn 队列，不进场景、不 BeginPlay，UI/游戏对象不会渲染）
-    this.commitSpawn()
-    this.commitDestroy()
+    this.actorMgr.commitSpawn()
+    this.actorMgr.commitDestroy()
     // UI 子系统恢复运行
     this.ui.beginPlay()
-    for (const actor of this.allActors) {
+    for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bHasBegunPlay) actor.BeginPlay()
     }
     // GameMode（其 BeginPlay 内部统一驱动 GameState + Controller）
@@ -517,34 +264,15 @@ export class World extends AObject {
 
   /** 销毁所有 3D Actor 与 UI Actor（Controller 由 GameMode.EndPlay 负责） */
   DestroyAllActors() {
-    let count = this.allActors.size + this.pendingSpawn.length
-    // 先清 UI 子系统
-    const uiCount = this.ui.actorCount + this.ui.pendingSpawnCount
-    this.ui.destroyAll()
-    count += uiCount
-    // 清理已提交的 3D Actor
-    for (const actor of [...this.allActors]) {
-      actor.EndPlay()
-      this.scene.remove(actor.root)
-    }
-    this.allActors.clear()
-    this.pendingDestroy = []
-    // 清理等待生成的 Actor（从未进入场景，仍需释放 GPU 资源）
-    for (const actor of this.pendingSpawn) {
-      actor.EndPlay()
-    }
-    this.pendingSpawn = []
-    // 清理未触发的 Pawn 生成回调（世界已销毁，不再通知 Controller）
-    this._pawnSpawnCallbacks = []
-    logger.debug(`[World#${this.id}] DestroyAllActors: 销毁 ${count} 个 Actor`)
+    this.actorMgr.DestroyAllActors()
   }
 
   /** 手动触发一次 Tick（由外部渲染循环驱动） */
   manualTick(dt: number) {
     if (!this._running) return
-    this.commitSpawn()
-    this.commitDestroy()
-    for (const actor of this.allActors) {
+    this.actorMgr.commitSpawn()
+    this.actorMgr.commitDestroy()
+    for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
     // GameMode 统一驱动 GameState + Controller + 摄像机
@@ -573,9 +301,9 @@ export class World extends AObject {
   drawGizmos() {
     gizmos.beginFrame()
     if (gizmos.enabled) {
-      // GameMode（及其 Component，如 SpawnComponent）不在 allActors 中，单独绘制
+      // GameMode（及其 Component，如 SpawnComponent）不在 Actor 集合中，单独绘制
       this.gameMode?.drawGizmos()
-      for (const actor of this.allActors) {
+      for (const actor of this.actorMgr.GetAllActors()) {
         if (actor.bPendingDestroy) continue
         actor.drawGizmos()
       }
@@ -615,7 +343,7 @@ export class World extends AObject {
     logger.info('[World] SwitchScene: 执行 setup 回调（加载场景资产 / 项目专属设置）...')
     setup?.()
     this.BeginPlay()
-    logger.info(`[World#${this.id}] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.allActors.size}）`)
+    logger.info(`[World#${this.id}] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.actorMgr.actorCount}）`)
   }
 
   /**
@@ -712,114 +440,11 @@ export class World extends AObject {
   /**
    * 从 ActorNode spawn 一个内联 Actor（含递归子节点）。
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
+   * 完整实现见 ActorManagerComponent.spawnInlineActor。
    * 供外部调用（ScenePreviewManager 等）。
    */
   spawnInlineActor(node: import('../asset/SceneAsset').ActorNode): Actor | null {
-    const actor = ActorRegistry.create(node.baseClass)
-    if (!actor) {
-      logger.warn(`[World] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
-      return null
-    }
-
-    if (node.name) actor.root.name = node.name
-
-    // 严格模式（组件优先）：内联 Actor 位置只写在 transform/uitransform 组件，
-    // 顶层 position/rotation/scale 是旧格式兜底，存在即报错
-    const violation = childTransformViolation({
-      name: node.name,
-      components: node.components,
-      position: node.position,
-      rotation: node.rotation,
-      scale: node.scale,
-    })
-    if (violation) {
-      logger.error(`[World] spawnInlineActor: ${violation}`)
-    }
-
-    // 挂 Component
-    for (const cdef of (node.components ?? [])) {
-      const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
-      if (comp) {
-        if (cdef.name) comp.name = cdef.name
-        actor.addComponent(comp)
-      } else {
-        logger.warn(`[World] spawnInlineActor: Component "${cdef.baseClass}" 未注册，已跳过`)
-      }
-    }
-
-    // Transform 组件化约定：内联 Actor 未显式配置时自动补挂
-    ensureTransformForActor(actor)
-
-    // 递归子节点
-    this.spawnInlineChildren(node.children ?? [], actor)
-
-    this.SpawnActor(actor)
-    return actor
-  }
-
-  /** 递归 spawn 内联 ActorNode 的子节点 */
-  private spawnInlineChildren(
-    children: import('../asset/BlueprintAsset').BlueprintChildDef[],
-    parentActor: Actor,
-  ): void {
-    for (const child of children) {
-      let childActor: Actor | null = null
-      let isRefChild = false
-
-      if (child.ref) {
-        // ref 引用 → 递归 SpawnActorFromBlueprint。
-        // 严格模式（组件优先）：位置只写在被引用蓝图的 transform 组件，顶层字段不再注入 overrides
-        isRefChild = true
-        const violation = childTransformViolation(child)
-        if (violation) {
-          logger.error(`[World] spawnInlineChildren: ${violation}（ref 子节点）`)
-        }
-        const refOverrides: PropertyPatch = { ...(child.overrides ?? {}) }
-        childActor = this.SpawnActorFromBlueprint(child.ref, refOverrides)
-        if (childActor) childActor.isRefInstance = true
-      } else if (child.baseClass) {
-        // 内联 baseClass → 直接创建（位置由子节点 transform 组件负责，不再应用顶层字段）
-        const violation = childTransformViolation(child)
-        if (violation) {
-          logger.error(`[World] spawnInlineChildren: ${violation}`)
-        }
-        childActor = ActorRegistry.create(child.baseClass)
-        if (childActor) {
-          if (child.overrides && Object.keys(child.overrides).length > 0) {
-            childActor.applyPatch(child.overrides)
-          }
-          if (child.name) childActor.root.name = child.name
-          // 挂组件
-          for (const cdef of (child.components ?? [])) {
-            const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
-            if (comp) {
-              if (cdef.name) comp.name = cdef.name
-              childActor.addComponent(comp)
-            }
-          }
-          // Transform 组件化约定：内联子 Actor 未显式配置时自动补挂
-          ensureTransformForActor(childActor)
-        }
-      }
-
-      // 纯容器节点（只有 children，没有 baseClass / ref）
-      if (!childActor && (child.children?.length ?? 0) > 0) {
-        childActor = new GenericActor(child.name ?? `Container_${parentActor.name}`)
-      }
-
-      if (!childActor) {
-        logger.warn(`[World] spawnInlineChildren: 子节点生成失败 (ref=${child.ref ?? '-'}, baseClass=${child.baseClass ?? '-'})`)
-        continue
-      }
-
-      // Transform 组件化约定：容器节点也补挂变换组件
-      ensureTransformForActor(childActor)
-
-      childActor.attachTo(parentActor)
-      if (child.children?.length) {
-        this.spawnInlineChildren(child.children, childActor)
-      }
-    }
+    return this.actorMgr.spawnInlineActor(node)
   }
 
   /**
@@ -941,17 +566,9 @@ export class World extends AObject {
     this.ui.destroyAll()
     // GameMode（其 EndPlay 内部统一驱动 GameState + Controller）
     this.gameMode?.EndPlay()
-    // 从后往前销毁所有 3D Actor
-    const all = [...this.allActors]
-    for (let i = all.length - 1; i >= 0; i--) {
-      all[i].EndPlay()
-      this.scene.remove(all[i].root)
-    }
-    this.allActors.clear()
-    this.pendingSpawn = []
-    this.pendingDestroy = []
+    // 销毁所有 3D Actor（ActorManagerComponent 负责集合与场景移除）
+    this.actorMgr.DestroyAllActors()
     this._tickCallbacks = []
-    this._pawnSpawnCallbacks = []
     this.gameMode = null
     // 清理 Game 视口渲染器（由 World 创建，随 World 销毁）
     this.gameRenderer?.dispose()
