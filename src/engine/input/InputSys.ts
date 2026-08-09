@@ -16,7 +16,6 @@ import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
 import { BObject } from '../entity/BObject'
 import type { PlayerController } from './PlayerController'
-import { logger } from '../Logger'
 
 export class InputSys extends BObject {
   constructor() {
@@ -106,7 +105,6 @@ export class InputSys extends BObject {
 
   /** 滚轮滚动 */
   handleScroll(delta: number, controller?: PlayerController | null): void {
-    logger.debug(`[InputSys] handleScroll delta=${delta}, controller=${controller?.name ?? '<无>'}`)
     if (!controller) return
     // 输入系统触发到 Controller 的输入组件（外部组件可 BindScroll 订阅）
     controller.inputComponent.ProcessScroll(delta)
