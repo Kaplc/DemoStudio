@@ -30,5 +30,10 @@ export abstract class BObjectComponent<T extends BObject = BObject> extends AObj
   /** 绘制调试 Gizmos（由所属 BObject 每帧调用，可重写） */
   OnDrawGizmos(): void {}
   /** 销毁时调用 */
-  EndPlay(): void {}
+  EndPlay(): void {
+    // 终态死亡标记 + 从全局注册表注销（与 BObject.EndPlay 约定一致）。
+    // 此前为空实现：组件 EndPlay 后仍留在 ObjectRegistry，
+    // 泄漏诊断会把所有已销毁对象的组件误报为泄漏。
+    this.markDestroyed()
+  }
 }

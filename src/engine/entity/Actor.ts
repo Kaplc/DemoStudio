@@ -62,6 +62,10 @@ export abstract class Actor extends BObject {
     this.bPendingDestroy = true
     if (this.world) {
       this.world.DestroyObject(this)
+    } else {
+      // 无 world 归属（如 UI 内联子节点：attachTo 挂树、从不经 SpawnActor）：
+      // 无法走 World 统一销毁，直接本地 EndPlay（递归子树 + 组件 + 注册表注销）
+      this.EndPlay()
     }
   }
 

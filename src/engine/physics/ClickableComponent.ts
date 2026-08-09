@@ -54,6 +54,7 @@ export class ClickableComponent extends Component<Actor> {
   override EndPlay(): void {
     PhySys.unregister(this)
     this._hovering = false
+    super.EndPlay()
   }
 
   /** Inspector 属性展示 */

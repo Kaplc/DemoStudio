@@ -292,10 +292,8 @@ export class Game {
       )
     }
 
-    // 结束游戏日志：本局日志已写入 game_*.log（文件保留，滚动清理）
-    logger.endGameLog()
-
     // 对象泄漏诊断：对比启动基线，输出本局创建但未回收的 OObject
+    // 注意：必须在 endGameLog 之前执行，确保诊断结果写入本局 game_*.log
     if (this._objBaseline) {
       const leaked = ObjectRegistry.diffSince(this._objBaseline)
       this._objBaseline = null
@@ -325,6 +323,9 @@ export class Game {
         logger.info('[Game] 对象泄漏诊断：无未回收对象')
       }
     }
+
+    // 结束游戏日志：本局日志已写入 game_*.log（文件保留，滚动清理）
+    logger.endGameLog()
   }
 
   /** 每帧更新（如未通过 onUpdate 自动驱动时手动调用） */

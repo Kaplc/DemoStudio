@@ -20,6 +20,7 @@ import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
+import type { OObject } from '../entity/OObject'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
 import type { Actor } from '../entity/Actor'
@@ -333,9 +334,11 @@ export class World extends AObject {
    * @param newMode  目标 GameMode
    * @param setup    在 BeginPlay 之前执行的设置回调（场景加载、相机、Controller 等）
    */
-  SwitchScene(newMode: GameMode, setup?: () => void): void {
-    // 切换前基线：记录当前存活对象（旧场景对象应随切换全部回收）
-    const baseline = new Set(ObjectRegistry.snapshot())
+  SwitchScene(newMode: GameMode, setup?: () => void, baseline?: ReadonlySet<OObject>): void {
+    // 切换前基线：记录当前存活对象（旧场景对象应随切换全部回收）。
+    // 传入基线优先（SwitchToScene 在创建 newMode 之前记录）；
+    // 直接调用时兜底：排除 newMode 及其从属（调用方在进入本方法前已创建）
+    const b = baseline ?? new Set(ObjectRegistry.snapshot().filter((o) => !this.ownedBy(o, newMode)))
     const oldModeName = this.gameMode?.constructor.name ?? '无'
     logger.info(`[World#${this.id}] SwitchScene: 暂停世界 → 销毁旧 Actor → 切换 GameMode(${newMode.constructor.name})`)
     this.Pause()
@@ -357,7 +360,7 @@ export class World extends AObject {
     setup?.()
     this.BeginPlay()
     // 软诊断：基线中仍存活且归属于本 World 的 BObject = 旧场景对象泄漏
-    const residual = ObjectRegistry.aliveGameObjectsOf(baseline, this)
+    const residual = ObjectRegistry.aliveGameObjectsOf(b, this)
     if (residual.length > 0) {
       const byClass = new Map<string, number>()
       for (const o of residual) {
@@ -377,6 +380,21 @@ export class World extends AObject {
       logger.info(`[World#${this.id}] SwitchScene 残留诊断：旧场景对象全部回收（旧 GameMode=${oldModeName}）`)
     }
     logger.info(`[World#${this.id}] SwitchScene → ${newMode.constructor.name}（完成，actorCount=${this.actorMgr.actorCount}）`)
+  }
+
+  /**
+   * 判断 obj 是否属于 target 的从属链（obj === target，或沿 owner 链向上到达 target）。
+   * 用于 SwitchScene 基线过滤：排除调用方提前创建的新 GameMode 及其组件。
+   */
+  private ownedBy(obj: OObject, target: OObject): boolean {
+    let cur: unknown = obj
+    let hops = 0
+    while (cur && hops < 32) {
+      if (cur === target) return true
+      cur = (cur as { owner?: unknown }).owner ?? null
+      hops++
+    }
+    return false
   }
 
   /**
@@ -525,12 +543,15 @@ export class World extends AObject {
       logger.error(`[World] SwitchToScene: mode "${mode}" 未注册，无法切换`)
       return false
     }
+    // 基线在 GameMode 创建之前记录：newMode 构造期间创建的一切（如 BaseCameraActor）
+    // 属于"新场景对象"，不应被 SwitchScene 残留诊断误报为旧场景残留
+    const baseline = new Set(ObjectRegistry.snapshot())
     const newMode = GameModeRegistry.create(mode)!
     logger.info(`[World#${this.id}] SwitchToScene: 创建 GameMode "${newMode.constructor.name}"，开始切换...`)
     this.SwitchScene(newMode, () => {
       this.loadSceneAsActors(sceneAsset)
       extraSetup?.()
-    })
+    }, baseline)
     return true
   }
 
