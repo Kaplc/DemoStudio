@@ -30,37 +30,12 @@ import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
-import { ScriptComponent } from '../script/ScriptComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
 
 /** 注册工厂 owner 收窄：渲染类组件需要 Actor（挂场景节点）；逻辑类组件接受任意 BObject */
 const asActor = (owner: BObject): Actor => owner as Actor
-
-/**
- * 注册脚本挂载组件（ScriptComponent / 兼容别名 UIScriptComponent 共用同一实现）：
- * props: { script?, args? }，BeginPlay 时按 script id 从 ScriptRegistry 实例化脚本。
- */
-function registerScriptComponent<T extends ScriptComponent>(
-  typeName: string,
-  ctor: new (owner: Actor, name?: string) => T,
-): void {
-  ComponentRegistry.register(
-    typeName,
-    (owner, p = {}) => {
-      const comp = new ctor(asActor(owner))
-      if (p.script !== undefined) comp.script = p.script as string
-      if (p.args !== undefined) comp.args = p.args as Record<string, unknown>
-      return comp
-    },
-    (c, p) => {
-      const sc = c as ScriptComponent
-      if (p.script !== undefined) sc.script = p.script as string
-      if (p.args !== undefined) sc.args = p.args as Record<string, unknown>
-    },
-  )
-}
 
 let _registered = false
 
@@ -334,14 +309,24 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── ScriptComponent ─── props: { script?, args? }
-  // 通用资产「挂载脚本」组件（Unity MonoBehaviour 挂载点）：BeginPlay 时按 script id
+  // ─── UIScriptComponent ─── props: { script?, args? }
+  // UI 资产「挂载脚本」组件（Unity MonoBehaviour 挂载点）：BeginPlay 时按 script id
   // 从 ScriptRegistry 实例化脚本并注入宿主，转发 onStart/onUpdate/onDestroy。
-  // 3D 建筑蓝图 / UI widget 均可用；脚本 id 由项目 asset/index.ts 的 import.meta.glob 自动扫描注册。
-  registerScriptComponent('ScriptComponent', ScriptComponent)
-
-  // ─── UIScriptComponent ─── 兼容别名（UI widget 历史命名，行为同 ScriptComponent）
-  registerScriptComponent('UIScriptComponent', UIScriptComponent)
+  // 脚本 id 由项目 asset/index.ts 的 import.meta.glob 自动扫描注册。
+  ComponentRegistry.register(
+    'UIScriptComponent',
+    (owner, p = {}) => {
+      const comp = new UIScriptComponent(asActor(owner))
+      if (p.script !== undefined) comp.script = p.script as string
+      if (p.args !== undefined) comp.args = p.args as Record<string, unknown>
+      return comp
+    },
+    (c, p) => {
+      const sc = c as UIScriptComponent
+      if (p.script !== undefined) sc.script = p.script as string
+      if (p.args !== undefined) sc.args = p.args as Record<string, unknown>
+    },
+  )
 
   // ─── LightComponent ─── props: { type?, color?, intensity?, castShadow?, position?, ... }
   // 灯光挂载到 Actor（灯光 Actor 模式）：Scene 视口默认灯光与场景资产灯光声明均走此组件。

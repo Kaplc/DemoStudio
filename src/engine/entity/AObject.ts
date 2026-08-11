@@ -13,6 +13,7 @@
  */
 import type { AObjectComponent } from './AObjectComponent'
 import { OObject } from './OObject'
+import { logger } from '../Logger'
 
 export abstract class AObject extends OObject {
   private components: AObjectComponent[] = []
@@ -22,6 +23,19 @@ export abstract class AObject extends OObject {
   // ═══════════════════════════════════
 
   addComponent(component: AObjectComponent): AObjectComponent {
+    // 幂等：同一实例重复添加直接忽略（不重复入列）
+    if (this.components.includes(component)) {
+      logger.warn(`[AObject] 组件实例重复添加已忽略: ${component.constructor.name}（owner=${this.constructor.name}）`)
+      return component
+    }
+    // 同类组件重复警告（语义单例组件如 ClickableComponent/CameraComponent 通常不应出现多个）
+    const dup = this.components.find((c) => c.constructor === component.constructor)
+    if (dup) {
+      logger.warn(
+        `[AObject] 警告: ${this.constructor.name} 已存在 ${component.constructor.name}，再次添加可能导致行为重复（如点击回调绑定两次）。` +
+        `来源: ${(dup as { uid?: number }).uid ?? '-'} → 新添加 @${(component as { uid?: number }).uid ?? '-'}`,
+      )
+    }
     this.components.push(component)
     return component
   }

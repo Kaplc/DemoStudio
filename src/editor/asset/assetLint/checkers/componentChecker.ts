@@ -190,14 +190,3 @@ class UIScriptComponentChecker extends AbstractAssetChecker {
   ]
 }
 registerAssetChecker('comp:UIScriptComponent', UIScriptComponentChecker)
-
-/** comp:ScriptComponent — 通用资产「挂载脚本」组件（3D 建筑/UI 通用挂载点） */
-class ScriptComponentChecker extends AbstractAssetChecker {
-  readonly kind = 'comp:ScriptComponent'
-  schema: FieldSpec[] = [
-    { field: 'properties.script', type: 'string', label: '脚本 id（从项目 asset 自动扫描注册）' },
-    { field: 'properties.args', type: 'object', label: '脚本启动参数' },
-    { field: 'properties.name', type: 'string', label: '组件名' },
-  ]
-}
-registerAssetChecker('comp:ScriptComponent', ScriptComponentChecker)

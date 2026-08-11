@@ -1,6 +1,6 @@
 {
   "name": "Cannon",
-  "baseClass": "Actor",
+  "baseClass": "CannonActor",
   "components": [
     {
       "baseClass": "TransformComponent",
@@ -9,74 +9,7 @@
         "rotation": [0, 0, 0],
         "scale": [1, 1, 1]
       }
-    },
-    {
-      "baseClass": "ClickableComponent",
-      "properties": {
-        "clickCooldown": 200
-      }
-    },
-    {
-      "baseClass": "ScriptComponent",
-      "properties": {
-        "script": "gameplay/base/ClashBuilding",
-        "args": {
-          "buildingName": "防御塔",
-          "footprint": 1,
-          "size": 1.0,
-          "height": 1.8
-        }
-      }
     }
   ],
-  "children": [
-    {
-      "name": "Base",
-      "baseClass": "Actor",
-      "id": 301,
-      "components": [
-        {
-          "baseClass": "TransformComponent",
-          "properties": {
-            "position": [0, 0.075, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
-          }
-        },
-        {
-          "baseClass": "MeshComponent",
-          "properties": {
-            "geometry": "box",
-            "size": [1.5, 0.15, 1.5],
-            "color": "#4e342e"
-          }
-        }
-      ],
-      "children": []
-    },
-    {
-      "name": "Body",
-      "baseClass": "Actor",
-      "id": 302,
-      "components": [
-        {
-          "baseClass": "TransformComponent",
-          "properties": {
-            "position": [0, 1.05, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1]
-          }
-        },
-        {
-          "baseClass": "MeshComponent",
-          "properties": {
-            "geometry": "box",
-            "size": [1.0, 1.8, 1.0],
-            "color": "#90a4ae"
-          }
-        }
-      ],
-      "children": []
-    }
-  ]
+  "children": []
 }

@@ -1,8 +1,8 @@
 /**
  * ClashBuildingTypes — 部落冲突建筑类型定义
  *
- * 建筑 = 蓝图资产（asset/blueprints/buildings/*.blueprint.json，结构 + ClashBuildingScript
- * 行为脚本），本文件只保留放置元数据：类型表与网格占用 key 等。
+ * 建筑 = 蓝图资产（asset/blueprints/buildings/*.blueprint.json，baseClass 引用具体 Actor 类，
+ * 见 ClashBuildingActors.ts），本文件只保留放置元数据：类型表与网格占用 key 等。
  */
 export interface ClashBuildingType {
   /** 唯一 id（同时用于网格占用 key） */
@@ -17,7 +17,7 @@ export interface ClashBuildingType {
   height: number
   /** 放置占地格子数（N×N 格，网格吸附时以左下角为锚点） */
   footprint: number
-  /** 建筑蓝图资产路径（结构 + ClashBuildingScript 行为脚本） */
+  /** 建筑蓝图资产路径（baseClass 引用具体 Actor 类） */
   blueprint: string
 }
 

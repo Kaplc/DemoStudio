@@ -10,13 +10,12 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, LineComponent, ScriptComponent } from '@/engine'
-import type { Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, LineComponent } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
-import ClashBuildingScript from './ClashBuilding.script'
+import { ClashBuildingBaseActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
@@ -35,14 +34,14 @@ export class FishBaseGameMode extends GameMode {
 
   /** 基地地图构建器（专门负责创建地面/草地/初始建筑布局，BeginPlay 创建，EndPlay 回收） */
   private baseBuilder: ClashBaseBuilder | null = null
-  /** 已放置的建筑（蓝图实例，行为由 ClashBuildingScript 脚本提供） */
-  private clashBuildings: Actor[] = []
+  /** 已放置的建筑（每个建筑一个 Actor 类实例） */
+  private clashBuildings: ClashBuildingBaseActor[] = []
   /** 网格占用表：`${gx},${gz}` → 建筑 */
-  private gridOccupied = new Map<string, Actor>()
+  private gridOccupied = new Map<string, ClashBuildingBaseActor>()
   /** 当前选择的建筑类型（null = 未进入放置模式） */
   private selectedType: ClashBuildingType | null = null
   /** 当前选中的已放置建筑 */
-  private selectedBuilding: Actor | null = null
+  private selectedBuilding: ClashBuildingBaseActor | null = null
   /** 放置模式跟随鼠标的半透明预览（MeshComponent 托管，showPreview 时替换） */
   private previewComp: MeshComponent | null = null
   private previewMesh: THREE.Mesh | null = null
@@ -154,7 +153,7 @@ export class FishBaseGameMode extends GameMode {
       return
     }
     const b = this.selectedBuilding
-    this.gridOccupied.delete(`${b.root.userData.gridX},${b.root.userData.gridZ}`)
+    this.gridOccupied.delete(`${b.gridX},${b.gridZ}`)
     this.clashBuildings = this.clashBuildings.filter((x) => x !== b)
     b.destroy()
     this.selectedBuilding = null
@@ -163,7 +162,8 @@ export class FishBaseGameMode extends GameMode {
 
   /**
    * 放置建筑（网格吸附，格子坐标 = 世界坐标整数）。
-   * 建筑从蓝图资产生成（结构 + ClashBuildingScript 行为脚本），网格坐标存 root.userData。
+   * 建筑从蓝图资产生成：baseClass 引用具体 Actor 类（每个建筑一个类），
+   * 网格坐标写类的 gridX/gridZ 字段。
    * @returns 是否放置成功
    */
   private placeBuilding(typeId: string, gx: number, gz: number): boolean {
@@ -174,14 +174,14 @@ export class FishBaseGameMode extends GameMode {
     const key = `${gx},${gz}`
     if (this.gridOccupied.has(key)) return false
 
-    const building = world.SpawnActorFromBlueprint(type.blueprint)
+    const building = world.SpawnActorFromBlueprint(type.blueprint) as ClashBuildingBaseActor | null
     if (!building) {
       logger.error(`[BaseGM] 放置建筑失败: 蓝图 "${type.blueprint}" 生成失败 (${type.name})`)
       return false
     }
     // SpawnActorFromBlueprint 内部已入队；这里补网格坐标并定位
-    building.root.userData.gridX = gx
-    building.root.userData.gridZ = gz
+    building.gridX = gx
+    building.gridZ = gz
     building.setPosition(gx, 0, gz)
     this.clashBuildings.push(building)
     this.gridOccupied.set(key, building)
@@ -190,28 +190,21 @@ export class FishBaseGameMode extends GameMode {
   }
 
   /** 点击已放置建筑：选中（高亮）/ 取消选中 */
-  onBuildingClick(b: Actor) {
+  onBuildingClick(b: ClashBuildingBaseActor) {
     if (this.selectedBuilding === b) {
       this.deselectBuilding()
     } else {
       this.deselectBuilding()
       this.selectedBuilding = b
-      this.setBuildingSelected(b, true)
+      b.setSelected(true)
       // 退出放置模式，进入移动模式：点击地面移动建筑
       this.cancelPlaceMode()
     }
   }
 
-  /** 通过建筑蓝图上的 ClashBuildingScript 设置选中状态（金色线框显隐） */
-  private setBuildingSelected(b: Actor, selected: boolean): void {
-    const sc = b.getComponent(ScriptComponent)?.instance as ClashBuildingScript | null
-    if (sc) sc.setSelected(selected)
-    else logger.warn('[BaseGM] 选中建筑缺少 ClashBuildingScript 脚本实例')
-  }
-
   private deselectBuilding() {
     if (this.selectedBuilding) {
-      this.setBuildingSelected(this.selectedBuilding, false)
+      this.selectedBuilding.setSelected(false)
       this.selectedBuilding = null
     }
   }
@@ -316,16 +309,16 @@ export class FishBaseGameMode extends GameMode {
   }
 
   /** 移动建筑：先移除旧占用，再放置到新格子 */
-  private placeBuildingAt(b: Actor, gx: number, gz: number): boolean {
+  private placeBuildingAt(b: ClashBuildingBaseActor, gx: number, gz: number): boolean {
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     const other = this.gridOccupied.get(key)
     if (other && other !== b) return false
 
     // 释放旧格子
-    this.gridOccupied.delete(`${b.root.userData.gridX},${b.root.userData.gridZ}`)
-    b.root.userData.gridX = gx
-    b.root.userData.gridZ = gz
+    this.gridOccupied.delete(`${b.gridX},${b.gridZ}`)
+    b.gridX = gx
+    b.gridZ = gz
     b.setPosition(gx, 0, gz)
     this.gridOccupied.set(key, b)
     return true
