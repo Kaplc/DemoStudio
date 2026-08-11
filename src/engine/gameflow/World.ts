@@ -321,6 +321,12 @@ export class World extends AObject {
     for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bPendingDestroy) actor.Tick(dt)
     }
+    // UI 子系统（与 tick() 一致）：运行时 spawnUIActor 生成的 UI Actor 依赖此处
+    // 提交（BeginPlay / UIScriptComponent 初始化），否则永远停在待生成队列
+    this.ui.tickUI(dt)
+    if (this.ui.consumeUiListDirty()) {
+      this.notifyActorListChanged()
+    }
     // GameMode 统一驱动 GameState + Controller + 摄像机
     this.gameMode?.Tick(dt)
     for (const cb of this._tickCallbacks) {

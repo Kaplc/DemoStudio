@@ -1,0 +1,295 @@
+{
+  "name": "BarracksPanel",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "worldWidth": 9.6,
+        "worldHeight": 5.4,
+        "anchor": null,
+        "anchorOffset": [0, 0]
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/base/BarracksUi"
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "DimBackground",
+      "baseClass": "Actor",
+      "id": 11000,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 9.6,
+            "worldHeight": 5.4
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "rgba(0,0,0,0.55)",
+            "opacity": 0.55,
+            "radius": 0,
+            "width": 1920,
+            "height": 1080,
+            "name": "DimBg",
+            "zOrder": 0
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Panel",
+      "baseClass": "Actor",
+      "id": 11001,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 6,
+            "worldHeight": 3.5
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#1e2b3a",
+            "radius": 18,
+            "width": 1200,
+            "height": 700,
+            "name": "PanelBg",
+            "zOrder": 1
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "Title",
+          "baseClass": "Actor",
+          "id": 11002,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-center",
+                "anchorOffset": [0, -0.35],
+                "worldWidth": 4,
+                "worldHeight": 0.8
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "兵营",
+                "fontSize": 44,
+                "color": "#ffffff",
+                "bold": true,
+                "align": "center",
+                "width": 400,
+                "height": 80,
+                "zOrder": 2,
+                "name": "TitleText",
+                "italic": false
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Desc",
+          "baseClass": "Actor",
+          "id": 11003,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "center",
+                "anchorOffset": [0, 0.3],
+                "worldWidth": 4,
+                "worldHeight": 0.6
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "在这里训练你的士兵！",
+                "fontSize": 24,
+                "color": "#a8c4e0",
+                "bold": false,
+                "align": "center",
+                "width": 400,
+                "height": 60,
+                "zOrder": 2,
+                "name": "DescText",
+                "italic": false
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Btn_barracksClose",
+          "baseClass": "Actor",
+          "id": 11004,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "bottom-center",
+                "anchorOffset": [0, 0.3],
+                "worldWidth": 1.6,
+                "worldHeight": 0.6
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#3a5068",
+                "radius": 10,
+                "width": 320,
+                "height": 120,
+                "name": "CloseBtnBg",
+                "zOrder": 2
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "colors": {
+                  "normal": "#3a5068",
+                  "hover": "#4a6078",
+                  "pressed": "#2a3a4e"
+                }
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Label_close",
+              "baseClass": "Actor",
+              "id": 11005,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1.2,
+                    "worldHeight": 0.5
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "关闭",
+                    "fontSize": 24,
+                    "color": "#ffffff",
+                    "bold": true,
+                    "align": "center",
+                    "width": 240,
+                    "height": 60,
+                    "zOrder": 3,
+                    "name": "CloseLabel",
+                    "italic": false
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

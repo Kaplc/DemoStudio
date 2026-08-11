@@ -276,8 +276,7 @@ export function Outline() {
   // ─── 缓存：Scene 树渲染元素 ───
   const sceneTreeElements = useMemo(() => {
     if (visibleTree.length === 0) return null
-    return applyCollapse(visibleTree, collapsedKeys, 'scene').map((row, i) => {
-      const { node, key: itemKey, hasChildren, collapsed } = row
+    return applyCollapse(visibleTree, collapsedKeys, 'scene').map((row, i) => {      const { node, key: itemKey, hasChildren, collapsed } = row
       // 防止 null === null：selected 为 null（无选中）时，无 actor 节点不能高亮
       const isSelected = selected !== null && selected === node.actor
       const hidden = node.actor ? hiddenKeys.has(node.actor.root.id) : false

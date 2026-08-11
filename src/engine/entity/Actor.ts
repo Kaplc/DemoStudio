@@ -59,12 +59,15 @@ export abstract class Actor extends BObject {
   /** 销毁自己，由 World 实际清理（场景对象专属） */
   destroy() {
     if (this.bPendingDestroy) return
-    this.bPendingDestroy = true
+    // 注意：不能在这里预设 bPendingDestroy —— World.DestroyObject → DestroyActor
+    // 第一行会 `if (actor.bPendingDestroy) return` 直接短路，导致 actor 永远进不了
+    // 销毁队列（UI 面板/建筑删除全部失效）。标记与入队统一由 DestroyActor 完成。
     if (this.world) {
       this.world.DestroyObject(this)
     } else {
       // 无 world 归属（如 UI 内联子节点：attachTo 挂树、从不经 SpawnActor）：
       // 无法走 World 统一销毁，直接本地 EndPlay（递归子树 + 组件 + 注册表注销）
+      this.bPendingDestroy = true
       this.EndPlay()
     }
   }

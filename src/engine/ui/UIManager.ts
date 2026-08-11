@@ -324,6 +324,9 @@ export class UIManager extends AObjectComponent<World> {
         actor.EndPlay()
         this.scene.remove(actor.root)
         this._uiActors.delete(actor)
+        // 从父 Actor 树拆离：运行时动态生成的 UI（如兵营面板 spawnUIActor 挂 HUD 下）
+        // 必须 detach，否则大纲递归 HUD 子树仍显示已销毁节点
+        if (actor.parent) actor.detach()
       }
     }
     this._pendingDestroy = []

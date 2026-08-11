@@ -24,7 +24,7 @@ export type PanelId = 'scene' | 'game' | 'inspector' | 'console' | 'project'
 /** 视口页签定义（持久标签 + 动态标签：蓝图 / 场景预览） */
 export interface ViewportTabDef {
   id: string
-  type: 'scene' | 'game' | 'blueprint' | 'scenePreview'
+  type: 'scene' | 'game' | 'uiScene' | 'blueprint' | 'scenePreview'
   label: string
   permanent: boolean
   assetPath?: string
@@ -65,8 +65,8 @@ export interface EditorState {
   activeTabId: string
 
   // ─── 左侧面板页签（大纲/资产/日志）───
-  leftPanelTab: 'outline' | 'assets' | 'logs'
-  setLeftPanelTab: (tab: 'outline' | 'assets' | 'logs') => void
+  leftPanelTab: 'outline' | 'assets' | 'ui'
+  setLeftPanelTab: (tab: 'outline' | 'assets' | 'ui') => void
 
   // ─── 蓝图编辑器选择 ───
   blueprintSelection: BlueprintSelection | null

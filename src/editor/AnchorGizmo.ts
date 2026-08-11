@@ -161,7 +161,8 @@ export class AnchorGizmo {
    */
   update(worldPerPx: number) {
     const actor = this._target
-    if (!actor || worldPerPx <= 0) return
+    // 防御：worldPerPx 非有限值（如隐藏视口 clientHeight=0 → Infinity）时跳过，避免三角形位置变 Infinity
+    if (!actor || !isFinite(worldPerPx) || worldPerPx <= 0) return
     const uiTf = actor.getComponent(UITransformComponent)
     if (!uiTf) {
       this.parentBounds!.visible = false

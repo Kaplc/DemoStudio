@@ -10,12 +10,12 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
-import { ClashBuildingBaseActor } from './ClashBuildingActors'
+import { ClashBuildingBaseActor, BarracksActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 import { PlaceGridActor } from './PlaceGridActor'
 
@@ -48,6 +48,8 @@ export class FishBaseGameMode extends GameMode {
   private previewMesh: THREE.Mesh | null = null
   /** 放置示意网格 Actor（PlaceGridActor，默认隐藏，进入放置模式显示） */
   private placeGridActor: PlaceGridActor | null = null
+  /** 兵营专属 UI 面板（打开时隐藏建造菜单 base_hud，关闭时恢复） */
+  private barracksPanel: Actor | null = null
 
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
@@ -190,8 +192,13 @@ export class FishBaseGameMode extends GameMode {
     return true
   }
 
-  /** 点击已放置建筑：选中（高亮）/ 取消选中 */
+  /** 点击已放置建筑：兵营 → 打开兵营专属 UI（隐藏建造菜单）；其他建筑选中（高亮）/ 取消选中 */
   onBuildingClick(b: ClashBuildingBaseActor) {
+    // 兵营：打开兵营专属 UI，不进入选中/移动模式
+    if (b instanceof BarracksActor) {
+      this.openBarracksPanel()
+      return
+    }
     if (this.selectedBuilding === b) {
       this.deselectBuilding()
     } else {
@@ -201,6 +208,41 @@ export class FishBaseGameMode extends GameMode {
       // 退出放置模式，进入移动模式：点击地面移动建筑
       this.cancelPlaceMode()
     }
+  }
+
+  /**
+   * 打开兵营专属 UI：隐藏建造菜单（base_hud），生成 barracks_ui.widget.json 挂到 HUD。
+   * 面板关闭按钮由 BarracksUi.script.ts 绑定到 closeBarracksPanel。
+   */
+  private openBarracksPanel() {
+    const w = this.world
+    if (!w || this.barracksPanel) return
+    // 退出选中/放置模式（兵营 UI 打开时互斥）
+    this.deselectBuilding()
+    this.cancelPlaceMode()
+    // 隐藏建造菜单（base_hud 根节点 bActive=false → 整棵 UI 树隐藏）
+    const hudUI = w.ui.hud?.uiActor
+    if (hudUI) hudUI.bActive = false
+    // 生成兵营面板（挂到当前 HUD）
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/barracks_ui.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 兵营 UI 生成失败，恢复建造菜单')
+      if (hudUI) hudUI.bActive = true
+      return
+    }
+    this.barracksPanel = panel
+    logger.info('[BaseGM] 打开兵营 UI（建造菜单已隐藏）')
+  }
+
+  /** 关闭兵营专属 UI：销毁面板，恢复建造菜单（由兵营 UI 关闭按钮调用） */
+  closeBarracksPanel() {
+    if (!this.barracksPanel) return
+    this.barracksPanel.destroy()
+    this.barracksPanel = null
+    // 恢复建造菜单
+    const hudUI = this.world?.ui.hud?.uiActor
+    if (hudUI) hudUI.bActive = true
+    logger.info('[BaseGM] 关闭兵营 UI，恢复建造菜单')
   }
 
   private deselectBuilding() {
@@ -342,6 +384,8 @@ export class FishBaseGameMode extends GameMode {
     this.previewMesh = null
     // PlaceGrid Actor 由 World.DestroyAllActors 统一销毁（其 LineComponent 自动释放线条资源）
     this.placeGridActor = null
+    // 兵营面板是 UI Actor，由 World 销毁时 UIManager.destroyAll 统一销毁，这里只清引用
+    this.barracksPanel = null
     this.clashBuildings = []
     this.gridOccupied.clear()
     this.selectedType = null

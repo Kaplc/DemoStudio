@@ -28,11 +28,16 @@ export abstract class AObject extends OObject {
       logger.warn(`[AObject] 组件实例重复添加已忽略: ${component.constructor.name}（owner=${this.constructor.name}）`)
       return component
     }
-    // 同类组件重复警告（语义单例组件如 ClickableComponent/CameraComponent 通常不应出现多个）
-    const dup = this.components.find((c) => c.constructor === component.constructor)
+    // 同名同类型组件重复警告：语义单例组件（ClickableComponent/CameraComponent 等）
+    // 通常不应出现多个同名实例；同类型不同名（如底座 MeshComponent 'BaseMesh' +
+    // 主体 MeshComponent 'BodyMesh'）是合法的多实例，不警告
+    const dup = this.components.find(
+      (c) => c.constructor === component.constructor && c.name === component.name,
+    )
     if (dup) {
       logger.warn(
-        `[AObject] 警告: ${this.constructor.name} 已存在 ${component.constructor.name}，再次添加可能导致行为重复（如点击回调绑定两次）。` +
+        `[AObject] 警告: ${this.constructor.name} 已存在同名组件 ${component.constructor.name}("${component.name}")，` +
+        `再次添加可能导致行为重复（如点击回调绑定两次）。` +
         `来源: ${(dup as { uid?: number }).uid ?? '-'} → 新添加 @${(component as { uid?: number }).uid ?? '-'}`,
       )
     }

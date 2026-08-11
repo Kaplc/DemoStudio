@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { SceneRendererComponent, logger, Game, World, gizmos } from '../engine'
+import { UISceneView } from './UISceneView'
 import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
@@ -24,6 +25,10 @@ import {
   getTransformGizmo,
   notifySelectionChange,
   watchWorldActorChanges,
+  setRunningWorld,
+  attachAnchorGizmoToScene,
+  updateAnchorGizmo,
+  getRuntimeUIOverlayScene,
 } from '../editor'
 
 interface ViewportProps {
@@ -70,6 +75,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const setActiveTabId = useEditorStore((s) => s.setActiveTabId)
+  const setLeftPanelTab = useEditorStore((s) => s.setLeftPanelTab)
   const closeDynamicTab = useEditorStore((s) => s.closeDynamicTab)
   const dirtyBlueprints = useEditorStore((s) => s.dirtyBlueprints)
 
@@ -77,6 +83,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const allTabs: ViewportTabDef[] = useMemo(() => [
     { id: 'scene', type: 'scene', label: 'Scene', permanent: true },
     { id: 'game', type: 'game', label: 'Game', permanent: true },
+    { id: 'uiScene', type: 'uiScene', label: 'UI Scene', permanent: true },
     ...dynamicTabs,
   ], [dynamicTabs])
 
@@ -263,8 +270,12 @@ export function Viewport({ onReady }: ViewportProps) {
     // Game 视口渲染器由 World 创建（instance → world.gameRenderer），同步引用供输入路由/显隐控制
     const world = (inst as unknown as { world?: import('../engine').World }).world
     gameSceneRef.current = world?.gameRenderer ?? null
+    // 记录运行中游戏的 World（大纲运行中 UI 树数据源）
+    setRunningWorld(world ?? null)
     // 监听游戏 World 的 Actor 变化（生成/销毁）→ 大纲自动刷新
     if (world) watchWorldActorChanges(world)
+    // 选中 UI 节点时显示锚点框 + 范围框（编辑器独立 overlay 场景承载，不污染游戏 UI 场景）
+    attachAnchorGizmoToScene(world?.ui.scene ?? null)
 
     // 新创建的渲染器需应用编辑器当前设置（比例 + 渲染模式），
     // 比例 effect 只在 gameAspectRatio 变化时触发，不会覆盖启动新建的渲染器
@@ -276,6 +287,27 @@ export function Viewport({ onReady }: ViewportProps) {
       gameMgr.setTargetAspect(ratio)
       gameMgr.setCameraMode(currentProject?.renderMode === '2d' ? 'orthographic' : 'perspective')
     }
+    // 每帧更新 AnchorGizmo 跟随（UICamera 视锥换算 worldPerPx → 三角形屏幕恒定尺寸）。
+    // 在 SceneRendererComponent 更新阶段调用，确保渲染前矩阵已更新。
+    const removeAnchorUpdate = gameMgr?.onUpdate(() => {
+      const cam = gameMgr.uiCamera
+      if (!cam) return
+      // UICamera 正交：top-bottom = 视口高对应的世界单位；zoom 恒为 1
+      const worldPerPx = (cam.top - cam.bottom) / gameMgr.renderer.domElement.clientHeight
+      updateAnchorGizmo(worldPerPx)
+    }) ?? (() => {})
+    // 每帧用 UICamera 叠加渲染编辑器 UI 选中辅助 overlay 场景（在 UI 场景渲染之后，
+    // gizmo 永远在最顶层；gizmo 不挂游戏场景，避免 World.Destroy 泄漏检测告警）
+    const removeOverlayRender = gameMgr?.onAfterRender(() => {
+      const uiCam = gameMgr.uiCamera
+      const overlay = getRuntimeUIOverlayScene()
+      if (!uiCam || overlay.children.length === 0) return
+      const prevAutoClear = gameMgr.renderer.autoClear
+      gameMgr.renderer.autoClear = false
+      gameMgr.renderer.clearDepth()
+      gameMgr.renderer.render(overlay, uiCam)
+      gameMgr.renderer.autoClear = prevAutoClear
+    }) ?? (() => {})
 
     // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
     setCurrentGameInstance(inst)
@@ -285,10 +317,16 @@ export function Viewport({ onReady }: ViewportProps) {
     }
 
     return () => {
+      removeAnchorUpdate()
+      removeOverlayRender()
       game.destroy()
       gameRef.current = null
       gameSceneRef.current = null
       setCurrentGameInstance(null)
+      // 清空运行中游戏的 World 引用（大纲运行中 UI 树随之消失）
+      setRunningWorld(null)
+      // 游戏停止：取消 UI 选中辅助目标
+      attachAnchorGizmoToScene(null)
       // 停止游戏后恢复编辑器辅助网格显示
       setEditorGridVisible(true)
     }
@@ -300,6 +338,13 @@ export function Viewport({ onReady }: ViewportProps) {
       setActiveTabId('game')
     }
   }, [editorState.running])
+
+  // ─── 切换到 UIScene 页签时自动联动左侧面板到 UI 大纲（UIScene 页签的对象在 UI 树中） ───
+  useEffect(() => {
+    if (activeTabId === 'uiScene') {
+      setLeftPanelTab('ui')
+    }
+  }, [activeTabId, setLeftPanelTab])
 
   // ─── 停止游戏后恢复 Scene 页签的 defaultScene actor 预览 ───
   useEffect(() => {
@@ -489,6 +534,9 @@ export function Viewport({ onReady }: ViewportProps) {
                 <path d="M6 12h4" /><path d="M8 10v4" />
               </svg>
             )}
+            {tab.type === 'uiScene' && (
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🎨</span>
+            )}
             {tab.type === 'blueprint' && (
               <span style={{ fontSize: 14, lineHeight: 1 }}>🧩</span>
             )}
@@ -500,6 +548,9 @@ export function Viewport({ onReady }: ViewportProps) {
               <span style={{ color: 'var(--warning)', marginLeft: 2 }}>*</span>
             )}
             {tab.type === 'game' && editorState.running && (
+              <span style={{ marginLeft: 4, color: '#4ade80', fontSize: 10 }}>●</span>
+            )}
+            {tab.type === 'uiScene' && editorState.running && (
               <span style={{ marginLeft: 4, color: '#4ade80', fontSize: 10 }}>●</span>
             )}
             {/* 非持久标签的关闭按钮 */}
@@ -578,6 +629,17 @@ export function Viewport({ onReady }: ViewportProps) {
             {localPhase === 'gameover' ? 'Game Over' : `Score: ${localScore}`}
           </span>
         )}
+      </div>
+
+      {/* UI Scene 视图（永久常驻：游戏运行中提供可编辑 UI 场景；未运行时显示空状态） */}
+      <div
+        style={{
+          flex: 1,
+          display: activeTabId === 'uiScene' ? undefined : 'none',
+          outline: 'none',
+        }}
+      >
+        {activeTabId === 'uiScene' && <UISceneView />}
       </div>
 
       {/* Scene 视图 */}

@@ -320,6 +320,8 @@ ipcMain.handle('start-game-log', async (_event, projectName?: string) => {
       `[${now.toISOString()}][GAME] === 游戏启动 ===${projectName ? ` 项目: ${projectName}` : ''}\n`,
       'utf-8',
     )
+    // 滚动删除：每次创建游戏日志后清理一次，保证 game_ 日志最多保留 10 个（含当前文件）
+    cleanOldLogs()
     return GAME_LOG_FILE
   } catch (err) {
     console.error('游戏日志文件创建失败:', err)

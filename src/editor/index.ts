@@ -23,6 +23,7 @@
 export { BlueprintPreviewManager } from './asset/BlueprintPreviewManager'
 export { UIPreviewManager } from './asset/UIPreviewManager'
 export { ScenePreviewManager } from './asset/ScenePreviewManager'
+export { RuntimeUIEditor } from './asset/RuntimeUIEditor'
 export { AssetPreviewManager } from './asset/AssetPreviewManager'
 
 export { Editor } from './Editor'
@@ -95,8 +96,10 @@ export type { LogContentCallback } from './LogPoller'
 
 export { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 
-export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo, watchWorldActorChanges } from './SelectionManager'
+export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo, getAnchorGizmo, getSelectionBoundsGizmo, getRuntimeUIOverlayScene, attachAnchorGizmoToScene, updateAnchorGizmo, watchWorldActorChanges, setRunningWorld, getRunningWorld } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'
+export { AnchorGizmo } from './AnchorGizmo'
+export { SelectionBoundsGizmo } from './SelectionBoundsGizmo'
 export { editorBus } from './EditorEvents'
 export { EditorEvent } from './EditorEventNames'
 export { injectMockElectronAPI, clearMockSaves } from './MockElectronAPI'
