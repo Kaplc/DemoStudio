@@ -41,6 +41,27 @@ export class ThreeObjectFactory {
     return this.track(new ThreeObject(new THREE.LineSegments(geometry, material)))
   }
 
+  /**
+   * 创建平面网格线框（追踪释放）。
+   * 仅提供从 min 到 max 每 step 一条线的能力，具体格子坐标/偏移规则由调用方（游戏）自行计算。
+   * 水平面 y=0，含边界。
+   * @param min 网格范围最小值（含）
+   * @param max 网格范围最大值（含）
+   * @param step 线间距
+   */
+  createGridLines(min: number, max: number, step: number, color: number, transparent?: boolean, opacity?: number): ThreeObject<THREE.LineSegments> {
+    const points: THREE.Vector3[] = []
+    for (let i = min; i <= max; i += step) {
+      points.push(new THREE.Vector3(i, 0, min), new THREE.Vector3(i, 0, max))
+      points.push(new THREE.Vector3(min, 0, i), new THREE.Vector3(max, 0, i))
+    }
+    const obj = this.createLine(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) }),
+    )
+    return obj
+  }
+
   /** 创建 Sprite（追踪释放） */
   createSprite(material: THREE.SpriteMaterial): ThreeObject<THREE.Sprite> {
     return this.track(new ThreeObject(new THREE.Sprite(material)))

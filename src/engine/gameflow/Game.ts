@@ -80,6 +80,11 @@ export class Game {
     return this._factory.createLine(geometry, material)
   }
 
+  /** 创建平面网格线框（追踪释放；参数语义见 ThreeObjectFactory.createGridLines） */
+  createGridLines(min: number, max: number, step: number, color: number, transparent?: boolean, opacity?: number): ThreeObject<THREE.LineSegments> {
+    return this._factory.createGridLines(min, max, step, color, transparent, opacity)
+  }
+
   /** 创建 Sprite（追踪释放） */
   createSprite(material: THREE.SpriteMaterial): ThreeObject<THREE.Sprite> {
     return this._factory.createSprite(material)

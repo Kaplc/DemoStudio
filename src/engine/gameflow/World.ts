@@ -20,6 +20,7 @@ import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
+import { ThreeObjectFactory } from './ThreeObjectFactory'
 import type { OObject } from '../entity/OObject'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
@@ -80,6 +81,12 @@ export class World extends AObject {
   private _running = false
   private _tickCallbacks: Array<(dt: number) => void> = []
 
+  /**
+   * THREE 对象工厂（统一创建 + 追踪释放，禁止裸 new THREE.xxx）。
+   * 由 World 的 createXxx 工厂方法使用；World.Destroy 时 disposeAll 兜底回收。
+   */
+  readonly factory = new ThreeObjectFactory()
+
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
     super()
     this.id = World._nextId++
@@ -127,6 +134,19 @@ export class World extends AObject {
   SpawnActor<T extends Actor>(actor: T): T {
     this.assertValid('调用 SpawnActor') // 已销毁 World 不应再生成对象
     return this.actorMgr.SpawnActor(actor)
+  }
+
+  /**
+   * 按类型生成 Actor：组件内自动 new + 入队（无需手动 new + SpawnActor 两步）。
+   * 通用机制，不感知具体 Actor 类：如 `world.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {...})`。
+   */
+  SpawnActorOfType<T extends Actor, A extends unknown[]>(
+    type: new (name: string, ...args: A) => T,
+    name: string,
+    ...args: A
+  ): T {
+    this.assertValid('调用 SpawnActorOfType') // 已销毁 World 不应再生成对象
+    return this.actorMgr.SpawnActorOfType(type, name, ...args)
   }
 
   /**
@@ -658,20 +678,15 @@ export class World extends AObject {
   }
 
   /**
-   * 创建一个网格线框（用于放置示意网格等）。
-   * 范围 [-extent/2, extent/2]，每 step 单位一条线（含边界），水平面 y=0。
+   * 创建一个平面网格线框（基础划线工具：仅提供从 min 到 max 每 step 一条线的能力，
+   * 具体格子坐标/偏移规则由调用方（游戏）自行计算）。水平面 y=0，含边界。
+   * 经工厂统一生成（追踪释放），挂到 LineComponent/GridActor 后随 actor 生命周期释放。
+   * @param min 网格范围最小值（含）
+   * @param max 网格范围最大值（含）
+   * @param step 线间距
    */
-  createGridLines(extent: number, step: number, color: number, transparent?: boolean, opacity?: number): THREE.LineSegments {
-    const points: THREE.Vector3[] = []
-    const half = extent / 2
-    for (let i = -half; i <= half; i += step) {
-      points.push(new THREE.Vector3(i, 0, -half), new THREE.Vector3(i, 0, half))
-      points.push(new THREE.Vector3(-half, 0, i), new THREE.Vector3(half, 0, i))
-    }
-    return new THREE.LineSegments(
-      new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) }),
-    )
+  createGridLines(min: number, max: number, step: number, color: number, transparent?: boolean, opacity?: number): THREE.LineSegments {
+    return this.factory.createGridLines(min, max, step, color, transparent, opacity).object
   }
 
   // ═══════════════════════════════════
@@ -706,5 +721,11 @@ export class World extends AObject {
     ObjectRegistry.reclaimForWorld(this)
     // 清理 Game 视口渲染器（由 World 创建，随 World 销毁）
     this.gameRenderer?.dispose()
+    // 工厂兜底回收：经本 World 工厂创建但未随 actor 释放的 THREE 对象
+    // （正常路径由组件 EndPlay 释放，这里兜底未释放的孤儿）
+    const factoryOrphans = this.factory.disposeAll()
+    if (factoryOrphans.length > 0) {
+      logger.warn(`[World#${this.id}] Destroy: 工厂兜底回收 ${factoryOrphans.length} 个未释放 THREE 对象（组件销毁链路异常或未挂载）`)
+    }
   }
 }

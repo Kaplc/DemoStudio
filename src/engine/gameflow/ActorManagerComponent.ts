@@ -67,6 +67,24 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     return actor
   }
 
+  /**
+   * 按类型生成 Actor：组件内自动 new + 入队（无需调用方手动 new + SpawnActor 两步）。
+   * 通用机制：不感知具体 Actor 类（泛型），游戏工程传入自己的类与构造参数即可，
+   * 如 `world.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {...})`。
+   *
+   * @param type Actor 类（构造签名：name + 任意剩余参数）
+   * @param name Actor 名称
+   * @param args 构造剩余参数（透传给构造函数）
+   */
+  SpawnActorOfType<T extends Actor, A extends unknown[]>(
+    type: new (name: string, ...args: A) => T,
+    name: string,
+    ...args: A
+  ): T {
+    const actor = new type(name, ...args)
+    return this.SpawnActor(actor)
+  }
+
   /** 提交待生成队列（由 World.tick / BeginPlay 调用） */
   commitSpawn() {
     if (this.pendingSpawn.length > 0) this._actorListDirty = true

@@ -10,13 +10,14 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, LineComponent } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
 import { ClashBuildingBaseActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
+import { PlaceGridActor } from './PlaceGridActor'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -45,8 +46,8 @@ export class FishBaseGameMode extends GameMode {
   /** 放置模式跟随鼠标的半透明预览（MeshComponent 托管，showPreview 时替换） */
   private previewComp: MeshComponent | null = null
   private previewMesh: THREE.Mesh | null = null
-  /** 放置示意网格（LineComponent 托管，挂 builder.decor；进入放置模式显示，默认隐藏） */
-  private placeGridLines: THREE.LineSegments | null = null
+  /** 放置示意网格 Actor（PlaceGridActor，默认隐藏，进入放置模式显示） */
+  private placeGridActor: PlaceGridActor | null = null
 
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
@@ -293,19 +294,25 @@ export class FishBaseGameMode extends GameMode {
   /** 创建放置示意网格：覆盖整个放置范围（±PLACE_HALF，每格 1 单位），默认隐藏 */
   private createPlaceGrid() {
     const w = this.world
-    const decor = this.baseBuilder?.decor
-    if (!w || !decor || this.placeGridLines) return
-    const lines = w.createGridLines(PLACE_HALF * 2, 1, 0xffffff, true, 0.4)
-    lines.position.y = 0.01
-    lines.visible = false
-    decor.addComponent(new LineComponent(decor, lines, 'PlaceGrid'))
-    this.placeGridLines = lines
-    logger.info('[BaseGM] 放置示意网格已创建（±' + PLACE_HALF + '，默认隐藏）')
+    if (!w || this.placeGridActor) return
+    // 格子规则（游戏侧计算）：建筑中心在整数坐标（格子中心），
+    // 网格线画在格子边界 = 中心坐标 ±0.5（半整数），即 [-PLACE_HALF-0.5, PLACE_HALF+0.5]
+    // SpawnActorOfType：组件内自动 new PlaceGridActor + 入队（经 World 工厂建线 + LineComponent 托管，随 Actor 销毁自动释放）
+    this.placeGridActor = w.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {
+      min: -PLACE_HALF - 0.5,
+      max: PLACE_HALF + 0.5,
+      step: 1,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.4,
+      y: 0.01,
+    })
+    logger.info('[BaseGM] 放置示意网格 Actor 已创建（格子边界 ±' + (PLACE_HALF + 0.5) + '，建筑中心对齐格子中心，默认隐藏）')
   }
 
   /** 切换放置示意网格显隐 */
   private setPlaceGridVisible(visible: boolean): void {
-    if (this.placeGridLines) this.placeGridLines.visible = visible
+    this.placeGridActor?.setVisible(visible)
   }
 
   /** 移动建筑：先移除旧占用，再放置到新格子 */
@@ -333,8 +340,8 @@ export class FishBaseGameMode extends GameMode {
     this.baseBuilder = null
     this.previewComp = null
     this.previewMesh = null
-    // 放置网格由 decor 上的 LineComponent.EndPlay 自动释放资源
-    this.placeGridLines = null
+    // PlaceGrid Actor 由 World.DestroyAllActors 统一销毁（其 LineComponent 自动释放线条资源）
+    this.placeGridActor = null
     this.clashBuildings = []
     this.gridOccupied.clear()
     this.selectedType = null
