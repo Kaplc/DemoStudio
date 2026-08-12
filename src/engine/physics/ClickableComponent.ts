@@ -111,11 +111,30 @@ export class ClickableComponent extends Component<Actor> {
   /**
    * 对指定 raycaster 做命中测试。
    * 返回最近的命中结果，无命中返回 null。
+   *
+   * 注意：THREE.Raycaster 不检查 visible——隐藏的 mesh（如节点 bActive=false
+   * 级联隐藏的 UI 按钮）依然会被命中。这里沿父链过滤不可见目标，
+   * 保证"隐藏的 UI/物体不响应射线"（与 Unity 行为一致）。
    */
   hitTest(raycaster: THREE.Raycaster): THREE.Intersection | null {
     const targets = this.getTargets()
     if (targets.length === 0) return null
-    const hits = raycaster.intersectObjects(targets, false)
+    // 过滤不可见目标：自身或任一父节点 visible=false 均视为隐藏（父隐藏则子也看不到）
+    const visibleTargets: THREE.Object3D[] = []
+    for (const t of targets) {
+      let o: THREE.Object3D | null = t
+      let visible = true
+      while (o) {
+        if (!o.visible) {
+          visible = false
+          break
+        }
+        o = o.parent
+      }
+      if (visible) visibleTargets.push(t)
+    }
+    if (visibleTargets.length === 0) return null
+    const hits = raycaster.intersectObjects(visibleTargets, false)
     return hits.length > 0 ? hits[0] : null
   }
 
