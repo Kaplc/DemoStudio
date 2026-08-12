@@ -95,15 +95,21 @@ flowchart TD
 
 ### 3.3 Gizmo 拖拽（预览态 → 撤销点）
 
-拖拽过程中只改预览内存态（**不产生撤销点**）；**松手时** `updateFromPreview` 把预览数据同步进工作副本：
+拖拽过程中只改预览内存态（**不产生撤销点**）；**松手时** `commitPreviewTransform` 把本次拖拽目标节点变换组件的最终属性，走 `apply` 链路（`setComponentProps` / `setChildComponentProps`）统一提交：
 
 ```
-松手 → push(当前副本)          ← 每个撤销点 = 一次完整拖拽
-     → 工作副本 = 预览数据
-     → 注册表同步 + resolve 探测（失败仅告警不阻断）
-     → 不 bump（预览自身已是最新）
-     → 发 BLUEPRINT_TRANSFORM_DIRTY 刷新撤销按钮可用状态
+松手 → 提取目标节点变换组件属性 patch（collectSaveData 已回写最新值）
+     → apply：动作前快照 → runOp 改工作副本 → 注册表同步 → UndoManager.push（= 松手才进撤回）
+     → bump 重建预览（恢复相机位姿 + 选中）
+     → 发 BLUEPRINT_TRANSFORM_DIRTY 刷新撤销按钮（双保险）
 ```
+
+统一设计：
+
+- **与 Inspector 同一入口**：拖拽松手与 Inspector 属性修改都走 `apply`，撤回点统一由 apply 内部 push（动作前快照），一次完整拖拽 = 一个撤回点。
+- **拖动中零撤回点**：`mousemove` 每帧只改运行时组件属性（实时预览），不碰工作副本与撤销栈。
+- **ref 引用实例**（无 JSON 节点可映射）：跳过提交并告警，不产生无效撤回点（保存兜底仍会整份同步）。
+- **保存兜底** `updateFromPreview`：仅保存前同步预览内存态到工作副本，**不再产生撤回点**（push 职责已全部收敛到 apply）。
 
 首次拖拽（无工作副本）会先读盘建立副本，此时撤销快照 = 真实磁盘状态。
 

@@ -1,16 +1,40 @@
-# Ursina 文档 (AI 优化版)
+# DemoStudio 文档目录
 
-> 整理日期: 2026-07-11
-> 来源: https://www.ursinaengine.org
+> 引擎与编辑器系统设计文档索引。AI 在处理相关任务时应先查阅对应文档。
 
-## 文件
+## 总览
 
-| 文件 | 说明 | 大小 |
-|------|------|------|
-| `ursina_reference.md` | **完整 API 参考文档** | 19 KB |
+| 文件 | 说明 |
+|------|------|
+| [`system_overview.md`](./system_overview.md) | **系统总览**：引擎/编辑器/项目/资产类型全量统计与架构索引（改动前先查此文档定位子系统） |
 
-## 说明
+## 引擎系统（src/engine/）
 
-- `ursina_reference.md` 是给 AI 阅读的完整参考文档
-- 包含: 安装、快速入门、Entity 基础、坐标系、所有 API 类参考、着色器、工具函数
-- 使用 VSCode 打开可直接预览或供 AI 工具引用
+| 文件 | 说明 |
+|------|------|
+| [`engine/entity_system.md`](./engine/entity_system.md) | 实体体系：OObject → AObject → BObject → Actor 层级 + 组件系统 |
+| [`engine/gameflow_system.md`](./engine/gameflow_system.md) | 游戏流程：Game / GameInstance / GameMode / GameState / World |
+| [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：相机族 / 渲染组件 / Compositor2D / 纹理 |
+| [`engine/ui_system.md`](./engine/ui_system.md) | 世界 UI：UIManager / HUD / UI 控件组件 |
+| [`engine/input_physics_script_system.md`](./engine/input_physics_script_system.md) | 输入 / 物理 / 脚本：InputSys / PhySys / ScriptRegistry |
+| [`engine/asset_tools_system.md`](./engine/asset_tools_system.md) | 资产与工具：AssetRegistry / BlueprintRegistry / 配置表 / 存档 |
+| [`engine/ai_system.md`](./engine/ai_system.md) | AI 事件系统：AIModule 事件总线（MCP 控制游戏） |
+
+## 编辑器系统（src/editor/ + src/components/）
+
+| 文件 | 说明 |
+|------|------|
+| [`editor/core_system.md`](./editor/core_system.md) | 编辑器核心：Editor / EditorInitializer / 事件总线 / 快捷键 |
+| [`editor/viewport_system.md`](./editor/viewport_system.md) | 视口与场景：Scene 视口 / Game 视口 / 场景初始化 |
+| [`editor/selection_transform_system.md`](./editor/selection_transform_system.md) | 选择与变换：SelectionManager / TransformGizmo / AnchorGizmo |
+| [`editor/blueprint_edit_system.md`](./editor/blueprint_edit_system.md) | 蓝图编辑：BlueprintEditorService / blueprintOps / UndoManager |
+| [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
+| [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
+
+## 专题文档
+
+| 文件 | 说明 |
+|------|------|
+| [`undo_redo_system.md`](./undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读） |
+| [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
+

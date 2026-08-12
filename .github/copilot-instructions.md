@@ -1,5 +1,16 @@
 # DemoStudio 项目约定
 
+## 文档参考（AI 专用）
+
+`doc/` 目录下包含系统架构与设计文档，AI 在处理相关任务时应先查阅对应文档，避免重复调研或做出与既有设计冲突的改动：
+
+- `doc/README.md` — 文档目录索引（所有引擎/编辑器系统文档入口，先查此文件定位）
+- `doc/system_overview.md` — 系统总览：引擎/编辑器/项目/资产类型全量统计与架构索引（改动前先查此文档定位子系统）
+- `doc/engine/*.md` — 引擎系统文档（实体/游戏流/渲染/UI/输入物理脚本/资产工具/AI 事件，每个系统一份）
+- `doc/editor/*.md` — 编辑器系统文档（核心/视口/选择变换/蓝图编辑/预览与检查/UI 组件，每个系统一份）
+- `doc/undo_redo_system.md` — 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读）
+- `doc/ursina_reference.md` — Ursina 参考文档（涉及 API 兼容性设计时参考）
+
 ## 浏览器调试模式（AI 专用）
 
 AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影响 Electron 窗口**：
