@@ -19,6 +19,12 @@
 import { logger } from '../Logger'
 import { DataTable } from './DataTable'
 
+/** registerGlob 入参：import.meta.glob 结果（key = 相对 asset/config/ 的路径，如 './cannon.config.json'） */
+export interface ConfigGlobModules {
+  configModules?: Record<string, unknown>
+  tableModules?: Record<string, unknown>
+}
+
 export class ConfigRegistry {
   // 单例配置
   private static defaults = new Map<string, unknown>()
@@ -107,6 +113,46 @@ export class ConfigRegistry {
   /** 同步获取数据表：未加载返回 undefined（非编程错误，消费方用 if 守卫） */
   static getTable<Row>(name: string): DataTable<Row> | undefined {
     return this.tables.get(name) as unknown as DataTable<Row> | undefined
+  }
+
+  // ═════════ 半自动注册（registerGlob：路径/name 由 glob 推导） ═════════
+
+  /** 注册单例配置的 transform（registerGlob 自动加载时应用；须在 registerGlob 之前调用） */
+  static registerConfigTransform<T>(name: string, transform: (raw: any) => T): void {
+    this.configTransforms.set(name, transform as (raw: any) => unknown)
+  }
+
+  /** 注册数据表的行 transform（registerGlob 自动加载时应用；须在 registerGlob 之前调用） */
+  static registerTableTransform<Row>(name: string, transform: (row: any, rowName: string) => Row): void {
+    this.tableTransforms.set(name, transform as (row: any, rowName: string) => unknown)
+  }
+
+  /**
+   * 批量注册 asset/config/ 下的所有配置（半自动：路径/name 由 glob key 推导，新增文件无需改代码）。
+   * name 规则：`{projectName}.{文件名}`（cannon.config.json → fish.cannon）。
+   * 需归一化的字段先经 registerConfigTransform / registerTableTransform 注册 transform
+   * （须在本方法之前调用，加载为 fire-and-forget 异步，读取期间 transform 已就绪）。
+   */
+  static registerGlob(projectName: string, modules: ConfigGlobModules): void {
+    let configCount = 0
+    for (const key of Object.keys(modules.configModules ?? {})) {
+      if (!key.endsWith('.config.json')) continue
+      const rel = key.replace(/^\.\//, '')
+      const name = `${projectName}.${rel.replace(/\.config\.json$/, '')}`
+      const path = `src/projects/${projectName}/asset/config/${rel}`
+      void this.loadConfig(name, path, this.configTransforms.get(name) as ((raw: any) => unknown) | undefined)
+      configCount++
+    }
+    let tableCount = 0
+    for (const key of Object.keys(modules.tableModules ?? {})) {
+      if (!key.endsWith('.table.json')) continue
+      const rel = key.replace(/^\.\//, '')
+      const name = `${projectName}.${rel.replace(/\.table\.json$/, '')}`
+      const path = `src/projects/${projectName}/asset/config/${rel}`
+      void this.loadTable(name, path, this.tableTransforms.get(name) as ((row: any, rowName: string) => unknown) | undefined)
+      tableCount++
+    }
+    logger.info(`[ConfigRegistry] registerGlob(${projectName}): config=${configCount}, table=${tableCount}`)
   }
 
   // ═════════ 热更新 / 清理 ═════════

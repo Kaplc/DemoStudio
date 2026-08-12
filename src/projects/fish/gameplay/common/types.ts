@@ -187,3 +187,98 @@ export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
 export const INITIAL_COINS = 100
 /** 网最大飞行距离（世界单位，超出销毁） */
 export const NET_MAX_DISTANCE = 24
+
+// ════════════════════════════════════════════
+//  兵种配置（部落冲突风格，对应 troop.table.json）
+// ════════════════════════════════════════════
+
+/** 兵种攻击目标类型 */
+export type TroopTarget = 'ground' | 'both'
+/** 兵种攻击偏好（决定索敌优先级） */
+export type TroopPreferred = 'any' | 'defenses' | 'resources' | 'walls'
+
+/** 兵种配置行（DataTable 行表，对应 troop.table.json 的每一行） */
+export interface TroopType {
+  /** 显示名 */
+  name: string
+  /** 描述 */
+  desc: string
+  /** 占用兵营空间 */
+  housing: number
+  /** 训练费用（金币） */
+  cost: number
+  /** 训练时间（秒） */
+  trainTime: number
+  /** 生命值 */
+  hp: number
+  /** 每秒伤害（0 = 无伤害，如治疗师） */
+  dps: number
+  /** 攻击距离（世界单位；近战填 0.5） */
+  range: number
+  /** 移动速度（世界单位/秒） */
+  speed: number
+  /** 目标类型 */
+  target: TroopTarget
+  /** 攻击偏好（决定索敌优先级） */
+  preferred: TroopPreferred
+  /** 渲染尺寸 [宽, 高, 深] 世界单位 */
+  size: [number, number, number]
+  /** 是否飞行单位 */
+  flying: boolean
+  /** 主体颜色（#rrggbb，加载时归一化为数字） */
+  color: number
+}
+
+/** 兵种配置默认值（JSON 未加载时的同步 fallback） */
+export const DEFAULT_TROOPS: Record<string, TroopType> = {
+  barbarian: {
+    name: '野蛮人', desc: '近战肉搏单位，数量取胜的炮灰。',
+    housing: 1, cost: 25, trainTime: 20, hp: 45, dps: 8, range: 0.5, speed: 16,
+    target: 'ground', preferred: 'any', size: [0.8, 1.1, 0.8], flying: false, color: 0xe53935,
+  },
+  archer: {
+    name: '弓箭手', desc: '远程输出单位，可攻击空中目标。',
+    housing: 1, cost: 50, trainTime: 25, hp: 20, dps: 7, range: 3.5, speed: 24,
+    target: 'both', preferred: 'any', size: [0.7, 1.0, 0.7], flying: false, color: 0x8e24aa,
+  },
+  goblin: {
+    name: '哥布林', desc: '移速极快，优先攻击资源建筑。',
+    housing: 1, cost: 25, trainTime: 22, hp: 25, dps: 11, range: 0.5, speed: 32,
+    target: 'ground', preferred: 'resources', size: [0.7, 0.9, 0.7], flying: false, color: 0x2e7d32,
+  },
+  giant: {
+    name: '巨人', desc: '高血量坦克，优先攻击防御建筑。',
+    housing: 5, cost: 250, trainTime: 120, hp: 300, dps: 11, range: 0.8, speed: 12,
+    target: 'ground', preferred: 'defenses', size: [1.1, 1.5, 1.1], flying: false, color: 0x6d4c41,
+  },
+  wallBreaker: {
+    name: '炸弹人', desc: '自爆式破墙单位，对城墙伤害翻倍。',
+    housing: 2, cost: 1000, trainTime: 120, hp: 20, dps: 12, range: 0.5, speed: 24,
+    target: 'ground', preferred: 'walls', size: [0.7, 0.9, 0.7], flying: false, color: 0x37474f,
+  },
+  balloon: {
+    name: '气球兵', desc: '飞行投弹单位，优先攻击防御建筑。',
+    housing: 5, cost: 2000, trainTime: 240, hp: 150, dps: 25, range: 0.5, speed: 10,
+    target: 'ground', preferred: 'defenses', size: [1.0, 1.0, 1.0], flying: true, color: 0x5c6bc0,
+  },
+  wizard: {
+    name: '法师', desc: '高伤害远程单位，可攻击空中目标。',
+    housing: 4, cost: 1500, trainTime: 180, hp: 75, dps: 50, range: 3.5, speed: 16,
+    target: 'both', preferred: 'any', size: [0.7, 1.1, 0.7], flying: false, color: 0x7b1fa2,
+  },
+  healer: {
+    name: '治疗师', desc: '飞行治疗单位，每秒为友军恢复生命。',
+    housing: 14, cost: 5000, trainTime: 360, hp: 500, dps: 0, range: 4.0, speed: 16,
+    target: 'ground', preferred: 'any', size: [1.2, 0.8, 1.2], flying: true, color: 0x00897b,
+  },
+  dragon: {
+    name: '飞龙', desc: '空中重火力单位，喷吐火焰攻击。',
+    housing: 20, cost: 25000, trainTime: 900, hp: 1900, dps: 140, range: 2.0, speed: 16,
+    target: 'both', preferred: 'any', size: [1.6, 1.4, 1.6], flying: true, color: 0xef6c00,
+  },
+  pekka: {
+    name: '皮卡超人', desc: '重装近战单位，剑刃劈砍一切。',
+    housing: 25, cost: 30000, trainTime: 900, hp: 2800, dps: 260, range: 0.8, speed: 16,
+    target: 'ground', preferred: 'any', size: [1.3, 1.9, 1.3], flying: false, color: 0x455a64,
+  },
+}

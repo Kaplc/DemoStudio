@@ -46,7 +46,7 @@ export class FishSchool {
 
   constructor(
     colors: number[],
-    config: GameConfig = ConfigRegistry.getConfig<GameConfig>('eatfish'),
+    config: GameConfig = ConfigRegistry.getConfig<GameConfig>('eatfish.eatfish'),
   ) {
     this.colors = colors
     this.radius = config.schoolRadius

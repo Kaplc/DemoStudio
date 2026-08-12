@@ -9,5 +9,11 @@ export { FishGameMode } from './gameplay/game/FishGameMode'
 export { FishMainMenuGameMode } from './gameplay/menu/FishMainMenuGameMode'
 export { FishBaseGameMode } from './gameplay/base/FishBaseGameMode'
 export { FishGameInstance } from './gameplay/FishGameInstance'
-export { initFishConfigs } from './config/FishConfigLoader'
+import { FishConfigLoader } from './FishConfigLoader'
+export { FishConfigLoader }
+
+/** 便捷入口：实例化并初始化 FishMaster 配置（供 register.ts initConfigs 与外部调用） */
+export function initFishConfigs(log?: (message: string) => void): void {
+  new FishConfigLoader(log).init()
+}
 export * from './gameplay/common/types'

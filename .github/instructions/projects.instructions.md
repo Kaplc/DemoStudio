@@ -1,5 +1,5 @@
 ---
-description: "Use when creating or modifying files under src/projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, config/, gameplay/, hud/)."
+description: "Use when creating or modifying files under src/projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, asset/config/, gameplay/, hud/)."
 applyTo: "src/projects/**"
 ---
 # src/projects 工程文件夹结构规则
@@ -8,8 +8,8 @@ applyTo: "src/projects/**"
 
 ```
 {ProjectName}/
-├── asset/               # 场景资产文件（.scene.json）
-├── config/              # 配置文件（*.config.json, *.table.json）
+├── asset/               # 场景资产文件（.scene.json）+ 配置资产（asset/config/）
+│   └── config/          #   配置文件（*.config.json, *.table.json）
 ├── gameplay/            # 按阶段/模式划分的游戏逻辑子文件夹
 │   ├── common/          #   跨阶段共享（types.ts、textures.ts、工具类等）
 │   ├── {modeA}/         #   阶段 A（menu / base 等）
@@ -42,6 +42,9 @@ asset/
 ├── fish.scene.json
 ├── fish_menu.scene.json
 ├── fish_base.scene.json
+├── config/                # 配置文件（*.config.json / *.table.json）
+│   ├── cannon.config.json
+│   └── troop.table.json
 └── blueprints/
     ├── beach_house.blueprint.json
     └── seaweed_sprite.blueprint.json
@@ -51,6 +54,7 @@ asset/
 - **禁止**将 `.scene.json` 文件放在项目根目录或 `gameplay/` 内
 - **场景资产**：`asset/*.scene.json`（不包含子目录）
 - **蓝图资产**：`asset/blueprints/*.blueprint.json`
+- **配置资产**：`asset/config/*.config.json` 与 `asset/config/*.table.json`（配置表，由 ConfigRegistry 加载）
 - **自动扫描**：新增文件无需修改代码，`import.meta.glob` 在 `asset/index.ts` 中自动发现并注册
 - **注册时机**：打开工程时触发（`setCurrentProject` → `registerFishAssets()` → `AssetRegistry.registerAll()`）
 - **asset/index.ts 模板**：
@@ -71,21 +75,34 @@ export function register{Name}Assets(): void {
 }
 ```
 
-### config/ — 配置文件
+### asset/config/ — 配置文件（已从 config/ 目录迁入）
 
-### config/ — 配置文件
+放置全局配置文件（所有阶段共享的配置），与场景/蓝图资产同属 `asset/` 资源目录：
 
-放置全局配置文件（所有阶段共享的配置）：
-
-| 文件类型 | 示例 | 说明 |
+| 文件类型 | 位置 | 说明 |
 |----------|------|------|
-| `project.json` | — | 项目元信息（名称、入口、标签、worldConfig 等），**保留在根目录** |
-| `*.config.json` | `cannon.config.json`、`eatfish.config.json` | 功能配置，由 `ConfigRegistry` 加载 |
-| `*.table.json` | `fish.table.json` | 数据表，由 `DataTable` 加载 |
+| `project.json` | 项目根目录 | 项目元信息（名称、入口、标签、worldConfig 等），**保留在根目录** |
+| `*.config.json` | `asset/config/` | 功能配置，由 `ConfigRegistry` 加载 |
+| `*.table.json` | `asset/config/` | 数据表，由 `DataTable` 加载 |
 
 规则：
-- `project.json` 作为项目标识文件保留在根目录，不移入 `config/`
+- `project.json` 作为项目标识文件保留在根目录，不移入 `asset/config/`
 - 若某个阶段的配置仅在该阶段使用，可放在 `gameplay/{mode}/config/` 下
+- 各项目的配置加载器（如 `FishConfigLoader.ts`）位于项目根目录，由 GameInstance 构造时统一调用（`initXxxConfigs`）
+- **半自动注册**：`asset/config/` 下配置文件（`.config.json` / `.table.json`）由 `asset/config/index.ts` 的 glob 自动扫描注册（路径/name 推导，新增文件无需改代码）；配置加载器只需手动注册默认值（`registerDefaults`）与归一化 transform（`registerConfigTransform` / `registerTableTransform`）
+- **`asset/config/index.ts` 模板**：
+
+```typescript
+// src/projects/{name}/asset/config/index.ts
+import type { ConfigGlobModules } from '@/engine'
+
+export const configGlob: ConfigGlobModules = {
+  configModules: import.meta.glob('./**/*.config.json'),
+  tableModules: import.meta.glob('./**/*.table.json'),
+}
+```
+
+- **配置名推导规则**：`{projectName}.{文件名}`（`cannon.config.json` → `fish.cannon`；`eatfish.config.json` → `eatfish.eatfish`）
 
 ### gameplay/ — 按阶段/模式划分的子文件夹
 
@@ -172,7 +189,7 @@ gameplay/{mode}/module/
 **禁止**将场景文件（`.scene.json`）、配置文件（`.config.json` / `.table.json`）、UI 组件（`.tsx`）直接放在项目根目录。
 
 ### 新项目搭建步骤
-1. 创建 `asset/`（含 `blueprints/`）、`config/`、`gameplay/` 文件夹
+1. 创建 `asset/`（含 `blueprints/`、`config/`）、`gameplay/` 文件夹
 2. 在 `gameplay/` 下创建 `common/` 放置共享类型和工具
 3. 按阶段在 `gameplay/` 下创建 `{mode}/` 文件夹
 4. 在每个 mode 文件夹下创建 `hud/` 放置 UI 组件

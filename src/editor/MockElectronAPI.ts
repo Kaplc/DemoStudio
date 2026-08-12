@@ -40,6 +40,11 @@ const widgetJsonModules = import.meta.glob<Record<string, unknown>>(
   { eager: true, import: 'default' },
 )
 
+const configJsonModules = import.meta.glob<Record<string, unknown>>(
+  '../projects/**/{*.config.json,*.table.json}',
+  { eager: true, import: 'default' },
+)
+
 // 所有项目文件路径（仅取 glob keys，不 import 内容；供 listProjectAssets 列资产用）
 const allFileKeys = Object.keys(import.meta.glob('../projects/**/*.*'))
 
@@ -75,6 +80,11 @@ for (const [key, data] of Object.entries(blueprintJsonModules)) {
 
 // 注册所有 widget.json（UI widget 蓝图）
 for (const [key, data] of Object.entries(widgetJsonModules)) {
+  jsonCache.set(normalizePath(key), data)
+}
+
+// 注册所有 config.json / table.json（配置表：ConfigRegistry 经 readJsonFile 读取）
+for (const [key, data] of Object.entries(configJsonModules)) {
   jsonCache.set(normalizePath(key), data)
 }
 

@@ -44,7 +44,7 @@ export class EatFishPawn extends Pawn {
 
   constructor() {
     super('EatFishPawn')
-    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish.eatfish') }
     this.fishScale = this.config.playerInitialScale
 
     // ─── 材质 ───

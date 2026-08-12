@@ -24,6 +24,7 @@ import type { Actor } from '../entity/Actor'
 import { CameraComponent } from './CameraComponent'
 import { PhySys } from '../physics/PhySys'
 import type { InputComponent } from '../input/InputComponent'
+import { logger } from '../Logger'
 
 /** 屏幕边缘触发平移的宽度（像素） */
 const EDGE_PAN_SIZE = 40
@@ -51,6 +52,8 @@ export class CameraRigComponent extends Component {
   public edgePanSize = EDGE_PAN_SIZE
   /** 边缘平移最大速度（世界单位/秒，贴边时达到） */
   public edgePanSpeed = EDGE_PAN_SPEED
+  /** 屏幕边缘平移总开关（默认 true；false = 屏蔽"鼠标移到边缘自动平移摄像机"，右键拖拽平移不受影响） */
+  public edgePanEnabled = true
   /** 右键拖拽平移灵敏度（1 = 拖动一个视口高度移动对应世界跨度，数值越大移动越快） */
   public rightPanSensitivity = 1
 
@@ -91,8 +94,19 @@ export class CameraRigComponent extends Component {
       PanLimit: this.panLimit,
       EdgePanSize: this.edgePanSize,
       EdgePanSpeed: this.edgePanSpeed,
+      EdgePanEnabled: this.edgePanEnabled,
       RightPanSensitivity: this.rightPanSensitivity,
     }
+  }
+
+  /**
+   * 设置屏幕边缘平移总开关（false = 屏蔽"鼠标移到边缘自动平移摄像机"）。
+   * 关闭后 Tick 直接跳过边缘检测，右键拖拽平移/滚轮缩放不受影响。
+   */
+  setEdgePanEnabled(enabled: boolean): void {
+    if (this.edgePanEnabled === enabled) return
+    this.edgePanEnabled = enabled
+    logger.info(`[CameraRig] 边缘平移已${enabled ? '开启' : '屏蔽'}（owner=${this.owner.root.name}）`)
   }
 
   override BeginPlay() {
@@ -200,6 +214,8 @@ export class CameraRigComponent extends Component {
    */
   override Tick(dt: number): void {
     super.Tick(dt)
+    // 总开关：屏蔽"鼠标移到边缘自动平移摄像机"
+    if (!this.edgePanEnabled) return
     // 右键拖拽平移中 → 屏蔽屏幕边缘平移（避免拖拽时鼠标贴近边缘导致画面乱跳）
     if (this.rightDragging) return
     if (this.mouseX < 0 || this.mouseY < 0) return

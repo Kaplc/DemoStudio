@@ -5,13 +5,28 @@
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
         "worldHeight": 5.4,
         "anchor": null,
-        "anchorOffset": [0, 0]
+        "anchorOffset": [
+          0,
+          0
+        ]
       }
     },
     {
@@ -40,11 +55,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "center",
-            "anchorOffset": [0, 0],
+            "anchorOffset": [
+              0,
+              0
+            ],
             "worldWidth": 9.6,
             "worldHeight": 5.4
           }
@@ -54,7 +84,8 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 0,
+            "active": true
           }
         },
         {
@@ -80,11 +111,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "center",
-            "anchorOffset": [0, 0],
+            "anchorOffset": [
+              0,
+              0
+            ],
             "worldWidth": 6,
             "worldHeight": 3.5
           }
@@ -94,7 +140,8 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1
+            "zOrder": 1,
+            "active": true
           }
         },
         {
@@ -118,11 +165,26 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  0,
+                  1,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "top-center",
-                "anchorOffset": [0, -0.35],
+                "anchorOffset": [
+                  0,
+                  -0.35
+                ],
                 "worldWidth": 4,
                 "worldHeight": 0.8
               }
@@ -132,7 +194,8 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 1,
+                "active": true
               }
             },
             {
@@ -161,13 +224,28 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, 0.3],
+                "position": [
+                  0,
+                  0.8,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "top-center",
+                "anchorOffset": [
+                  0,
+                  -0.9
+                ],
                 "worldWidth": 4,
-                "worldHeight": 0.6
+                "worldHeight": 0.4
               }
             },
             {
@@ -175,14 +253,15 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 1,
+                "active": true
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "在这里训练你的士兵！",
-                "fontSize": 24,
+                "text": "选择兵种训练",
+                "fontSize": 22,
                 "color": "#a8c4e0",
                 "bold": false,
                 "align": "center",
@@ -197,20 +276,35 @@
           "children": []
         },
         {
-          "name": "Btn_barracksClose",
+          "name": "TroopList",
           "baseClass": "Actor",
-          "id": 11004,
+          "id": 11006,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "bottom-center",
-                "anchorOffset": [0, 0.3],
-                "worldWidth": 1.6,
-                "worldHeight": 0.6
+                "position": [
+                  0,
+                  -0.35,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "center",
+                "anchorOffset": [
+                  0,
+                  -0.35
+                ],
+                "worldWidth": 5.5,
+                "worldHeight": 1.9
               }
             },
             {
@@ -218,7 +312,1893 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 1,
+                "active": true
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Troop_barbarian",
+              "baseClass": "Actor",
+              "id": 11010,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -2.05,
+                      0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -2.05,
+                      0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#e53935",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#e53935",
+                      "hover": "#ff6b5f",
+                      "pressed": "#b02a20"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_barbarian",
+                  "baseClass": "Actor",
+                  "id": 11020,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "野蛮人",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_barbarian",
+                  "baseClass": "Actor",
+                  "id": 11030,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 45 · 伤 8 · 费 25",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_archer",
+              "baseClass": "Actor",
+              "id": 11011,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -1.05,
+                      0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -1.05,
+                      0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#8e24aa",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#8e24aa",
+                      "hover": "#ab47bc",
+                      "pressed": "#6a1b9a"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_archer",
+                  "baseClass": "Actor",
+                  "id": 11021,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "弓箭手",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_archer",
+                  "baseClass": "Actor",
+                  "id": 11031,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 20 · 伤 7 · 费 50",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_goblin",
+              "baseClass": "Actor",
+              "id": 11012,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -0.05,
+                      0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -0.05,
+                      0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#2e7d32",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#2e7d32",
+                      "hover": "#43a047",
+                      "pressed": "#1b5e20"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_goblin",
+                  "baseClass": "Actor",
+                  "id": 11022,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "哥布林",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_goblin",
+                  "baseClass": "Actor",
+                  "id": 11032,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 25 · 伤 11 · 费 25",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_giant",
+              "baseClass": "Actor",
+              "id": 11013,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0.95,
+                      0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      0.95,
+                      0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#6d4c41",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#6d4c41",
+                      "hover": "#8d6e63",
+                      "pressed": "#4e342e"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_giant",
+                  "baseClass": "Actor",
+                  "id": 11023,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "巨人",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_giant",
+                  "baseClass": "Actor",
+                  "id": 11033,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 300 · 伤 11 · 费 250",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_wallBreaker",
+              "baseClass": "Actor",
+              "id": 11014,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      1.95,
+                      0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      1.95,
+                      0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#37474f",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#37474f",
+                      "hover": "#546e7a",
+                      "pressed": "#263238"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_wallBreaker",
+                  "baseClass": "Actor",
+                  "id": 11024,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "炸弹人",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_wallBreaker",
+                  "baseClass": "Actor",
+                  "id": 11034,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 20 · 伤 12 · 费 1000",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_balloon",
+              "baseClass": "Actor",
+              "id": 11015,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -2.05,
+                      -0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -2.05,
+                      -0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#5c6bc0",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#5c6bc0",
+                      "hover": "#7986cb",
+                      "pressed": "#3949ab"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_balloon",
+                  "baseClass": "Actor",
+                  "id": 11025,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "气球兵",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_balloon",
+                  "baseClass": "Actor",
+                  "id": 11035,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 150 · 伤 25 · 费 2000",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_wizard",
+              "baseClass": "Actor",
+              "id": 11016,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -1.05,
+                      -0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -1.05,
+                      -0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#7b1fa2",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#7b1fa2",
+                      "hover": "#9c27b0",
+                      "pressed": "#4a148c"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_wizard",
+                  "baseClass": "Actor",
+                  "id": 11026,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "法师",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_wizard",
+                  "baseClass": "Actor",
+                  "id": 11036,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 75 · 伤 50 · 费 1500",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_healer",
+              "baseClass": "Actor",
+              "id": 11017,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -0.05,
+                      -0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      -0.05,
+                      -0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#00897b",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#00897b",
+                      "hover": "#26a69a",
+                      "pressed": "#00695c"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_healer",
+                  "baseClass": "Actor",
+                  "id": 11027,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "治疗师",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_healer",
+                  "baseClass": "Actor",
+                  "id": 11037,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 500 · 治 50 · 费 5000",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_dragon",
+              "baseClass": "Actor",
+              "id": 11018,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0.95,
+                      -0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      0.95,
+                      -0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#ef6c00",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#ef6c00",
+                      "hover": "#ff9800",
+                      "pressed": "#e65100"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_dragon",
+                  "baseClass": "Actor",
+                  "id": 11028,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "飞龙",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_dragon",
+                  "baseClass": "Actor",
+                  "id": 11038,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 1900 · 伤 140 · 费 25000",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Troop_pekka",
+              "baseClass": "Actor",
+              "id": 11019,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      1.95,
+                      -0.42,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "anchor": "center",
+                    "anchorOffset": [
+                      1.95,
+                      -0.42
+                    ],
+                    "worldWidth": 0.9,
+                    "worldHeight": 0.78
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2,
+                    "active": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#455a64",
+                    "radius": 10,
+                    "width": 180,
+                    "height": 150,
+                    "name": "TroopBg",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "colors": {
+                      "normal": "#455a64",
+                      "hover": "#607d8b",
+                      "pressed": "#37474f"
+                    }
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Name_pekka",
+                  "baseClass": "Actor",
+                  "id": 11029,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          0.18,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          0.18
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.28
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "皮卡超人",
+                        "fontSize": 20,
+                        "color": "#ffffff",
+                        "bold": true,
+                        "align": "center",
+                        "width": 170,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "TroopName",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Info_pekka",
+                  "baseClass": "Actor",
+                  "id": 11039,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "anchor": "center",
+                        "anchorOffset": [
+                          0,
+                          -0.14
+                        ],
+                        "worldWidth": 0.85,
+                        "worldHeight": 0.26
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 2,
+                        "active": true
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "HP 2800 · 伤 260 · 费 30000",
+                        "fontSize": 14,
+                        "color": "#cfe3ff",
+                        "bold": false,
+                        "align": "center",
+                        "width": 170,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "TroopInfo",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Btn_barracksClose",
+          "baseClass": "Actor",
+          "id": 11004,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  -1.45,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  0,
+                  0.1
+                ],
+                "worldWidth": 1,
+                "worldHeight": 0.4
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1,
+                "active": true
               }
             },
             {
@@ -252,11 +2232,26 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "anchorOffset": [
+                      0,
+                      0
+                    ],
                     "worldWidth": 1.2,
                     "worldHeight": 0.5
                   }
@@ -266,7 +2261,8 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 2
+                    "zOrder": 2,
+                    "active": true
                   }
                 },
                 {

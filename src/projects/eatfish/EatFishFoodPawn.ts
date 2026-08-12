@@ -36,7 +36,7 @@ export class EatFishFoodPawn extends Pawn {
 
   constructor() {
     super('EatFishFoodPawn')
-    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish.eatfish') }
 
     this._sizeScale = this.config.foodFishMinScale +
       Math.random() * (this.config.foodFishMaxScale - this.config.foodFishMinScale)

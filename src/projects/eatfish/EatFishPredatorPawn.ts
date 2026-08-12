@@ -27,7 +27,7 @@ export class EatFishPredatorPawn extends Pawn {
   constructor() {
     super('EatFishPredatorPawn')
 
-    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish') }
+    this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish.eatfish') }
 
     // 捕食者比玩家初始大
     this._sizeScale = this.config.playerInitialScale * this.config.predatorScaleMultiplier +

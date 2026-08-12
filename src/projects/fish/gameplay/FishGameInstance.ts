@@ -13,6 +13,7 @@ import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
 import { FishPlayerController } from './game/FishPlayerController'
 import type { FishCannon } from './game/FishCannon'
+import { FishConfigLoader } from '../FishConfigLoader'
 
 type Phase = 'menu' | 'base' | 'game'
 
@@ -43,6 +44,8 @@ export class FishGameInstance extends GameInstance {
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
     super()
     this.renderContainer = renderContainer ?? null
+    // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
+    new FishConfigLoader((msg) => logger.info(msg)).init()
     this.world = new World(sharedScene)
     // GameMode 实例由 start() / SwitchToScene 按需创建
   }
