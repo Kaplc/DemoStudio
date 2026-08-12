@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, ConfigRegistry, DataTable, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -18,7 +18,6 @@ import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTyp
 import { ClashBuildingBaseActor, BarracksActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 import { PlaceGridActor } from './PlaceGridActor'
-import type { TroopType } from '../common/types'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -60,10 +59,7 @@ export class FishBaseGameMode extends GameMode {
 
   constructor() {
     super()
-    // 配置表由 FishGameInstance 构造时统一加载（见 FishGameInstance），各 GameMode 不再重复调用
     this.baseCamera = new BaseCameraActor()
-    // 屏蔽"鼠标移到屏幕边缘自动平移摄像机"（边缘平移由 CameraRigComponent.Tick 驱动）
-    this.baseCamera.rig.setEdgePanEnabled(false)
   }
 
   override InitGame() {
@@ -235,14 +231,6 @@ export class FishBaseGameMode extends GameMode {
       return
     }
     this.barracksPanel = panel
-    // 列出兵种表（DataTable 演示：打开兵营时打印可训练兵种）
-    const troops = this.getTroopTable()
-    if (troops) {
-      const list = troops.getRowNames().map((id) => `${id}(${troops.getRow(id)?.name ?? '?'})`).join(', ')
-      logger.info(`[BaseGM] 打开兵营 UI（可训练兵种 ${troops.size} 种: ${list}）`)
-    } else {
-      logger.warn('[BaseGM] 打开兵营 UI：兵种表未加载（getTable 返回 undefined）')
-    }
     logger.info('[BaseGM] 打开兵营 UI（建造菜单已隐藏）')
   }
 
@@ -255,29 +243,6 @@ export class FishBaseGameMode extends GameMode {
     const hudUI = this.world?.ui.hud?.uiActor
     if (hudUI) hudUI.bActive = true
     logger.info('[BaseGM] 关闭兵营 UI，恢复建造菜单')
-  }
-
-  /**
-   * 兵种数据表（DataTable，键=兵种 id，值=兵种属性）。
-   * 未加载（配置表缺失/读取失败）时返回 undefined，调用方用 if 守卫。
-   */
-  getTroopTable(): DataTable<TroopType> | undefined {
-    return ConfigRegistry.getTable<TroopType>('fish.troop')
-  }
-
-  /** 按 id 查兵种；表未加载或行不存在返回 undefined */
-  getTroop(id: string): TroopType | undefined {
-    return this.getTroopTable()?.getRow(id)
-  }
-
-  /** 训练兵种（部落冲突风格：金币扣费 + 训练时间后入列；当前仅记录日志） */
-  trainTroop(id: string): void {
-    const troop = this.getTroop(id)
-    if (!troop) {
-      logger.warn(`[BaseGM] 训练失败：兵种 "${id}" 不存在（兵种表未加载或行缺失）`)
-      return
-    }
-    logger.info(`[BaseGM] 开始训练: ${troop.name}（费用 ${troop.cost} 金币，训练 ${troop.trainTime}s，占用 ${troop.housing} 空间）`)
   }
 
   private deselectBuilding() {

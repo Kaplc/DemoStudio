@@ -4,7 +4,7 @@
  * 金币经济（开炮消耗 / 捕鱼获得 / 归零 Game Over）、Boss 定时。
  */
 import * as THREE from 'three'
-import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger } from '@/engine'
+import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger, GameInstance } from '@/engine'
 import { FishCannon } from './FishCannon'
 import { FishPawn } from './FishPawn'
 import { FishBullet } from './FishBullet'
@@ -13,11 +13,10 @@ import { FishCoinFly } from './FishCoinFly'
 import { FishPlayerController } from './FishPlayerController'
 import { FishObjectPools } from './FishObjectPools'
 import { makeRingTexture } from '../common/textures'
-import {
-  CAMERA_ORTHO_SIZE, AREA_W, AREA_H,
-  INITIAL_COINS,
-} from '../common/types'
+import { CAMERA_ORTHO_SIZE, AREA_W, AREA_H } from '../common/types'
 import type { FishType, BossConfig, FishConfig, SchoolConfig } from '../common/types'
+import type { ResourcesComponent } from '../common/comp/ResourcesComponent'
+import type { FishGameInstance } from '../FishGameInstance'
 
 // Gizmos 复用临时对象
 const _a = new THREE.Vector3()
@@ -34,8 +33,11 @@ export class FishGameMode extends GameMode {
   /** 游戏相机（正交） */
   public gameCamera: CameraComponent
 
-  /** 金币 */
-  coins = INITIAL_COINS
+  /** 资源组件（金币钱包，挂在 GameInstance 上跨阶段共享）：此 getter 直接取组件 */
+  get resources(): ResourcesComponent | null {
+    const inst = GameInstance.current as FishGameInstance | null
+    return inst?.resources ?? null
+  }
   bossActive = false
   bossPawn: FishPawn | null = null
 
@@ -61,7 +63,6 @@ export class FishGameMode extends GameMode {
 
   override InitGame() {
     super.InitGame()
-    this.coins = INITIAL_COINS
     this.bossActive = false
     this.bossPawn = null
     this.schoolTimer = 0
@@ -86,14 +87,6 @@ export class FishGameMode extends GameMode {
     const controller = new FishPlayerController()
     const pawn = new FishCannon()
     return { controller, pawn }
-  }
-
-  // ─── 金币钱包（FishCannon 通过 CoinWallet 接口访问）───
-  spendCoins(n: number) {
-    this.coins = Math.max(0, this.coins - n)
-  }
-  addCoins(n: number) {
-    this.coins += n
   }
 
   // ─── 主 Tick ───
@@ -146,7 +139,7 @@ export class FishGameMode extends GameMode {
     this.cleanupFish()
 
     // 金币耗尽 → Game Over
-    if (this.coins <= 0) {
+    if ((this.resources?.get('coins') ?? 0) <= 0) {
       logger.info('[Fish] 金币耗尽，Game Over')
       this.gameState.setPhase('gameover')
     }
@@ -288,7 +281,7 @@ export class FishGameMode extends GameMode {
   /** 捕获：加分 / 加金币 / 特效 / 销毁 */
   private captureFish(fish: FishPawn) {
     this.gameState.addScore(fish.config.score)
-    this.addCoins(fish.config.score)
+    this.resources?.add('coins', fish.config.score)
     // 捕获扩散光环（从对象池获取）
     this.pools.acquireFlash({
       pos: new THREE.Vector3(fish.position.x, fish.position.y, 0.4),

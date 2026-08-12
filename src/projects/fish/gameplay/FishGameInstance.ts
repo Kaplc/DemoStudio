@@ -5,7 +5,7 @@
  * 并通过场景资产（JSON）切换海底氛围。
  */
 import * as THREE from 'three'
-import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -14,11 +14,20 @@ import { FishGameMode } from './game/FishGameMode'
 import { FishPlayerController } from './game/FishPlayerController'
 import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
+import { ResourcesComponent } from './common/comp/ResourcesComponent'
+import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
+import { INITIAL_COINS } from './common/types'
+import type { TroopType } from './common/types'
 
 type Phase = 'menu' | 'base' | 'game'
 
 export class FishGameInstance extends GameInstance {
   readonly world: World
+
+  /** 资源组件：金币（跨阶段共享，基地/出海同一钱包） */
+  readonly resources: ResourcesComponent
+  /** 训练部队组件：训练队列 + 军队（跨阶段保留，基地阶段推进倒计时） */
+  readonly training: TrainingComponent
 
   /** 各阶段 GameMode 引用（由 SwitchToScene 创建后存入，供 syncCamera 等使用） */
   private _menuGameMode: FishMainMenuGameMode | null = null
@@ -30,7 +39,6 @@ export class FishGameInstance extends GameInstance {
   pawn: FishCannon | null = null
 
   /** 跨阶段持久数据 */
-  private _coins = 100
   private _score = 0
   private _lastCannonLevel = 1
   /** 防止手动返回和 GameOver 回调重复触发 */
@@ -46,6 +54,12 @@ export class FishGameInstance extends GameInstance {
     this.renderContainer = renderContainer ?? null
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
+    // 资源组件：金币（跨阶段共享钱包，初始 100）
+    this.resources = new ResourcesComponent(this, { coins: INITIAL_COINS })
+    this.addComponent(this.resources)
+    // 训练部队组件：军队容量 40
+    this.training = new TrainingComponent(this, { maxHousing: 40 })
+    this.addComponent(this.training)
     this.world = new World(sharedScene)
     // GameMode 实例由 start() / SwitchToScene 按需创建
   }
@@ -154,7 +168,6 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] setupGamePhase: 配置出海捕鱼...')
     const mode = this.world.gameMode as FishGameMode
     this._gameMode = mode
-    mode.coins = this._coins
     mode.cameraManager.RegisterCamera(mode.gameCamera)
     this.setupCamera(mode.gameCamera, 0, 0, 20)
 
@@ -167,7 +180,6 @@ export class FishGameInstance extends GameInstance {
     this.unsubGameState = mode.gameState.subscribe(() => {
       const gs = mode.gameState
       this._score = gs.score
-      this._coins = mode.coins as number
       this._lastCannonLevel = this.pawn?.level ?? 1
       this.callbacks.onScoreChange?.(gs.score)
       this.callbacks.onPhaseChange?.(gs.phase)
@@ -183,8 +195,8 @@ export class FishGameInstance extends GameInstance {
 
   /** 领取初始金币 */
   private claimCoins() {
-    this._coins = 100
-    logger.info(`[Fish] 领取初始金币，当前金币: ${this._coins}`)
+    this.resources.set('coins', INITIAL_COINS)
+    logger.info(`[Fish] 领取初始金币，当前金币: ${this.resources.get('coins')}`)
   }
 
   // ════════════════════════════════════════════
@@ -224,7 +236,47 @@ export class FishGameInstance extends GameInstance {
     this._returningToBase = false
 
     this.switchToPhase('base')
-    logger.info(`[Fish] 返回基地，当前金币: ${this._coins}`)
+    logger.info(`[Fish] 返回基地，当前金币: ${this.resources.get('coins')}`)
+  }
+
+  // ════════════════════════════════════════════
+  //  训练部队（组件入口）
+  // ════════════════════════════════════════════
+
+  /** 兵种数据表（DataTable，键=兵种 id，值=兵种属性） */
+  getTroopTable(): DataTable<TroopType> | undefined {
+    return ConfigRegistry.getTable<TroopType>('fish.troop')
+  }
+
+  /** 按 id 查兵种 */
+  getTroop(id: string): TroopType | undefined {
+    return this.getTroopTable()?.getRow(id)
+  }
+
+  /**
+   * 训练兵种（部落冲突风格：金币扣费 → 训练倒计时 → 完成后入列军队）。
+   * 入口统一在此：资源组件扣费 + 训练组件入队；失败原因经日志输出。
+   */
+  trainTroop(id: string): boolean {
+    const troop = this.getTroop(id)
+    if (!troop) {
+      logger.warn(`[Fish] 训练失败：兵种 "${id}" 不存在（兵种表未加载或行缺失）`)
+      return false
+    }
+    // 金币校验 + 扣费（资源组件）
+    if (!this.resources.spend('coins', troop.cost)) {
+      logger.warn(`[Fish] 训练失败：金币不足（需要 ${troop.cost}，当前 ${this.resources.get('coins')}）`)
+      return false
+    }
+    // 入训练队列（容量校验在组件内）
+    this.training.registerTroop(id, troop)
+    if (!this.training.enqueue(id, troop)) {
+      // 入队失败（容量不足）→ 退还金币
+      this.resources.add('coins', troop.cost)
+      return false
+    }
+    logger.info(`[Fish] 开始训练: ${troop.name}（-${troop.cost} 金币，剩余 ${this.resources.get('coins')}；队列 ${this.training.getQueue().length} 项）`)
+    return true
   }
 
   // ════════════════════════════════════════════
@@ -235,6 +287,8 @@ export class FishGameInstance extends GameInstance {
     if (this._phase === 'menu') return
 
     if (this._phase === 'base') {
+      // 基地阶段：推进训练队列倒计时（训练组件挂在本实例，手动驱动）
+      this.training.update(dt)
       this.world.manualTick(dt)
       return
     }

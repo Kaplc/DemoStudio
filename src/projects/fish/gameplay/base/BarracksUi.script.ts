@@ -3,14 +3,15 @@
  *
  * 通过 UIScriptComponent 挂载到 barracks_ui.widget.json 的根节点：
  *  1. 接管兵营面板的关闭按钮：点击后调用 GameMode.closeBarracksPanel()
- *  2. 读取兵种 DataTable（ConfigRegistry 'fish.troop'），填充 TroopList 网格：
+ *  2. 从 FishGameInstance 取训练组件 + 兵种表，填充 TroopList 网格：
  *     每个兵种条目（Troop_{id}）更新名称/属性文本与背景色，并绑定训练点击
- *     → GameMode.trainTroop(id)
+ *     → GameInstance.trainTroop(id)
  *
  * 由 FishBaseGameMode.openBarracksPanel 打开兵营 UI 时生成。
  */
-import { BehaviourScript, UIButtonComponent, UITextComponent, UIImageComponent, logger } from '@/engine'
+import { BehaviourScript, UIButtonComponent, UITextComponent, UIImageComponent, logger, GameInstance } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
+import type { FishGameInstance } from '../FishGameInstance'
 
 /** 兵种色数字 → CSS hex（如 0xe53935 → "#e53935"） */
 function colorToCss(color: number): string {
@@ -24,6 +25,8 @@ export default class BarracksUiScript extends BehaviourScript {
       logger.warn('[BarracksUiScript] 未找到 FishBaseGameMode，跳过绑定')
       return
     }
+    // 训练/资源组件挂在 GameInstance（跨阶段共享），直接取组件使用
+    const inst = GameInstance.current as FishGameInstance | null
 
     // ─── 1. 关闭按钮 ───
     const btnActor = this.findInChildren('Btn_barracksClose')
@@ -40,15 +43,15 @@ export default class BarracksUiScript extends BehaviourScript {
     }
 
     // ─── 2. 兵种列表（读表填充） ───
-    const troops = mode.getTroopTable()
-    if (!troops) {
+    const troopTable = inst?.getTroopTable()
+    if (!troopTable) {
       logger.warn('[BarracksUiScript] 兵种表未加载（getTable 返回 undefined），兵种列表保留资产默认值')
       return
     }
 
     let filled = 0
-    for (const id of troops.getRowNames()) {
-      const troop = troops.getRow(id)
+    for (const id of troopTable.getRowNames()) {
+      const troop = troopTable.getRow(id)
       if (!troop) continue
       const troopActor = this.findInChildren(`Troop_${id}`)
       if (!troopActor) {
@@ -72,14 +75,14 @@ export default class BarracksUiScript extends BehaviourScript {
       const bg = troopActor.getComponent(UIImageComponent)
       if (bg) bg.color = colorToCss(troop.color)
 
-      // 训练按钮
+      // 训练按钮 → instance 训练入口（扣费 + 入队）
       const troopBtn = troopActor.getComponent(UIButtonComponent)
       if (troopBtn) {
-        troopBtn.onClick = () => mode.trainTroop(id)
+        troopBtn.onClick = () => inst?.trainTroop(id)
       }
 
       filled++
     }
-    logger.info(`[BarracksUiScript] 兵种列表已填充 ${filled}/${troops.size} 个条目`)
+    logger.info(`[BarracksUiScript] 兵种列表已填充 ${filled}/${troopTable.size} 个条目`)
   }
 }

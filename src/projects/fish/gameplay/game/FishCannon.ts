@@ -4,10 +4,11 @@
  * 炮口闪光直接用 Sprite 挂在炮台下，不依赖对象池。
  */
 import * as THREE from 'three'
-import { Pawn, SpriteComponent, ConfigRegistry, MeshComponent, logger } from '@/engine'
+import { Pawn, SpriteComponent, ConfigRegistry, MeshComponent, logger, GameInstance } from '@/engine'
 import { makeCannonTexture, makeFlashTexture } from '../common/textures'
 import { CANNON_Y } from '../common/types'
 import type { CannonConfig } from '../common/types'
+import type { FishGameInstance } from '../FishGameInstance'
 
 // 炮台纹理按等级缓存
 const _cannonTex = new Map<number, THREE.Texture>()
@@ -23,8 +24,6 @@ function flashTex(): THREE.Texture {
   if (!_flashTex) _flashTex = makeFlashTexture()
   return _flashTex
 }
-
-interface CoinWallet { coins: number; spendCoins(n: number): void }
 
 export class FishCannon extends Pawn {
   private sprite: SpriteComponent
@@ -108,9 +107,10 @@ export class FishCannon extends Pawn {
   /** 开炮 */
   private tryFire(): boolean {
     const cfg = this.levelConfig
-    const wallet = this.world?.gameMode as unknown as (CoinWallet & object) | null
-    if (!wallet || wallet.coins < cfg.cost) return false
-    wallet.spendCoins(cfg.cost)
+    // 直接取 GameInstance 上的资源组件（金币钱包，跨阶段共享）
+    const res = (GameInstance.current as FishGameInstance | null)?.resources
+    if (!res || !res.has('coins', cfg.cost)) return false
+    res.spend('coins', cfg.cost)
     this.cooldown = cfg.fireCooldown
 
     // 炮口位置（基于瞄准方向）

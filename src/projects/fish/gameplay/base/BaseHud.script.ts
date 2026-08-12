@@ -11,8 +11,9 @@
  * 文件名 `.script.ts` 后缀 + 默认导出：由 asset/index.ts 的 import.meta.glob 自动扫描
  * 注册，注册 id = `gameplay/base/BaseHud`（路径式）。
  */
-import { BehaviourScript, UIButtonComponent, logger } from '@/engine'
+import { BehaviourScript, UIButtonComponent, UITextComponent, logger, GameInstance } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
+import type { FishGameInstance } from '../FishGameInstance'
 
 /** 建筑菜单按钮映射：资产节点名 → 建筑类型 id（delete 走删除分支） */
 const BUILDING_BUTTONS: Readonly<Record<string, string>> = {
@@ -54,5 +55,21 @@ export default class BaseHudScript extends BehaviourScript {
     }
 
     logger.info(`[BaseHudScript] 已绑定 ${bound} 个建筑菜单按钮`)
+
+    // ─── 金币文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
+    const inst = GameInstance.current as FishGameInstance | null
+    // 资产节点名是 GoldLabel（Actor），GoldText 是其 UITextComponent 组件的 name
+    const goldTextActor = this.findInChildren('GoldLabel')
+    const goldText = goldTextActor?.getComponent(UITextComponent)
+    if (inst && goldText) {
+      // 立即刷新一次 + 资源变化自动更新
+      goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
+      inst.resources.onChange = () => {
+        goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
+      }
+      logger.info('[BaseHudScript] 金币文本已绑定资源组件')
+    } else {
+      logger.warn(`[BaseHudScript] 金币文本未绑定（instance=${!!inst}, goldText=${!!goldText}）`)
+    }
   }
 }

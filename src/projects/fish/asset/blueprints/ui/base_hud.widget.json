@@ -85,7 +85,7 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0,
-            "active": false
+            "active": true
           }
         }
       ],
@@ -125,7 +125,8 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": false
               }
             },
             {
@@ -168,7 +169,7 @@
                 ],
                 "anchor": "top-left",
                 "anchorOffset": [
-                  0.3,
+                  0,
                   0
                 ],
                 "worldWidth": 2,
@@ -186,7 +187,7 @@
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "🪙 金币: 100",
+                "text": "金币: 100",
                 "fontSize": 34,
                 "color": "#ffd54f",
                 "bold": true,
@@ -238,7 +239,8 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": false
               }
             },
             {
@@ -298,7 +300,8 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": false
               }
             },
             {
