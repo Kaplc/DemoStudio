@@ -21,6 +21,9 @@ import { TransformComponent } from '../../engine/entity/TransformComponent'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
+import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
+import { editorBus } from '../EditorEvents'
+import { EditorEvent } from '../EditorEventNames'
 import type { SceneTreeNode } from '../SelectionManager'
 
 export class BlueprintPreviewManager {
@@ -32,7 +35,10 @@ export class BlueprintPreviewManager {
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
-  private _currentBlueprintPath: string | null = null
+  /** 当前蓝图注册 key（asset/...，loadBlueprint 传入，供 Outline 查询） */
+  private _currentBlueprintKey: string | null = null
+  /** 当前蓝图磁盘路径（src/projects/...，BlueprintEditor 传入，供服务层读盘/写盘） */
+  private _currentBlueprintDiskPath: string | null = null
 
   /**
    * 当前预览蓝图 JSON 的可变深拷贝。loadBlueprint 时建立，
@@ -293,7 +299,12 @@ export class BlueprintPreviewManager {
   //  蓝图加载
   // ═══════════════════════════════════
 
-  loadBlueprint(path: string): boolean {
+  /**
+   * 加载蓝图到预览场景。
+   * @param path     蓝图注册 key（asset/...）
+   * @param diskPath 磁盘路径（src/projects/...，可选；提交/保存经服务层时必需）
+   */
+  loadBlueprint(path: string, diskPath?: string): boolean {
     // logger.debug(`[BlueprintPreview] loadBlueprint 开始 path=${path} 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.clearPreview()
     // logger.debug(`[BlueprintPreview] clearPreview 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
@@ -324,14 +335,15 @@ export class BlueprintPreviewManager {
     this.world.BeginPlay()
     this.world.manualTick(0)
 
-    this._currentBlueprintPath = path
+    this._currentBlueprintKey = path
+    this._currentBlueprintDiskPath = diskPath ?? null
 
     // logger.debug(`[BlueprintPreview] fitToActor 前摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.fitToActor(actor.root)
     // logger.debug(`[BlueprintPreview] fitToActor 后摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)
     this.notifyChange()
 
-    logger.info(`[BlueprintPreview] 加载蓝图预览: ${path}`)
+    logger.info(`[BlueprintPreview] 加载蓝图预览: ${path}${this._currentBlueprintDiskPath ? `（磁盘 ${this._currentBlueprintDiskPath}）` : ''}`)
     return true
   }
 
@@ -340,7 +352,8 @@ export class BlueprintPreviewManager {
     select(null)
     this.gizmo.detach()
     this.world.DestroyAllActors()
-    this._currentBlueprintPath = null
+    this._currentBlueprintKey = null
+    this._currentBlueprintDiskPath = null
     this.previewRoot = null
     this._jsonTree = null
     this._actorJsonMap = null
@@ -355,7 +368,7 @@ export class BlueprintPreviewManager {
   }
 
   get currentBlueprintId(): string | null {
-    return this._currentBlueprintPath
+    return this._currentBlueprintKey
   }
 
   getActorTree(): SceneTreeNode[] {
@@ -446,6 +459,35 @@ export class BlueprintPreviewManager {
     }
 
     return JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
+  }
+
+  /**
+   * 3D gizmo 拖动松手统一提交：把本次拖拽目标节点变换组件的属性变化通过 apply 链路提交。
+   * 撤回点（动作前快照）在 apply 内部 push = 松手才进撤回系统（拖动中每帧不产生撤销点）。
+   * @param target 本次被 gizmo 拖动的 Actor（通常为当前选中节点）
+   */
+  async commitPreviewEdit(target: Actor | null): Promise<void> {
+    // 服务层读盘/写盘需要磁盘路径（注册 key asset/... 无法定位文件）
+    const diskPath = this._currentBlueprintDiskPath
+    if (!diskPath) {
+      logger.warn(`[BlueprintPreview] 拖拽提交跳过（无磁盘路径，loadBlueprint 未传 diskPath）`)
+      return
+    }
+    // 先把 actor 实时 transform 回写进 jsonTree（collectSaveData 原地回写），patch 才能取到拖拽后的值
+    this.collectSaveData()
+    logger.info(`[BlueprintPreview] 松手提交: "${target?.name ?? '?'}" → ${diskPath}`)
+    const r = await BlueprintEditorService.commitPreviewTransform(
+      diskPath,
+      target,
+      this._jsonTree,
+      this._actorJsonMap,
+    )
+    if (r.ok) {
+      // apply 已 bump（nonce 变化刷新撤销按钮）；此事件双保险刷新按钮可用状态
+      editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, diskPath)
+    } else if (r.error) {
+      logger.warn(`[BlueprintPreview] 拖拽提交被拒: ${r.error}`)
+    }
   }
 
   private fitToActor(root: THREE.Object3D) {
@@ -542,7 +584,10 @@ export class BlueprintPreviewManager {
     }
     select(null)
     this.gizmo.dispose()
-    this.world.DestroyAllActors()
+    // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
+    // 避免 tab 切换/工程切换累积泄漏 11+ 个 World 三件套（编辑器 lifetime 内只有一份 World）。
+    // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
+    this.world.Destroy()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement)
@@ -551,7 +596,8 @@ export class BlueprintPreviewManager {
     this._jsonTree = null
     this.previewRoot = null
     this._actorTreeCache = null
-    this._currentBlueprintPath = null
+    this._currentBlueprintKey = null
+    this._currentBlueprintDiskPath = null
   }
 
   // ═══════════════════════════════════

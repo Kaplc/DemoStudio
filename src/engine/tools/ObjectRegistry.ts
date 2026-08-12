@@ -53,15 +53,16 @@ class ObjectRegistryImpl {
   /**
    * 场景切换诊断：基线中仍存活（未 markDestroyed）且归属于指定 World 的 BObject。
    * 用于 SwitchScene 后检查旧场景对象（GameMode / GameState / Controller / Actor / HUD）是否全部回收。
-   * 自动过滤 AObject 体系基础设施（World / GameInstance / UIManager / ActorManagerComponent 等均非 BObject）。
+   * 自动过滤 AObject 体系基础设施（World / GameInstance / UIManager / ActorManagerComponent 等均非 BObject，
+   * 无 EndPlay 生命周期钩子）。注意：uid 已在 OObject 上，全部对象都有，不能用 uid 区分。
    */
   aliveGameObjectsOf(baseline: ReadonlySet<OObject>, world: World): OObject[] {
     const result: OObject[] = []
     for (const obj of baseline) {
       if (!this.objects.has(obj)) continue // 已 markDestroyed（正常回收）
-      // 仅统计 BObject 体系（uid + EndPlay 生命周期）；AObject 基础设施不属于游戏对象
-      const b = obj as Partial<{ uid?: number; EndPlay?: unknown }>
-      if (typeof b.uid !== 'number' || typeof b.EndPlay !== 'function') continue
+      // 仅统计 BObject 体系（EndPlay 生命周期钩子是 BObject 独有）；AObject 基础设施不属于游戏对象
+      const b = obj as Partial<{ EndPlay?: unknown }>
+      if (typeof b.EndPlay !== 'function') continue
       if (!this.belongsTo(obj, world)) continue // 不属于本 World（其他 World / 编辑器对象）
       result.push(obj)
     }

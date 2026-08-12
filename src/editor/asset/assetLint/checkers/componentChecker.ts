@@ -190,3 +190,22 @@ class UIScriptComponentChecker extends AbstractAssetChecker {
   ]
 }
 registerAssetChecker('comp:UIScriptComponent', UIScriptComponentChecker)
+
+/** comp:UILayoutComponent — UI 布局组件（水平/垂直/网格自动排布子节点） */
+class UILayoutComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UILayoutComponent'
+  schema: FieldSpec[] = [
+    {
+      field: 'properties.mode',
+      type: 'string',
+      enum: ['horizontal', 'vertical', 'grid'],
+      label: '布局模式',
+    },
+    { field: 'properties.columns', type: 'integer', min: 1, label: '网格列数（grid 模式）' },
+    { field: 'properties.spacingX', type: 'number', min: 0, label: 'X 轴间距' },
+    { field: 'properties.spacingY', type: 'number', min: 0, label: 'Y 轴间距' },
+    { field: 'properties.autoLayout', type: 'boolean', label: '自动布局（子项变化时重排）' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UILayoutComponent', UILayoutComponentChecker)

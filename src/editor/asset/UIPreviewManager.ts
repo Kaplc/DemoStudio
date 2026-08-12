@@ -51,7 +51,10 @@ export class UIPreviewManager {
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
-  private _currentWidgetPath: string | null = null
+  /** 当前 widget 注册 key（asset/...）—— Outline/外部按 key 查找预览时使用 */
+  private _currentWidgetKey: string | null = null
+  /** 当前 widget 磁盘路径（src/projects/...）—— 服务层读盘/写盘/撤销时使用 */
+  private _currentWidgetDiskPath: string | null = null
 
   /** 当前预览 widget JSON 的可变深拷贝。loadWidget 时建立，collectSaveData 据此生成保存数据。 */
   private _jsonTree: Record<string, unknown> | null = null
@@ -124,6 +127,12 @@ export class UIPreviewManager {
   private dragViaAnchorOffset = false
   /** 节点拖动：按下瞬间的 anchorOffset（锚点模式增量基准） */
   private dragStartOffset: [number, number] = [0, 0]
+
+  /** 节点拖动：首帧移动日志标记（避免每帧刷屏，仅记录拖动起点 → 首帧目标对照） */
+  private dragMovedLogged = false
+
+  /** 本次拖拽的目标 Actor（把手改尺寸 / 节点拖动改位置，mousedown 记录、mouseup 提交后清空） */
+  private pendingDragActor: Actor | null = null
 
   onChange(cb: () => void): () => void {
     this._onChangeCallbacks.push(cb)
@@ -269,6 +278,7 @@ export class UIPreviewManager {
         const handleIndex = this.pickCornerHandle(e)
         if (handleIndex >= 0) {
           this.draggingCornerIndex = handleIndex
+          this.pendingDragActor = this.boundsTarget
           // 非对称缩放：记录被拖角/边与对角/对边（固定）的世界坐标。
           // 拖动中被拖点跟随鼠标、固定点不动 → 中心随之移动（Unity 拖拽行为）。
           // 包围盒基准统一用 uitransform 尺寸矩形（文本控件字形几何会随字号重排变化，不能用）
@@ -288,21 +298,45 @@ export class UIPreviewManager {
           this.cornerStartClientY = e.clientY
           const uiTf = this.boundsTarget!.getComponent(UITransformComponent)
           if (uiTf) this.cornerStartSize = uiTf.getWorldSize()
+          // ⚠️ 排查日志：局部 vs 世界坐标对照——子节点局部≠世界时曾被错误地把世界坐标当局部写入导致瞬移
+          const _t = this.boundsTarget!
+          const _wp = _t.root.getWorldPosition(new THREE.Vector3())
+          const _parent = _t.parent
+          logger.info(
+            `[UIPreview][把手] 按下 idx=${handleIndex} "${_t.name}" ` +
+            `localPos=(${_t.position.x.toFixed(3)},${_t.position.y.toFixed(3)}) ` +
+            `worldPos=(${_wp.x.toFixed(3)},${_wp.y.toFixed(3)}) ` +
+            `${_parent ? `parent="${_parent.name}"` : '根'} ` +
+            `anchor=${uiTf?.anchor ?? 'null'} 尺寸=${uiTf ? uiTf.getWorldSize().map((n) => n.toFixed(3)).join('x') : '?'}`,
+          )
           return
         }
         // 其次：点中当前选中节点的范围 → 进入节点拖动（调整位置）
         if (this.boundsTarget && this.pickBoundsTargetMesh(e)) {
           this.draggingActor = this.boundsTarget
+          this.pendingDragActor = this.boundsTarget
           // 记录按下瞬间的鼠标原始窗口坐标：后续移动 = 当前窗口坐标 − 起始坐标 → 世界增量
           this.dragStartClientX = e.clientX
           this.dragStartClientY = e.clientY
           this.dragStartActorPos.copy(this.boundsTarget.position)
-          // 锚点节点：拖动偏移持久化到 anchorOffset（applyAnchor 重建会覆盖 position，offset 才能保留）
+          // 锚点节点：拖动偏移持久化到 anchorOffset（applyAnchor 重建会覆盖 position，offset 才能保留）。
+          // stretch 全锚例外：offset 不参与定位（applyAnchor 恒填满容器 + position(0,0)），用 position 直接驱动
           const uiTf = this.boundsTarget.getComponent(UITransformComponent)
-          this.dragViaAnchorOffset = !!uiTf && !!uiTf.anchor
+          this.dragViaAnchorOffset = !!uiTf && !!uiTf.anchor && uiTf.anchor !== 'stretch'
           this.dragStartOffset = uiTf ? [...uiTf.anchorOffset] : [0, 0]
+          this.dragMovedLogged = false
           this.potentialClick = false
-          logger.info(`[UIPreview] 开始拖动节点: ${this.boundsTarget.name}${this.dragViaAnchorOffset ? '（锚点模式 → anchorOffset）' : ''}`)
+          // ⚠️ 排查日志：局部 vs 世界 vs 锚点状态对照（修改大小后再拖动出现瞬移时，检查此值）
+          const _wp = this.boundsTarget.root.getWorldPosition(new THREE.Vector3())
+          const _pw = this.boundsTarget.parent?.root.getWorldPosition(new THREE.Vector3())
+          logger.info(
+            `[UIPreview][拖动] 按下 "${this.boundsTarget.name}" ` +
+            `anchor=${uiTf?.anchor ?? 'null'} offset=${JSON.stringify(this.dragStartOffset)} ` +
+            `startLocal=(${this.dragStartActorPos.x.toFixed(3)},${this.dragStartActorPos.y.toFixed(3)}) ` +
+            `world=(${_wp.x.toFixed(3)},${_wp.y.toFixed(3)}) ` +
+            `${this.boundsTarget.parent ? `parentWorld=(${_pw!.x.toFixed(3)},${_pw!.y.toFixed(3)})` : '根'} ` +
+            `${this.dragViaAnchorOffset ? '（锚点模式 → anchorOffset）' : '（position 模式）'}`,
+          )
           return
         }
         this.isLeftDown = true
@@ -344,6 +378,17 @@ export class UIPreviewManager {
         const dx = (e.clientX - this.dragStartClientX) * worldPerPx
         // 屏幕 y 向下为正，世界 y 向上为正 → 取反
         const dy = -(e.clientY - this.dragStartClientY) * worldPerPx
+        // ⚠️ 排查日志：首帧移动打一次（此后高频不打），记录增量与目标状态对照
+        if (!this.dragMovedLogged) {
+          this.dragMovedLogged = true
+          const wp = this.draggingActor.root.getWorldPosition(new THREE.Vector3())
+          logger.info(
+            `[UIPreview][拖动] 首帧移动 "${this.draggingActor.name}" ` +
+            `增量=(Δ${dx.toFixed(3)},Δ${dy.toFixed(3)}) ` +
+            `${this.dragViaAnchorOffset ? `offset→[${(this.dragStartOffset[0] + dx).toFixed(3)},${(this.dragStartOffset[1] + dy).toFixed(3)}]` : `local→(${(this.dragStartActorPos.x + dx).toFixed(3)},${(this.dragStartActorPos.y + dy).toFixed(3)})`} ` +
+            `world=(${wp.x.toFixed(3)},${wp.y.toFixed(3)})`,
+          )
+        }
         if (this.dragViaAnchorOffset) {
           // 锚点模式：偏移增量写 anchorOffset（JSON 持久化此值），applyAnchor 重算位置使视觉跟随
           const uiTf = this.draggingActor.getComponent(UITransformComponent)
@@ -390,12 +435,33 @@ export class UIPreviewManager {
         this.isLeftDown = false
         if (this.draggingCornerIndex !== null) {
           // 拖拽结束：把手回位并通知变更（保存按钮/大纲刷新）
+          // ⚠️ 排查日志：把手松手最终状态（与按下对照，检查 anchorOffset 是否已同步）
+          const _n = this.boundsTarget
+          const _wp = _n?.root.getWorldPosition(new THREE.Vector3())
+          const uiTf = _n?.getComponent(UITransformComponent)
+          logger.info(
+            `[UIPreview][把手] 松手 "${_n?.name}" → ` +
+            `local=(${_n?.position.x.toFixed(3)},${_n?.position.y.toFixed(3)}) ` +
+            `world=(${_wp?.x.toFixed(3)},${_wp?.y.toFixed(3)}) ` +
+            `offset=${JSON.stringify(uiTf?.anchorOffset ?? null)} ` +
+            `尺寸=${uiTf ? uiTf.getWorldSize().map((n) => n.toFixed(3)).join('x') : '?'}`,
+          )
           this.draggingCornerIndex = null
           this.notifyChange()
           this.commitPreviewEdit()                    // 松手 = 一个撤销点（同步工作副本，不写盘）
         } else if (this.draggingActor) {
           // 节点拖动结束：通知变更（保存按钮/大纲刷新）
-          logger.info(`[UIPreview] 结束拖动节点: ${this.draggingActor.name} → (${this.draggingActor.position.x.toFixed(2)}, ${this.draggingActor.position.y.toFixed(2)}, ${this.draggingActor.position.z.toFixed(2)})`)
+          // ⚠️ 排查日志：节点拖动最终状态（与按下/首帧对照）
+          const _n = this.draggingActor
+          const _wp = _n.root.getWorldPosition(new THREE.Vector3())
+          const uiTf = _n.getComponent(UITransformComponent)
+          logger.info(
+            `[UIPreview][拖动] 结束 "${_n.name}" → ` +
+            `local=(${_n.position.x.toFixed(3)},${_n.position.y.toFixed(3)},${_n.position.z.toFixed(3)}) ` +
+            `world=(${_wp.x.toFixed(3)},${_wp.y.toFixed(3)}) ` +
+            `offset=${JSON.stringify(uiTf?.anchorOffset ?? null)} ` +
+            `尺寸=${uiTf ? uiTf.getWorldSize().map((n) => n.toFixed(3)).join('x') : '?'}`,
+          )
           this.draggingActor = null
           this.notifyChange()
           this.commitPreviewEdit()                    // 松手 = 一个撤销点（同步工作副本，不写盘）
@@ -617,7 +683,7 @@ export class UIPreviewManager {
     const worldPerPx = (this.camera.top - this.camera.bottom) / this.renderer.domElement.clientHeight / this.camera.zoom
     const worldDx = (curX - startX) * worldPerPx
     const worldDy = -(curY - startY) * worldPerPx
-    // 被拖点新位置（跟随鼠标），固定点保持不动
+    // 被拖点新位置（跟随鼠标），固定点保持不动 —— 以下 dx/dy 与 fx/fy 都是「世界坐标」
     const dx = this.cornerDragWorld.x + worldDx
     const dy = this.cornerDragWorld.y + worldDy
     const fx = this.cornerFixedWorld.x
@@ -628,20 +694,50 @@ export class UIPreviewManager {
     const isV = handleIndex === 4 || handleIndex === 6
     const newW = isCorner || isH ? Math.max(0.1, Math.abs(dx - fx)) : this.cornerStartSize[0]
     const newH = isCorner || isV ? Math.max(0.1, Math.abs(dy - fy)) : this.cornerStartSize[1]
-    // 新中心：被拖轴取中点，未拖轴保持当前位置（边拖动只动一侧）
-    const cx = isCorner || isH ? (dx + fx) / 2 : this.boundsTarget!.position.x
-    const cy = isCorner || isV ? (dy + fy) / 2 : this.boundsTarget!.position.y
-    // 尺寸权威在 uitransform：设置尺寸 + 更新中心位置（不能 applyAnchor——锚点定位会把它拉回）
+    // 新中心（世界坐标）：被拖轴取中点，未拖轴保持当前位置（边拖动只动一侧）。
+    // 用 null 表示"此轴不修改"，避免与合法的 0 混淆。
+    const worldCx = isCorner || isH ? (dx + fx) / 2 : null
+    const worldCy = isCorner || isV ? (dy + fy) / 2 : null
+
+    // 尺寸权威在 uitransform：设置尺寸（不能 applyAnchor——锚点定位会把中心拉回到贴合位置）
     uiTf.setWorldSize(newW, newH)
-    this.boundsTarget!.setPosition(cx, cy, this.boundsTarget!.position.z)
+
+    // ⚠️ 关键修复：setPosition 写的是 root.position（THREE 局部坐标），
+    //    而 worldCx/worldCy 来自世界坐标基准（getBoundsBox）。
+    //    子节点的父在世界非原点时，直接把世界坐标当局部写 → 真实世界 = 局部 + 父世界，
+    //    产生"双倍偏移"瞬移。
+    //    正确做法：世界目标中心 − 父世界位置 = 要写入的局部坐标。
+    let localX = this.boundsTarget!.position.x
+    let localY = this.boundsTarget!.position.y
+    if (worldCx !== null || worldCy !== null) {
+      const parentActor = this.boundsTarget!.parent
+      let parentWorldX = 0
+      let parentWorldY = 0
+      if (parentActor) {
+        parentActor.root.updateWorldMatrix(true, false)
+        const pw = parentActor.root.getWorldPosition(new THREE.Vector3())
+        parentWorldX = pw.x
+        parentWorldY = pw.y
+      }
+      if (worldCx !== null) localX = worldCx - parentWorldX
+      if (worldCy !== null) localY = worldCy - parentWorldY
+    }
+    // ⚠️ 瞬移修复：锚点模式（非 stretch）下手动改 position 必须同步 anchorOffset，
+    //    否则下次 applyAnchor（节点拖动/布局刷新）用旧 offset 重算 position → 控件瞬移。
+    //    stretch/无锚点：直接 setPosition（预览自由摆放）
+    if (!uiTf.syncAnchorOffset(localX, localY)) {
+      this.boundsTarget!.setPosition(localX, localY, this.boundsTarget!.position.z)
+    }
   }
 
   // ═══════════════════════════════════
   //  widget 加载
   // ═══════════════════════════════════
 
-  /** 加载 widget 蓝图到预览场景（与 BlueprintPreviewManager.loadBlueprint 同接口） */
-  loadBlueprint(path: string): boolean {
+  /** 加载 widget 蓝图到预览场景（与 BlueprintPreviewManager.loadBlueprint 同接口）
+   *  @param path     蓝图注册 key（asset/...）
+   *  @param diskPath 磁盘路径（src/projects/...，可选；提交/保存经服务层时必需） */
+  loadBlueprint(path: string, diskPath?: string): boolean {
     this.clearPreview()
 
     // 持有蓝图 JSON 的可变深拷贝
@@ -671,14 +767,15 @@ export class UIPreviewManager {
     this.world.BeginPlay()
     this.world.manualTick(0)
 
-    this._currentWidgetPath = path
+    this._currentWidgetKey = path
+    this._currentWidgetDiskPath = diskPath ?? null
 
     this.fitToWidget(actor.root)
     // Game 渲染视口范围框：以根画布世界尺寸为范围（切换视口比例后再次更新）
     this.updateViewportBounds()
     this.notifyChange()
 
-    logger.info(`[UIPreview] 加载 UI 资产预览: ${path}`)
+    logger.info(`[UIPreview] 加载 UI 资产预览: ${path}${this._currentWidgetDiskPath ? `（磁盘 ${this._currentWidgetDiskPath}）` : ''}`)
     return true
   }
 
@@ -727,7 +824,8 @@ export class UIPreviewManager {
     this.anchorGizmo.detach()
     this.world.DestroyAllActors()
     this._rootActor = null
-    this._currentWidgetPath = null
+    this._currentWidgetKey = null
+    this._currentWidgetDiskPath = null
     this._jsonTree = null
     this._actorJsonMap = null
     this._actorTreeCache = null
@@ -770,12 +868,12 @@ export class UIPreviewManager {
   }
 
   get currentWidgetId(): string | null {
-    return this._currentWidgetPath
+    return this._currentWidgetKey
   }
 
   /** 兼容 Outline 的 currentBlueprintId 访问 */
   get currentBlueprintId(): string | null {
-    return this._currentWidgetPath
+    return this._currentWidgetKey
   }
 
   getActorTree(): SceneTreeNode[] {
@@ -872,14 +970,36 @@ export class UIPreviewManager {
     return JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
   }
 
-  /** 拖动/拖拽松手后调用：把预览内存态同步进工作副本（不写盘），产生一个撤销点 */
-  private async commitPreviewEdit() {
-    if (!this._currentWidgetPath) return
+  /**
+   * 拖动/拖拽松手后调用：把本次拖拽目标节点的属性变化通过统一属性链路提交（apply），
+   * 撤回点（动作前快照）在 apply 内部 push = 松手才进撤回系统。不写盘。
+   * target 传空时回退用 mousedown 记录的 pendingDragActor（UI 内部松手走此路径）。
+   */
+  async commitPreviewEdit(target?: Actor | null): Promise<void> {
+    // 服务层读盘/写盘需要磁盘路径（注册 key asset/... 无法定位文件）
+    const diskPath = this._currentWidgetDiskPath
+    if (!diskPath) {
+      logger.warn(`[UIPreview] 拖拽提交跳过（无磁盘路径，loadBlueprint 未传 diskPath）`)
+      return
+    }
+    const dragged = target ?? this.pendingDragActor
+    this.pendingDragActor = null
     const data = this.collectSaveData()
     if (!data) return
-    await BlueprintEditorService.updateFromPreview(this._currentWidgetPath, data as unknown as BlueprintAsset)
-    // 与 3D gizmo 拖动松手对齐：updateFromPreview 不 bump，靠此事件刷新撤销/保存按钮
-    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, this._currentWidgetPath)
+    if (!dragged) return
+    logger.info(`[UIPreview] 松手提交: "${dragged.name}" → ${diskPath}`)
+    const r = await BlueprintEditorService.commitPreviewTransform(
+      diskPath,
+      dragged,
+      this._jsonTree,
+      this._actorJsonMap,
+    )
+    if (r.ok) {
+      // apply 已 bump（nonce 变化刷新撤销按钮）；此事件双保险刷新按钮可用状态
+      editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, diskPath)
+    } else {
+      logger.warn(`[UIPreview] 拖拽提交被拒: ${r.error}`)
+    }
   }
 
   /**
@@ -1048,7 +1168,10 @@ export class UIPreviewManager {
     }
     this.boundsTarget = null
     this.draggingCornerIndex = null
-    this.world.DestroyAllActors()
+    // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
+    // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
+    // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
+    this.world.Destroy()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement)
@@ -1056,7 +1179,8 @@ export class UIPreviewManager {
     this._actorJsonMap = null
     this._jsonTree = null
     this._actorTreeCache = null
-    this._currentWidgetPath = null
+    this._currentWidgetKey = null
+    this._currentWidgetDiskPath = null
   }
 
   // ═══════════════════════════════════

@@ -16,6 +16,7 @@
  */
 import * as THREE from 'three'
 import { GenericActor, LineComponent, logger } from '@/engine'
+import type { ThreeObject } from '@/engine'
 
 export interface PlaceGridActorOptions {
   /** 网格范围最小值（含） */
@@ -39,8 +40,8 @@ export interface PlaceGridActorOptions {
 export class PlaceGridActor extends GenericActor {
   /** 网格配置（BeginPlay 时使用） */
   readonly options: PlaceGridActorOptions
-  /** 网格线条（LineComponent 托管，EndPlay 自动释放） */
-  private lines: THREE.LineSegments | null = null
+  /** 网格线条（ThreeObject 包装；LineComponent 托管，EndPlay 自动释放） */
+  private lines: ThreeObject<THREE.LineSegments> | null = null
 
   constructor(name: string, options: PlaceGridActorOptions) {
     super(name)
@@ -51,7 +52,8 @@ export class PlaceGridActor extends GenericActor {
     super.BeginPlay()
     const w = this.world
     if (!w) return
-    // 经 World 工厂统一生成（追踪释放），挂 LineComponent 随本 Actor 生命周期释放
+    // 经 World 工厂统一生成（追踪释放），挂 LineComponent 随本 Actor 生命周期释放。
+    // 注意：直接接住 ThreeObject 外壳，避免再 .object 解包导致工厂追踪链断裂。
     this.lines = w.createGridLines(
       this.options.min,
       this.options.max,
@@ -60,15 +62,15 @@ export class PlaceGridActor extends GenericActor {
       this.options.transparent,
       this.options.opacity,
     )
-    this.lines.position.y = this.options.y ?? 0
-    this.lines.visible = this.options.visible ?? false
+    this.lines.object.position.y = this.options.y ?? 0
+    this.lines.object.visible = this.options.visible ?? false
     this.addComponent(new LineComponent(this, this.lines, 'GridLines'))
     logger.info(`[PlaceGridActor] "${this.name}" 已创建（范围 [${this.options.min}, ${this.options.max}]，步长 ${this.options.step}）`)
   }
 
   /** 切换网格显隐（放置模式进入/退出） */
   setVisible(visible: boolean): void {
-    if (this.lines) this.lines.visible = visible
+    if (this.lines) this.lines.object.visible = visible
   }
 
   override EndPlay(): void {

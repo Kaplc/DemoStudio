@@ -7,8 +7,11 @@
  * 实现要点：
  *  - 继承 CanvasUIComponent（markerOnly）保持"UI 组件"身份（isUIActor 判定 / 锚点 /
  *    尺寸权威在 uitransform），但不创建位图画布 mesh——文本由 troika mesh 渲染
- *  - fontSize 语义保持 canvas 像素（如 32px，映射基准 height=128px canvas）：
- *    世界字号 = worldHeight × fontSize / height
+ *  - fontSize 语义保持 canvas 像素（如 32px）：世界字号 = fontSize × 构造时固化的
+ *    换算系数（系数 = 构造时世界高 / 基准 canvas 高）。文本大小只受 fontSize 属性
+ *    影响，改变控件世界尺寸 / canvas 像素尺寸不会缩放字形
+ *  - 控件世界宽 = 换行宽度（maxWidth）：超宽自动换行（whiteSpace normal +
+ *    overflowWrap break-word，长中文/长单词按字符断行）
  *  - 尺寸权威在 uitransform：tsf 显式 → 读 tsf；未显式 → 按 canvas 比例推导
  *  - 字体：默认 'Microsoft YaHei'（系统字体，支持中文）；fontFamily 可覆盖
  *  - 局限：troika 为单色轮廓字形，彩色 emoji 会退化为单色/空白；shadow* 属性
@@ -79,6 +82,13 @@ export class UITextComponent extends CanvasUIComponent {
   protected _shadowOffsetY: number
   protected _letterSpacing: number
 
+  /**
+   * 像素 → 世界单位换算系数（构造时固化一次）。
+   * 世界字号 = fontSize × 系数：文本大小只受 fontSize 属性影响，
+   * 后续改变控件世界尺寸 / canvas 像素尺寸都不会再缩放字形。
+   */
+  private readonly _pxToWorld: number
+
   /** troika 文本 mesh（构造即创建；字形几何异步生成，属性同步设置） */
   private mesh: TroikaText | null = null
 
@@ -127,17 +137,15 @@ export class UITextComponent extends CanvasUIComponent {
     this._shadowOffsetY = options.shadowOffsetY ?? 2
     this._letterSpacing = options.letterSpacing ?? 0
 
+    // 构造时固化换算系数（super 之后世界尺寸已最终确定：tsf 权威或已同步回 tsf）
+    this._pxToWorld = this.getWorldSize()[1] / height
+
     this.initTroika()
   }
 
-  /** 像素 → 世界单位换算（基于映射基准 canvas 高） */
+  /** 像素 → 世界单位换算（基于构造时固化的系数，不随控件尺寸变化） */
   private toWorldUnits(px: number): number {
-    const wh = this.getWorldSize()[1]
-    return (px / this._heightPx) * wh
-  }
-
-  private get _heightPx(): number {
-    return this.getSize()[1]
+    return px * this._pxToWorld
   }
 
   /** 创建 troika 文本 mesh（sync 内部异步加载字体/生成字形） */
@@ -167,10 +175,10 @@ export class UITextComponent extends CanvasUIComponent {
   protected applyAll(): void {
     const mesh = this.mesh
     if (!mesh) return
-    const [ww, wh] = this.getWorldSize()
+    const [ww] = this.getWorldSize()
     mesh.text = this._text
-    // canvas 像素字号 → 世界字号：fontSize / 基准高 × 世界高
-    mesh.fontSize = (this._fontSize / this._heightPx) * wh
+    // 世界字号只由 fontSize 属性决定（× 构造时固化的换算系数），不随控件尺寸缩放
+    mesh.fontSize = this._fontSize * this._pxToWorld
     mesh.maxWidth = ww
     // textAlign 控制文本在 maxWidth 尺寸框内的对齐；anchorX 固定 center——
     // mesh 原点 = 元素中心（UITransform 锚点定位基准），若把 anchorX 也设成 align，
@@ -179,6 +187,10 @@ export class UITextComponent extends CanvasUIComponent {
     mesh.anchorX = 'center'
     mesh.anchorY = 'middle'
     mesh.color = this._color
+    // 换行：whiteSpace normal + overflowWrap break-word——超宽时在任意字符间断行
+    // （默认 overflowWrap='normal' 只在空格处断行，长中文/长单词会溢出控件不换行）
+    ;(mesh as unknown as { whiteSpace: string }).whiteSpace = 'normal'
+    ;(mesh as unknown as { overflowWrap: string }).overflowWrap = 'break-word'
     // troika 只接受字体文件 URL：CSS 名回退到内置思源黑体（bold 用 700 变体）
     mesh.font = resolveFontURL(this._fontFamily, this._bold)
     // troika 类型声明缺失 fontWeight/fontStyle（运行时支持）
@@ -198,9 +210,16 @@ export class UITextComponent extends CanvasUIComponent {
     this.applyAll()
   }
 
-  /** 世界尺寸变化（gizmo 拖拽 / Inspector 修改）：重算字形字号与换行宽度 */
+  /**
+   * 世界尺寸变化（gizmo 拖拽 / Inspector 修改）：只重算换行宽度（maxWidth）。
+   * 字号由 fontSize 属性决定，不随控件尺寸缩放。
+   */
   override onWorldSizeChange(): void {
-    this.applyAll()
+    if (this.mesh) {
+      const [ww] = this.getWorldSize()
+      this.mesh.maxWidth = ww
+      this.mesh.sync()
+    }
   }
 
   get text(): string { return this._text }

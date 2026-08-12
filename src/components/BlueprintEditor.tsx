@@ -131,7 +131,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     previewMgrRef.current = mgr
 
     // 加载蓝图 Actor
-    const ok = mgr.loadBlueprint(assetKey)
+    const ok = mgr.loadBlueprint(assetKey, assetPath)
     if (ok) {
       // 用页签的相对路径注册到总管理器，供 Outline 按 assetPath 直接查找
       AssetPreviewManager.register(assetPath, mgr)
@@ -269,10 +269,10 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       if (gizmo.isDragging) {
         gizmo.endDrag()
         if (dragDidMove) {
-          // 3D 蓝图拖动松手：同步预览内存态到工作副本（撤销点），再标记脏
-          const data = mgr.collectSaveData?.()
-          if (data) await BlueprintEditorService.updateFromPreview(assetPathRef.current, data as unknown as BlueprintAsset)
-          editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, assetPathRef.current)
+          // 3D 蓝图拖动松手：本次拖拽目标（= 当前选中节点）的属性变化走 apply 统一链路提交，
+          // 撤回点（动作前快照）在 apply 内部 push = 松手才进撤回系统，且不写盘
+          const sel = getSelectedActor()
+          await mgr.commitPreviewEdit?.(sel)
         }
         try { canvas.releasePointerCapture(e.pointerId) } catch { }
       }

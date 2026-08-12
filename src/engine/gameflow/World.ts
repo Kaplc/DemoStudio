@@ -21,6 +21,7 @@ import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
 import { ThreeObjectFactory } from './ThreeObjectFactory'
+import { ThreeObject } from '../rendering/ThreeObject'
 import type { OObject } from '../entity/OObject'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
@@ -87,9 +88,18 @@ export class World extends AObject {
    */
   readonly factory = new ThreeObjectFactory()
 
+  /** 创建时的调用栈摘要（泄漏诊断用：精确定位是哪个 Manager/代码创建了本 World） */
+  readonly creationStack: string
+
   constructor(scene: THREE.Scene, gameMode?: GameMode) {
     super()
     this.id = World._nextId++
+    // 记录创建调用栈：跳过 Error 帧 + 本构造器帧，从调用方（new World 的 Manager/GameInstance）开始取 3 层
+    const stackLines = new Error().stack?.split('\n') ?? []
+    this.creationStack = stackLines
+      .slice(2, 5)
+      .map((s) => s.trim().replace(/^at /, ''))
+      .join(' ← ')
     this.scene = scene
     // UI 管理器组件：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
     this.addComponent(new UIManager(this))
@@ -687,12 +697,15 @@ export class World extends AObject {
    * 创建一个平面网格线框（基础划线工具：仅提供从 min 到 max 每 step 一条线的能力，
    * 具体格子坐标/偏移规则由调用方（游戏）自行计算）。水平面 y=0，含边界。
    * 经工厂统一生成（追踪释放），挂到 LineComponent/GridActor 后随 actor 生命周期释放。
+   *
+   * 注意：返回的是 ThreeObject（外层包装），调用方应直接传给 LineComponent 等
+   * ThreeObjectComponent，避免再次包装导致工厂追踪链断裂（产生 Destroy 时的泄漏告警）。
    * @param min 网格范围最小值（含）
    * @param max 网格范围最大值（含）
    * @param step 线间距
    */
-  createGridLines(min: number, max: number, step: number, color: number, transparent?: boolean, opacity?: number): THREE.LineSegments {
-    return this.factory.createGridLines(min, max, step, color, transparent, opacity).object
+  createGridLines(min: number, max: number, step: number, color: number, transparent?: boolean, opacity?: number): ThreeObject<THREE.LineSegments> {
+    return this.factory.createGridLines(min, max, step, color, transparent, opacity)
   }
 
   // ═══════════════════════════════════

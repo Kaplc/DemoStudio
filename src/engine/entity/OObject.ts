@@ -4,6 +4,7 @@
  * 所有引擎对象（AObject/BObject/Actor/GameMode/...）统一收拢到 OObject 名下，
  * 提供：
  *  - 全局注册：构造时自动注册到 ObjectRegistry（模仿 UE GUObjectArray）
+ *  - 唯一标识：uid 全局递增分配（所有 OObject 统一，含 World / GameInstance / 组件）
  *  - 销毁标记：markDestroyed 置位终态 + 从注册表注销（模仿 UE IsValid / Unity 伪 null）
  *  - 访问断言：assertValid() 在对象已销毁时抛错（模仿 UE check/ensure —— 早期暴露
  *    "已销毁对象被调用"，避免静默失败导致旧 world 被驱动等诡异 bug）
@@ -13,19 +14,25 @@
  *   bPendingDestroy（排队中）→ EndPlay（清理）→ bDestroyed（死亡）
  *
  * 分层：
- *   OObject（本类：注册表 + 销毁标记 + 访问断言）
+ *   OObject（本类：注册表 + uid 标识 + 销毁标记 + 访问断言）
  *    └── AObject（+ 组件系统）
- *         └── BObject（+ uid/name + 生命周期 + 序列化）
+ *         └── BObject（+ name + 生命周期 + 序列化）
  *              ├── Actor（场景对象）
  *              ├── GameMode / GameState / PlayerController（非场景对象）
  */
 import { ObjectRegistry } from '../tools/ObjectRegistry'
 
 export abstract class OObject {
+  /** 全局唯一整数 ID，每个 OObject 构造时自动分配（所有引擎对象统一标识） */
+  public readonly uid: number
+
+  private static _nextUid = 1
+
   /** 是否已销毁（终态标记；任何外部引用都应停止使用） */
   private _bDestroyed = false
 
   constructor() {
+    this.uid = OObject._nextUid++
     // 自动注册到全局对象表（销毁时由 markDestroyed 注销）
     ObjectRegistry.register(this)
   }

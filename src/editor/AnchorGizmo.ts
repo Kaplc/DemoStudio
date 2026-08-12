@@ -15,6 +15,7 @@ import type { Actor } from '../engine/entity/Actor'
 import { UITransformComponent, type AnchorPreset } from '../engine/ui/UITransformComponent'
 import { CanvasUIComponent } from '../engine/rendering/CanvasUIComponent'
 import { gizmos } from '../engine'
+import { logger } from '../engine/Logger'
 
 /** 锚点 → 方向因子（x: -1 左/0 中/+1 右，y: -1 下/0 中/+1 上） */
 const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
@@ -27,6 +28,9 @@ const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
 
 /** 三角形朝向（尖角方向）：朝上/下/左/右 */
 type TriDir = 'up' | 'down' | 'left' | 'right'
+
+/** 复用临时向量（getWorldPosition 出参，避免每帧 new 产生 GC 压力） */
+const _tmpV1 = new THREE.Vector3()
 
 export class AnchorGizmo {
   readonly group: THREE.Group
@@ -121,6 +125,19 @@ export class AnchorGizmo {
   attach(actor: Actor) {
     this._target = actor
     this.group.visible = gizmos.enabled
+    // ⚠️ 排查日志：选中时打印局部 vs 世界坐标对照——子节点三者不同会导致 gizmo 画错位
+    const _local = actor.root.position
+    actor.root.updateWorldMatrix(true, false)
+    const _world = actor.root.getWorldPosition(new THREE.Vector3())
+    const _parent = actor.parent
+    const _uiTf = actor.getComponent(UITransformComponent)
+    logger.info(
+      `[AnchorGizmo] attach "${actor.name}" ` +
+      `local=(${_local.x.toFixed(3)},${_local.y.toFixed(3)}) ` +
+      `world=(${_world.x.toFixed(3)},${_world.y.toFixed(3)}) ` +
+      `${_parent ? `parent="${_parent.name}"` : '根'} ` +
+      `anchor=${_uiTf?.anchor ?? 'null'}`,
+    )
     this.update(0)
   }
 
@@ -172,10 +189,14 @@ export class AnchorGizmo {
 
     // ─── 父容器范围：最近的父容器（与 applyAnchor 的 findContainerSize 语义一致：
     // 父 Actor 显式 uitransform 尺寸优先，markerOnly 容器也算；兜底真实画布），白色半透明线框 ───
+    // ⚠️ 关键：parentBounds/triangles 直接挂在 overlayScene 根下（无父变换），其 position 世界坐标 = 本地坐标，
+    //    必须用 getWorldPosition（世界坐标）。子节点选中时父容器在世界非原点，读 root.position（局部）
+    //    会画在错误位置。
     const container = this.findParentContainer(actor)
     if (container) {
       const [cw, ch] = container.size
-      const p = container.actor.root.position
+      container.actor.root.updateWorldMatrix(true, false)
+      const p = container.actor.root.getWorldPosition(_tmpV1)
       this.parentBounds!.visible = true
       this.parentBounds!.position.set(p.x, p.y, -0.02)
       this.parentBounds!.scale.set(cw, ch, 1)
@@ -206,8 +227,11 @@ export class AnchorGizmo {
   /** stretch 布局：四角三角形，尖端精确对齐矩形四角（本体在矩形外侧，尖端指向内部触角） */
   private layoutStretch(actor: Actor, uiTf: UITransformComponent, size: number) {
     const [sw, sh] = uiTf.getWorldSize()
-    const cx = actor.root.position.x
-    const cy = actor.root.position.y
+    // ⚠️ 用世界坐标（gizmo 挂 overlayScene 根下，position 是世界语义；root.position 是局部）
+    actor.root.updateWorldMatrix(true, false)
+    const wp = actor.root.getWorldPosition(_tmpV1)
+    const cx = wp.x
+    const cy = wp.y
     const hw = sw / 2
     const hh = sh / 2
     // 中心偏移 = 尖端矢量（0.5×size 沿对角方向）取反：尖端恰好落在角点，三角形本体在矩形外侧
@@ -249,13 +273,17 @@ export class AnchorGizmo {
     let y: number
     if (container) {
       const [cw, ch] = container.size
-      const pp = container.actor.root.position
+      // ⚠️ 用世界坐标（gizmo 挂 overlayScene 根下，position 是世界语义；root.position 是局部）
+      container.actor.root.updateWorldMatrix(true, false)
+      const pp = container.actor.root.getWorldPosition(_tmpV1)
       x = pp.x + fx * (cw / 2)
       y = pp.y + fy * (ch / 2)
     } else {
       // 无父容器：锚点退化显示在元素当前位置
-      x = actor.root.position.x
-      y = actor.root.position.y
+      actor.root.updateWorldMatrix(true, false)
+      const wp = actor.root.getWorldPosition(_tmpV1)
+      x = wp.x
+      y = wp.y
     }
 
     // 三角形中心到锚点距离 = 半个三角形高：4 个箭头尖端汇聚于锚点中心（Unity 锚点样式）

@@ -24,6 +24,7 @@ import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
 import { TransformComponent } from '../entity/TransformComponent'
 import { UITransformComponent, type AnchorPreset } from '../ui/UITransformComponent'
+import { UILayoutComponent, type UILayoutMode } from '../ui/UILayoutComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
@@ -349,6 +350,28 @@ export function registerBuiltinComponents(): void {
       if (p.color !== undefined) lc.color = p.color as string
       if (p.intensity !== undefined) lc.intensity = p.intensity as number
       if (p.castShadow !== undefined) lc.castShadow = p.castShadow as boolean
+    },
+  )
+
+  // ─── UILayoutComponent ─── props: { mode?, columns?, spacingX?, spacingY?, autoLayout? }
+  // 布局组件：挂在容器 Actor 上，自动按模式（水平/垂直/网格）排列其子 UI 节点。
+  ComponentRegistry.register(
+    'UILayoutComponent',
+    (owner, p = {}) =>
+      new UILayoutComponent(asActor(owner), {
+        mode: (p.mode as UILayoutMode) ?? 'grid',
+        columns: p.columns as number | undefined,
+        spacingX: p.spacingX as number | undefined,
+        spacingY: p.spacingY as number | undefined,
+        autoLayout: p.autoLayout as boolean | undefined,
+      }),
+    (c, p) => {
+      const layout = c as UILayoutComponent
+      if (p.mode !== undefined) layout.mode = p.mode as UILayoutMode
+      if (p.columns !== undefined) layout.columns = p.columns as number
+      if (p.spacingX !== undefined) layout.spacingX = p.spacingX as number
+      if (p.spacingY !== undefined) layout.spacingY = p.spacingY as number
+      if (p.autoLayout !== undefined) layout.autoLayout = p.autoLayout as boolean
     },
   )
 }

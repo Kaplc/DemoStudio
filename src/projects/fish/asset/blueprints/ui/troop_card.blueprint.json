@@ -1,0 +1,136 @@
+{
+  "_comment": "兵种训练卡片蓝图（TroopCard）——兵营 UI 动态生成的单个兵种条目。\n由 BarracksUiScript 在运行时按路径生成（world.ui.spawnUIActor），脚本负责：\n  1. 节点名改为 Troop_{id}（便于按兵种定位）\n  2. 填充名称/属性文本（Name/Info 子节点）\n  3. 背景色改为兵种色（TroopBg）\n  4. 绑定训练点击（UIButtonComponent.onClick → GameInstance.trainTroop）\n布局由父容器 TroopList 上的 UILayoutComponent（grid）统一排布，anchor=center 时\nanchorOffset 即相对父容器中心的偏移，会被布局组件覆盖。",
+  "name": "TroopCard",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "anchor": "center",
+        "anchorOffset": [0, 0],
+        "worldWidth": 0.9,
+        "worldHeight": 0.78
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "markerOnly": true,
+        "name": "UIMarker",
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UIImageComponent",
+      "properties": {
+        "color": "#e53935",
+        "radius": 10,
+        "width": 180,
+        "height": 150,
+        "name": "TroopBg",
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UIButtonComponent",
+      "properties": {
+        "colors": {
+          "normal": "#e53935",
+          "hover": "#ff6b5f",
+          "pressed": "#b02a20"
+        }
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "Name",
+      "baseClass": "Actor",
+      "id": 10001,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0.17],
+            "worldWidth": 0.85,
+            "worldHeight": 0.28
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "兵种名",
+            "fontSize": 20,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "center",
+            "width": 170,
+            "height": 50,
+            "zOrder": 3,
+            "name": "TroopName",
+            "italic": false
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Info",
+      "baseClass": "Actor",
+      "id": 10002,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, -0.14],
+            "worldWidth": 0.85,
+            "worldHeight": 0.26
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "HP 0 · 伤 0 · 费 0",
+            "fontSize": 14,
+            "color": "#cfe3ff",
+            "bold": false,
+            "align": "center",
+            "width": 170,
+            "height": 40,
+            "zOrder": 3,
+            "name": "TroopInfo",
+            "italic": false
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

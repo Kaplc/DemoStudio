@@ -2,17 +2,18 @@
  * BObject — 世界对象的通用基类
  *
  * 模仿 UE UObject：世界内一切对象的根基，提供：
- *  - uid / name：唯一标识
+ *  - name：标识名
  *  - 组件系统（继承自 AObject）
  *  - 生命周期：BeginPlay / Tick / EndPlay
  *  - 序列化（预留）
  *
- * 注意：world 引用属于场景对象（Actor），非场景对象（GameMode 等）自行持有。
+ * 注意：uid（全局唯一整数）已上移至 OObject，所有引擎对象统一分配。
+ * world 引用属于场景对象（Actor），非场景对象（GameMode 等）自行持有。
  *
  * 分层：
- *   OObject（完全空，仅标记）
+ *   OObject（uid + 注册表 + 销毁标记）
  *    └── AObject（组件系统）
- *         └── BObject（本类：+ uid/name + 生命周期 + 序列化，无渲染依赖）
+ *         └── BObject（本类：+ name + 生命周期 + 序列化，无渲染依赖）
  *              ├── Actor（场景对象：+ root/Transform/可见性/层级 + world 引用）
  *              ├── PlayerController / GameMode / GameState（非场景对象）
  */
@@ -20,20 +21,14 @@ import { AObject } from './AObject'
 import type { BObjectComponent } from './BObjectComponent'
 
 export abstract class BObject extends AObject {
-  /** 全局唯一整数 ID，每个 BObject 构造时自动分配 */
-  public readonly uid: number
-
   public readonly name: string
 
   /** 生命周期状态 */
   public bHasBegunPlay = false
   public bPendingDestroy = false
 
-  private static _nextUid = 1
-
   constructor(name = 'BObject') {
     super()
-    this.uid = BObject._nextUid++
     this.name = name
   }
 

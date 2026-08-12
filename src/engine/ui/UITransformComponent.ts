@@ -154,6 +154,33 @@ export class UITransformComponent extends TransformComponent {
     // logger.info(`[UITransformComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
   }
 
+  /**
+   * 外部（编辑器把手 resize）直接设置局部位置时，同步锚点偏移，保持 position 与锚点状态一致。
+   *
+   * 必要性：锚点模式下 position = 锚点基准 + offset（applyAnchor 逆推公式），
+   * 若只改 position 而不同步 offset，下次 applyAnchor（节点拖动/布局刷新）会用旧 offset
+   * 重算 position → 控件瞬移。
+   *
+   * 锚点基准：fx * (cw/2 - sw/2), fy * (ch/2 - sh/2)，故 offset = 目标位置 − 基准。
+   * @param x 目标局部位置 x（= 世界中心 − 父世界位置）
+   * @param y 目标局部位置 y
+   * @returns 是否成功同步（无锚点 / stretch / 找不到父容器时 false，调用方应直接 setPosition）
+   */
+  syncAnchorOffset(x: number, y: number): boolean {
+    if (!this._anchor || this._anchor === 'stretch') return false
+    const container = this.findContainerSize()
+    if (!container) return false
+    const factors = ANCHOR_FACTORS[this._anchor]
+    const [cw, ch] = container
+    const [sw, sh] = this.getSelfSize()
+    const ox = x - factors[0] * (cw / 2 - sw / 2)
+    const oy = y - factors[1] * (ch / 2 - sh / 2)
+    this._anchorOffset = [ox, oy]
+    this.owner.setPosition(x, y, this.owner.root.position.z)
+    // logger.info(`[UITransformComponent] "${this.name}" syncAnchorOffset → offset=[${ox.toFixed(3)}, ${oy.toFixed(3)}] 位置(${x.toFixed(3)}, ${y.toFixed(3)})`)
+    return true
+  }
+
   /** 自身世界尺寸：本组件持有的 worldWidth/worldHeight（尺寸已迁移到 transform 上） */
   private getSelfSize(): [number, number] {
     return [this._worldW, this._worldH]

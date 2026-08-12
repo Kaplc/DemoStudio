@@ -60,6 +60,9 @@ export class FishBaseGameMode extends GameMode {
   constructor() {
     super()
     this.baseCamera = new BaseCameraActor()
+    // 屏蔽"鼠标移到屏幕边缘自动平移摄像机"（部落冲突风格边缘滚动）
+    // 只关边缘滚动：右键拖拽平移 / 滚轮缩放不受影响
+    this.baseCamera.rig.setEdgePanEnabled(false)
   }
 
   override InitGame() {

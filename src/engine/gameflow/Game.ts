@@ -307,6 +307,9 @@ export class Game {
     if (this._objBaseline) {
       const leaked = ObjectRegistry.diffSince(this._objBaseline)
       this._objBaseline = null
+      // 统计全部 OObject（含 World / GameInstance / 组件）——它们都是引擎对象，
+      // 本应随游戏 shutdown 通过 destroy → world.Destroy → reclaimForWorld 统一 markDestroyed。
+      // 出现在此列表 = 确实未回收（真泄漏），不应过滤掩盖。
       if (leaked.length > 0) {
         // 按类名分组统计
         const byClass = new Map<string, number>()
@@ -316,18 +319,39 @@ export class Game {
         }
         const summary = [...byClass.entries()].map(([c, n]) => `${c}×${n}`).join(', ')
         logger.warn(`[Game] 对象泄漏诊断：${leaked.length} 个 OObject 未回收（${summary}）`)
-        // 详情（最多列前 10 个，含名字/uid/world 归属）
-        for (const o of leaked.slice(0, 10)) {
-          const anyObj = o as { name?: string; uid?: number; world?: { name?: string } | null }
+        // 详情（全部打印，含 uid/name/world 归属/创建栈——便于精确定位泄漏来源）
+        for (const o of leaked) {
+          const cls = (o.constructor as { name?: string })?.name ?? '?'
+          const anyObj = o as { name?: string; uid?: number; world?: { name?: string } | null; owner?: unknown; creationStack?: string }
           const info = [
-            `类=${(o.constructor as { name?: string })?.name ?? '?'}`,
-            anyObj.name ? `name=${anyObj.name}` : '',
+            `类=${cls}`,
             anyObj.uid !== undefined ? `uid=${anyObj.uid}` : '',
-            anyObj.world ? `world=${anyObj.world.name ?? '?'}` : '无world',
+            anyObj.name ? `name=${anyObj.name}` : '',
           ]
-            .filter(Boolean)
-            .join(', ')
-          logger.warn(`[Game]   └ ${info}`)
+          // 所属 World：优先 world 字段，组件（UIManager/ActorManagerComponent 等）沿 owner 链向上找
+          let worldRef: unknown = anyObj.world ?? null
+          if (!worldRef) {
+            let cur: unknown = anyObj.owner
+            let hops = 0
+            while (cur && hops < 16) {
+              if ((cur as { constructor?: { name?: string } }).constructor?.name === 'World') {
+                worldRef = cur
+                break
+              }
+              cur = (cur as { owner?: unknown }).owner
+              hops++
+            }
+          }
+          if (worldRef && (worldRef as { id?: number }).id !== undefined) {
+            info.push(`world=World#${(worldRef as { id: number }).id}`)
+          } else {
+            info.push('无world')
+          }
+          // World 自身：打印创建调用栈（定位哪个 Manager/代码 new 了它）
+          if (cls === 'World' && anyObj.creationStack) {
+            info.push(`创建于: ${anyObj.creationStack}`)
+          }
+          logger.warn(`[Game]   └ ${info.filter(Boolean).join(', ')}`)
         }
       } else {
         logger.info('[Game] 对象泄漏诊断：无未回收对象')

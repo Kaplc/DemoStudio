@@ -16,6 +16,7 @@
  */
 import { BlueprintRegistry, ComponentRegistry, ActorRegistry, logger } from '../../engine'
 import type { BlueprintAsset, BlueprintChildDef, PropertyPatch } from '../../engine'
+import type { Actor } from '../../engine/entity/Actor'
 import * as ops from './blueprintOps'
 import type { ChildLocator, OpResult } from './blueprintOps'
 import { UndoManager } from './UndoManager'   
@@ -329,26 +330,73 @@ export class BlueprintEditorService {
   }
 
   /**
-   * 预览管理器在拖动/拖拽松手后调用：把预览内存态同步进工作副本（不写盘）。
-   * 内部 push 当前副本（= 动作前状态）作为撤销快照，所以每次松手 = 一个撤销点。
-   * 不 bump：预览自身已是最新内存态，无需重建。
+   * 预览拖拽松手统一提交入口：把拖拽目标节点变换组件的最终属性，通过 apply 链路提交。
+   *  - 拖动中只改预览内存态（不产生撤销点）；松手调用本方法 = 撤回点才进栈（apply 内部 push 动作前快照）
+   *  - 与 Inspector 属性修改同一入口（setComponentProps / setChildComponentProps），统一"修改属性 → 经过撤回系统"
+   *  - 不写盘（persist=false），apply 内部 bump 重建预览（恢复相机/选中由 BlueprintEditor 处理）
+   *  - 拖拽目标是 ref 引用实例（无 JSON 节点）时跳过提交，打日志告警
+   *
+   * @param target     本次拖拽的 Actor（把手改尺寸/节点拖动改位置）
+   * @param jsonTree   预览持有的资产 JSON 深拷贝（collectSaveData 已回写最新值）
+   * @param actorJsonMap Actor → JSON 节点映射（loadBlueprint 时构建）
+   */
+  static async commitPreviewTransform(
+    assetPath: string,
+    target: Actor | null,
+    jsonTree: Record<string, unknown> | null,
+    actorJsonMap: Map<Actor, Record<string, unknown>> | null,
+  ): Promise<BlueprintEditResult> {
+    if (!target || !jsonTree || !actorJsonMap) {
+      return { ok: false, error: '预览拖拽提交缺少目标/JSON 映射' }
+    }
+    const jsonNode = actorJsonMap.get(target)
+    if (!jsonNode) {
+      // ref 引用实例不在本资产 JSON 中，collectSaveData 也会跳过它 → 无法就地提交
+      logger.warn(`[BlueprintEdit] 预览拖拽提交跳过（目标无 JSON 节点，可能是 ref 引用实例）: ${target.name}`)
+      return { ok: false, error: `目标 "${target.name}" 是 ref 引用实例，无法提交属性修改` }
+    }
+    // 提取拖拽目标变换组件的最终属性（collectSaveData 已把 worldWidth/worldHeight/position 等回写进 jsonNode）
+    const comps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
+    const tfComp = comps.find(
+      (c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent',
+    )
+    if (!tfComp) {
+      logger.warn(`[BlueprintEdit] 预览拖拽提交跳过（目标无变换组件）: ${target.name}`)
+      return { ok: false, error: `目标 "${target.name}" 缺少变换组件` }
+    }
+    const props = { ...((tfComp.properties as Record<string, unknown>) ?? {}) }
+    const isRoot = jsonNode === jsonTree
+    const result = await this.apply(
+      assetPath,
+      isRoot ? 'setComponentProps' : 'setChildComponentProps',
+      isRoot
+        ? { baseClass: tfComp.baseClass, properties: props }
+        : { name: (jsonNode as { name?: unknown }).name, baseClass: tfComp.baseClass, properties: props, strict: true },
+    )
+    if (result.ok) {
+      logger.info(`[BlueprintEdit] 预览拖拽提交（松手 = 一个撤销点）: ${target.name} → ${isRoot ? 'setComponentProps' : 'setChildComponentProps'}(${tfComp.baseClass})`)
+    }
+    return result
+  }
+
+  /**
+   * 保存前兜底同步：把预览内存态整体同步进工作副本（不写盘、不产生撤销点、不 bump）。
+   * 拖拽松手已通过 commitPreviewTransform 提交（含撤回点），此处仅兜底未走统一入口的预览态修改。
    */
   static async updateFromPreview(assetPath: string, data: BlueprintAsset): Promise<void> {
-    // 确保工作副本存在：首次拖拽（无副本）先读盘建立，撤销快照 = 动作前真实磁盘状态
+    // 确保工作副本存在：首次拖拽（无副本）先读盘建立
     const wc = await this.getWorkingCopy(assetPath)
     if (!wc.ok) {
       logger.error(`[BlueprintEdit] 预览同步失败（无法建立工作副本）: ${assetPath}: ${wc.error}`)
       return
     }
     const key = wc.key
-    const cur = this.workingCopies.get(key) ?? wc.asset
-    UndoManager.push(key, cur)
     this.workingCopies.set(key, data)
     this.dirtyKeys.add(key)
     // 注册表同步（撤销/保存后 spawn 用新数据；预览自身已是内存最新，无需 bump）
     BlueprintRegistry.loadFromJson(key, data)
     try { BlueprintRegistry.resolve(key) } catch { /* 探测失败仅告警级，不阻断 */ }
-    logger.info(`[BlueprintEdit] 预览同步工作副本: ${key}（pos ${logPos(cur)}→${logPos(data)}，undo 栈 ${UndoManager.depth(key).undo}）`)
+    logger.info(`[BlueprintEdit] 预览兜底同步工作副本: ${key}（pos ${logPos(data)}）`)
   }
 
   /** 撤销：恢复上一个快照 → 更新副本/注册表 → bump 重建预览 */

@@ -582,7 +582,10 @@ export class ScenePreviewManager {
     select(null)
     this.gizmo.detach()
     this.gizmo.dispose()
-    this.world.DestroyAllActors()
+    // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
+    // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
+    // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
+    this.world.Destroy()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement)
