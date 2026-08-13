@@ -38,8 +38,9 @@
 
 ### AnchorGizmo（运行时 UI 节点）
 
-- 显示父容器范围 + 锚点图标
+- 显示父容器范围 + 锚点图标（单点锚风车形聚合 / stretch 四角分布）
 - 用于游戏运行时 UI 节点的锚点调整
+- 布局算法、拖动回写与 Inspector 编辑详见 [UI 锚点系统](../ui_anchor_system.md)
 
 ### SelectionBoundsGizmo（运行时 UI 节点）
 

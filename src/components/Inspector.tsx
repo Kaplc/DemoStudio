@@ -52,11 +52,15 @@ const vecAxisInputStyle: React.CSSProperties = {
  * - vec2/vec3 → 分量数字输入（blur/Enter 提交）
  * - color → 颜色选择器（即时提交）
  */
-function EditablePropertyInput({ prop, onEdited, assetTarget }: {
+function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, siblingComponents }: {
   prop: EditableProperty
   onEdited: () => void
   /** 蓝图预览模式注入：提交走资产通道（工作副本 + 撤销快照）；无 → 运行时 prop.set 直改 */
   assetTarget?: EditablePropertyAssetTarget
+  /** 当前编辑的组件（蓝图模式下合并其全量持久化属性提交，避免单 key 写入丢失派生系数） */
+  currentComp?: Component
+  /** 同 actor 的其它组件（蓝图模式下随本次编辑一并持久化其 persistentProps，原子进撤销栈） */
+  siblingComponents?: Component[]
 }) {
   const [val, setVal] = useState<unknown>(prop.get())
   /** 输入框聚焦中（用户正在编辑）：跳过外部同步，避免每次重渲染把输入重置回旧值 */
@@ -102,18 +106,47 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
       // 运行时组件不改——apply 成功后 bump 触发蓝图重建，场景值由重建刷新。
       // 根节点组件（assetTarget.root）作用于 asset.components → setComponentProps；
       // 子节点组件 → setChildComponentProps（按 name 递归定位 children）
-      const applyParams = assetTarget.root
-        ? {
-            baseClass: assetTarget.baseClass,
-            properties: { [prop.key]: v },
-          }
-        : {
-            name: assetTarget.childName,
-            baseClass: assetTarget.baseClass,
-            properties: { [prop.key]: v },
-            strict: true,
-          }
-      BlueprintEditorService.apply(assetTarget.assetPath, assetTarget.root ? 'setComponentProps' : 'setChildComponentProps', applyParams)
+      //
+      // ⚠️ 批量提交（原子撤销）：一次用户编辑 = 一次 applyBatch = 一个撤销点。
+      // 不仅写当前 key，还一并写入：
+      //   1. 当前组件的全量 persistentProps（当前 key 用新值覆盖）——避免单 key 写入
+      //      只存一个字段，其它持久化字段（如派生系数 fontSizeScale）在重建后丢失；
+      //   2. 同 actor 其它组件的 persistentProps——如改 UITransform 尺寸时同步固化
+      //      同节点 UITextComponent 的字号系数，防止重建时按新尺寸重算导致字号漂移。
+      const buildProps = (c: Component, overrideKey?: string, overrideVal?: unknown) => {
+        const p: Record<string, unknown> =
+          (c.getPersistentProps ? c.getPersistentProps() : {}) as Record<string, unknown>
+        if (overrideKey) p[overrideKey] = overrideVal
+        return p
+      }
+      const makeOpParams = (baseClass: string, props: Record<string, unknown>) =>
+        assetTarget.root
+          ? { baseClass, properties: props }
+          : { name: assetTarget.childName, baseClass, properties: props, strict: true }
+      const opName = assetTarget.root ? 'setComponentProps' : 'setChildComponentProps'
+      const ops: Array<{ op: string; params: Record<string, unknown> }> = []
+      // 当前组件：全量 persistentProps + 当前 key 覆盖为新值
+      if (currentComp) {
+        ops.push({
+          op: opName,
+          params: makeOpParams(assetTarget.baseClass, buildProps(currentComp, prop.key, v)),
+        })
+      } else {
+        // 兜底（旧调用点未传 currentComp）：保持原单 key 写入行为
+        ops.push({
+          op: opName,
+          params: makeOpParams(assetTarget.baseClass, { [prop.key]: v }),
+        })
+      }
+      // 同 actor 其它组件：各自 persistentProps 全量持久化（跳过与当前组件重复的 baseClass）
+      for (const sibling of siblingComponents ?? []) {
+        if (!sibling.persistType || sibling.persistType === assetTarget.baseClass) continue
+        ops.push({
+          op: opName,
+          params: makeOpParams(sibling.persistType, buildProps(sibling)),
+        })
+      }
+      BlueprintEditorService.applyBatch(assetTarget.assetPath, ops)
         .then((r) => {
           if (!r.ok) {
             console.warn(`[Inspector] ${assetTarget.root ? '根组件' : '子控件'}属性写入资产失败: ${assetTarget.childName}.${prop.key} → ${r.error}`)
@@ -123,7 +156,7 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
           } else {
             console.log(
               `[Inspector] 属性已提交: ${assetTarget.childName}.${prop.key} = ${JSON.stringify(v)} ` +
-              `(${assetTarget.root ? '根组件→setComponentProps' : '子控件→setChildComponentProps'}, baseClass=${assetTarget.baseClass}, apply=${r.ok})`,
+              `(${assetTarget.root ? '根组件→setComponentProps' : '子控件→setChildComponentProps'}, baseClass=${assetTarget.baseClass}, 批量 ${ops.length} ops, apply=${r.ok})`,
             )
           }
         })
@@ -285,11 +318,13 @@ function EditablePropertyInput({ prop, onEdited, assetTarget }: {
  * 单条属性行：注册了可编辑属性 → 渲染编辑器；否则 → 只读展示。
  */
 function ComponentPropertyRow({
-  comp, k, v, onEdited, assetTarget,
+  comp, k, v, onEdited, assetTarget, siblingComponents,
 }: {
   comp: Component; k: string; v: unknown; onEdited: () => void
   /** 蓝图预览模式注入的资产持久化目标（组件级）；null → 运行时直改 */
   assetTarget?: EditablePropertyAssetTarget | null
+  /** 同 actor 的其它组件（蓝图模式下随本次编辑一并持久化，原子进撤销栈） */
+  siblingComponents?: Component[]
 }) {
   const editable = (comp.getEditableProperties ? comp.getEditableProperties() : [])
     .find((p) => p.key === k)
@@ -299,7 +334,7 @@ function ComponentPropertyRow({
     <div className="property-row" style={{ gap: 4, padding: '2px 0', alignItems: 'center' }}>
       <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{humanizeKey(k)}</span>
       {editable ? (
-        <EditablePropertyInput prop={editable} onEdited={onEdited} assetTarget={target ?? undefined} />
+        <EditablePropertyInput prop={editable} onEdited={onEdited} assetTarget={target ?? undefined} currentComp={comp} siblingComponents={siblingComponents} />
       ) : (
         <span
           style={{
@@ -390,6 +425,7 @@ function ActorComponentsView({ actor, assetPath = null }: { actor: Actor; assetP
                     v={v}
                     assetTarget={makeTarget(comp.persistType)}
                     onEdited={() => setEditNonce((n) => n + 1)}
+                    siblingComponents={components.filter((c) => c !== comp)}
                   />
                 ))
               ))}
@@ -487,7 +523,7 @@ function ComponentSearchResults({ actor, query, assetPath = null }: { actor: Act
                       {highlightMatch(humanizeKey(k), q)}
                     </span>
                     {editable ? (
-                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} assetTarget={assetT} />
+                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} assetTarget={assetT} currentComp={g.comp} siblingComponents={components.filter((c) => c !== g.comp)} />
                     ) : (
                       <span
                         style={{

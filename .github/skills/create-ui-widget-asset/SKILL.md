@@ -211,7 +211,7 @@ Actor (name 唯一, id 唯一)
 | `color` | color | 可选 |
 | `bold` / `italic` | boolean | 可选 |
 | `align` | string | `left` / `center` / `right` |
-| `lineHeight` | number | > 0 |
+| `lineHeight` | number | 行高系数（fontSize 的倍数，如 `1.4` = 字号 × 1.4；> 0；内部 ×100 存储） |
 | `letterSpacing` | number | ≥ 0 |
 | `shadowColor` / `shadowOffsetX` / `shadowOffsetY` | color/number | 阴影（`shadowBlur` ≥ 0） |
 | `width` / `height` | number | Canvas 像素尺寸，≥ 1 |

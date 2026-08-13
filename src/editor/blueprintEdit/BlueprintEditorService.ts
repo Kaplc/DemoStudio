@@ -230,6 +230,9 @@ export class BlueprintEditorService {
    * 应用一次编辑：改工作副本 → 注册表软告警 → 注册并探测环 →（可选写盘）→ 通知刷新。
    * persist=false（默认，UI 编辑）：只改内存副本 + push 撤销快照，不碰磁盘（假保存）。
    * persist=true（MCP/脚本 dispatch）：保持旧语义立即落盘。
+   *
+   * 内部委托 applyBatch（单 op 批处理）——两者语义完全一致：
+   * 一次 apply = 一次撤销点 + 一次 bump 重建。
    */
   static async apply(
     assetPath: string,
@@ -237,28 +240,60 @@ export class BlueprintEditorService {
     params: Record<string, unknown>,
     opts: { persist?: boolean } = {},
   ): Promise<BlueprintEditResult> {
+    return this.applyBatch(assetPath, [{ op, params }], opts)
+  }
+
+  /**
+   * 批量应用多次编辑（原子提交）：同一份资产上链式执行多个 op，
+   * 只 push 一个撤销快照 + 只 bump 一次（单次重建）。
+   *
+   * 用途：一次用户编辑涉及多个组件属性时（如改控件尺寸需同时固化同节点文本的
+   * fontSizeScale 派生系数），避免逐 op 调用 apply 造成"碎片化撤销点"（撤销一次
+   * 只回滚一个组件）与多次全量重建卡顿。
+   *
+   * 语义保证：
+   *  - 全部 op 成功 → 提交（一个撤销点）；任一 op 失败 → 整体不提交（无半提交状态）
+   *  - undo 一次 = 所有 op 一起回滚（快照是动作前的整份资产）
+   *  - 不写盘（persist=false）时只改内存副本 + 撤销快照
+   */
+  static async applyBatch(
+    assetPath: string,
+    ops: Array<{ op: string; params: Record<string, unknown> }>,
+    opts: { persist?: boolean } = {},
+  ): Promise<BlueprintEditResult> {
     const persist = opts.persist ?? false
+    if (!Array.isArray(ops) || ops.length === 0) {
+      return { ok: false, error: 'applyBatch 需要至少一个 op', types: this.listTypes() }
+    }
     const wc = await this.getWorkingCopy(assetPath)
     if (!wc.ok) return { ok: false, error: wc.error, types: this.listTypes() }
     const { key } = wc
     const oldAsset = wc.asset
-    // 动作前快照（深拷贝），供撤销回退
+    // 动作前快照（深拷贝），供撤销回退（所有 op 共用一个快照 = 原子撤销）
     const oldSnapshot = JSON.parse(JSON.stringify(oldAsset)) as BlueprintAsset
 
     const dBefore = UndoManager.depth(key)
     const oldPosLog = logPos(oldAsset)
-    logger.info(`[BlueprintEdit] apply 开始: ${op}(${logParams(op, params ?? {})}) → ${key}（persist=${persist}，pos ${oldPosLog}，undo 栈 ${dBefore.undo}）`)
+    logger.info(
+      `[BlueprintEdit] applyBatch 开始: ${ops.map((o) => `${o.op}(${logParams(o.op, o.params ?? {})})`).join(' + ')} → ${key}（persist=${persist}，pos ${oldPosLog}，undo 栈 ${dBefore.undo}）`,
+    )
 
-    const res = runOp(oldAsset, op, params ?? {})
-    if (!res.ok) {
-      logger.warn(`[BlueprintEdit] apply 被拒: ${op} → ${key}: ${res.error}`)
-      return { ok: false, error: res.error, asset: oldAsset, types: this.listTypes() }
+    // 链式执行：每个 op 应用到前一个 op 的结果上
+    let cur: BlueprintAsset = oldAsset
+    const warnings: string[] = []
+    for (const { op, params } of ops) {
+      const res = runOp(cur, op, params ?? {})
+      if (!res.ok) {
+        logger.warn(`[BlueprintEdit] applyBatch 被拒: ${op} → ${key}: ${res.error}（整体不提交）`)
+        return { ok: false, error: `${op}: ${res.error}`, asset: oldAsset, types: this.listTypes() }
+      }
+      cur = res.asset!
+      warnings.push(...(res.warnings ?? []))
     }
-    const newAsset = res.asset!
-    const warnings = [...(res.warnings ?? [])]
+    const newAsset = cur
 
     // 注册表层软告警
-    this.pushRegistryWarnings(newAsset, op, params ?? {}, warnings)
+    this.pushRegistryWarnings(newAsset, ops.map((o) => o.op).join('+'), {}, warnings)
 
     // 乐观注册后 resolve 探测继承/引用环（key 由磁盘路径推导）
     BlueprintRegistry.loadFromJson(key, newAsset)
@@ -269,7 +304,7 @@ export class BlueprintEditorService {
       if (msg.includes('循环')) {
         // 命中环：回滚注册表与副本，不提交
         BlueprintRegistry.loadFromJson(key, oldAsset)
-        logger.warn(`[BlueprintEdit] apply 回滚（引用环）: ${op} → ${key}: ${msg}`)
+        logger.warn(`[BlueprintEdit] applyBatch 回滚（引用环）: → ${key}: ${msg}`)
         return {
           ok: false,
           error: `蓝图引用存在循环: ${msg}`,
@@ -281,7 +316,7 @@ export class BlueprintEditorService {
       warnings.push(`resolve 探测跳过（可能依赖尚未注册的蓝图）: ${msg}`)
     }
 
-    // 提交到工作副本 + 撤销快照（动作前状态）
+    // 提交到工作副本 + 撤销快照（动作前状态；一次批处理 = 一个撤销点）
     UndoManager.push(key, oldSnapshot)
     this.workingCopies.set(key, newAsset)
     this.dirtyKeys.add(key)
@@ -293,17 +328,17 @@ export class BlueprintEditorService {
         // 写盘失败：回滚副本 + 注册表
         this.workingCopies.set(key, oldSnapshot)
         BlueprintRegistry.loadFromJson(key, oldAsset)
-        logger.error(`[BlueprintEdit] 写盘失败，回滚: ${key}: ${written.error}`)
+        logger.error(`[BlueprintEdit] applyBatch 写盘失败，回滚: ${key}: ${written.error}`)
         return { ok: false, error: written.error, asset: oldAsset, types: this.listTypes() }
       }
       this.dirtyKeys.delete(key)
       editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
     }
 
-    // 通知打开的编辑器刷新数据 + 预览
+    // 通知打开的编辑器刷新数据 + 预览（单次 bump = 单次重建）
     useEditorStore.getState().bumpBlueprintEdit(assetPath)
 
-    logger.info(`[BlueprintEdit] apply 完成: ${op} → ${key}（pos ${oldPosLog}→${logPos(newAsset)}，undo 栈 ${dBefore.undo}→${UndoManager.depth(key).undo}）${persist ? '（已落盘）' : ''}`)
+    logger.info(`[BlueprintEdit] applyBatch 完成: ${ops.length} ops → ${key}（pos ${oldPosLog}→${logPos(newAsset)}，undo 栈 ${dBefore.undo}→${UndoManager.depth(key).undo}）${persist ? '（已落盘）' : ''}`)
     return {
       ok: true,
       asset: newAsset,
@@ -355,7 +390,10 @@ export class BlueprintEditorService {
       logger.warn(`[BlueprintEdit] 预览拖拽提交跳过（目标无 JSON 节点，可能是 ref 引用实例）: ${target.name}`)
       return { ok: false, error: `目标 "${target.name}" 是 ref 引用实例，无法提交属性修改` }
     }
-    // 提取拖拽目标变换组件的最终属性（collectSaveData 已把 worldWidth/worldHeight/position 等回写进 jsonNode）
+    // 批量提交节点内所有组件的最终属性（collectSaveData 已把每个组件的
+    // getPersistentProps 回写进 jsonNode——含 UITextComponent 的 fontSizeScale 等派生系数）。
+    // 用 applyBatch 原子提交：一次拖拽 = 一个撤销点（避免只提交变换组件导致
+    // 同节点文本字号系数丢失，重建后字号随控件尺寸漂移）。
     const comps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
     const tfComp = comps.find(
       (c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent',
@@ -364,17 +402,20 @@ export class BlueprintEditorService {
       logger.warn(`[BlueprintEdit] 预览拖拽提交跳过（目标无变换组件）: ${target.name}`)
       return { ok: false, error: `目标 "${target.name}" 缺少变换组件` }
     }
-    const props = { ...((tfComp.properties as Record<string, unknown>) ?? {}) }
     const isRoot = jsonNode === jsonTree
-    const result = await this.apply(
-      assetPath,
-      isRoot ? 'setComponentProps' : 'setChildComponentProps',
-      isRoot
-        ? { baseClass: tfComp.baseClass, properties: props }
-        : { name: (jsonNode as { name?: unknown }).name, baseClass: tfComp.baseClass, properties: props, strict: true },
-    )
+    const childName = (jsonNode as { name?: unknown }).name as string | undefined
+    // 构建每个组件的批量 op（根节点走 setComponentProps；子节点走 setChildComponentProps）
+    const batchOps = comps
+      .filter((c) => typeof c.baseClass === 'string')
+      .map((c) => ({
+        op: isRoot ? 'setComponentProps' : 'setChildComponentProps',
+        params: isRoot
+          ? { baseClass: c.baseClass, properties: { ...((c.properties as Record<string, unknown>) ?? {}) } }
+          : { name: childName, baseClass: c.baseClass, properties: { ...((c.properties as Record<string, unknown>) ?? {}) }, strict: true },
+      }))
+    const result = await this.applyBatch(assetPath, batchOps)
     if (result.ok) {
-      logger.info(`[BlueprintEdit] 预览拖拽提交（松手 = 一个撤销点）: ${target.name} → ${isRoot ? 'setComponentProps' : 'setChildComponentProps'}(${tfComp.baseClass})`)
+      logger.info(`[BlueprintEdit] 预览拖拽提交（松手 = 一个撤销点）: ${target.name} → ${batchOps.length} 个组件批量提交（${batchOps.map((o) => o.params.baseClass).join(', ')}）`)
     }
     return result
   }

@@ -241,8 +241,10 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UITextComponent ─── props: { text?, fontSize?, color?, ..., width?, height?, ... }
+  // ─── UITextComponent ─── props: { text?, fontSize?, color?, ..., width?, height?, fontSizeScale?, ... }
   // 显隐由同/父节点的 CanvasUIComponent.active 统一控制（节点级级联），UIText 不再消费 active。
+  // fontSizeScale：像素→世界换算系数（持久化字段）。蓝图重建时回灌，让字号与控件尺寸彻底解耦
+  // （拖拽控件大小后字号保持不变）。省略时（首次创建/程序化）按当前世界高自动推导。
   ComponentRegistry.register(
     'UITextComponent',
     (owner, p = {}) =>
@@ -260,6 +262,7 @@ export function registerBuiltinComponents(): void {
         letterSpacing: p.letterSpacing as number | undefined,
         width: p.width as number | undefined,
         height: p.height as number | undefined,
+        fontSizeScale: p.fontSizeScale as number | undefined,
       }),
     (c, p) => {
       const t = c as UITextComponent
@@ -267,6 +270,10 @@ export function registerBuiltinComponents(): void {
       if (p.fontSize !== undefined) t.fontSize = p.fontSize as number
       if (p.color !== undefined) t.color = p.color as string
       if (p.align !== undefined) t.align = p.align as 'left' | 'center' | 'right'
+      if (p.bold !== undefined) t.bold = p.bold as boolean
+      if (p.italic !== undefined) t.italic = p.italic as boolean
+      if (p.lineHeight !== undefined) t.lineHeight = p.lineHeight as number
+      if (p.letterSpacing !== undefined) t.letterSpacing = p.letterSpacing as number
       if (p.zOrder !== undefined) t.zOrder = p.zOrder as number
     },
   )

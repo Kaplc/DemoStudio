@@ -7,11 +7,14 @@
  * 实现要点：
  *  - 继承 CanvasUIComponent（markerOnly）保持"UI 组件"身份（isUIActor 判定 / 锚点 /
  *    尺寸权威在 uitransform），但不创建位图画布 mesh——文本由 troika mesh 渲染
- *  - fontSize 语义保持 canvas 像素（如 32px）：世界字号 = fontSize × 构造时固化的
- *    换算系数（系数 = 构造时世界高 / 基准 canvas 高）。文本大小只受 fontSize 属性
- *    影响，改变控件世界尺寸 / canvas 像素尺寸不会缩放字形
+ *  - fontSize 语义保持 canvas 像素（如 32px）。像素→世界单位的换算系数
+ *    `_pxToWorld` 在构造时固化一次（持久化为 fontSizeScale，蓝图重建时复用）。
+ *    文本大小只受 fontSize 属性与构造时系数影响，改变控件世界尺寸 / canvas 像素
+ *    尺寸 / 重新加载都不会再缩放字形（避免预览拖拽尺寸 → 重建 → 字号被牵动）
  *  - 控件世界宽 = 换行宽度（maxWidth）：超宽自动换行（whiteSpace normal +
  *    overflowWrap break-word，长中文/长单词按字符断行）
+ *  - lineHeight 语义 = 行高系数（fontSize 的倍数，如 1.4 = 字号 × 1.4）：
+ *    内部 ×100 存储（固定系数 100），用户设置后 ×100（1.4 → 140）；显示保留 2 位小数
  *  - 尺寸权威在 uitransform：tsf 显式 → 读 tsf；未显式 → 按 canvas 比例推导
  *  - 字体：默认 'Microsoft YaHei'（系统字体，支持中文）；fontFamily 可覆盖
  *  - 局限：troika 为单色轮廓字形，彩色 emoji 会退化为单色/空白；shadow* 属性
@@ -26,6 +29,7 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
 import type { Actor } from '../entity/Actor'
+import { logger } from '../Logger'
 
 export interface UITextComponentOptions {
   text?: string
@@ -35,6 +39,10 @@ export interface UITextComponentOptions {
   bold?: boolean
   italic?: boolean
   align?: 'left' | 'center' | 'right'
+  /**
+   * 行高系数（fontSize 的倍数，如 1.4 = fontSize × 1.4）。
+   * 用户设置后内部 ×100 固化存储（固定系数 100），系数保留 2 位小数。
+   */
   lineHeight?: number
   /** 字体阴影（CSS 颜色）——troika 不支持，仅保留展示 */
   shadowColor?: string
@@ -50,6 +58,12 @@ export interface UITextComponentOptions {
   worldWidth?: number
   /** 3D 世界高（默认 2.5） */
   worldHeight?: number
+  /**
+   * 像素 → 世界单位换算系数（持久化字段，跨蓝图重建保持字号稳定）。
+   * 省略时由 worldHeight/canvas height 自动推导。蓝图回灌时直接复用，
+   * 避免拖动控件 → 重建预览时按新的世界高重算导致字号被"控件尺寸"牵动。
+   */
+  fontSizeScale?: number
   /** UI 层级（越大越靠前） */
   zOrder?: number
   /** 是否激活（默认 true；false = troika mesh 不渲染） */
@@ -75,6 +89,7 @@ export class UITextComponent extends CanvasUIComponent {
   protected _bold: boolean
   protected _italic: boolean
   protected _align: 'left' | 'center' | 'right'
+  /** 行高系数（fontSize 的倍数）×100 存储：如 140 = fontSize × 1.4；默认 140（1.4 倍） */
   protected _lineHeight: number
   protected _shadowColor?: string
   protected _shadowBlur: number
@@ -83,9 +98,17 @@ export class UITextComponent extends CanvasUIComponent {
   protected _letterSpacing: number
 
   /**
-   * 像素 → 世界单位换算系数（构造时固化一次）。
-   * 世界字号 = fontSize × 系数：文本大小只受 fontSize 属性影响，
+   * 像素 → 世界单位换算系数。
+   * 世界字号 = fontSize × 系数：文本大小只受 fontSize 属性 + 此系数影响，
    * 后续改变控件世界尺寸 / canvas 像素尺寸都不会再缩放字形。
+   *
+   * 系数来源（优先级从高到低，保证"字号不随控件尺寸/重建变化"）：
+   *  1. options.fontSizeScale 显式指定（持久化数据回灌；蓝图重建复用同一系数）
+   *  2. options.worldWidth/Height 显式指定（创建时按当前尺寸固化，并持久化）
+   *  3. owner 的 uitransform的世界高（运行时自动推导，并持久化）
+   *
+   * ⚠️ 第 3 项是历史默认路径，仅在"无持久化系数 + 无显式世界尺寸"时使用，
+   * 用于程序化构造（不会经过蓝图重建流程），避免被预览重建打破字号。
    */
   private readonly _pxToWorld: number
 
@@ -124,21 +147,42 @@ export class UITextComponent extends CanvasUIComponent {
     })
     this.name = 'UITextComponent'
     this._text = options.text ?? ''
-    this._fontSize = options.fontSize ?? 28
+    // 字号强制整数（与 setter/Inspector/检查器一致）
+    this._fontSize = Math.round(options.fontSize ?? 28)
     this._fontFamily = options.fontFamily ?? ''
     this._color = options.color ?? '#ffffff'
     this._bold = options.bold ?? false
     this._italic = options.italic ?? false
     this._align = options.align ?? 'left'
-    this._lineHeight = options.lineHeight ?? (this._fontSize * 1.4)
+    // 行高系数（fontSize 的倍数）内部 ×100 存储：用户/JSON 输入系数（如 1.4）→ 存 140
+    this._lineHeight = Math.round((options.lineHeight ?? 1.4) * 100)
     this._shadowColor = options.shadowColor
     this._shadowBlur = options.shadowBlur ?? 4
     this._shadowOffsetX = options.shadowOffsetX ?? 1
     this._shadowOffsetY = options.shadowOffsetY ?? 2
     this._letterSpacing = options.letterSpacing ?? 0
 
-    // 构造时固化换算系数（super 之后世界尺寸已最终确定：tsf 权威或已同步回 tsf）
-    this._pxToWorld = this.getWorldSize()[1] / height
+    // 构造时固化换算系数：
+    //  - options.fontSizeScale 显式指定（蓝图回灌）→ 直接用，字号与控件尺寸彻底解耦
+    //  - 否则按当前世界高 / canvas 高推导（程序化构造场景）
+    // 详细规则见 _pxToWorld 字段注释。
+    // ⚠️ 排查日志：记录系数来源——若重建后字号变化，比对两次构造日志确认 _pxToWorld 是否漂移
+    const [dbgWw, dbgWh] = this.getWorldSize()
+    if (options.fontSizeScale != null) {
+      this._pxToWorld = options.fontSizeScale
+      logger.info(
+        `[UIText] 构造 "${owner.name}": _pxToWorld=${this._pxToWorld.toFixed(5)} ← fontSizeScale（持久化回灌） ` +
+        `fontSize=${this._fontSize} canvasSize=${width}x${height} worldSize=${dbgWw.toFixed(2)}x${dbgWh.toFixed(2)} ` +
+        `→ 渲染字号=${(this._fontSize * this._pxToWorld).toFixed(4)}`,
+      )
+    } else {
+      this._pxToWorld = dbgWh / height
+      logger.info(
+        `[UIText] 构造 "${owner.name}": _pxToWorld=${this._pxToWorld.toFixed(5)} ← worldHeight(${dbgWh.toFixed(3)})/canvasHeight(${height})（自动推导） ` +
+        `fontSize=${this._fontSize} canvasSize=${width}x${height} worldSize=${dbgWw.toFixed(2)}x${dbgWh.toFixed(2)} ` +
+        `→ 渲染字号=${(this._fontSize * this._pxToWorld).toFixed(4)}`,
+      )
+    }
 
     this.initTroika()
   }
@@ -176,10 +220,18 @@ export class UITextComponent extends CanvasUIComponent {
     const mesh = this.mesh
     if (!mesh) return
     const [ww] = this.getWorldSize()
+    const renderFontSize = this._fontSize * this._pxToWorld
     mesh.text = this._text
     // 世界字号只由 fontSize 属性决定（× 构造时固化的换算系数），不随控件尺寸缩放
-    mesh.fontSize = this._fontSize * this._pxToWorld
+    mesh.fontSize = renderFontSize
     mesh.maxWidth = ww
+    // ⚠️ 排查日志：applyAll 实际写入 troika mesh 的字号（拖动前后对比此值）
+    logger.info(
+      `[UIText] applyAll "${this.owner.name}": mesh.fontSize=${renderFontSize.toFixed(4)} ` +
+      `(fontSize=${this._fontSize} × _pxToWorld=${this._pxToWorld.toFixed(5)}) ` +
+      `maxWidth=${ww.toFixed(2)} lineHeightRatio=${(this._lineHeight / 100).toFixed(2)} ` +
+      `lineHeightWorld=${this.toWorldUnits(this._fontSize * (this._lineHeight / 100)).toFixed(4)}`,
+    )
     // textAlign 控制文本在 maxWidth 尺寸框内的对齐；anchorX 固定 center——
     // mesh 原点 = 元素中心（UITransform 锚点定位基准），若把 anchorX 也设成 align，
     // 左对齐时文本左边缘会被钉在元素中心，开头就不在左边缘了
@@ -197,7 +249,8 @@ export class UITextComponent extends CanvasUIComponent {
     ;(mesh as unknown as { fontWeight: number | string }).fontWeight = this._bold ? 700 : 400
     ;(mesh as unknown as { fontStyle: string }).fontStyle = this._italic ? 'italic' : 'normal'
     mesh.letterSpacing = this.toWorldUnits(this._letterSpacing)
-    mesh.lineHeight = this.toWorldUnits(this._lineHeight)
+    // 行高（世界单位）= fontSize 世界字号 × 系数（系数 = _lineHeight/100，内部 ×100 存储）
+    mesh.lineHeight = this.toWorldUnits(this._fontSize * (this._lineHeight / 100))
     // unicode fallback（emoji/生僻字）：走本地缓存代理（首次下载后永久本地，不再联网）。
     // 必须绝对 URL——troika 的 fetch 在 worker 里执行，相对路径无法解析
     ;(mesh as unknown as { unicodeFontsURL: string }).unicodeFontsURL = `${location.origin}/__unicode_fonts`
@@ -217,6 +270,10 @@ export class UITextComponent extends CanvasUIComponent {
   override onWorldSizeChange(): void {
     if (this.mesh) {
       const [ww] = this.getWorldSize()
+      // ⚠️ 排查日志：onWorldSizeChange 触发时机（验证字号 tributary 路径：仅 maxWidth 重算，不动 _pxToWorld）
+      logger.info(
+        `[UIText] onWorldSizeChange "${this.owner.name}": maxWidth=${ww.toFixed(2)}（字号不动：_pxToWorld=${this._pxToWorld.toFixed(5)} 仍为构造值）`,
+      )
       this.mesh.maxWidth = ww
       this.mesh.sync()
     }
@@ -225,7 +282,8 @@ export class UITextComponent extends CanvasUIComponent {
   get text(): string { return this._text }
   set text(v: string) { this._text = v; this.applyAll() }
   get fontSize(): number { return this._fontSize }
-  set fontSize(v: number) { this._fontSize = v; this.applyAll() }
+  /** 字号（像素）：强制整数——渲染字号 = fontSize × 固化系数，整数保证语义稳定无浮点误差累积 */
+  set fontSize(v: number) { this._fontSize = Math.round(v); this.applyAll() }
   get color(): string { return this._color }
   set color(v: string) { this._color = v; this.applyAll() }
   get align(): 'left' | 'center' | 'right' { return this._align }
@@ -234,6 +292,20 @@ export class UITextComponent extends CanvasUIComponent {
   set bold(v: boolean) { this._bold = v; this.applyAll() }
   get italic(): boolean { return this._italic }
   set italic(v: boolean) { this._italic = v; this.applyAll() }
+  /**
+   * 行高（内部 ×100 存储值；如 140 = fontSize 的 1.4 倍）。
+   * 读取返回 ×100 值；设置传入系数（倍数），见 setter。
+   */
+  get lineHeight(): number { return this._lineHeight }
+  /**
+   * 设置行高系数（fontSize 的倍数，保留 2 位小数）：
+   * 用户设置后 ×100 固化存储（固定系数 100）。如设置 1.4 → 内部 140，
+   * 渲染行高 = fontSize × 1.4。JSON/配置回灌同样走此路径（幂等）。
+   */
+  set lineHeight(v: number) { this._lineHeight = Math.round(v * 100); this.applyAll() }
+  /** 字间距（像素，默认 0）；改后同步 troika mesh */
+  get letterSpacing(): number { return this._letterSpacing }
+  set letterSpacing(v: number) { this._letterSpacing = v; this.applyAll() }
 
   /** UI 层级（越大越靠前）：面板（继承）+ troika mesh 同步分层 */
   override get zOrder(): number { return super.zOrder }
@@ -248,6 +320,7 @@ export class UITextComponent extends CanvasUIComponent {
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
     const base = super.getProperties()
+    const [ww] = this.getWorldSize()
     return {
       ...base,
       text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
@@ -257,8 +330,13 @@ export class UITextComponent extends CanvasUIComponent {
       bold: this._bold,
       italic: this._italic,
       align: this._align,
-      lineHeight: Math.round(this._lineHeight * 100) / 100,
+      lineHeight: Math.round(this._lineHeight / 100 * 100) / 100,  // 系数展示（2 位小数，如 1.4）
       letterSpacing: this._letterSpacing,
+      // 渲染范围只读展示（内部计算值，记录实际渲染状态，便于排查"字号随控件尺寸变化"类问题）
+      renderScale: Math.round(this._pxToWorld * 1000) / 1000,        // 像素→世界换算系数（构造时固化）
+      renderFontSize: Math.round(this._fontSize * this._pxToWorld * 1000) / 1000,  // 渲染字号（世界单位）
+      renderMaxWidth: Math.round(ww * 1000) / 1000,                  // 换行宽度（= 控件宽）
+      renderLineHeight: Math.round(this._fontSize * (this._lineHeight / 100) * this._pxToWorld * 1000) / 1000, // 渲染行高（世界单位）
       render: '矢量（troika）',
     }
   }
@@ -277,7 +355,8 @@ export class UITextComponent extends CanvasUIComponent {
       {
         key: 'fontSize', type: 'number', step: 1, min: 4, max: 400,
         get: () => this._fontSize,
-        set: (v) => { this.fontSize = v as number },
+        // 字号只能是整数：输入 72.5 提交时取整为 73（setter 内部也强制 Math.round）
+        set: (v) => { this.fontSize = Math.round(v as number) },
       },
       {
         key: 'color', type: 'color',
@@ -299,7 +378,39 @@ export class UITextComponent extends CanvasUIComponent {
         get: () => this._italic,
         set: (v) => { this.italic = v as boolean },
       },
+      {
+        key: 'lineHeight', type: 'number', step: 0.01, min: 0.01,
+        // 显示系数（2 位小数）；setter 内部 ×100 固化（用户设置后 ×100）
+        get: () => Math.round(this._lineHeight / 100 * 100) / 100,
+        set: (v) => { this.lineHeight = v as number },
+      },
+      {
+        key: 'letterSpacing', type: 'number', step: 1, min: 0,
+        get: () => this._letterSpacing,
+        set: (v) => { this.letterSpacing = v as number },
+      },
     ]
+  }
+
+  /**
+   * 持久化属性：默认从可编辑属性收集，额外补：
+   *  - fontSizeScale：构造时固化的像素→世界换算系数，书写后蓝图重建复用，
+   *    保证拖动 UI 控件尺寸后字号不被牵动变化（详见 _pxToWorld 字段注释）
+   *  - width/height：canvas 像素基准，是 fontSize 的语义单位；缺失时工厂走
+   *    默认值（512/128），但持久化能保留作者显式设置
+   */
+  override getPersistentProps(): Record<string, unknown> {
+    const out = super.getPersistentProps()
+    // ⚠️ 精度：fontSizeScale 必须高精度持久化（round2 会把 0.01953125 舍成 0.02，
+    // 回灌后渲染字号 72×0.02=1.44 vs 原本 72×0.01953125=1.406，视觉上“放大了一点”）
+    out.fontSizeScale = Math.round(this._pxToWorld * 1e6) / 1e6
+    out.width = this.getSize()[0]
+    out.height = this.getSize()[1]
+    // ⚠️ 排查日志：getPersistentProps 是否被 collectSaveData 调用（拖动松手→提交链路）
+    logger.info(
+      `[UIText] getPersistentProps "${this.owner.name}": 输出 fontSizeScale=${out.fontSizeScale} width=${out.width} height=${out.height}`,
+    )
+    return out
   }
 
   override EndPlay(): void {

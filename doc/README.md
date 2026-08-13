@@ -28,6 +28,7 @@
 | [`editor/viewport_system.md`](./editor/viewport_system.md) | 视口与场景：Scene 视口 / Game 视口 / 场景初始化 |
 | [`editor/selection_transform_system.md`](./editor/selection_transform_system.md) | 选择与变换：SelectionManager / TransformGizmo / AnchorGizmo |
 | [`editor/blueprint_edit_system.md`](./editor/blueprint_edit_system.md) | 蓝图编辑：BlueprintEditorService / blueprintOps / UndoManager |
+| [`editor/property_edit_system.md`](./editor/property_edit_system.md) | 属性修改：Inspector 双通道编辑（EditableProperty / 蓝图资产 vs 运行时） |
 | [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
 
@@ -36,5 +37,6 @@
 | 文件 | 说明 |
 |------|------|
 | [`undo_redo_system.md`](./undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读） |
+| [`ui_anchor_system.md`](./ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑（涉及 UI 布局/锚点/拖拽时必读） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
 

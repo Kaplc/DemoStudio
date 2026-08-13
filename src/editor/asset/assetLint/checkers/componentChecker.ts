@@ -119,13 +119,13 @@ class UITextComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UITextComponent'
   schema: FieldSpec[] = [
     { field: 'properties.text', type: 'string', label: '文本内容' },
-    { field: 'properties.fontSize', type: 'number', min: 1, label: '字号' },
+    { field: 'properties.fontSize', type: 'integer', min: 1, label: '字号（整数）' },
     { field: 'properties.fontFamily', type: 'string', label: '字体' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.bold', type: 'boolean', label: '加粗' },
     { field: 'properties.italic', type: 'boolean', label: '斜体' },
     { field: 'properties.align', type: 'string', enum: ['left', 'center', 'right'], label: '对齐' },
-    { field: 'properties.lineHeight', type: 'number', min: 0, minExclusive: true, label: '行高' },
+    { field: 'properties.lineHeight', type: 'number', min: 0, minExclusive: true, label: '行高系数（fontSize 倍数）' },
     { field: 'properties.letterSpacing', type: 'number', min: 0, label: '字间距' },
     { field: 'properties.shadowColor', type: 'color', label: '阴影色' },
     { field: 'properties.shadowBlur', type: 'number', min: 0, label: '阴影模糊' },
@@ -133,6 +133,7 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.shadowOffsetY', type: 'number', label: '阴影 Y 偏移' },
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
+    { field: 'properties.fontSizeScale', type: 'number', min: 0, minExclusive: true, label: '字号世界系数（持久化派生值）' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]

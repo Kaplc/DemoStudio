@@ -70,4 +70,4 @@ UIScriptComponent → ScriptRegistry（脚本实例化）
 
 - UI widget 资产（`.widget.json`）由 `UIPreviewManager` 预览（内置 World + UIManager 实例化）
 - 游戏运行时 UI 节点选中/拖动使用 `AnchorGizmo`（锚点）与 `SelectionBoundsGizmo`（范围框）
-- 详见 [资产预览系统](../editor/asset_preview_system.md) 与 [选择与变换系统](../editor/selection_transform_system.md)
+- 详见 [资产预览系统](../editor/asset_preview_system.md)、[选择与变换系统](../editor/selection_transform_system.md) 与 [UI 锚点系统](../ui_anchor_system.md)
