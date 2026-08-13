@@ -8,7 +8,10 @@
  *     生成后改名 Troop_{id}、填充名称/属性文本与兵种色、绑定训练点击
  *     → GameInstance.trainTroop(id)；卡片挂到 TroopList，由 UILayoutComponent
  *     （grid 5 列）自动排布
- *  3. onUpdate 每帧刷新训练队列显示（QueueLabel）：队列项名称 + 剩余秒数 + 军队摘要
+ *  3. onUpdate 每帧刷新三行状态显示（各占一个独立文本控件）：
+ *     - QueueLabel（训练队列）：队列项名称 + 剩余秒数
+ *     - ArmyLabel（当前军队）：军队兵种摘要（如 野蛮人x3）
+ *     - CapacityLabel（军队容量）：已占用（含队列）/ 上限
  *
  * 由 FishBaseGameMode.openBarracksPanel 打开兵营 UI 时生成。
  */
@@ -46,10 +49,14 @@ function findChild(actor: Actor, name: string): Actor | null {
 export default class BarracksUiScript extends BehaviourScript {
   /** 队列文本组件（onStart 缓存，onUpdate 刷新） */
   private queueText: UITextComponent | null = null
+  /** 当前军队文本组件（onStart 缓存，onUpdate 刷新） */
+  private armyText: UITextComponent | null = null
+  /** 军队容量文本组件（onStart 缓存，onUpdate 刷新） */
+  private capacityText: UITextComponent | null = null
   /** 训练组件（GameInstance 跨阶段共享） */
   private inst: FishGameInstance | null = null
-  /** 上次显示的队列文本（仅变化时重设，避免每帧触发 troika 字形重排） */
-  private lastQueueText = ''
+  /** 上次显示的各文本（仅变化时重设，避免每帧触发 troika 字形重排） */
+  private lastText = { queue: '', army: '', capacity: '' }
 
   override onStart(): void {
     const mode = this.gameMode as FishBaseGameMode | null
@@ -129,16 +136,32 @@ export default class BarracksUiScript extends BehaviourScript {
       }
     }
 
-    // ─── 3. 训练队列显示（缓存文本组件，onUpdate 每帧刷新） ───
+    // ─── 3. 训练队列/军队/容量显示（三个独立文本控件，各占一行，onUpdate 每帧刷新） ───
     const queueActor = this.findInChildren('QueueLabel')
     const queueText = queueActor?.getComponent(UITextComponent)
     if (queueText) {
       this.queueText = queueText
-      this.refreshQueue()
       logger.info('[BarracksUiScript] 训练队列文本已绑定')
     } else {
       logger.warn('[BarracksUiScript] 未找到队列文本节点 "QueueLabel"，跳过队列显示')
     }
+    const armyActor = this.findInChildren('ArmyLabel')
+    const armyText = armyActor?.getComponent(UITextComponent)
+    if (armyText) {
+      this.armyText = armyText
+      logger.info('[BarracksUiScript] 当前军队文本已绑定')
+    } else {
+      logger.warn('[BarracksUiScript] 未找到军队文本节点 "ArmyLabel"，跳过军队显示')
+    }
+    const capacityActor = this.findInChildren('CapacityLabel')
+    const capacityText = capacityActor?.getComponent(UITextComponent)
+    if (capacityText) {
+      this.capacityText = capacityText
+      logger.info('[BarracksUiScript] 军队容量文本已绑定')
+    } else {
+      logger.warn('[BarracksUiScript] 未找到容量文本节点 "CapacityLabel"，跳过容量显示')
+    }
+    this.refreshQueue()
   }
 
   /** 每帧刷新训练队列显示（名称 + 剩余秒数 + 军队摘要） */
@@ -146,30 +169,38 @@ export default class BarracksUiScript extends BehaviourScript {
     this.refreshQueue()
   }
 
-  /** 刷新队列文本：'训练队列: 野蛮人 8s · 巨人 45s｜军队: 野蛮人x1'（空闲显示"空闲"） */
+  /**
+   * 刷新三行状态文本：
+   *  - 训练队列：'训练队列: 野蛮人 8s · 巨人 45s'（空闲显示"空闲"）
+   *  - 当前军队：'当前军队: 野蛮人x1 巨人x2'（无兵显示"无"）
+   *  - 军队容量：'军队容量: 12/40'
+   */
   private refreshQueue(): void {
-    if (!this.queueText || !this.inst) return
+    if (!this.inst) return
     const training = this.inst.training
+
+    // 训练队列行
     const queue = training.getQueue()
-    let text: string
-    if (queue.length === 0) {
-      const army = training.getArmySummary()
-      text = army !== '无'
-        ? `训练队列: 空闲｜军队: ${army}（${training.getArmyHousing()}/${training.maxHousing}）`
-        : `训练队列: 空闲（军队容量 ${training.maxHousing}）`
-    } else {
-      // 队列项：名称 + 剩余秒数（向上取整）
-      const parts = queue.map((t) => `${t.name} ${Math.ceil(t.remaining)}s`)
-      const army = training.getArmySummary()
-      text = army !== '无'
-        ? `训练队列: ${parts.join(' · ')}｜军队: ${army}`
-        : `训练队列: ${parts.join(' · ')}`
-    }
-    // 仅变化时重设（UIText setter 会触发 troika sync，避免每帧无谓重排）
-    if (text !== this.lastQueueText) {
-      this.lastQueueText = text
-      this.queueText.text = text
-      logger.info(`[BarracksUiScript] 队列显示刷新: ${text}`)
-    }
+    const queueTextValue = queue.length === 0
+      ? '训练队列: 空闲'
+      : `训练队列: ${queue.map((t) => `${t.name} ${Math.ceil(t.remaining)}s`).join(' · ')}`
+    this.applyText(this.queueText, 'queue', queueTextValue)
+
+    // 当前军队行
+    const army = training.getArmySummary()
+    this.applyText(this.armyText, 'army', `当前军队: ${army}`)
+
+    // 军队容量行（已占用 + 队列中占用 / 上限）
+    const used = training.getArmyHousing() + queue.reduce((s, t) => s + t.housing, 0)
+    this.applyText(this.capacityText, 'capacity', `军队容量: ${used}/${training.maxHousing}`)
+  }
+
+  /** 文本仅变化时重设（UIText setter 会触发 troika sync，避免每帧无谓重排） */
+  private applyText(comp: UITextComponent | null, key: 'queue' | 'army' | 'capacity', value: string): void {
+    if (!comp || this.lastText[key] === value) return
+    this.lastText[key] = value
+    comp.text = value
+    // 高频路径（训练倒计时每秒变化触发 queue 刷新）：降为 debug，关键流程在绑定日志
+    logger.debug(`[BarracksUiScript] 状态显示刷新[${key}]: ${value}`)
   }
 }

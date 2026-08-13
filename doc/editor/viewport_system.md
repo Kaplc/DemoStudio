@@ -40,15 +40,48 @@
 | `SceneSetup` | 编辑器场景初始化（共享 Scene 创建、默认内容装配） |
 | `SceneDefaults` | 默认场景数据（初始相机、灯光、网格辅助等） |
 
-## 3. 输入路由链
+## 3. 使用方法
 
-```
-Scene 视口：WASD 键 → handleSceneKeyDown → PreviewSceneManager（漫游）
-Game 视口：DOM 事件 → handleGameKeyDown/Up → GameInstance.inputSys
-           → PhySys.raycastClick / PlayerController.OnPointerDownScreen
+### 3.1 入口 API
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 场景初始化 | `setupScene(containerEl, onReady?): SceneSetupResult` | 返回 `{ sharedScene, sceneMgr, gameMgr（启动前恒 null）, sceneModeRef, cleanup }` |
+| 视口创建 | `createSceneViewport(containerEl, sharedScene?)` | 创建后自动 `start()` |
+| 相机操作 | `PreviewSceneManager.setCameraOrbit(az, el, dist)` / `focusOn(target, dist?)` / `setCameraMode(mode)` / `setFov(fov)` | 编辑相机控制 |
+| 视口控制 | `setInputEnabled(v)` / `setTargetAspect(ratio)` / `resize()` / `setWASDControl(enabled)` | 输入冻结/比例/尺寸 |
+| 坐标转换 | `clientToWorld(clientX, clientY, out?): THREE.Vector3` | 屏幕→世界（含 letterbox 缩放） |
+| 默认内容 | `addDefaultContent(scene): GenericActor` | 灯光（Ambient/Hemisphere/Key/Fill）+ GridHelper(40,40) |
+
+### 3.2 使用示例
+
+```ts
+// Viewport.tsx
+const { sharedScene, sceneMgr, gameMgr, cleanup } = setupScene(sceneContainerRef.current, onReady)
+// cleanup 时先 setSharedScene(null) / setSceneMgr(null) 再 cleanup()
 ```
 
-## 4. 渲染结构
+### 3.3 触发时机与使用前提
+
+- **键盘监听**：`viewportFocused` 为 true 时注册（window capture 阶段）；**鼠标监听仅 game 页签 + running 时**挂到 game canvas
+- WASD 漫游 W/S 沿视线、A/D 水平侧移、Q/E 沿世界 Y；fly 模式左键旋转俯仰角钳制 `±Math.PI/2.2`
+- WebGL contextlost：`preventDefault` 阻止销毁 + `stop()` + warn；restored：`restoreAllTextures()`（遍历场景标记 needsUpdate）→ `start()`
+
+## 4. 工作流程
+
+### 4.1 输入路由链
+
+```mermaid
+flowchart LR
+    A[Scene 视口 WASD 键] --> B[handleSceneKeyDown]
+    B --> C[PreviewSceneManager 漫游]
+
+    D[Game 视口 DOM 事件] --> E[handleGameKeyDown/Up<br/>或鼠标路由]
+    E --> F[GameInstance.inputSys]
+    F --> G[PhySys.raycastClick / PlayerController]
+```
+
+### 4.2 渲染结构
 
 ```
 编辑器渲染编排（SceneRenderHost）：
@@ -57,7 +90,26 @@ Game 视口：DOM 事件 → handleGameKeyDown/Up → GameInstance.inputSys
 └── overlay 场景（gizmo / 选中包围盒 / 把手 / 标签，永远最顶层）
 ```
 
-## 5. 依赖关系
+### 4.3 设计要点
+
+- `resize()` 容器宽高为 0 直接 return（不报错）
+- `dispose()` 必须先 `forceContextLoss()` 再 `renderer.dispose()`，否则 WebGL 上下文泄漏
+- `clientToWorld` 用 `getBoundingClientRect`（含 letterbox 缩放），投影到 z=0 平面
+- `setInputEnabled(false)` 冻结 OrbitControls，但 mousedown/up 状态始终记录
+
+## 5. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `handleGameKeyDown` 时 game 为 null | 仍 preventDefault + 返回 true（消费） | 引擎内置 |
+| 鼠标事件 game 为 null | 静默 return | 引擎内置 |
+| `clientToWorld` 无 gameMgr | 返回传入的占位向量原样（无 null 防护） | 调用方传有效 _ptrWorld |
+| 容器宽高 0 | `resize()` 直接 return | 引擎内置 |
+| WebGL context lost | preventDefault + stop + warn；restored 恢复纹理重启动 | 引擎内置（见 §3.3） |
+| 非 scene/game 页签（bp:*） | 键盘返回 false 不消费（InputRouter） | 引擎内置 |
+| 视口比例切换 | `setTargetAspect` 同步相机 aspect | 编辑器设置入口 |
+
+## 6. 依赖关系
 
 ```
 SceneViewport → PreviewSceneManager / OrbitControls / Compositor2D / LightComponent

@@ -349,7 +349,7 @@
                 "anchor": "center",
                 "anchorOffset": [
                   0,
-                  -1.5
+                  -1.1
                 ],
                 "worldWidth": 5,
                 "worldHeight": 0.26
@@ -360,7 +360,8 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 2
+                "zOrder": 2,
+                "active": true
               }
             },
             {
@@ -375,7 +376,134 @@
                 "height": 48,
                 "zOrder": 3,
                 "name": "QueueText",
-                "italic": false
+                "italic": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.005417
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "ArmyLabel",
+          "baseClass": "Actor",
+          "id": 11008,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "center",
+                "anchorOffset": [
+                  0,
+                  -1.3
+                ],
+                "worldWidth": 5,
+                "worldHeight": 0.26
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 2,
+                "active": true
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "当前军队: 无",
+                "fontSize": 17,
+                "color": "#a5d6a7",
+                "bold": false,
+                "align": "center",
+                "width": 900,
+                "height": 48,
+                "zOrder": 3,
+                "name": "ArmyText",
+                "italic": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.005417
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "CapacityLabel",
+          "baseClass": "Actor",
+          "id": 11009,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "center",
+                "anchorOffset": [
+                  0,
+                  -1.6
+                ],
+                "worldWidth": 5,
+                "worldHeight": 0.26
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 2,
+                "active": true
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "军队容量: 0/40",
+                "fontSize": 17,
+                "color": "#90caf9",
+                "bold": false,
+                "align": "center",
+                "width": 900,
+                "height": 48,
+                "zOrder": 3,
+                "name": "CapacityText",
+                "italic": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.005417
               }
             }
           ],

@@ -77,6 +77,26 @@ const ANCHOR_FACTORS: Record<AnchorPreset, [number, number]> = {
 
 ## 3. 引擎实现（UITransformComponent）
 
+### 3.0 使用方法
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 布局计算 | `applyAnchor(): void` | 无锚点/找不到父容器 → 跳过；stretch → 尺寸=容器 + position(0,0,z)；单点锚 → 公式计算 |
+| 容器查找 | `findContainerSize(): [number, number] \| null` | 向上找父容器：显式 uitransform 尺寸优先 → 兜底真实画布 |
+| 位置同步 | `syncAnchorOffset(x, y): boolean` | position ↔ 锚点状态互同步；返回 false（无锚点/stretch/无容器）时调用方应直接 `setPosition` |
+| 自动补挂 | `ensureTransformForActor(actor)` | UI Actor 自动挂 UITransformComponent（旧 TransformComponent 自动替换） |
+
+```ts
+// 引擎/编辑器通用：改 offset 后必须重算布局
+comp.anchorOffset = [0.5, -0.2]   // setter 内部触发 applyAnchor 即时重算
+```
+
+**触发时机**：
+
+- `BeginPlay()`：UI 树构建完成（所有 attachTo 就绪）后应用一次——构造期树未建好，`findContainerSize` 会找不到父容器，属预期噪音
+- `anchor` / `anchorOffset` setter：属性变更即时重算（Inspector 修改、编辑器拖动均走此路径）
+- 父容器尺寸变化（视口比例切换）：容器组件自身重算尺寸后子元素重新 applyAnchor 时自动跟随
+
 ### 3.1 布局算法 applyAnchor()
 
 **单点锚**：元素边缘贴合容器内边，中心 = 父中心 + 方向因子 ×（父半尺寸 − 自身半尺寸），再叠加 offset：
@@ -219,7 +239,22 @@ widget 资产预览持有 JSON 可变深拷贝（`_jsonTree`）+ Actor → JSON 
 
 `getPersistentProps()` 持久化原始值：`anchor` 输出 `null`（「（无）」仅是 Inspector 显示占位，不落盘）；`position/rotation/scale` 由 collectSaveData 回写。
 
-## 5. 资产检查（assetLint）
+## 5. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `anchor: null`（无锚点） | `applyAnchor` 跳过，沿用 position | 普通 3D 变换语义 |
+| `findContainerSize` 找不到父画布 | 跳过布局（BeginPlay 构造期属预期噪音） | 引擎内置防御 |
+| stretch 元素 | offset 不参与定位（恒填满容器 + position(0,0)） | 拖动用 position 直接驱动 |
+| 锚点节点改 position | 下次 applyAnchor 用旧 offset 重算 → **控件瞬移** | 必须走 `syncAnchorOffset`（或 Inspector 改 anchorOffset） |
+| Inspector 输入框改锚点节点 position | 被 `applyAnchor()` 覆盖（编辑无效） | **已知遗留**（见 property_edit §8） |
+| 直接改 position 不同步 offset | 节点拖动/布局刷新时瞬移 | 编辑器拖动统一走 syncAnchorOffset |
+| 隐藏视口（clientHeight=0） | `worldPerPx` 非有限值 → gizmo 防御跳过 | 引擎内置 |
+| 无 UITransformComponent 的 UI 节点 | gizmo 隐藏所有图标/退化几何包围盒 | 引擎内置（ensureTransformForActor 兜底补挂） |
+| gizmo 挂 overlay 根下 | position 是世界语义，读 `root.position`（局部）在子节点嵌套时画错位 | **必须 `getWorldPosition`** |
+| `worldWidth/worldHeight <= 0` | 范围框退化用几何包围盒 | 引擎内置 |
+
+## 6. 资产检查（assetLint）
 
 `comp:UITransformComponent` 检查器（`src/editor/asset/assetLint/checkers/componentChecker.ts`）：
 
@@ -227,7 +262,7 @@ widget 资产预览持有 JSON 可变深拷贝（`_jsonTree`）+ Actor → JSON 
 - `anchor`：枚举校验（11 个合法值，`null` 允许）
 - `anchorOffset`：vec2
 
-## 6. 相关文件
+## 7. 相关文件
 
 | 文件 | 职责 |
 |---|---|

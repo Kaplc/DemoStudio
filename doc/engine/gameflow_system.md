@@ -2,7 +2,7 @@
 
 > UE 风格游戏流程：`Game → GameInstance → World → GameMode/GameState`，驱动 Actor 生命周期与 Tick 循环。
 > 代码位置：`src/engine/gameflow/`
-> 相关文档：[系统总览](../system_overview.md)
+> 相关文档：[系统总览](../system_overview.md) / [实体体系](./entity_system.md)
 
 ## 1. 概述
 
@@ -30,36 +30,91 @@
 | `OObjectFactory` | OObject 族对象工厂 |
 | `ThreeObjectFactory` | Three 对象族工厂（生成 Mesh/Sprite 等 Three 对象） |
 
-## 3. 关键流程
+## 3. 使用方法
 
-### 3.1 游戏启动
+### 3.1 入口 API
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 创建实例 | `Game.createInstance(projectName, shared?, container?)` | 未注册工程 → warn 返回 null；重复创建先 shutdown 旧实例 |
+| 启动 | `Game.launch(): boolean` | 无实例 → 返回 false；启动 GameInstance + 游戏渲染器 + Tick 挂载 + AIModule 上下文 |
+| 停止 | `Game.shutdown()` | 幂等（`_shutdown` 标记）；销毁实例、回收单例、恢复相机 |
+| 切换场景 | `World.SwitchToScene(sceneAsset \| sceneName, extraSetup?)` | 按资产或场景名切换 |
+| 生成 Actor | `World.SpawnActorFromBlueprint(path, overrides?): Actor \| null` | 蓝图实例化，失败返回 null（内部 catch resolve 抛错） |
+| 加载场景 | `World.loadSceneAsActors(sceneAsset): number` | 展开 SceneGroup 并实例化 ref 节点，返回生成数 |
+
+### 3.2 使用示例
+
+```ts
+// 项目注册（register.ts / 项目入口）
+GameFactoryRegistry.registerGame('fish', (shared, container) => new FishGameInstance(shared, container))
+
+// 启动（Viewport / 编辑器层）
+const game = new Game(...)
+game.createInstance('fish', sharedScene, renderContainer)
+game.launch()
+
+// 场景切换（GameMode 内）
+world.SwitchToScene('FishMenu')   // 按场景名
+world.SwitchToScene(sceneAsset)   // 或按资产对象
+```
+
+### 3.3 触发时机与使用前提
+
+- `createInstance` 必须先于 `launch()`；`launch` 前需 `setRenderers(sceneMgr)` 关联 Scene 视口（否则无 rAF Tick 源）
+- 输入统一经 `GameInstance.inputSys` 路由（Viewport 不直接调用 PlayerController）
+- 场景资产须先经 `AssetRegistry.registerAll` 注册，`SwitchToScene` 才能按名找到
+
+## 4. 工作流程
+
+### 4.1 游戏启动
 
 ```mermaid
 flowchart LR
-    A[new Game sceneMgr] --> B[createInstance projectName]
-    B --> C[launch 注册 GameSingleton<br/>PhySys / AIModule]
-    C --> D[World 创建<br/>+ SceneRendererComponent]
-    D --> E[GameMode 实例化<br/>+ HUD 创建 UIManager]
-    E --> F[update dt 每帧 Tick]
+    A[new Game sceneMgr] --> B[createInstance projectName<br/>未注册工厂→null]
+    B --> C[launch: beginGameLog<br/>+ 对象基线快照]
+    C --> D[ensureGameMgr 创建<br/>SceneRendererComponent]
+    D --> E[inst.start + 启用 Game 渲染<br/>attachUIScene + PhySys.setupUI]
+    E --> F[Tick 挂到 Scene 视口 rAF<br/>+ 相机委托注册]
+    F --> G[AIModule.attachContext<br/>+ GameSingleton 收集]
+    G --> H[update dt 每帧 Tick]
 ```
 
-- `GameSingleton`（`PhySys` / `AIModule` 等）由 `Game.launch` 注册、`Game.shutdown` 统一回收，生命周期绑定 Game
+- `GameSingleton`（`PhySys` / `AIModule` 等）由 `Game.launch` 收集、`Game.shutdown` 统一 `reset()` 回收，生命周期绑定 Game
 - 输入统一经 `GameInstance.inputSys` 路由（Viewport 不直接调用 PlayerController）
 
-### 3.2 场景切换（World.SwitchScene）
+### 4.2 场景切换（World.SwitchScene）
 
 ```
 销毁旧场景 Actor → ui.destroyAll() → 若 newMode.HUDClass 则 ui.createHUD()
 → 加载新 SceneAsset（SceneLoader） → 实例化 blueprint/ref 节点
 ```
 
-### 3.3 游戏停止（Game.shutdown）
+### 4.3 游戏停止（Game.shutdown）
 
-```
-GameInstance.teardown()（EndPlay 终态化）→ GameSingleton.reset()（清相机/注册表/上下文）→ GameInstance.setCurrent(null)
+```mermaid
+flowchart LR
+    A[shutdown 幂等标记] --> B[removeTick 注销]
+    B --> C[inst.destroy + teardown<br/>+ markDestroyed]
+    C --> D[GameInstance.setCurrent null]
+    D --> E[gameMgr 解除相机委托<br/>+ PhySys.setupUI null]
+    E --> F[gizmos 清残留 + 单例 reset]
 ```
 
-## 4. 依赖关系
+## 5. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `createInstance` 工程未注册 | warn + 返回 null，不创建 | 先确认 `GameFactoryRegistry.registerGame` 已调用 |
+| `launch()` 无实例 | `logger.error` + 返回 false | 先 createInstance |
+| `inst.start()` 返回 false | 启动失败，返回 false | 检查 GameInstance.start 实现 |
+| 重复 `createInstance` | 自动 shutdown 旧实例再新建 | 引擎内置，无需手动清理 |
+| 重复 `shutdown` | 幂等，第二次直接返回 | 引擎内置 |
+| `SpawnActorFromBlueprint` 蓝图未注册/ref 循环 | `BlueprintRegistry.resolve` 抛错被 catch → 返回 null + `logger.error` | 检查蓝图路径与引用 |
+| 游戏实例无 world 字段 | `launch` 时 warn，AI 上下文未附加 | GameInstance 需挂载 World |
+| 非 Electron 环境 | `ensureGameRenderer` 无容器时为 null，游戏仍可启动（无渲染） | 编辑器预览走 PreviewSceneManager |
+
+## 6. 依赖关系
 
 ```
 Game → GameInstance → World → ActorManagerComponent / UIManager / SceneRendererComponent
@@ -67,9 +122,9 @@ World → GameModeRegistry / AssetRegistry / ObjectRegistry / SceneLoader / Thre
 GameInstance → InputSys / PlayerController
 ```
 
-## 5. 项目接入
+## 7. 项目接入
 
-项目在 `register.ts` / `register.ts` 注册 `GameInstanceFactory` 与 `GameModeRegistry`：
+项目在 `register.ts` 注册 `GameInstanceFactory` 与 `GameModeRegistry`：
 
 - `GameFactoryRegistry.registerGame(projectName, factory)` — 注册游戏工厂
 - `GameModeRegistry.register(modeName, ctor)` — 注册游戏模式

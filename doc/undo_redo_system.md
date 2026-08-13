@@ -41,9 +41,34 @@ depth(key)               // 调试用栈深
 
 快照均为 `JSON.parse(JSON.stringify(v))` 深拷贝，栈间不共享引用，杜绝脏写。
 
-## 3. 核心流程
+## 3. 使用方法
 
-### 3.1 编辑（apply）— 一条编辑如何进入撤销栈
+### 3.1 触发入口
+
+| 入口 | 说明 |
+|---|---|
+| 快捷键 | Ctrl+Z 撤销 / Ctrl+Y（或 Ctrl+Shift+Z）重做（`shortcut-undo` / `shortcut-redo` 事件，**仅激活页签响应** `isTabActive` 守卫） |
+| UI 按钮 | 撤销/重做按钮（`historyVersion` 驱动重查 `canUndo/canRedo`；`historyBusy` 防连点） |
+| MCP | MCP undo/redo 命令（外部 AI 通道） |
+| 程序 | `BlueprintEditorService.undo(assetPath)` / `redo(assetPath)` |
+
+### 3.2 使用示例
+
+```ts
+// UI 层（BlueprintEditor.tsx）
+BlueprintEditorService.undo(assetPath)   // 无历史返回 { ok:false, error:'没有可撤销的历史' }
+BlueprintEditorService.redo(assetPath)
+const { undo, redo } = UndoManager.depth(assetPath)  // 调试栈深
+```
+
+### 3.3 使用前提
+
+- 撤销/重做前资产须有工作副本（`read`/`apply` 建立）；无历史时返回错误而非抛异常
+- 撤销/重做**不写盘**，只改内存（dirty 星标保留）
+
+## 4. 核心流程
+
+### 4.1 编辑（apply）— 一条编辑如何进入撤销栈
 
 ```mermaid
 flowchart TD
@@ -75,7 +100,7 @@ flowchart TD
 - **引用环回滚**：`BlueprintRegistry.resolve()` 探测到循环引用时，注册表与工作副本都回滚到旧资产，**不产生撤销点**（这次失败编辑不污染历史）。
 - **MCP 差异**：外部入口（`dispatch`）走 `persist=true`，编辑立即落盘；UI 编辑 `persist=false` 只进内存。
 
-### 3.2 撤销 / 重做
+### 4.2 撤销 / 重做
 
 ```mermaid
 flowchart TD
@@ -93,7 +118,7 @@ flowchart TD
 - 撤销/重做**不写盘**，只改内存（dirty 星标保留）。
 - 页签标题的 `*`（`dirtyBlueprints`）由 `markBlueprintDirty/Clean` 维护：编辑置脏、保存/关闭清脏。
 
-### 3.3 Gizmo 拖拽（预览态 → 撤销点）
+### 4.3 Gizmo 拖拽（预览态 → 撤销点）
 
 拖拽过程中只改预览内存态（**不产生撤销点**）；**松手时** `commitPreviewTransform` 把本次拖拽目标节点变换组件的最终属性，走 `apply` 链路（`setComponentProps` / `setChildComponentProps`）统一提交：
 
@@ -113,7 +138,7 @@ flowchart TD
 
 首次拖拽（无工作副本）会先读盘建立副本，此时撤销快照 = 真实磁盘状态。
 
-### 3.4 保存 / 关闭 / 切工程
+### 4.4 保存 / 关闭 / 切工程
 
 | 场景 | 行为 |
 |---|---|
@@ -123,7 +148,7 @@ flowchart TD
 
 > ⚠️ `closeAsset` 是**静默丢弃**：页签带 `*` 未保存标记时点关闭也不会弹确认，直接回到磁盘状态。
 
-## 4. 数据流全景
+## 5. 数据流全景
 
 ```mermaid
 flowchart LR
@@ -154,21 +179,27 @@ flowchart LR
     WC -->|bumpBlueprintEdit nonce| BP
 ```
 
-## 5. UI 联动细节（BlueprintEditor.tsx）
+## 6. UI 联动细节（BlueprintEditor.tsx）
 
 - **快捷键**：`window` 上监听 `shortcut-undo` / `shortcut-redo` 事件（由全局键盘系统转发），**仅激活页签**响应（`isTabActive` 守卫）。
 - **撤销/重做按钮**：`historyVersion` 状态驱动重查 `UndoManager.canUndo/canRedo`；`historyBusy` 防连点。
 - **选中/相机恢复**：撤销/重做会触发预览重建（`bumpBlueprintEdit`），重建前用 `pendingSelectRef` 记忆选中 Actor，重建后按名称恢复选中与相机位姿，不跳回总览。
 
-## 6. 调试手段
+## 7. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| 撤销/重做无历史 | 返回 `{ ok:false, error:'没有可撤销/重做的历史' }`，不抛异常 | UI 用 canUndo/canRedo 禁用按钮 |
+| 栈超 50 条 | 丢弃最旧快照（MAX_STACK=50） | 引擎内置 |
+| 快照体积 | 每次编辑存整份资产深拷贝（最多 50 份），资产较大时内存线性增长 | 当前可接受；后续可考虑增量快照 |
+| 撤销点粒度 | `apply` 一次一个点；Gizmo 拖拽一次松手一个点（拖拽过程不产生点） | 引擎内置 |
+| MCP/脚本编辑 | 立即落盘并产生撤销点 | 引擎内置 |
+| `close` 清缓存 | 不写盘；未保存修改**静默丢弃**（无确认弹窗） | 已知语义 |
+| 注册表一致性 | 任何修改副本的路径（apply/undo/redo/updateFromPreview）都必须同步 `loadFromJson`，否则游戏运行时 spawn 读到旧数据 | 引擎内置同步 |
+| 撤销后新编辑 | 清空 redo 栈（标准语义） | 引擎内置 |
+
+## 8. 调试手段
 
 - `UndoManager.depth(key)` 返回 `{ undo, redo }` 栈深，日志中每个 `apply/undo/redo` 都打印 `undo 栈 X→Y`。
 - 服务层日志前缀 `[BlueprintEdit]`：`apply 开始/完成`、`undo`、`redo`、`关闭资产，缓存已清理`、`写盘失败，回滚` 等。
 - 栈深异常（如撤销后新编辑 redo 未清空）优先检查：`push` 是否在 `runOp` 成功后调用、redo 栈是否被清。
-
-## 7. 注意事项 / 已知语义
-
-1. **快照体积**：每次编辑都存整份资产深拷贝（最多 50 份），资产较大时内存开销线性增长——当前可接受，后续可考虑增量快照。
-2. **撤销点粒度**：`apply` 一次一个点；Gizmo 拖拽一次松手一个点（拖拽过程不产生点）。
-3. **MCP/脚本编辑**立即落盘并产生撤销点；`close` 操作清缓存但不写盘。
-4. **注册表一致性**：任何修改副本的路径（apply/undo/redo/updateFromPreview）都必须同步 `loadFromJson` 注册表，否则游戏运行时 spawn 会读到旧数据。

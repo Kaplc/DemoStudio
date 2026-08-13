@@ -29,7 +29,6 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
 import type { Actor } from '../entity/Actor'
-import { logger } from '../Logger'
 
 export interface UITextComponentOptions {
   text?: string
@@ -166,22 +165,11 @@ export class UITextComponent extends CanvasUIComponent {
     //  - options.fontSizeScale 显式指定（蓝图回灌）→ 直接用，字号与控件尺寸彻底解耦
     //  - 否则按当前世界高 / canvas 高推导（程序化构造场景）
     // 详细规则见 _pxToWorld 字段注释。
-    // ⚠️ 排查日志：记录系数来源——若重建后字号变化，比对两次构造日志确认 _pxToWorld 是否漂移
-    const [dbgWw, dbgWh] = this.getWorldSize()
     if (options.fontSizeScale != null) {
       this._pxToWorld = options.fontSizeScale
-      logger.info(
-        `[UIText] 构造 "${owner.name}": _pxToWorld=${this._pxToWorld.toFixed(5)} ← fontSizeScale（持久化回灌） ` +
-        `fontSize=${this._fontSize} canvasSize=${width}x${height} worldSize=${dbgWw.toFixed(2)}x${dbgWh.toFixed(2)} ` +
-        `→ 渲染字号=${(this._fontSize * this._pxToWorld).toFixed(4)}`,
-      )
     } else {
+      const [, dbgWh] = this.getWorldSize()
       this._pxToWorld = dbgWh / height
-      logger.info(
-        `[UIText] 构造 "${owner.name}": _pxToWorld=${this._pxToWorld.toFixed(5)} ← worldHeight(${dbgWh.toFixed(3)})/canvasHeight(${height})（自动推导） ` +
-        `fontSize=${this._fontSize} canvasSize=${width}x${height} worldSize=${dbgWw.toFixed(2)}x${dbgWh.toFixed(2)} ` +
-        `→ 渲染字号=${(this._fontSize * this._pxToWorld).toFixed(4)}`,
-      )
     }
 
     this.initTroika()
@@ -225,13 +213,6 @@ export class UITextComponent extends CanvasUIComponent {
     // 世界字号只由 fontSize 属性决定（× 构造时固化的换算系数），不随控件尺寸缩放
     mesh.fontSize = renderFontSize
     mesh.maxWidth = ww
-    // ⚠️ 排查日志：applyAll 实际写入 troika mesh 的字号（拖动前后对比此值）
-    logger.info(
-      `[UIText] applyAll "${this.owner.name}": mesh.fontSize=${renderFontSize.toFixed(4)} ` +
-      `(fontSize=${this._fontSize} × _pxToWorld=${this._pxToWorld.toFixed(5)}) ` +
-      `maxWidth=${ww.toFixed(2)} lineHeightRatio=${(this._lineHeight / 100).toFixed(2)} ` +
-      `lineHeightWorld=${this.toWorldUnits(this._fontSize * (this._lineHeight / 100)).toFixed(4)}`,
-    )
     // textAlign 控制文本在 maxWidth 尺寸框内的对齐；anchorX 固定 center——
     // mesh 原点 = 元素中心（UITransform 锚点定位基准），若把 anchorX 也设成 align，
     // 左对齐时文本左边缘会被钉在元素中心，开头就不在左边缘了
@@ -270,10 +251,7 @@ export class UITextComponent extends CanvasUIComponent {
   override onWorldSizeChange(): void {
     if (this.mesh) {
       const [ww] = this.getWorldSize()
-      // ⚠️ 排查日志：onWorldSizeChange 触发时机（验证字号 tributary 路径：仅 maxWidth 重算，不动 _pxToWorld）
-      logger.info(
-        `[UIText] onWorldSizeChange "${this.owner.name}": maxWidth=${ww.toFixed(2)}（字号不动：_pxToWorld=${this._pxToWorld.toFixed(5)} 仍为构造值）`,
-      )
+      // 尺寸变化只重算换行宽度：字号由 fontSize 属性决定，不随控件尺寸缩放
       this.mesh.maxWidth = ww
       this.mesh.sync()
     }
@@ -406,10 +384,6 @@ export class UITextComponent extends CanvasUIComponent {
     out.fontSizeScale = Math.round(this._pxToWorld * 1e6) / 1e6
     out.width = this.getSize()[0]
     out.height = this.getSize()[1]
-    // ⚠️ 排查日志：getPersistentProps 是否被 collectSaveData 调用（拖动松手→提交链路）
-    logger.info(
-      `[UIText] getPersistentProps "${this.owner.name}": 输出 fontSizeScale=${out.fontSizeScale} width=${out.width} height=${out.height}`,
-    )
     return out
   }
 

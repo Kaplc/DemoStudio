@@ -23,7 +23,15 @@
 | `SceneAsset` | 场景资产结构：`SceneNode` / `SpriteNode` / `MaterialProps` / `ColorHex` / `SkyboxConfig` / `BlueprintNode` / `RefNode` / `ActorNode` |
 | `SceneLoader` | 声明式场景资产 → `SceneGroup`（group + name + mode + skybox + blueprintNodes + refNodes + actorNodes + dispose） |
 
-### 资产注册流程
+### 使用方法
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 批量注册 | `AssetRegistry.registerAll({ scenes?, blueprintModules?, scriptModules? })` | 项目 asset/index.ts 调用；场景缺 name → warn 跳过 |
+| 场景查询 | `getScene(name)` / `getSceneByMode(mode)` / `getSceneNames()` / `hasScene(name)` | 未注册返回 null；getSceneByMode 返回第一个匹配 |
+| 蓝图注册 | `BlueprintRegistry.register(path, asset)` / `loadFromJson(path, json)` | 改资产后同步注册表（失效缓存） |
+| 蓝图解析 | `BlueprintRegistry.resolve(path): ResolvedBlueprint` | 递归展开 ref；未注册抛 Error；检测循环引用 |
+| 场景加载 | `SceneLoader.loadScene(asset): SceneGroup` | 展开为 THREE.Group + 节点分类 |
 
 ```ts
 // 项目 asset/index.ts
@@ -67,33 +75,66 @@ SceneAsset（JSON）→ loadScene() 展开为 THREE.Group
 | 单例配置 | 一份整体配置对象（`*.config.json`），替换硬编码 DEFAULT_CONFIG |
 | 数据表 | UE 风格键值行表（`*.table.json`），`DataTable` 封装 |
 
-同步/异步解法：
+使用方法：
 
+```ts
+// 注册默认值（启动期同步）
+ConfigRegistry.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)
+// 异步加载覆盖（fire-and-forget，竞态下最多首帧用默认值）
+void ConfigRegistry.loadConfig('fish.cannon', 'cannon.config.json')
+// 同步读取：缓存 → 默认值 → 抛错（未注册=编程错误）
+const cfg = ConfigRegistry.getConfig<SchoolConfig>('fish.school')
+// 数据表读取（未加载返回 undefined，消费方 if 守卫）
+const table = ConfigRegistry.getTable<FishArchetype>('eatfish.fish') ?? null
 ```
-registerDefaults（启动期同步注册默认值）
-loadConfig（异步加载并覆盖缓存；剔除 `_` 前缀键；transform 钩子归一化如 "#rrggbb" → 数字）
-getConfig（同步返回：缓存 → 默认值 → 抛错（未注册=编程错误））
-→ loadConfig 可 fire-and-forget，竞态下最多首帧用默认值
-```
+
+关键语义：
+
+- `loadConfig` 读取失败**不缓存**，`getConfig` 回退默认值；`loadTable` 失败返回 null
+- 顶层 `_` 前缀键剔除（`stripMeta`，支持 `_comment`）；override 键**整体替换**（含数组，不做元素级合并）
+- **无 electronAPI 时** `readJson` 返回 null（warn）→ 全部走默认值，不抛异常
+- `registerGlob(projectName, ...)` name 规则：`{projectName}.{文件名}`；transform 须先注册（加载异步）
 
 ### 存档系统（SaveSystem）
 
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 保存 | `save({ game, gameVersion?, slot, payload, score, phase?, label? })` | 补全 meta（SAVE_FORMAT_VERSION）后落盘 |
+| 读取 | `load(game, slot)` | 校验 `meta.game` 防跨游戏误读 |
+| 列表/删除 | `list(game)` / `delete(game, slot)` | — |
+
 - 通过 Electron IPC 读写 `userData/saves/<game>/<slot>.json`
-- `SaveSystem.save({ game, slot, payload, score, phase, label })` 补全 meta（`SAVE_FORMAT_VERSION`）后落盘
-- `load` 校验 `meta.game` 防止跨游戏误读
-- 非 Electron 环境安全降级（返回 `success: false` 而非抛异常）
+- 非 Electron 环境安全降级（返回 `{ success: false, error: '存档 IPC 不可用（非 Electron 环境）' }`，list 返回 `[]`）
+- `load` 校验 `meta.game`：不匹配 → `{ success: false, error: '存档属于 X，与当前游戏 Y 不匹配' }`
+- 版本迁移 `migrate()` **未实现**（预留注释）
 - 配合 `SaveSlotComponent`（GameInstance 内 KV 键值槽）与 `ISaveData`（`SaveData` / `SaveMeta` / `SaveSlotInfo`）
 
 ### 其他工具
 
 | 类 | 说明 |
 |---|---|
-| `ObjectPool` | 通用对象池 |
+| `ObjectPool` | 通用对象池：`acquire()/release()/releaseAll()/clear()`；空闲对象隐藏 root；`maxSize>0` 超限回收最老活跃对象；`maxSize=0` 不限制 |
 | `deepMerge` | 属性补丁：`mergePatch` / `clonePatch` / `emptyPatch` / `PropertyPatch`（蓝图 overrides 与属性合并基础） |
 | `Gizmos` | 引擎侧 Gizmos（编辑器辅助对象） |
 | `ConfigLoaderBase` | 项目 ConfigLoader 基类（项目侧扩展） |
 
-## 4. 依赖关系
+## 4. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `BlueprintRegistry.resolve` 未注册路径 | `throw new Error('Blueprint "X" 未注册')` | 调用方 try/catch（SpawnActorFromBlueprint 已接住） |
+| 蓝图 ref 循环引用 | `throw new Error('检测到 Blueprint ref 循环引用')` | 编辑器层回滚 + 返回失败 |
+| `getConfig` 未注册 | `throw new Error('配置 "X" 未注册...')`（编程错误） | 先 registerDefaults / loadConfig |
+| `getTable` 未加载 | 返回 undefined（非编程错误） | 消费方 `?? null` 守卫 |
+| `loadConfig` 读取失败 | 不缓存，回退默认值 | 引擎内置降级 |
+| 无 electronAPI | readJson 返回 null → 全部走默认值 | 引擎内置降级 |
+| `AssetRegistry.getScene` 未注册 | 返回 null | 调用方判空 |
+| `ScriptRegistry.create` 未注册 | 返回 null | 调用方判空 |
+| ObjectPool 超限 | maxSize>0 时回收最老活跃对象 | 按需调 maxSize |
+| `load` 跨游戏存档 | 返回 success:false + 明确 error | 引擎内置校验 |
+| resolve 结果修改 | 返回对象只读约定 | 实例化用 clonePatch 深拷贝 |
+
+## 5. 依赖关系
 
 ```
 AssetRegistry → BlueprintRegistry / ScriptRegistry

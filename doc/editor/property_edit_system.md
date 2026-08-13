@@ -17,7 +17,7 @@ Inspector 选中 Actor 后按组件分组展示属性。每个属性有**两条�
 
 提交时按场景走**双通道**：
 
-- **蓝图预览模式**（Inspector 处于蓝图 tab，`assetPath` 非空）→ `BlueprintEditorService.apply`：改工作副本 + 进撤销栈 + 触发预览重建（**不直接改运行时组件**）
+- **蓝图预览模式**（Inspector 处于蓝图 tab，`assetPath` 非空）→ `BlueprintEditorService.applyBatch`：改工作副本 + 进撤销栈 + 触发预览重建（**不直接改运行时组件**）
 - **游戏模式 / 非蓝图** → `prop.set(v)`：直接改运行时组件（不进撤销系统）
 
 ## 2. 核心接口（`src/engine/entity/ActorComponent.ts`）
@@ -40,7 +40,7 @@ interface EditableProperty<T = unknown> {
 
 ```ts
 interface EditablePropertyAssetTarget {
-  assetPath: string   // 蓝图资产路径（BlueprintEditorService.apply 第一参）
+  assetPath: string   // 蓝图资产路径（BlueprintEditorService.applyBatch 第一参）
   childName: string   // 资产 children 中定位子节点的名称（= actor.root.name）
   baseClass: string   // 组件 baseClass（完整 TS 类名，如 'UITextComponent'）
   root?: boolean      // true → 走 setComponentProps（资产根节点 components）；否则 → setChildComponentProps（递归定位 children）
@@ -91,20 +91,21 @@ interface EditablePropertyAssetTarget {
 flowchart TD
     A[Inspector 编辑控件<br/>EditablePropertyInput] --> B{有 assetTarget?}
     B -- 否 --> C[prop.set 直改运行时组件<br/>游戏模式/非蓝图]
-    B -- 是 --> D{assetTarget.root?}
-    D -- 根组件 --> E[BlueprintEditorService.apply<br/>setComponentProps]
-    D -- 子控件 --> F[BlueprintEditorService.apply<br/>setChildComponentProps<br/>name + baseClass + strict]
-    E --> G[blueprintOps 纯函数<br/>改工作副本 properties]
-    F --> G
-    G --> H[UndoManager.push 快照]
-    H --> I[bumpBlueprintEdit 触发重建]
-    I --> J[新 World + 重新实例化<br/>注册器构造器/应用器透传新值]
+    B -- 是 --> D[applyBatch 批量提交<br/>① 当前组件全量 persistentProps<br/>+ 当前 key 覆盖新值<br/>② 同 actor 其它组件各自 props]
+    D --> E{assetTarget.root?}
+    E -- 根组件 --> F[BlueprintEditorService.applyBatch<br/>setComponentProps]
+    E -- 子控件 --> G[BlueprintEditorService.applyBatch<br/>setChildComponentProps<br/>name + baseClass + strict]
+    F --> H[blueprintOps 纯函数<br/>改工作副本 properties]
+    G --> H
+    H --> I[UndoManager.push 快照<br/>一次编辑 = 一个撤销点]
+    I --> J[bumpBlueprintEdit 触发重建]
+    J --> K[新 World + 重新实例化<br/>注册器构造器/应用器透传新值]
 ```
 
 要点：
 
 - **工作副本优先**：`apply` 前 `getWorkingCopy`（无则读盘建立），所有操作在内存副本进行，**不直接写盘**（假保存，Ctrl+S 才落盘）
-- **每属性一个撤销点**：`properties: { [prop.key]: v }` 单键 patch，`setChildComponentProps` 内部与既有 properties 合并
+- **批量原子提交（applyBatch）**：一次编辑 = 一个撤销点，原子防派生系数丢失（如 fontSizeScale）；任一 op 失败整体不提交
 - **strict=true**：子节点按 name 递归定位（`findChildNodeDeep`），本地找不到返回错误，**不新建节点**（防止 ref 引用子节点被误建）
 - **提交后重建**：apply 成功后 bump 版本 → 蓝图全量重建（销毁旧 World + new 预览 Manager + 重新 SpawnActorFromBlueprint）→ 新值经注册器透传生效，同时恢复相机/选中（见 `BlueprintEditor.tsx` lastCamRef/lastSelectRef）
 
@@ -148,7 +149,22 @@ flowchart LR
 - **函数式 setVal + JSON 值比较**：值没变返回原引用，vec3/数组类型避免无限重渲染
 - 渲染匹配：`getEditableProperties().find(p => p.key === k)` 匹配 `getProperties()` 的键；`persistent === false` 的属性不注入 assetTarget（不写资产不进撤销）
 
-## 7. 常见坑与排查
+## 7. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| 组件漏注册 `getEditableProperties()` | Inspector 不显示输入框（assetLint 认字段 ≠ 可编辑） | 补注册（§3 第二步） |
+| 注册器漏透传（应用器回调） | 首次打开正常，但重建路径（撤销/重做/属性编辑全量重建）丢值 | 补透传（§3 第三步） |
+| 编辑嵌套子节点属性 | `findChildNodeDeep` 递归定位；顶层找不到 + strict → 返回错误**不新建节点** | 引擎内置（防 ref 子节点误建） |
+| 子节点是 ref 引用实例 | 无 JSON 节点可映射 → 提交失败/跳过 | 无法就地编辑 ref 实例 |
+| `applyBatch` 任一 op 失败 | 整体不提交，返回错误 + 旧资产 | 引擎内置原子性 |
+| 聚焦中输入框 | 跳过外部同步（防"输入打架"） | editingRef 防护 |
+| 提交后重建窗口期 | 保持显示提交值直到外部值追上（防"点击无效"） | lastCommittedRef 防护；**提交失败自动解除保护恢复真实值** |
+| 颜色连续拖动 | 蓝图模式 400ms 防抖（防全量重建风暴） | 引擎内置；游戏模式即时提交 |
+| 编辑锚点节点 position | `applyAnchor()` 完全覆盖 position → 编辑无效 | **已知遗留**：需改 anchorOffset（见 §8） |
+| `persistent: false` 属性 | 不注入 assetTarget、不写资产、不进撤销 | 引擎内置语义 |
+
+## 8. 常见坑与排查
 
 | 现象 | 根因 | 修复 |
 |---|---|---|

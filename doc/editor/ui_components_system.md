@@ -78,7 +78,42 @@ type ViewportTabDef = {
 }
 ```
 
-## 4. 数据流
+## 4. 使用方法
+
+### 4.1 Store 关键 action
+
+| Action | 说明 |
+|---|---|
+| `openBlueprintEditor(assetPath, label)` | 已存在 tab → 只切 activeTabId；新建 tab + 自动 `leftPanelTab:'outline'` |
+| `openScenePreview` / `closeDynamicTab(tabId)` | 打开场景预览 / 关闭动态 tab（激活 tab 关闭时回退相邻 tab 或 'scene'） |
+| `setCurrentProject(project)` | 注册/清理项目资产 + 清空 dynamicTabs + activeTabId 回 'scene' |
+| `bumpBlueprintEdit(assetPath)` | nonce+1 + lastEditedBlueprintPath（驱动重读盘/重建） |
+| `markBlueprintDirty/Clean(path)` | 页签标题 `*` 星标 |
+| `addConsoleOutput(text)` | **截断保留最近 200 条**（slice(-199) + 新条） |
+| `launchGame/stopGame` | 按项目名注入操作提示 |
+| `discoverProjects()` | 优先 `electronAPI.discoverProjectsScan()`；**失败/空回退 `DEFAULT_PROJECTS`**（5 个预设），catch 静默 |
+| `saveGame(slot): Promise<boolean>` | 未选游戏/游戏未运行返回 false + 控制台提示 |
+| `loadGame(slot)` | 游戏运行中直接 restoreSnapshot；未运行则暂存 `pendingRestore` + 自动 `launchGame()` |
+
+### 4.2 使用示例
+
+```ts
+// 组件订阅 store（Inspector 依赖重读）
+useEditorStore((s) => s.blueprintEditNonce)
+useEditorStore((s) => s.blueprintSelection)
+useEditorStore((s) => s.activeTabId)
+
+// 蓝图页签判定：activeTabId.startsWith('bp:')，assetPath = activeTabId.slice(3)
+```
+
+### 4.3 触发时机与使用前提
+
+- `editorPrefsStore` 全部字段持久化 localStorage（key `'demostudio-editor-prefs'`）：panels 可见性、layout 宽高、viewport `{ aspectRatio, gizmos }`、lastProjectFolder、recentProjects（去重置顶，上限 10）
+- `setViewport` 被 `BlueprintEditor.tsx` 订阅（视口比例变化 → `UIPreviewManager.setViewportAspect`）
+
+## 5. 工作流程
+
+### 5.1 数据流
 
 ```mermaid
 flowchart LR
@@ -89,7 +124,29 @@ flowchart LR
     E --> A
 ```
 
-## 5. 依赖关系
+### 5.2 页签生命周期
+
+```
+打开蓝图: openBlueprintEditor → tab 创建（bp:${assetPath}）→ BlueprintEditor 读盘 + 建预览
+编辑: applyBatch → bumpBlueprintEdit → nonce 变化 → 重读盘 + 重建预览（恢复相机/选中）
+保存: updateFromPreview → save → BLUEPRINT_SAVED → markBlueprintClean
+关闭: closeAsset（清缓存恢复注册表）→ closeDynamicTab
+切工程: setCurrentProject → clearCache（BlueprintEditorService.clearCache + BlueprintRegistry.clearAll）
+```
+
+## 6. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `discoverProjects` IPC 失败 | 静默回退 `DEFAULT_PROJECTS`（catch 无日志） | 引擎内置降级 |
+| `saveGame` 未选游戏/未运行 | 返回 false + 控制台提示 | 调用方判返回值 |
+| 蓝图 tab 已存在 | 不重复创建，只切 activeTabId | 引擎内置去重 |
+| 关闭激活 tab | 回退相邻 tab 或 'scene' + 清 blueprintSelection | 引擎内置 |
+| 切项目 | 清空 dynamicTabs + 蓝图缓存 | 引擎内置 |
+| `addConsoleOutput` 超 200 条 | 截断保留最近 200 条 | 引擎内置 |
+| recentProjects 超 10 | 去重置顶，只保留 10 | 引擎内置 |
+
+## 7. 依赖关系
 
 ```
 组件层 → stores（editorStore/projectStore/editorPrefsStore/saveStore）

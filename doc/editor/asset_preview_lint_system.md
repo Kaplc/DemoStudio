@@ -17,7 +17,7 @@
 
 | 类 | 说明 |
 |---|---|
-| `AssetPreviewManager` | 资产预览统一入口（按资产类型分发） |
+| `AssetPreviewManager` | 资产预览统一入口（按资产类型分发）；`register(path, instance)` / `get(path)` / `setActive(path)` |
 | `ScenePreviewManager` | 场景资产预览（含 `PreviewSceneManager`：fly 飞越 / orbit 轨道 + WASD 漫游） |
 | `BlueprintPreviewManager` | 蓝图资产预览（3D Actor 实例化预览） |
 | `UIPreviewManager` | UI widget 资产预览（2D 正面预览） |
@@ -41,26 +41,36 @@ activate / resize / dispose
 - `fitToActor` 以根 Actor 直接挂载的画布 mesh 为基准（忽略子文本过大的 worldWidth）
 - 自动清理（dispose）
 
-## 3. assetLint 资产检查器
+## 3. 使用方法
 
-### 架构
+### 3.1 预览系统入口
 
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| 注册 | `AssetPreviewManager.register(path, instance)` | 注册时自动 `watchWorldActorChanges`（大纲即时刷新）；key = 资产磁盘相对路径 |
+| 查询 | `get(path)` / `getActive()` / `setActive(path)` | 按路径取实例/活跃实例 |
+| 加载蓝图 | `BlueprintPreviewManager.loadBlueprint(path, diskPath?): boolean` | `BlueprintRegistry.get` 深拷贝为 `_jsonTree`；Spawn 失败 → warn + false |
+| 保存数据 | `collectSaveData(): Record \| null` | 遍历大纲 actor，`getPersistentProps()` 合入 JSON（不删键）；含 TransformComponent 的节点删除顶层 transform 并写组件 properties |
+| 场景加载 | `ScenePreviewManager.loadSceneAsset(sceneData): boolean` | 内部 `loadScene()` + 根 GenericActor |
+| 检查引擎 | `assetLintEngine.start()` / `scheduleScan(delay=300)` / `scanOnce()` / `stop()` | start 幂等 + globalThis 守卫防 StrictMode/HMR 重复订阅 |
+
+```ts
+// BlueprintEditor.tsx
+mgr.loadBlueprint(assetKey, assetPath)
+AssetPreviewManager.register(assetPath, mgr)   // 成功后才注册
+
+// Outline.tsx
+AssetPreviewManager.get(assetPath)?.selectActor(actor)
 ```
-src/editor/asset/assetLint/
-├── AssetLintEngine.ts        # 检查核心引擎（模块级单例，事件驱动）
-├── AssetCheckerRegistry.ts   # 检查器注册表
-├── AbstractAssetChecker.ts   # 检查器基类
-├── AssetSource.ts            # 资产来源（文件扫描）
-├── AssetWalker.ts            # 文档遍历（walkDocument）
-├── schemaEngine.ts           # JSON Schema 校验引擎
-├── checkers/                 # 内置检查器
-│   ├── componentChecker.ts   # 组件检查（组件注册/属性/字段同步）
-│   ├── nodeCheckers.ts       # 节点检查（actor/ref/transform 等）
-│   └── docCheckers.ts        # 文档级检查
-└── types.ts                  # LintIssue / CheckerContext 类型
-```
 
-### 触发机制（事件驱动，无定时器）
+### 3.2 触发时机与使用前提
+
+- assetLint 触发：① 打开/切换工程 → 全量扫描；② asset 目录文件变化 → 300ms 去抖重扫；内容指纹（`hashOf` djb2）未变复用上次 issue 跳过 walk+schema
+- 场景预览保存后需**重新 `activate(assetPath)`**（loadSceneAsset 内部 clearPreview 清掉 `_currentScenePath`，不 reactivate 则 Outline 返回空树）
+
+## 4. 工作流程
+
+### 4.1 assetLint 触发机制（事件驱动，无定时器）
 
 ```
 1. 打开/切换工程 → 全量扫描一次（建立监听 + 首扫）
@@ -69,12 +79,27 @@ src/editor/asset/assetLint/
    （未变文件复用上次 issue，跳过 walk+schema）
 ```
 
-### 输出
+### 4.2 assetLint 架构
 
-- 违规经 `logger.warn/error` 输出（自动写日志文件 + 控制台面板），带 `[AssetLint]` 前缀与节点定位
+```
+src/editor/asset/assetLint/
+├── AssetLintEngine.ts        # 检查核心引擎（模块级单例，事件驱动）
+├── AssetCheckerRegistry.ts   # 检查器注册表（幂等，同 kind 只保留首次）
+├── AbstractAssetChecker.ts   # 检查器基类（schema + run + validate 钩子）
+├── AssetSource.ts            # 资产来源（Electron 磁盘扫描 / 浏览器内存降级）
+├── AssetWalker.ts            # 文档遍历（walkDocument：根判定 + 节点派发）
+├── schemaEngine.ts           # JSON Schema 校验引擎
+├── checkers/                 # 内置检查器（22 个：doc/node/comp）
+└── types.ts                  # LintIssue / CheckerContext 类型
+```
+
+### 4.3 输出与报告
+
+- 违规经 `logger.warn/error` 输出（自动写日志文件 + 控制台面板），带 `[AssetLint]` 前缀与节点定位：`${filePath} > ${nodePath} [${field}] ${message} (${ruleId})`
+- **log 级增量**：`filePath::nodePath::field::ruleId` 指纹集合，只报新 issue
 - 全局单例 + `globalThis` 守卫：StrictMode 双挂载 / HMR 都只保留一份 store 订阅与监听
 
-### 检查范围（按资产类型）
+### 4.4 检查范围（按资产类型）
 
 | 资产 | 检查 |
 |---|---|
@@ -83,11 +108,27 @@ src/editor/asset/assetLint/
 | `*.widget.json` | UI 控件树结构/组件 |
 | 配置/数据表 | 结构校验（schemaEngine） |
 
-## 4. 组件字段同步约定
+## 5. 边界条件
+
+| 条件 | 行为/后果 | 处理方式 |
+|---|---|---|
+| `loadBlueprint` 蓝图未注册/Spawn 失败 | warn + 返回 false（不设 current key） | 调用方判 false 处理 |
+| 无 `_currentBlueprintDiskPath` | `commitPreviewEdit` warn 跳过拖拽提交 | loadBlueprint 传 diskPath |
+| ref 实例（isRefInstance） | 不入 `_actorJsonMap`（无法就地提交） | 引擎内置过滤 |
+| `collectSaveData` 旧格式节点 | 只回写 `pos`（旧格式无 rotation/scale） | 已知限制 |
+| 无 electronAPI（浏览器） | `AssetSource` 降级为 RegistryAssetSource（遍历内存注册表，抓不到解析失败文件） | 引擎内置降级 |
+| 无工程打开 | assetLint 静默 | 引擎内置 |
+| 未知文档根 | `'无法识别文档根（既非 scene 也非 blueprint）'` warn | 检查资产结构 |
+| JSON 解析失败 | error `'JSON 解析失败: ...'`（仅磁盘扫描能抓到） | 修复资产文件 |
+| `fitToActor` 包围盒过小（<0.01） | 相机回默认 `(5,4,5)` 看原点 | 引擎内置 |
+| 场景预览保存后 | Outline 空树（`_currentScenePath` 被清） | **必须重新 activate** |
+| `ScenePreviewManager.dispose()` | `world.Destroy()`（终局销毁） | 防 World 三件套泄漏 |
+
+## 6. 组件字段同步约定
 
 > 组件添加新字段要**同步更新资产和资产检查器**（项目约定）——assetLint 会校验组件字段与注册表定义一致。
 
-## 5. 依赖关系
+## 7. 依赖关系
 
 ```
 AssetPreviewManager → ScenePreviewManager / BlueprintPreviewManager / UIPreviewManager

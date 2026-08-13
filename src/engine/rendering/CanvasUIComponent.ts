@@ -277,7 +277,6 @@ export class CanvasUIComponent extends Component<Actor> {
   }
 
   override EndPlay() {
-    logger.info(`[CanvasUIComponent] 销毁 "${this.name}"`)
     super.EndPlay()
     if (!this.panel) return // 仅标记模式无渲染资源
     this.owner.root.remove(this.panel)
