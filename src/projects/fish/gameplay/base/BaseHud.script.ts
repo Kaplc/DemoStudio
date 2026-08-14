@@ -20,9 +20,25 @@ import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
 export default class BaseHudScript extends BehaviourScript {
+  /** 建筑模式激活中（build_menu 显示 → HUD 隐藏，避免遮挡基地视野） */
+  private buildModeActive = false
+  /** 兵营面板打开中（barracks_ui 显示 → HUD 隐藏，由面板独占屏幕） */
+  private barracksOpen = false
+
   override onStart(): void {
     const mode = this.gameMode as FishBaseGameMode | null
     if (mode) {
+      // 建筑模式/兵营面板开关广播 → HUD 自行隐藏/恢复（组件自治：
+      // GameMode 只广播状态，不直接操控 HUD；可见性由本脚本统一管理）
+      mode.onBuildModeChange = (active) => {
+        this.buildModeActive = active
+        this.refreshVisibility()
+      }
+      mode.onBarracksPanelChange = (open) => {
+        this.barracksOpen = open
+        this.refreshVisibility()
+      }
+
       // 建筑按钮：切换建筑模式（打开/关闭建筑菜单）
       const buildBtnActor = this.findInChildren('Btn_build')
       const buildBtn = buildBtnActor?.getComponent(UIButtonComponent)
@@ -45,7 +61,6 @@ export default class BaseHudScript extends BehaviourScript {
     } else {
       logger.warn('[BaseHudScript] 未找到 FishBaseGameMode，跳过按钮绑定')
     }
-
     // ─── 金币文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
     const inst = GameInstance.current as FishGameInstance | null
     // 资产节点名是 GoldLabel（Actor），GoldText 是其 UITextComponent 组件的 name
@@ -61,5 +76,19 @@ export default class BaseHudScript extends BehaviourScript {
     } else {
       logger.warn(`[BaseHudScript] 金币文本未绑定（instance=${!!inst}, goldText=${!!goldText}）`)
     }
+  }
+
+  override onDestroy(): void {
+    // 清理广播回调：宿主销毁后 GameMode 不再向本脚本发送状态变化
+    const mode = this.gameMode as FishBaseGameMode | null
+    if (mode) {
+      mode.onBuildModeChange = null
+      mode.onBarracksPanelChange = null
+    }
+  }
+
+  /** HUD 可见性 = 非建筑模式 且 兵营面板未打开（任一面板/菜单显示时隐藏 HUD） */
+  private refreshVisibility(): void {
+    this.actor.bActive = !(this.buildModeActive || this.barracksOpen)
   }
 }

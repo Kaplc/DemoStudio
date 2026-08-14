@@ -72,6 +72,11 @@ export interface EditableProperty<T = unknown> {
    * 蓝图预览模式下 Inspector 会跳过这些属性，不写资产、不进撤销。
    */
   persistent?: boolean
+  /**
+   * 是否只读（默认 false）。true → Inspector 渲染为禁用输入框，仅展示当前值。
+   * 用于由系统/视口推导、不应由用户手改的属性（如 widget 根节点的视口尺寸）。
+   */
+  readonly?: boolean
 }
 
 export abstract class ActorComponent<T extends Actor = Actor> extends BObjectComponent<T> {

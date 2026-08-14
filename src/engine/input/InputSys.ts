@@ -15,6 +15,7 @@
 import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
 import { BObject } from '../entity/BObject'
+import { InputPromptSystem } from '../ui/InputPromptSystem'
 import type { PlayerController } from './PlayerController'
 
 export class InputSys extends BObject {
@@ -38,6 +39,8 @@ export class InputSys extends BObject {
     controller?: PlayerController | null,
     button = 0,
   ): boolean {
+    // 输入设备检测：鼠标按下 → 设备切换为 mouse（触发提示文本刷新）
+    InputPromptSystem.instance.setDevice('mouse')
     // 仅左键参与点击检测（右键用于摄像机平移等，不应误触 UI/建筑点击）
     const consumed = button === 0 ? PhySys.raycastClick(screenX, screenY) : false
     // 广播鼠标按钮事件（外部组件可 BindMouseButton 订阅，如摄像机右键平移）
@@ -91,6 +94,8 @@ export class InputSys extends BObject {
 
   /** 键盘按下 */
   handleKeyDown(key: string, controller?: PlayerController | null): void {
+    // 输入设备检测：键盘事件 → 设备切换为 keyboard（触发提示文本刷新）
+    InputPromptSystem.instance.setDevice('keyboard')
     controller?.ProcessInput(key, 'pressed')
   }
 

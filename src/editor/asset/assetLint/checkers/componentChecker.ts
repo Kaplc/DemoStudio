@@ -176,6 +176,7 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
     { field: 'properties.active', type: 'boolean', label: '激活（false = 不渲染）' },
+    { field: 'properties.safeArea', type: 'number', min: 0, max: 15, label: 'TV 安全区内缩百分比（0~15，默认 5）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

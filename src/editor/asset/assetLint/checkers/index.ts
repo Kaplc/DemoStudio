@@ -10,3 +10,4 @@
 import './docCheckers'
 import './nodeCheckers'
 import './componentChecker'
+import './uiDesignChecker'

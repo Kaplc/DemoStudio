@@ -63,6 +63,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
   siblingComponents?: Component[]
 }) {
   const [val, setVal] = useState<unknown>(prop.get())
+  /** 只读属性：由系统推导（如 widget 根节点视口尺寸），输入禁用、仅展示当前值 */
+  const readOnly = prop.readonly === true
   /** 输入框聚焦中（用户正在编辑）：跳过外部同步，避免每次重渲染把输入重置回旧值 */
   const editingRef = useRef(false)
   /** 蓝图模式 color picker 防抖（拖动停止后才提交，避免连续重建卡死） */
@@ -179,6 +181,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
           step={prop.step ?? 1}
           min={prop.min}
           max={prop.max}
+          disabled={readOnly}
+          title={readOnly ? '由视口比例决定，不可修改' : undefined}
           onChange={(e) => {
             const v = parseFloat(e.target.value)
             if (!isNaN(v)) setVal(v)
@@ -200,6 +204,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
           type="text"
           style={editableInputStyle}
           value={s}
+          disabled={readOnly}
+          title={readOnly ? '由视口比例决定，不可修改' : undefined}
           onChange={(e) => setVal(e.target.value)}
           onFocus={() => { editingRef.current = true }}
           onBlur={() => { editingRef.current = false; commit(s) }}
@@ -209,12 +215,13 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
     }
     case 'boolean': {
       return (
-        <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, cursor: readOnly ? 'not-allowed' : 'pointer' }}>
           <input
             type="checkbox"
             checked={!!val}
+            disabled={readOnly}
             onChange={(e) => commit(e.target.checked)}
-            style={{ accentColor: 'var(--accent)', width: 13, height: 13, cursor: 'pointer' }}
+            style={{ accentColor: 'var(--accent)', width: 13, height: 13, cursor: readOnly ? 'not-allowed' : 'pointer' }}
           />
           <span style={{ fontSize: 11, color: val ? '#fff' : 'var(--text-dim)' }}>
             {val ? 'true' : 'false'}
@@ -227,8 +234,9 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
       const cur = String(val ?? opts[0] ?? '')
       return (
         <select
-          style={{ ...editableInputStyle, cursor: 'pointer' }}
+          style={{ ...editableInputStyle, cursor: readOnly ? 'not-allowed' : 'pointer' }}
           value={cur}
+          disabled={readOnly}
           onChange={(e) => commit(e.target.value)}
         >
           {opts.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -257,13 +265,15 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
           <input
             type="color"
             value={/^#[0-9a-fA-F]{6}$/.test(fullHex) ? fullHex : '#ffffff'}
+            disabled={readOnly}
             onChange={(e) => debouncedCommit(e.target.value)}
-            style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', cursor: 'pointer' }}
+            style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', borderRadius: 3, background: 'transparent', cursor: readOnly ? 'not-allowed' : 'pointer' }}
           />
           <input
             type="text"
             style={{ ...editableInputStyle, fontSize: 10 }}
             value={c}
+            disabled={readOnly}
             onChange={(e) => setVal(e.target.value)}
             onFocus={() => { editingRef.current = true }}
             onBlur={() => { editingRef.current = false; commit(c) }}
@@ -289,6 +299,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
                   style={vecAxisInputStyle}
                   value={String(v)}
                   step={prop.step ?? 0.1}
+                  disabled={readOnly}
+                  title={readOnly ? '由视口比例决定，不可修改' : undefined}
                   onChange={(e) => {
                     const nv = parseFloat(e.target.value)
                     const next = [...arr]

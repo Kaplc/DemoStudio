@@ -53,6 +53,16 @@ export default class BuildMenuScript extends BehaviourScript {
       bound++
     }
 
+    // 关闭按钮：退出建筑模式（隐藏建筑菜单 + 恢复基地 HUD）
+    const closeBtnActor = this.findInChildren('Btn_close')
+    const closeBtn = closeBtnActor?.getComponent(UIButtonComponent)
+    if (closeBtn) {
+      closeBtn.onClick = () => mode.exitBuildMode()
+      logger.info('[BuildMenuScript] 关闭按钮已绑定（退出建筑模式）')
+    } else {
+      logger.warn('[BuildMenuScript] 未找到 Btn_close 按钮，跳过')
+    }
+
     logger.info(`[BuildMenuScript] 已绑定 ${bound} 个建筑菜单按钮`)
   }
 }

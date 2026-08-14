@@ -1,0 +1,73 @@
+{
+  "_comment": "伤害数字卡片（DamageNumber）——运行时动态生成的战斗反馈数字。\n由 DamageNumberFx 工具在游戏阶段按路径生成（world.ui.spawnUIActor），脚本负责：\n  1. 填充数值文本（DamageText 子节点）\n  2. 上浮 + 淡出动画（TweenSystem）\n  3. 动画结束后销毁",
+  "name": "DamageNumber",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "anchor": "center",
+        "anchorOffset": [0, 0],
+        "worldWidth": 0.8,
+        "worldHeight": 0.4
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "markerOnly": true,
+        "name": "UIMarker",
+        "zOrder": 0
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "DamageText",
+      "baseClass": "Actor",
+      "id": 13401,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 0.8,
+            "worldHeight": 0.4
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "0",
+            "fontSize": 40,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "center",
+            "shadowColor": "rgba(0,0,0,0.6)",
+            "shadowBlur": 6,
+            "width": 160,
+            "height": 80,
+            "zOrder": 4,
+            "name": "DamageText"
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

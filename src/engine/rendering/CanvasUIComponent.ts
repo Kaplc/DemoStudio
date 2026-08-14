@@ -48,6 +48,12 @@ export interface CanvasUIOptions {
    * 不参与锚点容器查找（子元素锚点由 UITransformComponent 以真正的画布为基准）。
    */
   markerOnly?: boolean
+  /**
+   * 安全区内缩（百分比 0-15，默认 5）：根画布四周的内容安全区（对标 TV overscan 5%）。
+   * 子元素单点锚（边角锚）自动内缩此比例（stretch 背景铺满不受影响），
+   * 编辑器预览绘制参考线。
+   */
+  safeArea?: number
 }
 
 export class CanvasUIComponent extends Component<Actor> {
@@ -65,6 +71,8 @@ export class CanvasUIComponent extends Component<Actor> {
   private _bActive: boolean
   /** 仅标记模式（不渲染） */
   private _markerOnly: boolean
+  /** 安全区内缩百分比 [0,15]，默认 5（TV overscan 基准） */
+  private _safeArea: number
   /**
    * 子组件（如 UIText 的 troika mesh）注册到本 canvas 的渲染对象列表。
    * canvas 组件作为本 UI 节点的"显隐控制中心"：
@@ -80,6 +88,7 @@ export class CanvasUIComponent extends Component<Actor> {
     this._width = options.width ?? 512
     this._height = options.height ?? 256
     this._markerOnly = options.markerOnly ?? false
+    this._safeArea = options.safeArea ?? 5
     this._bActive = options.active ?? true
 
     // 1. 离屏 Canvas
@@ -184,6 +193,19 @@ export class CanvasUIComponent extends Component<Actor> {
     this.panel.position.z = v * 0.001
   }
 
+  /** 安全区内缩百分比 [0,15]（根画布四周内容安全区，对标 TV overscan） */
+  get safeArea(): number { return this._safeArea }
+  set safeArea(v: number) {
+    this._safeArea = Math.min(15, Math.max(0, v))
+  }
+
+  /** 安全区可用区域（世界尺寸）：容器尺寸 × (1 − 2×safeArea%) */
+  getSafeAreaSize(): [number, number] {
+    const [w, h] = this.getWorldSize()
+    const inset = this._safeArea / 100
+    return [w * (1 - 2 * inset), h * (1 - 2 * inset)]
+  }
+
   override BeginPlay() {
     // 注释：每个 UI 组件（UIMarker/UIText/UIImage/Canvas）都会触发，属高频噪音
     // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
@@ -228,6 +250,7 @@ export class CanvasUIComponent extends Component<Actor> {
       zOrder: this._zOrder,
       active: this._bActive,
       markerOnly: this._markerOnly,
+      safeArea: `${this._safeArea}%`,
     }
   }
 
@@ -248,6 +271,11 @@ export class CanvasUIComponent extends Component<Actor> {
         get: () => this._zOrder,
         set: (v) => { this.zOrder = v as number },
       },
+      {
+        key: 'safeArea', type: 'number', step: 1, min: 0, max: 15,
+        get: () => this._safeArea,
+        set: (v) => { this.safeArea = v as number },
+      },
     ]
   }
 
@@ -261,6 +289,18 @@ export class CanvasUIComponent extends Component<Actor> {
     if (!this.panel) return
     ;(this.panel.material as THREE.MeshBasicMaterial).opacity = opacity
     ;(this.panel.material as THREE.MeshBasicMaterial).transparent = opacity < 1
+  }
+
+  /**
+   * 当前不透明度 [0,1]（读取 material.opacity；写入走 setOpacity，供补间系统/脚本使用）。
+   * 资产字段：UIImageComponent 的 `opacity` 已由 Inspector/assetLint 支持（运行时属性映射）。
+   */
+  get opacity(): number {
+    if (!this.panel) return 1
+    return (this.panel.material as THREE.MeshBasicMaterial).opacity
+  }
+  set opacity(v: number) {
+    this.setOpacity(v)
   }
 
   /** 自定义绘制回调。每次调用清空 canvas 并执行 fn，然后标记纹理更新 */

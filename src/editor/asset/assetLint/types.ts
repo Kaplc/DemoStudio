@@ -52,7 +52,12 @@ export interface FieldSpec {
  *   node:<SceneNode.type>      - 场景/蓝图内联节点（box/sphere/actor/ref/...）
  *   comp:<Component.type>      - 蓝图 component（mesh/sprite/camera/...）
  */
-export type CheckerKind = 'doc:scene' | 'doc:blueprint' | `node:${string}` | `comp:${string}`
+export type CheckerKind =
+  | 'doc:scene'
+  | 'doc:blueprint'
+  | 'doc:ui-design'
+  | `node:${string}`
+  | `comp:${string}`
 
 /** 单条违规。filePath::nodePath::field::ruleId 组成去重指纹。 */
 export interface LintIssue {

@@ -215,6 +215,14 @@ class AssetLintEngine {
       const ctx = this.makeContext(f.path, t.nodePath)
       issues.push(...checker.run(t.node, ctx))
     }
+
+    // widget 资产（UI 蓝图）：额外跑游戏 UI 设计级检查（字号/触控/阴影/zOrder/安全区，全部 warn）
+    if (f.path.endsWith('.widget.json')) {
+      const designChecker = getChecker('doc:ui-design')
+      if (designChecker) {
+        issues.push(...designChecker.run(f.doc, this.makeContext(f.path, '<widget 根>')))
+      }
+    }
     return issues
   }
 

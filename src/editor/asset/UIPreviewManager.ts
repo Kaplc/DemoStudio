@@ -65,6 +65,9 @@ export class UIPreviewManager {
   /** 当前 widget 根 Actor（setViewportAspect 调整根画布尺寸用） */
   private _rootActor: Actor | null = null
 
+  /** 当前视口比例（16/9 等；null = Free，不强制根画布尺寸） */
+  private _viewportAspect: number | null = null
+
   /** 大纲树缓存：结构不变时复用 */
   private _actorTreeCache: SceneTreeNode[] | null = null
 
@@ -99,6 +102,8 @@ export class UIPreviewManager {
 
   // ─── Game 渲染视口范围框（常显）：显示放到 Game 时实际会被渲染的世界范围（= 根画布尺寸，跟随视口比例）───
   private viewportBounds: THREE.LineSegments | null = null
+  /** 安全区参考线（黄色虚线框：根画布 safeArea 内缩后的可用区域） */
+  private safeAreaBounds: THREE.LineSegments | null = null
 
   // ─── 包围盒 8 把手拖拽（4 角 + 4 边中点，拖动实时调整范围大小）───
   private cornerHandleGroup: THREE.Group | null = null
@@ -770,9 +775,17 @@ export class UIPreviewManager {
     this._currentWidgetKey = path
     this._currentWidgetDiskPath = diskPath ?? null
 
+    // 根画布尺寸由视口比例驱动：若已选过比例（非 Free），加载后立即覆盖根节点尺寸
+    // （资产 JSON 里根 worldWidth/worldHeight 只是设计基准，预览时始终跟随视口）
+    if (this._viewportAspect !== null) {
+      this.applyViewportAspect()
+    }
+
     this.fitToWidget(actor.root)
     // Game 渲染视口范围框：以根画布世界尺寸为范围（切换视口比例后再次更新）
     this.updateViewportBounds()
+    // 安全区参考线：根画布 safeArea 内缩后的可用区域（TV overscan 参考）
+    this.updateSafeAreaBounds()
     this.notifyChange()
 
     logger.info(`[UIPreview] 加载 UI 资产预览: ${path}${this._currentWidgetDiskPath ? `（磁盘 ${this._currentWidgetDiskPath}）` : ''}`)
@@ -815,6 +828,53 @@ export class UIPreviewManager {
     }
     const [ww, wh] = uiTf.getWorldSize()
     lines.scale.set(ww, wh, 1)
+    // 位置跟随根 Actor：锚点定位的根（如 bottom-center 的操作栏）被偏移后参考线仍贴合
+    lines.position.copy(root.root.position)
+    lines.visible = true
+  }
+
+  /**
+   * 安全区参考线：黄色虚线框 = 根画布 safeArea 内缩后的可用区域（对标 TV overscan 5%）。
+   * 设计校验：边角锚 HUD 元素应位于框内；stretch 背景可以铺满到白框（完整画布）。
+   */
+  private ensureSafeAreaBounds(): void {
+    if (this.safeAreaBounds) return
+    const geo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1))
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffcc00,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.5,
+    })
+    const lines = new THREE.LineSegments(geo, mat)
+    lines.name = '__ui_safe_area_bounds__'
+    lines.renderOrder = 995 // 低于视口范围框(996)/选中包围盒(998)，不干扰选中
+    lines.visible = false
+    this.overlayScene.add(lines)
+    this.safeAreaBounds = lines
+  }
+
+  /** 更新安全区参考线：尺寸 = 根画布安全区可用区域（无根画布/无 safeArea 时隐藏） */
+  private updateSafeAreaBounds(): void {
+    this.ensureSafeAreaBounds()
+    const lines = this.safeAreaBounds
+    if (!lines) return
+    const root = this._rootActor
+    const uiTf = root?.getComponent(UITransformComponent)
+    if (!root || !uiTf) {
+      lines.visible = false
+      return
+    }
+    const canvas = root.getComponent(CanvasUIComponent)
+    if (!canvas || canvas.safeArea <= 0) {
+      lines.visible = false
+      return
+    }
+    const [aw, ah] = canvas.getSafeAreaSize()
+    lines.scale.set(aw, ah, 1)
+    // 位置跟随根 Actor（与视口参考线一致，锚点偏移时贴合）
+    lines.position.copy(root.root.position)
     lines.visible = true
   }
 
@@ -830,6 +890,7 @@ export class UIPreviewManager {
     this._actorJsonMap = null
     this._actorTreeCache = null
     if (this.viewportBounds) this.viewportBounds.visible = false
+    if (this.safeAreaBounds) this.safeAreaBounds.visible = false
     this.notifyChange()
   }
 
@@ -843,12 +904,32 @@ export class UIPreviewManager {
    *  - ratio：宽/高（如 16/9 ≈ 1.7778、4/3 ≈ 1.3333、21/9 ≈ 2.3333）
    *  - null = Free：不调整，沿用 widget 自带画布比例
    * 调整后递归重算所有子控件锚点（容器尺寸变化 → 锚点位置变化），并重新适配相机。
+   * 根画布尺寸由视口比例驱动：资产里写死的根 worldWidth/worldHeight 仅作设计基准，
+   * 预览时始终跟随比例（用户不可手改，Inspector 中根节点尺寸已禁用）。
    */
   setViewportAspect(ratio: number | null): void {
+    // 记录当前比例：加载/重建 widget 时按此覆盖根画布尺寸
+    this._viewportAspect = ratio
+    if (ratio != null && ratio > 0) this.applyViewportAspect()
+  }
+
+  /** 应用当前记录的视口比例到根画布（无比例/无根时跳过） */
+  private applyViewportAspect(): void {
+    const ratio = this._viewportAspect
     const root = this._rootActor
     if (!root || ratio == null || ratio <= 0) return
     const uiTf = root.getComponent(UITransformComponent)
     if (!uiTf) return
+    // 仅"全屏画布" widget 跟随视口比例（保持高度、宽度按比例）：
+    //  - 真实画布 1920×1080（标准全屏设计分辨率）
+    //  - markerOnly 容器根且高度 ≥ 半屏（HUD 挂点/底部工具栏根等全屏布局容器）
+    // 浮层 widget（toast/tooltip 等小画布）保持设计尺寸，不参与比例缩放
+    const canvas = root.getComponent(CanvasUIComponent)
+    const isFullscreen = canvas
+      ? (!canvas.isMarkerOnly && canvas.getSize()[0] === 1920 && canvas.getSize()[1] === 1080) ||
+        (canvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 2.7)
+      : uiTf.getWorldSize()[1] >= 2.7
+    if (!isFullscreen) return
     const [ww, wh] = uiTf.getWorldSize()
     if (wh <= 0 || Math.abs(ww - wh * ratio) < 1e-6) return
     uiTf.setWorldSize(wh * ratio, wh)
@@ -861,8 +942,9 @@ export class UIPreviewManager {
     }
     applyAnchors(root)
     this.fitToWidget(root.root)
-    // 根画布尺寸已变化 → 更新 Game 渲染视口范围框
+    // 根画布尺寸已变化 → 更新 Game 渲染视口范围框 + 安全区参考线
     this.updateViewportBounds()
+    this.updateSafeAreaBounds()
     this.notifyChange()
     logger.info(`[UIPreview] 视口比例 ${(ratio * 100).toFixed(0)}:100 → 根画布 ${(wh * ratio).toFixed(2)}x${wh.toFixed(2)}`)
   }
@@ -925,6 +1007,15 @@ export class UIPreviewManager {
       const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
       if (!actor || !jsonNode) continue
 
+      // 全屏 widget 根节点尺寸由视口比例驱动（资产里的值是设计基准）→ 不把预览推导
+      // 尺寸写回资产，保持 JSON 原值，避免保存后根画布被"固化"成当前视口比例
+      const uiTf = actor.getComponent(UITransformComponent)
+      const rootCanvas = actor.parent === null ? actor.getComponent(CanvasUIComponent) : null
+      const isFullscreenRoot = rootCanvas !== null && uiTf !== null && (
+        (!rootCanvas.isMarkerOnly && rootCanvas.getSize()[0] === 1920 && rootCanvas.getSize()[1] === 1080)
+        || (rootCanvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 2.7)
+      )
+
       // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
       const jsonCompsAll = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
@@ -933,6 +1024,11 @@ export class UIPreviewManager {
         if (!target) continue
         const props = (target.properties ?? {}) as Record<string, unknown>
         const persist = comp.getPersistentProps()
+        // 全屏根：尺寸由视口驱动，worldWidth/worldHeight 不写回（保留 JSON 设计基准值）
+        if (isFullscreenRoot && comp === uiTf) {
+          delete persist.worldWidth
+          delete persist.worldHeight
+        }
         // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
         for (const [k, v] of Object.entries(persist)) {
           props[k] = v
@@ -941,7 +1037,6 @@ export class UIPreviewManager {
 
       // 组件优先：含 transform/uitransform 组件的节点，位置/旋转/缩放只写在组件 properties，
       // 顶层 position/rotation/scale 冗余字段直接删除（引擎加载时组件为权威，无需兜底）
-      const uiTf = actor.getComponent(UITransformComponent)
       if (!uiTf) {
         jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
         jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
@@ -958,8 +1053,12 @@ export class UIPreviewManager {
       if (target) {
         const [ww, wh] = uiTf.getWorldSize()
         const props = (target.properties ?? {}) as Record<string, unknown>
-        props.worldWidth = ww
-        props.worldHeight = wh
+        // 非全屏根：尺寸是内容设计值，可写回（角把手拖拽的结果可保存）；
+        // 全屏根由视口比例驱动，已在上面通用循环跳过 worldWidth/worldHeight 写回
+        if (!isFullscreenRoot) {
+          props.worldWidth = ww
+          props.worldHeight = wh
+        }
         // tsf.properties 里的 position/rotation/scale 是最终权威：重载时 TransformComponent 构造会读取
         props.position = [actor.position.x, actor.position.y, actor.position.z]
         props.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
@@ -1031,9 +1130,10 @@ export class UIPreviewManager {
     }
 
     // 正交相机：按包围盒居中并自适应（保留 20% 边距）
+    // 同时约束纵向与横向：宽 widget（如底部操作栏 9.6×1.1）在窄容器下若只按 maxDim
+    // 计算纵向视野，横向会放不下被裁剪（视口参考线左右截断）——取两者较大值。
     const aspect = this.container.clientWidth / this.container.clientHeight
-    const maxDim = Math.max(size.x, size.y)
-    const targetViewH = maxDim * 1.2
+    const targetViewH = Math.max(size.y, size.x / aspect) * 1.2
     this.camera.left = (-targetViewH * aspect) / 2
     this.camera.right = (targetViewH * aspect) / 2
     this.camera.top = targetViewH / 2

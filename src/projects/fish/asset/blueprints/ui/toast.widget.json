@@ -1,0 +1,115 @@
+{
+  "name": "Toast",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "worldWidth": 4.8,
+        "worldHeight": 0.9,
+        "anchor": "top-center",
+        "anchorOffset": [0, 0.55]
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 960,
+        "height": 180,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true,
+        "safeArea": 5
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "ToastPanel",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 4.8,
+            "worldHeight": 0.9
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "rgba(58, 36, 24, 0.92)",
+            "radius": 24,
+            "width": 960,
+            "height": 180,
+            "zOrder": 0,
+            "name": "ToastPanel"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "ToastText",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "center",
+                "anchorOffset": [0, 0],
+                "worldWidth": 4.6,
+                "worldHeight": 0.8
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "fontSize": 28,
+                "color": "#f5e6c8",
+                "bold": true,
+                "align": "center",
+                "shadowColor": "rgba(0,0,0,0.6)",
+                "shadowBlur": 4,
+                "width": 920,
+                "height": 160,
+                "zOrder": 1,
+                "name": "ToastText"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@
  * 并通过场景资产（JSON）切换海底氛围。
  */
 import * as THREE from 'three'
-import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -83,6 +83,10 @@ export class FishGameInstance extends GameInstance {
 
   override start(): boolean {
     logger.info(`[Fish] 游戏实例启动, initialMode=${this.initialMode ?? '(未设置, 默认 menu)'}`)
+    // Toast 通知系统挂接：widget 资产 + UIManager（动态生成的面板自动获得浮动层偏移）
+    ToastSystem.instance.attach(this.world.ui, 'asset/blueprints/ui/toast.widget.json')
+    // 色盲模式服务挂接（默认 off；由设置 UI 调用 setMode 切换）
+    ColorblindService.instance.attach(this.world.ui)
     if (this.initialMode === 'base') return this.switchToPhase('base')
     if (this.initialMode === 'game') return this.switchToPhase('game')
     return this.switchToPhase('menu')

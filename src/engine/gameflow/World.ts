@@ -28,6 +28,19 @@ import type { SceneAsset } from '../asset/SceneAsset'
 import type { Actor } from '../entity/Actor'
 import type { Pawn } from '../entity/Pawn'
 
+/**
+ * 看门狗检查间隔（ms）：每 100ms 检查一次外部驱动是否停摆。
+ * 开销极小（一次时间戳比较），不影响正常帧循环。
+ */
+const WATCHDOG_CHECK_MS = 100
+/**
+ * 外部驱动停摆判定阈值（ms）：距上次 manualTick 超过该值即视为 rAF 已暂停
+ * （页面 hidden/最小化）。正常 60fps 间隔 ~16ms，低帧率（10fps=100ms）也不误判。
+ */
+const WATCHDOG_IDLE_MS = 250
+/** 看门狗接管时的降频驱动步长（秒）：~30fps，省电且足以支撑逻辑运行 */
+const WATCHDOG_FALLBACK_DT = 1 / 30
+
 export class World extends AObject {
   /** 静态实例计数器（日志区分多个 World 实例用） */
   private static _nextId = 1
@@ -80,6 +93,16 @@ export class World extends AObject {
   private animationId: number | null = null
   private lastTime = 0
   private _running = false
+  /**
+   * 看门狗：外部驱动（Scene 视口 rAF → GameInstance.tick → manualTick）停摆时
+   * 自行降频驱动 tick。页面 hidden（最小化/后台标签/Playwright 隐藏页面）时浏览器
+   * 暂停 rAF，若不兜底，游戏逻辑（UI 面板 spawn 提交/BeginPlay/脚本挂载、按钮、
+   * 动画、后台模拟）会完全停摆。不依赖 visibilitychange 事件（部分环境不派发），
+   * 纯检测实际 tick 间隔：距上次 manualTick 超过阈值即接管。
+   */
+  private watchdogId: number | null = null
+  /** 最近一次外部驱动 tick（manualTick）的时间戳，watchdog 据此判断是否停摆 */
+  private lastExternalTickTime = 0
   private _tickCallbacks: Array<(dt: number) => void> = []
 
   /**
@@ -250,6 +273,33 @@ export class World extends AObject {
       cancelAnimationFrame(this.animationId)
       this.animationId = null
     }
+    this.stopWatchdog()
+  }
+
+  /**
+   * 启动看门狗：每 100ms 检查一次外部驱动是否停摆（距上次 manualTick 超过
+   * WATCHDOG_IDLE_MS 阈值 → 页面隐藏/最小化，rAF 已暂停），停摆则自行降频
+   * （~30fps）驱动 tick；外部驱动恢复后自动静默（manualTick 刷新时间戳）。
+   */
+  private startWatchdog(): void {
+    if (this.watchdogId !== null) return
+    this.lastExternalTickTime = performance.now()
+    this.watchdogId = window.setInterval(() => {
+      if (!this._running) return
+      const now = performance.now()
+      if (now - this.lastExternalTickTime < WATCHDOG_IDLE_MS) return
+      // 外部驱动停摆：自行降频驱动（dt 用固定步长，与外部驱动错开避免双倍速）
+      this.lastExternalTickTime = now
+      this.tick(WATCHDOG_FALLBACK_DT)
+    }, WATCHDOG_CHECK_MS)
+    logger.info('[World] tick 看门狗已启动（外部驱动停摆时自动降频兜底）')
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogId === null) return
+    clearInterval(this.watchdogId)
+    this.watchdogId = null
+    logger.info('[World] tick 看门狗已停止')
   }
 
   private tick(dt: number) {
@@ -307,6 +357,8 @@ export class World extends AObject {
     }
     // GameMode（其 BeginPlay 内部统一驱动 GameState + Controller）
     if (this.gameMode && !this.gameMode.bHasBegunPlay) this.gameMode.BeginPlay()
+    // 看门狗：外部驱动（rAF）停摆时自动兜底驱动 tick（见 startWatchdog）
+    this.startWatchdog()
   }
 
   /** 暂停运行（外部驱动模式） */
@@ -327,6 +379,8 @@ export class World extends AObject {
   /** 手动触发一次 Tick（由外部渲染循环驱动） */
   manualTick(dt: number) {
     if (!this._running) return
+    // 刷新看门狗时间戳：外部驱动正常工作（rAF 未停摆），watchdog 保持静默
+    this.lastExternalTickTime = performance.now()
     this.commitActorChanges()
     for (const actor of this.actorMgr.GetAllActors()) {
       if (!actor.bPendingDestroy) actor.Tick(dt)

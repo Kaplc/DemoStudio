@@ -40,6 +40,7 @@ import {
 import { logger } from '../Logger'
 import { World } from '../gameflow/World'
 import { ActorRegistry } from '../tools/ActorRegistry'
+import { ToastSystem } from '../ui/ToastSystem'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 
@@ -114,14 +115,22 @@ export function registerBuiltinAIHandlers(): void {
     return { ok: true, message: msg }
   })
 
-  // ─── ai.showMessage — UI 消息（暂以日志通知实现，预留 UI 通道） ───
+  // ─── ai.showMessage — UI 消息（ToastSystem 挂接时显示 toast 通知，否则回退日志） ───
   ai.register(AI_EVENT_SHOW_MESSAGE, (payload: unknown) => {
     const p = (payload ?? {}) as AIShowMessagePayload
     const msg = p.text ?? '（空消息）'
-    switch (p.level ?? 'info') {
-      case 'warn': logger.warn(`[AI][UI] ${msg}`); break
-      case 'error': logger.error(`[AI][UI] ${msg}`); break
-      default: logger.info(`[AI][UI] ${msg}`)
+    // ToastSystem 已挂接（项目启动 attach）→ 显示 toast；未挂接回退日志
+    if (ToastSystem.instance.attached) {
+      ToastSystem.instance.show(msg, {
+        priority: p.level === 'error' ? 'critical' : p.level === 'warn' ? 'high' : 'normal',
+        duration: p.duration ?? 3,
+      })
+    } else {
+      switch (p.level ?? 'info') {
+        case 'warn': logger.warn(`[AI][UI] ${msg}`); break
+        case 'error': logger.error(`[AI][UI] ${msg}`); break
+        default: logger.info(`[AI][UI] ${msg}`)
+      }
     }
     return { ok: true, message: msg }
   })

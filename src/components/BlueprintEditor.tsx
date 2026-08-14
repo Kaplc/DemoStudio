@@ -189,16 +189,22 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
   // ─── 视口比例同步：widget 预览时根画布跟随比例选择器（保持高度，按比例调宽） ───
   useEffect(() => {
-    if (!previewMgrRef.current) return
+    if (!previewMgrRef.current || !previewReady) return
     if (!isWidgetAsset(assetPath)) return
+    // 初次加载也应用当前比例：根画布尺寸由视口比例驱动（资产 JSON 值仅作设计基准）
+    const ratioStr = useEditorPrefsStore.getState().viewport.aspectRatio
+    const ratio = ratioStr
+      ? (() => { const [aw, ah] = ratioStr.split('/').map(Number); return aw / ah })()
+      : null
+    ;(previewMgrRef.current as UIPreviewManager | null)?.setViewportAspect?.(ratio)
     const unsub = useEditorPrefsStore.subscribe((state, prev) => {
       if (state.viewport.aspectRatio !== prev.viewport.aspectRatio) {
-        const ratioStr = state.viewport.aspectRatio
-        const ratio = ratioStr
-          ? (() => { const [aw, ah] = ratioStr.split('/').map(Number); return aw / ah })()
+        const nextRatioStr = state.viewport.aspectRatio
+        const nextRatio = nextRatioStr
+          ? (() => { const [aw, ah] = nextRatioStr.split('/').map(Number); return aw / ah })()
           : null
         // widget 资产必然创建 UIPreviewManager（isWidgetAsset 已判定）
-        ;(previewMgrRef.current as UIPreviewManager | null)?.setViewportAspect?.(ratio)
+        ;(previewMgrRef.current as UIPreviewManager | null)?.setViewportAspect?.(nextRatio)
       }
     })
     return unsub

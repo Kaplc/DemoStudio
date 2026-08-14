@@ -30,6 +30,8 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { BlueprintRegistry } from '../asset/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
+import { TweenSystem } from './TweenSystem'
+import { ToastSystem } from './ToastSystem'
 import { logger } from '../Logger'
 import type { World } from '../gameflow/World'
 import type { ResolvedChildDef } from '../asset/BlueprintAsset'
@@ -396,6 +398,10 @@ export class UIManager extends AObjectComponent<World> {
   /** 驱动所有 UI Actor 的 Tick */
   tickUI(dt: number) {
     if (!this._running) return
+    // 补间系统推进（与 rAF 自驱双保险：rAF 暂停的隐藏页面/测试环境仍可由外部 tick 驱动）
+    TweenSystem.instance.update(dt)
+    // Toast 队列推进（超时消失/队列补位）
+    ToastSystem.instance.update(dt)
     this.commitSpawn()
     this.commitDestroy()
     for (const actor of this._uiActors) {

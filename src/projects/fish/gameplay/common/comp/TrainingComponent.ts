@@ -118,6 +118,32 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     return this.army.get(troopId) ?? 0
   }
 
+  /**
+   * 部署一个兵（战斗放兵消耗，放完即消失）：
+   * 军队中该兵种数量 -1（至少为 0），触发 onChange 刷新 UI。
+   * @returns 是否部署成功（数量 > 0 才成功）
+   */
+  deployTroop(troopId: string): boolean {
+    const count = this.army.get(troopId) ?? 0
+    if (count <= 0) {
+      logger.warn(`[TrainingComponent] 部署失败：军队中无 "${troopId}"（数量 ${count}）`)
+      return false
+    }
+    this.army.set(troopId, count - 1)
+    const t = this.troopById.get(troopId)
+    logger.info(`[TrainingComponent] 部署完成: ${t?.name ?? troopId} 上战场（剩余 ${count - 1}）`)
+    this.onChange?.()
+    return true
+  }
+
+  /** 军队全部耗尽（所有兵种数量均为 0，战斗失败判定用） */
+  isArmyEmpty(): boolean {
+    for (const count of this.army.values()) {
+      if (count > 0) return false
+    }
+    return true
+  }
+
   /** 军队摘要：'野蛮人x3 巨人x1'（按兵种名） */
   getArmySummary(): string {
     const parts: string[] = []

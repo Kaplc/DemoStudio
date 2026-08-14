@@ -148,10 +148,26 @@ export class UITransformComponent extends TransformComponent {
     const [sw, sh] = self
     const ox = this._anchorOffset[0] ?? 0
     const oy = this._anchorOffset[1] ?? 0
-    const x = fx * (cw / 2 - sw / 2) + ox
-    const y = fy * (ch / 2 - sh / 2) + oy
+    // 安全区：向上找父真实画布的安全区内缩（百分比）。边角锚元素自动内缩（如
+    // top-left 贴角时留出 5% 安全边距，防止 TV overscan 裁切）；center 锚不受影响。
+    const inset = this._containerSafeAreaInset()
+    const availW = cw * (1 - 2 * inset)
+    const availH = ch * (1 - 2 * inset)
+    const x = fx * (availW / 2 - sw / 2) + ox
+    const y = fy * (availH / 2 - sh / 2) + oy
     this.owner.setPosition(x, y, this.owner.root.position.z)
     // logger.info(`[UITransformComponent] "${this.name}" 锚点 ${this._anchor} → 位置 (${x.toFixed(3)}, ${y.toFixed(3)})（容器=${cw}x${ch}, 自身=${sw.toFixed(3)}x${sh.toFixed(3)}, offset=[${ox}, ${oy}]）`)
+  }
+
+  /** 向上找父真实画布（非 markerOnly）的安全区内缩比例 [0,1]；无画布返回 0 */
+  private _containerSafeAreaInset(): number {
+    let p = this.owner.parent
+    while (p) {
+      const comp = p.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
+      if (comp) return comp.safeArea / 100
+      p = p.parent
+    }
+    return 0
   }
 
   /**
@@ -248,17 +264,29 @@ export class UITransformComponent extends TransformComponent {
       'bottom-left', 'bottom-center', 'bottom-right',
       'stretch',
     ]
+    // widget 根节点（无父 + 挂画布）：尺寸由视口比例驱动（UIPreviewManager.setViewportAspect），
+    // 资产 JSON 与 Inspector 均不可手改 → worldWidth/worldHeight 标记只读。
+    // 仅"全屏画布"根锁定（真实画布 1920×1080，或 markerOnly 容器根高度 ≥ 半屏）；
+    // 浮层 widget（toast/tooltip 等小画布）尺寸是内容设计值，仍可编辑。
+    const rootCanvas = this.owner.parent === null ? this.owner.getComponent(CanvasUIComponent) : null
+    const isFullscreenRoot = rootCanvas !== null && (
+      (!rootCanvas.isMarkerOnly && rootCanvas.getSize()[0] === 1920 && rootCanvas.getSize()[1] === 1080)
+      || (rootCanvas.isMarkerOnly && this._worldH >= 2.7)
+    )
+    const sizeReadonly = isFullscreenRoot
     return [
       ...base,
       {
         key: 'worldWidth', type: 'number', step: 0.01, min: 0,
         get: () => this.round2(this._worldW),
         set: (v) => this.setWorldSize(v as number, this._worldH),
+        readonly: sizeReadonly,
       },
       {
         key: 'worldHeight', type: 'number', step: 0.01, min: 0,
         get: () => this.round2(this._worldH),
         set: (v) => this.setWorldSize(this._worldW, v as number),
+        readonly: sizeReadonly,
       },
       {
         key: 'anchor', type: 'enum', options: ANCHOR_OPTIONS,

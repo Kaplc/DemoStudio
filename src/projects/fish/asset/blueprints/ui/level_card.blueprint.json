@@ -6,26 +6,11 @@
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [
-          0,
-          0,
-          0
-        ],
-        "rotation": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ],
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
         "anchor": "center",
-        "anchorOffset": [
-          0,
-          0
-        ],
+        "anchorOffset": [0, 0],
         "worldWidth": 1.7,
         "worldHeight": 0.85
       }
@@ -41,54 +26,78 @@
     {
       "baseClass": "UIImageComponent",
       "properties": {
-        "color": "#2a3a4e",
+        "color": "#5c6b7a",
         "radius": 12,
         "width": 340,
         "height": 170,
         "name": "CardBg",
-        "zOrder": 2
+        "zOrder": 3
       }
     },
     {
       "baseClass": "UIButtonComponent",
       "properties": {
         "colors": {
-          "normal": "#2a3a4e",
-          "hover": "#3a5068",
-          "pressed": "#1a2a3e"
+          "normal": "#5c6b7a",
+          "hover": "#70859a",
+          "pressed": "#46535f"
         }
       }
     }
   ],
   "children": [
     {
-      "name": "Name",
+      "name": "CardFrame",
       "baseClass": "Actor",
       "id": 20001,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
             "anchor": "center",
-            "anchorOffset": [
-              0,
-              0.22
-            ],
+            "anchorOffset": [0, 0],
+            "worldWidth": 1.78,
+            "worldHeight": 0.93
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#8a6a3a",
+            "radius": 16,
+            "width": 356,
+            "height": 186,
+            "name": "CardFrame",
+            "zOrder": 1
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Name",
+      "baseClass": "Actor",
+      "id": 20002,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0.22],
             "worldWidth": 1.6,
             "worldHeight": 0.32
           }
@@ -111,9 +120,11 @@
             "align": "center",
             "width": 320,
             "height": 60,
-            "zOrder": 3,
+            "zOrder": 4,
             "name": "LevelName",
-            "italic": false
+            "italic": false,
+            "shadowColor": "rgba(0,0,0,0.6)",
+            "shadowBlur": 4
           }
         }
       ],
@@ -122,31 +133,16 @@
     {
       "name": "Info",
       "baseClass": "Actor",
-      "id": 20002,
+      "id": 20003,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
             "anchor": "center",
-            "anchorOffset": [
-              0,
-              -0.08
-            ],
+            "anchorOffset": [0, -0.08],
             "worldWidth": 1.6,
             "worldHeight": 0.28
           }
@@ -163,15 +159,17 @@
           "baseClass": "UITextComponent",
           "properties": {
             "text": "关卡描述",
-            "fontSize": 15,
-            "color": "#a8c4e0",
+            "fontSize": 16,
+            "color": "#f5e6c8",
             "bold": false,
             "align": "center",
             "width": 320,
             "height": 50,
-            "zOrder": 3,
+            "zOrder": 4,
             "name": "LevelInfo",
-            "italic": false
+            "italic": false,
+            "shadowColor": "rgba(0,0,0,0.5)",
+            "shadowBlur": 4
           }
         }
       ],

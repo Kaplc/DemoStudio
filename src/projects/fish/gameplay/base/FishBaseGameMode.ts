@@ -62,6 +62,10 @@ export class FishBaseGameMode extends GameMode {
   onStartFishing: (() => void) | null = null
   /** 外部设置：点击房子领取初始金币后的回调 */
   onClaimCoins: (() => void) | null = null
+  /** 外部设置：建筑模式开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复；GameMode 不直接操控 HUD） */
+  onBuildModeChange: ((active: boolean) => void) | null = null
+  /** 外部设置：兵营面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
+  onBarracksPanelChange: ((open: boolean) => void) | null = null
 
   constructor() {
     super()
@@ -130,25 +134,29 @@ export class FishBaseGameMode extends GameMode {
   // ════════════════════════════════════════════
 
   /**
-   * 切换建筑模式（HUD"地图"按钮调用）：
-   * 进入 → 显示建筑菜单；退出 → 隐藏菜单 + 清理放置/选中状态
+   * 切换建筑模式（HUD"建筑"按钮调用）：
+   * 进入 → 显示建筑菜单 + 广播开启（BaseHudScript 收到后自行隐藏基地 HUD）；
+   * 退出 → 隐藏菜单 + 广播关闭（HUD 自行恢复） + 清理放置/选中状态
    */
   toggleBuildMode() {
     this.buildMode = !this.buildMode
     if (this.buildMode) {
       if (this.buildMenuPanel) this.buildMenuPanel.bActive = true
       logger.info('[BaseGM] 进入建筑模式（建筑菜单已打开）')
+      this.onBuildModeChange?.(true)
     } else {
       this.exitBuildMode()
     }
   }
 
-  /** 退出建筑模式：隐藏建筑菜单 + 清理放置/选中状态 */
-  private exitBuildMode() {
+  /** 退出建筑模式：隐藏建筑菜单 + 清理放置/选中状态 + 广播关闭（菜单关闭按钮 / 地图面板共用） */
+  exitBuildMode() {
     this.buildMode = false
     if (this.buildMenuPanel) this.buildMenuPanel.bActive = false
     this.cancelPlaceMode()
     this.deselectBuilding()
+    // 广播退出：HUD 由 BaseHudScript 恢复显示（组件自治，GameMode 不直接操控 HUD）
+    this.onBuildModeChange?.(false)
     logger.info('[BaseGM] 退出建筑模式（建筑菜单已隐藏）')
   }
 
@@ -304,30 +312,28 @@ export class FishBaseGameMode extends GameMode {
     this.cancelPlaceMode()
     // 地图面板与兵营面板互斥：打开兵营时关闭地图面板（建筑菜单独立控制，见下）
     this.closeMapPanel()
-    // 隐藏建造菜单（base_hud 根节点 bActive=false → 整棵 UI 树隐藏）
-    const hudUI = w.ui.hud?.uiActor
-    if (hudUI) hudUI.bActive = false
+    // 广播兵营面板开启：HUD 由 BaseHudScript 自行隐藏（组件自治，GameMode 不直接操控 HUD）
+    this.onBarracksPanelChange?.(true)
     // 建筑模式下同步隐藏建筑菜单（兵营面板打开时互斥）
     if (this.buildMenuPanel) this.buildMenuPanel.bActive = false
     // 生成兵营面板（挂到当前 HUD）
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/barracks_ui.widget.json')
     if (!panel) {
       logger.error('[BaseGM] 兵营 UI 生成失败，恢复建造菜单')
-      if (hudUI) hudUI.bActive = true
+      this.onBarracksPanelChange?.(false)
       return
     }
     this.barracksPanel = panel
     logger.info('[BaseGM] 打开兵营 UI（建造菜单已隐藏）')
   }
 
-  /** 关闭兵营专属 UI：销毁面板，恢复建造菜单（由兵营 UI 关闭按钮调用） */
+  /** 关闭兵营专属 UI：销毁面板，广播关闭（HUD 由 BaseHudScript 恢复显示），建筑模式下恢复建筑菜单 */
   closeBarracksPanel() {
     if (!this.barracksPanel) return
     this.barracksPanel.destroy()
     this.barracksPanel = null
-    // 恢复建造菜单
-    const hudUI = this.world?.ui.hud?.uiActor
-    if (hudUI) hudUI.bActive = true
+    // 广播兵营面板关闭：HUD 由 BaseHudScript 恢复（非建筑模式下显示，建筑模式保持隐藏）
+    this.onBarracksPanelChange?.(false)
     // 建筑模式下恢复建筑菜单
     if (this.buildMode && this.buildMenuPanel) this.buildMenuPanel.bActive = true
     logger.info('[BaseGM] 关闭兵营 UI，恢复建造菜单')

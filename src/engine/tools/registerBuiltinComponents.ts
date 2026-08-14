@@ -25,12 +25,15 @@ import { SpawnComponent } from '../entity/SpawnComponent'
 import { TransformComponent } from '../entity/TransformComponent'
 import { UITransformComponent, type AnchorPreset } from '../ui/UITransformComponent'
 import { UILayoutComponent, type UILayoutMode } from '../ui/UILayoutComponent'
+import { UIProgressBarComponent, type UIProgressDirection } from '../ui/UIProgressBarComponent'
+import { UIScrollListComponent, type UIScrollDirection } from '../ui/UIScrollListComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
+import { UITooltipComponent } from '../ui/UITooltipComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
@@ -208,6 +211,7 @@ export function registerBuiltinComponents(): void {
         name: p.name ?? 'CanvasUIComponent',
         zOrder: p.zOrder as number | undefined,
         markerOnly: (p.markerOnly as boolean) ?? false,
+        safeArea: p.safeArea as number | undefined,
         ...(p.active !== undefined ? { active: p.active as boolean } : {}),
       }),
     (c, p) => {
@@ -217,6 +221,7 @@ export function registerBuiltinComponents(): void {
       }
       if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
       if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number
+      if (p.safeArea !== undefined) ui.safeArea = p.safeArea as number
       if (p.active !== undefined) ui.bActive = p.active as boolean
     },
   )
@@ -314,6 +319,70 @@ export function registerBuiltinComponents(): void {
     (c, p) => {
       const btn = c as UIButtonComponent
       if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
+    },
+  )
+
+  // ─── UITooltipComponent ─── props: { text?, delay?, direction?, widgetPath? }
+  // 悬停提示组件：挂在任意 UI 控件上，悬停 delay 秒后在宿主上方/下方动态生成 tooltip 面板。
+  ComponentRegistry.register(
+    'UITooltipComponent',
+    (owner, p = {}) =>
+      new UITooltipComponent(asActor(owner), {
+        text: p.text as string | undefined,
+        delay: p.delay as number | undefined,
+        direction: p.direction as 'top' | 'bottom' | undefined,
+        widgetPath: p.widgetPath as string | undefined,
+      }),
+    (c, p) => {
+      const tip = c as UITooltipComponent
+      if (p.text !== undefined) tip.text = p.text as string
+      if (p.delay !== undefined) tip.delay = p.delay as number
+      if (p.direction !== undefined) tip.direction = p.direction as 'top' | 'bottom'
+      if (p.widgetPath !== undefined) tip.widgetPath = p.widgetPath as string
+    },
+  )
+
+  // ─── UIProgressBarComponent ─── props: { value?, min?, max?, fillActorName?, direction? }
+  // 进度条/血条：驱动 fill 子 Actor 尺寸按比例填充。
+  ComponentRegistry.register(
+    'UIProgressBarComponent',
+    (owner, p = {}) =>
+      new UIProgressBarComponent(asActor(owner), {
+        value: p.value as number | undefined,
+        min: p.min as number | undefined,
+        max: p.max as number | undefined,
+        fillActorName: p.fillActorName as string | undefined,
+        direction: p.direction as UIProgressDirection | undefined,
+      }),
+    (c, p) => {
+      const bar = c as UIProgressBarComponent
+      if (p.value !== undefined) bar.value = p.value as number
+      if (p.min !== undefined) bar.min = p.min as number
+      if (p.max !== undefined) bar.max = p.max as number
+      if (p.fillActorName !== undefined) bar.fillActorName = p.fillActorName as string
+      if (p.direction !== undefined) bar.direction = p.direction as UIProgressDirection
+    },
+  )
+
+  // ─── UIScrollListComponent ─── props: { itemWidget?, itemSize?, spacing?, visibleCount?, direction? }
+  // 滚动列表：item 对象池 + 滚动偏移排布。
+  ComponentRegistry.register(
+    'UIScrollListComponent',
+    (owner, p = {}) =>
+      new UIScrollListComponent(asActor(owner), {
+        itemWidget: p.itemWidget as string | undefined,
+        itemSize: p.itemSize as [number, number] | undefined,
+        spacing: p.spacing as number | undefined,
+        visibleCount: p.visibleCount as number | undefined,
+        direction: p.direction as UIScrollDirection | undefined,
+      }),
+    (c, p) => {
+      const list = c as UIScrollListComponent
+      if (p.itemWidget !== undefined) list.itemWidget = p.itemWidget as string
+      if (p.itemSize !== undefined) list.itemSize = p.itemSize as [number, number]
+      if (p.spacing !== undefined) list.spacing = p.spacing as number
+      if (p.visibleCount !== undefined) list.visibleCount = p.visibleCount as number
+      if (p.direction !== undefined) list.direction = p.direction as UIScrollDirection
     },
   )
 
