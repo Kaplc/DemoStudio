@@ -7,43 +7,42 @@
   "objects": [
     {
       "type": "actor",
-      "name": "LevelGround",
+      "name": "BattleGround",
       "baseClass": "Actor",
       "components": [
         {
           "baseClass": "TransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              -3
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ]
+            "position": [0, -0.02, 0],
+            "rotation": [-1.5708, 0, 0],
+            "scale": [1, 1, 1]
           }
         },
         {
           "baseClass": "MeshComponent",
           "properties": {
             "geometry": "plane",
-            "size": [
-              60,
-              36,
-              1
-            ],
-            "color": "#0a2a4a",
-            "kind": "basic"
+            "size": [48, 48],
+            "color": "#7cb342",
+            "kind": "standard"
           }
         }
       ]
-    }
+    },
+    { "type": "ref", "name": "Townhall_1", "ref": "asset/blueprints/buildings/townhall.blueprint.json", "position": [0, 0, -8], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Goldmine_1", "ref": "asset/blueprints/buildings/goldmine.blueprint.json", "position": [-3, 0, -4], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Goldmine_2", "ref": "asset/blueprints/buildings/goldmine.blueprint.json", "position": [3, 0, -4], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Elixir_1", "ref": "asset/blueprints/buildings/elixir.blueprint.json", "position": [-4, 0, -11], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Elixir_2", "ref": "asset/blueprints/buildings/elixir.blueprint.json", "position": [4, 0, -11], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Cannon_1", "ref": "asset/blueprints/buildings/cannon.blueprint.json", "position": [-1.8, 0, -6.5], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Cannon_2", "ref": "asset/blueprints/buildings/cannon.blueprint.json", "position": [1.8, 0, -6.5], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Cannon_3", "ref": "asset/blueprints/buildings/cannon.blueprint.json", "position": [-3.5, 0, -3], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Cannon_4", "ref": "asset/blueprints/buildings/cannon.blueprint.json", "position": [3.5, 0, -3], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_1", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [-2.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_2", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [-1.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_3", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [-0.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_4", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [0.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_5", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [1.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+    { "type": "ref", "name": "Wall_6", "ref": "asset/blueprints/buildings/wall.blueprint.json", "position": [2.5, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
   ]
 }

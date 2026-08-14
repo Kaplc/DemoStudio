@@ -225,6 +225,131 @@
           ]
         },
         {
+          "name": "ElixirPill",
+          "baseClass": "Actor",
+          "id": 11050,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-left",
+                "anchorOffset": [3.2, -0.08],
+                "worldWidth": 2.5,
+                "worldHeight": 0.62
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#5a1f7a",
+                "radius": 18,
+                "width": 500,
+                "height": 124,
+                "name": "ElixirPillFrame",
+                "zOrder": 1
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "ElixirPillInner",
+              "baseClass": "Actor",
+              "id": 11051,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 2.42,
+                    "worldHeight": 0.54
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#4a3020",
+                    "radius": 14,
+                    "width": 484,
+                    "height": 108,
+                    "name": "ElixirPillInner",
+                    "zOrder": 2
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "ElixirLabel",
+                  "baseClass": "Actor",
+                  "id": 11052,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, 0],
+                        "worldWidth": 2.3,
+                        "worldHeight": 0.5
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "🧪 药水: 0",
+                        "fontSize": 30,
+                        "color": "#b24cff",
+                        "bold": true,
+                        "align": "left",
+                        "width": 460,
+                        "height": 80,
+                        "zOrder": 3,
+                        "name": "ElixirText",
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.6)",
+                        "shadowBlur": 6
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "TitleLabel",
           "baseClass": "Actor",
           "id": 11005,

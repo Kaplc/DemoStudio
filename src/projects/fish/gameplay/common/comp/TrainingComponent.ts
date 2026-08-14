@@ -144,6 +144,18 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     return true
   }
 
+  /**
+   * 调试用：直接向军队注入兵种（绕过训练队列/容量/扣费，战斗测试专用）。
+   * 生产流程应走 FishGameInstance.trainTroop（扣费 → 入队 → 倒计时完成入列）。
+   */
+  debugAddArmy(troopId: string, count: number): boolean {
+    if (count <= 0) return false
+    this.army.set(troopId, (this.army.get(troopId) ?? 0) + Math.floor(count))
+    logger.info(`[TrainingComponent] 调试注入军队: ${troopId} x${count}（当前 ${this.army.get(troopId)}）`)
+    this.onChange?.()
+    return true
+  }
+
   /** 军队摘要：'野蛮人x3 巨人x1'（按兵种名） */
   getArmySummary(): string {
     const parts: string[] = []

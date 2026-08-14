@@ -61,20 +61,29 @@ export default class BaseHudScript extends BehaviourScript {
     } else {
       logger.warn('[BaseHudScript] 未找到 FishBaseGameMode，跳过按钮绑定')
     }
-    // ─── 金币文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
+    // ─── 金币/药水文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
     const inst = GameInstance.current as FishGameInstance | null
-    // 资产节点名是 GoldLabel（Actor），GoldText 是其 UITextComponent 组件的 name
+    // 资产节点名是 GoldLabel/ElixirLabel（Actor），GoldText/ElixirText 是其 UITextComponent 组件的 name
     const goldTextActor = this.findInChildren('GoldLabel')
     const goldText = goldTextActor?.getComponent(UITextComponent)
+    const elixirTextActor = this.findInChildren('ElixirLabel')
+    const elixirText = elixirTextActor?.getComponent(UITextComponent)
     if (inst && goldText) {
       // 立即刷新一次 + 资源变化自动更新
       goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
       inst.resources.onChange = () => {
         goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
+        if (elixirText) elixirText.text = `🧪 药水: ${inst.resources.get('elixir')}`
       }
       logger.info('[BaseHudScript] 金币文本已绑定资源组件')
     } else {
       logger.warn(`[BaseHudScript] 金币文本未绑定（instance=${!!inst}, goldText=${!!goldText}）`)
+    }
+    if (inst && elixirText) {
+      elixirText.text = `🧪 药水: ${inst.resources.get('elixir')}`
+      logger.info('[BaseHudScript] 药水文本已绑定资源组件（战斗掠夺入账后同步显示）')
+    } else {
+      logger.warn(`[BaseHudScript] 药水文本未绑定（instance=${!!inst}, elixirText=${!!elixirText}）`)
     }
   }
 

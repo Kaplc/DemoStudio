@@ -11,7 +11,7 @@
 import * as THREE from 'three'
 import { GenericActor, MeshComponent, logger } from '@/engine'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
-import type { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
+import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import type { BattleTroopActor } from './BattleTroopActor'
 
 export class BattleProjectileActor extends GenericActor {

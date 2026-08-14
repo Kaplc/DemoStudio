@@ -1,0 +1,243 @@
+{
+  "name": "BattleHUD",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "worldWidth": 9.6,
+        "worldHeight": 5.4,
+        "anchor": null,
+        "anchorOffset": [0, 0]
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true,
+        "safeArea": 5
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/battle/BattleHud"
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "DockWood",
+      "baseClass": "Actor",
+      "id": 20001,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 9.6,
+            "worldHeight": 1.7
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "rgba(34,22,12,0.9)",
+            "opacity": 0.9,
+            "radius": 0,
+            "width": 1920,
+            "height": 340,
+            "name": "DockWood",
+            "zOrder": 1
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "DockAccent",
+      "baseClass": "Actor",
+      "id": 20002,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 1.72],
+            "worldWidth": 1.2,
+            "worldHeight": 0.08
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#f0a500",
+            "radius": 4,
+            "width": 240,
+            "height": 16,
+            "name": "DockAccent",
+            "zOrder": 2
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "DeployLabel",
+      "baseClass": "Actor",
+      "id": 20003,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 1.25],
+            "worldWidth": 8,
+            "worldHeight": 0.3
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "已部署 0 · 场上 0 · 军队: 无",
+            "fontSize": 22,
+            "color": "#f5e6c8",
+            "bold": true,
+            "align": "center",
+            "width": 1200,
+            "height": 56,
+            "zOrder": 3,
+            "name": "DeployText",
+            "italic": false,
+            "shadowColor": "rgba(0,0,0,0.6)",
+            "shadowBlur": 5
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "DockHint",
+      "baseClass": "Actor",
+      "id": 20004,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 0.18],
+            "worldWidth": 6,
+            "worldHeight": 0.26
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "点兵种卡片选择 → 点战场放置（±24 内、不可叠建筑）· Esc 取消",
+            "fontSize": 16,
+            "color": "#f5e6c8",
+            "bold": false,
+            "align": "center",
+            "width": 1100,
+            "height": 44,
+            "zOrder": 3,
+            "name": "DockHint",
+            "italic": false,
+            "shadowColor": "rgba(0,0,0,0.45)",
+            "shadowBlur": 4
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "CardList",
+      "baseClass": "Actor",
+      "id": 20005,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "bottom-center",
+            "anchorOffset": [0, 0.75],
+            "worldWidth": 7.6,
+            "worldHeight": 1.0
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "grid",
+            "columns": 8,
+            "spacingX": 0.05,
+            "spacingY": 0.1
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

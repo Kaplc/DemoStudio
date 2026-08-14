@@ -70,9 +70,13 @@ export class BattleTroopActor extends GenericActor {
     const dx = center.x - pos.x
     const dz = center.z - pos.z
     const dist = Math.hypot(dx, dz)
+    // 攻击距离 = range + 目标半宽（兵中心到建筑中心距离换算成"兵到建筑边缘"的 gap）：
+    // 近战兵被 AABB 阻挡在 half+兵半宽 处，若只用 range（0.5~0.8）判定会永远够不到
+    // 阻挡物（死锁）。加目标半宽后，贴到建筑边缘即进入攻击距离。
+    const attackDist = this.troop.range + target.type.size / 2
 
     // ─── 射程内：站桩攻击 ───
-    if (dist <= this.troop.range) {
+    if (dist <= attackDist) {
       if (this.attackTimer <= 0) {
         this.attackTimer = TROOP_ATTACK_INTERVAL
         // 每击伤害 = dps × 间隔（0.5s），每秒总伤害守恒
@@ -93,10 +97,28 @@ export class BattleTroopActor extends GenericActor {
       return
     }
 
-    // 地面兵：检测移动后是否进入阻挡建筑包围盒 → 回退到边缘并攻击阻挡物
-    const blocker = this.gm.findBlockerAt(nx, nz, this.troop.size[0])
+    // 地面兵：检测移动后是否进入阻挡建筑包围盒
+    const blocker = this.gm.findBlockerAt(nx, nz, this.troop.size[0] / 2)
     if (blocker) {
-      // 位置保持不动（贴着包围盒边缘），把阻挡物切换为当前目标（被挡攻击阻挡物）
+      // 贴墙：沿移动方向推进到阻挡物 AABB 边缘（slab 法求最近边界交点）。
+      // 原因：兵移动步长（speed×dt）可能超过攻击距离余量，若被挡时位置停在
+      // AABB 外不动，会卡在"够不到阻挡物"的死锁（只能挨塔打）。贴到边缘后
+      // 距离 = 半宽+兵半宽 ≤ range+半宽（攻击距离），下一帧即可攻击。
+      const half = blocker.type.size / 2 + this.troop.size[0] / 2
+      const c = this.gm.buildingCenter(blocker)
+      const dirX = nx - pos.x
+      const dirZ = nz - pos.z
+      // 各轴到达 AABB 边界所需比例 t，取最小 = 最先触壁的轴
+      let t = 1
+      if (dirX > 0) t = Math.min(t, (c.x - half - pos.x) / dirX)
+      else if (dirX < 0) t = Math.min(t, (c.x + half - pos.x) / dirX)
+      if (dirZ > 0) t = Math.min(t, (c.z - half - pos.z) / dirZ)
+      else if (dirZ < 0) t = Math.min(t, (c.z + half - pos.z) / dirZ)
+      // 停在边界外 0.05（浮点余量防进入 AABB）
+      const tStop = Math.max(0, Math.min(1, t - 0.05))
+      pos.x += dirX * tStop
+      pos.z += dirZ * tStop
+      // 被挡攻击阻挡物：切换目标覆盖
       if (blocker !== target) {
         logger.info(`[Battle] ${this.troop.name} 被 ${blocker.type.name} 阻挡，切换攻击目标`)
         this.gm.setTroopTargetOverride(this, blocker)

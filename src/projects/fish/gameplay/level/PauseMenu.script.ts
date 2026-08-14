@@ -14,14 +14,16 @@ import type { FishGameInstance } from '../FishGameInstance'
 
 export default class PauseMenuScript extends BehaviourScript {
   override onStart(): void {
-    const mode = this.gameMode as FishLevelGameMode | null
+    // 战斗改造后关卡不再打开暂停菜单（Esc = 取消放置模式），本脚本保留为兼容占位：
+    // 若 GameMode 提供 closePauseMenu 则绑定，否则仅绑定返回基地。
+    const mode = this.gameMode as (FishLevelGameMode & { closePauseMenu?: () => void }) | null
     const inst = GameInstance.current as FishGameInstance | null
 
-    // ─── 1. 继续游戏：关闭暂停菜单 ───
+    // ─── 1. 继续游戏：关闭暂停菜单（若 GameMode 提供） ───
     const resumeActor = this.findInChildren('Btn_resume')
     const resumeBtn = resumeActor?.getComponent(UIButtonComponent)
-    if (resumeBtn && mode) {
-      resumeBtn.onClick = () => mode.closePauseMenu()
+    if (resumeBtn && mode?.closePauseMenu) {
+      resumeBtn.onClick = () => mode.closePauseMenu?.()
       logger.info('[PauseMenuScript] 已绑定"继续游戏" → closePauseMenu')
     } else {
       logger.warn(`[PauseMenuScript] "继续游戏"未绑定（mode=${!!mode}, btn=${!!resumeBtn}）`)

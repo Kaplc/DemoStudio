@@ -59,8 +59,8 @@ export class FishGameInstance extends GameInstance {
     this.renderContainer = renderContainer ?? null
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
-    // 资源组件：金币（跨阶段共享钱包，初始 100）
-    this.resources = new ResourcesComponent(this, { coins: INITIAL_COINS })
+    // 资源组件：金币 + 药水（跨阶段共享钱包，初始金币 100，药水 0）
+    this.resources = new ResourcesComponent(this, { coins: INITIAL_COINS, elixir: 0 })
     this.addComponent(this.resources)
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
@@ -87,9 +87,85 @@ export class FishGameInstance extends GameInstance {
     ToastSystem.instance.attach(this.world.ui, 'asset/blueprints/ui/toast.widget.json')
     // 色盲模式服务挂接（默认 off；由设置 UI 调用 setMode 切换）
     ColorblindService.instance.attach(this.world.ui)
+    // AI 调试直跳入口：Playwright 验证直接进入关卡战斗 / 注入军队
+    this.installBattleDebugBridge()
     if (this.initialMode === 'base') return this.switchToPhase('base')
     if (this.initialMode === 'game') return this.switchToPhase('game')
     return this.switchToPhase('menu')
+  }
+
+  /**
+   * 安装战斗调试桥（window.__fishBattle）：
+   *  - enterLevel(id)：直跳某关卡战斗场景（等价地图面板点关卡）
+   *  - addArmy(troopId, count)：向训练军队直接注入兵种（绕过训练队列，测试用）
+   *  - deploy(troopId, x, z)：在战斗场景世界坐标放兵（绕过屏幕点击，测试用）
+   *  - startTickDriver() / stopTickDriver()：浏览器测试页 rAF 被节流时，
+   *    用 setInterval 批量补偿驱动游戏 tick（Electron 正常环境不需要）
+   *  - getBattle()：战斗状态快照（建筑血量/掠夺/胜负，Playwright 断言）
+   *  - getState()：当前阶段/关卡/资源/军队快照（Playwright 断言）
+   */
+  private installBattleDebugBridge(): void {
+    ;(window as unknown as Record<string, unknown>).__fishBattle = {
+      enterLevel: (id: string) => this.enterLevel(id),
+      addArmy: (troopId: string, count: number) => {
+        const troop = this.getTroop(troopId)
+        if (!troop) return false
+        this.training.registerTroop(troopId, troop)
+        return this.training.debugAddArmy(troopId, count)
+      },
+      deploy: (troopId: string, x: number, z: number) => this._levelGameMode?.debugDeploy(troopId, x, z) ?? false,
+      startTickDriver: () => this.startDebugTickDriver(),
+      stopTickDriver: () => this.stopDebugTickDriver(),
+      /** 同步推进 n × (1/30)s 游戏时间（Playwright 断言用，不受浏览器节流影响） */
+      stepTicks: (n: number) => {
+        const count = Math.max(1, Math.min(Math.floor(n), 3000))
+        for (let i = 0; i < count; i++) {
+          if (this._phase === 'game') this.tick(1 / 30)
+        }
+        return count
+      },
+      getBattle: () => this._levelGameMode?.getBattleSnapshot() ?? null,
+      getState: () => ({
+        phase: this._phase,
+        levelId: this._levelId,
+        coins: this.resources.get('coins'),
+        elixir: this.resources.get('elixir'),
+        army: this.training.getArmySummary(),
+      }),
+    }
+    logger.info('[Fish] 战斗调试桥已安装: window.__fishBattle { enterLevel, addArmy, deploy, startTickDriver, stopTickDriver, getBattle, getState }')
+  }
+
+  /** 调试 tick 驱动器定时器 id（null = 未启动） */
+  private _debugTickTimer: number | null = null
+
+  /**
+   * 启动调试 tick 驱动器（Playwright 浏览器验证专用）：
+   * hidden 页面 rAF 被浏览器节流（深度节流时 setInterval 可降至 ~1 次/分钟），
+   * 本驱动器按真实时间差批量补偿 tick（每批最多 30s 游戏时间，30fps 步长），
+   * 保证战斗在测试页实时推进。Electron 正常环境由 GameViewport rAF 驱动，无需调用。
+   */
+  private startDebugTickDriver(): void {
+    this.stopDebugTickDriver()
+    let last = performance.now()
+    this._debugTickTimer = window.setInterval(() => {
+      const now = performance.now()
+      const elapsed = Math.min((now - last) / 1000, 30)
+      last = now
+      const steps = Math.round(elapsed / (1 / 30))
+      for (let i = 0; i < steps; i++) {
+        if (this._phase === 'game') this.tick(1 / 30)
+      }
+    }, 250)
+    logger.info('[Fish] 调试 tick 驱动器已启动（hidden 页面 rAF 节流补偿）')
+  }
+
+  /** 停止调试 tick 驱动器 */
+  private stopDebugTickDriver(): void {
+    if (this._debugTickTimer === null) return
+    clearInterval(this._debugTickTimer)
+    this._debugTickTimer = null
+    logger.info('[Fish] 调试 tick 驱动器已停止')
   }
 
   /**
@@ -206,13 +282,21 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] 游戏已启动')
   }
 
-  /** 关卡阶段设置（空壳：相机 + controller；Esc 暂停菜单由 FishLevelGameMode 绑定） */
+  /**
+   * 关卡阶段设置（战斗：攻打敌方基地）。
+   * 相机复用基地同款 BaseCameraActor（透视俯瞰 + 滚轮缩放 + 右键平移），
+   * 交给 World 托管（SpawnActor），放兵交互由 FishLevelGameMode + HUD 脚本接管。
+   */
   private setupLevelPhase(): void {
-    logger.info(`[Fish] setupLevelPhase: 配置关卡 "${this._levelId}"...`)
+    logger.info(`[Fish] setupLevelPhase: 配置关卡战斗 "${this._levelId}"...`)
     const mode = this.world.gameMode as FishLevelGameMode
     this._levelGameMode = mode
-    mode.cameraManager.RegisterCamera(mode.gameCamera)
-    this.setupCamera(mode.gameCamera, 0, 0, 20)
+    // 战斗摄像机 actor（与基地一致：每个关卡 new 一个新摄像机）
+    this.world.SpawnActor(mode.baseCamera)
+    this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
+    mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
+    // UI 点击：初始化 PhySys 射线检测（战斗相机 + 屏幕坐标换算容器）
+    if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.baseCamera.camera, this.world.gameRenderer.uiLayer)
 
     const spawn = mode.SpawnPlayer()
     if (spawn) {
@@ -221,7 +305,7 @@ export class FishGameInstance extends GameInstance {
     } else {
       logger.error('[Fish] setupLevelPhase: SpawnPlayer 返回空')
     }
-    logger.info('[Fish] setupLevelPhase: 完成（关卡空壳，Esc 打开暂停菜单）')
+    logger.info('[Fish] setupLevelPhase: 完成（战斗 HUD 由 BattleHudScript 接管）')
   }
 
   /** 领取初始金币 */
@@ -261,6 +345,8 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] 返回基地...')
     this._phase = 'base'
     this._levelId = null
+    // 停掉调试 tick 驱动器（战斗结束，无需继续补偿驱动）
+    this.stopDebugTickDriver()
 
     if (this.unsubGameState) { this.unsubGameState(); this.unsubGameState = null }
     if (this._gameMode) { this._gameMode.cameraManager.Clear(); this._gameMode = null }
@@ -395,7 +481,7 @@ export class FishGameInstance extends GameInstance {
     switch (this._phase) {
       case 'menu': return this._menuGameMode?.cameraManager.GetActiveCameraObject() ?? null
       case 'base': return this._baseGameMode?.cameraManager.GetActiveCameraObject() ?? null
-      case 'game': return this._gameMode?.cameraManager.GetActiveCameraObject() ?? null
+      case 'game': return (this._gameMode ?? this._levelGameMode)?.cameraManager.GetActiveCameraObject() ?? null
       default: return null
     }
   }
