@@ -1,0 +1,33 @@
+{
+  "_comment": "FishMaster 关卡数据表（DataTable 行表）。键=关卡 id，值=关卡属性。\n被 MapPanel.script.ts 读取（地图面板按此表动态生成关卡节点）。\n字段含义：\n  name = 显示名（如 关卡 1）；desc = 描述；\n  scene = 对应场景资产 name（SwitchToScene 按 name 查找，场景资产 mode 必须为 level）；\n  pos = 地图面板节点位置（父容器局部坐标，占位值，作者可在编辑器微调）；\n  stars = 难度星级（1~5，占位显示）。",
+  "level1": {
+    "name": "关卡 1",
+    "desc": "平静海域 · 新手练手",
+    "scene": "FishLevel1",
+    "pos": [
+      -2.3,
+      0.3
+    ],
+    "stars": 1
+  },
+  "level2": {
+    "name": "关卡 2",
+    "desc": "波涛渐起 · 稳步进阶",
+    "scene": "FishLevel2",
+    "pos": [
+      0,
+      -0.4
+    ],
+    "stars": 2
+  },
+  "level3": {
+    "name": "关卡 3",
+    "desc": "深海猎场 · 强者试炼",
+    "scene": "FishLevel3",
+    "pos": [
+      2.3,
+      0.3
+    ],
+    "stars": 3
+  }
+}

@@ -11,13 +11,14 @@ import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './base/FishBaseGameMode'
 import { FishGameMode } from './game/FishGameMode'
+import { FishLevelGameMode } from './level/FishLevelGameMode'
 import { FishPlayerController } from './game/FishPlayerController'
 import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
 import { ResourcesComponent } from './common/comp/ResourcesComponent'
 import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
 import { INITIAL_COINS } from './common/types'
-import type { TroopType } from './common/types'
+import type { TroopType, LevelType } from './common/types'
 
 type Phase = 'menu' | 'base' | 'game'
 
@@ -33,8 +34,12 @@ export class FishGameInstance extends GameInstance {
   private _menuGameMode: FishMainMenuGameMode | null = null
   private _baseGameMode: FishBaseGameMode | null = null
   private _gameMode: FishGameMode | null = null
+  /** 关卡阶段 GameMode 引用（关卡复用 game 阶段，场景 mode="level" 创建） */
+  private _levelGameMode: FishLevelGameMode | null = null
 
   private _phase: Phase = 'menu'
+  /** 当前关卡 id（null = 普通出海捕鱼；进入关卡后 game 阶段加载关卡场景） */
+  private _levelId: string | null = null
   private _controller: PlayerController | null = null
   pawn: FishCannon | null = null
 
@@ -86,17 +91,21 @@ export class FishGameInstance extends GameInstance {
   /**
    * 通用阶段切换：通过 World.SwitchToScene(name) 自动从 AssetRegistry 查找场景资产。
    * SwitchToScene 内部：Pause → DestroyAllActors → SetGameMode → loadSceneAsActors → extraSetup → BeginPlay
+   * game 阶段场景名由 _levelId 决定：有关卡 → 关卡场景（mode="level" → FishLevelGameMode），
+   * 否则 → 海域（mode="game" → FishGameMode）。
    */
   private switchToPhase(phase: Phase): boolean {
     this._phase = phase
-    const sceneName = phase === 'menu' ? 'FishMenu' : phase === 'base' ? 'FishBaseIsland' : 'FishMaster'
+    const sceneName = phase === 'menu' ? 'FishMenu'
+      : phase === 'base' ? 'FishBaseIsland'
+      : this._levelId ? (this.getLevel(this._levelId)?.scene ?? 'FishMaster') : 'FishMaster'
     logger.info(`[Fish] 切换阶段 → ${phase} (场景: ${sceneName})`)
 
     const ok = this.world.SwitchToScene(sceneName, () => {
       switch (phase) {
         case 'menu': this.setupMenuPhase(); break
         case 'base': this.setupBasePhase(); break
-        case 'game': this.setupGamePhase(); break
+        case 'game': this._levelId ? this.setupLevelPhase() : this.setupGamePhase(); break
       }
     })
     if (!ok) logger.error(`[Fish] 切换阶段失败 → ${phase}`)
@@ -193,6 +202,24 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] 游戏已启动')
   }
 
+  /** 关卡阶段设置（空壳：相机 + controller；Esc 暂停菜单由 FishLevelGameMode 绑定） */
+  private setupLevelPhase(): void {
+    logger.info(`[Fish] setupLevelPhase: 配置关卡 "${this._levelId}"...`)
+    const mode = this.world.gameMode as FishLevelGameMode
+    this._levelGameMode = mode
+    mode.cameraManager.RegisterCamera(mode.gameCamera)
+    this.setupCamera(mode.gameCamera, 0, 0, 20)
+
+    const spawn = mode.SpawnPlayer()
+    if (spawn) {
+      this._controller = spawn.controller
+      logger.info(`[Fish] setupLevelPhase: controller 已就绪 → ${spawn.controller.name}`)
+    } else {
+      logger.error('[Fish] setupLevelPhase: SpawnPlayer 返回空')
+    }
+    logger.info('[Fish] setupLevelPhase: 完成（关卡空壳，Esc 打开暂停菜单）')
+  }
+
   /** 领取初始金币 */
   private claimCoins() {
     this.resources.set('coins', INITIAL_COINS)
@@ -219,24 +246,60 @@ export class FishGameInstance extends GameInstance {
   private startGameplay(): boolean {
     logger.info('[Fish] 出海捕鱼...')
     this._phase = 'game'
+    this._levelId = null
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this._baseGameMode?.cameraManager.Clear()
     return this.switchToPhase('game')
   }
 
-  /** 从游戏返回基地（Game Over / 手动返回） */
-  private returnToBase() {
+  /** 从游戏/关卡返回基地（Game Over / 暂停菜单"返回基地" / 手动返回） */
+  returnToBase() {
     logger.info('[Fish] 返回基地...')
     this._phase = 'base'
+    this._levelId = null
 
     if (this.unsubGameState) { this.unsubGameState(); this.unsubGameState = null }
     if (this._gameMode) { this._gameMode.cameraManager.Clear(); this._gameMode = null }
+    if (this._levelGameMode) { this._levelGameMode.cameraManager.Clear(); this._levelGameMode = null }
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this.pawn = null
     this._returningToBase = false
 
     this.switchToPhase('base')
     logger.info(`[Fish] 返回基地，当前金币: ${this.resources.get('coins')}`)
+  }
+
+  // ════════════════════════════════════════════
+  //  关卡（地图面板入口）
+  // ════════════════════════════════════════════
+
+  /** 关卡数据表（DataTable，键=关卡 id，值=关卡属性） */
+  getLevelTable(): DataTable<LevelType> | undefined {
+    return ConfigRegistry.getTable<LevelType>('fish.levels')
+  }
+
+  /** 按 id 查关卡 */
+  getLevel(id: string): LevelType | undefined {
+    return this.getLevelTable()?.getRow(id)
+  }
+
+  /**
+   * 进入关卡（地图面板关卡节点点击）：
+   * 复用 game 阶段 → 加载关卡场景（场景资产 mode="level" → FishLevelGameMode）。
+   * 关卡内按 Esc 打开暂停菜单，可"返回基地"。
+   */
+  enterLevel(id: string): boolean {
+    const level = this.getLevel(id)
+    if (!level) {
+      logger.warn(`[Fish] 进入关卡失败：关卡 "${id}" 不存在（关卡表未加载或行缺失）`)
+      return false
+    }
+    logger.info(`[Fish] 进入关卡: ${level.name}（场景 ${level.scene}）`)
+    this._levelId = id
+    this._phase = 'game'
+    if (this._controller) { this._controller.Unpossess(); this._controller = null }
+    this._baseGameMode?.cameraManager.Clear()
+    return this.switchToPhase('game')
   }
 
   // ════════════════════════════════════════════
@@ -293,11 +356,15 @@ export class FishGameInstance extends GameInstance {
       return
     }
 
-    if (this._phase === 'game' && this._gameMode) {
+    if (this._phase === 'game') {
       this.world.manualTick(dt)
-      const gs = this._gameMode.gameState
-      this.callbacks.onScoreChange?.(gs.score)
-      this.callbacks.onPhaseChange?.(gs.phase)
+      // 出海/关卡共用 game 阶段驱动（关卡空壳无玩法，仍驱动 world tick）
+      const gm = this._gameMode ?? this._levelGameMode
+      if (gm) {
+        const gs = gm.gameState
+        this.callbacks.onScoreChange?.(gs.score)
+        this.callbacks.onPhaseChange?.(gs.phase)
+      }
     }
   }
 
@@ -314,7 +381,7 @@ export class FishGameInstance extends GameInstance {
         this._baseGameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
         break
       case 'game':
-        this._gameMode?.cameraManager.ApplyToRenderer(targetCamera, aspect)
+        (this._gameMode ?? this._levelGameMode)?.cameraManager.ApplyToRenderer(targetCamera, aspect)
         break
     }
   }

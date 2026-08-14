@@ -4,8 +4,8 @@
  * 中央有一块部落冲突风格的方格草地地图，可放置不同颜色的立方体建筑。
  *
  * 玩法：
- *  - 底部一排彩色建筑按钮（菜单），点击选择要放置的建筑类型
- *  - 点击草地网格 → 放置建筑（不同颜色立方体，吸附网格）
+ *  - HUD 底部"地图"按钮进入建筑模式 → 打开建筑菜单（独立 widget，默认隐藏）
+ *  - 建筑菜单点击选择要放置的建筑类型（不同颜色立方体，吸附网格）
  *  - 点击已放置建筑 → 选中（金色线框高亮），点击其他格子可移动
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
@@ -30,7 +30,7 @@ export class FishBaseGameMode extends GameMode {
   //  部落冲突建造系统状态
   // ═══════════════════════════════════
 
-  /** HUD 蓝图：部落冲突建筑菜单 UI（由 World.SwitchScene 统一创建） */
+  /** HUD 蓝图：基地主 HUD（顶部资源栏 + 地图按钮；建筑菜单是独立 widget，建筑模式才显示） */
   override HUDClass = 'asset/blueprints/ui/base_hud.widget.json'
 
   /** 基地地图构建器（专门负责创建地面/草地/初始建筑布局，BeginPlay 创建，EndPlay 回收） */
@@ -50,6 +50,12 @@ export class FishBaseGameMode extends GameMode {
   private placeGridActor: PlaceGridActor | null = null
   /** 兵营专属 UI 面板（打开时隐藏建造菜单 base_hud，关闭时恢复） */
   private barracksPanel: Actor | null = null
+  /** 建筑模式状态（true = 建筑菜单显示，可放置/移动/删除建筑） */
+  private buildMode = false
+  /** 建筑菜单 UI Actor（build_menu.widget.json，根 active:false 默认隐藏，建筑模式才显示） */
+  private buildMenuPanel: Actor | null = null
+  /** 地图面板 UI Actor（base_map.widget.json，关卡选择面板，打开时生成） */
+  private mapPanel: Actor | null = null
 
 
   /** 外部设置：点击"出海捕鱼"后的回调 */
@@ -81,6 +87,8 @@ export class FishBaseGameMode extends GameMode {
     this.baseBuilder.build((id, gx, gz) => this.placeBuilding(id, gx, gz))
     // 创建放置示意网格（默认隐藏，进入放置模式时显示）
     this.createPlaceGrid()
+    // 预生成建筑菜单（根 active:false 默认隐藏，建筑模式才显示）
+    this.spawnBuildMenu()
   }
 
   override EndPlay() {
@@ -120,6 +128,75 @@ export class FishBaseGameMode extends GameMode {
   // ════════════════════════════════════════════
   //  HUD 按钮驱动（由 FishGameInstance 绑定 UIButtonComponent.onClick）
   // ════════════════════════════════════════════
+
+  /**
+   * 切换建筑模式（HUD"地图"按钮调用）：
+   * 进入 → 显示建筑菜单；退出 → 隐藏菜单 + 清理放置/选中状态
+   */
+  toggleBuildMode() {
+    this.buildMode = !this.buildMode
+    if (this.buildMode) {
+      if (this.buildMenuPanel) this.buildMenuPanel.bActive = true
+      logger.info('[BaseGM] 进入建筑模式（建筑菜单已打开）')
+    } else {
+      this.exitBuildMode()
+    }
+  }
+
+  /** 退出建筑模式：隐藏建筑菜单 + 清理放置/选中状态 */
+  private exitBuildMode() {
+    this.buildMode = false
+    if (this.buildMenuPanel) this.buildMenuPanel.bActive = false
+    this.cancelPlaceMode()
+    this.deselectBuilding()
+    logger.info('[BaseGM] 退出建筑模式（建筑菜单已隐藏）')
+  }
+
+  /** 预生成建筑菜单 UI（build_menu.widget.json，挂到 HUD；根 active:false 默认隐藏） */
+  private spawnBuildMenu() {
+    const w = this.world
+    if (!w || this.buildMenuPanel) return
+    this.buildMenuPanel = w.ui.spawnUIActor('asset/blueprints/ui/build_menu.widget.json')
+    if (!this.buildMenuPanel) {
+      logger.error('[BaseGM] 建筑菜单生成失败')
+      return
+    }
+    logger.info('[BaseGM] 建筑菜单已预生成（默认隐藏，建筑模式才显示）')
+  }
+
+  /**
+   * 切换地图面板（HUD"地图"按钮调用）：
+   * 打开 → 生成 base_map.widget.json（关卡选择）；自动退出建筑模式（两面板互斥单向）；
+   * 关闭 → 销毁面板。
+   */
+  toggleMapPanel() {
+    if (this.mapPanel) {
+      this.closeMapPanel()
+      return
+    }
+    // 打开地图面板时自动退出建筑模式（建筑菜单隐藏；关闭地图面板后可重新进入）
+    this.exitBuildMode()
+    const w = this.world
+    if (!w) {
+      logger.error('[BaseGM] 打开地图面板失败：world 为空')
+      return
+    }
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/base_map.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 地图面板生成失败')
+      return
+    }
+    this.mapPanel = panel
+    logger.info('[BaseGM] 打开地图面板（建筑模式已自动退出）')
+  }
+
+  /** 关闭地图面板（由 MapPanel 脚本关闭按钮调用） */
+  closeMapPanel() {
+    if (!this.mapPanel) return
+    this.mapPanel.destroy()
+    this.mapPanel = null
+    logger.info('[BaseGM] 关闭地图面板')
+  }
 
   /**
    * HUD 建筑按钮点击：选择要放置的建筑类型（再次点击同类型取消）。
@@ -197,6 +274,8 @@ export class FishBaseGameMode extends GameMode {
 
   /** 点击已放置建筑：兵营 → 打开兵营专属 UI（隐藏建造菜单）；其他建筑选中（高亮）/ 取消选中 */
   onBuildingClick(b: ClashBuildingBaseActor) {
+    // 非建筑模式：只有兵营可打开面板，其他建筑不响应选中/移动
+    if (!this.buildMode && !(b instanceof BarracksActor)) return
     // 兵营：打开兵营专属 UI，不进入选中/移动模式
     if (b instanceof BarracksActor) {
       this.openBarracksPanel()
@@ -223,9 +302,13 @@ export class FishBaseGameMode extends GameMode {
     // 退出选中/放置模式（兵营 UI 打开时互斥）
     this.deselectBuilding()
     this.cancelPlaceMode()
+    // 地图面板与兵营面板互斥：打开兵营时关闭地图面板（建筑菜单独立控制，见下）
+    this.closeMapPanel()
     // 隐藏建造菜单（base_hud 根节点 bActive=false → 整棵 UI 树隐藏）
     const hudUI = w.ui.hud?.uiActor
     if (hudUI) hudUI.bActive = false
+    // 建筑模式下同步隐藏建筑菜单（兵营面板打开时互斥）
+    if (this.buildMenuPanel) this.buildMenuPanel.bActive = false
     // 生成兵营面板（挂到当前 HUD）
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/barracks_ui.widget.json')
     if (!panel) {
@@ -245,6 +328,8 @@ export class FishBaseGameMode extends GameMode {
     // 恢复建造菜单
     const hudUI = this.world?.ui.hud?.uiActor
     if (hudUI) hudUI.bActive = true
+    // 建筑模式下恢复建筑菜单
+    if (this.buildMode && this.buildMenuPanel) this.buildMenuPanel.bActive = true
     logger.info('[BaseGM] 关闭兵营 UI，恢复建造菜单')
   }
 
@@ -259,8 +344,9 @@ export class FishBaseGameMode extends GameMode {
   //  鼠标交互（由 FishBasePlayerController 转发）
   // ════════════════════════════════════════════
 
-  /** 鼠标按下：放置建筑 / 移动选中建筑 */
+  /** 鼠标按下：放置建筑 / 移动选中建筑（仅建筑模式响应） */
   onScreenDown(sx: number, sy: number) {
+    if (!this.buildMode) return
     const ground = this.screenToGround(sx, sy)
     if (!ground) return
 
@@ -389,6 +475,9 @@ export class FishBaseGameMode extends GameMode {
     this.placeGridActor = null
     // 兵营面板是 UI Actor，由 World 销毁时 UIManager.destroyAll 统一销毁，这里只清引用
     this.barracksPanel = null
+    this.buildMenuPanel = null
+    this.mapPanel = null
+    this.buildMode = false
     this.clashBuildings = []
     this.gridOccupied.clear()
     this.selectedType = null

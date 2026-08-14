@@ -36,6 +36,8 @@
 
 | 文件 | 说明 |
 |------|------|
+| [`playwright_testing.md`](./playwright_testing.md) | Playwright 浏览器测试流程：环境限制、通用操作（打开工程/启动/AI 事件驱动）与踩坑记录（涉及浏览器端测试时必读） |
+| [`level_system.md`](./level_system.md) | 关卡系统：HUD 双按钮 → 地图面板（关卡选择）→ 空壳关卡 → Esc 暂停菜单 → 返回基地（涉及 fish 关卡/地图 UI 时必读） |
 | [`undo_redo_system.md`](./undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读） |
 | [`ui_anchor_system.md`](./ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑（涉及 UI 布局/锚点/拖拽时必读） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |

@@ -1,12 +1,16 @@
 /**
  * BaseHudScript — 基地 HUD 行为脚本（Unity MonoBehaviour 风格）
  *
- * 通过 UIScriptComponent 挂载到 base_hud.widget.json 的根节点，接管底部建筑菜单按钮
- * 的点击绑定：按指定节点名（Btn_*）逐个查找按钮，把 UIButtonComponent 接到对应
- * GameMode 方法（选建筑类型 / 删除选中）。
+ * 通过 UIScriptComponent 挂载到 base_hud.widget.json 的根节点，接管 HUD 常驻控件：
+ *  - "建筑"按钮（Btn_build）：切换建筑模式（FishBaseGameMode.toggleBuildMode）——
+ *    进入建筑模式后显示独立建筑菜单（build_menu.widget.json），退出后隐藏
+ *  - "地图"按钮（Btn_map）：打开/关闭地图面板（FishBaseGameMode.toggleMapPanel）——
+ *    关卡选择 UI（base_map.widget.json），打开时自动退出建筑模式
+ *  - 金币文本：绑定 GameInstance 资源组件（跨阶段共享钱包）
  *
- * 替代原先在 FishGameInstance.setupBasePhase 里手写遍历 UI 树、按名字绑定的代码——
- * UI 结构（资产）与行为（脚本）解耦。
+ * 建筑菜单按钮（选建筑类型/删除）由 BuildMenu.script.ts 接管（挂在 build_menu 资产上），
+ * 地图面板的关卡节点由 MapPanel.script.ts 接管（挂在 base_map 资产上）——
+ * HUD 只负责入口按钮，面板内容与 HUD 解耦。
  *
  * 文件名 `.script.ts` 后缀 + 默认导出：由 asset/index.ts 的 import.meta.glob 自动扫描
  * 注册，注册 id = `gameplay/base/BaseHud`（路径式）。
@@ -15,46 +19,32 @@ import { BehaviourScript, UIButtonComponent, UITextComponent, logger, GameInstan
 import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
-/** 建筑菜单按钮映射：资产节点名 → 建筑类型 id（delete 走删除分支） */
-const BUILDING_BUTTONS: Readonly<Record<string, string>> = {
-  Btn_townhall: 'townhall',
-  Btn_barracks: 'barracks',
-  Btn_goldmine: 'goldmine',
-  Btn_elixir: 'elixir',
-  Btn_cannon: 'cannon',
-  Btn_wall: 'wall',
-  Btn_delete: 'delete',
-}
-
 export default class BaseHudScript extends BehaviourScript {
   override onStart(): void {
     const mode = this.gameMode as FishBaseGameMode | null
-    if (!mode) {
+    if (mode) {
+      // 建筑按钮：切换建筑模式（打开/关闭建筑菜单）
+      const buildBtnActor = this.findInChildren('Btn_build')
+      const buildBtn = buildBtnActor?.getComponent(UIButtonComponent)
+      if (buildBtn) {
+        buildBtn.onClick = () => mode.toggleBuildMode()
+        logger.info('[BaseHudScript] 建筑按钮已绑定（切换建筑模式）')
+      } else {
+        logger.warn('[BaseHudScript] 未找到 Btn_build 按钮，跳过')
+      }
+
+      // 地图按钮：打开/关闭地图面板（关卡选择）
+      const mapBtnActor = this.findInChildren('Btn_map')
+      const mapBtn = mapBtnActor?.getComponent(UIButtonComponent)
+      if (mapBtn) {
+        mapBtn.onClick = () => mode.toggleMapPanel()
+        logger.info('[BaseHudScript] 地图按钮已绑定（打开地图面板）')
+      } else {
+        logger.warn('[BaseHudScript] 未找到 Btn_map 按钮，跳过')
+      }
+    } else {
       logger.warn('[BaseHudScript] 未找到 FishBaseGameMode，跳过按钮绑定')
-      return
     }
-
-    // 按指定 name 逐个获取按钮并绑定
-    let bound = 0
-    for (const [btnName, id] of Object.entries(BUILDING_BUTTONS)) {
-      const btnActor = this.findInChildren(btnName)
-      if (!btnActor) {
-        logger.warn(`[BaseHudScript] 未找到按钮节点 "${btnName}"，跳过`)
-        continue
-      }
-      const btn = btnActor.getComponent(UIButtonComponent)
-      if (!btn) {
-        logger.warn(`[BaseHudScript] 按钮节点 "${btnName}" 缺少 UIButtonComponent，跳过`)
-        continue
-      }
-      // 沿用资产约定：再次点击同类型在 GameMode 内部取消；delete 走删除分支
-      btn.onClick = id === 'delete'
-        ? () => mode.deleteSelectedBuilding()
-        : () => mode.selectBuildingType(id)
-      bound++
-    }
-
-    logger.info(`[BaseHudScript] 已绑定 ${bound} 个建筑菜单按钮`)
 
     // ─── 金币文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
     const inst = GameInstance.current as FishGameInstance | null

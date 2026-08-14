@@ -1,0 +1,181 @@
+{
+  "_comment": "关卡卡片蓝图（LevelCard）——地图面板动态生成的单个关卡条目。\n由 MapPanel.script.ts 在运行时按路径生成（world.ui.spawnUIActor），脚本负责：\n  1. 节点名改为 Level_{id}（便于按关卡定位）\n  2. 填充名称/星级/描述文本（Name/Info 子节点）\n  3. 位置按配置表 pos 设置（anchor=center + anchorOffset=pos，不用布局组件）\n  4. 绑定点击（UIButtonComponent.onClick → FishGameInstance.enterLevel）",
+  "name": "LevelCard",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "anchor": "center",
+        "anchorOffset": [
+          0,
+          0
+        ],
+        "worldWidth": 1.7,
+        "worldHeight": 0.85
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "markerOnly": true,
+        "name": "UIMarker",
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UIImageComponent",
+      "properties": {
+        "color": "#2a3a4e",
+        "radius": 12,
+        "width": 340,
+        "height": 170,
+        "name": "CardBg",
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UIButtonComponent",
+      "properties": {
+        "colors": {
+          "normal": "#2a3a4e",
+          "hover": "#3a5068",
+          "pressed": "#1a2a3e"
+        }
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "Name",
+      "baseClass": "Actor",
+      "id": 20001,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0.22
+            ],
+            "worldWidth": 1.6,
+            "worldHeight": 0.32
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "关卡名",
+            "fontSize": 22,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "center",
+            "width": 320,
+            "height": 60,
+            "zOrder": 3,
+            "name": "LevelName",
+            "italic": false
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Info",
+      "baseClass": "Actor",
+      "id": 20002,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              -0.08
+            ],
+            "worldWidth": 1.6,
+            "worldHeight": 0.28
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "关卡描述",
+            "fontSize": 15,
+            "color": "#a8c4e0",
+            "bold": false,
+            "align": "center",
+            "width": 320,
+            "height": 50,
+            "zOrder": 3,
+            "name": "LevelInfo",
+            "italic": false
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

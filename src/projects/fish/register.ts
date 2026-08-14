@@ -9,6 +9,7 @@ import { FishGameInstance, initFishConfigs } from './'
 import { FishMainMenuGameMode } from './gameplay/menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './gameplay/base/FishBaseGameMode'
 import { FishGameMode } from './gameplay/game/FishGameMode'
+import { FishLevelGameMode } from './gameplay/level/FishLevelGameMode'
 import { FishHouseActor } from './gameplay/base/FishHouseActor'
 import { CLASH_BUILDING_ACTOR_CLASSES } from './gameplay/base/ClashBuildingActors'
 import { registerFishAssets } from './asset'
@@ -17,6 +18,7 @@ import { registerFishAssets } from './asset'
 GameModeRegistry.register('menu', FishMainMenuGameMode)
 GameModeRegistry.register('base', FishBaseGameMode)
 GameModeRegistry.register('game', FishGameMode)
+GameModeRegistry.register('level', FishLevelGameMode)
 
 // ─── 行为类 Actor（供 Blueprint baseClass 引用） ───
 ActorRegistry.register('FishHouse', () => new FishHouseActor('FishHouse'))

@@ -1,0 +1,49 @@
+{
+  "name": "FishLevel1",
+  "mode": "level",
+  "skybox": {
+    "backgroundColor": "#0e4d6e"
+  },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "LevelGround",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [
+              0,
+              0,
+              -3
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "baseClass": "MeshComponent",
+          "properties": {
+            "geometry": "plane",
+            "size": [
+              60,
+              36,
+              1
+            ],
+            "color": "#0e4d6e",
+            "kind": "basic"
+          }
+        }
+      ]
+    }
+  ]
+}

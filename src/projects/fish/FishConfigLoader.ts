@@ -9,7 +9,7 @@
  *   - 文件路径与配置名由 asset/config/index.ts 的 glob 自动推导，新增配置文件无需改本文件
  */
 import { ConfigLoaderBase } from '@/engine'
-import type { TroopType } from './gameplay/common/types'
+import type { TroopType, LevelType } from './gameplay/common/types'
 import {
   DEFAULT_CANNON_CONFIG,
   DEFAULT_BOSS_CONFIG,
@@ -38,6 +38,13 @@ export class FishConfigLoader extends ConfigLoaderBase {
       // "#rrggbb" → 数字颜色
       color: parseInt((row.color as string).replace('#', ''), 16),
       size: [...(row.size as [number, number, number])],
+    }))
+
+    // 关卡 DataTable（地图面板按表生成关卡节点）：无默认值表（未加载时 getTable 返回 undefined）
+    this.registerTableTransform<LevelType>('fish.levels', (row): LevelType => ({
+      ...row,
+      // pos 数组归一化拷贝（防止 JSON 引用共享）
+      pos: [...(row.pos as [number, number])],
     }))
 
     // ─── 自动注册 asset/config/ 下所有配置文件（路径/name 由 glob 推导） ───

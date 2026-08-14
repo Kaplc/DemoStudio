@@ -35,6 +35,13 @@ import type { World } from '../gameflow/World'
 import type { ResolvedChildDef } from '../asset/BlueprintAsset'
 
 /**
+ * 浮动面板层级基准：运行时动态生成的 UI（地图面板/暂停菜单等）整树 zOrder 提升此值，
+ * 保证盖过常驻 HUD（three.js 透明物体按全局 renderOrder 排序，若浮动面板 zOrder
+ * 不高于 HUD 内部文字的高 zOrder，下层 HUD 文字会穿透绘制到面板之上）。
+ */
+const FLOAT_LAYER_BIAS = 100
+
+/**
  * 严格模式校验子节点 transform 数据（组件优先）：
  * 顶层 position/rotation/scale 字段已废弃（无论是否声明变换组件）—— 存在即报错，不应用顶层值；
  * 位置/旋转/缩放一律由 transform/uitransform 组件的 properties 承载。
@@ -265,8 +272,29 @@ export class UIManager extends AObjectComponent<World> {
     // 5. 挂载到父 Actor
     const p = parent ?? this._hud
     if (p) actor.attachTo(p)
+    // 浮动面板层级基准：游戏运行中动态生成的 UI（地图面板/暂停菜单/兵营面板等）整树
+    // zOrder += FLOAT_LAYER_BIAS，保证盖过常驻 HUD（three 透明排序按全局 renderOrder，
+    // 不偏移会被 HUD 内高 zOrder 的文字穿透）。场景切换期生成（HUD 本体）不偏移。
+    if (this.owner.running) this.applyFloatLayerBias(actor)
     logger.info(`[UIManager] UI Actor 已生成: ${path} (uid=${actor.uid}, parent=${p ? p.name : '顶层'})`)
     return actor
+  }
+
+  /**
+   * 提升一棵 UI 树的 zOrder（浮动面板层级基准）：递归遍历所有 CanvasUIComponent
+   * （UIText/UIImage 继承自它，setter 会同步各自渲染对象的 renderOrder/position.z），
+   * 使整棵浮动面板位于常驻 HUD 之上（zOrder 是全局渲染顺序，层内相对顺序不变）。
+   */
+  private applyFloatLayerBias(actor: Actor): void {
+    const walk = (a: Actor): void => {
+      for (const comp of a.getComponents(CanvasUIComponent)) {
+        comp.zOrder += FLOAT_LAYER_BIAS
+      }
+      for (const child of a.getChildren()) {
+        walk(child)
+      }
+    }
+    walk(actor)
   }
 
   /**

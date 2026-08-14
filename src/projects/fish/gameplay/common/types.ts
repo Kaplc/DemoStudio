@@ -282,3 +282,22 @@ export const DEFAULT_TROOPS: Record<string, TroopType> = {
     target: 'ground', preferred: 'any', size: [1.3, 1.9, 1.3], flying: false, color: 0x455a64,
   },
 }
+
+// ════════════════════════════════════════════
+//  关卡配置（对应 levels.table.json）
+// ════════════════════════════════════════════
+
+/** 关卡配置行（DataTable 行表，对应 levels.table.json 的每一行） */
+export interface LevelType {
+  /** 显示名（如"关卡 1"） */
+  name: string
+  /** 描述 */
+  desc: string
+  /** 对应场景资产 name（SwitchToScene 按 name 查找；场景资产 mode 必须为 "level"） */
+  scene: string
+  /** 地图面板节点位置（父容器局部坐标，占位值，作者可在编辑器微调） */
+  pos: [number, number]
+  /** 难度星级（1~5，占位显示） */
+  stars: number
+}
+
