@@ -1,0 +1,76 @@
+{
+  "_comment": "GM 命令按钮 item 蓝图（GMCmdItem）——GM_CmdList 滚动列表的单条命令按钮。\n由 UIScrollListComponent 对象池生成（spawnUIActor），GMConsoleHUD 的 onItemSpawned 负责：\n  1. 填充命令名（CmdLabel 文本）\n  2. 绑定点击（UIButtonComponent.onClick → 命令名填入输入框）\nzOrder 写相对层级 0~3（与 gm_panel 资产树一致），运行时由列表 zOrderLift 统一抬升对齐面板层。\nanchorOffset.y=1.2 使首项顶对齐容器（容器 h=2.7，首项中心 ≈ 顶 − item 半高）。",
+  "name": "GMCmdItem",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "anchor": "center",
+        "anchorOffset": [
+          0,
+          1.2
+        ],
+        "worldWidth": 2.7,
+        "worldHeight": 0.24
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "markerOnly": true,
+        "name": "UIMarker",
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UIImageComponent",
+      "properties": {
+        "color": "#1a1028",
+        "radius": 6,
+        "width": 540,
+        "height": 48,
+        "zOrder": 2
+      }
+    },
+    {
+      "baseClass": "UITextComponent",
+      "name": "CmdLabel",
+      "properties": {
+        "text": "",
+        "fontSize": 13,
+        "color": "#e8d8a8",
+        "align": "left",
+        "width": 500,
+        "height": 40,
+        "zOrder": 3
+      }
+    },
+    {
+      "baseClass": "UIButtonComponent",
+      "properties": {
+        "colors": {
+          "normal": "#1a1028",
+          "hover": "#3a2a50",
+          "pressed": "#4a3a60"
+        }
+      }
+    }
+  ],
+  "children": []
+}

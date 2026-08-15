@@ -14,6 +14,8 @@ import * as THREE from 'three'
 import { Component } from '../entity/Component'
 import type { Actor } from '../entity/Actor'
 import { PhySys } from './PhySys'
+// 值导入（uiZOrder 用 getComponent(CanvasUIComponent) 运行时查询；PhySys 对 CanvasUIComponent 仅 type 引用，无循环）
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 
 export class ClickableComponent extends Component<Actor> {
   /**
@@ -31,6 +33,18 @@ export class ClickableComponent extends Component<Actor> {
   onRelease: (() => void) | null = null
   /** 悬停回调：传入命中信息（null 表示离开） */
   onHover: ((hit: THREE.Intersection | null) => void) | null = null
+  /**
+   * 拖拽开始回调（按下后首次移动时触发，传入屏幕坐标）。
+   * 绑定 onDragMove 时启用拖拽语义：位移超过阈值后 onClick 不再触发（拖拽 ≠ 点击）。
+   */
+  onDragStart: ((screenX: number, screenY: number) => void) | null = null
+  /** 拖拽移动回调（按下期间鼠标移动，传入屏幕坐标；未按下不触发） */
+  onDragMove: ((screenX: number, screenY: number) => void) | null = null
+  /**
+   * 拖拽结束回调（handleRelease 时触发；独立字段，不干扰 UIButtonComponent 的 onRelease）。
+   * 用于拖拽松手后的收尾（如滚动列表回弹到边界）。
+   */
+  onDragEnd: (() => void) | null = null
 
   /** 点击冷却时间 (ms) */
   clickCooldown = 500
@@ -43,6 +57,16 @@ export class ClickableComponent extends Component<Actor> {
   private _lastClickTime = 0
   /** 显式指定的检测目标 */
   private _explicitTargets: THREE.Object3D[] | null = null
+
+  /**
+   * 拖拽判定阈值（像素）：按下后移动距离超过该值视为拖拽。
+   * 仅绑定 onDragMove 的组件启用（普通点击组件移动鼠标不会取消点击）。
+   */
+  private static readonly DRAG_THRESHOLD_PX = 8
+  /** 按下时的屏幕坐标（拖拽位移判定基准；null = 尚未移动） */
+  private _pressScreen: [number, number] | null = null
+  /** 延迟到释放时触发的点击（拖拽语义下按下不立即触发）；null = 无待触发点击 */
+  private _pendingClick: THREE.Intersection | null = null
 
   constructor(owner: import('../entity/Actor').Actor) {
     super(owner)
@@ -131,7 +155,12 @@ export class ClickableComponent extends Component<Actor> {
         }
         o = o.parent
       }
-      if (visible) visibleTargets.push(t)
+      if (visible) {
+        // 强制沿父链刷新世界矩阵：父链任何节点 matrixWorld 陈旧（如渲染停止/刚生成）
+        // 时，raycaster.intersectObjects 会用旧矩阵算出错误命中（射线 miss）。
+        t.updateWorldMatrix(true, false)
+        visibleTargets.push(t)
+      }
     }
     if (visibleTargets.length === 0) return null
     const hits = raycaster.intersectObjects(visibleTargets, false)
@@ -140,6 +169,8 @@ export class ClickableComponent extends Component<Actor> {
 
   /**
    * 处理点击事件（带防连点）。命中时先触发 onPress（按下），再触发 onClick（点击逻辑）。
+   * 拖拽语义（绑定了 onDragMove）：onClick 延迟到释放时触发，移动超过阈值即取消
+   * （拖拽 ≠ 点击，滚动列表拖拽不误触按钮）。
    * 返回 true 表示本次点击已命中消费。
    */
   handleClick(raycaster: THREE.Raycaster): boolean {
@@ -152,12 +183,39 @@ export class ClickableComponent extends Component<Actor> {
     if (hit) {
       this._lastClickTime = now
       this._pressed = true
+      this._pressScreen = null
+      this._pendingClick = null
       // 按下视觉/状态先于点击逻辑（按钮长按保持按下）
       this.onPress?.(hit)
-      this.onClick?.(hit)
+      if (this.onDragMove) {
+        // 拖拽语义：点击延迟到释放（未拖拽）时触发，位移超阈值取消
+        this._pendingClick = hit
+      } else {
+        // 普通点击：按下即触发（保持原语义）
+        this.onClick?.(hit)
+      }
       return true
     }
     return false
+  }
+
+  /**
+   * 处理拖拽移动（InputSys.handlePointerMove → PhySys.dispatchDragMove 分发，仅按下期间）。
+   * 首次移动触发 onDragStart；位移超过阈值后取消待触发的 onClick（拖拽 ≠ 点击）。
+   */
+  handleDragMove(screenX: number, screenY: number): void {
+    if (!this._pressed) return
+    if (!this._pressScreen) {
+      this._pressScreen = [screenX, screenY]
+      this.onDragStart?.(screenX, screenY)
+    } else {
+      const dx = screenX - this._pressScreen[0]
+      const dy = screenY - this._pressScreen[1]
+      if (dx * dx + dy * dy > ClickableComponent.DRAG_THRESHOLD_PX * ClickableComponent.DRAG_THRESHOLD_PX) {
+        this._pendingClick = null
+      }
+    }
+    this.onDragMove?.(screenX, screenY)
   }
 
   /**
@@ -167,6 +225,16 @@ export class ClickableComponent extends Component<Actor> {
   handleRelease(): void {
     if (this.isDestroyed() || this.owner.isDestroyed() || !this._pressed) return
     this._pressed = false
+    // 是否发生过真实拖拽（移动过鼠标；handleDragMove 首次移动才设置 _pressScreen）
+    const dragged = this._pressScreen !== null
+    this._pressScreen = null
+    // 拖拽语义下的延迟点击：未拖拽（位移未超阈值）时在此触发
+    const hit = this._pendingClick
+    this._pendingClick = null
+    if (hit) this.onClick?.(hit)
+    // 拖拽结束回调（滚动列表回弹等收尾；独立于 onRelease，按钮组件不占用此字段）
+    // 仅真实拖拽后触发——纯点击（无位移）松手不触发回弹
+    if (dragged) this.onDragEnd?.()
     this.onRelease?.()
   }
 
@@ -190,5 +258,21 @@ export class ClickableComponent extends Component<Actor> {
   /** 当前悬停状态 */
   get isHovering(): boolean {
     return this._hovering
+  }
+
+  /**
+   * UI 层 zOrder（PhySys 遮挡竞争用）：owner 及祖先链上 CanvasUIComponent 的最大 zOrder。
+   * 无 canvas 组件（非 UI 点击）返回 0。
+   */
+  get uiZOrder(): number {
+    if (this.layer !== 'ui') return 0
+    let z = 0
+    let a: Actor | null = this.owner
+    while (a) {
+      const ui = a.getComponent(CanvasUIComponent)
+      if (ui && ui.zOrder > z) z = ui.zOrder
+      a = a.parent
+    }
+    return z
   }
 }

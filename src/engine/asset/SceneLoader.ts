@@ -182,14 +182,14 @@ function childDefToGroup(child: import('./BlueprintAsset').BlueprintChildDef): T
   return g
 }
 
-/** 单个 mesh 组件 → THREE.Mesh */
+/** 单个 mesh 组件 → THREE.Mesh（MeshComponent / CapsuleMeshComponent） */
 function componentToMesh(
   comp: { baseClass: string; properties?: Record<string, unknown> },
   fallbackName: string,
 ): THREE.Mesh | null {
-  if (comp.baseClass !== 'MeshComponent') return null
+  if (comp.baseClass !== 'MeshComponent' && comp.baseClass !== 'CapsuleMeshComponent') return null
   const props = (comp.properties ?? {}) as Record<string, unknown>
-  const geoType = (props.geometry as string) ?? 'box'
+  const geoType = (props.geometry as string) ?? (comp.baseClass === 'CapsuleMeshComponent' ? 'capsule' : 'box')
   const color = (props.color as string) ?? '#ffffff'
   const name = (props.name as string) ?? fallbackName
 
@@ -213,6 +213,13 @@ function componentToMesh(
       const radius = (props.radius as number) ?? 1
       const segs = (props.segments as number) ?? 12
       geo = new THREE.SphereGeometry(radius, segs, segs)
+      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+      break
+    }
+    case 'capsule': {
+      const radius = (props.radius as number) ?? 0.3
+      const length = (props.length as number) ?? 0.3
+      geo = new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12)
       mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
       break
     }

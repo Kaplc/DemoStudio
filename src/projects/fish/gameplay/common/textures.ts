@@ -1,5 +1,5 @@
 /**
- * FishMaster — 程序化纹理（CanvasTexture）
+ * ClashMaster — 程序化纹理（CanvasTexture）
  * 全部美术资源用 canvas 绘制，不依赖外部图片。鱼默认朝右。
  * 精致化：渐变身体 + 鳞片 + 多鳍 + 眼睛高光；含海底/气泡/闪光/光环等氛围与特效纹理。
  */

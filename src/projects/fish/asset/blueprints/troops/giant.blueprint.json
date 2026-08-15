@@ -1,0 +1,23 @@
+{
+  "name": "TroopGiant",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0.75, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "CapsuleMeshComponent",
+      "properties": {
+        "radius": 0.55,
+        "length": 0.4,
+        "color": "#6d4c41"
+      }
+    }
+  ],
+  "children": []
+}

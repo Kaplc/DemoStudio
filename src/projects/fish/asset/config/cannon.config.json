@@ -1,5 +1,5 @@
 {
-  "_comment": "炮台等级配置（ConfigRegistry 加载）。被 FishCannon 用于发射消耗、威力与冷却。\n字段含义：\n  initialLevel = 初始炮等级；\n  cost = 单发消耗金币；power = 威力（扣鱼 hp）；\n  captureBonus = 捕获率加成倍数（越大越易捕鱼）；\n  netRadius = 网碰撞半径；netSpeed = 网飞行速度；\n  fireCooldown = 连射冷却（秒，越小射越快）。",
+  "_comment": "ClashMaster 防御炮台等级配置（ConfigRegistry 加载）。被 FishCannon 用于发射消耗、威力与冷却。\n字段含义：\n  initialLevel = 初始炮等级；\n  cost = 单发消耗金币；power = 威力（扣目标 hp）；\n  captureBonus = 命中加成倍数；\n  netRadius = 弹丸碰撞半径；netSpeed = 弹丸飞行速度；\n  fireCooldown = 连射冷却（秒，越小射越快）。",
   "initialLevel": 1,
   "levels": [
     { "level": 1, "name": "I 型炮",   "cost": 1, "power": 1,  "captureBonus": 1.0, "netRadius": 0.8, "netSpeed": 18, "fireCooldown": 0.28 },

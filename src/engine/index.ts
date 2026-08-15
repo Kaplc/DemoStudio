@@ -101,9 +101,32 @@ export { HUD } from './ui/HUD'
 export { UIManager } from './ui/UIManager'
 export { UICamera, UI_CANVAS_W, UI_CANVAS_H } from './rendering/UICamera'
 
+// GM 命令系统（引擎级调试命令：控制台面板 + ai.gmCommand 桥接）
+export { GMRegistry } from './gm/GMRegistry'
+export type { GMCommandModules } from './gm/GMRegistry'
+export { GMModule } from './gm/GMModule'
+export type { GMExecuteResult, GMConsoleFactory } from './gm/GMModule'
+export { GMConsoleHUD, GM_ZORDER_BASE, GM_TEXT_LAYER, MAX_OUTPUT_LINES } from './gm/GMConsoleHUD'
+export {
+  convertGMArg,
+  formatGMUsage,
+} from './gm/GMCommand'
+export type {
+  GMCommandArg,
+  GMCommandContext,
+  GMCommandDef,
+  GMCommandHandler,
+  GMCommandParam,
+  GMCommandParamType,
+} from './gm/GMCommand'
+export { registerGMBridge } from './gm/registerGMBridge'
+export { registerBuiltinGMCommands } from './gm/builtin/registerBuiltinGMCommands'
+
 // UI 控件 Component（与 SpriteComponent / MeshComponent 同级）
 export { UITextComponent } from './ui/UITextComponent'
 export type { UITextComponentOptions } from './ui/UITextComponent'
+export { UITextInputComponent } from './ui/UITextInputComponent'
+export type { UITextInputComponentOptions } from './ui/UITextInputComponent'
 export { UIImageComponent } from './ui/UIImageComponent'
 export type { UIImageComponentOptions } from './ui/UIImageComponent'
 export { UIButtonComponent } from './ui/UIButtonComponent'
@@ -132,13 +155,14 @@ export type { GizmoColor } from './tools/Gizmos'
 export { ObjectPool } from './tools/ObjectPool'
 export type { IPoolable, PoolableActor } from './tools/ObjectPool'
 export { MeshComponent } from './rendering/MeshComponent'
+export { CapsuleMeshComponent } from './rendering/CapsuleMeshComponent'
 export { LineComponent } from './rendering/LineComponent'
 export { ThreeObject } from './rendering/ThreeObject'
 export { ThreeObjectFactory } from './gameflow/ThreeObjectFactory'
 export { LightComponent } from './rendering/LightComponent'
 export type { LightType, LightComponentOptions } from './rendering/LightComponent'
 export { CanvasUIComponent } from './rendering/CanvasUIComponent'
-export type { CanvasUIOptions } from './rendering/CanvasUIComponent'
+export type { CanvasUIOptions, UIHitTestMode } from './rendering/CanvasUIComponent'
 export { TroikaTextComponent } from './rendering/TroikaTextComponent'
 export type { TroikaTextOptions } from './rendering/TroikaTextComponent'
 export { DataTable } from './tools/DataTable'

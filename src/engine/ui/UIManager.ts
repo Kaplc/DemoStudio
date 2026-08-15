@@ -41,7 +41,7 @@ import type { ResolvedChildDef } from '../asset/BlueprintAsset'
  * 保证盖过常驻 HUD（three.js 透明物体按全局 renderOrder 排序，若浮动面板 zOrder
  * 不高于 HUD 内部文字的高 zOrder，下层 HUD 文字会穿透绘制到面板之上）。
  */
-const FLOAT_LAYER_BIAS = 100
+export const FLOAT_LAYER_BIAS = 100
 
 /**
  * 严格模式校验子节点 transform 数据（组件优先）：
@@ -274,6 +274,14 @@ export class UIManager extends AObjectComponent<World> {
     // 5. 挂载到父 Actor
     const p = parent ?? this._hud
     if (p) actor.attachTo(p)
+    // 5.5 world 归属：内联子节点（spawnChildObjects attachTo 挂树）不经 SpawnActor，
+    // 不会被 commitSpawn 设置 world（字段恒 null）→ 显式整树传播，
+    // 供依赖 owner.world 的组件（UIScrollListComponent 等）在 BeginPlay 时取用。
+    const setWorld = (a: Actor): void => {
+      a.world = this.owner
+      for (const c of a.getChildren()) setWorld(c)
+    }
+    setWorld(actor)
     // 浮动面板层级基准：游戏运行中动态生成的 UI（地图面板/暂停菜单/兵营面板等）整树
     // zOrder += FLOAT_LAYER_BIAS，保证盖过常驻 HUD（three 透明排序按全局 renderOrder，
     // 不偏移会被 HUD 内高 zOrder 的文字穿透）。场景切换期生成（HUD 本体）不偏移。

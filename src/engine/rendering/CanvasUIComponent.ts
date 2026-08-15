@@ -28,6 +28,17 @@ import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 // 循环引用（UITransformComponent → CanvasUIComponent）：ESM 活绑定，构造时使用安全
 import { UITransformComponent } from '../ui/UITransformComponent'
+// 值导入（运行时注册/注销 blocker 到 PhySys；PhySys 对 CanvasUIComponent 仅 type 引用，无循环）
+import { PhySys } from '../physics/PhySys'
+
+/**
+ * UI 画布命中测试模式（仿 UE EVisibility 的命中测试语义）：
+ *  - 'visible'：渲染 + 可被点击（默认；射线可穿透非 clickable 区域到更低层级）
+ *  - 'block'：渲染 + 拦截点击 —— 画布 mesh 命中射线即消费点击，
+ *    挡住更低 zOrder 的 UI 与世界层（模态遮罩/GM 控制台用）
+ *  - 'hitTestInvisible'：渲染 + 点击穿透 —— 不参与任何命中/拦截（射线直接穿过）
+ */
+export type UIHitTestMode = 'visible' | 'block' | 'hitTestInvisible'
 
 export interface CanvasUIOptions {
   width?: number           // canvas 像素宽，默认 512
@@ -54,6 +65,11 @@ export interface CanvasUIOptions {
    * 编辑器预览绘制参考线。
    */
   safeArea?: number
+  /**
+   * 命中测试模式（仿 UE EVisibility，默认 'visible'）：
+   * 'block' = 画布拦截点击（挡住更低层级 UI/世界），'hitTestInvisible' = 点击穿透。
+   */
+  hitTest?: UIHitTestMode
 }
 
 export class CanvasUIComponent extends Component<Actor> {
@@ -73,6 +89,8 @@ export class CanvasUIComponent extends Component<Actor> {
   private _markerOnly: boolean
   /** 安全区内缩百分比 [0,15]，默认 5（TV overscan 基准） */
   private _safeArea: number
+  /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
+  private _hitTest: UIHitTestMode
   /**
    * 子组件（如 UIText 的 troika mesh）注册到本 canvas 的渲染对象列表。
    * canvas 组件作为本 UI 节点的"显隐控制中心"：
@@ -90,6 +108,7 @@ export class CanvasUIComponent extends Component<Actor> {
     this._markerOnly = options.markerOnly ?? false
     this._safeArea = options.safeArea ?? 5
     this._bActive = options.active ?? true
+    this._hitTest = options.hitTest ?? 'visible'
 
     // 1. 离屏 Canvas
     this.canvas = document.createElement('canvas')
@@ -199,6 +218,18 @@ export class CanvasUIComponent extends Component<Actor> {
     this._safeArea = Math.min(15, Math.max(0, v))
   }
 
+  /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
+  get hitTestMode(): UIHitTestMode { return this._hitTest }
+  set hitTestMode(v: UIHitTestMode) {
+    if (this._hitTest === v) return
+    const wasBlock = this._hitTest === 'block'
+    this._hitTest = v
+    // block 模式注册到 PhySys 参与点击拦截；退出 block 注销
+    if (v === 'block' && !wasBlock) PhySys.registerUIBlocker(this)
+    else if (wasBlock && v !== 'block') PhySys.unregisterUIBlocker(this)
+    logger.info(`[CanvasUIComponent] "${this.name}" 命中测试模式 → ${v}`)
+  }
+
   /** 安全区可用区域（世界尺寸）：容器尺寸 × (1 − 2×safeArea%) */
   getSafeAreaSize(): [number, number] {
     const [w, h] = this.getWorldSize()
@@ -207,6 +238,8 @@ export class CanvasUIComponent extends Component<Actor> {
   }
 
   override BeginPlay() {
+    // block 命中测试模式：注册到 PhySys 参与点击拦截（构造时可能组件未全挂载，BeginPlay 兜底）
+    if (this._hitTest === 'block') PhySys.registerUIBlocker(this)
     // 注释：每个 UI 组件（UIMarker/UIText/UIImage/Canvas）都会触发，属高频噪音
     // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
     super.BeginPlay()
@@ -251,6 +284,7 @@ export class CanvasUIComponent extends Component<Actor> {
       active: this._bActive,
       markerOnly: this._markerOnly,
       safeArea: `${this._safeArea}%`,
+      hitTest: this._hitTest,
     }
   }
 
@@ -267,7 +301,7 @@ export class CanvasUIComponent extends Component<Actor> {
         set: (v) => { this.bActive = v as boolean },
       },
       {
-        key: 'zOrder', type: 'number', step: 1, min: 0, max: 100,
+        key: 'zOrder', type: 'number', step: 1, min: 0, max: 10000,
         get: () => this._zOrder,
         set: (v) => { this.zOrder = v as number },
       },
@@ -275,6 +309,12 @@ export class CanvasUIComponent extends Component<Actor> {
         key: 'safeArea', type: 'number', step: 1, min: 0, max: 15,
         get: () => this._safeArea,
         set: (v) => { this.safeArea = v as number },
+      },
+      {
+        key: 'hitTest', type: 'enum',
+        options: ['visible', 'block', 'hitTestInvisible'],
+        get: () => this._hitTest,
+        set: (v) => { this.hitTestMode = v as UIHitTestMode },
       },
     ]
   }
@@ -318,6 +358,8 @@ export class CanvasUIComponent extends Component<Actor> {
 
   override EndPlay() {
     super.EndPlay()
+    // block 模式注销（点击拦截注册随组件销毁清理）
+    if (this._hitTest === 'block') PhySys.unregisterUIBlocker(this)
     if (!this.panel) return // 仅标记模式无渲染资源
     this.owner.root.remove(this.panel)
     this.texture.dispose()

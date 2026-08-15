@@ -427,7 +427,8 @@ ipcMain.handle('read-json-file', async (_event, relativePath: string) => {
       return { success: false, error: `文件不存在: ${relativePath}` }
     }
     const content = fs.readFileSync(fullPath, 'utf-8')
-    return { success: true, data: JSON.parse(content) }
+    // 容错：strip UTF-8 BOM（\uFEFF），否则 JSON.parse 报 "Unexpected token '﻿'"
+    return { success: true, data: JSON.parse(content.replace(/^\uFEFF/, '')) }
   } catch (err) {
     return { success: false, error: String(err) }
   }

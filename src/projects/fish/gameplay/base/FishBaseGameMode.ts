@@ -1,5 +1,5 @@
 /**
- * FishBaseGameMode — 捕鱼达人海岛基地 GameMode（部落冲突风格基地）
+ * FishBaseGameMode — ClashMaster 村庄基地 GameMode（部落冲突风格基地）
  * 显示热带海岛基地场景（沙滩、棕榈树、茅草屋等），
  * 中央有一块部落冲突风格的方格草地地图，可放置不同颜色的立方体建筑。
  *
@@ -58,7 +58,7 @@ export class FishBaseGameMode extends GameMode {
   private mapPanel: Actor | null = null
 
 
-  /** 外部设置：点击"出海捕鱼"后的回调 */
+  /** 外部设置：点击"出征战斗"后的回调 */
   onStartFishing: (() => void) | null = null
   /** 外部设置：点击房子领取初始金币后的回调 */
   onClaimCoins: (() => void) | null = null
@@ -124,7 +124,7 @@ export class FishBaseGameMode extends GameMode {
     return { controller, pawn }
   }
 
-  /** 玩家点击出海 */
+  /** 玩家点击出征 */
   startFishing() {
     this.onStartFishing?.()
   }

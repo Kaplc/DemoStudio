@@ -716,6 +716,17 @@ export class World extends AObject {
     )
   }
 
+  /**
+   * 创建一个胶囊体网格（兵种等角色模型；length=0 时为纯球）。
+   * 几何体中心在胶囊体中心，贴地偏移由调用方控制（如 position.y = radius + length/2）。
+   */
+  createCapsuleMesh(radius: number, length: number, color: number, transparent?: boolean, opacity?: number): THREE.Mesh {
+    return new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12),
+      new THREE.MeshBasicMaterial({ color, ...(transparent ? { transparent, opacity, depthWrite: false } : {}) }),
+    )
+  }
+
   /** 创建一个平面网格（用于鸟/精灵等） */
   createPlaneMesh(
     w: number,

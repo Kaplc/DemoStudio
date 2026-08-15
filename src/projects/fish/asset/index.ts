@@ -1,5 +1,5 @@
 /**
- * FishMaster — 资产自动注册入口
+ * ClashMaster — 资产自动注册入口
  *
  * 使用 Vite import.meta.glob 自动扫描 asset/ 下的所有资产文件，
  * 新增 .scene.json 或 .blueprint.json 时无需修改此文件。
@@ -11,7 +11,7 @@
 import { AssetRegistry, logger } from '@/engine'
 import type { SceneAsset, BlueprintAsset, BehaviourScriptConstructor } from '@/engine'
 
-/** 注册 FishMaster 项目的所有资产 */
+/** 注册 ClashMaster 项目的所有资产 */
 export function registerFishAssets(): void {
   // 自动扫描所有 .scene.json（含子目录，如 blueprints/beach_house_parts.scene.json）
   const sceneModules = import.meta.glob<{ default: SceneAsset }>('./**/*.scene.json', { eager: true })

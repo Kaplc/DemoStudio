@@ -73,6 +73,13 @@ export default function App() {
     }
   }, [phase, currentProject])
 
+  // ─── HMR 热重载回退：React 状态保留但 store 工程被重置 → 回到工程选择 ───
+  useEffect(() => {
+    if (phase === 'editor' && !currentProject) {
+      setPhase('selecting-project')
+    }
+  }, [phase, currentProject])
+
   // ─── Viewport 就绪后通知 Electron 关闭加载窗口 ───
   useEffect(() => {
     if (!loading && window.electronAPI?.sendAppReady) {
@@ -178,7 +185,6 @@ function StartupProjectSelector({
                 {p.folder === 'eatfish' && '🐟'}
                 {p.folder === 'demo2d' && '🪙'}
                 {p.folder === 'racing' && '🏎️'}
-                {p.folder === 'fish' && '🎣'}
                 {!['snake', 'eatfish', 'demo2d', 'racing', 'fish'].includes(p.folder ?? '') && '📁'}
               </div>
               <div className="startup-project-info">

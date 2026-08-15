@@ -7,6 +7,7 @@ import * as THREE from 'three'
 import { PlayerController } from '../input/PlayerController'
 import { InputSys } from '../input/InputSys'
 import { AObject } from '../entity/AObject'
+import { GMModule } from '../gm/GMModule'
 
 export interface GameInstanceCallbacks {
   onScoreChange?: (score: number) => void
@@ -30,6 +31,9 @@ export abstract class GameInstance extends AObject {
 
   /** 输入系统（Viewport → Controller 路由） */
   readonly inputSys = new InputSys()
+
+  /** GM 命令模块（调试命令系统：控制台面板 + ai.gmCommand 桥接；生命周期随实例） */
+  readonly gm = new GMModule(this)
 
   /**
    * Game 视口渲染容器（启动游戏时由 Viewport 传入）。
@@ -101,6 +105,7 @@ export abstract class GameInstance extends AObject {
    * 由 Game.shutdown 在实例 destroy() 之后调用。
    */
   teardown(): void {
+    this.gm.dispose()
     this.inputSys.EndPlay()
   }
 }

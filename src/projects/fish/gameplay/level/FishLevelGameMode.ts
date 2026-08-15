@@ -5,7 +5,8 @@
  * （type: ref 引用建筑蓝图，baseClass = ClashBuildingActors 各建筑类）。
  * 本 GameMode 接管战斗玩法：
  *
- *  1. BeginPlay 收集场景中的敌方建筑 → 建 hp 表 + 挂头顶 3D 血条（两个 MeshComponent）
+ *  1. BeginPlay 收集场景中的敌方建筑 → 建 hp 表 + 挂血条组件
+ *     （BuildingHealthBarComponent：默认隐藏、受击显示、3s 超时隐藏）
  *  2. 战斗 HUD（battle_hud.widget.json，HUDClass）显示兵种卡片栏 + 已部署统计，
  *     BattleHudScript 绑定卡片点击 → selectTroop（放置模式）→ 点击战场放置
  *  3. 兵（BattleTroopActor）自动战斗：直线移动 / 被挡攻击阻挡物 / 远程站桩 /
@@ -18,7 +19,7 @@
  * 由 FishGameInstance.setupLevelPhase SpawnActor 托管并注册。
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, GameInstance } from '@/engine'
+import { GameMode, PhySys, logger, GameInstance, MeshComponent } from '@/engine'
 import { BaseCameraActor } from '../base/BaseCameraActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from '../base/ClashBuildingTypes'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
@@ -27,6 +28,7 @@ import { FishLevelPlayerController } from './FishLevelPlayerController'
 import { FishLevelPawn } from './FishLevelPawn'
 import { BattleTroopActor } from '../battle/BattleTroopActor'
 import { BattleProjectileActor } from '../battle/BattleProjectileActor'
+import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
 
@@ -53,8 +55,8 @@ export class FishLevelGameMode extends GameMode {
   private buildings: ClashBuildingBaseActor[] = []
   /** 建筑当前血量表：建筑 → hp（初始 = 类型表 hp） */
   private buildingHp = new Map<ClashBuildingBaseActor, number>()
-  /** 建筑血条前景 mesh：建筑 → 绿色血量条（scale.x 按血量比例实时刷新） */
-  private barFgMap = new Map<ClashBuildingBaseActor, THREE.Mesh>()
+  /** 建筑血条组件：建筑 → BuildingHealthBarComponent（受击显示 / 3s 超时隐藏自管） */
+  private barCompMap = new Map<ClashBuildingBaseActor, BuildingHealthBarComponent>()
   /** 防御塔攻击冷却计时器：建筑 → 剩余秒数 */
   private cannonCooldown = new Map<ClashBuildingBaseActor, number>()
   /** 场上己方兵列表（死亡后移出） */
@@ -106,7 +108,7 @@ export class FishLevelGameMode extends GameMode {
     // 建筑/兵/弹丸均为场景 Actor，由 World.DestroyAllActors 统一销毁，这里只清引用
     this.buildings = []
     this.buildingHp.clear()
-    this.barFgMap.clear()
+    this.barCompMap.clear()
     this.cannonCooldown.clear()
     this.troops = []
     this.troopTargetOverride.clear()
@@ -183,24 +185,13 @@ export class FishLevelGameMode extends GameMode {
 
   /**
    * 给建筑挂头顶 3D 血条（世界空间，跟随建筑）：
-   * 深色背景条 + 绿色前景条（geometry 已平移使左端对齐原点，
-   * scale.x 按血量比例缩放 → 从左侧缩水的血条）。
-   * 直接挂 MeshComponent 到建筑 Actor（随建筑销毁自动释放）。
+   * BuildingHealthBarComponent 全权自管（默认隐藏、受击显示、3s 超时隐藏），
+   * 组件随建筑销毁自动释放（MeshComponent 机制）。
    */
   private attachHealthBar(b: ClashBuildingBaseActor): void {
-    const w = this.world
-    if (!w) return
-    const barY = b.type.height + 0.9
-    // 背景条（深色底，宽度固定）
-    const bg = w.createBoxMesh(1.4, 0.18, 0.05, 0x222222)
-    bg.position.y = barY
-    b.addComponent(new MeshComponent(b, bg, 'HealthBarBg'))
-    // 前景条（绿色，左端对齐：geometry 平移 +0.65 → 缩放 x 时左端不动）
-    const fg = w.createBoxMesh(1.3, 0.14, 0.06, 0x4caf50)
-    fg.geometry.translate(0.65, 0, 0)
-    fg.position.y = barY
-    b.addComponent(new MeshComponent(b, fg, 'HealthBarFg'))
-    this.barFgMap.set(b, fg)
+    const comp = new BuildingHealthBarComponent(b)
+    b.addComponent(comp)
+    this.barCompMap.set(b, comp)
   }
 
   /** 建筑中心（世界坐标，x/z；兵索敌/碰撞用） */
@@ -217,19 +208,13 @@ export class FishLevelGameMode extends GameMode {
   //  伤害 / 摧毁 / 掠夺
   // ═══════════════════════════════════════
 
-  /** 建筑受伤（兵攻击弹丸命中结算统一入口）：扣血 → 刷新血条 → 摧毁判定 */
+  /** 建筑受伤（兵攻击弹丸命中结算统一入口）：扣血 → 血条组件刷新 → 摧毁判定 */
   damageBuilding(b: ClashBuildingBaseActor, amount: number): void {
     if (!this.buildingHp.has(b) || this.battleEnded) return
     const hp = Math.max(0, this.buildingHp.get(b)! - amount)
     this.buildingHp.set(b, hp)
-    // 血条实时刷新：前景 scale.x = hp/max（左端对齐缩水）
-    const fg = this.barFgMap.get(b)
-    if (fg) {
-      const ratio = hp / b.type.hp
-      fg.scale.x = Math.max(0.001, ratio)
-      // 低血量变红提示
-      ;(fg.material as THREE.MeshBasicMaterial).color.setHex(ratio < 0.3 ? 0xe53935 : 0x4caf50)
-    }
+    // 血条组件：受击显示 + 刷新比例/颜色 + 重置 3s 隐藏计时
+    this.barCompMap.get(b)?.onDamaged(hp / b.type.hp)
     logger.info(`[BattleGM] 建筑 ${b.type.name} 受击 -${Math.round(amount)}（hp=${Math.round(hp)}/${b.type.hp}）`)
     if (hp <= 0) this.onBuildingDestroyed(b)
   }
@@ -241,7 +226,7 @@ export class FishLevelGameMode extends GameMode {
     this.lootElixir += b.type.lootElixir
     this.buildings = this.buildings.filter((x) => x !== b)
     this.buildingHp.delete(b)
-    this.barFgMap.delete(b)
+    this.barCompMap.delete(b)
     this.cannonCooldown.delete(b)
     // 清除以本建筑为目标的所有兵的目标覆盖
     for (const [troop, t] of this.troopTargetOverride) {
@@ -405,41 +390,12 @@ export class FishLevelGameMode extends GameMode {
    */
   onScreenDown(sx: number, sy: number): void {
     if (!this.selectedTroopId || this.battleEnded) return
-    const inst = this.gameInstance
-    if (!inst) return
-    // 训练军队中扣除（放完即消失）
-    if (!inst.training.deployTroop(this.selectedTroopId)) {
-      logger.warn(`[BattleGM] 部署失败：军队无 "${this.selectedTroopId}"`)
-      return
-    }
     const ground = this.screenToGround(sx, sy)
     if (!ground) {
       logger.warn('[BattleGM] 部署失败：屏幕坐标未命中地面')
       return
     }
-    const x = ground.x
-    const z = ground.z
-    // 战场范围限制（±24）
-    if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) {
-      logger.warn(`[BattleGM] 部署失败：超出战场范围 (${x.toFixed(1)},${z.toFixed(1)})`)
-      return
-    }
-    // 禁叠建筑（AABB 相交检查）
-    const troop = inst.getTroop(this.selectedTroopId)
-    const half = troop ? troop.size[0] / 2 : 0.4
-    if (this.findBlockerAt(x, z, half)) {
-      logger.warn(`[BattleGM] 部署失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
-      return
-    }
-    if (!troop) {
-      logger.error(`[BattleGM] 部署失败：兵种 "${this.selectedTroopId}" 不存在`)
-      return
-    }
-    const actor = new BattleTroopActor(this, this.selectedTroopId, troop, x, z)
-    this.world?.SpawnActor(actor)
-    this.troops.push(actor)
-    this.deployedCount++
-    logger.info(`[BattleGM] 部署兵: ${troop.name} @ (${x.toFixed(1)},${z.toFixed(1)})（场上 ${this.troops.length} 个，累计 ${this.deployedCount}）`)
+    this.spawnTroopActor(this.selectedTroopId, ground.x, ground.z)
   }
 
   /** 屏幕坐标 → 地面交点（y=0 平面，放兵点换算） */
@@ -458,45 +414,83 @@ export class FishLevelGameMode extends GameMode {
   }
 
   /**
+   * 部署兵（onScreenDown / debugDeploy 统一入口）：
+   * 校验（兵种/范围/重叠）→ 蓝图模型预检（严格模式：失败 = 放兵失败，
+   * 军队不消耗、无兵生成）→ 扣军队 → 生成兵 Actor 并挂模型。
+   * @returns 是否部署成功
+   */
+  private spawnTroopActor(troopId: string, x: number, z: number): boolean {
+    if (this.battleEnded) return false
+    const inst = this.gameInstance
+    if (!inst) return false
+    // 战场范围限制（±24）
+    if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) {
+      logger.warn(`[BattleGM] 部署失败：超出战场范围 (${x.toFixed(1)},${z.toFixed(1)})`)
+      return false
+    }
+    const troop = inst.getTroop(troopId)
+    if (!troop) {
+      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 不存在（兵种表未加载或行缺失）`)
+      return false
+    }
+    // 禁叠建筑（AABB 相交检查）
+    if (this.findBlockerAt(x, z, troop.size[0] / 2)) {
+      logger.warn(`[BattleGM] 部署失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
+      return false
+    }
+    // ─── 严格模式：兵种模型蓝图预检（模型先于军队扣除实例化，失败 = 放兵失败不消耗军队） ───
+    const modelActor = this.world?.SpawnActorFromBlueprint(troop.blueprint)
+    if (!modelActor) {
+      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 模型蓝图加载失败（${troop.blueprint}），已拒绝放兵`)
+      return false
+    }
+    // 训练军队中扣除（放完即消失；模型已就绪才扣，蓝图失败不消耗）
+    if (!inst.training.deployTroop(troopId)) {
+      logger.warn(`[BattleGM] 部署失败：军队无 "${troopId}"`)
+      modelActor.destroy()
+      return false
+    }
+    const actor = new BattleTroopActor(this, troopId, troop, x, z, modelActor)
+    this.world?.SpawnActor(actor)
+    this.troops.push(actor)
+    this.deployedCount++
+    logger.info(`[BattleGM] 部署兵: ${troop.name} @ (${x.toFixed(1)},${z.toFixed(1)})（场上 ${this.troops.length} 个，累计 ${this.deployedCount}）`)
+    return true
+  }
+
+  /**
    * 调试桥放兵（__fishBattle.deploy）：与 onScreenDown 同规则，
    * 但不走屏幕坐标换算，直接用世界坐标（Playwright 验证用）。
    */
   debugDeploy(troopId: string, x: number, z: number): boolean {
-    if (this.battleEnded) return false
-    const inst = this.gameInstance
-    if (!inst) return false
-    // 训练军队中扣除（放完即消失）
-    if (!inst.training.deployTroop(troopId)) {
-      logger.warn(`[BattleGM] debugDeploy 失败：军队无 "${troopId}"`)
-      return false
-    }
-    // 战场范围限制（±24）
-    if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) {
-      logger.warn(`[BattleGM] debugDeploy 失败：超出战场范围 (${x},${z})`)
-      return false
-    }
-    // 禁叠建筑（AABB 相交检查）
-    const troop = inst.getTroop(troopId)
-    if (!troop) {
-      logger.error(`[BattleGM] debugDeploy 失败：兵种 "${troopId}" 不存在`)
-      return false
-    }
-    const half = troop.size[0] / 2
-    if (this.findBlockerAt(x, z, half)) {
-      logger.warn(`[BattleGM] debugDeploy 失败：位置 (${x},${z}) 与建筑重叠`)
-      return false
-    }
-    const actor = new BattleTroopActor(this, troopId, troop, x, z)
-    this.world?.SpawnActor(actor)
-    this.troops.push(actor)
-    this.deployedCount++
-    logger.info(`[BattleGM] debugDeploy: ${troop.name} @ (${x},${z})（场上 ${this.troops.length} 个）`)
-    return true
+    return this.spawnTroopActor(troopId, x, z)
+  }
+
+  /** 血条组件显隐快照（__fishBattle.getHealthBars，Playwright 断言用） */
+  getHealthBarStates(): Array<{ type: string; shown: boolean; hideTimer: number }> {
+    return [...this.barCompMap.entries()].map(([b, comp]) => ({
+      type: b.type.id,
+      shown: comp.isShown(),
+      hideTimer: Math.round(comp.getHideTimer() * 100) / 100,
+    }))
+  }
+
+  /** 兵模型摘要（__fishBattle.getTroopModels，Playwright 断言胶囊体用） */
+  getTroopModelSummary(): Array<{ name: string; geo: string; visible: boolean }> {
+    return this.troops.map((t) => {
+      const model = t.getChildren()[0]
+      const mesh = model?.getComponent(MeshComponent)
+      const meshObj = mesh?.mesh
+      return {
+        name: t.troop.name,
+        geo: meshObj ? meshObj.geometry.type : model ? model.constructor.name : 'none',
+        visible: meshObj ? meshObj.visible : false,
+      }
+    })
   }
 
   /** 战斗状态快照（__fishBattle.getBattle，Playwright 断言用） */
-  getBattleSnapshot(): Record<string, unknown> {
-    return {
+  getBattleSnapshot(): Record<string, unknown> {    return {
       battleEnded: this.battleEnded,
       win: this.winResult,
       lootCoins: this.lootCoins,
@@ -561,6 +555,29 @@ export class FishLevelGameMode extends GameMode {
   /** 战斗结果快照（结算面板脚本读取） */
   getBattleResult(): { win: boolean | null; lootCoins: number; lootElixir: number } {
     return { win: this.winResult, lootCoins: this.lootCoins, lootElixir: this.lootElixir }
+  }
+
+  /** GM 调试命令（winLevel）：当前战斗直接判胜（等价摧毁城镇大厅的结算路径） */
+  debugForceWin(): boolean {
+    if (this.battleEnded) return false
+    this.finishBattle(true)
+    return true
+  }
+
+  /** GM 调试命令（clearEnemies）：清除当前战斗全部敌方建筑（掠夺不结算） */
+  debugClearEnemies(): number {
+    let cleared = 0
+    // 快照遍历（onBuildingDestroyed 会修改 this.buildings，边遍历边删需拷贝）
+    for (const b of [...this.buildings]) {
+      cleared++
+      this.buildings = this.buildings.filter((x) => x !== b)
+      this.buildingHp.delete(b)
+      this.barCompMap.delete(b)
+      this.cannonCooldown.delete(b)
+      b.destroy()
+    }
+    logger.info(`[BattleGM] GM 清敌: 已清除 ${cleared} 个敌方建筑`)
+    return cleared
   }
 
   /** 兵种表（HUD 卡片数据） */

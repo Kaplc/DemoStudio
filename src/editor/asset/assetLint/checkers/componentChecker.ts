@@ -89,14 +89,28 @@ registerAssetChecker('comp:ClickableComponent', ClickableComponentChecker)
 class MeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:MeshComponent'
   schema: FieldSpec[] = [
-    { field: 'properties.geometry', type: 'string', enum: ['box', 'sphere', 'plane'], label: '几何类型' },
+    { field: 'properties.geometry', type: 'string', enum: ['box', 'sphere', 'plane', 'capsule'], label: '几何类型' },
     { field: 'properties.size', type: 'array', minItems: 1, maxItems: 3, label: '尺寸' },
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
 }
 registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
+
+/** comp:CapsuleMeshComponent — 胶囊体：radius/length/color。 */
+class CapsuleMeshComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:CapsuleMeshComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
+    { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.name', type: 'string', label: '网格名' },
+  ]
+}
+registerAssetChecker('comp:CapsuleMeshComponent', CapsuleMeshComponentChecker)
 
 /** comp:TroikaTextComponent — 3D 文本：text/字号/颜色/对齐/描边。 */
 class TroikaTextComponentChecker extends AbstractAssetChecker {
@@ -140,6 +154,39 @@ class UITextComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UITextComponent', UITextComponentChecker)
 
+/** comp:UITextInputComponent — 单行文本输入控件（占位符/字号/颜色/Canvas 尺寸/层级） */
+class UITextInputComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UITextInputComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.placeholder', type: 'string', label: '占位提示' },
+    { field: 'properties.value', type: 'string', label: '初始文本' },
+    { field: 'properties.fontSize', type: 'integer', min: 1, label: '字号（整数）' },
+    { field: 'properties.color', type: 'color', label: '文本颜色' },
+    { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
+    { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
+    { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UITextInputComponent', UITextInputComponentChecker)
+
+/** comp:UIScrollListComponent — 滚动列表组件（item 对象池 + 滚动偏移，超框 item 隐藏） */
+class UIScrollListComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIScrollListComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.itemWidget', type: 'string', label: 'item 蓝图路径' },
+    { field: 'properties.itemSize', type: 'vec2', label: 'item 世界尺寸 [w, h]' },
+    { field: 'properties.spacing', type: 'number', min: 0, label: '项间距' },
+    { field: 'properties.visibleCount', type: 'integer', min: 1, label: '可视数量（不配则按容器自动推导）' },
+    { field: 'properties.direction', type: 'string', label: '滚动方向（vertical/horizontal）' },
+    { field: 'properties.zOrderLift', type: 'number', min: 0, label: 'item zOrder 抬升值' },
+    { field: 'properties.draggable', type: 'boolean', label: '鼠标拖拽滚动开关' },
+    { field: 'properties.scrollbar', type: 'boolean', label: '右侧滚动条开关' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIScrollListComponent', UIScrollListComponentChecker)
+
 /** comp:UIImageComponent — 颜色/圆角/不透明度/图片源 + UI 定位（显隐由节点 CanvasUIComponent 统一控制） */
 class UIImageComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIImageComponent'
@@ -177,6 +224,7 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
     { field: 'properties.markerOnly', type: 'boolean', label: '仅标记模式（不渲染）' },
     { field: 'properties.active', type: 'boolean', label: '激活（false = 不渲染）' },
     { field: 'properties.safeArea', type: 'number', min: 0, max: 15, label: 'TV 安全区内缩百分比（0~15，默认 5）' },
+    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（仿 UE：visible=可命中/block=拦截/hitTestInvisible=穿透）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

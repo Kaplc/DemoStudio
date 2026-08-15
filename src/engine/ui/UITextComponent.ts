@@ -39,6 +39,12 @@ export interface UITextComponentOptions {
   italic?: boolean
   align?: 'left' | 'center' | 'right'
   /**
+   * 文本锚点（troika anchorX）：默认 'center'（文本块中心在元素中心，与 UITransform
+   * 中心锚定约定一致）。传 'left' 时文本左边缘对齐元素左边缘——用于输入框等单行文本
+   * （textAlign 对单行无效，单行文本整体按 anchorX 放置）。
+   */
+  anchorX?: 'left' | 'center'
+  /**
    * 行高系数（fontSize 的倍数，如 1.4 = fontSize × 1.4）。
    * 用户设置后内部 ×100 固化存储（固定系数 100），系数保留 2 位小数。
    */
@@ -88,6 +94,8 @@ export class UITextComponent extends CanvasUIComponent {
   protected _bold: boolean
   protected _italic: boolean
   protected _align: 'left' | 'center' | 'right'
+  /** 文本锚点（troika anchorX），默认 'center'；'left' = 文本左边缘对齐元素左边缘 */
+  protected _anchorX: 'left' | 'center'
   /** 行高系数（fontSize 的倍数）×100 存储：如 140 = fontSize × 1.4；默认 140（1.4 倍） */
   protected _lineHeight: number
   protected _shadowColor?: string
@@ -153,6 +161,7 @@ export class UITextComponent extends CanvasUIComponent {
     this._bold = options.bold ?? false
     this._italic = options.italic ?? false
     this._align = options.align ?? 'left'
+    this._anchorX = options.anchorX ?? 'center'
     // 行高系数（fontSize 的倍数）内部 ×100 存储：用户/JSON 输入系数（如 1.4）→ 存 140
     this._lineHeight = Math.round((options.lineHeight ?? 1.4) * 100)
     this._shadowColor = options.shadowColor
@@ -213,12 +222,15 @@ export class UITextComponent extends CanvasUIComponent {
     // 世界字号只由 fontSize 属性决定（× 构造时固化的换算系数），不随控件尺寸缩放
     mesh.fontSize = renderFontSize
     mesh.maxWidth = ww
-    // textAlign 控制文本在 maxWidth 尺寸框内的对齐；anchorX 固定 center——
-    // mesh 原点 = 元素中心（UITransform 锚点定位基准），若把 anchorX 也设成 align，
-    // 左对齐时文本左边缘会被钉在元素中心，开头就不在左边缘了
+    // textAlign 只对多行文本生效（控制行在 maxWidth 框内的对齐）；单行文本整体按
+    // anchorX 放置——短文本（输入框）若 anchorX=center 会从元素中心开始，故输入框
+    // 用 anchorX='left' 并补偿 position.x=-ww/2，让文本左边缘对齐元素左边缘。
+    // （root = 元素中心，见 UITransformComponent.applyAnchor 的定位语义）
     mesh.textAlign = this._align
-    mesh.anchorX = 'center'
+    mesh.anchorX = this._anchorX
     mesh.anchorY = 'middle'
+    if (this._anchorX === 'left') mesh.position.x = -ww / 2
+    else mesh.position.x = 0
     mesh.color = this._color
     // 换行：whiteSpace normal + overflowWrap break-word——超宽时在任意字符间断行
     // （默认 overflowWrap='normal' 只在空格处断行，长中文/长单词会溢出控件不换行）
@@ -253,6 +265,8 @@ export class UITextComponent extends CanvasUIComponent {
       const [ww] = this.getWorldSize()
       // 尺寸变化只重算换行宽度：字号由 fontSize 属性决定，不随控件尺寸缩放
       this.mesh.maxWidth = ww
+      // anchorX='left' 的左对齐补偿随尺寸同步（左边缘 = 元素中心 − 半宽）
+      if (this._anchorX === 'left') this.mesh.position.x = -ww / 2
       this.mesh.sync()
     }
   }
@@ -266,6 +280,9 @@ export class UITextComponent extends CanvasUIComponent {
   set color(v: string) { this._color = v; this.applyAll() }
   get align(): 'left' | 'center' | 'right' { return this._align }
   set align(v: 'left' | 'center' | 'right') { this._align = v; this.applyAll() }
+  /** 文本锚点（'left' = 文本左边缘对齐元素左边缘，输入框单行场景用） */
+  get anchorX(): 'left' | 'center' { return this._anchorX }
+  set anchorX(v: 'left' | 'center') { this._anchorX = v; this.applyAll() }
   get bold(): boolean { return this._bold }
   set bold(v: boolean) { this._bold = v; this.applyAll() }
   get italic(): boolean { return this._italic }

@@ -1,7 +1,7 @@
 /**
- * FishGameMode — 捕鱼规则
+ * FishGameMode — 出征战斗规则
  * 正交相机、鱼群生成（加权随机 + 难度递增）、网×鱼碰撞捕获、
- * 金币经济（开炮消耗 / 捕鱼获得 / 归零 Game Over）、Boss 定时。
+ * 金币经济（开炮消耗 / 击败目标获得 / 归零 Game Over）、Boss 定时。
  */
 import * as THREE from 'three'
 import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger, GameInstance } from '@/engine'

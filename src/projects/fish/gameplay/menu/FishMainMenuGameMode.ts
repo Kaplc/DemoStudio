@@ -1,5 +1,5 @@
 /**
- * FishMainMenuGameMode — 捕鱼达人主菜单 GameMode
+ * FishMainMenuGameMode — ClashMaster 主菜单 GameMode
  * 只设置相机和背景，不启动任何游戏逻辑。
  * 玩家点击开始后通过回调切换至 FishGameMode。
  */

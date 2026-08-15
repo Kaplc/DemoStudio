@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { MeshComponent } from '../rendering/MeshComponent'
+import { CapsuleMeshComponent } from '../rendering/CapsuleMeshComponent'
 import { LineComponent } from '../rendering/LineComponent'
 import { ComponentRegistry } from './ComponentRegistry'
 import { SpriteComponent } from '../rendering/SpriteComponent'
@@ -30,6 +31,7 @@ import { UIScrollListComponent, type UIScrollDirection } from '../ui/UIScrollLis
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
+import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
 import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
@@ -195,6 +197,24 @@ export function registerBuiltinComponents(): void {
     },
   )
 
+  // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, name? }
+  // 胶囊体网格（兵种等角色模型）：radius=半径，length=圆柱段长度（0=纯球）
+  // 几何体中心在胶囊体中心，贴地偏移由蓝图 TransformComponent 控制
+  ComponentRegistry.register(
+    'CapsuleMeshComponent',
+    (owner, p = {}) => {
+      const radius = (p.radius as number) ?? 0.3
+      const length = (p.length as number) ?? 0.3
+      const color = (p.color as number | string) ?? 0xffffff
+      return new CapsuleMeshComponent(asActor(owner), radius, length, color, (p.name as string) ?? 'CapsuleMeshComponent')
+    },
+    (c, p) => {
+      const mc = c as MeshComponent
+      const mat = mc.mesh.material as THREE.MeshStandardMaterial
+      if (p.color !== undefined) mat.color.set(p.color as THREE.ColorRepresentation)
+    },
+  )
+
   // ─── CanvasUIComponent ─── props: { width?, height?, worldWidth?, worldHeight?, doubleSided?, name?, markerOnly?, active? }
   // 世界尺寸已在 uitransform 上（Unity RectTransform 风格），此处只传显式值，
   // 未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取（避免默认值覆盖）
@@ -213,6 +233,7 @@ export function registerBuiltinComponents(): void {
         markerOnly: (p.markerOnly as boolean) ?? false,
         safeArea: p.safeArea as number | undefined,
         ...(p.active !== undefined ? { active: p.active as boolean } : {}),
+        ...(p.hitTest !== undefined ? { hitTest: p.hitTest as 'visible' | 'block' | 'hitTestInvisible' } : {}),
       }),
     (c, p) => {
       const ui = c as CanvasUIComponent
@@ -280,6 +301,30 @@ export function registerBuiltinComponents(): void {
       if (p.lineHeight !== undefined) t.lineHeight = p.lineHeight as number
       if (p.letterSpacing !== undefined) t.letterSpacing = p.letterSpacing as number
       if (p.zOrder !== undefined) t.zOrder = p.zOrder as number
+    },
+  )
+
+  // ─── UITextInputComponent ─── props: { placeholder?, value?, fontSize?, color?, width?, height?, zOrder? }
+  // 单行文本输入控件（GM 控制台输入框等）。onSubmit 由代码设置（资产无法表达回调）。
+  ComponentRegistry.register(
+    'UITextInputComponent',
+    (owner, p = {}) =>
+      new UITextInputComponent(asActor(owner), {
+        placeholder: p.placeholder as string | undefined,
+        value: p.value as string | undefined,
+        fontSize: p.fontSize as number | undefined,
+        color: p.color as string | undefined,
+        width: p.width as number | undefined,
+        height: p.height as number | undefined,
+        ...(p.zOrder !== undefined ? { zOrder: p.zOrder as number } : {}),
+      }),
+    (c, p) => {
+      const input = c as UITextInputComponent
+      if (p.placeholder !== undefined) input.placeholder = p.placeholder as string
+      if (p.value !== undefined) input.value = p.value as string
+      if (p.fontSize !== undefined) input.fontSize = p.fontSize as number
+      if (p.color !== undefined) input.color = p.color as string
+      if (p.zOrder !== undefined) input.zOrder = p.zOrder as number
     },
   )
 
@@ -364,8 +409,8 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIScrollListComponent ─── props: { itemWidget?, itemSize?, spacing?, visibleCount?, direction? }
-  // 滚动列表：item 对象池 + 滚动偏移排布。
+  // ─── UIScrollListComponent ─── props: { itemWidget?, itemSize?, spacing?, visibleCount?, direction?, draggable?, scrollbar? }
+  // 滚动列表：item 对象池 + 滚动偏移排布 + 鼠标拖拽滚动 + 右侧滚动条。
   ComponentRegistry.register(
     'UIScrollListComponent',
     (owner, p = {}) =>
@@ -375,6 +420,8 @@ export function registerBuiltinComponents(): void {
         spacing: p.spacing as number | undefined,
         visibleCount: p.visibleCount as number | undefined,
         direction: p.direction as UIScrollDirection | undefined,
+        draggable: p.draggable as boolean | undefined,
+        scrollbar: p.scrollbar as boolean | undefined,
       }),
     (c, p) => {
       const list = c as UIScrollListComponent
@@ -383,6 +430,8 @@ export function registerBuiltinComponents(): void {
       if (p.spacing !== undefined) list.spacing = p.spacing as number
       if (p.visibleCount !== undefined) list.visibleCount = p.visibleCount as number
       if (p.direction !== undefined) list.direction = p.direction as UIScrollDirection
+      if (p.draggable !== undefined) list.draggable = p.draggable as boolean
+      if (p.scrollbar !== undefined) list.scrollbar = p.scrollbar as boolean
     },
   )
 

@@ -131,7 +131,7 @@ textComp.text = InputPromptSystem.instance.prompt('按 E 交互', '点击交互'
 ### 2.8 UIScrollListComponent
 
 ```json
-{ "baseClass": "UIScrollListComponent", "properties": { "itemWidget": "asset/blueprints/ui/troop_card.blueprint.json", "itemSize": [1.2, 0.5], "spacing": 0.15, "visibleCount": 5, "direction": "vertical" } }
+{ "baseClass": "UIScrollListComponent", "properties": { "itemWidget": "asset/blueprints/ui/troop_card.blueprint.json", "itemSize": [1.2, 0.5], "spacing": 0.15, "direction": "vertical", "draggable": true } }
 ```
 
 ```ts
@@ -143,7 +143,13 @@ list.scrollTo(3)
 ```
 
 - 对象池：visibleCount+1 个 item 复用，超范围隐藏（`bActive=false`）
+- **visibleCount 自动推导**：不配或 ≤0 时按容器尺寸自动计算（floor(容器尺寸/步长)）——**只有内容超框才能滚动**（未溢出时 maxScroll=0，scrollBy 被钳制无效）
+- **鼠标拖拽滚动**（`draggable` 默认 true）：按住 item 拖动列表，位移超阈值（8px）视为拖拽（不触发按钮点击）；**滚动条式方向**：往下/右拖 → item 往上/左移（看后面的内容），与滚轮方向一致
+- **拖拽回弹（橡皮筋）**：拖过边界松手自动回弹到边界（软钳制衰减 1/3 + 0.25s quadOut 补间）；界内滑动松手不回弹
+- **右侧滚动条**（`scrollbar` 默认 true，程序化创建）：ScrollbarTrack 轨道背景（0.1 宽整条容器高）+ ScrollbarThumb 滑块（可视占比高，可拖动定位），内容未超框时整体隐藏
 - **已知限制**：不裁剪溢出可视区（引擎无 mask）；如需裁切需自行用 active 控制
+
+**拖拽/点击链路**：`InputSys.handlePointerMove` → `PhySys.dispatchDragMove`（按下期间持续分发屏幕坐标，拖出命中区域仍收到）→ `ClickableComponent.handleDragMove` → 首移 `onDragStart` + 每移 `onDragMove`。绑定了 `onDragMove` 的组件自动启用"拖拽取消点击"（onClick 延迟到 release，位移超阈值取消）；未绑定的组件保持按下即触发原语义。
 
 ### 2.9 设计级 lint（widget 资产）
 
@@ -208,6 +214,9 @@ setMode(mode)
 | 色盲模式未挂接 | setMode 仅记录不应用 + warn | 先 attach |
 | 滚动列表无 itemWidget / 未挂 World | 初始化跳过 + warn | 配置资产 + 挂 World |
 | 滚动列表 item 生成失败 | 池中断 + error | 检查 itemWidget 路径 |
+| 滚动列表 item 无 ClickableComponent | 拖拽静默不绑定（按钮点击不受影响） | item 需挂 UIButtonComponent/UIImage 命中 |
+| 点击后 <500ms 内再次点击 | clickCooldown 拦截（防连点） | 间隔 >500ms 或调 clickCooldown |
+| 射线命中时父链 matrixWorld 陈旧 | 命中失败（miss） | hitTest 内 updateWorldMatrix(true) 已修复 |
 | rAF 隐藏页面暂停 | tickUI 双驱动仍推进 | 引擎内置（测试依赖） |
 | 设计级 lint 全 warn | 不影响资产通过率 | 只提示不阻断 |
 

@@ -1,13 +1,13 @@
 # 关卡系统（Level System）
 
-> 捕鱼达人（fish 项目）的关卡选择与进入流程：基地 HUD 双按钮 → 地图面板（关卡列表）→ 关卡场景 → 返回基地。
+> ClashMaster（fish 项目，部落冲突风格）的关卡选择与进入流程：基地 HUD 双按钮 → 地图面板（关卡列表）→ 关卡场景 → 返回基地。
 > ⚠️ 战斗改造后（2026-08）：关卡场景不再是空壳，`FishLevelGameMode` 已改造为战斗 GameMode（攻打敌方基地），Esc 不再打开暂停菜单。**关卡内的战斗玩法见 [`battle_system.md`](./battle_system.md)**，本文档只覆盖"地图入口 + 关卡切换 + 返回基地"链路。
 > 代码位置：`src/projects/fish/gameplay/`（`FishGameInstance.ts` 阶段路由、`level/` 关卡 GameMode、`base/MapPanel.script.ts` 地图面板）、`src/projects/fish/asset/`（`config/levels.table.json`、`fish_level*.scene.json`、`blueprints/ui/*.widget.json`）。
 > 相关文档：[`battle_system.md`](./battle_system.md)、[`../engine/gameflow_system.md`](./engine/gameflow_system.md)、[`../engine/ui_system.md`](./engine/ui_system.md)、[`../engine/asset_tools_system.md`](./engine/asset_tools_system.md)。
 
 ## 1. 概述
 
-关卡系统让玩家从基地出发，通过地图面板选择关卡进入**空壳关卡场景**（仅地面 + 相机 + 暂停菜单，无玩法逻辑），关卡内可按 Esc 打开暂停菜单并"返回基地"。它是捕鱼达人三阶段流程（`menu → base → game`）的横向扩展：**关卡复用 `game` 阶段**，通过 `_levelId` 决定加载哪个场景（海域 or 关卡）。
+关卡系统让玩家从基地出发，通过地图面板选择关卡进入**空壳关卡场景**（仅地面 + 相机 + 暂停菜单，无玩法逻辑），关卡内可按 Esc 打开暂停菜单并"返回基地"。它是 ClashMaster 三阶段流程（`menu → base → game`）的横向扩展：**关卡复用 `game` 阶段**，通过 `_levelId` 决定加载哪个场景（海域 or 关卡）。
 
 关键角色与职责：
 
@@ -136,7 +136,7 @@ flowchart TD
 
 ### 4.3 设计要点
 
-- **关卡复用 game 阶段**：不新增 `Phase` 枚举值，`_levelId` 区分出海/关卡——`switchToPhase('game')` 按 `_levelId` 选场景名（无关卡 → `FishMaster` 海域），`setupGamePhase`/`setupLevelPhase` 二选一。对既有出海流程零侵入。
+- **关卡复用 game 阶段**：不新增 `Phase` 枚举值，`_levelId` 区分出海/关卡——`switchToPhase('game')` 按 `_levelId` 选场景名（无关卡 → `ClashMaster` 海域），`setupGamePhase`/`setupLevelPhase` 二选一。对既有出海流程零侵入。
 - **场景 mode 驱动 GameMode**：关卡场景 `mode: "level"`，`GameModeRegistry` 自动匹配 `FishLevelGameMode`——与 `menu/base/game` 同一机制，无需在 switchToPhase 里手写 new。
 - **数据驱动地图**：关卡数、名称、位置全部来自 `levels.table.json`（`pos` 作为卡片 `anchorOffset`），新增关卡只需加表行 + 场景资产。
 - **互斥单向**：打开地图面板自动 `exitBuildMode()`；关闭面板后可重新进入建筑模式（两面板独立开关，互不影响）。

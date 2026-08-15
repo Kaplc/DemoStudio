@@ -1,5 +1,5 @@
 /**
- * FishMaster 配置文件自动扫描入口
+ * ClashMaster 配置文件自动扫描入口
  *
  * 使用 Vite import.meta.glob 扫描 asset/config/ 下所有 *.config.json / *.table.json，
  * 由 ConfigLoader（FishConfigLoader.registerGlob）按 `{project}.{文件名}` 规则注册：

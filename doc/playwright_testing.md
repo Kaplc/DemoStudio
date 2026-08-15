@@ -39,14 +39,14 @@ DemoStudio 是 Electron + Vite + React + Three.js 应用。除 Electron 窗口�
 ```js
 // ✅ 方式 A（实测最简）：对工程卡片文本 dispatchEvent dblclick，一次打开
 // （ProjectSelector 卡片 onClick 只 setSelected，但 dblclick 冒泡路径实测可直接完成打开）
-await page.getByText('FishMaster', { exact: false }).first().dispatchEvent('dblclick', { bubbles: true })
+await page.getByText('ClashMaster', { exact: false }).first().dispatchEvent('dblclick', { bubbles: true })
 
 // ✅ 方式 B（显式两步，等价真实用户操作）：
-await page.getByText('FishMaster').first().dispatchEvent('click', { bubbles: true })       // 选中卡片
+await page.getByText('ClashMaster').first().dispatchEvent('click', { bubbles: true })       // 选中卡片
 await page.getByRole('button', { name: '打开工程' }).dispatchEvent('click', { bubbles: true }) // 点打开
 
 // ❌ 错误：会卡住直到超时
-// await page.getByText('FishMaster').first().dblclick()
+// await page.getByText('ClashMaster').first().dblclick()
 ```
 
 ### 3.2 启动 / 停止游戏
@@ -104,7 +104,7 @@ const txt = await page.evaluate(() => document.body.innerText)
 
 ## 4. 工作流程
 
-### 4.1 完整端到端测试流程（FishMaster 示例）
+### 4.1 完整端到端测试流程（ClashMaster 示例）
 
 ```mermaid
 flowchart TD

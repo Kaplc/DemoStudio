@@ -1,11 +1,11 @@
 /**
- * FishGameInstance — 捕鱼达人游戏实例
- * 三阶段流程：主菜单 → 海底基地 → 出海捕鱼。
+ * FishGameInstance — ClashMaster 游戏实例
+ * 三阶段流程：主菜单 → 部落村庄基地 → 出征战斗/关卡攻城。
  * 每个阶段使用独立的 GameMode 管理场景和生命周期，
- * 并通过场景资产（JSON）切换海底氛围。
+ * 并通过场景资产（JSON）切换场景氛围。
  */
 import * as THREE from 'three'
-import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService, TweenSystem } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -25,7 +25,7 @@ type Phase = 'menu' | 'base' | 'game'
 export class FishGameInstance extends GameInstance {
   readonly world: World
 
-  /** 资源组件：金币（跨阶段共享，基地/出海同一钱包） */
+  /** 资源组件：金币（跨阶段共享，基地/出征同一钱包） */
   readonly resources: ResourcesComponent
   /** 训练部队组件：训练队列 + 军队（跨阶段保留，基地阶段推进倒计时） */
   readonly training: TrainingComponent
@@ -38,7 +38,7 @@ export class FishGameInstance extends GameInstance {
   private _levelGameMode: FishLevelGameMode | null = null
 
   private _phase: Phase = 'menu'
-  /** 当前关卡 id（null = 普通出海捕鱼；进入关卡后 game 阶段加载关卡场景） */
+  /** 当前关卡 id（null = 普通出征战斗；进入关卡后 game 阶段加载关卡场景） */
   private _levelId: string | null = null
   private _controller: PlayerController | null = null
   pawn: FishCannon | null = null
@@ -125,6 +125,203 @@ export class FishGameInstance extends GameInstance {
         return count
       },
       getBattle: () => this._levelGameMode?.getBattleSnapshot() ?? null,
+      getHealthBars: () => this._levelGameMode?.getHealthBarStates() ?? [],
+      getTroopModels: () => this._levelGameMode?.getTroopModelSummary() ?? [],
+      getGM: () => ({
+        consoleOpen: this.gm.consoleOpen,
+        outputLines: this.gm.getConsoleOutputLines(),
+        layers: this.gm.getConsoleLayers(),
+        inputValue: (this.gm as unknown as { _console?: { _input?: { value?: string } } | null })
+          ._console?._input?.value ?? '',
+      }),
+      /** 手动射线命中测试（Playwright 诊断 UI 点击链路）：返回 UI 层命中结果 */
+      debugHit: (sx: number, sy: number) => {
+        const sys = PhySys as unknown as {
+          screenToRay?: (x: number, y: number, cam?: unknown) => {
+            ray?: { origin?: { x: number; y: number; z: number }; direction?: { x: number; y: number; z: number } }
+            intersectObjects?: (objs: unknown[], rec: boolean) => unknown[]
+          } | null
+          _uiCamera?: { position?: { x: number; y: number; z: number } } | null
+          _uiClickables?: Set<{
+            bEnabled: boolean
+            hitTest: (r: unknown) => unknown
+            owner: {
+              root: {
+                name: string
+                updateMatrixWorld?: (b: boolean) => void
+                traverse?: (cb: (o: unknown) => void) => void
+              }
+            }
+          }>
+        }
+        const ray = sys.screenToRay?.(sx, sy, sys._uiCamera)
+        if (!ray) return { ray: false }
+        const origin = ray.ray?.origin
+        const dir = ray.ray?.direction
+        let hitCount = 0
+        const targets: string[] = []
+        for (const c of sys._uiClickables ?? []) {
+          if (!c.bEnabled) continue
+          c.owner.root.updateMatrixWorld?.(true)
+          const hit = c.hitTest(ray)
+          if (hit) hitCount++
+          // 收集 owner 的 mesh 世界位置
+          let meshPos = 'none'
+          c.owner.root.traverse?.((o) => {
+            const obj = o as { isMesh?: boolean; matrixWorld?: { elements?: number[] } }
+            if (obj.isMesh) {
+              meshPos = `(${obj.matrixWorld?.elements?.[12]?.toFixed(2) ?? '?'},${obj.matrixWorld?.elements?.[13]?.toFixed(2) ?? '?'},${obj.matrixWorld?.elements?.[14]?.toFixed(2) ?? '?'})`
+            }
+          })
+          targets.push(`${c.owner.root.name}:${meshPos}`)
+        }
+        return {
+          ray: true,
+          origin: origin ? `(${origin.x.toFixed(2)},${origin.y.toFixed(2)},${origin.z.toFixed(2)})` : '?',
+          dir: dir ? `(${dir.x.toFixed(2)},${dir.y.toFixed(2)},${dir.z.toFixed(2)})` : '?',
+          hitCount,
+          total: sys._uiClickables?.size ?? 0,
+          targets: targets.slice(0, 12),
+        }
+      },
+      /** GM 命令滚动列表运行时详情（Playwright 定位 item 渲染缺失用） */
+      getGMDetail: () => {
+        const gmAny = this.gm as unknown as { _console?: { _cmdList?: unknown } | null }
+        const consoleHud = gmAny._console
+        if (!consoleHud) return { open: false }
+        const list = consoleHud._cmdList as {
+          _initialized?: boolean; _totalCount?: number; _scrollOffset?: number
+          _visibleCount?: number; _itemSize?: [number, number]; _spacing?: number
+          visibleCount?: number; _pool?: import('@/engine').Actor[]
+        } | null
+        if (!list) return { open: true, list: null }
+        const summarizeActor = (a: import('@/engine').Actor): Record<string, unknown> => {
+          const comps: Record<string, unknown>[] = []
+          const allComps = (a as unknown as { components?: unknown[] }).components ?? []
+          for (const c of allComps) {
+            const anyC = c as Record<string, unknown>
+            const n = (c as { constructor?: { name?: string } }).constructor?.name ?? '?'
+            const row: Record<string, unknown> = { type: n }
+            if (n === 'UITransformComponent') {
+              row.anchorOffset = anyC.anchorOffset
+              row.worldSize = [anyC.worldWidth, anyC.worldHeight]
+            } else if (n === 'CanvasUIComponent' || n === 'UITextComponent' || n === 'UIImageComponent') {
+              row.zOrder = anyC.zOrder
+              row.renderOrder = anyC.renderOrder
+              if (n === 'UITextComponent') {
+                row.text = (anyC.text as string) ?? ''
+                row.meshVisible = (anyC.mesh as { visible?: boolean } | null)?.visible ?? null
+              }
+              if (n === 'UIImageComponent') {
+                row.panelVisible = (anyC.panel as { visible?: boolean } | null)?.visible ?? null
+              }
+            } else if (n === 'UIButtonComponent') {
+              row.hasOnClick = typeof anyC.onClick === 'function'
+            }
+            comps.push(row)
+          }
+          return {
+            name: a.root.name, uid: a.uid, active: a.bActive, worldSet: !!a.world,
+            rootVisible: a.root.visible,
+            pos: [a.root.position.x, a.root.position.y, a.root.position.z],
+            parent: a.root.parent ? `${a.root.parent.name} (visible=${a.root.parent.visible})` : null,
+            comps,
+          }
+        }
+        return {
+          open: true,
+          initialized: list._initialized ?? false,
+          totalCount: list._totalCount ?? 0,
+          scrollOffset: list._scrollOffset ?? 0,
+          visibleCount: list.visibleCount,
+          itemSize: list._itemSize ?? null,
+          spacing: list._spacing ?? 0,
+          scrollbar: (() => {
+            // 滚动条快照（轨道 + thumb，Playwright 断言渲染/拖动用）
+            const l = list as unknown as {
+              _scrollbarThumb?: import('@/engine').Actor | null
+              _scrollbarTrack?: import('@/engine').Actor | null
+              _scrollbar?: boolean
+            }
+            const readActor = (a: import('@/engine').Actor | null | undefined) => {
+              if (!a) return null
+              const comps = (a as unknown as { components?: unknown[] }).components ?? []
+              let size: [number, number] | null = null
+              let zOrder: number | null = null
+              for (const c of comps) {
+                const anyC = c as Record<string, unknown>
+                const n = (c as { constructor?: { name?: string } }).constructor?.name ?? '?'
+                if (n === 'UITransformComponent') {
+                  size = [anyC._worldW as number, anyC._worldH as number]
+                } else if (n === 'CanvasUIComponent' || n === 'UIImageComponent') {
+                  zOrder = anyC.zOrder as number
+                }
+              }
+              return {
+                name: a.root.name,
+                active: a.bActive,
+                pos: [a.root.position.x, a.root.position.y, a.root.position.z],
+                size,
+                zOrder,
+                parent: a.parent ? a.parent.root.name : null,
+              }
+            }
+            return {
+              enabled: !!l._scrollbar,
+              track: readActor(l._scrollbarTrack),
+              thumb: readActor(l._scrollbarThumb),
+            }
+          })(),
+          bounce: (() => {
+            // 回弹诊断：是否正在回弹 + TweenSystem 活动补间数（判断驱动是否推进）
+            const l = list as unknown as { _bounceTween?: unknown }
+            const ts = TweenSystem as unknown as { instance?: { activeCount?: number } }
+            return {
+              bouncing: !!l._bounceTween,
+              tweenCount: ts.instance?.activeCount ?? -1,
+            }
+          })(),
+          chain: (() => {
+            const chain: Record<string, unknown>[] = []
+            let n: unknown = (list as { owner?: import('@/engine').Actor }).owner
+            while (n) {
+              const a = n as import('@/engine').Actor
+              chain.push({
+                name: a.root.name,
+                pos: [a.root.position.x, a.root.position.y, a.root.position.z],
+                visible: a.root.visible,
+              })
+              n = a.parent
+            }
+            return chain
+          })(),
+          pool: (list._pool ?? []).map(summarizeActor),
+          input: (() => {
+            // 拖拽/点击链路诊断：PhySys UI 点击注册数与 UI 相机状态
+            const sys = PhySys as unknown as {
+              _uiCamera?: unknown
+              clickableCount?: number
+              _uiClickables?: Set<unknown>
+              viewportElement?: HTMLElement | null
+              ready?: boolean
+            }
+            const uiClickables = sys._uiClickables?.size ?? -1
+            // 池内 item 中已挂 ClickableComponent 的数量（拖拽绑定前提）
+            const itemClickables = (list._pool ?? []).filter((p) =>
+              (p as unknown as { components?: unknown[] }).components?.some(
+                (c) => (c as { constructor?: { name?: string } }).constructor?.name === 'ClickableComponent',
+              ),
+            ).length
+            return {
+              uiCamera: !!sys._uiCamera,
+              uiClickableCount: uiClickables,
+              itemClickableCount: itemClickables,
+              viewport: sys.viewportElement ? `${sys.viewportElement.tagName}.${sys.viewportElement.className}` : null,
+              ready: sys.ready,
+            }
+          })(),
+        }
+      },
       getState: () => ({
         phase: this._phase,
         levelId: this._levelId,
@@ -178,7 +375,7 @@ export class FishGameInstance extends GameInstance {
     this._phase = phase
     const sceneName = phase === 'menu' ? 'FishMenu'
       : phase === 'base' ? 'FishBaseIsland'
-      : this._levelId ? (this.getLevel(this._levelId)?.scene ?? 'FishMaster') : 'FishMaster'
+      : this._levelId ? (this.getLevel(this._levelId)?.scene ?? 'ClashMaster') : 'ClashMaster'
     logger.info(`[Fish] 切换阶段 → ${phase} (场景: ${sceneName})`)
 
     const ok = this.world.SwitchToScene(sceneName, () => {
@@ -254,7 +451,7 @@ export class FishGameInstance extends GameInstance {
 
   /** 游戏阶段设置 */
   private setupGamePhase(): void {
-    logger.info('[Fish] setupGamePhase: 配置出海捕鱼...')
+    logger.info('[Fish] setupGamePhase: 配置出征战斗...')
     const mode = this.world.gameMode as FishGameMode
     this._gameMode = mode
     mode.cameraManager.RegisterCamera(mode.gameCamera)
@@ -330,9 +527,9 @@ export class FishGameInstance extends GameInstance {
     this.switchToPhase('base')
   }
 
-  /** 出海捕鱼 */
+  /** 出征战斗 */
   private startGameplay(): boolean {
-    logger.info('[Fish] 出海捕鱼...')
+    logger.info('[Fish] 出征战斗...')
     this._phase = 'game'
     this._levelId = null
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
@@ -448,7 +645,7 @@ export class FishGameInstance extends GameInstance {
 
     if (this._phase === 'game') {
       this.world.manualTick(dt)
-      // 出海/关卡共用 game 阶段驱动（关卡空壳无玩法，仍驱动 world tick）
+      // 出征/关卡共用 game 阶段驱动（关卡空壳无玩法，仍驱动 world tick）
       const gm = this._gameMode ?? this._levelGameMode
       if (gm) {
         const gs = gm.gameState

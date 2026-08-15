@@ -1,5 +1,5 @@
 /**
- * FishObjectPools — 捕鱼达人对象池管理器
+ * FishObjectPools — ClashMaster 对象池管理器
  * 集中管理所有高频创建/销毁对象的池。
  * init(world) 时将所有预分配 Actor 注入 World，之后切换 visible 来复用。
  */

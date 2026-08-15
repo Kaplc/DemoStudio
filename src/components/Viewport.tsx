@@ -62,8 +62,6 @@ export function Viewport({ onReady }: ViewportProps) {
   const gizmosOn = prefsViewport.gizmos
   const setGameAspectRatio = (ratio: string) => setViewportPref({ aspectRatio: ratio })
   const [viewportFocused, setViewportFocused] = useState(false)
-  const [localScore, setLocalScore] = useState(0)
-  const [localPhase, setLocalPhase] = useState<string>('waiting')
 
   const editorState = useEditorStore((s) => s.gameState)
   const currentProject = useEditorStore((s) => s.currentProject)
@@ -201,8 +199,6 @@ export function Viewport({ onReady }: ViewportProps) {
       gizmos.flush()
 
       // 4. 重置 UI 状态
-      setLocalScore(0)
-      setLocalPhase('waiting')
       setGameScore(0)
       setGameOver(false)
 
@@ -239,8 +235,7 @@ export function Viewport({ onReady }: ViewportProps) {
     // Game 视口渲染容器：createInstance 传入 → instance → World 创建 SceneRendererComponent
     const game = new Game(sceneRef.current)
     game.setCallbacks({
-      onScoreChange: (score) => { setLocalScore(score); setGameScore(score) },
-      onPhaseChange: (phase) => setLocalPhase(phase),
+      onScoreChange: (score) => { setGameScore(score) },
       onGameOver: () => setGameOver(true),
     })
     gameRef.current = game
@@ -577,6 +572,7 @@ export function Viewport({ onReady }: ViewportProps) {
             )}
           </button>
         ))}
+        <div className="menu-spacer" />
         <select
           value={gameAspectRatio}
           onChange={(e) => setGameAspectRatio(e.target.value)}
@@ -618,16 +614,26 @@ export function Viewport({ onReady }: ViewportProps) {
         >
           ◇ Gizmos
         </button>
-        <div className="menu-spacer" />
-        {activeTabId === 'scene' && (
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-            WASD 漫游 · 左键旋转 · 右键平移 · 滚轮缩放
-          </span>
-        )}
-        {activeTabId === 'game' && editorState.running && currentProject && (
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-            {localPhase === 'gameover' ? 'Game Over' : `Score: ${localScore}`}
-          </span>
+        {activeTabId === 'game' && editorState.running && (
+          <button
+            onClick={() => gameRef.current?.instance?.gm?.toggleConsole()}
+            title="打开/关闭当前项目的 GM 控制台（等效 G+M）"
+            style={{
+              marginLeft: 6,
+              background: 'rgba(240,165,0,0.15)',
+              color: '#f0a500',
+              border: '1px solid rgba(240,165,0,0.4)',
+              borderRadius: 4,
+              padding: '2px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              outline: 'none',
+            }}
+          >
+            ⚙ GM
+          </button>
         )}
       </div>
 

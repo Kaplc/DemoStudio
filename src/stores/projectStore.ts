@@ -43,10 +43,10 @@ const DEFAULT_PROJECTS: Project[] = [
     folder: 'racing',
   },
   {
-    name: 'FishMaster',
-    description: '捕鱼达人 — 鼠标瞄准发射、多炮等级、Boss、金币经济',
+    name: 'ClashMaster',
+    description: '部落冲突 — 村庄建设、兵种训练、攻城战斗、关卡挑战',
     version: '1.0.0',
-    tags: ['game', 'fish', '2d'],
+    tags: ['game', 'clash', '2d'],
     folder: 'fish',
     renderMode: '2d',
     defaultScene: 'src/projects/fish/asset/fish_menu.scene.json',

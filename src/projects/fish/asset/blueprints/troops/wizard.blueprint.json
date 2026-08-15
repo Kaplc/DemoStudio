@@ -1,0 +1,23 @@
+{
+  "name": "TroopWizard",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0.55, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "CapsuleMeshComponent",
+      "properties": {
+        "radius": 0.35,
+        "length": 0.4,
+        "color": "#7b1fa2"
+      }
+    }
+  ],
+  "children": []
+}

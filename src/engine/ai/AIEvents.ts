@@ -43,6 +43,18 @@ export const AI_EVENT_GET_ACTOR = 'ai.getActor'
 /** 模拟鼠标滚轮（缩放摄像机，delta 约定与 PlayerController.OnScroll 一致：正=拉远，负=拉近） */
 export const AI_EVENT_SCROLL_CAMERA = 'ai.scrollCamera'
 
+/** 执行 GM 命令（引擎级调试命令系统，等价游戏内控制台输入） */
+export const AI_EVENT_GM_COMMAND = 'ai.gmCommand'
+
+/** 泛型 RPC：查询 Actor 上指定类型组件的公开状态（序列化安全，跳过函数/私有字段） */
+export const AI_EVENT_GET_COMPONENT = 'ai.getComponent'
+
+/** 泛型 RPC：写 Actor 或组件的公开属性（测试断言/状态注入用） */
+export const AI_EVENT_SET_PROPERTY = 'ai.setProperty'
+
+/** 泛型 RPC：调用 Actor 或组件的白名单方法（setPosition/SetActive/applyPatch 等） */
+export const AI_EVENT_CALL_ACTOR = 'ai.callActor'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════
@@ -116,6 +128,48 @@ export interface AIScrollCameraPayload {
   delta: number
   /** 摄像机名称（可选，默认当前游戏模式的主摄像机） */
   camera?: string
+}
+
+/** ai.gmCommand payload：执行 GM 命令（等价控制台输入 'command args...'） */
+export interface AIGMCommandPayload {
+  /** 命令调用名（如 'addCoins' / 'help' / 'gm.disable'） */
+  command: string
+  /** 参数字符串数组（可选，如 ['100']；执行时按空白拼回命令行） */
+  args?: string[]
+}
+
+/** ai.getComponent payload：查询组件公开状态（补足 ai.getActor 的固定字段限制） */
+export interface AIGetComponentPayload {
+  /** Actor 名称（精确匹配 .name 或 root.name，递归查找） */
+  actor: string
+  /** 组件类型名（构造器名，如 'TransformComponent'）；缺省返回全部组件 */
+  component?: string
+}
+
+/** ai.setProperty payload：写 Actor 或组件公开属性 */
+export interface AISetPropertyPayload {
+  /** Actor 名称（精确匹配 .name 或 root.name，递归查找） */
+  actor: string
+  /** 组件类型名；缺省作用于 Actor 自身 */
+  component?: string
+  /** 属性名（公开字段，非 _ 开头；getter 属性也可写） */
+  property: string
+  /** 新值（JSON 可序列化；Vector3/Euler 用 {x,y,z} 或数组） */
+  value: unknown
+}
+
+/** ai.callActor payload：调用 Actor 或组件方法（白名单） */
+export interface AICallActorPayload {
+  /** Actor 名称（精确匹配 .name 或 root.name，递归查找） */
+  actor: string
+  /** 组件类型名；缺省调用 Actor 自身方法 */
+  component?: string
+  /** 方法名（白名单：setPosition/setRotation/setScale/SetActive/applyPatch/destroy 等） */
+  method: string
+  /** 参数数组（JSON 可序列化；允许设置 allowAll:true 放开白名单做深度调试） */
+  args?: unknown[]
+  /** 调试开关：true 时放开方法白名单（默认 false，保守） */
+  allowAll?: boolean
 }
 
 /** 单个 Actor 的详细信息（ai.getActor 返回） */

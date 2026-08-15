@@ -25,6 +25,7 @@ UI 系统模仿 UE 的 HUD 机制：
 | `UIButtonComponent` | UI 按钮控件 |
 | `UILayoutComponent` | UI 布局组件 |
 | `UIScriptComponent` | UI 挂载脚本组件（BeginPlay 时按资产 `script` id 实例化 BehaviourScript） |
+| `CanvasUIComponent` | UI 画布根组件：Canvas 渲染 + 显隐控制 + 命中测试模式（详见 [组件文档](./ui_canvas_component.md)） |
 
 ## 3. 使用方法
 
@@ -74,6 +75,7 @@ SwitchScene:
 
 - `ClickableComponent.layer === 'ui'` 时注册到 PhySys 的 UI 层注册表，使用 UI 相机平行射线检测
 - UI 按钮点击在 `InputSys.handlePointerDown` 中被消费后不再下发到 Controller（避免同一击既触发按钮又触发放置逻辑）
+- **点击拦截**：`CanvasUIComponent` 的 `hitTest:'block'` 画布（如模态遮罩/GM 控制台）命中射线即消费点击，挡住更低层级 UI/世界——遮挡竞争细节见 [CanvasUIComponent 组件文档](./ui_canvas_component.md)
 
 ### 4.4 UI Actor 锚点自动补挂
 

@@ -1,0 +1,23 @@
+{
+  "name": "TroopHealer",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0.4, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "CapsuleMeshComponent",
+      "properties": {
+        "radius": 0.4,
+        "length": 0,
+        "color": "#00897b"
+      }
+    }
+  ],
+  "children": []
+}

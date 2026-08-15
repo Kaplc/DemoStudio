@@ -11,10 +11,11 @@
  *  4. 飞行兵（flying）直接越过城墙/建筑，不做碰撞检测
  *
  * 死亡：takeDamage 扣血到 0 → 通知 GameMode（军队计数/胜负判定）→ destroy 自毁。
- * 网格：主体立方体（兵种 size × 颜色），飞行兵悬空（y 抬高）。
+ * 网格：胶囊体模型（兵种蓝图 asset/blueprints/troops/*.blueprint.json 声明，
+ * 由 FishLevelGameMode 部署时 SpawnActorFromBlueprint 实例化，构造时挂到本 Actor 下），
+ * 飞行兵悬空（y 抬高）。
  */
-import * as THREE from 'three'
-import { GenericActor, MeshComponent, logger } from '@/engine'
+import { GenericActor, logger, type Actor } from '@/engine'
 import type { TroopType } from '../common/types'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 
@@ -32,25 +33,23 @@ export class BattleTroopActor extends GenericActor {
   private attackTimer = 0
   /** 是否已死亡（防重复死亡回调） */
   private dead = false
+  /** 蓝图模型子 Actor（胶囊体，随兵销毁释放） */
+  private readonly modelActor: Actor
 
-  constructor(gm: FishLevelGameMode, troopId: string, troop: TroopType, x: number, z: number) {
+  constructor(gm: FishLevelGameMode, troopId: string, troop: TroopType, x: number, z: number, modelActor: Actor) {
     super(`BattleTroop_${troopId}`)
     this.gm = gm
     this.troop = troop
     this.hp = troop.hp
     this.setPosition(x, troop.flying ? 2 : 0, z)
+    // 蓝图模型（GameMode 部署时已 SpawnActorFromBlueprint 实例化）：挂到兵下，随兵销毁释放
+    this.modelActor = modelActor
+    modelActor.attachTo(this)
   }
 
   override BeginPlay(): void {
     super.BeginPlay()
-    const w = this.world
-    if (!w) return
-    // 主体立方体：兵种渲染尺寸 × 兵种色（飞行兵悬空 y 已抬高）
-    const [sw, sh, sd] = this.troop.size
-    const body = w.createBoxMesh(sw, sh, sd, this.troop.color)
-    body.position.y = sh / 2
-    this.addComponent(new MeshComponent(this, body, 'BodyMesh'))
-    logger.info(`[Battle] 兵部署: ${this.troop.name} @ (${this.root.position.x.toFixed(1)}, ${this.root.position.z.toFixed(1)}) hp=${this.hp} flying=${this.troop.flying}`)
+    logger.info(`[Battle] 兵部署: ${this.troop.name} @ (${this.root.position.x.toFixed(1)}, ${this.root.position.z.toFixed(1)}) hp=${this.hp} flying=${this.troop.flying} 模型蓝图=${this.troop.blueprint}`)
   }
 
   /**
@@ -149,7 +148,7 @@ export class BattleTroopActor extends GenericActor {
   }
 
   override EndPlay(): void {
-    // 网格由 MeshComponent.EndPlay 自动释放
+    // 模型子 Actor 经 attachTo 挂树，由父链递归销毁（EndPlay 递归 children）
     super.EndPlay()
   }
 }

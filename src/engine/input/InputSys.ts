@@ -16,6 +16,7 @@ import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
 import { BObject } from '../entity/BObject'
 import { InputPromptSystem } from '../ui/InputPromptSystem'
+import { GMModule } from '../gm/GMModule'
 import type { PlayerController } from './PlayerController'
 
 export class InputSys extends BObject {
@@ -63,7 +64,12 @@ export class InputSys extends BObject {
     worldPos?: THREE.Vector3,
     controller?: PlayerController | null,
   ): void {
-    PhySys.raycastHover(screenX, screenY)
+    // 拖拽中（鼠标按住未松）跳过 hover 射线检测：悬停提示/高亮在拖拽期间无意义，
+    // 且每个 UI clickable 的 hitTest 都会强制刷新父链矩阵（updateWorldMatrix），
+    // 拖拽滚动时每帧跑全套射线是卡顿的主要来源之一
+    if (!PhySys.isDragging) PhySys.raycastHover(screenX, screenY)
+    // 拖拽移动分发：按住（如滚动列表 item）期间持续收到屏幕坐标，实现拖拽滚动
+    PhySys.dispatchDragMove(screenX, screenY)
     controller?.OnPointerMoveScreen(screenX, screenY)
     // 广播指针移动事件（外部组件可 BindPointerMove 订阅，如摄像机右键拖拽平移）
     controller?.inputComponent.ProcessPointerMove(screenX, screenY)
@@ -92,15 +98,22 @@ export class InputSys extends BObject {
   //   键盘
   // ════════════════════════════════════════════
 
-  /** 键盘按下 */
+  /**
+   * 键盘按下。
+   * GM 控制台优先消费：面板打开时按键不穿透游戏；未打开时检测 G+M 组合键。
+   */
   handleKeyDown(key: string, controller?: PlayerController | null): void {
     // 输入设备检测：键盘事件 → 设备切换为 keyboard（触发提示文本刷新）
     InputPromptSystem.instance.setDevice('keyboard')
+    // GM 模块全局键盘钩子（控制台打开 → 消费输入；G+M → 开关面板）
+    if (GMModule.handleGlobalKeyDown(key)) return
     controller?.ProcessInput(key, 'pressed')
   }
 
   /** 键盘释放 */
   handleKeyUp(key: string, controller?: PlayerController | null): void {
+    // GM 组合键状态跟踪（G 键释放清理）
+    GMModule.handleGlobalKeyUp(key)
     controller?.ProcessInput(key, 'released')
   }
 
@@ -110,6 +123,8 @@ export class InputSys extends BObject {
 
   /** 滚轮滚动 */
   handleScroll(delta: number, controller?: PlayerController | null): void {
+    // GM 模块全局滚轮钩子（控制台打开 → 命令列表滚动，消费不穿透游戏）
+    if (GMModule.handleGlobalScroll(delta)) return
     if (!controller) return
     // 输入系统触发到 Controller 的输入组件（外部组件可 BindScroll 订阅）
     controller.inputComponent.ProcessScroll(delta)

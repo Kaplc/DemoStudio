@@ -12,7 +12,7 @@ export { FishGameInstance } from './gameplay/FishGameInstance'
 import { FishConfigLoader } from './FishConfigLoader'
 export { FishConfigLoader }
 
-/** 便捷入口：实例化并初始化 FishMaster 配置（供 register.ts initConfigs 与外部调用） */
+/** 便捷入口：实例化并初始化 ClashMaster 配置（供 register.ts initConfigs 与外部调用） */
 export function initFishConfigs(log?: (message: string) => void): void {
   new FishConfigLoader(log).init()
 }

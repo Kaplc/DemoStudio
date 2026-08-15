@@ -248,7 +248,7 @@ src/engine/
 
 | 项目 | 玩法 | 核心文件 |
 |---|---|---|
-| **fish**（捕鱼） | 炮台发射子弹捕鱼 | `gameplay/`：`FishGameInstance`、`FishGameMode`、`FishPlayerController`、`FishPawn`、`FishCannon`、`FishBullet`、`FishNet`、`FishBubble`、`FishFlash`、`FishCoinFly`、`FishCoinParticle`、`FishObjectPools`（对象池）<br>`FishConfigLoader.ts`：加载 cannon/troop 等配置表<br>场景：`fish.scene.json` / `fish_base.scene.json` / `fish_menu.scene.json` |
+| **fish**（ClashMaster 部落冲突） | 基地建造 + 兵种训练 + 攻打敌方基地关卡 | `gameplay/`：`FishGameInstance`（三阶段路由）、`FishMainMenuGameMode`、`FishBaseGameMode`（村庄基地）、`FishLevelGameMode`（战斗关卡）、`FishGameMode`、`ClashBaseBuilder`、`ClashBuildingActors`（6 建筑类）、`BattleTroopActor`（兵）、`FishGMConsoleHUD`（GM 面板）<br>`FishConfigLoader.ts`：加载 cannon/troop/levels 等配置表<br>场景：`fish.scene.json` / `fish_menu.scene.json` / `fish_base.scene.json` / `fish_level{1,2,3}.scene.json`<br>详见 [`projects/clash_master.md`](./projects/clash_master.md) |
 | **snake**（贪吃蛇） | 蛇吃食物 | `SnakeGameInstance` / `SnakeGameMode` / `SnakePlayerController` / `SnakePawn` / `SnakeFoodPawn` + `snake.scene.json` |
 | **racing** | 竞速 | — |
 | **eatfish** | 吃鱼 | — |
@@ -321,7 +321,7 @@ flowchart TD
     end
 
     subgraph Projects[项目层 src/projects]
-        P1[fish 捕鱼]
+        P1[fish ClashMaster]
         P2[snake 贪吃蛇]
         P3[racing/eatfish/demo2d/mainmenu]
     end

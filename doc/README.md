@@ -16,9 +16,11 @@
 | [`engine/gameflow_system.md`](./engine/gameflow_system.md) | 游戏流程：Game / GameInstance / GameMode / GameState / World |
 | [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：相机族 / 渲染组件 / Compositor2D / 纹理 |
 | [`engine/ui_system.md`](./engine/ui_system.md) | 世界 UI：UIManager / HUD / UI 控件组件 |
+| [`engine/ui_canvas_component.md`](./engine/ui_canvas_component.md) | CanvasUIComponent 组件：画布渲染 + hitTest 命中测试（visible/block/hitTestInvisible，拦截点击时查） |
 | [`engine/input_physics_script_system.md`](./engine/input_physics_script_system.md) | 输入 / 物理 / 脚本：InputSys / PhySys / ScriptRegistry |
 | [`engine/asset_tools_system.md`](./engine/asset_tools_system.md) | 资产与工具：AssetRegistry / BlueprintRegistry / 配置表 / 存档 |
 | [`engine/ai_system.md`](./engine/ai_system.md) | AI 事件系统：AIModule 事件总线（MCP 控制游戏） |
+| [`engine/gm_system.md`](./engine/gm_system.md) | GM 命令系统：\*.gm.ts 自动注册 + 游戏内控制台 + AI 桥接（加调试命令时查） |
 
 ## 编辑器系统（src/editor/ + src/components/）
 
@@ -31,6 +33,12 @@
 | [`editor/property_edit_system.md`](./editor/property_edit_system.md) | 属性修改：Inspector 双通道编辑（EditableProperty / 蓝图资产 vs 运行时） |
 | [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
+
+## 项目文档（src/projects/）
+
+| 文件 | 说明 |
+|------|------|
+| [`projects/clash_master.md`](./projects/clash_master.md) | ClashMaster 项目（部落冲突风，原名 fish）：三阶段路由/表现层定制/GM 命令/调试桥（涉及 fish 项目文件时必读） |
 
 ## 专题文档
 

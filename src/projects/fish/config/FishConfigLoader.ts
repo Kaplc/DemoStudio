@@ -1,7 +1,7 @@
 /**
- * FishConfigLoader — FishMaster 配置表加载模块
+ * FishConfigLoader — ClashMaster 配置表加载模块
  *
- * 由 EditorInitializer 调用，负责注册默认值并异步加载 FishMaster 的所有配置表。
+ * 由 EditorInitializer 调用，负责注册默认值并异步加载 ClashMaster 的所有配置表。
  * 将配置加载逻辑从编辑器初始化中分离到具体项目，每个实例/项目管理自己的配置。
  */
 import { ConfigRegistry } from '@/engine'
@@ -14,7 +14,7 @@ import {
 } from '../gameplay/common/types'
 
 /**
- * 初始化 FishMaster 的所有配置表
+ * 初始化 ClashMaster 的所有配置表
  * - 注册默认值（同步 fallback）
  * - 异步加载 JSON 覆盖（fire-and-forget，首帧使用默认值）
  * @param log 日志输出回调
@@ -49,5 +49,5 @@ export function initFishConfigs(log: (message: string) => void = console.log): v
     }),
   )
 
-  log('[Config] FishMaster 配置表已注册')
+  log('[Config] ClashMaster 配置表已注册')
 }

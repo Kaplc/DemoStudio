@@ -23,6 +23,9 @@ import {
   AI_EVENT_CLICK_ACTOR,
   AI_EVENT_GET_ACTOR,
   AI_EVENT_SCROLL_CAMERA,
+  AI_EVENT_GET_COMPONENT,
+  AI_EVENT_SET_PROPERTY,
+  AI_EVENT_CALL_ACTOR,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -34,6 +37,9 @@ import {
   type AIClickActorPayload,
   type AIGetActorPayload,
   type AIScrollCameraPayload,
+  type AIGetComponentPayload,
+  type AISetPropertyPayload,
+  type AICallActorPayload,
   type AIActorInfo,
   type AIGameStateSnapshot,
 } from './AIEvents'
@@ -91,6 +97,9 @@ const BUILTIN_EVENTS = [
   AI_EVENT_CLICK_ACTOR,
   AI_EVENT_GET_ACTOR,
   AI_EVENT_SCROLL_CAMERA,
+  AI_EVENT_GET_COMPONENT,
+  AI_EVENT_SET_PROPERTY,
+  AI_EVENT_CALL_ACTOR,
 ]
 
 /**

@@ -13,6 +13,8 @@
  */
 import * as THREE from 'three'
 import type { ClickableComponent } from './ClickableComponent'
+import type { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { logger } from '../Logger'
 import type { GameSingleton } from '../gameflow/Game'
 
 class PhySysImpl implements GameSingleton {
@@ -40,6 +42,8 @@ class PhySysImpl implements GameSingleton {
   private _clickables = new Set<ClickableComponent>()
   /** UI 层：UI 相机平行射线检测（屏幕空间 UI 面板） */
   private _uiClickables = new Set<ClickableComponent>()
+  /** UI 层点击拦截画布（CanvasUIComponent hitTestMode='block'）：命中即消费，挡住更低层级 UI/世界 */
+  private _uiBlockers = new Set<CanvasUIComponent>()
 
   register(c: ClickableComponent): void {
     if (c.layer === 'ui') this._uiClickables.add(c)
@@ -51,6 +55,20 @@ class PhySysImpl implements GameSingleton {
     this._uiClickables.delete(c)
     // 注销的组件不再接收释放分发（防止残留引用）
     if (this._pressedClickable === c) this._pressedClickable = null
+  }
+
+  /** 注册 UI 点击拦截画布（CanvasUIComponent hitTestMode='block' 时调用） */
+  registerUIBlocker(ui: CanvasUIComponent): void {
+    if (this._uiBlockers.has(ui)) return
+    this._uiBlockers.add(ui)
+    logger.debug(`[PhySys] 注册 UI 点击拦截画布: ${ui.name}`)
+  }
+
+  /** 注销 UI 点击拦截画布（组件销毁/退出 block 模式时调用） */
+  unregisterUIBlocker(ui: CanvasUIComponent): void {
+    if (this._uiBlockers.delete(ui)) {
+      logger.debug(`[PhySys] 注销 UI 点击拦截画布: ${ui.name}`)
+    }
   }
 
   get clickableCount(): number {
@@ -87,6 +105,7 @@ class PhySysImpl implements GameSingleton {
     // （残留组件闭包链会指向已销毁的旧 GameInstance/World，导致旧 world 被驱动）
     this._clickables.clear()
     this._uiClickables.clear()
+    this._uiBlockers.clear()
   }
 
   /** GameSingleton：游戏停止时回收运行状态（等价 clear） */
@@ -128,17 +147,49 @@ class PhySysImpl implements GameSingleton {
     return this.raycaster
   }
 
-  /** 点击检测：UI 层优先（UI 相机平行射线，命中即消费），再世界层（主相机射线） */
+  /** 点击检测：UI 层优先（遮挡竞争：clickable 与 block 画布按 zOrder 竞争，最高者消费），再世界层 */
   raycastClick(screenX: number, screenY: number): boolean {
     // 1. UI 层：命中即消费点击（UI 永远在顶层，挡住 3D）
-    if (this._uiCamera && this._uiClickables.size > 0) {
+    if (this._uiCamera) {
       const uiRay = this.screenToRay(screenX, screenY, this._uiCamera)
       if (uiRay) {
+        // ─── 遮挡竞争：收集所有命中者（clickable 命中 / block 画布命中），按 zOrder 取最高 ───
+        let bestZ = -Infinity
+        let bestClickable: ClickableComponent | null = null
+        let topBlocked = false
+        // 候选 1：可点击元素（zOrder 取 owner 及祖先链 CanvasUIComponent 最大层级）
         for (const c of this._uiClickables) {
-          if (c.bEnabled && c.handleClick(uiRay)) {
-            this._pressedClickable = c
-            return true
+          if (!c.bEnabled || c.isDestroyed()) continue
+          if (c.hitTest(uiRay)) {
+            const z = c.uiZOrder
+            if (z > bestZ) {
+              bestZ = z
+              bestClickable = c
+              topBlocked = false
+            }
           }
+        }
+        // 候选 2：拦截画布（hitTestMode='block'，如 GM 控制台全屏遮罩）
+        for (const b of this._uiBlockers) {
+          if (!b.panel || !isVisibleChain(b.panel)) continue
+          if (uiRay.intersectObject(b.panel, false).length > 0) {
+            const z = b.zOrder
+            // 同 zOrder 时 clickable 优先（同层按钮先于遮罩）
+            if (z > bestZ) {
+              bestZ = z
+              bestClickable = null
+              topBlocked = true
+            }
+          }
+        }
+        // 顶层是拦截画布 → 消费点击（后面的 UI/世界收不到）
+        if (topBlocked) {
+          logger.debug('[PhySys] 点击被 UI 拦截画布消费（zOrder=' + bestZ + '）')
+          return true
+        }
+        if (bestClickable && bestClickable.handleClick(uiRay)) {
+          this._pressedClickable = bestClickable
+          return true
         }
       }
     }
@@ -164,6 +215,18 @@ class PhySysImpl implements GameSingleton {
     if (c && c.bEnabled) c.handleRelease()
   }
 
+  /**
+   * 拖拽移动分发：鼠标移动时对按中的对象分发 handleDragMove（无需射线，
+   * 拖出命中区域外仍持续收到——拖拽滚动依赖此特性）。幂等：无按中对象时直接返回。
+   */
+  dispatchDragMove(screenX: number, screenY: number): void {
+    const c = this._pressedClickable
+    if (c && c.bEnabled && !c.isDestroyed()) c.handleDragMove(screenX, screenY)
+  }
+  /** 是否处于拖拽中（按下且尚未释放）；InputSys 据此跳过拖拽期间的 hover 射线检测 */
+  get isDragging(): boolean {
+    return this._pressedClickable !== null
+  }
   /** 悬停检测：UI 层 + 世界层分别处理 */
   raycastHover(screenX: number, screenY: number): void {
     // 1. UI 层
@@ -182,6 +245,16 @@ class PhySysImpl implements GameSingleton {
       if (c.bEnabled) c.handleHover(raycaster)
     }
   }
+}
+
+/** Object3D 沿父链是否全部可见（自身或任一祖先 visible=false 视为隐藏，射线应穿过） */
+function isVisibleChain(o: THREE.Object3D): boolean {
+  let cur: THREE.Object3D | null = o
+  while (cur) {
+    if (!cur.visible) return false
+    cur = cur.parent
+  }
+  return true
 }
 
 /** 全局物理系统单例 */

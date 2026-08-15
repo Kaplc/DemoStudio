@@ -16,6 +16,8 @@ import {
   BlueprintRegistry,
   AssetRegistry,
   ScriptRegistry,
+  registerGMBridge,
+  registerBuiltinGMCommands,
 } from '../engine'
 import { registerBuiltinAIHandlers } from '../engine/ai'
 import type { GameInstance } from '../engine'
@@ -80,6 +82,10 @@ export function registerAllProjectModules(
 
   // 注册内置 AI 事件处理器（AI 经 MCP 控制游戏场景的事件总线，幂等）
   registerBuiltinAIHandlers()
+
+  // 注册 GM 命令系统（内置命令 + ai.gmCommand 桥接，幂等）
+  registerBuiltinGMCommands()
+  registerGMBridge()
 
   for (const project of ALL_PROJECTS) {
     // 游戏实例工厂

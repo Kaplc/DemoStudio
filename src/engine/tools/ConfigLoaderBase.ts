@@ -12,7 +12,7 @@
  *       this.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)
  *       this.loadConfig<CannonConfig>('fish.cannon', 'src/projects/fish/asset/config/cannon.config.json')
  *       this.loadTable<TroopType>('fish.troop', 'src/projects/fish/asset/config/troop.table.json', transform)
- *       this.log('[Config] FishMaster 配置表已注册')
+ *       this.log('[Config] ClashMaster 配置表已注册')
  *     }
  *   }
  *
