@@ -32,7 +32,7 @@ ClashMaster 演示了 DemoStudio 的完整项目形态：**一个项目 = `regis
 | `gameplay/menu/` | 主菜单 GameMode（`fish_menu.scene.json` + `main_menu.widget.json`） |
 | `gameplay/base/` | 基地：`FishBaseGameMode`、`ClashBaseBuilder`、`ClashBuildingActors`、`BaseHud.script.ts`、`BuildMenu.script.ts`、`MapPanel.script.ts`、`BarracksUi.script.ts`、`PlaceGridActor` |
 | `gameplay/level/` + `battle/` | 战斗关卡 GameMode 与战斗 Actor/脚本（见 battle_system.md） |
-| `gameplay/gm/` | 项目 GM 命令（`*.gm.ts` ×5）+ `FishGMConsoleHUD.ts` 自定义面板 |
+| `gameplay/gm/` | 项目 GM 命令（`*.gm.ts` ×6：addCoins/addElixir/addTroop/clearEnemies/winLevel/unlockBattle）+ `FishGMConsoleHUD.ts` 自定义面板 |
 | `gameplay/common/` | `types.ts`（兵种/关卡/建筑类型）、`comp/`（资源/训练/血条组件）、`textures.ts` 程序化纹理 |
 | `asset/` | 场景 `fish{,_menu,_base,_level1-3}.scene.json`、蓝图 `blueprints/`（buildings/troops/ui/）、配置 `config/`（cannon.config/troop.table/levels.table） |
 

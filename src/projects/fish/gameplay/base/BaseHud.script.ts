@@ -70,17 +70,17 @@ export default class BaseHudScript extends BehaviourScript {
     const elixirText = elixirTextActor?.getComponent(UITextComponent)
     if (inst && goldText) {
       // 立即刷新一次 + 资源变化自动更新
-      goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
+      goldText.text = `金币: ${inst.resources.get('coins')}`
       inst.resources.onChange = () => {
-        goldText.text = `🪙 金币: ${inst.resources.get('coins')}`
-        if (elixirText) elixirText.text = `🧪 药水: ${inst.resources.get('elixir')}`
+        goldText.text = `金币: ${inst.resources.get('coins')}`
+        if (elixirText) elixirText.text = `药水: ${inst.resources.get('elixir')}`
       }
       logger.info('[BaseHudScript] 金币文本已绑定资源组件')
     } else {
       logger.warn(`[BaseHudScript] 金币文本未绑定（instance=${!!inst}, goldText=${!!goldText}）`)
     }
     if (inst && elixirText) {
-      elixirText.text = `🧪 药水: ${inst.resources.get('elixir')}`
+      elixirText.text = `药水: ${inst.resources.get('elixir')}`
       logger.info('[BaseHudScript] 药水文本已绑定资源组件（战斗掠夺入账后同步显示）')
     } else {
       logger.warn(`[BaseHudScript] 药水文本未绑定（instance=${!!inst}, elixirText=${!!elixirText}）`)

@@ -42,6 +42,8 @@ export interface UITextInputComponentOptions {
   zOrder?: number
   /** 提交回调（Enter 触发，参数为当前文本） */
   onSubmit?: (value: string) => void
+  /** 文本变化回调（输入字符/退格/清空/程序赋值时触发，用于实时过滤等） */
+  onTextChanged?: (value: string) => void
 }
 
 export class UITextInputComponent extends UITextComponent {
@@ -57,6 +59,8 @@ export class UITextInputComponent extends UITextComponent {
   private _focused = false
   /** 提交回调 */
   private _onSubmit: ((value: string) => void) | null
+  /** 文本变化回调 */
+  private _onTextChanged: ((value: string) => void) | null
 
   constructor(owner: Actor, options: UITextInputComponentOptions = {}) {
     const fontSize = options.fontSize ?? 22
@@ -80,6 +84,7 @@ export class UITextInputComponent extends UITextComponent {
     this._placeholderColor = options.placeholderColor ?? '#8a7a5a'
     this._textColor = color
     this._onSubmit = options.onSubmit ?? null
+    this._onTextChanged = options.onTextChanged ?? null
     this.refreshText()
     logger.info('[UITextInputComponent] 创建文本输入控件')
   }
@@ -92,6 +97,7 @@ export class UITextInputComponent extends UITextComponent {
   set value(v: string) {
     this._value = v
     this.refreshText()
+    this._onTextChanged?.(this._value)
   }
 
   /** 占位提示（value 为空且未聚焦时显示） */
@@ -118,6 +124,15 @@ export class UITextInputComponent extends UITextComponent {
     this._onSubmit = fn
   }
 
+  /** 文本变化回调（输入字符/退格/清空/程序赋值时触发） */
+  get onTextChanged(): ((value: string) => void) | null {
+    return this._onTextChanged
+  }
+
+  set onTextChanged(fn: ((value: string) => void) | null) {
+    this._onTextChanged = fn
+  }
+
   /** 聚焦：显示光标，进入输入态 */
   focus(): void {
     if (this._focused) return
@@ -138,6 +153,7 @@ export class UITextInputComponent extends UITextComponent {
   clear(): void {
     this._value = ''
     this.refreshText()
+    this._onTextChanged?.(this._value)
   }
 
   /**
@@ -161,6 +177,7 @@ export class UITextInputComponent extends UITextComponent {
       if (this._value.length > 0) {
         this._value = this._value.slice(0, -1)
         this.refreshText()
+        this._onTextChanged?.(this._value)
       }
       return true
     }
@@ -168,6 +185,7 @@ export class UITextInputComponent extends UITextComponent {
     if (key.length === 1) {
       this._value += key
       this.refreshText()
+      this._onTextChanged?.(this._value)
       return true
     }
     // 其他功能键（Shift/Control/方向键等）不消费（宿主可忽略）

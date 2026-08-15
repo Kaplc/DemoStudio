@@ -21,10 +21,7 @@ export function StatusBar({ fps, projectName }: StatusBarProps) {
       </div>
       <div className="status-right">
         <span>FPS: {fps}</span>
-        <span>|</span>
-        <span>Three.js + Electron + React</span>
       </div>
     </div>
   )
 }
-// hmr-test

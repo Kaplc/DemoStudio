@@ -45,9 +45,10 @@
 | 文件 | 说明 |
 |------|------|
 | [`playwright_testing.md`](./playwright_testing.md) | Playwright 浏览器测试流程：环境限制、通用操作（打开工程/启动/AI 事件驱动）与踩坑记录（涉及浏览器端测试时必读） |
+| [`playwright_commands.md`](./playwright_commands.md) | Playwright 命令速查 + 踩坑（编辑器通用）：内置工具表 / 常用代码片段 / 调试桥 / 踩坑速查（浏览器调试时**必查**，遇新坑**必更新**） |
 | [`level_system.md`](./level_system.md) | 关卡系统：HUD 双按钮 → 地图面板（关卡选择）→ 关卡切换 → 返回基地（涉及 fish 关卡/地图 UI 时必读） |
 | [`battle_system.md`](./battle_system.md) | 攻打战斗系统：关卡战斗玩法（敌方基地/放兵/兵 AI/防御塔/血条/胜负结算/掠夺入账/调试桥）（涉及 fish 战斗玩法时必读） |
-| [`ui_enhancement_system.md`](./ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast 通知 / Tooltip / 安全区 / 色盲模式 / 输入提示 / 进度条 / 滚动列表 / 设计级 lint（涉及 UI 动效/通知/可读性/无障碍时必读） |
+| [`ui_enhancement_system.md`](./ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast 通知 / Tooltip / 色盲模式 / 输入提示 / 进度条 / 滚动列表 / 设计级 lint（涉及 UI 动效/通知/可读性/无障碍时必读） |
 | [`undo_redo_system.md`](./undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读） |
 | [`ui_anchor_system.md`](./ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑（涉及 UI 布局/锚点/拖拽时必读） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |

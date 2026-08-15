@@ -80,7 +80,7 @@ backBtn.onClick = () => inst.returnToBase()
 
 ### 3.4 使用前提
 
-- 军队非空：兵种在基地兵营训练完成（或 `__fishBattle.addArmy` 注入），否则无法放兵、全灭立即判负
+- 军队非空：兵种在基地兵营训练完成（或 `__fishBattle.addArmy` / GM `unlockBattle` 注入），否则无法放兵、全灭立即判负
 - 场景资产 mode 必须为 `"level"`（GameModeRegistry → FishLevelGameMode）；敌方基地以 `type: "ref"` 节点写在场景 `objects` 中
 - 战斗场景的 3D 血条由 GameMode 在 BeginPlay 时动态挂载（无需在蓝图/场景中声明）：`BuildingHealthBarComponent` 默认隐藏、受击显示、3 秒无受击自动隐藏
 - 兵种模型蓝图必须可解析（`TroopType.blueprint` 路径），否则放兵被拒（严格模式，军队不消耗）
@@ -158,7 +158,7 @@ flowchart TD
 
 | 条件 | 行为/后果 | 处理方式 |
 |---|---|---|
-| 军队为空进入战斗 | 无法放兵；不部署任何兵则战斗持续等待（不判负） | HUD 卡片全部置灰；`deployTroop` 返回 false 并日志 |
+| 军队为空进入战斗 | 无法放兵；不部署任何兵则战斗持续等待（不判负） | HUD 卡片全部置灰；`deployTroop` 返回 false 并日志；GM `unlockBattle` 可给每个兵种注入 999 军队（战斗 HUD 卡片数量即时刷新） |
 | 部署过兵且军队耗尽+场上兵 0 | 判负 → 结算面板 | `deployedCount > 0` 且 `troops.length === 0` 且 `isArmyEmpty()` |
 | 放兵点超出 ±24 | 拒绝部署（军队不扣除） | `spawnTroopActor` 范围校验 + warn 日志 |
 | 放兵点与建筑重叠 | 拒绝部署 | AABB 相交检查（type.size 半宽 + 兵半宽） |
@@ -192,6 +192,7 @@ FishGameInstance（资源/训练组件 + 阶段路由）
 ```
 
 - 建筑/弹丸/兵均为场景 Actor，由 `World.SpawnActor` 托管生命周期（`DestroyAllActors` 统一回收，MeshComponent.EndPlay 自动释放网格资源）；兵模型子 Actor 经 `attachTo` 挂树随兵递归销毁，蓝图根 TransformComponent 的贴地偏移在 `SpawnActorFromBlueprint` 实例化时应用
+- 战斗相机 `BaseCameraActor` 由 GameMode 构造创建、`setupLevelPhase` 经 `SpawnActor` 托管；**GameMode.EndPlay 必须 `this.baseCamera?.destroy()` 自销毁**——裸切换（如 `ai.switchScene` 不执行 extraSetup）时相机从未被托管（无 world），只能由拥有者回收（已托管路径幂等短路）
 - 结算面板为运行时 `world.ui.spawnUIActor` 动态生成（挂 HUD，World 销毁时统一回收）
 - 新资产全部自动注册（glob），无需改 `register.ts` / `asset/index.ts`
 

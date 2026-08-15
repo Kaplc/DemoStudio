@@ -60,12 +60,6 @@ export interface CanvasUIOptions {
    */
   markerOnly?: boolean
   /**
-   * 安全区内缩（百分比 0-15，默认 5）：根画布四周的内容安全区（对标 TV overscan 5%）。
-   * 子元素单点锚（边角锚）自动内缩此比例（stretch 背景铺满不受影响），
-   * 编辑器预览绘制参考线。
-   */
-  safeArea?: number
-  /**
    * 命中测试模式（仿 UE EVisibility，默认 'visible'）：
    * 'block' = 画布拦截点击（挡住更低层级 UI/世界），'hitTestInvisible' = 点击穿透。
    */
@@ -87,8 +81,6 @@ export class CanvasUIComponent extends Component<Actor> {
   private _bActive: boolean
   /** 仅标记模式（不渲染） */
   private _markerOnly: boolean
-  /** 安全区内缩百分比 [0,15]，默认 5（TV overscan 基准） */
-  private _safeArea: number
   /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
   private _hitTest: UIHitTestMode
   /**
@@ -106,7 +98,6 @@ export class CanvasUIComponent extends Component<Actor> {
     this._width = options.width ?? 512
     this._height = options.height ?? 256
     this._markerOnly = options.markerOnly ?? false
-    this._safeArea = options.safeArea ?? 5
     this._bActive = options.active ?? true
     this._hitTest = options.hitTest ?? 'visible'
 
@@ -212,12 +203,6 @@ export class CanvasUIComponent extends Component<Actor> {
     this.panel.position.z = v * 0.001
   }
 
-  /** 安全区内缩百分比 [0,15]（根画布四周内容安全区，对标 TV overscan） */
-  get safeArea(): number { return this._safeArea }
-  set safeArea(v: number) {
-    this._safeArea = Math.min(15, Math.max(0, v))
-  }
-
   /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
   get hitTestMode(): UIHitTestMode { return this._hitTest }
   set hitTestMode(v: UIHitTestMode) {
@@ -228,13 +213,6 @@ export class CanvasUIComponent extends Component<Actor> {
     if (v === 'block' && !wasBlock) PhySys.registerUIBlocker(this)
     else if (wasBlock && v !== 'block') PhySys.unregisterUIBlocker(this)
     logger.info(`[CanvasUIComponent] "${this.name}" 命中测试模式 → ${v}`)
-  }
-
-  /** 安全区可用区域（世界尺寸）：容器尺寸 × (1 − 2×safeArea%) */
-  getSafeAreaSize(): [number, number] {
-    const [w, h] = this.getWorldSize()
-    const inset = this._safeArea / 100
-    return [w * (1 - 2 * inset), h * (1 - 2 * inset)]
   }
 
   override BeginPlay() {
@@ -283,7 +261,6 @@ export class CanvasUIComponent extends Component<Actor> {
       zOrder: this._zOrder,
       active: this._bActive,
       markerOnly: this._markerOnly,
-      safeArea: `${this._safeArea}%`,
       hitTest: this._hitTest,
     }
   }
@@ -304,11 +281,6 @@ export class CanvasUIComponent extends Component<Actor> {
         key: 'zOrder', type: 'number', step: 1, min: 0, max: 10000,
         get: () => this._zOrder,
         set: (v) => { this.zOrder = v as number },
-      },
-      {
-        key: 'safeArea', type: 'number', step: 1, min: 0, max: 15,
-        get: () => this._safeArea,
-        set: (v) => { this.safeArea = v as number },
       },
       {
         key: 'hitTest', type: 'enum',

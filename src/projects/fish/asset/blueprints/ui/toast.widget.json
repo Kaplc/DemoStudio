@@ -5,13 +5,28 @@
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 4.8,
         "worldHeight": 0.9,
         "anchor": "top-center",
-        "anchorOffset": [0, 0.55]
+        "anchorOffset": [
+          0,
+          0.55
+        ]
       }
     },
     {
@@ -21,8 +36,7 @@
         "height": 180,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "safeArea": 5
+        "active": true
       }
     }
   ],
@@ -35,11 +49,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "center",
-            "anchorOffset": [0, 0],
+            "anchorOffset": [
+              0,
+              0
+            ],
             "worldWidth": 4.8,
             "worldHeight": 0.9
           }
@@ -73,11 +102,26 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "center",
-                "anchorOffset": [0, 0],
+                "anchorOffset": [
+                  0,
+                  0
+                ],
                 "worldWidth": 4.6,
                 "worldHeight": 0.8
               }

@@ -1,10 +1,10 @@
-# UI 增强系统（Tween / Toast / Tooltip / 安全区 / 色盲 / 输入提示 / 通用组件）
+# UI 增强系统（Tween / Toast / Tooltip / 色盲 / 输入提示 / 通用组件）
 
 > 在基础 UI 系统（UIManager/HUD/控件组件，见 [世界 UI 系统](./engine/ui_system.md)）之上补齐的游戏 UI 能力，
-> 对齐 game-ui-design 设计准则：动效、通知、悬停提示、TV 安全区、色盲适配、输入设备感知、进度/列表组件、设计级 lint。
+> 对齐 game-ui-design 设计准则：动效、通知、悬停提示、色盲适配、输入设备感知、进度/列表组件、设计级 lint。
 > 代码位置：`src/engine/ui/TweenSystem.ts` `ToastSystem.ts` `UITooltipComponent.ts` `ColorblindService.ts`
 > `InputPromptSystem.ts` `UIProgressBarComponent.ts` `UIScrollListComponent.ts`；
-> 编辑器侧：`src/editor/asset/assetLint/checkers/uiDesignChecker.ts` `UIPreviewManager.ts`（安全区参考线）
+> 编辑器侧：`src/editor/asset/assetLint/checkers/uiDesignChecker.ts`
 
 ## 1. 总览
 
@@ -13,12 +13,11 @@
 | 补间动画 | `TweenSystem.ts` | 通用数值/颜色补间 + 缓动库 + fade 快捷方法（自驱 rAF + tick 双驱动） |
 | 通知队列 | `ToastSystem.ts` | 优先级队列（critical 插队）、同时最多 3 条、自动淡出销毁 |
 | 悬停提示 | `UITooltipComponent.ts` | 控件挂组件，悬停 delay 秒后动态生成 tooltip 面板 |
-| 安全区 | `CanvasUIComponent.safeArea` | 根画布安全区内缩百分比，锚点边角元素自动内缩，编辑器预览参考线 |
 | 色盲模式 | `ColorblindService.ts` | 3 套色板（绿盲/红盲/蓝黄盲），语义色映射替换，可撤销 |
 | 输入提示 | `InputPromptSystem.ts` | 键盘/鼠标设备检测 + 提示文本切换 |
 | 进度条 | `UIProgressBarComponent.ts` | value/min/max + fill 子节点尺寸按比例填充 |
 | 滚动列表 | `UIScrollListComponent.ts` | item 对象池 + 滚动偏移 + 平滑滚动 |
-| 设计级 lint | `uiDesignChecker.ts` | widget 资产字号/触控/阴影/zOrder/安全区检查（全 warn） |
+| 设计级 lint | `uiDesignChecker.ts` | widget 资产字号/触控/阴影/zOrder 检查（全 warn） |
 
 ## 2. 使用方法
 
@@ -84,19 +83,7 @@ ToastSystem.instance.dismissAll()     // 全部消失
 - 组件自动挂载 ClickableComponent（UI 层），悬停延迟到点后经 `spawnUIActor('tooltip.widget.json')` 动态生成面板（挂宿主下，位置自动跟随），离开销毁
 - widget 约定：子节点 `name="TooltipText"` 的 UITextComponent
 
-### 2.4 安全区（CanvasUIComponent.safeArea）
-
-```json
-// 根 Canvas 上配置
-{ "baseClass": "CanvasUIComponent", "properties": { "width": 1920, "height": 1080, "safeArea": 5 } }
-```
-
-- `safeArea`：百分比 0-15（默认 5），根画布四周内容安全区
-- **运行时**：子元素单点锚（边角锚）自动内缩此比例（`UITransformComponent.applyAnchor` 读取父真实画布 safeArea；stretch 背景铺满不受影响，center 锚不受影响）
-- **编辑器**：UIPreviewManager 绘制黄色虚线安全区参考线（预览 widget 时可见）
-- **lint**：根画布未配置 safeArea → warn 提示
-
-### 2.5 ColorblindService（全局单例，需挂接）
+### 2.4 ColorblindService（全局单例，需挂接）
 
 ```ts
 import { ColorblindService } from '@/engine'
@@ -108,7 +95,7 @@ ColorblindService.instance.setMode('deuteranopia')   // 绿盲 / protanopia 红�
 - 语义色映射替换：danger 红 → 橙棕、ally 绿 → 蓝等（`COLORBLIND_PALETTES` 可查/扩展）
 - 首次替换记录原始色（WeakMap），切换/还原时先恢复再应用——**可完全撤销**
 
-### 2.6 InputPromptSystem（全局单例，自动驱动）
+### 2.5 InputPromptSystem（全局单例，自动驱动）
 
 ```ts
 import { InputPromptSystem } from '@/engine'
@@ -119,7 +106,7 @@ textComp.text = InputPromptSystem.instance.prompt('按 E 交互', '点击交互'
 
 - 驱动：`InputSys.handleKeyDown` → keyboard；`handlePointerDown` → mouse（已接入）
 
-### 2.7 UIProgressBarComponent
+### 2.6 UIProgressBarComponent
 
 ```json
 { "baseClass": "UIProgressBarComponent", "properties": { "value": 50, "min": 0, "max": 100, "fillActorName": "HealthFill", "direction": "left-to-right" } }
@@ -128,7 +115,7 @@ textComp.text = InputPromptSystem.instance.prompt('按 E 交互', '点击交互'
 - 容器 Actor 挂组件，fill 子 Actor（UIImage + UITransform，锚点 middle-left/middle-right/bottom-center/top-center 决定生长方向）
 - 脚本：`bar.value = 37` 自动刷新 fill 尺寸
 
-### 2.8 UIScrollListComponent
+### 2.7 UIScrollListComponent
 
 ```json
 { "baseClass": "UIScrollListComponent", "properties": { "itemWidget": "asset/blueprints/ui/troop_card.blueprint.json", "itemSize": [1.2, 0.5], "spacing": 0.15, "direction": "vertical", "draggable": true } }
@@ -151,7 +138,7 @@ list.scrollTo(3)
 
 **拖拽/点击链路**：`InputSys.handlePointerMove` → `PhySys.dispatchDragMove`（按下期间持续分发屏幕坐标，拖出命中区域仍收到）→ `ClickableComponent.handleDragMove` → 首移 `onDragStart` + 每移 `onDragMove`。绑定了 `onDragMove` 的组件自动启用"拖拽取消点击"（onClick 延迟到 release，位移超阈值取消）；未绑定的组件保持按下即触发原语义。
 
-### 2.9 设计级 lint（widget 资产）
+### 2.8 设计级 lint（widget 资产）
 
 自动运行（无需手动触发）：`doc:ui-design` 检查器在 `AssetLintEngine` 对 `.widget.json` 文件额外运行，规则：
 
@@ -161,7 +148,6 @@ list.scrollTo(3)
 | `ui:small-touch-target` | 按钮世界尺寸换算像素 < 44px（按根画布比例折算） | warn |
 | `ui:no-text-shadow` | 非按钮文本无 shadowColor | warn |
 | `ui:z-index-war` | CanvasUI zOrder > 100 | warn |
-| `ui:safe-area` | 根画布未配置 safeArea | warn |
 
 ## 3. 工作流程
 
@@ -185,16 +171,7 @@ flowchart LR
     C -->|全部完成| E[停止循环]
 ```
 
-### 3.3 安全区布局链路
-
-```
-CanvasUIComponent.safeArea（资产字段）
-  ├─ UITransformComponent.applyAnchor：边角锚元素可用区域 = 容器 ×(1-2×safeArea%)
-  ├─ UIPreviewManager：黄色参考线（getSafeAreaSize）
-  └─ uiDesignChecker：未配置 → warn
-```
-
-### 3.4 色盲模式切换
+### 3.3 色盲模式切换
 
 ```
 setMode(mode)
@@ -210,7 +187,6 @@ setMode(mode)
 | Toast 未挂接 UIManager/widget | 通知丢弃 + 控制台 warn | 先 attach |
 | Toast widget 缺 ToastText 节点 | 文本不设置 + warn | 按资产约定建节点 |
 | Tooltip 宿主无 World | 不显示 + warn | 挂到已生成 UI 树 |
-| 安全区 > 15 / < 0 | 钳制到 [0,15] | setter 内置 |
 | 色盲模式未挂接 | setMode 仅记录不应用 + warn | 先 attach |
 | 滚动列表无 itemWidget / 未挂 World | 初始化跳过 + warn | 配置资产 + 挂 World |
 | 滚动列表 item 生成失败 | 池中断 + error | 检查 itemWidget 路径 |

@@ -100,6 +100,7 @@ const r = gameInstance.gm.execute('addCoins 100')
 | `addCoins` | `amount:int` | 增加金币（走资源组件，HUD 同步） |
 | `addElixir` | `amount:int` | 增加药水 |
 | `addTroop` | `troopId:string` `count:int` | 绕过训练队列直接注入军队 |
+| `unlockBattle` | — | 战斗全解锁：每个兵种注入 999 军队（仅战斗关卡阶段，经 `world.gameMode` 校验 FishLevelGameMode） |
 | `winLevel` | — | 当前战斗关卡直接判胜（仅战斗关卡阶段） |
 | `clearEnemies` | — | 清除当前战斗全部敌方建筑（仅战斗关卡阶段） |
 | `help` / `list` / `clear` | — | 内置：命令列表 / 清空控制台输出 |
@@ -153,6 +154,8 @@ GMModule.setConsoleFactory((gm) => new MyGMConsoleHUD(gm))
 - **item 蓝图**：`gm_cmd_item.blueprint.json`（`UITransform` anchor center offset `[0,1.2]` 2.7×0.24 + `CanvasUIComponent` marker zOrder 2 + `UIImageComponent` #1a1028 radius 6 540×48 zOrder 2 + `UITextComponent` CmdLabel font 13 #e8d8a8 500×40 zOrder 3 + `UIButtonComponent`）
 - `GM_SendBtn` 按钮节点（`UIButtonComponent`）：点击 → `submitInput()`（执行输入框内容 → 回显 → 清空 → 重新聚焦）；Enter 提交与发送按钮共用 `submitInput()`
 - 定位用 `findActorByName`（⚠️ 比较 `root.root.name`——`spawnUIActor` 只设置 Group 名，`Actor.name` 恒为类名）
+
+**命令搜索（模糊过滤）**：面板可配置搜索框（资产节点 `GM_SearchInput`，挂 `UITextInputComponent`；程序化兜底面板为 `GM_SearchBox`），基类 `applySearchFilter(query)` 按**命令 name / 注册 id（路径式）/ description** 小写包含模糊匹配，实时刷新 `GM_CmdList` 的 `totalCount` 并回到顶部；空词恢复全量。**Tab 键**在搜索框/输入框间切换焦点（`handleInputKey` 内处理，焦点所在框接收全部可打印键），面板打开默认聚焦输入框。搜索框缺失时仅 warn 不失败（跳过搜索能力）。
 
 **滚轮接线**：`Viewport` Game canvas wheel → `InputRouter.handleWheel` → `GameViewport.handleGameWheel` → `InputSys.handleScroll(delta)` → `GMModule.handleGlobalScroll`（面板打开 → 转发 `GMConsoleHUD.handleScroll`，返回 true 消费不穿透游戏）→ `_cmdList.scrollBy(delta > 0 ? 1 : -1)`。方向约定：滚轮向下（deltaY>0）= 看后面的命令（offset 增加）；越界由组件钳制（offset ≥ 0 且 ≤ totalCount - visibleCount）。
 

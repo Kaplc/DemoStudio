@@ -35,8 +35,7 @@
       "properties": {
         "markerOnly": true,
         "name": "UIMarker",
-        "zOrder": 0,
-        "safeArea": 5
+        "zOrder": 0
       }
     },
     {
@@ -194,7 +193,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -427,7 +426,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -660,7 +659,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -893,7 +892,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -1126,7 +1125,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -1359,7 +1358,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {
@@ -1592,7 +1591,7 @@
                   0
                 ],
                 "worldWidth": 0.84,
-                "worldHeight": 1.0
+                "worldHeight": 1
               }
             },
             {

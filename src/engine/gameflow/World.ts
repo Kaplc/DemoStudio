@@ -505,12 +505,33 @@ export class World extends AObject {
       }
       const summary = [...byClass.entries()].map(([c, n]) => `${c}×${n}`).join(', ')
       logger.warn(`[World#${this.id}] SwitchScene 残留诊断：${residual.length} 个旧场景对象未回收（${summary}）`)
-      for (const o of residual.slice(0, 10)) {
-        const anyObj = o as { name?: string; uid?: number }
-        logger.warn(
-          `[World#${this.id}]   └ ${(o.constructor as { name?: string })?.name ?? '?'}` +
-            ` name=${anyObj.name ?? '?'} uid=${anyObj.uid}`,
-        )
+      // 按根分组打印归属链（owner/parent 链 → 根），定位泄漏根对象
+      const groups = new Map<string, { root: string; items: Array<{ obj: string; chain: string }> }>()
+      for (const o of residual) {
+        const anyObj = o as { name?: string; uid?: number; owner?: unknown; parent?: unknown }
+        const chain: string[] = []
+        const seen = new Set<unknown>()
+        let cur: unknown = o
+        while (cur && !seen.has(cur) && chain.length < 16) {
+          seen.add(cur)
+          const c = cur as { constructor?: { name?: string }; name?: string; uid?: number; owner?: unknown; parent?: unknown }
+          chain.push(`${c.constructor?.name ?? '?'}(${c.name ?? '?'},uid=${c.uid ?? '?'})`)
+          // 优先父链（Actor 树），其次 owner 链（组件 → 宿主）→ 根
+          cur = (cur as { parent?: unknown }).parent ?? (cur as { owner?: unknown }).owner ?? null
+        }
+        const root = chain[chain.length - 1] ?? '?'
+        const desc = `${(o.constructor as { name?: string })?.name ?? '?'} name=${anyObj.name ?? '?'} uid=${anyObj.uid}`
+        const g = groups.get(root) ?? { root, items: [] }
+        g.items.push({ obj: desc, chain: chain.join(' ← ') })
+        groups.set(root, g)
+      }
+      for (const [, g] of groups) {
+        logger.warn(`[World#${this.id}]   ┌ 根 ${g.root}（该根下 ${g.items.length} 个残留对象）`)
+        for (const item of g.items) {
+          logger.warn(`[World#${this.id}]   │   ${item.obj}`)
+          logger.warn(`[World#${this.id}]   │     链: ${item.chain}`)
+        }
+        logger.warn(`[World#${this.id}]   └──`)
       }
     } else {
       logger.info(`[World#${this.id}] SwitchScene 残留诊断：旧场景对象全部回收（旧 GameMode=${oldModeName}）`)

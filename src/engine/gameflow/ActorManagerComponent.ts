@@ -142,7 +142,14 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       actor.EndPlay()
       return
     }
-    if (!this.allActors.has(actor)) return
+    // 不在 allActors 的 attachTo 子树节点（父链 EndPlay 递归 destroy() 到达这里）：
+    // 不能入队（commitDestroy 只处理 allActors 成员，入队会被丢弃 → 永久泄漏）。
+    // 直接本地递归 EndPlay（EndPlay 递归子树，bPendingDestroy 短路防重）。
+    if (!this.allActors.has(actor)) {
+      actor.bPendingDestroy = true
+      actor.EndPlay()
+      return
+    }
     actor.bPendingDestroy = true
     this.pendingDestroy.push(actor)
   }

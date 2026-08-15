@@ -6,7 +6,6 @@
  *  - ui:small-touch-target：交互节点（含 UIButtonComponent）worldWidth/Height 换算触控尺寸 < 44px → 警告
  *  - ui:no-text-shadow：HUD 文本（UITextComponent）无 shadowColor → 警告（动态背景可读性）
  *  - ui:z-index-war：CanvasUIComponent.zOrder > 100 → 警告（层级魔数）
- *  - ui:safe-area：根画布未配置 safeArea（默认 5%）→ 信息级提示
  *
  * 换算基准：1920×1080 画布 ↔ 9.6×5.4 世界（1 世界单位 = 200px），44px = 0.22 世界单位。
  * 按根画布世界尺寸实际换算（比例非 200 时按比例折算）。
@@ -76,7 +75,6 @@ class UiDesignChecker extends AbstractAssetChecker {
     const issues: LintIssue[] = []
     if (!node || typeof node !== 'object') return issues
     const root = node as Record<string, unknown>
-    const isWidget = root.name !== undefined && (root as Record<string, unknown>).baseClass === 'Actor'
 
     walkNodes(node, (n, nodePath) => {
       const textProps = compProps(n, 'UITextComponent')
@@ -138,17 +136,6 @@ class UiDesignChecker extends AbstractAssetChecker {
         ))
       }
     })
-
-    // 5. 根画布未显式配置 safeArea → 信息提示（默认 5%，可忽略）
-    const rootCanvas = compProps(root, 'CanvasUIComponent')
-    if (isWidget && rootCanvas && rootCanvas.safeArea === undefined) {
-      issues.push(ctx.issue(
-        'properties.safeArea',
-        'ui:safe-area',
-        '根画布未配置 safeArea——建议显式设置（如 5）启用 TV 安全区内缩与预览参考线',
-        'warn',
-      ))
-    }
 
     return issues
   }

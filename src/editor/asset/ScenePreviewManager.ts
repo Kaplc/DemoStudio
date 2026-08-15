@@ -12,16 +12,25 @@
  *  - 自动清理（dispose）
  */
 import * as THREE from 'three'
-import { World } from '../../engine'
+import { World, ActorComponent } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
 import { GenericActor, MeshComponent, Actor } from '../../engine'
 import { LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { SceneAsset } from '../../engine'
-import { select, notifySelectionChange } from '../SelectionManager'
+import { select, notifySelectionChange, getSelectedActor } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
+import { UndoManager } from '../blueprintEdit/UndoManager'
+import { editorBus } from '../EditorEvents'
+import { EditorEvent } from '../EditorEventNames'
+
+/** 磁盘路径（src/projects/...）→ 撤销栈 key（asset/...），与蓝图/UI 资产同粒度 */
+function diskPathToAssetKey(diskPath: string): string {
+  const idx = diskPath.indexOf('/asset/')
+  return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
+}
 
 export class ScenePreviewManager {
   readonly scene: THREE.Scene
@@ -38,6 +47,14 @@ export class ScenePreviewManager {
   // ─── 场景数据（编辑用） ───
   private _sceneAsset: SceneAsset | null = null
   private _actorTreeCache: SceneTreeNode[] | null = null
+  /** Actor → 场景 JSON 节点映射（loadSceneAsset 构建；ref 实例名 ≠ 场景节点名，名称匹配会失败） */
+  private _actorJsonMap = new Map<Actor, Record<string, unknown>>()
+
+  // ─── 撤回系统（与蓝图/UI 资产预览同语义：拖拽松手 = 一个撤销点，不写盘） ───
+  /** 撤销栈 key（asset/...，由资产磁盘路径推导）；activate 时建立 */
+  private _undoKey: string | null = null
+  /** 最后一次已提交（= 进入撤销栈）的场景快照；null = 尚未建立基准（首次加载/保存后由外部刷新） */
+  private _lastCommitted: Record<string, unknown> | null = null
 
   // ─── 树变化回调 ───
   private _onChangeCallbacks: Array<() => void> = []
@@ -335,7 +352,13 @@ export class ScenePreviewManager {
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
       const actor = this.world.SpawnActorFromBlueprint(rn.ref, overrides)
-      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor) }
+      if (actor) {
+        actor.isRefInstance = true
+        actor.attachTo(rootActor)
+        // refNodes 是 loadScene 新建对象（非原引用），按 name 反查 objects 原始节点建立映射
+        const jsonNode = (sceneData.objects ?? []).find((o) => o.name === rn.name)
+        if (jsonNode) this._actorJsonMap.set(actor, jsonNode as unknown as Record<string, unknown>)
+      }
     }
 
     // blueprint 节点（旧格式兼容，标记为整体）
@@ -345,13 +368,22 @@ export class ScenePreviewManager {
       if (bp.rot) overrides.rotation = bp.rot
       if (bp.scale) overrides.scale = bp.scale
       const actor = this.world.SpawnActorFromBlueprint(bp.blueprint, overrides)
-      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor) }
+      if (actor) {
+        actor.isRefInstance = true
+        actor.attachTo(rootActor)
+        const jsonNode = (sceneData.objects ?? []).find((o) => o.name === bp.name)
+        if (jsonNode) this._actorJsonMap.set(actor, jsonNode as unknown as Record<string, unknown>)
+      }
     }
 
     // 内联 Actor 节点 → spawnInlineActor（含递归子级）
     for (const an of (result.actorNodes ?? [])) {
       const actor = this.world.spawnInlineActor(an)
-      if (actor) actor.attachTo(rootActor)
+      if (actor) {
+        actor.attachTo(rootActor)
+        // actorNodes 是 objects 原始引用，直接建映射
+        this._actorJsonMap.set(actor, an as unknown as Record<string, unknown>)
+      }
     }
 
     // 应用 skybox
@@ -386,6 +418,7 @@ export class ScenePreviewManager {
     this._sceneAsset = null
     this._currentScenePath = null
     this._actorTreeCache = null
+    this._actorJsonMap.clear()
     this.notifyChange()
     logger.debug(`[OutlinerTrace] clearPreview 完成, currentScenePath=${this._currentScenePath}, actorCount=${this.world.actorCount}`)
   }
@@ -415,15 +448,162 @@ export class ScenePreviewManager {
 
   /**
    * 将本实例登记为全局活动实例（供 Outline/Inspector 读取），并通知 UI 刷新。
+   * 首次激活时建立撤销栈 key，并以当前场景状态为撤回基准（之后拖拽松手 push 的
+   * 动作前快照都以此为基准）。
    */
   activate(assetPath?: string): void {
     logger.debug(`[OutlinerTrace] activate(${assetPath}) → _currentScenePath=${assetPath}, 调用 notifySelectionChange`)
     if (assetPath) {
       this._currentScenePath = assetPath
+      this._undoKey = diskPathToAssetKey(assetPath)
+      // 首次激活：建立撤回基准（加载后的未编辑状态）
+      if (this._lastCommitted === null) {
+        const base = this.collectSaveData()
+        this._lastCommitted = base ? JSON.parse(JSON.stringify(base)) : null
+        logger.info(`[ScenePreview] 撤回基准建立: ${this._undoKey}`)
+      }
       AssetPreviewManager.setActive(assetPath)
     }
     this.notifyChange()
     notifySelectionChange()
+  }
+
+  // ════════════════════════════════════════
+  //  撤回系统（拖拽松手提交 / undo / redo，与蓝图/UI 资产预览一致）
+  // ════════════════════════════════════════
+
+  /** 撤销/重做按钮可用状态 */
+  canUndo(): boolean {
+    return this._undoKey !== null && UndoManager.canUndo(this._undoKey)
+  }
+
+  canRedo(): boolean {
+    return this._undoKey !== null && UndoManager.canRedo(this._undoKey)
+  }
+
+  /**
+   * 拖拽松手后调用：把本次编辑结果作为"当前已提交状态"。
+   *  - 对比基准（_lastCommitted）：内容有变化 → 把基准作为动作前快照 push 进撤销栈，
+   *    再更新基准为当前状态；无变化（未拖动/拖回原位）→ 不产生撤销点
+   *  - 更新 _sceneAsset 工作副本（后续 collectSaveData 基于最新状态）
+   *  - 不写盘（保存按钮才落盘）
+   */
+  commitPreviewEdit(): void {
+    const key = this._undoKey
+    if (!key) {
+      logger.warn(`[ScenePreview] 拖拽提交跳过（无撤销 key，activate 未调用）`)
+      return
+    }
+    const cur = this.collectSaveData()
+    if (!cur) return
+    if (this._lastCommitted === null) {
+      // 无基准（理论上 activate 已建立）：以当前为基准，不产生撤销点
+      this._lastCommitted = cur
+      logger.info(`[ScenePreview] 拖拽提交（首帧基准）: ${key}`)
+      return
+    }
+    // 内容无变化（拖动后松手位置与基准一致）→ 跳过，避免空撤销点
+    if (JSON.stringify(cur) === JSON.stringify(this._lastCommitted)) {
+      logger.debug(`[ScenePreview] 拖拽提交跳过（内容无变化）: ${key}`)
+      return
+    }
+    UndoManager.push(key, this._lastCommitted)
+    this._lastCommitted = cur
+    this._sceneAsset = cur as unknown as SceneAsset
+    logger.info(`[ScenePreview] 松手提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+  }
+
+  /**
+   * 保存成功后调用：内存/磁盘已一致，把保存的数据作为新基准
+   * （之后拖拽 push 的动作前快照 = 保存后的状态，撤销点干净）。
+   */
+  markCommitted(data: Record<string, unknown>): void {
+    this._lastCommitted = JSON.parse(JSON.stringify(data))
+    this._sceneAsset = data as unknown as SceneAsset
+  }
+
+  /**
+   * Inspector 直接修改属性后调用：运行时组件已被 prop.set 直改（预览即时反馈），
+   * 此处把最新状态收集为"已提交状态"并进撤回系统。
+   *  - 对比基准（_lastCommitted）：内容有变化 → 基准作为动作前快照 push 进撤销栈，
+   *    再更新基准为当前状态；无变化（改回原值）→ 不产生撤销点
+   *  - 不重建预览（运行时已生效）、不写盘；emit BLUEPRINT_TRANSFORM_DIRTY 刷新撤销按钮
+   */
+  commitPropertyEdit(): void {
+    const key = this._undoKey
+    if (!key) {
+      logger.warn(`[ScenePreview] 属性提交跳过（无撤销 key，activate 未调用）`)
+      return
+    }
+    const cur = this.collectSaveData()
+    if (!cur) return
+    if (this._lastCommitted === null) {
+      this._lastCommitted = cur
+      logger.info(`[ScenePreview] 属性提交（首帧基准）: ${key}`)
+      return
+    }
+    if (JSON.stringify(cur) === JSON.stringify(this._lastCommitted)) {
+      logger.debug(`[ScenePreview] 属性提交跳过（内容无变化）: ${key}`)
+      return
+    }
+    UndoManager.push(key, this._lastCommitted)
+    this._lastCommitted = cur
+    this._sceneAsset = cur as unknown as SceneAsset
+    logger.info(`[ScenePreview] 属性提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+    // 双保险刷新撤销按钮可用状态（ScenePreviewEditor 监听该事件）
+    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, this._currentScenePath ?? '')
+  }
+
+  /** 撤销：从栈取动作前快照 → 重建预览（保持相机视角与激活状态）；无可撤历史返回 false */
+  undo(): boolean {
+    const key = this._undoKey
+    if (!key || !this.canUndo()) {
+      logger.warn(`[ScenePreview] undo 无历史可撤: ${key ?? '无 key'}`)
+      return false
+    }
+    const cur = this.collectSaveData() ?? this._lastCommitted
+    const snap = UndoManager.undo(key, cur)
+    if (snap == null) return false
+    this._lastCommitted = snap as Record<string, unknown>
+    this._applySnapshot(snap as Record<string, unknown>)
+    logger.info(`[ScenePreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+    return true
+  }
+
+  /** 重做：从栈取 redo 快照 → 重建预览；无重做历史返回 false */
+  redo(): boolean {
+    const key = this._undoKey
+    if (!key || !this.canRedo()) {
+      logger.warn(`[ScenePreview] redo 无历史可重做: ${key ?? '无 key'}`)
+      return false
+    }
+    const cur = this.collectSaveData() ?? this._lastCommitted
+    const snap = UndoManager.redo(key, cur)
+    if (snap == null) return false
+    this._lastCommitted = snap as Record<string, unknown>
+    this._applySnapshot(snap as Record<string, unknown>)
+    logger.info(`[ScenePreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
+    return true
+  }
+
+  /** 应用快照：记录相机位姿 → 重建预览 → 恢复相机 → 重新激活（loadSceneAsset 会清 _currentScenePath） */
+  private _applySnapshot(snap: Record<string, unknown>): void {
+    // loadSceneAsset 内部 clearPreview 会清掉 _currentScenePath，先保存磁盘路径
+    const path = this._currentScenePath
+    const camPos = this.camera.position.clone()
+    const camQuat = this.camera.quaternion.clone()
+    // 记录当前选中（重建后恢复，撤销/重做不打断编辑上下文）
+    const sel = getSelectedActor()
+    const selName = sel ? sel.root.name : null
+    this.loadSceneAsset(snap as unknown as SceneAsset)
+    if (path) this.activate(path)
+    this.restoreCamera(camPos, camQuat)
+    // 恢复选中：重建后按名称重新查找并选中（gizmo 同步）
+    if (selName) {
+      const tree = this.getActorTree()
+      const node = tree.find((n) => n.name === selName && n.actor)
+      if (node?.actor) this.selectActor(node.actor)
+    }
   }
 
   // ════════════════════════════════════════
@@ -490,34 +670,58 @@ export class ScenePreviewManager {
   }
 
   /**
-   * 收集保存数据：遍历大纲 Actor，将实时 transform 回写到 _sceneAsset.objects 对应的节点。
-   * 只更新 position，因为旧格式节点无 rotation/scale（除 blueprint 外）。
+   * 收集保存数据：遍历大纲 Actor（含嵌套子级），通过 _actorJsonMap 把实时 transform
+   * 与组件持久化属性回写到各 Actor 对应的 JSON 节点，返回干净的深拷贝供写入磁盘。
+   *
+   * 相比按名称匹配 Actor→JSON 节点：O(1) 直查、零歧义，且覆盖 ref 实例
+   * （spawn 后 actor 名为蓝图名，如 "Townhall"，而场景节点名为 "Townhall_1"，
+   * 名称匹配必然失败——撤回系统依赖此处正确回写，否则拖拽被判定为"无变化"）。
    */
   collectSaveData(): Record<string, unknown> | null {
     if (!this._sceneAsset) return null
 
-    const objects = this._sceneAsset.objects as unknown as Array<Record<string, unknown>>
-    const actors = this.world.GetAllActors()
+    for (const treeNode of this.getActorTree()) {
+      const actor = treeNode.actor
+      const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
+      if (!actor || !jsonNode) continue
+      const isActorRef = jsonNode.type === 'actor' || jsonNode.type === 'ref'
 
-    // 按名称建立 Actor → JSON 节点索引
-    for (const obj of objects) {
-      const name = obj.name as string | undefined
-      if (!name) continue
-
-      // 匹配场景中的 Actor（根 Actor 跳过）
-      for (const actor of actors) {
-        if (actor.root.name === name || actor.name === name) {
-          // 统一用 position/rotation/scale（新格式）
-          if (obj.type === 'actor' || obj.type === 'ref') {
-            obj.position = [actor.position.x, actor.position.y, actor.position.z]
-            obj.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
-            obj.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
-          } else {
-            // 旧格式：只更新 pos
-            obj.pos = [actor.position.x, actor.position.y, actor.position.z]
-          }
-          break
+      // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON（Inspector 直改后撤回需要）───
+      const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
+      for (const comp of actor.getAllComponents() as ActorComponent[]) {
+        if (!comp.persistType) continue
+        const target = jsonComps.find((c) => c.baseClass === comp.persistType)
+        if (!target) continue
+        const props = (target.properties ?? {}) as Record<string, unknown>
+        const persist = comp.getPersistentProps()
+        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
+        for (const [k, v] of Object.entries(persist)) {
+          props[k] = v
         }
+      }
+
+      // 组件优先：内联 actor 的位置写在 components 的 TransformComponent properties
+      // （组件为权威，顶层 position/rotation/scale 是废弃冗余，写入后删除）
+      const comps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
+      const tf = comps.find(
+        (c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent',
+      )
+      if (tf) {
+        const props = (tf.properties ?? {}) as Record<string, unknown>
+        props.position = [actor.position.x, actor.position.y, actor.position.z]
+        props.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+        props.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+        delete jsonNode.position
+        delete jsonNode.rotation
+        delete jsonNode.scale
+      } else if (isActorRef) {
+        // ref 节点无 components：overrides 语义走顶层
+        jsonNode.position = [actor.position.x, actor.position.y, actor.position.z]
+        jsonNode.rotation = [actor.rotation.x, actor.rotation.y, actor.rotation.z]
+        jsonNode.scale = [actor.scale.x, actor.scale.y, actor.scale.z]
+      } else {
+        // 旧格式：只更新 pos
+        jsonNode.pos = [actor.position.x, actor.position.y, actor.position.z]
       }
     }
 
@@ -570,6 +774,8 @@ export class ScenePreviewManager {
 
   dispose() {
     this.stop()
+    // 页签关闭：清空本资产的撤销栈（重新打开回到干净状态，不残留旧历史）
+    if (this._undoKey) UndoManager.clear(this._undoKey)
     // 移除 WebGL 上下文事件监听，避免内存泄漏
     if (this._onContextLost) {
       this.renderer.domElement.removeEventListener('webglcontextlost', this._onContextLost, false)
@@ -592,6 +798,8 @@ export class ScenePreviewManager {
     }
     this._sceneAsset = null
     this._actorTreeCache = null
+    this._lastCommitted = null
+    this._actorJsonMap.clear()
     this._onChangeCallbacks = []
   }
 

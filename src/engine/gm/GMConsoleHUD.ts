@@ -9,6 +9,10 @@
  *  2. 程序化构建（兜底）：panelAssetPath 为空或资产缺失时，在 buildUI() 中拼装
  *     控件树（子类可覆写 buildUI 构建项目自己的风格面板）。
  *
+ * 命令搜索：搜索框（资产 GM_SearchInput / 程序化 GM_SearchBox）输入时按
+ * 名称/路径 id/描述模糊过滤命令列表（applySearchFilter，命中实时刷新 GM_CmdList）；
+ * Tab 键在搜索框/输入框间切换焦点。
+ *
  * 生命周期（开建闭毁）：GMModule.openConsole → 经 consoleFactory 创建
  * （默认 new GMConsoleHUD）→ world.SpawnActor → 进 UI 场景；closeConsole →
  * destroy() → UIManager 延迟销毁（无残留）。
@@ -26,8 +30,9 @@ import { UITextComponent } from '../ui/UITextComponent'
 import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScrollListComponent } from '../ui/UIScrollListComponent'
+import { ClickableComponent } from '../physics/ClickableComponent'
 import { GMRegistry } from './GMRegistry'
-import { formatGMUsage } from './GMCommand'
+import { formatGMUsage, type GMCommandDef } from './GMCommand'
 import { logger } from '../Logger'
 import type { GMModule } from './GMModule'
 
@@ -64,12 +69,18 @@ export class GMConsoleHUD extends HUD {
 
   /** 输入框组件（聚焦/取值） */
   protected _input: UITextInputComponent | null = null
+  /** 搜索框组件（模糊过滤命令列表；资产可选，缺失时无搜索能力） */
+  protected _searchInput: UITextInputComponent | null = null
   /** 输出区文本组件（滚动窗口） */
   protected _outputText: UITextComponent | null = null
   /** 输出行缓冲 */
   protected _outputLines: string[] = []
   /** 命令按钮滚动列表（对象池，超框 item 不渲染） */
   protected _cmdList: UIScrollListComponent | null = null
+  /** 全量命令缓存（buildCommandButtons 时快照，搜索过滤的基准） */
+  protected _allCommands: Array<[string, GMCommandDef]> = []
+  /** 当前过滤后的可见命令（无搜索词时 = 全量） */
+  protected _filteredCommands: Array<[string, GMCommandDef]> = []
 
   constructor(gm: GMModule) {
     super('GMConsoleHUD')
@@ -161,7 +172,7 @@ export class GMConsoleHUD extends HUD {
     title.attachTo(this)
 
     // 命令列表（左上，help 全量）
-    const help = this.makeActor('GM_Help', { anchor: 'center', offset: [-2.6, 0.4], w: 2.9, h: 2.4, zOrder: 2 })
+    const help = this.makeActor('GM_Help', { anchor: 'center', offset: [-2.6, 0.1], w: 2.9, h: 2.4, zOrder: 2 })
     const helpText = this.makeText(help, this.buildHelpText(), 15, '#f5e6c8', 560, 460, 'GM_HelpText')
     help.addComponent(helpText)
     help.attachTo(this)
@@ -173,7 +184,7 @@ export class GMConsoleHUD extends HUD {
     output.attachTo(this)
 
     // 输入框（中下：背景 + UITextInputComponent）
-    const inputBox = this.makeActor('GM_InputBox', { anchor: 'center', offset: [0, -1.0], w: 6.8, h: 0.5, zOrder: 2 })
+    const inputBox = this.makeActor('GM_InputBox', { anchor: 'center', offset: [0, -1.35], w: 6.8, h: 0.5, zOrder: 2 })
     const inputBoxImg = new UIImageComponent(inputBox, {
       color: '#1a1108',
       radius: 8,
@@ -197,10 +208,35 @@ export class GMConsoleHUD extends HUD {
     inputBox.addComponent(this._input)
     inputBox.attachTo(this)
 
+    // 搜索框（命令列表上方：名称/路径/描述模糊过滤）
+    const searchBox = this.makeActor('GM_SearchBox', { anchor: 'center', offset: [-2.6, 1.5], w: 2.9, h: 0.26, zOrder: 2 })
+    const searchBoxImg = new UIImageComponent(searchBox, {
+      color: '#1a1108',
+      radius: 8,
+      width: 580,
+      height: 52,
+    })
+    searchBoxImg.zOrder = GM_ZORDER_BASE + 2
+    searchBox.addComponent(searchBoxImg)
+    this._searchInput = new UITextInputComponent(searchBox, {
+      placeholder: '🔍 搜索命令（名称/描述）...',
+      fontSize: 15,
+      color: '#f5e6c8',
+      width: 580,
+      height: 52,
+      zOrder: GM_ZORDER_BASE + GM_TEXT_LAYER,
+      onTextChanged: (value) => this.applySearchFilter(value),
+    })
+    searchBox.addComponent(this._searchInput)
+    searchBox.attachTo(this)
+
     // 操作提示
     const hint = this.makeActor('GM_Hint', { anchor: 'center', offset: [0, -1.8], w: 6, h: 0.3, zOrder: 2 })
-    hint.addComponent(this.makeText(hint, 'Enter 执行 · Esc 关闭 · G+M 开关面板', 14, '#8a7a5a', 900, 44, 'GM_HintText'))
+    hint.addComponent(this.makeText(hint, 'Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板', 14, '#8a7a5a', 900, 44, 'GM_HintText'))
     hint.attachTo(this)
+
+    // 点击聚焦：搜索框/输入框节点点击 → 聚焦对应输入框（互斥）
+    this.bindClickToFocus(this)
 
     // 初始输出 + 聚焦输入框
     this.appendOutput(this.readyMessage)
@@ -241,6 +277,11 @@ export class GMConsoleHUD extends HUD {
           this._input = comp
           comp.onSubmit = () => this.submitInput()
         }
+        // 搜索框（可选）：文本变化实时过滤命令列表
+        if (comp.name === 'GM_SearchInput' && !this._searchInput) {
+          this._searchInput = comp
+          comp.onTextChanged = (value) => this.applySearchFilter(value)
+        }
       }
       for (const comp of a.getComponents(UITextComponent)) {
         if (comp.name === 'GM_OutputText' && !this._outputText) {
@@ -255,12 +296,17 @@ export class GMConsoleHUD extends HUD {
       logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 缺少 GM_OutputText/GM_InputText 组件，回退程序化构建`)
       return false
     }
+    if (!this._searchInput) {
+      logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 未找到 GM_SearchInput 组件，跳过命令搜索`)
+    }
 
     // 命令按钮：GM_CmdList 容器下为每个注册命令生成按钮（点击 → 快捷填入输入框）
     const cmdList = this.findActorByName(actor, 'GM_CmdList')
     if (cmdList) this.buildCommandButtons(cmdList)
     else logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 未找到 GM_CmdList 容器，跳过命令按钮`)
 
+    // 点击聚焦：搜索框/输入框节点点击 → 聚焦对应输入框（互斥）
+    this.bindClickToFocus(actor)
     // 发送按钮：GM_SendBtn 点击 → 提交输入框内容
     const sendBtn = this.findActorByName(actor, 'GM_SendBtn')
     const sendComp = sendBtn?.getComponent(UIButtonComponent)
@@ -304,22 +350,24 @@ export class GMConsoleHUD extends HUD {
    * 配置 GM_CmdList 命令按钮滚动列表（对象池，超框 item 不渲染）。
    * 资产树 GM_CmdList 挂 UIScrollListComponent（itemWidget=gm_cmd_item 蓝图，
    * visibleCount=5 可视 5 项 + 1 缓冲）；此处只驱动数据与行为：
+   *  - 全量命令快照到 _allCommands（搜索过滤的基准，见 applySearchFilter）
    *  - zOrderLift = GM_ZORDER_BASE：item 经 spawnUIActor 已 +FLOAT_LAYER_BIAS(100)，
    *    再补 +1000 与资产树（1100+）同基数，避免被面板背景盖住
-   *  - totalCount = 注册命令数（池只建 visibleCount+1 个 item，超出的命令滚动可见）
+   *  - totalCount = 过滤后命令数（池只建 visibleCount+1 个 item，超出的命令滚动可见）
    *  - onItemSpawned：填命令名文本 + 绑定点击（命令名填入输入框）
    */
   protected buildCommandButtons(container: Actor): void {
-    const cmds = [...GMRegistry.getAll()]
+    this._allCommands = [...GMRegistry.getAll()]
+    this._filteredCommands = [...this._allCommands]
     const list = container.getComponent(UIScrollListComponent)
     if (!list) {
       logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 的 GM_CmdList 未挂 UIScrollListComponent，跳过命令按钮`)
       return
     }
     list.zOrderLift = GM_ZORDER_BASE
-    list.totalCount = cmds.length
+    list.totalCount = this._filteredCommands.length
     list.onItemSpawned = (item, index) => {
-      const def = cmds[index]?.[1]
+      const def = this._filteredCommands[index]?.[1]
       if (!def) return
       // 命令名文本
       const label = item.getComponent(UITextComponent)
@@ -339,7 +387,31 @@ export class GMConsoleHUD extends HUD {
     // onItemSpawned 赋值晚于 totalCount setter（后者已触发一次 _layout），
     // 需再 refresh 一次让初始可见 item 立即填充文本/绑定点击
     list.refresh()
-    logger.info(`[GMConsoleHUD] 命令按钮滚动列表已配置: ${cmds.length} 个（GM_CmdList，可视 ${list.visibleCount} 项）`)
+    logger.info(`[GMConsoleHUD] 命令按钮滚动列表已配置: ${this._filteredCommands.length} 个（GM_CmdList，可视 ${list.visibleCount} 项）`)
+  }
+
+  /**
+   * 命令搜索过滤（搜索框 onTextChanged 实时调用）。
+   * 模糊匹配：命令 name（调用名）、注册 id（路径式，如 gameplay/gm/addCoins）、description（描述）。
+   * 命中规则：关键词小写包含即命中；空词显示全量。过滤后更新 totalCount 并回到顶部。
+   */
+  protected applySearchFilter(query: string): void {
+    const q = query.trim().toLowerCase()
+    if (q) {
+      this._filteredCommands = this._allCommands.filter(([id, def]) =>
+        def.name.toLowerCase().includes(q) ||
+        id.toLowerCase().includes(q) ||
+        def.description.toLowerCase().includes(q),
+      )
+    } else {
+      this._filteredCommands = [...this._allCommands]
+    }
+    const list = this._cmdList
+    if (!list) return
+    list.totalCount = this._filteredCommands.length
+    list.scrollOffset = 0 // 过滤后回到顶部
+    list.refresh()
+    logger.info(`[GMConsoleHUD] 命令搜索 "${query.trim()}" → 命中 ${this._filteredCommands.length}/${this._allCommands.length}`)
   }
 
   /**
@@ -449,10 +521,73 @@ export class GMConsoleHUD extends HUD {
   }
 
   /**
+   * 输入框点击聚焦绑定（资产驱动 / 程序化 buildUI 共用）。
+   *
+   * 背景：输入框是键盘驱动焦点（Tab 切换 / 键入自动聚焦），但**点击本身不聚焦**——
+   * 搜索框/输入框节点未挂 ClickableComponent 时，点击无任何响应，焦点仍留在输入框。
+   * 本方法按节点 root.name 识别搜索框/输入框容器，挂 ClickableComponent（layer='ui'）：
+   *   - GM_SearchInput / GM_SearchBox → 点击聚焦搜索框（blur 输入框）
+   *   - GM_InputBox → 点击聚焦输入框（blur 搜索框）
+   *
+   * ⚠️ layer='ui' 必须在 addComponent（触发 BeginPlay 注册 PhySys）**之前**设置：
+   * PhySys.register 按 layer 决定进 UI 集合还是世界集合，资产声明的 ClickableComponent
+   * 无法配置 layer（schema 无此字段），故一律代码创建。
+   */
+  protected bindClickToFocus(root: Actor): void {
+    const attach = (a: Actor): void => {
+      const nodeName = a.root.name
+      const isSearch = nodeName === 'GM_SearchInput' || nodeName === 'GM_SearchBox'
+      const isInput = nodeName === 'GM_InputBox'
+      if (isSearch || isInput) {
+        // 已有（如 UIButton 自动创建）则复用，否则新建——先设 layer 再挂载
+        let clickable = a.getComponent(ClickableComponent)
+        if (!clickable) {
+          clickable = new ClickableComponent(a)
+          clickable.layer = 'ui'
+          a.addComponent(clickable)
+        }
+        clickable.layer = 'ui'
+        clickable.onClick = () => {
+          if (isSearch) {
+            this._input?.blur()
+            this._searchInput?.focus()
+          } else {
+            this._searchInput?.blur()
+            this._input?.focus()
+          }
+        }
+        logger.info(`[GMConsoleHUD] 点击聚焦已绑定: ${nodeName}（点击 → ${isSearch ? '搜索框' : '输入框'}）`)
+      }
+      for (const child of a.getChildren()) attach(child)
+    }
+    attach(root)
+  }
+
+  /**
    * 输入框键盘转交（GMModule.handleGlobalKeyDown 调用）。
+   * Tab 在搜索框/输入框之间切换焦点；焦点所在框接收全部可打印键。
    * 返回 true = 按键被消费（Enter 已提交时输入框重新聚焦保持输入态）。
    */
   handleInputKey(key: string): boolean {
+    // Tab：搜索框 ↔ 输入框焦点切换
+    if (key === 'Tab') {
+      if (this._searchInput) {
+        if (this._searchInput.focused) {
+          this._searchInput.blur()
+          this._input?.focus()
+        } else {
+          this._input?.blur()
+          this._searchInput.focus()
+        }
+        logger.info('[GMConsoleHUD] Tab 切换焦点 → ' + (this._searchInput.focused ? '搜索框' : '输入框'))
+      }
+      return true
+    }
+    // 搜索框聚焦：按键转交搜索框（实时过滤命令列表）
+    if (this._searchInput?.focused) {
+      this._searchInput.handleKey(key)
+      return true
+    }
     if (!this._input) return true // 子类未建输入框（纯展示面板）：按键仍消费不穿透
     if (!this._input.focused) this._input.focus()
     this._input.handleKey(key)

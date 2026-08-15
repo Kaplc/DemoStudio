@@ -29,6 +29,14 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   const previewMgrRef = useRef<ScenePreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
   const [saving, setSaving] = useState(false)
+  /** 撤销/重做按钮可用状态与忙碌标记（historyVersion 递增触发重查） */
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const [historyBusy, setHistoryBusy] = useState(false)
+  const [historyVersion, setHistoryVersion] = useState(0)
+  /** 忙碌标记的 ref 同步（事件监听闭包内 state 会过期） */
+  const historyBusyRef = useRef(false)
+  const setBusy = (v: boolean) => { historyBusyRef.current = v; setHistoryBusy(v) }
   const assetPathRef = useRef(assetPath)
   assetPathRef.current = assetPath
 
@@ -159,6 +167,8 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       if (gizmo.isDragging) {
         gizmo.endDrag()
         if (dragDidMove) {
+          // 拖拽松手 = 一个撤销点（提交进撤回系统，不写盘）；事件双保险刷新撤销按钮
+          previewMgrRef.current?.commitPreviewEdit()
           editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, assetPathRef.current)
         }
         try { canvas.releasePointerCapture(e.pointerId) } catch { }
@@ -177,6 +187,75 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
       canvas.removeEventListener('pointerup', onPointerUp)
     }
   }, [previewReady])
+
+  // ─── 撤销/重做（Ctrl+Z / Ctrl+Y，仅激活页签响应）───
+  useEffect(() => {
+    const onUndo = () => {
+      if (!isTabActive) return
+      if (historyBusyRef.current) return
+      setBusy(true)
+      try {
+        previewMgrRef.current?.undo()
+      } finally {
+        setBusy(false)
+        setHistoryVersion((v) => v + 1)
+      }
+    }
+    const onRedo = () => {
+      if (!isTabActive) return
+      if (historyBusyRef.current) return
+      setBusy(true)
+      try {
+        previewMgrRef.current?.redo()
+      } finally {
+        setBusy(false)
+        setHistoryVersion((v) => v + 1)
+      }
+    }
+    window.addEventListener('shortcut-undo', onUndo)
+    window.addEventListener('shortcut-redo', onRedo)
+    return () => {
+      window.removeEventListener('shortcut-undo', onUndo)
+      window.removeEventListener('shortcut-redo', onRedo)
+    }
+  }, [isTabActive])
+
+  // ─── 撤销/重做按钮 ───
+  // 拖拽松手（commitPreviewEdit 新增撤销点但组件无 state 刷新）时刷新按钮可用状态
+  useEffect(() => {
+    const onTransformDirty = () => setHistoryVersion((v) => v + 1)
+    const off = editorBus.on(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, onTransformDirty)
+    return off
+  }, [])
+
+  // 拖拽提交（historyVersion 变化）/ 预览重建后重查栈状态
+  useEffect(() => {
+    const mgr = previewMgrRef.current
+    setCanUndo(!!mgr && mgr.canUndo())
+    setCanRedo(!!mgr && mgr.canRedo())
+  }, [previewReady, historyVersion])
+
+  const handleUndo = () => {
+    if (historyBusy || !canUndo) return
+    setBusy(true)
+    try {
+      previewMgrRef.current?.undo()
+    } finally {
+      setBusy(false)
+      setHistoryVersion((v) => v + 1)
+    }
+  }
+
+  const handleRedo = () => {
+    if (historyBusy || !canRedo) return
+    setBusy(true)
+    try {
+      previewMgrRef.current?.redo()
+    } finally {
+      setBusy(false)
+      setHistoryVersion((v) => v + 1)
+    }
+  }
 
   // ─── 保存 ───
   const handleSave = async () => {
@@ -198,6 +277,9 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
     setSaving(true)
     try {
       await writeJsonFile(assetPath, saveData)
+
+      // 保存后内存/磁盘一致：刷新撤回基准（之后拖拽 push 的动作前快照 = 保存后的状态）
+      previewMgrRef.current?.markCommitted(saveData)
 
       // 重新加载预览
       mgr.loadSceneAsset(saveData as unknown as SceneAsset)
@@ -260,6 +342,34 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.name}</span>
         {data.mode && <span style={{ color: 'var(--accent)' }}>{data.mode}</span>}
         <div style={{ flex: 1 }} />
+        <button
+          onClick={handleUndo}
+          disabled={historyBusy || !canUndo}
+          title="撤销 (Ctrl+Z)"
+          style={{
+            fontSize: 11, padding: '3px 10px', cursor: (historyBusy || !canUndo) ? 'default' : 'pointer',
+            background: 'var(--bg-tertiary)',
+            color: (historyBusy || !canUndo) ? 'var(--text-dim)' : 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          ↶ 撤销
+        </button>
+        <button
+          onClick={handleRedo}
+          disabled={historyBusy || !canRedo}
+          title="重做 (Ctrl+Y)"
+          style={{
+            fontSize: 11, padding: '3px 10px', cursor: (historyBusy || !canRedo) ? 'default' : 'pointer',
+            background: 'var(--bg-tertiary)',
+            color: (historyBusy || !canRedo) ? 'var(--text-dim)' : 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          ↷ 重做
+        </button>
         <button
           onClick={handleSave}
           disabled={saving}

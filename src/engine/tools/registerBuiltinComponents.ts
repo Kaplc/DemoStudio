@@ -231,7 +231,6 @@ export function registerBuiltinComponents(): void {
         name: p.name ?? 'CanvasUIComponent',
         zOrder: p.zOrder as number | undefined,
         markerOnly: (p.markerOnly as boolean) ?? false,
-        safeArea: p.safeArea as number | undefined,
         ...(p.active !== undefined ? { active: p.active as boolean } : {}),
         ...(p.hitTest !== undefined ? { hitTest: p.hitTest as 'visible' | 'block' | 'hitTestInvisible' } : {}),
       }),
@@ -242,7 +241,6 @@ export function registerBuiltinComponents(): void {
       }
       if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
       if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number
-      if (p.safeArea !== undefined) ui.safeArea = p.safeArea as number
       if (p.active !== undefined) ui.bActive = p.active as boolean
     },
   )

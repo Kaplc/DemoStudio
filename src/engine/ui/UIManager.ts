@@ -389,6 +389,15 @@ export class UIManager extends AObjectComponent<World> {
       actor.EndPlay()
       return
     }
+    // 子树节点（attachTo 挂树、不在 _uiActors）：父链 EndPlay 递归 destroy() 到达这里，
+    // 不能入队（commitDestroy 只处理 _uiActors 成员，入队会被丢弃 → 永久泄漏）。
+    // 直接本地递归 EndPlay（EndPlay 递归子树，bPendingDestroy 短路防重）并拆离父树。
+    if (!this._uiActors.has(actor)) {
+      actor.bPendingDestroy = true
+      actor.EndPlay()
+      if (actor.parent) actor.detach()
+      return
+    }
     actor.bPendingDestroy = true
     this._pendingDestroy.push(actor)
   }

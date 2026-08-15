@@ -105,6 +105,11 @@ export class FishLevelGameMode extends GameMode {
   override EndPlay() {
     // 解除相机右键平移回调引用（防悬挂）
     this.baseCamera.rig.onRightPanStart = null
+    // 拥有者自清理：销毁本 GameMode 构造的 baseCamera。
+    // 相机已托管（setupLevelPhase SpawnActor）时走 World 销毁队列；未托管时
+    // （如 ai.switchScene 裸切换不执行 extraSetup）由这里本地 EndPlay 回收，
+    // 否则相机无 world 归属，reclaimForWorld 无法回收 → 永久泄漏。
+    this.baseCamera?.destroy()
     // 建筑/兵/弹丸均为场景 Actor，由 World.DestroyAllActors 统一销毁，这里只清引用
     this.buildings = []
     this.buildingHp.clear()

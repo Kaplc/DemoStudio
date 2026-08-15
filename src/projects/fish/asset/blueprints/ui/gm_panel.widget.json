@@ -35,7 +35,8 @@
         "markerOnly": true,
         "name": "UIMarker",
         "zOrder": 0,
-        "safeArea": 5
+        "active": true,
+        "hitTest": "visible"
       }
     }
   ],
@@ -77,7 +78,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 0,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -87,7 +90,9 @@
             "opacity": 0.6,
             "width": 1920,
             "height": 1080,
-            "zOrder": 0
+            "zOrder": 0,
+            "hitTest": "visible",
+            "radius": 0
           }
         }
       ]
@@ -102,7 +107,7 @@
           "properties": {
             "position": [
               0,
-              0,
+              0.1,
               0
             ],
             "rotation": [
@@ -129,7 +134,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1
+            "zOrder": 1,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -139,7 +146,8 @@
             "radius": 18,
             "width": 1520,
             "height": 840,
-            "zOrder": 1
+            "zOrder": 1,
+            "hitTest": "visible"
           }
         }
       ]
@@ -154,7 +162,7 @@
           "properties": {
             "position": [
               0,
-              0,
+              0.1,
               0
             ],
             "rotation": [
@@ -181,7 +189,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1
+            "zOrder": 1,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -191,7 +201,8 @@
             "radius": 12,
             "width": 1480,
             "height": 800,
-            "zOrder": 1
+            "zOrder": 1,
+            "hitTest": "visible"
           }
         }
       ]
@@ -206,7 +217,7 @@
           "properties": {
             "position": [
               0,
-              0,
+              1.9,
               0
             ],
             "rotation": [
@@ -233,7 +244,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -248,23 +261,28 @@
             "height": 70,
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4
+            "shadowBlur": 4,
+            "hitTest": "visible",
+            "italic": false,
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.006429
           },
           "name": "GM_TitleText"
         }
       ]
     },
     {
-      "name": "GM_CmdList",
+      "name": "GM_SearchInput",
       "baseClass": "Actor",
-      "id": 19004,
+      "id": 19010,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              -1.8622352941176472,
-              0.542,
+              0,
+              0,
               0
             ],
             "rotation": [
@@ -280,10 +298,10 @@
             "anchor": "center",
             "anchorOffset": [
               -1.86,
-              0.54
+              1.42
             ],
-            "worldWidth": 2.775764705882353,
-            "worldHeight": 2.3160000000000003
+            "worldWidth": 2.7,
+            "worldHeight": 0.26
           }
         },
         {
@@ -293,7 +311,73 @@
             "name": "UIMarker",
             "zOrder": 2,
             "active": true,
-            "safeArea": 5,
+            "hitTest": "visible"
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#1a1028",
+            "radius": 6,
+            "width": 540,
+            "height": 52,
+            "zOrder": 2
+          }
+        },
+        {
+          "baseClass": "UITextInputComponent",
+          "properties": {
+            "placeholder": "🔍 搜索命令（名称/描述）...",
+            "fontSize": 14,
+            "color": "#f5ecd7",
+            "width": 540,
+            "height": 52,
+            "zOrder": 3
+          },
+          "name": "GM_SearchInput"
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "GM_CmdList",
+      "baseClass": "Actor",
+      "id": 19004,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [
+              -1.86,
+              0.26,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "anchor": "center",
+            "anchorOffset": [
+              -1.86,
+              0.26
+            ],
+            "worldWidth": 2.775764705882353,
+            "worldHeight": 1.9
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 2,
+            "active": true,
             "hitTest": "visible"
           }
         },
@@ -307,7 +391,10 @@
             ],
             "spacing": 0.02,
             "direction": "vertical",
-            "zOrderLift": 0
+            "zOrderLift": 0,
+            "visibleCount": -1,
+            "draggable": true,
+            "scrollbar": true
           }
         }
       ]
@@ -321,8 +408,8 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              0,
-              0,
+              1.6,
+              0.4,
               0
             ],
             "rotation": [
@@ -349,7 +436,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -363,7 +452,13 @@
             "height": 460,
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4
+            "shadowBlur": 4,
+            "hitTest": "visible",
+            "bold": false,
+            "italic": false,
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.005217
           },
           "name": "GM_OutputText"
         }
@@ -378,8 +473,8 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              0,
-              0,
+              -0.15,
+              -1,
               0
             ],
             "rotation": [
@@ -406,7 +501,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -416,7 +513,8 @@
             "radius": 8,
             "width": 1360,
             "height": 96,
-            "zOrder": 2
+            "zOrder": 2,
+            "hitTest": "visible"
           }
         },
         {
@@ -427,7 +525,15 @@
             "color": "#f5ecd7",
             "width": 1360,
             "height": 96,
-            "zOrder": 3
+            "zOrder": 3,
+            "hitTest": "visible",
+            "text": "输入 GM 命令（help 查看全部）...",
+            "align": "left",
+            "bold": true,
+            "italic": false,
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.005208
           },
           "name": "GM_InputText"
         }
@@ -443,7 +549,7 @@
           "properties": {
             "position": [
               0,
-              0,
+              -1.8,
               0
             ],
             "rotation": [
@@ -470,13 +576,15 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
           "baseClass": "UITextComponent",
           "properties": {
-            "text": "Enter 执行 · Esc 关闭 · G+M 开关面板",
+            "text": "Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板",
             "fontSize": 14,
             "color": "#9a8ab0",
             "align": "center",
@@ -484,7 +592,13 @@
             "height": 44,
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4
+            "shadowBlur": 4,
+            "hitTest": "visible",
+            "bold": false,
+            "italic": false,
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.006818
           }
         }
       ]
@@ -498,8 +612,8 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              0,
-              0,
+              3.25,
+              -1,
               0
             ],
             "rotation": [
@@ -526,7 +640,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -536,7 +652,8 @@
             "radius": 8,
             "width": 170,
             "height": 96,
-            "zOrder": 2
+            "zOrder": 2,
+            "hitTest": "visible"
           }
         },
         {
@@ -588,7 +705,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 3
+                "zOrder": 3,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -603,7 +722,12 @@
                 "height": 96,
                 "zOrder": 3,
                 "shadowColor": "rgba(0,0,0,0.3)",
-                "shadowBlur": 2
+                "shadowBlur": 2,
+                "hitTest": "visible",
+                "italic": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.005208
               }
             }
           ]

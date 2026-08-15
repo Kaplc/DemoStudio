@@ -5,13 +5,28 @@
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
         "worldHeight": 5.4,
         "anchor": null,
-        "anchorOffset": [0, 0]
+        "anchorOffset": [
+          0,
+          0
+        ]
       }
     },
     {
@@ -21,8 +36,7 @@
         "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "safeArea": 5
+        "active": true
       }
     },
     {
@@ -41,11 +55,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 0],
+            "anchorOffset": [
+              0,
+              0
+            ],
             "worldWidth": 9.6,
             "worldHeight": 1.7
           }
@@ -81,11 +110,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 1.72],
+            "anchorOffset": [
+              0,
+              1.72
+            ],
             "worldWidth": 1.2,
             "worldHeight": 0.08
           }
@@ -120,11 +164,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 1.25],
+            "anchorOffset": [
+              0,
+              1.25
+            ],
             "worldWidth": 8,
             "worldHeight": 0.3
           }
@@ -165,11 +224,26 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 0.18],
+            "anchorOffset": [
+              0,
+              0.18
+            ],
             "worldWidth": 6,
             "worldHeight": 0.26
           }
@@ -210,13 +284,28 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
-            "anchorOffset": [0, 0.75],
+            "anchorOffset": [
+              0,
+              0.75
+            ],
             "worldWidth": 7.6,
-            "worldHeight": 1.0
+            "worldHeight": 1
           }
         },
         {

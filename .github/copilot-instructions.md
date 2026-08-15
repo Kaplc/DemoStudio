@@ -21,6 +21,12 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 
 适用于快速验证 UI 逻辑，但 `electronAPI`（如 `readJsonFile`）在浏览器中不可用。
 
+### 浏览器调试手册（AI 专用，必查 + 必更新）
+
+- **操作前必查**：`doc/playwright_commands.md` — Playwright 命令速查 + 踩坑（编辑器通用），涉及任何浏览器端调试/测试时先查此手册，避免踩已知坑（hidden 页面 dispatchEvent、HMR 不重建实例、deferredResultId 等）
+- **遇到新坑/新命令自动更新**：调试过程中发现手册未覆盖的坑、有效的新命令/片段、或手册描述与实际行为不符时，**必须当场更新 `doc/playwright_commands.md`**（追加踩坑表行、补充代码片段、修正描述），保持手册永远是最新最准的
+- 方法论/流程详解见 `doc/playwright_testing.md`（与手册互补）
+
 ## 运行日志（AI 专用）
 
 `logs/` 目录下包含完整的运行日志信息文件，AI 可直接读取这些文件来查看编辑器或游戏的运行状态、错误信息和调试输出：

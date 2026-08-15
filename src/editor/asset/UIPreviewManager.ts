@@ -102,8 +102,6 @@ export class UIPreviewManager {
 
   // ─── Game 渲染视口范围框（常显）：显示放到 Game 时实际会被渲染的世界范围（= 根画布尺寸，跟随视口比例）───
   private viewportBounds: THREE.LineSegments | null = null
-  /** 安全区参考线（黄色虚线框：根画布 safeArea 内缩后的可用区域） */
-  private safeAreaBounds: THREE.LineSegments | null = null
 
   // ─── 包围盒 8 把手拖拽（4 角 + 4 边中点，拖动实时调整范围大小）───
   private cornerHandleGroup: THREE.Group | null = null
@@ -572,9 +570,13 @@ export class UIPreviewManager {
     this.boundsTarget.root.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) meshes.push(obj)
     })
-    if (meshes.length === 0) return false
-    const hits = this.raycaster.intersectObjects(meshes, false)
-    if (hits.length > 0) return true
+    // 有 mesh 才做精确射线命中；纯容器节点（markerOnly 无位图画布，如滚动列表
+    // GM_CmdList）没有任何 mesh，不能因 meshes 为空直接 return false——
+    // 下方 worldSize 矩形宽松判定才是这类节点的拖动入口（包围盒可见即可拖）
+    if (meshes.length > 0) {
+      const hits = this.raycaster.intersectObjects(meshes, false)
+      if (hits.length > 0) return true
+    }
 
     // 宽松命中：raycast 未命中（如 troika 矢量文本字形之间有间隙、笔画区域很小）时，
     // 用控件自身的世界尺寸矩形（uitransform worldWidth/worldHeight）投影到屏幕 + padding 判定，
@@ -784,8 +786,6 @@ export class UIPreviewManager {
     this.fitToWidget(actor.root)
     // Game 渲染视口范围框：以根画布世界尺寸为范围（切换视口比例后再次更新）
     this.updateViewportBounds()
-    // 安全区参考线：根画布 safeArea 内缩后的可用区域（TV overscan 参考）
-    this.updateSafeAreaBounds()
     this.notifyChange()
 
     logger.info(`[UIPreview] 加载 UI 资产预览: ${path}${this._currentWidgetDiskPath ? `（磁盘 ${this._currentWidgetDiskPath}）` : ''}`)
@@ -833,51 +833,6 @@ export class UIPreviewManager {
     lines.visible = true
   }
 
-  /**
-   * 安全区参考线：黄色虚线框 = 根画布 safeArea 内缩后的可用区域（对标 TV overscan 5%）。
-   * 设计校验：边角锚 HUD 元素应位于框内；stretch 背景可以铺满到白框（完整画布）。
-   */
-  private ensureSafeAreaBounds(): void {
-    if (this.safeAreaBounds) return
-    const geo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1))
-    const mat = new THREE.LineBasicMaterial({
-      color: 0xffcc00,
-      depthTest: false,
-      depthWrite: false,
-      transparent: true,
-      opacity: 0.5,
-    })
-    const lines = new THREE.LineSegments(geo, mat)
-    lines.name = '__ui_safe_area_bounds__'
-    lines.renderOrder = 995 // 低于视口范围框(996)/选中包围盒(998)，不干扰选中
-    lines.visible = false
-    this.overlayScene.add(lines)
-    this.safeAreaBounds = lines
-  }
-
-  /** 更新安全区参考线：尺寸 = 根画布安全区可用区域（无根画布/无 safeArea 时隐藏） */
-  private updateSafeAreaBounds(): void {
-    this.ensureSafeAreaBounds()
-    const lines = this.safeAreaBounds
-    if (!lines) return
-    const root = this._rootActor
-    const uiTf = root?.getComponent(UITransformComponent)
-    if (!root || !uiTf) {
-      lines.visible = false
-      return
-    }
-    const canvas = root.getComponent(CanvasUIComponent)
-    if (!canvas || canvas.safeArea <= 0) {
-      lines.visible = false
-      return
-    }
-    const [aw, ah] = canvas.getSafeAreaSize()
-    lines.scale.set(aw, ah, 1)
-    // 位置跟随根 Actor（与视口参考线一致，锚点偏移时贴合）
-    lines.position.copy(root.root.position)
-    lines.visible = true
-  }
-
   clearPreview() {
     select(null)
     this.gizmo.detach()
@@ -890,7 +845,6 @@ export class UIPreviewManager {
     this._actorJsonMap = null
     this._actorTreeCache = null
     if (this.viewportBounds) this.viewportBounds.visible = false
-    if (this.safeAreaBounds) this.safeAreaBounds.visible = false
     this.notifyChange()
   }
 
@@ -942,9 +896,8 @@ export class UIPreviewManager {
     }
     applyAnchors(root)
     this.fitToWidget(root.root)
-    // 根画布尺寸已变化 → 更新 Game 渲染视口范围框 + 安全区参考线
+    // 根画布尺寸已变化 → 更新 Game 渲染视口范围框
     this.updateViewportBounds()
-    this.updateSafeAreaBounds()
     this.notifyChange()
     logger.info(`[UIPreview] 视口比例 ${(ratio * 100).toFixed(0)}:100 → 根画布 ${(wh * ratio).toFixed(2)}x${wh.toFixed(2)}`)
   }

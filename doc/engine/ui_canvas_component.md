@@ -32,7 +32,6 @@
 | `zOrder` | number | 0 | UI 层级（越大越靠前）：`renderOrder` + `position.z = zOrder × 0.001` 分层 |
 | `active` | boolean | true | 节点级显隐（false = 不渲染，统一隐藏自身 + 子树渲染对象） |
 | `markerOnly` | boolean | false | 仅标记模式：不创建渲染 mesh，仅声明"本 Actor 是 UI" |
-| `safeArea` | number | 5 | TV 安全区内缩百分比 [0,15] |
 | `hitTest` | `'visible' \| 'block' \| 'hitTestInvisible'` | `'visible'` | 命中测试模式（仿 UE EVisibility） |
 
 ### hitTest 枚举语义（仿 UE）
@@ -151,4 +150,4 @@ PhySys.raycastClick → ClickableComponent.uiZOrder（owner 及祖先链最大 c
 
 - 蓝图组件声明：`ComponentRegistry` 注册（`registerBuiltinComponents.ts`），props 透传 `hitTest`
 - 资产检查：`comp:CanvasUIComponent` assetLint checker（schema 含 hitTest 枚举）
-- Inspector 可编辑：`hitTest`（enum）/ `active` / `zOrder` / `safeArea`
+- Inspector 可编辑：`hitTest`（enum）/ `active` / `zOrder`

@@ -6,6 +6,7 @@ import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChan
 import { Actor, Component, type EditableProperty, type EditablePropertyAssetTarget } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
+import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
 
 function formatSaveTime(iso: string): string {
   try {
@@ -52,7 +53,7 @@ const vecAxisInputStyle: React.CSSProperties = {
  * - vec2/vec3 → 分量数字输入（blur/Enter 提交）
  * - color → 颜色选择器（即时提交）
  */
-function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, siblingComponents }: {
+function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, siblingComponents, scenePreviewMgr }: {
   prop: EditableProperty
   onEdited: () => void
   /** 蓝图预览模式注入：提交走资产通道（工作副本 + 撤销快照）；无 → 运行时 prop.set 直改 */
@@ -61,6 +62,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
   currentComp?: Component
   /** 同 actor 的其它组件（蓝图模式下随本次编辑一并持久化其 persistentProps，原子进撤销栈） */
   siblingComponents?: Component[]
+  /** 场景预览模式注入：运行时直改后调用 commitPropertyEdit 进撤回系统（不重建预览） */
+  scenePreviewMgr?: { commitPropertyEdit(): void } | null
 }) {
   const [val, setVal] = useState<unknown>(prop.get())
   /** 只读属性：由系统推导（如 widget 根节点视口尺寸），输入禁用、仅展示当前值 */
@@ -166,6 +169,8 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
       // 游戏模式/非蓝图：直接改运行时组件
       console.log(`[Inspector] 属性已提交(运行时直改): ${prop.key} = ${JSON.stringify(v)}`)
       prop.set(v)
+      // 场景预览模式：直改已生效，补一个撤回点（对比基准有变化才 push，不重建预览）
+      scenePreviewMgr?.commitPropertyEdit()
     }
     onEdited()
   }
@@ -330,13 +335,15 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
  * 单条属性行：注册了可编辑属性 → 渲染编辑器；否则 → 只读展示。
  */
 function ComponentPropertyRow({
-  comp, k, v, onEdited, assetTarget, siblingComponents,
+  comp, k, v, onEdited, assetTarget, siblingComponents, scenePreviewMgr,
 }: {
   comp: Component; k: string; v: unknown; onEdited: () => void
   /** 蓝图预览模式注入的资产持久化目标（组件级）；null → 运行时直改 */
   assetTarget?: EditablePropertyAssetTarget | null
   /** 同 actor 的其它组件（蓝图模式下随本次编辑一并持久化，原子进撤销栈） */
   siblingComponents?: Component[]
+  /** 场景预览模式注入：直改后进撤回系统 */
+  scenePreviewMgr?: { commitPropertyEdit(): void } | null
 }) {
   const editable = (comp.getEditableProperties ? comp.getEditableProperties() : [])
     .find((p) => p.key === k)
@@ -346,7 +353,7 @@ function ComponentPropertyRow({
     <div className="property-row" style={{ gap: 4, padding: '2px 0', alignItems: 'center' }}>
       <span style={{ flex: '0 0 92px', fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{humanizeKey(k)}</span>
       {editable ? (
-        <EditablePropertyInput prop={editable} onEdited={onEdited} assetTarget={target ?? undefined} currentComp={comp} siblingComponents={siblingComponents} />
+        <EditablePropertyInput prop={editable} onEdited={onEdited} assetTarget={target ?? undefined} currentComp={comp} siblingComponents={siblingComponents} scenePreviewMgr={scenePreviewMgr ?? undefined} />
       ) : (
         <span
           style={{
@@ -361,7 +368,12 @@ function ComponentPropertyRow({
   )
 }
 
-function ActorComponentsView({ actor, assetPath = null }: { actor: Actor; assetPath?: string | null }) {
+function ActorComponentsView({ actor, assetPath = null, scenePreviewMgr }: {
+  actor: Actor
+  assetPath?: string | null
+  /** 场景预览模式：直改属性后提交撤回点（不重建预览） */
+  scenePreviewMgr?: { commitPropertyEdit(): void } | null
+}) {
   const components = (actor as any).components as Component[] | undefined
   // 折叠状态：组件名 → 是否折叠（默认展开；切换选中对象时重置）
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -438,6 +450,7 @@ function ActorComponentsView({ actor, assetPath = null }: { actor: Actor; assetP
                     assetTarget={makeTarget(comp.persistType)}
                     onEdited={() => setEditNonce((n) => n + 1)}
                     siblingComponents={components.filter((c) => c !== comp)}
+                    scenePreviewMgr={scenePreviewMgr}
                   />
                 ))
               ))}
@@ -468,7 +481,11 @@ function highlightMatch(text: string, query: string): React.ReactNode {
  * 搜索组件属性：按"组件名匹配 → 显示整组；属性名匹配 → 只显示匹配属性"过滤，
  * 结果仍按组件分组展示，保留所属组标题（UE 风格）。
  */
-function ComponentSearchResults({ actor, query, assetPath = null }: { actor: Actor; query: string; assetPath?: string | null }) {
+function ComponentSearchResults({ actor, query, assetPath = null, scenePreviewMgr }: {
+  actor: Actor; query: string; assetPath?: string | null
+  /** 场景预览模式：直改属性后提交撤回点（不重建预览） */
+  scenePreviewMgr?: { commitPropertyEdit(): void } | null
+}) {
   const components = (actor as any).components as Component[] | undefined
   const [editNonce, setEditNonce] = useState(0)
   const q = query.trim()
@@ -535,7 +552,7 @@ function ComponentSearchResults({ actor, query, assetPath = null }: { actor: Act
                       {highlightMatch(humanizeKey(k), q)}
                     </span>
                     {editable ? (
-                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} assetTarget={assetT} currentComp={g.comp} siblingComponents={components.filter((c) => c !== g.comp)} />
+                      <EditablePropertyInput prop={editable} onEdited={() => setEditNonce((n) => n + 1)} assetTarget={assetT} currentComp={g.comp} siblingComponents={components.filter((c) => c !== g.comp)} scenePreviewMgr={scenePreviewMgr ?? undefined} />
                     ) : (
                       <span
                         style={{
@@ -987,6 +1004,11 @@ export function Inspector() {
   const blueprintSelection = useEditorStore((s) => s.blueprintSelection)
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const isBlueprintTab = activeTabId.startsWith('bp:')
+  // 场景预览页签（sp: 前缀）：属性直改走 ScenePreviewManager.commitPropertyEdit 进撤回系统
+  const isScenePreviewTab = activeTabId.startsWith('sp:')
+  const scenePreviewMgr = isScenePreviewTab
+    ? AssetPreviewManager.get<import('../editor/asset/ScenePreviewManager').ScenePreviewManager>(activeTabId.slice(3))
+    : null
   // 蓝图被编辑后刷新当前选中元素的数据，避免显示陈旧快照
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
 
@@ -1080,7 +1102,7 @@ export function Inspector() {
           </div>
         )}
         {actorTarget && !blueprintSelection && searchQuery.trim() ? (
-          <ComponentSearchResults actor={actorTarget} query={searchQuery} assetPath={isBlueprintTab ? activeTabId.slice(3) : null} />
+          <ComponentSearchResults actor={actorTarget} query={searchQuery} assetPath={isBlueprintTab ? activeTabId.slice(3) : null} scenePreviewMgr={scenePreviewMgr} />
         ) : (
           <>
             {blueprintSelection && isBlueprintTab ? (
@@ -1104,7 +1126,7 @@ export function Inspector() {
               isActor && actorTarget ? (
                 <>
                   <div className="property-group-title" style={{ marginBottom: 6 }}>{actorTarget.name}</div>
-                  <ActorComponentsView actor={actorTarget} />
+                  <ActorComponentsView actor={actorTarget} scenePreviewMgr={scenePreviewMgr} />
                 </>
               ) : selected instanceof THREE.Object3D ? (
                 <Object3DInfoView obj={selected} />

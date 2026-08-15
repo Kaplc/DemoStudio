@@ -5,13 +5,28 @@
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
         "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [0, 0]
+        "anchorOffset": [
+          0,
+          0
+        ],
+        "anchor": null
       }
     },
     {
@@ -22,7 +37,7 @@
         "name": "Canvas",
         "zOrder": 0,
         "active": true,
-        "safeArea": 5
+        "hitTest": "visible"
       }
     },
     {
@@ -41,13 +56,28 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              2.2750000000000004,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "top-center",
             "worldWidth": 9.6,
             "worldHeight": 0.85,
-            "anchorOffset": [0, 0]
+            "anchorOffset": [
+              0,
+              0
+            ]
           }
         },
         {
@@ -56,7 +86,8 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0,
-            "active": true
+            "active": true,
+            "hitTest": "visible"
           }
         }
       ],
@@ -69,11 +100,28 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "stretch",
-                "anchorOffset": [0, 0]
+                "position": [
+                  0,
+                  0.224864100411013,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "top-center",
+                "anchorOffset": [
+                  0,
+                  0
+                ],
+                "worldWidth": 9.6,
+                "worldHeight": 0.4002717991779732
               }
             },
             {
@@ -81,7 +129,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -93,7 +143,8 @@
                 "width": 1920,
                 "height": 170,
                 "name": "TopBarWood",
-                "zOrder": 0
+                "zOrder": 0,
+                "hitTest": "visible"
               }
             }
           ],
@@ -107,13 +158,28 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  -4.045227987822671,
+                  0.2261574886552867,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "top-left",
-                "anchorOffset": [0.55, -0.08],
-                "worldWidth": 2.5,
-                "worldHeight": 0.62
+                "anchorOffset": [
+                  0.17,
+                  -0.09
+                ],
+                "worldWidth": 1.17,
+                "worldHeight": 0.22
               }
             },
             {
@@ -121,7 +187,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -132,7 +200,8 @@
                 "width": 500,
                 "height": 124,
                 "name": "PillFrame",
-                "zOrder": 1
+                "zOrder": 1,
+                "hitTest": "visible"
               }
             }
           ],
@@ -145,13 +214,28 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0.0007959618235979585,
+                      0.005224229058412258,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 2.42,
-                    "worldHeight": 0.54
+                    "anchorOffset": [
+                      0,
+                      0.01
+                    ],
+                    "worldWidth": 1.1641552127988692,
+                    "worldHeight": 0.22017017364572755
                   }
                 },
                 {
@@ -159,7 +243,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 0
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -170,7 +256,8 @@
                     "width": 484,
                     "height": 108,
                     "name": "PillInner",
-                    "zOrder": 2
+                    "zOrder": 2,
+                    "hitTest": "visible"
                   }
                 }
               ],
@@ -183,11 +270,26 @@
                     {
                       "baseClass": "UITransformComponent",
                       "properties": {
-                        "position": [0, 0, 0],
-                        "rotation": [0, 0, 0],
-                        "scale": [1, 1, 1],
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
                         "anchor": "center",
-                        "anchorOffset": [0, 0],
+                        "anchorOffset": [
+                          0,
+                          0
+                        ],
                         "worldWidth": 2.3,
                         "worldHeight": 0.5
                       }
@@ -197,13 +299,15 @@
                       "properties": {
                         "markerOnly": true,
                         "name": "UIMarker",
-                        "zOrder": 0
+                        "zOrder": 0,
+                        "active": true,
+                        "hitTest": "visible"
                       }
                     },
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "🪙 金币: 100",
+                        "text": "金币: 100",
                         "fontSize": 30,
                         "color": "#ffd700",
                         "bold": true,
@@ -214,7 +318,11 @@
                         "name": "GoldText",
                         "italic": false,
                         "shadowColor": "rgba(0,0,0,0.6)",
-                        "shadowBlur": 6
+                        "shadowBlur": 6,
+                        "hitTest": "visible",
+                        "lineHeight": 1.4,
+                        "letterSpacing": 0,
+                        "fontSizeScale": 0.00625
                       }
                     }
                   ],
@@ -232,13 +340,28 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  -2.676054008846868,
+                  0.23037968981579382,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "top-left",
-                "anchorOffset": [3.2, -0.08],
-                "worldWidth": 2.5,
-                "worldHeight": 0.62
+                "anchorOffset": [
+                  1.56,
+                  -0.07
+                ],
+                "worldWidth": 1.1205682302247262,
+                "worldHeight": 0.25303577919439846
               }
             },
             {
@@ -246,7 +369,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -257,7 +382,8 @@
                 "width": 500,
                 "height": 124,
                 "name": "ElixirPillFrame",
-                "zOrder": 1
+                "zOrder": 1,
+                "hitTest": "visible"
               }
             }
           ],
@@ -270,13 +396,28 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      -0.006423184559744666,
+                      -0.01,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 2.42,
-                    "worldHeight": 0.54
+                    "anchorOffset": [
+                      -0.01,
+                      -0.01
+                    ],
+                    "worldWidth": 1.115729576654789,
+                    "worldHeight": 0.25261838129681813
                   }
                 },
                 {
@@ -284,7 +425,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 0
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -295,7 +438,8 @@
                     "width": 484,
                     "height": 108,
                     "name": "ElixirPillInner",
-                    "zOrder": 2
+                    "zOrder": 2,
+                    "hitTest": "visible"
                   }
                 }
               ],
@@ -308,13 +452,28 @@
                     {
                       "baseClass": "UITransformComponent",
                       "properties": {
-                        "position": [0, 0, 0],
-                        "rotation": [0, 0, 0],
-                        "scale": [1, 1, 1],
+                        "position": [
+                          -0.06383899721720077,
+                          0.007879247912900568,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
                         "anchor": "center",
-                        "anchorOffset": [0, 0],
-                        "worldWidth": 2.3,
-                        "worldHeight": 0.5
+                        "anchorOffset": [
+                          -0.06,
+                          0.01
+                        ],
+                        "worldWidth": 0.982465809637719,
+                        "worldHeight": 0.32757102877809086
                       }
                     },
                     {
@@ -322,13 +481,15 @@
                       "properties": {
                         "markerOnly": true,
                         "name": "UIMarker",
-                        "zOrder": 0
+                        "zOrder": 0,
+                        "active": true,
+                        "hitTest": "visible"
                       }
                     },
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "🧪 药水: 0",
+                        "text": "药水: 0",
                         "fontSize": 30,
                         "color": "#b24cff",
                         "bold": true,
@@ -339,7 +500,11 @@
                         "name": "ElixirText",
                         "italic": false,
                         "shadowColor": "rgba(0,0,0,0.6)",
-                        "shadowBlur": 6
+                        "shadowBlur": 6,
+                        "hitTest": "visible",
+                        "lineHeight": 1.4,
+                        "letterSpacing": 0,
+                        "fontSizeScale": 0.00625
                       }
                     }
                   ],
@@ -357,11 +522,26 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  0,
+                  0.05500000000000001,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "top-center",
-                "anchorOffset": [0, -0.02],
+                "anchorOffset": [
+                  0,
+                  -0.02
+                ],
                 "worldWidth": 4,
                 "worldHeight": 0.7
               }
@@ -372,7 +552,8 @@
                 "markerOnly": true,
                 "name": "UIMarker",
                 "zOrder": 0,
-                "active": false
+                "active": false,
+                "hitTest": "visible"
               }
             },
             {
@@ -389,7 +570,11 @@
                 "height": 100,
                 "zOrder": 2,
                 "name": "TitleText",
-                "italic": false
+                "italic": false,
+                "hitTest": "visible",
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.007
               }
             }
           ],
@@ -403,11 +588,26 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  2.6499999999999995,
+                  0.02500000000000001,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "top-right",
-                "anchorOffset": [-0.55, -0.05],
+                "anchorOffset": [
+                  -0.55,
+                  -0.05
+                ],
                 "worldWidth": 3.2,
                 "worldHeight": 0.7
               }
@@ -418,7 +618,8 @@
                 "markerOnly": true,
                 "name": "UIMarker",
                 "zOrder": 0,
-                "active": false
+                "active": false,
+                "hitTest": "visible"
               }
             },
             {
@@ -434,7 +635,12 @@
                 "name": "HintText",
                 "italic": false,
                 "shadowColor": "rgba(0,0,0,0.55)",
-                "shadowBlur": 4
+                "shadowBlur": 4,
+                "hitTest": "visible",
+                "bold": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.01
               }
             }
           ],
@@ -450,13 +656,28 @@
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "position": [
+              0,
+              -2.325,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "anchor": "bottom-center",
             "worldWidth": 9.6,
             "worldHeight": 0.75,
-            "anchorOffset": [0, 0]
+            "anchorOffset": [
+              0,
+              0
+            ]
           }
         },
         {
@@ -464,7 +685,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 0,
+            "active": true,
+            "hitTest": "visible"
           }
         }
       ],
@@ -477,11 +700,28 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "stretch",
-                "anchorOffset": [0, 0]
+                "anchorOffset": [
+                  0,
+                  0
+                ],
+                "worldWidth": 9.6,
+                "worldHeight": 0.75
               }
             },
             {
@@ -489,7 +729,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -501,7 +743,8 @@
                 "width": 1920,
                 "height": 150,
                 "name": "ActionDock",
-                "zOrder": 0
+                "zOrder": 0,
+                "hitTest": "visible"
               }
             }
           ],
@@ -515,12 +758,27 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  -0.62,
+                  0.040000000000000036,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "bottom-center",
-                "anchorOffset": [-0.62, 0.14],
-                "worldWidth": 1.0,
+                "anchorOffset": [
+                  -0.62,
+                  0.14
+                ],
+                "worldWidth": 1,
                 "worldHeight": 0.55
               }
             },
@@ -529,7 +787,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -540,7 +800,8 @@
                 "width": 200,
                 "height": 110,
                 "name": "BtnBg",
-                "zOrder": 3
+                "zOrder": 3,
+                "hitTest": "visible"
               }
             },
             {
@@ -563,11 +824,26 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "anchorOffset": [
+                      0,
+                      0
+                    ],
                     "worldWidth": 1.08,
                     "worldHeight": 0.62
                   }
@@ -577,7 +853,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 1
+                    "zOrder": 1,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -589,7 +867,8 @@
                     "height": 124,
                     "name": "BtnFrame",
                     "zOrder": 1,
-                    "opacity": 1
+                    "opacity": 1,
+                    "hitTest": "visible"
                   }
                 }
               ],
@@ -603,11 +882,26 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "anchorOffset": [
+                      0,
+                      0
+                    ],
                     "worldWidth": 0.95,
                     "worldHeight": 0.4
                   }
@@ -617,7 +911,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 0
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -634,7 +930,11 @@
                     "name": "Label",
                     "italic": false,
                     "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2
+                    "shadowBlur": 2,
+                    "hitTest": "visible",
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.006667
                   }
                 }
               ],
@@ -650,12 +950,27 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "position": [
+                  0.62,
+                  0.040000000000000036,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "anchor": "bottom-center",
-                "anchorOffset": [0.62, 0.14],
-                "worldWidth": 1.0,
+                "anchorOffset": [
+                  0.62,
+                  0.14
+                ],
+                "worldWidth": 1,
                 "worldHeight": 0.55
               }
             },
@@ -664,7 +979,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -675,7 +992,8 @@
                 "width": 200,
                 "height": 110,
                 "name": "BtnBg",
-                "zOrder": 3
+                "zOrder": 3,
+                "hitTest": "visible"
               }
             },
             {
@@ -698,11 +1016,26 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "anchorOffset": [
+                      0,
+                      0
+                    ],
                     "worldWidth": 1.08,
                     "worldHeight": 0.62
                   }
@@ -712,7 +1045,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 1
+                    "zOrder": 1,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -724,7 +1059,8 @@
                     "height": 124,
                     "name": "BtnFrame",
                     "zOrder": 1,
-                    "opacity": 1
+                    "opacity": 1,
+                    "hitTest": "visible"
                   }
                 }
               ],
@@ -738,11 +1074,26 @@
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "anchorOffset": [
+                      0,
+                      0
+                    ],
                     "worldWidth": 0.95,
                     "worldHeight": 0.4
                   }
@@ -752,7 +1103,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 0
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -769,7 +1122,11 @@
                     "name": "Label",
                     "italic": false,
                     "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2
+                    "shadowBlur": 2,
+                    "hitTest": "visible",
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.006667
                   }
                 }
               ],
