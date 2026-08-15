@@ -248,7 +248,7 @@ src/engine/
 
 | 项目 | 玩法 | 核心文件 |
 |---|---|---|
-| **fish**（ClashMaster 部落冲突） | 基地建造 + 兵种训练 + 攻打敌方基地关卡 | `gameplay/`：`FishGameInstance`（三阶段路由）、`FishMainMenuGameMode`、`FishBaseGameMode`（村庄基地）、`FishLevelGameMode`（战斗关卡）、`FishGameMode`、`ClashBaseBuilder`、`ClashBuildingActors`（6 建筑类）、`BattleTroopActor`（兵）、`FishGMConsoleHUD`（GM 面板）<br>`FishConfigLoader.ts`：加载 cannon/troop/levels 等配置表<br>场景：`fish.scene.json` / `fish_menu.scene.json` / `fish_base.scene.json` / `fish_level{1,2,3}.scene.json`<br>详见 [`projects/clash_master.md`](./projects/clash_master.md) |
+| **fish**（ClashMaster 部落冲突） | 基地建造 + 兵种训练 + 攻打敌方基地关卡 | `gameplay/`：`FishGameInstance`（三阶段路由）、`FishMainMenuGameMode`、`FishBaseGameMode`（村庄基地）、`FishLevelGameMode`（战斗关卡）、`FishGameMode`、`ClashBaseBuilder`、`ClashBuildingActors`（6 建筑类）、`troops/`（每兵种一个 Actor 类 + 4 个战斗组件）、`FishGMConsoleHUD`（GM 面板）<br>`FishConfigLoader.ts`：加载 cannon/troop/levels 等配置表<br>场景：`fish.scene.json` / `fish_menu.scene.json` / `fish_base.scene.json` / `fish_level{1,2,3}.scene.json`<br>详见 [`projects/clash_master.md`](./projects/clash_master.md) |
 | **snake**（贪吃蛇） | 蛇吃食物 | `SnakeGameInstance` / `SnakeGameMode` / `SnakePlayerController` / `SnakePawn` / `SnakeFoodPawn` + `snake.scene.json` |
 | **racing** | 竞速 | — |
 | **eatfish** | 吃鱼 | — |

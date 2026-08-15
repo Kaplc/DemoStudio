@@ -37,9 +37,11 @@ import type { World } from '../gameflow/World'
 import type { ResolvedChildDef } from '../asset/BlueprintAsset'
 
 /**
- * 浮动面板层级基准：运行时动态生成的 UI（地图面板/暂停菜单等）整树 zOrder 提升此值，
- * 保证盖过常驻 HUD（three.js 透明物体按全局 renderOrder 排序，若浮动面板 zOrder
- * 不高于 HUD 内部文字的高 zOrder，下层 HUD 文字会穿透绘制到面板之上）。
+ * 浮动面板层级基准（兼容保留）。
+ *
+ * 渲染层级已由 reassignTreeOrder 按大纲树序遍历自动分配（树中靠后的节点覆盖
+ * 靠前的），浮动面板作为 HUD 子树末尾节点天然获得更高层级，本基准仅作为
+ * 非树序路径（如程序化直接设置 zOrder）的兜底偏移常量保留。
  */
 export const FLOAT_LAYER_BIAS = 100
 
@@ -291,9 +293,11 @@ export class UIManager extends AObjectComponent<World> {
   }
 
   /**
-   * 提升一棵 UI 树的 zOrder（浮动面板层级基准）：递归遍历所有 CanvasUIComponent
-   * （UIText/UIImage 继承自它，setter 会同步各自渲染对象的 renderOrder/position.z），
-   * 使整棵浮动面板位于常驻 HUD 之上（zOrder 是全局渲染顺序，层内相对顺序不变）。
+   * 提升一棵 UI 树的 zOrder（浮动面板层级基准，兼容保留）：
+   * 树序遍历分配（reassignTreeOrder）已保证浮动面板（HUD 子树末尾）天然盖过
+   * 常驻 HUD，此方法保留用于非树序路径的程序化 UI（如 UIScrollList 滚动条）
+   * 叠加兜底偏移。递归遍历所有 CanvasUIComponent（UIText/UIImage 继承自它，
+   * setter 会同步各自渲染对象的 renderOrder/position.z）。
    */
   private applyFloatLayerBias(actor: Actor): void {
     const walk = (a: Actor): void => {
@@ -341,7 +345,8 @@ export class UIManager extends AObjectComponent<World> {
 
   /** 处理待生成的 UI Actor */
   private commitSpawn() {
-    if (this._pendingSpawn.length > 0) this._uiListDirty = true
+    const changed = this._pendingSpawn.length > 0
+    if (changed) this._uiListDirty = true
     for (const actor of this._pendingSpawn) {
       this._uiActors.add(actor)
       if (!actor.parent) {
@@ -352,11 +357,14 @@ export class UIManager extends AObjectComponent<World> {
       }
     }
     this._pendingSpawn = []
+    // UI 树结构变化 → 按大纲树序重排渲染层级（树中靠后的节点覆盖靠前的）
+    if (changed) this.reassignTreeOrder()
   }
 
   /** 处理待销毁的 UI Actor */
   private commitDestroy() {
-    if (this._pendingDestroy.length > 0) this._uiListDirty = true
+    const changed = this._pendingDestroy.length > 0
+    if (changed) this._uiListDirty = true
     for (const actor of this._pendingDestroy) {
       if (this._uiActors.has(actor)) {
         actor.EndPlay()
@@ -368,6 +376,41 @@ export class UIManager extends AObjectComponent<World> {
       }
     }
     this._pendingDestroy = []
+    // 节点移除后树序出现空洞，重排保持层级连续（相对顺序不变）
+    if (changed) this.reassignTreeOrder()
+  }
+
+  /**
+   * 按大纲树序遍历重排渲染层级（zOrder）。
+   *
+   * 渲染层级 = 大纲树结构位置：深度优先遍历所有顶层 UI Actor（顺序与 UiOutline
+   * 大纲一致：父→子、兄→弟），为每个节点的 CanvasUIComponent 分配递增的 zOrder
+   * —— 树中靠后的节点（大纲中"在下面"的：子节点、后面的兄弟）zOrder 更大，
+   * 渲染在上层，覆盖前面的节点。
+   *
+   * 特殊层：HUD 子类可覆写 layerBaseZ（如 GM 控制台 = GM_ZORDER_BASE），该子树
+   * 整树抬升其层基准（GM 面板始终盖过常规 UI 树，浮动面板因树序靠后天然在
+   * 常驻 HUD 之上）。
+   *
+   * 调用时机：UI 树结构变化后（commitSpawn / commitDestroy / 程序化挂载）。
+   */
+  reassignTreeOrder(): void {
+    let order = 0
+    const walk = (a: Actor, base: number): void => {
+      // 特殊层 HUD（GM 控制台等）：子树整体抬升其层基准（子树内相对顺序不变）
+      const nodeBase = a instanceof HUD && a.layerBaseZ > 0 ? a.layerBaseZ : base
+      // 同节点多个 canvas 组件（UIText/UIImage/UIMarker）共享同一层级，
+      // 靠各自 position.z 微偏移（UIText +0.0002）区分渲染前后
+      for (const comp of a.getComponents(CanvasUIComponent)) {
+        comp.zOrder = nodeBase + order
+      }
+      order += 1
+      for (const child of a.getChildren()) walk(child, nodeBase)
+    }
+    for (const a of this._uiActors) {
+      if (a.parent) continue
+      walk(a, 0)
+    }
   }
 
   /** 读取并清除 UI Actor 列表变化标记（由 World 在每帧提交后消费，触发 onActorListChanged 通知） */

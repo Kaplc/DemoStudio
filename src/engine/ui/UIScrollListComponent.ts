@@ -432,6 +432,9 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     // 幂等保险：owner 已 BeginPlay（重建场景）时手动触发，父链传播不会重复
     if (!thumb.bHasBegunPlay) thumb.BeginPlay()
     this._scrollbarThumb = thumb
+    // 滚动条为程序化创建（不经过 spawnUIActor），挂载后重排树序：
+    // 滚动条位于容器树末尾 → 树序靠后 → 盖过列表 item（大纲顺序即渲染层级）
+    this.owner.world?.ui?.reassignTreeOrder()
     logger.info(`[UIScrollListComponent] 滚动条已创建: owner="${this.owner.name}" track zOrder=${trackImg.zOrder} thumb zOrder=${img.zOrder}`)
   }
 

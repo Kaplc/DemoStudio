@@ -12,7 +12,7 @@ import * as THREE from 'three'
 import { GenericActor, MeshComponent, logger } from '@/engine'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
-import type { BattleTroopActor } from './BattleTroopActor'
+import type { TroopActor } from './troops/TroopActors'
 
 export class BattleProjectileActor extends GenericActor {
   /** 起始位置（世界坐标） */
@@ -28,7 +28,7 @@ export class BattleProjectileActor extends GenericActor {
   /** 目标建筑（命中建筑扣建筑血；与 targetTroop 二选一） */
   private readonly targetBuilding: ClashBuildingBaseActor | null
   /** 目标兵（命中兵扣兵血；与 targetBuilding 二选一） */
-  private readonly targetTroop: BattleTroopActor | null
+  private readonly targetTroop: TroopActor | null
   /** 总飞行距离（超出即视为未命中销毁，防永久飞行） */
   private readonly totalDist: number
   /** 已飞行距离 */
@@ -41,7 +41,7 @@ export class BattleProjectileActor extends GenericActor {
     speed: number,
     damage: number,
     color: number,
-    target: ClashBuildingBaseActor | BattleTroopActor,
+    target: ClashBuildingBaseActor | TroopActor,
   ) {
     super(`BattleProjectile_${Math.floor(Math.random() * 100000)}`)
     this.gm = gm
@@ -89,8 +89,8 @@ export class BattleProjectileActor extends GenericActor {
       // 命中结算
       if (this.targetBuilding && !this.targetBuilding.bPendingDestroy) {
         this.gm.damageBuilding(this.targetBuilding, this.damage)
-      } else if (this.targetTroop && !this.targetTroop.isDead) {
-        this.targetTroop.takeDamage(this.damage)
+      } else if (this.targetTroop && !this.targetTroop.health.isDead) {
+        this.targetTroop.health.takeDamage(this.damage)
       }
       this.destroy()
       return

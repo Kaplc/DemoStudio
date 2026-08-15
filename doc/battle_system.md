@@ -14,7 +14,7 @@
 |---|---|
 | `FishGameInstance` | 阶段路由（`enterLevel` / `returnToBase`）、资源组件（金币+药水）、训练组件持有者、`window.__fishBattle` 调试桥 |
 | `FishLevelGameMode` | 战斗权威：收集敌方建筑/hp 表/血条组件、兵索敌与碰撞、防御塔开火、放兵交互、胜负判定、掠夺入账、结算面板 |
-| `BattleTroopActor` | 兵 Actor：直线移动 + 被挡攻击阻挡物 + 远程站桩 + preferred 索敌 + 飞行越墙（模型为蓝图胶囊体子 Actor） |
+| `TroopActors.ts`（`gameplay/battle/troops/`） | 兵 Actor 集合：**每个兵种一个 Actor 类**（BarbarianActor/PekkaActor 等 10 类，无基类），战斗功能全部由组件组合承载（TroopHealthComponent 受击死亡 / TroopTargetComponent 索敌 / TroopMoveComponent 移动阻挡 / TroopAttackComponent 攻击节奏）；工厂 `createTroopActor(troopId, ...)` 按 id 实例化，`TroopActor` 接口为统一视图 |
 | `BuildingHealthBarComponent` | 建筑血条组件：默认隐藏、受击显示、3 秒无受击自动隐藏（全权自管，GameMode 只调 onDamaged） |
 | `BattleProjectileActor` | 弹丸 Actor：直线飞行、命中扣血（建筑/兵双目标）、超出路程自毁 |
 | `BattleHudScript` | 战斗 HUD：兵种卡片（数量/禁用/放置高亮）+ 已部署统计，每帧刷新 |
@@ -30,7 +30,11 @@
 | 类 / 模块 | 说明 |
 |---|---|
 | `FishLevelGameMode`（`gameplay/level/FishLevelGameMode.ts`） | 战斗 GameMode（mode="level" 注册）：`collectBuildings`/`attachHealthBar`（挂 `BuildingHealthBarComponent`）、`damageBuilding`/`onBuildingDestroyed`、`getBestTargetFor`/`findBlockerAt`/`fireTroopAttack`、防御塔 `Tick` 索敌、`onScreenDown`/`spawnTroopActor`（蓝图预检 + 放兵）、`finishBattle` 胜负+入账+结算面板 |
-| `BattleTroopActor`（`gameplay/battle/BattleTroopActor.ts`） | 覆写 `Tick` 的兵：射程内站桩攻击（间隔 0.5s，伤害=dps×0.5）；射程外直线移动；地面兵 AABB 碰撞阻挡回退；`takeDamage` 死亡回调；模型 = 蓝图胶囊体子 Actor（构造时 attachTo） |
+| 兵种 Actor（`gameplay/battle/troops/TroopActors.ts`） | **每兵种一个 Actor 类**（extends GenericActor 显式具名，无共同基类）：Barbarian/Archer/Goblin/Giant/WallBreaker/Balloon/Wizard/Healer/Dragon/PekkaActor；构造只做装配（共享 `assembleTroop`：定位 + 模型 attachTo + 挂组件组合）；`TROOP_ACTOR_CLASSES` 兵种 id → 类映射，`createTroopActor` 工厂实例化 |
+| `TroopHealthComponent`（`gameplay/battle/troops/`） | 兵生命组件：`takeDamage` 扣血 → 死亡回调 GameMode（移出列表 + 失败判定）→ 销毁宿主 |
+| `TroopTargetComponent`（`gameplay/battle/troops/`） | 兵索敌组件：每帧 `getBestTargetFor`（含目标覆盖）输出 `target`，供移动/攻击组件消费；导出 `troopAttackDist`（射程+建筑半宽）判定工具 |
+| `TroopMoveComponent`（`gameplay/battle/troops/`） | 兵移动组件：射程外直线移动；地面兵 AABB 阻挡贴墙 + 目标覆盖；飞行兵无视阻挡 |
+| `TroopAttackComponent`（`gameplay/battle/troops/`） | 兵攻击组件：射程内按间隔 0.5s 开火（伤害=dps×0.5）；dps≤0（healer）不攻击 |
 | `BuildingHealthBarComponent`（`gameplay/common/comp/BuildingHealthBarComponent.ts`） | 建筑血条组件（继承 ActorComponent）：BeginPlay 建背景/前景条（初始不可见）；`onDamaged(ratio)` 显示+刷新+重置 3s 计时；`Tick` 超时直接隐藏 |
 | `CapsuleMeshComponent`（`src/engine/rendering/CapsuleMeshComponent.ts`） | 引擎胶囊体网格组件（继承 MeshComponent）：properties `radius`/`length`/`color`，已注册 ComponentRegistry + assetLint 检查器 |
 | 兵种蓝图 × 10（`asset/blueprints/troops/*.blueprint.json`） | 每兵种一个：`Actor`（注册表注册名，GenericActor 实例）+ `TransformComponent`（贴地 y 偏移 = radius+length/2）+ `CapsuleMeshComponent`（颜色写死）；`TroopType.blueprint` 字段引用 |
@@ -73,7 +77,7 @@ backBtn.onClick = () => inst.returnToBase()
 
 - **进入战斗**：地图面板点关卡卡片（或 `__fishBattle.enterLevel`）→ `enterLevel` → `switchToPhase('game')`
 - **放兵**：HUD 卡片点击（`selectTroop`）→ 战场空地左键（`InputSys` 未被 Clickable 消费 → `OnPointerDownScreen` → `onScreenDown`）；Esc / 再次点卡片 / 右键平移取消放置模式
-- **兵攻击**：`BattleTroopActor.Tick`（World 驱动）索敌 → 攻击间隔 0.5s → `fireTroopAttack` 弹丸
+- **兵攻击**：兵组件组合（TroopTargetComponent 索敌 → TroopMoveComponent 靠近 → TroopAttackComponent 开火）→ 攻击间隔 0.5s → `fireTroopAttack` 弹丸
 - **防御塔攻击**：`FishLevelGameMode.Tick` 冷却计时 → 射程内最近兵 → 弹丸
 - **胜负结算**：摧毁城镇大厅（`onBuildingDestroyed`）或军队全灭（`Tick`/`onTroopDied`）→ `finishBattle` → 掠夺入账 + 结算面板
 - **返回基地**：结算面板按钮 → `returnToBase`（复用三阶段清理流程）
@@ -102,7 +106,7 @@ flowchart TD
   H --> I[点战场空地 onScreenDown]
   I --> J{校验: 军队有兵 / ±24 范围 / 不叠建筑}
   J -->|失败| I
-  J -->|通过| K[spawnTroopActor: 蓝图模型预检 →<br/>deployTroop 军队-1 → 生成 BattleTroopActor]
+  J -->|通过| K[spawnTroopActor: 蓝图模型预检 →<br/>deployTroop 军队-1 → createTroopActor 生成兵 Actor]
   K --> L[兵 Tick: preferred 索敌 → 直线移动]
   L --> M{目标在 range 内?}
   M -->|否| N{地面兵撞阻挡建筑?}
@@ -137,8 +141,8 @@ flowchart TD
 | 场景加载 | `SwitchToScene` | `loadSceneAsActors`（ref → `SpawnActorFromBlueprint`） | 敌方建筑 Actor（ClashBuildingActors 类实例） |
 | 战斗初始化 | `FishLevelGameMode.BeginPlay` | `collectBuildings` / `attachHealthBar`（挂 `BuildingHealthBarComponent`） | hp 表、血条组件（默认隐藏） |
 | HUD 装配 | HUD Actor BeginPlay | `BattleHudScript.onStart`：`spawnUIActor(troop_card)` × 8 | 兵种卡片 + grid 布局 + 统计文本 |
-| 放兵 | 空地左键 | `onScreenDown` → `spawnTroopActor`（蓝图模型预检 → `deployTroop` → `SpawnActor(BattleTroopActor)`） | 场上兵（胶囊体模型子 Actor）+ 军队 -1 |
-| 兵战斗 | `BattleTroopActor.Tick` | `getBestTargetFor` / `findBlockerAt` / `fireTroopAttack` | 移动/攻击/弹丸 |
+| 放兵 | 空地左键 | `onScreenDown` → `spawnTroopActor`（蓝图模型预检 → `deployTroop` → `createTroopActor` → `SpawnActor`） | 场上兵（每兵种 Actor 类 + 胶囊体模型子 Actor）+ 军队 -1 |
+| 兵战斗 | 组件组合 Tick（Target→Move→Attack） | `getBestTargetFor` / `findBlockerAt` / `fireTroopAttack` | 移动/攻击/弹丸 |
 | 防御塔反击 | `FishLevelGameMode.Tick` | `findNearestTroopInRange` → `SpawnActor(BattleProjectileActor)` | 炮弹命中兵扣血 |
 | 胜负结算 | 城镇大厅摧毁 / 兵全灭 | `finishBattle` | `battleEnded=true`、掠夺入账、结算面板 |
 
@@ -146,7 +150,7 @@ flowchart TD
 
 - **敌方基地 = 场景资产**：建筑以 `type: "ref"` 节点写在 `fish_level*.scene.json`，随场景切换加载/销毁（复用 `DestroyAllActors` 清理），GameMode 只读不建；每关卡 ~15 个建筑（L1 城墙横列、L2 城墙围城、L3 双塔 + 城墙横列）
 - **血条 = 运行时挂组件（组件优先）**：不修改建筑蓝图/类，GameMode 在 BeginPlay 给每个建筑挂 `BuildingHealthBarComponent`（组件全权自管：默认隐藏、受击 `onDamaged(ratio)` 显示 + 前景 scale.x 缩水 + <30% 变红 + 重置 3s 计时、`Tick` 超时直接隐藏无动画）；所有建筑（城墙/防御塔/金矿/水库/城镇大厅）规则统一
-- **兵模型 = 蓝图胶囊体**：每个兵种一个 `asset/blueprints/troops/{id}.blueprint.json`（`Actor` + `TransformComponent` 贴地 y 偏移 + `CapsuleMeshComponent`，颜色写死）；`TroopType.blueprint` 字段引用（`DEFAULT_TROOPS`/`troop.table.json`/transform 三处同步，缺失按行键回退路径 + 告警）。放兵时 `spawnTroopActor` 先 `SpawnActorFromBlueprint` 预检模型（严格模式：失败 = 放兵失败、军队不消耗、无兵生成），成功则模型子 Actor attach 到 `BattleTroopActor`。碰撞仍用 `troop.size` 半宽 AABB，飞行兵悬空 y=2 不变
+- **兵模型 = 蓝图胶囊体**：每个兵种一个 `asset/blueprints/troops/{id}.blueprint.json`（`Actor` + `TransformComponent` 贴地 y 偏移 + `CapsuleMeshComponent`，颜色写死）；`TroopType.blueprint` 字段引用（`DEFAULT_TROOPS`/`troop.table.json`/transform 三处同步，缺失按行键回退路径 + 告警）。放兵时 `spawnTroopActor` 先 `SpawnActorFromBlueprint` 预检模型（严格模式：失败 = 放兵失败、军队不消耗、无兵生成），成功则模型子 Actor attach 到兵 Actor（`assembleTroop`）。碰撞仍用 `troop.size` 半宽 AABB，飞行兵悬空 y=2 不变
 - **建筑点击回调兼容**：`ClashBuildingBaseActor` 的点击回调硬编码 cast 成 `FishBaseGameMode` 调 `onBuildingClick`——战斗 GameMode 必须提供同名方法（空实现），否则点击敌方建筑抛 TypeError
 - **放兵走 InputSys 消费链**：UI 按钮与建筑（有 ClickableComponent）的点击被 `PhySys.raycastClick` 消费；草地无 Clickable → 未被消费 → `controller.OnPointerDownScreen` → 放兵。禁叠建筑由 AABB 检查兜底
 - **攻击数值自洽**：兵每 0.5s 打一击，每击伤害 = `dps × 0.5`（每秒总伤害 = dps）；防御塔 `defense.damage/cooldown` 独立配置

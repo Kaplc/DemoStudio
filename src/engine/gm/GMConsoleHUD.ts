@@ -67,6 +67,11 @@ export class GMConsoleHUD extends HUD {
     return 'GM 控制台已就绪（输入 help 查看全部命令）'
   }
 
+  /** 渲染层基准：GM 面板始终最顶层（树序遍历分配时整树抬升 GM_ZORDER_BASE） */
+  override get layerBaseZ(): number {
+    return GM_ZORDER_BASE
+  }
+
   /** 输入框组件（聚焦/取值） */
   protected _input: UITextInputComponent | null = null
   /** 搜索框组件（模糊过滤命令列表；资产可选，缺失时无搜索能力） */

@@ -9,7 +9,7 @@
  *     （BuildingHealthBarComponent：默认隐藏、受击显示、3s 超时隐藏）
  *  2. 战斗 HUD（battle_hud.widget.json，HUDClass）显示兵种卡片栏 + 已部署统计，
  *     BattleHudScript 绑定卡片点击 → selectTroop（放置模式）→ 点击战场放置
- *  3. 兵（BattleTroopActor）自动战斗：直线移动 / 被挡攻击阻挡物 / 远程站桩 /
+ *  3. 兵（每兵种一个 Actor 类 + 组件组合 AI）自动战斗：直线移动 / 被挡攻击阻挡物 / 远程站桩 /
  *     preferred 索敌 / 飞行兵越墙
  *  4. 防御塔：射程内自动攻击最近兵，弹丸（BattleProjectileActor）命中扣血
  *  5. 胜负：摧毁城镇大厅 = 胜；军队全灭 = 败（无时限）；战斗结束一次性掠夺入账
@@ -26,7 +26,7 @@ import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import { PLACE_HALF } from '../base/ClashBaseBuilder'
 import { FishLevelPlayerController } from './FishLevelPlayerController'
 import { FishLevelPawn } from './FishLevelPawn'
-import { BattleTroopActor } from '../battle/BattleTroopActor'
+import { createTroopActor, type TroopActor } from '../battle/troops/TroopActors'
 import { BattleProjectileActor } from '../battle/BattleProjectileActor'
 import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
 import type { FishGameInstance } from '../FishGameInstance'
@@ -60,9 +60,9 @@ export class FishLevelGameMode extends GameMode {
   /** 防御塔攻击冷却计时器：建筑 → 剩余秒数 */
   private cannonCooldown = new Map<ClashBuildingBaseActor, number>()
   /** 场上己方兵列表（死亡后移出） */
-  private troops: BattleTroopActor[] = []
+  private troops: TroopActor[] = []
   /** 兵的目标覆盖（被阻挡攻击阻挡物）：兵 → 目标建筑 */
-  private troopTargetOverride = new Map<BattleTroopActor, ClashBuildingBaseActor>()
+  private troopTargetOverride = new Map<TroopActor, ClashBuildingBaseActor>()
   /** 当前放置模式选中的兵种（null = 未进入放置模式） */
   private selectedTroopId: string | null = null
   /** 战斗是否已结束（胜负已判：兵 AI / 防御塔停火） */
@@ -246,7 +246,7 @@ export class FishLevelGameMode extends GameMode {
   }
 
   // ═══════════════════════════════════════
-  //  兵索敌（BattleTroopActor.Tick 调用）
+  //  兵索敌（TroopTargetComponent.Tick 调用）
   // ═══════════════════════════════════════
 
   /**
@@ -256,7 +256,7 @@ export class FishLevelGameMode extends GameMode {
    *     walls → 城墙，any → 全部）
    *  3. 候选中选最近建筑
    */
-  getBestTargetFor(troop: BattleTroopActor): ClashBuildingBaseActor | null {
+  getBestTargetFor(troop: TroopActor): ClashBuildingBaseActor | null {
     const override = this.troopTargetOverride.get(troop)
     if (override && !override.bPendingDestroy) return override
     if (override) this.troopTargetOverride.delete(troop)
@@ -289,7 +289,7 @@ export class FishLevelGameMode extends GameMode {
   }
 
   /** 设置兵的目标覆盖（被阻挡攻击阻挡物） */
-  setTroopTargetOverride(troop: BattleTroopActor, building: ClashBuildingBaseActor): void {
+  setTroopTargetOverride(troop: TroopActor, building: ClashBuildingBaseActor): void {
     this.troopTargetOverride.set(troop, building)
   }
 
@@ -305,10 +305,10 @@ export class FishLevelGameMode extends GameMode {
   }
 
   /**
-   * 兵攻击建筑（BattleTroopActor 攻击节奏触发）：
+   * 兵攻击建筑（TroopAttackComponent 攻击节奏触发）：
    * 发射弹丸（近战 = 快速挥砍弹丸，远程 = 箭矢），命中后经 damageBuilding 扣血。
    */
-  fireTroopAttack(troop: BattleTroopActor, building: ClashBuildingBaseActor, damage: number): void {
+  fireTroopAttack(troop: TroopActor, building: ClashBuildingBaseActor, damage: number): void {
     const w = this.world
     if (!w || this.battleEnded) return
     const isMelee = troop.troop.range <= 1
@@ -325,12 +325,12 @@ export class FishLevelGameMode extends GameMode {
   // ═══════════════════════════════════════
 
   /** 防御塔射程内最近存活兵（超射程不追击） */
-  private findNearestTroopInRange(tower: ClashBuildingBaseActor, range: number): BattleTroopActor | null {
+  private findNearestTroopInRange(tower: ClashBuildingBaseActor, range: number): TroopActor | null {
     const c = this.buildingCenter(tower)
-    let best: BattleTroopActor | null = null
+    let best: TroopActor | null = null
     let bestDist = range * range
     for (const t of this.troops) {
-      if (t.isDead) continue
+      if (t.health.isDead) continue
       const p = t.root.position
       const d = (p.x - c.x) ** 2 + (p.z - c.z) ** 2
       if (d <= bestDist) {
@@ -455,7 +455,12 @@ export class FishLevelGameMode extends GameMode {
       modelActor.destroy()
       return false
     }
-    const actor = new BattleTroopActor(this, troopId, troop, x, z, modelActor)
+    const actor = createTroopActor(troopId, this, troop, x, z, modelActor)
+    if (!actor) {
+      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 无对应 Actor 类`)
+      modelActor.destroy()
+      return false
+    }
     this.world?.SpawnActor(actor)
     this.troops.push(actor)
     this.deployedCount++
@@ -516,8 +521,8 @@ export class FishLevelGameMode extends GameMode {
   //  兵死亡 / 胜负判定 / 结算
   // ═══════════════════════════════════════
 
-  /** 兵死亡回调（BattleTroopActor.takeDamage → 本方法）：移出列表 + 失败判定 */
-  onTroopDied(troop: BattleTroopActor): void {
+  /** 兵死亡回调（TroopHealthComponent.takeDamage → 本方法）：移出列表 + 失败判定 */
+  onTroopDied(troop: TroopActor): void {
     this.troops = this.troops.filter((t) => t !== troop)
     this.troopTargetOverride.delete(troop)
     logger.info(`[BattleGM] 兵 ${troop.troop.name} 阵亡（场上剩余 ${this.troops.length} 个）`)

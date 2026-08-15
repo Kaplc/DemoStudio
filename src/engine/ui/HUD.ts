@@ -24,6 +24,15 @@ export class HUD extends Actor {
     super(name)
   }
 
+  /**
+   * 渲染层基准（树序之上叠加的层偏移，默认 0）。
+   * 特殊层 HUD（如 GM 控制台）覆写为高层值（GM_ZORDER_BASE），
+   * 保证该 HUD 子树整树渲染层级高于常规 UI 树（UIManager.reassignTreeOrder 据此抬升）。
+   */
+  get layerBaseZ(): number {
+    return 0
+  }
+
   /** 当前 UI Actor（可空） */
   get uiActor(): Actor | null { return this._uiActor }
 
