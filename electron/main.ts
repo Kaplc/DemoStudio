@@ -434,6 +434,30 @@ ipcMain.handle('read-json-file', async (_event, relativePath: string) => {
   }
 })
 
+// ─── 读取文本文件（codeLint 源码扫描等）───
+
+ipcMain.handle('read-text-file', async (_event, relativePath: string) => {
+  try {
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    const baseDir = path.join(__dirname, '..')
+    const fullPath = path.resolve(baseDir, relativePath)
+    // 路径逃逸防护：解析后必须仍在项目根内
+    const rel = path.relative(baseDir, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: `非法路径: ${relativePath}` }
+    }
+    if (!fs.existsSync(fullPath)) {
+      return { success: false, error: `文件不存在: ${relativePath}` }
+    }
+    const content = fs.readFileSync(fullPath, 'utf-8')
+    return { success: true, data: content.replace(/^\uFEFF/, '') }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── 写入 JSON 文件（蓝图资产编辑等）───
 
 ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unknown) => {
@@ -534,13 +558,46 @@ ipcMain.handle('list-project-assets', async (_event, folder: string) => {
   }
 })
 
-// ─── 资产目录监听：文件变化时通知渲染进程（替代定时轮询）───
+// ─── 列出工程源码文件（递归，仅 .ts/.tsx，排除 .d.ts；codeLint 扫描用）───
+
+ipcMain.handle('list-project-src', async (_event, folder: string) => {
+  try {
+    const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder)
+    if (!fs.existsSync(projectRoot)) return []
+
+    const rootAbs = path.join(__dirname, '..')
+    const result: string[] = []
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+          continue
+        }
+        if (!entry.isFile()) continue
+        if (!/\.(ts|tsx)$/i.test(entry.name)) continue
+        if (/\.d\.ts$/i.test(entry.name)) continue // 排除声明文件
+        result.push(path.relative(rootAbs, full).replace(/\\/g, '/'))
+      }
+    }
+    walk(projectRoot)
+    return result
+  } catch (err) {
+    console.error('列出工程源码失败:', err)
+    return []
+  }
+})
+
+// ─── 工程目录监听：资产（asset-changed）+ 源码（src-changed）双通道，替代定时轮询 ───
 
 let assetWatcher: fs.FSWatcher | null = null
 let assetWatchDebounce: NodeJS.Timeout | null = null
+let srcWatcher: fs.FSWatcher | null = null
+let srcWatchDebounce: NodeJS.Timeout | null = null
 
-/** 开始监听某工程 asset 目录（覆盖上一次监听）。仅 *.scene.json / *.blueprint.json / *.widget.json 变化才通知。 */
-ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
+/** 关闭全部目录监听与去抖定时器（重新监听 / 停止监听时调用）。 */
+function closeProjectWatchers(): void {
   if (assetWatcher) {
     try { assetWatcher.close() } catch { /* ignore */ }
     assetWatcher = null
@@ -549,39 +606,66 @@ ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
     clearTimeout(assetWatchDebounce)
     assetWatchDebounce = null
   }
+  if (srcWatcher) {
+    try { srcWatcher.close() } catch { /* ignore */ }
+    srcWatcher = null
+  }
+  if (srcWatchDebounce) {
+    clearTimeout(srcWatchDebounce)
+    srcWatchDebounce = null
+  }
+}
 
-  const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder, 'asset')
+/**
+ * 开始监听某工程目录（覆盖上一次监听）：
+ *   1. asset 子目录：仅 *.scene.json / *.blueprint.json / *.widget.json 变化 → asset-changed（assetLint 用）
+ *   2. 工程根目录：仅 .ts/.tsx（排除 .d.ts）变化 → src-changed（codeLint 用）
+ */
+ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
+  closeProjectWatchers()
+
+  const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder)
   if (!fs.existsSync(projectRoot)) return { ok: false }
   try {
-    assetWatcher = fs.watch(projectRoot, { recursive: true }, (_eventType, filename) => {
+    // 1) 资产目录监听（只在 asset 目录存在时建立）
+    const assetRoot = path.join(projectRoot, 'asset')
+    if (fs.existsSync(assetRoot)) {
+      assetWatcher = fs.watch(assetRoot, { recursive: true }, (_eventType, filename) => {
+        if (!filename) return
+        // 只关心场景/蓝图/widget 资产；代码/其它文件忽略
+        if (!/\.(scene|blueprint|widget)\.json$/i.test(filename)) return
+        // 去抖：编辑器保存常触发多次事件
+        if (assetWatchDebounce) clearTimeout(assetWatchDebounce)
+        assetWatchDebounce = setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('asset-changed', { folder })
+          }
+        }, 300)
+      })
+    }
+
+    // 2) 源码目录监听（工程根目录递归，含 asset/ 下的 *.script.ts；JSON 资产被扩展名过滤自然忽略）
+    srcWatcher = fs.watch(projectRoot, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
-      // 只关心场景/蓝图/widget 资产；代码/其它文件忽略
-      if (!/\.(scene|blueprint|widget)\.json$/i.test(filename)) return
-      // 去抖：编辑器保存常触发多次事件
-      if (assetWatchDebounce) clearTimeout(assetWatchDebounce)
-      assetWatchDebounce = setTimeout(() => {
+      if (!/\.(ts|tsx)$/i.test(filename)) return
+      if (/\.d\.ts$/i.test(filename)) return // 排除声明文件
+      if (srcWatchDebounce) clearTimeout(srcWatchDebounce)
+      srcWatchDebounce = setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('asset-changed', { folder })
+          mainWindow.webContents.send('src-changed', { folder })
         }
       }, 300)
     })
     return { ok: true }
   } catch (err) {
-    console.error('监听资产目录失败:', err)
+    console.error('监听工程目录失败:', err)
     return { ok: false }
   }
 })
 
-/** 停止资产目录监听（关闭工程/切换工程时调用）。 */
+/** 停止工程目录监听（关闭工程/切换工程时调用）。 */
 ipcMain.handle('stop-watch-project-assets', async () => {
-  if (assetWatcher) {
-    try { assetWatcher.close() } catch { /* ignore */ }
-    assetWatcher = null
-  }
-  if (assetWatchDebounce) {
-    clearTimeout(assetWatchDebounce)
-    assetWatchDebounce = null
-  }
+  closeProjectWatchers()
   return { ok: true }
 })
 

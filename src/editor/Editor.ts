@@ -13,6 +13,7 @@ import { FpsTracker } from './FpsTracker'
 import { LogPoller } from './LogPoller'
 import { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 import './asset/assetLint/checkers' // side-effect：注册所有内置资产检查器
+import { codeLintEngine } from './codeLint/CodeLintEngine'
 
 export interface EditorCallbacks {
   addConsoleOutput: (text: string) => void
@@ -86,6 +87,10 @@ export class Editor {
     // 4.5 启动资产格式检查器（单例：首扫 + 30s 定时；scanOnce 直接从 store 读当前工程，
     //     工程切换时缓存按路径自然失效 → 全量重扫，无需订阅）
     assetLintEngine.start()
+
+    // 4.6 启动代码扫描检查器（单例：事件驱动，工程切换全扫 + src-changed 去抖增量重扫；
+    //     内置规则检查器由 CodeLintEngine 模块加载时经 checkers barrel 自注册）
+    codeLintEngine.start()
 
     addConsoleOutput('基于 Three.js + Electron + React')
     addConsoleOutput('')

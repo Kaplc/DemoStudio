@@ -10,6 +10,7 @@ import { NewProjectDialog } from './components/NewProjectDialog'
 import { ResizeHandle } from './components/ResizeHandle'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
+import { CodeLintPanel } from './components/CodeLintPanel'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
@@ -142,6 +143,8 @@ export default function App() {
         fps={appInfo.fps}
         projectName={appInfo.project}
       />
+      {/* codeLint tips 悬浮面板（fixed 定位，状态栏上方，不占布局） */}
+      <CodeLintPanel />
       <ProjectSelector />
       <NewProjectDialog />
     </div>

@@ -48,6 +48,14 @@ const configJsonModules = import.meta.glob<Record<string, unknown>>(
 // 所有项目文件路径（仅取 glob keys，不 import 内容；供 listProjectAssets 列资产用）
 const allFileKeys = Object.keys(import.meta.glob('../projects/**/*.*'))
 
+// 源码原始文本映射（codeLint readTextFile 用）：?raw 的 default 导出即文件内容字符串（纯文本）。
+// 注意：不能 fetch('/path?raw') —— Vite dev 对 .ts 的 ?raw 响应是模块代码（export default "..." 包装），
+// 而非纯文本；import.meta.glob 的 loader 在运行时解析模块取 default，才是真实文件内容。
+const rawSrcModules = import.meta.glob<string>('../projects/**/*.{ts,tsx}', {
+  query: '?raw',
+  import: 'default',
+})
+
 /** 代码扩展名（列资产时排除） */
 const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts']
 
@@ -253,6 +261,38 @@ const mockAPI: ElectronAPI = {
   watchProjectAssets: async () => ({ ok: false }),
   stopWatchProjectAssets: async () => ({ ok: false }),
   onAssetChanged: () => (() => {}),
+
+  // ─── 源码扫描（codeLint；与 Electron 主进程同签名同语义）───
+
+  listProjectSrc: async (folder: string) => {
+    // 复用既有 allFileKeys（keys-only glob）按 folder 前缀过滤，不新增模块注册
+    const prefix = `../projects/${folder}/`
+    const result: string[] = []
+    for (const key of allFileKeys) {
+      if (!key.startsWith(prefix)) continue
+      if (!/\.(ts|tsx)$/i.test(key)) continue
+      if (/\.d\.ts$/i.test(key)) continue // 排除声明文件
+      result.push(normalizePath(key)) // src/... 形式，与 Electron 通道一致
+    }
+    return result
+  },
+
+  readTextFile: async (relativePath: string) => {
+    // 路径归一化为 glob key（src/projects/... → ../projects/...）
+    const key = relativePath.replace(/^src\//, '../')
+    const loader = rawSrcModules[key]
+    if (loader) {
+      try {
+        return { success: true, data: await loader() }
+      } catch (err) {
+        return { success: false, error: `Mock: 读取失败: ${String(err)}` }
+      }
+    }
+    return { success: false, error: `Mock: file not found: ${relativePath}` }
+  },
+
+  // 浏览器 Mock 无真实文件监听：onSrcChanged 永不触发
+  onSrcChanged: () => (() => {}),
 
   // ─── 存档系统（localStorage） ───
 

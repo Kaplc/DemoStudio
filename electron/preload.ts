@@ -100,7 +100,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 列出项目资产文件（排除代码）───
   listProjectAssets: (folder: string) => ipcRenderer.invoke('list-project-assets', folder),
 
-  // ─── 资产目录监听：文件变化通知（供 AssetLint 事件驱动检查，替代定时轮询）───
+  // ─── 列出工程源码文件（.ts/.tsx，排除 .d.ts；codeLint 用）───
+  listProjectSrc: (folder: string) => ipcRenderer.invoke('list-project-src', folder),
+
+  // ─── 读取文本文件（codeLint 源码扫描用）───
+  readTextFile: (relativePath: string) => ipcRenderer.invoke('read-text-file', relativePath),
+
+  // ─── 工程目录监听：文件变化通知（资产→AssetLint / 源码→codeLint，替代定时轮询）───
   watchProjectAssets: (folder: string) => ipcRenderer.invoke('watch-project-assets', folder),
   stopWatchProjectAssets: () => ipcRenderer.invoke('stop-watch-project-assets'),
   onAssetChanged: (callback: (folder: string) => void) => {
@@ -108,6 +114,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('asset-changed', handler)
     return () => {
       ipcRenderer.removeListener('asset-changed', handler)
+    }
+  },
+  onSrcChanged: (callback: (folder: string) => void) => {
+    const handler = (_event: unknown, payload: { folder: string }) => callback(payload?.folder)
+    ipcRenderer.on('src-changed', handler)
+    return () => {
+      ipcRenderer.removeListener('src-changed', handler)
     }
   },
 

@@ -485,6 +485,152 @@ html, body, #root {
   gap: 12px;
 }
 
+/* ── 状态栏 codeLint 入口 ── */
+
+.status-codelint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 3px;
+  user-select: none;
+}
+
+.status-codelint:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.status-codelint.clean {
+  color: var(--success);
+  opacity: 0.75;
+}
+
+.status-codelint.open {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.codelint-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.status-codelint.has-issues .codelint-icon {
+  color: var(--error);
+}
+
+.codelint-badge {
+  background: #f14c4c;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  min-width: 14px;
+  text-align: center;
+}
+
+/* ═══ CodeLint tips 悬浮面板 ═══ */
+
+.codelint-panel {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--status-bar-height) + 8px);
+  width: 440px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 9000;
+  overflow: hidden;
+}
+
+.codelint-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.codelint-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.codelint-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.codelint-btn {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.codelint-btn:hover {
+  background: var(--bg-active);
+}
+
+.codelint-panel-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.codelint-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--success);
+  font-size: 12px;
+}
+
+.codelint-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.codelint-item:hover {
+  background: var(--bg-hover);
+}
+
+.codelint-item:last-child {
+  border-bottom: none;
+}
+
+.codelint-rule {
+  color: var(--error);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.codelint-msg {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.codelint-pos {
+  color: var(--info);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 /* ═══ 工程选择器弹窗 ═══ */
 
 .modal-overlay {

@@ -33,12 +33,18 @@ export interface ElectronAPI {
   sendBlueprintResponse: (requestId: string, result: unknown) => void
   discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }>>
   listProjectAssets: (folder: string) => Promise<Array<{ path: string; ext: string; size: number }>>
-  /** 监听某工程 asset 目录（覆盖上一次监听）；返回是否成功 */
+  /** 列出工程源码文件（.ts/.tsx，排除 .d.ts），返回相对项目根的路径列表（codeLint 用） */
+  listProjectSrc: (folder: string) => Promise<string[]>
+  /** 读取文本文件（codeLint 源码扫描用），返回 {success, data?, error?} 信封 */
+  readTextFile: (relativePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+  /** 监听某工程目录（asset + src，覆盖上一次监听）；返回是否成功 */
   watchProjectAssets: (folder: string) => Promise<{ ok: boolean }>
-  /** 停止资产目录监听 */
+  /** 停止工程目录监听 */
   stopWatchProjectAssets: () => Promise<{ ok: boolean }>
   /** 资产文件变化回调（返回取消订阅函数）。folder 为发生变化的工程目录名 */
   onAssetChanged: (callback: (folder: string) => void) => () => void
+  /** 源码文件变化回调（返回取消订阅函数）。folder 为发生变化的工程目录名 */
+  onSrcChanged: (callback: (folder: string) => void) => () => void
 
   // ─── 存档系统（userData-scoped；meta 结构与 ISaveData.SaveMeta 对齐）───
   saveGameFile: (game: string, slot: string, data: unknown) => Promise<{ success: boolean; error?: string; savedAt?: string }>

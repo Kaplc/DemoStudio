@@ -33,6 +33,7 @@
 | [`editor/blueprint_edit_system.md`](./editor/blueprint_edit_system.md) | 蓝图编辑：BlueprintEditorService / blueprintOps / UndoManager |
 | [`editor/property_edit_system.md`](./editor/property_edit_system.md) | 属性修改：Inspector 双通道编辑（EditableProperty / 蓝图资产 vs 运行时） |
 | [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
+| [`editor/code_lint_system.md`](./editor/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器（加源码违规规则时查） |
 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
 
 ## 项目文档（src/projects/）
