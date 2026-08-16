@@ -286,7 +286,7 @@ export class ScenePreviewManager {
     // 用 world.SpawnActor 挂载（带生命周期；与场景内 actor 一致）
     const makeLightActor = (name: string, options: LightComponentOptions) => {
       const actor = new GenericActor(name)
-      actor.addComponent(new LightComponent(actor, options))
+      actor.addComponent(LightComponent, options)
       this.world.SpawnActor(actor)
       return actor
     }
@@ -345,7 +345,7 @@ export class ScenePreviewManager {
 
       result.group.remove(mesh)
       const actor = new GenericActor(`Preview_${mesh.name || ''}`)
-      actor.addComponent(new PrimitiveMeshComponent(actor, mesh))
+      actor.addComponent(PrimitiveMeshComponent, mesh)
       actor.attachTo(rootActor)
       this.world.SpawnActor(actor)
     }

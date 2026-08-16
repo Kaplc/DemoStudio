@@ -386,7 +386,7 @@ export class PreviewSceneManager {
     // （Actor.root 带 userData.actorRef，getSceneTree 会正确显示名字而非裸 THREE 类型）
     const makeLightActor = (name: string, options: LightComponentOptions) => {
       const actor = new GenericActor(name)
-      actor.addComponent(new LightComponent(actor, options))
+      actor.addComponent(LightComponent, options)
       this.scene.add(actor.root)
       return actor
     }

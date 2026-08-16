@@ -293,7 +293,7 @@ export class BlueprintPreviewManager {
     // 灯光 actor 化：灯光挂到 Actor（LightComponent），大纲显示为可选中/可编辑的节点
     const makeLightActor = (name: string, options: LightComponentOptions): void => {
       const actor = new GenericActor(name)
-      actor.addComponent(new LightComponent(actor, options))
+      actor.addComponent(LightComponent, options)
       this.scene.add(actor.root)
     }
     makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.7 })

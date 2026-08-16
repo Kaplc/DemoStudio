@@ -10,7 +10,7 @@
  * 3 秒未再受击自动隐藏。组件随建筑销毁自动释放（MeshComponent 机制）。
  *
  * 挂载方式（FishLevelGameMode.collectBuildings）：
- *   building.addComponent(new BuildingHealthBarComponent(building))
+ *   building.addComponent(BuildingHealthBarComponent)
  */
 import * as THREE from 'three'
 import { ActorComponent, GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
@@ -54,7 +54,7 @@ export class BuildingHealthBarComponent extends ActorComponent {
     const bgActor = new GenericActor('HealthBarBg')
     const bg = w.createBoxMesh(1.4, 0.18, 0.05, BAR_BG_COLOR)
     bg.position.y = barY
-    bgActor.addComponent(new PrimitiveMeshComponent(bgActor, bg, 'HealthBarBg'))
+    bgActor.addComponent(PrimitiveMeshComponent, bg, 'HealthBarBg')
     bgActor.attachTo(this.owner)
     // 前景条（绿色，左端锚定背景左端：geometry 平移使本地原点 = 左端 →
     // 缩放 scale.x 时左端不动、右端收缩；position.x = -0.7 把左端放到背景左端）
@@ -62,7 +62,7 @@ export class BuildingHealthBarComponent extends ActorComponent {
     const fg = w.createBoxMesh(1.3, 0.14, 0.06, BAR_FG_COLOR)
     fg.geometry.translate(0.65, 0, 0)
     fg.position.set(-0.7, barY, 0)
-    fgActor.addComponent(new PrimitiveMeshComponent(fgActor, fg, 'HealthBarFg'))
+    fgActor.addComponent(PrimitiveMeshComponent, fg, 'HealthBarFg')
     fgActor.attachTo(this.owner)
     this.bg = bg
     this.fg = fg

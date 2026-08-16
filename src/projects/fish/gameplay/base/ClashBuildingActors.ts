@@ -54,13 +54,13 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
     if (!hasMeshes) {
       const base = w.createBoxMesh(this.type.size + 0.5, 0.15, this.type.size + 0.5, 0x4e342e)
       base.position.y = 0.075
-      this.addComponent(new PrimitiveMeshComponent(this, base, 'BaseMesh'))
+      this.addComponent(PrimitiveMeshComponent, base, 'BaseMesh')
 
       // ─── 主体（彩色立方体）→ 子 Actor（BodyMeshActor 挂 1 个 MeshComponent）───
       const bodyActor = new GenericActor('BodyMeshActor')
       const body = w.createBoxMesh(this.type.size, this.type.height, this.type.size, this.type.color)
       body.position.y = 0.15 + this.type.height / 2
-      bodyActor.addComponent(new PrimitiveMeshComponent(bodyActor, body, 'BodyMesh'))
+      bodyActor.addComponent(PrimitiveMeshComponent, body, 'BodyMesh')
       bodyActor.attachTo(this)
       // BeginPlay 由父链传播（Actor.BeginPlay 递归 children）
     }
@@ -70,7 +70,7 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
       this.glow = w.createEdgesBox(this.type.size + 0.25, this.type.height + 0.25, this.type.size + 0.25, 0xffd700, true, 0.9)
       this.glow.position.y = 0.15 + this.type.height / 2
       this.glow.visible = false
-      this.addComponent(new LineComponent(this, this.glow, 'GlowLine'))
+      this.addComponent(LineComponent, this.glow, 'GlowLine')
     }
 
     // ─── 点击：蓝图已声明 ClickableComponent 则复用，只绑回调 ───

@@ -93,15 +93,15 @@ export class GMConsoleHUD extends HUD {
 
     // ═══ 根组件：全屏变换 + 画布（zOrder 高，盖过项目 HUD） ═══
     // 根节点无父画布容器：省略 anchor（默认 null，非锚点模式用 position 定位）
-    this.addComponent(new UITransformComponent(this, {
+    this.addComponent(UITransformComponent, {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
       worldWidth: 9.6,
       worldHeight: 5.4,
       anchorOffset: [0, 0],
-    }))
-    this.addComponent(new CanvasUIComponent(this, {
+    })
+    this.addComponent(CanvasUIComponent, {
       width: 1920,
       height: 1080,
       name: 'Canvas',
@@ -109,7 +109,7 @@ export class GMConsoleHUD extends HUD {
       active: true,
       // 拦截点击：全屏画布命中即消费，点击不穿透到后面的地图面板/游戏世界（仿 UE block）
       hitTest: 'block',
-    }))
+    })
 
     // 控件树：优先资产驱动（项目自定义面板），缺失回退程序化 buildUI
     if (this.panelAssetPath) {
@@ -437,7 +437,7 @@ export class GMConsoleHUD extends HUD {
     tsf: { anchor: AnchorPreset; offset?: [number, number]; w: number; h: number; zOrder: number },
   ): GenericActor {
     const actor = new GenericActor(name)
-    actor.addComponent(new UITransformComponent(actor, {
+    actor.addComponent(UITransformComponent, {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
@@ -445,12 +445,12 @@ export class GMConsoleHUD extends HUD {
       anchorOffset: tsf.offset ?? [0, 0],
       worldWidth: tsf.w,
       worldHeight: tsf.h,
-    }))
-    actor.addComponent(new CanvasUIComponent(actor, {
+    })
+    actor.addComponent(CanvasUIComponent, {
       markerOnly: true,
       name: 'UIMarker',
       zOrder: GM_ZORDER_BASE + tsf.zOrder,
-    }))
+    })
     return actor
   }
 

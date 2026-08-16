@@ -125,9 +125,9 @@ export class World extends AObject {
       .join(' ← ')
     this.scene = scene
     // UI 管理器组件：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
-    this.addComponent(new UIManager(this))
+    this.addComponent(UIManager)
     // Actor 管理组件：Actor 生成/销毁/查询
-    this.addComponent(new ActorManagerComponent(this))
+    this.addComponent(ActorManagerComponent)
     // Game 视口渲染器组件：DOM 保存在 instance.renderContainer，由 Game 启动时取出创建
     if (gameMode) {
       this.SetGameMode(gameMode)
@@ -607,7 +607,7 @@ export class World extends AObject {
 
       asset.group.remove(mesh)
       const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
-      actor.addComponent(new PrimitiveMeshComponent(actor, mesh))
+      actor.addComponent(PrimitiveMeshComponent, mesh)
       actor.attachTo(rootActor)
       this.SpawnActor(actor)
       count++

@@ -50,7 +50,7 @@
 import { CanvasUIComponent, type UIHitTestMode } from '@/engine'
 
 const actor = new GenericActor('Modal')
-actor.addComponent(new UITransformComponent(actor, { worldWidth: 9.6, worldHeight: 5.4 }))
+actor.addComponent(UITransformComponent, { worldWidth: 9.6, worldHeight: 5.4 })
 const canvas = new CanvasUIComponent(actor, {
   width: 1920, height: 1080,
   hitTest: 'block',            // 拦截点击（模态遮罩）

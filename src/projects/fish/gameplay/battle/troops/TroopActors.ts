@@ -48,9 +48,9 @@ function assembleTroop(
   // 功能组件组合：生命（受击/死亡）→ 索敌（目标输出）→ 移动（寻路/阻挡）→ 攻击（节奏/开火）
   actor.health = new TroopHealthComponent(actor, gm, troop)
   ;(actor as GenericActor).addComponent(actor.health)
-  ;(actor as GenericActor).addComponent(new TroopTargetComponent(actor, gm, troop))
-  ;(actor as GenericActor).addComponent(new TroopMoveComponent(actor, gm, troop))
-  ;(actor as GenericActor).addComponent(new TroopAttackComponent(actor, gm, troop))
+  ;(actor as GenericActor).addComponent(TroopTargetComponent, gm, troop)
+  ;(actor as GenericActor).addComponent(TroopMoveComponent, gm, troop)
+  ;(actor as GenericActor).addComponent(TroopAttackComponent, gm, troop)
 }
 
 /** 部署日志（BeginPlay 共享输出，class 名标识兵种 Actor 类） */

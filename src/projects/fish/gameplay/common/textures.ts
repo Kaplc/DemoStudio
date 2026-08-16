@@ -556,17 +556,6 @@ export function makeBubbleTexture(): THREE.Texture {
   return toTexture(c)
 }
 
-/** 径向闪光（炮口闪光，中心亮 → 边缘透明） */
-export function makeFlashTexture(): THREE.Texture {
-  const [c, ctx] = makeCanvas(64, 64)
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
-  g.addColorStop(0, 'rgba(255,250,210,0.95)')
-  g.addColorStop(0.4, 'rgba(255,213,79,0.6)')
-  g.addColorStop(1, 'rgba(255,213,79,0)')
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64)
-  return toTexture(c)
-}
-
 /** 飞行炮弹（亮光球，中心白 → 边缘透明） */
 export function makeBulletTexture(): THREE.Texture {
   const [c, ctx] = makeCanvas(32, 32)

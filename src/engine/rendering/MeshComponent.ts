@@ -12,7 +12,7 @@
  * 代码用法（THREE 对象必须经 Game 工厂创建，禁止裸 new）：
  *   const actor = new GenericActor('Cube')
  *   const mesh = game.createMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial())
- *   actor.addComponent(new PrimitiveMeshComponent(actor, mesh))
+ *   actor.addComponent(PrimitiveMeshComponent, mesh)
  *   world.SpawnActor(actor)
  *
  * 一个 Actor 只能挂载一个 mesh（组合网格请拆子 Actor，如 new GenericActor + attachTo）。

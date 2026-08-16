@@ -64,7 +64,7 @@ export class PlaceGridActor extends GenericActor {
     )
     this.lines.object.position.y = this.options.y ?? 0
     this.lines.object.visible = this.options.visible ?? false
-    this.addComponent(new LineComponent(this, this.lines, 'GridLines'))
+    this.addComponent(LineComponent, this.lines, 'GridLines')
     logger.info(`[PlaceGridActor] "${this.name}" 已创建（范围 [${this.options.min}, ${this.options.max}]，步长 ${this.options.step}）`)
   }
 

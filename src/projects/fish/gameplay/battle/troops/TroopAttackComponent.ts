@@ -6,7 +6,7 @@
  * 近战/远程差异由配置 range 决定（fireTroopAttack 内部区分挥砍/箭矢）。
  *
  * 挂载方式（TroopActors 装配函数）：
- *   actor.addComponent(new TroopAttackComponent(actor, gm, troop))
+ *   actor.addComponent(TroopAttackComponent, gm, troop)
  */
 import { ActorComponent, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'

@@ -6,7 +6,7 @@
  * 原 BattleTroopActor.takeDamage 逻辑拆出，组件优先原则。
  *
  * 挂载方式（TroopActors 装配函数）：
- *   actor.addComponent(new TroopHealthComponent(actor, gm, troop))
+ *   actor.addComponent(TroopHealthComponent, gm, troop)
  */
 import { ActorComponent, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'

@@ -22,7 +22,26 @@ export abstract class AObject extends OObject {
   //  Component 管理
   // ═══════════════════════════════════
 
-  addComponent(component: AObjectComponent): AObjectComponent {
+  /** 实例版：直接传入已构造的组件实例（兼容旧写法） */
+  addComponent(component: AObjectComponent): AObjectComponent
+  /**
+   * 类版（推荐）：传入组件类，内部自动 new Cls(this, ...args)（owner 自动传入），
+   * 随后与实例版走完全相同的挂载流程（幂等检查/同名警告/MeshComponent 校验），
+   * 并返回新实例（调用方可用返回值保存引用或继续链式配置）。
+   * 示例：this.sprite = this.addComponent(SpriteComponent, 2.4, 2.4, 'CannonSprite')
+   * ...args 与组件构造参数严格类型匹配（编译期检查，非 any 透传）。
+   */
+  addComponent<T extends AObjectComponent, Args extends unknown[]>(
+    Cls: new (owner: this, ...args: Args) => T,
+    ...args: Args
+  ): T
+  addComponent(
+    componentOrCls: AObjectComponent | (new (...args: any[]) => AObjectComponent),
+    ...args: unknown[]
+  ): AObjectComponent {
+    // 类版：自动实例化（owner 自动传入）；实例版：直接使用
+    const component: AObjectComponent =
+      typeof componentOrCls === 'function' ? new componentOrCls(this, ...args) : componentOrCls
     // 幂等：同一实例重复添加直接忽略（不重复入列）
     if (this.components.includes(component)) {
       logger.warn(`[AObject] 组件实例重复添加已忽略: ${component.constructor.name}（owner=${this.constructor.name}）`)

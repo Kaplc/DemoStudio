@@ -81,7 +81,23 @@ export abstract class BObject extends AObject {
 
   // 方法参数双变（method bivariance）：参数从 AObjectComponent 收窄为 BObjectComponent，
   // BObject 挂载的组件均有生命周期钩子，可直接调用 BeginPlay/EndPlay
-  override addComponent(component: BObjectComponent): BObjectComponent {
+  override addComponent(component: BObjectComponent): BObjectComponent
+  /**
+   * 类版（推荐）：传入组件类，内部自动 new Cls(this, ...args)（owner 自动传入），
+   * 保留"BeginPlay 后挂载自动 BeginPlay"行为。
+   * ...args 与组件构造参数严格类型匹配（编译期检查，非 any 透传）。
+   */
+  addComponent<T extends BObjectComponent, Args extends unknown[]>(
+    Cls: new (owner: this, ...args: Args) => T,
+    ...args: Args
+  ): T
+  override addComponent(
+    componentOrCls: BObjectComponent | (new (...args: any[]) => BObjectComponent),
+    ...args: unknown[]
+  ): BObjectComponent {
+    // 类版：自动实例化（owner 自动传入）；实例版：直接使用
+    const component: BObjectComponent =
+      typeof componentOrCls === 'function' ? new componentOrCls(this, ...args) : componentOrCls
     super.addComponent(component)
     if (this.bHasBegunPlay && component.bEnabled) {
       component.BeginPlay()

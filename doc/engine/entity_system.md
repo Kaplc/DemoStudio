@@ -40,7 +40,7 @@
 
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| 组件挂载 | `actor.addComponent(comp)` | 给 Actor 挂组件（AObject 提供） |
+| 组件挂载 | `actor.addComponent(comp)` / `actor.addComponent(Cls, ...args)` | 给 Actor 挂组件（AObject 提供）；类版自动 `new Cls(this, ...args)`（owner 自动传入，...args 严格匹配构造参数，**推荐**） |
 | 组件查询 | `actor.getComponent<T>(Class)` / `getComponents(Class)` | 按类型取组件（首个/全部） |
 | 子节点挂载 | `actor.attachTo(child, parent?)` | 建立子 Actor 树（内联子节点经此挂载，不进 `World.allActors`） |
 | 生命周期 | `BeginPlay()` / `Tick(dt)` / `EndPlay()` | 构造后由挂载方驱动，递归传播 |
@@ -52,7 +52,7 @@
 class MyActor extends Actor {
   constructor() {
     super('MyActor')
-    this.addComponent(new TransformComponent(this, { position: [0, 1, 0] }))
+    this.addComponent(TransformComponent, { position: [0, 1, 0] })
   }
   BeginPlay() {
     super.BeginPlay()

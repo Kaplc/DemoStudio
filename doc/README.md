@@ -17,6 +17,7 @@
 | [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：相机族 / 渲染组件 / Compositor2D / 纹理 |
 | [`engine/ui_system.md`](./engine/ui_system.md) | 世界 UI：UIManager / HUD / UI 控件组件 |
 | [`engine/ui_canvas_component.md`](./engine/ui_canvas_component.md) | CanvasUIComponent 组件：画布渲染 + hitTest 命中测试（visible/block/hitTestInvisible，拦截点击时查） |
+| [`engine/muzzle_flash_component.md`](./engine/muzzle_flash_component.md) | MuzzleFlashComponent 组件（fish 项目）：炮口闪光特效（放大+淡出，组件内聚渲染，修改开炮特效时查） |
 | [`engine/input_physics_script_system.md`](./engine/input_physics_script_system.md) | 输入 / 物理 / 脚本：InputSys / PhySys / ScriptRegistry |
 | [`engine/asset_tools_system.md`](./engine/asset_tools_system.md) | 资产与工具：AssetRegistry / BlueprintRegistry / 配置表 / 存档 |
 | [`engine/ai_system.md`](./engine/ai_system.md) | AI 事件系统：AIModule 事件总线（MCP 控制游戏） |

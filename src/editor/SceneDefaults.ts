@@ -30,7 +30,7 @@ export function addDefaultContent(scene: THREE.Scene): GenericActor {
 
   const makeLightActor = (name: string, options: LightComponentOptions): void => {
     const actor = new GenericActor(name)
-    actor.addComponent(new LightComponent(actor, options))
+    actor.addComponent(LightComponent, options)
     actor.attachTo(container)
   }
   makeLightActor('AmbientLight', { type: 'ambient', color: '#ffffff', intensity: 0.6 })

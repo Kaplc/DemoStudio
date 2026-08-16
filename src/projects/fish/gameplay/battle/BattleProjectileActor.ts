@@ -72,7 +72,7 @@ export class BattleProjectileActor extends GenericActor {
     if (!w) return
     // 小立方体弹丸（0.3×0.3×0.3，颜色区分来源：防御塔暗灰、己方兵兵种色）
     const mesh = w.createBoxMesh(0.3, 0.3, 0.3, this._color)
-    this.addComponent(new PrimitiveMeshComponent(this, mesh, 'ProjMesh'))
+    this.addComponent(PrimitiveMeshComponent, mesh, 'ProjMesh')
   }
 
   /**

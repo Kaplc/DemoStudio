@@ -61,7 +61,7 @@ export class ClashBaseBuilder extends BObject {
     const grass = world.createPlaneMesh(GRASS_SIZE, GRASS_SIZE, 0x7cb342)
     grass.rotation.x = -Math.PI / 2
     grass.position.y = -0.05
-    decor.addComponent(new PrimitiveMeshComponent(decor, grass, 'GrassMesh'))
+    decor.addComponent(PrimitiveMeshComponent, grass, 'GrassMesh')
 
     // 装饰 Actor 进 World 统一管理
     world.SpawnActor(decor)

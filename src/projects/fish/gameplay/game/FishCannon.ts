@@ -1,14 +1,15 @@
 /**
  * FishCannon — 炮台(玩家 Pawn)
  * 跟随鼠标旋转炮管；按住连射；金币不足无法开炮。
- * 炮口闪光直接用 Sprite 挂在炮台下，不依赖对象池。
+ * 炮口闪光由 MuzzleFlashComponent 组件自管（放大 + 淡出动画），本类只负责触发。
  */
 import * as THREE from 'three'
-import { Pawn, SpriteComponent, ConfigRegistry, PrimitiveMeshComponent, logger, GameInstance } from '@/engine'
-import { makeCannonTexture, makeFlashTexture } from '../common/textures'
+import { Pawn, SpriteComponent, ConfigRegistry, GameInstance } from '@/engine'
+import { makeCannonTexture } from '../common/textures'
 import { CANNON_Y } from '../common/types'
 import type { CannonConfig } from '../common/types'
 import type { FishGameInstance } from '../FishGameInstance'
+import { MuzzleFlashComponent } from './comp/MuzzleFlashComponent'
 
 // 炮台纹理按等级缓存
 const _cannonTex = new Map<number, THREE.Texture>()
@@ -18,13 +19,6 @@ function cannonTexture(level: number): THREE.Texture {
   return t
 }
 
-// 闪光纹理
-let _flashTex: THREE.Texture | null = null
-function flashTex(): THREE.Texture {
-  if (!_flashTex) _flashTex = makeFlashTexture()
-  return _flashTex
-}
-
 export class FishCannon extends Pawn {
   private sprite: SpriteComponent
   level: number = 1
@@ -32,35 +26,13 @@ export class FishCannon extends Pawn {
   private firing = false
   private cooldown = 0
 
-  // ─── 炮口闪光（每个 Cannon 持有一个，反复用） ───
-  private flashMat: THREE.MeshBasicMaterial
-  private flashMesh: THREE.Mesh
-  private flashVisible = false
-  private flashAge = 0
-  private flashTTL = 0.15
-  private flashGrow = 6
-
   constructor() {
     super('FishCannon')
-    this.sprite = new SpriteComponent(this, 2.4, 2.4, 'CannonSprite')
+    this.sprite = this.addComponent(SpriteComponent, 2.4, 2.4, 'CannonSprite')
     this.sprite.setTexture(cannonTexture(1))
-    this.addComponent(this.sprite)
 
-    // 炮口闪光 mesh（直接挂在炮台 root 下，朝向 +Z）
-    this.flashMat = new THREE.MeshBasicMaterial({
-      map: flashTex(),
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    })
-    this.flashMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      this.flashMat,
-    )
-    this.flashMesh.position.set(0, 1.4, 0.3) // 默认在炮口位置（朝 +Y）
-    this.flashMesh.visible = false
-    // MeshComponent 托管：挂 root + EndPlay 自动释放 geometry/material（纹理 flashTex 为共享缓存不释放）
-    this.addComponent(new PrimitiveMeshComponent(this, this.flashMesh, 'FlashMesh'))
+    // 炮口闪光组件（mesh/材质/动画全部内聚在组件内部，本类只触发）
+    this.addComponent(MuzzleFlashComponent)
 
     this.setPosition(0, CANNON_Y, 0.2)
   }
@@ -89,19 +61,6 @@ export class FishCannon extends Pawn {
     super.Tick(dt)
     if (this.cooldown > 0) this.cooldown -= dt
     if (this.firing && this.cooldown <= 0) this.tryFire()
-
-    // 炮口闪光动画
-    if (this.flashVisible) {
-      this.flashAge += dt
-      const k = this.flashAge / this.flashTTL
-      const s = 1 + this.flashGrow * this.flashAge
-      this.flashMesh.scale.set(s, s, 1)
-      this.flashMat.opacity = Math.max(0, 1 - k)
-      if (this.flashAge >= this.flashTTL) {
-        this.flashVisible = false
-        this.flashMesh.visible = false
-      }
-    }
   }
 
   /** 开炮 */
@@ -134,18 +93,9 @@ export class FishCannon extends Pawn {
       })
     }
 
-    // ─── 炮口闪光（本地 mesh，位置已在构造时固定到炮口，随 root 旋转自动跟随） ───
-    this.flashMesh.scale.set(cfg.netRadius * 2.6, cfg.netRadius * 2.6, 1)
-    this.flashMesh.visible = true
-    this.flashVisible = true
-    this.flashAge = 0
-    this.flashMat.opacity = 0.9
+    // ─── 炮口闪光（MuzzleFlashComponent 自管动画；位置已固定在炮口，随 root 旋转自动跟随） ───
+    this.getComponent(MuzzleFlashComponent)?.flash(cfg.netRadius * 2.6)
 
     return true
-  }
-
-  override EndPlay() {
-    // flashMesh 的 geometry/material 由 MeshComponent.EndPlay 自动释放（纹理 flashTex 为共享缓存，不释放）
-    super.EndPlay()
   }
 }

@@ -55,7 +55,7 @@ export class FishHouseActor extends BuildingActor {
     this.clickZone.position.y = 1.2
     this.clickZone.userData.isHouse = true
     // MeshComponent 托管：挂 root + EndPlay 自动释放资源
-    this.addComponent(new PrimitiveMeshComponent(this, this.clickZone, 'ClickZoneMesh'))
+    this.addComponent(PrimitiveMeshComponent, this.clickZone, 'ClickZoneMesh')
   }
 
   /**
@@ -68,7 +68,7 @@ export class FishHouseActor extends BuildingActor {
     this.glowWireframe.position.y = 1.2
     this.glowWireframe.visible = false
     // LineComponent 托管：挂 root + EndPlay 自动释放资源
-    this.addComponent(new LineComponent(this, this.glowWireframe, 'GlowLine'))
+    this.addComponent(LineComponent, this.glowWireframe, 'GlowLine')
   }
 
   // ═══════════════════════════════════

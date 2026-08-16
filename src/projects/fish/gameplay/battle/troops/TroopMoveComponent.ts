@@ -8,7 +8,7 @@
  *    并把阻挡物设为目标覆盖（部落冲突式：被挡攻击阻挡物，不绕行）
  *
  * 挂载方式（TroopActors 装配函数）：
- *   actor.addComponent(new TroopMoveComponent(actor, gm, troop))
+ *   actor.addComponent(TroopMoveComponent, gm, troop)
  */
 import { ActorComponent, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'

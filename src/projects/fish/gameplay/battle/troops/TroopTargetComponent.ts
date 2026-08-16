@@ -6,7 +6,7 @@
  * 输出 `target` 供移动/攻击组件消费（组件间通过 getComponent 协作）。
  *
  * 挂载方式（TroopActors 装配函数）：
- *   actor.addComponent(new TroopTargetComponent(actor, gm, troop))
+ *   actor.addComponent(TroopTargetComponent, gm, troop)
  */
 import { ActorComponent, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'

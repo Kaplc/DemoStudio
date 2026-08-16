@@ -6,10 +6,10 @@
  *
  * 用法：
  *   const actor = new GenericActor('KeyLight')
- *   actor.addComponent(new LightComponent(actor, {
+ *   actor.addComponent(LightComponent, {
  *     type: 'directional', color: '#ffffff', intensity: 1.2,
  *     position: [20, 30, 10], castShadow: true,
- *   }))
+ *   })
  *   world.SpawnActor(actor)   // 或 scene.add(actor.root)（无 World 的纯预览场景）
  *
  * 支持类型：directional / point / ambient / hemisphere / spot。

@@ -10,7 +10,7 @@
  * 用法（THREE 对象必须经 Game 工厂创建，禁止裸 new）：
  *   const actor = new GenericActor('Grid')
  *   const lines = game.createLine(new THREE.BufferGeometry(), new THREE.LineBasicMaterial())
- *   actor.addComponent(new LineComponent(actor, lines))
+ *   actor.addComponent(LineComponent, lines)
  *   world.SpawnActor(actor)
  */
 import * as THREE from 'three'
