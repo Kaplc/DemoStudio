@@ -620,6 +620,36 @@ html, body, #root {
   font-size: 11px;
 }
 
+/* 资产问题严重级别：error 红 / warn 黄 */
+.codelint-rule.asset-sev-error {
+  color: var(--error);
+}
+
+.codelint-rule.asset-sev-warn {
+  color: #f0a500;
+}
+
+/* 面板分节（代码问题 / 资产问题） */
+.codelint-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.codelint-section:last-child {
+  border-bottom: none;
+}
+
+.codelint-section-title {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #9a9a9a);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 .codelint-msg {
   color: var(--text-primary);
   font-size: 12px;

@@ -19,12 +19,16 @@ import { GenericActor, PrimitiveMeshComponent, Actor } from '../../engine'
 import { LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { SceneAsset } from '../../engine'
+import type { BlueprintChildDef } from '../../engine'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import { UndoManager } from '../blueprintEdit/UndoManager'
+import { uniqueNodeName, cloneTemplateComponents } from '../blueprintEdit/nodeTemplates'
+import type { NodeTemplate } from '../blueprintEdit/nodeTemplates'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
+import { ColliderDebugDrawer } from './ColliderDebugDrawer'
 
 /** 磁盘路径（src/projects/...）→ 撤销栈 key（asset/...），与蓝图/UI 资产同粒度 */
 function diskPathToAssetKey(diskPath: string): string {
@@ -39,6 +43,9 @@ export class ScenePreviewManager {
   readonly world: World
   readonly gizmo: TransformGizmo
 
+  /** 碰撞盒线框绘制器（预览模式从组件属性解析几何，V 键开关） */
+  private colliderDrawer: ColliderDebugDrawer | null = null
+
   private container: HTMLElement
   private animationId: number | null = null
   private lastTime = 0
@@ -49,6 +56,8 @@ export class ScenePreviewManager {
   private _actorTreeCache: SceneTreeNode[] | null = null
   /** Actor → 场景 JSON 节点映射（loadSceneAsset 构建；ref 实例名 ≠ 场景节点名，名称匹配会失败） */
   private _actorJsonMap = new Map<Actor, Record<string, unknown>>()
+  /** Actor → JSON 节点路径（从 objects 顶层开始的 name 链，供嵌套定位/重绑/原地回滚） */
+  private _actorJsonPath = new Map<Actor, string[]>()
 
   // ─── 撤回系统（与蓝图/UI 资产预览同语义：拖拽松手 = 一个撤销点，不写盘） ───
   /** 撤销栈 key（asset/...，由资产磁盘路径推导）；activate 时建立 */
@@ -136,6 +145,9 @@ export class ScenePreviewManager {
 
     // ─── World ───
     this.world = new World(this.scene)
+
+    // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
+    this.colliderDrawer = new ColliderDebugDrawer(this.scene)
 
     // ─── 默认内容 ───
     this.setupLighting()
@@ -350,7 +362,7 @@ export class ScenePreviewManager {
       this.world.SpawnActor(actor)
     }
 
-    // ref 节点 → SpawnActorFromBlueprint（标记为整体，大纲不展开内部）
+    // ref 节点 → SpawnActorFromBlueprint（标记为整体，实例级 children 递归挂载）
     for (const rn of (result.refNodes ?? [])) {
       const overrides: Record<string, unknown> = { ...(rn.overrides ?? {}) }
       overrides.position = rn.position
@@ -362,7 +374,17 @@ export class ScenePreviewManager {
         actor.attachTo(rootActor)
         // refNodes 是 loadScene 新建对象（非原引用），按 name 反查 objects 原始节点建立映射
         const jsonNode = (sceneData.objects ?? []).find((o) => o.name === rn.name)
-        if (jsonNode) this._actorJsonMap.set(actor, jsonNode as unknown as Record<string, unknown>)
+        if (jsonNode) {
+          this._actorJsonMap.set(actor, jsonNode as unknown as Record<string, unknown>)
+          if (rn.name) this._actorJsonPath.set(actor, [rn.name])
+          // 实例级子对象：递归 spawn，经 onSpawn 回调按深度优先先序构建精确映射
+          if (rn.children?.length) {
+            const pathStack: string[] = rn.name ? [rn.name] : []
+            this.world.spawnSceneChildren(rn.children, actor, (def, childActor, depth) => {
+              this.bindSpawnedChild(def, childActor, pathStack, depth)
+            })
+          }
+        }
       }
     }
 
@@ -381,13 +403,17 @@ export class ScenePreviewManager {
       }
     }
 
-    // 内联 Actor 节点 → spawnInlineActor（含递归子级）
+    // 内联 Actor 节点 → spawnInlineActor（含递归子级，onSpawn 构建嵌套映射）
     for (const an of (result.actorNodes ?? [])) {
-      const actor = this.world.spawnInlineActor(an)
+      const pathStack: string[] = an.name ? [an.name] : []
+      const actor = this.world.spawnInlineActor(an, (def, childActor, depth) => {
+        this.bindSpawnedChild(def, childActor, pathStack, depth)
+      })
       if (actor) {
         actor.attachTo(rootActor)
         // actorNodes 是 objects 原始引用，直接建映射
         this._actorJsonMap.set(actor, an as unknown as Record<string, unknown>)
+        if (an.name) this._actorJsonPath.set(actor, [an.name])
       }
     }
 
@@ -424,8 +450,27 @@ export class ScenePreviewManager {
     this._currentScenePath = null
     this._actorTreeCache = null
     this._actorJsonMap.clear()
+    this._actorJsonPath.clear()
     this.notifyChange()
     logger.debug(`[OutlinerTrace] clearPreview 完成, currentScenePath=${this._currentScenePath}, actorCount=${this.world.actorCount}`)
+  }
+
+  /**
+   * spawnInlineChildren/spawnSceneChildren 的 onSpawn 回调：
+   * 维护路径栈（深度优先先序，栈即祖先链）并登记 Actor→JSON 节点 + 路径映射。
+   */
+  private bindSpawnedChild(
+    def: BlueprintChildDef,
+    actor: Actor,
+    pathStack: string[],
+    depth: number,
+  ): void {
+    if (!def.name) return
+    // 截断到 [顶层名, ...depth 级祖先]，再压入当前节点名
+    pathStack.length = depth + 1
+    pathStack.push(def.name)
+    this._actorJsonMap.set(actor, def as unknown as Record<string, unknown>)
+    this._actorJsonPath.set(actor, [...pathStack])
   }
 
   private fitToScene(group: THREE.Group) {
@@ -449,6 +494,11 @@ export class ScenePreviewManager {
 
   get currentScenePath(): string | null {
     return this._currentScenePath
+  }
+
+  /** 该 Actor 是否对应场景 JSON 中的节点（false = 根/代码生成节点，无法做资产级结构编辑） */
+  hasJsonNode(actor: Actor): boolean {
+    return this._actorJsonMap.has(actor)
   }
 
   /**
@@ -572,7 +622,7 @@ export class ScenePreviewManager {
   }
 
   /**
-   * _sceneAsset 被深拷贝替换后，把 _actorJsonMap 节点重新指向新树中的同名单节点。
+   * _sceneAsset 被深拷贝替换后，把 _actorJsonMap 节点重新指向新树中的同路径节点。
    * 否则后续 collectSaveData 的写回仍落在旧对象上，导致拖拽/属性改动被判定为
    * "内容无变化"而不进撤销栈（第一次提交后所有编辑都会失效）。
    * undo/redo 走 loadSceneAsset（clearPreview 清空 map 后重建），无需调用。
@@ -582,15 +632,20 @@ export class ScenePreviewManager {
       logger.warn(`[ScenePreview] _rebindJsonMap 跳过（_sceneAsset 为空）`)
       return
     }
-    const objs = (this._sceneAsset.objects ?? []) as Array<{ name?: string }>
+    const objs = (this._sceneAsset.objects ?? []) as unknown as Array<Record<string, unknown>>
     let rebound = 0
     let missing = 0
     for (const [actor, node] of this._actorJsonMap) {
-      const name = (node as { name?: string }).name
-      if (!name) continue
-      const fresh = objs.find((o) => o.name === name)
+      const path = this._actorJsonPath.get(actor)
+      let fresh: Record<string, unknown> | null = null
+      if (path && path.length) {
+        fresh = this._findNodeByPath(objs, path)
+      } else {
+        const name = (node as { name?: string }).name
+        if (name) fresh = objs.find((o) => (o as { name?: string }).name === name) ?? null
+      }
       if (fresh) {
-        this._actorJsonMap.set(actor, fresh as unknown as Record<string, unknown>)
+        this._actorJsonMap.set(actor, fresh)
         rebound++
       } else {
         missing++
@@ -599,7 +654,23 @@ export class ScenePreviewManager {
     logger.info(`[ScenePreview] _rebindJsonMap: 重绑 ${rebound} 个节点, 未找到 ${missing} 个`)
   }
 
-  /** 撤销：从内存栈取动作前快照 → 原地回滚（不重建预览，actor 引用/选中/相机保持）；无可撤历史返回 false */
+  /** 按 name 路径在 objects 树中递归定位节点（同父内 name 唯一） */
+  private _findNodeByPath(
+    objs: Array<Record<string, unknown>>,
+    path: string[],
+  ): Record<string, unknown> | null {
+    let cur: Array<Record<string, unknown>> = objs
+    for (let i = 0; i < path.length; i++) {
+      const hit = cur.find((o) => (o as { name?: string }).name === path[i])
+      if (!hit) return null
+      if (i === path.length - 1) return hit
+      cur = (hit.children as Array<Record<string, unknown>> | undefined) ?? []
+    }
+    return null
+  }
+
+  /** 撤销：从内存栈取动作前快照 → 原地回滚（不重建预览，actor 引用/选中/相机保持）；
+   *  结构变更（增删节点/重命名）时原地回滚无法处理 → 全量重建预览。无可撤历史返回 false */
   undo(): boolean {
     const key = this._undoKey
     if (!key || !this.canUndo()) {
@@ -613,12 +684,17 @@ export class ScenePreviewManager {
     // 会把 _sceneAsset 指向深拷贝快照，若与基准同引用，下次 collectSaveData
     // 原地写回又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    const applied = this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    if (!applied) {
+      // 结构变更：全量重建预览
+      logger.info(`[ScenePreview] undo 结构变更 → 重建预览: ${key}`)
+      this.reloadFromSnapshot(snap as Record<string, unknown>)
+    }
     logger.info(`[ScenePreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
     return true
   }
 
-  /** 重做：从内存栈取 redo 快照 → 原地回滚（不重建预览）；无重做历史返回 false */
+  /** 重做：从内存栈取 redo 快照 → 原地回滚（不重建预览）；结构变更时全量重建。无重做历史返回 false */
   redo(): boolean {
     const key = this._undoKey
     if (!key || !this.canRedo()) {
@@ -630,51 +706,67 @@ export class ScenePreviewManager {
     if (snap == null) return false
     // 同 undo：基准与原地回滚输入必须分离（防同引用污染）
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    const applied = this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    if (!applied) {
+      logger.info(`[ScenePreview] redo 结构变更 → 重建预览: ${key}`)
+      this.reloadFromSnapshot(snap as Record<string, unknown>)
+    }
     logger.info(`[ScenePreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
     return true
   }
 
+  /** 结构变更时的快照应用路径：全量重建预览（快照独立深拷贝防与基准同引用） */
+  private reloadFromSnapshot(snap: Record<string, unknown>): void {
+    const path = this._currentScenePath
+    this.loadSceneAsset(JSON.parse(JSON.stringify(snap)) as unknown as SceneAsset)
+    if (path) this.activate(path)
+  }
+
   /**
-   * 原地回滚（纯内存，唯一应用路径）：把快照 diff 逐个应用到现有 actor
+   * 原地回滚（纯内存）：把快照 diff 逐个应用到现有 actor
    * （不销毁、不重建，actor 引用保持 → 选中/gizmo/相机零丢失）。
-   *  - 遍历 _actorJsonMap（actor → JSON 节点），按节点名在快照 objects 里找对应节点
+   *  - 遍历 _actorJsonMap（actor → JSON 节点），按路径在快照 objects 树里定位对应节点
    *  - 组件可编辑属性：按 persistType 找快照组件，遍历 getEditableProperties() set 回写
    *  - transform：写回 position/rotation/scale（组件 TransformComponent properties 优先）
-   *  - 结构不一致（节点数/节点名对不上，当前场景仅 transform/属性编辑不会触发）→ 警告，不重建
+   *  - 结构不一致（节点数/路径对不上，如增删节点）→ 返回 false，由调用方全量重建
    */
-  private _applySnapshotInPlace(snap: Record<string, unknown>): void {
+  private _applySnapshotInPlace(snap: Record<string, unknown>): boolean {
     const snapObjs = ((snap as { objects?: unknown[] }).objects ?? []) as Array<Record<string, unknown>>
     const entries = Array.from(this._actorJsonMap.entries())
-    // 结构一致性检查：节点数一致且每个 map 节点名都能在快照中找到唯一对应
-    if (snapObjs.length !== entries.length) {
-      logger.warn(`[ScenePreview] 原地回滚跳过（节点数不一致 ${entries.length}→${snapObjs.length}）`)
-      return
+    // 结构一致性检查：节点总数一致
+    if (this.countJsonNodes(snapObjs) !== entries.length) {
+      logger.warn(`[ScenePreview] 原地回滚跳过（节点数不一致 ${entries.length}→${this.countJsonNodes(snapObjs)}，结构变更需重建）`)
+      return false
     }
-    const snapByName = new Map<string, Record<string, unknown>>()
-    for (const o of snapObjs) {
-      const name = o.name as string
-      if (!name || snapByName.has(name)) {
-        logger.warn(`[ScenePreview] 原地回滚跳过（快照节点名缺失/重复）`)
-        return
+    // 逐个定位（按路径），全部可定位才回滚
+    const applied: Array<{ actor: Actor; jsonNode: Record<string, unknown> }> = []
+    for (const [actor, node] of entries) {
+      const path = this._actorJsonPath.get(actor)
+      let jsonNode: Record<string, unknown> | null = null
+      if (path && path.length) {
+        jsonNode = this._findNodeByPath(snapObjs, path)
+      } else {
+        const name = (node as { name?: string }).name
+        if (name) {
+          const matches = snapObjs.filter((o) => (o as { name?: string }).name === name)
+          if (matches.length === 1) jsonNode = matches[0]
+        }
       }
-      snapByName.set(name, o)
-    }
-    for (const [, node] of entries) {
-      const name = (node as { name?: string }).name
-      if (!name || !snapByName.has(name)) {
-        logger.warn(`[ScenePreview] 原地回滚跳过（节点 "${name}" 在快照中缺失）`)
-        return
+      if (!jsonNode) {
+        logger.warn(`[ScenePreview] 原地回滚跳过（节点 "${(node as { name?: string }).name ?? '?'}" 在快照中缺失）`)
+        return false
       }
+      applied.push({ actor, jsonNode })
     }
     // 逐个应用
-    for (const [actor, node] of entries) {
-      const jsonNode = snapByName.get((node as { name?: string }).name as string)!
+    for (const { actor, jsonNode } of applied) {
 
       // ─── 组件可编辑属性回写：按 persistType 找快照组件，set 回写（Inspector 直改的镜像） ───
       const jsonComps = (jsonNode.components as Array<Record<string, unknown>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
+        // 运行时自动生成的内部组件（透明点击层）不参与回滚
+        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
         const target = jsonComps.find((c) => (c.baseClass as string | undefined) === comp.persistType)
         if (!target) continue
         const props = (target.properties ?? {}) as Record<string, unknown>
@@ -720,6 +812,180 @@ export class ScenePreviewManager {
     if (this.gizmo.visible) this.gizmo.syncTransform()
     this.renderer.render(this.scene, this.camera)
     logger.info(`[ScenePreview] 原地回滚完成: ${this._undoKey}（${entries.length} 个节点）`)
+    return true
+  }
+
+  /** 递归统计 objects 树节点总数（结构一致性检查用） */
+  private countJsonNodes(objs: Array<Record<string, unknown>>): number {
+    let n = 0
+    const walk = (arr: Array<Record<string, unknown>>) => {
+      for (const o of arr) {
+        n++
+        const children = (o as { children?: unknown }).children as Array<Record<string, unknown>> | undefined
+        if (children?.length) walk(children)
+      }
+    }
+    walk(objs)
+    return n
+  }
+
+  // ════════════════════════════════════════
+  //  大纲右键结构编辑（添加/删除/复制/重命名，复用快照撤销 + 全量重建预览）
+  // ════════════════════════════════════════
+
+  /**
+   * 在目标节点下添加预定义模板节点（追加到其 children 末尾；
+   * targetActor 为根/无映射 → 追加到顶层 objects 末尾）。
+   * 返回新节点名；失败返回 null。一个撤销点 + 预览重建 + 自动选中新节点。
+   */
+  addSceneObject(targetActor: Actor | null, tpl: NodeTemplate): string | null {
+    if (!this._sceneAsset) {
+      logger.warn('[ScenePreview] addSceneObject 跳过（_sceneAsset 为空）')
+      return null
+    }
+    const targetNode = targetActor ? this._actorJsonMap.get(targetActor) : null
+    const siblings: string[] = []
+    if (targetNode) {
+      for (const c of (targetNode.children as Array<Record<string, unknown>> | undefined) ?? []) {
+        const n = (c as { name?: string }).name
+        if (n) siblings.push(n)
+      }
+    } else {
+      for (const o of this._sceneAsset.objects) {
+        const n = (o as { name?: string }).name
+        if (n) siblings.push(n)
+      }
+    }
+    const name = uniqueNodeName(tpl.baseName, siblings)
+    const node: Record<string, unknown> = {
+      type: 'actor',
+      name,
+      baseClass: tpl.baseClass,
+      components: cloneTemplateComponents(tpl),
+    }
+    // 模板子节点（如按钮的 Frame 视觉）——场景子对象不强制 id（lint 同父唯一即合法）
+    if (tpl.children?.length) {
+      node.children = JSON.parse(JSON.stringify(tpl.children))
+    }
+    if (targetNode) {
+      const children = (Array.isArray(targetNode.children) ? targetNode.children.slice() : []) as Array<Record<string, unknown>>
+      children.push(node)
+      targetNode.children = children
+    } else {
+      this._sceneAsset.objects.push(node as never)
+    }
+    this.commitStructuralEdit(name)
+    logger.info(`[ScenePreview] 添加场景对象: ${name}（${tpl.label}，子对象 ${(node.children as unknown[] | undefined)?.length ?? 0} 个）`)
+    return name
+  }
+
+  /** 删除节点（顶层或嵌套；无确认，删除后清空选中）。一个撤销点。 */
+  removeSceneObject(actor: Actor): boolean {
+    const node = this._actorJsonMap.get(actor)
+    if (!node) {
+      logger.warn(`[ScenePreview] removeSceneObject 跳过（节点无 JSON 映射）: ${actor.name}`)
+      return false
+    }
+    const parentArr = this._childrenArrayOf(this._actorJsonPath.get(actor))
+    if (!parentArr) {
+      logger.warn(`[ScenePreview] removeSceneObject 跳过（找不到父数组）: ${actor.name}`)
+      return false
+    }
+    const idx = parentArr.indexOf(node)
+    if (idx < 0) return false
+    parentArr.splice(idx, 1)
+    this.commitStructuralEdit(null)
+    logger.info(`[ScenePreview] 删除场景对象: ${actor.name}`)
+    return true
+  }
+
+  /** 深拷贝节点到其父 children 末尾（顶层 → objects 末尾），名称自动加序号。返回新节点名。 */
+  duplicateSceneObject(actor: Actor): string | null {
+    const node = this._actorJsonMap.get(actor)
+    const path = this._actorJsonPath.get(actor)
+    if (!node || !path) {
+      logger.warn(`[ScenePreview] duplicateSceneObject 跳过（无映射）: ${actor.name}`)
+      return null
+    }
+    const parentArr = this._childrenArrayOf(path)
+    if (!parentArr) return null
+    const clone = JSON.parse(JSON.stringify(node)) as Record<string, unknown>
+    const siblings = parentArr.map((o) => (o as { name?: string }).name).filter((n): n is string => !!n)
+    const newName = uniqueNodeName(((node as { name?: string }).name) || 'Copy', siblings)
+    clone.name = newName
+    parentArr.push(clone)
+    this.commitStructuralEdit(newName)
+    logger.info(`[ScenePreview] 复制场景对象: ${actor.name} → ${newName}`)
+    return newName
+  }
+
+  /** 重命名节点（同父重名自动追加序号）。返回是否成功。 */
+  renameSceneObject(actor: Actor, newName: string): boolean {
+    const node = this._actorJsonMap.get(actor)
+    const path = this._actorJsonPath.get(actor)
+    if (!node || !path) {
+      logger.warn(`[ScenePreview] renameSceneObject 跳过（无映射）: ${actor.name}`)
+      return false
+    }
+    const parentArr = this._childrenArrayOf(path)
+    const siblings = (parentArr ?? [])
+      .filter((o) => o !== node)
+      .map((o) => (o as { name?: string }).name)
+      .filter((n): n is string => !!n)
+    const finalName = uniqueNodeName(newName, siblings)
+    node.name = finalName
+    this.commitStructuralEdit(finalName)
+    logger.info(`[ScenePreview] 重命名场景对象: ${actor.name} → ${finalName}`)
+    return true
+  }
+
+  /** 返回路径节点的父 children 数组（顶层 → objects 数组；找不到返回 null） */
+  private _childrenArrayOf(path: string[] | undefined): Array<Record<string, unknown>> | null {
+    if (!this._sceneAsset) return null
+    const objs = this._sceneAsset.objects as unknown as Array<Record<string, unknown>>
+    if (!path || path.length <= 1) return objs
+    let cur: Record<string, unknown> | undefined = objs.find((o) => (o as { name?: string }).name === path[0])
+    for (let i = 1; i < path.length - 1 && cur; i++) {
+      const children = (cur.children as Array<Record<string, unknown>> | undefined) ?? []
+      cur = children.find((c) => (c as { name?: string }).name === path[i])
+    }
+    if (!cur) return null
+    return (cur.children as Array<Record<string, unknown>> | undefined) ?? null
+  }
+
+  /**
+   * 结构编辑提交：收集当前状态 → 对比基准 push 撤销点 → 全量重建预览
+   * （增删节点/重命名无法原地回滚）。
+   * @param selectName 重建后要选中的节点名（null = 不选中）
+   */
+  private commitStructuralEdit(selectName: string | null): void {
+    const key = this._undoKey
+    if (!key) {
+      logger.warn('[ScenePreview] 结构编辑提交跳过（无撤销 key，activate 未调用）')
+      return
+    }
+    const cur = this.collectSaveData()
+    if (!cur) return
+    if (this._lastCommitted === null) {
+      this._lastCommitted = JSON.parse(JSON.stringify(cur))
+      logger.info(`[ScenePreview] 结构编辑（首帧基准）: ${key}`)
+    } else if (JSON.stringify(cur) === JSON.stringify(this._lastCommitted)) {
+      logger.info(`[ScenePreview] 结构编辑提交跳过（内容无变化）: ${key}`)
+    } else {
+      UndoManager.push(key, this._lastCommitted)
+      this._lastCommitted = JSON.parse(JSON.stringify(cur))
+      logger.info(`[ScenePreview] 结构编辑提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+    }
+    // 全量重建预览（结构变更）
+    const path = this._currentScenePath
+    this.loadSceneAsset(JSON.parse(JSON.stringify(cur)) as unknown as SceneAsset)
+    if (path) this.activate(path)
+    if (selectName) {
+      const tree = this.getActorTree()
+      const node = tree.find((n) => n.name === selectName && n.actor)
+      if (node?.actor) this.selectActor(node.actor)
+    }
+    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, path ?? '')
   }
 
   // ════════════════════════════════════════
@@ -759,8 +1025,9 @@ export class ScenePreviewManager {
     if (this._actorTreeCache) return this._actorTreeCache
 
     const result: SceneTreeNode[] = []
+    const mapped = this._actorJsonMap
 
-    function walk(obj: THREE.Object3D, depth: number) {
+    const walk = (obj: THREE.Object3D, depth: number, insideRef: boolean): void => {
       // 可见性过滤：无 actor 的纯渲染对象不可见时跳过；有 actor 的节点始终保留显示
       // （含被 canvas active 隐藏 / 大纲眼睛 previewHidden 隐藏的节点，便于恢复选择）
       const refActor = (obj as any).userData?.actorRef as Actor | undefined
@@ -772,15 +1039,20 @@ export class ScenePreviewManager {
       if (!isRoot) {
         const actorRef = (obj as any).userData?.actorRef as Actor | undefined
         if (!actorRef) return
+        // ref 实例内部：只显示本场景资产拥有的子对象（_actorJsonMap 登记），
+        // 蓝图内部子节点跳过整棵子树（保持「ref 不展开内部」约定）
+        if (insideRef && !mapped.has(actorRef)) return
         result.push({ depth, name: obj.name || obj.type, actor: actorRef })
-        if (actorRef.isRefInstance) return
       }
 
+      const nextInsideRef =
+        insideRef ||
+        (!isRoot && ((obj as any).userData?.actorRef as Actor | undefined)?.isRefInstance === true)
       const nextDepth = isRoot ? depth : depth + 1
-      for (const child of obj.children) walk(child, nextDepth)
+      for (const child of obj.children) walk(child, nextDepth, nextInsideRef)
     }
 
-    walk(this.scene, 0)
+    walk(this.scene, 0, false)
     this._actorTreeCache = result
     return result
   }
@@ -806,6 +1078,9 @@ export class ScenePreviewManager {
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
+        // 跳过运行时自动生成的内部组件（如 UIButton 透明点击层 UIImageComponent，isClickOnly=true）：
+        // 不写进资产，避免保存后出现重复 image 组件
+        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
         // 场景节点（ref/actor）的 JSON 可能没有该组件（组件由蓝图/代码生成，
         // 如 Goldmine 的 MeshComponent）——找不到 target 时新增 JSON 组件节点，
         // 否则组件属性（size/color 等）永远写不进 _sceneAsset，Inspector 直改
@@ -883,6 +1158,9 @@ export class ScenePreviewManager {
       // Gizmo 同步
       if (this.gizmo.visible) this.gizmo.syncTransform()
 
+      // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
+      this.colliderDrawer?.update(this.world.GetAllActors())
+
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -912,6 +1190,9 @@ export class ScenePreviewManager {
     select(null)
     this.gizmo.detach()
     this.gizmo.dispose()
+    // 碰撞盒线框绘制器：移除线框对象 + 释放几何/材质
+    this.colliderDrawer?.dispose()
+    this.colliderDrawer = null
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
@@ -924,6 +1205,7 @@ export class ScenePreviewManager {
     this._actorTreeCache = null
     this._lastCommitted = null
     this._actorJsonMap.clear()
+    this._actorJsonPath.clear()
     this._onChangeCallbacks = []
   }
 

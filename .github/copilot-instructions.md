@@ -55,11 +55,12 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 
 组件添加新字段要同步更新资产和资产检查器
 
-## 开发规则：组件优先
+## 代码完成自动审查（AI 专用，必做）
 
-**添加新功能优先用组件（Component / BehaviourScript / UIScriptComponent 等）实现，非必要不修改拥有者（owner）。**
+**完成 gameplay 相关代码编写/修改后，必须自动运行 `ag-gameplay-reviewer` 子代理审查本次改动，并按审查结果修复。**（不询问用户，作为完成前的固定环节）
 
-- 拥有者指承载功能的宿主类（Actor / GameMode / GameInstance 等），修改它们会把跨子系统逻辑耦合进单一类中。
-- 新行为应优先通过"挂组件/挂脚本"的方式实现：组件内部自管生命周期（onStart / onUpdate / onDestroy），并自行清理资源与订阅。
-- 若需要多个拥有者协作（如面板开关互斥 HUD 显隐），拥有者只广播状态（公开回调字段，如 `onBuildModeChange`），由相关组件注册回调自治处理。
-- 修改拥有者前先确认该逻辑是否只能由拥有者承载（如世界级生命周期、输入路由、核心状态机），否则优先组件化。
+- **触发范围**：本次改动涉及 `src/projects/fish/gameplay/` 下任何文件（GameMode / Controller / Pawn / GameState / 组件 / 脚本 / GameInstance 等），或修改了相关引擎基类（`src/engine/gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts` 等）
+- **审查依据**：`doc/gameplay_code_standard.md` 七角色职责边界规范（§3 红线清单 + §5 自查表），只审查**本次改动文件**，不必全量扫描
+- **执行方式**：用 runSubagent 调用 `ag-gameplay-reviewer`，argumentHint 传入改动文件列表/功能描述（如"审查 FishLevelGameMode 放兵逻辑 + FishLevelPlayerController 长按放兵"）
+- **修复要求**：审查报告中的「❌ 违规项」必须修复（归位到正确角色/类）；「⚠️ 存疑项」结合代码事实判断后决定是否处理；修复后若涉及多处修改，可再次跑审查确认归零
+- **报告**：最终回复中附一行审查结论（如"✅ 审查通过：改动符合 gameplay_code_standard 七角色规范"或列出残留违规及原因）

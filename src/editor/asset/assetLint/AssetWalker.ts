@@ -85,6 +85,14 @@ function walkNodes(nodes: unknown[], tasks: DispatchTask[], base: string): void 
         walkChildren(node.children, tasks, `${here}.children`)
       }
     }
+
+    // ref 节点：递归派发其实例级 children（同 actor 节点）
+    if (type === 'ref') {
+      const here = `${base}[${i}] (ref)`
+      if (Array.isArray(node.children)) {
+        walkChildren(node.children, tasks, `${here}.children`)
+      }
+    }
   })
 }
 

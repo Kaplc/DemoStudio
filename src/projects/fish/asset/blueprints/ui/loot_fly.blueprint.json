@@ -1,0 +1,38 @@
+{
+  "_comment": "战利品飞行物（LootFly）——战斗实时掠夺的飞行小圆点。\n由 LootFlyFx 工具在战斗阶段按路径生成（world.ui.spawnUIActor），脚本负责：\n  1. 设置颜色（金币 #fbc02d / 圣水 #8e24aa，UIImageComponent.color）\n  2. 锚点 center + anchorOffset 定位（世界坐标 → UI 坐标投影）\n  3. 弧线飞行到顶部战利品栏（TweenSystem，0.6s）\n  4. 到达后销毁（destroyUIActor）\n无子节点：纯圆形（width/height 相等 + radius = 宽一半 → 正圆）。",
+  "name": "LootFly",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "anchor": "center",
+        "anchorOffset": [0, 0],
+        "worldWidth": 0.16,
+        "worldHeight": 0.16
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "markerOnly": true,
+        "name": "UIMarker",
+        "zOrder": 0
+      }
+    },
+    {
+      "baseClass": "UIImageComponent",
+      "properties": {
+        "color": "#fbc02d",
+        "radius": 16,
+        "width": 32,
+        "height": 32,
+        "name": "LootFly"
+      }
+    }
+  ],
+  "children": []
+}

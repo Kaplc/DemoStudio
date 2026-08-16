@@ -276,6 +276,205 @@ export function removeChild(asset: BlueprintAsset, locator: ChildLocator): OpRes
 }
 
 /**
+ * 在指定父节点下添加子 Actor（追加到其 children 末尾）。
+ * parentName 为 null/空 → 添加到根 children 末尾；否则递归按 name 查找父节点。
+ * 新子节点不带 name 时直接追加（不触发具名合并语义）；调用方应保证同父内 name 唯一。
+ */
+export function addChildToParent(
+  asset: BlueprintAsset,
+  parentName: string | null,
+  child: BlueprintChildDef,
+): OpResult {
+  const err = validateChildDef(child)
+  if (err) return fail(err)
+  const clone = cloneChildDef(child)
+  if (!parentName) {
+    const children = asset.children ? asset.children.slice() : []
+    children.push(clone)
+    asset.children = children
+    return ok(asset)
+  }
+  const found = findChildNodeDeep(asset.children, parentName)
+  if (!found) return fail(`父节点 "${parentName}" 不存在`)
+  const parentNode = found.arr[found.idx]
+  const children = parentNode.children ? parentNode.children.slice() : []
+  children.push(clone)
+  parentNode.children = children
+  return ok(asset)
+}
+
+/**
+ * 递归按 name 移除子节点（任意嵌套层级）。
+ * 根级命中 → 从根 children 删除；深层命中 → 从所在 children 数组删除。
+ */
+export function removeChildDeep(asset: BlueprintAsset, name: string): OpResult {
+  if (typeof name !== 'string' || !name) return fail('name 必须是非空字符串')
+  const rootChildren = asset.children ?? []
+  const rootIdx = rootChildren.findIndex((c) => c.name === name)
+  if (rootIdx >= 0) {
+    const children = rootChildren.slice()
+    children.splice(rootIdx, 1)
+    asset.children = children.length ? children : undefined
+    return ok(asset)
+  }
+  const removeDeep = (children: BlueprintChildDef[] | undefined): boolean => {
+    if (!children) return false
+    for (let i = 0; i < children.length; i++) {
+      if (children[i].name === name) {
+        children.splice(i, 1)
+        return true
+      }
+      if (removeDeep(children[i].children)) return true
+    }
+    return false
+  }
+  const children = rootChildren.slice()
+  if (removeDeep(children)) {
+    asset.children = children.length ? children : undefined
+    return ok(asset)
+  }
+  return fail(`子节点 "${name}" 不存在`)
+}
+
+/**
+ * 递归按 name 重命名子节点（任意嵌套层级）。
+ * 调用方负责保证 newName 在同父范围内唯一（同父重名会被资产检查器报 duplicate-name）。
+ */
+export function renameChildDeep(asset: BlueprintAsset, name: string, newName: string): OpResult {
+  if (typeof name !== 'string' || !name) return fail('name 必须是非空字符串')
+  if (typeof newName !== 'string' || !newName) return fail('newName 必须是非空字符串')
+  if (name === newName) return ok(asset, ['newName 与原名相同，无需修改'])
+  const rootChildren = asset.children ?? []
+  const rootIdx = rootChildren.findIndex((c) => c.name === name)
+  if (rootIdx >= 0) {
+    const children = rootChildren.slice()
+    children[rootIdx] = { ...children[rootIdx], name: newName }
+    asset.children = children
+    return ok(asset)
+  }
+  const renameDeep = (children: BlueprintChildDef[] | undefined): boolean => {
+    if (!children) return false
+    for (let i = 0; i < children.length; i++) {
+      if (children[i].name === name) {
+        children[i] = { ...children[i], name: newName }
+        return true
+      }
+      if (renameDeep(children[i].children)) return true
+    }
+    return false
+  }
+  const children = rootChildren.slice()
+  if (renameDeep(children)) {
+    asset.children = children
+    return ok(asset)
+  }
+  return fail(`子节点 "${name}" 不存在`)
+}
+
+/**
+ * 递归按 id 查找子节点（深度优先；蓝图子节点 id 全资产唯一，定位比 name 可靠——
+ * 同父内 name 唯一，但资产历史/不同层级可能重名）。
+ * 返回 { arr, idx }：arr 是目标节点所在 children 数组，idx 是其在数组中的索引。
+ */
+function findChildNodeByIdDeep(
+  children: BlueprintChildDef[] | undefined,
+  id: number,
+): { arr: BlueprintChildDef[]; idx: number } | null {
+  if (!children) return null
+  const idx = children.findIndex((c) => c.id === id)
+  if (idx >= 0) return { arr: children, idx }
+  for (const child of children) {
+    if (!child.children || child.children.length === 0) continue
+    const found = findChildNodeByIdDeep(child.children, id)
+    if (found) return found
+  }
+  return null
+}
+
+/**
+ * 在指定父节点下添加子 Actor（追加到其 children 末尾）。
+ * parentId 定位父节点（null → 根 children 末尾）；按选中节点引用定位，
+ * 不受同名节点拦截（区别于 addChildToParent 的 name 定位）。
+ */
+export function addChildToParentById(
+  asset: BlueprintAsset,
+  parentId: number | null,
+  child: BlueprintChildDef,
+): OpResult {
+  const err = validateChildDef(child)
+  if (err) return fail(err)
+  const clone = cloneChildDef(child)
+  if (parentId == null) {
+    const children = asset.children ? asset.children.slice() : []
+    children.push(clone)
+    asset.children = children
+    return ok(asset)
+  }
+  const found = findChildNodeByIdDeep(asset.children, parentId)
+  if (!found) return fail(`父节点 id ${parentId} 不存在`)
+  const parentNode = found.arr[found.idx]
+  const children = parentNode.children ? parentNode.children.slice() : []
+  children.push(clone)
+  parentNode.children = children
+  return ok(asset)
+}
+
+/**
+ * 递归按 id 移除子节点（任意嵌套层级）。id 全资产唯一，不受同名拦截。
+ */
+export function removeChildById(asset: BlueprintAsset, id: number): OpResult {
+  if (typeof id !== 'number') return fail('id 必须是数字')
+  const rootChildren = asset.children ?? []
+  const removeDeep = (children: BlueprintChildDef[] | undefined): boolean => {
+    if (!children) return false
+    const idx = children.findIndex((c) => c.id === id)
+    if (idx >= 0) {
+      children.splice(idx, 1)
+      return true
+    }
+    for (const c of children) {
+      if (removeDeep(c.children)) return true
+    }
+    return false
+  }
+  const children = rootChildren.slice()
+  if (removeDeep(children)) {
+    asset.children = children.length ? children : undefined
+    return ok(asset)
+  }
+  return fail(`子节点 id ${id} 不存在`)
+}
+
+/**
+ * 递归按 id 重命名子节点（任意嵌套层级）。调用方保证 newName 在同父范围内唯一。
+ */
+export function renameChildById(asset: BlueprintAsset, id: number, newName: string): OpResult {
+  if (typeof id !== 'number') return fail('id 必须是数字')
+  if (typeof newName !== 'string' || !newName) return fail('newName 必须是非空字符串')
+  const rootChildren = asset.children ?? []
+  const renameDeep = (children: BlueprintChildDef[] | undefined): boolean => {
+    if (!children) return false
+    const idx = children.findIndex((c) => c.id === id)
+    if (idx >= 0) {
+      const cur = children[idx]
+      if (cur.name === newName) return true
+      children[idx] = { ...cur, name: newName }
+      return true
+    }
+    for (const c of children) {
+      if (renameDeep(c.children)) return true
+    }
+    return false
+  }
+  const children = rootChildren.slice()
+  if (renameDeep(children)) {
+    asset.children = children
+    return ok(asset)
+  }
+  return fail(`子节点 id ${id} 不存在`)
+}
+
+/**
  * 递归查找具名子节点（深度优先，支持任意嵌套层级）。
  * 返回 { arr, idx }：arr 是目标节点所在 children 数组，idx 是其在数组中的索引。
  * 找不到返回 null。仅按 name 匹配（locator 为 index 时不走此函数）。

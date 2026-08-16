@@ -11,7 +11,7 @@
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
-import { countMeshComponents } from './docCheckers'
+import { countMeshComponents, checkSingleImageComponent } from './docCheckers'
 import type { FieldSpec, LintIssue, CheckerContext } from '../types'
 
 /** node:ref — 新格式引用节点：ref 路径必填。position/rotation/scale 代替旧 pos/rot。 */
@@ -24,6 +24,7 @@ class RefNodeChecker extends AbstractAssetChecker {
     { field: 'scale', type: 'vec3', label: '缩放' },
     { field: 'name', type: 'string', label: '节点名' },
     { field: 'components', type: 'array', itemsType: 'object', label: '实例级组件属性覆盖' },
+    { field: 'children', type: 'array', itemsType: 'object', label: '实例级子对象列表' },
   ]
   validate(node: unknown, ctx: CheckerContext): LintIssue[] {
     const issues: LintIssue[] = []
@@ -62,6 +63,8 @@ class ActorNodeChecker extends AbstractAssetChecker {
         `节点 "${(n.name as string) ?? '?'}" 声明了 ${meshCount} 个 mesh 组件（一个 Actor 只能挂载一个 MeshComponent，组合网格请拆成子 Actor）`,
         'error'))
     }
+    // 同一节点最多一个 UIImageComponent（UIButton 点击层运行时自动生成）
+    checkSingleImageComponent(n, ctx.nodePath, ctx, issues)
     return issues
   }
 }

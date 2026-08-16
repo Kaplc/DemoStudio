@@ -12,6 +12,7 @@ import { ActorComponent, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
+import { TroopHealthBarComponent } from '../../common/comp/TroopHealthBarComponent'
 
 export class TroopHealthComponent extends ActorComponent {
   /** 当前生命值 */
@@ -43,11 +44,14 @@ export class TroopHealthComponent extends ActorComponent {
 
   /**
    * 受到伤害（防御塔弹丸命中）：
-   * hp 扣到 0 → 标记死亡 → 通知 GameMode（移除军队计数 + 胜负判定）→ 销毁宿主。
+   * 刷新头顶血条（显示 + 比例 + 1.5s 隐藏计时）→ hp 扣到 0 → 标记死亡 →
+   * 通知 GameMode（移除军队计数 + 胜负判定）→ 销毁宿主。
    */
   takeDamage(amount: number): void {
     if (this._dead) return
     this._hp -= amount
+    // 头顶血条组件：受击显示 + 刷新比例/颜色 + 重置 1.5s 隐藏计时
+    this.owner.getComponent(TroopHealthBarComponent)?.onDamaged(Math.max(0, this._hp) / this.troop.hp)
     logger.info(`[Battle] 兵 ${this.troop.name} 受击 -${Math.round(amount)}（剩余 hp=${Math.max(0, Math.round(this._hp))}）`)
     if (this._hp <= 0) {
       this._dead = true

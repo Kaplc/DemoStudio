@@ -17,6 +17,17 @@
         "length": 0.2,
         "color": "#37474f"
       }
+    },
+    {
+      "baseClass": "CircleColliderComponent",
+      "properties": {
+        "radius": 0.35,
+        "height": 0.9,
+        "bodyType": "dynamic",
+        "mass": 1,
+        "group": "troop",
+        "mask": ["troop", "building"]
+      }
     }
   ],
   "children": []

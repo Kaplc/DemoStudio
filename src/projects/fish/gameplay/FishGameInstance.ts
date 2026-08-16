@@ -127,6 +127,7 @@ export class FishGameInstance extends GameInstance {
       getBattle: () => this._levelGameMode?.getBattleSnapshot() ?? null,
       getHealthBars: () => this._levelGameMode?.getHealthBarStates() ?? [],
       getTroopModels: () => this._levelGameMode?.getTroopModelSummary() ?? [],
+      getTroopHealthBars: () => this._levelGameMode?.getTroopHealthBarStates() ?? [],
       getGM: () => ({
         consoleOpen: this.gm.consoleOpen,
         outputLines: this.gm.getConsoleOutputLines(),

@@ -74,14 +74,40 @@ argument-hint: '场景名称或场景用途描述'
 }
 ```
 - `ref` **必填**，路径格式必须匹配 `^(?:[^/]+\/)?asset\/.+\.blueprint\.json$`（即 `asset/.../*.blueprint.json`，可带 project 前缀）
-- 可选：`position`/`rotation`/`scale`（vec3）
+- 可选：`position`/`rotation`/`scale`（vec3）、`components`（实例级组件属性覆盖）
+
+### 3. 嵌套 children（actor / ref 均可）
+
+`actor` 与 `ref` 节点均支持 `children` 递归子对象数组（结构同蓝图 `BlueprintChildDef`，**无 `type` 字段**）：
+
+```json
+{
+  "type": "ref",
+  "name": "MainHouse",
+  "ref": "asset/blueprints/beach_house.blueprint.json",
+  "children": [
+    {
+      "name": "HouseLight",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [0, 1, 0] } },
+        { "baseClass": "LightComponent", "properties": { "type": "point", "intensity": 1 } }
+      ]
+    }
+  ]
+}
+```
+
+- 运行/预览时子对象递归 spawn：actor 子对象挂到内联 Actor 下，ref 子对象挂到 ref 实例下
+- 同一父节点下 `name` 必须唯一（`duplicate-name` error）；不同父节点可同名
+- 保存时统一递归写出：有子对象写 `children` 数组，无则不写
 
 ## ⚠️ 关键约定（违反即 error）
 
 1. **组件优先约定**：位置/旋转/缩放**必须**写在 `TransformComponent` 组件的 `properties` 里。
    - 顶层 `position`/`rotation`/`scale` 字段已**废弃**——如果节点带 TransformComponent 组件却仍有顶层 transform → `top-transform-forbidden` error；如果无变换组件却声明了顶层 transform → `missing-transform-component` error
    - `position`/`rotation`/`scale` 只允许出现在 TransformComponent/UITransformComponent 组件，出现在其他组件 properties 里 → `comp-forbidden-transform` error
-2. **name 唯一**：同一场景内所有节点 `name` 必须唯一（AI 按 name 定位：`ai.clickActor` / `ai.dragActor` / `ai.selectActor`），重复 → `duplicate-name` error
+2. **name 唯一**：同一父节点下所有节点 `name` 必须唯一（AI 按 name 定位：`ai.clickActor` / `ai.dragActor` / `ai.selectActor`），重复 → `duplicate-name` error；嵌套子对象按父节点范围各自唯一
 3. **旧格式几何节点已移除**：`type: box/plane/sphere/sprite/checkerFloor/gridLines/pillar/wallRing` 全部废弃，会触发"未注册的检查器" warn——一律用 `type: actor` + MeshComponent/SpriteComponent 替代
 4. **颜色格式**：CSS hex（`#rgb`/`#rgba`/`#rrggbb`/`#rrggbbaa`）或 `rgba(r,g,b,a)`
 

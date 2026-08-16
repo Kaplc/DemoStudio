@@ -29,6 +29,8 @@ import { FishLevelPawn } from './FishLevelPawn'
 import { createTroopActor, type TroopActor } from '../battle/troops/TroopActors'
 import { BattleProjectileActor } from '../battle/BattleProjectileActor'
 import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
+import { TroopHealthBarComponent } from '../common/comp/TroopHealthBarComponent'
+import { LootFlyFx } from '../common/fx/LootFlyFx'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
 
@@ -71,10 +73,16 @@ export class FishLevelGameMode extends GameMode {
   private lootSettled = false
   /** 已部署兵总数（HUD 统计） */
   private deployedCount = 0
-  /** 掠夺金币累计（摧毁金矿） */
+  /** 掠夺金币累计（浮点，按伤害比例实时累计；展示取整） */
   private lootCoins = 0
-  /** 掠夺药水累计（摧毁水库） */
+  /** 掠夺药水累计（浮点，按伤害比例实时累计；展示取整） */
   private lootElixir = 0
+  /** 每建筑已掠夺金币（浮点，摧毁时补发剩余用，保证总量恒等于类型表 loot） */
+  private lootedCoinsByBuilding = new Map<ClashBuildingBaseActor, number>()
+  /** 每建筑已掠夺药水（浮点，摧毁时补发剩余用） */
+  private lootedElixirByBuilding = new Map<ClashBuildingBaseActor, number>()
+  /** HUD 数字刷新回调（BattleHudScript 注册；飞行物到达时触发） */
+  onLootDisplayChange: (() => void) | null = null
   /** 战斗结果（null = 未结束；true 胜 / false 败） */
   private winResult: boolean | null = null
 
@@ -118,6 +126,9 @@ export class FishLevelGameMode extends GameMode {
     this.troops = []
     this.troopTargetOverride.clear()
     this.selectedTroopId = null
+    this.lootedCoinsByBuilding.clear()
+    this.lootedElixirByBuilding.clear()
+    this.onLootDisplayChange = null
     this.battleEnded = false
     this.lootSettled = false
     super.EndPlay()
@@ -156,13 +167,11 @@ export class FishLevelGameMode extends GameMode {
     const pawn = new FishLevelPawn()
     // 滚轮缩放 + 右键平移：把 controller 的输入组件绑定到战斗摄像机云台
     this.baseCamera.rig.bindInput(controller.inputComponent)
-    // 右键平移开始时取消放置模式（右键平移与放置模式互斥）
-    this.baseCamera.rig.onRightPanStart = () => this.cancelPlaceMode()
     // 相机平移边界与战场范围一致（±24）
     this.baseCamera.rig.panLimit = PLACE_HALF
     // Esc → 取消放置模式（不弹暂停菜单，战斗不中途暂停）
     controller.inputComponent.BindAction('battle-cancel', 'Escape', 'pressed', () => this.cancelPlaceMode())
-    logger.info('[BattleGM] SpawnPlayer: controller 已创建（滚轮缩放/右键平移/Esc 取消放置）')
+    logger.info('[BattleGM] SpawnPlayer: controller 已创建（滚轮缩放/右键平移/长按连续放兵由 Controller 接管/Esc 取消放置）')
     return { controller, pawn }
   }
 
@@ -213,22 +222,57 @@ export class FishLevelGameMode extends GameMode {
   //  伤害 / 摧毁 / 掠夺
   // ═══════════════════════════════════════
 
-  /** 建筑受伤（兵攻击弹丸命中结算统一入口）：扣血 → 血条组件刷新 → 摧毁判定 */
+  /** 建筑受伤（兵攻击弹丸命中结算统一入口）：扣血 → 按伤害比例实时掠夺 → 血条刷新 → 摧毁判定 */
   damageBuilding(b: ClashBuildingBaseActor, amount: number): void {
     if (!this.buildingHp.has(b) || this.battleEnded) return
-    const hp = Math.max(0, this.buildingHp.get(b)! - amount)
+    const before = this.buildingHp.get(b)!
+    const hp = Math.max(0, before - amount)
+    const dealt = before - hp // 实际扣血量（最后一击不超当前血）
     this.buildingHp.set(b, hp)
     // 血条组件：受击显示 + 刷新比例/颜色 + 重置 3s 隐藏计时
     this.barCompMap.get(b)?.onDamaged(hp / b.type.hp)
-    logger.info(`[BattleGM] 建筑 ${b.type.name} 受击 -${Math.round(amount)}（hp=${Math.round(hp)}/${b.type.hp}）`)
+    // ─── 按伤害比例实时掠夺（浮点累计：金矿→金币、水库→圣水） ───
+    const ratio = b.type.hp > 0 ? dealt / b.type.hp : 0
+    const coinDelta = b.type.lootCoins * ratio
+    const elixirDelta = b.type.lootElixir * ratio
+    if (coinDelta > 0 || elixirDelta > 0) {
+      this.lootCoins += coinDelta
+      this.lootElixir += elixirDelta
+      this.lootedCoinsByBuilding.set(b, (this.lootedCoinsByBuilding.get(b) ?? 0) + coinDelta)
+      this.lootedElixirByBuilding.set(b, (this.lootedElixirByBuilding.get(b) ?? 0) + elixirDelta)
+      // 每次伤害触发战利品飞行（金矿→金色圆点、水库→紫色圆点）
+      this.triggerLootFly(b, coinDelta, elixirDelta)
+    }
+    logger.info(`[BattleGM] 建筑 ${b.type.name} 受击 -${Math.round(dealt)}（hp=${Math.round(hp)}/${b.type.hp}，掠夺 +${Math.round(coinDelta)}金 +${Math.round(elixirDelta)}水）`)
     if (hp <= 0) this.onBuildingDestroyed(b)
   }
 
-  /** 建筑摧毁：掠夺入账累计 + 从列表移除 + 销毁 Actor + 胜利判定 */
+  /**
+   * 触发战利品飞行动画（建筑 → 顶部战利品栏）：
+   * LootFlyFx 全权自管（投影/弧线/频控/销毁），到达时回调 onLootDisplayChange 刷新 HUD 数字。
+   */
+  private triggerLootFly(b: ClashBuildingBaseActor, coinDelta: number, elixirDelta: number): void {
+    if (this.battleEnded) return
+    const w = this.world
+    if (!w) return
+    const from = { x: b.root.position.x, y: b.type.height + 0.5, z: b.root.position.z }
+    const onArrive = () => this.onLootDisplayChange?.()
+    if (coinDelta > 0) LootFlyFx.show(w, from, 'coins', { onArrive })
+    if (elixirDelta > 0) LootFlyFx.show(w, from, 'elixir', { onArrive })
+  }
+
+  /** 建筑摧毁：补发剩余掠夺 → 从列表移除 + 销毁 Actor + 胜利判定 */
   private onBuildingDestroyed(b: ClashBuildingBaseActor): void {
-    // 掠夺累计（金矿 → 金币，水库 → 药水，结算时一次性入账）
-    this.lootCoins += b.type.lootCoins
-    this.lootElixir += b.type.lootElixir
+    // ─── 补发剩余掠夺（伤害比例已实时累计，摧毁时把余量补上，保证总量 = 类型表 loot） ───
+    const remainCoins = Math.max(0, b.type.lootCoins - (this.lootedCoinsByBuilding.get(b) ?? 0))
+    const remainElixir = Math.max(0, b.type.lootElixir - (this.lootedElixirByBuilding.get(b) ?? 0))
+    if (remainCoins > 0 || remainElixir > 0) {
+      this.lootCoins += remainCoins
+      this.lootElixir += remainElixir
+      this.triggerLootFly(b, remainCoins, remainElixir)
+    }
+    this.lootedCoinsByBuilding.delete(b)
+    this.lootedElixirByBuilding.delete(b)
     this.buildings = this.buildings.filter((x) => x !== b)
     this.buildingHp.delete(b)
     this.barCompMap.delete(b)
@@ -238,7 +282,7 @@ export class FishLevelGameMode extends GameMode {
       if (t === b) this.troopTargetOverride.delete(troop)
     }
     b.destroy()
-    logger.info(`[BattleGM] 建筑 ${b.type.name} 被摧毁（掠夺 +${b.type.lootCoins}金币 +${b.type.lootElixir}药水，剩余建筑 ${this.buildings.length}）`)
+    logger.info(`[BattleGM] 建筑 ${b.type.name} 被摧毁（掠夺 +${Math.round(remainCoins)}金币 +${Math.round(remainElixir)}药水，剩余建筑 ${this.buildings.length}）`)
     // ─── 胜利判定：城镇大厅被摧毁 ───
     if (b.type.id === 'townhall') {
       this.finishBattle(true)
@@ -356,11 +400,13 @@ export class FishLevelGameMode extends GameMode {
     logger.info(`[BattleGM] 进入放置模式: ${troopId}`)
   }
 
-  /** 取消放置模式（Esc / 再次点卡片 / 右键平移开始） */
+  /** 取消放置模式（Esc / 再次点卡片） */
   cancelPlaceMode(): void {
     if (!this.selectedTroopId) return
     logger.info('[BattleGM] 取消放置模式')
     this.selectedTroopId = null
+    // 长按连续放兵由 Controller 定时器驱动，其每次触发会检查 placeTroopId，
+    // 此处置空后 Controller 自动停止（无需反向通知）
   }
 
   /** 当前放置模式兵种 id（HUD 卡片高亮判断） */
@@ -391,16 +437,25 @@ export class FishLevelGameMode extends GameMode {
 
   /**
    * 鼠标按下（FishLevelPlayerController 转发，空地点击未被 Clickable 消费时到达）：
-   * 放置模式下 → 屏幕坐标换算地面交点 → 校验战场范围 / 禁叠建筑 → 部署兵。
+   * 放置模式下 → 立即放一个兵（长按连续放兵由 Controller 定时器驱动）。
    */
   onScreenDown(sx: number, sy: number): void {
     if (!this.selectedTroopId || this.battleEnded) return
+    this.deployAtScreen(sx, sy)
+  }
+
+  /**
+   * 按屏幕坐标放一个兵（Controller 首次按下/长按重复共用）：
+   * 换算地面交点 → 校验 → 部署；silent=true（长按重复路径）时失败不刷 warn。
+   */
+  deployAtScreen(sx: number, sy: number, silent = false): boolean {
+    if (!this.selectedTroopId || this.battleEnded) return false
     const ground = this.screenToGround(sx, sy)
     if (!ground) {
-      logger.warn('[BattleGM] 部署失败：屏幕坐标未命中地面')
-      return
+      if (!silent) logger.warn('[BattleGM] 部署失败：屏幕坐标未命中地面')
+      return false
     }
-    this.spawnTroopActor(this.selectedTroopId, ground.x, ground.z)
+    return this.spawnTroopActor(this.selectedTroopId, ground.x, ground.z, silent)
   }
 
   /** 屏幕坐标 → 地面交点（y=0 平面，放兵点换算） */
@@ -419,45 +474,47 @@ export class FishLevelGameMode extends GameMode {
   }
 
   /**
-   * 部署兵（onScreenDown / debugDeploy 统一入口）：
+   * 部署兵（onScreenDown / deployAtScreen / debugDeploy 统一入口）：
    * 校验（兵种/范围/重叠）→ 蓝图模型预检（严格模式：失败 = 放兵失败，
    * 军队不消耗、无兵生成）→ 扣军队 → 生成兵 Actor 并挂模型。
+   * 部署成功**不退出放置模式**（CoC 风格：可连续放兵，直到 Esc / 再次点卡片取消）。
+   * @param silent 长按重复路径静默（失败不刷 warn，避免按住非法位置日志刷屏）
    * @returns 是否部署成功
    */
-  private spawnTroopActor(troopId: string, x: number, z: number): boolean {
+  private spawnTroopActor(troopId: string, x: number, z: number, silent = false): boolean {
     if (this.battleEnded) return false
     const inst = this.gameInstance
     if (!inst) return false
     // 战场范围限制（±24）
     if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) {
-      logger.warn(`[BattleGM] 部署失败：超出战场范围 (${x.toFixed(1)},${z.toFixed(1)})`)
+      if (!silent) logger.warn(`[BattleGM] 部署失败：超出战场范围 (${x.toFixed(1)},${z.toFixed(1)})`)
       return false
     }
     const troop = inst.getTroop(troopId)
     if (!troop) {
-      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 不存在（兵种表未加载或行缺失）`)
+      if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 不存在（兵种表未加载或行缺失）`)
       return false
     }
     // 禁叠建筑（AABB 相交检查）
     if (this.findBlockerAt(x, z, troop.size[0] / 2)) {
-      logger.warn(`[BattleGM] 部署失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
+      if (!silent) logger.warn(`[BattleGM] 部署失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
       return false
     }
     // ─── 严格模式：兵种模型蓝图预检（模型先于军队扣除实例化，失败 = 放兵失败不消耗军队） ───
     const modelActor = this.world?.SpawnActorFromBlueprint(troop.blueprint)
     if (!modelActor) {
-      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 模型蓝图加载失败（${troop.blueprint}），已拒绝放兵`)
+      if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 模型蓝图加载失败（${troop.blueprint}），已拒绝放兵`)
       return false
     }
     // 训练军队中扣除（放完即消失；模型已就绪才扣，蓝图失败不消耗）
     if (!inst.training.deployTroop(troopId)) {
-      logger.warn(`[BattleGM] 部署失败：军队无 "${troopId}"`)
+      if (!silent) logger.warn(`[BattleGM] 部署失败：军队无 "${troopId}"`)
       modelActor.destroy()
       return false
     }
     const actor = createTroopActor(troopId, this, troop, x, z, modelActor)
     if (!actor) {
-      logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 无对应 Actor 类`)
+      if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 无对应 Actor 类`)
       modelActor.destroy()
       return false
     }
@@ -503,8 +560,8 @@ export class FishLevelGameMode extends GameMode {
   getBattleSnapshot(): Record<string, unknown> {    return {
       battleEnded: this.battleEnded,
       win: this.winResult,
-      lootCoins: this.lootCoins,
-      lootElixir: this.lootElixir,
+      lootCoins: Math.round(this.lootCoins),
+      lootElixir: Math.round(this.lootElixir),
       deployed: this.deployedCount,
       aliveTroops: this.troops.length,
       buildings: this.buildings.map((b) => ({
@@ -545,10 +602,12 @@ export class FishLevelGameMode extends GameMode {
     if (!this.lootSettled) {
       this.lootSettled = true
       if (inst) {
-        if (this.lootCoins > 0) inst.resources.add('coins', this.lootCoins)
-        if (this.lootElixir > 0) inst.resources.add('elixir', this.lootElixir)
+        const coins = Math.round(this.lootCoins)
+        const elixir = Math.round(this.lootElixir)
+        if (coins > 0) inst.resources.add('coins', coins)
+        if (elixir > 0) inst.resources.add('elixir', elixir)
       }
-      logger.info(`[BattleGM] 战斗${win ? '胜利' : '失败'}：掠夺入账 +${this.lootCoins}金币 +${this.lootElixir}药水`)
+      logger.info(`[BattleGM] 战斗${win ? '胜利' : '失败'}：掠夺入账 +${Math.round(this.lootCoins)}金币 +${Math.round(this.lootElixir)}药水`)
     }
     this.gameState.setPhase('gameover')
     // ─── 结算面板 ───
@@ -564,7 +623,26 @@ export class FishLevelGameMode extends GameMode {
 
   /** 战斗结果快照（结算面板脚本读取） */
   getBattleResult(): { win: boolean | null; lootCoins: number; lootElixir: number } {
-    return { win: this.winResult, lootCoins: this.lootCoins, lootElixir: this.lootElixir }
+    return { win: this.winResult, lootCoins: Math.round(this.lootCoins), lootElixir: Math.round(this.lootElixir) }
+  }
+
+  /** 当前掠夺展示值（整数，HUD 顶部战利品栏 / 调试桥用） */
+  getLootDisplay(): { coins: number; elixir: number } {
+    return { coins: Math.round(this.lootCoins), elixir: Math.round(this.lootElixir) }
+  }
+
+  /** 兵血条状态快照（__fishBattle.getTroopHealthBars，Playwright 断言用） */
+  getTroopHealthBarStates(): Array<{ name: string; hp: number; maxHp: number; shown: boolean; hideTimer: number }> {
+    return this.troops.map((t) => {
+      const bar = t.getComponent(TroopHealthBarComponent)
+      return {
+        name: t.troop.name,
+        hp: Math.round(t.health.hp),
+        maxHp: t.troop.hp,
+        shown: bar?.isShown() ?? false,
+        hideTimer: bar ? Math.round(bar.getHideTimer() * 100) / 100 : 0,
+      }
+    })
   }
 
   /** GM 调试命令（winLevel）：当前战斗直接判胜（等价摧毁城镇大厅的结算路径） */

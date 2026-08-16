@@ -468,18 +468,21 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 2
+                    "zOrder": 8,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#6b4a00",
+                    "color": "#ffae00",
                     "radius": 18,
                     "width": 540,
                     "height": 140,
                     "name": "BtnFrame",
-                    "zOrder": 2
+                    "zOrder": 8,
+                    "hitTest": "visible"
                   }
                 }
               ],

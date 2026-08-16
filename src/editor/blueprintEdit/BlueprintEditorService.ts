@@ -97,8 +97,14 @@ function logParams(op: string, p: Record<string, unknown>): string {
     case 'removeComponent': return `type=${p.baseClass ?? p.type}`
     case 'setComponentProps': return `type=${p.baseClass ?? p.type}`
     case 'addChild': return `name=${(p.child as { name?: string })?.name ?? p.name}`
+    case 'addChildToParent': return `parent=${p.parentName ?? '(根)'}, name=${(p.child as { name?: string })?.name ?? p.name}`
+    case 'addChildToParentById': return `parentId=${p.parentId ?? '(根)'}, name=${(p.child as { name?: string })?.name ?? p.name}`
     case 'updateChild': return `name=${p.name ?? p.index}`
     case 'removeChild': return `name=${p.name ?? p.index}`
+    case 'removeChildDeep': return `name=${p.name}`
+    case 'removeChildById': return `id=${p.id}`
+    case 'renameChildDeep': return `name=${p.name} → ${p.newName}`
+    case 'renameChildById': return `id=${p.id} → ${p.newName}`
     case 'setChildComponentProps': return `child=${p.name ?? p.index}, type=${p.baseClass ?? p.type}`
     case 'setBaseClass': return `class=${p.baseClass ?? p.class}`
     default: return Object.keys(p ?? {}).join(',')
@@ -136,6 +142,22 @@ function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): O
       return ops.setComponentProps(asset, (p.baseClass ?? p.type) as string, (p.properties ?? p.patch ?? p.props) as PropertyPatch)
     case 'addChild':
       return ops.addChild(asset, pickChildDef(p))
+    case 'addChildToParent': {
+      const parentName = typeof p.parentName === 'string' && p.parentName ? p.parentName : null
+      return ops.addChildToParent(asset, parentName, pickChildDef(p))
+    }
+    case 'addChildToParentById': {
+      const parentId = typeof p.parentId === 'number' ? p.parentId : null
+      return ops.addChildToParentById(asset, parentId, pickChildDef(p))
+    }
+    case 'removeChildDeep':
+      return ops.removeChildDeep(asset, p.name as string)
+    case 'removeChildById':
+      return ops.removeChildById(asset, p.id as number)
+    case 'renameChildDeep':
+      return ops.renameChildDeep(asset, p.name as string, p.newName as string)
+    case 'renameChildById':
+      return ops.renameChildById(asset, p.id as number, p.newName as string)
     case 'updateChild': {
       const loc = pickLocator(p)
       if (!loc) return { ok: false, error: 'updateChild 需要 name 或 index 定位' }
@@ -560,7 +582,7 @@ export class BlueprintEditorService {
     } else if (op === 'setBaseClass') {
       const cls = (p.baseClass ?? p.class) as string
       if (cls && !ActorRegistry.has(cls)) warnings.push(`Actor 类型 "${cls}" 未注册`)
-    } else if (op === 'addChild' || op === 'updateChild') {
+    } else if (op === 'addChild' || op === 'updateChild' || op === 'addChildToParent' || op === 'addChildToParentById' || op === 'removeChildDeep' || op === 'removeChildById' || op === 'renameChildDeep' || op === 'renameChildById') {
       const ref = (p.ref ?? (p.child as { ref?: string })?.ref) as string | undefined
       if (ref != null && !BlueprintRegistry.has(ref)) warnings.push(`子蓝图 ref="${ref}" 未注册`)
     }

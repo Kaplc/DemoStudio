@@ -142,6 +142,8 @@ export interface RefNode extends BaseNode {
   overrides?: PropertyPatch
   /** 实例级组件属性覆盖（按 baseClass 覆盖蓝图组件属性，如改 MeshComponent.size） */
   components?: import('./BlueprintAsset').BlueprintComponentDef[]
+  /** 实例级子对象（递归，挂到 ref 实例下；组件优先约定同 ActorNode.children） */
+  children?: import('./BlueprintAsset').BlueprintChildDef[]
 }
 
 /** blueprint 节点 — 旧格式，兼容保留；新场景应使用 RefNode */

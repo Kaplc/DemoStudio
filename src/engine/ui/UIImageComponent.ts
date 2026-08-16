@@ -92,6 +92,11 @@ export class UIImageComponent extends CanvasUIComponent {
         get: () => this._radius,
         set: (v) => { this.radius = v as number },
       },
+      {
+        key: 'opacity', type: 'number', step: 0.05, min: 0, max: 1,
+        get: () => this.opacity,
+        set: (v) => { this.opacity = v as number },
+      },
     ]
   }
 

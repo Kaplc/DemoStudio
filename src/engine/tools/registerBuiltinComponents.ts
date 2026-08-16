@@ -21,6 +21,8 @@ import { LineComponent } from '../rendering/LineComponent'
 import { ComponentRegistry } from './ComponentRegistry'
 import { SpriteComponent } from '../rendering/SpriteComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
+import { BoxColliderComponent, CircleColliderComponent, CapsuleColliderComponent } from '../physics/ColliderComponents'
+import type { ColliderBodyType } from '../physics/ColliderComponent'
 import { CameraComponent, type CameraMode } from '../rendering/CameraComponent'
 import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
@@ -115,6 +117,60 @@ export function registerBuiltinComponents(): void {
     const ck = c as ClickableComponent
     if (p.clickCooldown !== undefined) ck.clickCooldown = p.clickCooldown as number
   })
+
+  // ─── 碰撞体组件三件套 ───
+  // 通用 props：bodyType('static'|'dynamic') / mass / group(层名) / mask(层名数组) /
+  // offset([x,y,z]) / linearDamping / lockY；事件回调（onCollisionEnter 等）由代码订阅。
+  const applyColliderProps = (
+    c: BoxColliderComponent | CircleColliderComponent | CapsuleColliderComponent,
+    p: Record<string, unknown>,
+  ) => {
+    if (p.bodyType !== undefined) c.bodyType = p.bodyType as ColliderBodyType
+    if (p.mass !== undefined) c.mass = p.mass as number
+    if (p.group !== undefined) c.group = p.group as string
+    if (Array.isArray(p.mask)) c.mask = p.mask as string[]
+    if (Array.isArray(p.offset)) c.offset = p.offset as [number, number, number]
+    if (p.linearDamping !== undefined) c.linearDamping = p.linearDamping as number
+    if (p.lockY !== undefined) c.lockY = p.lockY as boolean
+  }
+
+  // Box：props 额外 { size: [w,h,d] }（建筑等盒形碰撞体）
+  ComponentRegistry.register(
+    'BoxColliderComponent',
+    (owner, p = {}) => {
+      const comp = new BoxColliderComponent(asActor(owner))
+      if (Array.isArray(p.size)) comp.size = p.size as [number, number, number]
+      applyColliderProps(comp, p)
+      return comp
+    },
+    (c, p) => applyColliderProps(c as BoxColliderComponent, p),
+  )
+
+  // Circle：props 额外 { radius, height }（球状/圆柱碰撞范围，俯视角常用于兵）
+  ComponentRegistry.register(
+    'CircleColliderComponent',
+    (owner, p = {}) => {
+      const comp = new CircleColliderComponent(asActor(owner))
+      if (p.radius !== undefined) comp.radius = p.radius as number
+      if (p.height !== undefined) comp.height = p.height as number
+      applyColliderProps(comp, p)
+      return comp
+    },
+    (c, p) => applyColliderProps(c as CircleColliderComponent, p),
+  )
+
+  // Capsule：props 额外 { radius, length }（角色胶囊碰撞体）
+  ComponentRegistry.register(
+    'CapsuleColliderComponent',
+    (owner, p = {}) => {
+      const comp = new CapsuleColliderComponent(asActor(owner))
+      if (p.radius !== undefined) comp.radius = p.radius as number
+      if (p.length !== undefined) comp.length = p.length as number
+      applyColliderProps(comp, p)
+      return comp
+    },
+    (c, p) => applyColliderProps(c as CapsuleColliderComponent, p),
+  )
 
   // ─── CameraComponent ─── props: { mode?, fov?, orthoSize?, near?, far?, priority?, name? }
   ComponentRegistry.register(

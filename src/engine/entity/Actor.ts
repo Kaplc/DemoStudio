@@ -88,6 +88,23 @@ export abstract class Actor extends BObject {
     }
   }
 
+  /** 每帧更新：递归子 Actor（同 BeginPlay 父链传播约定，模型子 Actor 的组件照样 Tick） */
+  override Tick(deltaTime: number): void {
+    if (this.bPendingDestroy) return
+    super.Tick(deltaTime)
+    for (const child of this.children) {
+      child.Tick(deltaTime)
+    }
+  }
+
+  /** 调试 Gizmos：递归子 Actor（碰撞体线框等挂在模型子 Actor 上也能被绘制） */
+  override drawGizmos(): void {
+    super.drawGizmos()
+    for (const child of this.children) {
+      child.drawGizmos()
+    }
+  }
+
   /** 销毁前调用 */
   override EndPlay(): void {
     super.EndPlay()

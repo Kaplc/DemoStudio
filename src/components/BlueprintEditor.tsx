@@ -154,8 +154,10 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         mgr.restoreCamera(cam.pos, cam.quat, cam.zoom)
         pendingCamRef.current = null
       }
-      // 恢复选中：同理（编辑后保持选中，不跳回总览）
-      const selName = pendingSelectRef.current ?? lastSelectRef.current
+      // 恢复选中：同理（编辑后保持选中，不跳回总览）。
+      // 优先消费外部登记的待恢复选中（大纲右键创建/复制/重命名后自动选中新节点），
+      // 其次保存时显式指定，最后沿用重建前记忆。
+      const selName = AssetPreviewManager.takePendingSelection(assetPath) ?? pendingSelectRef.current ?? lastSelectRef.current
       if (selName) {
         pendingSelectRef.current = null
         // 通过 getActorTree() 遍历场景图查找（GetAllActors 可能漏掉递归子 Actor）

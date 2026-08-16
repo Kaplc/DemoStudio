@@ -524,7 +524,10 @@ export class ActorManagerComponent extends AObjectComponent<World> {
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
    * 供外部调用（ScenePreviewManager 等）。
    */
-  spawnInlineActor(node: import('../asset/SceneAsset').ActorNode): Actor | null {
+  spawnInlineActor(
+    node: import('../asset/SceneAsset').ActorNode,
+    onSpawn?: (child: import('../asset/BlueprintAsset').BlueprintChildDef, actor: Actor, depth: number) => void,
+  ): Actor | null {
     const actor = ActorRegistry.create(node.baseClass)
     if (!actor) {
       logger.warn(`[ActorManagerComponent] spawnInlineActor: baseClass "${node.baseClass}" 未注册`)
@@ -560,18 +563,25 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     // Transform 组件化约定：内联 Actor 未显式配置时自动补挂
     ensureTransformForActor(actor)
 
-    // 递归子节点
-    this.spawnInlineChildren(node.children ?? [], actor)
+    // 递归子节点（onSpawn 透传供编辑器构建 JSON 映射）
+    this.spawnInlineChildren(node.children ?? [], actor, onSpawn, 0)
 
     this.SpawnActor(actor)
     return actor
   }
 
-  /** 递归 spawn 内联 ActorNode 的子节点 */
-  private spawnInlineChildren(
+  /**
+   * 递归 spawn 内联子节点（BlueprintChildDef 风格，供场景 ActorNode/RefNode 的 children 复用）。
+   * 返回按 JSON 顺序排列的直接子 Actor 列表（供编辑器构建 Actor→JSON 映射）。
+   * @param onSpawn 每生成一个子节点时回调（depth 从 0 起，深度优先先序，供调用方维护路径栈）
+   */
+  spawnInlineChildren(
     children: import('../asset/BlueprintAsset').BlueprintChildDef[],
     parentActor: Actor,
-  ): void {
+    onSpawn?: (child: import('../asset/BlueprintAsset').BlueprintChildDef, actor: Actor, depth: number) => void,
+    depth = 0,
+  ): Actor[] {
+    const spawned: Actor[] = []
     for (const child of children) {
       let childActor: Actor | null = null
       let isRefChild = false
@@ -626,9 +636,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       ensureTransformForActor(childActor)
 
       childActor.attachTo(parentActor)
+      spawned.push(childActor)
+      onSpawn?.(child, childActor, depth)
       if (child.children?.length) {
-        this.spawnInlineChildren(child.children, childActor)
+        this.spawnInlineChildren(child.children, childActor, onSpawn, depth + 1)
       }
     }
+    return spawned
   }
 }

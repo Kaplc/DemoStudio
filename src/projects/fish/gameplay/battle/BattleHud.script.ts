@@ -6,14 +6,17 @@
  *     每个卡片 → 名称/剩余数量文本、兵种色背景、点击 → FishLevelGameMode.selectTroop
  *     （进入放置模式）；数量不足（0）的兵种卡片置灰禁用
  *  2. 卡片挂到 CardList，由 UILayoutComponent（grid 8 列）自动排布
- *  3. onUpdate 每帧刷新：
+ *  3. 顶部战利品栏（LootCoinsText / LootElixirText）：掠夺实时显示。
+ *     GameMode 按伤害比例累计掠夺 + 触发战利品飞行动画（LootFlyFx），
+ *     飞行物到达时回调 onLootDisplayChange → 刷新数字（仅变化时 setText）+ 脉冲动画
+ *  4. onUpdate 每帧刷新：
  *     - 卡片剩余数量 + 禁用状态 + 放置中高亮
  *     - 已部署统计（DeployLabel：累计部署 / 场上存活 / 军队剩余）
- *  4. 无 dps 的兵种（治疗师）不生成卡片（无攻击能力，超出战斗范围）
+ *  5. 无 dps 的兵种（治疗师）不生成卡片（无攻击能力，超出战斗范围）
  *
  * 由 World 场景切换（GameMode.HUDClass）自动创建。
  */
-import { BehaviourScript, UIButtonComponent, UITextComponent, UIImageComponent, UILayoutComponent, logger, GameInstance } from '@/engine'
+import { BehaviourScript, UIButtonComponent, UITextComponent, UIImageComponent, UILayoutComponent, TweenSystem, logger, GameInstance } from '@/engine'
 import type { Actor } from '@/engine'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
@@ -55,6 +58,15 @@ export default class BattleHudScript extends BehaviourScript {
   private cards: BattleCardEntry[] = []
   /** 上次显示的统计文本（仅变化时重设，避免每帧触发 troika 字形重排） */
   private lastDeployText = ''
+  /** 顶部战利品栏：金币文本（飞行到达时刷新） */
+  private lootCoinsText: UITextComponent | null = null
+  /** 顶部战利品栏：圣水文本 */
+  private lootElixirText: UITextComponent | null = null
+  /** 上次显示的掠夺数字（仅变化时 setText + 脉冲） */
+  private lastLootCoins = -1
+  private lastLootElixir = -1
+  /** 脉冲动画中的文本 Actor（防重复脉冲叠放） */
+  private pulsingActors = new Set<Actor>()
 
   override onStart(): void {
     const gm = this.gameMode as FishLevelGameMode | null
@@ -133,6 +145,57 @@ export default class BattleHudScript extends BehaviourScript {
     } else {
       logger.warn('[BattleHudScript] 未找到统计文本节点 "DeployLabel"，跳过统计显示')
     }
+
+    // ─── 3. 顶部战利品栏（掠夺实时显示 + 飞行到达刷新） ───
+    const coinsActor = this.findInChildren('LootCoinsText')
+    const elixirActor = this.findInChildren('LootElixirText')
+    this.lootCoinsText = coinsActor?.getComponent(UITextComponent) ?? null
+    this.lootElixirText = elixirActor?.getComponent(UITextComponent) ?? null
+    if (this.lootCoinsText && this.lootElixirText) {
+      // GameMode 飞行物到达 → 刷新数字（LootFlyFx onArrive → onLootDisplayChange）
+      gm.onLootDisplayChange = () => this.refreshLootDisplay()
+      // 初始显示 0
+      this.refreshLootDisplay()
+      logger.info('[BattleHudScript] 顶部战利品栏已绑定（掠夺实时显示）')
+    } else {
+      logger.warn('[BattleHudScript] 未找到战利品栏节点（LootCoinsText/LootElixirText），跳过掠夺显示')
+    }
+  }
+
+  /**
+   * 刷新顶部战利品栏数字：读取 GameMode 实时掠夺累计（取整），
+   * 仅变化时 setText + 文本脉冲动画（飞行物到达后数字跳变）。
+   */
+  private refreshLootDisplay(): void {
+    const gm = this.gm
+    if (!gm || !this.lootCoinsText || !this.lootElixirText) return
+    const { coins, elixir } = gm.getLootDisplay()
+    if (coins !== this.lastLootCoins) {
+      this.lastLootCoins = coins
+      this.lootCoinsText.text = `金币 ${coins}`
+      this.pulseText(this.lootCoinsText)
+    }
+    if (elixir !== this.lastLootElixir) {
+      this.lastLootElixir = elixir
+      this.lootElixirText.text = `圣水 ${elixir}`
+      this.pulseText(this.lootElixirText)
+    }
+  }
+
+  /** 文本脉冲动画（放大回弹，约 0.2s；已在脉冲中的 Actor 跳过防叠放） */
+  private pulseText(textComp: UITextComponent): void {
+    const actor = textComp.owner
+    if (this.pulsingActors.has(actor)) return
+    this.pulsingActors.add(actor)
+    actor.setScale(1.25, 1.25, 1)
+    TweenSystem.instance.to(actor.root.scale, { x: 1, y: 1 }, {
+      duration: 0.2,
+      easing: 'backOut',
+      onComplete: () => {
+        actor.setScale(1, 1, 1)
+        this.pulsingActors.delete(actor)
+      },
+    })
   }
 
   /** 每帧刷新：卡片数量/禁用/放置高亮 + 部署统计 */
@@ -163,5 +226,12 @@ export default class BattleHudScript extends BehaviourScript {
       this.lastDeployText = text
       this.deployText.text = text
     }
+  }
+
+  /** 销毁：解除 GameMode 掠夺刷新回调（防悬挂） */
+  override onDestroy(): void {
+    this.gm && (this.gm.onLootDisplayChange = null)
+    this.pulsingActors.clear()
+    super.onDestroy()
   }
 }

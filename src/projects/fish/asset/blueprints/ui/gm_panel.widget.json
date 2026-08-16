@@ -78,7 +78,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0,
+            "zOrder": 1,
             "active": true,
             "hitTest": "visible"
           }
@@ -90,8 +90,9 @@
             "opacity": 0.6,
             "width": 1920,
             "height": 1080,
-            "zOrder": 0,
-            "radius": 0
+            "zOrder": 1,
+            "radius": 0,
+            "hitTest": "visible"
           }
         }
       ]
@@ -133,7 +134,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1,
+            "zOrder": 2,
             "active": true,
             "hitTest": "visible"
           }
@@ -145,7 +146,8 @@
             "radius": 18,
             "width": 1520,
             "height": 840,
-            "zOrder": 1
+            "zOrder": 2,
+            "hitTest": "visible"
           }
         }
       ]
@@ -187,7 +189,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1,
+            "zOrder": 3,
             "active": true,
             "hitTest": "visible"
           }
@@ -199,7 +201,8 @@
             "radius": 12,
             "width": 1480,
             "height": 800,
-            "zOrder": 1
+            "zOrder": 3,
+            "hitTest": "visible"
           }
         }
       ]
@@ -241,7 +244,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 4,
             "active": true,
             "hitTest": "visible"
           }
@@ -256,13 +259,14 @@
             "align": "center",
             "width": 700,
             "height": 70,
-            "zOrder": 3,
+            "zOrder": 4,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
             "italic": false,
             "lineHeight": 1.4,
             "letterSpacing": 0,
-            "fontSizeScale": 0.006429
+            "fontSizeScale": 0.006429,
+            "hitTest": "visible"
           },
           "name": "GM_TitleText"
         }
@@ -277,8 +281,8 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              0,
-              0,
+              -1.86,
+              1.42,
               0
             ],
             "rotation": [
@@ -305,7 +309,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 5,
             "active": true,
             "hitTest": "visible"
           }
@@ -317,7 +321,8 @@
             "radius": 6,
             "width": 540,
             "height": 52,
-            "zOrder": 2
+            "zOrder": 5,
+            "hitTest": "visible"
           }
         },
         {
@@ -328,7 +333,8 @@
             "color": "#f5ecd7",
             "width": 540,
             "height": 52,
-            "zOrder": 3
+            "zOrder": 5,
+            "value": ""
           },
           "name": "GM_SearchInput"
         }
@@ -372,7 +378,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 6,
             "active": true,
             "hitTest": "visible"
           }
@@ -431,7 +437,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 7,
             "active": true,
             "hitTest": "visible"
           }
@@ -445,14 +451,15 @@
             "align": "left",
             "width": 860,
             "height": 460,
-            "zOrder": 3,
+            "zOrder": 7,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
             "bold": false,
             "italic": false,
             "lineHeight": 1.4,
             "letterSpacing": 0,
-            "fontSizeScale": 0.005217
+            "fontSizeScale": 0.005217,
+            "hitTest": "visible"
           },
           "name": "GM_OutputText"
         }
@@ -495,7 +502,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 8,
             "active": true,
             "hitTest": "visible"
           }
@@ -507,7 +514,8 @@
             "radius": 8,
             "width": 1360,
             "height": 96,
-            "zOrder": 2
+            "zOrder": 8,
+            "hitTest": "visible"
           }
         },
         {
@@ -518,7 +526,8 @@
             "color": "#f5ecd7",
             "width": 1360,
             "height": 96,
-            "zOrder": 3
+            "zOrder": 8,
+            "value": ""
           },
           "name": "GM_InputText"
         }
@@ -561,7 +570,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 9,
             "active": true,
             "hitTest": "visible"
           }
@@ -575,14 +584,15 @@
             "align": "center",
             "width": 900,
             "height": 44,
-            "zOrder": 3,
+            "zOrder": 9,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
             "bold": false,
             "italic": false,
             "lineHeight": 1.4,
             "letterSpacing": 0,
-            "fontSizeScale": 0.006818
+            "fontSizeScale": 0.006818,
+            "hitTest": "visible"
           }
         }
       ]
@@ -596,7 +606,7 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              3.25,
+              3.1551880392898775,
               -1,
               0
             ],
@@ -612,7 +622,7 @@
             ],
             "anchor": "center",
             "anchorOffset": [
-              3.25,
+              3.16,
               -1
             ],
             "worldWidth": 0.85,
@@ -624,7 +634,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
+            "zOrder": 10,
             "active": true,
             "hitTest": "visible"
           }
@@ -674,8 +684,19 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 3,
+                "zOrder": 11,
                 "active": true,
+                "hitTest": "visible"
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ffd700",
+                "radius": 10,
+                "width": 170,
+                "height": 100,
+                "zOrder": 10,
                 "hitTest": "visible"
               }
             },
@@ -689,13 +710,14 @@
                 "align": "center",
                 "width": 170,
                 "height": 96,
-                "zOrder": 3,
+                "zOrder": 11,
                 "shadowColor": "rgba(0,0,0,0.3)",
                 "shadowBlur": 2,
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
-                "fontSizeScale": 0.005208
+                "fontSizeScale": 0.005208,
+                "hitTest": "visible"
               }
             }
           ]

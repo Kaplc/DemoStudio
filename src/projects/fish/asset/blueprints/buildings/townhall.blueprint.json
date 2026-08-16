@@ -9,6 +9,15 @@
         "rotation": [0, 0, 0],
         "scale": [1, 1, 1]
       }
+    },
+    {
+      "baseClass": "BoxColliderComponent",
+      "properties": {
+        "size": [1.6, 1.6, 1.6],
+        "bodyType": "static",
+        "group": "building",
+        "mask": ["troop", "building"]
+      }
     }
   ],
   "children": []

@@ -18,6 +18,7 @@ import { TroopHealthComponent } from './TroopHealthComponent'
 import { TroopTargetComponent } from './TroopTargetComponent'
 import { TroopMoveComponent } from './TroopMoveComponent'
 import { TroopAttackComponent } from './TroopAttackComponent'
+import { TroopHealthBarComponent } from '../../common/comp/TroopHealthBarComponent'
 
 /** 兵 Actor 公共契约（战斗 GameMode / 防御塔弹丸统一引用；无继承基类） */
 export interface TroopActor extends Actor {
@@ -48,6 +49,8 @@ function assembleTroop(
   // 功能组件组合：生命（受击/死亡）→ 索敌（目标输出）→ 移动（寻路/阻挡）→ 攻击（节奏/开火）
   actor.health = new TroopHealthComponent(actor, gm, troop)
   ;(actor as GenericActor).addComponent(actor.health)
+  // 头顶血条（受击显示、1.5s 无受击隐藏，TroopHealthComponent 受击时刷新）
+  ;(actor as GenericActor).addComponent(TroopHealthBarComponent, troop)
   ;(actor as GenericActor).addComponent(TroopTargetComponent, gm, troop)
   ;(actor as GenericActor).addComponent(TroopMoveComponent, gm, troop)
   ;(actor as GenericActor).addComponent(TroopAttackComponent, gm, troop)

@@ -14,6 +14,7 @@
  */
 import { logger } from '../../../engine/Logger'
 import { useEditorStore } from '../../../stores/editorStore'
+import { useCodeLintStore, type AssetIssueView } from '../../../stores/useCodeLintStore'
 import { createAssetSource, type AssetSource } from './AssetSource'
 import { walkDocument } from './AssetWalker'
 import { getChecker } from './AssetCheckerRegistry'
@@ -95,6 +96,8 @@ class AssetLintEngine {
   /** 工程切换：停旧监听 → 新工程建立监听 + 全量扫描。 */
   private onProjectChanged(folder: string | null): void {
     this.stopWatch()
+    // 切换工程：清空面板资产问题（避免展示上一工程的违规）
+    useCodeLintStore.getState().setAssetIssues([])
     if (!folder) return
     this.startWatch(folder)
     void this.scanOnce()
@@ -239,8 +242,11 @@ class AssetLintEngine {
     }
   }
 
-  /** log 级增量：只报新指纹，无新增走 debug 静默。 */
+  /** log 级增量 + store 全量发布：只报新指纹，无新增走 debug 静默。 */
   private reportNew(folder: string, fileCount: number, all: LintIssue[]): void {
+    // 面板数据：整体覆盖（面板渲染全量，不受 log 去重影响），与 CodeLintEngine 共用 store
+    useCodeLintStore.getState().setAssetIssues(all.map(toAssetIssueView))
+
     const fps = all.map((i) => `${i.filePath}::${i.nodePath}::${i.field}::${i.ruleId}`)
     const fresh: LintIssue[] = []
     for (let i = 0; i < all.length; i++) {
@@ -283,6 +289,18 @@ class AssetLintEngine {
     value?: unknown,
   ): LintIssue {
     return { filePath, nodePath, field, ruleId, severity, message, value }
+  }
+}
+
+/** LintIssue → 面板视图（AssetIssueView，与 CodeIssue 同构扁平结构） */
+function toAssetIssueView(i: LintIssue): AssetIssueView {
+  return {
+    file: i.filePath,
+    nodePath: i.nodePath,
+    field: i.field,
+    rule: i.ruleId,
+    severity: i.severity,
+    message: i.message,
   }
 }
 

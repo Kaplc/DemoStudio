@@ -632,7 +632,15 @@ export class World extends AObject {
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
       const actor = this.SpawnActorFromBlueprint(rn.ref, overrides, rn.components)
-      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
+      if (actor) {
+        actor.isRefInstance = true
+        actor.attachTo(rootActor)
+        // 实例级子对象：递归挂到 ref 实例下（场景嵌套父子）
+        if (rn.children?.length) {
+          this.spawnSceneChildren(rn.children, actor)
+        }
+        count++
+      }
     }
 
     // 内联 Actor 节点 → spawnInlineActor（已内置 attachTo 子级层级）
@@ -659,9 +667,26 @@ export class World extends AObject {
    * 与 SpawnActorFromBlueprint 的子节点逻辑一致。
    * 完整实现见 ActorManagerComponent.spawnInlineActor。
    * 供外部调用（ScenePreviewManager 等）。
+   * @param onSpawn 每生成一个子节点回调（供编辑器构建 Actor→JSON 映射）
    */
-  spawnInlineActor(node: import('../asset/SceneAsset').ActorNode): Actor | null {
-    return this.actorMgr.spawnInlineActor(node)
+  spawnInlineActor(
+    node: import('../asset/SceneAsset').ActorNode,
+    onSpawn?: (child: import('../asset/BlueprintAsset').BlueprintChildDef, actor: Actor, depth: number) => void,
+  ): Actor | null {
+    return this.actorMgr.spawnInlineActor(node, onSpawn)
+  }
+
+  /**
+   * 递归 spawn 场景实例级子对象（RefNode.children / ActorNode.children），
+   * 挂到 parentActor 下；返回按 JSON 顺序的直接子 Actor 列表。
+   * 供场景预览构建映射与 World 递归实例化复用。
+   */
+  spawnSceneChildren(
+    children: import('../asset/BlueprintAsset').BlueprintChildDef[],
+    parentActor: Actor,
+    onSpawn?: (child: import('../asset/BlueprintAsset').BlueprintChildDef, actor: Actor, depth: number) => void,
+  ): Actor[] {
+    return this.actorMgr.spawnInlineChildren(children, parentActor, onSpawn, 0)
   }
 
   /**

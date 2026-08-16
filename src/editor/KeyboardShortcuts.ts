@@ -69,6 +69,11 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
       ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && e.shiftKey),
     eventName: 'shortcut-redo',
   },
+  {
+    // V — 切换碰撞盒线框显隐（Game 视口与预览视口共用 colliderGizmos 开关）
+    match: (e) => (e.key === 'v' || e.key === 'V') && !(e.ctrlKey || e.metaKey),
+    eventName: 'shortcut-toggle-collider-gizmos',
+  },
 ]
 
 /**

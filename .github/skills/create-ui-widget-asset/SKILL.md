@@ -172,8 +172,9 @@ Actor (name 唯一, id 唯一)
 3. **name 唯一**：同资产内所有节点 `name` 唯一（AI 按 name 定位控件：`ai.clickActor` / `ai.dragActor` / `ai.selectActor`；UIScriptComponent 也按 name 查找控件）
 4. **position 只允许在变换组件**：其他组件 properties 出现 `position`/`rotation`/`scale` → error
 5. **显隐控制**：UI 节点显隐由 `CanvasUIComponent.active` 统一控制（节点级级联到子树），UIText/UIImage 不消费 active
-6. **按钮纯交互**：`UIButtonComponent` 只提供交互（状态机 + 点击回调 + 按下缩放），**无任何视觉属性**——BeginPlay 自动生成透明点击层（命中区域 = uitransform 世界尺寸，与子节点无关）；视觉背景由同 Actor 的 `UIImageComponent` 或子节点 Frame 提供，颜色变化由脚本/Inspector 直接改 image；按钮文字由**独立子 Actor** 挂 UITextComponent 提供
-7. **颜色格式**：CSS hex 或 rgba()
+6. **按钮纯交互**：`UIButtonComponent` 只提供交互（状态机 + 点击回调 + 按下缩放），**无任何视觉属性**——BeginPlay 自动生成透明点击层（命中区域 = uitransform 世界尺寸，与子节点无关）；视觉背景由**子节点 Frame** 挂 `UIImageComponent` 提供（**编辑器「创建按钮」模板即此结构：Button 节点只挂 UIButton，子节点 Frame 挂 UIImage**），颜色变化由脚本/Inspector 直接改 image；按钮文字由**独立子 Actor** 挂 UITextComponent 提供
+7. **同一节点最多一个 `UIImageComponent`**：UIButton 的透明点击层由**运行时自动生成**（`isClickOnly`，编辑器保存/预览不会把它写进资产），资产显式声明第二份 image 即冗余 → `duplicate-image-component` error
+8. **颜色格式**：CSS hex 或 rgba()
 
 ## 组件 properties 校验规则（comp:* 检查器）
 

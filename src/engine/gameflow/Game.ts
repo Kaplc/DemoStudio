@@ -20,6 +20,7 @@ import type { SceneRenderHost } from '../rendering/SceneRenderHost'
 import { GameInstance } from './GameInstance'
 import type { GameInstanceCallbacks } from './GameInstance'
 import { AIModule } from '../ai/AIModule'
+import { PhysicsWorld } from '../physics/PhysicsWorld'
 import { GameFactoryRegistry } from '../tools/GameFactoryRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
 import { ThreeObject } from '../rendering/ThreeObject'
@@ -210,6 +211,8 @@ export class Game {
     if (this.sceneMgr) {
       this.removeTick = this.sceneMgr.onUpdate((dt) => {
         inst.tick(dt)
+        // 物理步进（固定步长 + accumulator；组件 Tick 注入速度后统一模拟）
+        PhysicsWorld.step(dt)
         inst.drawGizmos()
       })
       logger.info('[Game] GameInstance.tick/drawGizmos 已挂到 Scene 视口 rAF')
@@ -224,7 +227,10 @@ export class Game {
     logger.info('[Game] 游戏已启动')
 
     // 运行级单例注册表：启动时收集（shutdown 时统一回收）
-    this._singletons = [PhySys, AIModule.instance]
+    this._singletons = [PhySys, AIModule.instance, PhysicsWorld]
+
+    // 物理世界进入游戏运行态（碰撞体组件自此可注册 body；编辑器预览不激活）
+    PhysicsWorld.begin()
 
     // AI 事件模块：附加运行上下文（world 来自游戏实例的 duck-typed 字段）
     const world = (inst as unknown as { world?: World }).world

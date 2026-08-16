@@ -265,9 +265,19 @@ export class CameraRigComponent extends Component {
   //   右键拖拽平移
   // ════════════════════════════════════════════
 
-  /** 右键按下：开始拖拽平移（记录起始鼠标位置） */
+  /**
+   * 右键按下：开始拖拽平移（记录起始鼠标位置）。
+   * 残留右拖状态（如拖拽中窗口失焦 mouseup 丢失 → rightDragging 残留 true）时
+   * 强制重置并重新开始，保证 onRightPanStart（外部取消放置模式等）每次都触发，
+   * 否则放置模式将无法用右键取消。
+   */
   beginRightPan(): void {
-    if (this.rightDragging) return
+    if (this.rightDragging) {
+      this.dragLastX = this.mouseX
+      this.dragLastY = this.mouseY
+      this.onRightPanStart?.()
+      return
+    }
     this.rightDragging = true
     // 以最近一次记录的鼠标位置为拖拽起点（若无记录，首次 move 时初始化）
     this.dragLastX = this.mouseX

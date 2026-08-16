@@ -191,6 +191,8 @@ export class UIButtonComponent extends Component<Actor> {
       opacity: 0, // 透明点击层：不渲染视觉，仅命中
     })
     img.isClickOnly = true
+    // 独立命名避免与节点显式声明的 UIImageComponent（视觉背景）同名 → AObject 重复组件警告
+    img.name = 'HitLayer'
     this.owner.addComponent(img)
     this._hitLayer = img
 

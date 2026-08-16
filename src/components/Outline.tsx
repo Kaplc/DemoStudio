@@ -5,6 +5,12 @@ import {
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
 import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
+import { BlueprintPreviewManager } from '../editor/asset/BlueprintPreviewManager'
+import { UIPreviewManager } from '../editor/asset/UIPreviewManager'
+import { ScenePreviewManager } from '../editor/asset/ScenePreviewManager'
+import { NODE3D_TEMPLATES, UI_TEMPLATES, cloneTemplateComponents } from '../editor/blueprintEdit/nodeTemplates'
+import type { NodeTemplate } from '../editor/blueprintEdit/nodeTemplates'
+import { OutlineContextMenu } from './OutlineContextMenu'
 import { logger } from '../engine'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
@@ -107,6 +113,7 @@ function renderActorTreeNodes(
   onToggle: (key: string) => void,
   hiddenKeys: Set<number>,
   onToggleHidden: (actor: Actor, hidden: boolean) => void,
+  onContextMenu?: (e: React.MouseEvent, node: SceneTreeNode) => void,
 ): React.ReactElement[] {
   return applyCollapse(tree, collapsedKeys, kind).map((row, i) => {
     const { node, key: itemKey, hasChildren, collapsed } = row
@@ -156,6 +163,12 @@ function renderActorTreeNodes(
         }}
         onMouseLeave={(e) => {
           if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
+        }}
+        onContextMenu={(e) => {
+          if (!node.actor || !assetPath) return
+          e.preventDefault()
+          e.stopPropagation()
+          onContextMenu?.(e, node)
         }}
       >
         <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={onToggle} />
@@ -218,6 +231,20 @@ export function Outline() {
     [dynamicTabs, activeTabId],
   )
 
+  // ─── 右键菜单（仅 bp: 蓝图/widget 预览与 sp: 场景预览） ───
+  interface OutlineMenuState {
+    x: number
+    y: number
+    node: SceneTreeNode
+    kind: 'blueprint' | 'scenePreview'
+  }
+  const [menu, setMenu] = useState<OutlineMenuState | null>(null)
+  const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode, kind: 'blueprint' | 'scenePreview') => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenu({ x: e.clientX, y: e.clientY, node, kind })
+  }, [])
+
   // 订阅选中/场景变化
   useEffect(() => {
     const unsub = onSelectionChange(() => {
@@ -264,14 +291,14 @@ export function Outline() {
   // ─── 缓存：蓝图树渲染元素 ───
   const bpTreeElements = useMemo(() => {
     if (!bpTree || bpTree.length === 0) return null
-    return renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden)
-  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden])
+    return renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'blueprint'))
+  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu])
 
   // ─── 缓存：场景预览树渲染元素 ───
   const spTreeElements = useMemo(() => {
     if (!spTree || spTree.length === 0) return null
-    return renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden)
-  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden])
+    return renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'scenePreview'))
+  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu])
 
   // ─── 缓存：Scene 树渲染元素 ───
   const sceneTreeElements = useMemo(() => {
@@ -330,6 +357,160 @@ export function Outline() {
     })
   }, [visibleTree, selected, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, gameRunning])
 
+  // ─── 右键菜单数据与操作 ───
+  /** 当前菜单的模板组（按预览管理器类型判定：widget → UI 组；3D 蓝图/场景 → 3D 组） */
+  const menuTemplates = useMemo<NodeTemplate[]>(() => {
+    if (!menu) return []
+    const assetPath = menu.kind === 'blueprint' ? bpAssetPath : spAssetPath
+    if (!assetPath) return []
+    const mgr = AssetPreviewManager.get<BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager>(assetPath)
+    if (mgr instanceof UIPreviewManager) return UI_TEMPLATES
+    return NODE3D_TEMPLATES
+  }, [menu, bpAssetPath, spAssetPath])
+
+  /** 菜单目标是否根节点（根节点只允许创建；复制/重命名/删除禁用） */
+  const menuIsRoot = menu ? menu.node.actor?.parent == null : false
+  /** 菜单目标是否对应资产 JSON 节点（代码生成的子节点无法做资产级结构编辑） */
+  const menuTargetInJson = useMemo(() => {
+    if (!menu || menu.node.actor == null || menu.node.actor.parent == null) return false
+    const assetPath = menu.kind === 'blueprint' ? bpAssetPath : spAssetPath
+    if (!assetPath) return false
+    const mgr = AssetPreviewManager.get<BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager>(assetPath)
+    return !!mgr && mgr.hasJsonNode(menu.node.actor)
+  }, [menu, bpAssetPath, spAssetPath])
+  /** 修改类操作（复制/重命名/删除）可用性 */
+  const menuCanModify = !menuIsRoot && menuTargetInJson
+
+  /** 菜单目标资产路径（当前激活页签） */
+  const menuAssetPath = menu ? (menu.kind === 'blueprint' ? bpAssetPath : spAssetPath) : null
+
+  // ─── bp: / widget 操作（走预览管理器 Actor 引用方法：直接按选中节点引用定位 JSON 节点，
+  //          同名不拦截；复用快照撤销 + bump 重建预览） ───
+  const getBpMgr = useCallback(() => {
+    if (!bpAssetPath) return null
+    return AssetPreviewManager.get<BlueprintPreviewManager | UIPreviewManager>(bpAssetPath)
+  }, [bpAssetPath])
+
+  const handleBpCreate = async (tpl: NodeTemplate) => {
+    if (!menu) return
+    const mgr = getBpMgr()
+    if (!mgr) {
+      logger.warn(`[Outline] 创建节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
+      setMenu(null)
+      return
+    }
+    // 父节点 = 被右键节点的 Actor 引用（根/代码生成节点由 mgr 内部退化为根追加）
+    const parentActor = menu.node.actor?.parent ? menu.node.actor : null
+    const newName = await mgr.addChildNode(parentActor, {
+      baseName: tpl.baseName,
+      baseClass: tpl.baseClass,
+      components: cloneTemplateComponents(tpl),
+      // 模板子节点（如按钮的 Frame 视觉背景）随创建一并写入
+      children: tpl.children ? JSON.parse(JSON.stringify(tpl.children)) : undefined,
+    })
+    if (newName) logger.info(`[Outline] 创建节点: ${bpAssetPath} → ${parentActor ? menu.node.name : '(根)'}/${newName}（${tpl.label}）`)
+    else logger.warn(`[Outline] 创建节点失败: ${bpAssetPath}（${tpl.label}）`)
+    setMenu(null)
+  }
+
+  const handleBpDuplicate = async () => {
+    if (!menu || !menu.node.actor) return
+    const mgr = getBpMgr()
+    if (!mgr) {
+      logger.warn(`[Outline] 复制节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
+      setMenu(null)
+      return
+    }
+    const newName = await mgr.duplicateChildNode(menu.node.actor)
+    if (!newName) logger.warn(`[Outline] 复制节点失败: ${menu.node.name}（无 JSON 映射或父数组缺失）`)
+    setMenu(null)
+  }
+
+  const handleBpRename = async (newName: string) => {
+    if (!menu || !menu.node.actor) return
+    const mgr = getBpMgr()
+    if (!mgr) {
+      logger.warn(`[Outline] 重命名失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
+      setMenu(null)
+      return
+    }
+    const ok = await mgr.renameChildNode(menu.node.actor, newName)
+    if (!ok) logger.warn(`[Outline] 重命名失败: ${menu.node.name}`)
+    setMenu(null)
+  }
+
+  const handleBpDelete = async () => {
+    if (!menu || !menu.node.actor) return
+    const mgr = getBpMgr()
+    if (!mgr) {
+      logger.warn(`[Outline] 删除节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
+      setMenu(null)
+      return
+    }
+    const ok = await mgr.removeChildNode(menu.node.actor)
+    if (!ok) logger.warn(`[Outline] 删除节点失败: ${menu.node.name}`)
+    setMenu(null)
+  }
+
+  // ─── sp: 操作（ScenePreviewManager 结构编辑方法，自带撤销 + 预览重建） ───
+  const getSpMgr = () => (menu ? AssetPreviewManager.get<ScenePreviewManager>(spAssetPath ?? '') : null)
+
+  const handleSpCreate = (tpl: NodeTemplate) => {
+    if (!menu) return
+    const mgr = getSpMgr()
+    if (!mgr) {
+      logger.warn(`[Outline] 创建节点失败: 场景预览管理器不可用（${spAssetPath}）`)
+      setMenu(null)
+      return
+    }
+    const newName = mgr.addSceneObject(menu.node.actor, tpl)
+    if (newName) logger.info(`[Outline] 创建场景对象: ${spAssetPath} → ${newName}（${tpl.label}）`)
+    else logger.warn(`[Outline] 创建场景对象失败: ${spAssetPath}（${tpl.label}）`)
+    setMenu(null)
+  }
+
+  const handleSpDuplicate = () => {
+    if (!menu) return
+    const mgr = getSpMgr()
+    const newName = mgr?.duplicateSceneObject(menu.node.actor!)
+    if (!newName) logger.warn(`[Outline] 复制场景对象失败: ${menu.node.name}`)
+    setMenu(null)
+  }
+
+  const handleSpRename = (newName: string) => {
+    if (!menu) return
+    const mgr = getSpMgr()
+    const ok = mgr?.renameSceneObject(menu.node.actor!, newName)
+    if (!ok) logger.warn(`[Outline] 重命名场景对象失败: ${menu.node.name}`)
+    setMenu(null)
+  }
+
+  const handleSpDelete = () => {
+    if (!menu) return
+    const mgr = getSpMgr()
+    const ok = mgr?.removeSceneObject(menu.node.actor!)
+    if (!ok) logger.warn(`[Outline] 删除场景对象失败: ${menu.node.name}`)
+    setMenu(null)
+  }
+
+  // ─── 菜单操作分发（按当前页签类型） ───
+  const handleMenuCreate = (tpl: NodeTemplate) => {
+    if (menu?.kind === 'scenePreview') handleSpCreate(tpl)
+    else void handleBpCreate(tpl)
+  }
+  const handleMenuDuplicate = () => {
+    if (menu?.kind === 'scenePreview') handleSpDuplicate()
+    else void handleBpDuplicate()
+  }
+  const handleMenuRename = (newName: string) => {
+    if (menu?.kind === 'scenePreview') handleSpRename(newName)
+    else void handleBpRename(newName)
+  }
+  const handleMenuDelete = () => {
+    if (menu?.kind === 'scenePreview') handleSpDelete()
+    else void handleBpDelete()
+  }
+
   return (
     <div className="panel-body" style={{ padding: 0 }}>
       {isScenePreviewTab ? (
@@ -348,6 +529,20 @@ export function Outline() {
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
           场景中暂无对象
         </div>
+      )}
+      {menu && menuAssetPath && (
+        <OutlineContextMenu
+          x={menu.x}
+          y={menu.y}
+          targetLabel={menu.node.name}
+          canModify={menuCanModify}
+          templates={menuTemplates}
+          onClose={() => setMenu(null)}
+          onCreate={handleMenuCreate}
+          onDuplicate={handleMenuDuplicate}
+          onRename={handleMenuRename}
+          onDelete={handleMenuDelete}
+        />
       )}
     </div>
   )

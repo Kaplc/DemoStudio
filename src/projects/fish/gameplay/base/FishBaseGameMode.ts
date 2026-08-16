@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, PrimitiveMeshComponent, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, PrimitiveMeshComponent, PhysicsWorld, CollisionLayer, ColliderComponent, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -260,6 +260,7 @@ export class FishBaseGameMode extends GameMode {
    * 放置建筑（网格吸附，格子坐标 = 世界坐标整数）。
    * 建筑从蓝图资产生成：baseClass 引用具体 Actor 类（每个建筑一个类），
    * 网格坐标写类的 gridX/gridZ 字段。
+   * 冲突检测：网格占用表 + 物理查询（建筑碰撞体 AABB，兜底 footprint 重叠）。
    * @returns 是否放置成功
    */
   private placeBuilding(typeId: string, gx: number, gz: number): boolean {
@@ -269,6 +270,12 @@ export class FishBaseGameMode extends GameMode {
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     if (this.gridOccupied.has(key)) return false
+    // 物理查询：与已放置建筑（static 碰撞体）重叠则拒绝（建筑半宽 = type.size/2）
+    const half = type.size / 2
+    if (PhysicsWorld.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
+      logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 与既有建筑碰撞重叠`)
+      return false
+    }
 
     const building = world.SpawnActorFromBlueprint(type.blueprint) as ClashBuildingBaseActor | null
     if (!building) {
@@ -457,12 +464,21 @@ export class FishBaseGameMode extends GameMode {
     this.placeGridActor?.setVisible(visible)
   }
 
-  /** 移动建筑：先移除旧占用，再放置到新格子 */
+  /** 移动建筑：先移除旧占用，再放置到新格子（物理查询排除自身碰撞体） */
   private placeBuildingAt(b: ClashBuildingBaseActor, gx: number, gz: number): boolean {
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     const other = this.gridOccupied.get(key)
     if (other && other !== b) return false
+    // 物理查询（排除自身）：移动后是否与既有建筑碰撞重叠
+    const half = b.type.size / 2
+    if (PhysicsWorld.overlapTest(
+      new THREE.Vector3(gx, 0, gz), half, half,
+      { group: CollisionLayer.BUILDING, exclude: this.findColliderOf(b) ?? undefined },
+    )) {
+      logger.warn(`[BaseGM] 移动失败：位置 (${gx},${gz}) 与既有建筑碰撞重叠`)
+      return false
+    }
 
     // 释放旧格子
     this.gridOccupied.delete(`${b.gridX},${b.gridZ}`)
@@ -470,7 +486,21 @@ export class FishBaseGameMode extends GameMode {
     b.gridZ = gz
     b.setPosition(gx, 0, gz)
     this.gridOccupied.set(key, b)
+    // 同步 static 碰撞体位置（body 为碰撞权威，移动后必须更新）
+    this.findColliderOf(b)?.syncStaticPosition()
     return true
+  }
+
+  /** 沿 Actor 子树查找碰撞体组件（建筑碰撞体挂建筑根） */
+  private findColliderOf(b: ClashBuildingBaseActor): ColliderComponent | null {
+    const stack: Actor[] = [b]
+    while (stack.length > 0) {
+      const a = stack.pop()!
+      const c = a.getAllComponents().find((comp) => comp instanceof ColliderComponent) as ColliderComponent | undefined
+      if (c) return c
+      stack.push(...a.getChildren())
+    }
+    return null
   }
 
   /** 清理部落冲突建造系统资源 */

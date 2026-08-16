@@ -25,6 +25,8 @@ export interface NormalizedRefNode {
   overrides?: import('./SceneAsset').BlueprintNode['overrides']
   /** 实例级组件属性覆盖（collectSaveData 持久化场景 Inspector 对 ref 组件的修改） */
   components?: import('./BlueprintAsset').BlueprintComponentDef[]
+  /** 实例级子对象（挂在 ref 实例下，World/预览递归 spawn） */
+  children?: import('./BlueprintAsset').BlueprintChildDef[]
   name?: string
 }
 
@@ -83,6 +85,7 @@ export function loadScene(asset: SceneAsset): SceneGroup {
         scale: node.scale ?? [1, 1, 1],
         overrides: node.overrides,
         components: node.components,
+        children: node.children,
         name: node.name,
       })
       continue

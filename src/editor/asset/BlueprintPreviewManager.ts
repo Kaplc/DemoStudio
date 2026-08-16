@@ -25,8 +25,11 @@ import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
 import { UndoManager } from '../blueprintEdit/UndoManager'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
-import type { BlueprintAsset } from '../../engine'
+import type { BlueprintAsset, BlueprintComponentDef, BlueprintChildDef } from '../../engine'
+import { ColliderDebugDrawer } from './ColliderDebugDrawer'
 import type { SceneTreeNode } from '../SelectionManager'
+import { uniqueNodeName, nextChildId, reassignChildIds } from '../blueprintEdit/nodeTemplates'
+import { useEditorStore } from '../../stores/editorStore'
 
 /** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
 function diskPathToAssetKey(diskPath: string): string {
@@ -71,6 +74,9 @@ export class BlueprintPreviewManager {
 
   /** 变换 Gizmo */
   readonly gizmo: TransformGizmo
+
+  /** 碰撞盒线框绘制器（预览模式从组件属性解析几何，V 键开关） */
+  private colliderDrawer: ColliderDebugDrawer | null = null
 
   // ─── 树变化回调 ───
   private _onChangeCallbacks: Array<() => void> = []
@@ -144,6 +150,9 @@ export class BlueprintPreviewManager {
 
     // ─── World ───
     this.world = new World(this.scene)
+
+    // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
+    this.colliderDrawer = new ColliderDebugDrawer(this.scene)
 
     // ─── 默认内容 ───
     this.setupLighting()
@@ -390,6 +399,17 @@ export class BlueprintPreviewManager {
     return this._currentBlueprintKey
   }
 
+  /** 该 Actor 是否对应资产 JSON 中的节点（false = 代码生成的子节点，无法做资产级结构编辑） */
+  hasJsonNode(actor: Actor): boolean {
+    return this._actorJsonMap?.has(actor) ?? false
+  }
+
+  /** 返回该 Actor 对应的资产 JSON 节点（根节点/代码生成节点返回 null）。
+   *  蓝图子节点必有全资产唯一 id，Outline 按引用定位父节点时读取它。 */
+  getJsonNodeForActor(actor: Actor): Record<string, unknown> | null {
+    return this._actorJsonMap?.get(actor) ?? null
+  }
+
   getActorTree(): SceneTreeNode[] {
     if (this._actorTreeCache) return this._actorTreeCache
 
@@ -445,6 +465,9 @@ export class BlueprintPreviewManager {
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
+        // 跳过运行时自动生成的内部组件（如 UIButton 透明点击层 UIImageComponent，isClickOnly=true）：
+        // 不写进资产，避免保存后出现重复 image 组件
+        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
         const target = jsonComps.find((c) => c.baseClass === comp.persistType)
         if (!target) continue
         const props = (target.properties ?? {}) as Record<string, unknown>
@@ -545,7 +568,13 @@ export class BlueprintPreviewManager {
     // 会把 _jsonTree 指向深拷贝快照，若与基准同引用，下次 collectSaveData
     // 原地写回又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    const applied = this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    if (!applied) {
+      // 结构变更（增删节点/重命名）：注册表回滚 + 全量重建预览
+      logger.info(`[BlueprintPreview] undo 结构变更 → 重建预览: ${key}`)
+      BlueprintRegistry.loadFromJson(key, snap as unknown as BlueprintAsset)
+      this.loadBlueprint(key, this._currentBlueprintDiskPath ?? undefined)
+    }
     // 同步工作副本（不 bump）：保证服务层与预览一致（Inspector 后续 apply 不会基于旧值覆盖回滚结果）
     void this.syncWorkingCopy()
     logger.info(`[BlueprintPreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
@@ -564,7 +593,12 @@ export class BlueprintPreviewManager {
     if (snap == null) return false
     // 同 undo：基准与原地回滚输入必须分离（防同引用污染）
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    const applied = this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    if (!applied) {
+      logger.info(`[BlueprintPreview] redo 结构变更 → 重建预览: ${key}`)
+      BlueprintRegistry.loadFromJson(key, snap as unknown as BlueprintAsset)
+      this.loadBlueprint(key, this._currentBlueprintDiskPath ?? undefined)
+    }
     void this.syncWorkingCopy()
     logger.info(`[BlueprintPreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
     return true
@@ -579,6 +613,191 @@ export class BlueprintPreviewManager {
     await BlueprintEditorService.updateFromPreview(diskPath, data as unknown as BlueprintAsset)
   }
 
+  // ════════════════════════════════════════
+  //  大纲右键结构编辑（按 Actor 引用定位父节点，复用快照撤销 + bump 重建预览）
+  // ════════════════════════════════════════
+
+  /**
+   * 在目标节点下添加子 Actor（追加到其 children 末尾）。
+   * parentActor 为根节点/代码生成节点 → 追加到根 children 末尾。
+   * 直接按 Actor 引用定位 JSON 节点（不走 name/id 二次定位，同名节点不拦截）。
+   * 返回新节点名；失败返回 null。一个撤销点 + bump 重建 + 自动选中新节点。
+   */
+  async addChildNode(
+    parentActor: Actor | null,
+    def: { baseName: string; baseClass: string; components: BlueprintComponentDef[]; children?: BlueprintChildDef[] },
+  ): Promise<string | null> {
+    if (!this._jsonTree) {
+      logger.warn(`[BlueprintPreview] addChildNode 跳过（_jsonTree 为空）`)
+      return null
+    }
+    // 父节点 JSON 引用：根/代码生成节点 → null（追加到根 children 末尾）
+    const parentNode = parentActor ? this._actorJsonMap?.get(parentActor) ?? null : null
+    const siblings: string[] = []
+    if (parentNode) {
+      for (const c of (parentNode.children as Array<Record<string, unknown>> | undefined) ?? []) {
+        const n = (c as { name?: string }).name
+        if (n) siblings.push(n)
+      }
+    } else {
+      for (const c of ((this._jsonTree.children as Array<Record<string, unknown>> | undefined) ?? [])) {
+        const n = (c as { name?: string }).name
+        if (n) siblings.push(n)
+      }
+    }
+    const name = uniqueNodeName(def.baseName, siblings)
+    // 全资产唯一 id：新节点自身 + 模板子节点（如按钮的 Frame）递归分配
+    let idGen = nextChildId(this._jsonTree.children as BlueprintChildDef[] | undefined)
+    const assignIds = (defs: BlueprintChildDef[] | undefined): void => {
+      if (!defs) return
+      for (const d of defs) {
+        d.id = idGen++
+        assignIds(d.children)
+      }
+    }
+    const child: BlueprintChildDef = {
+      name,
+      baseClass: def.baseClass,
+      id: idGen++,
+      components: JSON.parse(JSON.stringify(def.components)) as BlueprintComponentDef[],
+    }
+    if (def.children?.length) {
+      child.children = JSON.parse(JSON.stringify(def.children)) as BlueprintChildDef[]
+      assignIds(child.children)
+    }
+    if (parentNode) {
+      const children = (Array.isArray(parentNode.children) ? parentNode.children.slice() : []) as Array<Record<string, unknown>>
+      children.push(child as unknown as Record<string, unknown>)
+      parentNode.children = children
+    } else {
+      const children = (Array.isArray(this._jsonTree.children) ? this._jsonTree.children.slice() : []) as Array<Record<string, unknown>>
+      children.push(child as unknown as Record<string, unknown>)
+      this._jsonTree.children = children
+    }
+    await this.commitStructureEdit(name)
+    logger.info(`[BlueprintPreview] 添加子节点: ${parentNode ? (parentNode as { name?: string }).name ?? '?' : '(根)'} → ${name}（子节点 ${child.children?.length ?? 0} 个）`)
+    return name
+  }
+
+  /** 删除节点（按 Actor 引用定位，无确认，删除后清空选中）。一个撤销点。 */
+  async removeChildNode(actor: Actor): Promise<boolean> {
+    const node = this._actorJsonMap?.get(actor)
+    if (!node) {
+      logger.warn(`[BlueprintPreview] removeChildNode 跳过（节点无 JSON 映射）: ${actor.name}`)
+      return false
+    }
+    if (!this._removeJsonChild(node)) {
+      logger.warn(`[BlueprintPreview] removeChildNode 跳过（找不到父数组）: ${actor.name}`)
+      return false
+    }
+    await this.commitStructureEdit(null)
+    logger.info(`[BlueprintPreview] 删除子节点: ${(node as { name?: string }).name ?? '?'}`)
+    return true
+  }
+
+  /** 深拷贝节点到其父 children 末尾（根 → 根 children 末尾），名称自动加序号。返回新节点名。 */
+  async duplicateChildNode(actor: Actor): Promise<string | null> {
+    const node = this._actorJsonMap?.get(actor)
+    if (!node) {
+      logger.warn(`[BlueprintPreview] duplicateChildNode 跳过（节点无 JSON 映射）: ${actor.name}`)
+      return null
+    }
+    const parentArr = this._parentChildrenArray(node)
+    if (!parentArr) return null
+    const clone = JSON.parse(JSON.stringify(node)) as Record<string, unknown>
+    const siblings = parentArr.map((o) => (o as { name?: string }).name).filter((n): n is string => !!n)
+    const newName = uniqueNodeName(((node as { name?: string }).name) || 'Copy', siblings)
+    clone.name = newName
+    // id 重分配（全资产唯一）；组件 id 清除
+    let idGen = nextChildId(this._jsonTree?.children as BlueprintChildDef[] | undefined)
+    reassignChildIds(clone as unknown as BlueprintChildDef, () => idGen++)
+    parentArr.push(clone)
+    await this.commitStructureEdit(newName)
+    logger.info(`[BlueprintPreview] 复制子节点: ${(node as { name?: string }).name ?? '?'} → ${newName}`)
+    return newName
+  }
+
+  /** 重命名节点（按 Actor 引用定位，同父重名自动追加序号）。返回是否成功。 */
+  async renameChildNode(actor: Actor, newName: string): Promise<boolean> {
+    const node = this._actorJsonMap?.get(actor)
+    if (!node) {
+      logger.warn(`[BlueprintPreview] renameChildNode 跳过（节点无 JSON 映射）: ${actor.name}`)
+      return false
+    }
+    const parentArr = this._parentChildrenArray(node)
+    if (!parentArr) return false
+    const siblings = parentArr
+      .filter((o) => o !== node)
+      .map((o) => (o as { name?: string }).name)
+      .filter((n): n is string => !!n)
+    const finalName = uniqueNodeName(newName, siblings)
+    node.name = finalName
+    await this.commitStructureEdit(finalName)
+    logger.info(`[BlueprintPreview] 重命名子节点: ${(node as { name?: string }).name ?? '?'} → ${finalName}`)
+    return true
+  }
+
+  /** 返回节点所在的 children 数组（根 → 根 children；找不到返回 null） */
+  private _parentChildrenArray(node: Record<string, unknown>): Array<Record<string, unknown>> | null {
+    if (!this._jsonTree) return null
+    const rootChildren = (this._jsonTree.children as Array<Record<string, unknown>> | undefined) ?? []
+    if (rootChildren.includes(node)) return rootChildren
+    const find = (arr: Array<Record<string, unknown>>): Array<Record<string, unknown>> | null => {
+      for (const c of arr) {
+        const children = (c.children as Array<Record<string, unknown>> | undefined) ?? []
+        if (children.includes(node)) return children
+        const hit = find(children)
+        if (hit) return hit
+      }
+      return null
+    }
+    return find(rootChildren)
+  }
+
+  /** 从所在 children 数组移除节点（返回是否找到并移除） */
+  private _removeJsonChild(node: Record<string, unknown>): boolean {
+    const arr = this._parentChildrenArray(node)
+    if (!arr) return false
+    const idx = arr.indexOf(node)
+    if (idx < 0) return false
+    arr.splice(idx, 1)
+    return true
+  }
+
+  /**
+   * 结构编辑提交：收集当前状态 → 对比基准 push 撤销点 → 同步服务层工作副本
+   * （不写盘、不 bump 前撤销按钮刷新由 bump 触发）→ bump 重建预览。
+   * @param selectName 重建后要选中的节点名（null = 不选中；bump 后 BlueprintEditor 消费）
+   */
+  private async commitStructureEdit(selectName: string | null): Promise<void> {
+    const key = this._undoKey
+    if (!key) {
+      logger.warn(`[BlueprintPreview] 结构编辑提交跳过（无撤销 key，activate 未调用）`)
+      return
+    }
+    const data = this.collectSaveData()
+    if (!data) return
+    if (this._lastCommitted === null) {
+      this._lastCommitted = JSON.parse(JSON.stringify(data))
+      logger.info(`[BlueprintPreview] 结构编辑（首帧基准）: ${key}`)
+    } else if (JSON.stringify(data) === JSON.stringify(this._lastCommitted)) {
+      logger.info(`[BlueprintPreview] 结构编辑提交跳过（内容无变化）: ${key}`)
+      return
+    } else {
+      UndoManager.push(key, this._lastCommitted)
+      this._lastCommitted = JSON.parse(JSON.stringify(data))
+      logger.info(`[BlueprintPreview] 结构编辑提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+    }
+    const diskPath = this._currentBlueprintDiskPath
+    if (diskPath) {
+      // 同步服务层工作副本（注册表随之更新）→ bump 触发 BlueprintEditor 重建预览并消费选中
+      await BlueprintEditorService.updateFromPreview(diskPath, data as unknown as BlueprintAsset)
+      if (selectName) AssetPreviewManager.setPendingSelection(diskPath, selectName)
+      useEditorStore.getState().bumpBlueprintEdit(diskPath)
+    }
+    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, diskPath ?? '')
+  }
+
   /**
    * 原地回滚（纯内存，唯一应用路径）：把快照 diff 逐个应用到现有 actor
    * （不销毁、不重建，actor 引用保持 → 选中/gizmo/相机零丢失）。
@@ -587,7 +806,7 @@ export class BlueprintPreviewManager {
    *  - transform：写回 position/rotation/scale（组件 TransformComponent/UITransformComponent properties 优先）
    *  - 结构不一致（节点数/节点名对不上，当前场景仅 transform/属性编辑不会触发）→ 警告，不重建
    */
-  private _applySnapshotInPlace(snap: Record<string, unknown>): void {
+  private _applySnapshotInPlace(snap: Record<string, unknown>): boolean {
     const entries = Array.from(this._actorJsonMap?.entries() ?? [])
     // 结构一致性检查：节点数一致且每个 map 节点名都能在快照树中找到唯一对应
     const snapByName = new Map<string, Record<string, unknown>>()
@@ -605,14 +824,14 @@ export class BlueprintPreviewManager {
     }
     if (!walkSnap(snap)) {
       logger.warn(`[BlueprintPreview] 原地回滚跳过（快照节点名缺失/重复）`)
-      return
+      return false
     }
     // 每个 map 节点名必须能在快照中找到唯一对应（结构与 map 一致时才回滚）
     for (const [, node] of entries) {
       const name = (node as { name?: string }).name
       if (!name || !snapByName.has(name)) {
         logger.warn(`[BlueprintPreview] 原地回滚跳过（节点 "${name}" 在快照中缺失）`)
-        return
+        return false
       }
     }
     // 逐个应用
@@ -623,6 +842,8 @@ export class BlueprintPreviewManager {
       const jsonComps = (jsonNode.components as Array<Record<string, unknown>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
+        // 运行时自动生成的内部组件（透明点击层）不参与回滚
+        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
         const target = jsonComps.find((c) => (c.baseClass as string | undefined) === comp.persistType)
         if (!target) continue
         const props = (target.properties ?? {}) as Record<string, unknown>
@@ -668,6 +889,7 @@ export class BlueprintPreviewManager {
     if (this.gizmo.visible) this.gizmo.syncTransform()
     this.renderer.render(this.scene, this.camera)
     logger.info(`[BlueprintPreview] 原地回滚完成: ${this._undoKey}（${entries.length} 个节点）`)
+    return true
   }
 
   /**
@@ -754,6 +976,8 @@ export class BlueprintPreviewManager {
 
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
+      // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
+      this.colliderDrawer?.update(this.world.GetAllActors())
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -801,6 +1025,9 @@ export class BlueprintPreviewManager {
     }
     select(null)
     this.gizmo.dispose()
+    // 碰撞盒线框绘制器：移除线框对象 + 释放几何/材质
+    this.colliderDrawer?.dispose()
+    this.colliderDrawer = null
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 11+ 个 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。

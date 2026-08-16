@@ -134,6 +134,50 @@ class CapsuleMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:CapsuleMeshComponent', CapsuleMeshComponentChecker)
 
+/** 碰撞体组件公共 properties schema（三个碰撞组件共用；bodyType/mass/group/mask/offset/linearDamping/lockY） */
+const COLLIDER_COMMON_SCHEMA: FieldSpec[] = [
+  { field: 'properties.bodyType', type: 'string', enum: ['static', 'dynamic'], label: '刚体类型' },
+  { field: 'properties.mass', type: 'number', min: 0, minExclusive: true, label: '质量' },
+  { field: 'properties.group', type: 'string', enum: ['default', 'troop', 'building'], label: '碰撞层' },
+  { field: 'properties.mask', type: 'array', label: '碰撞掩码层' },
+  { field: 'properties.offset', type: 'vec3', label: '中心偏移' },
+  { field: 'properties.linearDamping', type: 'number', min: 0, label: '线性阻尼' },
+  { field: 'properties.lockY', type: 'boolean', label: '锁定 Y' },
+  { field: 'properties.name', type: 'string', label: '组件名' },
+]
+
+/** comp:BoxColliderComponent — 盒形碰撞体：size + 通用属性。 */
+class BoxColliderComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:BoxColliderComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.size', type: 'array', minItems: 3, maxItems: 3, label: '盒尺寸' },
+    ...COLLIDER_COMMON_SCHEMA,
+  ]
+}
+registerAssetChecker('comp:BoxColliderComponent', BoxColliderComponentChecker)
+
+/** comp:CircleColliderComponent — 圆形碰撞体：radius/height + 通用属性。 */
+class CircleColliderComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:CircleColliderComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.height', type: 'number', min: 0, minExclusive: true, label: '高度' },
+    ...COLLIDER_COMMON_SCHEMA,
+  ]
+}
+registerAssetChecker('comp:CircleColliderComponent', CircleColliderComponentChecker)
+
+/** comp:CapsuleColliderComponent — 胶囊碰撞体：radius/length + 通用属性。 */
+class CapsuleColliderComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:CapsuleColliderComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
+    ...COLLIDER_COMMON_SCHEMA,
+  ]
+}
+registerAssetChecker('comp:CapsuleColliderComponent', CapsuleColliderComponentChecker)
+
 /** comp:TroikaTextComponent — 3D 文本：text/字号/颜色/对齐/描边。 */
 class TroikaTextComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:TroikaTextComponent'
