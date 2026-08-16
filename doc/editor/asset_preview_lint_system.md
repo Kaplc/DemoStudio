@@ -41,6 +41,13 @@ activate / resize / dispose
 - `fitToActor` 以根 Actor 直接挂载的画布 mesh 为基准（忽略子文本过大的 worldWidth）
 - 自动清理（dispose）
 
+### ScenePreviewManager 场景嵌套（2026-08-17 起）
+
+- 场景 `actor`/`ref` 节点支持 `children` 递归子对象；预览经 onSpawn 回调（深度优先先序 + 路径栈）构建 Actor→JSON 节点/路径映射
+- 大纲在 ref 实例内部只显示场景自有子对象（`_actorJsonMap` 登记），蓝图内部结构不展开
+- 结构编辑（`addSceneObject`/`removeSceneObject`/`duplicateSceneObject`/`renameSceneObject`）复用快照撤销：提交时 push 基准快照 + 全量重建预览；undo/redo 结构不一致时自动回退为「注册表/快照重载 + 重建」，transform/属性编辑仍走原地回滚
+- assetLint 同步：`doc:scene` 同父重名校验、`node:ref` 支持 `children` 字段、walker 递归派发 ref 子节点
+
 ## 3. 使用方法
 
 ### 3.1 预览系统入口
@@ -97,6 +104,7 @@ src/editor/asset/assetLint/
 
 - 违规经 `logger.warn/error` 输出（自动写日志文件 + 控制台面板），带 `[AssetLint]` 前缀与节点定位：`${filePath} > ${nodePath} [${field}] ${message} (${ruleId})`
 - **log 级增量**：`filePath::nodePath::field::ruleId` 指纹集合，只报新 issue
+- **面板发布（共用右下角检查面板）**：`reportNew` 全量覆盖发布到 `useCodeLintStore.setAssetIssues`（`toAssetIssueView` 映射），与 codeLint 问题分节显示在状态栏 tips 面板（[code_lint_system.md §4.4](./code_lint_system.md)）；`onProjectChanged` 先清空旧工程数据
 - 全局单例 + `globalThis` 守卫：StrictMode 双挂载 / HMR 都只保留一份 store 订阅与监听
 
 ### 4.4 检查范围（按资产类型）

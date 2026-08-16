@@ -28,8 +28,9 @@
 | 组件 | 功能 |
 |---|---|
 | `Inspector` | 属性检查器（读取选中对象/组件/蓝图节点信息，按 `EditableProperty` 动态渲染，修改走 BlueprintEditorService） |
-| `Outline` | 场景大纲树（选中 → SelectionManager.select） |
+| `Outline` | 场景大纲树（选中 → SelectionManager.select）；**预览资产时（bp: 蓝图/widget、sp: 场景预览）右键节点弹 `OutlineContextMenu`**：创建预定义节点/控件（`nodeTemplates.ts`，按预览类型显示 3D/UI 模板组，追加到目标节点子对象最后）、复制、重命名、删除——bp:/widget 走 BlueprintEditorService（addChildToParent/removeChildDeep/renameChildDeep），sp: 走 ScenePreviewManager（addSceneObject/removeSceneObject/duplicateSceneObject/renameSceneObject），均支持撤销/重做 |
 | `UiOutline` | UI 大纲树（UI 节点层级） |
+| `OutlineContextMenu` | 预览大纲右键浮层菜单（创建/复制/重命名/删除；点击外部或 Esc 关闭，重命名内嵌输入框） |
 | `BlueprintEditor` | 蓝图编辑器面板（组件/子 Actor 列表 + 属性编辑） |
 | `AssetBrowser` | 资产浏览器（场景/蓝图/widget/配置浏览与预览入口） |
 

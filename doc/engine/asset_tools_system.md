@@ -52,6 +52,15 @@ SceneAsset（JSON）→ loadScene() 展开为 THREE.Group
   └─ ref 节点 → 归一化为 NormalizedRefNode（递归 resolve 蓝图 ref）
 ```
 
+### 场景嵌套 children（2026-08-17 起）
+
+场景资产 `objects[]` 的 `actor` / `ref` 节点支持 `children` 递归子对象数组（结构与蓝图 `BlueprintChildDef` 一致：`name` / `baseClass` / `ref` / `components` / `children`，无 `type` 字段）：
+
+- **加载**：`loadScene` 把 ref 节点的 `children` 归一化进 `NormalizedRefNode.children`；`World.loadSceneAsActors` 对 ref 节点递归调用 `spawnSceneChildren`（挂到 ref 实例下），actor 节点子对象由 `spawnInlineActor` → `spawnInlineChildren` 递归生成
+- **预览**：`ScenePreviewManager` 经 onSpawn 回调按「深度优先先序 + 路径栈」构建 Actor→JSON 节点/路径映射；大纲在 ref 实例内部只显示场景自有子对象（`_actorJsonMap` 登记），蓝图内部结构不展开
+- **序列化**：保存时统一递归写出——`objects` 保持顶层列表，有子对象写 `children` 递归数组、无则不写；旧平铺资产加载/保存语义不变
+- **约束**：同一父节点下 `name` 必须唯一（assetLint `doc:scene` 检查）；编辑器大纲右键「创建/复制」自动生成唯一名
+
 ## 3. 工具系统（tools/）
 
 ### 注册表族

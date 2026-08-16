@@ -104,6 +104,18 @@ flowchart TD
 
 ## 5. 边界条件
 
+### 5.1 大纲右键结构编辑 op（2026-08-17 起）
+
+预览资产时大纲（Outline）右键节点可用以下结构 op（均走 `apply` 链路：一个撤销点 + bump 重建预览 + 假保存）：
+
+| op | 参数 | 说明 |
+|---|---|---|
+| `addChildToParent` | `{ parentName?: string, child: BlueprintChildDef }` | 在指定父节点下追加子 Actor（parentName 空 → 根 children 末尾）；父不存在 → 失败 |
+| `removeChildDeep` | `{ name: string }` | 递归按 name 删除子节点（任意层级） |
+| `renameChildDeep` | `{ name: string, newName: string }` | 递归按 name 重命名（调用方保证同父唯一） |
+
+三者配套 `nodeTemplates.ts`（预定义节点/控件模板：3D 组 + UI 组）与 `OutlineContextMenu.tsx`（右键浮层菜单）。调用方（Outline）负责生成唯一 name（`uniqueNodeName`）与唯一子节点 id（全资产 max+1），克隆子树需重分配 id 并清除组件 id。
+
 | 条件 | 行为/后果 | 处理方式 |
 |---|---|---|
 | 未知 op | `{ ok: false, error: '未知操作: X' }` | 检查 op 名 |

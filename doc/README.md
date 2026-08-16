@@ -33,7 +33,7 @@
 | [`editor/blueprint_edit_system.md`](./editor/blueprint_edit_system.md) | 蓝图编辑：BlueprintEditorService / blueprintOps / UndoManager |
 | [`editor/property_edit_system.md`](./editor/property_edit_system.md) | 属性修改：Inspector 双通道编辑（EditableProperty / 蓝图资产 vs 运行时） |
 | [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
-| [`editor/code_lint_system.md`](./editor/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器（加源码违规规则时查） |
+| [`editor/code_lint_system.md`](./editor/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器；右下角面板为代码+资产共用入口（加源码违规规则/查面板分节渲染时查） |
 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
 
 ## 项目文档（src/projects/）
@@ -53,5 +53,6 @@
 | [`ui_enhancement_system.md`](./ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast 通知 / Tooltip / 色盲模式 / 输入提示 / 进度条 / 滚动列表 / 设计级 lint（涉及 UI 动效/通知/可读性/无障碍时必读） |
 | [`undo_redo_system.md`](./undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读） |
 | [`ui_anchor_system.md`](./ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑（涉及 UI 布局/锚点/拖拽时必读） |
+| [`gameplay_code_standard.md`](./gameplay_code_standard.md) | **gameplay 代码规范**：GameMode / Controller / Pawn / GameState / 组件 / GameInstance / World 七类角色职责边界与越界红线（新增 gameplay 功能时必读，先归类再动手） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
 

@@ -56,7 +56,7 @@ ClashMaster 演示了 DemoStudio 的完整项目形态：**一个项目 = `regis
 | 方法 | 说明 |
 |---|---|
 | `enterLevel(id)` / `addArmy(...)` / `deploy(...)` | 阶段/军队/放兵控制 |
-| `getBattle()` / `getHealthBars()` / `getTroopModels()` | 战斗快照断言（血条组件状态、兵模型 CapsuleGeometry） |
+| `getBattle()` / `getHealthBars()` / `getTroopModels()` / `getTroopHealthBars()` | 战斗快照断言（实时掠夺、建筑血条状态、兵模型 CapsuleGeometry、**兵头顶血条 shown/hideTimer**） |
 | `getGM()` | GM 面板状态：`{ consoleOpen, outputLines, layers }`（layers 全部 zOrder ≥ 1000 = 面板最顶层） |
 | `getState()` | 阶段/关卡/金币/军队摘要 |
 | `startTickDriver()` / `stepTicks(n)` | 页面 hidden 时同步推进游戏 tick（测试用） |

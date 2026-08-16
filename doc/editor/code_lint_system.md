@@ -1,6 +1,7 @@
 # 代码扫描检查系统（CodeLint）
 
 > 扫描工程 TS 源码中违反项目约定的写法（addComponent 旧写法、裸 new THREE），架构完全对称 assetLint（插件式高扩展）。
+> 右下角状态栏入口与 tips 面板为**代码 + 资产检查共用**：`CodeLintPanel` 分节渲染 `codeLint` 问题与 `assetLint` 问题（详见 §4.4）。
 > 代码位置：`src/editor/codeLint/` + Electron 通道 `electron/main.ts` / `electron/preload.ts` + UI `src/components/CodeLintPanel.tsx` / `src/stores/useCodeLintStore.ts`
 > 相关文档：[系统总览](../system_overview.md) / [资产预览与检查](./asset_preview_lint_system.md) / [编辑器核心](./core_system.md)
 
@@ -23,8 +24,8 @@ codeLint 解决的问题：项目约定（如"组件添加改用类版 `addCompo
 | `CodeSource` | 源码来源：Electron 磁盘扫描 / 浏览器 Mock 同签名实现（复用 allFileKeys + fetch ?raw）/ 无 API 静默禁用 |
 | `CodeCheckerRegistry` | 检查器注册中心（幂等自注册 + barrel 副作用注册） |
 | `AbstractCodeChecker` | 规则基类：子类声明 kind + 实现 `check(sourceFile, ctx)` |
-| `useCodeLintStore` | 独立 zustand store：issues 全量 + 面板开合状态 |
-| `CodeLintPanel` / `StatusBar` | tips 悬浮面板 + 状态栏入口（计数徽标） |
+| `useCodeLintStore` | 独立 zustand store：`issues`（代码）全量 + `assetIssues`（资产）全量 + 面板开合状态 |
+| `CodeLintPanel` / `StatusBar` | tips 悬浮面板 + 状态栏入口（计数徽标；代码 + 资产合计） |
 | Electron 主进程 | `list-project-src` / `read-text-file` IPC + `fs.watch` 推送 `src-changed` |
 
 与相邻功能边界：JSON 资产校验归 `assetLint`（[asset_preview_lint_system.md](./asset_preview_lint_system.md)），codeLint 只扫 `.ts/.tsx`（排除 `.d.ts`），不扫 `src/engine/`、`src/editor/` 自身。
@@ -39,8 +40,8 @@ codeLint 解决的问题：项目约定（如"组件添加改用类版 `addCompo
 | `CodeSource.ts` | 源码来源（ElectronCodeSource：Electron/Mock 同通道 / NullCodeSource 兜底） |
 | `types.ts` | `CodeIssue` / `CheckerContext` / `CodeFileEntry` 类型 |
 | `checkers/` | 内置规则检查器 barrel（addComponent / bareThree） |
-| `useCodeLintStore.ts` | UI 状态 store（issues 整体覆盖 + panelOpen） |
-| `CodeLintPanel.tsx` | tips 悬浮面板（不占布局，状态栏上方） |
+| `useCodeLintStore.ts` | UI 状态 store（`issues` / `assetIssues` 整体覆盖 + panelOpen） |
+| `CodeLintPanel.tsx` | tips 悬浮面板（不占布局，状态栏上方；分节渲染代码 + 资产问题） |
 
 ## 3. 使用方法
 
@@ -69,7 +70,8 @@ codeLintEngine.stop() / destroy()       // 停监听 / 彻底清理（模块单�
 codeLintEngine.start()
 
 // 面板与状态栏只订阅 store，不直接调引擎
-const issues = useCodeLintStore((s) => s.issues)     // 最近一次扫描的全部违规
+const issues = useCodeLintStore((s) => s.issues)            // 最近一次扫描的全部代码违规
+const assetIssues = useCodeLintStore((s) => s.assetIssues)  // 最近一次扫描的全部资产违规（AssetLintEngine 发布）
 const panelOpen = useCodeLintStore((s) => s.panelOpen)
 useCodeLintStore.getState().setPanelOpen(true)       // 手动展开 tips
 ```
@@ -131,6 +133,16 @@ flowchart LR
 - **日志定位约定**：`[CodeLint] <相对路径>:<行>:<列> <message>`，一律 `logger.error`（无 severity 分级）
 - **全局守卫**：`started` 幂等 + `globalThis.__codeLintUnsub__` 守卫（StrictMode 双挂载 / HMR 只保留一份 store 订阅与监听）
 
+### 4.4 资产检查共用面板（AssetLint 发布）
+
+右下角"代码/资产检查"是 codeLint 与 assetLint 的**共用入口**，资产问题由 `AssetLintEngine` 发布到同一 store：
+
+- **发布链路**：`AssetLintEngine.reportNew(all)` 开头整体覆盖 `useCodeLintStore.getState().setAssetIssues(all.map(toAssetIssueView))`（`toAssetIssueView` 把 `LintIssue` 映射为 `{file, nodePath, field, rule, severity, message}` 视图结构）；`onProjectChanged` 开头先 `setAssetIssues([])` 清空旧工程数据
+- **无 store 依赖方向问题**：store 是独立模块，AssetLintEngine 单向 import store（与 CodeLintEngine 一致）；`StatusBar`/`CodeLintPanel` 仍只订阅 store，不感知数据来源
+- **面板分节渲染**：标题"代码/资产检查 CodeLint + AssetLint"；`代码问题（N）` / `资产问题（N）` 两个分节（`.codelint-section` + `.codelint-section-title` sticky 顶）；资产项 key 前缀 `asset-`，定位格式 `file > nodePath [field]`，规则类 `asset-sev-error`（--error 红）/ `asset-sev-warn`（#f0a500 黄）
+- **状态栏计数**：`totalIssueCount = codeLintIssueCount + assetLintIssueCount`，徽标显示合计，title 含"（代码 X · 资产 Y）"
+- **复制全部**：`copyAll` 合并代码行与资产行（`[规则] message` + 定位行）
+
 ## 5. 边界条件
 
 | 条件 | 行为/后果 | 处理方式 |
@@ -155,6 +167,7 @@ flowchart LR
 ```
 CodeLintEngine → CodeSource → window.electronAPI（listProjectSrc / readTextFile / onSrcChanged / watchProjectAssets）
 CodeLintEngine → useEditorStore（currentProject.folder）/ useCodeLintStore / logger
+AssetLintEngine → useCodeLintStore（setAssetIssues 全量发布，共用面板）
 CodeLintEngine → CodeCheckerRegistry → checkers barrel（副作用注册，engine 模块加载即生效）
 CodeLintPanel / StatusBar → useCodeLintStore（订阅渲染，不直接调引擎）
 Electron main → fs.watch(src/projects/<folder>) → src-changed → preload.onSrcChanged → CodeLintEngine
