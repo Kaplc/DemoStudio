@@ -81,6 +81,13 @@ export class CanvasUIComponent extends Component<Actor> {
   private _bActive: boolean
   /** 仅标记模式（不渲染） */
   private _markerOnly: boolean
+  /**
+   * 透明点击层（默认 false）：仅提供命中 mesh，不渲染视觉（opacity 恒 0）。
+   * UIButtonComponent 无显式背景时自动生成的点击层标记此字段：
+   *  - 不参与状态色驱动（透明层无需重绘纹理）
+   *  - 不参与 TweenSystem.fade 透明度补间（fade 到 1 不会让点击层变可见）
+   */
+  private _isClickOnly = false
   /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
   private _hitTest: UIHitTestMode
   /**
@@ -152,6 +159,10 @@ export class CanvasUIComponent extends Component<Actor> {
 
   /** 仅标记模式（不渲染，仅作 UI 标识） */
   get isMarkerOnly(): boolean { return this._markerOnly }
+
+  /** 透明点击层（仅命中不渲染，opacity 恒 0） */
+  get isClickOnly(): boolean { return this._isClickOnly }
+  set isClickOnly(v: boolean) { this._isClickOnly = v }
 
   /**
    * 是否激活（默认 true）。false = 该 UI 节点（自身 + 子对象的所有渲染组件）不渲染。

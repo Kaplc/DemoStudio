@@ -177,7 +177,7 @@ class UIScrollListComponentChecker extends AbstractAssetChecker {
     { field: 'properties.itemWidget', type: 'string', label: 'item 蓝图路径' },
     { field: 'properties.itemSize', type: 'vec2', label: 'item 世界尺寸 [w, h]' },
     { field: 'properties.spacing', type: 'number', min: 0, label: '项间距' },
-    { field: 'properties.visibleCount', type: 'integer', min: 1, label: '可视数量（不配则按容器自动推导）' },
+    { field: 'properties.visibleCount', type: 'integer', min: 1, label: '可视数量（省略 = 按容器自动推导）' },
     { field: 'properties.direction', type: 'string', label: '滚动方向（vertical/horizontal）' },
     { field: 'properties.zOrderLift', type: 'number', min: 0, label: 'item zOrder 抬升值' },
     { field: 'properties.draggable', type: 'boolean', label: '鼠标拖拽滚动开关' },
@@ -203,11 +203,12 @@ class UIImageComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UIImageComponent', UIImageComponentChecker)
 
-/** comp:UIButtonComponent — 按钮纯交互组件（状态色映射 colors；背景渲染由同 Actor 的 uiimage 提供） */
+/** comp:UIButtonComponent — 按钮交互组件（状态色映射 colors + 自动背景圆角 radius；无显式 uiimage 时自动生成背景） */
 class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIButtonComponent'
   schema: FieldSpec[] = [
     { field: 'properties.colors', type: 'object', label: '状态色映射' },
+    { field: 'properties.radius', type: 'number', min: 0, label: '自动背景圆角' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

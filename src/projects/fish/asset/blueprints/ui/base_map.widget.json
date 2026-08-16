@@ -467,17 +467,6 @@
               }
             },
             {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#b33a3a",
-                "radius": 12,
-                "width": 104,
-                "height": 104,
-                "name": "BtnBg",
-                "zOrder": 3
-              }
-            },
-            {
               "baseClass": "UIButtonComponent",
               "properties": {
                 "colors": {

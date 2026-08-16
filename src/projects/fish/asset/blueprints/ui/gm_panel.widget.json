@@ -91,7 +91,6 @@
             "width": 1920,
             "height": 1080,
             "zOrder": 0,
-            "hitTest": "visible",
             "radius": 0
           }
         }
@@ -146,8 +145,7 @@
             "radius": 18,
             "width": 1520,
             "height": 840,
-            "zOrder": 1,
-            "hitTest": "visible"
+            "zOrder": 1
           }
         }
       ]
@@ -201,8 +199,7 @@
             "radius": 12,
             "width": 1480,
             "height": 800,
-            "zOrder": 1,
-            "hitTest": "visible"
+            "zOrder": 1
           }
         }
       ]
@@ -262,7 +259,6 @@
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
-            "hitTest": "visible",
             "italic": false,
             "lineHeight": 1.4,
             "letterSpacing": 0,
@@ -392,7 +388,6 @@
             "spacing": 0.02,
             "direction": "vertical",
             "zOrderLift": 0,
-            "visibleCount": -1,
             "draggable": true,
             "scrollbar": true
           }
@@ -453,7 +448,6 @@
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
-            "hitTest": "visible",
             "bold": false,
             "italic": false,
             "lineHeight": 1.4,
@@ -513,8 +507,7 @@
             "radius": 8,
             "width": 1360,
             "height": 96,
-            "zOrder": 2,
-            "hitTest": "visible"
+            "zOrder": 2
           }
         },
         {
@@ -525,15 +518,7 @@
             "color": "#f5ecd7",
             "width": 1360,
             "height": 96,
-            "zOrder": 3,
-            "hitTest": "visible",
-            "text": "输入 GM 命令（help 查看全部）...",
-            "align": "left",
-            "bold": true,
-            "italic": false,
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005208
+            "zOrder": 3
           },
           "name": "GM_InputText"
         }
@@ -593,7 +578,6 @@
             "zOrder": 3,
             "shadowColor": "rgba(0,0,0,0.4)",
             "shadowBlur": 4,
-            "hitTest": "visible",
             "bold": false,
             "italic": false,
             "lineHeight": 1.4,
@@ -642,17 +626,6 @@
             "name": "UIMarker",
             "zOrder": 2,
             "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#c9a227",
-            "radius": 8,
-            "width": 170,
-            "height": 96,
-            "zOrder": 2,
             "hitTest": "visible"
           }
         },
@@ -723,7 +696,6 @@
                 "zOrder": 3,
                 "shadowColor": "rgba(0,0,0,0.3)",
                 "shadowBlur": 2,
-                "hitTest": "visible",
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,

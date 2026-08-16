@@ -142,17 +142,6 @@
           }
         },
         {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
-          }
-        },
-        {
           "baseClass": "UIButtonComponent",
           "properties": {
             "colors": {
@@ -372,17 +361,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
           }
         },
         {
@@ -608,17 +586,6 @@
           }
         },
         {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
-          }
-        },
-        {
           "baseClass": "UIButtonComponent",
           "properties": {
             "colors": {
@@ -838,17 +805,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
           }
         },
         {
@@ -1074,17 +1030,6 @@
           }
         },
         {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
-          }
-        },
-        {
           "baseClass": "UIButtonComponent",
           "properties": {
             "colors": {
@@ -1304,17 +1249,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
           }
         },
         {
@@ -1540,17 +1474,6 @@
           }
         },
         {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#b33a3a",
-            "radius": 12,
-            "width": 150,
-            "height": 160,
-            "name": "BtnBg",
-            "zOrder": 2
-          }
-        },
-        {
           "baseClass": "UIButtonComponent",
           "properties": {
             "colors": {
@@ -1770,17 +1693,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 10,
-            "width": 124,
-            "height": 124,
-            "name": "BtnBg",
-            "zOrder": 2
           }
         },
         {

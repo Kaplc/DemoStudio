@@ -116,8 +116,8 @@ export default class BarracksUiScript extends BehaviourScript {
           infoText.text = `HP ${troop.hp} · ${troop.dps > 0 ? `伤 ${troop.dps}` : '治疗'} · 费 ${troop.cost}`
         }
 
-        // 背景色（兵种色）+ 训练点击 → instance 训练入口（扣费 + 入队）
-        const bg = card.getComponent(UIImageComponent)
+        // 背景色（兵种色）：优先按钮背景（显式 image 或 UIButtonComponent 自动生成），回退节点 image
+        const bg = card.getComponent(UIButtonComponent)?.getBackground() ?? card.getComponent(UIImageComponent)
         if (bg) bg.color = colorToCss(troop.color)
         const troopBtn = card.getComponent(UIButtonComponent)
         if (troopBtn) {

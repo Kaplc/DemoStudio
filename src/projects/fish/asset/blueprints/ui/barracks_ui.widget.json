@@ -668,17 +668,6 @@
               }
             },
             {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#f0a500",
-                "radius": 14,
-                "width": 320,
-                "height": 100,
-                "name": "CloseBtnBg",
-                "zOrder": 3
-              }
-            },
-            {
               "baseClass": "UIButtonComponent",
               "properties": {
                 "colors": {

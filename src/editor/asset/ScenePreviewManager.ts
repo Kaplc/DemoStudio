@@ -456,10 +456,11 @@ export class ScenePreviewManager {
     if (assetPath) {
       this._currentScenePath = assetPath
       this._undoKey = diskPathToAssetKey(assetPath)
-      // 首次激活：建立撤回基准（加载后的未编辑状态）
-      if (this._lastCommitted === null) {
-        const base = this.collectSaveData()
-        this._lastCommitted = base ? JSON.parse(JSON.stringify(base)) : null
+      // 首次激活：建立撤回基准（加载后的未编辑状态）。注意基准必须是独立深拷贝，
+      // 不能直接引用 _sceneAsset（collectSaveData 会原地写回污染它）。
+      const base = this.collectSaveData()
+      if (this._lastCommitted === null && base) {
+        this._lastCommitted = JSON.parse(JSON.stringify(base))
         logger.info(`[ScenePreview] 撤回基准建立: ${this._undoKey}`)
       }
       AssetPreviewManager.setActive(assetPath)
@@ -495,21 +496,28 @@ export class ScenePreviewManager {
       return
     }
     const cur = this.collectSaveData()
-    if (!cur) return
+    if (!cur) {
+      logger.warn(`[ScenePreview] 拖拽提交跳过（collectSaveData 返回 null）: ${key}`)
+      return
+    }
     if (this._lastCommitted === null) {
-      // 无基准（理论上 activate 已建立）：以当前为基准，不产生撤销点
-      this._lastCommitted = cur
+      // 无基准（理论上 activate 已建立）：以当前为基准（独立拷贝），不产生撤销点
+      this._lastCommitted = JSON.parse(JSON.stringify(cur))
       logger.info(`[ScenePreview] 拖拽提交（首帧基准）: ${key}`)
       return
     }
     // 内容无变化（拖动后松手位置与基准一致）→ 跳过，避免空撤销点
     if (JSON.stringify(cur) === JSON.stringify(this._lastCommitted)) {
-      logger.debug(`[ScenePreview] 拖拽提交跳过（内容无变化）: ${key}`)
+      logger.info(`[ScenePreview] 拖拽提交跳过（内容无变化）: ${key}`)
       return
     }
     UndoManager.push(key, this._lastCommitted)
-    this._lastCommitted = cur
+    // 注意：cur 与 _sceneAsset 必须是两个对象——collectSaveData 会把实时 transform
+    // 原地写回 _sceneAsset 的 JSON 节点，若基准(_lastCommitted)与 _sceneAsset 同引用，
+    // 下次编辑时基准被污染，对比恒"无变化"，第二次起所有编辑都进不了撤销栈。
+    this._lastCommitted = JSON.parse(JSON.stringify(cur))
     this._sceneAsset = cur as unknown as SceneAsset
+    this._rebindJsonMap()
     logger.info(`[ScenePreview] 松手提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
   }
 
@@ -518,8 +526,10 @@ export class ScenePreviewManager {
    * （之后拖拽 push 的动作前快照 = 保存后的状态，撤销点干净）。
    */
   markCommitted(data: Record<string, unknown>): void {
+    // 基准独立深拷贝（防与 _sceneAsset 同引用被后续写回污染，语义同 commitPreviewEdit）
     this._lastCommitted = JSON.parse(JSON.stringify(data))
-    this._sceneAsset = data as unknown as SceneAsset
+    this._sceneAsset = JSON.parse(JSON.stringify(data)) as unknown as SceneAsset
+    this._rebindJsonMap()
   }
 
   /**
@@ -538,7 +548,7 @@ export class ScenePreviewManager {
     const cur = this.collectSaveData()
     if (!cur) return
     if (this._lastCommitted === null) {
-      this._lastCommitted = cur
+      this._lastCommitted = JSON.parse(JSON.stringify(cur))
       logger.info(`[ScenePreview] 属性提交（首帧基准）: ${key}`)
       return
     }
@@ -547,11 +557,41 @@ export class ScenePreviewManager {
       return
     }
     UndoManager.push(key, this._lastCommitted)
-    this._lastCommitted = cur
+    // 同 commitPreviewEdit：基准必须独立于 _sceneAsset（防原地写回污染基准）
+    this._lastCommitted = JSON.parse(JSON.stringify(cur))
     this._sceneAsset = cur as unknown as SceneAsset
+    this._rebindJsonMap()
     logger.info(`[ScenePreview] 属性提交（= 一个撤销点）: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
     // 双保险刷新撤销按钮可用状态（ScenePreviewEditor 监听该事件）
     editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, this._currentScenePath ?? '')
+  }
+
+  /**
+   * _sceneAsset 被深拷贝替换后，把 _actorJsonMap 节点重新指向新树中的同名单节点。
+   * 否则后续 collectSaveData 的写回仍落在旧对象上，导致拖拽/属性改动被判定为
+   * "内容无变化"而不进撤销栈（第一次提交后所有编辑都会失效）。
+   * undo/redo 走 loadSceneAsset（clearPreview 清空 map 后重建），无需调用。
+   */
+  private _rebindJsonMap(): void {
+    if (!this._sceneAsset) {
+      logger.warn(`[ScenePreview] _rebindJsonMap 跳过（_sceneAsset 为空）`)
+      return
+    }
+    const objs = (this._sceneAsset.objects ?? []) as Array<{ name?: string }>
+    let rebound = 0
+    let missing = 0
+    for (const [actor, node] of this._actorJsonMap) {
+      const name = (node as { name?: string }).name
+      if (!name) continue
+      const fresh = objs.find((o) => o.name === name)
+      if (fresh) {
+        this._actorJsonMap.set(actor, fresh as unknown as Record<string, unknown>)
+        rebound++
+      } else {
+        missing++
+      }
+    }
+    logger.info(`[ScenePreview] _rebindJsonMap: 重绑 ${rebound} 个节点, 未找到 ${missing} 个`)
   }
 
   /** 撤销：从栈取动作前快照 → 重建预览（保持相机视角与激活状态）；无可撤历史返回 false */
@@ -564,8 +604,11 @@ export class ScenePreviewManager {
     const cur = this.collectSaveData() ?? this._lastCommitted
     const snap = UndoManager.undo(key, cur)
     if (snap == null) return false
+    // snap 作为新基准；传入 _applySnapshot 的必须是深拷贝——loadSceneAsset 会把
+    // _sceneAsset 指向传入对象，若与基准同引用，下次 collectSaveData 原地写回
+    // 又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshot(snap as Record<string, unknown>)
+    this._applySnapshot(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
     logger.info(`[ScenePreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
     return true
   }
@@ -580,8 +623,9 @@ export class ScenePreviewManager {
     const cur = this.collectSaveData() ?? this._lastCommitted
     const snap = UndoManager.redo(key, cur)
     if (snap == null) return false
+    // 同 undo：基准与 loadSceneAsset 输入必须分离（防同引用污染）
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshot(snap as Record<string, unknown>)
+    this._applySnapshot(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
     logger.info(`[ScenePreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
     return true
   }
@@ -592,18 +636,30 @@ export class ScenePreviewManager {
     const path = this._currentScenePath
     const camPos = this.camera.position.clone()
     const camQuat = this.camera.quaternion.clone()
-    // 记录当前选中（重建后恢复，撤销/重做不打断编辑上下文）
+    // 记录当前选中（重建后恢复，撤销/重做不打断编辑上下文）。
+    // 锚点用 JSON 节点名（场景内唯一，如 Goldmine_1/Goldmine_2）：实例名（Goldmine）
+    // 会重复，按名称 find 会错选第一个同名 actor，导致 gizmo 挂到错误目标上。
     const sel = getSelectedActor()
-    const selName = sel ? sel.root.name : null
+    const selJsonName = sel ? this._actorJsonMap.get(sel)?.name ?? sel.root.name : null
     this.loadSceneAsset(snap as unknown as SceneAsset)
     if (path) this.activate(path)
     this.restoreCamera(camPos, camQuat)
-    // 恢复选中：重建后按名称重新查找并选中（gizmo 同步）
-    if (selName) {
-      const tree = this.getActorTree()
-      const node = tree.find((n) => n.name === selName && n.actor)
-      if (node?.actor) this.selectActor(node.actor)
+    // 恢复选中：按 JSON 节点名在新映射（loadSceneAsset 已重建）反查唯一 actor 并选中（gizmo 同步）
+    if (selJsonName) {
+      let target: Actor | null = null
+      for (const [actor, node] of this._actorJsonMap) {
+        if ((node as { name?: string }).name === selJsonName) {
+          target = actor
+          break
+        }
+      }
+      if (target) this.selectActor(target)
     }
+    // gizmo 坐标轴强制刷新：重建的选中节点 matrixWorld 可能陈旧（hidden 页 rAF 停摆），
+    // gizmo.attach 内 syncTransform 基于旧矩阵会停在错误位置；重算矩阵 + 重新同步 + 立即渲染一帧
+    this.scene.updateMatrixWorld(true)
+    if (this.gizmo.visible) this.gizmo.syncTransform()
+    this.renderer.render(this.scene, this.camera)
   }
 
   // ════════════════════════════════════════

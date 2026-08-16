@@ -364,17 +364,6 @@
               }
             },
             {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#f0a500",
-                "radius": 14,
-                "width": 520,
-                "height": 124,
-                "name": "BtnBg",
-                "zOrder": 3
-              }
-            },
-            {
               "baseClass": "UIButtonComponent",
               "properties": {
                 "colors": {
@@ -540,17 +529,6 @@
                 "markerOnly": true,
                 "name": "UIMarker",
                 "zOrder": 1
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#b33a3a",
-                "radius": 14,
-                "width": 520,
-                "height": 124,
-                "name": "BtnBg",
-                "zOrder": 3
               }
             },
             {

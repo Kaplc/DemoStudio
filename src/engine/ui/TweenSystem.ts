@@ -319,7 +319,8 @@ export class TweenSystem {
     const comps: Array<{ comp: CanvasUIComponent; from: number }> = []
     const walk = (a: Actor): void => {
       for (const comp of a.getComponents(CanvasUIComponent)) {
-        if (!comp.isMarkerOnly) comps.push({ comp, from: comp.opacity })
+        // 跳过 markerOnly（无渲染）与透明点击层（opacity 恒 0，fade 不应让其可见）
+        if (!comp.isMarkerOnly && !comp.isClickOnly) comps.push({ comp, from: comp.opacity })
       }
       for (const child of a.getChildren()) walk(child)
     }

@@ -41,6 +41,8 @@ depth(key)               // 调试用栈深
 
 快照均为 `JSON.parse(JSON.stringify(v))` 深拷贝，栈间不共享引用，杜绝脏写。
 
+> **⚠️ 栈存储挂 globalThis（HMR 防分裂）**：Vite 热更新后组件可能 import 到带 `?t=` 时间戳的模块副本，与裸 URL 版本并存，类内 `static` 字段会分裂成互不可见的两份（症状：`push` 已执行但 `depth()` 不变）。因此栈 Map 挂在 `globalThis.__demostudioUndoStacks` 上，任意模块图共享同一份。
+
 ## 3. 使用方法
 
 ### 3.1 触发入口
@@ -203,3 +205,4 @@ flowchart LR
 - `UndoManager.depth(key)` 返回 `{ undo, redo }` 栈深，日志中每个 `apply/undo/redo` 都打印 `undo 栈 X→Y`。
 - 服务层日志前缀 `[BlueprintEdit]`：`apply 开始/完成`、`undo`、`redo`、`关闭资产，缓存已清理`、`写盘失败，回滚` 等。
 - 栈深异常（如撤销后新编辑 redo 未清空）优先检查：`push` 是否在 `runOp` 成功后调用、redo 栈是否被清。
+- **第二次编辑起不进栈（"内容无变化"误判）**：场景预览的基准快照（`_lastCommitted`）与工作树（`_sceneAsset`）必须是**两个对象**——`collectSaveData` 会把实时 transform 原地写回 `_sceneAsset`，若基准同引用则被污染，对比恒等。所有赋值处（`activate`/`commitPreviewEdit`/`commitPropertyEdit`/`markCommitted`/undo/redo）均须对基准做独立深拷贝，且 `loadSceneAsset` 的输入也不得与基准同引用。

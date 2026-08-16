@@ -350,18 +350,21 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIButtonComponent ─── props: { colors?, onClick? (代码设置) }
-  // 纯交互组件：背景渲染由同 Actor 的 uiimage 提供（Unity Button.targetGraphic 模式），
-  // 状态切换时 UIButtonComponent 驱动 uiimage 的颜色；文字由独立子 Actor 挂 UITextComponent 提供。
+  // ─── UIButtonComponent ─── props: { colors?, radius?, onClick? (代码设置) }
+  // 交互组件 + 自动背景：同 Actor 有 uiimage 时驱动其颜色（Unity Button.targetGraphic 模式）；
+  // 无 uiimage 时 BeginPlay 自动生成背景（尺寸 = uitransform，颜色 = colors.normal，圆角 = radius）——
+  // 资产中只需写 UIButtonComponent 即可；文字由独立子 Actor 挂 UITextComponent 提供。
   ComponentRegistry.register(
     'UIButtonComponent',
     (owner, p = {}) =>
       new UIButtonComponent(asActor(owner), {
         colors: p.colors as Record<string, string> | undefined,
+        radius: p.radius as number | undefined,
       }),
     (c, p) => {
       const btn = c as UIButtonComponent
       if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
+      if (p.radius !== undefined) btn.radius = p.radius as number
     },
   )
 

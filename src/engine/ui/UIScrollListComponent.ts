@@ -241,6 +241,16 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     ]
   }
 
+  /**
+   * 持久化属性：visibleCount ≤ 0（自动推导）时不写回资产——省略字段即自动推导，
+   * 资产中不应残留 -1 哨兵值（assetLint schema min:1 会报错）。
+   */
+  override getPersistentProps(): Record<string, unknown> {
+    const out = super.getPersistentProps()
+    if (this._visibleCount <= 0) delete out.visibleCount
+    return out
+  }
+
   override BeginPlay(): void {
     super.BeginPlay()
     logger.info(`[UIScrollListComponent] BeginPlay: owner="${this.owner.name}" world=${this.owner.world ? `#${this.owner.world.id}` : 'null'} ui=${this.owner.world?.ui ? '有' : '无'}`)

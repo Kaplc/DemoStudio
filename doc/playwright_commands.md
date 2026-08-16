@@ -140,6 +140,8 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | 改代码后行为还是旧的 | 必须 `page.reload()` 重走流程（HMR 不重建已挂载 manager） |
 | evaluate 返回 `deferredResultId` | 长任务异步化 → 同 pageId、无 code 再调一次取结果 |
 | 动态 `import('/src/...')` 拿不到页面实例 | 带 `?t=` 的模块裸 import 是独立实例（`instanceof` 失败）；编辑器服务层（UndoManager 等）裸 import 同实例 |
+| HMR 后静态状态"幽灵分裂" | 模块热更新后新组件图 import 到 `?t=` 版本、旧代码持裸版本，**类内 static 字段双份互不可见**（症状：push 明明执行但 depth 不变）。解法：静态状态挂 `globalThis`（参照 UndoManager `__demostudioUndoStacks`），或改代码后必 reload |
+| 诊断"push 是否真被调用" | 在 static 方法开头塞 `console.info` 带 `new Error().stack`，配合本表 console hook 捕获 → 日志里的模块 URL（含 `?t=` 与否）直接暴露调用方属于哪个模块图 |
 | 拖不动 gizmo | 先 `ai.selectActor` 选中（gizmo 才 attach）；点轴 cone 不是空白处；gizmo 位置 = 节点包围盒中心投影，盲猜坐标易落空 → 优先 `ai.dragActor` 驱动 |
 | hidden 页面拖不动 gizmo（即使坐标精确） | **根因：hidden 页面 rAF 停摆 → THREE `matrixWorld` 陈旧 → `gizmo.hitTest` 射线命中失败**。解法：先 `mgr.scene.updateMatrixWorld(true)` + `mgr.gizmo.syncTransform()` 再投影坐标（fiber 桥拿真实 mgr 实例，见下） |
 | 模拟 gizmo 拖拽 | **fiber 桥拿真实实例**：canvas 的 `parentElement` 上有 `__reactFiber$` 键 → 沿 `return` 找 `ScenePreviewEditor` fiber → 遍历 `memoizedState` 找含 `current.renderer` 的 ref → 得 mgr。然后 `updateMatrixWorld(true)` + 投影 cone 坐标（`group.children[0].children[1]` = X 轴 cone）→ `canvas.dispatchEvent(new PointerEvent('pointerdown/move/up', {...}))` 完整模拟拖拽（page.mouse 在 hidden 页不可靠）；`setPointerCapture` 报错可忽略（startDrag 已执行） |

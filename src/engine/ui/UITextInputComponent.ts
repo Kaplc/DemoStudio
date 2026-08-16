@@ -21,6 +21,7 @@
  */
 import { UITextComponent } from './UITextComponent'
 import { logger } from '../Logger'
+import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
 
 export interface UITextInputComponentOptions {
@@ -212,5 +213,48 @@ export class UITextInputComponent extends UITextComponent {
       Value: this._value,
       Focused: this._focused,
     }
+  }
+
+  /**
+   * Inspector 可编辑属性：只暴露输入框语义字段（placeholder/value/fontSize/color/zOrder）。
+   *
+   * 继承 UITextComponent 会带入静态文本专属属性（text/align/bold/italic/lineHeight/
+   * letterSpacing）与基类 hitTest——输入框渲染由 value/placeholder 驱动，这些字段
+   * 对输入框无意义且引擎注册器不消费，必须过滤（否则保存资产时会被持久化污染，
+   * assetLint 报未知属性）。
+   */
+  override getEditableProperties(): EditableProperty[] {
+    const blocked = new Set(['text', 'align', 'bold', 'italic', 'lineHeight', 'letterSpacing', 'hitTest'])
+    const base = super.getEditableProperties().filter((p) => !blocked.has(p.key))
+    return [
+      ...base, // fontSize/color/zOrder
+      {
+        key: 'placeholder', type: 'string',
+        get: () => this._placeholder,
+        set: (v) => { this.placeholder = v as string },
+      },
+      {
+        key: 'value', type: 'string',
+        get: () => this._value,
+        set: (v) => { this.value = v as string },
+      },
+    ]
+  }
+
+  /**
+   * 持久化属性：只输出输入框语义字段（placeholder/value/fontSize/color/zOrder/width/height）。
+   *
+   * 覆写 UITextComponent.getPersistentProps：不输出静态文本专属字段
+   * （text/align/bold/italic/lineHeight/letterSpacing）与 fontSizeScale（注册器不消费），
+   * 避免保存资产时污染输入框 properties。
+   */
+  override getPersistentProps(): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const p of this.getEditableProperties()) {
+      out[p.key] = p.get()
+    }
+    out.width = this.getSize()[0]
+    out.height = this.getSize()[1]
+    return out
   }
 }

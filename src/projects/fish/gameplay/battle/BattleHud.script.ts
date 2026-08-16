@@ -97,8 +97,8 @@ export default class BattleHudScript extends BehaviourScript {
         // 属性/数量文本（onUpdate 刷新）
         const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
 
-        // 背景色（兵种色）
-        const bg = card.getComponent(UIImageComponent)
+        // 背景色（兵种色）：优先按钮背景（显式 image 或 UIButtonComponent 自动生成），回退节点 image
+        const bg = card.getComponent(UIButtonComponent)?.getBackground() ?? card.getComponent(UIImageComponent)
         if (bg) bg.color = colorToCss(troop.color)
 
         // 点击 → 选择兵种进入放置模式（数量 > 0 才响应）
