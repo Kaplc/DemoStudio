@@ -41,6 +41,24 @@ export abstract class AObject extends OObject {
         `来源: ${(dup as { uid?: number }).uid ?? '-'} → 新添加 @${(component as { uid?: number }).uid ?? '-'}`,
       )
     }
+    // 一个 Actor 只能挂一个 mesh（MeshComponent / CapsuleMeshComponent 及子类）：
+    // 组合多个网格必须拆成子 Actor（每个子 Actor 一个 MeshComponent），
+    // 保证 Inspector/撤回系统能精确对应"一个 actor ↔ 一个几何"。
+    const isMeshComponent = (c: AObjectComponent): boolean => {
+      const n = c.constructor.name
+      return n === 'MeshComponent' || n.endsWith('MeshComponent')
+    }
+    if (isMeshComponent(component)) {
+      const existing = this.components.find(isMeshComponent)
+      if (existing) {
+        logger.error(
+          `[AObject] 拒绝挂载: ${this.constructor.name} 已有 ${existing.constructor.name}("${existing.name}")，` +
+          `一个 Actor 只能挂载一个 MeshComponent（组合网格请拆成子 Actor，如 new GenericActor(...) + attachTo 挂到本 Actor 下）。` +
+          `被拒: ${component.constructor.name}("${(component as { name?: string }).name}")`,
+        )
+        return component
+      }
+    }
     this.components.push(component)
     return component
   }

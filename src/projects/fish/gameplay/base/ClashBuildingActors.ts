@@ -14,7 +14,7 @@
  * ClickableComponent 则复用只绑回调，保证「资产组件 + 代码组件」不重复。
  */
 import * as THREE from 'three'
-import { GenericActor, MeshComponent, ClickableComponent, LineComponent, logger } from '@/engine'
+import { GenericActor, MeshComponent, PrimitiveMeshComponent, ClickableComponent, LineComponent, logger } from '@/engine'
 import { BuildingActor } from './BuildingActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
 import type { FishBaseGameMode } from './FishBaseGameMode'
@@ -46,18 +46,23 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
 
     // ─── 去重约定：蓝图声明的组件（components/children）优先，类只补缺的 ───
     // 蓝图已建网格（MeshComponent/子节点）→ 类不再建底座/主体，避免重复 mesh
-    const hasMeshes = this.getComponents(MeshComponent).length > 0 || this.root.children.length > 0
+    // （MeshComponent 是抽象基类，运行时查派生实例用 instanceof 基类）
+    const hasMeshes = this.getAllComponents().some((c) => c instanceof MeshComponent) || this.root.children.length > 0
 
     // ─── 底座（深色薄板，部落冲突建筑阴影盘风格）───
+    // 一个 Actor 只能挂一个 mesh：底座挂自身，主体拆成子 Actor（组合网格约定）
     if (!hasMeshes) {
       const base = w.createBoxMesh(this.type.size + 0.5, 0.15, this.type.size + 0.5, 0x4e342e)
       base.position.y = 0.075
-      this.addComponent(new MeshComponent(this, base, 'BaseMesh'))
+      this.addComponent(new PrimitiveMeshComponent(this, base, 'BaseMesh'))
 
-      // ─── 主体（彩色立方体）───
+      // ─── 主体（彩色立方体）→ 子 Actor（BodyMeshActor 挂 1 个 MeshComponent）───
+      const bodyActor = new GenericActor('BodyMeshActor')
       const body = w.createBoxMesh(this.type.size, this.type.height, this.type.size, this.type.color)
       body.position.y = 0.15 + this.type.height / 2
-      this.addComponent(new MeshComponent(this, body, 'BodyMesh'))
+      bodyActor.addComponent(new PrimitiveMeshComponent(bodyActor, body, 'BodyMesh'))
+      bodyActor.attachTo(this)
+      // BeginPlay 由父链传播（Actor.BeginPlay 递归 children）
     }
 
     // ─── 选中高亮线框（蓝图已声明 LineComponent 则不重复创建）───

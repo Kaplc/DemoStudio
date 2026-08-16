@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, PrimitiveMeshComponent, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -418,7 +418,7 @@ export class FishBaseGameMode extends GameMode {
     mesh.visible = false
     // 替换装饰 Actor 上的预览组件（旧组件移除时自动释放旧 mesh 资源）
     if (this.previewComp) decor.removeComponent(this.previewComp)
-    this.previewComp = new MeshComponent(decor, mesh, 'PreviewMesh')
+    this.previewComp = new PrimitiveMeshComponent(decor, mesh, 'PreviewMesh')
     decor.addComponent(this.previewComp)
     this.previewMesh = mesh
   }

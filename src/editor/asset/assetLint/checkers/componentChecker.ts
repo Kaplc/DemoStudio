@@ -7,7 +7,7 @@
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
-import type { FieldSpec } from '../types'
+import type { FieldSpec, LintIssue, CheckerContext } from '../types'
 
 /** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]。 */
 class SpriteComponentChecker extends AbstractAssetChecker {
@@ -85,9 +85,31 @@ class ClickableComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:ClickableComponent', ClickableComponentChecker)
 
-/** comp:MeshComponent — geometry 枚举；size 数组；color；opacity [0,1]。 */
+/**
+ * comp:MeshComponent — MeshComponent 是抽象基类，资产不得直接声明。
+ * 资产声明网格组件必须用具体派生类：PrimitiveMeshComponent（box/sphere/plane 参数化几何）
+ * 或 CapsuleMeshComponent（胶囊体）。本检查器对任何声明直接报 error。
+ */
 class MeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:MeshComponent'
+  schema: FieldSpec[] = []
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return [
+      ctx.issue(
+        'baseClass',
+        'mesh-base-class-forbidden',
+        'MeshComponent 是抽象基类，不能直接挂载——请用派生类 PrimitiveMeshComponent（基础几何）或 CapsuleMeshComponent（胶囊体）',
+        'error',
+        node,
+      ),
+    ]
+  }
+}
+registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
+
+/** comp:PrimitiveMeshComponent — 基础几何网格：geometry 枚举；size 数组；color；opacity [0,1]。 */
+class PrimitiveMeshComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:PrimitiveMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.geometry', type: 'string', enum: ['box', 'sphere', 'plane', 'capsule'], label: '几何类型' },
     { field: 'properties.size', type: 'array', minItems: 1, maxItems: 3, label: '尺寸' },
@@ -98,7 +120,7 @@ class MeshComponentChecker extends AbstractAssetChecker {
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
 }
-registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
+registerAssetChecker('comp:PrimitiveMeshComponent', PrimitiveMeshComponentChecker)
 
 /** comp:CapsuleMeshComponent — 胶囊体：radius/length/color。 */
 class CapsuleMeshComponentChecker extends AbstractAssetChecker {
@@ -149,6 +171,7 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.fontSizeScale', type: 'number', min: 0, minExclusive: true, label: '字号世界系数（持久化派生值）' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -165,6 +188,7 @@ class UITextInputComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -198,17 +222,17 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
+    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
 registerAssetChecker('comp:UIImageComponent', UIImageComponentChecker)
 
-/** comp:UIButtonComponent — 按钮交互组件（状态色映射 colors + 自动背景圆角 radius；无显式 uiimage 时自动生成背景） */
+/** comp:UIButtonComponent — 按钮纯交互组件（按下缩放 pressScale；自动生成透明点击层，不驱动颜色） */
 class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIButtonComponent'
   schema: FieldSpec[] = [
-    { field: 'properties.colors', type: 'object', label: '状态色映射' },
-    { field: 'properties.radius', type: 'number', min: 0, label: '自动背景圆角' },
+    { field: 'properties.pressScale', type: 'number', min: 0, max: 1, label: '按下缩放比例' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

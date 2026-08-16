@@ -15,7 +15,7 @@ import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
 import { UIManager } from '../ui/UIManager'
-import { MeshComponent } from '../rendering/MeshComponent'
+import { PrimitiveMeshComponent } from '../rendering/PrimitiveMeshComponent'
 import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
@@ -227,11 +227,12 @@ export class World extends AObject {
    * 完整实例化逻辑见 ActorManagerComponent.SpawnActorFromBlueprint。
    * @param path      Blueprint id
    * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
+   * @param componentOverrides 实例级组件属性覆盖（场景 ref 节点 components）
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
-  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
+  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch, componentOverrides?: import('../asset/BlueprintAsset').BlueprintComponentDef[]): Actor | null {
     this.assertValid('调用 SpawnActorFromBlueprint')
-    return this.actorMgr.SpawnActorFromBlueprint(path, overrides)
+    return this.actorMgr.SpawnActorFromBlueprint(path, overrides, componentOverrides)
   }
 
   // ═══════════════════════════════════
@@ -252,7 +253,11 @@ export class World extends AObject {
 
     // 为所有已生成的 Actor 调用 BeginPlay
     for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bHasBegunPlay) actor.BeginPlay()
+      if (!actor.bHasBegunPlay) {
+        actor.BeginPlay()
+        // 组件属性覆盖（ref 节点 components）：BeginPlay 完成后应用（代码组件此刻已挂载）
+        actor.flushPendingComponentOverrides()
+      }
     }
 
     const animate = (time: number) => {
@@ -353,7 +358,11 @@ export class World extends AObject {
       this.notifyActorListChanged()
     }
     for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bHasBegunPlay) actor.BeginPlay()
+      if (!actor.bHasBegunPlay) {
+        actor.BeginPlay()
+        // 组件属性覆盖（ref 节点 components）：BeginPlay 完成后应用（代码组件此刻已挂载）
+        actor.flushPendingComponentOverrides()
+      }
     }
     // GameMode（其 BeginPlay 内部统一驱动 GameState + Controller）
     if (this.gameMode && !this.gameMode.bHasBegunPlay) this.gameMode.BeginPlay()
@@ -598,7 +607,7 @@ export class World extends AObject {
 
       asset.group.remove(mesh)
       const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
-      actor.addComponent(new MeshComponent(actor, mesh))
+      actor.addComponent(new PrimitiveMeshComponent(actor, mesh))
       actor.attachTo(rootActor)
       this.SpawnActor(actor)
       count++
@@ -622,7 +631,7 @@ export class World extends AObject {
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
-      const actor = this.SpawnActorFromBlueprint(rn.ref, overrides)
+      const actor = this.SpawnActorFromBlueprint(rn.ref, overrides, rn.components)
       if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
     }
 

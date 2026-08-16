@@ -30,11 +30,10 @@ DemoStudio `UITextComponent` **无 outline 字段**，可读性靠：
 
 ```json
 // 按钮 = 同 Actor（UIImage 背景 + UIButton 交互）+ 子 Actor（UIText 文字）
-{ "baseClass": "UIButtonComponent", "properties": { "colors": {
-    "normal": "#ff6f00", "hover": "#ffab00", "pressed": "#c44000" } } }
+// UIButton 为纯交互（无颜色属性）；hover/pressed 变色由脚本直接改 image.color
+{ "baseClass": "UIButtonComponent", "properties": { "name": "StartButton" } }
 ```
-- `hover` 必须与 `normal` 有明显视觉差（亮度/色相变化），否则玩家无法感知可交互
-- `pressed` 应更暗或更饱和（按下反馈）
+- hover/pressed 视觉反馈：脚本监听状态改 `UIImageComponent.color`，或依赖内置 `pressScale`（按下微缩，默认 0.92）
 - **引擎无 focus/disabled 状态**：用 `CanvasUIComponent.active` 控制整体显隐；禁用态用灰度 `UIImageComponent.color` + 忽略点击（脚本判断）
 
 ## 4. 面板与浮动层（对应 patterns: Safe Zone / 上下文可见性）

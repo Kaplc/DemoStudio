@@ -100,6 +100,9 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
   useEffect(() => {
     if (!isTabActive || !previewReady) return
     previewMgrRef.current?.activate(assetPath)
+    // 主动 resize：隐藏页签（display:none）重建后 canvas 保持 1x1 兜底尺寸，
+    // ResizeObserver 在 display 切换时不可靠——切回页签时强制恢复真实尺寸
+    previewMgrRef.current?.resize()
   }, [isTabActive, previewReady])
 
   // ─── WASD 键盘事件 ───

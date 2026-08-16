@@ -21,6 +21,13 @@ export abstract class Actor extends BObject {
   /** 由 ref 子节点生成，大纲中不展开其内部子 Actor */
   public isRefInstance = false
 
+  /**
+   * 实例级组件属性覆盖暂存（场景 ref 节点 components）。
+   * 代码生成的组件（如建筑 MeshComponent）在 BeginPlay 才挂载，而覆盖在实例化时
+   * 解析不到组件——暂存到 BeginPlay 完成后由 flushPendingComponentOverrides 应用。
+   */
+  public pendingComponentOverrides: Array<{ baseClass: string; properties?: PropertyPatch }> | null = null
+
   private children: Actor[] = []
   private _parent: Actor | null = null
 
@@ -35,6 +42,40 @@ export abstract class Actor extends BObject {
   // ═══════════════════════════════════
   //  生命周期（扩展：递归子 Actor）
   // ═══════════════════════════════════
+
+  /**
+   * 应用暂存的组件属性覆盖（BeginPlay 完成后由 commitSpawn / World.BeginPlay 调用）。
+   * 按 baseClass 找已挂组件，用 editable setter 回写（MeshComponent.size 等会触发
+   * 几何重建）；组件未声明 editable 的键兜底直接字段赋值。幂等：应用后清空暂存。
+   */
+  flushPendingComponentOverrides(): void {
+    const defs = this.pendingComponentOverrides
+    this.pendingComponentOverrides = null
+    if (!defs || defs.length === 0) return
+    for (const cdef of defs) {
+      if (!cdef.baseClass || !cdef.properties || Object.keys(cdef.properties).length === 0) continue
+      const comp = this.getAllComponents().find((c) => c.persistType === cdef.baseClass)
+      if (!comp) {
+        // eslint-disable-next-line no-console
+        console.warn(`[Actor] ${this.name}: 组件覆盖找不到 ${cdef.baseClass}，已跳过`)
+        continue
+      }
+      const editables = comp.getEditableProperties ? comp.getEditableProperties() : []
+      for (const [k, v] of Object.entries(cdef.properties)) {
+        const editable = editables.find((p) => p.key === k && !p.readonly)
+        if (editable) {
+          try {
+            editable.set(v as never)
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn(`[Actor] ${this.name}: 覆盖 ${cdef.baseClass}.${k} 失败: ${(e as Error).message}`)
+          }
+        } else {
+          ;(comp as unknown as Record<string, unknown>)[k] = v
+        }
+      }
+    }
+  }
 
   /** 游戏开始，所有组件就绪后调用一次 */
   override BeginPlay(): void {

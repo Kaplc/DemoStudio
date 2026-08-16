@@ -22,9 +22,17 @@ import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
+import { UndoManager } from '../blueprintEdit/UndoManager'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
+import type { BlueprintAsset } from '../../engine'
 import type { SceneTreeNode } from '../SelectionManager'
+
+/** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
+function diskPathToAssetKey(diskPath: string): string {
+  const idx = diskPath.indexOf('/asset/')
+  return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
+}
 
 export class BlueprintPreviewManager {
   readonly scene: THREE.Scene
@@ -48,6 +56,12 @@ export class BlueprintPreviewManager {
 
   /** Actor → JSON 节点映射（以对象引用为 key），由 loadBlueprint 在 spawn 后构建 */
   private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
+
+  // ─── 撤回系统（与 ScenePreviewManager 同构：内存栈 + 原地回滚，不重建预览）───
+  /** 撤销栈 key（asset/...，activate 时建立；UndoManager 全局共享） */
+  private _undoKey: string | null = null
+  /** 撤回基准：最近一次已提交状态（独立深拷贝，防与 _jsonTree 同引用被写回污染） */
+  private _lastCommitted: Record<string, unknown> | null = null
 
   /** 当前预览的 Actor 根节点缓存，用于快速重建 */
   private previewRoot: THREE.Object3D | null = null
@@ -99,7 +113,12 @@ export class BlueprintPreviewManager {
       alpha: true,
     })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.setSize(container.clientWidth, container.clientHeight)
+    // 0 尺寸防御：隐藏页签（display:none）重建时容器尺寸为 0，
+    // setSize(0,0) 会生成 0x0 canvas 且 aspect NaN → 切回后渲染失效。
+    // 用兜底 1 尺寸创建，切回页签时 ResizeObserver/resize() 恢复真实尺寸。
+    const w = container.clientWidth || 1
+    const h = container.clientHeight || 1
+    this.renderer.setSize(w, h)
     this.renderer.setClearColor(0x000000, 0)
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -110,7 +129,7 @@ export class BlueprintPreviewManager {
     this.scene.background = new THREE.Color(0x1a1a2e)
 
     // ─── 摄像机 ───
-    const aspect = container.clientWidth / container.clientHeight
+    const aspect = w / h
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 200)
     this.camera.position.set(5, 4, 5)
     this.camera.lookAt(0, 0, 0)
@@ -467,27 +486,225 @@ export class BlueprintPreviewManager {
    * @param target 本次被 gizmo 拖动的 Actor（通常为当前选中节点）
    */
   async commitPreviewEdit(target: Actor | null): Promise<void> {
-    // 服务层读盘/写盘需要磁盘路径（注册 key asset/... 无法定位文件）
-    const diskPath = this._currentBlueprintDiskPath
-    if (!diskPath) {
-      logger.warn(`[BlueprintPreview] 拖拽提交跳过（无磁盘路径，loadBlueprint 未传 diskPath）`)
+    const key = this._undoKey
+    if (!key) {
+      logger.warn(`[BlueprintPreview] 拖拽提交跳过（无撤销 key，activate 未调用）`)
       return
     }
-    // 先把 actor 实时 transform 回写进 jsonTree（collectSaveData 原地回写），patch 才能取到拖拽后的值
-    this.collectSaveData()
-    logger.info(`[BlueprintPreview] 松手提交: "${target?.name ?? '?'}" → ${diskPath}`)
-    const r = await BlueprintEditorService.commitPreviewTransform(
-      diskPath,
-      target,
-      this._jsonTree,
-      this._actorJsonMap,
-    )
-    if (r.ok) {
-      // apply 已 bump（nonce 变化刷新撤销按钮）；此事件双保险刷新按钮可用状态
-      editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, diskPath)
-    } else if (r.error) {
-      logger.warn(`[BlueprintPreview] 拖拽提交被拒: ${r.error}`)
+    if (!target) return
+    // 先把 actor 实时 transform 回写进 jsonTree（collectSaveData 原地回写），后续对比才能取到拖拽后的值
+    const data = this.collectSaveData()
+    if (!data) return
+    if (this._lastCommitted === null) {
+      // 无基准（理论上 activate 已建立）：以当前为基准（独立拷贝），不产生撤销点
+      this._lastCommitted = JSON.parse(JSON.stringify(data))
+      logger.info(`[BlueprintPreview] 拖拽提交（首帧基准）: ${key}`)
+      return
     }
+    // 内容无变化（拖动后松手位置与基准一致）→ 跳过，避免空撤销点
+    if (JSON.stringify(data) === JSON.stringify(this._lastCommitted)) {
+      logger.info(`[BlueprintPreview] 拖拽提交跳过（内容无变化）: ${key}`)
+      return
+    }
+    UndoManager.push(key, this._lastCommitted)
+    // 注意：基准必须独立深拷贝（防与 _jsonTree 同引用被 collectSaveData 写回污染）
+    this._lastCommitted = JSON.parse(JSON.stringify(data))
+    // 同步工作副本（不 bump：预览已是内存最新，重建只会浪费并丢引用）
+    const diskPath = this._currentBlueprintDiskPath
+    if (diskPath) {
+      await BlueprintEditorService.updateFromPreview(diskPath, data as unknown as BlueprintAsset)
+    }
+    editorBus.emit(EditorEvent.BLUEPRINT_TRANSFORM_DIRTY, diskPath ?? '')
+    logger.info(`[BlueprintPreview] 松手提交（= 一个撤销点）: "${target.name}" → ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+  }
+
+  // ════════════════════════════════════════
+  //  撤回系统（拖拽提交 / undo / redo，与 ScenePreviewManager 同构：内存栈 + 原地回滚）
+  // ════════════════════════════════════════
+
+  /** 撤销/重做按钮可用状态 */
+  canUndo(): boolean {
+    return this._undoKey !== null && UndoManager.canUndo(this._undoKey)
+  }
+
+  canRedo(): boolean {
+    return this._undoKey !== null && UndoManager.canRedo(this._undoKey)
+  }
+
+  /** 撤销：从内存栈取动作前快照 → 原地回滚（不重建预览，actor 引用/选中/相机保持）；无可撤历史返回 false */
+  undo(): boolean {
+    const key = this._undoKey
+    if (!key || !this.canUndo()) {
+      logger.warn(`[BlueprintPreview] undo 无历史可撤: ${key ?? '无 key'}`)
+      return false
+    }
+    const cur = this.collectSaveData() ?? this._lastCommitted
+    const snap = UndoManager.undo(key, cur)
+    if (snap == null) return false
+    // snap 作为新基准；传入 _applySnapshotInPlace 的必须是深拷贝——原地回滚内部
+    // 会把 _jsonTree 指向深拷贝快照，若与基准同引用，下次 collectSaveData
+    // 原地写回又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
+    this._lastCommitted = snap as Record<string, unknown>
+    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    // 同步工作副本（不 bump）：保证服务层与预览一致（Inspector 后续 apply 不会基于旧值覆盖回滚结果）
+    void this.syncWorkingCopy()
+    logger.info(`[BlueprintPreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
+    return true
+  }
+
+  /** 重做：从内存栈取 redo 快照 → 原地回滚（不重建预览）；无重做历史返回 false */
+  redo(): boolean {
+    const key = this._undoKey
+    if (!key || !this.canRedo()) {
+      logger.warn(`[BlueprintPreview] redo 无历史可重做: ${key ?? '无 key'}`)
+      return false
+    }
+    const cur = this.collectSaveData() ?? this._lastCommitted
+    const snap = UndoManager.redo(key, cur)
+    if (snap == null) return false
+    // 同 undo：基准与原地回滚输入必须分离（防同引用污染）
+    this._lastCommitted = snap as Record<string, unknown>
+    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    void this.syncWorkingCopy()
+    logger.info(`[BlueprintPreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
+    return true
+  }
+
+  /** 把预览当前内存态同步进服务层工作副本（不写盘、不产生撤销点、不 bump） */
+  private async syncWorkingCopy(): Promise<void> {
+    const diskPath = this._currentBlueprintDiskPath
+    if (!diskPath) return
+    const data = this.collectSaveData()
+    if (!data) return
+    await BlueprintEditorService.updateFromPreview(diskPath, data as unknown as BlueprintAsset)
+  }
+
+  /**
+   * 原地回滚（纯内存，唯一应用路径）：把快照 diff 逐个应用到现有 actor
+   * （不销毁、不重建，actor 引用保持 → 选中/gizmo/相机零丢失）。
+   *  - 遍历 _actorJsonMap（actor → JSON 节点），按节点名在快照树里找对应节点
+   *  - 组件可编辑属性：按 persistType 找快照组件，遍历 getEditableProperties() set 回写
+   *  - transform：写回 position/rotation/scale（组件 TransformComponent/UITransformComponent properties 优先）
+   *  - 结构不一致（节点数/节点名对不上，当前场景仅 transform/属性编辑不会触发）→ 警告，不重建
+   */
+  private _applySnapshotInPlace(snap: Record<string, unknown>): void {
+    const entries = Array.from(this._actorJsonMap?.entries() ?? [])
+    // 结构一致性检查：节点数一致且每个 map 节点名都能在快照树中找到唯一对应
+    const snapByName = new Map<string, Record<string, unknown>>()
+    const walkSnap = (node: Record<string, unknown>): boolean => {
+      const name = node.name as string | undefined
+      if (name) {
+        if (snapByName.has(name)) return false
+        snapByName.set(name, node)
+      }
+      const children = (node.children as Array<Record<string, unknown>> | undefined) ?? []
+      for (const c of children) {
+        if (!walkSnap(c)) return false
+      }
+      return true
+    }
+    if (!walkSnap(snap)) {
+      logger.warn(`[BlueprintPreview] 原地回滚跳过（快照节点名缺失/重复）`)
+      return
+    }
+    // 每个 map 节点名必须能在快照中找到唯一对应（结构与 map 一致时才回滚）
+    for (const [, node] of entries) {
+      const name = (node as { name?: string }).name
+      if (!name || !snapByName.has(name)) {
+        logger.warn(`[BlueprintPreview] 原地回滚跳过（节点 "${name}" 在快照中缺失）`)
+        return
+      }
+    }
+    // 逐个应用
+    for (const [actor, node] of entries) {
+      const jsonNode = snapByName.get((node as { name?: string }).name as string)!
+
+      // ─── 组件可编辑属性回写：按 persistType 找快照组件，set 回写（Inspector 直改的镜像） ───
+      const jsonComps = (jsonNode.components as Array<Record<string, unknown>> | undefined) ?? []
+      for (const comp of actor.getAllComponents() as ActorComponent[]) {
+        if (!comp.persistType) continue
+        const target = jsonComps.find((c) => (c.baseClass as string | undefined) === comp.persistType)
+        if (!target) continue
+        const props = (target.properties ?? {}) as Record<string, unknown>
+        for (const p of comp.getEditableProperties()) {
+          if (p.key in props && !p.readonly) {
+            try {
+              p.set(props[p.key] as never)
+            } catch (e) {
+              logger.warn(`[BlueprintPreview] 原地回滚属性失败 ${comp.persistType}.${p.key}: ${e}`)
+            }
+          }
+        }
+      }
+
+      // ─── transform 回写：组件 TransformComponent/UITransformComponent properties 优先，否则顶层 position/rotation/scale ───
+      const tf = jsonComps.find(
+        (c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent',
+      )
+      const tfProps = (tf?.properties ?? {}) as Record<string, unknown>
+      if (tfProps.position) {
+        const pos = tfProps.position as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+        const rot = tfProps.rotation as number[] | undefined
+        if (rot) actor.setRotation(rot[0], rot[1], rot[2])
+        const scale = tfProps.scale as number[] | undefined
+        if (scale) actor.setScale(scale[0], scale[1], scale[2])
+      } else if (Array.isArray(jsonNode.position)) {
+        const pos = jsonNode.position as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+        if (Array.isArray(jsonNode.rotation)) actor.setRotation((jsonNode.rotation as number[])[0], (jsonNode.rotation as number[])[1], (jsonNode.rotation as number[])[2])
+        if (Array.isArray(jsonNode.scale)) actor.setScale((jsonNode.scale as number[])[0], (jsonNode.scale as number[])[1], (jsonNode.scale as number[])[2])
+      } else if (Array.isArray(jsonNode.pos)) {
+        // 旧格式：只回写 pos
+        const pos = jsonNode.pos as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+      }
+    }
+    // 同步工作副本：_jsonTree 与快照分离深拷贝（防后续 collectSaveData 原地写回污染基准）
+    this._jsonTree = JSON.parse(JSON.stringify(snap)) as Record<string, unknown>
+    this._rebindJsonMap()
+    // gizmo 坐标轴强制刷新（hidden 页 rAF 停摆时 matrixWorld 陈旧）：重算矩阵 + 重新同步 + 立即渲染一帧
+    this.scene.updateMatrixWorld(true)
+    if (this.gizmo.visible) this.gizmo.syncTransform()
+    this.renderer.render(this.scene, this.camera)
+    logger.info(`[BlueprintPreview] 原地回滚完成: ${this._undoKey}（${entries.length} 个节点）`)
+  }
+
+  /**
+   * _jsonTree 被深拷贝替换后，把 _actorJsonMap 节点重新指向新树中的同名单节点。
+   * 否则后续 collectSaveData 的写回仍落在旧对象上，导致拖拽/属性改动被判定为
+   * "内容无变化"而不进撤销栈（第一次提交后所有编辑都会失效）。
+   */
+  private _rebindJsonMap(): void {
+    if (!this._jsonTree || !this._actorJsonMap) {
+      logger.warn(`[BlueprintPreview] _rebindJsonMap 跳过（_jsonTree/_actorJsonMap 为空）`)
+      return
+    }
+    let rebound = 0
+    let missing = 0
+    for (const [actor, node] of this._actorJsonMap) {
+      const name = (node as { name?: string }).name
+      if (!name) continue
+      const fresh = this._findNodeByName(this._jsonTree, name)
+      if (fresh) {
+        this._actorJsonMap.set(actor, fresh)
+        rebound++
+      } else {
+        missing++
+      }
+    }
+    logger.info(`[BlueprintPreview] _rebindJsonMap: 重绑 ${rebound} 个节点, 未找到 ${missing} 个`)
+  }
+
+  /** 在 JSON 树中按节点名查找（递归 children；name 唯一，找到即返回） */
+  private _findNodeByName(node: Record<string, unknown>, name: string): Record<string, unknown> | null {
+    if ((node as { name?: string }).name === name) return node
+    const children = (node.children as Array<Record<string, unknown>> | undefined) ?? []
+    for (const c of children) {
+      const hit = this._findNodeByName(c, name)
+      if (hit) return hit
+    }
+    return null
   }
 
   private fitToActor(root: THREE.Object3D) {
@@ -622,7 +839,17 @@ export class BlueprintPreviewManager {
    * 「最后构造」的页签而非「当前激活」的页签。故切到某页签时需显式 activate。
    */
   activate(assetPath?: string): void {
-    if (assetPath) AssetPreviewManager.setActive(assetPath)
+    if (assetPath) {
+      this._undoKey = diskPathToAssetKey(assetPath)
+      // 首次激活：建立撤回基准（加载后的未编辑状态）。基准必须是独立深拷贝，
+      // 不能直接引用 _jsonTree（collectSaveData 会原地写回污染它）。
+      const base = this.collectSaveData()
+      if (this._lastCommitted === null && base) {
+        this._lastCommitted = JSON.parse(JSON.stringify(base))
+        logger.info(`[BlueprintPreview] 撤回基准建立: ${this._undoKey}`)
+      }
+      AssetPreviewManager.setActive(assetPath)
+    }
     this.notifyChange()
     notifySelectionChange()
   }

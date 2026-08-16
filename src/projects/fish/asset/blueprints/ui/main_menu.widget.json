@@ -423,11 +423,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#f0a500",
-                  "hover": "#ffc93d",
-                  "pressed": "#c77f00"
-                }
+                "name": "StartButton"
               }
             }
           ],
@@ -469,19 +465,22 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 1
+                    "zOrder": 8,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#6b4a00",
+                    "color": "#ffae00",
                     "opacity": 1,
                     "width": 600,
                     "height": 148,
                     "name": "BtnFrame",
-                    "zOrder": 1,
-                    "radius": 26
+                    "zOrder": 8,
+                    "radius": 26,
+                    "hitTest": "visible"
                   }
                 }
               ],

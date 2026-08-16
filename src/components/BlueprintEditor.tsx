@@ -106,7 +106,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         setLoading(false)
       })
     return () => { cancelled = true }
-    // blueprintEditNonce：任何蓝图被编辑后重新读盘（工作副本优先）
+    // blueprintEditNonce：任何蓝图被编辑后重新读盘（工作副本优先）。
+    // 隐藏页签重建时的 0 尺寸问题由预览管理器构造防御解决（aspect 兜底 1 / canvas 1x1），
+    // 此处不做定向过滤（StrictMode 双调用下 ref 判空会误跳过首读 → 打不开蓝图）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetPath, blueprintEditNonce])
 
@@ -136,6 +138,14 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       // 用页签的相对路径注册到总管理器，供 Outline 按 assetPath 直接查找
       AssetPreviewManager.register(assetPath, mgr)
       setPreviewReady(true)
+
+      // 页签激活时立即登记为活动实例 + 建立撤回基准（_undoKey/_lastCommitted）。
+      // 不能只依赖下方 [isTabActive, previewReady] effect：重建预览时 previewReady
+      // 的 false→true 会被 React 批处理合并，状态值可能不变化导致 effect 不触发，
+      // 新实例 _undoKey 为 null → 撤销按钮失效。此处直接调用保证每次重建都重建基准。
+      if (isTabActive) {
+        mgr.activate(assetPath)
+      }
 
       // 重建预览后恢复摄像机位姿：保存时显式设置优先，否则沿用重建前记忆
       // （编辑/撤销/重做都会触发重建，恢复后视角不再被 fitToWidget 重置）
@@ -185,6 +195,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   useEffect(() => {
     if (!isTabActive || !previewReady) return
     previewMgrRef.current?.activate(assetPath)
+    // 主动 resize：隐藏页签（display:none）重建后 canvas 保持 1x1 兜底尺寸，
+    // ResizeObserver 在 display 切换时不可靠——切回页签时强制恢复真实尺寸
+    previewMgrRef.current?.resize()
   }, [isTabActive, previewReady])
 
   // ─── 视口比例同步：widget 预览时根画布跟随比例选择器（保持高度，按比例调宽） ───
@@ -302,16 +315,19 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     const onUndo = () => {
       if (!isTabActive) return
       console.log(`[BlueprintEditor] 快捷键撤销 (Ctrl+Z): ${assetPath}`)
-      const sel = getSelectedActor()
-      if (sel) pendingSelectRef.current = sel.root.name   // 重建后恢复选中
-      BlueprintEditorService.undo(assetPath)
+      // 原地回滚（预览管理器内部取栈 + 不重建）；返回 false 说明无历史可撤
+      const mgr = previewMgrRef.current
+      if (mgr?.undo?.()) {
+        setHistoryVersion((v) => v + 1)
+      }
     }
     const onRedo = () => {
       if (!isTabActive) return
       console.log(`[BlueprintEditor] 快捷键重做 (Ctrl+Y): ${assetPath}`)
-      const sel = getSelectedActor()
-      if (sel) pendingSelectRef.current = sel.root.name
-      BlueprintEditorService.redo(assetPath)
+      const mgr = previewMgrRef.current
+      if (mgr?.redo?.()) {
+        setHistoryVersion((v) => v + 1)
+      }
     }
     window.addEventListener('shortcut-undo', onUndo)
     window.addEventListener('shortcut-redo', onRedo)
@@ -339,11 +355,10 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const handleUndo = async () => {
     if (historyBusy || !canUndo) return
     console.log(`[BlueprintEditor] 点击撤销按钮: ${assetPath}（canUndo=${canUndo}）`)
-    const sel = getSelectedActor()
-    if (sel) pendingSelectRef.current = sel.root.name   // 重建后恢复选中
     setHistoryBusy(true)
     try {
-      await BlueprintEditorService.undo(assetPath)
+      // 原地回滚（预览管理器内部取栈 + 不重建，选中/相机保持）
+      previewMgrRef.current?.undo?.()
     } finally {
       setHistoryBusy(false)
       setHistoryVersion((v) => v + 1)
@@ -353,11 +368,9 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const handleRedo = async () => {
     if (historyBusy || !canRedo) return
     console.log(`[BlueprintEditor] 点击重做按钮: ${assetPath}（canRedo=${canRedo}）`)
-    const sel = getSelectedActor()
-    if (sel) pendingSelectRef.current = sel.root.name
     setHistoryBusy(true)
     try {
-      await BlueprintEditorService.redo(assetPath)
+      previewMgrRef.current?.redo?.()
     } finally {
       setHistoryBusy(false)
       setHistoryVersion((v) => v + 1)

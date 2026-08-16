@@ -632,11 +632,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#c9a227",
-              "hover": "#e0b93a",
-              "pressed": "#8a6f15"
-            }
+            "name": "SendButton"
           }
         }
       ],

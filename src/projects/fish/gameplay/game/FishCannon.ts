@@ -4,7 +4,7 @@
  * 炮口闪光直接用 Sprite 挂在炮台下，不依赖对象池。
  */
 import * as THREE from 'three'
-import { Pawn, SpriteComponent, ConfigRegistry, MeshComponent, logger, GameInstance } from '@/engine'
+import { Pawn, SpriteComponent, ConfigRegistry, PrimitiveMeshComponent, logger, GameInstance } from '@/engine'
 import { makeCannonTexture, makeFlashTexture } from '../common/textures'
 import { CANNON_Y } from '../common/types'
 import type { CannonConfig } from '../common/types'
@@ -60,7 +60,7 @@ export class FishCannon extends Pawn {
     this.flashMesh.position.set(0, 1.4, 0.3) // 默认在炮口位置（朝 +Y）
     this.flashMesh.visible = false
     // MeshComponent 托管：挂 root + EndPlay 自动释放 geometry/material（纹理 flashTex 为共享缓存不释放）
-    this.addComponent(new MeshComponent(this, this.flashMesh, 'FlashMesh'))
+    this.addComponent(new PrimitiveMeshComponent(this, this.flashMesh, 'FlashMesh'))
 
     this.setPosition(0, CANNON_Y, 0.2)
   }

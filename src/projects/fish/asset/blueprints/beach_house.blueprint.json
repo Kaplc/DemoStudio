@@ -50,7 +50,7 @@
           }
         },
         {
-          "baseClass": "MeshComponent",
+          "baseClass": "PrimitiveMeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -118,7 +118,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -160,7 +160,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -201,7 +201,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -243,7 +243,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -285,7 +285,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -326,7 +326,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -367,7 +367,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -408,7 +408,7 @@
               }
             },
             {
-              "baseClass": "MeshComponent",
+              "baseClass": "PrimitiveMeshComponent",
               "properties": {
                 "geometry": "box",
                 "size": [
@@ -451,7 +451,7 @@
           }
         },
         {
-          "baseClass": "MeshComponent",
+          "baseClass": "PrimitiveMeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -493,7 +493,7 @@
           }
         },
         {
-          "baseClass": "MeshComponent",
+          "baseClass": "PrimitiveMeshComponent",
           "properties": {
             "geometry": "box",
             "size": [
@@ -534,7 +534,7 @@
           }
         },
         {
-          "baseClass": "MeshComponent",
+          "baseClass": "PrimitiveMeshComponent",
           "properties": {
             "geometry": "box",
             "size": [

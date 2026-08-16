@@ -144,11 +144,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "TownhallButton"
           }
         }
       ],
@@ -366,11 +362,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "BarracksButton"
           }
         }
       ],
@@ -588,11 +580,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "GoldmineButton"
           }
         }
       ],
@@ -810,11 +798,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "ElixirButton"
           }
         }
       ],
@@ -1032,11 +1016,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "CannonButton"
           }
         }
       ],
@@ -1254,11 +1234,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "WallButton"
           }
         }
       ],
@@ -1476,11 +1452,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#b33a3a",
-              "hover": "#d04a4a",
-              "pressed": "#8a2a2a"
-            }
+            "name": "DeleteButton"
           }
         }
       ],
@@ -1698,11 +1670,7 @@
         {
           "baseClass": "UIButtonComponent",
           "properties": {
-            "colors": {
-              "normal": "#5c6b7a",
-              "hover": "#70859a",
-              "pressed": "#46535f"
-            }
+            "name": "CloseButton"
           }
         }
       ],

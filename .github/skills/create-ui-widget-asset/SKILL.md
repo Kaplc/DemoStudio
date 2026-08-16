@@ -112,11 +112,7 @@ Actor (name 唯一, id 唯一)
     {
       "baseClass": "UIButtonComponent",
       "properties": {
-        "colors": {
-          "normal": "#ff6f00",
-          "hover": "#ffab00",
-          "pressed": "#c44000"
-        }
+        "name": "StartButton"
       }
     }
   ],
@@ -176,7 +172,7 @@ Actor (name 唯一, id 唯一)
 3. **name 唯一**：同资产内所有节点 `name` 唯一（AI 按 name 定位控件：`ai.clickActor` / `ai.dragActor` / `ai.selectActor`；UIScriptComponent 也按 name 查找控件）
 4. **position 只允许在变换组件**：其他组件 properties 出现 `position`/`rotation`/`scale` → error
 5. **显隐控制**：UI 节点显隐由 `CanvasUIComponent.active` 统一控制（节点级级联到子树），UIText/UIImage 不消费 active
-6. **按钮纯交互**：`UIButtonComponent` 只放 `colors`（状态色映射），背景渲染由同 Actor 的 `UIImageComponent` 提供（Unity Button.targetGraphic 模式）；按钮文字由**独立子 Actor** 挂 UITextComponent 提供
+6. **按钮纯交互**：`UIButtonComponent` 只提供交互（状态机 + 点击回调 + 按下缩放），**无任何视觉属性**——BeginPlay 自动生成透明点击层（命中区域 = uitransform 世界尺寸，与子节点无关）；视觉背景由同 Actor 的 `UIImageComponent` 或子节点 Frame 提供，颜色变化由脚本/Inspector 直接改 image；按钮文字由**独立子 Actor** 挂 UITextComponent 提供
 7. **颜色格式**：CSS hex 或 rgba()
 
 ## 组件 properties 校验规则（comp:* 检查器）
@@ -230,7 +226,7 @@ Actor (name 唯一, id 唯一)
 | `name` | string | 可选 |
 
 ### UIButtonComponent
-`colors`（object）：`normal` / `hover` / `pressed` 状态色映射；`name` 可选
+`pressScale`（number，可选，默认 0.92）：按下缩放比例（≥1 或 ≤0 关闭）；`name`（string，可选）。纯交互组件：不驱动任何颜色，视觉归同 Actor/子节点的 UIImageComponent
 
 ### UIScriptComponent
 | 属性 | 类型 | 规则 |
@@ -245,7 +241,7 @@ Actor (name 唯一, id 唯一)
 3. 设计控件树（每节点 = 4 件套：UITransform + CanvasUI(markerOnly) + 功能组件 [+ 子控件]）
 4. 分配唯一 id（10000 起步）与唯一 name
 5. 有锚点的控件写 `anchor` + `anchorOffset`，无锚点才用 `position`
-6. 按钮：同节点挂 UIImage（背景）+ UIButton（colors），文字用子 Actor 挂 UIText
+6. 按钮：挂 UIButton（纯交互），背景用同节点/子节点 UIImage，文字用子 Actor 挂 UIText
 7. 需要交互逻辑时在根挂 UIScriptComponent（script id 必须真实存在）
 
 ## 完成检查（对照资产检查器）

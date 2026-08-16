@@ -15,11 +15,11 @@ import * as THREE from 'three'
 import { World, ActorComponent } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
-import { GenericActor, MeshComponent, Actor } from '../../engine'
+import { GenericActor, PrimitiveMeshComponent, Actor } from '../../engine'
 import { LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { SceneAsset } from '../../engine'
-import { select, notifySelectionChange, getSelectedActor } from '../SelectionManager'
+import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import { UndoManager } from '../blueprintEdit/UndoManager'
@@ -104,7 +104,12 @@ export class ScenePreviewManager {
       alpha: true,
     })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.setSize(container.clientWidth, container.clientHeight)
+    // 0 尺寸防御：隐藏页签（display:none）重建时容器尺寸为 0，
+    // setSize(0,0) 会生成 0x0 canvas 且 aspect NaN → 切回后渲染失效。
+    // 用兜底 1 尺寸创建，切回页签时 ResizeObserver/resize() 恢复真实尺寸。
+    const w = container.clientWidth || 1
+    const h = container.clientHeight || 1
+    this.renderer.setSize(w, h)
     this.renderer.setClearColor(0x000000, 0)
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -115,7 +120,7 @@ export class ScenePreviewManager {
     this.scene.background = new THREE.Color(0x1a1a2e)
 
     // ─── 摄像机 ───
-    const aspect = container.clientWidth / container.clientHeight
+    const aspect = w / h
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 200)
     this.camera.position.set(5, 4, 5)
     this.camera.lookAt(0, 0, 0)
@@ -340,7 +345,7 @@ export class ScenePreviewManager {
 
       result.group.remove(mesh)
       const actor = new GenericActor(`Preview_${mesh.name || ''}`)
-      actor.addComponent(new MeshComponent(actor, mesh))
+      actor.addComponent(new PrimitiveMeshComponent(actor, mesh))
       actor.attachTo(rootActor)
       this.world.SpawnActor(actor)
     }
@@ -351,7 +356,7 @@ export class ScenePreviewManager {
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
-      const actor = this.world.SpawnActorFromBlueprint(rn.ref, overrides)
+      const actor = this.world.SpawnActorFromBlueprint(rn.ref, overrides, rn.components)
       if (actor) {
         actor.isRefInstance = true
         actor.attachTo(rootActor)
@@ -594,7 +599,7 @@ export class ScenePreviewManager {
     logger.info(`[ScenePreview] _rebindJsonMap: 重绑 ${rebound} 个节点, 未找到 ${missing} 个`)
   }
 
-  /** 撤销：从栈取动作前快照 → 重建预览（保持相机视角与激活状态）；无可撤历史返回 false */
+  /** 撤销：从内存栈取动作前快照 → 原地回滚（不重建预览，actor 引用/选中/相机保持）；无可撤历史返回 false */
   undo(): boolean {
     const key = this._undoKey
     if (!key || !this.canUndo()) {
@@ -604,16 +609,16 @@ export class ScenePreviewManager {
     const cur = this.collectSaveData() ?? this._lastCommitted
     const snap = UndoManager.undo(key, cur)
     if (snap == null) return false
-    // snap 作为新基准；传入 _applySnapshot 的必须是深拷贝——loadSceneAsset 会把
-    // _sceneAsset 指向传入对象，若与基准同引用，下次 collectSaveData 原地写回
-    // 又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
+    // snap 作为新基准；传入 _applySnapshotInPlace 的必须是深拷贝——原地回滚内部
+    // 会把 _sceneAsset 指向深拷贝快照，若与基准同引用，下次 collectSaveData
+    // 原地写回又会污染基准（undo → 新编辑 → 被判"无变化"不进栈的残余路径）。
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshot(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
     logger.info(`[ScenePreview] undo: ${key}（undo 栈 ${UndoManager.depth(key).undo}）`)
     return true
   }
 
-  /** 重做：从栈取 redo 快照 → 重建预览；无重做历史返回 false */
+  /** 重做：从内存栈取 redo 快照 → 原地回滚（不重建预览）；无重做历史返回 false */
   redo(): boolean {
     const key = this._undoKey
     if (!key || !this.canRedo()) {
@@ -623,43 +628,98 @@ export class ScenePreviewManager {
     const cur = this.collectSaveData() ?? this._lastCommitted
     const snap = UndoManager.redo(key, cur)
     if (snap == null) return false
-    // 同 undo：基准与 loadSceneAsset 输入必须分离（防同引用污染）
+    // 同 undo：基准与原地回滚输入必须分离（防同引用污染）
     this._lastCommitted = snap as Record<string, unknown>
-    this._applySnapshot(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
+    this._applySnapshotInPlace(JSON.parse(JSON.stringify(snap)) as Record<string, unknown>)
     logger.info(`[ScenePreview] redo: ${key}（redo 栈 ${UndoManager.depth(key).redo}）`)
     return true
   }
 
-  /** 应用快照：记录相机位姿 → 重建预览 → 恢复相机 → 重新激活（loadSceneAsset 会清 _currentScenePath） */
-  private _applySnapshot(snap: Record<string, unknown>): void {
-    // loadSceneAsset 内部 clearPreview 会清掉 _currentScenePath，先保存磁盘路径
-    const path = this._currentScenePath
-    const camPos = this.camera.position.clone()
-    const camQuat = this.camera.quaternion.clone()
-    // 记录当前选中（重建后恢复，撤销/重做不打断编辑上下文）。
-    // 锚点用 JSON 节点名（场景内唯一，如 Goldmine_1/Goldmine_2）：实例名（Goldmine）
-    // 会重复，按名称 find 会错选第一个同名 actor，导致 gizmo 挂到错误目标上。
-    const sel = getSelectedActor()
-    const selJsonName = sel ? this._actorJsonMap.get(sel)?.name ?? sel.root.name : null
-    this.loadSceneAsset(snap as unknown as SceneAsset)
-    if (path) this.activate(path)
-    this.restoreCamera(camPos, camQuat)
-    // 恢复选中：按 JSON 节点名在新映射（loadSceneAsset 已重建）反查唯一 actor 并选中（gizmo 同步）
-    if (selJsonName) {
-      let target: Actor | null = null
-      for (const [actor, node] of this._actorJsonMap) {
-        if ((node as { name?: string }).name === selJsonName) {
-          target = actor
-          break
+  /**
+   * 原地回滚（纯内存，唯一应用路径）：把快照 diff 逐个应用到现有 actor
+   * （不销毁、不重建，actor 引用保持 → 选中/gizmo/相机零丢失）。
+   *  - 遍历 _actorJsonMap（actor → JSON 节点），按节点名在快照 objects 里找对应节点
+   *  - 组件可编辑属性：按 persistType 找快照组件，遍历 getEditableProperties() set 回写
+   *  - transform：写回 position/rotation/scale（组件 TransformComponent properties 优先）
+   *  - 结构不一致（节点数/节点名对不上，当前场景仅 transform/属性编辑不会触发）→ 警告，不重建
+   */
+  private _applySnapshotInPlace(snap: Record<string, unknown>): void {
+    const snapObjs = ((snap as { objects?: unknown[] }).objects ?? []) as Array<Record<string, unknown>>
+    const entries = Array.from(this._actorJsonMap.entries())
+    // 结构一致性检查：节点数一致且每个 map 节点名都能在快照中找到唯一对应
+    if (snapObjs.length !== entries.length) {
+      logger.warn(`[ScenePreview] 原地回滚跳过（节点数不一致 ${entries.length}→${snapObjs.length}）`)
+      return
+    }
+    const snapByName = new Map<string, Record<string, unknown>>()
+    for (const o of snapObjs) {
+      const name = o.name as string
+      if (!name || snapByName.has(name)) {
+        logger.warn(`[ScenePreview] 原地回滚跳过（快照节点名缺失/重复）`)
+        return
+      }
+      snapByName.set(name, o)
+    }
+    for (const [, node] of entries) {
+      const name = (node as { name?: string }).name
+      if (!name || !snapByName.has(name)) {
+        logger.warn(`[ScenePreview] 原地回滚跳过（节点 "${name}" 在快照中缺失）`)
+        return
+      }
+    }
+    // 逐个应用
+    for (const [actor, node] of entries) {
+      const jsonNode = snapByName.get((node as { name?: string }).name as string)!
+
+      // ─── 组件可编辑属性回写：按 persistType 找快照组件，set 回写（Inspector 直改的镜像） ───
+      const jsonComps = (jsonNode.components as Array<Record<string, unknown>> | undefined) ?? []
+      for (const comp of actor.getAllComponents() as ActorComponent[]) {
+        if (!comp.persistType) continue
+        const target = jsonComps.find((c) => (c.baseClass as string | undefined) === comp.persistType)
+        if (!target) continue
+        const props = (target.properties ?? {}) as Record<string, unknown>
+        for (const p of comp.getEditableProperties()) {
+          if (p.key in props && !p.readonly) {
+            try {
+              p.set(props[p.key] as never)
+            } catch (e) {
+              logger.warn(`[ScenePreview] 原地回滚属性失败 ${comp.persistType}.${p.key}: ${e}`)
+            }
+          }
         }
       }
-      if (target) this.selectActor(target)
+
+      // ─── transform 回写：组件 TransformComponent properties 优先，否则顶层 position/rotation/scale ───
+      const tf = jsonComps.find(
+        (c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent',
+      )
+      const tfProps = (tf?.properties ?? {}) as Record<string, unknown>
+      if (tfProps.position) {
+        const pos = tfProps.position as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+        const rot = tfProps.rotation as number[] | undefined
+        if (rot) actor.setRotation(rot[0], rot[1], rot[2])
+        const scale = tfProps.scale as number[] | undefined
+        if (scale) actor.setScale(scale[0], scale[1], scale[2])
+      } else if (Array.isArray(jsonNode.position)) {
+        const pos = jsonNode.position as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+        if (Array.isArray(jsonNode.rotation)) actor.setRotation((jsonNode.rotation as number[])[0], (jsonNode.rotation as number[])[1], (jsonNode.rotation as number[])[2])
+        if (Array.isArray(jsonNode.scale)) actor.setScale((jsonNode.scale as number[])[0], (jsonNode.scale as number[])[1], (jsonNode.scale as number[])[2])
+      } else if (Array.isArray(jsonNode.pos)) {
+        // 旧格式：只回写 pos
+        const pos = jsonNode.pos as number[]
+        actor.setPosition(pos[0], pos[1], pos[2])
+      }
     }
-    // gizmo 坐标轴强制刷新：重建的选中节点 matrixWorld 可能陈旧（hidden 页 rAF 停摆），
-    // gizmo.attach 内 syncTransform 基于旧矩阵会停在错误位置；重算矩阵 + 重新同步 + 立即渲染一帧
+    // 同步工作副本：_sceneAsset 与快照分离深拷贝（防后续 collectSaveData 原地写回污染基准）
+    this._sceneAsset = JSON.parse(JSON.stringify(snap)) as unknown as SceneAsset
+    this._rebindJsonMap()
+    // gizmo 坐标轴强制刷新（hidden 页 rAF 停摆时 matrixWorld 陈旧）：重算矩阵 + 重新同步 + 立即渲染一帧
     this.scene.updateMatrixWorld(true)
     if (this.gizmo.visible) this.gizmo.syncTransform()
     this.renderer.render(this.scene, this.camera)
+    logger.info(`[ScenePreview] 原地回滚完成: ${this._undoKey}（${entries.length} 个节点）`)
   }
 
   // ════════════════════════════════════════
@@ -746,8 +806,16 @@ export class ScenePreviewManager {
       const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       for (const comp of actor.getAllComponents() as ActorComponent[]) {
         if (!comp.persistType) continue
-        const target = jsonComps.find((c) => c.baseClass === comp.persistType)
-        if (!target) continue
+        // 场景节点（ref/actor）的 JSON 可能没有该组件（组件由蓝图/代码生成，
+        // 如 Goldmine 的 MeshComponent）——找不到 target 时新增 JSON 组件节点，
+        // 否则组件属性（size/color 等）永远写不进 _sceneAsset，Inspector 直改
+        // 被判定"内容无变化"而不进撤销栈。
+        let target = jsonComps.find((c) => c.baseClass === comp.persistType)
+        if (!target) {
+          target = { baseClass: comp.persistType, properties: {} }
+          jsonComps.push(target)
+          ;(jsonNode.components as Array<Record<string, any>> | undefined) = jsonComps
+        }
         const props = (target.properties ?? {}) as Record<string, unknown>
         const persist = comp.getPersistentProps()
         // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）

@@ -37,11 +37,7 @@
     {
       "baseClass": "UIButtonComponent",
       "properties": {
-        "colors": {
-          "normal": "#5c6b7a",
-          "hover": "#70859a",
-          "pressed": "#46535f"
-        }
+        "name": "CardButton"
       }
     }
   ],

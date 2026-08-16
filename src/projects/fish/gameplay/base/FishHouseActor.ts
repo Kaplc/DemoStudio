@@ -8,7 +8,7 @@
  * 继承 BuildingActor 基类：携带建筑显示名（buildingName）与放置占地格子数（footprint）。
  */
 import * as THREE from 'three'
-import { ClickableComponent, MeshComponent, LineComponent, type World, logger } from '@/engine'
+import { ClickableComponent, PrimitiveMeshComponent, LineComponent, type World, logger } from '@/engine'
 import { BuildingActor } from './BuildingActor'
 
 export class FishHouseActor extends BuildingActor {
@@ -55,7 +55,7 @@ export class FishHouseActor extends BuildingActor {
     this.clickZone.position.y = 1.2
     this.clickZone.userData.isHouse = true
     // MeshComponent 托管：挂 root + EndPlay 自动释放资源
-    this.addComponent(new MeshComponent(this, this.clickZone, 'ClickZoneMesh'))
+    this.addComponent(new PrimitiveMeshComponent(this, this.clickZone, 'ClickZoneMesh'))
   }
 
   /**

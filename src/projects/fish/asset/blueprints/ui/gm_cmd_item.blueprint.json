@@ -64,11 +64,7 @@
     {
       "baseClass": "UIButtonComponent",
       "properties": {
-        "colors": {
-          "normal": "#1a1028",
-          "hover": "#3a2a50",
-          "pressed": "#4a3a60"
-        }
+        "name": "CmdButton"
       }
     }
   ],

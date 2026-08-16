@@ -47,6 +47,24 @@ const COMP_SCHEMA: FieldSpec[] = [
   { field: '_remove', type: 'boolean', label: '继承移除标记' },
 ]
 
+/** 判断组件是否为 mesh 组件（MeshComponent / CapsuleMeshComponent 及子类） */
+export function isMeshBaseClass(baseClass: string): boolean {
+  return baseClass === 'MeshComponent' || baseClass.endsWith('MeshComponent')
+}
+
+/**
+ * 统计组件数组中 mesh 组件的数量（一个 Actor 只能挂一个 mesh，组合用子 Actor）。
+ * 返回 >1 时调用方应报 error（node:actor / doc:blueprint 均调用）。
+ */
+export function countMeshComponents(comps: unknown[] | undefined): number {
+  if (!Array.isArray(comps)) return 0
+  return comps.filter((c) => {
+    if (!c || typeof c !== 'object') return false
+    const bc = (c as Record<string, unknown>).baseClass
+    return typeof bc === 'string' && isMeshBaseClass(bc)
+  }).length
+}
+
 /**
  * 递归校验 children 树。
  * @returns 收集到的所有 id（用于根节点做全局重复检测）
@@ -231,6 +249,32 @@ function makeIssue(
 }
 
 /**
+ * 递归检查 children 树：每个子节点的组件中 mesh 组件（MeshComponent/CapsuleMeshComponent）
+ * 数量 > 1 → error（一个 Actor 只能挂一个 mesh，组合网格请拆子 Actor）。
+ */
+function checkChildrenMeshCount(
+  nodes: unknown[],
+  ctx: CheckerContext,
+  basePath: string,
+  issues: LintIssue[],
+): void {
+  for (let i = 0; i < nodes.length; i++) {
+    const c = nodes[i]
+    if (!c || typeof c !== 'object') continue
+    const childPath = `${basePath}[${i}]`
+    const child = c as Record<string, unknown>
+    const count = countMeshComponents(child.components as unknown[])
+    if (count > 1) {
+      issues.push(makeIssue(ctx.filePath, childPath, 'components', 'multi-mesh-component', 'error',
+        `子节点 "${(child.name as string) ?? i}" 声明了 ${count} 个 mesh 组件（一个 Actor 只能挂载一个 MeshComponent，组合网格请拆成子 Actor）`))
+    }
+    if (Array.isArray(child.children)) {
+      checkChildrenMeshCount(child.children, ctx, `${childPath}.children`, issues)
+    }
+  }
+}
+
+/**
  * 递归校验 name 唯一性（同一资产内 name 必须唯一）。
  * AI 按 name 定位控件（ai.clickActor / ai.dragActor / ai.selectActor），重复名会导致定位歧义。
  */
@@ -281,8 +325,6 @@ class BlueprintDocChecker extends AbstractAssetChecker {
     const root = node as Record<string, unknown>
     const seenIds = new Set<unknown>()
     if (root.id !== undefined) seenIds.add(root.id)
-
-    // 校验根级 components
     if (Array.isArray(root.components)) {
       validateComponents(root.components, ctx, 'components', issues)
       // 根级顶层 transform 与 tsf 组件一致性
@@ -290,6 +332,18 @@ class BlueprintDocChecker extends AbstractAssetChecker {
     } else {
       // 根节点无组件但带顶层 position/rotation/scale → error
       checkMissingTransformComponent(root, '<根>', ctx, issues)
+    }
+
+    // 一个 Actor 只能挂一个 mesh（组合网格拆子 Actor）：
+    // 根节点组件多 mesh → error
+    const rootMeshCount = countMeshComponents(root.components as unknown[])
+    if (rootMeshCount > 1) {
+      issues.push(makeIssue(ctx.filePath, '<根>', 'components', 'multi-mesh-component', 'error',
+        `根节点声明了 ${rootMeshCount} 个 mesh 组件（一个 Actor 只能挂载一个 MeshComponent，组合网格请拆成子 Actor）`))
+    }
+    // 递归 children：每个子节点的组件多 mesh → error
+    if (Array.isArray(root.children)) {
+      checkChildrenMeshCount(root.children, ctx, 'children', issues)
     }
 
     // 递归校验 children（含 id 唯一性 + 子级 components）

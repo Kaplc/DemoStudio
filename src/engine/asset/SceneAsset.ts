@@ -140,6 +140,8 @@ export interface RefNode extends BaseNode {
   scale?: Vec3
   /** 实例级属性覆盖（叠加在蓝图 CDO 之上） */
   overrides?: PropertyPatch
+  /** 实例级组件属性覆盖（按 baseClass 覆盖蓝图组件属性，如改 MeshComponent.size） */
+  components?: import('./BlueprintAsset').BlueprintComponentDef[]
 }
 
 /** blueprint 节点 — 旧格式，兼容保留；新场景应使用 RefNode */

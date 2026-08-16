@@ -33,8 +33,9 @@
 
 ## E. 交互与状态
 
-- [ ] `UIButtonComponent.colors` 三态齐全：normal ≠ hover（明显视觉差）≠ pressed（按下反馈）
-- [ ] 按钮有背景（同 Actor UIImage）——纯 UIButton 无背景 = 不可见按钮
+- [ ] 按钮 hover/pressed 反馈：pressScale 内置缩放，或脚本直接改 image.color（引擎按钮不驱动颜色）
+- [ ] 按钮有背景（同 Actor/子节点 UIImage）——纯 UIButton 无背景 = 不可见按钮
+- [ ] 按钮 hitArea = uitransform 尺寸（自动透明点击层）；Frame 略大于按钮矩形时点击仍以矩形为准
 - [ ] 按钮文字是独立子 Actor（UIText），非同节点
 - [ ] 禁用/不可用状态：灰度 `UIImageComponent.color` + 脚本拦截点击（引擎无 disabled 状态）
 - [ ] 图标/色块信息带文字或图标后备（色盲友好），不纯靠颜色

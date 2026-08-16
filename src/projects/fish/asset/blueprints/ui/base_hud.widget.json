@@ -785,11 +785,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#f0a500",
-                  "hover": "#ffc93d",
-                  "pressed": "#c77f00"
-                }
+                "name": "BuildButton"
               }
             }
           ],
@@ -831,7 +827,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 1,
+                    "zOrder": 14,
                     "active": true,
                     "hitTest": "visible"
                   }
@@ -839,13 +835,14 @@
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#6b4a00",
+                    "color": "#ffae00",
                     "radius": 18,
                     "width": 216,
                     "height": 124,
                     "name": "BtnFrame",
-                    "zOrder": 1,
-                    "opacity": 1
+                    "zOrder": 14,
+                    "opacity": 1,
+                    "hitTest": "visible"
                   }
                 }
               ],
@@ -963,11 +960,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#f0a500",
-                  "hover": "#ffc93d",
-                  "pressed": "#c77f00"
-                }
+                "name": "MapButton"
               }
             }
           ],
@@ -1009,7 +1002,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 1,
+                    "zOrder": 17,
                     "active": true,
                     "hitTest": "visible"
                   }
@@ -1017,13 +1010,14 @@
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#6b4a00",
+                    "color": "#ffae00",
                     "radius": 18,
                     "width": 216,
                     "height": 124,
                     "name": "BtnFrame",
-                    "zOrder": 1,
-                    "opacity": 1
+                    "zOrder": 17,
+                    "opacity": 1,
+                    "hitTest": "visible"
                   }
                 }
               ],

@@ -12,7 +12,7 @@
  * 由 GameMode.BeginPlay 创建并驱动 build()，GameMode.EndPlay 驱动 EndPlay()（自动注销）。
  */
 import * as THREE from 'three'
-import { BObject, GenericActor, MeshComponent, logger } from '@/engine'
+import { BObject, GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
 import type { World } from '@/engine'
 
 /** 放置区域半边长（世界单位）：覆盖整个草地（±24），每格 1 单位 */
@@ -61,7 +61,7 @@ export class ClashBaseBuilder extends BObject {
     const grass = world.createPlaneMesh(GRASS_SIZE, GRASS_SIZE, 0x7cb342)
     grass.rotation.x = -Math.PI / 2
     grass.position.y = -0.05
-    decor.addComponent(new MeshComponent(decor, grass, 'GrassMesh'))
+    decor.addComponent(new PrimitiveMeshComponent(decor, grass, 'GrassMesh'))
 
     // 装饰 Actor 进 World 统一管理
     world.SpawnActor(decor)

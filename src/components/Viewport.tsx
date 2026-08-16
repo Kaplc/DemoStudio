@@ -509,9 +509,17 @@ export function Viewport({ onReady }: ViewportProps) {
       }}
       style={{ display: 'flex', flexDirection: 'column', flex: 1, outline: 'none' }}
     >
-      {/* 标签栏 */}
+      {/* 标签栏：页签可横向滚动（多页签时），右侧工具（比例/Gizmos/GM）固定 */}
       <div className="viewport-tabs">
-        {allTabs.map((tab) => (
+        <div
+          className="viewport-tabs-scroll"
+          onWheel={(e) => {
+            // 悬停页签栏时滚轮 → 横向滚动（鼠标无横滚键时也能滑动）
+            const el = e.currentTarget
+            el.scrollLeft += (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX)
+          }}
+        >
+          {allTabs.map((tab) => (
           <button
             key={tab.id}
             className={`viewport-tab${activeTabId === tab.id ? ' active' : ''}`}
@@ -571,8 +579,9 @@ export function Viewport({ onReady }: ViewportProps) {
               </span>
             )}
           </button>
-        ))}
-        <div className="menu-spacer" />
+          ))}
+          <div className="menu-spacer" />
+        </div>
         <select
           value={gameAspectRatio}
           onChange={(e) => setGameAspectRatio(e.target.value)}

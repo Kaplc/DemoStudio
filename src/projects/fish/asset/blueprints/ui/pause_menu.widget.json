@@ -366,11 +366,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#f0a500",
-                  "hover": "#ffc93d",
-                  "pressed": "#c77f00"
-                }
+                "name": "ResumeButton"
               }
             }
           ],
@@ -534,11 +530,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#b33a3a",
-                  "hover": "#d04a4a",
-                  "pressed": "#8a2a2a"
-                }
+                "name": "ReturnBaseButton"
               }
             }
           ],

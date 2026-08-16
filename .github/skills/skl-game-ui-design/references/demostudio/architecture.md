@@ -11,13 +11,13 @@
 | `CanvasUIComponent` | 像素画布/面板渲染（CanvasTexture） | `width` / `height`、`markerOnly`、`zOrder`、`active`（节点显隐）、`doubleSided` |
 | `UITextComponent` | 矢量文本（troika-three-text） | `text`、`fontSize`、`color`、`bold` / `italic`、`align`、`lineHeight`、`letterSpacing`、`shadowColor` / `shadowBlur`、`width` / `height`、`zOrder` |
 | `UIImageComponent` | 图片/圆角矩形 | `color`、`radius`、`opacity`、`src`、`width` / `height`、`zOrder` |
-| `UIButtonComponent` | **纯交互**（不渲染背景） | `colors.normal` / `hover` / `pressed` |
+| `UIButtonComponent` | **纯交互**（不渲染背景、不驱动颜色） | `pressScale`（按下缩放，默认 0.92） |
 | `UIScriptComponent` | 挂行为脚本 | `script`（id 如 `gameplay/base/BaseHud`）、`args` |
 | `UILayoutComponent` | 布局组件 | — |
 
 **关键规则**：
 - `UITransformComponent` 是尺寸/位置唯一权威；控件世界尺寸写 `worldWidth`/`worldHeight`
-- 按钮背景由同 Actor 的 `UIImageComponent` 渲染（Unity Button.targetGraphic 模式），文字由**独立子 Actor** 挂 `UITextComponent`
+- 按钮是纯交互：BeginPlay 自动生成透明点击层（命中 = uitransform 尺寸矩形，与子节点无关）；视觉背景由同 Actor 的 `UIImageComponent` 或子节点提供，hover/pressed 变色由脚本直接改 image.color，文字由**独立子 Actor** 挂 `UITextComponent`
 - 节点显隐统一由 `CanvasUIComponent.active` 控制（级联子树），UIText/UIImage 不消费 active
 
 ## 2. 资产格式（.widget.json）
@@ -46,7 +46,7 @@
     { "baseClass": "UITransformComponent", "properties": { "anchor": "center", "anchorOffset": [0, 0], "worldWidth": 2.45, "worldHeight": 0.4 } },
     { "baseClass": "CanvasUIComponent", "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 0 } },
     { "baseClass": "UIImageComponent", "properties": { "zOrder": 3, "color": "#ff6f00", "radius": 24, "width": 512, "height": 128 } },
-    { "baseClass": "UIButtonComponent", "properties": { "colors": { "normal": "#ff6f00", "hover": "#ffab00", "pressed": "#c44000" } } }
+    { "baseClass": "UIButtonComponent", "properties": { "name": "StartButton" } }
   ],
   "children": [ /* 文字子 Actor：UITransform + CanvasUI(markerOnly) + UITextComponent */ ]
 }
@@ -105,6 +105,6 @@ three.js 透明物体按 `groupOrder → renderOrder → material.id → z → i
 | 响应式缩放 | 锚点系统天然自适应；避免绝对 `position` 摆死坐标 |
 | HUD 层级 | zOrder 惯例表（0 底 → 4 顶，浮动面板 +100） |
 | 文字可读性 | `UITextComponent.shadowColor` + `shadowBlur`（引擎无 outline，用阴影做对比）；`bold: true` 加粗 |
-| 按钮状态 | `UIButtonComponent.colors.normal/hover/pressed`（引擎无 focus/disabled，用 `active` 控制显隐） |
+- 按钮状态色（对应 `UIButtonComponent.colors`）已移除：引擎按钮不再驱动颜色，hover/pressed 视觉反馈需脚本直接修改 image.color 或用 pressScale 缩放动效
 | 动态面板不穿透 | 交给 `FLOAT_LAYER_BIAS` 机制，无需手改 zOrder |
 | 节点显隐 | `CanvasUIComponent.active`（级联子树） |

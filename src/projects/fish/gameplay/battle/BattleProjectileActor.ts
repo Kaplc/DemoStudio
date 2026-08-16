@@ -9,7 +9,7 @@
  * 网格：小球体（颜色区分来源：防御塔暗灰、己方兵兵种色）。
  */
 import * as THREE from 'three'
-import { GenericActor, MeshComponent, logger } from '@/engine'
+import { GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import type { TroopActor } from './troops/TroopActors'
@@ -72,7 +72,7 @@ export class BattleProjectileActor extends GenericActor {
     if (!w) return
     // 小立方体弹丸（0.3×0.3×0.3，颜色区分来源：防御塔暗灰、己方兵兵种色）
     const mesh = w.createBoxMesh(0.3, 0.3, 0.3, this._color)
-    this.addComponent(new MeshComponent(this, mesh, 'ProjMesh'))
+    this.addComponent(new PrimitiveMeshComponent(this, mesh, 'ProjMesh'))
   }
 
   /**

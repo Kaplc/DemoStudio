@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { MeshComponent } from '../rendering/MeshComponent'
+import { PrimitiveMeshComponent } from '../rendering/PrimitiveMeshComponent'
 import { CapsuleMeshComponent } from '../rendering/CapsuleMeshComponent'
 import { LineComponent } from '../rendering/LineComponent'
 import { ComponentRegistry } from './ComponentRegistry'
@@ -33,7 +34,7 @@ import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
-import { UIButtonComponent, type ButtonState } from '../ui/UIButtonComponent'
+import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { UITooltipComponent } from '../ui/UITooltipComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
@@ -158,11 +159,14 @@ export function registerBuiltinComponents(): void {
       ),
   )
 
-  // ─── MeshComponent ─── props: { geometry?, size?, color?, opacity?, name? }
+  // ─── PrimitiveMeshComponent ─── props: { geometry?, size?, color?, opacity?, name? }
+  // 基础几何网格（MeshComponent 的具体派生）。MeshComponent 是抽象基类不注册——
+  // 资产声明 baseClass: 'MeshComponent' 会因未注册而创建失败（assetLint 亦报错），
+  // 必须声明 PrimitiveMeshComponent / CapsuleMeshComponent。
   // geometry 取值: 'box'（默认）| 'sphere' | 'plane'
   // size 按几何类型: box→[w,h,d], sphere→[radius], plane→[w,h]
   ComponentRegistry.register(
-    'MeshComponent',
+    'PrimitiveMeshComponent',
     (owner, p = {}) => {
       const geometryType = (p.geometry as string) ?? 'box'
       const size = p.size as number[] | undefined
@@ -184,7 +188,7 @@ export function registerBuiltinComponents(): void {
         mat.opacity = p.opacity as number
       }
       const mesh = new THREE.Mesh(geo, mat)
-      return new MeshComponent(asActor(owner), mesh, (p.name as string) ?? 'MeshComponent')
+      return new PrimitiveMeshComponent(asActor(owner), mesh, (p.name as string) ?? 'PrimitiveMeshComponent')
     },
     (c, p) => {
       const mc = c as MeshComponent
@@ -350,21 +354,21 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIButtonComponent ─── props: { colors?, radius?, onClick? (代码设置) }
-  // 交互组件 + 自动背景：同 Actor 有 uiimage 时驱动其颜色（Unity Button.targetGraphic 模式）；
-  // 无 uiimage 时 BeginPlay 自动生成背景（尺寸 = uitransform，颜色 = colors.normal，圆角 = radius）——
-  // 资产中只需写 UIButtonComponent 即可；文字由独立子 Actor 挂 UITextComponent 提供。
+  // ─── UIButtonComponent ─── props: { pressScale?, onClick? (代码设置) }
+  // 纯交互组件：状态机 + 点击回调 + 按下缩放；BeginPlay 自动生成透明点击层（自有
+  // UIImageComponent，opacity 0 + isClickOnly）并把射线目标锁定到该层——命中区域 =
+  // uitransform 世界尺寸，与子节点 mesh 无关。视觉背景/颜色变化由同 Actor 的
+  // uiimage 或子节点提供，脚本直接改 image.color，按钮不代理颜色。
   ComponentRegistry.register(
     'UIButtonComponent',
     (owner, p = {}) =>
       new UIButtonComponent(asActor(owner), {
-        colors: p.colors as Record<string, string> | undefined,
-        radius: p.radius as number | undefined,
+        pressScale: p.pressScale as number | undefined,
       }),
     (c, p) => {
-      const btn = c as UIButtonComponent
-      if (p.colors !== undefined) btn.setColors(p.colors as Partial<Record<ButtonState, string>>)
-      if (p.radius !== undefined) btn.radius = p.radius as number
+      // pressScale 热更新暂不支持（构造期参数）；属性更新回调保留空实现以占位
+      void c
+      void p
     },
   )
 

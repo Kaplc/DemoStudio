@@ -1,23 +1,24 @@
 ﻿/**
- * UIButtonComponent — 按钮交互组件（交互 + 自动透明点击层）
+ * UIButtonComponent — 按钮交互组件（纯交互 + 自有透明点击层）
  *
- * 模仿 Unity Button 的交互部分：状态切换（normal / hover / pressed / disabled）
- * 与点击事件回调。背景渲染由同一 Actor 上的 UIImageComponent 提供
- * （Unity Button.targetGraphic 模式：状态切换时驱动 Image 的颜色）。
+ * 模仿 Unity Button 的交互部分：状态机（normal / hover / pressed / disabled）、
+ * 点击回调、按下缩放动效。**不渲染任何视觉、不驱动任何 Image 的颜色**：
+ *  - 视觉背景由同 Actor 的 UIImageComponent 或子节点（Frame 等）提供
+ *  - 颜色变化（hover 高亮等）由脚本 / Inspector 直接修改目标 Image，按钮不代理
  *
- * 背景可省略（不需要手动挂载 UIImageComponent）：
- *  - 资产只写 UIButtonComponent 时，BeginPlay 自动生成**透明点击层**
- *    （UIImageComponent，opacity 恒 0 + isClickOnly 标记）：仅提供命中 mesh，
- *    不渲染视觉——点击区域 = uitransform 世界尺寸；视觉背景由子节点
- *    （Frame 等）或其他渲染组件提供
- *  - 资产显式挂了 UIImageComponent 时，沿用显式背景（兼容旧资产，
- *    自定义圆角/图片源/底色的场景继续手动配置；此时状态色驱动其颜色）
+ * 命中层（射线语义）：
+ *  - BeginPlay 自动生成**透明点击层**（UIImageComponent，opacity 恒 0 +
+ *    isClickOnly 标记）：仅提供命中 mesh，不渲染视觉
+ *  - ClickableComponent 的射线目标精确锁定为该层 mesh（setTargets）——
+ *    点击区域 = owner uitransform 世界尺寸的矩形，**与子节点无关**
+ *    （子节点 Frame / Text 的 mesh 不参与本按钮的射线）
+ *  - 裸 Image（无 ClickableComponent）不注册到 PhySys → 不响应射线，点击穿透；
+ *    只有「挂了 ClickableComponent 的节点 + 其目标 mesh」才消费点击
  *
  * 注意：
- *  - 自动生成的透明点击层不参与状态色驱动 / TweenSystem.fade（避免 fade 后变可见）
- *  - 点击命中依赖同 Actor（或子树）上其他 UI 组件的 mesh
+ *  - 透明点击层不参与状态色驱动 / TweenSystem.fade（避免 fade 后变可见）
  *  - 按钮文字由独立子 Actor 挂 UITextComponent 提供（如 blueprints/ui/main_menu.widget.json）
- *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { colors: { normal, hover, pressed, disabled }, radius?, pressScale? } }
+ *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { pressScale? } }
  *  - 按下动效：mousedown 命中（onPress）→ 立即微缩（pressScale=0.92）并保持；
  *    mouseup（onRelease）→ 恢复原始缩放（长按期间持续保持按下态）
  */
@@ -32,10 +33,6 @@ import type { Actor } from '../entity/Actor'
 export type ButtonState = 'normal' | 'hover' | 'pressed' | 'disabled'
 
 export interface UIButtonComponentOptions {
-  /** 各状态背景色（驱动背景图颜色；未挂 image 时 normal 色用作自动生成背景的底色） */
-  colors?: Partial<Record<ButtonState, string>>
-  /** 自动生成背景的圆角（无显式 UIImageComponent 时生效，默认 0） */
-  radius?: number
   onClick?: () => void
   /** 按下缩放比例（默认 0.92；>=1 或 <=0 时关闭缩放动效） */
   pressScale?: number
@@ -43,16 +40,9 @@ export interface UIButtonComponentOptions {
 
 export class UIButtonComponent extends Component<Actor> {
   private _state: ButtonState = 'normal'
-  private _colors: Required<Record<ButtonState, string>>
   private _onClick: (() => void) | null
-  /** 状态色驱动目标：同一 Actor 上的 UIImageComponent（Unity Button.targetGraphic） */
-  private _graphic: UIImageComponent | null = null
-  /** 自动生成的背景图组件（非资产配置，仅在无显式 image 时创建；保存时不写回 JSON） */
-  private _autoGraphic: UIImageComponent | null = null
-  /** 自动生成背景的圆角（无显式 image 时生效，资产 properties.radius 转入） */
-  private _radius = 0
-  /** 是否已尝试解析 graphic（组件挂载顺序可能导致构造时找不到） */
-  private _graphicResolved = false
+  /** 透明点击层（自动生成的 UIImageComponent，非资产配置；保存时不写回 JSON） */
+  private _hitLayer: UIImageComponent | null = null
   /** 按下缩放比例（1 = 关闭动效） */
   private _pressScale: number
   /** 原始缩放：首次按下时缓存 owner.root.scale（尊重蓝图/Inspector 设置的原始缩放） */
@@ -64,20 +54,12 @@ export class UIButtonComponent extends Component<Actor> {
     super(owner)
     this.name = 'UIButtonComponent'
 
-    const defaultColors: Record<ButtonState, string> = {
-      normal: '#3a4a5e',
-      hover: '#4a6080',
-      pressed: '#2a3850',
-      disabled: '#666666',
-    }
-    this._colors = { ...defaultColors, ...(options.colors ?? {}) } as Required<Record<ButtonState, string>>
     this._onClick = options.onClick ?? null
     this._pressScale = options.pressScale ?? 0.92
-    this._radius = options.radius ?? 0
 
-    logger.info(`[UIButtonComponent] 创建: colors=${JSON.stringify(this._colors)}, pressScale=${this._pressScale}`)
+    logger.info(`[UIButtonComponent] 创建: pressScale=${this._pressScale}`)
 
-    // 自动挂载可点击组件：命中按钮面板 → triggerClick（PhySys 射线分发，无需额外代码）
+    // 自动挂载可点击组件：命中透明点击层 → triggerClick（PhySys 射线分发，无需额外代码）
     // 复用已有 ClickableComponent（数据显式配置时），否则新建
     let clickable = owner.getComponent(ClickableComponent)
     if (!clickable) {
@@ -92,20 +74,19 @@ export class UIButtonComponent extends Component<Actor> {
       this.triggerClick()
     }
     clickable.onRelease = () => this.release()
+    // 悬停：驱动状态机（外部可查询；无颜色副作用，视觉高亮由脚本自理）
+    clickable.onHover = (hit) => this.hover(hit !== null)
   }
 
   override BeginPlay(): void {
-    // 组件挂载顺序可能 uibutton 先于 uiimage，BeginPlay 时再解析一次关联背景；
-    // 无显式 image 时自动生成背景（此时 transform 尺寸已就绪）
-    this.resolveGraphic()
-    this.applyStateColor()
+    // 此时 transform 尺寸已就绪：生成透明点击层并锁定射线目标
+    this.createHitLayer()
   }
 
   get state(): ButtonState { return this._state }
   set state(v: ButtonState) {
     if (this._state === v) return
     this._state = v
-    this.applyStateColor()
     this.applyPressScale()
     logger.info(`[UIButtonComponent] "${this.name}" 状态 -> ${v}`)
   }
@@ -116,28 +97,6 @@ export class UIButtonComponent extends Component<Actor> {
 
   /** 按下缩放比例（1 = 关闭动效），AI/调试用 */
   get pressScale(): number { return this._pressScale }
-
-  /** 自动生成背景的圆角（无显式 image 时生效；更新后立即重绘自动背景） */
-  get radius(): number { return this._radius }
-  set radius(v: number) {
-    this._radius = v
-    if (this._autoGraphic) this._autoGraphic.radius = v
-  }
-
-  /**
-   * 获取按钮背景（显式配置的 UIImageComponent 或自动生成的背景）。
-   * 未解析时立即解析——脚本在 spawnUIActor 返回后（BeginPlay 前）即可访问背景改色。
-   */
-  getBackground(): UIImageComponent | null {
-    if (!this._graphic) this.resolveGraphic()
-    return this._graphic
-  }
-
-  /** 更新状态色映射（数据热更新用），并立即应用当前状态色 */
-  setColors(colors: Partial<Record<ButtonState, string>>): void {
-    this._colors = { ...this._colors, ...colors }
-    this.applyStateColor()
-  }
 
   /**
    * 触发点击（外部输入系统 / AI 事件调用）。
@@ -170,6 +129,12 @@ export class UIButtonComponent extends Component<Actor> {
     if (this._state === 'pressed') this.state = 'normal'
   }
 
+  /** 悬停状态机：进入 hover / 离开回 normal（pressed/disabled 期间不抢占） */
+  private hover(enter: boolean): void {
+    if (this._state === 'disabled' || this._pointerPressed) return
+    this.state = enter ? 'hover' : 'normal'
+  }
+
   /** 按下/松开时立即应用缩放：pressed → 微缩，其他状态 → 恢复原始 */
   private applyPressScale(): void {
     // 动效关闭（pressScale 非法）
@@ -192,46 +157,33 @@ export class UIButtonComponent extends Component<Actor> {
   }
 
   /**
-   * 解析背景图组件（作为状态色驱动目标）：
-   *  - 同 Actor 有显式 UIImageComponent → 沿用（Unity Button.targetGraphic 模式）
-   *  - 无显式背景 → 自动生成（尺寸 = uitransform 世界尺寸，颜色 = normal 状态色），
-   *    资产中无需再挂 UIImageComponent
-   */
-  private resolveGraphic(): void {
-    if (this._graphicResolved) return
-    this._graphicResolved = true
-    const g = this.owner.getComponent(UIImageComponent)
-    if (g) {
-      this._graphic = g
-      // normal 态未显式配置时，以背景图当前颜色为准（保留数据里 uiimage.color 的语义）
-      if (!this._colors.normal) this._colors.normal = g.color
-    } else {
-      this._graphic = this.createAutoGraphic()
-      this._autoGraphic = this._graphic
-    }
-  }
-
-  /**
-   * 自动生成按钮点击层（无显式 UIImageComponent 时调用）：
+   * 生成透明点击层并把射线目标锁定到它：
    *  - 尺寸 = owner uitransform 世界尺寸（无 transform 时回退 1×1）
    *  - 像素 = 世界尺寸 × 200px/单位（与现有资产惯例一致，避免拉伸模糊）
-   *  - **透明**（opacity 恒 0 + isClickOnly 标记）：仅提供命中 mesh，不渲染视觉——
-   *    视觉背景由子节点（Frame 等）或其他渲染组件提供，按钮节点本身无需挂 image
-   *  - 挂到 owner.root 的 panel mesh 自动参与 ClickableComponent 命中检测
+   *  - **透明**（opacity 恒 0 + isClickOnly 标记）：仅提供命中 mesh，不渲染视觉
+   *  - ClickableComponent.setTargets([panel])：命中 = 本按钮矩形，
+   *    子节点 mesh 不参与（裸 Image 无 ClickableComponent 本就穿透）
    *  - 非资产组件：保存（getPersistentProps 回写）时 JSON 无对应组件 → 不会写入资产
    */
-  private createAutoGraphic(): UIImageComponent | null {
+  private createHitLayer(): void {
+    const clickable = this.owner.getComponent(ClickableComponent)
+    if (!clickable) {
+      logger.warn(`[UIButtonComponent] "${this.name}" 缺少 ClickableComponent，无法锁定射线目标`)
+      return
+    }
+    // 幂等：BeginPlay 可能被多次调用（编辑器预览重建）
+    if (this._hitLayer) return
+
     const tsf = this.owner.getComponent(UITransformComponent)
     const [w, h] = tsf ? tsf.getWorldSize() : [1, 1]
     if (w <= 0 || h <= 0) {
-      logger.warn(`[UIButtonComponent] "${this.name}" 自动点击层失败：世界尺寸无效 ${w}×${h}`)
-      return null
+      logger.warn(`[UIButtonComponent] "${this.name}" 透明点击层生成失败：世界尺寸无效 ${w}×${h}`)
+      return
     }
     const pxW = Math.max(32, Math.round(w * 200))
     const pxH = Math.max(32, Math.round(h * 200))
     const img = new UIImageComponent(this.owner, {
-      color: this._colors.normal,
-      radius: this._radius,
+      color: '#ffffff',
       width: pxW,
       height: pxH,
       worldWidth: w,
@@ -240,28 +192,19 @@ export class UIButtonComponent extends Component<Actor> {
     })
     img.isClickOnly = true
     this.owner.addComponent(img)
-    logger.info(`[UIButtonComponent] "${this.name}" 自动生成透明点击层: ${w}×${h} 世界（${pxW}×${pxH}px）`)
-    return img
-  }
+    this._hitLayer = img
 
-  /**
-   * 状态色驱动关联背景图（Unity Button.targetGraphic 模式）。
-   * 自动生成的透明点击层跳过（不渲染视觉，无需重绘纹理）。
-   */
-  private applyStateColor(): void {
-    if (!this._graphic) this.resolveGraphic()
-    if (this._graphic && !this._autoGraphic) {
-      this._graphic.color = this._colors[this._state]
-    }
+    // 射线目标锁定：命中区域 = 本按钮矩形（子节点 Frame/Text 的 mesh 不参与本按钮射线）
+    if (img.panel) clickable.setTargets([img.panel])
+    logger.info(`[UIButtonComponent] "${this.name}" 生成透明点击层: ${w}×${h} 世界（${pxW}×${pxH}px），射线目标已锁定`)
   }
 
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
     return {
       State: this._state,
-      Colors: { ...this._colors },
       PressScale: this._pressScale,
-      Graphic: this._autoGraphic ? 'UIImageComponent（透明点击层）' : (this._graphic ? this._graphic.constructor.name : '（无，需挂 uiimage）'),
+      HitLayer: this._hitLayer ? 'UIImageComponent（透明点击层）' : '（未生成，等待 BeginPlay）',
     }
   }
 }

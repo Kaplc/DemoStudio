@@ -37,11 +37,7 @@
     {
       "baseClass": "UIButtonComponent",
       "properties": {
-        "colors": {
-          "normal": "#e53935",
-          "hover": "#ff6b5f",
-          "pressed": "#b02a20"
-        }
+        "name": "TrainButton"
       }
     }
   ],

@@ -19,7 +19,7 @@
  * 由 FishGameInstance.setupLevelPhase SpawnActor 托管并注册。
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, GameInstance, MeshComponent } from '@/engine'
+import { GameMode, PhySys, logger, GameInstance, PrimitiveMeshComponent } from '@/engine'
 import { BaseCameraActor } from '../base/BaseCameraActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from '../base/ClashBuildingTypes'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
@@ -489,7 +489,7 @@ export class FishLevelGameMode extends GameMode {
   getTroopModelSummary(): Array<{ name: string; geo: string; visible: boolean }> {
     return this.troops.map((t) => {
       const model = t.getChildren()[0]
-      const mesh = model?.getComponent(MeshComponent)
+      const mesh = model?.getComponent(PrimitiveMeshComponent)
       const meshObj = mesh?.mesh
       return {
         name: t.troop.name,

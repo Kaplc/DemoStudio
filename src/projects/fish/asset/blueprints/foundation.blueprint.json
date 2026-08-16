@@ -50,7 +50,7 @@
           }
         },
         {
-          "baseClass": "MeshComponent",
+          "baseClass": "PrimitiveMeshComponent",
           "properties": {
             "geometry": "box",
             "size": [

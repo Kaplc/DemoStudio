@@ -1050,24 +1050,24 @@ export function Inspector() {
         <span>Inspector</span>
         {blueprintSelection && isBlueprintTab ? (
           <button
-            className="btn"
-            style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 6px' }}
+            className="panel-header-close"
+            title="清除选择"
             onClick={() => useEditorStore.getState().setBlueprintSelection(null)}
           >
             ✕
           </button>
         ) : isBlueprintTab && selected ? (
           <button
-            className="btn"
-            style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 6px' }}
+            className="panel-header-close"
+            title="清除选择"
             onClick={() => select(null)}
           >
             ✕
           </button>
         ) : selected ? (
           <button
-            className="btn"
-            style={{ marginLeft: 'auto', fontSize: 10, padding: '1px 6px' }}
+            className="panel-header-close"
+            title="清除选择"
             onClick={() => select(null)}
           >
             ✕
@@ -1082,7 +1082,7 @@ export function Inspector() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery('') }}
-              placeholder="🔍 搜索组件/属性…"
+              placeholder="搜索组件/属性…"
               autoComplete="off"
               spellCheck={false}
               style={{

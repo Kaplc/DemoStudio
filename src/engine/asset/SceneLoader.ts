@@ -23,6 +23,8 @@ export interface NormalizedRefNode {
   rotation: [number, number, number]
   scale: [number, number, number]
   overrides?: import('./SceneAsset').BlueprintNode['overrides']
+  /** 实例级组件属性覆盖（collectSaveData 持久化场景 Inspector 对 ref 组件的修改） */
+  components?: import('./BlueprintAsset').BlueprintComponentDef[]
   name?: string
 }
 
@@ -80,6 +82,7 @@ export function loadScene(asset: SceneAsset): SceneGroup {
         rotation: node.rotation ?? node.rot ?? [0, 0, 0],
         scale: node.scale ?? [1, 1, 1],
         overrides: node.overrides,
+        components: node.components,
         name: node.name,
       })
       continue
@@ -187,7 +190,7 @@ function componentToMesh(
   comp: { baseClass: string; properties?: Record<string, unknown> },
   fallbackName: string,
 ): THREE.Mesh | null {
-  if (comp.baseClass !== 'MeshComponent' && comp.baseClass !== 'CapsuleMeshComponent') return null
+  if (comp.baseClass !== 'PrimitiveMeshComponent' && comp.baseClass !== 'CapsuleMeshComponent') return null
   const props = (comp.properties ?? {}) as Record<string, unknown>
   const geoType = (props.geometry as string) ?? (comp.baseClass === 'CapsuleMeshComponent' ? 'capsule' : 'box')
   const color = (props.color as string) ?? '#ffffff'

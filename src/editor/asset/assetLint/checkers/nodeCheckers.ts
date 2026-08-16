@@ -11,6 +11,7 @@
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
+import { countMeshComponents } from './docCheckers'
 import type { FieldSpec, LintIssue, CheckerContext } from '../types'
 
 /** node:ref — 新格式引用节点：ref 路径必填。position/rotation/scale 代替旧 pos/rot。 */
@@ -22,6 +23,7 @@ class RefNodeChecker extends AbstractAssetChecker {
     { field: 'rotation', type: 'vec3', label: '旋转' },
     { field: 'scale', type: 'vec3', label: '缩放' },
     { field: 'name', type: 'string', label: '节点名' },
+    { field: 'components', type: 'array', itemsType: 'object', label: '实例级组件属性覆盖' },
   ]
   validate(node: unknown, ctx: CheckerContext): LintIssue[] {
     const issues: LintIssue[] = []
@@ -48,5 +50,19 @@ class ActorNodeChecker extends AbstractAssetChecker {
     { field: 'components', type: 'array', itemsType: 'object', label: '组件列表' },
     { field: 'children', type: 'array', itemsType: 'object', label: '子节点列表' },
   ]
+
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    const issues: LintIssue[] = []
+    if (!node || typeof node !== 'object') return issues
+    const n = node as Record<string, unknown>
+    // 一个 Actor 只能挂一个 mesh（组合网格拆子 Actor）
+    const meshCount = countMeshComponents(n.components as unknown[])
+    if (meshCount > 1) {
+      issues.push(ctx.issue('components', 'multi-mesh-component',
+        `节点 "${(n.name as string) ?? '?'}" 声明了 ${meshCount} 个 mesh 组件（一个 Actor 只能挂载一个 MeshComponent，组合网格请拆成子 Actor）`,
+        'error'))
+    }
+    return issues
+  }
 }
 registerAssetChecker('node:actor', ActorNodeChecker)

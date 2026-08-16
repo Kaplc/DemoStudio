@@ -102,41 +102,50 @@ flowchart TD
 - **引用环回滚**：`BlueprintRegistry.resolve()` 探测到循环引用时，注册表与工作副本都回滚到旧资产，**不产生撤销点**（这次失败编辑不污染历史）。
 - **MCP 差异**：外部入口（`dispatch`）走 `persist=true`，编辑立即落盘；UI 编辑 `persist=false` 只进内存。
 
-### 4.2 撤销 / 重做
+### 4.2 撤销 / 重做（UI/蓝图预览 = 内存原地回滚）
 
 ```mermaid
 flowchart TD
-    A[Ctrl+Z / 撤销按钮 / MCP undo] --> B[仅激活页签响应<br/>记录选中 Actor 到 pendingSelectRef]
-    B --> C[UndoManager.undo key, 当前副本]
-    C --> D{有历史?}
-    D -- 否 --> E[返回 无可撤销]
-    D -- 是 --> F[快照 = 弹出的 undo 快照<br/>当前状态已压入 redo 栈]
-    F --> G[工作副本 = 快照 + 标记 dirty]
-    G --> H[BlueprintRegistry.loadFromJson 同步注册表]
-    H --> I[bumpBlueprintEdit → 重建预览<br/>恢复相机位姿 + 选中]
+    A[Ctrl+Z / 撤销按钮 / MCP undo] --> B[仅激活页签响应]
+    B --> C[预览管理器 undo/redo<br/>UIPreviewManager / BlueprintPreviewManager]
+    C --> D[UndoManager.undo key, 当前预览态]
+    D --> E{有历史?}
+    E -- 否 --> F[返回 false，无历史可撤]
+    E -- 是 --> G[快照 = 弹出的 undo 快照<br/>当前状态已压入 redo 栈]
+    G --> H[_applySnapshotInPlace 原地回滚<br/>不销毁、不重建，actor 引用保持]
+    H --> I[同步工作副本 + 注册表（不 bump）
+       → 撤销按钮状态刷新]
 ```
 
+- **原地回滚（唯一应用路径）**：遍历 `_actorJsonMap`（actor → JSON 节点），按节点名在快照树中找对应节点，组件可编辑属性用 `getEditableProperties()` 的 `set` 回写，transform 用 `setPosition/setRotation/setScale` 回写。**不销毁重建** → 选中/gizmo/包围盒/相机零丢失，无需按名称恢复。
+- 结构一致性检查：节点数/节点名对不上（快照有增删节点）→ 仅警告跳过，不重建（当前预览仅 transform/属性编辑不会触发）。
+- 撤销/重做后 `syncWorkingCopy` 把预览态同步进服务层工作副本（不写盘、不 bump），保证 Inspector 后续编辑基于回滚后状态。
 - 重做（Ctrl+Y）与撤销对称：从 redo 栈弹快照，当前状态压回 undo 栈。
 - 撤销/重做**不写盘**，只改内存（dirty 星标保留）。
 - 页签标题的 `*`（`dirtyBlueprints`）由 `markBlueprintDirty/Clean` 维护：编辑置脏、保存/关闭清脏。
 
+> ⚠️ **重建后必须重新 activate**：预览重建（`bumpBlueprintEdit` 触发）后 `previewReady` 的 false→true 会被 React 批处理合并，`[isTabActive, previewReady]` effect 可能不触发，导致新实例 `_undoKey` 为 null、撤销失效。修复：预览创建 effect 内当页签激活时直接调用 `mgr.activate(assetPath)`（BlueprintEditor.tsx）。
+
 ### 4.3 Gizmo 拖拽（预览态 → 撤销点）
 
-拖拽过程中只改预览内存态（**不产生撤销点**）；**松手时** `commitPreviewTransform` 把本次拖拽目标节点变换组件的最终属性，走 `apply` 链路（`setComponentProps` / `setChildComponentProps`）统一提交：
+拖拽过程中只改预览内存态（**不产生撤销点**）；**松手时** `commitPreviewEdit` 把预览态与基准（`_lastCommitted`）对比：
 
 ```
-松手 → 提取目标节点变换组件属性 patch（collectSaveData 已回写最新值）
-     → apply：动作前快照 → runOp 改工作副本 → 注册表同步 → UndoManager.push（= 松手才进撤回）
-     → bump 重建预览（恢复相机位姿 + 选中）
-     → 发 BLUEPRINT_TRANSFORM_DIRTY 刷新撤销按钮（双保险）
+松手 → collectSaveData 收集最新预览态
+     → 与基准 _lastCommitted 对比（JSON.stringify）
+     → 有变化：基准作为动作前快照 UndoManager.push + 更新基准 + 同步工作副本
+     → 无变化（拖回原位）：跳过，不产生空撤销点
+     → 发 BLUEPRINT_TRANSFORM_DIRTY 刷新撤销按钮
+     → 不 bump、不重建预览
 ```
 
 统一设计：
 
-- **与 Inspector 同一入口**：拖拽松手与 Inspector 属性修改都走 `apply`，撤回点统一由 apply 内部 push（动作前快照），一次完整拖拽 = 一个撤回点。
+- **撤回基准**：`activate(assetPath)` 首次激活时建立（加载后的未编辑状态，独立深拷贝）。`commitPreviewEdit` 对比基准：有变化才 push（基准作动作前快照），再更新基准。
+- **基准防污染**：基准必须是独立深拷贝——`collectSaveData` 会原地写回 `_jsonTree`，若基准同引用则被污染，对比恒等导致第二次起编辑不进栈。
 - **拖动中零撤回点**：`mousemove` 每帧只改运行时组件属性（实时预览），不碰工作副本与撤销栈。
-- **ref 引用实例**（无 JSON 节点可映射）：跳过提交并告警，不产生无效撤回点（保存兜底仍会整份同步）。
-- **保存兜底** `updateFromPreview`：仅保存前同步预览内存态到工作副本，**不再产生撤回点**（push 职责已全部收敛到 apply）。
+- **Inspector 直改**：仍走服务层 `applyBatch`（push 快照 + bump 重建预览）；重建后的新实例经 activate 重新建立基准（= 修改后状态），undo 时取栈顶动作前快照原地回滚——两条链路共享同一 UndoManager 栈，协调一致。
+- **保存兜底** `updateFromPreview`：仅保存前同步预览内存态到工作副本，**不再产生撤回点**（push 职责已收敛到预览管理器本地提交）。
 
 首次拖拽（无工作副本）会先读盘建立副本，此时撤销快照 = 真实磁盘状态。
 

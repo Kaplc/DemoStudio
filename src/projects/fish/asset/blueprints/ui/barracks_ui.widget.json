@@ -670,11 +670,7 @@
             {
               "baseClass": "UIButtonComponent",
               "properties": {
-                "colors": {
-                  "normal": "#f0a500",
-                  "hover": "#ffc93d",
-                  "pressed": "#c77f00"
-                }
+                "name": "CloseButton"
               }
             }
           ],

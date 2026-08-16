@@ -299,12 +299,43 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+/* 页签滚动容器：多页签溢出时横向滚动；占满剩余宽度（menu-spacer 在其内部弹性占位） */
+.viewport-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--border) transparent;
+}
+
+.viewport-tabs-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.viewport-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.viewport-tabs-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.viewport-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
 .viewport-tab {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 4px 12px;
   height: 28px;
+  flex-shrink: 0; /* 多页签时不被压缩，由滚动容器承载溢出 */
   border-radius: 4px 4px 0 0;
   cursor: pointer;
   font-size: 11px;
@@ -585,6 +616,28 @@ html, body, #root {
 .search-clear-btn:hover {
   color: var(--text-primary);
   border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* Inspector 头部清除选择按钮：暗色小图标风格，与面板 header 视觉统一 */
+.panel-header-close {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.panel-header-close:hover {
+  color: var(--text-primary);
+  border-color: var(--border);
   background: var(--bg-hover);
 }
 

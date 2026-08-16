@@ -311,7 +311,10 @@ export class CanvasUIComponent extends Component<Actor> {
   setOpacity(opacity: number) {
     if (!this.panel) return
     ;(this.panel.material as THREE.MeshBasicMaterial).opacity = opacity
-    ;(this.panel.material as THREE.MeshBasicMaterial).transparent = opacity < 1
+    // 纹理常含 alpha（圆角矩形/透明背景 UI），材质必须保持透明混合：
+    // 若按 opacity<1 才开 transparent，opacity=1 时 alpha 被忽略，
+    // 圆角外的透明像素（RGB 黑 + alpha 0）会渲染成黑色方块（按钮 4 角"不透明"）。
+    ;(this.panel.material as THREE.MeshBasicMaterial).transparent = true
   }
 
   /**

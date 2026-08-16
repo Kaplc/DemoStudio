@@ -17,7 +17,6 @@ import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
 import { GenericActor } from '../entity/GenericActor'
 import { AObjectComponent } from '../entity/AObjectComponent'
-import { MeshComponent } from '../rendering/MeshComponent'
 import { BlueprintRegistry } from '../asset/BlueprintRegistry'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { ComponentRegistry } from '../tools/ComponentRegistry'
@@ -27,6 +26,7 @@ import type { World } from './World'
 import type { Pawn } from '../entity/Pawn'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { Component } from '../entity/Component'
+import type { BlueprintComponentDef } from '../asset/BlueprintAsset'
 
 /**
  * 严格模式校验子节点 transform 数据（组件优先）：
@@ -100,6 +100,8 @@ export class ActorManagerComponent extends AObjectComponent<World> {
         }
         if (this.owner.running) {
           actor.BeginPlay()
+          // 组件属性覆盖（ref 节点 components）：BeginPlay 完成后应用（代码组件此刻已挂载）
+          actor.flushPendingComponentOverrides()
         }
       }
     }
@@ -345,9 +347,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
    *
    * @param path      Blueprint id
    * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
+   * @param componentOverrides 实例级组件属性覆盖（场景 ref 节点 components：按 baseClass
+   *                   找到已挂组件后用 editable setter 回写属性，如改 MeshComponent.size）；
+   *                   在 applyPatch 之后应用（组件属性优先于自定义参数路径）
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
-  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch): Actor | null {
+  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch, componentOverrides?: BlueprintComponentDef[]): Actor | null {
     logger.info(`[ActorManagerComponent] SpawnActorFromBlueprint: 实例化 "${path}"`)
     let resolved
     try {
@@ -487,6 +492,16 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     // 4. 调用方实例覆盖
     if (overrides && Object.keys(overrides).length > 0) {
       actor.applyPatch(overrides)
+    }
+
+    // 4.2 实例级组件属性覆盖（场景 ref 节点 components）暂存到 Actor：
+    // 代码生成的组件（如建筑 MeshComponent）在 BeginPlay 才挂载，此时解析不到——
+    // 由 commitSpawn / World.BeginPlay 在 BeginPlay 完成后统一 flush 应用
+    if (componentOverrides && componentOverrides.length > 0) {
+      actor.pendingComponentOverrides = componentOverrides.map((c) => ({
+        baseClass: c.baseClass,
+        properties: c.properties,
+      }))
     }
 
     // 4.5 应用蓝图根节点 name（子节点已在 spawnChildObjects 应用 child.name，
