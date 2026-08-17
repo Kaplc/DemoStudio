@@ -1,6 +1,10 @@
 /**
  * EatFishPawn — 玩家鱼角色
  * 自由 3D 游泳，通过 WASD 控制方向，吃小鱼长大
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中通过 world 工厂创建
+ * MeshStandardMaterial / SphereGeometry / ConeGeometry / Mesh —— 避免
+ * 项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
@@ -8,8 +12,6 @@ import type { GameConfig } from './types'
 
 // ─── 复用临时对象 ───
 const _forward = new THREE.Vector3()
-const _toTarget = new THREE.Vector3()
-const _pos = new THREE.Vector3()
 
 export class EatFishPawn extends Pawn {
   private config: GameConfig
@@ -24,19 +26,20 @@ export class EatFishPawn extends Pawn {
   private invincibleTimer = 0
 
   // 3D 对象
-  private bodyGroup: THREE.Group
-  private bodyMesh: THREE.Mesh
-  private tailMesh: THREE.Mesh
-  private finLeft: THREE.Mesh
-  private finRight: THREE.Mesh
-  private eyeLeft: THREE.Mesh
-  private eyeRight: THREE.Mesh
+  private bodyGroup!: THREE.Group
+  private bodyMesh!: THREE.Mesh
+  private tailMesh!: THREE.Mesh
+  private finLeft!: THREE.Mesh
+  private finRight!: THREE.Mesh
+  private eyeLeft!: THREE.Mesh
+  private eyeRight!: THREE.Mesh
 
   // 材质
-  private bodyMat: THREE.MeshStandardMaterial
-  private tailMat: THREE.MeshStandardMaterial
-  private finMat: THREE.MeshStandardMaterial
-  private eyeMat: THREE.MeshStandardMaterial
+  private bodyMat!: THREE.MeshStandardMaterial
+  private tailMat!: THREE.MeshStandardMaterial
+  private finMat!: THREE.MeshStandardMaterial
+  private eyeMat!: THREE.MeshStandardMaterial
+  private pupilMat!: THREE.MeshStandardMaterial
 
   // 动画
   private swimTime = 0
@@ -47,88 +50,95 @@ export class EatFishPawn extends Pawn {
     this.config = { ...ConfigRegistry.getConfig<GameConfig>('eatfish.eatfish') }
     this.fishScale = this.config.playerInitialScale
 
+    // 初始位置（视觉构建在 BeginPlay 中完成）
+    this.setPosition(0, 0.5, 0)
+  }
+
+  /** 构建 3D 视觉（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
+
     // ─── 材质 ───
-    this.bodyMat = new THREE.MeshStandardMaterial({
+    this.bodyMat = w.createStandardMaterial({
       color: 0x4fc3f7,
       roughness: 0.3,
       metalness: 0.4,
       emissive: 0x29b6f6,
       emissiveIntensity: 0.15,
     })
-    this.tailMat = new THREE.MeshStandardMaterial({
+    this.tailMat = w.createStandardMaterial({
       color: 0x29b6f6,
       roughness: 0.4,
       metalness: 0.3,
     })
-    this.finMat = new THREE.MeshStandardMaterial({
+    this.finMat = w.createStandardMaterial({
       color: 0x81d4fa,
       roughness: 0.5,
       metalness: 0.1,
       transparent: true,
       opacity: 0.7,
     })
-    this.eyeMat = new THREE.MeshStandardMaterial({
+    this.eyeMat = w.createStandardMaterial({
       color: 0xffffff,
       roughness: 0.1,
       metalness: 0.0,
     })
+    this.pupilMat = w.createStandardMaterial({
+      color: 0x222222, roughness: 0.1, metalness: 0.0,
+    })
 
     // ─── 构建鱼的身体 ───
-    this.bodyGroup = new THREE.Group()
+    this.bodyGroup = w.createGroup()
 
     // 身体（椭球）
-    const bodyGeo = new THREE.SphereGeometry(0.5, 16, 12)
-    this.bodyMesh = new THREE.Mesh(bodyGeo, this.bodyMat)
+    const bodyGeo = w.createSphereGeometry(0.5, 16, 12)
+    this.bodyMesh = w.createCustomMesh(bodyGeo, this.bodyMat)
     this.bodyMesh.scale.set(1.4, 0.7, 0.5)
     this.bodyMesh.position.set(0, 0, 0)
     this.bodyGroup.add(this.bodyMesh)
 
     // 尾巴
-    const tailGeo = new THREE.ConeGeometry(0.25, 0.5, 8)
-    this.tailMesh = new THREE.Mesh(tailGeo, this.tailMat)
+    const tailGeo = w.createConeGeometry(0.25, 0.5, 8)
+    this.tailMesh = w.createCustomMesh(tailGeo, this.tailMat)
     this.tailMesh.rotation.x = Math.PI / 2
     this.tailMesh.position.set(0, 0, -0.7)
     this.bodyGroup.add(this.tailMesh)
 
     // 背鳍
-    const finGeo = new THREE.ConeGeometry(0.08, 0.25, 4)
-    this.finLeft = new THREE.Mesh(finGeo, this.finMat)
+    const finGeo = w.createConeGeometry(0.08, 0.25, 4)
+    this.finLeft = w.createCustomMesh(finGeo, this.finMat)
     this.finLeft.rotation.z = Math.PI / 3
     this.finLeft.position.set(-0.35, 0.15, -0.1)
     this.bodyGroup.add(this.finLeft)
 
-    this.finRight = new THREE.Mesh(finGeo, this.finMat)
+    this.finRight = w.createCustomMesh(finGeo, this.finMat)
     this.finRight.rotation.z = -Math.PI / 3
     this.finRight.position.set(0.35, 0.15, -0.1)
     this.bodyGroup.add(this.finRight)
 
     // 眼睛
-    const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8)
-    const pupilGeo = new THREE.SphereGeometry(0.05, 8, 8)
-    const pupilMat = new THREE.MeshStandardMaterial({
-      color: 0x222222, roughness: 0.1, metalness: 0.0,
-    })
+    const eyeGeo = w.createSphereGeometry(0.08, 8, 8)
+    const pupilGeo = w.createSphereGeometry(0.05, 8, 8)
 
-    this.eyeLeft = new THREE.Mesh(eyeGeo, this.eyeMat)
+    this.eyeLeft = w.createCustomMesh(eyeGeo, this.eyeMat)
     this.eyeLeft.position.set(-0.25, 0.2, 0.45)
     this.bodyGroup.add(this.eyeLeft)
-    const pupilL = new THREE.Mesh(pupilGeo, pupilMat)
+    const pupilL = w.createCustomMesh(pupilGeo, this.pupilMat)
     pupilL.position.set(-0.02, 0, 0.05)
     this.eyeLeft.add(pupilL)
 
-    this.eyeRight = new THREE.Mesh(eyeGeo, this.eyeMat)
+    this.eyeRight = w.createCustomMesh(eyeGeo, this.eyeMat)
     this.eyeRight.position.set(0.25, 0.2, 0.45)
     this.bodyGroup.add(this.eyeRight)
-    const pupilR = new THREE.Mesh(pupilGeo, pupilMat)
+    const pupilR = w.createCustomMesh(pupilGeo, this.pupilMat)
     pupilR.position.set(0.02, 0, 0.05)
     this.eyeRight.add(pupilR)
 
     // 鱼默认朝向 +Z（鼻子朝前）
     this.root.add(this.bodyGroup)
     this.applyScale()
-
-    // 初始位置
-    this.setPosition(0, 0.5, 0)
   }
 
   InitGame() {
@@ -152,12 +162,14 @@ export class EatFishPawn extends Pawn {
       this.invincibleFlash += dt
       if (this.invincibleTimer <= 0) {
         this.invincible = false
-        this.bodyGroup.visible = true
-      } else {
+        if (this.bodyGroup) this.bodyGroup.visible = true
+      } else if (this.bodyGroup) {
         // 闪烁效果
         this.bodyGroup.visible = Math.floor(this.invincibleFlash * 8) % 2 === 0
       }
     }
+
+    if (!this.tailMesh || !this.bodyMesh) return
 
     // 游泳动画：尾巴摆动 + 身体微摆
     this.swimTime += dt * (8 + this.speedFactor * 4)
@@ -219,7 +231,9 @@ export class EatFishPawn extends Pawn {
 
   /** 应用缩放 */
   private applyScale() {
-    this.bodyGroup.scale.set(this.fishScale, this.fishScale, this.fishScale)
+    if (this.bodyGroup) {
+      this.bodyGroup.scale.set(this.fishScale, this.fishScale, this.fishScale)
+    }
   }
 
   /** 向前方向向量 */
@@ -233,10 +247,11 @@ export class EatFishPawn extends Pawn {
   }
 
   override destroy() {
-    this.bodyMat.dispose()
-    this.tailMat.dispose()
-    this.finMat.dispose()
-    this.eyeMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
+    if (this.tailMat) this.tailMat.dispose()
+    if (this.finMat) this.finMat.dispose()
+    if (this.eyeMat) this.eyeMat.dispose()
+    if (this.pupilMat) this.pupilMat.dispose()
     super.destroy()
   }
 

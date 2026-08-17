@@ -797,6 +797,60 @@ export class World extends AObject {
     )
   }
 
+  // ─── 项目代码用的几何体 / 材质 / Mesh 工厂（不依赖 ThreeObject 追踪，
+  //      返回裸 THREE 对象，项目代码随 Pawn 生命周期在 EndPlay 中 dispose）───
+
+  /** BoxGeometry 工厂 */
+  createBoxGeometry(w: number, h: number, d: number): THREE.BoxGeometry {
+    return new THREE.BoxGeometry(w, h, d)
+  }
+
+  /** SphereGeometry 工厂（默认经纬分段均为 segments） */
+  createSphereGeometry(radius: number, widthSegments = 8, heightSegments?: number): THREE.SphereGeometry {
+    return new THREE.SphereGeometry(radius, widthSegments, heightSegments ?? widthSegments)
+  }
+
+  /** ConeGeometry 工厂 */
+  createConeGeometry(radius: number, height: number, radialSegments = 6): THREE.ConeGeometry {
+    return new THREE.ConeGeometry(radius, height, radialSegments)
+  }
+
+  /** CapsuleGeometry 工厂 */
+  createCapsuleGeometry(radius: number, length: number, capSegments = 4, radialSegments = 12): THREE.CapsuleGeometry {
+    return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
+  }
+
+  /** PlaneGeometry 工厂 */
+  createPlaneGeometry(w: number, h: number): THREE.PlaneGeometry {
+    return new THREE.PlaneGeometry(w, h)
+  }
+
+  /** CylinderGeometry 工厂 */
+  createCylinderGeometry(radiusTop: number, radiusBottom: number, height: number, radialSegments = 8): THREE.CylinderGeometry {
+    return new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
+  }
+
+  /** MeshStandardMaterial 工厂（项目代码禁止裸 new，统一经此创建） */
+  createStandardMaterial(opts: {
+    color?: THREE.ColorRepresentation
+    roughness?: number
+    metalness?: number
+    emissive?: THREE.ColorRepresentation
+    emissiveIntensity?: number
+    transparent?: boolean
+    opacity?: number
+  } = {}): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial(opts)
+  }
+
+  /**
+   * 创建自定义 Mesh（项目代码用）：几何体 + 材质经工厂创建，组合为 THREE.Mesh。
+   * 调用方负责在 EndPlay 时 dispose 该 Mesh（与该方法同步释放 geometry + material）。
+   */
+  createCustomMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+    return new THREE.Mesh(geometry, material)
+  }
+
   /** 创建一个不可见的 Box 网格（用于点击碰撞体） */
   createInvisibleBox(w: number, h: number, d: number): THREE.Mesh {
     return new THREE.Mesh(

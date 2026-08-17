@@ -8,7 +8,6 @@ import type { GameInstanceCallbacks } from '@/engine'
 import { Demo2DGameMode, Demo2DPawn, Demo2DPlayerController } from './'
 
 export class Demo2DGameInstance extends GameInstance {
-  readonly world: World
   readonly gameMode: Demo2DGameMode
 
   private _controller: Demo2DPlayerController | null = null
@@ -18,9 +17,8 @@ export class Demo2DGameInstance extends GameInstance {
   private unsubGameState: (() => void) | null = null
 
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super()
+    super(new World(sharedScene))
     this.renderContainer = renderContainer ?? null
-    this.world = new World(sharedScene)
     this.gameMode = new Demo2DGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()

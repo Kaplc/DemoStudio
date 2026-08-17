@@ -16,7 +16,6 @@ interface SnakeSavePayload {
 }
 
 export class SnakeGameInstance extends GameInstance {
-  readonly world: World
   readonly gameMode: SnakeGameMode
 
   private _controller: SnakePlayerController | null = null
@@ -30,9 +29,8 @@ export class SnakeGameInstance extends GameInstance {
   private unsubGameState: (() => void) | null = null
 
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super()
+    super(new World(sharedScene))
     this.renderContainer = renderContainer ?? null
-    this.world = new World(sharedScene)
     this.gameMode = new SnakeGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()

@@ -8,6 +8,7 @@ import { PlayerController } from '../input/PlayerController'
 import { InputSys } from '../input/InputSys'
 import { AObject } from '../entity/AObject'
 import { GMModule } from '../gm/GMModule'
+import type { World } from './World'
 
 export interface GameInstanceCallbacks {
   onScoreChange?: (score: number) => void
@@ -27,6 +28,18 @@ export abstract class GameInstance extends AObject {
   /** 设置/清除当前活跃实例（Game 生命周期管理） */
   static setCurrent(inst: GameInstance | null): void {
     GameInstance._current = inst
+  }
+
+  /** 当前实例关联的 World（子类在 super() 时传入） */
+  readonly world: World
+
+  constructor(world: World) {
+    super()
+    this.world = world
+  }
+
+  getWorld(): World | null {
+    return this.world
   }
 
   /** 输入系统（Viewport → Controller 路由） */

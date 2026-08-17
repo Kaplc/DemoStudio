@@ -7,7 +7,6 @@ import type { GameInstanceCallbacks } from '@/engine'
 import { RacingGameMode, RacingCarPawn, RacingPlayerController } from './'
 
 export class RacingGameInstance extends GameInstance {
-  readonly world: World
   readonly gameMode: RacingGameMode
 
   private _controller: RacingPlayerController | null = null
@@ -23,7 +22,7 @@ export class RacingGameInstance extends GameInstance {
   private sharedScene: THREE.Scene
 
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super()
+    super(new World(sharedScene))
     this.sharedScene = sharedScene
     sharedScene.background = new THREE.Color(0x87ceeb)
 
@@ -35,7 +34,6 @@ export class RacingGameInstance extends GameInstance {
     if (dl) { dl.intensity = 1.5; dl.position.set(30, 40, 20) }
 
     this.renderContainer = renderContainer ?? null
-    this.world = new World(sharedScene)
     this.gameMode = new RacingGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()

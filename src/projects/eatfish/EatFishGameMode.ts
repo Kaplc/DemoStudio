@@ -10,6 +10,7 @@ import { EatFishFoodPawn } from './EatFishFoodPawn'
 import { EatFishPredatorPawn } from './EatFishPredatorPawn'
 import { EatFishPlayerController } from './EatFishPlayerController'
 import { FishSchool } from './FishSchool'
+import { NewActor } from '@/engine/entity/NewActor'
 import type { GameConfig, FishArchetype } from './types'
 
 const _v3 = new THREE.Vector3()
@@ -81,7 +82,7 @@ export class EatFishGameMode extends GameMode {
 
   /** 生成食物鱼（独立鱼，不属于鱼群） */
   SpawnFoodFish() {
-    const food = new EatFishFoodPawn()
+    const food = NewActor.Spawn(EatFishFoodPawn)
     // DataTable 演示：若原型表已加载，用随机原型行设置完整属性（颜色/大小/速度/分值）
     if (this.fishTable && this.fishTable.size > 0) {
       const names = this.fishTable.getRowNames()
@@ -91,7 +92,6 @@ export class EatFishGameMode extends GameMode {
       }
     }
     this.foodFish.push(food)
-    this.world?.SpawnActor(food)
   }
 
   /** 生成一个鱼群 */
@@ -101,7 +101,7 @@ export class EatFishGameMode extends GameMode {
     const centerZ = (Math.random() - 0.5) * (this.config.arenaHalf * 2 - 6)
 
     for (let i = 0; i < this.config.fishPerSchool; i++) {
-      const fish = new EatFishFoodPawn()
+      const fish = NewActor.Spawn(EatFishFoodPawn)
       // 在鱼群中心附近分散
       const angle = Math.random() * Math.PI * 2
       const dist = Math.random() * 2
@@ -113,7 +113,6 @@ export class EatFishGameMode extends GameMode {
       fish.setBodyColor(colorTheme[i % colorTheme.length])
       school.addMember(fish)
       this.foodFish.push(fish)
-      this.world?.SpawnActor(fish)
     }
 
     this.schools.push(school)
@@ -121,9 +120,8 @@ export class EatFishGameMode extends GameMode {
 
   /** 生成捕食者鱼 */
   SpawnPredator() {
-    const predator = new EatFishPredatorPawn()
+    const predator = NewActor.Spawn(EatFishPredatorPawn)
     this.predators.push(predator)
-    this.world?.SpawnActor(predator)
     logger.info(`[EatFish] 生成捕食者, 当前数量: ${this.predators.length}`)
   }
 
@@ -160,7 +158,7 @@ export class EatFishGameMode extends GameMode {
     for (const school of activeSchools) {
       const schoolAlive = school.getAliveMembers()
       if (schoolAlive.length < this.config.fishPerSchool && alive.length < target) {
-        const fish = new EatFishFoodPawn()
+        const fish = NewActor.Spawn(EatFishFoodPawn)
         // 在鱼群中心附近生成
         const angle = Math.random() * Math.PI * 2
         const dist = Math.random() * 1.5
@@ -172,7 +170,6 @@ export class EatFishGameMode extends GameMode {
         fish.setBodyColor(school.colors[0])
         school.addMember(fish)
         this.foodFish.push(fish)
-        this.world?.SpawnActor(fish)
       }
     }
 

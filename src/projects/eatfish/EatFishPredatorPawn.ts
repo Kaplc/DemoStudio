@@ -1,6 +1,10 @@
 /**
  * EatFishPredatorPawn — 捕食者鱼（大鱼）
  * 比玩家大，会追逐玩家。玩家必须避开它。
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中通过 world 工厂创建
+ * MeshStandardMaterial / SphereGeometry / ConeGeometry / Mesh —— 避免
+ * 项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
@@ -8,21 +12,23 @@ import type { GameConfig } from './types'
 import { EatFishPawn } from './EatFishPawn'
 
 const _toPlayer = new THREE.Vector3()
-const _fwd = new THREE.Vector3()
 
 export class EatFishPredatorPawn extends Pawn {
   private config: GameConfig
   private _sizeScale: number
   private speed: number
-  private moveDir: THREE.Vector3
+  private moveDir!: THREE.Vector3
   private roamTimer = 0
   private swimTime = 0
 
   // 3D
-  private bodyGroup: THREE.Group
-  private bodyMat: THREE.MeshStandardMaterial
-  private tailMat: THREE.MeshStandardMaterial
-  private mouthMat: THREE.MeshStandardMaterial
+  private bodyGroup!: THREE.Group
+  private bodyMat!: THREE.MeshStandardMaterial
+  private tailMat!: THREE.MeshStandardMaterial
+  private mouthMat!: THREE.MeshStandardMaterial
+  private finMat!: THREE.MeshStandardMaterial
+  private eyeMat!: THREE.MeshStandardMaterial
+  private pupilMat!: THREE.MeshStandardMaterial
 
   constructor() {
     super('EatFishPredatorPawn')
@@ -38,75 +44,82 @@ export class EatFishPredatorPawn extends Pawn {
     const angle = Math.random() * Math.PI * 2
     this.moveDir = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)).normalize()
     this.roamTimer = 0
+  }
+
+  /** 构建 3D 视觉（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
 
     // ─── 材质 ───
-    this.bodyMat = new THREE.MeshStandardMaterial({
+    this.bodyMat = w.createStandardMaterial({
       color: 0xd32f2f,
       roughness: 0.3,
       metalness: 0.5,
       emissive: 0xb71c1c,
       emissiveIntensity: 0.2,
     })
-    this.tailMat = new THREE.MeshStandardMaterial({
+    this.tailMat = w.createStandardMaterial({
       color: 0x8e0000,
       roughness: 0.4,
       metalness: 0.3,
     })
-    this.mouthMat = new THREE.MeshStandardMaterial({
+    this.mouthMat = w.createStandardMaterial({
       color: 0xffffff,
       roughness: 0.8,
       metalness: 0.0,
     })
+    this.finMat = w.createStandardMaterial({
+      color: 0x8e0000, roughness: 0.5, metalness: 0.1, transparent: true, opacity: 0.7,
+    })
+    this.eyeMat = w.createStandardMaterial({
+      color: 0xffff00, roughness: 0.1, metalness: 0.0, emissive: 0xffff00, emissiveIntensity: 0.3,
+    })
+    this.pupilMat = w.createStandardMaterial({ color: 0x000000, roughness: 0.1 })
 
     // ─── 构建 predator 鱼身体 ───
-    this.bodyGroup = new THREE.Group()
+    this.bodyGroup = w.createGroup()
 
     // 身体（更大更壮）
-    const bodyGeo = new THREE.SphereGeometry(0.6, 16, 12)
-    const bodyMesh = new THREE.Mesh(bodyGeo, this.bodyMat)
+    const bodyGeo = w.createSphereGeometry(0.6, 16, 12)
+    const bodyMesh = w.createCustomMesh(bodyGeo, this.bodyMat)
     bodyMesh.scale.set(1.6, 0.8, 0.7)
     this.bodyGroup.add(bodyMesh)
 
     // 尾巴
-    const tailGeo = new THREE.ConeGeometry(0.35, 0.6, 8)
-    const tailMesh = new THREE.Mesh(tailGeo, this.tailMat)
+    const tailGeo = w.createConeGeometry(0.35, 0.6, 8)
+    const tailMesh = w.createCustomMesh(tailGeo, this.tailMat)
     tailMesh.rotation.x = Math.PI / 2
     tailMesh.position.set(0, 0, -0.8)
     this.bodyGroup.add(tailMesh)
 
     // 背鳍
-    const finMat = new THREE.MeshStandardMaterial({
-      color: 0x8e0000, roughness: 0.5, metalness: 0.1, transparent: true, opacity: 0.7,
-    })
-    const finGeo = new THREE.ConeGeometry(0.12, 0.3, 4)
+    const finGeo = w.createConeGeometry(0.12, 0.3, 4)
     ;[-1, 1].forEach((side) => {
-      const fin = new THREE.Mesh(finGeo, finMat)
+      const fin = w.createCustomMesh(finGeo, this.finMat)
       fin.rotation.z = side * Math.PI / 3
       fin.position.set(side * 0.4, 0.2, -0.1)
       this.bodyGroup.add(fin)
     })
 
     // 嘴（牙齿）
-    const mouthGeo = new THREE.ConeGeometry(0.08, 0.12, 4)
+    const mouthGeo = w.createConeGeometry(0.08, 0.12, 4)
     for (let i = -1; i <= 1; i += 0.5) {
-      const tooth = new THREE.Mesh(mouthGeo, this.mouthMat)
+      const tooth = w.createCustomMesh(mouthGeo, this.mouthMat)
       tooth.position.set(i * 0.15, -0.05, 0.55)
       tooth.rotation.x = Math.PI / 3
       this.bodyGroup.add(tooth)
     }
 
     // 凶恶的眼睛
-    const eyeMat = new THREE.MeshStandardMaterial({
-      color: 0xffff00, roughness: 0.1, metalness: 0.0, emissive: 0xffff00, emissiveIntensity: 0.3,
-    })
-    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.1 })
-    const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8)
-    const pupilGeo = new THREE.SphereGeometry(0.06, 8, 8)
+    const eyeGeo = w.createSphereGeometry(0.1, 8, 8)
+    const pupilGeo = w.createSphereGeometry(0.06, 8, 8)
     ;[-1, 1].forEach((side) => {
-      const eye = new THREE.Mesh(eyeGeo, eyeMat)
+      const eye = w.createCustomMesh(eyeGeo, this.eyeMat)
       eye.position.set(side * 0.28, 0.25, 0.4)
       this.bodyGroup.add(eye)
-      const pupil = new THREE.Mesh(pupilGeo, pupilMat)
+      const pupil = w.createCustomMesh(pupilGeo, this.pupilMat)
       pupil.position.set(0, 0, 0.06)
       eye.add(pupil)
     })
@@ -144,11 +157,13 @@ export class EatFishPredatorPawn extends Pawn {
 
     // 游泳动画
     this.swimTime += dt * 6
-    this.bodyGroup.children.forEach((child, i) => {
-      if (i > 0 && i < 4) { // 尾巴摆动
-        child.rotation.z = Math.sin(this.swimTime) * 0.2
-      }
-    })
+    if (this.bodyGroup) {
+      this.bodyGroup.children.forEach((child, i) => {
+        if (i > 0 && i < 4) { // 尾巴摆动
+          child.rotation.z = Math.sin(this.swimTime) * 0.2
+        }
+      })
+    }
 
     // 追逐玩家或漫游
     const player = this.findPlayer()
@@ -219,9 +234,12 @@ export class EatFishPredatorPawn extends Pawn {
   }
 
   override EndPlay() {
-    this.bodyMat.dispose()
-    this.tailMat.dispose()
-    this.mouthMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
+    if (this.tailMat) this.tailMat.dispose()
+    if (this.mouthMat) this.mouthMat.dispose()
+    if (this.finMat) this.finMat.dispose()
+    if (this.eyeMat) this.eyeMat.dispose()
+    if (this.pupilMat) this.pupilMat.dispose()
     super.EndPlay()
   }
 }

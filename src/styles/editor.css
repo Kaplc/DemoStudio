@@ -661,6 +661,154 @@ html, body, #root {
   font-size: 11px;
 }
 
+/* ═══ 状态栏控制台报错入口 + 报错悬浮面板 ═══ */
+
+.status-err {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 3px;
+  user-select: none;
+}
+
+/* 状态栏入口文本标签（报错/检查） */
+.status-label {
+  font-size: 11px;
+  line-height: 1;
+  color: inherit;
+}
+
+.status-err:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.status-err.clean {
+  color: var(--success);
+  opacity: 0.75;
+}
+
+.status-err.open {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.status-err.has-errors .codelint-icon {
+  color: var(--error);
+}
+
+.err-badge {
+  background: #f14c4c;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.errpanel {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--status-bar-height) + 8px);
+  width: 440px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 9000;
+  overflow: hidden;
+}
+
+.errpanel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.errpanel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.errpanel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.errpanel-btn {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.errpanel-btn:hover {
+  background: var(--bg-active);
+}
+
+.errpanel-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.errpanel-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--success);
+  font-size: 12px;
+}
+
+.errpanel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.errpanel-item:hover {
+  background: var(--bg-hover);
+}
+
+.errpanel-item:last-child {
+  border-bottom: none;
+}
+
+.errpanel-item.err-error .errpanel-level {
+  color: var(--error);
+  flex-shrink: 0;
+}
+
+.errpanel-item.err-warn .errpanel-level {
+  color: #f0a500;
+  flex-shrink: 0;
+}
+
+.errpanel-msg {
+  color: var(--text-primary);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
 /* ═══ 工程选择器弹窗 ═══ */
 
 .modal-overlay {

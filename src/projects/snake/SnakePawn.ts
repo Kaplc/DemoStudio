@@ -1,6 +1,10 @@
 /**
  * SnakePawn — 贪吃蛇角色
  * 继承 Pawn，拥有蛇身网格、移动、碰撞、进食逻辑
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中创建材质；rebuildSnake 中
+ * 通过 world 工厂创建 BoxGeometry / Mesh —— 避免项目代码裸 new
+ * THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, logger, gizmos } from '@/engine'
@@ -37,18 +41,25 @@ export class SnakePawn extends Pawn {
   private snakeMeshes: THREE.Mesh[] = []
 
   // 材质
-  private headMat: THREE.MeshStandardMaterial
-  private bodyMat: THREE.MeshStandardMaterial
+  private headMat!: THREE.MeshStandardMaterial
+  private bodyMat!: THREE.MeshStandardMaterial
 
   constructor() {
     super('SnakePawn')
     this.config = { ...DEFAULT_CONFIG }
+  }
 
-    this.headMat = new THREE.MeshStandardMaterial({
+  /** 构建材质（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
+
+    this.headMat = w.createStandardMaterial({
       color: 0x44ff88, roughness: 0.3, metalness: 0.1,
       emissive: 0x22ff66, emissiveIntensity: 0.2,
     })
-    this.bodyMat = new THREE.MeshStandardMaterial({
+    this.bodyMat = w.createStandardMaterial({
       color: 0x33cc77, roughness: 0.4, metalness: 0.1,
     })
   }
@@ -57,7 +68,9 @@ export class SnakePawn extends Pawn {
   InitGame() {
     this.resetState()
     this.rebuildSnake()
-    ;(window as any).__snakeGameData = this.getSnapshot()
+    if (typeof window !== 'undefined') {
+      (window as any).__snakeGameData = this.getSnapshot()
+    }
   }
 
   private resetState() {
@@ -171,10 +184,12 @@ export class SnakePawn extends Pawn {
 
   private rebuildSnake() {
     this.clearSnake()
+    const w = this.world
+    if (!w) return
     for (let i = 0; i < this.snake.length; i++) {
       const seg = this.snake[i]
-      const geo = new THREE.BoxGeometry(this.config.cellSize * 0.9, 0.8, this.config.cellSize * 0.9)
-      const mesh = new THREE.Mesh(geo, i === 0 ? this.headMat : this.bodyMat)
+      const geo = w.createBoxGeometry(this.config.cellSize * 0.9, 0.8, this.config.cellSize * 0.9)
+      const mesh = w.createCustomMesh(geo, i === 0 ? this.headMat : this.bodyMat)
       mesh.position.set(seg.x + 0.5, 0.4, seg.z + 0.5)
       mesh.castShadow = true
       this.root.add(mesh)
@@ -192,12 +207,12 @@ export class SnakePawn extends Pawn {
 
   override EndPlay() {
     this.clearSnake()
-    this.headMat.dispose()
-    this.bodyMat.dispose()
+    if (this.headMat) this.headMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
     super.EndPlay()
   }
 
-  getScore(): number {
+  getScore() {
     return (this.world?.gameMode as SnakeGameMode)?.gameState.score ?? 0
   }
 

@@ -81,6 +81,11 @@ export interface EditorState {
 
   // ─── 控制台 ───
   consoleOutput: string[]
+  /** 控制台报错/警告记录（logger ERROR/WARN 行过滤；状态栏徽标计数 + 报错面板展示，
+   *  与 consoleOutput 独立存储，清空不影响主控制台历史） */
+  consoleErrors: string[]
+  /** 报错悬浮面板展开状态（状态栏报错徽标 ↔ ErrorStatusPanel 共享） */
+  consoleErrPanelOpen: boolean
 
   // ─── Actions ───
   setProjects: (projects: Project[]) => void
@@ -94,6 +99,12 @@ export interface EditorState {
 
   addConsoleOutput: (text: string) => void
   clearConsole: () => void
+  /** 追加一条报错/警告记录（logger ERROR/WARN 行；面板去重按行文本） */
+  addConsoleError: (text: string) => void
+  /** 清空报错记录（仅清 consoleErrors，不动 consoleOutput） */
+  clearConsoleErrors: () => void
+  /** 切换报错面板展开/收起 */
+  setConsoleErrPanelOpen: (open: boolean) => void
 
   launchGame: () => void
   stopGame: () => void
@@ -153,6 +164,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   },
 
   consoleOutput: ['DemoStudio Editor v4.0.0 已启动', '输入 help 查看命令列表'],
+  consoleErrors: [],
+  consoleErrPanelOpen: false,
 
   // ─── Actions ───
   setProjects: (projects) => set({ projects }),
@@ -203,6 +216,23 @@ export const useEditorStore = create<EditorState>((set) => ({
     })),
 
   clearConsole: () => set({ consoleOutput: [] }),
+
+  addConsoleError: (text) =>
+    set((state) => {
+      // 面板容量上限 200 条；与 consoleOutput 独立缓存（清空 console 不受影响）
+      // 新错误自动展开报错面板（已展开时不重复触发，提升用户体验）
+      const next = text === state.consoleErrors[state.consoleErrors.length - 1]
+        ? state.consoleErrors
+        : [...state.consoleErrors.slice(-199), text]
+      return {
+        consoleErrors: next,
+        consoleErrPanelOpen: true,
+      }
+    }),
+
+  clearConsoleErrors: () => set({ consoleErrors: [] }),
+
+  setConsoleErrPanelOpen: (consoleErrPanelOpen) => set({ consoleErrPanelOpen }),
 
   openBlueprintEditor: (assetPath, label) =>
     set((state) => {

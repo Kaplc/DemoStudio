@@ -9,7 +9,6 @@ import { EatFishGameMode, EatFishPawn, EatFishPlayerController } from './'
 import { EatFishConfigLoader } from './EatFishConfigLoader'
 
 export class EatFishGameInstance extends GameInstance {
-  readonly world: World
   readonly gameMode: EatFishGameMode
 
   private _controller: EatFishPlayerController | null = null
@@ -25,7 +24,8 @@ export class EatFishGameInstance extends GameInstance {
   private sharedScene: THREE.Scene
 
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super()
+    const world = new World(sharedScene)
+    super(world)
     this.sharedScene = sharedScene
     // 设置水下场景氛围
     sharedScene.background = new THREE.Color(0x0a3d6b)
@@ -44,7 +44,6 @@ export class EatFishGameInstance extends GameInstance {
     this.renderContainer = renderContainer ?? null
     // 统一在此加载项目配置表（游戏配置 + 鱼类原型表）
     new EatFishConfigLoader((msg) => logger.info(msg)).init()
-    this.world = new World(sharedScene)
     this.gameMode = new EatFishGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()

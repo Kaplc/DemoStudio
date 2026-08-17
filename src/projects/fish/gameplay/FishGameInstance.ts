@@ -23,7 +23,7 @@ import type { TroopType, LevelType } from './common/types'
 type Phase = 'menu' | 'base' | 'game'
 
 export class FishGameInstance extends GameInstance {
-  readonly world: World
+  readonly gameMode!: FishLevelGameMode
 
   /** 资源组件：金币（跨阶段共享，基地/出征同一钱包） */
   readonly resources: ResourcesComponent
@@ -55,7 +55,7 @@ export class FishGameInstance extends GameInstance {
   private _stopped = false
 
   constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super()
+    super(new World(sharedScene))
     this.renderContainer = renderContainer ?? null
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
@@ -65,7 +65,6 @@ export class FishGameInstance extends GameInstance {
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
     this.addComponent(this.training)
-    this.world = new World(sharedScene)
     // GameMode 实例由 start() / SwitchToScene 按需创建
   }
 

@@ -38,6 +38,11 @@ class LoggerInstance {
   private module: string
   private enableFile: boolean
   private onOutput?: (text: string) => void
+  /** 多路监听器：与 onOutput 并存，每条日志都会广播给所有监听器（level 保留级别语义） */
+  private readonly listeners = new Set<(level: LogLevel, text: string) => void>()
+  /** 历史消息缓冲区：新监听器注册时立即收到历史消息（解决"事件先于订阅者"问题） */
+  private readonly historyBuffer: { level: LogLevel; text: string }[] = []
+  private readonly historyMaxSize = 100
   /** 游戏日志开关：由 Game.launch/shutdown 控制，开启期间日志同时写入独立 game_*.log */
   private _gameLogActive = false
 
@@ -117,6 +122,24 @@ class LoggerInstance {
     // 2. Console 面板
     this.onOutput?.(formatted)
 
+    // 2.5 历史缓冲区（仅当没有监听器时记录，用于解决"事件先于订阅者"问题）
+    if (this.listeners.size === 0) {
+      this.historyBuffer.push({ level, text: formatted })
+      if (this.historyBuffer.length > this.historyMaxSize) {
+        this.historyBuffer.shift()
+      }
+    }
+
+    // 2.8 多路监听器广播（独立于 onOutput，供报错捕获等场景订阅）
+    for (const listener of this.listeners) {
+      try {
+        listener(level, formatted)
+      } catch (err) {
+        // 监听器异常不阻断日志主流程
+        console.error('[Logger] 监听器异常', err)
+      }
+    }
+
     // 3. 写入文件（Electron IPC）
     if (this.enableFile && typeof window !== 'undefined' && typeof window.electronAPI?.writeLogFile === 'function') {
       window.electronAPI.writeLogFile(level, fileLine).catch(() => {})
@@ -161,6 +184,22 @@ class LoggerInstance {
   /** 设置 Console 面板输出回调 */
   setOutputCallback(cb: (text: string) => void) {
     this.onOutput = cb
+  }
+
+  /** 注册监听器：每条日志（含 debug/info/warn/error）回调 (level, formattedText)。返回注销函数 */
+  addListener(listener: (level: LogLevel, text: string) => void): () => void {
+    // 新监听器先收到历史消息（解决"事件先于订阅者"问题）
+    for (const { level, text } of this.historyBuffer) {
+      try {
+        listener(level, text)
+      } catch (err) {
+        console.error('[Logger] 历史消息回放异常', err)
+      }
+    }
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
   }
 }
 

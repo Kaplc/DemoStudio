@@ -98,75 +98,6 @@ export function isMeshBaseClass(baseClass: string): boolean {
   return baseClass === 'MeshComponent' || baseClass.endsWith('MeshComponent')
 }
 
-/** 判断组件是否为碰撞体组件（ColliderComponent 及三个派生类） */
-export function isColliderBaseClass(baseClass: string): boolean {
-  return baseClass === 'ColliderComponent' || baseClass.endsWith('ColliderComponent')
-}
-
-/** 判断组件是否为 UI 组件（命中任一 → 资产为 UI widget，跳过 Actor 碰撞体检查） */
-const UI_COMPONENT_BASE_CLASSES = ['UITransformComponent', 'CanvasUIComponent', 'UIScriptComponent']
-
-/**
- * 统计组件数组（根 components 或子节点 components）中是否含碰撞体组件。
- * 递归 children 深度收集，返回总数。
- */
-function countColliderComponents(
-  root: Record<string, unknown>,
-  isRoot: boolean,
-): number {
-  let count = 0
-  // 顶层 components
-  const rootComps = (root.components as Array<Record<string, unknown>> | undefined) ?? []
-  for (const c of rootComps) {
-    if (typeof c?.baseClass === 'string' && isColliderBaseClass(c.baseClass)) count++
-  }
-  // 递归 children
-  const walk = (nodes: unknown[]): void => {
-    for (const n of nodes) {
-      if (!n || typeof n !== 'object') continue
-      const node = n as Record<string, unknown>
-      const comps = (node.components as Array<Record<string, unknown>> | undefined) ?? []
-      for (const c of comps) {
-        if (typeof c?.baseClass === 'string' && isColliderBaseClass(c.baseClass)) count++
-      }
-      if (Array.isArray(node.children)) walk(node.children)
-    }
-  }
-  const children = (root.children as unknown[] | undefined) ?? []
-  walk(children)
-  void isRoot
-  return count
-}
-
-/**
- * Actor 蓝图缺失碰撞组件检查（doc:blueprint 规则）：
- *  - 适用对象：baseClass 为 Actor 或以 Actor 结尾（Actor 子类蓝图，如 TownhallActor）
- *  - 排除：UI widget 资产（components 含 UITransform/CanvasUI/UIScript 组件）
- *  - 缺失（根 + 全部 children 无任何碰撞组件）→ warn（不报错，旧蓝图兼容）
- */
-function checkMissingCollider(
-  root: Record<string, unknown>,
-  ctx: CheckerContext,
-  issues: LintIssue[],
-): void {
-  const baseClass = typeof root.baseClass === 'string' ? root.baseClass : ''
-  // 仅 Actor 蓝图（Actor 或 Actor 子类）；非 Actor 蓝图（如 UI 根/其他基类）跳过
-  if (baseClass !== 'Actor' && !baseClass.endsWith('Actor')) return
-  // 排除 UI widget 资产（组件含 UI 组件即判定为 UI）
-  const rootComps = (root.components as Array<Record<string, unknown>> | undefined) ?? []
-  if (rootComps.some((c) => typeof c?.baseClass === 'string' && UI_COMPONENT_BASE_CLASSES.includes(c.baseClass))) {
-    return
-  }
-  // 根 + 全部 children 均无碰撞体组件 → warn
-  if (countColliderComponents(root, true) === 0) {
-    issues.push(makeIssue(
-      ctx.filePath, '<根>', 'components', 'missing-collider-component', 'warn',
-      `Actor 蓝图 "${(root.name as string) ?? ''}" 未配置碰撞体组件（Box/Circle/CapsuleColliderComponent）：将不参与物理碰撞与寻路阻挡（飞行单位/纯装饰可忽略此警告）`,
-      baseClass,
-    ))
-  }
-}
-
 /**
  * 统计组件数组中 mesh 组件的数量（一个 Actor 只能挂一个 mesh，组合用子 Actor）。
  * 返回 >1 时调用方应报 error（node:actor / doc:blueprint 均调用）。
@@ -499,9 +430,6 @@ class BlueprintDocChecker extends AbstractAssetChecker {
     if (Array.isArray(root.children)) {
       validateChildren(root.children, ctx, 'children', seenIds, issues)
     }
-
-    // Actor 蓝图缺失碰撞体 → warn（FR-10：所有 Actor 蓝图缺失碰撞组件时产生警告）
-    checkMissingCollider(root, ctx, issues)
 
     // name 唯一性：同一资产内 name 必须唯一（AI 按 name 定位控件）
     const seenNames = new Map<string, string>()

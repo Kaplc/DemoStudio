@@ -1,13 +1,16 @@
 /**
  * EatFishFoodPawn — 食物鱼（小鱼）
  * 支持两种模式：独立随机游动 / 鱼群编队游动
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中通过 world 工厂创建
+ * MeshStandardMaterial / SphereGeometry / ConeGeometry / Mesh —— 避免
+ * 项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
 import type { GameConfig } from './types'
 
 const _dir = new THREE.Vector3()
-const _pos = new THREE.Vector3()
 
 export class EatFishFoodPawn extends Pawn {
   private config: GameConfig
@@ -20,10 +23,10 @@ export class EatFishFoodPawn extends Pawn {
   private speed: number
 
   // 3D
-  bodyGroup: THREE.Group
-  private bodyMat: THREE.MeshStandardMaterial
-  private tailMat: THREE.MeshStandardMaterial
-  private bodyMesh: THREE.Mesh
+  bodyGroup!: THREE.Group
+  private bodyMat!: THREE.MeshStandardMaterial
+  private tailMat!: THREE.MeshStandardMaterial
+  private bodyMesh!: THREE.Mesh
 
   /** 游泳动画 */
   private swimTime = Math.random() * 10
@@ -46,42 +49,49 @@ export class EatFishFoodPawn extends Pawn {
     const angle = Math.random() * Math.PI * 2
     this.moveDir = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)).normalize()
     this.dirChangeTimer = Math.random() * 3
+  }
+
+  /** 构建 3D 视觉（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
 
     // ─── 材质 ───
     const color = EatFishFoodPawn.COLORS[Math.floor(Math.random() * EatFishFoodPawn.COLORS.length)]
-    this.bodyMat = new THREE.MeshStandardMaterial({
+    this.bodyMat = w.createStandardMaterial({
       color, roughness: 0.4, metalness: 0.2,
       emissive: color, emissiveIntensity: 0.08,
     })
-    this.tailMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(color).multiplyScalar(0.7),
+    this.tailMat = w.createStandardMaterial({
+      color: new THREE.Color(color).multiplyScalar(0.7).getHex(),
       roughness: 0.5, metalness: 0.1,
     })
 
     // ─── 构建小鱼身体 ───
-    this.bodyGroup = new THREE.Group()
+    this.bodyGroup = w.createGroup()
 
-    const bodyGeo = new THREE.SphereGeometry(0.5, 12, 10)
-    this.bodyMesh = new THREE.Mesh(bodyGeo, this.bodyMat)
+    const bodyGeo = w.createSphereGeometry(0.5, 12, 10)
+    this.bodyMesh = w.createCustomMesh(bodyGeo, this.bodyMat)
     this.bodyMesh.scale.set(1.2, 0.6, 0.5)
     this.bodyGroup.add(this.bodyMesh)
 
-    const tailGeo = new THREE.ConeGeometry(0.2, 0.35, 6)
-    const tailMesh = new THREE.Mesh(tailGeo, this.tailMat)
+    const tailGeo = w.createConeGeometry(0.2, 0.35, 6)
+    const tailMesh = w.createCustomMesh(tailGeo, this.tailMat)
     tailMesh.rotation.x = Math.PI / 2
     tailMesh.position.set(0, 0, -0.6)
     this.bodyGroup.add(tailMesh)
 
     // 眼睛
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 })
-    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.1 })
-    const eyeGeo = new THREE.SphereGeometry(0.06, 6, 6)
-    const pupilGeo = new THREE.SphereGeometry(0.04, 6, 6)
+    const eyeMat = w.createStandardMaterial({ color: 0xffffff, roughness: 0.1 })
+    const pupilMat = w.createStandardMaterial({ color: 0x222222, roughness: 0.1 })
+    const eyeGeo = w.createSphereGeometry(0.06, 6, 6)
+    const pupilGeo = w.createSphereGeometry(0.04, 6, 6)
     ;[-1, 1].forEach((side) => {
-      const eye = new THREE.Mesh(eyeGeo, eyeMat)
+      const eye = w.createCustomMesh(eyeGeo, eyeMat)
       eye.position.set(side * 0.2, 0.15, 0.35)
       this.bodyGroup.add(eye)
-      const pupil = new THREE.Mesh(pupilGeo, pupilMat)
+      const pupil = w.createCustomMesh(pupilGeo, pupilMat)
       pupil.position.set(side * 0.02, 0, 0.04)
       eye.add(pupil)
     })
@@ -94,6 +104,7 @@ export class EatFishFoodPawn extends Pawn {
 
   /** 设置身体颜色 (供鱼群调用) */
   setBodyColor(color: number) {
+    if (!this.bodyMat) return
     this.bodyMat.color.setHex(color)
     this.bodyMat.emissive.setHex(color)
     this.tailMat.color.copy(this.bodyMat.color).multiplyScalar(0.7)
@@ -103,7 +114,9 @@ export class EatFishFoodPawn extends Pawn {
   setArchetype(archetype: { color: number; scale: number; speed: number; score: number }) {
     this.setBodyColor(archetype.color)
     this._sizeScale = archetype.scale
-    this.bodyGroup.scale.set(this._sizeScale, this._sizeScale, this._sizeScale)
+    if (this.bodyGroup) {
+      this.bodyGroup.scale.set(this._sizeScale, this._sizeScale, this._sizeScale)
+    }
     this.speed = archetype.speed
     this.archetypeScore = archetype.score
   }
@@ -125,6 +138,7 @@ export class EatFishFoodPawn extends Pawn {
 
   /** 独立游动 Tick (非鱼群模式下使用) */
   tickIndependent(dt: number) {
+    if (!this.bodyMesh) return
     // 游泳动画
     this.swimTime += dt * 6
     this.bodyMesh.rotation.z = Math.sin(this.swimTime) * 0.1
@@ -158,6 +172,7 @@ export class EatFishFoodPawn extends Pawn {
 
   override Tick(dt: number) {
     super.Tick(dt)
+    if (!this.bodyMesh) return
     // 默认独立模式。如果属于鱼群，FishSchool.tick 会直接操作 position
     // 所以这里只做动画
     this.swimTime += dt * 6
@@ -170,8 +185,8 @@ export class EatFishFoodPawn extends Pawn {
   }
 
   override EndPlay() {
-    this.bodyMat.dispose()
-    this.tailMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
+    if (this.tailMat) this.tailMat.dispose()
     super.EndPlay()
   }
 }

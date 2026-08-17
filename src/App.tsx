@@ -11,10 +11,12 @@ import { ResizeHandle } from './components/ResizeHandle'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { CodeLintPanel } from './components/CodeLintPanel'
+import { ErrorStatusPanel } from './components/ErrorStatusPanel'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
 import { Editor } from './editor'
+import { logger } from './engine'
 
 /**
  * 启动阶段：loading → selecting-project → editor
@@ -59,6 +61,16 @@ export default function App() {
       editorRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── 状态栏报错捕获：全局监听 logger ERROR/WARN（独立于 Console 挂载，始终在线） ───
+  useEffect(() => {
+    const unsub = logger.addListener((level, text) => {
+      if (level === 'error' || level === 'warn') {
+        useEditorStore.getState().addConsoleError(text)
+      }
+    })
+    return unsub
+  }, [])
 
   // ─── 加载完成 → 进入工程选择阶段 ───
   useEffect(() => {
@@ -145,6 +157,8 @@ export default function App() {
       />
       {/* codeLint tips 悬浮面板（fixed 定位，状态栏上方，不占布局） */}
       <CodeLintPanel />
+      {/* 控制台报错悬浮面板（状态栏报错徽标控制，fixed 定位不占布局） */}
+      <ErrorStatusPanel />
       <ProjectSelector />
       <NewProjectDialog />
     </div>

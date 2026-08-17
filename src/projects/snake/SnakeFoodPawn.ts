@@ -1,19 +1,28 @@
 /**
  * SnakeFoodPawn — 贪吃蛇食物角色
  * 继承 Pawn，拥有食物球体网格，由 GameMode 通过 SpawnComponent 创建和放置
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中通过 world 工厂创建，
+ * 避免项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, gizmos } from '@/engine'
-import { DEFAULT_CONFIG } from './types'
 
 export class SnakeFoodPawn extends Pawn {
-  private mesh: THREE.Mesh
-  private material: THREE.MeshStandardMaterial
+  private mesh!: THREE.Mesh
+  private material!: THREE.MeshStandardMaterial
 
   constructor() {
     super('SnakeFoodPawn')
+  }
 
-    this.material = new THREE.MeshStandardMaterial({
+  /** 构建 3D 视觉（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
+
+    this.material = w.createStandardMaterial({
       color: 0xff4444,
       roughness: 0.2,
       metalness: 0.3,
@@ -21,8 +30,8 @@ export class SnakeFoodPawn extends Pawn {
       emissiveIntensity: 0.3,
     })
 
-    const geo = new THREE.SphereGeometry(0.4, 12, 12)
-    this.mesh = new THREE.Mesh(geo, this.material)
+    const geo = w.createSphereGeometry(0.4, 12, 12)
+    this.mesh = w.createCustomMesh(geo, this.material)
     this.mesh.castShadow = true
     this.root.add(this.mesh)
   }
@@ -42,9 +51,11 @@ export class SnakeFoodPawn extends Pawn {
   }
 
   override EndPlay() {
-    this.root.remove(this.mesh)
-    this.mesh.geometry.dispose()
-    this.material.dispose()
+    if (this.mesh) {
+      this.root.remove(this.mesh)
+      this.mesh.geometry.dispose()
+    }
+    if (this.material) this.material.dispose()
     super.EndPlay()
   }
 }

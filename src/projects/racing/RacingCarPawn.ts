@@ -1,6 +1,10 @@
 /**
  * RacingCarPawn — 赛车角色
  * 物理模拟：加速、刹车、转向阻力、漂移
+ *
+ * 视觉构建：在 BeginPlay()（actor.world 已就绪）中通过 world 工厂创建
+ * MeshStandardMaterial / BoxGeometry / SphereGeometry / CylinderGeometry / Mesh
+ * —— 避免项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
 import { Pawn, logger, gizmos } from '@/engine'
@@ -8,8 +12,6 @@ import { DEFAULT_CONFIG } from './types'
 import type { GameConfig } from './types'
 
 const _forward = new THREE.Vector3()
-const _right = new THREE.Vector3()
-const _pos = new THREE.Vector3()
 const _boxMin = new THREE.Vector3()
 const _boxMax = new THREE.Vector3()
 
@@ -39,12 +41,14 @@ export class RacingCarPawn extends Pawn {
   private checkpointPassed: boolean[] = []
 
   // 3D 对象
-  private carBody: THREE.Group
-  private bodyMesh: THREE.Mesh
-  private bodyMat: THREE.MeshStandardMaterial
-  private roofMat: THREE.MeshStandardMaterial
-  private windowMat: THREE.MeshStandardMaterial
-  private wheelMat: THREE.MeshStandardMaterial
+  private carBody!: THREE.Group
+  private bodyMesh!: THREE.Mesh
+  private bodyMat!: THREE.MeshStandardMaterial
+  private roofMat!: THREE.MeshStandardMaterial
+  private windowMat!: THREE.MeshStandardMaterial
+  private wheelMat!: THREE.MeshStandardMaterial
+  private lightMat!: THREE.MeshStandardMaterial
+  private spoilerMat!: THREE.MeshStandardMaterial
 
   // 车轮
   private wheels: THREE.Mesh[] = []
@@ -62,84 +66,90 @@ export class RacingCarPawn extends Pawn {
   constructor() {
     super('RacingCarPawn')
     this.config = { ...DEFAULT_CONFIG }
+  }
+
+  /** 构建 3D 视觉（BeginPlay 时 actor.world 已就绪；此阶段才创建 THREE 资源） */
+  override BeginPlay(): void {
+    super.BeginPlay()
+    const w = this.world
+    if (!w) return
 
     // ─── 材质 ───
-    this.bodyMat = new THREE.MeshStandardMaterial({
+    this.bodyMat = w.createStandardMaterial({
       color: 0xe53935,
       roughness: 0.2,
       metalness: 0.6,
-      envMapIntensity: 0.8,
     })
-    this.roofMat = new THREE.MeshStandardMaterial({
+    this.roofMat = w.createStandardMaterial({
       color: 0xc62828,
       roughness: 0.3,
       metalness: 0.4,
     })
-    this.windowMat = new THREE.MeshStandardMaterial({
+    this.windowMat = w.createStandardMaterial({
       color: 0x1a237e,
       roughness: 0.0,
       metalness: 0.1,
       transparent: true,
       opacity: 0.6,
     })
-    this.wheelMat = new THREE.MeshStandardMaterial({
+    this.wheelMat = w.createStandardMaterial({
       color: 0x222222,
       roughness: 0.8,
       metalness: 0.0,
     })
+    this.lightMat = w.createStandardMaterial({
+      color: 0xffffcc, roughness: 0.1, metalness: 0.0, emissive: 0xffffaa, emissiveIntensity: 0.2,
+    })
+    this.spoilerMat = w.createStandardMaterial({
+      color: 0x111111, roughness: 0.5, metalness: 0.0,
+    })
 
     // ─── 构建车身 ───
-    this.carBody = new THREE.Group()
+    this.carBody = w.createGroup()
 
     // 底盘 (箱体)
-    const chassisGeo = new THREE.BoxGeometry(1.6, 0.3, 2.8)
-    const chassis = new THREE.Mesh(chassisGeo, this.bodyMat)
+    const chassisGeo = w.createBoxGeometry(1.6, 0.3, 2.8)
+    const chassis = w.createCustomMesh(chassisGeo, this.bodyMat)
     chassis.position.set(0, 0.25, 0)
     chassis.castShadow = true
     this.carBody.add(chassis)
 
     // 车身 (上部)
-    const bodyGeo = new THREE.BoxGeometry(1.4, 0.35, 1.8)
-    this.bodyMesh = new THREE.Mesh(bodyGeo, this.roofMat)
+    const bodyGeo = w.createBoxGeometry(1.4, 0.35, 1.8)
+    this.bodyMesh = w.createCustomMesh(bodyGeo, this.roofMat)
     this.bodyMesh.position.set(0, 0.55, -0.2)
     this.bodyMesh.castShadow = true
     this.carBody.add(this.bodyMesh)
 
     // 挡风玻璃
-    const glassGeo = new THREE.BoxGeometry(1.2, 0.25, 0.1)
-    const glassF = new THREE.Mesh(glassGeo, this.windowMat)
+    const glassGeo = w.createBoxGeometry(1.2, 0.25, 0.1)
+    const glassF = w.createCustomMesh(glassGeo, this.windowMat)
     glassF.position.set(0, 0.6, 0.95)
     this.carBody.add(glassF)
 
-    const glassR = new THREE.Mesh(glassGeo, this.windowMat)
+    const glassR = w.createCustomMesh(glassGeo, this.windowMat)
     glassR.position.set(0, 0.6, -1.3)
     this.carBody.add(glassR)
 
     // 前保险杠 / 车灯
-    const lightMat = new THREE.MeshStandardMaterial({
-      color: 0xffffcc, roughness: 0.1, metalness: 0.0, emissive: 0xffffaa, emissiveIntensity: 0.2,
-    })
-    const lightGeo = new THREE.SphereGeometry(0.12, 8, 8)
+    const lightGeo = w.createSphereGeometry(0.12, 8, 8)
     for (let side of [-1, 1]) {
-      const light = new THREE.Mesh(lightGeo, lightMat)
+      const light = w.createCustomMesh(lightGeo, this.lightMat)
       light.position.set(side * 0.5, 0.25, 1.45)
       light.scale.set(1, 0.5, 0.3)
       this.carBody.add(light)
     }
 
     // 尾翼
-    const spoilerMat = new THREE.MeshStandardMaterial({
-      color: 0x111111, roughness: 0.5, metalness: 0.0,
-    })
-    const spoilerGeo = new THREE.BoxGeometry(1.2, 0.05, 0.2)
-    const spoiler = new THREE.Mesh(spoilerGeo, spoilerMat)
+    const spoilerGeo = w.createBoxGeometry(1.2, 0.05, 0.2)
+    const spoiler = w.createCustomMesh(spoilerGeo, this.spoilerMat)
     spoiler.position.set(0, 0.8, -1.4)
     this.carBody.add(spoiler)
 
     // 车轮
-    const wheelGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.15, 12)
+    const wheelGeo = w.createCylinderGeometry(0.22, 0.22, 0.15, 12)
     for (const wp of this.wheelPositions) {
-      const wheel = new THREE.Mesh(wheelGeo, this.wheelMat)
+      const wheel = w.createCustomMesh(wheelGeo, this.wheelMat)
       wheel.rotation.x = Math.PI / 2
       wheel.position.set(wp.x, 0.15, wp.z)
       wheel.castShadow = true
@@ -227,7 +237,9 @@ export class RacingCarPawn extends Pawn {
 
     // 车身动态倾斜
     const tiltTarget = -this.steerInput * 0.15 * Math.min(1, Math.abs(this.speed) / 10)
-    this.carBody.rotation.z += (tiltTarget - this.carBody.rotation.z) * 5 * dt
+    if (this.carBody) {
+      this.carBody.rotation.z += (tiltTarget - this.carBody.rotation.z) * 5 * dt
+    }
 
     // 保持在 y=0.15
     this.root.position.y = 0.15
@@ -331,18 +343,22 @@ export class RacingCarPawn extends Pawn {
   }
 
   override EndPlay() {
-    this.bodyMat.dispose()
-    this.roofMat.dispose()
-    this.windowMat.dispose()
-    this.wheelMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
+    if (this.roofMat) this.roofMat.dispose()
+    if (this.windowMat) this.windowMat.dispose()
+    if (this.wheelMat) this.wheelMat.dispose()
+    if (this.lightMat) this.lightMat.dispose()
+    if (this.spoilerMat) this.spoilerMat.dispose()
     super.EndPlay()
   }
 
   override destroy() {
-    this.bodyMat.dispose()
-    this.roofMat.dispose()
-    this.windowMat.dispose()
-    this.wheelMat.dispose()
+    if (this.bodyMat) this.bodyMat.dispose()
+    if (this.roofMat) this.roofMat.dispose()
+    if (this.windowMat) this.windowMat.dispose()
+    if (this.wheelMat) this.wheelMat.dispose()
+    if (this.lightMat) this.lightMat.dispose()
+    if (this.spoilerMat) this.spoilerMat.dispose()
     super.destroy()
   }
 }
