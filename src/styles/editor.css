@@ -793,6 +793,14 @@ html, body, #root {
   border-bottom: none;
 }
 
+/* 报错条目时间戳（灰/弱化，与级别/消息区分） */
+.errpanel-time {
+  color: var(--text-dim, #9a9a9a);
+  flex-shrink: 0;
+  font-size: 10px;
+  padding-top: 1px;
+}
+
 .errpanel-item.err-error .errpanel-level {
   color: var(--error);
   flex-shrink: 0;

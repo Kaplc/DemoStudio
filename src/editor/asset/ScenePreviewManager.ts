@@ -12,10 +12,11 @@
  *  - 自动清理（dispose）
  */
 import * as THREE from 'three'
-import { World, ActorComponent } from '../../engine'
+import { World, ActorComponent, EditorActorComponent } from '../../engine'
+import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
-import { GenericActor, PrimitiveMeshComponent, Actor } from '../../engine'
+import { GenericActor, BoxMeshComponent, SphereMeshComponent, PlaneMeshComponent, Actor } from '../../engine'
 import { LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { SceneAsset } from '../../engine'
@@ -143,8 +144,8 @@ export class ScenePreviewManager {
     this.initFlyEuler()
     this.setupFlyMouse()
 
-    // ─── World ───
-    this.world = new World(this.scene)
+    // ─── World（EditorActorComponent 由 World 构造时自动添加）───
+    this.world = new World()
 
     // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
     this.colliderDrawer = new ColliderDebugDrawer(this.scene)
@@ -295,11 +296,11 @@ export class ScenePreviewManager {
 
   private setupLighting() {
     // 灯光 actor 化：灯光挂到 Actor 上（LightComponent），大纲显示为可选中/可编辑的节点
-    // 用 world.SpawnActor 挂载（带生命周期；与场景内 actor 一致）
+    // 用 world.Spawn 挂载（带生命周期；与场景内 actor 一致）
     const makeLightActor = (name: string, options: LightComponentOptions) => {
       const actor = new GenericActor(name)
       actor.addComponent(LightComponent, options)
-      this.world.SpawnActor(actor)
+      this.world.getComponent(EditorActorComponent)!.Spawn(actor)
       return actor
     }
 
@@ -338,7 +339,7 @@ export class ScenePreviewManager {
 
     // 场景根 Actor
     const rootActor = new GenericActor(sceneData.name)
-    this.world.SpawnActor(rootActor)
+    this.world.getComponent(EditorActorComponent)!.Spawn(rootActor)
 
     // 标记已有 actor/ref 节点的 mesh（避免与新格式重复创建 GenericActor）
     const actorRefNames = new Set<string>()
@@ -357,18 +358,26 @@ export class ScenePreviewManager {
 
       result.group.remove(mesh)
       const actor = new GenericActor(`Preview_${mesh.name || ''}`)
-      actor.addComponent(PrimitiveMeshComponent, mesh)
+      // 按 mesh.geometry 实际类型选派生类（MeshComponent 是抽象基类）
+      const g = mesh.geometry
+      if (g instanceof THREE.PlaneGeometry) {
+        actor.addComponent(PlaneMeshComponent, mesh, mesh.name)
+      } else if (g instanceof THREE.SphereGeometry) {
+        actor.addComponent(SphereMeshComponent, mesh, mesh.name)
+      } else {
+        actor.addComponent(BoxMeshComponent, mesh, mesh.name)
+      }
       actor.attachTo(rootActor)
-      this.world.SpawnActor(actor)
+      this.world.getComponent(EditorActorComponent)!.Spawn(actor)
     }
 
-    // ref 节点 → SpawnActorFromBlueprint（标记为整体，实例级 children 递归挂载）
+    // ref 节点 → Instantiate（标记为整体，实例级 children 递归挂载）
     for (const rn of (result.refNodes ?? [])) {
       const overrides: Record<string, unknown> = { ...(rn.overrides ?? {}) }
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
-      const actor = this.world.SpawnActorFromBlueprint(rn.ref, overrides, rn.components)
+      const actor = this.world.getComponent(EditorActorComponent)!.Instantiate(rn.ref, overrides, rn.components)
       if (actor) {
         actor.isRefInstance = true
         actor.attachTo(rootActor)
@@ -394,7 +403,7 @@ export class ScenePreviewManager {
       if (bp.pos) overrides.position = bp.pos
       if (bp.rot) overrides.rotation = bp.rot
       if (bp.scale) overrides.scale = bp.scale
-      const actor = this.world.SpawnActorFromBlueprint(bp.blueprint, overrides)
+      const actor = this.world.getComponent(EditorActorComponent)!.Instantiate(bp.blueprint, overrides)
       if (actor) {
         actor.isRefInstance = true
         actor.attachTo(rootActor)
@@ -1159,7 +1168,7 @@ export class ScenePreviewManager {
       if (this.gizmo.visible) this.gizmo.syncTransform()
 
       // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(this.world.GetAllActors())
+      this.colliderDrawer?.update(getAllActors(this.world))
 
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)

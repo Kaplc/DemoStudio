@@ -7,7 +7,7 @@
  * 项目代码裸 new THREE.<几何体/网格/材质> 触发 CodeLint 违规。
  */
 import * as THREE from 'three'
-import { Pawn, logger, gizmos, ConfigRegistry } from '@/engine'
+import { Pawn, logger, gizmos, ConfigRegistry, getAllActors } from '@/engine'
 import type { GameConfig } from './types'
 import { EatFishPawn } from './EatFishPawn'
 
@@ -218,7 +218,7 @@ export class EatFishPredatorPawn extends Pawn {
   private findPlayer(): EatFishPawn | null {
     if (!this.world) return null
     // 通过 world 查找玩家
-    for (const actor of this.world.GetAllActors()) {
+    for (const actor of getAllActors(this.world)) {
       if (actor instanceof EatFishPawn) return actor
     }
     return null

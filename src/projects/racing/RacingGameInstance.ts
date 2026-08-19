@@ -19,21 +19,18 @@ export class RacingGameInstance extends GameInstance {
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
 
-  private sharedScene: THREE.Scene
+  constructor(renderContainer?: HTMLElement | null) {
+    super(new World(), renderContainer ?? null)
+    const scene = this.world.sceneComp.scene
 
-  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super(new World(sharedScene))
-    this.sharedScene = sharedScene
-    sharedScene.background = new THREE.Color(0x87ceeb)
-
-    const ambient = sharedScene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
+    scene.background = new THREE.Color(0x87ceeb)
+    const ambient = scene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
     if (ambient) { ambient.intensity = 0.6; ambient.color.setHex(0xffffff) }
-    const hemi = sharedScene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight | undefined
+    const hemi = scene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight | undefined
     if (hemi) { hemi.color.setHex(0x87ceeb); hemi.groundColor.setHex(0x3a7d44) }
-    const dl = sharedScene.children.find(c => c instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined
+    const dl = scene.children.find(c => c instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined
     if (dl) { dl.intensity = 1.5; dl.position.set(30, 40, 20) }
 
-    this.renderContainer = renderContainer ?? null
     this.gameMode = new RacingGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()
@@ -100,7 +97,7 @@ export class RacingGameInstance extends GameInstance {
     this.gameMode.cameraManager.Clear()
     this._controller = null
     this.pawn = null
-    this.sharedScene.background = new THREE.Color(0x1a1a2e)
+    this.world.sceneComp.scene.background = new THREE.Color(0x1a1a2e)
   }
 
   override destroy() {

@@ -19,6 +19,7 @@
 import { GMRegistry } from './GMRegistry'
 import { convertGMArg, formatGMUsage, type GMCommandArg, type GMCommandContext } from './GMCommand'
 import { GMConsoleHUD } from './GMConsoleHUD'
+import { spawnActor } from '../gameflow/ActorUtils'
 import { logger } from '../Logger'
 // 值导入（运行时访问 GameInstance.current 静态属性）；循环依赖经 ESM live binding 安全
 // （GMModule 仅在方法体运行时访问，模块顶层不求值）
@@ -196,7 +197,7 @@ export class GMModule {
     // 未注入时用引擎默认 GMConsoleHUD。
     const factory = GMModule.consoleFactory
     const console = factory ? factory(this) : new GMConsoleHUD(this)
-    world.SpawnActor(console)
+    spawnActor(console)
     // 挂到当前 HUD 下：UI 大纲层级归位（HUD → GMConsoleHUD），
     // 并随场景切换与 HUD 一同回收（无 HUD 时保持独立顶层，如纯菜单阶段）
     const hud = world.ui.hud

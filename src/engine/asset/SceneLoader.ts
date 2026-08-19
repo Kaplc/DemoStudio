@@ -188,51 +188,38 @@ function childDefToGroup(child: import('./BlueprintAsset').BlueprintChildDef): T
   return g
 }
 
-/** 单个 mesh 组件 → THREE.Mesh（MeshComponent / CapsuleMeshComponent） */
+/** 单个 mesh 组件 → THREE.Mesh（Box/Sphere/Plane/Capsule MeshComponent） */
 function componentToMesh(
   comp: { baseClass: string; properties?: Record<string, unknown> },
   fallbackName: string,
 ): THREE.Mesh | null {
-  if (comp.baseClass !== 'PrimitiveMeshComponent' && comp.baseClass !== 'CapsuleMeshComponent') return null
   const props = (comp.properties ?? {}) as Record<string, unknown>
-  const geoType = (props.geometry as string) ?? (comp.baseClass === 'CapsuleMeshComponent' ? 'capsule' : 'box')
   const color = (props.color as string) ?? '#ffffff'
   const name = (props.name as string) ?? fallbackName
 
   let geo: THREE.BufferGeometry
   let mat: THREE.Material
 
-  switch (geoType) {
-    case 'box': {
-      const size = (props.size as [number, number, number]) ?? [1, 1, 1]
-      geo = new THREE.BoxGeometry(size[0], size[1], size[2])
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
-      break
-    }
-    case 'plane': {
-      const sz = (props.size as [number, number, number]) ?? [1, 1]
-      geo = new THREE.PlaneGeometry(sz[0], sz[1])
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
-      break
-    }
-    case 'sphere': {
-      const radius = (props.radius as number) ?? 1
-      const segs = (props.segments as number) ?? 12
-      geo = new THREE.SphereGeometry(radius, segs, segs)
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
-      break
-    }
-    case 'capsule': {
-      const radius = (props.radius as number) ?? 0.3
-      const length = (props.length as number) ?? 0.3
-      geo = new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12)
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
-      break
-    }
-    default: {
-      geo = new THREE.BoxGeometry(1, 1, 1)
-      mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
-    }
+  if (comp.baseClass === 'CapsuleMeshComponent') {
+    const radius = (props.radius as number) ?? 0.3
+    const length = (props.length as number) ?? 0.3
+    geo = new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12)
+    mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+  } else if (comp.baseClass === 'BoxMeshComponent') {
+    const size = (props.size as [number, number, number]) ?? [1, 1, 1]
+    geo = new THREE.BoxGeometry(size[0] ?? 1, size[1] ?? 1, size[2] ?? 1)
+    mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+  } else if (comp.baseClass === 'SphereMeshComponent') {
+    const radius = (props.radius as number) ?? 1
+    const segs = (props.segments as number) ?? 12
+    geo = new THREE.SphereGeometry(radius, segs, segs)
+    mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+  } else if (comp.baseClass === 'PlaneMeshComponent') {
+    const sz = (props.size as [number, number]) ?? [1, 1]
+    geo = new THREE.PlaneGeometry(sz[0] ?? 1, sz[1] ?? 1)
+    mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.7, metalness: 0.1 })
+  } else {
+    return null
   }
 
   const mesh = new THREE.Mesh(geo, mat)

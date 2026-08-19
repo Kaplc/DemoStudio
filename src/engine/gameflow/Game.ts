@@ -5,13 +5,13 @@
  *
  * 用法：
  *   const game = new Game(sceneMgr)
- *   game.createInstance(projectName, shared, container) // 创建游戏实例
+ *   game.createInstance(projectName, container) // 创建游戏实例
  *   game.launch()   // 启动
  *   game.shutdown() // 停止
  *   game.update(dt) // 每帧（自动注册到 sceneMgr.onUpdate）
  *
  * Game 视口渲染器（SceneRendererComponent）由 World.ensureGameRenderer 创建并挂载，
- * DOM 由组件内部从 GameInstance.current.renderContainer 获取。
+   * DOM 由组件内部从 GameInstance.current.viewport.container 获取。
  */
 import * as THREE from 'three'
 import { logger, PhySys, gizmos } from '..'
@@ -126,7 +126,7 @@ export class Game {
    * 由工厂按项目名创建，自动注入回调；已有实例先销毁。
    * @returns 创建的实例；项目未注册工厂/创建失败时返回 null
    */
-  createInstance(projectName: string, shared: THREE.Scene, container: HTMLElement | null): GameInstance | null {
+  createInstance(projectName: string, container: HTMLElement | null): GameInstance | null {
     // 已有实例（上次运行残留）先销毁
     if (this._instance) {
       this.shutdown()
@@ -137,7 +137,7 @@ export class Game {
       logger.warn(`[Game] 工程 "${projectName}" 未注册游戏实例工厂，跳过创建`)
       return null
     }
-    const inst = GameFactoryRegistry.create(projectName, shared, container)
+    const inst = GameFactoryRegistry.create(projectName, container)
     if (!inst) {
       logger.error(`[Game] 游戏实例创建失败: ${projectName}`)
       return null
@@ -153,7 +153,7 @@ export class Game {
 
   /**
    * 当前 Game 视口渲染器组件（创建/挂载由 World.ensureGameRenderer 负责，
-   * DOM 由组件内部从 GameInstance.current.renderContainer 获取；无容器时为 null）
+   * DOM 由组件内部从 GameInstance.current.viewport.container 获取；无容器时为 null）
    */
   private ensureGameMgr(): SceneRendererComponent | null {
     const world = this._instance ? (this._instance as unknown as { world?: World }).world : null
@@ -182,7 +182,7 @@ export class Game {
       return false
     }
 
-    // Game 视口渲染器：DOM 保存在 instance.renderContainer，启动时取出创建
+    // Game 视口渲染器：DOM 保存在 instance.viewport.container，启动时取出创建
     const gameMgr = this.ensureGameMgr()
 
     // 启动游戏实例（UI 渲染统一走 UI 摄像机 + CanvasTexture 体系，无 DOM UI 层）

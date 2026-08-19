@@ -66,8 +66,8 @@ const jsonCache = new Map<string, unknown>()
 function normalizePath(globPath: string): string {
   // import.meta.glob 返回 key 如 "../projects/fish/project.json"
   // readJsonFile 期望的路径如 "src/projects/fish/asset/fish_menu.scene.json"
-  // 将 glob key 映射到 src/ 开头的路径
-  return globPath.replace(/^\.\.\//, 'src/')
+  // Windows 上 glob key 可能含反斜杠 \，统一转正斜杠再处理
+  return globPath.replace(/\\/g, '/').replace(/^\.\.\//, 'src/')
 }
 
 // 注册所有 project.json
@@ -182,11 +182,15 @@ const mockAPI: ElectronAPI = {
   },
 
   readLogFile: async (options?: { tail?: number }) => {
+    // 浏览器调试模式：返回中性启动日志（不含伪造 ERROR/WARN，避免误导状态栏报错面板）
+    const iso = new Date().toISOString()
     const lines = [
-      '[Mock] DemoStudio Editor v5.0.0 已启动 (Browser Mode)',
-      '[Mock] 所有功能均使用 import.meta.glob 预加载数据',
+      `[${iso}][INFO][DemoStudio] DemoStudio Editor v5.0.0 已启动 (Browser Mode)`,
+      `[${iso}][INFO][DemoStudio] 所有功能均使用 import.meta.glob 预加载数据`,
+      `[${iso}][INFO][DemoStudio] [World] 等待选择工程...`,
     ]
-    return lines.join('\n')
+    const result = options?.tail ? lines.slice(-options.tail) : lines
+    return result.join('\n')
   },
 
   toggleDevTools: async () => {

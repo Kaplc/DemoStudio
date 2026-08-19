@@ -50,14 +50,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.15,
-              0.3,
-              0.15
-            ],
+            "size": [0.15, 0.3, 0.15],
             "color": "#8d6e63",
             "name": "PillarMesh"
           }

@@ -4,7 +4,7 @@
  * 金币经济（开炮消耗 / 击败目标获得 / 归零 Game Over）、Boss 定时。
  */
 import * as THREE from 'three'
-import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger, GameInstance } from '@/engine'
+import { GameMode, CameraComponent, ConfigRegistry, gizmos, logger, GameInstance, findActors } from '@/engine'
 import { FishCannon } from './FishCannon'
 import { FishPawn } from './FishPawn'
 import { FishBullet } from './FishBullet'
@@ -193,7 +193,7 @@ export class FishGameMode extends GameMode {
       fish.spawnAt(edgeX + offsetX, centerY + yOffset)
       // 给每个鱼微调游动速度和相位，产生错落感
       fish.setSpeedVariation(spawnCfg.speedVariationMin + Math.random() * spawnCfg.speedVariationMax)
-      this.world?.SpawnActor(fish)
+      this.world?.actorMgr.SpawnActor(fish)
     }
   }
 
@@ -205,7 +205,7 @@ export class FishGameMode extends GameMode {
     const y = -AREA_H + spawnCfg.singleYSpawnMargin + Math.random() * (AREA_H * 2 - spawnCfg.singleYSpawnMargin * 2)
     const fish = new FishPawn(type, fromLeft)
     fish.spawnAt(edgeX, y)
-    this.world?.SpawnActor(fish)
+    this.world?.actorMgr.SpawnActor(fish)
   }
 
   /** 生成 Boss（中央高度，记录引用供 HUD 血条） */
@@ -226,7 +226,7 @@ export class FishGameMode extends GameMode {
     fish.spawnAt(fromLeft ? -AREA_W - spawnCfg.spawnMargin : AREA_W + spawnCfg.spawnMargin, 0)
     this.bossPawn = fish
     this.bossActive = true
-    this.world?.SpawnActor(fish)
+    this.world?.actorMgr.SpawnActor(fish)
     logger.info(`[Fish] Boss 出现: ${bt.name}`)
   }
 
@@ -234,11 +234,11 @@ export class FishGameMode extends GameMode {
   private handleCollisions() {
     const world = this.world
     if (!world) return
-    const fishes = world.FindActors(FishPawn)
+    const fishes = findActors(world, FishPawn)
     if (fishes.length === 0) return
 
     // 1) 子弹击中鱼 → 释放子弹 + 张开网（均从对象池）
-    for (const bullet of world.FindActors(FishBullet)) {
+    for (const bullet of findActors(world, FishBullet)) {
       if (!bullet.active || bullet.detonated) continue
       for (const fish of fishes) {
         if (fish.captured) continue
@@ -261,7 +261,7 @@ export class FishGameMode extends GameMode {
     }
 
     // 2) 已张开的网 → 对范围内鱼各判定一次（捕获）
-    for (const net of world.FindActors(FishNet)) {
+    for (const net of findActors(world, FishNet)) {
       if (!net.expanded || net.consumed) continue
       net.consumed = true
       for (const fish of fishes) {
@@ -291,7 +291,7 @@ export class FishGameMode extends GameMode {
       grow: 5,
       opacity: 0.9,
     })
-    this.world?.SpawnActor(new FishCoinFly(fish.position.x, fish.position.y, fish.config.boss ? 12 : 5))
+    this.world?.actorMgr.SpawnActor(new FishCoinFly(fish.position.x, fish.position.y, fish.config.boss ? 12 : 5))
     logger.info(`[Fish] 捕获 ${fish.config.name} +${fish.config.score} 金币`)
     if (fish.config.boss) { this.bossActive = false; this.bossPawn = null }
     fish.destroy()
@@ -301,7 +301,7 @@ export class FishGameMode extends GameMode {
   private cleanupFish() {
     const world = this.world
     if (!world) return
-    for (const fish of world.FindActors(FishPawn)) {
+    for (const fish of findActors(world, FishPawn)) {
       if (Math.abs(fish.position.x) > AREA_W + 4) {
         if (fish.config.boss) { this.bossActive = false; this.bossPawn = null }
         fish.destroy()

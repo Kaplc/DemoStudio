@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, PrimitiveMeshComponent, PhysicsWorld, CollisionLayer, ColliderComponent, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, PhysicsWorld, CollisionLayer, ColliderComponent, Instantiate, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -277,12 +277,12 @@ export class FishBaseGameMode extends GameMode {
       return false
     }
 
-    const building = world.SpawnActorFromBlueprint(type.blueprint) as ClashBuildingBaseActor | null
+    const building = Instantiate(type.blueprint) as ClashBuildingBaseActor | null
     if (!building) {
       logger.error(`[BaseGM] 放置建筑失败: 蓝图 "${type.blueprint}" 生成失败 (${type.name})`)
       return false
     }
-    // SpawnActorFromBlueprint 内部已入队；这里补网格坐标并定位
+    // BlueprintAsset.Instantiate 内部已入队；这里补网格坐标并定位
     building.gridX = gx
     building.gridZ = gz
     building.setPosition(gx, 0, gz)
@@ -425,7 +425,7 @@ export class FishBaseGameMode extends GameMode {
     mesh.visible = false
     // 替换装饰 Actor 上的预览组件（旧组件移除时自动释放旧 mesh 资源）
     if (this.previewComp) decor.removeComponent(this.previewComp)
-    this.previewComp = new PrimitiveMeshComponent(decor, mesh, 'PreviewMesh')
+    this.previewComp = new BoxMeshComponent(decor, mesh, 'PreviewMesh')
     decor.addComponent(this.previewComp)
     this.previewMesh = mesh
   }
@@ -447,7 +447,7 @@ export class FishBaseGameMode extends GameMode {
     // 格子规则（游戏侧计算）：建筑中心在整数坐标（格子中心），
     // 网格线画在格子边界 = 中心坐标 ±0.5（半整数），即 [-PLACE_HALF-0.5, PLACE_HALF+0.5]
     // SpawnActorOfType：组件内自动 new PlaceGridActor + 入队（经 World 工厂建线 + LineComponent 托管，随 Actor 销毁自动释放）
-    this.placeGridActor = w.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {
+    this.placeGridActor = w.actorMgr.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {
       min: -PLACE_HALF - 0.5,
       max: PLACE_HALF + 0.5,
       step: 1,

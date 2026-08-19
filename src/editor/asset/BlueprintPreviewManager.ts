@@ -10,7 +10,8 @@
  *  - 支持从 Outline 选中聚焦 + 坐标轴 Gizmo
  */
 import * as THREE from 'three'
-import { World } from '../../engine'
+import { World, EditorActorComponent } from '../../engine'
+import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { BlueprintRegistry } from '../../engine'
 import { GenericActor, LightComponent } from '../../engine'
@@ -148,8 +149,8 @@ export class BlueprintPreviewManager {
     this.gizmo = new TransformGizmo()
     this.gizmo.setup(this.scene, this.camera, this.renderer)
 
-    // ─── World ───
-    this.world = new World(this.scene)
+    // ─── World（EditorActorComponent 由 World 构造时自动添加）───
+    this.world = new World()
 
     // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
     this.colliderDrawer = new ColliderDebugDrawer(this.scene)
@@ -341,7 +342,7 @@ export class BlueprintPreviewManager {
     const asset = BlueprintRegistry.get(path)
     this._jsonTree = asset ? (JSON.parse(JSON.stringify(asset)) as Record<string, unknown>) : null
 
-    const actor = this.world.SpawnActorFromBlueprint(path, undefined)
+    const actor = this.world.getComponent(EditorActorComponent)!.Instantiate(path, undefined)
     if (!actor) {
       logger.warn(`[BlueprintPreview] SpawnActorFromBlueprint("${path}") 失败`)
       return false
@@ -977,7 +978,7 @@ export class BlueprintPreviewManager {
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
       // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(this.world.GetAllActors())
+      this.colliderDrawer?.update(getAllActors(this.world))
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -1088,7 +1089,7 @@ export class BlueprintPreviewManager {
 
   /** 按名称查找并聚焦（供 BlueprintTreeView 回落使用） */
   focusOnActor(actorName: string): boolean {
-    const allActors = this.world.GetAllActors()
+    const allActors = getAllActors(this.world)
     for (const actor of allActors) {
       if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
         this.focusActor(actor)

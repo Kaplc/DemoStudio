@@ -5,8 +5,9 @@
  */
 import * as THREE from 'three'
 import { BObject } from './BObject'
-import type { Component } from './Component'
+import { TransformComponent } from './TransformComponent'
 import type { World } from '../gameflow/World'
+import { destroyObject } from '../gameflow/ActorUtils'
 import type { PropertyPatch } from '../tools/deepMerge'
 import { clonePatch } from '../tools/deepMerge'
 
@@ -37,6 +38,8 @@ export abstract class Actor extends BObject {
     this.root.name = name
     this.root.userData.actorRef = this
     this.root.userData.actorUid = this.uid
+    // 默认场景组件（TransformComponent）：Actor 构造即拥有变换能力，与 UE RootComponent 语义一致
+    this.addComponent(TransformComponent)
   }
 
   // ═══════════════════════════════════
@@ -121,7 +124,7 @@ export abstract class Actor extends BObject {
     // 第一行会 `if (actor.bPendingDestroy) return` 直接短路，导致 actor 永远进不了
     // 销毁队列（UI 面板/建筑删除全部失效）。标记与入队统一由 DestroyActor 完成。
     if (this.world) {
-      this.world.DestroyObject(this)
+      destroyObject(this.world, this)
     } else {
       // 无 world 归属（如 UI 内联子节点：attachTo 挂树、从不经 SpawnActor）：
       // 无法走 World 统一销毁，直接本地 EndPlay（递归子树 + 组件 + 注册表注销）
@@ -189,6 +192,16 @@ export abstract class Actor extends BObject {
     for (const child of this.children) {
       child.applyActiveTree(effective)
     }
+  }
+
+  /**
+   * 从根节点刷新可见性（commitSpawn 将 Actor 加进场景后调用，
+   * 保证新 Actor 的 root.visible 与激活状态同步）。
+   */
+  syncVisibility(): void {
+    let top: Actor = this
+    while (top.parent) top = top.parent
+    top.applyActiveTree(true)
   }
 
   // ═══════════════════════════════════

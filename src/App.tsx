@@ -16,7 +16,6 @@ import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
 import { Editor } from './editor'
-import { logger } from './engine'
 
 /**
  * 启动阶段：loading → selecting-project → editor
@@ -61,16 +60,6 @@ export default function App() {
       editorRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── 状态栏报错捕获：全局监听 logger ERROR/WARN（独立于 Console 挂载，始终在线） ───
-  useEffect(() => {
-    const unsub = logger.addListener((level, text) => {
-      if (level === 'error' || level === 'warn') {
-        useEditorStore.getState().addConsoleError(text)
-      }
-    })
-    return unsub
-  }, [])
 
   // ─── 加载完成 → 进入工程选择阶段 ───
   useEffect(() => {

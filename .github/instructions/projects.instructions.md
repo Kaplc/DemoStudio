@@ -198,28 +198,36 @@ gameplay/{mode}/module/
 7. 创建 `index.ts` 导出所有公开 API
 8. 创建 `project.json` 配置项目元信息
 
-## 程序化生成规则（World 工厂方法）
+## 程序化生成规则（ThreeFactoryComponent 工厂）
 
-**项目代码中禁止直接调用 `new THREE.Mesh()`、`new THREE.BoxGeometry()`、`new THREE.SphereGeometry()`、`new THREE.PlaneGeometry()`、`new THREE.MeshBasicMaterial()` 等 THREE 构造函数创建几何体。**
+**项目代码中禁止直接调用 `new THREE.Mesh()`、`new THREE.BoxGeometry()`、`new THREE.SphereGeometry()`、`new THREE.PlaneGeometry()`、`new THREE.MeshBasicMaterial()`、`new THREE.LineSegments()`、`new THREE.Sprite()` 等 THREE 构造函数创建可渲染对象。**
 
-所有程序化生成的基础图元必须通过 `World` 提供的工厂方法创建：
+所有可渲染对象必须通过 `World.factory` 工厂创建：
 
 | 方法 | 用途 |
 |------|------|
-| `world.createGroup()` | 空 Group（组合体容器） |
-| `world.createBoxMesh(w, h, d, color, transparent?, opacity?)` | Box 网格 |
-| `world.createSphereMesh(radius, color, segments?, transparent?, opacity?)` | 球体网格 |
-| `world.createPlaneMesh(w, h, color, transparent, opacity, side)` | 平面网格 |
-| `world.createInvisibleBox(w, h, d)` | 不可见 Box（点击碰撞体） |
-| `world.createEdgesBox(w, h, d, color, transparent?, opacity?)` | Box 线框 |
+| `world.factory.createGroup()` | 空 Group（组合体容器） |
+| `world.factory.createMesh(geometry, material)` | 网格（配合几何体创建方法） |
+| `world.factory.createBoxMesh(w, h, d, color, transparent?, opacity?)` | Box 网格 |
+| `world.factory.createSphereMesh(radius, color, segments?, transparent?, opacity?)` | 球体网格 |
+| `world.factory.createPlaneMesh(w, h, color, transparent, opacity, side)` | 平面网格 |
+| `world.factory.createInvisibleBox(w, h, d)` | 不可见 Box（点击碰撞体） |
+| `world.factory.createEdgesBox(w, h, d, color, transparent?, opacity?)` | Box 线框 |
+| `world.factory.createLine(geometry, material)` | 线段 |
+| `world.factory.createLineSegments(geometry, material)` | 线段（Segments） |
+| `world.factory.createSprite(material)` | 精灵 |
+| `world.factory.createPoints(geometry, material)` | 点云 |
+| `world.factory.createGridLines(min, max, step, color)` | 网格线 |
 
 生成的物体应包装为 `StaticMeshActor`，通过 `world.SpawnActor()` 注册到 Actor 生命周期，由 `World.DestroyAllActors()` 统一清理（自动 `EndPlay()` + 释放 geometry/material + 从场景移除）。
 
+GCComponent（`world.gc`）只负责追踪和兜底回收，不负责创建。
+
 ```typescript
 // ✅ 正确做法
-const group = world.createGroup()
-const mesh = world.createBoxMesh(1, 1, 1, 0xff0000)
-group.add(mesh)
+const group = world.factory.createGroup()
+const meshObj = world.factory.createMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xff0000 }))
+group.add(meshObj.object)
 const actor = new StaticMeshActor(group, 'MyDecor')
 world.SpawnActor(actor)
 
@@ -228,7 +236,7 @@ const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicM
 scene.add(mesh)
 ```
 
-参考实现：`src/projects/fish/gameplay/base/FishBaseGameMode.ts`、`FishHouseActor.ts`
+参考实现：`src/engine/rendering/PrimitiveMeshComponent.ts`、`src/engine/rendering/LineComponent.ts`
 
 ## 场景切换方法（World.SwitchToScene）
 

@@ -32,14 +32,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              2.4,
-              0.15,
-              2.4
-            ],
+            "size": [2.4, 0.15, 2.4],
             "color": "#a67c52",
             "kind": "basic"
           }
@@ -87,14 +82,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              2,
-              1.4,
-              2
-            ],
+            "size": [2, 1.4, 2],
             "color": "#c9b99a",
             "kind": "basic",
             "transparent": true,
@@ -144,14 +134,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              2.6,
-              0.3,
-              2.6
-            ],
+            "size": [2.6, 0.3, 2.6],
             "color": "#8b6f47",
             "kind": "basic",
             "transparent": true,
@@ -201,14 +186,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              2,
-              0.2,
-              2
-            ],
+            "size": [2, 0.2, 2],
             "color": "#6d4c41",
             "kind": "basic"
           }
@@ -256,14 +236,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.5,
-              0.8,
-              0.05
-            ],
+            "size": [0.5, 0.8, 0.05],
             "color": "#5d4037",
             "kind": "basic"
           }
@@ -311,14 +286,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.3,
-              0.3,
-              0.05
-            ],
+            "size": [0.3, 0.3, 0.05],
             "color": "#81d4fa",
             "kind": "basic",
             "transparent": true,
@@ -368,14 +338,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.3,
-              0.3,
-              0.05
-            ],
+            "size": [0.3, 0.3, 0.05],
             "color": "#81d4fa",
             "kind": "basic",
             "transparent": true,
@@ -425,14 +390,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.08,
-              1.8,
-              0.08
-            ],
+            "size": [0.08, 1.8, 0.08],
             "color": "#8d6e63",
             "kind": "basic"
           }
@@ -480,14 +440,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.08,
-              1.8,
-              0.08
-            ],
+            "size": [0.08, 1.8, 0.08],
             "color": "#8d6e63",
             "kind": "basic"
           }
@@ -535,14 +490,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.08,
-              1.8,
-              0.08
-            ],
+            "size": [0.08, 1.8, 0.08],
             "color": "#8d6e63",
             "kind": "basic"
           }
@@ -590,14 +540,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              0.08,
-              1.8,
-              0.08
-            ],
+            "size": [0.08, 1.8, 0.08],
             "color": "#8d6e63",
             "kind": "basic"
           }
@@ -645,14 +590,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "BoxMeshComponent",
           "properties": {
-            "geometry": "box",
-            "size": [
-              2.6,
-              0.06,
-              0.06
-            ],
+            "size": [2.6, 0.06, 0.06],
             "color": "#6d4c41",
             "kind": "basic"
           }

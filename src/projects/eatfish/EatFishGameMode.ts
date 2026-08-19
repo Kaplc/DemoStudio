@@ -3,14 +3,13 @@
  * 控制：小鱼生成、碰撞检测、计分、游戏结束
  */
 import * as THREE from 'three'
-import { GameMode, SpawnComponent, CameraComponent, gizmos, logger, ConfigRegistry } from '@/engine'
+import { GameMode, SpawnComponent, CameraComponent, gizmos, logger, ConfigRegistry, getAllActors, spawnActorOfType } from '@/engine'
 import type { DataTable } from '@/engine'
 import { EatFishPawn } from './EatFishPawn'
 import { EatFishFoodPawn } from './EatFishFoodPawn'
 import { EatFishPredatorPawn } from './EatFishPredatorPawn'
 import { EatFishPlayerController } from './EatFishPlayerController'
 import { FishSchool } from './FishSchool'
-import { NewActor } from '@/engine/entity/NewActor'
 import type { GameConfig, FishArchetype } from './types'
 
 const _v3 = new THREE.Vector3()
@@ -82,7 +81,7 @@ export class EatFishGameMode extends GameMode {
 
   /** 生成食物鱼（独立鱼，不属于鱼群） */
   SpawnFoodFish() {
-    const food = NewActor.Spawn(EatFishFoodPawn)
+    const food = spawnActorOfType(EatFishFoodPawn)
     // DataTable 演示：若原型表已加载，用随机原型行设置完整属性（颜色/大小/速度/分值）
     if (this.fishTable && this.fishTable.size > 0) {
       const names = this.fishTable.getRowNames()
@@ -101,7 +100,7 @@ export class EatFishGameMode extends GameMode {
     const centerZ = (Math.random() - 0.5) * (this.config.arenaHalf * 2 - 6)
 
     for (let i = 0; i < this.config.fishPerSchool; i++) {
-      const fish = NewActor.Spawn(EatFishFoodPawn)
+      const fish = spawnActorOfType(EatFishFoodPawn)
       // 在鱼群中心附近分散
       const angle = Math.random() * Math.PI * 2
       const dist = Math.random() * 2
@@ -120,7 +119,7 @@ export class EatFishGameMode extends GameMode {
 
   /** 生成捕食者鱼 */
   SpawnPredator() {
-    const predator = NewActor.Spawn(EatFishPredatorPawn)
+    const predator = spawnActorOfType(EatFishPredatorPawn)
     this.predators.push(predator)
     logger.info(`[EatFish] 生成捕食者, 当前数量: ${this.predators.length}`)
   }
@@ -158,7 +157,7 @@ export class EatFishGameMode extends GameMode {
     for (const school of activeSchools) {
       const schoolAlive = school.getAliveMembers()
       if (schoolAlive.length < this.config.fishPerSchool && alive.length < target) {
-        const fish = NewActor.Spawn(EatFishFoodPawn)
+        const fish = spawnActorOfType(EatFishFoodPawn)
         // 在鱼群中心附近生成
         const angle = Math.random() * Math.PI * 2
         const dist = Math.random() * 1.5
@@ -347,7 +346,7 @@ export class EatFishGameMode extends GameMode {
 
   private findPlayer(): EatFishPawn | null {
     if (!this.world) return null
-    for (const actor of this.world.GetAllActors()) {
+    for (const actor of getAllActors(this.world)) {
       if (actor instanceof EatFishPawn) return actor
     }
     return null

@@ -87,8 +87,8 @@ registerAssetChecker('comp:ClickableComponent', ClickableComponentChecker)
 
 /**
  * comp:MeshComponent — MeshComponent 是抽象基类，资产不得直接声明。
- * 资产声明网格组件必须用具体派生类：PrimitiveMeshComponent（box/sphere/plane 参数化几何）
- * 或 CapsuleMeshComponent（胶囊体）。本检查器对任何声明直接报 error。
+ * 资产声明网格组件必须用具体派生类：BoxMeshComponent / SphereMeshComponent /
+ * PlaneMeshComponent / CapsuleMeshComponent。本检查器对任何声明直接报 error。
  */
 class MeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:MeshComponent'
@@ -98,7 +98,7 @@ class MeshComponentChecker extends AbstractAssetChecker {
       ctx.issue(
         'baseClass',
         'mesh-base-class-forbidden',
-        'MeshComponent 是抽象基类，不能直接挂载——请用派生类 PrimitiveMeshComponent（基础几何）或 CapsuleMeshComponent（胶囊体）',
+        'MeshComponent 是抽象基类，不能直接挂载——请用派生类 BoxMeshComponent / SphereMeshComponent / PlaneMeshComponent / CapsuleMeshComponent',
         'error',
         node,
       ),
@@ -107,20 +107,41 @@ class MeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
 
-/** comp:PrimitiveMeshComponent — 基础几何网格：geometry 枚举；size 数组；color；opacity [0,1]。 */
-class PrimitiveMeshComponentChecker extends AbstractAssetChecker {
-  readonly kind = 'comp:PrimitiveMeshComponent'
+/** comp:BoxMeshComponent — 轴对齐盒：size: [w, h, d]；color；opacity [0,1]。 */
+class BoxMeshComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:BoxMeshComponent'
   schema: FieldSpec[] = [
-    { field: 'properties.geometry', type: 'string', enum: ['box', 'sphere', 'plane', 'capsule'], label: '几何类型' },
-    { field: 'properties.size', type: 'array', minItems: 1, maxItems: 3, label: '尺寸' },
-    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
-    { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
+    { field: 'properties.size', type: 'array', minItems: 3, maxItems: 3, label: '盒尺寸 [w, h, d]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
 }
-registerAssetChecker('comp:PrimitiveMeshComponent', PrimitiveMeshComponentChecker)
+registerAssetChecker('comp:BoxMeshComponent', BoxMeshComponentChecker)
+
+/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]。 */
+class SphereMeshComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:SphereMeshComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.name', type: 'string', label: '网格名' },
+  ]
+}
+registerAssetChecker('comp:SphereMeshComponent', SphereMeshComponentChecker)
+
+/** comp:PlaneMeshComponent — 平面：size: [w, h]；color；opacity [0,1]。 */
+class PlaneMeshComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:PlaneMeshComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.size', type: 'array', minItems: 2, maxItems: 2, label: '平面尺寸 [w, h]' },
+    { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.name', type: 'string', label: '网格名' },
+  ]
+}
+registerAssetChecker('comp:PlaneMeshComponent', PlaneMeshComponentChecker)
 
 /** comp:CapsuleMeshComponent — 胶囊体：radius/length/color。 */
 class CapsuleMeshComponentChecker extends AbstractAssetChecker {

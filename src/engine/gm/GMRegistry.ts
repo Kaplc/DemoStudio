@@ -37,7 +37,11 @@ export class GMRegistry {
     const old = GMRegistry.entries.get(id)
     GMRegistry.entries.set(id, def)
     if (old) {
-      logger.warn(`[GMRegistry] 命令 "${id}" 重复注册，已覆盖（旧 name=${old.name} → 新 name=${def.name}）`)
+      // 仅在定义实质不同时 warn（HMR 重载同一模块 → 同函数对象 → 跳过无害覆盖）
+      const isSameDef = old.name === def.name && old.description === def.description
+      if (!isSameDef) {
+        logger.warn(`[GMRegistry] 命令 "${id}" 重复注册，已覆盖（旧 name=${old.name} → 新 name=${def.name}）`)
+      }
     } else {
       logger.debug(`[GMRegistry] 注册命令: ${id} (name=${def.name})`)
     }

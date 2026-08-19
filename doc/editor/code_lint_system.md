@@ -1,8 +1,8 @@
 # 代码扫描检查系统（CodeLint）
 
 > 扫描工程 TS 源码中违反项目约定的写法（addComponent 旧写法、裸 new THREE），架构完全对称 assetLint（插件式高扩展）。
-> 右下角状态栏入口与 tips 面板为**代码 + 资产检查共用**：`CodeLintPanel` 分节渲染 `codeLint` 问题与 `assetLint` 问题（详见 §4.4）。
-> 代码位置：`src/editor/codeLint/` + Electron 通道 `electron/main.ts` / `electron/preload.ts` + UI `src/components/CodeLintPanel.tsx` / `src/stores/useCodeLintStore.ts`
+
+> codeLint 解决的问题：项目约定（如"组件添加改用类版 `addComponent(Xxx, ...)`"、"项目代码禁止裸 `new THREE.Xxx`，程序化生成必须走 ThreeFactoryComponent 工厂"）此前只能靠人工遵守，无工具守护。
 > 相关文档：[系统总览](../system_overview.md) / [资产预览与检查](./asset_preview_lint_system.md) / [编辑器核心](./core_system.md)
 
 ## 1. 概述
@@ -158,7 +158,7 @@ flowchart LR
 | 关闭工程 | `stopWatchProjectAssets` 主进程关闭全部 watcher + 引擎退订 | 引擎内置 |
 | `addComponent` 别名/变量间接调用 | 不追踪（只匹配直链 `xxx.addComponent(new ...)` 语法） | 已知限制 |
 | `import * as T from 'three'; new T.Mesh` | 不报（仅直链 `new THREE.Xxx`） | 按需求约定的已知限制 |
-| `new THREE.Vector3/Color/Plane/CanvasTexture` 等 | 不报（数学工具类/纹理类不在黑名单，不属于"创建几何体"；World 工厂无对应方法） | 规则只匹配 `Mesh` / `*Geometry` / `*Material` |
+| `new THREE.Vector3/Color/Plane/CanvasTexture` 等 | 不报（数学工具类/纹理类不在黑名单，不属于"创建可渲染对象"；ThreeFactoryComponent 无对应方法） | 规则只匹配 `Mesh` / `Group` / `Line` / `LineSegments` / `Sprite` / `Points` / `*Geometry` / `*Material` |
 | 保存 `.d.ts` | 主进程 watch 与 list 均排除声明文件 | 双端过滤 |
 | JSON 资产变化 | 只触发 `asset-changed`（src watcher 按扩展名过滤），codeLint 不重扫 | 双通道隔离 |
 

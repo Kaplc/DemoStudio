@@ -6,8 +6,12 @@
  *
  * 设计取舍：行为逻辑由 baseClass（TS Actor 子类）承载；
  * 数据（Component 组合 / 子 Actor / 默认属性 / 继承）由本资产描述。不引入可视化脚本。
+ *
+ * Actor 生成统一经静态方法 Instantiate，禁止通过 World 直接创建。
  */
 import type { PropertyPatch } from '../tools/deepMerge'
+import type { Actor } from '../entity/Actor'
+import { GameInstance } from '../gameflow/GameInstance'
 
 /** 蓝图中的 Component 描述 */
 export interface BlueprintComponentDef {
@@ -108,4 +112,33 @@ export interface ResolvedBlueprint {
   position?: [number, number, number]
   rotation?: [number, number, number]
   scale?: [number, number, number]
+}
+
+// ─── 静态生成入口 ───
+
+import { BlueprintRegistry } from './BlueprintRegistry'
+import { ActorRegistry } from '../tools/ActorRegistry'
+import { ComponentRegistry } from '../tools/ComponentRegistry'
+import { ensureTransformForActor } from '../ui/UITransformComponent'
+import { logger } from '../Logger'
+
+/**
+ * 静态 Blueprint 实例化入口：在当前 GameInstance 关联的 World 中生成 Actor。
+ * 等价于 `world.actorMgr.SpawnActorFromBlueprint(path)`，但合成一步调用。
+ *
+ * 使用示例：
+ *   const actor = BlueprintAsset.Instantiate('assets/blueprints/FishHouse')
+ *   const actor2 = BlueprintAsset.Instantiate('assets/blueprints/FishHouse', { position: [1, 0, 2] })
+ */
+export function Instantiate(
+  path: string,
+  overrides?: PropertyPatch,
+  componentOverrides?: BlueprintComponentDef[],
+): Actor | null {
+  const world = GameInstance.current?.getWorld()
+  if (!world) {
+    logger.error(`[BlueprintAsset.Instantiate] 当前没有活跃 GameInstance 或未关联 World`)
+    return null
+  }
+  return world.actorMgr.SpawnActorFromBlueprint(path, overrides, componentOverrides)
 }

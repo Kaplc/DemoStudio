@@ -8,15 +8,16 @@
  * 继承 BuildingActor 基类：携带建筑显示名（buildingName）与放置占地格子数（footprint）。
  */
 import * as THREE from 'three'
-import { ClickableComponent, PrimitiveMeshComponent, LineComponent, type World, logger } from '@/engine'
+import { ClickableComponent, BoxMeshComponent, LineComponent, logger } from '@/engine'
+import { createMesh, createBoxGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import { BuildingActor } from './BuildingActor'
 
 export class FishHouseActor extends BuildingActor {
-  /** 不可见点击碰撞体 */
-  protected clickZone: THREE.Mesh | null = null
+  /** 不可见点击碰撞体组件 */
+  protected clickZoneComp: BoxMeshComponent | null = null
 
-  /** 悬停高亮线框 */
-  protected glowWireframe: THREE.LineSegments | null = null
+  /** 悬停高亮线框组件 */
+  protected glowComp: LineComponent | null = null
 
   /** 点击检测组件（自动由 PlayerController 基类调度） */
   protected clickable: ClickableComponent | null = null
@@ -25,7 +26,6 @@ export class FishHouseActor extends BuildingActor {
   onClaimCoins: (() => void) | null = null
 
   constructor(name = 'FishHouseActor') {
-    // 建筑显示名与占地格子数（基类元数据）：海岛小屋占地约 2.4 世界单位 → 2×2 格
     super(name, '海岛小屋', 2)
   }
 
@@ -50,12 +50,17 @@ export class FishHouseActor extends BuildingActor {
    * 子类可重写以调整大小/位置。
    */
   protected buildClickZone(): void {
-    const w = this.world as World
-    this.clickZone = w.createInvisibleBox(2.4, 2.0, 2.4)
-    this.clickZone.position.y = 1.2
-    this.clickZone.userData.isHouse = true
-    // MeshComponent 托管：挂 root + EndPlay 自动释放资源
-    this.addComponent(PrimitiveMeshComponent, this.clickZone, 'ClickZoneMesh')
+    if (!this.world) return // 未 spawn 时不构建（编辑器预览路径）
+    // 阶段 1：构造不可见 BoxGeometry + MeshBasicMaterial（走 utils → GC 追踪）
+    const geo = createBoxGeometry(2.4, 2.0, 2.4)
+    const mat = createMeshBasicMaterial({ visible: false, depthWrite: false })
+    const mesh = createMesh(geo, mat)
+    // 阶段 2：addComponent 挂到 actor.root + setter 设参
+    this.clickZoneComp = this.addComponent(BoxMeshComponent, mesh, 'ClickZoneMesh') as BoxMeshComponent
+    this.clickZoneComp.size = [2.4, 2.0, 2.4] // 触发 rebuild（保持 Inspector editable 同步）
+    this.clickZoneComp.setVisible(false)       // 不可见（点击碰撞体）
+    this.clickZoneComp.mesh.position.y = 1.2
+    this.clickZoneComp.mesh.userData.isHouse = true
   }
 
   /**
@@ -63,12 +68,13 @@ export class FishHouseActor extends BuildingActor {
    * 子类可重写以调整大小/位置/颜色。
    */
   protected buildGlow(): void {
-    const w = this.world as World
-    this.glowWireframe = w.createEdgesBox(2.8, 2.4, 2.8, 0xffd700, true, 0.8)
-    this.glowWireframe.position.y = 1.2
-    this.glowWireframe.visible = false
-    // LineComponent 托管：挂 root + EndPlay 自动释放资源
-    this.addComponent(LineComponent, this.glowWireframe, 'GlowLine')
+    if (!this.world) return
+    // 阶段 1：构造 EdgesGeometry + 半透明 LineBasicMaterial（走 utils → GC 追踪）
+    const obj = createEdgesBox(2.8, 2.4, 2.8, 0xffd700, true, 0.8)
+    // 阶段 2：addComponent + 位置/可见性
+    this.glowComp = this.addComponent(LineComponent, obj, 'GlowLine') as LineComponent
+    this.glowComp.lines.position.y = 1.2
+    this.glowComp.setVisible(false) // 默认隐藏（hover 显示）
   }
 
   // ═══════════════════════════════════
@@ -79,8 +85,8 @@ export class FishHouseActor extends BuildingActor {
   protected initClickable(): void {
     this.clickable = new ClickableComponent(this)
     this.clickable.clickCooldown = 500
-    if (this.clickZone) {
-      this.clickable.setTargets([this.clickZone])
+    if (this.clickZoneComp) {
+      this.clickable.setTargets([this.clickZoneComp.mesh])
     }
 
     // 点击 → 触发领金币
@@ -91,21 +97,18 @@ export class FishHouseActor extends BuildingActor {
 
     // 悬停 → 控制高亮边框显隐
     this.clickable.onHover = (hit) => {
-      const hovering = hit !== null
-      if (this.glowWireframe) {
-        this.glowWireframe.visible = hovering
+      if (this.glowComp) {
+        this.glowComp.lines.visible = hit !== null
       }
     }
 
     this.addComponent(this.clickable)
   }
 
-  /** 清理交互元素（clickZone/glowWireframe 由组件 EndPlay 自动释放；网格场景子对象由 World.DestroyAllActors 自动清理） */
+  /** 清理交互元素（组件 EndPlay 自动释放；网格场景子对象由 World.DestroyAllActors 自动清理） */
   private destroyHouse(): void {
-    // ClickableComponent 由 Actor.EndPlay 的 component 遍历自动清理
     this.clickable = null
-    // clickZone / glowWireframe 由 MeshComponent / LineComponent 的 EndPlay 自动释放
-    this.glowWireframe = null
-    this.clickZone = null
+    this.glowComp = null
+    this.clickZoneComp = null
   }
 }

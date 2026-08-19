@@ -13,8 +13,8 @@
  * 已有 MeshComponent/子节点则不建网格、已有 LineComponent 不建高亮、已有
  * ClickableComponent 则复用只绑回调，保证「资产组件 + 代码组件」不重复。
  */
-import * as THREE from 'three'
-import { GenericActor, MeshComponent, PrimitiveMeshComponent, ClickableComponent, LineComponent, logger } from '@/engine'
+import { GenericActor, MeshComponent, BoxMeshComponent, ClickableComponent, LineComponent, spawnActor, logger } from '@/engine'
+import { createMesh, createBoxGeometry, createEdgesBox, createMeshStandardMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import { BuildingActor } from './BuildingActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
 import type { FishBaseGameMode } from './FishBaseGameMode'
@@ -27,8 +27,8 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
   gridX = 0
   gridZ = 0
 
-  /** 选中高亮线框 */
-  private glow: THREE.LineSegments | null = null
+  /** 选中高亮线框组件（用于 setSelected 控制显隐） */
+  private glowComp: LineComponent | null = null
   /** 是否被选中 */
   private _selected = false
 
@@ -41,8 +41,6 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    const w = this.world
-    if (!w) return
 
     // ─── 去重约定：蓝图声明的组件（components/children）优先，类只补缺的 ───
     // 蓝图已建网格（MeshComponent/子节点）→ 类不再建底座/主体，避免重复 mesh
@@ -52,25 +50,33 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
     // ─── 底座（深色薄板，部落冲突建筑阴影盘风格）───
     // 一个 Actor 只能挂一个 mesh：底座挂自身，主体拆成子 Actor（组合网格约定）
     if (!hasMeshes) {
-      const base = w.createBoxMesh(this.type.size + 0.5, 0.15, this.type.size + 0.5, 0x4e342e)
-      base.position.y = 0.075
-      this.addComponent(PrimitiveMeshComponent, base, 'BaseMesh')
+      const baseGeo = createBoxGeometry(this.type.size + 0.5, 0.15, this.type.size + 0.5)
+      const baseMat = createMeshStandardMaterial({ color: 0x4e342e })
+      const baseMesh = createMesh(baseGeo, baseMat)
+      const baseComp = new BoxMeshComponent(this, baseMesh, 'BaseMesh')
+      baseComp.mesh.position.y = 0.075
+      this.addComponent(baseComp)
 
       // ─── 主体（彩色立方体）→ 子 Actor（BodyMeshActor 挂 1 个 MeshComponent）───
       const bodyActor = new GenericActor('BodyMeshActor')
-      const body = w.createBoxMesh(this.type.size, this.type.height, this.type.size, this.type.color)
-      body.position.y = 0.15 + this.type.height / 2
-      bodyActor.addComponent(PrimitiveMeshComponent, body, 'BodyMesh')
+      const bodyGeo = createBoxGeometry(this.type.size, this.type.height, this.type.size)
+      const bodyMat = createMeshStandardMaterial({ color: this.type.color })
+      const bodyMesh = createMesh(bodyGeo, bodyMat)
+      const bodyComp = new BoxMeshComponent(bodyActor, bodyMesh, 'BodyMesh')
+      bodyComp.mesh.position.y = 0.15 + this.type.height / 2
+      bodyActor.addComponent(bodyComp)
       bodyActor.attachTo(this)
+      spawnActor(bodyActor)
       // BeginPlay 由父链传播（Actor.BeginPlay 递归 children）
     }
 
     // ─── 选中高亮线框（蓝图已声明 LineComponent 则不重复创建）───
     if (!this.getComponent(LineComponent)) {
-      this.glow = w.createEdgesBox(this.type.size + 0.25, this.type.height + 0.25, this.type.size + 0.25, 0xffd700, true, 0.9)
-      this.glow.position.y = 0.15 + this.type.height / 2
-      this.glow.visible = false
-      this.addComponent(LineComponent, this.glow, 'GlowLine')
+      const glowObj = createEdgesBox(this.type.size + 0.25, this.type.height + 0.25, this.type.size + 0.25, 0xffd700, true, 0.9)
+      this.glowComp = new LineComponent(this, glowObj, 'GlowLine')
+      this.glowComp.lines.position.y = 0.15 + this.type.height / 2
+      this.glowComp.lines.visible = false
+      this.addComponent(this.glowComp)
     }
 
     // ─── 点击：蓝图已声明 ClickableComponent 则复用，只绑回调 ───
@@ -90,17 +96,11 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
   /** 设置选中状态（GameMode 调用：显示/隐藏金色线框） */
   setSelected(selected: boolean): void {
     this._selected = selected
-    if (this.glow) this.glow.visible = selected
+    if (this.glowComp) this.glowComp.lines.visible = selected
   }
 
   get selected(): boolean {
     return this._selected
-  }
-
-  override EndPlay(): void {
-    // glow 由 LineComponent.EndPlay 自动释放 geometry/material
-    this.glow = null
-    super.EndPlay()
   }
 }
 

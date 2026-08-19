@@ -21,27 +21,24 @@ export class EatFishGameInstance extends GameInstance {
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
 
-  private sharedScene: THREE.Scene
+  constructor(renderContainer?: HTMLElement | null) {
+    super(new World(), renderContainer ?? null)
+    const scene = this.world.sceneComp.scene
 
-  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    const world = new World(sharedScene)
-    super(world)
-    this.sharedScene = sharedScene
     // 设置水下场景氛围
-    sharedScene.background = new THREE.Color(0x0a3d6b)
+    scene.background = new THREE.Color(0x0a3d6b)
     // 环境光加强水下效果
-    const ambient = sharedScene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
+    const ambient = scene.children.find(c => c instanceof THREE.AmbientLight) as THREE.AmbientLight | undefined
     if (ambient) {
       ambient.intensity = 0.5
       ambient.color.setHex(0x6688cc)
     }
-    const hemi = sharedScene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight | undefined
+    const hemi = scene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight | undefined
     if (hemi) {
       hemi.color.setHex(0x4488cc)
       hemi.groundColor.setHex(0x002244)
     }
 
-    this.renderContainer = renderContainer ?? null
     // 统一在此加载项目配置表（游戏配置 + 鱼类原型表）
     new EatFishConfigLoader((msg) => logger.info(msg)).init()
     this.gameMode = new EatFishGameMode()
@@ -118,7 +115,7 @@ export class EatFishGameInstance extends GameInstance {
     this._controller = null
     this.pawn = null
     // 恢复场景背景
-    this.sharedScene.background = new THREE.Color(0x1a1a2e)
+    this.world.sceneComp.scene.background = new THREE.Color(0x1a1a2e)
   }
 
   override destroy() {

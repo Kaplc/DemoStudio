@@ -93,7 +93,7 @@ export abstract class GameMode extends BObject {
     if (!result) return null
     this.controller = result.controller
     // Pawn 由 World 统一生成；生成完成后经 OnPawnSpawned 通知 Controller（Possess）
-    this.world?.SpawnPawn(result.pawn, (pawn) => this.OnPawnSpawned(pawn))
+    this.world?.actorMgr.SpawnPawn(result.pawn, (pawn) => this.OnPawnSpawned(pawn))
     return result
   }
 

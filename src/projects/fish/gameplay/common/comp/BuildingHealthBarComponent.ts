@@ -13,7 +13,8 @@
  *   building.addComponent(BuildingHealthBarComponent)
  */
 import * as THREE from 'three'
-import { ActorComponent, GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
+import { ActorComponent, GenericActor, BoxMeshComponent, spawnActor, logger } from '@/engine'
+import { createMesh, createBoxGeometry, createMeshStandardMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { ClashBuildingBaseActor } from '../../base/ClashBuildingActors'
 
 /** 血条隐藏超时（秒）：受击后 3 秒无再受击自动隐藏 */
@@ -28,10 +29,10 @@ const BAR_LOW_COLOR = 0xe53935
 const BAR_LOW_RATIO = 0.3
 
 export class BuildingHealthBarComponent extends ActorComponent {
-  /** 前景条（血量比例 scale.x 刷新） */
-  private fg: THREE.Mesh | null = null
-  /** 背景条（固定宽度） */
-  private bg: THREE.Mesh | null = null
+  /** 前景条 MeshComponent（血量比例 scale.x 刷新） */
+  private fgComp: BoxMeshComponent | null = null
+  /** 背景条 MeshComponent（固定宽度） */
+  private bgComp: BoxMeshComponent | null = null
   /** 隐藏倒计时（秒；>0 时血条可见） */
   private hideTimer = 0
   /** 当前是否显示 */
@@ -43,37 +44,45 @@ export class BuildingHealthBarComponent extends ActorComponent {
   }
 
   override BeginPlay(): void {
-    const w = this.owner.world
-    if (!w) return
-    const building = this.owner as ClashBuildingBaseActor
+    const owner = this.owner
+    const building = owner as ClashBuildingBaseActor
     const barY = building.type.height + 0.9
     // 一个 Actor 只能挂一个 mesh（组合网格拆子 Actor 约定）：
     // 血条由 2 个网格组成 → 2 个子 Actor（HealthBarBg / HealthBarFg），各自挂 1 个 MeshComponent，
     // attachTo 后 BeginPlay 由父链传播（Actor.BeginPlay 递归 children）。
     // 背景条（深色底，宽度固定，中心对称 [-0.7, 0.7]）
     const bgActor = new GenericActor('HealthBarBg')
-    const bg = w.createBoxMesh(1.4, 0.18, 0.05, BAR_BG_COLOR)
-    bg.position.y = barY
-    bgActor.addComponent(PrimitiveMeshComponent, bg, 'HealthBarBg')
-    bgActor.attachTo(this.owner)
+    const bgGeo = createBoxGeometry(1.4, 0.18, 0.05)
+    const bgMat = createMeshStandardMaterial({ color: BAR_BG_COLOR })
+    const bgMesh = createMesh(bgGeo, bgMat)
+    const bgComp = new BoxMeshComponent(bgActor, bgMesh, 'HealthBarBg')
+    bgActor.addComponent(bgComp)
+    bgComp.mesh.position.y = barY
+    bgActor.attachTo(owner)
+    spawnActor(bgActor)
     // 前景条（绿色，左端锚定背景左端：geometry 平移使本地原点 = 左端 →
     // 缩放 scale.x 时左端不动、右端收缩；position.x = -0.7 把左端放到背景左端）
     const fgActor = new GenericActor('HealthBarFg')
-    const fg = w.createBoxMesh(1.3, 0.14, 0.06, BAR_FG_COLOR)
-    fg.geometry.translate(0.65, 0, 0)
-    fg.position.set(-0.7, barY, 0)
-    fgActor.addComponent(PrimitiveMeshComponent, fg, 'HealthBarFg')
-    fgActor.attachTo(this.owner)
-    this.bg = bg
-    this.fg = fg
+    const fgGeo = createBoxGeometry(1.3, 0.14, 0.06)
+    const fgMat = createMeshStandardMaterial({ color: BAR_FG_COLOR })
+    const fgMesh = createMesh(fgGeo, fgMat)
+    const fgComp = new BoxMeshComponent(fgActor, fgMesh, 'HealthBarFg')
+    fgActor.addComponent(fgComp)
+    fgComp.mesh.geometry.translate(0.65, 0, 0)
+    fgComp.mesh.position.set(-0.7, barY, 0)
+    fgActor.attachTo(owner)
+    spawnActor(fgActor)
+    this.bgComp = bgComp
+    this.fgComp = fgComp
     // 初始隐藏（战斗开始血条不常驻）
     this.applyVisible(false)
   }
 
   /** 受击回调（FishLevelGameMode.damageBuilding 调用）：显示 + 刷新 + 重置隐藏计时 */
   onDamaged(ratio: number): void {
-    const fg = this.fg
-    if (!fg) return
+    const fgComp = this.fgComp
+    if (!fgComp) return
+    const fg = fgComp.mesh
     const r = Math.max(0, Math.min(1, ratio))
     // 前景缩放：左端对齐缩水（geometry 已平移）
     fg.scale.x = Math.max(0.001, r)
@@ -111,7 +120,7 @@ export class BuildingHealthBarComponent extends ActorComponent {
 
   /** 统一显隐（bg + fg） */
   private applyVisible(visible: boolean): void {
-    if (this.bg) this.bg.visible = visible
-    if (this.fg) this.fg.visible = visible
+    if (this.bgComp) this.bgComp.mesh.visible = visible
+    if (this.fgComp) this.fgComp.mesh.visible = visible
   }
 }

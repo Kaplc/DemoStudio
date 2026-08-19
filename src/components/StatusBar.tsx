@@ -8,7 +8,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ fps, projectName }: StatusBarProps) {
-  const { gameState, consoleErrors, clearConsoleErrors, consoleErrPanelOpen, setConsoleErrPanelOpen } = useEditorStore()
+  const { gameState, consoleErrors, refreshConsoleErrors, clearConsoleErrors, consoleErrPanelOpen, setConsoleErrPanelOpen } = useEditorStore()
   const codeLintIssueCount = useCodeLintStore((s) => s.issues.length)
   const assetLintIssueCount = useCodeLintStore((s) => s.assetIssues.length)
   const codeLintOpen = useCodeLintStore((s) => s.panelOpen)
@@ -17,8 +17,15 @@ export function StatusBar({ fps, projectName }: StatusBarProps) {
   const totalIssueCount = codeLintIssueCount + assetLintIssueCount
   // 报错计数：ERROR 行数 + WARN 行数
   const errCount = consoleErrors.length
-  const errorCount = consoleErrors.filter((t) => /\[ERROR\]/.test(t)).length
+  const errorCount = consoleErrors.filter((t) => /(\[ERROR\]|CONSOLE:ERROR)/.test(t)).length
   const warnCount = errCount - errorCount
+
+  // 点击展开时顺带刷新一次日志文件读取（保证徽标/面板都是最新数据）
+  const toggleErrPanel = () => {
+    const next = !consoleErrPanelOpen
+    setConsoleErrPanelOpen(next)
+    if (next) refreshConsoleErrors()
+  }
 
   return (
     <div className="status-bar">
@@ -34,7 +41,7 @@ export function StatusBar({ fps, projectName }: StatusBarProps) {
         {/* 控制台报错/警告入口：有错误红色徽标（warning 有黄色小点），点击展开/收起报错面板 */}
         <span
           className={`status-err ${errCount > 0 ? 'has-errors' : 'clean'}${consoleErrPanelOpen ? ' open' : ''}`}
-          onClick={() => setConsoleErrPanelOpen(!consoleErrPanelOpen)}
+          onClick={toggleErrPanel}
           title={
             errCount > 0
               ? `控制台报错: ${errCount} 条（错误 ${errorCount} · 警告 ${warnCount}，点击${consoleErrPanelOpen ? '收起' : '展开'}；右键清空）`

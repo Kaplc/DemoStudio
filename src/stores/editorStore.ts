@@ -81,8 +81,8 @@ export interface EditorState {
 
   // ─── 控制台 ───
   consoleOutput: string[]
-  /** 控制台报错/警告记录（logger ERROR/WARN 行过滤；状态栏徽标计数 + 报错面板展示，
-   *  与 consoleOutput 独立存储，清空不影响主控制台历史） */
+  /** 控制台报错/警告快照（从磁盘日志文件 readLogFile 读取的 ERROR/WARN 行；
+   *  状态栏徽标计数 + 报错面板展示，与 consoleOutput 独立） */
   consoleErrors: string[]
   /** 报错悬浮面板展开状态（状态栏报错徽标 ↔ ErrorStatusPanel 共享） */
   consoleErrPanelOpen: boolean
@@ -99,9 +99,9 @@ export interface EditorState {
 
   addConsoleOutput: (text: string) => void
   clearConsole: () => void
-  /** 追加一条报错/警告记录（logger ERROR/WARN 行；面板去重按行文本） */
-  addConsoleError: (text: string) => void
-  /** 清空报错记录（仅清 consoleErrors，不动 consoleOutput） */
+  /** 从磁盘日志文件读取 ERROR/WARN 行，刷新报错快照（面板打开/徽标点击时调用） */
+  refreshConsoleErrors: () => void
+  /** 清空报错记录（仅清 consoleErrors 快照，不动 consoleOutput 与磁盘日志） */
   clearConsoleErrors: () => void
   /** 切换报错面板展开/收起 */
   setConsoleErrPanelOpen: (open: boolean) => void
@@ -217,18 +217,20 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   clearConsole: () => set({ consoleOutput: [] }),
 
-  addConsoleError: (text) =>
-    set((state) => {
-      // 面板容量上限 200 条；与 consoleOutput 独立缓存（清空 console 不受影响）
-      // 新错误自动展开报错面板（已展开时不重复触发，提升用户体验）
-      const next = text === state.consoleErrors[state.consoleErrors.length - 1]
-        ? state.consoleErrors
-        : [...state.consoleErrors.slice(-199), text]
-      return {
-        consoleErrors: next,
-        consoleErrPanelOpen: true,
-      }
-    }),
+  refreshConsoleErrors: () => {
+    // 直接读取磁盘日志文件（console_*.log），过滤 ERROR/WARN 行作为报错快照
+    if (typeof window !== 'undefined' && typeof window.electronAPI?.readLogFile === 'function') {
+      window.electronAPI.readLogFile({ tail: 1000 }).then((content) => {
+        if (typeof content !== 'string') return
+        const errors = content
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l && /\]\[(?:ERROR|WARN|CONSOLE:(?:ERROR|WARNING))\]/.test(l))
+          .slice(-200)
+        set({ consoleErrors: errors })
+      }).catch(() => {})
+    }
+  },
 
   clearConsoleErrors: () => set({ consoleErrors: [] }),
 

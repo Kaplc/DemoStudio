@@ -15,7 +15,9 @@
  */
 import * as THREE from 'three'
 import { MeshComponent } from '../rendering/MeshComponent'
-import { PrimitiveMeshComponent } from '../rendering/PrimitiveMeshComponent'
+import { BoxMeshComponent } from '../rendering/BoxMeshComponent'
+import { SphereMeshComponent } from '../rendering/SphereMeshComponent'
+import { PlaneMeshComponent } from '../rendering/PlaneMeshComponent'
 import { CapsuleMeshComponent } from '../rendering/CapsuleMeshComponent'
 import { LineComponent } from '../rendering/LineComponent'
 import { ComponentRegistry } from './ComponentRegistry'
@@ -42,9 +44,9 @@ import { UITooltipComponent } from '../ui/UITooltipComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
+import { createMesh } from '../gameflow/ThreeObjectUtils'
 
 /** 注册工厂 owner 收窄：渲染类组件需要 Actor（挂场景节点）；逻辑类组件接受任意 BObject */
-const asActor = (owner: BObject): Actor => owner as Actor
 
 let _registered = false
 
@@ -58,7 +60,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'TransformComponent',
     (owner, p = {}) =>
-      new TransformComponent(asActor(owner), {
+      new TransformComponent(owner as Actor, {
         position: p.position as [number, number, number] | undefined,
         rotation: p.rotation as [number, number, number] | undefined,
         scale: p.scale as [number, number, number] | undefined,
@@ -76,7 +78,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITransformComponent',
     (owner, p = {}) =>
-      new UITransformComponent(asActor(owner), {
+      new UITransformComponent(owner as Actor, {
         position: p.position as [number, number, number] | undefined,
         rotation: p.rotation as [number, number, number] | undefined,
         scale: p.scale as [number, number, number] | undefined,
@@ -103,7 +105,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'SpriteComponent',
     (owner, p = {}) =>
-      new SpriteComponent(asActor(owner), p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
+      new SpriteComponent(owner as Actor, p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
     (c, p) => {
       const sp = c as SpriteComponent
       if (p.color !== undefined) sp.setColor(p.color as THREE.ColorRepresentation)
@@ -113,7 +115,7 @@ export function registerBuiltinComponents(): void {
   )
 
   // ─── ClickableComponent ─── props: { clickCooldown? }
-  ComponentRegistry.register('ClickableComponent', (owner) => new ClickableComponent(asActor(owner)), (c, p) => {
+  ComponentRegistry.register('ClickableComponent', (owner) => new ClickableComponent(owner as Actor), (c, p) => {
     const ck = c as ClickableComponent
     if (p.clickCooldown !== undefined) ck.clickCooldown = p.clickCooldown as number
   })
@@ -138,7 +140,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'BoxColliderComponent',
     (owner, p = {}) => {
-      const comp = new BoxColliderComponent(asActor(owner))
+      const comp = new BoxColliderComponent(owner as Actor)
       if (Array.isArray(p.size)) comp.size = p.size as [number, number, number]
       applyColliderProps(comp, p)
       return comp
@@ -150,7 +152,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'CircleColliderComponent',
     (owner, p = {}) => {
-      const comp = new CircleColliderComponent(asActor(owner))
+      const comp = new CircleColliderComponent(owner as Actor)
       if (p.radius !== undefined) comp.radius = p.radius as number
       if (p.height !== undefined) comp.height = p.height as number
       applyColliderProps(comp, p)
@@ -163,7 +165,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'CapsuleColliderComponent',
     (owner, p = {}) => {
-      const comp = new CapsuleColliderComponent(asActor(owner))
+      const comp = new CapsuleColliderComponent(owner as Actor)
       if (p.radius !== undefined) comp.radius = p.radius as number
       if (p.length !== undefined) comp.length = p.length as number
       applyColliderProps(comp, p)
@@ -209,52 +211,81 @@ export function registerBuiltinComponents(): void {
     'LineComponent',
     (owner, p = {}) =>
       new LineComponent(
-        asActor(owner),
+        owner as Actor,
         new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial()),
         (p.name as string) ?? 'LineComponent',
       ),
   )
 
-  // ─── PrimitiveMeshComponent ─── props: { geometry?, size?, color?, opacity?, name? }
-  // 基础几何网格（MeshComponent 的具体派生）。MeshComponent 是抽象基类不注册——
-  // 资产声明 baseClass: 'MeshComponent' 会因未注册而创建失败（assetLint 亦报错），
-  // 必须声明 PrimitiveMeshComponent / CapsuleMeshComponent。
-  // geometry 取值: 'box'（默认）| 'sphere' | 'plane'
-  // size 按几何类型: box→[w,h,d], sphere→[radius], plane→[w,h]
+  // ─── BoxMeshComponent ─── props: { size?, color?, opacity?, name? }
+  // 轴对齐盒几何。MeshComponent 是抽象基类不注册——必须声明 BoxMeshComponent /
+  // SphereMeshComponent / PlaneMeshComponent / CapsuleMeshComponent 之一。
+  // size: [w, h, d]
+  const applyMeshColor = (
+    c: MeshComponent,
+    p: Record<string, unknown>,
+  ) => {
+    const mat = c.mesh.material as THREE.MeshStandardMaterial
+    if (p.color !== undefined) mat.color.set(p.color as THREE.ColorRepresentation)
+    if (p.opacity !== undefined) {
+      mat.transparent = true
+      mat.opacity = p.opacity as number
+    }
+  }
   ComponentRegistry.register(
-    'PrimitiveMeshComponent',
+    'BoxMeshComponent',
     (owner, p = {}) => {
-      const geometryType = (p.geometry as string) ?? 'box'
-      const size = p.size as number[] | undefined
-      let geo: THREE.BufferGeometry
-      switch (geometryType) {
-        case 'sphere':
-          geo = new THREE.SphereGeometry(size?.[0] ?? 0.5, 16, 16)
-          break
-        case 'plane':
-          geo = new THREE.PlaneGeometry(size?.[0] ?? 1, size?.[1] ?? 1)
-          break
-        default:
-          geo = new THREE.BoxGeometry(size?.[0] ?? 1, size?.[1] ?? 1, size?.[2] ?? 1)
-      }
+      const size = (p.size as number[]) ?? [1, 1, 1]
+      const geo = new THREE.BoxGeometry(size[0] ?? 1, size[1] ?? 1, size[2] ?? 1)
       const color = (p.color as number | string) ?? 0xffffff
       const mat = new THREE.MeshStandardMaterial({ color })
       if (p.opacity !== undefined) {
         mat.transparent = true
         mat.opacity = p.opacity as number
       }
-      const mesh = new THREE.Mesh(geo, mat)
-      return new PrimitiveMeshComponent(asActor(owner), mesh, (p.name as string) ?? 'PrimitiveMeshComponent')
+      const mesh = createMesh(geo, mat)
+      const comp = new BoxMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'BoxMeshComponent')
+      comp.size = [size[0] ?? 1, size[1] ?? 1, size[2] ?? 1]
+      return comp
     },
-    (c, p) => {
-      const mc = c as MeshComponent
-      const mat = mc.mesh.material as THREE.MeshStandardMaterial
-      if (p.color !== undefined) mat.color.set(p.color as THREE.ColorRepresentation)
+    (c, p) => applyMeshColor(c as MeshComponent, p),
+  )
+
+  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, name? }
+  ComponentRegistry.register(
+    'SphereMeshComponent',
+    (owner, p = {}) => {
+      const radius = (p.radius as number) ?? 0.5
+      const geo = new THREE.SphereGeometry(radius, 16, 16)
+      const color = (p.color as number | string) ?? 0xffffff
+      const mat = new THREE.MeshStandardMaterial({ color })
       if (p.opacity !== undefined) {
         mat.transparent = true
         mat.opacity = p.opacity as number
       }
+      const mesh = createMesh(geo, mat)
+      const comp = new SphereMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'SphereMeshComponent')
+      comp.radius = radius
+      return comp
     },
+    (c, p) => applyMeshColor(c as MeshComponent, p),
+  )
+
+  // ─── PlaneMeshComponent ─── props: { size?, color?, opacity?, name? }
+  // size: [w, h]
+  ComponentRegistry.register(
+    'PlaneMeshComponent',
+    (owner, p = {}) => {
+      const size = (p.size as number[]) ?? [1, 1]
+      const geo = new THREE.PlaneGeometry(size[0] ?? 1, size[1] ?? 1)
+      const color = (p.color as number | string) ?? 0xffffff
+      const mat = new THREE.MeshStandardMaterial({ color, transparent: p.opacity !== undefined, opacity: (p.opacity as number) ?? 1, depthWrite: p.opacity === undefined })
+      const mesh = createMesh(geo, mat)
+      const comp = new PlaneMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'PlaneMeshComponent')
+      comp.size = [size[0] ?? 1, size[1] ?? 1]
+      return comp
+    },
+    (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
   // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, name? }
@@ -265,8 +296,14 @@ export function registerBuiltinComponents(): void {
     (owner, p = {}) => {
       const radius = (p.radius as number) ?? 0.3
       const length = (p.length as number) ?? 0.3
+      const geo = new THREE.CapsuleGeometry(radius, length, 4, 12)
       const color = (p.color as number | string) ?? 0xffffff
-      return new CapsuleMeshComponent(asActor(owner), radius, length, color, (p.name as string) ?? 'CapsuleMeshComponent')
+      const mat = new THREE.MeshStandardMaterial({ color })
+      const mesh = createMesh(geo, mat)
+      const comp = new CapsuleMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'CapsuleMeshComponent')
+      comp.radius = radius
+      comp.length = length
+      return comp
     },
     (c, p) => {
       const mc = c as MeshComponent
@@ -282,7 +319,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'CanvasUIComponent',
     (owner, p = {}) =>
-      new CanvasUIComponent(asActor(owner), {
+      new CanvasUIComponent(owner as Actor, {
         width: p.width ?? 512,
         height: p.height ?? 256,
         ...(p.worldWidth != null ? { worldWidth: p.worldWidth } : {}),
@@ -309,7 +346,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'TroikaTextComponent',
     (owner, p = {}) =>
-      new TroikaTextComponent(asActor(owner), (p.text as string) ?? '', {
+      new TroikaTextComponent(owner as Actor, (p.text as string) ?? '', {
         fontSize: p.fontSize ?? 0.3,
         color: (p.color as string) ?? '#ffffff',
         maxWidth: p.maxWidth as number | undefined,
@@ -332,7 +369,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITextComponent',
     (owner, p = {}) =>
-      new UITextComponent(asActor(owner), {
+      new UITextComponent(owner as Actor, {
         text: p.text as string | undefined,
         fontSize: p.fontSize as number | undefined,
         color: p.color as string | undefined,
@@ -367,7 +404,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITextInputComponent',
     (owner, p = {}) =>
-      new UITextInputComponent(asActor(owner), {
+      new UITextInputComponent(owner as Actor, {
         placeholder: p.placeholder as string | undefined,
         value: p.value as string | undefined,
         fontSize: p.fontSize as number | undefined,
@@ -391,7 +428,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIImageComponent',
     (owner, p = {}) =>
-      new UIImageComponent(asActor(owner), {
+      new UIImageComponent(owner as Actor, {
         color: p.color as string | undefined,
         radius: p.radius as number | undefined,
         opacity: p.opacity as number | undefined,
@@ -418,7 +455,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIButtonComponent',
     (owner, p = {}) =>
-      new UIButtonComponent(asActor(owner), {
+      new UIButtonComponent(owner as Actor, {
         pressScale: p.pressScale as number | undefined,
       }),
     (c, p) => {
@@ -433,7 +470,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UITooltipComponent',
     (owner, p = {}) =>
-      new UITooltipComponent(asActor(owner), {
+      new UITooltipComponent(owner as Actor, {
         text: p.text as string | undefined,
         delay: p.delay as number | undefined,
         direction: p.direction as 'top' | 'bottom' | undefined,
@@ -453,7 +490,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIProgressBarComponent',
     (owner, p = {}) =>
-      new UIProgressBarComponent(asActor(owner), {
+      new UIProgressBarComponent(owner as Actor, {
         value: p.value as number | undefined,
         min: p.min as number | undefined,
         max: p.max as number | undefined,
@@ -475,7 +512,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIScrollListComponent',
     (owner, p = {}) =>
-      new UIScrollListComponent(asActor(owner), {
+      new UIScrollListComponent(owner as Actor, {
         itemWidget: p.itemWidget as string | undefined,
         itemSize: p.itemSize as [number, number] | undefined,
         spacing: p.spacing as number | undefined,
@@ -503,7 +540,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UIScriptComponent',
     (owner, p = {}) => {
-      const comp = new UIScriptComponent(asActor(owner))
+      const comp = new UIScriptComponent(owner as Actor)
       if (p.script !== undefined) comp.script = p.script as string
       if (p.args !== undefined) comp.args = p.args as Record<string, unknown>
       return comp
@@ -520,7 +557,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'LightComponent',
     (owner, p = {}) =>
-      new LightComponent(asActor(owner), {
+      new LightComponent(owner as Actor, {
         type: p.type as LightType | undefined,
         color: p.color as string | number | undefined,
         intensity: p.intensity as number | undefined,
@@ -544,7 +581,7 @@ export function registerBuiltinComponents(): void {
   ComponentRegistry.register(
     'UILayoutComponent',
     (owner, p = {}) =>
-      new UILayoutComponent(asActor(owner), {
+      new UILayoutComponent(owner as Actor, {
         mode: (p.mode as UILayoutMode) ?? 'grid',
         columns: p.columns as number | undefined,
         spacingX: p.spacingX as number | undefined,

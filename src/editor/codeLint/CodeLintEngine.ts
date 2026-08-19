@@ -119,6 +119,7 @@ class CodeLintEngine {
     this.autoShownFolder = null
     // 切换工程：清空面板与 issues（避免展示上一工程的违规）
     useCodeLintStore.getState().reset()
+    // 无有效工程：停止扫描与监听（防御：空字符串也视为无效）
     if (!folder) {
       logger.info('[CodeLint] 工程切换: 无工程 → 停止扫描与监听')
       return

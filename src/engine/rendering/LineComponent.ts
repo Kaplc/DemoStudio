@@ -7,11 +7,20 @@
  * 与 MeshComponent 的区别：MeshComponent 只接受 THREE.Mesh，
  * 需要线框（选中高亮、网格线等）时使用本组件。
  *
- * 用法（THREE 对象必须经 Game 工厂创建，禁止裸 new）：
- *   const actor = new GenericActor('Grid')
- *   const lines = game.createLine(new THREE.BufferGeometry(), new THREE.LineBasicMaterial())
- *   actor.addComponent(LineComponent, lines)
- *   world.SpawnActor(actor)
+ * 两阶段创建（推荐）：
+ *   const actor = new GenericActor('Edges')
+ *   spawnActor(actor)
+ *   const lines = actor.world.factory.createEdgesBox(2.4, 2.0, 2.4, 0xffd700, true, 0.8)
+ *   const comp = actor.addComponent(LineComponent, lines, 'EdgesBox') as LineComponent
+ *   comp.lines.position.y = 1.2
+ *   comp.setVisible(false)        // 默认隐藏（hover 显示）
+ *   // 重新设置尺寸 → 重建几何：
+ *   lines.geometry.dispose()
+ *   comp.lines.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(3, 3, 3))
+ *   comp.lines.visible = false
+ *
+ * 不再提供 CreateEdgesBox / CreateLines 静态工厂——遵循两阶段约定
+ * （先 addComponent 再调 setter/操作 ThreeObject）。
  */
 import * as THREE from 'three'
 import { ThreeObjectComponent } from './ThreeObjectComponent'

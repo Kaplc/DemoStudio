@@ -36,14 +36,9 @@
           }
         },
         {
-          "baseClass": "PrimitiveMeshComponent",
+          "baseClass": "PlaneMeshComponent",
           "properties": {
-            "geometry": "plane",
-            "size": [
-              60,
-              36,
-              1
-            ],
+            "size": [60, 36],
             "color": "#0a2a4a",
             "kind": "basic"
           }

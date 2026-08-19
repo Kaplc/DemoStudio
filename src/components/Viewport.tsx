@@ -144,7 +144,7 @@ export function Viewport({ onReady }: ViewportProps) {
       }
       // actor 化加载：与游戏运行时 World.loadSceneAsActors 同构，
       // 每个 mesh/ref/actor 节点 → Actor，大纲可选中、可编辑
-      const world = new World(shared)
+      const world = new World()
       world.loadSceneAsActors(sceneData)
       world.BeginPlay()
       world.manualTick(0)
@@ -252,9 +252,8 @@ export function Viewport({ onReady }: ViewportProps) {
     // 游戏运行时隐藏编辑坐标轴（TransformGizmo 挂 sharedScene，不隐藏会泄漏到游戏画面）
     getTransformGizmo().detach()
 
-    const shared = sharedSceneRef.current
-    if (shared && currentProject) {
-      game.createInstance(currentProject.name, shared, gameContainerRef.current)
+    if (currentProject) {
+      game.createInstance(currentProject.name, gameContainerRef.current)
     }
     if (!game.instance) return
 

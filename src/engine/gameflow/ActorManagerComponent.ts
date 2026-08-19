@@ -5,8 +5,8 @@
  * spawnInlineActor）、销毁（pendingDestroy 队列）、查询（FindActor / FindActors /
  * GetAllActors / getAllActorComponents）与批量清理（DestroyAllActors）全部逻辑。
  *
- * World 保留同名转发方法（见 World.ts），外部 API 完全兼容：
- *   const actor = world.SpawnActorFromBlueprint(path)  // → actorMgr.SpawnActorFromBlueprint
+ * 游戏代码请用 spawnActor(actor) / BlueprintAsset.Instantiate(path)，
+ * 编辑器内部用 World.Spawn(actor) / World.Instantiate(path)。
  *
  * 生命周期职责划分：
  *  - 本组件：Actor 集合 + 待生成/待销毁队列 + 生成工厂 + 查询/销毁
@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
+import { GameInstance } from './GameInstance'
 import { GenericActor } from '../entity/GenericActor'
 import { AObjectComponent } from '../entity/AObjectComponent'
 import { BlueprintRegistry } from '../asset/BlueprintRegistry'
@@ -61,6 +62,29 @@ export class ActorManagerComponent extends AObjectComponent<World> {
   //  Spawn / Destroy
   // ═══════════════════════════════════
 
+  /**
+   * 静态生成入口：将已有 Actor 实例注册到世界。
+   * 等价于 `actorMgr.SpawnActor(actor)`，供 spawnActor 转发。
+   */
+  static Spawn<T extends Actor>(actor: T): T {
+    const world = GameInstance.current?.getWorld()
+    if (!world) throw new Error('[ActorManagerComponent] 当前没有活跃 GameInstance 或未关联 World')
+    return world.actorMgr.SpawnActor(actor)
+  }
+
+  /**
+   * 静态 Blueprint 实例化入口（编辑器内部用）：在指定 World 中生成 Actor。
+   * 不依赖 GameInstance.current。
+   */
+  static Instantiate(
+    path: string,
+    world: World,
+    overrides?: PropertyPatch,
+    componentOverrides?: BlueprintComponentDef[],
+  ): Actor | null {
+    return world.actorMgr.SpawnActorFromBlueprint(path, overrides, componentOverrides)
+  }
+
   SpawnActor<T extends Actor>(actor: T): T {
     actor.world = this.owner
     this.pendingSpawn.push(actor)
@@ -68,13 +92,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
   }
 
   /**
-   * 按类型生成 Actor：组件内自动 new + 入队（无需调用方手动 new + SpawnActor 两步）。
-   * 通用机制：不感知具体 Actor 类（泛型），游戏工程传入自己的类与构造参数即可，
-   * 如 `world.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {...})`。
-   *
-   * @param type Actor 类（构造签名：name + 任意剩余参数）
-   * @param name Actor 名称
-   * @param args 构造剩余参数（透传给构造函数）
+   * 按类型生成 Actor：组件内自动 new + 入队（spawnActor 内部使用）。
    */
   SpawnActorOfType<T extends Actor, A extends unknown[]>(
     type: new (name: string, ...args: A) => T,
@@ -98,6 +116,8 @@ export class ActorManagerComponent extends AObjectComponent<World> {
         if (!actor.parent) {
           this.owner.scene.add(actor.root)
         }
+        // 所有 Actor 刷新可见性（syncVisibility 内部自动处理：无父即根，仅 walk 自身）
+        actor.syncVisibility()
         if (this.owner.running) {
           actor.BeginPlay()
           // 组件属性覆盖（ref 节点 components）：BeginPlay 完成后应用（代码组件此刻已挂载）

@@ -3,7 +3,7 @@
  * 集中管理所有高频创建/销毁对象的池。
  * init(world) 时将所有预分配 Actor 注入 World，之后切换 visible 来复用。
  */
-import { ObjectPool, type World, logger } from '@/engine'
+import { ObjectPool, type World, logger, spawnActor } from '@/engine'
 import { FishBullet } from './FishBullet'
 import type { FishBulletOptions } from './FishBullet'
 import { FishNet } from './FishNet'
@@ -49,7 +49,7 @@ export class FishObjectPools {
 
     const doSpawn = (pool: ObjectPool<any>) => {
       pool.forEach((obj: any) => {
-        world.SpawnActor(obj)
+        spawnActor(obj)
         obj.root.visible = false
       })
     }
@@ -62,7 +62,7 @@ export class FishObjectPools {
   /** 确保对象在 World 中（池扩容时自动注入新对象） */
   private ensureInWorld(obj: any) {
     if (!this.world || obj.root.parent) return
-    this.world.SpawnActor(obj)
+    spawnActor(obj)
     obj.root.visible = false
   }
 

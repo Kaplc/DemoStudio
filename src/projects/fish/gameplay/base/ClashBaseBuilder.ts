@@ -12,7 +12,8 @@
  * 由 GameMode.BeginPlay 创建并驱动 build()，GameMode.EndPlay 驱动 EndPlay()（自动注销）。
  */
 import * as THREE from 'three'
-import { BObject, GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
+import { BObject, GenericActor, spawnActor, PlaneMeshComponent, logger } from '@/engine'
+import { createMesh, createPlaneGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { World } from '@/engine'
 
 /** 放置区域半边长（世界单位）：覆盖整个草地（±24），每格 1 单位 */
@@ -38,8 +39,6 @@ export class ClashBaseBuilder extends BObject {
   readonly world: World
   /** 装饰根 Actor（草地统一挂载，经 World 托管生命周期） */
   decor: GenericActor | null = null
-  /** 草地 mesh（48x48，铺满整个放置范围） */
-  grass: THREE.Mesh | null = null
 
   constructor(world: World) {
     super('ClashBaseBuilder')
@@ -51,22 +50,23 @@ export class ClashBaseBuilder extends BObject {
    * @param placeBuilding 放置建筑回调（由 GameMode 提供：维护占用表/列表等运行时状态）
    */
   build(placeBuilding: (typeId: string, gx: number, gz: number) => boolean): void {
-    const world = this.world
-
     // ─── 装饰根 Actor：草地统一挂载，经 World 托管生命周期 ───
     // （DestroyAllActors/Destroy 时组件 EndPlay 自动释放 geometry/material）
     const decor = new GenericActor('ClashDecor')
 
     // ─── 草地（铺满整个放置范围 ±PLACE_HALF，承接整个基地）───
-    const grass = world.createPlaneMesh(GRASS_SIZE, GRASS_SIZE, 0x7cb342)
-    grass.rotation.x = -Math.PI / 2
-    grass.position.y = -0.05
-    decor.addComponent(PrimitiveMeshComponent, grass, 'GrassMesh')
+    // 平面默认朝 +Z，需要绕 X 旋转 -90° 使其水平放置
+    const grassGeo = createPlaneGeometry(GRASS_SIZE, GRASS_SIZE)
+    const grassMat = createMeshBasicMaterial({ color: 0x7cb342 })
+    const grassMesh = createMesh(grassGeo, grassMat)
+    const grassComp = new PlaneMeshComponent(decor, grassMesh, 'GrassMesh')
+    decor.addComponent(grassComp)
+    grassComp.mesh.rotation.x = -Math.PI / 2
+    grassComp.mesh.position.y = -0.05
 
     // 装饰 Actor 进 World 统一管理
-    world.SpawnActor(decor)
+    spawnActor(decor)
     this.decor = decor
-    this.grass = grass
 
     // ─── 初始建筑（部落冲突开局布局）───
     for (const { id, gx, gz } of INITIAL_LAYOUT) {
@@ -80,7 +80,6 @@ export class ClashBaseBuilder extends BObject {
     // 装饰 Actor 由 World.DestroyAllActors 统一销毁（组件 EndPlay 自动释放资源），
     // 这里只清引用
     this.decor = null
-    this.grass = null
     super.EndPlay()
   }
 }

@@ -3,7 +3,7 @@
  * 配置正交相机、生成玩家与金币、XY 平面圆碰撞计分。
  */
 import * as THREE from 'three'
-import { GameMode, SpawnComponent, CameraComponent, gizmos, logger } from '@/engine'
+import { GameMode, SpawnComponent, CameraComponent, gizmos, logger, findActor } from '@/engine'
 import { Demo2DPawn } from './Demo2DPawn'
 import { Demo2DCoin } from './Demo2DCoin'
 import { Demo2DPlayerController } from './Demo2DPlayerController'
@@ -54,7 +54,7 @@ export class Demo2DGameMode extends GameMode {
   SpawnInitialCoin() {
     this.coin = new Demo2DCoin()
     this.placeCoin()
-    this.world?.SpawnActor(this.coin)
+    this.world?.actorMgr.SpawnActor(this.coin)
   }
 
   /** 随机放置金币（避开玩家出生点附近） */
@@ -72,7 +72,7 @@ export class Demo2DGameMode extends GameMode {
   override Tick(dt: number) {
     super.Tick(dt)
     if (!this.world?.running || !this.coin) return
-    const player = this.world.FindActor(Demo2DPawn)
+    const player = findActor(this.world, Demo2DPawn)
     if (!player) return
     // XY 平面圆碰撞
     const dx = player.position.x - this.coin.position.x

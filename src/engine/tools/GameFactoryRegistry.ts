@@ -1,13 +1,15 @@
 /**
  * GameFactoryRegistry — 游戏实例工厂注册中心
- * 管理 游戏名 → GameInstance 工厂函数的映射
- * 每个游戏注册自己的工厂，Viewport 根据项目名创建对应的 GameInstance
+ *
+ * 管理 游戏名 → GameInstance 工厂函数的映射。
+ * 每个游戏注册自己的工厂，Viewport 根据项目名创建对应的 GameInstance。
+ *
+ * World.sceneComp.scene 在 World 内部获取，不再从外部传入。
  */
-import type * as THREE from 'three'
 import type { GameInstance } from '../gameflow/GameInstance'
 
-/** 工厂：sharedScene（共享 3D 场景）+ renderContainer（Game 视口渲染容器，可选） */
-export type GameInstanceFactory = (sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) => GameInstance
+/** 工厂：renderContainer（Game 视口渲染容器，可选）；World.sceneComp.scene 在 World 内部获取 */
+export type GameInstanceFactory = (renderContainer?: HTMLElement | null) => GameInstance
 
 export class GameFactoryRegistry {
   private static factories = new Map<string, GameInstanceFactory>()
@@ -18,10 +20,10 @@ export class GameFactoryRegistry {
   }
 
   /** 创建指定游戏的 GameInstance */
-  static create(gameName: string, sharedScene: THREE.Scene, renderContainer?: HTMLElement | null): GameInstance | null {
+  static create(gameName: string, renderContainer?: HTMLElement | null): GameInstance | null {
     const factory = GameFactoryRegistry.factories.get(gameName)
     if (!factory) return null
-    return factory(sharedScene, renderContainer)
+    return factory(renderContainer)
   }
 
   /** 检查是否已注册 */

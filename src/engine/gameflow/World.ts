@@ -2,8 +2,10 @@
  * World — 核心世界管理
  * 模仿 UE World，管理 Actor 注册、生命周期、Tick 循环
  *
- * Actor 的生成/创建/销毁/查询由 ActorManagerComponent 组件承载，
- * 本类保留同名转发方法（外部 API 兼容）。
+ * Actor 生成统一经 BlueprintAsset.Instantiate / spawnActor，
+ * 禁止通过 World 直接创建。World 仅负责生命周期管理与查询。
+ *
+ * Scene 统一经 SceneComponent 持有，外部访问 world.scene。
  */
 import * as THREE from 'three'
 import { GenericActor } from '../entity/GenericActor'
@@ -15,18 +17,22 @@ import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
 import { UIManager } from '../ui/UIManager'
-import { PrimitiveMeshComponent } from '../rendering/PrimitiveMeshComponent'
+import { BoxMeshComponent } from '../rendering/BoxMeshComponent'
+import { SphereMeshComponent } from '../rendering/SphereMeshComponent'
+import { PlaneMeshComponent } from '../rendering/PlaneMeshComponent'
 import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
-import { ThreeObjectFactory } from './ThreeObjectFactory'
 import { ThreeObject } from '../rendering/ThreeObject'
+import { SceneComponent } from './SceneComponent'
+import { ThreeFactoryComponent } from './ThreeFactoryComponent'
+import { GCComponent } from './GCComponent'
+import { EditorActorComponent } from './EditorActorComponent'
 import type { OObject } from '../entity/OObject'
 import type { PropertyPatch } from '../tools/deepMerge'
 import type { SceneAsset } from '../asset/SceneAsset'
 import type { Actor } from '../entity/Actor'
-import type { Pawn } from '../entity/Pawn'
 
 /**
  * 看门狗检查间隔（ms）：每 100ms 检查一次外部驱动是否停摆。
@@ -47,7 +53,15 @@ export class World extends AObject {
   /** 本实例 ID */
   readonly id: number
 
-  public readonly scene: THREE.Scene
+  /**
+   * Scene 组件（持有 THREE.Scene，所有 Actor 的 root 挂到此 scene 下）。
+   * 构造时自动创建（无参数传入时）或接收外部传入（editor 预览等）。
+   */
+  get scene(): THREE.Scene {
+    return this.getComponent(SceneComponent)!.scene
+  }
+  /** Scene 组件引用（用于编辑器访问） */
+  readonly sceneComp: SceneComponent
   public gameMode: GameMode | null = null
 
   /**
@@ -59,7 +73,7 @@ export class World extends AObject {
   }
 
   /**
-   * Game 视口渲染器组件（由 Game 启动时从 instance.renderContainer 取 DOM 创建并挂到 World；
+   * Game 视口渲染器组件（由 Game 启动时从 instance.viewport.container 取 DOM 创建并挂到 World；
    * 未启动游戏时为 null）
    */
   get gameRenderer(): SceneRendererComponent | null {
@@ -68,16 +82,16 @@ export class World extends AObject {
 
   /**
    * 确保 Game 视口渲染器组件存在（无则创建并挂载到本 World）。
-   * DOM 容器由组件内部自行从当前活跃实例（GameInstance.current.renderContainer）获取；
+   * DOM 容器由组件内部自行从当前活跃实例（GameInstance.current.viewport.container）获取；
    * 无活跃实例/无渲染容器时返回 null（不创建）。
    */
   ensureGameRenderer(): SceneRendererComponent | null {
     const existing = this.getComponent(SceneRendererComponent)
     if (existing) return existing
-    if (!GameInstance.current?.renderContainer) return null
-    const mgr = new SceneRendererComponent(this, { sharedScene: this.scene })
+    if (!GameInstance.current?.viewport.container) return null
+    const mgr = new SceneRendererComponent(this, { sharedScene: this.sceneComp.scene })
     this.addComponent(mgr)
-    logger.info('[World] SceneRendererComponent 已创建并挂到 World（DOM 来自 GameInstance.current.renderContainer）')
+    logger.info('[World] SceneRendererComponent 已创建并挂到 World（DOM 来自 GameInstance.current.viewport.container）')
     return mgr
   }
 
@@ -106,15 +120,23 @@ export class World extends AObject {
   private _tickCallbacks: Array<(dt: number) => void> = []
 
   /**
-   * THREE 对象工厂（统一创建 + 追踪释放，禁止裸 new THREE.xxx）。
-   * 由 World 的 createXxx 工厂方法使用；World.Destroy 时 disposeAll 兜底回收。
+   * THREE 对象工厂组件：统一创建 + 追踪释放，禁止裸 new THREE.xxx。
    */
-  readonly factory = new ThreeObjectFactory()
+  get factory(): ThreeFactoryComponent {
+    return this.getComponent(ThreeFactoryComponent)!
+  }
+
+  /**
+   * GC 组件：只负责追踪和兜底回收。
+   */
+  get gc(): GCComponent {
+    return this.getComponent(GCComponent)!
+  }
 
   /** 创建时的调用栈摘要（泄漏诊断用：精确定位是哪个 Manager/代码创建了本 World） */
   readonly creationStack: string
 
-  constructor(scene: THREE.Scene, gameMode?: GameMode) {
+  constructor(gameMode?: GameMode) {
     super()
     this.id = World._nextId++
     // 记录创建调用栈：跳过 Error 帧 + 本构造器帧，从调用方（new World 的 Manager/GameInstance）开始取 3 层
@@ -123,12 +145,20 @@ export class World extends AObject {
       .slice(2, 5)
       .map((s) => s.trim().replace(/^at /, ''))
       .join(' ← ')
-    this.scene = scene
+    // ThreeFactory 组件：统一创建 + 追踪释放 THREE 对象
+    const factoryComp = this.addComponent(ThreeFactoryComponent)
+    // GC 组件：只负责兜底回收
+    const gcComp = this.addComponent(GCComponent)
+    gcComp.setFactory(factoryComp)
+    // Scene 组件：持有 THREE.Scene，所有 Actor 的 root 挂到此 scene 下
+    this.sceneComp = this.addComponent(SceneComponent)
     // UI 管理器组件：持有独立 UI 场景（透明背景，叠加渲染时保留主画面）
     this.addComponent(UIManager)
     // Actor 管理组件：Actor 生成/销毁/查询
     this.addComponent(ActorManagerComponent)
-    // Game 视口渲染器组件：DOM 保存在 instance.renderContainer，由 Game 启动时取出创建
+    // 编辑器 Actor 生成组件（编辑器按需使用；游戏代码用 NewActor.Spawn）
+    this.addComponent(EditorActorComponent)
+    // Game 视口渲染器组件：DOM 保存在 instance.viewport.container，由 Game 启动时取出创建
     if (gameMode) {
       this.SetGameMode(gameMode)
     }
@@ -160,79 +190,15 @@ export class World extends AObject {
   }
 
   // ═══════════════════════════════════
-  //  Actor 管理（转发到 ActorManagerComponent）
+  //  Actor 生命周期与查询（转发到 ActorManagerComponent）
   // ═══════════════════════════════════
 
-  /** 生成 Actor（进待生成队列，tick 时提交：进场景 + BeginPlay） */
-  SpawnActor<T extends Actor>(actor: T): T {
-    this.assertValid('调用 SpawnActor') // 已销毁 World 不应再生成对象
-    return this.actorMgr.SpawnActor(actor)
-  }
-
   /**
-   * 按类型生成 Actor：组件内自动 new + 入队（无需手动 new + SpawnActor 两步）。
-   * 通用机制，不感知具体 Actor 类：如 `world.SpawnActorOfType(PlaceGridActor, 'PlaceGrid', {...})`。
+   * 编辑器 Actor 生成组件（由 World 构造时自动添加）。
+   * 游戏代码请用 spawnActor(actor) / BlueprintAsset.Instantiate()。
    */
-  SpawnActorOfType<T extends Actor, A extends unknown[]>(
-    type: new (name: string, ...args: A) => T,
-    name: string,
-    ...args: A
-  ): T {
-    this.assertValid('调用 SpawnActorOfType') // 已销毁 World 不应再生成对象
-    return this.actorMgr.SpawnActorOfType(type, name, ...args)
-  }
-
-  /**
-   * 生成 Pawn 到世界：进入待生成队列，commitSpawn 实际生成后调用 onSpawned 回调。
-   * 用于 GameMode.SpawnPlayer → World 生成 → 通知 Controller（Possess）的完整链路。
-   */
-  SpawnPawn(pawn: Pawn, onSpawned?: (pawn: Pawn) => void): Pawn {
-    return this.actorMgr.SpawnPawn(pawn, onSpawned)
-  }
-
-  DestroyActor(actor: Actor) {
-    this.actorMgr.DestroyActor(actor)
-  }
-
-  /**
-   * 通用对象销毁入口（Object.destroy 调用）。
-   * 场景对象（Actor）走 pendingDestroy 队列（tick 时提交清理）；
-   * 非场景对象（GameMode/GameState/Controller 等）立即 EndPlay。
-   */
-  DestroyObject(obj: import('../entity/BObject').BObject): void {
-    this.actorMgr.DestroyObject(obj)
-  }
-
-  FindActor<T extends Actor>(type: new (...args: any[]) => T): T | null {
-    return this.actorMgr.FindActor(type)
-  }
-
-  FindActors<T extends Actor>(type: new (...args: any[]) => T): T[] {
-    return this.actorMgr.FindActors(type)
-  }
-
-  GetAllActors(): Actor[] {
-    return this.actorMgr.GetAllActors()
-  }
-
-  /** 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例 */
-  getAllActorComponents<T extends import('../entity/Component').Component>(
-    type: new (...args: any[]) => T,
-  ): T[] {
-    return this.actorMgr.getAllActorComponents(type)
-  }
-
-  /**
-   * 从 Blueprint 实例化一个 Actor 到世界（统一 Unity Prefab / UE Blueprint Class）。
-   * 完整实例化逻辑见 ActorManagerComponent.SpawnActorFromBlueprint。
-   * @param path      Blueprint id
-   * @param overrides 实例级覆盖（position/rotation/scale/自定义参数）
-   * @param componentOverrides 实例级组件属性覆盖（场景 ref 节点 components）
-   * @returns 生成的 Actor；解析或构造失败返回 null
-   */
-  SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch, componentOverrides?: import('../asset/BlueprintAsset').BlueprintComponentDef[]): Actor | null {
-    this.assertValid('调用 SpawnActorFromBlueprint')
-    return this.actorMgr.SpawnActorFromBlueprint(path, overrides, componentOverrides)
+  get editorActor(): EditorActorComponent {
+    return this.getComponent(EditorActorComponent)!
   }
 
   // ═══════════════════════════════════
@@ -579,7 +545,7 @@ export class World extends AObject {
     // 场景根 Actor（Outline 中作为树的根节点展示，统一名为 "Root"，
     // 区别于编辑器默认内容根 "Default"）
     const rootActor = new GenericActor('Root')
-    this.SpawnActor(rootActor)
+    this.getComponent(EditorActorComponent)!.Spawn(rootActor)
     count++
 
     // 几何节点 → GenericActor + MeshComponent（旧格式兼容）
@@ -607,31 +573,40 @@ export class World extends AObject {
 
       asset.group.remove(mesh)
       const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
-      actor.addComponent(PrimitiveMeshComponent, mesh)
+      // 按 mesh.geometry 实际类型选派生类（MeshComponent 是抽象基类不允许直接挂载）
+      const g = mesh.geometry
+      if (g instanceof THREE.PlaneGeometry) {
+        actor.addComponent(PlaneMeshComponent, mesh, mesh.name)
+      } else if (g instanceof THREE.SphereGeometry) {
+        actor.addComponent(SphereMeshComponent, mesh, mesh.name)
+      } else {
+        // 默认 Box（THREE.BoxGeometry 或其他未知 BufferGeometry → 回退 Box）
+        actor.addComponent(BoxMeshComponent, mesh, mesh.name)
+      }
       actor.attachTo(rootActor)
-      this.SpawnActor(actor)
+      this.getComponent(EditorActorComponent)!.Spawn(actor)
       count++
     }
 
-    // blueprint 节点（旧格式兼容）→ SpawnActorFromBlueprint（标记为整体，大纲不展开内部） */
+    // blueprint 节点（旧格式兼容）→ Instantiate（标记为整体，大纲不展开内部） */
     const bpNodes = asset.blueprintNodes ?? []
     for (const bp of bpNodes) {
       const overrides: PropertyPatch = { ...(bp.overrides ?? {}) }
       if (bp.pos) overrides.position = bp.pos
       if (bp.rot) overrides.rotation = bp.rot
       if (bp.scale) overrides.scale = bp.scale
-      const actor = this.SpawnActorFromBlueprint(bp.blueprint, overrides)
+      const actor = this.getComponent(EditorActorComponent)!.Instantiate(bp.blueprint, overrides)
       if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
     }
 
-    // ref 节点（新格式）→ SpawnActorFromBlueprint（标记为整体） */
+    // ref 节点（新格式）→ Instantiate（标记为整体） */
     const refNodes = asset.refNodes ?? []
     for (const rn of refNodes) {
       const overrides: PropertyPatch = { ...(rn.overrides ?? {}) }
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
-      const actor = this.SpawnActorFromBlueprint(rn.ref, overrides, rn.components)
+      const actor = this.getComponent(EditorActorComponent)!.Instantiate(rn.ref, overrides, rn.components)
       if (actor) {
         actor.isRefInstance = true
         actor.attachTo(rootActor)
@@ -746,126 +721,7 @@ export class World extends AObject {
     return true
   }
 
-  // ═══════════════════════════════════
-  //  Mesh 工厂方法（程序化生成基础图元，隐藏 THREE 构造细节）
-  // ═══════════════════════════════════
-
-  /** 创建一个空 Group（用于构建组合体） */
-  createGroup(): THREE.Group {
-    return new THREE.Group()
-  }
-
-  /** 创建一个 Box 网格（用于构建组合体） */
-  createBoxMesh(w: number, h: number, d: number, color: number, transparent?: boolean, opacity?: number): THREE.Mesh {
-    return new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshBasicMaterial({ color, ...(transparent ? { transparent, opacity, depthWrite: false } : {}) }),
-    )
-  }
-
-  /** 创建一个球体网格 */
-  createSphereMesh(radius: number, color: number, segments = 6, transparent?: boolean, opacity?: number): THREE.Mesh {
-    return new THREE.Mesh(
-      new THREE.SphereGeometry(radius, segments, segments),
-      new THREE.MeshBasicMaterial({ color, ...(transparent ? { transparent, opacity, depthWrite: false } : {}) }),
-    )
-  }
-
-  /**
-   * 创建一个胶囊体网格（兵种等角色模型；length=0 时为纯球）。
-   * 几何体中心在胶囊体中心，贴地偏移由调用方控制（如 position.y = radius + length/2）。
-   */
-  createCapsuleMesh(radius: number, length: number, color: number, transparent?: boolean, opacity?: number): THREE.Mesh {
-    return new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12),
-      new THREE.MeshBasicMaterial({ color, ...(transparent ? { transparent, opacity, depthWrite: false } : {}) }),
-    )
-  }
-
-  /** 创建一个平面网格（用于鸟/精灵等） */
-  createPlaneMesh(
-    w: number,
-    h: number,
-    color: number,
-    transparent = false,
-    opacity = 1,
-    side: THREE.Side = THREE.FrontSide,
-  ): THREE.Mesh {
-    return new THREE.Mesh(
-      new THREE.PlaneGeometry(w, h),
-      new THREE.MeshBasicMaterial({ color, transparent, opacity, depthWrite: !transparent, side }),
-    )
-  }
-
-  // ─── 项目代码用的几何体 / 材质 / Mesh 工厂（不依赖 ThreeObject 追踪，
-  //      返回裸 THREE 对象，项目代码随 Pawn 生命周期在 EndPlay 中 dispose）───
-
-  /** BoxGeometry 工厂 */
-  createBoxGeometry(w: number, h: number, d: number): THREE.BoxGeometry {
-    return new THREE.BoxGeometry(w, h, d)
-  }
-
-  /** SphereGeometry 工厂（默认经纬分段均为 segments） */
-  createSphereGeometry(radius: number, widthSegments = 8, heightSegments?: number): THREE.SphereGeometry {
-    return new THREE.SphereGeometry(radius, widthSegments, heightSegments ?? widthSegments)
-  }
-
-  /** ConeGeometry 工厂 */
-  createConeGeometry(radius: number, height: number, radialSegments = 6): THREE.ConeGeometry {
-    return new THREE.ConeGeometry(radius, height, radialSegments)
-  }
-
-  /** CapsuleGeometry 工厂 */
-  createCapsuleGeometry(radius: number, length: number, capSegments = 4, radialSegments = 12): THREE.CapsuleGeometry {
-    return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
-  }
-
-  /** PlaneGeometry 工厂 */
-  createPlaneGeometry(w: number, h: number): THREE.PlaneGeometry {
-    return new THREE.PlaneGeometry(w, h)
-  }
-
-  /** CylinderGeometry 工厂 */
-  createCylinderGeometry(radiusTop: number, radiusBottom: number, height: number, radialSegments = 8): THREE.CylinderGeometry {
-    return new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
-  }
-
-  /** MeshStandardMaterial 工厂（项目代码禁止裸 new，统一经此创建） */
-  createStandardMaterial(opts: {
-    color?: THREE.ColorRepresentation
-    roughness?: number
-    metalness?: number
-    emissive?: THREE.ColorRepresentation
-    emissiveIntensity?: number
-    transparent?: boolean
-    opacity?: number
-  } = {}): THREE.MeshStandardMaterial {
-    return new THREE.MeshStandardMaterial(opts)
-  }
-
-  /**
-   * 创建自定义 Mesh（项目代码用）：几何体 + 材质经工厂创建，组合为 THREE.Mesh。
-   * 调用方负责在 EndPlay 时 dispose 该 Mesh（与该方法同步释放 geometry + material）。
-   */
-  createCustomMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
-    return new THREE.Mesh(geometry, material)
-  }
-
-  /** 创建一个不可见的 Box 网格（用于点击碰撞体） */
-  createInvisibleBox(w: number, h: number, d: number): THREE.Mesh {
-    return new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshBasicMaterial({ visible: false, depthWrite: false }),
-    )
-  }
-
-  /** 创建一个 Box 边框线框（用于悬停高亮等） */
-  createEdgesBox(w: number, h: number, d: number, color: number, transparent?: boolean, opacity?: number): THREE.LineSegments {
-    return new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)),
-      new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) }),
-    )
-  }
+  // createGridLines 返回 ThreeObject<THREE.LineSegments>，用于 LineComponent，正确追踪释放，保留
 
   /**
    * 创建一个平面网格线框（基础划线工具：仅提供从 min 到 max 每 step 一条线的能力，
@@ -883,16 +739,66 @@ export class World extends AObject {
   }
 
   // ═══════════════════════════════════
+  //  THREE 对象工厂代理（转发到 factory 组件）
+  // ═══════════════════════════════════
+
+  /** 创建标准材质（统一追踪释放） */
+  createStandardMaterial(params: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial(params)
+  }
+
+  /** 创建球体几何体 */
+  createSphereGeometry(radius: number, widthSegments?: number, heightSegments?: number): THREE.SphereGeometry {
+    return new THREE.SphereGeometry(radius, widthSegments, heightSegments)
+  }
+
+  /** 创建立方体几何体 */
+  createBoxGeometry(width: number, height: number, depth: number): THREE.BoxGeometry {
+    return new THREE.BoxGeometry(width, height, depth)
+  }
+
+  /** 创建圆柱体几何体 */
+  createCylinderGeometry(radiusTop: number, radiusBottom: number, height: number, radialSegments?: number): THREE.CylinderGeometry {
+    return new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
+  }
+
+  /** 创建圆锥几何体 */
+  createConeGeometry(radius: number, height: number, radialSegments?: number): THREE.ConeGeometry {
+    return new THREE.ConeGeometry(radius, height, radialSegments)
+  }
+
+  /** 创建组（统一追踪释放） */
+  createGroup(): THREE.Group {
+    return new THREE.Group()
+  }
+
+  /** 创建自定义 Mesh（统一追踪释放） */
+  createCustomMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+    return new THREE.Mesh(geometry, material)
+  }
+
+  /** 创建带材质和颜色的 Box Mesh */
+  createBoxMesh(w: number, h: number, d: number, color: number, transparent = false, opacity = 1): THREE.Mesh {
+    const geo = new THREE.BoxGeometry(w, h, d)
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      transparent,
+      opacity,
+    })
+    return new THREE.Mesh(geo, mat)
+  }
+
+  // ═══════════════════════════════════
   //  清理
   // ═══════════════════════════════════
 
   Destroy() {
     this.Stop()
     // 诊断：销毁前遍历场景，找出未被 Actor 跟踪的 THREE 对象（排查泄漏/未生成对象）
-    const orphans = this.actorMgr.findOrphanObjects()
-    if (orphans.length > 0) {
-      logger.warn(`[World#${this.id}] Destroy: ${orphans.length} 个未被 Actor 跟踪的 THREE 对象:`)
-      for (const o of orphans) {
+    const orphanObjects = this.gc.findOrphanObjects()
+    if (orphanObjects.length > 0) {
+      logger.warn(`[World#${this.id}] Destroy: ${orphanObjects.length} 个未被 Actor 跟踪的 THREE 对象:`)
+      for (const o of orphanObjects) {
         logger.warn(
           `  - [${o.sceneName}] ${o.obj.type} "${o.obj.name || '(无名)'}" 链=${o.chain} ` +
           `pos=(${o.obj.position.x.toFixed(2)}, ${o.obj.position.y.toFixed(2)}, ${o.obj.position.z.toFixed(2)})`,
@@ -914,11 +820,9 @@ export class World extends AObject {
     ObjectRegistry.reclaimForWorld(this)
     // 清理 Game 视口渲染器（由 World 创建，随 World 销毁）
     this.gameRenderer?.dispose()
-    // 工厂兜底回收：经本 World 工厂创建但未随 actor 释放的 THREE 对象
-    // （正常路径由组件 EndPlay 释放，这里兜底未释放的孤儿）
-    const factoryOrphans = this.factory.disposeAll()
-    if (factoryOrphans.length > 0) {
-      logger.warn(`[World#${this.id}] Destroy: 工厂兜底回收 ${factoryOrphans.length} 个未释放 THREE 对象（组件销毁链路异常或未挂载）`)
+    const { orphans, total } = this.gc.disposeAll()
+    if (total > 0) {
+      logger.info(`[World#${this.id}] Destroy: 释放 ${total} 个 THREE 对象${orphans.length > 0 ? `（其中 ${orphans.length} 个为兜底回收）` : ''}`)
     }
   }
 }

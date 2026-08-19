@@ -6,7 +6,7 @@
 
 ## 1. 概述
 
-`MuzzleFlashComponent` 是炮台（`FishCannon`）开炮时的炮口闪光特效组件。组件构造时通过 `owner.addComponent(SpriteComponent, ...)` **组合**引擎精灵组件自动创建闪光面片（引擎内部建 mesh/材质并挂 root，项目代码零裸 `new THREE`），初始隐藏；开炮时拥有者调用 `flash(size)` 触发，随后组件的 `Tick` 自管"放大 + 淡出"动画，到期自动隐藏。
+`MuzzleFlashComponent` 是炮台（`FishCannon`）开炮时的炮口闪光特效组件。组件构造时通过 `owner.addComponent(SpriteComponent, ...)` **组合**引擎精灵组件自动创建闪光面片（引擎内部经 ThreeFactoryComponent 创建并挂 root，项目代码零裸 `new THREE`），初始隐藏；开炮时拥有者调用 `flash(size)` 触发，随后组件的 `Tick` 自管"放大 + 淡出"动画，到期自动隐藏。
 
 | 角色 | 干什么 |
 |---|---|

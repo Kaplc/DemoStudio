@@ -14,7 +14,8 @@
  *   actor.addComponent(new TroopHealthBarComponent(actor, troop))
  */
 import * as THREE from 'three'
-import { ActorComponent, GenericActor, PrimitiveMeshComponent, logger, type Actor } from '@/engine'
+import { ActorComponent, GenericActor, BoxMeshComponent, spawnActor, logger, type Actor } from '@/engine'
+import { createMesh, createBoxGeometry, createMeshStandardMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { TroopType } from '../types'
 
 /** 血条隐藏超时（秒）：受击后 1.5 秒无再受击自动隐藏（比建筑 3s 更短，兵更小更频繁） */
@@ -37,10 +38,10 @@ const BAR_FG_H = 0.09
 const BAR_TOP_OFFSET = 0.35
 
 export class TroopHealthBarComponent extends ActorComponent {
-  /** 前景条（血量比例 scale.x 刷新） */
-  private fg: THREE.Mesh | null = null
-  /** 背景条（固定宽度） */
-  private bg: THREE.Mesh | null = null
+  /** 前景条 MeshComponent（血量比例 scale.x 刷新） */
+  private fgComp: BoxMeshComponent | null = null
+  /** 背景条 MeshComponent（固定宽度） */
+  private bgComp: BoxMeshComponent | null = null
   /** 隐藏倒计时（秒；>0 时血条可见） */
   private hideTimer = 0
   /** 当前是否显示 */
@@ -55,33 +56,41 @@ export class TroopHealthBarComponent extends ActorComponent {
   }
 
   override BeginPlay(): void {
-    const w = this.owner.world
-    if (!w) return
+    const owner = this.owner
     // 血条位于兵模型头顶（本地坐标，attachTo 兵 Actor 随兵移动；飞行兵悬空同样适用）
     const barY = this.troop.size[1] + BAR_TOP_OFFSET
     // 一个 Actor 只能挂一个 mesh（组合网格拆子 Actor 约定，同建筑血条）
     const bgActor = new GenericActor('TroopHealthBarBg')
-    const bg = w.createBoxMesh(BAR_BG_W, BAR_BG_H, 0.05, BAR_BG_COLOR)
-    bg.position.y = barY
-    bgActor.addComponent(PrimitiveMeshComponent, bg, 'TroopHealthBarBg')
-    bgActor.attachTo(this.owner)
+    const bgGeo = createBoxGeometry(BAR_BG_W, BAR_BG_H, 0.05)
+    const bgMat = createMeshStandardMaterial({ color: BAR_BG_COLOR })
+    const bgMesh = createMesh(bgGeo, bgMat)
+    const bgComp = new BoxMeshComponent(bgActor, bgMesh, 'TroopHealthBarBg')
+    bgActor.addComponent(bgComp)
+    bgComp.mesh.position.y = barY
+    bgActor.attachTo(owner)
+    spawnActor(bgActor)
     // 前景条（绿色，左端锚定背景左端：geometry 平移使本地原点 = 左端 → scale.x 缩水时右端收缩）
     const fgActor = new GenericActor('TroopHealthBarFg')
-    const fg = w.createBoxMesh(BAR_FG_W, BAR_FG_H, 0.05, BAR_FG_COLOR)
-    fg.geometry.translate(BAR_FG_W / 2, 0, 0)
-    fg.position.set(-BAR_BG_W / 2, barY, 0)
-    fgActor.addComponent(PrimitiveMeshComponent, fg, 'TroopHealthBarFg')
-    fgActor.attachTo(this.owner)
-    this.bg = bg
-    this.fg = fg
+    const fgGeo = createBoxGeometry(BAR_FG_W, BAR_FG_H, 0.05)
+    const fgMat = createMeshStandardMaterial({ color: BAR_FG_COLOR })
+    const fgMesh = createMesh(fgGeo, fgMat)
+    const fgComp = new BoxMeshComponent(fgActor, fgMesh, 'TroopHealthBarFg')
+    fgActor.addComponent(fgComp)
+    fgComp.mesh.geometry.translate(BAR_FG_W / 2, 0, 0)
+    fgComp.mesh.position.set(-BAR_BG_W / 2, barY, 0)
+    fgActor.attachTo(owner)
+    spawnActor(fgActor)
+    this.bgComp = bgComp
+    this.fgComp = fgComp
     // 初始隐藏（放兵时血条不常驻）
     this.applyVisible(false)
   }
 
   /** 受击回调（TroopHealthComponent.takeDamage 调用）：显示 + 刷新 + 重置隐藏计时 */
   onDamaged(ratio: number): void {
-    const fg = this.fg
-    if (!fg) return
+    const fgComp = this.fgComp
+    if (!fgComp) return
+    const fg = fgComp.mesh
     const r = Math.max(0, Math.min(1, ratio))
     // 前景缩放：左端对齐缩水（geometry 已平移）
     fg.scale.x = Math.max(0.001, r)
@@ -119,7 +128,7 @@ export class TroopHealthBarComponent extends ActorComponent {
 
   /** 统一显隐（bg + fg） */
   private applyVisible(visible: boolean): void {
-    if (this.bg) this.bg.visible = visible
-    if (this.fg) this.fg.visible = visible
+    if (this.bgComp) this.bgComp.mesh.visible = visible
+    if (this.fgComp) this.fgComp.mesh.visible = visible
   }
 }

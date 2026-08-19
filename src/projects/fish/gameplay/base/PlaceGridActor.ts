@@ -11,7 +11,7 @@
  *
  * 使用：
  *   const grid = new PlaceGridActor('PlaceGrid', { min, max, step, color, opacity, y })
- *   world.SpawnActor(grid)
+ *   spawnActor(grid)
  *   grid.setVisible(true)
  */
 import * as THREE from 'three'

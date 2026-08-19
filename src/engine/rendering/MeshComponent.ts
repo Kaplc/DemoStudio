@@ -6,16 +6,16 @@
  *
  * 本类是基类：资产（blueprint/scene JSON）不得声明 baseClass: 'MeshComponent'
  * （assetLint 报错 + ComponentRegistry 未注册），必须用具体派生类：
- *   - PrimitiveMeshComponent — 基础几何（box/sphere/plane 参数化，资产通用网格）
+ *   - BoxMeshComponent     — 轴对齐盒（box 几何，建筑/障碍/不可见碰撞体）
+ *   - SphereMeshComponent  — 球体（sphere 几何，球形指示器/命中球）
+ *   - PlaneMeshComponent   — 平面（plane 几何，地面/水面/UI 背景）
  *   - CapsuleMeshComponent — 胶囊体（兵种等角色模型）
  *
- * 代码用法（THREE 对象必须经 Game 工厂创建，禁止裸 new）：
- *   const actor = new GenericActor('Cube')
- *   const mesh = game.createMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial())
- *   actor.addComponent(PrimitiveMeshComponent, mesh)
- *   world.SpawnActor(actor)
- *
  * 一个 Actor 只能挂载一个 mesh（组合网格请拆子 Actor，如 new GenericActor + attachTo）。
+ *
+ * 几何类型由派生类固定，不允许运行时跨类型切换；尺寸 setter 由各派生类实现，
+ * 颜色 / 不透明度 / 可见性 setter 由本基类提供，调用方（代码侧 / Inspector 编辑）
+ * 走两阶段：先 addComponent 再调 setter。
  */
 import * as THREE from 'three'
 import { ThreeObjectComponent } from './ThreeObjectComponent'
@@ -27,19 +27,16 @@ import { logger } from '../Logger'
 export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh>> {
   public readonly obj: ThreeObject<THREE.Mesh>
 
-  /** 几何类型（可编辑属性重建用；由构造时的 geometry 推导） */
-  private _geometryType: 'box' | 'sphere' | 'plane' = 'box'
-  /** 几何尺寸（可编辑属性重建用；box=[w,h,d] / sphere=[r,0,0] / plane=[w,h,0]） */
-  private _geoSize: [number, number, number] = [1, 1, 1]
   /** 挂载是否被拒（owner 已有 MeshComponent 时 true，mesh 不挂树、组件无效） */
   readonly rejected: boolean
 
   constructor(owner: Actor, mesh: ThreeObject<THREE.Mesh> | THREE.Mesh, name = 'MeshComponent') {
     // 抽象基类运行时保护：TS abstract 编译后 JS 不检查，这里显式拒绝直接实例化
-    // （资产/代码必须用派生类 PrimitiveMeshComponent / CapsuleMeshComponent）
+    // （资产/代码必须用派生类 BoxMeshComponent / SphereMeshComponent /
+    //  PlaneMeshComponent / CapsuleMeshComponent）
     if (new.target === MeshComponent) {
       throw new Error(
-        'MeshComponent 是抽象基类，不能直接实例化——请用派生类 PrimitiveMeshComponent（基础几何）或 CapsuleMeshComponent（胶囊体）',
+        'MeshComponent 是抽象基类，不能直接实例化——请用派生类 BoxMeshComponent / SphereMeshComponent / PlaneMeshComponent / CapsuleMeshComponent',
       )
     }
     super(owner, name)
@@ -61,39 +58,6 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
     this.rejected = false
     // 从原父节点移除，挂到 owner.root 下
     this.attachToRoot(this.obj)
-
-    // 从 geometry 推导几何类型与尺寸（供可编辑属性 setter 重建）
-    const g = this.obj.object.geometry
-    if (g instanceof THREE.SphereGeometry) {
-      this._geometryType = 'sphere'
-      this._geoSize = [g.parameters.radius, 0, 0]
-    } else if (g instanceof THREE.PlaneGeometry) {
-      this._geometryType = 'plane'
-      this._geoSize = [g.parameters.width, g.parameters.height, 0]
-    } else {
-      this._geometryType = 'box'
-      const p = (g as THREE.BoxGeometry).parameters
-      this._geoSize = [p.width ?? 1, p.height ?? 1, p.depth ?? 1]
-    }
-  }
-
-  /** 重建几何（可编辑属性 setter：尺寸/几何类型变化时调用，dispose 旧几何） */
-  private rebuildGeometry(): void {
-    const old = this.obj.object.geometry
-    let geo: THREE.BufferGeometry
-    const s = this._geoSize
-    switch (this._geometryType) {
-      case 'sphere':
-        geo = new THREE.SphereGeometry(s[0] || 0.5, 16, 16)
-        break
-      case 'plane':
-        geo = new THREE.PlaneGeometry(s[0] || 1, s[1] || 1)
-        break
-      default:
-        geo = new THREE.BoxGeometry(s[0] || 1, s[1] || 1, s[2] || 1)
-    }
-    this.obj.object.geometry = geo
-    old.dispose()
   }
 
   /** 便捷访问（语义化别名） */
@@ -101,27 +65,36 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
     return this.obj.object
   }
 
-  /**
-   * Inspector 属性展示。
-   * key 必须与 getEditableProperties() 的 key 完全一致（camelCase），
-   * Inspector 组件区按 key 匹配 editable → 渲染可编辑控件；不匹配则只读展示。
-   */
-  override getProperties(): Record<string, unknown> {
-    const mat = this.obj.object.material as THREE.MeshStandardMaterial | null
-    return {
-      geometry: this._geometryType,
-      size: [...this._geoSize] as number[],
-      color: mat?.color ? `#${mat.color.getHexString()}` : '#ffffff',
-      opacity: mat ? Math.round((mat.opacity ?? 1) * 100) / 100 : 1,
-      visible: this.obj.object.visible,
+  // ─── 公共 setter（基类共享）───
+  // 调用方应走两阶段：先 addComponent(类, mesh, name)，再调 setter 设参。
+  // 派生类各自暴露 size/radius 等几何参数 setter（不同几何 rebuild 方式不同）。
+
+  /** 颜色（同步 mat.color；不做动画，调用方自行过渡） */
+  setColor(color: THREE.ColorRepresentation): void {
+    const m = this.obj.object.material as THREE.MeshStandardMaterial | null
+    if (m?.color) m.color.set(color)
+  }
+
+  /** 不透明度（自动开 transparent） */
+  setOpacity(opacity: number): void {
+    const m = this.obj.object.material as THREE.MeshStandardMaterial | null
+    if (m) {
+      m.transparent = true
+      m.opacity = Math.max(0, Math.min(1, opacity))
     }
   }
 
   /**
-   * Inspector 可编辑属性（camelCase 与 JSON 属性名一致）：
-   * geometry 几何类型 / size 尺寸 / color 颜色 / opacity 不透明度 / visible 可见性。
-   * 一个 Actor 一个 MeshComponent 的约定下，这些属性精确对应"本 actor 的几何"，
-   * 修改后经场景预览撤回系统（commitPropertyEdit）进撤销栈，undo 原地回滚。
+   * 派生类各自实现的尺寸 setter（box.size / sphere.radius / plane.size / capsule.radius+length）。
+   * 抽象方法存在仅为类型提示；TS 不会强制派生类实现（TS 4.x abstract method 不检查），
+   * 派生类各自暴露同名 setter 与 getter。
+   */
+  // 注：基类不强制声明 abstract getter/setter——派生类签名差异太大（box 是 [w,h,d]，plane 是 [w,h]，
+  // sphere 是 number），强行 abstract 反而要派生类写复杂签名。基类只提供 color/opacity/visible 三件套。
+
+  /**
+   * 基类共享的可编辑属性：color / opacity / visible。
+   * 几何类型与几何尺寸由各派生类暴露（各自 getEditableProperties 合并 size/radius/length）。
    */
   override getEditableProperties(): EditableProperty[] {
     const mat = this.obj.object.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial | null
@@ -132,32 +105,9 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
     }
     return [
       {
-        key: 'geometry', type: 'enum',
-        options: ['box', 'sphere', 'plane'],
-        get: () => this._geometryType,
-        set: (v) => {
-          const t = v as 'box' | 'sphere' | 'plane'
-          if (t === this._geometryType) return
-          this._geometryType = t
-          this.rebuildGeometry()
-        },
-      },
-      {
-        key: 'size', type: 'vec3', step: 0.1,
-        get: () => [...this._geoSize] as number[],
-        set: (v) => {
-          const arr = v as number[]
-          this._geoSize = [arr[0] ?? 1, arr[1] ?? 1, arr[2] ?? 1]
-          this.rebuildGeometry()
-        },
-      },
-      {
         key: 'color', type: 'color',
         get: getColor,
-        set: (v) => {
-          const m = this.obj.object.material as THREE.MeshStandardMaterial | null
-          if (m?.color) m.color.set(v as string)
-        },
+        set: (v) => this.setColor(v as string),
       },
       {
         key: 'opacity', type: 'number', step: 0.05, min: 0, max: 1,
@@ -165,13 +115,7 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
           const m = this.obj.object.material as THREE.MeshStandardMaterial | null
           return m ? Math.round((m.opacity ?? 1) * 100) / 100 : 1
         },
-        set: (v) => {
-          const m = this.obj.object.material as THREE.MeshStandardMaterial | null
-          if (m) {
-            m.transparent = true
-            m.opacity = Math.max(0, Math.min(1, v as number))
-          }
-        },
+        set: (v) => this.setOpacity(v as number),
       },
       {
         key: 'visible', type: 'boolean',

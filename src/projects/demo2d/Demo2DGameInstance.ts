@@ -16,9 +16,8 @@ export class Demo2DGameInstance extends GameInstance {
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
 
-  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super(new World(sharedScene))
-    this.renderContainer = renderContainer ?? null
+  constructor(renderContainer?: HTMLElement | null) {
+    super(new World(), renderContainer ?? null)
     this.gameMode = new Demo2DGameMode()
     this.world.SetGameMode(this.gameMode)
     this.world.Stop()

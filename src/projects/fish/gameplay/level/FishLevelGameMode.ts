@@ -19,7 +19,7 @@
  * 由 FishGameInstance.setupLevelPhase SpawnActor 托管并注册。
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, GameInstance, PrimitiveMeshComponent } from '@/engine'
+import { GameMode, PhySys, logger, GameInstance, CapsuleMeshComponent } from '@/engine'
 import { BaseCameraActor } from '../base/BaseCameraActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from '../base/ClashBuildingTypes'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
@@ -33,6 +33,7 @@ import { TroopHealthBarComponent } from '../common/comp/TroopHealthBarComponent'
 import { LootFlyFx } from '../common/fx/LootFlyFx'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
+import { NavigationModule } from '@/engine/navigation/NavigationModule'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交（放兵点换算） */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -45,6 +46,9 @@ const MELEE_PROJ_SPEED = 25
 export class FishLevelGameMode extends GameMode {
   /** 战斗摄像机 Actor（与基地同款：透视 + 滚轮 + 右键平移，云台组件内聚） */
   readonly baseCamera: BaseCameraActor
+
+  /** 寻路模块（A* 导航） */
+  readonly navigation: NavigationModule
 
   /** 战斗 HUD 蓝图：兵种卡片栏 + 已部署统计 */
   override HUDClass = 'asset/blueprints/ui/battle_hud.widget.json'
@@ -92,6 +96,8 @@ export class FishLevelGameMode extends GameMode {
     this.baseCamera = new BaseCameraActor()
     // 关闭屏幕边缘自动平移（部落冲突风格：滚轮缩放 + 右键平移）
     this.baseCamera.rig.setEdgePanEnabled(false)
+    // 寻路模块
+    this.navigation = new NavigationModule()
   }
 
   override InitGame() {
@@ -152,7 +158,7 @@ export class FishLevelGameMode extends GameMode {
       const from = new THREE.Vector3(b.root.position.x, b.type.height + 0.5, b.root.position.z)
       const to = new THREE.Vector3(target.root.position.x, target.root.position.y + 0.5, target.root.position.z)
       const proj = new BattleProjectileActor(this, from, to, TOWER_PROJ_SPEED, defense.damage, 0x90a4ae, target)
-      this.world?.SpawnActor(proj)
+      this.world?.actorMgr.SpawnActor(proj)
       logger.info(`[BattleGM] 防御塔 @ (${b.root.position.x.toFixed(1)},${b.root.position.z.toFixed(1)}) 开火 → ${target.troop.name}`)
     }
     // ─── 失败判定：部署过兵且场上兵全灭、军队耗尽 → 败 ───
@@ -360,7 +366,7 @@ export class FishLevelGameMode extends GameMode {
     const from = new THREE.Vector3(troop.root.position.x, troop.root.position.y + 0.6, troop.root.position.z)
     const to = new THREE.Vector3(building.root.position.x, building.type.height / 2 + 0.3, building.root.position.z)
     const proj = new BattleProjectileActor(this, from, to, speed, damage, troop.troop.color, building)
-    w.SpawnActor(proj)
+    w.actorMgr.SpawnActor(proj)
     logger.info(`[BattleGM] ${troop.troop.name} 攻击 ${building.type.name}（伤害 ${Math.round(damage)}，${isMelee ? '近战挥砍' : '远程射击'}）`)
   }
 
@@ -501,7 +507,7 @@ export class FishLevelGameMode extends GameMode {
       return false
     }
     // ─── 严格模式：兵种模型蓝图预检（模型先于军队扣除实例化，失败 = 放兵失败不消耗军队） ───
-    const modelActor = this.world?.SpawnActorFromBlueprint(troop.blueprint)
+    const modelActor = this.world?.actorMgr.SpawnActorFromBlueprint(troop.blueprint)
     if (!modelActor) {
       if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 模型蓝图加载失败（${troop.blueprint}），已拒绝放兵`)
       return false
@@ -518,7 +524,7 @@ export class FishLevelGameMode extends GameMode {
       modelActor.destroy()
       return false
     }
-    this.world?.SpawnActor(actor)
+    this.world?.actorMgr.SpawnActor(actor)
     this.troops.push(actor)
     this.deployedCount++
     logger.info(`[BattleGM] 部署兵: ${troop.name} @ (${x.toFixed(1)},${z.toFixed(1)})（场上 ${this.troops.length} 个，累计 ${this.deployedCount}）`)
@@ -546,7 +552,7 @@ export class FishLevelGameMode extends GameMode {
   getTroopModelSummary(): Array<{ name: string; geo: string; visible: boolean }> {
     return this.troops.map((t) => {
       const model = t.getChildren()[0]
-      const mesh = model?.getComponent(PrimitiveMeshComponent)
+      const mesh = model?.getComponent(CapsuleMeshComponent)
       const meshObj = mesh?.mesh
       return {
         name: t.troop.name,

@@ -8,6 +8,7 @@ import { PlayerController } from '../input/PlayerController'
 import { InputSys } from '../input/InputSys'
 import { AObject } from '../entity/AObject'
 import { GMModule } from '../gm/GMModule'
+import { GameViewportComponent } from './GameViewportComponent'
 import type { World } from './World'
 
 export interface GameInstanceCallbacks {
@@ -33,9 +34,13 @@ export abstract class GameInstance extends AObject {
   /** 当前实例关联的 World（子类在 super() 时传入） */
   readonly world: World
 
-  constructor(world: World) {
+  /** 游戏视口组件（持有渲染容器 DOM） */
+  readonly viewport: GameViewportComponent
+
+  constructor(world: World, container: HTMLElement | null) {
     super()
     this.world = world
+    this.viewport = this.addComponent(GameViewportComponent, container)
   }
 
   getWorld(): World | null {
@@ -47,12 +52,6 @@ export abstract class GameInstance extends AObject {
 
   /** GM 命令模块（调试命令系统：控制台面板 + ai.gmCommand 桥接；生命周期随实例） */
   readonly gm = new GMModule(this)
-
-  /**
-   * Game 视口渲染容器（启动游戏时由 Viewport 传入）。
-   * 传递给 World 用于创建 SceneRendererComponent（游戏视口渲染器）。
-   */
-  renderContainer: HTMLElement | null = null
 
   /**
    * 初始场景阶段/模式标识，由 Viewport 从 defaultScene 的 SceneAsset.mode 读取并注入。

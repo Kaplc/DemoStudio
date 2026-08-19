@@ -93,12 +93,16 @@ class AssetLintEngine {
     this.onProjectChanged(useEditorStore.getState().currentProject?.folder ?? null)
   }
 
-  /** 工程切换：停旧监听 → 新工程建立监听 + 全量扫描。 */
+  /** 工程切换：停旧监听 → 清面板旧数据 → 新工程建立监听 + 全量扫描。 */
   private onProjectChanged(folder: string | null): void {
     this.stopWatch()
     // 切换工程：清空面板资产问题（避免展示上一工程的违规）
     useCodeLintStore.getState().setAssetIssues([])
-    if (!folder) return
+    // 无有效工程：停止扫描与监听（防御：空字符串也视为无效）
+    if (!folder) {
+      logger.info('[AssetLint] 工程切换: 无工程 → 停止扫描与监听')
+      return
+    }
     this.startWatch(folder)
     void this.scanOnce()
   }

@@ -14,7 +14,8 @@
  * 便于 BlueprintEditor 与 Outline 无缝切换使用。
  */
 import * as THREE from 'three'
-import { World } from '../../engine'
+import { World, EditorActorComponent } from '../../engine'
+import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { BlueprintRegistry } from '../../engine'
 import { Actor } from '../../engine/entity/Actor'
@@ -213,7 +214,7 @@ export class UIPreviewManager {
     this.boundsCtx = this.boundsCanvas.getContext('2d')!
 
     // ─── World ───
-    this.world = new World(this.scene)
+    this.world = new World()
 
     // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
     this._onContextLost = (e: Event) => {
@@ -680,7 +681,7 @@ export class UIPreviewManager {
     // 收集所有 Actor root 下的 Mesh，建立 mesh → actor 映射
     const meshes: THREE.Mesh[] = []
     const actorByMesh = new Map<THREE.Object3D, Actor>()
-    for (const actor of this.world.GetAllActors()) {
+    for (const actor of getAllActors(this.world)) {
       actor.root.traverse((obj) => {
         if ((obj as THREE.Mesh).isMesh) {
           meshes.push(obj as THREE.Mesh)
@@ -771,7 +772,7 @@ export class UIPreviewManager {
     const asset = BlueprintRegistry.get(path)
     this._jsonTree = asset ? (JSON.parse(JSON.stringify(asset)) as Record<string, unknown>) : null
 
-    const actor = this.world.SpawnActorFromBlueprint(path, undefined)
+    const actor = this.world.getComponent(EditorActorComponent)!.Instantiate(path, undefined)
     if (!actor) {
       logger.warn(`[UIPreview] SpawnActorFromBlueprint("${path}") 失败`)
       return false
@@ -1858,7 +1859,7 @@ export class UIPreviewManager {
 
   /** 按名称查找并聚焦 */
   focusOnActor(actorName: string): boolean {
-    const allActors = this.world.GetAllActors()
+    const allActors = getAllActors(this.world)
     for (const actor of allActors) {
       if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
         this.focusActor(actor)

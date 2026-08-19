@@ -28,8 +28,8 @@ export interface ProjectModule {
   /** 游戏名称（也是注册用的 key） */
   readonly name: string
 
-  /** 创建游戏实例的工厂函数（renderContainer = Game 视口渲染容器，可选） */
-  createGameInstance: (scene: THREE.Scene, renderContainer?: HTMLElement | null) => GameInstance
+  /** 创建游戏实例的工厂函数（World.sceneComp.scene 在 World 内部获取，renderContainer = Game 视口渲染容器，可选） */
+  createGameInstance: (renderContainer?: HTMLElement | null) => GameInstance
 
   /** 初始化配置表（可选）。异步加载 JSON 覆盖默认值 */
   initConfigs?: (log: (message: string) => void) => void
@@ -89,7 +89,7 @@ export function registerAllProjectModules(
 
   for (const project of ALL_PROJECTS) {
     // 游戏实例工厂
-    GameFactoryRegistry.register(project.name, (scene, container) => project.createGameInstance(scene, container))
+    GameFactoryRegistry.register(project.name, (container) => project.createGameInstance(container))
     log(`[Game] ${project.name} 游戏工厂已注册`)
   }
 }

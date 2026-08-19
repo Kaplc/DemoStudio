@@ -8,7 +8,6 @@ export function Console() {
     consoleOutput,
     addConsoleOutput,
     clearConsole,
-    addConsoleError,
     gameState,
     launchGame,
     stopGame,
@@ -20,16 +19,6 @@ export function Console() {
   useEffect(() => {
     logger.setOutputCallback(addConsoleOutput)
   }, [addConsoleOutput])
-
-  // 监听 Logger，将 ERROR/WARN 自动写入 consoleErrors（报错悬浮面板）
-  useEffect(() => {
-    const unsubscribe = logger.addListener((level, text) => {
-      if (level === 'error' || level === 'warn') {
-        addConsoleError(text)
-      }
-    })
-    return unsubscribe
-  }, [addConsoleError])
 
   useEffect(() => {
     if (outputRef.current) {

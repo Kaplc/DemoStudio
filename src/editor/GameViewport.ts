@@ -6,7 +6,7 @@
  *  - Game 视口鼠标输入路由（→ InputSys / PlayerController）
  *  - 坐标转换
  *
- * 注：SceneRendererComponent（渲染器）由 Game 启动时从 instance.renderContainer
+ * 注：SceneRendererComponent（渲染器）由 Game 启动时从 instance.viewport.container
  * 取 DOM 创建并交给 World 持有，本文件不再负责创建。
  */
 import * as THREE from 'three'

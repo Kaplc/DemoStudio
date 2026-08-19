@@ -65,7 +65,7 @@ export class SnakeGameMode extends GameMode {
     this.foodGridPos = this.generateFoodPosition(snakePositions)
     this.foodPawn = new SnakeFoodPawn()
     this.spawnComponent.SpawnPawnAt(this.foodPawn, this.foodGridPos.x + 0.5, 0.4, this.foodGridPos.z + 0.5)
-    this.world?.SpawnActor(this.foodPawn)
+    this.world?.actorMgr.SpawnActor(this.foodPawn)
   }
 
   /** 重新生成食物 */
@@ -86,7 +86,7 @@ export class SnakeGameMode extends GameMode {
     }
     this.foodPawn = new SnakeFoodPawn()
     this.spawnComponent.SpawnPawnAt(this.foodPawn, pos.x + 0.5, 0.4, pos.z + 0.5)
-    this.world?.SpawnActor(this.foodPawn)
+    this.world?.actorMgr.SpawnActor(this.foodPawn)
   }
 
   /** 吃食物时调用 */

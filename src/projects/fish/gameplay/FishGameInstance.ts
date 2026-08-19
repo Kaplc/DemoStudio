@@ -5,7 +5,7 @@
  * 并通过场景资产（JSON）切换场景氛围。
  */
 import * as THREE from 'three'
-import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService, TweenSystem } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService, TweenSystem, spawnActor } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -54,9 +54,8 @@ export class FishGameInstance extends GameInstance {
   /** 防止 stop() 被重复调用 */
   private _stopped = false
 
-  constructor(sharedScene: THREE.Scene, renderContainer?: HTMLElement | null) {
-    super(new World(sharedScene))
-    this.renderContainer = renderContainer ?? null
+  constructor(renderContainer?: HTMLElement | null) {
+    super(new World(), renderContainer ?? null)
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
     // 资源组件：金币 + 药水（跨阶段共享钱包，初始金币 100，药水 0）
@@ -431,8 +430,8 @@ export class FishGameInstance extends GameInstance {
     mode.onStartFishing = () => this.startGameplay()
     mode.onClaimCoins = () => this.claimCoins()
     // 部落冲突基地：游戏自己的摄像机 actor（BaseCameraActor，每 new 一次都是新摄像机）
-    // 交给 World 托管（SpawnActor）：由 World 自动驱动 Tick（边缘平移检测）/BeginPlay/销毁生命周期
-    this.world.SpawnActor(mode.baseCamera)
+    // 交给 World 托管（spawnActor）：由 World 自动驱动 Tick（边缘平移检测）/BeginPlay/销毁生命周期
+    spawnActor(mode.baseCamera)
     this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
     if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.baseCamera.camera, this.world.gameRenderer.uiLayer)
@@ -489,7 +488,7 @@ export class FishGameInstance extends GameInstance {
     const mode = this.world.gameMode as FishLevelGameMode
     this._levelGameMode = mode
     // 战斗摄像机 actor（与基地一致：每个关卡 new 一个新摄像机）
-    this.world.SpawnActor(mode.baseCamera)
+    spawnActor(mode.baseCamera)
     this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
     // UI 点击：初始化 PhySys 射线检测（战斗相机 + 屏幕坐标换算容器）

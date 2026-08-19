@@ -11,36 +11,63 @@
  *
  * 用法（蓝图资产 components 数组）：
  *   { "baseClass": "CapsuleMeshComponent", "properties": { "radius": 0.4, "length": 0.3, "color": "#e53935" } }
+ *
+ * 两阶段代码创建：
+ *   const geo = createCapsuleGeometry(0.4, 0.3)
+ *   const mat = createMeshStandardMaterial({ color: 0xe53935 })
+ *   const mesh = world.factory.createMesh(geo, mat)
+ *   const comp = actor.addComponent(CapsuleMeshComponent, mesh, 'Capsule') as CapsuleMeshComponent
+ *   comp.radius = 0.4
+ *   comp.length = 0.3
+ *   comp.color = '#e53935'
  */
 import * as THREE from 'three'
 import { MeshComponent } from './MeshComponent'
+import { createCapsuleGeometry } from '../gameflow/ThreeObjectUtils'
 import type { Actor } from '../entity/Actor'
 import type { EditableProperty } from '../entity/ActorComponent'
 
 export class CapsuleMeshComponent extends MeshComponent {
   /** 胶囊半径（可编辑属性） */
-  private _radius: number
+  private _radius: number = 0.3
   /** 圆柱段长度（可编辑属性；0 = 纯球） */
-  private _length: number
+  private _length: number = 0.3
 
   constructor(
     owner: Actor,
-    radius: number,
-    length: number,
-    color: number | string,
+    mesh: ConstructorParameters<typeof MeshComponent>[1],
     name = 'CapsuleMeshComponent',
   ) {
-    const geo = new THREE.CapsuleGeometry(radius, Math.max(0, length), 4, 12)
-    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color) })
-    super(owner, new THREE.Mesh(geo, mat), name)
-    this._radius = radius
-    this._length = Math.max(0, length)
+    super(owner, mesh, name)
+    // 从已挂载 mesh.geometry.parameters 推导（如果有）
+    const g = (mesh as THREE.Mesh).geometry as THREE.CapsuleGeometry
+    const p = g.parameters as { radius?: number; length?: number } | undefined
+    if (p?.radius !== undefined) this._radius = p.radius
+    if (p?.length !== undefined) this._length = p.length
+  }
+
+  /** 半径 setter */
+  set radius(v: number) {
+    this._radius = Math.max(0.01, v)
+    this.rebuildCapsule()
+  }
+  get radius(): number {
+    return this._radius
+  }
+
+  /** 长度 setter（0 = 纯球） */
+  set length(v: number) {
+    this._length = Math.max(0, v)
+    this.rebuildCapsule()
+  }
+  get length(): number {
+    return this._length
   }
 
   /** 重建胶囊几何（尺寸变化时调用） */
   private rebuildCapsule(): void {
     const old = this.obj.object.geometry
-    this.obj.object.geometry = new THREE.CapsuleGeometry(this._radius, this._length, 4, 12)
+    this.obj.object.geometry = createCapsuleGeometry(this._radius, this._length, 4, 12)
     old.dispose()
   }
 
@@ -56,29 +83,20 @@ export class CapsuleMeshComponent extends MeshComponent {
     }
   }
 
-  /** 胶囊体可编辑属性：radius/length 尺寸 + color（几何类型固定胶囊，不可切换） */
+  /** 胶囊体可编辑属性：radius/length 尺寸 + 继承基类的 color/opacity/visible */
   override getEditableProperties(): EditableProperty[] {
-    const base = super.getEditableProperties()
-    // 去掉 base 的 geometry/size（胶囊几何由 radius/length 参数化驱动）
-    const rest = base.filter((p) => p.key !== 'geometry' && p.key !== 'size')
     return [
       {
         key: 'radius', type: 'number', step: 0.05, min: 0,
         get: () => Math.round(this._radius * 100) / 100,
-        set: (v) => {
-          this._radius = Math.max(0.01, v as number)
-          this.rebuildCapsule()
-        },
+        set: (v) => { this.radius = v as number },
       },
       {
         key: 'length', type: 'number', step: 0.05, min: 0,
         get: () => Math.round(this._length * 100) / 100,
-        set: (v) => {
-          this._length = Math.max(0, v as number)
-          this.rebuildCapsule()
-        },
+        set: (v) => { this.length = v as number },
       },
-      ...rest,
+      ...super.getEditableProperties(),
     ]
   }
 }

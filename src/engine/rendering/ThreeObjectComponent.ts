@@ -16,9 +16,8 @@
  *
  * 用法：
  *   const actor = new GenericActor('Obj')
- *   const obj = game.createMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial())
- *   actor.addComponent(PrimitiveMeshComponent, obj)
- *   world.SpawnActor(actor)   // EndPlay 时自动释放
+ *   actor.addComponent(BoxMeshComponent.CreateBox(actor, 'Box', 1, 1, 1, 0xffffff))
+ *   spawnActor(actor)   // EndPlay 时自动释放
  */
 import * as THREE from 'three'
 import { ThreeObject } from './ThreeObject'

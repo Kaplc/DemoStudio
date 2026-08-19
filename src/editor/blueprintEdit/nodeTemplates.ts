@@ -56,9 +56,8 @@ export const NODE3D_TEMPLATES: NodeTemplate[] = [
         },
       },
       {
-        baseClass: 'PrimitiveMeshComponent',
+        baseClass: 'BoxMeshComponent',
         properties: {
-          geometry: 'box',
           size: [1, 1, 1],
           color: '#ffffff',
         },
@@ -79,10 +78,9 @@ export const NODE3D_TEMPLATES: NodeTemplate[] = [
         },
       },
       {
-        baseClass: 'PrimitiveMeshComponent',
+        baseClass: 'SphereMeshComponent',
         properties: {
-          geometry: 'sphere',
-          size: [0.5],
+          radius: 0.5,
           color: '#ffffff',
         },
       },
@@ -102,9 +100,8 @@ export const NODE3D_TEMPLATES: NodeTemplate[] = [
         },
       },
       {
-        baseClass: 'PrimitiveMeshComponent',
+        baseClass: 'PlaneMeshComponent',
         properties: {
-          geometry: 'plane',
           size: [2, 2],
           color: '#ffffff',
         },

@@ -1,7 +1,7 @@
 /**
  * BattleProjectileActor — 战斗弹丸 Actor（防御塔炮弹 / 兵远程箭矢 / 近战挥砍）
  *
- * 由 FishLevelGameMode 开火时生成（World.SpawnActor 托管）：
+ * 由 FishLevelGameMode 开火时生成（spawnActor 托管）：
  * 构造时指定 起点/终点/速度/目标建筑或兵，覆写 Tick 直线飞行：
  *  - 命中（距目标 < 0.4 或飞行距离超过总路程）→ 对目标扣血 → 自毁
  *  - 近战挥砍（speed 很大、路程短）视觉上等同快速弹丸，无需独立动画
@@ -9,7 +9,8 @@
  * 网格：小球体（颜色区分来源：防御塔暗灰、己方兵兵种色）。
  */
 import * as THREE from 'three'
-import { GenericActor, PrimitiveMeshComponent, logger } from '@/engine'
+import { GenericActor, BoxMeshComponent, logger } from '@/engine'
+import { createMesh, createBoxGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import type { TroopActor } from './troops/TroopActors'
@@ -68,11 +69,15 @@ export class BattleProjectileActor extends GenericActor {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    const w = this.world
-    if (!w) return
+    if (!this.world) return
     // 小立方体弹丸（0.3×0.3×0.3，颜色区分来源：防御塔暗灰、己方兵兵种色）
-    const mesh = w.createBoxMesh(0.3, 0.3, 0.3, this._color)
-    this.addComponent(PrimitiveMeshComponent, mesh, 'ProjMesh')
+    // 阶段 1：构造 BoxGeometry + MeshBasicMaterial（走 utils → GC 追踪）
+    const geo = createBoxGeometry(0.3, 0.3, 0.3)
+    const mat = createMeshBasicMaterial({ color: this._color })
+    const mesh = createMesh(geo, mat)
+    // 阶段 2：addComponent + setter 设参
+    const comp = this.addComponent(BoxMeshComponent, mesh, 'ProjMesh') as BoxMeshComponent
+    comp.size = [0.3, 0.3, 0.3]
   }
 
   /**

@@ -265,7 +265,7 @@ export class UIManager extends AObjectComponent<World> {
     if (resolved.name) {
       actor.root.name = resolved.name
     }
-    this.owner.SpawnActor(actor)
+    this.owner.actorMgr.SpawnActor(actor)
 
     // 4.5 失活属性：active=false 时节点已创建但不渲染（作用于整个子树）
     if (resolved.active === false) {
@@ -320,7 +320,7 @@ export class UIManager extends AObjectComponent<World> {
   createHUD(hudClass: string): HUD | null {
     const hud = new HUD()
     hud.blueprintPath = hudClass
-    this.owner.SpawnActor(hud)
+    this.owner.actorMgr.SpawnActor(hud)
 
     const ui = this.spawnUIActor(hudClass, hud)
     if (ui) hud.attachUI(ui)

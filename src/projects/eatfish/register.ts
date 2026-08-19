@@ -6,6 +6,6 @@ import { EatFishGameInstance, initEatFishConfigs } from './'
 
 export const eatFishProject: ProjectModule = {
   name: 'EatFish',
-  createGameInstance: (scene, renderContainer) => new EatFishGameInstance(scene, renderContainer),
+  createGameInstance: (renderContainer) => new EatFishGameInstance(renderContainer),
   initConfigs: initEatFishConfigs,
 }

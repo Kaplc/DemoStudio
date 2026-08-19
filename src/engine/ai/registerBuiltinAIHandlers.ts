@@ -46,9 +46,11 @@ import {
 import { logger } from '../Logger'
 import { World } from '../gameflow/World'
 import { ActorRegistry } from '../tools/ActorRegistry'
+import { Instantiate } from '../asset/BlueprintAsset'
 import { ToastSystem } from '../ui/ToastSystem'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
+import { destroyActor, getAllActors, spawnActor } from '../gameflow/ActorUtils'
 
 /** 需要运行中 World 的守卫：返回 world 或 null（并提示） */
 function requireWorld(ctx: AIEventContext): World | null {
@@ -70,7 +72,7 @@ function findActorByName(world: World, name: string) {
     return null
   }
   // 搜索 3D Actor
-  for (const a of world.GetAllActors()) {
+  for (const a of getAllActors(world)) {
     const hit = walk(a)
     if (hit) return hit
   }
@@ -152,12 +154,12 @@ export function registerBuiltinAIHandlers(): void {
 
     let actor = null
     if (p.blueprint) {
-      actor = world.SpawnActorFromBlueprint(p.blueprint, undefined)
+      actor = Instantiate(p.blueprint)
       if (!actor) return { ok: false, error: `蓝图生成失败: ${p.blueprint}` }
     } else if (p.baseClass) {
       actor = ActorRegistry.create(p.baseClass)
       if (!actor) return { ok: false, error: `baseClass 未注册: ${p.baseClass}` }
-      world.SpawnActor(actor)
+      spawnActor(actor)
       // 立即提交生成（否则要等下一帧 manualTick 才进入 allActors，随后的 transform/destroy 会找不到）
       world.manualTick(0)
     } else {
@@ -181,7 +183,7 @@ export function registerBuiltinAIHandlers(): void {
     if (!p.name) return { ok: false, error: '缺少 name' }
     const actor = findActorByName(world, p.name)
     if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
-    world.DestroyActor(actor)
+    destroyActor(world, actor)
     world.manualTick(0) // 立即提交销毁，保证后续 getState 即时反映
     logger.info(`[AI] destroyActor: ${p.name}`)
     return { ok: true, name: p.name }
@@ -264,7 +266,7 @@ export function registerBuiltinAIHandlers(): void {
       actorCount: (world?.actorCount ?? 0) + (world?.ui.actorCount ?? 0),
       actors: world
         ? [
-            ...world.GetAllActors().map(mapActor),
+            ...getAllActors(world).map(mapActor),
             ...world.ui.getAllUIActors().map(mapActor),
           ]
         : [],

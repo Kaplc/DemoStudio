@@ -112,14 +112,14 @@ export class SceneRendererComponent extends AObjectComponent<World> {
 
   /**
    * 创建游戏视口渲染器组件。
-   * DOM 容器自行从当前活跃实例获取（GameInstance.current.renderContainer）。
+   * DOM 容器自行从当前活跃实例的 viewport 组件获取。
    * 由 World.ensureGameRenderer 负责创建并挂载到 World；调用方须保证已有活跃实例且带渲染容器。
    */
   constructor(owner: World, options: SceneRendererComponentOptions = {}) {
     super(owner)
-    const container = GameInstance.current?.renderContainer
+    const container = GameInstance.current?.viewport.container
     if (!container) {
-      throw new Error('[SceneRendererComponent] 无当前 GameInstance 或 renderContainer，无法创建渲染器（请先 Game.createInstance）')
+      throw new Error('[SceneRendererComponent] 无当前 GameInstance 或 viewport.container，无法创建渲染器（请先 Game.createInstance）')
     }
     this.container = container
     this.cameraMode = options.cameraMode ?? 'perspective'
