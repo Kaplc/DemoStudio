@@ -155,6 +155,27 @@ class CapsuleMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:CapsuleMeshComponent', CapsuleMeshComponentChecker)
 
+/** comp:LightComponent — 灯光（场景资产灯光声明）：type/color/intensity/castShadow 等。定位由 TransformComponent 承载。 */
+class LightComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:LightComponent'
+  schema: FieldSpec[] = [
+    {
+      field: 'properties.type', type: 'string',
+      enum: ['directional', 'point', 'ambient', 'hemisphere', 'spot'],
+      label: '灯光类型',
+    },
+    { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.intensity', type: 'number', min: 0, label: '强度' },
+    { field: 'properties.distance', type: 'number', min: 0, label: '照射距离' },
+    { field: 'properties.decay', type: 'number', min: 0, label: '衰减' },
+    { field: 'properties.angle', type: 'number', min: 0, label: '锥角' },
+    { field: 'properties.penumbra', type: 'number', min: 0, label: '半影' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:LightComponent', LightComponentChecker)
+
 /** 碰撞体组件公共 properties schema（三个碰撞组件共用；bodyType/mass/group/mask/offset/linearDamping/lockY） */
 const COLLIDER_COMMON_SCHEMA: FieldSpec[] = [
   { field: 'properties.bodyType', type: 'string', enum: ['static', 'dynamic'], label: '刚体类型' },

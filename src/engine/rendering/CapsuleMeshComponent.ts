@@ -39,9 +39,9 @@ export class CapsuleMeshComponent extends MeshComponent {
     name = 'CapsuleMeshComponent',
   ) {
     super(owner, mesh, name)
-    // 从已挂载 mesh.geometry.parameters 推导（如果有）
-    const g = (mesh as THREE.Mesh).geometry as THREE.CapsuleGeometry
-    const p = g.parameters as { radius?: number; length?: number } | undefined
+    // 从已挂载 mesh.geometry.parameters 推导（入参可能是 ThreeObject，统一读 this.obj.object）
+    const g = this.obj.object.geometry as THREE.CapsuleGeometry
+    const p = g?.parameters as { radius?: number; length?: number } | undefined
     if (p?.radius !== undefined) this._radius = p.radius
     if (p?.length !== undefined) this._length = p.length
   }

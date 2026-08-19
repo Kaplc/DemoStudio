@@ -22,6 +22,7 @@
  */
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
+import { TransformComponent } from '../entity/TransformComponent'
 import { GenericActor } from '../entity/GenericActor'
 import { AObjectComponent } from '../entity/AObjectComponent'
 import { ensureUITransformComponent } from './UITransformComponent'
@@ -167,6 +168,13 @@ export class UIManager extends AObjectComponent<World> {
 
     // 2. Component
     for (const cdef of resolved.components) {
+      // TransformComponent 复用：Actor 构造已自带（UE RootComponent 语义），
+      // 蓝图再声明时对已有实例应用属性即可，避免重复挂载（同名组件警告 + 双重组件）
+      const existingTf = cdef.baseClass === 'TransformComponent' ? actor.getComponent(TransformComponent) : null
+      if (existingTf) {
+        ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+        continue
+      }
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
@@ -205,6 +213,12 @@ export class UIManager extends AObjectComponent<World> {
             }
             if (child.components) {
               for (const cdef of child.components) {
+                // TransformComponent 复用：子 Actor 构造已自带，避免重复挂载
+                const existingTf = cdef.baseClass === 'TransformComponent' ? childActor.getComponent(TransformComponent) : null
+                if (existingTf) {
+                  ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+                  continue
+                }
                 const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
                 if (comp) {
                   if (cdef.name) comp.name = cdef.name

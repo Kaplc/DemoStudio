@@ -7,6 +7,47 @@
   "objects": [
     {
       "type": "actor",
+      "name": "KeyLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [15, 25, 10],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "color": "#ffffff",
+            "intensity": 1.2,
+            "castShadow": true,
+            "name": "KeyLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "AmbientLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "ambient",
+            "color": "#ffffff",
+            "intensity": 0.7,
+            "name": "AmbientLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
       "name": "BattleGround",
       "baseClass": "Actor",
       "components": [

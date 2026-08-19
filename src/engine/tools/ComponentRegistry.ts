@@ -46,6 +46,17 @@ export class ComponentRegistry {
     return comp
   }
 
+  /**
+   * 用 props 配置已有组件（复用场景）：Actor 构造已自带 TransformComponent 时，
+   * 蓝图声明的 TransformComponent 不再重复创建，改为对已有实例应用属性。
+   */
+  static configure(comp: BObjectComponent, type: string, props?: PropertyPatch): void {
+    const entry = ComponentRegistry.entries.get(type)
+    if (entry?.configure && props) {
+      entry.configure(comp, props)
+    }
+  }
+
   /** 检查是否已注册 */
   static has(type: string): boolean {
     return ComponentRegistry.entries.has(type)

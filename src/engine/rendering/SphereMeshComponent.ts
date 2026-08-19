@@ -29,8 +29,8 @@ export class SphereMeshComponent extends MeshComponent {
     name = 'SphereMeshComponent',
   ) {
     super(owner, mesh, name)
-    // 从已挂载 mesh.geometry.parameters 推导真实半径
-    const g = (mesh as THREE.Mesh).geometry
+    // 从已挂载 mesh.geometry.parameters 推导真实半径（入参可能是 ThreeObject，统一读 this.obj.object）
+    const g = this.obj.object.geometry
     const p = (g as THREE.SphereGeometry).parameters
     this._radius = p.radius ?? 0.5
   }

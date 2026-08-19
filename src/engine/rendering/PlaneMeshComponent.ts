@@ -29,7 +29,8 @@ export class PlaneMeshComponent extends MeshComponent {
     name = 'PlaneMeshComponent',
   ) {
     super(owner, mesh, name)
-    const g = (mesh as THREE.Mesh).geometry
+    // 从已挂载 mesh.geometry.parameters 推导真实尺寸（入参可能是 ThreeObject，统一读 this.obj.object）
+    const g = this.obj.object.geometry
     const p = (g as THREE.PlaneGeometry).parameters
     this._size = [p.width ?? 1, p.height ?? 1]
   }

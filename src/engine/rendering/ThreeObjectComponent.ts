@@ -16,7 +16,9 @@
  *
  * 用法：
  *   const actor = new GenericActor('Obj')
- *   actor.addComponent(BoxMeshComponent.CreateBox(actor, 'Box', 1, 1, 1, 0xffffff))
+ *   const comp = actor.addComponent(BoxMeshComponent, 'Box') // 组件内部默认创建 BoxGeometry(1,1,1)
+ *   comp.size = [1, 1, 1]
+ *   comp.setMaterial(createMeshBasicMaterial({ color: 0xffffff }))
  *   spawnActor(actor)   // EndPlay 时自动释放
  */
 import * as THREE from 'three'

@@ -312,8 +312,27 @@ export class UITransformComponent extends TransformComponent {
  *  - 没有 → 以当前变换补挂
  */
 export function ensureUITransformComponent(actor: Actor): UITransformComponent {
+  // 1. 已有 UI 变换组件 → 复用。
+  //    ⚠️ 必须先查 UITransformComponent：getComponent(TransformComponent) 会先命中
+  //    Actor 构造时挂的普通 TransformComponent（数组顺序在前），导致重复创建
+  //    第二个 UITransformComponent（同名组件警告 + 双重组件）。
+  //    同时执行"替换"语义：移除 Actor 构造自带的普通 TransformComponent（UI Actor
+  //    只保留一个变换组件），旧组件显式销毁防 ObjectRegistry 残留。
+  const uiExisting = actor.getComponent(UITransformComponent)
+  if (uiExisting) {
+    const plainTf = actor
+      .getAllComponents()
+      .find((c) => c instanceof TransformComponent && !(c instanceof UITransformComponent))
+    if (plainTf) {
+      actor.removeComponent(plainTf)
+      // spawn 期间 bHasBegunPlay=false，BObject.removeComponent 不代为 EndPlay → 显式销毁
+      if (!actor.bHasBegunPlay) plainTf.EndPlay()
+      logger.debug(`[UITransformComponent] 移除多余普通 TransformComponent → "${actor.name}" (uid=${actor.uid})`)
+    }
+    return uiExisting
+  }
+  // 2. 已有普通 TransformComponent → 替换为 UI 版
   const existing = actor.getComponent(TransformComponent)
-  if (existing instanceof UITransformComponent) return existing
   if (existing) {
     const uiTf = new UITransformComponent(actor, {
       position: [existing.position.x, existing.position.y, existing.position.z],
@@ -321,10 +340,16 @@ export function ensureUITransformComponent(actor: Actor): UITransformComponent {
       scale: [existing.scale.x, existing.scale.y, existing.scale.z],
     })
     actor.removeComponent(existing)
+    // 替换下来的旧组件必须显式销毁：本函数通常在 spawn 期间（bHasBegunPlay=false）
+    // 被调用，BObject.removeComponent 不会代为 EndPlay → 旧 TransformComponent 会
+    // 永久残留在 ObjectRegistry（SwitchScene 残留诊断 TransformComponent×N）。
+    // EndPlay 幂等（markDestroyed），安全。
+    if (!actor.bHasBegunPlay) existing.EndPlay()
     actor.addComponent(uiTf)
     logger.debug(`[UITransformComponent] 替换普通 TransformComponent → "${actor.name}" (uid=${actor.uid})`)
     return uiTf
   }
+  // 3. 没有变换组件 → 补挂
   const uiTf = new UITransformComponent(actor)
   actor.addComponent(uiTf)
   logger.debug(`[UITransformComponent] 自动补挂到 "${actor.name}" (uid=${actor.uid})`)

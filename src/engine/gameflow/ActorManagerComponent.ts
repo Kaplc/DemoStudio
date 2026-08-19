@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { Actor } from '../entity/Actor'
+import { TransformComponent } from '../entity/TransformComponent'
 import { GameInstance } from './GameInstance'
 import { GenericActor } from '../entity/GenericActor'
 import { AObjectComponent } from '../entity/AObjectComponent'
@@ -413,6 +414,14 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 2. Component
     for (const cdef of resolved.components) {
+      // TransformComponent 复用：Actor 构造已自带（UE RootComponent 语义），
+      // 蓝图再声明时对已有实例应用属性即可，避免重复挂载（同名组件警告 + 双重组件）
+      const existingTf = cdef.baseClass === 'TransformComponent' ? actor.getComponent(TransformComponent) : null
+      if (existingTf) {
+        ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+        logger.info(`[ActorManagerComponent]   └ 组件: "${cdef.baseClass}" name="${existingTf.name}"（复用已有实例）`)
+        continue
+      }
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
@@ -456,6 +465,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
             if (child.components) {
               const childName = child.name ?? `<inline#${i}>`
               for (const cdef of child.components) {
+                // TransformComponent 复用：子 Actor 构造已自带，避免重复挂载
+                const existingTf = cdef.baseClass === 'TransformComponent' ? childActor.getComponent(TransformComponent) : null
+                if (existingTf) {
+                  ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+                  continue
+                }
                 const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
                 if (comp) {
                   if (cdef.name) comp.name = cdef.name
@@ -571,6 +586,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 挂 Component
     for (const cdef of (node.components ?? [])) {
+      // TransformComponent 复用：Actor 构造已自带，避免重复挂载
+      const existingTf = cdef.baseClass === 'TransformComponent' ? actor.getComponent(TransformComponent) : null
+      if (existingTf) {
+        ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+        continue
+      }
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
@@ -631,6 +652,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
           if (child.name) childActor.root.name = child.name
           // 挂组件
           for (const cdef of (child.components ?? [])) {
+            // TransformComponent 复用：子 Actor 构造已自带，避免重复挂载
+            const existingTf = cdef.baseClass === 'TransformComponent' ? childActor.getComponent(TransformComponent) : null
+            if (existingTf) {
+              ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
+              continue
+            }
             const comp = ComponentRegistry.create(childActor, cdef.baseClass, cdef.properties)
             if (comp) {
               if (cdef.name) comp.name = cdef.name

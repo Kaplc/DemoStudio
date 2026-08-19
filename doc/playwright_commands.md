@@ -150,4 +150,9 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | 测试中途改代码 | HMR 重置模块静态状态（UndoManager 栈/workingCopies/`window.blueprintEditor`）→ 断言突然失效，重新 reload |
 | 打开工程卡片/资产行单击无效 | 需 **dblclick** |
 | 捕获不到 console 日志 | console hook 挂在旧实例闭包上，HMR 后新模块输出绕过 hook——捕获不到不代表没打 |
+| `__fishBattle.debugHit(sx,sy)` 只测 UI 层 | 只查 `_uiClickables`（UI 相机射线）；世界层点击（建筑/房子）不在其 targets 内，勿用它断言 3D 命中 |
+| 世界层射线点击验证 | `await import('/src/engine/physics/PhySys.ts')` 拿**真实单例**（`ready===true` 即真；GameInstance.ts 裸 import 会拿到 fork 实例 `current===null`，用状态探针区分）→ `sys._camera.updateMatrixWorld()` → 手算投影：`clip = P(projectionMatrix.elements) × inv(matrixWorld.elements) × [x,y,z,1]` → `sys.raycastClick(sx,sy)` → 断言 `sys._pressedClickable?.owner.name`；测完 `sys.raycastRelease()` 清理 |
+| 点击结果无日志可观察 | `logger.debug`（如"房子被点击"）可能不进控制台/Recent events → 断言点击用 `PhySys._pressedClickable`（命中者引用）而非日志 |
+| 不可见碰撞体射线打不中 | `ClickableComponent.hitTest` **沿父链过滤 `visible=false` 目标**（隐藏物体不响应射线）→ 不可见点击区必须 mesh 保持 visible、用 `colorWrite:false` 材质（不写颜色）+ 可选 `depthWrite:false`，禁用 `setVisible(false)` |
+| 基地构建崩溃排查 | `FishBaseGameMode.BeginPlay → ClashBaseBuilder.build` 抛异常 → 基地半成品（无建筑）；AIModule 已带堆栈输出（`logger.error` 含 `err.stack`） |
 | PowerShell 写 JSON 带 BOM | `Set-Content -Encoding UTF8` 会写 BOM 导致 JSON.parse 失败；用 `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))` |

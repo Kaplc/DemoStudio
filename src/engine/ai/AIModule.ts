@@ -162,7 +162,7 @@ export class AIModule implements GameSingleton {
       try {
         results.push(handler(payload, ctx))
       } catch (err) {
-        logger.error(`[AIModule] 事件 "${event}" 处理器异常: ${(err as Error).message}`)
+        logger.error(`[AIModule] 事件 "${event}" 处理器异常: ${(err as Error).message}\n${(err as Error).stack}`)
         results.push(undefined)
       }
     }

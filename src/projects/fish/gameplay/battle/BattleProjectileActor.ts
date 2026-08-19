@@ -6,11 +6,11 @@
  *  - 命中（距目标 < 0.4 或飞行距离超过总路程）→ 对目标扣血 → 自毁
  *  - 近战挥砍（speed 很大、路程短）视觉上等同快速弹丸，无需独立动画
  *
- * 网格：小球体（颜色区分来源：防御塔暗灰、己方兵兵种色）。
+ * 网格：0.3×0.3×0.3 小立方体弹丸（BoxMeshComponent 内部默认创建几何，颜色区分来源）。
  */
 import * as THREE from 'three'
 import { GenericActor, BoxMeshComponent, logger } from '@/engine'
-import { createMesh, createBoxGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
+import { createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import type { TroopActor } from './troops/TroopActors'
@@ -71,13 +71,10 @@ export class BattleProjectileActor extends GenericActor {
     super.BeginPlay()
     if (!this.world) return
     // 小立方体弹丸（0.3×0.3×0.3，颜色区分来源：防御塔暗灰、己方兵兵种色）
-    // 阶段 1：构造 BoxGeometry + MeshBasicMaterial（走 utils → GC 追踪）
-    const geo = createBoxGeometry(0.3, 0.3, 0.3)
-    const mat = createMeshBasicMaterial({ color: this._color })
-    const mesh = createMesh(geo, mat)
-    // 阶段 2：addComponent + setter 设参
-    const comp = this.addComponent(BoxMeshComponent, mesh, 'ProjMesh') as BoxMeshComponent
+    // BoxMeshComponent 内部默认创建 BoxGeometry（走 utils → GC 追踪），外部只需设尺寸 + 材质球
+    const comp = this.addComponent(BoxMeshComponent, 'ProjMesh')
     comp.size = [0.3, 0.3, 0.3]
+    comp.setMaterial(createMeshBasicMaterial({ color: this._color }))
   }
 
   /**

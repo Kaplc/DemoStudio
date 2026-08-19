@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three'
 import { ClickableComponent, BoxMeshComponent, LineComponent, logger } from '@/engine'
-import { createMesh, createBoxGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
+import { createMeshBasicMaterial, createEdgesBox } from '@/engine/gameflow/ThreeObjectUtils'
 import { BuildingActor } from './BuildingActor'
 
 export class FishHouseActor extends BuildingActor {
@@ -51,14 +51,13 @@ export class FishHouseActor extends BuildingActor {
    */
   protected buildClickZone(): void {
     if (!this.world) return // 未 spawn 时不构建（编辑器预览路径）
-    // 阶段 1：构造不可见 BoxGeometry + MeshBasicMaterial（走 utils → GC 追踪）
-    const geo = createBoxGeometry(2.4, 2.0, 2.4)
-    const mat = createMeshBasicMaterial({ visible: false, depthWrite: false })
-    const mesh = createMesh(geo, mat)
-    // 阶段 2：addComponent 挂到 actor.root + setter 设参
-    this.clickZoneComp = this.addComponent(BoxMeshComponent, mesh, 'ClickZoneMesh') as BoxMeshComponent
+    // BoxMeshComponent 内部默认创建 BoxGeometry（走 utils → GC 追踪），外部只需设尺寸 + 材质球
+    this.clickZoneComp = this.addComponent(BoxMeshComponent, 'ClickZoneMesh')
     this.clickZoneComp.size = [2.4, 2.0, 2.4] // 触发 rebuild（保持 Inspector editable 同步）
-    this.clickZoneComp.setVisible(false)       // 不可见（点击碰撞体）
+    // 不可见材质球：colorWrite:false 不写颜色（视觉不可见），depthWrite:false 不写深度。
+    // ⚠️ 不可用 visible=false 隐藏 mesh——ClickableComponent.hitTest 沿父链过滤
+    // visible=false 的目标（隐藏物体不响应射线），隐藏后点击碰撞体将永远打不中。
+    this.clickZoneComp.setMaterial(createMeshBasicMaterial({ colorWrite: false, depthWrite: false }))
     this.clickZoneComp.mesh.position.y = 1.2
     this.clickZoneComp.mesh.userData.isHouse = true
   }

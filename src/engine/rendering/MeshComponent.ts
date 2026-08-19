@@ -85,6 +85,17 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
   }
 
   /**
+   * 替换材质球（旧材质自动 dispose，新材质由调用方经 utils 创建，如 createMeshBasicMaterial）。
+   * 用于组件内部默认材质不满足需求时整体替换（如不可见碰撞体的 visible:false 材质）。
+   */
+  setMaterial(material: THREE.Material): void {
+    const old = this.obj.object.material
+    if (Array.isArray(old)) old.forEach((m) => m.dispose())
+    else old.dispose()
+    this.obj.object.material = material
+  }
+
+  /**
    * 派生类各自实现的尺寸 setter（box.size / sphere.radius / plane.size / capsule.radius+length）。
    * 抽象方法存在仅为类型提示；TS 不会强制派生类实现（TS 4.x abstract method 不检查），
    * 派生类各自暴露同名 setter 与 getter。
