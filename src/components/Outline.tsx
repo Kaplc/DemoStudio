@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   getSelectedActor, select, getSelectionKey, onSelectionChange,
-  getSharedScene, getSceneTree, focusOn,
+  getEditorScene, getSceneTree, focusOn,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
 import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
@@ -231,15 +231,15 @@ export function Outline() {
     [dynamicTabs, activeTabId],
   )
 
-  // ─── 右键菜单（仅 bp: 蓝图/widget 预览与 sp: 场景预览） ───
+  // ─── 右键菜单（bp: 蓝图/widget 预览、sp: 场景预览、scene: 游戏场景大纲） ───
   interface OutlineMenuState {
     x: number
     y: number
     node: SceneTreeNode
-    kind: 'blueprint' | 'scenePreview'
+    kind: 'blueprint' | 'scenePreview' | 'scene'
   }
   const [menu, setMenu] = useState<OutlineMenuState | null>(null)
-  const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode, kind: 'blueprint' | 'scenePreview') => {
+  const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode, kind: 'blueprint' | 'scenePreview' | 'scene') => {
     e.preventDefault()
     e.stopPropagation()
     setMenu({ x: e.clientX, y: e.clientY, node, kind })
@@ -334,6 +334,12 @@ export function Outline() {
           onMouseLeave={(e) => {
             if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
           }}
+          onContextMenu={(e) => {
+            if (!node.actor) return
+            e.preventDefault()
+            e.stopPropagation()
+            setMenu({ x: e.clientX, y: e.clientY, node, kind: 'scene' })
+          }}
         >
           <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={toggleCollapsed} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
@@ -381,8 +387,11 @@ export function Outline() {
   /** 修改类操作（复制/重命名/删除）可用性 */
   const menuCanModify = !menuIsRoot && menuTargetInJson
 
-  /** 菜单目标资产路径（当前激活页签） */
+  /** 菜单目标资产路径（当前激活页签，scene 类型无资产路径） */
   const menuAssetPath = menu ? (menu.kind === 'blueprint' ? bpAssetPath : spAssetPath) : null
+
+  /** 菜单是否需要显示（bp/sp 类型需要资产路径，scene 类型不需要） */
+  const menuShouldShow = menu && (menu.kind === 'scene' || !!menuAssetPath)
 
   // ─── bp: / widget 操作（走预览管理器 Actor 引用方法：直接按选中节点引用定位 JSON 节点，
   //          同名不拦截；复用快照撤销 + bump 重建预览） ───
@@ -510,6 +519,13 @@ export function Outline() {
     if (menu?.kind === 'scenePreview') handleSpDelete()
     else void handleBpDelete()
   }
+  const handleMenuCopyName = () => {
+    if (!menu) return
+    const name = menu.node.name
+    navigator.clipboard.writeText(name).catch(() => {
+      logger.warn(`[Outline] 复制名称到剪贴板失败: ${name}`)
+    })
+  }
 
   return (
     <div className="panel-body" style={{ padding: 0 }}>
@@ -521,7 +537,7 @@ export function Outline() {
         bpTreeElements ?? (
           <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
         )
-      ) : !getSharedScene() ? (
+      ) : !getEditorScene() ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
           场景初始化中...
         </div>
@@ -530,7 +546,7 @@ export function Outline() {
           场景中暂无对象
         </div>
       )}
-      {menu && menuAssetPath && (
+      {menuShouldShow && (
         <OutlineContextMenu
           x={menu.x}
           y={menu.y}
@@ -540,6 +556,7 @@ export function Outline() {
           onClose={() => setMenu(null)}
           onCreate={handleMenuCreate}
           onDuplicate={handleMenuDuplicate}
+          onCopyName={handleMenuCopyName}
           onRename={handleMenuRename}
           onDelete={handleMenuDelete}
         />

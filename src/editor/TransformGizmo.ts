@@ -186,6 +186,18 @@ export class TransformGizmo {
     })
   }
 
+  /**
+   * 将 Gizmo 挂载到指定场景（游戏运行时 Scene 视图切换渲染场景时调用）。
+   * 相机/渲染器引用保持不变（仍用 Scene 视口的相机进行射线检测和缩放计算）。
+   */
+  attachToScene(scene: THREE.Scene) {
+    this._scene = scene
+    if (this.group.parent !== scene) {
+      this.group.removeFromParent()
+      scene.add(this.group)
+    }
+  }
+
   /** 挂载到目标对象上（显示 Gizmo；跟随全局 gizmos.enabled 开关） */
   attach(target: THREE.Object3D) {
     this._target = target

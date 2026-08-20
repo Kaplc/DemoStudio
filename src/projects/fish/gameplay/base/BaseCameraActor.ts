@@ -32,5 +32,7 @@ export class BaseCameraActor extends CameraActor {
     // 挂载云台组件（缩放/平移/边缘检测逻辑）
     this.rig = new CameraRigComponent(this, 'CameraRig')
     this.addComponent(this.rig)
+    // 开启 tick：驱动云台边缘平移检测
+    this.enableTick()
   }
 }

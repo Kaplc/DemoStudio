@@ -1,0 +1,75 @@
+---
+description: 使用 core/assets/tools 修改 UI 布局资产的指南
+globs: "**/assets/layouts/*.json"
+alwaysApply: false
+---
+
+# 编辑 UI 布局资产
+
+DemoStudio 的 UI 布局资产位于 `assets/layouts/` 目录，以 JSON 格式存储。
+**严禁直接编辑 JSON 文件**，必须使用 `core/assets/tools` 提供的 Python API 进行修改。
+
+## 工具入口
+
+```python
+from core.assets.tools import (
+    LayoutBuilder,     # 链式 API 构建 UI 节点树
+    LayoutPatcher,     # 修改已有布局（增/删/改节点）
+    LayoutMerger,      # 合并多个布局
+    UIPresetLibrary,   # 预制控件模板
+    build_from_dict,   # 从 dict 创建 Builder
+    dump_layout,       # 打印布局到控制台
+    batch_patch,       # 批量修改多个布局
+    print_hierarchy,   # 打印层级树
+    list_widgets,      # 列出所有控件 ID
+)
+```
+
+## 常见操作示例
+
+### 修改已有控件的属性
+
+```python
+from core.assets.tools import LayoutPatcher
+
+patcher = LayoutPatcher('assets/layouts/main_menu.json')
+patcher.set_prop('start_btn', 'text', '▶ 开始游戏')
+patcher.set_props('start_btn', {
+    'color': '#4a9f6a',
+    'font_size': 0.6,
+})
+patcher.add_binding('start_btn', 'on_click', 'launch_game')
+patcher.save()
+```
+
+### 添加新控件
+
+```python
+from core.assets.tools import LayoutPatcher, UIPresetLibrary
+
+patcher = LayoutPatcher('assets/layouts/main_menu.json')
+
+# 使用预制模板
+btn = UIPresetLibrary.accent_button('save_btn', '保存')
+patcher.add_widget_node(btn, parent_id='main_win')
+patcher.save()
+```
+
+### 从零构建新布局
+
+```python
+from core.assets.tools import LayoutBuilder
+
+builder = LayoutBuilder('my_panel', 'UIWindow')
+builder.set_title('自定义面板').set_anchor('CENTER').set_size(0.3, 0.4)
+builder.add_child('title_label', 'UIText').set_text('标题').set_font_size(0.6)
+builder.save('assets/layouts/my_panel.json')
+```
+
+## 规则
+
+1. **禁止直接修改 `.json` 布局文件** — 必须通过 Python API 操作
+2. 修改后执行 `patcher.save()` 写回文件
+3. 添加新控件优先使用 `UIPresetLibrary` 预制模板
+4. 复杂布局用 `LayoutBuilder` 链式构建
+5. 运行 `dump_layout()` 预览修改结果

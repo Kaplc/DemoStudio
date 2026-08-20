@@ -44,11 +44,13 @@ export class FishBubble extends Actor implements IPoolable {
     this.phase = Math.random() * Math.PI * 2
     this.setPosition(this.baseX, data?.y ?? -AREA_H, -0.6)
     this.root.visible = true
+    this.enableTick()
   }
 
   deactivate(): void {
     this.active = false
     this.root.visible = false
+    this.disableTick()
   }
 
   override Tick(dt: number) {

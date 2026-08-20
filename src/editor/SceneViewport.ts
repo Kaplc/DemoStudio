@@ -18,15 +18,15 @@ import type { LightComponentOptions } from '../engine'
 /**
  * 创建 Scene 视口的 PreviewSceneManager
  * @param containerEl  DOM 容器
- * @param sharedScene  共享 THREE.Scene
+ * @param editorScene  共享 THREE.Scene
  */
 export function createSceneViewport(
   containerEl: HTMLElement,
-  sharedScene?: THREE.Scene,
+  editorScene?: THREE.Scene,
 ): PreviewSceneManager {
   const mgr = new PreviewSceneManager(containerEl, {
     controlMode: 'fly',
-    sharedScene,
+    editorScene,
     addDefaultContent: false,
   })
   mgr.setWASDControl(true)
@@ -89,7 +89,7 @@ export interface PreviewSceneManagerOptions {
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
   cameraMode?: CameraMode
   /** 外部共享场景（两个视口渲染同一场景） */
-  sharedScene?: THREE.Scene
+  editorScene?: THREE.Scene
   /** 是否添加默认光照和辅助工具（共享场景时只需加一次） */
   addDefaultContent?: boolean
 }
@@ -217,8 +217,8 @@ export class PreviewSceneManager {
     container.appendChild(this.uiLayer)
 
     // ─── 场景（共享或独立） ───
-    if (options.sharedScene) {
-      this.scene = options.sharedScene
+    if (options.editorScene) {
+      this.scene = options.editorScene
     } else {
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(0x1a1a2e)

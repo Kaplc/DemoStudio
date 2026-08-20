@@ -3,7 +3,7 @@
  *
  * 模块级引用 + 递增 key 驱动 React 重渲染。
  * Outline 选中某个对象时记录引用，Inspector 读取其信息展示。
- * 同时持有 sharedScene 引用，使 Outline 能遍历场景中所有对象。
+ * 同时持有 editorScene 引用，使 Outline 能遍历场景中所有对象。
  */
 import * as THREE from 'three'
 import type { Actor } from '../engine'
@@ -72,6 +72,15 @@ export function attachAnchorGizmoToScene(scene: THREE.Scene | null): void {
 }
 
 /**
+ * 将 TransformGizmo 挂载到指定场景（游戏运行时 Scene 视图切换渲染游戏场景时调用）。
+ * TransformGizmo 需要跟随渲染场景，这样 Scene 视图才能看到选中节点的变换 Gizmo。
+ * @param scene 目标场景（游戏运行时 = 游戏场景；停止游戏 = 编辑器场景）
+ */
+export function attachTransformGizmoToScene(scene: THREE.Scene): void {
+  _gizmo.attachToScene(scene)
+}
+
+/**
  * 每帧更新游戏运行时 UI 选中辅助（AnchorGizmo + SelectionBoundsGizmo）跟随。
  * 由 SceneRendererComponent 渲染循环 onUpdate 回调调用。
  * @param worldPerPx 当前 zoom 下 1px 对应的世界距离（屏幕恒定尺寸用；非有限值直接跳过）
@@ -82,14 +91,14 @@ export function updateAnchorGizmo(worldPerPx: number): void {
   if (_boundsGizmo.visible) _boundsGizmo.update(worldPerPx)
 }
 
-// ─── sharedScene 引用（Viewport 初始化时设置）───
+// ─── editorScene 引用（Viewport 初始化时设置）───
 
-let _sharedScene: THREE.Scene | null = null
+let _editorScene: THREE.Scene | null = null
 let _sceneMgr: import('./SceneViewport').PreviewSceneManager | null = null
 
-/** 设置共享场景引用（由 Viewport 在 setupScene 后调用） */
-export function setSharedScene(scene: THREE.Scene | null): void {
-  _sharedScene = scene
+/** 设置编辑器场景引用（由 Viewport 在 setupScene 后调用） */
+export function setEditorScene(scene: THREE.Scene | null): void {
+  _editorScene = scene
   _sceneKey++
   for (const cb of _onChangeCallbacks) cb()
   if (!scene) _gizmo.detach()
@@ -105,9 +114,9 @@ export function getSceneMgr(): import('./SceneViewport').PreviewSceneManager | n
   return _sceneMgr
 }
 
-/** 获取共享场景引用 */
-export function getSharedScene(): THREE.Scene | null {
-  return _sharedScene
+/** 获取编辑器场景引用 */
+export function getEditorScene(): THREE.Scene | null {
+  return _editorScene
 }
 
 /** 将 Scene 摄像机聚焦到指定 3D 对象上 */
@@ -276,8 +285,8 @@ export interface SceneTreeNode {
 
 export function getSceneTree(): SceneTreeNode[] {
   const result: SceneTreeNode[] = []
-  // 游戏运行时：只读遍历游戏场景（经桥组件，不注入编辑器内容）；否则遍历共享场景
-  const scene = _runningBridge?.scene ?? _sharedScene
+  // 游戏运行时：只读遍历游戏场景（经桥组件，不注入编辑器内容）；否则遍历编辑器场景
+  const scene = _runningBridge?.scene ?? _editorScene
   if (!scene) return result
 
   function walk(obj: THREE.Object3D, depth: number) {

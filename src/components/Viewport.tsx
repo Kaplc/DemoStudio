@@ -20,7 +20,7 @@ import {
   handleWheel,
   _ptrWorld,
   applySkybox,
-  setSharedScene,
+  setEditorScene,
   setSceneMgr,
   getTransformGizmo,
   notifySelectionChange,
@@ -28,6 +28,7 @@ import {
   setRunningWorld,
   setRunningBridge,
   attachAnchorGizmoToScene,
+  attachTransformGizmoToScene,
   updateAnchorGizmo,
 } from '../editor'
 
@@ -46,7 +47,7 @@ export function Viewport({ onReady }: ViewportProps) {
   const gameRef = useRef<Game | null>(null)
 
   // 共享场景（Scene 视口和 Game 视口共用）
-  const sharedSceneRef = useRef<THREE.Scene | null>(null)
+  const editorSceneRef = useRef<THREE.Scene | null>(null)
   // 当前 defaultScene 读取的 mode
   const sceneModeRef = useRef<string | undefined>(undefined)
   // 当前预览场景 World（actor 化加载：场景资产对象 → Actor，大纲可选中/编辑）
@@ -89,27 +90,27 @@ export function Viewport({ onReady }: ViewportProps) {
   useEffect(() => {
     if (!sceneContainerRef.current || !gameContainerRef.current) return
 
-    const { sharedScene, sceneMgr, gameMgr, cleanup } = setupScene(
+    const { editorScene, sceneMgr, gameMgr, cleanup } = setupScene(
       sceneContainerRef.current,
       onReady,
     )
 
-    sharedSceneRef.current = sharedScene
+    editorSceneRef.current = editorScene
     sceneRef.current = sceneMgr
     gameSceneRef.current = gameMgr
     cleanupRef.current = cleanup
-    setSharedScene(sharedScene)
+    setEditorScene(editorScene)
     setSceneMgr(sceneMgr)
 
     return () => {
-      setSharedScene(null)
+      setEditorScene(null)
       setSceneMgr(null)
       cleanup()
       cleanupRef.current = null
       sceneRef.current = null
       gameSceneRef.current = null
       gameRef.current = null
-      sharedSceneRef.current = null
+      editorSceneRef.current = null
       previewWorldRef.current?.DestroyAllActors()
       previewWorldRef.current = null
       lastPreviewPathRef.current = null
@@ -127,8 +128,8 @@ export function Viewport({ onReady }: ViewportProps) {
 
   // ─── 加载一个 scene.json 到共享场景预览（actor 化：对象 → GenericActor + MeshComponent）───
   const loadDefaultScenePreview = useCallback(async (path: string, label: string) => {
-    const shared = sharedSceneRef.current
-    if (!shared) return
+    const scene = editorSceneRef.current
+    if (!scene) return
     const readJsonFile = window.electronAPI?.readJsonFile
     if (!readJsonFile) return
     try {
@@ -145,13 +146,13 @@ export function Viewport({ onReady }: ViewportProps) {
       // actor 化加载：与游戏运行时 World.loadSceneAsActors 同构，
       // 每个 mesh/ref/actor 节点 → Actor，大纲可选中、可编辑
       const world = new World()
-      // 预览 world 挂到编辑器共享场景（编辑器内部操作，非游戏场景注入）：
-      // 预览 actor 的 root 挂到 sharedScene，Scene 视图可直接看到 defaultScene 内容，
+      // 预览 world 挂到编辑器场景（编辑器内部操作，非游戏场景注入）：
+      // 预览 actor 的 root 挂到 editorScene，Scene 视图可直接看到 defaultScene 内容，
       // 与 Default 灯光容器/网格/gizmo 同场景渲染；游戏运行时本 world 会被销毁清空
-      world.attachExternalScene(shared)
-      // setScene 会把 shared 的背景/雾/环境覆盖为预览 world 自建场景的默认值（null），
+      world.attachExternalScene(scene)
+      // setScene 会把 editorScene 的背景/雾/环境覆盖为预览 world 自建场景的默认值（null），
       // 恢复编辑器默认背景（skybox 由下方 applySkybox 再应用）
-      shared.background = new THREE.Color(0x1a1a2e)
+      scene.background = new THREE.Color(0x1a1a2e)
       world.loadSceneAsActors(sceneData)
       world.BeginPlay()
       world.manualTick(0)
@@ -161,7 +162,7 @@ export function Viewport({ onReady }: ViewportProps) {
       lastPreviewPathRef.current = path
       sceneModeRef.current = sceneData.mode
       if (sceneData.skybox) {
-        applySkybox(shared, sceneData.skybox)
+        applySkybox(scene, sceneData.skybox)
       }
       // 通知大纲刷新（getSceneTree 依赖 selectionKey 重建，加载 actors 后必须触发）
       notifySelectionChange()
@@ -173,8 +174,7 @@ export function Viewport({ onReady }: ViewportProps) {
 
   // ─── 切换工程 → 停止游戏 + 读取 defaultScene 预览 ───
   useEffect(() => {
-    const shared = sharedSceneRef.current
-    if (!shared) return
+    if (!editorSceneRef.current) return
 
     const switchProject = async () => {
       // 0. 清空蓝图编辑缓存（工作副本/撤销栈），避免残留到下一个工程
@@ -201,7 +201,7 @@ export function Viewport({ onReady }: ViewportProps) {
       lastPreviewPathRef.current = null
 
       // 3. 重置场景为默认状态
-      shared.background = new THREE.Color(0x1a1a2e)
+      editorSceneRef.current!.background = new THREE.Color(0x1a1a2e)
       gizmos.beginFrame()
       gizmos.flush()
 
@@ -225,11 +225,11 @@ export function Viewport({ onReady }: ViewportProps) {
     switchProject()
   }, [currentProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── 游戏运行时隐藏共享场景中的编辑器辅助网格（GridHelper 40x40 是草坪格子的来源）───
+  // ─── 游戏运行时隐藏编辑器场景中的编辑器辅助网格（GridHelper 40x40 是草坪格子的来源）───
   const setEditorGridVisible = useCallback((visible: boolean) => {
-    const shared = sharedSceneRef.current
-    if (!shared) return
-    shared.traverse((obj) => {
+    const scene = editorSceneRef.current
+    if (!scene) return
+    scene.traverse((obj) => {
       if (obj.type === 'GridHelper') obj.visible = visible
     })
   }, [])
@@ -247,12 +247,12 @@ export function Viewport({ onReady }: ViewportProps) {
     })
     gameRef.current = game
 
-    // 游戏运行时隐藏编辑器辅助网格和调试线（都挂 sharedScene，不隐藏会泄漏到游戏画面）
+    // 游戏运行时隐藏编辑器辅助网格和调试线（都挂 editorScene，不隐藏会泄漏到游戏画面）
     setEditorGridVisible(false)
     // 调试线（gizmos 单例）也必须 detach，否则 Actor.OnDrawGizmos 的调试绘制会透到 Scene 窗口
     gizmos.detach()
 
-    // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 sharedScene，
+    // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 editorScene，
     // 避免与游戏 actors 叠加/大纲重名冲突）
     if (previewWorldRef.current) {
       previewWorldRef.current.DestroyAllActors()
@@ -283,6 +283,8 @@ export function Viewport({ onReady }: ViewportProps) {
     const bridge = inst.getComponent(EditorGameBridgeComponent)
     setRunningBridge(bridge)
     sceneRef.current?.setViewScene(bridge?.scene ?? null)
+    // TransformGizmo 跟随 Scene 视图渲染场景，这样游戏运行时在 Scene 页签点击大纲节点也能看到变换 Gizmo
+    if (bridge?.scene) attachTransformGizmoToScene(bridge.scene)
     // 记录运行中游戏的 World（UI 选中辅助等仍以 World 为锚）
     setRunningWorld(world)
     // 监听游戏 World 的 Actor 变化（生成/销毁）→ 大纲自动刷新
@@ -326,13 +328,15 @@ export function Viewport({ onReady }: ViewportProps) {
       setRunningWorld(null)
       setRunningBridge(null)
       sceneRef.current?.setViewScene(null)
+      // 游戏停止：TransformGizmo 恢复挂到编辑器场景
+      if (editorSceneRef.current) attachTransformGizmoToScene(editorSceneRef.current)
       // 游戏停止：取消 UI 选中辅助目标
       attachAnchorGizmoToScene(null)
       // 停止游戏后恢复编辑器辅助网格显示
       setEditorGridVisible(true)
-      // 调试线重新挂到共享场景（TransformGizmo 在 setupScene 中挂 sharedScene）
-      if (sharedSceneRef.current) {
-        gizmos.attach(sharedSceneRef.current)
+      // 调试线重新挂到共享场景（TransformGizmo 在 setupScene 中挂 editorScene）
+      if (editorSceneRef.current) {
+        gizmos.attach(editorSceneRef.current)
       }
     }
   }, [editorState.running, launchCount]) // eslint-disable-line react-hooks/exhaustive-deps

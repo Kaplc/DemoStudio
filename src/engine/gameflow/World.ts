@@ -98,7 +98,7 @@ export class World extends AObject {
     const existing = this.getComponent(SceneRendererComponent)
     if (existing) return existing
     if (!GameInstance.current?.viewport.container) return null
-    const mgr = new SceneRendererComponent(this, { sharedScene: this.sceneComp.scene })
+    const mgr = new SceneRendererComponent(this, { editorScene: this.sceneComp.scene })
     this.addComponent(mgr)
     logger.info('[World] SceneRendererComponent 已创建并挂到 World（DOM 来自 GameInstance.current.viewport.container）')
     return mgr
@@ -286,9 +286,9 @@ export class World extends AObject {
     // 1. 处理待生成/销毁（ActorManagerComponent）
     this.commitActorChanges()
 
-    // 2. Tick 所有 3D Actor（UI Actor 由 UIManager 独立驱动）
+    // 2. Tick 所有 3D Actor（bTickEnabled=true 才参与；UI Actor 由 UIManager 独立驱动）
     for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bPendingDestroy) actor.Tick(dt)
+      if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(dt)
     }
 
     // 3. Tick UI 子系统
@@ -367,7 +367,7 @@ export class World extends AObject {
     this.lastExternalTickTime = performance.now()
     this.commitActorChanges()
     for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bPendingDestroy) actor.Tick(dt)
+      if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(dt)
     }
     // UI 子系统（与 tick() 一致）：运行时 spawnUIActor 生成的 UI Actor 依赖此处
     // 提交（BeginPlay / UIScriptComponent 初始化），否则永远停在待生成队列

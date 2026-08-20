@@ -1,0 +1,35 @@
+---
+description: 创建配置文件（.config.json, .table.json）的完整指南
+globs: "**/*.config.json"
+alwaysApply: false
+---
+
+# 创建配置文件
+
+## 何时使用
+- 用户要求新建配置文件（`asset/config/*.config.json`）
+- 修改现有配置项
+
+## 文件位置与命名
+- 路径：`src/projects/<project>/asset/config/*.config.json`
+- 命名：`<描述>.config.json`（snake_case）
+- 数据表：`asset/config/*.table.json`
+
+## 配置名推导规则
+`{projectName}.{文件名}`（`cannon.config.json` → `fish.cannon`）
+
+## asset/config/index.ts 模板
+
+```typescript
+import type { ConfigGlobModules } from '@/engine'
+
+export const configGlob: ConfigGlobModules = {
+  configModules: import.meta.glob('./**/*.config.json'),
+  tableModules: import.meta.glob('./**/*.table.json'),
+}
+```
+
+## 规则
+- 配置文件由 ConfigRegistry 加载
+- 配置名自动推导，无需手动注册
+- 新增文件由 glob 自动扫描，无需改代码

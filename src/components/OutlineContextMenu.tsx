@@ -27,6 +27,8 @@ export interface OutlineContextMenuProps {
   onCreate: (tpl: NodeTemplate) => void
   /** 复制节点 */
   onDuplicate: () => void
+  /** 复制节点名称到剪贴板 */
+  onCopyName: () => void
   /** 重命名节点（返回是否成功） */
   onRename: (newName: string) => void
   /** 删除节点 */
@@ -70,7 +72,7 @@ const SEPARATOR_STYLE: React.CSSProperties = {
 }
 
 export function OutlineContextMenu({
-  x, y, targetLabel, canModify, templates, onClose, onCreate, onDuplicate, onRename, onDelete,
+  x, y, targetLabel, canModify, templates, onClose, onCreate, onDuplicate, onCopyName, onRename, onDelete,
 }: OutlineContextMenuProps) {
   /** 重命名态：true 显示内嵌输入框 */
   const [renaming, setRenaming] = useState(false)
@@ -127,7 +129,7 @@ export function OutlineContextMenu({
 
   // 视口边界钳制：菜单不超出窗口右下角
   const clampedX = Math.min(x, window.innerWidth - 190)
-  const clampedY = Math.min(y, window.innerHeight - 260)
+  const clampedY = Math.min(y, window.innerHeight - 290)
 
   return (
     <div
@@ -192,6 +194,15 @@ export function OutlineContextMenu({
           ))}
           <div style={SEPARATOR_STYLE} />
           <div style={GROUP_LABEL_STYLE}>操作</div>
+          <div
+            style={ITEM_STYLE}
+            onMouseEnter={hoverBg}
+            onMouseLeave={leaveBg}
+            onClick={() => { onCopyName(); onClose() }}
+          >
+            <span style={{ width: 14, textAlign: 'center', flexShrink: 0 }}>📋</span>
+            <span>复制名称</span>
+          </div>
           <div
             style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
             onMouseEnter={hoverBg}

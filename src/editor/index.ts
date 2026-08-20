@@ -96,7 +96,7 @@ export type { LogContentCallback } from './LogPoller'
 
 export { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 
-export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setSharedScene, setSceneMgr, getSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo, getAnchorGizmo, getSelectionBoundsGizmo, getRuntimeUIOverlayScene, attachAnchorGizmoToScene, updateAnchorGizmo, watchWorldActorChanges, setRunningWorld, getRunningWorld, setRunningBridge, getRunningBridge } from './SelectionManager'
+export { getSelectedActor, selectActor, getSelectionKey, onSelectionChange, notifySelectionChange, setEditorScene, setSceneMgr, getSceneMgr, getSelected, select, getSceneTree, focusOn, getTransformGizmo, getAnchorGizmo, getSelectionBoundsGizmo, getRuntimeUIOverlayScene, attachAnchorGizmoToScene, attachTransformGizmoToScene, updateAnchorGizmo, watchWorldActorChanges, setRunningWorld, getRunningWorld, setRunningBridge, getRunningBridge } from './SelectionManager'
 export { TransformGizmo } from './TransformGizmo'
 export { AnchorGizmo } from './AnchorGizmo'
 export { SelectionBoundsGizmo } from './SelectionBoundsGizmo'

@@ -27,13 +27,13 @@ import { PLACE_HALF } from '../base/ClashBaseBuilder'
 import { FishLevelPlayerController } from './FishLevelPlayerController'
 import { FishLevelPawn } from './FishLevelPawn'
 import { createTroopActor, type TroopActor } from '../battle/troops/TroopActors'
-import { BattleProjectileActor } from '../battle/BattleProjectileActor'
 import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
 import { TroopHealthBarComponent } from '../common/comp/TroopHealthBarComponent'
 import { LootFlyFx } from '../common/fx/LootFlyFx'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
 import { NavigationModule } from '@/engine/navigation/NavigationModule'
+import { FishObjectPools } from '../game/FishObjectPools'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交（放兵点换算） */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -49,6 +49,9 @@ export class FishLevelGameMode extends GameMode {
 
   /** 寻路模块（A* 导航） */
   readonly navigation: NavigationModule
+
+  /** 战斗弹丸对象池 */
+  readonly pools: FishObjectPools
 
   /** 战斗 HUD 蓝图：兵种卡片栏 + 已部署统计 */
   override HUDClass = 'asset/blueprints/ui/battle_hud.widget.json'
@@ -98,6 +101,8 @@ export class FishLevelGameMode extends GameMode {
     this.baseCamera.rig.setEdgePanEnabled(false)
     // 寻路模块
     this.navigation = new NavigationModule()
+    // 战斗弹丸对象池
+    this.pools = new FishObjectPools()
   }
 
   override InitGame() {
@@ -111,6 +116,8 @@ export class FishLevelGameMode extends GameMode {
 
   override BeginPlay() {
     super.BeginPlay()
+    // 战斗弹丸对象池注入 World
+    this.pools.init(this.world!)
     // 收集场景中的敌方建筑（场景 ref 节点已 BeginPlay，网格已建好）
     this.collectBuildings()
     logger.info(`[BattleGM] 战斗开始：敌方建筑 ${this.buildings.length} 个（城镇大厅 ${this.getTownhall() ? '在' : '无'}）`)
@@ -119,6 +126,8 @@ export class FishLevelGameMode extends GameMode {
   override EndPlay() {
     // 解除相机右键平移回调引用（防悬挂）
     this.baseCamera.rig.onRightPanStart = null
+    // 释放战斗弹丸对象池
+    this.pools.releaseAll()
     // 拥有者自清理：销毁本 GameMode 构造的 baseCamera。
     // 相机已托管（setupLevelPhase SpawnActor）时走 World 销毁队列；未托管时
     // （如 ai.switchScene 裸切换不执行 extraSetup）由这里本地 EndPlay 回收，
@@ -157,8 +166,7 @@ export class FishLevelGameMode extends GameMode {
       this.cannonCooldown.set(b, defense.cooldown)
       const from = new THREE.Vector3(b.root.position.x, b.type.height + 0.5, b.root.position.z)
       const to = new THREE.Vector3(target.root.position.x, target.root.position.y + 0.5, target.root.position.z)
-      const proj = new BattleProjectileActor(this, from, to, TOWER_PROJ_SPEED, defense.damage, 0x90a4ae, target)
-      this.world?.actorMgr.SpawnActor(proj)
+      this.pools.acquireProjectile({ gm: this, from, to, speed: TOWER_PROJ_SPEED, damage: defense.damage, color: 0x90a4ae, target })
       logger.info(`[BattleGM] 防御塔 @ (${b.root.position.x.toFixed(1)},${b.root.position.z.toFixed(1)}) 开火 → ${target.troop.name}`)
     }
     // ─── 失败判定：部署过兵且场上兵全灭、军队耗尽 → 败 ───
@@ -212,6 +220,8 @@ export class FishLevelGameMode extends GameMode {
     const comp = new BuildingHealthBarComponent(b)
     b.addComponent(comp)
     this.barCompMap.set(b, comp)
+    // 开启 tick：驱动血条超时隐藏倒计时
+    b.enableTick()
   }
 
   /** 建筑中心（世界坐标，x/z；兵索敌/碰撞用） */
@@ -370,8 +380,7 @@ export class FishLevelGameMode extends GameMode {
     const speed = isMelee ? MELEE_PROJ_SPEED : RANGED_PROJ_SPEED
     const from = new THREE.Vector3(troop.root.position.x, troop.root.position.y + 0.6, troop.root.position.z)
     const to = new THREE.Vector3(building.root.position.x, building.type.height / 2 + 0.3, building.root.position.z)
-    const proj = new BattleProjectileActor(this, from, to, speed, damage, troop.troop.color, building)
-    w.actorMgr.SpawnActor(proj)
+    this.pools.acquireProjectile({ gm: this, from, to, speed, damage, color: troop.troop.color, target: building })
     logger.info(`[BattleGM] ${troop.troop.name} 攻击 ${building.type.name}（伤害 ${Math.round(damage)}，${isMelee ? '近战挥砍' : '远程射击'}）`)
   }
 

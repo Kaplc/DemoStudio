@@ -41,6 +41,7 @@ export class FishCoinParticle extends Actor {
         vy: 4 + Math.random() * 4,
       })
     }
+    this.enableTick()
   }
 
   override Tick(dt: number) {

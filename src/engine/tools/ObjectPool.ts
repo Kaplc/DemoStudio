@@ -1,16 +1,16 @@
 /**
  * ObjectPool — 通用对象池
- * 预分配对象，避免频繁 new/destroy 带来的 GC 开销。
+ * 按需分配、复用对象，避免频繁 new/destroy 带来的 GC 开销。
  *
  * 用法：
- *   1. 目标类实现 IPoolable 接口
- *   2. 创建 ObjectPool 实例，传入工厂函数和初始池大小
+ *   1. 目标类实现 IPoolable 接口（activate/deactivate/active）
+ *   2. 创建 ObjectPool 实例，传入工厂函数（按需预热传 initialSize > 0）
  *   3. 用 pool.acquire(opts) 替代 new Xxx(opts)
  *   4. 用 pool.release(obj) 替代 obj.destroy()
  *
  * 池内对象状态：
- *   - 空闲：root.visible=false，不在 World 的 Actor 列表中
- *   - 活跃：正常参与 World Tick 和渲染
+ *   - 空闲：root.visible=false，对象不在场景中
+ *   - 活跃：root.visible=true，正常参与 World Tick 和渲染
  */
 export interface IPoolable {
   /** 从池中取出时调用：用 opts 重置状态 */
@@ -42,7 +42,7 @@ export class ObjectPool<T extends PoolableActor> {
   /** 当前活跃数 */
   get activeCount(): number { return this.all.length - this.free.length }
 
-  constructor(factory: () => T, initialSize = 8, maxSize = 0) {
+  constructor(factory: () => T, initialSize = 0, maxSize = 0) {
     this.factory = factory
     this.maxSize = maxSize
 

@@ -61,11 +61,13 @@ export class FishNet extends Actor implements IPoolable {
     this.setPosition(o.pos.x, o.pos.y, o.pos.z)
     this.sprite.setOpacity(0.9)
     this.root.visible = true
+    this.enableTick()
   }
 
   deactivate(): void {
     this.active = false
     this.root.visible = false
+    this.disableTick()
   }
 
   override Tick(dt: number) {

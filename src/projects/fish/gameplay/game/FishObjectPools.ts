@@ -1,9 +1,9 @@
 /**
  * FishObjectPools — ClashMaster 对象池管理器
- * 集中管理所有高频创建/销毁对象的池。
+ * 继承 ObjectPoolManager，复用引擎级对象池基础设施。
  * init(world) 时将所有预分配 Actor 注入 World，之后切换 visible 来复用。
  */
-import { ObjectPool, type World, logger, spawnActor } from '@/engine'
+import { ObjectPool, ObjectPoolManager } from '@/engine/pools/ObjectPoolManager'
 import { FishBullet } from './FishBullet'
 import type { FishBulletOptions } from './FishBullet'
 import { FishNet } from './FishNet'
@@ -11,59 +11,38 @@ import type { FishNetOptions } from './FishNet'
 import { FishFlash } from './FishFlash'
 import type { FishFlashOptions } from './FishFlash'
 import { FishBubble } from './FishBubble'
+import { BattleProjectileActor } from '../battle/BattleProjectileActor'
+import type { BattleProjectileOptions } from '../battle/BattleProjectileActor'
 
-export class FishObjectPools {
+export class FishObjectPools extends ObjectPoolManager {
   readonly bullets: ObjectPool<FishBullet>
   readonly nets: ObjectPool<FishNet>
   readonly flashes: ObjectPool<FishFlash>
   readonly bubbles: ObjectPool<FishBubble>
-
-  private world: World | null = null
-  /** 预分配对象是否已注入 World */
-  private spawned = false
+  readonly projectiles: ObjectPool<BattleProjectileActor>
 
   constructor() {
-    this.bullets = new ObjectPool<FishBullet>(
-      () => new FishBullet(),
-      12, 30,
+    super()
+    this.bullets = this.registerPool(
+      new ObjectPool<FishBullet>(() => new FishBullet(), 0, 30),
+      'bullets',
     )
-    this.nets = new ObjectPool<FishNet>(
-      () => new FishNet(),
-      8, 20,
+    this.nets = this.registerPool(
+      new ObjectPool<FishNet>(() => new FishNet(), 0, 20),
+      'nets',
     )
-    this.flashes = new ObjectPool<FishFlash>(
-      () => new FishFlash(),
-      10, 30,
+    this.flashes = this.registerPool(
+      new ObjectPool<FishFlash>(() => new FishFlash(), 0, 30),
+      'flashes',
     )
-    this.bubbles = new ObjectPool<FishBubble>(
-      () => new FishBubble(),
-      6, 15,
+    this.bubbles = this.registerPool(
+      new ObjectPool<FishBubble>(() => new FishBubble(), 0, 15),
+      'bubbles',
     )
-  }
-
-  /** 将池中所有对象注入 World（必须在游戏开始前调用一次） */
-  init(world: World) {
-    this.world = world
-    if (this.spawned) return
-    this.spawned = true
-
-    const doSpawn = (pool: ObjectPool<any>) => {
-      pool.forEach((obj: any) => {
-        spawnActor(obj)
-        obj.root.visible = false
-      })
-    }
-    doSpawn(this.bullets)
-    doSpawn(this.nets)
-    doSpawn(this.flashes)
-    doSpawn(this.bubbles)
-  }
-
-  /** 确保对象在 World 中（池扩容时自动注入新对象） */
-  private ensureInWorld(obj: any) {
-    if (!this.world || obj.root.parent) return
-    spawnActor(obj)
-    obj.root.visible = false
+    this.projectiles = this.registerPool(
+      new ObjectPool<BattleProjectileActor>(() => new BattleProjectileActor(), 0, 20),
+      'projectiles',
+    )
   }
 
   acquireBullet(opts: FishBulletOptions): FishBullet {
@@ -94,10 +73,10 @@ export class FishObjectPools {
     return b
   }
 
-  releaseAll() {
-    this.bullets.releaseAll()
-    this.nets.releaseAll()
-    this.flashes.releaseAll()
-    this.bubbles.releaseAll()
+  acquireProjectile(opts: BattleProjectileOptions): BattleProjectileActor {
+    const p = this.projectiles.acquire(opts)
+    this.ensureInWorld(p)
+    p.pool = this.projectiles
+    return p
   }
 }

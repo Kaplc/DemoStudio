@@ -46,11 +46,13 @@ export class FishFlash extends Actor implements IPoolable {
     this.sprite.mesh.scale.set(o.size, o.size, 1)
     this.setPosition(o.pos.x, o.pos.y, o.pos.z)
     this.root.visible = true
+    this.enableTick()
   }
 
   deactivate(): void {
     this.active = false
     this.root.visible = false
+    this.disableTick()
   }
 
   override Tick(dt: number) {

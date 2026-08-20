@@ -18,7 +18,7 @@ import type { PreviewSceneManager } from './SceneViewport'
 
 export interface SceneSetupResult {
   /** 共享场景（Scene 视口预览 + Game 视口游戏共用一个 THREE.Scene） */
-  sharedScene: THREE.Scene
+  editorScene: THREE.Scene
   sceneMgr: PreviewSceneManager
   /** Game 视口渲染器（由 Game 启动时创建并归 World 持有；未启动时为 null） */
   gameMgr: SceneRendererComponent | null
@@ -82,7 +82,7 @@ export function setupScene(
   }
 
   return {
-    sharedScene: shared,
+    editorScene: shared,
     sceneMgr,
     gameMgr: null,
     sceneModeRef,

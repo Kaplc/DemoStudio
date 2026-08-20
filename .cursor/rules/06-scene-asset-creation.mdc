@@ -1,0 +1,43 @@
+---
+description: 创建场景资产（.scene.json）的完整指南
+globs: "**/*.scene.json"
+alwaysApply: false
+---
+
+# 创建场景资产（.scene.json）
+
+## 何时使用
+- 用户要求新建场景资产文件（`asset/*.scene.json`）
+- 修改现有场景的对象、组件、引用
+
+## 文件位置与命名
+- 路径：`src/projects/<project>/asset/*.scene.json`
+- 命名：`<描述>.scene.json`（snake_case）
+- **禁止**将 `.scene.json` 放在项目根目录或 `gameplay/` 内
+
+## 场景根结构
+
+```json
+{
+  "mode": "base",
+  "name": "FishBase",
+  "objects": [
+    {
+      "id": 10001,
+      "name": "Ground",
+      "ref": "asset/blueprints/ground.blueprint.json",
+      "components": [...]
+    }
+  ]
+}
+```
+
+## 组件优先约定
+
+位置/旋转/缩放**必须**写在组件的 `properties` 里，禁止顶层 transform。
+
+## 完成检查清单
+- [ ] `mode` 字段正确（menu/base/game）
+- [ ] 所有对象有唯一 `id`
+- [ ] `ref` 路径正确指向 `.blueprint.json`
+- [ ] 无顶层 transform 字段

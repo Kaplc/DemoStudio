@@ -1,108 +1,123 @@
 /**
  * BattleProjectileActor — 战斗弹丸 Actor（防御塔炮弹 / 兵远程箭矢 / 近战挥砍）
- *
- * 由 FishLevelGameMode 开火时生成（spawnActor 托管）：
+ * 对象池版本：构造预分配，acquire 初始化，deactivate 归还池。
  * 构造时指定 起点/终点/速度/目标建筑或兵，覆写 Tick 直线飞行：
- *  - 命中（距目标 < 0.4 或飞行距离超过总路程）→ 对目标扣血 → 自毁
+ *  - 命中（距目标 < 0.4 或飞行距离超过总路程）→ 对目标扣血 → deactivate 归还
  *  - 近战挥砍（speed 很大、路程短）视觉上等同快速弹丸，无需独立动画
  *
  * 网格：0.3×0.3×0.3 小立方体弹丸（BoxMeshComponent 内部默认创建几何，颜色区分来源）。
  */
 import * as THREE from 'three'
-import { GenericActor, BoxMeshComponent, logger } from '@/engine'
+import { GenericActor, BoxMeshComponent, ObjectPool } from '@/engine'
+import type { IPoolable } from '@/engine'
 import { createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
 import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import type { TroopActor } from './troops/TroopActors'
 
-export class BattleProjectileActor extends GenericActor {
+export interface BattleProjectileOptions {
+  gm: FishLevelGameMode
+  from: THREE.Vector3
+  to: THREE.Vector3
+  speed: number
+  damage: number
+  color: number
+  target: ClashBuildingBaseActor | TroopActor
+}
+
+export class BattleProjectileActor extends GenericActor implements IPoolable {
+  /** 对象池引用（由池在 acquire 时设置） */
+  pool: ObjectPool<BattleProjectileActor> | null = null
+  /** 是否正在被使用 */
+  active = false
+
   /** 起始位置（世界坐标） */
-  private readonly start: THREE.Vector3
+  private start: THREE.Vector3 = new THREE.Vector3()
   /** 终点位置（目标中心，世界坐标） */
-  private readonly end: THREE.Vector3
+  private end: THREE.Vector3 = new THREE.Vector3()
   /** 飞行速度（世界单位/秒） */
-  private readonly speed: number
+  private speed = 0
   /** 命中伤害 */
-  private readonly damage: number
+  private damage = 0
   /** 所属战斗 GameMode */
-  private readonly gm: FishLevelGameMode
+  private gm: FishLevelGameMode | null = null
   /** 目标建筑（命中建筑扣建筑血；与 targetTroop 二选一） */
-  private readonly targetBuilding: ClashBuildingBaseActor | null
+  private targetBuilding: ClashBuildingBaseActor | null = null
   /** 目标兵（命中兵扣兵血；与 targetBuilding 二选一） */
-  private readonly targetTroop: TroopActor | null
+  private targetTroop: TroopActor | null = null
   /** 总飞行距离（超出即视为未命中销毁，防永久飞行） */
-  private readonly totalDist: number
+  private totalDist = 0
   /** 已飞行距离 */
   private traveled = 0
+  /** 弹丸颜色 */
+  private _color = 0
+  private _meshComp: BoxMeshComponent | null = null
 
-  constructor(
-    gm: FishLevelGameMode,
-    from: THREE.Vector3,
-    to: THREE.Vector3,
-    speed: number,
-    damage: number,
-    color: number,
-    target: ClashBuildingBaseActor | TroopActor,
-  ) {
-    super(`BattleProjectile_${Math.floor(Math.random() * 100000)}`)
-    this.gm = gm
-    this.start = from.clone()
-    this.end = to.clone()
-    this.speed = speed
-    this.damage = damage
-    this.totalDist = this.start.distanceTo(this.end)
-    // 用 instanceof 区分目标类型（建筑 → 扣建筑血；兵 → 扣兵血）
-    if (target instanceof ClashBuildingBaseActor) {
-      this.targetBuilding = target
-      this.targetTroop = null
-    } else {
-      this.targetTroop = target
-      this.targetBuilding = null
-    }
-    this.setPosition(from.x, from.y, from.z)
-    // 保存颜色供 BeginPlay 建网格
-    this._color = color
+  constructor() {
+    super('BattleProjectile')
+    // 预分配 BoxMeshComponent，acquire 时设尺寸和材质
+    this._meshComp = this.addComponent(BoxMeshComponent, 'ProjMesh')
+    this._meshComp.size = [0.3, 0.3, 0.3]
+    this.deactivate()
   }
 
-  /** 弹丸颜色（构造时暂存，BeginPlay 建网格时使用） */
-  private readonly _color: number
+  /** 从池中取出时初始化 */
+  activate(opts?: BattleProjectileOptions): void {
+    const o = opts as BattleProjectileOptions
+    this.active = true
+    this.gm = o.gm
+    this.start.copy(o.from)
+    this.end.copy(o.to)
+    this.speed = o.speed
+    this.damage = o.damage
+    this.totalDist = this.start.distanceTo(this.end)
+    this.traveled = 0
+    this._color = o.color
+    if (o.target instanceof ClashBuildingBaseActor) {
+      this.targetBuilding = o.target
+      this.targetTroop = null
+    } else {
+      this.targetTroop = o.target
+      this.targetBuilding = null
+    }
+    this.setPosition(o.from.x, o.from.y, o.from.z)
+    if (this._meshComp) {
+      this._meshComp.setMaterial(createMeshBasicMaterial({ color: this._color }))
+    }
+    this.root.visible = true
+    this.enableTick()
+  }
 
-  override BeginPlay(): void {
-    super.BeginPlay()
-    if (!this.world) return
-    // 小立方体弹丸（0.3×0.3×0.3，颜色区分来源：防御塔暗灰、己方兵兵种色）
-    // BoxMeshComponent 内部默认创建 BoxGeometry（走 utils → GC 追踪），外部只需设尺寸 + 材质球
-    const comp = this.addComponent(BoxMeshComponent, 'ProjMesh')
-    comp.size = [0.3, 0.3, 0.3]
-    comp.setMaterial(createMeshBasicMaterial({ color: this._color }))
+  /** 放回池中 */
+  deactivate(): void {
+    this.active = false
+    this.root.visible = false
+    this.targetBuilding = null
+    this.targetTroop = null
+    this.gm = null
+    this.disableTick()
   }
 
   /**
    * 每帧直线飞行：
-   * 到达终点附近 → 命中结算（建筑/兵扣血）→ 自毁；超出总路程 → 未命中自毁。
+   * 到达终点附近 → 命中结算（建筑/兵扣血）→ deactivate 归还；超出总路程 → 未命中归还。
    */
   override Tick(dt: number): void {
     super.Tick(dt)
+    if (!this.active) return
     const step = this.speed * dt
     this.traveled += step
     const pos = this.root.position
-    const dir = this.end.clone().sub(this.start)
     if (this.traveled >= this.totalDist || pos.distanceTo(this.end) < 0.4) {
-      // 命中结算
       if (this.targetBuilding && !this.targetBuilding.bPendingDestroy) {
-        this.gm.damageBuilding(this.targetBuilding, this.damage)
+        this.gm!.damageBuilding(this.targetBuilding, this.damage)
       } else if (this.targetTroop && !this.targetTroop.health.isDead) {
         this.targetTroop.health.takeDamage(this.damage)
       }
-      this.destroy()
+      this.pool?.release(this)
       return
     }
-    dir.normalize()
+    const dir = this.end.clone().sub(this.start).normalize()
     pos.addScaledVector(dir, step)
-  }
-
-  override EndPlay(): void {
-    // 网格由 MeshComponent.EndPlay 自动释放
-    super.EndPlay()
   }
 }

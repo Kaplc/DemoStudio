@@ -1,0 +1,39 @@
+---
+description: WebGL 上下文丢失处理指南
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# WebGL 上下文丢失处理
+
+## 上下文丢失原因
+
+WebGL 上下文可能在以下情况丢失：
+- 显卡驱动重置
+- 浏览器标签页切换到后台
+- 系统进入休眠/唤醒
+- GPU 资源耗尽
+- 浏览器内存压力
+
+## 检测与恢复
+
+```typescript
+// 检测上下文丢失
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  console.warn('WebGL context lost');
+});
+
+// 恢复上下文
+canvas.addEventListener('webglcontextrestored', () => {
+  console.log('WebGL context restored');
+  // 重新初始化渲染器、几何体、材质等
+});
+```
+
+## 最佳实践
+
+1. 在 `webglcontextrestored` 事件中重建所有 WebGL 资源
+2. 使用 `preserveDrawingBuffer: true` 仅在需要截图时启用
+3. 定期保存关键状态以便恢复
+4. 实现优雅降级（如显示静态图像）

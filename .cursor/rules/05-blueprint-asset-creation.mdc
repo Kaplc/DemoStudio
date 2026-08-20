@@ -1,0 +1,58 @@
+---
+description: 创建 DemoStudio 蓝图资产（.blueprint.json）的完整指南
+globs: "**/*.blueprint.json"
+alwaysApply: false
+---
+
+# 创建蓝图资产（.blueprint.json）
+
+## 何时使用
+- 用户要求新建蓝图资产文件（`asset/blueprints/**/*.blueprint.json`）
+- 修改现有蓝图的 `components` / `children`（子 Actor、组件、引用）
+- 蓝图由 `asset/index.ts` 的 `import.meta.glob` **自动注册**，注册 key 从文件路径推导
+
+## 文件位置与命名
+- 路径：`src/projects/<project>/asset/blueprints/**/*.blueprint.json`
+- 命名：`<描述>.blueprint.json`（snake_case）
+
+## 蓝图根结构
+
+```json
+{
+  "name": "BeachHouse",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    }
+  ],
+  "children": []
+}
+```
+
+| 字段 | 类型 | 必填 | 规则 |
+|------|------|------|------|
+| `name` | string | ✅ | 蓝图显示名 |
+| `baseClass` | string | ✅ | ActorRegistry key，如 `Actor`、`FishHouse` |
+| `components` | array | ✅ | 根级组件列表 |
+| `children` | array | ✅ | 子 Actor 列表 |
+
+> 蓝图根**禁止**顶层 `position`/`rotation`/`scale`（组件优先约定）。
+
+## 组件优先约定（关键！）
+
+位置/旋转/缩放**必须**写在 `TransformComponent`/`UITransformComponent` 组件的 `properties` 里：
+- 根或子节点带顶层 transform → `top-transform-forbidden` error
+- 无变换组件却声明顶层 transform → `missing-transform-component` error
+
+## 完成检查清单
+- [ ] 根含 `name`、`baseClass`、`components`、`children`
+- [ ] 无任何顶层 `position`/`rotation`/`scale`
+- [ ] 所有子节点有 `id` 且唯一；`name` 唯一
+- [ ] 每个子节点恰好有 `ref` 或 `baseClass` 之一
+- [ ] `ref` 路径以 `asset/` 开头、以 `.blueprint.json` 结尾

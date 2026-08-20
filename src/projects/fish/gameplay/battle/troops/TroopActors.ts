@@ -54,6 +54,8 @@ function assembleTroop(
   ;(actor as GenericActor).addComponent(TroopTargetComponent, gm, troop)
   ;(actor as GenericActor).addComponent(TroopMoveComponent, gm, troop)
   ;(actor as GenericActor).addComponent(TroopAttackComponent, gm, troop)
+  // 开启 tick：驱动移动组件（寻路/物理移动）和攻击组件（站桩射击）
+  ;(actor as GenericActor).enableTick()
 }
 
 /** 部署日志（BeginPlay 共享输出，class 名标识兵种 Actor 类） */

@@ -144,6 +144,21 @@ export abstract class Actor extends BObject {
 
   private _bActive = true
   /**
+   * 是否开启 Tick（默认 false，手动调用 enableTick 开启）。
+   * 关闭时不参与 World 每帧 Tick 循环，减少无用 update 开销。
+   * 注：即使关闭，actor 仍会随父链正常渲染，bActive 照常控制可见性。
+   */
+  private _bTickEnabled = false
+  get bTickEnabled(): boolean { return this._bTickEnabled }
+  /** 开启 Tick 并尝试注册到 World（已 world 归属时生效） */
+  enableTick(): void {
+    this._bTickEnabled = true
+  }
+  /** 关闭 Tick */
+  disableTick(): void {
+    this._bTickEnabled = false
+  }
+  /**
    * 大纲"小眼睛"的临时预览隐藏（仅影响渲染表现，不写入资产/蓝图）。
    * 与 _bActive 解耦：active 控制节点级语义并参与 save/load；
    * previewHidden 仅用于编辑器预览，调用 setPreviewHidden 切换。

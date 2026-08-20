@@ -52,6 +52,7 @@ export class FishPawn extends Actor {
   spawnAt(edgeX: number, y: number) {
     this.baseY = y
     this.setPosition(edgeX, y, 0)
+    this.enableTick()
   }
 
   /** 调整游速倍率 (群游时每条鱼微调，产生错落感) */

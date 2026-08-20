@@ -53,6 +53,7 @@ export class FishCoinFly extends Actor {
         delay: i * 0.08 + Math.random() * 0.1,
       })
     }
+    this.enableTick()
   }
 
   override Tick(dt: number) {

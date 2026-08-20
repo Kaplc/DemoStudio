@@ -64,6 +64,7 @@ export class FishBullet extends Actor implements IPoolable {
     this.captureBonus = o.captureBonus
     this.setPosition(o.pos.x, o.pos.y, o.pos.z)
     this.root.visible = true
+    this.enableTick()
   }
 
   /** 放回池中 */

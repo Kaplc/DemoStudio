@@ -1,0 +1,118 @@
+---
+description: src/projects 工程文件夹结构规则、资产布局、配置表、场景切换规范
+globs: src/projects/**
+alwaysApply: false
+---
+
+# src/projects 工程文件夹结构规则
+
+`src/projects/` 下的每个游戏项目文件夹必须遵循以下目录结构：
+
+```
+{ProjectName}/
+├── asset/               # 场景资产文件（.scene.json）+ 配置资产（asset/config/）
+│   └── config/          #   配置文件（*.config.json, *.table.json）
+├── gameplay/            # 按阶段/模式划分的游戏逻辑子文件夹
+│   ├── common/          #   跨阶段共享（types.ts、textures.ts、工具类等）
+│   ├── {modeA}/         #   阶段 A（menu / base 等）
+│   │   ├── hud/         #     该阶段的 UI 组件（.tsx）
+│   │   ├── {ModeA}GameMode.ts
+│   │   └── ...
+│   ├── {modeB}/         #   阶段 B（game 等）
+│   │   ├── hud/         #     该阶段的 UI 组件（.tsx）
+│   │   ├── config/      #     该阶段独用的配置文件（可选）
+│   │   ├── {ModeB}GameMode.ts
+│   │   ├── *Actor.ts
+│   │   ├── *Pawn.ts
+│   │   ├── *Controller.ts
+│   │   └── ...
+│   └── {Mode}GameInstance.ts  # 游戏实例（多阶段编排），放在 gameplay/ 根目录
+├── index.ts             # 项目入口文件
+└── project.json         # 项目元信息配置
+```
+
+**参考项目：** `fish/` 实现了完整的三阶段结构（`menu/` → `base/` → `game/`），新增项目应参照此模式。
+
+## 各文件夹详细规则
+
+### asset/ — 场景资产文件
+
+放置 `.scene.json` 场景资产文件和 `blueprints/` 蓝图资产文件。
+
+```
+asset/
+├── fish.scene.json
+├── fish_menu.scene.json
+├── fish_base.scene.json
+├── config/                # 配置文件（*.config.json / *.table.json）
+│   ├── cannon.config.json
+│   └── troop.table.json
+└── blueprints/
+    ├── beach_house.blueprint.json
+    └── seaweed_sprite.blueprint.json
+```
+
+规则：
+- **禁止**将 `.scene.json` 文件放在项目根目录或 `gameplay/` 内
+- **场景资产**：`asset/*.scene.json`（不包含子目录）
+- **蓝图资产**：`asset/blueprints/*.blueprint.json`
+- **配置资产**：`asset/config/*.config.json` 与 `asset/config/*.table.json`（配置表，由 ConfigRegistry 加载）
+- **自动扫描**：新增文件无需修改代码，`import.meta.glob` 在 `asset/index.ts` 中自动发现并注册
+- **注册时机**：打开工程时触发（`setCurrentProject` → `registerFishAssets()` → `AssetRegistry.registerAll()`）
+
+### asset/config/ — 配置文件（已从 config/ 目录迁入）
+
+放置全局配置文件（所有阶段共享的配置），与场景/蓝图资产同属 `asset/` 资源目录：
+
+| 文件类型 | 位置 | 说明 |
+|----------|------|------|
+| `project.json` | 项目根目录 | 项目元信息（名称、入口、标签、worldConfig 等），**保留在根目录** |
+| `*.config.json` | `asset/config/` | 功能配置，由 `ConfigRegistry` 加载 |
+| `*.table.json` | `asset/config/` | 数据表，由 `DataTable` 加载 |
+
+规则：
+- `project.json` 作为项目标识文件保留在根目录，不移入 `asset/config/`
+- 若某个阶段的配置仅在该阶段使用，可放在 `gameplay/{mode}/config/` 下
+- 各项目的配置加载器（如 `FishConfigLoader.ts`）位于项目根目录，由 GameInstance 构造时统一调用
+
+### gameplay/ — 按阶段/模式划分的子文件夹
+
+**核心约定：每个阶段（mode）就是一个文件夹。** 新增场景时，直接在 `gameplay/` 下创建新文件夹存放该模式的所有代码。
+
+规则：
+- **新增场景**：在 `gameplay/` 下创建 `{modeName}/` 文件夹，该阶段的所有代码放在其下
+- **跨阶段共享**：共享代码（`types.ts`、`textures.ts`、工具类）放在 `gameplay/common/`
+- **UI 组件**：每个阶段的 `.tsx` UI 文件放在该阶段的 `hud/` 子文件夹内
+- **文件地位**：`GameMode`、`Pawn`、`Actor`、`PlayerController`、工具类等直接放在 mode 文件夹根目录（不嵌套子目录）
+- **游戏实例**：`GameInstance` 放在 `gameplay/` 根目录（跨阶段编排）
+- **禁止**将 `.tsx` 文件放在 mode 根目录——必须放入 `hud/`
+
+## 程序化生成规则（ThreeFactoryComponent 工厂）
+
+**项目代码中禁止直接调用 `new THREE.Mesh()`、`new THREE.BoxGeometry()` 等 THREE 构造函数创建可渲染对象。**
+
+所有可渲染对象必须通过 `World.factory` 工厂创建：
+
+| 方法 | 用途 |
+|------|------|
+| `world.factory.createGroup()` | 空 Group（组合体容器） |
+| `world.factory.createMesh(geometry, material)` | 网格 |
+| `world.factory.createBoxMesh(w, h, d, color, transparent?, opacity?)` | Box 网格 |
+| `world.factory.createSphereMesh(radius, color, segments?, transparent?, opacity?)` | 球体网格 |
+| `world.factory.createPlaneMesh(w, h, color, transparent, opacity, side)` | 平面网格 |
+| `world.factory.createInvisibleBox(w, h, d)` | 不可见 Box（点击碰撞体） |
+| `world.factory.createEdgesBox(w, h, d, color, transparent?, opacity?)` | Box 线框 |
+| `world.factory.createSprite(material)` | 精灵 |
+| `world.factory.createGridLines(min, max, step, color)` | 网格线 |
+
+## 场景切换方法（World.SwitchToScene）
+
+阶段性场景切换必须使用 `World.SwitchToScene(sceneAsset, extraSetup?)`，它会自动完成 Pause → DestroyAllActors → SetGameMode → loadSceneAsActors → extraSetup → BeginPlay 的完整流程。
+
+**禁止**手动拼凑上述步骤，统一使用 `SwitchToScene`。
+
+## 配置表加载规则
+
+1. **配置表由各 GameMode 自身在构造时加载**，不允许在编辑器启动时提前加载
+2. 在 `GameMode.constructor` 中调用项目的 `initXxxConfigs(logger.info)`
+3. 编辑器项目切换时不触发配置加载，遵循"不用不加载"原则

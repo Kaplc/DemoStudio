@@ -1,0 +1,48 @@
+---
+description: 创建 UI Widget 资产（.widget.json）的完整指南
+globs: "**/*.widget.json"
+alwaysApply: false
+---
+
+# 创建 UI Widget 资产（.widget.json）
+
+## 何时使用
+- 用户要求新建 UI widget 资产文件（`asset/widgets/*.widget.json`）
+- 修改现有 widget 的控件、属性、绑定
+
+## 文件位置与命名
+- 路径：`src/projects/<project>/asset/widgets/*.widget.json`
+- 命名：`<描述>.widget.json`（snake_case）
+
+## Widget 根结构
+
+```json
+{
+  "name": "MainMenuUI",
+  "root": {
+    "type": "UIWindow",
+    "id": "main_win",
+    "properties": {
+      "size": [1, 1],
+      "anchor": "MIDDLE_CENTER"
+    },
+    "children": [...]
+  }
+}
+```
+
+## 根三件套
+每个 widget 根节点必须包含：
+1. `type` - 控件类型
+2. `id` - 唯一标识
+3. `properties` - 位置/大小/锚点
+
+## 组件优先约定
+
+位置/旋转/缩放**必须**写在 `UITransformComponent` 的 `properties` 里。
+
+## 完成检查清单
+- [ ] 根节点含 `type`、`id`、`properties`
+- [ ] 所有子节点有唯一 `id`
+- [ ] 无顶层 transform 字段
+- [ ] `type` 为有效的控件类型
