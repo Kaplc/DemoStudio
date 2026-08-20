@@ -9,6 +9,7 @@ import { InputSys } from '../input/InputSys'
 import { AObject } from '../entity/AObject'
 import { GMModule } from '../gm/GMModule'
 import { GameViewportComponent } from './GameViewportComponent'
+import { EditorGameBridgeComponent } from './EditorGameBridgeComponent'
 import type { World } from './World'
 
 export interface GameInstanceCallbacks {
@@ -41,6 +42,8 @@ export abstract class GameInstance extends AObject {
     super()
     this.world = world
     this.viewport = this.addComponent(GameViewportComponent, container)
+    // 编辑器只读桥：编辑器经此组件读取游戏场景（不注入编辑器内容）
+    this.addComponent(EditorGameBridgeComponent)
   }
 
   getWorld(): World | null {

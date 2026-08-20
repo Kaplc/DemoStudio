@@ -5,6 +5,7 @@
  * 统一入口，避免直接访问 actorMgr 内部实现。
  */
 import { GameInstance } from './GameInstance'
+import { PreviewObjectFactoryComponent } from './PreviewObjectFactoryComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
 import type { Component } from '../entity/Component'
@@ -25,7 +26,9 @@ function getActorMgr(world: World): ActorManagerComponent {
  * 内部使用 GameInstance.current 获取活跃世界。
  */
 export function spawnActor<T extends Actor>(actor: T): T {
-  const world = GameInstance.current?.getWorld()
+  // 运行时：GameInstance.current；编辑器预览：当前预览工厂所属 World（无 GameInstance）
+  const world =
+    GameInstance.current?.getWorld() ?? PreviewObjectFactoryComponent.getCurrentWorld()
   if (!world) throw new Error('[ActorUtils] spawnActor: 当前没有活跃 GameInstance 或未关联 World')
   getActorMgr(world).SpawnActor(actor)
   return actor

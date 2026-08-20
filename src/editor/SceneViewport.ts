@@ -102,11 +102,33 @@ export interface PreviewSceneManagerOptions {
  */
 export class PreviewSceneManager {
   public scene: THREE.Scene
+  /** 摄像机 */
   public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera
   public renderer: THREE.WebGLRenderer
   public controls: OrbitControls | null = null
   /** UI 覆盖层宿主：尺寸/位置始终跟随 canvas 实际渲染矩形（letterbox 后的居中区域） */
   readonly uiLayer: HTMLDivElement
+
+  // ─── 场景读取模式（编辑器只读游戏场景，不注入编辑器内容）───
+  /**
+   * 当前渲染主场景（null = 默认 this.scene；游戏运行时切换为游戏场景只读）。
+   * Scene 视图直接渲染 game.scene，用 Scene tab 自己的相机，无需叠加层。
+   */
+  private _viewScene: THREE.Scene | null = null
+
+  /**
+   * 切换渲染主场景（编辑器读取游戏场景用）：传 null 恢复默认场景（this.scene）。
+   * 注意：这只是渲染层只读引用，不向目标场景注入任何编辑器内容。
+   */
+  setViewScene(scene: THREE.Scene | null): void {
+    this._viewScene = scene
+  }
+
+  /** 当前渲染主场景（调试/拾取用） */
+  get viewScene(): THREE.Scene {
+    return this._viewScene ?? this.scene
+  }
+
   private animationId: number | null = null
   private lastTime = 0
   private updateCallbacks: Array<(dt: number) => void> = []
@@ -490,7 +512,9 @@ export class PreviewSceneManager {
         cb(dt)
       }
 
-      this.renderer.render(this.scene, this.camera)
+      // 主场景渲染（默认 this.scene；游戏运行时 = 游戏场景只读）
+      this.renderer.render(this.viewScene, this.camera)
+
       // 渲染后回调（UI 覆盖层等）
       for (const cb of this.afterRenderCallbacks) {
         cb()

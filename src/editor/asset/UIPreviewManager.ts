@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { World, EditorActorComponent } from '../../engine'
+import { PreviewObjectFactoryComponent } from '../../engine'
 import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { BlueprintRegistry } from '../../engine'
@@ -55,6 +56,8 @@ export class UIPreviewManager {
   readonly renderer: THREE.WebGLRenderer
   readonly world: World
   readonly gizmo: TransformGizmo
+  /** 预览对象工厂（编辑器预览独立 THREE 创建器，无 GameInstance 依赖；EndPlay 统一释放） */
+  readonly previewFactory: PreviewObjectFactoryComponent
   /** UI 锚点 gizmo（Unity 风格：父容器范围 + 4 小三角形锚点图标） */
   readonly anchorGizmo: AnchorGizmo
 
@@ -184,8 +187,19 @@ export class UIPreviewManager {
     this.renderer.setClearColor(0x000000, 0)
     container.appendChild(this.renderer.domElement)
 
-    // ─── 场景 ───
-    this.scene = new THREE.Scene()
+    // ─── World ───
+    // 必须先建 World：SceneComponent 持有 actor 挂载场景，预览场景直接复用 world.scene，
+    // 保证渲染/大纲遍历与 actor 挂载在同一个 THREE.Scene（否则大纲看不到节点、预览渲染为空）
+    this.world = new World()
+
+    // ─── 预览对象工厂：编辑器预览独立 THREE 创建器（不依赖 GameInstance）───
+    // 组件工厂（Mesh/UI 组件等）经 ThreeObjectUtils 自动分流到本工厂，对象由本组件追踪，
+    // World.Destroy → EndPlay 统一释放。每次 spawn 前置位 setCurrent（见 loadBlueprint）。
+    this.previewFactory = this.world.addComponent(PreviewObjectFactoryComponent)
+    PreviewObjectFactoryComponent.setCurrent(this.previewFactory)
+
+    // ─── 场景（复用 World 的 SceneComponent 场景：actor 挂载点 = 渲染场景 = 大纲遍历场景）───
+    this.scene = this.world.scene
     this.scene.background = new THREE.Color(0x1a1a2e)
 
     // ─── 编辑器覆盖层：gizmo/包围盒/把手挂这里，渲染永远在 UI 之上 ───
@@ -212,9 +226,6 @@ export class UIPreviewManager {
     this.boundsCanvas.width = 512
     this.boundsCanvas.height = 96
     this.boundsCtx = this.boundsCanvas.getContext('2d')!
-
-    // ─── World ───
-    this.world = new World()
 
     // ─── WebGL 上下文丢失/恢复：GPU 重置或内存不足时暂停渲染，恢复后重建纹理继续 ───
     this._onContextLost = (e: Event) => {
@@ -766,6 +777,8 @@ export class UIPreviewManager {
    *  @param path     蓝图注册 key（asset/...）
    *  @param diskPath 磁盘路径（src/projects/...，可选；提交/保存经服务层时必需） */
   loadBlueprint(path: string, diskPath?: string): boolean {
+    // 本次 spawn 全程使用本管理器的预览工厂（多页签并发时覆盖 current）
+    PreviewObjectFactoryComponent.setCurrent(this.previewFactory)
     this.clearPreview()
 
     // 持有蓝图 JSON 的可变深拷贝
@@ -1668,6 +1681,8 @@ export class UIPreviewManager {
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
+    // 预览对象工厂：释放全部追踪对象 + 自清 current（幂等）
+    this.previewFactory.disposeAll()
     this.world.Destroy()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {

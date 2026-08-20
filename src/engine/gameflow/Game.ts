@@ -19,6 +19,7 @@ import type { SceneRendererComponent } from './SceneRendererComponent'
 import type { SceneRenderHost } from '../rendering/SceneRenderHost'
 import { GameInstance } from './GameInstance'
 import type { GameInstanceCallbacks } from './GameInstance'
+import { EditorGameBridgeComponent } from './EditorGameBridgeComponent'
 import { AIModule } from '../ai/AIModule'
 import { PhysicsWorld } from '../physics/PhysicsWorld'
 import { GameFactoryRegistry } from '../tools/GameFactoryRegistry'
@@ -193,6 +194,10 @@ export class Game {
       return false
     }
 
+    // 编辑器只读桥：标记本实例为游戏运行中（编辑器读取适配）
+    const bridge = inst.getComponent(EditorGameBridgeComponent)
+    if (bridge) bridge.gameRunning = true
+
     // 启用 Game 渲染
     if (gameMgr) {
       gameMgr.setControlsEnabled(true)
@@ -252,6 +257,10 @@ export class Game {
     this.removeTick?.()
     this.removeTick = null
     logger.info('[Game] Tick 回调已注销')
+
+    // 编辑器只读桥：标记游戏已停止
+    const bridge = this._instance?.getComponent(EditorGameBridgeComponent)
+    if (bridge) bridge.gameRunning = false
 
     // 完全销毁游戏实例（stop + world.Destroy + 组件注销）
     this._instance?.destroy()

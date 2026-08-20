@@ -220,6 +220,19 @@ const _watchedWorlds = new WeakSet<import('../engine').World>()
 /** 当前运行中游戏的 World（Viewport 游戏启动时设置，停止时清空；大纲运行中 UI 树数据源） */
 let _runningWorld: import('../engine').World | null = null
 
+/** 当前运行中游戏的编辑器只读桥（挂 GameInstance，Viewport 启动/停止游戏时设置） */
+let _runningBridge: import('../engine').EditorGameBridgeComponent | null = null
+
+/** 记录当前运行中游戏的编辑器只读桥（Viewport 启动/停止游戏时调用） */
+export function setRunningBridge(bridge: import('../engine').EditorGameBridgeComponent | null): void {
+  _runningBridge = bridge
+}
+
+/** 获取当前运行中游戏的编辑器只读桥（未运行返回 null） */
+export function getRunningBridge(): import('../engine').EditorGameBridgeComponent | null {
+  return _runningBridge
+}
+
 /** 记录当前运行中游戏的 World（Viewport 启动/停止游戏时调用） */
 export function setRunningWorld(world: import('../engine').World | null): void {
   _runningWorld = world
@@ -263,7 +276,9 @@ export interface SceneTreeNode {
 
 export function getSceneTree(): SceneTreeNode[] {
   const result: SceneTreeNode[] = []
-  if (!_sharedScene) return result
+  // 游戏运行时：只读遍历游戏场景（经桥组件，不注入编辑器内容）；否则遍历共享场景
+  const scene = _runningBridge?.scene ?? _sharedScene
+  if (!scene) return result
 
   function walk(obj: THREE.Object3D, depth: number) {
     // 跳过内部保留对象（GridHelper、AxesHelper、所有灯光——灯光挂载在灯光 Actor 的 root 下，
@@ -277,7 +292,7 @@ export function getSceneTree(): SceneTreeNode[] {
     if (obj.name === 'TransformGizmo') return
 
     // 跳过场景根节点自身（它只是一个容器，没有 actor）
-    const isRoot = obj === _sharedScene
+    const isRoot = obj === scene
     if (!isRoot) {
       const actorRef = (obj as any).userData?.actorRef as Actor | undefined
       // 只显示有 Actor 的节点：无 actorRef 的纯容器 Group / 场景资产 mesh / 灯光子对象
@@ -301,6 +316,6 @@ export function getSceneTree(): SceneTreeNode[] {
     }
   }
 
-  walk(_sharedScene, 0)
+  walk(scene, 0)
   return result
 }

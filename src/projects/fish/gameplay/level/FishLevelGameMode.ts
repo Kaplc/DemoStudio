@@ -215,6 +215,11 @@ export class FishLevelGameMode extends GameMode {
   }
 
   /** 建筑中心（世界坐标，x/z；兵索敌/碰撞用） */
+  /** 给定目标输出建筑中心坐标（避免每帧 new Vector3） */
+  buildingCenterInto(b: ClashBuildingBaseActor, out: THREE.Vector3): void {
+    out.set(b.root.position.x, 0, b.root.position.z)
+  }
+
   buildingCenter(b: ClashBuildingBaseActor): THREE.Vector3 {
     return new THREE.Vector3(b.root.position.x, 0, b.root.position.z)
   }

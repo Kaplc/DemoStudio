@@ -63,7 +63,6 @@ export class NavGrid {
   rebuildFromStaticColliders(): number {
     this.blocked.clear()
     let count = 0
-    const half = this.cellSize / 2
     // cannon 形状 AABB 计算用 Vec3（body.position/quaternion 也是 cannon 类型）
     const min = new CANNON.Vec3()
     const max = new CANNON.Vec3()
@@ -86,11 +85,13 @@ export class NavGrid {
       }
       if (!Number.isFinite(x0)) continue
       void y0; void y1
-      // 覆盖到的所有格子置阻挡（格中心在 AABB 内即阻挡；外扩 half 保证贴边覆盖）
-      const i0 = Math.floor((x0 - half) / this.cellSize)
-      const i1 = Math.ceil((x1 + half) / this.cellSize)
-      const j0 = Math.floor((z0 - half) / this.cellSize)
-      const j1 = Math.ceil((z1 + half) / this.cellSize)
+      // 路径点格 = 格中心落在 AABB 内的格子（严格贴合，不外扩）。
+      // cellToWorld 返回格中心 * cellSize，所以判断用 [x0, x1] 区间内的格中心。
+      // 包围盒 [x0,x1] 半开：取下界 ceil、上界 floor，等价于「x0 <= 中心 <= x1」。
+      const i0 = Math.ceil(x0 / this.cellSize)
+      const i1 = Math.floor(x1 / this.cellSize)
+      const j0 = Math.ceil(z0 / this.cellSize)
+      const j1 = Math.floor(z1 / this.cellSize)
       for (let j = j0; j <= j1; j++) {
         for (let i = i0; i <= i1; i++) {
           this.setBlocked(i, j, true)
@@ -99,6 +100,35 @@ export class NavGrid {
       }
     }
     return count
+  }
+
+  /**
+   * 环绕中心格 (ci, cj) 的「环形可走格」（格坐标，不是世界坐标）。
+   * 用途：寻路目标被建筑占时，让多个兵分散到不同落脚点（避免全部挤到最近那一格）。
+   * 规则：半径从 minR 扩到 maxR；每半径上按 8 方向（NE/E/SE/S/SW/W/NW/N）
+   * 均匀采样，若该格被阻挡则跳过。
+   */
+  freeCellsAround(ci: number, cj: number, minR = 1, maxR = 2): Array<[number, number]> {
+    const out: Array<[number, number]> = []
+    const seen = new Set<number>()
+    const stride = this.halfExtent * 2 + 1
+    const key = (i: number, j: number) => (j + this.halfExtent) * stride + (i + this.halfExtent)
+    const dirs: Array<[number, number]> = [
+      [0, -1], [1, 0], [0, 1], [-1, 0],
+      [1, -1], [1, 1], [-1, 1], [-1, -1],
+    ]
+    for (let r = minR; r <= maxR; r++) {
+      for (const [dx, dz] of dirs) {
+        const i = ci + dx * r
+        const j = cj + dz * r
+        if (this.isBlocked(i, j)) continue
+        const k = key(i, j)
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push([i, j])
+      }
+    }
+    return out
   }
 
   /** 诊断快照（调试/日志用） */

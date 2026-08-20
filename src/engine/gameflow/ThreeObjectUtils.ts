@@ -9,7 +9,11 @@
  *   const mat  = createMeshBasicMaterial({ color: 0xff0000 })
  *   const obj  = createMesh(geo, mat)
  *
- * 内部通过 GameInstance.current.world.factory 获取工厂，调用方无需任何参数。
+ * 内部按序解析当前工厂，调用方无需任何参数：
+ *   1. 运行时：GameInstance.current.world.factory（GC 追踪）
+ *   2. 编辑器预览：PreviewObjectFactoryComponent.getCurrent()（独立预览工厂，EndPlay 统一释放）
+ *   3. 都无（无活跃实例且未挂预览工厂）→ 未追踪创建（裸 new THREE.xxx），
+ *      由持有方（组件 EndPlay 等）自行 dispose —— 避免 `GameInstance.current!.world` 空引用崩溃。
  * 适用于：业务代码、Actor.build、Component.rebuild、GM 命令、Inspector 调试面板。
  *
  * 未追踪版本（`*Untracked`）：返回裸 THREE.Object3D / BufferGeometry / Material，
@@ -23,9 +27,19 @@
 import * as THREE from 'three'
 import { ThreeObject } from '../rendering/ThreeObject'
 import { GameInstance } from './GameInstance'
+import { PreviewObjectFactoryComponent } from './PreviewObjectFactoryComponent'
 
+/**
+ * 当前 World 工厂（运行时优先）；无活跃游戏实例时退回编辑器预览工厂；
+ * 两者皆无时为 null，调用方退化为未追踪创建。
+ */
 function factory() {
-  return GameInstance.current!.world.factory
+  const gi = GameInstance.current
+  if (gi?.world) return gi.world.factory
+  // 编辑器预览（蓝图/场景/UI 资产预览）：独立预览工厂，无 GameInstance 依赖
+  const pf = PreviewObjectFactoryComponent.getCurrent()
+  if (pf) return pf
+  return null
 }
 
 // ─── 已追踪（推荐）：经工厂创建，GC 自动释放 ───
@@ -34,36 +48,48 @@ export function createMesh(
   geometry: THREE.BufferGeometry,
   material: THREE.Material | THREE.Material[],
 ): ThreeObject<THREE.Mesh> {
-  return factory().createMesh(geometry, material)
+  const f = factory()
+  if (f) return f.createMesh(geometry, material)
+  return new ThreeObject(new THREE.Mesh(geometry, material))
 }
 
 export function createGroup(): ThreeObject<THREE.Group> {
-  return factory().createGroup()
+  const f = factory()
+  if (f) return f.createGroup()
+  return new ThreeObject(new THREE.Group())
 }
 
 export function createLineSegments(
   geometry: THREE.BufferGeometry,
   material: THREE.Material | THREE.Material[],
 ): ThreeObject<THREE.LineSegments> {
-  return factory().createLine(geometry, material)
+  const f = factory()
+  if (f) return f.createLine(geometry, material)
+  return new ThreeObject(new THREE.LineSegments(geometry, material))
 }
 
 export function createLine(
   geometry: THREE.BufferGeometry,
   material: THREE.Material | THREE.Material[],
 ): ThreeObject<THREE.LineSegments> {
-  return factory().createLine(geometry, material)
+  const f = factory()
+  if (f) return f.createLine(geometry, material)
+  return new ThreeObject(new THREE.LineSegments(geometry, material))
 }
 
 export function createSprite(material: THREE.SpriteMaterial): ThreeObject<THREE.Sprite> {
-  return factory().createSprite(material)
+  const f = factory()
+  if (f) return f.createSprite(material)
+  return new ThreeObject(new THREE.Sprite(material))
 }
 
 export function createPoints(
   geometry: THREE.BufferGeometry,
   material: THREE.PointsMaterial,
 ): ThreeObject<THREE.Points> {
-  return factory().createPoints(geometry, material)
+  const f = factory()
+  if (f) return f.createPoints(geometry, material)
+  return new ThreeObject(new THREE.Points(geometry, material))
 }
 
 export function createEdgesBox(
@@ -72,7 +98,10 @@ export function createEdgesBox(
   transparent = false,
   opacity = 1,
 ): ThreeObject<THREE.LineSegments> {
-  return factory().createEdgesBox(w, h, d, color, transparent, opacity)
+  const f = factory()
+  if (f) return f.createEdgesBox(w, h, d, color, transparent, opacity)
+  const mat = new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) })
+  return new ThreeObject(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), mat))
 }
 
 export function createGridLines(
@@ -81,51 +110,79 @@ export function createGridLines(
   transparent?: boolean,
   opacity?: number,
 ): ThreeObject<THREE.LineSegments> {
-  return factory().createGridLines(min, max, step, color, transparent, opacity)
+  const f = factory()
+  if (f) return f.createGridLines(min, max, step, color, transparent, opacity)
+  const points: THREE.Vector3[] = []
+  for (let i = min; i <= max; i += step) {
+    points.push(new THREE.Vector3(i, 0, min), new THREE.Vector3(i, 0, max))
+    points.push(new THREE.Vector3(min, 0, i), new THREE.Vector3(max, 0, i))
+  }
+  const mat = new THREE.LineBasicMaterial({ color, ...(transparent ? { transparent, opacity } : {}) })
+  return new ThreeObject(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), mat))
 }
 
 export function trackObject<T extends THREE.Object3D>(object: T): ThreeObject<T> {
-  return factory().trackObject(object)
+  const f = factory()
+  if (f) return f.trackObject(object)
+  return new ThreeObject(object)
 }
 
 // ─── BufferGeometry 工厂 ───
 
 export function createBoxGeometry(w: number, h: number, d: number): THREE.BoxGeometry {
-  return factory().createBoxGeometry(w, h, d)
+  const f = factory()
+  if (f) return f.createBoxGeometry(w, h, d)
+  return createBoxGeometryUntracked(w, h, d)
 }
 
 export function createSphereGeometry(radius: number, widthSegments = 16, heightSegments = 16): THREE.SphereGeometry {
-  return factory().createSphereGeometry(radius, widthSegments, heightSegments)
+  const f = factory()
+  if (f) return f.createSphereGeometry(radius, widthSegments, heightSegments)
+  return createSphereGeometryUntracked(radius, widthSegments, heightSegments)
 }
 
 export function createPlaneGeometry(w: number, h: number): THREE.PlaneGeometry {
-  return factory().createPlaneGeometry(w, h)
+  const f = factory()
+  if (f) return f.createPlaneGeometry(w, h)
+  return createPlaneGeometryUntracked(w, h)
 }
 
 export function createCapsuleGeometry(radius: number, length: number, capSegments = 4, radialSegments = 12): THREE.CapsuleGeometry {
-  return factory().createCapsuleGeometry(radius, length, capSegments, radialSegments)
+  const f = factory()
+  if (f) return f.createCapsuleGeometry(radius, length, capSegments, radialSegments)
+  return createCapsuleGeometryUntracked(radius, length, capSegments, radialSegments)
 }
 
 export function createEdgesGeometry(source: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {
-  return factory().createEdgesGeometry(source, thresholdAngle)
+  const f = factory()
+  if (f) return f.createEdgesGeometry(source, thresholdAngle)
+  return createEdgesGeometryUntracked(source, thresholdAngle)
 }
 
 export function createBufferGeometry(): THREE.BufferGeometry {
-  return factory().createBufferGeometry()
+  const f = factory()
+  if (f) return f.createBufferGeometry()
+  return createBufferGeometryUntracked()
 }
 
 // ─── Material 工厂 ───
 
 export function createMeshBasicMaterial(params: THREE.MeshBasicMaterialParameters = {}): THREE.MeshBasicMaterial {
-  return factory().createMeshBasicMaterial(params)
+  const f = factory()
+  if (f) return f.createMeshBasicMaterial(params)
+  return createMeshBasicMaterialUntracked(params)
 }
 
 export function createMeshStandardMaterial(params: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
-  return factory().createMeshStandardMaterial(params)
+  const f = factory()
+  if (f) return f.createMeshStandardMaterial(params)
+  return createMeshStandardMaterialUntracked(params)
 }
 
 export function createLineBasicMaterial(params: THREE.LineBasicMaterialParameters = {}): THREE.LineBasicMaterial {
-  return factory().createLineBasicMaterial(params)
+  const f = factory()
+  if (f) return f.createLineBasicMaterial(params)
+  return createLineBasicMaterialUntracked(params)
 }
 
 // ─── 未追踪（兜底）：直接裸 new，调用方负责 dispose ───

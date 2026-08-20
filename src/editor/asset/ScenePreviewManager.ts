@@ -13,6 +13,7 @@
  */
 import * as THREE from 'three'
 import { World, ActorComponent, EditorActorComponent } from '../../engine'
+import { PreviewObjectFactoryComponent } from '../../engine'
 import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
@@ -43,6 +44,8 @@ export class ScenePreviewManager {
   readonly renderer: THREE.WebGLRenderer
   readonly world: World
   readonly gizmo: TransformGizmo
+  /** 预览对象工厂（编辑器预览独立 THREE 创建器，无 GameInstance 依赖；EndPlay 统一释放） */
+  readonly previewFactory: PreviewObjectFactoryComponent
 
   /** 碰撞盒线框绘制器（预览模式从组件属性解析几何，V 键开关） */
   private colliderDrawer: ColliderDebugDrawer | null = null
@@ -125,8 +128,19 @@ export class ScenePreviewManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(this.renderer.domElement)
 
-    // ─── 场景 ───
-    this.scene = new THREE.Scene()
+    // ─── World（EditorActorComponent 由 World 构造时自动添加）───
+    // 必须先建 World：SceneComponent 持有 actor 挂载场景，预览场景直接复用 world.scene，
+    // 保证渲染/大纲遍历与 actor 挂载在同一个 THREE.Scene（否则大纲看不到节点、预览渲染为空）
+    this.world = new World()
+
+    // ─── 预览对象工厂：编辑器预览独立 THREE 创建器（不依赖 GameInstance）───
+    // 组件工厂（Mesh 组件等）经 ThreeObjectUtils 自动分流到本工厂，对象由本组件追踪，
+    // World.Destroy → EndPlay 统一释放。每次 spawn 前置位 setCurrent（见 loadSceneAsset）。
+    this.previewFactory = this.world.addComponent(PreviewObjectFactoryComponent)
+    PreviewObjectFactoryComponent.setCurrent(this.previewFactory)
+
+    // ─── 场景（复用 World 的 SceneComponent 场景：actor 挂载点 = 渲染场景 = 大纲遍历场景）───
+    this.scene = this.world.scene
     this.scene.background = new THREE.Color(0x1a1a2e)
 
     // ─── 摄像机 ───
@@ -143,9 +157,6 @@ export class ScenePreviewManager {
     // ─── 输入 ───
     this.initFlyEuler()
     this.setupFlyMouse()
-
-    // ─── World（EditorActorComponent 由 World 构造时自动添加）───
-    this.world = new World()
 
     // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
     this.colliderDrawer = new ColliderDebugDrawer(this.scene)
@@ -332,6 +343,8 @@ export class ScenePreviewManager {
 
   /** 加载并预览场景资产（保持与 World.loadSceneAsActors 一致的层级结构） */
   loadSceneAsset(sceneData: SceneAsset): boolean {
+    // 本次 spawn 全程使用本管理器的预览工厂（多页签并发时覆盖 current）
+    PreviewObjectFactoryComponent.setCurrent(this.previewFactory)
     this.clearPreview()
     this._sceneAsset = sceneData
 
@@ -1205,6 +1218,8 @@ export class ScenePreviewManager {
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。
+    // 预览对象工厂：释放全部追踪对象 + 自清 current（幂等）
+    this.previewFactory.disposeAll()
     this.world.Destroy()
     this.renderer.dispose()
     if (this.renderer.domElement.parentElement === this.container) {

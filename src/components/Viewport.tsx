@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
-import { SceneRendererComponent, logger, Game, World, gizmos } from '../engine'
+  import { SceneRendererComponent, logger, Game, World, gizmos, EditorGameBridgeComponent } from '../engine'
 import { UISceneView } from './UISceneView'
 import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
@@ -26,9 +26,9 @@ import {
   notifySelectionChange,
   watchWorldActorChanges,
   setRunningWorld,
+  setRunningBridge,
   attachAnchorGizmoToScene,
   updateAnchorGizmo,
-  getRuntimeUIOverlayScene,
 } from '../editor'
 
 interface ViewportProps {
@@ -145,6 +145,13 @@ export function Viewport({ onReady }: ViewportProps) {
       // actor 化加载：与游戏运行时 World.loadSceneAsActors 同构，
       // 每个 mesh/ref/actor 节点 → Actor，大纲可选中、可编辑
       const world = new World()
+      // 预览 world 挂到编辑器共享场景（编辑器内部操作，非游戏场景注入）：
+      // 预览 actor 的 root 挂到 sharedScene，Scene 视图可直接看到 defaultScene 内容，
+      // 与 Default 灯光容器/网格/gizmo 同场景渲染；游戏运行时本 world 会被销毁清空
+      world.attachExternalScene(shared)
+      // setScene 会把 shared 的背景/雾/环境覆盖为预览 world 自建场景的默认值（null），
+      // 恢复编辑器默认背景（skybox 由下方 applySkybox 再应用）
+      shared.background = new THREE.Color(0x1a1a2e)
       world.loadSceneAsActors(sceneData)
       world.BeginPlay()
       world.manualTick(0)
@@ -240,8 +247,10 @@ export function Viewport({ onReady }: ViewportProps) {
     })
     gameRef.current = game
 
-    // 游戏运行时隐藏编辑器辅助网格（GridHelper 挂共享场景，不隐藏会显示在游戏画面）
+    // 游戏运行时隐藏编辑器辅助网格和调试线（都挂 sharedScene，不隐藏会泄漏到游戏画面）
     setEditorGridVisible(false)
+    // 调试线（gizmos 单例）也必须 detach，否则 Actor.OnDrawGizmos 的调试绘制会透到 Scene 窗口
+    gizmos.detach()
 
     // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 sharedScene，
     // 避免与游戏 actors 叠加/大纲重名冲突）
@@ -249,7 +258,7 @@ export function Viewport({ onReady }: ViewportProps) {
       previewWorldRef.current.DestroyAllActors()
       previewWorldRef.current = null
     }
-    // 游戏运行时隐藏编辑坐标轴（TransformGizmo 挂 sharedScene，不隐藏会泄漏到游戏画面）
+    // TransformGizmo 分离（编辑坐标轴不显示在游戏画面）
     getTransformGizmo().detach()
 
     if (currentProject) {
@@ -257,15 +266,25 @@ export function Viewport({ onReady }: ViewportProps) {
     }
     if (!game.instance) return
 
-    game.launch()
+    if (!game.launch()) {
+      logger.error('[Viewport] 游戏启动失败（Game.launch 返回 false），不进入运行态接线')
+      return
+    }
 
     const inst = game.instance!
 
     // Game 视口渲染器由 World 创建（instance → world.gameRenderer），同步引用供输入路由/显隐控制
-    const world = (inst as unknown as { world?: import('../engine').World }).world
+    const world = (inst as unknown as { world?: import('../engine').World }).world ?? null
     gameSceneRef.current = world?.gameRenderer ?? null
-    // 记录运行中游戏的 World（大纲运行中 UI 树数据源）
-    setRunningWorld(world ?? null)
+
+    // 游戏场景与编辑器解耦（编辑器只读、不注入）：游戏保持自建场景，编辑器只观察。
+    // Scene 视图直接渲染游戏场景（同一 scene，不同相机），不再用叠加层。
+    // 大纲经桥组件读取游戏 actor 树。
+    const bridge = inst.getComponent(EditorGameBridgeComponent)
+    setRunningBridge(bridge)
+    sceneRef.current?.setViewScene(bridge?.scene ?? null)
+    // 记录运行中游戏的 World（UI 选中辅助等仍以 World 为锚）
+    setRunningWorld(world)
     // 监听游戏 World 的 Actor 变化（生成/销毁）→ 大纲自动刷新
     if (world) watchWorldActorChanges(world)
     // 选中 UI 节点时显示锚点框 + 范围框（编辑器独立 overlay 场景承载，不污染游戏 UI 场景）
@@ -290,19 +309,6 @@ export function Viewport({ onReady }: ViewportProps) {
       const worldPerPx = (cam.top - cam.bottom) / gameMgr.renderer.domElement.clientHeight
       updateAnchorGizmo(worldPerPx)
     }) ?? (() => {})
-    // 每帧用 UICamera 叠加渲染编辑器 UI 选中辅助 overlay 场景（在 UI 场景渲染之后，
-    // gizmo 永远在最顶层；gizmo 不挂游戏场景，避免 World.Destroy 泄漏检测告警）
-    const removeOverlayRender = gameMgr?.onAfterRender(() => {
-      const uiCam = gameMgr.uiCamera
-      const overlay = getRuntimeUIOverlayScene()
-      if (!uiCam || overlay.children.length === 0) return
-      const prevAutoClear = gameMgr.renderer.autoClear
-      gameMgr.renderer.autoClear = false
-      gameMgr.renderer.clearDepth()
-      gameMgr.renderer.render(overlay, uiCam)
-      gameMgr.renderer.autoClear = prevAutoClear
-    }) ?? (() => {})
-
     // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
     setCurrentGameInstance(inst)
     const pending = useSaveStore.getState().consumePendingRestore()
@@ -312,17 +318,22 @@ export function Viewport({ onReady }: ViewportProps) {
 
     return () => {
       removeAnchorUpdate()
-      removeOverlayRender()
       game.destroy()
       gameRef.current = null
       gameSceneRef.current = null
       setCurrentGameInstance(null)
-      // 清空运行中游戏的 World 引用（大纲运行中 UI 树随之消失）
+      // 清空运行中游戏的引用：大纲树 / Scene 视图 / 桥组件恢复编辑器默认场景
       setRunningWorld(null)
+      setRunningBridge(null)
+      sceneRef.current?.setViewScene(null)
       // 游戏停止：取消 UI 选中辅助目标
       attachAnchorGizmoToScene(null)
       // 停止游戏后恢复编辑器辅助网格显示
       setEditorGridVisible(true)
+      // 调试线重新挂到共享场景（TransformGizmo 在 setupScene 中挂 sharedScene）
+      if (sharedSceneRef.current) {
+        gizmos.attach(sharedSceneRef.current)
+      }
     }
   }, [editorState.running, launchCount]) // eslint-disable-line react-hooks/exhaustive-deps
 

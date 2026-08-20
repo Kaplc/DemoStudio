@@ -73,6 +73,15 @@ export class World extends AObject {
   }
 
   /**
+   * 替换场景为外部传入的场景（通用能力，编辑器已不调用——
+   * 编辑器只读经 EditorGameBridgeComponent 读取游戏场景，不再注入共享场景）。
+   * 实现委托给 SceneComponent（本组件是 World 操作场景的唯一入口）。
+   */
+  attachExternalScene(scene: THREE.Scene | null): void {
+    this.sceneComp.attachExternalScene(scene)
+  }
+
+  /**
    * Game 视口渲染器组件（由 Game 启动时从 instance.viewport.container 取 DOM 创建并挂到 World；
    * 未启动游戏时为 null）
    */
@@ -625,10 +634,10 @@ export class World extends AObject {
       if (actor) { actor.attachTo(rootActor); count++ }
     }
 
-    // 应用 skybox（背景色）
+    // 应用 skybox（背景色）——场景环境属性统一经 SceneComponent 设置
     if (asset.skybox) {
       if (asset.skybox.backgroundColor) {
-        this.scene.background = new THREE.Color(asset.skybox.backgroundColor)
+        this.sceneComp.setBackground(asset.skybox.backgroundColor)
       }
     }
     logger.debug(
