@@ -17,6 +17,7 @@ import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
 import { ResourcesComponent } from './common/comp/ResourcesComponent'
 import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
+import { GameEvents } from './common/GameEvents'
 import { INITIAL_COINS } from './common/types'
 import type { TroopType, LevelType } from './common/types'
 
@@ -54,6 +55,9 @@ export class FishGameInstance extends GameInstance {
   /** 防止 stop() 被重复调用 */
   private _stopped = false
 
+  /** 游戏内事件总线 */
+  readonly events: GameEvents
+
   constructor(renderContainer?: HTMLElement | null) {
     super(new World(), renderContainer ?? null)
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
@@ -64,6 +68,8 @@ export class FishGameInstance extends GameInstance {
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
     this.addComponent(this.training)
+    // 游戏内事件总线（生命周期跟随 GameInstance）
+    this.events = new GameEvents()
     // GameMode 实例由 start() / SwitchToScene 按需创建
   }
 
@@ -699,6 +705,7 @@ export class FishGameInstance extends GameInstance {
     if (this._stopped) return
     this._stopped = true
     logger.info('[Fish] 停止游戏...')
+    this.events.clear()
     this.world.gameMode?.EndPlay()
     this.world.gameMode = null
     this.world.DestroyAllActors()

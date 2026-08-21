@@ -89,6 +89,7 @@ export class Gizmos {
   private colors: Float32Array
   /** 本帧已写入的顶点数 */
   private vertexCount = 0
+  get lastVertexCount(): number { return this.vertexCount }
 
   private scene: THREE.Scene | null = null
 

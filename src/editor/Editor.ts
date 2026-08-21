@@ -71,8 +71,8 @@ export class Editor {
     this.cleanupFns.push(cleanupBridge)
 
     // 4. 启动 FPS 跟踪与游戏状态上报
-    this.fpsTracker.start((fps, project) => {
-      setAppInfo({ fps, project })
+    this.fpsTracker.start((info) => {
+      setAppInfo({ renderFps: info.renderFps, logicFps: info.logicFps, project: info.projectName })
 
       // 同步状态到 Electron main
       const gs = useEditorStore.getState().gameState

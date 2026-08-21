@@ -30,6 +30,9 @@ import { createTroopActor, type TroopActor } from '../battle/troops/TroopActors'
 import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
 import { TroopHealthBarComponent } from '../common/comp/TroopHealthBarComponent'
 import { LootFlyFx } from '../common/fx/LootFlyFx'
+import { GameEvents } from '../common/GameEvents'
+import { BATTLE_TROOP_ATTACK } from '../battle/troops/TroopAttackComponent'
+import type { TroopAttackEvent } from '../battle/troops/TroopAttackComponent'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
 import { NavigationModule } from '@/engine/navigation/NavigationModule'
@@ -61,7 +64,7 @@ export class FishLevelGameMode extends GameMode {
   // ═══════════════════════════════════════
 
   /** 敌方建筑列表（场景 ref 生成；摧毁后移出） */
-  private buildings: ClashBuildingBaseActor[] = []
+  buildings: ClashBuildingBaseActor[] = []
   /** 建筑当前血量表：建筑 → hp（初始 = 类型表 hp） */
   private buildingHp = new Map<ClashBuildingBaseActor, number>()
   /** 建筑血条组件：建筑 → BuildingHealthBarComponent（受击显示 / 3s 超时隐藏自管） */
@@ -120,10 +123,20 @@ export class FishLevelGameMode extends GameMode {
     this.pools.init(this.world!)
     // 收集场景中的敌方建筑（场景 ref 节点已 BeginPlay，网格已建好）
     this.collectBuildings()
-    logger.info(`[BattleGM] 战斗开始：敌方建筑 ${this.buildings.length} 个（城镇大厅 ${this.getTownhall() ? '在' : '无'}）`)
+    // 从静态碰撞体构建寻路网格（A* 导航依赖此网格）
+    const blockedCount = this.navigation.grid.rebuildFromStaticColliders()
+    logger.info(`[BattleGM] 战斗开始：敌方建筑 ${this.buildings.length} 个（城镇大厅 ${this.getTownhall() ? '在' : '无'}），寻路网格已构建（阻挡格 ${blockedCount} 个）`)
+
+    // 订阅兵攻击事件 → 发射弹丸
+    this._unsubTroopAttack = this.gameInstance?.events.on<TroopAttackEvent>(BATTLE_TROOP_ATTACK, (ev) => {
+      this.fireTroopAttack(ev.troop, ev.target, ev.damage)
+    }) ?? null
   }
 
+  private _unsubTroopAttack: (() => void) | null = null
+
   override EndPlay() {
+    this._unsubTroopAttack?.()
     // 解除相机右键平移回调引用（防悬挂）
     this.baseCamera.rig.onRightPanStart = null
     // 释放战斗弹丸对象池

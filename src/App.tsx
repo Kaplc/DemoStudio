@@ -29,7 +29,7 @@ export default function App() {
   const setLayout = useEditorPrefsStore((s) => s.setLayout)
   const projects = useProjectStore((s) => s.projects)
   const currentProject = useEditorStore((s) => s.currentProject)
-  const [appInfo, setAppInfo] = useState({ fps: 0, project: 'No project' })
+  const [appInfo, setAppInfo] = useState({ renderFps: 0, logicFps: 0, project: 'No project' })
   const [loading, setLoading] = useState(true)
   const [phase, setPhase] = useState<StartupPhase>('loading')
   const editorRef = useRef<Editor | null>(null)
@@ -141,7 +141,8 @@ export default function App() {
         </div>
       </div>
       <StatusBar
-        fps={appInfo.fps}
+        renderFps={appInfo.renderFps}
+        logicFps={appInfo.logicFps}
         projectName={appInfo.project}
       />
       {/* codeLint tips 悬浮面板（fixed 定位，状态栏上方，不占布局） */}

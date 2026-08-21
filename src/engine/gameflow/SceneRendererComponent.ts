@@ -13,6 +13,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
 import { AObjectComponent } from '../entity/AObjectComponent'
+import { gizmos } from '../tools/Gizmos'
 import { GameInstance } from './GameInstance'
 import { UICamera } from '../rendering/UICamera'
 import type { World } from './World'
@@ -86,6 +87,12 @@ export class SceneRendererComponent extends AObjectComponent<World> {
 
   private animationId: number | null = null
   private lastTime = 0
+  /** 最近一次渲染帧的 dt（秒），供外部读取帧率用 */
+  private _lastDt = 0
+  /** 渲染帧率（1/dt，每帧更新） */
+  get renderFps(): number {
+    return this._lastDt > 0 ? Math.round(1 / this._lastDt) : 0
+  }
   private updateCallbacks: Array<(dt: number) => void> = []
   private afterRenderCallbacks: Array<() => void> = []
   private container: HTMLElement
@@ -156,6 +163,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(0x1a1a2e)
     }
+    // 将 gizmos 也挂到游戏场景（编辑器模式下已挂到 shared 场景；游戏运行时挂到游戏场景）
+    gizmos.attach(this.scene)
 
     // ─── 摄像机 ───
     // 不再创建默认相机：渲染相机由游戏自己创建并通过 setCamera() 注入
@@ -386,8 +395,9 @@ export class SceneRendererComponent extends AObjectComponent<World> {
         this.animationId = requestAnimationFrame(animate)
         return
       }
-      const dt = Math.min((time - this.lastTime) / 1000, 0.05)
+      const dt = (time - this.lastTime) / 1000
       this.lastTime = time
+      this._lastDt = dt
 
       // 每帧从委托获取当前主摄像机（游戏自己创建的摄像机 actor）
       this.camera = this.cameraProvider ? this.cameraProvider() : this.camera

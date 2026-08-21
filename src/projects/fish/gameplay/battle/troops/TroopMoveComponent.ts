@@ -12,15 +12,15 @@
  *   actor.addComponent(TroopMoveComponent, gm, troop)
  */
 import * as THREE from 'three'
-import { ActorComponent, ColliderComponent, logger, type Actor } from '@/engine'
+import { ActorComponent, ColliderComponent, gizmos, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import { ClashBuildingBaseActor } from '../../base/ClashBuildingActors'
 import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
 import { TroopTargetComponent, troopAttackDist } from './TroopTargetComponent'
 
-/** 近战兵攻击距离额外缓冲（格），确保移动停止点仍在可攻击范围内 */
-const MELEE_ATTACK_BUFFER = 0.5
+/** 寻路终点缓冲：停在攻击范围外一小段，避免临界点反复横跳 */
+const MOVE_STOP_BUFFER = 0.5
 
 export class TroopMoveComponent extends ActorComponent {
   private readonly troop: TroopType
@@ -38,6 +38,12 @@ export class TroopMoveComponent extends ActorComponent {
   private lastTickX = 0
   private lastTickZ = 0
   private stuckTicks = 0
+  /** 每 N 帧进行一次位置碰撞检测（备用检测，即使 cannon 碰撞不工作也能检测） */
+  private _posCheckCounter = 0
+  private static readonly POS_CHECK_INTERVAL = 8
+
+  /** 是否在攻击范围内停止（停止寻路） */
+  private _inAttackRange = false
 
   constructor(owner: Actor, gm: FishLevelGameMode, troop: TroopType) {
     super(owner)
@@ -88,6 +94,33 @@ export class TroopMoveComponent extends ActorComponent {
     this.pathTarget = null
   }
 
+  /**
+   * 基于位置的碰撞检测（备用方案）：
+   * 当 cannon 物理碰撞事件不触发时，使用重叠检测来发现兵是否进入了建筑内部。
+   * 如果检测到碰撞，触发与 onHitBuilding 相同的逻辑。
+   */
+  private checkPositionCollision(): void {
+    if (!this.collider || !this.collider.body) return
+    const pos = this.owner.root.position
+    const myRadius = this.collider.boundRadiusXZ
+
+    for (const building of this.gm.buildings) {
+      if (building.bPendingDestroy) continue
+      const center = new THREE.Vector3()
+      this.gm.buildingCenterInto(building, center)
+      const halfSize = building.type.size / 2
+
+      // AABB 检测：兵圆形 vs 建筑方形
+      const dx = Math.abs(pos.x - center.x)
+      const dz = Math.abs(pos.z - center.z)
+      if (dx < halfSize + myRadius && dz < halfSize + myRadius) {
+        // 检测到重叠（可能穿透），触发碰撞处理
+        this.onHitBuilding(this.collider)
+        return
+      }
+    }
+  }
+
   private stopMove(): void {
     if (this.collider) this.collider.setVelocity(0, 0)
   }
@@ -110,20 +143,26 @@ export class TroopMoveComponent extends ActorComponent {
     const distToCenter = Math.hypot(dx, dz)
     const halfSize = target.type.size / 2
 
-    // 目标点：建筑边缘（沿着移动方向偏移半个 size）
-    const edgeX = center.x - (dx / distToCenter) * halfSize
-    const edgeZ = center.z - (dz / distToCenter) * halfSize
+    // 目标点：建筑边缘往内偏移（朝兵方向走），加上缓冲让兵停在攻击范围外
+    const edgeX = center.x - (dx / distToCenter) * (halfSize - MOVE_STOP_BUFFER)
+    const edgeZ = center.z - (dz / distToCenter) * (halfSize - MOVE_STOP_BUFFER)
 
     const dx2 = edgeX - pos.x
     const dz2 = edgeZ - pos.z
     const dist = Math.hypot(dx2, dz2)
-    let attackDist = troopAttackDist(this.troop, target)
-    // 近战兵（range=0）攻击距离增加缓冲，确保停止点仍在可攻击范围内
-    if (this.troop.range === 0) attackDist += MELEE_ATTACK_BUFFER
 
-    // 已在攻击距离内 → 站桩
-    if (dist <= attackDist) {
+    const attackDist = troopAttackDist(this.troop, target)
+    const moveStopDist = attackDist + MOVE_STOP_BUFFER
+    const wasInRange = this._inAttackRange
+    this._inAttackRange = dist <= attackDist
+
+    // 已在攻击范围内 → 站桩，停止寻路
+    if (this._inAttackRange) {
       this.stopMove()
+      // 刚进入攻击范围，清除路径，下次需要重算
+      if (!wasInRange) {
+        this.path = null
+      }
       return
     }
 
@@ -135,7 +174,12 @@ export class TroopMoveComponent extends ActorComponent {
       return
     }
 
-    if (this.pathFailCooldownSec > 0) this.pathFailCooldownSec -= dt
+    // 位置碰撞检测（备用，即使 cannon 碰撞不触发也能检测）
+    this._posCheckCounter++
+    if (this._posCheckCounter >= TroopMoveComponent.POS_CHECK_INTERVAL) {
+      this._posCheckCounter = 0
+      this.checkPositionCollision()
+    }
 
     // 卡死检测
     const moved = Math.abs(pos.x - this.lastTickX) + Math.abs(pos.z - this.lastTickZ)
@@ -214,5 +258,25 @@ export class TroopMoveComponent extends ActorComponent {
     }
 
     this.collider.setVelocity((dirX / d) * this.troop.speed, (dirZ / d) * this.troop.speed)
+  }
+
+  override OnDrawGizmos(): void {
+    const pos = this.owner.root.position
+    const target = this.owner.getComponent(TroopTargetComponent)?.target
+    if (!target) return
+
+    const center = new THREE.Vector3()
+    this.gm.buildingCenterInto(target, center)
+    gizmos.setColor(0xffcc00)
+    gizmos.DrawLine(pos, center)
+
+    if (this.path && this.path.length > 0) {
+      gizmos.setColor(0x00aaff)
+      let prev = pos
+      for (const wp of this.path) {
+        gizmos.DrawLine(prev, wp)
+        prev = wp
+      }
+    }
   }
 }

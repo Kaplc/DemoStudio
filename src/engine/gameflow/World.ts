@@ -52,6 +52,7 @@ export class World extends AObject {
   private static _nextId = 1
   /** 本实例 ID */
   readonly id: number
+  /** Gizmos 绘制帧间隔计数器 */
 
   /**
    * Scene 组件（持有 THREE.Scene，所有 Actor 的 root 挂到此 scene 下）。
@@ -115,6 +116,12 @@ export class World extends AObject {
 
   private animationId: number | null = null
   private lastTime = 0
+  /** 最近一次逻辑帧的 dt（秒），供外部读取帧率用 */
+  private _lastDt = 0
+  /** 逻辑帧率（1/dt，每帧更新） */
+  get logicFps(): number {
+    return this._lastDt > 0 ? Math.round(1 / this._lastDt) : 0
+  }
   private _running = false
   /**
    * 看门狗：外部驱动（Scene 视口 rAF → GameInstance.tick → manualTick）停摆时
@@ -237,7 +244,7 @@ export class World extends AObject {
 
     const animate = (time: number) => {
       if (!this._running) return
-      const dt = Math.min((time - this.lastTime) / 1000, 0.05)
+      const dt = (time - this.lastTime) / 1000
       this.lastTime = time
 
       this.tick(dt)
@@ -283,6 +290,7 @@ export class World extends AObject {
   }
 
   private tick(dt: number) {
+    this._lastDt = dt
     // 1. 处理待生成/销毁（ActorManagerComponent）
     this.commitActorChanges()
 
@@ -363,6 +371,7 @@ export class World extends AObject {
   /** 手动触发一次 Tick（由外部渲染循环驱动） */
   manualTick(dt: number) {
     if (!this._running) return
+    this._lastDt = dt
     // 刷新看门狗时间戳：外部驱动正常工作（rAF 未停摆），watchdog 保持静默
     this.lastExternalTickTime = performance.now()
     this.commitActorChanges()
@@ -426,14 +435,19 @@ export class World extends AObject {
   drawGizmos() {
     gizmos.beginFrame()
     if (gizmos.enabled) {
-      // GameMode（及其 Component，如 SpawnComponent）不在 Actor 集合中，单独绘制
       this.gameMode?.drawGizmos()
       for (const actor of this.actorMgr.GetAllActors()) {
         if (actor.bPendingDestroy) continue
         actor.drawGizmos()
       }
+    } else {
+      logger.debug('[Gizmos] gizmos.enabled=false，跳过绘制')
     }
     gizmos.flush()
+    const vc = gizmos.lastVertexCount
+    if (vc > 0) {
+      logger.debug(`[Gizmos] 绘制了 ${vc} 顶点，lines.parent=${gizmos['lines'].parent?.name ?? 'null'}`)
+    }
   }
 
   // ═══════════════════════════════════

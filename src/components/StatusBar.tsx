@@ -3,11 +3,12 @@ import { useEditorStore } from '../stores/editorStore'
 import { useCodeLintStore } from '../stores/useCodeLintStore'
 
 interface StatusBarProps {
-  fps: number
+  renderFps: number
+  logicFps: number
   projectName: string
 }
 
-export function StatusBar({ fps, projectName }: StatusBarProps) {
+export function StatusBar({ renderFps, logicFps, projectName }: StatusBarProps) {
   const { gameState, consoleErrors, refreshConsoleErrors, clearConsoleErrors, consoleErrPanelOpen, setConsoleErrPanelOpen } = useEditorStore()
   const codeLintIssueCount = useCodeLintStore((s) => s.issues.length)
   const assetLintIssueCount = useCodeLintStore((s) => s.assetIssues.length)
@@ -89,7 +90,7 @@ export function StatusBar({ fps, projectName }: StatusBarProps) {
             </>
           )}
         </span>
-        <span>FPS: {fps}</span>
+        <span>Render: {renderFps} fps | Logic: {logicFps} fps</span>
       </div>
     </div>
   )

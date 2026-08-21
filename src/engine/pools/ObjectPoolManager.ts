@@ -33,7 +33,7 @@ export class ObjectPoolManager {
     return pool
   }
 
-  protected init(world: World): void {
+  init(world: World): void {
     this._world = world
     if (this._spawned) return
     this._spawned = true

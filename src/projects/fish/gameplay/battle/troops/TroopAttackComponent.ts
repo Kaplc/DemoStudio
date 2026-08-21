@@ -8,12 +8,24 @@
  * 挂载方式（TroopActors 装配函数）：
  *   actor.addComponent(TroopAttackComponent, gm, troop)
  */
+import * as THREE from 'three'
 import { ActorComponent, logger, type Actor } from '@/engine'
+import { gizmos } from '@/engine/tools/Gizmos'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import type { ClashBuildingBaseActor } from '../../base/ClashBuildingActors'
 import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
 import { TroopTargetComponent, troopAttackDist } from './TroopTargetComponent'
+import { GameEvents } from '../../common/GameEvents'
+
+/** 兵攻击事件（攻击组件广播 → GM 订阅发射弹丸） */
+export interface TroopAttackEvent {
+  troop: TroopActor
+  target: ClashBuildingBaseActor
+  damage: number
+}
+
+export const BATTLE_TROOP_ATTACK = 'battle.troopAttack'
 
 /** 兵攻击间隔（秒）：伤害 = dps × 0.5 每击，保证每秒总伤害 = dps（数值自洽） */
 export const TROOP_ATTACK_INTERVAL = 0.5
@@ -53,8 +65,16 @@ export class TroopAttackComponent extends ActorComponent {
 
     if (this.attackTimer <= 0) {
       this.attackTimer = TROOP_ATTACK_INTERVAL
-      // 每击伤害 = dps × 间隔（0.5s），每秒总伤害守恒
-      this.gm.fireTroopAttack(this.owner as TroopActor, target, this.troop.dps * TROOP_ATTACK_INTERVAL)
+      this.gm.gameInstance?.events.emit(BATTLE_TROOP_ATTACK, {
+        troop: this.owner as TroopActor,
+        target,
+        damage: this.troop.dps * TROOP_ATTACK_INTERVAL,
+      } as TroopAttackEvent)
     }
+  }
+
+  override OnDrawGizmos(): void {
+    gizmos.setColor(0x00ff88)
+    gizmos.DrawCircle(this.owner.root.position, new THREE.Vector3(0, 1, 0), this.troop.range)
   }
 }

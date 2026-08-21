@@ -499,7 +499,7 @@ export class PreviewSceneManager {
         this.animationId = requestAnimationFrame(animate)
         return
       }
-      const dt = Math.min((time - this.lastTime) / 1000, 0.05)
+      const dt = (time - this.lastTime) / 1000
       this.lastTime = time
 
       // WASD 漫游
