@@ -11,7 +11,7 @@
  * TroopActor 接口 = 战斗 GameMode / 弹丸对兵的统一视图（类型契约，非基类）。
  * 工厂：createTroopActor(troopId, ...) 按兵种 id 实例化对应 Actor 类。
  */
-import { GenericActor, logger, type Actor } from '@/engine'
+import { CircleColliderComponent, GenericActor, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import type { TroopType } from '../../common/types'
 import { TroopHealthComponent } from './TroopHealthComponent'
@@ -46,6 +46,20 @@ function assembleTroop(
   actor.setPosition(x, troop.flying ? 2 : 0, z)
   // 蓝图模型（GameMode 部署时已 SpawnActorFromBlueprint 实例化）：挂到兵下，随兵销毁释放
   modelActor.attachTo(actor)
+  // ── 关键：把 CircleColliderComponent 从模型子 Actor 转移到兵 Actor ──
+  // 蓝图里 collider 挂在模型上是为了视觉跟模型走，但 body→actor 同步会写到模型 Actor.root；
+  // 兵 Actor 的寻路/索敌/Tick 读的是兵 Actor.root.position，永远不动 → 卡死 36 帧反复重路径。
+  // 转移后 body 同步直接驱动兵 Actor.root.position（TroopMoveComponent 的"逻辑位置"），
+  // 模型作为 child 通过 THREE 父子链自动跟随。
+  if (!troop.flying) {
+    const modelColliders = (modelActor as GenericActor).getAllComponents()
+      .filter((c): c is CircleColliderComponent => c instanceof CircleColliderComponent)
+    for (const col of modelColliders) {
+      modelActor.removeComponent(col)
+      col.owner = actor
+      actor.addComponent(col)
+    }
+  }
   // 功能组件组合：生命（受击/死亡）→ 索敌（目标输出）→ 移动（寻路/阻挡）→ 攻击（节奏/开火）
   actor.health = new TroopHealthComponent(actor, gm, troop)
   ;(actor as GenericActor).addComponent(actor.health)

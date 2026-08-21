@@ -19,9 +19,6 @@ import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
 import { TroopTargetComponent, troopAttackDist } from './TroopTargetComponent'
 
-/** 寻路终点缓冲：停在攻击范围外一小段，避免临界点反复横跳 */
-const MOVE_STOP_BUFFER = 0.5
-
 export class TroopMoveComponent extends ActorComponent {
   private readonly troop: TroopType
   private readonly gm: FishLevelGameMode
@@ -141,22 +138,23 @@ export class TroopMoveComponent extends ActorComponent {
     const dx = center.x - pos.x
     const dz = center.z - pos.z
     const distToCenter = Math.hypot(dx, dz)
-    const halfSize = target.type.size / 2
+    const attackDist = troopAttackDist(this.troop, target)
 
-    // 目标点：建筑边缘往内偏移（朝兵方向走），加上缓冲让兵停在攻击范围外
-    const edgeX = center.x - (dx / distToCenter) * (halfSize - MOVE_STOP_BUFFER)
-    const edgeZ = center.z - (dz / distToCenter) * (halfSize - MOVE_STOP_BUFFER)
+    // 寻路终点：兵→建筑直连线上、距中心 attackDist 的点（攻击范围边界）
+    // 公式保证目标点正好落在兵到建筑中心这条射线上、A* 才不会绕到建筑背后。
+    // 若 distToCenter < attackDist（兵已在攻击范围内），endpoint = center；不会发生。
+    const distToEdge = Math.max(distToCenter, 0.0001)
+    const edgeX = center.x - (dx / distToEdge) * attackDist
+    const edgeZ = center.z - (dz / distToEdge) * attackDist
 
     const dx2 = edgeX - pos.x
     const dz2 = edgeZ - pos.z
     const dist = Math.hypot(dx2, dz2)
 
-    const attackDist = troopAttackDist(this.troop, target)
-    const moveStopDist = attackDist + MOVE_STOP_BUFFER
+    // 已在攻击范围内（pos→center 距离）→ 站桩，停止寻路
     const wasInRange = this._inAttackRange
-    this._inAttackRange = dist <= attackDist
+    this._inAttackRange = distToCenter <= attackDist
 
-    // 已在攻击范围内 → 站桩，停止寻路
     if (this._inAttackRange) {
       this.stopMove()
       // 刚进入攻击范围，清除路径，下次需要重算
@@ -269,6 +267,21 @@ export class TroopMoveComponent extends ActorComponent {
     this.gm.buildingCenterInto(target, center)
     gizmos.setColor(0xffcc00)
     gizmos.DrawLine(pos, center)
+
+    // 寻路终点（兵→建筑直连线 attackDist 处的点）：玫红色圆环标识
+    const dx = center.x - pos.x
+    const dz = center.z - pos.z
+    const distToCenter = Math.hypot(dx, dz)
+    if (distToCenter > 0.0001) {
+      const attackDist = troopAttackDist(this.troop, target)
+      const edge = new THREE.Vector3(
+        center.x - (dx / distToCenter) * attackDist,
+        0,
+        center.z - (dz / distToCenter) * attackDist,
+      )
+      gizmos.setColor(0xff66ff)
+      gizmos.DrawCircle(edge, new THREE.Vector3(0, 1, 0), 0.2, 16)
+    }
 
     if (this.path && this.path.length > 0) {
       gizmos.setColor(0x00aaff)

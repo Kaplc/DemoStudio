@@ -41,6 +41,7 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
 
   override BeginPlay(): void {
     super.BeginPlay()
+    logger.info(`[SpawnPos] ClashBuildingBaseActor.BeginPlay "${this.name}"(uid=${this.uid}) root.pos=[${this.root.position.x.toFixed(2)}, ${this.root.position.y.toFixed(2)}, ${this.root.position.z.toFixed(2)}]`)
 
     // ─── 去重约定：蓝图声明的组件（components/children）优先，类只补缺的 ───
     // 蓝图已建网格（MeshComponent/子节点）→ 类不再建底座/主体，避免重复 mesh

@@ -168,8 +168,20 @@ class PhysicsWorldImpl implements GameSingleton {
       this._accumulator -= FIXED_STEP
       stepped = true
     }
-    if (stepped) this.dispatchCollisionEvents()
+    if (stepped) {
+      this.dispatchCollisionEvents()
+      // body 为碰撞权威（dynamic 模式）：步进后回写 owner Actor.root
+      // 必须在本帧 cannon step 之后、下一次 actor.Tick 之前（保证下帧寻路读到的是本帧求解后的位置）
+      this.syncActorsFromBodies()
+    }
     return stepped
+  }
+
+  /** 步进后把 dynamic body 的世界位置回写给 owner Actor.root */
+  private syncActorsFromBodies(): void {
+    for (const c of this._colliders) {
+      c.syncActorFromBody()
+    }
   }
 
   // ═══════════════════════════════════

@@ -64,7 +64,7 @@ export type { InitLogger } from './EditorInitializer'
 export { initProjectConfigs } from '../projects/registry'
 
 export { FpsTracker } from './FpsTracker'
-export type { FpsCallback } from './FpsTracker'
+export type { FrameCallback, FrameInfo } from './FpsTracker'
 
 export { setupScene } from './SceneSetup'
 export type { SceneSetupResult } from './SceneSetup'

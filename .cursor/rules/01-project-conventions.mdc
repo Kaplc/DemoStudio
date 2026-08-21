@@ -38,13 +38,32 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 
 ### 日志文件类型
 
-1. **控制台日志**（每次启动独立文件）：`logs/console_2026-07-16_201808.log`
-   浏览器控制台输出的完整记录，文件名格式为 `console_YYYY-MM-DD_HHmmss.log`。每次启动编辑器会生成一个新文件。使用 `read_file` 工具直接读取对应日志文件，例如：
+| 类型 | 文件名格式 | 内容说明 |
+|------|----------|----------|
+| 控制台日志 | `console_YYYY-MM-DD_HHmmss.log` | 浏览器控制台完整记录（含 `[CONSOLE:INFO/WARN/ERROR]`），适合诊断 UI 交互、组件生命周期、事件触发等问题 |
+| 游戏日志 | `game_YYYY-MM-DD_HHmmss.log` | 游戏引擎完整运行日志（含 `[INFO/DEBUG/WARN/ERROR]`），适合诊断 World 生命周期、Actor 生成、碰撞体注册、物理模拟等问题 |
 
-- 最新控制台日志：查看 `logs/` 目录下最新的 `console_` 开头的文件
-适用于诊断启动问题、运行时错误、崩溃原因等场景，无需依赖 Electron 窗口或浏览器页面。
+使用 `grep` 工具搜索关键词：`pattern: [关键词]`
 
-### 日志埋点规范（AI 专用）
+### 常用日志关键词
+
+| 问题类型 | 搜索关键词 |
+|---------|----------|
+| 碰撞体/物理 | `BoxCollider\|PhysicsWorld\|碰撞\|Collider` |
+| Actor 创建 | `SpawnActor\|Instantiate\|placeBuilding\|BeginPlay` |
+| UI 生成 | `UIManager\|generate\|widget` |
+| 场景切换 | `SwitchScene\|SetGameMode\|BeginPlay` |
+| 选中/Gizmo | `select\|TransformGizmo\|Gizmos` |
+| 错误/警告 | `[ERROR]\|[WARN]` |
+
+### 日志使用流程（排查问题标准流程）
+
+1. **读取日志文件**：使用 `grep` 搜索相关关键词
+2. **定位关键日志**：找到问题发生的时间点，向上查找相关组件的创建/初始化日志
+3. **添加临时调试日志**：在可疑代码路径中添加 `logger.info()` 记录关键变量
+4. **清理调试日志**：问题修复后移除临时日志
+
+### 日志埋点规范
 
 在编写代码时，应在关键流程位置添加 `logger.info` / `logger.warn` / `logger.error` 日志跟踪，以便排查问题：
 

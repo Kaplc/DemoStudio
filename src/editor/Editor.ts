@@ -20,7 +20,8 @@ export interface EditorCallbacks {
   setShowProjectSelector: (show: boolean) => void
   launchGame: () => void
   stopGame: () => void
-  setAppInfo: (info: { fps: number; project: string }) => void
+  /** FpsTracker 上报：渲染帧率 + 逻辑帧率 + 当前工程名（App 写入状态栏 store） */
+  setAppInfo: (info: { renderFps: number; logicFps: number; project: string }) => void
   setLoading: (loading: boolean) => void
 }
 

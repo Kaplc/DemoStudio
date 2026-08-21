@@ -286,6 +286,7 @@ export class FishBaseGameMode extends GameMode {
     building.gridX = gx
     building.gridZ = gz
     building.setPosition(gx, 0, gz)
+    // 碰撞体通过 onTransformChanged 自动同步（ColliderComponent.BeginPlay 中订阅）
     this.clashBuildings.push(building)
     this.gridOccupied.set(key, building)
     logger.info(`[BaseGM] 放置建筑: ${type.name} @ (${gx}, ${gz})`)
@@ -486,8 +487,7 @@ export class FishBaseGameMode extends GameMode {
     b.gridZ = gz
     b.setPosition(gx, 0, gz)
     this.gridOccupied.set(key, b)
-    // 同步 static 碰撞体位置（body 为碰撞权威，移动后必须更新）
-    this.findColliderOf(b)?.syncStaticPosition()
+    // 碰撞体通过 onTransformChanged 自动同步
     return true
   }
 

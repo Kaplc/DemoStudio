@@ -12,6 +12,15 @@
  *   - 空闲：root.visible=false，对象不在场景中
  *   - 活跃：root.visible=true，正常参与 World Tick 和渲染
  */
+/**
+ * PoolableActor — 可入池的 Actor（继承 Actor，附加 IPoolable 生命周期方法）
+ *
+ * 对象池要求被池化对象实现 IPoolable（activate/deactivate/active），
+ * 工厂返回的实例必须是 Actor 才能 spawnActor 进 World。本接口以继承形式
+ * 把 IPoolable 与 Actor 合二为一，调用方直接 `class Xxx extends Actor implements IPoolable`。
+ */
+import type { Actor } from '../entity/Actor'
+
 export interface IPoolable {
   /** 从池中取出时调用：用 opts 重置状态 */
   activate(opts?: any): void
@@ -21,10 +30,8 @@ export interface IPoolable {
   active: boolean
 }
 
-export interface PoolableActor extends IPoolable {
-  /** Three.js Group，用于控制可见性 */
-  readonly root: { visible: boolean }
-}
+/** 可入池的 Actor（必须是 Actor 且实现 IPoolable） */
+export type PoolableActor = Actor & IPoolable
 
 export class ObjectPool<T extends PoolableActor> {
   /** 所有池内对象（空闲 + 活跃） */

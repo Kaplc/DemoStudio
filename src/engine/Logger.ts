@@ -69,11 +69,7 @@ class LoggerInstance {
   }
 
   private formatTime(): string {
-    return new Date().toLocaleTimeString('zh-CN', { hour12: false })
-  }
-
-  private toISO(): string {
-    return new Date().toISOString()
+    return new Date().toLocaleString('zh-CN', { hour12: false })
   }
 
   private formatMessage(level: LogLevel, message: string, ...args: any[]): string {
@@ -89,7 +85,7 @@ class LoggerInstance {
       try { return typeof a === 'object' ? JSON.stringify(a) : String(a) }
       catch { return String(a) }
     }).join(' ') : ''
-    return `[${this.toISO()}][${level.toUpperCase()}][${this.module}] ${message}${extra}`
+    return `[${this.formatTime()}][${level.toUpperCase()}][${this.module}] ${message}${extra}`
   }
 
   private write(level: LogLevel, message: string, ...args: any[]) {

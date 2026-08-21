@@ -10,6 +10,7 @@
  */
 import * as THREE from 'three'
 import { colliderGizmos, BoxColliderComponent, CircleColliderComponent, CapsuleColliderComponent, ColliderComponent, type Actor } from '@/engine'
+import { logger } from '@/engine/Logger'
 
 /** 线框颜色（static 建筑绿 / dynamic 兵橙，与引擎 gizmos 一致） */
 const COLOR_STATIC = 0x00e676
@@ -82,6 +83,10 @@ export class ColliderDebugDrawer {
     for (const comp of actor.getAllComponents()) {
       if (!(comp instanceof ColliderComponent)) continue
       actor.root.getWorldPosition(worldPos)
+      // worldPos：世界坐标 = actor.root 局部 + 所有祖先的累积偏移
+      // 打印 actor 自身 root.position（局部）vs worldPos（世界）
+      const local = actor.root.position
+      logger.info(`[SpawnPos] ColliderDraw "${actor.name}" local=[${local.x.toFixed(2)}, ${local.y.toFixed(2)}, ${local.z.toFixed(2)}] worldPos=[${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)}]`)
       worldPos.x += comp.offset[0]
       worldPos.y += comp.offset[1]
       worldPos.z += comp.offset[2]

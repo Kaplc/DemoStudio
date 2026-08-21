@@ -407,9 +407,11 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     const rootTsf = resolved.components.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
     if (rootTsf) {
       const p = rootTsf.properties ?? {}
+      logger.info(`[SpawnPos] "${actor.name}" 蓝图根 transform: pos=[${p.position?.join(',') ?? 'none'}]`)
       if (Array.isArray(p.position)) actor.setPosition(p.position[0], p.position[1], p.position[2])
       if (Array.isArray(p.rotation)) actor.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
       if (Array.isArray(p.scale)) actor.setScale(p.scale[0], p.scale[1], p.scale[2])
+      logger.info(`[SpawnPos] "${actor.name}" 蓝图根 transform 后: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
     }
 
     // 2. Component
@@ -526,7 +528,9 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 4. 调用方实例覆盖
     if (overrides && Object.keys(overrides).length > 0) {
+      logger.info(`[SpawnPos] "${actor.name}" applyPatch 前: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}], overrides.pos=[${(overrides.position as number[]|undefined)?.join(',') ?? 'none'}]`)
       actor.applyPatch(overrides)
+      logger.info(`[SpawnPos] "${actor.name}" applyPatch 后: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
     }
 
     // 4.2 实例级组件属性覆盖（场景 ref 节点 components）暂存到 Actor：

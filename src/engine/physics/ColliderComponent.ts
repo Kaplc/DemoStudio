@@ -21,6 +21,7 @@ import { ActorComponent } from '../entity/ActorComponent'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
 import { PhysicsWorld, COLLISION_LAYER_GROUPS } from './PhysicsWorld'
+import { logger } from '../Logger'
 
 /** 碰撞体驱动类型 */
 export type ColliderBodyType = 'static' | 'dynamic'
@@ -73,6 +74,7 @@ export abstract class ColliderComponent extends ActorComponent {
 
   override BeginPlay(): void {
     super.BeginPlay()
+    logger.info(`[ColliderDebug] ${this.owner.name} BeginPlay: enabled=${PhysicsWorld.enabled}, active=${PhysicsWorld.active}`)
     // 游戏运行态检查：编辑器预览 World（蓝图/场景预览）同样会 BeginPlay，但不注册 body
     if (!PhysicsWorld.enabled || !PhysicsWorld.active) return
     const shape = this.createShape()
@@ -80,10 +82,13 @@ export abstract class ColliderComponent extends ActorComponent {
     const world = PhysicsWorld.world
     if (!world) return
 
-    // 位置基准：顶层 Actor（碰撞体挂在模型子 Actor 时，物理位置应取实体根部）
-    let top = this.owner
-    while (top.parent) top = top.parent
-    const pos = top.root.position
+    // 位置基准：owner Actor 的世界位置（cannon body 用世界坐标）
+    // 碰撞体直接挂在 owner 自身——所有蓝图的 children 都是 []，子 Actor 只是模型/装饰跟随，
+    // 不挂碰撞体。所以 owner 就是物理实体根，直接用它的世界位置即可。
+    const ownerLocal = this.owner.root.position
+    const pos = new THREE.Vector3()
+    this.owner.root.getWorldPosition(pos)
+    logger.info(`[ColliderInit] owner="${this.owner.name}"(uid=${this.owner.uid}) ownerLocal=${ownerLocal.x.toFixed(2)},${ownerLocal.y.toFixed(2)},${ownerLocal.z.toFixed(2)} worldPos=[${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}]`)
     const isStatic = this.bodyType === 'static'
     const body = new CANNON.Body({
       mass: isStatic ? 0 : Math.max(0.01, this.mass), // cannon: mass=0 即 static
@@ -106,25 +111,69 @@ export abstract class ColliderComponent extends ActorComponent {
     }
     this.body = body
     PhysicsWorld.registerCollider(this)
+
+    // 打印初始位置
+    const initX = pos.x + this.offset[0]
+    const initY = pos.y + this.offset[1]
+    const initZ = pos.z + this.offset[2]
+    logger.info(`[ColliderInit] ${this.owner.name} | Actor: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) | Body: (${initX.toFixed(2)}, ${initY.toFixed(2)}, ${initZ.toFixed(2)})`)
+
+    // 订阅 owner 自身的位置变化，自动同步 static 碰撞体
+    this.owner.onTransformChanged = (src) => this._onOwnerTransformChanged(src)
+  }
+
+  /** Actor 位置变化时自动同步 static 碰撞体 */
+  private _onOwnerTransformChanged(source: unknown): void {
+    if (!this.body || this.bodyType !== 'static') return
+    // 防止死循环：忽略自身发出的事件
+    if (source === this) return
+    const pos = new THREE.Vector3()
+    this.owner.root.getWorldPosition(pos)
+    const newX = pos.x + this.offset[0]
+    const newY = pos.y + this.offset[1]
+    const newZ = pos.z + this.offset[2]
+    logger.info(`[ColliderSync] ${this.owner.name} | Actor: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) | Body: (${newX.toFixed(2)}, ${newY.toFixed(2)}, ${newZ.toFixed(2)})`)
+    this.body.position.set(newX, newY, newZ)
+    this.body.aabbNeedsUpdate = true
   }
 
   override EndPlay(): void {
     PhysicsWorld.unregisterCollider(this)
     this.body = null
+    // 取消订阅
+    if (this.owner.onTransformChanged === this._onOwnerTransformChanged) {
+      this.owner.onTransformChanged = () => {}
+    }
     super.EndPlay()
   }
 
   override Tick(_dt: number): void {
-    // dynamic：body 为碰撞权威，回写顶层 Actor（沿 parent 链上溯——
-    // 碰撞体常挂在蓝图模型（子 Actor）上，而物理应驱动整个实体根；
-    // lockY 时保留原 y（俯视角无重力，模型悬空偏移不被覆盖））
+    // dynamic 模式下 body 为碰撞权威，回写 owner Actor 由 PhysicsWorld.step 后的
+    // syncActorsFromBodies() 统一驱动（保证下一帧 actor.Tick 读到的 owner.root.position
+    // 是本帧 cannon 求解后的最新位置，而非上一帧的旧值）。
+  }
+
+  /**
+   * 由 PhysicsWorld.step 后调用：把 dynamic body 的世界位置回写到 owner Actor.root。
+   * static 模式 body 不动，无需同步。
+   */
+  syncActorFromBody(): void {
     const body = this.body
     if (!body || this.bodyType !== 'dynamic') return
-    let top = this.owner
-    while (top.parent) top = top.parent
-    top.root.position.x = body.position.x - this.offset[0]
-    top.root.position.z = body.position.z - this.offset[2]
-    if (!this.lockY) top.root.position.y = body.position.y - this.offset[1]
+    let parentWorldX = 0, parentWorldY = 0, parentWorldZ = 0
+    if (this.owner.parent) {
+      const pw = new THREE.Vector3()
+      this.owner.parent.root.getWorldPosition(pw)
+      parentWorldX = pw.x
+      parentWorldY = pw.y
+      parentWorldZ = pw.z
+    }
+    this.owner.root.position.x = body.position.x - this.offset[0] - parentWorldX
+    this.owner.root.position.z = body.position.z - this.offset[2] - parentWorldZ
+    if (!this.lockY) {
+      this.owner.root.position.y = body.position.y - this.offset[1] - parentWorldY
+    }
+    // lockY：保留 owner 当前的 localY（俯视角无重力，避免失重下坠）
   }
 
   /**
@@ -143,9 +192,8 @@ export abstract class ColliderComponent extends ActorComponent {
    */
   syncStaticPosition(): void {
     if (!this.body || this.bodyType !== 'static') return
-    let top = this.owner
-    while (top.parent) top = top.parent
-    const pos = top.root.position
+    const pos = new THREE.Vector3()
+    this.owner.root.getWorldPosition(pos)
     this.body.position.set(pos.x + this.offset[0], pos.y + this.offset[1], pos.z + this.offset[2])
     this.body.aabbNeedsUpdate = true
   }

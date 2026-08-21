@@ -219,6 +219,7 @@ export class FishLevelGameMode extends GameMode {
         this.buildingHp.set(actor, actor.type.hp)
         this.attachHealthBar(actor)
         if (actor.type.defense) this.cannonCooldown.set(actor, 0)
+        logger.info(`[SpawnPos] collectBuildings 看到 "${actor.type.name}"(uid=${actor.uid}) root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
         logger.info(`[BattleGM] 敌方建筑: ${actor.type.name} @ (${actor.root.position.x.toFixed(1)},${actor.root.position.z.toFixed(1)}) hp=${actor.type.hp}`)
       }
     }

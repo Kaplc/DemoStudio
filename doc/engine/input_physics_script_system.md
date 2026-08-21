@@ -103,7 +103,7 @@ collider.onCollisionStay  = (e) => { /* 持续接触（每物理步进一次） 
 
 ### 物理驱动模式（关键设计）
 
-- **dynamic 兵**：`setVelocity(vx, vz)` 每帧注入移动速度（速度 = 路径方向 × speed），cannon 求解器天然处理推开/阻尼/防穿透；body 为**碰撞权威**，`ColliderComponent.Tick` 把 body.position 回写顶层 Actor（沿 parent 链上溯，碰撞体挂在模型子 Actor 也能驱动实体根）；锁 y + 锁旋转（fixedRotation）
+- **dynamic 兵**：`setVelocity(vx, vz)` 每帧注入移动速度（速度 = 路径方向 × speed），cannon 求解器天然处理推开/阻尼/防穿透；body 为**碰撞权威**，`PhysicsWorld.step` 后的 `syncActorsFromBodies` 把 body.position 回写到 owner Actor.root（兵装配时 collider 已从模型蓝图转移到兵 Actor 自身，避免子模型移动兵 Actor 不动的脱节）；锁 y + 锁旋转（fixedRotation）
 - **static 建筑**：生成时同步一次位置；基地拖动移动后调 `syncStaticPosition()` 更新 body
 - **Game 级单例**：生命周期绑定 Game（launch 激活 / shutdown 回收），编辑器预览 World 不注册 body（`PhysicsWorld.active` 判定）
 
@@ -193,7 +193,7 @@ PhySys.setup(camera, uiEl) ← GameInstance 阶段切换
 PhysicsWorld.begin() / step(dt) / reset() ← Game.launch / rAF / Game.shutdown
 ColliderComponent.BeginPlay/EndPlay → PhysicsWorld.registerCollider/unregisterCollider
 PhysicsWorld.dispatchCollisionEvents → ColliderComponent.onCollisionEnter/Exit/Stay
-ColliderComponent.Tick → body 回写顶层 Actor.root（dynamic）
+PhysicsWorld.step → syncActorsFromBodies → body 回写 owner Actor.root（dynamic）
 NavigationModule.rebuild ← PhysicsWorld.queryAll（静态碰撞体 AABB 栅格化，见 navigation_system.md）
 PhySys.reset() / PhysicsWorld.reset() / AIModule.reset() ← Game.shutdown 统一回收 GameSingleton
 ```

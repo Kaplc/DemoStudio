@@ -10,6 +10,7 @@ import type { World } from '../gameflow/World'
 import { destroyObject } from '../gameflow/ActorUtils'
 import type { PropertyPatch } from '../tools/deepMerge'
 import { clonePatch } from '../tools/deepMerge'
+import { logger } from '../Logger'
 
 export abstract class Actor extends BObject {
   public readonly root: THREE.Group
@@ -55,6 +56,7 @@ export abstract class Actor extends BObject {
     const defs = this.pendingComponentOverrides
     this.pendingComponentOverrides = null
     if (!defs || defs.length === 0) return
+    logger.info(`[Actor] "${this.name}"(uid=${this.uid}) flushPendingComponentOverrides: ${defs.length} 项`)
     for (const cdef of defs) {
       if (!cdef.baseClass || !cdef.properties || Object.keys(cdef.properties).length === 0) continue
       const comp = this.getAllComponents().find((c) => c.persistType === cdef.baseClass)
@@ -232,9 +234,34 @@ export abstract class Actor extends BObject {
   get scale(): THREE.Vector3 { return this.root.scale }
   set scale(v: THREE.Vector3) { this.root.scale.copy(v) }
 
-  setPosition(x: number, y: number, z: number) { this.root.position.set(x, y, z) }
-  setRotation(x: number, y: number, z: number) { this.root.rotation.set(x, y, z) }
-  setScale(x: number, y: number, z: number) { this.root.scale.set(x, y, z) }
+  setPosition(x: number, y: number, z: number) {
+    logger.info(`[SpawnPos] "${this.name}" setPosition(${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`)
+    this.root.position.set(x, y, z)
+    this._emitTransformChanged()
+  }
+  setRotation(x: number, y: number, z: number) {
+    this.root.rotation.set(x, y, z)
+    this._emitTransformChanged()
+  }
+  setScale(x: number, y: number, z: number) {
+    this.root.scale.set(x, y, z)
+    this._emitTransformChanged()
+  }
+
+  /**
+   * 位置/旋转/缩放变化回调（被子组件如 ColliderComponent 订阅）。
+   * 使用事件名保证类型安全，避免字符串硬编码。
+   */
+  onTransformChanged(_source: unknown): void { /* 子类可重写 */ }
+
+  /** 触发自身及所有父 Actor 的 onTransformChanged（碰撞体挂在子节点时需要向上冒泡） */
+  private _emitTransformChanged(source?: unknown): void {
+    let target: Actor | null = this
+    while (target) {
+      target.onTransformChanged(source ?? this)
+      target = target._parent as Actor | null
+    }
+  }
 
   get actorLocation(): THREE.Vector3 {
     const v = new THREE.Vector3()
@@ -303,6 +330,7 @@ export abstract class Actor extends BObject {
    */
   applyPatch(patch: PropertyPatch): void {
     const pos = patch.position
+    logger.info(`[SpawnPos] "${this.name}" applyPatch: pos=[${Array.isArray(pos) ? pos.join(',') : 'none'}]`)
     if (Array.isArray(pos)) this.setPosition(pos[0], pos[1], pos[2])
     const rot = patch.rotation
     if (Array.isArray(rot)) this.setRotation(rot[0], rot[1], rot[2])

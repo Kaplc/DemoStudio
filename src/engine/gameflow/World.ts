@@ -629,6 +629,7 @@ export class World extends AObject {
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
+      logger.info(`[SpawnPos] loadScene ref "${rn.name}" -> Instantiate("${rn.ref}", pos=[${rn.position?.join(',') ?? 'none'}])`)
       const actor = this.getComponent(EditorActorComponent)!.Instantiate(rn.ref, overrides, rn.components)
       if (actor) {
         actor.isRefInstance = true

@@ -26,7 +26,8 @@ import type { AObject } from './AObject'
 import { OObject } from './OObject'
 
 export abstract class AObjectComponent<T extends AObject = AObject> extends OObject {
-  public readonly owner: T
+  /** 当前所属宿主（构造时确定；少数场景如 troop 模型→兵 Actor 可重新绑定） */
+  public owner: T
   public bEnabled = true
   public name = 'Component'
 
