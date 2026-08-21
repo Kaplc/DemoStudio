@@ -217,6 +217,8 @@ export const UI_TEMPLATES: NodeTemplate[] = [
           width: 400,
           height: 80,
           zOrder: 1,
+          shadowColor: 'rgba(0,0,0,0.4)',
+          shadowBlur: 4,
         },
       },
     ],

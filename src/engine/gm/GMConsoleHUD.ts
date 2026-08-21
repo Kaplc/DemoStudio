@@ -318,6 +318,18 @@ export class GMConsoleHUD extends HUD {
     if (sendComp) sendComp.onClick = () => this.submitInput()
     else logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 未找到 GM_SendBtn 按钮，跳过发送按钮`)
 
+    // 关闭按钮：按节点名查找（Button / GM_CloseBtn / CloseButton）→ 点击 → 关闭面板
+    const closeBtn = this.findActorByName(actor, 'Button')
+      ?? this.findActorByName(actor, 'GM_CloseBtn')
+      ?? this.findActorByName(actor, 'CloseButton')
+    const closeComp = closeBtn?.getComponent(UIButtonComponent)
+    if (closeComp) {
+      closeComp.onClick = () => this._gm.closeConsole()
+      logger.info('[GMConsoleHUD] 关闭按钮已绑定')
+    } else {
+      logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 未找到关闭按钮，跳过`)
+    }
+
     this.appendOutput(this.readyMessage)
     logger.info(`[GMConsoleHUD] 控制台 UI 已从资产加载: ${this.panelAssetPath}`)
     return true

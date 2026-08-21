@@ -412,7 +412,7 @@
           "baseClass": "UITransformComponent",
           "properties": {
             "position": [
-              1.5473972602739727,
+              1.55,
               0.4,
               0
             ],
@@ -716,8 +716,8 @@
                 "width": 170,
                 "height": 96,
                 "zOrder": 11,
-                "shadowColor": "rgba(0,0,0,0.3)",
-                "shadowBlur": 2,
+            "shadowColor": "rgba(0,0,0,0.4)",
+            "shadowBlur": 4,
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
@@ -725,6 +725,189 @@
                 "hitTest": "visible"
               }
             }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Button",
+      "baseClass": "Actor",
+      "id": 19011,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [
+              3.2244830298843916,
+              1.727970816937904,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 0.3856534260821065,
+            "worldHeight": 0.35052346537797296,
+            "anchor": "top-right",
+            "anchorOffset": [
+              -1.38,
+              -0.8
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "zOrder": 12,
+            "active": true,
+            "hitTest": "visible"
+          }
+        },
+        {
+          "baseClass": "UIButtonComponent",
+          "properties": {
+            "pressScale": 0.9
+          }
+        },
+        {
+          "baseClass": "ClickableComponent",
+          "properties": {}
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "zOrder": 12,
+            "hitTest": "visible",
+            "color": "#ffffff",
+            "radius": 0,
+            "opacity": 0
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "Frame",
+          "baseClass": "Actor",
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 0.3856534260821065,
+                "worldHeight": 0.35052346537797296,
+                "anchor": "stretch",
+                "anchorOffset": [
+                  -0.02,
+                  0.01
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "zOrder": 13,
+                "active": true,
+                "hitTest": "visible"
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#4a6fa5",
+                "radius": 8,
+                "opacity": 1,
+                "width": 400,
+                "height": 100,
+                "zOrder": 13,
+                "hitTest": "visible"
+              }
+            }
+          ],
+          "id": 19012
+        },
+        {
+          "name": "Text",
+          "baseClass": "Actor",
+          "id": 19013,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 0.3856534260821065,
+                "worldHeight": 0.35052346537797296,
+                "anchor": "stretch",
+                "anchorOffset": [
+                  -0.59,
+                  -0.02
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "zOrder": 14,
+                "active": true,
+                "hitTest": "visible"
+              }
+            },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "X",
+            "fontSize": 32,
+            "color": "#ffffff",
+            "align": "center",
+            "width": 400,
+            "height": 80,
+            "zOrder": 14,
+            "shadowColor": "rgba(0,0,0,0.4)",
+            "shadowBlur": 4,
+            "hitTest": "visible",
+            "bold": false,
+            "italic": false,
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.005
+          }
+        }
           ]
         }
       ]
