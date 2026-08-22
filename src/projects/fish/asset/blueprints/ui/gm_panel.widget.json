@@ -459,7 +459,7 @@
             "shadowBlur": 4,
             "bold": false,
             "italic": false,
-            "lineHeight": 20,
+            "lineHeight": 1.25,
             "letterSpacing": 0,
             "fontSizeScale": 0.005217,
             "hitTest": "visible"
@@ -493,8 +493,8 @@
             ],
             "anchor": "center",
             "anchorOffset": [
-              -0.15,
-              -1
+              -0.3,
+              -1.25
             ],
             "worldWidth": 5.4,
             "worldHeight": 0.5
@@ -627,7 +627,7 @@
             "anchor": "center",
             "anchorOffset": [
               3.16,
-              -1
+              -1.25
             ],
             "worldWidth": 0.85,
             "worldHeight": 0.5
@@ -647,6 +647,20 @@
           "baseClass": "UIButtonComponent",
           "properties": {
             "name": "SendButton"
+          }
+        },
+        {
+          "baseClass": "ClickableComponent",
+          "properties": {}
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "zOrder": 10,
+            "hitTest": "visible",
+            "color": "#ffffff",
+            "radius": 0,
+            "opacity": 0
           }
         }
       ],
@@ -716,8 +730,8 @@
                 "width": 170,
                 "height": 96,
                 "zOrder": 11,
-            "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4,
+                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowBlur": 4,
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
@@ -888,26 +902,26 @@
                 "hitTest": "visible"
               }
             },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "X",
-            "fontSize": 32,
-            "color": "#ffffff",
-            "align": "center",
-            "width": 400,
-            "height": 80,
-            "zOrder": 14,
-            "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4,
-            "hitTest": "visible",
-            "bold": false,
-            "italic": false,
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005
-          }
-        }
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "X",
+                "fontSize": 32,
+                "color": "#ffffff",
+                "align": "center",
+                "width": 400,
+                "height": 80,
+                "zOrder": 14,
+                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowBlur": 4,
+                "hitTest": "visible",
+                "bold": false,
+                "italic": false,
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.005
+              }
+            }
           ]
         }
       ]

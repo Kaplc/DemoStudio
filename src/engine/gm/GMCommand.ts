@@ -96,3 +96,21 @@ export function formatGMUsage(def: GMCommandDef): string {
   }) ?? []
   return [def.name, ...parts].join(' ')
 }
+
+/**
+ * 参数声明 → 可执行命令字符串（点击命令按钮填入输入框用）。
+ * 必填参数用类型默认值（int→1, float→1.0, string→跳过, bool→true），
+ * 可选参数用 default 值（有则填入，无则省略）。
+ */
+export function formatGMExecutable(def: GMCommandDef): string {
+  const parts: string[] = [def.name]
+  for (const p of def.params ?? []) {
+    if (p.required === false && p.default === undefined) continue
+    const val = p.default ?? (p.type === 'int' ? 1 : p.type === 'float' ? 1.0 : p.type === 'bool' ? true : null)
+    if (val === null) continue // 必填 string 无默认值时跳过（用户需自行填写）
+    // float 保留原始精度，但整数值补 ".0"（JS 的 2.0 → "2"，需补 ".0" 确保命令行解析为 float）
+    const s = String(val)
+    parts.push(p.type === 'float' && !s.includes('.') ? s + '.0' : s)
+  }
+  return parts.join(' ')
+}

@@ -119,6 +119,7 @@ export { GMConsoleHUD, GM_ZORDER_BASE, GM_TEXT_LAYER, MAX_OUTPUT_LINES } from '.
 export {
   convertGMArg,
   formatGMUsage,
+  formatGMExecutable,
 } from './gm/GMCommand'
 export type {
   GMCommandArg,

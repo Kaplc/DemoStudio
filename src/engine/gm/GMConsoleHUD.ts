@@ -32,7 +32,7 @@ import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScrollListComponent } from '../ui/UIScrollListComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { GMRegistry } from './GMRegistry'
-import { formatGMUsage, type GMCommandDef } from './GMCommand'
+import { formatGMUsage, formatGMExecutable, type GMCommandDef } from './GMCommand'
 import { logger } from '../Logger'
 import type { GMModule } from './GMModule'
 
@@ -391,12 +391,12 @@ export class GMConsoleHUD extends HUD {
       // 命令名文本
       const label = item.getComponent(UITextComponent)
       if (label) label.text = def.name
-      // 点击 → 快捷输入：完整用法填入输入框（含默认参数），用户可直接 Enter 或修改后执行
+      // 点击 → 快捷输入：命令名 + 默认参数值填入输入框，用户可直接 Enter 执行
       const button = item.getComponent(UIButtonComponent)
       if (button) {
         button.onClick = () => {
           if (this._input) {
-            this._input.value = formatGMUsage(def)
+            this._input.value = formatGMExecutable(def)
             this._input.focus()
           }
         }

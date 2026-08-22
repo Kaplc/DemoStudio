@@ -197,31 +197,28 @@ export class UITextInputComponent extends UITextComponent {
    * 根据点击的世界坐标 X 设置光标/选择位置。
    * 使用 troika getCaretAtPoint 精确定位（支持变宽字体），并映射回原始 value 索引
    * （渲染文本在 _cursorPos 处插入了 '|' 光标符，其后字符索引 +1）。
-   * @param clickWorldX  命中点的世界坐标 X
-   * @param textWorldX   输入框文本 Actor 的世界坐标 X（左边缘，对齐 anchor）
+   * @param clickWorldX  命中点的世界坐标 X（来自 ClickableComponent.onMouseDown hit.point.x）
+   * @param textWorldX   未使用（保留接口兼容）
    * @param charWidth    未使用（保留接口兼容）
    */
   setCursorFromClick(clickWorldX: number, textWorldX: number, charWidth: number): void {
     const troika = (this as unknown as { mesh: TroikaText }).mesh
-    if (!troika?.textRenderInfo) {
-      // fallback：等宽估算（无 troika 布局时）
-      const relX = clickWorldX - textWorldX
-      const idx = Math.max(0, Math.min(this._value.length, Math.round(relX / charWidth)))
-      this._cursorPos = idx
-      this._selectionStart = idx
-      this.refreshText()
-      return
-    }
-    // 世界坐标 → troika 本地坐标
-    const localX = clickWorldX - troika.position.x
+    if (!troika?.textRenderInfo) return
+    // 世界坐标 → owner.root 本地坐标 → troika 本地坐标
+    const worldPt = new THREE.Vector3(clickWorldX, 0, 0)
+    const rootLocal = this.owner.root.worldToLocal(worldPt)
+    const localX = rootLocal.x - troika.position.x
+    // troika getCaretAtPoint 返回最近 caret 索引（渲染文本含 '|' 光标符）
     const caret = getCaretAtPoint(troika.textRenderInfo, localX, 0)
-    if (caret) {
-      // caret.charIndex 是渲染文本索引（含 '|'），需映射回原始 value 索引
-      const renderedIdx = caret.charIndex
-      const c = this._cursorPos
-      const valueIdx = renderedIdx > c ? renderedIdx - 1 : renderedIdx
-      this._cursorPos = Math.max(0, Math.min(this._value.length, valueIdx))
-    }
+    if (!caret) return
+    let renderedIdx = caret.charIndex
+    // getCaretAtPoint 返回字符左边缘的 caret；点击落在字符右半侧时应取下一个位置
+    const caretX = troika.textRenderInfo.caretPositions[renderedIdx * 4]
+    if (localX > caretX + 1e-6) renderedIdx++
+    // 渲染文本索引 → 原始 value 索引（跳过 '|' 光标符）
+    const c = this._cursorPos
+    const valueIdx = renderedIdx > c ? renderedIdx - 1 : renderedIdx
+    this._cursorPos = Math.max(0, Math.min(this._value.length, valueIdx))
     this._selectionStart = this._cursorPos
     this.refreshText()
   }
