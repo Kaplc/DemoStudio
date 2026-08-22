@@ -24,7 +24,7 @@ import { logger } from '../Logger'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
 import * as THREE from 'three'
-import { Text as TroikaText, getSelectionRects } from 'troika-three-text'
+import { Text as TroikaText, getSelectionRects, getCaretAtPoint } from 'troika-three-text'
 
 export interface UITextInputComponentOptions {
   /** 占位提示（value 为空且未聚焦时显示，灰色） */
@@ -195,15 +195,34 @@ export class UITextInputComponent extends UITextComponent {
 
   /**
    * 根据点击的世界坐标 X 设置光标/选择位置。
-   * @param clickWorldX  命中点的世界坐标 X（来自 ClickableComponent.onMouseDown hit.point.x）
+   * 使用 troika getCaretAtPoint 精确定位（支持变宽字体），并映射回原始 value 索引
+   * （渲染文本在 _cursorPos 处插入了 '|' 光标符，其后字符索引 +1）。
+   * @param clickWorldX  命中点的世界坐标 X
    * @param textWorldX   输入框文本 Actor 的世界坐标 X（左边缘，对齐 anchor）
-   * @param charWidth    每个字符的平均世界宽度（≈ fontSize * 0.55 / 1920 * worldWidth）
+   * @param charWidth    未使用（保留接口兼容）
    */
   setCursorFromClick(clickWorldX: number, textWorldX: number, charWidth: number): void {
-    const relX = clickWorldX - textWorldX
-    const charIndex = Math.max(0, Math.min(this._value.length, Math.round(relX / charWidth)))
-    this._cursorPos = charIndex
-    this._selectionStart = charIndex
+    const troika = (this as unknown as { mesh: TroikaText }).mesh
+    if (!troika?.textRenderInfo) {
+      // fallback：等宽估算（无 troika 布局时）
+      const relX = clickWorldX - textWorldX
+      const idx = Math.max(0, Math.min(this._value.length, Math.round(relX / charWidth)))
+      this._cursorPos = idx
+      this._selectionStart = idx
+      this.refreshText()
+      return
+    }
+    // 世界坐标 → troika 本地坐标
+    const localX = clickWorldX - troika.position.x
+    const caret = getCaretAtPoint(troika.textRenderInfo, localX, 0)
+    if (caret) {
+      // caret.charIndex 是渲染文本索引（含 '|'），需映射回原始 value 索引
+      const renderedIdx = caret.charIndex
+      const c = this._cursorPos
+      const valueIdx = renderedIdx > c ? renderedIdx - 1 : renderedIdx
+      this._cursorPos = Math.max(0, Math.min(this._value.length, valueIdx))
+    }
+    this._selectionStart = this._cursorPos
     this.refreshText()
   }
 
@@ -405,7 +424,8 @@ export class UITextInputComponent extends UITextComponent {
    */
   private refreshText(): void {
     if (this._focused) {
-      this.text = `${this._value}|`
+      // 光标 '|' 插入到 _cursorPos 位置（非末尾），使左右方向键时光标视觉跟随
+      this.text = this._value.slice(0, this._cursorPos) + '|' + this._value.slice(this._cursorPos)
       this.color = this._textColor
       this.updateSelectionMesh()
     } else if (this._value) {
@@ -537,7 +557,13 @@ export class UITextInputComponent extends UITextComponent {
       mesh.visible = false
       return
     }
-    const rects = getSelectionRects(troika.textRenderInfo, selStart, selEnd)
+    // 渲染文本 = value[0..cursorPos] + '|' + value[cursorPos..end]，
+    // 光标 '|' 占一个字符位，其后的 value 字符索引 +1。
+    // 传给 getSelectionRects 的索引要对应渲染文本，非原始 value。
+    const c = this._cursorPos
+    const renderedStart = selStart + (selStart >= c ? 1 : 0)
+    const renderedEnd = selEnd + (selEnd >= c ? 1 : 0)
+    const rects = getSelectionRects(troika.textRenderInfo, renderedStart, renderedEnd)
     if (!rects || rects.length === 0) {
       // 布局未就绪（首次渲染）保持隐藏，下一次 sync 回调会补上
       mesh.visible = false
