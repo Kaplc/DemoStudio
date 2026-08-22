@@ -18,6 +18,8 @@
 | `run_playwright_code` | 任意 Playwright 代码 | `pageId` + `code`；长任务返回 `deferredResultId` 需二次调用（无 code）取结果 |
 
 > ⚠️ 页面 `visibilityState` 为 `hidden` 时（集成浏览器常见），`click_element` 等元素稳定**必超时** → 全部改用 `run_playwright_code` + `dispatchEvent`（见 §2.3）。
+>
+> ⚠️ React 按钮（Launch/Stop/⚙ GM 等内联 onClick）：首选 `locator.dispatchEvent('click', { bubbles: true })`（React 合成事件监听在 root，能收到）；`page.mouse.click` 真实坐标点击在页面 not visible 时可能无效。GM 控制台也可用 G+M 组合键（需先 `document.querySelector('[tabindex="0"]').focus()` 聚焦视口，否则 keydown 不路由）。
 
 ## 2. run_playwright_code 常用片段
 
@@ -63,6 +65,53 @@ await page.waitForTimeout(300)
 await page.waitForTimeout(ms)                 // 固定等待
 await page.reload()                           // 改代码后必须刷新（HMR 不重建已挂载实例）
 ```
+
+### 2.6 模拟真实键盘事件（测试输入框/快捷键链路）
+
+引擎键名由 `_formatKey` 生成：需要 `key`（可打印字符/方向键名）与 `code`（控制键如 Backspace/Enter），二者缺一组合键解析失败：
+
+```js
+// 可打印字符
+window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'h', code: 'KeyH' }))
+// Shift+方向键（shiftKey 标记 → 引擎收到 'Shift+ArrowLeft'）
+window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft', code: 'ArrowLeft', shiftKey: true }))
+// Ctrl+A
+window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a', code: 'KeyA', ctrlKey: true }))
+// Backspace/Enter/Escape
+window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Backspace', code: 'Backspace' }))
+```
+
+> ⚠️ 不带 `code` 时：可打印字符仍可用（key.length===1 分支），但 **Shift+ArrowLeft 等组合键会丢失修饰键语义**（引擎读到 'ArrowLeft' 而非 'Shift+ArrowLeft'）。
+
+### 2.7 读引擎内部状态（带 ?t= 同实例动态 import）
+
+```js
+// ① fetch 目标文件拿转换后 import URL（含 ?t= 时间戳）
+const resp = await fetch('/src/engine/gm/GMModule.ts')
+const url = (await resp.text()).match(/from\s+"(\/src\/[^\"]+GameInstance[^"]+)"/)[1]
+// ② 用完全相同 URL import → 与页面内同模块实例 → 可读静态属性 GameInstance.current
+const mod = await import(url)
+const input = mod.GameInstance.current.gm._console._input   // GM 输入框实例
+```
+
+> ⚠️ 裸 `import('/src/engine/...ts')`（无 ?t=）是**独立模块实例**，静态属性读不到页面状态；reload 后 ?t= 变化需重新 fetch。
+> ⚠️ `window.__ai.emit()` 返回 `{event, handled, results: [...]}`，断言数据在 `results[0]`，不是返回值本身。`ai.getState` 等 UI 树数据在 `results[0].actors`。
+
+### 2.8 hidden 页面 rAF 停 → troika sync 回调不触发
+
+页面 `visibilityState === 'hidden'` 时 rAF 暂停，**troika 的 `sync(callback)` 回调永不执行**（挂 rAF 后通知）——`await` 它会永久卡死 evaluate（返回 deferredResultId 后续轮询也拿不到）。
+
+但 worker 的重排本身照常完成：`mesh.textRenderInfo`（含 caretPositions/blockBounds）已更新。验证布局相关逻辑时：
+
+```js
+// ❌ 卡死：等 sync 回调
+mesh.sync(() => { done = true })
+while (!done) await sleep(50)
+// ✅ 直接读 textRenderInfo（重排完成后即新鲜）
+const info = mesh.textRenderInfo   // caretPositions.length/4 === 文本字符数 表示已就绪
+```
+
+生产代码（如选中高亮）需同时兼容两种时机：立即应用一次 + sync 回调重试（见 UITextInputComponent.updateSelectionMesh 双保险）。
 
 ## 3. 编辑器调试桥
 

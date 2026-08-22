@@ -27,10 +27,25 @@ export function handleGameKeyDown(
 ): boolean {
   const inst = game?.instance
   if (inst) {
-    inst.inputSys.handleKeyDown(e.key, inst.controller)
+    inst.inputSys.handleKeyDown(_formatKey(e), inst.controller)
   }
   e.preventDefault()
   return true
+}
+
+/**
+ * 将 KeyboardEvent 格式化为统一键名字符串。
+ * 包含修饰键前缀（Shift+/Ctrl+/Alt+），方便 UI 输入控件识别组合键（如 Shift+ArrowLeft）。
+ */
+function _formatKey(e: KeyboardEvent): string {
+  const parts: string[] = []
+  if (e.ctrlKey) parts.push('Ctrl')
+  if (e.shiftKey) parts.push('Shift')
+  if (e.altKey) parts.push('Alt')
+  // 方向键用 key（ArrowLeft 等），其他字符键优先用 key（保留大小写），控制键用 code（Backspace 等）
+  const base = e.key.length === 1 ? e.key : (e.code.startsWith('Key') ? e.key : e.code)
+  parts.push(base)
+  return parts.join('+')
 }
 
 /**
@@ -43,7 +58,7 @@ export function handleGameKeyUp(
 ): boolean {
   const inst = game?.instance
   if (inst) {
-    inst.inputSys.handleKeyUp(e.key, inst.controller)
+    inst.inputSys.handleKeyUp(_formatKey(e), inst.controller)
   }
   return true
 }

@@ -25,7 +25,7 @@ export class ClickableComponent extends Component<Actor> {
    */
   layer: 'ui' | 'world' = 'world'
 
-  /** 点击回调：传入命中的 Intersection 信息 */
+  /** 点击回调：传入命中的 Intersection 信息（含 point 坐标） */
   onClick: ((hit: THREE.Intersection) => void) | null = null
   /** 按下回调：mousedown 命中时触发（先于 onClick），长按保持由 onRelease 恢复 */
   onPress: ((hit: THREE.Intersection) => void) | null = null
@@ -33,6 +33,11 @@ export class ClickableComponent extends Component<Actor> {
   onRelease: (() => void) | null = null
   /** 悬停回调：传入命中信息（null 表示离开） */
   onHover: ((hit: THREE.Intersection | null) => void) | null = null
+  /**
+   * 鼠标按下时回调（命中的 Intersection，含 point 坐标）。
+   * 用于精确 UI 交互（如文本输入框根据点击 X 坐标定位光标字符位置）。
+   */
+  onMouseDown: ((hit: THREE.Intersection) => void) | null = null
   /**
    * 拖拽开始回调（按下后首次移动时触发，传入屏幕坐标）。
    * 绑定 onDragMove 时启用拖拽语义：位移超过阈值后 onClick 不再触发（拖拽 ≠ 点击）。
@@ -187,6 +192,7 @@ export class ClickableComponent extends Component<Actor> {
       this._pendingClick = null
       // 按下视觉/状态先于点击逻辑（按钮长按保持按下）
       this.onPress?.(hit)
+      this.onMouseDown?.(hit)
       if (this.onDragMove) {
         // 拖拽语义：点击延迟到释放（未拖拽）时触发，位移超阈值取消
         this._pendingClick = hit

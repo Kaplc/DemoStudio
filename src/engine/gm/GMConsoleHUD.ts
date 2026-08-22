@@ -80,6 +80,8 @@ export class GMConsoleHUD extends HUD {
   protected _outputText: UITextComponent | null = null
   /** 输出行缓冲 */
   protected _outputLines: string[] = []
+  /** paste 事件处理器引用（BeginPlay 注册 / EndPlay 移除） */
+  private _onPaste: ((e: ClipboardEvent) => void) | null = null
   /** 命令按钮滚动列表（对象池，超框 item 不渲染） */
   protected _cmdList: UIScrollListComponent | null = null
   /** 全量命令缓存（buildCommandButtons 时快照，搜索过滤的基准） */
@@ -389,12 +391,12 @@ export class GMConsoleHUD extends HUD {
       // 命令名文本
       const label = item.getComponent(UITextComponent)
       if (label) label.text = def.name
-      // 点击 → 快捷输入：命令名填入输入框并聚焦（用户补参数后 Enter/发送执行）
+      // 点击 → 快捷输入：完整用法填入输入框（含默认参数），用户可直接 Enter 或修改后执行
       const button = item.getComponent(UIButtonComponent)
       if (button) {
         button.onClick = () => {
           if (this._input) {
-            this._input.value = def.name
+            this._input.value = formatGMUsage(def)
             this._input.focus()
           }
         }
@@ -556,7 +558,6 @@ export class GMConsoleHUD extends HUD {
       const isSearch = nodeName === 'GM_SearchInput' || nodeName === 'GM_SearchBox'
       const isInput = nodeName === 'GM_InputBox'
       if (isSearch || isInput) {
-        // 已有（如 UIButton 自动创建）则复用，否则新建——先设 layer 再挂载
         let clickable = a.getComponent(ClickableComponent)
         if (!clickable) {
           clickable = new ClickableComponent(a)
@@ -564,6 +565,20 @@ export class GMConsoleHUD extends HUD {
           a.addComponent(clickable)
         }
         clickable.layer = 'ui'
+        // onMouseDown：精准定位光标（输入框按点击 X 坐标）
+        clickable.onMouseDown = (hit) => {
+          if (isInput && this._input) {
+            this._searchInput?.blur()
+            this._input.focus()
+            const size = a.getComponent(UITransformComponent)?.getWorldSize() ?? [6.8, 0.5]
+            const worldX = a.position.x
+            const charWidth = (this._input.fontSize * 0.58) / 1920 * size[0]
+            this._input.setCursorFromClick(hit.point.x, worldX, charWidth)
+          } else if (isSearch) {
+            this._input?.blur()
+            this._searchInput?.focus()
+          }
+        }
         clickable.onClick = () => {
           if (isSearch) {
             this._input?.blur()
@@ -615,12 +630,24 @@ export class GMConsoleHUD extends HUD {
     super.BeginPlay()
     // 面板就绪：聚焦输入框（隐藏输入穿透）
     this._input?.focus()
-    logger.info('[GMConsoleHUD] BeginPlay：输入框已聚焦')
+    // paste 事件兜底：右键粘贴 / Ctrl+Shift+V 等绕过 Ctrl+V 劫持的情况
+    this._onPaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      if (!text) return
+      const target = this._searchInput?.focused ? this._searchInput : this._input
+      if (target) {
+        e.preventDefault()
+        target.handlePasteText(text)
+      }
+    }
+    window.addEventListener('paste', this._onPaste)
+    logger.info('[GMConsoleHUD] BeginPlay：输入框已聚焦，paste 监听已注册')
   }
 
   override EndPlay(): void {
     // 先通知 GMModule 清引用（场景切换连带销毁时避免悬空），再递归销毁控件树
     this._gm.notifyConsoleDestroyed()
+    if (this._onPaste) window.removeEventListener('paste', this._onPaste)
     logger.info('[GMConsoleHUD] EndPlay：控制台 UI 已销毁')
     super.EndPlay()
   }

@@ -37,7 +37,37 @@ declare module 'troika-three-text' {
     letterSpacing?: number
     lineHeight?: number
     font?: string
+    /** 当前渲染信息（sync 后可用，含 caretPositions/blockBounds/visibleBounds/fontData） */
+    readonly textRenderInfo: {
+      caretPositions: Float32Array
+      blockBounds: [number, number, number, number]
+      visibleBounds: [number, number, number, number]
+      fontData: Array<{
+        ascender: number
+        descender: number
+        unitsPerEm: number
+        lineHeight: number
+        capHeight: number
+        xHeight: number
+      }>
+      fontSize: number
+      topBaseline: number
+    } | null
     sync(callback?: () => void): void
     dispose(): void
   }
+
+  /** 按字符索引范围返回选区矩形列表（troika mesh 本地坐标） */
+  export function getSelectionRects(
+    textRenderInfo: Text['textRenderInfo'],
+    start: number,
+    end: number,
+  ): Array<{ left: number; top: number; right: number; bottom: number }> | null
+
+  /** 按本地坐标点返回最近光标位置 */
+  export function getCaretAtPoint(
+    textRenderInfo: Text['textRenderInfo'],
+    x: number,
+    y: number,
+  ): { x: number; y: number; height: number; charIndex: number } | null
 }

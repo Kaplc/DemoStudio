@@ -1195,18 +1195,6 @@ html, body, #root {
   box-shadow: 0 0 20px rgba(0,122,204,0.1);
 }
 
-.startup-project-icon {
-  font-size: 28px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-}
-
 .startup-project-info {
   flex: 1;
   min-width: 0;

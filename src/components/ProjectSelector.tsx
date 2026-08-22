@@ -27,6 +27,8 @@ export function ProjectSelector() {
             <div
               key={p.name}
               className={`project-card ${selected === p.name ? 'selected' : ''}`}
+              role="button"
+              aria-label={p.name}
               onClick={() => setSelected(p.name)}
             >
               <div className="project-name">{p.name}</div>

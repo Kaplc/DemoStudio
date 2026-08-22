@@ -242,8 +242,9 @@ export class UITextComponent extends CanvasUIComponent {
     ;(mesh as unknown as { fontWeight: number | string }).fontWeight = this._bold ? 700 : 400
     ;(mesh as unknown as { fontStyle: string }).fontStyle = this._italic ? 'italic' : 'normal'
     mesh.letterSpacing = this.toWorldUnits(this._letterSpacing)
-    // 行高（世界单位）= fontSize 世界字号 × 系数（系数 = _lineHeight/100，内部 ×100 存储）
-    mesh.lineHeight = this.toWorldUnits(this._fontSize * (this._lineHeight / 100))
+    // 行高：troika lineHeight 语义为无单位倍数（1.4 = fontSize × 1.4），
+    // 它内部再乘 fontSize 得到世界单位行高——这里传倍数即可，不应再 toWorldUnits。
+    mesh.lineHeight = this._lineHeight / 100
     // unicode fallback（emoji/生僻字）：走本地缓存代理（首次下载后永久本地，不再联网）。
     // 必须绝对 URL——troika 的 fetch 在 worker 里执行，相对路径无法解析
     ;(mesh as unknown as { unicodeFontsURL: string }).unicodeFontsURL = `${location.origin}/__unicode_fonts`

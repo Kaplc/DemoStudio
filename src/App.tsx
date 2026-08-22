@@ -184,16 +184,11 @@ function StartupProjectSelector({
             <div
               key={p.name}
               className={`startup-project-card ${selected === p.name ? 'selected' : ''}`}
+              role="button"
+              aria-label={p.name}
               onClick={() => setSelected(p.name)}
               onDoubleClick={() => selected === p.name && onSelect(p)}
             >
-              <div className="startup-project-icon">
-                {p.folder === 'snake' && '🐍'}
-                {p.folder === 'eatfish' && '🐟'}
-                {p.folder === 'demo2d' && '🪙'}
-                {p.folder === 'racing' && '🏎️'}
-                {!['snake', 'eatfish', 'demo2d', 'racing', 'fish'].includes(p.folder ?? '') && '📁'}
-              </div>
               <div className="startup-project-info">
                 <div className="startup-project-name">{p.name}</div>
                 <div className="startup-project-desc">{p.description}</div>
