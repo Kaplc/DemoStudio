@@ -21,7 +21,6 @@ import { ActorComponent } from '../entity/ActorComponent'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
 import { PhysicsWorld, COLLISION_LAYER_GROUPS } from './PhysicsWorld'
-import { logger } from '../Logger'
 
 /** 碰撞体驱动类型 */
 export type ColliderBodyType = 'static' | 'dynamic'
@@ -74,7 +73,6 @@ export abstract class ColliderComponent extends ActorComponent {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    logger.info(`[ColliderDebug] ${this.owner.name} BeginPlay: enabled=${PhysicsWorld.enabled}, active=${PhysicsWorld.active}`)
     // 游戏运行态检查：编辑器预览 World（蓝图/场景预览）同样会 BeginPlay，但不注册 body
     if (!PhysicsWorld.enabled || !PhysicsWorld.active) return
     const shape = this.createShape()
@@ -85,10 +83,8 @@ export abstract class ColliderComponent extends ActorComponent {
     // 位置基准：owner Actor 的世界位置（cannon body 用世界坐标）
     // 碰撞体直接挂在 owner 自身——所有蓝图的 children 都是 []，子 Actor 只是模型/装饰跟随，
     // 不挂碰撞体。所以 owner 就是物理实体根，直接用它的世界位置即可。
-    const ownerLocal = this.owner.root.position
     const pos = new THREE.Vector3()
     this.owner.root.getWorldPosition(pos)
-    logger.info(`[ColliderInit] owner="${this.owner.name}"(uid=${this.owner.uid}) ownerLocal=${ownerLocal.x.toFixed(2)},${ownerLocal.y.toFixed(2)},${ownerLocal.z.toFixed(2)} worldPos=[${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}]`)
     const isStatic = this.bodyType === 'static'
     const body = new CANNON.Body({
       mass: isStatic ? 0 : Math.max(0.01, this.mass), // cannon: mass=0 即 static
@@ -112,12 +108,6 @@ export abstract class ColliderComponent extends ActorComponent {
     this.body = body
     PhysicsWorld.registerCollider(this)
 
-    // 打印初始位置
-    const initX = pos.x + this.offset[0]
-    const initY = pos.y + this.offset[1]
-    const initZ = pos.z + this.offset[2]
-    logger.info(`[ColliderInit] ${this.owner.name} | Actor: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) | Body: (${initX.toFixed(2)}, ${initY.toFixed(2)}, ${initZ.toFixed(2)})`)
-
     // 订阅 owner 自身的位置变化，自动同步 static 碰撞体
     this.owner.onTransformChanged = (src) => this._onOwnerTransformChanged(src)
   }
@@ -132,7 +122,6 @@ export abstract class ColliderComponent extends ActorComponent {
     const newX = pos.x + this.offset[0]
     const newY = pos.y + this.offset[1]
     const newZ = pos.z + this.offset[2]
-    logger.info(`[ColliderSync] ${this.owner.name} | Actor: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) | Body: (${newX.toFixed(2)}, ${newY.toFixed(2)}, ${newZ.toFixed(2)})`)
     this.body.position.set(newX, newY, newZ)
     this.body.aabbNeedsUpdate = true
   }
@@ -145,6 +134,50 @@ export abstract class ColliderComponent extends ActorComponent {
       this.owner.onTransformChanged = () => {}
     }
     super.EndPlay()
+  }
+
+  /**
+   * 对象池回收时清理物理资源（与 EndPlay 等效，但不触发组件销毁）。
+   * 由 PoolableActor.deactivate 调用。
+   */
+  cleanup(): void {
+    PhysicsWorld.unregisterCollider(this)
+    this.body = null
+    if (this.owner.onTransformChanged === this._onOwnerTransformChanged) {
+      this.owner.onTransformChanged = () => {}
+    }
+  }
+
+  /**
+   * 对象池取出时恢复物理资源（与 BeginPlay 等效，但不重复注册到 PhysicsWorld）。
+   * 由 PoolableActor.activate 调用。
+   */
+  restore(): void {
+    if (!PhysicsWorld.enabled || !PhysicsWorld.active) return
+    const shape = this.createShape()
+    if (!shape) return
+    const world = PhysicsWorld.world
+    if (!world) return
+    const pos = new THREE.Vector3()
+    this.owner.root.getWorldPosition(pos)
+    const isStatic = this.bodyType === 'static'
+    const body = new CANNON.Body({
+      mass: isStatic ? 0 : Math.max(0.01, this.mass),
+      shape,
+      position: new CANNON.Vec3(pos.x + this.offset[0], pos.y + this.offset[1], pos.z + this.offset[2]),
+      type: isStatic ? CANNON.Body.STATIC : CANNON.Body.DYNAMIC,
+    })
+    body.collisionFilterGroup = 0
+    body.collisionFilterMask = -1
+    if (!isStatic) {
+      body.linearDamping = this.linearDamping
+      body.angularDamping = 1
+      body.fixedRotation = true
+      body.updateMassProperties()
+    }
+    this.body = body
+    PhysicsWorld.registerCollider(this)
+    this.owner.onTransformChanged = (src) => this._onOwnerTransformChanged(src)
   }
 
   override Tick(_dt: number): void {
@@ -160,6 +193,8 @@ export abstract class ColliderComponent extends ActorComponent {
   syncActorFromBody(): void {
     const body = this.body
     if (!body || this.bodyType !== 'dynamic') return
+    // 已标记待销毁的 Actor 不再同步（位置在 commitDestroy 时从场景移除）
+    if ((this.owner as any).bPendingDestroy) return
     let parentWorldX = 0, parentWorldY = 0, parentWorldZ = 0
     if (this.owner.parent) {
       const pw = new THREE.Vector3()

@@ -10,8 +10,20 @@
  *
  * TroopActor 接口 = 战斗 GameMode / 弹丸对兵的统一视图（类型契约，非基类）。
  * 工厂：createTroopActor(troopId, ...) 按兵种 id 实例化对应 Actor 类。
+ *
+ * 对象池化（完整子树复用）：
+ *  - 每个兵种一个 ObjectPool（不同兵种体型/能力差异大，不共享池）；
+ *  - 池对象包含完整 actor 树（mesh + collider + 战斗组件），deactivate 时只
+ *    detach 脱离场景树、cleanup 物理资源、隐藏可见性，不销毁；
+ *    activate 时 re-attach + restore + 显示；
+ *  - mesh 从蓝图 CDO 克隆（BlueprintRegistry.resolve 取模板，不走 SpawnActor），
+ *    collider 从 troop 配置表重建。
  */
-import { CircleColliderComponent, GenericActor, logger, type Actor } from '@/engine'
+import { CircleColliderComponent, GenericActor, type Actor, BlueprintRegistry } from '@/engine'
+import type { ResolvedComponentDef } from '@/engine/asset/BlueprintAsset'
+import { ComponentRegistry } from '@/engine/tools/ComponentRegistry'
+import { ThreeObjectFactory } from '@/engine/gameflow/ThreeObjectFactory'
+import type { IPoolable, ObjectPool } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import type { TroopType } from '../../common/types'
 import { TroopHealthComponent } from './TroopHealthComponent'
@@ -19,6 +31,15 @@ import { TroopTargetComponent } from './TroopTargetComponent'
 import { TroopMoveComponent } from './TroopMoveComponent'
 import { TroopAttackComponent } from './TroopAttackComponent'
 import { TroopHealthBarComponent } from '../../common/comp/TroopHealthBarComponent'
+
+/** 兵部署参数（acquire 时传入） */
+export interface TroopDeployOptions {
+  troopId: string
+  gm: FishLevelGameMode
+  troop: TroopType
+  x: number
+  z: number
+}
 
 /** 兵 Actor 公共契约（战斗 GameMode / 防御塔弹丸统一引用；无继承基类） */
 export interface TroopActor extends Actor {
@@ -28,180 +49,156 @@ export interface TroopActor extends Actor {
   health: TroopHealthComponent
 }
 
-/** 兵种 Actor 构造签名（工厂统一实例化） */
-type TroopCtor = new (gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) => TroopActor
+/** 兵 Actor 基类（实现 IPoolable + TroopActor 接口，供所有兵种继承） */
+export abstract class PoolableTroopActor extends GenericActor implements TroopActor, IPoolable {
+  readonly troop: TroopType = null as unknown as TroopType
+  abstract health: TroopHealthComponent
 
-/**
- * 共享装配：所有兵种 Actor 类构造调用 —— 建模型（attachTo 挂树随兵销毁）、
- * 定位（飞行兵悬空）、挂组件组合。装配差异由 troop 配置驱动，无需分叉。
- */
-function assembleTroop(
-  actor: TroopActor,
-  gm: FishLevelGameMode,
-  troop: TroopType,
-  x: number,
-  z: number,
-  modelActor: Actor,
-): void {
-  actor.setPosition(x, troop.flying ? 2 : 0, z)
-  // 蓝图模型（GameMode 部署时已 SpawnActorFromBlueprint 实例化）：挂到兵下，随兵销毁释放
-  modelActor.attachTo(actor)
-  // ── 关键：把 CircleColliderComponent 从模型子 Actor 转移到兵 Actor ──
-  // 蓝图里 collider 挂在模型上是为了视觉跟模型走，但 body→actor 同步会写到模型 Actor.root；
-  // 兵 Actor 的寻路/索敌/Tick 读的是兵 Actor.root.position，永远不动 → 卡死 36 帧反复重路径。
-  // 转移后 body 同步直接驱动兵 Actor.root.position（TroopMoveComponent 的"逻辑位置"），
-  // 模型作为 child 通过 THREE 父子链自动跟随。
-  if (!troop.flying) {
-    const modelColliders = (modelActor as GenericActor).getAllComponents()
-      .filter((c): c is CircleColliderComponent => c instanceof CircleColliderComponent)
-    for (const col of modelColliders) {
-      modelActor.removeComponent(col)
-      col.owner = actor
-      actor.addComponent(col)
+  pool: ObjectPool<PoolableTroopActor> | null = null
+  active = false
+  /** mesh 组件引用（激活时创建，复用时只 re-attach） */
+  private _mesh: import('@/engine').CapsuleMeshComponent | null = null
+  /** collider 组件引用（激活时创建，复用时 restore） */
+  private _collider: CircleColliderComponent | null = null
+  /** 是否已完成首次 assemble（复用时跳过组件创建，只 re-attach） */
+  private _assembled = false
+
+  // IPoolable
+  abstract activate(opts?: TroopDeployOptions): void
+  abstract deactivate(): void
+
+  /**
+   * 共享装配逻辑：
+   * - 首次激活：克隆 mesh（应用蓝图 TransformComponent 偏移）+ 重建 collider + 挂战斗组件
+   * - 复用激活：重置位置 + restore collider
+   */
+  protected _assemble(opts: TroopDeployOptions): void {
+    const { gm, troop, x, z } = opts
+    this.setPosition(x, troop.flying ? 2 : 0, z)
+
+    // 首次激活：从蓝图 CDO 克隆 mesh（应用 transform 偏移）
+    if (!this._assembled) {
+      const cdo = BlueprintRegistry.resolve(troop.blueprint)
+      const cdoTf = cdo?.components?.find(
+        (c: ResolvedComponentDef) => c.baseClass === 'TransformComponent',
+      )
+      const cdoMesh = cdo?.components?.find(
+        (c: ResolvedComponentDef) => c.baseClass === 'CapsuleMeshComponent',
+      )
+
+      if (cdoMesh) {
+        const meshComp = ComponentRegistry.create(this, 'CapsuleMeshComponent', cdoMesh.properties) as import('@/engine').CapsuleMeshComponent
+        if (meshComp) {
+          // 应用蓝图 transform 偏移（mesh 相对 troopActor 的本地位置）
+          if (cdoTf?.properties?.position) {
+            const p = cdoTf.properties.position as number[]
+            meshComp.mesh.position.set(p[0], p[1], p[2])
+          }
+          this._mesh = meshComp
+          this.addComponent(meshComp)
+        }
+      }
+
+      // 重建 collider（非飞行兵）
+      if (!troop.flying) {
+        const colliderProps: Record<string, unknown> = {
+          radius: troop.size[0] / 2,
+          height: 1.1,
+          bodyType: 'dynamic',
+          mass: 1,
+          group: 'troop',
+          mask: ['troop', 'building'],
+        }
+        const col = ComponentRegistry.create(this, 'CircleColliderComponent', colliderProps) as CircleColliderComponent
+        if (col) {
+          this._collider = col
+          this.addComponent(col)
+        }
+      }
+
+      // 战斗组件只挂一次
+      this.addComponent(this.health)
+      this.addComponent(TroopHealthBarComponent, troop)
+      this.addComponent(TroopTargetComponent, gm, troop)
+      this.addComponent(TroopMoveComponent, gm, troop)
+      this.addComponent(TroopAttackComponent, gm, troop)
+      this._assembled = true
     }
+
+    // collider restore（首次激活在 addComponent 后，复用激活只做 restore）
+    if (this._collider) {
+      this._collider.restore()
+    }
+
+    // 复用时重置血量（首次激活时 health 已从 troop.hp 初始化，无需重置）
+    this.health.resetHp()
+    this.getComponent(TroopHealthBarComponent)?.onDamaged(1)
+
+    this.enableTick()
   }
-  // 功能组件组合：生命（受击/死亡）→ 索敌（目标输出）→ 移动（寻路/阻挡）→ 攻击（节奏/开火）
-  actor.health = new TroopHealthComponent(actor, gm, troop)
-  ;(actor as GenericActor).addComponent(actor.health)
-  // 头顶血条（受击显示、1.5s 无受击隐藏，TroopHealthComponent 受击时刷新）
-  ;(actor as GenericActor).addComponent(TroopHealthBarComponent, troop)
-  ;(actor as GenericActor).addComponent(TroopTargetComponent, gm, troop)
-  ;(actor as GenericActor).addComponent(TroopMoveComponent, gm, troop)
-  ;(actor as GenericActor).addComponent(TroopAttackComponent, gm, troop)
-  // 开启 tick：驱动移动组件（寻路/物理移动）和攻击组件（站桩射击）
-  ;(actor as GenericActor).enableTick()
+
+  /**
+   * 共享拆卸逻辑：
+   * - disableTick：停止每帧更新
+   * - cleanup 战斗组件：取消订阅、停止定时器
+   * - cleanup collider：注销物理、断开变换监听（组件不移除，保留在 actor 上）
+   * - detach：从场景树脱离（mesh/collider 随 root 一起脱离）
+   * 不销毁任何对象，下次 activate 重新 attach + restore。
+   */
+  protected _teardown(): void {
+    this.disableTick()
+    for (const comp of [...this.getAllComponents()]) {
+      if ('cleanup' in comp) (comp as unknown as { cleanup: () => void }).cleanup()
+    }
+    // collider cleanup 已由上面循环处理，这里只 detach
+    this.detach()
+  }
 }
 
-/** 部署日志（BeginPlay 共享输出，class 名标识兵种 Actor 类） */
-function logTroopDeployed(actor: TroopActor, className: string): void {
-  logger.info(
-    `[Battle] 兵部署: ${actor.troop.name} @ (${actor.root.position.x.toFixed(1)}, ${actor.root.position.z.toFixed(1)}) ` +
-      `hp=${actor.health.hp} flying=${actor.troop.flying} 模型蓝图=${actor.troop.blueprint}（${className}）`,
-  )
+// ─── 兵种 Actor 子类（每个兵种一个类）──────────────────────────────────────
+
+/** 工厂：创建池化兵种 Actor 子类 */
+function makeTroopClass(): new () => PoolableTroopActor {
+  return class extends PoolableTroopActor {
+    declare health: TroopHealthComponent
+
+    activate(opts?: TroopDeployOptions): void {
+      this.active = true
+      ;(this as unknown as { troop: TroopType }).troop = opts!.troop
+      this.health = new TroopHealthComponent(this, opts!.gm, opts!.troop)
+      this._assemble(opts!)
+    }
+
+    deactivate(): void {
+      this.active = false
+      this._teardown()
+    }
+  }
 }
 
 /** 野蛮人 — 近战肉搏，数量取胜的炮灰（preferred any） */
-export class BarbarianActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_barbarian')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'BarbarianActor') }
-}
-
+export const BarbarianActor = makeTroopClass()
 /** 弓箭手 — 远程输出，可攻击空中目标（preferred any） */
-export class ArcherActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_archer')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'ArcherActor') }
-}
-
+export const ArcherActor = makeTroopClass()
 /** 哥布林 — 移速极快，优先攻击资源建筑（preferred resources） */
-export class GoblinActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_goblin')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'GoblinActor') }
-}
-
+export const GoblinActor = makeTroopClass()
 /** 巨人 — 高血量坦克，优先攻击防御建筑（preferred defenses） */
-export class GiantActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_giant')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'GiantActor') }
-}
-
+export const GiantActor = makeTroopClass()
 /** 炸弹人 — 自爆式破墙单位（preferred walls） */
-export class WallBreakerActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_wallBreaker')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'WallBreakerActor') }
-}
-
+export const WallBreakerActor = makeTroopClass()
 /** 气球兵 — 飞行投弹，优先攻击防御建筑（flying，preferred defenses） */
-export class BalloonActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_balloon')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'BalloonActor') }
-}
-
+export const BalloonActor = makeTroopClass()
 /** 法师 — 高伤害远程，可攻击空中目标（preferred any） */
-export class WizardActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_wizard')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'WizardActor') }
-}
-
+export const WizardActor = makeTroopClass()
 /** 治疗师 — 飞行治疗单位（dps=0 不攻击，专属治疗逻辑后续用组件扩展） */
-export class HealerActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_healer')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'HealerActor') }
-}
-
+export const HealerActor = makeTroopClass()
 /** 飞龙 — 空中重火力，喷吐火焰攻击（flying，preferred any） */
-export class DragonActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_dragon')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'DragonActor') }
-}
-
+export const DragonActor = makeTroopClass()
 /** 皮卡超人 — 重装近战，剑刃劈砍一切（preferred any） */
-export class PekkaActor extends GenericActor implements TroopActor {
-  readonly troop: TroopType
-  health!: TroopHealthComponent
-  constructor(gm: FishLevelGameMode, troop: TroopType, x: number, z: number, modelActor: Actor) {
-    super('BattleTroop_pekka')
-    this.troop = troop
-    assembleTroop(this, gm, troop, x, z, modelActor)
-  }
-  override BeginPlay(): void { super.BeginPlay(); logTroopDeployed(this, 'PekkaActor') }
-}
+export const PekkaActor = makeTroopClass()
 
-/** 兵种 id → Actor 类（每兵种一个类；未注册兵种 = 部署被拒） */
-export const TROOP_ACTOR_CLASSES: Record<string, TroopCtor> = {
+/** 兵种 id → Actor 类 */
+export const TROOP_ACTOR_CLASSES: Record<string, new () => PoolableTroopActor> = {
   barbarian: BarbarianActor,
   archer: ArcherActor,
   goblin: GoblinActor,
@@ -212,24 +209,4 @@ export const TROOP_ACTOR_CLASSES: Record<string, TroopCtor> = {
   healer: HealerActor,
   dragon: DragonActor,
   pekka: PekkaActor,
-}
-
-/**
- * 兵种工厂：按兵种 id 实例化对应 Actor 类（未注册兵种返回 null）。
- * 替代旧 `new BattleTroopActor(...)` 单一类的部署路径。
- */
-export function createTroopActor(
-  troopId: string,
-  gm: FishLevelGameMode,
-  troop: TroopType,
-  x: number,
-  z: number,
-  modelActor: Actor,
-): TroopActor | null {
-  const ctor = TROOP_ACTOR_CLASSES[troopId]
-  if (!ctor) {
-    logger.error(`[Battle] 兵种 "${troopId}" 无对应 Actor 类（TROOP_ACTOR_CLASSES 未注册）`)
-    return null
-  }
-  return new ctor(gm, troop, x, z, modelActor)
 }

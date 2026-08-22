@@ -134,7 +134,6 @@ class PhysicsWorldImpl implements GameSingleton {
     if (comp.body && !this._world.bodies.includes(comp.body)) {
       this._world.addBody(comp.body)
     }
-    logger.info(`[PhysicsWorld] 注册碰撞体: ${comp.owner.name}.${comp.persistType}（共 ${this._colliders.size} 个）`)
   }
 
   /** 注销碰撞体（EndPlay 调用；body 从 world 移除，接触对清理） */

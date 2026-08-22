@@ -53,13 +53,26 @@ export class ObjectPool<T extends PoolableActor> {
     this.factory = factory
     this.maxSize = maxSize
 
-    // 预分配
+    // 预分配：区分箭头函数工厂（直接调用）和 class 构造工厂（用 Reflect.construct）
     for (let i = 0; i < initialSize; i++) {
-      const obj = this.factory()
+      const obj = this._newInstance()
       obj.deactivate()
       this.all.push(obj)
       this.free.push(obj)
     }
+  }
+
+  /**
+   * 创建新实例。
+   * - 箭头函数工厂 → 直接调用（箭头函数没有 [[Construct]]）
+   * - class 构造工厂 → 用 Reflect.construct（支持 ES6 class，必须用 new）
+   */
+  private _newInstance(): T {
+    const f = this.factory
+    if (typeof f === 'function' && 'prototype' in f) {
+      return Reflect.construct(f as unknown as new () => T, []) as T
+    }
+    return (f as () => T)()
   }
 
   /** 从池中获取一个对象（自动扩容） */
@@ -76,7 +89,7 @@ export class ObjectPool<T extends PoolableActor> {
         }
       }
       // 创建新实例
-      const obj = this.factory()
+      const obj = this._newInstance()
       this.all.push(obj)
       this.free.push(obj)
     }
@@ -122,6 +135,11 @@ export class ObjectPool<T extends PoolableActor> {
   /** 获取所有活跃对象 */
   getActive(): T[] {
     return this.all.filter(o => o.active)
+  }
+
+  /** 检查对象是否属于本池 */
+  has(obj: T): boolean {
+    return this.all.includes(obj)
   }
 
   private doRelease(obj: T): void {

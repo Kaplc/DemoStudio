@@ -142,7 +142,6 @@ export class UIManager extends AObjectComponent<World> {
       logger.error(`[UIManager] baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册 (${path})`)
       return null
     }
-    logger.info(`[UIManager] 生成 UI: "${path}" baseClass="${resolved.baseClass}" 组件=${resolved.components.length} 子节点=${resolved.children.length}`)
 
     // 严格模式（组件优先）：蓝图根位置必须写在 transform/uitransform 组件。
     // 根级顶层 position/rotation/scale 是旧格式兜底，已废弃 —— 存在即报错
@@ -302,7 +301,6 @@ export class UIManager extends AObjectComponent<World> {
     // zOrder += FLOAT_LAYER_BIAS，保证盖过常驻 HUD（three 透明排序按全局 renderOrder，
     // 不偏移会被 HUD 内高 zOrder 的文字穿透）。场景切换期生成（HUD 本体）不偏移。
     if (this.owner.running) this.applyFloatLayerBias(actor)
-    logger.info(`[UIManager] UI Actor 已生成: ${path} (uid=${actor.uid}, parent=${p ? p.name : '顶层'})`)
     return actor
   }
 

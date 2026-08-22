@@ -57,8 +57,6 @@ export class UIButtonComponent extends Component<Actor> {
     this._onClick = options.onClick ?? null
     this._pressScale = options.pressScale ?? 0.92
 
-    logger.info(`[UIButtonComponent] 创建: pressScale=${this._pressScale}`)
-
     // 自动挂载可点击组件：命中透明点击层 → triggerClick（PhySys 射线分发，无需额外代码）
     // 复用已有 ClickableComponent（数据显式配置时），否则新建
     let clickable = owner.getComponent(ClickableComponent)
@@ -88,7 +86,6 @@ export class UIButtonComponent extends Component<Actor> {
     if (this._state === v) return
     this._state = v
     this.applyPressScale()
-    logger.info(`[UIButtonComponent] "${this.name}" 状态 -> ${v}`)
   }
 
   /** 点击回调（外部绑定，如菜单按钮 → 开始游戏） */
@@ -198,7 +195,6 @@ export class UIButtonComponent extends Component<Actor> {
 
     // 射线目标锁定：命中区域 = 本按钮矩形（子节点 Frame/Text 的 mesh 不参与本按钮射线）
     if (img.panel) clickable.setTargets([img.panel])
-    logger.info(`[UIButtonComponent] "${this.name}" 生成透明点击层: ${w}×${h} 世界（${pxW}×${pxH}px），射线目标已锁定`)
   }
 
   /** Inspector 属性展示 */

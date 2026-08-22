@@ -72,7 +72,7 @@ function findActorByName(world: World, name: string) {
     return null
   }
   // 搜索 3D Actor
-  for (const a of getAllActors(world)) {
+  for (const a of getAllActors()) {
     const hit = walk(a)
     if (hit) return hit
   }
@@ -183,7 +183,7 @@ export function registerBuiltinAIHandlers(): void {
     if (!p.name) return { ok: false, error: '缺少 name' }
     const actor = findActorByName(world, p.name)
     if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
-    destroyActor(world, actor)
+    destroyActor(actor)
     world.manualTick(0) // 立即提交销毁，保证后续 getState 即时反映
     logger.info(`[AI] destroyActor: ${p.name}`)
     return { ok: true, name: p.name }
@@ -266,7 +266,7 @@ export function registerBuiltinAIHandlers(): void {
       actorCount: (world?.actorCount ?? 0) + (world?.ui.actorCount ?? 0),
       actors: world
         ? [
-            ...getAllActors(world).map(mapActor),
+            ...getAllActors().map(mapActor),
             ...world.ui.getAllUIActors().map(mapActor),
           ]
         : [],

@@ -13,6 +13,11 @@ import type { FishFlashOptions } from './FishFlash'
 import { FishBubble } from './FishBubble'
 import { BattleProjectileActor } from '../battle/BattleProjectileActor'
 import type { BattleProjectileOptions } from '../battle/BattleProjectileActor'
+import {
+  PoolableTroopActor,
+  TROOP_ACTOR_CLASSES,
+  type TroopDeployOptions,
+} from '../battle/troops/TroopActors'
 
 export class FishObjectPools extends ObjectPoolManager {
   readonly bullets: ObjectPool<FishBullet>
@@ -20,6 +25,12 @@ export class FishObjectPools extends ObjectPoolManager {
   readonly flashes: ObjectPool<FishFlash>
   readonly bubbles: ObjectPool<FishBubble>
   readonly projectiles: ObjectPool<BattleProjectileActor>
+
+  /**
+   * 兵种对象池（每个兵种一个 ObjectPool）。
+   * 键为兵种 id，值为该兵种所有实例的共享池。
+   */
+  readonly troops: Record<string, ObjectPool<PoolableTroopActor>> = {}
 
   constructor() {
     super()
@@ -43,6 +54,14 @@ export class FishObjectPools extends ObjectPoolManager {
       new ObjectPool<BattleProjectileActor>(() => new BattleProjectileActor(), 0, 20),
       'projectiles',
     )
+
+    // 兵种池：每个兵种一个独立池
+    for (const [id, ctor] of Object.entries(TROOP_ACTOR_CLASSES)) {
+      this.troops[id] = this.registerPool(
+        new ObjectPool<PoolableTroopActor>(ctor as unknown as () => PoolableTroopActor, 0, 50),
+        `troops_${id}`,
+      )
+    }
   }
 
   acquireBullet(opts: FishBulletOptions): FishBullet {
@@ -78,5 +97,18 @@ export class FishObjectPools extends ObjectPoolManager {
     this.ensureInWorld(p)
     p.pool = this.projectiles
     return p
+  }
+
+  /**
+   * 从兵种池获取一个兵（acquire 时需传入 gm/troop/x/z/modelActor）。
+   * 模型 Actor 由调用方 SpawnActorFromBlueprint 并缓存复用。
+   */
+  acquireTroop(opts: TroopDeployOptions): PoolableTroopActor {
+    const pool = this.troops[opts.troopId]
+    if (!pool) throw new Error(`[FishObjectPools] 无兵种池: ${opts.troopId}`)
+    const actor = pool.acquire(opts)
+    this.ensureInWorld(actor)
+    actor.pool = pool
+    return actor
   }
 }

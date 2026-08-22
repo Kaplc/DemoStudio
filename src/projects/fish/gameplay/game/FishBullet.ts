@@ -72,6 +72,7 @@ export class FishBullet extends Actor implements IPoolable {
     this.active = false
     this.detonated = true
     this.root.visible = false
+    this.setPreviewHidden(false)
   }
 
   /** 在当前位置张开网并释放回池 */

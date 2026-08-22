@@ -11,7 +11,7 @@
 import { ActorComponent, logger, type Actor } from '@/engine'
 import type { FishLevelGameMode } from '../../level/FishLevelGameMode'
 import type { TroopType } from '../../common/types'
-import type { TroopActor } from './TroopActors'
+import type { PoolableTroopActor, TroopActor } from './TroopActors'
 import { TroopHealthBarComponent } from '../../common/comp/TroopHealthBarComponent'
 
 export class TroopHealthComponent extends ActorComponent {
@@ -43,6 +43,14 @@ export class TroopHealthComponent extends ActorComponent {
   }
 
   /**
+   * 对象池复用时重置生命值（由 PoolableTroopActor._assemble 复用路径调用）。
+   */
+  resetHp(): void {
+    this._hp = this.troop.hp
+    this._dead = false
+  }
+
+  /**
    * 受到伤害（防御塔弹丸命中）：
    * 刷新头顶血条（显示 + 比例 + 1.5s 隐藏计时）→ hp 扣到 0 → 标记死亡 →
    * 通知 GameMode（移除军队计数 + 胜负判定）→ 销毁宿主。
@@ -56,7 +64,7 @@ export class TroopHealthComponent extends ActorComponent {
     if (this._hp <= 0) {
       this._dead = true
       this.gm.onTroopDied(this.owner as TroopActor)
-      this.owner.destroy()
+      ;(this.owner as PoolableTroopActor).pool?.release(this.owner as PoolableTroopActor)
     }
   }
 }

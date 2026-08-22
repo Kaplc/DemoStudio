@@ -327,7 +327,6 @@ export function ensureUITransformComponent(actor: Actor): UITransformComponent {
       actor.removeComponent(plainTf)
       // spawn 期间 bHasBegunPlay=false，BObject.removeComponent 不代为 EndPlay → 显式销毁
       if (!actor.bHasBegunPlay) plainTf.EndPlay()
-      logger.debug(`[UITransformComponent] 移除多余普通 TransformComponent → "${actor.name}" (uid=${actor.uid})`)
     }
     return uiExisting
   }

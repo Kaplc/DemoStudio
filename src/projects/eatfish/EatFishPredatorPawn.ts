@@ -218,7 +218,7 @@ export class EatFishPredatorPawn extends Pawn {
   private findPlayer(): EatFishPawn | null {
     if (!this.world) return null
     // 通过 world 查找玩家
-    for (const actor of getAllActors(this.world)) {
+    for (const actor of getAllActors()) {
       if (actor instanceof EatFishPawn) return actor
     }
     return null

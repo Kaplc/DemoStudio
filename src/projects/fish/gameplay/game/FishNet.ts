@@ -67,6 +67,7 @@ export class FishNet extends Actor implements IPoolable {
   deactivate(): void {
     this.active = false
     this.root.visible = false
+    this.setPreviewHidden(false)
     this.disableTick()
   }
 

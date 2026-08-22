@@ -58,6 +58,16 @@ export class ActorManagerComponent extends AObjectComponent<World> {
   private _pawnSpawnCallbacks: Array<{ pawn: Pawn; cb: (pawn: Pawn) => void }> = []
   /** Actor 列表自上次通知后是否有变化（commitSpawn/commitDestroy/DestroyAllActors 标记，World 消费后通知大纲） */
   private _actorListDirty = false
+  /** Spawn 后置回调（commitSpawn 完成后触发，对象池等用于在 syncVisibility 之后接管 visible） */
+  private _spawnPostCallbacks: Array<(actor: Actor) => void> = []
+
+  /** 注册 Spawn 后置回调（返回取消订阅函数） */
+  onSpawnPost(cb: (actor: Actor) => void): () => void {
+    this._spawnPostCallbacks.push(cb)
+    return () => {
+      this._spawnPostCallbacks = this._spawnPostCallbacks.filter((c) => c !== cb)
+    }
+  }
 
   // ═══════════════════════════════════
   //  Spawn / Destroy
@@ -119,6 +129,10 @@ export class ActorManagerComponent extends AObjectComponent<World> {
         }
         // 所有 Actor 刷新可见性（syncVisibility 内部自动处理：无父即根，仅 walk 自身）
         actor.syncVisibility()
+        // spawn 后置回调（syncVisibility 之后触发，对象池等可接管 visible）
+        for (const cb of this._spawnPostCallbacks) {
+          cb(actor)
+        }
         if (this.owner.running) {
           actor.BeginPlay()
           // 组件属性覆盖（ref 节点 components）：BeginPlay 完成后应用（代码组件此刻已挂载）
@@ -374,7 +388,6 @@ export class ActorManagerComponent extends AObjectComponent<World> {
    * @returns 生成的 Actor；解析或构造失败返回 null
    */
   SpawnActorFromBlueprint(path: string, overrides?: PropertyPatch, componentOverrides?: BlueprintComponentDef[]): Actor | null {
-    logger.info(`[ActorManagerComponent] SpawnActorFromBlueprint: 实例化 "${path}"`)
     let resolved
     try {
       resolved = BlueprintRegistry.resolve(path)
@@ -388,7 +401,6 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       logger.error(`[ActorManagerComponent] SpawnActorFromBlueprint("${path}"): baseClass "${resolved.baseClass}" 未在 ActorRegistry 注册`)
       return null
     }
-    logger.info(`[ActorManagerComponent] SpawnActorFromBlueprint("${path}"): baseClass="${resolved.baseClass}"，组件数=${resolved.components.length}，子节点数=${resolved.children.length}`)
 
     // 严格模式（组件优先）：蓝图根位置必须写在 transform/uitransform 组件。
     // 根级顶层 position/rotation/scale 是旧格式兜底，已废弃 —— 存在即报错
@@ -407,11 +419,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
     const rootTsf = resolved.components.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
     if (rootTsf) {
       const p = rootTsf.properties ?? {}
-      logger.info(`[SpawnPos] "${actor.name}" 蓝图根 transform: pos=[${p.position?.join(',') ?? 'none'}]`)
       if (Array.isArray(p.position)) actor.setPosition(p.position[0], p.position[1], p.position[2])
-      if (Array.isArray(p.rotation)) actor.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
-      if (Array.isArray(p.scale)) actor.setScale(p.scale[0], p.scale[1], p.scale[2])
-      logger.info(`[SpawnPos] "${actor.name}" 蓝图根 transform 后: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
     }
 
     // 2. Component
@@ -421,14 +429,12 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       const existingTf = cdef.baseClass === 'TransformComponent' ? actor.getComponent(TransformComponent) : null
       if (existingTf) {
         ComponentRegistry.configure(existingTf, cdef.baseClass, cdef.properties)
-        logger.info(`[ActorManagerComponent]   └ 组件: "${cdef.baseClass}" name="${existingTf.name}"（复用已有实例）`)
         continue
       }
       const comp = ComponentRegistry.create(actor, cdef.baseClass, cdef.properties)
       if (comp) {
         if (cdef.name) comp.name = cdef.name
         actor.addComponent(comp)
-        logger.info(`[ActorManagerComponent]   └ 组件: "${cdef.baseClass}" name="${comp.name}"`)
       } else {
         logger.error(`[ActorManagerComponent] SpawnActorFromBlueprint("${path}"): Component 类型 "${cdef.baseClass}" 未注册，已跳过`)
       }
@@ -528,9 +534,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 4. 调用方实例覆盖
     if (overrides && Object.keys(overrides).length > 0) {
-      logger.info(`[SpawnPos] "${actor.name}" applyPatch 前: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}], overrides.pos=[${(overrides.position as number[]|undefined)?.join(',') ?? 'none'}]`)
       actor.applyPatch(overrides)
-      logger.info(`[SpawnPos] "${actor.name}" applyPatch 后: root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
     }
 
     // 4.2 实例级组件属性覆盖（场景 ref 节点 components）暂存到 Actor：
@@ -554,7 +558,6 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 6. 进 World
     this.SpawnActor(actor)
-    logger.info(`[ActorManagerComponent] SpawnActorFromBlueprint("${path}"): Actor "${actor.name}" 已生成（uid=${actor.uid}）`)
     return actor
   }
 

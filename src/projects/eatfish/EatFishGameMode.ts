@@ -346,7 +346,7 @@ export class EatFishGameMode extends GameMode {
 
   private findPlayer(): EatFishPawn | null {
     if (!this.world) return null
-    for (const actor of getAllActors(this.world)) {
+    for (const actor of getAllActors()) {
       if (actor instanceof EatFishPawn) return actor
     }
     return null

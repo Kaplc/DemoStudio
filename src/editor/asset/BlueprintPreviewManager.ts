@@ -991,7 +991,7 @@ export class BlueprintPreviewManager {
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
       // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(getAllActors(this.world))
+      this.colliderDrawer?.update(getAllActors())
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -1104,7 +1104,7 @@ export class BlueprintPreviewManager {
 
   /** 按名称查找并聚焦（供 BlueprintTreeView 回落使用） */
   focusOnActor(actorName: string): boolean {
-    const allActors = getAllActors(this.world)
+    const allActors = getAllActors()
     for (const actor of allActors) {
       if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
         this.focusActor(actor)

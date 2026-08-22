@@ -92,6 +92,7 @@ export class BattleProjectileActor extends GenericActor implements IPoolable {
   deactivate(): void {
     this.active = false
     this.root.visible = false
+    this.setPreviewHidden(false)
     this.targetBuilding = null
     this.targetTroop = null
     this.gm = null

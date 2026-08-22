@@ -440,14 +440,8 @@ export class World extends AObject {
         if (actor.bPendingDestroy) continue
         actor.drawGizmos()
       }
-    } else {
-      logger.debug('[Gizmos] gizmos.enabled=false，跳过绘制')
     }
     gizmos.flush()
-    const vc = gizmos.lastVertexCount
-    if (vc > 0) {
-      logger.debug(`[Gizmos] 绘制了 ${vc} 顶点，lines.parent=${gizmos['lines'].parent?.name ?? 'null'}`)
-    }
   }
 
   // ═══════════════════════════════════
@@ -629,7 +623,6 @@ export class World extends AObject {
       overrides.position = rn.position
       overrides.rotation = rn.rotation
       overrides.scale = rn.scale
-      logger.info(`[SpawnPos] loadScene ref "${rn.name}" -> Instantiate("${rn.ref}", pos=[${rn.position?.join(',') ?? 'none'}])`)
       const actor = this.getComponent(EditorActorComponent)!.Instantiate(rn.ref, overrides, rn.components)
       if (actor) {
         actor.isRefInstance = true

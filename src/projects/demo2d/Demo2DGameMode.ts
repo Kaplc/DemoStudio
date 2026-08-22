@@ -72,7 +72,7 @@ export class Demo2DGameMode extends GameMode {
   override Tick(dt: number) {
     super.Tick(dt)
     if (!this.world?.running || !this.coin) return
-    const player = findActor(this.world, Demo2DPawn)
+    const player = findActor(Demo2DPawn)
     if (!player) return
     // XY 平面圆碰撞
     const dx = player.position.x - this.coin.position.x

@@ -234,11 +234,11 @@ export class FishGameMode extends GameMode {
   private handleCollisions() {
     const world = this.world
     if (!world) return
-    const fishes = findActors(world, FishPawn)
+    const fishes = findActors(FishPawn)
     if (fishes.length === 0) return
 
     // 1) 子弹击中鱼 → 释放子弹 + 张开网（均从对象池）
-    for (const bullet of findActors(world, FishBullet)) {
+    for (const bullet of findActors(FishBullet)) {
       if (!bullet.active || bullet.detonated) continue
       for (const fish of fishes) {
         if (fish.captured) continue
@@ -261,7 +261,7 @@ export class FishGameMode extends GameMode {
     }
 
     // 2) 已张开的网 → 对范围内鱼各判定一次（捕获）
-    for (const net of findActors(world, FishNet)) {
+    for (const net of findActors(FishNet)) {
       if (!net.expanded || net.consumed) continue
       net.consumed = true
       for (const fish of fishes) {
@@ -301,7 +301,7 @@ export class FishGameMode extends GameMode {
   private cleanupFish() {
     const world = this.world
     if (!world) return
-    for (const fish of findActors(world, FishPawn)) {
+    for (const fish of findActors(FishPawn)) {
       if (Math.abs(fish.position.x) > AREA_W + 4) {
         if (fish.config.boss) { this.bossActive = false; this.bossPawn = null }
         fish.destroy()

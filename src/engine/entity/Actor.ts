@@ -126,7 +126,7 @@ export abstract class Actor extends BObject {
     // 第一行会 `if (actor.bPendingDestroy) return` 直接短路，导致 actor 永远进不了
     // 销毁队列（UI 面板/建筑删除全部失效）。标记与入队统一由 DestroyActor 完成。
     if (this.world) {
-      destroyObject(this.world, this)
+      destroyObject(this)
     } else {
       // 无 world 归属（如 UI 内联子节点：attachTo 挂树、从不经 SpawnActor）：
       // 无法走 World 统一销毁，直接本地 EndPlay（递归子树 + 组件 + 注册表注销）
@@ -235,7 +235,6 @@ export abstract class Actor extends BObject {
   set scale(v: THREE.Vector3) { this.root.scale.copy(v) }
 
   setPosition(x: number, y: number, z: number) {
-    logger.info(`[SpawnPos] "${this.name}" setPosition(${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`)
     this.root.position.set(x, y, z)
     this._emitTransformChanged()
   }
@@ -330,7 +329,6 @@ export abstract class Actor extends BObject {
    */
   applyPatch(patch: PropertyPatch): void {
     const pos = patch.position
-    logger.info(`[SpawnPos] "${this.name}" applyPatch: pos=[${Array.isArray(pos) ? pos.join(',') : 'none'}]`)
     if (Array.isArray(pos)) this.setPosition(pos[0], pos[1], pos[2])
     const rot = patch.rotation
     if (Array.isArray(rot)) this.setRotation(rot[0], rot[1], rot[2])

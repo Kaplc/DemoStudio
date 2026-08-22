@@ -692,7 +692,7 @@ export class UIPreviewManager {
     // 收集所有 Actor root 下的 Mesh，建立 mesh → actor 映射
     const meshes: THREE.Mesh[] = []
     const actorByMesh = new Map<THREE.Object3D, Actor>()
-    for (const actor of getAllActors(this.world)) {
+    for (const actor of getAllActors()) {
       actor.root.traverse((obj) => {
         if ((obj as THREE.Mesh).isMesh) {
           meshes.push(obj as THREE.Mesh)
@@ -1874,7 +1874,7 @@ export class UIPreviewManager {
 
   /** 按名称查找并聚焦 */
   focusOnActor(actorName: string): boolean {
-    const allActors = getAllActors(this.world)
+    const allActors = getAllActors()
     for (const actor of allActors) {
       if (actor.name === actorName || actor.root.name === actorName || String(actor.blueprintRef?.id) === actorName) {
         this.focusActor(actor)

@@ -1181,7 +1181,7 @@ export class ScenePreviewManager {
       if (this.gizmo.visible) this.gizmo.syncTransform()
 
       // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(getAllActors(this.world))
+      this.colliderDrawer?.update(getAllActors())
 
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)

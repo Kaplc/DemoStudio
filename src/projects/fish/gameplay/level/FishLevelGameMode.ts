@@ -19,14 +19,14 @@
  * 由 FishGameInstance.setupLevelPhase SpawnActor 托管并注册。
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, GameInstance, CapsuleMeshComponent } from '@/engine'
+import { GameMode, PhySys, logger, GameInstance, CapsuleMeshComponent, type Actor, spawnActor } from '@/engine'
 import { BaseCameraActor } from '../base/BaseCameraActor'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from '../base/ClashBuildingTypes'
 import { ClashBuildingBaseActor } from '../base/ClashBuildingActors'
 import { PLACE_HALF } from '../base/ClashBaseBuilder'
 import { FishLevelPlayerController } from './FishLevelPlayerController'
 import { FishLevelPawn } from './FishLevelPawn'
-import { createTroopActor, type TroopActor } from '../battle/troops/TroopActors'
+import { PoolableTroopActor, type TroopActor } from '../battle/troops/TroopActors'
 import { BuildingHealthBarComponent } from '../common/comp/BuildingHealthBarComponent'
 import { TroopHealthBarComponent } from '../common/comp/TroopHealthBarComponent'
 import { LootFlyFx } from '../common/fx/LootFlyFx'
@@ -219,7 +219,6 @@ export class FishLevelGameMode extends GameMode {
         this.buildingHp.set(actor, actor.type.hp)
         this.attachHealthBar(actor)
         if (actor.type.defense) this.cannonCooldown.set(actor, 0)
-        logger.info(`[SpawnPos] collectBuildings 看到 "${actor.type.name}"(uid=${actor.uid}) root.pos=[${actor.root.position.x.toFixed(2)}, ${actor.root.position.y.toFixed(2)}, ${actor.root.position.z.toFixed(2)}]`)
         logger.info(`[BattleGM] 敌方建筑: ${actor.type.name} @ (${actor.root.position.x.toFixed(1)},${actor.root.position.z.toFixed(1)}) hp=${actor.type.hp}`)
       }
     }
@@ -534,26 +533,20 @@ export class FishLevelGameMode extends GameMode {
       if (!silent) logger.warn(`[BattleGM] 部署失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
       return false
     }
-    // ─── 严格模式：兵种模型蓝图预检（模型先于军队扣除实例化，失败 = 放兵失败不消耗军队） ───
-    const modelActor = this.world?.actorMgr.SpawnActorFromBlueprint(troop.blueprint)
-    if (!modelActor) {
-      if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 模型蓝图加载失败（${troop.blueprint}），已拒绝放兵`)
-      return false
-    }
-    // 训练军队中扣除（放完即消失；模型已就绪才扣，蓝图失败不消耗）
+    // 训练军队中扣除（先扣，acquire 失败则退回）
     if (!inst.training.deployTroop(troopId)) {
       if (!silent) logger.warn(`[BattleGM] 部署失败：军队无 "${troopId}"`)
-      modelActor.destroy()
       return false
     }
-    const actor = createTroopActor(troopId, this, troop, x, z, modelActor)
-    if (!actor) {
-      if (!silent) logger.error(`[BattleGM] 部署失败：兵种 "${troopId}" 无对应 Actor 类`)
-      modelActor.destroy()
+    // 从池 acquire 兵（mesh/collider 由池对象在 activate 时直接从蓝图 CDO 克隆，无需外部创建）
+    let actor: PoolableTroopActor
+    try {
+      actor = this.pools.acquireTroop({ troopId, gm: this, troop, x, z })
+    } catch (e) {
+      if (!silent) logger.error(`[BattleGM] 部署失败：兵种池异常 "${troopId}" - ${e}`)
       return false
     }
-    this.world?.actorMgr.SpawnActor(actor)
-    this.troops.push(actor)
+    this.troops.push(actor as TroopActor)
     this.deployedCount++
     logger.info(`[BattleGM] 部署兵: ${troop.name} @ (${x.toFixed(1)},${z.toFixed(1)})（场上 ${this.troops.length} 个，累计 ${this.deployedCount}）`)
     return true
