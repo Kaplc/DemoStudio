@@ -177,15 +177,17 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
 
     return () => {
       ro.disconnect()
-      // 重建前记忆相机位姿 + 选中节点（重建后恢复：编辑/撤销/重做不再重置视角与选中）
+      // ⚠️ 必须在 dispose() 之前保存选中：dispose() 内部 select(null) 会清空全局选中，
+      // 之后 getSelectedActor() 永远返回 null → 重建后选中丢失（大纲高亮 + Inspector 重置）
+      const sel = getSelectedActor()
+      if (sel) lastSelectRef.current = sel.root.name
+      // 重建前记忆相机位姿（重建后恢复：编辑/撤销/重做不再重置视角）
       if (previewMgrRef.current) {
         lastCamRef.current = {
           pos: previewMgrRef.current.camera.position.clone(),
           quat: previewMgrRef.current.camera.quaternion.clone(),
           zoom: previewMgrRef.current.camera.zoom,
         }
-        const sel = getSelectedActor()
-        if (sel) lastSelectRef.current = sel.root.name
       }
       mgr.dispose()
       previewMgrRef.current = null

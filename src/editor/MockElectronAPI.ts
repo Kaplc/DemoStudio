@@ -366,6 +366,17 @@ const mockAPI: ElectronAPI = {
     localStorage.removeItem(saveKey(game, slot))
     return { success: true }
   },
+
+  // ─── AI 聊天 ───
+
+  onAIChat: (callback: (requestId: string, message: string, history?: Array<{ role: string; content: string }>) => void) => {
+    // Mock 实现：在浏览器模式下不处理
+    return () => {}
+  },
+
+  sendAIChatResponse: (requestId: string, result: unknown) => {
+    // Mock 实现：在浏览器模式下不处理
+  },
 }
 
 // ─── 注入入口 ───

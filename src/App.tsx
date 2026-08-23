@@ -3,6 +3,7 @@ import { MenuBar } from './components/MenuBar'
 import { ProjectPanel } from './components/ProjectPanel'
 import { Viewport } from './components/Viewport'
 import { Inspector } from './components/Inspector'
+import { RightPanel } from './components/RightPanel'
 import { Console } from './components/Console'
 import { StatusBar } from './components/StatusBar'
 import { ProjectSelector } from './components/ProjectSelector'
@@ -137,7 +138,7 @@ export default function App() {
             const cur = useEditorPrefsStore.getState().layout.right
             setLayout('right', Math.max(200, Math.min(500, cur - delta)))
           }} />
-          <Inspector />
+          <RightPanel />
         </div>
       </div>
       <StatusBar

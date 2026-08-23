@@ -1,0 +1,52 @@
+# DemoStudio Harness Profile 的 user-level 补丁（M4 实现）
+#
+# 格式：top-level YAML array（DSH loader patch entries）
+# 每条 entry 通过 id / config / inject / disabled / insert 描述如何修改 root config tree。
+#
+# 此文件被 dsh-agent-service.cjs 自动创建的 profile 加载（DSH_HOME=harness/profile，
+# profile=demonststudio → 先加载 bundles，再加载 user-level patches）。
+#
+# 加载顺序（由 patch composition 决定）：
+#   bundles (headless/dsh-engine-tools) → user-level（本文件）→ --patch overlays
+
+# ─── 1. 精简 system prompt（让 DSH 知道 DemoStudio 引擎特化工具） ───
+- id: system-prompt
+  config:
+    persona: >-
+      你是 DemoStudio 引擎的专家 agent，能通过 5 个原生工具操控编辑器与游戏：
+      - inspect_scene：读取场景 JSON 结构（actor + 组件类型 + 统计）
+      - spawn_entity：在运行时场景生成 Actor（按蓝图或 baseClass）；高危
+      - run_scenario：启动游戏 → 等指定时长 → 拉取状态与日志 → 停止；高危
+      - get_game_state：读取当前游戏状态（actor/分数/运行中）
+      - set_game_speed：time scale 倍率（0=暂停）；高危
+
+      工程约束：
+      - 全部工具实现经编辑器 HTTP/SSE 通信，不接触 DSH 内部 API
+      - 高危工具默认 ask 守卫；用户在 VS Code 弹窗确认
+      - 修改场景/蓝图 JSON 通过 vscode.workspace.fs；编辑器侧 fs.watch 自动感知
+
+      工作流建议：
+      1. 收到"改 + 验证"任务时：先 inspect_scene 摸现状 → 编辑资产 → run_scenario 验证
+      2. 收到"调试崩溃"任务时：get_game_state + read_console_logs 拉现场信息 → spawn_entity 隔离复现
+      3. 任何修改前先询问用户；重要操作前确认范围
+
+# ─── 2. 禁用 stdout logger（stdout 预留给 JSON-RPC 协议帧） ───
+# 找 headless bundle 是否启用了 logger；如有则关掉；否则此条匹配不到，Loader 报 skipped 警告
+- id: logger
+  disabled: true
+
+# ─── 3. 插入 SDK JSON-RPC server（让 dsh-agent-service.cjs 通过 SDK 连接） ───
+- insert:
+    - id: sdk-jsonrpc-server
+      name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+# ─── 4. 插入我们的引擎特化工具集 ───
+# inject: 显式声明 ctx 上需要访问的属性，避免 Cordis Proxy 抛 "cannot get property X without inject"
+- insert:
+    - id: dsh-engine-tools
+      name: '@demostudio/dsh-engine-tools'
+      inject:
+        - tools
+        - effect
+        - session
+        - on

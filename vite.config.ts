@@ -78,6 +78,19 @@ export default defineConfig({
     // 否则修改 .scene.json / .blueprint.json 不会触发 Vite 重载，
     // import.meta.glob 读取到的始终是缓存旧内容。
     watch: {},
+    // 代理 DSH RPC 请求，绕过 CORS（开发模式下浏览器直连 DSH 用）
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3080',
+        changeOrigin: true,
+        // DSH 校验 Origin，需要伪造为同源
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('Origin', 'http://127.0.0.1:3080')
+          })
+        },
+      },
+    },
   },
   plugins: [
     react(),

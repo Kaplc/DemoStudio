@@ -74,6 +74,11 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     match: (e) => (e.key === 'v' || e.key === 'V') && !(e.ctrlKey || e.metaKey),
     eventName: 'shortcut-toggle-collider-gizmos',
   },
+  {
+    // Ctrl+Shift+A — 切换 Agent 面板
+    match: (e) => (e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && e.shiftKey,
+    eventName: 'shortcut-toggle-agent',
+  },
 ]
 
 /**

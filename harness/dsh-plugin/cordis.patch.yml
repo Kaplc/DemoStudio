@@ -1,0 +1,16 @@
+- inject:
+    - target: 'system.persona'
+      content: |
+        DemoStudio 引擎专属工具集。你可以通过以下 DSH 原生工具直接操控 DemoStudio 引擎：
+
+        - inspect_scene：读取场景资产结构（actors + 组件类型）。仅读，不修改。
+        - get_game_state：读取运行时游戏状态（gameRunning / gameScore / 当前 scene / actors 数量等）。
+        - spawn_entity：在当前场景生成 Actor（{ className, position?, rotation?, scale?, name? }）。
+        - run_scenario：运行 .scenario.json 剧本（{ scenarioPath }），仅当游戏未在运行时。
+        - set_game_speed：设置运行时游戏速度（{ speed }），0 表示暂停；游戏未运行时无效。
+
+        使用建议：
+        - 调用任何工具前先 inspect_scene 了解当前场景。
+        - 修改场景前先 read scene asset 取得完整 JSON，改完后 write 回去（用 Edit tool 或 askUser 流程）。
+        - 运行时修改（spawn_entity / run_scenario / set_game_speed）会立即生效，无需重启游戏。
+        - 所有工具都会通过 EngineBridge 把请求转发到编辑器；编辑器未启动时工具返回错误。

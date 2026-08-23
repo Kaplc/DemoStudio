@@ -2,9 +2,10 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v0.1（草案） |
+| 文档版本 | v1.0（定稿） |
 | 日期 | 2026-08-22 |
-| 状态 | 待评审 |
+| 状态 | 已定稿 |
+| 修订历史 | v0.1 初稿；v0.2：确认双内核模式并存（外置 CLI + 内置 headless），新增适配层接口设计与模式一致性要求（FR-2.7/2.8），关闭开放问题 1；v1.0：关闭全部开放问题（工具清单、实时事件推送、暂不发布、文本卡片、场景文件直改），新增 FR-3.7 / FR-4.9，定稿 |
 | 适用范围 | DemoStudio 仓库内的 VS Code 扩展工程 + DSH 插件包工程 |
 
 ---
@@ -122,11 +123,13 @@
 | 编号 | 需求 | 验收标准 |
 |---|---|---|
 | FR-2.1 | **默认外置内核**：启动时检测全局 `dsh`（`dsh --version`），未安装则引导安装（`npm i -g @deepseek-ai/dsh`），以子进程方式运行，`stdio: 'inherit'`，输出转接到 OutputChannel | 未装内核时给出可执行引导；已装内核时启动成功 |
-| FR-2.2 | **可选内置内核**：配置项可切换为内置 `@deepseek-ai/dsh-headless`（扩展依赖，进程内运行）；两种模式行为一致 | 切换配置后重启扩展，功能无差异 |
+| FR-2.2 | **内置内核（并行支持）**：配置项 `dsh.kernelMode = embedded` 时使用内置 `@deepseek-ai/dsh-headless`（扩展依赖，进程内运行）；两种模式行为一致 | 切换配置后重启扩展，功能无差异 |
 | FR-2.3 | **更新检查器**：启动时及每日一次查询 npm registry 最新版本，与本机/内置版本比对；有新版时状态栏提示，支持一键更新（外置：`npm i -g` 命令；内置：提示更新扩展） | 有新版本时提示可见；更新后版本号刷新 |
-| FR-2.4 | **适配层隔离**：所有内核交互集中在 `src/dsh/adapter.ts`；禁止在其余模块直接引用 DSH API | 代码评审约束；文档化适配层接口清单 |
-| FR-2.5 | **版本兼容矩阵 CI**：GitHub Actions 将插件包 × 最近 2~3 个 DSH rc 版本跑冒烟测试（内核启动 → 工具注册 → 调用 → 销毁） | CI 矩阵全绿才允许发布 |
-| FR-2.6 | DSH 升级导致的 API 变更只允许修改 `adapter.ts`，且适配层变更需版本化（CHANGELOG） | 升级后所有功能回归通过 |
+| FR-2.4 | **适配层隔离**：所有内核交互集中在 `src/dsh/adapter.ts` 及两个模式实现（`cliAdapter.ts` / `embeddedAdapter.ts`）；UI、命令、EngineBridge 等上层模块禁止直接引用 DSH API，且不得感知当前内核模式 | 代码评审约束；文档化适配层接口清单（见 §11.4） |
+| FR-2.5 | **版本兼容矩阵 CI**：GitHub Actions 将插件包 × 最近 2~3 个 DSH rc 版本跑冒烟测试（内核启动 → 工具注册 → 调用 → 销毁），**两种内核模式各跑一遍** | CI 矩阵全绿才允许发布 |
+| FR-2.6 | DSH 升级导致的 API 变更只允许修改适配层（`adapter.ts` / 两个模式实现），且适配层变更需版本化（CHANGELOG） | 升级后所有功能回归通过 |
+| FR-2.7 | **适配层接口**：定义统一的 `KernelAdapter` 抽象接口（start/stop/send/事件订阅/版本/健康检查）；外置与内置各一个实现，行为等价（同一消息协议、同一事件模型、同一会话存储，见 §11.4） | 两种模式通过同一套冒烟测试；切换模式后会话数据可续接 |
+| FR-2.8 | **模式切换**：`dsh.kernelMode` 切换需重启扩展生效；切换不丢失会话数据（会话持久化于 profile/磁盘，两模式共用）；内置模式加载失败时明确报错并指引切回外置，不静默降级 | 切换前后会话可恢复；失败提示可操作 |
 
 ### FR-3 引擎桥接（EngineBridge）
 
@@ -138,6 +141,7 @@
 | FR-3.4 | 多实例支持：可配置连接指定端口实例（`--port` 语义对齐现有 `editor_mcp.bat`） | 多开编辑器时可指定目标 |
 | FR-3.5 | 错误语义：引擎不可达时工具返回明确错误（"编辑器未运行" / "端口未找到"），agent 可据此采取行动；扩展侧不崩溃 | 断连场景工具失败信息可读 |
 | FR-3.6 | 保持现有 `.vscode/mcp.json` 的 `demostudio-editor` 注册，并在扩展 `contributes.mcpServers` 中重复注册，使 VS Code 内置 agent 也可使用引擎工具 | 两处注册并存互不冲突 |
+| FR-3.7 | **引擎实时事件推送**：`electron/main.ts` 增加事件推送通道（WebSocket 或 SSE，仅绑定 `127.0.0.1`），事件含：游戏崩溃、关卡加载完成、测试结束、游戏状态变化；插件订阅并转发给 DSH 插件包（FR-4.3）；推送不可用时以轮询 `console-logs` 兜底 | 事件延迟 < 1s；断线自动重连；推送不可用时轮询兜底仍可用 |
 
 ### FR-4 引擎特化 agent 功能（DSH 插件包）
 
@@ -147,12 +151,13 @@
 |---|---|---|
 | FR-4.1 | 注册 DSH 原生引擎工具（`ctx.tools.register`），初始清单：`inspect_scene`（场景结构）、`spawn_entity`（生成实体）、`run_scenario`（跑测试场景并读结果）、`get_game_state`、`set_game_speed`；每个工具带 schema、输出声明与中文描述 | 工具出现在 agent 可调用清单；调用结果正确 |
 | FR-4.2 | 工具守卫：高危操作（启动游戏、重置场景、批量删除）默认 `ask` 审批，可通过配置改 `allow`/`deny` | 审批流生效；配置可覆盖 |
-| FR-4.3 | 引擎事件联动：插件订阅引擎事件（崩溃、关卡加载完成、测试结束），按配置自动触发 agent 行动（如崩溃自动诊断） | 事件触发后 agent 会话自动启动并包含事件上下文 |
+| FR-4.3 | 引擎事件联动：插件订阅引擎事件（崩溃、关卡加载完成、测试结束），按配置自动触发 agent 行动（如崩溃自动诊断）；事件来源为编辑器实时推送（FR-3.7），推送不可用时以轮询兜底 | 事件触发后 agent 会话自动启动并包含事件上下文 |
 | FR-4.4 | 引擎知识技能：`dsh-profile/skills/` 提供 markdown 技能（项目约定、Three.js 规范、性能调优、引擎命令速查），通过 `ctx.skills.registerProvider` 注册 | agent 能检索并遵循技能内容 |
 | FR-4.5 | 引擎专家 persona（`dsh-persona` / `cordis.patch.yml` 提示词补丁） | agent 初始系统提示包含引擎上下文 |
-| FR-4.6 | UI 槽：工具结果渲染自定义卡片（场景缩略信息、游戏状态面板、console 摘要），通过 `ctx.slots.register` 注册 | 聊天界面中工具结果以卡片呈现 |
+| FR-4.6 | UI 槽：工具结果渲染**文本卡片**（场景摘要、游戏状态面板、console 摘要），通过 `ctx.slots.register` 注册；截图/实时 Three.js 预览留二期 | 聊天界面中工具结果以文本卡片呈现 |
 | FR-4.7 | 工具实现只依赖 EngineBridge 或编辑器 HTTP API，不依赖 DSH 内部 API | 代码评审约束 |
 | FR-4.8 | 插件包通过 profile 的 `dsh.profile.bundles` 加载；官方 bundle 与自定义 bundle 顺序明确，`cordis.patch.yml` 承载全部自定义配置 | profile 可独立重建（`dsh plugin` 可重装） |
+| FR-4.9 | **场景文件直改**：允许 agent 直接读写项目场景 `.json` 文件（经 VS Code 文件系统，用户可见）；编辑器侧需支持外部文件变更检测/重载提示，避免编辑器与 agent 双写冲突 | agent 修改场景文件后编辑器正确重载或明确提示；无静默覆盖 |
 
 ### FR-5 生命周期与可靠性
 
@@ -180,7 +185,7 @@
 | 编号 | 需求 | 验收标准 |
 |---|---|---|
 | FR-7.1 | `vsce package` 产出 `.vsix`，`.vscodeignore` 排除源码/测试，保留编译产物与运行时依赖 | 打包产物可在无开发环境机器安装 |
-| FR-7.2 | 本地/内部分发优先；发布 Marketplace 为可选项 | 安装/卸载无残留 |
+| FR-7.2 | **暂不公开发布**：当前阶段本地开发调试；`vsce package` 保留用于安装验证 | 安装/卸载无残留；本地可重复打包 |
 | FR-7.3 | `@demostudio/dsh-engine-tools` 与 `dsh-profile/` 独立版本化（随本仓库 tag 发布） | 插件包可单独升级 |
 
 ---
@@ -203,8 +208,8 @@
 | 里程碑 | 内容 | 估时 | 退出标准 |
 |---|---|---|---|
 | M0 | 扩展骨架：命令、空聊天 WebviewView、OutputChannel、VSIX 打包 | 0.5 天 | `vsce package` 成功，命令可执行 |
-| M1 | 引擎桥：端口探测、自动拉起、状态栏、命令面板手动调用 `start_game` 等 | 1 天 | 一键启动/停止引擎与游戏 |
-| M2 | 内核接入（外置 CLI）：会话运行、事件流 → 聊天界面 | 1~2 天 | 聊天中可完成一次 agent 对话 |
+| M1 | 引擎桥：端口探测、自动拉起、状态栏、命令面板手动调用 `start_game` 等、实时事件推送（编辑器侧 WebSocket/SSE，FR-3.7） | 1~2 天 | 一键启动/停止引擎与游戏；事件推送可订阅 |
+| M2 | 内核接入：外置 CLI 会话运行、事件流 → 聊天界面；随后实现内置 headless 适配（同一 `KernelAdapter` 接口） | 2~3 天 | 两种内核模式均可完成一次 agent 对话 |
 | M3 | 闭环：EngineBridge 工具注入 agent，实现"改代码 → 启动游戏 → 读日志 → 迭代" | 1 天 | U1 场景演示通过 |
 | M4 | 特化插件包：DSH 原生工具、守卫、事件联动、技能、UI 槽、更新检查器、兼容矩阵 CI | 3~5 天 | 全部 FR-4 与 FR-2 验收项通过 |
 
@@ -236,12 +241,12 @@
 
 ## 10. 开放问题（待评审确认）
 
-1. 外置 CLI 与内置 headless 的默认取舍是否确认？（建议默认外置）
-2. 引擎特化工具初始清单（FR-4.1）是否覆盖实际需求？需补充哪些？（场景序列化、材质/光照调整、回放录制？）
-3. 引擎事件如何从编辑器侧发出？需在 `electron/main.ts` 增加事件推送（WebSocket/SSE），还是轮询 `console-logs` 足够？
-4. 扩展与插件包是否发布到公开 Marketplace / npm？还是仅内部 VSIX + 私有 registry？
-5. UI 槽（FR-4.6）首期做到什么程度：文本卡片 → 简单截图 → 实时 Three.js 预览？
-6. 是否允许 agent 直接修改编辑器场景文件（`.json` 项目文件），还是只允许通过工具？
+1. ✅ 已确认（v0.2）：双内核模式并存，默认外置 CLI，内置 headless 并行支持；统一 `KernelAdapter` 适配层保证两模式行为等价（FR-2.7/2.8，接口见 §11.4）。
+2. ✅ 已确认（v1.0）：工具初始清单即现有五项（`inspect_scene` / `spawn_entity` / `run_scenario` / `get_game_state` / `set_game_speed`，FR-4.1），后续按需扩展。
+3. ✅ 已确认（v1.0）：增加实时事件推送（FR-3.7，WebSocket/SSE，仅绑定 `127.0.0.1`），轮询 `console-logs` 作兜底。
+4. ✅ 已确认（v1.0）：暂不发布，本地开发调试；`vsce package` 保留用于安装验证。
+5. ✅ 已确认（v1.0）：UI 槽首期为文本卡片，截图/实时预览留二期。
+6. ✅ 已确认（v1.0）：允许 agent 直接修改场景 `.json` 文件（FR-4.9），编辑器侧需处理外部文件变更。
 
 ---
 
@@ -269,8 +274,10 @@ E:\DemoStudio\
 │   ├── package.json             # contributes: commands/views/configuration/mcpServers
 │   ├── src/
 │   │   ├── extension.ts         # activate/deactivate、生命周期
-│   │   ├── dsh/adapter.ts       # ★ 唯一接触 DSH 内核
-│   │   ├── dsh/kernel.ts        # 外置/内置内核启动（可切换）
+│   │   ├── dsh/adapter.ts       # ★ KernelAdapter 抽象接口（上层唯一依赖）
+│   │   ├── dsh/cliAdapter.ts    # 外置实现：spawn 全局 dsh CLI
+│   │   ├── dsh/embeddedAdapter.ts # 内置实现：import dsh-headless（进程内）
+│   │   ├── dsh/kernel.ts        # 按配置选择模式、启动/停止/切换
 │   │   ├── dsh/updater.ts       # npm 版本检查与更新
 │   │   ├── bridge/engineBridge.ts  # ★ 唯一接触引擎
 │   │   ├── ui/chatView.ts       # WebviewViewProvider
@@ -289,3 +296,28 @@ E:\DemoStudio\
     ├── src/events.ts            # 引擎事件联动
     └── src/slots.tsx            # UI 槽（场景预览卡片）
 ```
+
+### 11.4 KernelAdapter 适配层接口草案（FR-2.7）
+
+```typescript
+// vscode-extension/src/dsh/adapter.ts —— 上层模块唯一依赖的内核抽象
+export type KernelMode = 'external' | 'embedded'
+
+export interface KernelAdapter {
+  readonly mode: KernelMode
+  start(options: KernelOptions): Promise<void>     // 启动内核（指定 profile：demostudio）
+  stop(): Promise<void>                            // 停止并清理子进程/资源
+  send(message: UserMessage): Promise<void>        // 发送用户消息（进入 agent 会话）
+  on(event: KernelEvent, cb: Listener): Disposable // 订阅：agent 事件/工具调用/退出/错误
+  version(): Promise<string>                       // 内核版本（供更新检查 FR-2.3）
+  health(): boolean                                // 内核存活状态（供状态栏 FR-1.3）
+}
+
+// cliAdapter.ts       —— external：spawn 全局 dsh CLI（stdio），解析其事件流
+// embeddedAdapter.ts  —— embedded：import @deepseek-ai/dsh-headless，进程内运行
+// 两实现共用：消息协议（{type, payload}）、事件模型、会话存储（~/.dsh/profiles/demostudio/）
+// 约束：上层模块（UI/命令/EngineBridge）只依赖 KernelAdapter，不感知 mode
+```
+
+- 切换行为见 FR-2.8（重启生效、会话不丢失、失败不静默降级）
+- 两模式一致性由同一套冒烟测试保障（FR-2.5，CI 双模式各跑一遍）

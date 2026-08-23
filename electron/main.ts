@@ -13,11 +13,17 @@ import path from 'path'
 import fs from 'fs'
 import http from 'http'
 import net from 'net'
+import { spawn, type ChildProcess } from 'child_process'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 let _gameScore = 0
+
+// ─── DSH 服务管理 ───
+let _dshService: { stop(): Promise<void>; getPort(): number; isRunning(): boolean } | null = null
+let _dshPort = 0
+const DSH_CLI_PATH = path.join(__dirname, '..', 'harness', 'dsh-source', 'apps', 'cli', 'lib', 'bin.js')
 
 // ─── 蓝图编辑 MCP 往返：requestId → 待解析的 HTTP 响应 ───
 let _blueprintReqSeq = 0
@@ -186,6 +192,26 @@ function createMainWindow() {
       ensureLogDir()
       fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
     } catch {}
+    // game.error 事件：仅推送 error / warning，过滤 devtools 噪音已在外层完成
+    if (level >= 2 /* warning|error */) {
+      publishSSE('game.error', {
+        level: logLevel,
+        message,
+        source: sourceId,
+        line,
+        ts: Date.now(),
+      })
+    }
+  })
+
+  // 渲染进程崩溃（含 WebGL context lost）：game.lifecycle.crash
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    publishSSE('game.lifecycle', {
+      event: 'crash',
+      reason: details.reason,
+      exitCode: details.exitCode,
+      ts: Date.now(),
+    })
   })
 
   // 拦截方向键：Chromium 会消费方向键使 JS 收不到
@@ -229,6 +255,77 @@ async function waitForDevServer(): Promise<void> {
   })
 }
 
+// ─── DSH 服务启动 ───
+
+/**
+ * 通过 stdio 子进程加载 dsh-agent-service.js（DSH 内核 + HTTP 代理）。
+ * 等到子进程往 stdout 打 "[dsh-agent] DSH Agent 服务已启动，端口: N" 后，
+ * 解析端口号，标记 ready。
+ */
+async function startDSHService(): Promise<void> {
+  console.log('[DSH] 启动 DSH 内核 (web profile, port 3080)...')
+
+  if (!fs.existsSync(DSH_CLI_PATH)) {
+    console.warn(`[DSH] CLI 不存在: ${DSH_CLI_PATH}，跳过启动`)
+    return
+  }
+
+  const child = spawn(process.execPath, [DSH_CLI_PATH, '--profile', 'web', '--no-open'], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      NODE_ENV: isDev ? 'development' : 'production',
+      DSH_ENGINE_PORT: String(MCP_API_PORT),
+      ELECTRON_RUN_AS_NODE: '1',
+    },
+  })
+
+  child.stdout?.on('data', (data) => {
+    const msg = data.toString()
+    msg.split(/\r?\n/).forEach((line) => {
+      const t = line.trim()
+      if (t) console.log(`[DSH:stdout] ${t}`)
+      // DSH web 输出: "dsh web: http://127.0.0.1:3080"
+      const m = t.match(/dsh web:\s*http:\/\/[^:]+:(\d+)/)
+      if (m) _dshPort = Number(m[1])
+    })
+  })
+  child.stderr?.on('data', (data) => {
+    const msg = data.toString()
+    msg.split(/\r?\n/).forEach((line) => {
+      if (line.trim()) console.log(`[DSH:stderr] ${line.trim()}`)
+    })
+  })
+  child.on('exit', (code) => {
+    console.log(`[DSH] 内核进程退出: ${code}`)
+    _dshService = null
+    _dshPort = 0
+  })
+  child.on('error', (err) => {
+    console.error(`[DSH] 内核启动失败: ${err.message}`)
+  })
+
+  // 等端口就绪（DSH 内核启动后监听 3080）
+  const deadline = Date.now() + 30000
+  while (Date.now() < deadline && _dshPort === 0) {
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  if (_dshPort === 0) {
+    console.warn('[DSH] 内核启动超时（30s），编辑器继续启动；AI 能力不可用')
+    return
+  }
+
+  console.log(`[DSH] 内核就绪: http://127.0.0.1:${_dshPort}`)
+  _dshService = {
+    stop: async () => {
+      try { child.kill() } catch { /* ignore */ }
+    },
+    getPort: () => _dshPort,
+    isRunning: () => _dshPort !== 0,
+  }
+}
+
 // ═══════════════════════════════════════
 //  启动流程
 // ═══════════════════════════════════════
@@ -240,15 +337,18 @@ async function startApp() {
   // 2. 启动 MCP HTTP API（多实例自动分配端口）
   await startMCPServer()
 
-  // 3. 等待开发服务器就绪（开发模式）
+  // 3. 启动 DSH 服务（AI 聊天内核）
+  await startDSHService()
+
+  // 4. 等待开发服务器就绪（开发模式）
   if (isDev) {
     await waitForDevServer()
   }
 
-  // 4. 后台创建主窗口（不显示、不关闭加载窗口）
+  // 5. 后台创建主窗口（不显示、不关闭加载窗口）
   createMainWindow()
 
-  // 5. 等待渲染进程发来 app-ready 信号
+  // 6. 等待渲染进程发来 app-ready 信号
   ipcMain.once('app-ready', () => {
     // 关闭加载窗口
     if (loadingWindow && !loadingWindow.isDestroyed()) {
@@ -287,6 +387,30 @@ ipcMain.handle('show-message-box', async (_event, options: Electron.MessageBoxOp
   return result
 })
 
+// DSH 服务状态查询（让渲染进程能即时知道 DSH 是否可用 + 端口）
+ipcMain.handle('dsh-status', () => ({
+  ready: _dshService?.isRunning() ?? false,
+  port: _dshService?.getPort() ?? 0,
+  enginePort: MCP_API_PORT,
+}))
+
+// DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS）
+ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
+  const rpcId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  try {
+    const res = await fetch(`http://127.0.0.1:3080/api/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
+      signal: AbortSignal.timeout(30000),
+    })
+    return await res.json()
+  } catch (err) {
+    return { type: 'server-response', rpcId, result: { ok: false, error: { message: String(err) } } }
+  }
+})
+
+// 切换当前焦点窗口的 DevTools（开发用）
 ipcMain.handle('toggle-dev-tools', () => {
   const win = BrowserWindow.getFocusedWindow()
   if (win) {
@@ -640,6 +764,19 @@ ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('asset-changed', { folder })
           }
+          // scene.change 事件：资产文件变更（场景/蓝图/widget）
+          const kind = filename.toLowerCase().endsWith('.scene.json')
+            ? 'scene'
+            : filename.toLowerCase().endsWith('.blueprint.json')
+            ? 'blueprint'
+            : 'widget'
+          publishSSE('scene.change', {
+            event: 'asset-changed',
+            folder,
+            filename,
+            kind,
+            ts: Date.now(),
+          })
         }, 300)
       })
     }
@@ -733,8 +870,18 @@ ipcMain.handle('delete-game-save', async (_event, game: string, slot: string) =>
 // ─── MCP 游戏状态 ───
 
 ipcMain.handle('mcp-report-state', (_event, state: { running: boolean; score?: number }) => {
+  const wasRunning = _gameRunning
   _gameRunning = state.running
   if (state.score !== undefined) _gameScore = state.score
+  // game.lifecycle 事件：编辑器层最早能感知到游戏启停变更的接入点（MCP 报告语义相同）
+  if (state.running !== wasRunning) {
+    publishSSE('game.lifecycle', {
+      event: state.running ? 'launch' : 'stop',
+      reason: 'mcp-report-state',
+      score: state.score,
+      ts: Date.now(),
+    })
+  }
 })
 
 // ─── 蓝图编辑 MCP 往返：渲染进程回传结果，解析挂起的 HTTP 响应 ───
@@ -756,6 +903,15 @@ ipcMain.on('mcp-response', (_event, payload: { requestId: string; result: unknow
   pending.resolve(payload.result)
 })
 
+// AI 聊天响应（renderer → main）
+ipcMain.on('ai-chat-response', (_event, payload: { requestId: string; result: unknown }) => {
+  const pending = _blueprintPending.get(payload.requestId)
+  if (!pending) return // 超时或已清理
+  clearTimeout(pending.timer)
+  _blueprintPending.delete(payload.requestId)
+  pending.resolve(payload.result)
+})
+
 // ─── MCP HTTP API 服务器 ───
 // 让 MCP 服务器 (editor/mcp-server.mjs) 可以通过 HTTP 控制编辑器
 // 多实例支持：端口从 9877 开始自动寻找空闲端口（9877 → 9878 → ...）
@@ -763,6 +919,59 @@ ipcMain.on('mcp-response', (_event, payload: { requestId: string; result: unknow
 const MCP_API_PORT_START = 9877
 const MCP_API_PORT_MAX = 9927 // 最多尝试 50 个端口
 let MCP_API_PORT = MCP_API_PORT_START
+
+// ─── SSE 事件总线（DSH 扩展订阅入口） ───
+// 类型：game.lifecycle | game.error | scene.change | ai.event
+// 仅绑定 127.0.0.1；环形缓冲 100 条；客户端 Last-Event-ID 续传重放
+type SSEEventType = 'game.lifecycle' | 'game.error' | 'scene.change' | 'ai.event'
+interface SSEEvent {
+  id: number
+  type: SSEEventType
+  ts: number
+  data: unknown
+}
+const SSE_BUFFER_CAP = 100
+const sseBuffer: SSEEvent[] = []
+let sseNextId = 1
+const sseClients = new Set<{
+  res: http.ServerResponse
+  cursor: number
+  heartbeat: NodeJS.Timeout
+}>()
+
+function ssePublish(type: SSEEventType, data: unknown): void {
+  const event: SSEEvent = { id: sseNextId++, type, ts: Date.now(), data }
+  // 环形缓冲
+  sseBuffer.push(event)
+  if (sseBuffer.length > SSE_BUFFER_CAP) sseBuffer.shift()
+  const payload = `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+  for (const client of sseClients) {
+    try {
+      client.res.write(payload)
+    } catch {
+      /* 客户端写入失败，交给 cleanupSSEClient 处理 */
+    }
+  }
+}
+
+function cleanupSSEClient(client: { res: http.ServerResponse; heartbeat: NodeJS.Timeout }): void {
+  clearInterval(client.heartbeat)
+  sseClients.delete(client as any)
+  try {
+    client.res.end()
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 业务层调用入口（封装 + 容错；业务代码不必感知缓冲区 / 客户端集合）。 */
+export function publishSSE(type: SSEEventType, data: unknown): void {
+  try {
+    ssePublish(type, data)
+  } catch (err) {
+    console.error('[SSE] publish failed:', err)
+  }
+}
 
 interface MCPCommand {
   command: string
@@ -812,6 +1021,13 @@ async function startMCPServer() {
           const cmd: MCPCommand = JSON.parse(body)
           // ai_event：往返模式，等渲染进程处理完回传结果（AI 需要拿到事件返回值）
           if (cmd.command === 'ai_event') {
+            // ai.event 转发（用于 dsh-plugin 订阅；不影响原有的 renderer 往返）
+            publishSSE('ai.event', {
+              event: cmd.params?.event ?? cmd.params ?? 'unknown',
+              payload: cmd.params?.payload,
+              source: 'editor',
+              ts: Date.now(),
+            })
             if (!mainWindow || mainWindow.isDestroyed()) {
               res.writeHead(503, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ status: 'error', message: '编辑器窗口不可用' }))
@@ -939,6 +1155,45 @@ async function startMCPServer() {
       return
     }
 
+    // SSE 事件流（DSH 扩展订阅）
+    if (req.method === 'GET' && req.url === '/api/events') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      })
+      // 客户端可携带 Last-Event-ID 续传
+      const lastEventIdHeader = req.headers['last-event-id']
+      const lastId = Array.isArray(lastEventIdHeader) ? Number(lastEventIdHeader[0]) : Number(lastEventIdHeader)
+      const startCursor = Number.isFinite(lastId) && lastId >= 0 ? lastId + 1 : 0
+
+      const client = {
+        res,
+        cursor: startCursor,
+        heartbeat: setInterval(() => {
+          try { res.write(`: heartbeat ${Date.now()}\n\n`) } catch { cleanupSSEClient(client) }
+        }, 15000),
+      }
+      sseClients.add(client as any)
+
+      // 续传：把 buffer 中 id >= startCursor 的事件按序写出去
+      for (const ev of sseBuffer) {
+        if (ev.id >= client.cursor) {
+          try {
+            res.write(`id: ${ev.id}\nevent: ${ev.type}\ndata: ${JSON.stringify(ev)}\n\n`)
+            client.cursor = ev.id + 1
+          } catch {
+            cleanupSSEClient(client)
+            return
+          }
+        }
+      }
+
+      req.on('close', () => cleanupSSEClient(client))
+      return
+    }
+
     // 获取浏览器控制台日志
     if (req.method === 'GET' && req.url === '/api/console-logs') {
       try {
@@ -956,6 +1211,77 @@ async function startMCPServer() {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: 'error', message: String(err) }))
       }
+      return
+    }
+
+    // AI 聊天 API
+    if (req.method === 'POST' && req.url === '/api/chat') {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', async () => {
+        try {
+          const { message, history } = JSON.parse(body)
+
+          // 优先代理到 DSH 服务（实际端口由 DSH 服务启动时动态分配）
+          if (_dshService?.isRunning()) {
+            try {
+              const dshPort = _dshService.getPort()
+              const dshRes = await fetch(`http://127.0.0.1:${dshPort}/chat-sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, history }),
+              })
+
+              if (dshRes.ok) {
+                const dshData = await dshRes.json()
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify(dshData))
+                return
+              }
+            } catch (dshErr) {
+              console.warn(`[Chat] DSH 服务调用失败，回退到本地处理: ${dshErr}`)
+            }
+          }
+
+          // 回退：发送到渲染进程处理（本地 AI）
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            res.writeHead(503, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'error', message: '编辑器窗口不可用' }))
+            return
+          }
+
+          const requestId = `chat-${++_blueprintReqSeq}`
+          const timer = setTimeout(() => {
+            if (_blueprintPending.delete(requestId)) {
+              try {
+                res.writeHead(504, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ status: 'error', message: 'AI 响应超时' }))
+              } catch { /* response already closed */ }
+            }
+          }, 30000)
+
+          _blueprintPending.set(requestId, {
+            resolve: (result) => {
+              try {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify(result))
+              } catch { /* response already closed */ }
+            },
+            reject: (err) => {
+              try {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ status: 'error', message: String(err) }))
+              } catch { /* ignore */ }
+            },
+            timer,
+          })
+
+          mainWindow.webContents.send('ai-chat', { requestId, message, history })
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'error', message: String(err) }))
+        }
+      })
       return
     }
 
@@ -989,6 +1315,8 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  // 关窗前清理 DSH 子进程
+  _dshService?.stop().catch(() => { /* ignore */ })
   if (process.platform !== 'darwin') {
     app.quit()
   }

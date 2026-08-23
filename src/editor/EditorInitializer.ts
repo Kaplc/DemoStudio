@@ -20,6 +20,41 @@ import { logger } from '../engine/Logger'
 export type InitLogger = (message: string) => void
 
 /**
+ * 本地 AI 响应生成（后续可接入 DSH 内核）
+ */
+function generateLocalAIResponse(message: string, history?: Array<{ role: string; content: string }>): string {
+  const lowerMessage = message.toLowerCase()
+  
+  // 简单的关键词匹配响应
+  if (lowerMessage.includes('你好') || lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+    return '你好！我是 DemoStudio AI 助手。我可以帮你：\n- 启动/停止游戏\n- 查看编辑器状态\n- 执行控制台命令\n- 回答关于编辑器的问题\n\n请问有什么可以帮助你的？'
+  }
+  
+  if (lowerMessage.includes('帮助') || lowerMessage.includes('help') || lowerMessage.includes('能做什么')) {
+    return '我可以帮你完成以下任务：\n\n1. **游戏控制**\n   - "启动游戏" - 启动当前项目\n   - "停止游戏" - 停止运行中的游戏\n\n2. **状态查询**\n   - "当前状态" - 查看编辑器和游戏状态\n   - "控制台日志" - 获取最近的控制台输出\n\n3. **编辑器操作**\n   - "选中 [Actor名]" - 选中场景中的 Actor\n   - "生成 [蓝图名]" - 生成新的 Actor 实例\n\n4. **其他问题**\n   - 任何关于编辑器使用的问题\n\n请告诉我你需要什么帮助！'
+  }
+  
+  if (lowerMessage.includes('启动游戏') || lowerMessage.includes('start game')) {
+    return '正在启动游戏...\n\n请稍候，游戏启动后我会通知你。'
+  }
+  
+  if (lowerMessage.includes('停止游戏') || lowerMessage.includes('stop game')) {
+    return '正在停止游戏...\n\n游戏已停止。'
+  }
+  
+  if (lowerMessage.includes('状态') || lowerMessage.includes('status')) {
+    return '让我查看当前编辑器状态...\n\n状态信息将在控制台中显示。'
+  }
+  
+  if (lowerMessage.includes('日志') || lowerMessage.includes('log')) {
+    return '正在获取控制台日志...\n\n最近的日志将在控制台中显示。'
+  }
+  
+  // 默认响应
+  return `收到你的消息："${message}"\n\n我已记录你的请求。如需更详细的帮助，请输入"帮助"或"help"。`
+}
+
+/**
  * 注册编辑器事件到 Zustand store 的桥接。
  * 底层模块（SelectionManager、BlueprintEditor 等）只负责 emit 事件，
  * 此函数将事件翻译为 store 状态更新，供 React 组件订阅。
@@ -230,10 +265,17 @@ export function registerGlobalEventListeners(callbacks: {
   window.addEventListener('shortcut-launch-game', onLaunchGame)
   window.addEventListener('shortcut-stop-game', onStopGame)
 
+  // Agent 面板快捷键
+  const onToggleAgent = () => {
+    useEditorStore.getState().toggleAgentPanel()
+  }
+  window.addEventListener('shortcut-toggle-agent', onToggleAgent)
+
   // Electron 菜单事件
   let electronCleanup: (() => void) | undefined
   let mcpCleanup: (() => void) | undefined
   let blueprintMcpCleanup: (() => void) | undefined
+  let aiChatCleanup: (() => void) | undefined
 
   // 暴露 window.blueprintEditor（页面内 / 控制台调用）
   installBlueprintWindowApi()
@@ -353,6 +395,21 @@ export function registerGlobalEventListeners(callbacks: {
         window.electronAPI?.sendBlueprintResponse(requestId, result)
       })
     }
+
+    // AI 聊天处理
+    if (window.electronAPI.onAIChat) {
+      aiChatCleanup = window.electronAPI.onAIChat(async (requestId, message, history) => {
+        addConsoleOutput(`[AI Chat] 收到消息: ${message}`)
+        
+        // 本地 AI 响应（后续可接入 DSH 内核）
+        const response = generateLocalAIResponse(message, history)
+        
+        window.electronAPI?.sendAIChatResponse?.(requestId, {
+          status: 'ok',
+          response: response
+        })
+      })
+    }
   }
 
   return () => {
@@ -365,8 +422,10 @@ export function registerGlobalEventListeners(callbacks: {
     window.removeEventListener('shortcut-quick-load', onQuickLoad)
     window.removeEventListener('shortcut-launch-game', onLaunchGame)
     window.removeEventListener('shortcut-stop-game', onStopGame)
+    window.removeEventListener('shortcut-toggle-agent', onToggleAgent)
     electronCleanup?.()
     mcpCleanup?.()
     blueprintMcpCleanup?.()
+    aiChatCleanup?.()
   }
 }

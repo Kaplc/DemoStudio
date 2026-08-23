@@ -1,0 +1,12 @@
+{
+  "name": "demostudio-profile",
+  "version": "0.1.0",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@demostudio/dsh-engine-tools"
+      ]
+    }
+  }
+}

@@ -55,4 +55,5 @@
 | [`ui_anchor_system.md`](./ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑（涉及 UI 布局/锚点/拖拽时必读） |
 | [`gameplay_code_standard.md`](./gameplay_code_standard.md) | **gameplay 代码规范**：GameMode / Controller / Pawn / GameState / 组件 / GameInstance / World 七类角色职责边界与越界红线（新增 gameplay 功能时必读，先归类再动手） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
+| [`harness_system.md`](./harness_system.md) | **Harness 工程**：VS Code 扩展 + DSH 内核集成 + 引擎特化 agent 插件包（`harness/` 三分区，M0-M4 实施蓝图 + KernelAdapter/EngineBridge/SSE 设计；涉及 harness 任何模块时必读） |
 

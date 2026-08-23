@@ -94,6 +94,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendBlueprintResponse: (requestId: string, result: unknown) =>
     ipcRenderer.send('blueprint-response', { requestId, result }),
 
+  // ─── AI 聊天：主进程 → 渲染进程 ───
+  onAIChat: (callback: (requestId: string, message: string, history?: Array<{ role: string; content: string }>) => void) => {
+    const handler = (_event: unknown, payload: { requestId: string; message: string; history?: Array<{ role: string; content: string }> }) => {
+      callback(payload.requestId, payload.message, payload.history)
+    }
+    ipcRenderer.on('ai-chat', handler)
+    return () => {
+      ipcRenderer.removeListener('ai-chat', handler)
+    }
+  },
+
+  // ─── AI 聊天：渲染进程 → 主进程（回传结果）───
+  sendAIChatResponse: (requestId: string, result: unknown) =>
+    ipcRenderer.send('ai-chat-response', { requestId, result }),
+
   // ─── 扫描工程目录 ───
   discoverProjectsScan: () => ipcRenderer.invoke('discover-projects'),
 
@@ -133,4 +148,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('list-game-saves', game),
   deleteGameSave: (game: string, slot: string) =>
     ipcRenderer.invoke('delete-game-save', game, slot),
+
+  // ─── DSH 服务状态（让 AgentPanel 能拿到 DSH 端口/IPC）───
+  dshStatus: () => ipcRenderer.invoke('dsh-status'),
+
+  // ─── DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）───
+  dshRpc: (method: string, payload: unknown) => ipcRenderer.invoke('dsh-rpc', method, payload),
 })

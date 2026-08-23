@@ -1,0 +1,9 @@
+node_modules/
+src/**
+!src/**/*.d.ts
+tsconfig*.json
+esbuild*.js
+.vscode/
+*.map
+*.vsix
+dist-webview/**/*.map

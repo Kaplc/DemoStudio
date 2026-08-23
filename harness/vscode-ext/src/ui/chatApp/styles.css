@@ -1,0 +1,107 @@
+.chat-panel { display: flex; flex-direction: column; height: 100vh; background: var(--vscode-sideBar-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); }
+
+/* ── 顶部状态栏 ── */
+.chat-status-bar { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px; background: var(--vscode-editorWidget-background); border-bottom: 1px solid var(--vscode-input-border); font-size: 11px; min-height: 24px; gap: 8px; flex-shrink: 0; }
+.chat-status-bar__left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+.chat-status-bar__right { display: flex; align-items: center; gap: 4px; }
+.chat-status-item { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.chat-status-item__icon { font-size: 10px; line-height: 1; }
+.chat-status-item__text { color: var(--vscode-descriptionForeground); }
+.chat-status-item__score { margin-left: 4px; color: var(--vscode-terminal-ansiYellow); font-weight: 600; }
+.chat-status-divider { color: var(--vscode-input-border); margin: 0 2px; user-select: none; }
+.chat-status-action { background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 12px; line-height: 1; opacity: 0.7; transition: opacity 0.15s, background 0.15s; }
+.chat-status-action:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground); }
+
+/* ── 消息区域 ── */
+.chat-panel__messages { flex: 1; overflow-y: auto; padding: 12px; }
+.message { margin: 8px 0; padding: 8px 12px; border-radius: 6px; max-width: 100%; box-sizing: border-box; word-break: break-word; }
+.message--user { background: var(--vscode-input-background); border-left: 3px solid var(--vscode-focusBorder); }
+.message--assistant { background: var(--vscode-editor-background); border-left: 3px solid var(--vscode-textLink-foreground); }
+.message--tool { padding: 0; background: transparent; }
+.message--system { background: transparent; color: var(--vscode-descriptionForeground); font-size: 12px; padding: 4px 12px; text-align: center; }
+.message__header { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; font-size: 12px; }
+.message__role { font-weight: 600; }
+.message__time { color: var(--vscode-descriptionForeground); font-size: 11px; }
+.message__body { white-space: pre-wrap; }
+.message__system { font-style: italic; }
+
+/* ── 流式光标 ── */
+.streaming-cursor { display: inline-block; animation: blink 0.8s infinite; color: var(--vscode-textLink-foreground); margin-left: 2px; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* ── 思考过程块 ── */
+.reasoning-block { margin: 6px 0; border-radius: 4px; overflow: hidden; }
+.reasoning-block summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 12px; padding: 4px 8px; background: var(--vscode-editorWidget-background); border-radius: 4px; user-select: none; }
+.reasoning-block summary:hover { background: var(--vscode-toolbar-hoverBackground); }
+.reasoning-block__body { padding: 8px; margin-top: 4px; border-left: 2px solid var(--vscode-input-border); color: var(--vscode-descriptionForeground); font-size: 12px; }
+
+/* ── Markdown 渲染 ── */
+.markdown-body { line-height: 1.6; }
+.markdown-body h2 { font-size: 16px; margin: 12px 0 6px; font-weight: 600; }
+.markdown-body h3 { font-size: 14px; margin: 10px 0 4px; font-weight: 600; }
+.markdown-body h4 { font-size: 13px; margin: 8px 0 4px; font-weight: 600; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em { font-style: italic; }
+.markdown-body a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body ul { margin: 4px 0; padding-left: 20px; }
+.markdown-body li { margin: 2px 0; }
+.markdown-body .inline-code { background: var(--vscode-textCodeBlock-background); padding: 1px 5px; border-radius: 3px; font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
+
+/* ── 代码块 ── */
+.code-block { margin: 6px 0; border: 1px solid var(--vscode-input-border); border-radius: 4px; background: var(--vscode-textCodeBlock-background); }
+.code-block__head { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; background: var(--vscode-editorWidget-background); border-bottom: 1px solid var(--vscode-input-border); }
+.code-block__lang { font-size: 11px; color: var(--vscode-descriptionForeground); text-transform: uppercase; }
+.code-block__copy { font-size: 11px; padding: 2px 8px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; cursor: pointer; }
+.code-block__copy:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.code-block pre { margin: 0; padding: 8px; overflow-x: auto; }
+.code-block code { font-family: var(--vscode-editor-font-family); font-size: 12px; }
+
+/* ── 输入框 ── */
+.input-box { padding: 8px; border-top: 1px solid var(--vscode-input-border); display: flex; gap: 8px; }
+.input-box textarea { flex: 1; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; resize: vertical; font-family: var(--vscode-font-family); line-height: 1.4; }
+.input-box textarea:focus { outline: none; border-color: var(--vscode-focusBorder); }
+.input-box button { padding: 6px 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+.input-box button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.input-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 工具调用行（对齐 DSH ToolRow）── */
+.tool-row { margin: 4px 0; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-editorWidget-background); overflow: hidden; transition: border-color 0.15s; }
+.tool-row--running { border-color: var(--vscode-focusBorder); }
+.tool-row--error { border-color: var(--vscode-errorForeground); }
+.tool-row--success { border-color: var(--vscode-terminal-ansiGreen); }
+
+.tool-row__head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; user-select: none; transition: background 0.1s; }
+.tool-row__head:hover { background: var(--vscode-toolbar-hoverBackground); }
+.tool-row__head:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+.tool-row__icon { font-size: 13px; flex-shrink: 0; }
+.tool-row__name { font-family: var(--vscode-editor-font-family); font-weight: 500; color: var(--vscode-textLink-foreground); white-space: nowrap; }
+.tool-row__sep { color: var(--vscode-descriptionForeground); opacity: 0.5; }
+.tool-row__summary { color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.tool-row__duration { color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; margin-left: auto; }
+.tool-row__chevron { color: var(--vscode-descriptionForeground); font-size: 10px; flex-shrink: 0; margin-left: 4px; }
+
+/* ── 状态点 ── */
+.state-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.state-dot--pending { background: var(--vscode-descriptionForeground); }
+.state-dot--running { background: var(--vscode-progressBar-background); animation: pulse 1.2s infinite; }
+.state-dot--success { background: var(--vscode-terminal-ansiGreen); }
+.state-dot--error { background: var(--vscode-errorForeground); }
+.state-dot--stopped { background: var(--vscode-terminal-ansiYellow); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ── 工具详情面板 ── */
+.tool-row__body { padding: 8px 10px; border-top: 1px solid var(--vscode-input-border); }
+.tool-row__file { cursor: pointer; color: var(--vscode-textLink-foreground); font-size: 12px; padding: 4px 0; font-family: var(--vscode-editor-font-family); }
+.tool-row__file:hover { text-decoration: underline; }
+.tool-row__section { margin: 4px 0; }
+.tool-row__section summary { cursor: pointer; color: var(--vscode-textLink-foreground); font-size: 12px; user-select: none; }
+.tool-row__section summary:hover { text-decoration: underline; }
+.tool-row__json { margin: 4px 0 0; padding: 6px 8px; background: var(--vscode-textCodeBlock-background); border-radius: 4px; font-family: var(--vscode-editor-font-family); font-size: 11px; overflow-x: auto; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+.tool-row__error { margin: 4px 0 0; padding: 6px 8px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); border-radius: 4px; color: var(--vscode-errorForeground); font-size: 12px; }
+.tool-row__subcalls { margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--vscode-input-border); }
+
+/* ── 运行中动画 ── */
+.tool-row--running .tool-row__head::before { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; background: var(--vscode-progressBar-background); animation: progress-sweep 1.5s ease-in-out infinite; }
+@keyframes progress-sweep { 0% { width: 0; } 50% { width: 100%; } 100% { width: 0; } }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
+import { agentService } from '../editor/AgentService'
 
 interface MenuState {
   open: string | null
@@ -31,7 +32,7 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject, setShowAgentPanel, toggleAgentPanel, agentConnected } = useEditorStore()
   const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
 
   const closeMenu = () => setMenu({ open: null })
@@ -55,6 +56,25 @@ export function MenuBar() {
         break
       case 'stop-game':
         stopGame()
+        break
+      case 'toggle-agent':
+        toggleAgentPanel()
+        break
+      case 'connect-harness':
+        addConsoleOutput('[Agent] 正在连接到 Harness...')
+        agentService.connect().then(() => {
+          addConsoleOutput('[Agent] 已连接到 Harness')
+        }).catch((error) => {
+          addConsoleOutput(`[Agent] 连接失败: ${error.message}`)
+        })
+        break
+      case 'disconnect-harness':
+        agentService.disconnect()
+        addConsoleOutput('[Agent] 已断开连接')
+        break
+      case 'agent-settings':
+        // TODO: 打开 Agent 设置
+        addConsoleOutput('[Agent] 设置功能开发中...')
         break
       default:
         break
@@ -105,6 +125,16 @@ export function MenuBar() {
         { label: 'Game View', action: 'toggle-game-view' },
         { label: 'Inspector', action: 'toggle-inspector' },
         { label: 'Console', shortcut: '`', action: 'toggle-console' },
+      ],
+    },
+    {
+      label: 'Agent',
+      items: [
+        { label: 'Toggle Agent Panel', shortcut: 'Ctrl+Shift+A', action: 'toggle-agent' },
+        'separator',
+        { label: agentConnected ? 'Disconnect' : 'Connect to Harness', action: agentConnected ? 'disconnect-harness' : 'connect-harness' },
+        'separator',
+        { label: 'Settings', action: 'agent-settings' },
       ],
     },
     {

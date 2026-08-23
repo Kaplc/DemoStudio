@@ -68,6 +68,19 @@ export interface EditorState {
   leftPanelTab: 'outline' | 'assets' | 'ui'
   setLeftPanelTab: (tab: 'outline' | 'assets' | 'ui') => void
 
+  // ─── 右侧面板页签（Inspector/Agent）───
+  rightPanelTab: 'inspector' | 'agent'
+  setRightPanelTab: (tab: 'inspector' | 'agent') => void
+
+  // ─── Agent 面板状态 ───
+  showAgentPanel: boolean
+  agentConnected: boolean
+  agentConnecting: boolean
+  setShowAgentPanel: (show: boolean) => void
+  toggleAgentPanel: () => void
+  setAgentConnected: (connected: boolean) => void
+  setAgentConnecting: (connecting: boolean) => void
+
   // ─── 蓝图编辑器选择 ───
   blueprintSelection: BlueprintSelection | null
 
@@ -151,6 +164,24 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeTabId: 'scene',
   leftPanelTab: 'outline',
   setLeftPanelTab: (tab) => set({ leftPanelTab: tab }),
+
+  // ─── 右侧面板 ───
+  rightPanelTab: 'inspector',
+  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+
+  // ─── Agent 面板 ───
+  showAgentPanel: false,
+  agentConnected: false,
+  agentConnecting: false,
+  setShowAgentPanel: (show) => set({ showAgentPanel: show, rightPanelTab: show ? 'agent' : 'inspector' }),
+  toggleAgentPanel: () =>
+    set((state) => ({
+      showAgentPanel: !state.showAgentPanel,
+      rightPanelTab: !state.showAgentPanel ? 'agent' : 'inspector',
+    })),
+  setAgentConnected: (connected) => set({ agentConnected: connected, agentConnecting: false }),
+  setAgentConnecting: (connecting) => set({ agentConnecting: connecting }),
+
   blueprintSelection: null,
   blueprintEditNonce: 0,
   lastEditedBlueprintPath: null,

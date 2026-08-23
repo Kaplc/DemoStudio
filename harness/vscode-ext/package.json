@@ -1,0 +1,153 @@
+{
+  "name": "demostudio-harness",
+  "displayName": "DemoStudio Harness",
+  "description": "DemoStudio 仓库内的 agent 工作台：VS Code 侧边栏聊天 + DSH 内核 + 引擎特化工具闭环",
+  "version": "0.1.0",
+  "publisher": "demostudio",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "demostudio",
+    "agent",
+    "mcp",
+    "game-engine"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/demostudio/demostudio.git",
+    "directory": "harness/vscode-ext"
+  },
+  "license": "MIT",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dsh.openChat",
+        "title": "DSH: 打开聊天",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.startEngine",
+        "title": "DSH: 启动引擎",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.stopEngine",
+        "title": "DSH: 停止引擎",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.startGame",
+        "title": "DSH: 启动游戏",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.stopGame",
+        "title": "DSH: 停止游戏",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.restartKernel",
+        "title": "DSH: 重启内核",
+        "category": "DSH"
+      },
+      {
+        "command": "dsh.checkUpdate",
+        "title": "DSH: 检查内核更新",
+        "category": "DSH"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dsh",
+          "title": "DSH",
+          "icon": "assets/dsh-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dsh": [
+        {
+          "type": "webview",
+          "id": "dsh.chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DSH",
+      "properties": {
+        "dsh.autoStartEngine": {
+          "type": "boolean",
+          "default": true,
+          "description": "激活扩展时自动拉起 DemoStudio 编辑器"
+        },
+        "dsh.enginePort": {
+          "type": "number",
+          "default": 0,
+          "description": "编辑器 HTTP 端口；0 表示从 9877 起自动探测"
+        },
+        "dsh.engineCommand": {
+          "type": "string",
+          "default": "npm run dev",
+          "description": "拉起编辑器的命令（autoStartEngine 启用时生效）"
+        },
+        "dsh.guardPolicy": {
+          "type": "object",
+          "default": {},
+          "description": "工具守卫策略：{ toolName: 'allow' | 'deny' | 'ask' }；未配置的高危工具默认 ask"
+        },
+        "dsh.enableEngineEvents": {
+          "type": "boolean",
+          "default": true,
+          "description": "将引擎事件（崩溃/场景/AI）推送给 agent"
+        },
+        "dsh.checkUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "启动时与每日一次检查 DSH 内核更新"
+        }
+      }
+    },
+    "mcpServers": {
+      "demostudio-editor": {
+        "command": "node",
+        "args": [
+          "${workspaceFolder}/editor/mcp-server.mjs"
+        ],
+        "transport": "stdio"
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "build:webview": "node esbuild.webview.js",
+    "watch": "node esbuild.js --watch",
+    "package": "vsce package",
+    "lint": "eslint src --ext .ts,.tsx",
+    "clean": "rimraf dist dist-webview *.vsix"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-sdk-client": "^0.1.1-rc.2",
+    "@types/vscode": "^1.85.0",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vscode/vsce": "^2.32.0",
+    "esbuild": "^0.24.0",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.6.3"
+  }
+}
