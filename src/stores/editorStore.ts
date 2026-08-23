@@ -76,10 +76,12 @@ export interface EditorState {
   showAgentPanel: boolean
   agentConnected: boolean
   agentConnecting: boolean
+  showPluginCenter: boolean
   setShowAgentPanel: (show: boolean) => void
   toggleAgentPanel: () => void
   setAgentConnected: (connected: boolean) => void
   setAgentConnecting: (connecting: boolean) => void
+  setShowPluginCenter: (show: boolean) => void
 
   // ─── 蓝图编辑器选择 ───
   blueprintSelection: BlueprintSelection | null
@@ -173,6 +175,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   showAgentPanel: false,
   agentConnected: false,
   agentConnecting: false,
+  showPluginCenter: false,
   setShowAgentPanel: (show) => set({ showAgentPanel: show, rightPanelTab: show ? 'agent' : 'inspector' }),
   toggleAgentPanel: () =>
     set((state) => ({
@@ -181,6 +184,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     })),
   setAgentConnected: (connected) => set({ agentConnected: connected, agentConnecting: false }),
   setAgentConnecting: (connecting) => set({ agentConnecting: connecting }),
+  setShowPluginCenter: (show) => set({ showPluginCenter: show }),
 
   blueprintSelection: null,
   blueprintEditNonce: 0,

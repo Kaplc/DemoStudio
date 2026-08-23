@@ -410,6 +410,74 @@ ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
   }
 })
 
+// --- DSH Mux WS 下行桥 ---
+// 事件下行流（question/requested、session/event 等）走 WebSocket，
+// main 进程连接 DSH WS → 解析 JSON 帧 → IPC 转发渲染进程
+let _muxWs: { on: Function; close: Function } | null = null
+let _muxReconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function connectMuxWs(): void {
+  if (_muxWs) return
+  try {
+    // 动态引入 ws（Electron 环境内置 node 模块，无类型声明时用 any）
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
+    const WS = require('ws') as any
+    const ws = new WS('ws://127.0.0.1:3080/api/events.mux', { headers: { Origin: 'http://127.0.0.1:3080' } })
+    _muxWs = ws
+
+    ws.on('open', () => { console.log('[DSH-mux] WS 已连接') })
+
+    ws.on('message', (raw: Buffer) => {
+      try {
+        const frame = JSON.parse(raw.toString())
+        // 广播到所有渲染进程
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('dsh-mux-frame', frame)
+        }
+      } catch { /* 解析失败忽略 */ }
+    })
+
+    ws.on('close', () => {
+      console.log('[DSH-mux] WS 已断开，5s 后重连')
+      _muxWs = null
+      _muxReconnectTimer = setTimeout(connectMuxWs, 5000)
+    })
+
+    ws.on('error', (err: Error) => {
+      console.error('[DSH-mux] WS 错误:', err.message)
+      ws.close()
+    })
+  } catch (err) {
+    console.error('[DSH-mux] WS 初始化失败:', err)
+    _muxReconnectTimer = setTimeout(connectMuxWs, 5000)
+  }
+}
+
+function disconnectMuxWs(): void {
+  if (_muxReconnectTimer) { clearTimeout(_muxReconnectTimer); _muxReconnectTimer = null }
+  if (_muxWs) { _muxWs.close(); _muxWs = null }
+}
+
+// DSH 内核启动后自动连 mux WS（在 dsh-status 查询 ready 时触发也可）
+ipcMain.handle('dsh-mux-connect', () => { connectMuxWs() })
+ipcMain.handle('dsh-mux-disconnect', () => { disconnectMuxWs() })
+
+// DSH Respond 代理（client-response 信封，type 不是 client-request）
+// 用于回答 question/requested 等需要 client-response 的场景
+ipcMain.handle('dsh-respond', async (_event, message: unknown) => {
+  try {
+    const res = await fetch('http://127.0.0.1:3080/api/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+      signal: AbortSignal.timeout(15000),
+    })
+    return await res.json()
+  } catch (err) {
+    return { accepted: false, reason: String(err) }
+  }
+})
+
 // 切换当前焦点窗口的 DevTools（开发用）
 ipcMain.handle('toggle-dev-tools', () => {
   const win = BrowserWindow.getFocusedWindow()

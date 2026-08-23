@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "windows": "powershell -NoProfile -ExecutionPolicy Bypass -File .github/scripts/check-lint.ps1",
+        "linux": "npx eslint src --ext .ts,.tsx --format compact 2>&1 || true",
+        "osx": "npx eslint src --ext .ts,.tsx --format compact 2>&1 || true",
+        "timeout": 30
+      }
+    ]
+  }
+}

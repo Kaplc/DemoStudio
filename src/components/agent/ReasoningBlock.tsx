@@ -1,3 +1,12 @@
+/**
+ * 推理过程折叠块
+ *
+ * 折叠逻辑：
+ *  - streaming=true → 展开（推理进行中）
+ *  - streaming=false → 折叠（stepEnd 触发，模型调用结束）
+ *
+ * 使用 React.memo 避免父组件重渲染时不必要的更新。
+ */
 import React, { useState, useRef, useEffect } from 'react'
 
 interface ReasoningBlockProps {
@@ -5,7 +14,7 @@ interface ReasoningBlockProps {
   streaming?: boolean
 }
 
-export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, streaming }) => {
+const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming }) => {
   const [expanded, setExpanded] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const wasStreamingRef = useRef(false)
@@ -24,12 +33,13 @@ export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, streami
     }
   }, [content, streaming])
 
-  // 流式时展开，完成后自动折叠
+  // 流式时展开，streaming 结束（stepEnd）时折叠
   useEffect(() => {
     if (streaming) {
       setExpandedSync(true)
       wasStreamingRef.current = true
     } else if (wasStreamingRef.current) {
+      // assistant/chunk finish → stepEnd → streaming 变为 false → 折叠
       setExpandedSync(false)
       wasStreamingRef.current = false
     }
@@ -41,32 +51,33 @@ export const ReasoningBlock: React.FC<ReasoningBlockProps> = ({ content, streami
   const lines = content.split('\n')
   const preview = streaming ? lines[lines.length - 1] || '' : `${lines.length} 行推理`
 
+  // 使用类似 ToolCard 的样式结构
+  const statusClass = streaming ? 'tool-card--running' : 'tool-card--success'
+
   return (
-    <div className={`reasoning-block ${expanded ? 'reasoning-block--expanded' : ''}`}>
-      <button
-        className="reasoning-block__toggle"
-        onClick={() => setExpanded(!expanded)}
-        title={expanded ? '折叠推理过程' : '展开推理过程'}
+    <div className={`tool-card ${statusClass}`}>
+      <div
+        className="tool-card__head"
+        onClick={() => setExpandedSync(!expandedRef.current)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedSync(!expandedRef.current) }}
       >
-        <span className="reasoning-block__arrow">{expanded ? '▼' : '▶'}</span>
-        <span className="reasoning-block__label">
-          {streaming ? '思考中...' : '推理过程'}
-        </span>
-        {!expanded && !streaming && (
-          <span className="reasoning-block__preview">{preview}</span>
-        )}
-        {streaming && !expanded && (
-          <span className="reasoning-block__preview reasoning-block__preview--streaming">
-            {preview}
-          </span>
-        )}
-      </button>
-      {expanded && (
-        <div className="reasoning-block__content">
-          <pre className="reasoning-block__text">{content}</pre>
-          <div ref={endRef} />
-        </div>
-      )}
+        <span className="tool-card__name">推理</span>
+        <span className="tool-card__summary">{streaming ? '思考中...' : preview}</span>
+        <span className="tool-card__status-dot"></span>
+        <span className="tool-card__arrow">{expandedRef.current ? '▼' : '▶'}</span>
+      </div>
+
+      <div className={`reasoning-block__details ${expandedRef.current ? 'reasoning-block__details--expanded' : ''}`}>
+        <pre className="reasoning-block__text">{content}</pre>
+        <div ref={endRef} />
+      </div>
     </div>
   )
 }
+
+export const ReasoningBlock = React.memo(ReasoningBlockInner, (prev, next) => {
+  return prev.content === next.content
+    && prev.streaming === next.streaming
+})

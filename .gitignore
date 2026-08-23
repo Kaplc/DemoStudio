@@ -6,6 +6,7 @@ node_modules/
 dist/
 dist-electron/
 .vite/
+.pnpm-store/
 *.tsbuildinfo
 
 # ═══════════════════════════════════════
@@ -136,3 +137,8 @@ Desktop.ini
 
 # unicode 字体本地缓存（troika fallback 首次下载后本地复用）
 cache/unicode-fonts/
+
+# ═══════════════════════════════════════
+# 外部 Git 子仓库（运行时自动 clone）
+# ═══════════════════════════════════════
+harness/dsh-source/

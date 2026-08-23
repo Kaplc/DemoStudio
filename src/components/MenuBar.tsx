@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { agentService } from '../editor/AgentService'
+import { pluginService } from '../editor/PluginService'
 
 interface MenuState {
   open: string | null
@@ -32,7 +33,7 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject, setShowAgentPanel, toggleAgentPanel, agentConnected } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject, setShowAgentPanel, toggleAgentPanel, agentConnected, setShowPluginCenter } = useEditorStore()
   const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
 
   const closeMenu = () => setMenu({ open: null })
@@ -75,6 +76,10 @@ export function MenuBar() {
       case 'agent-settings':
         // TODO: 打开 Agent 设置
         addConsoleOutput('[Agent] 设置功能开发中...')
+        break
+      case 'plugin-center':
+        setShowPluginCenter(true)
+        addConsoleOutput('[Plugin] 打开插件控制中心')
         break
       default:
         break
@@ -133,6 +138,8 @@ export function MenuBar() {
         { label: 'Toggle Agent Panel', shortcut: 'Ctrl+Shift+A', action: 'toggle-agent' },
         'separator',
         { label: agentConnected ? 'Disconnect' : 'Connect to Harness', action: agentConnected ? 'disconnect-harness' : 'connect-harness' },
+        'separator',
+        { label: '🔌 插件控制中心', shortcut: 'Ctrl+Shift+P', action: 'plugin-center' },
         'separator',
         { label: 'Settings', action: 'agent-settings' },
       ],

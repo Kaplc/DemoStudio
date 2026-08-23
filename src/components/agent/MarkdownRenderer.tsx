@@ -34,7 +34,7 @@ const CodeBlock: React.FC<{ className?: string; children: React.ReactNode }> = (
   )
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, streaming }) => {
+const MarkdownRendererInner: React.FC<MarkdownRendererProps> = ({ content, streaming }) => {
   if (!content) return null
 
   return (
@@ -64,3 +64,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, str
     </div>
   )
 }
+
+export const MarkdownRenderer = React.memo(MarkdownRendererInner, (prev, next) => {
+  return prev.content === next.content && prev.streaming === next.streaming
+})

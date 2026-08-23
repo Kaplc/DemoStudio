@@ -113,10 +113,6 @@ export const InputBox: React.FC<InputBoxProps> = ({
           </div>
         </div>
       </div>
-
-      <div className="composer__footer">
-        <span className="composer__hint">Enter 发送 · Shift+Enter 换行</span>
-      </div>
     </div>
   )
 }

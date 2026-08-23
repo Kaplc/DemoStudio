@@ -69,6 +69,14 @@ export interface ElectronAPI {
 
   // DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）
   dshRpc: (method: string, payload: unknown) => Promise<{ type: string; result?: { ok?: boolean; value?: unknown; error?: { message?: string } } }>
+
+  // --- DSH Mux WS 下行桥（question/requested 等事件帧推送） ---
+  dshMuxConnect: () => Promise<void>
+  dshMuxDisconnect: () => Promise<void>
+  onDshMuxFrame: (callback: (frame: unknown) => void) => () => void
+
+  // DSH Respond 代理（client-response 信封，用于 question 回答）
+  dshRespond: (message: unknown) => Promise<{ accepted?: boolean; reason?: string }>
 }
 
 declare global {

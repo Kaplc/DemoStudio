@@ -64,3 +64,7 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 - **执行方式**：用 runSubagent 调用 `ag-gameplay-reviewer`，argumentHint 传入改动文件列表/功能描述（如"审查 FishLevelGameMode 放兵逻辑 + FishLevelPlayerController 长按放兵"）
 - **修复要求**：审查报告中的「❌ 违规项」必须修复（归位到正确角色/类）；「⚠️ 存疑项」结合代码事实判断后决定是否处理；修复后若涉及多处修改，可再次跑审查确认归零
 - **报告**：最终回复中附一行审查结论（如"✅ 审查通过：改动符合 gameplay_code_standard 七角色规范"或列出残留违规及原因）
+
+
+## Lint检查
+每次修改完成文件都进行lint检查才能结束

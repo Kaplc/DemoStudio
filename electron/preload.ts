@@ -154,4 +154,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ─── DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）───
   dshRpc: (method: string, payload: unknown) => ipcRenderer.invoke('dsh-rpc', method, payload),
+
+  // ─── DSH Mux WS 下行桥（question/requested 等事件帧推送） ───
+  dshMuxConnect: () => ipcRenderer.invoke('dsh-mux-connect'),
+  dshMuxDisconnect: () => ipcRenderer.invoke('dsh-mux-disconnect'),
+  onDshMuxFrame: (callback: (frame: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, frame: unknown) => callback(frame)
+    ipcRenderer.on('dsh-mux-frame', handler)
+    return () => { ipcRenderer.removeListener('dsh-mux-frame', handler) }
+  },
+
+  // DSH Respond 代理（client-response 信封，用于 question 回答）
+  dshRespond: (message: unknown) => ipcRenderer.invoke('dsh-respond', message),
 })

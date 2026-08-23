@@ -1,17 +1,20 @@
 /**
  * 消息气泡组件
  * 支持 Markdown 渲染 + 推理折叠
+ *
+ * 使用 React.memo 避免父组件重渲染时不必要的更新。
  */
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ReasoningBlock } from './ReasoningBlock'
 import type { Message } from '../../types/agent'
 
 interface MessageBubbleProps {
   message: Message
+  isFinal?: boolean
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) => {
   const [copied, setCopied] = useState(false)
 
   const formatTime = (ts: number): string => {
@@ -60,23 +63,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         <span className="message__role">
           {getRoleLabel(message.role)}
         </span>
-        {(isAssistant || message.role === 'system') && (
+        {message.role === 'system' && (
           <span className="message__time">{formatTime(message.ts)}</span>
         )}
-        {isUser && (
-          <div className="message__actions">
-            <span className="message__time">{formatTime(message.ts)}</span>
-          </div>
-        )}
       </div>
-
-      {/* 推理折叠块（流式时显示，完成后也保留） */}
-      {message.reasoning && (
-        (() => {
-          console.log('[MessageBubble] 渲染 ReasoningBlock, streaming:', message.streaming, 'msgId:', message.id)
-          return <ReasoningBlock content={message.reasoning} streaming={message.streaming} />
-        })()
-      )}
 
       {/* 消息内容 */}
       <div className="message__body">
@@ -87,16 +77,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         )}
       </div>
 
-      {/* AI 消息底部操作栏 */}
-      {isAssistant && !message.streaming && (
+      {/* 消息底部操作栏 */}
+      {((isAssistant && isFinal) || isUser) && !message.streaming && (
         <div className="message__footer">
-          <button
-            className="message__footer-btn"
-            onClick={handleCopy}
-            title="复制"
-          >
-            {copied ? '✓' : '📋'}
-          </button>
+          <span className="message__time">{formatTime(message.ts)}</span>
+          {isAssistant && (
+            <button
+              className="message__footer-btn"
+              onClick={handleCopy}
+              title="复制"
+            >
+              {copied ? '✓' : '📋'}
+            </button>
+          )}
         </div>
       )}
 
@@ -111,3 +104,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     </div>
   )
 }
+
+export const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
+  return prev.message.id === next.message.id
+    && prev.message.content === next.message.content
+    && prev.message.reasoning === next.message.reasoning
+    && prev.message.streaming === next.message.streaming
+    && prev.message.turnCompleted === next.message.turnCompleted
+    && prev.message.ts === next.message.ts
+    && prev.isFinal === next.isFinal
+    && prev.message.stats === next.message.stats
+})

@@ -68,6 +68,140 @@ function unicodeFontsCachePlugin(): Plugin {
   }
 }
 
+/**
+ * Agent HMR 守卫插件
+ *
+ * 设计目标：Agent 回合期间暂停 HMR，回合结束后只在真正修改了引擎文件时才触发一次重启。
+ *
+ * 时序：
+ *   Agent 回合开始 → pause（收集变更，不触发 HMR）
+ *   Agent 写文件 A、B、C → 变更被收集，不触发重启
+ *   Agent 回合结束 → 若有 src/ 文件变更 → flush（一次重启）；否则 resume（丢弃，不重启）
+ *
+ * HTTP API：
+ *   POST /__hmr/pause           暂停 HMR，开始收集变更
+ *   POST /__hmr/flush           恢复 HMR 并触发收集到的变更（一次重启）
+ *   POST /__hmr/resume          恢复 HMR 但丢弃收集的变更（不重启）
+ *   GET  /__hmr/status          查询状态
+ */
+function agentHmrGuardPlugin(): Plugin {
+  let paused = false
+  let server: any = null
+
+  // 收集暂停期间的文件变更
+  const pendingUpdates = new Map<string, { modules: any[]; timestamp: number }>()
+  // 收集暂停期间变更的文件路径（用于判断是否改了引擎文件）
+  const changedFiles = new Set<string>()
+
+  /** 刷新所有收集的变更（触发一次 HMR） */
+  function flushPending() {
+    const updates = Array.from(pendingUpdates.values())
+    const files = Array.from(changedFiles)
+    pendingUpdates.clear()
+    changedFiles.clear()
+
+    if (updates.length === 0) return
+
+    console.log(`[HMR Guard] 刷新 ${updates.length} 个变更模块: ${files.join(', ')}`)
+    for (const update of updates) {
+      for (const mod of update.modules) {
+        server?.ws.send({ type: 'update', ...mod })
+      }
+    }
+  }
+
+  /** 丢弃所有收集的变更（不触发 HMR） */
+  function discardPending() {
+    const count = pendingUpdates.size
+    pendingUpdates.clear()
+    changedFiles.clear()
+    if (count > 0) {
+      console.log(`[HMR Guard] 丢弃 ${count} 个变更模块（无引擎文件修改）`)
+    }
+  }
+
+  /** 解析请求 body */
+  function readBody(req: any): Promise<any> {
+    return new Promise((resolve) => {
+      let body = ''
+      req.on('data', (chunk: any) => body += chunk)
+      req.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { resolve({}) }
+      })
+    })
+  }
+
+  return {
+    name: 'agent-hmr-guard',
+    configureServer(s) {
+      server = s
+
+      s.middlewares.use('/__hmr', async (req: any, res: any) => {
+        res.setHeader('Content-Type', 'application/json')
+        res.setHeader('Access-Control-Allow-Origin', '*')
+
+        // POST /pause — 暂停 HMR，开始收集变更
+        if (req.method === 'POST' && req.url === '/pause') {
+          paused = true
+          discardPending() // 清空之前的残留
+          console.log('[HMR Guard] HMR 已暂停，开始收集变更')
+          res.end(JSON.stringify({ paused: true }))
+          return
+        }
+
+        // POST /flush — 恢复 HMR 并触发收集到的变更（回合结束时调用）
+        if (req.method === 'POST' && req.url === '/flush') {
+          paused = false
+          const count = pendingUpdates.size
+          if (count > 0) {
+            console.log(`[HMR Guard] 回合结束，触发重启（${count} 个文件变更）`)
+            flushPending()
+          } else {
+            console.log('[HMR Guard] 回合结束，无文件变更')
+          }
+          res.end(JSON.stringify({ paused: false, flushed: count > 0, changedFiles: Array.from(changedFiles) }))
+          return
+        }
+
+        // POST /resume — 恢复 HMR 但丢弃变更（无引擎修改时调用）
+        if (req.method === 'POST' && req.url === '/resume') {
+          paused = false
+          discardPending()
+          console.log('[HMR Guard] HMR 已恢复（丢弃变更）')
+          res.end(JSON.stringify({ paused: false, flushed: false }))
+          return
+        }
+
+        // GET /status — 查询状态
+        if (req.method === 'GET' && req.url === '/status') {
+          res.end(JSON.stringify({
+            paused,
+            pendingFiles: Array.from(changedFiles),
+            pendingCount: pendingUpdates.size,
+          }))
+          return
+        }
+
+        res.statusCode = 404
+        res.end(JSON.stringify({ error: 'not found' }))
+      })
+    },
+
+    handleHotUpdate(ctx) {
+      // 暂停状态：收集变更，不触发 HMR
+      if (paused) {
+        pendingUpdates.set(ctx.file, { modules: ctx.modules, timestamp: Date.now() })
+        changedFiles.add(ctx.file)
+        console.log(`[HMR Guard] 收集变更: ${ctx.file}`)
+        return []
+      }
+
+      // 非暂停状态：正常 HMR
+      return undefined
+    },
+  }
+}
+
 export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
@@ -83,9 +217,15 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3080',
         changeOrigin: true,
+        // DSH 事件下行流走 WebSocket（/api/events.mux、/api/events.host）
+        ws: true,
         // DSH 校验 Origin，需要伪造为同源
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('Origin', 'http://127.0.0.1:3080')
+          })
+          // WS upgrade 时也伪造 Origin（question/requested 等下行帧走 WS）
+          proxy.on('proxyReqWs', (proxyReq) => {
             proxyReq.setHeader('Origin', 'http://127.0.0.1:3080')
           })
         },
@@ -95,6 +235,7 @@ export default defineConfig({
   plugins: [
     react(),
     unicodeFontsCachePlugin(),
+    agentHmrGuardPlugin(),
     {
       // 资产 JSON（widget/scene/blueprint）更新不触发 HMR 整页/引擎刷新：
       // 这些文件由编辑器保存机制驱动（writeJsonFile → loadFromJson/loadSceneAsset → 预览重建），

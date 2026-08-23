@@ -1,4 +1,32 @@
 @echo off
+cd /d "%~dp0"
+
+echo ============================================
+echo   DSH Source - DeepSeek Harness
+echo ============================================
+echo.
+
+REM ─── 自动 clone dsh-source ───
+if not exist "harness\dsh-source\.git" (
+    echo [Clone] harness\dsh-source 不存在，正在从 GitHub 克隆...
+    echo.
+    if exist "harness\dsh-source" (
+        echo [Clone] 检测到残留目录，先清理...
+        rmdir /s /q "harness\dsh-source"
+    )
+    git clone https://github.com/deepseek-ai/deepseek-harness.git harness\dsh-source
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] 克隆失败！请检查网络连接后重试。
+        echo   手动克隆: git clone https://github.com/deepseek-ai/deepseek-harness.git harness\dsh-source
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [Clone] 克隆完成
+    echo.
+)
+
 cd /d "%~dp0harness\dsh-source"
 
 echo ============================================

@@ -13,6 +13,7 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { CodeLintPanel } from './components/CodeLintPanel'
 import { ErrorStatusPanel } from './components/ErrorStatusPanel'
+import { PluginControlCenter } from './components/PluginControlCenter'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
@@ -24,7 +25,7 @@ import { Editor } from './editor'
 type StartupPhase = 'loading' | 'selecting-project' | 'editor'
 
 export default function App() {
-  const { addConsoleOutput, setShowProjectSelector, setCurrentProject, launchGame, stopGame, gameState } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setCurrentProject, launchGame, stopGame, gameState, showPluginCenter, setShowPluginCenter } = useEditorStore()
   const consoleVisible = useEditorPrefsStore((s) => s.consoleVisible)
   const layout = useEditorPrefsStore((s) => s.layout)
   const setLayout = useEditorPrefsStore((s) => s.setLayout)
@@ -152,6 +153,14 @@ export default function App() {
       <ErrorStatusPanel />
       <ProjectSelector />
       <NewProjectDialog />
+      {/* 插件控制中心全局弹窗 */}
+      {showPluginCenter && (
+        <div className="plugin-control-overlay" onClick={() => setShowPluginCenter(false)}>
+          <div className="plugin-control-modal" onClick={(e) => e.stopPropagation()}>
+            <PluginControlCenter onClose={() => setShowPluginCenter(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

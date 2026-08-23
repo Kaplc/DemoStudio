@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { registerShortcuts } from '../editor'
 import { colliderGizmos } from '../engine'
+import { useEditorStore } from '../stores/editorStore'
 
 /**
  * 全局键盘快捷键处理
  * 接管 Electron 移除了原生菜单后丢失的快捷键
  */
 export function KeyboardShortcuts() {
+  const { toggleAgentPanel, setShowPluginCenter } = useEditorStore()
+
   useEffect(() => {
     const cleanup = registerShortcuts()
 
@@ -18,11 +21,25 @@ export function KeyboardShortcuts() {
     }
     window.addEventListener('shortcut-toggle-collider-gizmos', onToggleCollider)
 
+    // Ctrl+Shift+A — 切换 Agent 面板
+    const onToggleAgent = () => {
+      toggleAgentPanel()
+    }
+    window.addEventListener('shortcut-toggle-agent', onToggleAgent)
+
+    // Ctrl+Shift+P — 打开插件控制中心
+    const onPluginCenter = () => {
+      setShowPluginCenter(true)
+    }
+    window.addEventListener('shortcut-plugin-center', onPluginCenter)
+
     return () => {
       cleanup()
       window.removeEventListener('shortcut-toggle-collider-gizmos', onToggleCollider)
+      window.removeEventListener('shortcut-toggle-agent', onToggleAgent)
+      window.removeEventListener('shortcut-plugin-center', onPluginCenter)
     }
-  }, [])
+  }, [toggleAgentPanel, setShowPluginCenter])
 
   return null
 }

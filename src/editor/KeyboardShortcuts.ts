@@ -79,6 +79,11 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     match: (e) => (e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && e.shiftKey,
     eventName: 'shortcut-toggle-agent',
   },
+  {
+    // Ctrl+Shift+P — 打开插件控制中心
+    match: (e) => (e.key === 'p' || e.key === 'P') && (e.ctrlKey || e.metaKey) && e.shiftKey,
+    eventName: 'shortcut-plugin-center',
+  },
 ]
 
 /**
