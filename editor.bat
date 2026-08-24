@@ -67,14 +67,24 @@ if not exist "node_modules" (
     )
 )
 
+REM ─── 检测 DSH 是否已启动（端口 3080） ───
+set "DSH_SKIP=0"
+netstat -ano | findstr ":3080 " | findstr "LISTENING" >nul 2>nul
+if not errorlevel 1 (
+    echo [DSH] 检测到 DSH 已在端口 3080 运行，跳过重复启动
+    set "DSH_SKIP=1"
+)
+
 echo [Launch] 正在启动 Electron 编辑器...
 echo.
 echo   ※ Vite 开发服务器将自动启动
 echo   ※ Electron 窗口将在 Vite 就绪后打开
 echo   ※ 支持多实例：可重复双击本文件启动多个编辑器
 echo     （Vite 端口 5173+ / MCP 端口 9877+ 自动递增分配）
+if "%DSH_SKIP%"=="1" echo   ※ DSH 已在运行，将复用现有实例
 echo.
 
+set "DSH_SKIP=%DSH_SKIP%"
 npm run electron:dev
 if errorlevel 1 (
     echo.

@@ -5,9 +5,19 @@
  *   1. session.list     -> 健康检查
  *   2. session.create   -> 创建会话
  *   3. session.prompt    -> 发送用户消息
- *   4. session.history   -> 轮询获取 AI 回复（assistant/chunk 事件流）
+ *   4. session.history   -> 轮询获取 AI 回复（完整 DSH SessionEventMap 事件流）
+ *
+ * 事件覆盖：对齐 DSH 官方 48 种 SessionEvent 类型
  */
-import type { ConnectionState, AgentEvent, ToolState, PendingQuestionRequest, QuestionAnswer, QuestionItem } from '../types/agent'
+import type {
+  ConnectionState, AgentEvent, ToolState, PendingQuestionRequest, QuestionAnswer, QuestionItem,
+  TurnEndReason, TurnEndReasonKind, RetryAttempt, CommandState, CompactionState, TodoItem,
+  TurnStartPayload, TurnEndPayload, StepStartPayload, StepEndPayload,
+  RetryScheduledPayload, RetryStartedPayload, CommandRunPayload, CommandDonePayload,
+  CompactionStartPayload, CompactionSummaryPayload, CompactionEndPayload,
+  ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
+  RequestHeaderPayload, SandboxModePayload, PlanModePayload,
+} from '../types/agent'
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
 const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
@@ -41,6 +51,7 @@ interface DshMessage {
   source?: { kind?: string; callId?: string }
 }
 
+/** DSH 事件完整形状（覆盖所有 48 种 SessionEvent） */
 interface DshEvent {
   type: string
   seq: number
@@ -48,27 +59,88 @@ interface DshEvent {
   /** surface 事件标记：'append' 追加 / 其他为替换副本（compaction 模型侧副本，不进人类对话） */
   surfaceOp?: unknown
   data?: {
+    // --- assistant/chunk ---
     chunk?: DshChunk
+    // --- assistant/message ---
     message?: DshMessage
+    // --- user/message ---
     content?: ContentPart[]
-    source?: { kind?: string; plugin?: string; callId?: string }
+    source?: { kind?: string; plugin?: string; callId?: string; compactionId?: string; sourceCommandId?: string }
+    id?: string
+    // --- 通用 ---
     turn?: number
     step?: number
+    // --- tool/call ---
     name?: string
     callId?: string
     arguments?: string
+    // --- tool/result ---
     error?: { name?: string; code?: string }
+    meta?: unknown
+    // --- turn/end ---
+    reason?: { kind?: string; error?: { message?: string; code?: string }; reason?: { kind?: string; reason?: string } }
+    // --- llm/retry ---
+    retryId?: string
+    retry?: number
+    delayMs?: number
+    // --- command/run, command/done ---
+    commandId?: string
+    args?: string
+    kind?: string
+    text?: string
+    sourceEventSeq?: number
+    // --- compaction/* ---
+    compactionId?: string
+    summary?: Array<{ type: string; text?: string }>
+    shadowedSeqs?: number[]
+    shadowedTokenCount?: number
+    sourceCommandId?: string
+    // --- todo/write ---
+    todos?: TodoItem[]
+    // --- request/header ---
+    header?: { config?: { model?: string; provider?: string }; adapterDefaults?: unknown; system?: string; tools?: unknown[] }
+    // --- request/context ---
+    provider?: string
+    model?: string
+    contextWindow?: number
+    // --- sandbox/mode ---
+    mode?: string
+    // --- plan/mode ---
+    active?: boolean
+    // --- tool/code-dispatch ---
+    rootCallId?: string
+    parentCallId?: string
+    subCallId?: string
+    // --- tool-workflow/* ---
+    runId?: string
+    label?: string
+    phase?: string
+    childId?: string
+    outcome?: string
+    stopReason?: string
   } & DshMessage
 }
 
 /** 历史消息（从 session.history 事件流 fold 而来，对齐 DSH conversation-nodes 语义） */
 export interface HistoryMessage {
-  role: 'user' | 'assistant' | 'tool'
+  role: 'user' | 'assistant' | 'tool' | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header'
   content: string
   reasoning?: string
   /** 回合是否真正结束（turn/end completed） */
   turnCompleted?: boolean
+  /** 回合结束原因（非 completed 时填充） */
+  turnEndReason?: TurnEndReason
   tool?: ToolState
+  /** 命令信息 */
+  command?: CommandState
+  /** 压缩信息 */
+  compaction?: CompactionState
+  /** 重试链 */
+  retries?: RetryAttempt[]
+  /** Todo 列表快照 */
+  todos?: TodoItem[]
+  /** 模型/配置信息 */
+  requestHeader?: { model?: string; provider?: string }
   ts?: number
 }
 
@@ -95,6 +167,8 @@ export class AgentService {
   private pendingQuestions: Map<string, PendingQuestionRequest> = new Map()
   /** 本地已删除会话黑名单（DSH 不支持远程删除时的兜底） */
   private deletedSessionIds: Set<string> = new Set()
+  /** 实时工具调用缓存：callId -> 工具名（供 tool/result 配对） */
+  private pendingTools: Map<string, string> = new Map()
 
   constructor(private config: { autoReconnect?: boolean } = {}) {
     this.config = { autoReconnect: true, ...this.config }
@@ -231,6 +305,8 @@ export class AgentService {
       const questions = payload.questions as QuestionItem[] | undefined
       const sessionId = payload.sessionId as string | undefined
       if (questions && sessionId) {
+        // 只处理当前会话的问题（mux 可能推送其他会话的 pending 帧）
+        if (sessionId !== this.sessionId) return
         const req: PendingQuestionRequest = { rpcId, sessionId, questions }
         this.pendingQuestions.set(rpcId, req)
         console.log(`[AgentService] question/requested: rpcId=${rpcId}, ${questions.length} 个问题`)
@@ -249,9 +325,6 @@ export class AgentService {
       }
       return
     }
-
-    // session/event 帧可选处理（tool/call 等实时事件，补充轮询）
-    // 当前不处理：轮询已覆盖
   }
 
   /** 获取当前 pending 的问题请求 */
@@ -391,12 +464,20 @@ export class AgentService {
     }
   }
 
-  // --- 轮询 session.history 获取 AI 回复 ---
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  轮询 session.history —— 完整对齐 DSH SessionEventMap（48 种事件）
+  // ═══════════════════════════════════════════════════════════════════════════
   private async pollForResponse(): Promise<void> {
     if (this.polling) return
     this.polling = true
 
     let lastSeq = -1
+    let assistantBuf = ''
+    let reasoningBuf = ''
+    let lastEmittedTextLen = 0
+    let lastEmittedReasoningLen = 0
+    let attempts = 0
+
     try {
       const hist = (await this.rpc('session.history', {
         sessionId: this.sessionId,
@@ -405,12 +486,6 @@ export class AgentService {
         lastSeq = hist.events[hist.events.length - 1].event.seq
       }
     } catch { /* ignore */ }
-
-    let assistantBuf = ''
-    let reasoningBuf = ''
-    let lastEmittedTextLen = 0
-    let lastEmittedReasoningLen = 0
-    let attempts = 0
 
     try {
       while (attempts < MAX_POLL_ATTEMPTS && !this.abortPolling) {
@@ -431,55 +506,85 @@ export class AgentService {
         const newEvents = events.filter(e => e.event.seq > lastSeq)
         if (!newEvents.length) continue
 
+        attempts = 0
+
         for (const { event } of newEvents) {
           lastSeq = event.seq
+          const d = event.data
+          const time = event.time ?? Date.now()
 
-          if (event.type === 'assistant/chunk') {
-            const chunk = event.data?.chunk
-            if (!chunk) continue
-            if (chunk.type === 'text-delta' && chunk.text) {
-              assistantBuf += chunk.text
-            }
-            if (chunk.type === 'reasoning-delta' && chunk.text) {
-              reasoningBuf += chunk.text
-            }
-            // 模型调用结束（单步 finish）→ 通知前端折叠推理卡片
-            if (chunk.type === 'finish') {
-              this.emit({ type: 'stepEnd', payload: { reason: chunk.reason } })
-            }
+          // ─── Turn/Step 边界 ───
+          if (event.type === 'turn/start') {
+            this.emit({ type: 'turnStart', payload: { turn: d?.turn ?? 0, seq: event.seq, time } as TurnStartPayload })
+            continue
           }
 
-          // assistant/message 包含完整对话上下文（会重复用户输入），跳过
-          // 只依赖 assistant/chunk 流式输出 + turn/end 提交最终消息
+          if (event.type === 'turn/end') {
+            const reasonKind = (d?.reason?.kind ?? 'completed') as TurnEndReasonKind
+            const reason: TurnEndReason = { kind: reasonKind }
+            if (d?.reason?.error) reason.error = { message: d.reason.error.message ?? '', code: d.reason.error.code }
+            if (d?.reason?.reason) reason.reason = d.reason.reason as { kind: string; reason?: string }
+            this.emit({ type: 'turnEnd', payload: { turn: d?.turn ?? 0, reason, seq: event.seq, time } as TurnEndPayload })
+
+            if (assistantBuf || reasoningBuf) {
+              this.emit({
+                type: 'message',
+                payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined, turnCompleted: reasonKind === 'completed', turnEndReason: reason },
+              })
+              assistantBuf = ''
+              reasoningBuf = ''
+            }
+            this.flushOrResumeHmr()
+            this.polling = false
+            return
+          }
+
+          if (event.type === 'step/start') {
+            this.emit({ type: 'stepStart', payload: { turn: d?.turn ?? 0, step: d?.step ?? 0, seq: event.seq, time } as StepStartPayload })
+            continue
+          }
+
+          if (event.type === 'step/end') {
+            this.emit({ type: 'stepEnd', payload: { turn: d?.turn ?? 0, step: d?.step ?? 0, seq: event.seq, time } as StepEndPayload })
+            continue
+          }
+
+          // ─── Assistant 流式内容 ───
+          if (event.type === 'assistant/chunk') {
+            const chunk = d?.chunk
+            if (!chunk) continue
+            if (chunk.type === 'text-delta' && chunk.text) assistantBuf += chunk.text
+            if (chunk.type === 'reasoning-delta' && chunk.text) reasoningBuf += chunk.text
+            if (chunk.type === 'finish') this.emit({ type: 'stepEnd', payload: { reason: chunk.reason, seq: event.seq, time } })
+            continue
+          }
+
           if (event.type === 'assistant/message') {
-            // 从 assistant/message 提取推理内容（如果有）
-            const msg = event.data?.message
+            const msg = d?.message
             if (msg?.role === 'assistant') {
               const reasoningPart = (msg.content || []).find((c: ContentPart) => c.type === 'reasoning')
-              if (reasoningPart?.text && !reasoningBuf) {
-                reasoningBuf = reasoningPart.text
-              }
+              if (reasoningPart?.text && !reasoningBuf) reasoningBuf = reasoningPart.text
             }
-            // 不清空 assistantBuf — 让 turn/end 统一 emit
+            continue
           }
 
-          // 工具调用开始
+          // ─── 工具调用 ───
           if (event.type === 'tool/call') {
-            const d = event.data
+            const callId = d?.callId || `tc-${event.seq}`
+            const toolName = d?.name || 'unknown'
+            if (d?.callId) this.pendingTools.set(d.callId, toolName)
             this.emit({
               type: 'toolCall',
               payload: {
-                id: d?.callId || `tc-${event.seq}`,
-                name: d?.name || 'unknown',
+                id: callId, name: toolName,
                 args: d?.arguments ? (() => { try { return JSON.parse(d.arguments) } catch { return d.arguments } })() : undefined,
-                status: 'running',
+                status: 'running', callTime: time,
               },
             })
+            continue
           }
 
-          // 工具调用结果
           if (event.type === 'tool/result') {
-            const d = event.data
             const callId = d?.message?.source?.callId || d?.callId
             const resultContent = d?.message?.content
             let resultText = ''
@@ -490,66 +595,165 @@ export class AgentService {
                 }
               }
             }
+            const pendingName = callId ? this.pendingTools.get(callId) : undefined
+            if (callId) this.pendingTools.delete(callId)
             this.emit({
               type: 'toolResult',
               payload: {
-                id: callId || `tr-${event.seq}`,
-                name: 'tool',
-                result: resultText || JSON.stringify(d),
-                status: 'success',
+                id: callId || `tr-${event.seq}`, name: pendingName || 'tool',
+                result: resultText || JSON.stringify(d), status: d?.error ? 'failure' : 'success',
+                resultTime: time, error: d?.error,
               },
             })
+            continue
           }
 
-          if (event.type === 'turn/end' || event.type === 'session.idle') {
-            // 收集统计
-            const stats = (event.data as { stats?: unknown })?.stats
-            const isTurnEnd = event.type === 'turn/end'
-            const reason = (event.data as { reason?: { kind?: string } })?.reason
-            const completed = isTurnEnd && reason?.kind === 'completed'
+          // ─── 子工具调用（code-dispatch） ───
+          if (event.type === 'tool/code-dispatch-start') {
+            const subCallId = d?.subCallId || `sub-${event.seq}`
+            this.emit({
+              type: 'toolDispatchStart',
+              payload: {
+                rootCallId: d?.rootCallId || '', parentCallId: d?.parentCallId || '', subCallId,
+                name: d?.name || 'unknown',
+                arguments: d?.arguments ? (() => { try { return JSON.parse(d.arguments) } catch { return d.arguments } })() : undefined,
+                seq: event.seq, time,
+              } as ToolDispatchStartPayload,
+            })
+            continue
+          }
 
+          if (event.type === 'tool/code-dispatch') {
+            const subCallId = d?.subCallId || `sub-${event.seq}`
+            this.emit({
+              type: 'toolDispatch',
+              payload: {
+                rootCallId: d?.rootCallId || '', parentCallId: d?.parentCallId || '', subCallId,
+                name: d?.name || 'unknown', arguments: undefined,
+                content: d?.content, isError: !!d?.error, seq: event.seq, time,
+              } as ToolDispatchPayload,
+            })
+            continue
+          }
+
+          // ─── LLM 重试 ───
+          if (event.type === 'llm/retry') {
+            const retryId = d?.retryId || `retry-${event.seq}`
+            this.emit({
+              type: 'retryScheduled',
+              payload: {
+                retryId, retry: d?.retry ?? 1, turn: d?.turn ?? 0, step: d?.step ?? 0,
+                reason: typeof d?.reason === 'string' ? d.reason : d?.reason?.kind,
+                delayMs: d?.delayMs, seq: event.seq, time,
+              } as RetryScheduledPayload,
+            })
+            continue
+          }
+
+          if (event.type === 'llm/retry-started') {
+            const retryId = d?.retryId || `retry-${event.seq}`
+            this.emit({
+              type: 'retryStarted',
+              payload: { retryId, retry: d?.retry ?? 1, seq: event.seq, time } as RetryStartedPayload,
+            })
+            continue
+          }
+
+          // ─── 命令 ───
+          if (event.type === 'command/run') {
+            const commandId = d?.commandId || `cmd-${event.seq}`
+            this.emit({
+              type: 'commandRun',
+              payload: { commandId, name: d?.name || 'unknown', args: d?.args, seq: event.seq, time } as CommandRunPayload,
+            })
+            continue
+          }
+
+          if (event.type === 'command/done') {
+            const commandId = d?.commandId || `cmd-${event.seq}`
+            this.emit({
+              type: 'commandDone',
+              payload: { commandId, kind: (d?.kind as 'success' | 'error' | 'cancelled') ?? 'success', text: d?.text, seq: event.seq, time } as CommandDonePayload,
+            })
+            continue
+          }
+
+          // ─── 压缩 ───
+          if (event.type === 'compaction/start') {
+            const compactionId = d?.compactionId || `compact-${event.seq}`
+            this.emit({ type: 'compactionStart', payload: { compactionId, seq: event.seq, time } as CompactionStartPayload })
+            continue
+          }
+
+          if (event.type === 'compaction/summary') {
+            const compactionId = d?.compactionId || `compact-${event.seq}`
+            const summaryText = d?.summary
+              ? d.summary.filter((b: { type: string; text?: string }) => b.type === 'text').map((b: { text?: string }) => b.text || '').join('')
+              : undefined
+            this.emit({
+              type: 'compactionSummary',
+              payload: { compactionId, summary: summaryText, shadowedItemCount: d?.shadowedSeqs?.length, shadowedTokenCount: d?.shadowedTokenCount, seq: event.seq, time } as CompactionSummaryPayload,
+            })
+            continue
+          }
+
+          if (event.type === 'compaction/end') {
+            const compactionId = d?.compactionId || `compact-${event.seq}`
+            this.emit({ type: 'compactionEnd', payload: { compactionId, seq: event.seq, time } as CompactionEndPayload })
+            continue
+          }
+
+          // ─── Todo ───
+          if (event.type === 'todo/write') {
+            this.emit({ type: 'todoWrite', payload: { todos: d?.todos ?? [], seq: event.seq, time } as TodoWritePayload })
+            continue
+          }
+
+          // ─── 请求配置 ───
+          if (event.type === 'request/header') {
+            const header = d?.header
+            this.emit({
+              type: 'requestHeader',
+              payload: { model: header?.config?.model, provider: header?.config?.provider, reason: d?.reason || 'change', seq: event.seq, time } as RequestHeaderPayload,
+            })
+            continue
+          }
+
+          if (event.type === 'request/context') continue
+
+          // ─── 沙箱/计划模式 ───
+          if (event.type === 'sandbox/mode') {
+            this.emit({ type: 'sandboxMode', payload: { mode: d?.mode || 'unknown', seq: event.seq, time } as SandboxModePayload })
+            continue
+          }
+
+          if (event.type === 'plan/mode') {
+            this.emit({ type: 'planMode', payload: { active: d?.active ?? false, seq: event.seq, time } as PlanModePayload })
+            continue
+          }
+
+          // ─── session.idle（兼容旧版） ───
+          if (event.type === 'session.idle') {
             if (assistantBuf || reasoningBuf) {
-              this.emit({
-                type: 'message',
-                payload: {
-                  role: 'assistant',
-                  content: assistantBuf,
-                  reasoning: reasoningBuf || undefined,
-                  stats,
-                  // 只有 turn/end + completed 才标记回合真正结束
-                  turnCompleted: completed,
-                },
-              })
+              this.emit({ type: 'message', payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined, turnCompleted: true } })
               assistantBuf = ''
               reasoningBuf = ''
             }
-
-            // 回合结束：检查是否有引擎文件变更，决定 flush 还是 resume
             this.flushOrResumeHmr()
-
             this.polling = false
             return
           }
         }
 
-        // 批量发送本轮累积的 delta（一次 re-render 处理整个轮询周期的所有 token）
+        // 批量发送本轮累积的 delta
         const newTextDelta = assistantBuf.slice(lastEmittedTextLen)
         const newReasoningDelta = reasoningBuf.slice(lastEmittedReasoningLen)
-        if (newTextDelta) {
-          this.emit({ type: 'message.delta', payload: newTextDelta })
-          lastEmittedTextLen = assistantBuf.length
-        }
-        if (newReasoningDelta) {
-          this.emit({ type: 'reasoning.delta', payload: newReasoningDelta })
-          lastEmittedReasoningLen = reasoningBuf.length
-        }
+        if (newTextDelta) { this.emit({ type: 'message.delta', payload: newTextDelta }); lastEmittedTextLen = assistantBuf.length }
+        if (newReasoningDelta) { this.emit({ type: 'reasoning.delta', payload: newReasoningDelta }); lastEmittedReasoningLen = reasoningBuf.length }
       }
     } finally {
       if (assistantBuf || reasoningBuf) {
-        this.emit({
-          type: 'message',
-          payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined },
-        })
+        this.emit({ type: 'message', payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined } })
       }
       this.polling = false
     }
@@ -559,9 +763,7 @@ export class AgentService {
 
   /** 暂停 HMR（Agent 回合开始时调用） */
   private pauseHmr(): void {
-    fetch('/__hmr/pause', { method: 'POST' }).catch(() => {
-      // Vite 未运行或不可达，静默忽略
-    })
+    fetch('/__hmr/pause', { method: 'POST' }).catch(() => {})
   }
 
   /** 回合结束：有文件变更则 flush（一次重启），无变更则忽略 */
@@ -569,13 +771,9 @@ export class AgentService {
     fetch('/__hmr/flush', { method: 'POST' })
       .then(r => r.json())
       .then(data => {
-        if (data.flushed) {
-          console.log(`[AgentService] 回合结束，${data.changedFiles?.length || 0} 个文件变更，页面重启`)
-        }
+        if (data.flushed) console.log(`[AgentService] 回合结束，${data.changedFiles?.length || 0} 个文件变更，页面重启`)
       })
-      .catch(() => {
-        // Vite 未运行或不可达，静默忽略
-      })
+      .catch(() => {})
   }
 
   // --- 状态管理 ---
@@ -584,13 +782,8 @@ export class AgentService {
     this.stateListeners.forEach(l => l(state))
   }
 
-  getState(): ConnectionState {
-    return this.state
-  }
-
-  isConnected(): boolean {
-    return this.state === 'connected'
-  }
+  getState(): ConnectionState { return this.state }
+  isConnected(): boolean { return this.state === 'connected' }
 
   onEvent(listener: (event: AgentEvent) => void): () => void {
     this.listeners.add(listener)
@@ -610,26 +803,15 @@ export class AgentService {
     this.disconnect()
     this.listeners.clear()
     this.stateListeners.clear()
+    this.pendingTools.clear()
   }
 
-  getMessageHistory(): Array<{ role: string; content: string }> {
-    return []
-  }
+  getMessageHistory(): Array<{ role: string; content: string }> { return [] }
+  addAssistantMessage(_content: string): void {}
 
-  addAssistantMessage(_content: string): void {
-    // DSH 自己管理历史，不需要外部追加
-  }
-
-  // --- 加载历史消息 ---
-  // 对齐 DSH 官方客户端（packages/client/runtime session.ts + ui-conversation nodes）的 fold 语义：
-  //   1. user/message     ： data 即 UserMessage（content 在 data.content）
-  //   2. assistant/message: data = { turn, step, message: AssistantMessage }，内容在 data.message.content
-  //   3. surfaceOp 判定   ： 仅 surfaceOp === 'append' 的消息进入人类对话（compaction 替换副本是模型侧视角，渲染会抹掉用户已看过的内容）
-  //   4. compaction checkpoint（source.kind === 'plugin' && plugin === 'compact'）跳过
-  //   5. source.kind !== 'user' 的注入上下文不当用户消息渲染
-  //   6. tool/call + tool/result 按 callId 配对成工具卡片
-  //   7. 空内容且无推理的 assistant/message（仅携带 usage 的占位）跳过
-  //   8. hasMore=true 时按 beforeSeq 向上翻页拼全量
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  加载历史消息 —— 完整对齐 DSH SessionEventMap
+  // ═══════════════════════════════════════════════════════════════════════════
   async loadHistory(): Promise<HistoryMessage[]> {
     try {
       if (!this.sessionId) {
@@ -641,7 +823,6 @@ export class AgentService {
       let beforeSeq: number | undefined
       let pages = 0
 
-      // 拉取所有页（首拉尾部页，之后按 beforeSeq 向上翻，直至 hasMore=false）
       while (pages < HISTORY_MAX_PAGES) {
         pages++
         const hist = (await this.rpc('session.history', {
@@ -654,8 +835,6 @@ export class AgentService {
         if (!events.length) break
         allEvents.unshift(...events)
         if (!hist?.hasMore) break
-
-        // 下一页游标：当前页最老事件的 seq
         beforeSeq = events[0].event.seq
         if (beforeSeq <= 0) break
       }
@@ -663,85 +842,68 @@ export class AgentService {
       console.log(`[AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
       if (!allEvents.length) return []
 
-      // 按 seq 升序排序（跨页拼接保险）
       allEvents.sort((a, b) => a.event.seq - b.event.seq)
 
       const messages: HistoryMessage[] = []
-      // 工具调用缓存：callId -> 待配对的 tool/call（复用 ToolState，与实时流保持一致）
       const pendingTools = new Map<string, ToolState>()
-      // 记录每个回合的 turn 编号 → 对应的 assistant 消息 index
       const turnAssistantIndices = new Map<number, number[]>()
+      // 重试链：retryId -> RetryAttempt[]
+      const retryChains = new Map<string, RetryAttempt[]>()
+      // 命令状态：commandId -> CommandState
+      const commandStates = new Map<string, CommandState>()
+      // 压缩状态：compactionId -> CompactionState
+      const compactionStates = new Map<string, CompactionState>()
 
       for (const { event } of allEvents) {
-        // --- 工具调用（历史也渲染成工具卡片）---
+        const d = event.data
+        const time = event.time
+
+        // ─── tool/call ───
         if (event.type === 'tool/call') {
-          const d = event.data
           const callId = String(d?.callId || `tc-${event.seq}`)
           let args: unknown = undefined
-          if (d?.arguments) {
-            try { args = JSON.parse(d.arguments) } catch { args = d.arguments }
-          }
-          pendingTools.set(callId, {
-            id: callId,
-            name: d?.name || 'unknown',
-            args,
-            status: 'running',
-          })
+          if (d?.arguments) { try { args = JSON.parse(d.arguments) } catch { args = d.arguments } }
+          pendingTools.set(callId, { id: callId, name: d?.name || 'unknown', args, status: 'running', callTime: time })
           continue
         }
 
-        // --- 工具结果（DSH 形状：data.message.source.callId，官方 tool.ts rootResult 同源）---
+        // ─── tool/result ───
         if (event.type === 'tool/result') {
-          const d = event.data
           const callId = String(d?.message?.source?.callId || d?.source?.callId || '')
           const tool = callId ? pendingTools.get(callId) : undefined
           if (tool) {
-            tool.status = 'success'
+            tool.status = d?.error ? 'failure' : 'success'
             tool.result = d?.message?.content
+            tool.error = d?.error ? { name: d.error.name ?? '', code: d.error.code ?? '' } : undefined
+            tool.resultTime = time
             pendingTools.delete(callId)
-            messages.push({ role: 'tool', content: '', tool, ts: event.time })
+            messages.push({ role: 'tool', content: '', tool, ts: time })
           }
           continue
         }
 
-        // --- 用户消息：data 即 UserMessage ---
+        // ─── user/message ───
         if (event.type === 'user/message') {
-          const source = event.data?.source
-          // compaction checkpoint：替换副本不渲染（官方 isCompactionCheckpoint）
+          const source = d?.source
           if (source?.kind === 'plugin' && source.plugin === 'compact') continue
-          // 仅 surfaceOp === 'append' 的消息进入对话
           if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue
-          // 注入上下文（source.kind !== 'user'）不当用户消息渲染
           if (source && source.kind !== 'user') continue
-
-          const text = this.extractText(event.data?.content)
-          if (text) {
-            messages.push({ role: 'user', content: text, ts: event.time })
-          }
+          const text = this.extractText(d?.content)
+          if (text) messages.push({ role: 'user', content: text, ts: time })
           continue
         }
 
-        // --- AI 消息：内容在 data.message.content（关键修复点）---
+        // ─── assistant/message ───
         if (event.type === 'assistant/message') {
           if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue
-          const msg = event.data?.message
+          const msg = d?.message
           if (!msg || msg.role !== 'assistant') continue
-
           const text = this.extractText(msg.content)
           const reasoning = this.extractReasoning(msg.content)
-          // 空内容且无推理（仅携带 usage 的占位消息）跳过
           if (!text && !reasoning) continue
-
           const idx = messages.length
-          messages.push({
-            role: 'assistant',
-            content: text,
-            reasoning: reasoning || undefined,
-            ts: event.time,
-          })
-
-          // 记录 turn → assistant 消息 index（用于 turn/end 时标记 turnCompleted）
-          const turn = event.data?.turn
+          messages.push({ role: 'assistant', content: text, reasoning: reasoning || undefined, ts: time })
+          const turn = d?.turn
           if (typeof turn === 'number') {
             if (!turnAssistantIndices.has(turn)) turnAssistantIndices.set(turn, [])
             turnAssistantIndices.get(turn)!.push(idx)
@@ -749,23 +911,139 @@ export class AgentService {
           continue
         }
 
-        // --- 回合结束：标记该回合最后一条 assistant 消息为 turnCompleted ---
+        // ─── turn/end ───
         if (event.type === 'turn/end') {
-          const d = event.data as { turn?: number; reason?: { kind?: string } }
-          if (d?.reason?.kind === 'completed' && typeof d.turn === 'number') {
+          const reasonKind = (d?.reason?.kind ?? 'completed') as TurnEndReasonKind
+          if (typeof d?.turn === 'number') {
             const indices = turnAssistantIndices.get(d.turn)
             if (indices && indices.length > 0) {
               const lastIdx = indices[indices.length - 1]
               if (messages[lastIdx]) {
-                messages[lastIdx] = { ...messages[lastIdx], turnCompleted: true }
+                messages[lastIdx] = { ...messages[lastIdx], turnCompleted: reasonKind === 'completed' }
+                if (reasonKind !== 'completed') {
+                  const reason: TurnEndReason = { kind: reasonKind }
+                  if (d?.reason?.error) reason.error = { message: d.reason.error.message ?? '', code: d.reason.error.code }
+                  messages[lastIdx].turnEndReason = reason
+                }
               }
             }
           }
+          // 非 completed 的 turn/end 也生成一条消息
+          if (reasonKind === 'error') {
+            const errorMsg = d?.reason?.error?.message || '未知错误'
+            messages.push({ role: 'turn-error', content: errorMsg, ts: time })
+          }
+          if (reasonKind === 'max-tokens') {
+            messages.push({ role: 'turn-max-tokens', content: '输出达到 token 上限', ts: time })
+          }
+          continue
+        }
+
+        // ─── llm/retry ───
+        if (event.type === 'llm/retry') {
+          const retryId = d?.retryId || `retry-${event.seq}`
+          let chain = retryChains.get(retryId)
+          if (!chain) { chain = []; retryChains.set(retryId, chain) }
+          chain.push({
+            retry: d?.retry ?? 1, retryState: 'scheduled',
+            turn: d?.turn ?? 0, step: d?.step ?? 0,
+            reason: typeof d?.reason === 'string' ? d.reason : d?.reason?.kind,
+            delayMs: d?.delayMs, seq: event.seq, time: time ?? 0,
+          })
+          continue
+        }
+
+        if (event.type === 'llm/retry-started') {
+          const retryId = d?.retryId || `retry-${event.seq}`
+          const chain = retryChains.get(retryId)
+          if (chain) {
+            const last = chain[chain.length - 1]
+            if (last && last.retry === (d?.retry ?? 1)) last.retryState = 'started'
+          }
+          continue
+        }
+
+        // ─── command/run ───
+        if (event.type === 'command/run') {
+          const commandId = d?.commandId || `cmd-${event.seq}`
+          commandStates.set(commandId, { commandId, name: d?.name || 'unknown', args: d?.args, seq: event.seq, time: time ?? 0 })
+          continue
+        }
+
+        // ─── command/done ───
+        if (event.type === 'command/done') {
+          const commandId = d?.commandId || `cmd-${event.seq}`
+          const existing = commandStates.get(commandId)
+          if (existing) {
+            existing.outcome = { kind: (d?.kind as 'success' | 'error' | 'cancelled') ?? 'success', text: d?.text }
+            messages.push({ role: 'command', content: existing.name, command: existing, ts: time })
+            commandStates.delete(commandId)
+          }
+          continue
+        }
+
+        // ─── compaction/start ───
+        if (event.type === 'compaction/start') {
+          const compactionId = d?.compactionId || `compact-${event.seq}`
+          compactionStates.set(compactionId, { compactionId, status: 'running', startTime: time })
+          continue
+        }
+
+        // ─── compaction/summary ───
+        if (event.type === 'compaction/summary') {
+          const compactionId = d?.compactionId || `compact-${event.seq}`
+          const existing = compactionStates.get(compactionId)
+          const summaryText = d?.summary
+            ? d.summary.filter((b: { type: string; text?: string }) => b.type === 'text').map((b: { text?: string }) => b.text || '').join('')
+            : undefined
+          if (existing) {
+            existing.summary = summaryText
+            existing.shadowedItemCount = d?.shadowedSeqs?.length
+            existing.shadowedTokenCount = d?.shadowedTokenCount
+          }
+          continue
+        }
+
+        // ─── compaction/end ───
+        if (event.type === 'compaction/end') {
+          const compactionId = d?.compactionId || `compact-${event.seq}`
+          const existing = compactionStates.get(compactionId)
+          if (existing) {
+            existing.status = 'completed'
+            existing.endTime = time
+            messages.push({ role: 'compaction', content: existing.summary || '上下文已压缩', compaction: existing, ts: time })
+            compactionStates.delete(compactionId)
+          }
+          continue
+        }
+
+        // ─── todo/write ───
+        if (event.type === 'todo/write') {
+          messages.push({ role: 'todo', content: `${(d?.todos ?? []).length} 个任务`, todos: d?.todos ?? [], ts: time })
+          continue
+        }
+
+        // ─── request/header ───
+        if (event.type === 'request/header') {
+          const header = d?.header
+          messages.push({
+            role: 'request-header',
+            content: `模型: ${header?.config?.model || '未知'}`,
+            requestHeader: { model: header?.config?.model, provider: header?.config?.provider },
+            ts: time,
+          })
           continue
         }
       }
 
-      // 未配对完成的工具调用（被中断的回合）也保留为运行中卡片
+      // 重试链输出
+      for (const chain of retryChains.values()) {
+        if (chain.length > 0) {
+          messages.push({ role: 'retry', content: `${chain.length} 次重试`, retries: chain, ts: chain[0].time })
+        }
+      }
+
+      // 未配对完成的工具调用
       for (const tool of pendingTools.values()) {
         messages.push({ role: 'tool', content: '', tool })
       }
@@ -780,19 +1058,13 @@ export class AgentService {
   // --- 提取 ContentPart[] 中的文本 ---
   private extractText(content?: ContentPart[]): string {
     if (!Array.isArray(content)) return ''
-    return content
-      .filter(p => p.type === 'text')
-      .map(p => p.text || '')
-      .join('')
+    return content.filter(p => p.type === 'text').map(p => p.text || '').join('')
   }
 
   // --- 提取 ContentPart[] 中的推理文本 ---
   private extractReasoning(content?: ContentPart[]): string {
     if (!Array.isArray(content)) return ''
-    return content
-      .filter(p => p.type === 'reasoning')
-      .map(p => p.text || '')
-      .join('')
+    return content.filter(p => p.type === 'reasoning').map(p => p.text || '').join('')
   }
 
   // --- 会话管理 ---
@@ -803,7 +1075,6 @@ export class AgentService {
         .filter(item => !this.deletedSessionIds.has(item.sessionId))
         .map(item => ({
           sessionId: item.sessionId,
-          // 从 projections.values.title 读取标题
           title: item.projections?.values?.title || item.sessionId,
           updatedAt: item.updatedAt,
           blank: item.blank,
@@ -815,8 +1086,8 @@ export class AgentService {
   }
 
   async switchSession(sessionId: string): Promise<void> {
-    // 先中止旧会话的轮询（pollForResponse 动态读 this.sessionId，不中止会把新会话事件当增量吐出）
     this.abortPolling = true
+    this.pendingQuestions.clear()
     this.sessionId = sessionId
     console.log(`[AgentService] 切换到会话: ${sessionId}`)
   }
@@ -834,35 +1105,26 @@ export class AgentService {
     }
   }
 
-  getSessionId(): string | null {
-    return this.sessionId
-  }
+  getSessionId(): string | null { return this.sessionId }
 
   async deleteSession(sessionId: string): Promise<boolean> {
     try {
-      // 优先使用 DSH 的 workspace.archiveSession 远程归档（会话从列表隐藏）
       await this.rpc('workspace.archiveSession', { sessionId })
       console.log(`[AgentService] 会话已归档: ${sessionId}`)
     } catch {
-      // archiveSession 不可用时回退到本地黑名单
       console.log(`[AgentService] 归档不可用，使用本地黑名单: ${sessionId}`)
     }
-    // 无论远程是否成功，都加入本地黑名单确保不会被 refreshSessions 重新拉回
     this.deletedSessionIds.add(sessionId)
-    // 如果删除的是当前会话，清空
-    if (this.sessionId === sessionId) {
-      this.sessionId = null
-    }
+    if (this.sessionId === sessionId) this.sessionId = null
     return true
   }
 }
 
-// --- HMR 守卫：跨热更新保留连接状态（每次创建新实例，避免旧实例缺少新方法）---
+// --- HMR 守卫：跨热更新保留连接状态 ---
 const AGENT_SVC_KEY = '__ds_agentState__'
 const g = globalThis as Record<string, unknown>
 const agentService = new AgentService()
 
-// HMR 时保存状态到 globalThis
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     g[AGENT_SVC_KEY] = {
@@ -872,10 +1134,8 @@ if (import.meta.hot) {
   })
 }
 
-// 恢复上次保存的状态
 const saved = g[AGENT_SVC_KEY] as { sessionId?: string; state?: ConnectionState } | undefined
 if (saved?.sessionId && saved.state === 'connected') {
-  // 直接恢复 sessionId 和 connected 状态（不重新 session.create）
   ;(agentService as any).sessionId = saved.sessionId
   ;(agentService as any).state = 'connected'
   console.log(`[AgentService] HMR: 恢复会话 ${saved.sessionId}`)

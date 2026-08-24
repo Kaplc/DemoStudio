@@ -21,6 +21,8 @@ export interface VirtualListProps<T> {
   className?: string
   /** 是否自动滚动到底部 */
   autoScrollToBottom?: boolean
+  /** 内容变更的依赖值（如流式文本累计长度），变化时也会触发自动滚动 */
+  scrollTriggerDeps?: number
 }
 
 const DEFAULT_ESTIMATED_HEIGHT = 80
@@ -34,6 +36,7 @@ export function VirtualList<T>({
   getItemKey,
   className,
   autoScrollToBottom = true,
+  scrollTriggerDeps,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -99,16 +102,16 @@ export function VirtualList<T>({
     }
   }, [])
 
-  // 新消息到达时自动滚动
+  // 新消息到达或内容流式更新时自动滚动
   useEffect(() => {
-    if (autoScrollToBottom && isNearBottomRef.current && items.length > prevItemCountRef.current) {
+    if (autoScrollToBottom && isNearBottomRef.current) {
       requestAnimationFrame(() => {
         const el = containerRef.current
         if (el) el.scrollTop = el.scrollHeight
       })
     }
     prevItemCountRef.current = items.length
-  }, [items.length, autoScrollToBottom])
+  }, [items.length, autoScrollToBottom, scrollTriggerDeps])
 
   // 计算可视范围
   const startIndex = findStartIndex(scrollTop)

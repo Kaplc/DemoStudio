@@ -138,7 +138,7 @@ function saveKey(game: string, slot: string): string {
 
 // ─── Mock API 实现 ───
 
-const mockAPI: ElectronAPI = {
+const mockAPI = {
   getAppInfo: async () => ({
     version: '5.0.0-dev',
     name: 'DemoStudio (Browser Mock)',
@@ -377,25 +377,8 @@ const mockAPI: ElectronAPI = {
   sendAIChatResponse: (requestId: string, result: unknown) => {
     // Mock 实现：在浏览器模式下不处理
   },
-
-  // ─── DSH 服务状态 ───
-  dshStatus: async () => ({ ready: false, port: 0, enginePort: 0 }),
-
-  // ─── DSH RPC 代理 ───
-  dshRpc: async (_method: string, _payload: unknown) => ({
-    type: 'server-response',
-    rpcId: 'mock',
-    result: { ok: false, error: { message: 'Browser mock: DSH 不可用' } },
-  }),
-
-  // ─── DSH Mux WS 下行桥 ───
-  dshMuxConnect: async () => {},
-  dshMuxDisconnect: async () => {},
-  onDshMuxFrame: () => () => {},
-
-  // ─── DSH Respond 代理 ───
-  dshRespond: async () => ({ accepted: false, reason: 'Browser mock' }),
-}
+  // DSH 相关方法不提供 → AgentService 回退到直接 fetch('/api/...')（Vite 代理到 DSH :3080）
+} as unknown as ElectronAPI
 
 // ─── 注入入口 ───
 

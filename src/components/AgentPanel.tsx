@@ -51,6 +51,7 @@ export const AgentPanel: React.FC = () => {
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
   const activeMsgRef = useRef<string | null>(null)  // 当前活跃的 AI 消息 ID
+  const [contentVersion, setContentVersion] = useState(0)  // 流式内容变化计数器，用于触发自动滚动
 
   // 打字机效果（回复）
   const typewriter = useTypewriter({
@@ -110,15 +111,39 @@ export const AgentPanel: React.FC = () => {
           handleReasoningDelta(event.payload as string)
           break
 
-        case 'message':
-          if ((event.payload as any)?.role === 'assistant') {
-            const p = event.payload as any
-            commitStreamingMessage(p.content || '', p.reasoning, p.stats, p.turnCompleted)
+        case 'message': {
+          const p = event.payload as any
+          if (p?.role === 'assistant') {
+            commitStreamingMessage(p.content || '', p.reasoning, p.stats, p.turnCompleted, p.turnEndReason)
           }
+          break
+        }
+
+        case 'turnStart':
+          // 回合开始（可用于 UI 状态指示）
+          break
+
+        case 'turnEnd': {
+          const turnPayload = event.payload as any
+          if (turnPayload?.reason?.kind !== 'completed') {
+            // 非正常结束的回合显示系统消息
+            const reasonMap: Record<string, string> = {
+              error: `回合错误: ${turnPayload?.reason?.error?.message || '未知错误'}`,
+              aborted: '回合被中止',
+              blocked: '回合被阻塞',
+              'max-tokens': '输出达到 token 上限',
+              interrupted: '回合被中断',
+            }
+            pushSystem(reasonMap[turnPayload?.reason?.kind] || '回合异常结束')
+          }
+          break
+        }
+
+        case 'stepStart':
+          // 步骤开始（可用于进度指示）
           break
 
         case 'stepEnd':
-          // 单步模型调用结束 → 折叠推理卡片
           handleStepEnd()
           break
 
@@ -129,6 +154,95 @@ export const AgentPanel: React.FC = () => {
         case 'toolResult':
           handleToolResult(event.payload as any)
           break
+
+        case 'toolDispatchStart': {
+          const dispatch = event.payload as any
+          pushSystem(`子工具调用: ${dispatch?.name || 'unknown'}`)
+          break
+        }
+
+        case 'toolDispatch': {
+          const dispatch = event.payload as any
+          if (dispatch?.isError) {
+            pushSystem(`子工具失败: ${dispatch?.name || 'unknown'}`)
+          }
+          break
+        }
+
+        case 'retryScheduled': {
+          const retry = event.payload as any
+          pushSystem(`LLM 重试 #${retry?.retry}: ${retry?.reason || '正在重试...'}`)
+          break
+        }
+
+        case 'retryStarted': {
+          // 重试开始（可用于 UI 指示）
+          break
+        }
+
+        case 'commandRun': {
+          const cmd = event.payload as any
+          pushSystem(`执行命令: /${cmd?.name || 'unknown'}${cmd?.args || ''}`)
+          break
+        }
+
+        case 'commandDone': {
+          const cmd = event.payload as any
+          if (cmd?.kind === 'error') {
+            pushSystem(`命令失败: /${cmd?.name || 'unknown'}`)
+          }
+          break
+        }
+
+        case 'compactionStart':
+          pushSystem('上下文压缩开始...')
+          break
+
+        case 'compactionSummary': {
+          const compact = event.payload as any
+          const items = compact?.shadowedItemCount
+          const tokens = compact?.shadowedTokenCount
+          let msg = '上下文压缩完成'
+          if (items) msg += ` (${items} 条消息`
+          if (tokens) msg += `, ${tokens} tokens`
+          if (items) msg += ')'
+          pushSystem(msg)
+          break
+        }
+
+        case 'compactionEnd':
+          // 压缩结束（已在 summary 中处理）
+          break
+
+        case 'todoWrite': {
+          const todoPayload = event.payload as any
+          const todos = todoPayload?.todos ?? []
+          const pending = todos.filter((t: any) => t.status === 'pending').length
+          const inProgress = todos.filter((t: any) => t.status === 'in_progress').length
+          const completed = todos.filter((t: any) => t.status === 'completed').length
+          pushSystem(`任务列表更新: ${inProgress} 进行中, ${pending} 待办, ${completed} 已完成`)
+          break
+        }
+
+        case 'requestHeader': {
+          const header = event.payload as any
+          if (header?.reason === 'change') {
+            pushSystem(`模型切换: ${header?.model || '未知'}`)
+          }
+          break
+        }
+
+        case 'sandboxMode': {
+          const sandbox = event.payload as any
+          pushSystem(`沙箱模式: ${sandbox?.mode || '未知'}`)
+          break
+        }
+
+        case 'planMode': {
+          const plan = event.payload as any
+          pushSystem(plan?.active ? '已进入计划模式' : '已退出计划模式')
+          break
+        }
 
         case 'questionRequest': {
           const req = event.payload as PendingQuestionRequest
@@ -210,12 +324,14 @@ export const AgentPanel: React.FC = () => {
     // 设置打字机回调来更新这个消息
     typewriter.onUpdate((displayText) => {
       setMessages((cur) => cur.map(m => m.id === id ? { ...m, content: displayText } : m))
+      setContentVersion(v => v + 1)
     })
     typewriter.reset()
 
     // 设置推理打字机回调
     reasoningTypewriter.onUpdate((displayReasoning) => {
       setMessages((cur) => cur.map(m => m.id === id ? { ...m, reasoning: displayReasoning } : m))
+      setContentVersion(v => v + 1)
     })
     reasoningTypewriter.reset()
     
@@ -258,7 +374,7 @@ export const AgentPanel: React.FC = () => {
   }, [reasoningTypewriter])
 
   // 提交流式消息（turn/end 或 session.idle 时调用）
-  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean) => {
+  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any) => {
     console.log('[AgentPanel] commitStreamingMessage, activeRef:', activeMsgRef.current, 'text:', text?.slice(0, 50), 'turnCompleted:', turnCompleted)
     // 先捕获 ref 值（setMessages updater 异步执行时 ref 可能已变）
     const aid = activeMsgRef.current
@@ -277,6 +393,7 @@ export const AgentPanel: React.FC = () => {
             reasoning: reasoning || next[i].reasoning,
             streaming: false,
             turnCompleted: turnCompleted || false,
+            turnEndReason: turnEndReason || next[i].turnEndReason,
             stats: stats || next[i].stats,
           }
           return next
@@ -284,7 +401,7 @@ export const AgentPanel: React.FC = () => {
       }
       // 没有活跃消息时创建新的
       const id = `a-${Date.now()}`
-      return [...cur, { id, role: 'assistant' as const, content: text, reasoning, turnCompleted: turnCompleted || false, stats, ts: Date.now() }]
+      return [...cur, { id, role: 'assistant' as const, content: text, reasoning, turnCompleted: turnCompleted || false, turnEndReason, stats, ts: Date.now() }]
     })
     // 清除活跃消息引用，允许再次输入
     activeMsgRef.current = null
@@ -330,6 +447,8 @@ export const AgentPanel: React.FC = () => {
       }
       return next
     })
+    // 触发自动滚动（工具卡片被聚合进 step 节点，items.length 不变，需要手动触发）
+    setContentVersion(v => v + 1)
   }, [typewriter, reasoningTypewriter])
 
   // 处理工具结果
@@ -356,6 +475,8 @@ export const AgentPanel: React.FC = () => {
       }
       return next
     })
+    // 触发自动滚动（工具结果更新聚合在 step 节点内，items.length 不变）
+    setContentVersion(v => v + 1)
   }, [])
 
   // 添加系统消息
@@ -386,15 +507,29 @@ export const AgentPanel: React.FC = () => {
     try {
       const history = await agentService.loadHistory()
       if (!history.length) return
-      const restored: Message[] = history.map((h, i) => ({
-        id: `hist-${i}-${h.ts || Date.now()}`,
-        role: h.role === 'tool' ? 'tool' : h.role,
-        content: h.content,
-        reasoning: h.reasoning,
-        turnCompleted: h.turnCompleted,
-        tool: h.tool,
-        ts: h.ts || Date.now(),
-      }))
+      const restored: Message[] = history.map((h, i) => {
+        // 将特殊 role 映射为 system 消息，保留原始数据
+        const role = (h.role === 'tool' || h.role === 'command' || h.role === 'compaction' ||
+          h.role === 'retry' || h.role === 'turn-error' || h.role === 'turn-max-tokens' ||
+          h.role === 'todo' || h.role === 'request-header')
+          ? h.role as any
+          : h.role
+        return {
+          id: `hist-${i}-${h.ts || Date.now()}`,
+          role,
+          content: h.content,
+          reasoning: h.reasoning,
+          turnCompleted: h.turnCompleted,
+          turnEndReason: h.turnEndReason,
+          tool: h.tool,
+          command: h.command,
+          compaction: h.compaction,
+          retries: h.retries,
+          todos: h.todos,
+          requestHeader: h.requestHeader,
+          ts: h.ts || Date.now(),
+        }
+      })
       setMessages([
         { id: 'sys-0', role: 'system', content: '对话已恢复', ts: Date.now() },
         ...restored,
@@ -434,6 +569,7 @@ export const AgentPanel: React.FC = () => {
     console.log('[AgentPanel] 切换会话:', sessionId)
     await agentService.switchSession(sessionId)
     activeMsgRef.current = null
+    setPendingQuestions([]) // 清除旧会话的 pending questions
     
     // 加载历史消息
     console.log('[AgentPanel] 开始加载历史消息')
@@ -442,11 +578,17 @@ export const AgentPanel: React.FC = () => {
     if (history.length > 0) {
       const historyMessages: Message[] = history.map((msg, i) => ({
         id: `hist-${sessionId}-${i}`,
-        role: msg.role,
+        role: msg.role as any,
         content: msg.content,
         reasoning: msg.reasoning,
         turnCompleted: msg.turnCompleted,
+        turnEndReason: msg.turnEndReason,
         tool: msg.tool,
+        command: msg.command,
+        compaction: msg.compaction,
+        retries: msg.retries,
+        todos: msg.todos,
+        requestHeader: msg.requestHeader,
         ts: msg.ts || Date.now(),
       }))
       setMessages(historyMessages)
@@ -526,6 +668,15 @@ export const AgentPanel: React.FC = () => {
         continue
       }
 
+      // 特殊消息类型（命令、压缩、重试、错误等）→ 独立系统节点
+      if (msg.role === 'command' || msg.role === 'compaction' || msg.role === 'retry' ||
+          msg.role === 'turn-error' || msg.role === 'turn-max-tokens' ||
+          msg.role === 'todo' || msg.role === 'request-header') {
+        nodes.push({ key: msg.id, kind: 'system', msg })
+        i++
+        continue
+      }
+
       // assistant 消息 → 收集连续的 assistant/tool 组成一个 step
       if (msg.role === 'assistant') {
         const stepItems: RenderNode['stepItems'] = []
@@ -562,7 +713,93 @@ export const AgentPanel: React.FC = () => {
   // ─── 单个渲染节点的渲染函数（稳定引用，不随 messages 变化） ───
   const renderNode = useCallback((node: RenderNode) => {
     if (node.kind === 'user' || node.kind === 'system') {
-      return <MessageBubble message={node.msg!} isFinal={false} />
+      const msg = node.msg!
+
+      // 特殊消息类型渲染
+      if (msg.role === 'command' && msg.command) {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-command">
+            <span className="agent-system-msg__icon">⚡</span>
+            <span className="agent-system-msg__text">
+              /{msg.command.name}{msg.command.args ? ` ${msg.command.args}` : ''}
+              {msg.command.outcome?.kind === 'error' && <span className="agent-system-msg__error"> (失败)</span>}
+            </span>
+          </div>
+        )
+      }
+
+      if (msg.role === 'compaction' && msg.compaction) {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-compaction">
+            <span className="agent-system-msg__icon">🗜️</span>
+            <span className="agent-system-msg__text">
+              {msg.content}
+              {msg.compaction.shadowedItemCount && <span> ({msg.compaction.shadowedItemCount} 条消息)</span>}
+            </span>
+          </div>
+        )
+      }
+
+      if (msg.role === 'retry' && msg.retries) {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-retry">
+            <span className="agent-system-msg__icon">🔄</span>
+            <span className="agent-system-msg__text">{msg.content}</span>
+          </div>
+        )
+      }
+
+      if (msg.role === 'turn-error') {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-error">
+            <span className="agent-system-msg__icon">❌</span>
+            <span className="agent-system-msg__text">{msg.content}</span>
+          </div>
+        )
+      }
+
+      if (msg.role === 'turn-max-tokens') {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-max-tokens">
+            <span className="agent-system-msg__icon">✂️</span>
+            <span className="agent-system-msg__text">{msg.content}</span>
+          </div>
+        )
+      }
+
+      if (msg.role === 'todo' && msg.todos) {
+        const pending = msg.todos.filter(t => t.status === 'pending')
+        const inProgress = msg.todos.filter(t => t.status === 'in_progress')
+        const completed = msg.todos.filter(t => t.status === 'completed')
+        return (
+          <div key={msg.id} className="agent-system-msg agent-todo">
+            <span className="agent-system-msg__icon">📋</span>
+            <div className="agent-system-msg__text">
+              <div>任务列表 ({msg.todos.length} 项)</div>
+              {inProgress.length > 0 && inProgress.map((t, i) => (
+                <div key={i} className="agent-todo__item agent-todo__in-progress">🔄 {t.content}</div>
+              ))}
+              {pending.length > 0 && pending.slice(0, 3).map((t, i) => (
+                <div key={i} className="agent-todo__item agent-todo__pending">⏳ {t.content}</div>
+              ))}
+              {pending.length > 3 && <div className="agent-todo__more">...还有 {pending.length - 3} 项</div>}
+              {completed.length > 0 && <div className="agent-todo__item agent-todo__completed">✅ {completed.length} 项已完成</div>}
+            </div>
+          </div>
+        )
+      }
+
+      if (msg.role === 'request-header' && msg.requestHeader) {
+        return (
+          <div key={msg.id} className="agent-system-msg agent-request-header">
+            <span className="agent-system-msg__icon">🤖</span>
+            <span className="agent-system-msg__text">{msg.content}</span>
+          </div>
+        )
+      }
+
+      // 默认系统消息
+      return <MessageBubble message={msg} isFinal={false} />
     }
 
     // step 容器
@@ -572,7 +809,6 @@ export const AgentPanel: React.FC = () => {
       <div className="agent-step">
         {items.map((item) => {
           if (item.type === 'reasoning') {
-            // 推理卡片：stepEnd 时折叠（通过 streaming 状态控制）
             return (
               <ReasoningBlock
                 key={`reasoning-${item.msg.id}`}
@@ -585,7 +821,6 @@ export const AgentPanel: React.FC = () => {
             return <ToolCard key={`tool-${item.msg.id}`} tool={item.msg.tool} />
           }
           if (item.type === 'message') {
-            // isFinal = turnCompleted（回合真正结束才显示时间+复制按钮）
             return (
               <MessageBubble
                 key={`msg-${item.msg.id}`}
@@ -655,6 +890,7 @@ export const AgentPanel: React.FC = () => {
         estimatedItemHeight={100}
         overscan={8}
         autoScrollToBottom={true}
+        scrollTriggerDeps={contentVersion}
         getItemKey={(node) => node.key}
         renderItem={renderNode}
       />

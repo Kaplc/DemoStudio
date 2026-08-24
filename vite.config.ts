@@ -188,6 +188,11 @@ function agentHmrGuardPlugin(): Plugin {
     },
 
     handleHotUpdate(ctx) {
+      // 忽略 logs 文件夹的变更
+      if (ctx.file.includes('/logs/') || ctx.file.includes('\\logs\\')) {
+        return undefined
+      }
+
       // 暂停状态：收集变更，不触发 HMR
       if (paused) {
         pendingUpdates.set(ctx.file, { modules: ctx.modules, timestamp: Date.now() })
@@ -253,7 +258,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron'],
+              external: ['electron', 'ws'],
             },
           },
         },

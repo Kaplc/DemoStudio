@@ -259,10 +259,22 @@ async function waitForDevServer(): Promise<void> {
 
 /**
  * 通过 stdio 子进程加载 dsh-agent-service.js（DSH 内核 + HTTP 代理）。
- * 等到子进程往 stdout 打 "[dsh-agent] DSH Agent 服务已启动，端口: N" 后，
- * 解析端口号，标记 ready。
+ * 非阻塞：启动子进程后立即返回，不等待端口就绪。
+ * 子进程 stdout 输出 "dsh web: http://...:N" 时自动标记 _dshPort。
  */
-async function startDSHService(): Promise<void> {
+function startDSHService(): void {
+  // 检测 DSH 是否已由外部启动（editor.bat 通过端口检测设置 DSH_SKIP=1）
+  if (process.env.DSH_SKIP === '1') {
+    console.log('[DSH] 检测到 DSH_SKIP=1，跳过启动（复用已有 DSH 实例）')
+    _dshPort = 3080
+    _dshService = {
+      stop: async () => { /* 外部实例，不负责关闭 */ },
+      getPort: () => _dshPort,
+      isRunning: () => _dshPort !== 0,
+    }
+    return
+  }
+
   console.log('[DSH] 启动 DSH 内核 (web profile, port 3080)...')
 
   if (!fs.existsSync(DSH_CLI_PATH)) {
@@ -281,6 +293,15 @@ async function startDSHService(): Promise<void> {
     },
   })
 
+  // 先注册 stop，编辑器退出时能清理子进程
+  _dshService = {
+    stop: async () => {
+      try { child.kill() } catch { /* ignore */ }
+    },
+    getPort: () => _dshPort,
+    isRunning: () => _dshPort !== 0,
+  }
+
   child.stdout?.on('data', (data) => {
     const msg = data.toString()
     msg.split(/\r?\n/).forEach((line) => {
@@ -288,7 +309,10 @@ async function startDSHService(): Promise<void> {
       if (t) console.log(`[DSH:stdout] ${t}`)
       // DSH web 输出: "dsh web: http://127.0.0.1:3080"
       const m = t.match(/dsh web:\s*http:\/\/[^:]+:(\d+)/)
-      if (m) _dshPort = Number(m[1])
+      if (m) {
+        _dshPort = Number(m[1])
+        console.log(`[DSH] 内核就绪: http://127.0.0.1:${_dshPort}`)
+      }
     })
   })
   child.stderr?.on('data', (data) => {
@@ -305,25 +329,6 @@ async function startDSHService(): Promise<void> {
   child.on('error', (err) => {
     console.error(`[DSH] 内核启动失败: ${err.message}`)
   })
-
-  // 等端口就绪（DSH 内核启动后监听 3080）
-  const deadline = Date.now() + 30000
-  while (Date.now() < deadline && _dshPort === 0) {
-    await new Promise((r) => setTimeout(r, 300))
-  }
-  if (_dshPort === 0) {
-    console.warn('[DSH] 内核启动超时（30s），编辑器继续启动；AI 能力不可用')
-    return
-  }
-
-  console.log(`[DSH] 内核就绪: http://127.0.0.1:${_dshPort}`)
-  _dshService = {
-    stop: async () => {
-      try { child.kill() } catch { /* ignore */ }
-    },
-    getPort: () => _dshPort,
-    isRunning: () => _dshPort !== 0,
-  }
 }
 
 // ═══════════════════════════════════════
@@ -337,8 +342,8 @@ async function startApp() {
   // 2. 启动 MCP HTTP API（多实例自动分配端口）
   await startMCPServer()
 
-  // 3. 启动 DSH 服务（AI 聊天内核）
-  await startDSHService()
+  // 3. 启动 DSH 服务（非阻塞，后台慢慢启动）
+  startDSHService()
 
   // 4. 等待开发服务器就绪（开发模式）
   if (isDev) {
@@ -413,16 +418,14 @@ ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
 // --- DSH Mux WS 下行桥 ---
 // 事件下行流（question/requested、session/event 等）走 WebSocket，
 // main 进程连接 DSH WS → 解析 JSON 帧 → IPC 转发渲染进程
-let _muxWs: { on: Function; close: Function } | null = null
+let _muxWs: import('ws').WebSocket | null = null
 let _muxReconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 function connectMuxWs(): void {
   if (_muxWs) return
   try {
-    // 动态引入 ws（Electron 环境内置 node 模块，无类型声明时用 any）
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-    const WS = require('ws') as any
-    const ws = new WS('ws://127.0.0.1:3080/api/events.mux', { headers: { Origin: 'http://127.0.0.1:3080' } })
+    const WebSocket = require('ws') as typeof import('ws').default
+    const ws = new WebSocket('ws://127.0.0.1:3080/api/events.mux', { headers: { Origin: 'http://127.0.0.1:3080' } })
     _muxWs = ws
 
     ws.on('open', () => { console.log('[DSH-mux] WS 已连接') })

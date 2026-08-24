@@ -1432,6 +1432,56 @@ html, body, #root {
   max-width: 100%;
 }
 
+/* --- Agent 系统消息（命令、压缩、重试等）--- */
+.agent-system-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(748px, 90%);
+  margin: 4px auto;
+  padding: 6px 12px;
+  font: var(--dsw-font-xxs);
+  color: var(--dsw-alias-label-caption);
+  background: var(--dsw-alias-interactive-bg-subtle);
+  border-radius: 8px;
+  border-left: 3px solid var(--dsw-alias-label-dimmed);
+}
+.agent-system-msg__icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+.agent-system-msg__text {
+  flex: 1;
+  line-height: 1.4;
+}
+.agent-system-msg__error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* 特殊消息类型边框颜色 */
+.agent-command { border-left-color: var(--dsw-alias-state-business-primary); }
+.agent-compaction { border-left-color: var(--dsw-alias-state-info-primary); }
+.agent-retry { border-left-color: var(--dsw-alias-state-warning-primary); }
+.agent-error { border-left-color: var(--dsw-alias-state-error-primary); }
+.agent-max-tokens { border-left-color: var(--dsw-alias-state-warning-primary); }
+.agent-todo { border-left-color: var(--dsw-alias-state-success-primary); }
+.agent-request-header { border-left-color: var(--dsw-alias-state-info-primary); }
+
+/* Todo 列表样式 */
+.agent-todo__item {
+  padding: 2px 0;
+  font-size: 12px;
+}
+.agent-todo__in-progress { color: var(--dsw-alias-state-business-primary); }
+.agent-todo__pending { color: var(--dsw-alias-label-dimmed); }
+.agent-todo__completed { color: var(--dsw-alias-state-success-primary); }
+.agent-todo__more {
+  font-size: 11px;
+  color: var(--dsw-alias-label-dimmed);
+  font-style: italic;
+}
+
 /* --- 连接状态指示器 --- */
 .connection-indicator {
   display: flex;
