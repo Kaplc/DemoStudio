@@ -13,7 +13,7 @@ import path from 'path'
 import fs from 'fs'
 import http from 'http'
 import net from 'net'
-import { spawn, type ChildProcess } from 'child_process'
+import { spawn, execSync, type ChildProcess } from 'child_process'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
@@ -24,6 +24,26 @@ let _gameScore = 0
 let _dshService: { stop(): Promise<void>; getPort(): number; isRunning(): boolean } | null = null
 let _dshPort = 0
 const DSH_CLI_PATH = path.join(__dirname, '..', 'harness', 'dsh-source', 'apps', 'cli', 'lib', 'bin.js')
+const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
+
+/**
+ * 获取系统 Node.js 路径
+ * DSH 要求 Node.js ^22.19.0 || >=24.0.0，而 Electron 内置的 Node.js 版本较低
+ * 因此需要使用系统安装的 Node.js 来启动 DSH
+ */
+function getSystemNodePath(): string {
+  try {
+    const cmd = process.platform === 'win32' ? 'where node' : 'which node'
+    const result = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim()
+    // Windows 的 where 命令可能返回多行，取第一行
+    const nodePath = result.split('\n')[0].trim()
+    console.log(`[DSH] 使用系统 Node.js: ${nodePath}`)
+    return nodePath
+  } catch (err) {
+    console.warn('[DSH] 无法找到系统 Node.js，将使用 Electron 内置 Node.js（可能版本不兼容）')
+    return process.execPath
+  }
+}
 
 // ─── 蓝图编辑 MCP 往返：requestId → 待解析的 HTTP 响应 ───
 let _blueprintReqSeq = 0
@@ -282,14 +302,13 @@ function startDSHService(): void {
     return
   }
 
-  const child = spawn(process.execPath, [DSH_CLI_PATH, '--profile', 'web', '--no-open'], {
-    cwd: path.join(__dirname, '..'),
+  const child = spawn(getSystemNodePath(), [DSH_CLI_PATH, '--profile', 'web', '--no-open'], {
+    cwd: DSH_SOURCE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       NODE_ENV: isDev ? 'development' : 'production',
       DSH_ENGINE_PORT: String(MCP_API_PORT),
-      ELECTRON_RUN_AS_NODE: '1',
     },
   })
 

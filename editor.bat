@@ -67,6 +67,103 @@ if not exist "node_modules" (
     )
 )
 
+REM ─── 检查 DSH 源代码是否存在 ───
+set "DSH_NEED_BUILD=0"
+if not exist "harness\dsh-source\.git" (
+    echo [DSH] 检测到 harness\dsh-source 不存在，正在从 GitHub 克隆...
+    echo.
+    
+    REM 检查 Git 是否可用
+    where git >nul 2>nul
+    if errorlevel 1 (
+        echo [ERROR] 未检测到 Git，请先安装:
+        echo   https://git-scm.com/
+        pause
+        exit /b 1
+    )
+    
+    if exist "harness\dsh-source" (
+        echo [DSH] 检测到残留目录，先清理...
+        rmdir /s /q "harness\dsh-source"
+    )
+    git clone https://github.com/deepseek-ai/deepseek-harness.git harness\dsh-source
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] DSH 克隆失败！请检查网络连接后重试。
+        echo   手动克隆: git clone https://github.com/deepseek-ai/deepseek-harness.git harness\dsh-source
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [DSH] 克隆完成
+    echo.
+    set "DSH_NEED_BUILD=1"
+)
+
+REM ─── 检查 DSH 是否需要构建（CLI 不存在或首次克隆） ───
+if not exist "harness\dsh-source\apps\cli\lib\bin.js" set "DSH_NEED_BUILD=1"
+if "%DSH_NEED_BUILD%"=="1" (
+    echo [DSH] 检测到 DSH 未构建，正在自动构建...
+    echo.
+    
+    REM 检查 pnpm 是否可用，不存在则自动安装
+    where pnpm >nul 2>nul
+    if errorlevel 1 (
+        echo [DSH] 未检测到 pnpm，正在自动安装...
+        echo.
+        call npm install -g pnpm --registry=%NPM_REGISTRY% --no-audit --no-fund
+        if errorlevel 1 (
+            echo.
+            echo [ERROR] pnpm 安装失败！请手动运行:
+            echo   npm install -g pnpm
+            pause
+            exit /b 1
+        )
+        echo.
+        echo [DSH] pnpm 安装完成
+        echo.
+    )
+    
+    REM 进入 DSH 源码目录
+    pushd harness\dsh-source
+    
+    REM 安装依赖（如果 node_modules 不存在）
+    if not exist "node_modules" (
+        echo [DSH] 正在安装依赖（使用国内镜像源）...
+        echo.
+        call pnpm install --registry=%NPM_REGISTRY%
+        if errorlevel 1 (
+            echo.
+            echo [ERROR] DSH 依赖安装失败！请检查网络连接后重试。
+            popd
+            pause
+            exit /b 1
+        )
+        echo.
+        echo [DSH] 依赖安装完成
+        echo.
+    )
+    
+    REM 构建项目
+    echo [DSH] 正在构建项目...
+    echo.
+    call pnpm run build
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] DSH 构建失败！请查看错误信息。
+        echo   如需手动构建，请进入 harness\dsh-source 目录运行: pnpm run build
+        popd
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [DSH] 构建完成
+    echo.
+    
+    REM 返回原目录
+    popd
+)
+
 REM ─── 检测 DSH 是否已启动（端口 3080） ───
 set "DSH_SKIP=0"
 netstat -ano | findstr ":3080 " | findstr "LISTENING" >nul 2>nul

@@ -15,6 +15,14 @@ const STATUS_CLASS: Record<PluginStatus, string> = {
   loading: 'loading',
 }
 
+/** 插件类型中文名映射 */
+const TYPE_NAMES: Record<PluginType, string> = {
+  tool: '工具',
+  service: '服务',
+  ui: 'UI',
+  integration: '集成',
+}
+
 interface PluginCardProps {
   plugin: PluginInfo
   onToggle: (id: string) => void
