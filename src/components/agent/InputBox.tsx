@@ -4,6 +4,7 @@
  * 胶囊圆角 + 圆形发送按钮 + 自动扩展 + 停止按钮
  */
 import React, { useState, useRef, useEffect } from 'react'
+import { ModelSelector } from './ModelSelector'
 
 interface InputBoxProps {
   onSend: (text: string) => void
@@ -11,6 +12,8 @@ interface InputBoxProps {
   disabled?: boolean
   running?: boolean
   placeholder?: string
+  currentModel?: { provider: string; model: string } | null
+  onModelChange?: (provider: string, model: string) => void
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -18,7 +21,9 @@ export const InputBox: React.FC<InputBoxProps> = ({
   onStop,
   disabled = false,
   running = false,
-  placeholder = '向 Agent 提问...（Enter 发送 / Shift+Enter 换行）'
+  placeholder = '向 Agent 提问...（Enter 发送 / Shift+Enter 换行）',
+  currentModel = null,
+  onModelChange,
 }) => {
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -78,7 +83,6 @@ export const InputBox: React.FC<InputBoxProps> = ({
               placeholder={placeholder}
               rows={1}
               disabled={disabled}
-              readOnly={running}
             />
           </div>
         </div>
@@ -88,6 +92,12 @@ export const InputBox: React.FC<InputBoxProps> = ({
             {/* 预留：+ 按钮、权限选择器 */}
           </div>
           <div className="composer__trailing">
+            {/* 模型选择器 - 发送按钮左侧 */}
+            <ModelSelector
+              currentModel={currentModel}
+              onModelChange={onModelChange || (() => {})}
+              disabled={disabled}
+            />
             {running && onStop ? (
               <button
                 className="composer__stop"

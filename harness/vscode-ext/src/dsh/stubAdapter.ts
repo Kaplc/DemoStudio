@@ -40,6 +40,10 @@ export class StubKernelAdapter implements KernelAdapter {
     })
   }
 
+  async cancel(): Promise<void> {
+    // Stub 模式无真实 turn，静默返回
+  }
+
   on(event: KernelEvent['type'], cb: Listener): Disposable {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set())
     this.listeners.get(event)!.add(cb)

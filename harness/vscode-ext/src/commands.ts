@@ -48,6 +48,24 @@ export function registerCommands(deps: CommandDeps): vscode.Disposable[] {
     await wrapped.handle(text)
   }))
 
+  /** 用户点击停止按钮 → 取消当前正在进行的 AI 生成 */
+  subs.push(vscode.commands.registerCommand('dsh.cancelGeneration', async () => {
+    const adapter = kernel.getAdapter()
+    if (!adapter) {
+      outputChannel.appendLine('[commands] cancelGeneration: 内核未连接')
+      return
+    }
+    try {
+      await adapter.cancel()
+      outputChannel.appendLine('[commands] cancelGeneration: 已发送取消请求')
+      // 向聊天面板推送取消事件，UI 将当前流式消息标记为已中断
+      chatView.postMessage({ type: 'cancelled' })
+    } catch (err) {
+      outputChannel.appendLine(`[commands] cancelGeneration 失败: ${err}`)
+      chatView.postMessage({ type: 'error', payload: { message: `取消失败: ${err}` } })
+    }
+  }))
+
   subs.push(vscode.commands.registerCommand('dsh.startEngine', async () => {
     statusBar.setEngineStatus('starting')
     // 推送状态到聊天面板

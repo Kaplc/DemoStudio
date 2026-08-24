@@ -37,11 +37,12 @@ const UserMessage: React.FC<{ message: Message }> = ({ message }) => (
 /** 助手消息气泡（支持结构化块渲染） */
 const AssistantMessage: React.FC<{ message: Message; toolMap?: Map<string, import('./types').ToolCall> }> = ({ message, toolMap }) => {
   const blocks = message.blocks ?? []
+  const stoppedClass = message.interrupted ? ' message--interrupted' : ''
 
   // 如果没有 blocks，直接渲染 content
   if (blocks.length === 0) {
     return (
-      <div className={`message message--assistant${message.streaming ? ' message--streaming' : ''}`}>
+      <div className={`message message--assistant${message.streaming ? ' message--streaming' : ''}${stoppedClass}`}>
         <div className="message__header">
           <span className="message__role">🤖 DSH</span>
           <span className="message__time">{formatTime(message.ts)}</span>
@@ -49,6 +50,7 @@ const AssistantMessage: React.FC<{ message: Message; toolMap?: Map<string, impor
         <div className="message__body">
           {message.content ? <MarkdownText text={message.content} streaming={message.streaming} /> : null}
           {message.streaming && <span className="streaming-cursor">▊</span>}
+          {message.interrupted && <span className="message__stopped">已停止</span>}
         </div>
       </div>
     )
@@ -56,7 +58,7 @@ const AssistantMessage: React.FC<{ message: Message; toolMap?: Map<string, impor
 
   // 按 blocks 渲染
   return (
-    <div className={`message message--assistant${message.streaming ? ' message--streaming' : ''}`}>
+    <div className={`message message--assistant${message.streaming ? ' message--streaming' : ''}${stoppedClass}`}>
       <div className="message__header">
         <span className="message__role">🤖 DSH</span>
         <span className="message__time">{formatTime(message.ts)}</span>
@@ -66,6 +68,7 @@ const AssistantMessage: React.FC<{ message: Message; toolMap?: Map<string, impor
           <AssistantBlockView key={i} block={block} toolMap={toolMap} streaming={message.streaming} />
         ))}
         {message.streaming && <span className="streaming-cursor">▊</span>}
+        {message.interrupted && <span className="message__stopped">已停止</span>}
       </div>
     </div>
   )

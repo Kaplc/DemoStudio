@@ -81,15 +81,13 @@ const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) 
       {((isAssistant && isFinal) || isUser) && !message.streaming && (
         <div className="message__footer">
           <span className="message__time">{formatTime(message.ts)}</span>
-          {isAssistant && (
-            <button
-              className="message__footer-btn"
-              onClick={handleCopy}
-              title="复制"
-            >
-              {copied ? '✓' : '📋'}
-            </button>
-          )}
+          <button
+            className="message__footer-btn"
+            onClick={handleCopy}
+            title="复制"
+          >
+            {copied ? '✓' : '📋'}
+          </button>
         </div>
       )}
 

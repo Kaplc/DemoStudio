@@ -57,6 +57,53 @@ export const ChatPanel: React.FC = () => {
     gameScore: 0,
   })
   const scrollerRef = React.useRef<HTMLDivElement>(null)
+  const [showScrollBtn, setShowScrollBtn] = React.useState(false)
+
+  // ── 运行状态：有流式消息时为 true ──
+  const running = streamingId !== null
+
+  // ── 判断是否在底部（距底 < 80px）──
+  const checkAtBottom = React.useCallback((): boolean => {
+    const el = scrollerRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }, [])
+
+  // ── 监听滚动事件，更新"回到底部"按钮可见性 ──
+  React.useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const onScroll = () => {
+      const atBottom = checkAtBottom()
+      setShowScrollBtn(!atBottom)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [checkAtBottom])
+
+  // ── 安全滚动到底：等浏览器 layout 完成后再滚 ──
+  const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'instant') => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scrollerRef.current
+        if (!el) return
+        el.scrollTo({ top: el.scrollHeight, behavior })
+        setShowScrollBtn(false)
+      })
+    })
+  }, [])
+
+  // ── 实时消息：仅在用户处于底部时自动滚动 ──
+  React.useEffect(() => {
+    if (checkAtBottom()) {
+      scrollToBottom()
+    }
+  }, [messages, checkAtBottom, scrollToBottom])
+
+  // ── 停止生成：向 extension host 发送 cancel 请求 ──
+  const onStop = React.useCallback(() => {
+    vscode.postMessage({ type: 'cancel' })
+  }, [])
 
   React.useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -92,15 +139,17 @@ export const ChatPanel: React.FC = () => {
           setStatus(s => ({ ...s, kernelStatus: 'disconnected', kernelDetail: '' }))
           pushSystem('内核已关闭', 'system')
           break
+        case 'cancelled':
+          handleCancelled()
+          break
+        case 'loadHistory':
+          handleLoadHistory(data.payload?.messages ?? [])
+          break
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
   }, [])
-
-  React.useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight })
-  }, [messages])
 
   // ── 用户发送消息 ──
   const onSend = (text: string) => {
@@ -227,6 +276,36 @@ export const ChatPanel: React.FC = () => {
     }))
   }
 
+  // ── 取消生成：将当前流式消息标记为已中断 ──
+  function handleCancelled() {
+    setMessages((cur) => {
+      if (!streamingId) return cur
+      return cur.map((m) =>
+        m.id === streamingId ? { ...m, streaming: false, interrupted: true } : m,
+      )
+    })
+    setStreamingId(null)
+    pushSystem('已停止生成', 'system')
+  }
+
+  // ── 批量加载历史消息 + 强制滚动到底 ──
+  function handleLoadHistory(history: Array<{ role: string; content: string; ts: number; blocks?: AssistantBlock[] }>) {
+    const loaded: Message[] = history.map((h, i) => ({
+      id: `hist-${i}-${h.ts}`,
+      role: h.role as Message['role'],
+      content: h.content,
+      ts: h.ts,
+      blocks: h.blocks,
+    }))
+    // 保留系统欢迎消息，追加历史
+    setMessages((cur) => {
+      const sys = cur.filter(m => m.role === 'system' && m.id === 'sys-0')
+      return [...sys, ...loaded]
+    })
+    // 历史加载后无条件滚动到底（用户主动触发）
+    scrollToBottom()
+  }
+
   // ── 状态栏渲染 ──
   const kernelStatusMap = {
     disconnected: { icon: '⚪', text: '未连接', color: 'var(--vscode-descriptionForeground)' },
@@ -284,10 +363,20 @@ export const ChatPanel: React.FC = () => {
       {/* ── 消息流 ── */}
       <div className="chat-panel__messages" ref={scrollerRef}>
         {messages.map((m) => <MessageBubble key={m.id} message={m} toolMap={toolMap} />)}
+        {/* ── 回到底部浮动按钮 ── */}
+        {showScrollBtn && (
+          <button
+            className="scroll-to-bottom"
+            onClick={() => scrollToBottom('smooth')}
+            title="回到底部"
+          >
+            ↓
+          </button>
+        )}
       </div>
 
       {/* ── 输入框 ── */}
-      <InputBox onSend={onSend} />
+      <InputBox onSend={onSend} onStop={onStop} running={running} />
     </div>
   )
 }

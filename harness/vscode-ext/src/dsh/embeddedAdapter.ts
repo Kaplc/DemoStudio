@@ -112,6 +112,23 @@ export class EmbeddedKernelAdapter implements KernelAdapter {
     })
   }
 
+  async cancel(): Promise<void> {
+    if (!this.harness) {
+      throw new Error('内核未启动')
+    }
+    try {
+      // 通过 SDK 发送 session.cancel RPC 到 DSH runtime
+      // 服务端会 abort 当前 turn 的 AbortController，中断 LLM 流和工具执行
+      const result = await this.harness.client.request('session.cancel', {})
+      if (result && typeof result === 'object' && 'ok' in result && !(result as { ok: boolean }).ok) {
+        this.outputChannel.appendLine(`[kernel/embedded] cancel 被拒绝: ${JSON.stringify(result)}`)
+      }
+    } catch (err) {
+      this.outputChannel.appendLine(`[kernel/embedded] cancel 失败: ${err}`)
+      throw err
+    }
+  }
+
   on(event: KernelEvent['type'], cb: Listener): Disposable {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set())
     this.listeners.get(event)!.add(cb)
@@ -188,7 +205,15 @@ export class EmbeddedKernelAdapter implements KernelAdapter {
     }
 
     // Idle / 错误
-    if (kind === 'idle' || kind === 'turn_end' || kind === 'session.idle') {
+    if (kind === 'idle' || kind === 'session.idle') {
+      return
+    }
+    // Turn 结束 — 检测是否因取消而中止
+    if (kind === 'turn_end' || kind === 'turn/end') {
+      const reason = (n.payload as { reason?: { kind?: string } })?.reason
+      if (reason?.kind === 'aborted' || reason?.kind === 'cancelled') {
+        this.emit({ type: 'cancelled' })
+      }
       return
     }
     if (kind === 'error' || kind === 'agent.error') {

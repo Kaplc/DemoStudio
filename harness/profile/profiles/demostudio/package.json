@@ -5,7 +5,12 @@
   "dsh": {
     "profile": {
       "bundles": [
-        "@demostudio/dsh-engine-tools"
+        "@demostudio/dsh-engine-tools",
+        "@deepseek-ai/dsh-tool-web",
+        "@deepseek-ai/dsh-web-search-deepseek",
+        "@deepseek-ai/dsh-web-fetch-http",
+        "@deepseek-ai/dsh-skill-filesystem",
+        "@deepseek-ai/dsh-tool-skill"
       ]
     }
   }

@@ -2,6 +2,7 @@
  * 推理过程折叠块
  *
  * 折叠逻辑：
+ *  - forceCollapsed=true → 强制折叠（收到 message.delta 时）
  *  - streaming=true → 展开（推理进行中）
  *  - streaming=false → 折叠（stepEnd 触发，模型调用结束）
  *
@@ -12,9 +13,11 @@ import React, { useState, useRef, useEffect } from 'react'
 interface ReasoningBlockProps {
   content: string
   streaming?: boolean
+  /** 强制折叠（收到 message.delta 时置 true） */
+  forceCollapsed?: boolean
 }
 
-const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming }) => {
+const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming, forceCollapsed }) => {
   const [expanded, setExpanded] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const wasStreamingRef = useRef(false)
@@ -33,8 +36,13 @@ const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming
     }
   }, [content, streaming])
 
-  // 流式时展开，streaming 结束（stepEnd）时折叠
+  // 折叠/展开逻辑
   useEffect(() => {
+    if (forceCollapsed) {
+      // 收到 message.delta → 强制折叠推理卡片
+      setExpandedSync(false)
+      return
+    }
     if (streaming) {
       setExpandedSync(true)
       wasStreamingRef.current = true
@@ -43,7 +51,7 @@ const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming
       setExpandedSync(false)
       wasStreamingRef.current = false
     }
-  }, [streaming])
+  }, [streaming, forceCollapsed])
 
   if (!content) return null
 
@@ -80,4 +88,5 @@ const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming
 export const ReasoningBlock = React.memo(ReasoningBlockInner, (prev, next) => {
   return prev.content === next.content
     && prev.streaming === next.streaming
+    && prev.forceCollapsed === next.forceCollapsed
 })

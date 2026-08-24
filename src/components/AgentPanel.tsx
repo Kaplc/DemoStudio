@@ -24,6 +24,8 @@ import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
 import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
+import { ModelSelector } from './agent/ModelSelector'
+import { SettingsPanel } from './agent/SettingsPanel'
 
 // ─── 渲染节点类型（虚拟列表的 item） ───
 interface RenderNode {
@@ -50,7 +52,11 @@ export const AgentPanel: React.FC = () => {
   const [showPluginCenter, setShowPluginCenter] = useState(false)
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
+  const [showSettings, setShowSettings] = useState(false)
+  const [currentModel, setCurrentModel] = useState<{ provider: string; model: string } | undefined>(undefined)
+  const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
   const activeMsgRef = useRef<string | null>(null)  // 当前活跃的 AI 消息 ID
+  const hasFlushedReasoningRef = useRef(false)  // 是否已 flush 推理内容
   const [contentVersion, setContentVersion] = useState(0)  // 流式内容变化计数器，用于触发自动滚动
 
   // 打字机效果（回复）
@@ -124,6 +130,7 @@ export const AgentPanel: React.FC = () => {
           break
 
         case 'turnEnd': {
+          setIsAgentRunning(false) // turn 结束，AI 不再运行
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
             // 非正常结束的回合显示系统消息
@@ -319,6 +326,7 @@ export const AgentPanel: React.FC = () => {
     // 创建新的（不复用已提交的消息）
     const id = `a-${Date.now()}`
     activeMsgRef.current = id
+    hasFlushedReasoningRef.current = false  // 重置推理 flush 标记
     console.log('[AgentPanel] 创建新消息:', id, 'reason: activeRef=' + aid)
     
     // 设置打字机回调来更新这个消息
@@ -353,17 +361,26 @@ export const AgentPanel: React.FC = () => {
     reasoningTypewriter.append(delta)
   }, [getOrCreateActiveId, reasoningTypewriter])
 
-  // 处理流式消息增量（使用打字机效果，首次回复时先刷出推理内容）
+  // 处理流式消息增量（使用打字机效果，首次回复时折叠推理卡片）
   const handleStreamingDelta = useCallback((delta: string) => {
-    console.log('[AgentPanel] message.delta, activeRef:', activeMsgRef.current)
-    // 开始回复时，一次性输出所有推理内容
-    reasoningTypewriter.flush()
+    console.log('[AgentPanel] message.delta, activeRef:', activeMsgRef.current, 'delta length:', delta.length)
+    // 只在第一次收到 message.delta 时：flush 推理 + 折叠推理卡片
+    if (!hasFlushedReasoningRef.current) {
+      hasFlushedReasoningRef.current = true
+      reasoningTypewriter.flush()
+      // 折叠推理卡片
+      const aid = activeMsgRef.current
+      if (aid) {
+        setMessages((cur) => cur.map(m => m.id === aid ? { ...m, reasoningCollapsed: true } : m))
+      }
+    }
     // 追加到打字机缓冲区
     typewriter.append(delta)
   }, [typewriter, reasoningTypewriter])
 
   // 单步模型调用结束（assistant/chunk finish）→ 折叠推理卡片
   const handleStepEnd = useCallback(() => {
+    console.log('[AgentPanel] stepEnd, flushing reasoning')
     // 刷新推理打字机，确保内容完整显示后折叠
     reasoningTypewriter.flush()
     setMessages((cur) => {
@@ -375,7 +392,7 @@ export const AgentPanel: React.FC = () => {
 
   // 提交流式消息（turn/end 或 session.idle 时调用）
   const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any) => {
-    console.log('[AgentPanel] commitStreamingMessage, activeRef:', activeMsgRef.current, 'text:', text?.slice(0, 50), 'turnCompleted:', turnCompleted)
+    console.log('[AgentPanel] commitStreamingMessage, activeRef:', activeMsgRef.current, 'text length:', text?.length, 'turnCompleted:', turnCompleted)
     // 先捕获 ref 值（setMessages updater 异步执行时 ref 可能已变）
     const aid = activeMsgRef.current
     // 刷新两个打字机缓冲区
@@ -546,8 +563,11 @@ export const AgentPanel: React.FC = () => {
     addConsoleOutput('[Agent] 已断开连接')
   }, [addConsoleOutput])
 
-  // 发送消息
+  // 发送消息（AI 运行中自动使用 steer 引导）
   const handleSend = useCallback(async (text: string) => {
+    const isRunning = agentService.isRunning()
+    console.log(`[AgentPanel] handleSend: text="${text}", isRunning=${isRunning}`)
+    
     try {
       setMessages(prev => [...prev, {
         id: `u-${Date.now()}`,
@@ -555,14 +575,40 @@ export const AgentPanel: React.FC = () => {
         content: text,
         ts: Date.now()
       }])
-      activeMsgRef.current = null
-      await agentService.send(text)
-      addConsoleOutput(`[Agent] 发送消息: ${text}`)
+      
+      if (isRunning) {
+        // AI 正在运行，使用 steer 引导
+        console.log(`[AgentPanel] 使用 steer 引导 AI`)
+        addConsoleOutput(`[Agent] 引导 AI: ${text}`)
+        await agentService.steer(text)
+      } else {
+        // AI 空闲，正常发送
+        console.log(`[AgentPanel] 正常发送消息`)
+        activeMsgRef.current = null
+        setIsAgentRunning(true) // AI 开始运行
+        await agentService.send(text)
+        addConsoleOutput(`[Agent] 发送消息: ${text}`)
+      }
       refreshSessions()
     } catch (error) {
+      setIsAgentRunning(false) // 出错时停止
+      console.error(`[AgentPanel] 发送失败:`, error)
       pushSystem(`发送失败: ${error instanceof Error ? error.message : '未知错误'}`)
     }
   }, [addConsoleOutput, pushSystem, refreshSessions])
+
+  // 停止 AI
+  const handleStop = useCallback(async () => {
+    console.log(`[AgentPanel] handleStop: 点击停止按钮`)
+    try {
+      setIsAgentRunning(false) // 立即更新 UI 状态
+      await agentService.stop()
+      addConsoleOutput('[Agent] 已停止 AI')
+    } catch (error) {
+      console.error(`[AgentPanel] 停止失败:`, error)
+      pushSystem(`停止失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }, [addConsoleOutput, pushSystem])
 
   // 切换会话
   const handleSwitchSession = useCallback(async (sessionId: string) => {
@@ -691,7 +737,7 @@ export const AgentPanel: React.FC = () => {
           }
           if (cur.role === 'assistant') {
             if (cur.reasoning) stepItems!.push({ type: 'reasoning', msg: cur })
-            if (cur.content && !cur.streaming) stepItems!.push({ type: 'message', msg: cur })
+            if (cur.content) stepItems!.push({ type: 'message', msg: cur })
             currentIdx++
             continue
           }
@@ -791,9 +837,12 @@ export const AgentPanel: React.FC = () => {
 
       if (msg.role === 'request-header' && msg.requestHeader) {
         return (
-          <div key={msg.id} className="agent-system-msg agent-request-header">
-            <span className="agent-system-msg__icon">🤖</span>
-            <span className="agent-system-msg__text">{msg.content}</span>
+          <div key={msg.id} className="agent-event-card">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon">🤖</span>
+              <span className="agent-event-card__label">模型切换</span>
+              <span className="agent-event-card__value">{msg.requestHeader?.model || '未知'}</span>
+            </div>
           </div>
         )
       }
@@ -814,6 +863,7 @@ export const AgentPanel: React.FC = () => {
                 key={`reasoning-${item.msg.id}`}
                 content={item.msg.reasoning || ''}
                 streaming={item.msg.streaming}
+                forceCollapsed={item.msg.reasoningCollapsed}
               />
             )
           }
@@ -846,15 +896,23 @@ export const AgentPanel: React.FC = () => {
           ☰
         </button>
         <span className="agent-panel__title">Agent</span>
+        
         <button
           className="agent-panel__plugins-btn"
           onClick={() => setShowPluginCenter(true)}
           title="插件控制中心"
         >
-          🔌 <span>插件</span>
+          插件
           {pluginStats.active > 0 && (
             <span className="agent-panel__plugins-badge">{pluginStats.active}</span>
           )}
+        </button>
+        <button
+          className="agent-panel__settings-btn"
+          onClick={() => setShowSettings(true)}
+          title="设置"
+        >
+          ⚙️
         </button>
         <ConnectionIndicator
           state={connectionState}
@@ -884,6 +942,12 @@ export const AgentPanel: React.FC = () => {
         </div>
       )}
 
+      {/* 设置面板 */}
+      <SettingsPanel
+        visible={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
+
       <VirtualList
         className="agent-panel__messages"
         items={renderNodes}
@@ -907,13 +971,16 @@ export const AgentPanel: React.FC = () => {
 
       <InputBox
         onSend={handleSend}
+        onStop={handleStop}
         disabled={connectionState !== 'connected'}
-        running={!!activeMsgRef.current}
+        running={isAgentRunning}
         placeholder={
           connectionState === 'connected'
             ? '向 Agent 提问...'
             : '请先连接到 Harness...'
         }
+        currentModel={currentModel}
+        onModelChange={(provider, model) => setCurrentModel({ provider, model })}
       />
     </div>
   )

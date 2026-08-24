@@ -114,6 +114,8 @@ export interface Message {
   sandboxMode?: string
   /** 计划模式 */
   planMode?: { active: boolean }
+  /** 推理卡片是否已折叠（收到 message.delta 时置 true） */
+  reasoningCollapsed?: boolean
 }
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'

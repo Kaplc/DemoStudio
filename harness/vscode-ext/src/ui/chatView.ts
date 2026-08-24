@@ -40,11 +40,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /**
+   * 批量加载历史消息 → 一次性写入 UI + 强制滚动到底。
+   * 与逐条 postMessage('message') 不同，此方法让 UI 区分"历史批量"和"实时逐条"，
+   * 避免批量加载时 scrollHeight 在浏览器 layout 前被读取导致滚动不到位。
+   * @param history - 按时间正序的历史消息数组（最早的在前）
+   */
+  loadHistory(history: Array<{ role: string; content: string; ts: number; blocks?: unknown[] }>): void {
+    this.outputChannel.appendLine(`[chat] loadHistory: ${history.length} messages`)
+    this.postMessage({ type: 'loadHistory', payload: { messages: history } })
+  }
+
   /** 用户消息通过 vscode.commands 回到 extension.ts，由 kernel 转发到 adapter */
   private async handleMessage(message: { type: string; text?: string; lang?: string; code?: string; command?: string }): Promise<void> {
     if (message.type === 'userMessage' && message.text) {
       this.outputChannel.appendLine(`[chat] user: ${message.text}`)
       vscode.commands.executeCommand('dsh.sendUserMessage', message.text)
+    } else if (message.type === 'cancel') {
+      // 用户点击停止按钮 → 取消当前正在进行的 AI 生成
+      this.outputChannel.appendLine('[chat] user: cancel')
+      vscode.commands.executeCommand('dsh.cancelGeneration')
     } else if (message.type === 'command' && message.command) {
       // 状态栏按钮触发的命令（如重启内核、检查更新）
       this.outputChannel.appendLine(`[chat] command: ${message.command}`)

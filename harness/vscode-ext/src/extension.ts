@@ -199,7 +199,7 @@ function bindKernelToChatOnReady(chatView: ChatViewProvider, kernel: KernelManag
   const tryBind = () => {
     const adapter = kernel.getAdapter()
     if (!adapter) return false
-    const events = ['ready', 'message', 'message.delta', 'toolCall', 'toolResult', 'error', 'closed'] as const
+    const events = ['ready', 'message', 'message.delta', 'toolCall', 'toolResult', 'error', 'cancelled', 'closed'] as const
     for (const evt of events) {
       adapter.on(evt, ((payload: unknown) => chatView.postMessage({ type: evt, payload })) as any)
     }

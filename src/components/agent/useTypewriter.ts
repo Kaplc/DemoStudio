@@ -41,7 +41,9 @@ export function useTypewriter(options: TypewriterOptions = {}) {
 
   // 动画循环
   const animate = useCallback((timestamp: number) => {
-    if (!runningRef.current || !callbackRef.current) return
+    if (!runningRef.current || !callbackRef.current) {
+      return
+    }
 
     if (!lastTimeRef.current) {
       lastTimeRef.current = timestamp

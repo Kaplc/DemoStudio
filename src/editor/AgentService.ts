@@ -149,6 +149,64 @@ interface RpcResponse {
   result?: { ok?: boolean; value?: unknown; error?: { message?: string } }
 }
 
+// --- 模型管理类型 ---
+export interface ModelInfo {
+  id: string
+  name?: string
+  reasoning?: {
+    defaultEffort?: string
+    efforts: Array<{ id: string; name: string; description?: string }>
+  }
+}
+
+export interface ModelGroup {
+  id: string
+  name?: string
+  models: ModelInfo[]
+}
+
+interface ModelsResult {
+  groups?: ModelGroup[]
+  current?: { provider: string; model: string; reasoningEffort?: string }
+}
+
+// --- 凭证管理类型 ---
+export interface CredentialInfo {
+  ref: string
+  configured: boolean
+  source?: 'user' | 'env' | 'default'
+}
+
+// --- 设置管理类型 ---
+export interface SettingsPathOp {
+  op: 'add' | 'remove' | 'replace' | 'merge'
+  path: string[]
+  value?: unknown
+}
+
+export interface SettingsDescribeResult {
+  namespaces: Record<string, {
+    schema?: unknown
+    user?: unknown
+    merged?: unknown
+  }>
+}
+
+export interface ProviderInfo {
+  /** Provider route key (如 'deepseek-official', 'openai') */
+  provider: string
+  /** 人类可读的显示名称 */
+  displayName: string
+  /** 设置命名空间 */
+  settingsNs: string
+  /** 设置路径 */
+  settingsPath: string[]
+  /** 是否已激活 */
+  active: boolean
+  /** 是否声明式 */
+  declared?: boolean
+}
+
 export class AgentService {
   private state: ConnectionState = 'idle'
   private listeners: Set<(event: AgentEvent) => void> = new Set()
@@ -160,6 +218,8 @@ export class AgentService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   /** HMR 存活标记：防止 dispose 后被 GC */
   private _hmrAlive = true
+  /** AI 是否正在运行（用于判断是否使用 steer 模式） */
+  private _isRunning = false
   // --- Mux WS 下行流（question/requested 等帧） ---
   private muxWs: WebSocket | null = null
   private muxCleanup: (() => void) | null = null
@@ -444,6 +504,7 @@ export class AgentService {
     this.abortPolling = false
 
     this.emit({ type: 'message', payload: { role: 'user', content: text } })
+    this.setRunning(true) // AI 开始运行
 
     // 暂停 HMR：Agent 回合期间不触发页面重载
     this.pauseHmr()
@@ -456,10 +517,65 @@ export class AgentService {
       })
       await this.pollForResponse()
     } catch (error) {
+      this.setRunning(false) // 出错时停止
       if (this.abortPolling) return
       this.emit({
         type: 'error',
         payload: { message: error instanceof Error ? error.message : '发送失败' },
+      })
+    }
+  }
+
+  /**
+   * 引导 AI：在 AI 运行中发送新消息，实时注入到当前 turn
+   * @param text - 引导消息内容
+   */
+  async steer(text: string): Promise<void> {
+    if (this.state !== 'connected' || !this.sessionId) {
+      throw new Error('未连接到 DSH')
+    }
+
+    console.log(`[AgentService] 引导 AI: text="${text}", sessionId=${this.sessionId}`)
+    this.emit({ type: 'message', payload: { role: 'user', content: text } })
+
+    try {
+      const result = await this.rpc('session.prompt', {
+        sessionId: this.sessionId,
+        mode: 'steer',
+        content: [{ type: 'text', text }],
+      })
+      console.log(`[AgentService] 引导消息已发送:`, result)
+    } catch (error) {
+      console.error(`[AgentService] 引导失败:`, error)
+      this.emit({
+        type: 'error',
+        payload: { message: error instanceof Error ? error.message : '引导失败' },
+      })
+    }
+  }
+
+  /**
+   * 停止 AI：取消当前活跃的 turn
+   * DSH 会协作式中止当前轮次，保留待处理 inbox 工作
+   */
+  async stop(): Promise<void> {
+    if (!this.sessionId) {
+      throw new Error('无活跃会话')
+    }
+
+    console.log(`[AgentService] 停止 AI: sessionId=${this.sessionId}`)
+    try {
+      const result = await this.rpc('session.cancel', { sessionId: this.sessionId })
+      console.log(`[AgentService] 停止命令已发送:`, result)
+      // 立即更新运行状态
+      this.setRunning(false)
+      // 停止轮询，等待 DSH 的 turn/end 事件
+      this.abortPolling = true
+    } catch (error) {
+      console.error(`[AgentService] 停止失败:`, error)
+      this.emit({
+        type: 'error',
+        payload: { message: error instanceof Error ? error.message : '停止失败' },
       })
     }
   }
@@ -536,6 +652,7 @@ export class AgentService {
             }
             this.flushOrResumeHmr()
             this.polling = false
+            this.setRunning(false) // turn 结束，AI 不再运行
             return
           }
 
@@ -784,6 +901,13 @@ export class AgentService {
 
   getState(): ConnectionState { return this.state }
   isConnected(): boolean { return this.state === 'connected' }
+  /** AI 是否正在运行（用于判断是否使用 steer 模式） */
+  isRunning(): boolean { return this._isRunning }
+  /** 设置 AI 运行状态 */
+  private setRunning(running: boolean): void {
+    console.log(`[AgentService] setRunning: ${running}`)
+    this._isRunning = running
+  }
 
   onEvent(listener: (event: AgentEvent) => void): () => void {
     this.listeners.add(listener)
@@ -1117,6 +1241,88 @@ export class AgentService {
     this.deletedSessionIds.add(sessionId)
     if (this.sessionId === sessionId) this.sessionId = null
     return true
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  模型管理
+  // ═══════════════════════════════════════════════════════════
+
+  /** 获取可用模型列表（按 provider 分组）+ 当前选择 */
+  async getModels(sessionId?: string): Promise<{ groups: ModelGroup[], current: { provider: string; model: string; reasoningEffort?: string } | null }> {
+    const sid = sessionId || this.sessionId
+    if (!sid) throw new Error('无活跃会话')
+    const value = await this.rpc('session.models', { sessionId: sid }) as ModelsResult
+    return {
+      groups: value?.groups || [],
+      current: value?.current || null,
+    }
+  }
+
+  /** 切换当前会话的模型 */
+  async selectModel(provider: string, model: string, reasoningEffort?: string): Promise<void> {
+    if (!this.sessionId) throw new Error('无活跃会话')
+    console.log(`[AgentService] 尝试切换模型: provider=${provider}, model=${model}, effort=${reasoningEffort || 'default'}`)
+    try {
+      const result = await this.rpc('session.selectModel', {
+        sessionId: this.sessionId,
+        provider,
+        model,
+        ...(reasoningEffort ? { reasoningEffort } : {}),
+      })
+      console.log(`[AgentService] 模型切换成功:`, result)
+    } catch (err) {
+      console.error(`[AgentService] 模型切换失败:`, err)
+      throw err
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  凭证管理 (API Key)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * 获取凭证状态
+   * @param refs - 要查询的凭证引用名数组（如 ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY']）
+   * @returns 凭证状态字典 { ref: CredentialInfo }
+   */
+  async describeCredentials(refs: string[]): Promise<Record<string, CredentialInfo>> {
+    if (refs.length === 0) return {}
+    const value = await this.rpc('credentials.describe', { refs }) as { credentials?: Record<string, CredentialInfo> }
+    return value?.credentials || {}
+  }
+
+  /** 设置 API Key */
+  async setCredential(ref: string, value: string): Promise<void> {
+    await this.rpc('credentials.set', { ref, value })
+    console.log(`[AgentService] 凭证已设置: ${ref}`)
+  }
+
+  /** 删除凭证 */
+  async unsetCredential(ref: string): Promise<void> {
+    await this.rpc('credentials.unset', { ref })
+    console.log(`[AgentService] 凭证已删除: ${ref}`)
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  设置管理
+  // ═══════════════════════════════════════════════════════════
+
+  /** 获取设置描述 */
+  async describeSettings(namespace?: string): Promise<SettingsDescribeResult> {
+    const value = await this.rpc('settings.describe', namespace ? { namespace } : {}) as SettingsDescribeResult
+    return value || { namespaces: {} }
+  }
+
+  /** 修改设置（最小化 diff） */
+  async mutateSettings(ops: SettingsPathOp[]): Promise<void> {
+    await this.rpc('settings.mutate', { ops })
+    console.log(`[AgentService] 设置已更新:`, ops.length, '个操作')
+  }
+
+  /** 获取 LLM provider 列表 */
+  async getLlmProviders(): Promise<ProviderInfo[]> {
+    const value = await this.rpc('llm.providers', {}) as { providers?: ProviderInfo[] }
+    return value?.providers || []
   }
 }
 

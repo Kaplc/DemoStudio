@@ -32,6 +32,7 @@ export type KernelEvent =
   | { type: 'toolCall'; payload: { id: string; name: string; args: unknown; status: 'pending' | 'running' } }
   | { type: 'toolResult'; payload: { id: string; name: string; result: unknown; status: 'success' | 'failure' } }
   | { type: 'error'; payload: { message: string; stack?: string } }
+  | { type: 'cancelled' }
   | { type: 'ready' }
   | { type: 'closed' }
 
@@ -47,6 +48,8 @@ export interface KernelAdapter {
   start(options: KernelOptions): Promise<void>
   stop(): Promise<void>
   send(message: UserMessage): Promise<void>
+  /** 取消当前正在进行的 AI 生成（中止活跃 turn，保留待处理队列） */
+  cancel(): Promise<void>
   on(event: KernelEvent['type'], cb: Listener): Disposable
   version(): Promise<string>
   health(): boolean
