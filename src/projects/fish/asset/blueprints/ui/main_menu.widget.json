@@ -283,7 +283,7 @@
               "properties": {
                 "position": [
                   0,
-                  1.5999999999999999,
+                  1.4,
                   0
                 ],
                 "rotation": [
@@ -630,7 +630,7 @@
                 "fontSize": 16,
                 "color": "#f5e6c8",
                 "align": "center",
-                "lineHeight": 20,
+                "lineHeight": 1.25,
                 "width": 1040,
                 "height": 110,
                 "zOrder": 10,

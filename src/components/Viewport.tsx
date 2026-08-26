@@ -677,15 +677,7 @@ export function Viewport({ onReady }: ViewportProps) {
         className="viewport-container viewport-container-game"
         style={{ flex: 1, display: activeTabId === 'scene' ? undefined : 'none' }}
       >
-        {activeTabId === 'scene' && (
-          <div className="viewport-overlay">
-            {editorState.running
-              ? '🎮 游戏运行中 · 自由漫游查看'
-              : currentProject
-                ? `📐 ${currentProject.name} · 左键旋转摄像机 · WASD 漫游`
-                : '📐 选择工程后在此显示场景资源'}
-          </div>
-        )}
+
       </div>
 
       {/* Game 视图 */}
@@ -695,15 +687,7 @@ export function Viewport({ onReady }: ViewportProps) {
         tabIndex={-1}
         style={{ flex: 1, display: activeTabId === 'game' ? undefined : 'none', outline: 'none' }}
       >
-        {activeTabId === 'game' && !editorState.running && (
-          <div className="viewport-overlay" style={{
-            position: 'absolute', inset: 0, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, color: 'var(--text-dim)',
-          }}>
-            🎮 启动游戏后在此显示画面
-          </div>
-        )}
+
       </div>
 
       {/* 动态页签视图 */}

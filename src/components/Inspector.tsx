@@ -1,20 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
-import { useSaveStore } from '../stores/saveStore'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
 import { Actor, Component, type EditableProperty, type EditablePropertyAssetTarget } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
-
-function formatSaveTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
-}
 
 function fmt(v: number): string {
   return v.toFixed(2)
@@ -1144,15 +1135,6 @@ export function Inspector() {
 // ─── 项目信息面板 ───
 function ProjectInfoView() {
   const { currentProject, gameState } = useEditorStore()
-  const slots = useSaveStore((s) => s.slots)
-  const saveGame = useSaveStore((s) => s.saveGame)
-  const loadGame = useSaveStore((s) => s.loadGame)
-  const deleteSave = useSaveStore((s) => s.deleteSave)
-  const refreshSlots = useSaveStore((s) => s.refreshSlots)
-
-  useEffect(() => {
-    if (currentProject) refreshSlots(currentProject.name)
-  }, [currentProject, gameState.running, refreshSlots])
 
   return (
     <>
@@ -1197,32 +1179,6 @@ function ProjectInfoView() {
           </>
         )}
       </div>
-
-      <div className="property-group">
-        <div className="property-group-title">Save Game</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-          <button className="btn" disabled={!gameState.running} onClick={() => saveGame('quick')}>
-            💾 Quick Save (F6)
-          </button>
-          <button className="btn" disabled={slots.length === 0} onClick={() => loadGame('quick')}>
-            📂 Quick Load (F9)
-          </button>
-        </div>
-        {slots.length > 0 && (
-          <div style={{ marginTop: 8, fontSize: 11 }}>
-            <div style={{ color: 'var(--text-dim)', marginBottom: 4 }}>存档槽 ({slots.length})</div>
-            {slots.map((s) => (
-              <div key={s.slot} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                <button className="btn" style={{ flex: 1, padding: '2px 6px', fontSize: 11, textAlign: 'left' }}
-                  onClick={() => loadGame(s.slot)} title={`恢复 ${s.slot}`}>
-                  {s.slot} · {formatSaveTime(s.meta.savedAt)} · {s.meta.score}分
-                </button>
-                <button className="btn" style={{ padding: '2px 6px', fontSize: 11, color: '#ff8888' }}
-                  onClick={() => currentProject && deleteSave(currentProject!.name, s.slot)} title="删除">✕</button>
-              </div>
-            ))}
-          </div>
-        )}      </div>
     </>
   )
 }

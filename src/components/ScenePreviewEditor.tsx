@@ -411,24 +411,8 @@ export function ScenePreviewEditor({ assetPath }: ScenePreviewEditorProps) {
             预览加载中...
           </div>
         )}
-        <div style={{
-          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-          fontSize: 10, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-        }}>
-          左键旋转视角 · 右键平移 · 滚轮进退 · WASD 移动 · Q/E 升降
-        </div>
       </div>
 
-      {/* 底部状态栏 */}
-      <div style={{
-        borderTop: '1px solid var(--border)', padding: '4px 12px',
-        fontSize: 10, color: 'var(--text-dim)', background: 'var(--bg-secondary)',
-        display: 'flex', gap: 16,
-      }}>
-        <span>Scene: {data.name}</span>
-        <span>File: {filename}</span>
-      </div>
     </div>
   )
 }

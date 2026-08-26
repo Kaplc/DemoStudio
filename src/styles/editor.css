@@ -26,7 +26,7 @@
 
   --title-bar-height: 30px;
   --menu-bar-height: 28px;
-  --status-bar-height: 24px;
+  --status-bar-height: 28px;
   --panel-header-height: 32px;
   --tab-height: 32px;
 
@@ -334,15 +334,8 @@ html, body, #root {
   justify-content: center;
 }
 
-.viewport-overlay {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  pointer-events: none;
-  font-family: var(--font-mono);
-}
+
+
 
 .viewport-tabs {
   display: flex;
@@ -531,7 +524,7 @@ html, body, #root {
   padding: 0 12px;
   background: #1a2744;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
@@ -1365,7 +1358,8 @@ html, body, #root {
 
 .right-panel__content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ═══ Agent Panel（完全对齐 DSH Web UI）═══ */
