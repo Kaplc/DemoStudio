@@ -56,6 +56,10 @@ export class FishBaseGameMode extends GameMode {
   private buildMenuPanel: Actor | null = null
   /** 地图面板 UI Actor（base_map.widget.json，关卡选择面板，打开时生成） */
   private mapPanel: Actor | null = null
+  /** 存档管理菜单（save_menu.widget.json，Esc 呼出时生成） */
+  private saveMenuPanel: Actor | null = null
+  /** 模态 UI 打开中（存档菜单）：屏蔽地面点击，防面板下点穿操作建筑 */
+  uiModalOpen = false
 
 
   /** 外部设置：点击"出征战斗"后的回调 */
@@ -66,6 +70,10 @@ export class FishBaseGameMode extends GameMode {
   onBuildModeChange: ((active: boolean) => void) | null = null
   /** 外部设置：兵营面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
   onBarracksPanelChange: ((open: boolean) => void) | null = null
+  /** 外部设置：初始布局构建完成（BeginPlay 末尾触发一次；持久化恢复门控用） */
+  onLayoutBuilt: (() => void) | null = null
+  /** 外部设置：布局变化广播（放置/移动/删除成功后；持久化采集用，恢复期由宿主静音） */
+  onLayoutChange: (() => void) | null = null
 
   constructor() {
     super()
@@ -93,6 +101,8 @@ export class FishBaseGameMode extends GameMode {
     this.createPlaceGrid()
     // 预生成建筑菜单（根 active:false 默认隐藏，建筑模式才显示）
     this.spawnBuildMenu()
+    // 初始布局构建完成（此刻建筑还在 pendingSpawn 队列，等下一帧 manualTick 提交）
+    this.onLayoutBuilt?.()
   }
 
   override EndPlay() {
@@ -123,6 +133,8 @@ export class FishBaseGameMode extends GameMode {
     this.baseCamera.rig.bindInput(controller.inputComponent)
     // 右键平移开始时取消放置模式（右键平移与放置模式互斥）
     this.baseCamera.rig.onRightPanStart = () => this.cancelPlaceMode()
+    // Esc：呼出/关闭存档管理菜单（手动存档/读档入口）
+    controller.inputComponent.BindAction('base-save-menu', 'Escape', 'pressed', () => this.toggleSaveMenu())
     // 相机平移边界与放置范围一致（±24，覆盖整个 48x48 地面）
     this.baseCamera.rig.panLimit = PLACE_HALF
     logger.info(`[BaseGM] SpawnPlayer: controller=${controller.name}`)
@@ -132,6 +144,42 @@ export class FishBaseGameMode extends GameMode {
   /** 玩家点击出征 */
   startFishing() {
     this.onStartFishing?.()
+  }
+
+  // ════════════════════════════════════════════
+  //  存档管理菜单（save_menu.widget.json，Esc 呼出）
+  // ════════════════════════════════════════════
+
+  /** Esc 切换存档菜单 */
+  toggleSaveMenu() {
+    if (this.saveMenuPanel) this.closeSaveMenu()
+    else this.openSaveMenu()
+  }
+
+  /** 打开存档菜单：自动退出建造/选中模式（互斥），并置模态标记屏蔽地面点击 */
+  openSaveMenu() {
+    const w = this.world
+    if (!w || this.saveMenuPanel) return
+    // 与建筑菜单/地图面板互斥单向：打开本面板先收起其他模态
+    if (this.mapPanel) this.closeMapPanel()
+    this.exitBuildMode()
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/save_menu.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 存档菜单生成失败')
+      return
+    }
+    this.saveMenuPanel = panel
+    this.uiModalOpen = true
+    logger.info('[BaseGM] 打开存档菜单')
+  }
+
+  /** 关闭存档菜单（关闭按钮 / 再次按 Esc / 读取成功后自动关） */
+  closeSaveMenu() {
+    if (!this.saveMenuPanel) return
+    this.saveMenuPanel.destroy()
+    this.saveMenuPanel = null
+    this.uiModalOpen = false
+    logger.info('[BaseGM] 关闭存档菜单')
   }
 
   // ════════════════════════════════════════════
@@ -254,6 +302,7 @@ export class FishBaseGameMode extends GameMode {
     b.destroy()
     this.selectedBuilding = null
     logger.info('[BaseGM] 已删除选中建筑')
+    this.onLayoutChange?.()
   }
 
   /**
@@ -290,11 +339,13 @@ export class FishBaseGameMode extends GameMode {
     this.clashBuildings.push(building)
     this.gridOccupied.set(key, building)
     logger.info(`[BaseGM] 放置建筑: ${type.name} @ (${gx}, ${gz})`)
+    this.onLayoutChange?.()
     return true
   }
 
   /** 点击已放置建筑：兵营 → 打开兵营专属 UI（隐藏建造菜单）；其他建筑选中（高亮）/ 取消选中 */
   onBuildingClick(b: ClashBuildingBaseActor) {
+    if (this.uiModalOpen) return // 模态 UI 打开中，屏蔽建筑选中/面板穿透
     // 非建筑模式：只有兵营可打开面板，其他建筑不响应选中/移动
     if (!this.buildMode && !(b instanceof BarracksActor)) return
     // 兵营：打开兵营专属 UI，不进入选中/移动模式
@@ -365,6 +416,7 @@ export class FishBaseGameMode extends GameMode {
 
   /** 鼠标按下：放置建筑 / 移动选中建筑（仅建筑模式响应） */
   onScreenDown(sx: number, sy: number) {
+    if (this.uiModalOpen) return // 模态 UI 打开中（存档菜单），屏蔽地面点击防穿透
     if (!this.buildMode) return
     const ground = this.screenToGround(sx, sy)
     if (!ground) return
@@ -488,6 +540,7 @@ export class FishBaseGameMode extends GameMode {
     b.setPosition(gx, 0, gz)
     this.gridOccupied.set(key, b)
     // 碰撞体通过 onTransformChanged 自动同步
+    this.onLayoutChange?.()
     return true
   }
 
@@ -503,10 +556,52 @@ export class FishBaseGameMode extends GameMode {
     return null
   }
 
+  // ════════════════════════════════════════════
+  //  布局快照 / 清场 / 重建（持久化支持，由 FishGameInstance 调用）
+  // ════════════════════════════════════════════
+
+  /** 当前布局快照（存档采集用）：建筑类型 id + 锚点格子坐标 */
+  getLayoutSnapshot(): Array<{ id: string; gx: number; gz: number }> {
+    return this.clashBuildings.map((b) => ({ id: b.type.id, gx: b.gridX, gz: b.gridZ }))
+  }
+
+  /**
+   * 清空当前布局（存档恢复第一步）：逐个标记销毁 + 同步清空占用表。
+   * 注意：destroy 走 pendingDestroy 队列，Actor 与碰撞体要到下一帧
+   * manualTick 的 commitDestroy 才真正移除——宿主必须隔一帧再重放建筑，
+   * 否则幽灵碰撞体会把重放位置全部判为重叠拒绝。
+   * @returns 标记销毁的建筑数
+   */
+  clearClashLayout(): number {
+    const count = this.clashBuildings.length
+    for (const b of [...this.clashBuildings]) b.destroy()
+    this.clashBuildings = []
+    this.gridOccupied.clear()
+    if (count > 0) logger.info(`[BaseGM] 布局恢复清场：${count} 栋建筑待下一帧移除`)
+    return count
+  }
+
+  /**
+   * 按快照重放布局（存档恢复第二步，须在 clearClashLayout 隔帧后调用）：
+   * 逐条走私有 placeBuilding，自动继承越界/占位/碰撞三重校验——非法条目
+   * （越界、同格互踩、未知类型）静默拒绝，由返回值记账。
+   * @returns 成功重建的建筑数
+   */
+  rebuildLayoutFrom(list: ReadonlyArray<{ id: string; gx: number; gz: number }>): number {
+    let placed = 0
+    for (const item of list ?? []) {
+      if (this.placeBuilding(item.id, item.gx, item.gz)) placed++
+    }
+    return placed
+  }
+
   /** 清理部落冲突建造系统资源 */
   private clearClashBase() {
     // 解除右键平移回调引用（防悬挂）
     this.baseCamera.rig.onRightPanStart = null
+    // 解除持久化回调引用（防悬挂）
+    this.onLayoutBuilt = null
+    this.onLayoutChange = null
     // 地图构建器 EndPlay：注销对象注册表；装饰 Actor 由 World.DestroyAllActors 统一销毁
     this.baseBuilder?.EndPlay()
     this.baseBuilder = null
@@ -518,6 +613,9 @@ export class FishBaseGameMode extends GameMode {
     this.barracksPanel = null
     this.buildMenuPanel = null
     this.mapPanel = null
+    // 存档菜单同理只清引用；模态标记复位（场景已销毁）
+    this.saveMenuPanel = null
+    this.uiModalOpen = false
     this.buildMode = false
     this.clashBuildings = []
     this.gridOccupied.clear()

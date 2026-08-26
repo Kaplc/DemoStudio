@@ -5,7 +5,7 @@
  * 并通过场景资产（JSON）切换场景氛围。
  */
 import * as THREE from 'three'
-import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, ToastSystem, ColorblindService, TweenSystem, spawnActor } from '@/engine'
+import { GameInstance, World, PhySys, logger, CameraComponent, PlayerController, ConfigRegistry, DataTable, SaveSlotComponent, ToastSystem, ColorblindService, TweenSystem, spawnActor } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { UIButtonComponent } from '@/engine/ui/UIButtonComponent'
 import { FishMainMenuGameMode } from './menu/FishMainMenuGameMode'
@@ -17,6 +17,11 @@ import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
 import { ResourcesComponent } from './common/comp/ResourcesComponent'
 import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
+import {
+  FISH_SAVE_FILE,
+  syncRuntimeKeys, writeMetaKeys, applyRuntime, sanitizeBuildings,
+  resetRuntimeAndKeys, addClearedLevel,
+} from './common/FishSaveAdapter'
 import { GameEvents } from './common/GameEvents'
 import { INITIAL_COINS } from './common/types'
 import type { TroopType, LevelType } from './common/types'
@@ -30,6 +35,8 @@ export class FishGameInstance extends GameInstance {
   readonly resources: ResourcesComponent
   /** 训练部队组件：训练队列 + 军队（跨阶段保留，基地阶段推进倒计时） */
   readonly training: TrainingComponent
+  /** 存档组件：KV 内存优先 + 手动落盘（写盘入口=存档菜单 saveGame；钩子转发保留在 stop/destroy/tick） */
+  readonly save: SaveSlotComponent
 
   /** 各阶段 GameMode 引用（由 SwitchToScene 创建后存入，供 syncCamera 等使用） */
   private _menuGameMode: FishMainMenuGameMode | null = null
@@ -50,6 +57,18 @@ export class FishGameInstance extends GameInstance {
   /** 防止手动返回和 GameOver 回调重复触发 */
   private _returningToBase = false
 
+  // ─── 持久化门控状态 ───
+  /** KV 存档已加载完成（load 的 then 已跑过；会话内一次性置位） */
+  private _kvReady = false
+  /** 当前 base 场景初始布局已构建完成（FishBaseGameMode.BeginPlay 触发） */
+  private _baseLayoutBuilt = false
+  /** 布局恢复已完成或无需恢复（true 后 onLayoutChange 才向 KV 同步，防默认布局覆盖存档键） */
+  private _baseRestored = false
+  /** 挂起的布局恢复（KV 与布局双就绪后置位；tick 中两帧消费：先清场后重放） */
+  private _pendingRestore = false
+  /** 恢复第一步"清场"已执行（幽灵碰撞体等下一帧 manualTick 的 commitDestroy 移除） */
+  private _restoreCleared = false
+
   private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
   /** 防止 stop() 被重复调用 */
@@ -68,6 +87,17 @@ export class FishGameInstance extends GameInstance {
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
     this.addComponent(this.training)
+    // 存档组件：整张 KV 表落盘到 src/projects/fish/data/save.json
+    // （手动存档模型：游戏过程只写内存 KV，不配置 autoFlush；
+    //   唯一写盘入口是存档菜单"保存存档" → saveGame() → flush(force)）
+    this.save = new SaveSlotComponent(this, {
+      filePath: FISH_SAVE_FILE,
+    })
+    this.addComponent(this.save)
+    // 运行时变化 → KV（只写内存）。用常驻监听器而非 onChange 单槽——后者被
+    // BaseHudScript 等 UI 脚本按需覆盖。load 回填也会触发广播，重写同值无害。
+    this.resources.addChangeListener(() => syncRuntimeKeys(this))
+    this.training.addChangeListener(() => syncRuntimeKeys(this))
     // 游戏内事件总线（生命周期跟随 GameInstance）
     this.events = new GameEvents()
     // GameMode 实例由 start() / SwitchToScene 按需创建
@@ -93,9 +123,88 @@ export class FishGameInstance extends GameInstance {
     ColorblindService.instance.attach(this.world.ui)
     // AI 调试直跳入口：Playwright 验证直接进入关卡战斗 / 注入军队
     this.installBattleDebugBridge()
+    // 异步加载存档 → 版本校验 → 回填运行时 → 尝试补做布局恢复
+    // （不阻塞下面的同步 switchToPhase；保持 start 的同步返回契约）
+    this.loadSaveAsync()
     if (this.initialMode === 'base') return this.switchToPhase('base')
     if (this.initialMode === 'game') return this.switchToPhase('game')
     return this.switchToPhase('menu')
+  }
+
+  // ════════════════════════════════════════════
+  //  持久化：存档加载 / 布局恢复门控 / 边界落盘
+  // ════════════════════════════════════════════
+
+  /** 异步加载存档并回填运行时（fire-and-forget；就绪后触发待定的布局恢复） */
+  private loadSaveAsync(): void {
+    void this.save.load().then(() => {
+      applyRuntime(this)
+      this._kvReady = true
+      logger.info(`[Fish] 存档已就绪（coins=${this.resources.get('coins')}, army=${this.training.getArmySummary()}）`)
+      this.tryRestoreBaseLayout()
+    })
+  }
+
+  /**
+   * 手动保存（存档菜单"保存存档"）：全量采集运行时 → 强制整表落盘。
+   * 这是本游戏唯一的常规写盘入口——平时只写内存 KV，不点保存不落盘。
+   */
+  async saveGame(): Promise<boolean> {
+    // 基地场景存活时以 GameMode 当前布局为准采集（比事件增量同步更权威）
+    if (this._phase === 'base' && this._baseGameMode) {
+      this.save.set('baseBuildings', this._baseGameMode.getLayoutSnapshot())
+    }
+    syncRuntimeKeys(this)
+    writeMetaKeys(this)
+    const ok = await this.save.flush(true) // force：首次游玩也能创建存档文件
+    logger.info(`[Fish] 手动保存${ok ? '成功' : '失败'} → ${FISH_SAVE_FILE}`)
+    return ok
+  }
+
+  /**
+   * 手动读取（存档菜单"读取存档"）：load → 版本校验/回填运行时；
+   * 若正处于基地场景则重新武装布局恢复门控（两帧清场+重放）。
+   * @returns 是否实际读到了存档
+   */
+  async loadGame(): Promise<boolean> {
+    const loaded = await this.save.load()
+    if (!loaded) return false
+    applyRuntime(this)
+    this._kvReady = true
+    if (this._phase === 'base') {
+      this._baseRestored = false
+      this.tryRestoreBaseLayout()
+    }
+    return true
+  }
+
+  /**
+   * 布局恢复门控（双就绪 + 幂等）：KV 加载完成 与 base 场景布局构建完成，
+   * 谁后到谁在这里补齐。无 baseBuildings 键（首次运行/重置后）→ 保留默认布局。
+   */
+  private tryRestoreBaseLayout(): void {
+    if (!this._kvReady || !this._baseLayoutBuilt || this._baseRestored || this._pendingRestore) return
+    if (!this.save.has('baseBuildings')) {
+      this._baseRestored = true
+      logger.info('[Fish] 无基地布局存档：保留初始布局')
+      return
+    }
+    // 两帧消费：首帧清场、次帧重放（见 tick base 分支；幽灵碰撞体需隔帧移除）
+    this._pendingRestore = true
+  }
+
+  /** 阶段边界内存同步（手动存档模型：只写 KV 标脏，落盘交给存档菜单的"保存存档"） */
+  private syncToKV(reason: string): void {
+    logger.info(`[Fish] 运行时同步 → KV（${reason}），待手动保存落盘`)
+  }
+
+  /** GM 入口：清除存档并把运行时重置为全新开局 */
+  resetSave(): void {
+    const wasInBase = this._phase === 'base'
+    resetRuntimeAndKeys(this)
+    // 正处于基地阶段：立即清掉场上建筑（重建的默认布局随下次进基地刷新）
+    if (wasInBase) this._baseGameMode?.clearClashLayout()
+    logger.info('[Fish] 存档已重置为全新开局')
   }
 
   /**
@@ -433,6 +542,21 @@ export class FishGameInstance extends GameInstance {
     logger.info('[Fish] setupBasePhase: 配置部落冲突基地...')
     const mode = this.world.gameMode as FishBaseGameMode
     this._baseGameMode = mode
+    // 持久化接线：本帧开始重建场景，恢复/构建期间一律静音同步（防默认布局覆盖存档键）；
+    // onLayoutBuilt 在 BeginPlay 末尾触发（建筑尚在 pendingSpawn，等首个 base tick 提交）
+    this._baseLayoutBuilt = false
+    this._baseRestored = false
+    this._pendingRestore = false
+    this._restoreCleared = false
+    mode.onLayoutBuilt = () => {
+      this._baseLayoutBuilt = true
+      this.tryRestoreBaseLayout()
+    }
+    mode.onLayoutChange = () => {
+      if (this._baseRestored && mode === this._baseGameMode) {
+        this.save.set('baseBuildings', mode.getLayoutSnapshot())
+      }
+    }
     mode.onStartFishing = () => this.startGameplay()
     mode.onClaimCoins = () => this.claimCoins()
     // 部落冲突基地：游戏自己的摄像机 actor（BaseCameraActor，每 new 一次都是新摄像机）
@@ -507,6 +631,14 @@ export class FishGameInstance extends GameInstance {
     } else {
       logger.error('[Fish] setupLevelPhase: SpawnPlayer 返回空')
     }
+
+    // 关卡战斗结算监听：胜利且带关卡 id → 记录通关（只写 KV 键；回城边界统一落盘）
+    if (this.unsubGameState) { this.unsubGameState(); this.unsubGameState = null }
+    this.unsubGameState = mode.gameState.subscribe(() => {
+      if (mode.gameState.phase !== 'gameover' || !this._levelId) return
+      if (mode.getBattleResult().win) addClearedLevel(this.save, this._levelId)
+    })
+
     logger.info('[Fish] setupLevelPhase: 完成（战斗 HUD 由 BattleHudScript 接管）')
   }
 
@@ -530,6 +662,8 @@ export class FishGameInstance extends GameInstance {
   private enterBase() {
     logger.info('[Fish] 进入基地...')
     this.switchToPhase('base')
+    // 尽快把领到的初始金币/恢复的运行时落一次盘
+    this.syncToKV('enterBase')
   }
 
   /** 出征战斗 */
@@ -539,7 +673,9 @@ export class FishGameInstance extends GameInstance {
     this._levelId = null
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this._baseGameMode?.cameraManager.Clear()
-    return this.switchToPhase('game')
+    const ok = this.switchToPhase('game')
+    if (ok) this.syncToKV('出征')
+    return ok
   }
 
   /** 从游戏/关卡返回基地（Game Over / 暂停菜单"返回基地" / 手动返回） */
@@ -558,6 +694,8 @@ export class FishGameInstance extends GameInstance {
     this._returningToBase = false
 
     this.switchToPhase('base')
+    // 掠夺入账/通关记录已在战斗结算时写入 KV，这里统一落盘
+    this.syncToKV('回城')
     logger.info(`[Fish] 返回基地，当前金币: ${this.resources.get('coins')}`)
   }
 
@@ -591,7 +729,9 @@ export class FishGameInstance extends GameInstance {
     this._phase = 'game'
     if (this._controller) { this._controller.Unpossess(); this._controller = null }
     this._baseGameMode?.cameraManager.Clear()
-    return this.switchToPhase('game')
+    const ok = this.switchToPhase('game')
+    if (ok) this.syncToKV(`进关-${id}`)
+    return ok
   }
 
   // ════════════════════════════════════════════
@@ -639,12 +779,32 @@ export class FishGameInstance extends GameInstance {
   // ════════════════════════════════════════════
 
   override tick(dt: number) {
+    // 存档周期 flush 计时（含 menu 阶段；策略内含周期项且 dirty 才真正写盘）
+    this.save.tick(dt)
     if (this._phase === 'menu') return
 
     if (this._phase === 'base') {
       // 基地阶段：推进训练队列倒计时（训练组件挂在本实例，手动驱动）
       this.training.update(dt)
       this.world.manualTick(dt)
+      // 布局恢复两帧消费（必须在 manualTick 之后：commitSpawn/commitDestroy 已提交）
+      if (this._pendingRestore && this._baseGameMode) {
+        const mode = this._baseGameMode
+        if (!this._restoreCleared) {
+          // 帧 A：清场。旧建筑标记销毁，但 Actor/碰撞体要等下一帧 commitDestroy 移除
+          mode.clearClashLayout()
+          this._restoreCleared = true
+        } else {
+          // 帧 B：幽灵碰撞体已移除，重放存档布局（走 placeBuilding 继承全部校验）
+          const list = sanitizeBuildings(this.save.get('baseBuildings'))
+          const placed = mode.rebuildLayoutFrom(list)
+          this._pendingRestore = false
+          this._restoreCleared = false
+          this._baseRestored = true
+          this.save.set('baseBuildings', mode.getLayoutSnapshot())
+          logger.info(`[Fish] 基地布局已从存档恢复：${placed}/${list.length} 栋`)
+        }
+      }
       return
     }
 
@@ -704,6 +864,8 @@ export class FishGameInstance extends GameInstance {
   override stop() {
     if (this._stopped) return
     this._stopped = true
+    // 自动落盘转发（autoFlush 含 onStop 时兜底刷一次；周期 flush 已覆盖直接关窗路径）
+    this.save.onStop()
     logger.info('[Fish] 停止游戏...')
     this.events.clear()
     this.world.gameMode?.EndPlay()
@@ -720,10 +882,17 @@ export class FishGameInstance extends GameInstance {
     this._baseGameMode = null
     this._gameMode = null
     this._phase = 'menu'
+    // 布局恢复门控复位（KV 内容保留；下次进基地重新走"构建 → 门控 → 恢复"）
+    this._baseLayoutBuilt = false
+    this._baseRestored = false
+    this._pendingRestore = false
+    this._restoreCleared = false
   }
 
   override destroy() {
     this.stop()
+    // 自动落盘转发（onDestroy 策略；App 直接关窗来不及走这里，靠 ≤10s 周期 flush 兜底）
+    this.save.onDestroy()
     if (this.unsubGameState) {
       this.unsubGameState()
       this.unsubGameState = null

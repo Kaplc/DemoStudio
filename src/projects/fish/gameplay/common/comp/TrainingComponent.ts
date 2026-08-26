@@ -41,8 +41,28 @@ export class TrainingComponent extends AObjectComponent<AObject> {
   /** 已训练完成的军队：兵种 id → 数量 */
   private army = new Map<string, number>()
 
-  /** 队列/军队变化回调（外部刷新 UI） */
+  /** 队列/军队变化回调（外部刷新 UI；单槽，供 UI 直接绑定会被覆盖） */
   onChange: (() => void) | null = null
+
+  /** 系统级变化监听器（持久化订阅等；与单槽 onChange 并存互不覆盖） */
+  private _changeListeners: Array<() => void> = []
+
+  /**
+   * 注册队列/军队变化监听器（返回解绑函数）。与 onChange 单槽并存：
+   * UI 可继续绑定/覆盖 onChange，不影响这里的持久化链路。
+   */
+  addChangeListener(fn: () => void): () => void {
+    this._changeListeners.push(fn)
+    return () => {
+      this._changeListeners = this._changeListeners.filter((f) => f !== fn)
+    }
+  }
+
+  /** 统一的变化广播：先单槽后监听器列表（副本遍历，允许回调中解绑） */
+  private notifyChange(): void {
+    this.onChange?.()
+    for (const fn of [...this._changeListeners]) fn()
+  }
 
   constructor(owner: AObject, options: { maxHousing?: number; trainTimeScale?: number } = {}) {
     super(owner)
@@ -60,7 +80,7 @@ export class TrainingComponent extends AObjectComponent<AObject> {
       this.queue.shift()
       this.army.set(head.troopId, (this.army.get(head.troopId) ?? 0) + 1)
       logger.info(`[TrainingComponent] 训练完成: ${head.name} 加入军队（当前兵力 ${this.getArmyHousing()}/${this.maxHousing}）`)
-      this.onChange?.()
+      this.notifyChange()
     }
   }
 
@@ -88,8 +108,17 @@ export class TrainingComponent extends AObjectComponent<AObject> {
       total,
     })
     logger.info(`[TrainingComponent] 开始训练: ${troop.name}（训练 ${troop.trainTime}s，占用 ${troop.housing} 空间；队列 ${this.queue.length} 项）`)
-    this.onChange?.()
+    this.notifyChange()
     return true
+  }
+
+  /** 清空训练队列与军队（GM 重置存档用） */
+  resetAll(): void {
+    if (this.queue.length === 0 && this.getArmyCountAll() === 0) return
+    this.queue = []
+    this.army.clear()
+    logger.info('[TrainingComponent] 训练队列与军队已清空')
+    this.notifyChange()
   }
 
   // ═════════ 查询 ═════════
@@ -118,6 +147,13 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     return this.army.get(troopId) ?? 0
   }
 
+  /** 军队总兵力（所有兵种数量之和） */
+  getArmyCountAll(): number {
+    let sum = 0
+    for (const count of this.army.values()) sum += count
+    return sum
+  }
+
   /**
    * 部署一个兵（战斗放兵消耗，放完即消失）：
    * 军队中该兵种数量 -1（至少为 0），触发 onChange 刷新 UI。
@@ -132,7 +168,7 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     this.army.set(troopId, count - 1)
     const t = this.troopById.get(troopId)
     logger.info(`[TrainingComponent] 部署完成: ${t?.name ?? troopId} 上战场（剩余 ${count - 1}）`)
-    this.onChange?.()
+    this.notifyChange()
     return true
   }
 
@@ -152,7 +188,7 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     if (count <= 0) return false
     this.army.set(troopId, (this.army.get(troopId) ?? 0) + Math.floor(count))
     logger.info(`[TrainingComponent] 调试注入军队: ${troopId} x${count}（当前 ${this.army.get(troopId)}）`)
-    this.onChange?.()
+    this.notifyChange()
     return true
   }
 
@@ -170,6 +206,71 @@ export class TrainingComponent extends AObjectComponent<AObject> {
   /** 训练队列摘要：'野蛮人 8s 巨人 45s' */
   getQueueSummary(): string {
     return this.queue.map((t) => `${t.name} ${Math.ceil(t.remaining)}s`).join(' ') || '空闲'
+  }
+
+  // ═════════ 快照 / 恢复（持久化支持，由 FishSaveAdapter 调用） ═════════
+
+  /** 军队快照（持久化采集用）：兵种 id → 数量（仅含数量 > 0 的条目） */
+  getArmySnapshot(): Record<string, number> {
+    const out: Record<string, number> = {}
+    for (const [tid, count] of this.army) {
+      if (count > 0) out[tid] = count
+    }
+    return out
+  }
+
+  /** 训练队列快照（持久化采集用，最小字段；恢复时按兵种表重建其余字段） */
+  getQueueSnapshot(): Array<{ troopId: string; remaining: number }> {
+    return this.queue.map((t) => ({ troopId: t.troopId, remaining: t.remaining }))
+  }
+
+  /**
+   * 持久化恢复：用快照整体替换军队（调用方已做兵种合法性过滤）。
+   * 数量取整并 clamp 到 ≥0，全部为 0 的条目跳过。
+   * @returns 恢复的兵种数
+   */
+  setArmySnapshot(snapshot: Record<string, number>): number {
+    this.army.clear()
+    let restored = 0
+    for (const [tid, raw] of Object.entries(snapshot ?? {})) {
+      const count = Math.max(0, Math.floor(Number(raw) || 0))
+      if (count <= 0) continue
+      this.army.set(tid, count)
+      restored++
+    }
+    logger.info(`[TrainingComponent] 军队已从存档恢复（${restored} 个兵种）`)
+    this.notifyChange()
+    return restored
+  }
+
+  /**
+   * 持久化恢复：按快照重建训练队列。name/housing/total 由 resolveTroop 查兵种表补全
+   * （未知兵种跳过），remaining clamp 到 [0, total]。不做离线追时——与正常训练
+   * 同一推进模型（基地阶段由宿主 update(dt) 推进倒计时）。
+   * @returns 恢复的队列条目数
+   */
+  setQueueSnapshot(
+    items: ReadonlyArray<{ troopId: string; remaining: number }>,
+    resolveTroop: (id: string) => TroopType | undefined,
+  ): number {
+    this.queue = []
+    let restored = 0
+    for (const item of items ?? []) {
+      const troop = resolveTroop(item?.troopId)
+      if (!troop) {
+        logger.warn(`[TrainingComponent] 队列恢复跳过：未知兵种 "${item?.troopId}"`)
+        continue
+      }
+      this.registerTroop(item.troopId, troop)
+      const total = troop.trainTime * this.trainTimeScale
+      const raw = Number.isFinite(item.remaining) ? item.remaining : total
+      const remaining = Math.min(Math.max(raw, 0), total)
+      this.queue.push({ troopId: item.troopId, name: troop.name, housing: troop.housing, remaining, total })
+      restored++
+    }
+    logger.info(`[TrainingComponent] 训练队列已从存档恢复 ${restored} 项`)
+    this.notifyChange()
+    return restored
   }
 
   // ═════════ 兵种表引用（供容量/摘要换算） ═════════

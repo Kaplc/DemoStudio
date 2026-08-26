@@ -31,8 +31,28 @@ export class ResourcesComponent extends AObjectComponent<AObject> {
   /** 资源表：资源名 → 数量（如 'coins' → 100） */
   private resources = new Map<string, number>()
 
-  /** 资源变化回调（add/spend/set 后触发，用于刷新 UI） */
+  /** 资源变化回调（add/spend/set 后触发，用于刷新 UI；单槽，供 UI 直接绑定会被覆盖） */
   onChange: (() => void) | null = null
+
+  /** 系统级变化监听器（持久化订阅等；与单槽 onChange 并存互不覆盖） */
+  private _changeListeners: Array<() => void> = []
+
+  /**
+   * 注册资源变化监听器（返回解绑函数）。与 onChange 单槽并存：
+   * UI 可继续绑定/覆盖 onChange，不影响这里的持久化链路。
+   */
+  addChangeListener(fn: () => void): () => void {
+    this._changeListeners.push(fn)
+    return () => {
+      this._changeListeners = this._changeListeners.filter((f) => f !== fn)
+    }
+  }
+
+  /** 统一的变化广播：先单槽后监听器列表（副本遍历，允许回调中解绑） */
+  private notifyChange(): void {
+    this.onChange?.()
+    for (const fn of [...this._changeListeners]) fn()
+  }
 
   constructor(owner: AObject, initial: Record<string, number> = {}) {
     super(owner)
@@ -66,14 +86,14 @@ export class ResourcesComponent extends AObjectComponent<AObject> {
     const v = Math.max(0, Math.floor(value))
     if (this.resources.get(resource) === v) return
     this.resources.set(resource, v)
-    this.onChange?.()
+    this.notifyChange()
   }
 
   /** 增加资源 */
   add(resource: string, amount: number): void {
     if (amount <= 0) return
     this.resources.set(resource, this.get(resource) + Math.floor(amount))
-    this.onChange?.()
+    this.notifyChange()
   }
 
   /**
@@ -84,7 +104,7 @@ export class ResourcesComponent extends AObjectComponent<AObject> {
     if (amount <= 0) return true
     if (!this.has(resource, amount)) return false
     this.resources.set(resource, this.get(resource) - Math.floor(amount))
-    this.onChange?.()
+    this.notifyChange()
     return true
   }
 
