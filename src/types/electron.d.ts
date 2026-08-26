@@ -52,18 +52,6 @@ export interface ElectronAPI {
   /** AI 聊天响应（渲染进程回传结果给主进程） */
   sendAIChatResponse: (requestId: string, result: unknown) => void
 
-  // ─── 存档系统（userData-scoped；meta 结构与 ISaveData.SaveMeta 对齐）───
-  saveGameFile: (game: string, slot: string, data: unknown) => Promise<{ success: boolean; error?: string; savedAt?: string }>
-  loadGameFile: (game: string, slot: string) => Promise<{ success: boolean; data?: any; error?: string }>
-  listGameSaves: (game: string) => Promise<Array<{
-    slot: string
-    meta: {
-      formatVersion: number; game: string; gameVersion?: string
-      slot: string; savedAt: string; score: number; phase?: string; label?: string
-    }
-  }>>
-  deleteGameSave: (game: string, slot: string) => Promise<{ success: boolean; error?: string }>
-
   // DSH 服务状态查询（DSH 内核由编辑器主进程拉起，端口动态分配）
   dshStatus: () => Promise<{ ready: boolean; port: number; enginePort: number }>
 

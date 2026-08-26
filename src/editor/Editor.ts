@@ -7,7 +7,6 @@
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
-import { useSaveStore } from '../stores/saveStore'
 import { registerAllProjects, registerGlobalEventListeners, installEventBridge } from './index'
 import { FpsTracker } from './FpsTracker'
 import { LogPoller } from './LogPoller'
@@ -59,8 +58,6 @@ export class Editor {
       toggleConsole: () => useEditorPrefsStore.getState().toggleConsole(),
       setShowProjectSelector,
       addConsoleOutput,
-      saveGame: (slot) => { void useSaveStore.getState().saveGame(slot) },
-      loadGame: (slot) => { void useSaveStore.getState().loadGame(slot) },
       launchGame,
       stopGame,
       setCurrentProject: (project) => { if (project) useEditorStore.getState().setCurrentProject(project) },

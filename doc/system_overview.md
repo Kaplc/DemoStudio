@@ -122,7 +122,6 @@ src/engine/
 | ActorRegistry | Actor 工厂注册表 | `tools/ActorRegistry.ts` |
 | ObjectRegistry / GameModeRegistry / GameFactoryRegistry | 对象/游戏模式/游戏工厂注册表 | `tools/` |
 | ConfigRegistry / DataTable / ConfigLoaderBase | 配置表与数据表加载（`*.config.json` / `*.table.json`） | `tools/` |
-| SaveSystem | 存档系统（`SaveData` / `SaveMeta` / `SaveSlotInfo` / `SAVE_FORMAT_VERSION`） | `tools/SaveSystem.ts` `ISaveData.ts` |
 | ObjectPool | 对象池 | `tools/ObjectPool.ts` |
 | deepMerge | 属性补丁合并（`mergePatch` / `clonePatch` / `emptyPatch` / `PropertyPatch`） | `tools/deepMerge.ts` |
 | Gizmos | 引擎侧 Gizmos | `tools/Gizmos.ts` |
@@ -237,7 +236,6 @@ src/engine/
 |---|---|---|
 | editorStore | 编辑器全局状态 | `stores/editorStore.ts` |
 | projectStore | 项目状态 | `stores/projectStore.ts` |
-| saveStore | 保存状态 | `stores/saveStore.ts` |
 | editorPrefsStore | 编辑器偏好设置 | `stores/editorPrefsStore.ts` |
 
 ---

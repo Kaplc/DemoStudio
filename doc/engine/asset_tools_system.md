@@ -104,19 +104,14 @@ const table = ConfigRegistry.getTable<FishArchetype>('eatfish.fish') ?? null
 - **无 electronAPI 时** `readJson` 返回 null（warn）→ 全部走默认值，不抛异常
 - `registerGlob(projectName, ...)` name 规则：`{projectName}.{文件名}`；transform 须先注册（加载异步）
 
-### 存档系统（SaveSystem）
+### 游戏存档（SaveSlotComponent）
 
-| 方法 | 签名 | 说明 |
-|---|---|---|
-| 保存 | `save({ game, gameVersion?, slot, payload, score, phase?, label? })` | 补全 meta（SAVE_FORMAT_VERSION）后落盘 |
-| 读取 | `load(game, slot)` | 校验 `meta.game` 防跨游戏误读 |
-| 列表/删除 | `list(game)` / `delete(game, slot)` | — |
-
-- 通过 Electron IPC 读写 `userData/saves/<game>/<slot>.json`
-- 非 Electron 环境安全降级（返回 `{ success: false, error: '存档 IPC 不可用（非 Electron 环境）' }`，list 返回 `[]`）
-- `load` 校验 `meta.game`：不匹配 → `{ success: false, error: '存档属于 X，与当前游戏 Y 不匹配' }`
-- 版本迁移 `migrate()` **未实现**（预留注释）
-- 配合 `SaveSlotComponent`（GameInstance 内 KV 键值槽）与 `ISaveData`（`SaveData` / `SaveMeta` / `SaveSlotInfo`）
+- KV 内存模型 + 手动落盘：挂到 GameInstance 上获得 `set/get/delete/has/keys` 能力
+- 内存优先：set/delete 只改内存 Map 不触发 IO，调 `flush()` 整表写入文件
+- 通过 `electronAPI.writeJsonFile` 落盘（与蓝图资产写盘共用 IPC），路径约定 `src/projects/<game>/data/*.json`
+- 支持 `autoFlush`：'onStop' / 'onDestroy' / tick 周期（毫秒），可组合
+- 无 electronAPI 时降级为纯内存模式（刷新即丢，控制台 WARN 一次）
+- 详见 `engine/gameflow/SaveSlotComponent.ts` 头注释
 
 ### 其他工具
 
@@ -140,7 +135,7 @@ const table = ConfigRegistry.getTable<FishArchetype>('eatfish.fish') ?? null
 | `AssetRegistry.getScene` 未注册 | 返回 null | 调用方判空 |
 | `ScriptRegistry.create` 未注册 | 返回 null | 调用方判空 |
 | ObjectPool 超限 | maxSize>0 时回收最老活跃对象 | 按需调 maxSize |
-| `load` 跨游戏存档 | 返回 success:false + 明确 error | 引擎内置校验 |
+| SaveSlotComponent 无 writeJsonFile IPC | flush 失败返回 false，数据保留在内存 | 引擎内置降级 |
 | resolve 结果修改 | 返回对象只读约定 | 实例化用 clonePatch 深拷贝 |
 
 ## 5. 依赖关系
@@ -151,5 +146,5 @@ SceneLoader → TextureLoader / SceneAsset
 BlueprintRegistry → deepMerge（PropertyPatch）
 World → AssetRegistry / ObjectRegistry / GameModeRegistry / SceneLoader
 ConfigRegistry → readJsonFile IPC（与场景资产同一机制，dev 可用、支持热更新）
-SaveSystem → electronAPI.saveGameFile / loadGameFile
+SaveSlotComponent → electronAPI.writeJsonFile（KV 存档整表落盘）
 ```

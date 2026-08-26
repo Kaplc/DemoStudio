@@ -26,7 +26,7 @@
 | `GameState` | 全局游戏状态 |
 | `ActorManagerComponent` | Actor 的生成/创建/销毁/查询承载组件（World 保留同名转发方法兼容外部 API） |
 | `SceneRendererComponent` | 游戏视口渲染器组件（由 World.ensureGameRenderer 创建，DOM 取自 `GameInstance.current.renderContainer`） |
-| `SaveSlotComponent` | 存档槽组件（`KVValue` 键值存储，配合 `SaveSystem`） |
+| `SaveSlotComponent` | 存档组件（`KVValue` 键值存储，内存优先 + 手动/自动 flush 落盘） |
 | `OObjectFactory` | OObject 族对象工厂 |
 | `ThreeObjectFactory` | Three 对象族工厂（生成 Mesh/Sprite 等 Three 对象） |
 

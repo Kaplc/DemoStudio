@@ -6,14 +6,6 @@ import * as THREE from 'three'
 import { GameInstance, World, logger } from '@/engine'
 import type { GameInstanceCallbacks } from '@/engine'
 import { SnakeGameMode, SnakePawn, SnakePlayerController } from './'
-import type { Vec2 } from './types'
-
-/** Snake 存档 payload（captureSnapshot 输出 / restoreSnapshot 输入） */
-interface SnakeSavePayload {
-  pawn: { snake: Vec2[]; currentDir: Vec2; nextDir: Vec2; moveTimer: number }
-  foodGridPos: Vec2
-  gameState: Record<string, unknown>
-}
 
 export class SnakeGameInstance extends GameInstance {
   readonly gameMode: SnakeGameMode
@@ -94,31 +86,6 @@ export class SnakeGameInstance extends GameInstance {
     this.gameMode.cameraManager.Clear()
     this._controller = null
     this.pawn = null
-  }
-
-  // ═══ 存档系统 ═══
-
-  override captureSnapshot(): SnakeSavePayload | null {
-    if (!this.pawn) return null
-    return {
-      pawn: this.pawn.getSaveData(),
-      foodGridPos: { x: this.gameMode.foodGridPos.x, z: this.gameMode.foodGridPos.z },
-      gameState: this.gameMode.gameState.serialize(),
-    }
-  }
-
-  override restoreSnapshot(snapshot: unknown): void {
-    if (!this.pawn) return
-    const s = snapshot as SnakeSavePayload | null
-    // 形状守卫：防止损坏/不匹配的存档静默破坏运行态
-    if (!s?.pawn || !Array.isArray(s.pawn.snake) || !s.foodGridPos || !s.gameState) {
-      logger.warn('[GameInstance] 存档结构不匹配，忽略恢复')
-      return
-    }
-    this.pawn.applySaveData(s.pawn)
-    this.gameMode.setFoodAt(s.foodGridPos)
-    // restoreFrom 触发 notify → 经构造时注册的 gameState 订阅同步 HUD（含 onGameOver）
-    this.gameMode.gameState.restoreFrom(s.gameState)
   }
 
   override destroy() {

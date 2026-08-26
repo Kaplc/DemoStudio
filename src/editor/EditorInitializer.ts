@@ -226,8 +226,6 @@ export function registerGlobalEventListeners(callbacks: {
   toggleConsole: () => void
   setShowProjectSelector: (show: boolean) => void
   addConsoleOutput: (text: string) => void
-  saveGame: (slot: string) => void
-  loadGame: (slot: string) => void
   launchGame: () => void
   stopGame: () => void
   setCurrentProject: (project: any) => void
@@ -236,8 +234,6 @@ export function registerGlobalEventListeners(callbacks: {
     toggleConsole,
     setShowProjectSelector,
     addConsoleOutput,
-    saveGame,
-    loadGame,
     launchGame,
     stopGame,
     setCurrentProject,
@@ -246,9 +242,6 @@ export function registerGlobalEventListeners(callbacks: {
   const onToggleConsole = () => toggleConsole()
   const onOpenProject = () => setShowProjectSelector(true)
   const onNewProject = () => addConsoleOutput('[菜单] New Project')
-  const onSave = () => saveGame('quick')
-  const onSaveAs = () => saveGame('auto')
-  const onQuickLoad = () => loadGame('quick')
   const onLaunchGame = () => {
     // 逻辑由调用方useEditorStore的状态决定，这里简单委托
     launchGame()
@@ -258,10 +251,6 @@ export function registerGlobalEventListeners(callbacks: {
   window.addEventListener('shortcut-toggle-console', onToggleConsole)
   window.addEventListener('shortcut-open-project', onOpenProject)
   window.addEventListener('shortcut-new-project', onNewProject)
-  window.addEventListener('shortcut-save', onSave)
-  window.addEventListener('shortcut-save-as', onSaveAs)
-  window.addEventListener('shortcut-quick-save', onSave)
-  window.addEventListener('shortcut-quick-load', onQuickLoad)
   window.addEventListener('shortcut-launch-game', onLaunchGame)
   window.addEventListener('shortcut-stop-game', onStopGame)
 
@@ -416,10 +405,6 @@ export function registerGlobalEventListeners(callbacks: {
     window.removeEventListener('shortcut-toggle-console', onToggleConsole)
     window.removeEventListener('shortcut-open-project', onOpenProject)
     window.removeEventListener('shortcut-new-project', onNewProject)
-    window.removeEventListener('shortcut-save', onSave)
-    window.removeEventListener('shortcut-save-as', onSaveAs)
-    window.removeEventListener('shortcut-quick-save', onSave)
-    window.removeEventListener('shortcut-quick-load', onQuickLoad)
     window.removeEventListener('shortcut-launch-game', onLaunchGame)
     window.removeEventListener('shortcut-stop-game', onStopGame)
     window.removeEventListener('shortcut-toggle-agent', onToggleAgent)

@@ -63,7 +63,7 @@ src/engine/gameplay/
 ├── input/                # 玩家输入与控制（PlayerController、PlayerCameraManager、InputComponent 等）
 ├── physics/              # 物理与交互（PhySys、ClickableComponent 等）
 ├── scene/                # 场景与资产（SceneLoader、SceneAsset、TextureLoader 等）
-├── tools/                # 工具/系统（ObjectPool、SaveSystem、DataTable、ConfigRegistry、Gizmos 等）
+├── tools/                # 工具/系统（ObjectPool、DataTable、ConfigRegistry、Gizmos 等）
 ├── ui/                   # 游戏 UI（GameUI 等）
 └── rendering/            # 渲染组件（SpriteComponent 等）
 ```

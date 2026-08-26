@@ -139,16 +139,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // ─── 存档系统（userData-scoped）───
-  saveGameFile: (game: string, slot: string, data: unknown) =>
-    ipcRenderer.invoke('save-game-file', game, slot, data),
-  loadGameFile: (game: string, slot: string) =>
-    ipcRenderer.invoke('load-game-file', game, slot),
-  listGameSaves: (game: string) =>
-    ipcRenderer.invoke('list-game-saves', game),
-  deleteGameSave: (game: string, slot: string) =>
-    ipcRenderer.invoke('delete-game-save', game, slot),
-
   // ─── DSH 服务状态（让 AgentPanel 能拿到 DSH 端口/IPC）───
   dshStatus: () => ipcRenderer.invoke('dsh-status'),
 

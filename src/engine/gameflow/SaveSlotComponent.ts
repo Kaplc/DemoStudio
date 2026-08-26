@@ -13,9 +13,8 @@
  *  - 手动落盘：调 flush() 才把当前内存整表写入 filePath（writeJsonFile IPC）
  *  - 文件位置：由调用方在构造时指定（约定每个游戏项目用 data/ 子目录）
  *
- * 与现有 SaveSystem 的关系：
- *  - 本组件**不再使用** SaveSystem / slot / meta / payload 那套体系（snap-shot 风格）
- *  - 不调 GameInstance.captureSnapshot / restoreSnapshot（游戏侧不需要实现这两个虚方法）
+ * 设计决策：
+ *  - 不依赖 GameInstance 快照虚方法，游戏侧无需实现序列化钩子
  *  - 整体落盘逻辑直接走 electronAPI.writeJsonFile（与蓝图资产写盘共用 IPC）
  *
  * 路径约束（避免常见误用）：

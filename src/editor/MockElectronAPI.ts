@@ -11,7 +11,6 @@
  *  - discoverProjectsScan() → 自动扫描 src/projects/*\/project.json
  *  - readJsonFile(path)   → 返回预加载的场景/配置 JSON
  *  - LogFile 写入         → console 输出
- *  - 存档系统             → localStorage
  *
  * 用法：在 main.tsx 最顶部调用 injectMockElectronAPI()，
  *       仅在 window.electronAPI 不存在时生效。
@@ -126,14 +125,6 @@ function scanProjects(): ProjectMeta[] {
     })
   }
   return projects
-}
-
-// ─── localStorage 存档辅助 ───
-
-const SAVE_PREFIX = 'mock_save_'
-
-function saveKey(game: string, slot: string): string {
-  return `${SAVE_PREFIX}${game}_${slot}`
 }
 
 // ─── Mock API 实现 ───
@@ -298,75 +289,6 @@ const mockAPI = {
   // 浏览器 Mock 无真实文件监听：onSrcChanged 永不触发
   onSrcChanged: () => (() => {}),
 
-  // ─── 存档系统（localStorage） ───
-
-  saveGameFile: async (game: string, slot: string, data: unknown) => {
-    try {
-      const savedAt = new Date().toISOString()
-      const record = { data, savedAt }
-      localStorage.setItem(saveKey(game, slot), JSON.stringify(record))
-      return { success: true, savedAt }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
-  },
-
-  loadGameFile: async (game: string, slot: string) => {
-    try {
-      const raw = localStorage.getItem(saveKey(game, slot))
-      if (!raw) return { success: false, error: 'No save found' }
-      const record = JSON.parse(raw)
-      return { success: true, data: record.data }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
-  },
-
-  listGameSaves: async (game: string) => {
-    const saves: Array<{
-      slot: string
-      meta: {
-        formatVersion: number
-        game: string
-        gameVersion?: string
-        slot: string
-        savedAt: string
-        score: number
-        phase?: string
-        label?: string
-      }
-    }> = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key?.startsWith(`${SAVE_PREFIX}${game}_`)) continue
-      try {
-        const raw = localStorage.getItem(key)
-        if (!raw) continue
-        const record = JSON.parse(raw)
-        const meta = (record.data as any)?.meta
-        saves.push({
-          slot: key.replace(`${SAVE_PREFIX}${game}_`, ''),
-          meta: {
-            formatVersion: meta?.formatVersion ?? 1,
-            game,
-            gameVersion: meta?.gameVersion,
-            slot: meta?.slot ?? 'quick',
-            savedAt: record.savedAt ?? new Date().toISOString(),
-            score: meta?.score ?? 0,
-            phase: meta?.phase,
-            label: meta?.label,
-          },
-        })
-      } catch { /* ignore corrupt */ }
-    }
-    return saves
-  },
-
-  deleteGameSave: async (game: string, slot: string) => {
-    localStorage.removeItem(saveKey(game, slot))
-    return { success: true }
-  },
-
   // ─── AI 聊天 ───
 
   onAIChat: (callback: (requestId: string, message: string, history?: Array<{ role: string; content: string }>) => void) => {
@@ -396,17 +318,4 @@ export function injectMockElectronAPI(): void {
     `[MockElectronAPI] 已注入 Mock API，预加载了 ${jsonCache.size} 个 JSON 文件，` +
     `发现 ${scanProjects().length} 个工程项目`,
   )
-}
-
-/**
- * 清除所有 Mock 存档（用于测试重置）
- */
-export function clearMockSaves(): void {
-  const keys: string[] = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key?.startsWith(SAVE_PREFIX)) keys.push(key)
-  }
-  keys.forEach((k) => localStorage.removeItem(k))
-  console.log(`[MockElectronAPI] 已清除 ${keys.length} 个 Mock 存档`)
 }

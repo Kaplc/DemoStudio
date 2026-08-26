@@ -20,14 +20,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     eventName: 'shortcut-refresh',
   },
   {
-    match: (e) => e.key === 'F6',
-    eventName: 'shortcut-quick-save',
-  },
-  {
-    match: (e) => e.key === 'F9',
-    eventName: 'shortcut-quick-load',
-  },
-  {
     match: (e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey,
     eventName: 'shortcut-launch-game',
   },
@@ -50,14 +42,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   {
     match: (e) => (e.key === 'o' || e.key === 'O') && (e.ctrlKey || e.metaKey),
     eventName: 'shortcut-open-project',
-  },
-  {
-    match: (e) => e.key === 's' && (e.ctrlKey || e.metaKey) && !e.shiftKey,
-    eventName: 'shortcut-save',
-  },
-  {
-    match: (e) => e.key === 's' && (e.ctrlKey || e.metaKey) && e.shiftKey,
-    eventName: 'shortcut-save-as',
   },
   {
     match: (e) => (e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && !e.shiftKey,

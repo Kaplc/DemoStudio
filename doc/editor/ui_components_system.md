@@ -54,7 +54,6 @@
 |---|---|
 | `editorStore` | 编辑器全局状态：当前项目（`Project`：name/description/version/tags/folder/renderMode/defaultScene）、选择 nonce、蓝图 dirty/clean 标记、视口页签（`ViewportTabDef`：scene/game/uiScene/blueprint/scenePreview）、蓝图选择（`BlueprintSelection`：component/child/defaults） |
 | `projectStore` | 项目发现/切换（`discoverProjects` 扫描 src/projects） |
-| `saveStore` | 保存状态（`saveGame(slot)`） |
 | `editorPrefsStore` | 编辑器偏好（Console 显隐等） |
 
 ### 关键类型
@@ -150,7 +149,7 @@ flowchart LR
 ## 7. 依赖关系
 
 ```
-组件层 → stores（editorStore/projectStore/editorPrefsStore/saveStore）
+组件层 → stores（editorStore/projectStore/editorPrefsStore）
 Inspector / BlueprintEditor → BlueprintEditorService.dispatch（编辑蓝图）
 Outline / UiOutline → SelectionManager.select / getSceneTree
 Viewport → SceneViewport / GameViewport / UIPreviewManager

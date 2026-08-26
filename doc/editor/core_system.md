@@ -117,7 +117,7 @@ flowchart LR
 ## 7. 依赖关系
 
 ```
-Editor → stores（editorStore/projectStore/editorPrefsStore/saveStore）
+Editor → stores（editorStore/projectStore/editorPrefsStore）
 Editor → FpsTracker / LogPoller / assetLintEngine
 EditorInitializer → projects/registry / blueprintEdit / SelectionManager / AIModule
 installEventBridge → editorBus ↔ Zustand stores

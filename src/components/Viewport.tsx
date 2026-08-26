@@ -6,7 +6,6 @@ import type { PreviewSceneManager } from '../editor'
 import type { SceneAsset } from '../engine'
 import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
-import { useSaveStore, setCurrentGameInstance } from '../stores/saveStore'
 import { BlueprintEditor } from './BlueprintEditor'
 import { ScenePreviewEditor } from './ScenePreviewEditor'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
@@ -186,7 +185,6 @@ export function Viewport({ onReady }: ViewportProps) {
         gameRef.current?.destroy()
         gameRef.current = null
         gameSceneRef.current = null
-        setCurrentGameInstance(null)
         useEditorStore.getState().setGameRunning(false)
       } else {
         gameSceneRef.current?.stop()
@@ -311,19 +309,12 @@ export function Viewport({ onReady }: ViewportProps) {
       const worldPerPx = (cam.top - cam.bottom) / gameMgr.renderer.domElement.clientHeight
       updateAnchorGizmo(worldPerPx)
     }) ?? (() => {})
-    // 同步当前实例给存档系统，并消费"未运行时读档"暂存的快照（此时 start 已完成）
-    setCurrentGameInstance(inst)
-    const pending = useSaveStore.getState().consumePendingRestore()
-    if (pending) {
-      inst.restoreSnapshot(pending.payload)
-    }
 
     return () => {
       removeAnchorUpdate()
       game.destroy()
       gameRef.current = null
       gameSceneRef.current = null
-      setCurrentGameInstance(null)
       // 清空运行中游戏的引用：大纲树 / Scene 视图 / 桥组件恢复编辑器默认场景
       setRunningWorld(null)
       setRunningBridge(null)

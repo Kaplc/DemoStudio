@@ -80,22 +80,6 @@ export abstract class GameInstance extends AObject {
   /** onPointerDown/onPointerMove 已废弃 — 由 Viewport → inputSys 统一路由 */
 
   /**
-   * 捕获存档快照（游戏自定义结构）。
-   * 不支持存档的游戏返回 null（默认实现）。
-   * 注意：绝不包含 THREE.Mesh/Material 等 3D 派生数据，只存逻辑状态。
-   */
-  captureSnapshot(): unknown {
-    return null
-  }
-
-  /**
-   * 从快照恢复状态。
-   * 调用方须保证此时游戏已 start() 完成（Actor 已生成/初始化），
-   * 因为恢复通常需要在已有对象上覆盖状态。
-   */
-  restoreSnapshot(_snapshot: unknown): void {}
-
-  /**
    * 从 PlayerCameraManager 同步到目标摄像机(透视或正交)。
    * 已废弃：改为 getActiveCamera() 委托（渲染器直接用游戏相机渲染，不再复制）。
    */
