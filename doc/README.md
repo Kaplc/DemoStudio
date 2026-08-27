@@ -56,4 +56,5 @@
 | [`gameplay_code_standard.md`](./gameplay_code_standard.md) | **gameplay 代码规范**：GameMode / Controller / Pawn / GameState / 组件 / GameInstance / World 七类角色职责边界与越界红线（新增 gameplay 功能时必读，先归类再动手） |
 | [`ursina_reference.md`](./ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
 | [`harness_system.md`](./harness_system.md) | **Harness 工程**：VS Code 扩展 + DSH 内核集成 + 引擎特化 agent 插件包（`harness/` 三分区，M0-M4 实施蓝图 + KernelAdapter/EngineBridge/SSE 设计；涉及 harness 任何模块时必读） |
+| [`harness/dsh_engine_integration.md`](./harness/dsh_engine_integration.md) | **DSH 与引擎集成架构（agent 常驻化）**：探测→认领→所有权 watchdog→崩溃自愈与会话恢复的完整链路、协议文件、失败模式表与不变量（涉及编辑器内嵌 Agent 面板 / `electron/main.ts` DSH 段 / 会话恢复时必读） |
 

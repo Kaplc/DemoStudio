@@ -156,4 +156,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // DSH Respond 代理（client-response 信封，用于 question 回答）
   dshRespond: (message: unknown) => ipcRenderer.invoke('dsh-respond', message),
+
+  // DSH 手动重启（degraded 终态的恢复入口）
+  dshRestart: () => ipcRenderer.invoke('dsh-restart'),
+
+  // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
+  dshOpenAgentWindow: () => ipcRenderer.invoke('dsh-open-agent-window'),
 })

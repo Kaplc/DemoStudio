@@ -118,7 +118,26 @@ export interface Message {
   reasoningCollapsed?: boolean
 }
 
-export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
+/**
+ * 连接状态机（agent 常驻化扩展）：
+ * - idle        初始/已断开
+ * - claiming    等待主进程完成 agent 引导（探测认领或 spawn）
+ * - connecting  建立会话中
+ * - connected   正常可用
+ * - recovering  恢复已有会话中（localStorage 映射 → attach + history 补齐）
+ * - disconnected 显式断开
+ * - error       一次性错误（可自动重连）
+ * - degraded    终态故障：主进程自愈超限/引导失败，需手动重启 agent
+ */
+export type ConnectionState =
+  | 'idle'
+  | 'claiming'
+  | 'connecting'
+  | 'connected'
+  | 'recovering'
+  | 'disconnected'
+  | 'error'
+  | 'degraded'
 
 export interface AgentConfig {
   host: string

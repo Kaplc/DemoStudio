@@ -164,24 +164,17 @@ if "%DSH_NEED_BUILD%"=="1" (
     popd
 )
 
-REM ─── 检测 DSH 是否已启动（端口 3080） ───
-set "DSH_SKIP=0"
-netstat -ano | findstr ":3080 " | findstr "LISTENING" >nul 2>nul
-if not errorlevel 1 (
-    echo [DSH] 检测到 DSH 已在端口 3080 运行，跳过重复启动
-    set "DSH_SKIP=1"
-)
+REM ─── DSH 复用检测已下沉到 Electron main 进程（探测 :3080 → 认领幸存 agent） ───
+REM 旧 DSH_SKIP 环境变量机制由 main.ts 的 bootstrapDSH() 通用探测取代，此处不再设置
 
 echo [Launch] 正在启动 Electron 编辑器...
 echo.
 echo   ※ Vite 开发服务器将自动启动
 echo   ※ Electron 窗口将在 Vite 就绪后打开
 echo   ※ 支持多实例：可重复双击本文件启动多个编辑器
-echo     （Vite 端口 5173+ / MCP 端口 9877+ 自动递增分配）
-if "%DSH_SKIP%"=="1" echo   ※ DSH 已在运行，将复用现有实例
+echo     （Vite 端口 5173+ / MCP 端口 9877+ 自动递增分配；DSH agent 多实例共享）
 echo.
 
-set "DSH_SKIP=%DSH_SKIP%"
 npm run electron:dev
 if errorlevel 1 (
     echo.

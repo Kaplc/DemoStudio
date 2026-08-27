@@ -39,7 +39,7 @@ export interface EngineContext {
 
 /**
  * 从 DSH 启动 env / globalThis 提取 workspace 根。
- * DSH 启动时由 dsh-agent-service.cjs 设置 DSH_ENGINE_BASE_URL 等 env；
+ * DSH 由 electron/main.ts 以 `dsh-cli --profile web` 拉起时注入 DSH_ENGINE_PORT 等 env；
  * workspace 根通过 DSH_PLUGIN_DIST 反推。
  */
 function getWorkspaceRootFromEnv(): string | null {

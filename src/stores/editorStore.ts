@@ -68,17 +68,10 @@ export interface EditorState {
   leftPanelTab: 'outline' | 'assets' | 'ui'
   setLeftPanelTab: (tab: 'outline' | 'assets' | 'ui') => void
 
-  // ─── 右侧面板页签（Inspector/Agent）───
-  rightPanelTab: 'inspector' | 'agent'
-  setRightPanelTab: (tab: 'inspector' | 'agent') => void
-
-  // ─── Agent 面板状态 ───
-  showAgentPanel: boolean
+  // ─── Agent 状态（AgentUI 已迁移至独立窗口，内嵌面板已移除）───
   agentConnected: boolean
   agentConnecting: boolean
   showPluginCenter: boolean
-  setShowAgentPanel: (show: boolean) => void
-  toggleAgentPanel: () => void
   setAgentConnected: (connected: boolean) => void
   setAgentConnecting: (connecting: boolean) => void
   setShowPluginCenter: (show: boolean) => void
@@ -168,20 +161,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   setLeftPanelTab: (tab) => set({ leftPanelTab: tab }),
 
   // ─── 右侧面板 ───
-  rightPanelTab: 'inspector',
-  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
 
-  // ─── Agent 面板 ───
-  showAgentPanel: false,
+  // ─── Agent 状态（AgentUI 已迁移至独立窗口）───
   agentConnected: false,
   agentConnecting: false,
   showPluginCenter: false,
-  setShowAgentPanel: (show) => set({ showAgentPanel: show, rightPanelTab: show ? 'agent' : 'inspector' }),
-  toggleAgentPanel: () =>
-    set((state) => ({
-      showAgentPanel: !state.showAgentPanel,
-      rightPanelTab: !state.showAgentPanel ? 'agent' : 'inspector',
-    })),
   setAgentConnected: (connected) => set({ agentConnected: connected, agentConnecting: false }),
   setAgentConnecting: (connecting) => set({ agentConnecting: connecting }),
   setShowPluginCenter: (show) => set({ showPluginCenter: show }),

@@ -20,11 +20,31 @@ let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 let _gameScore = 0
 
-// ─── DSH 服务管理 ───
-let _dshService: { stop(): Promise<void>; getPort(): number; isRunning(): boolean } | null = null
+// ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 所有权 watchdog） ───
+// 生命周期状态机：off → probing → claimed(复用旧实例) | spawning → running → restart-wait(自愈中) | degraded(自愈超限终态)
+type DshLifecycle = 'off' | 'probing' | 'claimed' | 'spawning' | 'running' | 'restart-wait' | 'degraded'
+let _dshLifecycle: DshLifecycle = 'off'
 let _dshPort = 0
+let _dshChild: ChildProcess | null = null   // 本实例 spawn 的 agent 子进程（认领的旧 agent 无此句柄）
+let _dshShuttingDown = false                // 主动停机标志：抑制 exit 回调触发自愈
+let _dshBootstrapInFlight = false           // 探测/spawn 流程防重入（activate 重复 startApp 场景）
+let _dshRestartCount = 0                    // 自愈已重试次数
+let _dshRestartTimer: NodeJS.Timeout | null = null
+let _dshHeartbeatTimer: NodeJS.Timeout | null = null
+
 const DSH_CLI_PATH = path.join(__dirname, '..', 'harness', 'dsh-source', 'apps', 'cli', 'lib', 'bin.js')
 const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
+
+// 所有权协议目录与关键参数（watcher 与本文件共享同一套语义）
+const DSH_PORT_DEFAULT = 3080
+const DSH_STATE_DIR = path.join(__dirname, '..', 'cache', 'dsh-runtime')
+const DSH_EDITOR_HEARTBEAT_MS = 2000    // 编辑器心跳周期
+const DSH_OWNER_GRACE_MS = 30000        // 孤儿宽限时长：全部编辑器消失后 watcher 再等这么久才收割 agent
+const DSH_PROBE_TIMEOUT_MS = 1500       // /api/session.list 探测超时
+const DSH_SPAWN_READY_TIMEOUT_MS = 30000 // spawn 后等待端口就绪上限
+const DSH_AGENT_MAX_RESTARTS = 5        // 崩溃自愈次数上限，超限进入 degraded 终态
+const DSH_AGENT_RESTART_BASE_MS = 2000  // 自愈退避基础延迟
+const DSH_AGENT_RESTART_MAX_MS = 60000  // 自愈退避延迟上限
 
 /**
  * 获取系统 Node.js 路径
@@ -197,6 +217,12 @@ function createMainWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    // 主窗口关闭 = 主动关闭编辑器：级联关闭独立 WebUI 窗口，
+    // 随后 window-all-closed 触发 stopDSHService 收割 agent（主动关闭才销毁的不变量）
+    if (_dshWebuiWindow && !_dshWebuiWindow.isDestroyed()) {
+      console.log('[DSH] 主窗口关闭，级联关闭 WebUI 独立窗口')
+      _dshWebuiWindow.close()
+    }
   })
 
   // 将浏览器控制台输出重定向到文件日志
@@ -275,32 +301,193 @@ async function waitForDevServer(): Promise<void> {
   })
 }
 
-// ─── DSH 服务启动 ───
+// ─── DSH agent 常驻化管理（探测 → 认领 → 所有权 watchdog → 崩溃自愈） ───
+
+interface DshOwner {
+  port?: number
+  agentPid?: number
+  watchdogPid?: number
+  claimedAt?: number
+  /** 认领来源：spawn=本实例新拉起 claim=接管幸存实例 auto-restart=崩溃自愈 */
+  source?: string
+}
+
+function ensureDshStateDir(): string {
+  const editorsDir = path.join(DSH_STATE_DIR, 'editors')
+  if (!fs.existsSync(editorsDir)) fs.mkdirSync(editorsDir, { recursive: true })
+  return DSH_STATE_DIR
+}
+
+/** 平台无关 PID 存活检测（signal 0 探活；EPERM 视为存活） */
+function isPidAlive(pid?: number | null): boolean {
+  if (!pid || !Number.isFinite(pid)) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/** 强制结束进程树（Windows taskkill /T /F），返回是否发出了终止命令 */
+function killProcessTree(pid?: number | null): boolean {
+  if (!isPidAlive(pid)) return false
+  console.log(`[DSH] 终止进程树: ${pid}`)
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    } else {
+      try { process.kill(pid!, 'SIGTERM') } catch { /* already gone */ }
+    }
+  } catch (err) {
+    console.error(`[DSH] 终止进程树失败(PID=${pid}): ${String(err)}`)
+  }
+  return true
+}
+
+/** 通过 netstat 反查监听指定端口（127.0.0.1）的进程 PID，用于认领旧 agent 时登记其 PID */
+function findDshAgentPidByPort(port: number): number | null {
+  try {
+    const out = execSync('netstat -ano -p tcp', { encoding: 'utf-8', timeout: 5000 })
+    for (const line of out.split(/\r?\n/)) {
+      const cols = line.trim().split(/\s+/)
+      // 形如: TCP  127.0.0.1:3080  0.0.0.0:0  LISTENING  12345
+      if (cols.length >= 5 && cols[0] === 'TCP' && cols[3] === 'LISTENING') {
+        const local = cols[1]
+        const addr = local.split(':')
+        const p = Number(addr[addr.length - 1])
+        const hostPart = local.slice(0, local.length - String(p || '').length - 1)
+        if (p === port && (hostPart === '127.0.0.1' || hostPart === '0.0.0.0')) {
+          return Number(cols[4])
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[DSH] netstat 反查端口 ${port} 失败: ${String(err)}`)
+  }
+  return null
+}
+
+/** 编辑器心跳：向注册表写入/续期本实例的心跳文件（watcher 据此判断编辑器存活性） */
+function writeDshEditorHeartbeat(): void {
+  try {
+    ensureDshStateDir()
+    const file = path.join(DSH_STATE_DIR, 'editors', `${process.pid}.json`)
+    fs.writeFileSync(file, JSON.stringify({
+      pid: process.pid,
+      startedAt: Date.now(),
+      heartbeatAt: Date.now(),
+    }))
+  } catch (err) {
+    console.error(`[DSH] 写入编辑器心跳失败: ${String(err)}`)
+  }
+}
+
+function startDshEditorHeartbeat(): void {
+  writeDshEditorHeartbeat()
+  if (_dshHeartbeatTimer) clearInterval(_dshHeartbeatTimer)
+  _dshHeartbeatTimer = setInterval(writeDshEditorHeartbeat, DSH_EDITOR_HEARTBEAT_MS)
+  _dshHeartbeatTimer.unref?.()
+}
+
+/** 停止心跳并注销自己的心跳文件 */
+function stopDshEditorHeartbeat(): void {
+  if (_dshHeartbeatTimer) { clearInterval(_dshHeartbeatTimer); _dshHeartbeatTimer = null }
+  try {
+    fs.rmSync(path.join(DSH_STATE_DIR, 'editors', `${process.pid}.json`), { force: true })
+  } catch { /* ignore */ }
+}
+
+/** 除本实例外是否还有其他心跳新鲜的编辑器在运行（多实例共享降级判断用） */
+function hasOtherFreshEditors(): boolean {
+  try {
+    const dir = path.join(DSH_STATE_DIR, 'editors')
+    const files = fs.readdirSync(dir)
+    const now = Date.now()
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue
+      if (f === `${process.pid}.json`) continue
+      try {
+        const raw = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
+        const fresh = now - Number(raw.heartbeatAt || 0) <= DSH_EDITOR_HEARTBEAT_MS * 3
+        if (fresh && isPidAlive(Number(raw.pid))) return true
+      } catch { /* 单文件损坏忽略 */ }
+    }
+  } catch { /* 目录不存在 */ }
+  return false
+}
 
 /**
- * 通过 stdio 子进程加载 dsh-agent-service.js（DSH 内核 + HTTP 代理）。
- * 非阻塞：启动子进程后立即返回，不等待端口就绪。
- * 子进程 stdout 输出 "dsh web: http://...:N" 时自动标记 _dshPort。
+ * 探测 DSH 是否存活：POST /api/session.list（与 renderer 同一 RPC 协议，零内核假设）。
+ * 返回 true 表示 :3080 上有可用的 DSH web 服务。
  */
-function startDSHService(): void {
-  // 检测 DSH 是否已由外部启动（editor.bat 通过端口检测设置 DSH_SKIP=1）
-  if (process.env.DSH_SKIP === '1') {
-    console.log('[DSH] 检测到 DSH_SKIP=1，跳过启动（复用已有 DSH 实例）')
-    _dshPort = 3080
-    _dshService = {
-      stop: async () => { /* 外部实例，不负责关闭 */ },
-      getPort: () => _dshPort,
-      isRunning: () => _dshPort !== 0,
-    }
+async function probeDshAlive(port: number = DSH_PORT_DEFAULT, timeoutMs = DSH_PROBE_TIMEOUT_MS): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/session.list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: `probe-${process.pid}`, method: 'session.list', payload: {} }),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (!res.ok) return false
+    await res.json()
+    return true
+  } catch {
+    return false
+  }
+}
+
+function readDshOwner(): DshOwner | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DSH_STATE_DIR, 'owner.json'), 'utf-8')) as DshOwner
+  } catch { return null }
+}
+
+function writeDshOwner(patch: Partial<DshOwner>): void {
+  try {
+    ensureDshStateDir()
+    const next: DshOwner = { ...(readDshOwner() || {}), ...patch }
+    fs.writeFileSync(path.join(DSH_STATE_DIR, 'owner.json'), JSON.stringify(next, null, 2))
+  } catch (err) {
+    console.error(`[DSH] 写入 owner.json 失败: ${String(err)}`)
+  }
+}
+
+/** 确保存在存活的 watcher 进程守护当前 agent（认领旧 agent 后必须调用） */
+function ensureDshWatcher(source: string): void {
+  const owner = readDshOwner()
+  if (isPidAlive(owner?.watchdogPid)) {
+    console.log(`[DSH] watcher 存活(PID=${owner?.watchdogPid})，无需重复拉起 (${source})`)
     return
   }
+  const watcherPath = path.join(__dirname, '..', 'editor', 'dsh-agent-watcher.cjs')
+  if (!fs.existsSync(watcherPath)) {
+    console.warn(`[DSH] watcher 脚本不存在: ${watcherPath}（孤儿自杀能力失效，但不阻断使用）`)
+    return
+  }
+  const systemNode = getSystemNodePath()
+  const child = spawn(systemNode, [
+    watcherPath,
+    '--state-dir', DSH_STATE_DIR,
+    '--grace-ms', String(DSH_OWNER_GRACE_MS),
+  ], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  child.unref?.()
+  console.log(`[DSH] 已拉起所有权 watchdog (PID=${child.pid}) (${source})，宽限=${DSH_OWNER_GRACE_MS}ms`)
+  // 注意：watcher 启动后会自报家门把自身 PID 写入 owner.json，这里不再写 watchPid 竞态值
+}
 
-  console.log('[DSH] 启动 DSH 内核 (web profile, port 3080)...')
-
+/** spawn 新的 DSH agent 子进程并等待就绪；成功后进入 running 并认领登记 */
+async function spawnDshAgent(): Promise<void> {
   if (!fs.existsSync(DSH_CLI_PATH)) {
-    console.warn(`[DSH] CLI 不存在: ${DSH_CLI_PATH}，跳过启动`)
-    return
+    throw new Error(`DSH CLI 不存在: ${DSH_CLI_PATH}`)
   }
+
+  console.log(`[DSH] 启动 DSH 内核 (web profile, port ${DSH_PORT_DEFAULT})...`)
+  _dshLifecycle = 'spawning'
 
   const child = spawn(getSystemNodePath(), [DSH_CLI_PATH, '--profile', 'web', '--no-open'], {
     cwd: DSH_SOURCE_DIR,
@@ -311,43 +498,181 @@ function startDSHService(): void {
       DSH_ENGINE_PORT: String(MCP_API_PORT),
     },
   })
-
-  // 先注册 stop，编辑器退出时能清理子进程
-  _dshService = {
-    stop: async () => {
-      try { child.kill() } catch { /* ignore */ }
-    },
-    getPort: () => _dshPort,
-    isRunning: () => _dshPort !== 0,
-  }
+  _dshChild = child
 
   child.stdout?.on('data', (data) => {
     const msg = data.toString()
-    msg.split(/\r?\n/).forEach((line) => {
+    msg.split(/\r?\n/).forEach((line: string) => {
       const t = line.trim()
       if (t) console.log(`[DSH:stdout] ${t}`)
-      // DSH web 输出: "dsh web: http://127.0.0.1:3080"
       const m = t.match(/dsh web:\s*http:\/\/[^:]+:(\d+)/)
-      if (m) {
+      if (m && _dshPort !== Number(m[1])) {
         _dshPort = Number(m[1])
-        console.log(`[DSH] 内核就绪: http://127.0.0.1:${_dshPort}`)
+        console.log(`[DSH] 内核就绪(stdout): http://127.0.0.1:${_dshPort}`)
       }
     })
   })
   child.stderr?.on('data', (data) => {
     const msg = data.toString()
-    msg.split(/\r?\n/).forEach((line) => {
+    msg.split(/\r?\n/).forEach((line: string) => {
       if (line.trim()) console.log(`[DSH:stderr] ${line.trim()}`)
     })
   })
+
   child.on('exit', (code) => {
-    console.log(`[DSH] 内核进程退出: ${code}`)
-    _dshService = null
-    _dshPort = 0
+    console.log(`[DSH] 内核进程退出: code=${code} shuttingDown=${_dshShuttingDown}`)
+    if (_dshChild === child) _dshChild = null
+    onDshChildExited(code)
   })
   child.on('error', (err) => {
     console.error(`[DSH] 内核启动失败: ${err.message}`)
   })
+
+  // 就绪等待：stdout 打印或 RPC 探测通过任一即可（双通道，防 stdout 格式变化导致死等）
+  const deadline = Date.now() + DSH_SPAWN_READY_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    if (_dshShuttingDown) {
+      // 等待期间用户关窗：此时 child 尚未注册到 owner.json，必须就地收割防孤儿
+      console.log('[DSH] 就绪等待期间触发停机，收割未注册的 agent 子进程')
+      killProcessTree(child.pid)
+      if (_dshChild === child) _dshChild = null
+      return
+    }
+    if (_dshPort === 0) {
+      const ok = await probeDshAlive()
+      if (ok) _dshPort = DSH_PORT_DEFAULT
+    }
+    if (_dshPort !== 0) break
+    await new Promise(r => setTimeout(r, 500))
+  }
+
+  if (_dshPort === 0) {
+    throw new Error(`agent 在 ${DSH_SPAWN_READY_TIMEOUT_MS}ms 内未就绪（端口 ${DSH_PORT_DEFAULT} 无响应）`)
+  }
+
+  registerDshOwnership('spawn')
+  _dshLifecycle = 'running'
+  _dshRestartCount = 0
+  connectMuxWs()
+  console.log(`[DSH] 内核运行中: http://127.0.0.1:${_dshPort} (agentPid=${_dshChild?.pid ?? '?'})`)
+}
+
+/** 认领登记：反查 agent PID → 写 owner.json → 确保 watcher 守护 */
+function registerDshOwnership(source: string): void {
+  let agentPid = _dshChild?.pid ?? null
+  if (!agentPid) agentPid = findDshAgentPidByPort(_dshPort || DSH_PORT_DEFAULT)
+  writeDshOwner({ port: _dshPort, agentPid: agentPid ?? undefined, claimedAt: Date.now(), source })
+  ensureDshWatcher(source)
+  if (!agentPid) {
+    console.warn('[DSH] 未能确定 agent PID（netstat 反查失败），优雅停机时将退化为按端口收尾')
+  }
+}
+
+/** 崩溃自愈入口：非主动停机的 exit 回调统一走这里 */
+function onDshChildExited(code: number | null): void {
+  if (_dshShuttingDown) return           // 主动停机中，不需要自愈
+  if (_dshLifecycle !== 'running') return // 自愈路径上被再次 kill 属预期，忽略
+
+  _dshPort = 0
+  disconnectMuxWs()
+
+  if (_dshRestartCount >= DSH_AGENT_MAX_RESTARTS) {
+    _dshLifecycle = 'degraded'
+    console.error(`[DSH] 自愈重试已达上限(${DSH_AGENT_MAX_RESTARTS})，进入 degraded 终态。可在 Agent 面板手动重启。`)
+    return
+  }
+
+  const delay = Math.min(DSH_AGENT_RESTART_BASE_MS * Math.pow(2, _dshRestartCount), DSH_AGENT_RESTART_MAX_MS)
+  _dshRestartCount++
+  _dshLifecycle = 'restart-wait'
+  console.warn(`[DSH] agent 异常退出(code=${code})，${delay}ms 后进行第 ${_dshRestartCount}/${DSH_AGENT_MAX_RESTARTS} 次自愈重启`)
+  _dshRestartTimer = setTimeout(async () => {
+    _dshRestartTimer = null
+    if (_dshShuttingDown) return
+    try {
+      await bootstrapDSH('auto-restart')
+    } catch (err) {
+      console.error(`[DSH] 自愈重启失败: ${String(err)}`)
+      onDshChildExited(null) // 以新一轮退出继续计数/终态判定
+    }
+  }, delay)
+  _dshRestartTimer.unref?.()
+}
+
+/**
+ * DSH 引导入口：探测 :3080 存活则认领，否则 spawn 新 agent。
+ * 非阻塞、可重入安全（bootstrapInFlight 保护）；每次成功后都会建立/确认所有权。
+ */
+async function bootstrapDSH(source: string = 'startup'): Promise<void> {
+  if (_dshBootstrapInFlight) {
+    console.log(`[DSH] 引导流程进行中，忽略本次触发 (${source})`)
+    return
+  }
+  _dshBootstrapInFlight = true
+  _dshShuttingDown = false
+
+  try {
+    startDshEditorHeartbeat()
+    _dshLifecycle = 'probing'
+    const alive = await probeDshAlive()
+
+    if (alive) {
+      // ── 认领幸存 agent ──
+      _dshPort = DSH_PORT_DEFAULT
+      console.log(`[DSH] 探测到幸存 agent (port=${_dshPort})，执行认领 (${source})`)
+      registerDshOwnership('claim')
+      _dshLifecycle = 'claimed'
+      connectMuxWs()
+      console.log(`[DSH] 认领完成: http://127.0.0.1:${_dshPort} (agentPid=${readDshOwner()?.agentPid ?? '?'})`)
+      return
+    }
+
+    // ── spawn 新 agent ──
+    await spawnDshAgent()
+  } catch (err) {
+    // 引导失败（如 dsh-cli 缺失 / 就绪超时）：清理残留子进程后终态降级，不阻断编辑器其余功能
+    if (_dshChild) { killProcessTree(_dshChild.pid); _dshChild = null }
+    _dshLifecycle = 'degraded'
+    _dshPort = 0
+    console.error(`[DSH] 引导失败(${source}) → degraded: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    _dshBootstrapInFlight = false
+  }
+}
+
+/**
+ * 优雅停机：
+ *  - 注销本实例心跳；
+ *  - 若仍有其他新鲜编辑器实例 → 仅注销自己（agent 与 watcher 继续服务多实例场景）；
+ *  - 否则收割 agent 进程树并停掉 watcher，清理协议文件，确保 :3080 不再有监听。
+ */
+async function stopDSHService(): Promise<void> {
+  if (_dshLifecycle === 'off') return
+  const wasRunning = _dshPort !== 0 || !!readDshOwner()?.agentPid
+  _dshShuttingDown = true
+  _dshLifecycle = 'off'
+  if (_dshRestartTimer) { clearTimeout(_dshRestartTimer); _dshRestartTimer = null }
+  disconnectMuxWs()
+  stopDshEditorHeartbeat()
+
+  if (!wasRunning) return
+
+  if (hasOtherFreshEditors()) {
+    console.log('[DSH] 检测到其他活跃编辑器实例，保留共享 agent 不停机')
+    _dshChild = null
+    _dshPort = 0
+    return
+  }
+
+  console.log('[DSH] 本实例是最后一个编辑器 → 收割 agent 与 watchdog')
+  const owner = readDshOwner()
+  // agentPid 缺失时按端口兜底反查，确保「:3080 无监听」承诺可兑现
+  const agentPid = owner?.agentPid ?? findDshAgentPidByPort(_dshPort || DSH_PORT_DEFAULT)
+  killProcessTree(agentPid)
+  killProcessTree(owner?.watchdogPid)
+  _dshChild = null
+  _dshPort = 0
+  try { fs.rmSync(path.join(DSH_STATE_DIR, 'owner.json'), { force: true }) } catch { /* ignore */ }
 }
 
 // ═══════════════════════════════════════
@@ -361,8 +686,8 @@ async function startApp() {
   // 2. 启动 MCP HTTP API（多实例自动分配端口）
   await startMCPServer()
 
-  // 3. 启动 DSH 服务（非阻塞，后台慢慢启动）
-  startDSHService()
+  // 3. DSH agent 常驻引导：探测 :3080 → 认领幸存实例 / spawn 新实例（后台异步，不阻塞编辑器启动）
+  void bootstrapDSH('startup')
 
   // 4. 等待开发服务器就绪（开发模式）
   if (isDev) {
@@ -411,12 +736,30 @@ ipcMain.handle('show-message-box', async (_event, options: Electron.MessageBoxOp
   return result
 })
 
-// DSH 服务状态查询（让渲染进程能即时知道 DSH 是否可用 + 端口）
+// DSH 服务状态查询（让渲染进程能即时知道 DSH 是否可用 + 端口 + 生命周期阶段）
 ipcMain.handle('dsh-status', () => ({
-  ready: _dshService?.isRunning() ?? false,
-  port: _dshService?.getPort() ?? 0,
+  ready: _dshPort !== 0,
+  port: _dshPort,
   enginePort: MCP_API_PORT,
+  lifecycle: _dshLifecycle,
+  agentPid: readDshOwner()?.agentPid ?? null,
 }))
+
+// DSH 手动重启（degraded 终态的恢复入口：重置自愈计数后重新走引导流程）
+ipcMain.handle('dsh-restart', async () => {
+  console.log('[DSH] 收到手动重启请求')
+  await stopDSHService()
+  _dshRestartCount = 0
+  _dshShuttingDown = false
+  void bootstrapDSH('manual-restart')
+  return { ok: true }
+})
+
+// Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
+ipcMain.handle('dsh-open-agent-window', () => {
+  openAgentWindow()
+  return { ok: true }
+})
 
 // DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS）
 ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
@@ -1027,7 +1370,11 @@ function findFreePort(start: number): Promise<number> {
   })
 }
 
+let _mcpServer: http.Server | null = null
+
 async function startMCPServer() {
+  // 防重入：activate 重入 startApp 时不得重复创建 server（端口已被占用）
+  if (_mcpServer) return
   // 多实例：当前实例端口 = 9877 + 已占用数量（自动递增）
   MCP_API_PORT = await findFreePort(MCP_API_PORT_START)
   const server = http.createServer((req, res) => {
@@ -1251,10 +1598,10 @@ async function startMCPServer() {
         try {
           const { message, history } = JSON.parse(body)
 
-          // 优先代理到 DSH 服务（实际端口由 DSH 服务启动时动态分配）
-          if (_dshService?.isRunning()) {
+          // 优先代理到 DSH 服务（常驻 agent；端口固定 :3080 由 bootstrapDSH 就绪后标记）
+          if (_dshPort !== 0 && (_dshLifecycle === 'running' || _dshLifecycle === 'claimed')) {
             try {
-              const dshPort = _dshService.getPort()
+              const dshPort = _dshPort
               const dshRes = await fetch(`http://127.0.0.1:${dshPort}/chat-sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1319,6 +1666,7 @@ async function startMCPServer() {
   })
 
   server.listen(MCP_API_PORT, '127.0.0.1', () => {
+    _mcpServer = server
     console.log(`[MCP-API] HTTP 服务器已启动: http://127.0.0.1:${MCP_API_PORT}`)
     if (MCP_API_PORT !== MCP_API_PORT_START) {
       console.log(`[MCP-API] 注意：${MCP_API_PORT_START} 已被其他实例占用，本实例使用端口 ${MCP_API_PORT}`)
@@ -1335,6 +1683,52 @@ async function startMCPServer() {
   })
 }
 
+/**
+ * Agent 独立窗口：加载编辑器自身的 AgentUI（?agentWindow=1 全屏渲染 AgentPanel），
+ * 与编辑器内嵌面板共享同一 agent :3080 与同一批会话。
+ * - 单例：重复调用时聚焦已有窗口；
+ * - agent 未就绪时窗口内 AgentPanel 自动进入 claiming 态轮询等待（复用自身连接状态机，无需等待页）；
+ * - 仅是 UI 容器，不影响 agent 进程管理（归属仍由 bootstrapDSH/stopDSHService 控制）。
+ */
+let _dshWebuiWindow: BrowserWindow | null = null
+
+function openAgentWindow(): void {
+  if (_dshWebuiWindow && !_dshWebuiWindow.isDestroyed()) {
+    if (_dshWebuiWindow.isMinimized()) _dshWebuiWindow.restore()
+    _dshWebuiWindow.focus()
+    console.log('[DSH] Agent 独立窗口已存在，聚焦')
+    return
+  }
+
+  console.log(`[DSH] 打开 Agent 独立窗口 (agent ${_dshPort !== 0 ? `就绪:${_dshPort}` : '未就绪，窗口内自动等待'})`)
+  _dshWebuiWindow = new BrowserWindow({
+    width: 1100,
+    height: 780,
+    minWidth: 720,
+    minHeight: 480,
+    title: 'DSH Agent',
+    backgroundColor: '#1e1e1e',
+    icon: path.join(__dirname, '../assets/icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    show: false,
+  })
+
+  _dshWebuiWindow.once('ready-to-show', () => _dshWebuiWindow?.show())
+  _dshWebuiWindow.on('closed', () => { _dshWebuiWindow = null })
+
+  // 加载编辑器应用本身，query 参数驱动 App 只渲染 AgentPanel（不初始化引擎）
+  if (isDev) {
+    void _dshWebuiWindow.loadURL(`${VITE_URL}?agentWindow=1`)
+  } else {
+    void _dshWebuiWindow.loadFile(path.join(__dirname, '../dist/index.html'), { search: 'agentWindow=1' })
+  }
+}
+
 // ─── 应用生命周期 ───
 
 // 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
@@ -1344,8 +1738,8 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // 关窗前清理 DSH 子进程
-  _dshService?.stop().catch(() => { /* ignore */ })
+  // 优雅停机：最后一个编辑器实例才收割 agent；多实例共享时仅注销自己
+  void stopDSHService()
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -1353,6 +1747,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
+    // bootstrapDSH 自带 inFlight 防重入与 off 状态幂等，重复 startApp 安全
     startApp()
   }
 })

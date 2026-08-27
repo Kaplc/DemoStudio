@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
-import { agentService } from '../editor/AgentService'
 import { pluginService } from '../editor/PluginService'
 
 interface MenuState {
@@ -33,7 +32,7 @@ function DropdownItem({
 export function MenuBar() {
   const [menu, setMenu] = useState<MenuState>({ open: null })
   const menuRef = useRef<HTMLDivElement>(null)
-  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject, setShowAgentPanel, toggleAgentPanel, agentConnected, setShowPluginCenter } = useEditorStore()
+  const { addConsoleOutput, setShowProjectSelector, setShowNewProjectDialog, launchGame, stopGame, gameState, currentProject, setShowPluginCenter } = useEditorStore()
   const toggleConsole = useEditorPrefsStore((s) => s.toggleConsole)
 
   const closeMenu = () => setMenu({ open: null })
@@ -58,21 +57,19 @@ export function MenuBar() {
       case 'stop-game':
         stopGame()
         break
-      case 'toggle-agent':
-        toggleAgentPanel()
-        break
-      case 'connect-harness':
-        addConsoleOutput('[Agent] 正在连接到 Harness...')
-        agentService.connect().then(() => {
-          addConsoleOutput('[Agent] 已连接到 Harness')
-        }).catch((error) => {
-          addConsoleOutput(`[Agent] 连接失败: ${error.message}`)
+      case 'open-agent-window': {
+        const api = window.electronAPI
+        if (!api?.dshOpenAgentWindow) {
+          addConsoleOutput('[Agent] 当前环境不支持独立窗口（浏览器模式）')
+          break
+        }
+        api.dshOpenAgentWindow().then(() => {
+          addConsoleOutput('[Agent] Agent 独立窗口已打开')
+        }).catch((error: Error) => {
+          addConsoleOutput(`[Agent] 打开独立窗口失败: ${error.message}`)
         })
         break
-      case 'disconnect-harness':
-        agentService.disconnect()
-        addConsoleOutput('[Agent] 已断开连接')
-        break
+      }
       case 'agent-settings':
         // TODO: 打开 Agent 设置
         addConsoleOutput('[Agent] 设置功能开发中...')
@@ -135,9 +132,7 @@ export function MenuBar() {
     {
       label: 'Agent',
       items: [
-        { label: 'Toggle Agent Panel', shortcut: 'Ctrl+Shift+A', action: 'toggle-agent' },
-        'separator',
-        { label: agentConnected ? 'Disconnect' : 'Connect to Harness', action: agentConnected ? 'disconnect-harness' : 'connect-harness' },
+        { label: '在独立窗口打开 Agent', shortcut: 'Ctrl+Shift+A', action: 'open-agent-window' },
         'separator',
         { label: '🔌 插件控制中心', shortcut: 'Ctrl+Shift+P', action: 'plugin-center' },
         'separator',

@@ -8,7 +8,8 @@
  * - 我们用鸭子类型调用 `register` / `effect`，避免硬依赖未发布的 DSH 接口
  *
  * 引擎上下文注入（关键）：
- * - dsh-agent-service.cjs 在 spawn DSH 之前把 bridges 写到 `globalThis.__dshEngineCtx`
+ * - 编辑器侧常驻化引导链路（electron/main.ts → dsh-agent-watcher）在 agent 启动前
+ *   通过 env / globalThis.__dshEngineCtx 提供 bridges
  * - 我们的 tools 通过 `engineContext.getEngineContext` 优先读 ctx、再读 globalThis
  * - apply 阶段不直接读 ctx.engineBridge / ctx.fileBridge（避免触发 Cordis 反射错误），
  *   而是直接把 globalThis 里的 __dshEngineCtx 提供给 tools ；

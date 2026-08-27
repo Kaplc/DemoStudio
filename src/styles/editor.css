@@ -1364,6 +1364,20 @@ html, body, #root {
 
 /* ═══ Agent Panel（完全对齐 DSH Web UI）═══ */
 
+/* --- Agent 独立窗口（Electron 子窗口 ?agentWindow=1）全屏容器 --- */
+.agent-window-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+.agent-window-root .agent-panel {
+  flex: 1;
+  min-height: 0;
+}
+
 /* --- Agent 面板容器 --- */
 .agent-panel {
   display: flex;
@@ -1381,6 +1395,31 @@ html, body, #root {
   border-bottom: 1px solid var(--dsw-alias-border-l1);
   height: var(--panel-header-height);
   flex-shrink: 0;
+}
+.agent-panel__header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 纯圆点状态灯（独立窗口标题旁）：去胶囊外观，保留状态色与 degraded 闪烁 */
+.connection-indicator__dot--solo {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  cursor: default;
+}
+.agent-panel__header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.agent-panel__more-wrap {
+  position: relative;
+}
+/* 右对齐下拉（Agent 面板头部「更多」菜单） */
+.dropdown-menu--right {
+  left: auto;
+  right: 0;
 }
 .agent-panel__title {
   font: var(--dsw-font-xxs-strong);
@@ -1535,6 +1574,10 @@ html, body, #root {
   animation: pulse 1.5s infinite;
 }
 .connection-indicator__dot--error { background: var(--dsw-alias-state-error-primary); }
+.connection-indicator__dot--degraded {
+  animation: pulse 1s infinite;
+  box-shadow: 0 0 6px var(--dsw-alias-state-error-primary);
+}
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

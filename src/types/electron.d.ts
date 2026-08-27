@@ -52,8 +52,15 @@ export interface ElectronAPI {
   /** AI 聊天响应（渲染进程回传结果给主进程） */
   sendAIChatResponse: (requestId: string, result: unknown) => void
 
-  // DSH 服务状态查询（DSH 内核由编辑器主进程拉起，端口动态分配）
-  dshStatus: () => Promise<{ ready: boolean; port: number; enginePort: number }>
+  // DSH 服务状态查询（agent 常驻化：含主进程生命周期阶段）
+  /** DshLifecycle: off=未引导 probing=探测中 claimed=已认领幸存实例 spawning=启动中 running=运行中 restart-wait=自愈重启等待 degraded=终态故障 */
+  dshStatus: () => Promise<{
+    ready: boolean
+    port: number
+    enginePort: number
+    lifecycle: 'off' | 'probing' | 'claimed' | 'spawning' | 'running' | 'restart-wait' | 'degraded'
+    agentPid: number | null
+  }>
 
   // DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）
   dshRpc: (method: string, payload: unknown) => Promise<{ type: string; result?: { ok?: boolean; value?: unknown; error?: { message?: string } } }>
@@ -65,6 +72,12 @@ export interface ElectronAPI {
 
   // DSH Respond 代理（client-response 信封，用于 question 回答）
   dshRespond: (message: unknown) => Promise<{ accepted?: boolean; reason?: string }>
+
+  // DSH 手动重启（degraded 终态的恢复入口）
+  dshRestart: () => Promise<{ ok: boolean }>
+
+  // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
+  dshOpenAgentWindow: () => Promise<{ ok: boolean }>
 }
 
 declare global {

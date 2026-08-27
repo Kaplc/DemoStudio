@@ -8,7 +8,7 @@ import { useEditorStore } from '../stores/editorStore'
  * 接管 Electron 移除了原生菜单后丢失的快捷键
  */
 export function KeyboardShortcuts() {
-  const { toggleAgentPanel, setShowPluginCenter } = useEditorStore()
+  const { setShowPluginCenter } = useEditorStore()
 
   useEffect(() => {
     const cleanup = registerShortcuts()
@@ -21,9 +21,9 @@ export function KeyboardShortcuts() {
     }
     window.addEventListener('shortcut-toggle-collider-gizmos', onToggleCollider)
 
-    // Ctrl+Shift+A — 切换 Agent 面板
+    // Ctrl+Shift+A — 在独立窗口打开 Agent
     const onToggleAgent = () => {
-      toggleAgentPanel()
+      window.electronAPI?.dshOpenAgentWindow?.().catch(() => {})
     }
     window.addEventListener('shortcut-toggle-agent', onToggleAgent)
 
@@ -39,7 +39,7 @@ export function KeyboardShortcuts() {
       window.removeEventListener('shortcut-toggle-agent', onToggleAgent)
       window.removeEventListener('shortcut-plugin-center', onPluginCenter)
     }
-  }, [toggleAgentPanel, setShowPluginCenter])
+  }, [setShowPluginCenter])
 
   return null
 }

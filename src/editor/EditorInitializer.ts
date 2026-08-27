@@ -254,9 +254,9 @@ export function registerGlobalEventListeners(callbacks: {
   window.addEventListener('shortcut-launch-game', onLaunchGame)
   window.addEventListener('shortcut-stop-game', onStopGame)
 
-  // Agent 面板快捷键
+  // Agent 独立窗口快捷键
   const onToggleAgent = () => {
-    useEditorStore.getState().toggleAgentPanel()
+    window.electronAPI?.dshOpenAgentWindow?.().catch(() => {})
   }
   window.addEventListener('shortcut-toggle-agent', onToggleAgent)
 

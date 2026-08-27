@@ -8,8 +8,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { agentService, type ModelGroup, type ModelInfo } from '../../editor/AgentService'
 
 interface ModelSelectorProps {
-  /** 当前选中的模型 */
-  currentModel?: { provider: string; model: string }
+  /** 当前选中的模型（null = 尚未加载/未知） */
+  currentModel?: { provider: string; model: string } | null
   /** 模型切换回调 */
   onModelChange?: (provider: string, model: string) => void
   /** 是否禁用 */

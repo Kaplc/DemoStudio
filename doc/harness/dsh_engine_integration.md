@@ -1,307 +1,240 @@
-# DSH 与引擎集成架构
+# DSH 与引擎集成架构（agent 常驻化）
 
-> 状态：M1 已实现代码（基础架构就位）；端到端实测在 headless bundle 服务对齐阶段（详见 §3.4 待办）。
+> 状态：M2 已实现（agent 常驻化改造完成）；端到端实测依赖 dsh-source 构建产物。
 >
-> **最近更新**：把 `editor/dsh-agent-service.js` 改为 CJS 版（`.cjs`），加入 `globalThis.__dshEngineCtx` 注入机制，新增 profile 自举与 SDK JSON-RPC server patch。
+> **最近更新**：DSH agent 从「Electron main 进程生命周期绑定」改为**常驻进程**——渲染层热刷新与 main 进程重启均不打断 agent；新增所有权 watchdog、认领机制、崩溃自愈与会话恢复。废弃的 `editor/dsh-agent-service.cjs` 已删除。
 
 ---
 
 ## 1. 使用方法（开发者视角）
 
-### 启动编辑器（自动拉起 DSH）
+### 启动编辑器（自动引导 agent）
 
 ```bash
-npm run dev
+npm run dev   # 或双击 editor.bat
 ```
 
 启动顺序（`electron/main.ts` 的 `startApp()`）：
 
 1. `showLoadingWindow()` —— 显示无边框加载窗口
-2. `startMCPServer()` —— 引擎 HTTP API，端口从 `9877` 开始自动递增（多实例支持）
-3. `startDSHService()` —— 拉起 DSH Agent 服务（见 §2.1）
+2. `startMCPServer()` —— 引擎 HTTP API，端口从 `9877` 起自动递增（多实例支持）
+3. `bootstrapDSH('startup')` —— **后台异步**执行 agent 引导（探测 → 认领 / spawn），不阻塞编辑器启动
 4. `waitForDevServer()` —— 等 Vite 起来
 5. `createMainWindow()` —— 主窗口加载
 6. `app-ready` IPC 触发后关闭加载窗口
 
-### AgentPanel 连接 DSH
+### Agent 面板连接与恢复
 
-打开编辑器主窗口 → 侧边栏 / 视图 → **Agent 面板** → 自动调用 `electronAPI.dshStatus()` → 拿到 DSH 端口 → HTTP `GET /health` 二次确认 → 状态切到 `connected`。
+打开编辑器主窗口 → **Agent 面板** → `AgentService.connect()` 自动执行三阶段流程：
 
-### 用户发消息
+| 阶段 | 状态 | 行为 |
+|---|---|---|
+| 1 | `claiming` | 轮询 `electronAPI.dshStatus()` 直到 main 完成 agent 引导（≤60s），拿到端口 |
+| 2 | `recovering` | 有 localStorage 会话映射 `{sessionId, port}` 时校验并 attach 旧会话（**无感接续**，历史以远端 `session.history` 为单一可信源拉回；若刷新期间有进行中回合则断档续听补齐），失败自动回退 |
+| 3 | `connecting` | 无映射或映射失效 → `session.create` 新建并持久化映射 |
 
-```
-AgentPanel.inputBox.onSend(text)
-  └─> agentService.send(text)            // src/editor/AgentService.ts
-        └─> POST http://127.0.0.1:DSH_PORT/chat   // SSE 流
-              ├─ event: delta → message.delta  → AgentPanel 流式追加
-              ├─ event: done  → message       → AgentPanel 完整消息入列
-              └─ event: error → error         → AgentPanel 错误显示
-```
+恢复成功时顶部显示系统消息「**会话已恢复**」。
 
-### DSH 反向调引擎
+### 手动重启 agent
 
-DSH runtime (Cordis + dsh-plugin) 调工具时：
+当面板状态显示「Agent 故障 · 点击重启」（`degraded` 终态）时，点击状态指示器即触发：
 
 ```
-Cordis.toolRegistry.get('inspect_scene').execute(args, ctx)
-  └─> getEngineContext(ctx) → ctx.engineBridge / globalThis.__dshEngineCtx.engineBridge
-        └─> POST http://127.0.0.1:ENGINE_PORT/api/command     // 引擎 MCP API
-              └─> 路由到 renderer → AIModule.emit / 资产读取等
+ConnectionIndicator.onClick(degraded)
+  └─ handleRestartAgent()
+        ├─ electronAPI.dshRestart()      // IPC: dsh-restart → main 重置自愈计数后重新 bootstrapDSH('manual-restart')
+        └─ 轮询 dshStatus 直至 running/claimed → agentService.connect() 自动重连
 ```
 
-DSH 子进程在 spawn 时通过 `globalThis.__dshEngineCtx` 拿到 bridge（由 dsh-agent-service.cjs 在 spawn 前注入）。
+### Agent 独立窗口（唯一 Agent UI 形态）
+
+> **编辑器内嵌 Agent 面板已移除**（RightPanel 仅承载 Inspector）。Agent UI 的唯一形态是独立 Electron 窗口。
+
+入口（调用 `dsh-open-agent-window` IPC → `openAgentWindow()`）：
+
+- 顶部菜单栏 **Agent → 「在独立窗口打开 Agent」**
+- 快捷键 **Ctrl+Shift+A**
+
+窗口加载**编辑器自身的 AgentUI**（与 agent `:3080` 交互、共享同一批会话）：
+
+- 实现方式：窗口加载编辑器应用并携带 `?agentWindow=1`，`App.tsx` 检测该参数后只全屏渲染 `<AgentPanel/>`（不初始化引擎/菜单/视口）；
+- 单例：重复触发聚焦已有窗口；agent 未就绪时窗口内 AgentPanel 自动进入 `claiming` 态轮询等待（复用自身连接状态机）；
+- 仅是 UI 容器，不影响 agent 进程管理；主窗口关闭时级联关闭该窗口，随后 `window-all-closed` 正常触发 agent 收割（不变量不破坏）；
+- spawn 参数保持 `--no-open`，不自动弹 DSH 自带的浏览器 WebUI（如需官方界面可手动访问 `http://127.0.0.1:3080`）。
 
 ---
 
-## 2. 工作流程（启动 → 聊天 → 调工具）
+## 2. 工作流程
 
-### 2.1 DSH 启动时序
+### 2.1 分层职责（关键不变量表）
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Electron main process                                        │
-│  startMCPServer() → MCP_API_PORT = 9877                       │
-│  startDSHService()                                            │
-│    └─ spawn(process.execPath, ['editor/dsh-agent-service.cjs'])│
-│         env.ELECTRON_RUN_AS_NODE=1                            │
-│         env.DSH_ENGINE_PORT=MCP_API_PORT                      │
-│         env.DSH_WORKSPACE_ROOT=<workspace>                    │
-│         env.DEEPSEEK_API_KEY=...                              │
-│       stdout: "[dsh-agent] DSH Agent 服务已启动，端口: N"     │
-│    └─ main 解析端口 → _dshPort=N                              │
-│    └─ 探测 loop: 等 _dshPort != 0 (15s timeout)               │
-└──────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│  dsh-agent-service.cjs (子进程，require.main === module 自启)  │
-│  start()                                                      │
-│    1. createEngineBridge(enginePort)                         │
-│       → { callTool, getStatus, getConsoleLogs, ... }        │
-│    2. createFileBridge(workspaceRoot)                        │
-│       → { readJsonFile, writeJsonFile, listDir }             │
-│    3. globalThis.__dshEngineCtx = { engineBridge, fileBridge }│
-│    4. ensureProfile(workspaceRoot)                           │
-│       → harness/profile/profiles/demostudio/                │
-│         ├─ package.json (dsh.profile.bundles=[...])         │
-│         ├─ node_modules/@demostudio/dsh-engine-tools →       │
-│         │   软链接到 harness/dsh-plugin/                     │
-│         └─ node_modules/@deepseek-ai/dsh-sdk-jsonrpc-server  │
-│             → 软链接到 harness/dsh-source/packages/sdk/server│
-│    5. startDSHRuntime()                                      │
-│       → DeepSeekHarness({ launch: {                          │
-│           command: process.execPath,                         │
-│           args: [dshBin, '--profile', 'demostudio'],         │
-│           env: { DSH_HOME: harness/profile, ... }            │
-│       } })                                                    │
-│    6. startHTTPServer()                                       │
-│       → /health  /chat (SSE)  /chat-sync (JSON)              │
-└──────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│  DSH runtime (Cordis via harness/dsh-source/apps/cli/bin.js) │
-│  --profile demostudio 加载顺序：                              │
-│    bundles (e.g. @demostudio/dsh-engine-tools)                │
-│    user-level patches (harness/profile/cordis.patch.yml)     │
-│    --patch overlays (如有)                                    │
-│  关键 patch：                                                 │
-│    - id: system-prompt / config.persona = '<DemoStudio 提示>'│
-│    - id: logger / disabled = true（stdout 预留给 JSON-RPC）   │
-│    - insert: sdk-jsonrpc-server（@deepseek-ai/dsh-sdk-jsonrpc-server）│
-│    - insert: dsh-engine-tools（@demostudio/dsh-engine-tools）  │
-└──────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│  SDK JSON-RPC server（@deepseek-ai/dsh-sdk-jsonrpc-server）   │
-│  监听 stdin/stdout JSON-RPC 帧                                 │
-│  接受 initialize / session.prompt / shutdown                   │
-│  推 session.event / session.status / subagent.* notifications│
-└──────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌──────────────────────────────────────────────────────────────┐
-│  dsh-sdk-client（HarnessClient，stdin/stdout JSON-RPC）        │
-│  → SDK events 转成 notifications                              │
-│  → dsh-agent-service.consumeSubscription 路由到 SSE           │
-└──────────────────────────────────────────────────────────────┘
+| 层 | 职责 | 明确不做 |
+|---|---|---|
+| agent 子进程（`:3080`，`dsh-cli --profile web --no-open`） | 唯一常驻者：提供 DSH 业务 HTTP（RPC over `/api/*`）、mux WS 下行流 | 不感知编辑器 UI，无所有权概念 |
+| watchdog 进程（`editor/dsh-agent-watcher.cjs`，detached） | **所有权守护**：监视编辑器心跳注册表，全部编辑器消失且宽限期满 → 收割 agent 并自杀；自报 PID 到 owner.json | 不代理任何业务流量 |
+| Electron main | 引导（探测/认领/spawn）、持有业务 mux WS、崩溃自愈、优雅停机、`dsh-status`/`dsh-restart` IPC | 不改 DSH 内核；不替 renderer 决定会话 |
+| renderer | AgentPanel UI + AgentService（claiming/recovering 状态机、localStorage 映射、history 补档） | 不决定 agent 生死 |
+
+> **为什么不用「内核 WS 心跳」表达所有权**：约束禁止修改 DSH 内核源码加接口，而 dsh-cli web profile 未提供 claim/ownership 能力。因此所有权落在我们自己侧的 **detached watchdog + 本地文件协议** 上，对内核零假设。
+
+### 2.2 冷启动时序（无人认领）
+
+```mermaid
+sequenceDiagram
+    participant M as Electron main
+    participant A as dsh-cli agent (:3080)
+    participant W as watcher (detached)
+
+    M->>M: 写 editors/<pid>.json 心跳 (每2s续期)
+    M->>A: POST /api/session.list 探测 (1.5s超时)
+    Note over M,A: 不可达 → 需要冷启动
+    M->>A: spawn(node, dsh-cli --profile web --no-open)
+    loop 就绪等待 (≤30s, 双通道)
+        A-->>M: stdout "dsh web: http://...:3080"
+        M->>A: POST /api/session.list 兜底探测
+    end
+    M->>M: registerDshOwnership(spawn)<br/>netstat 反查 PID → 写 owner.json{port,agentPid}
+    M->>W: spawn detached dsh-agent-watcher.cjs
+    W->>W: 自报 watchdogPid 写入 owner.json
+    M->>M: lifecycle=running → connectMuxWs() → renderer 可连接
 ```
 
-### 2.2 聊天 → 调工具 时序
+### 2.3 main 重启认领时序（幸存 agent）
 
-```
-User (AgentPanel) → send(text)
-   ↓
-AgentService.send(text)                     [src/editor/AgentService.ts]
-   ├─ emit('message', { role: 'user', content: text })
-   └─ fetch POST /chat (SSE) → 读流
-        ↓
-DSHAgentService HTTP server                 [editor/dsh-agent-service.cjs]
-   ├─ 创建 SessionRecord（writeDelta/writeDone/writeError）
-   ├─ harness.session().run(text, history, { onNotification })
-   └─ 等待 DSH SDK notification
-        ↓
-SDK → JSON-RPC session.prompt               [dsh-sdk-client ↔ dh-sdk-jsonrpc-server]
-   ↓
-DSH runtime (Cordis)                        [harness/dsh-source]
-   ├─ LLM 推理（DeepSeek API）
-   ├─ 决定调 inspect_scene
-   ├─ 触发 tool_use notification → routeEvent → writeDelta
-   ├─ Cordis tool registry → dsh-plugin 工具
-   │     └─ getEngineContext({}) → globalThis.__dshEngineCtx
-   │           └─ engineBridge.callTool('inspect_scene', { scenePath })
-   │                 └─ fetch http://127.0.0.1:ENGINE_PORT/api/command
-   │                       └─ 引擎返回 { status: 'ok', data: ... }
-   ├─ tool_result notification → writeDelta
-   └─ LLM 收尾生成最终回复
-        ↓
-   routeEvent('message') → writeDone
-        ↓
-SSE event: done → AgentService 推 message 事件
-        ↓
-AgentPanel 渲染完整回复
+```mermaid
+sequenceDiagram
+    participant M as 新 main 实例
+    participant OLD as 幸存 agent (:3080)
+    participant W as 存活 watcher
+
+    Note over OLD: 上一任编辑器死亡<br/>watcher 宽限计数进行中…
+    M->>OLD: POST /api/session.list 探测
+    OLD-->>M: 可达 → 认领分支
+    M->>W: ensureDshWatcher(): 读 owner.json.watchdogPid 仍存活则不重复拉起
+    M->>M: writeDshOwner({port,agentPid,claimedAt,source:'claim'})
+    W->>W: 编辑器心跳重现已出现 → 宽限计数清零
+    M->>M: lifecycle='claimed' → mux WS 重连
 ```
 
-### 2.3 端口分配
+认领流程是幂等的：任意实例何时加入都只更新协议文件 + 确保 watcher 存活。
 
-| 端口 | 服务 | 启动方 | 备注 |
-|---|---|---|---|
-| `5173+` | Vite dev server | Vite | 多实例递增 |
-| `9877+` | 引擎 MCP API | Electron main.ts | `findFreePort(9877)` |
-| 随机 | DSH Agent HTTP | dsh-agent-service.cjs | `findFreePort(0)` |
-| 无（stdio） | DSH runtime ↔ dsh-sdk-client | SDK client spawn | JSON-RPC over stdio |
+### 2.4 停机与孤儿收割
+
+```mermaid
+flowchart TD
+    X[window-all-closed] --> Y[stopDSHService]
+    Y --> Z1["删除本实例 editors/&lt;pid&gt;.json<br/>停心跳定时器"]
+    Z1 --> Q{还有其他新鲜编辑器?}
+    Q -->|是| R[仅注销自己<br/>agent 与 watcher 继续服务多实例]
+    Q -->|否| S[killProcessTree agentPid<br/>killProcessTree watchdogPid<br/>删 owner.json]
+    S --> T[app.quit():3080 无监听]
+
+    U[编辑器崩溃/强杀] --> V[心跳过期&lt;6s 扫除<br/>editors 目录清空]
+    V --> Wt{"连续 ORPHAN_GRACE_MS(30s)<br/>无活跃编辑器?"}
+    Wt -->|宽限期内重开编辑器| OK[新实例认领, 计数清零]
+    Wt -->|期满| KILL[taskkill /T /F agentPid<br/>清理协议文件 → watcher 自杀]
+```
+
+### 2.5 崩溃自愈
+
+```
+child.on('exit') 且 !_dshShuttingDown 且 lifecycle==='running'
+  → disconnectMuxWs(), _dshPort=0
+  → lifecycle='restart-wait'
+  → 退避 delay = min(2000 × 2^n, 60000) 后重新 bootstrapDSH('auto-restart')
+  → 成功: running + 计数清零
+  → 达上限(5次): lifecycle='degraded' 终态 → AgentPanel 展示"Agent 故障·点击重启"，不弹窗，编辑器其余功能不受影响
+```
+
+配置常量（`electron/main.ts`）：
+
+| 常量 | 默认值 | 含义 |
+|---|---|---|
+| `DSH_PORT_DEFAULT` | 3080 | agent 固定端口 |
+| `DSH_EDITOR_HEARTBEAT_MS` | 2000 | 编辑器心跳周期 |
+| `DSH_OWNER_GRACE_MS` | 30000 | 孤儿宽限时长（兼顾「强杀后快速重开认领」窗口） |
+| `DSH_PROBE_TIMEOUT_MS` | 1500 | 探测 RPC 超时 |
+| `DSH_SPAWN_READY_TIMEOUT_MS` | 30000 | spawn 就绪上限 |
+| `DSH_AGENT_MAX_RESTARTS` | 5 | 自愈次数上限 |
+| `DSH_AGENT_RESTART_BASE_MS` / `_MAX_MS` | 2000 / 60000 | 自愈退避区间 |
+| watcher `HEARTBEAT_STALE_MS`（内置） | 6000 | 心跳过期阈值 |
+
+### 2.6 会话恢复与断档补档
+
+- **持久化映射**：renderer 在 localStorage `demostudio.dsh.session` 写 `{sessionId, port, savedAt}`；`connect/createSession/switchSession` 都会刷新，`deleteSession` 删除当前会话时清除。
+- **单一可信源**：聊天历史永远从远端 `session.history` 拉回（`loadHistory()` 分页 fold），本地不缓存消息体。
+- **断档补档**：恢复 attach 成功后检查 history 尾部——最后一个边界事件若是未闭合的 `turn/start`，说明刷新期间有回合在跑，启动 `pollForResponse()` 断档续听直到 `turn/end`。轮询内部以 history 最新 seq 为起点，不重复回放。
+- **通信制式事实**：现行协议为 **session.prompt RPC + history 轮询主导**（mux WS 仅承载 `question/requested` 等 server-push 帧，由 main 持有）。当前 dsh-cli 版本不存在 per-session SSE 流端点，「SSE 主导」不适用；如后续内核提供再切换。
 
 ---
 
 ## 3. 边界条件
 
-### 3.1 失败模式
+### 3.1 失败模式表
 
 | 场景 | 行为 | 恢复 |
 |---|---|---|
-| `harness/dsh-source/` 不存在 | `dsh-agent-service.cjs` 启动失败 → `_dshPort=0` | 编辑器继续启动，AgentPanel 显示"DSH 未就绪" |
-| `@deepseek-ai/dsh-sdk-client` 未安装 | 同上 | 装包后重启 |
-| `DEEPSEEK_API_KEY` 未设置 | DSH runtime 启动后首次请求时报 `MISSING_CREDENTIAL` 或 `AUTH` 401 | 配 `userData/.env` 或 env var |
-| DSH runtime 启动后立即崩溃 | `subscribe` 抛 `TransportClosedError` | 目前 DSHAgentService 不会自动重启（M2 计划） |
-| 引擎 9877 端口被占用 | MCP 自动找下一个空闲端口（`findFreePort`） | 无需人工介入 |
-| 引擎 HTTP 调用超时 | DSH tool 返回错误，DSH runtime 推 `agent.error` | AgentPanel 显示错误信息 |
-| AgentPanel 已开但 DSH 未就绪 | `connect()` 抛错，状态 `error` | `RECONNECT_INTERVAL=5000` 后重试 |
-| `editor/dsh-agent-service.cjs` 用 ESM `import`（旧版本） | require 阶段直接抛 SyntaxError | 已改为 CJS `.cjs`（本次改动） |
-| `harness/profile/profiles/demostudio/` 不存在 | `ensureProfile()` 自动创建（含 package.json + 软链接） | 首次启动时自动建好 |
+| `harness/dsh-source/apps/cli/lib/bin.js` 不存在 | `spawnDshAgent()` throw → `degraded` 终态，面板显示故障（不弹窗，编辑器其余功能正常） | 补齐构建产物后点状态指示器手动重启（`dsh-restart`） |
+| 探测超时/:3080 无响应 | 按「需冷启动」处理走 spawn 路径 | 自动 |
+| spawn 后就绪超时（30s） | kill 残留子进程 → `degraded` 终态 | 手动重启入口 |
+| agent 运行中异常退出 | 指数退避自愈 ≤5 次；期间面板经 `restart-wait` 态感知；超限 `degraded` | 自动 / 手动 |
+| 强杀整个编辑器后在宽限期内重开 | 新 main 探测到幸存 agent → 认领成功，日志记录探测→认领→attach 全链路 | 自动 |
+| 强杀后超过宽限期才重开 | watcher 已收割 agent 并自杀 → 新实例冷启动新 agent（旧远端会话仍在 DSH 存储，renderer 凭映射 attach 回去，尽力而为） | 冷启动 + 会话恢复 |
+| 多实例同时运行 | 共享同一 `:3080` agent；各实例独立 session；先退出者仅注销自己心跳 | watcher 以「全部编辑器消失」为准 |
+| 正常关窗但检测到其他新鲜编辑器 | 不杀 agent/watchdog，仅注销自身心跳 | 自动 |
+| 保存的 sessionId 已失效（归档等） | `recovering` 校验失败 → 清映射 → 回退新建会话 | 自动 |
+| renderer 连接期间 main 进入 degraded | `waitForAgentReady()` 抛 `AGENT_DEGRADED` → 面板 `degraded` 态提示 | 手动重启 |
+| owner.json 损坏 | watcher 连续读不到持续 grace 秒后自行退出（无 agent 可守）；main 写入失败打 error 日志不中断 | 下次引导重建 |
+| 浏览器调试模式（无 electronAPI） | RPC 走 Vite 代理直连 :3080；跳过 claiming 等待直接返回默认端口 | 自动降级 |
 
 ### 3.2 安全约束
 
 | 约束 | 实现 |
 |---|---|
-| 路径逃逸（dsh-plugin fileBridge） | `editor/dsh-agent-service.cjs:createFileBridge` 中 `path.resolve + path.startsWith(workspaceRoot)` 检查 |
-| 路径逃逸（编辑器写 JSON） | `electron/main.ts` `write-json-file` IPC + `path.resolve` + `path.relative` 双重检查 |
-| 工具 guard 策略 | `harness/dsh-plugin/src/guards.ts` 暴露 `guardPolicy: Record<string, 'allow'\|'deny'\|'ask'>` |
-| DSH 子进程权限 | 子进程是 `process.execPath` + `ELECTRON_RUN_AS_NODE=1`，仍受 Electron 沙箱影响（M2 计划加 `--no-sandbox`） |
-| SSE 客户端限制 | 引擎 SSE 仅绑 `127.0.0.1` |
-| API Key 传递 | 通过 env var `DEEPSEEK_API_KEY`，不入资产文件 |
+| 不修改 DSH 内核源码 | 只消费 `dsh-source` 构建产物与既有 HTTP/WS 协议；所有权由本地 watchdog + 文件协议实现 |
+| 禁止 localhost 直连 | 全部固定 `127.0.0.1`；agent 端口不暴露外网 |
+| 协议文件路径 | 仅落在 `<repo>/cache/dsh-runtime/`（已 gitignore）：`owner.json` / `editors/*.json` / `watchdog.log` |
+| API Key/设置持久化 | 由 DSH host 侧承担（如 `~/.dsh/settings.yaml` 与 credentials）；前端重连后经 `credentials.describe` / `settings.describe` 还原展示 |
+| watcher 进程权限 | detached + stdio ignore，仅具备 taskkill 目标 PID 的能力 |
 
-### 3.3 关键不变量
+### 3.3 关键不变量（修订版）
 
-1. **DSH 端口永远由 main.ts 单点管理** —— 不允许 renderer 直接连任意端口
-2. **DSH 反向调引擎必须用 `DSH_ENGINE_BASE_URL`**，不用 `localhost:9877`（多实例）
-3. **`session.run()` 是阻塞式的**：同一时刻只允许一个活跃 session（多 session 并发未实现）
-4. **DSH runtime 子进程由 SDK 持有** —— 业务层不直接 spawn / kill
-5. **`editor/dsh-agent-service.cjs` 是 SDK 客户端**，不是 DSH runtime 本身
-6. **`globalThis.__dshEngineCtx` 由 dsh-agent-service.cjs 单点写入** —— dsh-plugin 只读
-7. **dsh-plugin 入口不直接 `ctx.<任意字段>`** —— Cordis Proxy 对未声明字段抛 `cannot get property X without inject`
+1. **agent 归属判定靠心跳注册表，不靠父子进程关系** —— 认领的旧 agent 不是本实例的 child，唯一凭据是 `owner.json.agentPid` 与 `editors/` 心跳
+2. **主动关闭才收割 agent** —— `window-all-closed` 路径才会 kill；HMR 刷新与 main 重启绝不触碰 agent
+3. **孤儿自杀宽限 = `DSH_OWNER_GRACE_MS`（可配）** —— watcher 是唯一有权在编辑器全部消失后收割 agent 的角色
+4. **业务通道仍是 HTTP RPC + history 轮询兜底** —— mux WS 只承载 server-push 帧；WS 不用于业务数据通道
+5. **DSH runtime 子进程由 dsh-cli 自持** —— 编辑器只管理 dsh-cli 这一层进程树
+6. **会话恢复尽力而为** —— agent 进程本身崩溃重建后，远端 session 若仍存在于 DSH 存储则可 attach；DSH 不落盘的部分如实按「已知限制」标注，不虚报保证
+7. **多实例共享单 agent** —— `:3080` 固定端口不做递增；互斥靠「是否还有新鲜编辑器心跳」
 
-### 3.4 已知 TODO（按优先级）
-
-#### P0（不阻断但阻塞端到端）
-
-- [ ] **headless bundle 服务对齐**：当前 dsh-plugin 的 `inject: [tools, effect, session, on]` 中 `tools` 在 base bundle 已注册为 `@deepseek-ai/dsh-tools`，但 `effect`/`session`/`on` 不是 Cordis 服务的标准导出。需要：
-  - 选项 A：把 dsh-plugin 改为不声明 `inject`，依赖 `ctx.tools`/`ctx.effect` 这些「Cordis 内置字段」（但 Cordis 内置字段也是 Proxy 拦截的）
-  - 选项 B：把 dsh-plugin 改为 ESM（`@deepseek-ai/cordis-plugin-loader` 通过 `await import()` 加载 ESM），并让 `apply` 不接收 ctx（而是通过 `effect()` 回调拿 ctx）
-  - 选项 C：把 dsh-plugin 改造为 `@deepseek-ai/dsh-tools` 的扩展（继承其 `tools` 服务的实现），注册为同一 id 的 plugin override
-- [ ] **`sdk-jsonrpc-server` 等待 `agents` 服务**：base bundle 已 mount `@deepseek-ai/dsh-agent`，但 `agents` 是 `ctx.agents`（不是普通 service id）。需要确认 loader 对 `inject: [agents]` 的解析规则
-- [ ] **CJS → ESM interop**：`dsh-plugin/dist/index.js` 是 CJS（`Object.defineProperty(exports, "__esModule", ...)`），`@deepseek-ai/cordis-plugin-loader` 通过 `await import()` 加载时需要正确的 named exports。建议把 dsh-plugin 编译目标改为 `module: ES2022`
-
-#### P1（已实现但需要验证）
-
-- [ ] DSH runtime 崩溃自动重启（目前一旦崩就退出，需手动重启编辑器）
-- [ ] 多 session 并发（当前 sessionId 序列仅用于日志追踪）
-- [ ] `message.delta` 与 `toolCall` 事件关联（同一推理流）
-- [ ] DSH 更新检查走 npm registry（之前 `updater.ts` 在 vscode-ext 实现，主进程需要镜像）
-- [ ] 把 `engineBridge` 实现从 `engineBridge.ts`（vscode-ext）抽到共享包给 dsh-plugin 和 electron-main 都用
-
-#### P2（架构优化）
-
-- [ ] 移除对 `globalThis.__dshEngineCtx` 的依赖，改用 Cordis `intercept` 配置注入（更类型安全）
-- [ ] 把 `dsh-agent-service.cjs` 的 profile 自举逻辑抽到独立模块 `editor/dsh-profile-bootstrap.cjs`
-- [ ] DSH 子进程 stdout 复用：当前 SDK 独占 stdout，DSH runtime 日志走 stderr（Loader warn 等仍可见）
-
----
-
-## 4. 文件清单
+### 3.4 文件清单（现行）
 
 | 文件 | 角色 |
 |---|---|
-| `electron/main.ts` | 拉起 DSH 子进程 + 提供 `/api/dsh-status` + 转发 `/api/chat` |
-| `electron/preload.ts` | 暴露 `electronAPI.dshStatus()` |
-| `editor/dsh-agent-service.cjs` | DSH runtime SDK 客户端 + HTTP 代理（SSE 流式），含 EngineBridge/FileBridge/profile 自举 |
-| `harness/dsh-plugin/` | DSH 工具包（已编译到 dist/） |
-| `harness/dsh-plugin/cordis.patch.yml` | dsh-plugin 作为 bundle 的 loader patch（system.persona override） |
-| `harness/dsh-plugin/src/engineContext.ts` | 双源 engineContext（ctx 注入 + globalThis fallback） |
-| `harness/dsh-plugin/src/index.ts` | 插件入口（不读 ctx 任意字段） |
-| `harness/profile/cordis.patch.yml` | profile 用户层 patch（system-prompt + 关闭 logger + 插入 sdk-jsonrpc-server + 插入 dsh-engine-tools） |
-| `harness/profile/profiles/demostudio/package.json` | 自动生成的 profile manifest（`dsh.profile.bundles`） |
-| `harness/profile/profiles/demostudio/node_modules/@demostudio/dsh-engine-tools` | 软链接到 `harness/dsh-plugin/` |
-| `harness/profile/profiles/demostudio/node_modules/@deepseek-ai/dsh-sdk-jsonrpc-server` | 软链接到 `harness/dsh-source/packages/sdk/server/` |
-| `src/editor/AgentService.ts` | Renderer 侧 DSH 客户端，SSE 消费 |
-| `src/types/electron.d.ts` | 类型补充 `dshStatus` API |
-| `harness/dsh-source/` | DSH runtime 源码（已克隆） |
+| `electron/main.ts` | agent 常驻化引导（bootstrapDSH/spawnDshAgent/registerDshOwnership/stopDSHService/onDshChildExited）+ `dsh-status`/`dsh-rpc`/`dsh-restart`/mux WS 桥 |
+| `editor/dsh-agent-watcher.cjs` | 所有权 watchdog（detached）：心跳注册表巡检、宽限收割、PID 自报 |
+| `electron/preload.ts` | `electronAPI.dshStatus/dshRpc/dshMux*/dshRespond/dshRestart` |
+| `src/editor/AgentService.ts` | Renderer DSH 客户端：claiming→recovering→connecting 三段连接、localStorage 映射、48 种事件 fold、断档续听、模型/凭证/设置 RPC |
+| `src/components/AgentPanel.tsx` | Agent 面板（「会话已恢复」提示、degraded 手动重启入口） |
+| `src/components/agent/ConnectionIndicator.tsx` | 状态指示器（含 degraded 点击重启交互） |
+| `src/types/agent.ts` | `ConnectionState` 八态定义 |
+| `harness/dsh-source/` | DSH runtime 源码（clone，禁止修改） |
+
+### 3.5 已知限制
+
+- agent 进程崩溃自愈后，崩溃瞬间正在执行的回合可能停在半途；界面上表现为该 turn 缺少最终回复（DSH 远端事件流已落盘部分会完整呈现）
+- Linux/macOS 未承诺：taskkill/netstat 相关 helper 仅在 win32 生效，其他平台退化为 SIGTERM/单进程 kill
+- 「强杀后宽限窗口内重开」依赖 taskkill 树杀语义；若用户用系统强制结束整棵进程树（含 watcher）则无孤儿可言，属预期行为
 
 ---
 
-## 5. 关键变更日志（本次任务）
+## 4. 与旧架构的差异（迁移说明）
 
-### 5.1 `editor/dsh-agent-service.js` → `editor/dsh-agent-service.cjs`
-
-- **问题**：原 `.js` 文件用 ESM `import` 语法，但被 Electron 主进程以 `require()` 方式加载，运行时抛 `SyntaxError: Cannot use import statement outside a module`
-- **解决**：改后缀为 `.cjs`，所有 `import` 改 `require`，所有 `interface` 改 JSDoc 注释
-- **新增**：
-  - `createEngineBridge(enginePort)`：HTTP fetch 转发到编辑器 `/api/command`
-  - `createFileBridge(workspaceRoot)`：直接读写 JSON 文件（带路径安全检查）
-  - `ensureProfile(workspaceRoot)`：自动创建 `harness/profile/profiles/demostudio/`，含 package.json + node_modules 软链接
-  - 入口自启：`require.main === module` 时自动 `service.start()`（spawn 模式下被 Electron 拉起后立即启动）
-- **新增 env**：
-  - `DSH_WORKSPACE_ROOT`：workspace 根（由 main.ts 传入）
-  - `DSH_ENGINE_PORT`：编辑器 HTTP 端口
-  - `DSH_HOME=harness/profile`：让 DSH CLI 找到我们的 profile
-
-### 5.2 `electron/main.ts`
-
-- **修复**：`show-message-box` IPC 后有一坨孤立代码（`const win = BrowserWindow.getFocusedWindow()` 没有归属函数），阻塞 vite/esbuild 构建。已重构为新的 `toggle-dev-tools` IPC handler
-- **改动**：`DSH_AGENT_SERVICE_PATH` 从 `dsh-agent-service.js` → `dsh-agent-service.cjs`
-- **新增**：`spawn` env 增加 `DSH_WORKSPACE_ROOT = path.join(__dirname, '..')`
-
-### 5.3 `harness/dsh-plugin/`
-
-- `package.json`：新增 `dsh.bundle.patch = "./cordis.patch.yml"`（让 DSH CLI 把它识别为合法 bundle）
-- `src/engineContext.ts`：新增 `globalThis.__dshEngineCtx` fallback（DSH Agent 注入的全局对象）
-- `src/index.ts`：重写为不直接读 `ctx.engineBridge`/`ctx.fileBridge`（避免触发 Cordis Proxy 抛 `cannot get property X without inject`）；改为把 ctx 通过 `wrapTool` 透传到 tool.execute 调用
-- `cordis.patch.yml`：新增（声明 bundle 是 loader patch layer，覆盖 `system.persona`）
-
-### 5.4 `harness/profile/cordis.patch.yml`
-
-- **格式修正**：原内容是 `inject:` mapping 格式，DSH loader 要求 top-level YAML array；已改为 loader patch entries 格式
-- **新增 entries**：
-  - `- id: logger / disabled: true`（stdout 预留给 JSON-RPC 协议帧）
-  - `- insert: sdk-jsonrpc-server`
-  - `- insert: dsh-engine-tools / inject: [tools, effect, session, on]`
-
-### 5.5 阻塞项：headless bundle 服务对齐
-
-经多轮排查，发现当前实现还有以下架构层缺口（详见 §3.4 P0）：
-
-1. **dsh-plugin 的 `inject` 字段值不是 Cordis 标准服务 id**：`tools` 是 `@deepseek-ai/dsh-tools` 提供的服务但只在 web/headless 通过 `id: tools` 暴露；`effect`/`session`/`on` 不是独立服务
-2. **dsh-plugin 是 CJS**：`@deepseek-ai/cordis-plugin-loader` 通过 `await import()` 加载，理论上支持 CJS 但 named export 推断不稳定；建议改为 ESM
-3. **sdk-jsonrpc-server 等待 `agents`**：base bundle mount 了 `@deepseek-ai/dsh-agent`，但 `agents` 是 ctx 上的 method-like service（`ctx.agents.create()`）而不是顶层 service id
-
-要达成"端到端 chat → inspect_scene"流程，需要先解决上述三项。本次的代码改动已为这些修复铺平道路（profile 自举 / ctx 安全访问 / bundle 注册）。
+| 维度 | 旧（cjs 代理时代 / 绑定 main） | 新（常驻化） |
+|---|---|---|
+| agent 启动方 | `dsh-agent-service.cjs` 内嵌 SDK client（已删除） | main 直接 spawn 系统 node + `dsh-cli --profile web --no-open` |
+| agent 生命周期 | main 一死全灭 | 常驻；仅主动彻底关闭编辑器才收割 |
+| 复用旧实例 | `DSH_SKIP=1` 环境变量（editor.bat 预探测） | main 启动时自动 `/api/session.list` 探测 + 显式认领 |
+| 渲染层连接 | 每次 `session.create` 新会话 | 先恢复（localStorage 映射→attach）失败再新建 |
+| 崩溃处理 | 无自愈 | 指数退避自愈 ≤5 次 → degraded 终态 + 手动重启入口 |
+| EngineBridge 注入 | cjs 注入 `globalThis.__dshEngineCtx` | 由 main 以 env（`DSH_ENGINE_PORT` 等）+ profile patch 承担（`globalThis.__dshEngineCtx` 保留为 fallback 来源之一） |

@@ -14,6 +14,7 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { CodeLintPanel } from './components/CodeLintPanel'
 import { ErrorStatusPanel } from './components/ErrorStatusPanel'
 import { PluginControlCenter } from './components/PluginControlCenter'
+import { AgentPanel } from './components/AgentPanel'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
@@ -25,6 +26,12 @@ import { Editor } from './editor'
 type StartupPhase = 'loading' | 'selecting-project' | 'editor'
 
 export default function App() {
+  // ─── Agent 独立窗口模式（Electron 子窗口 ?agentWindow=1）：仅全屏渲染 AgentUI，不初始化引擎 ───
+  // 该分支在窗口整个生命周期内恒定，早期返回不违反 hook 顺序规则
+  if (new URLSearchParams(window.location.search).get('agentWindow') === '1') {
+    return <div className="agent-window-root"><AgentPanel /></div>
+  }
+
   const { addConsoleOutput, setShowProjectSelector, setCurrentProject, launchGame, stopGame, gameState, showPluginCenter, setShowPluginCenter } = useEditorStore()
   const consoleVisible = useEditorPrefsStore((s) => s.consoleVisible)
   const layout = useEditorPrefsStore((s) => s.layout)

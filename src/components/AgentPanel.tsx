@@ -53,6 +53,21 @@ export const AgentPanel: React.FC = () => {
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
+  // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
+  const headerMenuRef = useRef<HTMLDivElement>(null)
+
+  // 点击菜单外部时关闭
+  useEffect(() => {
+    if (!headerMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false)
+      }
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [headerMenuOpen])
   const [currentModel, setCurrentModel] = useState<{ provider: string; model: string } | undefined>(undefined)
   const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
   const activeMsgRef = useRef<string | null>(null)  // 当前活跃的 AI 消息 ID
@@ -272,9 +287,12 @@ export const AgentPanel: React.FC = () => {
 
         case 'ready': {
           const payload = event.payload as any
-          if (payload?.recovered) {
-            pushSystem('已自动重连到 DSH Agent，正在恢复对话...')
-            restoreHistory()
+          if (payload?.restored) {
+            // 刷新/重启后的无感接续：提示在 history 整体替换完成后再入列，
+            // 避免被 restoreHistory 内部 setMessages 覆盖丢失
+            void restoreHistory().then(() => pushSystem('会话已恢复'))
+          } else if (payload?.recovered) {
+            void restoreHistory().then(() => pushSystem('已自动重连到 DSH Agent，正在恢复对话...'))
           } else {
             pushSystem('已连接到 DSH Agent')
           }
@@ -562,6 +580,41 @@ export const AgentPanel: React.FC = () => {
     agentService.disconnect()
     addConsoleOutput('[Agent] 已断开连接')
   }, [addConsoleOutput])
+
+  // 手动重启 agent（degraded 终态恢复入口：main 重置自愈计数后重新引导）
+  const handleRestartAgent = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api?.dshRestart || !api.dshStatus) {
+      addConsoleOutput('[Agent] 当前环境不支持 agent 重启（浏览器模式）')
+      return
+    }
+    addConsoleOutput('[Agent] 正在手动重启 agent...')
+    try {
+      await api.dshRestart()
+      addConsoleOutput('[Agent] 重启指令已下发，等待就绪后自动重连')
+    } catch (err) {
+      console.error('[AgentPanel] 手动重启 agent 失败:', err)
+      addConsoleOutput(`[Agent] 重启失败: ${String(err)}`)
+      return
+    }
+
+    // 轮询 lifecycle 直至就绪（spawn 冷启动上限约 30s，留足余量）后自动重连
+    const deadline = Date.now() + 90000
+    const poll = window.setInterval(async () => {
+      try {
+        const status = await api.dshStatus()
+        if (status?.ready && (status.lifecycle === 'running' || status.lifecycle === 'claimed')) {
+          window.clearInterval(poll)
+          await agentService.connect()
+          refreshSessions()
+          addConsoleOutput('[Agent] Agent 已恢复运行')
+        } else if (Date.now() > deadline) {
+          window.clearInterval(poll)
+          addConsoleOutput('[Agent] 等待 agent 恢复超时，可再次点击状态指示器重试')
+        }
+      } catch { /* 瞬时查询失败忽略 */ }
+    }, 1000)
+  }, [addConsoleOutput, refreshSessions])
 
   // 发送消息（AI 运行中自动使用 steer 引导）
   const handleSend = useCallback(async (text: string) => {
@@ -888,37 +941,51 @@ export const AgentPanel: React.FC = () => {
   return (
     <div className="agent-panel">
       <div className="agent-panel__header">
-        <button
-          className="agent-panel__sidebar-btn"
-          onClick={() => setShowSidebar(!showSidebar)}
-          title="会话列表"
-        >
-          ☰
-        </button>
-        <span className="agent-panel__title">Agent</span>
-        
-        <button
-          className="agent-panel__plugins-btn"
-          onClick={() => setShowPluginCenter(true)}
-          title="插件控制中心"
-        >
-          插件
-          {pluginStats.active > 0 && (
-            <span className="agent-panel__plugins-badge">{pluginStats.active}</span>
-          )}
-        </button>
-        <button
-          className="agent-panel__settings-btn"
-          onClick={() => setShowSettings(true)}
-          title="设置"
-        >
-          ⚙️
-        </button>
-        <ConnectionIndicator
-          state={connectionState}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
-        />
+        <div className="agent-panel__header-left">
+          <button
+            className="agent-panel__sidebar-btn"
+            onClick={() => setShowSidebar(!showSidebar)}
+            title="会话列表"
+          >
+            ☰
+          </button>
+          <ConnectionIndicator
+            state={connectionState}
+            onConnect={handleConnect}
+            onDisconnect={handleDisconnect}
+            onRestart={handleRestartAgent}
+            dotOnly
+          />
+          <span className="agent-panel__title">Agent</span>
+        </div>
+
+        <div className="agent-panel__header-right">
+          <div className="agent-panel__more-wrap" ref={headerMenuRef}>
+            <button
+              className="agent-panel__settings-btn"
+              onClick={() => setHeaderMenuOpen(v => !v)}
+              title="更多"
+            >
+              ⋮
+            </button>
+            {headerMenuOpen && (
+              <div className="dropdown-menu dropdown-menu--right">
+                <button
+                  className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowPluginCenter(true) }}
+                >
+                  <span>插件控制中心{pluginStats.active > 0 ? ` (${pluginStats.active})` : ''}</span>
+                </button>
+                <button
+                  className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
+                >
+                  <span>设置</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 会话侧边栏 */}

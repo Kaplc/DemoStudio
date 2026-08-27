@@ -28,6 +28,12 @@ const RECONNECT_MAX_ATTEMPTS = 5  // 最大重连次数
 const HISTORY_PAGE_MESSAGES = 100 // session.history 每页消息数（DSH host 缺省 50，此处放宽）
 const HISTORY_MAX_PAGES = 50      // 向上翻页安全上限（防死循环）
 
+// ─── 会话恢复 / agent 常驻化 ───
+const SESSION_STORAGE_KEY = 'demostudio.dsh.session'   // localStorage: { sessionId, port, savedAt }
+const DSH_DEFAULT_PORT = 3080                          // 与 electron/main.ts 保持一致
+const AGENT_READY_WAIT_TIMEOUT_MS = 60000              // 等主进程引导完成（认领/冷启动）上限
+const MAIN_READY_POLL_INTERVAL_MS = 500                // dsh-status 轮询间隔
+
 // --- 内部类型 ---
 interface ContentPart {
   type: 'text' | 'reasoning' | 'image' | 'tool-call' | 'tool-result' | string
@@ -229,9 +235,109 @@ export class AgentService {
   private deletedSessionIds: Set<string> = new Set()
   /** 实时工具调用缓存：callId -> 工具名（供 tool/result 配对） */
   private pendingTools: Map<string, string> = new Map()
+  /** DSH agent 端口（waitForAgentReady 就绪后更新，用于会话映射的 port 一致性判断） */
+  private _agentPort = 0
 
   constructor(private config: { autoReconnect?: boolean } = {}) {
     this.config = { autoReconnect: true, ...this.config }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  会话恢复（localStorage 映射：{ sessionId, port }）
+  // ═══════════════════════════════════════════════════════════
+
+  private readSavedSession(): { sessionId: string; port: number; savedAt: number } | null {
+    try {
+      const raw = localStorage.getItem(SESSION_STORAGE_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as { sessionId?: string; port?: number; savedAt?: number }
+      if (!parsed?.sessionId) return null
+      return { sessionId: parsed.sessionId, port: parsed.port ?? 0, savedAt: parsed.savedAt ?? 0 }
+    } catch {
+      return null
+    }
+  }
+
+  private persistSession(): void {
+    if (!this.sessionId) return
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+        sessionId: this.sessionId,
+        port: this._agentPort || DSH_DEFAULT_PORT,
+        savedAt: Date.now(),
+      }))
+      console.log(`[AgentService] 会话映射已持久化: ${this.sessionId}`)
+    } catch { /* 隐私模式等场景写入失败可容忍 */ }
+  }
+
+  private clearPersistedSession(): void {
+    try { localStorage.removeItem(SESSION_STORAGE_KEY) } catch { /* ignore */ }
+  }
+
+  /** 校验远端会话是否仍然存在（attach 前提） */
+  private async validateSession(sessionId: string): Promise<boolean> {
+    try {
+      const value = await this.rpc('session.list') as { items?: Array<{ sessionId?: string }> }
+      const items = value?.items ?? []
+      return items.some(item => item?.sessionId === sessionId)
+    } catch (err) {
+      console.error(`[AgentService] 会话校验失败(${sessionId}):`, err)
+      throw err // 网络级失败与「会话不存在」区分开，由调用方决定回退策略
+    }
+  }
+
+  /**
+   * 等待主进程完成 agent 引导（探测/认领/spawn），返回 agent 端口。
+   * - Electron 模式：轮询 dsh-status 直至 ready 或 degraded 终态；
+   * - 浏览器模式：无 dshStatus，假定 Vite 代理指向的 :3080 可用，直接返回默认端口。
+   * @throws AGENT_DEGRADED —— 主进程自愈超限进入终态，需手动重启
+   */
+  private async waitForAgentReady(): Promise<number> {
+    const api = window.electronAPI
+    if (!api?.dshStatus) return DSH_DEFAULT_PORT
+
+    const deadline = Date.now() + AGENT_READY_WAIT_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      let status: Awaited<ReturnType<typeof api.dshStatus>>
+      try {
+        status = await api.dshStatus()
+      } catch (err) {
+        console.error('[AgentService] dsh-status 查询失败:', err)
+        status = undefined as unknown as Awaited<ReturnType<typeof api.dshStatus>>
+      }
+      if (status?.ready && status.port) return status.port
+      if (status?.lifecycle === 'degraded') throw new Error('AGENT_DEGRADED')
+      await new Promise(r => setTimeout(r, MAIN_READY_POLL_INTERVAL_MS))
+    }
+    throw new Error(`等待 agent 就绪超时(${AGENT_READY_WAIT_TIMEOUT_MS}ms)`)
+  }
+
+  /**
+   * 断档续听：刷新/重连接管后若最后一个回合尚未闭合，
+   * 启动一轮 history 轮询监听后续事件直到 turn/end（补齐断档区间的实时部分）。
+   * pollForResponse 内部自动以 history 最新 seq 为起点，不会重复回放已有事件。
+   */
+  private resumePendingTurnIfNeeded(): void {
+    if (!this.sessionId || this.polling) return
+    void (async () => {
+      try {
+        const hist = await this.rpc('session.history', { sessionId: this.sessionId }) as {
+          events?: Array<{ event: { type: string } }>
+        }
+        const events = hist?.events ?? []
+        if (!events.length) return
+        for (let i = events.length - 1; i >= 0; i--) {
+          const t = events[i].event.type
+          if (t === 'turn/end') return            // 最后回合已收尾 → 无未完成工作
+          if (t === 'turn/start') break           // 存在未闭合回合 → 续听
+        }
+        console.log('[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
+        this.setRunning(true)
+        await this.pollForResponse()
+      } catch (err) {
+        console.warn('[AgentService] 断档续听探测失败:', err)
+      }
+    })()
   }
 
   // --- DSH RPC 通用调用（通过 Electron IPC 代理，绕过 CORS）---
@@ -260,24 +366,79 @@ export class AgentService {
   }
 
   // --- 连接 ---
+  /**
+   * 连接流程（agent 常驻化）：
+   *  1. claiming   —— 等主进程完成 agent 引导（探测/认领/spawn），拿到端口
+   *  2. recovering —— 有 localStorage 映射则校验并 attach 旧会话（恢复无感接续）
+   *  3. connecting —— 无映射或映射失效，回退新建会话
+   */
   async connect(): Promise<void> {
-    if (this.state === 'connected' || this.state === 'connecting') return
-    this.setState('connecting')
+    if (['connected', 'connecting', 'claiming', 'recovering'].includes(this.state)) return
 
+    // ── 阶段 1：claiming（等 agent 就绪） ──
+    this.setState('claiming')
+    let port: number
     try {
-      const value = (await this.rpc('session.list')) as { items?: unknown[] }
-      if (!value || !Array.isArray(value.items)) {
-        throw new Error('DSH 返回格式异常')
+      port = await this.waitForAgentReady()
+      this._agentPort = port
+    } catch (error) {
+      if (error instanceof Error && error.message === 'AGENT_DEGRADED') {
+        this.setState('degraded')
+        this.emit({
+          type: 'error',
+          payload: { message: 'DSH Agent 故障（自愈失败），请在面板手动重启' },
+        })
+        throw error
       }
+      this.setState('error')
+      this.emit({
+        type: 'error',
+        payload: { message: error instanceof Error ? error.message : '连接 DSH 失败' },
+      })
+      this.scheduleReconnect()
+      throw error
+    }
 
+    // ── 阶段 2：recovering（attach 持久化的旧会话） ──
+    const saved = this.readSavedSession()
+    if (saved?.sessionId) {
+      this.setState('recovering')
+      try {
+        const valid = await this.validateSession(saved.sessionId)
+        if (valid) {
+          this.sessionId = saved.sessionId
+          console.log(`[AgentService] DSH 已连接（会话已恢复）: ${this.sessionId} (port=${port})`)
+          this.setState('connected')
+          this.reconnectAttempts = 0
+          this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true, restored: true } })
+
+          // 启动 mux 下行流（接收 question/requested 等实时帧）
+          this.connectMux()
+          // 刷新期间若有进行中的回合 → 断档续听补齐
+          this.resumePendingTurnIfNeeded()
+          return
+        }
+        console.warn(`[AgentService] 持久化会话已失效，回退新建: ${saved.sessionId}`)
+        this.clearPersistedSession()
+      } catch (err) {
+        // 网络级错误与会话失效都回退到新建路径；网络错误由新建路径自然暴露
+        console.warn('[AgentService] 会话恢复尝试失败，回退新建会话:', err)
+      }
+    }
+
+    // ── 阶段 3：connecting（新建会话） ──
+    this.setState('connecting')
+    try {
       const createValue = (await this.rpc('session.create', {
         cwd: 'e:\\DemoStudio',
       })) as { sessionId?: string }
       if (!createValue?.sessionId) throw new Error('session.create 未返回 sessionId')
       this.sessionId = createValue.sessionId
-      console.log(`[AgentService] DSH 已连接，会话: ${this.sessionId}`)
+      this.persistSession()
+      console.log(`[AgentService] DSH 已连接，新会话: ${this.sessionId}`)
 
       this.setState('connected')
+      this.reconnectAttempts = 0
       this.emit({ type: 'ready', payload: { sessionId: this.sessionId } })
 
       // 启动 mux 下行流（接收 question/requested 等实时帧）
@@ -471,9 +632,9 @@ export class AgentService {
     }, delay)
   }
 
-  /** 重连：复用已有 sessionId（不创建新会话），失败时回退到 connect() */
+  /** 重连：优先复用已有 sessionId（attach），失败时回退到 connect() 全流程 */
   private async reconnect(): Promise<void> {
-    if (this.state === 'connected' || this.state === 'connecting') return
+    if (this.state === 'connected' || this.state === 'connecting' || this.state === 'claiming') return
     this.setState('connecting')
 
     try {
@@ -482,7 +643,14 @@ export class AgentService {
       this.setState('connected')
       this.reconnectAttempts = 0
       console.log(`[AgentService] 重连成功，会话: ${this.sessionId}`)
-      this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true } })
+      if (this.sessionId) {
+        this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true } })
+        // 断线期间若有未闭合回合 → 续听补齐
+        this.resumePendingTurnIfNeeded()
+      } else {
+        this.emit({ type: 'ready', payload: {} })
+        void this.connect().catch(() => { /* 无会话时走全流程补建 */ })
+      }
     } catch (error) {
       this.setState('error')
       this.emit({
@@ -1213,6 +1381,7 @@ export class AgentService {
     this.abortPolling = true
     this.pendingQuestions.clear()
     this.sessionId = sessionId
+    this.persistSession()
     console.log(`[AgentService] 切换到会话: ${sessionId}`)
   }
 
@@ -1221,6 +1390,7 @@ export class AgentService {
       const value = (await this.rpc('session.create', { cwd: 'e:\\DemoStudio' })) as { sessionId?: string }
       if (value?.sessionId) {
         this.sessionId = value.sessionId
+        this.persistSession()
         return value.sessionId
       }
       return null
@@ -1239,7 +1409,11 @@ export class AgentService {
       console.log(`[AgentService] 归档不可用，使用本地黑名单: ${sessionId}`)
     }
     this.deletedSessionIds.add(sessionId)
-    if (this.sessionId === sessionId) this.sessionId = null
+    if (this.sessionId === sessionId) {
+      this.sessionId = null
+      // 当前会话被删除：同步清除持久化映射，避免下次刷新重复尝试恢复
+      this.clearPersistedSession()
+    }
     return true
   }
 
