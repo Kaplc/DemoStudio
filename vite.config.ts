@@ -208,6 +208,11 @@ function agentHmrGuardPlugin(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    // 应用根目录绝对路径，注入 renderer：浏览器调试模式（MockElectronAPI）下
+    // Agent 面板用它作为 DSH 会话默认工作区；Electron 模式走 main 进程 get-app-info。
+    __DEMOSTUDIO_ROOT__: JSON.stringify(path.resolve(__dirname)),
+  },
   build: {
     chunkSizeWarningLimit: 1000,
     outDir: 'dist',

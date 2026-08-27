@@ -135,6 +135,9 @@ const mockAPI = {
     name: 'DemoStudio (Browser Mock)',
     platform: 'browser',
     isDev: true,
+    // 真实值由 vite define 在构建/开发期注入（Electron 模式下本 mock 不生效，
+    // 走 main 进程 get-app-info 提供同一字段）
+    appRoot: __DEMOSTUDIO_ROOT__,
   }),
 
   openFileDialog: async () => ({ canceled: true }),

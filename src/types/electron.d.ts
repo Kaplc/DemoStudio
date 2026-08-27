@@ -4,6 +4,8 @@ export interface ElectronAPI {
     name: string
     platform: string
     isDev: boolean
+    /** 应用根目录绝对路径（Agent 面板默认工作区） */
+    appRoot: string
   }>
   openFileDialog: (options: any) => Promise<any>
   saveFileDialog: (options: any) => Promise<any>

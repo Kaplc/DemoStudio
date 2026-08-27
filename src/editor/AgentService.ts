@@ -237,9 +237,29 @@ export class AgentService {
   private pendingTools: Map<string, string> = new Map()
   /** DSH agent 端口（waitForAgentReady 就绪后更新，用于会话映射的 port 一致性判断） */
   private _agentPort = 0
+  /** 已解析的默认工作区（应用根目录）缓存：getAppInfo 一次进程内不变 */
+  private _workspaceCwd: string | null = null
 
   constructor(private config: { autoReconnect?: boolean } = {}) {
     this.config = { autoReconnect: true, ...this.config }
+  }
+
+  /**
+   * 解析新建会话的默认工作区（编辑器根目录）。
+   * Electron 模式：main 进程 get-app-info 提供应用根绝对路径；
+   * 浏览器 mock 模式：退化为 '.'（无真实 agent，不会被真实消费）。
+   */
+  private async resolveWorkspaceCwd(): Promise<string> {
+    if (this._workspaceCwd) return this._workspaceCwd
+    try {
+      const info = await window.electronAPI?.getAppInfo()
+      if (info?.appRoot) {
+        this._workspaceCwd = info.appRoot
+        return info.appRoot
+      }
+    } catch { /* mock/浏览器模式走兜底 */ }
+    this._workspaceCwd = '.'
+    return '.'
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -426,11 +446,11 @@ export class AgentService {
       }
     }
 
-    // ── 阶段 3：connecting（新建会话） ──
+    // ── 阶段 3：connecting（新建会话，默认工作区 = 编辑器根目录） ──
     this.setState('connecting')
     try {
       const createValue = (await this.rpc('session.create', {
-        cwd: 'e:\\DemoStudio',
+        cwd: await this.resolveWorkspaceCwd(),
       })) as { sessionId?: string }
       if (!createValue?.sessionId) throw new Error('session.create 未返回 sessionId')
       this.sessionId = createValue.sessionId
@@ -1387,7 +1407,7 @@ export class AgentService {
 
   async createSession(): Promise<string | null> {
     try {
-      const value = (await this.rpc('session.create', { cwd: 'e:\\DemoStudio' })) as { sessionId?: string }
+      const value = (await this.rpc('session.create', { cwd: await this.resolveWorkspaceCwd() })) as { sessionId?: string }
       if (value?.sessionId) {
         this.sessionId = value.sessionId
         this.persistSession()

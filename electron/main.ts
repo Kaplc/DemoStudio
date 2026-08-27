@@ -718,6 +718,8 @@ ipcMain.handle('get-app-info', () => {
     name: app.name,
     platform: process.platform,
     isDev,
+    // 应用根目录绝对路径（dist-electron 的上一级），Agent 面板以它作为 DSH 会话默认工作区
+    appRoot: path.join(__dirname, '..'),
   }
 })
 
