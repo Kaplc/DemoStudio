@@ -141,7 +141,7 @@ cache/unicode-fonts/
 # DSH agent 常驻化所有权协议文件（owner.json / editors 心跳 / watchdog 日志）
 cache/dsh-runtime/
 
-# 独立开屏进度状态文件（editor.bat ↔ splash.ps1 ↔ electron main 接力通道）
+# 历史遗留：独立开屏状态文件（PS 开屏已移除，保留忽略以防旧版本残留）
 cache/splash/
 
 # ═══════════════════════════════════════

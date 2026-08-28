@@ -179,7 +179,7 @@ const mockAPI = {
     // 浏览器调试模式：返回中性启动日志（不含伪造 ERROR/WARN，避免误导状态栏报错面板）
     const iso = new Date().toISOString()
     const lines = [
-      `[${iso}][INFO][DemoStudio] DemoStudio Editor v5.0.0 已启动 (Browser Mode)`,
+      `[${iso}][INFO][DemoStudio] DemoStudio Editor v0.1.0 已启动 (Browser Mode)`,
       `[${iso}][INFO][DemoStudio] 所有功能均使用 import.meta.glob 预加载数据`,
       `[${iso}][INFO][DemoStudio] [World] 等待选择工程...`,
     ]

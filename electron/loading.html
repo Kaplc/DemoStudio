@@ -34,21 +34,6 @@
     text-transform: uppercase;
     margin-bottom: 48px;
   }
-  .progress-track {
-    width: 220px;
-    height: 3px;
-    background: #2a2a4a;
-    border-radius: 2px;
-    overflow: hidden;
-    margin: 0 auto 20px;
-  }
-  .progress-bar {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, #4a90d9, #64b4ff);
-    border-radius: 2px;
-    transition: width 0.4s ease;
-  }
   .status {
     font-size: 12px;
     color: #aaa;
@@ -67,25 +52,8 @@
 <body>
 <div class="container">
   <div class="logo">DemoStudio</div>
-  <div class="subtitle">Editor v4.0.0</div>
-  <div class="progress-track">
-    <div class="progress-bar" id="bar"></div>
-  </div>
-  <div class="status" id="status">正在启动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+  <div class="subtitle">Editor v0.1.0</div>
+  <div class="status">正在启动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
 </div>
-<script>
-  const bar = document.getElementById('bar')
-  const status = document.getElementById('status')
-
-  // 进度完全由 Electron main 进程推送真实里程碑（pushBootProgress），本地不做伪造推进
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.progress !== undefined) {
-      bar.style.width = Math.min(e.data.progress, 100) + '%'
-    }
-    if (e.data && e.data.status) {
-      status.textContent = e.data.status
-    }
-  })
-</script>
 </body>
 </html>

@@ -182,7 +182,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     gameOver: false,
   },
 
-  consoleOutput: ['DemoStudio Editor v4.0.0 已启动', '输入 help 查看命令列表'],
+  consoleOutput: ['DemoStudio Editor v0.1.0 已启动', '输入 help 查看命令列表'],
   consoleErrors: [],
   consoleErrPanelOpen: false,
 

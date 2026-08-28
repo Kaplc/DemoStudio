@@ -44,7 +44,7 @@ export class Editor {
       setAppInfo,
     } = callbacks
 
-    addConsoleOutput('DemoStudio Editor v4.0.0 已启动')
+    addConsoleOutput('DemoStudio Editor v0.1.0 已启动')
 
     // 1. 注册所有项目（世界构建器、游戏工厂、配置表）
     registerAllProjects(addConsoleOutput)

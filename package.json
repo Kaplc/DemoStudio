@@ -1,6 +1,6 @@
 {
   "name": "demostudio",
-  "version": "4.0.0",
+  "version": "0.1.0",
   "description": "DemoStudio - Three.js 游戏编辑器桌面端",
   "main": "dist-electron/main.js",
   "scripts": {

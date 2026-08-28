@@ -77,7 +77,7 @@ registerCommand('echo', (args, ctx) => {
 })
 
 registerCommand('status', (_args, ctx) => {
-  ctx.output('DemoStudio Editor v4.0.0')
+  ctx.output('DemoStudio Editor v0.1.0')
   ctx.output('Engine: Three.js + Electron + React')
   ctx.output(
     `游戏状态: ${ctx.gameState.running ? '🎮 运行中 (分数: ' + ctx.gameState.score + ')' : '⏹ 已停止'}`,

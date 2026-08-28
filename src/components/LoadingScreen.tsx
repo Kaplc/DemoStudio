@@ -81,7 +81,7 @@ export function LoadingScreen({ loading, fadeDelay = 300 }: LoadingScreenProps) 
         letterSpacing: 4,
         textTransform: 'uppercase' as const,
       }}>
-        Editor v4.0.0
+        Editor v0.1.0
       </div>
 
       {/* 进度条 */}

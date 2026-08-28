@@ -1,13 +1,6 @@
 @echo off
 cd /d "%~dp0"
 
-REM ─── 独立开屏窗口：第一有效行即拉起，后续每一步推送真实进度（scripts/splash.ps1 + splash-update.mjs） ───
-REM 状态文件按实例命名（%RANDOM%），经 DEMOSTUDIO_SPLASH_STATE 环境变量传给 Electron 主进程接力
-set "SPLASH_STATE=%~dp0cache\splash\state_%RANDOM%%RANDOM%.json"
-start "DemoStudio Splash" /b powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\splash.ps1" -StateFile "%SPLASH_STATE%"
-set "DEMOSTUDIO_SPLASH_STATE=%SPLASH_STATE%"
-call :splash 3 "检查运行环境..."
-
 echo ============================================
 echo   DemoStudio Editor - Electron Desktop
 echo ============================================
@@ -37,14 +30,11 @@ if errorlevel 1 (
 echo [Setup] Node.js 已就绪
 for /f "tokens=*" %%i in ('node -v') do echo         版本: %%i
 echo.
-call :splash 8 "运行环境就绪"
 
 REM ─── 检查 node_modules 是否存在 ───
-call :splash 10 "检查项目依赖完整性..."
 if not exist "node_modules" (
     echo [Setup] 未检测到 node_modules，正在安装依赖（使用国内镜像源）...
     echo.
-    call :splash 14 "安装项目依赖（首次较慢）..."
     call npm install --registry=%NPM_REGISTRY% --no-audit --no-fund
     if errorlevel 1 (
         echo.
@@ -63,7 +53,6 @@ if not exist "node_modules" (
         echo.
         echo [Setup] 检测到依赖不完整，正在自动修复（使用国内镜像源）...
         echo.
-        call :splash 14 "修复项目依赖..."
         node scripts/check-deps.mjs --install
         if errorlevel 1 (
             echo.
@@ -77,14 +66,12 @@ if not exist "node_modules" (
         echo.
     )
 )
-call :splash 24 "项目依赖就绪"
 
 REM ─── 检查 DSH 源代码是否存在 ───
 set "DSH_NEED_BUILD=0"
 if not exist "harness\dsh-source\.git" (
     echo [DSH] 检测到 harness\dsh-source 不存在，正在从 GitHub 克隆...
     echo.
-    call :splash 26 "克隆 DSH 引擎源码..."
     
     REM 检查 Git 是否可用
     where git >nul 2>nul
@@ -110,7 +97,6 @@ if not exist "harness\dsh-source\.git" (
     echo.
     echo [DSH] 克隆完成
     echo.
-    call :splash 34 "DSH 源码就绪"
     set "DSH_NEED_BUILD=1"
 )
 
@@ -119,15 +105,12 @@ if not exist "harness\dsh-source\apps\cli\lib\bin.js" set "DSH_NEED_BUILD=1"
 if "%DSH_NEED_BUILD%"=="1" (
     echo [DSH] 检测到 DSH 未构建，正在自动构建...
     echo.
-    call :splash 36 "准备 DSH 构建环境..."
-    
+
     REM 检查 pnpm 是否可用，不存在则自动安装
-    call :splash 38 "检查 pnpm..."
     where pnpm >nul 2>nul
     if errorlevel 1 (
         echo [DSH] 未检测到 pnpm，正在自动安装...
         echo.
-        call :splash 40 "安装 pnpm（首次）..."
         call npm install -g pnpm --registry=%NPM_REGISTRY% --no-audit --no-fund
         if errorlevel 1 (
             echo.
@@ -140,7 +123,6 @@ if "%DSH_NEED_BUILD%"=="1" (
         echo [DSH] pnpm 安装完成
         echo.
     )
-    call :splash 44 "构建环境就绪"
     
     REM 进入 DSH 源码目录
     pushd harness\dsh-source
@@ -149,7 +131,6 @@ if "%DSH_NEED_BUILD%"=="1" (
     if not exist "node_modules" (
         echo [DSH] 正在安装依赖（使用国内镜像源）...
         echo.
-        call :splash 46 "安装 DSH 依赖..."
         call pnpm install --registry=%NPM_REGISTRY%
         if errorlevel 1 (
             echo.
@@ -161,13 +142,11 @@ if "%DSH_NEED_BUILD%"=="1" (
         echo.
         echo [DSH] 依赖安装完成
         echo.
-        call :splash 50 "DSH 依赖就绪"
     )
     
     REM 构建项目
     echo [DSH] 正在构建项目...
     echo.
-    call :splash 52 "构建 DSH CLI（首次较慢）..."
     call pnpm run build
     if errorlevel 1 (
         echo.
@@ -180,7 +159,6 @@ if "%DSH_NEED_BUILD%"=="1" (
     echo.
     echo [DSH] 构建完成
     echo.
-    call :splash 62 "DSH 就绪"
     
     REM 返回原目录
     popd
@@ -197,7 +175,7 @@ echo   ※ 支持多实例：可重复双击本文件启动多个编辑器
 echo     （Vite 端口 5173+ / MCP 端口 9877+ 自动递增分配；DSH agent 多实例共享）
 echo.
 
-call :splash 64 "启动开发服务器..."
+echo [Launch] 启动开发服务器与 Electron...
 npm run electron:dev
 if errorlevel 1 (
     echo.
@@ -205,8 +183,3 @@ if errorlevel 1 (
     pause >nul
 )
 exit /b 0
-
-:splash
-REM ─── 推送真实启动进度到独立开屏窗口（静默失败，绝不阻塞启动流程） ───
-node scripts\splash-update.mjs %1 %2 >nul 2>nul
-exit /b
