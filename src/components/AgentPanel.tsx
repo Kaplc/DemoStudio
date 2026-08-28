@@ -10,11 +10,13 @@
  *  - useMemo：step 分组逻辑缓存
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Icon } from './icons/Icon'
 import { useEditorStore } from '../stores/editorStore'
 import { agentService } from '../editor/AgentService'
 import { pluginService } from '../editor/PluginService'
 import { MessageBubble } from './agent/MessageBubble'
-import { ReasoningBlock } from './agent/ReasoningBlock'
+import { StepProcess, type ProcessItem } from './agent/StepProcess'
+import { ThinkingCard } from './agent/ThinkingCard'
 import { InputBox } from './agent/InputBox'
 import { ConnectionIndicator } from './agent/ConnectionIndicator'
 import { ToolCard } from './agent/ToolCard'
@@ -27,12 +29,18 @@ import { QuestionCard } from './agent/QuestionCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
 
+/** step 子项：可辨识联合，便于按 type 收窄 */
+type StepItem =
+  | { type: 'reasoning'; msg: Message }
+  | { type: 'tool'; msg: Message }
+  | { type: 'message'; msg: Message }
+
 // ─── 渲染节点类型（虚拟列表的 item） ───
 interface RenderNode {
   key: string
   kind: 'user' | 'system' | 'step'
   /** step 容器包含的子项 */
-  stepItems?: Array<{ type: 'reasoning' | 'tool' | 'message'; msg: Message }>
+  stepItems?: StepItem[]
   /** 单条消息（user/system） */
   msg?: Message
 }
@@ -645,6 +653,8 @@ export const AgentPanel: React.FC = () => {
         console.log(`[AgentPanel] 使用 steer 引导 AI`)
         addConsoleOutput(`[Agent] 引导 AI: ${text}`)
         await agentService.steer(text)
+        // steer 同样会进入等待期：本轮尚未有输出时显示思考卡片
+        setIsAgentRunning(true)
       } else {
         // AI 空闲，正常发送
         console.log(`[AgentPanel] 正常发送消息`)
@@ -763,6 +773,25 @@ export const AgentPanel: React.FC = () => {
     }
   }, [pushSystem])
 
+  // ─── 等待态：AI 已开始运行，但本轮尚未产出任何实质内容 ───
+  // 用户发出消息后到首个 token（reasoning / tool / content）到达之间有一段空窗，
+  // 此时没有任何可渲染节点，界面看起来"没反应" → 显示思考中卡片。
+  // 一旦有任何 assistant/tool 输出，该条件立即为 false，卡片自动隐藏。
+  const awaitingFirstOutput = useMemo(() => {
+    if (!isAgentRunning) return false
+    // 只看「本轮」：最后一条用户消息之后是否已有任何输出。
+    // 不能用全局 some()——历史轮次的输出会让后续每一轮都判定为"已产出"，卡片永远不再出现。
+    let start = 0
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { start = i + 1; break }
+    }
+    for (let i = start; i < messages.length; i++) {
+      const m = messages[i]
+      if ((m.role === 'assistant' && (m.reasoning || m.content)) || m.role === 'tool') return false
+    }
+    return true
+  }, [isAgentRunning, messages])
+
   // ─── 将原始 messages 聚合成渲染节点（memoize，仅 messages 变化时重算） ───
   const renderNodes = useMemo((): RenderNode[] => {
     const nodes: RenderNode[] = []
@@ -829,7 +858,7 @@ export const AgentPanel: React.FC = () => {
       if (msg.role === 'command' && msg.command) {
         return (
           <div key={msg.id} className="agent-system-msg agent-command">
-            <span className="agent-system-msg__icon">⚡</span>
+            <span className="agent-system-msg__icon"><Icon name="zap" /></span>
             <span className="agent-system-msg__text">
               /{msg.command.name}{msg.command.args ? ` ${msg.command.args}` : ''}
               {msg.command.outcome?.kind === 'error' && <span className="agent-system-msg__error"> (失败)</span>}
@@ -841,7 +870,7 @@ export const AgentPanel: React.FC = () => {
       if (msg.role === 'compaction' && msg.compaction) {
         return (
           <div key={msg.id} className="agent-system-msg agent-compaction">
-            <span className="agent-system-msg__icon">🗜️</span>
+            <span className="agent-system-msg__icon"><Icon name="scissors" /></span>
             <span className="agent-system-msg__text">
               {msg.content}
               {msg.compaction.shadowedItemCount && <span> ({msg.compaction.shadowedItemCount} 条消息)</span>}
@@ -853,7 +882,7 @@ export const AgentPanel: React.FC = () => {
       if (msg.role === 'retry' && msg.retries) {
         return (
           <div key={msg.id} className="agent-system-msg agent-retry">
-            <span className="agent-system-msg__icon">🔄</span>
+            <span className="agent-system-msg__icon"><Icon name="rotate-cw" /></span>
             <span className="agent-system-msg__text">{msg.content}</span>
           </div>
         )
@@ -862,7 +891,7 @@ export const AgentPanel: React.FC = () => {
       if (msg.role === 'turn-error') {
         return (
           <div key={msg.id} className="agent-system-msg agent-error">
-            <span className="agent-system-msg__icon">❌</span>
+            <span className="agent-system-msg__icon"><Icon name="circle-x" /></span>
             <span className="agent-system-msg__text">{msg.content}</span>
           </div>
         )
@@ -871,7 +900,7 @@ export const AgentPanel: React.FC = () => {
       if (msg.role === 'turn-max-tokens') {
         return (
           <div key={msg.id} className="agent-system-msg agent-max-tokens">
-            <span className="agent-system-msg__icon">✂️</span>
+            <span className="agent-system-msg__icon"><Icon name="scissors" /></span>
             <span className="agent-system-msg__text">{msg.content}</span>
           </div>
         )
@@ -883,17 +912,17 @@ export const AgentPanel: React.FC = () => {
         const completed = msg.todos.filter(t => t.status === 'completed')
         return (
           <div key={msg.id} className="agent-system-msg agent-todo">
-            <span className="agent-system-msg__icon">📋</span>
+            <span className="agent-system-msg__icon"><Icon name="list-checks" /></span>
             <div className="agent-system-msg__text">
               <div>任务列表 ({msg.todos.length} 项)</div>
               {inProgress.length > 0 && inProgress.map((t, i) => (
-                <div key={i} className="agent-todo__item agent-todo__in-progress">🔄 {t.content}</div>
+                <div key={i} className="agent-todo__item agent-todo__in-progress"><Icon name="loader" size="sm" /> {t.content}</div>
               ))}
               {pending.length > 0 && pending.slice(0, 3).map((t, i) => (
-                <div key={i} className="agent-todo__item agent-todo__pending">⏳ {t.content}</div>
+                <div key={i} className="agent-todo__item agent-todo__pending"><Icon name="circle" size="sm" /> {t.content}</div>
               ))}
               {pending.length > 3 && <div className="agent-todo__more">...还有 {pending.length - 3} 项</div>}
-              {completed.length > 0 && <div className="agent-todo__item agent-todo__completed">✅ {completed.length} 项已完成</div>}
+              {completed.length > 0 && <div className="agent-todo__item agent-todo__completed"><Icon name="check" size="sm" /> {completed.length} 项已完成</div>}
             </div>
           </div>
         )
@@ -903,7 +932,7 @@ export const AgentPanel: React.FC = () => {
         return (
           <div key={msg.id} className="agent-event-card">
             <div className="agent-event-card__head">
-              <span className="agent-event-card__icon">🤖</span>
+              <span className="agent-event-card__icon"><Icon name="bot" /></span>
               <span className="agent-event-card__label">模型切换</span>
               <span className="agent-event-card__value">{msg.requestHeader?.model || '未知'}</span>
             </div>
@@ -915,35 +944,55 @@ export const AgentPanel: React.FC = () => {
       return <MessageBubble message={msg} isFinal={false} />
     }
 
-    // step 容器
+    // step 容器：把「推理 + 工具」归组为过程区，结论（assistant content）出现时打断该过程
     const items = node.stepItems!
+
+    // 1) 切段：连续的过程项（reasoning/tool）合成一段，遇到 message 则打断
+    const segments: Array<
+      | { kind: 'process'; items: ProcessItem[] }
+      | { kind: 'message'; msg: Message }
+    > = []
+    let pending: ProcessItem[] = []
+    for (const item of items) {
+      if (item.type === 'message') {
+        if (pending.length > 0) {
+          segments.push({ kind: 'process', items: pending })
+          pending = []
+        }
+        segments.push({ kind: 'message', msg: item.msg })
+      } else if (item.type === 'reasoning' || item.type === 'tool') {
+        pending.push(item)
+      }
+    }
+    if (pending.length > 0) {
+      segments.push({ kind: 'process', items: pending })
+    }
 
     return (
       <div className="agent-step">
-        {items.map((item) => {
-          if (item.type === 'reasoning') {
-            return (
-              <ReasoningBlock
-                key={`reasoning-${item.msg.id}`}
-                content={item.msg.reasoning || ''}
-                streaming={item.msg.streaming}
-                forceCollapsed={item.msg.reasoningCollapsed}
-              />
-            )
-          }
-          if (item.type === 'tool' && item.msg.tool) {
-            return <ToolCard key={`tool-${item.msg.id}`} tool={item.msg.tool} />
-          }
-          if (item.type === 'message') {
+        {segments.map((seg, si) => {
+          if (seg.kind === 'message') {
             return (
               <MessageBubble
-                key={`msg-${item.msg.id}`}
-                message={item.msg}
-                isFinal={!!item.msg.turnCompleted}
+                key={`msg-${seg.msg.id}`}
+                message={seg.msg}
+                isFinal={!!seg.msg.turnCompleted}
               />
             )
           }
-          return null
+
+          // 本段过程后面已出现结论 → 标记打断，由 StepProcess 自动折叠
+          const concluded = segments
+            .slice(si + 1)
+            .some(s => s.kind === 'message')
+
+          return (
+            <StepProcess
+              key={`process-${si}-${seg.items[0]?.msg.id ?? 'x'}`}
+              items={seg.items}
+              concluded={concluded}
+            />
+          )
         })}
       </div>
     )
@@ -1035,6 +1084,11 @@ export const AgentPanel: React.FC = () => {
         scrollTriggerDeps={contentVersion}
         getItemKey={(node) => node.key}
         renderItem={renderNode}
+        renderFooter={
+          awaitingFirstOutput
+            ? () => <ThinkingCard />
+            : undefined
+        }
       />
 
       {/* 问答卡片（question/requested 时显示在输入区上方） */}

@@ -9,6 +9,7 @@
  * 注入路径优先级：
  *   1. `ctx.engineBridge` / `ctx.fileBridge`（如果 DSH 提供了 ctx 注入机制）
  *   2. `globalThis.__dshEngineCtx`（DSH Agent Service 启动时设置的全局对象，跨进程通过 env 传递）
+ *   3. `DSH_ENGINE_PORT` 环境变量（electron/main.ts 启动 DSH 时注入，通过 HTTP 连接编辑器）
  */
 
 export interface EngineBridgeLike {
@@ -52,6 +53,93 @@ function getWorkspaceRootFromEnv(): string | null {
 }
 
 /**
+ * 通过 HTTP 连接到编辑器的 EngineBridge 实现。
+ * 使用 DSH_ENGINE_PORT 环境变量来连接编辑器。
+ */
+class HttpEngineBridge implements EngineBridgeLike {
+  private port: number
+
+  constructor(port: number) {
+    this.port = port
+  }
+
+  async callTool(name: string, args?: Record<string, unknown>): Promise<unknown> {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: name, params: args ?? {} }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      return await resp.json()
+    } catch (err) {
+      return { ok: false, error: `HTTP 调用失败: ${err}` }
+    }
+  }
+
+  async getStatus(): Promise<{ running: boolean; gameRunning: boolean; gameScore?: number } | null> {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${this.port}/api/status`)
+      if (!resp.ok) return null
+      return await resp.json() as { running: boolean; gameRunning: boolean; gameScore?: number }
+    } catch {
+      return null
+    }
+  }
+
+  async readConsoleLogs(): Promise<string[]> {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${this.port}/api/console-logs`)
+      if (!resp.ok) return []
+      return await resp.json() as string[]
+    } catch {
+      return []
+    }
+  }
+}
+
+/**
+ * 通过 HTTP 连接到编辑器的 FileBridge 实现。
+ * 使用 DSH_ENGINE_PORT 环境变量来连接编辑器。
+ * 通过 /api/command 端点调用编辑器的文件读写命令。
+ */
+class HttpFileBridge implements FileBridgeLike {
+  private port: number
+
+  constructor(port: number) {
+    this.port = port
+  }
+
+  private async callCommand(command: string, params: Record<string, unknown>): Promise<unknown> {
+    const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, params }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return await resp.json()
+  }
+
+  async readJsonFile(path: string): Promise<unknown | null> {
+    try {
+      const result = await this.callCommand('read-json-file', { relativePath: path })
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  async writeJsonFile(path: string, data: unknown): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await this.callCommand('write-json-file', { relativePath: path, data })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  }
+}
+
+/**
  * 暴露给 DSH 插件包：自动选择 bridge 来源。
  * @param ctx DSH 传入的 cordis 上下文（可能是 Cordis ctx / 任意对象）
  */
@@ -76,6 +164,20 @@ export function getEngineContext(ctx: unknown): EngineContext | null {
       engineBridge: injected.engineBridge as EngineBridgeLike,
       fileBridge: injected.fileBridge as FileBridgeLike,
       guardPolicy: injected.guardPolicy as EngineContext['guardPolicy'],
+    }
+  }
+
+  // 来源 3：通过 DSH_ENGINE_PORT 环境变量连接编辑器
+  const enginePort = process.env.DSH_ENGINE_PORT
+  if (enginePort) {
+    const port = parseInt(enginePort, 10)
+    if (!isNaN(port) && port > 0) {
+      console.log(`[engineContext] 使用 DSH_ENGINE_PORT=${port} 连接编辑器`)
+      return {
+        engineBridge: new HttpEngineBridge(port),
+        fileBridge: new HttpFileBridge(port),
+        guardPolicy: {},
+      }
     }
   }
 

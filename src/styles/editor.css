@@ -64,6 +64,8 @@
   --dsw-alias-state-business-primary: #679EFE;
   --dsw-alias-state-error-primary: #F25A5A;
   --dsw-alias-state-success-primary: #22C55E;
+  --dsw-alias-state-info-primary: #6BA8FF;
+  --dsw-alias-state-warning-primary: #F5A623;
 
   /* 组件特定 */
   --dsw-specific-bubble: #2C2C2E;
@@ -1483,6 +1485,9 @@ html, body, #root {
   flex-shrink: 0;
   font-size: 14px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .agent-system-msg__text {
   flex: 1;
@@ -1491,6 +1496,14 @@ html, body, #root {
 .agent-system-msg__error {
   color: var(--dsw-alias-state-error-primary);
 }
+
+/* 图标语义色（替代原 emoji 自带颜色） */
+.agent-command .agent-system-msg__icon { color: var(--dsw-alias-state-business-primary); }
+.agent-compaction .agent-system-msg__icon { color: var(--dsw-alias-state-info-primary); }
+.agent-retry .agent-system-msg__icon { color: var(--dsw-alias-state-warning-primary); }
+.agent-error .agent-system-msg__icon { color: var(--dsw-alias-state-error-primary); }
+.agent-max-tokens .agent-system-msg__icon { color: var(--dsw-alias-state-warning-primary); }
+.agent-todo .agent-system-msg__icon { color: var(--dsw-alias-state-success-primary); }
 
 /* 特殊消息类型边框颜色 */
 .agent-command { border-left-color: var(--dsw-alias-state-business-primary); }
@@ -1520,6 +1533,10 @@ html, body, #root {
 .agent-event-card__icon {
   font-size: 13px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-state-info-primary);
 }
 .agent-event-card__label {
   color: var(--dsw-alias-label-caption);
@@ -1535,6 +1552,9 @@ html, body, #root {
 .agent-todo__item {
   padding: 2px 0;
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 .agent-todo__in-progress { color: var(--dsw-alias-state-business-primary); }
 .agent-todo__pending { color: var(--dsw-alias-label-dimmed); }
@@ -1748,31 +1768,6 @@ html, body, #root {
 .reasoning-block--collapsed .reasoning-block__arrow {
   transform: rotate(0deg);
 }
-.reasoning-block__label {
-  font-weight: 500;
-  color: var(--dsw-alias-label-tertiary);
-}
-.reasoning-block__preview {
-  margin-left: 4px;
-  font: var(--dsw-font-xxs);
-  color: var(--dsw-alias-label-caption);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 200px;
-}
-.reasoning-block__preview--streaming {
-  animation: reasoning-blink 1.5s infinite;
-}
-@keyframes reasoning-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-.reasoning-block__content {
-  padding: 0 0 8px;
-  max-height: 300px;
-  overflow-y: auto;
-}
 .reasoning-block__text {
   margin: 0;
   padding: 8px 12px;
@@ -1783,6 +1778,15 @@ html, body, #root {
   color: var(--dsw-alias-label-secondary);
   max-height: 240px;
   overflow-y: auto;
+}
+/* bare 模式：被 StepProcess 收纳时仍保留自身限高滚动。
+   若不限高，单个超长推理块会把过程区撑得极长，外层要拖很久才能看到后面的工具卡片。
+   overscroll-behavior: contain 阻断滚动链，滚到块底时不会带动外层滚动。 */
+.reasoning-block__text--bare {
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 /* --- Markdown 渲染（缩小版）--- */
@@ -2018,6 +2022,149 @@ html, body, #root {
   border: 1px solid transparent;
   background: var(--dsw-alias-bg-layer-2);
   transition: max-height 0.3s ease-out, opacity 0.25s ease-out, margin 0.25s ease-out;
+}
+
+/* --- 思考中卡片（AI 尚未产出任何内容时的等待指示）--- */
+.agent-thinking-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(748px, 90%);
+  margin: 4px auto;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-caption1, 12px/1.4 inherit);
+  user-select: none;
+}
+.agent-thinking-card__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.agent-thinking-card__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-caption);
+  animation: agent-thinking-bounce 1.2s infinite ease-in-out;
+}
+/* 三点依次跳动：负延迟制造 stagger，无需 JS 定时器 */
+.agent-thinking-card__dot:nth-child(1) { animation-delay: 0s; }
+.agent-thinking-card__dot:nth-child(2) { animation-delay: 0.15s; }
+.agent-thinking-card__dot:nth-child(3) { animation-delay: 0.3s; }
+.agent-thinking-card__text {
+  color: var(--dsw-alias-label-tertiary);
+}
+@keyframes agent-thinking-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+/* 无障碍：用户要求减少动效时退化为静态呼吸，保留"进行中"语义 */
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking-card__dot {
+    animation: agent-thinking-bounce 2.4s infinite ease-in-out;
+  }
+  @keyframes agent-thinking-bounce {
+    0%, 100% { opacity: 0.35; transform: none; }
+    50% { opacity: 1; transform: none; }
+  }
+}
+
+/* --- Agent Step 过程区（推理 + 工具的折叠滚动容器）--- */
+.agent-step-process {
+  margin: 2px 0;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.agent-step-process__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  font: var(--dsw-font-xxs);
+  color: var(--dsw-alias-label-caption);
+  background: var(--dsw-alias-interactive-bg-subtle);
+  transition: background 0.15s ease;
+}
+.agent-step-process__head:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.agent-step-process__head:focus-visible {
+  outline: 1px solid var(--dsw-alias-border-focus, #6BA8FF);
+  outline-offset: 1px;
+}
+.agent-step-process__arrow {
+  flex-shrink: 0;
+  font-size: 9px;
+  width: 10px;
+  color: var(--dsw-alias-label-dimmed);
+}
+.agent-step-process__label {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
+}
+.agent-step-process__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-caption);
+}
+/* body：限高滚动容器，承载推理文本与工具卡片 */
+.agent-step-process__body {
+  max-height: 0;
+  overflow-y: auto;
+  opacity: 0;
+  margin: 0;
+  padding: 0 2px;
+  transition: max-height 0.3s ease-out, opacity 0.25s ease-out, margin 0.25s ease-out;
+}
+.agent-step-process--expanded .agent-step-process__body {
+  max-height: 320px;
+  opacity: 1;
+  margin: 4px 0;
+}
+/* 过程区内的卡片不留额外外边距，避免限高容器内出现空隙 */
+.agent-step-process__body .tool-card,
+.agent-step-process__body .reasoning-block__text--bare {
+  margin: 3px 0;
+}
+/* 推理块自身限高滚动时的细滚动条 */
+.reasoning-block__text--bare::-webkit-scrollbar {
+  width: 6px;
+}
+.reasoning-block__text--bare::-webkit-scrollbar-track {
+  background: transparent;
+}
+.reasoning-block__text--bare::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
+  border-radius: 3px;
+}
+.reasoning-block__text--bare::-webkit-scrollbar-thumb:hover {
+  background: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.24));
+}
+/* 细滚动条，与全局风格统一 */
+.agent-step-process__body::-webkit-scrollbar {
+  width: 6px;
+}
+.agent-step-process__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.agent-step-process__body::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
+  border-radius: 3px;
+}
+.agent-step-process__body::-webkit-scrollbar-thumb:hover {
+  background: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.24));
 }
 .reasoning-block__details--expanded {
   max-height: 800px;

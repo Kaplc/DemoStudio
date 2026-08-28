@@ -1,7 +1,13 @@
-# Playwright 命令速查 + 踩坑（编辑器通用）
+# Playwright 命令速查 + 踩坑（VS Code 内置浏览器）
 
-> DemoStudio 编辑器浏览器端调试（VS Code 集成浏览器操作 `http://localhost:5173/`）的**纯命令速查 + 踩坑**。
+> DemoStudio 编辑器浏览器端调试的**纯命令速查 + 踩坑**。本文件是 **① VS Code 内置浏览器**路径（`open_browser_page` / `run_playwright_code` 系列）。
 > 只记录编辑器通用操作，不涉及具体项目/资产。详细方法论见 [`playwright_testing.md`](./playwright_testing.md)。
+>
+> **先选路径**：
+> - **① 本文件** —— VS Code 集成浏览器，开箱即用，产物落在工作区内（AI 可读）
+> - **② [`playwright_mcp_commands.md`](./playwright_mcp_commands.md)** —— Playwright MCP（`browser_*` 系列），操作**本地 Chrome**，需先挂 CDP `:9222`
+>
+> 两者打开的是同一个 Vite 页面，页面内调试桥（§3）、通用流程（§4）、踩坑速查（§5）**完全通用**，不必重复阅读。差异只在：浏览器怎么起、元素怎么点、产物落在哪（对照表见 MCP 文档 §4.4）。
 
 ## 1. 内置浏览器工具
 
@@ -204,4 +210,6 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | 点击结果无日志可观察 | `logger.debug`（如"房子被点击"）可能不进控制台/Recent events → 断言点击用 `PhySys._pressedClickable`（命中者引用）而非日志 |
 | 不可见碰撞体射线打不中 | `ClickableComponent.hitTest` **沿父链过滤 `visible=false` 目标**（隐藏物体不响应射线）→ 不可见点击区必须 mesh 保持 visible、用 `colorWrite:false` 材质（不写颜色）+ 可选 `depthWrite:false`，禁用 `setVisible(false)` |
 | 基地构建崩溃排查 | `FishBaseGameMode.BeginPlay → ClashBaseBuilder.build` 抛异常 → 基地半成品（无建筑）；AIModule 已带堆栈输出（`logger.error` 含 `err.stack`） |
+| 选错浏览器调试路径 | 内置工具（`open_browser_page`）与 Playwright MCP（`browser_*`）是两套并行方案 | 本机是 VS Code 集成浏览器用[本文件](./playwright_commands.md)；用本地 Chrome 走 MCP 见[`playwright_mcp_commands.md`](./playwright_mcp_commands.md)（需先挂 CDP `:9222`） |
+| 需要 AI 自己读截图/快照 | MCP 沙箱目录在工作区外，AI 读不到 | 用本路径（内置工具），产物落在工作区内可读 |
 | PowerShell 写 JSON 带 BOM | `Set-Content -Encoding UTF8` 会写 BOM 导致 JSON.parse 失败；用 `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))` |

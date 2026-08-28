@@ -23,6 +23,11 @@ export interface VirtualListProps<T> {
   autoScrollToBottom?: boolean
   /** 内容变更的依赖值（如流式文本累计长度），变化时也会触发自动滚动 */
   scrollTriggerDeps?: number
+  /**
+   * 列表末尾的固定内容（不参与虚拟化的偏移计算）。
+   * 渲染在下 spacer 之后，因此常驻列表底部末尾。
+   */
+  renderFooter?: () => React.ReactNode
 }
 
 const DEFAULT_ESTIMATED_HEIGHT = 80
@@ -37,6 +42,7 @@ export function VirtualList<T>({
   className,
   autoScrollToBottom = true,
   scrollTriggerDeps,
+  renderFooter,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -111,7 +117,9 @@ export function VirtualList<T>({
       })
     }
     prevItemCountRef.current = items.length
-  }, [items.length, autoScrollToBottom, scrollTriggerDeps])
+    // footer 出现/消失时 items.length 不变，需显式依赖其存在与否，
+    // 否则思考中卡片出现后不会自动滚入视野
+  }, [items.length, autoScrollToBottom, scrollTriggerDeps, !!renderFooter])
 
   // 计算可视范围
   const startIndex = findStartIndex(scrollTop)
@@ -148,6 +156,7 @@ export function VirtualList<T>({
         <div style={{ height: topSpacerHeight }} />
         {visibleItems}
         <div style={{ height: Math.max(0, bottomSpacerHeight) }} />
+        {renderFooter?.()}
       </div>
     </div>
   )
