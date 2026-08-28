@@ -94,6 +94,17 @@ export const AgentPanel: React.FC = () => {
     setAgentConnecting
   } = useEditorStore()
 
+  // Keep the model selector callback stable. ModelSelector refreshes its model
+  // directory through an effect that depends on this callback; an inline
+  // callback here would therefore cause a refresh loop after every response.
+  const handleModelChange = useCallback((provider: string, model: string) => {
+    setCurrentModel(previous => (
+      previous?.provider === provider && previous.model === model
+        ? previous
+        : { provider, model }
+    ))
+  }, [])
+
   // 刷新会话列表
   const refreshSessions = useCallback(async () => {
     if (agentService.isConnected()) {
@@ -1047,7 +1058,7 @@ export const AgentPanel: React.FC = () => {
             : '请先连接到 Harness...'
         }
         currentModel={currentModel}
-        onModelChange={(provider, model) => setCurrentModel({ provider, model })}
+        onModelChange={handleModelChange}
       />
     </div>
   )

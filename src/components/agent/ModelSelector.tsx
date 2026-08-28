@@ -38,6 +38,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [selectedEffort, setSelectedEffort] = useState<string | undefined>(undefined)
   // 从 Host 的 current 恢复 effort（首次加载时）
   const initEffortDone = useRef(false)
+  // 回调可能由父组件内联创建，但不应因此触发模型目录重复加载。
+  const onModelChangeRef = useRef(onModelChange)
+  onModelChangeRef.current = onModelChange
 
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -59,14 +62,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           setSelectedEffort(result.current.reasoningEffort)
           initEffortDone.current = true
         }
-        onModelChange?.(result.current.provider, result.current.model)
+        onModelChangeRef.current?.(result.current.provider, result.current.model)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载模型失败')
     } finally {
       setLoading(false)
     }
-  }, [onModelChange])
+  }, [])
 
   // 初始化时加载模型列表（从 Host 获取当前选择）
   useEffect(() => {

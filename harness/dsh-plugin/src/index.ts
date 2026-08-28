@@ -20,11 +20,12 @@ import { spawnEntityTool } from './tools/spawnEntity'
 import { runScenarioTool } from './tools/runScenario'
 import { getGameStateTool } from './tools/getGameState'
 import { setGameSpeedTool } from './tools/setGameSpeed'
+import { cordisDefineRobustTool, cordisUnwrapDemoTool } from './tools/robustDefine'
 import { apply as applyChatPlugin } from './chatPlugin'
 
 export const name = '@demostudio/dsh-engine-tools'
 
-const ALL_TOOLS = [inspectSceneTool, spawnEntityTool, runScenarioTool, getGameStateTool, setGameSpeedTool]
+const ALL_TOOLS = [inspectSceneTool, spawnEntityTool, runScenarioTool, getGameStateTool, setGameSpeedTool, cordisDefineRobustTool, cordisUnwrapDemoTool]
 
 interface DSHContext {
   tools?: { register(tool: unknown): void }

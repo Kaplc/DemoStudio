@@ -141,6 +141,9 @@ cache/unicode-fonts/
 # DSH agent 常驻化所有权协议文件（owner.json / editors 心跳 / watchdog 日志）
 cache/dsh-runtime/
 
+# 独立开屏进度状态文件（editor.bat ↔ splash.ps1 ↔ electron main 接力通道）
+cache/splash/
+
 # ═══════════════════════════════════════
 # 外部 Git 子仓库（运行时自动 clone）
 # ═══════════════════════════════════════

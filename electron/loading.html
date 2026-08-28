@@ -76,26 +76,8 @@
 <script>
   const bar = document.getElementById('bar')
   const status = document.getElementById('status')
-  const stages = [
-    { p: 15,  t: '初始化引擎...' },
-    { p: 35,  t: '加载依赖...' },
-    { p: 55,  t: '编译资源...' },
-    { p: 75,  t: '准备界面...' },
-    { p: 90,  t: '即将就绪...' },
-  ]
 
-  let i = 0
-  function advance() {
-    if (i < stages.length) {
-      const s = stages[i]
-      bar.style.width = s.p + '%'
-      status.textContent = s.t
-      i++
-      setTimeout(advance, 600 + Math.random() * 400)
-    }
-  }
-
-  // 监听进度更新（来自 Electron main 进程）
+  // 进度完全由 Electron main 进程推送真实里程碑（pushBootProgress），本地不做伪造推进
   window.addEventListener('message', (e) => {
     if (e.data && e.data.progress !== undefined) {
       bar.style.width = Math.min(e.data.progress, 100) + '%'
@@ -104,9 +86,6 @@
       status.textContent = e.data.status
     }
   })
-
-  // 启动动画
-  setTimeout(advance, 300)
 </script>
 </body>
 </html>

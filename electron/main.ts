@@ -3,9 +3,10 @@
  * 管理窗口生命周期、IPC 通信、原生菜单
  *
  * 启动流程:
- *   1. 创建无边框加载窗口 (loading.html)
+ *   1. 显示开屏：editor.bat 已拉起独立开屏窗口（scripts/splash.ps1）时经状态文件接力推送
+ *      真实进度，否则创建无边框加载窗口 (loading.html) 兜底
  *   2. 等待 Vite 开发服务器就绪 / 直接加载打包文件
- *   3. 关闭加载窗口，创建有边框编辑器主窗口
+ *   3. 就绪后结束开屏，创建有边框编辑器主窗口
  *   4. 加载完成后 React LoadingScreen 自动淡出
  */
 import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
@@ -154,6 +155,53 @@ cleanOldLogs()
 // ═══════════════════════════════════════
 //  第一阶段：无边框加载窗口
 // ═══════════════════════════════════════
+
+// ─── 独立开屏接力（editor.bat 拉起的 PowerShell 开屏窗口，见 scripts/splash.ps1） ───
+// bat 阶段已用 scripts/splash-update.mjs 写入进度状态文件（路径经 DEMOSTUDIO_SPLASH_STATE
+// 环境变量传入）；Electron 起来后接管同一文件继续推送真实里程碑，app-ready 时写 done 让
+// 开屏淡出。未设置该环境变量（打包版直启 / 无 bat 启动）时回退到 loading.html 加载窗口。
+const SPLASH_STATE_FILE = process.env.DEMOSTUDIO_SPLASH_STATE || ''
+let _splashDone = false
+
+function writeSplashState(progress: number, status: string, done = false) {
+  if (!SPLASH_STATE_FILE || _splashDone) return
+  if (done) _splashDone = true
+  try {
+    fs.mkdirSync(path.dirname(SPLASH_STATE_FILE), { recursive: true })
+    const tmp = `${SPLASH_STATE_FILE}.${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify({
+      pct: Math.max(0, Math.min(100, progress)),
+      status,
+      done,
+      ts: Date.now(),
+    }))
+    fs.renameSync(tmp, SPLASH_STATE_FILE)
+  } catch { /* 开屏不可用不影响启动 */ }
+}
+
+/** 同时推送独立开屏（状态文件）与 loading.html 兜底窗口（webContents 消息） */
+function pushBootProgress(progress: number, status: string) {
+  writeSplashState(progress, status)
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    loadingWindow.webContents.send('message', { progress, status })
+  }
+}
+
+/**
+ * 直接停止独立开屏进程（用户要求的确定性关闭）：
+ * splash.ps1 启动时把自己的 PID 写在 <StateFile>.pid，编辑器完全就绪后
+ * 读出并终止该进程，同时清理状态文件。优雅路径（done → 淡出 → 自关）失败时
+ * 这是兜底；正常情况下开屏约 1s 内自行淡出，此调用只做收尾清扫，幂等。
+ */
+function stopSplashProcess() {
+  if (!SPLASH_STATE_FILE) return
+  try {
+    const pid = Number(fs.readFileSync(SPLASH_STATE_FILE + '.pid', 'utf8').trim())
+    if (Number.isFinite(pid) && pid > 0) process.kill(pid)
+  } catch { /* 进程已退出 / 文件不存在 */ }
+  try { fs.rmSync(SPLASH_STATE_FILE, { force: true }) } catch { /* ignore */ }
+  try { fs.rmSync(SPLASH_STATE_FILE + '.pid', { force: true }) } catch { /* ignore */ }
+}
 
 function showLoadingWindow() {
   loadingWindow = new BrowserWindow({
@@ -679,12 +727,50 @@ async function stopDSHService(): Promise<void> {
 //  启动流程
 // ═══════════════════════════════════════
 
+/**
+ * 读取独立开屏的 PID（其退出时会自清理 pid 文件，须在触发 done 前读取）
+ */
+function readSplashPid(): number {
+  if (!SPLASH_STATE_FILE) return 0
+  try {
+    return Number(fs.readFileSync(SPLASH_STATE_FILE + '.pid', 'utf8').trim()) || 0
+  } catch { return 0 }
+}
+
+/**
+ * 等待独立开屏进程"真正死亡"后再返回（用于主窗口显示时序）：
+ * 轮询进程存活状态（信号 0 探测），进程消失 = 窗口必然已从屏幕消失，
+ * 之后才显示主窗口，避免开屏与主窗口同屏重叠。
+ * 超时兜底：开屏卡死时强杀并清理，绝不阻塞主窗口显示。
+ */
+function waitSplashGone(pid: number, timeoutMs = 3000): Promise<void> {
+  if (!(pid > 0)) return Promise.resolve()
+  return new Promise((resolve) => {
+    const startedAt = Date.now()
+    const poll = () => {
+      let alive = false
+      try { process.kill(pid, 0); alive = true } catch { alive = false }
+      if (!alive) return resolve()
+      if (Date.now() - startedAt >= timeoutMs) {
+        stopSplashProcess()
+        return resolve()
+      }
+      setTimeout(poll, 40)
+    }
+    poll()
+  })
+}
+
 async function startApp() {
-  // 1. 显示无边框加载窗口（持续可见直到编辑器就绪）
-  showLoadingWindow()
+  // 1. 显示开屏：独立开屏已由 editor.bat 拉起（状态文件接力）时跳过 loading.html，避免双开屏
+  if (!SPLASH_STATE_FILE) {
+    showLoadingWindow()
+  }
 
   // 2. 启动 MCP HTTP API（多实例自动分配端口）
+  pushBootProgress(70, '启动 MCP 服务...')
   await startMCPServer()
+  pushBootProgress(76, '连接 DSH agent...')
 
   // 3. DSH agent 常驻引导：探测 :3080 → 认领幸存实例 / spawn 新实例（后台异步，不阻塞编辑器启动）
   void bootstrapDSH('startup')
@@ -693,16 +779,26 @@ async function startApp() {
   if (isDev) {
     await waitForDevServer()
   }
+  pushBootProgress(82, '加载编辑器界面...')
 
   // 5. 后台创建主窗口（不显示、不关闭加载窗口）
   createMainWindow()
+  // 渲染模块加载完成（真实里程碑）：Vite 按需编译整棵 React 模块树发生在此前
+  mainWindow?.webContents.once('did-finish-load', () => {
+    pushBootProgress(92, '初始化引擎...')
+  })
 
   // 6. 等待渲染进程发来 app-ready 信号
-  ipcMain.once('app-ready', () => {
-    // 关闭加载窗口
+  ipcMain.once('app-ready', async () => {
+    // 先记下开屏 PID（其退出时会自清理 pid 文件）
+    const splashPid = readSplashPid()
+    // 主窗口出现 → 触发关闭开屏（done 信号 + loading.html 兜底窗口）
+    writeSplashState(100, '编辑器就绪', true)
     if (loadingWindow && !loadingWindow.isDestroyed()) {
       loadingWindow.close()
     }
+    // 等开屏进程真正死亡（窗口随之从屏幕消失）再显示主窗口，避免两者同屏重叠
+    await waitSplashGone(splashPid)
     // 显示主窗口（延迟一帧确保首次渲染完成）
     setTimeout(() => {
       mainWindow?.show()
@@ -1733,6 +1829,12 @@ function openAgentWindow(): void {
 
 // ─── 应用生命周期 ───
 
+// 兜底：应用退出（含未走到 app-ready 的异常路径）时结束独立开屏，避免窗口滞留
+app.on('before-quit', () => {
+  writeSplashState(100, '', true)
+  stopSplashProcess()
+})
+
 // 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
 // Vite 端口 (5173+) 与 MCP 端口 (9877+) 均自动递增分配，互不冲突
 app.whenReady().then(() => {
@@ -1740,11 +1842,17 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // 优雅停机：最后一个编辑器实例才收割 agent；多实例共享时仅注销自己
-  void stopDSHService()
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  // 优雅停机：最后一个编辑器实例才收割 agent；多实例共享时仅注销自己。
+  // 收割完成后以确定性的退出码 0 结束：shutdown 竞态（taskkill 对已死 PID 报
+  // not found、mux 断连重连定时器等）可能把退出码弄成非 0，令 editor.bat
+  // 误判为出错而停在 pause，cmd 窗口关不上。
+  void stopDSHService().finally(() => {
+    writeSplashState(100, '', true)
+    stopSplashProcess()
+    if (process.platform !== 'darwin') {
+      app.exit(0)
+    }
+  })
 })
 
 app.on('activate', () => {
