@@ -20,7 +20,8 @@ import * as CANNON from 'cannon-es'
 import { ActorComponent } from '../entity/ActorComponent'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
-import { PhysicsWorld, COLLISION_LAYER_GROUPS } from './PhysicsWorld'
+import { COLLISION_LAYER_GROUPS, type PhysicsWorld } from './PhysicsWorld'
+import type { World } from '../gameflow/World'
 
 /** 碰撞体驱动类型 */
 export type ColliderBodyType = 'static' | 'dynamic'
@@ -55,10 +56,18 @@ export abstract class ColliderComponent extends ActorComponent {
 
   /** 创建好的 cannon body（BeginPlay 后有值；EndPlay 置 null） */
   body: CANNON.Body | null = null
+  /** 注册时捕获的所属 World 物理实例（EndPlay/cleanup 注销用，防 owner.world 提前置 null） */
+  private _physics: PhysicsWorld | null = null
 
   constructor(owner: Actor) {
     super(owner)
     this.name = 'ColliderComponent'
+  }
+
+  /** owner 所在 World 的物理实例（非场景 Actor 无 world 归属时为 null） */
+  private resolvePhysics(): PhysicsWorld | null {
+    const w: World | null = this.owner.world
+    return w ? w.physics : null
   }
 
   // ─── 子类实现 ───
@@ -73,11 +82,12 @@ export abstract class ColliderComponent extends ActorComponent {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    // 游戏运行态检查：编辑器预览 World（蓝图/场景预览）同样会 BeginPlay，但不注册 body
-    if (!PhysicsWorld.enabled || !PhysicsWorld.active) return
+    // 作用域检查：owner 所在 World 的物理实例未激活（编辑器预览 World 从不 begin）则不注册 body
+    const phys = this.resolvePhysics()
+    if (!phys || !phys.active) return
     const shape = this.createShape()
     if (!shape) return
-    const world = PhysicsWorld.world
+    const world = phys.cannonWorld
     if (!world) return
 
     // 位置基准：owner Actor 的世界位置（cannon body 用世界坐标）
@@ -106,7 +116,8 @@ export abstract class ColliderComponent extends ActorComponent {
       body.updateMassProperties()
     }
     this.body = body
-    PhysicsWorld.registerCollider(this)
+    this._physics = phys
+    phys.registerCollider(this)
 
     // 订阅 owner 自身的位置变化，自动同步 static 碰撞体
     this.owner.onTransformChanged = (src) => this._onOwnerTransformChanged(src)
@@ -127,7 +138,8 @@ export abstract class ColliderComponent extends ActorComponent {
   }
 
   override EndPlay(): void {
-    PhysicsWorld.unregisterCollider(this)
+    this._physics?.unregisterCollider(this)
+    this._physics = null
     this.body = null
     // 取消订阅
     if (this.owner.onTransformChanged === this._onOwnerTransformChanged) {
@@ -141,7 +153,8 @@ export abstract class ColliderComponent extends ActorComponent {
    * 由 PoolableActor.deactivate 调用。
    */
   cleanup(): void {
-    PhysicsWorld.unregisterCollider(this)
+    this._physics?.unregisterCollider(this)
+    this._physics = null
     this.body = null
     if (this.owner.onTransformChanged === this._onOwnerTransformChanged) {
       this.owner.onTransformChanged = () => {}
@@ -153,10 +166,11 @@ export abstract class ColliderComponent extends ActorComponent {
    * 由 PoolableActor.activate 调用。
    */
   restore(): void {
-    if (!PhysicsWorld.enabled || !PhysicsWorld.active) return
+    const phys = this.resolvePhysics()
+    if (!phys || !phys.active) return
     const shape = this.createShape()
     if (!shape) return
-    const world = PhysicsWorld.world
+    const world = phys.cannonWorld
     if (!world) return
     const pos = new THREE.Vector3()
     this.owner.root.getWorldPosition(pos)
@@ -176,7 +190,8 @@ export abstract class ColliderComponent extends ActorComponent {
       body.updateMassProperties()
     }
     this.body = body
-    PhysicsWorld.registerCollider(this)
+    this._physics = phys
+    phys.registerCollider(this)
     this.owner.onTransformChanged = (src) => this._onOwnerTransformChanged(src)
   }
 
@@ -187,7 +202,7 @@ export abstract class ColliderComponent extends ActorComponent {
   }
 
   /**
-   * 由 PhysicsWorld.step 后调用：把 dynamic body 的世界位置回写到 owner Actor.root。
+   * 由 world.physics.step 后调用：把 dynamic body 的世界位置回写到 owner Actor.root。
    * static 模式 body 不动，无需同步。
    */
   syncActorFromBody(): void {
@@ -235,6 +250,23 @@ export abstract class ColliderComponent extends ActorComponent {
 
   /** 调试 gizmos 绘制中心缓存（派生类 OnDrawGizmos 用） */
   protected _gizmoCenter = new THREE.Vector3()
+
+  /**
+   * gizmo 绘制中心（派生类 OnDrawGizmos 用）：
+   * 游戏运行态用物理 body（碰撞权威）；预览 World 无 body 时回退
+   * owner 世界位置 + offset（与编辑期属性一致）。
+   */
+  protected resolveGizmoCenterInto(out: THREE.Vector3): THREE.Vector3 {
+    if (this.body) {
+      const p = this.body.position
+      return out.set(p.x, p.y, p.z)
+    }
+    this.owner.root.getWorldPosition(out)
+    out.x += this.offset[0]
+    out.y += this.offset[1]
+    out.z += this.offset[2]
+    return out
+  }
 
   // Inspector 属性展示
   override getProperties(): Record<string, unknown> {

@@ -26,6 +26,8 @@ export function useTypewriter(options: TypewriterOptions = {}) {
   const displayRef = useRef('')
   // 目标更新回调
   const callbackRef = useRef<((text: string) => void) | null>(null)
+  // 当前文本输出完成后的回调（用于按消息顺序衔接下一段）
+  const completeCallbackRef = useRef<(() => void) | null>(null)
   // 动画帧 ID
   const rafRef = useRef<number>(0)
   // 上次更新时间
@@ -69,6 +71,7 @@ export function useTypewriter(options: TypewriterOptions = {}) {
     } else {
       // 缓冲区为空，停止动画
       runningRef.current = false
+      completeCallbackRef.current?.()
     }
   }, [getSpeed])
 
@@ -107,6 +110,11 @@ export function useTypewriter(options: TypewriterOptions = {}) {
     callbackRef.current = callback
   }, [])
 
+  // 设置当前文本输出完成回调
+  const onComplete = useCallback((callback: () => void) => {
+    completeCallbackRef.current = callback
+  }, [])
+
   // 重置
   const reset = useCallback(() => {
     bufferRef.current = ''
@@ -133,6 +141,7 @@ export function useTypewriter(options: TypewriterOptions = {}) {
     flush,
     reset,
     onUpdate,
+    onComplete,
     /** 获取当前缓冲区长度（用于调试） */
     getBufferLength: () => bufferRef.current.length,
     /** 获取当前显示长度 */

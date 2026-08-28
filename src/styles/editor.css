@@ -1447,11 +1447,46 @@ html, body, #root {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
 }
-.agent-panel__messages {
+.agent-panel__messages-wrap {
+  position: relative;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.agent-panel__messages {
+  width: 100%;
+  height: 100%;
+  flex: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 0;
+}
+.agent-panel__scroll-bottom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs);
+  cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--dsw-alias-bg-base) 65%, transparent);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.agent-panel__scroll-bottom:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  transform: translateY(-1px);
+}
+.agent-panel__scroll-bottom:focus-visible {
+  outline: 1px solid var(--dsw-alias-border-focus, #6BA8FF);
+  outline-offset: 2px;
 }
 
 /* --- Agent Step 容器（推理 + 工具 + 最终回复）--- */
@@ -1786,7 +1821,14 @@ html, body, #root {
   max-height: 180px;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* 思考正文与过程区统一使用细滚动条，避免回退到系统白色滑块。 */
+.reasoning-block__text,
+.reasoning-block__text--bare,
+.agent-step-process__body {
   scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14)) transparent;
 }
 
 /* --- Markdown 渲染（缩小版）--- */
@@ -2139,16 +2181,20 @@ html, body, #root {
   margin: 3px 0;
 }
 /* 推理块自身限高滚动时的细滚动条 */
+.reasoning-block__text::-webkit-scrollbar,
 .reasoning-block__text--bare::-webkit-scrollbar {
   width: 6px;
 }
+.reasoning-block__text::-webkit-scrollbar-track,
 .reasoning-block__text--bare::-webkit-scrollbar-track {
   background: transparent;
 }
+.reasoning-block__text::-webkit-scrollbar-thumb,
 .reasoning-block__text--bare::-webkit-scrollbar-thumb {
   background: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.14));
   border-radius: 3px;
 }
+.reasoning-block__text::-webkit-scrollbar-thumb:hover,
 .reasoning-block__text--bare::-webkit-scrollbar-thumb:hover {
   background: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.24));
 }

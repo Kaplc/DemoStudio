@@ -28,6 +28,10 @@ export interface VirtualListProps<T> {
    * 渲染在下 spacer 之后，因此常驻列表底部末尾。
    */
   renderFooter?: () => React.ReactNode
+  /** 通知外部当前是否接近列表底部。 */
+  onNearBottomChange?: (nearBottom: boolean) => void
+  /** 暴露滚动到底部的方法，供外部浮动按钮使用。 */
+  onScrollToBottomReady?: (scrollToBottom: (behavior?: ScrollBehavior) => void) => void
 }
 
 const DEFAULT_ESTIMATED_HEIGHT = 80
@@ -43,6 +47,8 @@ export function VirtualList<T>({
   autoScrollToBottom = true,
   scrollTriggerDeps,
   renderFooter,
+  onNearBottomChange,
+  onScrollToBottomReady,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -50,6 +56,19 @@ export function VirtualList<T>({
   const heightCacheRef = useRef<Map<string, number>>(new Map())
   const isNearBottomRef = useRef(true)
   const prevItemCountRef = useRef(0)
+
+  const updateNearBottom = useCallback((nearBottom: boolean) => {
+    if (isNearBottomRef.current === nearBottom) return
+    isNearBottomRef.current = nearBottom
+    onNearBottomChange?.(nearBottom)
+  }, [onNearBottomChange])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = containerRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+    updateNearBottom(true)
+  }, [updateNearBottom])
 
   // 计算每个 item 的累计偏移
   const { offsets, totalHeight } = useMemo(() => {
@@ -84,8 +103,13 @@ export function VirtualList<T>({
 
     // 判断是否在底部附近（100px 容差）
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    isNearBottomRef.current = distanceToBottom < 100
-  }, [])
+    updateNearBottom(distanceToBottom < 100)
+  }, [updateNearBottom])
+
+  useEffect(() => {
+    onNearBottomChange?.(true)
+    onScrollToBottomReady?.(scrollToBottom)
+  }, [onNearBottomChange, onScrollToBottomReady, scrollToBottom])
 
   // 监听容器尺寸
   useEffect(() => {
@@ -113,13 +137,16 @@ export function VirtualList<T>({
     if (autoScrollToBottom && isNearBottomRef.current) {
       requestAnimationFrame(() => {
         const el = containerRef.current
-        if (el) el.scrollTop = el.scrollHeight
+        if (el) {
+          el.scrollTop = el.scrollHeight
+          updateNearBottom(true)
+        }
       })
     }
     prevItemCountRef.current = items.length
     // footer 出现/消失时 items.length 不变，需显式依赖其存在与否，
     // 否则思考中卡片出现后不会自动滚入视野
-  }, [items.length, autoScrollToBottom, scrollTriggerDeps, !!renderFooter])
+  }, [items.length, autoScrollToBottom, scrollTriggerDeps, !!renderFooter, updateNearBottom])
 
   // 计算可视范围
   const startIndex = findStartIndex(scrollTop)

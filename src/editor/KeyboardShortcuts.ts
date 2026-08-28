@@ -54,11 +54,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     eventName: 'shortcut-redo',
   },
   {
-    // V — 切换碰撞盒线框显隐（Game 视口与预览视口共用 colliderGizmos 开关）
-    match: (e) => (e.key === 'v' || e.key === 'V') && !(e.ctrlKey || e.metaKey),
-    eventName: 'shortcut-toggle-collider-gizmos',
-  },
-  {
     // Ctrl+Shift+A — 切换 Agent 面板
     match: (e) => (e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && e.shiftKey,
     eventName: 'shortcut-toggle-agent',

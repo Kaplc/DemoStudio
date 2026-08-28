@@ -59,14 +59,15 @@ export class NavGrid {
   /**
    * 从静态碰撞体 AABB 重建阻挡格。
    * 仅收集 static 且属于建筑层的 Box 碰撞体（动态兵/圆形杂项不参与）。
+   * @param physics 所属 World 的物理实例（碰撞体按 World 作用域隔离）
    */
-  rebuildFromStaticColliders(): number {
+  rebuildFromStaticColliders(physics: PhysicsWorld): number {
     this.blocked.clear()
     let count = 0
     // cannon 形状 AABB 计算用 Vec3（body.position/quaternion 也是 cannon 类型）
     const min = new CANNON.Vec3()
     const max = new CANNON.Vec3()
-    for (const hit of PhysicsWorld.queryAll(new THREE.Vector3(0, 0, 0), 1e6)) {
+    for (const hit of physics.queryAll(new THREE.Vector3(0, 0, 0), 1e6)) {
       const comp = hit.collider
       if (comp.bodyType !== 'static') continue
       const body = hit.body

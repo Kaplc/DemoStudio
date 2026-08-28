@@ -14,7 +14,6 @@
 import * as THREE from 'three'
 import { World, ActorComponent, EditorActorComponent } from '../../engine'
 import { PreviewObjectFactoryComponent } from '../../engine'
-import { getAllActors } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
 import { GenericActor, BoxMeshComponent, SphereMeshComponent, PlaneMeshComponent, Actor } from '../../engine'
@@ -30,7 +29,6 @@ import { uniqueNodeName, cloneTemplateComponents } from '../blueprintEdit/nodeTe
 import type { NodeTemplate } from '../blueprintEdit/nodeTemplates'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
-import { ColliderDebugDrawer } from './ColliderDebugDrawer'
 
 /** 磁盘路径（src/projects/...）→ 撤销栈 key（asset/...），与蓝图/UI 资产同粒度 */
 function diskPathToAssetKey(diskPath: string): string {
@@ -46,9 +44,6 @@ export class ScenePreviewManager {
   readonly gizmo: TransformGizmo
   /** 预览对象工厂（编辑器预览独立 THREE 创建器，无 GameInstance 依赖；EndPlay 统一释放） */
   readonly previewFactory: PreviewObjectFactoryComponent
-
-  /** 碰撞盒线框绘制器（预览模式从组件属性解析几何，V 键开关） */
-  private colliderDrawer: ColliderDebugDrawer | null = null
 
   private container: HTMLElement
   private animationId: number | null = null
@@ -157,9 +152,6 @@ export class ScenePreviewManager {
     // ─── 输入 ───
     this.initFlyEuler()
     this.setupFlyMouse()
-
-    // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
-    this.colliderDrawer = new ColliderDebugDrawer(this.scene)
 
     // ─── 默认内容 ───
     this.setupLighting()
@@ -1180,8 +1172,8 @@ export class ScenePreviewManager {
       // Gizmo 同步
       if (this.gizmo.visible) this.gizmo.syncTransform()
 
-      // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(getAllActors())
+      // 调试 gizmos（含碰撞盒线框：预览 World 无 body，组件回退属性中心绘制；V 键开关）
+      this.world.drawGizmos()
 
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
@@ -1212,9 +1204,6 @@ export class ScenePreviewManager {
     select(null)
     this.gizmo.detach()
     this.gizmo.dispose()
-    // 碰撞盒线框绘制器：移除线框对象 + 释放几何/材质
-    this.colliderDrawer?.dispose()
-    this.colliderDrawer = null
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。

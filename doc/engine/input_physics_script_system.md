@@ -50,20 +50,22 @@ GameViewport（DOM 事件）→ GameInstance.inputSys → PhySys.raycastClick / 
 |---|---|
 | `PhySys` | 射线拾取全局单例（GameSingleton）：全局复用 `THREE.Raycaster`（避免每帧 new）、管理 `ClickableComponent` 注册表、提供 `screenToRay` / `raycastClick` / `raycastHover` |
 | `ClickableComponent` | 可点击组件：BeginPlay/EndPlay 自动 register/unregister；`layer` 属性分流（`'ui'` = UI 层 / 其他 = 世界层） |
-| `PhysicsWorld` | 刚体碰撞物理世界（GameSingleton，cannon-es）：固定步长 1/60 + accumulator、碰撞事件（Enter/Exit/Stay）、查询 API（overlapTest / queryAll） |
-| `ColliderComponent` | 碰撞体组件基类（抽象）：BeginPlay 创建 cannon body 注册进 PhysicsWorld、EndPlay 销毁注销；dynamic 模式下 body 为碰撞权威每帧回写 actor.root；`setVelocity` 速度注入；`syncStaticPosition` 移动后同步 |
+| `PhysicsWorld` | 刚体碰撞物理世界（**World 级实例** `world.physics`，模仿 UE FPhysScene-per-UWorld，cannon-es）：固定步长 1/60 + accumulator、碰撞事件（Enter/Exit/Stay）、查询 API（overlapTest / queryAll）；每个 World 一份，预览/运行时天然隔离 |
+| `ColliderComponent` | 碰撞体组件基类（抽象）：BeginPlay 创建 cannon body 注册进所属 World 的 physics 实例、EndPlay 销毁注销；dynamic 模式下 body 为碰撞权威每帧回写 actor.root；`setVelocity` 速度注入；`syncStaticPosition` 移动后同步 |
 | `BoxColliderComponent` / `CircleColliderComponent` / `CapsuleColliderComponent` | 三个具体碰撞体组件（注册进 ComponentRegistry，蓝图 baseClass 引用；属性经 `properties` 配置） |
-| `colliderGizmos` | 碰撞盒线框可视化开关（默认显示，快捷键 V 切换；Game 视口 gizmos 与预览视口 ColliderDebugDrawer 共用） |
+| 碰撞线框绘制 | 三个碰撞体各自 override OnDrawGizmos 直接绘制（统一绿色，经 gizmos 多场景后端画到所属 World 场景；预览视口无 body 时经基类 resolveGizmoCenterInto 回退属性中心定位） |
 
 ### PhysicsWorld 使用方法
 
+物理实例按 World 作用域获取：`world.physics`（GameMode 侧 `this.world!.physics`）。步进由 World 自动驱动，业务代码只调查询/暂停。
+
 | 方法 | 签名 | 说明 |
 |---|---|---|
-| 步进 | `PhysicsWorld.step(dt)` | 固定步长 + accumulator 累计模拟（Game.launch 挂到 Scene 视口 rAF，tick 之后调用）；暂停/禁用返回 false |
+| 步进 | `physics.step(dt)` | 固定步长 + accumulator 累计模拟（**World.tick/manualTick 末尾自动调用**，无需手动驱动）；暂停/禁用/未 begin 返回 false |
 | 查询 | `overlapTest(pos, halfX, halfZ, opts?)` | 盒重叠测试（opts: exclude 排除 / group 按碰撞层过滤） |
 | 查询 | `queryAll(pos, radius, opts?)` | 圆形范围查询全部命中（返回 `{ collider, body }[]`） |
 | 暂停 | `setPaused(paused)` | Game 暂停时物理同步暂停 |
-| 生命周期 | `begin()` / `reset()` | Game.launch 激活运行态 / Game.shutdown 统一回收 |
+| 生命周期 | `begin()` / `reset()` | Game.launch 对游戏 World 激活运行态 / World.Destroy 回收 |
 
 ### 碰撞体组件（Blueprint 配置）
 
@@ -103,9 +105,9 @@ collider.onCollisionStay  = (e) => { /* 持续接触（每物理步进一次） 
 
 ### 物理驱动模式（关键设计）
 
-- **dynamic 兵**：`setVelocity(vx, vz)` 每帧注入移动速度（速度 = 路径方向 × speed），cannon 求解器天然处理推开/阻尼/防穿透；body 为**碰撞权威**，`PhysicsWorld.step` 后的 `syncActorsFromBodies` 把 body.position 回写到 owner Actor.root（兵装配时 collider 已从模型蓝图转移到兵 Actor 自身，避免子模型移动兵 Actor 不动的脱节）；锁 y + 锁旋转（fixedRotation）
+- **dynamic 兵**：`setVelocity(vx, vz)` 每帧注入移动速度（速度 = 路径方向 × speed），cannon 求解器天然处理推开/阻尼/防穿透；body 为**碰撞权威**，`physics.step` 后的 `syncActorsFromBodies` 把 body.position 回写到 owner Actor.root（兵装配时 collider 已从模型蓝图转移到兵 Actor 自身，避免子模型移动兵 Actor 不动的脱节）；锁 y + 锁旋转（fixedRotation）
 - **static 建筑**：生成时同步一次位置；基地拖动移动后调 `syncStaticPosition()` 更新 body
-- **Game 级单例**：生命周期绑定 Game（launch 激活 / shutdown 回收），编辑器预览 World 不注册 body（`PhysicsWorld.active` 判定）
+- **World 级实例**：每个 World 持有专属 `physics`（模仿 UE FPhysScene-per-UWorld）；游戏 World 由 Game.launch `begin()` 激活，随 World.Destroy `reset()` 回收；编辑器预览 World 从不 begin → 不注册 body、不步进，与运行时天然隔离（无全局标志位）
 
 ### 设计要点
 
@@ -113,7 +115,7 @@ collider.onCollisionStay  = (e) => { /* 持续接触（每物理步进一次） 
 - **按下分发**：记录 `_pressedClickable`，mouseup 时向其分发释放；注销的组件不再接收释放（防残留引用）
 - **生命周期**：`PhySys.setup(camera, uiEl)` 由 GameInstance 阶段切换时调用更新相机；Game.shutdown 时 `reset()` 回收
 - **ClickableComponent 边界**：`hitTest` 手动过滤不可见目标（THREE.Raycaster 不检查 visible）；`clickCooldown` 默认 500ms 防连点；已销毁直接拒绝；命中先 `onPress` 再 `onClick`
-- **物理降级**：cannon 初始化失败 → `logger.error` + 禁用物理（游戏可继续，仅无碰撞/查询返回空）；碰撞体 BeginPlay 检测 `PhysicsWorld.enabled && PhysicsWorld.active`，预览模式不注册
+- **物理降级**：cannon 初始化失败 → `logger.error` + 禁用物理（游戏可继续，仅无碰撞/查询返回空）；碰撞体 BeginPlay 检测所属 World 物理实例的 `enabled && active`，预览 World 不注册
 - **固定步长**：`step(dt)` 用 accumulator（累计 dt 消耗 1/60 步进），单帧最多补 3 步（防页面 hidden 恢复后大 dt 连击）
 
 ## 3. 脚本系统（script/）
@@ -154,13 +156,13 @@ flowchart TD
 
     E[UIScriptComponent.BeginPlay] --> F[ScriptRegistry.create id]
     G[GameInstance 阶段切换] --> H[PhySys.setup camera uiEl]
-    I[Game.launch] --> J[PhysicsWorld.begin + 挂 step 到 rAF]
-    I --> K[碰撞体组件 BeginPlay<br/>PhysicsWorld.registerCollider]
+    I[Game.launch] --> J[world.physics.begin<br/>step 已并入 World.tick 末尾]
+    I --> K[碰撞体组件 BeginPlay<br/>注册进 world.physics]
 
     L[碰撞体组件.Tick] --> M[body 回写 actor.root<br/>dynamic 兵位置跟随]
     N[脚本 setVelocity] --> O[cannon 步进<br/>推开/阻尼/防穿透]
-    O --> P[碰撞事件 Enter/Exit/Stay<br/>PhysicsWorld 统一分发]
-    Q[Game.shutdown] --> R[PhysicsWorld.reset + PhySys.reset + AIModule.reset<br/>统一回收 GameSingleton]
+    O --> P[碰撞事件 Enter/Exit/Stay<br/>world.physics 统一分发]
+    Q[Game.shutdown / World.Destroy] --> R[world.physics.reset + PhySys.reset + AIModule.reset<br/>统一回收]
 ```
 
 ## 5. 边界条件
@@ -176,7 +178,7 @@ flowchart TD
 | 组件 EndPlay | 自动注销 PhySys + 清空输入绑定 | 引擎内置 |
 | 隐藏对象点击 | `hitTest` 手动过滤 visible=false，不响应射线 | 引擎内置 |
 | cannon 世界初始化失败 | `logger.error` + 物理禁用（游戏可继续，仅无碰撞） | 引擎内置降级 |
-| 编辑器预览 World 的碰撞体 | 不注册 body（`PhysicsWorld.active=false`） | 引擎内置（防污染游戏运行时） |
+| 编辑器预览 World 的碰撞体 | 不注册 body（预览 World 的 physics 从不 begin，active 恒 false） | 引擎内置（World 级作用域天然隔离） |
 | 物理暂停（Game 暂停） | `step` 返回 false，body 静止 | `setPaused` 控制 |
 | 旧蓝图无碰撞组件 | 不报错不崩溃，仅 assetLint 警告 | 兼容行为 |
 | 查询 API 在物理禁用时 | 返回空/ false（静默降级） | 调用方无需判物理可用性 |
@@ -190,10 +192,11 @@ InputSys.handlePointerDown
 
 UIScriptComponent.BeginPlay → ScriptRegistry.create(id) → 脚本实例
 PhySys.setup(camera, uiEl) ← GameInstance 阶段切换
-PhysicsWorld.begin() / step(dt) / reset() ← Game.launch / rAF / Game.shutdown
-ColliderComponent.BeginPlay/EndPlay → PhysicsWorld.registerCollider/unregisterCollider
-PhysicsWorld.dispatchCollisionEvents → ColliderComponent.onCollisionEnter/Exit/Stay
-PhysicsWorld.step → syncActorsFromBodies → body 回写 owner Actor.root（dynamic）
-NavigationModule.rebuild ← PhysicsWorld.queryAll（静态碰撞体 AABB 栅格化，见 navigation_system.md）
-PhySys.reset() / PhysicsWorld.reset() / AIModule.reset() ← Game.shutdown 统一回收 GameSingleton
+world.physics.begin() ← Game.launch（仅游戏 World；预览 World 不激活）
+world.physics.step(dt) ← World.tick / manualTick 末尾自动驱动
+ColliderComponent.BeginPlay/EndPlay → world.physics.registerCollider/unregisterCollider（注册时捕获实例引用，防 owner.world 提前置空）
+world.physics.dispatchCollisionEvents → ColliderComponent.onCollisionEnter/Exit/Stay
+world.physics.step → syncActorsFromBodies → body 回写 owner Actor.root（dynamic）
+NavigationModule.rebuild(world.physics) ← queryAll（静态碰撞体 AABB 栅格化，见 navigation_system.md）
+world.physics.reset() ← World.Destroy；PhySys.reset() / AIModule.reset() ← Game.shutdown 统一回收 GameSingleton
 ```

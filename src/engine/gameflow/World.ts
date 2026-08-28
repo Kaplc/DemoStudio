@@ -25,6 +25,7 @@ import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
 import { ObjectRegistry } from '../tools/ObjectRegistry'
 import { ThreeObject } from '../rendering/ThreeObject'
+import { PhysicsWorld } from '../physics/PhysicsWorld'
 import { SceneComponent } from './SceneComponent'
 import { ThreeFactoryComponent } from './ThreeFactoryComponent'
 import { GCComponent } from './GCComponent'
@@ -64,6 +65,13 @@ export class World extends AObject {
   /** Scene 组件引用（用于编辑器访问） */
   readonly sceneComp: SceneComponent
   public gameMode: GameMode | null = null
+
+  /**
+   * 本 World 专属物理实例（模仿 UE 的 FPhysScene-per-UWorld）。
+   * 游戏 World 由 Game.launch 调 physics.begin() 激活；编辑器预览 World 从不
+   * begin，碰撞体组件检查 active=false 自然不注册 body（预览/运行时天然隔离）。
+   */
+  readonly physics = new PhysicsWorld()
 
   /**
    * UI 统一管理器组件（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene）。
@@ -313,6 +321,11 @@ export class World extends AObject {
     for (const cb of this._tickCallbacks) {
       cb(dt)
     }
+
+    // 6. 物理步进（固定步长 + accumulator；组件 Tick 注入速度后统一模拟。
+    //    置于最后：保证本帧所有 Tick 读到的是上一帧求解后的位置，与旧全局驱动时序一致；
+    //    未 begin 的预览 World 静默跳过）
+    this.physics.step(dt)
   }
 
   /**
@@ -389,6 +402,8 @@ export class World extends AObject {
     for (const cb of this._tickCallbacks) {
       cb(dt)
     }
+    // 物理步进（与 tick() 一致：置于本帧最后；未激活的预览 World 静默跳过）
+    this.physics.step(dt)
   }
 
   /** 注册外部 Tick 回调 */
@@ -429,11 +444,12 @@ export class World extends AObject {
   // ═══════════════════════════════════
 
   /**
-   * 绘制一帧的调试 Gizmos（由外部渲染循环每帧调用）。
+   * 绘制一帧的调试 Gizmos（由外部渲染循环每帧调用；游戏视口与各预览视口通用，
+   * 线段绘制到本 World 自己的场景缓冲，多 World 互不串扰）。
    * 始终执行 beginFrame/flush，保证停止或关闭时画面被清空，不留残影。
    */
   drawGizmos() {
-    gizmos.beginFrame()
+    gizmos.beginFrame(this.scene)
     if (gizmos.enabled) {
       this.gameMode?.drawGizmos()
       for (const actor of this.actorMgr.GetAllActors()) {
@@ -826,10 +842,14 @@ export class World extends AObject {
     }
     // 清理 UI 子系统
     this.ui.destroyAll()
+    // 分离本 World 场景的 gizmos 缓冲（移除 LineSegments + 释放几何，防预览 World 累积泄漏）
+    gizmos.detach(this.scene)
     // GameMode（其 EndPlay 内部统一驱动 GameState + Controller）
     this.gameMode?.EndPlay()
     // 销毁所有 3D Actor（ActorManagerComponent 负责集合与场景移除）
     this.actorMgr.DestroyAllActors()
+    // 回收本 World 专属物理实例（Actor EndPlay 已逐个注销，此处兜底清空残留）
+    this.physics.reset()
     this._tickCallbacks = []
     this.gameMode = null
     // 兜底回收：遍历全局对象注册表，回收所有归属于本 World 的对象

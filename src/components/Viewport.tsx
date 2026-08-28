@@ -200,7 +200,7 @@ export function Viewport({ onReady }: ViewportProps) {
 
       // 3. 重置场景为默认状态
       editorSceneRef.current!.background = new THREE.Color(0x1a1a2e)
-      gizmos.beginFrame()
+      gizmos.beginFrame(editorSceneRef.current!)
       gizmos.flush()
 
       // 4. 重置 UI 状态
@@ -245,10 +245,10 @@ export function Viewport({ onReady }: ViewportProps) {
     })
     gameRef.current = game
 
-    // 游戏运行时隐藏编辑器辅助网格和调试线（都挂 editorScene，不隐藏会泄漏到游戏画面）
+    // 游戏运行时隐藏编辑器辅助网格（挂 editorScene，不隐藏会泄漏到游戏画面）
     setEditorGridVisible(false)
-    // 调试线（gizmos 单例）也必须 detach，否则 Actor.OnDrawGizmos 的调试绘制会透到 Scene 窗口
-    gizmos.detach()
+    // gizmos 已是多场景后端（每场景一份缓冲）：游戏 world 的调试线画进自己场景，
+    // 不会透到 Scene 视口的编辑器场景，无需再 detach
 
     // 启动游戏时清理 Scene 页签的 actor 化预览（游戏 world 接管 editorScene，
     // 避免与游戏 actors 叠加/大纲重名冲突）

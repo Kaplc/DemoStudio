@@ -1,20 +1,24 @@
 /**
- * PhysicsWorld — 引擎物理世界（Game 级 GameSingleton）
+ * PhysicsWorld — 物理 世界（World 级实例，模仿 UE 的 FPhysScene-per-UWorld）
  *
- * 内部持有 cannon-es World，承载刚体模拟：
+ * 每个引擎 World 持有一份（World.physics），承载刚体模拟：
  *  - 固定步长 1/60 + accumulator（不直接 step(dt)，防大 dt 穿透/不稳定）
- *  - 碰撞体组件（BoxColliderComponent 等）BeginPlay 创建 body 并注册至此，
- *    EndPlay 自动注销；body.position/rotation 回写 actor.root（body 为碰撞权威）
+ *  - 碰撞体组件（BoxColliderComponent 等）BeginPlay 创建 body 并注册至
+ *    owner 所在 World 的本实例，EndPlay 自动注销；body.position/rotation
+ *    回写 actor.root（body 为碰撞权威）
  *  - 碰撞事件（Enter/Exit/Stay）经组件公开委托字段分发（Unity 式）
  *  - 查询 API（overlapTest / queryAll）供基地放置冲突、脚本按需调用
  *
- * 生命周期：Game.launch 注册进单例表，Game.shutdown 统一 reset 回收
- * （与 PhySys 同生命周期）。初始化失败时禁用物理（游戏可继续，仅无碰撞）。
+ * 作用域隔离（取代旧全局单例 + active 标志）：游戏 World 由 Game.launch 调
+ * begin() 进入运行态；编辑器预览 World（蓝图/场景预览）从不 begin()，碰撞体
+ * 组件检查 active=false 自然不注册 body——预览与运行时天然互不污染。
+ *
+ * 生命周期：World.Destroy → reset() 统一回收（随 World 销毁）。
+ * 初始化失败时禁用物理（游戏可继续，仅无碰撞）。
  */
 import * as CANNON from 'cannon-es'
 import * as THREE from 'three'
 import { logger } from '../Logger'
-import type { GameSingleton } from '../gameflow/Game'
 import type { ColliderComponent } from './ColliderComponent'
 
 /** 固定物理步长（秒）：1/60，与帧率解耦 */
@@ -47,18 +51,15 @@ export interface OverlapHit {
   body: CANNON.Body
 }
 
-class PhysicsWorldImpl implements GameSingleton {
-  readonly name = 'PhysicsWorld'
-
+export class PhysicsWorld {
   /** cannon 世界（初始化失败时为 null：物理禁用，所有接口静默降级） */
   private _world: CANNON.World | null = null
   /** 物理是否可用（World 创建成功即 true） */
   private _enabled = false
   /**
-   * 是否处于游戏运行态（Game.launch 激活 / Game.shutdown 复原）。
-   * 编辑器预览 World（蓝图/场景/UI 预览）同样会 BeginPlay 碰撞体组件，
-   * 但不应把 body 注册进全局物理世界（防污染游戏运行时），
-   * 因此碰撞体 BeginPlay 前必须检查本标志。
+   * 是否处于游戏运行态（Game.launch 激活；预览 World 从不激活）。
+   * 碰撞体组件 BeginPlay 前必须检查本标志：预览 World 会 BeginPlay
+   * 碰撞体组件，但不注册 body、不步进。
    */
   private _active = false
   /** 步长累计器（accumulator 固定步长模式） */
@@ -101,12 +102,12 @@ class PhysicsWorldImpl implements GameSingleton {
     return this._enabled && this._world !== null
   }
 
-  /** 是否处于游戏运行态（碰撞体组件 BeginPlay 前检查；预览模式 false） */
+  /** 是否处于游戏运行态（碰撞体组件 BeginPlay 前检查；预览 World 恒 false） */
   get active(): boolean {
     return this._active
   }
 
-  /** 激活游戏运行态（Game.launch 调用；物理才真正开始接收碰撞体注册与步进） */
+  /** 激活游戏运行态（Game.launch 对游戏 World 调用；物理才真正开始接收碰撞体注册与步进） */
   begin(): void {
     if (this._active) return
     this._active = true
@@ -114,7 +115,7 @@ class PhysicsWorldImpl implements GameSingleton {
   }
 
   /** 内部 cannon world（碰撞体组件创建 body 用；禁用时 null） */
-  get world(): CANNON.World | null {
+  get cannonWorld(): CANNON.World | null {
     return this._world
   }
 
@@ -154,9 +155,9 @@ class PhysicsWorldImpl implements GameSingleton {
   // ═══════════════════════════════════
 
   /**
-   * 每帧步进（由 collider 组件 Tick 之外的统一驱动点调用；本项目挂 World 每 tick）。
+   * 每帧步进（由本 World 的 tick/manualTick 在 Actor Tick 之后统一调用）。
    * accumulator 模式：累计 dt，每次消耗一个 FIXED_STEP 执行 world.step。
-   * @returns 是否实际执行了步进（暂停/禁用时 false）
+   * @returns 是否实际执行了步进（暂停/禁用/未激活时 false）
    */
   step(dt: number): boolean {
     if (!this.enabled || !this._world || this._paused || !this._active) return false
@@ -290,17 +291,17 @@ class PhysicsWorldImpl implements GameSingleton {
   }
 
   // ═══════════════════════════════════
-  //  暂停 / 回收（GameSingleton）
+  //  暂停 / 回收（随 World 生命周期）
   // ═══════════════════════════════════
 
   /** 暂停/恢复物理模拟（Game 暂停时同步暂停） */
   setPaused(paused: boolean): void {
     if (this._paused === paused) return
     this._paused = paused
-    logger.info(`[PhysicsWorld] 物理${paused ? '已暂停' : '已恢复'}`)
+    logger.info('[PhysicsWorld] 物理' + (paused ? '已暂停' : '已恢复'))
   }
 
-  /** GameSingleton：游戏停止时回收运行状态（清 body/注册表/接触对/累计器） */
+  /** World.Destroy 时回收运行状态（清 body/注册表/接触对/累计器） */
   reset(): void {
     this._active = false
     if (this._world) {
@@ -316,6 +317,3 @@ class PhysicsWorldImpl implements GameSingleton {
     logger.info('[PhysicsWorld] 物理世界已回收')
   }
 }
-
-/** 物理世界全局单例（与 PhySys 平级，生命周期绑定 Game） */
-export const PhysicsWorld = new PhysicsWorldImpl()

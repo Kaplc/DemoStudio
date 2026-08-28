@@ -24,7 +24,7 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
@@ -44,6 +44,28 @@ interface RenderNode {
   /** 单条消息（user/system） */
   msg?: Message
 }
+
+interface QueuedAssistant {
+  kind: 'assistant'
+  id: string
+  content: string
+  reasoning?: string
+  stats?: any
+  turnCompleted?: boolean
+  turnEndReason?: any
+}
+
+interface QueuedTool {
+  kind: 'tool'
+  id: string
+}
+
+interface QueuedRetry {
+  kind: 'retry'
+  id: string
+}
+
+type DisplayQueueItem = QueuedAssistant | QueuedTool | QueuedRetry
 
 export const AgentPanel: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -78,23 +100,24 @@ export const AgentPanel: React.FC = () => {
   }, [headerMenuOpen])
   const [currentModel, setCurrentModel] = useState<{ provider: string; model: string } | undefined>(undefined)
   const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
-  const activeMsgRef = useRef<string | null>(null)  // 当前活跃的 AI 消息 ID
-  const hasFlushedReasoningRef = useRef(false)  // 是否已 flush 推理内容
-  const [contentVersion, setContentVersion] = useState(0)  // 流式内容变化计数器，用于触发自动滚动
+  // 完整消息提交后递增，用于触发列表自动滚动
+  const [contentVersion, setContentVersion] = useState(0)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+  const scrollToBottomRef = useRef<(behavior?: ScrollBehavior) => void>(() => {})
 
-  // 打字机效果（回复）
-  const typewriter = useTypewriter({
-    baseSpeed: 40,    // 基础40字符/秒
-    maxSpeed: 300,    // 最大300字符/秒
-    acceleration: 0.8 // 每100字符加速80%
-  })
-
-  // 打字机效果（推理，开始回复时一次性输出）
-  const reasoningTypewriter = useTypewriter({
-    baseSpeed: 40,
-    maxSpeed: 300,
-    acceleration: 0.8
-  })
+  // 按 assistant 段 / tool 段排队显示；打字机只消费当前段，永远不会跨段复用内容。
+  const typewriter = useTypewriter({ baseSpeed: 40, maxSpeed: 300, acceleration: 0.8 })
+  const reasoningTypewriter = useTypewriter({ baseSpeed: 40, maxSpeed: 300, acceleration: 0.8 })
+  const displayQueueRef = useRef<DisplayQueueItem[]>([])
+  const activeDisplayRef = useRef<DisplayQueueItem | null>(null)
+  const displayPhaseRef = useRef<'reasoning' | 'content' | null>(null)
+  const messageSequenceRef = useRef(0)
+  const pendingToolStatesRef = useRef(new Map<string, ToolState>())
+  const displayedToolIdsRef = useRef(new Set<string>())
+  const pendingRetryChainsRef = useRef(new Map<string, RetryAttempt[]>())
+  const displayedRetryIdsRef = useRef(new Set<string>())
+  const pendingTurnSystemRef = useRef<string | null>(null)
+  const drainQueueRef = useRef<() => void>(() => {})
 
   const {
     addConsoleOutput,
@@ -143,14 +166,6 @@ export const AgentPanel: React.FC = () => {
 
     const unsubEvent = agentService.onEvent((event) => {
       switch (event.type) {
-        case 'message.delta':
-          handleStreamingDelta(event.payload as string)
-          break
-
-        case 'reasoning.delta':
-          handleReasoningDelta(event.payload as string)
-          break
-
         case 'message': {
           const p = event.payload as any
           if (p?.role === 'assistant') {
@@ -175,17 +190,15 @@ export const AgentPanel: React.FC = () => {
               'max-tokens': '输出达到 token 上限',
               interrupted: '回合被中断',
             }
-            pushSystem(reasonMap[turnPayload?.reason?.kind] || '回合异常结束')
+            // 等当前 assistant 段打字完成后再显示结束提示，避免系统消息插队。
+            pendingTurnSystemRef.current = reasonMap[turnPayload?.reason?.kind] || '回合异常结束'
+            drainQueueRef.current()
           }
           break
         }
 
         case 'stepStart':
           // 步骤开始（可用于进度指示）
-          break
-
-        case 'stepEnd':
-          handleStepEnd()
           break
 
         case 'toolCall':
@@ -211,13 +224,12 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'retryScheduled': {
-          const retry = event.payload as any
-          pushSystem(`LLM 重试 #${retry?.retry}: ${retry?.reason || '正在重试...'}`)
+          handleRetryScheduled(event.payload as any)
           break
         }
 
         case 'retryStarted': {
-          // 重试开始（可用于 UI 指示）
+          handleRetryStarted(event.payload as any)
           break
         }
 
@@ -349,161 +361,267 @@ export const AgentPanel: React.FC = () => {
     }
   }, [])
 
-  // 找到或创建当前活跃的 AI 消息（推理和文本共用同一个气泡）
-  const getOrCreateActiveId = useCallback((cur: Message[]): { messages: Message[], id: string } => {
-    // 优先复用已有引用
-    const aid = activeMsgRef.current
-    if (aid) {
-      const found = cur.find(m => m.id === aid)
-      if (found && found.streaming) {
-        console.log('[AgentPanel] 复用活跃消息:', aid)
-        return { messages: cur, id: aid }
-      }
+  // 当前 assistant 段的正文更新：只写入当前队列项，避免旧消息收到新回调。
+  const handleContentUpdate = useCallback((content: string) => {
+    const active = activeDisplayRef.current
+    if (!active || active.kind !== 'assistant' || displayPhaseRef.current !== 'content') return
+    setMessages(cur => cur.map(message => message.id === active.id ? { ...message, content } : message))
+    setContentVersion(v => v + 1)
+  }, [])
+
+  const handleNearBottomChange = useCallback((nearBottom: boolean) => {
+    setShowScrollToBottom(!nearBottom)
+  }, [])
+
+  const handleScrollToBottomReady = useCallback((scrollToBottom: (behavior?: ScrollBehavior) => void) => {
+    scrollToBottomRef.current = scrollToBottom
+  }, [])
+
+  const handleScrollToBottom = useCallback(() => {
+    scrollToBottomRef.current('smooth')
+  }, [])
+
+  // 当前 assistant 段的推理更新。
+  const handleReasoningUpdate = useCallback((reasoning: string) => {
+    const active = activeDisplayRef.current
+    if (!active || active.kind !== 'assistant' || displayPhaseRef.current !== 'reasoning') return
+    setMessages(cur => cur.map(message => message.id === active.id ? { ...message, reasoning } : message))
+    setContentVersion(v => v + 1)
+  }, [])
+
+  // 当前 assistant 段完成后，释放队首，允许工具卡片或下一段 assistant 继续显示。
+  const finishAssistantDisplay = useCallback(() => {
+    const active = activeDisplayRef.current
+    if (!active || active.kind !== 'assistant') return
+    const completed = active
+    activeDisplayRef.current = null
+    displayPhaseRef.current = null
+    setMessages(cur => cur.map(message => message.id === completed.id ? {
+      ...message,
+      content: completed.content,
+      reasoning: completed.reasoning,
+      streaming: false,
+      turnCompleted: completed.turnCompleted || false,
+      turnEndReason: completed.turnEndReason,
+      stats: completed.stats,
+    } : message))
+    setContentVersion(v => v + 1)
+    drainQueueRef.current()
+  }, [])
+
+  // 推理打完后继续打正文；没有正文时直接完成当前 assistant 段。
+  const handleReasoningComplete = useCallback(() => {
+    const active = activeDisplayRef.current
+    if (!active || active.kind !== 'assistant' || displayPhaseRef.current !== 'reasoning') return
+    if (!active.content) {
+      finishAssistantDisplay()
+      return
     }
-    // 创建新的（不复用已提交的消息）
-    const id = `a-${Date.now()}`
-    activeMsgRef.current = id
-    hasFlushedReasoningRef.current = false  // 重置推理 flush 标记
-    console.log('[AgentPanel] 创建新消息:', id, 'reason: activeRef=' + aid)
-    
-    // 设置打字机回调来更新这个消息
-    typewriter.onUpdate((displayText) => {
-      setMessages((cur) => cur.map(m => m.id === id ? { ...m, content: displayText } : m))
-      setContentVersion(v => v + 1)
-    })
+    displayPhaseRef.current = 'content'
     typewriter.reset()
+    typewriter.setFull(active.content)
+  }, [finishAssistantDisplay, typewriter.reset, typewriter.setFull])
 
-    // 设置推理打字机回调
-    reasoningTypewriter.onUpdate((displayReasoning) => {
-      setMessages((cur) => cur.map(m => m.id === id ? { ...m, reasoning: displayReasoning } : m))
-      setContentVersion(v => v + 1)
-    })
-    reasoningTypewriter.reset()
-    
-    return {
-      messages: [...cur, { id, role: 'assistant' as const, content: '', streaming: true, ts: Date.now() }],
-      id
-    }
-  }, [typewriter, reasoningTypewriter])
+  const handleContentComplete = useCallback(() => {
+    if (displayPhaseRef.current !== 'content') return
+    finishAssistantDisplay()
+  }, [finishAssistantDisplay])
 
-  // 处理推理流式增量（打字机效果，开始回复时一次性输出）
-  const handleReasoningDelta = useCallback((delta: string) => {
-    console.log('[AgentPanel] reasoning.delta, activeRef:', activeMsgRef.current)
-    // 确保活跃消息存在
-    setMessages((cur) => {
-      const { messages } = getOrCreateActiveId(cur)
-      return messages
-    })
-    // 追加到推理打字机缓冲区
-    reasoningTypewriter.append(delta)
-  }, [getOrCreateActiveId, reasoningTypewriter])
+  // 只在挂载时把两个打字机绑定到当前队列项。
+  useEffect(() => {
+    typewriter.onUpdate(handleContentUpdate)
+    typewriter.onComplete(handleContentComplete)
+    reasoningTypewriter.onUpdate(handleReasoningUpdate)
+    reasoningTypewriter.onComplete(handleReasoningComplete)
+  }, [
+    handleContentComplete,
+    handleContentUpdate,
+    handleReasoningComplete,
+    handleReasoningUpdate,
+    reasoningTypewriter.onComplete,
+    reasoningTypewriter.onUpdate,
+    typewriter.onComplete,
+    typewriter.onUpdate,
+  ])
 
-  // 处理流式消息增量（使用打字机效果，首次回复时折叠推理卡片）
-  const handleStreamingDelta = useCallback((delta: string) => {
-    console.log('[AgentPanel] message.delta, activeRef:', activeMsgRef.current, 'delta length:', delta.length)
-    // 只在第一次收到 message.delta 时：flush 推理 + 折叠推理卡片
-    if (!hasFlushedReasoningRef.current) {
-      hasFlushedReasoningRef.current = true
-      reasoningTypewriter.flush()
-      // 折叠推理卡片
-      const aid = activeMsgRef.current
-      if (aid) {
-        setMessages((cur) => cur.map(m => m.id === aid ? { ...m, reasoningCollapsed: true } : m))
+  // 消费一个按事件顺序排列的显示项。assistant 需要等待打字机完成，
+  // tool 则在队列轮到它时立即落地；因此工具不会打断前一段正文。
+  const drainDisplayQueue = useCallback(() => {
+    if (activeDisplayRef.current || displayQueueRef.current.length === 0) {
+      if (!activeDisplayRef.current && displayQueueRef.current.length === 0 && pendingTurnSystemRef.current) {
+        const content = pendingTurnSystemRef.current
+        pendingTurnSystemRef.current = null
+        setMessages(cur => [...cur, {
+          id: `s-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'system' as const,
+          content,
+          ts: Date.now(),
+        }])
+        setContentVersion(v => v + 1)
       }
+      return
     }
-    // 追加到打字机缓冲区
-    typewriter.append(delta)
-  }, [typewriter, reasoningTypewriter])
 
-  // 单步模型调用结束（assistant/chunk finish）→ 折叠推理卡片
-  const handleStepEnd = useCallback(() => {
-    console.log('[AgentPanel] stepEnd, flushing reasoning')
-    // 刷新推理打字机，确保内容完整显示后折叠
-    reasoningTypewriter.flush()
-    setMessages((cur) => {
-      const aid = activeMsgRef.current
-      if (!aid) return cur
-      return cur.map(m => m.id === aid ? { ...m, reasoning: m.reasoning } : m)
-    })
-  }, [reasoningTypewriter])
+    const next = displayQueueRef.current.shift()!
+    activeDisplayRef.current = next
 
-  // 提交流式消息（turn/end 或 session.idle 时调用）
-  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any) => {
-    console.log('[AgentPanel] commitStreamingMessage, activeRef:', activeMsgRef.current, 'text length:', text?.length, 'turnCompleted:', turnCompleted)
-    // 先捕获 ref 值（setMessages updater 异步执行时 ref 可能已变）
-    const aid = activeMsgRef.current
-    // 刷新两个打字机缓冲区
-    reasoningTypewriter.flush()
-    typewriter.flush()
+    if (next.kind === 'retry') {
+      const retries = pendingRetryChainsRef.current.get(next.id)
+      if (retries && retries.length > 0) {
+        displayedRetryIdsRef.current.add(next.id)
+        const last = retries[retries.length - 1]
+        setMessages(cur => [...cur, {
+          id: `r-${next.id}`,
+          role: 'retry' as const,
+          content: `${retries.length} 次重试`,
+          retries: [...retries],
+          ts: last?.time ?? Date.now(),
+        }])
+        setContentVersion(v => v + 1)
+      }
+      activeDisplayRef.current = null
+      drainQueueRef.current()
+      return
+    }
 
-    setMessages((cur) => {
-      if (aid) {
-        const i = cur.findIndex(m => m.id === aid)
-        if (i !== -1) {
-          const next = cur.slice()
-          next[i] = {
-            ...next[i],
-            content: text || next[i].content,
-            reasoning: reasoning || next[i].reasoning,
-            streaming: false,
-            turnCompleted: turnCompleted || false,
-            turnEndReason: turnEndReason || next[i].turnEndReason,
-            stats: stats || next[i].stats,
+    if (next.kind === 'tool') {
+      const tool = pendingToolStatesRef.current.get(next.id)
+      if (tool) {
+        displayedToolIdsRef.current.add(next.id)
+        setMessages(cur => {
+          const index = cur.findIndex(message => message.role === 'tool' && message.tool?.id === next.id)
+          if (index !== -1) {
+            const updated = cur.slice()
+            updated[index] = { ...updated[index], tool }
+            return updated
           }
-          return next
-        }
+          return [...cur, { id: `t-${next.id}`, role: 'tool' as const, content: '', tool, ts: Date.now() }]
+        })
+        setContentVersion(v => v + 1)
       }
-      // 没有活跃消息时创建新的
-      const id = `a-${Date.now()}`
-      return [...cur, { id, role: 'assistant' as const, content: text, reasoning, turnCompleted: turnCompleted || false, turnEndReason, stats, ts: Date.now() }]
-    })
-    // 清除活跃消息引用，允许再次输入
-    activeMsgRef.current = null
-  }, [typewriter, reasoningTypewriter])
+      activeDisplayRef.current = null
+      drainQueueRef.current()
+      return
+    }
 
-  // 处理工具调用
+    setMessages(cur => [...cur, {
+      id: next.id,
+      role: 'assistant' as const,
+      content: '',
+      reasoning: '',
+      streaming: true,
+      ts: Date.now(),
+    }])
+    setContentVersion(v => v + 1)
+
+    if (next.reasoning) {
+      displayPhaseRef.current = 'reasoning'
+      reasoningTypewriter.reset()
+      reasoningTypewriter.setFull(next.reasoning)
+    } else if (next.content) {
+      displayPhaseRef.current = 'content'
+      typewriter.reset()
+      typewriter.setFull(next.content)
+    } else {
+      finishAssistantDisplay()
+    }
+  }, [
+    finishAssistantDisplay,
+    reasoningTypewriter.reset,
+    reasoningTypewriter.setFull,
+    typewriter.reset,
+    typewriter.setFull,
+  ])
+
+  useEffect(() => {
+    drainQueueRef.current = drainDisplayQueue
+  }, [drainDisplayQueue])
+
+  // 提交一个已收集完成的 assistant 段，显示顺序由队列统一控制。
+  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any) => {
+    messageSequenceRef.current += 1
+    displayQueueRef.current.push({
+      kind: 'assistant',
+      id: `a-${Date.now()}-${messageSequenceRef.current}`,
+      content: text,
+      reasoning,
+      stats,
+      turnCompleted,
+      turnEndReason,
+    })
+    drainQueueRef.current()
+  }, [])
+
+  // 收到工具事件时只入队，不直接插入 DOM，确保前面的 assistant 打完后再出现。
   const handleToolCall = useCallback((payload: {
     id: string
     name: string
     args: unknown
     status: 'pending' | 'running'
   }) => {
-    console.log('[AgentPanel] toolCall, 清除activeRef, tool:', payload.name, 'id:', payload.id)
-    // 将所有 streaming 消息设为非流式状态（防止光标残留）
-    setMessages((cur) => cur.map(m => m.streaming ? { ...m, streaming: false } : m))
-    // 重置两个打字机
-    reasoningTypewriter.flush()
-    reasoningTypewriter.reset()
-    typewriter.flush()
-    typewriter.reset()
-    // 清除活跃消息引用，让后续 AI 回复创建新气泡
-    activeMsgRef.current = null
-    setMessages((cur) => {
-      const idx = cur.findIndex((m) => m.role === 'tool' && m.tool?.id === payload.id)
-      const next = cur.slice()
-      const tool: ToolState = {
-        id: payload.id,
-        name: payload.name,
-        args: payload.args,
-        status: payload.status
-      }
-
-      if (idx === -1) {
-        next.push({
-          id: `t-${payload.id}`,
-          role: 'tool',
-          content: '',
-          tool,
-          ts: Date.now()
-        })
-      } else {
-        next[idx] = { ...next[idx], tool }
-      }
-      return next
+    pendingToolStatesRef.current.set(payload.id, {
+      id: payload.id,
+      name: payload.name,
+      args: payload.args,
+      status: payload.status,
     })
-    // 触发自动滚动（工具卡片被聚合进 step 节点，items.length 不变，需要手动触发）
-    setContentVersion(v => v + 1)
-  }, [typewriter, reasoningTypewriter])
+    if (displayedToolIdsRef.current.has(payload.id)) return
+    if (!displayQueueRef.current.some(item => item.kind === 'tool' && item.id === payload.id)) {
+      displayQueueRef.current.push({ kind: 'tool', id: payload.id })
+    }
+    drainQueueRef.current()
+  }, [])
+
+  const handleRetryScheduled = useCallback((payload: Partial<RetryAttempt> & { retryId?: string }) => {
+    const retryId = payload.retryId || `retry-${Date.now()}`
+    const current = pendingRetryChainsRef.current.get(retryId) ?? []
+    const attempt: RetryAttempt = {
+      retry: payload.retry ?? current.length + 1,
+      retryState: 'scheduled',
+      turn: payload.turn ?? 0,
+      step: payload.step ?? 0,
+      reason: payload.reason,
+      delayMs: payload.delayMs,
+      seq: payload.seq ?? 0,
+      time: payload.time ?? Date.now(),
+    }
+    const chain = [...current, attempt]
+    pendingRetryChainsRef.current.set(retryId, chain)
+
+    if (displayedRetryIdsRef.current.has(retryId)) {
+      setMessages(cur => cur.map(message => message.id === `r-${retryId}`
+        ? { ...message, content: `${chain.length} 次重试`, retries: [...chain] }
+        : message))
+      setContentVersion(v => v + 1)
+      return
+    }
+
+    if (!displayQueueRef.current.some(item => item.kind === 'retry' && item.id === retryId)) {
+      displayQueueRef.current.push({ kind: 'retry', id: retryId })
+    }
+    drainQueueRef.current()
+  }, [])
+
+  const handleRetryStarted = useCallback((payload: { retryId?: string; retry?: number }) => {
+    const retryId = payload.retryId
+    if (!retryId) return
+    const chain = pendingRetryChainsRef.current.get(retryId)
+    if (!chain || chain.length === 0) return
+    const updated = chain.slice()
+    for (let i = updated.length - 1; i >= 0; i--) {
+      if (payload.retry === undefined || updated[i].retry === payload.retry) {
+        updated[i] = { ...updated[i], retryState: 'started' }
+        break
+      }
+    }
+    pendingRetryChainsRef.current.set(retryId, updated)
+    if (displayedRetryIdsRef.current.has(retryId)) {
+      setMessages(cur => cur.map(message => message.id === `r-${retryId}`
+        ? { ...message, retries: [...updated] }
+        : message))
+      setContentVersion(v => v + 1)
+    }
+  }, [])
 
   // 处理工具结果
   const handleToolResult = useCallback((payload: {
@@ -513,6 +631,15 @@ export const AgentPanel: React.FC = () => {
     status: 'success' | 'failure'
   }) => {
     console.log('[AgentPanel] toolResult, tool:', payload.name, 'status:', payload.status)
+    const previous = pendingToolStatesRef.current.get(payload.id)
+    pendingToolStatesRef.current.set(payload.id, {
+      id: payload.id,
+      name: payload.name,
+      args: previous?.args,
+      result: payload.result,
+      status: payload.status,
+      error: previous?.error,
+    })
     setMessages((cur) => {
       const idx = cur.findIndex((m) => m.role === 'tool' && m.tool?.id === payload.id)
       if (idx === -1) return cur
@@ -542,6 +669,19 @@ export const AgentPanel: React.FC = () => {
       ts: Date.now()
     }])
   }, [])
+
+  const clearDisplayQueue = useCallback(() => {
+    displayQueueRef.current = []
+    activeDisplayRef.current = null
+    displayPhaseRef.current = null
+    pendingToolStatesRef.current.clear()
+    displayedToolIdsRef.current.clear()
+    pendingRetryChainsRef.current.clear()
+    displayedRetryIdsRef.current.clear()
+    pendingTurnSystemRef.current = null
+    typewriter.reset()
+    reasoningTypewriter.reset()
+  }, [reasoningTypewriter.reset, typewriter.reset])
 
   // 连接到 DSH
   const handleConnect = useCallback(async () => {
@@ -658,7 +798,6 @@ export const AgentPanel: React.FC = () => {
       } else {
         // AI 空闲，正常发送
         console.log(`[AgentPanel] 正常发送消息`)
-        activeMsgRef.current = null
         setIsAgentRunning(true) // AI 开始运行
         await agentService.send(text)
         addConsoleOutput(`[Agent] 发送消息: ${text}`)
@@ -687,8 +826,8 @@ export const AgentPanel: React.FC = () => {
   // 切换会话
   const handleSwitchSession = useCallback(async (sessionId: string) => {
     console.log('[AgentPanel] 切换会话:', sessionId)
+    clearDisplayQueue()
     await agentService.switchSession(sessionId)
-    activeMsgRef.current = null
     setPendingQuestions([]) // 清除旧会话的 pending questions
     
     // 加载历史消息
@@ -722,10 +861,11 @@ export const AgentPanel: React.FC = () => {
     }
     
     setShowSidebar(false)
-  }, [])
+  }, [clearDisplayQueue])
 
   // 新建会话
   const handleNewSession = useCallback(async () => {
+    clearDisplayQueue()
     const sid = await agentService.createSession()
     if (sid) {
       setMessages([{
@@ -734,11 +874,10 @@ export const AgentPanel: React.FC = () => {
         content: '新会话已创建',
         ts: Date.now()
       }])
-      activeMsgRef.current = null
       refreshSessions()
       setShowSidebar(false)
     }
-  }, [refreshSessions])
+  }, [clearDisplayQueue, refreshSessions])
 
   // 删除会话（远程归档 + 本地黑名单，确保不会被 refreshSessions 拉回）
   const handleDeleteSession = useCallback(async (sessionId: string) => {
@@ -1075,21 +1214,36 @@ export const AgentPanel: React.FC = () => {
         onClose={() => setShowSettings(false)}
       />
 
-      <VirtualList
-        className="agent-panel__messages"
-        items={renderNodes}
-        estimatedItemHeight={100}
-        overscan={8}
-        autoScrollToBottom={true}
-        scrollTriggerDeps={contentVersion}
-        getItemKey={(node) => node.key}
-        renderItem={renderNode}
-        renderFooter={
-          awaitingFirstOutput
-            ? () => <ThinkingCard />
-            : undefined
-        }
-      />
+      <div className="agent-panel__messages-wrap">
+        <VirtualList
+          className="agent-panel__messages"
+          items={renderNodes}
+          estimatedItemHeight={100}
+          overscan={8}
+          autoScrollToBottom={true}
+          scrollTriggerDeps={contentVersion}
+          getItemKey={(node) => node.key}
+          renderItem={renderNode}
+          onNearBottomChange={handleNearBottomChange}
+          onScrollToBottomReady={handleScrollToBottomReady}
+          renderFooter={
+            awaitingFirstOutput
+              ? () => <ThinkingCard />
+              : undefined
+          }
+        />
+        {showScrollToBottom && (
+          <button
+            type="button"
+            className="agent-panel__scroll-bottom"
+            onClick={handleScrollToBottom}
+            aria-label="滚动到底部"
+            title="滚动到底部"
+          >
+            ↓ <span>最新消息</span>
+          </button>
+        )}
+      </div>
 
       {/* 问答卡片（question/requested 时显示在输入区上方） */}
       {pendingQuestions.map(req => (

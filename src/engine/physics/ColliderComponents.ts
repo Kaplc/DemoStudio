@@ -2,8 +2,9 @@
  * BoxColliderComponent / CircleColliderComponent / CapsuleColliderComponent
  * — 三个具体碰撞体组件（注册进 ComponentRegistry，供蓝图 baseClass 引用）
  *
- * 通用能力全部继承 ColliderComponent（碰撞事件/分层/dynamic 速度注入/位置回写），
- * 此处只实现形状创建与 gizmos 绘制。
+ * 通用能力（碰撞事件/分层/dynamic 速度注入/位置回写）继承 ColliderComponent，
+ * 此处实现形状创建与 gizmos 绘制：各自 override OnDrawGizmos 直接画线框，
+ * 绘制中心经基类 resolveGizmoCenterInto（游戏用 body / 预览回退属性中心）。
  *
  * 蓝图配置示例（建筑，static）：
  *   { "baseClass": "BoxColliderComponent",
@@ -20,11 +21,18 @@ import * as CANNON from 'cannon-es'
 import { ColliderComponent } from './ColliderComponent'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
-import { colliderGizmos } from './ColliderGizmos'
+import { gizmos } from '../tools/Gizmos'
 
-/** 碰撞盒线框可视化颜色（按 bodyType 区分：建筑绿 / 兵橙） */
-const GIZMO_COLOR_STATIC = 0x00e676
-const GIZMO_COLOR_DYNAMIC = 0xff9100
+/** 碰撞盒线框统一颜色（绿色） */
+const GIZMO_COLOR = 0x00e676
+
+// ─── 复用临时向量（gizmos 写入即时拷贝数值，复用安全）───
+const _a = new THREE.Vector3()
+const _b = new THREE.Vector3()
+const _size = new THREE.Vector3()
+const _up = new THREE.Vector3(0, 1, 0)
+/** 竖边方向极点（乘以半径得 xz 平面 ±r、±r 四点） */
+const VERTICAL_DIRS: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]]
 
 // ════════════════════════════════════════════
 //  Box — 盒形碰撞体（建筑）
@@ -59,14 +67,11 @@ export class BoxColliderComponent extends ColliderComponent {
     ]
   }
 
+  /** 线框：12 边盒 */
   override OnDrawGizmos(): void {
-    if (!colliderGizmos.enabled || !this.body) return
-    colliderGizmos.setColor(this.bodyType === 'static' ? GIZMO_COLOR_STATIC : GIZMO_COLOR_DYNAMIC)
-    const p = this.body.position
-    colliderGizmos.drawWireBox(
-      this._gizmoCenter.set(p.x, p.y, p.z),
-      this.size[0], this.size[1], this.size[2],
-    )
+    const center = this.resolveGizmoCenterInto(this._gizmoCenter)
+    gizmos.setColor(GIZMO_COLOR)
+    gizmos.DrawWireCube(center, _size.set(this.size[0], this.size[1], this.size[2]))
   }
 }
 
@@ -111,13 +116,21 @@ export class CircleColliderComponent extends ColliderComponent {
     ]
   }
 
+  /** 线框：上下两环（XZ 平面）+ 4 条侧边竖线（竖直圆柱轮廓） */
   override OnDrawGizmos(): void {
-    if (!colliderGizmos.enabled || !this.body) return
-    colliderGizmos.setColor(this.bodyType === 'static' ? GIZMO_COLOR_STATIC : GIZMO_COLOR_DYNAMIC)
-    const p = this.body.position
-    // 俯视圆环（y=地面处）+ 顶部圆环，直观显示圆柱碰撞范围
-    colliderGizmos.drawRing(this._gizmoCenter.set(p.x, p.y - this.height / 2, p.z), this.radius)
-    colliderGizmos.drawRing(this._gizmoCenter.set(p.x, p.y + this.height / 2, p.z), this.radius)
+    const center = this.resolveGizmoCenterInto(this._gizmoCenter)
+    gizmos.setColor(GIZMO_COLOR)
+    const half = this.height / 2
+    gizmos.DrawCircle(_a.set(center.x, center.y - half, center.z), _up, this.radius, 24)
+    gizmos.DrawCircle(_a.set(center.x, center.y + half, center.z), _up, this.radius, 24)
+    for (const [ux, uz] of VERTICAL_DIRS) {
+      const dx = ux * this.radius
+      const dz = uz * this.radius
+      gizmos.DrawLine(
+        _a.set(center.x + dx, center.y - half, center.z + dz),
+        _b.set(center.x + dx, center.y + half, center.z + dz),
+      )
+    }
   }
 }
 
@@ -174,14 +187,20 @@ export class CapsuleColliderComponent extends ColliderComponent {
     ]
   }
 
+  /** 线框：上下两环（XZ 平面，±length/2 处）+ 4 条侧边竖线（胶囊轮廓） */
   override OnDrawGizmos(): void {
-    if (!colliderGizmos.enabled || !this.body) return
-    colliderGizmos.setColor(this.bodyType === 'static' ? GIZMO_COLOR_STATIC : GIZMO_COLOR_DYNAMIC)
-    const p = this.body.position
+    const center = this.resolveGizmoCenterInto(this._gizmoCenter)
+    gizmos.setColor(GIZMO_COLOR)
     const half = this.length / 2
-    // 轮廓：上下两个圆环 + 4 条竖边
-    colliderGizmos.drawRing(this._gizmoCenter.set(p.x, p.y + half, p.z), this.radius)
-    colliderGizmos.drawRing(this._gizmoCenter.set(p.x, p.y - half, p.z), this.radius)
-    colliderGizmos.drawVerticalEdges(p, this.radius, half)
+    gizmos.DrawCircle(_a.set(center.x, center.y - half, center.z), _up, this.radius, 24)
+    gizmos.DrawCircle(_a.set(center.x, center.y + half, center.z), _up, this.radius, 24)
+    for (const [ux, uz] of VERTICAL_DIRS) {
+      const dx = ux * this.radius
+      const dz = uz * this.radius
+      gizmos.DrawLine(
+        _a.set(center.x + dx, center.y - half, center.z + dz),
+        _b.set(center.x + dx, center.y + half, center.z + dz),
+      )
+    }
   }
 }

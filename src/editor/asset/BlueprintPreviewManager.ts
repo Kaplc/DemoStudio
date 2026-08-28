@@ -28,7 +28,6 @@ import { UndoManager } from '../blueprintEdit/UndoManager'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
 import type { BlueprintAsset, BlueprintComponentDef, BlueprintChildDef } from '../../engine'
-import { ColliderDebugDrawer } from './ColliderDebugDrawer'
 import type { SceneTreeNode } from '../SelectionManager'
 import { uniqueNodeName, nextChildId, reassignChildIds } from '../blueprintEdit/nodeTemplates'
 import { useEditorStore } from '../../stores/editorStore'
@@ -78,9 +77,6 @@ export class BlueprintPreviewManager {
 
   /** 变换 Gizmo */
   readonly gizmo: TransformGizmo
-
-  /** 碰撞盒线框绘制器（预览模式从组件属性解析几何，V 键开关） */
-  private colliderDrawer: ColliderDebugDrawer | null = null
 
   // ─── 树变化回调 ───
   private _onChangeCallbacks: Array<() => void> = []
@@ -162,9 +158,6 @@ export class BlueprintPreviewManager {
     // ─── TransformGizmo ───
     this.gizmo = new TransformGizmo()
     this.gizmo.setup(this.scene, this.camera, this.renderer)
-
-    // ─── 碰撞盒线框绘制器（预览模式从组件属性解析几何）───
-    this.colliderDrawer = new ColliderDebugDrawer(this.scene)
 
     // ─── 默认内容 ───
     this.setupLighting()
@@ -990,8 +983,8 @@ export class BlueprintPreviewManager {
 
       this.updateWASD(dt)
       if (this.gizmo.visible) this.gizmo.syncTransform()
-      // 碰撞盒线框（预览 World 组件属性解析；V 键开关）
-      this.colliderDrawer?.update(getAllActors())
+      // 调试 gizmos（含碰撞盒线框：预览 World 无 body，组件回退属性中心绘制；V 键开关）
+      this.world.drawGizmos()
       this.renderer.render(this.scene, this.camera)
       this.animationId = requestAnimationFrame(animate)
     }
@@ -1039,9 +1032,6 @@ export class BlueprintPreviewManager {
     }
     select(null)
     this.gizmo.dispose()
-    // 碰撞盒线框绘制器：移除线框对象 + 释放几何/材质
-    this.colliderDrawer?.dispose()
-    this.colliderDrawer = null
     // 彻底销毁预览 World（含 UIManager/ActorManagerComponent 三件套自身的 reclaimForWorld），
     // 避免 tab 切换/工程切换累积泄漏 11+ 个 World 三件套（编辑器 lifetime 内只有一份 World）。
     // clearPreview 走 DestroyAllActors 是容器复用语义（保留 World 实例）；这是 manager 终局销毁。

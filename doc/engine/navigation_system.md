@@ -8,8 +8,8 @@
 
 | 类 | 说明 |
 |---|---|
-| `NavigationModule` | 寻路模块门面：组合 NavGrid + AStarPathfinder，项目侧入口（`rebuild()` / `findPath()` / `isBlockedAt()`） |
-| `NavGrid` | 阻挡网格：从 PhysicsWorld 静态碰撞体 AABB 自动栅格化；稀疏存储（Map 行 → Set 列） |
+| `NavigationModule` | 寻路模块门面：组合 NavGrid + AStarPathfinder，项目侧入口（`rebuild(physics)` / `findPath()` / `isBlockedAt()`） |
+| `NavGrid` | 阻挡网格：从所属 World 的 physics 实例静态碰撞体 AABB 自动栅格化；稀疏存储（Map 行 → Set 列） |
 | `AStarPathfinder` | A* 寻路（八方向 + 二叉堆 open list）：禁止对角穿墙、目标格被占时螺旋外扩找最近可走格 |
 
 ## 2. 使用方法
@@ -19,7 +19,7 @@
 readonly navigation = new NavigationModule()   // 默认 cellSize=1, halfExtent=32
 
 override BeginPlay() {
-  this.navigation.rebuild()                    // 从静态建筑碰撞体栅格化（返回阻挡格数）
+  this.navigation.rebuild(this.world!.physics) // 从静态建筑碰撞体栅格化（返回阻挡格数）
 }
 
 // 兵每帧：目标切换时寻路
@@ -47,7 +47,7 @@ this.navigation.isBlockedAt(x, z)              // 该位置是否被静态建筑
 ```mermaid
 flowchart TD
     A[关卡 BeginPlay<br/>FishLevelGameMode] --> B[建筑 BeginPlay<br/>BoxColliderComponent 注册 body]
-    B --> C[navigation.rebuild<br/>PhysicsWorld.queryAll 遍历静态碰撞体]
+    B --> C[navigation.rebuild<br/>world.physics.queryAll 遍历静态碰撞体]
     C --> D[形状 calculateWorldAABB<br/>→ 覆盖格子置阻挡]
     D --> E[NavGrid 阻挡表就绪]
 
@@ -88,9 +88,9 @@ flowchart TD
 ```
 NavigationModule
   ├─ NavGrid.rebuildFromStaticColliders
-  │    └─ PhysicsWorld.queryAll（静态碰撞体）→ shape.calculateWorldAABB → 格子置阻挡
+  │    └─ world.physics.queryAll（静态碰撞体）→ shape.calculateWorldAABB → 格子置阻挡
   └─ AStarPathfinder.findPath（八方向 A* + 螺旋目标修正）
 
 TroopMoveComponent（fish 项目）→ NavigationModule.findPath → setVelocity 注入速度
-FishLevelGameMode.BeginPlay → navigation.rebuild()（战斗关卡初始化一次）
+FishLevelGameMode.BeginPlay → navigation.rebuild(this.world!.physics)（战斗关卡初始化一次）
 ```

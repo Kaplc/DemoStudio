@@ -71,10 +71,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }, [])
 
-  // 初始化时加载模型列表（从 Host 获取当前选择）
+  // 只在会话可用时加载。AgentPanel 会先挂载选择器，再异步建立会话；
+  // 如果在连接前调用 session.models，会错过连接完成后的首次恢复。
   useEffect(() => {
-    loadModels()
-  }, [loadModels])
+    if (!disabled) loadModels()
+  }, [disabled, loadModels])
 
   // 打开时刷新
   useEffect(() => {

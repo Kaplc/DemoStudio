@@ -1,0 +1,3 @@
+name: 游戏编辑器
+description: 专用游戏开发 Agent，针对 DemoStudio 游戏引擎和游戏 agent 优化，工作目录固定在 DemoStudio。
+order: 5

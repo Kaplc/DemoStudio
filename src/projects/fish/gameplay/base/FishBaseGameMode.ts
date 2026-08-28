@@ -10,7 +10,7 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, PhysicsWorld, CollisionLayer, ColliderComponent, Instantiate, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -325,7 +325,7 @@ export class FishBaseGameMode extends GameMode {
     if (this.gridOccupied.has(key)) return false
     // 物理查询：与已放置建筑（static 碰撞体）重叠则拒绝（建筑半宽 = type.size/2）
     const half = type.size / 2
-    if (PhysicsWorld.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
+    if (this.world!.physics.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
       logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 与既有建筑碰撞重叠`)
       return false
     }
@@ -529,7 +529,7 @@ export class FishBaseGameMode extends GameMode {
     if (other && other !== b) return false
     // 物理查询（排除自身）：移动后是否与既有建筑碰撞重叠
     const half = b.type.size / 2
-    if (PhysicsWorld.overlapTest(
+    if (this.world!.physics.overlapTest(
       new THREE.Vector3(gx, 0, gz), half, half,
       { group: CollisionLayer.BUILDING, exclude: this.findColliderOf(b) ?? undefined },
     )) {

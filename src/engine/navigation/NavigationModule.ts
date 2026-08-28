@@ -3,14 +3,15 @@
  *
  * 组合 NavGrid（阻挡栅格）+ AStarPathfinder（寻路），供项目侧使用：
  *   const nav = new NavigationModule()
- *   nav.rebuild()                    // 关卡初始化时重建阻挡格
+ *   nav.rebuild(world.physics)       // 关卡初始化时重建阻挡格
  *   const path = nav.findPath(...)   // Vector3[] | null
  *
- * 网格从 PhysicsWorld 静态碰撞体自动栅格化（仅 static 建筑）。
+ * 网格从所属 World 的 PhysicsWorld 实例静态碰撞体自动栅格化（仅 static 建筑）。
  */
 import * as THREE from 'three'
 import { NavGrid } from './NavGrid'
 import { AStarPathfinder } from './AStarPathfinder'
+import type { PhysicsWorld } from '../physics/PhysicsWorld'
 
 export class NavigationModule {
   readonly grid: NavGrid
@@ -21,9 +22,9 @@ export class NavigationModule {
     this.pathfinder = new AStarPathfinder(this.grid)
   }
 
-  /** 从 PhysicsWorld 静态碰撞体重建阻挡格（返回阻挡格数量） */
-  rebuild(): number {
-    return this.grid.rebuildFromStaticColliders()
+  /** 从所属 World 的物理实例静态碰撞体重建阻挡格（返回阻挡格数量） */
+  rebuild(physics: PhysicsWorld): number {
+    return this.grid.rebuildFromStaticColliders(physics)
   }
 
   /**

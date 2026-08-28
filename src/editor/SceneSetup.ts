@@ -77,7 +77,7 @@ export function setupScene(
     obs1.disconnect()
     removeGizmoFlush()
     sceneMgr.dispose()
-    gizmos.detach()
+    gizmos.detach(shared) // 分离共享场景的 gizmos 线段缓冲（多场景后端按场景回收）
     gizmo.detach() // 分离 TransformGizmo 目标
   }
 

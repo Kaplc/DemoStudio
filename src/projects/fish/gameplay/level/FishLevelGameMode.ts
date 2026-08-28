@@ -129,7 +129,7 @@ export class FishLevelGameMode extends GameMode {
     // 收集场景中的敌方建筑（场景 ref 节点已 BeginPlay，网格已建好）
     this.collectBuildings()
     // 从静态碰撞体构建寻路网格（A* 导航依赖此网格）
-    const blockedCount = this.navigation.grid.rebuildFromStaticColliders()
+    const blockedCount = this.navigation.grid.rebuildFromStaticColliders(this.world!.physics)
     logger.info(`[BattleGM] 战斗开始：敌方建筑 ${this.buildings.length} 个（城镇大厅 ${this.getTownhall() ? '在' : '无'}），寻路网格已构建（阻挡格 ${blockedCount} 个）`)
 
     // 订阅兵攻击事件 → 发射弹丸

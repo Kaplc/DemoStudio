@@ -1,8 +1,10 @@
 /**
- * Gizmos — 即时模式调试绘制 API（对标 Unity 的 Gizmos 类）
+ * Gizmos — 即时模式调试绘制 API（对标 Unity 的 Gizmos 类），多场景后端
  *
  * 用法：Actor / Component 在 OnDrawGizmos() 中调用绘制方法，
- *   引擎每帧把累积的线段一次性渲染到场景覆盖层。
+ *   各场景由 World.drawGizmos() 每帧驱动（beginFrame(scene) → 收集 → flush），
+ *   线段绘制到「发起驱动的那个场景」的覆盖层——游戏视口 / 场景预览 / 蓝图预览
+ *   各有自己的缓冲，互不串扰；业务代码只调绘制方法，无感知场景归属。
  *
  *   override OnDrawGizmos() {
  *     gizmos.color = 0x00ff00
@@ -11,8 +13,8 @@
  *     gizmos.DrawRay(head, dir, 3)
  *   }
  *
- * 渲染原理：所有形状最终归约为「线段」，使用单个 THREE.LineSegments +
- * 逐顶点颜色（vertexColors）一次 draw call。每帧从预分配缓冲区重建几何，
+ * 渲染原理：所有形状最终归约为「线段」，每个挂载场景一个 THREE.LineSegments +
+ * 逐顶点颜色（vertexColors，材质共享）。每帧从预分配缓冲区重建几何，
  * 对几十到几百条线段开销极低。
  */
 import * as THREE from 'three'
@@ -25,6 +27,16 @@ const _v = new THREE.Vector3()
 const _n = new THREE.Vector3()
 const _p = new THREE.Vector3()
 const _p0 = new THREE.Vector3()
+
+/** 单场景线段缓冲（LineSegments + 预分配顶点数组） */
+interface GizmoBuffer {
+  geometry: THREE.BufferGeometry
+  lines: THREE.LineSegments
+  positions: Float32Array
+  colors: Float32Array
+  capacity: number
+  vertexCount: number
+}
 
 export class Gizmos {
   /** 全局开关（关闭后本帧不绘制任何内容）——修改请走 setEnabled（触发委托） */
@@ -75,51 +87,28 @@ export class Gizmos {
   /** 当前绘制颜色 */
   private _color = new THREE.Color(0xffffff)
 
-  /** 是否穿透几何体始终可见（关闭深度测试） */
+  /** 是否穿透几何体始终可见（关闭深度测试；材质全场景共享，全局生效） */
   private _alwaysOnTop = false
 
-  // ─── 渲染对象 ───
-  private readonly geometry: THREE.BufferGeometry
+  // ─── 多场景缓冲 ───
+  /** 场景 → 线段缓冲（attach 过的场景各一份，互不串扰） */
+  private _buffers = new Map<THREE.Scene, GizmoBuffer>()
+  /** 当前绘制目标（beginFrame(scene) 切换；绘制 API 写入此缓冲） */
+  private _current: GizmoBuffer | null = null
+  /** 共享材质（vertexColors；alwaysOnTop 全局切换） */
   private readonly material: THREE.LineBasicMaterial
-  private readonly lines: THREE.LineSegments
-
-  /** 顶点缓冲容量（顶点数） */
-  private capacity = 8192
-  private positions: Float32Array
-  private colors: Float32Array
-  /** 本帧已写入的顶点数 */
-  private vertexCount = 0
-  get lastVertexCount(): number { return this.vertexCount }
-
-  private scene: THREE.Scene | null = null
 
   constructor() {
-    this.positions = new Float32Array(this.capacity * 3)
-    this.colors = new Float32Array(this.capacity * 3)
-
-    this.geometry = new THREE.BufferGeometry()
-    this.geometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage),
-    )
-    this.geometry.setAttribute(
-      'color',
-      new THREE.BufferAttribute(this.colors, 3).setUsage(THREE.DynamicDrawUsage),
-    )
-    this.geometry.setDrawRange(0, 0)
-
     this.material = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
       depthTest: true,
       depthWrite: false,
     })
-
-    this.lines = new THREE.LineSegments(this.geometry, this.material)
-    this.lines.frustumCulled = false // 不依赖视锥剔除，确保始终绘制
-    this.lines.renderOrder = 999 // 渲染顺序靠后，便于穿透模式叠加
-    this.lines.visible = false
   }
+
+  /** 本帧已写入的顶点数（当前目标缓冲；调试用） */
+  get lastVertexCount(): number { return this._current?.vertexCount ?? 0 }
 
   // ════════════════════════════════════════════
   //  状态
@@ -139,83 +128,119 @@ export class Gizmos {
   }
 
   // ════════════════════════════════════════════
-  //  场景挂载（幂等）
+  //  场景挂载（幂等；也可以不 attach 直接 beginFrame(scene) 惰性建缓冲）
   // ════════════════════════════════════════════
+
+  /** 为场景创建/获取线段缓冲 */
+  private ensureBuffer(scene: THREE.Scene): GizmoBuffer {
+    let buf = this._buffers.get(scene)
+    if (!buf) {
+      const capacity = 8192
+      const positions = new Float32Array(capacity * 3)
+      const colors = new Float32Array(capacity * 3)
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage),
+      )
+      geometry.setAttribute(
+        'color',
+        new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage),
+      )
+      geometry.setDrawRange(0, 0)
+      const lines = new THREE.LineSegments(geometry, this.material)
+      lines.frustumCulled = false // 不依赖视锥剔除，确保始终绘制
+      lines.renderOrder = 999 // 渲染顺序靠后，便于穿透模式叠加
+      lines.visible = false
+      scene.add(lines)
+      buf = { geometry, lines, positions, colors, capacity, vertexCount: 0 }
+      this._buffers.set(scene, buf)
+    }
+    return buf
+  }
 
   /** 挂载到指定场景（重复挂到同一场景为空操作） */
   attach(scene: THREE.Scene) {
-    this.scene = scene
-    if (this.lines.parent !== scene) {
-      this.lines.removeFromParent()
-      scene.add(this.lines)
-    }
+    this.ensureBuffer(scene)
   }
 
-  /** 从当前场景分离 */
-  detach() {
-    this.lines.removeFromParent()
-    this.scene = null
+  /** 从场景分离并释放缓冲（场景销毁时调用，防 LineSegments/几何泄漏） */
+  detach(scene: THREE.Scene) {
+    const buf = this._buffers.get(scene)
+    if (!buf) return
+    if (this._current === buf) this._current = null
+    buf.lines.removeFromParent()
+    buf.geometry.dispose()
+    this._buffers.delete(scene)
   }
 
   // ════════════════════════════════════════════
-  //  帧生命周期
+  //  帧生命周期（按场景）
   // ════════════════════════════════════════════
 
-  /** 开始一帧：清空缓冲区 */
-  beginFrame() {
-    this.vertexCount = 0
+  /**
+   * 开始一帧：切换当前绘制目标到 scene 的缓冲并清空。
+   * 本帧内所有绘制调用（DrawLine 等）都写入该缓冲，直到下一次 beginFrame 切换。
+   */
+  beginFrame(scene: THREE.Scene) {
+    this._current = this.ensureBuffer(scene)
+    this._current.vertexCount = 0
   }
 
-  /** 结束一帧：上传缓冲区到 GPU；无内容则隐藏 */
+  /** 结束一帧：上传当前缓冲到 GPU；无内容则隐藏 */
   flush() {
-    if (this.vertexCount > 0) {
-      ;(this.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
-      ;(this.geometry.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true
+    const buf = this._current
+    if (!buf) return
+    if (buf.vertexCount > 0) {
+      ;(buf.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+      ;(buf.geometry.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true
     }
-    this.geometry.setDrawRange(0, this.vertexCount)
-    this.lines.visible = this.vertexCount > 0
+    buf.geometry.setDrawRange(0, buf.vertexCount)
+    buf.lines.visible = buf.vertexCount > 0
   }
 
   // ════════════════════════════════════════════
   //  底层写入
   // ════════════════════════════════════════════
 
-  /** 写入一条线段（6 个坐标分量），自动扩容 */
+  /** 写入一条线段（6 个坐标分量），自动扩容；未 beginFrame 时静默忽略 */
   private push(ax: number, ay: number, az: number, bx: number, by: number, bz: number) {
-    if (this.vertexCount + 2 > this.capacity) this.grow()
-    const i = this.vertexCount * 3
-    const pos = this.positions
-    const col = this.colors
+    const buf = this._current
+    if (!buf) return
+    if (buf.vertexCount + 2 > buf.capacity) this.grow(buf)
+    const i = buf.vertexCount * 3
+    const pos = buf.positions
+    const col = buf.colors
     pos[i] = ax; pos[i + 1] = ay; pos[i + 2] = az
     pos[i + 3] = bx; pos[i + 4] = by; pos[i + 5] = bz
     const { r, g, b } = this._color
     col[i] = r; col[i + 1] = g; col[i + 2] = b
     col[i + 3] = r; col[i + 4] = g; col[i + 5] = b
-    this.vertexCount += 2
+    buf.vertexCount += 2
   }
 
-  /** 容量翻倍并迁移已有数据 */
-  private grow() {
-    const newCap = this.capacity * 2
+  /** 容量翻倍并迁移已有数据（单缓冲内） */
+  private grow(buf: GizmoBuffer) {
+    const newCap = buf.capacity * 2
     const newPos = new Float32Array(newCap * 3)
     const newCol = new Float32Array(newCap * 3)
-    newPos.set(this.positions)
-    newCol.set(this.colors)
-    this.capacity = newCap
-    this.positions = newPos
-    this.colors = newCol
-    this.geometry.setAttribute(
+    newPos.set(buf.positions)
+    newCol.set(buf.colors)
+    buf.capacity = newCap
+    buf.positions = newPos
+    buf.colors = newCol
+    buf.geometry.setAttribute(
       'position',
       new THREE.BufferAttribute(newPos, 3).setUsage(THREE.DynamicDrawUsage),
     )
-    this.geometry.setAttribute(
+    buf.geometry.setAttribute(
       'color',
       new THREE.BufferAttribute(newCol, 3).setUsage(THREE.DynamicDrawUsage),
     )
   }
 
   // ════════════════════════════════════════════
-  //  绘制 API
+  //  绘制 API（写入当前 beginFrame 场景的缓冲）
   // ════════════════════════════════════════════
 
   /** 画一条线段 */
@@ -350,6 +375,7 @@ export class Gizmos {
 
 /**
  * 全局 Gizmos 单例（对标 Unity 的静态 Gizmos 类）。
- * 由 World/Viewport 负责挂载与每帧 flush，业务代码只需调用绘制方法。
+ * 多场景后端：各 World.drawGizmos 每帧以自己的场景 beginFrame/flush，
+ * 业务代码只调绘制方法。
  */
 export const gizmos = new Gizmos()

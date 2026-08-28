@@ -778,9 +778,25 @@ export class AgentService {
     let lastSeq = -1
     let assistantBuf = ''
     let reasoningBuf = ''
-    let lastEmittedTextLen = 0
-    let lastEmittedReasoningLen = 0
     let attempts = 0
+
+    // UI 只接收完整的 assistant 段。工具调用会把一个 turn 切成多个
+    // assistant -> tool -> assistant 段，因此必须在边界事件到达前提交缓冲区。
+    const flushAssistant = (turnCompleted = false, turnEndReason?: TurnEndReason): void => {
+      if (!assistantBuf && !reasoningBuf) return
+      this.emit({
+        type: 'message',
+        payload: {
+          role: 'assistant',
+          content: assistantBuf,
+          reasoning: reasoningBuf || undefined,
+          turnCompleted,
+          turnEndReason,
+        },
+      })
+      assistantBuf = ''
+      reasoningBuf = ''
+    }
 
     try {
       const hist = (await this.rpc('session.history', {
@@ -828,16 +844,11 @@ export class AgentService {
             const reason: TurnEndReason = { kind: reasonKind }
             if (d?.reason?.error) reason.error = { message: d.reason.error.message ?? '', code: d.reason.error.code }
             if (d?.reason?.reason) reason.reason = d.reason.reason as { kind: string; reason?: string }
-            this.emit({ type: 'turnEnd', payload: { turn: d?.turn ?? 0, reason, seq: event.seq, time } as TurnEndPayload })
 
-            if (assistantBuf || reasoningBuf) {
-              this.emit({
-                type: 'message',
-                payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined, turnCompleted: reasonKind === 'completed', turnEndReason: reason },
-              })
-              assistantBuf = ''
-              reasoningBuf = ''
-            }
+            // turn/end 是最后一个 assistant 段的提交边界。先提交消息，
+            // 再通知 UI 回合结束，保证视觉顺序和事件顺序一致。
+            flushAssistant(reasonKind === 'completed', reason)
+            this.emit({ type: 'turnEnd', payload: { turn: d?.turn ?? 0, reason, seq: event.seq, time } as TurnEndPayload })
             this.flushOrResumeHmr()
             this.polling = false
             this.setRunning(false) // turn 结束，AI 不再运行
@@ -850,6 +861,8 @@ export class AgentService {
           }
 
           if (event.type === 'step/end') {
+            // 没有工具的普通 step 也要在 step 边界显示完整消息。
+            flushAssistant()
             this.emit({ type: 'stepEnd', payload: { turn: d?.turn ?? 0, step: d?.step ?? 0, seq: event.seq, time } as StepEndPayload })
             continue
           }
@@ -875,6 +888,9 @@ export class AgentService {
 
           // ─── 工具调用 ───
           if (event.type === 'tool/call') {
+            // tool/call 会把当前 assistant 段切开。必须先提交前面的完整文本，
+            // 否则工具卡片会先进入 UI，后续文本再到达时就失去正确归属。
+            flushAssistant()
             const callId = d?.callId || `tc-${event.seq}`
             const toolName = d?.name || 'unknown'
             if (d?.callId) this.pendingTools.set(d.callId, toolName)
@@ -1039,27 +1055,15 @@ export class AgentService {
 
           // ─── session.idle（兼容旧版） ───
           if (event.type === 'session.idle') {
-            if (assistantBuf || reasoningBuf) {
-              this.emit({ type: 'message', payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined, turnCompleted: true } })
-              assistantBuf = ''
-              reasoningBuf = ''
-            }
+            flushAssistant(true)
             this.flushOrResumeHmr()
             this.polling = false
             return
           }
         }
-
-        // 批量发送本轮累积的 delta
-        const newTextDelta = assistantBuf.slice(lastEmittedTextLen)
-        const newReasoningDelta = reasoningBuf.slice(lastEmittedReasoningLen)
-        if (newTextDelta) { this.emit({ type: 'message.delta', payload: newTextDelta }); lastEmittedTextLen = assistantBuf.length }
-        if (newReasoningDelta) { this.emit({ type: 'reasoning.delta', payload: newReasoningDelta }); lastEmittedReasoningLen = reasoningBuf.length }
       }
     } finally {
-      if (assistantBuf || reasoningBuf) {
-        this.emit({ type: 'message', payload: { role: 'assistant', content: assistantBuf, reasoning: reasoningBuf || undefined } })
-      }
+      flushAssistant()
       this.polling = false
     }
   }
@@ -1161,6 +1165,8 @@ export class AgentService {
       const turnAssistantIndices = new Map<number, number[]>()
       // 重试链：retryId -> RetryAttempt[]
       const retryChains = new Map<string, RetryAttempt[]>()
+      // 重试卡片在 messages 中的索引，保证后续 retry-started 更新原位置。
+      const retryMessageIndices = new Map<string, number>()
       // 命令状态：commandId -> CommandState
       const commandStates = new Map<string, CommandState>()
       // 压缩状态：compactionId -> CompactionState
@@ -1256,12 +1262,29 @@ export class AgentService {
           const retryId = d?.retryId || `retry-${event.seq}`
           let chain = retryChains.get(retryId)
           if (!chain) { chain = []; retryChains.set(retryId, chain) }
-          chain.push({
+          const attempt: RetryAttempt = {
             retry: d?.retry ?? 1, retryState: 'scheduled',
             turn: d?.turn ?? 0, step: d?.step ?? 0,
             reason: typeof d?.reason === 'string' ? d.reason : d?.reason?.kind,
             delayMs: d?.delayMs, seq: event.seq, time: time ?? 0,
-          })
+          }
+          chain.push(attempt)
+          const existingIndex = retryMessageIndices.get(retryId)
+          if (existingIndex === undefined) {
+            retryMessageIndices.set(retryId, messages.length)
+            messages.push({
+              role: 'retry',
+              content: `${chain.length} 次重试`,
+              retries: [...chain],
+              ts: attempt.time,
+            })
+          } else {
+            messages[existingIndex] = {
+              ...messages[existingIndex],
+              content: `${chain.length} 次重试`,
+              retries: [...chain],
+            }
+          }
           continue
         }
 
@@ -1271,6 +1294,13 @@ export class AgentService {
           if (chain) {
             const last = chain[chain.length - 1]
             if (last && last.retry === (d?.retry ?? 1)) last.retryState = 'started'
+            const messageIndex = retryMessageIndices.get(retryId)
+            if (messageIndex !== undefined) {
+              messages[messageIndex] = {
+                ...messages[messageIndex],
+                retries: [...chain],
+              }
+            }
           }
           continue
         }
@@ -1345,13 +1375,6 @@ export class AgentService {
             ts: time,
           })
           continue
-        }
-      }
-
-      // 重试链输出
-      for (const chain of retryChains.values()) {
-        if (chain.length > 0) {
-          messages.push({ role: 'retry', content: `${chain.length} 次重试`, retries: chain, ts: chain[0].time })
         }
       }
 
