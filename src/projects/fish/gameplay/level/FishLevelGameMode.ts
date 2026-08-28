@@ -72,7 +72,7 @@ export class FishLevelGameMode extends GameMode {
   /** 防御塔攻击冷却计时器：建筑 → 剩余秒数 */
   private cannonCooldown = new Map<ClashBuildingBaseActor, number>()
   /** 场上己方兵列表（死亡后移出） */
-  private troops: TroopActor[] = []
+  troops: TroopActor[] = []
   /** 兵的目标覆盖（被阻挡攻击阻挡物）：兵 → 目标建筑 */
   private troopTargetOverride = new Map<TroopActor, ClashBuildingBaseActor>()
   /** 当前放置模式选中的兵种（null = 未进入放置模式） */
@@ -114,7 +114,12 @@ export class FishLevelGameMode extends GameMode {
   }
 
   override StartPlay() {
-    this.gameState.setPhase('playing')
+    // 必须调基类：基类 StartPlay 内含 SpawnPlayer()（创建 FishLevelPlayerController）。
+    // 漏掉会导致 mode.controller 为 null → setupLevelPhase 拿不到控制器 →
+    // InputSys.handlePointerDown 无 Controller 可转发 → 点击场景永远放不了兵。
+    super.StartPlay()
+    // 战斗态：等待玩家选兵放兵（基类已置 playing，这里回到 waiting）
+    this.gameState.setPhase('waiting')
   }
 
   override BeginPlay() {
@@ -558,6 +563,40 @@ export class FishLevelGameMode extends GameMode {
    */
   debugDeploy(troopId: string, x: number, z: number): boolean {
     return this.spawnTroopActor(troopId, x, z)
+  }
+
+  /**
+   * GM 放兵（跳过军队扣除，直接部署兵 Actor）。
+   * 与 spawnTroopActor 区别：不调用 inst.training.deployTroop，测试/调试用。
+   */
+  gmSpawnTroop(troopId: string, x: number, z: number): boolean {
+    if (this.battleEnded) return false
+    const inst = this.gameInstance
+    if (!inst) return false
+    if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) {
+      logger.warn(`[BattleGM] GM放兵失败：超出战场范围 (${x.toFixed(1)},${z.toFixed(1)})`)
+      return false
+    }
+    const troop = inst.getTroop(troopId)
+    if (!troop) {
+      logger.error(`[BattleGM] GM放兵失败：兵种 "${troopId}" 不存在`)
+      return false
+    }
+    if (this.findBlockerAt(x, z, troop.size[0] / 2)) {
+      logger.warn(`[BattleGM] GM放兵失败：位置 (${x.toFixed(1)},${z.toFixed(1)}) 与建筑重叠`)
+      return false
+    }
+    let actor: PoolableTroopActor
+    try {
+      actor = this.pools.acquireTroop({ troopId, gm: this, troop, x, z })
+    } catch (e) {
+      logger.error(`[BattleGM] GM放兵失败：兵种池异常 "${troopId}" - ${e}`)
+      return false
+    }
+    this.troops.push(actor as TroopActor)
+    this.deployedCount++
+    logger.info(`[BattleGM] GM放兵: ${troop.name} @ (${x.toFixed(1)},${z.toFixed(1)})（场上 ${this.troops.length} 个，累计 ${this.deployedCount}）`)
+    return true
   }
 
   /** 血条组件显隐快照（__fishBattle.getHealthBars，Playwright 断言用） */

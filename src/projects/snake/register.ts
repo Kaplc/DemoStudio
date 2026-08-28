@@ -6,5 +6,9 @@ import { SnakeGameInstance } from './SnakeGameInstance'
 
 export const snakeProject: ProjectModule = {
   name: 'Snake',
-  createGameInstance: (renderContainer) => new SnakeGameInstance(renderContainer),
+  createGameInstance: (renderContainer) => {
+    const inst = new SnakeGameInstance()
+    if (renderContainer) inst.viewport.setContainer(renderContainer)
+    return inst
+  },
 }

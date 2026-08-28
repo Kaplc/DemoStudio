@@ -36,7 +36,10 @@ export class FishMainMenuGameMode extends GameMode {
   }
 
   override StartPlay() {
-    // 菜单模式不进入 playing 阶段
+    // 必须调基类：基类 StartPlay 内含 SpawnPlayer()（创建 FishMainMenuPlayerController）。
+    // 漏掉会导致 mode.controller 为 null → 菜单按钮/输入全部失效。
+    super.StartPlay()
+    // 菜单模式不进入 playing 阶段（基类已置 playing，这里回到 waiting）
     this.gameState.setPhase('waiting')
   }
 

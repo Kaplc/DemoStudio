@@ -2,12 +2,14 @@
  * RacingGameInstance — 赛车游戏实例
  */
 import * as THREE from 'three'
-import { GameInstance, World, logger } from '@/engine'
-import type { GameInstanceCallbacks } from '@/engine'
+import { GameInstance, logger } from '@/engine'
+import type { PlayerController } from '@/engine'
 import { RacingGameMode, RacingCarPawn, RacingPlayerController } from './'
 
 export class RacingGameInstance extends GameInstance {
-  readonly gameMode: RacingGameMode
+  private _gameMode!: RacingGameMode
+  override get gameMode(): RacingGameMode { return this._gameMode }
+  override createGameMode(): RacingGameMode { return this._gameMode = new RacingGameMode() }
 
   private _controller: RacingPlayerController | null = null
   pawn: RacingCarPawn | null = null
@@ -16,11 +18,8 @@ export class RacingGameInstance extends GameInstance {
     return this._controller
   }
 
-  private callbacks: GameInstanceCallbacks = {}
-  private unsubGameState: (() => void) | null = null
-
-  constructor(renderContainer?: HTMLElement | null) {
-    super(new World(), renderContainer ?? null)
+  constructor() {
+    super()
     const scene = this.world.sceneComp.scene
 
     scene.background = new THREE.Color(0x87ceeb)
@@ -30,44 +29,17 @@ export class RacingGameInstance extends GameInstance {
     if (hemi) { hemi.color.setHex(0x87ceeb); hemi.groundColor.setHex(0x3a7d44) }
     const dl = scene.children.find(c => c instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined
     if (dl) { dl.intensity = 1.5; dl.position.set(30, 40, 20) }
-
-    this.gameMode = new RacingGameMode()
-    this.world.SetGameMode(this.gameMode)
-    this.world.Stop()
-
-    this.unsubGameState = this.gameMode.gameState.subscribe(() => {
-      const gs = this.gameMode.gameState
-      this.callbacks.onScoreChange?.(gs.score)
-      this.callbacks.onPhaseChange?.(gs.phase)
-      if (gs.phase === 'gameover') {
-        this.callbacks.onGameOver?.()
-      }
-    })
   }
 
-  override setCallbacks(cbs: GameInstanceCallbacks) {
-    this.callbacks = cbs
+  override onControllerReady(ctrl: PlayerController): void {
+    this._controller = ctrl as RacingPlayerController
+    this.pawn = ctrl.pawn as RacingCarPawn
   }
 
-  override start(): boolean {
-    logger.info('[RacingGameInstance] 启动游戏...')
-    this.gameMode.InitGame()
-    this.gameMode.StartPlay()
-
-    const spawn = this.gameMode.SpawnPlayer()
-    if (!spawn) {
-      logger.error('[RacingGameInstance] SpawnPlayer 返回空')
-      return false
-    }
-
-    const pawn = spawn.pawn as RacingCarPawn
-    pawn.InitGame()
-    this._controller = spawn.controller as RacingPlayerController
-    this.pawn = pawn
-
-    logger.info(`[RacingGameInstance] 赛车生成: ${pawn.name}`)
+  override onStart(ctrl: PlayerController): boolean {
+    this.pawn!.InitGame()
+    logger.info(`[RacingGameInstance] 赛车生成: ${this.pawn!.name}`)
     this.world.BeginPlay()
-
     logger.info('[RacingGameInstance] 游戏已启动')
     return true
   }
@@ -102,10 +74,7 @@ export class RacingGameInstance extends GameInstance {
 
   override destroy() {
     this.stop()
-    if (this.unsubGameState) {
-      this.unsubGameState()
-      this.unsubGameState = null
-    }
+    super.destroy()
     this.world.Destroy()
   }
 }

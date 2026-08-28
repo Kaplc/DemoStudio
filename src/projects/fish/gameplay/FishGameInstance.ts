@@ -69,7 +69,6 @@ export class FishGameInstance extends GameInstance {
   /** 恢复第一步"清场"已执行（幽灵碰撞体等下一帧 manualTick 的 commitDestroy 移除） */
   private _restoreCleared = false
 
-  private callbacks: GameInstanceCallbacks = {}
   private unsubGameState: (() => void) | null = null
   /** 防止 stop() 被重复调用 */
   private _stopped = false
@@ -78,7 +77,7 @@ export class FishGameInstance extends GameInstance {
   readonly events: GameEvents
 
   constructor(renderContainer?: HTMLElement | null) {
-    super(new World(), renderContainer ?? null)
+    super()
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
     // 资源组件：金币 + 药水（跨阶段共享钱包，初始金币 100，药水 0）
@@ -105,10 +104,6 @@ export class FishGameInstance extends GameInstance {
 
   override get controller(): PlayerController | null {
     return this._controller
-  }
-
-  override setCallbacks(cbs: GameInstanceCallbacks) {
-    this.callbacks = cbs
   }
 
   // ════════════════════════════════════════════
@@ -220,6 +215,38 @@ export class FishGameInstance extends GameInstance {
   private installBattleDebugBridge(): void {
     ;(window as unknown as Record<string, unknown>).__fishBattle = {
       enterLevel: (id: string) => this.enterLevel(id),
+      /** 选兵种进入放置模式（等价点击 HUD 兵种卡片，Playwright 复现真实点击链路用） */
+      selectTroop: (troopId: string) => {
+        this._levelGameMode?.selectTroop(troopId)
+        return this._levelGameMode?.placeTroopId ?? null
+      },
+      /** 当前放置模式兵种 id（null = 未选兵，点场景不会放兵） */
+      getPlaceTroopId: () => this._levelGameMode?.placeTroopId ?? null,
+      /** 运行时探针（诊断用）：暴露 controller / gameMode / 阶段等内部状态 */
+      probe: () => ({
+        phase: this._phase,
+        levelId: this._levelId,
+        hasController: !!this._controller,
+        controllerName: this._controller?.name ?? null,
+        levelGameMode: this._levelGameMode ? this._levelGameMode.constructor.name : null,
+        worldGameMode: this.world.gameMode ? this.world.gameMode.constructor.name : null,
+        worldGameModeController: this.world.gameMode?.controller?.name ?? null,
+        placeTroopId: this._levelGameMode?.placeTroopId ?? null,
+        battleEnded: this._levelGameMode?.battleEnded ?? null,
+        phySysReady: PhySys.ready,
+        viewportRect: (() => {
+          const el = PhySys.viewportElement
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          return { w: r.width, h: r.height, x: r.x, y: r.y }
+        })(),
+      }),
+      /** 模拟真实点击（走 InputSys.handlePointerDown → Controller → GameMode 全链路，绕过 DOM 事件） */
+      debugClick: (screenX: number, screenY: number, button = 0) => {
+        const consumed = this.inputSys.handlePointerDown(screenX, screenY, undefined, this.controller, button)
+        this.inputSys.handlePointerUp(undefined, this.controller, button)
+        return { consumed, placeTroopId: this._levelGameMode?.placeTroopId ?? null }
+      },
       addArmy: (troopId: string, count: number) => {
         const troop = this.getTroop(troopId)
         if (!troop) return false
@@ -227,6 +254,22 @@ export class FishGameInstance extends GameInstance {
         return this.training.debugAddArmy(troopId, count)
       },
       deploy: (troopId: string, x: number, z: number) => this._levelGameMode?.debugDeploy(troopId, x, z) ?? false,
+      /** GM 放兵（跳过军队扣除，直接部署兵 Actor，Playwright 测试用） */
+      gmSpawnTroop: (troopId: string, x: number, z: number) => this._levelGameMode?.gmSpawnTroop(troopId, x, z) ?? false,
+      /** 当前场上部队列表（Playwright 断言用） */
+      getTroops: () => {
+        const list = this._levelGameMode?.troops ?? []
+        return list.map((t) => ({
+          name: t.troop.name,
+          x: Math.round(t.root.position.x * 10) / 10,
+          z: Math.round(t.root.position.z * 10) / 10,
+        }))
+      },
+      /** 执行 GM 命令（Playwright 测试用）：如 unlockBattle 注入军队、addCoins 加金币 */
+      executeGM: (line: string) => {
+        const result = this.gm.execute(line)
+        return { ok: result.ok, message: result.message }
+      },
       startTickDriver: () => this.startDebugTickDriver(),
       stopTickDriver: () => this.stopDebugTickDriver(),
       /** 同步推进 n × (1/30)s 游戏时间（Playwright 断言用，不受浏览器节流影响） */
@@ -444,7 +487,7 @@ export class FishGameInstance extends GameInstance {
         army: this.training.getArmySummary(),
       }),
     }
-    logger.info('[Fish] 战斗调试桥已安装: window.__fishBattle { enterLevel, addArmy, deploy, startTickDriver, stopTickDriver, getBattle, getState }')
+  logger.info('[Fish] 战斗调试桥已安装: window.__fishBattle { enterLevel, addArmy, deploy, gmSpawnTroop, selectTroop, getPlaceTroopId, debugClick, probe, getTroops, executeGM, startTickDriver, stopTickDriver, getBattle, getState }')
   }
 
   /** 调试 tick 驱动器定时器 id（null = 未启动） */
@@ -511,12 +554,11 @@ export class FishGameInstance extends GameInstance {
     mode.onStartGame = () => this.enterBase()
     this.setupCamera(mode.gameCamera, 0, 0, 20)
     mode.cameraManager.RegisterCamera(mode.gameCamera)
-    const spawn = mode.SpawnPlayer()
-    if (spawn) {
-      this._controller = spawn.controller
-      logger.info(`[Fish] setupMenuPhase: controller 已就绪 → ${spawn.controller.name}`)
+    if (mode.controller) {
+      this._controller = mode.controller
+      logger.info(`[Fish] setupMenuPhase: controller 已就绪 → ${mode.controller.name}`)
     }
-    else logger.error('[Fish] setupMenuPhase: SpawnPlayer 返回空')
+    else logger.error('[Fish] setupMenuPhase: controller 为空（StartPlay 未生成）')
 
     // UI 点击：初始化 PhySys 射线检测（相机 + 屏幕坐标换算容器，用 Game 视口 UI 层 DOM）
     if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.gameCamera.camera, this.world.gameRenderer.uiLayer)
@@ -565,12 +607,11 @@ export class FishGameInstance extends GameInstance {
     this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
     mode.cameraManager.RegisterCamera(mode.baseCamera.cameraComponent)
     if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.baseCamera.camera, this.world.gameRenderer.uiLayer)
-    const spawn = mode.SpawnPlayer()
-    if (spawn) {
-      this._controller = spawn.controller
-      logger.info(`[Fish] setupBasePhase: controller 已切换 → ${spawn.controller.name}（pawn=${spawn.pawn.root.name}）`)
+    if (mode.controller) {
+      this._controller = mode.controller
+      logger.info(`[Fish] setupBasePhase: controller 已切换 → ${mode.controller.name}（pawn=${mode.controller.pawn?.root.name}）`)
     }
-    else logger.error('[Fish] setupBasePhase: SpawnPlayer 返回空')
+    else logger.error('[Fish] setupBasePhase: controller 为空（StartPlay 未生成）')
 
     // 基地 HUD 的建筑菜单按钮绑定由 widget 资产上挂载的 BaseHudScript
     // （UIScriptComponent, script="gameplay/base/BaseHud"）在 BeginPlay 时接管，
@@ -586,11 +627,12 @@ export class FishGameInstance extends GameInstance {
     mode.cameraManager.RegisterCamera(mode.gameCamera)
     this.setupCamera(mode.gameCamera, 0, 0, 20)
 
-    const spawn = mode.SpawnPlayer()
-    if (!spawn) { logger.error('[Fish] SpawnPlayer 返回空'); return }
-    const pawn = spawn.pawn as FishCannon
-    this._controller = spawn.controller as FishPlayerController
-    this.pawn = pawn
+    const controller = mode.controller
+    if (!controller) { logger.error('[Fish] setupGamePhase: controller 为空（StartPlay 未生成）'); return }
+    this._controller = controller as FishPlayerController
+    const pawn = controller.pawn
+    if (!pawn) { logger.error('[Fish] setupGamePhase: controller 无 pawn'); return }
+    this.pawn = pawn as FishCannon
 
     this.unsubGameState = mode.gameState.subscribe(() => {
       const gs = mode.gameState
@@ -624,12 +666,11 @@ export class FishGameInstance extends GameInstance {
     // UI 点击：初始化 PhySys 射线检测（战斗相机 + 屏幕坐标换算容器）
     if (this.world.gameRenderer?.uiLayer) PhySys.setup(mode.baseCamera.camera, this.world.gameRenderer.uiLayer)
 
-    const spawn = mode.SpawnPlayer()
-    if (spawn) {
-      this._controller = spawn.controller
-      logger.info(`[Fish] setupLevelPhase: controller 已就绪 → ${spawn.controller.name}`)
+    if (mode.controller) {
+      this._controller = mode.controller
+      logger.info(`[Fish] setupLevelPhase: controller 已就绪 → ${mode.controller.name}`)
     } else {
-      logger.error('[Fish] setupLevelPhase: SpawnPlayer 返回空')
+      logger.error('[Fish] setupLevelPhase: controller 为空（StartPlay 未生成）')
     }
 
     // 关卡战斗结算监听：胜利且带关卡 id → 记录通关（只写 KV 键；回城边界统一落盘）

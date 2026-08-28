@@ -148,3 +148,5 @@ cache/splash/
 # 外部 Git 子仓库（运行时自动 clone）
 # ═══════════════════════════════════════
 harness/dsh-source/
+test-results/*
+test-results/.last-run.json

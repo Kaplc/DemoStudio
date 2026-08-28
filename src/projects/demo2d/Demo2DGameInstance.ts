@@ -3,58 +3,34 @@
  * 封装 World + GameMode + 玩家生命周期
  */
 import * as THREE from 'three'
-import { GameInstance, World, logger } from '@/engine'
-import type { GameInstanceCallbacks } from '@/engine'
+import { GameInstance, logger } from '@/engine'
+import type { PlayerController } from '@/engine'
 import { Demo2DGameMode, Demo2DPawn, Demo2DPlayerController } from './'
 
 export class Demo2DGameInstance extends GameInstance {
-  readonly gameMode: Demo2DGameMode
+  private _gameMode!: Demo2DGameMode
+  override get gameMode(): Demo2DGameMode { return this._gameMode }
+  override createGameMode(): Demo2DGameMode { return this._gameMode = new Demo2DGameMode() }
 
   private _controller: Demo2DPlayerController | null = null
   pawn: Demo2DPawn | null = null
-
-  private callbacks: GameInstanceCallbacks = {}
-  private unsubGameState: (() => void) | null = null
-
-  constructor(renderContainer?: HTMLElement | null) {
-    super(new World(), renderContainer ?? null)
-    this.gameMode = new Demo2DGameMode()
-    this.world.SetGameMode(this.gameMode)
-    this.world.Stop()
-
-    this.unsubGameState = this.gameMode.gameState.subscribe(() => {
-      const gs = this.gameMode.gameState
-      this.callbacks.onScoreChange?.(gs.score)
-      this.callbacks.onPhaseChange?.(gs.phase)
-      if (gs.phase === 'gameover') {
-        this.callbacks.onGameOver?.()
-      }
-    })
-  }
 
   override get controller(): Demo2DPlayerController | null {
     return this._controller
   }
 
-  override setCallbacks(cbs: GameInstanceCallbacks) {
-    this.callbacks = cbs
+  constructor() {
+    super()
   }
 
-  override start(): boolean {
-    logger.info('[Demo2D] 启动游戏...')
-    this.gameMode.InitGame()
-    this.gameMode.StartPlay()
-    const spawn = this.gameMode.SpawnPlayer()
-    if (!spawn) {
-      logger.error('[Demo2D] SpawnPlayer 返回空')
-      return false
-    }
-    const pawn = spawn.pawn as Demo2DPawn
-    this._controller = spawn.controller as Demo2DPlayerController
-    this.pawn = pawn
+  override onControllerReady(ctrl: PlayerController): void {
+    this._controller = ctrl as Demo2DPlayerController
+    this.pawn = ctrl.pawn as Demo2DPawn
+  }
+
+  override onStart(ctrl: PlayerController): boolean {
     this.gameMode.SpawnInitialCoin()
     this.world.BeginPlay()
-
     logger.info('[Demo2D] 游戏已启动')
     return true
   }
@@ -87,10 +63,7 @@ export class Demo2DGameInstance extends GameInstance {
 
   override destroy() {
     this.stop()
-    if (this.unsubGameState) {
-      this.unsubGameState()
-      this.unsubGameState = null
-    }
+    super.destroy()
     this.world.Destroy()
   }
 }

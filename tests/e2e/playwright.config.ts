@@ -28,7 +28,7 @@ export default defineConfig({
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5174',
     headless: true,
     viewport: { width: 1280, height: 800 },
     // AI 现场证据：失败截图（AI 可用 read_image 直接看）+ trace 回放包（console/network/DOM 快照）
@@ -37,11 +37,12 @@ export default defineConfig({
     // 视频 AI 无法直接消费且占空间，需要人回放时改为 'retain-on-failure'
     video: 'off',
   },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    // 本机已有 dev server（用户正在开发）时直接复用，不重复启动
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // webServer 已禁用：dev server 由外部管理（当前运行在 5174 端口）
+  // 如需自动启动，取消注释并确保端口可用：
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://localhost:5174',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120_000,
+  // },
 })

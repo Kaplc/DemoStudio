@@ -89,6 +89,10 @@ export class FishBaseGameMode extends GameMode {
   }
 
   override StartPlay() {
+    // 必须调基类：基类 StartPlay 内含 SpawnPlayer()（创建 FishBasePlayerController）。
+    // 漏掉会导致 mode.controller 为 null → 基地放置建筑/相机操作等输入全部失效。
+    super.StartPlay()
+    // 基地为建造态而非游玩态（基类已置 playing，这里回到 waiting）
     this.gameState.setPhase('waiting')
   }
 

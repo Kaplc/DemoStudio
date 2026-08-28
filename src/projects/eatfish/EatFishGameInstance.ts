@@ -3,13 +3,15 @@
  * 封装 World + GameMode + 玩家生命周期
  */
 import * as THREE from 'three'
-import { GameInstance, World, logger } from '@/engine'
-import type { GameInstanceCallbacks } from '@/engine'
+import { GameInstance, logger } from '@/engine'
+import type { PlayerController } from '@/engine'
 import { EatFishGameMode, EatFishPawn, EatFishPlayerController } from './'
 import { EatFishConfigLoader } from './EatFishConfigLoader'
 
 export class EatFishGameInstance extends GameInstance {
-  readonly gameMode: EatFishGameMode
+  private _gameMode!: EatFishGameMode
+  override get gameMode(): EatFishGameMode { return this._gameMode }
+  override createGameMode(): EatFishGameMode { return this._gameMode = new EatFishGameMode() }
 
   private _controller: EatFishPlayerController | null = null
   pawn: EatFishPawn | null = null
@@ -18,11 +20,8 @@ export class EatFishGameInstance extends GameInstance {
     return this._controller
   }
 
-  private callbacks: GameInstanceCallbacks = {}
-  private unsubGameState: (() => void) | null = null
-
-  constructor(renderContainer?: HTMLElement | null) {
-    super(new World(), renderContainer ?? null)
+  constructor() {
+    super()
     const scene = this.world.sceneComp.scene
 
     // 设置水下场景氛围
@@ -41,44 +40,20 @@ export class EatFishGameInstance extends GameInstance {
 
     // 统一在此加载项目配置表（游戏配置 + 鱼类原型表）
     new EatFishConfigLoader((msg) => logger.info(msg)).init()
-    this.gameMode = new EatFishGameMode()
-    this.world.SetGameMode(this.gameMode)
-    this.world.Stop()
-
-    this.unsubGameState = this.gameMode.gameState.subscribe(() => {
-      const gs = this.gameMode.gameState
-      this.callbacks.onScoreChange?.(gs.score)
-      this.callbacks.onPhaseChange?.(gs.phase)
-      if (gs.phase === 'gameover') {
-        this.callbacks.onGameOver?.()
-      }
-    })
   }
 
-  override setCallbacks(cbs: GameInstanceCallbacks) {
-    this.callbacks = cbs
+  override onControllerReady(ctrl: PlayerController): void {
+    this._controller = ctrl as EatFishPlayerController
+    this.pawn = ctrl.pawn as EatFishPawn
   }
 
-  override start(): boolean {
-    logger.info('[EatFishGameInstance] 启动游戏...')
-    this.gameMode.InitGame()
-    this.gameMode.StartPlay()
-
-    const spawn = this.gameMode.SpawnPlayer()
-    if (!spawn) {
-      logger.error('[EatFishGameInstance] SpawnPlayer 返回空')
-      return false
-    }
-
-    const pawn = spawn.pawn as EatFishPawn
-    pawn.InitGame()
-    this._controller = spawn.controller as EatFishPlayerController
-    this.pawn = pawn
+  override onStart(ctrl: PlayerController): boolean {
+    this.pawn!.InitGame()
 
     // 生成鱼群
     this.gameMode.SpawnInitialFish()
 
-    logger.info(`[EatFishGameInstance] 玩家生成: ${pawn.name}`)
+    logger.info(`[EatFishGameInstance] 玩家生成: ${this.pawn!.name}`)
     this.world.BeginPlay()
 
     logger.info('[EatFishGameInstance] 游戏已启动')
@@ -120,10 +95,7 @@ export class EatFishGameInstance extends GameInstance {
 
   override destroy() {
     this.stop()
-    if (this.unsubGameState) {
-      this.unsubGameState()
-      this.unsubGameState = null
-    }
+    super.destroy()
     this.world.Destroy()
   }
 }

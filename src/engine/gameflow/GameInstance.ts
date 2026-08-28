@@ -10,7 +10,9 @@ import { AObject } from '../entity/AObject'
 import { GMModule } from '../gm/GMModule'
 import { GameViewportComponent } from './GameViewportComponent'
 import { EditorGameBridgeComponent } from './EditorGameBridgeComponent'
-import type { World } from './World'
+import { World } from './World'
+import type { GameMode } from './GameMode'
+import { logger } from '../Logger'
 
 export interface GameInstanceCallbacks {
   onScoreChange?: (score: number) => void
@@ -32,16 +34,16 @@ export abstract class GameInstance extends AObject {
     GameInstance._current = inst
   }
 
-  /** 当前实例关联的 World（子类在 super() 时传入） */
+  /** 当前实例关联的 World */
   readonly world: World
 
   /** 游戏视口组件（持有渲染容器 DOM） */
   readonly viewport: GameViewportComponent
 
-  constructor(world: World, container: HTMLElement | null) {
+  constructor() {
     super()
-    this.world = world
-    this.viewport = this.addComponent(GameViewportComponent, container)
+    this.world = new World()
+    this.viewport = this.addComponent(GameViewportComponent)
     // 编辑器只读桥：编辑器经此组件读取游戏场景（不注入编辑器内容）
     this.addComponent(EditorGameBridgeComponent)
   }
@@ -62,14 +64,72 @@ export abstract class GameInstance extends AObject {
    */
   initialMode?: string
 
+  /** 当前 GameMode（子类各自持有具体类型实例） */
+  protected abstract get gameMode(): GameMode
+
   /** 当前玩家控制器（用于输入路由） */
   abstract get controller(): PlayerController | null
 
-  /** 注册状态变化回调 */
-  abstract setCallbacks(cbs: GameInstanceCallbacks): void
+  /** 状态变化回调 */
+  protected callbacks: GameInstanceCallbacks = {}
 
-  /** 启动游戏：生成玩家、初始化世界、进入运行态 */
-  abstract start(): boolean
+  /** 注册状态变化回调 */
+  setCallbacks(cbs: GameInstanceCallbacks): void {
+    this.callbacks = cbs
+  }
+
+  /** GameState 订阅取消函数 */
+  private _unsubGameState: (() => void) | null = null
+
+  /**
+   * 子类返回具体的 GameMode 实例。
+   * 不走 start() 流程的子类（如 FishGameInstance）可以不覆盖此方法。
+   */
+  protected createGameMode(): GameMode {
+    throw new Error(`${this.constructor.name} 未实现 createGameMode()，但调用了 start()`)
+  }
+
+  /**
+   * 启动游戏：初始化 GameMode、自动生成玩家、进入运行态。
+   * 子类通过 onStart() 钩子插入特化逻辑（如生成初始道具/鱼群）。
+   */
+  start(): boolean {
+    logger.info(`[${this.constructor.name}] 启动游戏...`)
+
+    // 创建 GameMode 并挂载到 World
+    const gm = this.createGameMode()
+    this.world.SetGameMode(gm)
+    this.world.Stop()
+
+    // 订阅 GameState 状态变化 → 回调
+    this._unsubGameState = gm.gameState.subscribe(() => {
+      const gs = gm.gameState
+      this.callbacks.onScoreChange?.(gs.score)
+      this.callbacks.onPhaseChange?.(gs.phase)
+      if (gs.phase === 'gameover') {
+        this.callbacks.onGameOver?.()
+      }
+    })
+
+    gm.InitGame()
+    gm.StartPlay()
+    const ctrl = gm.controller
+    if (!ctrl) {
+      logger.error(`[${this.constructor.name}] StartPlay 后 controller 为空`)
+      return false
+    }
+    this.onControllerReady(ctrl)
+    return this.onStart(ctrl)
+  }
+
+  /** 子类钩子：controller 就绪后，子类将 controller 保存到自己的类型化字段 */
+  protected onControllerReady(_ctrl: PlayerController): void {}
+
+  /** 子类钩子：在 InitGame + StartPlay + controller 就绪后，插入特化逻辑并调 world.BeginPlay() */
+  protected onStart(_ctrl: PlayerController): boolean {
+    this.world.BeginPlay()
+    return true
+  }
 
   /** 每帧 Tick（由外部渲染循环驱动） */
   abstract tick(dt: number): void
@@ -97,7 +157,12 @@ export abstract class GameInstance extends AObject {
   abstract stop(): void
 
   /** 完全销毁：清理所有资源 */
-  abstract destroy(): void
+  destroy(): void {
+    if (this._unsubGameState) {
+      this._unsubGameState()
+      this._unsubGameState = null
+    }
+  }
 
   /**
    * 终态化输入子系统（幂等：BObject.EndPlay 自动 markDestroyed + 注册表注销）。

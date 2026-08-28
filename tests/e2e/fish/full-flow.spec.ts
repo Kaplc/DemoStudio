@@ -73,10 +73,10 @@ test.describe('FishMaster 全流程', () => {
   test('打开工程 → 启动游戏 → 主菜单 → 基地 → 建造菜单 → 停止', async ({ page }) => {
     // ── 1. 打开编辑器 ──
     await page.goto('/')
-    await expect(page.getByText('FishMaster', { exact: false }).first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('ClashMaster', { exact: false }).first()).toBeVisible({ timeout: 30_000 })
 
-    // ── 2. 打开 FishMaster 工程 ──
-    await openProject(page, 'FishMaster')
+    // ── 2. 打开 ClashMaster 工程 ──
+    await openProject(page, 'ClashMaster')
 
     // ── 3. 启动游戏 ──
     await dispatchClick(page, 'Launch')
@@ -111,7 +111,7 @@ test.describe('FishMaster 全流程', () => {
 
   test('主菜单 → 直接进入捕鱼关卡（ai.switchScene）→ Esc 暂停菜单', async ({ page }) => {
     await page.goto('/')
-    await openProject(page, 'FishMaster')
+    await openProject(page, 'ClashMaster')
     await dispatchClick(page, 'Launch')
     await waitForBridge(page)
     await waitForActor(page, 'StartButton')

@@ -41,7 +41,11 @@ for (const [typeId, ctor] of Object.entries(CLASH_BUILDING_ACTOR_CLASSES)) {
 
 export const fishMasterProject: ProjectModule = {
   name: 'ClashMaster',
-  createGameInstance: (renderContainer) => new FishGameInstance(renderContainer),
+  createGameInstance: (renderContainer) => {
+    const inst = new FishGameInstance()
+    if (renderContainer) inst.viewport.setContainer(renderContainer)
+    return inst
+  },
   registerAssets: registerFishAssets,
   initConfigs: initFishConfigs,
 }

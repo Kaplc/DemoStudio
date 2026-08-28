@@ -48,6 +48,8 @@ export class InputSys extends BObject {
     controller?.inputComponent.ProcessMouseButton(button, 'pressed')
     // 已被 ClickableComponent 消费（UI 按钮/建筑点击）→ 不再下发 controller，
     // 避免同一击既触发按钮又触发放置/移动等地面逻辑（跨帧 clickConsumed 标记会吞掉下一次点击）
+    // Bug 定位用：点击未生效时，controller 为 null 表示本阶段 Controller 缺失
+    //（查对应 GameMode 的 StartPlay() 是否漏调 super.StartPlay()）
     if (consumed) return true
     // 左键才走控制器点击逻辑（右键语义交给订阅者）
     if (button === 0) {

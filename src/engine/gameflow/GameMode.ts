@@ -44,6 +44,8 @@ export abstract class GameMode extends BObject {
 
   StartPlay(): void {
     this.gameState.setPhase('playing')
+    // GameMode 创建时自动生成玩家 Controller + Pawn（子类实现 spawnPlayerInternal）
+    this.SpawnPlayer()
   }
 
   override BeginPlay(): void {

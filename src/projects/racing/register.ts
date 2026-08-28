@@ -6,5 +6,9 @@ import { RacingGameInstance } from './'
 
 export const racingProject: ProjectModule = {
   name: 'Racing',
-  createGameInstance: (renderContainer) => new RacingGameInstance(renderContainer),
+  createGameInstance: (renderContainer) => {
+    const inst = new RacingGameInstance()
+    if (renderContainer) inst.viewport.setContainer(renderContainer)
+    return inst
+  },
 }

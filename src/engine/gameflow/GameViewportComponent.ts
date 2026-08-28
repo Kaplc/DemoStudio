@@ -9,10 +9,14 @@ import type { GameInstance } from './GameInstance'
 
 export class GameViewportComponent extends AObjectComponent<GameInstance> {
   /** 游戏渲染容器 DOM（SceneRendererComponent 从这里获取 canvas 挂载点） */
-  readonly container: HTMLElement | null
+  private _container: HTMLElement | null = null
 
-  constructor(owner: GameInstance, container: HTMLElement | null) {
-    super(owner)
-    this.container = container
+  get container(): HTMLElement | null {
+    return this._container
+  }
+
+  /** 设置渲染容器（可在构造后调用） */
+  setContainer(container: HTMLElement | null): void {
+    this._container = container
   }
 }
