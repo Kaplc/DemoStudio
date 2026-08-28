@@ -1,5 +1,5 @@
 ---
-name: create-config-asset
+name: skl-create-config-asset
 description: '创建 DemoStudio 配置表资产（asset/config/*.config.json 单例配置 与 *.table.json 数据表）。使用时机：用户要求新建/编辑配置文件，如 "写鱼种配置"、"加一个炮台等级表"、"新建 troop 数据表"、"配置数值调整"。规则与 ConfigRegistry/DataTable 加载机制及项目 ConfigLoader 注册流程一致（半自动：路径由 glob 推导，transform/默认值手动）。'
 argument-hint: '配置表名称或用途描述'
 ---

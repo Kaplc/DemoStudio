@@ -1,5 +1,5 @@
 ---
-name: create-scene-asset
+name: skl-create-scene-asset
 description: '创建 DemoStudio 场景资产（.scene.json）。使用时机：用户要求新建/编辑场景资产文件，如 "创建一个新场景"、"写 fish 的场景资产"、"添加场景 objects 节点"、"场景里放一个 actor/ref"。规则与资产检查器（assetLint doc:scene / node:actor / node:ref）一致，创建的资产必须零 lint 错误。'
 argument-hint: '场景名称或场景用途描述'
 ---

@@ -1,5 +1,5 @@
 ---
-name: create-ui-widget-asset
+name: skl-create-ui-widget-asset
 description: '创建 DemoStudio UI widget 资产（.widget.json，UI 蓝图）。使用时机：用户要求新建/编辑 UI 面板资产，如 "创建一个 HUD"、"写主菜单 UI"、"添加一个按钮/文本/图片控件"、"widget 里挂脚本"。规则与资产检查器（assetLint）+ UI 组件系统（UITransform/CanvasUI/UIText/UIImage/UIButton/UIScript）一致，创建的资产必须零 lint 错误且能在 UIPreviewManager 中正确预览。'
 argument-hint: 'widget 名称或 UI 面板用途描述'
 ---

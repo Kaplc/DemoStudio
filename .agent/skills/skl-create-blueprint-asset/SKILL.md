@@ -1,5 +1,5 @@
 ---
-name: create-blueprint-asset
+name: skl-create-blueprint-asset
 description: '创建 DemoStudio 蓝图资产（.blueprint.json）。使用时机：用户要求新建/编辑蓝图资产文件，如 "创建一个房屋蓝图"、"写 beach house 的 blueprint"、"蓝图里加子 Actor/组件"、"引用另一个蓝图"。规则与资产检查器（assetLint doc:blueprint / node / comp）一致，创建的资产必须零 lint 错误。'
 argument-hint: '蓝图名称或蓝图用途描述'
 ---
@@ -149,7 +149,7 @@ argument-hint: '蓝图名称或蓝图用途描述'
 ### 其他组件（无强 schema 校验）
 - `LightComponent`：`type`/`color`/`intensity`/`castShadow`/`position` 等
 - `InputComponent` / `SpawnComponent` / `LineComponent`：构造即用，不进 props
-- UI 组件（UITransform/CanvasUI/UIText/UIImage/UIButton/UIScript）——请用 `create-ui-widget-asset` skill（UI 资产专用规则）
+- UI 组件（UITransform/CanvasUI/UIText/UIImage/UIButton/UIScript）——请用 `skl-create-ui-widget-asset` skill（UI 资产专用规则）
 
 ## 创建步骤
 1. 确认蓝图名（name 唯一）与 `baseClass`（ActorRegistry 已注册的类型）
