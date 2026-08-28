@@ -111,7 +111,7 @@ flowchart LR
 |---|---|
 | 文件读写 | `electronAPI.readJsonFile / writeJsonFile`（浏览器调试时用 MockElectronAPI） |
 | 蓝图编辑窗口 API | `window.blueprintEditor`（脚本/AI 经此调用 BlueprintEditorService） |
-| MCP 服务器 | `editor/mcp-server.mjs`：AI 经 HTTP 控制蓝图编辑与游戏 |
+| MCP 服务器 | `editor/mcp-server.mjs`：AI 经 HTTP 控制蓝图编辑与游戏（配置挂载/工具清单/多实例端口见 [MCP 集成](../mcp_integration.md)） |
 | 日志 | `LogPoller` 轮询 `logs/console_*.log` 展示到 Console 面板 |
 
 ## 7. 依赖关系

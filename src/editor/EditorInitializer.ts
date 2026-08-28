@@ -357,9 +357,20 @@ export function registerGlobalEventListeners(callbacks: {
             if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, response)
             break
           }
-          case 'ai_list_events':
-            addConsoleOutput(`[MCP][AI] 已注册事件: ${AIModule.instance.listEvents().join(', ') || '（无）'}`)
+          case 'ai_list_events': {
+            // 往返模式：主进程已挂 requestId，需回传事件名列表（否则 AI 只拿到 ack）
+            const events = AIModule.instance.listEvents()
+            addConsoleOutput(`[MCP][AI] 已注册事件: ${events.join(', ') || '（无）'}`)
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: 'ok',
+                command: 'ai_list_events',
+                events,
+                count: events.length,
+              })
+            }
             break
+          }
           case 'send_input':
             if (params?.key) {
               window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))

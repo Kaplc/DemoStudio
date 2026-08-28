@@ -1,3 +1,12 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "demostudio-editor": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "E:\\DemoStudio\\editor\\mcp-server.mjs"
+      ],
+      "cwd": "E:\\DemoStudio"
+    }
+  }
 }

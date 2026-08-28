@@ -1,19 +1,12 @@
 /**
  * PluginControlCenter - 插件控制中心
  * 
- * 显示当前所有可用插件，支持启用/禁用、查看详情
+ * 单行列表风格：每项仅展示「名称 + 介绍」，右侧为 iOS 风格开关（无图标）
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { pluginService } from '../editor/PluginService'
+import { logger } from '../engine'
 import type { PluginInfo, PluginStatus, PluginType } from '../types/plugin'
-
-/** 状态图标映射（不再使用 emoji，改为 CSS 状态点） */
-const STATUS_CLASS: Record<PluginStatus, string> = {
-  active: 'active',
-  inactive: 'inactive',
-  error: 'error',
-  loading: 'loading',
-}
 
 /** 插件类型中文名映射 */
 const TYPE_NAMES: Record<PluginType, string> = {
@@ -23,53 +16,49 @@ const TYPE_NAMES: Record<PluginType, string> = {
   integration: '集成',
 }
 
-interface PluginCardProps {
+/** loading 态开关不可操作，避免与同步流程冲突 */
+const isStatusLockable = (status: PluginStatus): boolean => status === 'loading'
+
+interface PluginRowProps {
   plugin: PluginInfo
   onToggle: (id: string) => void
 }
 
-/** 单个插件卡片 */
-const PluginCard: React.FC<PluginCardProps> = ({ plugin, onToggle }) => {
+/** 单个插件行（单行：名称 + 介绍 + iOS 开关） */
+const PluginRow: React.FC<PluginRowProps> = ({ plugin, onToggle }) => {
   const { metadata, state } = plugin
   const isActive = state.status === 'active'
+  const locked = isStatusLockable(state.status)
+
+  const handleClick = () => {
+    if (locked) return
+    logger.info(`[PluginControlCenter] 切换插件: ${metadata.id} → ${isActive ? '停用' : '启用'}`)
+    onToggle(metadata.id)
+  }
 
   return (
-    <div className={`plugin-card ${isActive ? 'active' : 'inactive'}`}>
-      <div className="plugin-card__header">
-        <div className="plugin-card__info">
-          <div className="plugin-card__name">{metadata.name}</div>
-          <div className="plugin-card__id">{metadata.id}</div>
-        </div>
-        <span className={`plugin-card__status plugin-card__status--${STATUS_CLASS[state.status]}`}></span>
-      </div>
-      
-      <div className="plugin-card__desc">{metadata.description}</div>
+    <div className={`plugin-row ${isActive ? 'active' : 'inactive'}`}>
+      <button
+        className="plugin-row__main"
+        onClick={handleClick}
+        disabled={locked}
+        title={locked ? '插件加载中，暂不可切换' : (isActive ? '点击停用' : '点击启用')}
+      >
+        <span className="plugin-row__name">{metadata.name}</span>
+        <span className="plugin-row__desc">{metadata.description}</span>
+      </button>
 
-      {metadata.capabilities && metadata.capabilities.length > 0 && (
-        <div className="plugin-card__capabilities">
-          {metadata.capabilities.slice(0, 3).map((cap, i) => (
-            <span key={i} className="plugin-card__cap-tag">{cap}</span>
-          ))}
-          {metadata.capabilities.length > 3 && (
-            <span className="plugin-card__cap-more">+{metadata.capabilities.length - 3}</span>
-          )}
-        </div>
-      )}
-
-      <div className="plugin-card__actions">
-        <button
-          className={`btn btn-sm ${isActive ? 'btn-danger' : 'btn-primary'}`}
-          onClick={() => onToggle(metadata.id)}
-        >
-          {isActive ? '停用' : '启用'}
-        </button>
-      </div>
-
-      {state.lastError && (
-        <div className="plugin-card__error">
-          ⚠️ {state.lastError}
-        </div>
-      )}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isActive}
+        aria-label={`${metadata.name} ${isActive ? '已启用' : '已停用'}`}
+        disabled={locked}
+        className={`plugin-switch ${isActive ? 'on' : 'off'} ${locked ? 'locked' : ''}`}
+        onClick={handleClick}
+      >
+        <span className="plugin-switch__knob" />
+      </button>
     </div>
   )
 }
@@ -86,10 +75,10 @@ export const PluginControlCenter: React.FC<PluginControlCenterProps> = ({ onClos
   useEffect(() => {
     // 订阅插件状态变化
     const unsub = pluginService.onPluginsChange(setPlugins)
-    
+
     // 初始同步 DSH 状态
     pluginService.syncFromDSH()
-    
+
     return unsub
   }, [])
 
@@ -116,9 +105,14 @@ export const PluginControlCenter: React.FC<PluginControlCenterProps> = ({ onClos
   return (
     <div className="plugin-control-center">
       <div className="plugin-control-center__header">
-        <h2>🔌 插件控制中心</h2>
+        <h2>插件</h2>
         {onClose && (
-          <button className="btn btn-icon" onClick={onClose}>✕</button>
+          <button
+            className="plugin-control-center__close"
+            onClick={onClose}
+            title="关闭"
+            aria-label="关闭插件面板"
+          >✕</button>
         )}
       </div>
 
@@ -166,7 +160,7 @@ export const PluginControlCenter: React.FC<PluginControlCenterProps> = ({ onClos
         </div>
       </div>
 
-      {/* 插件列表 */}
+      {/* 插件列表（单行） */}
       <div className="plugin-control-center__list">
         {filteredPlugins.length === 0 ? (
           <div className="plugin-empty">
@@ -174,7 +168,7 @@ export const PluginControlCenter: React.FC<PluginControlCenterProps> = ({ onClos
           </div>
         ) : (
           filteredPlugins.map((plugin) => (
-            <PluginCard
+            <PluginRow
               key={plugin.metadata.id}
               plugin={plugin}
               onToggle={handleToggle}
