@@ -2,7 +2,7 @@
 
 > 蓝图资产（.blueprint.json）的编辑编排：读盘 → 应用 op → 注册表同步 → 撤销/重做。
 > 代码位置：`src/editor/blueprintEdit/`
-> 相关文档：[撤销/重做系统设计](../undo_redo_system.md) / [属性修改系统](./property_edit_system.md) / [系统总览](../system_overview.md)
+> 相关文档：[撤销/重做系统设计](./undo_redo_system.md) / [属性修改系统](./property_edit_system.md) / [系统总览](../system_overview.md)
 
 ## 1. 概述
 

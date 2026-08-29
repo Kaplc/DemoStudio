@@ -2,7 +2,7 @@
 
 > 外部 AI 经 MCP 服务器 / HTTP 控制编辑器的三层通道：配置挂载方式、命令往返语义、多实例端口选择。
 > 代码位置：`editor/mcp-server.mjs`（MCP 服务器）、`electron/main.ts`（HTTP API，行 1290 起）、`src/editor/EditorInitializer.ts`（渲染进程命令分发）
-> 相关文档：[AI 事件系统](./engine/ai_system.md) / [编辑器核心](./editor/core_system.md) / [GM 命令系统](./engine/gm_system.md) / [Harness 工程](./harness_system.md)
+> 相关文档：[AI 事件系统](../engine/ai_system.md) / [编辑器核心](./core_system.md) / [GM 命令系统](../engine/gm_system.md) / [Harness 工程](../harness/harness_system.md)
 
 ## 1. 概述
 
@@ -20,7 +20,7 @@ DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同
 | 页面内桥 | 无（同进程 JS） | 渲染进程挂 `window` | 直接返回 | Playwright 浏览器调试 |
 | 直接 HTTP | HTTP | Electron 主进程 | 同 MCP（共用端点） | 脚本 / 快速探测 |
 
-**边界划分**：事件**语义**归 [AI 事件系统](./engine/ai_system.md)（有哪些事件、payload 结构）；GM 命令**清单**归 [GM 命令系统](./engine/gm_system.md)；本文档只讲**通道怎么搭起来、命令怎么走、什么情况会失败**。
+**边界划分**：事件**语义**归 [AI 事件系统](../engine/ai_system.md)（有哪些事件、payload 结构）；GM 命令**清单**归 [GM 命令系统](../engine/gm_system.md)；本文档只讲**通道怎么搭起来、命令怎么走、什么情况会失败**。
 
 ## 2. 核心模块
 
@@ -30,8 +30,8 @@ DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同
 | `electron/main.ts` MCP HTTP API | 内置 HTTP 服务，行 1290 起；端口 9877 起探测，仅绑定 `127.0.0.1` |
 | `src/editor/EditorInitializer.ts` | 渲染进程命令分发：`onMCPCommand` 收到命令后 `switch` 分发到 `AIModule` / 编辑器动作 |
 | `onMCPCommand` / `sendMCPResponse` | 主进程 ⇄ 渲染进程的 IPC 往返对；`requestId` 关联挂起的 HTTP 响应 |
-| `AIModule` | 事件总线单例，见 [AI 事件系统](./engine/ai_system.md) |
-| `BlueprintEditorService` | 蓝图编辑通道（`/api/blueprint`），见 [蓝图编辑](./editor/blueprint_edit_system.md) |
+| `AIModule` | 事件总线单例，见 [AI 事件系统](../engine/ai_system.md) |
+| `BlueprintEditorService` | 蓝图编辑通道（`/api/blueprint`），见 [蓝图编辑](./blueprint_edit_system.md) |
 
 ## 3. 使用方法
 
@@ -105,7 +105,7 @@ fetch('http://127.0.0.1:9877/api/command', {
 ```
 
 ```js
-// 页面内桥（Playwright，见 playwright_commands.md）
+// 页面内桥（Playwright，见 testing/playwright_commands.md）
 await page.evaluate(() => window.__ai.emit('ai.getState', {}))
 ```
 
@@ -171,7 +171,7 @@ node editor/mcp-server.mjs --port 9878
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/command` | 主命令入口（MCP 服务器走这条） |
-| POST | `/api/blueprint` | 蓝图编辑往返，见 [蓝图编辑](./editor/blueprint_edit_system.md) |
+| POST | `/api/blueprint` | 蓝图编辑往返，见 [蓝图编辑](./blueprint_edit_system.md) |
 | GET | `/api/status` | 编辑器状态 |
 | GET | `/api/game-state` | 读取 `window.__snakeGameData` |
 | GET | `/api/console-logs` | 控制台日志 |
@@ -208,7 +208,7 @@ AI 客户端
                                     └─(SSE /api/events)→ DSH 扩展订阅
 ```
 
-注册机制：AI 事件处理器注册见 [AI 事件系统](./engine/ai_system.md)；GM 命令注册（`*.gm.ts` 自动注册）见 [GM 命令系统](./engine/gm_system.md)。
+注册机制：AI 事件处理器注册见 [AI 事件系统](../engine/ai_system.md)；GM 命令注册（`*.gm.ts` 自动注册）见 [GM 命令系统](../engine/gm_system.md)。
 
 ## 7. 踩坑记录
 

@@ -2,7 +2,7 @@
 
 > 通过 `playwright` MCP server（`browser_*` 系列工具）操作**本地 Chrome** 调试编辑器的完整链路：CDP 挂载、工具清单、沙箱限制。
 > 代码位置：`editor/mcp-server.mjs`（同进程另一通道，非本文）、`src/editor/MockElectronAPI.ts`（浏览器模式降级实现）
-> 相关文档：[内置浏览器工具速查](./playwright_commands.md)（另一条路径，能力等价） / [MCP 集成与调试桥](./mcp_integration.md) / [Playwright 测试流程](./playwright_testing.md) / [编辑器核心](./editor/core_system.md)
+> 相关文档：[内置浏览器工具速查](./playwright_commands.md)（另一条路径，能力等价） / [MCP 集成与调试桥](../editor/mcp_integration.md) / [Playwright 测试流程](./playwright_testing.md) / [编辑器核心](../editor/core_system.md)
 
 ## 1. 概述
 
@@ -25,7 +25,7 @@
 | `playwright` MCP server | 把 `browser_*` 工具调用翻译成 CDP 指令 |
 | 输出沙箱目录 | 快照/截图/日志的落盘位置，白名单机制限制 |
 
-**边界划分**：页面内**调试桥的事件语义**归 [AI 事件系统](./engine/ai_system.md)；**MCP 工具转发**（`demostudio-editor` server）归 [MCP 集成与调试桥](./mcp_integration.md)——本文的 `playwright` server 与它是**两个不同的 MCP server**，不要混淆。
+**边界划分**：页面内**调试桥的事件语义**归 [AI 事件系统](../engine/ai_system.md)；**MCP 工具转发**（`demostudio-editor` server）归 [MCP 集成与调试桥](../editor/mcp_integration.md)——本文的 `playwright` server 与它是**两个不同的 MCP server**，不要混淆。
 
 ## 2. 核心模块
 
@@ -36,8 +36,8 @@
 | `browser_evaluate` | 页面内执行 JS 的工具，**访问调试桥全靠它**，是本文路径的主力 |
 | `browser_snapshot` / `browser_find` | 无障碍树快照与文本搜索，用于定位元素与断言，比截图更适合 AI 消费 |
 | `MockElectronAPI` | 浏览器模式下 `window.electronAPI` 的降级实现（仅内存缓存，不落盘） |
-| `window.__ai` | 页面内 AI 事件桥，见 [AI 事件系统](./engine/ai_system.md) |
-| `window.blueprintEditor` | 页面内蓝图编辑服务，见 [蓝图编辑](./editor/blueprint_edit_system.md) |
+| `window.__ai` | 页面内 AI 事件桥，见 [AI 事件系统](../engine/ai_system.md) |
+| `window.blueprintEditor` | 页面内蓝图编辑服务，见 [蓝图编辑](../editor/blueprint_edit_system.md) |
 
 ## 3. 使用方法
 
@@ -287,7 +287,7 @@ VS Code 集成浏览器（路径②）         本地 Chrome + CDP :9222（路�
               AIModule 事件总线 ──► 引擎 / 编辑器动作
 ```
 
-另一条 AI 控制通道（不经浏览器，直接控制 Electron）见 [MCP 集成与调试桥](./mcp_integration.md)：
+另一条 AI 控制通道（不经浏览器，直接控制 Electron）见 [MCP 集成与调试桥](../editor/mcp_integration.md)：
 
 ```
 AI 客户端 ──stdio──► editor/mcp-server.mjs ──HTTP :9877+──► electron/main.ts ──IPC──► 渲染进程

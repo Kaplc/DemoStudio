@@ -1,6 +1,6 @@
 # UI 增强系统（Tween / Toast / Tooltip / 色盲 / 输入提示 / 通用组件）
 
-> 在基础 UI 系统（UIManager/HUD/控件组件，见 [世界 UI 系统](./engine/ui_system.md)）之上补齐的游戏 UI 能力，
+> 在基础 UI 系统（UIManager/HUD/控件组件，见 [世界 UI 系统](../engine/ui_system.md)）之上补齐的游戏 UI 能力，
 > 对齐 game-ui-design 设计准则：动效、通知、悬停提示、色盲适配、输入设备感知、进度/列表组件、设计级 lint。
 > 代码位置：`src/engine/ui/TweenSystem.ts` `ToastSystem.ts` `UITooltipComponent.ts` `ColorblindService.ts`
 > `InputPromptSystem.ts` `UIProgressBarComponent.ts` `UIScrollListComponent.ts`；

@@ -2,7 +2,7 @@
 
 > 场景对象选择管理 + 三套 Gizmo 交互工具。
 > 代码位置：`src/editor/SelectionManager.ts` `TransformGizmo.ts` `AnchorGizmo.ts` `SelectionBoundsGizmo.ts`
-> 相关文档：[系统总览](../system_overview.md) / [视口与场景](./viewport_system.md) / [UI 锚点系统](../ui_anchor_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [视口与场景](./viewport_system.md) / [UI 锚点系统](./ui_anchor_system.md)
 
 ## 1. 概述
 
@@ -40,7 +40,7 @@
 
 - 显示父容器范围 + 锚点图标（单点锚风车形聚合 / stretch 四角分布）
 - 用于游戏运行时 UI 节点的锚点调整
-- 布局算法、拖动回写与 Inspector 编辑详见 [UI 锚点系统](../ui_anchor_system.md)
+- 布局算法、拖动回写与 Inspector 编辑详见 [UI 锚点系统](./ui_anchor_system.md)
 
 ### SelectionBoundsGizmo（运行时 UI 节点）
 

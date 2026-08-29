@@ -3,7 +3,7 @@
 > ClashMaster（fish 项目，部落冲突风格）的关卡选择与进入流程：基地 HUD 双按钮 → 地图面板（关卡列表）→ 关卡场景 → 返回基地。
 > ⚠️ 战斗改造后（2026-08）：关卡场景不再是空壳，`FishLevelGameMode` 已改造为战斗 GameMode（攻打敌方基地），Esc 不再打开暂停菜单。**关卡内的战斗玩法见 [`battle_system.md`](./battle_system.md)**，本文档只覆盖"地图入口 + 关卡切换 + 返回基地"链路。
 > 代码位置：`src/projects/fish/gameplay/`（`FishGameInstance.ts` 阶段路由、`level/` 关卡 GameMode、`base/MapPanel.script.ts` 地图面板）、`src/projects/fish/asset/`（`config/levels.table.json`、`fish_level*.scene.json`、`blueprints/ui/*.widget.json`）。
-> 相关文档：[`battle_system.md`](./battle_system.md)、[`../engine/gameflow_system.md`](./engine/gameflow_system.md)、[`../engine/ui_system.md`](./engine/ui_system.md)、[`../engine/asset_tools_system.md`](./engine/asset_tools_system.md)。
+> 相关文档：[`battle_system.md`](./battle_system.md)、[`../engine/gameflow_system.md`](../engine/gameflow_system.md)、[`../engine/ui_system.md`](../engine/ui_system.md)、[`../engine/asset_tools_system.md`](../engine/asset_tools_system.md)。
 
 ## 1. 概述
 

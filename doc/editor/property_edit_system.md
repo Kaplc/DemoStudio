@@ -2,7 +2,7 @@
 
 > Inspector 面板修改组件属性的完整链路：可编辑属性定义 → 双通道提交（蓝图资产 vs 运行时组件）→ 撤销/重做 → 落盘。
 > 代码位置：`src/components/Inspector.tsx` / `src/engine/entity/ActorComponent.ts` / `src/editor/blueprintEdit/`
-> 相关文档：[蓝图编辑系统](./blueprint_edit_system.md) / [撤销/重做系统设计](../undo_redo_system.md)
+> 相关文档：[蓝图编辑系统](./blueprint_edit_system.md) / [撤销/重做系统设计](./undo_redo_system.md)
 
 ## 1. 概述
 

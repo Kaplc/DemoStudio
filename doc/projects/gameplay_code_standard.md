@@ -2,7 +2,7 @@
 
 > ClashMaster（fish）项目 gameplay 代码的分层规范：**GameMode（规则权威）/ Controller（用户输入操作）/ Pawn（世界化身）/ GameState（全局状态）/ 组件（行为模块）/ GameInstance（阶段路由+跨阶段共享）/ World（场景世界）** 七类角色的职责范围与禁止越界的红线。任何 gameplay 新增功能（放兵交互、建造、出海、UI 联动等）必须先按本文档归类落点，再动手写代码。
 > 代码位置：`src/projects/fish/gameplay/`（各阶段 `{menu,base,game,level}/` 下的 GameMode/Controller/Pawn 三件套 + 阶段玩法）、引擎基类 `src/engine/`（`gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts`、`gameflow/GameInstance.ts`、`gameflow/World.ts`、`entity/Component.ts`）。
-> 相关文档：[`../engine/gameflow_system.md`](./engine/gameflow_system.md)（游戏流程基类与注册）、[`../engine/input_physics_script_system.md`](./engine/input_physics_script_system.md)（InputSys 输入路由）、[`../engine/entity_system.md`](./engine/entity_system.md)（实体与组件体系）、[`./battle_system.md`](./battle_system.md)（战斗玩法，本文档的规范实例）、[`./projects/clash_master.md`](./projects/clash_master.md)（项目总览）。
+> 相关文档：[`../engine/gameflow_system.md`](../engine/gameflow_system.md)（游戏流程基类与注册）、[`../engine/input_physics_script_system.md`](../engine/input_physics_script_system.md)（InputSys 输入路由）、[`../engine/entity_system.md`](../engine/entity_system.md)（实体与组件体系）、[`./battle_system.md`](./battle_system.md)（战斗玩法，本文档的规范实例）、[`./clash_master.md`](./clash_master.md)（项目总览）。
 
 ## 1. 概述
 

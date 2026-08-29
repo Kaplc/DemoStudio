@@ -2,7 +2,7 @@
 
 > 网格 A* 寻路：阻挡格从静态碰撞体自动栅格化，兵沿路径绕墙移动；无路径回退直线。
 > 代码位置：`src/engine/navigation/`
-> 相关文档：[系统总览](../system_overview.md) / [输入物理脚本系统](./input_physics_script_system.md) / [ClashMaster 项目](../projects/clash_master.md) / [战斗系统](../battle_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [输入物理脚本系统](./input_physics_script_system.md) / [ClashMaster 项目](../projects/clash_master.md) / [战斗系统](../projects/battle_system.md)
 
 ## 1. 核心类
 

@@ -52,7 +52,7 @@ ConnectionIndicator.onClick(degraded)
 
 入口（调用 `dsh-open-agent-window` IPC → `openAgentWindow()`）：
 
-- 顶部菜单栏 **Agent → 「在独立窗口打开 Agent」**
+- 顶部菜单栏 **Agent → 「打开 Agent」**
 - 快捷键 **Ctrl+Shift+A**
 
 窗口加载**编辑器自身的 AgentUI**（与 agent `:3080` 交互、共享同一批会话）：
@@ -163,8 +163,8 @@ child.on('exit') 且 !_dshShuttingDown 且 lifecycle==='running'
 
 - **持久化映射**：renderer 在 localStorage `demostudio.dsh.session` 写 `{sessionId, port, savedAt}`；`connect/createSession/switchSession` 都会刷新，`deleteSession` 删除当前会话时清除。
 - **单一可信源**：聊天历史永远从远端 `session.history` 拉回（`loadHistory()` 分页 fold），本地不缓存消息体。
-- **断档补档**：恢复 attach 成功后检查 history 尾部——最后一个边界事件若是未闭合的 `turn/start`，说明刷新期间有回合在跑，启动 `pollForResponse()` 断档续听直到 `turn/end`。轮询内部以 history 最新 seq 为起点，不重复回放。
-- **通信制式事实**：现行协议为 **session.prompt RPC + history 轮询主导**（mux WS 仅承载 `question/requested` 等 server-push 帧，由 main 持有）。当前 dsh-cli 版本不存在 per-session SSE 流端点，「SSE 主导」不适用；如后续内核提供再切换。
+- **断档补档**：恢复 attach 成功后检查 history 尾部——最后一个边界事件若是未闭合的 `turn/start`，说明刷新期间有回合在跑，重立 seq 基线后续听直到 `turn/end`：mux 在线由 `session/event` 推送 + 静默心跳驱动，离线回退 `pollForResponse()`。基线以 history 最新 seq 为起点，不重复回放。
+- **通信制式事实（2026-08 修订）**：现行协议为 **mux WS `session/event` 推送主导 + history 轮询/心跳兜底**。经核对 `dsh-source` 源码：`/api/events.mux` 连接即推送**所有会话**的 `session/event` 帧（无需订阅 RPC，连接时下发 `session/subscribed {sessionId, lastSeq}` 基线；`session/created` 时对新会话同样补发基线），turn/chunk/tool 等 48 种 SessionEvent 全部走该流；`events.host` 仅承载 host 生命周期帧（session-added/removed/status、workspace 变更），不承载 AI 回复内容。`pollForResponse()` 仅在 mux 离线（浏览器 WS 断开）或心跳检测到推送静默时兜底。
 
 ---
 
@@ -202,7 +202,7 @@ child.on('exit') 且 !_dshShuttingDown 且 lifecycle==='running'
 1. **agent 归属判定靠心跳注册表，不靠父子进程关系** —— 认领的旧 agent 不是本实例的 child，唯一凭据是 `owner.json.agentPid` 与 `editors/` 心跳
 2. **主动关闭才收割 agent** —— `window-all-closed` 路径才会 kill；HMR 刷新与 main 重启绝不触碰 agent
 3. **孤儿自杀宽限 = `DSH_OWNER_GRACE_MS`（可配）** —— watcher 是唯一有权在编辑器全部消失后收割 agent 的角色
-4. **业务通道仍是 HTTP RPC + history 轮询兜底** —— mux WS 只承载 server-push 帧；WS 不用于业务数据通道
+4. **业务通道以 mux WS `session/event` 推送为主导，history 轮询/心跳只作兜底** —— 推送/轮询/心跳三路共用 `_lastSeq` 去重与统一事件分发；会话切换/新建必须重置 seq 基线
 5. **DSH runtime 子进程由 dsh-cli 自持** —— 编辑器只管理 dsh-cli 这一层进程树
 6. **会话恢复尽力而为** —— agent 进程本身崩溃重建后，远端 session 若仍存在于 DSH 存储则可 attach；DSH 不落盘的部分如实按「已知限制」标注，不虚报保证
 7. **多实例共享单 agent** —— `:3080` 固定端口不做递增；互斥靠「是否还有新鲜编辑器心跳」

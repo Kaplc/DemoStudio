@@ -2,7 +2,7 @@
 
 > UI 控件九宫格锚点定位（Unity RectTransform / Anchor Preset 风格）：引擎侧布局算法 + 编辑器侧可视化编辑。
 > 代码位置：`src/engine/ui/UITransformComponent.ts` `src/editor/AnchorGizmo.ts` `src/editor/SelectionBoundsGizmo.ts` `src/editor/asset/RuntimeUIEditor.ts` `src/editor/asset/UIPreviewManager.ts`
-> 相关文档：[系统总览](./system_overview.md) / [世界 UI 系统](./engine/ui_system.md) / [选择与变换系统](./editor/selection_transform_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [世界 UI 系统](../engine/ui_system.md) / [选择与变换](./selection_transform_system.md)
 
 ## 1. 概述
 

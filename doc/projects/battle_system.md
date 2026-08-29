@@ -2,7 +2,7 @@
 
 > fish 项目（ClashMaster，部落冲突风格）的“攻打其他部落”战斗玩法：基地训练军队 → 地图面板选关卡 → 进入战斗场景放兵攻打敌方基地 → 防御塔反击 / 兵拆建筑（受击显示血条）→ 摧毁城镇大厅胜利或军队全灭失败 → 掠夺金币+药水实时累计+飞行动画 → 结算一次性入账 → 结算面板回基地。
 > 代码位置：`src/projects/fish/gameplay/`（`level/FishLevelGameMode.ts` 战斗 GameMode、`battle/` 兵/弹丸/HUD/结算脚本、`base/ClashBuildingTypes.ts` 建筑类型表、`common/comp/` 资源/训练/血条组件、`common/fx/` 战斗特效、`FishGameInstance.ts` 阶段路由）、`src/projects/fish/asset/`（`fish_level*.scene.json` 战斗场景、`blueprints/ui/battle_*.widget.json` 战斗 UI）。
-> 相关文档：[`level_system.md`](./level_system.md)（关卡入口与切换流程，本文档承接其"关卡场景"环节）、[`../engine/gameflow_system.md`](./engine/gameflow_system.md)、[`../engine/ui_system.md`](./engine/ui_system.md)、[`../engine/input_physics_script_system.md`](./engine/input_physics_script_system.md)。
+> 相关文档：[`level_system.md`](./level_system.md)（关卡入口与切换流程，本文档承接其"关卡场景"环节）、[`../engine/gameflow_system.md`](../engine/gameflow_system.md)、[`../engine/ui_system.md`](../engine/ui_system.md)、[`../engine/input_physics_script_system.md`](../engine/input_physics_script_system.md)。
 
 ## 1. 概述
 

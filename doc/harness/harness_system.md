@@ -2,7 +2,7 @@
 
 > DemoStudio 仓库内的 agent 工作台工程：在 VS Code 中以原生体验连接 DeepSeek Harness（DSH）内核，让 agent 完成"改代码 → 启动游戏 → 读日志 → 迭代"闭环。
 > 代码位置：`harness/`（VS Code 扩展 + DSH 插件包 + DSH Profile + DSH 源码克隆）
-> 相关文档：[系统总览](./system_overview.md) / [AI 事件系统](./engine/ai_system.md) / [编辑器核心](./editor/core_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [AI 事件系统](../engine/ai_system.md) / [编辑器核心](../editor/core_system.md)
 
 ## 1. 概述
 

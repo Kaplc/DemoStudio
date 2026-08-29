@@ -2,7 +2,7 @@
 
 > ClashMaster 是 DemoStudio 的部落冲突风格示例项目：村庄基地建造（`FishBaseGameMode`）→ 兵营训练军队 → 地图选关卡攻打敌方基地（`FishLevelGameMode` 战斗）。项目原名为 **FishMaster / 捕鱼达人**，2026-08-15 起仅**表现层**（显示名/UI 文案/GM 面板主题）改名为 ClashMaster，**目录/类名/文件名保持 fish 前缀不动**。
 > 代码位置：`src/projects/fish/`（`register.ts` 项目注册、`FishGameInstance.ts` 阶段路由、`gameplay/{menu,base,game,level,battle,common,gm}/` 各阶段玩法、`asset/` 全部场景/蓝图/widget/配置表资产）。
-> 相关文档：[`level_system.md`](../level_system.md)（关卡入口与切换）、[`battle_system.md`](../battle_system.md)（攻打战斗玩法）、[`../engine/gm_system.md`](../engine/gm_system.md)（GM 命令与控制台，§3.6 项目自定义面板）、[`../engine/gameflow_system.md`](../engine/gameflow_system.md)、[`../engine/ui_system.md`](../engine/ui_system.md)、[`../engine/asset_tools_system.md`](../engine/asset_tools_system.md)。
+> 相关文档：[`level_system.md`](./level_system.md)（关卡入口与切换）、[`battle_system.md`](./battle_system.md)（攻打战斗玩法）、[`../engine/gm_system.md`](../engine/gm_system.md)（GM 命令与控制台，§3.6 项目自定义面板）、[`../engine/gameflow_system.md`](../engine/gameflow_system.md)、[`../engine/ui_system.md`](../engine/ui_system.md)、[`../engine/asset_tools_system.md`](../engine/asset_tools_system.md)。
 
 ## 1. 概述
 
