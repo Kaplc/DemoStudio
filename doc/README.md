@@ -61,6 +61,7 @@
 | [`harness/dsh_vscode_demostudio_prd.md`](./harness/dsh_vscode_demostudio_prd.md) | DSH VS Code DemoStudio PRD |
 | [`harness/preset-sync-mechanism.md`](./harness/preset-sync-mechanism.md) | Preset 同步机制 |
 | [`harness/slash_command_system.md`](./harness/slash_command_system.md) | 斜杠命令系统：触发检测 / 命令注册 / DSH 集成 |
+| [`harness/dsh_plugin_install.md`](./harness/dsh_plugin_install.md) | DSH 插件安装与加载：junction / patch 行 / 启动加载流程（含 dsh-memory 记忆插件、dsh-sync 启动同步插件） |
 
 ## 测试（`testing/` — Playwright 调试与测试）
 
