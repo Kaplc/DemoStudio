@@ -14,5 +14,5 @@ harness/vscode-ext/dist-webview/
 
 # 各子工程 node_modules
 harness/vscode-ext/node_modules/
-harness/dsh-plugin/node_modules/
+harness/dsh-engine-tools/node_modules/
 harness/profile/node_modules/

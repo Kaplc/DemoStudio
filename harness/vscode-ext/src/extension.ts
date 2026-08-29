@@ -55,7 +55,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ── 3. Plugin 工具加载（失败返回空数组）──
   let tools: ReturnType<typeof loadPluginTools> = []
   try {
-    const pluginDist = path.resolve(context.extensionPath, '..', '..', 'dsh-plugin', 'dist', 'index.js')
+    const pluginDist = path.resolve(context.extensionPath, '..', '..', 'dsh-engine-tools', 'dist', 'index.js')
     outputChannel.appendLine(`[extension] pluginDist=${pluginDist}`)
     const fileBridge = new VscodeFileBridge(outputChannel)
     const guardCfg = vscode.workspace.getConfiguration('dsh').get<Record<string, 'allow' | 'deny' | 'ask'>>('guardPolicy', {}) ?? {}

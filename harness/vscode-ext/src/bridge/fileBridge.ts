@@ -6,7 +6,7 @@
  */
 import * as vscode from 'vscode'
 import * as path from 'node:path'
-import type { FileBridgeLike } from '../../../dsh-plugin/src/engineContext'
+import type { FileBridgeLike } from '../../../dsh-engine-tools/src/engineContext'
 
 export class VscodeFileBridge implements FileBridgeLike {
   constructor(private readonly outputChannel: { appendLine: (s: string) => void }) {}

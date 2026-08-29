@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "description": "DemoStudio Harness DSH Profile：声明 @demostudio/dsh-engine-tools 插件包依赖。",
   "dependencies": {
-    "@demostudio/dsh-engine-tools": "file:../dsh-plugin"
+    "@demostudio/dsh-engine-tools": "file:../dsh-engine-tools"
   }
 }

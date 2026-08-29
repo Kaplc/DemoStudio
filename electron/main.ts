@@ -1500,7 +1500,7 @@ async function startMCPServer() {
           const cmd: MCPCommand = JSON.parse(body)
           // ai_event：往返模式，等渲染进程处理完回传结果（AI 需要拿到事件返回值）
           if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events') {
-            // ai.event 转发（用于 dsh-plugin 订阅；不影响原有的 renderer 往返）
+            // ai.event 转发（用于 dsh-engine-tools 订阅；不影响原有的 renderer 往返）
             publishSSE('ai.event', {
               event: cmd.params?.event ?? cmd.params ?? 'unknown',
               payload: cmd.params?.payload,

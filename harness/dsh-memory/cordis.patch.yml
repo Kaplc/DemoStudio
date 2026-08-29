@@ -1,0 +1,4 @@
+# cordis.patch.yml 留空数组占位：本插件全部贡献走代码注册
+# （system prompt section、4 个 memory_* 工具、agent/pre-step、agent/turn-stopping 监听）。
+# 挂载方式见 harness/profile/dsh.profile.yml 的 bundles 列表。
+[]
