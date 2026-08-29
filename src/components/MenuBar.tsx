@@ -132,11 +132,7 @@ export function MenuBar() {
     {
       label: 'Agent',
       items: [
-        { label: '在独立窗口打开 Agent', shortcut: 'Ctrl+Shift+A', action: 'open-agent-window' },
-        'separator',
-        { label: '🔌 插件控制中心', shortcut: 'Ctrl+Shift+P', action: 'plugin-center' },
-        'separator',
-        { label: 'Settings', action: 'agent-settings' },
+        { label: '打开 Agent', shortcut: 'Ctrl+Shift+A', action: 'open-agent-window' },
       ],
     },
     {

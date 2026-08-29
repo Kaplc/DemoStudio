@@ -1,8 +1,17 @@
 @echo off
 cd /d "%~dp0"
 
+REM ─── 检查管理员权限，如果没有则请求提升 ───
+net session >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [Info] 需要管理员权限来同步 presets...
+    echo [Info] 正在请求管理员权限...
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
 echo ============================================
-echo   DSH Source - DeepSeek Harness
+echo   DSH Source - DeepSeek Harness (管理员模式)
 echo ============================================
 echo.
 
@@ -82,6 +91,38 @@ if not exist "node_modules" (
     echo.
 )
 
+REM ─── 配置本地 Presets 目录 ───
+set "LOCAL_PRESETS=%~dp0.dsh\presets"
+set "PATCH_FILE=%~dp0.dsh\profiles\cordis.patch.yml"
+
+if exist "%LOCAL_PRESETS%" (
+    echo [Sync] 检测到本地 presets 目录: %LOCAL_PRESETS%
+
+    REM 检查补丁文件是否存在
+    if not exist "%PATCH_FILE%" (
+        echo       创建配置补丁文件...
+        if not exist "%~dp0.dsh\profiles" mkdir "%~dp0.dsh\profiles"
+        (
+            echo # DemoStudio 自定义配置补丁
+            echo # 将本地 .dsh\presets 目录添加为额外的 preset 根目录
+            echo.
+            echo - id: agent-presets
+            echo   name: '@deepseek-ai/dsh-agent-presets'
+            echo   config:
+            echo     default: standard
+            echo     roots:
+            echo       - path: "E:\DemoStudio\.dsh\presets"
+            echo         trust: user
+        ) > "%PATCH_FILE%"
+    )
+
+    echo       [OK] 本地 presets 将通过补丁文件加载
+    echo.
+) else (
+    echo [Sync] 未检测到本地 presets 目录
+    echo.
+)
+
 REM ─── 检查是否需要构建 ───
 if not exist "apps\web\dist" (
     echo [Build] 首次运行，正在构建项目...
@@ -107,7 +148,16 @@ echo   ※ Web UI 将在 http://127.0.0.1:3080 启动
 echo   ※ 按 Ctrl+C 停止服务
 echo.
 
-pnpm dsh web
+REM 检查是否有本地 presets 需要通过补丁加载
+set "LOCAL_PRESETS=%~dp0.dsh\presets"
+set "PATCH_FILE=%~dp0.dsh\profiles\cordis.patch.yml"
+
+if exist "%LOCAL_PRESETS%" if exist "%PATCH_FILE%" (
+    echo [Launch] 应用本地 presets 补丁...
+    pnpm dsh web --patch "%PATCH_FILE%"
+) else (
+    pnpm dsh web
+)
 if errorlevel 1 (
     echo.
     echo [ERROR] DSH 启动失败！

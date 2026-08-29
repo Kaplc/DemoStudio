@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Icon } from './icons/Icon'
 import { useEditorStore } from '../stores/editorStore'
-import { agentService } from '../editor/AgentService'
+import { agentService, type HistoryMessage } from '../editor/AgentService'
 import { pluginService } from '../editor/PluginService'
 import { MessageBubble } from './agent/MessageBubble'
 import { StepProcess, type ProcessItem } from './agent/StepProcess'
@@ -67,6 +67,54 @@ interface QueuedRetry {
 
 type DisplayQueueItem = QueuedAssistant | QueuedTool | QueuedRetry
 
+const HISTORY_TURNS_PER_PAGE = 2
+
+function turnStartIndices(items: Message[]): number[] {
+  const starts: number[] = []
+  items.forEach((item, index) => {
+    if (item.role === 'user') starts.push(index)
+  })
+  return starts
+}
+
+function latestHistoryStart(items: Message[], turnCount = HISTORY_TURNS_PER_PAGE): number {
+  const starts = turnStartIndices(items)
+  return starts[Math.max(0, starts.length - turnCount)] ?? 0
+}
+
+function previousHistoryStart(items: Message[], currentStart: number, turnCount = HISTORY_TURNS_PER_PAGE): number | null {
+  const starts = turnStartIndices(items)
+  // currentStart 通常是 user 消息下标；分页边界也可能落在 assistant/tool 中间，
+  // 此时按边界之前最近的 user 消息计算，避免加载上一页后又跳回最新两轮。
+  const previousStarts = starts.filter(index => index < currentStart)
+  if (previousStarts.length === 0) return null
+  return previousStarts[Math.max(0, previousStarts.length - turnCount)] ?? 0
+}
+
+function toPanelHistoryMessage(
+  history: HistoryMessage,
+  sessionKey: string,
+  fallbackIndex: number,
+): Message {
+  return {
+    id: history.seq !== undefined
+      ? `hist-${sessionKey}-${history.seq}`
+      : `hist-${sessionKey}-${history.ts ?? 0}-${history.role}-${fallbackIndex}`,
+    role: history.role as Message['role'],
+    content: history.content,
+    reasoning: history.reasoning,
+    turnCompleted: history.turnCompleted,
+    turnEndReason: history.turnEndReason,
+    tool: history.tool,
+    command: history.command,
+    compaction: history.compaction,
+    retries: history.retries,
+    todos: history.todos,
+    requestHeader: history.requestHeader,
+    ts: history.ts || Date.now(),
+  }
+}
+
 export const AgentPanel: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -83,6 +131,8 @@ export const AgentPanel: React.FC = () => {
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null)
+  const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const headerMenuRef = useRef<HTMLDivElement>(null)
@@ -118,6 +168,14 @@ export const AgentPanel: React.FC = () => {
   const displayedRetryIdsRef = useRef(new Set<string>())
   const pendingTurnSystemRef = useRef<string | null>(null)
   const drainQueueRef = useRef<() => void>(() => {})
+  // 历史窗口只显示当前已加载尾部的最近两轮，向上滚动时逐步展开/拉取更早内容。
+  const loadedHistoryRef = useRef<Message[]>([])
+  const historyCursorRef = useRef<number | undefined>(undefined)
+  const historyHasMoreRef = useRef(false)
+  const historyVisibleStartRef = useRef(0)
+  const historyLoadingRef = useRef(false)
+  const historySessionKeyRef = useRef('current')
+  const [hasOlderHistory, setHasOlderHistory] = useState(false)
 
   const {
     addConsoleOutput,
@@ -155,6 +213,35 @@ export const AgentPanel: React.FC = () => {
     
     return unsubPlugins
   }, [])
+
+  // 获取当前工作区路径和 preset
+  useEffect(() => {
+    const fetchWorkspace = async () => {
+      try {
+        const info = await window.electronAPI?.getAppInfo()
+        if (info?.appRoot) {
+          // 提取 basename 作为显示名称
+          const parts = info.appRoot.replace(/\\/g, '/').split('/')
+          const basename = parts[parts.length - 1] || info.appRoot
+          setWorkspacePath(basename)
+        }
+      } catch {
+        setWorkspacePath('.')
+      }
+    }
+    fetchWorkspace()
+  }, [])
+
+  // 获取当前 preset
+  useEffect(() => {
+    const fetchPreset = async () => {
+      if (connectionState === 'connected') {
+        const preset = await agentService.getCurrentPreset()
+        setCurrentPreset(preset)
+      }
+    }
+    fetchPreset()
+  }, [connectionState, sessions])
 
   // 初始化服务
   useEffect(() => {
@@ -671,6 +758,15 @@ export const AgentPanel: React.FC = () => {
   }, [])
 
   const clearDisplayQueue = useCallback(() => {
+    const active = activeDisplayRef.current
+    if (active?.kind === 'assistant') {
+      // 停止或切换会话时保留已经打出来的内容，但结束它的 streaming 状态，
+      // 避免消息一直显示为“思考中”或保留打字光标。
+      setMessages(cur => cur.map(message => message.id === active.id
+        ? { ...message, streaming: false }
+        : message))
+      setContentVersion(v => v + 1)
+    }
     displayQueueRef.current = []
     activeDisplayRef.current = null
     displayPhaseRef.current = null
@@ -699,40 +795,96 @@ export const AgentPanel: React.FC = () => {
   // 从 DSH 恢复历史消息（HMR / 重连后调用）
   const restoreHistory = useCallback(async () => {
     try {
-      const history = await agentService.loadHistory()
-      if (!history.length) return
-      const restored: Message[] = history.map((h, i) => {
-        // 将特殊 role 映射为 system 消息，保留原始数据
-        const role = (h.role === 'tool' || h.role === 'command' || h.role === 'compaction' ||
-          h.role === 'retry' || h.role === 'turn-error' || h.role === 'turn-max-tokens' ||
-          h.role === 'todo' || h.role === 'request-header')
-          ? h.role as any
-          : h.role
-        return {
-          id: `hist-${i}-${h.ts || Date.now()}`,
-          role,
-          content: h.content,
-          reasoning: h.reasoning,
-          turnCompleted: h.turnCompleted,
-          turnEndReason: h.turnEndReason,
-          tool: h.tool,
-          command: h.command,
-          compaction: h.compaction,
-          retries: h.retries,
-          todos: h.todos,
-          requestHeader: h.requestHeader,
-          ts: h.ts || Date.now(),
-        }
-      })
+      const page = await agentService.loadHistoryPage()
+      const sessionKey = agentService.getSessionId() || 'current'
+      const restored = page.messages.map((history, index) => toPanelHistoryMessage(history, sessionKey, index))
+      loadedHistoryRef.current = restored
+      historyCursorRef.current = page.beforeSeq
+      historyHasMoreRef.current = page.hasMore
+      historySessionKeyRef.current = sessionKey
+      historyVisibleStartRef.current = latestHistoryStart(restored)
+      setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
+      if (!restored.length) return
       setMessages([
         { id: 'sys-0', role: 'system', content: '对话已恢复', ts: Date.now() },
-        ...restored,
+        ...restored.slice(historyVisibleStartRef.current),
       ])
-      console.log(`[AgentPanel] 已恢复 ${restored.length} 条历史消息`)
+      console.log(`[AgentPanel] 已恢复最近 ${HISTORY_TURNS_PER_PAGE} 轮历史消息，窗口内 ${restored.length} 条`)
     } catch (err) {
       console.warn('[AgentPanel] 恢复历史失败:', err)
     }
   }, [])
+
+  // 清空历史分页窗口（新建/切换会话时调用，实时消息不进入这个窗口）。
+  const resetHistoryWindow = useCallback(() => {
+    loadedHistoryRef.current = []
+    historyCursorRef.current = undefined
+    historyHasMoreRef.current = false
+    historyVisibleStartRef.current = 0
+    historySessionKeyRef.current = agentService.getSessionId() || 'current'
+    setHasOlderHistory(false)
+  }, [])
+
+  // 将已加载的历史窗口重新放回当前消息列表，保留历史窗口之外的实时消息/系统提示。
+  const replaceVisibleHistory = useCallback((visibleStart: number) => {
+    const loaded = loadedHistoryRef.current
+    const historyIds = new Set(loaded.map(message => message.id))
+    setMessages(current => {
+      const firstHistoryIndex = current.findIndex(message => historyIds.has(message.id))
+      if (firstHistoryIndex === -1) return [...loaded.slice(visibleStart), ...current]
+      const prefix = current.slice(0, firstHistoryIndex).filter(message => !historyIds.has(message.id))
+      const suffix = current.slice(firstHistoryIndex).filter(message => !historyIds.has(message.id))
+      return [...prefix, ...loaded.slice(visibleStart), ...suffix]
+    })
+    setContentVersion(version => version + 1)
+  }, [])
+
+  const handleLoadOlderHistory = useCallback(async () => {
+    if (historyLoadingRef.current) return
+
+    const loaded = loadedHistoryRef.current
+    const currentStart = historyVisibleStartRef.current
+    const previousStart = previousHistoryStart(loaded, currentStart)
+    if (previousStart !== null) {
+      historyVisibleStartRef.current = previousStart
+      setHasOlderHistory(previousStart > 0 || historyHasMoreRef.current)
+      replaceVisibleHistory(previousStart)
+      return
+    }
+
+    if (!historyHasMoreRef.current || historyCursorRef.current === undefined) {
+      setHasOlderHistory(false)
+      return
+    }
+
+    historyLoadingRef.current = true
+    const anchorId = loaded[currentStart]?.id
+    try {
+      const page = await agentService.loadHistoryPage(historyCursorRef.current)
+      const older = page.messages.map((history, index) => toPanelHistoryMessage(
+        history,
+        historySessionKeyRef.current,
+        index,
+      ))
+      const knownIds = new Set(loaded.map(message => message.id))
+      const merged = [...older.filter(message => !knownIds.has(message.id)), ...loaded]
+      loadedHistoryRef.current = merged
+      historyCursorRef.current = page.beforeSeq
+      historyHasMoreRef.current = page.hasMore
+
+      const anchorIndex = anchorId ? merged.findIndex(message => message.id === anchorId) : -1
+      const nextStart = anchorIndex >= 0
+        ? (previousHistoryStart(merged, anchorIndex, HISTORY_TURNS_PER_PAGE) ?? 0)
+        : latestHistoryStart(merged)
+      historyVisibleStartRef.current = nextStart
+      setHasOlderHistory(nextStart > 0 || page.hasMore)
+      replaceVisibleHistory(nextStart)
+    } catch (error) {
+      console.warn('[AgentPanel] 加载更早历史失败:', error)
+    } finally {
+      historyLoadingRef.current = false
+    }
+  }, [replaceVisibleHistory])
 
   // 断开连接
   const handleDisconnect = useCallback(() => {
@@ -815,42 +967,38 @@ export const AgentPanel: React.FC = () => {
     console.log(`[AgentPanel] handleStop: 点击停止按钮`)
     try {
       setIsAgentRunning(false) // 立即更新 UI 状态
+      // 停止服务端回合的同时，立即取消当前 assistant/reasoning 打字机，
+      // 清空尚未显示的队列，避免停止后仍继续消费 requestAnimationFrame。
+      clearDisplayQueue()
       await agentService.stop()
       addConsoleOutput('[Agent] 已停止 AI')
     } catch (error) {
       console.error(`[AgentPanel] 停止失败:`, error)
       pushSystem(`停止失败: ${error instanceof Error ? error.message : '未知错误'}`)
     }
-  }, [addConsoleOutput, pushSystem])
+  }, [addConsoleOutput, clearDisplayQueue, pushSystem])
 
   // 切换会话
   const handleSwitchSession = useCallback(async (sessionId: string) => {
     console.log('[AgentPanel] 切换会话:', sessionId)
     clearDisplayQueue()
+    resetHistoryWindow()
     await agentService.switchSession(sessionId)
+    historySessionKeyRef.current = sessionId
     setPendingQuestions([]) // 清除旧会话的 pending questions
     
     // 加载历史消息
     console.log('[AgentPanel] 开始加载历史消息')
-    const history = await agentService.loadHistory()
-    console.log('[AgentPanel] 历史消息数量:', history.length)
-    if (history.length > 0) {
-      const historyMessages: Message[] = history.map((msg, i) => ({
-        id: `hist-${sessionId}-${i}`,
-        role: msg.role as any,
-        content: msg.content,
-        reasoning: msg.reasoning,
-        turnCompleted: msg.turnCompleted,
-        turnEndReason: msg.turnEndReason,
-        tool: msg.tool,
-        command: msg.command,
-        compaction: msg.compaction,
-        retries: msg.retries,
-        todos: msg.todos,
-        requestHeader: msg.requestHeader,
-        ts: msg.ts || Date.now(),
-      }))
-      setMessages(historyMessages)
+    const page = await agentService.loadHistoryPage()
+    const historyMessages = page.messages.map((msg, index) => toPanelHistoryMessage(msg, sessionId, index))
+    loadedHistoryRef.current = historyMessages
+    historyCursorRef.current = page.beforeSeq
+    historyHasMoreRef.current = page.hasMore
+    historyVisibleStartRef.current = latestHistoryStart(historyMessages)
+    setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
+    console.log('[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
+    if (historyMessages.length > 0) {
+      setMessages(historyMessages.slice(historyVisibleStartRef.current))
     } else {
       setMessages([{
         id: `sys-${Date.now()}`,
@@ -861,11 +1009,12 @@ export const AgentPanel: React.FC = () => {
     }
     
     setShowSidebar(false)
-  }, [clearDisplayQueue])
+  }, [clearDisplayQueue, resetHistoryWindow])
 
   // 新建会话
   const handleNewSession = useCallback(async () => {
     clearDisplayQueue()
+    resetHistoryWindow()
     const sid = await agentService.createSession()
     if (sid) {
       setMessages([{
@@ -876,8 +1025,15 @@ export const AgentPanel: React.FC = () => {
       }])
       refreshSessions()
       setShowSidebar(false)
+    } else {
+      setMessages([{
+        id: `sys-${Date.now()}`,
+        role: 'system',
+        content: '新建会话失败，请检查 Agent 连接状态或预设配置',
+        ts: Date.now()
+      }])
     }
-  }, [clearDisplayQueue, refreshSessions])
+  }, [clearDisplayQueue, refreshSessions, resetHistoryWindow])
 
   // 删除会话（远程归档 + 本地黑名单，确保不会被 refreshSessions 拉回）
   const handleDeleteSession = useCallback(async (sessionId: string) => {
@@ -1159,6 +1315,18 @@ export const AgentPanel: React.FC = () => {
         </div>
 
         <div className="agent-panel__header-right">
+          {/* 工作区显示 */}
+          {workspacePath && (
+            <div className="agent-panel__workspace" title={`工作区: ${workspacePath}`}>
+              <span className="agent-panel__workspace-label">{workspacePath}</span>
+            </div>
+          )}
+          {/* Preset 显示 */}
+          {currentPreset && (
+            <div className="agent-panel__preset" title={`Preset: ${currentPreset}`}>
+              <span className="agent-panel__preset-label">{currentPreset}</span>
+            </div>
+          )}
           <div className="agent-panel__more-wrap" ref={headerMenuRef}>
             <button
               className="agent-panel__settings-btn"
@@ -1226,6 +1394,8 @@ export const AgentPanel: React.FC = () => {
           renderItem={renderNode}
           onNearBottomChange={handleNearBottomChange}
           onScrollToBottomReady={handleScrollToBottomReady}
+          onReachTop={handleLoadOlderHistory}
+          canLoadMore={hasOlderHistory}
           renderFooter={
             awaitingFirstOutput
               ? () => <ThinkingCard />

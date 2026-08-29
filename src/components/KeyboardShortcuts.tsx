@@ -12,7 +12,7 @@ export function KeyboardShortcuts() {
   useEffect(() => {
     const cleanup = registerShortcuts()
 
-    // Ctrl+Shift+A — 在独立窗口打开 Agent
+    // Ctrl+Shift+A — 打开 Agent
     const onToggleAgent = () => {
       window.electronAPI?.dshOpenAgentWindow?.().catch(() => {})
     }

@@ -1,8 +1,17 @@
 @echo off
 cd /d "%~dp0"
 
+REM ─── 检查管理员权限，如果没有则请求提升 ───
+net session >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [Info] 需要管理员权限来同步 presets...
+    echo [Info] 正在请求管理员权限...
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
 echo ============================================
-echo   DemoStudio Editor - Electron Desktop
+echo   DemoStudio Editor - Electron Desktop (管理员模式)
 echo ============================================
 echo.
 
@@ -166,6 +175,68 @@ if "%DSH_NEED_BUILD%"=="1" (
 
 REM ─── DSH 复用检测已下沉到 Electron main 进程（探测 :3080 → 认领幸存 agent） ───
 REM 旧 DSH_SKIP 环境变量机制由 main.ts 的 bootstrapDSH() 通用探测取代，此处不再设置
+
+REM ─── 同步本地 Presets 到系统目录 ───
+set "LOCAL_PRESETS=%~dp0.dsh\presets"
+set "SYSTEM_PRESETS=%USERPROFILE%\.dsh\.agent-presets"
+
+if exist "%LOCAL_PRESETS%" (
+    echo [Sync] 检测到本地 presets 目录，正在同步到系统目录...
+    echo       源: %LOCAL_PRESETS%
+    echo       目标: %SYSTEM_PRESETS%
+    echo.
+
+    REM 创建系统 presets 目录（如果不存在）
+    if not exist "%SYSTEM_PRESETS%" (
+        mkdir "%SYSTEM_PRESETS%"
+    )
+
+    REM 遍历本地 presets 目录下的每个子目录
+    for /d %%D in ("%LOCAL_PRESETS%\*") do (
+        set "PRESET_NAME=%%~nxD"
+        setlocal enabledelayedexpansion
+        echo       同步预设: !PRESET_NAME!
+
+        REM 删除系统目录中的旧版本（如果存在）
+        if exist "%SYSTEM_PRESETS%\!PRESET_NAME!" (
+            rmdir /s /q "%SYSTEM_PRESETS%\!PRESET_NAME!"
+        )
+
+        REM 复制整个 preset 目录
+        xcopy "%%D" "%SYSTEM_PRESETS%\!PRESET_NAME!\" /E /I /Q /Y >nul
+        if errorlevel 1 (
+            echo         [WARN] 预设 !PRESET_NAME! 同步失败
+        ) else (
+            echo         [OK] 预设 !PRESET_NAME! 已同步
+        )
+        endlocal
+    )
+
+    echo.
+    echo [Sync] Presets 同步完成
+    echo.
+) else (
+    echo [Sync] 未检测到本地 presets 目录，跳过同步
+    echo.
+)
+
+REM ─── 创建 DSH 补丁文件（用于加载系统目录中的 presets） ───
+set "PATCH_FILE=%USERPROFILE%\.dsh\cordis.patch.yml"
+if not exist "%USERPROFILE%\.dsh" mkdir "%USERPROFILE%\.dsh"
+if not exist "%PATCH_FILE%" (
+    echo [Sync] 创建 DSH 补丁文件...
+    (
+        echo # DemoStudio 自定义配置补丁
+        echo # 由 editor.bat 自动生成
+        echo.
+        echo - id: agent-presets
+        echo   name: '@deepseek-ai/dsh-agent-presets'
+        echo   config:
+        echo     default: standard
+    ) > "%PATCH_FILE%"
+    echo       [OK] 补丁文件已创建: %PATCH_FILE%
+    echo.
+)
 
 echo [Launch] 正在启动 Electron 编辑器...
 echo.

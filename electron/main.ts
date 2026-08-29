@@ -85,6 +85,16 @@ app.commandLine.appendSwitch(
   path.join(app.getPath('userData'), 'disk-cache', `instance-${process.pid}`)
 )
 
+// ─── 屏蔽 Chromium DevTools 内部噪音 ───
+// Autofill.enable / Unknown VE context 等错误来自 DevTools 协议层，非应用错误
+const _origStderrWrite = process.stderr.write.bind(process.stderr)
+const DEVTOOLS_NOISE_RE = /(?:Autofill\.\w+|Unknown VE context|visual_logging)/
+process.stderr.write = function (chunk: any, ...args: any[]) {
+  const str = typeof chunk === 'string' ? chunk : String(chunk)
+  if (DEVTOOLS_NOISE_RE.test(str)) return true
+  return _origStderrWrite(chunk, ...args)
+} as typeof process.stderr.write
+
 // 开发服务器地址：vite-plugin-electron 会注入 VITE_DEV_SERVER_URL（包含实际端口，
 // 多实例时 Vite 自动递增端口：5173 → 5174 → ...）
 const VITE_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'

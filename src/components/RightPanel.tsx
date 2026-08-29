@@ -2,7 +2,7 @@
  * RightPanel - 右侧面板容器
  *
  * 仅承载 Inspector；Agent UI 已迁移至独立窗口
- * （入口：顶部菜单 Agent → 「在独立窗口打开 Agent」/ Ctrl+Shift+A / 面板历史入口已移除）
+ * （入口：顶部菜单 Agent → 「打开 Agent」/ Ctrl+Shift+A / 面板历史入口已移除）
  */
 import React from 'react'
 import { Inspector } from './Inspector'

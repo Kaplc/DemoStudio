@@ -1415,6 +1415,52 @@ html, body, #root {
   align-items: center;
   gap: 6px;
 }
+/* 工作区显示 */
+.agent-panel__workspace {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--dsw-alias-fill-l2);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-panel__workspace-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.agent-panel__workspace-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Preset 显示 */
+.agent-panel__preset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--dsw-alias-fill-l3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-panel__preset-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.agent-panel__preset-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .agent-panel__more-wrap {
   position: relative;
 }

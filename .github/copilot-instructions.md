@@ -8,8 +8,8 @@
 - `doc/system_overview.md` — 系统总览：引擎/编辑器/项目/资产类型全量统计与架构索引（改动前先查此文档定位子系统）
 - `doc/engine/*.md` — 引擎系统文档（实体/游戏流/渲染/UI/输入物理脚本/资产工具/AI 事件，每个系统一份）
 - `doc/editor/*.md` — 编辑器系统文档（核心/视口/选择变换/蓝图编辑/预览与检查/UI 组件，每个系统一份）
-- `doc/undo_redo_system.md` — 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读）
-- `doc/ursina_reference.md` — Ursina 参考文档（涉及 API 兼容性设计时参考）
+- `doc/editor/undo_redo_system.md` — 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读）
+- `doc/engine/ursina_reference.md` — Ursina 参考文档（涉及 API 兼容性设计时参考）
 
 ## 浏览器调试模式（AI 专用）
 
@@ -23,9 +23,9 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 
 ### 浏览器调试手册（AI 专用，必查 + 必更新）
 
-- **操作前必查**：`doc/playwright_commands.md` — Playwright 命令速查 + 踩坑（编辑器通用），涉及任何浏览器端调试/测试时先查此手册，避免踩已知坑（hidden 页面 dispatchEvent、HMR 不重建实例、deferredResultId 等）
-- **遇到新坑/新命令自动更新**：调试过程中发现手册未覆盖的坑、有效的新命令/片段、或手册描述与实际行为不符时，**必须当场更新 `doc/playwright_commands.md`**（追加踩坑表行、补充代码片段、修正描述），保持手册永远是最新最准的
-- 方法论/流程详解见 `doc/playwright_testing.md`（与手册互补）
+- **操作前必查**：`doc/testing/playwright_commands.md` — Playwright 命令速查 + 踩坑（编辑器通用），涉及任何浏览器端调试/测试时先查此手册，避免踩已知坑（hidden 页面 dispatchEvent、HMR 不重建实例、deferredResultId 等）
+- **遇到新坑/新命令自动更新**：调试过程中发现手册未覆盖的坑、有效的新命令/片段、或手册描述与实际行为不符时，**必须当场更新 `doc/testing/playwright_commands.md`**（追加踩坑表行、补充代码片段、修正描述），保持手册永远是最新最准的
+- 方法论/流程详解见 `doc/testing/playwright_testing.md`（与手册互补）
 
 ## 运行日志（AI 专用）
 
@@ -60,7 +60,7 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 **完成 gameplay 相关代码编写/修改后，必须自动运行 `ag-gameplay-reviewer` 子代理审查本次改动，并按审查结果修复。**（不询问用户，作为完成前的固定环节）
 
 - **触发范围**：本次改动涉及 `src/projects/fish/gameplay/` 下任何文件（GameMode / Controller / Pawn / GameState / 组件 / 脚本 / GameInstance 等），或修改了相关引擎基类（`src/engine/gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts` 等）
-- **审查依据**：`doc/gameplay_code_standard.md` 七角色职责边界规范（§3 红线清单 + §5 自查表），只审查**本次改动文件**，不必全量扫描
+- **审查依据**：`doc/projects/gameplay_code_standard.md` 七角色职责边界规范（§3 红线清单 + §5 自查表），只审查**本次改动文件**，不必全量扫描
 - **执行方式**：用 runSubagent 调用 `ag-gameplay-reviewer`，argumentHint 传入改动文件列表/功能描述（如"审查 FishLevelGameMode 放兵逻辑 + FishLevelPlayerController 长按放兵"）
 - **修复要求**：审查报告中的「❌ 违规项」必须修复（归位到正确角色/类）；「⚠️ 存疑项」结合代码事实判断后决定是否处理；修复后若涉及多处修改，可再次跑审查确认归零
 - **报告**：最终回复中附一行审查结论（如"✅ 审查通过：改动符合 gameplay_code_standard 七角色规范"或列出残留违规及原因）
@@ -68,3 +68,6 @@ AI 可通过 VS Code 内置的 Playwright 浏览器工具操作页面，**不影
 
 ## Lint检查
 每次修改完成文件都进行lint检查才能结束
+
+## 自动更新文档
+每次修改或者添加新功能的时候就看一下根目录的doc目录有没有相关的文档需要创建或者更新，保持文档实时最新

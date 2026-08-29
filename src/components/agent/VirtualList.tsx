@@ -4,7 +4,7 @@
  * 针对聊天面板优化：不定高 items + 底部对齐 + 动态内容。
  * 核心思路：只渲染可视区域附近的 DOM 节点，上下用 spacer 撑起滚动高度。
  */
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 
 export interface VirtualListProps<T> {
   /** 全量数据 */
@@ -32,6 +32,10 @@ export interface VirtualListProps<T> {
   onNearBottomChange?: (nearBottom: boolean) => void
   /** 暴露滚动到底部的方法，供外部浮动按钮使用。 */
   onScrollToBottomReady?: (scrollToBottom: (behavior?: ScrollBehavior) => void) => void
+  /** 滚动到顶部附近时通知外部加载更早的历史。 */
+  onReachTop?: () => void
+  /** 是否还有更早内容；为 false 时不触发顶部加载回调。 */
+  canLoadMore?: boolean
 }
 
 const DEFAULT_ESTIMATED_HEIGHT = 80
@@ -49,6 +53,8 @@ export function VirtualList<T>({
   renderFooter,
   onNearBottomChange,
   onScrollToBottomReady,
+  onReachTop,
+  canLoadMore = true,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -56,6 +62,8 @@ export function VirtualList<T>({
   const heightCacheRef = useRef<Map<string, number>>(new Map())
   const isNearBottomRef = useRef(true)
   const prevItemCountRef = useRef(0)
+  const previousFirstKeyRef = useRef<string | undefined>(undefined)
+  const previousTotalHeightRef = useRef(0)
 
   const updateNearBottom = useCallback((nearBottom: boolean) => {
     if (isNearBottomRef.current === nearBottom) return
@@ -104,7 +112,9 @@ export function VirtualList<T>({
     // 判断是否在底部附近（100px 容差）
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     updateNearBottom(distanceToBottom < 100)
-  }, [updateNearBottom])
+
+    if (canLoadMore && el.scrollTop < 80) onReachTop?.()
+  }, [canLoadMore, onReachTop, updateNearBottom])
 
   useEffect(() => {
     onNearBottomChange?.(true)
@@ -147,6 +157,23 @@ export function VirtualList<T>({
     // footer 出现/消失时 items.length 不变，需显式依赖其存在与否，
     // 否则思考中卡片出现后不会自动滚入视野
   }, [items.length, autoScrollToBottom, scrollTriggerDeps, !!renderFooter, updateNearBottom])
+
+  // 向前 prepend 历史时补偿新增内容高度，保持用户当前阅读位置不跳动。
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    const firstKey = items.length > 0 ? getItemKey(items[0], 0) : undefined
+    const wasPrepended = previousFirstKeyRef.current !== undefined
+      && firstKey !== previousFirstKeyRef.current
+      && items.length > prevItemCountRef.current
+
+    if (el && wasPrepended && !isNearBottomRef.current) {
+      const heightDelta = totalHeight - previousTotalHeightRef.current
+      if (heightDelta > 0) el.scrollTop += heightDelta
+    }
+
+    previousFirstKeyRef.current = firstKey
+    previousTotalHeightRef.current = totalHeight
+  }, [getItemKey, items, totalHeight])
 
   // 计算可视范围
   const startIndex = findStartIndex(scrollTop)
