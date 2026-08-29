@@ -60,6 +60,7 @@
 | [`harness/dsh_engine_integration.md`](./harness/dsh_engine_integration.md) | **DSH 与引擎集成架构**：agent 常驻化 / watchdog / 崩溃自愈 / 会话恢复 |
 | [`harness/dsh_vscode_demostudio_prd.md`](./harness/dsh_vscode_demostudio_prd.md) | DSH VS Code DemoStudio PRD |
 | [`harness/preset-sync-mechanism.md`](./harness/preset-sync-mechanism.md) | Preset 同步机制 |
+| [`harness/slash_command_system.md`](./harness/slash_command_system.md) | 斜杠命令系统：触发检测 / 命令注册 / DSH 集成 |
 
 ## 测试（`testing/` — Playwright 调试与测试）
 

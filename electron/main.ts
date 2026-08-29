@@ -13,7 +13,7 @@ import path from 'path'
 import fs from 'fs'
 import http from 'http'
 import net from 'net'
-import { spawn, execSync, type ChildProcess } from 'child_process'
+import { spawn, exec, execSync, type ChildProcess } from 'child_process'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
@@ -32,8 +32,18 @@ let _dshRestartCount = 0                    // 自愈已重试次数
 let _dshRestartTimer: NodeJS.Timeout | null = null
 let _dshHeartbeatTimer: NodeJS.Timeout | null = null
 
-const DSH_CLI_PATH = path.join(__dirname, '..', 'harness', 'dsh-source', 'apps', 'cli', 'lib', 'bin.js')
 const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
+
+// 优先全局 npm 安装的 DSH
+function getDshCliPath(): string {
+  try {
+    const { execSync } = require('child_process')
+    const globalDir = execSync('npm root -g', { encoding: 'utf-8' }).trim()
+    const globalBin = path.join(globalDir, '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+    if (fs.existsSync(globalBin)) return globalBin
+  } catch { /* ignore */ }
+  return ''
+}
 
 // 所有权协议目录与关键参数（watcher 与本文件共享同一套语义）
 const DSH_PORT_DEFAULT = 3080
@@ -489,14 +499,15 @@ function ensureDshWatcher(source: string): void {
 
 /** spawn 新的 DSH agent 子进程并等待就绪；成功后进入 running 并认领登记 */
 async function spawnDshAgent(): Promise<void> {
-  if (!fs.existsSync(DSH_CLI_PATH)) {
-    throw new Error(`DSH CLI 不存在: ${DSH_CLI_PATH}`)
+  const cliPath = getDshCliPath()
+  if (!fs.existsSync(cliPath)) {
+    throw new Error(`DSH CLI 不存在（本地和全局均未找到）`)
   }
 
   console.log(`[DSH] 启动 DSH 内核 (web profile, port ${DSH_PORT_DEFAULT})...`)
   _dshLifecycle = 'spawning'
 
-  const child = spawn(getSystemNodePath(), [DSH_CLI_PATH, '--profile', 'web', '--no-open'], {
+  const child = spawn(getSystemNodePath(), [cliPath, '--profile', 'web', '--no-open'], {
     cwd: DSH_SOURCE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
@@ -743,6 +754,89 @@ ipcMain.handle('save-file-dialog', async (_event, options: Electron.SaveDialogOp
 ipcMain.handle('show-message-box', async (_event, options: Electron.MessageBoxOptions) => {
   const result = await dialog.showMessageBox(mainWindow!, options)
   return result
+})
+
+// ─── DSH 内核版本管理（异步，不阻塞主进程） ───
+const execAsync = (cmd: string, opts: { cwd?: string; timeout?: number }) =>
+  new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    exec(cmd, { encoding: 'utf-8', ...opts }, (err, stdout, stderr) => {
+      if (err) reject(err)
+      else resolve({ stdout, stderr })
+    })
+  })
+
+// 获取当前分支/tag + 远程所有 tag 列表
+ipcMain.handle('dsh-list-versions', async () => {
+  try {
+    if (!fs.existsSync(path.join(DSH_SOURCE_DIR, '.git'))) {
+      return { current: '', tags: [], branches: [], error: 'DSH 源码目录不存在' }
+    }
+    await execAsync('git fetch --all --tags', { cwd: DSH_SOURCE_DIR, timeout: 30000 })
+
+    // 当前版本：优先 tag，否则 branch+hash
+    let current = ''
+    try {
+      const { stdout } = await execAsync('git describe --tags --exact-match 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 5000 })
+      current = stdout.trim()
+    } catch {
+      const [{ stdout: branch }, { stdout: hash }] = await Promise.all([
+        execAsync('git rev-parse --abbrev-ref HEAD', { cwd: DSH_SOURCE_DIR, timeout: 5000 }),
+        execAsync('git rev-parse --short HEAD', { cwd: DSH_SOURCE_DIR, timeout: 5000 }),
+      ])
+      current = `${branch.trim()}@${hash.trim()}`
+    }
+
+    // 所有 tag（按版本号倒序）
+    let tags: string[] = []
+    try {
+      const { stdout } = await execAsync('git tag --sort=-version:refname', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      const raw = stdout.trim()
+      tags = raw ? raw.split('\n') : []
+    } catch { /* 无 tag */ }
+
+    // 远程分支列表
+    let branches: string[] = []
+    try {
+      const { stdout } = await execAsync('git branch -r --format=%(refname:short)', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      const raw = stdout.trim()
+      branches = raw ? raw.split('\n').map(b => b.replace('origin/', '')) : []
+    } catch { /* 无分支 */ }
+
+    return { current, tags, branches }
+  } catch (err) {
+    return { current: '', tags: [], branches: [], error: String(err) }
+  }
+})
+
+// 切换到指定 tag/branch：git checkout + install + build（进度通过 dsh-update-progress 事件推送）
+ipcMain.handle('dsh-switch-version', async (event, target: string) => {
+  const sendProgress = (step: string, detail?: string) => {
+    event.sender.send('dsh-update-progress', { step, detail })
+  }
+  try {
+    sendProgress('checkout', `正在切换到 ${target}...`)
+    await execAsync(`git checkout ${target}`, { cwd: DSH_SOURCE_DIR, timeout: 30000 })
+
+    sendProgress('install', '正在安装依赖...')
+    try {
+      await execAsync('pnpm install --prefer-offline --registry=https://registry.npmmirror.com', { cwd: DSH_SOURCE_DIR, timeout: 120000 })
+    } catch { /* 依赖安装失败不中断 */ }
+
+    sendProgress('build', '正在构建 DSH 内核...')
+    await execAsync('pnpm run build', { cwd: DSH_SOURCE_DIR, timeout: 120000 })
+
+    sendProgress('restart', '正在重启 DSH 服务...')
+    await stopDSHService()
+    _dshRestartCount = 0
+    _dshShuttingDown = false
+    void bootstrapDSH('version-switch')
+
+    sendProgress('done', `已切换到 ${target}，更新完成！`)
+    return { ok: true }
+  } catch (err) {
+    sendProgress('error', String(err))
+    return { ok: false, error: String(err) }
+  }
 })
 
 // DSH 服务状态查询（让渲染进程能即时知道 DSH 是否可用 + 端口 + 生命周期阶段）

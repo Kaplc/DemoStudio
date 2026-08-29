@@ -412,7 +412,7 @@ export class AgentService {
   }
 
   // --- DSH RPC 通用调用（通过 Electron IPC 代理，绕过 CORS）---
-  private async rpc(method: string, payload: Record<string, unknown> = {}): Promise<unknown> {
+  async rpc(method: string, payload: Record<string, unknown> = {}): Promise<unknown> {
     const api = window.electronAPI
     if (!api?.dshRpc) {
       // 浏览器模式回退：通过 Vite 代理（/api -> DSH :3080）
@@ -596,6 +596,26 @@ export class AgentService {
     if (window.electronAPI?.dshMuxDisconnect) {
       window.electronAPI.dshMuxDisconnect().catch(() => {})
     }
+  }
+
+  /** HMR：释放旧实例持有的下行流（浏览器 WS / IPC 监听 / 心跳 / 轮询）。
+   * Electron main 的 WS 桥保留不断开，由新实例复用。
+   * 旧实例置为 idle，掐断其 WS 重连定时器等复活路径。 */
+  releaseForHmr(): void {
+    this.abortPolling = true
+    this.stopTurnWatchdog()
+    if (this.muxWs) { this.muxWs.close(); this.muxWs = null }
+    if (this.muxCleanup) { this.muxCleanup(); this.muxCleanup = null }
+    this.setState('idle')
+  }
+
+  /** HMR 接管后重挂实时下行流：mux 连接不会随模块热替换自动恢复，
+   * 必须显式重建（浏览器 WS / Electron IPC 监听）并续听未闭合回合。 */
+  reattachLiveStream(): void {
+    if (this.state !== 'connected' || !this.sessionId) return
+    this.abortPolling = false
+    this.connectMux()
+    this.resumePendingTurnIfNeeded()
   }
 
   /** 处理 mux 帧（question/requested、question/resolved 等） */
@@ -1736,10 +1756,12 @@ const agentService = new AgentService()
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    // 先保存状态，再释放旧实例的下行流（内部会置 idle，掐断重连定时器）
     g[AGENT_SVC_KEY] = {
       sessionId: agentService.getSessionId(),
       state: agentService.getState(),
     }
+    agentService.releaseForHmr()
   })
 }
 
@@ -1747,7 +1769,9 @@ const saved = g[AGENT_SVC_KEY] as { sessionId?: string; state?: ConnectionState 
 if (saved?.sessionId && saved.state === 'connected') {
   ;(agentService as any).sessionId = saved.sessionId
   ;(agentService as any).state = 'connected'
-  console.log(`[AgentService] HMR: 恢复会话 ${saved.sessionId}`)
+  console.log(`[AgentService] HMR: 恢复会话 ${saved.sessionId}，重挂实时下行流`)
+  // mux 连接不会跨热替换存活，必须显式重建并续听未闭合回合
+  agentService.reattachLiveStream()
 }
 
 export { agentService }

@@ -1,10 +1,12 @@
 /**
  * 输入框组件 —— 对齐 DSH Web UI 风格
- * 
- * 胶囊圆角 + 圆形发送按钮 + 自动扩展 + 停止按钮
+ *
+ * 胶囊圆角 + 圆形发送按钮 + 自动扩展 + 停止按钮 + 斜杠命令
  */
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ModelSelector } from './ModelSelector'
+import { SlashMenu, useSlashCommand, registerDshCommandSource, registerDshSkillSource } from './slash-command'
+import { logger } from '../../engine/Logger'
 
 interface InputBoxProps {
   onSend: (text: string) => void
@@ -14,6 +16,8 @@ interface InputBoxProps {
   placeholder?: string
   currentModel?: { provider: string; model: string } | null
   onModelChange?: (provider: string, model: string) => void
+  /** Agent 服务实例（用于获取 DSH commands 和 skills） */
+  agentService?: any
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -24,19 +28,71 @@ export const InputBox: React.FC<InputBoxProps> = ({
   placeholder = '向 Agent 提问...（Enter 发送 / Shift+Enter 换行）',
   currentModel = null,
   onModelChange,
+  agentService,
 }) => {
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
 
+  // 注册 DSH command 和 skill 来源（如果有 agentService）
+  useEffect(() => {
+    if (!agentService) return
+    const disposeCommand = registerDshCommandSource(() => agentService)
+    const disposeSkill = registerDshSkillSource(() => agentService)
+    return () => {
+      disposeCommand()
+      disposeSkill()
+    }
+  }, [agentService])
+
+  // 斜杠命令系统
+  const {
+    isMenuOpen,
+    hit,
+    candidates,
+    highlightIndex,
+    handleInput: handleSlashInput,
+    handleKeyDown: handleSlashKeyDown,
+    selectCommand,
+    closeMenu,
+    moveHighlight,
+  } = useSlashCommand({
+    inputRef: textareaRef,
+    onCommand: (command, args, newText) => {
+      logger.debug(`[InputBox] 命令选择: /${command.name}`)
+      // 更新 React state 和 textarea
+      if (newText !== undefined) {
+        setText(newText)
+        // 同步更新 textarea（React controlled component）
+        if (textareaRef.current) {
+          textareaRef.current.value = newText
+          // 设置光标位置
+          const cursorPos = newText.indexOf(' ') + 1
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = cursorPos
+        }
+      }
+    },
+  })
+
   const submit = () => {
     const trimmed = text.trim()
-    if (!trimmed || disabled || running) return
+    logger.debug(`[InputBox] submit: text="${text}", trimmed="${trimmed}"`)
+    if (!trimmed || disabled || running) {
+      logger.debug('[InputBox] submit 跳过: 空文本或禁用/运行中')
+      return
+    }
+    logger.info(`[InputBox] 发送消息: "${trimmed}"`)
     onSend(trimmed)
     setText('')
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 先让斜杠命令系统处理
+    if (handleSlashKeyDown(e)) {
+      return
+    }
+
+    // 原有的 Enter 发送逻辑
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       submit()
@@ -44,7 +100,12 @@ export const InputBox: React.FC<InputBoxProps> = ({
   }
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value)
+    const newValue = e.target.value
+    setText(newValue)
+
+    // 触发斜杠命令检测
+    const caret = e.target.selectionStart ?? newValue.length
+    handleSlashInput(newValue, caret)
   }
 
   // 镜像 div 驱动自动扩展高度
@@ -83,6 +144,17 @@ export const InputBox: React.FC<InputBoxProps> = ({
               placeholder={placeholder}
               rows={1}
               disabled={disabled}
+            />
+            {/* 斜杠命令菜单 */}
+            <SlashMenu
+              open={isMenuOpen}
+              hit={hit}
+              candidates={candidates}
+              highlightIndex={highlightIndex}
+              onSelect={selectCommand}
+              onClose={closeMenu}
+              onMove={moveHighlight}
+              targetRef={textareaRef}
             />
           </div>
         </div>

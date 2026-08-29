@@ -162,4 +162,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => ipcRenderer.invoke('dsh-open-agent-window'),
+
+  // DSH 内核版本管理
+  dshListVersions: () => ipcRenderer.invoke('dsh-list-versions'),
+  dshSwitchVersion: (target: string) => ipcRenderer.invoke('dsh-switch-version', target),
+  // DSH 更新进度事件推送
+  onDshUpdateProgress: (callback: (progress: { step: string; detail?: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { step: string; detail?: string }) => callback(progress)
+    ipcRenderer.on('dsh-update-progress', handler)
+    return () => { ipcRenderer.removeListener('dsh-update-progress', handler) }
+  },
 })

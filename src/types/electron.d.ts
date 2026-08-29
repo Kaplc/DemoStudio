@@ -80,6 +80,12 @@ export interface ElectronAPI {
 
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => Promise<{ ok: boolean }>
+
+  // DSH 内核版本管理
+  dshListVersions: () => Promise<{ current: string; tags: string[]; branches: string[]; error?: string }>
+  dshSwitchVersion: (target: string) => Promise<{ ok: boolean; error?: string }>
+  // DSH 更新进度事件推送
+  onDshUpdateProgress: (callback: (progress: { step: string; detail?: string }) => void) => () => void
 }
 
 declare global {

@@ -28,6 +28,7 @@ import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionR
 import { QuestionCard } from './agent/QuestionCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
+import { KernelUpdateModal } from './agent/KernelUpdateModal'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -131,6 +132,7 @@ export const AgentPanel: React.FC = () => {
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
+  const [showKernelUpdate, setShowKernelUpdate] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
@@ -1339,6 +1341,12 @@ export const AgentPanel: React.FC = () => {
               <div className="dropdown-menu dropdown-menu--right">
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowKernelUpdate(true) }}
+                >
+                  <span>更新内核</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowPluginCenter(true) }}
                 >
                   <span>插件控制中心{pluginStats.active > 0 ? ` (${pluginStats.active})` : ''}</span>
@@ -1381,6 +1389,16 @@ export const AgentPanel: React.FC = () => {
         visible={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {/* DSH 内核更新浮动窗口 */}
+      {showKernelUpdate && (
+        <KernelUpdateModal
+          onClose={() => setShowKernelUpdate(false)}
+          onVersionChanged={() => {
+            console.log('[AgentPanel] DSH 内核版本已切换，重启后生效')
+          }}
+        />
+      )}
 
       <div className="agent-panel__messages-wrap">
         <VirtualList
@@ -1437,6 +1455,7 @@ export const AgentPanel: React.FC = () => {
         }
         currentModel={currentModel}
         onModelChange={handleModelChange}
+        agentService={agentService}
       />
     </div>
   )

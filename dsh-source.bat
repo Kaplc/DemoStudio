@@ -16,6 +16,7 @@ echo ============================================
 echo.
 
 REM ─── 自动 clone dsh-source ───
+set "DSHPULL=0"
 if not exist "harness\dsh-source\.git" (
     echo [Clone] harness\dsh-source 不存在，正在从 GitHub 克隆...
     echo.
@@ -34,6 +35,26 @@ if not exist "harness\dsh-source\.git" (
     echo.
     echo [Clone] 克隆完成
     echo.
+)
+
+REM ─── 拉取最新代码（强制覆盖本地修改） ───
+if exist "harness\dsh-source\.git" (
+    echo [Pull] 正在拉取最新代码...
+    echo.
+    cd /d "%~dp0harness\dsh-source"
+    git fetch --all
+    if errorlevel 1 (
+        echo [WARN] git fetch 失败，跳过更新（继续使用本地版本）
+    ) else (
+        git reset --hard origin/main 2>nul || git reset --hard origin/master 2>nul
+        if errorlevel 1 (
+            echo [WARN] git reset 失败，跳过更新
+        ) else (
+            echo [Pull] 已强制覆盖为远程最新版本
+            set "DSHPULL=1"
+        )
+        echo.
+    )
 )
 
 cd /d "%~dp0harness\dsh-source"
@@ -124,7 +145,20 @@ if exist "%LOCAL_PRESETS%" (
 )
 
 REM ─── 检查是否需要构建 ───
-if not exist "apps\web\dist" (
+if "%DSHPULL%"=="1" (
+    echo [Build] 检测到代码已更新，正在重新构建...
+    echo.
+    call pnpm run build
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] 构建失败！请查看错误信息
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [Build] 构建完成
+    echo.
+) else if not exist "apps\web\dist" (
     echo [Build] 首次运行，正在构建项目...
     echo.
     call pnpm run build
