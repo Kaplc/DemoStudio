@@ -23,3 +23,9 @@
 - insert:
     - id: dsh-engine-tools
       name: '@demostudio/dsh-engine-tools'
+
+# DemoStudio 插件管理器（@demostudio/dsh-plugin-manager）
+- insert:
+    - id: dsh-plugin-manager
+      name: '@demostudio/dsh-plugin-manager'
+

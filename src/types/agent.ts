@@ -211,6 +211,9 @@ export type AgentEventType =
   // 问答
   | 'questionRequest'
   | 'questionResolved'
+  // 工具审批
+  | 'approvalRequest'
+  | 'approvalResolved'
   // 系统
   | 'error'
   | 'ready'
@@ -398,4 +401,24 @@ export interface QuestionAnswerItem {
 /** 整组回答（对应 QuestionResponsePayload.answer） */
 export interface QuestionAnswer {
   answers: QuestionAnswerItem[]
+}
+
+// ─── 工具审批（对齐 DSH approval/request 瀑布与 host-apiproxy events.schema） ───
+
+/** 客户端可回答的审批结论（其余 resolved 值由 host 广播，不受理） */
+export type ApprovalOutcome = 'allowed-once' | 'rejected'
+
+/** mux 帧 approval/requested 的待审批请求 */
+export interface PendingApprovalRequest {
+  /** server-request 信封的 rpcId，respond 回执标识 */
+  rpcId: string
+  sessionId: string
+  /** 服务端签发的一次性审批 id（approval/resolved 按它配对） */
+  approvalId: string
+  /** 请求越权执行的工具名 */
+  toolName: string
+  /** 关联的工具调用 id（可用来在转录里查命令行） */
+  callId?: string
+  /** 请求方的可读原因（headline 优先展示它） */
+  reason?: string
 }

@@ -24,8 +24,9 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
+import { ApprovalCard } from './agent/ApprovalCard'
 import { ContextCard } from './agent/ContextCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
@@ -133,6 +134,7 @@ export const AgentPanel: React.FC = () => {
   const [showPluginCenter, setShowPluginCenter] = useState(false)
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [showKernelUpdate, setShowKernelUpdate] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
@@ -373,12 +375,17 @@ export const AgentPanel: React.FC = () => {
           break
 
         case 'todoWrite': {
-          const todoPayload = event.payload as any
+          // 与历史路径一致：每次 todo/write 折叠成一张任务卡片（webui 为每次写入一行 ToolRow）
+          const todoPayload = event.payload as TodoWritePayload
           const todos = todoPayload?.todos ?? []
-          const pending = todos.filter((t: any) => t.status === 'pending').length
-          const inProgress = todos.filter((t: any) => t.status === 'in_progress').length
-          const completed = todos.filter((t: any) => t.status === 'completed').length
-          pushSystem(`任务列表更新: ${inProgress} 进行中, ${pending} 待办, ${completed} 已完成`)
+          setMessages(cur => [...cur, {
+            id: `todo-${todoPayload?.seq ?? Date.now()}`,
+            role: 'todo',
+            content: `${todos.length} 个任务`,
+            todos,
+            ts: todoPayload?.time || Date.now(),
+          }])
+          setContentVersion(v => v + 1)
           break
         }
 
@@ -414,6 +421,22 @@ export const AgentPanel: React.FC = () => {
         case 'questionResolved': {
           const { rpcId } = event.payload as { rpcId: string }
           setPendingQuestions(prev => prev.filter(q => q.rpcId !== rpcId))
+          break
+        }
+
+        case 'approvalRequest': {
+          const req = event.payload as PendingApprovalRequest
+          setPendingApprovals(prev => {
+            if (prev.some(a => a.rpcId === req.rpcId)) return prev
+            return [...prev, req]
+          })
+          break
+        }
+
+        case 'approvalResolved': {
+          // 卡片移除由决议广播驱动（本端提交或他端/撤销决议都走这里）
+          const { approvalId } = event.payload as { approvalId: string }
+          setPendingApprovals(prev => prev.filter(a => a.approvalId !== approvalId))
           break
         }
 
@@ -1004,6 +1027,7 @@ export const AgentPanel: React.FC = () => {
     await agentService.switchSession(sessionId)
     historySessionKeyRef.current = sessionId
     setPendingQuestions([]) // 清除旧会话的 pending questions
+    setPendingApprovals([]) // 清除旧会话的 pending approvals
     
     // 加载历史消息
     console.log('[AgentPanel] 开始加载历史消息')
@@ -1085,6 +1109,30 @@ export const AgentPanel: React.FC = () => {
       pushSystem('已取消问题')
     }
   }, [pushSystem])
+
+  // ─── 工具审批 ───
+  const handleApprovalAnswer = useCallback(async (rpcId: string, outcome: ApprovalOutcome): Promise<boolean> => {
+    const req = agentService.getPendingApprovals().find(a => a.rpcId === rpcId)
+    const ok = await agentService.answerApproval(rpcId, outcome)
+    pushSystem(ok
+      ? `${outcome === 'allowed-once' ? '已允许一次' : '已拒绝'} ${req?.toolName || '工具'} 执行`
+      : '审批提交失败')
+    return ok
+  }, [pushSystem])
+
+  // 命令行解析：按 callId 回溯转录里最近的工具调用参数（对齐 webui 的 command 展示，查不到则省略）
+  const approvalCommand = (req: PendingApprovalRequest): string | undefined => {
+    if (!req.callId) return undefined
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role === 'tool' && m.tool?.id === req.callId) {
+        const args = m.tool.args as Record<string, unknown> | undefined
+        const cmd = args?.command ?? args?.script
+        return typeof cmd === 'string' && cmd !== '' ? cmd : undefined
+      }
+    }
+    return undefined
+  }
 
   // ─── 等待态：AI 已开始运行，但本轮尚未产出任何实质内容 ───
   // 用户发出消息后到首个 token（reasoning / tool / content）到达之间有一段空窗，
@@ -1227,7 +1275,8 @@ export const AgentPanel: React.FC = () => {
           <div key={msg.id} className="agent-system-msg agent-todo">
             <span className="agent-system-msg__icon"><Icon name="list-checks" /></span>
             <div className="agent-system-msg__text">
-              <div>任务列表 ({msg.todos.length} 项)</div>
+              {/* 摘要语义对齐 webui todo-row：X/Y 已完成 · 当前活动项在前 */}
+              <div>任务列表（{completed.length}/{msg.todos.length} 已完成）</div>
               {inProgress.length > 0 && inProgress.map((t, i) => (
                 <div key={i} className="agent-todo__item agent-todo__in-progress"><Icon name="loader" size="sm" /> {t.content}</div>
               ))}
@@ -1235,7 +1284,6 @@ export const AgentPanel: React.FC = () => {
                 <div key={i} className="agent-todo__item agent-todo__pending"><Icon name="circle" size="sm" /> {t.content}</div>
               ))}
               {pending.length > 3 && <div className="agent-todo__more">...还有 {pending.length - 3} 项</div>}
-              {completed.length > 0 && <div className="agent-todo__item agent-todo__completed"><Icon name="check" size="sm" /> {completed.length} 项已完成</div>}
             </div>
           </div>
         )
@@ -1461,6 +1509,16 @@ export const AgentPanel: React.FC = () => {
           request={req}
           onAnswer={handleQuestionAnswer}
           onCancel={handleQuestionCancel}
+        />
+      ))}
+
+      {/* 工具审批卡片（approval/requested 时显示在输入区上方） */}
+      {pendingApprovals.map(req => (
+        <ApprovalCard
+          key={req.rpcId}
+          request={req}
+          command={approvalCommand(req)}
+          onAnswer={handleApprovalAnswer}
         />
       ))}
 

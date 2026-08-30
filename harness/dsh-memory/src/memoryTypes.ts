@@ -228,11 +228,15 @@ export const MAX_EXTRACT_MESSAGE_CHARS = 1_500
 export const MAX_EXTRACT_TOOL_ARGS_CHARS = 200
 
 /** 回合末提取的 system prompt（FR-4 规则在此执行）。 */
-export const EXTRACT_SYSTEM_PROMPT = `你在为 AI agent 的持久记忆库做回合末提取。你会拿到一段回合转录（用户消息、助手回复、工具调用）和一份现有记忆清单（文件名 + 描述）。
+export const EXTRACT_SYSTEM_PROMPT = `你在为 DemoStudio（一个对标 UE 架构的 2D 游戏引擎 + Electron 编辑器，TypeScript 全栈，AI 能力基于 DSH 内核）的开发助手维护持久记忆库。你会拿到一段回合转录（用户消息、助手回复、工具调用）和一份现有记忆清单（文件名 + 描述）。
 
 判断这段对话里是否出现了值得跨会话记住的信息。规则：
-- 四类型：user（用户画像、偏好、知识水平）、feedback（用户的纠正与确认；正文结构：规则 → **Why:** → **How to apply:**）、project（决策、约定、截止日期；相对日期必须转成绝对日期）、reference（外部系统指针及用途）。
-- 不保存：代码模式/架构/文件结构（读代码可推导）、git 历史、调试修复配方、临时任务状态、普通问答与执行过程本身。
+- 四类型：
+  - user：用户的角色、偏好与工作习惯（如引擎/编辑器开发偏好、代码风格、交流语言、对"进度展示必须真实"之类的要求）。
+  - feedback：用户对做法的纠正与确认（含被否决的方案，防止再次建议）。正文结构固定：规则 → **Why:** → **How to apply:**。
+  - project：架构与设计决策（如引擎侧对标 UE 的取舍、事件流/内核机制、编辑器子系统约定）、资产与配置规范（.blueprint.json / .scene.json / config / .widget.json 的结构与 lint 约束）、构建与调试环境坑（Electron/PowerShell/Win32/vitest/junction 挂载等本仓库已踩过的坑）、工作流约定与截止日期（相对日期必须转成绝对日期）。
+  - reference：外部资源指针及用途（DSH npm 内核版本与 ~/.dsh 目录布局、插件挂载点、文档/技能入口、上游仓库位置）。
+- 不保存：读代码即可推导的实现细节与文件结构、单次 bug 的修复过程（除非沉淀为可复用的环境坑）、本次对话的执行过程与临时调试状态、生成的资产 JSON 内容本身、普通问答。
 - 现有清单里已有同等信息的不重复输出；信息有实质更新时才输出（name 用原文件名）。
 - 宁缺毋滥：没有值得存的就返回空数组，这是最常见的结果。最多 3 条。
 

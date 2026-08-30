@@ -20,6 +20,7 @@ import type {
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
   RequestHeaderPayload, SandboxModePayload, PlanModePayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
+  ApprovalOutcome, PendingApprovalRequest,
 } from '../types/agent'
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
@@ -268,6 +269,8 @@ export class AgentService {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null
   /** 当前 pending 的问答请求（key = rpcId） */
   private pendingQuestions: Map<string, PendingQuestionRequest> = new Map()
+  /** 当前 pending 的工具审批请求（key = rpcId） */
+  private pendingApprovals: Map<string, PendingApprovalRequest> = new Map()
   /** 本地已删除会话黑名单（DSH 不支持远程删除时的兜底） */
   private deletedSessionIds: Set<string> = new Set()
   /** 实时工具调用缓存：callId -> 工具名（供 tool/result 配对） */
@@ -665,6 +668,42 @@ export class AgentService {
       return
     }
 
+    // ── approval/requested：工具越权审批请求（与 DSH WebUI 同一瀑布） ──
+    if (method === 'approval/requested' && rpcId) {
+      const approvalId = payload.approvalId as string | undefined
+      const toolName = payload.toolName as string | undefined
+      const sessionId = payload.sessionId as string | undefined
+      if (approvalId && toolName && sessionId) {
+        // 只处理当前会话的审批（mux 可能推送其他会话的 pending 帧）
+        if (sessionId !== this.sessionId) return
+        const req: PendingApprovalRequest = {
+          rpcId,
+          sessionId,
+          approvalId,
+          toolName,
+          callId: payload.callId as string | undefined,
+          reason: payload.reason as string | undefined,
+        }
+        this.pendingApprovals.set(rpcId, req)
+        console.log(`[AgentService] approval/requested: rpcId=${rpcId}, tool=${toolName}`)
+        this.emit({ type: 'approvalRequest', payload: req })
+      }
+      return
+    }
+
+    // ── approval/resolved：决议广播，按 approvalId 驱动卡片移除 ──
+    if (method === 'approval/resolved') {
+      const approvalId = payload.approvalId as string | undefined
+      const outcome = payload.outcome as string | undefined
+      if (approvalId) {
+        for (const [rpcId, req] of this.pendingApprovals) {
+          if (req.approvalId === approvalId) this.pendingApprovals.delete(rpcId)
+        }
+        this.emit({ type: 'approvalResolved', payload: { approvalId, outcome } })
+      }
+      return
+    }
+
     // ── session/event：AI 回复事件的实时推送主通道（与 DSH WebUI 同源） ──
     if (method === 'session/event') {
       const sid = payload.sessionId as string | undefined
@@ -742,6 +781,30 @@ export class AgentService {
       error: { code: 'cancelled', message: '用户关闭了问题', details: {} },
     })
     if (ok) this.pendingQuestions.delete(rpcId)
+    return ok
+  }
+
+  /** 获取当前 pending 的审批请求 */
+  getPendingApprovals(): PendingApprovalRequest[] {
+    return Array.from(this.pendingApprovals.values())
+  }
+
+  /** 提交审批决议（对齐 DSH PendingApproval.answer 的响应信封） */
+  async answerApproval(rpcId: string, outcome: ApprovalOutcome): Promise<boolean> {
+    const req = this.pendingApprovals.get(rpcId)
+    if (!req) {
+      console.warn(`[AgentService] answerApproval: rpcId=${rpcId} 不在 pending 列表中`)
+      return false
+    }
+    const ok = await this.respond(rpcId, {
+      ok: true,
+      value: {
+        sessionId: req.sessionId,
+        approvalId: req.approvalId,
+        outcome,
+      },
+    })
+    if (ok) this.pendingApprovals.delete(rpcId)
     return ok
   }
 
@@ -1665,6 +1728,7 @@ export class AgentService {
   async switchSession(sessionId: string): Promise<void> {
     this.abortPolling = true
     this.pendingQuestions.clear()
+    this.pendingApprovals.clear()
     this.setSession(sessionId)
     this.persistSession()
     // 新会话的 seq 从 0 起，必须立即重立基线，避免旧会话游标抑制新会话事件
