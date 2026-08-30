@@ -95,6 +95,8 @@ export function apply(ctx: Context, config?: Partial<Config>): void {
   const executionTouches = new Map<ToolExecutionToken, ProjectionTouch[]>()
   /** execution token → pre-execute 登记的候选（result 成功才确认）。 */
   const executionCandidates = new Map<ToolExecutionToken, CandidateTouch[]>()
+  /** 已注入全局指令的 Agent 集合（避免重复注入）。 */
+  const globalInjected = new WeakSet<Agent>()
   /** 同一 Agent 的 projection 串行化链。 */
   const projectionTails = new WeakMap<Agent, Promise<void>>()
   /** durable step 是否打开（按 session）。 */
@@ -318,6 +320,27 @@ export function apply(ctx: Context, config?: Partial<Config>): void {
       }
       const { resolved: bound, access } = binding
       const cache = cacheFor(agent.session)
+
+      // ── 全局指令自动注入（prefix: /）：第一步时注入，无需等待文件读取 ──
+      if (step === 1 && !globalInjected.has(agent)) {
+        globalInjected.add(agent)
+        // 查找 prefix 为 "/" 的全局映射
+        const globalMappings = bound.mappings.filter(m => m.segments.length === 0)
+        if (globalMappings.length > 0) {
+          const pending = pendingDeliveries.get(agent) ?? []
+          for (const mapping of globalMappings) {
+            if (!pending.some(entry => entry.instructionFile === mapping.file)) {
+              pending.push({ instructionFile: mapping.file, order: mapping.order })
+              // 预热缓存
+              const { absolutePath } = instructionPaths(bound, mapping.file)
+              await loadInstruction(access, cache, absolutePath, bound.maxSourceBytes, signal).catch(() => undefined)
+            }
+          }
+          pendingDeliveries.set(agent, pending)
+          logger.info('auto-injected %d global instruction(s) (prefix: /) on step 1', globalMappings.length)
+        }
+      }
+
       // claimed 批次作为 authority 参与可见状态，防止同批重复注入
       const visible = visibleInstructionState(agent, bound, decision.kind === 'enter' ? messages : [])
       const pending = pendingDeliveries.get(agent) ?? []

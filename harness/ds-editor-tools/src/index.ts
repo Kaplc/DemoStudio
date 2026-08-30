@@ -15,7 +15,6 @@ import { editorClickTool } from './tools/editorClick'
 import { editorHoverTool } from './tools/editorHover'
 import { editorTypeTool } from './tools/editorType'
 import { editorReadTool } from './tools/editorRead'
-import { editorScreenshotTool } from './tools/editorScreenshot'
 import { editorEmitTool } from './tools/editorEvent'
 import { editorRestartTool } from './tools/editorRestart'
 import { disconnect as disconnectCDP } from './cdpBridge'
@@ -30,7 +29,6 @@ const ALL_TOOLS = [
   editorHoverTool,
   editorTypeTool,
   editorReadTool,
-  editorScreenshotTool,
   editorEmitTool,
   editorRestartTool,
 ]
