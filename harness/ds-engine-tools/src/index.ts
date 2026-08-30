@@ -20,6 +20,7 @@ import { spawnEntityTool } from './tools/spawnEntity'
 import { runScenarioTool } from './tools/runScenario'
 import { getGameStateTool } from './tools/getGameState'
 import { setGameSpeedTool } from './tools/setGameSpeed'
+import { emitAIEventTool } from './tools/emitAIEvent'
 import { cordisDefineRobustTool, cordisUnwrapDemoTool } from './tools/robustDefine'
 
 export const name = '@demostudio/ds-engine-tools'
@@ -27,7 +28,7 @@ export const name = '@demostudio/ds-engine-tools'
 /** 本插件访问的 Cordis 服务：tools（工具注册表）。logger 是 Context 内建属性，不走 inject。 */
 export const inject = ['tools']
 
-const ALL_TOOLS = [inspectSceneTool, spawnEntityTool, runScenarioTool, getGameStateTool, setGameSpeedTool, cordisDefineRobustTool, cordisUnwrapDemoTool]
+const ALL_TOOLS = [inspectSceneTool, spawnEntityTool, runScenarioTool, getGameStateTool, setGameSpeedTool, emitAIEventTool, cordisDefineRobustTool, cordisUnwrapDemoTool]
 
 interface DSHContext {
   tools?: { register(tool: unknown): void }

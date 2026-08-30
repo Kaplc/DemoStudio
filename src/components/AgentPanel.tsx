@@ -1410,6 +1410,12 @@ export const AgentPanel: React.FC = () => {
               <div className="dropdown-menu dropdown-menu--right">
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); handleRestartAgent() }}
+                >
+                  <span>重启内核</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowKernelUpdate(true) }}
                 >
                   <span>更新内核</span>

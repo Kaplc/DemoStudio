@@ -1145,6 +1145,116 @@ ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unk
   }
 })
 
+// ─── 获取 harness 目录下的插件列表 ───
+
+ipcMain.handle('list-harness-plugins', async () => {
+  try {
+    const harnessDir = path.join(__dirname, '..', 'harness')
+    if (!fs.existsSync(harnessDir)) {
+      return { success: true, plugins: [] }
+    }
+
+    const plugins: Array<{
+      id: string
+      name: string
+      description: string
+      version: string
+      author: string
+      type: string
+      icon: string
+      capabilities: string[]
+      path: string
+    }> = []
+
+    const entries = fs.readdirSync(harnessDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      
+      const pluginDir = path.join(harnessDir, entry.name)
+      const packageJsonPath = path.join(pluginDir, 'package.json')
+      
+      if (!fs.existsSync(packageJsonPath)) continue
+      
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+        
+        // 检查是否是有效的插件（有 name 字段）
+        if (!packageJson.name) continue
+        
+        // 提取插件信息，提供默认值
+        const plugin = {
+          id: packageJson.name,
+          name: packageJson.name.split('/').pop() || entry.name,
+          description: packageJson.description || `${entry.name} 插件`,
+          version: packageJson.version || '1.0.0',
+          author: packageJson.author || 'DemoStudio',
+          type: guessPluginType(entry.name, packageJson),
+          icon: guessPluginIcon(entry.name, packageJson),
+          capabilities: extractCapabilities(packageJson),
+          path: `harness/${entry.name}`,
+        }
+        
+        plugins.push(plugin)
+      } catch (err) {
+        console.warn(`读取插件 ${entry.name} 的 package.json 失败:`, err)
+      }
+    }
+
+    return { success: true, plugins }
+  } catch (err) {
+    console.error('获取 harness 插件列表失败:', err)
+    return { success: false, error: String(err), plugins: [] }
+  }
+})
+
+/** 根据目录名和 package.json 猜测插件类型 */
+function guessPluginType(dirName: string, packageJson: any): string {
+  const name = dirName.toLowerCase()
+  const keywords = packageJson.keywords || []
+  
+  if (name.includes('tool') || keywords.includes('tools')) return 'tool'
+  if (name.includes('ui') || keywords.includes('ui')) return 'ui'
+  if (name.includes('service') || keywords.includes('service')) return 'service'
+  if (name.includes('integration') || keywords.includes('integration')) return 'integration'
+  
+  return 'tool' // 默认为工具类型
+}
+
+/** 根据目录名和 package.json 猜测插件图标 */
+function guessPluginIcon(dirName: string, packageJson: any): string {
+  const name = dirName.toLowerCase()
+  
+  if (name.includes('engine')) return '⚙️'
+  if (name.includes('plugin') && name.includes('manager')) return '📦'
+  if (name.includes('instruction')) return '📋'
+  if (name.includes('memory')) return '🧠'
+  if (name.includes('sync')) return '🔄'
+  if (name.includes('test')) return '🧪'
+  if (name.includes('ui')) return '🎨'
+  
+  return '🔧' // 默认图标
+}
+
+/** 从 package.json 中提取 capabilities */
+function extractCapabilities(packageJson: any): string[] {
+  const capabilities: string[] = []
+  
+  // 从 keywords 中提取
+  if (packageJson.keywords) {
+    capabilities.push(...packageJson.keywords)
+  }
+  
+  // 从 description 中提取关键能力
+  const desc = (packageJson.description || '').toLowerCase()
+  if (desc.includes('工具')) capabilities.push('tools')
+  if (desc.includes('场景')) capabilities.push('scene')
+  if (desc.includes('实体')) capabilities.push('entity')
+  if (desc.includes('游戏')) capabilities.push('game')
+  
+  // 去重
+  return [...new Set(capabilities)]
+}
+
 // ─── 扫描工程目录 ───
 
 ipcMain.handle('discover-projects', async () => {

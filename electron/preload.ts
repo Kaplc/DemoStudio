@@ -79,6 +79,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeJsonFile: (relativePath: string, data: unknown) =>
     ipcRenderer.invoke('write-json-file', relativePath, data),
 
+  // ─── 获取 harness 目录下的插件列表 ───
+  listHarnessPlugins: () => ipcRenderer.invoke('list-harness-plugins'),
+
   // ─── 蓝图编辑 MCP 往返：主进程 → 渲染进程 ───
   onBlueprintRequest: (callback: (requestId: string, op: string, params: any) => void) => {
     const handler = (_event: unknown, payload: { requestId: string; op: string; params?: any }) => {

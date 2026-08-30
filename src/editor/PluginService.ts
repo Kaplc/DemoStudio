@@ -2,94 +2,76 @@
  * PluginService - 插件管理服务
  * 
  * 负责发现、加载和管理编辑器插件
- * 通过 DSH RPC 获取已注册的插件信息
+ * 从 harness 目录动态加载插件信息
  */
 import type { PluginInfo, PluginMetadata, PluginState, PluginStatus } from '../types/plugin'
 import { agentService } from './AgentService'
 
-/** 内置插件列表（从 ds-plugin 同步） */
-const BUILTIN_PLUGINS: PluginMetadata[] = [
-  {
-    id: '@demostudio/inspect-scene',
-    name: '场景检查',
-    description: '检查当前场景中的所有实体、组件和层级关系',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'tool',
-    icon: '🔍',
-    capabilities: ['inspect-scene', 'list-entities', 'get-hierarchy'],
-  },
-  {
-    id: '@demostudio/spawn-entity',
-    name: '实体生成',
-    description: '在场景中动态生成 Actor、Pawn 或其他实体',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'tool',
-    icon: '✨',
-    capabilities: ['spawn-actor', 'spawn-pawn', 'create-component'],
-  },
-  {
-    id: '@demostudio/run-scenario',
-    name: '场景执行',
-    description: '运行预定义的游戏场景或测试脚本',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'tool',
-    icon: '▶️',
-    capabilities: ['run-scenario', 'execute-script'],
-  },
-  {
-    id: '@demostudio/get-game-state',
-    name: '游戏状态',
-    description: '获取当前游戏的运行状态、分数、生命值等信息',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'tool',
-    icon: '📊',
-    capabilities: ['get-state', 'get-score', 'get-health'],
-  },
-  {
-    id: '@demostudio/set-game-speed',
-    name: '游戏速度',
-    description: '控制游戏运行速度，支持暂停、慢放、快进',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'tool',
-    icon: '⚡',
-    capabilities: ['set-speed', 'pause', 'resume'],
-  },
-  {
-    id: '@demostudio/dsh-chat',
-    name: 'DSH 聊天',
-    description: '通过 WebSocket 与 DSH Agent 实时通信',
-    version: '1.0.0',
-    author: 'DemoStudio',
-    type: 'integration',
-    icon: '💬',
-    capabilities: ['chat', 'streaming', 'tool-calls'],
-  },
-]
-
 export class PluginService {
   private plugins: Map<string, PluginInfo> = new Map()
   private listeners: Set<(plugins: PluginInfo[]) => void> = new Set()
+  private loading: boolean = false
 
   constructor() {
-    this.initBuiltinPlugins()
+    // 异步加载插件，不阻塞构造函数
+    this.loadPluginsFromHarness()
   }
 
-  /** 初始化内置插件 */
-  private initBuiltinPlugins(): void {
-    for (const metadata of BUILTIN_PLUGINS) {
-      this.plugins.set(metadata.id, {
-        metadata,
-        state: {
-          id: metadata.id,
-          status: 'inactive',
-        },
-      })
+  /** 从 harness 目录加载插件 */
+  private async loadPluginsFromHarness(): Promise<void> {
+    if (this.loading) return
+    this.loading = true
+
+    try {
+      // 检查 electronAPI 是否可用
+      if (!window.electronAPI?.listHarnessPlugins) {
+        console.warn('[PluginService] electronAPI 不可用，使用本地插件状态')
+        return
+      }
+
+      const result = await window.electronAPI.listHarnessPlugins()
+      if (!result.success) {
+        console.error('[PluginService] 获取 harness 插件列表失败:', result.error)
+        return
+      }
+
+      // 清空现有插件
+      this.plugins.clear()
+
+      // 加载插件
+      for (const pluginData of result.plugins) {
+        const metadata: PluginMetadata = {
+          id: pluginData.id,
+          name: pluginData.name,
+          description: pluginData.description,
+          version: pluginData.version,
+          author: pluginData.author,
+          type: pluginData.type as any,
+          icon: pluginData.icon,
+          capabilities: pluginData.capabilities,
+        }
+
+        this.plugins.set(metadata.id, {
+          metadata,
+          state: {
+            id: metadata.id,
+            status: 'inactive',
+          },
+        })
+      }
+
+      console.log(`[PluginService] 从 harness 加载了 ${this.plugins.size} 个插件`)
+      this.notifyListeners()
+    } catch (error) {
+      console.error('[PluginService] 加载插件失败:', error)
+    } finally {
+      this.loading = false
     }
+  }
+
+  /** 重新加载插件 */
+  async reloadPlugins(): Promise<void> {
+    await this.loadPluginsFromHarness()
   }
 
   /** 获取所有插件 */
@@ -157,14 +139,9 @@ export class PluginService {
         return
       }
 
-      // 标记聊天插件为活跃（因为已连接）
-      this.updatePluginState('@demostudio/dsh-chat', { status: 'active' })
-
-      // 标记所有工具为活跃（DSH 已加载）
+      // 标记所有插件为活跃（DSH 已连接）
       for (const id of this.plugins.keys()) {
-        if (id.startsWith('@demostudio/') && id !== '@demostudio/dsh-chat') {
-          this.updatePluginState(id, { status: 'active' })
-        }
+        this.updatePluginState(id, { status: 'active' })
       }
     } catch (error) {
       console.error('[PluginService] 同步失败:', error)

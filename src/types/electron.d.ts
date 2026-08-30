@@ -86,6 +86,23 @@ export interface ElectronAPI {
   dshSwitchVersion: (target: string) => Promise<{ ok: boolean; error?: string }>
   // DSH 更新进度事件推送
   onDshUpdateProgress: (callback: (progress: { step: string; detail?: string }) => void) => () => void
+
+  // ─── 获取 harness 目录下的插件列表 ───
+  listHarnessPlugins: () => Promise<{
+    success: boolean
+    plugins: Array<{
+      id: string
+      name: string
+      description: string
+      version: string
+      author: string
+      type: string
+      icon: string
+      capabilities: string[]
+      path: string
+    }>
+    error?: string
+  }>
 }
 
 declare global {
