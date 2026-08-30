@@ -156,9 +156,8 @@ if %errorlevel% neq 0 (
 
 echo [Launch] 启动开发服务器与 Electron...
 npm run electron:dev
-if errorlevel 1 (
-    echo.
-    echo Electron 编辑器已退出，按任意键关闭...
-    pause >nul
-)
+
+REM Electron 退出后 Vite dev server 可能残留几秒，强制清理确保 bat 窗口立即关闭
+taskkill /F /IM electron.exe >nul 2>nul
+taskkill /F /IM vite.exe >nul 2>nul
 exit /b 0

@@ -20,7 +20,7 @@ let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 let _gameScore = 0
 
-// ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 所有权 watchdog） ───
+// ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 孤儿进程独立运行） ───
 // 生命周期状态机：off → probing → claimed(复用旧实例) | spawning → running → restart-wait(自愈中) | degraded(自愈超限终态)
 type DshLifecycle = 'off' | 'probing' | 'claimed' | 'spawning' | 'running' | 'restart-wait' | 'degraded'
 let _dshLifecycle: DshLifecycle = 'off'
@@ -235,8 +235,8 @@ function createMainWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
-    // 主窗口关闭 = 主动关闭编辑器：级联关闭独立 WebUI 窗口，
-    // 随后 window-all-closed 触发 stopDSHService 收割 agent（主动关闭才销毁的不变量）
+    // 主窗口关闭：级联关闭独立 WebUI 窗口
+    // 随后 window-all-closed 触发 stopDSHService 注销本实例（agent 由 watchdog 管理）
     if (_dshWebuiWindow && !_dshWebuiWindow.isDestroyed()) {
       console.log('[DSH] 主窗口关闭，级联关闭 WebUI 独立窗口')
       _dshWebuiWindow.close()
@@ -416,25 +416,6 @@ function stopDshEditorHeartbeat(): void {
   } catch { /* ignore */ }
 }
 
-/** 除本实例外是否还有其他心跳新鲜的编辑器在运行（多实例共享降级判断用） */
-function hasOtherFreshEditors(): boolean {
-  try {
-    const dir = path.join(DSH_STATE_DIR, 'editors')
-    const files = fs.readdirSync(dir)
-    const now = Date.now()
-    for (const f of files) {
-      if (!f.endsWith('.json')) continue
-      if (f === `${process.pid}.json`) continue
-      try {
-        const raw = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
-        const fresh = now - Number(raw.heartbeatAt || 0) <= DSH_EDITOR_HEARTBEAT_MS * 3
-        if (fresh && isPidAlive(Number(raw.pid))) return true
-      } catch { /* 单文件损坏忽略 */ }
-    }
-  } catch { /* 目录不存在 */ }
-  return false
-}
-
 /**
  * 探测 DSH 是否存活：POST /api/session.list（与 renderer 同一 RPC 协议，零内核假设）。
  * 返回 true 表示 :3080 上有可用的 DSH web 服务。
@@ -472,32 +453,6 @@ function writeDshOwner(patch: Partial<DshOwner>): void {
 }
 
 /** 确保存在存活的 watcher 进程守护当前 agent（认领旧 agent 后必须调用） */
-function ensureDshWatcher(source: string): void {
-  const owner = readDshOwner()
-  if (isPidAlive(owner?.watchdogPid)) {
-    console.log(`[DSH] watcher 存活(PID=${owner?.watchdogPid})，无需重复拉起 (${source})`)
-    return
-  }
-  const watcherPath = path.join(__dirname, '..', 'editor', 'dsh-agent-watcher.cjs')
-  if (!fs.existsSync(watcherPath)) {
-    console.warn(`[DSH] watcher 脚本不存在: ${watcherPath}（孤儿自杀能力失效，但不阻断使用）`)
-    return
-  }
-  const systemNode = getSystemNodePath()
-  const child = spawn(systemNode, [
-    watcherPath,
-    '--state-dir', DSH_STATE_DIR,
-    '--grace-ms', String(DSH_OWNER_GRACE_MS),
-  ], {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-  })
-  child.unref?.()
-  console.log(`[DSH] 已拉起所有权 watchdog (PID=${child.pid}) (${source})，宽限=${DSH_OWNER_GRACE_MS}ms`)
-  // 注意：watcher 启动后会自报家门把自身 PID 写入 owner.json，这里不再写 watchPid 竞态值
-}
-
 /**
  * spawn 新的 DSH agent 并等待就绪；成功后进入 running 并认领登记。
  *
@@ -601,12 +556,11 @@ async function tailDshLog(logFile: string): Promise<void> {
   }
 }
 
-/** 认领登记：反查 agent PID → 写 owner.json → 确保 watcher 守护 */
+/** 认领登记：反查 agent PID → 写 owner.json */
 function registerDshOwnership(source: string): void {
   let agentPid = _dshChild?.pid ?? null
   if (!agentPid) agentPid = findDshAgentPidByPort(_dshPort || DSH_PORT_DEFAULT)
   writeDshOwner({ port: _dshPort, agentPid: agentPid ?? undefined, claimedAt: Date.now(), source })
-  ensureDshWatcher(source)
   if (!agentPid) {
     console.warn('[DSH] 未能确定 agent PID（netstat 反查失败），优雅停机时将退化为按端口收尾')
   }
@@ -685,38 +639,20 @@ async function bootstrapDSH(source: string = 'startup'): Promise<void> {
 }
 
 /**
- * 优雅停机：
- *  - 注销本实例心跳；
- *  - 若仍有其他新鲜编辑器实例 → 仅注销自己（agent 与 watcher 继续服务多实例场景）；
- *  - 否则收割 agent 进程树并停掉 watcher，清理协议文件，确保 :3080 不再有监听。
+ * 优雅停机：注销本实例心跳，断开 mux WS，重置本地状态。
+ * agent 为孤儿进程独立运行，编辑器退出不影响其生命周期。
+ * 需要停止 agent 请使用 stop-dsh.bat。
  */
 async function stopDSHService(): Promise<void> {
   if (_dshLifecycle === 'off') return
-  const wasRunning = _dshPort !== 0 || !!readDshOwner()?.agentPid
+  console.log('[DSH] 编辑器关闭，注销本实例（agent 为孤儿进程，继续运行）')
   _dshShuttingDown = true
   _dshLifecycle = 'off'
   if (_dshRestartTimer) { clearTimeout(_dshRestartTimer); _dshRestartTimer = null }
   disconnectMuxWs()
   stopDshEditorHeartbeat()
-
-  if (!wasRunning) return
-
-  if (hasOtherFreshEditors()) {
-    console.log('[DSH] 检测到其他活跃编辑器实例，保留共享 agent 不停机')
-    _dshChild = null
-    _dshPort = 0
-    return
-  }
-
-  console.log('[DSH] 本实例是最后一个编辑器 → 收割 agent 与 watchdog')
-  const owner = readDshOwner()
-  // agentPid 缺失时按端口兜底反查，确保「:3080 无监听」承诺可兑现
-  const agentPid = owner?.agentPid ?? findDshAgentPidByPort(_dshPort || DSH_PORT_DEFAULT)
-  killProcessTree(agentPid)
-  killProcessTree(owner?.watchdogPid)
   _dshChild = null
   _dshPort = 0
-  try { fs.rmSync(path.join(DSH_STATE_DIR, 'owner.json'), { force: true }) } catch { /* ignore */ }
 }
 
 // ═══════════════════════════════════════
@@ -2004,20 +1940,18 @@ function openAgentWindow(): void {
 
 // 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
 // Vite 端口 (5173+) 与 MCP 端口 (9877+) 均自动递增分配，互不冲突
+// 开启远程调试端口（Playwright/CDP 可连接已有实例）
+app.commandLine.appendSwitch('remote-debugging-port', '9222')
+
 app.whenReady().then(() => {
   startApp()
 })
 
 app.on('window-all-closed', () => {
-  // 优雅停机：最后一个编辑器实例才收割 agent；多实例共享时仅注销自己。
-  // 收割完成后以确定性的退出码 0 结束：shutdown 竞态（taskkill 对已死 PID 报
-  // not found、mux 断连重连定时器等）可能把退出码弄成非 0，令 editor.bat
-  // 误判为出错而停在 pause，cmd 窗口关不上。
-  void stopDSHService().finally(() => {
-    if (process.platform !== 'darwin') {
-      app.exit(0)
-    }
-  })
+  // 注销本实例心跳，断开 mux WS。agent 为孤儿进程独立运行，编辑器退出不影响。
+  stopDSHService()
+  // process.exit(0) 强制立即退出，避免 Vite dev server 的文件监听/WS 等异步句柄拖住 bat 窗口
+  process.exit(0)
 })
 
 app.on('activate', () => {

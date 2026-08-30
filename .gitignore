@@ -150,3 +150,5 @@ cache/splash/
 harness/dsh-source/
 test-results/*
 test-results/.last-run.json
+
+tests/*
