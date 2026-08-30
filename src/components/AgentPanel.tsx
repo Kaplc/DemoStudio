@@ -24,8 +24,9 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
+import { ContextCard } from './agent/ContextCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
 import { KernelUpdateModal } from './agent/KernelUpdateModal'
@@ -112,6 +113,7 @@ function toPanelHistoryMessage(
     retries: history.retries,
     todos: history.todos,
     requestHeader: history.requestHeader,
+    context: history.context,
     ts: history.ts || Date.now(),
   }
 }
@@ -266,6 +268,20 @@ export const AgentPanel: React.FC = () => {
         case 'turnStart':
           // 回合开始（可用于 UI 状态指示）
           break
+
+        case 'context': {
+          // 注入的上下文（插件记忆召回 / 提取 notice 等）→ 折叠卡片
+          const p = event.payload as ContextEventPayload
+          setMessages(cur => [...cur, {
+            id: `ctx-${p.seq}`,
+            role: 'context',
+            content: p.content,
+            context: { role: p.role, label: p.label, form: p.form, summary: p.summary },
+            ts: p.time || Date.now(),
+          }])
+          setContentVersion(v => v + 1)
+          break
+        }
 
         case 'turnEnd': {
           setIsAgentRunning(false) // turn 结束，AI 不再运行
@@ -1104,10 +1120,10 @@ export const AgentPanel: React.FC = () => {
         continue
       }
 
-      // 特殊消息类型（命令、压缩、重试、错误等）→ 独立系统节点
+      // 特殊消息类型（命令、压缩、重试、错误、上下文注入等）→ 独立系统节点
       if (msg.role === 'command' || msg.role === 'compaction' || msg.role === 'retry' ||
           msg.role === 'turn-error' || msg.role === 'turn-max-tokens' ||
-          msg.role === 'todo' || msg.role === 'request-header') {
+          msg.role === 'todo' || msg.role === 'request-header' || msg.role === 'context') {
         nodes.push({ key: msg.id, kind: 'system', msg })
         i++
         continue
@@ -1235,6 +1251,11 @@ export const AgentPanel: React.FC = () => {
             </div>
           </div>
         )
+      }
+
+      // 上下文注入卡片（插件召回 / 提取 notice 等）
+      if (msg.role === 'context' && msg.context) {
+        return <ContextCard key={msg.id} info={msg.context} content={msg.content} />
       }
 
       // 默认系统消息

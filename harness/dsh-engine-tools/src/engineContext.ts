@@ -110,20 +110,26 @@ class HttpFileBridge implements FileBridgeLike {
     this.port = port
   }
 
-  private async callCommand(command: string, params: Record<string, unknown>): Promise<unknown> {
+  /**
+   * 通过 ai_event 往返通道调用编辑器（而非 fire-and-forget 的 IPC 命令）。
+   * 编辑器侧需注册 ai.readJsonFile / ai.writeFile 事件处理器。
+   */
+  private async callAIEvent(event: string, payload: Record<string, unknown>): Promise<unknown> {
     const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command, params }),
+      body: JSON.stringify({ command: 'ai_event', params: { event, payload } }),
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    return await resp.json()
+    const json = await resp.json() as { result?: unknown }
+    return json?.result ?? json
   }
 
   async readJsonFile(path: string): Promise<unknown | null> {
     try {
-      const result = await this.callCommand('read-json-file', { relativePath: path })
-      return result
+      const result = await this.callAIEvent('ai.readJsonFile', { relativePath: path }) as { success?: boolean; data?: unknown } | null
+      if (result && result.success && result.data !== undefined) return result.data
+      return null
     } catch {
       return null
     }
@@ -131,8 +137,8 @@ class HttpFileBridge implements FileBridgeLike {
 
   async writeJsonFile(path: string, data: unknown): Promise<{ ok: boolean; error?: string }> {
     try {
-      await this.callCommand('write-json-file', { relativePath: path, data })
-      return { ok: true }
+      const result = await this.callAIEvent('ai.writeFile', { relativePath: path, data }) as { ok?: boolean; error?: string } | null
+      return { ok: result?.ok ?? false, error: result?.error }
     } catch (err) {
       return { ok: false, error: String(err) }
     }

@@ -1632,6 +1632,86 @@ html, body, #root {
   margin-left: auto;
 }
 
+/* --- 上下文注入卡片（对齐 DSH WebUI ContextInjectionRow）--- */
+.agent-context-card {
+  margin: 2px auto;
+  padding: 0 16px;
+  max-width: min(748px, 90%);
+  min-width: 0;
+}
+.agent-context-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-subtle);
+  font: var(--dsw-font-xs);
+  cursor: pointer;
+  user-select: none;
+}
+.agent-context-card--open .agent-context-card__head {
+  padding-bottom: 4px;
+}
+.agent-context-card__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary);
+}
+.agent-context-card__title {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 500;
+}
+.agent-context-card__sep {
+  flex-shrink: 0;
+  width: 2px;
+  height: 2px;
+  border-radius: 1px;
+  margin: 0 8px;
+  background: var(--dsw-alias-label-caption);
+}
+.agent-context-card__source {
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary);
+}
+.agent-context-card__summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary);
+}
+.agent-context-card__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+}
+.agent-context-card__body {
+  box-sizing: border-box;
+  width: calc(100% - 22px);
+  max-height: 141px;
+  margin: 4px 0 4px 22px;
+  padding: 10px 16px 12px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--dsw-font-family-code);
+  font-size: 11px;
+  line-height: 16px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Todo 列表样式 */
 .agent-todo__item {
   padding: 2px 0;

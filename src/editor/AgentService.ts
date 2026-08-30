@@ -19,6 +19,7 @@ import type {
   CompactionStartPayload, CompactionSummaryPayload, CompactionEndPayload,
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
   RequestHeaderPayload, SandboxModePayload, PlanModePayload,
+  ContextCardInfo, ContextEventPayload, KnownContextForm,
 } from '../types/agent'
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
@@ -75,7 +76,18 @@ interface DshEvent {
     message?: DshMessage
     // --- user/message ---
     content?: ContentPart[]
-    source?: { kind?: string; plugin?: string; callId?: string; compactionId?: string; sourceCommandId?: string }
+    source?: {
+      kind?: string
+      plugin?: string
+      callId?: string
+      compactionId?: string
+      sourceCommandId?: string
+      form?: string
+      summary?: string
+      name?: string
+      references?: Array<{ label?: string }>
+      changes?: Array<{ path?: string }>
+    }
     id?: string
     // --- 通用 ---
     turn?: number
@@ -133,7 +145,7 @@ interface DshEvent {
 
 /** 历史消息（从 session.history 事件流 fold 而来，对齐 DSH conversation-nodes 语义） */
 export interface HistoryMessage {
-  role: 'user' | 'assistant' | 'tool' | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header'
+  role: 'user' | 'assistant' | 'tool' | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header' | 'context'
   content: string
   reasoning?: string
   /** 回合是否真正结束（turn/end completed） */
@@ -151,6 +163,8 @@ export interface HistoryMessage {
   todos?: TodoItem[]
   /** 模型/配置信息 */
   requestHeader?: { model?: string; provider?: string }
+  /** 上下文注入卡片信息（role === 'context' 时存在） */
+  context?: ContextCardInfo
   /** 产生该历史消息的事件序号，用于分页 prepend 时保持稳定 key。 */
   seq?: number
   ts?: number
@@ -971,6 +985,27 @@ export class AgentService {
       return false
     }
 
+    // ─── 注入的上下文消息（对齐 DSH WebUI messageDefinition） ───
+    // user/message 且 source.kind !== 'user' = 生产者注入的上下文（插件召回 /
+    // 提取 notice / 指令同步等），WebUI 渲染为可折叠的上下文注入卡片；
+    // compaction 的模型侧副本仍跳过，用户与 steer 消息（kind === 'user'）不在此列。
+    if (event.type === 'user/message') {
+      if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return false
+      const source = d?.source
+      if (!source || source.kind === 'user') return false
+      if (source.kind === 'plugin' && source.plugin === 'compact') return false
+      const content = this.extractText(d?.content)
+      if (!content) return false
+      const payload: ContextEventPayload = {
+        ...this.describeContextSource(source),
+        content,
+        seq: event.seq,
+        time,
+      }
+      this.emit({ type: 'context', payload })
+      return false
+    }
+
     // ─── 工具调用 ───
     if (event.type === 'tool/call') {
       // tool/call 会把当前 assistant 段切开。必须先提交前面的完整文本，
@@ -1356,7 +1391,14 @@ export class AgentService {
           const source = d?.source
           if (source?.kind === 'plugin' && source.plugin === 'compact') continue
           if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue
-          if (source && source.kind !== 'user') continue
+          if (source && source.kind !== 'user') {
+            // 非用户来源 = 注入的上下文（WebUI 渲染为上下文注入卡片），保留为 context 消息
+            const text = this.extractText(d?.content)
+            if (text) {
+              messages.push({ role: 'context', content: text, context: this.describeContextSource(source), seq: event.seq, ts: time })
+            }
+            continue
+          }
           const text = this.extractText(d?.content)
           if (text) messages.push({ role: 'user', content: text, seq: event.seq, ts: time })
           continue
@@ -1566,6 +1608,39 @@ export class AgentService {
   private extractReasoning(content?: ContentPart[]): string {
     if (!Array.isArray(content)) return ''
     return content.filter(p => p.type === 'reasoning').map(p => p.text || '').join('')
+  }
+
+  /** 已知上下文形态（对齐 WebUI KNOWN_FORMS），未知形态退化为原文渲染 */
+  private static readonly KNOWN_CONTEXT_FORMS: readonly KnownContextForm[] =
+    ['instructions', 'catalog', 'snapshot', 'notice', 'relay', 'recall']
+
+  /** 把 user/message 的 source 投影成卡片信息（对齐 WebUI contextProvenance / contextForm） */
+  private describeContextSource(source: NonNullable<NonNullable<DshEvent['data']>['source']>): ContextCardInfo {
+    const kind = typeof source.kind === 'string' ? source.kind : null
+    let role: ContextCardInfo['role'] = 'inject'
+    let label: string | null = kind
+    if (kind === 'session-reference') {
+      role = 'recall'
+      const labels = (source.references ?? [])
+        .map(r => (typeof r?.label === 'string' ? r.label : ''))
+        .filter(Boolean)
+      label = labels.length > 0 ? labels.join('、') : kind
+    } else if (kind === 'agent-instructions') {
+      const paths = (source.changes ?? [])
+        .map(c => (typeof c?.path === 'string' ? c.path : ''))
+        .filter(Boolean)
+      label = paths.length > 0 ? paths.join('、') : kind
+    } else if (kind === 'plugin') {
+      label = typeof source.plugin === 'string' ? source.plugin : kind
+    } else if (kind === 'skill-invocation') {
+      label = typeof source.name === 'string' ? source.name : kind
+    }
+    const rawForm = source.form
+    const form = typeof rawForm === 'string' && (AgentService.KNOWN_CONTEXT_FORMS as readonly string[]).includes(rawForm)
+      ? rawForm as KnownContextForm
+      : null
+    const summary = typeof source.summary === 'string' && source.summary !== '' ? source.summary : null
+    return { role, label, form, summary }
   }
 
   // --- 会话管理 ---

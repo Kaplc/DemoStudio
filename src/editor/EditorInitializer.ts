@@ -186,7 +186,33 @@ function registerEditorAIHandlers(): () => void {
     }),
   )
 
-  logger.info(`[AIModule] 编辑器层 AI 事件已注册: ai.selectActor, ai.dragActor`)
+  // ─── 文件读写 AI 事件（经 ai_event 往返通道，供 DSH FileBridge 调用） ───
+  // 注意：IPC 结构化克隆不允许 undefined 属性，必须清理返回值
+  ai.register('ai.readJsonFile', async (payload: unknown) => {
+    const { relativePath } = (payload ?? {}) as { relativePath?: string }
+    if (!relativePath) return { success: false, error: '缺少 relativePath' }
+    const api = window.electronAPI?.readJsonFile
+    if (!api) return { success: false, error: 'readJsonFile 不可用' }
+    const result = await api(relativePath)
+    // 清理 undefined 属性，避免 IPC 克隆失败
+    const clean: Record<string, unknown> = { success: !!result.success }
+    if (result.data !== undefined) clean.data = result.data
+    if (result.error !== undefined) clean.error = result.error
+    return clean
+  })
+
+  ai.register('ai.writeFile', async (payload: unknown) => {
+    const { relativePath, data } = (payload ?? {}) as { relativePath?: string; data?: unknown }
+    if (!relativePath) return { ok: false, error: '缺少 relativePath' }
+    const api = window.electronAPI?.writeJsonFile
+    if (!api) return { ok: false, error: 'writeJsonFile 不可用' }
+    const result = await api(relativePath, data)
+    const clean: Record<string, unknown> = { ok: !!result.ok }
+    if (result.error !== undefined) clean.error = result.error
+    return clean
+  })
+
+  logger.info(`[AIModule] 编辑器层 AI 事件已注册: ai.selectActor, ai.dragActor, ai.readJsonFile, ai.writeFile`)
 
   // 浏览器调试入口（Playwright / 控制台验证用）：window.__ai.emit('ai.selectActor', { name })
   ;(window as any).__ai = {
@@ -344,10 +370,17 @@ export function registerGlobalEventListeners(callbacks: {
               `[MCP][AI] 事件 ${event} → ${result.handled ? `已处理 (${result.results.length} 处理器)` : '无处理器（未注册）'}`,
             )
             // 汇总返回值：取最后一个非 undefined 结果（getState 等查询事件）
+            // 处理器可能是 async（返回 Promise），需要 await
             let ret: unknown = undefined
             if (result.handled) {
               for (let i = result.results.length - 1; i >= 0; i--) {
-                if (result.results[i] !== undefined && result.results[i] !== null) { ret = result.results[i]; break }
+                const r = result.results[i]
+                if (r !== undefined && r !== null) {
+                  ret = typeof r === 'object' && r !== null && typeof (r as any).then === 'function'
+                    ? await (r as Promise<unknown>)
+                    : r
+                  break
+                }
               }
             }
             const response = { status: 'ok', event, handled: result.handled, result: ret ?? null }

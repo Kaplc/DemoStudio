@@ -1,0 +1,25 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+
+# DemoStudio 记忆系统插件（@demostudio/dsh-memory，junction 挂载自仓库 harness/dsh-memory）
+# memoryDir 钉到项目根：编辑器以 harness/dsh-source 为 cwd 拉起内核时，记忆仍落在 DemoStudio 根
+- insert:
+    - id: dsh-memory
+      name: '@demostudio/dsh-memory'
+      config:
+        memoryDir: 'E:/DemoStudio/.dsh/memory'
+
+# DemoStudio 启动同步插件（@demostudio/dsh-sync，junction 挂载自仓库 harness/dsh-sync）
+# 启动时把 home(~/.dsh) 的记忆/skills/presets/profiles 同步到项目根 .dsh（内容变化才写）
+- insert:
+    - id: dsh-sync
+      name: '@demostudio/dsh-sync'
+      config:
+        projectRoot: 'E:/DemoStudio'
+
+# DemoStudio 引擎工具插件（@demostudio/dsh-engine-tools，junction 挂载自仓库 harness/dsh-engine-tools）
+# 5 个引擎特化工具（inspect_scene / spawn_entity / run_scenario / get_game_state / set_game_speed）
+- insert:
+    - id: dsh-engine-tools
+      name: '@demostudio/dsh-engine-tools'

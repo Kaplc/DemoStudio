@@ -7,6 +7,7 @@
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system'
   | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header'
+  | 'context'
 
 export interface ToolState {
   id: string
@@ -86,6 +87,29 @@ export interface TodoItem {
   status: 'pending' | 'in_progress' | 'completed'
 }
 
+// ─── 上下文注入卡片（对齐 DSH WebUI ContextMessageNode / ContextInjectionRow） ───
+/** 已知呈现形态（dsh-llm ContextForm）；未知/缺失形态按原文渲染（opaque） */
+export type KnownContextForm = 'instructions' | 'catalog' | 'snapshot' | 'notice' | 'relay' | 'recall'
+
+/** 注入来源的展示投影（对齐 WebUI contextProvenance + contextForm） */
+export interface ContextCardInfo {
+  /** 'recall' 仅跨会话引用召回；plugin / skill / 指令同步等均为 'inject' */
+  role: 'recall' | 'inject'
+  /** 生产者标签：插件名 / skill 名 / 指令文件路径 / source.kind */
+  label: string | null
+  /** 生产者声明的形态；不可识别时为 null */
+  form: KnownContextForm | null
+  /** 折叠行一句话摘要（仅 notice 形态记录） */
+  summary: string | null
+}
+
+/** 实时流 context 事件负载 */
+export interface ContextEventPayload extends ContextCardInfo {
+  content: string
+  seq: number
+  time: number
+}
+
 // ─── 消息节点 ───
 export interface Message {
   id: string
@@ -116,6 +140,8 @@ export interface Message {
   planMode?: { active: boolean }
   /** 推理卡片是否已折叠（收到 message.delta 时置 true） */
   reasoningCollapsed?: boolean
+  /** 上下文注入卡片信息（role === 'context' 时存在） */
+  context?: ContextCardInfo
 }
 
 /**
@@ -153,6 +179,7 @@ export type AgentEventType =
   | 'reasoning.delta'
   // 消息生命周期
   | 'message'
+  | 'context'
   | 'toolCall'
   | 'toolResult'
   // Step/Turn 边界
