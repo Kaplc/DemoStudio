@@ -7,17 +7,20 @@ interface TypewriterOptions {
   maxSpeed?: number
   /** 加速因子：每100字符增加的速度 */
   acceleration?: number
+  /** 速度倍率：用于积压消息时加速（默认1） */
+  speedMultiplier?: number
 }
 
 /**
  * 打字机效果 hook
- * 文本越长，输出越快
+ * 文本越长，输出越快；积压消息越多，速度倍率越高
  */
 export function useTypewriter(options: TypewriterOptions = {}) {
   const {
     baseSpeed = 30,
     maxSpeed = 200,
-    acceleration = 0.5
+    acceleration = 0.5,
+    speedMultiplier = 1
   } = options
 
   // 缓冲区：存储待显示的文本
@@ -34,11 +37,24 @@ export function useTypewriter(options: TypewriterOptions = {}) {
   const lastTimeRef = useRef(0)
   // 是否正在运行
   const runningRef = useRef(false)
+  // 速度倍率 ref（允许外部动态更新）
+  const speedMultiplierRef = useRef(speedMultiplier)
 
-  // 计算当前速度（字符/秒）
+  // 更新速度倍率
+  const setSpeedMultiplier = useCallback((multiplier: number) => {
+    const newMultiplier = Math.max(1, multiplier)
+    const oldMultiplier = speedMultiplierRef.current
+    if (oldMultiplier !== newMultiplier) {
+      console.log(`[Typewriter] 速度倍率变化: ${oldMultiplier}x → ${newMultiplier}x`)
+    }
+    speedMultiplierRef.current = newMultiplier
+  }, [])
+
+  // 计算当前速度（字符/秒），应用速度倍率
   const getSpeed = useCallback((currentLength: number): number => {
-    const speed = baseSpeed + (currentLength / 100) * acceleration * baseSpeed
-    return Math.min(speed, maxSpeed)
+    const baseCalc = baseSpeed + (currentLength / 100) * acceleration * baseSpeed
+    const speed = baseCalc * speedMultiplierRef.current
+    return Math.min(speed, maxSpeed * speedMultiplierRef.current)
   }, [baseSpeed, maxSpeed, acceleration])
 
   // 动画循环
@@ -91,6 +107,7 @@ export function useTypewriter(options: TypewriterOptions = {}) {
 
   // 设置完整文本（用于提交时）
   const setFull = useCallback((text: string) => {
+    console.log(`[Typewriter] 设置新文本: ${text.length} 字符, 当前倍率: ${speedMultiplierRef.current}x`)
     bufferRef.current = text
     displayRef.current = ''
     startAnimation()
@@ -142,9 +159,12 @@ export function useTypewriter(options: TypewriterOptions = {}) {
     reset,
     onUpdate,
     onComplete,
+    setSpeedMultiplier,
     /** 获取当前缓冲区长度（用于调试） */
     getBufferLength: () => bufferRef.current.length,
     /** 获取当前显示长度 */
-    getDisplayLength: () => displayRef.current.length
+    getDisplayLength: () => displayRef.current.length,
+    /** 获取当前速度倍率 */
+    getSpeedMultiplier: () => speedMultiplierRef.current
   }
 }

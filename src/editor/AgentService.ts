@@ -10,6 +10,9 @@
  *   5. session.history   -> 兜底通道：mux 离线时轮询，以及历史消息加载
  *
  * 事件覆盖：对齐 DSH 官方 48 种 SessionEvent 类型
+ *   assistant/chunk 的 reasoning-delta 额外以 reasoning.delta（60ms 节流全量）
+ *   实时下发，供面板在显示队列空闲时即时渲染 live 推理卡片；完整段仍按
+ *   step/tool/turn 边界以 message 事件提交（flushAssistant）。
  */
 import type {
   ConnectionState, AgentEvent, ToolState, PendingQuestionRequest, QuestionAnswer, QuestionItem,
@@ -20,13 +23,14 @@ import type {
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
   RequestHeaderPayload, SandboxModePayload, PlanModePayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
-  ApprovalOutcome, PendingApprovalRequest,
+  ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload,
 } from '../types/agent'
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
 const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
 const WATCHDOG_INTERVAL_MS = 3000 // mux 推送静默后的兜底拉取周期
 const WATCHDOG_IDLE_MS = 1500     // 静默判定阈值（推送正常流动时心跳自动空转）
+const REASONING_EMIT_INTERVAL_MS = 60 // live 推理节流周期（首个 delta 立即出卡，后续合并下发）
 const RECONNECT_BASE_DELAY = 1000 // 重连基础延迟 ms
 const RECONNECT_MAX_DELAY = 16000 // 重连最大延迟 ms
 const RECONNECT_MAX_ATTEMPTS = 5  // 最大重连次数
@@ -264,6 +268,9 @@ export class AgentService {
   /** 当前 assistant 段的流式缓冲（推送与轮询共用同一套缓冲） */
   private assistantBuf = ''
   private reasoningBuf = ''
+  /** live 推理节流：待触发的下发定时器与上次下发时间 */
+  private reasoningEmitTimer: ReturnType<typeof setTimeout> | null = null
+  private lastReasoningEmitAt = 0
   /** 最近一次消费事件的时间（心跳判定推送是否静默） */
   private lastEventAt = 0
   private watchdogTimer: ReturnType<typeof setInterval> | null = null
@@ -551,6 +558,7 @@ export class AgentService {
   disconnect(): void {
     this.abortPolling = true
     this.disconnectMux()
+    this.clearLiveBuffers()
     this.setSession(null)
     this.setRunning(false)
     this.reconnectAttempts = 0
@@ -621,6 +629,7 @@ export class AgentService {
   releaseForHmr(): void {
     this.abortPolling = true
     this.stopTurnWatchdog()
+    this.clearLiveBuffers()
     if (this.muxWs) { this.muxWs.close(); this.muxWs = null }
     if (this.muxCleanup) { this.muxCleanup(); this.muxCleanup = null }
     this.setState('idle')
@@ -957,10 +966,45 @@ export class AgentService {
   //  兜底：mux 离线时轮询 history + 回合运行中的静默心跳。
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /** live 推理节流下发：首个 delta 立即 emit（卡片即时出现），之后每周期合并一次全量文本。
+   * 全量而非增量：面板直接整卡替换，乱序/丢帧可自愈。 */
+  private scheduleReasoningEmit(): void {
+    const elapsed = Date.now() - this.lastReasoningEmitAt
+    if (elapsed >= REASONING_EMIT_INTERVAL_MS) {
+      this.emitReasoningDelta()
+      return
+    }
+    if (!this.reasoningEmitTimer) {
+      this.reasoningEmitTimer = setTimeout(() => {
+        this.reasoningEmitTimer = null
+        this.emitReasoningDelta()
+      }, REASONING_EMIT_INTERVAL_MS - elapsed)
+    }
+  }
+
+  /** 取消待触发的 live 推理下发（清除缓冲时调用，避免缓冲清空后的迟到空发） */
+  private cancelReasoningEmit(): void {
+    if (this.reasoningEmitTimer) {
+      clearTimeout(this.reasoningEmitTimer)
+      this.reasoningEmitTimer = null
+    }
+  }
+
+  private emitReasoningDelta(): void {
+    this.cancelReasoningEmit()
+    if (!this.reasoningBuf) return
+    this.lastReasoningEmitAt = Date.now()
+    const payload: ReasoningDeltaPayload = { text: this.reasoningBuf }
+    this.emit({ type: 'reasoning.delta', payload })
+  }
+
   /** 提交当前累积的 assistant 段（UI 只接收完整段）。工具调用会把一个 turn 切成
-   * 多个 assistant -> tool -> assistant 段，必须在边界事件到达前提交缓冲区。 */
+   * 多个 assistant -> tool -> assistant 段，必须在边界事件到达前提交缓冲区。
+   * 提交前先发末次 live 推理并掐掉节流定时器：保证 message 事件之后不再有迟到的
+   * reasoning.delta，否则面板可能在段落采纳后又建出重复的 live 卡片。 */
   private flushAssistant(turnCompleted = false, turnEndReason?: TurnEndReason): void {
     if (!this.assistantBuf && !this.reasoningBuf) return
+    this.emitReasoningDelta()
     this.emit({
       type: 'message',
       payload: {
@@ -977,6 +1021,7 @@ export class AgentService {
 
   /** 丢弃半截缓冲（stop / 发送前调用，不触发 UI 派发） */
   private clearLiveBuffers(): void {
+    this.cancelReasoningEmit()
     this.assistantBuf = ''
     this.reasoningBuf = ''
   }
@@ -1034,7 +1079,10 @@ export class AgentService {
       const chunk = d?.chunk
       if (!chunk) return false
       if (chunk.type === 'text-delta' && chunk.text) this.assistantBuf += chunk.text
-      if (chunk.type === 'reasoning-delta' && chunk.text) this.reasoningBuf += chunk.text
+      if (chunk.type === 'reasoning-delta' && chunk.text) {
+        this.reasoningBuf += chunk.text
+        this.scheduleReasoningEmit() // live 推理：节流后实时下发（面板空闲时即时上屏）
+      }
       if (chunk.type === 'finish') this.emit({ type: 'stepEnd', payload: { reason: chunk.reason, seq: event.seq, time } })
       return false
     }
@@ -1043,7 +1091,10 @@ export class AgentService {
       const msg = d?.message
       if (msg?.role === 'assistant') {
         const reasoningPart = (msg.content || []).find((c: ContentPart) => c.type === 'reasoning')
-        if (reasoningPart?.text && !this.reasoningBuf) this.reasoningBuf = reasoningPart.text
+        if (reasoningPart?.text && !this.reasoningBuf) {
+          this.reasoningBuf = reasoningPart.text
+          this.scheduleReasoningEmit()
+        }
       }
       return false
     }

@@ -88,6 +88,11 @@ class LoggerInstance {
     return `[${this.formatTime()}][${level.toUpperCase()}][${this.module}] ${message}${extra}`
   }
 
+  /** 是否运行在 Agent 独立窗口（URL 含 ?agentWindow=1） */
+  private get isAgentWindow(): boolean {
+    return typeof window !== 'undefined' && window.location?.search?.includes('agentWindow=1')
+  }
+
   private write(level: LogLevel, message: string, ...args: any[]) {
     if (!this.shouldLog(level)) return
 
@@ -95,6 +100,7 @@ class LoggerInstance {
     const fileLine = this.toFileLine(level, message, ...args)
 
     // 终端输出（console.debug 在多数浏览器默认隐藏，改用 console.log）
+    // Agent 窗口的 console.* 输出会被主进程 console-message 监听捕获写入文件
     switch (level) {
       case 'debug':
         console.log(formatted)
@@ -110,13 +116,15 @@ class LoggerInstance {
         break
     }
 
-    // 2. Console 面板
-    this.onOutput?.(formatted)
-
-    // 3. 写入文件（Electron IPC）
-    if (this.enableFile && typeof window !== 'undefined' && typeof window.electronAPI?.writeLogFile === 'function') {
-      window.electronAPI.writeLogFile(level, fileLine).catch(() => {})
+    // 2. Console 面板（主窗口直接回调，Agent 窗口通过 IPC 转发到主窗口）
+    if (this.onOutput) {
+      this.onOutput(formatted)
+    } else if (this.isAgentWindow && typeof window !== 'undefined' && typeof window.electronAPI?.forwardAgentLog === 'function') {
+      window.electronAPI.forwardAgentLog(level, formatted)
     }
+
+    // 3. 写入文件（Electron IPC — 已废弃，文件写入由 console-message 监听承载）
+    // if (this.enableFile && ...) { ... }
 
     // 4. 游戏日志（Game.launch 开启后，本局日志同步写入独立 game_*.log 文件）
     if (this._gameLogActive && typeof window !== 'undefined' && typeof window.electronAPI?.writeGameLog === 'function') {

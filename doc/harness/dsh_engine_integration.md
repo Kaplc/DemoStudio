@@ -70,7 +70,7 @@ ConnectionIndicator.onClick(degraded)
 
 | 层 | 职责 | 明确不做 |
 |---|---|---|
-| agent 子进程（`:3080`，`dsh-cli --profile web --no-open`） | 唯一常驻者：提供 DSH 业务 HTTP（RPC over `/api/*`）、mux WS 下行流 | 不感知编辑器 UI，无所有权概念 |
+| agent 子进程（`:3080`，`dsh-cli --profile web --no-open`） | 唯一常驻者：提供 DSH 业务 HTTP（RPC over `/api/*`）、mux WS 下行流。通过 launcher.cmd 脱离 Electron 进程树，主进程热重载不连带重启 | 不感知编辑器 UI，无所有权概念 |
 | watchdog 进程（`editor/dsh-agent-watcher.cjs`，detached） | **所有权守护**：监视编辑器心跳注册表，全部编辑器消失且宽限期满 → 收割 agent 并自杀；自报 PID 到 owner.json | 不代理任何业务流量 |
 | Electron main | 引导（探测/认领/spawn）、持有业务 mux WS、崩溃自愈、优雅停机、`dsh-status`/`dsh-restart` IPC | 不改 DSH 内核；不替 renderer 决定会话 |
 | renderer | AgentPanel UI + AgentService（claiming/recovering 状态机、localStorage 映射、history 补档） | 不决定 agent 生死 |
@@ -88,10 +88,9 @@ sequenceDiagram
     M->>M: 写 editors/<pid>.json 心跳 (每2s续期)
     M->>A: POST /api/session.list 探测 (1.5s超时)
     Note over M,A: 不可达 → 需要冷启动
-    M->>A: spawn(node, dsh-cli --profile web --no-open)
-    loop 就绪等待 (≤30s, 双通道)
-        A-->>M: stdout "dsh web: http://...:3080"
-        M->>A: POST /api/session.list 兜底探测
+    M->>M: spawn scripts/dsh-agent-launcher.cmd<br/>(cmd.exe → start /b node → cmd.exe退出 → node成为孤儿)
+    loop 就绪等待 (≤30s, RPC探针)
+        M->>A: POST /api/session.list 探测
     end
     M->>M: registerDshOwnership(spawn)<br/>netstat 反查 PID → 写 owner.json{port,agentPid}
     M->>W: spawn detached dsh-agent-watcher.cjs
@@ -138,13 +137,16 @@ flowchart TD
 ### 2.5 崩溃自愈
 
 ```
-child.on('exit') 且 !_dshShuttingDown 且 lifecycle==='running'
-  → disconnectMuxWs(), _dshPort=0
+定期健康探针(每5s) 连续3次失败（agent 进程已退出/端口不可达）
+  → stopDshHealthCheck(), disconnectMuxWs(), _dshPort=0
   → lifecycle='restart-wait'
   → 退避 delay = min(2000 × 2^n, 60000) 后重新 bootstrapDSH('auto-restart')
   → 成功: running + 计数清零
   → 达上限(5次): lifecycle='degraded' 终态 → AgentPanel 展示"Agent 故障·点击重启"，不弹窗，编辑器其余功能不受影响
 ```
+
+> 注：DSH agent 通过 launcher.cmd 脱离 Electron 进程树后，不再有 `child.on('exit')` 回调。
+> 改为定期 RPC 探针检测存活，语义等价且不依赖父子进程关系。
 
 配置常量（`electron/main.ts`）：
 
@@ -176,7 +178,7 @@ child.on('exit') 且 !_dshShuttingDown 且 lifecycle==='running'
 |---|---|---|
 | `harness/dsh-source/apps/cli/lib/bin.js` 不存在 | `spawnDshAgent()` throw → `degraded` 终态，面板显示故障（不弹窗，编辑器其余功能正常） | 补齐构建产物后点状态指示器手动重启（`dsh-restart`） |
 | 探测超时/:3080 无响应 | 按「需冷启动」处理走 spawn 路径 | 自动 |
-| spawn 后就绪超时（30s） | kill 残留子进程 → `degraded` 终态 | 手动重启入口 |
+| spawn 后就绪超时（30s） | launcher 已退出无法收割孤儿 → `degraded` 终态 | 手动重启入口 |
 | agent 运行中异常退出 | 指数退避自愈 ≤5 次；期间面板经 `restart-wait` 态感知；超限 `degraded` | 自动 / 手动 |
 | 强杀整个编辑器后在宽限期内重开 | 新 main 探测到幸存 agent → 认领成功，日志记录探测→认领→attach 全链路 | 自动 |
 | 强杀后超过宽限期才重开 | watcher 已收割 agent 并自杀 → 新实例冷启动新 agent（旧远端会话仍在 DSH 存储，renderer 凭映射 attach 回去，尽力而为） | 冷启动 + 会话恢复 |

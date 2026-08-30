@@ -15,8 +15,9 @@ export interface SlashCommand {
   argumentHint?: string
   /** 命令分组 */
   group?: string
-  /** 执行处理函数 */
-  handler: (args?: string) => void | Promise<void>
+  /** 本地执行处理函数。可选：DSH 内置命令 / skill 只需展示名称，
+   * 选中后由输入框把 "/name args" 文本发给 DSH，由后端执行。 */
+  handler?: (args?: string) => void | Promise<void>
 }
 
 /** 命令来源（可扩展） */

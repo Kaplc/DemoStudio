@@ -32,6 +32,7 @@ let _dshRestartCount = 0                    // 自愈已重试次数
 let _dshRestartTimer: NodeJS.Timeout | null = null
 let _dshHeartbeatTimer: NodeJS.Timeout | null = null
 
+
 const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
 
 // 优先全局 npm 安装的 DSH
@@ -497,63 +498,58 @@ function ensureDshWatcher(source: string): void {
   // 注意：watcher 启动后会自报家门把自身 PID 写入 owner.json，这里不再写 watchPid 竞态值
 }
 
-/** spawn 新的 DSH agent 子进程并等待就绪；成功后进入 running 并认领登记 */
+/**
+ * spawn 新的 DSH agent 并等待就绪；成功后进入 running 并认领登记。
+ *
+ * 关键设计：通过 scripts/dsh-agent-launcher.cmd 间接启动 node 进程。
+ * launcher 立即退出 → DSH agent 成为孤儿进程（被系统收养）→ 脱离 Electron 进程树。
+ * 这样 vite-plugin-electron 的 treeKillSync（taskkill /T /F）不会连带杀死 DSH。
+ */
 async function spawnDshAgent(): Promise<void> {
   const cliPath = getDshCliPath()
   if (!fs.existsSync(cliPath)) {
     throw new Error(`DSH CLI 不存在（本地和全局均未找到）`)
   }
 
+  const launcherPath = path.join(__dirname, '..', 'scripts', 'dsh-agent-launcher.cmd')
+  if (!fs.existsSync(launcherPath)) {
+    throw new Error(`DSH launcher 脚本不存在: ${launcherPath}`)
+  }
+
   console.log(`[DSH] 启动 DSH 内核 (web profile, port ${DSH_PORT_DEFAULT})...`)
   _dshLifecycle = 'spawning'
 
-  const child = spawn(getSystemNodePath(), [cliPath, '--profile', 'web', '--no-open'], {
+  // DSH 输出写入日志文件（不再 pipe 到主进程，因为进程将脱离）
+  const dshLogFile = path.join(LOG_DIR, 'dsh-agent.log')
+  try { fs.writeFileSync(dshLogFile, '', 'utf-8') } catch { /* ignore */ }
+
+  const nodePath = getSystemNodePath()
+  // 通过 launcher.cmd 间接启动：cmd.exe → start /b node → cmd.exe 退出 → node 成为孤儿
+  const launcher = spawn('cmd.exe', ['/c', launcherPath,
+    nodePath, cliPath, DSH_SOURCE_DIR, dshLogFile,
+    isDev ? 'development' : 'production',
+    String(MCP_API_PORT),
+  ], {
     cwd: DSH_SOURCE_DIR,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      NODE_ENV: isDev ? 'development' : 'production',
-      DSH_ENGINE_PORT: String(MCP_API_PORT),
-    },
-  })
-  _dshChild = child
-
-  child.stdout?.on('data', (data) => {
-    const msg = data.toString()
-    msg.split(/\r?\n/).forEach((line: string) => {
-      const t = line.trim()
-      if (t) console.log(`[DSH:stdout] ${t}`)
-      const m = t.match(/dsh web:\s*http:\/\/[^:]+:(\d+)/)
-      if (m && _dshPort !== Number(m[1])) {
-        _dshPort = Number(m[1])
-        console.log(`[DSH] 内核就绪(stdout): http://127.0.0.1:${_dshPort}`)
-      }
-    })
-  })
-  child.stderr?.on('data', (data) => {
-    const msg = data.toString()
-    msg.split(/\r?\n/).forEach((line: string) => {
-      if (line.trim()) console.log(`[DSH:stderr] ${line.trim()}`)
-    })
+    stdio: 'ignore',        // launcher 自身的 stdio 不需要（DSH 输出已重定向到日志文件）
+    windowsHide: true,
   })
 
-  child.on('exit', (code) => {
-    console.log(`[DSH] 内核进程退出: code=${code} shuttingDown=${_dshShuttingDown}`)
-    if (_dshChild === child) _dshChild = null
-    onDshChildExited(code)
+  // launcher 会立即退出（start /b 是 fire-and-forget），不绑定生命周期
+  launcher.on('error', (err) => {
+    console.error(`[DSH] launcher 启动失败: ${err.message}`)
   })
-  child.on('error', (err) => {
-    console.error(`[DSH] 内核启动失败: ${err.message}`)
+  launcher.on('exit', (code) => {
+    if (code !== 0) {
+      console.error(`[DSH] launcher 异常退出: code=${code}`)
+    }
   })
 
-  // 就绪等待：stdout 打印或 RPC 探测通过任一即可（双通道，防 stdout 格式变化导致死等）
+  // 就绪等待：RPC 探测（launcher 退出后无法通过 stdout 检测就绪）
   const deadline = Date.now() + DSH_SPAWN_READY_TIMEOUT_MS
   while (Date.now() < deadline) {
     if (_dshShuttingDown) {
-      // 等待期间用户关窗：此时 child 尚未注册到 owner.json，必须就地收割防孤儿
-      console.log('[DSH] 就绪等待期间触发停机，收割未注册的 agent 子进程')
-      killProcessTree(child.pid)
-      if (_dshChild === child) _dshChild = null
+      console.log('[DSH] 就绪等待期间触发停机，中止启动流程')
       return
     }
     if (_dshPort === 0) {
@@ -572,7 +568,37 @@ async function spawnDshAgent(): Promise<void> {
   _dshLifecycle = 'running'
   _dshRestartCount = 0
   connectMuxWs()
-  console.log(`[DSH] 内核运行中: http://127.0.0.1:${_dshPort} (agentPid=${_dshChild?.pid ?? '?'})`)
+  const owner = readDshOwner()
+  console.log(`[DSH] 内核运行中: http://127.0.0.1:${_dshPort} (agentPid=${owner?.agentPid ?? '?'})`)
+
+  // 定期将 DSH 日志回显到主进程控制台（方便调试，不阻塞）
+  void tailDshLog(dshLogFile)
+}
+
+/** 后台尾随 DSH 日志文件，将新内容回显到主进程控制台 */
+async function tailDshLog(logFile: string): Promise<void> {
+  let pos = 0
+  const readNew = () => {
+    try {
+      const stat = fs.statSync(logFile)
+      if (stat.size <= pos) return
+      const fd = fs.openSync(logFile, 'r')
+      const buf = Buffer.alloc(stat.size - pos)
+      fs.readSync(fd, buf, 0, buf.length, pos)
+      fs.closeSync(fd)
+      pos = stat.size
+      const text = buf.toString('utf-8')
+      text.split(/\r?\n/).forEach(line => {
+        const t = line.trim()
+        if (t) console.log(`[DSH:log] ${t}`)
+      })
+    } catch { /* 文件可能尚未创建 */ }
+  }
+  // 每秒检查一次新日志，直到 DSH 停止或进程关闭
+  while (!_dshShuttingDown && _dshLifecycle !== 'off') {
+    readNew()
+    await new Promise(r => setTimeout(r, 1000))
+  }
 }
 
 /** 认领登记：反查 agent PID → 写 owner.json → 确保 watcher 守护 */
@@ -965,6 +991,21 @@ function ensureLogDir() {
 // ─── 旧日期日志写入已废弃：日志改由 console_（编辑器启动）/ game_（游戏启动）轮转文件承载 ───
 // 保留空实现以兼容旧 renderer 调用（writeLogFile IPC 不再写盘）
 ipcMain.handle('write-log-file', async () => {})
+
+// ─── Agent 窗口日志转发（agent renderer → 主窗口 Console 面板 + 文件）───
+ipcMain.on('agent-log', (_event, data: { level: string; message: string }) => {
+  // 写入文件日志
+  const now = new Date().toISOString()
+  const lineStr = `[${now}][AGENT:${data.level.toUpperCase()}] ${data.message}\n`
+  try {
+    ensureLogDir()
+    fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
+  } catch {}
+  // 转发给主窗口 Console 面板
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('agent-log', data)
+  }
+})
 
 // ─── 游戏日志（每次启动游戏独立文件，滚动删除）───
 
@@ -1933,6 +1974,23 @@ function openAgentWindow(): void {
 
   _dshWebuiWindow.once('ready-to-show', () => _dshWebuiWindow?.show())
   _dshWebuiWindow.on('closed', () => { _dshWebuiWindow = null })
+
+  // 将 Agent 窗口控制台输出重定向到文件日志（与主窗口 console-message 同逻辑）
+  _dshWebuiWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (sourceId.startsWith('devtools://')) return
+    const logLevel = ['verbose', 'info', 'warning', 'error'][level] || 'info'
+    const now = new Date().toISOString()
+    const lineStr = `[${now}][AGENT:${logLevel.toUpperCase()}] ${message} (${sourceId}:${line})\n`
+    try {
+      ensureLogDir()
+      fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
+    } catch {}
+  })
+
+  // 开发模式下自动打开 DevTools
+  if (isDev) {
+    _dshWebuiWindow.webContents.openDevTools({ mode: 'detach' })
+  }
 
   // 加载编辑器应用本身，query 参数驱动 App 只渲染 AgentPanel（不初始化引擎）
   if (isDev) {

@@ -11,7 +11,8 @@
 import { basename, join } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
-import { bindRootConfig, pathCompareKey, type ResolvedConfig, type ResolvedRootConfig } from './config.js'
+import { bindRootConfig, DEFAULT_INSTRUCTIONS_DIR, pathCompareKey, type ResolvedConfig, type ResolvedRootConfig } from './config.js'
+import { scanFrontmatterMappings } from './frontmatter.js'
 import { instructionPaths, resolveTouch } from './mapping.js'
 import { loadInstruction, type FileAccess, type InstructionCache, type Probe } from './files.js'
 import { isInstructionSource, parseInstructionChanges, type AgentInstructionChange } from './types.js'
@@ -34,6 +35,7 @@ export interface DeliveryTarget {
 /**
  * 解析 session 的项目根并绑定配置。
  * 策略（§5.3）：显式配置的 projectRoot 优先；否则从 session cwd 向上探测 `.git`。
+ * 如果 autoScan 启用，扫描指令目录的 frontmatter 推导额外映射。
  * @returns 绑定后的配置；根越界/映射为空时 undefined（跳过全部注入）。
  */
 export async function resolveSessionConfig(
@@ -47,7 +49,13 @@ export async function resolveSessionConfig(
     const cwd = agent.session.header.cwd ?? process.cwd()
     root = await findProjectRoot(cwd, access, signal)
   }
-  return bindRootConfig(resolved, root)
+  // 自动扫描 frontmatter 映射（在绑定配置前，需要先确定指令目录路径）
+  let autoScanMappings: Array<{ prefix: string; file: string }> | undefined
+  if (resolved.autoScan) {
+    const instructionsDir = resolved.instructionsDir ?? join(root, DEFAULT_INSTRUCTIONS_DIR)
+    autoScanMappings = await scanFrontmatterMappings(instructionsDir, undefined, signal).catch(() => undefined)
+  }
+  return bindRootConfig(resolved, root, autoScanMappings)
 }
 
 /** 项目根标记：向上回溯直到发现其一。 */

@@ -35,8 +35,8 @@ interface UseSlashCommandResult {
   selectCommand: (command: SlashCommand) => void
   /** 关闭菜单 */
   closeMenu: () => void
-  /** 移动高亮 */
-  moveHighlight: (dir: 1 | -1) => void
+  /** 移动高亮（相对位移；鼠标悬停跨行时 delta 可能大于 1） */
+  moveHighlight: (dir: number) => void
 }
 
 export function useSlashCommand({
@@ -100,7 +100,7 @@ export function useSlashCommand({
   }, [])
 
   // 移动高亮
-  const moveHighlight = useCallback((dir: 1 | -1) => {
+  const moveHighlight = useCallback((dir: number) => {
     setHighlightIndex(prev => {
       const next = prev + dir
       if (next < 0) return candidates.length - 1

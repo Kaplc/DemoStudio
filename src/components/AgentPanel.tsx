@@ -24,13 +24,14 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { ApprovalCard } from './agent/ApprovalCard'
 import { ContextCard } from './agent/ContextCard'
 import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
 import { KernelUpdateModal } from './agent/KernelUpdateModal'
+import { SkillManager } from './agent/SkillManager'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -56,6 +57,8 @@ interface QueuedAssistant {
   stats?: any
   turnCompleted?: boolean
   turnEndReason?: any
+  /** live 推理卡片的消息 id：轮到本段时原地采纳（推理已实时上屏，免打字机回放） */
+  adoptId?: string
 }
 
 interface QueuedTool {
@@ -120,6 +123,14 @@ function toPanelHistoryMessage(
 }
 
 export const AgentPanel: React.FC = () => {
+  // 组件挂载日志
+  useEffect(() => {
+    console.log('[AgentPanel] 组件已挂载')
+    return () => {
+      console.log('[AgentPanel] 组件已卸载')
+    }
+  }, [])
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'sys-0',
@@ -137,6 +148,7 @@ export const AgentPanel: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [showKernelUpdate, setShowKernelUpdate] = useState(false)
+  const [showSkillManager, setShowSkillManager] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
@@ -174,6 +186,10 @@ export const AgentPanel: React.FC = () => {
   const displayedRetryIdsRef = useRef(new Set<string>())
   const pendingTurnSystemRef = useRef<string | null>(null)
   const drainQueueRef = useRef<() => void>(() => {})
+  // live 推理卡片：显示队列空闲时，reasoning.delta 直达上屏（对齐 WebUI 的实时 Think 卡）。
+  // 记录当前 live 消息 id；flush 的完整段入队时携带该 id，轮到消费时原地采纳、不再重打推理。
+  const liveAssistantIdRef = useRef<string | null>(null)
+  const liveSequenceRef = useRef(0)
   // 历史窗口只显示当前已加载尾部的最近两轮，向上滚动时逐步展开/拉取更早内容。
   const loadedHistoryRef = useRef<Message[]>([])
   const historyCursorRef = useRef<number | undefined>(undefined)
@@ -251,7 +267,9 @@ export const AgentPanel: React.FC = () => {
 
   // 初始化服务
   useEffect(() => {
+    console.log('[AgentPanel] 初始化 AgentService 监听')
     const unsubState = agentService.onStateChange((state) => {
+      console.log(`[AgentPanel] 连接状态变化: ${state}`)
       setConnectionState(state)
       setAgentConnected(state === 'connected')
       setAgentConnecting(state === 'connecting')
@@ -262,8 +280,15 @@ export const AgentPanel: React.FC = () => {
         case 'message': {
           const p = event.payload as any
           if (p?.role === 'assistant') {
-            commitStreamingMessage(p.content || '', p.reasoning, p.stats, p.turnCompleted, p.turnEndReason)
+            // live 推理卡片在屏时：完整段携带 adoptId 入队，轮到消费时原地采纳。
+            // ref 在采纳真正发生（drain）时才清除，期间新 delta 仍会继续喂同一张卡。
+            commitStreamingMessage(p.content || '', p.reasoning, p.stats, p.turnCompleted, p.turnEndReason, liveAssistantIdRef.current ?? undefined)
           }
+          break
+        }
+
+        case 'reasoning.delta': {
+          handleLiveReasoning((event.payload as ReasoningDeltaPayload)?.text || '')
           break
         }
 
@@ -286,6 +311,7 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'turnEnd': {
+          console.log(`[AgentPanel] AI 回合结束: reason=${(event.payload as any)?.reason?.kind || 'unknown'}`)
           setIsAgentRunning(false) // turn 结束，AI 不再运行
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
@@ -460,6 +486,8 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'closed':
+          // 断连时折叠 live 推理卡片（重连恢复后由 history/续听路径重建显示）
+          finalizeLiveReasoning()
           pushSystem('与 DSH Agent 的连接已断开')
           break
       }
@@ -494,6 +522,40 @@ export const AgentPanel: React.FC = () => {
     const active = activeDisplayRef.current
     if (!active || active.kind !== 'assistant' || displayPhaseRef.current !== 'content') return
     setMessages(cur => cur.map(message => message.id === active.id ? { ...message, content } : message))
+    setContentVersion(v => v + 1)
+  }, [])
+
+  // 折叠 live 推理卡片（保留已上屏内容）。停止 / 断连时调用，防止卡片停在"思考中"。
+  const finalizeLiveReasoning = useCallback(() => {
+    const liveId = liveAssistantIdRef.current
+    if (!liveId) return
+    liveAssistantIdRef.current = null
+    setMessages(cur => cur.map(message => message.id === liveId ? { ...message, streaming: false } : message))
+    setContentVersion(v => v + 1)
+  }, [])
+
+  // reasoning.delta 直达上屏：显示队列完全空闲时即时创建/更新 live 推理卡片（对齐 WebUI Think 卡的实时性）。
+  // 队列忙碌（上一段还在打字 / 有排队项）时不实时上屏——delta 留在服务端缓冲，flush 的完整段
+  // 走原打字机回放路径，保证 tool/assistant 的显示顺序不被跨段打乱。
+  const handleLiveReasoning = useCallback((text: string) => {
+    if (!text) return
+    if (activeDisplayRef.current || displayQueueRef.current.length > 0 || displayPhaseRef.current) return
+    const liveId = liveAssistantIdRef.current
+    if (!liveId) {
+      const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
+      liveAssistantIdRef.current = id
+      console.log(`[AgentPanel] live 推理卡片创建: ${id} (${text.length} 字符)`)
+      setMessages(cur => [...cur, {
+        id,
+        role: 'assistant' as const,
+        content: '',
+        reasoning: text,
+        streaming: true,
+        ts: Date.now(),
+      }])
+    } else {
+      setMessages(cur => cur.map(message => message.id === liveId ? { ...message, reasoning: text } : message))
+    }
     setContentVersion(v => v + 1)
   }, [])
 
@@ -593,6 +655,13 @@ export const AgentPanel: React.FC = () => {
     const next = displayQueueRef.current.shift()!
     activeDisplayRef.current = next
 
+    // 计算速度倍率：每多2个队列项，速度翻倍
+    const queueLength = displayQueueRef.current.length
+    const speedMultiplier = Math.pow(2, Math.floor(queueLength / 2))
+    console.log(`[AgentPanel] 消费显示队列: kind=${next.kind}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
+    typewriter.setSpeedMultiplier(speedMultiplier)
+    reasoningTypewriter.setSpeedMultiplier(speedMultiplier)
+
     if (next.kind === 'retry') {
       const retries = pendingRetryChainsRef.current.get(next.id)
       if (retries && retries.length > 0) {
@@ -632,17 +701,46 @@ export const AgentPanel: React.FC = () => {
       return
     }
 
-    setMessages(cur => [...cur, {
-      id: next.id,
-      role: 'assistant' as const,
-      content: '',
-      reasoning: '',
-      streaming: true,
-      ts: Date.now(),
-    }])
+    // live 推理采纳：ref 仍指向该段的 live 卡片 → 原地补全（推理已实时上屏，免回放）；
+    // ref 已变（停止/断连清理过）→ 退回新建消息 + 打字机回放的完整路径。
+    const adopting = !!next.adoptId && liveAssistantIdRef.current === next.adoptId
+    if (adopting) {
+      liveAssistantIdRef.current = null
+      console.log(`[AgentPanel] live 推理卡片原地采纳: ${next.adoptId}`)
+    }
+
+    setMessages(cur => {
+      if (adopting) {
+        const index = cur.findIndex(message => message.id === next.id)
+        if (index !== -1) {
+          const updated = cur.slice()
+          updated[index] = { ...updated[index], reasoning: next.reasoning ?? updated[index].reasoning, streaming: true }
+          return updated
+        }
+      }
+      return [...cur, {
+        id: next.id,
+        role: 'assistant' as const,
+        content: '',
+        // 非采纳路径先给空串由打字机渐进回填；采纳但 live 卡片已丢失（会话被整体替换）
+        // 时直接补全量推理，避免文本丢失——此时跳过回放是可接受的降级。
+        reasoning: adopting ? (next.reasoning ?? '') : '',
+        streaming: true,
+        ts: Date.now(),
+      }]
+    })
     setContentVersion(v => v + 1)
 
-    if (next.reasoning) {
+    if (adopting && next.content) {
+      // 推理已上屏：直接进入正文打字。正文首字符落地后本段过程被"结论打断"，
+      // StepProcess 会自动折叠推理区，视觉顺序与 WebUI 一致（思考完 → 收起 → 出答案）。
+      displayPhaseRef.current = 'content'
+      typewriter.reset()
+      typewriter.setFull(next.content)
+    } else if (adopting) {
+      // 纯推理段（无正文，后随工具调用）：推理已展示完，直接完成本段，工具卡片立即落地
+      finishAssistantDisplay()
+    } else if (next.reasoning) {
       displayPhaseRef.current = 'reasoning'
       reasoningTypewriter.reset()
       reasoningTypewriter.setFull(next.reasoning)
@@ -657,8 +755,10 @@ export const AgentPanel: React.FC = () => {
     finishAssistantDisplay,
     reasoningTypewriter.reset,
     reasoningTypewriter.setFull,
+    reasoningTypewriter.setSpeedMultiplier,
     typewriter.reset,
     typewriter.setFull,
+    typewriter.setSpeedMultiplier,
   ])
 
   useEffect(() => {
@@ -666,11 +766,16 @@ export const AgentPanel: React.FC = () => {
   }, [drainDisplayQueue])
 
   // 提交一个已收集完成的 assistant 段，显示顺序由队列统一控制。
-  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any) => {
+  // adoptId 非空时表示该段的推理已通过 live 卡片实时上屏：队列项直接沿用 live 消息 id，
+  // 轮到消费时原地采纳（跳过推理回放），正文继续走打字机。
+  const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any, adoptId?: string) => {
     messageSequenceRef.current += 1
+    const queueLength = displayQueueRef.current.length
+    console.log(`[AgentPanel] 消息入队: content=${text.length}字符, reasoning=${reasoning?.length || 0}字符, 队列长度=${queueLength}${adoptId ? ', 采纳 live 卡片' : ''}`)
     displayQueueRef.current.push({
       kind: 'assistant',
-      id: `a-${Date.now()}-${messageSequenceRef.current}`,
+      id: adoptId ?? `a-${Date.now()}-${messageSequenceRef.current}`,
+      adoptId,
       content: text,
       reasoning,
       stats,
@@ -808,6 +913,8 @@ export const AgentPanel: React.FC = () => {
         : message))
       setContentVersion(v => v + 1)
     }
+    // live 推理卡片同样就地折叠，保留已实时上屏的部分
+    finalizeLiveReasoning()
     displayQueueRef.current = []
     activeDisplayRef.current = null
     displayPhaseRef.current = null
@@ -818,7 +925,7 @@ export const AgentPanel: React.FC = () => {
     pendingTurnSystemRef.current = null
     typewriter.reset()
     reasoningTypewriter.reset()
-  }, [reasoningTypewriter.reset, typewriter.reset])
+  }, [finalizeLiveReasoning, reasoningTypewriter.reset, typewriter.reset])
 
   // 连接到 DSH
   const handleConnect = useCallback(async () => {
@@ -1428,6 +1535,12 @@ export const AgentPanel: React.FC = () => {
                 </button>
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowSkillManager(true) }}
+                >
+                  <span>Skill 管理</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
                 >
                   <span>设置</span>
@@ -1463,6 +1576,12 @@ export const AgentPanel: React.FC = () => {
       <SettingsPanel
         visible={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Skill 管理面板 */}
+      <SkillManager
+        visible={showSkillManager}
+        onClose={() => setShowSkillManager(false)}
       />
 
       {/* DSH 内核更新浮动窗口 */}

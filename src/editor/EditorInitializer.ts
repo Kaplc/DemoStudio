@@ -207,7 +207,7 @@ function registerEditorAIHandlers(): () => void {
     const api = window.electronAPI?.writeJsonFile
     if (!api) return { ok: false, error: 'writeJsonFile 不可用' }
     const result = await api(relativePath, data)
-    const clean: Record<string, unknown> = { ok: !!result.ok }
+    const clean: Record<string, unknown> = { ok: !!result.success }
     if (result.error !== undefined) clean.error = result.error
     return clean
   })

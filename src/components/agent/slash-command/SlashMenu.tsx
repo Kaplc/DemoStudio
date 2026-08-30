@@ -20,8 +20,8 @@ interface SlashMenuProps {
   onSelect: (command: SlashCommand) => void
   /** 关闭菜单回调 */
   onClose: () => void
-  /** 移动高亮回调 */
-  onMove: (dir: 1 | -1) => void
+  /** 移动高亮回调（相对位移，鼠标悬停时为跨行跳转的目标差值） */
+  onMove: (dir: number) => void
   /** 目标元素 ref（用于定位菜单） */
   targetRef?: React.RefObject<HTMLElement>
 }

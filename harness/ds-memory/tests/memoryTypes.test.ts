@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  EXTRACT_SYSTEM_PROMPT,
   MAX_INDEX_LINE_LENGTH,
   MEMORY_TYPES,
+  WHAT_NOT_TO_SAVE_TEXT,
+  memoryGuideSectionText,
   normalizeMemoryName,
   parseFrontmatter,
   parseMemoryType,
@@ -78,5 +81,34 @@ describe('renderIndexLineHelper', () => {
     const line = renderIndexLine('user_role', '长'.repeat(300))
     expect(line.length).toBeLessThanOrEqual(MAX_INDEX_LINE_LENGTH)
     expect(line.endsWith('…')).toBe(true)
+  })
+})
+
+describe('KM-01 记忆指导段踩坑四段结构（数据飞轮·知识飞轮）', () => {
+  it('指导段含踩坑四段标签 Problem/Cause/Solution/Applicable', () => {
+    const section = memoryGuideSectionText(undefined)
+    for (const tag of ['**Problem:**', '**Cause:**', '**Solution:**', '**Applicable:**']) {
+      expect(section).toContain(tag)
+    }
+  })
+  it('Applicable 说明需写适用子系统/文件范围（供选择器路由）', () => {
+    const section = memoryGuideSectionText('…索引…')
+    expect(section).toMatch(/Applicable:\*.{0,80}(子系统|文件范围)/)
+  })
+  it('不保存清单不再包含无差别的"调试修复配方"，改为限定一次性修复过程', () => {
+    expect(WHAT_NOT_TO_SAVE_TEXT).not.toContain('调试修复配方')
+    expect(WHAT_NOT_TO_SAVE_TEXT).toContain('一次性的修复过程')
+    expect(WHAT_NOT_TO_SAVE_TEXT).toContain('根因教训')
+  })
+  it('容器规则：一份文件 = 一个主题 + 一种条目格式；多条文件每坑一个 ## 小节', () => {
+    const section = memoryGuideSectionText(undefined)
+    expect(section).toContain('一份文件 = 一个主题')
+    expect(section).toContain('## 短名')
+    expect(section).toContain('数量即条数')
+  })
+  it('后台提取提示同步踩坑四段与容器规则', () => {
+    expect(EXTRACT_SYSTEM_PROMPT).toContain('**Problem:**')
+    expect(EXTRACT_SYSTEM_PROMPT).toContain('**Applicable:**')
+    expect(EXTRACT_SYSTEM_PROMPT).toContain('一份文件 = 一个主题')
   })
 })

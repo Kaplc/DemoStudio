@@ -78,6 +78,10 @@ export interface ElectronAPI {
   // DSH 手动重启（degraded 终态的恢复入口）
   dshRestart: () => Promise<{ ok: boolean }>
 
+  // Agent 窗口日志转发（agent renderer → main → 主窗口 Console 面板）
+  forwardAgentLog: (level: string, message: string) => void
+  onAgentLog: (callback: (level: string, message: string) => void) => () => void
+
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => Promise<{ ok: boolean }>
 

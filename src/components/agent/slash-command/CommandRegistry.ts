@@ -78,7 +78,8 @@ export class CommandRegistry {
   /** 执行命令 */
   async execute(name: string, args?: string): Promise<boolean> {
     const cmd = this.commands.get(name)
-    if (!cmd) return false
+    // 无 handler 的命令（DSH 内置命令 / skill）只做展示，执行由 DSH 后端负责
+    if (!cmd?.handler) return false
 
     try {
       await cmd.handler(args)

@@ -1,6 +1,6 @@
 # DSH 数据飞轮实施计划（三层数据飞轮：知识 / 反馈 / 行为）
 
-> 状态：待实施（计划已确认范围，2026-08-30）
+> 状态：已实施（2026-08-30 落地，验证清单中自动化工序全绿，手动用例见测试文档执行记录）
 > 目标：在现有 DSH 插件体系上落地项目级 Agent 数据飞轮的前三层，不训练模型，全部走 记忆/检索/提案/轨迹 通道。
 > 相关文档：[`dsh_data_flywheel_test_cases.md`](./dsh_data_flywheel_test_cases.md)（配套测试用例集）、[`dsh_plugin_install.md`](./dsh_plugin_install.md)（插件挂载机制）、[`dsh_instructions_prd_revised.md`](./dsh_instructions_prd_revised.md)
 

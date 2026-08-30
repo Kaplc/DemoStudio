@@ -1,0 +1,4 @@
+# cordis.patch.yml 留空数组占位：本插件全部贡献走代码注册
+# （system prompt 规则段 feedback:rules、rule_propose / rule_apply 两个工具）。
+# 挂载方式见 ~/.dsh/profiles/{web,headless}/cordis.patch.yml 的 insert 行。
+[]

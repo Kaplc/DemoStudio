@@ -302,6 +302,10 @@ const mockAPI = {
   sendAIChatResponse: (requestId: string, result: unknown) => {
     // Mock 实现：在浏览器模式下不处理
   },
+  // Agent 窗口日志转发（浏览器 Mock 模式无跨窗口 IPC，直接丢弃）
+  forwardAgentLog: () => {},
+  onAgentLog: () => (() => {}),
+
   // DSH 相关方法不提供 → AgentService 回退到直接 fetch('/api/...')（Vite 代理到 DSH :3080）
 } as unknown as ElectronAPI
 

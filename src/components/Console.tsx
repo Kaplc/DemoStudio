@@ -20,6 +20,15 @@ export function Console() {
     logger.setOutputCallback(addConsoleOutput)
   }, [addConsoleOutput])
 
+  // 接收 Agent 窗口转发的日志（通过主进程 IPC 中转）
+  useEffect(() => {
+    if (!window.electronAPI?.onAgentLog) return
+    const cleanup = window.electronAPI.onAgentLog((_level: string, message: string) => {
+      addConsoleOutput(`[Agent] ${message}`)
+    })
+    return cleanup
+  }, [addConsoleOutput])
+
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight

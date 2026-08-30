@@ -23,13 +23,15 @@
  * @module @demostudio/ds-instructions
  */
 
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
-import { bindRootConfig, resolveConfig, type Config, type ResolvedConfig, type ResolvedRootConfig } from './config.js'
+import { bindRootConfig, DEFAULT_INSTRUCTIONS_DIR, resolveConfig, type Config, type ResolvedConfig, type ResolvedRootConfig } from './config.js'
 import { createBareNodeAccess, createFsAccess, createNodeFallbackAccess, loadInstruction, type FileAccess, type InstructionCache } from './files.js'
+import { scanFrontmatterMappings } from './frontmatter.js'
 import { instructionPaths, resolveTouch } from './mapping.js'
 import { renderBatch, type RenderItem } from './render.js'
 import {
@@ -142,7 +144,13 @@ export function apply(ctx: Context, config?: Partial<Config>): void {
       // Node 兜底：根探测用无 containment 的裸探测；指令读取走 realpath 受限访问（§8.3 差异见 README）
       const cwd = agent.session.header.cwd ?? process.cwd()
       const root = resolved.projectRoot ?? await findProjectRoot(cwd, createBareNodeAccess(), signal)
-      bound = bindRootConfig(resolved, root)
+      // 自动扫描 frontmatter 映射
+      let autoScanMappings: Array<{ prefix: string; file: string }> | undefined
+      if (resolved.autoScan) {
+        const instructionsDir = resolved.instructionsDir ?? join(root, DEFAULT_INSTRUCTIONS_DIR)
+        autoScanMappings = await scanFrontmatterMappings(instructionsDir, undefined, signal).catch(() => undefined)
+      }
+      bound = bindRootConfig(resolved, root, autoScanMappings)
       access = createNodeFallbackAccess(bound === undefined ? cwd : bound.projectRoot)
     }
     if (bound === undefined || !Number.isFinite(bound.maxMessageBytes) || bound.maxMessageBytes <= 0) return undefined

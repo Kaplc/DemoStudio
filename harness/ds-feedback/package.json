@@ -1,0 +1,40 @@
+{
+  "name": "@demostudio/ds-feedback",
+  "version": "0.1.0",
+  "description": "DSH 反馈飞轮插件：用户纠正沉淀为持久规则（.dsh/rules/ 提案-确认制 rule_propose/rule_apply + 常驻规则段注入，apply 后当前会话立即生效）。与 ds-instructions（用户手工目录指令）完全解耦。",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src tests",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "demostudio",
+    "dsh",
+    "feedback",
+    "rules",
+    "agent"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "oxlint": "^1.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  }
+}

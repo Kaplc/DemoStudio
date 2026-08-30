@@ -77,11 +77,12 @@ export const InputBox: React.FC<InputBoxProps> = ({
   const submit = () => {
     const trimmed = text.trim()
     logger.debug(`[InputBox] submit: text="${text}", trimmed="${trimmed}"`)
-    if (!trimmed || disabled || running) {
-      logger.debug('[InputBox] submit 跳过: 空文本或禁用/运行中')
+    if (!trimmed || disabled) {
+      logger.debug('[InputBox] submit 跳过: 空文本或禁用')
       return
     }
-    logger.info(`[InputBox] 发送消息: "${trimmed}"`)
+    // 允许在 running 状态下发送（steer 模式）
+    logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running})`)
     onSend(trimmed)
     setText('')
   }
@@ -129,9 +130,14 @@ export const InputBox: React.FC<InputBoxProps> = ({
 
   const isEmpty = !text.trim()
 
+  // 动态 placeholder：AI 运行时显示 steer 提示
+  const dynamicPlaceholder = running
+    ? 'AI 运行中，输入消息将引导 AI（Enter 发送）...'
+    : placeholder
+
   return (
     <div className="composer">
-      <div className="composer__card">
+      <div className={`composer__card ${running ? 'composer__card--steer' : ''}`}>
         <div className="composer__scroll">
           <div className="composer__grow">
             <div className="composer__mirror" ref={mirrorRef} aria-hidden="true" />
@@ -141,7 +147,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
               value={text}
               onChange={handleInput}
               onKeyDown={onKeyDown}
-              placeholder={placeholder}
+              placeholder={dynamicPlaceholder}
               rows={1}
               disabled={disabled}
             />
@@ -170,7 +176,8 @@ export const InputBox: React.FC<InputBoxProps> = ({
               onModelChange={onModelChange || (() => {})}
               disabled={disabled}
             />
-            {running && onStop ? (
+            {/* AI 运行时：有内容显示发送+停止，无内容只显示停止 */}
+            {running && onStop && (
               <button
                 className="composer__stop"
                 onClick={onStop}
@@ -180,12 +187,14 @@ export const InputBox: React.FC<InputBoxProps> = ({
                   <rect x="3" y="3" width="10" height="10" rx="2" />
                 </svg>
               </button>
-            ) : (
+            )}
+            {/* 发送按钮：AI 运行时只在有内容时显示，AI 空闲时始终显示 */}
+            {(!running || !isEmpty) && (
               <button
-                className={`composer__send ${isEmpty ? 'composer__send--disabled' : ''}`}
+                className={`composer__send ${isEmpty ? 'composer__send--disabled' : ''} ${running ? 'composer__send--steer' : ''}`}
                 onClick={submit}
                 disabled={disabled || isEmpty}
-                title="发送 (Enter)"
+                title={running ? '引导 AI (Enter)' : '发送 (Enter)'}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8.3125 15.0195C8.70103 15.0195 9.01562 14.7049 9.01562 14.3164V4.87793L11.8359 7.69824C12.1108 7.97313 12.5559 7.97313 12.8308 7.69824C13.1057 7.42335 13.1057 6.97827 12.8308 6.70337L8.99487 2.86743C8.86255 2.73511 8.68466 2.66113 8.49878 2.66113C8.31289 2.66113 8.13501 2.73511 8.00269 2.86743L4.16675 6.70337C3.89185 6.97827 3.89185 7.42335 4.16675 7.69824C4.44164 7.97313 4.88673 7.97313 5.16162 7.69824L7.98047 4.87793V14.3164C7.98047 14.7049 8.29506 15.0195 8.3125 15.0195Z" />

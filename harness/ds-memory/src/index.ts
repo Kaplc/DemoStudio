@@ -170,6 +170,7 @@ export function apply(ctx: Context, config?: Config): void {
       for (const memory of selected) surfaced.add(memory.filename)
       surfacedByAgent.set(payload.agent, surfaced)
       const text = await renderSelectedMemories(selected)
+      ctx.logger?.info(`ds-memory: 注入 ${selected.length} 条相关记忆（${selected.map(memory => memory.filename).join('、')}）`)
       const injection = createUserMessage({
         content: [{ type: 'text', text }],
         source: { kind: 'plugin', plugin: PLUGIN_NAME, form: 'recall' },
@@ -213,7 +214,12 @@ export function apply(ctx: Context, config?: Config): void {
             fallbackProvider: resolved.selectProvider,
             fallbackModel: resolved.selectModel,
           })
-          if (result.ok) state.watermark = Math.max(state.watermark, result.maxTurn)
+          if (result.ok) {
+            state.watermark = Math.max(state.watermark, result.maxTurn)
+            if (result.saved.length > 0) {
+              ctx.logger?.info(`ds-memory: 回合末提取落盘 ${result.saved.join('、')}${result.updated.length > 0 ? `（覆盖更新 ${result.updated.join('、')}）` : ''}，水位 → ${state.watermark}`)
+            }
+          }
           if (result.ok && shouldNotifySaved(result)) {
             notifySaved(agent, result)
           }

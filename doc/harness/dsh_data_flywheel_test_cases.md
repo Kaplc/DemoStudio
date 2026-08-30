@@ -125,3 +125,22 @@ powershell -c "Get-Item $env:USERPROFILE\.dsh\profiles\web\node_modules\@demostu
 | §3.B ds-experience（工具/提炼/指导段） | EXP-01~15、SP-01~04 |
 | §4 实施顺序每步的门禁 | 各组单测先行，手动用例按 §4 顺序放行 |
 | §5 验证清单 | M-01、SP-03、EXP-11、SQ-03、RL-11（一一对应） |
+
+## 9. 执行记录（2026-08-30 实施当日）
+
+**自动化工序（全部通过）：**
+
+| 项 | 结果 |
+|----|------|
+| KM-01 | ✅ 新增断言组（memoryTypes.test.ts）：指导段含四段标签、WHAT_NOT_TO_SAVE 不再含无差别「调试修复配方」、容器规则/提取提示同步 |
+| KM-02 | ✅ ds-memory 全量 71 测试通过（build + vitest） |
+| RL-01~10 | ✅ ruleStore.test.ts + tools.test.ts 共 20 测试通过（含路径逃逸、mode 二选一、索引单行、pending 不进 section、超限截断、空库模式） |
+| EXP-01~10 | ✅ experienceStore/experienceTools/historyTools/extractExperience/index 五个测试文件共 35 测试通过（mock ctx.llm / ctx.sessionQuery；含子 agent 门控、防抖、水位增量、非法 JSON 重试语义） |
+| M-05（build/vitest 部分） | ✅ ds-feedback 0 lint 告警、ds-experience 0 告警；三插件 build 全过 |
+| M-01（web） | ✅ `dsh --profile web --dump-config`：ds-feedback / ds-experience insert 行 + session-query-sqlite 覆盖行在册 |
+| M-01（headless） | ✅ `dsh --profile headless --dump-config` 三行同样在册 |
+| SQ-01 | ✅ dump 显示 `path: C:/Users/Kaplc/.dsh/session-query/index.sqlite` + `openAt: first-search`，无 `:memory:` 残留 |
+| SP-01（静态） | ✅ 段序 2900 < 3000(experience:guide) < 3100(feedback:rules) < 3200(memory:guide) < 3300(instructions) |
+| 运行时冒烟 | ✅ `dsh --profile headless "<极小任务>"` 全插件加载启动并正常回答 |
+
+**待真实会话完成的手动用例**（需要交互式内核会话与真实 LLM 行为）：KM-03~05、RL-11~12、SQ-02~05、EXP-11~15、SP-02~04、M-02~04、M-05 的 git 跟踪部分。建议首个真实会话直接跑一个小任务验证 EXP-11（`.dsh/experience/` 落盘）与 SQ-03（history_search 首搜建库）。

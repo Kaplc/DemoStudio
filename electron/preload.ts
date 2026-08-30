@@ -163,6 +163,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // DSH 手动重启（degraded 终态的恢复入口）
   dshRestart: () => ipcRenderer.invoke('dsh-restart'),
 
+  // Agent 独立窗口日志转发（agent renderer → main → 主窗口 Console 面板）
+  forwardAgentLog: (level: string, message: string) =>
+    ipcRenderer.send('agent-log', { level, message }),
+  onAgentLog: (callback: (level: string, message: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { level: string; message: string }) =>
+      callback(data.level, data.message)
+    ipcRenderer.on('agent-log', handler)
+    return () => { ipcRenderer.removeListener('agent-log', handler) }
+  },
+
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => ipcRenderer.invoke('dsh-open-agent-window'),
 

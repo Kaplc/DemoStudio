@@ -16,7 +16,7 @@ export const DEFAULT_MAPPINGS: readonly MappingRule[] = [
 /** 默认跟踪的结构化文件工具（触发条件是“读取文件”，write/edit 默认关闭）。 */
 export const DEFAULT_TRACKED_TOOLS: readonly string[] = ['read', 'read_image']
 
-const DEFAULT_INSTRUCTIONS_DIR = join('.dsh', 'instructions')
+export const DEFAULT_INSTRUCTIONS_DIR = join('.dsh', 'instructions')
 export const DEFAULT_MAX_SOURCE_BYTES = 262_144
 export const DEFAULT_MAX_MESSAGE_BYTES = 65_536
 
@@ -39,6 +39,11 @@ export interface Config {
   instructionsDir?: string
   /** 显式路径映射；缺省用 DEFAULT_MAPPINGS。 */
   mappings?: MappingRule[]
+  /**
+   * 自动扫描指令目录：从 *.instructions.md 文件的 YAML frontmatter 中提取 prefix，
+   * 与显式 mappings 合并（显式优先）。默认 true。
+   */
+  autoScan?: boolean
   /** 跟踪的文件工具名（默认 read/read_image；write/edit 需显式开启）。 */
   trackedTools?: string[]
   /** 单个指令文件最大字节数，超限跳过。 */
@@ -46,6 +51,8 @@ export interface Config {
   /** 单次合并注入消息最大字节数，超限截断/省略。 */
   maxMessageBytes?: number
 }
+
+export const DEFAULT_AUTO_SCAN = true
 
 /** Loader 配置 schema：默认值在此声明，代码内另有 DEFAULT_* 兜底。 */
 export const Config: z<Config> = z.object({
@@ -56,6 +63,7 @@ export const Config: z<Config> = z.object({
     prefix: z.string().required(),
     file: z.string().required(),
   })).default([...DEFAULT_MAPPINGS.map(rule => ({ ...rule }))]),
+  autoScan: z.boolean().default(DEFAULT_AUTO_SCAN),
   trackedTools: z.array(z.string()).default([...DEFAULT_TRACKED_TOOLS]),
   maxSourceBytes: z.number().default(DEFAULT_MAX_SOURCE_BYTES),
   maxMessageBytes: z.number().default(DEFAULT_MAX_MESSAGE_BYTES),
@@ -96,6 +104,8 @@ export interface ResolvedConfig {
   /** 显式配置的指令目录；undefined 时用 `<root>/.dsh/instructions`。 */
   instructionsDir: string | undefined
   mappings: ResolvedMapping[]
+  /** 自动扫描 frontmatter 推导映射。 */
+  autoScan: boolean
   trackedTools: ReadonlySet<string>
   maxSourceBytes: number
   maxMessageBytes: number
@@ -148,6 +158,7 @@ export function resolveConfig(config: Partial<Config> = {}): ResolvedConfig {
       ? resolve(config.instructionsDir.trim())
       : undefined,
     mappings: resolveMappings(config.mappings),
+    autoScan: config.autoScan ?? DEFAULT_AUTO_SCAN,
     trackedTools: new Set(
       (config.trackedTools ?? DEFAULT_TRACKED_TOOLS)
         .filter((name): name is string => typeof name === 'string' && name.trim() !== ''),
@@ -171,21 +182,53 @@ export function containedRelative(parent: string, child: string): string | undef
  * 把应用级配置与具体项目根绑定为运行时配置。
  * @param resolved - 应用级配置。
  * @param projectRoot - 本 session 解析出的项目根（绝对路径）。
+ * @param autoScanMappings - 自动扫描 frontmatter 推导的映射（可选）。
  * @returns 绑定后的配置；指令目录越界/映射为空时返回 undefined（跳过注入并 debug）。
  */
-export function bindRootConfig(resolved: ResolvedConfig, projectRoot: string): ResolvedRootConfig | undefined {
+export function bindRootConfig(
+  resolved: ResolvedConfig,
+  projectRoot: string,
+  autoScanMappings?: MappingRule[],
+): ResolvedRootConfig | undefined {
   const root = resolve(projectRoot)
   const dir = resolved.instructionsDir ?? join(root, DEFAULT_INSTRUCTIONS_DIR)
   const displayDir = containedRelative(root, dir)
   if (displayDir === undefined) return undefined
-  if (resolved.mappings.length === 0) return undefined
+  // 合并显式映射与自动扫描映射（显式优先：同 prefix 保留显式）
+  const merged = mergeMappingRules(resolved.mappings, autoScanMappings)
+  if (merged.length === 0) return undefined
   return {
     projectRoot: root,
     instructionsDir: dir,
     instructionsDisplayDir: displayDir.split(sep).join('/'),
-    mappings: resolved.mappings,
+    mappings: merged,
     trackedTools: resolved.trackedTools,
     maxSourceBytes: resolved.maxSourceBytes,
     maxMessageBytes: resolved.maxMessageBytes,
   }
+}
+
+/**
+ * 合并显式映射与自动扫描映射：显式优先（同 prefix 保留显式声明），
+ * 结果按最长前缀优先排序。
+ */
+function mergeMappingRules(
+  explicit: readonly ResolvedMapping[],
+  autoScan?: readonly MappingRule[],
+): ResolvedMapping[] {
+  if (autoScan === undefined || autoScan.length === 0) return [...explicit]
+  const explicitPrefixes = new Set(explicit.map(m => pathCompareKey(m.segments.join('/'))))
+  const merged = [...explicit]
+  for (const rule of autoScan) {
+    const segments = splitSegments(rule.prefix)
+    if (segments.length === 0) continue
+    if (segments.some(s => s === '.' || s === '..')) continue
+    const key = pathCompareKey(segments.join('/'))
+    if (explicitPrefixes.has(key)) continue // 显式优先
+    explicitPrefixes.add(key)
+    merged.push({ segments, file: rule.file, order: 1000 + merged.length }) // 自动扫描序号靠后
+  }
+  return merged.sort((a, b) =>
+    b.segments.length - a.segments.length || a.order - b.order,
+  )
 }

@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect } from 'react'
-import { commandRegistry, registerBuiltinCommands, SlashMenu, useSlashCommand } from './index'
+import { commandRegistry, SlashMenu, useSlashCommand } from './index'
 import type { SlashCommand } from './types'
 
 // ═══════════════════════════════════════════════════════════════
