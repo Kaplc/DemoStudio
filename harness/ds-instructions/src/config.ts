@@ -62,7 +62,7 @@ export const Config: z<Config> = z.object({
   mappings: z.array(z.object({
     prefix: z.string().required(),
     file: z.string().required(),
-  })).default([...DEFAULT_MAPPINGS.map(rule => ({ ...rule }))]),
+  })).default(DEFAULT_MAPPINGS.map(rule => ({ ...rule }))),
   autoScan: z.boolean().default(DEFAULT_AUTO_SCAN),
   trackedTools: z.array(z.string()).default([...DEFAULT_TRACKED_TOOLS]),
   maxSourceBytes: z.number().default(DEFAULT_MAX_SOURCE_BYTES),
@@ -134,12 +134,12 @@ function resolveMappings(rules: MappingRule[] | undefined): ResolvedMapping[] {
     if (prefix.length === 0 || file.length === 0) continue
     if (file !== file.replace(/[\\/]/g, '')) continue
     if (file === '.' || file === '..') continue
+    // 根路径 `/`（或 `\\`）表示全局映射：匹配项目根下所有路径（空段数组）
     const segments = splitSegments(prefix)
-    if (segments.length === 0) continue
     if (segments.some(segment => segment === '.' || segment === '..')) continue
     resolved.push({ segments, file, order })
   }
-  // 最长前缀优先（段数多者优先），同长按声明顺序
+  // 最长前缀优先（段数多者优先），全局（0 段）自然垫底；同长按声明顺序
   return resolved.sort((a, b) =>
     b.segments.length - a.segments.length || a.order - b.order,
   )
@@ -221,10 +221,10 @@ function mergeMappingRules(
   const merged = [...explicit]
   for (const rule of autoScan) {
     const segments = splitSegments(rule.prefix)
-    if (segments.length === 0) continue
+    // 根路径 `/` 或 `\\` → 空段数组 → 全局映射（匹配所有路径）
     if (segments.some(s => s === '.' || s === '..')) continue
     const key = pathCompareKey(segments.join('/'))
-    if (explicitPrefixes.has(key)) continue // 显式优先
+    if (explicitPrefixes.has(key)) continue // 显式优先（含显式全局 `''` 键）
     explicitPrefixes.add(key)
     merged.push({ segments, file: rule.file, order: 1000 + merged.length }) // 自动扫描序号靠后
   }

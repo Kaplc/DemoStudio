@@ -24,6 +24,8 @@ import type { MappingRule } from './config.js'
 /**
  * 从 Markdown 内容中解析 YAML frontmatter 的 prefix 字段。
  * 只做轻量正则提取，不引入完整 YAML 解析器（避免依赖膨胀）。
+ *
+ * 特殊值：`prefix: /`（根路径）表示全局映射，匹配项目根下所有路径。
  * @param content - 指令文件全文。
  * @returns prefix 值；无 frontmatter 或无 prefix 字段返回 undefined。
  */

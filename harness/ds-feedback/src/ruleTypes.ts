@@ -91,17 +91,18 @@ export function rulesSectionText(rules: readonly ActiveRule[], indexText: string
   const parts = [
     `# 用户反馈规则库
 
-以下是用户纠正沉淀出的持久规则（存于 \`.dsh/rules/\`，**已生效**，直接遵守，无需读取文件；本段每步重算，规则 apply 后当前会话立即生效）：`,
+用户纠正沉淀出的持久规则存于 \`.dsh/rules/\`，**已生效，直接遵守**，无需读取文件；本段每步重算，规则 apply 后当前会话立即生效。
+
+## 何时沉淀新规则
+
+- 用户明说"记住"、"以后都这样"、"别再"、"沉淀为规则"等：先口头确认要固化成什么规则，再 rule_propose 提案，向用户转述内容，用户确认后 rule_apply。
+- 用户显式纠正且明显可泛化（不限于当前这一次任务）时也可提案；一次性偏好、只对当前任务有效的临时要求不要提案——规则库保持少而精。
+- 后台会在回合末自动检测"用户纠正且为此类任务正确完成的必要条件"的回合并写入 pending 提案（以 notice 提醒）：看到此类提案时向用户转述，确认后才 rule_apply，绝不未经确认自动 apply。
+- 与目录指令（\`.dsh/instructions/\`，用户手工维护）分工：手工规范进指令目录，用户纠正沉淀进规则库，两套体系互不读写。`,
     ruleBlocks.length === 0 ? '（规则库当前为空。）' : ruleBlocks.join('\n\n'),
   ]
   if (indexText !== undefined && indexText.length > 0) {
     parts.push(`## RULES.md 索引\n\n${indexText}`)
   }
-  parts.push(`## 何时沉淀新规则
-
-- 同一纠正已被记忆保存过、再次出现，或用户明说"以后都这样"：先向用户口头确认要固化为规则，再 rule_propose 提案。
-- 提案不会静默生效：向用户转述提案内容，用户确认后才 rule_apply 落地；apply 后本段立即更新。
-- 一次性任务的偏好、当前会话的临时要求不要提案；规则库保持少而精。
-- 与目录指令（\`.dsh/instructions/\`，用户手工维护）分工：手工规范进指令目录，用户纠正沉淀进规则库，两套体系互不读写。`)
   return parts.join('\n\n')
 }

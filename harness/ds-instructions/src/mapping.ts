@@ -29,6 +29,10 @@ export function normalizeTouchedPath(root: string, rawPath: unknown): string | u
  * @param relPath - 项目根相对路径（来自 {@link normalizeTouchedPath}）。
  * @param mappings - 已按最长前缀排序的映射表。
  * @returns 命中的映射；无匹配返回 undefined。
+ *
+ * 全局映射（空段数组，由 `prefix: /` 产生）匹配一切：
+ * `segments.length < 0` 恒假、`every` 对空数组恒真；
+ * 且排序时 0 段垫底，只作为无具体前缀命中时的兜底。
  */
 export function matchMapping(relPath: string, mappings: readonly ResolvedMapping[]): ResolvedMapping | undefined {
   const segments = relPath.split(/[\\/]+/).filter(segment => segment.length > 0)

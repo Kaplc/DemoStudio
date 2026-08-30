@@ -18,6 +18,15 @@ export interface JunctionResult {
 }
 
 /**
+ * 剥离 @scope/ 前缀：pkgName 只允许是裸包名（如 ds-editor-tools），
+ * 传入完整包名（@demostudio/ds-editor-tools）时自动剥掉 scope，
+ * 防止拼出 node_modules/@demostudio/@demostudio/<pkg> 嵌套错位。
+ */
+function stripScope(pkgName: string): string {
+  return pkgName.startsWith('@') ? pkgName.split('/')[1] ?? pkgName : pkgName
+}
+
+/**
  * 确保 junction 存在且指向正确目标（幂等）
  */
 function ensureJunctionForProfile(
@@ -26,7 +35,8 @@ function ensureJunctionForProfile(
   profilesDir: string,
   profile: string,
 ): JunctionResult {
-  const junctionPath = path.join(profilesDir, profile, 'node_modules', '@demostudio', pkgName)
+  const safeName = stripScope(pkgName)
+  const junctionPath = path.join(profilesDir, profile, 'node_modules', '@demostudio', safeName)
   const sourcePath = path.resolve(pluginDir)
 
   // 已存在 → 检查目标是否正确
@@ -97,9 +107,10 @@ export function removeJunctions(
 ): JunctionResult[] {
   const profilesDir = path.join(dshHome, 'profiles')
   const results: JunctionResult[] = []
+  const safeName = stripScope(pkgName)
 
   for (const profile of ['web', 'headless']) {
-    const junctionPath = path.join(profilesDir, profile, 'node_modules', '@demostudio', pkgName)
+    const junctionPath = path.join(profilesDir, profile, 'node_modules', '@demostudio', safeName)
     if (fs.existsSync(junctionPath)) {
       try {
         fs.rmSync(junctionPath, { recursive: true, force: true })

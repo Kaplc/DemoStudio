@@ -98,7 +98,9 @@ export const mountPluginTool = defineTool({
     }
 
     // Step 2: Junction
-    const junctionResults: JunctionResult[] = ensureJunctions(pluginDir, pkgName, dshHome)
+    // ⚠️ 必须传 entryId（去掉 @demostudio/ scope），junction.ts 内部会再拼 @demostudio 前缀；
+    // 传完整包名会导致 node_modules/@demostudio/@demostudio/<pkg> 嵌套错位（曾导致 web profile 启动失败）
+    const junctionResults: JunctionResult[] = ensureJunctions(pluginDir, entryId, dshHome)
     const junctionOk = junctionResults.every((r: JunctionResult) => r.action !== 'error')
     steps.push({
       name: 'junction',

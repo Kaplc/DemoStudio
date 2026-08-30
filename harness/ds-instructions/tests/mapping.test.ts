@@ -50,6 +50,44 @@ describe('默认映射（§5.1）', () => {
   })
 })
 
+describe('全局前缀 prefix: /（匹配项目根下所有路径）', () => {
+  it('任意路径都命中全局指令，且与具体前缀共存时最长前缀优先', () => {
+    const resolved = bindRootConfig(resolveConfig({
+      projectRoot: 'E:/DemoStudio',
+      mappings: [
+        { prefix: 'src/engine', file: 'engine.instructions.md' },
+        { prefix: '/', file: 'global.instructions.md' },
+      ],
+    }), 'E:/DemoStudio')!
+    // 具体前缀优先（段多者胜）
+    expect(resolveTouch('E:/DemoStudio', 'src/engine/Entity.ts', resolved)?.instructionFile)
+      .toBe('engine.instructions.md')
+    // 其余路径落入全局
+    expect(resolveTouch('E:/DemoStudio', 'docs/readme.md', resolved)?.instructionFile)
+      .toBe('global.instructions.md')
+    expect(resolveTouch('E:/DemoStudio', 'package.json', resolved)?.instructionFile)
+      .toBe('global.instructions.md')
+    expect(resolveTouch('E:/DemoStudio', '.dsh/instructions/engine.instructions.md', resolved)?.instructionFile)
+      .toBe('global.instructions.md')
+  })
+
+  it('frontmatter 自动扫描：prefix: / 生成全局映射', async () => {
+    const { scanFrontmatterMappings } = await import('../src/frontmatter.js')
+    const { mkdtempSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-instr-global-'))
+    writeFileSync(join(dir, 'global.instructions.md'), '---\nprefix: /\n---\n# 全局规范\n')
+    const mappings = await scanFrontmatterMappings(dir)
+    expect(mappings).toEqual([{ prefix: '/', file: 'global.instructions.md' }])
+  })
+
+  it('空字符串 prefix 仍然无效（与旧语义一致）', () => {
+    const resolved = resolveConfig({ mappings: [{ prefix: '', file: 'empty.md' }] })
+    expect(resolved.mappings).toHaveLength(0)
+  })
+})
+
 describe('路径规范化（§5.2）', () => {
   it('相对路径基于 projectRoot 解析', () => {
     const resolved = boundRoot('E:/DemoStudio')

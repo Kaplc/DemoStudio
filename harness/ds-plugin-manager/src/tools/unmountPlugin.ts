@@ -61,8 +61,8 @@ export const unmountPluginTool = defineTool({
     const dshHome = getDshHome()
     const entryId = pkgName.replace(/^@demostudio\//, '')
 
-    // 1. 移除 junction
-    const junctionResults = removeJunctions(pkgName, dshHome)
+    // 1. 移除 junction（必须传 entryId，与 mount 侧一致；junction.ts 内部会拼 @demostudio 前缀）
+    const junctionResults = removeJunctions(entryId, dshHome)
 
     // 2. 移除 patch 行
     const patchResults = []

@@ -9,8 +9,20 @@ DemoStudio 目录指令插件：Agent 成功读取映射路径（如 `src/engine
 ```text
 .dsh/instructions/
 ├── engine.instructions.md    # ← src/engine/** 读取后注入
-└── project.instructions.md   # ← src/projects/** 读取后注入
+├── project.instructions.md   # ← src/projects/** 读取后注入
+└── global.instructions.md    # ← prefix: / 全局：项目根下任意路径读取后注入（兜底）
 ```
+
+指令文件头部用 YAML frontmatter 声明映射前缀（自动扫描，无需手动改 patch）：
+
+```markdown
+---
+prefix: src/engine
+---
+# 引擎开发规范
+```
+
+**全局指令**：`prefix: /`（根路径）表示匹配项目根下**所有**路径，作为最长前缀匹配的兜底——具体前缀（如 `src/engine`）命中时优先于全局；全局文件在读取任意项目文件时注入（包括 `src/`、`doc/`、`package.json` 等）。
 
 挂载（已完成）：`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/ds-instructions` junction → 仓库 `harness/ds-instructions`；两个 profile 的 `cordis.patch.yml` 已插入：
 
@@ -31,7 +43,7 @@ DemoStudio 目录指令插件：Agent 成功读取映射路径（如 `src/engine
 | `enabled` | `true` | 总开关；false 时不注册任何 section/监听 |
 | `projectRoot` | session cwd 探测 | 项目根（绝对路径），相对路径解析与 containment 基准 |
 | `instructionsDir` | `<projectRoot>/.dsh/instructions` | 指令目录；必须位于项目根内，越界则整体禁用注入 |
-| `mappings` | `src/engine → engine.instructions.md`、`src/projects → project.instructions.md` | 前缀映射，**最长前缀优先、段级边界匹配**（`src/engine2` 不命中 `src/engine`） |
+| `mappings` | `src/engine → engine.instructions.md`、`src/projects → project.instructions.md` | 前缀映射，**最长前缀优先、段级边界匹配**（`src/engine2` 不命中 `src/engine`）；`prefix: /` 为全局映射（匹配所有路径，垫底兜底） |
 | `trackedTools` | `['read', 'read_image']` | 触发注入的结构化文件工具；write/edit 默认关闭（触发条件是"读取"） |
 | `maxSourceBytes` | `262144` | 单个指令文件字节上限，超限跳过 |
 | `maxMessageBytes` | `65536` | 单次合并注入消息字节上限，超限省略/截断 |

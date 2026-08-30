@@ -39,18 +39,57 @@ const HIGH_RISK_EVENTS = new Set([
   'ai.selectActor',
 ])
 
+/**
+ * 直接通过 HTTP 调用编辑器 MCP API（绕过 engineBridge 抽象层）。
+ *
+ * 根因：engineBridge.callTool 在 DSH Cordis ctx 注入链路中会丢失嵌套 payload
+ * （bridge 内部可能对 params 做了浅拷贝/序列化，导致 { event, payload: { panel: 'x' } }
+ * 的 payload 子对象被丢弃）。直接用 fetch 构造完整请求体可绕过此问题。
+ *
+ * 端口发现优先级：
+ *   1. DSH_ENGINE_PORT 环境变量
+ *   2. engineBridge 内部端口（尝试读取 .port 属性）
+ *   3. 编辑器默认 MCP 端口 9877
+ */
+const EDITOR_MCP_PORT_DEFAULT = 9877
+
+function discoverMCPBridgePort(ec: { engineBridge: { port?: number } }): number {
+  const envPort = process.env.DSH_ENGINE_PORT
+  if (envPort) {
+    const p = parseInt(envPort, 10)
+    if (!isNaN(p) && p > 0) return p
+  }
+  // HttpEngineBridge 有 .port 属性
+  if (ec.engineBridge?.port && typeof ec.engineBridge.port === 'number') {
+    return ec.engineBridge.port
+  }
+  return EDITOR_MCP_PORT_DEFAULT
+}
+
+async function callMCPRaw(port: number, command: string, params: Record<string, unknown>): Promise<unknown> {
+  const resp = await fetch(`http://127.0.0.1:${port}/api/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, params }),
+  })
+  if (!resp.ok) throw new Error(`MCP HTTP ${resp.status}`)
+  return await resp.json()
+}
+
 export async function emitAIEvent(args: z.infer<typeof emitAIEventSchema>, ctx: unknown): Promise<EmitAIEventResult> {
-  const { event, payload } = args
+  // DSH 工具运行时可能将嵌套对象序列化为 JSON 字符串，需要反序列化
+  let { event, payload } = args as { event: string; payload: unknown }
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload) } catch { /* 保持原值 */ }
+  }
 
   if (!event) {
     return { ok: false, event, error: '缺少 event 参数' }
   }
 
+  // 守卫检查（需要 engineContext 获取 guardPolicy）
   const ec = getEngineContext(ctx)
-  if (!ec) return { ok: false, event, error: 'EngineContext 未注入（编辑器未连接）' }
-
-  // 守卫：高危事件需要用户确认
-  const policy = ec.guardPolicy ?? {}
+  const policy = ec?.guardPolicy ?? {}
   if (HIGH_RISK_EVENTS.has(event) && requiresApproval('emit_ai_event', policy)) {
     const summary = `emit_ai_event(${event}, ${JSON.stringify(payload ?? {}).slice(0, 100)})`
     const approved = await askUser('emit_ai_event', summary)
@@ -58,7 +97,10 @@ export async function emitAIEvent(args: z.infer<typeof emitAIEventSchema>, ctx: 
   }
 
   try {
-    const result = await ec.engineBridge.callTool('ai_event', { event, payload: payload ?? {} })
+    // 直接 HTTP 调用：跳过 engineBridge.callTool，避免 payload 丢失
+    const port = ec ? discoverMCPBridgePort(ec as { engineBridge: { port?: number } }) : EDITOR_MCP_PORT_DEFAULT
+    const result = await callMCPRaw(port, 'ai_event', { event, payload: payload ?? {} })
+
     const r = result as {
       status?: string
       event?: string

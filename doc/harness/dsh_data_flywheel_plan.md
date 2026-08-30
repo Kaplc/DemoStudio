@@ -39,9 +39,10 @@
 - 工具（defineTool，照 ds-memory tools.ts 规范）：
   - `rule_propose {name, content, reason}`：写入 `pending/<name>.proposed.md`（frontmatter：name/reason/date）；结果文本提示模型向用户转述待确认（提案-确认制，不静默落盘）
   - `rule_apply {proposal, mode?}`：pending → active `<ruleDir>/<name>.md`；同名规则已存在且未显式 `mode: 'overwrite' | 'append'` 时报错（append 追加带日期小节）；成功后删提案并同步索引
-- 注入机制：常驻 systemPrompt 段 `feedback:rules`（order 3100，text 为同步函数每步重算）——active 规则全量列出 + RULES.md 索引（行数/字节上限截断），**apply 后当前会话立即生效**，无需读取触发
-- 晋升指引（写在段文本里）：同一纠正被 memory 存过、再次出现，或用户明说"以后都这样" → 先口头确认再 rule_propose
-- vitest：非法 name 拒绝 / propose→apply 全流程 / 同名无 mode 报错 / pending 不出现在规则段
+- 注入机制：常驻 systemPrompt 段 `feedback:rules`（order 3100，text 为同步函数每步重算）——沉淀指引（段首）+ active 规则全量列出 + RULES.md 索引（行数/字节上限截断），**apply 后当前会话立即生效**，无需读取触发
+- 晋升指引（写在段文本里）：用户明说"记住/以后都这样/沉淀为规则"→ 先口头确认再 rule_propose；用户显式纠正且可泛化也可提案；一次性偏好不提案
+- **回合末自动检测（2026-08-31 补，`extractProposal.ts`）**：依赖主模型自觉调 rule_propose 被证伪（落地首日经验库自动落 5 条 episode、规则库 0 提案），改为复刻 ds-experience 回合末骨架——agent 空闲防抖 3s → 客户端纠正关键词预筛（`CORRECTION_HINT_PATTERN`，只测 `[用户] ` 行；未命中零成本推进水位）→ 命中才发 side-query 小模型双条件判定（① 存在用户人工纠正；② 该纠正为此类任务正确完成的必要条件——不遵守就会做错/返工，一次性偏好不算）→ 双条件成立写 `pending/<name>.proposed.md` 并注入 notice（转述+等确认，绝不自动 apply）。提案-确认制不变，自动化只填 pending。判定模型 deepseek-chat/deepseek-official（config `extractModel`/`extractProvider` 可覆盖，`autoDetect: false` 关闭）；独立水位，子 agent 跳过，失败下次空闲重试。转录用本插件自持 `renderTurnTranscript` 副本（ds-memory/ds-experience/ds-feedback 三份同语义副本，插件间零依赖）。新增依赖 dsh-llm/dsh-timeout/dsh-session/dsh-agent；12 项新单测，总 32 全绿
+- vitest：非法 name 拒绝 / propose→apply 全流程 / 同名无 mode 报错 / pending 不出现在规则段 / 预筛不发散/不漏判 / 双条件判定全分支 / 水位增量
 
 ## 3. 行为飞轮
 
@@ -106,6 +107,14 @@
 
 ## 7. 后续（本期不做）
 
-- 策略飞轮：等 ds-experience 攒 1-2 个月 episode 后做聚合统计（哪类任务哪步易失败、何种计划成功率高）。
+- 策略飞轮：等 ds-experience 攒 episode 后做聚合统计（哪类任务哪步易失败、何种计划成功率高）。**晋升阈值定案（2026-08-31）**：同型 `task_type` ≥3~5 次命中 → 产出 skill 或 rule 提案（走 ds-feedback 确认制，绝不生成可执行函数挂载——安全等价物是人可审的 Markdown 指令）。按 episode 积累速度预计约 2026-10-31 具备聚合条件。
 - 跨项目晋升：反复命中的 episode → 抽象成 skill（`.zcode/skills/skl-*` 同构机制）。
 - AiBrain 对接：`.dsh/experience/` 即 Experience 层数据源，格式保持中立 Markdown+frontmatter，双端可共读。
+
+### 7.1 已对照并否决的外部方案（2026-08-31，"专机专用三飞轮"）
+
+- **否决**：成功轨迹自动压缩成可执行函数挂载工具库（无测试、随代码库漂移、静默错；且本仓库是编辑型工作，重复的是决策套路非 API 调用序列）。
+- **否决**：错误轨迹编译成前置校验代码插工具链（无常驻外部工具链可插；常驻规则段 order 3100 即工具链最前端）。
+- **否决**：schema diff 每周自动重写 System Prompt（本仓库 schema 变更者即用户本人且过 git；自动重写会与 instructions/doc 打架）。
+- **否决**：三张 SQLite 表存储（Markdown+frontmatter 可 git、可人审、AiBrain 双端共读，session-query sqlite 只作派生索引）。
+- **吸收**："第 N 次命中触发晋升"的阈值思想 → 策略飞轮 ≥3~5 次定案；"绝不自动上线"铁律 → 与提案-确认制/notice 一致。

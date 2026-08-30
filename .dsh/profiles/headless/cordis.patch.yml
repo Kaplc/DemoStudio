@@ -62,3 +62,6 @@
     path: 'C:/Users/Kaplc/.dsh/session-query/index.sqlite'
     openAt: first-search
 
+- insert:
+    - id: ds-editor-tools
+      name: '@demostudio/ds-editor-tools'

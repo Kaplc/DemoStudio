@@ -1626,6 +1626,56 @@ async function startMCPServer() {
             mainWindow.webContents.send('mcp-command', { ...cmd, requestId })
             return
           }
+          // ─── 主进程直处理的 MCP 命令（不经过渲染进程） ───
+          if (cmd.command === 'dsh-restart') {
+            console.log('[MCP] 收到 dsh-restart 命令，重启 DSH agent')
+            // 先回 HTTP 响应（重启是异步的，不阻塞调用方）
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok', command: 'dsh-restart', message: 'DSH 重启中...' }))
+
+            // 异步重启：杀旧进程 → 等端口释放 → 启新进程
+            const owner = readDshOwner()
+            console.log(`[MCP] dsh-restart: agentPid=${owner?.agentPid}, port=${owner?.port}`)
+            if (owner?.agentPid) {
+              killProcessTree(owner.agentPid)
+            }
+            stopDSHService().then(async () => {
+              _dshRestartCount = 0
+              _dshShuttingDown = false
+              // 等待端口 3080 释放
+              const deadline = Date.now() + 8000
+              while (Date.now() < deadline) {
+                const alive = await probeDshAlive(DSH_PORT_DEFAULT, 500).catch(() => false)
+                if (!alive) break
+                await new Promise(r => setTimeout(r, 300))
+              }
+              console.log('[MCP] dsh-restart: 端口已释放，启动新 agent')
+              void bootstrapDSH('mcp-restart')
+            }).catch(err => console.error(`[MCP] dsh-restart 失败: ${err}`))
+            return
+          }
+          if (cmd.command === 'editor-restart') {
+            console.log('[MCP] 收到 editor-restart 命令，重启编辑器')
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok', command: 'editor-restart', message: '编辑器正在重启...' }))
+            // 延迟确保 HTTP 响应发出后再退出
+            setTimeout(() => {
+              app.relaunch() // 安排重启：exit 后自动重新启动
+              app.exit(0)
+            }, 500)
+            return
+          }
+          if (cmd.command === 'dsh-status') {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({
+              status: 'ok',
+              ready: _dshPort !== 0,
+              port: _dshPort,
+              enginePort: MCP_API_PORT,
+              lifecycle: _dshLifecycle,
+            }))
+            return
+          }
           // 发送 IPC 给渲染进程
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('mcp-command', cmd)
