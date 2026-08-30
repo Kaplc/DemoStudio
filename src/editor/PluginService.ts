@@ -7,7 +7,7 @@
 import type { PluginInfo, PluginMetadata, PluginState, PluginStatus } from '../types/plugin'
 import { agentService } from './AgentService'
 
-/** 内置插件列表（从 dsh-plugin 同步） */
+/** 内置插件列表（从 ds-plugin 同步） */
 const BUILTIN_PLUGINS: PluginMetadata[] = [
   {
     id: '@demostudio/inspect-scene',

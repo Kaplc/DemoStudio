@@ -9,7 +9,7 @@ DemoStudio 仓库内的 agent 工作台：VS Code 扩展 + DSH 内核集成 + �
 ```
 harness/
 ├── vscode-ext/    # VS Code 扩展工程（命令面板 + 侧边栏聊天 + 状态栏）
-├── dsh-engine-tools/    # DSH 插件包（5 个引擎特化工具 + 守卫 + 事件联动 + UI 槽）
+├── ds-engine-tools/    # DSH 插件包（5 个引擎特化工具 + 守卫 + 事件联动 + UI 槽）
 ├── profile/       # DSH Profile（bundles 清单 + persona 提示词 + skills 目录）
 └── dsh-source/    # DSH 源码（git clone，不提交；构建后作为 vscode-ext 依赖）
 ```

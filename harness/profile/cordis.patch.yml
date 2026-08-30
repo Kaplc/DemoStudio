@@ -7,7 +7,7 @@
 # profile=demonststudio → 先加载 bundles，再加载 user-level patches）。
 #
 # 加载顺序（由 patch composition 决定）：
-#   bundles (headless/dsh-engine-tools) → user-level（本文件）→ --patch overlays
+#   bundles (headless/ds-engine-tools) → user-level（本文件）→ --patch overlays
 
 # ─── 1. 精简 system prompt（让 DSH 知道 DemoStudio 引擎特化工具） ───
 - id: system-prompt
@@ -56,8 +56,8 @@
 # ─── 4. 插入我们的引擎特化工具集 ───
 # inject: 显式声明 ctx 上需要访问的属性，避免 Cordis Proxy 抛 "cannot get property X without inject"
 - insert:
-    - id: dsh-engine-tools
-      name: '@demostudio/dsh-engine-tools'
+    - id: ds-engine-tools
+      name: '@demostudio/ds-engine-tools'
       inject:
         - tools
         - effect

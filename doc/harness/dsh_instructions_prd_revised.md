@@ -1,10 +1,10 @@
-# dsh-instructions 插件需求文档（修订版）
+# ds-instructions 插件需求文档（修订版）
 
 ## 1. 背景与目标
 
 DemoStudio 的 Agent 使用 DSH 内核。Agent 读取项目文件后，需要自动获得该文件所属代码区域的开发规范，以便后续分析和修改遵循项目约定。
 
-本插件 `@demostudio/dsh-instructions` 为 DemoStudio 提供一套补充性的目录指令机制：
+本插件 `@demostudio/ds-instructions` 为 DemoStudio 提供一套补充性的目录指令机制：
 
 ```text
 src/engine/...   -> .dsh/instructions/engine.instructions.md
@@ -37,7 +37,7 @@ DSH 已内置 `@deepseek-ai/dsh-agent-instructions`，并支持：
 官方 agent-instructions
   -> AGENTS.md / CLAUDE.md 的通用工作区指令
 
-dsh-instructions
+ds-instructions
   -> .dsh/instructions/*.instructions.md 的 DemoStudio 专用目录指令
 ```
 
@@ -73,7 +73,7 @@ tools/result 成功
 ## 4. 非目标
 
 - 不修改 DSH 源码。
-- 不修改 `dsh-memory`、`dsh-engine-tools` 或官方 `dsh-agent-instructions` 源码。
+- 不修改 `ds-memory`、`ds-engine-tools` 或官方 `dsh-agent-instructions` 源码。
 - 不解析 `.github/instructions/*.md` 的 `applyTo` glob。
 - 不解析 frontmatter `paths` 条件。
 - 不监听 shell 命令中的目录变化；只跟踪结构化文件工具调用。
@@ -327,7 +327,7 @@ source: {
 ```ts
 source: {
   kind: 'plugin',
-  plugin: '@demostudio/dsh-instructions',
+  plugin: '@demostudio/ds-instructions',
   form: 'instructions',
 }
 ```
@@ -381,7 +381,7 @@ ctx.systemPrompt.section({
 `logger` 是 Context 内建能力，不应写进 `inject`。日志可使用具名 logger：
 
 ```ts
-ctx.logger('dsh-instructions').debug('No instruction file for:', instructionName)
+ctx.logger('ds-instructions').debug('No instruction file for:', instructionName)
 ```
 
 ## 12. 插件生命周期与挂载
@@ -389,7 +389,7 @@ ctx.logger('dsh-instructions').debug('No instruction file for:', instructionName
 入口：
 
 ```text
-harness/dsh-instructions/src/index.ts
+harness/ds-instructions/src/index.ts
 ```
 
 必须提供：
@@ -547,8 +547,8 @@ ctx.effect(() => {
 #### 插件组合与回归
 
 - 与官方 `agent-instructions` 同时挂载时不读取同名文件、不重复注入。
-- 与 `dsh-memory` 同时挂载时，两个 `agent/pre-step` listener 都保留各自消息和 `startsRequestSeries`。
-- 与 `dsh-engine-tools` 同时挂载时不改变其工具注册和执行结果。
+- 与 `ds-memory` 同时挂载时，两个 `agent/pre-step` listener 都保留各自消息和 `startsRequestSeries`。
+- 与 `ds-engine-tools` 同时挂载时不改变其工具注册和执行结果。
 - HMR 重挂后 listener、缓存、projection 和定时器没有重复注册。
 - web 和 headless profile 都能加载同一编译产物并通过测试。
 

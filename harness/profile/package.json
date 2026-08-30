@@ -1,8 +1,8 @@
 {
-  "name": "@demostudio/dsh-profile",
+  "name": "@demostudio/ds-profile",
   "version": "0.1.0",
-  "description": "DemoStudio Harness DSH Profile：声明 @demostudio/dsh-engine-tools 插件包依赖。",
+  "description": "DemoStudio Harness DSH Profile：声明 @demostudio/ds-engine-tools 插件包依赖。",
   "dependencies": {
-    "@demostudio/dsh-engine-tools": "file:../dsh-engine-tools"
+    "@demostudio/ds-engine-tools": "file:../ds-engine-tools"
   }
 }

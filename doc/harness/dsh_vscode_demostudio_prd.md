@@ -79,7 +79,7 @@
 └─────────────────┼──────────────────────────────┼────────────────┘
                   │                              │
       ┌───────────▼────────────┐   ┌─────────────▼──────────────┐
-      │ EngineBridge (适配层)   │◄──│ @demostudio/dsh-engine-tools│
+      │ EngineBridge (适配层)   │◄──│ @demostudio/ds-engine-tools│
       │ · 端口探测/拉起编辑器    │   │ (工具/守卫/事件/技能/UI槽)   │
       │ · MCP client            │   └─────────────┬──────────────┘
       └───────────┬────────────┘                 │
@@ -99,7 +99,7 @@
 | 层 | 归属 | 更新路径 | 改动面 |
 |---|---|---|---|
 | 内核层（DSH） | 官方 `@deepseek-ai/*` 包 | npm 升级（官网发布） | 只动 `src/dsh/adapter.ts` |
-| 引擎特化层 | `@demostudio/dsh-engine-tools` + `dsh-profile/` | 随本仓库版本 | 只动插件包与配置 |
+| 引擎特化层 | `@demostudio/ds-engine-tools` + `ds-profile/` | 随本仓库版本 | 只动插件包与配置 |
 | 集成壳层 | VS Code 扩展（本仓库新工程） | 随本仓库版本 | 不含引擎知识、不含 DSH 内部实现 |
 | 通用桥（MCP） | `editor/mcp-server.mjs`（已有） | 随本仓库版本 | 保持向后兼容 |
 
@@ -145,14 +145,14 @@
 
 ### FR-4 引擎特化 agent 功能（DSH 插件包）
 
-以 `@demostudio/dsh-engine-tools`（npm 包，随本仓库发布）+ `dsh-profile/`（配置与技能数据）承载。
+以 `@demostudio/ds-engine-tools`（npm 包，随本仓库发布）+ `ds-profile/`（配置与技能数据）承载。
 
 | 编号 | 需求 | 验收标准 |
 |---|---|---|
 | FR-4.1 | 注册 DSH 原生引擎工具（`ctx.tools.register`），初始清单：`inspect_scene`（场景结构）、`spawn_entity`（生成实体）、`run_scenario`（跑测试场景并读结果）、`get_game_state`、`set_game_speed`；每个工具带 schema、输出声明与中文描述 | 工具出现在 agent 可调用清单；调用结果正确 |
 | FR-4.2 | 工具守卫：高危操作（启动游戏、重置场景、批量删除）默认 `ask` 审批，可通过配置改 `allow`/`deny` | 审批流生效；配置可覆盖 |
 | FR-4.3 | 引擎事件联动：插件订阅引擎事件（崩溃、关卡加载完成、测试结束），按配置自动触发 agent 行动（如崩溃自动诊断）；事件来源为编辑器实时推送（FR-3.7），推送不可用时以轮询兜底 | 事件触发后 agent 会话自动启动并包含事件上下文 |
-| FR-4.4 | 引擎知识技能：`dsh-profile/skills/` 提供 markdown 技能（项目约定、Three.js 规范、性能调优、引擎命令速查），通过 `ctx.skills.registerProvider` 注册 | agent 能检索并遵循技能内容 |
+| FR-4.4 | 引擎知识技能：`ds-profile/skills/` 提供 markdown 技能（项目约定、Three.js 规范、性能调优、引擎命令速查），通过 `ctx.skills.registerProvider` 注册 | agent 能检索并遵循技能内容 |
 | FR-4.5 | 引擎专家 persona（`dsh-persona` / `cordis.patch.yml` 提示词补丁） | agent 初始系统提示包含引擎上下文 |
 | FR-4.6 | UI 槽：工具结果渲染**文本卡片**（场景摘要、游戏状态面板、console 摘要），通过 `ctx.slots.register` 注册；截图/实时 Three.js 预览留二期 | 聊天界面中工具结果以文本卡片呈现 |
 | FR-4.7 | 工具实现只依赖 EngineBridge 或编辑器 HTTP API，不依赖 DSH 内部 API | 代码评审约束 |
@@ -186,7 +186,7 @@
 |---|---|---|
 | FR-7.1 | `vsce package` 产出 `.vsix`，`.vscodeignore` 排除源码/测试，保留编译产物与运行时依赖 | 打包产物可在无开发环境机器安装 |
 | FR-7.2 | **暂不公开发布**：当前阶段本地开发调试；`vsce package` 保留用于安装验证 | 安装/卸载无残留；本地可重复打包 |
-| FR-7.3 | `@demostudio/dsh-engine-tools` 与 `dsh-profile/` 独立版本化（随本仓库 tag 发布） | 插件包可单独升级 |
+| FR-7.3 | `@demostudio/ds-engine-tools` 与 `ds-profile/` 独立版本化（随本仓库 tag 发布） | 插件包可单独升级 |
 
 ---
 
@@ -284,12 +284,12 @@ E:\DemoStudio\
 │   │   ├── ui/chat.tsx          # React 聊天界面
 │   │   └── commands.ts
 │   └── .vscodeignore
-├── dsh-profile/                 # DSH profile 数据（新）
-│   ├── package.json             # 声明 @demostudio/dsh-engine-tools 等
+├── ds-profile/                 # DSH profile 数据（新）
+│   ├── package.json             # 声明 @demostudio/ds-engine-tools 等
 │   ├── dsh.profile              # bundles 清单（官方 + 自定义）
 │   ├── cordis.patch.yml         # persona / 提示词补丁
 │   └── skills/                  # 引擎知识技能（markdown）
-└── packages/dsh-engine-tools/   # DSH 插件包（新，npm 发布）
+└── packages/ds-engine-tools/   # DSH 插件包（新，npm 发布）
     ├── src/index.ts             # name/inject/apply
     ├── src/tools/*.ts           # 引擎原生工具
     ├── src/guards.ts            # 工具守卫

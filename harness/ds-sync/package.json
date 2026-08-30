@@ -1,0 +1,37 @@
+{
+  "name": "@demostudio/ds-sync",
+  "version": "0.1.0",
+  "description": "DSH 启动同步插件：把 home(~/.dsh) 中的记忆/skills/presets/profiles 同步到项目根 .dsh，内容变化才写，保证项目可迁移。",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "demostudio",
+    "dsh",
+    "sync",
+    "migration"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "oxlint": "^1.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  }
+}

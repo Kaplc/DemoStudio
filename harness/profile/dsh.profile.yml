@@ -2,11 +2,11 @@ name: demostudio
 description: "DemoStudio Harness 内置 Profile"
 
 # DSH runtime 启动时加载的 bundles（plugins）
-# - 工具由 dsh-engine-tools/dist/index.js 提供
+# - 工具由 ds-engine-tools/dist/index.js 提供
 # - 工具实现不依赖 DSH 内部 API（架构红线 FR-4.7）
 bundles:
-  - path: "../dsh-plugin/dist/index.js"
-    apply: "@demostudio/dsh-engine-tools"
+  - path: "../ds-plugin/dist/index.js"
+    apply: "@demostudio/ds-engine-tools"
 
 # Cordis plugins
 plugins:

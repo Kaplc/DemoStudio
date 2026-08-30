@@ -1,7 +1,7 @@
 # DSH 插件安装与加载机制（DSH Plugin Installation & Loading）
 
-> 把一个 Cordis 插件包（以 `@demostudio/dsh-memory` 与 `@demostudio/dsh-sync` 为实例）装入 dsh 内核的完整流程：物理安装（编译 / junction / patch 行）与运行时加载（配置树组合 → import → apply 注册）。
-> 代码位置：`harness/dsh-memory/`、`harness/dsh-sync/`（插件包本体）、`~/.dsh/profiles/{web,headless}/cordis.patch.yml`（挂载点）、`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/`（junction）
+> 把一个 Cordis 插件包（以 `@demostudio/ds-memory` 与 `@demostudio/ds-sync` 为实例）装入 dsh 内核的完整流程：物理安装（编译 / junction / patch 行）与运行时加载（配置树组合 → import → apply 注册）。
+> 代码位置：`harness/ds-memory/`、`harness/ds-sync/`（插件包本体）、`~/.dsh/profiles/{web,headless}/cordis.patch.yml`（挂载点）、`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/`（junction）
 > 相关文档：[`harness/harness_system.md`](./harness_system.md)（Harness 工程总览）、[`harness/dsh_engine_integration.md`](./dsh_engine_integration.md)（DSH 与引擎集成架构）、[`harness/slash_command_system.md`](./slash_command_system.md)（编辑器侧命令系统）
 
 ---
@@ -19,8 +19,8 @@ DemoStudio 当前运行的内核是全局 npm 安装的 `@deepseek-ai/dsh@0.1.1-
 
 | 角色 | 职责 | 不做 |
 |------|------|------|
-| 插件包（`harness/dsh-memory/`、`harness/dsh-sync/`） | 导出 `name`/`inject`/`Config`/`apply`，`npm run build` 产出 `dist/` | 不管自己被谁挂载 |
-| junction（`node_modules/@demostudio/dsh-memory`） | 让 Node 按包名解析到插件目录；链接而非拷贝，改代码只需 rebuild | 不参与配置 |
+| 插件包（`harness/ds-memory/`、`harness/ds-sync/`） | 导出 `name`/`inject`/`Config`/`apply`，`npm run build` 产出 `dist/` | 不管自己被谁挂载 |
+| junction（`node_modules/@demostudio/ds-memory`） | 让 Node 按包名解析到插件目录；链接而非拷贝，改代码只需 rebuild | 不参与配置 |
 | profile patch（`cordis.patch.yml`） | 声明"插入哪一行插件、叫什么 id、带什么 config" | 不加载代码 |
 | dsh loader | 组合配置树、import 插件模块、按 `inject` 解析服务、按 `Config` 校验配置、调用 `apply` | 不理解插件业务 |
 | 插件 `apply(ctx, config)` | 注册即副作用：section / tools / 事件监听，全部挂插件 fiber | 不做卸载清理（fiber 自动回滚） |
@@ -29,10 +29,10 @@ DemoStudio 当前运行的内核是全局 npm 安装的 `@deepseek-ai/dsh@0.1.1-
 
 | 功能 | 归属文档 |
 |------|----------|
-| 插件内部如何工作（记忆系统本体） | 插件源码注释 `harness/dsh-memory/src/` 与其包内 `REQUIREMENTS.md` |
+| 插件内部如何工作（记忆系统本体） | 插件源码注释 `harness/ds-memory/src/` 与其包内 `REQUIREMENTS.md` |
 | dsh 启动 / 内核集成 / 进程守护 | [`harness/dsh_engine_integration.md`](./dsh_engine_integration.md) |
 | 插件安装与加载机制 | **本文档** |
-| 启动同步插件（home → 项目 .dsh 快照） | 插件源码注释 `harness/dsh-sync/src/` |
+| 启动同步插件（home → 项目 .dsh 快照） | 插件源码注释 `harness/ds-sync/src/` |
 
 ---
 
@@ -40,10 +40,10 @@ DemoStudio 当前运行的内核是全局 npm 安装的 `@deepseek-ai/dsh@0.1.1-
 
 | 模块 / 文件 | 说明 |
 |-------------|------|
-| `harness/dsh-memory/package.json` | 声明 `"type": "module"`、`main: dist/index.js`、`dsh.bundle.patch` 占位、对 npm 内核同版本（`0.1.1-rc.2`）的 `@deepseek-ai/*` 正式依赖。 |
-| `harness/dsh-memory/src/index.ts` | 插件入口：导出 `name`（注册名）、`inject`（服务声明）、`Config`（schemastery schema）、`apply(ctx, config)`（全部注册）。 |
-| `harness/dsh-memory/dist/` | tsc 编译产物，loader 实际加载的就是它；改源码后必须 `npm run build`。 |
-| `~/.dsh/profiles/web/node_modules/@demostudio/dsh-memory` | Windows junction，目标 `E:\DemoStudio\harness\dsh-memory`；headless profile 下有对称的一份。 |
+| `harness/ds-memory/package.json` | 声明 `"type": "module"`、`main: dist/index.js`、`dsh.bundle.patch` 占位、对 npm 内核同版本（`0.1.1-rc.2`）的 `@deepseek-ai/*` 正式依赖。 |
+| `harness/ds-memory/src/index.ts` | 插件入口：导出 `name`（注册名）、`inject`（服务声明）、`Config`（schemastery schema）、`apply(ctx, config)`（全部注册）。 |
+| `harness/ds-memory/dist/` | tsc 编译产物，loader 实际加载的就是它；改源码后必须 `npm run build`。 |
+| `~/.dsh/profiles/web/node_modules/@demostudio/ds-memory` | Windows junction，目标 `E:\DemoStudio\harness\ds-memory`；headless profile 下有对称的一份。 |
 | `~/.dsh/profiles/web/cordis.patch.yml` | profile 级补丁层，本插件的 `- insert:` 行写在这里；headless 同。 |
 | `~/.dsh/cordis.patch.yml` | home 级补丁层（editor.bat 生成 agent-presets 行），本插件未使用。 |
 
@@ -51,19 +51,19 @@ DemoStudio 当前运行的内核是全局 npm 安装的 `@deepseek-ai/dsh@0.1.1-
 
 ## 3. 使用方法
 
-### 3.1 安装一个插件的三个步骤（以 dsh-memory 为准）
+### 3.1 安装一个插件的三个步骤（以 ds-memory 为准）
 
 ```powershell
 # ① 编译插件包（在插件目录内）
-cd E:\DemoStudio\harness\dsh-memory
+cd E:\DemoStudio\harness\ds-memory
 npm install        # 首次
 npm run build      # 产出 dist/（每次改源码后都要重跑）
 
 # ② 建 junction：让包名可被 Node 解析（无需管理员权限）
 mkdir "$env:USERPROFILE\.dsh\profiles\web\node_modules\@demostudio" -Force
 New-Item -ItemType Junction `
-  -Path  "$env:USERPROFILE\.dsh\profiles\web\node_modules\@demostudio\dsh-memory" `
-  -Target "E:\DemoStudio\harness\dsh-memory"
+  -Path  "$env:USERPROFILE\.dsh\profiles\web\node_modules\@demostudio\ds-memory" `
+  -Target "E:\DemoStudio\harness\ds-memory"
 # headless profile 同样一份（Path 里的 web 换成 headless）
 ```
 
@@ -71,8 +71,8 @@ New-Item -ItemType Junction `
 # ③ 在 profile patch 里写 insert 行
 # 文件：~/.dsh/profiles/web/cordis.patch.yml（headless 同理）
 - insert:
-    - id: dsh-memory                          # 树内唯一 id，其他 patch 可按 id 覆盖 config
-      name: '@demostudio/dsh-memory'          # 包名 → loader import 的目标
+    - id: ds-memory                          # 树内唯一 id，其他 patch 可按 id 覆盖 config
+      name: '@demostudio/ds-memory'          # 包名 → loader import 的目标
       config:                                 # 交给插件 Config schema 校验，可选
         memoryDir: 'E:/DemoStudio/.dsh/memory'  # 把记忆目录钉到项目根（编辑器以 dsh-source 为 cwd 拉内核）
 ```
@@ -87,7 +87,7 @@ New-Item -ItemType Junction `
 
 ```sh
 # 验证 1：配置树里有这一行且能解析
-dsh web --dump-config | grep dsh-memory
+dsh web --dump-config | grep ds-memory
 
 # 验证 2：新会话问 agent "你有 memory_write 工具吗" → 应答 YES
 ```
@@ -100,11 +100,11 @@ dsh web --dump-config | grep dsh-memory
 
 ### 3.4 一键安装脚本（迁移到新机器）
 
-**文件**：`harness/dsh-memory/install.ps1`（幂等，可重复执行）
+**文件**：`harness/ds-memory/install.ps1`（幂等，可重复执行）
 
 ```powershell
 # 新机器上 clone/copy 项目后，跑一次即可恢复全部挂载
-powershell -ExecutionPolicy Bypass -File harness\dsh-memory\install.ps1
+powershell -ExecutionPolicy Bypass -File harness\ds-memory\install.ps1
 # 可选：-DshHome <路径> 指定 DSH home（默认 $HOME\.dsh）
 # 可选：-ForceBuild 强制重新编译（默认 dist 存在时跳过）
 ```
@@ -112,15 +112,15 @@ powershell -ExecutionPolicy Bypass -File harness\dsh-memory\install.ps1
 脚本自动完成三件事（对应 §3.1 的手动三步）：
 
 1. **编译**：`dist/` 缺失时 `npm install` + `npm run build`
-2. **junction**：为 web + headless 两个 profile 建 `node_modules/@demostudio/dsh-memory` junction（已存在则跳过）
-3. **patch**：检查 `cordis.patch.yml` 是否已含 `dsh-memory` 行，没有则幂等追加 insert 块
+2. **junction**：为 web + headless 两个 profile 建 `node_modules/@demostudio/ds-memory` junction（已存在则跳过）
+3. **patch**：检查 `cordis.patch.yml` 是否已含 `ds-memory` 行，没有则幂等追加 insert 块
 
 **迁移时各部分的去向**（为什么记忆不会丢）：
 
 | 部分 | 位置 | 迁移时 |
 |------|------|--------|
 | 记忆数据（正文 + MEMORY.md） | `E:/DemoStudio/.dsh/memory/` | ✅ 在项目内，随项目拷贝/克隆走（需 git 提交或整目录拷贝） |
-| 插件本体（源码 + dist） | `harness/dsh-memory/` | ✅ 在项目内，随项目走 |
+| 插件本体（源码 + dist） | `harness/ds-memory/` | ✅ 在项目内，随项目走 |
 | 挂载 junction | `~/.dsh/profiles/{web,headless}/node_modules/@demostudio/` | ❌ 在用户 home，由脚本重建 |
 | insert patch 行 | `~/.dsh/profiles/{web,headless}/cordis.patch.yml` | ❌ 在用户 home，由脚本重建 |
 
@@ -136,10 +136,10 @@ powershell -ExecutionPolicy Bypass -File harness\dsh-memory\install.ps1
 flowchart TD
     A[dsh --profile web 启动] --> B[解析 Harness home<br/>DSH_HOME 环境变量或缺省 ~/.dsh]
     B --> C[组合配置树<br/>bundles: dsh-base + dsh-web-app]
-    C --> D[叠加 ~/.dsh/profiles/web/cordis.patch.yml<br/>命中 insert 行 dsh-memory]
+    C --> D[叠加 ~/.dsh/profiles/web/cordis.patch.yml<br/>命中 insert 行 ds-memory]
     D --> E[叠加 ~/.dsh/cordis.patch.yml<br/>home 级 patch]
-    E --> F[loader 处理 insert 行<br/>import '@demostudio/dsh-memory']
-    F --> G[Node 沿 profile 目录向上解析 node_modules<br/>命中 junction → harness/dsh-memory/dist/index.js]
+    E --> F[loader 处理 insert 行<br/>import '@demostudio/ds-memory']
+    F --> G[Node 沿 profile 目录向上解析 node_modules<br/>命中 junction → harness/ds-memory/dist/index.js]
     G --> H[unwrapExports<br/>拿 name / inject / Config / apply]
     H --> I{inject 声明的服务<br/>tools/systemPrompt/llm 已就绪?}
     I -->|缺失| X1[boot 失败:<br/>pending waiting for service]
@@ -175,7 +175,7 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
 
 #### 注册即副作用（Cordis 语义）
 
-`apply` 里的每个注册（`section`/`tools.register`/`ctx.on`）都返回 disposer 并挂在本插件 fiber 上；插件卸载或 web profile 的 live patch reload 重挂时自动回滚再重放。插件内自建的副作用（如 dsh-memory 的提取防抖定时器）要自己用 `ctx.effect(() => () => 清理)` 登记。
+`apply` 里的每个注册（`section`/`tools.register`/`ctx.on`）都返回 disposer 并挂在本插件 fiber 上；插件卸载或 web profile 的 live patch reload 重挂时自动回滚再重放。插件内自建的副作用（如 ds-memory 的提取防抖定时器）要自己用 `ctx.effect(() => () => 清理)` 登记。
 
 #### 正式 import 而非鸭子类型
 
@@ -193,7 +193,7 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
 | profile 包列表引用缺 `dsh.bundle` 字段的包 | boot 抛 `declares no dsh.bundle in its package.json` | 不要往 `dsh.profile.bundles` 里加非 bundle 包；插件用 insert 行挂载 |
 | 编辑器拉起内核 cwd 为 `harness/dsh-source` | 插件里基于 `process.cwd()` 的默认路径会偏 | 用 `config.memoryDir` 绝对路径钉住（本插件已配） |
 | `enabled: false` | `apply` 直接 return，section/工具/监听全部不注册 | 无需删行即可静默 |
-| headless 一次性进程 + 异步副作用 | 进程可能在副作用完成前退出 | 用挂起定时器/未完成请求维持事件循环（dsh-memory 的 3s 防抖即此用法） |
+| headless 一次性进程 + 异步副作用 | 进程可能在副作用完成前退出 | 用挂起定时器/未完成请求维持事件循环（ds-memory 的 3s 防抖即此用法） |
 | 改了 profile patch 但 profile 无 live reload（headless） | 改动不热生效 | 重启该 profile 的内核 |
 | 多实例共用同一 home | patch 改动对所有实例生效 | 注意 web profile `patchReload: live` 会热重挂插件 |
 
@@ -213,7 +213,7 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
         node_modules/@demostudio/  node_modules/@demostudio/
           └── junction ──┬── junction ┘
                          ▼
-        E:\DemoStudio\harness\dsh-memory\dist\index.js
+        E:\DemoStudio\harness\ds-memory\dist\index.js
                          ▼
         dsh loader → apply(ctx, config) → Cordis 插件树
 ```
@@ -226,7 +226,7 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
 
 ---
 
-## 8. 实例：@demostudio/dsh-sync（启动同步插件）
+## 8. 实例：@demostudio/ds-sync（启动同步插件）
 
 > 第二个按同一机制挂载的插件包：DSH 启动时把 home(~/.dsh) 的记忆/skills/presets/profiles
 > 同步到项目根 `.dsh`，内容变化才写，保证项目 .dsh 始终是最新的"可迁移快照"。
@@ -235,7 +235,7 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
 
 | 问题 | 解法 |
 |------|------|
-| 项目迁移到其他机器时，home(~/.dsh) 里的 profiles patch / presets / skills 不随 git 走 | dsh-sync 在每次 DSH 启动时把 home 内容镜像到项目根 `.dsh`（随 git 跟踪） |
+| 项目迁移到其他机器时，home(~/.dsh) 里的 profiles patch / presets / skills 不随 git 走 | ds-sync 在每次 DSH 启动时把 home 内容镜像到项目根 `.dsh`（随 git 跟踪） |
 | 手动维护两份配置容易漂移 | 只改 home 一处，启动自动同步，sha1 比对内容变化才写，不产生 git 噪音 |
 
 ### 8.2 同步映射（home → 项目根/.dsh，结构完全一致）
@@ -245,21 +245,21 @@ ctx 是 Cordis Proxy：`apply` 里访问未在 `inject` 中声明的服务键会
 | `~/.dsh/.agent-presets/` | `<项目>/.dsh/presets/` | agent presets（如 game-editor） |
 | `~/.dsh/skills/` | `<项目>/.dsh/skills/` | 用户级技能 |
 | `~/.dsh/profiles/` | `<项目>/.dsh/profiles/` | profile 配置（cordis.yml / patch / package.json），**跳过 node_modules** |
-| `~/.dsh/memory/` | `<项目>/.dsh/memory/` | 记忆文件（dsh-memory 的 memoryDir 已钉在项目根时源为空，自动跳过） |
+| `~/.dsh/memory/` | `<项目>/.dsh/memory/` | 记忆文件（ds-memory 的 memoryDir 已钉在项目根时源为空，自动跳过） |
 
-### 8.3 挂载（与 dsh-memory 完全对称）
+### 8.3 挂载（与 ds-memory 完全对称）
 
 ```powershell
 # junction（web + headless 各一份）
-New-Item -ItemType Junction -Path "$HOME\.dsh\profiles\web\node_modules\@demostudio\dsh-sync" -Target "E:\DemoStudio\harness\dsh-sync"
-New-Item -ItemType Junction -Path "$HOME\.dsh\profiles\headless\node_modules\@demostudio\dsh-sync" -Target "E:\DemoStudio\harness\dsh-sync"
+New-Item -ItemType Junction -Path "$HOME\.dsh\profiles\web\node_modules\@demostudio\ds-sync" -Target "E:\DemoStudio\harness\ds-sync"
+New-Item -ItemType Junction -Path "$HOME\.dsh\profiles\headless\node_modules\@demostudio\ds-sync" -Target "E:\DemoStudio\harness\ds-sync"
 ```
 
 ```yaml
 # ~/.dsh/profiles/{web,headless}/cordis.patch.yml 追加
 - insert:
-    - id: dsh-sync
-      name: '@demostudio/dsh-sync'
+    - id: ds-sync
+      name: '@demostudio/ds-sync'
       config:
         projectRoot: 'E:/DemoStudio'   # 必须显式钉到项目根（编辑器以 dsh-source 为 cwd 拉内核时 cwd 不可靠）
 ```
@@ -269,13 +269,13 @@ New-Item -ItemType Junction -Path "$HOME\.dsh\profiles\headless\node_modules\@de
 - **触发时机**：插件 `apply` 时立即同步一次（每次 DSH 启动）；web profile `patchReload: live` 重挂时也会重跑。
 - **内容变化才写**：逐文件 sha1 比对，仅复制有差异的文件（验证：二次启动 `复制 0 个文件, 未变化 N 个`）。
 - **安全默认**：`deleteExtraneous: false` —— 只增不删，项目 .dsh 里手工维护的文件（如 `<项目>/.dsh/profiles/cordis.patch.yml`）不会被删除；如需完全镜像删除加 `deleteExtraneous: true`。
-- **跳过项**：`node_modules`（含 junction）、`.dsh-module-fallback`、`.dsh-profile-patches`、`.git`、`dist`。
+- **跳过项**：`node_modules`（含 junction）、`.dsh-module-fallback`、`.ds-profile-patches`、`.git`、`dist`。
 - **配置项**：`enabled` / `homeDir` / `projectRoot` / `deleteExtraneous` / `extraExcludes`。
 
 ### 8.5 验证
 
 ```sh
-dsh web --dump-config | grep dsh-sync   # 配置树里有这一行
+dsh web --dump-config | grep ds-sync   # 配置树里有这一行
 # 启动 headless（或 web）后，检查项目 .dsh 下已出现镜像内容
 ls E:\DemoStudio\.dsh\profiles\web\cordis.patch.yml   # 由 home 同步而来
 ```

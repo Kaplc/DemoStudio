@@ -32,7 +32,7 @@ DemoStudio 游戏编辑器目前仅能通过通用 MCP 工具（`mcp-server.mjs`
 | 引擎通信 | **EngineBridge 双通道**：MCP 客户端（复用 `mcp-server.mjs`）+ HTTP 兜底（直接调编辑器 API） | MCP 优先；HTTP 用于快速操作（如 `get_status`、`read_console_logs`） |
 | 引擎事件推送 | **编辑器新增 SSE 端点**（仅绑定 `127.0.0.1`），4 类事件：game.lifecycle / game.error / scene.change / ai.event | 实时性 < 1s；SSE 断线时自动重连 + 轮询 `console-logs` 兜底 |
 | agent 工具来源 | **DSH 原生工具**（`ctx.tools.register` + `defineTool`），不复用 MCP 服务器 | MCP 给 VS Code 内置 agent 用；DSH agent 走 Cordis 工具注册 |
-| 工程结构 | **三分区**：`vscode-ext/`（扩展工程）+ `dsh-engine-tools/`（插件包）+ `profile/`（DSH Profile 配置） | 三层职责单一入口，便于独立版本化 |
+| 工程结构 | **三分区**：`vscode-ext/`（扩展工程）+ `ds-engine-tools/`（插件包）+ `profile/`（DSH Profile 配置） | 三层职责单一入口，便于独立版本化 |
 | 产物打包 | `vsce package` 全量打包（含 dsh-headless 及其依赖），`.vscodeignore` 仅排除源码/测试 | 用户全新环境安装即用 |
 | 协议层 | 沿用 DSH 原生事件流格式，**薄协议层只做透传** | 不重新发明协议 |
 | 端口 | 编辑器 HTTP/SSE 仅绑定 `127.0.0.1`；端口探测从 `9877` 起递增 | 避免暴露到外网；多实例兼容 |
@@ -46,7 +46,7 @@ DemoStudio 游戏编辑器目前仅能通过通用 MCP 工具（`mcp-server.mjs`
 | VS Code 扩展 | `dsh/embeddedAdapter.ts` | 进程内 import dsh-headless 实现 | UI 渲染 / 引擎调用 |
 | VS Code 扩展 | `bridge/engineBridge.ts` | MCP + HTTP 双通道桥接引擎 | 直接调 DSH API / 渲染 UI |
 | VS Code 扩展 | `ui/chatView.ts` + `ui/chatApp/` | WebviewView + React 18 聊天 UI | 直接调内核 / 引擎 API |
-| DSH 插件包 | `dsh-engine-tools/src/` | 注册引擎特化工具、守卫、事件联动、UI 槽 | 直接调 DSH 内部 API（只调 ctx.* 公开接口） |
+| DSH 插件包 | `ds-engine-tools/src/` | 注册引擎特化工具、守卫、事件联动、UI 槽 | 直接调 DSH 内部 API（只调 ctx.* 公开接口） |
 | DSH Profile | `profile/dsh.profile`、`cordis.patch.yml`、`skills/` | 声明插件包依赖 + persona 提示词 + 技能目录 | 业务逻辑 |
 | DSH 源码 | `dsh-source/` | 本地克隆并构建，供 vscode-ext 引用 | 修改（仅 clone） |
 
@@ -62,14 +62,14 @@ DemoStudio 游戏编辑器目前仅能通过通用 MCP 工具（`mcp-server.mjs`
 | `ChatViewProvider`（`ui/chatView.ts`） | `WebviewViewProvider` 实现，托管 webview 与 DSH 事件流 |
 | `ChatApp`（`ui/chatApp/`） | React 18 + Webview UI Toolkit 聊天 UI：流式消息、工具卡片、代码块、@提及 |
 | `StatusBarManager`（`ui/statusBar.ts`） | 状态栏：引擎状态 + 内核版本 + 更新徽标；点击跳转命令 |
-| `tools/inspectScene`（`dsh-engine-tools/src/tools/inspectScene.ts`） | 读场景 JSON，返回 Actor/组件摘要 |
-| `tools/spawnEntity`（`dsh-engine-tools/src/tools/spawnEntity.ts`） | 经 EngineBridge 调 `ai.spawnActor` 生成 Actor |
-| `tools/runScenario`（`dsh-engine-tools/src/tools/runScenario.ts`） | 启动测试场景 → 等结果 → 返回 |
-| `tools/getGameState`（`dsh-engine-tools/src/tools/getGameState.ts`） | 经 EngineBridge 调 `ai.getState` 拿快照 |
-| `tools/setGameSpeed`（`dsh-engine-tools/src/tools/setGameSpeed.ts`） | 经 EngineBridge 调 time scale |
-| `guards.ts`（`dsh-engine-tools/src/guards.ts`） | 工具守卫：高危操作默认 `ask`，可配置 |
-| `events.ts`（`dsh-engine-tools/src/events.ts`） | 引擎事件 → agent 行动联动（如崩溃自动诊断） |
-| `slots.tsx`（`dsh-engine-tools/src/slots.tsx`） | UI 槽：工具结果渲染文本卡片（场景摘要、游戏状态面板、console 摘要） |
+| `tools/inspectScene`（`ds-engine-tools/src/tools/inspectScene.ts`） | 读场景 JSON，返回 Actor/组件摘要 |
+| `tools/spawnEntity`（`ds-engine-tools/src/tools/spawnEntity.ts`） | 经 EngineBridge 调 `ai.spawnActor` 生成 Actor |
+| `tools/runScenario`（`ds-engine-tools/src/tools/runScenario.ts`） | 启动测试场景 → 等结果 → 返回 |
+| `tools/getGameState`（`ds-engine-tools/src/tools/getGameState.ts`） | 经 EngineBridge 调 `ai.getState` 拿快照 |
+| `tools/setGameSpeed`（`ds-engine-tools/src/tools/setGameSpeed.ts`） | 经 EngineBridge 调 time scale |
+| `guards.ts`（`ds-engine-tools/src/guards.ts`） | 工具守卫：高危操作默认 `ask`，可配置 |
+| `events.ts`（`ds-engine-tools/src/events.ts`） | 引擎事件 → agent 行动联动（如崩溃自动诊断） |
+| `slots.tsx`（`ds-engine-tools/src/slots.tsx`） | UI 槽：工具结果渲染文本卡片（场景摘要、游戏状态面板、console 摘要） |
 
 ## 3. 使用方法
 
@@ -117,12 +117,12 @@ if (kernel.health()) await kernel.stop()
 ### 3.3 插件包注册 DSH 原生工具
 
 ```ts
-// harness/dsh-engine-tools/src/index.ts
+// harness/ds-engine-tools/src/index.ts
 import { Context } from 'cordis'
 import { defineTool } from '@deepseek-ai/dsh-headless'
 import { z } from 'zod'
 
-export const name = '@demostudio/dsh-engine-tools'
+export const name = '@demostudio/ds-engine-tools'
 
 export function apply(ctx: Context) {
   ctx.tools.register(defineTool({
@@ -182,7 +182,7 @@ E:\DemoStudio\harness\
 │   │   └── commands.ts            # 命令面板命令注册
 │   ├── media/                     # Webview 静态资源（CSS/图标）
 │   └── esbuild.js                 # 扩展主体 esbuild 构建脚本
-├── dsh-engine-tools/                # DSH 插件包（@demostudio/dsh-engine-tools）
+├── ds-engine-tools/                # DSH 插件包（@demostudio/ds-engine-tools）
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── src/
@@ -198,7 +198,7 @@ E:\DemoStudio\harness\
 │   │   └── slots.tsx              # UI 槽（文本卡片）
 │   └── tsconfig.json
 ├── profile/                       # DSH profile 配置
-│   ├── package.json               # 声明 dsh-engine-tools 依赖
+│   ├── package.json               # 声明 ds-engine-tools 依赖
 │   ├── dsh.profile                # bundles 清单
 │   ├── cordis.patch.yml           # persona / 提示词补丁
 │   └── skills/                    # 引擎知识技能（预留目录）
@@ -227,7 +227,7 @@ flowchart TD
     M --> N
     N --> O[main.ts 路由<br/>广播 SSE 事件]
     O --> P[SSE /api/events]
-    P --> Q[dsh-engine-tools events.ts 订阅]
+    P --> Q[ds-engine-tools events.ts 订阅]
     Q --> R{是重要事件?<br/>崩溃/场景切换}
     R -- 是 --> S[agent 二次推理<br/>自动诊断/迭代]
     R -- 否 --> T[忽略]
@@ -284,7 +284,7 @@ flowchart TD
 ### 4.4 设计要点
 
 - **三层边界单一入口**：DSH 交互走 `dsh/adapter.ts`、引擎交互走 `bridge/engineBridge.ts`、插件包通过 profile 注册。三层各管一段，互不越界。
-- **DSH 升级解耦**：所有 DSH API 集中于 `dsh/adapter.ts` 与 `dsh-engine-tools/`，DSH 升级 API 变更只影响这两处；UI / 命令 / EngineBridge 通过接口稳定。
+- **DSH 升级解耦**：所有 DSH API 集中于 `dsh/adapter.ts` 与 `ds-engine-tools/`，DSH 升级 API 变更只影响这两处；UI / 命令 / EngineBridge 通过接口稳定。
 - **场景文件直改**：M3 起允许 agent 直接读写项目场景 `.json` 文件（经 VS Code 文件系统 `vscode.workspace.fs`），编辑器侧复用现有 `fs.watch` + IPC `asset-changed` 机制检测外部文件变更。
 - **协议层透传**：聊天 UI 看到的就是 DSH 原生事件流（消息 / 工具调用 / 工具结果 / 流式 token），不在中间层重新建模。
 - **SSE 仅本地**：服务端绑定 `127.0.0.1`，避免暴露外网；断线重连 + 轮询兜底保证可靠性。
@@ -324,7 +324,7 @@ extension.ts
   ├── ui/statusBar.ts → bridge/engineBridge.ts (状态) + dsh/updater.ts (版本)
   └── commands.ts → dsh/kernel.ts + bridge/engineBridge.ts
 
-dsh-engine-tools/src/index.ts (Cordis plugin)
+ds-engine-tools/src/index.ts (Cordis plugin)
   ├── tools/*.ts → bridge/engineBridge.ts (注入到 ctx.engineBridge)
   ├── guards.ts → ctx.tools 配置
   ├── events.ts → SSE 订阅
@@ -368,15 +368,15 @@ dsh-engine-tools/src/index.ts (Cordis plugin)
 ```yaml
 name: demostudio
 bundles:
-  - "@demostudio/dsh-engine-tools"  # 本地相对路径
+  - "@demostudio/ds-engine-tools"  # 本地相对路径
 ```
 
 `harness/profile/package.json`：
 ```json
 {
-  "name": "@demostudio/dsh-profile",
+  "name": "@demostudio/ds-profile",
   "dependencies": {
-    "@demostudio/dsh-engine-tools": "file:../dsh-engine-tools"
+    "@demostudio/ds-engine-tools": "file:../ds-engine-tools"
   }
 }
 ```

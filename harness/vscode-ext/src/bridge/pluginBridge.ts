@@ -1,5 +1,5 @@
 /**
- * dsh-engine-tools 加载器：把插件包当作 npm 包 require 进来，把 EngineContext 塞进 ctx。
+ * ds-engine-tools 加载器：把插件包当作 npm 包 require 进来，把 EngineContext 塞进 ctx。
  *
  * 加载策略：
  * - vscode-ext 把插件预编译产物（dist/）作为 node module 引入，避免运行时 import ts
@@ -12,14 +12,14 @@
  *   3) DSH runtime 加载插件包 → 工具注册进 Cordis ctx
  *   4) DSH runtime 调用工具 → 工具实现经 EngineBridge 反向回调 vscode-ext
  *
- * 第一版简化：dsh-engine-tools 工具不与 DSH runtime 真集成，而是由 vscode-ext 直接 import
+ * 第一版简化：ds-engine-tools 工具不与 DSH runtime 真集成，而是由 vscode-ext 直接 import
  * 插件的 `ALL_TOOLS` 并通过一个轻量"AgentExecutor"绑定到 KernelAdapter 事件流。
  * 这样在 DSH 0.1.x 上线前即可完整跑通"改代码 → 启动游戏 → 读日志 → 迭代"闭环。
  *
  * 等 DSH SDK 提供 `defineTool` 工具装饰器（FR-4.1）稳定后，迁移到真 DSH registration。
  */
 import type { EngineBridge } from './engineBridge'
-import type { FileBridgeLike } from '../../../dsh-engine-tools/src/engineContext'
+import type { FileBridgeLike } from '../../../ds-engine-tools/src/engineContext'
 
 export interface PluginTool {
   name: string
@@ -36,7 +36,7 @@ export interface PluginBridgeOpts {
 }
 
 /**
- * 加载插件包工具（绝对路径 require dsh-engine-tools 编译产物）。
+ * 加载插件包工具（绝对路径 require ds-engine-tools 编译产物）。
  * 返回一组 (name → 工具定义) 给上层 AgentExecutor 用。
  */
 export function loadPluginTools(pluginDistPath: string, opts: PluginBridgeOpts): PluginTool[] {

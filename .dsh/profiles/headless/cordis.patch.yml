@@ -2,30 +2,38 @@
 # a top-level YAML array of loader patch entries (id-targeted config
 # overrides, disables, and insert lists; `!!js` expressions allowed).
 
-# DemoStudio 记忆系统插件（@demostudio/dsh-memory，junction 挂载自仓库 harness/dsh-memory）
+# DemoStudio 记忆系统插件（@demostudio/ds-memory，junction 挂载自仓库 harness/ds-memory）
 # memoryDir 钉到项目根：编辑器以 harness/dsh-source 为 cwd 拉起内核时，记忆仍落在 DemoStudio 根
 - insert:
-    - id: dsh-memory
-      name: '@demostudio/dsh-memory'
+    - id: ds-memory
+      name: '@demostudio/ds-memory'
       config:
         memoryDir: 'E:/DemoStudio/.dsh/memory'
 
-# DemoStudio 启动同步插件（@demostudio/dsh-sync，junction 挂载自仓库 harness/dsh-sync）
+# DemoStudio 启动同步插件（@demostudio/ds-sync，junction 挂载自仓库 harness/ds-sync）
 # 启动时把 home(~/.dsh) 的记忆/skills/presets/profiles 同步到项目根 .dsh（内容变化才写）
 - insert:
-    - id: dsh-sync
-      name: '@demostudio/dsh-sync'
+    - id: ds-sync
+      name: '@demostudio/ds-sync'
       config:
         projectRoot: 'E:/DemoStudio'
 
-# DemoStudio 引擎工具插件（@demostudio/dsh-engine-tools，junction 挂载自仓库 harness/dsh-engine-tools）
+# DemoStudio 引擎工具插件（@demostudio/ds-engine-tools，junction 挂载自仓库 harness/ds-engine-tools）
 # 5 个引擎特化工具（inspect_scene / spawn_entity / run_scenario / get_game_state / set_game_speed）
 - insert:
-    - id: dsh-engine-tools
-      name: '@demostudio/dsh-engine-tools'
+    - id: ds-engine-tools
+      name: '@demostudio/ds-engine-tools'
 
-# DemoStudio 插件管理器（@demostudio/dsh-plugin-manager）
+# DemoStudio 插件管理器（@demostudio/ds-plugin-manager）
 - insert:
-    - id: dsh-plugin-manager
-      name: '@demostudio/dsh-plugin-manager'
+    - id: ds-plugin-manager
+      name: '@demostudio/ds-plugin-manager'
 
+
+# DemoStudio 目录指令插件（@demostudio/ds-instructions，junction 挂载自仓库 harness/ds-instructions）
+# 读取 src/engine|src/projects 文件后自动注入 .dsh/instructions/*.instructions.md 项目规范
+- insert:
+    - id: ds-instructions
+      name: '@demostudio/ds-instructions'
+      config:
+        projectRoot: 'E:/DemoStudio'

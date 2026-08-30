@@ -1,0 +1,41 @@
+{
+  "name": "@demostudio/ds-instructions",
+  "version": "0.1.0",
+  "description": "DSH 目录指令插件：读取 src/engine|src/projects 文件后自动注入对应的 .dsh/instructions/*.instructions.md 项目规范（路径映射 + set/replace/remove 生命周期 + durable 注入）。",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src tests",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "demostudio",
+    "dsh",
+    "instructions",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-fs": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent-loop": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-fs-local": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tool-fs": "0.1.1-rc.2",
+    "@types/node": "^22.0.0",
+    "oxlint": "^1.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  }
+}
