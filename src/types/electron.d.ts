@@ -86,8 +86,9 @@ export interface ElectronAPI {
   dshOpenAgentWindow: () => Promise<{ ok: boolean }>
 
   // DSH 内核版本管理
-  dshListVersions: () => Promise<{ current: string; tags: string[]; branches: string[]; error?: string }>
+  dshListVersions: () => Promise<{ current: string; latestNpm?: string; error?: string }>
   dshSwitchVersion: (target: string) => Promise<{ ok: boolean; error?: string }>
+  dshCheckUpdate: () => Promise<{ hasUpdate: boolean; latestNpm: string; error?: string }>
   // DSH 更新进度事件推送
   onDshUpdateProgress: (callback: (progress: { step: string; detail?: string }) => void) => () => void
 

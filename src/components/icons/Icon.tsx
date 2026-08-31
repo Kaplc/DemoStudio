@@ -23,6 +23,8 @@ import {
   Loader,
   Circle,
   Check,
+  ChevronUp,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -37,6 +39,8 @@ export type IconName =
   | 'loader'       // 进行中
   | 'circle'       // 待办 / 未开始
   | 'check'        // 成功 / 完成
+  | 'chevron-up'   // 收起
+  | 'chevron-down' // 展开
 
 /**
  * 语义化尺寸档位（对应 px，避免各组件散落魔法数字）
@@ -63,6 +67,8 @@ const ICONS: Record<IconName, LucideIcon> = {
   'loader': Loader,
   'circle': Circle,
   'check': Check,
+  'chevron-up': ChevronUp,
+  'chevron-down': ChevronDown,
 }
 
 export interface IconProps {

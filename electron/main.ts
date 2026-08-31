@@ -727,46 +727,46 @@ const execAsync = (cmd: string, opts: { cwd?: string; timeout?: number }) =>
     })
   })
 
-// 获取当前分支/tag + 远程所有 tag 列表
+// 获取 DSH 版本信息（只从 npm registry 获取最新版本）
 ipcMain.handle('dsh-list-versions', async () => {
   try {
     if (!fs.existsSync(path.join(DSH_SOURCE_DIR, '.git'))) {
-      return { current: '', tags: [], branches: [], error: 'DSH 源码目录不存在' }
+      return { current: '', latestNpm: '', error: 'DSH 源码目录不存在' }
     }
-    await execAsync('git fetch --all --tags', { cwd: DSH_SOURCE_DIR, timeout: 30000 })
 
-    // 当前版本：优先 tag，否则 branch+hash
+    // 当前版本
     let current = ''
     try {
       const { stdout } = await execAsync('git describe --tags --exact-match 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 5000 })
       current = stdout.trim()
-    } catch {
-      const [{ stdout: branch }, { stdout: hash }] = await Promise.all([
-        execAsync('git rev-parse --abbrev-ref HEAD', { cwd: DSH_SOURCE_DIR, timeout: 5000 }),
-        execAsync('git rev-parse --short HEAD', { cwd: DSH_SOURCE_DIR, timeout: 5000 }),
-      ])
-      current = `${branch.trim()}@${hash.trim()}`
-    }
+    } catch { /* 不在 tag 上 */ }
 
-    // 所有 tag（按版本号倒序）
-    let tags: string[] = []
+    // 从 npm registry 获取最新版本
+    let latestNpm = ''
     try {
-      const { stdout } = await execAsync('git tag --sort=-version:refname', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
-      const raw = stdout.trim()
-      tags = raw ? raw.split('\n') : []
-    } catch { /* 无 tag */ }
+      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      latestNpm = stdout.trim()
+    } catch { /* 网络不可用或包不存在 */ }
 
-    // 远程分支列表
-    let branches: string[] = []
-    try {
-      const { stdout } = await execAsync('git branch -r --format=%(refname:short)', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
-      const raw = stdout.trim()
-      branches = raw ? raw.split('\n').map(b => b.replace('origin/', '')) : []
-    } catch { /* 无分支 */ }
-
-    return { current, tags, branches }
+    return { current, latestNpm }
   } catch (err) {
-    return { current: '', tags: [], branches: [], error: String(err) }
+    return { current: '', latestNpm: '', error: String(err) }
+  }
+})
+
+// 快速检查是否有新版本（只查 npm registry）
+ipcMain.handle('dsh-check-update', async () => {
+  try {
+    // npm 最新版本
+    let latestNpm = ''
+    try {
+      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      latestNpm = stdout.trim()
+    } catch { /* 网络不可用 */ }
+
+    return { hasUpdate: !!latestNpm, latestNpm }
+  } catch (err) {
+    return { hasUpdate: false, latestNpm: '', error: String(err) }
   }
 })
 

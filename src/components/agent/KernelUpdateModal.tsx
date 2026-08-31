@@ -1,8 +1,8 @@
 /**
  * KernelUpdateModal - DSH 内核版本管理浮动窗口
  *
- * 展示当前版本 + 可用 tag 列表，用户手动选择切换
- * 支持版本回退：选择任意 tag 即可切回旧版
+ * 展示当前版本 + npm 最新版本，用户可一键更新到最新版
+ * 自动从 npm registry 获取最新版本并显示
  */
 import React, { useState, useEffect, useCallback } from 'react'
 
@@ -25,7 +25,7 @@ const STEP_LABELS: Record<string, string> = {
 export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, onVersionChanged }) => {
   const [phase, setPhase] = useState<UpdatePhase>('loading')
   const [currentVersion, setCurrentVersion] = useState('')
-  const [tags, setTags] = useState<string[]>([])
+  const [latestNpm, setLatestNpm] = useState('')
   const [error, setError] = useState('')
   const [switchingTarget, setSwitchingTarget] = useState('')
   const [progressStep, setProgressStep] = useState('')
@@ -49,7 +49,7 @@ export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, o
     return unsub
   }, [onVersionChanged])
 
-  // 加载版本列表
+  // 加载版本信息
   const loadVersions = useCallback(async () => {
     const api = window.electronAPI
     if (!api?.dshListVersions) return
@@ -62,7 +62,7 @@ export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, o
         return
       }
       setCurrentVersion(result.current)
-      setTags(result.tags)
+      setLatestNpm(result.latestNpm || '')
       setPhase('ready')
     } catch (err) {
       setPhase('error')
@@ -72,26 +72,32 @@ export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, o
 
   useEffect(() => { loadVersions() }, [loadVersions])
 
-  // 切换版本
-  const handleSwitch = useCallback(async (target: string) => {
+  // 更新到最新版本
+  const handleUpdate = useCallback(async () => {
     const api = window.electronAPI
-    if (!api?.dshSwitchVersion) return
-    setSwitchingTarget(target)
+    if (!api?.dshSwitchVersion || !latestNpm) return
+    setSwitchingTarget(latestNpm)
     setPhase('switching')
     setProgressStep('checkout')
-    setProgressDetail(`正在切换到 ${target}...`)
+    setProgressDetail(`正在切换到 ${latestNpm}...`)
     setError('')
     try {
-      await api.dshSwitchVersion(target)
+      await api.dshSwitchVersion(latestNpm)
     } catch (err) {
       setPhase('error')
       setError(String(err))
     }
-  }, [])
+  }, [latestNpm])
+
+  // 归一化版本号：去掉 dsh-v/dsh- 前缀等本地 tag 特有格式
+  const normalizeVersion = (v: string) => v.replace(/^dsh-v?/i, '').trim()
+
+  // 判断当前版本是否就是最新 npm 版本（归一化后比较）
+  const isCurrentLatest = !!latestNpm && normalizeVersion(currentVersion) === normalizeVersion(latestNpm)
 
   return (
     <div className="kernel-update-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="kernel-update-modal kernel-update-modal--wide">
+      <div className="kernel-update-modal">
         <div className="kernel-update-header">
           <span className="kernel-update-title">DSH 内核版本管理</span>
           <button className="kernel-update-close" onClick={onClose} title="关闭">✕</button>
@@ -103,6 +109,28 @@ export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, o
             <span className="kernel-version-label">当前版本</span>
             <span className="kernel-version-hash">{currentVersion || '...'}</span>
           </div>
+
+          {/* npm 最新版本提示 */}
+          {phase === 'ready' && latestNpm && !isCurrentLatest && (
+            <div className="kernel-npm-latest">
+              <span className="kernel-npm-latest-icon">⬆</span>
+              <span>最新版本：<strong>{latestNpm}</strong></span>
+              <button
+                className="kernel-update-btn kernel-update-btn--primary"
+                onClick={handleUpdate}
+              >
+                更新到此版本
+              </button>
+            </div>
+          )}
+
+          {/* 已是最新 */}
+          {phase === 'ready' && latestNpm && isCurrentLatest && (
+            <div className="kernel-npm-latest kernel-npm-latest--current">
+              <span className="kernel-npm-latest-icon">✓</span>
+              <span>当前已是最新版本</span>
+            </div>
+          )}
 
           {/* 切换中进度 */}
           {phase === 'switching' && (
@@ -135,28 +163,9 @@ export const KernelUpdateModal: React.FC<KernelUpdateModalProps> = ({ onClose, o
             <div className="kernel-update-error">{error}</div>
           )}
 
-          {/* Tag 列表 */}
-          {phase !== 'switching' && tags.length > 0 && (
-            <div className="kernel-version-section">
-              <div className="kernel-version-section-title">Tag 版本</div>
-              <div className="kernel-version-list">
-                {tags.map(tag => (
-                  <div
-                    key={tag}
-                    className={`kernel-version-item ${tag === currentVersion ? 'kernel-version-item--current' : ''}`}
-                    onClick={() => { if (tag !== currentVersion && phase === 'ready') handleSwitch(tag) }}
-                  >
-                    <span className="kernel-version-tag">{tag}</span>
-                    {tag === currentVersion && <span className="kernel-version-badge">当前</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* 加载中 */}
           {phase === 'loading' && (
-            <div className="kernel-version-loading">正在加载版本列表...</div>
+            <div className="kernel-version-loading">正在获取版本信息...</div>
           )}
         </div>
       </div>

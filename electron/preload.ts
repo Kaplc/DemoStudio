@@ -179,6 +179,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // DSH 内核版本管理
   dshListVersions: () => ipcRenderer.invoke('dsh-list-versions'),
   dshSwitchVersion: (target: string) => ipcRenderer.invoke('dsh-switch-version', target),
+  dshCheckUpdate: () => ipcRenderer.invoke('dsh-check-update'),
   // DSH 更新进度事件推送
   onDshUpdateProgress: (callback: (progress: { step: string; detail?: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { step: string; detail?: string }) => callback(progress)

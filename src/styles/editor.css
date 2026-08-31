@@ -1551,54 +1551,12 @@ html, body, #root {
   max-width: 100%;
 }
 
-/* --- Agent 系统消息（命令、压缩、重试等）--- */
-.agent-system-msg {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: min(748px, 90%);
-  margin: 4px auto;
-  padding: 6px 12px;
-  font: var(--dsw-font-xxs);
-  color: var(--dsw-alias-label-caption);
-  background: var(--dsw-alias-interactive-bg-subtle);
-  border-radius: 8px;
-  border-left: 3px solid var(--dsw-alias-label-dimmed);
-}
-.agent-system-msg__icon {
-  flex-shrink: 0;
-  font-size: 14px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.agent-system-msg__text {
-  flex: 1;
-  line-height: 1.4;
-}
+/* --- Agent 系统消息（仅保留 error 子元素供 event-card 内复用）--- */
 .agent-system-msg__error {
   color: var(--dsw-alias-state-error-primary);
 }
 
-/* 图标语义色（替代原 emoji 自带颜色） */
-.agent-command .agent-system-msg__icon { color: var(--dsw-alias-state-business-primary); }
-.agent-compaction .agent-system-msg__icon { color: var(--dsw-alias-state-info-primary); }
-.agent-retry .agent-system-msg__icon { color: var(--dsw-alias-state-warning-primary); }
-.agent-error .agent-system-msg__icon { color: var(--dsw-alias-state-error-primary); }
-.agent-max-tokens .agent-system-msg__icon { color: var(--dsw-alias-state-warning-primary); }
-.agent-todo .agent-system-msg__icon { color: var(--dsw-alias-state-success-primary); }
-
-/* 特殊消息类型边框颜色 */
-.agent-command { border-left-color: var(--dsw-alias-state-business-primary); }
-.agent-compaction { border-left-color: var(--dsw-alias-state-info-primary); }
-.agent-retry { border-left-color: var(--dsw-alias-state-warning-primary); }
-.agent-error { border-left-color: var(--dsw-alias-state-error-primary); }
-.agent-max-tokens { border-left-color: var(--dsw-alias-state-warning-primary); }
-.agent-todo { border-left-color: var(--dsw-alias-state-success-primary); }
-.agent-request-header { border-left-color: var(--dsw-alias-state-info-primary); }
-
-/* --- 事件卡片（模型切换等，与 tool-card 同风格）--- */
+/* --- 事件卡片（命令、压缩、重试、错误、截断、模型切换等系统事件）--- */
 .agent-event-card {
   margin: 2px auto;
   padding: 0 16px;
@@ -1631,6 +1589,14 @@ html, body, #root {
   font-weight: 500;
   margin-left: auto;
 }
+
+/* 各事件类型图标语义色 */
+.agent-event-card--command .agent-event-card__icon { color: var(--dsw-alias-state-business-primary); }
+.agent-event-card--compaction .agent-event-card__icon { color: var(--dsw-alias-state-info-primary); }
+.agent-event-card--retry .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
+.agent-event-card--error .agent-event-card__icon { color: var(--dsw-alias-state-error-primary); }
+.agent-event-card--max-tokens .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
+.agent-event-card--request-header .agent-event-card__icon { color: var(--dsw-alias-state-info-primary); }
 
 /* --- 上下文注入卡片（对齐 DSH WebUI ContextInjectionRow）--- */
 .agent-context-card {
@@ -1712,21 +1678,116 @@ html, body, #root {
   overflow-wrap: anywhere;
 }
 
-/* Todo 列表样式 */
-.agent-todo__item {
-  padding: 2px 0;
-  font-size: 12px;
+/* --- 任务面板（输入框上方常驻独立面板，对齐 DSH WebUI TodoPanel / input.dock）---
+   宽度与 composer 一致（max-width: min(780px, 100%))，视觉上紧贴输入框上方。 */
+.agent-todo-panel {
+  flex-shrink: 0;
+  padding: 0 24px 8px;
+  max-width: min(780px, 100%);
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.agent-todo-panel__body {
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.agent-todo-panel__header {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dsw-alias-label-secondary);
 }
-.agent-todo__in-progress { color: var(--dsw-alias-state-business-primary); }
-.agent-todo__pending { color: var(--dsw-alias-label-dimmed); }
-.agent-todo__completed { color: var(--dsw-alias-state-success-primary); }
-.agent-todo__more {
-  font-size: 11px;
+.agent-todo-panel__header:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.agent-todo-panel__header:focus-visible {
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -1px;
+}
+.agent-todo-panel__lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--dsw-alias-state-success-primary);
+}
+.agent-todo-panel__title {
+  flex-shrink: 0;
+  font: var(--dsw-font-xs);
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+.agent-todo-panel__progress {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--dsw-font-xs);
+  color: var(--dsw-alias-label-caption);
+}
+.agent-todo-panel__chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary);
+}
+.agent-todo-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 12px 10px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.agent-todo-panel__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 0;
+  font: var(--dsw-font-xs);
+  color: var(--dsw-alias-label-secondary);
+}
+.agent-todo-panel__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.agent-todo-panel__content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 状态色：完成 / 进行中 / 待处理 */
+.agent-todo-panel__item[data-status='completed'] .agent-todo-panel__content {
   color: var(--dsw-alias-label-dimmed);
-  font-style: italic;
+  text-decoration: line-through;
+}
+.agent-todo-panel__item[data-status='in_progress'] .agent-todo-panel__content {
+  color: var(--dsw-alias-label-primary);
+}
+.agent-todo-panel__icon--completed { color: var(--dsw-alias-state-success-primary); }
+.agent-todo-panel__icon--progress { color: var(--dsw-alias-state-business-primary); }
+.agent-todo-panel__icon--pending { color: var(--dsw-alias-label-dimmed); }
+/* 进行中图标沿用 loader 的旋转动画语义 */
+.agent-todo-panel__icon--progress {
+  animation: agent-todo-spin 1s linear infinite;
+}
+@keyframes agent-todo-spin {
+  to { transform: rotate(360deg); }
+}
+/* 尊重 prefers-reduced-motion：退化为静态，不做旋转 */
+@media (prefers-reduced-motion: reduce) {
+  .agent-todo-panel__icon--progress { animation: none; }
 }
 
 /* --- 连接状态指示器 --- */
@@ -4217,64 +4278,6 @@ html, body, #root {
   color: var(--dsw-alias-state-success-primary);
 }
 
-/* 版本分组 */
-.kernel-version-section {
-  margin-bottom: 12px;
-}
-
-.kernel-version-section-title {
-  font: var(--dsw-font-xxs-strong);
-  color: var(--dsw-alias-label-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
-}
-
-.kernel-version-list {
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
-}
-
-.kernel-version-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  cursor: pointer;
-  font: var(--dsw-font-xs);
-  color: var(--dsw-alias-label-primary);
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-}
-
-.kernel-version-item:last-child {
-  border-bottom: none;
-}
-
-.kernel-version-item:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.kernel-version-item--current {
-  background: var(--dsw-alias-interactive-bg-active);
-  cursor: default;
-}
-
-.kernel-version-tag {
-  font-family: var(--dsw-font-family-code);
-}
-
-.kernel-version-badge {
-  font: var(--dsw-font-xxxs);
-  color: var(--dsw-alias-state-business-primary);
-  background: rgba(103, 158, 254, 0.12);
-  border: 1px solid rgba(103, 158, 254, 0.25);
-  border-radius: 4px;
-  padding: 1px 6px;
-  flex-shrink: 0;
-}
-
 .kernel-version-loading {
   text-align: center;
   padding: 20px;
@@ -4292,6 +4295,62 @@ html, body, #root {
 @keyframes kernel-indeterminate {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* 更新标记点（下拉菜单中的小红点） */
+.kernel-update-badge-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-error-primary);
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* npm 最新版本提示条 */
+.kernel-npm-latest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(103, 158, 254, 0.08);
+  border: 1px solid rgba(103, 158, 254, 0.2);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font: var(--dsw-font-xs);
+  color: var(--dsw-alias-label-primary);
+}
+
+.kernel-npm-latest-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.kernel-npm-latest .kernel-update-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 11px;
+}
+
+/* tag 右侧 badge 容器 */
+.kernel-version-tag-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 最新版本 badge */
+.kernel-version-badge--npm {
+  color: var(--dsw-alias-state-success-primary);
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+/* 列表中有最新版本可用的 item 高亮 */
+.kernel-version-item--latest {
+  background: rgba(103, 158, 254, 0.04);
 }
 
 /* ═══ Skill 管理面板 ═══ */

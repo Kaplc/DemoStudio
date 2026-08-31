@@ -24,8 +24,9 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, TodoItem } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
+import { TodoPanel } from './agent/TodoPanel'
 import { ApprovalCard } from './agent/ApprovalCard'
 import { ContextCard } from './agent/ContextCard'
 import { ModelSelector } from './agent/ModelSelector'
@@ -140,6 +141,10 @@ export const AgentPanel: React.FC = () => {
     }
   ])
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle')
+  // 当前任务列表快照（驱动输入框上方的独立任务面板）。
+  // 语义对齐 DSH WebUI 的 todos 投影：只保留「最新一次 write 的整表」，
+  // 不累积历史；下一轮开始（turnStart / 用户新消息）时清空。
+  const [todos, setTodos] = useState<TodoItem[]>([])
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [showSidebar, setShowSidebar] = useState(false)
   const [showPluginCenter, setShowPluginCenter] = useState(false)
@@ -148,6 +153,7 @@ export const AgentPanel: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRequest[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [showKernelUpdate, setShowKernelUpdate] = useState(false)
+  const [hasKernelUpdate, setHasKernelUpdate] = useState(false) // npm 有新版本标记
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
@@ -236,6 +242,22 @@ export const AgentPanel: React.FC = () => {
     return unsubPlugins
   }, [])
 
+  // 自动检查 DSH 内核更新（启动时 + 每 30 分钟）
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      try {
+        const result = await window.electronAPI?.dshCheckUpdate()
+        if (!cancelled && result?.hasUpdate) {
+          setHasKernelUpdate(true)
+        }
+      } catch { /* 静默失败 */ }
+    }
+    check()
+    const timer = setInterval(check, 30 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [])
+
   // 获取当前工作区路径和 preset
   useEffect(() => {
     const fetchWorkspace = async () => {
@@ -292,9 +314,13 @@ export const AgentPanel: React.FC = () => {
           break
         }
 
-        case 'turnStart':
-          // 回合开始（可用于 UI 状态指示）
+        case 'turnStart': {
+          // 对齐 DSH WebUI：todo 列表在下一轮/turn 开始时清空。
+          // 放在 turnStart 而非 turnEnd，是为了让上一轮结果在回合结束后
+          // 仍停留在面板上供回看，直到新一轮真正开始才被替换。
+          setTodos([])
           break
+        }
 
         case 'context': {
           // 注入的上下文（插件记忆召回 / 提取 notice 等）→ 折叠卡片
@@ -401,17 +427,12 @@ export const AgentPanel: React.FC = () => {
           break
 
         case 'todoWrite': {
-          // 与历史路径一致：每次 todo/write 折叠成一张任务卡片（webui 为每次写入一行 ToolRow）
+          // 对齐 DSH WebUI：todo/write 是「整表重写」（非增量），面板只保留最新
+          // 一份快照；WebUI 侧同时渲染一行 todo-row 摘要，这里消息流不留痕，
+          // 全部由输入框上方的 TodoPanel 承载，避免历史里堆积重复任务卡片。
           const todoPayload = event.payload as TodoWritePayload
-          const todos = todoPayload?.todos ?? []
-          setMessages(cur => [...cur, {
-            id: `todo-${todoPayload?.seq ?? Date.now()}`,
-            role: 'todo',
-            content: `${todos.length} 个任务`,
-            todos,
-            ts: todoPayload?.time || Date.now(),
-          }])
-          setContentVersion(v => v + 1)
+          const nextTodos = todoPayload?.todos ?? []
+          setTodos(nextTodos)
           break
         }
 
@@ -1087,6 +1108,10 @@ export const AgentPanel: React.FC = () => {
         content: text,
         ts: Date.now()
       }])
+      // 新一轮开始：清空任务面板（webui 语义：cleared on the next turn/start）。
+      // steer 引导同样开启新一轮，故一并清空。
+      setTodos([])
+      
       
       if (isRunning) {
         // AI 正在运行，使用 steer 引导
@@ -1135,6 +1160,7 @@ export const AgentPanel: React.FC = () => {
     historySessionKeyRef.current = sessionId
     setPendingQuestions([]) // 清除旧会话的 pending questions
     setPendingApprovals([]) // 清除旧会话的 pending approvals
+    setTodos([]) // 清除旧会话的任务面板快照
     
     // 加载历史消息
     console.log('[AgentPanel] 开始加载历史消息')
@@ -1148,6 +1174,12 @@ export const AgentPanel: React.FC = () => {
     console.log('[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
     if (historyMessages.length > 0) {
       setMessages(historyMessages.slice(historyVisibleStartRef.current))
+      // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
+      // 整表投影，历史里最后一次 write 即为该会话的当前列表）
+      const lastTodo = [...historyMessages]
+        .reverse()
+        .find(m => m.role === 'todo' && m.todos && m.todos.length > 0)
+      setTodos(lastTodo?.todos ?? [])
     } else {
       setMessages([{
         id: `sys-${Date.now()}`,
@@ -1166,6 +1198,7 @@ export const AgentPanel: React.FC = () => {
     resetHistoryWindow()
     const sid = await agentService.createSession()
     if (sid) {
+      setTodos([]) // 新会话无任务
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',
@@ -1175,6 +1208,7 @@ export const AgentPanel: React.FC = () => {
       refreshSessions()
       setShowSidebar(false)
     } else {
+      setTodos([])
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',
@@ -1325,80 +1359,77 @@ export const AgentPanel: React.FC = () => {
       // 特殊消息类型渲染
       if (msg.role === 'command' && msg.command) {
         return (
-          <div key={msg.id} className="agent-system-msg agent-command">
-            <span className="agent-system-msg__icon"><Icon name="zap" /></span>
-            <span className="agent-system-msg__text">
-              /{msg.command.name}{msg.command.args ? ` ${msg.command.args}` : ''}
-              {msg.command.outcome?.kind === 'error' && <span className="agent-system-msg__error"> (失败)</span>}
-            </span>
+          <div key={msg.id} className="agent-event-card agent-event-card--command">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon"><Icon name="zap" /></span>
+              <span className="agent-event-card__label">命令</span>
+              <span className="agent-event-card__value">
+                /{msg.command.name}{msg.command.args ? ` ${msg.command.args}` : ''}
+                {msg.command.outcome?.kind === 'error' && <span className="agent-system-msg__error"> (失败)</span>}
+              </span>
+            </div>
           </div>
         )
       }
 
       if (msg.role === 'compaction' && msg.compaction) {
         return (
-          <div key={msg.id} className="agent-system-msg agent-compaction">
-            <span className="agent-system-msg__icon"><Icon name="scissors" /></span>
-            <span className="agent-system-msg__text">
-              {msg.content}
-              {msg.compaction.shadowedItemCount && <span> ({msg.compaction.shadowedItemCount} 条消息)</span>}
-            </span>
+          <div key={msg.id} className="agent-event-card agent-event-card--compaction">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon"><Icon name="scissors" /></span>
+              <span className="agent-event-card__label">上下文压缩</span>
+              <span className="agent-event-card__value">
+                {msg.compaction.shadowedItemCount ? `${msg.compaction.shadowedItemCount} 条消息` : msg.content}
+              </span>
+            </div>
           </div>
         )
       }
 
       if (msg.role === 'retry' && msg.retries) {
         return (
-          <div key={msg.id} className="agent-system-msg agent-retry">
-            <span className="agent-system-msg__icon"><Icon name="rotate-cw" /></span>
-            <span className="agent-system-msg__text">{msg.content}</span>
+          <div key={msg.id} className="agent-event-card agent-event-card--retry">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon"><Icon name="rotate-cw" /></span>
+              <span className="agent-event-card__label">重试</span>
+              <span className="agent-event-card__value">{msg.content}</span>
+            </div>
           </div>
         )
       }
 
       if (msg.role === 'turn-error') {
         return (
-          <div key={msg.id} className="agent-system-msg agent-error">
-            <span className="agent-system-msg__icon"><Icon name="circle-x" /></span>
-            <span className="agent-system-msg__text">{msg.content}</span>
+          <div key={msg.id} className="agent-event-card agent-event-card--error">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon"><Icon name="circle-x" /></span>
+              <span className="agent-event-card__label">错误</span>
+              <span className="agent-event-card__value">{msg.content}</span>
+            </div>
           </div>
         )
       }
 
       if (msg.role === 'turn-max-tokens') {
         return (
-          <div key={msg.id} className="agent-system-msg agent-max-tokens">
-            <span className="agent-system-msg__icon"><Icon name="scissors" /></span>
-            <span className="agent-system-msg__text">{msg.content}</span>
-          </div>
-        )
-      }
-
-      if (msg.role === 'todo' && msg.todos) {
-        const pending = msg.todos.filter(t => t.status === 'pending')
-        const inProgress = msg.todos.filter(t => t.status === 'in_progress')
-        const completed = msg.todos.filter(t => t.status === 'completed')
-        return (
-          <div key={msg.id} className="agent-system-msg agent-todo">
-            <span className="agent-system-msg__icon"><Icon name="list-checks" /></span>
-            <div className="agent-system-msg__text">
-              {/* 摘要语义对齐 webui todo-row：X/Y 已完成 · 当前活动项在前 */}
-              <div>任务列表（{completed.length}/{msg.todos.length} 已完成）</div>
-              {inProgress.length > 0 && inProgress.map((t, i) => (
-                <div key={i} className="agent-todo__item agent-todo__in-progress"><Icon name="loader" size="sm" /> {t.content}</div>
-              ))}
-              {pending.length > 0 && pending.slice(0, 3).map((t, i) => (
-                <div key={i} className="agent-todo__item agent-todo__pending"><Icon name="circle" size="sm" /> {t.content}</div>
-              ))}
-              {pending.length > 3 && <div className="agent-todo__more">...还有 {pending.length - 3} 项</div>}
+          <div key={msg.id} className="agent-event-card agent-event-card--max-tokens">
+            <div className="agent-event-card__head">
+              <span className="agent-event-card__icon"><Icon name="scissors" /></span>
+              <span className="agent-event-card__label">上下文截断</span>
+              <span className="agent-event-card__value">{msg.content}</span>
             </div>
           </div>
         )
       }
 
+      // 任务清单不再在消息流中渲染：由输入框上方的独立 TodoPanel 承载
+      // （对齐 DSH WebUI 的 input.dock 槽位）。历史消息里残留的 role='todo'
+      // 记录同样跳过，避免同一份任务在两处重复展示。
+      if (msg.role === 'todo') return null
+
       if (msg.role === 'request-header' && msg.requestHeader) {
         return (
-          <div key={msg.id} className="agent-event-card">
+          <div key={msg.id} className="agent-event-card agent-event-card--request-header">
             <div className="agent-event-card__head">
               <span className="agent-event-card__icon"><Icon name="bot" /></span>
               <span className="agent-event-card__label">模型切换</span>
@@ -1526,6 +1557,7 @@ export const AgentPanel: React.FC = () => {
                   onClick={() => { setHeaderMenuOpen(false); setShowKernelUpdate(true) }}
                 >
                   <span>更新内核</span>
+                  {hasKernelUpdate && <span className="kernel-update-badge-dot" title="有新版本可用" />}
                 </button>
                 <button
                   className="dropdown-item"
@@ -1587,7 +1619,7 @@ export const AgentPanel: React.FC = () => {
       {/* DSH 内核更新浮动窗口 */}
       {showKernelUpdate && (
         <KernelUpdateModal
-          onClose={() => setShowKernelUpdate(false)}
+          onClose={() => { setShowKernelUpdate(false); setHasKernelUpdate(false) }}
           onVersionChanged={() => {
             console.log('[AgentPanel] DSH 内核版本已切换，重启后生效')
           }}
@@ -1626,6 +1658,9 @@ export const AgentPanel: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* 任务面板（输入框上方常驻，对齐 DSH WebUI conversation.input.dock order 0） */}
+      <TodoPanel todos={todos} />
 
       {/* 问答卡片（question/requested 时显示在输入区上方） */}
       {pendingQuestions.map(req => (
