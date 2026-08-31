@@ -35,3 +35,5 @@ prefix: /
 - DSH agent 引导失败（degraded）时，第一现场是 `logs/dsh-agent.log`，先读它再判断
 
 ## 开发中关键流程必须添加log跟踪
+
+## 开发完成需要编写完整全分支覆盖的e2e测试才能结束
