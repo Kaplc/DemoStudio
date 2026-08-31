@@ -14,8 +14,23 @@ interface MessageBubbleProps {
   isFinal?: boolean
 }
 
+// [Trace] 渲染管线追踪：气泡首次渲染去重集合（模块级，跨重渲染只记一次）。
+// 若同一内容以两个不同 id 各打一行 = 数据侧重复；单行但屏幕出现两份 = 渲染树重复挂载。
+const tracedBubbleIds = new Set<string>()
+
+const logTime = (): string => {
+  const d = new Date()
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}.${d.getMilliseconds().toString().padStart(3, '0')}`
+}
+
 const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) => {
   const [copied, setCopied] = useState(false)
+
+  if (!tracedBubbleIds.has(message.id)) {
+    tracedBubbleIds.add(message.id)
+    const text: string = message.content || ''
+    console.log(`[${logTime()}] [Trace][bubble] ${message.id} ${message.role} ${text.length}ch "${text.slice(0, 24)}"`)
+  }
 
   const formatTime = (ts: number): string => {
     return new Date(ts).toLocaleTimeString('zh-CN', {

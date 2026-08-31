@@ -65,6 +65,15 @@ export {
   AI_EVENT_SWITCH_SCENE,
   AI_EVENT_GET_STATE,
   AI_EVENT_SHOW_MESSAGE,
+  AI_EVENT_CLICK_ACTOR,
+  AI_EVENT_GET_ACTOR,
+  AI_EVENT_SCROLL_CAMERA,
+  AI_EVENT_MOUSE_CLICK,
+  AI_EVENT_MOUSE_MOVE,
+  AI_EVENT_MOUSE_DRAG,
+  AI_EVENT_KEY_PRESS,
+  AI_EVENT_KEY_RELEASE,
+  AI_EVENT_GET_HUD,
 } from './ai'
 export type {
   AINotifyPayload,
@@ -75,7 +84,15 @@ export type {
   AIAddScorePayload,
   AISwitchScenePayload,
   AIShowMessagePayload,
+  AIClickActorPayload,
+  AIGetActorPayload,
+  AIScrollCameraPayload,
+  AIMouseClickPayload,
+  AIMouseMovePayload,
+  AIMouseDragPayload,
+  AIKeyPayload,
   AIGameStateSnapshot,
+  AIHUDNode,
 } from './ai'
 export type { SceneGroup } from './asset/SceneLoader'
 export type { SceneAsset, SceneNode, SpriteNode, MaterialProps } from './asset/SceneAsset'

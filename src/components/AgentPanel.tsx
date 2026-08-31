@@ -118,6 +118,7 @@ function toPanelHistoryMessage(
     compaction: history.compaction,
     retries: history.retries,
     todos: history.todos,
+    pendingPartial: history.pendingPartial,
     context: history.context,
     ts: history.ts || Date.now(),
   }
@@ -128,7 +129,10 @@ export const AgentPanel: React.FC = () => {
   useEffect(() => {
     console.log(`[${logTime()}] [AgentPanel] 组件已挂载`)
     return () => {
-      console.log(`[${logTime()}] [AgentPanel] 组件已卸载`)
+      // [Trace] 卸载时队列/打字未完成 = 未上屏内容随实例丢弃，只能靠会话恢复兜底
+      const residual = displayQueueRef.current.length
+      const active = activeDisplayRef.current
+      console.log(`[${logTime()}] [AgentPanel] 组件已卸载: 队列残留=${residual} 项, 活动项=${active ? active.kind : '无'}${residual > 0 || active ? ' ← 有未上屏内容' : ''}`)
     }
   }, [])
 
@@ -300,6 +304,13 @@ export const AgentPanel: React.FC = () => {
     })
 
     const unsubEvent = agentService.onEvent((event) => {
+      // [Trace] 渲染管线追踪：面板实际收到的 message 段（与 svc-emit 对读，
+      // 判断重复发生在 service 发出侧还是面板订阅侧）
+      if (event.type === 'message') {
+        const p = event.payload as any
+        const text: string = p?.content || ''
+        console.log(`[${logTime()}] [Trace][panel-recv] message role=${p?.role} ${text.length}ch "${text.slice(0, 24)}"`)
+      }
       switch (event.type) {
         case 'message': {
           const p = event.payload as any
@@ -495,6 +506,7 @@ export const AgentPanel: React.FC = () => {
 
         case 'ready': {
           const payload = event.payload as any
+          console.log(`[${logTime()}] [Trace][restore] ready 事件: restored=${payload?.restored}, recovered=${payload?.recovered}, sessionId=${payload?.sessionId}`)
           if (payload?.restored) {
             // 刷新/重启后的无感接续：提示在 history 整体替换完成后再入列，
             // 避免被 restoreHistory 内部 setMessages 覆盖丢失
@@ -545,6 +557,22 @@ export const AgentPanel: React.FC = () => {
       unsubEvent()
     }
   }, [])
+
+  // [Trace] 渲染管线追踪：每条消息首次进入 messages 列表时记录一次。
+  // 同一内容出现两行 = 落盘侧重复（对照 panel-recv/入队日志定位层级）；
+  // panel-recv 两行但本日志一行 = 入队被去重；本日志两行同内容 = setMessages 双追加。
+  const tracedMessageIdsRef = useRef<Set<string>>(new Set())
+  // [Trace] messages 即时镜像：restoreHistory / 队列清理等异步路径读取「替换前」列表做对照
+  const messagesRef = useRef<Message[]>([])
+  useEffect(() => {
+    messagesRef.current = messages
+    for (const m of messages) {
+      if (tracedMessageIdsRef.current.has(m.id)) continue
+      tracedMessageIdsRef.current.add(m.id)
+      const text: string = m.content || ''
+      console.log(`[${logTime()}] [Trace][msg-list] +${m.id} ${m.role} ${text.length}ch "${text.slice(0, 24)}"${m.pendingPartial ? ' (partial)' : ''}`)
+    }
+  }, [messages])
 
   // 当前 assistant 段的正文更新：只写入当前队列项，避免旧消息收到新回调。
   const handleContentUpdate = useCallback((content: string) => {
@@ -687,7 +715,8 @@ export const AgentPanel: React.FC = () => {
     // 计算速度倍率：每多2个队列项，速度翻倍
     const queueLength = displayQueueRef.current.length
     const speedMultiplier = Math.pow(2, Math.floor(queueLength / 2))
-    console.log(`[${logTime()}] [AgentPanel] 消费显示队列: kind=${next.kind}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
+    const traceHead = next.kind === 'assistant' ? ` head="${next.content.slice(0, 24)}"` : ''
+    console.log(`[${logTime()}] [AgentPanel] 消费显示队列: kind=${next.kind}, id=${next.id}${traceHead}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
     typewriter.setSpeedMultiplier(speedMultiplier)
     reasoningTypewriter.setSpeedMultiplier(speedMultiplier)
 
@@ -738,14 +767,38 @@ export const AgentPanel: React.FC = () => {
       console.log(`[${logTime()}] [AgentPanel] live 推理卡片原地采纳: ${next.adoptId}`)
     }
 
+    // [Trace] 末尾为半截段时本段将原地替换：恢复竞态下此路径是否走到是关键证据
+    const lastBeforeDrain = messagesRef.current[messagesRef.current.length - 1]
+    if (lastBeforeDrain?.pendingPartial) {
+      console.log(`[${logTime()}] [Trace][partial] 消费 ${next.id} 时末尾为半截段，将原地替换`)
+    }
+
     setMessages(cur => {
-      if (adopting) {
+      // 历史回放的半截段（切换到运行中会话）：首个 live 段抵达时原地替换。
+      // live 段内容 = 回放前缀 + 新增量（seedPendingTurn 续入同一缓冲），
+      // 不替换的话同一段文本会出现两截。
+      const lastIndex = cur.length - 1
+      const replacingPartial = lastIndex >= 0 && !!cur[lastIndex].pendingPartial
+
+      if (adopting && !replacingPartial) {
         const index = cur.findIndex(message => message.id === next.id)
         if (index !== -1) {
           const updated = cur.slice()
           updated[index] = { ...updated[index], reasoning: next.reasoning ?? updated[index].reasoning, streaming: true }
           return updated
         }
+      }
+      if (replacingPartial) {
+        const updated = cur.slice()
+        updated[lastIndex] = {
+          id: next.id,
+          role: 'assistant' as const,
+          content: '',
+          reasoning: '',
+          streaming: true,
+          ts: Date.now(),
+        }
+        return updated
       }
       return [...cur, {
         id: next.id,
@@ -800,7 +853,7 @@ export const AgentPanel: React.FC = () => {
   const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any, adoptId?: string) => {
     messageSequenceRef.current += 1
     const queueLength = displayQueueRef.current.length
-    console.log(`[${logTime()}] [AgentPanel] 消息入队: content=${text.length}字符, reasoning=${reasoning?.length || 0}字符, 队列长度=${queueLength}${adoptId ? ', 采纳 live 卡片' : ''}`)
+    console.log(`[${logTime()}] [AgentPanel] 消息入队: content=${text.length}字符 head="${text.slice(0, 24)}", reasoning=${reasoning?.length || 0}字符, 队列长度=${queueLength}${adoptId ? ', 采纳 live 卡片' : ''}`)
     displayQueueRef.current.push({
       kind: 'assistant',
       id: adoptId ?? `a-${Date.now()}-${messageSequenceRef.current}`,
@@ -933,7 +986,16 @@ export const AgentPanel: React.FC = () => {
   }, [])
 
   const clearDisplayQueue = useCallback(() => {
+    // [Trace] 清空即丢弃：这里是被丢掉的未上屏内容（结论丢失的关键取证点）
+    const discarded = displayQueueRef.current
     const active = activeDisplayRef.current
+    if (discarded.length > 0 || active) {
+      const heads = discarded.map(i => i.kind === 'assistant' ? `A(${i.content.length}字)"${i.content.slice(0, 12)}"` : i.kind).join(', ')
+      const activeTyped = active?.kind === 'assistant'
+        ? messagesRef.current.find(m => m.id === active.id)?.content.length ?? 0
+        : 0
+      console.log(`[${logTime()}] [Trace][queue-clear] 清空显示队列: 丢弃 ${discarded.length} 项=[${heads}], 活动项=${active ? (active.kind === 'assistant' ? `A "${active.content.slice(0, 12)}" (已上屏 ${activeTyped}/${active.content.length} 字)` : active.kind) : '无'}`)
+    }
     if (active?.kind === 'assistant') {
       // 停止或切换会话时保留已经打出来的内容，但结束它的 streaming 状态，
       // 避免消息一直显示为“思考中”或保留打字光标。
@@ -972,6 +1034,10 @@ export const AgentPanel: React.FC = () => {
   // 从 DSH 恢复历史消息（HMR / 重连后调用）
   const restoreHistory = useCallback(async () => {
     try {
+      // [Trace] 恢复 × 显示队列竞态取证：恢复开始时还有多少内容没上屏
+      const q0 = displayQueueRef.current
+      const a0 = activeDisplayRef.current
+      console.log(`[${logTime()}] [Trace][restore] 恢复开始: 队列=${q0.length} 项 [${q0.map(i => i.kind === 'assistant' ? `A(${i.content.length}字)"${i.content.slice(0, 12)}"` : i.kind).join(', ')}], 活动项=${a0 ? (a0.kind === 'assistant' ? `A "${a0.content.slice(0, 12)}"` : a0.kind) : '无'}`)
       const page = await agentService.loadHistoryPage()
       const sessionKey = agentService.getSessionId() || 'current'
       const restored = page.messages.map((history, index) => toPanelHistoryMessage(history, sessionKey, index))
@@ -982,6 +1048,11 @@ export const AgentPanel: React.FC = () => {
       historyVisibleStartRef.current = latestHistoryStart(restored)
       setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
       if (!restored.length) return
+      // 尾页若有未闭合回合的半截段：已上屏回放，同时续入实时缓冲接续增量
+      if (page.pendingTurnPartial) agentService.seedPendingTurn(page.pendingTurnPartial)
+      // [Trace] fold 快照 vs 替换时刻：快照若不含已渲染/排队中的结论，setMessages 替换即丢失
+      const tail = restored[restored.length - 1]
+      console.log(`[${logTime()}] [Trace][restore] fold 返回: ${restored.length} 条, 尾=${tail ? `${tail.role} "${tail.content.slice(0, 20)}"` : '无'}, pendingTurnPartial=${page.pendingTurnPartial ? `有@${page.pendingTurnPartial.throughSeq}` : '无'}, 替换前队列=${displayQueueRef.current.length} 项, 活动项=${activeDisplayRef.current ? '有' : '无'}, 当前列表尾=${messagesRef.current.slice(-2).map(m => `${m.role}(${(m.content || '').length}字${m.pendingPartial ? ',半截' : ''})`).join(' | ')}`)
       setMessages([
         { id: 'sys-0', role: 'system', content: '对话已恢复', ts: Date.now() },
         ...restored.slice(historyVisibleStartRef.current),
@@ -1181,6 +1252,9 @@ export const AgentPanel: React.FC = () => {
     historyVisibleStartRef.current = latestHistoryStart(historyMessages)
     setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
     console.log(`[${logTime()}]`, '[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
+    // 尾页若有未闭合回合的半截段（切换到运行中会话）：已随 fold 上屏回放，
+    // 同时续入实时缓冲，让后续增量接在同一段上（对齐 WebUI PartialAccumulator）
+    if (page.pendingTurnPartial) agentService.seedPendingTurn(page.pendingTurnPartial)
     if (historyMessages.length > 0) {
       setMessages(historyMessages.slice(historyVisibleStartRef.current))
       // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
@@ -1210,6 +1284,9 @@ export const AgentPanel: React.FC = () => {
     const sid = await agentService.createSession()
     if (sid) {
       setTodos([]) // 新会话无任务
+      setPendingQuestions([]) // 旧会话的问答卡片不带入新会话
+      setPendingApprovals([]) // 旧会话的审批卡片不带入新会话
+      setSessionEpoch(v => v + 1) // 会话整体换血，滚动状态不继承（回到底部贴底）
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',

@@ -37,13 +37,26 @@ const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
 
 // 优先全局 npm 安装的 DSH
 function getDshCliPath(): string {
+  const candidates: string[] = []
   try {
     const { execSync } = require('child_process')
     const globalDir = execSync('npm root -g', { encoding: 'utf-8' }).trim()
-    const globalBin = path.join(globalDir, '@deepseek-ai', 'dsh', 'lib', 'bin.js')
-    if (fs.existsSync(globalBin)) return globalBin
+    candidates.push(path.join(globalDir, '@deepseek-ai', 'dsh', 'lib', 'bin.js'))
+  } catch {
+    // npm 可能因 node 不在 PATH 无法运行，继续尝试其他来源
+  }
+  // 回退：where npm.cmd 推导全局 node_modules（npm shim 目录 + node_modules）
+  try {
+    const where = execSync(process.platform === 'win32' ? 'where npm.cmd' : 'which npm', {
+      encoding: 'utf-8', timeout: 5000,
+    }).trim().split('\n')[0]
+    if (where) {
+      candidates.push(path.join(path.dirname(where), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))
+    }
   } catch { /* ignore */ }
-  return ''
+  const cli = candidates.find((p) => fs.existsSync(p))
+  if (cli) console.log(`[DSH] 使用 DSH CLI: ${cli}`)
+  return cli || ''
 }
 
 // 所有权协议目录与关键参数（watcher 与本文件共享同一套语义）
@@ -63,17 +76,38 @@ const DSH_AGENT_RESTART_MAX_MS = 60000  // 自愈退避延迟上限
  * 因此需要使用系统安装的 Node.js 来启动 DSH
  */
 function getSystemNodePath(): string {
+  // 候选来源：where/which 结果 + Windows 注册表 InstallPath（Node 安装器写入，可能不在 PATH 中）
+  const candidates: string[] = []
   try {
     const cmd = process.platform === 'win32' ? 'where node' : 'which node'
     const result = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim()
-    // Windows 的 where 命令可能返回多行，取第一行
-    const nodePath = result.split('\n')[0].trim()
+    // Windows 的 where 命令可能返回多行，每行都是候选
+    candidates.push(...result.split('\n').map((l) => l.trim()).filter(Boolean))
+  } catch {
+    // where/which 未找到，继续尝试注册表
+  }
+  if (process.platform === 'win32') {
+    for (const key of [
+      'HKLM\\SOFTWARE\\Node.js',
+      'HKLM\\SOFTWARE\\WOW6432Node\\Node.js',
+      'HKCU\\SOFTWARE\\Node.js',
+    ]) {
+      try {
+        const reg = execSync(`reg query "${key}" /v InstallPath`, { encoding: 'utf-8', timeout: 5000 })
+        const m = reg.match(/InstallPath\s+REG_SZ\s+(.+)/)
+        if (m) candidates.push(path.join(m[1].trim().replace(/\\$/, ''), 'node.exe'))
+      } catch {
+        // 注册表键不存在，继续下一个
+      }
+    }
+  }
+  const nodePath = candidates.find((p) => fs.existsSync(p))
+  if (nodePath) {
     console.log(`[DSH] 使用系统 Node.js: ${nodePath}`)
     return nodePath
-  } catch (err) {
-    console.warn('[DSH] 无法找到系统 Node.js，将使用 Electron 内置 Node.js（可能版本不兼容）')
-    return process.execPath
   }
+  console.warn('[DSH] 无法找到系统 Node.js，将使用 Electron 内置 Node.js（可能版本不兼容）')
+  return process.execPath
 }
 
 // ─── 蓝图编辑 MCP 往返：requestId → 待解析的 HTTP 响应 ───

@@ -26,6 +26,12 @@ import {
   AI_EVENT_GET_COMPONENT,
   AI_EVENT_SET_PROPERTY,
   AI_EVENT_CALL_ACTOR,
+  AI_EVENT_MOUSE_CLICK,
+  AI_EVENT_MOUSE_MOVE,
+  AI_EVENT_MOUSE_DRAG,
+  AI_EVENT_KEY_PRESS,
+  AI_EVENT_KEY_RELEASE,
+  AI_EVENT_GET_HUD,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -40,15 +46,25 @@ import {
   type AIGetComponentPayload,
   type AISetPropertyPayload,
   type AICallActorPayload,
+  type AIMouseClickPayload,
+  type AIMouseMovePayload,
+  type AIMouseDragPayload,
+  type AIKeyPayload,
   type AIActorInfo,
   type AIGameStateSnapshot,
+  type AIHUDNode,
 } from './AIEvents'
 import { logger } from '../Logger'
+import * as THREE from 'three'
 import { World } from '../gameflow/World'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { Instantiate } from '../asset/BlueprintAsset'
 import { ToastSystem } from '../ui/ToastSystem'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
+import { UITextComponent } from '../ui/UITextComponent'
+import { UIImageComponent } from '../ui/UIImageComponent'
+import { UITransformComponent } from '../ui/UITransformComponent'
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { destroyActor, getAllActors, spawnActor } from '../gameflow/ActorUtils'
 
@@ -102,6 +118,12 @@ const BUILTIN_EVENTS = [
   AI_EVENT_GET_COMPONENT,
   AI_EVENT_SET_PROPERTY,
   AI_EVENT_CALL_ACTOR,
+  AI_EVENT_MOUSE_CLICK,
+  AI_EVENT_MOUSE_MOVE,
+  AI_EVENT_MOUSE_DRAG,
+  AI_EVENT_KEY_PRESS,
+  AI_EVENT_KEY_RELEASE,
+  AI_EVENT_GET_HUD,
 ]
 
 /**
@@ -274,52 +296,117 @@ export function registerBuiltinAIHandlers(): void {
     return snapshot
   })
 
-  // ─── ai.clickActor — 按名称触发 UI 按钮点击（不依赖鼠标坐标） ───
+  // ─── ai.clickActor — 按名称或 UI 文字触发按钮点击（不依赖鼠标坐标） ───
   ai.register(AI_EVENT_CLICK_ACTOR, (payload: unknown, ctx: AIEventContext) => {
     const world = requireWorld(ctx)
     if (!world) return { ok: false, error: '游戏未运行' }
     const p = (payload ?? {}) as AIClickActorPayload
-    if (!p.name) return { ok: false, error: '缺少 name' }
 
-    // 递归查找（按钮通常在 HUD 树的子节点上）
-    const actor = findActorByName(world, p.name)
-    if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
+    if (!p.name && !p.text) return { ok: false, error: '缺少 name 或 text' }
 
-    // 优先触发 UI 按钮（UIButtonComponent 构造时自动挂 ClickableComponent）
-    const buttons = actor.getComponents(UIButtonComponent)
-    if (buttons.length > 0) {
-      for (const b of buttons) b.triggerClick()
-      logger.info(`[AI] clickActor: ${p.name} 触发 ${buttons.length} 个按钮`)
-      return { ok: true, clicked: buttons.length, type: 'button' }
+    /** 在指定 Actor 上查找并触发按钮（UIButtonComponent → ClickableComponent 兜底） */
+    const triggerButtonsOn = (actor: import('../entity/Actor').Actor): { ok: boolean; clicked?: number; type?: string } => {
+      // 优先触发 UI 按钮
+      const buttons = actor.getComponents(UIButtonComponent)
+      if (buttons.length > 0) {
+        for (const b of buttons) b.triggerClick()
+        return { ok: true, clicked: buttons.length, type: 'button' }
+      }
+      // 兜底：递归子树找按钮
+      const findButtonActor = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
+        if (a.getComponents(UIButtonComponent).length > 0) return a
+        for (const child of a.getChildren()) {
+          const hit = findButtonActor(child)
+          if (hit) return hit
+        }
+        return null
+      }
+      const buttonActor = findButtonActor(actor)
+      if (buttonActor) {
+        const bs = buttonActor.getComponents(UIButtonComponent)
+        for (const b of bs) b.triggerClick()
+        return { ok: true, clicked: bs.length, type: 'button' }
+      }
+      // 兜底：触发可点击组件
+      const clickables = actor.getComponents(ClickableComponent)
+      if (clickables.length > 0) {
+        for (const c of clickables) c.onClick?.(undefined as never)
+        return { ok: true, clicked: clickables.length, type: 'clickable' }
+      }
+      return { ok: false }
     }
 
-    // 兜底：目标 actor 自身无按钮时，递归其子树找第一个带 UIButtonComponent 的子 actor
-    // （蓝图生成的按钮多为无名 GenericActor，按父容器名点击即可命中）
-    const findButtonActor = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
-      if (a.getComponents(UIButtonComponent).length > 0) return a
-      for (const child of a.getChildren()) {
-        const hit = findButtonActor(child)
+    // ─── 按名称查找（原有逻辑） ───
+    if (p.name) {
+      const actor = findActorByName(world, p.name)
+      if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
+      const result = triggerButtonsOn(actor)
+      if (result.ok) {
+        logger.info(`[AI] clickActor(name="${p.name}"): 触发 ${result.clicked} 个 ${result.type}`)
+        return result
+      }
+      return { ok: false, error: `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
+    }
+
+    // ─── 按 UI 文字查找（新逻辑）：遍历所有 UI Actor，找到包含指定文字的 Actor，触发其按钮 ───
+    const searchText = p.text!
+    const uiActors = world.ui.getAllUIActors()
+    const findActorByText = (actor: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
+      // 检查自身是否有匹配文字的 UITextComponent
+      const texts = actor.getComponents(UITextComponent)
+      if (texts.some((t) => t.text.includes(searchText))) return actor
+      // 递归子节点
+      for (const child of actor.getChildren()) {
+        const hit = findActorByText(child)
         if (hit) return hit
       }
       return null
     }
-    const buttonActor = findButtonActor(actor)
-    if (buttonActor) {
-      const bs = buttonActor.getComponents(UIButtonComponent)
-      for (const b of bs) b.triggerClick()
-      logger.info(`[AI] clickActor: ${p.name} 子树命中按钮 actor "${buttonActor.name}"，触发 ${bs.length} 个按钮`)
-      return { ok: true, clicked: bs.length, type: 'button' }
+
+    // 先找包含文字的 Actor
+    let target: import('../entity/Actor').Actor | null = null
+    for (const actor of uiActors) {
+      target = findActorByText(actor)
+      if (target) break
+    }
+    if (!target) return { ok: false, error: `未找到包含文字 "${searchText}" 的 UI 元素` }
+
+    // 找到了文字 Actor——往上找最近的带按钮的祖先/自身
+    const findClickableAncestor = (actor: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
+      // 自身有按钮 → 直接用
+      if (actor.getComponents(UIButtonComponent).length > 0) return actor
+      // 自身有可点击组件 → 用
+      if (actor.getComponents(ClickableComponent).length > 0) return actor
+      // 往上找父 Actor（通过 root.parent.userData.actorRef）
+      let current: import('../entity/Actor').Actor = actor
+      while (current.root.parent) {
+        const parentRef = current.root.parent.userData?.actorRef as import('../entity/Actor').Actor | undefined
+        if (!parentRef) break
+        if (parentRef.getComponents(UIButtonComponent).length > 0) return parentRef
+        if (parentRef.getComponents(ClickableComponent).length > 0) return parentRef
+        current = parentRef
+      }
+      return null
     }
 
-    // 兜底：触发普通可点击组件（AI 触发无 raycast hit，传空对象占位）
-    const clickables = actor.getComponents(ClickableComponent)
-    if (clickables.length > 0) {
-      for (const c of clickables) c.onClick?.(undefined as never)
-      logger.info(`[AI] clickActor: ${p.name} 触发 ${clickables.length} 个可点击组件`)
-      return { ok: true, clicked: clickables.length, type: 'clickable' }
+    // 先尝试在文字 Actor 本身找按钮
+    let clickTarget: import('../entity/Actor').Actor | null = target
+    const btnResult = triggerButtonsOn(target)
+    if (!btnResult.ok) {
+      // 文字 Actor 本身没按钮，向上找可点击祖先
+      clickTarget = findClickableAncestor(target)
+      if (clickTarget) {
+        const result = triggerButtonsOn(clickTarget)
+        if (result.ok) {
+          logger.info(`[AI] clickActor(text="${searchText}"): 文字在 "${target.name}"，按钮在 "${clickTarget.name}"，触发 ${result.clicked} 个 ${result.type}`)
+          return result
+        }
+      }
+      return { ok: false, error: `找到文字 "${searchText}"（在 ${target.name}），但周围没有可点击元素` }
     }
 
-    return { ok: false, error: `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
+    logger.info(`[AI] clickActor(text="${searchText}"): 在 "${target.name}" 触发 ${btnResult.clicked} 个 ${btnResult.type}`)
+    return btnResult
   })
 
   // ─── ai.getActor — 查询单个 Actor 详细信息（含按钮状态/缩放，递归查找） ───
@@ -422,6 +509,177 @@ export function registerBuiltinAIHandlers(): void {
         : undefined
     logger.info(`[AI] scrollCamera: delta=${p.delta} distance=${distance?.toFixed(2) ?? '?'}`)
     return { ok: true, delta: p.delta, distance }
+  })
+
+  // ─── ai.mouseClick — 模拟鼠标点击（经 InputSys 完整管线：raycast → ClickableComponent → controller） ───
+  ai.register(AI_EVENT_MOUSE_CLICK, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIMouseClickPayload
+    if (typeof p.screenX !== 'number' || typeof p.screenY !== 'number') {
+      return { ok: false, error: '缺少 screenX/screenY（数字）' }
+    }
+    const button = p.button ?? 0
+    const worldPos = p.worldPos
+      ? new THREE.Vector3(p.worldPos[0], p.worldPos[1], p.worldPos[2])
+      : undefined
+
+    // 执行完整点击管线：InputSys.handlePointerDown → PhySys.raycastClick → controller
+    const consumed = gi.inputSys.handlePointerDown(p.screenX, p.screenY, worldPos, gi.controller, button)
+    logger.info(`[AI] mouseClick: (${p.screenX}, ${p.screenY}) button=${button} consumed=${consumed}`)
+    return { ok: true, screenX: p.screenX, screenY: p.screenY, consumed }
+  })
+
+  // ─── ai.mouseMove — 模拟鼠标移动（触发 hover 射线检测 + 拖拽分发） ───
+  ai.register(AI_EVENT_MOUSE_MOVE, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIMouseMovePayload
+    if (typeof p.screenX !== 'number' || typeof p.screenY !== 'number') {
+      return { ok: false, error: '缺少 screenX/screenY（数字）' }
+    }
+    const worldPos = p.worldPos
+      ? new THREE.Vector3(p.worldPos[0], p.worldPos[1], p.worldPos[2])
+      : undefined
+
+    gi.inputSys.handlePointerMove(p.screenX, p.screenY, worldPos, gi.controller)
+    logger.info(`[AI] mouseMove: (${p.screenX}, ${p.screenY})`)
+    return { ok: true, screenX: p.screenX, screenY: p.screenY }
+  })
+
+  // ─── ai.mouseDrag — 模拟鼠标拖拽（按下→多步移动→释放，完整序列） ───
+  ai.register(AI_EVENT_MOUSE_DRAG, async (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIMouseDragPayload
+    if (typeof p.startX !== 'number' || typeof p.startY !== 'number' ||
+        typeof p.endX !== 'number' || typeof p.endY !== 'number') {
+      return { ok: false, error: '缺少 startX/startY/endX/endY（数字）' }
+    }
+    const steps = Math.max(1, p.steps ?? 10)
+    const stepDelay = Math.max(0, p.stepDelayMs ?? 16)
+
+    // 1. 按下
+    gi.inputSys.handlePointerDown(p.startX, p.startY, undefined, gi.controller, 0)
+
+    // 2. 逐步移动
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      const x = p.startX + (p.endX - p.startX) * t
+      const y = p.startY + (p.endY - p.startY) * t
+      gi.inputSys.handlePointerMove(x, y, undefined, gi.controller)
+      if (stepDelay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, stepDelay))
+      }
+    }
+
+    // 3. 释放
+    gi.inputSys.handlePointerUp(undefined, gi.controller, 0)
+    logger.info(`[AI] mouseDrag: (${p.startX},${p.startY}) → (${p.endX},${p.endY}) steps=${steps}`)
+    return { ok: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps }
+  })
+
+  // ─── ai.keyPress — 模拟键盘按下 ───
+  ai.register(AI_EVENT_KEY_PRESS, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIKeyPayload
+    if (!p.key) return { ok: false, error: '缺少 key' }
+
+    gi.inputSys.handleKeyDown(p.key, gi.controller)
+    logger.info(`[AI] keyPress: ${p.key}`)
+    return { ok: true, key: p.key, action: 'pressed' }
+  })
+
+  // ─── ai.keyRelease — 模拟键盘释放 ───
+  ai.register(AI_EVENT_KEY_RELEASE, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIKeyPayload
+    if (!p.key) return { ok: false, error: '缺少 key' }
+
+    gi.inputSys.handleKeyUp(p.key, gi.controller)
+    logger.info(`[AI] keyRelease: ${p.key}`)
+    return { ok: true, key: p.key, action: 'released' }
+  })
+
+  // ─── ai.getHUD — 获取完整 HUD 结构（递归遍历 UI 树，返回文字/按钮状态/图片等） ───
+  ai.register(AI_EVENT_GET_HUD, (_payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+
+    /** 递归构建 UI 节点树 */
+    const buildNode = (actor: import('../entity/Actor').Actor): AIHUDNode => {
+      const node: AIHUDNode = {
+        name: actor.name,
+        type: actor.constructor.name,
+        active: actor.bActive,
+        children: [],
+      }
+
+      // 读取 UITransformComponent 的世界尺寸
+      const tsf = actor.getComponent(UITransformComponent)
+      if (tsf) {
+        const [ww, wh] = tsf.getWorldSize()
+        node.worldSize = [Math.round(ww * 100) / 100, Math.round(wh * 100) / 100]
+      }
+
+      // 世界坐标
+      const p = actor.root.position
+      node.position = [Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100, Math.round(p.z * 100) / 100]
+
+      // 读取 UITextComponent 的文字内容
+      const texts = actor.getComponents(UITextComponent)
+      if (texts.length > 0) {
+        node.text = texts.map((t) => t.text).join('')
+      }
+
+      // 读取 UIButtonComponent 的按钮状态
+      const buttons = actor.getComponents(UIButtonComponent)
+      if (buttons.length > 0) {
+        node.buttonState = buttons[0].state
+      }
+
+      // 读取 UIImageComponent 的图片资源
+      const images = actor.getComponents(UIImageComponent)
+      if (images.length > 0) {
+        const img = images[0] as unknown as { src?: string; _src?: string }
+        node.imageSrc = img.src ?? img._src ?? undefined
+      }
+
+      // 读取 CanvasUIComponent 的 zOrder（UI 层级，越大越靠前/越顶层）
+      const canvas = actor.getComponent(CanvasUIComponent)
+      if (canvas) {
+        node.zOrder = canvas.zOrder
+      }
+
+      // 递归子节点
+      for (const child of actor.getChildren()) {
+        node.children.push(buildNode(child))
+      }
+
+      return node
+    }
+
+    // 从 UIManager 获取所有 UI Actor，构建完整 HUD 树
+    const uiActors = world.ui.getAllUIActors()
+    const hudTree: AIHUDNode[] = []
+    for (const actor of uiActors) {
+      hudTree.push(buildNode(actor))
+    }
+
+    logger.info(`[AI] getHUD: ${uiActors.length} 个根 UI Actor`)
+    return { ok: true, hud: hudTree }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

@@ -43,8 +43,24 @@ echo.
 REM ─── 4. 探测系统 Node.js（与 electron/main.ts getSystemNodePath 一致） ───
 set "NODE_PATH="
 for /f "delims=" %%i in ('where node 2^>nul') do if not defined NODE_PATH set "NODE_PATH=%%i"
+
+REM 回退：where 无结果时查注册表（标准 Node 安装器写入 InstallPath，可能不在 PATH 中）
+if not defined NODE_PATH (
+    for %%K in ("HKLM\SOFTWARE\Node.js" "HKLM\SOFTWARE\WOW6432Node\Node.js" "HKCU\SOFTWARE\Node.js") do (
+        if not defined NODE_PATH (
+            for /f "tokens=2,*" %%a in ('reg query "%%~K" /v InstallPath 2^>nul') do (
+                if "%%a"=="REG_SZ" set "NODE_PATH=%%b"
+            )
+        )
+    )
+)
+REM 注意：以下引用块内/复合 if 中刚 set 的变量必须用 !VAR! 延迟展开（%VAR% 在解析时已展开为空）
+REM where node 返回完整 node.exe 路径；注册表返回目录。仅当 NODE_PATH 是目录（尾斜杠存在）才补 node.exe
+if defined NODE_PATH if "!NODE_PATH:~-1!"=="\" set "NODE_PATH=!NODE_PATH:~0,-1!"
+if defined NODE_PATH if exist "!NODE_PATH!\" set "NODE_PATH=!NODE_PATH!\node.exe"
+if defined NODE_PATH if not exist "!NODE_PATH!" set "NODE_PATH="
 if "%NODE_PATH%"=="" (
-    echo [ERROR] 未检测到系统 Node.js（where node 无结果）
+    echo [ERROR] 未检测到系统 Node.js（where node 无结果，注册表也无安装记录）
     echo        请先安装 Node.js: https://nodejs.org/
     pause
     exit /b 1
@@ -54,6 +70,16 @@ echo [DSH] 使用系统 Node.js: %NODE_PATH%
 REM ─── 5. 探测全局 DSH CLI（与 electron/main.ts getDshCliPath 一致） ───
 set "NPM_ROOT="
 for /f "delims=" %%i in ('npm root -g 2^>nul') do if not defined NPM_ROOT set "NPM_ROOT=%%i"
+
+REM 回退：npm 因 node 不在 PATH 无法运行（npm.cmd 内部调用 node）时，
+REM 用 where npm.cmd 推导全局 node_modules 目录
+REM 注意：括号块内引用块中刚 set 的变量必须用 !VAR! 延迟展开（%VAR% 在块解析时已展开为空）
+if not defined NPM_ROOT (
+    set "NPM_CMD="
+    for /f "delims=" %%i in ('where npm.cmd 2^>nul') do if not defined NPM_CMD set "NPM_CMD=%%i"
+    if defined NPM_CMD for %%i in ("!NPM_CMD!") do set "NPM_ROOT=%%~dpi"
+    if defined NPM_ROOT set "NPM_ROOT=!NPM_ROOT!node_modules"
+)
 set "CLI_PATH=%NPM_ROOT%\@deepseek-ai\dsh\lib\bin.js"
 if not exist "%CLI_PATH%" (
     echo [ERROR] 未找到全局 DSH CLI: %CLI_PATH%

@@ -167,6 +167,8 @@ export interface HistoryMessage {
   retries?: RetryAttempt[]
   /** Todo 列表快照 */
   todos?: TodoItem[]
+  /** 回合未闭合的半截 assistant 段（切换到运行中会话时由 chunk 回放产出） */
+  pendingPartial?: boolean
   /** 上下文注入卡片信息（role === 'context' 时存在） */
   context?: ContextCardInfo
   /** 产生该历史消息的事件序号，用于分页 prepend 时保持稳定 key。 */
@@ -174,11 +176,21 @@ export interface HistoryMessage {
   ts?: number
 }
 
+/** 历史 fold 出的「回合未闭合半截段」：运行中会话已流出、尚未提交的增量 */
+export interface PendingTurnPartial {
+  content: string
+  reasoning?: string
+  /** 半截段末尾的事件 seq（seedPendingTurn 判断覆盖区间用） */
+  throughSeq: number
+}
+
 export interface HistoryPage {
   messages: HistoryMessage[]
   hasMore: boolean
   /** 下一次请求 session.history 时使用的 beforeSeq。 */
   beforeSeq?: number
+  /** 尾页 fold 出的未闭合回合半截段（仅尾部加载返回），续入实时缓冲用 */
+  pendingTurnPartial?: PendingTurnPartial
 }
 
 interface RpcResponse {
@@ -267,6 +279,11 @@ export class AgentService {
   /** 当前 assistant 段的流式缓冲（推送与轮询共用同一套缓冲） */
   private assistantBuf = ''
   private reasoningBuf = ''
+  /** 缓冲中最后一个 chunk 的 seq（seedPendingTurn 判断 fold 覆盖区间用） */
+  private assistantBufLastSeq: number | undefined
+  private reasoningBufLastSeq: number | undefined
+  /** 最近一次提交（flushAssistant）时缓冲末 chunk 的 seq；会话维度，setSession 归零 */
+  private lastFlushSeq: number | undefined
   /** live 推理节流：待触发的下发定时器与上次下发时间 */
   private reasoningEmitTimer: ReturnType<typeof setTimeout> | null = null
   private lastReasoningEmitAt = 0
@@ -285,9 +302,16 @@ export class AgentService {
   private _agentPort = 0
   /** 已解析的默认工作区（应用根目录）缓存：getAppInfo 一次进程内不变 */
   private _workspaceCwd: string | null = null
+  /** 实例标识：HMR 会并存多个服务实例（旧实例泄漏时只写日志不进 UI），用于区分日志来源 */
+  private readonly instanceId = (() => {
+    const g = globalThis as unknown as Record<string, number | undefined>
+    g.__ds_agentSvcSeq__ = (g.__ds_agentSvcSeq__ ?? 0) + 1
+    return `svc#${g.__ds_agentSvcSeq__}`
+  })()
 
   constructor(private config: { autoReconnect?: boolean } = {}) {
     this.config = { autoReconnect: true, ...this.config }
+    console.log(`[${logTime()}] [Trace][svc-lifecycle] AgentService 实例已创建 ${this.instanceId}`)
   }
 
   /**
@@ -352,6 +376,7 @@ export class AgentService {
     this.sessionId = id
     this._lastSeq = -1
     this.clearLiveBuffers()
+    this.lastFlushSeq = undefined
     this.pendingTools.clear()
   }
 
@@ -362,7 +387,14 @@ export class AgentService {
         sessionId: this.sessionId,
       })) as { events?: Array<{ event: { seq: number } }> }
       const last = hist?.events?.[hist.events.length - 1]?.event.seq
-      if (typeof last === 'number') this._lastSeq = Math.max(this._lastSeq, last)
+      if (typeof last === 'number') {
+        const before = this._lastSeq
+        this._lastSeq = Math.max(this._lastSeq, last)
+        // [Trace] 基线前跳若越过「fold 快照之后、回合收尾之前」的事件，收尾会被去重永久抑制
+        if (this._lastSeq > before) {
+          console.log(`[${logTime()}] [Trace][baseline] ${this.instanceId} refreshSeqBaseline 前跳: ${before} → ${this._lastSeq}`)
+        }
+      }
     } catch { /* 基线失败不阻塞主流程，最多多处理一条重复事件（已按 seq 去重） */ }
   }
 
@@ -414,13 +446,18 @@ export class AgentService {
     void (async () => {
       try {
         const hist = await this.rpc('session.history', { sessionId: this.sessionId }) as {
-          events?: Array<{ event: { type: string } }>
+          events?: Array<{ event: { type: string; seq?: number } }>
         }
         const events = hist?.events ?? []
         if (!events.length) return
+        const tailEvent = events[events.length - 1].event
+        console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听探测: ${events.length} 事件, 尾=${tailEvent.type}@${tailEvent.seq}`)
         for (let i = events.length - 1; i >= 0; i--) {
           const t = events[i].event.type
-          if (t === 'turn/end') return            // 最后回合已收尾 → 无未完成工作
+          if (t === 'turn/end') {
+            console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 最后回合已收尾，无需续听`)
+            return            // 最后回合已收尾 → 无未完成工作
+          }
           if (t === 'turn/start') break           // 存在未闭合回合 → 续听
         }
         console.log(`[${logTime()}]`, '[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
@@ -626,6 +663,7 @@ export class AgentService {
    * Electron main 的 WS 桥保留不断开，由新实例复用。
    * 旧实例置为 idle，掐断其 WS 重连定时器等复活路径。 */
   releaseForHmr(): void {
+    console.log(`[${logTime()}] [Trace][svc-lifecycle] ${this.instanceId} releaseForHmr: state=${this.state}, sessionId=${this.sessionId}`)
     this.abortPolling = true
     this.stopTurnWatchdog()
     this.clearLiveBuffers()
@@ -637,7 +675,11 @@ export class AgentService {
   /** HMR 接管后重挂实时下行流：mux 连接不会随模块热替换自动恢复，
    * 必须显式重建（浏览器 WS / Electron IPC 监听）并续听未闭合回合。 */
   reattachLiveStream(): void {
-    if (this.state !== 'connected' || !this.sessionId) return
+    if (this.state !== 'connected' || !this.sessionId) {
+      console.log(`[${logTime()}] [Trace][svc-lifecycle] ${this.instanceId} reattachLiveStream 跳过: state=${this.state}, sessionId=${this.sessionId}`)
+      return
+    }
+    console.log(`[${logTime()}] [Trace][svc-lifecycle] ${this.instanceId} reattachLiveStream: 重挂 mux 下行流`)
     this.abortPolling = false
     this.connectMux()
     this.resumePendingTurnIfNeeded()
@@ -725,7 +767,13 @@ export class AgentService {
       const sid = payload.sessionId as string | undefined
       const lastSeq = payload.lastSeq as number | undefined
       if (sid === this.sessionId && typeof lastSeq === 'number') {
+        const before = this._lastSeq
         this._lastSeq = Math.max(this._lastSeq, lastSeq)
+        // [Trace] 订阅握手是异步的：若基线在 fold 之后才前跳并越过回合收尾，
+        // 收尾事件被 seq 去重抑制 → 半截结论永远等不到补全（头号嫌疑取证点）
+        if (this._lastSeq > before) {
+          console.log(`[${logTime()}] [Trace][baseline] ${this.instanceId} session/subscribed 基线前跳: ${before} → ${this._lastSeq} (lastSeq=${lastSeq})`)
+        }
       }
       return
     }
@@ -1001,7 +1049,7 @@ export class AgentService {
    * 多个 assistant -> tool -> assistant 段，必须在边界事件到达前提交缓冲区。
    * 提交前先发末次 live 推理并掐掉节流定时器：保证 message 事件之后不再有迟到的
    * reasoning.delta，否则面板可能在段落采纳后又建出重复的 live 卡片。 */
-  private flushAssistant(turnCompleted = false, turnEndReason?: TurnEndReason): void {
+  private flushAssistant(turnCompleted = false, turnEndReason?: TurnEndReason, seq?: number): void {
     if (!this.assistantBuf && !this.reasoningBuf) return
     this.emitReasoningDelta()
     this.emit({
@@ -1016,6 +1064,9 @@ export class AgentService {
     })
     this.assistantBuf = ''
     this.reasoningBuf = ''
+    this.assistantBufLastSeq = undefined
+    this.reasoningBufLastSeq = undefined
+    if (typeof seq === 'number') this.lastFlushSeq = seq
   }
 
   /** 丢弃半截缓冲（stop / 发送前调用，不触发 UI 派发） */
@@ -1023,13 +1074,21 @@ export class AgentService {
     this.cancelReasoningEmit()
     this.assistantBuf = ''
     this.reasoningBuf = ''
+    this.assistantBufLastSeq = undefined
+    this.reasoningBufLastSeq = undefined
   }
 
   /** 消费一条 session/event（推送/轮询/心跳三路共用）：按 seq 去重后统一分发。
    * @returns 是否为回合收尾事件（turn/end / session.idle） */
   private consumeSessionEvent(event: DshEvent): boolean {
     if (this.abortPolling) return false // stop 语义：中止后不再派发任何事件
-    if (typeof event?.seq !== 'number' || event.seq <= this._lastSeq) return false
+    if (typeof event?.seq !== 'number' || event.seq <= this._lastSeq) {
+      // [Trace] 收尾/整段/用户消息被基线抑制 = 恢复竞态的直接证据（chunk 被抑制是常态，不打）
+      if (event?.type === 'turn/end' || event?.type === 'assistant/message' || event?.type === 'user/message') {
+        console.log(`[${logTime()}] [Trace][baseline] ${this.instanceId} 基线跳过事件: type=${event?.type}, seq=${event?.seq}, _lastSeq=${this._lastSeq}`)
+      }
+      return false
+    }
     this._lastSeq = event.seq
     this.lastEventAt = Date.now()
     return this.handleSessionEvent(event)
@@ -1055,7 +1114,7 @@ export class AgentService {
 
       // turn/end 是最后一个 assistant 段的提交边界。先提交消息，
       // 再通知 UI 回合结束，保证视觉顺序和事件顺序一致。
-      this.flushAssistant(reasonKind === 'completed', reason)
+      this.flushAssistant(reasonKind === 'completed', reason, event.seq)
       this.emit({ type: 'turnEnd', payload: { turn: d?.turn ?? 0, reason, seq: event.seq, time } as TurnEndPayload })
       this.setRunning(false) // turn 结束，AI 不再运行
       return true
@@ -1068,7 +1127,7 @@ export class AgentService {
 
     if (event.type === 'step/end') {
       // 没有工具的普通 step 也要在 step 边界显示完整消息。
-      this.flushAssistant()
+      this.flushAssistant(false, undefined, event.seq)
       this.emit({ type: 'stepEnd', payload: { turn: d?.turn ?? 0, step: d?.step ?? 0, seq: event.seq, time } as StepEndPayload })
       return false
     }
@@ -1077,9 +1136,13 @@ export class AgentService {
     if (event.type === 'assistant/chunk') {
       const chunk = d?.chunk
       if (!chunk) return false
-      if (chunk.type === 'text-delta' && chunk.text) this.assistantBuf += chunk.text
+      if (chunk.type === 'text-delta' && chunk.text) {
+        this.assistantBuf += chunk.text
+        this.assistantBufLastSeq = event.seq
+      }
       if (chunk.type === 'reasoning-delta' && chunk.text) {
         this.reasoningBuf += chunk.text
+        this.reasoningBufLastSeq = event.seq
         this.scheduleReasoningEmit() // live 推理：节流后实时下发（面板空闲时即时上屏）
       }
       if (chunk.type === 'finish') this.emit({ type: 'stepEnd', payload: { reason: chunk.reason, seq: event.seq, time } })
@@ -1123,7 +1186,7 @@ export class AgentService {
     if (event.type === 'tool/call') {
       // tool/call 会把当前 assistant 段切开。必须先提交前面的完整文本，
       // 否则工具卡片会先进入 UI，后续文本再到达时就失去正确归属。
-      this.flushAssistant()
+      this.flushAssistant(false, undefined, event.seq)
       const callId = d?.callId || `tc-${event.seq}`
       const toolName = d?.name || 'unknown'
       if (d?.callId) this.pendingTools.set(d.callId, toolName)
@@ -1400,6 +1463,14 @@ export class AgentService {
   }
 
   private emit(event: AgentEvent): void {
+    // [Trace] 渲染管线追踪：message 段发出时记录监听器数量与内容摘要。
+    // listeners > 1 = 面板重复订阅；同一内容连续两次 emit = service 层双路径消费。
+    if (event.type === 'message') {
+      const p = event.payload as any
+      const text: string = p?.content || ''
+      const caller = new Error().stack?.split('\n')[2]?.trim().replace(/^at /, '').split(/\s+/).pop() ?? 'unknown'
+      console.log(`[${logTime()}] [Trace][svc-emit] message role=${p?.role} ${text.length}ch "${text.slice(0, 24)}" callers=${caller} listeners=${this.listeners.size}`)
+    }
     this.listeners.forEach(l => l(event))
   }
 
@@ -1422,13 +1493,16 @@ export class AgentService {
     /** 首次加载历史时可限制页数；不传则保持完整历史加载兼容。 */
     maxPages?: number
     maxMessages?: number
-  } = {}): Promise<HistoryMessage[]> {
+  } = {}): Promise<{ messages: HistoryMessage[]; pendingTurnPartial?: PendingTurnPartial }> {
     try {
       if (!this.sessionId) {
         console.warn(`[${logTime()}]`, '[AgentService] loadHistory: 无 sessionId')
-        return []
+        return { messages: [] }
       }
 
+      // fold 起点的去重基线：实时流在 fold 期间消费的 chunk 都以它为界，
+      // fold 结束时用于精确合并半截段（见 seedPendingTurn）
+      const foldBaselineSeq = this._lastSeq
       const allEvents: Array<{ event: DshEvent }> = []
       let beforeSeq = options.beforeSeq
       let pages = 0
@@ -1459,7 +1533,7 @@ export class AgentService {
       }
 
       console.log(`[${logTime()}] [AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
-      if (!allEvents.length) return []
+      if (!allEvents.length) return { messages: [] }
 
       allEvents.sort((a, b) => a.event.seq - b.event.seq)
 
@@ -1474,6 +1548,28 @@ export class AgentService {
       const commandStates = new Map<string, CommandState>()
       // 压缩状态：compactionId -> CompactionState
       const compactionStates = new Map<string, CompactionState>()
+      // chunk 增量累积（对齐实时路径 assistantBuf 语义）：fold 期间遇到
+      // assistant/chunk 先累积，边界处提交；assistant/message 到达时整段覆盖。
+      let foldAssistantBuf = ''
+      let foldReasoningBuf = ''
+      let foldChunkDirty = false
+      let foldChunkLastSeq = 0
+      const flushFoldChunks = (turn?: number, ts?: number) => {
+        if (!foldChunkDirty) return
+        const content = foldAssistantBuf
+        const reasoning = foldReasoningBuf || undefined
+        if (content || reasoning) {
+          const idx = messages.length
+          messages.push({ role: 'assistant', content, reasoning, seq: foldChunkLastSeq, ts })
+          if (typeof turn === 'number') {
+            if (!turnAssistantIndices.has(turn)) turnAssistantIndices.set(turn, [])
+            turnAssistantIndices.get(turn)!.push(idx)
+          }
+        }
+        foldAssistantBuf = ''
+        foldReasoningBuf = ''
+        foldChunkDirty = false
+      }
 
       for (const { event } of allEvents) {
         const d = event.data
@@ -1481,6 +1577,8 @@ export class AgentService {
 
         // ─── tool/call ───
         if (event.type === 'tool/call') {
+          // 与实时路径一致：工具调用把 assistant 段切开，先提交缓冲的 chunk 文本
+          flushFoldChunks(d?.turn, time)
           const callId = String(d?.callId || `tc-${event.seq}`)
           let args: unknown = undefined
           if (d?.arguments) { try { args = JSON.parse(d.arguments) } catch { args = d.arguments } }
@@ -1500,6 +1598,34 @@ export class AgentService {
             pendingTools.delete(callId)
             messages.push({ role: 'tool', content: '', tool, seq: event.seq, ts: time })
           }
+          continue
+        }
+
+        // ─── assistant/chunk ───
+        // 运行中会话已流出的增量随事件流持久化；fold 累积后在边界提交，
+        // 尾部未闭合回合的半截经 pendingTurnPartial 续入实时缓冲（对齐 WebUI）。
+        // 注意 finish 类型只标记流结束、不提交——实时路径的提交边界是 step/end，
+        // 在 finish 处提交会与紧随的 assistant/message 双份。
+        if (event.type === 'assistant/chunk') {
+          const chunk = d?.chunk
+          if (!chunk) continue
+          if (chunk.type === 'text-delta' && chunk.text) {
+            foldAssistantBuf += chunk.text
+            foldChunkDirty = true
+            foldChunkLastSeq = event.seq
+          }
+          if (chunk.type === 'reasoning-delta' && chunk.text) {
+            foldReasoningBuf += chunk.text
+            foldChunkDirty = true
+            foldChunkLastSeq = event.seq
+          }
+          continue
+        }
+
+        // ─── step/end ───
+        // 与实时路径一致的提交边界：无工具的普通文本段在此落盘
+        if (event.type === 'step/end') {
+          flushFoldChunks(d?.turn, time)
           continue
         }
 
@@ -1526,6 +1652,10 @@ export class AgentService {
           if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue
           const msg = d?.message
           if (!msg || msg.role !== 'assistant') continue
+          // 完整段消息到达，chunk 累积被其覆盖，清空防止双份提交
+          foldAssistantBuf = ''
+          foldReasoningBuf = ''
+          foldChunkDirty = false
           const text = this.extractText(msg.content)
           const reasoning = this.extractReasoning(msg.content)
           if (!text && !reasoning) continue
@@ -1541,6 +1671,8 @@ export class AgentService {
 
         // ─── turn/end ───
         if (event.type === 'turn/end') {
+          // 兜底：chunk 流未经 assistant/message 提交就到回合边界
+          flushFoldChunks(d?.turn, time)
           const reasonKind = (d?.reason?.kind ?? 'completed') as TurnEndReasonKind
           if (typeof d?.turn === 'number') {
             const indices = turnAssistantIndices.get(d.turn)
@@ -1692,15 +1824,46 @@ export class AgentService {
         }
       }
 
+      // 尾部半截段：回合未闭合且仍有未提交 chunk → 回放为半截 assistant 消息，
+      // 经 pendingTurnPartial 续入实时缓冲（对齐 WebUI PartialAccumulator 语义）
+      const isTailLoad = options.beforeSeq === undefined
+      let pendingTurnPartial: PendingTurnPartial | undefined
+      if (foldChunkDirty) {
+        const partial: PendingTurnPartial = {
+          content: foldAssistantBuf,
+          reasoning: foldReasoningBuf || undefined,
+          throughSeq: foldChunkLastSeq,
+        }
+        messages.push({
+          role: 'assistant',
+          content: partial.content,
+          reasoning: partial.reasoning,
+          pendingPartial: isTailLoad || undefined,
+          seq: partial.throughSeq,
+          ts: allEvents[allEvents.length - 1]?.event.time,
+        })
+        if (isTailLoad) pendingTurnPartial = partial
+      }
+
+      // fold 与去重基线在同一原子时刻推进（fold 循环同步执行，期间无 await）：
+      // 实时流从此只消费 fold 之后的增量，消除「基线先立、fold 后拉」窗口内
+      // 事件被 fold 与实时双路径重复消费的竞态
+      const tailSeq = allEvents[allEvents.length - 1]?.event.seq
+      if (typeof tailSeq === 'number') this._lastSeq = Math.max(this._lastSeq, tailSeq)
+
+      // [Trace] fold 快照尾部：与面板 restore 日志对照，判断「替换渲染时快照是否已含收尾」
+      const foldTail = messages[messages.length - 1]
+      console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} fold 完成: ${messages.length} 条, 尾=${foldTail ? `${foldTail.role}@${foldTail.seq ?? '?'} "${foldTail.content.slice(0, 20)}"` : '无'}, pendingTurnPartial=${pendingTurnPartial ? `有@${pendingTurnPartial.throughSeq}` : '无'}, _lastSeq=${this._lastSeq}`)
+
       // 未配对完成的工具调用
       for (const tool of pendingTools.values()) {
         messages.push({ role: 'tool', content: '', tool })
       }
 
-      return messages
+      return pendingTurnPartial ? { messages, pendingTurnPartial } : { messages }
     } catch (error) {
       console.error(`[${logTime()}]`, '[AgentService] 加载历史失败:', error)
-      return []
+      return { messages: [] }
     }
   }
 
@@ -1709,12 +1872,39 @@ export class AgentService {
    * 返回的 messages 只对应本次已加载窗口，不会再次扫描整个会话。
    */
   async loadHistoryPage(beforeSeq?: number): Promise<HistoryPage> {
-    const messages = await this.loadHistory({ beforeSeq, maxPages: 1 })
+    const { messages, pendingTurnPartial } = await this.loadHistory({ beforeSeq, maxPages: 1 })
     return {
       messages,
       hasMore: this.historyHasMore,
       beforeSeq: this.historyCursor,
+      ...(pendingTurnPartial ? { pendingTurnPartial } : {}),
     }
+  }
+
+  /**
+   * 把历史 fold 出的「回合未闭合半截段」续入实时缓冲：后续 live 增量在同一
+   * 缓冲上累积，下一个边界 flush 一次性提交完整段（回放前缀 + 新增量），
+   * 面板侧由 pendingPartial 标记的半截消息被该段原地替换。
+   * 对齐 WebUI PartialAccumulator「从回放前缀起步继续累积」的语义。
+   */
+  seedPendingTurn(partial: PendingTurnPartial): void {
+    // 已提交过比 fold 末尾更新的段：半截前缀留在面板作历史，不再续入（防重复）
+    if (this.lastFlushSeq !== undefined && this.lastFlushSeq > partial.throughSeq) return
+
+    const adopt = (current: string | undefined, currentLastSeq: number | undefined, piece: string): { text: string; lastSeq?: number } => {
+      if (!current) return { text: piece, lastSeq: piece ? partial.throughSeq : currentLastSeq }
+      // fold 覆盖了 live 缓冲累积的全部区间（普遍情形：fold 比 live 更接近回合头部）→ 覆盖式采纳
+      if (currentLastSeq !== undefined && partial.throughSeq >= currentLastSeq) return { text: piece, lastSeq: partial.throughSeq }
+      // 罕见竞态：live 已越过 fold 末尾，文本无法按 seq 切分，退化为拼接（可能重复重叠段）
+      console.warn(`[${logTime()}]`, '[AgentService] seedPendingTurn: live 缓冲已越过 fold 末尾，拼接采纳')
+      return { text: piece + current, lastSeq: currentLastSeq }
+    }
+    const adoptedAssistant = adopt(this.assistantBuf, this.assistantBufLastSeq, partial.content)
+    const adoptedReasoning = adopt(this.reasoningBuf, this.reasoningBufLastSeq, partial.reasoning || '')
+    this.assistantBuf = adoptedAssistant.text
+    this.assistantBufLastSeq = adoptedAssistant.lastSeq
+    this.reasoningBuf = adoptedReasoning.text
+    this.reasoningBufLastSeq = adoptedReasoning.lastSeq
   }
 
   // --- 提取 ContentPart[] 中的文本 ---
@@ -1781,13 +1971,23 @@ export class AgentService {
     }
   }
 
+  /** 等待旧轮询回路退出（需先置 abortPolling），避免在途 history 回复串会话、
+   * 以及 resumePendingTurnIfNeeded 被 polling 守卫挡掉 */
+  private async drainPollingLoop(timeoutMs = 1200): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    while (this.polling && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 50))
+    }
+  }
+
   async switchSession(sessionId: string): Promise<void> {
     this.abortPolling = true
     this.pendingQuestions.clear()
     this.pendingApprovals.clear()
-    // 运行态属于「当前会话」：切换后旧会话事件不再消费，先归零；
-    // 目标会话若有未闭合回合，由断档续听探测并恢复运行态
-    if (this.polling) await new Promise(r => setTimeout(r, 200)) // 温和等旧轮询回路退出
+    this.clearLiveBuffers() // 旧会话的半截 assistant/reasoning 缓冲不得串进新会话
+    // 运行态属于「当前会话」：切换即归零；目标会话若有未闭合回合，
+    // 由断档续听探测并恢复运行态
+    await this.drainPollingLoop()
     this.setRunning(false)
     this.setSession(sessionId)
     this.persistSession()
@@ -1811,8 +2011,17 @@ export class AgentService {
         value = (await this.rpc('session.create', { cwd, agentPreset: 'cordis' })) as { sessionId?: string }
       }
       if (value?.sessionId) {
+        // 会话切换语义：与 switchSession 一致，旧会话的运行态/待办/缓冲全部留在旧会话
+        this.abortPolling = true
+        this.pendingQuestions.clear()
+        this.pendingApprovals.clear()
+        this.clearLiveBuffers()
+        await this.drainPollingLoop()
+        this.setRunning(false)
         this.setSession(value.sessionId)
         this.persistSession()
+        await this.refreshSeqBaseline()
+        this.abortPolling = false
         console.log(`[${logTime()}] [AgentService] 新会话已创建: ${this.sessionId}`)
         return value.sessionId
       }
@@ -1836,6 +2045,8 @@ export class AgentService {
     this.deletedSessionIds.add(sessionId)
     if (this.sessionId === sessionId) {
       // 当前会话被删除：同步清除实时流状态与持久化映射，避免下次刷新重复尝试恢复
+      this.clearLiveBuffers()
+      this.setRunning(false)
       this.setSession(null)
       this.clearPersistedSession()
     }

@@ -79,33 +79,45 @@ export default class TipsScript extends BehaviourScript {
    * @param onClose 关闭回调
    */
   showTips(config: TipsConfig, onClose?: () => void): void {
+    logger.info(`[TipsScript] showTips被调用: ${config.type} - ${config.title}`)
     this.currentConfig = config
     this.onClose = onClose ?? null
 
     const tipsConfig = TIPS_CONFIG[config.type]
+    logger.info(`[TipsScript] 提示配置: icon=${tipsConfig.icon}, titleColor=${tipsConfig.titleColor}`)
 
     // 设置图标
     if (this.iconText) {
       this.iconText.text = tipsConfig.icon
+      logger.info(`[TipsScript] 设置图标: ${tipsConfig.icon}`)
+    } else {
+      logger.warn('[TipsScript] iconText为空，无法设置图标')
     }
 
     // 设置标题
     if (this.titleText) {
       this.titleText.text = config.title
       this.titleText.color = tipsConfig.titleColor
+      logger.info(`[TipsScript] 设置标题: ${config.title}`)
+    } else {
+      logger.warn('[TipsScript] titleText为空，无法设置标题')
     }
 
     // 设置消息
     if (this.messageText) {
       this.messageText.text = config.message
+      logger.info(`[TipsScript] 设置消息: ${config.message}`)
+    } else {
+      logger.warn('[TipsScript] messageText为空，无法设置消息')
     }
 
     // 设置自动关闭
     if (config.autoCloseMs && config.autoCloseMs > 0) {
       this.setAutoClose(config.autoCloseMs)
+      logger.info(`[TipsScript] 设置自动关闭: ${config.autoCloseMs}ms`)
     }
 
-    logger.info(`[TipsScript] 显示提示: ${config.type} - ${config.title}`)
+    logger.info(`[TipsScript] 显示提示完成: ${config.type} - ${config.title}`)
   }
 
   /**
@@ -239,14 +251,20 @@ export default class TipsScript extends BehaviourScript {
     config: TipsConfig,
     onClose?: () => void
   ): void {
+    logger.info(`[TipsScript] 准备显示提示: ${config.type} - ${config.title}`)
+    logger.info(`[TipsScript] 消息内容: ${config.message}`)
+    
     const panel = world.ui.spawnUIActor('asset/blueprints/ui/tips.widget.json')
     if (!panel) {
       logger.error('[TipsScript] 提示面板生成失败')
       return
     }
+    
+    logger.info(`[TipsScript] 提示面板已生成: ${panel.root.name}`)
 
     const script = panel.getComponent(UIScriptComponent) as TipsScript | null
     if (script) {
+      logger.info('[TipsScript] 找到TipsScript组件，调用showTips')
       script.showTips(config, onClose)
     } else {
       logger.error('[TipsScript] 未找到TipsScript组件')

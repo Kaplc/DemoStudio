@@ -123,26 +123,35 @@ export default class GemShopScript extends BehaviourScript {
 
   /** 购买金币 */
   private buyCoins(): void {
-    if (!this.inst) return
+    if (!this.inst) {
+      logger.warn('[GemShopScript] buyCoins: inst为空')
+      return
+    }
 
     const gems = this.inst.resources.get('gems')
+    logger.info(`[GemShopScript] 尝试购买金币: 当前宝石=${gems}, 需要=${this.BUY_COINS_GEM_COST}`)
+    
     if (gems < this.BUY_COINS_GEM_COST) {
       // 显示宝石不足提示
+      logger.info(`[GemShopScript] 宝石不足，显示错误提示`)
       TipsScript.showError(
         this.world!,
         '宝石不足',
         `购买金币需要 ${this.BUY_COINS_GEM_COST} 宝石，当前只有 ${gems} 宝石`
       )
-      logger.warn('[GemShopScript] 宝石不足，无法购买金币')
+      logger.warn(`[GemShopScript] 已显示宝石不足提示: 需要${this.BUY_COINS_GEM_COST}💎, 当前${gems}💎`)
       return
     }
 
     // 扣减宝石
+    logger.info(`[GemShopScript] 扣减宝石: -${this.BUY_COINS_GEM_COST}`)
     if (this.inst.resources.spend('gems', this.BUY_COINS_GEM_COST)) {
       // 增加金币
       this.inst.resources.add('coins', this.BUY_COINS_AMOUNT)
+      logger.info(`[GemShopScript] 增加金币: +${this.BUY_COINS_AMOUNT}`)
       
       // 显示成功提示
+      logger.info(`[GemShopScript] 购买成功，显示成功提示`)
       TipsScript.showSuccess(
         this.world!,
         '购买成功',
@@ -158,26 +167,35 @@ export default class GemShopScript extends BehaviourScript {
 
   /** 购买药水 */
   private buyElixir(): void {
-    if (!this.inst) return
+    if (!this.inst) {
+      logger.warn('[GemShopScript] buyElixir: inst为空')
+      return
+    }
 
     const gems = this.inst.resources.get('gems')
+    logger.info(`[GemShopScript] 尝试购买药水: 当前宝石=${gems}, 需要=${this.BUY_ELIXIR_GEM_COST}`)
+    
     if (gems < this.BUY_ELIXIR_GEM_COST) {
       // 显示宝石不足提示
+      logger.info(`[GemShopScript] 宝石不足，显示错误提示`)
       TipsScript.showError(
         this.world!,
         '宝石不足',
         `购买药水需要 ${this.BUY_ELIXIR_GEM_COST} 宝石，当前只有 ${gems} 宝石`
       )
-      logger.warn('[GemShopScript] 宝石不足，无法购买药水')
+      logger.warn(`[GemShopScript] 已显示宝石不足提示: 需要${this.BUY_ELIXIR_GEM_COST}💎, 当前${gems}💎`)
       return
     }
 
     // 扣减宝石
+    logger.info(`[GemShopScript] 扣减宝石: -${this.BUY_ELIXIR_GEM_COST}`)
     if (this.inst.resources.spend('gems', this.BUY_ELIXIR_GEM_COST)) {
       // 增加药水
       this.inst.resources.add('elixir', this.BUY_ELIXIR_AMOUNT)
+      logger.info(`[GemShopScript] 增加药水: +${this.BUY_ELIXIR_AMOUNT}`)
       
       // 显示成功提示
+      logger.info(`[GemShopScript] 购买成功，显示成功提示`)
       TipsScript.showSuccess(
         this.world!,
         '购买成功',

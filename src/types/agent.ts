@@ -132,6 +132,8 @@ export interface Message {
   retries?: RetryAttempt[]
   /** Todo 列表快照 */
   todos?: TodoItem[]
+  /** 回合未闭合的半截 assistant 段（切换到运行中会话时由历史 chunk 回放产出，首个 live 段抵达时原地替换） */
+  pendingPartial?: boolean
   /** 沙箱模式 */
   sandboxMode?: string
   /** 计划模式 */

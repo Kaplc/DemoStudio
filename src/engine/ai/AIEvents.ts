@@ -7,6 +7,7 @@
  *  - 每个事件一个常量 + 一个 payload 接口，方便配置与添加
  *  - 添加新事件：① 在此定义常量/类型 ② 在 registerBuiltinAIHandlers 注册处理器
  */
+import type { ButtonState } from '../ui/UIButtonComponent'
 
 // ═══════════════════════════════════════
 //  事件名常量
@@ -54,6 +55,19 @@ export const AI_EVENT_SET_PROPERTY = 'ai.setProperty'
 
 /** 泛型 RPC：调用 Actor 或组件的白名单方法（setPosition/SetActive/applyPatch 等） */
 export const AI_EVENT_CALL_ACTOR = 'ai.callActor'
+
+/** 模拟鼠标点击（屏幕坐标，经 InputSys 完整管线：raycast → ClickableComponent → controller） */
+export const AI_EVENT_MOUSE_CLICK = 'ai.mouseClick'
+/** 模拟鼠标移动（屏幕坐标，触发 hover 射线检测 + 拖拽分发） */
+export const AI_EVENT_MOUSE_MOVE = 'ai.mouseMove'
+/** 模拟鼠标拖拽（按下→移动→释放 完整序列） */
+export const AI_EVENT_MOUSE_DRAG = 'ai.mouseDrag'
+/** 模拟键盘按下 */
+export const AI_EVENT_KEY_PRESS = 'ai.keyPress'
+/** 模拟键盘释放 */
+export const AI_EVENT_KEY_RELEASE = 'ai.keyRelease'
+/** 获取 HUD 完整结构（递归遍历 UI 树，返回所有可见 UI 元素的文字/按钮状态/组件信息） */
+export const AI_EVENT_GET_HUD = 'ai.getHUD'
 
 // ═══════════════════════════════════════
 //  Payload 类型
@@ -110,10 +124,12 @@ export interface AIShowMessagePayload {
   level?: 'info' | 'warn' | 'error'
 }
 
-/** ai.clickActor payload：按 Actor 名称触发其上 UI 按钮的点击 */
+/** ai.clickActor payload：按 Actor 名称或 UI 文字内容触发按钮点击 */
 export interface AIClickActorPayload {
   /** Actor 名称（精确匹配 .name 或 root.name） */
-  name: string
+  name?: string
+  /** UI 文字内容（模糊匹配 UITextComponent.text，包含即命中；优先于 name） */
+  text?: string
 }
 
 /** ai.getActor payload：按名称查询单个 Actor 详细信息 */
@@ -193,6 +209,50 @@ export interface AIActorInfo {
   children: Array<{ name: string; type: string }>
 }
 
+/** ai.mouseClick payload：模拟鼠标点击（屏幕坐标） */
+export interface AIMouseClickPayload {
+  /** 屏幕 X 坐标（像素） */
+  screenX: number
+  /** 屏幕 Y 坐标（像素） */
+  screenY: number
+  /** 鼠标按键：0=左键（默认），2=右键 */
+  button?: number
+  /** 世界坐标（可选，传入则同时触发 controller.OnPointerDown） */
+  worldPos?: [number, number, number]
+}
+
+/** ai.mouseMove payload：模拟鼠标移动 */
+export interface AIMouseMovePayload {
+  /** 屏幕 X 坐标（像素） */
+  screenX: number
+  /** 屏幕 Y 坐标（像素） */
+  screenY: number
+  /** 世界坐标（可选） */
+  worldPos?: [number, number, number]
+}
+
+/** ai.mouseDrag payload：模拟鼠标拖拽（按下→移动→释放） */
+export interface AIMouseDragPayload {
+  /** 起始屏幕 X 坐标（像素） */
+  startX: number
+  /** 起始屏幕 Y 坐标（像素） */
+  startY: number
+  /** 结束屏幕 X 坐标（像素） */
+  endX: number
+  /** 结束屏幕 Y 坐标（像素） */
+  endY: number
+  /** 移动步数（可选，默认 10，越多越平滑） */
+  steps?: number
+  /** 每步间隔毫秒（可选，默认 16，即一帧） */
+  stepDelayMs?: number
+}
+
+/** ai.keyPress payload：模拟键盘按键（单次触发） */
+export interface AIKeyPayload {
+  /** 按键名（如 'a', 'Space', 'Enter', 'Escape', 'ArrowLeft'） */
+  key: string
+}
+
 /** getState 返回的运行状态摘要 */
 export interface AIGameStateSnapshot {
   running: boolean
@@ -208,4 +268,28 @@ export interface AIGameStateSnapshot {
     /** 是否激活（UI 失活属性，false = 已创建但不渲染） */
     active: boolean
   }>
+}
+
+/** HUD 树节点（ai.getHUD 递归返回 UI 树结构） */
+export interface AIHUDNode {
+  /** Actor 名称 */
+  name: string
+  /** Actor 类型（构造器名） */
+  type: string
+  /** 是否激活 */
+  active: boolean
+  /** UI 层级（zOrder，越大越靠前/越顶层；同层级按树序子节点 > 父节点） */
+  zOrder?: number
+  /** UITextComponent 的文字内容（仅文本节点有） */
+  text?: string
+  /** UIButtonComponent 的按钮状态（仅按钮节点有） */
+  buttonState?: ButtonState
+  /** UIImageComponent 的图片资源路径（仅图片节点有） */
+  imageSrc?: string
+  /** UITransformComponent 的世界尺寸 [w, h] */
+  worldSize?: [number, number]
+  /** 世界坐标 [x, y, z] */
+  position?: [number, number, number]
+  /** 子节点 */
+  children: AIHUDNode[]
 }

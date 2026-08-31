@@ -229,15 +229,25 @@ export default class BuildingUpgradeScript extends BehaviourScript {
 
   /** 开始升级 */
   private startUpgrade(): void {
-    if (!this.inst || !this.buildingId) return
+    if (!this.inst || !this.buildingId) {
+      logger.warn('[BuildingUpgradeScript] startUpgrade: inst或buildingId为空')
+      return
+    }
 
+    logger.info(`[BuildingUpgradeScript] 尝试升级建筑: ${this.buildingId}`)
     const production = this.inst.production
     const resource = this.getUpgradeResource(this.buildingId)
     const nextLevel = production.getBuildingLevel(this.buildingId) + 1
     const stats = production.buildingStats(this.buildingId, nextLevel)
+    
+    logger.info(`[BuildingUpgradeScript] 升级信息: 资源=${resource}, 当前等级=${production.getBuildingLevel(this.buildingId)}, 下一级=${nextLevel}`)
+    
+    if (stats) {
+      logger.info(`[BuildingUpgradeScript] 下一级属性: 费用=${stats.upgradeCost}, 时间=${stats.upgradeTime}s`)
+    }
 
     if (production.startBuildingUpgrade(this.buildingId, resource)) {
-      logger.info(`[BuildingUpgradeScript] 开始升级建筑: ${this.buildingId}`)
+      logger.info(`[BuildingUpgradeScript] 升级成功: ${this.buildingId}`)
       this.refreshDisplay()
     } else {
       // 显示失败提示
@@ -245,13 +255,15 @@ export default class BuildingUpgradeScript extends BehaviourScript {
       const required = stats?.upgradeCost ?? 0
       const current = this.inst.resources.get(resource)
       
+      logger.info(`[BuildingUpgradeScript] 升级失败: 需要${required}${resourceName}, 当前有${current}${resourceName}`)
+      
       TipsScript.showError(
         this.world!,
         '升级失败',
         `${resourceName}不足！需要 ${required} ${resourceName}，当前只有 ${current} ${resourceName}`
       )
       
-      logger.warn(`[BuildingUpgradeScript] 升级失败: ${this.buildingId}（${resourceName}不足）`)
+      logger.warn(`[BuildingUpgradeScript] 已显示升级失败提示: ${this.buildingId}（${resourceName}不足）`)
     }
   }
 
