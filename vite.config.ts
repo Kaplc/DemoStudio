@@ -111,9 +111,12 @@ export default defineConfig({
       // 这些文件由编辑器保存机制驱动（writeJsonFile → loadFromJson/loadSceneAsset/ConfigLoader → 预览重建），
       // 不需要 Vite 热更新传播；文件本身仍被监听，直接改盘不会影响运行中的编辑器。
       // 不在此过滤的话，import.meta.glob 的依赖链会把整个引擎模块树都重载一遍。
+      // 游戏运行时数据（src/projects/{name}/data/*.json，如 fish 存档 save.json）同理排除：
+      // 游戏中保存存档落盘不应触发整页热重载（会杀掉运行中的游戏会话）。
       name: 'ignore-asset-json-hmr',
       handleHotUpdate({ file }) {
         if (/(?:widget|scene|blueprint|config|table)\.json$/.test(file)) return []
+        if (/[/\\]src[/\\]projects[/\\][^/\\]+[/\\]data[/\\].+\.json$/i.test(file)) return []
       },
     },
     electron([
