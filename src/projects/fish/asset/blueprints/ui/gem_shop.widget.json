@@ -1,0 +1,1107 @@
+{
+  "name": "GemShopPanel",
+  "baseClass": "Actor",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1],
+        "worldWidth": 9.6,
+        "worldHeight": 5.4,
+        "anchor": null,
+        "anchorOffset": [0, 0]
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/base/GemShop"
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "DimBackground",
+      "baseClass": "Actor",
+      "id": 13000,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 9.6,
+            "worldHeight": 5.4
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "rgba(12,6,2,0.72)",
+            "opacity": 0.72,
+            "radius": 0,
+            "width": 1920,
+            "height": 1080,
+            "name": "DimBg",
+            "zOrder": 0
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Panel",
+      "baseClass": "Actor",
+      "id": 13001,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "center",
+            "anchorOffset": [0, 0],
+            "worldWidth": 7.6,
+            "worldHeight": 5
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#8a6a3a",
+            "radius": 24,
+            "width": 1540,
+            "height": 1020,
+            "name": "PanelFrame",
+            "zOrder": 1
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "PanelWood",
+          "baseClass": "Actor",
+          "id": 13002,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "worldWidth": 7.4,
+                "worldHeight": 4.8,
+                "anchor": "center",
+                "anchorOffset": [0, 0]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#3a2418",
+                "radius": 18,
+                "width": 1480,
+                "height": 960,
+                "name": "PanelWood",
+                "zOrder": 2
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TitleAccent",
+          "baseClass": "Actor",
+          "id": 13003,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "worldWidth": 1.2,
+                "worldHeight": 0.08,
+                "anchor": "top-center",
+                "anchorOffset": [0, 0.32]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#f0a500",
+                "radius": 4,
+                "width": 240,
+                "height": 16,
+                "name": "TitleAccent",
+                "zOrder": 3
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Title",
+          "baseClass": "Actor",
+          "id": 13004,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-center",
+                "anchorOffset": [0, -0.2],
+                "worldWidth": 4,
+                "worldHeight": 0.6
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "💎 宝石商店",
+                "fontSize": 32,
+                "color": "#ffffff",
+                "bold": true,
+                "align": "center",
+                "width": 400,
+                "height": 60,
+                "zOrder": 3,
+                "name": "TitleText",
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.6)",
+                "shadowBlur": 6
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GemBalance",
+          "baseClass": "Actor",
+          "id": 13005,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-center",
+                "anchorOffset": [0, -0.8],
+                "worldWidth": 4,
+                "worldHeight": 0.5
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "💎 0 宝石",
+                "fontSize": 24,
+                "color": "#ffd54f",
+                "bold": true,
+                "align": "center",
+                "width": 400,
+                "height": 50,
+                "zOrder": 3,
+                "name": "GemBalanceText",
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.5)",
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "ShopItems",
+          "baseClass": "Actor",
+          "id": 13006,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "center",
+                "anchorOffset": [0, -0.2],
+                "worldWidth": 6,
+                "worldHeight": 3
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UILayoutComponent",
+              "properties": {
+                "mode": "grid",
+                "columns": 2,
+                "spacingX": 0.3,
+                "spacingY": 0.3
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "BuyCoins",
+              "baseClass": "Actor",
+              "id": 13007,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 2.5,
+                    "worldHeight": 2.2
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 1
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#2a1a0a",
+                    "radius": 16,
+                    "width": 500,
+                    "height": 440,
+                    "name": "ItemBg",
+                    "zOrder": 2
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "CoinIcon",
+                  "baseClass": "Actor",
+                  "id": 13008,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, 0.5],
+                        "worldWidth": 1,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "🪙",
+                        "fontSize": 48,
+                        "color": "#ffd700",
+                        "bold": true,
+                        "align": "center",
+                        "width": 100,
+                        "height": 100,
+                        "zOrder": 3,
+                        "name": "CoinIconText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "CoinTitle",
+                  "baseClass": "Actor",
+                  "id": 13009,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, 0],
+                        "worldWidth": 2,
+                        "worldHeight": 0.4
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "购买金币",
+                        "fontSize": 22,
+                        "color": "#ffd700",
+                        "bold": true,
+                        "align": "center",
+                        "width": 400,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "CoinTitleText",
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.5)",
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "CoinAmount",
+                  "baseClass": "Actor",
+                  "id": 13010,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -0.4],
+                        "worldWidth": 2,
+                        "worldHeight": 0.3
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "1000 金币",
+                        "fontSize": 18,
+                        "color": "#a5d6a7",
+                        "bold": false,
+                        "align": "center",
+                        "width": 400,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "CoinAmountText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "CoinPrice",
+                  "baseClass": "Actor",
+                  "id": 13011,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -0.8],
+                        "worldWidth": 2,
+                        "worldHeight": 0.3
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "💎 5 宝石",
+                        "fontSize": 18,
+                        "color": "#ff9800",
+                        "bold": true,
+                        "align": "center",
+                        "width": 400,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "CoinPriceText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Btn_buyCoins",
+                  "baseClass": "Actor",
+                  "id": 13012,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -1.2],
+                        "worldWidth": 1.8,
+                        "worldHeight": 0.5
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UIButtonComponent",
+                      "properties": {
+                        "name": "BuyCoinsButton"
+                      }
+                    }
+                  ],
+                  "children": [
+                    {
+                      "name": "Frame_buyCoins",
+                      "baseClass": "Actor",
+                      "id": 13013,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "position": [0, 0, 0],
+                            "rotation": [0, 0, 0],
+                            "scale": [1, 1, 1],
+                            "anchor": "center",
+                            "anchorOffset": [0, 0],
+                            "worldWidth": 1.9,
+                            "worldHeight": 0.58
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 12
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4caf50",
+                            "radius": 18,
+                            "width": 380,
+                            "height": 116,
+                            "name": "BtnFrame",
+                            "zOrder": 12
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "Label_buyCoins",
+                      "baseClass": "Actor",
+                      "id": 13014,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "position": [0, 0, 0],
+                            "rotation": [0, 0, 0],
+                            "scale": [1, 1, 1],
+                            "anchor": "center",
+                            "anchorOffset": [0, 0],
+                            "worldWidth": 1.6,
+                            "worldHeight": 0.4
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 2
+                          }
+                        },
+                        {
+                          "baseClass": "UITextComponent",
+                          "properties": {
+                            "text": "购买",
+                            "fontSize": 20,
+                            "color": "#ffffff",
+                            "bold": true,
+                            "align": "center",
+                            "width": 320,
+                            "height": 50,
+                            "zOrder": 4,
+                            "name": "BuyCoinsLabel",
+                            "italic": false,
+                            "shadowColor": "rgba(0,0,0,0.5)",
+                            "shadowBlur": 4
+                          }
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "BuyElixir",
+              "baseClass": "Actor",
+              "id": 13015,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 2.5,
+                    "worldHeight": 2.2
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 1
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#2a1a0a",
+                    "radius": 16,
+                    "width": 500,
+                    "height": 440,
+                    "name": "ItemBg",
+                    "zOrder": 2
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "ElixirIcon",
+                  "baseClass": "Actor",
+                  "id": 13016,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, 0.5],
+                        "worldWidth": 1,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "🧪",
+                        "fontSize": 48,
+                        "color": "#9c27b0",
+                        "bold": true,
+                        "align": "center",
+                        "width": 100,
+                        "height": 100,
+                        "zOrder": 3,
+                        "name": "ElixirIconText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "ElixirTitle",
+                  "baseClass": "Actor",
+                  "id": 13017,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, 0],
+                        "worldWidth": 2,
+                        "worldHeight": 0.4
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "购买药水",
+                        "fontSize": 22,
+                        "color": "#9c27b0",
+                        "bold": true,
+                        "align": "center",
+                        "width": 400,
+                        "height": 50,
+                        "zOrder": 3,
+                        "name": "ElixirTitleText",
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.5)",
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "ElixirAmount",
+                  "baseClass": "Actor",
+                  "id": 13018,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -0.4],
+                        "worldWidth": 2,
+                        "worldHeight": 0.3
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "1000 药水",
+                        "fontSize": 18,
+                        "color": "#a5d6a7",
+                        "bold": false,
+                        "align": "center",
+                        "width": 400,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "ElixirAmountText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "ElixirPrice",
+                  "baseClass": "Actor",
+                  "id": 13019,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -0.8],
+                        "worldWidth": 2,
+                        "worldHeight": 0.3
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "💎 5 宝石",
+                        "fontSize": 18,
+                        "color": "#ff9800",
+                        "bold": true,
+                        "align": "center",
+                        "width": 400,
+                        "height": 40,
+                        "zOrder": 3,
+                        "name": "ElixirPriceText",
+                        "italic": false
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Btn_buyElixir",
+                  "baseClass": "Actor",
+                  "id": 13020,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [0, 0, 0],
+                        "rotation": [0, 0, 0],
+                        "scale": [1, 1, 1],
+                        "anchor": "center",
+                        "anchorOffset": [0, -1.2],
+                        "worldWidth": 1.8,
+                        "worldHeight": 0.5
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 1
+                      }
+                    },
+                    {
+                      "baseClass": "UIButtonComponent",
+                      "properties": {
+                        "name": "BuyElixirButton"
+                      }
+                    }
+                  ],
+                  "children": [
+                    {
+                      "name": "Frame_buyElixir",
+                      "baseClass": "Actor",
+                      "id": 13021,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "position": [0, 0, 0],
+                            "rotation": [0, 0, 0],
+                            "scale": [1, 1, 1],
+                            "anchor": "center",
+                            "anchorOffset": [0, 0],
+                            "worldWidth": 1.9,
+                            "worldHeight": 0.58
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 12
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#9c27b0",
+                            "radius": 18,
+                            "width": 380,
+                            "height": 116,
+                            "name": "BtnFrame",
+                            "zOrder": 12
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "Label_buyElixir",
+                      "baseClass": "Actor",
+                      "id": 13022,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "position": [0, 0, 0],
+                            "rotation": [0, 0, 0],
+                            "scale": [1, 1, 1],
+                            "anchor": "center",
+                            "anchorOffset": [0, 0],
+                            "worldWidth": 1.6,
+                            "worldHeight": 0.4
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 2
+                          }
+                        },
+                        {
+                          "baseClass": "UITextComponent",
+                          "properties": {
+                            "text": "购买",
+                            "fontSize": 20,
+                            "color": "#ffffff",
+                            "bold": true,
+                            "align": "center",
+                            "width": 320,
+                            "height": 50,
+                            "zOrder": 4,
+                            "name": "BuyElixirLabel",
+                            "italic": false,
+                            "shadowColor": "rgba(0,0,0,0.5)",
+                            "shadowBlur": 4
+                          }
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Btn_close",
+          "baseClass": "Actor",
+          "id": 13023,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "bottom-center",
+                "anchorOffset": [0, 0.15],
+                "worldWidth": 1.6,
+                "worldHeight": 0.5
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "name": "CloseButton"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Frame_close",
+              "baseClass": "Actor",
+              "id": 13024,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1.7,
+                    "worldHeight": 0.58
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 12
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#ffae00",
+                    "radius": 18,
+                    "width": 340,
+                    "height": 116,
+                    "name": "BtnFrame",
+                    "zOrder": 12
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Label_close",
+              "baseClass": "Actor",
+              "id": 13025,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1.5,
+                    "worldHeight": 0.4
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 2
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "🏠 关闭",
+                    "fontSize": 24,
+                    "color": "#3d2600",
+                    "bold": true,
+                    "align": "center",
+                    "width": 300,
+                    "height": 60,
+                    "zOrder": 4,
+                    "name": "CloseLabel",
+                    "italic": false,
+                    "shadowColor": "rgba(255,255,255,0.3)",
+                    "shadowBlur": 2
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -26,6 +26,8 @@ export default class BaseHudScript extends BehaviourScript {
   private barracksOpen = false
   /** 任务面板打开中（tasks_ui 显示 → HUD 隐藏） */
   private tasksOpen = false
+  /** 宝石商店打开中（gem_shop 显示 → HUD 隐藏） */
+  private gemShopOpen = false
 
   override onStart(): void {
     const mode = this.gameMode as FishBaseGameMode | null
@@ -42,6 +44,12 @@ export default class BaseHudScript extends BehaviourScript {
       }
       mode.onTasksPanelChange = (open) => {
         this.tasksOpen = open
+        this.refreshVisibility()
+      }
+
+      // 宝石商店面板开关广播 → HUD 自行隐藏/恢复
+      mode.onGemShopChange = (open) => {
+        this.gemShopOpen = open
         this.refreshVisibility()
       }
 
@@ -73,6 +81,16 @@ export default class BaseHudScript extends BehaviourScript {
         logger.info('[BaseHudScript] 任务按钮已绑定（打开任务面板）')
       } else {
         logger.warn('[BaseHudScript] 未找到 Btn_tasks 按钮，跳过')
+      }
+
+      // 宝石商店按钮：打开/关闭宝石商店
+      const gemShopBtnActor = this.findInChildren('Btn_gemShop')
+      const gemShopBtn = gemShopBtnActor?.getComponent(UIButtonComponent)
+      if (gemShopBtn) {
+        gemShopBtn.onClick = () => mode.toggleGemShop()
+        logger.info('[BaseHudScript] 宝石商店按钮已绑定（打开宝石商店）')
+      } else {
+        logger.warn('[BaseHudScript] 未找到 Btn_gemShop 按钮，跳过')
       }
     } else {
       logger.warn('[BaseHudScript] 未找到 FishBaseGameMode，跳过按钮绑定')
@@ -119,11 +137,12 @@ export default class BaseHudScript extends BehaviourScript {
       mode.onBuildModeChange = null
       mode.onBarracksPanelChange = null
       mode.onTasksPanelChange = null
+      mode.onGemShopChange = null
     }
   }
 
-  /** HUD 可见性 = 非建筑模式 且 兵营/任务面板未打开（任一面板/菜单显示时隐藏 HUD） */
+  /** HUD 可见性 = 非建筑模式 且 兵营/任务/宝石商店面板未打开（任一面板/菜单显示时隐藏 HUD） */
   private refreshVisibility(): void {
-    this.actor.bActive = !(this.buildModeActive || this.barracksOpen || this.tasksOpen)
+    this.actor.bActive = !(this.buildModeActive || this.barracksOpen || this.tasksOpen || this.gemShopOpen)
   }
 }

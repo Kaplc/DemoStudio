@@ -13,6 +13,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Icon } from './icons/Icon'
 import { useEditorStore } from '../stores/editorStore'
 import { agentService, type HistoryMessage } from '../editor/AgentService'
+import { logTime } from '../utils/logTime'
 import { pluginService } from '../editor/PluginService'
 import { MessageBubble } from './agent/MessageBubble'
 import { StepProcess, type ProcessItem } from './agent/StepProcess'
@@ -117,7 +118,6 @@ function toPanelHistoryMessage(
     compaction: history.compaction,
     retries: history.retries,
     todos: history.todos,
-    requestHeader: history.requestHeader,
     context: history.context,
     ts: history.ts || Date.now(),
   }
@@ -126,9 +126,9 @@ function toPanelHistoryMessage(
 export const AgentPanel: React.FC = () => {
   // 组件挂载日志
   useEffect(() => {
-    console.log('[AgentPanel] 组件已挂载')
+    console.log(`[${logTime()}] [AgentPanel] 组件已挂载`)
     return () => {
-      console.log('[AgentPanel] 组件已卸载')
+      console.log(`[${logTime()}] [AgentPanel] 组件已卸载`)
     }
   }, [])
 
@@ -176,6 +176,8 @@ export const AgentPanel: React.FC = () => {
   const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
   // 完整消息提交后递增，用于触发列表自动滚动
   const [contentVersion, setContentVersion] = useState(0)
+  // 会话切换/恢复的代号：变化时通知 VirtualList 强制回到底部（旧会话的贴底状态不继承）
+  const [sessionEpoch, setSessionEpoch] = useState(0)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const scrollToBottomRef = useRef<(behavior?: ScrollBehavior) => void>(() => {})
 
@@ -289,9 +291,9 @@ export const AgentPanel: React.FC = () => {
 
   // 初始化服务
   useEffect(() => {
-    console.log('[AgentPanel] 初始化 AgentService 监听')
+    console.log(`[${logTime()}] [AgentPanel] 初始化 AgentService 监听`)
     const unsubState = agentService.onStateChange((state) => {
-      console.log(`[AgentPanel] 连接状态变化: ${state}`)
+      console.log(`[${logTime()}] [AgentPanel] 连接状态变化: ${state}`)
       setConnectionState(state)
       setAgentConnected(state === 'connected')
       setAgentConnecting(state === 'connecting')
@@ -337,7 +339,7 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'turnEnd': {
-          console.log(`[AgentPanel] AI 回合结束: reason=${(event.payload as any)?.reason?.kind || 'unknown'}`)
+          console.log(`[${logTime()}] [AgentPanel] AI 回合结束: reason=${(event.payload as any)?.reason?.kind || 'unknown'}`)
           setIsAgentRunning(false) // turn 结束，AI 不再运行
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
@@ -506,6 +508,12 @@ export const AgentPanel: React.FC = () => {
           break
         }
 
+        case 'runningChange':
+          // 运行态以服务为准单向同步（含恢复会话时断档续听的补发 true），
+          // 驱动输入框的运行态边框/按钮
+          setIsAgentRunning((event.payload as any)?.running === true)
+          break
+
         case 'closed':
           // 断连时折叠 live 推理卡片（重连恢复后由 history/续听路径重建显示）
           finalizeLiveReasoning()
@@ -565,7 +573,7 @@ export const AgentPanel: React.FC = () => {
     if (!liveId) {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
       liveAssistantIdRef.current = id
-      console.log(`[AgentPanel] live 推理卡片创建: ${id} (${text.length} 字符)`)
+      console.log(`[${logTime()}] [AgentPanel] live 推理卡片创建: ${id} (${text.length} 字符)`)
       setMessages(cur => [...cur, {
         id,
         role: 'assistant' as const,
@@ -679,7 +687,7 @@ export const AgentPanel: React.FC = () => {
     // 计算速度倍率：每多2个队列项，速度翻倍
     const queueLength = displayQueueRef.current.length
     const speedMultiplier = Math.pow(2, Math.floor(queueLength / 2))
-    console.log(`[AgentPanel] 消费显示队列: kind=${next.kind}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
+    console.log(`[${logTime()}] [AgentPanel] 消费显示队列: kind=${next.kind}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
     typewriter.setSpeedMultiplier(speedMultiplier)
     reasoningTypewriter.setSpeedMultiplier(speedMultiplier)
 
@@ -727,7 +735,7 @@ export const AgentPanel: React.FC = () => {
     const adopting = !!next.adoptId && liveAssistantIdRef.current === next.adoptId
     if (adopting) {
       liveAssistantIdRef.current = null
-      console.log(`[AgentPanel] live 推理卡片原地采纳: ${next.adoptId}`)
+      console.log(`[${logTime()}] [AgentPanel] live 推理卡片原地采纳: ${next.adoptId}`)
     }
 
     setMessages(cur => {
@@ -792,7 +800,7 @@ export const AgentPanel: React.FC = () => {
   const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any, adoptId?: string) => {
     messageSequenceRef.current += 1
     const queueLength = displayQueueRef.current.length
-    console.log(`[AgentPanel] 消息入队: content=${text.length}字符, reasoning=${reasoning?.length || 0}字符, 队列长度=${queueLength}${adoptId ? ', 采纳 live 卡片' : ''}`)
+    console.log(`[${logTime()}] [AgentPanel] 消息入队: content=${text.length}字符, reasoning=${reasoning?.length || 0}字符, 队列长度=${queueLength}${adoptId ? ', 采纳 live 卡片' : ''}`)
     displayQueueRef.current.push({
       kind: 'assistant',
       id: adoptId ?? `a-${Date.now()}-${messageSequenceRef.current}`,
@@ -884,7 +892,7 @@ export const AgentPanel: React.FC = () => {
     result: unknown
     status: 'success' | 'failure'
   }) => {
-    console.log('[AgentPanel] toolResult, tool:', payload.name, 'status:', payload.status)
+    console.log(`[${logTime()}]`, '[AgentPanel] toolResult, tool:', payload.name, 'status:', payload.status)
     const previous = pendingToolStatesRef.current.get(payload.id)
     pendingToolStatesRef.current.set(payload.id, {
       id: payload.id,
@@ -978,9 +986,10 @@ export const AgentPanel: React.FC = () => {
         { id: 'sys-0', role: 'system', content: '对话已恢复', ts: Date.now() },
         ...restored.slice(historyVisibleStartRef.current),
       ])
-      console.log(`[AgentPanel] 已恢复最近 ${HISTORY_TURNS_PER_PAGE} 轮历史消息，窗口内 ${restored.length} 条`)
+      setSessionEpoch(v => v + 1)
+      console.log(`[${logTime()}] [AgentPanel] 已恢复最近 ${HISTORY_TURNS_PER_PAGE} 轮历史消息，窗口内 ${restored.length} 条`)
     } catch (err) {
-      console.warn('[AgentPanel] 恢复历史失败:', err)
+      console.warn(`[${logTime()}]`, '[AgentPanel] 恢复历史失败:', err)
     }
   }, [])
 
@@ -1049,7 +1058,7 @@ export const AgentPanel: React.FC = () => {
       setHasOlderHistory(nextStart > 0 || page.hasMore)
       replaceVisibleHistory(nextStart)
     } catch (error) {
-      console.warn('[AgentPanel] 加载更早历史失败:', error)
+      console.warn(`[${logTime()}]`, '[AgentPanel] 加载更早历史失败:', error)
     } finally {
       historyLoadingRef.current = false
     }
@@ -1073,7 +1082,7 @@ export const AgentPanel: React.FC = () => {
       await api.dshRestart()
       addConsoleOutput('[Agent] 重启指令已下发，等待就绪后自动重连')
     } catch (err) {
-      console.error('[AgentPanel] 手动重启 agent 失败:', err)
+      console.error(`[${logTime()}]`, '[AgentPanel] 手动重启 agent 失败:', err)
       addConsoleOutput(`[Agent] 重启失败: ${String(err)}`)
       return
     }
@@ -1099,7 +1108,7 @@ export const AgentPanel: React.FC = () => {
   // 发送消息（AI 运行中自动使用 steer 引导）
   const handleSend = useCallback(async (text: string) => {
     const isRunning = agentService.isRunning()
-    console.log(`[AgentPanel] handleSend: text="${text}", isRunning=${isRunning}`)
+    console.log(`[${logTime()}] [AgentPanel] handleSend: text="${text}", isRunning=${isRunning}`)
     
     try {
       setMessages(prev => [...prev, {
@@ -1115,14 +1124,14 @@ export const AgentPanel: React.FC = () => {
       
       if (isRunning) {
         // AI 正在运行，使用 steer 引导
-        console.log(`[AgentPanel] 使用 steer 引导 AI`)
+        console.log(`[${logTime()}] [AgentPanel] 使用 steer 引导 AI`)
         addConsoleOutput(`[Agent] 引导 AI: ${text}`)
         await agentService.steer(text)
         // steer 同样会进入等待期：本轮尚未有输出时显示思考卡片
         setIsAgentRunning(true)
       } else {
         // AI 空闲，正常发送
-        console.log(`[AgentPanel] 正常发送消息`)
+        console.log(`[${logTime()}] [AgentPanel] 正常发送消息`)
         setIsAgentRunning(true) // AI 开始运行
         await agentService.send(text)
         addConsoleOutput(`[Agent] 发送消息: ${text}`)
@@ -1130,14 +1139,14 @@ export const AgentPanel: React.FC = () => {
       refreshSessions()
     } catch (error) {
       setIsAgentRunning(false) // 出错时停止
-      console.error(`[AgentPanel] 发送失败:`, error)
+      console.error(`[${logTime()}] [AgentPanel] 发送失败:`, error)
       pushSystem(`发送失败: ${error instanceof Error ? error.message : '未知错误'}`)
     }
   }, [addConsoleOutput, pushSystem, refreshSessions])
 
   // 停止 AI
   const handleStop = useCallback(async () => {
-    console.log(`[AgentPanel] handleStop: 点击停止按钮`)
+    console.log(`[${logTime()}] [AgentPanel] handleStop: 点击停止按钮`)
     try {
       setIsAgentRunning(false) // 立即更新 UI 状态
       // 停止服务端回合的同时，立即取消当前 assistant/reasoning 打字机，
@@ -1146,14 +1155,14 @@ export const AgentPanel: React.FC = () => {
       await agentService.stop()
       addConsoleOutput('[Agent] 已停止 AI')
     } catch (error) {
-      console.error(`[AgentPanel] 停止失败:`, error)
+      console.error(`[${logTime()}] [AgentPanel] 停止失败:`, error)
       pushSystem(`停止失败: ${error instanceof Error ? error.message : '未知错误'}`)
     }
   }, [addConsoleOutput, clearDisplayQueue, pushSystem])
 
   // 切换会话
   const handleSwitchSession = useCallback(async (sessionId: string) => {
-    console.log('[AgentPanel] 切换会话:', sessionId)
+    console.log(`[${logTime()}]`, '[AgentPanel] 切换会话:', sessionId)
     clearDisplayQueue()
     resetHistoryWindow()
     await agentService.switchSession(sessionId)
@@ -1163,7 +1172,7 @@ export const AgentPanel: React.FC = () => {
     setTodos([]) // 清除旧会话的任务面板快照
     
     // 加载历史消息
-    console.log('[AgentPanel] 开始加载历史消息')
+    console.log(`[${logTime()}]`, '[AgentPanel] 开始加载历史消息')
     const page = await agentService.loadHistoryPage()
     const historyMessages = page.messages.map((msg, index) => toPanelHistoryMessage(msg, sessionId, index))
     loadedHistoryRef.current = historyMessages
@@ -1171,7 +1180,7 @@ export const AgentPanel: React.FC = () => {
     historyHasMoreRef.current = page.hasMore
     historyVisibleStartRef.current = latestHistoryStart(historyMessages)
     setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
-    console.log('[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
+    console.log(`[${logTime()}]`, '[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
     if (historyMessages.length > 0) {
       setMessages(historyMessages.slice(historyVisibleStartRef.current))
       // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
@@ -1188,7 +1197,9 @@ export const AgentPanel: React.FC = () => {
         ts: Date.now()
       }])
     }
-    
+
+    // 会话整体换血，通知 VirtualList 强制回到底部
+    setSessionEpoch(v => v + 1)
     setShowSidebar(false)
   }, [clearDisplayQueue, resetHistoryWindow])
 
@@ -1312,7 +1323,7 @@ export const AgentPanel: React.FC = () => {
       // 特殊消息类型（命令、压缩、重试、错误、上下文注入等）→ 独立系统节点
       if (msg.role === 'command' || msg.role === 'compaction' || msg.role === 'retry' ||
           msg.role === 'turn-error' || msg.role === 'turn-max-tokens' ||
-          msg.role === 'todo' || msg.role === 'request-header' || msg.role === 'context') {
+          msg.role === 'todo' || msg.role === 'context') {
         nodes.push({ key: msg.id, kind: 'system', msg })
         i++
         continue
@@ -1426,18 +1437,6 @@ export const AgentPanel: React.FC = () => {
       // （对齐 DSH WebUI 的 input.dock 槽位）。历史消息里残留的 role='todo'
       // 记录同样跳过，避免同一份任务在两处重复展示。
       if (msg.role === 'todo') return null
-
-      if (msg.role === 'request-header' && msg.requestHeader) {
-        return (
-          <div key={msg.id} className="agent-event-card agent-event-card--request-header">
-            <div className="agent-event-card__head">
-              <span className="agent-event-card__icon"><Icon name="bot" /></span>
-              <span className="agent-event-card__label">模型切换</span>
-              <span className="agent-event-card__value">{msg.requestHeader?.model || '未知'}</span>
-            </div>
-          </div>
-        )
-      }
 
       // 上下文注入卡片（插件召回 / 提取 notice 等）
       if (msg.role === 'context' && msg.context) {
@@ -1621,7 +1620,7 @@ export const AgentPanel: React.FC = () => {
         <KernelUpdateModal
           onClose={() => { setShowKernelUpdate(false); setHasKernelUpdate(false) }}
           onVersionChanged={() => {
-            console.log('[AgentPanel] DSH 内核版本已切换，重启后生效')
+            console.log(`[${logTime()}]`, '[AgentPanel] DSH 内核版本已切换，重启后生效')
           }}
         />
       )}
@@ -1634,6 +1633,7 @@ export const AgentPanel: React.FC = () => {
           overscan={8}
           autoScrollToBottom={true}
           scrollTriggerDeps={contentVersion}
+          resetKey={sessionEpoch}
           getItemKey={(node) => node.key}
           renderItem={renderNode}
           onNearBottomChange={handleNearBottomChange}

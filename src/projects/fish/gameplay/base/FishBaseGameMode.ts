@@ -59,6 +59,10 @@ export class FishBaseGameMode extends GameMode {
   private laboratoryPanel: Actor | null = null
   /** 任务面板（成就 + 每日任务，打开时互斥关闭其他模态） */
   private tasksPanel: Actor | null = null
+  /** 建筑升级面板（点击建筑时打开） */
+  private buildingUpgradePanel: Actor | null = null
+  /** 宝石商店面板（HUD按钮打开） */
+  private gemShopPanel: Actor | null = null
   /** 建筑模式状态（true = 建筑菜单显示，可放置/移动/删除建筑） */
   private buildMode = false
   /** 建筑菜单 UI Actor（build_menu.widget.json，根 active:false 默认隐藏，建筑模式才显示） */
@@ -84,6 +88,8 @@ export class FishBaseGameMode extends GameMode {
   onBarracksPanelChange: ((open: boolean) => void) | null = null
   /** 外部设置：任务面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
   onTasksPanelChange: ((open: boolean) => void) | null = null
+  /** 外部设置：宝石商店面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
+  onGemShopChange: ((open: boolean) => void) | null = null
   /** 外部设置：初始布局构建完成（BeginPlay 末尾触发一次；持久化恢复门控用） */
   onLayoutBuilt: (() => void) | null = null
   /** 外部设置：布局变化广播（放置/移动/删除成功后；持久化采集用，恢复期由宿主静音） */
@@ -368,7 +374,7 @@ export class FishBaseGameMode extends GameMode {
     return true
   }
 
-  /** 点击已放置建筑：兵营/实验室打开专属面板，金矿/水库收集，其他建筑选中（高亮）/ 取消选中 */
+  /** 点击已放置建筑：兵营/实验室打开专属面板，金矿/水库收集，其他建筑打开升级面板 */
   onBuildingClick(b: ClashBuildingBaseActor) {
     if (this.uiModalOpen) return // 模态 UI 打开中，屏蔽建筑选中/面板穿透
     const inst = this.gameInstance
@@ -391,8 +397,12 @@ export class FishBaseGameMode extends GameMode {
       }
       // 积压为 0 或仓库满 → 落回选中/移动逻辑
     }
-    // 非建筑模式：其余建筑不响应选中/移动
-    if (!this.buildMode) return
+    // 其他建筑：打开升级面板
+    if (!this.buildMode) {
+      this.openBuildingUpgradePanel(b.type.id)
+      return
+    }
+    // 建筑模式：选中/移动
     if (this.selectedBuilding === b) {
       this.deselectBuilding()
     } else {
@@ -799,6 +809,91 @@ export class FishBaseGameMode extends GameMode {
     return placed
   }
 
+  // ════════════════════════════════════════════
+  //  建筑升级面板
+  // ════════════════════════════════════════════
+
+  /** 打开建筑升级面板 */
+  openBuildingUpgradePanel(buildingId: string) {
+    const w = this.world
+    if (!w || this.buildingUpgradePanel) return
+    
+    // 退出选中/放置模式
+    this.deselectBuilding()
+    this.cancelPlaceMode()
+    
+    // 互斥关闭其他面板
+    this.closeMapPanel()
+    if (this.barracksPanel) this.closeBarracksPanel()
+    if (this.laboratoryPanel) this.closeLaboratoryPanel()
+    if (this.tasksPanel) this.closeTasksPanel()
+    if (this.gemShopPanel) this.closeGemShop()
+    
+    // 生成建筑升级面板
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/building_upgrade.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 建筑升级面板生成失败')
+      return
+    }
+    
+    this.buildingUpgradePanel = panel
+    logger.info(`[BaseGM] 打开建筑升级面板: ${buildingId}`)
+  }
+
+  /** 关闭建筑升级面板 */
+  closeBuildingUpgradePanel() {
+    if (!this.buildingUpgradePanel) return
+    this.buildingUpgradePanel.destroy()
+    this.buildingUpgradePanel = null
+    logger.info('[BaseGM] 关闭建筑升级面板')
+  }
+
+  // ════════════════════════════════════════════
+  //  宝石商店面板
+  // ════════════════════════════════════════════
+
+  /** 切换宝石商店面板（HUD按钮调用） */
+  toggleGemShop() {
+    if (this.gemShopPanel) this.closeGemShop()
+    else this.openGemShop()
+  }
+
+  /** 打开宝石商店面板 */
+  private openGemShop() {
+    const w = this.world
+    if (!w || this.gemShopPanel) return
+    
+    // 退出建筑模式
+    this.exitBuildMode()
+    
+    // 互斥关闭其他面板
+    this.closeMapPanel()
+    if (this.barracksPanel) this.closeBarracksPanel()
+    if (this.laboratoryPanel) this.closeLaboratoryPanel()
+    if (this.tasksPanel) this.closeTasksPanel()
+    if (this.buildingUpgradePanel) this.closeBuildingUpgradePanel()
+    
+    // 生成宝石商店面板
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/gem_shop.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 宝石商店面板生成失败')
+      return
+    }
+    
+    this.gemShopPanel = panel
+    this.onGemShopChange?.(true)
+    logger.info('[BaseGM] 打开宝石商店面板')
+  }
+
+  /** 关闭宝石商店面板 */
+  closeGemShop() {
+    if (!this.gemShopPanel) return
+    this.gemShopPanel.destroy()
+    this.gemShopPanel = null
+    this.onGemShopChange?.(false)
+    logger.info('[BaseGM] 关闭宝石商店面板')
+  }
+
   /** 清理部落冲突建造系统资源 */
   private clearClashBase() {
     // 解除右键平移回调引用（防悬挂）
@@ -817,6 +912,8 @@ export class FishBaseGameMode extends GameMode {
     this.barracksPanel = null
     this.laboratoryPanel = null
     this.tasksPanel = null
+    this.buildingUpgradePanel = null
+    this.gemShopPanel = null
     this.buildMenuPanel = null
     this.mapPanel = null
     // 存档菜单同理只清引用；模态标记复位（场景已销毁）

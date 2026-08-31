@@ -1138,6 +1138,136 @@
           ]
         },
         {
+          "name": "Btn_gemShop",
+          "baseClass": "Actor",
+          "id": 13120,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "bottom-center",
+                "anchorOffset": [0, 0.14],
+                "worldWidth": 1,
+                "worldHeight": 0.55
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "name": "GemShopButton"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Frame_gemShop",
+              "baseClass": "Actor",
+              "id": 13121,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1.08,
+                    "worldHeight": 0.62
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 14,
+                    "active": true,
+                    "hitTest": "visible"
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#9c27b0",
+                    "radius": 18,
+                    "width": 216,
+                    "height": 124,
+                    "name": "BtnFrame",
+                    "zOrder": 14,
+                    "opacity": 1,
+                    "hitTest": "visible"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Label_gemShop",
+              "baseClass": "Actor",
+              "id": 13122,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 0.95,
+                    "worldHeight": 0.4
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "💎 商店",
+                    "fontSize": 22,
+                    "color": "#ffffff",
+                    "bold": true,
+                    "align": "center",
+                    "width": 200,
+                    "height": 60,
+                    "zOrder": 4,
+                    "name": "Label",
+                    "italic": false,
+                    "shadowColor": "rgba(0,0,0,0.5)",
+                    "shadowBlur": 4,
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.006667
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
           "name": "Btn_map",
           "baseClass": "Actor",
           "id": 13100,

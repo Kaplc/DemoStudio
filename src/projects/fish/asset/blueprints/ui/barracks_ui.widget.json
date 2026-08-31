@@ -36,7 +36,8 @@
         "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true
+        "active": true,
+        "hitTest": "visible"
       }
     },
     {
@@ -84,7 +85,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 1,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -96,7 +99,8 @@
             "width": 1920,
             "height": 1080,
             "name": "DimBg",
-            "zOrder": 0
+            "zOrder": 1,
+            "hitTest": "visible"
           }
         }
       ],
@@ -139,7 +143,9 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1
+            "zOrder": 2,
+            "active": true,
+            "hitTest": "visible"
           }
         },
         {
@@ -150,7 +156,9 @@
             "width": 1540,
             "height": 1020,
             "name": "PanelFrame",
-            "zOrder": 1
+            "zOrder": 2,
+            "hitTest": "visible",
+            "opacity": 1
           }
         }
       ],
@@ -192,7 +200,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 3,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -203,7 +213,9 @@
                 "width": 1480,
                 "height": 960,
                 "name": "PanelWood",
-                "zOrder": 2
+                "zOrder": 3,
+                "hitTest": "visible",
+                "opacity": 1
               }
             }
           ],
@@ -219,7 +231,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  2.78,
                   0
                 ],
                 "rotation": [
@@ -246,7 +258,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 4,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -257,7 +271,9 @@
                 "width": 240,
                 "height": 16,
                 "name": "TitleAccent",
-                "zOrder": 3
+                "zOrder": 4,
+                "hitTest": "visible",
+                "opacity": 1
               }
             }
           ],
@@ -273,7 +289,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  2,
                   0
                 ],
                 "rotation": [
@@ -300,7 +316,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 5,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -313,11 +331,15 @@
                 "align": "center",
                 "width": 400,
                 "height": 60,
-                "zOrder": 3,
+                "zOrder": 5,
                 "name": "TitleText",
                 "italic": false,
                 "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 6
+                "shadowBlur": 6,
+                "hitTest": "visible",
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.01
               }
             }
           ],
@@ -333,7 +355,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  1.6050000000000002,
                   0
                 ],
                 "rotation": [
@@ -360,7 +382,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 6,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -373,11 +397,15 @@
                 "align": "center",
                 "width": 400,
                 "height": 48,
-                "zOrder": 3,
+                "zOrder": 6,
                 "name": "DescText",
                 "italic": false,
                 "shadowColor": "rgba(0,0,0,0.45)",
-                "shadowBlur": 4
+                "shadowBlur": 4,
+                "hitTest": "visible",
+                "lineHeight": 1.4,
+                "letterSpacing": 0,
+                "fontSizeScale": 0.007292
               }
             }
           ],
@@ -393,7 +421,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  0.32,
                   0
                 ],
                 "rotation": [
@@ -420,7 +448,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 7,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -429,7 +459,8 @@
                 "mode": "grid",
                 "columns": 5,
                 "spacingX": 0.15,
-                "spacingY": 0.12
+                "spacingY": 0.12,
+                "autoLayout": true
               }
             }
           ],
@@ -445,7 +476,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  -0.85,
                   0
                 ],
                 "rotation": [
@@ -472,8 +503,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 2,
-                "active": true
+                "zOrder": 8,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -486,14 +518,15 @@
                 "align": "center",
                 "width": 900,
                 "height": 48,
-                "zOrder": 3,
+                "zOrder": 8,
                 "name": "QueueText",
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
                 "fontSizeScale": 0.005417,
                 "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4
+                "shadowBlur": 4,
+                "hitTest": "visible"
               }
             }
           ],
@@ -509,7 +542,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  -1.1,
                   0
                 ],
                 "rotation": [
@@ -536,8 +569,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 2,
-                "active": true
+                "zOrder": 9,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -550,14 +584,15 @@
                 "align": "center",
                 "width": 900,
                 "height": 48,
-                "zOrder": 3,
+                "zOrder": 9,
                 "name": "ArmyText",
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
                 "fontSizeScale": 0.005417,
                 "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4
+                "shadowBlur": 4,
+                "hitTest": "visible"
               }
             }
           ],
@@ -573,7 +608,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  -1.4,
                   0
                 ],
                 "rotation": [
@@ -600,8 +635,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 2,
-                "active": true
+                "zOrder": 10,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -614,14 +650,15 @@
                 "align": "center",
                 "width": 900,
                 "height": 48,
-                "zOrder": 3,
+                "zOrder": 10,
                 "name": "CapacityText",
                 "italic": false,
                 "lineHeight": 1.4,
                 "letterSpacing": 0,
                 "fontSizeScale": 0.005417,
                 "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4
+                "shadowBlur": 4,
+                "hitTest": "visible"
               }
             }
           ],
@@ -637,7 +674,7 @@
               "properties": {
                 "position": [
                   0,
-                  0,
+                  -2.037553055509479,
                   0
                 ],
                 "rotation": [
@@ -653,7 +690,7 @@
                 "anchor": "bottom-center",
                 "anchorOffset": [
                   0,
-                  0.15
+                  0.21
                 ],
                 "worldWidth": 1.6,
                 "worldHeight": 0.5
@@ -664,7 +701,9 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 11,
+                "active": true,
+                "hitTest": "visible"
               }
             },
             {
@@ -770,7 +809,9 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 2
+                    "zOrder": 13,
+                    "active": true,
+                    "hitTest": "visible"
                   }
                 },
                 {
@@ -783,11 +824,15 @@
                     "align": "center",
                     "width": 300,
                     "height": 60,
-                    "zOrder": 4,
+                    "zOrder": 13,
                     "name": "CloseLabel",
                     "italic": false,
                     "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2
+                    "shadowBlur": 2,
+                    "hitTest": "visible",
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.006667
                   }
                 }
               ],

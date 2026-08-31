@@ -6,7 +6,7 @@
  */
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system'
-  | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header'
+  | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo'
   | 'context'
 
 export interface ToolState {
@@ -132,8 +132,6 @@ export interface Message {
   retries?: RetryAttempt[]
   /** Todo 列表快照 */
   todos?: TodoItem[]
-  /** 模型/配置信息 */
-  requestHeader?: { model?: string; provider?: string }
   /** 沙箱模式 */
   sandboxMode?: string
   /** 计划模式 */
@@ -218,6 +216,8 @@ export type AgentEventType =
   | 'error'
   | 'ready'
   | 'closed'
+  // 运行态变更（含断档续听/会话恢复时的补发，驱动输入框运行态边框）
+  | 'runningChange'
 
 export interface AgentEvent {
   type: AgentEventType

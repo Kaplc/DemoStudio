@@ -17,7 +17,7 @@
 | 单位与战斗 | [英雄系统](battle/hero.md) | P2 | 规划中 |
 | 成长与进度 | [星级战绩评价](progression/star-rating.md) | P1 | 已实现 |
 | 成长与进度 | [关卡进度解锁](progression/level-unlock.md) | P1 | 已实现 |
-| 经济 | [宝石货币](economy/gem.md) | P2 | 已实现 |
+| 经济 | [宝石货币](economy/gem.md) | P2 | 已实现（含宝石商店） |
 | 社交 | [部落与援军](social/clan.md) | P3 | 规划中（依赖后端） |
 | 社交 | [联机 PvP 与防守战报](social/pvp.md) | P3 | 规划中（依赖后端） |
 | 周边 | [新手引导](meta/tutorial.md) | P3 | 规划中 |

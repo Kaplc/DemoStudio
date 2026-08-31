@@ -25,6 +25,7 @@ import type {
   ContextCardInfo, ContextEventPayload, KnownContextForm,
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload,
 } from '../types/agent'
+import { logTime } from '../utils/logTime'
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
 const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
@@ -150,7 +151,7 @@ interface DshEvent {
 
 /** 历史消息（从 session.history 事件流 fold 而来，对齐 DSH conversation-nodes 语义） */
 export interface HistoryMessage {
-  role: 'user' | 'assistant' | 'tool' | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'request-header' | 'context'
+  role: 'user' | 'assistant' | 'tool' | 'system' | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo' | 'context'
   content: string
   reasoning?: string
   /** 回合是否真正结束（turn/end completed） */
@@ -166,8 +167,6 @@ export interface HistoryMessage {
   retries?: RetryAttempt[]
   /** Todo 列表快照 */
   todos?: TodoItem[]
-  /** 模型/配置信息 */
-  requestHeader?: { model?: string; provider?: string }
   /** 上下文注入卡片信息（role === 'context' 时存在） */
   context?: ContextCardInfo
   /** 产生该历史消息的事件序号，用于分页 prepend 时保持稳定 key。 */
@@ -340,7 +339,7 @@ export class AgentService {
         port: this._agentPort || DSH_DEFAULT_PORT,
         savedAt: Date.now(),
       }))
-      console.log(`[AgentService] 会话映射已持久化: ${this.sessionId}`)
+      console.log(`[${logTime()}] [AgentService] 会话映射已持久化: ${this.sessionId}`)
     } catch { /* 隐私模式等场景写入失败可容忍 */ }
   }
 
@@ -374,7 +373,7 @@ export class AgentService {
       const items = value?.items ?? []
       return items.some(item => item?.sessionId === sessionId)
     } catch (err) {
-      console.error(`[AgentService] 会话校验失败(${sessionId}):`, err)
+      console.error(`[${logTime()}] [AgentService] 会话校验失败(${sessionId}):`, err)
       throw err // 网络级失败与「会话不存在」区分开，由调用方决定回退策略
     }
   }
@@ -395,7 +394,7 @@ export class AgentService {
       try {
         status = await api.dshStatus()
       } catch (err) {
-        console.error('[AgentService] dsh-status 查询失败:', err)
+        console.error(`[${logTime()}]`, '[AgentService] dsh-status 查询失败:', err)
         status = undefined as unknown as Awaited<ReturnType<typeof api.dshStatus>>
       }
       if (status?.ready && status.port) return status.port
@@ -424,13 +423,13 @@ export class AgentService {
           if (t === 'turn/end') return            // 最后回合已收尾 → 无未完成工作
           if (t === 'turn/start') break           // 存在未闭合回合 → 续听
         }
-        console.log('[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
+        console.log(`[${logTime()}]`, '[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
         await this.refreshSeqBaseline()
         this.setRunning(true)
         // mux 在线：session/event 推送 + 心跳兜底自动续听；离线才启动轮询回路
         if (!this.isMuxAlive()) await this.pollForResponse()
       } catch (err) {
-        console.warn('[AgentService] 断档续听探测失败:', err)
+        console.warn(`[${logTime()}]`, '[AgentService] 断档续听探测失败:', err)
       }
     })()
   }
@@ -502,7 +501,7 @@ export class AgentService {
         const valid = await this.validateSession(saved.sessionId)
         if (valid) {
           this.setSession(saved.sessionId)
-          console.log(`[AgentService] DSH 已连接（会话已恢复）: ${this.sessionId} (port=${port})`)
+          console.log(`[${logTime()}] [AgentService] DSH 已连接（会话已恢复）: ${this.sessionId} (port=${port})`)
           this.setState('connected')
           this.reconnectAttempts = 0
           this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true, restored: true } })
@@ -513,11 +512,11 @@ export class AgentService {
           this.resumePendingTurnIfNeeded()
           return
         }
-        console.warn(`[AgentService] 持久化会话已失效，回退新建: ${saved.sessionId}`)
+        console.warn(`[${logTime()}] [AgentService] 持久化会话已失效，回退新建: ${saved.sessionId}`)
         this.clearPersistedSession()
       } catch (err) {
         // 网络级错误与会话失效都回退到新建路径；网络错误由新建路径自然暴露
-        console.warn('[AgentService] 会话恢复尝试失败，回退新建会话:', err)
+        console.warn(`[${logTime()}]`, '[AgentService] 会话恢复尝试失败，回退新建会话:', err)
       }
     }
 
@@ -530,13 +529,13 @@ export class AgentService {
         createValue = (await this.rpc('session.create', { cwd })) as { sessionId?: string }
       } catch (firstErr) {
         // 默认 preset 可能不存在，回退 cordis
-        console.warn('[AgentService] 首次 session.create 失败，尝试 fallback preset cordis:', firstErr)
+        console.warn(`[${logTime()}]`, '[AgentService] 首次 session.create 失败，尝试 fallback preset cordis:', firstErr)
         createValue = (await this.rpc('session.create', { cwd, agentPreset: 'cordis' })) as { sessionId?: string }
       }
       if (!createValue?.sessionId) throw new Error('session.create 未返回 sessionId')
       this.setSession(createValue.sessionId)
       this.persistSession()
-      console.log(`[AgentService] DSH 已连接，新会话: ${this.sessionId}`)
+      console.log(`[${logTime()}] [AgentService] DSH 已连接，新会话: ${this.sessionId}`)
 
       this.setState('connected')
       this.reconnectAttempts = 0
@@ -592,7 +591,7 @@ export class AgentService {
         ws.onmessage = (ev) => {
           try { this.handleMuxFrame(JSON.parse(ev.data)) } catch { /* 忽略解析失败 */ }
         }
-        ws.onerror = () => { console.warn('[AgentService] mux WS 错误') }
+        ws.onerror = () => { console.warn(`[${logTime()}]`, '[AgentService] mux WS 错误') }
         ws.onclose = () => {
           this.muxWs = null
           // 自动重连（仅在连接状态时）
@@ -601,11 +600,11 @@ export class AgentService {
           }
         }
       } catch (err) {
-        console.warn('[AgentService] mux WS 创建失败:', err)
+        console.warn(`[${logTime()}]`, '[AgentService] mux WS 创建失败:', err)
       }
     }
 
-    console.log('[AgentService] mux 下行流已启动')
+    console.log(`[${logTime()}]`, '[AgentService] mux 下行流已启动')
   }
 
   /** mux 下行流是否在线（Electron 模式由 main 进程托管连接与 5s 自动重连） */
@@ -660,7 +659,7 @@ export class AgentService {
         if (sessionId !== this.sessionId) return
         const req: PendingQuestionRequest = { rpcId, sessionId, questions }
         this.pendingQuestions.set(rpcId, req)
-        console.log(`[AgentService] question/requested: rpcId=${rpcId}, ${questions.length} 个问题`)
+        console.log(`[${logTime()}] [AgentService] question/requested: rpcId=${rpcId}, ${questions.length} 个问题`)
         this.emit({ type: 'questionRequest', payload: req })
       }
       return
@@ -671,7 +670,7 @@ export class AgentService {
       const outcome = payload.outcome as string | undefined
       if (questionRpcId) {
         this.pendingQuestions.delete(questionRpcId)
-        console.log(`[AgentService] question/resolved: rpcId=${questionRpcId}, outcome=${outcome}`)
+        console.log(`[${logTime()}] [AgentService] question/resolved: rpcId=${questionRpcId}, outcome=${outcome}`)
         this.emit({ type: 'questionResolved', payload: { rpcId: questionRpcId, outcome } })
       }
       return
@@ -694,7 +693,7 @@ export class AgentService {
           reason: payload.reason as string | undefined,
         }
         this.pendingApprovals.set(rpcId, req)
-        console.log(`[AgentService] approval/requested: rpcId=${rpcId}, tool=${toolName}`)
+        console.log(`[${logTime()}] [AgentService] approval/requested: rpcId=${rpcId}, tool=${toolName}`)
         this.emit({ type: 'approvalRequest', payload: req })
       }
       return
@@ -763,7 +762,7 @@ export class AgentService {
       const json = await res.json() as { accepted?: boolean; reason?: string }
       return json?.accepted === true
     } catch (err) {
-      console.error('[AgentService] respond 失败:', err)
+      console.error(`[${logTime()}]`, '[AgentService] respond 失败:', err)
       return false
     }
   }
@@ -772,7 +771,7 @@ export class AgentService {
   async answerQuestion(rpcId: string, answer: QuestionAnswer): Promise<boolean> {
     const req = this.pendingQuestions.get(rpcId)
     if (!req) {
-      console.warn(`[AgentService] answerQuestion: rpcId=${rpcId} 不在 pending 列表中`)
+      console.warn(`[${logTime()}] [AgentService] answerQuestion: rpcId=${rpcId} 不在 pending 列表中`)
       return false
     }
     const ok = await this.respond(rpcId, {
@@ -802,7 +801,7 @@ export class AgentService {
   async answerApproval(rpcId: string, outcome: ApprovalOutcome): Promise<boolean> {
     const req = this.pendingApprovals.get(rpcId)
     if (!req) {
-      console.warn(`[AgentService] answerApproval: rpcId=${rpcId} 不在 pending 列表中`)
+      console.warn(`[${logTime()}] [AgentService] answerApproval: rpcId=${rpcId} 不在 pending 列表中`)
       return false
     }
     const ok = await this.respond(rpcId, {
@@ -821,7 +820,7 @@ export class AgentService {
   private scheduleReconnect(): void {
     if (!this.config.autoReconnect) return
     if (this.reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
-      console.warn(`[AgentService] 已达最大重连次数 ${RECONNECT_MAX_ATTEMPTS}，停止重连`)
+      console.warn(`[${logTime()}] [AgentService] 已达最大重连次数 ${RECONNECT_MAX_ATTEMPTS}，停止重连`)
       return
     }
     const delay = Math.min(
@@ -829,7 +828,7 @@ export class AgentService {
       RECONNECT_MAX_DELAY
     )
     this.reconnectAttempts++
-    console.log(`[AgentService] ${delay}ms 后第 ${this.reconnectAttempts} 次重连...`)
+    console.log(`[${logTime()}] [AgentService] ${delay}ms 后第 ${this.reconnectAttempts} 次重连...`)
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null
       try {
@@ -850,7 +849,7 @@ export class AgentService {
       await this.rpc('session.list')
       this.setState('connected')
       this.reconnectAttempts = 0
-      console.log(`[AgentService] 重连成功，会话: ${this.sessionId}`)
+      console.log(`[${logTime()}] [AgentService] 重连成功，会话: ${this.sessionId}`)
       if (this.sessionId) {
         this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true } })
         // 断线期间若有未闭合回合 → 续听补齐
@@ -915,7 +914,7 @@ export class AgentService {
       throw new Error('未连接到 DSH')
     }
 
-    console.log(`[AgentService] 引导 AI: text="${text}", sessionId=${this.sessionId}`)
+    console.log(`[${logTime()}] [AgentService] 引导 AI: text="${text}", sessionId=${this.sessionId}`)
     this.emit({ type: 'message', payload: { role: 'user', content: text } })
 
     try {
@@ -924,9 +923,9 @@ export class AgentService {
         mode: 'steer',
         content: [{ type: 'text', text }],
       })
-      console.log(`[AgentService] 引导消息已发送:`, result)
+      console.log(`[${logTime()}] [AgentService] 引导消息已发送:`, result)
     } catch (error) {
-      console.error(`[AgentService] 引导失败:`, error)
+      console.error(`[${logTime()}] [AgentService] 引导失败:`, error)
       this.emit({
         type: 'error',
         payload: { message: error instanceof Error ? error.message : '引导失败' },
@@ -943,16 +942,16 @@ export class AgentService {
       throw new Error('无活跃会话')
     }
 
-    console.log(`[AgentService] 停止 AI: sessionId=${this.sessionId}`)
+    console.log(`[${logTime()}] [AgentService] 停止 AI: sessionId=${this.sessionId}`)
     // 先阻止轮询，再等待取消 RPC，避免 RPC 往返期间继续派发历史事件。
     this.abortPolling = true
     this.clearLiveBuffers() // 丢弃半截 assistant 缓冲（对齐旧轮询的中止语义）
     this.setRunning(false)
     try {
       const result = await this.rpc('session.cancel', { sessionId: this.sessionId })
-      console.log(`[AgentService] 停止命令已发送:`, result)
+      console.log(`[${logTime()}] [AgentService] 停止命令已发送:`, result)
     } catch (error) {
-      console.error(`[AgentService] 停止失败:`, error)
+      console.error(`[${logTime()}] [AgentService] 停止失败:`, error)
       this.emit({
         type: 'error',
         payload: { message: error instanceof Error ? error.message : '停止失败' },
@@ -1378,12 +1377,16 @@ export class AgentService {
   isConnected(): boolean { return this.state === 'connected' }
   /** AI 是否正在运行（用于判断是否使用 steer 模式） */
   isRunning(): boolean { return this._isRunning }
-  /** 设置 AI 运行状态（回合运行期间同时管理推送静默心跳） */
+  /** 设置 AI 运行状态（回合运行期间同时管理推送静默心跳）；
+   * 变更时广播 runningChange，刷新/重连后断档续听的 setRunning(true)
+   * 也走这里补发，面板据此恢复输入框运行态。 */
   private setRunning(running: boolean): void {
-    console.log(`[AgentService] setRunning: ${running}`)
+    if (this._isRunning === running) return
+    console.log(`[${logTime()}] [AgentService] setRunning: ${running}`)
     this._isRunning = running
     if (running) this.startTurnWatchdog()
     else this.stopTurnWatchdog()
+    this.emit({ type: 'runningChange', payload: { running } })
   }
 
   onEvent(listener: (event: AgentEvent) => void): () => void {
@@ -1422,7 +1425,7 @@ export class AgentService {
   } = {}): Promise<HistoryMessage[]> {
     try {
       if (!this.sessionId) {
-        console.warn('[AgentService] loadHistory: 无 sessionId')
+        console.warn(`[${logTime()}]`, '[AgentService] loadHistory: 无 sessionId')
         return []
       }
 
@@ -1455,7 +1458,7 @@ export class AgentService {
         if (beforeSeq <= 0) break
       }
 
-      console.log(`[AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
+      console.log(`[${logTime()}] [AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
       if (!allEvents.length) return []
 
       allEvents.sort((a, b) => a.event.seq - b.event.seq)
@@ -1675,11 +1678,13 @@ export class AgentService {
 
         // ─── request/header ───
         if (event.type === 'request/header') {
+          // 对齐实时路径：只有 reason=change 的请求头才视为模型切换上屏，
+          // 每轮常规请求头不留痕，避免加载历史时多出实时看不到的切换记录
+          if ((d?.reason || 'change') !== 'change') continue
           const header = d?.header
           messages.push({
-            role: 'request-header',
-            content: `模型: ${header?.config?.model || '未知'}`,
-            requestHeader: { model: header?.config?.model, provider: header?.config?.provider },
+            role: 'system',
+            content: `模型切换: ${header?.config?.model || '未知'}`,
             seq: event.seq,
             ts: time,
           })
@@ -1694,7 +1699,7 @@ export class AgentService {
 
       return messages
     } catch (error) {
-      console.error('[AgentService] 加载历史失败:', error)
+      console.error(`[${logTime()}]`, '[AgentService] 加载历史失败:', error)
       return []
     }
   }
@@ -1780,35 +1785,41 @@ export class AgentService {
     this.abortPolling = true
     this.pendingQuestions.clear()
     this.pendingApprovals.clear()
+    // 运行态属于「当前会话」：切换后旧会话事件不再消费，先归零；
+    // 目标会话若有未闭合回合，由断档续听探测并恢复运行态
+    if (this.polling) await new Promise(r => setTimeout(r, 200)) // 温和等旧轮询回路退出
+    this.setRunning(false)
     this.setSession(sessionId)
     this.persistSession()
     // 新会话的 seq 从 0 起，必须立即重立基线，避免旧会话游标抑制新会话事件
     await this.refreshSeqBaseline()
-    console.log(`[AgentService] 切换到会话: ${sessionId}`)
+    this.abortPolling = false
+    this.resumePendingTurnIfNeeded()
+    console.log(`[${logTime()}] [AgentService] 切换到会话: ${sessionId}`)
   }
 
   async createSession(): Promise<string | null> {
     try {
       const cwd = await this.resolveWorkspaceCwd()
-      console.log(`[AgentService] 创建新会话 (cwd=${cwd})`)
+      console.log(`[${logTime()}] [AgentService] 创建新会话 (cwd=${cwd})`)
       let value: { sessionId?: string } | null = null
       try {
         value = (await this.rpc('session.create', { cwd })) as { sessionId?: string }
       } catch (firstErr) {
         // 默认 preset 可能不存在（DSH 远程 preset 路径未解析），回退 cordis
-        console.warn('[AgentService] 首次 session.create 失败，尝试 fallback preset cordis:', firstErr)
+        console.warn(`[${logTime()}]`, '[AgentService] 首次 session.create 失败，尝试 fallback preset cordis:', firstErr)
         value = (await this.rpc('session.create', { cwd, agentPreset: 'cordis' })) as { sessionId?: string }
       }
       if (value?.sessionId) {
         this.setSession(value.sessionId)
         this.persistSession()
-        console.log(`[AgentService] 新会话已创建: ${this.sessionId}`)
+        console.log(`[${logTime()}] [AgentService] 新会话已创建: ${this.sessionId}`)
         return value.sessionId
       }
-      console.warn('[AgentService] session.create 未返回 sessionId')
+      console.warn(`[${logTime()}]`, '[AgentService] session.create 未返回 sessionId')
       return null
     } catch (err) {
-      console.error('[AgentService] 创建会话失败:', err)
+      console.error(`[${logTime()}]`, '[AgentService] 创建会话失败:', err)
       return null
     }
   }
@@ -1818,9 +1829,9 @@ export class AgentService {
   async deleteSession(sessionId: string): Promise<boolean> {
     try {
       await this.rpc('workspace.archiveSession', { sessionId })
-      console.log(`[AgentService] 会话已归档: ${sessionId}`)
+      console.log(`[${logTime()}] [AgentService] 会话已归档: ${sessionId}`)
     } catch {
-      console.log(`[AgentService] 归档不可用，使用本地黑名单: ${sessionId}`)
+      console.log(`[${logTime()}] [AgentService] 归档不可用，使用本地黑名单: ${sessionId}`)
     }
     this.deletedSessionIds.add(sessionId)
     if (this.sessionId === sessionId) {
@@ -1874,7 +1885,7 @@ export class AgentService {
   /** 切换当前会话的模型 */
   async selectModel(provider: string, model: string, reasoningEffort?: string): Promise<void> {
     if (!this.sessionId) throw new Error('无活跃会话')
-    console.log(`[AgentService] 尝试切换模型: provider=${provider}, model=${model}, effort=${reasoningEffort || 'default'}`)
+    console.log(`[${logTime()}] [AgentService] 尝试切换模型: provider=${provider}, model=${model}, effort=${reasoningEffort || 'default'}`)
     try {
       const result = await this.rpc('session.selectModel', {
         sessionId: this.sessionId,
@@ -1882,9 +1893,9 @@ export class AgentService {
         model,
         ...(reasoningEffort ? { reasoningEffort } : {}),
       })
-      console.log(`[AgentService] 模型切换成功:`, result)
+      console.log(`[${logTime()}] [AgentService] 模型切换成功:`, result)
     } catch (err) {
-      console.error(`[AgentService] 模型切换失败:`, err)
+      console.error(`[${logTime()}] [AgentService] 模型切换失败:`, err)
       throw err
     }
   }
@@ -1907,13 +1918,13 @@ export class AgentService {
   /** 设置 API Key */
   async setCredential(ref: string, value: string): Promise<void> {
     await this.rpc('credentials.set', { ref, value })
-    console.log(`[AgentService] 凭证已设置: ${ref}`)
+    console.log(`[${logTime()}] [AgentService] 凭证已设置: ${ref}`)
   }
 
   /** 删除凭证 */
   async unsetCredential(ref: string): Promise<void> {
     await this.rpc('credentials.unset', { ref })
-    console.log(`[AgentService] 凭证已删除: ${ref}`)
+    console.log(`[${logTime()}] [AgentService] 凭证已删除: ${ref}`)
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1929,7 +1940,7 @@ export class AgentService {
   /** 修改设置（最小化 diff） */
   async mutateSettings(ops: SettingsPathOp[]): Promise<void> {
     await this.rpc('settings.mutate', { ops })
-    console.log(`[AgentService] 设置已更新:`, ops.length, '个操作')
+    console.log(`[${logTime()}] [AgentService] 设置已更新:`, ops.length, '个操作')
   }
 
   /** 获取 LLM provider 列表 */
@@ -1959,7 +1970,7 @@ const saved = g[AGENT_SVC_KEY] as { sessionId?: string; state?: ConnectionState 
 if (saved?.sessionId && saved.state === 'connected') {
   ;(agentService as any).sessionId = saved.sessionId
   ;(agentService as any).state = 'connected'
-  console.log(`[AgentService] HMR: 恢复会话 ${saved.sessionId}，重挂实时下行流`)
+  console.log(`[${logTime()}] [AgentService] HMR: 恢复会话 ${saved.sessionId}，重挂实时下行流`)
   // mux 连接不会跨热替换存活，必须显式重建并续听未闭合回合
   agentService.reattachLiveStream()
 }

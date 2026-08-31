@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react'
+import { logTime } from '../../utils/logTime'
 
 interface TypewriterOptions {
   /** 基础速度（字符/秒） */
@@ -45,7 +46,7 @@ export function useTypewriter(options: TypewriterOptions = {}) {
     const newMultiplier = Math.max(1, multiplier)
     const oldMultiplier = speedMultiplierRef.current
     if (oldMultiplier !== newMultiplier) {
-      console.log(`[Typewriter] 速度倍率变化: ${oldMultiplier}x → ${newMultiplier}x`)
+      console.log(`[${logTime()}] [Typewriter] 速度倍率变化: ${oldMultiplier}x → ${newMultiplier}x`)
     }
     speedMultiplierRef.current = newMultiplier
   }, [])
@@ -107,7 +108,7 @@ export function useTypewriter(options: TypewriterOptions = {}) {
 
   // 设置完整文本（用于提交时）
   const setFull = useCallback((text: string) => {
-    console.log(`[Typewriter] 设置新文本: ${text.length} 字符, 当前倍率: ${speedMultiplierRef.current}x`)
+    console.log(`[${logTime()}] [Typewriter] 设置新文本: ${text.length} 字符, 当前倍率: ${speedMultiplierRef.current}x`)
     bufferRef.current = text
     displayRef.current = ''
     startAnimation()

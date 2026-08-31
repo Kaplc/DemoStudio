@@ -1596,7 +1596,6 @@ html, body, #root {
 .agent-event-card--retry .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
 .agent-event-card--error .agent-event-card__icon { color: var(--dsw-alias-state-error-primary); }
 .agent-event-card--max-tokens .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
-.agent-event-card--request-header .agent-event-card__icon { color: var(--dsw-alias-state-info-primary); }
 
 /* --- 上下文注入卡片（对齐 DSH WebUI ContextInjectionRow）--- */
 .agent-context-card {
@@ -2990,10 +2989,65 @@ html, body, #root {
 .composer__send--steer:hover {
   background: #389e6d;
 }
-/* Steer 模式：输入框边框提示 */
+/* Steer 模式：输入框边框提示 —— 彩色呼吸灯环绕动画。
+   ::before 画旋转的彩色描边环（@property 注册角度变量供 conic-gradient 插值，
+   Electron/Chromium 支持；不支持时退化为静态彩色描边），
+   ::after 画呼吸光晕（透明度呼吸 + 色相漂移）。 */
+@property --steer-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
 .composer__card--steer {
-  border-color: var(--dsw-alias-state-success-primary);
-  box-shadow: 0 0 0 1px var(--dsw-alias-state-success-primary);
+  position: relative;
+}
+.composer__card--steer,
+.composer__card--steer:focus-within {
+  border-color: transparent;
+}
+.composer__card--steer::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 23px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--steer-angle),
+    #4cc2ff,
+    #5188e0,
+    #b07aff,
+    #ff7ab8,
+    #ffc371,
+    #47e5bc,
+    #4cc2ff
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: composer-steer-spin 4s linear infinite;
+  pointer-events: none;
+}
+.composer__card--steer::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 23px;
+  box-shadow: 0 0 12px 2px rgba(102, 153, 255, 0.5);
+  animation: composer-steer-breathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes composer-steer-spin {
+  to { --steer-angle: 360deg; }
+}
+@keyframes composer-steer-breathe {
+  0%, 100% { opacity: 0.25; filter: hue-rotate(0deg); }
+  50% { opacity: 1; filter: hue-rotate(120deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer__card--steer::before,
+  .composer__card--steer::after {
+    animation: none;
+  }
 }
 .composer__stop {
   background: var(--dsw-alias-label-dimmed);

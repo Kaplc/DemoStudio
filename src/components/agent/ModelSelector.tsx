@@ -6,6 +6,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { agentService, type ModelGroup, type ModelInfo } from '../../editor/AgentService'
+import { logTime } from '../../utils/logTime'
 
 interface ModelSelectorProps {
   /** 当前选中的模型（null = 尚未加载/未知） */
@@ -122,7 +123,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     const group = groups.find(g => g.id === provider)
     const modelInfo = group?.models.find(m => m.id === model)
     
-    console.log(`[ModelSelector] 选择模型: provider=${provider}, model=${model}, group=${group?.name}, modelInfo=`, modelInfo)
+    console.log(`[${logTime()}] [ModelSelector] 选择模型: provider=${provider}, model=${model}, group=${group?.name}, modelInfo=`, modelInfo)
     
     if (modelInfo?.reasoning?.efforts && modelInfo.reasoning.efforts.length > 0) {
       // 有 reasoning 选项，显示 effort 选择
@@ -130,14 +131,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     } else {
       // 没有 reasoning 选项，直接提交
       try {
-        console.log(`[ModelSelector] 调用 selectModel: provider=${provider}, model=${model}`)
+        console.log(`[${logTime()}] [ModelSelector] 调用 selectModel: provider=${provider}, model=${model}`)
         await agentService.selectModel(provider, model)
-        console.log(`[ModelSelector] selectModel 成功`)
+        console.log(`[${logTime()}] [ModelSelector] selectModel 成功`)
         onModelChange?.(provider, model)
         setOpen(false)
         setPane('root')
       } catch (err) {
-        console.error(`[ModelSelector] selectModel 失败:`, err)
+        console.error(`[${logTime()}] [ModelSelector] selectModel 失败:`, err)
         setError(err instanceof Error ? err.message : '切换模型失败')
       }
     }
@@ -148,15 +149,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (!selectedProvider || !selectedModel) return
     setSelectedEffort(effort)
 
-    console.log(`[ModelSelector] 选择 effort: provider=${selectedProvider}, model=${selectedModel}, effort=${effort}`)
+    console.log(`[${logTime()}] [ModelSelector] 选择 effort: provider=${selectedProvider}, model=${selectedModel}, effort=${effort}`)
     try {
       await agentService.selectModel(selectedProvider, selectedModel, effort)
-      console.log(`[ModelSelector] selectModel with effort 成功`)
+      console.log(`[${logTime()}] [ModelSelector] selectModel with effort 成功`)
       onModelChange?.(selectedProvider, selectedModel)
       setOpen(false)
       setPane('root')
     } catch (err) {
-      console.error(`[ModelSelector] selectModel with effort 失败:`, err)
+      console.error(`[${logTime()}] [ModelSelector] selectModel with effort 失败:`, err)
       setError(err instanceof Error ? err.message : '切换模型失败')
     }
   }, [selectedProvider, selectedModel, onModelChange])
