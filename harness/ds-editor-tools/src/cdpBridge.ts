@@ -52,12 +52,18 @@ async function connectCDP(): Promise<Page> {
     if (pages.length === 0) {
       throw new Error('CDP 连接成功但没有打开的页面')
     }
-    // 取第一个页面（编辑器主窗口）
-    const page = pages[0]
+    // 过滤出编辑器主窗口（排除 devtools:// 等非应用页面）
+    const editorPage = pages.find(p => {
+      const url = p.url()
+      return url && !url.startsWith('devtools://') && !url.startsWith('chrome://')
+    })
+    if (!editorPage) {
+      throw new Error(`CDP 连接成功但未找到编辑器页面（${pages.length} 个页面均为 devtools/chrome 源）`)
+    }
     // 等待页面 DOM 就绪
-    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {})
-    console.log('[cdpBridge] 已连接到编辑器 CDP:', page.url())
-    return page
+    await editorPage.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {})
+    console.log('[cdpBridge] 已连接到编辑器 CDP:', editorPage.url())
+    return editorPage
   } catch (err) {
     await disconnect()
     throw new Error(`连接编辑器 CDP 失败（${CDP_URL}）: ${err}`)
