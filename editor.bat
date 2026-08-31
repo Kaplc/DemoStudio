@@ -7,7 +7,7 @@ echo ============================================
 echo.
 
 REM ─── 国内镜像源（加速依赖下载） ───
-set "NPM_REGISTRY=https://mirrors.cloud.tencent.com/npm/"
+set "NPM_REGISTRY=https://registry.npmmirror.com"
 set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
 
 REM ─── 检测 Node.js ───

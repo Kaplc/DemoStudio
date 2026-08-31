@@ -20,7 +20,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'))
 
 // ─── 国内镜像源 ───
-const REGISTRY = 'https://mirrors.cloud.tencent.com/npm/'
+const REGISTRY = 'https://registry.npmmirror.com'
 const ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
 
 const MODE = process.argv[2] === '--install' ? 'install' : 'check'

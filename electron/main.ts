@@ -810,12 +810,26 @@ ipcMain.handle('dsh-status', () => ({
   agentPid: readDshOwner()?.agentPid ?? null,
 }))
 
-// DSH 手动重启（degraded 终态的恢复入口：重置自愈计数后重新走引导流程）
+// DSH 手动重启（degraded 终态的恢复入口：杀旧进程 → 等端口释放 → 重新引导）
 ipcMain.handle('dsh-restart', async () => {
   console.log('[DSH] 收到手动重启请求')
+  // 先杀旧 agent 进程（stopDSHService 只注销心跳不杀进程）
+  const owner = readDshOwner()
+  if (owner?.agentPid) {
+    console.log(`[DSH] 手动重启：终止旧 agent PID=${owner.agentPid}`)
+    killProcessTree(owner.agentPid)
+  }
   await stopDSHService()
   _dshRestartCount = 0
   _dshShuttingDown = false
+  // 等待端口 3080 释放
+  const deadline = Date.now() + 8000
+  while (Date.now() < deadline) {
+    const alive = await probeDshAlive(DSH_PORT_DEFAULT, 500).catch(() => false)
+    if (!alive) break
+    await new Promise(r => setTimeout(r, 300))
+  }
+  console.log('[DSH] 手动重启：端口已释放，启动新 agent')
   void bootstrapDSH('manual-restart')
   return { ok: true }
 })
