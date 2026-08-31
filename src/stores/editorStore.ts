@@ -46,6 +46,20 @@ export interface BlueprintSelection {
   childData?: { ref?: string; baseClass?: string; name?: string; id?: number; overrides?: Record<string, unknown>; components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>; position?: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number]; _remove?: boolean }
 }
 
+/** 资产浏览器选中的资产文件信息（AssetBrowser 点击文件时设置，供 Inspector 展示） */
+export interface AssetSelection {
+  /** 资产类型（scene/blueprint/widget/config/image） */
+  kind: string
+  /** 类型图标 */
+  icon: string
+  /** 文件完整相对路径（src/projects/...） */
+  path: string
+  /** 文件名 */
+  name: string
+  /** 文件大小（字节） */
+  size: number
+}
+
 export interface EditorState {
   // ─── 工程 ───
   projects: Project[]
@@ -146,6 +160,11 @@ export interface EditorState {
   dirtyBlueprints: Record<string, boolean>
   markBlueprintDirty: (path: string) => void
   markBlueprintClean: (path: string) => void
+
+  // ─── 资产浏览器选择 ───
+  /** 资产浏览器选中的资产文件（点击文件条目时设置，Inspector 展示信息） */
+  assetSelection: AssetSelection | null
+  setAssetSelection: (sel: AssetSelection | null) => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -173,6 +192,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setShowPluginCenter: (show) => set({ showPluginCenter: show }),
 
   blueprintSelection: null,
+  assetSelection: null,
   blueprintEditNonce: 0,
   lastEditedBlueprintPath: null,
   selectionNonce: 0,
@@ -197,7 +217,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     } else {
       clearProjectAssets()
     }
-    set({ currentProject: project, dynamicTabs: [], activeTabId: 'scene' })
+    set({ currentProject: project, dynamicTabs: [], activeTabId: 'scene', assetSelection: null })
   },
   setShowProjectSelector: (show) => set({ showProjectSelector: show }),
   setShowNewProjectDialog: (show) => set({ showNewProjectDialog: show }),
@@ -333,6 +353,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     }),
   setActiveTabId: (tabId) => set({ activeTabId: tabId }),
   setBlueprintSelection: (sel) => set({ blueprintSelection: sel }),
+  setAssetSelection: (sel) => set({ assetSelection: sel }),
   bumpBlueprintEdit: (assetPath) =>
     set((state) => ({
       blueprintEditNonce: state.blueprintEditNonce + 1,

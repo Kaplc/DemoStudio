@@ -118,6 +118,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 列出项目资产文件（排除代码）───
   listProjectAssets: (folder: string) => ipcRenderer.invoke('list-project-assets', folder),
 
+  // ─── 资产文件操作（删除/重命名/定位；op: delete|rename|reveal）───
+  assetFileOps: (op: string, path: string, newName?: string) =>
+    ipcRenderer.invoke('asset-file-ops', op, path, newName),
+
   // ─── 列出工程源码文件（.ts/.tsx，排除 .d.ts；codeLint 用）───
   listProjectSrc: (folder: string) => ipcRenderer.invoke('list-project-src', folder),
 

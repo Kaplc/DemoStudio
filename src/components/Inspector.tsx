@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { useEditorStore, type BlueprintSelection } from '../stores/editorStore'
+import { useEditorStore, type BlueprintSelection, type AssetSelection } from '../stores/editorStore'
+import { formatSize } from './AssetBrowser'
 import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChange } from '../editor/SelectionManager'
 import { Actor, Component, type EditableProperty, type EditablePropertyAssetTarget } from '../engine'
 import type { BlueprintAsset } from '../engine'
@@ -993,6 +994,7 @@ export function Inspector() {
   const selected = getSelected()
   const selectedActor = getSelectedActor()
   const blueprintSelection = useEditorStore((s) => s.blueprintSelection)
+  const assetSelection = useEditorStore((s) => s.assetSelection)
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const isBlueprintTab = activeTabId.startsWith('bp:')
   // 场景预览页签（sp: 前缀）：属性直改走 ScenePreviewManager.commitPropertyEdit 进撤回系统
@@ -1047,19 +1049,22 @@ export function Inspector() {
           >
             ✕
           </button>
-        ) : isBlueprintTab && selected ? (
-          <button
-            className="panel-header-close"
-            title="清除选择"
-            onClick={() => select(null)}
-          >
-            ✕
-          </button>
         ) : selected ? (
           <button
             className="panel-header-close"
             title="清除选择"
-            onClick={() => select(null)}
+            onClick={() => {
+              select(null)
+              useEditorStore.getState().setAssetSelection(null)
+            }}
+          >
+            ✕
+          </button>
+        ) : assetSelection && !isBlueprintTab ? (
+          <button
+            className="panel-header-close"
+            title="清除选择"
+            onClick={() => useEditorStore.getState().setAssetSelection(null)}
           >
             ✕
           </button>
@@ -1122,11 +1127,34 @@ export function Inspector() {
               ) : selected instanceof THREE.Object3D ? (
                 <Object3DInfoView obj={selected} />
               ) : null
+            ) : assetSelection && !isBlueprintTab ? (
+              <AssetInfoView sel={assetSelection} />
             ) : (
               <ProjectInfoView />
             )}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── 资产文件信息（资产浏览器点击选中） ───
+function AssetInfoView({ sel }: { sel: AssetSelection }) {
+  return (
+    <div className="property-group">
+      <div className="property-group-title">{sel.icon} {sel.kind}</div>
+      <div className="property-row">
+        <span className="property-label">Name</span>
+        <span className="property-value">{sel.name}</span>
+      </div>
+      <div className="property-row">
+        <span className="property-label">Path</span>
+        <span className="property-value" style={{ fontSize: 11, wordBreak: 'break-all' }}>{sel.path}</span>
+      </div>
+      <div className="property-row">
+        <span className="property-label">Size</span>
+        <span className="property-value">{formatSize(sel.size)}</span>
       </div>
     </div>
   )

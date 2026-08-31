@@ -8,7 +8,7 @@
  *   3. 就绪后关闭加载窗口，创建有边框编辑器主窗口
  *   4. 加载完成后 React LoadingScreen 自动淡出
  */
-import { app, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, dialog, shell, clipboard } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import http from 'http'
@@ -1316,6 +1316,70 @@ ipcMain.handle('list-project-assets', async (_event, folder: string) => {
   } catch (err) {
     console.error('列出项目资产失败:', err)
     return []
+  }
+})
+
+// ─── 资产文件操作（删除/重命名/系统定位；仅限 src/projects/*/asset/** 内）───
+
+ipcMain.handle('asset-file-ops', async (_event, op: string, relPath: string, newName?: string) => {
+  try {
+    if (op !== 'delete' && op !== 'rename' && op !== 'reveal' && op !== 'copy-path') {
+      return { success: false, error: `未知操作: ${op}` }
+    }
+    if (typeof relPath !== 'string' || !relPath) {
+      return { success: false, error: 'path 必须是非空字符串' }
+    }
+    const baseDir = path.join(__dirname, '..')
+    const fullPath = path.resolve(baseDir, relPath)
+    // 路径逃逸防护：解析后必须仍在项目根内
+    const rel = path.relative(baseDir, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: `非法路径: ${relPath}` }
+    }
+    // 仅允许操作项目资产目录内的文件/目录（与 AssetBrowser 可见范围一致；
+    // 最低要求 <folder>/asset，reveal asset 根目录也允许）
+    const assetRel = path.relative(path.join(baseDir, 'src', 'projects'), fullPath)
+    if (assetRel.startsWith('..') || path.isAbsolute(assetRel)
+      || assetRel.split(path.sep).length < 2 || assetRel.split(path.sep)[1] !== 'asset') {
+      return { success: false, error: `仅允许操作 src/projects/*/asset/ 下的文件: ${relPath}` }
+    }
+
+    if (op === 'reveal') {
+      shell.showItemInFolder(fullPath)
+      console.log(`[asset-file-ops] reveal: ${relPath}`)
+      return { success: true }
+    }
+
+    if (op === 'copy-path') {
+      clipboard.writeText(fullPath)
+      console.log(`[asset-file-ops] copy-path: ${relPath}`)
+      return { success: true }
+    }
+
+    if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+      return { success: false, error: `文件不存在: ${relPath}` }
+    }
+
+    if (op === 'delete') {
+      fs.unlinkSync(fullPath)
+      console.log(`[asset-file-ops] delete: ${relPath}`)
+      return { success: true }
+    }
+
+    // rename：newName 必须是纯文件名（不含路径分隔符），且目标不存在
+    if (typeof newName !== 'string' || !newName.trim() || /[\\/]/.test(newName)) {
+      return { success: false, error: `非法文件名: ${newName}` }
+    }
+    const targetPath = path.join(path.dirname(fullPath), newName)
+    if (fs.existsSync(targetPath)) {
+      return { success: false, error: `目标已存在: ${newName}` }
+    }
+    fs.renameSync(fullPath, targetPath)
+    console.log(`[asset-file-ops] rename: ${relPath} → ${newName}`)
+    return { success: true }
+  } catch (err) {
+    console.error('资产文件操作失败:', err)
+    return { success: false, error: String(err) }
   }
 })
 

@@ -188,7 +188,6 @@ export function OutlineContextMenu({
               onMouseLeave={leaveBg}
               onClick={() => onCreate(tpl)}
             >
-              <span style={{ width: 14, textAlign: 'center', flexShrink: 0 }}>＋</span>
               <span>{tpl.label}</span>
             </div>
           ))}
@@ -200,7 +199,6 @@ export function OutlineContextMenu({
             onMouseLeave={leaveBg}
             onClick={() => { onCopyName(); onClose() }}
           >
-            <span style={{ width: 14, textAlign: 'center', flexShrink: 0 }}>📋</span>
             <span>复制名称</span>
           </div>
           <div
@@ -209,7 +207,6 @@ export function OutlineContextMenu({
             onMouseLeave={leaveBg}
             onClick={() => { if (canModify) onDuplicate() }}
           >
-            <span style={{ width: 14, textAlign: 'center', flexShrink: 0 }}>⧉</span>
             <span>复制</span>
           </div>
           <div
@@ -218,7 +215,6 @@ export function OutlineContextMenu({
             onMouseLeave={leaveBg}
             onClick={() => { if (canModify) { setRenameValue(targetLabel); setRenaming(true) } }}
           >
-            <span style={{ width: 14, textAlign: 'center', flexShrink: 0 }}>✎</span>
             <span>重命名</span>
           </div>
           <div
@@ -227,7 +223,6 @@ export function OutlineContextMenu({
             onMouseLeave={leaveBg}
             onClick={() => { if (canModify) onDelete() }}
           >
-            <span style={{ width: 14, textAlign: 'center', flexShrink: 0, color: '#ff6b6b' }}>🗑</span>
             <span style={{ color: '#ff6b6b' }}>删除</span>
           </div>
         </>

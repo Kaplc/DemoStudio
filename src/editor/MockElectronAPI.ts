@@ -260,6 +260,33 @@ const mockAPI = {
   stopWatchProjectAssets: async () => ({ ok: false }),
   onAssetChanged: () => (() => {}),
 
+  // ─── 资产文件操作（浏览器 Mock：delete/rename 只操作内存缓存与 glob 键映射）───
+  assetFileOps: async (op: 'delete' | 'rename' | 'reveal' | 'copy-path', path: string, newName?: string) => {
+    if (op === 'delete') {
+      jsonCache.delete(path)
+      console.log(`[Mock] assetFileOps.delete: ${path}（内存缓存）`)
+      return { success: true }
+    }
+    if (op === 'rename') {
+      const data = jsonCache.get(path)
+      const dir = path.slice(0, path.lastIndexOf('/') + 1)
+      const target = `${dir}${newName}`
+      if (!data || jsonCache.has(target)) return { success: false, error: '重命名失败：目标已存在或源未缓存' }
+      jsonCache.delete(path)
+      jsonCache.set(target, data)
+      console.log(`[Mock] assetFileOps.rename: ${path} → ${target}（内存缓存）`)
+      return { success: true }
+    }
+    if (op === 'copy-path') {
+      // 浏览器模式无真实绝对路径，复制相对路径；localhost 属安全上下文，navigator.clipboard 可用
+      try { await navigator.clipboard.writeText(path) } catch { /* 剪贴板不可用时静默跳过 */ }
+      console.log(`[Mock] assetFileOps.copy-path: ${path}（相对路径）`)
+      return { success: true }
+    }
+    console.log(`[Mock] assetFileOps.reveal: ${path} — browser mode`)
+    return { success: true }
+  },
+
   // ─── 源码扫描（codeLint；与 Electron 主进程同签名同语义）───
 
   listProjectSrc: async (folder: string) => {
