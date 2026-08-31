@@ -144,6 +144,13 @@ export class ThreeObjectFactory {
     return g
   }
 
+  /** 创建 RingGeometry（追踪释放） */
+  createRingGeometry(innerRadius: number, outerRadius: number, thetaSegments = 32): THREE.RingGeometry {
+    const g = new THREE.RingGeometry(innerRadius, outerRadius, thetaSegments)
+    this._geometries.push(g)
+    return g
+  }
+
   /** 创建 EdgesGeometry（追踪释放，输入 BoxGeometry） */
   createEdgesGeometry(sourceGeometry: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {
     const g = new THREE.EdgesGeometry(sourceGeometry, thresholdAngle)

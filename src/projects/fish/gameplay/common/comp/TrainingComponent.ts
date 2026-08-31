@@ -172,6 +172,19 @@ export class TrainingComponent extends AObjectComponent<AObject> {
     return true
   }
 
+  /**
+   * 军队回滚（部署失败补偿）：数量 +1 并广播。
+   * 配合 GameMode"先扣军队再 acquire 兵池"的失败回滚路径。
+   * @returns 是否回滚成功（未知兵种不创建幽灵条目）
+   */
+  refundTroop(troopId: string): boolean {
+    if (!this.troopById.has(troopId)) return false
+    this.army.set(troopId, (this.army.get(troopId) ?? 0) + 1)
+    logger.info(`[TrainingComponent] 军队回滚: ${this.troopById.get(troopId)?.name ?? troopId} +1（兵池 acquire 失败补偿）`)
+    this.notifyChange()
+    return true
+  }
+
   /** 军队全部耗尽（所有兵种数量均为 0，战斗失败判定用） */
   isArmyEmpty(): boolean {
     for (const count of this.army.values()) {

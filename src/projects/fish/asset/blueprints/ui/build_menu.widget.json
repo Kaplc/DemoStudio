@@ -102,33 +102,33 @@
       "children": []
     },
     {
-      "name": "Btn_townhall",
-      "baseClass": "Actor",
-      "id": 1100,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              -2.85,
-              0.1
-            ],
+          "name": "Btn_townhall",
+          "baseClass": "Actor",
+          "id": 1100,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  -3.15,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -320,33 +320,33 @@
       ]
     },
     {
-      "name": "Btn_barracks",
-      "baseClass": "Actor",
-      "id": 1200,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              -1.9,
-              0.1
-            ],
+          "name": "Btn_barracks",
+          "baseClass": "Actor",
+          "id": 1200,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  -2.25,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -538,33 +538,191 @@
       ]
     },
     {
-      "name": "Btn_goldmine",
+      "name": "Btn_laboratory",
       "baseClass": "Actor",
-      "id": 1300,
+      "id": 1250,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
             "anchor": "bottom-center",
-            "anchorOffset": [
-              -0.95,
-              0.1
-            ],
+            "anchorOffset": [-1.35, 0.1],
+            "worldWidth": 0.78,
+            "worldHeight": 0.95
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIButtonComponent",
+          "properties": {
+            "name": "LaboratoryButton"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "Frame_laboratory",
+          "baseClass": "Actor",
+          "id": 1251,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "center",
+                "anchorOffset": [0, 0],
+                "worldWidth": 0.84,
+                "worldHeight": 1
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#8a6a3a",
+                "radius": 16,
+                "width": 168,
+                "height": 200,
+                "name": "BtnFrame",
+                "zOrder": 1
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Icon_laboratory",
+          "baseClass": "Actor",
+          "id": 1252,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-center",
+                "anchorOffset": [0, -0.06],
+                "worldWidth": 0.42,
+                "worldHeight": 0.42
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#26c6da",
+                "radius": 8,
+                "width": 84,
+                "height": 84,
+                "name": "Icon",
+                "zOrder": 3
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Label_laboratory",
+          "baseClass": "Actor",
+          "id": 1253,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "bottom-center",
+                "anchorOffset": [0, 0.05],
+                "worldWidth": 0.8,
+                "worldHeight": 0.4
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "实验室",
+                "fontSize": 18,
+                "color": "#f5e6c8",
+                "bold": true,
+                "align": "center",
+                "width": 160,
+                "height": 50,
+                "zOrder": 4,
+                "name": "Label",
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.55)",
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+          "name": "Btn_goldmine",
+          "baseClass": "Actor",
+          "id": 1300,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  -0.45,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -756,33 +914,33 @@
       ]
     },
     {
-      "name": "Btn_elixir",
-      "baseClass": "Actor",
-      "id": 1400,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              0,
-              0.1
-            ],
+          "name": "Btn_elixir",
+          "baseClass": "Actor",
+          "id": 1400,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  0.45,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -974,33 +1132,33 @@
       ]
     },
     {
-      "name": "Btn_cannon",
-      "baseClass": "Actor",
-      "id": 1500,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              0.95,
-              0.1
-            ],
+          "name": "Btn_cannon",
+          "baseClass": "Actor",
+          "id": 1500,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  1.35,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -1192,33 +1350,33 @@
       ]
     },
     {
-      "name": "Btn_wall",
-      "baseClass": "Actor",
-      "id": 1600,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              1.9,
-              0.1
-            ],
+          "name": "Btn_wall",
+          "baseClass": "Actor",
+          "id": 1600,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  2.25,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }
@@ -1410,33 +1568,33 @@
       ]
     },
     {
-      "name": "Btn_delete",
-      "baseClass": "Actor",
-      "id": 1700,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              2.85,
-              0.1
-            ],
+          "name": "Btn_delete",
+          "baseClass": "Actor",
+          "id": 1700,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  3.15,
+                  0.1
+                ],
             "worldWidth": 0.78,
             "worldHeight": 0.95
           }

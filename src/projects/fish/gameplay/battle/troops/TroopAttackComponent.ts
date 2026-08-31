@@ -16,6 +16,7 @@ import type { ClashBuildingBaseActor } from '../../base/ClashBuildingActors'
 import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
 import { TroopTargetComponent, troopAttackDist } from './TroopTargetComponent'
+import { TroopHealthComponent } from './TroopHealthComponent'
 import { GameEvents } from '../../common/GameEvents'
 
 /** 兵攻击事件（攻击组件广播 → GM 订阅发射弹丸） */
@@ -65,10 +66,14 @@ export class TroopAttackComponent extends ActorComponent {
 
     if (this.attackTimer <= 0) {
       this.attackTimer = TROOP_ATTACK_INTERVAL
+      // 狂暴增益：读 rage 标记（光环组件每帧写入），用后清零回 1（伤害 ×倍率 = 等效攻速提升）
+      const health = this.owner.getComponent(TroopHealthComponent)
+      const rageMul = health?.rageMark ?? 1
+      if (health) health.rageMark = 1
       this.gm.gameInstance?.events.emit(BATTLE_TROOP_ATTACK, {
         troop: this.owner as TroopActor,
         target,
-        damage: this.troop.dps * TROOP_ATTACK_INTERVAL,
+        damage: this.troop.dps * TROOP_ATTACK_INTERVAL * rageMul,
       } as TroopAttackEvent)
     }
   }

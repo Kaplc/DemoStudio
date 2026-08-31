@@ -3,7 +3,7 @@
  *
  * 架构：
  *  - ClashBuildingBaseActor：抽象基类，通用构建逻辑（底座/主体网格、点击选中、金色高亮线框）
- *  - 6 个具体类（Townhall/Barracks/Goldmine/Elixir/Cannon/Wall）：只传类型 id，
+ *  - 具体类（Townhall/Barracks/Goldmine/Elixir/Cannon/Wall/Laboratory）：只传类型 id，
  *    参数（名称/占地/颜色/尺寸）从 CLASH_BUILDING_TYPES 读取（单一数据源）
  *
  * 蓝图（asset/blueprints/buildings/*.blueprint.json）baseClass 引用具体类，
@@ -150,6 +150,13 @@ export class WallActor extends ClashBuildingBaseActor {
   }
 }
 
+/** 实验室（占地 2×2，兵种研究入口） */
+export class LaboratoryActor extends ClashBuildingBaseActor {
+  constructor() {
+    super('Laboratory', 'laboratory')
+  }
+}
+
 // 便捷引用：类型 id → 类（供注册表批量注册）
 export const CLASH_BUILDING_ACTOR_CLASSES: Readonly<Record<string, new () => ClashBuildingBaseActor>> = {
   townhall: TownhallActor,
@@ -158,4 +165,5 @@ export const CLASH_BUILDING_ACTOR_CLASSES: Readonly<Record<string, new () => Cla
   elixir: ElixirActor,
   cannon: CannonActor,
   wall: WallActor,
+  laboratory: LaboratoryActor,
 }

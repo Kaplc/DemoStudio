@@ -8,6 +8,9 @@
  *     生成后改名 Level_{id}、填充名称/星级/描述文本、按配置表 pos 定位
  *     （anchor=center + anchorOffset=pos，地图节点位置可配置）、绑定点击
  *     → FishGameInstance.enterLevel(id)（切换 game 阶段 + 加载关卡场景）
+ *  3. 关卡进度解锁：读取 ProgressionService.levelRecords 展示历史最高星（☆/★），
+ *     未满足 unlockRequirement 的关卡显示锁 + 条件文案；点击提示解锁条件
+ *     （enterLevel 内部还有同口径校验，双保险防绕过）
  *
  * 由 FishBaseGameMode.toggleMapPanel 打开地图面板时生成（挂到 HUD）。
  */
@@ -25,11 +28,6 @@ import type { FishGameInstance } from '../FishGameInstance'
 
 /** 关卡卡片蓝图路径（相对 src/projects/，由 BlueprintRegistry 注册） */
 const LEVEL_CARD_BLUEPRINT = 'asset/blueprints/ui/level_card.blueprint.json'
-
-/** 星级字符串（1~5 星） */
-function starsText(stars: number): string {
-  return '★'.repeat(Math.max(1, Math.min(5, stars)))
-}
 
 /** 在 Actor 子树中按 root.name 递归查找子 Actor */
 function findChild(actor: Actor, name: string): Actor | null {
@@ -75,6 +73,15 @@ export default class MapPanelScript extends BehaviourScript {
       for (const id of levelTable.getRowNames()) {
         const level = levelTable.getRow(id)
         if (!level) continue
+
+        // 解锁判定（实时推导 levelRecords；锁定的关卡置灰 + 锁文案）
+        const unlocked = inst?.progression.isLevelUnlocked(level.unlockRequirement) ?? true
+        const bestStars = inst?.progression.getLevelStars(id) ?? 0
+        const stars = '★'.repeat(bestStars) + '☆'.repeat(Math.max(0, level.stars - bestStars))
+        const lockText = unlocked
+          ? ''
+          : `🔒 需 ${level.unlockRequirement?.levelId === 'level1' ? '关卡 1' : (level.unlockRequirement?.levelId ?? '')} ≥ ${level.unlockRequirement?.stars ?? 1}★`
+
         // 按路径从蓝图实例化卡片，挂到 LevelList
         const card = world.ui.spawnUIActor(LEVEL_CARD_BLUEPRINT, levelList)
         if (!card) {
@@ -84,13 +91,13 @@ export default class MapPanelScript extends BehaviourScript {
         // 节点名 = Level_{id}（便于按关卡定位）
         card.root.name = `Level_${id}`
 
-        // 名称文本（含星级）
+        // 名称文本（含难度星 + 历史最高星）
         const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
-        if (nameText) nameText.text = `${level.name} ${starsText(level.stars)}`
+        if (nameText) nameText.text = unlocked ? `${level.name} ${stars}` : `${level.name} 🔒`
 
-        // 描述文本
+        // 描述文本（锁定时替换为解锁条件）
         const infoText = findChild(card, 'Info')?.getComponent(UITextComponent)
-        if (infoText) infoText.text = level.desc
+        if (infoText) infoText.text = unlocked ? level.desc : lockText
 
         // 位置：anchor=center + anchorOffset=配置表 pos（地图节点位置可配置）
         const tsf = card.getComponent(UITransformComponent)
@@ -99,15 +106,21 @@ export default class MapPanelScript extends BehaviourScript {
           tsf.anchorOffset = [...level.pos]
         }
 
-        // 点击 → 进入关卡（GameInstance 阶段切换：加载关卡场景）
+        // 点击 → 进入关卡（GameInstance 阶段切换：加载关卡场景）；锁定 → 提示条件
         const cardBtn = card.getComponent(UIButtonComponent)
         if (cardBtn) {
-          cardBtn.onClick = () => inst?.enterLevel(id)
+          cardBtn.onClick = () => {
+            if (!unlocked) {
+              logger.warn(`[MapPanelScript] 关卡 ${level.name} 未解锁：${lockText}`)
+              return
+            }
+            void inst?.enterLevel(id)
+          }
         }
 
         created++
       }
-      logger.info(`[MapPanelScript] 关卡卡片动态生成 ${created}/${levelTable.size} 个（位置来自配置表 pos）`)
+      logger.info(`[MapPanelScript] 关卡卡片动态生成 ${created}/${levelTable.size} 个（星级/解锁状态实时推导）`)
     }
   }
 }

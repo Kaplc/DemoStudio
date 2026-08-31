@@ -1,0 +1,39 @@
+{
+  "_comment": "ClashMaster 每日任务池（DataTable 行表）。键=任务 id，值=任务定义。被 ProgressionService 读取（每日随机取 3 条，跨天刷新）。字段含义与成就表一致：name/type/target/reward*。type ∈ destroyBuildings/collectCoins/trainTroops/battleWins/clearObstacles/spellCasts。",
+  "daily_battle_3": {
+    "name": "出战 {n} 场并取胜",
+    "type": "battleWins",
+    "target": 3,
+    "rewardCoins": 500
+  },
+  "daily_train_10": {
+    "name": "训练 {n} 个兵",
+    "type": "trainTroops",
+    "target": 10,
+    "rewardElixir": 300
+  },
+  "daily_collect_2000": {
+    "name": "收集 {n} 金币",
+    "type": "collectCoins",
+    "target": 2000,
+    "rewardGems": 3
+  },
+  "daily_destroy_8": {
+    "name": "摧毁 {n} 座建筑",
+    "type": "destroyBuildings",
+    "target": 8,
+    "rewardCoins": 400
+  },
+  "daily_clear_2": {
+    "name": "清除 {n} 个障碍物",
+    "type": "clearObstacles",
+    "target": 2,
+    "rewardGems": 2
+  },
+  "daily_spell_3": {
+    "name": "施放 {n} 次法术",
+    "type": "spellCasts",
+    "target": 3,
+    "rewardElixir": 500
+  }
+}

@@ -153,6 +153,12 @@ export function createCapsuleGeometry(radius: number, length: number, capSegment
   return createCapsuleGeometryUntracked(radius, length, capSegments, radialSegments)
 }
 
+export function createRingGeometry(innerRadius: number, outerRadius: number, thetaSegments = 32): THREE.RingGeometry {
+  const f = factory()
+  if (f) return f.createRingGeometry(innerRadius, outerRadius, thetaSegments)
+  return createRingGeometryUntracked(innerRadius, outerRadius, thetaSegments)
+}
+
 export function createEdgesGeometry(source: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {
   const f = factory()
   if (f) return f.createEdgesGeometry(source, thresholdAngle)
@@ -219,6 +225,10 @@ export function createPlaneGeometryUntracked(w: number, h: number): THREE.PlaneG
 
 export function createCapsuleGeometryUntracked(radius: number, length: number, capSegments = 4, radialSegments = 12): THREE.CapsuleGeometry {
   return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
+}
+
+export function createRingGeometryUntracked(innerRadius: number, outerRadius: number, thetaSegments = 32): THREE.RingGeometry {
+  return new THREE.RingGeometry(innerRadius, outerRadius, thetaSegments)
 }
 
 export function createEdgesGeometryUntracked(source: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {

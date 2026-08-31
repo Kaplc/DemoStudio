@@ -84,6 +84,10 @@ export class ThreeFactoryComponent extends AObjectComponent {
     return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
   }
 
+  createRingGeometry(innerRadius: number, outerRadius: number, thetaSegments = 32): THREE.RingGeometry {
+    return new THREE.RingGeometry(innerRadius, outerRadius, thetaSegments)
+  }
+
   createEdgesGeometry(source: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {
     return new THREE.EdgesGeometry(source, thresholdAngle)
   }

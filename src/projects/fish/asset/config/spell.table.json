@@ -1,0 +1,33 @@
+{
+  "_comment": "ClashMaster 法术数据表（DataTable 行表）。键=法术 id，值=法术属性。被 SpellCaster 读取（战斗 HUD 法术卡 + 落点施放）。字段含义：name = 显示名；desc = 描述；cost = 施放消耗（药水，战斗内即扣即用）；radius = 效果半径（世界单位）；effect = 效果类型（damage 范围伤害 / heal 范围治疗 / rage 攻速移速增益）；value = 效果数值（damage=总伤害 / heal=总治疗 / rage=倍率）；duration = 增益持续时间（秒，rage 用）；color = 主体颜色 #rrggbb（transform 归一化为数字）。",
+  "fireball": {
+    "name": "火球",
+    "desc": "范围伤害，轰击一片建筑。",
+    "cost": 500,
+    "radius": 2.2,
+    "effect": "damage",
+    "value": 350,
+    "duration": 0,
+    "color": "#ff7043"
+  },
+  "heal": {
+    "name": "治疗",
+    "desc": "范围回复友军生命。",
+    "cost": 400,
+    "radius": 2.5,
+    "effect": "heal",
+    "value": 200,
+    "duration": 0,
+    "color": "#66bb6a"
+  },
+  "rage": {
+    "name": "狂暴",
+    "desc": "范围内友军攻速移速提升。",
+    "cost": 600,
+    "radius": 3.0,
+    "effect": "rage",
+    "value": 2.0,
+    "duration": 8,
+    "color": "#ab47bc"
+  }
+}

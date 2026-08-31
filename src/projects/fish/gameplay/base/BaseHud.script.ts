@@ -24,11 +24,13 @@ export default class BaseHudScript extends BehaviourScript {
   private buildModeActive = false
   /** 兵营面板打开中（barracks_ui 显示 → HUD 隐藏，由面板独占屏幕） */
   private barracksOpen = false
+  /** 任务面板打开中（tasks_ui 显示 → HUD 隐藏） */
+  private tasksOpen = false
 
   override onStart(): void {
     const mode = this.gameMode as FishBaseGameMode | null
     if (mode) {
-      // 建筑模式/兵营面板开关广播 → HUD 自行隐藏/恢复（组件自治：
+      // 建筑模式/兵营/任务面板开关广播 → HUD 自行隐藏/恢复（组件自治：
       // GameMode 只广播状态，不直接操控 HUD；可见性由本脚本统一管理）
       mode.onBuildModeChange = (active) => {
         this.buildModeActive = active
@@ -36,6 +38,10 @@ export default class BaseHudScript extends BehaviourScript {
       }
       mode.onBarracksPanelChange = (open) => {
         this.barracksOpen = open
+        this.refreshVisibility()
+      }
+      mode.onTasksPanelChange = (open) => {
+        this.tasksOpen = open
         this.refreshVisibility()
       }
 
@@ -58,22 +64,35 @@ export default class BaseHudScript extends BehaviourScript {
       } else {
         logger.warn('[BaseHudScript] 未找到 Btn_map 按钮，跳过')
       }
+
+      // 任务按钮：打开/关闭任务面板（成就 + 每日任务）
+      const tasksBtnActor = this.findInChildren('Btn_tasks')
+      const tasksBtn = tasksBtnActor?.getComponent(UIButtonComponent)
+      if (tasksBtn) {
+        tasksBtn.onClick = () => mode.toggleTasksPanel()
+        logger.info('[BaseHudScript] 任务按钮已绑定（打开任务面板）')
+      } else {
+        logger.warn('[BaseHudScript] 未找到 Btn_tasks 按钮，跳过')
+      }
     } else {
       logger.warn('[BaseHudScript] 未找到 FishBaseGameMode，跳过按钮绑定')
     }
-    // ─── 金币/药水文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
+    // ─── 金币/药水/宝石文本：绑定 GameInstance 资源组件（跨阶段共享钱包）───
     const inst = GameInstance.current as FishGameInstance | null
-    // 资产节点名是 GoldLabel/ElixirLabel（Actor），GoldText/ElixirText 是其 UITextComponent 组件的 name
+    // 资产节点名是 GoldLabel/ElixirLabel/GemLabel（Actor），文本组件由 UITextComponent 承载
     const goldTextActor = this.findInChildren('GoldLabel')
     const goldText = goldTextActor?.getComponent(UITextComponent)
     const elixirTextActor = this.findInChildren('ElixirLabel')
     const elixirText = elixirTextActor?.getComponent(UITextComponent)
+    const gemTextActor = this.findInChildren('GemLabel')
+    const gemText = gemTextActor?.getComponent(UITextComponent)
     if (inst && goldText) {
       // 立即刷新一次 + 资源变化自动更新
       goldText.text = `金币: ${inst.resources.get('coins')}`
       inst.resources.onChange = () => {
         goldText.text = `金币: ${inst.resources.get('coins')}`
         if (elixirText) elixirText.text = `药水: ${inst.resources.get('elixir')}`
+        if (gemText) gemText.text = `💎 ${inst.resources.get('gems')}`
       }
       logger.info('[BaseHudScript] 金币文本已绑定资源组件')
     } else {
@@ -85,6 +104,12 @@ export default class BaseHudScript extends BehaviourScript {
     } else {
       logger.warn(`[BaseHudScript] 药水文本未绑定（instance=${!!inst}, elixirText=${!!elixirText}）`)
     }
+    if (inst && gemText) {
+      gemText.text = `💎 ${inst.resources.get('gems')}`
+      logger.info('[BaseHudScript] 宝石文本已绑定资源组件')
+    } else {
+      logger.info('[BaseHudScript] 未找到 GemLabel 节点，跳过宝石显示（旧版 HUD 无此栏为正常）')
+    }
   }
 
   override onDestroy(): void {
@@ -93,11 +118,12 @@ export default class BaseHudScript extends BehaviourScript {
     if (mode) {
       mode.onBuildModeChange = null
       mode.onBarracksPanelChange = null
+      mode.onTasksPanelChange = null
     }
   }
 
-  /** HUD 可见性 = 非建筑模式 且 兵营面板未打开（任一面板/菜单显示时隐藏 HUD） */
+  /** HUD 可见性 = 非建筑模式 且 兵营/任务面板未打开（任一面板/菜单显示时隐藏 HUD） */
   private refreshVisibility(): void {
-    this.actor.bActive = !(this.buildModeActive || this.barracksOpen)
+    this.actor.bActive = !(this.buildModeActive || this.barracksOpen || this.tasksOpen)
   }
 }

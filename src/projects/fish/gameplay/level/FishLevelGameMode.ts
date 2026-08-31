@@ -33,6 +33,8 @@ import { LootFlyFx } from '../common/fx/LootFlyFx'
 import { GameEvents } from '../common/GameEvents'
 import { BATTLE_TROOP_ATTACK } from '../battle/troops/TroopAttackComponent'
 import type { TroopAttackEvent } from '../battle/troops/TroopAttackComponent'
+import { WallBreakerAbilityComponent, HealerAbilityComponent, RageAuraComponent } from '../battle/troops/AbilityComponents'
+import { SpellCaster } from '../battle/SpellCaster'
 import type { FishGameInstance } from '../FishGameInstance'
 import type { TroopType, TroopPreferred } from '../common/types'
 import { NavigationModule } from '@/engine/navigation/NavigationModule'
@@ -96,6 +98,20 @@ export class FishLevelGameMode extends GameMode {
   /** 战斗结果（null = 未结束；true 胜 / false 败） */
   private winResult: boolean | null = null
 
+  // ═════════ 战斗时限 / 星级 / 法术 ═════════
+  /** 战斗时限（秒；关卡表 timeLimit，默认 180；普通出征 120） */
+  private battleTimeLimit = 180
+  /** 战斗内累计摧毁建筑数（onBuildingDestroyed 计数；settleBattle 上报成就用） */
+  private destroyedCount = 0
+  /** 剩余秒数（浮点累计，展示取整） */
+  private timeRemaining = 180
+  /** 最后 10 秒高频提示是否已触发（只触发一次） */
+  private timeWarned = false
+  /** 战斗 GameInstance 侧结算回调（星级/战绩，setupLevelPhase 注入） */
+  onBattleOver: (() => void) | null = null
+  /** 法术施放器（战斗 HUD 卡片 → 落点施放） */
+  readonly spellCaster = new SpellCaster()
+
   constructor() {
     super()
     // 透视相机俯瞰战场（FishGameInstance.setupLevelPhase 会再设位置 12,16,18）
@@ -136,6 +152,18 @@ export class FishLevelGameMode extends GameMode {
     this._unsubTroopAttack = this.gameInstance?.events.on<TroopAttackEvent>(BATTLE_TROOP_ATTACK, (ev) => {
       this.fireTroopAttack(ev.troop, ev.target, ev.damage)
     }) ?? null
+
+    // 战斗时限初始化（关卡表 timeLimit → 普通出征 180s 兜底）
+    const inst = this.gameInstance
+    const levelId = inst?.currentLevelId ?? null
+    const level = levelId ? inst?.getLevel(levelId) : undefined
+    this.battleTimeLimit = level?.timeLimit ?? 180
+    this.timeRemaining = this.battleTimeLimit
+    this.timeWarned = false
+    logger.info(`[BattleGM] 战斗时限: ${this.battleTimeLimit}s（${levelId ? `关卡 ${levelId}` : '普通出征'}）`)
+
+    // 法术施放器初始化（HUD 卡片数据源 + 落点施放入口）
+    this.spellCaster.init(this, inst)
   }
 
   private _unsubTroopAttack: (() => void) | null = null
@@ -162,6 +190,8 @@ export class FishLevelGameMode extends GameMode {
     this.lootedCoinsByBuilding.clear()
     this.lootedElixirByBuilding.clear()
     this.onLootDisplayChange = null
+    this.onBattleOver = null
+    this.spellCaster.dispose()
     this.battleEnded = false
     this.lootSettled = false
     super.EndPlay()
@@ -190,6 +220,19 @@ export class FishLevelGameMode extends GameMode {
     // ─── 失败判定：部署过兵且场上兵全灭、军队耗尽 → 败 ───
     if (this.deployedCount > 0 && this.troops.length === 0 && this.isArmyEmpty()) {
       this.finishBattle(false)
+      return
+    }
+    // ─── 战斗时限：每秒递减，到 0 按当前摧毁率结算（超时 ≠ 失败）───
+    this.timeRemaining = Math.max(0, this.timeRemaining - dt)
+    if (this.timeRemaining <= 10 && !this.timeWarned) {
+      this.timeWarned = true // 高频提示只触发一次
+      logger.info('[BattleGM] 战斗最后 10 秒')
+    }
+    if (this.timeRemaining <= 0) {
+      const rate = this.getDestroyRate()
+      const win = rate >= 0.5 || this.isTownhallDestroyed()
+      logger.info(`[BattleGM] 战斗超时结算：摧毁率 ${(rate * 100).toFixed(0)}%（时限 ${this.battleTimeLimit}s，按已达成进度判胜负）`)
+      this.finishBattle(win)
     }
   }
 
@@ -316,6 +359,7 @@ export class FishLevelGameMode extends GameMode {
     this.buildingHp.delete(b)
     this.barCompMap.delete(b)
     this.cannonCooldown.delete(b)
+    this.destroyedCount++
     // 清除以本建筑为目标的所有兵的目标覆盖
     for (const [troop, t] of this.troopTargetOverride) {
       if (t === b) this.troopTargetOverride.delete(troop)
@@ -478,7 +522,10 @@ export class FishLevelGameMode extends GameMode {
    * 放置模式下 → 立即放一个兵（长按连续放兵由 Controller 定时器驱动）。
    */
   onScreenDown(sx: number, sy: number): void {
-    if (!this.selectedTroopId || this.battleEnded) return
+    if (this.battleEnded) return
+    // 法术落点施放优先（法术卡选中状态）
+    if (this.tryCastSpellAtScreen(sx, sy)) return
+    if (!this.selectedTroopId) return
     this.deployAtScreen(sx, sy)
   }
 
@@ -549,6 +596,7 @@ export class FishLevelGameMode extends GameMode {
       actor = this.pools.acquireTroop({ troopId, gm: this, troop, x, z })
     } catch (e) {
       if (!silent) logger.error(`[BattleGM] 部署失败：兵种池异常 "${troopId}" - ${e}`)
+      inst.training.refundTroop(troopId) // 回滚已扣的军队（先扣后取，失败必须退回）
       return false
     }
     this.troops.push(actor as TroopActor)
@@ -630,6 +678,10 @@ export class FishLevelGameMode extends GameMode {
       lootElixir: Math.round(this.lootElixir),
       deployed: this.deployedCount,
       aliveTroops: this.troops.length,
+      destroyRate: Math.round(this.getDestroyRate() * 100) / 100,
+      townhallDestroyed: this.isTownhallDestroyed(),
+      timeRemainingSec: this.getTimeRemainingSec(),
+      timeLimit: this.battleTimeLimit,
       buildings: this.buildings.map((b) => ({
         type: b.type.id,
         hp: Math.round(this.buildingHp.get(b) ?? 0),
@@ -676,6 +728,12 @@ export class FishLevelGameMode extends GameMode {
       logger.info(`[BattleGM] 战斗${win ? '胜利' : '失败'}：掠夺入账 +${Math.round(this.lootCoins)}金币 +${Math.round(this.lootElixir)}药水`)
     }
     this.gameState.setPhase('gameover')
+    // ─── 星级战绩/成就统计（GameInstance 注入的结算回调；普通出征 levelId=null 也统计成就）───
+    try {
+      this.onBattleOver?.()
+    } catch (e) {
+      logger.error(`[BattleGM] 星级结算异常: ${e}`)
+    }
     // ─── 结算面板 ───
     const w = this.world
     if (!w) return
@@ -690,6 +748,62 @@ export class FishLevelGameMode extends GameMode {
   /** 战斗结果快照（结算面板脚本读取） */
   getBattleResult(): { win: boolean | null; lootCoins: number; lootElixir: number } {
     return { win: this.winResult, lootCoins: Math.round(this.lootCoins), lootElixir: Math.round(this.lootElixir) }
+  }
+
+  // ════════════════════════════════════════════
+  //  星级战绩数据（结算管线消费）
+  // ════════════════════════════════════════════
+
+  /** 当前摧毁率（已摧毁建筑 hp 占比；按初始总 hp 归一） */
+  getDestroyRate(): number {
+    let total = 0
+    let remain = 0
+    for (const b of this.buildings) {
+      total += b.type.hp
+      remain += this.buildingHp.get(b) ?? b.type.hp
+    }
+    if (total <= 0) return 0
+    return Math.max(0, Math.min(1, (total - remain) / total))
+  }
+
+  /** 战斗内摧毁建筑数（成就/每日任务 destroyBuildings 上报口径 = 真实摧毁栋数） */
+  getDestroyedCount(): number {
+    return this.destroyedCount
+  }
+
+  /** 大本营是否已摧毁（星级⭐2 条件） */
+  isTownhallDestroyed(): boolean {
+    return this.getTownhall() === null
+  }
+
+  /** 剩余时间（秒，取整；HUD 倒计时显示） */
+  getTimeRemainingSec(): number {
+    return Math.ceil(this.timeRemaining)
+  }
+
+  /** 战斗时限（秒） */
+  getTimeLimit(): number {
+    return this.battleTimeLimit
+  }
+
+  // ════════════════════════════════════════════
+  //  法术施放（BattleHudScript 卡片 → 落点）
+  // ════════════════════════════════════════════
+
+  /** 选择法术卡（进入落点模式；BattleHudScript 调用） */
+  selectSpell(spellId: string): void {
+    this.spellCaster.selectSpell(spellId)
+  }
+
+  /** 当前选择的法术 id（null = 未选择） */
+  get selectedSpellId(): string | null {
+    return this.spellCaster.selectedSpellId
+  }
+
+  /** 屏幕落点施放法术（Controller 空地点击转发；优先于放兵） */
+  tryCastSpellAtScreen(sx: number, sy: number): boolean {
+    if (!this.spellCaster.selectedSpellId) return false
+    return this.spellCaster.castAtScreen(sx, sy)
   }
 
   /** 当前掠夺展示值（整数，HUD 顶部战利品栏 / 调试桥用） */

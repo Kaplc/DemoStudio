@@ -351,6 +351,57 @@
       "children": []
     },
     {
+      "name": "TimerLabel",
+      "baseClass": "Actor",
+      "id": 20020,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1],
+            "anchor": "top-right",
+            "anchorOffset": [-0.35, -0.25],
+            "worldWidth": 1.8,
+            "worldHeight": 0.45
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 6,
+            "active": true,
+            "hitTest": "visible"
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "⏱ 3:00",
+            "fontSize": 30,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "right",
+            "width": 380,
+            "height": 70,
+            "zOrder": 6,
+            "name": "TimerText",
+            "italic": false,
+            "shadowColor": "rgba(0,0,0,0.6)",
+            "shadowBlur": 5,
+            "hitTest": "visible",
+            "lineHeight": 1.4,
+            "letterSpacing": 0,
+            "fontSizeScale": 0.005
+          }
+        }
+      ],
+      "children": []
+    },
+    {
       "name": "LootBar",
       "baseClass": "Actor",
       "id": 20010,

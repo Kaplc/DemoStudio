@@ -1,0 +1,45 @@
+{
+  "_comment": "ClashMaster 成就数据表（DataTable 行表）。键=成就 id，值=成就定义。被 ProgressionService 读取（进度统计 + 领奖）。字段含义：name = 显示名（{n} 占位目标数）；type = 统计键（destroyBuildings/collectCoins/trainTroops/battleWins/clearObstacles/spellCasts）；target = 目标数量；rewardCoins/rewardElixir/rewardGems = 奖励（金币/药水/宝石）。",
+  "destroy_50": {
+    "name": "拆毁大师：累计摧毁 {n} 座建筑",
+    "type": "destroyBuildings",
+    "target": 50,
+    "rewardGems": 20
+  },
+  "destroy_200": {
+    "name": "焦土政策：累计摧毁 {n} 座建筑",
+    "type": "destroyBuildings",
+    "target": 200,
+    "rewardGems": 60
+  },
+  "collect_10000": {
+    "name": "丰收节：累计收集 {n} 金币",
+    "type": "collectCoins",
+    "target": 10000,
+    "rewardElixir": 2000
+  },
+  "train_100": {
+    "name": "练兵有道：累计训练 {n} 个兵种",
+    "type": "trainTroops",
+    "target": 100,
+    "rewardGems": 15
+  },
+  "win_20": {
+    "name": "常胜将军：取得 {n} 场战斗胜利",
+    "type": "battleWins",
+    "target": 20,
+    "rewardGems": 40
+  },
+  "clear_10": {
+    "name": "开拓者：清除 {n} 个障碍物",
+    "type": "clearObstacles",
+    "target": 10,
+    "rewardGems": 10
+  },
+  "spell_15": {
+    "name": "咒术师：施放 {n} 次法术",
+    "type": "spellCasts",
+    "target": 15,
+    "rewardGems": 25
+  }
+}

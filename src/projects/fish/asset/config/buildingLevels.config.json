@@ -1,0 +1,27 @@
+{
+  "_comment": "ClashMaster 建筑等级表（单例配置）。键=建筑类型 id，值=各等级属性数组（下标 0 = 1 级）。被 ProductionService 读取：升级费用/耗时、产出速率与积压容量、仓库容量。第 1 级数值 = 现有单级建筑数值，旧布局平移兼容。字段含义：upgradeCost = 升到该级费用（金币）；upgradeTime = 升到该级耗时（秒）；hp = 该级生命值；produceRate = 每分钟产量（金矿/水库）；storage = 积压上限（金矿/水库）；storageCap = 仓库容量（大本营）。",
+  "townhall": [
+    { "upgradeCost": 0, "upgradeTime": 0, "hp": 1000, "produceRate": 0, "storage": 0, "storageCap": 5000 },
+    { "upgradeCost": 1000, "upgradeTime": 60, "hp": 1600, "produceRate": 0, "storage": 0, "storageCap": 12000 },
+    { "upgradeCost": 5000, "upgradeTime": 300, "hp": 2400, "produceRate": 0, "storage": 0, "storageCap": 30000 }
+  ],
+  "goldmine": [
+    { "upgradeCost": 0, "upgradeTime": 0, "hp": 200, "produceRate": 120, "storage": 600, "storageCap": 0 },
+    { "upgradeCost": 300, "upgradeTime": 30, "hp": 300, "produceRate": 240, "storage": 1200, "storageCap": 0 },
+    { "upgradeCost": 1200, "upgradeTime": 120, "hp": 450, "produceRate": 480, "storage": 2400, "storageCap": 0 }
+  ],
+  "elixir": [
+    { "upgradeCost": 0, "upgradeTime": 0, "hp": 200, "produceRate": 120, "storage": 600, "storageCap": 0 },
+    { "upgradeCost": 300, "upgradeTime": 30, "hp": 300, "produceRate": 240, "storage": 1200, "storageCap": 0 },
+    { "upgradeCost": 1200, "upgradeTime": 120, "hp": 450, "produceRate": 480, "storage": 2400, "storageCap": 0 }
+  ],
+  "cannon": [
+    { "upgradeCost": 0, "upgradeTime": 0, "hp": 350, "produceRate": 0, "storage": 0, "storageCap": 0 },
+    { "upgradeCost": 500, "upgradeTime": 45, "hp": 520, "produceRate": 0, "storage": 0, "storageCap": 0 },
+    { "upgradeCost": 2000, "upgradeTime": 180, "hp": 780, "produceRate": 0, "storage": 0, "storageCap": 0 }
+  ],
+  "laboratory": [
+    { "upgradeCost": 0, "upgradeTime": 0, "hp": 450, "produceRate": 0, "storage": 0, "storageCap": 0 },
+    { "upgradeCost": 800, "upgradeTime": 60, "hp": 650, "produceRate": 0, "storage": 0, "storageCap": 0 }
+  ]
+}

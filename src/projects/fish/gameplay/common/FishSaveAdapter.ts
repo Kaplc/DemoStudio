@@ -11,13 +11,22 @@
  * 存档文件：src/projects/fish/data/save.json（SaveSlotComponent 经
  * readJsonFile/writeJsonFile IPC 落盘；扁平 KV 键，某键缺失退回该项默认值）。
  *
- * KV Schema v1：
- *   v               : 1                              —— 版本号，不符则整表作废重开
+ * KV Schema v2（v1 → v2 迁移：补 gem/等级/战绩/成就新键，v1 旧值保留）：
+ *   v               : 2                              —— 版本号，不符则整表作废重开
  *   savedAt         : ISO 时间戳                     —— 仅诊断展示
- *   resources       : { coins, elixir, ... }         —— 整钱包快照
+ *   resources       : { coins, elixir, gems }        —— 整钱包快照
  *   army            : { 兵种id: 数量 }                —— 已训练完成的军队
  *   queue           : [{ troopId, remaining }]       —— 训练队列（最小字段，恢复时查表补全）
  *   baseBuildings   : [{ id, gx, gz }]               —— 基地建筑布局（锚点格）
+ *   buildingLevels  : { buildingId: level }          —— 建筑等级（缺省 = 1）
+ *   upgradeQueue    : [{ targetId, finishAt }]       —— 建筑升级队列（0/1 项）
+ *   troopLevels     : { troopId: level }             —— 兵种研究等级（缺省 = 1）
+ *   researchQueue   : [{ targetId, finishAt }]       —— 研究队列（0/1 项）
+ *   clearQueue      : [{ targetId, finishAt }]       —— 障碍物清除队列
+ *   productionState : { lastTickAt, stored }         —— 金矿/水库积压
+ *   levelRecords    : { levelId: { bestStars, bestDestroyRate } } —— 关卡战绩
+ *   achievementProgress / achievementsClaimed       —— 成就进度/已领取
+ *   dailyTasks      : { date, tasks }                —— 每日任务
  *   clearedLevels   : string[]                       —— 通关记录（现阶段只写不读）
  *
  * 纪律：SaveSlotComponent.get<T> 返回内部对象的活引用——所有写回一律传新建对象。
@@ -32,7 +41,7 @@ import type { FishGameInstance } from '../FishGameInstance'
 /** 存档文件路径（相对仓库根；IPC 强制 .json 后缀 + 仓库根内路径） */
 export const FISH_SAVE_FILE = 'src/projects/fish/data/save.json'
 /** 存档 schema 版本（不符 → 整表作废走全新开局，下次 flush 自愈覆盖） */
-export const FISH_SAVE_VERSION = 1
+export const FISH_SAVE_VERSION = 2
 
 /** 单栋建筑的持久化条目：类型 id + 锚点格子坐标 */
 export interface SavedBuilding {
@@ -62,6 +71,7 @@ export function syncRuntimeKeys(inst: FishGameInstance): void {
   save.set('resources', {
     coins: inst.resources.get('coins'),
     elixir: inst.resources.get('elixir'),
+    gems: inst.resources.get('gems'),
   })
   // 新建对象快照（组件返回值可能是活引用，直接存会绕过 dirty 纪律）
   save.set('army', inst.training.getArmySnapshot())
@@ -90,16 +100,24 @@ export function applyRuntime(inst: FishGameInstance): void {
 
   const v = save.get<number>('v')
   if (!save.has('v') || v !== FISH_SAVE_VERSION) {
-    logger.warn(`[Fish] 存档版本不匹配(${String(v ?? '无')} ≠ ${FISH_SAVE_VERSION})，作废重开`)
-    save.clear()
-    return
+    // v1 → v2 迁移：资源键结构未变（gems 缺省补 0），等级/战绩等新键缺省即默认值，
+    // 只需把版本号写为新值即可保留旧进度；更老版本/未知版本仍作废重开。
+    if (v === 1) {
+      logger.info('[Fish] 存档 v1 → v2 迁移：保留资源/军队/布局，等级/战绩/成就从默认开始')
+      save.set('v', FISH_SAVE_VERSION)
+    } else {
+      if (save.has('v')) logger.warn(`[Fish] 存档版本不匹配(${String(v ?? '无')} ≠ ${FISH_SAVE_VERSION})，作废重开`)
+      save.clear()
+      return
+    }
   }
 
-  // 资源钱包：保证两键存在再整体 set（缺省补 INITIAL_COINS/0）
+  // 资源钱包：保证三键存在再整体 set（缺省补 INITIAL_COINS/0/0）
   const res = (save.get('resources') ?? null) as Partial<Record<string, unknown>> | null
   const resObj = res != null && typeof res === 'object' ? res : {}
   inst.resources.set('coins', toNonNegInt(resObj.coins, INITIAL_COINS))
   inst.resources.set('elixir', toNonNegInt(resObj.elixir, 0))
+  inst.resources.set('gems', toNonNegInt(resObj.gems, 0))
 
   // 军队：按兵种表过滤未知 id 与非法数量
   const armyRaw = (save.get('army') ?? null) as Partial<Record<string, unknown>> | null
@@ -155,7 +173,7 @@ export function sanitizeBuildings(raw: unknown): SavedBuilding[] {
 // ════════════════════════════════════════════
 
 /**
- * 清除存档并重置运行时为全新开局（金币=INITIAL_COINS、药水=0、军队/队列清空、
+ * 清除存档并重置运行时为全新开局（金币=INITIAL_COINS、药水=0、宝石=0、军队/队列清空、
  * baseBuildings 键删除）。资源回调会把默认钱包重新写回 KV 并带上新版本号；
  * 若正处于基地阶段由调用方（FishGameInstance.resetSave）负责清掉场景中的既有布局。
  */
@@ -163,6 +181,7 @@ export function resetRuntimeAndKeys(inst: FishGameInstance): void {
   inst.save.clear()
   inst.resources.set('coins', INITIAL_COINS)
   inst.resources.set('elixir', 0)
+  inst.resources.set('gems', 0)
   inst.training.resetAll()
   deleteClearedLevels(inst.save)
   writeMetaKeys(inst)

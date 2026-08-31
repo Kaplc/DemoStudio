@@ -30,6 +30,7 @@ import { TroopHealthComponent } from './TroopHealthComponent'
 import { TroopTargetComponent } from './TroopTargetComponent'
 import { TroopMoveComponent } from './TroopMoveComponent'
 import { TroopAttackComponent } from './TroopAttackComponent'
+import { WallBreakerAbilityComponent, HealerAbilityComponent } from './AbilityComponents'
 import { TroopHealthBarComponent } from '../../common/comp/TroopHealthBarComponent'
 
 /** 兵部署参数（acquire 时传入） */
@@ -116,12 +117,18 @@ export abstract class PoolableTroopActor extends GenericActor implements TroopAc
         }
       }
 
-      // 战斗组件只挂一次
-      this.addComponent(this.health)
+      // 战斗组件只挂一次（类版：owner 自动传入）
+      this.health = this.addComponent(TroopHealthComponent, gm, troop)
       this.addComponent(TroopHealthBarComponent, troop)
       this.addComponent(TroopTargetComponent, gm, troop)
       this.addComponent(TroopMoveComponent, gm, troop)
       this.addComponent(TroopAttackComponent, gm, troop)
+      // 兵种专属能力（troop.ability 配置驱动；wallBreaker = 倍伤自爆，healer = 周期治疗）
+      if (troop.ability?.type === 'wallBreaker') {
+        this.addComponent(WallBreakerAbilityComponent, gm, troop.ability)
+      } else if (troop.ability?.type === 'healer') {
+        this.addComponent(HealerAbilityComponent, gm, troop.ability)
+      }
       this._assembled = true
     }
 

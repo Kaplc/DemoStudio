@@ -18,6 +18,7 @@ import type { FishBaseGameMode } from './FishBaseGameMode'
 const BUILDING_BUTTONS: Readonly<Record<string, string>> = {
   Btn_townhall: 'townhall',
   Btn_barracks: 'barracks',
+  Btn_laboratory: 'laboratory',
   Btn_goldmine: 'goldmine',
   Btn_elixir: 'elixir',
   Btn_cannon: 'cannon',

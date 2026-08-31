@@ -508,6 +508,98 @@
           ]
         },
         {
+          "name": "GemPill",
+          "baseClass": "Actor",
+          "id": 11060,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "top-left",
+                "anchorOffset": [2.85, -0.07],
+                "worldWidth": 1.05,
+                "worldHeight": 0.25
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#1b4d2e",
+                "radius": 18,
+                "width": 420,
+                "height": 110,
+                "name": "GemPillFrame",
+                "zOrder": 1
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "GemLabel",
+              "baseClass": "Actor",
+              "id": 11062,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1,
+                    "worldHeight": 0.3
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "💎 0",
+                    "fontSize": 28,
+                    "color": "#7cffb2",
+                    "bold": true,
+                    "align": "left",
+                    "width": 380,
+                    "height": 70,
+                    "zOrder": 3,
+                    "name": "GemText",
+                    "italic": false,
+                    "shadowColor": "rgba(0,0,0,0.6)",
+                    "shadowBlur": 6,
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.00625
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
           "name": "TitleLabel",
           "baseClass": "Actor",
           "id": 11005,
@@ -749,7 +841,7 @@
               "baseClass": "UITransformComponent",
               "properties": {
                 "position": [
-                  -0.62,
+                  -1.25,
                   0.040000000000000036,
                   0
                 ],
@@ -765,7 +857,7 @@
                 ],
                 "anchor": "bottom-center",
                 "anchorOffset": [
-                  -0.62,
+                  -1.25,
                   0.14
                 ],
                 "worldWidth": 1,
@@ -916,6 +1008,136 @@
           ]
         },
         {
+          "name": "Btn_tasks",
+          "baseClass": "Actor",
+          "id": 13110,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "bottom-center",
+                "anchorOffset": [0, 0.14],
+                "worldWidth": 1,
+                "worldHeight": 0.55
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0,
+                "active": true,
+                "hitTest": "visible"
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "name": "TasksButton"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Frame_tasks",
+              "baseClass": "Actor",
+              "id": 13111,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 1.08,
+                    "worldHeight": 0.62
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 14,
+                    "active": true,
+                    "hitTest": "visible"
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#64b5f6",
+                    "radius": 18,
+                    "width": 216,
+                    "height": 124,
+                    "name": "BtnFrame",
+                    "zOrder": 14,
+                    "opacity": 1,
+                    "hitTest": "visible"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Label_tasks",
+              "baseClass": "Actor",
+              "id": 13112,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "anchor": "center",
+                    "anchorOffset": [0, 0],
+                    "worldWidth": 0.95,
+                    "worldHeight": 0.4
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0,
+                    "active": true,
+                    "hitTest": "visible"
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "📋 任务",
+                    "fontSize": 26,
+                    "color": "#0d253f",
+                    "bold": true,
+                    "align": "center",
+                    "width": 200,
+                    "height": 60,
+                    "zOrder": 4,
+                    "name": "Label",
+                    "italic": false,
+                    "shadowColor": "rgba(255,255,255,0.3)",
+                    "shadowBlur": 2,
+                    "lineHeight": 1.4,
+                    "letterSpacing": 0,
+                    "fontSizeScale": 0.006667
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
           "name": "Btn_map",
           "baseClass": "Actor",
           "id": 13100,
@@ -924,7 +1146,7 @@
               "baseClass": "UITransformComponent",
               "properties": {
                 "position": [
-                  0.62,
+                  1.25,
                   0.040000000000000036,
                   0
                 ],
@@ -940,7 +1162,7 @@
                 ],
                 "anchor": "bottom-center",
                 "anchorOffset": [
-                  0.62,
+                  1.25,
                   0.14
                 ],
                 "worldWidth": 1,

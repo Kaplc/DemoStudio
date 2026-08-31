@@ -32,6 +32,9 @@ export class TroopHealthComponent extends ActorComponent {
     this._hp = troop.hp
   }
 
+  /** 狂暴标记（RageAura 每帧写入，Move/Attack 每帧读取后清零；>1 表示增益中） */
+  rageMark = 1
+
   /** 当前生命值 */
   get hp(): number {
     return this._hp
@@ -48,6 +51,23 @@ export class TroopHealthComponent extends ActorComponent {
   resetHp(): void {
     this._hp = this.troop.hp
     this._dead = false
+    this.rageMark = 1
+  }
+
+  /**
+   * 恢复生命值（治疗师/治疗法术共用入口）：
+   * clamp 到最大 hp（不溢出）；已死亡不可治疗。
+   * @returns 实际恢复量
+   */
+  heal(amount: number): number {
+    if (this._dead || amount <= 0) return 0
+    const before = this._hp
+    this._hp = Math.min(this.troop.hp, this._hp + amount)
+    const got = this._hp - before
+    if (got > 0) {
+      this.owner.getComponent(TroopHealthBarComponent)?.onDamaged(this._hp / this.troop.hp)
+    }
+    return got
   }
 
   /**

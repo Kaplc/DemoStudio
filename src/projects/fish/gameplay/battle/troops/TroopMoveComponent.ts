@@ -18,6 +18,7 @@ import { ClashBuildingBaseActor } from '../../base/ClashBuildingActors'
 import type { TroopType } from '../../common/types'
 import type { TroopActor } from './TroopActors'
 import { TroopTargetComponent, troopAttackDist } from './TroopTargetComponent'
+import { TroopHealthComponent } from './TroopHealthComponent'
 
 export class TroopMoveComponent extends ActorComponent {
   private readonly troop: TroopType
@@ -227,6 +228,11 @@ export class TroopMoveComponent extends ActorComponent {
       }
     }
 
+    // 狂暴增益：读 rage 标记（光环组件每帧写入），用后清零回 1
+    const health = this.owner.getComponent(TroopHealthComponent)
+    const speedMul = health?.rageMark ?? 1
+    if (health) health.rageMark = 1
+
     // 取移动方向
     let dirX = dx2
     let dirZ = dz2
@@ -255,7 +261,8 @@ export class TroopMoveComponent extends ActorComponent {
       return
     }
 
-    this.collider.setVelocity((dirX / d) * this.troop.speed, (dirZ / d) * this.troop.speed)
+    const speed = this.troop.speed * speedMul
+    this.collider.setVelocity((dirX / d) * speed, (dirZ / d) * speed)
   }
 
   override OnDrawGizmos(): void {

@@ -10,14 +10,17 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, GameInstance, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
-import { ClashBuildingBaseActor, BarracksActor } from './ClashBuildingActors'
+import { ClashBuildingBaseActor, BarracksActor, LaboratoryActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 import { PlaceGridActor } from './PlaceGridActor'
+import { clearObstacleReward, spawnObstaclesForBase, finishObstacleClear, obstacleCount } from './ObstacleSystem'
+import { fastForwardGemCost } from './ProductionService'
+import type { FishGameInstance } from '../FishGameInstance'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -39,6 +42,8 @@ export class FishBaseGameMode extends GameMode {
   private clashBuildings: ClashBuildingBaseActor[] = []
   /** 网格占用表：`${gx},${gz}` → 建筑 */
   private gridOccupied = new Map<string, ClashBuildingBaseActor>()
+  /** 障碍物占用集合（与建筑共用格子判断；`${gx},${gz}` 键） */
+  private obstacleOccupied = new Set<string>()
   /** 当前选择的建筑类型（null = 未进入放置模式） */
   private selectedType: ClashBuildingType | null = null
   /** 当前选中的已放置建筑 */
@@ -50,6 +55,10 @@ export class FishBaseGameMode extends GameMode {
   private placeGridActor: PlaceGridActor | null = null
   /** 兵营专属 UI 面板（打开时隐藏建造菜单 base_hud，关闭时恢复） */
   private barracksPanel: Actor | null = null
+  /** 实验室专属 UI 面板（研究入口，打开时互斥关闭其他模态） */
+  private laboratoryPanel: Actor | null = null
+  /** 任务面板（成就 + 每日任务，打开时互斥关闭其他模态） */
+  private tasksPanel: Actor | null = null
   /** 建筑模式状态（true = 建筑菜单显示，可放置/移动/删除建筑） */
   private buildMode = false
   /** 建筑菜单 UI Actor（build_menu.widget.json，根 active:false 默认隐藏，建筑模式才显示） */
@@ -61,6 +70,9 @@ export class FishBaseGameMode extends GameMode {
   /** 模态 UI 打开中（存档菜单）：屏蔽地面点击，防面板下点穿操作建筑 */
   uiModalOpen = false
 
+  /** 外部设置：每帧基地经营回调（收集气泡/进度刷新，FishGameInstance.tick base 分支驱动） */
+  onBaseTick: (() => void) | null = null
+
 
   /** 外部设置：点击"出征战斗"后的回调 */
   onStartFishing: (() => void) | null = null
@@ -70,6 +82,8 @@ export class FishBaseGameMode extends GameMode {
   onBuildModeChange: ((active: boolean) => void) | null = null
   /** 外部设置：兵营面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
   onBarracksPanelChange: ((open: boolean) => void) | null = null
+  /** 外部设置：任务面板开关广播（BaseHudScript 注册 → HUD 自行隐藏/恢复） */
+  onTasksPanelChange: ((open: boolean) => void) | null = null
   /** 外部设置：初始布局构建完成（BeginPlay 末尾触发一次；持久化恢复门控用） */
   onLayoutBuilt: (() => void) | null = null
   /** 外部设置：布局变化广播（放置/移动/删除成功后；持久化采集用，恢复期由宿主静音） */
@@ -101,6 +115,8 @@ export class FishBaseGameMode extends GameMode {
     // 基地地图由专门的构建类创建（地面/草地/初始建筑布局），放置回调走本 GameMode 的 placeBuilding
     this.baseBuilder = new ClashBaseBuilder(this.world!)
     this.baseBuilder.build((id, gx, gz) => this.placeBuilding(id, gx, gz))
+    // 障碍物生成（树/石头，占格不可建；存档快照恢复由宿主层处理，这里按存档键补差）
+    spawnObstaclesForBase(this)
     // 创建放置示意网格（默认隐藏，进入放置模式时显示）
     this.createPlaceGrid()
     // 预生成建筑菜单（根 active:false 默认隐藏，建筑模式才显示）
@@ -166,6 +182,7 @@ export class FishBaseGameMode extends GameMode {
     if (!w || this.saveMenuPanel) return
     // 与建筑菜单/地图面板互斥单向：打开本面板先收起其他模态
     if (this.mapPanel) this.closeMapPanel()
+    if (this.tasksPanel) this.closeTasksPanel()
     this.exitBuildMode()
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/save_menu.widget.json')
     if (!panel) {
@@ -323,6 +340,10 @@ export class FishBaseGameMode extends GameMode {
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     if (this.gridOccupied.has(key)) return false
+    if (this.obstacleOccupied.has(key)) {
+      logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 被障碍物占用`)
+      return false
+    }
     // 物理查询：与已放置建筑（static 碰撞体）重叠则拒绝（建筑半宽 = type.size/2）
     const half = type.size / 2
     if (this.world!.physics.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
@@ -347,16 +368,31 @@ export class FishBaseGameMode extends GameMode {
     return true
   }
 
-  /** 点击已放置建筑：兵营 → 打开兵营专属 UI（隐藏建造菜单）；其他建筑选中（高亮）/ 取消选中 */
+  /** 点击已放置建筑：兵营/实验室打开专属面板，金矿/水库收集，其他建筑选中（高亮）/ 取消选中 */
   onBuildingClick(b: ClashBuildingBaseActor) {
     if (this.uiModalOpen) return // 模态 UI 打开中，屏蔽建筑选中/面板穿透
-    // 非建筑模式：只有兵营可打开面板，其他建筑不响应选中/移动
-    if (!this.buildMode && !(b instanceof BarracksActor)) return
+    const inst = this.gameInstance
     // 兵营：打开兵营专属 UI，不进入选中/移动模式
     if (b instanceof BarracksActor) {
       this.openBarracksPanel()
       return
     }
+    // 实验室：打开研究面板（等级不足时也允许查看）
+    if (b instanceof LaboratoryActor) {
+      this.openLaboratoryPanel()
+      return
+    }
+    // 金矿/水库：点击收集（积压 > 0 时收集入仓；建筑模式内仍走选中移动）
+    if (!this.buildMode && inst && (b.type.id === 'goldmine' || b.type.id === 'elixir')) {
+      const got = inst.production.collect(b.type.id === 'goldmine' ? 'goldmine' : 'elixir')
+      if (got > 0) {
+        logger.info(`[BaseGM] 收集 ${b.type.name}: +${got}（点击收集）`)
+        return
+      }
+      // 积压为 0 或仓库满 → 落回选中/移动逻辑
+    }
+    // 非建筑模式：其余建筑不响应选中/移动
+    if (!this.buildMode) return
     if (this.selectedBuilding === b) {
       this.deselectBuilding()
     } else {
@@ -366,6 +402,11 @@ export class FishBaseGameMode extends GameMode {
       // 退出放置模式，进入移动模式：点击地面移动建筑
       this.cancelPlaceMode()
     }
+  }
+
+  /** GameInstance 引用（生产/进度服务互调用） */
+  get gameInstance(): FishGameInstance | null {
+    return GameInstance.current as FishGameInstance | null
   }
 
   /**
@@ -380,6 +421,8 @@ export class FishBaseGameMode extends GameMode {
     this.cancelPlaceMode()
     // 地图面板与兵营面板互斥：打开兵营时关闭地图面板（建筑菜单独立控制，见下）
     this.closeMapPanel()
+    if (this.laboratoryPanel) this.closeLaboratoryPanel()
+    if (this.tasksPanel) this.closeTasksPanel()
     // 广播兵营面板开启：HUD 由 BaseHudScript 自行隐藏（组件自治，GameMode 不直接操控 HUD）
     this.onBarracksPanelChange?.(true)
     // 建筑模式下同步隐藏建筑菜单（兵营面板打开时互斥）
@@ -405,6 +448,163 @@ export class FishBaseGameMode extends GameMode {
     // 建筑模式下恢复建筑菜单
     if (this.buildMode && this.buildMenuPanel) this.buildMenuPanel.bActive = true
     logger.info('[BaseGM] 关闭兵营 UI，恢复建造菜单')
+  }
+
+  // ════════════════════════════════════════════
+  //  实验室面板（兵种研究入口）
+  // ════════════════════════════════════════════
+
+  /** 打开实验室面板（laboratory_ui.widget.json，互斥关闭其他模态） */
+  private openLaboratoryPanel() {
+    const w = this.world
+    if (!w || this.laboratoryPanel) return
+    this.deselectBuilding()
+    this.cancelPlaceMode()
+    this.closeMapPanel()
+    if (this.barracksPanel) this.closeBarracksPanel()
+    if (this.tasksPanel) this.closeTasksPanel()
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/laboratory_ui.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 实验室 UI 生成失败')
+      return
+    }
+    this.laboratoryPanel = panel
+    logger.info('[BaseGM] 打开实验室 UI')
+  }
+
+  /** 关闭实验室面板（脚本关闭按钮调用） */
+  closeLaboratoryPanel() {
+    if (!this.laboratoryPanel) return
+    this.laboratoryPanel.destroy()
+    this.laboratoryPanel = null
+    logger.info('[BaseGM] 关闭实验室 UI')
+  }
+
+  // ════════════════════════════════════════════
+  //  任务面板（成就 + 每日任务）
+  // ════════════════════════════════════════════
+
+  /** 切换任务面板（HUD"任务"按钮调用） */
+  toggleTasksPanel() {
+    if (this.tasksPanel) this.closeTasksPanel()
+    else this.openTasksPanel()
+  }
+
+  /** 打开任务面板（tasks_ui.widget.json，互斥关闭其他模态） */
+  private openTasksPanel() {
+    const w = this.world
+    if (!w || this.tasksPanel) return
+    this.exitBuildMode()
+    this.closeMapPanel()
+    if (this.barracksPanel) this.closeBarracksPanel()
+    if (this.laboratoryPanel) this.closeLaboratoryPanel()
+    const panel = w.ui.spawnUIActor('asset/blueprints/ui/tasks_ui.widget.json')
+    if (!panel) {
+      logger.error('[BaseGM] 任务面板生成失败')
+      return
+    }
+    this.tasksPanel = panel
+    this.onTasksPanelChange?.(true)
+    logger.info('[BaseGM] 打开任务面板（成就 + 每日任务）')
+  }
+
+  /** 关闭任务面板（脚本关闭按钮调用） */
+  closeTasksPanel() {
+    if (!this.tasksPanel) return
+    this.tasksPanel.destroy()
+    this.tasksPanel = null
+    this.onTasksPanelChange?.(false)
+    logger.info('[BaseGM] 关闭任务面板')
+  }
+
+  // ════════════════════════════════════════════
+  //  建筑升级（点击升级入口由建筑面板/调试桥调用）
+  // ════════════════════════════════════════════
+
+  /** 升级指定建筑（资源/队列校验在 ProductionService；成功后记录日志） */
+  upgradeBuilding(buildingId: string): boolean {
+    const inst = this.gameInstance
+    if (!inst) return false
+    const ok = inst.production.startBuildingUpgrade(buildingId)
+    if (ok) logger.info(`[BaseGM] 建筑升级已排队: ${buildingId}（升级中不可删除/再次升级）`)
+    return ok
+  }
+
+  /** 宝石秒完成当前升级（折算规则见 fastForwardGemCost） */
+  fastForwardUpgrade(): boolean {
+    const inst = this.gameInstance
+    const timer = inst?.production.getUpgrading()
+    if (!inst || !timer) return false
+    return inst.production.fastForward(timer, '建筑升级', (t) => {
+      // 立即结算：把 finishAt 拨到过去，下一帧 updateTimers 自然完成
+      t.finishAt = Date.now() - 1
+    })
+  }
+
+  /** 升级费用预览（面板显示；未配表返回 null） */
+  upgradePreview(buildingId: string): { cost: number, time: number, nextLevel: number, maxed: boolean } | null {
+    const inst = this.gameInstance
+    if (!inst) return null
+    const next = inst.production.getBuildingLevel(buildingId) + 1
+    const stats = inst.production.buildingStats(buildingId, next)
+    if (!stats) return { cost: 0, time: 0, nextLevel: next, maxed: true }
+    return { cost: stats.upgradeCost, time: stats.upgradeTime, nextLevel: next, maxed: false }
+  }
+
+  /** 当前升级剩余秒数（HUD/面板显示；无升级返回 null） */
+  upgradeRemainingSec(): number | null {
+    const t = this.gameInstance?.production.getUpgrading()
+    if (!t) return null
+    return Math.max(0, Math.ceil((t.finishAt - Date.now()) / 1000))
+  }
+
+  /** 加速费用（宝石数；无升级返回 null） */
+  upgradeFastForwardCost(): number | null {
+    const t = this.gameInstance?.production.getUpgrading()
+    if (!t) return null
+    return fastForwardGemCost(Math.max(0, Math.ceil((t.finishAt - Date.now()) / 1000)))
+  }
+
+  // ════════════════════════════════════════════
+  //  障碍物（ObstacleSystem 回调）
+  // ════════════════════════════════════════════
+
+  /** 障碍物点击清除入口（ObstacleSystem 内部绑定到 ClickableComponent） */
+  clearObstacle(id: string): boolean {
+    const inst = this.gameInstance
+    if (!inst) return false
+    return clearObstacleReward(this, id)
+  }
+
+  /** 清除完成回调（ProductionService.updateTimers → 宿主 → 本方法）：移除占格并掉落 */
+  onObstacleCleared(id: string): void {
+    finishObstacleClear(this, id)
+  }
+
+  // ════════════════════════════════════════════
+  //  障碍物占格 API（ObstacleSystem 调用）
+  // ════════════════════════════════════════════
+
+  /** 格子是否空闲（建筑占用表 + 障碍物占用集合 + 放置范围） */
+  isGridFree(gx: number, gz: number): boolean {
+    if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
+    const key = `${gx},${gz}`
+    return !this.gridOccupied.has(key) && !this.obstacleOccupied.has(key)
+  }
+
+  /** 障碍物占用格子（放置成功后调用） */
+  occupyObstacleGrid(gx: number, gz: number): void {
+    this.obstacleOccupied.add(`${gx},${gz}`)
+  }
+
+  /** 障碍物释放格子（清除完成后调用） */
+  freeObstacleGrid(gx: number, gz: number): void {
+    this.obstacleOccupied.delete(`${gx},${gz}`)
+  }
+
+  /** 当前场上障碍物数量（GM/调试桥用） */
+  get obstacleTotal(): number {
+    return obstacleCount(this)
   }
 
   private deselectBuilding() {
@@ -615,6 +815,8 @@ export class FishBaseGameMode extends GameMode {
     this.placeGridActor = null
     // 兵营面板是 UI Actor，由 World 销毁时 UIManager.destroyAll 统一销毁，这里只清引用
     this.barracksPanel = null
+    this.laboratoryPanel = null
+    this.tasksPanel = null
     this.buildMenuPanel = null
     this.mapPanel = null
     // 存档菜单同理只清引用；模态标记复位（场景已销毁）
@@ -623,6 +825,7 @@ export class FishBaseGameMode extends GameMode {
     this.buildMode = false
     this.clashBuildings = []
     this.gridOccupied.clear()
+    this.obstacleOccupied.clear()
     this.selectedType = null
     this.selectedBuilding = null
   }

@@ -7,22 +7,22 @@
 
 | 系统 | 模块文档 | 优先级 | 状态 |
 |---|---|---|---|
-| 基地经营 | [建筑升级](base/building-upgrade.md) | P0 | 规划中 |
-| 基地经营 | [资源产出与收集](base/resource-collection.md) | P0 | 规划中 |
-| 基地经营 | [兵种升级（实验室与研究）](base/troop-upgrade.md) | P0 | 规划中 |
-| 基地经营 | [障碍物清除与装饰品商店](base/obstacle-decor.md) | P3 | 规划中 |
-| 单位与战斗 | [兵种专属技能（炸弹人/治疗师）](battle/troop-abilities.md) | P1 | 规划中 |
-| 单位与战斗 | [战斗时限](battle/battle-timer.md) | P2 | 规划中 |
-| 单位与战斗 | [法术系统](battle/spell.md) | P2 | 规划中 |
+| 基地经营 | [建筑升级](base/building-upgrade.md) | P0 | 已实现 |
+| 基地经营 | [资源产出与收集](base/resource-collection.md) | P0 | 已实现 |
+| 基地经营 | [兵种升级（实验室与研究）](base/troop-upgrade.md) | P0 | 已实现 |
+| 基地经营 | [障碍物清除与装饰品商店](base/obstacle-decor.md) | P3 | 部分实现（障碍物已做，装饰品商店未做） |
+| 单位与战斗 | [兵种专属技能（炸弹人/治疗师）](battle/troop-abilities.md) | P1 | 已实现 |
+| 单位与战斗 | [战斗时限](battle/battle-timer.md) | P2 | 已实现 |
+| 单位与战斗 | [法术系统](battle/spell.md) | P2 | 已实现 |
 | 单位与战斗 | [英雄系统](battle/hero.md) | P2 | 规划中 |
-| 成长与进度 | [星级战绩评价](progression/star-rating.md) | P1 | 规划中 |
-| 成长与进度 | [关卡进度解锁](progression/level-unlock.md) | P1 | 规划中 |
-| 经济 | [宝石货币](economy/gem.md) | P2 | 规划中 |
+| 成长与进度 | [星级战绩评价](progression/star-rating.md) | P1 | 已实现 |
+| 成长与进度 | [关卡进度解锁](progression/level-unlock.md) | P1 | 已实现 |
+| 经济 | [宝石货币](economy/gem.md) | P2 | 已实现 |
 | 社交 | [部落与援军](social/clan.md) | P3 | 规划中（依赖后端） |
 | 社交 | [联机 PvP 与防守战报](social/pvp.md) | P3 | 规划中（依赖后端） |
 | 周边 | [新手引导](meta/tutorial.md) | P3 | 规划中 |
 | 周边 | [音频系统](meta/audio.md) | P3 | 规划中 |
-| 周边 | [成就与每日任务](meta/achievement.md) | P3 | 规划中 |
+| 周边 | [成就与每日任务](meta/achievement.md) | P3 | 已实现 |
 
 ## 总体路线
 

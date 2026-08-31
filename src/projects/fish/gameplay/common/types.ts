@@ -197,6 +197,34 @@ export type TroopTarget = 'ground' | 'both'
 /** 兵种攻击偏好（决定索敌优先级） */
 export type TroopPreferred = 'any' | 'defenses' | 'resources' | 'walls'
 
+/** 兵种单级属性（troop.table.json levels[] 的一项；第 1 级 = 现有单级数值） */
+export interface TroopLevelStats {
+  /** 生命值 */
+  hp: number
+  /** 每秒伤害 */
+  dps: number
+  /** 训练费用（金币） */
+  cost: number
+  /** 升到该级的研究费用（药水；level 1 无意义） */
+  researchCost?: number
+  /** 升到该级的研究耗时（秒；level 1 无意义） */
+  researchTime?: number
+}
+
+/** 兵种专属能力配置（可选；wallBreaker = 破墙倍伤自爆，healer = 周期治疗） */
+export interface TroopAbility {
+  /** 能力类型 */
+  type: 'wallBreaker' | 'healer'
+  /** wallBreaker：对城墙伤害倍率 */
+  wallDamageMultiplier?: number
+  /** healer：单次治疗量 */
+  healAmount?: number
+  /** healer：治疗周期（秒） */
+  healInterval?: number
+  /** healer：治疗半径（世界单位） */
+  healRadius?: number
+}
+
 /** 兵种配置行（DataTable 行表，对应 troop.table.json 的每一行） */
 export interface TroopType {
   /** 显示名 */
@@ -229,6 +257,18 @@ export interface TroopType {
   color: number
   /** 兵种模型蓝图路径（胶囊体模型，如 'asset/blueprints/troops/barbarian.blueprint.json'） */
   blueprint: string
+  /** 等级属性行（可选；缺失 = 单级兵种，全部按基础行，旧表兼容） */
+  levels?: TroopLevelStats[]
+  /** 专属能力配置（可选；wallBreaker/healer 由战斗装配消费） */
+  ability?: TroopAbility
+}
+
+/** 按兵种等级取属性行（levels 缺失/越界时回退基础行自身，兼容旧表） */
+export function troopLevel(troop: TroopType, level: number): TroopLevelStats {
+  const idx = Math.max(0, Math.min(level - 1, (troop.levels?.length ?? 0) - 1))
+  const row = troop.levels?.[idx]
+  if (!row) return { hp: troop.hp, dps: troop.dps, cost: troop.cost }
+  return { hp: row.hp, dps: row.dps, cost: row.cost }
 }
 
 /** 兵种配置默认值（JSON 未加载时的同步 fallback） */
@@ -311,5 +351,46 @@ export interface LevelType {
   pos: [number, number]
   /** 难度星级（1~5，占位显示） */
   stars: number
+  /** 解锁条件（可选）：前置关卡 id + 所需星级（第 1 关不填默认解锁） */
+  unlockRequirement?: { levelId: string, stars: number }
+  /** 战斗时限（秒，可选；默认 180，特殊关卡可自定义） */
+  timeLimit?: number
 }
 
+// ════════════════════════════════════════════
+//  法术 / 成就与每日任务配置
+// ════════════════════════════════════════════
+
+/** 法术配置行（DataTable 行表，对应 spell.table.json 的每一行） */
+export interface SpellType {
+  /** 显示名 */
+  name: string
+  /** 描述 */
+  desc: string
+  /** 施放消耗（药水，战斗内即扣即用） */
+  cost: number
+  /** 效果半径（世界单位） */
+  radius: number
+  /** 效果类型：damage 范围伤害 / heal 范围治疗 / rage 攻速移速增益 */
+  effect: 'damage' | 'heal' | 'rage'
+  /** 效果数值：damage=总伤害 / heal=总治疗 / rage=倍率 */
+  value: number
+  /** 增益持续时间（秒，rage 用） */
+  duration: number
+  /** 主体颜色（#rrggbb，加载时归一化为数字） */
+  color: number
+}
+
+/** 成就/每日任务配置行（achievement.table.json / daily.table.json 行表） */
+export interface TaskType {
+  /** 显示名（{n} 占位目标数） */
+  name: string
+  /** 统计键：progress 按此累计 */
+  type: 'destroyBuildings' | 'collectCoins' | 'trainTroops' | 'battleWins' | 'clearObstacles' | 'spellCasts'
+  /** 目标数量 */
+  target: number
+  /** 奖励：金币 / 药水 / 宝石 */
+  rewardCoins?: number
+  rewardElixir?: number
+  rewardGems?: number
+}

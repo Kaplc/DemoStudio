@@ -384,6 +384,51 @@
           "children": []
         },
         {
+          "name": "StarsLabel",
+          "baseClass": "Actor",
+          "id": 21009,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [0, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+                "anchor": "center",
+                "anchorOffset": [0, -0.4],
+                "worldWidth": 4.6,
+                "worldHeight": 0.5
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 1
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "☆☆☆ 摧毁 0%",
+                "fontSize": 34,
+                "color": "#ffd700",
+                "bold": true,
+                "align": "center",
+                "width": 800,
+                "height": 70,
+                "zOrder": 3,
+                "name": "StarsText",
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.6)",
+                "shadowBlur": 5
+              }
+            }
+          ],
+          "children": []
+        },
+        {
           "name": "Btn_returnBase",
           "baseClass": "Actor",
           "id": 21006,

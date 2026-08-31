@@ -12,40 +12,40 @@
 
 ## 迭代批次
 
-### 第一批（P0）经营闭环
+### 第一批（P0）经营闭环 ✅ 已完成
 
 目标：让基地从静态摆设变成可经营的系统，打通"产出 → 积累 → 升级"循环。
 
-- [建筑升级](base/building-upgrade.md)
-- [资源产出与收集](base/resource-collection.md)
-- [兵种升级](base/troop-upgrade.md)（复用建筑升级的计时/离线结算体系）
+- [建筑升级](base/building-upgrade.md) ✅
+- [资源产出与收集](base/resource-collection.md) ✅
+- [兵种升级](base/troop-upgrade.md)（复用建筑升级的计时/离线结算体系）✅
 
 里程碑：玩家不战斗也能通过经营推进数值；战斗收益成为升级材料来源。
 
-### 第二批（P1）玩法体验
+### 第二批（P1）玩法体验 ✅ 已完成
 
 目标：补齐战斗手感与进度感。
 
-- [兵种专属技能](battle/troop-abilities.md)（炸弹人/治疗师，代码已预留扩展点）
-- [星级战绩评价](progression/star-rating.md)
-- [关卡进度解锁](progression/level-unlock.md)（以星级为解锁条件）
+- [兵种专属技能](battle/troop-abilities.md)（炸弹人/治疗师）✅
+- [星级战绩评价](progression/star-rating.md) ✅
+- [关卡进度解锁](progression/level-unlock.md)（以星级为解锁条件）✅
 
 里程碑：一局战斗有三星追求；关卡有"打下一关"的动力。
 
-### 第三批（P2）系统深度
+### 第三批（P2）系统深度 ✅ 大部分完成
 
-- [战斗时限](battle/battle-timer.md)
-- [宝石货币](economy/gem.md)（加速/秒完成依赖建造与研究的计时体系）
-- [法术系统](battle/spell.md)
-- [英雄系统](battle/hero.md)
+- [战斗时限](battle/battle-timer.md) ✅
+- [宝石货币](economy/gem.md)（加速/秒完成依赖建造与研究的计时体系）✅
+- [法术系统](battle/spell.md) ✅（火球/治疗/狂暴三法术）
+- [英雄系统](battle/hero.md) 规划中（延后）
 
-### 第四批（P3）生态扩展
+### 第四批（P3）生态扩展 ◐ 部分完成
 
-- [新手引导](meta/tutorial.md)（视情况可提前到第二批后插入）
-- [音频系统](meta/audio.md)
-- [成就与每日任务](meta/achievement.md)（宝石的稳定产出渠道，与宝石联动）
-- [障碍物清除与装饰品商店](base/obstacle-decor.md)
-- [部落与援军](social/clan.md) / [联机 PvP 与防守战报](social/pvp.md)（依赖后端，最后启动）
+- [新手引导](meta/tutorial.md) 规划中
+- [音频系统](meta/audio.md) 规划中
+- [成就与每日任务](meta/achievement.md)（宝石的稳定产出渠道，与宝石联动）✅
+- [障碍物清除与装饰品商店](base/obstacle-decor.md) ◐ 障碍物清除已实现（树/石头/宝石掉落），装饰品商店未做
+- [部落与援军](social/clan.md) / [联机 PvP 与防守战报](social/pvp.md) 依赖后端，规划中
 
 ## 模块依赖关系
 

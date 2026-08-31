@@ -1,5 +1,5 @@
 {
-  "_comment": "ClashMaster 兵种数据表（DataTable 行表，部落冲突风格）。键=兵种 id，值=兵种属性。\n被 FishBaseGameMode 读取（打开兵营 UI 时列出可训练兵种）。\n字段含义：\n  name = 显示名；desc = 描述；\n  housing = 占用兵营空间；cost = 训练费用（金币）；trainTime = 训练时间（秒）；\n  hp = 生命值；dps = 每秒伤害（0 = 无伤害，如治疗师）；\n  range = 攻击距离（世界单位，近战填 0.5）；\n  speed = 移动速度（世界单位/秒）；target = 目标类型（ground/both）；\n  preferred = 攻击偏好（any/defenses/resources/walls）；\n  size = 渲染尺寸 [宽, 高, 深]；flying = 是否飞行单位；\n  color = 主体颜色 #rrggbb（加载时由 transform 归一化为数字）。",
+  "_comment": "ClashMaster 兵种数据表（DataTable 行表，部落冲突风格）。键=兵种 id，值=兵种属性。\n被 FishBaseGameMode 读取（打开兵营 UI 时列出可训练兵种）。\n字段含义：\n  name = 显示名；desc = 描述；\n  housing = 占用兵营空间；cost = 训练费用（金币，1 级值）；trainTime = 训练时间（秒）；\n  hp = 生命值（1 级值）；dps = 每秒伤害（0 = 无伤害，如治疗师）；\n  range = 攻击距离（世界单位，近战填 0.5）；\n  speed = 移动速度（世界单位/秒）；target = 目标类型（ground/both）；\n  preferred = 攻击偏好（any/defenses/resources/walls）；\n  size = 渲染尺寸 [宽, 高, 深]；flying = 是否飞行单位；\n  color = 主体颜色 #rrggbb（加载时由 transform 归一化为数字）。\n  levels = 各等级属性行（可选，兵种升级/实验室研究用；第 1 级 = 上述基础值）。\n  ability = 专属能力（可选：wallBreaker 破墙倍伤自爆 / healer 周期治疗）。",
   "barbarian": {
     "name": "野蛮人",
     "desc": "近战肉搏单位，数量取胜的炮灰。",
@@ -15,7 +15,12 @@
     "size": [0.8, 1.1, 0.8],
     "flying": false,
     "color": "#e53935",
-    "blueprint": "asset/blueprints/troops/barbarian.blueprint.json"
+    "blueprint": "asset/blueprints/troops/barbarian.blueprint.json",
+    "levels": [
+      { "hp": 45, "dps": 8, "cost": 25 },
+      { "hp": 65, "dps": 11, "cost": 40, "researchCost": 500, "researchTime": 60 },
+      { "hp": 95, "dps": 15, "cost": 60, "researchCost": 1500, "researchTime": 180 }
+    ]
   },
   "archer": {
     "name": "弓箭手",
@@ -32,7 +37,12 @@
     "size": [0.7, 1.0, 0.7],
     "flying": false,
     "color": "#8e24aa",
-    "blueprint": "asset/blueprints/troops/archer.blueprint.json"
+    "blueprint": "asset/blueprints/troops/archer.blueprint.json",
+    "levels": [
+      { "hp": 20, "dps": 7, "cost": 50 },
+      { "hp": 28, "dps": 10, "cost": 80, "researchCost": 600, "researchTime": 60 },
+      { "hp": 40, "dps": 14, "cost": 120, "researchCost": 1800, "researchTime": 180 }
+    ]
   },
   "goblin": {
     "name": "哥布林",
@@ -49,7 +59,12 @@
     "size": [0.7, 0.9, 0.7],
     "flying": false,
     "color": "#2e7d32",
-    "blueprint": "asset/blueprints/troops/goblin.blueprint.json"
+    "blueprint": "asset/blueprints/troops/goblin.blueprint.json",
+    "levels": [
+      { "hp": 25, "dps": 11, "cost": 25 },
+      { "hp": 35, "dps": 15, "cost": 40, "researchCost": 500, "researchTime": 60 },
+      { "hp": 50, "dps": 20, "cost": 60, "researchCost": 1500, "researchTime": 180 }
+    ]
   },
   "giant": {
     "name": "巨人",
@@ -66,7 +81,12 @@
     "size": [1.1, 1.5, 1.1],
     "flying": false,
     "color": "#6d4c41",
-    "blueprint": "asset/blueprints/troops/giant.blueprint.json"
+    "blueprint": "asset/blueprints/troops/giant.blueprint.json",
+    "levels": [
+      { "hp": 300, "dps": 11, "cost": 250 },
+      { "hp": 450, "dps": 15, "cost": 400, "researchCost": 1000, "researchTime": 120 },
+      { "hp": 650, "dps": 20, "cost": 600, "researchCost": 3000, "researchTime": 300 }
+    ]
   },
   "wallBreaker": {
     "name": "炸弹人",
@@ -83,7 +103,12 @@
     "size": [0.7, 0.9, 0.7],
     "flying": false,
     "color": "#37474f",
-    "blueprint": "asset/blueprints/troops/wallBreaker.blueprint.json"
+    "blueprint": "asset/blueprints/troops/wallBreaker.blueprint.json",
+    "ability": { "type": "wallBreaker", "wallDamageMultiplier": 12 },
+    "levels": [
+      { "hp": 20, "dps": 12, "cost": 1000 },
+      { "hp": 28, "dps": 16, "cost": 1500, "researchCost": 1200, "researchTime": 120 }
+    ]
   },
   "balloon": {
     "name": "气球兵",
@@ -100,7 +125,11 @@
     "size": [1.0, 1.0, 1.0],
     "flying": true,
     "color": "#5c6bc0",
-    "blueprint": "asset/blueprints/troops/balloon.blueprint.json"
+    "blueprint": "asset/blueprints/troops/balloon.blueprint.json",
+    "levels": [
+      { "hp": 150, "dps": 25, "cost": 2000 },
+      { "hp": 210, "dps": 34, "cost": 3000, "researchCost": 2000, "researchTime": 240 }
+    ]
   },
   "wizard": {
     "name": "法师",
@@ -117,7 +146,12 @@
     "size": [0.7, 1.1, 0.7],
     "flying": false,
     "color": "#7b1fa2",
-    "blueprint": "asset/blueprints/troops/wizard.blueprint.json"
+    "blueprint": "asset/blueprints/troops/wizard.blueprint.json",
+    "levels": [
+      { "hp": 75, "dps": 50, "cost": 1500 },
+      { "hp": 100, "dps": 66, "cost": 2200, "researchCost": 2500, "researchTime": 240 },
+      { "hp": 140, "dps": 90, "cost": 3200, "researchCost": 6000, "researchTime": 480 }
+    ]
   },
   "healer": {
     "name": "治疗师",
@@ -134,7 +168,12 @@
     "size": [1.2, 0.8, 1.2],
     "flying": true,
     "color": "#00897b",
-    "blueprint": "asset/blueprints/troops/healer.blueprint.json"
+    "blueprint": "asset/blueprints/troops/healer.blueprint.json",
+    "ability": { "type": "healer", "healAmount": 25, "healInterval": 1.0, "healRadius": 4.0 },
+    "levels": [
+      { "hp": 500, "dps": 0, "cost": 5000 },
+      { "hp": 650, "dps": 0, "cost": 7000, "researchCost": 3000, "researchTime": 360 }
+    ]
   },
   "dragon": {
     "name": "飞龙",
@@ -151,7 +190,11 @@
     "size": [1.6, 1.4, 1.6],
     "flying": true,
     "color": "#ef6c00",
-    "blueprint": "asset/blueprints/troops/dragon.blueprint.json"
+    "blueprint": "asset/blueprints/troops/dragon.blueprint.json",
+    "levels": [
+      { "hp": 1900, "dps": 140, "cost": 25000 },
+      { "hp": 2500, "dps": 180, "cost": 35000, "researchCost": 8000, "researchTime": 600 }
+    ]
   },
   "pekka": {
     "name": "皮卡超人",
@@ -168,6 +211,10 @@
     "size": [1.3, 1.9, 1.3],
     "flying": false,
     "color": "#455a64",
-    "blueprint": "asset/blueprints/troops/pekka.blueprint.json"
+    "blueprint": "asset/blueprints/troops/pekka.blueprint.json",
+    "levels": [
+      { "hp": 2800, "dps": 260, "cost": 30000 },
+      { "hp": 3700, "dps": 330, "cost": 42000, "researchCost": 10000, "researchTime": 600 }
+    ]
   }
 }

@@ -29,6 +29,7 @@ const INITIAL_LAYOUT: ReadonlyArray<{ id: string; gx: number; gz: number }> = [
   { id: 'goldmine', gx: 3, gz: -2 },
   { id: 'elixir', gx: -3, gz: -3 },
   { id: 'cannon', gx: 3, gz: 3 },
+  { id: 'laboratory', gx: 4, gz: 1 },
   { id: 'wall', gx: 2, gz: 1 },
   { id: 'wall', gx: 1, gz: 2 },
   { id: 'wall', gx: 0, gz: 2 },

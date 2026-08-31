@@ -46,14 +46,22 @@ export interface ClashBuildingType {
   defense?: ClashDefenseStats
   /** 地面兵是否被阻挡（城墙/建筑挡路；飞行兵无视） */
   blocksGround: boolean
+  /** 点击基地内建筑是否打开专属面板（laboratory/obstacle；默认无面板走选中移动） */
+  panel?: 'barracks' | 'laboratory' | 'obstacle'
 }
 
-/** 内置建筑类型表：城镇大厅/兵营/金矿/水库/防御塔/城墙 */
+/** 内置建筑类型表：城镇大厅/兵营/金矿/水库/防御塔/城墙/实验室 */
 export const CLASH_BUILDING_TYPES: ClashBuildingType[] = [
   { id: 'townhall', name: '城镇大厅', color: 0xffd700, size: 1.6, height: 1.6, footprint: 2, blueprint: 'asset/blueprints/buildings/townhall.blueprint.json', hp: 1000, lootCoins: 0, lootElixir: 0, blocksGround: true },
-  { id: 'barracks', name: '兵营', color: 0xe53935, size: 1.3, height: 1.0, footprint: 2, blueprint: 'asset/blueprints/buildings/barracks.blueprint.json', hp: 400, lootCoins: 0, lootElixir: 0, blocksGround: true },
+  { id: 'barracks', name: '兵营', color: 0xe53935, size: 1.3, height: 1.0, footprint: 2, blueprint: 'asset/blueprints/buildings/barracks.blueprint.json', hp: 400, lootCoins: 0, lootElixir: 0, blocksGround: true, panel: 'barracks' },
   { id: 'goldmine', name: '金矿', color: 0xfbc02d, size: 1.1, height: 0.9, footprint: 1, blueprint: 'asset/blueprints/buildings/goldmine.blueprint.json', hp: 200, lootCoins: 150, lootElixir: 0, blocksGround: true },
   { id: 'elixir', name: '水库', color: 0x8e24aa, size: 1.1, height: 0.9, footprint: 1, blueprint: 'asset/blueprints/buildings/elixir.blueprint.json', hp: 200, lootCoins: 0, lootElixir: 150, blocksGround: true },
   { id: 'cannon', name: '防御塔', color: 0x90a4ae, size: 1.0, height: 1.8, footprint: 1, blueprint: 'asset/blueprints/buildings/cannon.blueprint.json', hp: 350, lootCoins: 0, lootElixir: 0, defense: { range: 9, damage: 30, cooldown: 1.0 }, blocksGround: true },
   { id: 'wall', name: '城墙', color: 0x795548, size: 1.0, height: 0.6, footprint: 1, blueprint: 'asset/blueprints/buildings/wall.blueprint.json', hp: 250, lootCoins: 0, lootElixir: 0, blocksGround: true },
+  { id: 'laboratory', name: '实验室', color: 0x26c6da, size: 1.4, height: 1.2, footprint: 2, blueprint: 'asset/blueprints/buildings/laboratory.blueprint.json', hp: 450, lootCoins: 0, lootElixir: 0, blocksGround: true, panel: 'laboratory' },
 ]
+
+/** 按建筑类型 id 查类型行 */
+export function findClashBuildingType(id: string): ClashBuildingType | undefined {
+  return CLASH_BUILDING_TYPES.find((t) => t.id === id)
+}

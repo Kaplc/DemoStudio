@@ -17,6 +17,8 @@ import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
 import { ResourcesComponent } from './common/comp/ResourcesComponent'
 import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
+import { ProductionService } from './base/ProductionService'
+import { ProgressionService } from './common/ProgressionService'
 import {
   FISH_SAVE_FILE,
   syncRuntimeKeys, writeMetaKeys, applyRuntime, sanitizeBuildings,
@@ -35,6 +37,10 @@ export class FishGameInstance extends GameInstance {
   readonly resources: ResourcesComponent
   /** 训练部队组件：训练队列 + 军队（跨阶段保留，基地阶段推进倒计时） */
   readonly training: TrainingComponent
+  /** 生产/升级/研究/宝石统一服务（经营闭环核心） */
+  readonly production: ProductionService
+  /** 成长进度服务（星级/解锁/成就/每日任务） */
+  readonly progression: ProgressionService
   /** 存档组件：KV 内存优先 + 手动落盘（写盘入口=存档菜单 saveGame；钩子转发保留在 stop/destroy/tick） */
   readonly save: SaveSlotComponent
 
@@ -76,12 +82,56 @@ export class FishGameInstance extends GameInstance {
   /** 游戏内事件总线 */
   readonly events: GameEvents
 
+  /**
+   * 服务互链（构造期一次）：钱包注入、配置表注入、宝石入口统一。
+   * ConfigRegistry 同步 fallback 未含 buildingLevels（异步加载），进入基地 tick 时
+   * _refreshConfigTables 会再补一次注入。
+   */
+  private _wireServices(): void {
+    // 钱包：宝石与资源统一走 ResourcesComponent
+    this.production.wallet = this.resources
+    this.progression.wallet = this.resources
+    // 宝石统一入口（ProgressionService 奖励 → ProductionService 对账日志）
+    this.progression.addGems = (reason, amount) => this.production.addGems(reason, amount)
+    // 兵种表引用（研究等级/训练费用查询）
+    this.production.troopResolver = (id) => this.getTroop(id)
+    this._refreshConfigTables()
+  }
+
+  /** 刷新配置表注入（建筑等级表异步加载完成后由 tick 首帧补调） */
+  private _refreshConfigTables(): void {
+    const cfg = ConfigRegistry.getConfig<import('./base/ProductionService').BuildingLevelsConfig>('fish.buildingLevels')
+    if (cfg) this.production.buildingLevels = cfg
+    const ach = ConfigRegistry.getTable<import('./common/types').TaskType>('fish.achievement')
+    if (ach) {
+      this.progression.achievementTable = Object.fromEntries(ach.getRowNames().map((id) => [id, ach.getRow(id)!]))
+    }
+    const daily = ConfigRegistry.getTable<import('./common/types').TaskType>('fish.daily')
+    if (daily) {
+      this.progression.dailyTable = Object.fromEntries(daily.getRowNames().map((id) => [id, daily.getRow(id)!]))
+    }
+    // 金币增量 → 成就/每日统计上报（收集/掠夺共用钱包入口；对比上值取增量）
+    if (!this._coinsReportHooked) {
+      this._coinsReportHooked = true
+      let lastCoins = this.resources.get('coins')
+      this.resources.addChangeListener(() => {
+        const cur = this.resources.get('coins')
+        const delta = cur - lastCoins
+        lastCoins = cur
+        if (delta > 0) this.progression.report('collectCoins', delta)
+      })
+    }
+  }
+
+  /** collectCoins 统计钩子是否已挂（防重复注册） */
+  private _coinsReportHooked = false
+
   constructor(renderContainer?: HTMLElement | null) {
     super()
     // 统一在此加载项目配置表（兵种/炮台/鱼种/鱼群节奏，各阶段 GameMode 共享）
     new FishConfigLoader((msg) => logger.info(msg)).init()
-    // 资源组件：金币 + 药水（跨阶段共享钱包，初始金币 100，药水 0）
-    this.resources = new ResourcesComponent(this, { coins: INITIAL_COINS, elixir: 0 })
+    // 资源组件：金币 + 药水 + 宝石（跨阶段共享钱包，初始金币 100）
+    this.resources = new ResourcesComponent(this, { coins: INITIAL_COINS, elixir: 0, gems: 0 })
     this.addComponent(this.resources)
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
@@ -93,6 +143,13 @@ export class FishGameInstance extends GameInstance {
       filePath: FISH_SAVE_FILE,
     })
     this.addComponent(this.save)
+    // 生产/升级/研究/宝石统一服务（经营闭环核心）
+    this.production = new ProductionService(this, { save: this.save })
+    this.addComponent(this.production)
+    // 成长进度服务（星级/解锁/成就/每日）
+    this.progression = new ProgressionService(this, { save: this.save })
+    this.addComponent(this.progression)
+    this._wireServices()
     // 运行时变化 → KV（只写内存）。用常驻监听器而非 onChange 单槽——后者被
     // BaseHudScript 等 UI 脚本按需覆盖。load 回填也会触发广播，重写同值无害。
     this.resources.addChangeListener(() => syncRuntimeKeys(this))
@@ -199,7 +256,7 @@ export class FishGameInstance extends GameInstance {
     resetRuntimeAndKeys(this)
     // 正处于基地阶段：立即清掉场上建筑（重建的默认布局随下次进基地刷新）
     if (wasInBase) this._baseGameMode?.clearClashLayout()
-    logger.info('[Fish] 存档已重置为全新开局')
+    logger.info('[Fish] 存档已重置为全新开局（宝石/等级/战绩/成就一并清零）')
   }
 
   /**
@@ -484,6 +541,7 @@ export class FishGameInstance extends GameInstance {
         levelId: this._levelId,
         coins: this.resources.get('coins'),
         elixir: this.resources.get('elixir'),
+        gems: this.resources.get('gems'),
         army: this.training.getArmySummary(),
       }),
     }
@@ -679,6 +737,16 @@ export class FishGameInstance extends GameInstance {
       if (mode.gameState.phase !== 'gameover' || !this._levelId) return
       if (mode.getBattleResult().win) addClearedLevel(this.save, this._levelId)
     })
+    // 星级战绩评价：gameover 时结算（超时/胜负共用管线；takeDamage 侧不重复结算）
+    mode.onBattleOver = () => {
+      const r = this.progression.settleBattle({
+        levelId: this._levelId,
+        destroyRate: mode.getDestroyRate(),
+        townhallDestroyed: mode.isTownhallDestroyed(),
+        destroyedCount: mode.getDestroyedCount(),
+      })
+      logger.info(`[Fish] 战斗结算: ${r.stars}★${r.firstThreeStar ? '（三星首杀宝石已发）' : ''} levelId=${this._levelId ?? '普通出征'}`)
+    }
 
     logger.info('[Fish] setupLevelPhase: 完成（战斗 HUD 由 BattleHudScript 接管）')
   }
@@ -754,6 +822,25 @@ export class FishGameInstance extends GameInstance {
     return this.getLevelTable()?.getRow(id)
   }
 
+  /** 当前关卡 id（战斗时限/HUD 读取；null = 普通出征） */
+  get currentLevelId(): string | null {
+    return this._levelId
+  }
+
+  // ════════════════════════════════════════════
+  //  法术（战斗 HUD 卡片 + SpellCaster 消费）
+  // ════════════════════════════════════════════
+
+  /** 法术数据表（DataTable，键=法术 id，值=法术属性） */
+  getSpellTable(): DataTable<import('./common/types').SpellType> | undefined {
+    return ConfigRegistry.getTable<import('./common/types').SpellType>('fish.spell')
+  }
+
+  /** 按 id 查法术 */
+  getSpell(id: string): import('./common/types').SpellType | undefined {
+    return this.getSpellTable()?.getRow(id)
+  }
+
   /**
    * 进入关卡（地图面板关卡节点点击）：
    * 复用 game 阶段 → 加载关卡场景（场景资产 mode="level" → FishLevelGameMode）。
@@ -763,6 +850,11 @@ export class FishGameInstance extends GameInstance {
     const level = this.getLevel(id)
     if (!level) {
       logger.warn(`[Fish] 进入关卡失败：关卡 "${id}" 不存在（关卡表未加载或行缺失）`)
+      return false
+    }
+    // 解锁校验（实时推导 levelRecords 星级；前置关卡不在存档表 = 未解锁）
+    if (!this.progression.isLevelUnlocked(level.unlockRequirement)) {
+      logger.warn(`[Fish] 进入关卡失败：${level.name} 未解锁（需 ${level.unlockRequirement?.levelId} ≥ ${level.unlockRequirement?.stars}★）`)
       return false
     }
     logger.info(`[Fish] 进入关卡: ${level.name}（场景 ${level.scene}）`)
@@ -791,6 +883,7 @@ export class FishGameInstance extends GameInstance {
 
   /**
    * 训练兵种（部落冲突风格：金币扣费 → 训练倒计时 → 完成后入列军队）。
+   * 训练费用按当前研究等级属性取值（troopStats().cost）。
    * 入口统一在此：资源组件扣费 + 训练组件入队；失败原因经日志输出。
    */
   trainTroop(id: string): boolean {
@@ -799,20 +892,41 @@ export class FishGameInstance extends GameInstance {
       logger.warn(`[Fish] 训练失败：兵种 "${id}" 不存在（兵种表未加载或行缺失）`)
       return false
     }
+    // 按研究等级取属性行（费用随研究等级成长）
+    const stats = this.production.troopStats(id)
+    const cost = stats.cost > 0 ? stats.cost : troop.cost
     // 金币校验 + 扣费（资源组件）
-    if (!this.resources.spend('coins', troop.cost)) {
-      logger.warn(`[Fish] 训练失败：金币不足（需要 ${troop.cost}，当前 ${this.resources.get('coins')}）`)
+    if (!this.resources.spend('coins', cost)) {
+      logger.warn(`[Fish] 训练失败：金币不足（需要 ${cost}，当前 ${this.resources.get('coins')}）`)
       return false
     }
-    // 入训练队列（容量校验在组件内）
-    this.training.registerTroop(id, troop)
-    if (!this.training.enqueue(id, troop)) {
+    // 入训练队列（容量校验在组件内；队列按当前等级属性记录）
+    const view = this.production.troopView(id) ?? troop
+    this.training.registerTroop(id, view)
+    if (!this.training.enqueue(id, view)) {
       // 入队失败（容量不足）→ 退还金币
-      this.resources.add('coins', troop.cost)
+      this.resources.add('coins', cost)
       return false
     }
-    logger.info(`[Fish] 开始训练: ${troop.name}（-${troop.cost} 金币，剩余 ${this.resources.get('coins')}；队列 ${this.training.getQueue().length} 项）`)
+    logger.info(`[Fish] 开始训练: ${troop.name} Lv${this.production.getTroopLevel(id)}（-${cost} 金币，剩余 ${this.resources.get('coins')}；队列 ${this.training.getQueue().length} 项）`)
+    // 成就/每日任务统计上报
+    this.progression.report('trainTroops', 1)
     return true
+  }
+
+  /**
+   * 研究兵种（实验室面板入口）：校验（等级表/上限/队列/药水）+ 扣费 + 计时
+   * 全部在 ProductionService.startResearch 内完成，这里只做日志包装。
+   */
+  researchTroop(id: string): boolean {
+    const troop = this.getTroop(id)
+    if (!troop) {
+      logger.warn(`[Fish] 研究失败：兵种 "${id}" 不存在（兵种表未加载或行缺失）`)
+      return false
+    }
+    const ok = this.production.startResearch(id)
+    if (ok) logger.info(`[Fish] 研究已排队: ${troop.name} → Lv${this.production.getTroopLevel(id) + 1}`)
+    return ok
   }
 
   // ════════════════════════════════════════════
@@ -827,6 +941,19 @@ export class FishGameInstance extends GameInstance {
     if (this._phase === 'base') {
       // 基地阶段：推进训练队列倒计时（训练组件挂在本实例，手动驱动）
       this.training.update(dt)
+      // 经营闭环：产出结算 + 升级/研究/清除队列推进 + 每日任务跨天刷新
+      // （建筑等级表异步加载，首帧补注入一次）
+      this._refreshConfigTables()
+      this.production.update(
+        dt,
+        this.production.getBuildingLevel('goldmine'),
+        this.production.getBuildingLevel('elixir'),
+      )
+      this.production.updateTimers((obstacleId) => {
+        this._baseGameMode?.onObstacleCleared(obstacleId)
+      })
+      this.progression.tickDailyRefresh()
+      this._baseGameMode?.onBaseTick?.()
       this.world.manualTick(dt)
       // 布局恢复两帧消费（必须在 manualTick 之后：commitSpawn/commitDestroy 已提交）
       if (this._pendingRestore && this._baseGameMode) {

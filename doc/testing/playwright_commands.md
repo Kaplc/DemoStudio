@@ -215,3 +215,9 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | 选错浏览器调试路径 | 内置工具（`open_browser_page`）与 Playwright MCP（`browser_*`）是两套并行方案 | 本机是 VS Code 集成浏览器用[本文件](./playwright_commands.md)；用本地 Chrome 走 MCP 见[`playwright_mcp_commands.md`](./playwright_mcp_commands.md)（需先挂 CDP `:9222`） |
 | 需要 AI 自己读截图/快照 | MCP 沙箱目录在工作区外，AI 读不到 | 用本路径（内置工具），产物落在工作区内可读 |
 | PowerShell 写 JSON 带 BOM | `Set-Content -Encoding UTF8` 会写 BOM 导致 JSON.parse 失败；用 `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))` |
+| `executeGM('xxx')` 无效果不报错 | GM 命令未注册时静默返 `{ok:false}`（已注册命令见 `src/projects/fish/gameplay/gm/*.gm.ts`，无 returnBase）；回城等流程直接调 GameInstance 公共方法 `returnToBase()` |
+| 阶段敏感 UI 用例时灵时不灵 | `getAllUIActors` 是累计集合，场景切换后旧 HUD 树残留且同名 → `findActorByName` 可能命中旧树按钮；显隐断言改走 GameMode 广播通道（如 `onTasksPanelChange` 回执），用例开头防御性 `returnToBase()` + 断言 `_phase==='base'` |
+| evaluate 里调页面对象方法崩 `instanceof is not an object` | 测试函数经 `new Function` 序列化执行，页面内对象的方法（如 `getComponents()`）内部 instanceof 测试 realm 的类必崩；改读私有字段（`_components`）+ try/catch |
+| `ai.emit` 回执当真值恒真 | emit 失败也返回对象（error 在 `results[0].error`）；必须断言 `res?.results?.[0]?.ok === true` |
+| 运行时 CodeLint 无法从日志确认归零 | E2E 页面停首页时 CodeLint 只打"无工程"；探针：`import('/src/stores/useCodeLintStore.ts')` + `import('/src/editor/codeLint/CodeLintEngine.ts')` → `codeLintEngine.scan('fish')` → 读 `getState().issues`（0 = 归零） |
+| PowerShell 无 tail/head | Windows 管道用 `Select-Object -Last N` / `-First N` 替代 |

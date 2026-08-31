@@ -47,6 +47,15 @@ interface BattleCardEntry {
   infoText: UITextComponent | null
 }
 
+/** 法术卡片运行时引用 */
+interface SpellCardEntry {
+  spellId: string
+  actor: Actor
+  btn: UIButtonComponent
+  infoText: UITextComponent | null
+  cost: number
+}
+
 export default class BattleHudScript extends BehaviourScript {
   /** 战斗 GameMode（放兵/统计入口） */
   private gm: FishLevelGameMode | null = null
@@ -56,6 +65,11 @@ export default class BattleHudScript extends BehaviourScript {
   private deployText: UITextComponent | null = null
   /** 兵种卡片列表（onUpdate 刷新数量/禁用/高亮） */
   private cards: BattleCardEntry[] = []
+  /** 法术卡片列表（onUpdate 刷新可用态/落点高亮） */
+  private spellCards: SpellCardEntry[] = []
+  /** 时限倒计时文本（TimerLabel 节点；缺失则不显示倒计时） */
+  private timerText: UITextComponent | null = null
+  private lastTimerSec = -1
   /** 上次显示的统计文本（仅变化时重设，避免每帧触发 troika 字形重排） */
   private lastDeployText = ''
   /** 顶部战利品栏：金币文本（飞行到达时刷新） */
@@ -82,6 +96,8 @@ export default class BattleHudScript extends BehaviourScript {
     const troopTable = inst?.getTroopTable()
     const world = this.world
     const cardList = this.findInChildren('CardList')
+    // 卡片计数（兵种 + 法术共用；方法作用域声明，法术卡段也累加）
+    let created = 0
     if (!troopTable) {
       logger.warn('[BattleHudScript] 兵种表未加载（getTable 返回 undefined），卡片列表为空')
     } else if (!world) {
@@ -89,10 +105,11 @@ export default class BattleHudScript extends BehaviourScript {
     } else if (!cardList) {
       logger.error('[BattleHudScript] 未找到卡片容器节点 "CardList"，无法挂载卡片')
     } else {
-      let created = 0
       for (const id of troopTable.getRowNames()) {
         const troop = troopTable.getRow(id)
-        if (!troop || troop.dps <= 0) continue // 无伤害兵种（治疗师）不参与战斗
+        if (!troop) continue
+        // dps=0 但有能力（治疗师）也生成卡片；无 dps 且无能力不参与战斗
+        if (troop.dps <= 0 && !troop.ability) continue
         // 按路径从蓝图实例化卡片，挂到 CardList
         const card = world.ui.spawnUIActor(TROOP_CARD_BLUEPRINT, cardList)
         if (!card) {
@@ -136,6 +153,39 @@ export default class BattleHudScript extends BehaviourScript {
       }
     }
 
+    // ─── 1b. 法术卡片（法术表 + 药水即扣即用）───
+    const spellCaster = gm.spellCaster
+    const spellList = spellCaster.getSpellList()
+    for (const { id, spell } of spellList) {
+      const card = world?.ui.spawnUIActor(TROOP_CARD_BLUEPRINT, cardList ?? undefined)
+      if (!card) {
+        logger.error(`[BattleHudScript] 法术卡片生成失败: "${id}"`)
+        continue
+      }
+      card.root.name = `SpellCard_${id}`
+      const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
+      if (nameText) nameText.text = `✨${spell.name}`
+      const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
+      const bg = card.getComponent(UIImageComponent)
+      if (bg) bg.color = colorToCss(typeof spell.color === 'number' ? spell.color : 0xab47bc)
+      const btn = card.getComponent(UIButtonComponent)
+      if (btn) {
+        btn.onClick = () => {
+          if ((this.inst?.resources.get('elixir') ?? 0) < spell.cost) {
+            logger.warn(`[BattleHudScript] 法术 "${spell.name}" 药水不足（需 ${spell.cost}）`)
+            return
+          }
+          gm.selectSpell(id)
+        }
+      }
+      if (btn) this.spellCards.push({ spellId: id, actor: card, btn, infoText, cost: spell.cost })
+      created++
+    }
+    if (spellList.length > 0) {
+      cardList?.getComponent(UILayoutComponent)?.layout()
+      logger.info(`[BattleHudScript] 法术卡片生成 ${spellList.length} 个`)
+    }
+
     // ─── 2. 已部署统计文本 ───
     const deployActor = this.findInChildren('DeployLabel')
     const deployText = deployActor?.getComponent(UITextComponent)
@@ -160,6 +210,11 @@ export default class BattleHudScript extends BehaviourScript {
     } else {
       logger.warn('[BattleHudScript] 未找到战利品栏节点（LootCoinsText/LootElixirText），跳过掠夺显示')
     }
+
+    // ─── 4. 战斗时限倒计时（TimerLabel；节点缺失则 HUD 不显示倒计时但时限仍生效） ───
+    const timerActor = this.findInChildren('TimerLabel')
+    this.timerText = timerActor?.getComponent(UITextComponent) ?? null
+    if (this.timerText) logger.info('[BattleHudScript] 战斗时限倒计时已绑定')
   }
 
   /**
@@ -198,7 +253,7 @@ export default class BattleHudScript extends BehaviourScript {
     })
   }
 
-  /** 每帧刷新：卡片数量/禁用/放置高亮 + 部署统计 */
+  /** 每帧刷新：卡片数量/禁用/放置高亮 + 部署统计 + 法术卡 + 时限 */
   override onUpdate(_dt: number): void {
     const gm = this.gm
     const inst = this.inst
@@ -213,9 +268,31 @@ export default class BattleHudScript extends BehaviourScript {
       if (entry.btn.state !== state) entry.btn.state = state
       if (entry.infoText) {
         const troop = inst.getTroop(entry.troopId)
-        const dpsText = troop && troop.dps > 0 ? `伤 ${troop.dps}` : ''
+        const dpsText = troop && troop.dps > 0 ? `伤 ${troop.dps}` : troop?.ability?.type === 'healer' ? '治疗' : ''
         const text = `剩 ${count}${dpsText ? ` · ${dpsText}` : ''}${placing ? ' ▶ 放置中' : ''}`
         if (entry.infoText.text !== text) entry.infoText.text = text
+      }
+    }
+
+    // ─── 法术卡刷新：药水够可用/不足禁用 + 落点模式高亮 ───
+    for (const entry of this.spellCards) {
+      const casting = gm.selectedSpellId === entry.spellId
+      const affordable = inst.resources.get('elixir') >= entry.cost
+      const state = !affordable ? 'disabled' : casting ? 'pressed' : 'normal'
+      if (entry.btn.state !== state) entry.btn.state = state
+      if (entry.infoText) {
+        const text = `费 ${entry.cost}${casting ? ' ▶ 选落点' : ''}`
+        if (entry.infoText.text !== text) entry.infoText.text = text
+      }
+    }
+
+    // ─── 战斗时限倒计时（最后 30 秒变红） ───
+    if (this.timerText) {
+      const sec = gm.getTimeRemainingSec()
+      if (sec !== this.lastTimerSec) {
+        this.lastTimerSec = sec
+        this.timerText.text = sec > 0 ? `⏱ ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : '时间到'
+        this.timerText.color = sec <= 30 ? '#ff5252' : '#ffffff'
       }
     }
 
