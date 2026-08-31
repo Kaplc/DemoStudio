@@ -124,12 +124,14 @@ export interface AIShowMessagePayload {
   level?: 'info' | 'warn' | 'error'
 }
 
-/** ai.clickActor payload：按 Actor 名称或 UI 文字内容触发按钮点击 */
+/** ai.clickActor payload：按 Actor 名称、UI 文字或路径触发按钮点击 */
 export interface AIClickActorPayload {
   /** Actor 名称（精确匹配 .name 或 root.name） */
   name?: string
-  /** UI 文字内容（模糊匹配 UITextComponent.text，包含即命中；优先于 name） */
+  /** UI 文字内容（模糊匹配 UITextComponent.text，包含即命中） */
   text?: string
+  /** 从 getHUD 返回的精确路径（如 "/HUD/底栏/💎 商店"），最精确的定位方式 */
+  path?: string
 }
 
 /** ai.getActor payload：按名称查询单个 Actor 详细信息 */
@@ -274,6 +276,8 @@ export interface AIGameStateSnapshot {
 export interface AIHUDNode {
   /** Actor 名称 */
   name: string
+  /** 从 HUD 根到本节点的路径（如 "HUD/底栏/💎 商店"），用于精确唯一定位 */
+  path: string
   /** Actor 类型（构造器名） */
   type: string
   /** 是否激活 */

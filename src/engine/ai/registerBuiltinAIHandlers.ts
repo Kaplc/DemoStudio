@@ -296,13 +296,13 @@ export function registerBuiltinAIHandlers(): void {
     return snapshot
   })
 
-  // ─── ai.clickActor — 按名称或 UI 文字触发按钮点击（不依赖鼠标坐标） ───
+  // ─── ai.clickActor — 按名称/文字/路径触发按钮点击（不依赖鼠标坐标） ───
   ai.register(AI_EVENT_CLICK_ACTOR, (payload: unknown, ctx: AIEventContext) => {
     const world = requireWorld(ctx)
     if (!world) return { ok: false, error: '游戏未运行' }
     const p = (payload ?? {}) as AIClickActorPayload
 
-    if (!p.name && !p.text) return { ok: false, error: '缺少 name 或 text' }
+    if (!p.name && !p.text && !p.path) return { ok: false, error: '缺少 name、text 或 path' }
 
     /** 在指定 Actor 上查找并触发按钮（UIButtonComponent → ClickableComponent 兜底） */
     const triggerButtonsOn = (actor: import('../entity/Actor').Actor): { ok: boolean; clicked?: number; type?: string } => {
@@ -334,6 +334,65 @@ export function registerBuiltinAIHandlers(): void {
         return { ok: true, clicked: clickables.length, type: 'clickable' }
       }
       return { ok: false }
+    }
+
+    // ─── 按路径查找（最精确，getHUD 返回的 path） ───
+    if (p.path) {
+      const targetPath = p.path.startsWith('/') ? p.path : `/${p.path}`
+      const uiActors = world.ui.getAllUIActors()
+
+      /** 复用 getHUD 的路径生成逻辑，递归匹配 path */
+      const findActorByPath = (actor: import('../entity/Actor').Actor, currentPath: string, siblingSegments: string[]): import('../entity/Actor').Actor | null => {
+        // 构建当前节点的路径段（与 getHUD 一致）
+        let segment = 'Actor'
+        const actorTexts = actor.getComponents(UITextComponent)
+        if (actorTexts.length > 0) {
+          const t = actorTexts[0].text
+          segment = t.length > 12 ? t.slice(0, 12) + '…' : t
+        } else if (actor.name && actor.name !== 'Actor' && actor.name !== 'GenericActor') {
+          segment = actor.name
+        } else {
+          // 子节点中有文字 → 用子节点文字
+          for (const child of actor.getChildren()) {
+            const childTexts = child.getComponents(UITextComponent)
+            if (childTexts.length > 0) {
+              const t = childTexts[0].text
+              segment = t.length > 12 ? t.slice(0, 12) + '…' : t
+              break
+            }
+          }
+        }
+        // 同父重名去重
+        const usedCount = siblingSegments.filter((s) => s === segment).length
+        if (usedCount > 0) segment = `${segment}_${usedCount + 1}`
+        siblingSegments.push(segment)
+
+        const fullPath = currentPath ? `${currentPath}/${segment}` : `/${segment}`
+        if (fullPath === targetPath) return actor
+
+        // 递归子节点
+        const childSegments: string[] = []
+        for (const child of actor.getChildren()) {
+          const hit = findActorByPath(child, fullPath, childSegments)
+          if (hit) return hit
+        }
+        return null
+      }
+
+      const rootSegments: string[] = []
+      let target: import('../entity/Actor').Actor | null = null
+      for (const actor of uiActors) {
+        target = findActorByPath(actor, '', rootSegments)
+        if (target) break
+      }
+
+      if (!target) return { ok: false, error: `未找到路径 "${targetPath}" 对应的 UI 元素` }
+      const result = triggerButtonsOn(target)
+      if (result.ok) {
+        logger.info(`[AI] clickActor(path="${targetPath}"): 触发 ${result.clicked} 个 ${result.type}`)
+        return result
+      }
+      return { ok: false, error: `路径 "${targetPath}" 对应的元素上没有可点击组件` }
     }
 
     // ─── 按名称查找（原有逻辑） ───
@@ -618,10 +677,47 @@ export function registerBuiltinAIHandlers(): void {
     const world = requireWorld(ctx)
     if (!world) return { ok: false, error: '游戏未运行' }
 
+    /**
+     * 为节点生成路径段（同父范围内唯一）：
+     * 优先级：自身有文字 → 用文字；自身有名字且非 GenericActor → 用名字；
+     * 子节点中有文字 → 用子节点文字；都没有 → "Actor"
+     * 同父重名时追加 _2/_3… 后缀（与编辑器大纲一致）
+     */
+    const buildSegments = (actor: import('../entity/Actor').Actor): string => {
+      // 自身有文字 → 用文字
+      const texts = actor.getComponents(UITextComponent)
+      if (texts.length > 0) {
+        const t = texts[0].text
+        return t.length > 12 ? t.slice(0, 12) + '…' : t
+      }
+      // 自身有名字且非通用名 → 用名字
+      if (actor.name && actor.name !== 'Actor' && actor.name !== 'GenericActor') {
+        return actor.name
+      }
+      // 子节点中有文字 → 用子节点文字（按钮容器常把文字放子节点）
+      for (const child of actor.getChildren()) {
+        const childTexts = child.getComponents(UITextComponent)
+        if (childTexts.length > 0) {
+          const t = childTexts[0].text
+          return t.length > 12 ? t.slice(0, 12) + '…' : t
+        }
+      }
+      return 'Actor'
+    }
+
     /** 递归构建 UI 节点树 */
-    const buildNode = (actor: import('../entity/Actor').Actor): AIHUDNode => {
+    const buildNode = (actor: import('../entity/Actor').Actor, parentPath: string, siblingSegments: string[]): AIHUDNode => {
+      let segment = buildSegments(actor)
+      // 同父重名去重（与编辑器 uniqueNodeName 一致）
+      const usedCount = siblingSegments.filter((s) => s === segment).length
+      if (usedCount > 0) segment = `${segment}_${usedCount + 1}`
+      siblingSegments.push(segment)
+
+      const path = parentPath ? `${parentPath}/${segment}` : `/${segment}`
+
       const node: AIHUDNode = {
         name: actor.name,
+        path,
         type: actor.constructor.name,
         active: actor.bActive,
         children: [],
@@ -657,15 +753,17 @@ export function registerBuiltinAIHandlers(): void {
         node.imageSrc = img.src ?? img._src ?? undefined
       }
 
-      // 读取 CanvasUIComponent 的 zOrder（UI 层级，越大越靠前/越顶层）
+      // 读取 CanvasUIComponent 的 zOrder
       const canvas = actor.getComponent(CanvasUIComponent)
       if (canvas) {
         node.zOrder = canvas.zOrder
       }
 
       // 递归子节点
-      for (const child of actor.getChildren()) {
-        node.children.push(buildNode(child))
+      const childSegments: string[] = []
+      const children = actor.getChildren()
+      for (let i = 0; i < children.length; i++) {
+        node.children.push(buildNode(children[i], path, childSegments))
       }
 
       return node
@@ -674,8 +772,9 @@ export function registerBuiltinAIHandlers(): void {
     // 从 UIManager 获取所有 UI Actor，构建完整 HUD 树
     const uiActors = world.ui.getAllUIActors()
     const hudTree: AIHUDNode[] = []
-    for (const actor of uiActors) {
-      hudTree.push(buildNode(actor))
+    const rootSegments: string[] = []
+    for (let i = 0; i < uiActors.length; i++) {
+      hudTree.push(buildNode(uiActors[i], '', rootSegments))
     }
 
     logger.info(`[AI] getHUD: ${uiActors.length} 个根 UI Actor`)
