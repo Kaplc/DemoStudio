@@ -20,6 +20,7 @@ const ASSET_PATTERNS: AssetKind[] = [
   { re: /\.blueprint\.json$/i, kind: 'blueprint', icon: '🧩' },
   { re: /\.widget\.json$/i, kind: 'widget', icon: '🪟' },
   { re: /\.config\.json$/i, kind: 'config', icon: '⚙️' },
+  { re: /\.table\.json$/i, kind: 'config', icon: '⚙️' },
   { re: /\.(png|jpe?g|gif|svg)$/i, kind: 'image', icon: '🖼️' },
 ]
 
@@ -83,8 +84,9 @@ function formatSize(size: number): string {
 
 export function AssetBrowser() {
   const currentProject = useEditorStore((s) => s.currentProject)
-  const openScenePreview = useEditorStore((s) => s.openScenePreview)
-  const openBlueprintEditor = useEditorStore((s) => s.openBlueprintEditor)
+const openScenePreview = useEditorStore((s) => s.openScenePreview)
+const openBlueprintEditor = useEditorStore((s) => s.openBlueprintEditor)
+const openConfigEditor = useEditorStore((s) => s.openConfigEditor)
 
   const [files, setFiles] = useState<AssetFile[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -140,6 +142,9 @@ export function AssetBrowser() {
     } else if (node.kind?.kind === 'blueprint' || node.kind?.kind === 'widget') {
       const label = node.name.replace(/\.(blueprint|widget)\.json$/i, '')
       openBlueprintEditor(node.path, label)
+    } else if (node.kind?.kind === 'config') {
+      const label = node.name.replace(/\.(config|table)\.json$/i, '')
+      openConfigEditor(node.path, label)
     }
   }
 

@@ -8,6 +8,7 @@ import { useEditorStore, type ViewportTabDef } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { BlueprintEditor } from './BlueprintEditor'
 import { ScenePreviewEditor } from './ScenePreviewEditor'
+import { ConfigEditor } from './ConfigEditor'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
 import {
   setupScene,
@@ -551,8 +552,14 @@ export function Viewport({ onReady }: ViewportProps) {
             {tab.type === 'scenePreview' && (
               <span style={{ fontSize: 14, lineHeight: 1 }}>🎬</span>
             )}
+            {tab.type === 'config' && (
+              <span style={{ fontSize: 14, lineHeight: 1 }}>📋</span>
+            )}
             {tab.label}
             {tab.type === 'blueprint' && tab.assetPath && dirtyBlueprints[tab.assetPath] && (
+              <span style={{ color: 'var(--warning)', marginLeft: 2 }}>*</span>
+            )}
+            {tab.type === 'config' && tab.assetPath && dirtyBlueprints[tab.assetPath] && (
               <span style={{ color: 'var(--warning)', marginLeft: 2 }}>*</span>
             )}
             {tab.type === 'game' && editorState.running && (
@@ -692,6 +699,9 @@ export function Viewport({ onReady }: ViewportProps) {
           )}
           {tab.assetPath && tab.type === 'scenePreview' && (
             <ScenePreviewEditor assetPath={tab.assetPath} />
+          )}
+          {tab.assetPath && tab.type === 'config' && (
+            <ConfigEditor assetPath={tab.assetPath} />
           )}
         </div>
       ))}

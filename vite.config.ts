@@ -107,13 +107,13 @@ export default defineConfig({
     react(),
     unicodeFontsCachePlugin(),
     {
-      // 资产 JSON（widget/scene/blueprint）更新不触发 HMR 整页/引擎刷新：
-      // 这些文件由编辑器保存机制驱动（writeJsonFile → loadFromJson/loadSceneAsset → 预览重建），
+      // 资产 JSON（widget/scene/blueprint/config/table）更新不触发 HMR 整页/引擎刷新：
+      // 这些文件由编辑器保存机制驱动（writeJsonFile → loadFromJson/loadSceneAsset/ConfigLoader → 预览重建），
       // 不需要 Vite 热更新传播；文件本身仍被监听，直接改盘不会影响运行中的编辑器。
       // 不在此过滤的话，import.meta.glob 的依赖链会把整个引擎模块树都重载一遍。
       name: 'ignore-asset-json-hmr',
       handleHotUpdate({ file }) {
-        if (/(?:widget|scene|blueprint)\.json$/.test(file)) return []
+        if (/(?:widget|scene|blueprint|config|table)\.json$/.test(file)) return []
       },
     },
     electron([

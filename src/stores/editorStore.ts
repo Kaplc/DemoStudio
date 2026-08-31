@@ -21,10 +21,10 @@ export interface GameState {
 
 export type PanelId = 'scene' | 'game' | 'inspector' | 'console' | 'project'
 
-/** 视口页签定义（持久标签 + 动态标签：蓝图 / 场景预览） */
+/** 视口页签定义（持久标签 + 动态标签：蓝图 / 场景预览 / 配置表） */
 export interface ViewportTabDef {
   id: string
-  type: 'scene' | 'game' | 'uiScene' | 'blueprint' | 'scenePreview'
+  type: 'scene' | 'game' | 'uiScene' | 'blueprint' | 'scenePreview' | 'config'
   label: string
   permanent: boolean
   assetPath?: string
@@ -121,6 +121,8 @@ export interface EditorState {
   openBlueprintEditor: (assetPath: string, label: string) => void
   /** 打开场景预览页签（如果已打开则激活） */
   openScenePreview: (assetPath: string, label: string) => void
+  /** 打开配置资产表格编辑器页签（如果已打开则激活） */
+  openConfigEditor: (assetPath: string, label: string) => void
   /** 关闭动态页签 */
   closeDynamicTab: (tabId: string) => void
   /** 切换活跃页签 */
@@ -294,6 +296,19 @@ export const useEditorStore = create<EditorState>((set) => ({
         // 打开场景预览后自动切到左侧大纲，方便直接看到场景 Actor 树
         leftPanelTab: 'outline',
       }
+    }),
+  openConfigEditor: (assetPath, label) =>
+    set((state) => {
+      const existing = state.dynamicTabs.find((t) => t.assetPath === assetPath)
+      if (existing) return { activeTabId: existing.id }
+      const newTab: ViewportTabDef = {
+        id: `cfg:${assetPath}`,
+        type: 'config',
+        label,
+        permanent: false,
+        assetPath,
+      }
+      return { dynamicTabs: [...state.dynamicTabs, newTab], activeTabId: newTab.id }
     }),
   closeDynamicTab: (tabId) =>
     set((state) => {
