@@ -1,6 +1,9 @@
 # UI HTML 源格式（UI HTML Source Format）
 
-> widget.json 的 AI 编写层：HTML/CSS 受控子集单向编译 + 反编译回写，运行时零改动。
+> widget.json 的 AI 编写层：完整原生 HTML/CSS 单向编译 + 反编译回写，运行时零改动。
+> **2026-09-01 升级**：v1 受控子集已升级为完整原生 HTML 映射（完整标签全集/选择器级联继承/
+> 盒模型/块级流/内联流/flex wrap+grow/grid/表格/@media/渐变/transform，编译期静态布局求解）。
+> 权威映射文档：`devdoc/ui-html-source-format/full-mapping.md`；本文其余"受控子集"表述为历史。
 > 代码位置：`src/editor/asset/uiCompiler/`、`scripts/ui-compiler-cli.mjs`
 > 相关文档：[系统总览](../system_overview.md) / [资产预览与检查](./asset_preview_lint_system.md) / [蓝图编辑](./blueprint_edit_system.md) / [引擎 UI 系统](../engine/ui_system.md)
 

@@ -9,3 +9,8 @@
 - [ds_instructions_lazy_injection](ds_instructions_lazy_injection.md) — ds-instructions 指令惰性注入机制：global.instructions.md 不会在会话开头自动出现，须等 Agent 读取匹配文件后才…
 - [editor_screenshot_tool_removed](editor_screenshot_tool_removed.md) — 更新编辑器工具可用性：editor_emit/editor_click/editor_read 等已可用；editor_screenshot 仍禁用
 - [demo_editor_emit_ai_event_channel](demo_editor_emit_ai_event_channel.md) — DemoStudio 编辑器操作应走 emit_ai_event 通道，editor_emit/editor_read/editor_clic…
+- [ds_experience_no_auto_extract](ds_experience_no_auto_extract.md) — 经验插件移除自动提炼，改为 AI 自觉调用 experience_save
+- [ds_memory_no_auto_search](ds_memory_no_auto_search.md) — 记忆插件移除自动检索注入，改为 agent 自觉调用 memory_search
+- [ds_memory_search_no_llm](ds_memory_search_no_llm.md) — memory_search 改为纯文件读取，移除 LLM 调用
+- [ds_experience_search_no_llm](ds_experience_search_no_llm.md) — experience_search 改为纯文件读取，harness 下无 LLM 调用
+- [user_ui_no_icon_by_default](user_ui_no_icon_by_default.md) — UI 不加 icon/emoji，除非用户要求

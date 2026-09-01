@@ -20,7 +20,14 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 - 编译产物：同目录同名 `<描述>.widget.json`（ui 目录下 .json 由 `import.meta.glob` 自动注册，无需写 path）
 - 同名 .html 与 .json 成对存在时，编辑器保存 json 会自动反编译回写 html（双边同改以最后保存方为准）
 
-### 2. 源文件写法（受控子集）
+### 2. 源文件写法（完整原生 HTML 映射，2026-09 升级）
+
+> 编译器已支持完整原生 HTML/CSS 映射（权威文档 `devdoc/ui-html-source-format/full-mapping.md`）：
+> 常规标签（div/p/h1-h6/ul/ol/li/span/b/i/table 等）、完整选择器（#id/后代/子代/:nth-child）、
+> 级联+继承+!important+inline style、px/%/em/rem/vw/vh/calc()/var()/命名色、
+> 盒模型（margin/padding/border）、块级流默认布局（不写 flex 也堆叠）、
+> flex(wrap/grow/shrink)、grid、@media、linear-gradient 渐变、transform、标准 text-shadow。
+> 越界写法（未知标签/属性、script、overflow:hidden）**编译期硬报错**，绝不静默忽略。
 
 ```html
 <widget name="Toast" canvas="960x180" world="4.8x0.9" anchor="top-center" offset="0,0.55">
@@ -40,8 +47,8 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 |---|---|---|
 | `<div>` | 容器 Actor（+UILayout 若 `display:flex`；+UIImage 若带 background/border-radius/opacity） | 纯容器或背景面板 |
 | `<img src="...">` | UIImageComponent | void 叶子；background-color 作纯色填充 |
-| `<text>` | UITextComponent | font-size/letter-spacing/text-shadow-blur 为画布像素语义 |
-| `<button>` | UIButtonComponent + 可选 UIImage 背景 | `:hover color` → UIScript.args.hoverColor |
+| `<text>` | UITextComponent | 原生文本也可直接写（`<p>`/`<h1>` 等 → 容器+文本） |
+| `<button>` | UIButtonComponent + 可选 UIImage 背景 | `:hover/:active/:disabled` 颜色 → UIScript.args（需 data-script 消费） |
 | `data-comp`/`data-props` | 任意组件透传 | 逃逸通道（UIProgressBar 等无映射组件） |
 | `data-script`/`data-args` | UIScriptComponent | 任意元素可挂；script id 必须真实存在 |
 
@@ -49,7 +56,8 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 - `<widget name="X" canvas="宽x高">`：canvas 为画布像素（1920×1080 常见全屏，480×90 等小件自定）
 - `world="宽x高"`（米）：声明根世界尺寸，缺省宽 4.8、高按画布比例。全屏= `9.6x5.4`（1920×1080）；不带 world 属性时也可正常编译
 - `anchor`/`offset`：根锚点（如 `top-center`）+ 世界米偏移
-- 子元素定位：`position: absolute; left: X%; top: Y%` ↔ 九宫格锚点自动反解；流内布局用父容器 `display:flex`（gap/justify-content/align-items 含 stretch）
+- 子元素定位：`position: absolute; left/top/right/bottom` ↔ 锚点自动反解；默认**块级流**（不写 flex 子项纵向堆叠）；`display:flex`（含 wrap/grow/shrink/basis）与 `display:grid`（px/%/fr/auto、repeat()、线位）编译期静态求解为精确坐标
+- 布局期文本宽度为字体学估算（CJK≈1em/字、拉丁≈0.52em/字符）——需要精确尺寸的元素显式给 width/height
 - px↔米换算按根画布比例自动处理，AI 只按像素写布局
 
 ### 3. 编译（必须）
@@ -60,7 +68,7 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 { "asset": "src/projects/<project>/asset/blueprints/ui/<描述>.widget.html" }
 ```
 
-- 成功：json 自动落盘（含 sourceHash），产物已过 assetLint 零 error 门槛
+- 成功：json 自动落盘（含 sourceHash），产物已过 assetLint 零 error 门槛；`warnings[]` 为近似披露（文本估算/装饰属性不渲染等），逐条确认可接受
 - 失败：返回 `errors[{line, message}]`——按行号修源重试，不要手改 json
 
 ### 4. 完成检查

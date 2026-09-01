@@ -70,7 +70,14 @@ AI 编写/编辑  xxx.widget.html（唯一源文件，样式内联 <style>）
 `img` → UIImageComponent、`button` → UIButtonComponent、
 文本节点 → UITextComponent、`data-script` 属性 → UIScriptComponent。
 
-## 5. CSS 受控子集（成败点）
+## 5. CSS 映射面（2026-09-01 升级：完整原生 HTML 映射）
+
+> **v1 受控子集已被取代**。现行权威文档：[full-mapping.md](full-mapping.md)——
+> 完整标签全集、全属性选择器/级联/继承、单位/命名色/calc/var、盒模型、
+> 块级流/内联流/flex(wrap/grow)/grid/表格、UA 默认样式、编译期静态布局求解、
+> 警告通道与已知偏差表。以下为 v1 历史记录。
+
+### v1 历史：CSS 受控子集（成败点）
 
 第一版只映射现有引擎能力能**精确表达**的子集，超出即编译报错（含行号）。
 不做的：grid 复杂用法、flex wrap、grow/shrink、动画、伪类（:hover 仅映射

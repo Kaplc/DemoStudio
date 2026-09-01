@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "servers": {
+      "demostudio": {
+        "command": "node",
+        "args": [
+          "editor/mcp-server.mjs"
+        ],
+        "env": {}
+      }
+    }
+  }
+}
