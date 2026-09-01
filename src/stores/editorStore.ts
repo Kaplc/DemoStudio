@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { registerProjectAssets, clearProjectAssets } from '../projects/registry'
+// 直连 Logger 模块（勿用 '../engine' barrel）：本 store 在 Agent 独立入口（agent.html）
+// 的依赖闭包内，barrel 会把整个引擎拉进 agent 图（见 devdoc/agent-window-independent-entry）
+import { logger } from '../engine/Logger'
 
 export interface Project {
   name: string
@@ -211,13 +213,23 @@ export const useEditorStore = create<EditorState>((set) => ({
   // ─── Actions ───
   setProjects: (projects) => set({ projects }),
   // 切项目时清空动态页签 + 资产，避免残留旧项目数据
+  // registry 惰性加载：Agent 独立窗口（agent.html）依赖本 store，但不需要
+  // projects/registry（顶层静态导入会连带全部游戏资产/gameplay 脚本进入 agent 图）。
+  // 动态 import 斩断该依赖边；主编辑器首次切工程时一次性完成加载（microtask 按序执行，连续切换无竞态）。
   setCurrentProject: (project) => {
-    if (project) {
-      registerProjectAssets(project.name)
-    } else {
-      clearProjectAssets()
-    }
-    set({ currentProject: project, dynamicTabs: [], activeTabId: 'scene', assetSelection: null })
+    void import('../projects/registry')
+      .then(({ registerProjectAssets, clearProjectAssets }) => {
+        // 先注册/清空资产，再切换 currentProject，保证状态一致（资产就绪后才对外可见）
+        if (project) {
+          registerProjectAssets(project.name)
+        } else {
+          clearProjectAssets()
+        }
+        set({ currentProject: project, dynamicTabs: [], activeTabId: 'scene', assetSelection: null })
+      })
+      .catch((err) => {
+        logger.error(`[editorStore] 项目资产注册模块加载失败: ${err instanceof Error ? err.message : String(err)}`)
+      })
   },
   setShowProjectSelector: (show) => set({ showProjectSelector: show }),
   setShowNewProjectDialog: (show) => set({ showNewProjectDialog: show }),

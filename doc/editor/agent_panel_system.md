@@ -58,8 +58,9 @@ Agent 面板是 DemoStudio 编辑器与 DSH（DeepSeek Harness）内核之间的
 // 方式 2：快捷键
 // Ctrl+Shift+A → dsh-open-agent-window IPC → openAgentWindow()
 
-// Agent 独立窗口加载 ?agentWindow=1 参数
-// App.tsx 检测后仅渲染 <AgentPanel />，不初始化引擎
+// Agent 独立窗口加载独立入口 agent.html（agent-main.tsx）
+// 仅挂载 <AgentPanel />，不初始化引擎；与主编辑器分入口加载（HMR 分窗隔离）
+// 旧 URL /?agentWindow=1 由 App.tsx 重定向到 /agent.html 兼容
 ```
 
 ### 3.2 AgentService 核心 API

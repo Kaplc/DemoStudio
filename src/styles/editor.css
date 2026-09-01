@@ -1369,7 +1369,7 @@ html, body, #root {
 
 /* ═══ Agent Panel（完全对齐 DSH Web UI）═══ */
 
-/* --- Agent 独立窗口（Electron 子窗口 ?agentWindow=1）全屏容器 --- */
+/* --- Agent 独立窗口（agent.html 独立入口）全屏容器 --- */
 .agent-window-root {
   width: 100vw;
   height: 100vh;

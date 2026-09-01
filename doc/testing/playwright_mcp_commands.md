@@ -270,7 +270,7 @@ Playwright MCP 连本地 Chrome（经 9222），内置工具连 VS Code 集成�
 | Vite 多实例 | 页面端口非 5173（递增），但 MCP HTTP 端口为 9877+ 独立递增 | 用 `Get-NetTCPConnection -LocalPort 5173` 确认实际端口 |
 | `window.electronAPI` 读写 | 浏览器模式是 `MockElectronAPI`，仅内存缓存**不落盘** | 保存/加载真实磁盘必须回 Electron 验证 |
 | `browser_run_code_unsafe` | 工具描述自带 RCE-equivalent 警告 | 非必要不使用 |
-| Agent 面板在新标签页打开 | 点击菜单「Agent」后 `dshOpenAgentWindow` 创建独立子窗口（URL 含 `?agentWindow=1`），不在当前页面内切换 | 用 `browser_tabs` 的 `list` 列出所有标签页，`select` 切换到 Agent 窗口标签页；注意 Agent 窗口页面不含引擎初始化逻辑（`App.tsx` 检测到 `agentWindow=1` 时跳过 `EditorInitializer`） |
+| Agent 面板在新标签页打开 | 点击菜单「Agent」后 `dshOpenAgentWindow` 创建独立子窗口（dev 加载 `/agent.html`，prod 加载 `dist/agent.html`，见 `devdoc/agent-window-independent-entry`），不在当前页面内切换 | 用 `browser_tabs` 的 `list` 列出所有标签页，`select` 切换到 Agent 窗口标签页；注意 Agent 窗口是独立入口（`agent-main.tsx`），不含引擎初始化逻辑 |
 | 启动页项目卡片有 CSS 过渡动画 | `.startup-project-card` 有 `transition` 属性，动画期间元素未 `stable`，`browser_click` 等待超时 | 用 `browser_evaluate` + `dispatchEvent('click', { bubbles: true })` 绕过，或 `browser_wait_for` 等动画结束再点 |
 | Vite 仅监听 IPv6 回环 `::1` | `localhost` 在部分环境解析为 `127.0.0.1`（IPv4），导致 `http://localhost:5173` 连接被拒 | 确认 `netstat -ano | findstr :5173` 输出为 `[::1]:5173` 时，导航用 `http://[::1]:5173/` 替代 `http://localhost:5173/`；或修改 `vite.config.ts` 的 `server.host` 为 `'0.0.0.0'` |
 
@@ -307,6 +307,7 @@ AI 客户端 ──stdio──► editor/mcp-server.mjs ──HTTP :9877+──�
 | `File access denied ... outside allowed roots` | 截图路径沙箱 | 用默认文件名或落在允许根目录 |
 | 截图生成了但 AI 读不了 | 沙箱目录在工作区外 | 改用 `browser_snapshot` / `browser_find` |
 | 误以为 MCP 连的是 Vite 端口 | 9222（CDP）与 5173（Vite）是两回事 | CDP 连浏览器，浏览器再去访问 5173 |
-| Agent 面板不在当前页面内 | 点击「Agent」菜单会创建独立子窗口（`?agentWindow=1`），不是同页面切换 | 用 `browser_tabs` 管理标签页，`list` 列出后 `select` 切换 |
+| Agent 面板不在当前页面内 | 点击「Agent」菜单会创建独立子窗口（`/agent.html`），不是同页面切换 | 用 `browser_tabs` 管理标签页，`list` 列出后 `select` 切换 |
+| MCP `browser_*` 全部请求超时（10s，无报错） | CDP 浏览器未启动/未挂载，MCP 等待浏览器响应超时而非连接失败 | 先按 §3.1 启动 Chrome CDP；或绕过 MCP，用项目自带 `@playwright/test` 写临时脚本（`import { chromium } from '@playwright/test'` + `chromium.launch()`）直接验证 |
 | 启动页卡片 `browser_click` 超时 | `.startup-project-card` 的 CSS `transition` 导致元素未 `stable` | `browser_evaluate` + `dispatchEvent` 绕过动画 |
 | `localhost:5173` 连接被拒但 Vite 在跑 | Vite 只监听 IPv6 `::1`，`localhost` 解析为 IPv4 `127.0.0.1` 时不通 | 导航用 `http://[::1]:5173/`，或改 `vite.config.ts` 的 `server.host` |

@@ -1,10 +1,18 @@
 # 需求方案：Agent 窗口独立入口（agent.html）
 
-> 状态：待排期 ｜ 提出日期：2026-09-01 ｜ 类型：架构优化（体验/性能，非正确性修复）
+> 状态：✅ 已实现（2026-09-01）｜ 提出日期：2026-09-01 ｜ 类型：架构优化（体验/性能，非正确性修复）
 >
 > 前置关联：本方案落地前，HMR 触发历史重放的重复渲染 bug 已修复
 > （fold 的 finish 边界误提交 + seq 基线原子推进 + seedPendingTurn 续写，
 > 见 `e2e/agent-session-resume.e2e.spec.ts`）。本方案解决的是刷新本身。
+>
+> 实现摘要：Step 1（PluginControlCenter barrel 直连 + editorStore registry 动态 import 惰性化）
+> 与 Step 2（agent.html + agent-main.tsx + vite 双入口 + Electron 挂载点 + 旧 URL 重定向）
+> 均已落地；`Logger.isAgentWindow` 保留 search 参数判定并新增路径判定，Logger.ts 加
+> `import.meta.hot.accept()` 边界。已验证：`tsc` 全绿；生产构建双入口分离
+> （agent 图 427+431 kB vs 主图 3958+1217 kB，< 1/3 达标）；Playwright 实测
+> `/agent.html` 直开渲染正常（无编辑器 DOM/canvas）、`/?agentWindow=1` 重定向兼容、
+> 修改 Logger.ts 后 agent 窗口零刷新（TC-C1 锚点通过）。
 
 ## 1. 背景
 

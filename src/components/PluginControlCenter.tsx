@@ -5,7 +5,9 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { pluginService } from '../editor/PluginService'
-import { logger } from '../engine'
+// 直连 Logger 模块（勿用 '../engine' barrel）：本组件在 Agent 独立入口（agent.html）
+// 的依赖闭包内，barrel 会把整个引擎拉进 agent 图（见 devdoc/agent-window-independent-entry）
+import { logger } from '../engine/Logger'
 import type { PluginInfo, PluginStatus, PluginType } from '../types/plugin'
 
 /** 插件类型中文名映射 */

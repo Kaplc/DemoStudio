@@ -88,9 +88,14 @@ class LoggerInstance {
     return `[${this.formatTime()}][${level.toUpperCase()}][${this.module}] ${message}${extra}`
   }
 
-  /** 是否运行在 Agent 独立窗口（URL 含 ?agentWindow=1） */
+  /** 是否运行在 Agent 独立窗口（新入口 agent.html，或旧 URL ?agentWindow=1 向后兼容） */
   private get isAgentWindow(): boolean {
-    return typeof window !== 'undefined' && window.location?.search?.includes('agentWindow=1')
+    if (typeof window === 'undefined') return false
+    // 旧入口兼容：主入口 URL 携带 ?agentWindow=1（App.tsx 重定向到 agent.html 前后均按 agent 窗口处理）
+    if (window.location?.search?.includes('agentWindow=1')) return true
+    // 新独立入口：agent.html 路径（Electron agent 窗口 / 浏览器直开）
+    if (window.location?.pathname?.endsWith('agent.html')) return true
+    return false
   }
 
   private write(level: LogLevel, message: string, ...args: any[]) {
@@ -172,3 +177,12 @@ class LoggerInstance {
 export const logger = LoggerInstance.getInstance({ module: 'DemoStudio', minLevel: 'debug' })
 
 export { LoggerInstance as Logger }
+
+// ─── HMR 边界（Vite）───
+// Logger 是 Agent 独立入口（agent.html）依赖图中唯一的引擎模块（直连导入）。
+// 接受自身更新后，本文件改动在 agent/主编辑器窗口内做模块级热替换（重新执行创建新单例），
+// 不再沿导入链冒泡到 HTML 入口导致整页刷新（devdoc/agent-window-independent-entry TC-C1）。
+// 热替换后旧单例仍被既有引用持有继续输出日志，日志场景可接受。
+if (import.meta.hot) {
+  import.meta.hot.accept()
+}

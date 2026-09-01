@@ -14,11 +14,14 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { CodeLintPanel } from './components/CodeLintPanel'
 import { ErrorStatusPanel } from './components/ErrorStatusPanel'
 import { PluginControlCenter } from './components/PluginControlCenter'
-import { AgentPanel } from './components/AgentPanel'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
 import { Editor } from './editor'
+
+/** 是否运行在 Agent 独立窗口（与 Logger.isAgentWindow 同语义：search 参数判定，向后兼容） */
+const isAgentWindow = typeof window !== 'undefined'
+  && window.location?.search?.includes('agentWindow=1')
 
 /**
  * 启动阶段：loading → selecting-project → editor
@@ -26,11 +29,16 @@ import { Editor } from './editor'
 type StartupPhase = 'loading' | 'selecting-project' | 'editor'
 
 export default function App() {
-  // ─── Agent 独立窗口模式（Electron 子窗口 ?agentWindow=1）：仅全屏渲染 AgentUI，不初始化引擎 ───
-  // 该分支在窗口整个生命周期内恒定，早期返回不违反 hook 顺序规则
-  if (new URLSearchParams(window.location.search).get('agentWindow') === '1') {
-    return <div className="agent-window-root"><AgentPanel /></div>
+  // ─── 旧入口兼容：/?agentWindow=1 → /agent.html ───
+  // Agent 独立窗口已迁移到独立入口 agent.html（agent-main.tsx），此处保留
+  // search 参数判定做重定向兜底（旧链接 / e2e / 文档中的 ?agentWindow=1 仍可用）
+  if (isAgentWindow) {
+    const url = new URL(window.location.href)
+    url.pathname = '/agent.html'
+    window.location.replace(url.toString())
+    return null
   }
+
 
   const { addConsoleOutput, setShowProjectSelector, setCurrentProject, launchGame, stopGame, gameState, showPluginCenter, setShowPluginCenter } = useEditorStore()
   const consoleVisible = useEditorPrefsStore((s) => s.consoleVisible)

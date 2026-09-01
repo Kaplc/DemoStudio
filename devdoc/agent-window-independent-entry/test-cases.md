@@ -5,6 +5,41 @@
 > 涉及 URL 变更：旧 `/?agentWindow=1` → 新 `/agent.html`
 > 涉及修复前置：HMR 历史重放重复渲染已修（`e2e/agent-session-resume.e2e.spec.ts`）
 
+## 执行记录（2026-09-01）
+
+**结果：16/18 通过（2 条被工作区缺失项阻塞）**
+
+| 用例 | 结果 | 方式 |
+|---|---|---|
+| TC-A1 | ✅ | grep 审计：agent 图内 barrel 导入清零；tsc 全绿 |
+| TC-A2 | ✅ | 浏览器 UI 实测：startup 选工程 + 菜单切工程，`performance` 确认 `/src/projects/registry` 动态加载，Launch/Stop 正常 |
+| TC-A3 | ✅ | 固化为 `e2e/agent-entry-graph.e2e.spec.ts`（6 用例）：静态闭包零游戏/registry/main chunk；动态出口白名单（registry 惰性 + Mock 伪文件系统 glob）；dev 运行时资源审计；AgentPanel 存在性 |
+| TC-A4 | ✅ | 浏览器 UI 实测（含于 TC-A2 流程）：项目切换/启动/停止/控制台零报错 |
+| TC-B1 | ✅ | Playwright 直开 `/agent.html`：面板全屏、无编辑器 DOM、无 canvas、`--dsw-*` 有值 |
+| TC-B2 | ✅ | 旧 URL `/?agentWindow=1` 客户端重定向到 `/agent.html` 后正常渲染 |
+| TC-B3 | ✅ | 主入口 `/` 正常启动，`App.tsx` 分支已移除 |
+| TC-C1 | ✅ | 双窗口 + touch `Logger.ts`：agent 窗口 0 次导航、标记保留、面板健在；主窗口正常热更（验收锚点） |
+| TC-C2 | ✅ | touch `src/projects/fish/gameplay/game/FishGameMode.ts`：agent 窗口零刷新 |
+| TC-C3 | ✅ | Electron 真实会话（DSH 回复 pong）+ touch `AgentPanel.tsx`：热替换存活、无相邻重复消息 |
+| TC-C4 | ✅ | touch `AgentPanel.tsx`：主编辑器窗口零刷新（反向隔离） |
+| TC-C5 | ✅ | 数数流式任务中 touch 面板：30 行数字完整、用户消息 1 条、无重复（pendingPartial 语义保持） |
+| TC-D1 | ✅ | Playwright `_electron.launch`：agent 窗口加载 `/agent.html`、面板 1086×743、DSH 自动连接成功 |
+| TC-D2 | ✅（核心）/ ⚠️（IPC 全链路） | 临时主进程 `loadFile(dist/agent.html)` + 真实 preload：面板完整渲染、样式正常（`base:'./'` 修复生效）。dshRpc/mux 流式全链路需真实打包环境（npm run electron:build），列为剩余人工项 |
+| TC-D3 | ✅ | agent 窗口内 `electronAPI` 五 API 齐全，`dshRpc('session.list')` 真实往返 |
+| TC-E1 | ✅ | 含于 TC-B1：主题变量有值、面板类生效 |
+| TC-E2 | ✅ | 共享 css 注入探针变量：agent 窗口与主编辑器窗口均读到 `42`（双入口同步） |
+| TC-F1 | ⏸️ 阻塞 | `e2e/agent-session-resume.e2e.spec.ts` 不在当前工作区，无法执行 |
+| TC-F2 | ⏸️ 阻塞 | `e2e/clashmaster.e2e.spec.ts` 不在当前工作区，无法执行 |
+| TC-F3 | ✅ | 基线记录：**agent 静态闭包 ≈ 0.86 MB（agent 427.8 kB + Mock 431.3 kB）vs 主入口静态闭包 ≈ 5.17 MB（main 3958.6 kB + registry 1217.6 kB），< 1/3 达标**；已固化为 e2e 断言防回归 |
+
+**过程中发现并修复的问题（3 个）**：
+1. `vite.config.ts` 缺 `base: './'` → prod `loadFile`（file://）下绝对路径 `/assets/*` 404 白屏。已加 base 并回归
+2. `electron/main.ts` 无条件 `appendSwitch('remote-debugging-port','9222')` → 与运行中实例 9222 冲突（bind 失败），Playwright/CDP 调试链路瘫痪。已加 `hasSwitch` 守卫
+3. Playwright MCP（CDP :9222）全请求超时 → 根因即问题 2 的僵尸监听；改用 `_electron.launch`（pipe 模式）绕过，踩坑已记入 `doc/testing/playwright_mcp_commands.md`
+
+**剩余人工验证项**：TC-D2 的 dshRpc/mux 流式全链路（`npm run electron:build` 打包后在真实 prod 环境发一条消息观察流式回复）；TC-F4 双窗口长会话冒烟（P2）。
+
+
 ## A. 依赖图清理（Step 1）
 
 ### TC-A1 引擎 barrel 漏点移除 【P0】

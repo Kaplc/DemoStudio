@@ -57,7 +57,7 @@ ConnectionIndicator.onClick(degraded)
 
 窗口加载**编辑器自身的 AgentUI**（与 agent `:3080` 交互、共享同一批会话）：
 
-- 实现方式：窗口加载编辑器应用并携带 `?agentWindow=1`，`App.tsx` 检测该参数后只全屏渲染 `<AgentPanel/>`（不初始化引擎/菜单/视口）；
+- 实现方式：窗口加载独立入口 `agent.html`（`agent-main.tsx`），只挂载 `<AgentPanel/>`（不初始化引擎/菜单/视口），与主编辑器分入口加载（HMR 分窗隔离，见 `devdoc/agent-window-independent-entry`）；旧 URL `/?agentWindow=1` 由 App.tsx 重定向兼容；
 - 单例：重复触发聚焦已有窗口；agent 未就绪时窗口内 AgentPanel 自动进入 `claiming` 态轮询等待（复用自身连接状态机）；
 - 仅是 UI 容器，不影响 agent 进程管理；主窗口关闭时级联关闭该窗口，随后 `window-all-closed` 正常触发 agent 收割（不变量不破坏）；
 - spawn 参数保持 `--no-open`，不自动弹 DSH 自带的浏览器 WebUI（如需官方界面可手动访问 `http://127.0.0.1:3080`）。

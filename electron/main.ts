@@ -2038,7 +2038,8 @@ async function startMCPServer() {
 }
 
 /**
- * Agent 独立窗口：加载编辑器自身的 AgentUI（?agentWindow=1 全屏渲染 AgentPanel），
+ * Agent 独立窗口：加载独立入口 agent.html（agent-main.tsx 全屏渲染 AgentPanel），
+ * 与主编辑器分入口加载，HMR 分窗隔离（引擎/面板文件互不触发对方刷新），
  * 与编辑器内嵌面板共享同一 agent :3080 与同一批会话。
  * - 单例：重复调用时聚焦已有窗口；
  * - agent 未就绪时窗口内 AgentPanel 自动进入 claiming 态轮询等待（复用自身连接状态机，无需等待页）；
@@ -2092,11 +2093,11 @@ function openAgentWindow(): void {
     _dshWebuiWindow.webContents.openDevTools({ mode: 'detach' })
   }
 
-  // 加载编辑器应用本身，query 参数驱动 App 只渲染 AgentPanel（不初始化引擎）
+  // 加载 Agent 独立入口（agent.html → agent-main.tsx，仅挂载 AgentPanel，不初始化引擎）
   if (isDev) {
-    void _dshWebuiWindow.loadURL(`${VITE_URL}?agentWindow=1`)
+    void _dshWebuiWindow.loadURL(`${VITE_URL}/agent.html`)
   } else {
-    void _dshWebuiWindow.loadFile(path.join(__dirname, '../dist/index.html'), { search: 'agentWindow=1' })
+    void _dshWebuiWindow.loadFile(path.join(__dirname, '../dist/agent.html'))
   }
 }
 
@@ -2105,7 +2106,12 @@ function openAgentWindow(): void {
 // 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
 // Vite 端口 (5173+) 与 MCP 端口 (9877+) 均自动递增分配，互不冲突
 // 开启远程调试端口（Playwright/CDP 可连接已有实例）
-app.commandLine.appendSwitch('remote-debugging-port', '9222')
+// 仅在启动参数未显式指定调试端口时追加：外部调试工具（如 Playwright electron.launch 传
+// --remote-debugging-port=0 走 pipe 模式）会自带该参数，无条件覆盖会与运行中实例的 9222
+// 冲突（bind 失败 → devtools http server 起不来 → 调试链路瘫痪）
+if (!app.commandLine.hasSwitch('remote-debugging-port')) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+}
 
 app.whenReady().then(() => {
   startApp()

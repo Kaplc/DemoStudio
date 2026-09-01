@@ -69,6 +69,9 @@ function unicodeFontsCachePlugin(): Plugin {
 }
 
 export default defineConfig({
+  // 相对路径 base：Electron 生产模式 loadFile（file:// 协议）加载 dist/*.html 时，
+  // 绝对路径 /assets/* 会 404，必须用 ./assets/* 相对引用（dev/preview 模式同样兼容）。
+  base: './',
   define: {
     // 应用根目录绝对路径，注入 renderer：浏览器调试模式（MockElectronAPI）下
     // Agent 面板用它作为 DSH 会话默认工作区；Electron 模式走 main 进程 get-app-info。
@@ -77,6 +80,14 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
     outDir: 'dist',
+    // 双入口 MPA：主编辑器（index.html）+ Agent 独立窗口（agent.html）。
+    // 两入口模块图分离，agent 图只含面板闭包（无引擎/项目），HMR 按入口分窗隔离。
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        agent: path.resolve(__dirname, 'agent.html'),
+      },
+    },
   },
   server: {
     // 资产 JSON（scene/blueprint）必须参与文件监听，

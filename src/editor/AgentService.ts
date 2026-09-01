@@ -452,13 +452,20 @@ export class AgentService {
         if (!events.length) return
         const tailEvent = events[events.length - 1].event
         console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听探测: ${events.length} 事件, 尾=${tailEvent.type}@${tailEvent.seq}`)
+        // 从尾向头找回合边界：先遇 turn/end = 已闭合；先遇 turn/start = 未闭合；
+        // 两者都未遇到（如新会话仅有 permission/approval 固定事件）= 历史中无回合，无需续听
+        let unclosedTurn = false
         for (let i = events.length - 1; i >= 0; i--) {
           const t = events[i].event.type
           if (t === 'turn/end') {
             console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 最后回合已收尾，无需续听`)
             return            // 最后回合已收尾 → 无未完成工作
           }
-          if (t === 'turn/start') break           // 存在未闭合回合 → 续听
+          if (t === 'turn/start') { unclosedTurn = true; break }  // 存在未闭合回合 → 续听
+        }
+        if (!unclosedTurn) {
+          console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 历史中无回合边界事件（如仅权限固定事件），无需续听`)
+          return
         }
         console.log(`[${logTime()}]`, '[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
         await this.refreshSeqBaseline()
