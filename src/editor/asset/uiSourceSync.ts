@@ -10,7 +10,7 @@
  * 全部经 electronAPI 文件 IO（相对项目根路径），浏览器 Mock 环境降级为内存缓存。
  */
 import { compileWidgetHtml, decompileWidgetJson } from './uiCompiler'
-import type { CompileError } from './uiCompiler'
+import type { CompileError, CompileWarning } from './uiCompiler'
 import { logger } from '../../engine/Logger'
 
 /** 同步结果 */
@@ -111,8 +111,11 @@ export async function decompileBackOnSave(
 }
 
 /** 编译源并返回结果（编辑器编译按钮 / MCP ui_compile 共用） */
-export function compileUiSource(source: string): { ok: boolean; errors: CompileError[]; doc?: Record<string, unknown> } {
-  return compileWidgetHtml(source)
+export function compileUiSource(source: string): { ok: boolean; errors: CompileError[]; warnings: CompileWarning[]; doc?: Record<string, unknown> } {
+  const r = compileWidgetHtml(source)
+  return { ok: r.ok, errors: r.errors, warnings: r.warnings, doc: r.doc }
 }
+
+export type { CompileWarning }
 
 export type { CompileError }

@@ -2,14 +2,15 @@
  * decompile — ui-decompiler：xxx.widget.json → xxx.widget.html（方案 §6 反编译回写）
  *
  * 面对的是本编译器自己生成的 json（结构/组件顺序/命名均为编译器规范形），
- * 逆向映射表与 §5 完全对称，输出固定规范形（缩进/属性顺序），
- * round-trip 稳定：html → json → html' 与 html 语义等效。
+ * 输出规范形 HTML：全部节点以"绝对定位 + class 样式"表达（编译产物已是
+ * 静态求解后的具体矩形，反编译直接回读像素位置），保证 round-trip 语义等效：
+ * html → json → html' → json'' 与 json 布局/视觉/交互一致。
  *
  * 防御（TC-C3）：非编译器产物（无 sourceHash）→ 结果带 warning，仍尽力转换；
  * 映射不到的组件/属性走 data-comp/data-props 逃逸通道，不丢信息（TC-C4）。
  */
 import type { CompileContext } from './compileTypes'
-import { FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT, round2, round4, worldToPxX, worldToPxY } from './widgetMapping'
+import { FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT, worldToPxX, worldToPxY } from './widgetMapping'
 
 /** 反编译结果 */
 export interface DecompileResult {
@@ -38,15 +39,6 @@ function fmtNum(v: number): string {
   return String(Math.round(v * 100) / 100)
 }
 
-/** px 格式化（x 轴） */
-function pxOfX(world: number, ctx: CompileContext): string {
-  return `${fmtNum(worldToPxX(world, ctx))}px`
-}
-/** px 格式化（y 轴） */
-function pxOfY(world: number, ctx: CompileContext): string {
-  return `${fmtNum(worldToPxY(world, ctx))}px`
-}
-
 /** 组件查找 */
 function compOf(node: JsonNode, baseClass: string): JsonComp | undefined {
   return node.components?.find((c) => c.baseClass === baseClass)
@@ -54,302 +46,517 @@ function compOf(node: JsonNode, baseClass: string): JsonComp | undefined {
 
 /** 通用组件（渲染时跳过） */
 const COMMON_COMPS = new Set(['UITransformComponent', 'CanvasUIComponent'])
-/** 逃逸承载组件（无源格式映射） */
-const ESCAPE_COMPS = new Set(['UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent', 'UITooltipComponent'])
 /** 原生标签已映射的组件（反编译还原为标签/属性，不再走 data-comp 逃逸） */
 const NATIVE_MAPPED_COMPS = new Set([
-  'UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent', 'UITooltipComponent',
+  'UIImageComponent', 'UITextComponent', 'UIButtonComponent', 'UILayoutComponent',
+  'UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent',
+  'UITooltipComponent', 'UIScriptComponent',
 ])
+/** 未映射组件逃逸白名单（与编译器 KNOWN_UI_COMPONENTS 一致 + 其它引擎组件放行） */
 
-/** 反编译入口 */
+/** CSS 规范形声明表（class → decls） */
+interface OutRule {
+  selector: string
+  decls: string[]
+}
+/** 交互态规则（:hover 等） */
+interface OutStateRule {
+  selector: string
+  pseudo: string
+  decls: string[]
+}
+
+interface GradSpec {
+  angle: number
+  stops: Array<{ color: string; offset: number }>
+}
+
 export function decompileWidgetJson(doc: unknown): DecompileResult {
   const warnings: string[] = []
+  // 根世界尺寸（px↔米反解用，闭包共享）
+  let rootWorldW = 4.8
+  let rootWorldH = 2.7
+
   try {
     const root = doc as JsonNode
-    if (!root || typeof root !== 'object') {
+    if (!root || typeof root !== 'object' || Array.isArray(root)) {
       return { ok: false, warnings: ['文档不是对象'], html: undefined }
     }
-
-    // 防御：非编译器产物（无 sourceHash）→ 警告
     if (!('sourceHash' in root)) {
-      warnings.push('该 widget.json 无 sourceHash（非编译器产物或旧资产）：尽力按规范形反编译，映射不到的组件走 data-comp 逃逸，不丢信息')
+      warnings.push('该 widget.json 无 sourceHash（非编译器产物或旧资产）：尽力转换，映射不到的组件走 data-comp 逃逸')
     }
 
-    // ─── 根：canvas 尺寸 + world 尺寸 + name + anchor ───
-    const rootTf = (compOf(root, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
-    const rootCanvas = root.components?.find((c) => c.baseClass === 'CanvasUIComponent' && !c.properties?.markerOnly)
-    const canvasProps = (rootCanvas?.properties ?? {}) as Record<string, number>
+    const rootTf = compOf(root, 'UITransformComponent')?.properties ?? {}
+    const canvasComp = root.components?.find((c) => c.baseClass === 'CanvasUIComponent' && !(c.properties as { markerOnly?: boolean } | undefined)?.markerOnly)
+    const canvasProps = (canvasComp?.properties ?? {}) as Record<string, number>
     const cw = Number(canvasProps.width ?? FULLSCREEN_CANVAS_WIDTH)
     const ch = Number(canvasProps.height ?? FULLSCREEN_CANVAS_HEIGHT)
-    const wW = Number(rootTf.worldWidth ?? 4.8)
-    const wH = Number(rootTf.worldHeight ?? round2(4.8 * (ch / cw)))
-    const name = String(root.name ?? 'Widget')
-    const ctx: CompileContext = { canvasWidth: cw, canvasHeight: ch, worldWidth: wW, worldHeight: wH }
+    rootWorldW = Number(rootTf.worldWidth ?? 4.8)
+    rootWorldH = Number(rootTf.worldHeight ?? (4.8 * ch) / cw)
+    const ctx: CompileContext = {
+      canvasWidth: cw, canvasHeight: ch, worldWidth: rootWorldW, worldHeight: rootWorldH,
+    }
 
-    const rootAttrs: string[] = [
-      `name="${name}"`,
-      `canvas="${cw}x${ch}"`,
-      `world="${fmtNum(wW)}x${fmtNum(wH)}"`,
-    ]
-    const rootAnchor = rootTf.anchor as string | undefined
-    if (rootAnchor) {
-      rootAttrs.push(`anchor="${rootAnchor}"`)
+    const name = String(root.name ?? 'Widget')
+    const rootAttrs = [`name="${escapeAttr(name)}"`, `canvas="${cw}x${ch}"`, `world="${fmtNum(rootWorldW)}x${fmtNum(rootWorldH)}"`]
+    if (rootTf.anchor) {
+      rootAttrs.push(`anchor="${String(rootTf.anchor)}"`)
       const off = rootTf.anchorOffset as [number, number] | undefined
-      if (off && (off[0] !== 0 || off[1] !== 0)) {
-        rootAttrs.push(`offset="${round4(off[0])},${round4(off[1])}"`)
+      if (off && (off[0] !== 0 || off[1] !== 0)) rootAttrs.push(`offset="${fmtNum(off[0])},${fmtNum(off[1])}"`)
+    }
+
+    const rules: OutRule[] = []
+    const stateRules: OutStateRule[] = []
+    // 根背景（编译端 RootBackground）→ widget 根 class 规则回写
+    const rootBg = root.components?.find((c) => c.baseClass === 'UIImageComponent')
+    if (rootBg) {
+      const p = (rootBg.properties ?? {}) as Record<string, unknown>
+      const decls: string[] = []
+      if (p.src) decls.push(`background-image: url(${String(p.src)})`)
+      else if (p.gradient) {
+        const g = p.gradient as GradSpec
+        const stops = g.stops.map((st) => `${st.color} ${fmtNum(st.offset * 100)}%`).join(', ')
+        decls.push(`background-image: linear-gradient(${fmtNum(g.angle)}deg, ${stops})`)
+      } else if (p.color) decls.push(`background-color: ${String(p.color)}`)
+      if (p.radius) decls.push(`border-radius: ${fmtNum(Number(p.radius))}px`)
+      if (p.opacity !== undefined && Number(p.opacity) !== 1) decls.push(`opacity: ${fmtNum(Number(p.opacity))}`)
+      if (decls.length > 0) {
+        rules.push({ selector: '.RootCanvas', decls })
+        rootAttrs.push('class="RootCanvas"')
       }
     }
-
-    // ─── 收集样式规则（class → 声明）+ 主体节点 ───
-    const rules: Array<{ selector: string; decls: string[] }> = []
-    const bodyNodes: Array<{ line: string; depth: number }> = []
+    const usedNames = new Set<string>()
+    const bodyLines: string[] = []
+    // 父盒（画布 px）：cx/cy=边盒中心，x/y=边盒左上，w/h=边盒尺寸，inX/inY=内容内缩（padding+border）
+    const parentBox0 = { cx: cw / 2, cy: ch / 2, x: 0, y: 0, w: cw, h: ch, inX: 0, inY: 0 }
     for (const child of root.children ?? []) {
-      const emitted = emitNode(child, rules, warnings, ctx, 1)
-      if (emitted) bodyNodes.push(emitted)
+      const line = emitNode(child, rules, stateRules, warnings, ctx, usedNames, 2, parentBox0, false)
+      if (line) bodyLines.push(line)
     }
 
-    // ─── 规范形输出 ───
-    const lines: string[] = []
-    lines.push(`<widget ${rootAttrs.join(' ')}>`)
-    lines.push('  <style>')
-    for (const r of rules) lines.push(`    ${r.selector} { ${r.decls.join('; ')}; }`)
-    lines.push('  </style>')
-    for (const b of bodyNodes) lines.push(b.line)
-    lines.push('</widget>')
-    return { ok: true, warnings, html: lines.join('\n') + '\n' }
+    const out: string[] = []
+    out.push(`<widget ${rootAttrs.join(' ')}>`)
+    out.push('  <style>')
+    for (const r of rules) out.push(`    ${r.selector} { ${r.decls.join('; ')}; }`)
+    for (const r of stateRules) out.push(`    ${r.selector}:${r.pseudo} { ${r.decls.join('; ')}; }`)
+    out.push('  </style>')
+    for (const b of bodyLines) out.push(b)
+    out.push('</widget>')
+    return { ok: true, warnings, html: out.join('\n') + '\n' }
   } catch (e) {
     warnings.push(`反编译异常: ${(e as Error).message}`)
     return { ok: false, warnings, html: undefined }
   }
-}
 
-/**
- * 输出一个节点为 HTML 行（规范形缩进），同时向 rules 累积该节点 class 的样式。
- * 命名规范：节点名即 class 名（编译端 nodeNameOf 优先取 class，round-trip 一致）。
- */
-/** 输出一个节点为 HTML 片段（带深度缩进），同时向 rules 累积该节点 class 的样式。 */
-function emitNode(
-  node: JsonNode,
-  rules: Array<{ selector: string; decls: string[] }>,
-  warnings: string[],
-  ctx: CompileContext,
-  depth: number,
-): { line: string; depth: number } | null {
-  const name = String(node.name ?? 'Node')
-  const cls = name
-  const tf = (compOf(node, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
-  const canvasComp = compOf(node, 'CanvasUIComponent')
-  const decls: string[] = []
-  const attrs: string[] = [`class="${cls}"`]
-
-  // ─── 尺寸 ───
-  const ww = Number(tf.worldWidth ?? 0)
-  const wh = Number(tf.worldHeight ?? 0)
-  if (ww > 0) decls.push(`width: ${pxOfX(ww, ctx)}`)
-  if (wh > 0) decls.push(`height: ${pxOfY(wh, ctx)}`)
-
-  // ─── 定位（锚点 → position:absolute + left/top %）───
-  const anchor = tf.anchor as string | undefined
-  const offset = (tf.anchorOffset as [number, number] | undefined) ?? [0, 0]
-  const pos = anchorToPos(anchor, offset, tf, ctx)
-  if (pos) {
-    decls.push('position: absolute')
-    decls.push(`left: ${pos.left}`)
-    decls.push(`top: ${pos.top}`)
-  }
-
-  // ─── canvasui 专有：z-order / hit-test ───
-  const zOrder = Number(canvasComp?.properties?.zOrder ?? 0)
-  if (zOrder !== 0) decls.push(`z-order: ${zOrder}`)
-  const hitTest = canvasComp?.properties?.hitTest as string | undefined
-  if (hitTest && hitTest !== 'visible') decls.push(`hit-test: ${hitTest}`)
-  if (node.active === false) warnings.push(`节点 "${name}" 为 active=false（源格式暂不表达失活，信息保留在 json）`)
-
-  // ─── 功能组件 ───
-  const funcComps = (node.components ?? []).filter((c) => !COMMON_COMPS.has(c.baseClass))
-  let tag = 'div'
-  let text = ''
-  const dataAttrs: string[] = []
-
-  const layoutComp = funcComps.find((c) => c.baseClass === 'UILayoutComponent')
-  if (layoutComp) {
-    const p = (layoutComp.properties ?? {}) as Record<string, unknown>
-    decls.push('display: flex')
-    decls.push(`flex-direction: ${p.mode === 'vertical' ? 'column' : 'row'}`)
-    const sx = Number(p.spacingX ?? 0)
-    const sy = Number(p.spacingY ?? 0)
-    if (sx > 0 || sy > 0) decls.push(`gap: ${pxOfX(Math.max(sx, sy), ctx)}`)
-    if (p.justify && p.justify !== 'center') decls.push(`justify-content: ${String(p.justify)}`)
-    if (p.align && p.align !== 'center') decls.push(`align-items: ${String(p.align)}`)
-  }
-
-  const scriptComp = funcComps.find((c) => c.baseClass === 'UIScriptComponent')
-  if (scriptComp) {
-    const p = (scriptComp.properties ?? {}) as Record<string, unknown>
-    if (p.script) dataAttrs.push(`data-script="${String(p.script)}"`)
-    if (p.args) dataAttrs.push(`data-args='${JSON.stringify(p.args)}'`)
-  }
-
-  const imgComp = funcComps.find((c) => c.baseClass === 'UIImageComponent')
-  const textComp = funcComps.find((c) => c.baseClass === 'UITextComponent')
-  const btnComp = funcComps.find((c) => c.baseClass === 'UIButtonComponent')
-
-  if (imgComp) {
-    tag = 'img'
-    const p = (imgComp.properties ?? {}) as Record<string, unknown>
-    if (p.src) attrs.push(`src="${String(p.src)}"`)
-    else if (p.color) decls.push(`background-color: ${String(p.color)}`)
-    if (p.radius) decls.push(`border-radius: ${Math.round(Number(p.radius))}px`) // 画布像素直通（与编译端对称）
-    if (p.opacity !== undefined && Number(p.opacity) !== 1) decls.push(`opacity: ${fmtNum(Number(p.opacity))}`)
-    if (p.zOrder !== undefined && Number(p.zOrder) !== 0) decls.push(`z-order: ${Number(p.zOrder)}`)
-    if (p.hitTest && p.hitTest !== 'visible') decls.push(`hit-test: ${String(p.hitTest)}`)
-    // img（void 元素）不允许有子节点：有子节点的 image 节点降级为 div 承载
-    if ((node.children ?? []).length > 0 || textComp) tag = 'div'
-  }
-
-  if (btnComp) {
-    tag = 'button'
-    const p = (btnComp.properties ?? {}) as Record<string, unknown>
-    if (p.pressScale !== undefined && Number(p.pressScale) !== 0.92) {
-      dataAttrs.push(`data-comp="UIButton" data-props='${JSON.stringify({ pressScale: p.pressScale })}'`)
-      warnings.push(`节点 "${name}" UIButton pressScale=${String(p.pressScale)} 非默认值：以 data-comp 逃逸保留`)
+  /**
+   * 堆叠流还原门：容器子项几何与块级纵排 / 净 flex 横排完全一致时返回 'column'/'row'，
+   * 否则 null（保持绝对定位）。几何口径：子项内容盒原点（边盒左上 + 自身 sidecar 内缩），
+   * 首项贴容器内容原点，之后逐项紧贴前一项边盒（等价于 margin 全 0）。
+   */
+  function stackGate(
+    node: JsonNode,
+    ctx: CompileContext,
+    parentBox: { cx: number; cy: number; x: number; y: number; w: number; h: number; inX: number; inY: number },
+  ): 'column' | 'row' | null {
+    const tol = 0.11 // px（世界 2 位小数量化噪声上限）
+    const kids = (node.children ?? []).filter((c) => c.active !== false)
+    if (kids.length === 0) return null
+    const rects: Array<{ cx0: number; cy0: number; x: number; y: number; w: number; h: number }> = []
+    for (const c of kids) {
+      const tf = (compOf(c, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
+      const wwC = Number(tf.worldWidth ?? -1)
+      const whC = Number(tf.worldHeight ?? -1)
+      if (wwC <= 0 || whC <= 0) return null
+      if (tf.anchor) return null // 锚点子项 = 显式定位，不入流
+      const rot = tf.rotation as [number, number, number] | undefined
+      if (rot && (rot[0] !== 0 || rot[1] !== 0 || rot[2] !== 0)) return null
+      const scl = tf.scale as [number, number, number] | undefined
+      if (scl && (scl[0] !== 1 || scl[1] !== 1)) return null
+      const lp = tf.position as [number, number, number] | undefined
+      if (!lp) return null
+      // 子项自身内容内缩（sidecar）
+      const slc = (c as { sourceLayout?: { padding?: number[]; border?: number[] } }).sourceLayout
+      const inXC = (slc?.padding?.[3] ?? 0) + (slc?.border?.[3] ?? 0)
+      const inYC = (slc?.padding?.[0] ?? 0) + (slc?.border?.[0] ?? 0)
+      // 画布边盒左上（父边盒中心 + 米制本地偏移，与主流程换算一致）
+      const wpx = worldToPxX(wwC, ctx)
+      const hpx = worldToPxY(whC, ctx)
+      const bx = parentBox.cx + worldToPxX(lp[0], ctx) - wpx / 2
+      const by = parentBox.cy + worldToPxY(-lp[1], ctx) - hpx / 2
+      rects.push({ cx0: bx + inXC, cy0: by + inYC, x: bx, y: by, w: wpx, h: hpx })
     }
+    const contentX = parentBox.x + parentBox.inX
+    const contentY = parentBox.y + parentBox.inY
+    const near = (a: number, b: number): boolean => Math.abs(a - b) <= tol
+    // 纵排：同 x、自上而下紧贴
+    let col = near(rects[0].cx0, contentX) && near(rects[0].cy0, contentY)
+    for (let i = 1; i < rects.length && col; i++) {
+      col = near(rects[i].cx0, contentX) && near(rects[i].cy0, rects[i - 1].y + rects[i - 1].h)
+    }
+    if (col) return 'column'
+    // 横排：同 y、自左向右紧贴
+    let row = near(rects[0].cx0, contentX) && near(rects[0].cy0, contentY)
+    for (let i = 1; i < rects.length && row; i++) {
+      row = near(rects[i].cy0, contentY) && near(rects[i].cx0, rects[i - 1].x + rects[i - 1].w)
+    }
+    if (row) return 'row'
+    return null
   }
 
-  // ─── 原生标签还原：input/textarea/progress / overflow:auto / title ───
-  const inputComp = funcComps.find((c) => c.baseClass === 'UITextInputComponent')
-  const progressComp = funcComps.find((c) => c.baseClass === 'UIProgressBarComponent')
-  const scrollComp = funcComps.find((c) => c.baseClass === 'UIScrollListComponent')
-  const tooltipComp = funcComps.find((c) => c.baseClass === 'UITooltipComponent')
+  /** 发射一个节点（递归）；返回该行的 HTML 文本 */
+  function emitNode(
+    node: JsonNode,
+    rules: OutRule[],
+    stateRules: OutStateRule[],
+    warnings: string[],
+    ctx: CompileContext,
+    usedNames: Set<string>,
+    depth: number,
+    parentBox: { cx: number; cy: number; x: number; y: number; w: number; h: number; inX: number; inY: number },
+    parentFlow: boolean,
+  ): string | null {
+    if (!node || typeof node !== 'object') return null
+    let name0 = String(node.name ?? 'Node')
+    // 同名防御（编译器保证唯一；手工资产可能撞名）
+    if (usedNames.has(name0)) {
+      let i = 2
+      while (usedNames.has(`${name0}_${i}`)) i++
+      name0 = `${name0}_${i}`
+      warnings.push(`节点重名已改写: ${node.name} → ${name0}`)
+    }
+    usedNames.add(name0)
+    const cls = sanitizeClass(name0)
+    const tf = (compOf(node, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
+    const canvasMarker = compOf(node, 'CanvasUIComponent')
+    const decls: string[] = []
+    const attrs: string[] = [`class="${escapeAttr(cls)}"`]
 
-  if (inputComp) {
-    tag = 'input'
-    const p = (inputComp.properties ?? {}) as Record<string, unknown>
-    if (p.placeholder) attrs.push(`placeholder="${String(p.placeholder)}"`)
-    if (p.value) attrs.push(`value="${String(p.value)}"`)
+    // ─── 尺寸/定位：沿父链累计出画布绝对中心（编译产物的本地偏移/锚点均相对父） ───
+    const ww = Number(tf.worldWidth ?? 0)
+    const wh = Number(tf.worldHeight ?? 0)
+    if (ww > 0) decls.push(`width: ${pxOfX(ww, ctx)}px`)
+    if (wh > 0) decls.push(`height: ${pxOfY(wh, ctx)}px`)
+    const anchor = tf.anchor as string | undefined
+    const offset = (tf.anchorOffset as [number, number] | undefined) ?? [0, 0]
+    const localPos = tf.position as [number, number, number] | undefined
+    // ─── sourceLayout 侧车：盒模型重建（引擎/编译器约定 uitransform=边盒）───
+    const sl = (node as { sourceLayout?: { padding?: number[]; border?: number[] } }).sourceLayout
+    const slPad = sl?.padding
+    const slBord = sl?.border
+    const hasPad = !!slPad && slPad.some((v) => v > 0.005)
+    const hasBord = !!slBord && slBord.some((v) => v > 0.005)
+    if (hasPad || hasBord) {
+      decls.push('box-sizing: border-box')
+      if (hasPad) decls.push(`padding: ${slPad!.map((v) => fmtNum(v)).join('px ')}px`)
+    }
+
+    // 绝对中心（画布 px）：锚点语义 = 父边盒中心 + applyAnchor 公式（基准=父尺寸，
+    // 与运行时 uitransform 容器一致）；流内 = 父中心 + 本地偏移。
+    let centerX = parentBox.cx
+    let centerY = parentBox.cy
+    if (anchor && anchor !== 'stretch') {
+      const fx = anchor.includes('left') ? -1 : anchor.includes('right') ? 1 : 0
+      const fy = anchor.startsWith('top') ? 1 : anchor.startsWith('bottom') ? -1 : 0
+      const bbWpx = worldToPxX(ww, ctx)
+      const bbHpx = worldToPxY(wh, ctx)
+      centerX += (fx * (parentBox.w - bbWpx)) / 2 + worldToPxX(offset[0] ?? 0, ctx)
+      // world y 向上、canvas y 向下：整体取负（含 offset）
+      centerY -= (fy * (parentBox.h - bbHpx)) / 2 + worldToPxY(offset[1] ?? 0, ctx)
+    } else if (localPos) {
+      centerX += worldToPxX(localPos[0], ctx)
+      centerY += worldToPxY(-localPos[1], ctx)
+    }
+
+    // ─── 功能组件前置探测：UILayout → display:flex 结构还原 ───
+    const funcComps0 = (node.components ?? []).filter((c) => !COMMON_COMPS.has(c.baseClass))
+    const layoutComp = funcComps0.find((c) => c.baseClass === 'UILayoutComponent')
+    let flowChildren = false
+    if (layoutComp) {
+      const p = (layoutComp.properties ?? {}) as Record<string, unknown>
+      const isColumn = String(p.mode ?? 'horizontal') === 'vertical'
+      decls.push('display: flex')
+      if (isColumn) decls.push('flex-direction: column')
+      const sx = Number(p.spacingX ?? 0)
+      const sy = Number(p.spacingY ?? 0)
+      if (sx > 0.005 || sy > 0.005) {
+        if (Math.abs(sx - sy) < 0.005) decls.push(`gap: ${pxOfX(sx, ctx)}px`)
+        else decls.push(`gap: ${pxOfY(sy, ctx)}px ${pxOfX(sx, ctx)}px`)
+      }
+      // 引擎缺省 justify/align=center（v1 资产可能缺省）→ CSS 侧显式写全
+      const j = String(p.justify ?? 'center')
+      const a = String(p.align ?? 'center')
+      decls.push(`justify-content: ${j === 'start' ? 'flex-start' : j === 'end' ? 'flex-end' : j}`)
+      decls.push(`align-items: ${a === 'start' ? 'flex-start' : a === 'end' ? 'flex-end' : a}`)
+      flowChildren = true
+    }
+
+    // left/top 相对父内容盒原点（编译端绝对定位包含块 = 父内容盒；inX/inY = 父 padding+border）
+    const bbWpx0 = worldToPxX(ww, ctx)
+    const bbHpx0 = worldToPxY(wh, ctx)
+    if (!parentFlow && (ww > 0 || wh > 0 || localPos || anchor)) {
+      // CSS left 语义（与 layoutAbsolute 一致）= 子项边盒缘相对父内容原点
+      // （编译端再自行加 ml+pl+bl 得内容原点；margin 不落盘恒 0，无需扣除）
+      decls.push('position: absolute')
+      decls.push(`left: ${fmtNum(centerX - bbWpx0 / 2 - parentBox.x - parentBox.inX)}px`)
+      decls.push(`top: ${fmtNum(centerY - bbHpx0 / 2 - parentBox.y - parentBox.inY)}px`)
+    }
+
+    // ─── 无 UILayout 的容器：纵/横堆叠流还原门 ───
+    // 全部子项几何与"块级纵排 / 净 flex 横排"重排结果一致（无锚点/变换、首项贴内容
+    // 原点、逐项紧贴前一项边盒 = margin 全 0）才还原为流内子项，否则保持绝对定位。
+    let stackRow = false
+    if (!layoutComp && (node.children ?? []).length > 0) {
+      const gate = stackGate(node, ctx, parentBox)
+      if (gate) {
+        flowChildren = true
+        stackRow = gate === 'row'
+        if (stackRow) decls.push('display: flex') // 纵排块级流天然堆叠，无需声明
+      }
+    }
+    const rotation = tf.rotation as [number, number, number] | undefined
+    if (rotation && rotation[2] !== 0) {
+      decls.push(`transform: rotate(${fmtNum((rotation[2] * 180) / Math.PI)}deg)`)
+    }
+    const scale = tf.scale as [number, number, number] | undefined
+    if (scale && (scale[0] !== 1 || scale[1] !== 1)) {
+      decls.push(`transform: scale(${fmtNum(scale[0])}, ${fmtNum(scale[1])})`)
+    }
+
+    // ─── 层级/交互 ───
+    const markerProps = (canvasMarker?.properties ?? {}) as Record<string, unknown>
+    const zOrder = Number(markerProps.zOrder ?? 0)
+    if (zOrder !== 0) decls.push(`z-index: ${zOrder}`)
+    const hitTest = markerProps.hitTest as string | undefined
+    if (hitTest === 'hitTestInvisible') decls.push('pointer-events: none')
+    else if (hitTest === 'block' || hitTest === 'visible') decls.push(`hit-test: ${hitTest}`)
+    if (node.active === false) decls.push('visibility: hidden')
+
+    // ─── 功能组件 → 标签/属性/样式 ───
+    const funcComps = (node.components ?? []).filter((c) => !COMMON_COMPS.has(c.baseClass))
+    const img = funcComps.find((c) => c.baseClass === 'UIImageComponent')
+    const text = funcComps.find((c) => c.baseClass === 'UITextComponent')
+    const btn = funcComps.find((c) => c.baseClass === 'UIButtonComponent')
+    const input = funcComps.find((c) => c.baseClass === 'UITextInputComponent')
+    const progress = funcComps.find((c) => c.baseClass === 'UIProgressBarComponent')
+    const scroll = funcComps.find((c) => c.baseClass === 'UIScrollListComponent')
+    const tooltip = funcComps.find((c) => c.baseClass === 'UITooltipComponent')
+    const script = funcComps.find((c) => c.baseClass === 'UIScriptComponent')
+
+    let tag = 'div'
+    let textContent = ''
+
+    if (img) {
+      const p = (img.properties ?? {}) as Record<string, unknown>
+      const hasChildren = (node.children ?? []).length > 0
+      if (p.src && !hasChildren && !text) {
+        tag = 'img'
+        attrs.push(`src="${escapeAttr(String(p.src))}"`)
+      } else if (p.src) {
+        decls.push(`background-image: url(${String(p.src)})`)
+      } else if (p.gradient) {
+        const g = p.gradient as GradSpec
+        const stops = g.stops.map((s) => `${s.color} ${fmtNum(s.offset * 100)}%`).join(', ')
+        decls.push(`background-image: linear-gradient(${fmtNum(g.angle)}deg, ${stops})`)
+      } else if (p.color) {
+        decls.push(`background-color: ${String(p.color)}`)
+      }
+      if (p.radius) decls.push(`border-radius: ${fmtNum(Number(p.radius))}px`)
+      if (p.opacity !== undefined && Number(p.opacity) !== 1) decls.push(`opacity: ${fmtNum(Number(p.opacity))}`)
+      if (p.zOrder !== undefined && Number(p.zOrder) !== 0 && zOrder === 0) decls.push(`z-index: ${Number(p.zOrder)}`)
+      if (p.hitTest === 'hitTestInvisible') decls.push('pointer-events: none')
+    }
+
+    if (btn) {
+      tag = 'button'
+    }
+
+    if (input) {
+      tag = 'input'
+      const p = (input.properties ?? {}) as Record<string, unknown>
+      if (p.placeholder) attrs.push(`placeholder="${escapeAttr(String(p.placeholder))}"`)
+      if (p.value) attrs.push(`value="${escapeAttr(String(p.value))}"`)
+      applyTextDeclsWith(p, decls, ctx)
+    }
+
+    if (progress) {
+      tag = 'progress'
+      const p = (progress.properties ?? {}) as Record<string, unknown>
+      if (p.value !== undefined) attrs.push(`value="${escapeAttr(String(p.value))}"`)
+      if (p.max !== undefined) attrs.push(`max="${escapeAttr(String(p.max))}"`)
+      const extras: Record<string, unknown> = { ...p }
+      delete extras.value
+      delete extras.max
+      if (Object.keys(extras).length > 0) {
+        attrs.push(`data-comp="UIProgress" data-props='${escapeAttr(JSON.stringify(extras))}'`)
+      }
+    }
+
+    if (scroll) {
+      const p = (scroll.properties ?? {}) as Record<string, unknown>
+      decls.push(p.direction === 'horizontal' ? 'overflow-x: auto' : 'overflow-y: auto')
+      const extras: Record<string, unknown> = { ...p }
+      delete extras.direction
+      if (Object.keys(extras).length > 0) {
+        attrs.push(`data-comp="UIScrollList" data-props='${escapeAttr(JSON.stringify(extras))}'`)
+      }
+    }
+
+    if (tooltip) {
+      const p = (tooltip.properties ?? {}) as Record<string, unknown>
+      attrs.push(`title="${escapeAttr(String(p.text ?? ''))}"`)
+      const extras: Record<string, unknown> = { ...p }
+      delete extras.text
+      if (Object.keys(extras).length > 0) {
+        attrs.push(`data-comp="UITooltip" data-props='${escapeAttr(JSON.stringify(extras))}'`)
+      }
+    }
+
+    if (script) {
+      const p = (script.properties ?? {}) as Record<string, unknown>
+      if (p.script) attrs.push(`data-script="${escapeAttr(String(p.script))}"`)
+      const plainArgs = { ...(p.args as Record<string, unknown> | undefined) }
+      // 交互态 args → 源格式 :hover/:active/:disabled 规则
+      const stateMap: Array<[string, string]> = [
+        ['hover', 'hover'], ['pressed', 'active'], ['disabled', 'disabled'],
+      ]
+      for (const [argKey, pseudo] of stateMap) {
+        const st = plainArgs[argKey] as Record<string, unknown> | undefined
+        if (st && typeof st === 'object') {
+          const sdecls: string[] = []
+          if (st.color) sdecls.push(`color: ${String(st.color)}`)
+          if (st.opacity !== undefined) sdecls.push(`opacity: ${fmtNum(Number(st.opacity))}`)
+          if (sdecls.length > 0) stateRules.push({ selector: `.${cls}`, pseudo, decls: sdecls })
+          delete plainArgs[argKey]
+        }
+      }
+      if (Object.keys(plainArgs).length > 0) {
+        attrs.push(`data-args='${escapeAttr(JSON.stringify(plainArgs))}'`)
+      }
+    }
+
+    if (text && tag !== 'input') {
+      const p = (text.properties ?? {}) as Record<string, unknown>
+      textContent = String(p.text ?? '')
+      if (tag !== 'button') tag = 'text'
+      applyTextDeclsWith(p, decls, ctx)
+      // anchorX 非默认值 → UIText 逃逸属性回写（编译端并入既有 UITextComponent）
+      if (p.anchorX && p.anchorX !== 'center') {
+        attrs.push(`data-comp="UIText" data-props='${escapeAttr(JSON.stringify({ anchorX: p.anchorX }))}'`)
+      }
+    }
+
+    // 未映射组件 → data-comp 逃逸
+    for (const c of funcComps) {
+      if (NATIVE_MAPPED_COMPS.has(c.baseClass)) continue
+      const short = c.baseClass.replace(/Component$/, '')
+      attrs.push(`data-comp="${escapeAttr(short)}" data-props='${escapeAttr(JSON.stringify(c.properties ?? {}))}'`)
+      warnings.push(`节点 "${name0}" 组件 ${c.baseClass} 无源格式映射：以 data-comp 逃逸承载`)
+    }
+
+    if (decls.length > 0) rules.push({ selector: `.${cls}`, decls })
+
+    // ─── 子节点 ───
+    const childLines: string[] = []
+    const bbWpxC = worldToPxX(ww, ctx)
+    const bbHpxC = worldToPxY(wh, ctx)
+    const childBox = {
+      cx: centerX, cy: centerY,
+      x: centerX - bbWpxC / 2,
+      y: centerY - bbHpxC / 2,
+      w: bbWpxC, h: bbHpxC,
+      // 自身内容内缩（子项 left/top 基准 = 本节点内容盒原点）
+      inX: (hasPad ? slPad![3] : 0) + (hasBord ? slBord![3] : 0),
+      inY: (hasPad ? slPad![0] : 0) + (hasBord ? slBord![0] : 0),
+    }
+
+    // 边框条子 Actor（编译端 border 的产物形）折回 border CSS：
+    // 命名 <父名>Border<Side> + UIImage 纯色。全部有边框的侧都找到条才折回，否则保留子节点。
+    const emittedChildren: JsonNode[] = [...(node.children ?? [])]
+    if (hasBord) {
+      const sideNames = ['Top', 'Right', 'Bottom', 'Left']
+      const folded: string[] = []
+      const rest: JsonNode[] = []
+      for (const c of emittedChildren) {
+        const m = /^([\s\S]+)Border(Top|Right|Bottom|Left)$/.exec(String(c.name ?? ''))
+        if (m && m[1] === name0 && compOf(c, 'UIImageComponent')?.properties?.color !== undefined) {
+          folded.push(m[2])
+          continue
+        }
+        rest.push(c)
+      }
+      const need = sideNames.filter((_, i) => Number(slBord![i]) > 0.005)
+      if (need.length > 0 && need.every((s) => folded.includes(s))) {
+        for (let i = 0; i < 4; i++) {
+          if (Number(slBord![i]) <= 0.005) continue
+          const strip = emittedChildren.find((c) => String(c.name ?? '') === `${name0}Border${sideNames[i]}`)
+          const color = String(compOf(strip!, 'UIImageComponent')?.properties?.color ?? '#000000')
+          decls.push(`border-${sideNames[i].toLowerCase()}: ${fmtNum(Number(slBord![i]))}px solid ${color}`)
+        }
+        emittedChildren.splice(0, emittedChildren.length, ...rest)
+      }
+    }
+
+    for (const c of emittedChildren) {
+      const emitted = emitNode(c, rules, stateRules, warnings, ctx, usedNames, depth + 1, childBox, flowChildren)
+      if (emitted) childLines.push(emitted)
+    }
+
+    const pad = '  '.repeat(depth)
+    if (tag === 'img' || tag === 'input') {
+      return `${pad}<${tag} ${attrs.join(' ')} />`
+    }
+    const openTag = [`<${tag}`, ...attrs].join(' ')
+    if (childLines.length === 0 && !textContent) {
+      return `${pad}${openTag}></${tag}>`
+    }
+    if (childLines.length === 0) {
+      return `${pad}${openTag}>${escapeText(textContent)}</${tag}>`
+    }
+    const inner = [textContent ? escapeText(textContent) : '', ...childLines].filter(Boolean).join(`\n${pad}`)
+    return `${pad}${openTag}>\n${inner}\n${pad}</${tag}>`
+  }
+
+  /** UIText/UITextInput properties → CSS 声明 */
+  function applyTextDeclsWith(p: Record<string, unknown>, decls: string[], ctx: CompileContext): void {
     if (p.fontSize !== undefined) decls.push(`font-size: ${Math.round(Number(p.fontSize))}px`)
     if (p.color) decls.push(`color: ${String(p.color)}`)
-    if (p.zOrder !== undefined && Number(p.zOrder) !== 0 && zOrder === 0) decls.push(`z-order: ${Number(p.zOrder)}`)
-    if (p.hitTest && p.hitTest !== 'visible' && !hitTest) decls.push(`hit-test: ${String(p.hitTest)}`)
-    // 引擎无多行输入：textarea 语义不保留（round-trip 统一为 input）
-  }
-
-  if (progressComp) {
-    tag = 'progress'
-    const p = (progressComp.properties ?? {}) as Record<string, unknown>
-    if (p.value !== undefined) attrs.push(`value="${String(p.value)}"`)
-    if (p.max !== undefined) attrs.push(`max="${String(p.max)}"`)
-    // min/fillActorName/direction 非默认值时以 data-comp 逃逸保留（引擎扩展语义）
-    const extras: Record<string, unknown> = {}
-    if (p.min !== undefined && Number(p.min) !== 0) extras.min = p.min
-    if (p.fillActorName !== undefined && p.fillActorName !== 'Fill') extras.fillActorName = p.fillActorName
-    if (p.direction !== undefined && p.direction !== 'left-to-right') extras.direction = p.direction
-    if (Object.keys(extras).length > 0) {
-      dataAttrs.push(`data-comp="UIProgress" data-props='${JSON.stringify(extras)}'`)
-    }
-  }
-
-  if (scrollComp) {
-    const p = (scrollComp.properties ?? {}) as Record<string, unknown>
-    decls.push(p.direction === 'horizontal' ? 'overflow-x: auto' : 'overflow: auto')
-    // itemWidget/spacing/visibleCount 等引擎扩展属性以 data-comp 逃逸保留（保留 direction 之外的）
-    const extras: Record<string, unknown> = { ...p }
-    delete extras.direction
-    if (Object.keys(extras).length > 0) {
-      dataAttrs.push(`data-comp="UIScrollList" data-props='${JSON.stringify(extras)}'`)
-    }
-  }
-
-  if (tooltipComp) {
-    const p = (tooltipComp.properties ?? {}) as Record<string, unknown>
-    attrs.push(`title="${String(p.text ?? '')}"`)
-    // delay/direction/widgetPath 非默认值时以 data-comp 逃逸保留
-    const extras: Record<string, unknown> = {}
-    if (p.delay !== undefined && Number(p.delay) !== 0.3) extras.delay = p.delay
-    if (p.direction !== undefined && p.direction !== 'top') extras.direction = p.direction
-    if (p.widgetPath !== undefined) extras.widgetPath = p.widgetPath
-    if (Object.keys(extras).length > 0) {
-      dataAttrs.push(`data-comp="UITooltip" data-props='${JSON.stringify(extras)}'`)
-    }
-  }
-
-  // 其余逃逸组件（input/progress/scroll/tooltip 已原生还原，不再逃逸）
-  for (const c of funcComps) {
-    if (!ESCAPE_COMPS.has(c.baseClass)) continue
-    if (NATIVE_MAPPED_COMPS.has(c.baseClass)) continue
-    const short = c.baseClass.replace(/Component$/, '')
-    dataAttrs.push(`data-comp="${short}" data-props='${JSON.stringify(c.properties ?? {})}'`)
-    warnings.push(`节点 "${name}" 组件 ${c.baseClass} 无源格式映射：以 data-comp 逃逸承载`)
-  }
-
-  // 文本组件 → 元素文本内容 + 文本样式
-  if (textComp) {
-    const p = (textComp.properties ?? {}) as Record<string, unknown>
-    text = String(p.text ?? '')
-    if (p.fontSize !== undefined) decls.push(`font-size: ${Math.round(Number(p.fontSize))}px`)
-    if (p.color) decls.push(`color: ${String(p.color)}`)
-    if (p.align && p.align !== 'left') decls.push(`text-align: ${String(p.align)}`)
+    if (p.align) decls.push(`text-align: ${String(p.align)}`)
     if (p.bold) decls.push('font-weight: bold')
     if (p.italic) decls.push('font-style: italic')
     if (p.lineHeight !== undefined && Number(p.lineHeight) !== 1.4) decls.push(`line-height: ${fmtNum(Number(p.lineHeight))}`)
-    if (p.letterSpacing) decls.push(`letter-spacing: ${Math.round(Number(p.letterSpacing))}px`) // 画布像素直通
+    if (p.letterSpacing) decls.push(`letter-spacing: ${Math.round(Number(p.letterSpacing))}px`)
     if (p.fontFamily) decls.push(`font-family: ${String(p.fontFamily)}`)
-    if (p.shadowColor) decls.push(`text-shadow-color: ${String(p.shadowColor)}`)
-    if (p.shadowBlur !== undefined && Number(p.shadowBlur) !== 4) decls.push(`text-shadow-blur: ${Math.round(Number(p.shadowBlur))}px`) // 画布像素直通
-    if (p.zOrder !== undefined && Number(p.zOrder) !== 0 && zOrder === 0) decls.push(`z-order: ${Number(p.zOrder)}`)
-    // 文本节点（markerOnly 无渲染）：反编译为 <text> 元素
-    tag = 'text'
+    if (p.shadowColor) {
+      const ox = Number(p.shadowOffsetX ?? 1)
+      const oy = Number(p.shadowOffsetY ?? 2)
+      const blur = Number(p.shadowBlur ?? 4)
+      decls.push(`text-shadow: ${Math.round(ox)}px ${Math.round(oy)}px ${Math.round(blur)}px ${String(p.shadowColor)}`)
+    }
+    else if (p.shadowBlur !== undefined && Number(p.shadowBlur) !== 4 && !p.shadowColor) {
+      // 旧专有通道兜底
+      decls.push(`text-shadow-blur: ${Math.round(Number(p.shadowBlur))}px`)
+    }
+    if (p.zOrder !== undefined && Number(p.zOrder) !== 0) decls.push(`z-index: ${Number(p.zOrder)}`)
+    void ctx
   }
 
-  // 注入样式规则（class 选择器）
-  if (decls.length > 0) rules.push({ selector: `.${cls}`, decls })
-  for (const d of dataAttrs) attrs.push(d)
+}
 
-  // ─── 子节点 ───
-  const childLines: string[] = []
-  for (const c of node.children ?? []) {
-    const emitted = emitNode(c, rules, warnings, ctx, depth + 1)
-    if (emitted) childLines.push(emitted.line)
-  }
+/** px 格式化（世界米 → 画布 px） */
+function pxOfX(world: number, ctx: CompileContext): string {
+  return fmtNum(worldToPxX(world, ctx))
+}
+function pxOfY(world: number, ctx: CompileContext): string {
+  return fmtNum(worldToPxY(world, ctx))
+}
 
-  const pad = '  '.repeat(depth)
-  const openTag = [`<${tag}`, ...attrs].join(' ')
-  if (tag === 'img' || tag === 'input') {
-    return { line: `${pad}<${tag} ${attrs.join(' ')} />`, depth }
-  }
-  if (childLines.length === 0 && !text) {
-    return { line: `${pad}${openTag}></${tag}>`, depth }
-  }
-  if (childLines.length === 0) {
-    return { line: `${pad}${openTag}>${text}</${tag}>`, depth }
-  }
-  const inner = [text, ...childLines].filter(Boolean).join(`\n${pad}`)
-  return { line: `${pad}${openTag}>\n${inner}\n${pad}</${tag}>`, depth }
-
-  /** 锚点 + offset → position:absolute left/top %（与编译端公式互逆） */
-  function anchorToPos(
-    a: string | undefined,
-    off: [number, number],
-    tf: Record<string, unknown>,
-    ctx: CompileContext,
-  ): { left: string; top: string } | null {
-    if (!a) return null
-    let lPct = 50
-    let tPct = 50
-    if (a.includes('left')) lPct = 0
-    else if (a.includes('right')) lPct = 100
-    if (a.startsWith('top')) tPct = 0
-    else if (a.startsWith('bottom')) tPct = 100
-    // 反解编译端：wantX = baseX + offX → lp = 50 + wantX/worldWidth×100
-    const wW = Number(tf.worldWidth ?? 0)
-    const wH = Number(tf.worldHeight ?? 0)
-    const fx = a.includes('left') ? -1 : a.includes('right') ? 1 : 0
-    const fy = a.startsWith('top') ? 1 : a.startsWith('bottom') ? -1 : 0
-    const wantXm = fx * (ctx.worldWidth / 2 - wW / 2) + (off?.[0] ?? 0)
-    const wantYm = fy * (ctx.worldHeight / 2 - wH / 2) + (off?.[1] ?? 0)
-    const lp = 50 + (wantXm / ctx.worldWidth) * 100
-    const tp = 50 - (wantYm / ctx.worldHeight) * 100
-    const fmt = (v: number) => `${Math.round(v * 100) / 100}%`
-    return { left: fmt(lp), top: fmt(tp) }
-  }
+/** class 名净化（字母/数字/-/_ 之外替换为 _） */
+function sanitizeClass(name: string): string {
+  return name.replace(/[^A-Za-z0-9_-]/g, '_') || 'node'
+}
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

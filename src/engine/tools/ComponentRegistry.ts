@@ -16,12 +16,57 @@
 import type { BObjectComponent } from '../entity/BObjectComponent'
 import type { BObject } from '../entity/BObject'
 import type { PropertyPatch } from '../tools/deepMerge'
+import { logger } from '../Logger'
 
 /** Component 工厂：用 owner 与 props 构造实例（props 可含构造所需参数） */
 export type ComponentFactory = (owner: BObject, props?: PropertyPatch) => BObjectComponent
 
 /** Component 配置器：构造后用 props 调各 setter */
 export type ComponentConfigurator = (comp: BObjectComponent, props: PropertyPatch) => void
+
+/**
+ * 由调用方（ActorManager/UIManager）在工厂之外消费的通用键——不计入「工厂未消费」告警。
+ * 目前仅 name（组件显示名，调用方在 create 返回后写 comp.name）。
+ */
+const GENERIC_PROP_KEYS = new Set(['name'])
+
+/** 已告警过的 type:key（同类漏接只报一次，避免每实例刷屏） */
+const warnedDroppedProps = new Set<string>()
+
+/**
+ * 工厂漏接检测：用 Proxy 记录工厂/配置器对 props 的实际读取，跑完后把「存在但从未
+ * 被读取」的键报 error。背景：工厂白名单漏接（如 UIImageComponent.gradient）以前是
+ * 静默丢弃，只能靠白屏等视觉异常反推；此处让它在加载当场暴露。前提是内置工厂均为
+ * 同步读 props（构造参数 + configure setter），异步存引用后读的模式不支持。
+ */
+function runWithDropCheck(
+  type: string,
+  context: string,
+  props: PropertyPatch,
+  run: (p: PropertyPatch) => void,
+): void {
+  if (!props || typeof props !== 'object') {
+    run(props)
+    return
+  }
+  const accessed = new Set<string>()
+  const tracked = new Proxy(props, {
+    get(target, key) {
+      if (typeof key === 'string') accessed.add(key)
+      return (target as Record<string | symbol, unknown>)[key]
+    },
+  })
+  run(tracked)
+  const dropped = Object.keys(props).filter((k) => !accessed.has(k) && !GENERIC_PROP_KEYS.has(k))
+  for (const k of dropped) {
+    const dedupe = `${type}:${k}`
+    if (warnedDroppedProps.has(dedupe)) continue
+    warnedDroppedProps.add(dedupe)
+    logger.error(
+      `[ComponentRegistry] "${type}" 工厂未消费属性 "${k}"（${context}）——该字段被静默丢弃，请检查 registerBuiltinComponents 工厂白名单与 assetLint schema 是否同步`,
+    )
+  }
+}
 
 export class ComponentRegistry {
   private static entries = new Map<string, { factory: ComponentFactory; configure?: ComponentConfigurator }>()
@@ -38,12 +83,13 @@ export class ComponentRegistry {
   static create(owner: BObject, type: string, props?: PropertyPatch): BObjectComponent | null {
     const entry = ComponentRegistry.entries.get(type)
     if (!entry) return null
-    const comp = entry.factory(owner, props)
-    // persistType 默认即完整类名（this.constructor.name），无需注入
-    if (entry.configure && props) {
-      entry.configure(comp, props)
-    }
-    return comp
+    let created: BObjectComponent | null = null
+    runWithDropCheck(type, `owner="${owner?.name ?? '?'}"`, props as PropertyPatch, (p) => {
+      created = entry.factory(owner, p)
+      // persistType 默认即完整类名（this.constructor.name），无需注入
+      if (entry.configure && props) entry.configure(created, p)
+    })
+    return created
   }
 
   /**
@@ -53,7 +99,9 @@ export class ComponentRegistry {
   static configure(comp: BObjectComponent, type: string, props?: PropertyPatch): void {
     const entry = ComponentRegistry.entries.get(type)
     if (entry?.configure && props) {
-      entry.configure(comp, props)
+      runWithDropCheck(type, `component="${comp?.name ?? '?'}"`, props, (p) => {
+        entry.configure!(comp, p)
+      })
     }
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "@demostudio/ds-memory",
   "version": "0.1.0",
-  "description": "DSH 记忆系统插件：跨会话持久记忆（.dsh/memory/ Markdown 文件 + MEMORY.md 索引），提供 memory_write/search/forget/review 四工具、system prompt 记忆指导、回合末自动提取提醒与 AI 选择检索注入。",
+  "description": "DSH 记忆系统插件：跨会话持久记忆（.dsh/memory/ Markdown 文件 + MEMORY.md 索引），提供 memory_write/search/forget/review 四工具、system prompt 记忆指导（主 agent 主动保存）与 AI 选择检索注入。",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

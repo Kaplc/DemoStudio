@@ -1170,6 +1170,36 @@ ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unk
   }
 })
 
+// ─── 列出目录下的文件（返回 {name, size, mtime}[]，仅顶层 .md 文件）───
+
+ipcMain.handle('list-dir-files', async (_event, relativePath: string) => {
+  try {
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    const baseDir = path.join(__dirname, '..')
+    const fullPath = path.resolve(baseDir, relativePath)
+    const rel = path.relative(baseDir, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: `非法路径: ${relativePath}` }
+    }
+    if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
+      return { success: false, error: `目录不存在: ${relativePath}` }
+    }
+    const entries = fs.readdirSync(fullPath, { withFileTypes: true })
+    const files = entries
+      .filter(e => e.isFile() && e.name.endsWith('.md') && e.name !== 'MEMORY.md' && e.name !== 'INDEX.md')
+      .map(e => {
+        const stat = fs.statSync(path.join(fullPath, e.name))
+        return { name: e.name, size: stat.size, mtime: stat.mtimeMs }
+      })
+      .sort((a, b) => b.mtime - a.mtime)
+    return { success: true, data: files }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── 写入文本文件（UI 源格式 .widget.html 反编译回写等）───
 
 ipcMain.handle('write-text-file', async (_event, relativePath: string, content: string) => {

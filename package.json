@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "electron:dev": "vite",
     "electron:build": "npm run build && electron-builder",
-    "lint": "eslint src --ext .ts,.tsx"
+    "lint": "eslint src --ext .ts,.tsx",
+    "smoke:ui": "node scripts/ui-compiler-smoke.mjs",
+    "ui-compiler": "node scripts/ui-compiler-cli.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-sc": "^5.3.0",

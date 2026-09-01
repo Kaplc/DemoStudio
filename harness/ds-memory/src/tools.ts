@@ -8,6 +8,7 @@
 import { rm } from 'node:fs/promises'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { memoryAge, memoryAgeDays, memoryFreshnessText } from './memoryAge.js'
 import {
   MAX_MEMORY_CONTENT_CHARS,
@@ -16,17 +17,13 @@ import {
 } from './memoryTypes.js'
 import { forgetMemories, readAllMemories, removeFromIndex, writeMemory } from './memoryStore.js'
 import type { MemoryRecord } from './memoryStore.js'
-import { findRelevantMemories } from './selectMemories.js'
 
 /** 工具运行所需宿主环境（由 index.ts 装配时闭包注入）。 */
 export interface MemoryToolHost {
   /** 解析后的记忆目录（默认 <cwd>/.dsh/memory，可由配置 memoryDir 覆盖）。 */
   memoryDirectory: string
-  /** Cordis 上下文：AI 选择器走 ctx.llm，日志走 ctx.logger。 */
+  /** Cordis 上下文：日志走 ctx.logger。 */
   ctx: Context
-  /** 选择器模型路由。 */
-  selectProvider: string
-  selectModel: string
 }
 
 /** 单份记忆的限长正文与元数据（搜索/审查共用）。 */
@@ -47,6 +44,14 @@ function describeRecord(record: MemoryRecord, nowMs: number) {
   }
 }
 
+/** 子 agent（委托产生的）只读：变更类记忆操作一律拒绝——上下文归属父 agent，由父决定是否保存。 */
+function assertNotChildAgent(agent: Agent | undefined): void {
+  const depth = (agent?.session.header as { delegationDepth?: number } | undefined)?.delegationDepth
+  if (typeof depth === 'number' && depth > 0) {
+    throw new Error('子 agent 不能修改持久记忆（上下文归属父 agent）。如需保存，请在回复中说明，由父 agent 调用 memory_write。')
+  }
+}
+
 // ---------------------------------------------------------------------------
 // memory_write
 // ---------------------------------------------------------------------------
@@ -55,7 +60,7 @@ function describeRecord(record: MemoryRecord, nowMs: number) {
 export function createMemoryWriteTool(host: MemoryToolHost) {
   return defineTool({
     name: 'memory_write',
-    description: '保存/更新一条跨会话持久记忆（Markdown 文件 + MEMORY.md 索引）。常规记忆由系统在回合结束后自动提取，本工具用于用户显式要求保存/更新时。同名或同描述的已有记忆会被更新而不是重复新建。name 用语义化小写下划线（如 user_role）。',
+    description: '保存/更新一条跨会话持久记忆（Markdown 文件 + MEMORY.md 索引）。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动使用；同名或同描述的已有记忆会被更新而不是重复新建。name 用语义化小写下划线（如 user_role）。',
     parameters: {
       name: { type: 'string', required: true, description: '语义化小写下划线文件名（不含 .md），如 user_role' },
       content: { type: 'string', required: true, description: '记忆正文（Markdown）。feedback/project 类型需含 **Why:** 与 **How to apply:**；相对日期转绝对日期' },
@@ -81,7 +86,8 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
           : `已更新已有记忆 ${value.file}（按${value.deduped_by === 'name' ? '同名' : '同描述'}去重），索引已同步。${value.note ?? ''}`,
       }],
     },
-    async execute(args) {
+    async execute(args, exec) {
+      assertNotChildAgent(exec.agent)
       if (args.scope !== undefined && args.scope !== 'private') {
         throw new Error(`scope "${args.scope}" 尚未实现；当前仅支持 private`)
       }
@@ -105,22 +111,25 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
 // memory_search
 // ---------------------------------------------------------------------------
 
-/** 检索记忆（FR-1 / FR-3）：AI 选择器选最多 5 份，返回路径 + 内容 + 新鲜度。 */
+/** 按文件名列表检索记忆：直接读取文件内容返回，不走 LLM。 */
 export function createMemorySearchTool(host: MemoryToolHost) {
   return defineTool({
     name: 'memory_search',
-    description: '检索持久记忆：用 AI 选择器从记忆库中选出与 query 最相关的记忆（最多 5 条），返回内容与新鲜度。相关或用户明确要求时使用。',
+    description: '按文件名读取记忆文件内容。传入 MEMORY.md 索引中的文件名（如 ["ds-plugin-mounting", "user_role"]），返回对应记忆的正文与元数据。空数组时返回所有记忆的摘要列表（不含正文）。',
     parameters: {
-      query: { type: 'string', required: true, description: '检索意图的自然语言描述' },
+      names: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '要读取的记忆名列表（不含 .md 后缀，如 ["ds-plugin-mounting"]）。空数组或省略时返回全部记忆摘要。',
+      },
     },
     output: {
       schema: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          query: { type: 'string', required: true },
           count: { type: 'integer', required: true },
-          matches: {
+          memories: {
             type: 'array',
             required: true,
             items: {
@@ -141,26 +150,34 @@ export function createMemorySearchTool(host: MemoryToolHost) {
       render: (_args, value) => [{
         type: 'text',
         text: value.count === 0
-          ? `未检索到与「${value.query}」相关的记忆。`
-          : `检索到 ${value.count} 条相关记忆：\n${value.matches.map(match => `- ${match.file} [${match.type ?? 'unknown'}] (${match.age})${match.freshness_warning === '' ? '' : ` ⚠ ${match.freshness_warning}`}`).join('\n')}\n\n完整内容见结果 JSON。`,
+          ? '记忆库中没有匹配的记忆。'
+          : `返回 ${value.count} 条记忆：\n${value.memories.map(m => `- ${m.file} [${m.type ?? 'unknown'}] (${m.age})${m.freshness_warning === '' ? '' : ` ⚠ ${m.freshness_warning}`}`).join('\n')}\n\n完整内容见结果 JSON。`,
       }],
     },
-    async execute(args, exec) {
-      const selected = await findRelevantMemories(host.ctx, host.memoryDirectory, {
-        query: args.query,
-        selectProvider: host.selectProvider,
-        selectModel: host.selectModel,
-        signal: exec.signal,
-      })
+    async execute(args) {
       const all = await readAllMemories(host.memoryDirectory)
-      const byFile = new Map(all.map(record => [record.fileName, record]))
       const now = Date.now()
-      const matches = selected
-        .flatMap(memory => {
-          const record = byFile.get(memory.filename)
-          return record === undefined ? [] : [describeRecord(record, now)]
-        })
-      return { query: args.query, count: matches.length, matches }
+      const names = args.names ?? []
+      if (names.length === 0) {
+        // 空数组：返回全部摘要（不含正文，省 token）
+        return {
+          count: all.length,
+          memories: all.map(record => ({
+            file: record.fileName,
+            type: record.type,
+            age: memoryAge(record.mtimeMs, now),
+            description: record.description,
+            content: '',
+            freshness_warning: memoryFreshnessText(record.mtimeMs, now),
+          })),
+        }
+      }
+      // 有指定名称：精确匹配返回正文
+      const wanted = new Set(names.map(n => n.endsWith('.md') ? n : `${n}.md`))
+      const matches = all
+        .filter(record => wanted.has(record.fileName))
+        .map(record => describeRecord(record, now))
+      return { count: matches.length, memories: matches }
     },
   })
 }
@@ -194,7 +211,8 @@ export function createMemoryForgetTool(host: MemoryToolHost) {
           : `已遗忘并从索引移除：${value.deleted.join('、')}。`,
       }],
     },
-    async execute(args) {
+    async execute(args, exec) {
+      assertNotChildAgent(exec.agent)
       if (args.name === undefined && args.description_keyword === undefined) {
         throw new Error('memory_forget 需要 name 或 description_keyword 至少一个')
       }
@@ -331,6 +349,7 @@ export function createMemoryReviewTool(host: MemoryToolHost) {
       // apply=true 只自动执行无争议的部分：完全重复的删除（其余提案需人工/模型核对内容）
       const applied: string[] = []
       if (args.apply === true) {
+        assertNotChildAgent(exec.agent)
         for (const record of duplicates) {
           await rm(record.filePath, { force: true })
           await removeFromIndex(host.memoryDirectory, record.fileName.replace(/\.md$/, ''))

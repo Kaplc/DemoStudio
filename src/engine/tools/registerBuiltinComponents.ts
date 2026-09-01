@@ -37,7 +37,7 @@ import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UITextInputComponent } from '../ui/UITextInputComponent'
-import { UIImageComponent } from '../ui/UIImageComponent'
+import { UIImageComponent, type UIImageComponentOptions } from '../ui/UIImageComponent'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { UITooltipComponent } from '../ui/UITooltipComponent'
@@ -380,6 +380,8 @@ export function registerBuiltinComponents(): void {
         lineHeight: p.lineHeight as number | undefined,
         shadowColor: p.shadowColor as string | undefined,
         shadowBlur: p.shadowBlur as number | undefined,
+        shadowOffsetX: p.shadowOffsetX as number | undefined,
+        shadowOffsetY: p.shadowOffsetY as number | undefined,
         letterSpacing: p.letterSpacing as number | undefined,
         width: p.width as number | undefined,
         height: p.height as number | undefined,
@@ -423,7 +425,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIImageComponent ─── props: { color?, radius?, opacity?, src?, worldWidth?, worldHeight?, ... }
+  // ─── UIImageComponent ─── props: { color?, radius?, opacity?, src?, gradient?, worldWidth?, worldHeight?, ... }
   // 显隐由同/父节点的 CanvasUIComponent.active 统一控制（节点级级联），UIImage 不再消费 active。
   ComponentRegistry.register(
     'UIImageComponent',
@@ -433,6 +435,7 @@ export function registerBuiltinComponents(): void {
         radius: p.radius as number | undefined,
         opacity: p.opacity as number | undefined,
         src: p.src as string | undefined,
+        gradient: p.gradient as UIImageComponentOptions['gradient'] | undefined,
         worldWidth: p.worldWidth as number | undefined,
         worldHeight: p.worldHeight as number | undefined,
         width: p.width as number | undefined,
@@ -443,6 +446,7 @@ export function registerBuiltinComponents(): void {
       if (p.color !== undefined) img.color = p.color as string
       if (p.radius !== undefined) img.radius = p.radius as number
       if (p.src !== undefined) img.loadImage(p.src as string)
+      if (p.gradient !== undefined) img.gradient = p.gradient as UIImageComponentOptions['gradient']
       if (p.zOrder !== undefined) img.zOrder = p.zOrder as number
     },
   )
@@ -520,6 +524,7 @@ export function registerBuiltinComponents(): void {
         direction: p.direction as UIScrollDirection | undefined,
         draggable: p.draggable as boolean | undefined,
         scrollbar: p.scrollbar as boolean | undefined,
+        zOrderLift: p.zOrderLift as number | undefined,
       }),
     (c, p) => {
       const list = c as UIScrollListComponent
@@ -530,6 +535,7 @@ export function registerBuiltinComponents(): void {
       if (p.direction !== undefined) list.direction = p.direction as UIScrollDirection
       if (p.draggable !== undefined) list.draggable = p.draggable as boolean
       if (p.scrollbar !== undefined) list.scrollbar = p.scrollbar as boolean
+      if (p.zOrderLift !== undefined) list.zOrderLift = p.zOrderLift as number
     },
   )
 

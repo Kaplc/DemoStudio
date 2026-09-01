@@ -1091,7 +1091,8 @@ export class AgentService {
     if (this.abortPolling) return false // stop 语义：中止后不再派发任何事件
     if (typeof event?.seq !== 'number' || event.seq <= this._lastSeq) {
       // [Trace] 收尾/整段/用户消息被基线抑制 = 恢复竞态的直接证据（chunk 被抑制是常态，不打）
-      if (event?.type === 'turn/end' || event?.type === 'assistant/message' || event?.type === 'user/message') {
+      // 只记录 turn/end 事件，避免过多日志
+      if (event?.type === 'turn/end') {
         console.log(`[${logTime()}] [Trace][baseline] ${this.instanceId} 基线跳过事件: type=${event?.type}, seq=${event?.seq}, _lastSeq=${this._lastSeq}`)
       }
       return false
@@ -1336,9 +1337,10 @@ export class AgentService {
     // ─── 请求配置 ───
     if (event.type === 'request/header') {
       const header = d?.header
+      const reason = d?.reason || 'change'
       this.emit({
         type: 'requestHeader',
-        payload: { model: header?.config?.model, provider: header?.config?.provider, reason: d?.reason || 'change', seq: event.seq, time } as RequestHeaderPayload,
+        payload: { model: header?.config?.model, provider: header?.config?.provider, reason, seq: event.seq, time } as RequestHeaderPayload,
       })
       return false
     }
@@ -1469,10 +1471,16 @@ export class AgentService {
     return () => this.stateListeners.delete(listener)
   }
 
+  /** 获取当前事件监听器数量（用于日志控制） */
+  getListenerCount(): number {
+    return this.listeners.size
+  }
+
   private emit(event: AgentEvent): void {
     // [Trace] 渲染管线追踪：message 段发出时记录监听器数量与内容摘要。
     // listeners > 1 = 面板重复订阅；同一内容连续两次 emit = service 层双路径消费。
-    if (event.type === 'message') {
+    // 只在有多个监听器时记录，避免正常情况下的日志刷屏
+    if (event.type === 'message' && this.listeners.size > 1) {
       const p = event.payload as any
       const text: string = p?.content || ''
       const caller = new Error().stack?.split('\n')[2]?.trim().replace(/^at /, '').split(/\s+/).pop() ?? 'unknown'

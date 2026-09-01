@@ -183,7 +183,14 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 
 - 接到可能与过往工作重复的改动类任务 → 先 \`history_search\` 查历史会话（"上次怎么做的"）；命中后 \`history_read\` 读那场会话的任务转录。
 - 疑似有相似经验（同类任务以前做过）→ \`experience_search\` 按需检索经验库。
-- 完成一个有复用价值的任务后 → \`experience_save\` 落盘一条 episode（系统空闲时也会自动提炼，二者去重靠同名覆盖）。`,
+- **完成一个有复用价值的任务后 → 主动调用 \`experience_save\` 沉淀经验**（你的职责：判断哪些工作值得记录，做完就存，不要等人提醒）。
+
+## 发现更优路线时
+
+- 保存前先 \`experience_search\` 查同类旧经验，读到旧 lessons 后对比。
+- **旧路线已过时**（新做法明确更优）→ 用相同 name 覆盖，在 lessons 中保留旧路线的教训作为对比参考。
+- **两条路线各有适用场景**（如不同规模/约束下分别更优）→ 用不同 name 新建，lessons 中互相引用。
+- **不管哪种方式，都不要丢失旧经验中"踩了什么坑"的信息**——那是最有复用价值的部分。`,
   ]
   if (indexText !== undefined && indexText.length > 0) {
     parts.push(`## INDEX.md 索引\n\n${indexText}`)

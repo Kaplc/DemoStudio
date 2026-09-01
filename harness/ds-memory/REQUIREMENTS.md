@@ -189,3 +189,10 @@
 3. **AI 选择检索**：dsh LLM side-query（`deepseek-chat`，可配）从清单选最多 5 个文件，`agent.inject()` 到用户消息
 4. **自动提取**：system prompt 常驻记忆指导 + `agent/turn-stopping` 每回合轻量提醒，主 agent 自己写（无后台 subagent）
 5. **4 工具**：`memory_write/search/forget/review`；只做 `enabled` 开关配置；完整路径安全防护；不做 Embeddings/团队/会话内记忆/hooks/GUI
+
+---
+
+## 决策变更记录
+
+- **2026-09-01 写入路径回归第 4 条原案（主 agent 主动写）**：实现期曾引入"形态二"后台提取（`agent/status` 空闲防抖 → side-query 判读转录 → 插件直接落盘），已整体移除（`extractMemories.ts`、`notifySaved`、水位/防抖状态机、`extractModel`/`extractProvider` 配置）。理由：主 agent 是唯一看到完整上下文（含工具结果）的一方，转录渲染的重截断损害保存质量；后台提取依赖空闲窗口（会话中断即丢）；每回合一次 side-query 是纯增成本。保存指导改为 `SAVE_FLOW_TEXT` 触发点绑定（纠正/决策/踩坑根因/用户画像/外部指针 → 当回合立即 `memory_write`）。`agent/turn-stopping` 轻量提醒不采用——回合收尾注入的消息只能影响下一回合，对"本回合记得保存"无效。
+- **2026-09-01 子 agent 边界收紧**：`memory_write` / `memory_forget` / `memory_review(apply=true)` 在工具 execute 层拒绝子 agent（`delegationDepth > 0`）调用——委托上下文归属父 agent，由父决定是否保存；`memory_search` 只读，子 agent 仍可用。

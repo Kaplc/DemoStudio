@@ -1,41 +1,31 @@
 /**
- * miniParser — 轻量 HTML/CSS 解析器（零依赖，带行号错误定位）
+ * miniParser — HTML 解析器 v2（零依赖，带行号错误定位；完整原生 HTML 语法面）
  *
- * 方案 §6：不引入第三方解析库，实现受控子集所需的解析能力：
- *  - tokenizeCss：规则块（选择器 + 声明列表）+ @规则拦截（@media/@keyframes 报错）
- *  - tokenizeHtml：标签树（元素/文本），记录每个节点的源行号（编译报错定位）
+ * v2（完整映射版）：在 v1 受控子集之上扩展为完整 HTML 语法解析——
+ *  - 实体解码（&amp; &lt; &#x..; &nbsp; 等，文本与属性值均解码）
+ *  - 原始文本元素（script/style：内容不解析子节点、不解码实体）
+ *  - 完整 void 标签表；无值属性（disabled 等）与单引号/无引号属性值
+ *  - DOCTYPE / <?..?> / CDATA 跳过；HTML 注释剥离
+ *  - <html>/<body>/<head> 结构容许（编译层负责剥离取 body 内容）
  *
- * 受控子集之外的结构在解析层就报错（行号指向 .widget.html），
- * 编译层再对属性值做白名单校验——双层把关，越界写法绝不静默降级。
+ * 解析层只做语法切分（接受任意标签名），语义白名单（哪些标签/属性可映射）
+ * 由编译层把关——越界一律硬报错，绝不静默降级。
  */
-
-/** CSS 声明 */
-export interface CssDecl {
-  prop: string
-  value: string
-}
-
-/** CSS 规则块 */
-export interface CssRule {
-  /** 选择器（单 class / 单元素 / 单伪类，解析层只做切分，合法性由编译层校验） */
-  selector: string
-  decls: CssDecl[]
-  /** 规则在源文件中的行号（1 起） */
-  line: number
-}
 
 /** HTML 节点 */
 export interface HtmlNode {
   /** 标签名小写（'#text' = 纯文本节点） */
   tag: string
-  /** 属性表（class/data-* 等） */
+  /** 属性表（值已实体解码；无值属性为 ''） */
   attrs: Record<string, string>
-  /** 子节点（文本节点视为 tag='text' 的子项） */
+  /** 子节点（文本节点 tag='#text'；rawText 元素无子节点） */
   children: HtmlNode[]
-  /** 文本内容（仅 tag='text'） */
+  /** 文本内容（仅 tag='#text'） */
   text: string
   /** 源行号（1 起） */
   line: number
+  /** 原始文本内容（仅 script/style 等 rawText 元素） */
+  raw?: string
 }
 
 export class ParseError extends Error {
@@ -55,105 +45,63 @@ function lineOf(src: string, index: number): number {
   return line
 }
 
-/** ─── CSS 解析 ─── */
+/** ─── 实体解码 ─── */
 
-/**
- * 解析 <style> 内容为规则列表。
- * 支持：selector { prop: value; prop2: value2 }；支持注释 /* *\/。
- * 拦截：@media/@keyframes/@import 等一切 @规则（方案 §5 明确不做）。
- */
-export function tokenizeCss(css: string): CssRule[] {
-  const rules: CssRule[] = []
-  // 去注释（保留换行数，行号不漂移）
-  const noComment = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0',
+  copy: '©', reg: '®', trade: '™', hellip: '…', mdash: '—', ndash: '–',
+  laquo: '«', raquo: '»', times: '×', divide: '÷', plusmn: '±', deg: '°',
+  middot: '·', bull: '•', dagger: '†', sect: '§', para: '¶', euro: '€',
+  pound: '£', yen: '¥', cent: '¢', sup2: '²', sup3: '³', frac12: '½',
+  larr: '←', uarr: '↑', rarr: '→', darr: '↓', half: '½',
+}
 
-  let i = 0
-  while (i < noComment.length) {
-    // 跳过空白
-    while (i < noComment.length && /\s/.test(noComment[i])) i++
-    if (i >= noComment.length) break
-
-    // @规则：硬报错（受控子集不含 @media/@keyframes/@import）
-    if (noComment[i] === '@') {
-      const m = /^@([a-zA-Z-]+)/.exec(noComment.slice(i))
-      throw new ParseError(
-        `CSS @规则 "@${m?.[1] ?? '?'}" 不受支持（受控子集仅支持普通规则块）`,
-        lineOf(noComment, i),
-      )
-    }
-
-    // 选择器：读到 '{'
-    const braceIdx = noComment.indexOf('{', i)
-    if (braceIdx === -1) break
-    const selector = noComment.slice(i, braceIdx).trim()
-    const line = lineOf(noComment, i)
-    if (!selector) {
-      throw new ParseError('CSS 规则缺少选择器', line)
-    }
-
-    // 声明块：读到配对 '}'
-    let depth = 1
-    let j = braceIdx + 1
-    while (j < noComment.length && depth > 0) {
-      if (noComment[j] === '{') depth++
-      else if (noComment[j] === '}') depth--
-      j++
-    }
-    if (depth !== 0) {
-      throw new ParseError(`CSS 规则 "${selector}" 花括号未闭合`, line)
-    }
-    const body = noComment.slice(braceIdx + 1, j - 1)
-
-    // 声明解析：prop: value;（允许最后一个省略分号）
-    const decls: CssDecl[] = []
-    for (const rawDecl of body.split(';')) {
-      const d = rawDecl.trim()
-      if (!d) continue
-      const colon = d.indexOf(':')
-      if (colon === -1) {
-        throw new ParseError(`CSS 声明缺少冒号: "${d.slice(0, 40)}"`, line)
+/** 解码 HTML 实体（文本与属性值共用；未知实体原样保留） */
+export function decodeEntities(s: string): string {
+  if (!s.includes('&')) return s
+  return s.replace(/&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]*);?/g, (m, code: string) => {
+    if (code[0] === '#') {
+      const n = code[1] === 'x' || code[1] === 'X' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10)
+      if (!Number.isFinite(n) || n < 1 || n > 0x10ffff) return m
+      try {
+        return String.fromCodePoint(n)
+      } catch {
+        return m
       }
-      decls.push({ prop: d.slice(0, colon).trim().toLowerCase(), value: d.slice(colon + 1).trim() })
     }
-
-    rules.push({ selector, decls, line })
-    i = j
-  }
-  return rules
+    const named = NAMED_ENTITIES[code.toLowerCase()]
+    return named ?? m
+  })
 }
 
 /** ─── HTML 解析 ─── */
 
-const VOID_TAGS = new Set(['img', 'br', 'hr', 'input', 'meta', 'link'])
+/** void 元素（HTML 标准全集） */
+export const VOID_TAGS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+])
+
+/** 原始文本元素：内容不解析为子节点、不解码实体 */
+export const RAW_TEXT_TAGS = new Set(['script', 'style'])
 
 /**
- * 解析 .widget.html 内容为节点树。
- * 要求：根元素必须是 <widget>；img 为 void 标签；属性值用引号包裹。
+ * 解析 HTML 源为节点树。
+ * 属性值支持双引号/单引号/无引号；无值属性记 ''；值做实体解码。
  */
-export function tokenizeHtml(src: string): { root: HtmlNode; styleCss: string; styleLine: number } {
-  const BOM = /^\uFEFF/
-  const clean = src.replace(BOM, '')
-  // 剥离 HTML 注释（保留换行）
-  const noComment = clean.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
+export function tokenizeHtml(src: string): { root: HtmlNode } {
+  const clean = src.replace(/^\uFEFF/, '')
+  // 剥离注释/DOCTYPE/处理指令/CDATA（保留换行数，行号不漂移）
+  const noComment = clean
+    .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/<!DOCTYPE[^>]*>/gi, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/<\?[\s\S]*?\?>/g, (m) => m.replace(/[^\n]/g, ' '))
 
   let pos = 0
   const root = parseElement()
-  if (!root || root.tag !== 'widget') {
-    throw new ParseError('根元素必须是 <widget>（如 <widget name="xxx" canvas="960x540">）', 1)
-  }
-
-  // 收集 <style> 内容（仅根直接子级第一个；CSS 文本存于子级 '#text' 节点）
-  let styleCss = ''
-  let styleLine = 1
-  for (const c of root.children) {
-    if (c.tag === 'style') {
-      styleCss = c.children.filter((t) => t.tag === '#text').map((t) => t.text).join('\n')
-      styleLine = c.line
-      break
-    }
-  }
-
-  return { root, styleCss, styleLine }
+  if (!root) throw new ParseError('源为空（未找到根元素）', 1)
+  return { root }
 
   /** 解析一个元素（递归） */
   function parseElement(): HtmlNode | null {
@@ -161,6 +109,10 @@ export function tokenizeHtml(src: string): { root: HtmlNode; styleCss: string; s
     if (pos >= noComment.length) return null
     if (noComment[pos] !== '<') {
       throw new ParseError(`意外的字符 "${noComment[pos]}"（期望标签）`, lineOf(noComment, pos))
+    }
+    // 容错：顶层出现的游离 '</xxx>' 闭合符（解析器状态机已在元素内消化配对，正常不会到这）
+    if (noComment.startsWith('</', pos)) {
+      throw new ParseError(`多余的闭合标签`, lineOf(noComment, pos))
     }
 
     const m = /^<([a-zA-Z][a-zA-Z0-9-]*)/.exec(noComment.slice(pos))
@@ -176,11 +128,12 @@ export function tokenizeHtml(src: string): { root: HtmlNode; styleCss: string; s
     while (pos < noComment.length) {
       skipWs()
       if (noComment[pos] === '>' || noComment.startsWith('/>', pos)) break
-      const am = /^([a-zA-Z_][a-zA-Z0-9_:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(noComment.slice(pos))
+      // 属性名：字母/数字/_/:/.//-（无值属性直接记 ''）
+      const am = /^([a-zA-Z_][a-zA-Z0-9_:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/.exec(noComment.slice(pos))
       if (!am) {
-        throw new ParseError(`标签 <${tag}> 属性格式非法（属性值需引号包裹）`, lineOf(noComment, pos))
+        throw new ParseError(`标签 <${tag}> 属性格式非法`, lineOf(noComment, pos))
       }
-      attrs[am[1].toLowerCase()] = am[2] ?? am[3] ?? ''
+      attrs[am[1].toLowerCase()] = decodeEntities(am[2] ?? am[3] ?? am[4] ?? '')
       pos += am[0].length
     }
 
@@ -198,22 +151,38 @@ export function tokenizeHtml(src: string): { root: HtmlNode; styleCss: string; s
       return { tag, attrs, children: [], text: '', line }
     }
 
+    // 原始文本元素：内容直读到对应闭合标签，不解析、不解码
+    if (RAW_TEXT_TAGS.has(tag)) {
+      const close = noComment.indexOf(`</${tag}`, pos)
+      if (close === -1) throw new ParseError(`标签 <${tag}> 未闭合（缺少 </${tag}>）`, line)
+      const raw = noComment.slice(pos, close)
+      let closeEnd = noComment.indexOf('>', close)
+      if (closeEnd === -1) throw new ParseError(`标签 <${tag}> 闭合符缺失`, lineOf(noComment, close))
+      pos = closeEnd + 1
+      return { tag, attrs, children: [], text: '', line, raw }
+    }
+
     // 子内容
     const children: HtmlNode[] = []
     let textBuf = ''
     let textLine = line
     while (pos < noComment.length) {
       if (noComment.startsWith(`</${tag}`, pos)) {
-        // 闭合
         const closeEnd = noComment.indexOf('>', pos)
         if (closeEnd === -1) throw new ParseError(`标签 <${tag}> 闭合符缺失`, lineOf(noComment, pos))
-        // 尾部纯文本
         flushText()
         pos = closeEnd + 1
         return { tag, attrs, children, text: '', line }
       }
       if (noComment[pos] === '<') {
-        // 子元素或文本
+        // 子元素（</ 在元素内出现而不匹配自身 = 子元素提前闭合，报错定位到下层）
+        if (noComment.startsWith('</', pos)) {
+          const wrongM = /^<\/([a-zA-Z][a-zA-Z0-9-]*)/.exec(noComment.slice(pos))
+          throw new ParseError(
+            `闭合标签 </${wrongM?.[1] ?? '?'}> 与当前元素 <${tag}> 不匹配`,
+            lineOf(noComment, pos),
+          )
+        }
         flushText()
         const child = parseElement()
         if (child) children.push(child)
@@ -226,7 +195,9 @@ export function tokenizeHtml(src: string): { root: HtmlNode; styleCss: string; s
     throw new ParseError(`标签 <${tag}> 未闭合（缺少 </${tag}>）`, line)
 
     function flushText() {
-      const t = textBuf.trim()
+      if (!textBuf) return
+      const decoded = decodeEntities(textBuf)
+      const t = decoded.trim()
       if (t) {
         // '#text'：纯文本节点（DOM 惯例），与 <text> 文本元素区分
         children.push({ tag: '#text', attrs: {}, children: [], text: t, line: textLine })

@@ -34,6 +34,7 @@ import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
 import { KernelUpdateModal } from './agent/KernelUpdateModal'
 import { SkillManager } from './agent/SkillManager'
+import { FileManager } from './agent/FileManager'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -159,6 +160,8 @@ export const AgentPanel: React.FC = () => {
   const [showKernelUpdate, setShowKernelUpdate] = useState(false)
   const [hasKernelUpdate, setHasKernelUpdate] = useState(false) // npm 有新版本标记
   const [showSkillManager, setShowSkillManager] = useState(false)
+  const [showMemoryManager, setShowMemoryManager] = useState(false)
+  const [showExperienceManager, setShowExperienceManager] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
@@ -306,7 +309,8 @@ export const AgentPanel: React.FC = () => {
     const unsubEvent = agentService.onEvent((event) => {
       // [Trace] 渲染管线追踪：面板实际收到的 message 段（与 svc-emit 对读，
       // 判断重复发生在 service 发出侧还是面板订阅侧）
-      if (event.type === 'message') {
+      // 只在有多个监听器时记录，避免正常情况下的日志刷屏
+      if (event.type === 'message' && agentService.getListenerCount() > 1) {
         const p = event.payload as any
         const text: string = p?.content || ''
         console.log(`[${logTime()}] [Trace][panel-recv] message role=${p?.role} ${text.length}ch "${text.slice(0, 24)}"`)
@@ -712,9 +716,10 @@ export const AgentPanel: React.FC = () => {
     const next = displayQueueRef.current.shift()!
     activeDisplayRef.current = next
 
-    // 计算速度倍率：每多2个队列项，速度翻倍
+    // 计算速度倍率：队列积压时大幅加速，避免结论等待过久
     const queueLength = displayQueueRef.current.length
-    const speedMultiplier = Math.pow(2, Math.floor(queueLength / 2))
+    // 每多1个队列项，速度翻2倍；积压3项时已达8x
+    const speedMultiplier = queueLength > 0 ? Math.pow(2, queueLength) : 1
     const traceHead = next.kind === 'assistant' ? ` head="${next.content.slice(0, 24)}"` : ''
     console.log(`[${logTime()}] [AgentPanel] 消费显示队列: kind=${next.kind}, id=${next.id}${traceHead}, 剩余=${queueLength}, 速度倍率=${speedMultiplier}x`)
     typewriter.setSpeedMultiplier(speedMultiplier)
@@ -752,6 +757,30 @@ export const AgentPanel: React.FC = () => {
           }
           return [...cur, { id: `t-${next.id}`, role: 'tool' as const, content: '', tool, ts: Date.now() }]
         })
+        setContentVersion(v => v + 1)
+      }
+      activeDisplayRef.current = null
+      drainQueueRef.current()
+      return
+    }
+
+    // 如果队列还有积压项，当前段跳过打字机直接上屏（加速追赶）
+    if (queueLength > 0 && next.kind === 'assistant') {
+      const msgId = `a-skip-${Date.now()}-${messageSequenceRef.current++}`
+      const hasReasoning = !!next.reasoning
+      const hasContent = !!next.content
+      if (hasReasoning || hasContent) {
+        setMessages(cur => [...cur, {
+          id: msgId,
+          role: 'assistant' as const,
+          content: next.content || '',
+          reasoning: next.reasoning || '',
+          streaming: false,
+          turnCompleted: next.turnCompleted,
+          turnEndReason: next.turnEndReason,
+          stats: next.stats,
+          ts: Date.now(),
+        }])
         setContentVersion(v => v + 1)
       }
       activeDisplayRef.current = null
@@ -1413,8 +1442,11 @@ export const AgentPanel: React.FC = () => {
 
         while (currentIdx < messages.length) {
           const cur = messages[currentIdx]
-          if (cur.role === 'tool' && cur.tool) {
-            stepItems!.push({ type: 'tool', msg: cur })
+          if (cur.role === 'tool') {
+            // tool 消息即使没有 tool 字段也要收集（避免丢失）
+            if (cur.tool) {
+              stepItems!.push({ type: 'tool', msg: cur })
+            }
             currentIdx++
             continue
           }
@@ -1428,6 +1460,22 @@ export const AgentPanel: React.FC = () => {
         }
 
         nodes.push({ key: `step-${msg.id}`, kind: 'step', stepItems })
+        i = currentIdx
+        continue
+      }
+
+      // tool 消息出现在非 assistant 消息后面 → 也收集进独立 step
+      if (msg.role === 'tool') {
+        const stepItems: RenderNode['stepItems'] = []
+        let currentIdx = i
+        while (currentIdx < messages.length && messages[currentIdx].role === 'tool') {
+          const cur = messages[currentIdx]
+          if (cur.tool) stepItems!.push({ type: 'tool', msg: cur })
+          currentIdx++
+        }
+        if (stepItems.length > 0) {
+          nodes.push({ key: `step-${msg.id}`, kind: 'step', stepItems })
+        }
         i = currentIdx
         continue
       }
@@ -1649,6 +1697,18 @@ export const AgentPanel: React.FC = () => {
                 </button>
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowMemoryManager(true) }}
+                >
+                  <span>记忆管理</span>
+                </button>
+                <button
+                  className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowExperienceManager(true) }}
+                >
+                  <span>经验管理</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
                 >
                   <span>设置</span>
@@ -1690,6 +1750,22 @@ export const AgentPanel: React.FC = () => {
       <SkillManager
         visible={showSkillManager}
         onClose={() => setShowSkillManager(false)}
+      />
+
+      {/* 记忆管理面板 */}
+      <FileManager
+        title="记忆管理"
+        dirPath=".dsh/memory"
+        visible={showMemoryManager}
+        onClose={() => setShowMemoryManager(false)}
+      />
+
+      {/* 经验管理面板 */}
+      <FileManager
+        title="经验管理"
+        dirPath=".dsh/experience"
+        visible={showExperienceManager}
+        onClose={() => setShowExperienceManager(false)}
       />
 
       {/* DSH 内核更新浮动窗口 */}

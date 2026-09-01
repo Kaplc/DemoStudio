@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  EXTRACT_SYSTEM_PROMPT,
   MAX_INDEX_LINE_LENGTH,
   MEMORY_TYPES,
+  SAVE_FLOW_TEXT,
   WHAT_NOT_TO_SAVE_TEXT,
   memoryGuideSectionText,
   normalizeMemoryName,
@@ -106,9 +106,9 @@ describe('KM-01 记忆指导段踩坑四段结构（数据飞轮·知识飞轮�
     expect(section).toContain('## 短名')
     expect(section).toContain('数量即条数')
   })
-  it('后台提取提示同步踩坑四段与容器规则', () => {
-    expect(EXTRACT_SYSTEM_PROMPT).toContain('**Problem:**')
-    expect(EXTRACT_SYSTEM_PROMPT).toContain('**Applicable:**')
-    expect(EXTRACT_SYSTEM_PROMPT).toContain('一份文件 = 一个主题')
+  it('保存指导绑定具体触发点并要求当回合保存（主 agent 主动写）', () => {
+    expect(SAVE_FLOW_TEXT).toContain('当回合立即')
+    expect(SAVE_FLOW_TEXT).toContain('memory_write')
+    expect(SAVE_FLOW_TEXT).toContain('宁缺毋滥')
   })
 })

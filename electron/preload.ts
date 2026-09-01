@@ -132,6 +132,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 读取文本文件（codeLint 源码扫描用）───
   readTextFile: (relativePath: string) => ipcRenderer.invoke('read-text-file', relativePath),
 
+  // ─── 列出目录下的文件（返回 {name, size, mtime}[]，仅顶层，不含子目录）───
+  listDirFiles: (relativePath: string) => ipcRenderer.invoke('list-dir-files', relativePath),
+
   // ─── 工程目录监听：文件变化通知（资产→AssetLint / 源码→codeLint，替代定时轮询）───
   watchProjectAssets: (folder: string) => ipcRenderer.invoke('watch-project-assets', folder),
   stopWatchProjectAssets: () => ipcRenderer.invoke('stop-watch-project-assets'),

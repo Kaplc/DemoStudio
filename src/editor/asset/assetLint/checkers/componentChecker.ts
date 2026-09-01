@@ -333,6 +333,13 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.radius', type: 'number', min: 0, label: '圆角' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.src', type: 'string', label: '图片源' },
+    {
+      field: 'properties.gradient',
+      type: 'object',
+      label: '线性渐变填充（HTML 源 linear-gradient 映射）',
+    },
+    { field: 'properties.gradient.angle', type: 'number', label: '渐变角度（CSS 语义，度）' },
+    { field: 'properties.gradient.stops', type: 'array', itemsType: 'object', label: '渐变色标' },
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },

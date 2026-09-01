@@ -70,14 +70,14 @@ export const TEXT_ALIGN_MAP: Record<string, string> = {
 /** 引擎专有 CSS 属性（非标准属性，声明在普通规则里承载引擎能力） */
 export const ENGINE_PROPS = new Set(['z-order', 'hit-test'])
 
-/** 保留 2 位小数（现有资产 worldWidth/worldHeight 惯例精度） */
+/** 保留 2 位小数（现有资产 worldWidth/worldHeight 惯例精度；||0 归一 -0/NaN） */
 export function round2(v: number): number {
-  return Math.round(v * 100) / 100
+  return Math.round(v * 100) / 100 || 0
 }
 
-/** 保留 4 位小数（offset 精度） */
+/** 保留 4 位小数（offset 精度；||0 归一 -0/NaN） */
 export function round4(v: number): number {
-  return Math.round(v * 10000) / 10000
+  return Math.round(v * 10000) / 10000 || 0
 }
 
 /** px → 米（x 轴：按画布宽比例） */

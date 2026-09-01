@@ -175,11 +175,17 @@ export const WHEN_TO_ACCESS_TEXT = `## 何时访问记忆
 - 用户说"忽略记忆"时：视为 MEMORY.md 为空 — 不引用、不比较、不检索。
 - 记忆是时点观察：与当前代码/状态冲突时，信当前事实，并更新或删除旧记忆。`
 
-/** 保存机制说明文本（形态二：后台自动提取 + 显式指令才手写）。 */
+/** 保存机制说明文本（主 agent 主动写：触发点绑定，防漏存与滥存）。 */
 export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 
-- 常规保存由系统在**回合结束后自动提取**完成，你无需主动保存，也不要为"可能有价值"的信息调用 memory_write。
-- 仅当用户**显式要求**时才动手：让保存/更新某条记忆用 memory_write，让删除用 memory_forget，要求整理审查用 memory_review。`
+你自己负责保存记忆——回合过程中出现以下触发点时，**当回合立即**调用 memory_write，不要期待有后台系统替你提取：
+- 用户纠正了你的做法，或明确确认了某个方向（feedback；纠正与确认都要存）
+- 做出了架构/设计/工作流决策，或敲定了带日期的约定（project；相对日期转绝对日期）
+- 定位到可复用的根因教训：环境坑、易错点、反模式（project；踩坑四段格式）
+- 了解到用户的角色、长期偏好、工作习惯（user）
+- 拿到看板/监控/文档站等外部系统指针（reference）
+
+没有触发点就不要保存——宁缺毋滥，普通问答、实现细节和过程流水账不存（见上方"不要保存"清单）。用户显式要求时照办：删除用 memory_forget，整理审查用 memory_review。`
 
 // ---------------------------------------------------------------------------
 // 注入与提醒的文本模板（FR-2 / FR-3 / FR-5）
@@ -222,44 +228,3 @@ export function memoryGuideSectionText(memoryIndex: string | undefined): string 
   }
   return parts.join('\n\n')
 }
-
-// ---------------------------------------------------------------------------
-// 后台提取（形态二）：常量与提示文本
-// ---------------------------------------------------------------------------
-
-/** 提取 side-query 超时（毫秒）。 */
-export const EXTRACT_TIMEOUT_MS = 30_000
-
-/** 提取输出 token 上限。 */
-export const EXTRACT_MAX_TOKENS = 1024
-
-/** 单次提取最多保存的记忆条数。 */
-export const EXTRACT_MAX_PER_PASS = 3
-
-/** 提取转录的总字符上限。 */
-export const MAX_EXTRACT_TRANSCRIPT_CHARS = 20_000
-
-/** 转录中单条消息的字符上限。 */
-export const MAX_EXTRACT_MESSAGE_CHARS = 1_500
-
-/** 转录中单条工具调用参数的字符上限。 */
-export const MAX_EXTRACT_TOOL_ARGS_CHARS = 200
-
-/** 回合末提取的 system prompt（FR-4 规则在此执行）。 */
-export const EXTRACT_SYSTEM_PROMPT = `你在为 DemoStudio（一个对标 UE 架构的 2D 游戏引擎 + Electron 编辑器，TypeScript 全栈，AI 能力基于 DSH 内核）的开发助手维护持久记忆库。你会拿到一段回合转录（用户消息、助手回复、工具调用）和一份现有记忆清单（文件名 + 描述）。
-
-判断这段对话里是否出现了值得跨会话记住的信息。规则：
-- 四类型：
-  - user：用户的角色、偏好与工作习惯（如引擎/编辑器开发偏好、代码风格、交流语言、对"进度展示必须真实"之类的要求）。
-  - feedback：用户对做法的纠正与确认（含被否决的方案，防止再次建议）。正文结构固定：规则 → **Why:** → **How to apply:**。
-  - project：架构与设计决策（如引擎侧对标 UE 的取舍、事件流/内核机制、编辑器子系统约定）、资产与配置规范（.blueprint.json / .scene.json / config / .widget.json 的结构与 lint 约束）、构建与调试环境坑（Electron/PowerShell/Win32/vitest/junction 挂载等本仓库已踩过的坑）、工作流约定与截止日期（相对日期必须转成绝对日期）。
-  - reference：外部资源指针及用途（DSH npm 内核版本与 ~/.dsh 目录布局、插件挂载点、文档/技能入口、上游仓库位置）。
-- 条目正文格式以"条"为单位（文件只是路由容器）：
-  - 踩坑/教训类条目固定四段：**Problem:**（现象）→ **Cause:**（根因）→ **Solution:**（解法）→ **Applicable:**（适用子系统/文件范围）。
-  - 普通纠正/约定条目三段式：规则 → **Why:** → **How to apply:**。
-  - 一份文件 = 一个主题 + 一种条目格式；同一主题下多个坑合并进同一文件，每坑一个 \`## 短名\` 小节，description 覆盖全部条目；禁止混主题/混格式。
-- 不保存：读代码即可推导的实现细节与文件结构、一次性的修复过程流水账（除非沉淀为可复用的根因教训）、本次对话的执行过程与临时调试状态、生成的资产 JSON 内容本身、普通问答。
-- 现有清单里已有同等信息的不重复输出；信息有实质更新时才输出（name 用原文件名，更新时保持该文件既有的容器结构）。
-- 宁缺毋滥：没有值得存的就返回空数组，这是最常见的结果。最多 3 条。
-
-只输出一个严格 JSON 对象：{"memories":[{"name":"小写下划线名","type":"user|feedback|project|reference","description":"一行描述","content":"Markdown 正文"}]}，不要输出任何其他文字。`

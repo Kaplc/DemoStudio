@@ -17,6 +17,14 @@ export interface UIImageComponentOptions {
   src?: string
   /** 已加载完成的图片，直接使用 */
   image?: HTMLImageElement
+  /**
+   * 线性渐变填充（HTML 源 linear-gradient 映射；src 缺省时渲染）。
+   * angle 为 CSS 语义角度（0=向上，90=向右，度）；stops 为归一化色标。
+   */
+  gradient?: {
+    angle: number
+    stops: Array<{ color: string; offset: number }>
+  }
   /** canvas 像素分辨率（默认自动按 worldWidth 推算） */
   width?: number
   height?: number
@@ -29,6 +37,7 @@ export class UIImageComponent extends CanvasUIComponent {
   protected _color: string
   protected _radius: number
   protected _image: HTMLImageElement | null
+  private _gradient: UIImageComponentOptions['gradient']
 
   constructor(owner: Actor, options: UIImageComponentOptions = {}) {
     const width = options.width ?? 256
@@ -44,6 +53,7 @@ export class UIImageComponent extends CanvasUIComponent {
     this._color = options.color ?? '#ffffff'
     this._radius = options.radius ?? 0
     this._image = options.image ?? null
+    this._gradient = options.gradient
 
     if (options.opacity !== undefined) this.setOpacity(options.opacity)
     this.redraw()
@@ -56,6 +66,8 @@ export class UIImageComponent extends CanvasUIComponent {
   set color(v: string) { this._color = v; this.redraw() }
   get radius(): number { return this._radius }
   set radius(v: number) { this._radius = v; this.redraw() }
+  get gradient(): UIImageComponentOptions['gradient'] { return this._gradient }
+  set gradient(v: UIImageComponentOptions['gradient']) { this._gradient = v; this.redraw() }
 
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
@@ -100,6 +112,18 @@ export class UIImageComponent extends CanvasUIComponent {
     ]
   }
 
+  /** 持久化：在可编辑属性基础上补 gradient（HTML 源 linear-gradient 映射字段） */
+  override getPersistentProps(): Record<string, unknown> {
+    const out = super.getPersistentProps()
+    if (this._gradient) {
+      out.gradient = {
+        angle: this._gradient.angle,
+        stops: this._gradient.stops.map((s) => ({ color: s.color, offset: s.offset })),
+      }
+    }
+    return out
+  }
+
   /** 异步加载图片，完成后自动重绘 */
   loadImage(src: string): void {
     logger.info(`[UIImageComponent] 加载图片: ${src}`)
@@ -130,6 +154,21 @@ export class UIImageComponent extends CanvasUIComponent {
 
     if (this._image) {
       ctx.drawImage(this._image, 0, 0, w, h)
+    } else if (this._gradient && this._gradient.stops.length >= 2) {
+      // CSS linear-gradient 语义：angle 0=向上、90=向右（度）。
+      // 渐变线过中心，方向向量 (sin a, cos a)（canvas y 向下），线长 = |w·sin| + |h·cos|
+      const a = (this._gradient.angle * Math.PI) / 180
+      const dx = Math.sin(a)
+      const dy = Math.cos(a)
+      const len = Math.abs(w * dx) + Math.abs(h * dy)
+      const cx = w / 2
+      const cy = h / 2
+      const grad = ctx.createLinearGradient(cx - (dx * len) / 2, cy - (dy * len) / 2, cx + (dx * len) / 2, cy + (dy * len) / 2)
+      for (const stop of this._gradient.stops) {
+        grad.addColorStop(Math.max(0, Math.min(1, stop.offset)), stop.color)
+      }
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
     } else {
       ctx.fillStyle = this._color
       ctx.fillRect(0, 0, w, h)
