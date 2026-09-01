@@ -8,7 +8,7 @@
 
 DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同一个东西**，适用前提互不重叠：
 
-1. **MCP 服务器**（`editor/mcp-server.mjs`）：stdio 协议的 MCP 服务器，暴露 9 个工具。客户端（VS Code / Cursor / Knot）启动它，它把工具调用翻译成 HTTP 请求打给 Electron 主进程。
+1. **MCP 服务器**（`editor/mcp-server.mjs`）：stdio 协议的 MCP 服务器，暴露 8 个工具。客户端（VS Code / Cursor / Knot）启动它，它把工具调用翻译成 HTTP 请求打给 Electron 主进程。
 2. **页面内桥**（`window.__ai` / `window.__fishBattle` / `window.blueprintEditor`）：挂在渲染进程 `window` 上的对象，只能在浏览器页面上下文里用 `page.evaluate` 访问，无独立传输层。
 3. **直接 HTTP**：绕过 MCP 服务器，直接 `POST http://127.0.0.1:{port}/api/command`。
 
@@ -16,7 +16,7 @@ DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同
 
 | 通道 | 传输层 | 谁提供 | 能否拿到返回值 | 典型用途 |
 |---|---|---|---|---|
-| MCP 服务器 | stdio → HTTP → IPC | 客户端启动 `mcp-server.mjs` | 仅 `ai_event` / `ai_list_events` 为往返 | AI 客户端内的工具调用 |
+| MCP 服务器 | stdio → HTTP → IPC | 客户端启动 `mcp-server.mjs` | 仅 `ai_event` / `ai_list_events` / `run_asset_lint` 为往返 | AI 客户端内的工具调用 |
 | 页面内桥 | 无（同进程 JS） | 渲染进程挂 `window` | 直接返回 | Playwright 浏览器调试 |
 | 直接 HTTP | HTTP | Electron 主进程 | 同 MCP（共用端点） | 脚本 / 快速探测 |
 
@@ -26,7 +26,7 @@ DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同
 
 | 模块 | 说明 |
 |---|---|
-| `editor/mcp-server.mjs` | MCP 服务器（stdio），注册 9 个工具并转发到编辑器 HTTP API；`--port` 指定实例 |
+| `editor/mcp-server.mjs` | MCP 服务器（stdio），注册 8 个工具并转发到编辑器 HTTP API；`--port` 指定实例 |
 | `electron/main.ts` MCP HTTP API | 内置 HTTP 服务，行 1290 起；端口 9877 起探测，仅绑定 `127.0.0.1` |
 | `src/editor/EditorInitializer.ts` | 渲染进程命令分发：`onMCPCommand` 收到命令后 `switch` 分发到 `AIModule` / 编辑器动作 |
 | `onMCPCommand` / `sendMCPResponse` | 主进程 ⇄ 渲染进程的 IPC 往返对；`requestId` 关联挂起的 HTTP 响应 |
@@ -43,11 +43,15 @@ DemoStudio 对外暴露三种让 AI 驱动编辑器的通道，它们**不是同
 | `stop_game` | — | 否 | 停止游戏 |
 | `toggle_game` | — | 否 | 按 `get_status` 结果切换 |
 | `get_status` | — | 是 | 编辑器状态（`gameRunning` / `gameScore`） |
-| `send_command` | `command` | 否 | 向控制台输出一行文本 |
+| `run_asset_lint` | `project?` | 是 | 手动触发资产检查（assetLint 全量重扫），可选 `project`（folder 或显示名）指定目标工程，缺省=当前打开工程；返回 `{ total, errors, warns, issues[] }` |
+| `run_code_lint` | `project?` | 是 | 手动触发代码检查（codeLint 全量重扫 src/projects/<folder>/ 源码），可选 `project` 参数同上；返回 `{ total, issues[] }`（规则：bareThree / addComponent） |
 | `send_input` | `key` | 否 | 派发 `KeyboardEvent`（如 `ArrowUp`） |
-| `get_console_logs` | — | 是 | 最近控制台日志（含 error/warn 计数） |
 | `ai_event` | `event`, `payload?` | 是 | 发 AI 事件，返回 `{ handled, result }` |
 | `ai_list_events` | — | 是 | 返回 `{ events, count }` |
+
+> 变更记录（2026-09-01）：移除 `send_command`（仅向控制台回显一行文本，无实际作用）与 `get_console_logs`（可用 Playwright `browser_console_messages` 或 `logs/console_*.log` 文件替代）；同日新增 `run_asset_lint`（手动触发资产检查并返回违规列表，见 [资产检查系统](./asset_preview_lint_system.md)）。底层 HTTP 通道不受影响：`/api/console-logs` 端点与 `addConsoleOutput` 命令仍保留，可按 §3.3 直接 HTTP 调用。
+> 变更记录（2026-09-01 二）：修复 `run_asset_lint` 在 `mcp-server.mjs` switch 中遗漏 case 的缺陷（此前工具可见但调用抛"未知工具"）；新增 `run_code_lint`（手动触发代码检查，走 `codeLintEngine.runNow()`，往返模式与 `run_asset_lint` 一致）。
+> 变更记录（2026-09-01 三）：`run_asset_lint` / `run_code_lint` 新增可选 `project` 参数（folder 或显示名，如 fish / FishMaster），无工程打开时也能直接扫描指定工程；指定非当前打开工程为旁路扫描（只经返回值输出，不覆盖检查面板），无效工程返回 `{ status:'error', message:'未找到工程: X，可用: ...' }`。
 
 ### 3.2 客户端配置
 
@@ -93,6 +97,11 @@ ai_event({ event: 'ai.getState', payload: {} })
 
 ai_list_events({})
 // → { status:'ok', command:'ai_list_events', events:['ai.selectActor', ...], count:16 }
+
+run_asset_lint({})
+// → { status:'ok', command:'run_asset_lint', total:12, errors:1, warns:11,
+//     issues:[{ file:'asset/blueprints/ui/tips.widget.json', nodePath:'<widget 根>',
+//               field:'properties.shadowColor', rule:'doc:ui-design', severity:'warn', message:'...' }] }
 ```
 
 ```js
@@ -113,6 +122,7 @@ await page.evaluate(() => window.__ai.emit('ai.getState', {}))
 
 - **编辑器必须运行**：MCP 服务器只做转发，编辑器没起时所有工具返回 `编辑器不可达`
 - **游戏类事件需先 `start_game`**：`ai.selectActor` / `ai.dragActor` / `ai.getState` 无需运行，其余引擎事件未运行时返回 `{ ok:false, error:'游戏未运行' }`
+- **`run_asset_lint` 需先打开工程**：无工程时返回空列表（assetLint 静默语义）
 - 触发时机：AI 客户端主动调用；无自动轮询
 
 ## 4. 工作流程
@@ -123,12 +133,12 @@ await page.evaluate(() => window.__ai.emit('ai.getState', {}))
 flowchart LR
     A[AI 客户端] -->|stdio| B[mcp-server.mjs]
     B -->|POST /api/command| C[Electron 主进程<br/>HTTP API]
-    C -->|命令是 ai_event / ai_list_events?| D{往返?}
+    C -->|命令是 ai_event / ai_list_events / run_asset_lint?| D{往返?}
     D -->|是| E[生成 requestId<br/>挂起 HTTP 响应]
     D -->|否| F[直接回 status:ok<br/>发射后不管]
     E -->|IPC mcp-command| G[渲染进程<br/>onMCPCommand]
     F -->|IPC mcp-command| G
-    G --> H[AIModule.instance.emit]
+    G --> H[AIModule.instance.emit<br/>或 assetLintEngine.runNow]
     H --> I[处理器执行]
     I -->|IPC mcp-response<br/>带 requestId| J[主进程 resolve 挂起响应]
     J --> K[HTTP 200 返回结果]
@@ -140,7 +150,7 @@ flowchart LR
 |---|---|---|---|
 | 工具调用 | AI 客户端 | `callEditor(command, params)` | HTTP `POST /api/command` |
 | 命令解析 | 主进程 | `JSON.parse(body)` 得 `MCPCommand` | `command` + `params` |
-| 往返判定 | 主进程 | `cmd.command === 'ai_event' \|\| 'ai_list_events'` | 生成 `requestId` 或立即 ack |
+| 往返判定 | 主进程 | `cmd.command === 'ai_event' \|\| 'ai_list_events' \|\| 'run_asset_lint' \|\| 'run_code_lint'` | 生成 `requestId` 或立即 ack |
 | 分发 | 渲染进程 | `onMCPCommand(command, params, requestId)` | `switch` 到对应分支 |
 | 执行 | 渲染进程 | `AIModule.instance.emit(event, payload)` | `AIEmitResult` |
 | 回传 | 渲染进程 | `sendMCPResponse(requestId, response)` | IPC `mcp-response` |
@@ -150,7 +160,7 @@ flowchart LR
 
 **双语义：往返 vs 发射后不管**
 
-主进程只为 `ai_event` 与 `ai_list_events` 生成 `requestId` 并挂起 HTTP 响应；其余命令（含 `start_game`、`send_input`）发完就返回 `{ status:'ok', command }`，**拿不到执行结果**。原因：`start_game` 等操作是异步的（切换项目需等待 Viewport 停止流程），不等它完成更符合编辑器交互模型；而 AI 事件需要返回值做断言，必须同步等。
+主进程只为 `ai_event`、`ai_list_events`、`run_asset_lint` 与 `run_code_lint` 生成 `requestId` 并挂起 HTTP 响应；其余命令（含 `start_game`、`send_input`）发完就返回 `{ status:'ok', command }`，**拿不到执行结果**。原因：`start_game` 等操作是异步的（切换项目需等待 Viewport 停止流程），不等它完成更符合编辑器交互模型；而 AI 事件需要返回值做断言，必须同步等。
 
 `ai_list_events` 原本是发射后不管，只回 ack——AI 想列事件只能绕 `page.evaluate`。2026-08-28 改为往返模式，与主进程 `ai_event` 共用同一套 `requestId` + 超时 + pending 表（`_blueprintPending`），`mcp-response` 监听对任意 `requestId` 通用。
 
@@ -188,6 +198,12 @@ node editor/mcp-server.mjs --port 9878
 | `ai_event` 缺 `event` | `{ status:'error', message:'缺少 event 参数' }` | 补齐参数 |
 | 命令走非往返分支 | 只回 `{ status:'ok', command }`，**无执行结果** | 需要结果就用 `ai_event` |
 | `start_game` 无项目 | 自动选第一个；都无则 `[MCP] start_game: 无可用项目` | 先创建项目 |
+| `run_asset_lint` 无工程且无 `project` 参数 | 返回 `{ total:0, errors:0, warns:0, issues:[] }`（assetLint 静默语义） | 传 `project` 参数或先打开工程 |
+| `run_asset_lint` 扫描中重入 | 防重入返回空数组（引擎 `running` 锁） | 稍后重试 |
+| `run_code_lint` 无工程且无 `project` 参数 | 返回 `{ total:0, issues:[] }`（codeLint 静默语义） | 传 `project` 参数或先打开工程 |
+| `run_code_lint` 扫描中重入 | 防重入返回空数组（引擎 `running` 锁） | 稍后重试 |
+| 两个 lint 工具指定无效工程 | 返回 `{ status:'error', message:'未找到工程: X，可用: ...' }` | 用 message 列出的可用 folder |
+| 两个 lint 工具指定非当前打开工程 | 正常扫描该工程（旁路，不覆盖检查面板） | 结果以返回值为准 |
 | 未知命令 | 渲染进程输出 `[MCP] 未知命令: X` | 核对工具名 |
 | 端口 9877-9927 全占用 | 启动失败 `未找到可用端口` | 关闭残留进程 |
 | 浏览器调试模式 | `electronAPI` 为 Mock，HTTP→IPC 链不通 | MCP 通道依赖 Electron 窗口，与页面内桥是两回事 |
@@ -204,6 +220,8 @@ AI 客户端
                                     │                       └─→ AIModule.instance.emit
                                     │                              ├─→ registerBuiltinAIHandlers（引擎层）
                                     │                              └─→ registerEditorAIHandlers（编辑器层）
+                                    │                       └─→ assetLintEngine.runNow（run_asset_lint）
+                                    │                       └─→ codeLintEngine.runNow（run_code_lint）
                                     ├─(IPC)→ mainWindow 蓝图/AI 聊天通道
                                     └─(SSE /api/events)→ DSH 扩展订阅
 ```

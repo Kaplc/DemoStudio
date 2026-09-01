@@ -211,7 +211,9 @@
                 "height": 40,
                 "zOrder": 3,
                 "name": "DailyTitleText",
-                "italic": false
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowBlur": 4
               }
             }
           ],
@@ -283,7 +285,9 @@
                 "height": 40,
                 "zOrder": 3,
                 "name": "AchTitleText",
-                "italic": false
+                "italic": false,
+                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowBlur": 4
               }
             }
           ],

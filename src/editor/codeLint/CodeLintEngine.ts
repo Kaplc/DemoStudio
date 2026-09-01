@@ -190,13 +190,30 @@ class CodeLintEngine {
 
   /** 执行一次扫描（防重入）。无工程时静默跳过。 */
   async scanOnce(): Promise<void> {
-    if (this.running) return
-    const folder = this.folder
-    if (!folder) return // 无工程：静默（已由 onProjectChanged 保证只在有工程时触发）
+    await this.scanInternal()
+  }
+
+  /**
+   * 手动触发全量扫描（MCP run_code_lint 用）：绕过内容指纹缓存全量重扫，返回全部违规。
+   * folderOverride 指定目标工程目录（MCP project 参数）；缺省扫描当前打开工程。
+   * 扫描非当前打开工程时结果只经返回值输出，不写 store 面板（面板跟随当前打开工程）。
+   */
+  async runNow(folderOverride?: string): Promise<CodeIssue[]> {
+    this.clearCache()
+    return this.scanInternal(folderOverride)
+  }
+
+  /** 扫描实现（scanOnce / runNow 共用）。无工程（且无 override）时返回空数组。 */
+  private async scanInternal(folderOverride?: string): Promise<CodeIssue[]> {
+    if (this.running) return []
+    const folder = folderOverride ?? this.folder
+    if (!folder) return [] // 无工程：静默（已由 onProjectChanged 保证只在有工程时触发）
     this.running = true
     try {
       const files = await this.codeSource.list(folder)
-      logger.info(`[CodeLint] 开始扫描 ${this.projectLabel(folder)}: ${files.length} 个源码文件`)
+      // 旁路扫描非当前打开工程时不算工程标签（projectLabel 只认当前工程），直接用 folder
+      const label = folderOverride && folderOverride !== this.folder ? folder : this.projectLabel(folder)
+      logger.info(`[CodeLint] 开始扫描 ${label}: ${files.length} 个源码文件`)
       const all: CodeIssue[] = []
 
       for (const f of files) {
@@ -215,9 +232,16 @@ class CodeLintEngine {
       }
 
       this.pruneDeleted(files)
-      this.publish(folder, files.length, all)
+      // 旁路扫描（非当前打开工程）：结果只经返回值输出，不覆盖面板（面板跟随当前打开工程）
+      if (!folderOverride || folderOverride === this.folder) {
+        this.publish(folder, files.length, all)
+      } else {
+        logger.info(`[CodeLint] 旁路扫描完成 ${folder}: ${files.length} 文件，共 ${all.length} 个问题（不更新面板）`)
+      }
+      return all
     } catch (err) {
       logger.warn(`[CodeLint] 扫描异常: ${errMsg(err)}`)
+      return []
     } finally {
       this.running = false
     }

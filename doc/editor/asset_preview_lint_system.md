@@ -72,7 +72,7 @@ AssetPreviewManager.get(assetPath)?.selectActor(actor)
 
 ### 3.2 触发时机与使用前提
 
-- assetLint 触发：① 打开/切换工程 → 全量扫描；② asset 目录文件变化 → 300ms 去抖重扫；内容指纹（`hashOf` djb2）未变复用上次 issue 跳过 walk+schema
+- assetLint 触发：① 打开/切换工程 → 全量扫描；② asset 目录文件变化 → 300ms 去抖重扫；③ MCP `run_asset_lint` → 手动全量重扫（绕过内容指纹缓存，返回违规列表，可选 `project` 参数指定目标工程 folder/显示名）；内容指纹（`hashOf` djb2）未变复用上次 issue 跳过 walk+schema
 - 场景预览保存后需**重新 `activate(assetPath)`**（loadSceneAsset 内部 clearPreview 清掉 `_currentScenePath`，不 reactivate 则 Outline 返回空树）
 
 ## 4. 工作流程
@@ -84,6 +84,10 @@ AssetPreviewManager.get(assetPath)?.selectActor(actor)
 2. asset 目录文件变化（主进程 fs.watch 通知）→ 300ms 去抖后重扫
    → 内容指纹缓存（hashOf，djb2 哈希）判定真正变化才重新校验
    （未变文件复用上次 issue，跳过 walk+schema）
+3. MCP run_asset_lint（2026-09-01 新增）→ 手动全量重扫（runNow：清缓存绕过指纹），
+   可选 project 参数指定目标工程（folder 或显示名，如 fish / FishMaster）；缺省 = 当前打开工程。
+   返回全部违规列表给 AI；当前打开工程同时右下角检查面板同步更新，
+   指定非当前打开工程则为旁路扫描（只经返回值输出，不覆盖面板）
 ```
 
 ### 4.2 assetLint 架构
@@ -128,6 +132,10 @@ src/editor/asset/assetLint/
 | 无工程打开 | assetLint 静默 | 引擎内置 |
 | 未知文档根 | `'无法识别文档根（既非 scene 也非 blueprint）'` warn | 检查资产结构 |
 | JSON 解析失败 | error `'JSON 解析失败: ...'`（仅磁盘扫描能抓到） | 修复资产文件 |
+| MCP `run_asset_lint` 无工程且无 `project` 参数 | 返回 `{ total:0, issues:[] }`（assetLint 静默语义） | 传 `project` 参数或先打开工程 |
+| MCP `run_asset_lint` 扫描中重入 | 防重入返回空数组（引擎 `running` 锁） | 稍后重试 |
+| MCP `run_asset_lint` 指定无效工程 | 返回 `{ status:'error', message:'未找到工程: X，可用: ...' }` | 用 message 中列出的可用 folder |
+| MCP `run_asset_lint` 指定非当前打开工程 | 正常扫描该工程（旁路，不覆盖检查面板） | 结果以返回值为准 |
 | `fitToActor` 包围盒过小（<0.01） | 相机回默认 `(5,4,5)` 看原点 | 引擎内置 |
 | 场景预览保存后 | Outline 空树（`_currentScenePath` 被清） | **必须重新 activate** |
 | `ScenePreviewManager.dispose()` | `world.Destroy()`（终局销毁） | 防 World 三件套泄漏 |

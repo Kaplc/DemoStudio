@@ -1,12 +1,11 @@
 {
-    "servers": {
+    "mcpServers": {
         "demostudio": {
-            "type": "stdio",
             "command": "node",
             "args": [
                 "editor/mcp-server.mjs"
             ],
-            "cwd": "E:\\DemoStudio"
+            "env": {}
         }
     }
 }

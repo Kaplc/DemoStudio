@@ -62,16 +62,6 @@ async function getEditorStatus() {
   }
 }
 
-async function fetchConsoleLogs() {
-  try {
-    const resp = await fetch(`${EDITOR_API}/api/console-logs`)
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    return await resp.json()
-  } catch (err) {
-    return { status: 'error', message: `编辑器不可达: ${err.message}` }
-  }
-}
-
 // ─── 创建 MCP 服务器 ───
 
 const server = new Server(
@@ -109,14 +99,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: { type: 'object', properties: {} },
     },
     {
-      name: 'send_command',
-      description: '发送控制台命令到编辑器',
+      name: 'run_asset_lint',
+      description:
+        '手动触发资产检查（assetLint）：全量扫描工程 asset/ 目录（场景/蓝图/UI widget/配置表），' +
+        '返回全部违规列表（file/nodePath/field/rule/severity/message，含 total/errors/warns 计数）。' +
+        '可选 project 参数指定目标工程（folder 或显示名，如 fish / FishMaster），缺省为当前打开的工程',
       inputSchema: {
         type: 'object',
         properties: {
-          command: { type: 'string', description: '控制台命令文本' },
+          project: { type: 'string', description: '目标工程 folder 或显示名（如 fish / FishMaster）；缺省=当前打开的工程' },
         },
-        required: ['command'],
+      },
+    },
+    {
+      name: 'run_code_lint',
+      description:
+        '手动触发代码检查（codeLint）：全量扫描工程 src/projects/<folder>/ 下 .ts/.tsx 源码（排除 .d.ts），' +
+        '返回全部违规列表（file/line/col/rule/message，含 total 计数；内置规则 bareThree=裸 new THREE 可渲染对象、addComponent=addComponent(new X) 旧写法）。' +
+        '可选 project 参数指定目标工程（folder 或显示名，如 fish / FishMaster），缺省为当前打开的工程',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: '目标工程 folder 或显示名（如 fish / FishMaster）；缺省=当前打开的工程' },
+        },
       },
     },
     {
@@ -132,11 +137,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         required: ['key'],
       },
-    },
-    {
-      name: 'get_console_logs',
-      description: '获取浏览器控制台最近日志（含报错信息）',
-      inputSchema: { type: 'object', properties: {} },
     },
     {
       name: 'ai_event',
@@ -206,11 +206,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{ type: 'text', text: JSON.stringify(info, null, 2) }],
       }
     }
-    case 'send_command': {
-      const cmd = args?.command || ''
-      await callEditor('addConsoleOutput', { text: `> ${cmd}` })
+    case 'run_asset_lint':
+    case 'run_code_lint': {
+      const project = args?.project || undefined
+      const result = await callEditor(name, project ? { project } : {})
       return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'ok', command: cmd }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       }
     }
     case 'send_input': {
@@ -218,22 +219,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       await callEditor('send_input', { key })
       return {
         content: [{ type: 'text', text: JSON.stringify({ status: 'ok', key }, null, 2) }],
-      }
-    }
-    case 'get_console_logs': {
-      const result = await fetchConsoleLogs()
-      const logs = result.logs || []
-      const errorLogs = logs.filter(l => l.includes('[CONSOLE:ERROR]') || l.includes('[CONSOLE:WARNING]'))
-      const text = logs.length === 0
-        ? JSON.stringify({ status: 'ok', message: '暂无控制台日志' }, null, 2)
-        : JSON.stringify({
-            status: 'ok',
-            total: logs.length,
-            errors: errorLogs.length,
-            logs,
-          }, null, 2)
-      return {
-        content: [{ type: 'text', text }],
       }
     }
     case 'ai_event': {

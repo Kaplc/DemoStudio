@@ -1697,15 +1697,17 @@ async function startMCPServer() {
       req.on('end', () => {
         try {
           const cmd: MCPCommand = JSON.parse(body)
-          // ai_event：往返模式，等渲染进程处理完回传结果（AI 需要拿到事件返回值）
-          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events') {
-            // ai.event 转发（用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
-            publishSSE('ai.event', {
-              event: cmd.params?.event ?? cmd.params ?? 'unknown',
-              payload: cmd.params?.payload,
-              source: 'editor',
-              ts: Date.now(),
-            })
+          // 往返模式：等渲染进程处理完回传结果（AI 需要拿到返回值）
+          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint') {
+            // ai.event 转发（仅 ai_event 有事件语义；用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
+            if (cmd.command === 'ai_event') {
+              publishSSE('ai.event', {
+                event: cmd.params?.event ?? cmd.params ?? 'unknown',
+                payload: cmd.params?.payload,
+                source: 'editor',
+                ts: Date.now(),
+              })
+            }
             if (!mainWindow || mainWindow.isDestroyed()) {
               res.writeHead(503, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ status: 'error', message: '编辑器窗口不可用' }))

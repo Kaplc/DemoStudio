@@ -389,7 +389,9 @@
                         "height": 100,
                         "zOrder": 3,
                         "name": "CoinIconText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -477,7 +479,9 @@
                         "height": 40,
                         "zOrder": 3,
                         "name": "CoinAmountText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -520,7 +524,9 @@
                         "height": 40,
                         "zOrder": 3,
                         "name": "CoinPriceText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -722,7 +728,9 @@
                         "height": 100,
                         "zOrder": 3,
                         "name": "ElixirIconText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -810,7 +818,9 @@
                         "height": 40,
                         "zOrder": 3,
                         "name": "ElixirAmountText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -853,7 +863,9 @@
                         "height": 40,
                         "zOrder": 3,
                         "name": "ElixirPriceText",
-                        "italic": false
+                        "italic": false,
+                        "shadowColor": "rgba(0,0,0,0.4)",
+                        "shadowBlur": 4
                       }
                     }
                   ],

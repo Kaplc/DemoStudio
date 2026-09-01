@@ -13,6 +13,8 @@ import { useEditorStore } from '../stores/editorStore'
 import { useEditorPrefsStore } from '../stores/editorPrefsStore'
 import { useProjectStore } from '../stores/projectStore'
 import { AIModule } from '../engine/ai'
+import { assetLintEngine } from './asset/assetLint/AssetLintEngine'
+import { codeLintEngine } from './codeLint/CodeLintEngine'
 import { Actor } from '../engine/entity/Actor'
 import { AssetPreviewManager } from './asset/AssetPreviewManager'
 import { getSceneTree, select, notifySelectionChange } from './SelectionManager'
@@ -504,6 +506,75 @@ export function registerGlobalEventListeners(callbacks: {
               try { addConsoleOutput(`[MCP][AI] 返回: ${JSON.stringify(ret).slice(0, 500)}`) } catch { /* 非序列化值 */ }
             }
             if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, response)
+            break
+          }
+          case 'run_asset_lint': {
+            // 手动触发资产检查（assetLint）：runNow 返回本次扫描的全部违规，经 requestId 往返回传
+            // project 参数（folder 或显示名）指定目标工程；缺省 = 当前打开工程
+            let lintFolder: string | undefined
+            const assetProjectName = (params?.project as string | undefined)?.trim()
+            if (assetProjectName) {
+              const found = useProjectStore.getState().projects.find((p) => p.folder === assetProjectName || p.name === assetProjectName)
+              if (!found) {
+                if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, {
+                  status: 'error',
+                  command: 'run_asset_lint',
+                  message: `未找到工程: ${assetProjectName}，可用: ${useProjectStore.getState().projects.map((p) => p.folder).join(', ')}`,
+                })
+                break
+              }
+              lintFolder = found.folder
+            }
+            const issues = await assetLintEngine.runNow(lintFolder)
+            const errors = issues.filter((i) => i.severity === 'error').length
+            const warns = issues.filter((i) => i.severity === 'warn').length
+            addConsoleOutput(`[MCP] run_asset_lint: ${issues.length} 个问题（error ${errors} / warn ${warns}）`)
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: 'ok',
+                command: 'run_asset_lint',
+                total: issues.length,
+                errors,
+                warns,
+                issues: issues.map((i) => ({
+                  file: i.filePath,
+                  nodePath: i.nodePath,
+                  field: i.field,
+                  rule: i.ruleId,
+                  severity: i.severity,
+                  message: i.message,
+                })),
+              })
+            }
+            break
+          }
+          case 'run_code_lint': {
+            // 手动触发代码检查（codeLint）：runNow 返回本次扫描的全部违规，经 requestId 往返回传
+            // project 参数（folder 或显示名）指定目标工程；缺省 = 当前打开工程
+            let lintFolder: string | undefined
+            const codeProjectName = (params?.project as string | undefined)?.trim()
+            if (codeProjectName) {
+              const found = useProjectStore.getState().projects.find((p) => p.folder === codeProjectName || p.name === codeProjectName)
+              if (!found) {
+                if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, {
+                  status: 'error',
+                  command: 'run_code_lint',
+                  message: `未找到工程: ${codeProjectName}，可用: ${useProjectStore.getState().projects.map((p) => p.folder).join(', ')}`,
+                })
+                break
+              }
+              lintFolder = found.folder
+            }
+            const issues = await codeLintEngine.runNow(lintFolder)
+            addConsoleOutput(`[MCP] run_code_lint: ${issues.length} 个问题`)
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: 'ok',
+                command: 'run_code_lint',
+                total: issues.length,
+                issues,
+              })
+            }
             break
           }
           case 'ai_list_events': {
