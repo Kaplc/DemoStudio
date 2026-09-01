@@ -23,6 +23,7 @@ import { UndoManager } from './UndoManager'
 import { useEditorStore } from '../../stores/editorStore'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
+import { decompileBackOnSave } from '../asset/uiSourceSync'
 
 /** 注册表快照（返回给调用方，便于 AI 选型） */
 export interface BlueprintTypes {
@@ -381,6 +382,16 @@ export class BlueprintEditorService {
       return { ok: false, error: written.error, asset, types: this.listTypes() }
     }
     this.dirtyKeys.delete(key)
+    // UI 源格式双向同步：widget 资产保存成功 → 反编译回写 .widget.html（无源资产静默跳过；
+    // 冲突（双边同改）以最后保存方 json 为准。失败仅告警，不影响保存结果）
+    if (assetPath.endsWith('.widget.json')) {
+      const sync = await decompileBackOnSave(assetPath, asset as unknown as Record<string, unknown>)
+      if (sync.written) {
+        logger.info(`[BlueprintEdit] UI 源已同步回写: ${assetPath.replace(/\.widget\.json$/i, '.widget.html')}${sync.conflict ? '（冲突仲裁：以 json 为准）' : ''}`)
+      } else if (sync.error) {
+        logger.warn(`[BlueprintEdit] UI 源回写失败（不影响保存）: ${sync.error}`)
+      }
+    }
     editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
     logger.info(`[BlueprintEdit] save 完成（已落盘）: ${key}`)
     return { ok: true, asset, types: this.listTypes() }

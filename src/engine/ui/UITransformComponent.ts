@@ -58,32 +58,54 @@ export class UITransformComponent extends TransformComponent {
   private _worldH = 2.5
   /** 尺寸是否被显式设置（JSON 数据给出 worldWidth/worldHeight） */
   private _worldSizeExplicit = false
+  /** 分轴显式标志（构造按 options 区分 / setWorldSize(explicit=true) 双轴置位） */
+  private _worldWExplicit = false
+  private _worldHExplicit = false
   private _anchor: AnchorPreset | null = null
   private _anchorOffset: [number, number] = [0, 0]
 
   constructor(owner: Actor, options: UITransformComponentOptions = {}) {
     super(owner, options)
     this.name = 'UITransformComponent'
-    if (options.worldWidth !== undefined) this._worldW = options.worldWidth
-    if (options.worldHeight !== undefined) this._worldH = options.worldHeight
+    if (options.worldWidth !== undefined) {
+      this._worldW = options.worldWidth
+      this._worldWExplicit = true
+    }
+    if (options.worldHeight !== undefined) {
+      this._worldH = options.worldHeight
+      this._worldHExplicit = true
+    }
     if (options.worldWidth !== undefined || options.worldHeight !== undefined) this._worldSizeExplicit = true
     if (options.anchor !== undefined) this._anchor = options.anchor
     if (options.anchorOffset !== undefined) this._anchorOffset = options.anchorOffset
     else if (this._anchor) this._anchorOffset = [0, 0]
   }
 
-  /** 世界尺寸是否显式设置（JSON 数据给出时 true） */
-  get worldSizeExplicit(): boolean { return this._worldSizeExplicit }
-
   /** 获取世界尺寸 [w, h] */
   getWorldSize(): [number, number] {
     return [this._worldW, this._worldH]
   }
 
-  /** 设置世界尺寸并同步 owner 上所有 UI 组件（真实画布面板 panel.scale + 尺寸变化钩子） */
-  setWorldSize(w: number, h: number) {
+  /** 世界尺寸是否显式设置（JSON 数据给出时 true） */
+  get worldSizeExplicit(): boolean { return this._worldSizeExplicit }
+
+  /** 宽度是否显式设置（UILayout stretch 拉伸判断：仅拉非显式轴） */
+  get worldWidthExplicit(): boolean { return this._worldWExplicit }
+  /** 高度是否显式设置（UILayout stretch 拉伸判断：仅拉非显式轴） */
+  get worldHeightExplicit(): boolean { return this._worldHExplicit }
+
+  /**
+   * 设置世界尺寸并同步 owner 上所有 UI 组件（真实画布面板 panel.scale + 尺寸变化钩子）。
+   * @param explicit 是否标记为显式尺寸（默认 true；UILayout stretch 写回传 false，
+   *        避免拉伸结果被误认为作者意图——后续改回 center 等对齐时恢复基准尺寸）
+   */
+  setWorldSize(w: number, h: number, explicit = true) {
     this._worldW = w
     this._worldH = h
+    if (explicit) {
+      this._worldWExplicit = true
+      this._worldHExplicit = true
+    }
     this._worldSizeExplicit = true
     for (const ui of this.owner.getComponents(CanvasUIComponent)) {
       // 真实画布：同步面板缩放

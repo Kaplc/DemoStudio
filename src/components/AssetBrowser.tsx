@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { logger } from '../engine'
 import { useEditorStore } from '../stores/editorStore'
 import { select } from '../editor/SelectionManager'
+import { compileUiSourceToAsset } from '../editor/asset/uiSourceActions'
+import { decompileWidgetJson } from '../editor/asset/uiCompiler'
+import { sourcePathOf } from '../editor/asset/uiSourceSync'
 
 /** 资产文件条目（由 listProjectAssets 返回） */
 interface AssetFile {
@@ -150,6 +153,17 @@ export function formatSize(size: number): string {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
+/** FNV-1a 32 位源指纹（与 uiCompiler compile.ts / uiSourceSync.ts 三处保持一致，勿单点修改） */
+function fnv1aSourceHash(str: string): string {
+  const s = str.replace(/^\uFEFF/, '')
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0
+  }
+  return `fnv1a-${h.toString(16).padStart(8, '0')}`
+}
+
 /** 右键菜单目标：targetPath 为空 = asset 根目录（空白处右键） */
 interface MenuTarget {
   x: number
@@ -181,6 +195,8 @@ export function AssetBrowser() {
   const [assetName, setAssetName] = useState('')
   /** 重命名对话框：null 关闭；oldName 含完整相对路径，name 为输入值 */
   const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
+  /** widget 源状态缓存：widget.json 路径 → 同名 .widget.html 是否存在（决定右键菜单编译/生成源项） */
+  const [widgetSourceState, setWidgetSourceState] = useState<Map<string, boolean>>(new Map())
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -209,6 +225,45 @@ export function AssetBrowser() {
       })
     return () => { cancelled = true }
   }, [currentProject])
+
+  /** 探测每个 .widget.json 的同名 .widget.html 是否存在（右键菜单「编译 UI 源」显隐依据） */
+  const refreshWidgetSourceState = useCallback((list: AssetFile[]) => {
+    const read = window.electronAPI?.readTextFile
+    const widgets = list.filter((f) => /\.widget\.json$/i.test(f.path))
+    if (!read || widgets.length === 0) {
+      setWidgetSourceState(new Map())
+      return
+    }
+    Promise.all(
+      widgets.map(async (f) => {
+        try {
+          const r = await read(sourcePathOf(f.path))
+          return [f.path, Boolean(r.success && r.data)] as const
+        } catch {
+          return [f.path, false] as const
+        }
+      }),
+    ).then((entries) => setWidgetSourceState(new Map(entries)))
+  }, [])
+
+  useEffect(() => {
+    refreshWidgetSourceState(files)
+  }, [files, refreshWidgetSourceState])
+
+  /** 手动刷新单个 widget 的源状态（编译/生成源动作后调用，保持右键菜单显隐同步） */
+  const refreshOneWidgetSourceState = useCallback((path: string) => {
+    const read = window.electronAPI?.readTextFile
+    if (!read) return
+    read(sourcePathOf(path))
+      .then((r) => {
+        setWidgetSourceState((prev) => {
+          const next = new Map(prev)
+          next.set(path, Boolean(r.success && r.data))
+          return next
+        })
+      })
+      .catch(() => { /* 探测失败视为无源，维持现状 */ })
+  }, [])
 
   /** 创建/操作成功后手动刷新资产列表（文件变化同时会触发 asset-changed → assetLint 自动重扫） */
   const refreshAssets = useCallback(() => {
@@ -344,6 +399,59 @@ export function AssetBrowser() {
       addConsoleOutput(`❌ 复制路径失败: ${res.error ?? '未知错误'}`)
     }
   }, [addConsoleOutput])
+
+  /** 编译 .widget.html 源 → 覆写 .widget.json（lint 零错误门槛，经 uiSourceActions 完整链路） */
+  const compileSource = useCallback(async (path: string, name: string) => {
+    logger.info(`[AssetBrowser] 编译 UI 源: ${path}`)
+    const res = await compileUiSourceToAsset(path)
+    refreshOneWidgetSourceState(path)
+    if (res.ok) {
+      logger.info(`[AssetBrowser] 编译成功: ${name}（assetLint 零错误）`)
+      addConsoleOutput(`✅ 编译成功: ${name}（assetLint 零错误）`)
+    } else {
+      const detail = res.errors.map((e) => (e.line ? `行${e.line}: ${e.message}` : e.message)).join(' | ')
+      const lintErr = res.lintIssues.filter((i) => i.severity === 'error').map((i) => `${i.nodePath}: ${i.message}`).join(' | ')
+      logger.warn(`[AssetBrowser] 编译失败 ${path}: ${detail || lintErr}`)
+      addConsoleOutput(`❌ 编译失败: ${detail || lintErr || '未知错误'}`)
+    }
+  }, [addConsoleOutput, refreshOneWidgetSourceState])
+
+  /** 无源旧资产：反编译 widget.json → 生成 .widget.html（sourceHash 写回后保存链路可自动同步） */
+  const generateSource = useCallback(async (path: string, name: string) => {
+    const read = window.electronAPI?.readJsonFile
+    const write = window.electronAPI?.writeTextFile
+    if (!read || !write) {
+      logger.error('[AssetBrowser] 生成源失败: readJsonFile/writeTextFile 不可用')
+      addConsoleOutput('❌ 生成源需要 Electron / Mock 环境')
+      return
+    }
+    try {
+      logger.info(`[AssetBrowser] 生成 HTML 源: ${path}`)
+      const r = await read(path)
+      if (!r.success) throw new Error(String(r.error ?? '读取失败'))
+      const doc = r.data as Record<string, unknown>
+      const de = decompileWidgetJson(doc)
+      if (!de.ok || !de.html) {
+        throw new Error(de.warnings.join('; ') || '反编译失败')
+      }
+      // sourceHash 写回（保存链路同步/冲突检测依赖该指纹）
+      doc.sourceHash = fnv1aSourceHash(de.html)
+      const save = await window.electronAPI?.writeJsonFile(path, doc)
+      if (!save?.success) throw new Error(String(save?.error ?? 'json 写回失败'))
+      const srcPath = sourcePathOf(path)
+      const wr = await write(srcPath, de.html)
+      if (!wr.success) throw new Error(String(wr.error ?? '源文件写入失败'))
+      refreshOneWidgetSourceState(path)
+      logger.info(`[AssetBrowser] HTML 源已生成: ${srcPath}（${de.warnings.length} 个警告）`)
+      addConsoleOutput(de.warnings.length > 0
+        ? `✅ 已生成源: ${name.replace(/\.widget\.json$/i, '')}.widget.html（${de.warnings.length} 个警告，详见日志）`
+        : `✅ 已生成源: ${name.replace(/\.widget\.json$/i, '')}.widget.html`)
+    } catch (e) {
+      const msg = (e as Error).message
+      logger.error(`[AssetBrowser] 生成源失败 ${path}: ${msg}`)
+      addConsoleOutput(`❌ 生成源失败: ${msg}`)
+    }
+  }, [addConsoleOutput, refreshOneWidgetSourceState])
 
   // 菜单/对话框键盘：Enter 确认 / Esc 关闭（capture 阶段先于 React 合成事件）；点击外部关闭
   const confirmCreateRef = useRef(confirmCreate)
@@ -530,6 +638,26 @@ export function AssetBrowser() {
                 {menu.targetName}
               </div>
               <div style={{ height: 1, margin: '4px 8px', background: 'var(--border)' }} />
+              {menu.targetPath!.endsWith('.widget.json') && widgetSourceState.get(menu.targetPath!) && (
+                <div
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  onClick={() => { const p = menu.targetPath!, n = menu.targetName!; closeMenu(); compileSource(p, n) }}
+                >
+                  <span>🔨 编译 UI 源</span>
+                </div>
+              )}
+              {menu.targetPath!.endsWith('.widget.json') && !widgetSourceState.get(menu.targetPath!) && (
+                <div
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  onClick={() => { const p = menu.targetPath!, n = menu.targetName!; closeMenu(); generateSource(p, n) }}
+                >
+                  <span>🛠️ 生成 HTML 源</span>
+                </div>
+              )}
               <div
                 style={menuItemStyle}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}

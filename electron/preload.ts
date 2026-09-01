@@ -79,6 +79,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeJsonFile: (relativePath: string, data: unknown) =>
     ipcRenderer.invoke('write-json-file', relativePath, data),
 
+  // ─── 写入文本文件（UI 源格式 .widget.html 反编译回写等）───
+  writeTextFile: (relativePath: string, content: string) =>
+    ipcRenderer.invoke('write-text-file', relativePath, content),
+
   // ─── 获取 harness 目录下的插件列表 ───
   listHarnessPlugins: () => ipcRenderer.invoke('list-harness-plugins'),
 

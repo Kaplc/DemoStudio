@@ -591,6 +591,34 @@ export function registerGlobalEventListeners(callbacks: {
             }
             break
           }
+          case 'ui_compile': {
+            // UI 源格式编译（方案 devdoc/ui-html-source-format）：
+            // params.asset = widget 资产路径（src/projects/.../xxx.widget.json）
+            // 流程：读 .widget.html → 编译 → assetLint 零错误门槛 → 落盘 + 预览同步
+            const assetPath = (params?.asset as string | undefined)?.trim()
+            if (!assetPath || !assetPath.endsWith('.widget.json')) {
+              const msg = { status: 'error', command: 'ui_compile', message: '缺少 asset 参数（需 .widget.json 路径）' }
+              if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, msg)
+              break
+            }
+            const { compileUiSourceToAsset } = await import('./asset/uiSourceActions')
+            const action = await compileUiSourceToAsset(assetPath)
+            addConsoleOutput(
+              `[MCP] ui_compile: ${assetPath} → ${action.ok ? '成功' : `失败（${action.errors.length} 错误 / ${action.lintIssues.length} lint）`}`,
+            )
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: action.ok ? 'ok' : 'error',
+                command: 'ui_compile',
+                ok: action.ok,
+                asset: action.assetPath,
+                errors: action.errors.map((e) => ({ line: e.line, message: e.message })),
+                lintIssues: action.lintIssues,
+                warnings: action.warnings,
+              })
+            }
+            break
+          }
           case 'send_input':
             if (params?.key) {
               window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))

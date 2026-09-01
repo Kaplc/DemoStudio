@@ -50,7 +50,7 @@ const allFileKeys = Object.keys(import.meta.glob('../projects/**/*.*'))
 // 源码原始文本映射（codeLint readTextFile 用）：?raw 的 default 导出即文件内容字符串（纯文本）。
 // 注意：不能 fetch('/path?raw') —— Vite dev 对 .ts 的 ?raw 响应是模块代码（export default "..." 包装），
 // 而非纯文本；import.meta.glob 的 loader 在运行时解析模块取 default，才是真实文件内容。
-const rawSrcModules = import.meta.glob<string>('../projects/**/*.{ts,tsx}', {
+const rawSrcModules = import.meta.glob<string>('../projects/**/*.{ts,tsx,html}', {
   query: '?raw',
   import: 'default',
 })
@@ -61,6 +61,9 @@ const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts']
 // ─── 构建 JSON 路径 → 内容映射 ───
 
 const jsonCache = new Map<string, unknown>()
+
+// 文本文件缓存（writeTextFile 用：浏览器调试模式 HTML 源回写仅入内存，不落盘）
+const textCache = new Map<string, string>()
 
 function normalizePath(globPath: string): string {
   // import.meta.glob 返回 key 如 "../projects/fish/project.json"
@@ -233,6 +236,16 @@ const mockAPI = {
     return { success: true }
   },
 
+  writeTextFile: async (relativePath: string, content: string) => {
+    // 浏览器调试模式：HTML 源回写仅入内存缓存（vite dev server 不提供任意文件写）
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    textCache.set(relativePath, content)
+    console.log(`[Mock] writeTextFile: ${relativePath}（仅写入内存缓存）`)
+    return { success: true }
+  },
+
   onBlueprintRequest: () => (() => { /* 浏览器调试模式无外部 MCP，忽略 */ }),
 
   sendBlueprintResponse: () => { /* no-op */ },
@@ -303,6 +316,10 @@ const mockAPI = {
   },
 
   readTextFile: async (relativePath: string) => {
+    // writeTextFile 写入的文本缓存优先（UI 源回写后再读的闭环）
+    if (textCache.has(relativePath)) {
+      return { success: true, data: textCache.get(relativePath)! }
+    }
     // 路径归一化为 glob key（src/projects/... → ../projects/...）
     const key = relativePath.replace(/^src\//, '../')
     const loader = rawSrcModules[key]
@@ -312,6 +329,16 @@ const mockAPI = {
       } catch (err) {
         return { success: false, error: `Mock: 读取失败: ${String(err)}` }
       }
+    }
+    // 兜底 fetch vite raw（注意：Vite dev 对 .html?raw 返回 react-refresh 包装的模块代码而非纯文本，
+    // 因此 .html 必须走上方 rawSrcModules 通道；此处仅覆盖 ts/tsx 之外的其余文本类型）
+    if (!/\.html?$/i.test(relativePath)) {
+      try {
+        const resp = await fetch(`/${relativePath.replace(/^src\//, '')}?raw`)
+        if (resp.ok) {
+          return { success: true, data: await resp.text() }
+        }
+      } catch { /* ignore */ }
     }
     return { success: false, error: `Mock: file not found: ${relativePath}` }
   },

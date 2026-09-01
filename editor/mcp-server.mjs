@@ -170,6 +170,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: '列出引擎当前已注册的 AI 事件名',
       inputSchema: { type: 'object', properties: {} },
     },
+    {
+      name: 'ui_compile',
+      description:
+        '编译 UI 资产 HTML 源（*.widget.html）为 widget.json（devdoc/ui-html-source-format 方案）。' +
+        '流程：读取 .widget.html → 编译 → assetLint 零错误门槛 → 覆写 .widget.json 并同步编辑器预览。' +
+        '错误信息面向源文件（line 指向 .widget.html）。参数 asset = widget 资产路径' +
+        '（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json），源文件为同目录同名 .widget.html',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            description: 'widget 资产路径（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
+          },
+        },
+        required: ['asset'],
+      },
+    },
   ],
 }))
 
@@ -210,6 +228,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case 'run_code_lint': {
       const project = args?.project || undefined
       const result = await callEditor(name, project ? { project } : {})
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      }
+    }
+    case 'ui_compile': {
+      const asset = args?.asset || ''
+      if (!asset) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 asset 参数' }, null, 2) }],
+        }
+      }
+      const result = await callEditor('ui_compile', { asset })
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       }

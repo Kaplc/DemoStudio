@@ -30,7 +30,7 @@ import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
 import { TransformComponent } from '../entity/TransformComponent'
 import { UITransformComponent, type AnchorPreset } from '../ui/UITransformComponent'
-import { UILayoutComponent, type UILayoutMode } from '../ui/UILayoutComponent'
+import { UILayoutComponent, type UILayoutMode, type UILayoutJustify, type UILayoutAlign } from '../ui/UILayoutComponent'
 import { UIProgressBarComponent, type UIProgressDirection } from '../ui/UIProgressBarComponent'
 import { UIScrollListComponent, type UIScrollDirection } from '../ui/UIScrollListComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
@@ -576,7 +576,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UILayoutComponent ─── props: { mode?, columns?, spacingX?, spacingY?, autoLayout? }
+  // ─── UILayoutComponent ─── props: { mode?, columns?, spacingX?, spacingY?, autoLayout?, justify?, align? }
   // 布局组件：挂在容器 Actor 上，自动按模式（水平/垂直/网格）排列其子 UI 节点。
   ComponentRegistry.register(
     'UILayoutComponent',
@@ -587,6 +587,8 @@ export function registerBuiltinComponents(): void {
         spacingX: p.spacingX as number | undefined,
         spacingY: p.spacingY as number | undefined,
         autoLayout: p.autoLayout as boolean | undefined,
+        justify: p.justify as UILayoutJustify | undefined,
+        align: p.align as UILayoutAlign | undefined,
       }),
     (c, p) => {
       const layout = c as UILayoutComponent
@@ -595,6 +597,8 @@ export function registerBuiltinComponents(): void {
       if (p.spacingX !== undefined) layout.spacingX = p.spacingX as number
       if (p.spacingY !== undefined) layout.spacingY = p.spacingY as number
       if (p.autoLayout !== undefined) layout.autoLayout = p.autoLayout as boolean
+      if (p.justify !== undefined) layout.justify = p.justify as UILayoutJustify
+      if (p.align !== undefined) layout.align = p.align as UILayoutAlign
     },
   )
 }

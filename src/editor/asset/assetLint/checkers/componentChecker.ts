@@ -8,6 +8,7 @@
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
 import type { FieldSpec, LintIssue, CheckerContext } from '../types'
+import { UILAYOUT_JUSTIFY_OPTIONS, UILAYOUT_ALIGN_OPTIONS } from '../../../../engine/ui/UILayoutComponent'
 
 /** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]。 */
 class SpriteComponentChecker extends AbstractAssetChecker {
@@ -297,6 +298,33 @@ class UIScrollListComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UIScrollListComponent', UIScrollListComponentChecker)
 
+/** comp:UIProgressBarComponent — 进度条组件（数值模型 value/min/max + fill 子 Actor + 填充方向） */
+class UIProgressBarComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIProgressBarComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.value', type: 'number', label: '当前值' },
+    { field: 'properties.min', type: 'number', label: '最小值' },
+    { field: 'properties.max', type: 'number', label: '最大值' },
+    { field: 'properties.fillActorName', type: 'string', label: 'fill 子 Actor 名（默认 Fill）' },
+    { field: 'properties.direction', type: 'string', enum: ['left-to-right', 'right-to-left', 'bottom-to-top', 'top-to-bottom'], label: '填充方向' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIProgressBarComponent', UIProgressBarComponentChecker)
+
+/** comp:UITooltipComponent — 悬停提示组件（挂任意 UI 控件 Actor；delay 秒后在宿主上/下方生成 tooltip widget） */
+class UITooltipComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UITooltipComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.text', type: 'string', label: '提示文本' },
+    { field: 'properties.delay', type: 'number', min: 0, label: '悬停延迟（秒）' },
+    { field: 'properties.direction', type: 'string', enum: ['top', 'bottom'], label: '弹出方向' },
+    { field: 'properties.widgetPath', type: 'string', label: 'tooltip widget 资产路径' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UITooltipComponent', UITooltipComponentChecker)
+
 /** comp:UIImageComponent — 颜色/圆角/不透明度/图片源 + UI 定位（显隐由节点 CanvasUIComponent 统一控制） */
 class UIImageComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIImageComponent'
@@ -365,6 +393,18 @@ class UILayoutComponentChecker extends AbstractAssetChecker {
     { field: 'properties.spacingX', type: 'number', min: 0, label: 'X 轴间距' },
     { field: 'properties.spacingY', type: 'number', min: 0, label: 'Y 轴间距' },
     { field: 'properties.autoLayout', type: 'boolean', label: '自动布局（子项变化时重排）' },
+    {
+      field: 'properties.justify',
+      type: 'string',
+      enum: [...UILAYOUT_JUSTIFY_OPTIONS],
+      label: '主轴分布（justify-content，缺省 center）',
+    },
+    {
+      field: 'properties.align',
+      type: 'string',
+      enum: [...UILAYOUT_ALIGN_OPTIONS],
+      label: '交叉轴对齐（align-items，缺省 center）',
+    },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

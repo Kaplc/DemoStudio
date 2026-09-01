@@ -310,4 +310,6 @@ AI 客户端 ──stdio──► editor/mcp-server.mjs ──HTTP :9877+──�
 | Agent 面板不在当前页面内 | 点击「Agent」菜单会创建独立子窗口（`/agent.html`），不是同页面切换 | 用 `browser_tabs` 管理标签页，`list` 列出后 `select` 切换 |
 | MCP `browser_*` 全部请求超时（10s，无报错） | CDP 浏览器未启动/未挂载，MCP 等待浏览器响应超时而非连接失败 | 先按 §3.1 启动 Chrome CDP；或绕过 MCP，用项目自带 `@playwright/test` 写临时脚本（`import { chromium } from '@playwright/test'` + `chromium.launch()`）直接验证 |
 | 启动页卡片 `browser_click` 超时 | `.startup-project-card` 的 CSS `transition` 导致元素未 `stable` | `browser_evaluate` + `dispatchEvent` 绕过动画 |
+| 启动页卡片点击后项目未打开 | 卡片 `onClick` 仅**选中**（出现 ✓），打开需双击卡片或点「打开工程」按钮（`App.tsx` StartupProjectSelector） | 选中后补点 `button:has-text("打开工程")`，等 10s+ 出现项目状态栏 |
 | `localhost:5173` 连接被拒但 Vite 在跑 | Vite 只监听 IPv6 `::1`，`localhost` 解析为 IPv4 `127.0.0.1` 时不通 | 导航用 `http://[::1]:5173/`，或改 `vite.config.ts` 的 `server.host` |
+| 9222 有 `LISTENING` 但 `Invoke-RestMethod /json/version` 超时（假监听） | 残留进程占着端口不放，CDP HTTP 服务已死；症状是 `browser_*` 全部 10s 超时且无连接错误 | netstat 确认 PID → kill 后按 §3.1 重启 Chrome；临时急用可切 VS Code 内置浏览器路径（`playwright_commands.md`），两套链路互不干扰 |

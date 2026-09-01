@@ -217,7 +217,12 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | PowerShell 写 JSON 带 BOM | `Set-Content -Encoding UTF8` 会写 BOM 导致 JSON.parse 失败；用 `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))` |
 | `executeGM('xxx')` 无效果不报错 | GM 命令未注册时静默返 `{ok:false}`（已注册命令见 `src/projects/fish/gameplay/gm/*.gm.ts`，无 returnBase）；回城等流程直接调 GameInstance 公共方法 `returnToBase()` |
 | 阶段敏感 UI 用例时灵时不灵 | `getAllUIActors` 是累计集合，场景切换后旧 HUD 树残留且同名 → `findActorByName` 可能命中旧树按钮；显隐断言改走 GameMode 广播通道（如 `onTasksPanelChange` 回执），用例开头防御性 `returnToBase()` + 断言 `_phase==='base'` |
+| CDP `:9222` 有 LISTENING 但 HTTP 探测超时（假监听） | 残留进程占着端口不放（`Invoke-RestMethod /json/version` 超时即中招）→ Playwright MCP 连不上；不要硬试，切内置浏览器路径（本文件），或先 kill 占用进程再重启 Chrome |
+| Vite dev `fetch('/xxx.html?raw')` 返回的不是纯文本 | dev server 对 `.html` 请求注入 react-refresh 前导码返回模块包装（编译端报"行1 非法标签起始"的真凶）→ Mock readTextFile 对 `.html` 必须走 `import.meta.glob('...*.html', { query: '?raw' })` 的 loader（运行时返回真实文件内容），fetch fallback 仅限非 html |
 | evaluate 里调页面对象方法崩 `instanceof is not an object` | 测试函数经 `new Function` 序列化执行，页面内对象的方法（如 `getComponents()`）内部 instanceof 测试 realm 的类必崩；改读私有字段（`_components`）+ try/catch |
 | `ai.emit` 回执当真值恒真 | emit 失败也返回对象（error 在 `results[0].error`）；必须断言 `res?.results?.[0]?.ok === true` |
 | 运行时 CodeLint 无法从日志确认归零 | E2E 页面停首页时 CodeLint 只打"无工程"；探针：`import('/src/stores/useCodeLintStore.ts')` + `import('/src/editor/codeLint/CodeLintEngine.ts')` → `codeLintEngine.scan('fish')` → 读 `getState().issues`（0 = 归零） |
 | PowerShell 无 tail/head | Windows 管道用 `Select-Object -Last N` / `-First N` 替代 |
+| `browser_evaluate` 等页面内执行工具缺失 / CDP 连不上 | 走 `__computer_use__` 屏幕级方案：`list_windows` 找 Chrome 窗口 pid（标题"DemoStudio Editor - Google Chrome"）→ `focus_window` 前台化 → 按最近整屏截图的像素坐标 `click` 直接命中游戏按钮 |
+| Game 视口 canvas 内的游戏 UI 按钮，browser_click 点 tab/容器 ref 无效 | snapshot 的 ref 是 DOM 容器而非 canvas 内部元素，点它命中不了游戏按钮；必须真实屏幕坐标点击（见上条）或引擎侧 `ai.clickActor` |
+| 浏览器实例（browser_use/内置浏览器）收不到 MCP ai_event | MCP :9877 的 ai_event 经主进程只转发给 **Electron mainWindow** 渲染进程；浏览器多开实例与 Electron 实例是两个世界，点击/事件验证须在对应实例自己的通道内做 |

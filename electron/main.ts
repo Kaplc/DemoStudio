@@ -1170,6 +1170,33 @@ ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unk
   }
 })
 
+// ─── 写入文本文件（UI 源格式 .widget.html 反编译回写等）───
+
+ipcMain.handle('write-text-file', async (_event, relativePath: string, content: string) => {
+  try {
+    if (typeof relativePath !== 'string' || !relativePath) {
+      return { success: false, error: 'relativePath 必须是非空字符串' }
+    }
+    // 仅允许文本类扩展名（UI 源格式回写 .html；避免误写二进制/代码）
+    if (!/\.(html|htm|txt|css|md)$/i.test(relativePath)) {
+      return { success: false, error: '仅允许写入文本类文件（.html/.htm/.txt/.css/.md）' }
+    }
+    const baseDir = path.join(__dirname, '..')
+    const fullPath = path.resolve(baseDir, relativePath)
+    // 路径逃逸防护：解析后必须仍在 baseDir 内
+    const rel = path.relative(baseDir, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: `非法路径: ${relativePath}` }
+    }
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+    fs.writeFileSync(fullPath, content, 'utf-8')
+    return { success: true }
+  } catch (err) {
+    console.error('写入文本文件失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── 获取 harness 目录下的插件列表 ───
 
 ipcMain.handle('list-harness-plugins', async () => {
@@ -1698,7 +1725,7 @@ async function startMCPServer() {
         try {
           const cmd: MCPCommand = JSON.parse(body)
           // 往返模式：等渲染进程处理完回传结果（AI 需要拿到返回值）
-          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint') {
+          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile') {
             // ai.event 转发（仅 ai_event 有事件语义；用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
             if (cmd.command === 'ai_event') {
               publishSSE('ai.event', {

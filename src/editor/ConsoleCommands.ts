@@ -63,6 +63,8 @@ registerCommand('help', (_args, ctx) => {
   ctx.output('  start_game     - 启动游戏')
   ctx.output('  stop_game      - 停止游戏')
   ctx.output('  toggle_game    - 切换游戏运行状态')
+  ctx.output('  ui.compile <widget路径>    - 编译 .widget.html 源 → widget.json')
+  ctx.output('  ui.decompile <widget路径>  - 反编译 widget.json → .widget.html 源')
   ctx.output('')
   ctx.output(`当前游戏状态: ${ctx.gameState.running ? '🎮 运行中' : '⏹ 已停止'}`)
   ctx.output('  Ctrl+Enter - 启动/停止 | Shift+F5 - 停止')
@@ -106,4 +108,60 @@ registerCommand('toggle_game', (_args, ctx) => {
   } else {
     ctx.launchGame()
   }
+})
+
+// ─── UI 源格式编译/反编译调试命令（devdoc/ui-html-source-format）───
+
+registerCommand('ui.compile', (args, ctx) => {
+  const asset = args[0]
+  if (!asset) {
+    ctx.output('用法: ui.compile <widget资产路径>（如 src/projects/fish/asset/blueprints/ui/toast.widget.json）')
+    return
+  }
+  void (async () => {
+    const { compileUiSourceToAsset } = await import('./asset/uiSourceActions')
+    const r = await compileUiSourceToAsset(asset)
+    if (r.ok) {
+      ctx.output(`✅ 编译成功: ${r.assetPath}（assetLint 零错误）`)
+    } else {
+      ctx.output(`❌ 编译失败: ${asset}`)
+      for (const e of r.errors) ctx.output(`  行 ${e.line}: ${e.message}`)
+      for (const i of r.lintIssues) ctx.output(`  [lint/${i.severity}] [${i.nodePath}] ${i.message} (${i.rule})`)
+    }
+  })()
+})
+
+registerCommand('ui.decompile', (args, ctx) => {
+  const asset = args[0]
+  if (!asset) {
+    ctx.output('用法: ui.decompile <widget资产路径>（反编译结果写入同名 .widget.html）')
+    return
+  }
+  void (async () => {
+    const { decompileWidgetJson } = await import('./asset/uiCompiler')
+    const { sourcePathOf } = await import('./asset/uiSourceSync')
+    const api = window.electronAPI
+    const r = api?.readJsonFile
+      ? await api.readJsonFile(asset)
+      : { success: false, error: 'electronAPI 不可用' }
+    if (!r.success) {
+      ctx.output(`❌ 读取失败: ${r.error}`)
+      return
+    }
+    const d = decompileWidgetJson(r.data)
+    if (!d.ok || !d.html) {
+      ctx.output(`❌ 反编译失败: ${d.warnings.join('; ')}`)
+      return
+    }
+    const srcPath = sourcePathOf(asset)
+    const w = api?.writeTextFile
+      ? await api.writeTextFile(srcPath, d.html)
+      : { success: false, error: 'electronAPI 不可用' }
+    if (!w.success) {
+      ctx.output(`❌ 写入失败: ${'error' in w ? w.error : '未知错误'}`)
+      return
+    }
+    ctx.output(`✅ 反编译成功: ${asset} → ${srcPath}`)
+    for (const warn of d.warnings) ctx.output(`  ⚠ ${warn}`)
+  })()
 })

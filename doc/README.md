@@ -40,6 +40,7 @@
 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) | React 面板组件与状态管理（stores/） |
 | [`editor/ui_enhancement_system.md`](./editor/ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast / Tooltip / 色盲模式 / 进度条 |
 | [`editor/ui_anchor_system.md`](./editor/ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑 |
+| [`editor/ui_source_format_system.md`](./editor/ui_source_format_system.md) | UI HTML 源格式：.widget.html 编译/反编译 + 双向同步 + MCP ui_compile |
 | [`editor/mcp_integration.md`](./editor/mcp_integration.md) | MCP 集成与调试桥：三客户端配置 / 9 个工具清单 / 多实例端口 |
 | [`editor/agent_panel_system.md`](./editor/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 |
 

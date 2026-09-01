@@ -124,10 +124,13 @@ export default defineConfig({
       // 不在此过滤的话，import.meta.glob 的依赖链会把整个引擎模块树都重载一遍。
       // 游戏运行时数据（src/projects/{name}/data/*.json，如 fish 存档 save.json）同理排除：
       // 游戏中保存存档落盘不应触发整页热重载（会杀掉运行中的游戏会话）。
+      // widget 的 HTML 源（*.widget.html）同理排除：UI 源由编辑器编译/反编译链路驱动，
+      // 且 MockElectronAPI 的 glob 会把它拉进模块图，html 落盘会触发整页刷新杀掉游戏会话。
       name: 'ignore-asset-json-hmr',
       handleHotUpdate({ file }) {
         if (/(?:widget|scene|blueprint|config|table)\.json$/.test(file)) return []
         if (/[/\\]src[/\\]projects[/\\][^/\\]+[/\\]data[/\\].+\.json$/i.test(file)) return []
+        if (/\.widget\.html$/i.test(file)) return []
       },
     },
     electron([

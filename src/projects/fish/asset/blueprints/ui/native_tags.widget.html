@@ -1,0 +1,56 @@
+<widget name="NativeTags" canvas="1920x1080" world="9.6x5.4">
+  <style>
+    .Title { left: 50%; top: 60px; width: 600px; height: 60px; font-size: 36px; color: #ffffff; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .NameInput { left: 100px; top: 160px; width: 500px; height: 60px; font-size: 26px; color: #ffffff; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .HpBar { left: 100px; top: 260px; width: 500px; height: 40px; }
+    .ScrollList { left: 100px; top: 340px; width: 500px; height: 200px; overflow: auto; }
+    .Row1 { left: 20px; top: 10px; width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .Row2 { left: 20px; top: 70px; width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .Row3 { left: 20px; top: 130px; width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .Row4 { left: 20px; top: 190px; width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .Row5 { left: 20px; top: 250px; width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .OkBtn { left: 100px; top: 620px; width: 300px; height: 80px; font-size: 30px; color: #ffffff; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .LayoutTitle { left: 700px; top: 60px; width: 700px; height: 50px; font-size: 30px; color: #ffd700; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .HBoxLabel { left: 700px; top: 120px; width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .HBox { left: 700px; top: 165px; width: 700px; height: 120px; display: flex; flex-direction: row; gap: 20px; justify-content: center; align-items: center; background-color: rgba(40,40,60,0.8); }
+    .Box1 { width: 120px; height: 80px; background-color: #e74c3c; }
+    .Box2 { width: 120px; height: 60px; background-color: #2ecc71; }
+    .Box3 { width: 120px; height: 40px; background-color: #3498db; }
+    .VBoxLabel { left: 700px; top: 320px; width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .VBox { left: 700px; top: 365px; width: 300px; height: 250px; display: flex; flex-direction: column; gap: 10px; justify-content: center; align-items: center; background-color: rgba(40,40,60,0.8); }
+    .JustifyLabel { left: 700px; top: 650px; width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow-color: rgba(0,0,0,0.4); text-shadow-blur: 4px; }
+    .JustifyBox { left: 700px; top: 695px; width: 700px; height: 100px; display: flex; justify-content: center; align-items: center; background-color: rgba(40,40,60,0.8); }
+    .SBox1 { width: 200px; height: 80px; background-color: #9b59b6; }
+    .SBox2 { width: 200px; height: 80px; background-color: #f39c12; }
+    .JBox1 { width: 150px; height: 60px; background-color: #9b59b6; }
+    .JBox2 { width: 150px; height: 60px; background-color: #f39c12; }
+  </style>
+  <text class="Title">原生控件自测</text>
+  <input class="NameInput" placeholder="输入名字" value="FishMaster" />
+  <progress class="HpBar" value="30" max="60" />
+  <div class="ScrollList">
+    <text class="Row1">条目 1</text>
+    <text class="Row2">条目 2</text>
+    <text class="Row3">条目 3</text>
+    <text class="Row4">条目 4</text>
+    <text class="Row5">条目 5</text>
+  </div>
+  <button class="OkBtn" title="点我开始游戏">开始游戏</button>
+  <text class="LayoutTitle">自动布局自测（display: flex）</text>
+  <text class="HBoxLabel">HBox：row + gap:20px + justify-content:center + align-items:center</text>
+  <div class="HBox">
+    <div class="Box1"></div>
+    <div class="Box2"></div>
+    <div class="Box3"></div>
+  </div>
+  <text class="VBoxLabel">VBox：column + justify-content:center + align-items:center（整体居中）</text>
+  <div class="VBox">
+    <div class="SBox1"></div>
+    <div class="SBox2"></div>
+  </div>
+  <text class="JustifyLabel">JustifyBox：主轴 justify-content:center 居中</text>
+  <div class="JustifyBox">
+    <div class="JBox1"></div>
+    <div class="JBox2"></div>
+  </div>
+</widget>
