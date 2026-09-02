@@ -316,3 +316,6 @@ AI 客户端 ──stdio──► editor/mcp-server.mjs ──HTTP :9877+──�
 | Electron 页挂在后台 tab 时游戏运行时"假死"：日志/生成队列 45-70s 才动一次 | Chrome 对后台页面 rAF 节流（约 1 帧/分钟），World tick 驱动的一切（蓝图生成队列、脚本 BeginPlay）都被拖慢；症状是 `ai.clickActor` 报"未找到 Actor"但放置日志正常 | `browser_run_code_unsafe` 里 `page.bringToFront()` 前台化后立即恢复；自测期间保持 Electron 页在前台 |
 | 改了 `.widget.json` 等资产后游戏行为没变 | `import.meta.glob` 资产注册是模块级求值，**重启游戏（start_game）不会重新读盘**；且 `BlueprintRegistry.cache` 同一会话内缓存 resolve 结果 | 必须 `page.reload()` 整页刷新让模块重新求值（顺带重置 Registry 缓存） |
 | 场景大纲类断言拿不到建筑 Actor | 同上：后台节流 + 旧注册缓存叠加，`ai.getActor`/大纲结果不代表最新磁盘资产 | 先 bringToFront + reload，再跑断言；大纲工具用 `ai.getSceneOutline` 事件 |
+| 页面内 `import('/src/xxx.ts')` 动态导入的模块与运行中实例**不是同一实例**（`AssetPreviewManager._instances.size === 0`） | Vite dev 下页面代码经依赖图加载，动态 import 拿到新求值的模块副本，单例状态不共享 | 读运行时状态走页面暴露的调试桥（`window.blueprintEditor` / `window.__ai`），不要动态 import 模块 |
+| HMR 后页面突然大量 `ReferenceError: xxx is not defined`（如 `SEARCH_PLACEHOLDER` / `projectName`） | HMR 增量更新产生陈旧模块引用（手册已知的"HMR 不重建实例"坑的变体） | 整页 reload 后 0 报错即确认为 HMR 假象；若 reload 后仍在才是真 bug |
+| 浏览器 Mock 模式打开任何 widget 蓝图必报 `UIImageComponent/UITextComponent 工厂未消费属性 hitTest` 两条 error | `base_hud` 等资产带 `hitTest` 字段而组件工厂白名单未消费（既有问题，与调试链路无关） | 忽略即可；属组件注册白名单待修事项，勿误判为本次改动引入 |
