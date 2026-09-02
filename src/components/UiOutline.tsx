@@ -3,7 +3,7 @@ import {
   getSelectedActor, select, getSelectionKey, onSelectionChange, getRunningWorld,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
-import { collectKeysWithChildren, filterOutlineTree, useDefaultCollapsed } from './Outline'
+import { collectKeysWithChildren, computeStableKeys, filterOutlineTree, useDefaultCollapsed } from './outlineCore'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
 
@@ -56,6 +56,12 @@ export function UiOutline({ query = '' }: { query?: string }) {
   const allParentKeys = useMemo(() => collectKeysWithChildren(runningUiTree ?? [], 'ui'), [runningUiTree])
   const [collapsedKeys, toggleCollapsed] = useDefaultCollapsed(allParentKeys)
 
+  // ─── 每行稳定 key（kind + 父链路径 + 节点名）：重开游戏（Actor 重建）后状态保持 ───
+  const stableKeys = useMemo(
+    () => computeStableKeys(runningUiTree ?? [], 'ui'),
+    [runningUiTree],
+  )
+
   // ─── 折叠过滤（复用大纲逻辑）；搜索模式：命中 + 祖先链，全展开 ───
   const rows = useMemo(() => {
     if (!runningUiTree || runningUiTree.length === 0) return []
@@ -63,7 +69,7 @@ export function UiOutline({ query = '' }: { query?: string }) {
     if (filterQuery) {
       return filterOutlineTree(runningUiTree, filterQuery).map((r) => ({
         node: r.node,
-        key: r.node.actor ? `ui:${r.node.actor.root.id}` : `ui-node-${r.index}`,
+        key: stableKeys[r.index],
         hasChildren: r.hasChildren,
         collapsed: false,
       }))
@@ -74,14 +80,14 @@ export function UiOutline({ query = '' }: { query?: string }) {
       const node = runningUiTree[i]
       while (foldStack.length && foldStack[foldStack.length - 1] >= node.depth) foldStack.pop()
       if (foldStack.length) continue
-      const key = node.actor ? `ui:${node.actor.root.id}` : `ui-node-${i}`
+      const key = stableKeys[i]
       const hasChildren = i + 1 < runningUiTree.length && runningUiTree[i + 1].depth > node.depth
       const collapsed = hasChildren && collapsedKeys.has(key)
       out.push({ node, key, hasChildren, collapsed })
       if (collapsed) foldStack.push(node.depth)
     }
     return out
-  }, [runningUiTree, collapsedKeys, filterQuery])
+  }, [runningUiTree, stableKeys, collapsedKeys, filterQuery])
 
   if (!gameRunning) {
     return (
@@ -111,7 +117,7 @@ export function UiOutline({ query = '' }: { query?: string }) {
         const isSelected = selected !== null && selected === node.actor
         return (
           <div
-            key={node.actor ? 'ui-' + node.actor.root.id : 'ui-node-' + i}
+            key={itemKey}
             style={{
               display: 'flex',
               alignItems: 'center',

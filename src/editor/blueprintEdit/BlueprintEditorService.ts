@@ -133,7 +133,7 @@ function pickLocator(p: Record<string, unknown>): ChildLocator | null {
 }
 
 /** op 名 → 纯 op 调用 */
-function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): OpResult {
+export function runOp(asset: BlueprintAsset, op: string, p: Record<string, unknown>): OpResult {
   switch (op) {
     case 'addComponent':
       return ops.addComponent(asset, (p.baseClass ?? p.type) as string, (p.properties ?? p.props) as PropertyPatch | undefined, p.id as number | undefined, p.name as string | undefined)
@@ -356,6 +356,19 @@ export class BlueprintEditorService {
       }
       this.dirtyKeys.delete(key)
       editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+    }
+
+    // 属性类编辑快速通道：先广播 ops 快照给打开的预览实例就地应用（免销毁重建）。
+    // 消化成功的页签会登记跳过本次 bump 触发的重建；结构类 op / 节点不匹配等
+    // 返回 false → 调用方不跳过，走常规 bump 重建。params 深拷贝隔离（消费方可能持有引用）。
+    try {
+      editorBus.emit(
+        EditorEvent.BLUEPRINT_EDIT_OPS,
+        assetPath,
+        ops.map((o) => ({ op: o.op, params: JSON.parse(JSON.stringify(o.params ?? {})) as Record<string, unknown> })),
+      )
+    } catch (e) {
+      logger.warn(`[BlueprintEdit] 快速通道广播异常（忽略，走常规重建）: ${key}: ${e}`)
     }
 
     // 通知打开的编辑器刷新数据 + 预览（单次 bump = 单次重建）

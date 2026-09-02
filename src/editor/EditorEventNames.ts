@@ -17,4 +17,9 @@ export const EditorEvent = {
   /** 蓝图已保存落盘（handleSave / Inspector apply / MCP edit）。
    *  参数：assetPath: string */
   BLUEPRINT_SAVED: 'blueprint:saved',
+
+  /** 蓝图属性类编辑 ops 快照（快速通道）：服务层 applyBatch 成功后广播，打开的
+   *  预览实例就地应用（免销毁重建，保持大纲展开/选中/相机）。
+   *  参数：assetPath: string, ops: ReadonlyArray<{op: string; params: Record<string, unknown>}> */
+  BLUEPRINT_EDIT_OPS: 'blueprint:editOps',
 } as const

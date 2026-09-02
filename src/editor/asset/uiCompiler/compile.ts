@@ -1081,8 +1081,8 @@ class Emitter {
       ;(node.components as unknown[]).push({ baseClass: 'UIImageComponent', properties: bgProps })
     }
     // 输入框只保留输入语义字段：静态文本专属字段（align/bold/shadow* 等）引擎注册器
-    // 不消费且 assetLint schema 不允许，必须过滤
-    const inputAllowed = new Set(['placeholder', 'value', 'fontSize', 'color', 'width', 'height', 'zOrder', 'hitTest', 'name'])
+    // 不消费且 assetLint schema 不允许，必须过滤；hitTest 归位 Canvas marker 块（见 markerProps）
+    const inputAllowed = new Set(['placeholder', 'value', 'fontSize', 'color', 'width', 'height', 'zOrder', 'name'])
     for (const k of Object.keys(props)) {
       if (!inputAllowed.has(k)) delete props[k]
     }
@@ -1260,8 +1260,7 @@ class Emitter {
     }
     const z = el.computed.get('z-order')
     if (z !== undefined) props.zOrder = parseInt(z, 10) || 0
-    const hit = el.computed.get('hit-test')
-    if (hit === 'visible' || hit === 'block' || hit === 'hitTestInvisible') props.hitTest = hit
+    // hit-test 不写入功能块：命中测试唯一实现方是 CanvasUIComponent（marker 块见 markerPropsOf/emitBox）
     const hasVisual = Boolean(image || gradient || color || corners.some((c) => c > 0))
     if (!hasVisual && el.tag !== 'img') return null
     props.width = Math.max(8, Math.round(elW))
@@ -1361,8 +1360,7 @@ class Emitter {
     }
     const z = el.computed.get('z-order')
     if (z !== undefined) props.zOrder = parseInt(z, 10) || 0
-    const hit = el.computed.get('hit-test')
-    if (hit === 'visible' || hit === 'block' || hit === 'hitTestInvisible') props.hitTest = hit
+    // hit-test 不写入功能块：命中测试唯一实现方是 CanvasUIComponent（marker 块见 markerPropsOf/emitBox）
     // 白空间：nowrap 尽力而为（troika 恒按宽换行）——披露
     const ws = el.computed.get('white-space')
     if (ws === 'nowrap') {

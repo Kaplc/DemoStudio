@@ -80,9 +80,40 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   /** 本蓝图页签是否为当前激活页签（页签常驻挂载，需据此登记活动预览实例） */
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const isTabActive = activeTabId === `bp:${assetPath}`
+  /** 属性编辑快速通道：本页签已就地应用 ops → 跳过下一次 bump 触发的销毁重建（保持展开/选中/相机） */
+  const skipNextRebuildRef = useRef(false)
+  /** 未挂载/重建期间到达的 ops 暂存（重建完成后的订阅周期会消费，或被下一轮覆盖） */
+  const pendingOpsRef = useRef<{ assetPath: string; ops: Array<{ op: string; params: Record<string, unknown> }> } | null>(null)
+
+  // ─── 属性编辑快速通道：服务层 applyBatch 成功后广播 ops → 本页签预览就地应用 ───
+  useEffect(() => {
+    const onEditOps = (path: string, ops: Array<{ op: string; params: Record<string, unknown> }>) => {
+      if (path !== assetPath) return
+      const mgr = previewMgrRef.current
+      if (!mgr?.applyEditOps || !previewReady) {
+        // 预览未就绪（首开/重建中）：暂存，重建 effect 尾部消费；新 ops 到达时覆盖旧值
+        pendingOpsRef.current = { assetPath: path, ops }
+        return
+      }
+      const applied = mgr.applyEditOps(path, ops)
+      if (applied) {
+        skipNextRebuildRef.current = true
+        console.log(`[BlueprintEditor] 快速通道已就地应用 ${ops.length} ops，跳过重建: ${path}`)
+      }
+    }
+    const off = editorBus.on(EditorEvent.BLUEPRINT_EDIT_OPS, onEditOps)
+    return off
+  }, [assetPath, previewReady])
 
   // ─── 读取蓝图 JSON（走服务层：有工作副本时返回内存最新态，避免 undo/redo 后读到磁盘旧数据）───
   useEffect(() => {
+    // 快速通道已就地应用本次编辑：跳过这次 bump 触发的重读 + 重建（保持大纲展开/选中/相机）。
+    // 只消费一次；首次打开（ref 复位为 false）与结构类编辑（登记不会被置位）照常重建。
+    if (skipNextRebuildRef.current) {
+      skipNextRebuildRef.current = false
+      console.log(`[BlueprintEditor] 快速通道跳过本次 bump 重读/重建: ${assetPath}`)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -165,6 +196,16 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         const node = tree.find((n) => n.name === selName && n.actor)
         if (node?.actor) {
           mgr.selectActor(node.actor)
+        }
+      }
+
+      // 快速通道：重建期间到达的 ops 在新实例上就地应用（新树读自最新工作副本，
+      // applyEditOps 只做属性回写与基准推进，失败时丢弃是正确的——树本身已最新）
+      const pendingOps = pendingOpsRef.current
+      pendingOpsRef.current = null
+      if (pendingOps && pendingOps.assetPath === assetPath) {
+        if (mgr.applyEditOps?.(pendingOps.assetPath, pendingOps.ops)) {
+          console.log(`[BlueprintEditor] 重建后消费暂存 ops（就地应用）: ${assetPath}`)
         }
       }
     }

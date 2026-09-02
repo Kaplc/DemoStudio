@@ -1,26 +1,26 @@
 <widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
   <style>
-    .TopBar { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; }
-    .TopBarWood { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; background-color: #22160cd9; }
-    .GoldPill { width: 500px; height: 124px; position: absolute; left: 34px; top: 23px; z-index: 1; background-color: #6b4a00; border-radius: 18px; }
-    .PillInner { width: 484px; height: 108px; position: absolute; left: 8px; top: 8px; background-color: #4a3020; border-radius: 14px; }
-    .GoldLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; font-size: 30px; color: #ffd700; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .ElixirPill { width: 500px; height: 124px; position: absolute; left: 560px; top: 23px; z-index: 1; background-color: #5a1f7a; border-radius: 18px; }
-    .ElixirLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; font-size: 30px; color: #b24cff; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .GemPill { width: 420px; height: 110px; position: absolute; left: 1086px; top: 30px; z-index: 1; background-color: #1b4d2e; border-radius: 18px; }
-    .GemLabel { width: 380px; height: 70px; position: absolute; left: 24px; top: 20px; font-size: 28px; color: #7cffb2; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .TitleLabel { width: 1000px; height: 100px; position: absolute; left: 460px; top: 35px; z-index: 2; font-size: 34px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #000000a6; }
-    .HintLabel { width: 420px; height: 70px; position: absolute; left: 1460px; top: 50px; z-index: 2; font-size: 20px; color: #f5e6c8; text-align: center; text-shadow: 0px 1px 4px #0000008c; }
-    .ActionBar { width: 1920px; height: 150px; position: absolute; left: 0px; top: 930px; }
-    .ActionDock { width: 1920px; height: 150px; position: absolute; left: 0px; top: 0px; background-color: #22160cd9; }
-    .Btn_build { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 465px; top: 13px; z-index: 4; background-color: #ffae00; border-radius: 18px; }
-    .Label_build { width: 200px; height: 60px; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
-    .Btn_tasks { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 740px; top: 13px; z-index: 4; background-color: #64b5f6; border-radius: 18px; }
-    .Label_tasks { width: 200px; height: 60px; font-size: 26px; color: #0d253f; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
-    .Btn_gemShop { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1015px; top: 13px; z-index: 4; background-color: #9c27b0; border-radius: 18px; }
-    .Label_gemShop { width: 200px; height: 60px; font-size: 26px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .Btn_map { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1290px; top: 13px; z-index: 4; background-color: #ffae00; border-radius: 18px; }
-    .Label_map { width: 200px; height: 60px; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+    .TopBar { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; z-index: 1; }
+    .TopBarWood { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; z-index: 2; background-color: #22160cd9; }
+    .GoldPill { width: 500px; height: 124px; position: absolute; left: 34px; top: 23px; z-index: 3; background-color: #6b4a00; border-radius: 18px; }
+    .PillInner { width: 484px; height: 108px; position: absolute; left: 8px; top: 8px; z-index: 4; background-color: #4a3020; border-radius: 14px; }
+    .GoldLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; z-index: 5; font-size: 30px; color: #ffd700; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 5; }
+    .ElixirPill { width: 500px; height: 124px; position: absolute; left: 560px; top: 23px; z-index: 6; background-color: #5a1f7a; border-radius: 18px; }
+    .ElixirLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; z-index: 7; font-size: 30px; color: #e4c3fe; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 7; }
+    .GemPill { width: 420px; height: 110px; position: absolute; left: 1086px; top: 30px; z-index: 8; background-color: #1b4d2e; border-radius: 18px; }
+    .GemLabel { width: 380px; height: 70px; position: absolute; left: 24px; top: 20px; z-index: 9; font-size: 28px; color: #7cffb2; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 9; }
+    .TitleLabel { width: 1000px; height: 100px; position: absolute; left: 460px; top: 35px; z-index: 10; font-size: 34px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #000000a6; z-index: 10; }
+    .HintLabel { width: 420px; height: 70px; position: absolute; left: 1460px; top: 50px; z-index: 11; font-size: 20px; color: #f5e6c8; text-align: center; text-shadow: 0px 1px 4px #0000008c; z-index: 11; }
+    .ActionBar { width: 1920px; height: 150px; position: absolute; left: 0px; top: 930px; z-index: 12; }
+    .ActionDock { width: 1920px; height: 150px; position: absolute; left: 0px; top: 0px; z-index: 13; background-color: #22160cd9; }
+    .Btn_build { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 466px; top: 13px; z-index: 14; background-color: #ffae00; border-radius: 18px; }
+    .Label_build { width: 200px; height: 60px; z-index: 15; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 15; }
+    .Btn_tasks { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 740px; top: 13px; z-index: 16; background-color: #64b5f6; border-radius: 18px; }
+    .Label_tasks { width: 200px; height: 60px; z-index: 17; font-size: 26px; color: #0d253f; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 17; }
+    .Btn_gemShop { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1016px; top: 13px; z-index: 18; background-color: #9c27b0; border-radius: 18px; }
+    .Label_gemShop { width: 200px; height: 60px; z-index: 19; font-size: 26px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; z-index: 19; }
+    .Btn_map { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1290px; top: 13px; z-index: 20; background-color: #ffae00; border-radius: 18px; }
+    .Label_map { width: 200px; height: 60px; z-index: 21; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 21; }
   </style>
     <div class="TopBar">
       <div class="TopBarWood"></div>

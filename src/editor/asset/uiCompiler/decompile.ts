@@ -382,7 +382,7 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       if (p.radius) decls.push(`border-radius: ${fmtNum(Number(p.radius))}px`)
       if (p.opacity !== undefined && Number(p.opacity) !== 1) decls.push(`opacity: ${fmtNum(Number(p.opacity))}`)
       if (p.zOrder !== undefined && Number(p.zOrder) !== 0 && zOrder === 0) decls.push(`z-index: ${Number(p.zOrder)}`)
-      if (p.hitTest === 'hitTestInvisible') decls.push('pointer-events: none')
+      // hitTest 不从功能块反解：命中测试唯一归属 Canvas marker 块（上方 markerProps 通道）
     }
 
     if (btn) {

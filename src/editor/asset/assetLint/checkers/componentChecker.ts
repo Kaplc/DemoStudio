@@ -258,7 +258,6 @@ class UITextComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.fontSizeScale', type: 'number', min: 0, minExclusive: true, label: '字号世界系数（持久化派生值）' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -275,7 +274,6 @@ class UITextInputComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -343,7 +341,6 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.width', type: 'number', min: 1, label: 'Canvas 像素宽' },
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
-    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（继承 CanvasUIComponent）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

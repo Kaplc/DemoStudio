@@ -28,6 +28,7 @@ import { TransformGizmo } from '../TransformGizmo'
 import { AnchorGizmo } from '../AnchorGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
 import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
+import { runOp as ops_runOp } from '../blueprintEdit/BlueprintEditorService'
 import { UndoManager } from '../blueprintEdit/UndoManager'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
@@ -1183,6 +1184,67 @@ export class UIPreviewManager {
     if (!data) return
     await BlueprintEditorService.updateFromPreview(diskPath, data as unknown as BlueprintAsset)
   }
+
+  // ════════════════════════════════════════
+  //  属性编辑快速通道（服务层 applyBatch 成功后广播 → 本管理器就地应用，免销毁重建）
+  // ════════════════════════════════════════
+
+  /**
+   * 就地应用一批蓝图编辑 ops（属性编辑快速通道，BlueprintEditor bump 重建的替代路径）。
+   * 返回 true 表示已完整应用，BlueprintEditor 应跳过本次销毁重建；
+   * 返回 false 表示无法安全就地应用（结构类 op / 未加载 / 路径不匹配），调用方走常规重建。
+   *
+   * 实现策略与 undo/redo 的 _applySnapshotInPlace 完全同源：
+   *  - 结构类 op（增删节点/组件/重命名/replace）→ 直接回退重建（树身份变化，就地应用风险大于收益）
+   *  - 属性类 op → 把 ops 逐个应用到 _jsonTree（复用服务层 runOp 同一套 ops 实现），
+   *    再把 _jsonTree 整体交给 _applySnapshotInPlace 回写到活动 Actor。
+   */
+  applyEditOps(
+    assetPath: string,
+    ops: ReadonlyArray<{ op: string; params: Record<string, unknown> }>,
+  ): boolean {
+    const key = diskPathToAssetKey(assetPath)
+    if (this._currentWidgetKey !== key || !this._jsonTree || !this._actorJsonMap) return false
+    // 结构类 op：树身份会变，回退常规重建路径
+    const STRUCTURAL = new Set([
+      'addComponent', 'removeComponent', 'addChild', 'addChildToParent', 'addChildToParentById',
+      'updateChild', 'removeChild', 'removeChildDeep', 'removeChildById',
+      'renameChildDeep', 'renameChildById', 'setBaseClass', 'replace',
+    ])
+    if (ops.some((o) => STRUCTURAL.has(o.op))) return false
+    // 属性类 op 白名单：其余 op 一律回退（含未识别 op，安全兜底）
+    const PROPAGATE = new Set(['setComponentProps', 'setChildComponentProps', 'setPosition', 'setRotation', 'setScale'])
+    if (!ops.every((o) => PROPAGATE.has(o.op))) return false
+
+    const before = JSON.stringify(this._jsonTree)
+    // 把 ops 逐个应用到 _jsonTree 深拷贝（与 undo/redo 的快照输入约定一致，防同引用污染）
+    let tree = JSON.parse(JSON.stringify(this._jsonTree)) as Record<string, unknown>
+    for (const { op, params } of ops) {
+      const res = ops_runOp(tree as unknown as BlueprintAsset, op, params ?? {})
+      if (!res.ok || !res.asset) {
+        logger.warn(`[UIPreview] 快速通道 op 被拒（回退重建）: ${op} → ${key}: ${res.error}`)
+        return false
+      }
+      tree = res.asset as unknown as Record<string, unknown>
+    }
+    if (JSON.stringify(tree) === before) {
+      logger.info(`[UIPreview] 快速通道内容无变化，跳过: ${key}`)
+      return true
+    }
+    // 原地回写到活动 Actor（复用 undo/redo 同一机制：按节点名匹配 + 组件 editableProperty set）
+    const applied = this._applySnapshotInPlace(JSON.parse(JSON.stringify(tree)))
+    if (!applied) {
+      logger.info(`[UIPreview] 快速通道原地应用失败（回退重建）: ${key}`)
+      return false
+    }
+    // 撤回基准推进到应用后状态（避免 undo 栈出现"回到同一状态"的空档）
+    this._lastCommitted = JSON.parse(JSON.stringify(tree))
+    // 同步服务层工作副本（不写盘、不 bump）
+    void this.syncWorkingCopy()
+    logger.info(`[UIPreview] 快速通道就地应用 ${ops.length} ops: ${key}`)
+    return true
+  }
+
 
   // ════════════════════════════════════════
   //  大纲右键结构编辑（按 Actor 引用定位父节点，复用快照撤销 + bump 重建预览）

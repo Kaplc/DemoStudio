@@ -11,126 +11,16 @@ import { ScenePreviewManager } from '../editor/asset/ScenePreviewManager'
 import { NODE3D_TEMPLATES, UI_TEMPLATES, cloneTemplateComponents } from '../editor/blueprintEdit/nodeTemplates'
 import type { NodeTemplate } from '../editor/blueprintEdit/nodeTemplates'
 import { OutlineContextMenu } from './OutlineContextMenu'
+import {
+  applyCollapse,
+  collectKeysWithChildren,
+  computeStableKeys,
+  filterOutlineTree,
+  useDefaultCollapsed,
+} from './outlineCore'
 import { logger } from '../engine'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
-
-/** 折叠过滤后的行：节点 + 折叠 key + 是否有子节点 + 是否折叠 */
-interface OutlineRow {
-  node: SceneTreeNode
-  /** 折叠 key（kind 前缀 + actor root id），避免不同树/页签互相干扰 */
-  key: string
-  hasChildren: boolean
-  collapsed: boolean
-}
-
-/**
- * 应用折叠过滤：跳过被折叠节点的所有后辈，并标注每行的箭头状态。
- * collapsedKeys 为空 → 全部展开（默认）。
- */
-function applyCollapse(tree: SceneTreeNode[], collapsedKeys: Set<string>, kind: string): OutlineRow[] {
-  const rows: OutlineRow[] = []
-  // 折叠祖先的 depth 栈（用于跳过其子树）
-  const foldStack: number[] = []
-  for (let i = 0; i < tree.length; i++) {
-    const node = tree[i]
-    // 离开折叠祖先的子树时弹出（当前 depth <= 祖先 depth）
-    while (foldStack.length && foldStack[foldStack.length - 1] >= node.depth) foldStack.pop()
-    if (foldStack.length) continue
-    const key = node.actor ? `${kind}:${node.actor.root.id}` : `${kind}-node-${i}`
-    const hasChildren = i + 1 < tree.length && tree[i + 1].depth > node.depth
-    const collapsed = hasChildren && collapsedKeys.has(key)
-    rows.push({ node, key, hasChildren, collapsed })
-    if (collapsed) foldStack.push(node.depth)
-  }
-  return rows
-}
-
-/** 模糊匹配：空格分段全部命中（大小写不敏感子串） */
-export function matchesQuery(name: string, q: string): boolean {
-  if (!q) return true
-  const lower = name.toLowerCase()
-  return q.split(/\s+/).filter(Boolean).every((w) => lower.includes(w))
-}
-
-/** 搜索过滤后的行：节点 + 原树索引 + 是否有子节点（原树口径） */
-export interface FilteredOutlineRow {
-  node: SceneTreeNode
-  /** 原树索引（无 actor 节点生成稳定 key 用） */
-  index: number
-  hasChildren: boolean
-}
-
-/**
- * 模糊搜索过滤（先序扁平树）：保留名称命中的节点及其祖先链。
- * 返回行保持先序；hasChildren 按原树相邻深度判断。
- * 搜索模式下调用方应忽略折叠状态（结果全展开）。
- */
-export function filterOutlineTree(tree: SceneTreeNode[], q: string): FilteredOutlineRow[] {
-  const all: FilteredOutlineRow[] = tree.map((node, i) => ({
-    node,
-    index: i,
-    hasChildren: i + 1 < tree.length && tree[i + 1].depth > node.depth,
-  }))
-  if (!q) return all
-  // 正向一遍找父索引（最近一个 depth 更小的前驱）
-  const parent = new Array<number>(tree.length).fill(-1)
-  const stack: number[] = []
-  for (let i = 0; i < tree.length; i++) {
-    while (stack.length && tree[stack[stack.length - 1]].depth >= tree[i].depth) stack.pop()
-    parent[i] = stack.length ? stack[stack.length - 1] : -1
-    stack.push(i)
-  }
-  // 后向传播：命中节点标记其祖先链
-  const keep = new Array<boolean>(tree.length).fill(false)
-  for (let i = tree.length - 1; i >= 0; i--) {
-    if (matchesQuery(tree[i].name, q)) keep[i] = true
-    if (keep[i] && parent[i] >= 0) keep[parent[i]] = true
-  }
-  return all.filter((_, i) => keep[i])
-}
-
-/** 收集树中所有"有子节点"的折叠 key（与 applyCollapse 的 key 规则一致） */
-export function collectKeysWithChildren(tree: SceneTreeNode[], kind: string): string[] {
-  const keys: string[] = []
-  for (let i = 0; i < tree.length; i++) {
-    const node = tree[i]
-    if (i + 1 < tree.length && tree[i + 1].depth > node.depth) {
-      keys.push(node.actor ? `${kind}:${node.actor.root.id}` : `${kind}-node-${i}`)
-    }
-  }
-  return keys
-}
-
-/**
- * 默认折叠 hook：keysWithChildren 中首次出现的 key 自动折叠（新树/新节点默认收起）；
- * 已见过的 key 不重置 —— 用户手动展开后，树刷新不会折叠回去。
- */
-export function useDefaultCollapsed(
-  keysWithChildren: string[],
-): [Set<string>, (key: string) => void] {
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
-  const seenRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    const fresh = keysWithChildren.filter((k) => !seenRef.current.has(k))
-    if (fresh.length === 0) return
-    for (const k of fresh) seenRef.current.add(k)
-    setCollapsedKeys((prev) => {
-      const next = new Set(prev)
-      for (const k of fresh) next.add(k)
-      return next
-    })
-  }, [keysWithChildren])
-  const toggleCollapsed = useCallback((key: string) => {
-    setCollapsedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-  return [collapsedKeys, toggleCollapsed]
-}
 
 /** 折叠箭头：有子节点显示可点击箭头（▼ 展开态点击折叠 / ▶ 折叠态点击展开），无子节点显示占位对齐 */
 function TreeArrow({
@@ -197,16 +87,18 @@ function renderActorTreeNodes(
   kind: 'blueprint' | 'scenePreview',
   collapsedKeys: Set<string>,
   onToggle: (key: string) => void,
-  hiddenKeys: Set<number>,
-  onToggleHidden: (actor: Actor, hidden: boolean) => void,
+  hiddenKeys: Set<string>,
+  onToggleHidden: (stableKey: string, actor: Actor, hidden: boolean) => void,
   onContextMenu?: (e: React.MouseEvent, node: SceneTreeNode) => void,
   filterQuery = '',
 ): React.ReactElement[] {
+  // 每行稳定 key（kind + 父链路径 + 节点名）：跨预览重建保持折叠/展开/眼睛状态
+  const stableKeys = computeStableKeys(tree, kind)
   // 搜索模式：过滤命中节点 + 祖先链，忽略折叠（全展开）
   const rows = filterQuery
     ? filterOutlineTree(tree, filterQuery).map((r) => ({
         node: r.node,
-        key: r.node.actor ? `${kind}:${r.node.actor.root.id}` : `${kind}-node-${r.index}`,
+        key: stableKeys[r.index],
         hasChildren: r.hasChildren,
         collapsed: false,
       }))
@@ -215,11 +107,10 @@ function renderActorTreeNodes(
     const { node, key: itemKey, hasChildren, collapsed } = row
     // 防止 null === null：selected 为 null（无选中）时，无 actor 节点（DirectionalLight/Group 等）不能高亮
     const isSelected = selected !== null && selected === node.actor
-    const hidden = node.actor ? hiddenKeys.has(node.actor.root.id) : false
-    const key = node.actor ? node.actor.root.id : `${kind}-node-${i}`
+    const hidden = node.actor ? hiddenKeys.has(itemKey) : false
     return (
       <div
-        key={key}
+        key={itemKey}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -282,7 +173,7 @@ function renderActorTreeNodes(
           <TreeEye
             hidden={hidden}
             disabled={false}
-            onToggle={() => onToggleHidden(node.actor!, !hidden)}
+            onToggle={() => onToggleHidden(itemKey, node.actor!, !hidden)}
           />
         )}
       </div>
@@ -300,17 +191,17 @@ export function Outline({ query = '' }: { query?: string }) {
   const blueprintEditNonce = useEditorStore((s) => s.blueprintEditNonce)
   /** 游戏运行中禁用眼睛隐藏（运行时的场景归游戏 World 所有，隐藏会干扰运行表现） */
   const gameRunning = useEditorStore((s) => s.gameState.running)
-  /** 大纲眼睛隐藏的节点（actor root id）。仅预览不渲染，资产与游戏运行不受影响 */
-  const [hiddenKeys, setHiddenKeys] = useState<Set<number>>(new Set())
-  const toggleHidden = useCallback((actor: Actor, hidden: boolean) => {
-    const id = actor.root.id
+  /** 大纲眼睛隐藏的节点（稳定 key：kind + 父链路径 + 节点名）。仅预览不渲染，资产与游戏运行不受影响 */
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set())
+  const toggleHidden = useCallback((stableKey: string, actor: Actor, hidden: boolean) => {
     // 走 Actor 提供的临时隐藏入口：不动 active/资产，只改预览显隐；
-    // 与 CanvasUIComponent.active / Actor.bActive 解耦，切换 active 时仍保持大纲预览意图
+    // 与 CanvasUIComponent.active / Actor.bActive 解耦，切换 active 时仍保持大纲预览意图。
+    // 隐藏状态按稳定 key 记录，预览重建（新 Actor 实例）后按名重放，不再随 root.id 丢失。
     actor.setPreviewHidden(hidden)
     setHiddenKeys((prev) => {
       const next = new Set(prev)
-      if (hidden) next.add(id)
-      else next.delete(id)
+      if (hidden) next.add(stableKey)
+      else next.delete(stableKey)
       return next
     })
   }, [])
@@ -407,25 +298,27 @@ export function Outline({ query = '' }: { query?: string }) {
 
   // ─── 缓存：Scene 树渲染元素 ───
   const sceneTreeElements = useMemo(() => {
+    // 每行稳定 key（kind + 父链路径 + 节点名）：跨重建保持折叠/展开/眼睛状态
+    const stableKeys = computeStableKeys(visibleTree, 'scene')
     // 搜索模式：过滤命中节点 + 祖先链，忽略折叠（全展开）
     const rows = filterQuery
       ? filterOutlineTree(visibleTree, filterQuery).map((r) => ({
           node: r.node,
-          key: r.node.actor ? `scene:${r.node.actor.root.id}` : `scene-node-${r.index}`,
+          key: stableKeys[r.index],
           hasChildren: r.hasChildren,
           collapsed: false,
         }))
       : applyCollapse(visibleTree, collapsedKeys, 'scene')
     if (rows.length === 0) return null
-    return rows.map((row, i) => {
+    return rows.map((row) => {
       const { node, key: itemKey, hasChildren, collapsed } = row
       // 防止 null === null：selected 为 null（无选中）时，无 actor 节点不能高亮
       const isSelected = selected !== null && selected === node.actor
-      const hidden = node.actor ? hiddenKeys.has(node.actor.root.id) : false
+      const hidden = node.actor ? hiddenKeys.has(itemKey) : false
       const isBlueprint = !!node.actor?.blueprintRef
       return (
         <div
-          key={node.actor ? node.actor.root.id : 'node-' + i}
+          key={itemKey}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -476,7 +369,7 @@ export function Outline({ query = '' }: { query?: string }) {
             <TreeEye
               hidden={hidden}
               disabled={gameRunning}
-              onToggle={() => toggleHidden(node.actor!, !hidden)}
+              onToggle={() => toggleHidden(itemKey, node.actor!, !hidden)}
             />
           )}
         </div>
