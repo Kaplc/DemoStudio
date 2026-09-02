@@ -20,11 +20,11 @@
     <div class="GM_PanelFrame"></div>
     <div class="GM_Panel">
       <text class="GM_Title">⚔️ ClashMaster GM 控制台</text>
-          <input class="GM_SearchInput" placeholder="🔍 搜索命令（名称/描述）..." />
-          <div class="GM_CmdList" data-comp="UIScrollList" data-props='{&quot;itemWidget&quot;:&quot;asset/blueprints/ui/gm_cmd_item.blueprint.json&quot;,&quot;itemSize&quot;:[2.7,0.24],&quot;spacing&quot;:0.02,&quot;zOrderLift&quot;:0,&quot;draggable&quot;:true,&quot;scrollbar&quot;:true}'></div>
-          <text class="GM_Output"></text>
+          <input class="GM_SearchInput" placeholder="🔍 搜索命令（名称/描述）..." data-comp="UITextInput" data-props='{"name":"GM_SearchInput"}' />
+          <div class="GM_CmdList" data-comp="UIScrollList" data-props='{&quot;itemWidget&quot;:&quot;asset/blueprints/ui/gm_cmd_item.widget.json&quot;,&quot;itemSize&quot;:[2.7,0.24],&quot;spacing&quot;:0.02,&quot;zOrderLift&quot;:0,&quot;draggable&quot;:true,&quot;scrollbar&quot;:true}'></div>
+          <text class="GM_Output" data-comp="UIText" data-props='{"name":"GM_OutputText"}'></text>
           <text class="GM_Hint">Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板</text>
-          <input class="GM_InputBox" placeholder="输入 GM 命令（help 查看全部）..." />
+          <input class="GM_InputBox" placeholder="输入 GM 命令（help 查看全部）..." data-comp="UITextInput" data-props='{"name":"GM_InputText"}' />
           <button class="GM_SendBtn" data-comp="Clickable" data-props='{}'>
         <div class="SendText">
           <text class="SendLabel">发送</text>

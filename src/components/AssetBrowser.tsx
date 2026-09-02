@@ -152,6 +152,11 @@ function matchesQuery(name: string, q: string): boolean {
   return q.split(/\s+/).filter(Boolean).every((w) => lower.includes(w))
 }
 
+/** json 类资产的树显示名：只去掉 .json 后缀（xxx.scene.json → xxx.scene、xxx.widget.json → xxx.widget），非 json 文件保留原名 */
+function displayName(node: TreeNode): string {
+  return node.name.replace(/\.json$/i, '')
+}
+
 /** 递归收集目录折叠 key（与渲染层 key 规则一致） */
 function collectDirKeys(nodes: TreeNode[], out: string[] = []): string[] {
   for (const n of nodes) {
@@ -178,7 +183,7 @@ function filterAssetTree(nodes: TreeNode[], q: string): TreeNode[] {
       }
       const children = filterAssetTree(n.children, q)
       if (children.length > 0) out.push({ ...n, children })
-    } else if (matchesQuery(n.name, q)) {
+    } else if (matchesQuery(displayName(n), q)) {
       out.push(n)
     }
   }
@@ -652,7 +657,7 @@ export function AssetBrowser({ query = '' }: { query?: string }) {
         onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
         title={node.path}
       >
-        {node.kind?.icon} {node.name}
+        {node.kind?.icon} {displayName(node)}
       </div>
     )
   }

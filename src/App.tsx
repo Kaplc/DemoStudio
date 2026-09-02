@@ -160,7 +160,6 @@ export default function App() {
       <StatusBar
         renderFps={appInfo.renderFps}
         logicFps={appInfo.logicFps}
-        projectName={appInfo.project}
       />
       {/* codeLint tips 悬浮面板（fixed 定位，状态栏上方，不占布局） */}
       <CodeLintPanel />

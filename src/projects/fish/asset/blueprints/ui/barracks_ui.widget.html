@@ -1,4 +1,4 @@
-<widget name="BarracksPanel" canvas="1920x1080" world="9.6x5.4">
+<widget name="BarracksPanel" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BarracksUi">
   <style>
     .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 960px; top: 540px; z-index: 1; background-color: #0c0602b8; opacity: 0.72; }
     .Panel { width: 1520px; height: 1000px; position: absolute; left: 960px; top: 540px; z-index: 2; background-color: #8a6a3a; border-radius: 24px; }
@@ -20,7 +20,7 @@
           <div class="TitleAccent"></div>
           <text class="Title">⚔️ 兵营</text>
           <text class="Desc">选择兵种训练</text>
-          <div class="TroopList"></div>
+          <div class="TroopList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:5,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.15,&quot;autoLayout&quot;:true}'></div>
           <text class="QueueLabel">训练队列: 空闲</text>
           <text class="ArmyLabel">当前军队: 无</text>
           <text class="CapacityLabel">军队容量: 0/40</text>

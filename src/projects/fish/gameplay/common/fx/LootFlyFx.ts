@@ -6,7 +6,7 @@
  *
  * 流程：
  *  1. 世界坐标 → UI 坐标投影（相机 project → NDC → UI 画布坐标，16:9 标准映射）
- *  2. spawnUIActor('asset/blueprints/ui/loot_fly.blueprint.json') 生成圆形小圆点
+ *  2. spawnUIActor('asset/blueprints/ui/loot_fly.widget.json') 生成圆形小圆点
  *  3. 设置颜色（金币金 #fbc02d / 圣水紫 #8e24aa）+ 起点 anchorOffset
  *  4. TweenSystem 弧线飞行 0.6s（抛物线：x 线性 + y 上抛）到达顶部栏
  *  5. 到达后销毁 + 回调 onArrive（调用方刷新顶部数字）
@@ -20,8 +20,8 @@ import * as THREE from 'three'
 import { TweenSystem, UITransformComponent, UIImageComponent, CanvasUIComponent, logger, GameInstance } from '@/engine'
 import type { World, Actor } from '@/engine'
 
-/** 飞行物蓝图路径（圆形小圆点，颜色运行时设置） */
-const FLY_WIDGET = 'asset/blueprints/ui/loot_fly.blueprint.json'
+/** 飞行物 widget 路径（圆形小圆点在 Fly 子节点，颜色运行时设置） */
+const FLY_WIDGET = 'asset/blueprints/ui/loot_fly.widget.json'
 
 /** UI 画布半宽/半高（画布 9.6×5.4，中心为原点；NDC → UI 坐标映射基准） */
 const UI_HALF_W = 4.8
@@ -93,8 +93,9 @@ export class LootFlyFx {
       options.onArrive?.()
       return
     }
-    // 颜色：UIImageComponent.color（蓝图默认金，圣水改紫）
-    const image = actor.getComponent(UIImageComponent)
+    // 颜色：UIImageComponent.color（widget 管线圆点在 Fly 子节点，默认金，圣水改紫）
+    const flyImageActor = actor.getChildren().find((c) => c.root.name === 'Fly') ?? actor
+    const image = flyImageActor.getComponent(UIImageComponent)
     if (image) image.color = KIND_COLOR[kind]
 
     const [sx, sy] = fromUi

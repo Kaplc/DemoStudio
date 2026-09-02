@@ -1,0 +1,101 @@
+{
+  "name": "DamageNumber",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-294e7939",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 0.8,
+        "worldHeight": 0.4
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 160,
+        "height": 80,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "DamageText",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 0.8,
+            "worldHeight": 0.4,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "0",
+            "name": "DamageText",
+            "width": 160,
+            "height": 80,
+            "fontSize": 40,
+            "color": "#ffffff",
+            "align": "center",
+            "bold": true,
+            "shadowColor": "#00000099",
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "shadowBlur": 6
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

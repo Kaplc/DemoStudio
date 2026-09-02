@@ -17,7 +17,7 @@
  *
  * 资产配置示例：
  *   { "baseClass": "UIScrollListComponent", "properties": {
- *       "itemWidget": "asset/blueprints/ui/troop_card.blueprint.json",
+ *       "itemWidget": "asset/blueprints/ui/troop_card.widget.json",
  *       "itemSize": [1.2, 0.5], "spacing": 0.15, "visibleCount": 5, "draggable": true } }
  *
  * 用法（脚本）：

@@ -32,6 +32,7 @@ import {
   AI_EVENT_KEY_PRESS,
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
+  AI_EVENT_GET_SCENE_OUTLINE,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -53,6 +54,8 @@ import {
   type AIActorInfo,
   type AIGameStateSnapshot,
   type AIHUDNode,
+  type AISceneOutlineNode,
+  type AIGetSceneOutlinePayload,
 } from './AIEvents'
 import { logger } from '../Logger'
 import * as THREE from 'three'
@@ -124,6 +127,7 @@ const BUILTIN_EVENTS = [
   AI_EVENT_KEY_PRESS,
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
+  AI_EVENT_GET_SCENE_OUTLINE,
 ]
 
 /**
@@ -779,6 +783,54 @@ export function registerBuiltinAIHandlers(): void {
 
     logger.info(`[AI] getHUD: ${uiActors.length} 个根 UI Actor`)
     return { ok: true, hud: hudTree }
+  })
+
+  // ─── ai.getSceneOutline — 获取场景完整 Actor 大纲（3D + UI 树，供 AI 测试定位） ───
+  ai.register(AI_EVENT_GET_SCENE_OUTLINE, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AIGetSceneOutlinePayload
+    const maxDepth = typeof p.maxDepth === 'number' && p.maxDepth > 0 ? Math.floor(p.maxDepth) : 6
+    const activeOnly = p.activeOnly === true
+
+    /** 递归构建大纲节点（超深截断，组件只返回类型名摘要） */
+    const buildOutline = (actor: import('../entity/Actor').Actor, depth: number): AISceneOutlineNode => {
+      const node: AISceneOutlineNode = {
+        name: actor.root.name || actor.name,
+        type: actor.constructor.name,
+        active: actor.bActive,
+        components: actor.getAllComponents().map((c) => c.constructor.name),
+        children: [],
+      }
+      if (depth >= maxDepth) return node
+      for (const child of actor.getChildren()) {
+        if (activeOnly && !child.bActive) continue
+        node.children.push(buildOutline(child, depth + 1))
+      }
+      return node
+    }
+
+    const outline: AISceneOutlineNode[] = []
+    // 去重：UI Actor 可能同时挂在 3D 根（HUD）下与 UIManager 根列表中，避免重复列出
+    const visited = new Set<unknown>()
+    // 3D Actor（ActorUtils 全局列表）
+    for (const a of getAllActors()) {
+      if (visited.has(a)) continue
+      visited.add(a)
+      if (activeOnly && !a.bActive) continue
+      outline.push(buildOutline(a, 0))
+    }
+    // UI Actor（UIManager 独立管理，跳过已列出的）
+    const uiActors = world.ui.getAllUIActors()
+    for (const a of uiActors) {
+      if (visited.has(a)) continue
+      visited.add(a)
+      if (activeOnly && !a.bActive) continue
+      outline.push(buildOutline(a, 0))
+    }
+
+    logger.info(`[AI] getSceneOutline: ${getAllActors().length} 个 3D Actor + ${uiActors.length} 个 UI 根 Actor`)
+    return { ok: true, outline }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

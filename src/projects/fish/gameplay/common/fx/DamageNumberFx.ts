@@ -5,7 +5,7 @@
  *   DamageNumberFx.show(world, x, y, value, { color: '#ffd700', type: 'critical' })
  *
  * 流程：
- *  1. spawnUIActor('asset/blueprints/ui/damage_number.blueprint.json') 生成数字卡片
+ *  1. spawnUIActor('asset/blueprints/ui/damage_number.widget.json') 生成数字卡片
  *  2. 填充数值文本（DamageText 子节点）+ 颜色（普通白 / 暴击黄 / 治疗绿）
  *  3. TweenSystem 上浮（y +0.6）+ 淡出，完成后销毁
  *
@@ -25,7 +25,7 @@ export interface DamageNumberOptions {
   duration?: number
 }
 
-const DAMAGE_WIDGET = 'asset/blueprints/ui/damage_number.blueprint.json'
+const DAMAGE_WIDGET = 'asset/blueprints/ui/damage_number.widget.json'
 
 const TYPE_COLOR = {
   normal: '#ffffff',
@@ -51,8 +51,9 @@ export class DamageNumberFx {
     const tsf = actor.getComponent(UITransformComponent)
     if (tsf) tsf.anchorOffset = [x, y]
 
-    // 2. 文本 + 颜色（critical 放大字号）
-    const textComp = actor.getComponent(UITextComponent)
+    // 2. 文本 + 颜色（critical 放大字号）——widget 管线文本在 DamageText 子节点
+    const textActor = actor.getChildren().find((c) => c.root.name === 'DamageText') ?? actor
+    const textComp = textActor.getComponent(UITextComponent)
     if (textComp) {
       textComp.text = String(Math.round(value))
       textComp.color = options.color ?? TYPE_COLOR[type]

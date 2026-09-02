@@ -4,7 +4,7 @@
  * 通过 UIScriptComponent 挂载到 base_map.widget.json 的根节点：
  *  1. 关闭按钮（Btn_mapClose）→ FishBaseGameMode.closeMapPanel()
  *  2. 读取关卡配置表（fish.levels）动态生成关卡卡片：
- *     每个关卡 → world.ui.spawnUIActor('asset/blueprints/ui/level_card.blueprint.json')
+ *     每个关卡 → world.ui.spawnUIActor('asset/blueprints/ui/level_card.widget.json')
  *     生成后改名 Level_{id}、填充名称/星级/描述文本、按配置表 pos 定位
  *     （anchor=center + anchorOffset=pos，地图节点位置可配置）、绑定点击
  *     → FishGameInstance.enterLevel(id)（切换 game 阶段 + 加载关卡场景）
@@ -26,8 +26,8 @@ import type { Actor } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
-/** 关卡卡片蓝图路径（相对 src/projects/，由 BlueprintRegistry 注册） */
-const LEVEL_CARD_BLUEPRINT = 'asset/blueprints/ui/level_card.blueprint.json'
+/** 关卡卡片 widget 路径（相对 src/projects/，由 BlueprintRegistry 注册） */
+const LEVEL_CARD_BLUEPRINT = 'asset/blueprints/ui/level_card.widget.json'
 
 /** 在 Actor 子树中按 root.name 递归查找子 Actor */
 function findChild(actor: Actor, name: string): Actor | null {
@@ -107,7 +107,9 @@ export default class MapPanelScript extends BehaviourScript {
         }
 
         // 点击 → 进入关卡（GameInstance 阶段切换：加载关卡场景）；锁定 → 提示条件
-        const cardBtn = card.getComponent(UIButtonComponent)
+        // widget 管线：UIButton 在 CardButton 子节点上（兼容旧结构根上直挂）
+        const btnHost = findChild(card, 'CardButton') ?? card
+        const cardBtn = btnHost.getComponent(UIButtonComponent)
         if (cardBtn) {
           cardBtn.onClick = () => {
             if (!unlocked) {

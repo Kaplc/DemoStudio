@@ -22,7 +22,7 @@ import type { FishLevelGameMode } from '../level/FishLevelGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 兵种卡片蓝图路径（复用兵营训练卡片，相对 src/projects/，由 BlueprintRegistry 注册） */
-const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.blueprint.json'
+const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.widget.json'
 
 /** 兵种色数字 → CSS hex（如 0xe53935 → "#e53935"） */
 function colorToCss(color: number): string {

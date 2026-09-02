@@ -188,22 +188,6 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.status-dot.running {
-  background: var(--success);
-  box-shadow: 0 0 6px var(--success);
-}
-
-.status-dot.stopped {
-  background: var(--text-dim);
-}
-
 /* ═══ 下拉菜单 ═══ */
 
 .dropdown-menu {
@@ -524,7 +508,7 @@ html, body, #root {
 .status-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   height: var(--status-bar-height);
   padding: 0 12px;
   background: #1a2744;
@@ -533,7 +517,7 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-.status-left, .status-right {
+.status-right {
   display: flex;
   align-items: center;
   gap: 12px;

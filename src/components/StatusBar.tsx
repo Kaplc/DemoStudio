@@ -5,11 +5,10 @@ import { useCodeLintStore } from '../stores/useCodeLintStore'
 interface StatusBarProps {
   renderFps: number
   logicFps: number
-  projectName: string
 }
 
-export function StatusBar({ renderFps, logicFps, projectName }: StatusBarProps) {
-  const { gameState, consoleErrors, refreshConsoleErrors, clearConsoleErrors, consoleErrPanelOpen, setConsoleErrPanelOpen } = useEditorStore()
+export function StatusBar({ renderFps, logicFps }: StatusBarProps) {
+  const { consoleErrors, refreshConsoleErrors, clearConsoleErrors, consoleErrPanelOpen, setConsoleErrPanelOpen } = useEditorStore()
   const codeLintIssueCount = useCodeLintStore((s) => s.issues.length)
   const assetLintIssueCount = useCodeLintStore((s) => s.assetIssues.length)
   const codeLintOpen = useCodeLintStore((s) => s.panelOpen)
@@ -30,14 +29,6 @@ export function StatusBar({ renderFps, logicFps, projectName }: StatusBarProps) 
 
   return (
     <div className="status-bar">
-      <div className="status-left">
-        <span>{projectName}</span>
-        <span>|</span>
-        <span>
-          <span className={`status-dot ${gameState.running ? 'running' : 'stopped'}`} style={{ marginRight: 4 }} />
-          {gameState.running ? 'Running' : 'Stopped'}
-        </span>
-      </div>
       <div className="status-right">
         {/* 控制台报错/警告入口：有错误红色徽标（warning 有黄色小点），点击展开/收起报错面板 */}
         <span

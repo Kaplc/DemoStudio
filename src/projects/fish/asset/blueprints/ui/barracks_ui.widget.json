@@ -1,7 +1,7 @@
 {
   "name": "BarracksPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-cd6d34c8",
+  "sourceHash": "fnv1a-897433e0",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -33,6 +33,12 @@
         "name": "Canvas",
         "zOrder": 0,
         "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/base/BarracksUi"
       }
     }
   ],
@@ -406,6 +412,16 @@
                 "name": "UIMarker",
                 "zOrder": 7
               }
+            },
+            {
+              "baseClass": "UILayoutComponent",
+              "properties": {
+                "mode": "grid",
+                "columns": 5,
+                "spacingX": 0.15,
+                "spacingY": 0.15,
+                "autoLayout": true
+              }
             }
           ],
           "children": []
@@ -655,8 +671,8 @@
                     "worldHeight": 0.58,
                     "anchor": "top-left",
                     "anchorOffset": [
-                      -83,
-                      9.45
+                      -124.9,
+                      14.3
                     ],
                     "position": [
                       0,
@@ -708,8 +724,8 @@
                     "worldHeight": 0.4,
                     "anchor": "top-left",
                     "anchorOffset": [
-                      -83,
-                      9.45
+                      -124.9,
+                      14.3
                     ],
                     "position": [
                       0,

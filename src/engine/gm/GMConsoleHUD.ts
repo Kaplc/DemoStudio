@@ -1,15 +1,15 @@
 /**
  * GMConsoleHUD — GM 控制台面板基类（引擎级通用 UI）
  *
- * 继承 HUD（isUIActor 天然成立）。面板有两种构建方式：
- *  1. 资产驱动（推荐）：子类设置 `panelAssetPath` 指向项目 GM 面板 widget 资产
+ * 继承 HUD（isUIActor 天然成立）。面板为资产驱动（强制，fail-fast）：
+ *  1. 资产驱动（唯一路径）：子类设置 `panelAssetPath` 指向项目 GM 面板 widget 资产
  *     （通用节点，zOrder 写相对层级 0~3），基类 loadPanelFromAsset() 加载资产树
  *     挂到本根下（根 HUD 引用通用节点），统一加 GM_ZORDER_BASE 保证最顶层，并按
  *     组件 name 绑定输出区（GM_OutputText）与输入框（GM_InputText）。
- *  2. 程序化构建（兜底）：panelAssetPath 为空或资产缺失时，在 buildUI() 中拼装
- *     控件树（子类可覆写 buildUI 构建项目自己的风格面板）。
+ *  2. 资产缺失/解析失败/缺少关键组件 → 构造时直接抛错（不再回退程序化构建：
+ *     面板结构以资产为唯一事实源，双轨易腐烂出静默样式分叉）。
  *
- * 命令搜索：搜索框（资产 GM_SearchInput / 程序化 GM_SearchBox）输入时按
+ * 命令搜索：搜索框（资产 GM_SearchInput）输入时按
  * 名称/路径 id/描述模糊过滤命令列表（applySearchFilter，命中实时刷新 GM_CmdList）；
  * Tab 键在搜索框/输入框间切换焦点。
  *
@@ -21,18 +21,16 @@
  * handleInputKey() → 输入框 handleKey（Enter 提交执行、文本输入）；输出经 appendOutput。
  */
 import { HUD } from '../ui/HUD'
-import { GenericActor } from '../entity/GenericActor'
 import type { Actor } from '../entity/Actor'
-import { UITransformComponent, type AnchorPreset } from '../ui/UITransformComponent'
+import { UITransformComponent } from '../ui/UITransformComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
-import { UIImageComponent } from '../ui/UIImageComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScrollListComponent } from '../ui/UIScrollListComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { GMRegistry } from './GMRegistry'
-import { formatGMUsage, formatGMExecutable, type GMCommandDef } from './GMCommand'
+import { formatGMExecutable, type GMCommandDef } from './GMCommand'
 import { logger } from '../Logger'
 import type { GMModule } from './GMModule'
 
@@ -45,16 +43,14 @@ export const MAX_OUTPUT_LINES = 12
  * 基值 100 + 内部层级）都盖不过 GM 面板 —— GM 控制台始终最顶层。
  */
 export const GM_ZORDER_BASE = 1000
-/** GM 面板内文本层相对基数偏移（高于面板图片 rel 0~2） */
-export const GM_TEXT_LAYER = 3
 
 export class GMConsoleHUD extends HUD {
   /** 所属 GM 模块（执行命令/关闭面板） */
   protected readonly _gm: GMModule
 
   /**
-   * 面板 widget 资产路径（通用节点，推荐资产驱动）。
-   * null = 用程序化 buildUI() 构建（引擎默认样式）；设置后基类从资产加载控件树
+   * 面板 widget 资产路径（通用节点，资产驱动）。
+   * null = 拒绝构建（构造时直接抛错）；设置后基类从资产加载控件树
    * （资产 zOrder 写相对层级 0~3，加载后统一加 GM_ZORDER_BASE）。
    * 用 getter 而非实例字段：基类构造函数内读取时多态生效（子类字段在 super() 返回后才初始化）。
    */
@@ -62,7 +58,7 @@ export class GMConsoleHUD extends HUD {
     return null
   }
 
-  /** 就绪提示消息（buildUI / loadPanelFromAsset 共用，子类可覆写 getter） */
+  /** 就绪提示消息（loadPanelFromAsset 完成后输出，子类可覆写 getter） */
   protected get readyMessage(): string {
     return 'GM 控制台已就绪（输入 help 查看全部命令）'
   }
@@ -113,15 +109,13 @@ export class GMConsoleHUD extends HUD {
       hitTest: 'block',
     })
 
-    // 控件树：优先资产驱动（项目自定义面板），缺失回退程序化 buildUI
-    if (this.panelAssetPath) {
-      if (!this.loadPanelFromAsset()) {
-        logger.warn(`[GMConsoleHUD] 面板资产加载失败，回退程序化构建: ${this.panelAssetPath}`)
-        this.buildUI()
-      }
-    } else {
-      this.buildUI()
+    // 控件树：资产驱动强制（fail-fast）——未配置或加载失败都直接抛错，不静默回退
+    if (!this.panelAssetPath) {
+      throw new Error(
+        `[GMConsoleHUD] 未配置 panelAssetPath（GM 面板为资产驱动强制，请在子类指定 widget 资产路径）`,
+      )
     }
+    this.loadPanelFromAsset()
   }
 
   /** 所属 GM 模块（子类访问：执行命令等） */
@@ -130,128 +124,7 @@ export class GMConsoleHUD extends HUD {
   }
 
   /**
-   * 拼装面板控件树（子类覆写入口）。
-   * 默认实现：全屏遮罩 + 居中深色木纹面板 + 标题/命令列表/输出区/输入框/提示。
-   * 子类覆写时用 protected 工具 makeActor/makeText 与 gm/input/output 访问器，
-   * 保持 zOrder 基数（GM_ZORDER_BASE）与点击拦截（根画布已 block）。
-   */
-  protected buildUI(): void {
-    // ═══ 控件子树（attachTo 挂载，随根节点进出 UI 场景） ═══
-    // 遮罩：全屏半透明暖黑
-    const dim = this.makeActor('GM_Dim', { anchor: 'center', w: 9.6, h: 5.4, zOrder: 0 })
-    const dimImg = new UIImageComponent(dim, {
-      color: 'rgba(12,6,2,0.55)',
-      opacity: 0.55,
-      width: 1920,
-      height: 1080,
-    })
-    dimImg.zOrder = GM_ZORDER_BASE
-    dim.addComponent(dimImg)
-    dim.attachTo(this)
-
-    // 面板外框（黄铜色，大一圈露边）
-    const panelFrame = this.makeActor('GM_PanelFrame', { anchor: 'center', offset: [0, 0.1], w: 7.6, h: 4.2, zOrder: 1 })
-    const frameImg = new UIImageComponent(panelFrame, {
-      color: '#8a6a3a',
-      radius: 18,
-      width: 1520,
-      height: 840,
-    })
-    frameImg.zOrder = GM_ZORDER_BASE + 1
-    panelFrame.addComponent(frameImg)
-    panelFrame.attachTo(this)
-
-    // 面板内层（深木）
-    const panel = this.makeActor('GM_Panel', { anchor: 'center', offset: [0, 0.1], w: 7.4, h: 4.0, zOrder: 1 })
-    const panelImg = new UIImageComponent(panel, {
-      color: '#2c1d10',
-      radius: 12,
-      width: 1480,
-      height: 800,
-    })
-    panelImg.zOrder = GM_ZORDER_BASE + 1
-    panel.addComponent(panelImg)
-    panel.attachTo(this)
-
-    // 标题
-    const title = this.makeActor('GM_Title', { anchor: 'center', offset: [0, 1.9], w: 4, h: 0.45, zOrder: 2 })
-    title.addComponent(this.makeText(title, '⚙ GM 控制台', 30, '#f0a500', 600, 70, 'GM_TitleText'))
-    title.attachTo(this)
-
-    // 命令列表（左上，help 全量）
-    const help = this.makeActor('GM_Help', { anchor: 'center', offset: [-2.6, 0.1], w: 2.9, h: 2.4, zOrder: 2 })
-    const helpText = this.makeText(help, this.buildHelpText(), 15, '#f5e6c8', 560, 460, 'GM_HelpText')
-    help.addComponent(helpText)
-    help.attachTo(this)
-
-    // 输出区（右上，滚动窗口）
-    const output = this.makeActor('GM_Output', { anchor: 'center', offset: [1.6, 0.4], w: 4.4, h: 2.4, zOrder: 2 })
-    this._outputText = this.makeText(output, '', 15, '#a5d6a7', 860, 460, 'GM_OutputText')
-    output.addComponent(this._outputText)
-    output.attachTo(this)
-
-    // 输入框（中下：背景 + UITextInputComponent）
-    const inputBox = this.makeActor('GM_InputBox', { anchor: 'center', offset: [0, -1.35], w: 6.8, h: 0.5, zOrder: 2 })
-    const inputBoxImg = new UIImageComponent(inputBox, {
-      color: '#1a1108',
-      radius: 8,
-      width: 1360,
-      height: 96,
-    })
-    inputBoxImg.zOrder = GM_ZORDER_BASE + 2
-    inputBox.addComponent(inputBoxImg)
-    this._input = new UITextInputComponent(inputBox, {
-      placeholder: '输入 GM 命令（help 查看全部）...',
-      fontSize: 22,
-      color: '#f5e6c8',
-      width: 1360,
-      height: 96,
-      zOrder: GM_ZORDER_BASE + GM_TEXT_LAYER,
-      onSubmit: (line) => {
-        // Enter 提交：执行命令 → 回显 → 清空输入
-        this.submitInput()
-      },
-    })
-    inputBox.addComponent(this._input)
-    inputBox.attachTo(this)
-
-    // 搜索框（命令列表上方：名称/路径/描述模糊过滤）
-    const searchBox = this.makeActor('GM_SearchBox', { anchor: 'center', offset: [-2.6, 1.5], w: 2.9, h: 0.26, zOrder: 2 })
-    const searchBoxImg = new UIImageComponent(searchBox, {
-      color: '#1a1108',
-      radius: 8,
-      width: 580,
-      height: 52,
-    })
-    searchBoxImg.zOrder = GM_ZORDER_BASE + 2
-    searchBox.addComponent(searchBoxImg)
-    this._searchInput = new UITextInputComponent(searchBox, {
-      placeholder: '🔍 搜索命令（名称/描述）...',
-      fontSize: 15,
-      color: '#f5e6c8',
-      width: 580,
-      height: 52,
-      zOrder: GM_ZORDER_BASE + GM_TEXT_LAYER,
-      onTextChanged: (value) => this.applySearchFilter(value),
-    })
-    searchBox.addComponent(this._searchInput)
-    searchBox.attachTo(this)
-
-    // 操作提示
-    const hint = this.makeActor('GM_Hint', { anchor: 'center', offset: [0, -1.8], w: 6, h: 0.3, zOrder: 2 })
-    hint.addComponent(this.makeText(hint, 'Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板', 14, '#8a7a5a', 900, 44, 'GM_HintText'))
-    hint.attachTo(this)
-
-    // 点击聚焦：搜索框/输入框节点点击 → 聚焦对应输入框（互斥）
-    this.bindClickToFocus(this)
-
-    // 初始输出 + 聚焦输入框
-    this.appendOutput(this.readyMessage)
-    logger.info('[GMConsoleHUD] 控制台 UI 已拼装（输入框/输出区/命令列表）')
-  }
-
-  /**
-   * 从 widget 资产加载面板控件树（资产驱动，子类设 panelAssetPath 后自动调用）。
+   * 从 widget 资产加载面板控件树（资产驱动，构造时自动调用）。
    *
    * 流程：spawnUIActor(panelAssetPath) 生成通用节点树 → attachTo 本根（根 HUD 引用
    * 通用节点）→ 递归整树 zOrder 统一 + GM_ZORDER_BASE（资产只写相对层级 0~3；
@@ -259,13 +132,15 @@ export class GMConsoleHUD extends HUD {
    * 层内相对顺序不变）→ 按组件 name 绑定输出区（GM_OutputText）与输入框
    * （GM_InputText，并挂 Enter 提交回调）→ 输出就绪消息。
    *
-   * @returns 成功 true；资产缺失/解析失败/缺少关键组件 → false（调用方回退 buildUI）
+   * @throws 资产缺失/解析失败/缺少关键组件时抛 Error（fail-fast，不回退）
    */
-  protected loadPanelFromAsset(): boolean {
+  protected loadPanelFromAsset(): void {
     const world = this._gm.world
-    if (!world) return false
+    if (!world) throw new Error('[GMConsoleHUD] 资产加载失败：world 未就绪')
     const actor = world.ui.spawnUIActor(this.panelAssetPath!)
-    if (!actor) return false
+    if (!actor) {
+      throw new Error(`[GMConsoleHUD] 资产加载失败：spawnUIActor('${this.panelAssetPath}') 返回空（资产缺失或解析失败）`)
+    }
     actor.attachTo(this)
 
     // 递归整树：zOrder 统一加基数（资产相对层级 0~3 → 1000+，保证最顶层）
@@ -277,21 +152,26 @@ export class GMConsoleHUD extends HUD {
     }
     lift(actor)
 
-    // 按组件 name 绑定输出区与输入框（组件 name 由资产组件定义应用，见 UIManager.spawnUIActor）
+    // 按组件 name 绑定输出区与输入框（兼容两种约定：组件级 name 直标 GM_OutputText/
+    // GM_InputText/GM_SearchInput，或组件 name 缺省时回退宿主节点名 GM_Output/GM_InputBox；
+    // 注意 comp.name 缺省时是类名默认值（恒真），必须两个名字分别匹配）
     const bind = (a: Actor): void => {
+      const nodeName = a.root.name
       for (const comp of a.getComponents(UITextInputComponent)) {
-        if (comp.name === 'GM_InputText' && !this._input) {
+        const isInput = comp.name === 'GM_InputText' || nodeName === 'GM_InputBox'
+        const isSearch = comp.name === 'GM_SearchInput' || nodeName === 'GM_SearchInput'
+        if (isInput && !this._input) {
           this._input = comp
           comp.onSubmit = () => this.submitInput()
         }
         // 搜索框（可选）：文本变化实时过滤命令列表
-        if (comp.name === 'GM_SearchInput' && !this._searchInput) {
+        if (isSearch && !this._searchInput) {
           this._searchInput = comp
           comp.onTextChanged = (value) => this.applySearchFilter(value)
         }
       }
       for (const comp of a.getComponents(UITextComponent)) {
-        if (comp.name === 'GM_OutputText' && !this._outputText) {
+        if ((comp.name === 'GM_OutputText' || nodeName === 'GM_Output') && !this._outputText) {
           this._outputText = comp
         }
       }
@@ -300,8 +180,12 @@ export class GMConsoleHUD extends HUD {
     bind(actor)
 
     if (!this._outputText || !this._input) {
-      logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 缺少 GM_OutputText/GM_InputText 组件，回退程序化构建`)
-      return false
+      // 绑定失败：销毁已 spawn 的资产树（否则泄漏为孤儿面板），fail-fast 抛错
+      const world2 = this._gm.world
+      if (world2) world2.ui.destroyUIActor(actor)
+      throw new Error(
+        `[GMConsoleHUD] 资产 ${this.panelAssetPath} 缺少 GM_OutputText/GM_InputText 组件（已销毁泄漏资产树）`,
+      )
     }
     if (!this._searchInput) {
       logger.warn(`[GMConsoleHUD] 资产 ${this.panelAssetPath} 未找到 GM_SearchInput 组件，跳过命令搜索`)
@@ -334,7 +218,6 @@ export class GMConsoleHUD extends HUD {
 
     this.appendOutput(this.readyMessage)
     logger.info(`[GMConsoleHUD] 控制台 UI 已从资产加载: ${this.panelAssetPath}`)
-    return true
   }
 
   /**
@@ -388,11 +271,13 @@ export class GMConsoleHUD extends HUD {
     list.onItemSpawned = (item, index) => {
       const def = this._filteredCommands[index]?.[1]
       if (!def) return
+      // widget 管线：文本/按钮在子节点上（CmdLabel/CmdButton），兼容旧结构根上直挂
+      const findInChildren = (name: string) => item.getChildren().find((c) => c.root.name === name)
       // 命令名文本
-      const label = item.getComponent(UITextComponent)
+      const label = (findInChildren('CmdLabel') ?? item).getComponent(UITextComponent)
       if (label) label.text = def.name
       // 点击 → 快捷输入：命令名 + 默认参数值填入输入框，用户可直接 Enter 执行
-      const button = item.getComponent(UIButtonComponent)
+      const button = (findInChildren('CmdButton') ?? item).getComponent(UIButtonComponent)
       if (button) {
         button.onClick = () => {
           if (this._input) {
@@ -445,64 +330,7 @@ export class GMConsoleHUD extends HUD {
     return true
   }
 
-  /** 创建通用 UI 控件 Actor（UITransform + markerOnly CanvasUI） */
-  protected makeActor(
-    name: string,
-    tsf: { anchor: AnchorPreset; offset?: [number, number]; w: number; h: number; zOrder: number },
-  ): GenericActor {
-    const actor = new GenericActor(name)
-    actor.addComponent(UITransformComponent, {
-      position: [0, 0, 0],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
-      anchor: tsf.anchor,
-      anchorOffset: tsf.offset ?? [0, 0],
-      worldWidth: tsf.w,
-      worldHeight: tsf.h,
-    })
-    actor.addComponent(CanvasUIComponent, {
-      markerOnly: true,
-      name: 'UIMarker',
-      zOrder: GM_ZORDER_BASE + tsf.zOrder,
-    })
-    return actor
-  }
-
-  /** 创建文本组件 */
-  protected makeText(
-    owner: GenericActor,
-    text: string,
-    fontSize: number,
-    color: string,
-    width: number,
-    height: number,
-    name: string,
-  ): UITextComponent {
-    const comp = new UITextComponent(owner, {
-      text,
-      fontSize,
-      color,
-      bold: false,
-      align: 'left',
-      width,
-      height,
-      zOrder: GM_ZORDER_BASE + GM_TEXT_LAYER,
-    })
-    comp.name = name
-    return comp
-  }
-
-  /** 拼装命令列表文本（全部命令 name + 参数用法 + 描述） */
-  protected buildHelpText(): string {
-    const lines: string[] = ['命令列表:']
-    for (const [, def] of GMRegistry.getAll()) {
-      lines.push(`${formatGMUsage(def)}`)
-      lines.push(`  ${def.description}`)
-    }
-    return lines.join('\n')
-  }
-
-  /** 追加输出行（滚动窗口，超限丢最旧） */
+  /** 清空输出区（clear 内置命令调用） */
   appendOutput(text: string): void {
     if (!this._outputText) return
     this._outputLines.push(text)
@@ -540,7 +368,7 @@ export class GMConsoleHUD extends HUD {
   }
 
   /**
-   * 输入框点击聚焦绑定（资产驱动 / 程序化 buildUI 共用）。
+   * 输入框点击聚焦绑定（资产驱动面板使用）。
    *
    * 背景：输入框是键盘驱动焦点（Tab 切换 / 键入自动聚焦），但**点击本身不聚焦**——
    * 搜索框/输入框节点未挂 ClickableComponent 时，点击无任何响应，焦点仍留在输入框。

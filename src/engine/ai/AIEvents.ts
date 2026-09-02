@@ -69,6 +69,9 @@ export const AI_EVENT_KEY_RELEASE = 'ai.keyRelease'
 /** 获取 HUD 完整结构（递归遍历 UI 树，返回所有可见 UI 元素的文字/按钮状态/组件信息） */
 export const AI_EVENT_GET_HUD = 'ai.getHUD'
 
+/** 获取场景 Actor 大纲（递归遍历 3D + UI Actor 树，返回名称/类型/组件摘要） */
+export const AI_EVENT_GET_SCENE_OUTLINE = 'ai.getSceneOutline'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════
@@ -209,6 +212,28 @@ export interface AIActorInfo {
     renderVisible?: boolean
   }>
   children: Array<{ name: string; type: string }>
+}
+
+/** ai.getSceneOutline 返回的单个大纲节点 */
+export interface AISceneOutlineNode {
+  /** Actor 名称（.name） */
+  name: string
+  /** Actor 类名（如 BarracksActor / GenericActor） */
+  type: string
+  /** 是否激活（UI 失活属性） */
+  active: boolean
+  /** 组件类型列表（摘要） */
+  components: string[]
+  /** 子节点（递归） */
+  children: AISceneOutlineNode[]
+}
+
+/** ai.getSceneOutline payload：获取当前场景完整 Actor 树 */
+export interface AIGetSceneOutlinePayload {
+  /** 最大深度（缺省 6，防超大树打爆返回） */
+  maxDepth?: number
+  /** 只返回激活的 Actor（缺省 false，返回全部） */
+  activeOnly?: boolean
 }
 
 /** ai.mouseClick payload：模拟鼠标点击（屏幕坐标） */

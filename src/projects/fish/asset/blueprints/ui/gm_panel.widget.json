@@ -1,7 +1,7 @@
 {
   "name": "GMPanelRoot",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-043b6e16",
+  "sourceHash": "fnv1a-b5a4f04f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -311,7 +311,8 @@
                 "height": 52,
                 "placeholder": "🔍 搜索命令（名称/描述）...",
                 "fontSize": 14,
-                "color": "#f5ecd7"
+                "color": "#f5ecd7",
+                "name": "GM_SearchInput"
               }
             }
           ],
@@ -361,7 +362,7 @@
               "baseClass": "UIScrollListComponent",
               "properties": {
                 "direction": "vertical",
-                "itemWidget": "asset/blueprints/ui/gm_cmd_item.blueprint.json",
+                "itemWidget": "asset/blueprints/ui/gm_cmd_item.widget.json",
                 "itemSize": [
                   2.7,
                   0.24
@@ -419,7 +420,7 @@
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "",
-                "name": "GM_Output",
+                "name": "GM_OutputText",
                 "width": 800,
                 "height": 380,
                 "fontSize": 15,
@@ -551,7 +552,8 @@
                 "height": 96,
                 "placeholder": "输入 GM 命令（help 查看全部）...",
                 "fontSize": 22,
-                "color": "#f5ecd7"
+                "color": "#f5ecd7",
+                "name": "GM_InputText"
               }
             }
           ],
@@ -629,8 +631,8 @@
                     "worldHeight": 0.43,
                     "anchor": "top-left",
                     "anchorOffset": [
-                      -48.975,
-                      3.095
+                      -73.475,
+                      4.655
                     ],
                     "position": [
                       0,
@@ -801,8 +803,8 @@
                     "worldHeight": 0.35,
                     "anchor": "top-left",
                     "anchorOffset": [
-                      -50.8,
-                      3.25
+                      -76.2,
+                      4.875
                     ],
                     "position": [
                       0,

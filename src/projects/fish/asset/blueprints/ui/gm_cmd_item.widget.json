@@ -1,0 +1,225 @@
+{
+  "name": "GMCmdItem",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-08a0a885",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 2.7,
+        "worldHeight": 0.24
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 540,
+        "height": 48,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "CmdButton",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 2.74,
+            "worldHeight": 0.24,
+            "anchor": "center",
+            "anchorOffset": [
+              0.02,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UIButtonComponent",
+          "properties": {}
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#1a1028",
+            "radius": 6,
+            "width": 548,
+            "height": 48,
+            "name": "CmdButton"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "CmdButtonText",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "anchor": "center",
+                "anchorOffset": [
+                  0,
+                  0
+                ],
+                "worldWidth": 2.7,
+                "worldHeight": 0.24
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "name": "CmdButtonText",
+                "fontSize": 14,
+                "width": 540,
+                "height": 48,
+                "color": "#e8d8a8",
+                "align": "left",
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 0,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        }
+      ],
+      "sourceLayout": {
+        "padding": [
+          0,
+          0,
+          0,
+          8
+        ]
+      }
+    },
+    {
+      "name": "CmdLabel",
+      "baseClass": "Actor",
+      "id": 13203,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 2.5,
+            "worldHeight": 0.2,
+            "anchor": "top-center",
+            "anchorOffset": [
+              -0.06,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 3
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "",
+            "name": "CmdLabel",
+            "width": 500,
+            "height": 40,
+            "fontSize": 14,
+            "color": "#e8d8a8",
+            "align": "left",
+            "shadowColor": "#00000066",
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "shadowBlur": 4
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

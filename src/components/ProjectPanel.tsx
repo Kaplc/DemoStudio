@@ -57,19 +57,35 @@ export function ProjectPanel() {
         />
       </div>
 
-      {activeTab === 'outline' && (
+      {/* 三个页签内容常驻挂载，仅切 display 显隐：切换页签不丢展开层级/折叠/滚动状态 */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: activeTab === 'outline' ? 'flex' : 'none',
+          flexDirection: 'column',
+        }}
+      >
         <Outline query={query} />
-      )}
+      </div>
 
-      {activeTab === 'assets' && (
-        <div className="panel-body" style={{ padding: 0 }}>
-          <AssetBrowser query={query} />
-        </div>
-      )}
+      <div
+        className="panel-body"
+        style={{ padding: 0, display: activeTab === 'assets' ? 'block' : 'none' }}
+      >
+        <AssetBrowser query={query} />
+      </div>
 
-      {activeTab === 'ui' && (
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: activeTab === 'ui' ? 'flex' : 'none',
+          flexDirection: 'column',
+        }}
+      >
         <UiOutline query={query} />
-      )}
+      </div>
     </div>
   )
 }

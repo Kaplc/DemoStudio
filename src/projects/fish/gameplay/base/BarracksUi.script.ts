@@ -4,7 +4,7 @@
  * 通过 UIScriptComponent 挂载到 barracks_ui.widget.json 的根节点：
  *  1. 接管兵营面板的关闭按钮：点击后调用 GameMode.closeBarracksPanel()
  *  2. 从 FishGameInstance 取训练组件 + 兵种表，按表动态生成兵种卡片：
- *     每个兵种 → world.ui.spawnUIActor('asset/blueprints/ui/troop_card.blueprint.json')
+ *     每个兵种 → world.ui.spawnUIActor('asset/blueprints/ui/troop_card.widget.json')
  *     生成后改名 Troop_{id}、填充名称/属性文本与兵种色、绑定训练点击
  *     → GameInstance.trainTroop(id)；卡片挂到 TroopList，由 UILayoutComponent
  *     （grid 5 列）自动排布
@@ -29,7 +29,7 @@ import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 兵种卡片蓝图路径（相对 src/projects/，由 BlueprintRegistry 注册） */
-const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.blueprint.json'
+const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.widget.json'
 
 /** 兵种色数字 → CSS hex（如 0xe53935 → "#e53935"） */
 function colorToCss(color: number): string {

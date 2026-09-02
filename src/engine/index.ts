@@ -129,7 +129,7 @@ export { GMRegistry } from './gm/GMRegistry'
 export type { GMCommandModules } from './gm/GMRegistry'
 export { GMModule } from './gm/GMModule'
 export type { GMExecuteResult, GMConsoleFactory } from './gm/GMModule'
-export { GMConsoleHUD, GM_ZORDER_BASE, GM_TEXT_LAYER, MAX_OUTPUT_LINES } from './gm/GMConsoleHUD'
+export { GMConsoleHUD, GM_ZORDER_BASE, MAX_OUTPUT_LINES } from './gm/GMConsoleHUD'
 export {
   convertGMArg,
   formatGMUsage,

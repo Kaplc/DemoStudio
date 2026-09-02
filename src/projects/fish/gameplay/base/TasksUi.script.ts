@@ -23,7 +23,7 @@ import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 任务卡片蓝图（复用 troop_card：Name + Info + UIButton） */
-const TASK_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.blueprint.json'
+const TASK_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.widget.json'
 
 function findChild(actor: Actor, name: string): Actor | null {
   for (const child of actor.getChildren()) {

@@ -24,7 +24,7 @@ import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 兵种卡片蓝图路径（复用兵营训练卡片） */
-const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.blueprint.json'
+const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.widget.json'
 
 /** 兵种色数字 → CSS hex */
 function colorToCss(color: number): string {
