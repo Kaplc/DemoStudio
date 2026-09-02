@@ -183,7 +183,7 @@ src/engine/
 | blueprintOps | 纯函数操作集（对 BlueprintAsset 增删改） | `editor/blueprintEdit/blueprintOps/` |
 | windowApi | 蓝图编辑器窗口桥接 | `editor/blueprintEdit/windowApi.ts` |
 
-> 详细设计见 [`editor/undo_redo_system.md`](./editor/undo_redo_system.md)
+> 详细设计见 [`editor/undo_redo_system.md`](./editor/blueprint/undo_redo_system.md)
 
 ### 5. 资产预览与检查
 
@@ -287,12 +287,12 @@ src/engine/
 
 | 系统 | 文档 |
 |---|---|
-| 编辑器核心 | [`editor/core_system.md`](./editor/core_system.md) |
-| 视口与场景 | [`editor/viewport_system.md`](./editor/viewport_system.md) |
-| 选择与变换 | [`editor/selection_transform_system.md`](./editor/selection_transform_system.md) |
-| 蓝图编辑 | [`editor/blueprint_edit_system.md`](./editor/blueprint_edit_system.md)（撤销/重做另见 [`editor/undo_redo_system.md`](./editor/undo_redo_system.md)） |
-| 资产预览与检查 | [`editor/asset_preview_lint_system.md`](./editor/asset_preview_lint_system.md) |
-| React 面板与状态 | [`editor/ui_components_system.md`](./editor/ui_components_system.md) |
+| 编辑器核心 | [`editor/core_system.md`](./editor/core/core_system.md) |
+| 视口与场景 | [`editor/viewport_system.md`](./editor/core/viewport_system.md) |
+| 选择与变换 | [`editor/selection_transform_system.md`](./editor/core/selection_transform_system.md) |
+| 蓝图编辑 | [`editor/blueprint_edit_system.md`](./editor/blueprint/blueprint_edit_system.md)（撤销/重做另见 [`editor/undo_redo_system.md`](./editor/blueprint/undo_redo_system.md)） |
+| 资产预览与检查 | [`editor/asset_preview_lint_system.md`](./editor/asset/asset_preview_lint_system.md) |
+| React 面板与状态 | [`editor/ui_components_system.md`](./editor/ui/ui_components_system.md) |
 
 ---
 

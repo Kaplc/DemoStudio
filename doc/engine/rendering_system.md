@@ -108,7 +108,7 @@ sceneMgr.onUpdate((dt) => { inst.tick(dt); inst.drawGizmos() })
 ### 4.3 渲染器生命周期
 
 - 游戏视口渲染器（`SceneRendererComponent`）由 Game 启动时从 `GameInstance.current.renderContainer` 取 DOM 创建，交给 World 持有
-- 编辑器预览使用独立的 `PreviewSceneManager`（见 [编辑器视口系统](../editor/viewport_system.md)）
+- 编辑器预览使用独立的 `PreviewSceneManager`（见 [编辑器视口系统](../editor/core/viewport_system.md)）
 - 相机管理：注册时 `priority >=` 自动切换；注销活跃相机后回退 `cameras[0]`，空列表返回 null
 
 ## 5. 边界条件

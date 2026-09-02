@@ -24,7 +24,7 @@ argument-hint: '功能/系统名称或工作流描述，如"渲染系统"、"蓝
 ## 2. 建立文档前的强制步骤
 
 1. **先读 `doc/README.md`**：确认这是引擎系统还是编辑器系统，决定文件落在 `doc/engine/` 还是 `doc/editor/`，避免放错目录导致索引表错位。
-2. **复用现有文档风格**：打开同目录下任意一份现有文档（如 `doc/engine/entity_system.md`、`doc/editor/blueprint_edit_system.md`）作模板，照抄章节标题顺序与语气。**不要自创章节顺序**。
+2. **复用现有文档风格**：打开同目录下任意一份现有文档（如 `doc/engine/entity_system.md`、`doc/editor/blueprint/blueprint_edit_system.md`）作模板，照抄章节标题顺序与语气。**不要自创章节顺序**。
 3. **用代码事实校验**：通过 `read_file` / `grep_search` 读真实源码确认每个接口签名、类名、字段、调用关系。**禁止凭印象或常识描述 API**—— DemoStudio 的命名/层级经常反直觉（例如"顶层 transform 已废弃，必须写进组件"这类约定只能从代码里读出来）。文档里每一处类名/方法名/字段名都必须能在源码里 `grep_search` 到。
 4. **不要重复造轮子**：先用 `grep_search` 查 `doc/` 下是否已有重叠文档；若某部分已被其他文档覆盖，用相对链接引用，不要复制内容。
 
@@ -146,4 +146,4 @@ argument-hint: '功能/系统名称或工作流描述，如"渲染系统"、"蓝
 
 新文档请对照这两份范本的章节与笔触：
 - 引擎系统范本：`doc/engine/entity_system.md`（四级对象层级 + 组件 + 依赖 + 注册）
-- 编辑器系统范本：`doc/editor/blueprint_edit_system.md`（含 mermaid 流程图 + 三层校验表）与 `doc/editor/property_edit_system.md`（含双通道表 + 四步添加属性小节）
+- 编辑器系统范本：`doc/editor/blueprint/blueprint_edit_system.md`（含 mermaid 流程图 + 三层校验表）与 `doc/editor/core/property_edit_system.md`（含双通道表 + 四步添加属性小节）

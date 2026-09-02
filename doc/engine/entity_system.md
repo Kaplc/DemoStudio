@@ -98,7 +98,7 @@ flowchart LR
 **组件与属性补丁**：
 
 - 组件属性改动走 `deepMerge` 的 `PropertyPatch`（`clonePatch` / `mergePatch`），支持蓝图 overrides 覆盖
-- 组件用 `EditableProperty` 声明可编辑属性（类型、默认值、资产引用目标），编辑器 Inspector 据此动态渲染（详见 [属性修改系统](../editor/property_edit_system.md)）
+- 组件用 `EditableProperty` 声明可编辑属性（类型、默认值、资产引用目标），编辑器 Inspector 据此动态渲染（详见 [属性修改系统](../editor/core/property_edit_system.md)）
 
 ## 5. 边界条件
 

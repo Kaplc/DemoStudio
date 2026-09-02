@@ -2,7 +2,7 @@
 
 > 世界内 UI：UIManager 统一管理 UI Actor 生成与 HUD 生命周期，独立于 3D Actor。
 > 代码位置：`src/engine/ui/`
-> 相关文档：[系统总览](../system_overview.md) / [渲染系统](./rendering_system.md) / [UI 锚点系统](../editor/ui_anchor_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [渲染系统](./rendering_system.md) / [UI 锚点系统](../editor/ui/ui_anchor_system.md)
 
 ## 1. 概述
 
@@ -79,7 +79,7 @@ SwitchScene:
 
 ### 4.4 UI Actor 锚点自动补挂
 
-- `ensureTransformForActor(actor)`：有 CanvasUIComponent 的 Actor 自动挂 `UITransformComponent`（含锚点能力）；旧数据只有普通 TransformComponent 时自动替换，保证每个 UI Actor 都有锚点能力（详见 [UI 锚点系统](../editor/ui_anchor_system.md)）
+- `ensureTransformForActor(actor)`：有 CanvasUIComponent 的 Actor 自动挂 `UITransformComponent`（含锚点能力）；旧数据只有普通 TransformComponent 时自动替换，保证每个 UI Actor 都有锚点能力（详见 [UI 锚点系统](../editor/ui/ui_anchor_system.md)）
 
 ## 5. 边界条件
 
@@ -103,4 +103,4 @@ UIScriptComponent → ScriptRegistry（脚本实例化）
 
 - UI widget 资产（`.widget.json`）由 `UIPreviewManager` 预览（内置 World + UIManager 实例化）
 - 游戏运行时 UI 节点选中/拖动使用 `AnchorGizmo`（锚点）与 `SelectionBoundsGizmo`（范围框）
-- 详见 [资产预览系统](../editor/asset_preview_lint_system.md)、[选择与变换系统](../editor/selection_transform_system.md) 与 [UI 锚点系统](../editor/ui_anchor_system.md)
+- 详见 [资产预览系统](../editor/asset/asset_preview_lint_system.md)、[选择与变换系统](../editor/core/selection_transform_system.md) 与 [UI 锚点系统](../editor/ui/ui_anchor_system.md)

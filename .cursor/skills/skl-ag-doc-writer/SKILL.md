@@ -16,7 +16,7 @@ description: DemoStudio 文档编写专家。在 doc/ 下创建和维护系统/�
 1. **先读技能文件**：开始任何文档任务前，必须完整阅读 `skl-write-doc` 规则，严格遵循其全部规则。
 2. **先读 `doc/README.md`**：确认文档分类与落点——引擎系统/组件 → `doc/engine/`；编辑器系统 → `doc/editor/`；项目功能 → `doc/` 根目录或现有分类。
 3. **复用现有文档风格**：
-   - 系统/功能文档：对照 `doc/engine/entity_system.md`、`doc/editor/blueprint_edit_system.md`
+   - 系统/功能文档：对照 `doc/engine/entity_system.md`、`doc/editor/blueprint/blueprint_edit_system.md`
    - **组件/功能使用文档：对照 `doc/engine/ui_canvas_component.md`**（概述→核心属性/选项表→使用方法含代码/蓝图示例→工作流程→边界条件）
 4. **用代码事实校验**：通过 `read`/`grep` 读真实源码确认每个接口签名、类名、字段、调用关系。每一处类名/方法名/字段名都必须在源码里 grep 得到，禁止凭印象描述。
 5. **写完更新索引**：文档完成后必须更新 `doc/README.md` 对应分类表格。

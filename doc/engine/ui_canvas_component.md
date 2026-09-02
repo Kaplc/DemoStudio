@@ -2,7 +2,7 @@
 
 > 引擎级 UI 渲染与命中测试组件：Canvas 2D 自绘贴图到 3D 世界空间平面，承载 UI 树渲染；提供仿 UE `EVisibility` 的命中测试模式（visible / block / hitTestInvisible）。
 > 代码位置：`src/engine/rendering/CanvasUIComponent.ts`
-> 相关文档：[系统总览](../system_overview.md) / [世界 UI 系统](./ui_system.md) / [UI 锚点系统](../editor/ui_anchor_system.md) / [输入物理脚本](./input_physics_script_system.md)
+> 相关文档：[系统总览](../system_overview.md) / [世界 UI 系统](./ui_system.md) / [UI 锚点系统](../editor/ui/ui_anchor_system.md) / [输入物理脚本](./input_physics_script_system.md)
 
 ## 1. 概述
 

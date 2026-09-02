@@ -2,7 +2,7 @@
 
 > 编辑器输入框的斜杠命令发现与执行机制：触发检测、命令注册、菜单展示与命令执行，与 DSH Harness 集成。
 > 代码位置：`src/components/agent/slash-command/`（核心模块）、`src/components/agent/InputBox.tsx`（集成入口）
-> 相关文档：[`editor/agent_panel_system.md`](../editor/agent_panel_system.md)（Agent 面板通信层）、[`harness/dsh_engine_integration.md`](./dsh_engine_integration.md)（DSH 集成架构）
+> 相关文档：[`editor/agent_panel_system.md`](../editor/integration/agent_panel_system.md)（Agent 面板通信层）、[`harness/dsh_engine_integration.md`](./dsh_engine_integration.md)（DSH 集成架构）
 
 ---
 
@@ -29,7 +29,7 @@
 
 | 功能 | 归属文档 |
 |------|----------|
-| Agent 面板 UI 与通信 | [`editor/agent_panel_system.md`](../editor/agent_panel_system.md) |
+| Agent 面板 UI 与通信 | [`editor/agent_panel_system.md`](../editor/integration/agent_panel_system.md) |
 | 斜杠命令发现与执行 | **本文档** |
 | DSH 后端命令注册 | [`harness/harness_system.md`](./harness_system.md) |
 | DSH 引擎集成架构 | [`harness/dsh_engine_integration.md`](./dsh_engine_integration.md) |
@@ -247,4 +247,4 @@ InputBox
 
 本文档参照以下现有文档编写：
 - 引擎系统范本：`doc/engine/entity_system.md`
-- 编辑器系统范本：`doc/editor/agent_panel_system.md`
+- 编辑器系统范本：`doc/editor/integration/agent_panel_system.md`

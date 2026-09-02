@@ -6,7 +6,7 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 
 # 创建 UI widget 资产（.widget.html → ui_compile）
 
-> 主路径（HTML 源格式）见 `doc/editor/ui_source_format_system.md`；本文件是操作规范。
+> 主路径（HTML 源格式）见 `doc/editor/ui/ui_source_format_system.md`；本文件是操作规范。
 
 ## 何时使用
 - 用户要求新建 UI 资产（如"创建一个 HUD"、"写主菜单 UI"）
@@ -73,7 +73,7 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 
 只在这些情况下用：给**没有同名 .html** 的旧 widget（如 `main_menu.widget.json`）做小改动。新功能禁止直接写 JSON。
 
-要点（详见 `doc/editor/ui_source_format_system.md` 与组件 schema）：
+要点（详见 `doc/editor/ui/ui_source_format_system.md` 与组件 schema）：
 - 根三件套：UITransformComponent（worldWidth/worldHeight 米制，全屏 9.6×5.4）+ CanvasUIComponent（width/height 像素 + active: true）+ 可选 UIScriptComponent
 - 每个控件节点 = Actor（name/id 唯一）+ UITransform + CanvasUI(markerOnly: true, name: "UIMarker") + 功能组件
 - **组件优先约定**：position/rotation/scale 只写在 UITransformComponent properties（顶层写法 → error）
@@ -89,7 +89,7 @@ argument-hint: 'widget 名称或 UI 面板用途描述'
 - 预览验证：资产面板选中 widget 走 UIPreviewManager 2D 预览
 
 ## 参考
-- 系统文档：`doc/editor/ui_source_format_system.md`（映射规则/边界条件/双向同步）
+- 系统文档：`doc/editor/ui/ui_source_format_system.md`（映射规则/边界条件/双向同步）
 - 编译器实现：`src/editor/asset/uiCompiler/`（compile/decompile/widgetMapping/miniParser）
 - MCP 工具：`editor/mcp-server.mjs` 的 `ui_compile`（经 electron/main.ts 白名单 → EditorInitializer → uiSourceActions）
 - 组件实现：`src/engine/ui/`（UITransform/UIText/UIImage/UIButton/UIScript/UILayout）

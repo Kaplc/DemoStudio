@@ -2,7 +2,7 @@
 
 > DemoStudio 编辑器/游戏的浏览器端测试方法论：环境限制、通用操作流程、断言技巧与踩坑记录。
 > 代码位置：`src/editor/EditorInitializer.ts`（`window.__ai` 调试桥）、`src/App.tsx`（工程选择/启动）、`src/components/Viewport.tsx`（Game 视口）。
-> 相关文档：[`../system_overview.md`](../system_overview.md)、[`../editor/viewport_system.md`](../editor/viewport_system.md)、[`../editor/blueprint_edit_system.md`](../editor/blueprint_edit_system.md)。
+> 相关文档：[`../system_overview.md`](../system_overview.md)、[`../editor/viewport_system.md`](../editor/core/viewport_system.md)、[`../editor/blueprint_edit_system.md`](../editor/blueprint/blueprint_edit_system.md)。
 
 ## 1. 概述
 

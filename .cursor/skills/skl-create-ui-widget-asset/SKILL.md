@@ -35,5 +35,5 @@ description: 创建 DemoStudio UI widget 资产。首选：写 .widget.html 源 
 根三件套：UITransform（worldWidth/worldHeight 米）+ CanvasUI（width/height 像素 + active:true）+ 可选 UIScript。每控件 = Actor + UITransform + CanvasUI(markerOnly) + 功能组件。transform 只写在 UITransformComponent。id/name 唯一。
 
 ## 参考
-- 系统文档：`doc/editor/ui_source_format_system.md`
+- 系统文档：`doc/editor/ui/ui_source_format_system.md`
 - 示例：`src/projects/fish/asset/blueprints/ui/toast.widget.html`

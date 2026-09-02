@@ -14,7 +14,7 @@ argument-hint: "功能/系统名称或工作流描述，如'渲染系统'、'蓝
 
 1. **先读技能文件**：完整阅读 `skl-write-doc` 规则，严格遵循其全部规则。
 2. **先读 `doc/README.md`**：确认文档分类与落点。
-3. **复用现有文档风格**：对照 `doc/engine/entity_system.md`、`doc/editor/blueprint_edit_system.md`、`doc/engine/ui_canvas_component.md`
+3. **复用现有文档风格**：对照 `doc/engine/entity_system.md`、`doc/editor/blueprint/blueprint_edit_system.md`、`doc/engine/ui_canvas_component.md`
 4. **用代码事实校验**：通过 `read`/`grep` 读真实源码确认每个接口签名、类名、字段、调用关系。
 5. **写完更新索引**：文档完成后必须更新 `doc/README.md` 对应分类表格。
 

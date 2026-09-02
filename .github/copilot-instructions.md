@@ -8,7 +8,7 @@
 - `doc/system_overview.md` — 系统总览：引擎/编辑器/项目/资产类型全量统计与架构索引（改动前先查此文档定位子系统）
 - `doc/engine/*.md` — 引擎系统文档（实体/游戏流/渲染/UI/输入物理脚本/资产工具/AI 事件，每个系统一份）
 - `doc/editor/*.md` — 编辑器系统文档（核心/视口/选择变换/蓝图编辑/预览与检查/UI 组件，每个系统一份）
-- `doc/editor/undo_redo_system.md` — 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读）
+- `doc/editor/blueprint/undo_redo_system.md` — 蓝图编辑器撤销/重做系统设计（涉及蓝图编辑/UndoManager 时必读）
 - `doc/engine/ursina_reference.md` — Ursina 参考文档（涉及 API 兼容性设计时参考）
 
 ## 浏览器调试模式（AI 专用）
