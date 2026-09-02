@@ -74,7 +74,20 @@ interface QueuedRetry {
   id: string
 }
 
-type DisplayQueueItem = QueuedAssistant | QueuedTool | QueuedRetry
+interface QueuedContext {
+  kind: 'context'
+  id: string
+  content: string
+  context: {
+    role: 'recall' | 'inject'
+    label: string | null
+    form: 'instructions' | 'catalog' | 'snapshot' | 'notice' | 'relay' | 'recall' | null
+    summary: string | null
+  }
+  ts: number
+}
+
+type DisplayQueueItem = QueuedAssistant | QueuedTool | QueuedRetry | QueuedContext
 
 const HISTORY_TURNS_PER_PAGE = 2
 
@@ -341,15 +354,16 @@ export const AgentPanel: React.FC = () => {
 
         case 'context': {
           // 注入的上下文（插件记忆召回 / 提取 notice 等）→ 折叠卡片
+          // 加入显示队列，等待打字机完成后再渲染
           const p = event.payload as ContextEventPayload
-          setMessages(cur => [...cur, {
+          displayQueueRef.current.push({
+            kind: 'context',
             id: `ctx-${p.seq}`,
-            role: 'context',
             content: p.content,
             context: { role: p.role, label: p.label, form: p.form, summary: p.summary },
             ts: p.time || Date.now(),
-          }])
-          setContentVersion(v => v + 1)
+          })
+          drainQueueRef.current()
           break
         }
 
@@ -759,6 +773,21 @@ export const AgentPanel: React.FC = () => {
         })
         setContentVersion(v => v + 1)
       }
+      activeDisplayRef.current = null
+      drainQueueRef.current()
+      return
+    }
+
+    if (next.kind === 'context') {
+      // 上下文注入卡片：直接追加到消息列表
+      setMessages(cur => [...cur, {
+        id: next.id,
+        role: 'context',
+        content: next.content,
+        context: next.context,
+        ts: next.ts,
+      }])
+      setContentVersion(v => v + 1)
       activeDisplayRef.current = null
       drainQueueRef.current()
       return

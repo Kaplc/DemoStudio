@@ -104,6 +104,19 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       const off = rootTf.anchorOffset as [number, number] | undefined
       if (off && (off[0] !== 0 || off[1] !== 0)) rootAttrs.push(`offset="${fmtNum(off[0])},${fmtNum(off[1])}"`)
     }
+    // 根 Actor 默认隐藏 → <widget active="false">（编译端等价还原 root.active=false）
+    if (root.active === false) rootAttrs.push('active="false"')
+    // 根行为脚本 → <widget data-script="...">（编译端 emitDataScript 挂回根节点）
+    const rootScript = compOf(root, 'UIScriptComponent')
+    if (rootScript) {
+      const sp = (rootScript.properties ?? {}) as Record<string, unknown>
+      if (sp.script) {
+        rootAttrs.push(`data-script="${escapeAttr(String(sp.script))}"`)
+        if (sp.args && Object.keys(sp.args as object).length > 0) {
+          rootAttrs.push(`data-args='${escapeAttr(JSON.stringify(sp.args))}'`)
+        }
+      }
+    }
 
     const rules: OutRule[] = []
     const stateRules: OutStateRule[] = []
@@ -268,10 +281,12 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     }
 
     // ─── 功能组件前置探测：UILayout → display:flex 结构还原 ───
+    // 空容器（运行时动态填充列表）不走 flex 还原：编译端对空容器无法补发 UILayout，
+    // 改走 data-comp 精确保留布局参数，保证 反编译→重编译 往返不丢 UILayoutComponent
     const funcComps0 = (node.components ?? []).filter((c) => !COMMON_COMPS.has(c.baseClass))
     const layoutComp = funcComps0.find((c) => c.baseClass === 'UILayoutComponent')
     let flowChildren = false
-    if (layoutComp) {
+    if (layoutComp && (node.children ?? []).length > 0) {
       const p = (layoutComp.properties ?? {}) as Record<string, unknown>
       const isColumn = String(p.mode ?? 'horizontal') === 'vertical'
       decls.push('display: flex')
@@ -288,6 +303,10 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       decls.push(`justify-content: ${j === 'start' ? 'flex-start' : j === 'end' ? 'flex-end' : j}`)
       decls.push(`align-items: ${a === 'start' ? 'flex-start' : a === 'end' ? 'flex-end' : a}`)
       flowChildren = true
+    } else if (layoutComp) {
+      // 空容器 + UILayout：data-comp 逃逸精确保留（编译端 emitDataComp 并入）
+      const p = (layoutComp.properties ?? {}) as Record<string, unknown>
+      attrs.push(`data-comp="UILayout" data-props='${escapeAttr(JSON.stringify(p))}'`)
     }
 
     // left/top 相对父内容盒原点（编译端绝对定位包含块 = 父内容盒；inX/inY = 父 padding+border）

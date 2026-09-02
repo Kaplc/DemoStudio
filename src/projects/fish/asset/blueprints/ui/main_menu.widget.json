@@ -1,7 +1,7 @@
 {
   "name": "FishMainMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-d859dd54",
+  "sourceHash": "fnv1a-1b1f5266",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -483,9 +483,14 @@
                     ],
                     "worldWidth": 1.1,
                     "worldHeight": 0.05,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      0,
+                      -0.88
+                    ],
                     "position": [
                       0,
-                      1.175,
+                      0,
                       0
                     ]
                   }
@@ -531,9 +536,14 @@
                     ],
                     "worldWidth": 3,
                     "worldHeight": 0.55,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      0,
+                      -1.04
+                    ],
                     "position": [
                       0,
-                      0.765,
+                      0,
                       0
                     ]
                   }
@@ -586,9 +596,14 @@
                     ],
                     "worldWidth": 2.1,
                     "worldHeight": 0.18,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      0,
+                      -1.63
+                    ],
                     "position": [
                       0,
-                      0.36,
+                      0,
                       0
                     ]
                   }
@@ -641,9 +656,14 @@
                     ],
                     "worldWidth": 2,
                     "worldHeight": 0.52,
+                    "anchor": "bottom-center",
+                    "anchorOffset": [
+                      0,
+                      1.61
+                    ],
                     "position": [
                       0,
-                      -0.21,
+                      0,
                       0
                     ]
                   }
@@ -668,20 +688,6 @@
                   }
                 },
                 {
-                  "baseClass": "UIButtonComponent",
-                  "properties": {}
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "color": "#e09400",
-                    "radius": 22,
-                    "width": 400,
-                    "height": 104,
-                    "name": "StartButton"
-                  }
-                },
-                {
                   "baseClass": "UIScriptComponent",
                   "properties": {
                     "script": "gameplay/menu/MainMenu",
@@ -693,6 +699,20 @@
                         "color": "#e09400"
                       }
                     }
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {}
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#ffae00",
+                    "radius": 22,
+                    "width": 400,
+                    "height": 104,
+                    "name": "StartButton"
                   }
                 }
               ],
@@ -774,9 +794,14 @@
                     ],
                     "worldWidth": 2.8,
                     "worldHeight": 0.32,
+                    "anchor": "bottom-center",
+                    "anchorOffset": [
+                      0,
+                      1.08
+                    ],
                     "position": [
                       0,
-                      -0.84,
+                      0,
                       0
                     ]
                   }
@@ -829,9 +854,14 @@
                     ],
                     "worldWidth": 2,
                     "worldHeight": 0.12,
+                    "anchor": "bottom-center",
+                    "anchorOffset": [
+                      0,
+                      0.88
+                    ],
                     "position": [
                       0,
-                      -1.14,
+                      0,
                       0
                     ]
                   }

@@ -1,17 +1,28 @@
 {
   "name": "LaboratoryPanel",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-a7840525",
   "components": [
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [0, 0]
+        "worldHeight": 5.4
       }
     },
     {
@@ -35,34 +46,50 @@
     {
       "name": "DimBackground",
       "baseClass": "Actor",
-      "id": 20000,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "center",
-            "anchorOffset": [0, 0],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "worldWidth": 9.6,
-            "worldHeight": 5.4
+            "worldHeight": 5.4,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
           "baseClass": "CanvasUIComponent",
-          "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 0 }
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(6,14,18,0.72)",
-            "opacity": 0.72,
-            "radius": 0,
+            "color": "#060e12b8",
             "width": 1920,
             "height": 1080,
-            "name": "DimBg",
-            "zOrder": 0
+            "name": "DimBackground"
           }
         }
       ],
@@ -71,23 +98,53 @@
     {
       "name": "Panel",
       "baseClass": "Actor",
-      "id": 20001,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 7.7,
+            "worldHeight": 5.1,
             "anchor": "center",
-            "anchorOffset": [0, 0],
-            "worldWidth": 7.6,
-            "worldHeight": 5
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
           "baseClass": "CanvasUIComponent",
-          "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "vertical",
+            "spacingX": 0,
+            "spacingY": 0,
+            "justify": "start",
+            "align": "center",
+            "autoLayout": true
+          }
         },
         {
           "baseClass": "UIImageComponent",
@@ -96,8 +153,7 @@
             "radius": 24,
             "width": 1540,
             "height": 1020,
-            "name": "PanelFrame",
-            "zOrder": 1
+            "name": "Panel"
           }
         }
       ],
@@ -105,23 +161,37 @@
         {
           "name": "PanelInner",
           "baseClass": "Actor",
-          "id": 20002,
+          "id": 13203,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 7.4,
                 "worldHeight": 4.8,
-                "anchor": "center",
-                "anchorOffset": [0, 0]
+                "position": [
+                  0,
+                  0.15,
+                  0
+                ]
               }
             },
             {
               "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
             },
             {
               "baseClass": "UIImageComponent",
@@ -130,234 +200,300 @@
                 "radius": 18,
                 "width": 1480,
                 "height": 960,
-                "name": "PanelInner",
-                "zOrder": 2
+                "name": "PanelInner"
               }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Title",
-          "baseClass": "Actor",
-          "id": 20003,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "top-center",
-                "anchorOffset": [0, -0.2],
-                "worldWidth": 4,
-                "worldHeight": 0.6
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "⚗️ 实验室",
-                "fontSize": 32,
-                "color": "#ffffff",
-                "bold": true,
-                "align": "center",
-                "width": 400,
-                "height": 60,
-                "zOrder": 3,
-                "name": "TitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 6
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "ResearchList",
-          "baseClass": "Actor",
-          "id": 20004,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, 0.32],
-                "worldWidth": 5.5,
-                "worldHeight": 1.9
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "grid",
-                "columns": 5,
-                "spacingX": 0.15,
-                "spacingY": 0.12
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "ResearchLabel",
-          "baseClass": "Actor",
-          "id": 20005,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, -0.85],
-                "worldWidth": 5,
-                "worldHeight": 0.26
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 2, "active": true }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "研究状态: 空闲",
-                "fontSize": 17,
-                "color": "#80deea",
-                "bold": false,
-                "align": "center",
-                "width": 900,
-                "height": 48,
-                "zOrder": 3,
-                "name": "ResearchText",
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Btn_labClose",
-          "baseClass": "Actor",
-          "id": 20006,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "bottom-center",
-                "anchorOffset": [0, 0.15],
-                "worldWidth": 1.6,
-                "worldHeight": 0.5
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": { "name": "LabCloseButton" }
             }
           ],
           "children": [
             {
-              "name": "Frame_labClose",
+              "name": "Title",
               "baseClass": "Actor",
-              "id": 20007,
+              "id": 13204,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 1.7,
-                    "worldHeight": 0.58
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 2,
+                    "worldHeight": 0.3,
+                    "anchor": "top-left",
+                    "anchorOffset": [
+                      0,
+                      -0.8
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
                   }
                 },
                 {
                   "baseClass": "CanvasUIComponent",
-                  "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 12, "active": true, "hitTest": "visible" }
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "⚗️ 实验室",
+                    "name": "Title",
+                    "width": 400,
+                    "height": 60,
+                    "fontSize": 32,
+                    "color": "#ffffff",
+                    "align": "center",
+                    "bold": true,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 6
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ResearchList",
+              "baseClass": "Actor",
+              "id": 13205,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 5.5,
+                    "worldHeight": 1.9,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      0.1,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "grid",
+                    "columns": 5,
+                    "spacingX": 0.15,
+                    "spacingY": 0.12,
+                    "autoLayout": true
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ResearchLabel",
+              "baseClass": "Actor",
+              "id": 13206,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 4.5,
+                    "worldHeight": 0.24,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      4.6,
+                      -0.83
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "研究状态: 空闲",
+                    "name": "ResearchLabel",
+                    "width": 900,
+                    "height": 48,
+                    "fontSize": 17,
+                    "color": "#80deea",
+                    "align": "center",
+                    "shadowColor": "#00000080",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_labClose",
+              "baseClass": "Actor",
+              "id": 13207,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1.6,
+                    "worldHeight": 0.5,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      6.2,
+                      -0.7
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {}
                 },
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
                     "color": "#26c6da",
                     "radius": 18,
-                    "width": 340,
-                    "height": 116,
-                    "name": "BtnFrame",
-                    "zOrder": 12,
-                    "hitTest": "visible",
-                    "opacity": 1
+                    "width": 320,
+                    "height": 100,
+                    "name": "Btn_labClose"
                   }
                 }
               ],
-              "children": []
-            },
-            {
-              "name": "Label_labClose",
-              "baseClass": "Actor",
-              "id": 20008,
-              "components": [
+              "children": [
                 {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 1.5,
-                    "worldHeight": 0.4
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 2 }
-                },
-                {
-                  "baseClass": "UITextComponent",
-                  "properties": {
-                    "text": "🏠 关闭",
-                    "fontSize": 24,
-                    "color": "#00323a",
-                    "bold": true,
-                    "align": "center",
-                    "width": 300,
-                    "height": 60,
-                    "zOrder": 4,
-                    "name": "CloseLabel",
-                    "italic": false,
-                    "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2
-                  }
+                  "name": "Label_labClose",
+                  "baseClass": "Actor",
+                  "id": 13208,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1.5,
+                        "worldHeight": 0.3,
+                        "anchor": "top-left",
+                        "anchorOffset": [
+                          -13.05,
+                          0.75
+                        ],
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "🏠 关闭",
+                        "name": "Label_labClose",
+                        "width": 300,
+                        "height": 60,
+                        "fontSize": 24,
+                        "color": "#00323a",
+                        "align": "center",
+                        "bold": true,
+                        "shadowColor": "#ffffff4d",
+                        "shadowOffsetX": 0,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 2
+                      }
+                    }
+                  ],
+                  "children": []
                 }
-              ],
-              "children": []
+              ]
             }
           ]
         }

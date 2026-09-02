@@ -1,6 +1,7 @@
 {
   "name": "BattleHUD",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-bb76ec64",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,12 +22,7 @@
           1
         ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [
-          0,
-          0
-        ]
+        "worldHeight": 5.4
       }
     },
     {
@@ -36,8 +32,7 @@
         "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "hitTest": "visible"
+        "active": true
       }
     },
     {
@@ -51,16 +46,11 @@
     {
       "name": "DockWood",
       "baseClass": "Actor",
-      "id": 20001,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              -1.85,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -71,13 +61,18 @@
               1,
               1
             ],
+            "worldWidth": 9.6,
+            "worldHeight": 1.7,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
               0
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 1.7
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -85,22 +80,16 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 1
           }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(34,22,12,0.9)",
-            "opacity": 0.9,
-            "radius": 0,
+            "color": "#22160ce6",
             "width": 1920,
             "height": 340,
-            "name": "DockWood",
-            "zOrder": 1,
-            "hitTest": "visible"
+            "name": "DockWood"
           }
         }
       ],
@@ -109,16 +98,11 @@
     {
       "name": "DockAccent",
       "baseClass": "Actor",
-      "id": 20002,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              -0.9400000000000002,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -129,13 +113,18 @@
               1,
               1
             ],
+            "worldWidth": 1.2,
+            "worldHeight": 0.08,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              1.72
+              1.7
             ],
-            "worldWidth": 1.2,
-            "worldHeight": 0.08
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -143,9 +132,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 2
           }
         },
         {
@@ -155,9 +142,7 @@
             "radius": 4,
             "width": 240,
             "height": 16,
-            "name": "DockAccent",
-            "zOrder": 2,
-            "hitTest": "visible"
+            "name": "DockAccent"
           }
         }
       ],
@@ -166,16 +151,11 @@
     {
       "name": "DeployLabel",
       "baseClass": "Actor",
-      "id": 20003,
+      "id": 13203,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              -1.3000000000000003,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -186,13 +166,18 @@
               1,
               1
             ],
+            "worldWidth": 6,
+            "worldHeight": 0.28,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              1.25
+              1.34
             ],
-            "worldWidth": 8,
-            "worldHeight": 0.3
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -200,96 +185,24 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 3,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 3
           }
         },
         {
           "baseClass": "UITextComponent",
           "properties": {
             "text": "已部署 0 · 场上 0 · 军队: 无",
-            "fontSize": 22,
-            "color": "#f5e6c8",
-            "bold": true,
-            "align": "center",
+            "name": "DeployLabel",
             "width": 1200,
             "height": 56,
-            "zOrder": 3,
-            "name": "DeployText",
-            "italic": false,
-            "shadowColor": "rgba(0,0,0,0.6)",
-            "shadowBlur": 5,
-            "hitTest": "visible",
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005357
-          }
-        }
-      ],
-      "children": []
-    },
-    {
-      "name": "DockHint",
-      "baseClass": "Actor",
-      "id": 20004,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              -2.39,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              0,
-              0.18
-            ],
-            "worldWidth": 6,
-            "worldHeight": 0.26
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 4,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "点兵种卡片选择 → 点战场放置（±24 内、不可叠建筑）· Esc 取消",
-            "fontSize": 16,
+            "fontSize": 22,
             "color": "#f5e6c8",
-            "bold": false,
             "align": "center",
-            "width": 1100,
-            "height": 44,
-            "zOrder": 4,
-            "name": "DockHint",
-            "italic": false,
-            "shadowColor": "rgba(0,0,0,0.45)",
-            "shadowBlur": 4,
-            "hitTest": "visible",
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005909
+            "bold": true,
+            "shadowColor": "#00000099",
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 2,
+            "shadowBlur": 5
           }
         }
       ],
@@ -298,16 +211,11 @@
     {
       "name": "CardList",
       "baseClass": "Actor",
-      "id": 20005,
+      "id": 13204,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              -0.02,
-              -1.87,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -318,13 +226,18 @@
               1,
               1
             ],
+            "worldWidth": 7.6,
+            "worldHeight": 0.86,
             "anchor": "bottom-center",
             "anchorOffset": [
-              -0.02,
-              0.4
+              0,
+              0.35
             ],
-            "worldWidth": 7.6,
-            "worldHeight": 0.86
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -332,16 +245,13 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 5,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 4
           }
         },
         {
           "baseClass": "UILayoutComponent",
           "properties": {
             "mode": "horizontal",
-            "columns": 8,
             "spacingX": 0.05,
             "spacingY": 0.1,
             "autoLayout": true
@@ -351,20 +261,35 @@
       "children": []
     },
     {
-      "name": "TimerLabel",
+      "name": "DockHint",
       "baseClass": "Actor",
-      "id": 20020,
+      "id": 13205,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "top-right",
-            "anchorOffset": [-0.35, -0.25],
-            "worldWidth": 1.8,
-            "worldHeight": 0.45
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 5.5,
+            "worldHeight": 0.22,
+            "anchor": "bottom-center",
+            "anchorOffset": [
+              0,
+              0.06
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -372,30 +297,83 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 6,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 4
+          }
+        },
+        {
+          "baseClass": "UITextComponent",
+          "properties": {
+            "text": "点兵种卡片选择 → 点战场放置（±24 内、不可叠建筑）· Esc 取消",
+            "name": "DockHint",
+            "width": 1100,
+            "height": 44,
+            "fontSize": 16,
+            "color": "#f5e6c8",
+            "align": "center",
+            "shadowColor": "#00000073",
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 1,
+            "shadowBlur": 4
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "TimerLabel",
+      "baseClass": "Actor",
+      "id": 13206,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 1.8,
+            "worldHeight": 0.35,
+            "anchor": "top-right",
+            "anchorOffset": [
+              -0.2,
+              -0.2
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 6
           }
         },
         {
           "baseClass": "UITextComponent",
           "properties": {
             "text": "⏱ 3:00",
+            "name": "TimerLabel",
+            "width": 360,
+            "height": 70,
             "fontSize": 30,
             "color": "#ffffff",
-            "bold": true,
             "align": "right",
-            "width": 380,
-            "height": 70,
-            "zOrder": 6,
-            "name": "TimerText",
-            "italic": false,
-            "shadowColor": "rgba(0,0,0,0.6)",
-            "shadowBlur": 5,
-            "hitTest": "visible",
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005
+            "bold": true,
+            "shadowColor": "#00000099",
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 2,
+            "shadowBlur": 5
           }
         }
       ],
@@ -404,18 +382,33 @@
     {
       "name": "LootBar",
       "baseClass": "Actor",
-      "id": 20010,
+      "id": 13207,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "top-center",
-            "anchorOffset": [0, -0.3],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "worldWidth": 4.2,
-            "worldHeight": 0.55
+            "worldHeight": 0.55,
+            "anchor": "top-center",
+            "anchorOffset": [
+              0,
+              -0.15
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -423,21 +416,17 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 6,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 6
           }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(20,12,6,0.78)",
+            "color": "#140c06c7",
             "radius": 10,
             "width": 840,
             "height": 110,
-            "name": "LootBarBg",
-            "zOrder": 6,
-            "hitTest": "visible"
+            "name": "LootBar"
           }
         }
       ],
@@ -445,18 +434,33 @@
         {
           "name": "LootCoinsText",
           "baseClass": "Actor",
-          "id": 20011,
+          "id": 13208,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "middle-center",
-                "anchorOffset": [-0.85, 0],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 1.7,
-                "worldHeight": 0.34
+                "worldHeight": 0.34,
+                "anchor": "middle-left",
+                "anchorOffset": [
+                  0.25,
+                  0
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -464,30 +468,24 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 7,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 7
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "金币 0",
-                "fontSize": 26,
-                "color": "#ffd700",
-                "bold": true,
-                "align": "center",
+                "name": "LootCoinsText",
                 "width": 340,
                 "height": 68,
-                "zOrder": 7,
-                "name": "LootCoinsText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 5,
-                "hitTest": "visible",
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005
+                "fontSize": 26,
+                "color": "#ffd700",
+                "align": "center",
+                "bold": true,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 5
               }
             }
           ],
@@ -496,18 +494,33 @@
         {
           "name": "LootElixirText",
           "baseClass": "Actor",
-          "id": 20012,
+          "id": 13209,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "middle-center",
-                "anchorOffset": [0.85, 0],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 1.7,
-                "worldHeight": 0.34
+                "worldHeight": 0.34,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  -0.25,
+                  0
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -515,30 +528,24 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 7,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 7
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "圣水 0",
-                "fontSize": 26,
-                "color": "#d46ae0",
-                "bold": true,
-                "align": "center",
+                "name": "LootElixirText",
                 "width": 340,
                 "height": 68,
-                "zOrder": 7,
-                "name": "LootElixirText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 5,
-                "hitTest": "visible",
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005
+                "fontSize": 26,
+                "color": "#d46ae0",
+                "align": "center",
+                "bold": true,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 5
               }
             }
           ],

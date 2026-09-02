@@ -1,79 +1,38 @@
 <widget name="FishMainMenu" canvas="1920x1080" world="9.6x5.4">
   <style>
-    /* ── 深海背景：垂直渐变 + 漂浮气泡（纯装饰，绝对定位，不参与内容布局） ── */
-    .SeaBackdrop {
-      position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
-      background: linear-gradient(180deg, #0a1a2f 0%, #0e2c47 42%, #123c55 72%, #0c2c42 100%);
-      z-index: 0;
-    }
-    .BubbleLarge { position: absolute; left: 1560px; top: 120px; width: 260px; height: 260px;
-      border-radius: 130px; background-color: rgba(127, 212, 255, 0.05); z-index: 1; }
-    .BubbleMedium { position: absolute; left: 200px; top: 160px; width: 180px; height: 180px;
-      border-radius: 90px; background-color: rgba(127, 212, 255, 0.06); z-index: 1; }
-    .BubbleSmall1 { position: absolute; left: 236px; top: 780px; width: 120px; height: 120px;
-      border-radius: 60px; background-color: rgba(127, 212, 255, 0.07); z-index: 1; }
-    .BubbleSmall2 { position: absolute; left: 1660px; top: 730px; width: 90px; height: 90px;
-      border-radius: 45px; background-color: rgba(127, 212, 255, 0.08); z-index: 1; }
-
-    /* ── 中央面板：外框 + 内衬双层；内容全部纵向流式排列（间距由 margin 显式
-       声明，编译期静态求解，不存在绝对定位堆叠误差） ── */
-    .MenuFrame {
-      position: absolute; left: calc(50% - 360px); top: calc(50% - 440px);
-      width: 720px; height: 880px;
-      display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(165deg, #6b4a26 0%, #523819 55%, #43290f 100%);
-      border-radius: 28px; z-index: 2;
-    }
-    .MenuPanel {
-      width: 672px; height: 832px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: linear-gradient(180deg, #26160e 0%, #1a0e08 60%, #140a06 100%);
-      border-radius: 18px;
-    }
-
-    /* ── 标题区 ── */
-    .TitleAccent { width: 220px; height: 10px; background-color: #f0a500;
-      border-radius: 5px; margin-bottom: 22px; }
-    .Title { width: 600px; height: 110px; font-size: 84px; font-weight: bold; color: #ffd700;
-      text-align: center; text-shadow: 0 4px 14px rgba(0, 0, 0, 0.65); margin-bottom: 8px; }
-    .Subtitle { width: 420px; height: 36px; font-size: 22px; color: #d9c49a;
-      text-align: center; letter-spacing: 6px;
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); margin-bottom: 44px; }
-
-    /* ── 开始按钮：纯色底（:hover/:active 由脚本改 Image 色，渐变底无法换色） ── */
-    .StartButton { width: 400px; height: 104px; background-color: #ffae00;
-      border-radius: 22px; display: flex; align-items: center; justify-content: center; }
-    .StartButton:hover { background-color: #ffc65e; }
-    .StartButton:active { background-color: #e09400; }
-    .StartBtnText { width: 320px; height: 64px; font-size: 38px; font-weight: bold;
-      color: #3a2200; text-align: center;
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.35); }
-
-    /* ── 底部说明 ── */
-    .TipText { width: 560px; height: 64px; font-size: 18px; line-height: 1.6; color: #c9b28a;
-      text-align: center; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); margin-top: 42px; }
-    .FooterText { width: 400px; height: 24px; font-size: 14px; color: #8a7452;
-      text-align: center; letter-spacing: 2px;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); margin-top: 16px; }
+    .SeaBackdrop { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(180deg, #0a1a2f 0%, #0e2c47 42%, #123c55 72%, #0c2c42 100%); }
+    .BubbleLarge { width: 260px; height: 260px; position: absolute; left: 1560px; top: 120px; z-index: 1; background-color: #7fd4ff0d; border-radius: 130px; }
+    .BubbleMedium { width: 180px; height: 180px; position: absolute; left: 200px; top: 160px; z-index: 1; background-color: #7fd4ff0f; border-radius: 90px; }
+    .BubbleSmall1 { width: 120px; height: 120px; position: absolute; left: 236px; top: 780px; z-index: 1; background-color: #7fd4ff12; border-radius: 60px; }
+    .BubbleSmall2 { width: 90px; height: 90px; position: absolute; left: 1660px; top: 730px; z-index: 1; background-color: #7fd4ff14; border-radius: 45px; }
+    .MenuFrame { width: 720px; height: 880px; display: flex; justify-content: center; align-items: center; position: absolute; left: 600px; top: 100px; z-index: 2; background-image: linear-gradient(165deg, #6b4a26 0%, #523819 55%, #43290f 100%); border-radius: 28px; }
+    .MenuPanel { width: 672px; height: 832px; background-image: linear-gradient(180deg, #26160e 0%, #1a0e08 60%, #140a06 100%); border-radius: 18px; }
+    .TitleAccent { width: 220px; height: 10px; position: absolute; left: 226px; top: 176px; background-color: #f0a500; border-radius: 5px; }
+    .Title { width: 600px; height: 110px; position: absolute; left: 36px; top: 208px; font-size: 84px; color: #ffd700; text-align: center; font-weight: bold; text-shadow: 0px 4px 14px #000000a6; }
+    .Subtitle { width: 420px; height: 36px; position: absolute; left: 126px; top: 326px; font-size: 22px; color: #d9c49a; text-align: center; letter-spacing: 6px; text-shadow: 0px 2px 6px #00000080; }
+    .StartButton { width: 400px; height: 104px; display: flex; justify-content: center; align-items: center; position: absolute; left: 136px; top: 406px; background-color: #ffae00; border-radius: 22px; }
+    .StartBtnText { width: 320px; height: 64px; font-size: 38px; color: #3a2200; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff59; }
+    .TipText { width: 560px; height: 64px; position: absolute; left: 56px; top: 552px; font-size: 18px; color: #c9b28a; text-align: center; line-height: 1.6; text-shadow: 0px 2px 4px #00000080; }
+    .FooterText { width: 400px; height: 24px; position: absolute; left: 136px; top: 632px; font-size: 14px; color: #8a7452; text-align: center; letter-spacing: 2px; text-shadow: 0px 2px 4px #00000066; }
+    .StartButton:hover { color: #ffc65e; }
+    .StartButton:active { color: #e09400; }
   </style>
-
-  <div class="SeaBackdrop"></div>
-  <div class="BubbleLarge"></div>
-  <div class="BubbleMedium"></div>
-  <div class="BubbleSmall1"></div>
-  <div class="BubbleSmall2"></div>
-
-  <div class="MenuFrame">
-    <div class="MenuPanel">
-      <div class="TitleAccent"></div>
-      <text class="Title">ClashMaster</text>
-      <text class="Subtitle">— CLASH MASTER —</text>
-      <button class="StartButton" data-script="gameplay/menu/MainMenu">
-        <text class="StartBtnText">▶ 开始游戏</text>
-      </button>
-      <text class="TipText">鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级
+    <div class="SeaBackdrop"></div>
+    <div class="BubbleLarge"></div>
+    <div class="BubbleMedium"></div>
+    <div class="BubbleSmall1"></div>
+    <div class="BubbleSmall2"></div>
+    <div class="MenuFrame">
+      <div class="MenuPanel">
+        <div class="TitleAccent"></div>
+              <text class="Title">ClashMaster</text>
+              <text class="Subtitle">— CLASH MASTER —</text>
+              <button class="StartButton" data-script="gameplay/menu/MainMenu">
+          <text class="StartBtnText">▶ 开始游戏</text>
+        </button>
+              <text class="TipText">鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级
 击败敌人赚取金币 · 金币归零则游戏结束</text>
-      <text class="FooterText">DEMOSTUDIO · FISH CLASH</text>
+              <text class="FooterText">DEMOSTUDIO · FISH CLASH</text>
+      </div>
     </div>
-  </div>
 </widget>

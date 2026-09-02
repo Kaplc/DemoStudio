@@ -1,0 +1,26 @@
+<widget name="PauseMenu" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/level/PauseMenu">
+  <style>
+    .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #0c0602b8; }
+    .Panel { width: 1060px; height: 720px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; position: absolute; left: 430px; top: 180px; z-index: 1; background-color: #8a6a3a; border-radius: 22px; }
+    .PanelWood { width: 1000px; height: 660px; background-color: #3a2418; border-radius: 16px; }
+    .TitleAccent { width: 240px; height: 16px; position: absolute; left: 380px; top: 40px; background-color: #f0a500; border-radius: 4px; }
+    .Title { width: 400px; height: 60px; position: absolute; left: 300px; top: 72px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .Btn_resume { width: 520px; height: 120px; position: absolute; left: 240px; top: 202px; background-color: #6b4a00; border-radius: 18px; }
+    .Label_resume { width: 480px; height: 60px; position: absolute; left: 20px; top: 30px; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+    .Btn_returnBase { width: 520px; height: 120px; position: absolute; left: 240px; top: 362px; background-color: #5a1f1f; border-radius: 18px; }
+    .Label_returnBase { width: 480px; height: 60px; position: absolute; left: 20px; top: 30px; font-size: 26px; color: #ffe3e0; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
+  </style>
+    <div class="DimBackground"></div>
+    <div class="Panel">
+      <div class="PanelWood">
+        <div class="TitleAccent"></div>
+              <text class="Title">⏸ 暂停</text>
+              <button class="Btn_resume">
+          <text class="Label_resume">⚔️ 继续游戏</text>
+        </button>
+              <button class="Btn_returnBase">
+          <text class="Label_returnBase">🏠 返回基地</text>
+        </button>
+      </div>
+    </div>
+</widget>

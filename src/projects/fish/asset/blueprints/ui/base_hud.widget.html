@@ -1,0 +1,56 @@
+<widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
+  <style>
+    .TopBar { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; }
+    .TopBarWood { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; background-color: #22160cd9; }
+    .GoldPill { width: 500px; height: 124px; position: absolute; left: 34px; top: 23px; z-index: 1; background-color: #6b4a00; border-radius: 18px; }
+    .PillInner { width: 484px; height: 108px; position: absolute; left: 8px; top: 8px; background-color: #4a3020; border-radius: 14px; }
+    .GoldLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; font-size: 30px; color: #ffd700; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .ElixirPill { width: 500px; height: 124px; position: absolute; left: 560px; top: 23px; z-index: 1; background-color: #5a1f7a; border-radius: 18px; }
+    .ElixirLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; font-size: 30px; color: #b24cff; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .GemPill { width: 420px; height: 110px; position: absolute; left: 1086px; top: 30px; z-index: 1; background-color: #1b4d2e; border-radius: 18px; }
+    .GemLabel { width: 380px; height: 70px; position: absolute; left: 24px; top: 20px; font-size: 28px; color: #7cffb2; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .TitleLabel { width: 1000px; height: 100px; position: absolute; left: 460px; top: 35px; z-index: 2; font-size: 34px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #000000a6; }
+    .HintLabel { width: 420px; height: 70px; position: absolute; left: 1460px; top: 50px; z-index: 2; font-size: 20px; color: #f5e6c8; text-align: center; text-shadow: 0px 1px 4px #0000008c; }
+    .ActionBar { width: 1920px; height: 150px; position: absolute; left: 0px; top: 930px; }
+    .ActionDock { width: 1920px; height: 150px; position: absolute; left: 0px; top: 0px; background-color: #22160cd9; }
+    .Btn_build { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 465px; top: 13px; z-index: 4; background-color: #ffae00; border-radius: 18px; }
+    .Label_build { width: 200px; height: 60px; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+    .Btn_tasks { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 740px; top: 13px; z-index: 4; background-color: #64b5f6; border-radius: 18px; }
+    .Label_tasks { width: 200px; height: 60px; font-size: 26px; color: #0d253f; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+    .Btn_gemShop { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1015px; top: 13px; z-index: 4; background-color: #9c27b0; border-radius: 18px; }
+    .Label_gemShop { width: 200px; height: 60px; font-size: 26px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .Btn_map { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1290px; top: 13px; z-index: 4; background-color: #ffae00; border-radius: 18px; }
+    .Label_map { width: 200px; height: 60px; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+  </style>
+    <div class="TopBar">
+      <div class="TopBarWood"></div>
+          <div class="GoldPill">
+        <div class="PillInner">
+          <text class="GoldLabel">金币: 100</text>
+        </div>
+      </div>
+          <div class="ElixirPill">
+        <text class="ElixirLabel">药水: 0</text>
+      </div>
+          <div class="GemPill">
+        <text class="GemLabel">💎 0</text>
+      </div>
+          <text class="TitleLabel">🏴‍☠️ 渔村基地</text>
+          <text class="HintLabel">点击建筑可移动 · 删除按钮移除</text>
+    </div>
+    <div class="ActionBar">
+      <div class="ActionDock"></div>
+          <button class="Btn_build">
+        <text class="Label_build">🏗️ 建筑</text>
+      </button>
+          <button class="Btn_tasks">
+        <text class="Label_tasks">📋 任务</text>
+      </button>
+          <button class="Btn_gemShop">
+        <text class="Label_gemShop">💎 商店</text>
+      </button>
+          <button class="Btn_map">
+        <text class="Label_map">🗺️ 地图</text>
+      </button>
+    </div>
+</widget>

@@ -605,12 +605,16 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
         ...(styleRoot.computed.get('hit-test') ? { hitTest: styleRoot.computed.get('hit-test') } : {}),
       },
     })
+    // 根节点默认隐藏（<widget active="false"> → 根 Actor active:false，旧资产根挂 inactive 的等价写法）
+    if (root.attrs['active'] === 'false') doc.active = false
     // 根背景（body/widget 的 background 声明）
     emitRootBackground(rootBox, doc, wctx)
 
     // 7. 发射
     const emitter = new Emitter(wctx, warnings)
     const usedNames = new Set<string>([name])
+    // 根节点行为脚本（<widget data-script="...">，旧资产根挂 UIScript 的等价写法）
+    emitter.emitDataScript(styleRoot, doc as unknown as Record<string, unknown>)
     for (const child of rootBox.children) {
       emitter.emitBox(child, doc as unknown as { children: unknown[] }, rootBox, usedNames, 0)
     }
@@ -749,6 +753,10 @@ class Emitter {
       })
     }
 
+    // data-script 先于功能组件发射：按钮交互态（emitButtonStates）需要找到已有
+    // UIScriptComponent 并入 args，否则误报"无 data-script"
+    this.emitDataScript(el, node)
+
     switch (box.tag) {
       case 'img': this.emitImage(box, node, nodeName, true); this.emitBorders(box, node, nodeName); break
       case 'button': this.emitButton(box, node, nodeName, usedNames); this.emitBorders(box, node, nodeName); break
@@ -785,8 +793,7 @@ class Emitter {
       ;(node as Record<string, unknown>).sourceLayout = sl
     }
 
-    // ─── 通用：data-script / data-comp / title ───
-    this.emitDataScript(el, node)
+    // ─── 通用：data-comp / title（data-script 已提前发射） ───
     this.emitDataComp(el, node)
     const title = el.node.attrs['title']
     if (title) {
@@ -1068,8 +1075,18 @@ class Emitter {
     const value = el.node.attrs['value']
     if (value) props.value = value
     this.applyTextProps(el, props)
-    // 输入框文本：左对齐 + anchorX left（引擎输入框约定）
-    props.align = props.align ?? 'left'
+    // 背景视觉：与 button 同规则，background-color/gradient → 同节点 UIImage（引擎输入框无自带底色）
+    const bgProps = this.collectImageProps(el, elW, elH, '')
+    if (bgProps) {
+      ;(node.components as unknown[]).push({ baseClass: 'UIImageComponent', properties: bgProps })
+    }
+    // 输入框只保留输入语义字段：静态文本专属字段（align/bold/shadow* 等）引擎注册器
+    // 不消费且 assetLint schema 不允许，必须过滤
+    const inputAllowed = new Set(['placeholder', 'value', 'fontSize', 'color', 'width', 'height', 'zOrder', 'hitTest', 'name'])
+    for (const k of Object.keys(props)) {
+      if (!inputAllowed.has(k)) delete props[k]
+    }
+    // 输入框文本恒为左对齐（引擎 UITextInput 不消费 align 字段，持久化会被过滤）
     ;(node.components as unknown[]).push({ baseClass: 'UITextInputComponent', properties: props })
     if (el.node.attrs['disabled'] !== undefined || el.node.attrs['readonly'] !== undefined) {
       this.warnings.push({
@@ -1452,9 +1469,6 @@ class Emitter {
     const compName = el.node.attrs['data-comp']
     if (!compName) return
     const baseClass = compName.endsWith('Component') ? compName : `${compName}Component`
-    // 原生标签已映射的组件不再逃逸重复挂载
-    const nativeMapped = new Set(['UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent', 'UITooltipComponent', 'UIImageComponent', 'UIButtonComponent'])
-    if (nativeMapped.has(baseClass)) return
     let props: Record<string, unknown> = {}
     const dataProps = el.node.attrs['data-props']
     if (dataProps) {
@@ -1466,9 +1480,20 @@ class Emitter {
     }
     const comps = node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>
     const existing = comps.find((c) => c.baseClass === baseClass)
-    if (existing) existing.properties = { ...existing.properties, ...props }
-    else comps.push({ baseClass, properties: props })
+    if (existing) {
+      // 原生映射/已挂载的组件：data-props 并入（显式声明优先），不重复挂载
+      existing.properties = { ...existing.properties, ...props }
+      return
+    }
+    if (Emitter.NATIVE_MAPPED_COMPS.has(baseClass) && !dataProps) return
+    comps.push({ baseClass, properties: props })
   }
+
+  /** 原生标签已映射的组件（data-comp 与原生映射共存时并入原生组件，而非丢弃） */
+  private static readonly NATIVE_MAPPED_COMPS = new Set([
+    'UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent',
+    'UITooltipComponent', 'UIImageComponent', 'UIButtonComponent',
+  ])
 
   /** ─── 定位/变换 ─── */
 

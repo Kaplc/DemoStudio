@@ -1,6 +1,7 @@
 /**
  * 经验库工具：experience_save / experience_search。
- * save 落盘 episode + INDEX.md 索引；search 按文件名直接读取，不走 LLM。
+ * save 落盘 episode + INDEX.md 索引；search 按文件名直接读取。
+ * 经验保存与检索完全由主 agent 自觉调用工具完成，不走 LLM。
  *
  * @module experienceTools
  */

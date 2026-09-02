@@ -1,5 +1,6 @@
 /**
  * DS 行为飞轮：常量、episode 名校验、frontmatter 渲染/解析与 system prompt 段文本。
+ * 经验保存与检索完全由主 agent 自觉调用工具完成，不走 LLM。
  *
  * @module experienceTypes
  */
@@ -16,12 +17,6 @@ export const EXPERIENCE_INDEX_FILE = 'INDEX.md'
 /** 经验指导段在 system prompt 中的排序：内核自带段止于 2900，memory=3200、instructions=3300。 */
 export const SECTION_NAME = 'experience:guide'
 export const SECTION_ORDER = 3000
-
-/** AI 检索选择器默认模型。 */
-export const DEFAULT_SELECT_MODEL = 'deepseek-chat'
-
-/** AI 检索选择器默认 provider 路由（GenerateOptions.provider 必填，DeepSeek 官方适配器注册名）。 */
-export const DEFAULT_SELECT_PROVIDER = 'deepseek-official'
 
 /** AI 选择器单次最多选中的 episode 数（经验库按需冷检索，少而精）。 */
 export const MAX_SELECTED = 3
@@ -41,17 +36,7 @@ export const EPISODE_OUTCOMES = ['success', 'partial', 'failure'] as const
 /** 闭式 episode 结果。 */
 export type EpisodeOutcome = (typeof EPISODE_OUTCOMES)[number]
 
-/** AI 选择器输出 token 上限。 */
-export const SELECT_MAX_TOKENS = 512
 
-/** AI 选择器 side-query 超时（毫秒）。 */
-export const SELECT_TIMEOUT_MS = 15_000
-
-/** 提炼 side-query 超时（毫秒）。 */
-export const EXTRACT_TIMEOUT_MS = 30_000
-
-/** 提炼输出 token 上限。 */
-export const EXTRACT_MAX_TOKENS = 1024
 
 /** 转录渲染的默认总字符上限（history_read 可用 max_chars 覆盖）。 */
 export const DEFAULT_TRANSCRIPT_CHARS = 20_000

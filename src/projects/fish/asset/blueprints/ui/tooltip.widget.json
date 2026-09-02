@@ -1,6 +1,7 @@
 {
   "name": "Tooltip",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-5a5cfd04",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,12 +22,7 @@
           1
         ],
         "worldWidth": 3.2,
-        "worldHeight": 0.7,
-        "anchor": null,
-        "anchorOffset": [
-          0,
-          0
-        ]
+        "worldHeight": 0.7
       }
     },
     {
@@ -44,16 +40,11 @@
     {
       "name": "TooltipPanel",
       "baseClass": "Actor",
-      "id": 13301,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -64,13 +55,13 @@
               1,
               1
             ],
-            "anchor": "center",
-            "anchorOffset": [
+            "worldWidth": 3.2,
+            "worldHeight": 0.7,
+            "position": [
+              0,
               0,
               0
-            ],
-            "worldWidth": 3.2,
-            "worldHeight": 0.7
+            ]
           }
         },
         {
@@ -82,13 +73,23 @@
           }
         },
         {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "horizontal",
+            "spacingX": 0,
+            "spacingY": 0,
+            "justify": "center",
+            "align": "center",
+            "autoLayout": true
+          }
+        },
+        {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(46, 28, 18, 0.94)",
+            "color": "#2e1c12f0",
             "radius": 12,
             "width": 640,
             "height": 140,
-            "zOrder": 0,
             "name": "TooltipPanel"
           }
         }
@@ -97,16 +98,11 @@
         {
           "name": "TooltipText",
           "baseClass": "Actor",
-          "id": 13302,
+          "id": 13202,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -117,13 +113,13 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
+                "worldWidth": 3,
+                "worldHeight": 0.6,
+                "position": [
+                  0,
                   0,
                   0
-                ],
-                "worldWidth": 3,
-                "worldHeight": 0.6
+                ]
               }
             },
             {
@@ -138,15 +134,16 @@
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "",
+                "name": "TooltipText",
+                "width": 600,
+                "height": 120,
                 "fontSize": 22,
                 "color": "#f5e6c8",
                 "align": "center",
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 4,
-                "width": 600,
-                "height": 120,
-                "zOrder": 1,
-                "name": "TooltipText"
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
               }
             }
           ],

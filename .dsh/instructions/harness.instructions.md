@@ -11,7 +11,7 @@ prefix: harness
 |---|---|---|
 | `ds-instructions` | `@demostudio/ds-instructions` | 目录指令注入（读文件后自动注入 .dsh/instructions/*.md） |
 | `ds-memory` | `@demostudio/ds-memory` | 跨会话持久记忆（write/search/forget/review + 回合末自动提取） |
-| `ds-feedback` | `@demostudio/ds-feedback` | 用户纠正规则飞轮（rule_propose/rule_apply + 常驻规则段注入） |
+| `ds-feedback` | `@demostudio/ds-feedback` | 用户纠正规则飞轮（rule_propose/rule_apply + 常驻规则段注入 + 回合末关键词预筛命中后挂提示、主 agent 自行判定） |
 | `ds-experience` | `@demostudio/ds-experience` | 做事轨迹经验库（episode + history_search/read + 回合末自动提炼） |
 | `ds-sync` | `@demostudio/ds-sync` | home→项目根 .dsh 同步（记忆/skills/presets/profiles） |
 | `ds-engine-tools` | `@demostudio/ds-engine-tools` | 引擎特化工具集（inspectScene/spawnEntity/runScenario 等） |

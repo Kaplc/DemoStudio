@@ -51,13 +51,18 @@ powershell -c "Get-Item $env:USERPROFILE\.dsh\profiles\web\node_modules\@demostu
 | RL-08 | apply 成功后检查 | 提案文件已删除；RULES.md 索引恰一行（更新不产生重复行） |
 | RL-09 | pending 有提案时渲染规则段 | pending 不出现在 section（section 只列 active 规则） |
 | RL-10 | 构造超限规则库（索引 >300 行或 >40KB） | 段文本截断并带截断提示，不崩（同 memory 索引水位语义） |
+| RL-12 | 回合末预筛（`preScreen.ts`）：含纠正关键词的 `[用户] ` 行 / 纯任务消息 | 命中提取原话摘录（剥前缀、截断、最多最近 2 条）/ 不命中返回空 |
+| RL-13 | 规则段渲染 `SuspicionHint` | 有 hint 时末尾出现"⚠ 回合末纠正提示"块（回合号+摘录+提案-确认制要求）；无 hint/空摘录不出现 |
+| RL-14 | 回合末接线：命中回合空闲 → 下回合普通消息空闲 | 命中回合后该 agent 规则段挂提示；下回合未命中自动撤下（水位增量推进） |
+| RL-15 | 提示按 agent 隔离 + 子 agent（delegationDepth>0）+ 无 agent 装配 | 仅触发预筛的 agent 可见提示；子 agent 不预筛；诊断装配不渲染 |
+| RL-16 | `running` 撤销未触发预筛；`autoDetect: false` | 定时器撤销、水位保留、下次空闲补检照常命中；autoDetect 关闭不注册监听、规则段仍注册 |
 
 **手动/集成：**
 
 | 编号 | 步骤 | 预期 |
 |------|------|------|
-| RL-11 | 新会话：纠正模型一个做法并说"以后都这样" → 模型口头确认后 rule_propose → 用户说"应用" → rule_apply | 不依赖读文件，下一 step 的 system prompt 规则段即含新规则（当前会话立即生效）；重启会话后仍在 |
-| RL-12 | 与 ds-instructions 并存验证：`.dsh/instructions/` 手工指令照常注入，`.dsh/rules/` 规则段照常注入 | 两通道互不读写、互不覆盖（分工：手工规范 vs 纠正沉淀） |
+| RL-17 | 新会话：纠正模型一个做法并说"以后都这样" → 模型口头确认后 rule_propose → 用户说"应用" → rule_apply | 不依赖读文件，下一 step 的 system prompt 规则段即含新规则（当前会话立即生效）；重启会话后仍在 |
+| RL-18 | 与 ds-instructions 并存验证：`.dsh/instructions/` 手工指令照常注入，`.dsh/rules/` 规则段照常注入 | 两通道互不读写、互不覆盖（分工：手工规范 vs 纠正沉淀） |
 
 ## 4. SQ — 会话索引（profile patch）
 

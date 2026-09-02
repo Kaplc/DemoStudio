@@ -1,6 +1,7 @@
 {
   "name": "BarracksPanel",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-cd6d34c8",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,12 +22,7 @@
           1
         ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [
-          0,
-          0
-        ]
+        "worldHeight": 5.4
       }
     },
     {
@@ -36,14 +32,7 @@
         "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "hitTest": "visible"
-      }
-    },
-    {
-      "baseClass": "UIScriptComponent",
-      "properties": {
-        "script": "gameplay/base/BarracksUi"
+        "active": true
       }
     }
   ],
@@ -51,16 +40,11 @@
     {
       "name": "DimBackground",
       "baseClass": "Actor",
-      "id": 11000,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -71,13 +55,18 @@
               1,
               1
             ],
-            "anchor": "center",
+            "worldWidth": 9.6,
+            "worldHeight": 5.4,
+            "anchor": "bottom-right",
             "anchorOffset": [
+              4.8,
+              -2.7
+            ],
+            "position": [
+              0,
               0,
               0
-            ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4
+            ]
           }
         },
         {
@@ -85,22 +74,17 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 1
           }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(12,6,2,0.72)",
+            "color": "#0c0602b8",
             "opacity": 0.72,
-            "radius": 0,
             "width": 1920,
             "height": 1080,
-            "name": "DimBg",
-            "zOrder": 1,
-            "hitTest": "visible"
+            "name": "DimBackground"
           }
         }
       ],
@@ -109,16 +93,11 @@
     {
       "name": "Panel",
       "baseClass": "Actor",
-      "id": 11001,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -129,13 +108,18 @@
               1,
               1
             ],
-            "anchor": "center",
+            "worldWidth": 7.6,
+            "worldHeight": 5,
+            "anchor": "bottom-right",
             "anchorOffset": [
+              2.8,
+              -2.3
+            ],
+            "position": [
+              0,
               0,
               0
-            ],
-            "worldWidth": 7.6,
-            "worldHeight": 5
+            ]
           }
         },
         {
@@ -143,9 +127,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 2
           }
         },
         {
@@ -153,12 +135,9 @@
           "properties": {
             "color": "#8a6a3a",
             "radius": 24,
-            "width": 1540,
-            "height": 1020,
-            "name": "PanelFrame",
-            "zOrder": 2,
-            "hitTest": "visible",
-            "opacity": 1
+            "width": 1520,
+            "height": 1000,
+            "name": "Panel"
           }
         }
       ],
@@ -166,16 +145,11 @@
         {
           "name": "PanelWood",
           "baseClass": "Actor",
-          "id": 11002,
+          "id": 13203,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -190,6 +164,11 @@
                 "worldHeight": 4.8,
                 "anchor": "center",
                 "anchorOffset": [
+                  -0.1,
+                  0.1
+                ],
+                "position": [
+                  0,
                   0,
                   0
                 ]
@@ -200,9 +179,7 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 3,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 3
               }
             },
             {
@@ -212,10 +189,7 @@
                 "radius": 18,
                 "width": 1480,
                 "height": 960,
-                "name": "PanelWood",
-                "zOrder": 3,
-                "hitTest": "visible",
-                "opacity": 1
+                "name": "PanelWood"
               }
             }
           ],
@@ -224,16 +198,11 @@
         {
           "name": "TitleAccent",
           "baseClass": "Actor",
-          "id": 11003,
+          "id": 13204,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  2.78,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -246,10 +215,15 @@
                 ],
                 "worldWidth": 1.2,
                 "worldHeight": 0.08,
-                "anchor": "top-center",
+                "anchor": "middle-right",
                 "anchorOffset": [
+                  1,
+                  0.1
+                ],
+                "position": [
                   0,
-                  0.32
+                  0,
+                  0
                 ]
               }
             },
@@ -258,9 +232,7 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 4,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 4
               }
             },
             {
@@ -270,10 +242,7 @@
                 "radius": 4,
                 "width": 240,
                 "height": 16,
-                "name": "TitleAccent",
-                "zOrder": 4,
-                "hitTest": "visible",
-                "opacity": 1
+                "name": "TitleAccent"
               }
             }
           ],
@@ -282,16 +251,11 @@
         {
           "name": "Title",
           "baseClass": "Actor",
-          "id": 11004,
+          "id": 13205,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  2,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -302,13 +266,18 @@
                   1,
                   1
                 ],
-                "anchor": "top-center",
-                "anchorOffset": [
-                  0,
-                  -0.2
-                ],
                 "worldWidth": 4,
-                "worldHeight": 0.6
+                "worldHeight": 0.6,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  5,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -316,30 +285,24 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 5,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 5
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "⚔️ 兵营",
+                "name": "Title",
+                "width": 800,
+                "height": 120,
                 "fontSize": 32,
                 "color": "#ffffff",
-                "bold": true,
                 "align": "center",
-                "width": 400,
-                "height": 60,
-                "zOrder": 5,
-                "name": "TitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 6,
-                "hitTest": "visible",
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.01
+                "bold": true,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 2,
+                "shadowBlur": 6
               }
             }
           ],
@@ -348,16 +311,11 @@
         {
           "name": "Desc",
           "baseClass": "Actor",
-          "id": 11005,
+          "id": 13206,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  1.6050000000000002,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -368,13 +326,18 @@
                   1,
                   1
                 ],
-                "anchor": "top-center",
-                "anchorOffset": [
-                  0,
-                  -0.72
-                ],
                 "worldWidth": 4,
-                "worldHeight": 0.35
+                "worldHeight": 0.35,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  9,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -382,30 +345,23 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 6,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 6
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "选择兵种训练",
+                "name": "Desc",
+                "width": 800,
+                "height": 70,
                 "fontSize": 18,
                 "color": "#f5e6c8",
-                "bold": false,
                 "align": "center",
-                "width": 400,
-                "height": 48,
-                "zOrder": 6,
-                "name": "DescText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.45)",
-                "shadowBlur": 4,
-                "hitTest": "visible",
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.007292
+                "shadowColor": "#00000073",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
@@ -414,16 +370,11 @@
         {
           "name": "TroopList",
           "baseClass": "Actor",
-          "id": 11006,
+          "id": 13207,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0.32,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -434,13 +385,18 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
-                  0,
-                  0.32
-                ],
                 "worldWidth": 5.5,
-                "worldHeight": 1.9
+                "worldHeight": 1.9,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  14.5,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -448,19 +404,7 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 7,
-                "active": true,
-                "hitTest": "visible"
-              }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "grid",
-                "columns": 5,
-                "spacingX": 0.15,
-                "spacingY": 0.12,
-                "autoLayout": true
+                "zOrder": 7
               }
             }
           ],
@@ -469,16 +413,11 @@
         {
           "name": "QueueLabel",
           "baseClass": "Actor",
-          "id": 11007,
+          "id": 13208,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  -0.85,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -489,13 +428,18 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
-                  0,
-                  -0.85
-                ],
                 "worldWidth": 5,
-                "worldHeight": 0.26
+                "worldHeight": 0.26,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  19.5,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -503,30 +447,23 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 8,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 8
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "训练队列: 空闲",
+                "name": "QueueLabel",
+                "width": 1000,
+                "height": 52,
                 "fontSize": 17,
                 "color": "#ffd700",
-                "bold": false,
                 "align": "center",
-                "width": 900,
-                "height": 48,
-                "zOrder": 8,
-                "name": "QueueText",
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005417,
-                "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4,
-                "hitTest": "visible"
+                "shadowColor": "#00000080",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
@@ -535,16 +472,11 @@
         {
           "name": "ArmyLabel",
           "baseClass": "Actor",
-          "id": 11008,
+          "id": 13209,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  -1.1,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -555,13 +487,18 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
-                  0,
-                  -1.1
-                ],
                 "worldWidth": 5,
-                "worldHeight": 0.26
+                "worldHeight": 0.26,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  24.5,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -569,30 +506,23 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 9,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 9
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "当前军队: 无",
+                "name": "ArmyLabel",
+                "width": 1000,
+                "height": 52,
                 "fontSize": 17,
                 "color": "#a5d6a7",
-                "bold": false,
                 "align": "center",
-                "width": 900,
-                "height": 48,
-                "zOrder": 9,
-                "name": "ArmyText",
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005417,
-                "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4,
-                "hitTest": "visible"
+                "shadowColor": "#00000080",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
@@ -601,16 +531,11 @@
         {
           "name": "CapacityLabel",
           "baseClass": "Actor",
-          "id": 11009,
+          "id": 13210,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  -1.4,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -621,13 +546,18 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
-                  0,
-                  -1.4
-                ],
                 "worldWidth": 5,
-                "worldHeight": 0.26
+                "worldHeight": 0.26,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  29.5,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -635,30 +565,23 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 10,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 10
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "军队容量: 0/40",
+                "name": "CapacityLabel",
+                "width": 1000,
+                "height": 52,
                 "fontSize": 17,
                 "color": "#90caf9",
-                "bold": false,
                 "align": "center",
-                "width": 900,
-                "height": 48,
-                "zOrder": 10,
-                "name": "CapacityText",
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005417,
-                "shadowColor": "rgba(0,0,0,0.5)",
-                "shadowBlur": 4,
-                "hitTest": "visible"
+                "shadowColor": "#00000080",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
@@ -667,16 +590,11 @@
         {
           "name": "Btn_barracksClose",
           "baseClass": "Actor",
-          "id": 11010,
+          "id": 13211,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  -2.037553055509479,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -687,13 +605,18 @@
                   1,
                   1
                 ],
-                "anchor": "bottom-center",
-                "anchorOffset": [
-                  0,
-                  0.21
-                ],
                 "worldWidth": 1.6,
-                "worldHeight": 0.5
+                "worldHeight": 0.5,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  31.1,
+                  0.1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -701,32 +624,23 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 11,
-                "active": true,
-                "hitTest": "visible"
+                "zOrder": 11
               }
             },
             {
               "baseClass": "UIButtonComponent",
-              "properties": {
-                "name": "CloseButton"
-              }
+              "properties": {}
             }
           ],
           "children": [
             {
               "name": "Frame_close",
               "baseClass": "Actor",
-              "id": 11011,
+              "id": 13212,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [
-                      0,
-                      0,
-                      0
-                    ],
                     "rotation": [
                       0,
                       0,
@@ -737,13 +651,18 @@
                       1,
                       1
                     ],
-                    "anchor": "center",
+                    "worldWidth": 1.7,
+                    "worldHeight": 0.58,
+                    "anchor": "top-left",
                     "anchorOffset": [
+                      -83,
+                      9.45
+                    ],
+                    "position": [
+                      0,
                       0,
                       0
-                    ],
-                    "worldWidth": 1.7,
-                    "worldHeight": 0.58
+                    ]
                   }
                 },
                 {
@@ -751,9 +670,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 12,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 12
                   }
                 },
                 {
@@ -763,10 +680,7 @@
                     "radius": 18,
                     "width": 340,
                     "height": 116,
-                    "name": "BtnFrame",
-                    "zOrder": 12,
-                    "hitTest": "visible",
-                    "opacity": 1
+                    "name": "Frame_close"
                   }
                 }
               ],
@@ -775,16 +689,11 @@
             {
               "name": "Label_close",
               "baseClass": "Actor",
-              "id": 11012,
+              "id": 13213,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [
-                      0,
-                      0,
-                      0
-                    ],
                     "rotation": [
                       0,
                       0,
@@ -795,13 +704,18 @@
                       1,
                       1
                     ],
-                    "anchor": "center",
+                    "worldWidth": 1.5,
+                    "worldHeight": 0.4,
+                    "anchor": "top-left",
                     "anchorOffset": [
+                      -83,
+                      9.45
+                    ],
+                    "position": [
+                      0,
                       0,
                       0
-                    ],
-                    "worldWidth": 1.5,
-                    "worldHeight": 0.4
+                    ]
                   }
                 },
                 {
@@ -809,30 +723,24 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 13,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 13
                   }
                 },
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "🏠 关闭",
+                    "name": "Label_close",
+                    "width": 300,
+                    "height": 80,
                     "fontSize": 24,
                     "color": "#3d2600",
-                    "bold": true,
                     "align": "center",
-                    "width": 300,
-                    "height": 60,
-                    "zOrder": 13,
-                    "name": "CloseLabel",
-                    "italic": false,
-                    "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2,
-                    "hitTest": "visible",
-                    "lineHeight": 1.4,
-                    "letterSpacing": 0,
-                    "fontSizeScale": 0.006667
+                    "bold": true,
+                    "shadowColor": "#ffffff4d",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 2
                   }
                 }
               ],
@@ -842,6 +750,5 @@
         }
       ]
     }
-  ],
-  "sourceHash": "fnv1a-6bf1ca91"
+  ]
 }

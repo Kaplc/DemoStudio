@@ -1,17 +1,28 @@
 {
   "name": "TipsPanel",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-032fad5e",
   "components": [
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [0, 0]
+        "worldHeight": 5.4
       }
     },
     {
@@ -35,18 +46,33 @@
     {
       "name": "TipsBackground",
       "baseClass": "Actor",
-      "id": 14000,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "center",
-            "anchorOffset": [0, 0],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "worldWidth": 9.6,
-            "worldHeight": 5.4
+            "worldHeight": 5.4,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -60,13 +86,10 @@
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(0,0,0,0.3)",
-            "opacity": 0.3,
-            "radius": 0,
+            "color": "#0000004d",
             "width": 1920,
             "height": 1080,
-            "name": "Background",
-            "zOrder": 0
+            "name": "TipsBackground"
           }
         }
       ],
@@ -75,18 +98,33 @@
     {
       "name": "TipsPanelBody",
       "baseClass": "Actor",
-      "id": 14001,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "center",
-            "anchorOffset": [0, 0],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "worldWidth": 4,
-            "worldHeight": 2.5
+            "worldHeight": 2.5,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -104,27 +142,41 @@
             "radius": 24,
             "width": 800,
             "height": 500,
-            "name": "PanelFrame",
-            "zOrder": 1
+            "name": "TipsPanelBody"
           }
         }
       ],
       "children": [
         {
-          "name": "TipsPanelWood",
+          "name": "IconText",
           "baseClass": "Actor",
-          "id": 14002,
+          "id": 13203,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "worldWidth": 3.8,
-                "worldHeight": 2.3,
-                "anchor": "center",
-                "anchorOffset": [0, 0]
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 0.5,
+                "worldHeight": 0.435,
+                "anchor": "top-left",
+                "anchorOffset": [
+                  0,
+                  -0.25
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -132,107 +184,22 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#2a1a0a",
-                "radius": 18,
-                "width": 760,
-                "height": 460,
-                "name": "PanelWood",
-                "zOrder": 2
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "TipsIcon",
-          "baseClass": "Actor",
-          "id": 14003,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "top-center",
-                "anchorOffset": [0, 0.4],
-                "worldWidth": 1,
-                "worldHeight": 1
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 0
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "⚠️",
+                "name": "IconText",
+                "width": 100,
+                "height": 87,
                 "fontSize": 48,
                 "color": "#ffffff",
-                "bold": true,
                 "align": "center",
-                "width": 100,
-                "height": 100,
-                "zOrder": 3,
-                        "name": "IconText",
-                        "italic": false,
-                        "shadowColor": "rgba(0,0,0,0.4)",
-                        "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "TipsTitle",
-          "baseClass": "Actor",
-          "id": 14004,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "top-center",
-                "anchorOffset": [0, -0.2],
-                "worldWidth": 3,
-                "worldHeight": 0.5
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 1
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "提示",
-                "fontSize": 28,
-                "color": "#ffd54f",
-                "bold": true,
-                "align": "center",
-                "width": 600,
-                "height": 60,
-                "zOrder": 3,
-                "name": "TitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.5)",
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 1,
                 "shadowBlur": 4
               }
             }
@@ -240,20 +207,35 @@
           "children": []
         },
         {
-          "name": "TipsMessage",
+          "name": "TitleText",
           "baseClass": "Actor",
-          "id": 14005,
+          "id": 13204,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, 0],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 3,
-                "worldHeight": 1
+                "worldHeight": 0.235,
+                "anchor": "top-center",
+                "anchorOffset": [
+                  0,
+                  -0.35
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -261,24 +243,82 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "提示",
+                "name": "TitleText",
+                "width": 600,
+                "height": 47,
+                "fontSize": 28,
+                "color": "#ffd54f",
+                "align": "center",
+                "bold": true,
+                "shadowColor": "#00000080",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "MessageText",
+          "baseClass": "Actor",
+          "id": 13205,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 3,
+                "worldHeight": 0.935,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  2.5,
+                  0
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
                 "text": "金币不足",
+                "name": "MessageText",
+                "width": 600,
+                "height": 187,
                 "fontSize": 22,
                 "color": "#f5e6c8",
-                "bold": false,
                 "align": "center",
-                "width": 600,
-                "height": 200,
-                "zOrder": 3,
-                "name": "MessageText",
-                "italic": false,
-                "lineHeight": 1.4,
-                "shadowColor": "rgba(0,0,0,0.4)",
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 1,
                 "shadowBlur": 3
               }
             }
@@ -288,18 +328,33 @@
         {
           "name": "Btn_close",
           "baseClass": "Actor",
-          "id": 14006,
+          "id": 13206,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "bottom-center",
-                "anchorOffset": [0, 0.2],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 1.6,
-                "worldHeight": 0.5
+                "worldHeight": 0.435,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  4.1,
+                  -0.25
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -307,71 +362,55 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 1
+                "zOrder": 0
               }
             },
             {
               "baseClass": "UIButtonComponent",
+              "properties": {}
+            },
+            {
+              "baseClass": "UIImageComponent",
               "properties": {
-                "name": "CloseButton"
+                "color": "#ffae00",
+                "radius": 18,
+                "width": 320,
+                "height": 87,
+                "name": "Btn_close"
               }
             }
           ],
           "children": [
             {
-              "name": "Frame_close",
-              "baseClass": "Actor",
-              "id": 14007,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 1.7,
-                    "worldHeight": 0.58
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 12
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "color": "#ffae00",
-                    "radius": 18,
-                    "width": 340,
-                    "height": 116,
-                    "name": "BtnFrame",
-                    "zOrder": 12
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
               "name": "Label_close",
               "baseClass": "Actor",
-              "id": 14008,
+              "id": 13207,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
                     "worldWidth": 1.5,
-                    "worldHeight": 0.4
+                    "worldHeight": 0.3,
+                    "anchor": "top-left",
+                    "anchorOffset": [
+                      -9.25,
+                      1.6325
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
                   }
                 },
                 {
@@ -379,23 +418,23 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 2
+                    "zOrder": 0
                   }
                 },
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "确定",
-                    "fontSize": 24,
-                    "color": "#3d2600",
-                    "bold": true,
-                    "align": "center",
+                    "name": "Label_close",
                     "width": 300,
                     "height": 60,
-                    "zOrder": 4,
-                    "name": "CloseLabel",
-                    "italic": false,
-                    "shadowColor": "rgba(255,255,255,0.3)",
+                    "fontSize": 24,
+                    "color": "#3d2600",
+                    "align": "center",
+                    "bold": true,
+                    "shadowColor": "#ffffff4d",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 1,
                     "shadowBlur": 2
                   }
                 }

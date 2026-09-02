@@ -5,13 +5,15 @@
  * @module tools
  */
 
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { memoryAge, memoryAgeDays, memoryFreshnessText } from './memoryAge.js'
 import {
   MAX_MEMORY_CONTENT_CHARS,
+  MEMORY_ENTRYPOINT,
   MEMORY_TYPES,
   STALE_MEMORY_DAYS,
 } from './memoryTypes.js'
@@ -151,7 +153,12 @@ export function createMemorySearchTool(host: MemoryToolHost) {
         type: 'text',
         text: value.count === 0
           ? '记忆库中没有匹配的记忆。'
-          : `返回 ${value.count} 条记忆：\n${value.memories.map(m => `- ${m.file} [${m.type ?? 'unknown'}] (${m.age})${m.freshness_warning === '' ? '' : ` ⚠ ${m.freshness_warning}`}`).join('\n')}\n\n完整内容见结果 JSON。`,
+          : `返回 ${value.count} 条记忆：\n\n${value.memories.map(m => {
+              const header = `### ${m.file} [${m.type ?? 'unknown'}] (${m.age})${m.freshness_warning === '' ? '' : ` ⚠ ${m.freshness_warning}`}`
+              return m.content === ''
+                ? header
+                : `${header}\n${m.content}`
+            }).join('\n\n')}`,
       }],
     },
     async execute(args) {
@@ -367,15 +374,54 @@ export function createMemoryReviewTool(host: MemoryToolHost) {
 }
 
 // ---------------------------------------------------------------------------
+// memory_list
+// ---------------------------------------------------------------------------
+
+/** 主动读取 MEMORY.md 索引文件原文。 */
+export function createMemoryListTool(host: MemoryToolHost) {
+  return defineTool({
+    name: 'memory_list',
+    description: '读取 MEMORY.md 记忆索引文件的完整内容。用于查看当前有哪些记忆条目、确认索引是否正确。',
+    parameters: {},
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          content: { type: 'string', required: true },
+          exists: { type: 'boolean', required: true },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: value.exists
+          ? `MEMORY.md 索引内容：\n${value.content}`
+          : 'MEMORY.md 索引文件不存在（记忆目录为空）。',
+      }],
+    },
+    async execute() {
+      const entryPath = join(host.memoryDirectory, MEMORY_ENTRYPOINT)
+      try {
+        const content = await readFile(entryPath, 'utf8')
+        return { content, exists: true }
+      } catch {
+        return { content: '', exists: false }
+      }
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // 汇总
 // ---------------------------------------------------------------------------
 
-/** 创建全部 4 个记忆工具。 */
+/** 创建全部 5 个记忆工具。 */
 export function createMemoryTools(host: MemoryToolHost) {
   return [
     createMemoryWriteTool(host),
     createMemorySearchTool(host),
     createMemoryForgetTool(host),
     createMemoryReviewTool(host),
+    createMemoryListTool(host),
   ]
 }

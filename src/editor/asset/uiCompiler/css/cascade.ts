@@ -272,15 +272,26 @@ export function computeStyles(
     for (const rule of allRules) {
       if (!matchSelector(rule.selector, el, mc)) continue
       const spec = specificity(rule.selector.compounds)
-      // var() 替换 + 简写展开后逐条计入
-      for (const [prop, { value, important }] of rule.decls) {
-        const resolved = substituteVars(value, customScope)
-        for (const ex of expandAll(prop, resolved)) {
-          consider(ex.prop, ex.value, important, rule.origin, spec, rule.order, rule.line)
+      // 交互态伪类（:hover/:active/:disabled）始终命中但只属于交互态：
+      // 声明只进状态表，绝不进基础级联（否则 :active 色会以其更高特异性盖掉底色）
+      const hasStatePseudo = (c: { pseudos: Array<{ name: string }> }) =>
+        c.pseudos.some((p) => p.name === 'hover' || p.name === 'active' || p.name === 'disabled')
+      const lastIsState = hasStatePseudo(rule.selector.compounds[rule.selector.compounds.length - 1])
+      const anyIsState = rule.selector.compounds.some(hasStatePseudo)
+      if (!anyIsState) {
+        // var() 替换 + 简写展开后逐条计入
+        for (const [prop, { value, important }] of rule.decls) {
+          const resolved = substituteVars(value, customScope)
+          for (const ex of expandAll(prop, resolved)) {
+            consider(ex.prop, ex.value, important, rule.origin, spec, rule.order, rule.line)
+          }
         }
-      }
-      for (const [prop, value] of rule.customProps) {
-        consider(prop, value, false, rule.origin, spec, rule.order, rule.line)
+        for (const [prop, value] of rule.customProps) {
+          consider(prop, value, false, rule.origin, spec, rule.order, rule.line)
+        }
+      } else if (!lastIsState) {
+        // 嵌套状态选择器（如 .a:hover .b）语义不支持，声明整体忽略
+        continue
       }
       // 交互态伪类命中：收集状态声明
       const last = rule.selector.compounds[rule.selector.compounds.length - 1]

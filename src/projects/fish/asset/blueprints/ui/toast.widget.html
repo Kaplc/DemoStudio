@@ -1,9 +1,9 @@
 <widget name="Toast" canvas="960x180" world="4.8x0.9" anchor="top-center" offset="0,0.55">
   <style>
-    .ToastPanel { width: 960px; height: 180px; background-color: rgba(58, 36, 24, 0.92); border-radius: 24px; }
-    .ToastText { width: 920px; height: 160px; font-size: 28px; color: #f5e6c8; font-weight: bold; text-align: center; text-shadow-color: rgba(0,0,0,0.6); text-shadow-blur: 4px; z-order: 1; }
+    .ToastPanel { width: 960px; height: 180px; position: absolute; left: 0px; top: 0px; background-color: #3a2418eb; border-radius: 24px; }
+    .ToastText { width: 920px; height: 160px; z-index: 1; font-size: 28px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 1px 2px 4px #00000099; }
   </style>
-  <div class="ToastPanel">
-    <text class="ToastText"></text>
-  </div>
+    <div class="ToastPanel">
+      <text class="ToastText"></text>
+    </div>
 </widget>

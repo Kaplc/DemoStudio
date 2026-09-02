@@ -1,17 +1,28 @@
 {
   "name": "TasksPanel",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-17b80337",
   "components": [
     {
       "baseClass": "UITransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [0, 0]
+        "worldHeight": 5.4
       }
     },
     {
@@ -35,34 +46,50 @@
     {
       "name": "DimBackground",
       "baseClass": "Actor",
-      "id": 30000,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
-            "anchor": "center",
-            "anchorOffset": [0, 0],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
             "worldWidth": 9.6,
-            "worldHeight": 5.4
+            "worldHeight": 5.4,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
           "baseClass": "CanvasUIComponent",
-          "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 0 }
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(14,10,4,0.72)",
-            "opacity": 0.72,
-            "radius": 0,
+            "color": "#0e0a04b8",
             "width": 1920,
             "height": 1080,
-            "name": "DimBg",
-            "zOrder": 0
+            "name": "DimBackground"
           }
         }
       ],
@@ -71,23 +98,53 @@
     {
       "name": "Panel",
       "baseClass": "Actor",
-      "id": 30001,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [0, 0, 0],
-            "rotation": [0, 0, 0],
-            "scale": [1, 1, 1],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 7.7,
+            "worldHeight": 5.1,
             "anchor": "center",
-            "anchorOffset": [0, 0],
-            "worldWidth": 7.6,
-            "worldHeight": 5
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
           "baseClass": "CanvasUIComponent",
-          "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 1
+          }
+        },
+        {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "vertical",
+            "spacingX": 0,
+            "spacingY": 0,
+            "justify": "start",
+            "align": "center",
+            "autoLayout": true
+          }
         },
         {
           "baseClass": "UIImageComponent",
@@ -96,8 +153,7 @@
             "radius": 24,
             "width": 1540,
             "height": 1020,
-            "name": "PanelFrame",
-            "zOrder": 1
+            "name": "Panel"
           }
         }
       ],
@@ -105,23 +161,37 @@
         {
           "name": "PanelWood",
           "baseClass": "Actor",
-          "id": 30002,
+          "id": 13203,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 7.4,
                 "worldHeight": 4.8,
-                "anchor": "center",
-                "anchorOffset": [0, 0]
+                "position": [
+                  0,
+                  0.15,
+                  0
+                ]
               }
             },
             {
               "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
             },
             {
               "baseClass": "UIImageComponent",
@@ -130,306 +200,412 @@
                 "radius": 18,
                 "width": 1480,
                 "height": 960,
-                "name": "PanelWood",
-                "zOrder": 2
+                "name": "PanelWood"
               }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Title",
-          "baseClass": "Actor",
-          "id": 30003,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "top-center",
-                "anchorOffset": [0, -0.2],
-                "worldWidth": 4,
-                "worldHeight": 0.6
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "📜 任务与成就",
-                "fontSize": 32,
-                "color": "#ffffff",
-                "bold": true,
-                "align": "center",
-                "width": 400,
-                "height": 60,
-                "zOrder": 3,
-                "name": "TitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.6)",
-                "shadowBlur": 6
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "DailyTitle",
-          "baseClass": "Actor",
-          "id": 30004,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "top-center",
-                "anchorOffset": [0, -0.75],
-                "worldWidth": 4,
-                "worldHeight": 0.3
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "—— 每日任务（跨天刷新）——",
-                "fontSize": 18,
-                "color": "#ffd700",
-                "bold": false,
-                "align": "center",
-                "width": 600,
-                "height": 40,
-                "zOrder": 3,
-                "name": "DailyTitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.4)",
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "DailyList",
-          "baseClass": "Actor",
-          "id": 30005,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, 1.05],
-                "worldWidth": 6.8,
-                "worldHeight": 1.1
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "grid",
-                "columns": 3,
-                "spacingX": 0.15,
-                "spacingY": 0.1
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "AchTitle",
-          "baseClass": "Actor",
-          "id": 30006,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, 0.45],
-                "worldWidth": 4,
-                "worldHeight": 0.3
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "—— 成就（一次性里程碑）——",
-                "fontSize": 18,
-                "color": "#ffd700",
-                "bold": false,
-                "align": "center",
-                "width": 600,
-                "height": 40,
-                "zOrder": 3,
-                "name": "AchTitleText",
-                "italic": false,
-                "shadowColor": "rgba(0,0,0,0.4)",
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "AchievementList",
-          "baseClass": "Actor",
-          "id": 30007,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "center",
-                "anchorOffset": [0, -0.55],
-                "worldWidth": 6.8,
-                "worldHeight": 1.9
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "grid",
-                "columns": 4,
-                "spacingX": 0.12,
-                "spacingY": 0.1
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Btn_tasksClose",
-          "baseClass": "Actor",
-          "id": 30008,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [0, 0, 0],
-                "rotation": [0, 0, 0],
-                "scale": [1, 1, 1],
-                "anchor": "bottom-center",
-                "anchorOffset": [0, 0.15],
-                "worldWidth": 1.6,
-                "worldHeight": 0.5
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 1 }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": { "name": "TasksCloseButton" }
             }
           ],
           "children": [
             {
-              "name": "Frame_tasksClose",
+              "name": "Title",
               "baseClass": "Actor",
-              "id": 30009,
+              "id": 13204,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
                   "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 1.7,
-                    "worldHeight": 0.58
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 2,
+                    "worldHeight": 0.255,
+                    "anchor": "top-left",
+                    "anchorOffset": [
+                      0,
+                      -0.8
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
                   }
                 },
                 {
                   "baseClass": "CanvasUIComponent",
-                  "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 12, "active": true, "hitTest": "visible" }
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "📜 任务与成就",
+                    "name": "Title",
+                    "width": 400,
+                    "height": 51,
+                    "fontSize": 32,
+                    "color": "#ffffff",
+                    "align": "center",
+                    "bold": true,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 6
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "DailyTitle",
+              "baseClass": "Actor",
+              "id": 13205,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 3,
+                    "worldHeight": 0.155,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      -0.2,
+                      -0.85
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "—— 每日任务（跨天刷新）——",
+                    "name": "DailyTitle",
+                    "width": 600,
+                    "height": 31,
+                    "fontSize": 18,
+                    "color": "#ffd700",
+                    "align": "center",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "DailyList",
+              "baseClass": "Actor",
+              "id": 13206,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 6.8,
+                    "worldHeight": 1.055,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      4.4,
+                      -0.4
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "grid",
+                    "columns": 3,
+                    "spacingX": 0.15,
+                    "spacingY": 0.1,
+                    "autoLayout": true
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "AchTitle",
+              "baseClass": "Actor",
+              "id": 13207,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 3,
+                    "worldHeight": 0.155,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      7.4,
+                      -0.85
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "—— 成就（一次性里程碑）——",
+                    "name": "AchTitle",
+                    "width": 600,
+                    "height": 31,
+                    "fontSize": 18,
+                    "color": "#ffd700",
+                    "align": "center",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "AchievementList",
+              "baseClass": "Actor",
+              "id": 13208,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 6.8,
+                    "worldHeight": 1.855,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      14.2,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "grid",
+                    "columns": 4,
+                    "spacingX": 0.12,
+                    "spacingY": 0.1,
+                    "autoLayout": true
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_tasksClose",
+              "baseClass": "Actor",
+              "id": 13209,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1.6,
+                    "worldHeight": 0.455,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      15.8,
+                      -0.7
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {}
                 },
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
                     "color": "#ffae00",
                     "radius": 18,
-                    "width": 340,
-                    "height": 116,
-                    "name": "BtnFrame",
-                    "zOrder": 12,
-                    "hitTest": "visible",
-                    "opacity": 1
+                    "width": 320,
+                    "height": 91,
+                    "name": "Btn_tasksClose"
                   }
                 }
               ],
-              "children": []
-            },
-            {
-              "name": "Label_tasksClose",
-              "baseClass": "Actor",
-              "id": 30010,
-              "components": [
+              "children": [
                 {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [0, 0, 0],
-                    "rotation": [0, 0, 0],
-                    "scale": [1, 1, 1],
-                    "anchor": "center",
-                    "anchorOffset": [0, 0],
-                    "worldWidth": 1.5,
-                    "worldHeight": 0.4
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": { "markerOnly": true, "name": "UIMarker", "zOrder": 2 }
-                },
-                {
-                  "baseClass": "UITextComponent",
-                  "properties": {
-                    "text": "🏠 关闭",
-                    "fontSize": 24,
-                    "color": "#3d2600",
-                    "bold": true,
-                    "align": "center",
-                    "width": 300,
-                    "height": 60,
-                    "zOrder": 4,
-                    "name": "CloseLabel",
-                    "italic": false,
-                    "shadowColor": "rgba(255,255,255,0.3)",
-                    "shadowBlur": 2
-                  }
+                  "name": "Label_tasksClose",
+                  "baseClass": "Actor",
+                  "id": 13210,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1.5,
+                        "worldHeight": 0.3,
+                        "anchor": "top-left",
+                        "anchorOffset": [
+                          -22.65,
+                          0.7725
+                        ],
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "🏠 关闭",
+                        "name": "Label_tasksClose",
+                        "width": 300,
+                        "height": 60,
+                        "fontSize": 24,
+                        "color": "#3d2600",
+                        "align": "center",
+                        "bold": true,
+                        "shadowColor": "#ffffff4d",
+                        "shadowOffsetX": 0,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 2
+                      }
+                    }
+                  ],
+                  "children": []
                 }
-              ],
-              "children": []
+              ]
             }
           ]
         }

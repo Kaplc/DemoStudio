@@ -1,6 +1,7 @@
 {
   "name": "GMPanelRoot",
   "baseClass": "Actor",
+  "sourceHash": "fnv1a-043b6e16",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,22 +22,17 @@
           1
         ],
         "worldWidth": 9.6,
-        "worldHeight": 5.4,
-        "anchor": null,
-        "anchorOffset": [
-          0,
-          0
-        ]
+        "worldHeight": 5.4
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
-        "markerOnly": true,
-        "name": "UIMarker",
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "hitTest": "visible"
+        "active": true
       }
     }
   ],
@@ -44,16 +40,11 @@
     {
       "name": "GM_Dim",
       "baseClass": "Actor",
-      "id": 19000,
+      "id": 13201,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -64,13 +55,18 @@
               1,
               1
             ],
+            "worldWidth": 9.6,
+            "worldHeight": 5.4,
             "anchor": "center",
             "anchorOffset": [
               0,
               0
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -78,38 +74,29 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 1,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 1
           }
         },
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "rgba(10,6,20,0.6)",
-            "opacity": 0.6,
+            "color": "#0a061499",
             "width": 1920,
             "height": 1080,
-            "zOrder": 1,
-            "radius": 0,
-            "hitTest": "visible"
+            "name": "GM_Dim"
           }
         }
-      ]
+      ],
+      "children": []
     },
     {
       "name": "GM_PanelFrame",
       "baseClass": "Actor",
-      "id": 19001,
+      "id": 13202,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0.1,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -120,13 +107,18 @@
               1,
               1
             ],
+            "worldWidth": 7.6,
+            "worldHeight": 4.2,
             "anchor": "center",
             "anchorOffset": [
               0,
-              0.1
+              0
             ],
-            "worldWidth": 7.6,
-            "worldHeight": 4.2
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -134,9 +126,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 2,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 2
           }
         },
         {
@@ -146,26 +136,20 @@
             "radius": 18,
             "width": 1520,
             "height": 840,
-            "zOrder": 2,
-            "hitTest": "visible",
-            "opacity": 1
+            "name": "GM_PanelFrame"
           }
         }
-      ]
+      ],
+      "children": []
     },
     {
       "name": "GM_Panel",
       "baseClass": "Actor",
-      "id": 19002,
+      "id": 13203,
       "components": [
         {
           "baseClass": "UITransformComponent",
           "properties": {
-            "position": [
-              0,
-              0.1,
-              0
-            ],
             "rotation": [
               0,
               0,
@@ -176,13 +160,18 @@
               1,
               1
             ],
+            "worldWidth": 7.4,
+            "worldHeight": 4,
             "anchor": "center",
             "anchorOffset": [
               0,
-              0.1
+              0
             ],
-            "worldWidth": 7.4,
-            "worldHeight": 4
+            "position": [
+              0,
+              0,
+              0
+            ]
           }
         },
         {
@@ -190,9 +179,7 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 3,
-            "active": true,
-            "hitTest": "visible"
+            "zOrder": 3
           }
         },
         {
@@ -202,482 +189,19 @@
             "radius": 12,
             "width": 1480,
             "height": 800,
-            "zOrder": 3,
-            "hitTest": "visible",
-            "opacity": 1
-          }
-        }
-      ]
-    },
-    {
-      "name": "GM_Title",
-      "baseClass": "Actor",
-      "id": 19003,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              1.9,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              1.9
-            ],
-            "worldWidth": 4,
-            "worldHeight": 0.45
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 4,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "⚔️ ClashMaster GM 控制台",
-            "fontSize": 30,
-            "color": "#ffd700",
-            "bold": true,
-            "align": "center",
-            "width": 700,
-            "height": 70,
-            "zOrder": 4,
-            "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4,
-            "italic": false,
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.006429,
-            "hitTest": "visible"
-          },
-          "name": "GM_TitleText"
-        }
-      ]
-    },
-    {
-      "name": "GM_SearchInput",
-      "baseClass": "Actor",
-      "id": 19010,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              -1.86,
-              1.42,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              -1.86,
-              1.42
-            ],
-            "worldWidth": 2.7,
-            "worldHeight": 0.26
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 5,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#1a1028",
-            "radius": 6,
-            "width": 540,
-            "height": 52,
-            "zOrder": 5,
-            "hitTest": "visible",
-            "opacity": 1
-          }
-        },
-        {
-          "baseClass": "UITextInputComponent",
-          "properties": {
-            "placeholder": "🔍 搜索命令（名称/描述）...",
-            "fontSize": 14,
-            "color": "#f5ecd7",
-            "width": 540,
-            "height": 52,
-            "zOrder": 5,
-            "value": ""
-          },
-          "name": "GM_SearchInput"
-        }
-      ],
-      "children": []
-    },
-    {
-      "name": "GM_CmdList",
-      "baseClass": "Actor",
-      "id": 19004,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              -1.86,
-              0.26,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              -1.86,
-              0.26
-            ],
-            "worldWidth": 2.775764705882353,
-            "worldHeight": 1.9
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 6,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIScrollListComponent",
-          "properties": {
-            "itemWidget": "asset/blueprints/ui/gm_cmd_item.blueprint.json",
-            "itemSize": [
-              2.7,
-              0.24
-            ],
-            "spacing": 0.02,
-            "direction": "vertical",
-            "zOrderLift": 0,
-            "draggable": true,
-            "scrollbar": true
-          }
-        }
-      ]
-    },
-    {
-      "name": "GM_Output",
-      "baseClass": "Actor",
-      "id": 19005,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              1.55,
-              0.4,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              1.55,
-              0.4
-            ],
-            "worldWidth": 3.8,
-            "worldHeight": 2.4
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 7,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-            "fontSize": 15,
-            "color": "#ffe28a",
-            "align": "left",
-            "width": 860,
-            "height": 460,
-            "zOrder": 7,
-            "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4,
-            "bold": false,
-            "italic": false,
-            "lineHeight": 1.25,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.005217,
-            "hitTest": "visible"
-          },
-          "name": "GM_OutputText"
-        }
-      ]
-    },
-    {
-      "name": "GM_InputBox",
-      "baseClass": "Actor",
-      "id": 19006,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              -0.15,
-              -1,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              -0.3,
-              -1.25
-            ],
-            "worldWidth": 5.4,
-            "worldHeight": 0.5
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 8,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#1a1028",
-            "radius": 8,
-            "width": 1360,
-            "height": 96,
-            "zOrder": 8,
-            "hitTest": "visible",
-            "opacity": 1
-          }
-        },
-        {
-          "baseClass": "UITextInputComponent",
-          "properties": {
-            "placeholder": "输入 GM 命令（help 查看全部）...",
-            "fontSize": 22,
-            "color": "#f5ecd7",
-            "width": 1360,
-            "height": 96,
-            "zOrder": 8,
-            "value": ""
-          },
-          "name": "GM_InputText"
-        }
-      ]
-    },
-    {
-      "name": "GM_Hint",
-      "baseClass": "Actor",
-      "id": 19007,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              0,
-              -1.8,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              -1.8
-            ],
-            "worldWidth": 6,
-            "worldHeight": 0.3
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 9,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板",
-            "fontSize": 14,
-            "color": "#9a8ab0",
-            "align": "center",
-            "width": 900,
-            "height": 44,
-            "zOrder": 9,
-            "shadowColor": "rgba(0,0,0,0.4)",
-            "shadowBlur": 4,
-            "bold": false,
-            "italic": false,
-            "lineHeight": 1.4,
-            "letterSpacing": 0,
-            "fontSizeScale": 0.006818,
-            "hitTest": "visible"
-          }
-        }
-      ]
-    },
-    {
-      "name": "GM_SendBtn",
-      "baseClass": "Actor",
-      "id": 19008,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              3.16,
-              -1,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "anchor": "center",
-            "anchorOffset": [
-              3.1,
-              -1.25
-            ],
-            "worldWidth": 0.85,
-            "worldHeight": 0.5
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 10,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIButtonComponent",
-          "properties": {
-            "name": "SendButton"
-          }
-        },
-        {
-          "baseClass": "ClickableComponent",
-          "properties": {}
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "zOrder": 10,
-            "hitTest": "visible",
-            "color": "#ffffff",
-            "radius": 0,
-            "opacity": 0
+            "name": "GM_Panel"
           }
         }
       ],
       "children": [
         {
-          "name": "SendText",
+          "name": "GM_Title",
           "baseClass": "Actor",
-          "id": 19009,
+          "id": 13204,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -688,13 +212,18 @@
                   1,
                   1
                 ],
-                "anchor": "center",
+                "worldWidth": 4,
+                "worldHeight": 0.35,
+                "anchor": "top-left",
                 "anchorOffset": [
                   0,
-                  0
+                  -0.925
                 ],
-                "worldWidth": 0.85,
-                "worldHeight": 0.5
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
               }
             },
             {
@@ -702,178 +231,37 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 11,
-                "active": true,
-                "hitTest": "visible"
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffd700",
-                "radius": 10,
-                "width": 170,
-                "height": 100,
-                "zOrder": 11,
-                "hitTest": "visible",
-                "opacity": 1
+                "zOrder": 4
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "发送",
-                "fontSize": 16,
-                "color": "#2a1a3a",
-                "bold": true,
+                "text": "⚔️ ClashMaster GM 控制台",
+                "name": "GM_Title",
+                "width": 800,
+                "height": 70,
+                "fontSize": 30,
+                "color": "#ffd700",
                 "align": "center",
-                "width": 170,
-                "height": 96,
-                "zOrder": 11,
-                "shadowColor": "rgba(0,0,0,0.4)",
-                "shadowBlur": 4,
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005208,
-                "hitTest": "visible"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Button",
-      "baseClass": "Actor",
-      "id": 19011,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "position": [
-              3.2244830298843916,
-              1.727970816937904,
-              0
-            ],
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "worldWidth": 0.3856534260821065,
-            "worldHeight": 0.35052346537797296,
-            "anchor": "top-right",
-            "anchorOffset": [
-              -1.38,
-              -0.8
-            ]
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "zOrder": 12,
-            "active": true,
-            "hitTest": "visible"
-          }
-        },
-        {
-          "baseClass": "UIButtonComponent",
-          "properties": {
-            "pressScale": 0.9
-          }
-        },
-        {
-          "baseClass": "ClickableComponent",
-          "properties": {}
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "zOrder": 12,
-            "hitTest": "visible",
-            "color": "#ffffff",
-            "radius": 0,
-            "opacity": 0
-          }
-        }
-      ],
-      "children": [
-        {
-          "name": "Frame",
-          "baseClass": "Actor",
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 0.3856534260821065,
-                "worldHeight": 0.35052346537797296,
-                "anchor": "stretch",
-                "anchorOffset": [
-                  -0.02,
-                  0.01
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "zOrder": 13,
-                "active": true,
-                "hitTest": "visible"
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#4a6fa5",
-                "radius": 8,
-                "opacity": 1,
-                "width": 400,
-                "height": 100,
-                "zOrder": 13,
-                "hitTest": "visible"
+                "bold": true,
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
-          "id": 19012
+          "children": []
         },
         {
-          "name": "Text",
+          "name": "GM_SearchInput",
           "baseClass": "Actor",
-          "id": 19013,
+          "id": 13205,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -884,12 +272,17 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.3856534260821065,
-                "worldHeight": 0.35052346537797296,
-                "anchor": "stretch",
+                "worldWidth": 2.7,
+                "worldHeight": 0.26,
+                "anchor": "top-right",
                 "anchorOffset": [
-                  -0.59,
-                  -0.02
+                  -0.7,
+                  -0.97
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
                 ]
               }
             },
@@ -897,30 +290,613 @@
               "baseClass": "CanvasUIComponent",
               "properties": {
                 "markerOnly": true,
-                "zOrder": 14,
-                "active": true,
-                "hitTest": "visible"
+                "name": "UIMarker",
+                "zOrder": 5
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#1a1028",
+                "radius": 6,
+                "width": 540,
+                "height": 52,
+                "name": ""
+              }
+            },
+            {
+              "baseClass": "UITextInputComponent",
+              "properties": {
+                "width": 540,
+                "height": 52,
+                "placeholder": "🔍 搜索命令（名称/描述）...",
+                "fontSize": 14,
+                "color": "#f5ecd7"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GM_CmdList",
+          "baseClass": "Actor",
+          "id": 13206,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 2.8,
+                "worldHeight": 2.2,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  2.1,
+                  0
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 6
+              }
+            },
+            {
+              "baseClass": "UIScrollListComponent",
+              "properties": {
+                "direction": "vertical",
+                "itemWidget": "asset/blueprints/ui/gm_cmd_item.blueprint.json",
+                "itemSize": [
+                  2.7,
+                  0.24
+                ],
+                "spacing": 0.02,
+                "zOrderLift": 0,
+                "draggable": true,
+                "scrollbar": true
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GM_Output",
+          "baseClass": "Actor",
+          "id": 13207,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 4,
+                "worldHeight": 1.9,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  6.1,
+                  -0.15
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 7
               }
             },
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "X",
-                "fontSize": 32,
-                "color": "#ffffff",
-                "align": "center",
-                "width": 400,
-                "height": 80,
-                "zOrder": 14,
-                "shadowColor": "rgba(0,0,0,0.4)",
-                "shadowBlur": 4,
-                "hitTest": "visible",
-                "bold": false,
-                "italic": false,
-                "lineHeight": 1.4,
-                "letterSpacing": 0,
-                "fontSizeScale": 0.005
+                "text": "",
+                "name": "GM_Output",
+                "width": 800,
+                "height": 380,
+                "fontSize": 15,
+                "color": "#ffe28a",
+                "align": "left",
+                "lineHeight": 1.25,
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
               }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GM_Hint",
+          "baseClass": "Actor",
+          "id": 13208,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 4,
+                "worldHeight": 0.2,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  10.1,
+                  -1
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 7
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "Enter 执行 · Tab 切换搜索/输入 · Esc 关闭 · G+M 开关面板",
+                "name": "GM_Hint",
+                "width": 800,
+                "height": 40,
+                "fontSize": 14,
+                "color": "#9a8ab0",
+                "align": "left",
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GM_InputBox",
+          "baseClass": "Actor",
+          "id": 13209,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 5.9,
+                "worldHeight": 0.48,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  16,
+                  -0.86
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 8
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#1a1028",
+                "radius": 8,
+                "width": 1180,
+                "height": 96,
+                "name": ""
+              }
+            },
+            {
+              "baseClass": "UITextInputComponent",
+              "properties": {
+                "width": 1180,
+                "height": 96,
+                "placeholder": "输入 GM 命令（help 查看全部）...",
+                "fontSize": 22,
+                "color": "#f5ecd7"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "GM_SendBtn",
+          "baseClass": "Actor",
+          "id": 13210,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 0.9,
+                "worldHeight": 0.48,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  16.9,
+                  -0.86
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 10
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {}
+            },
+            {
+              "baseClass": "ClickableComponent",
+              "properties": {}
+            }
+          ],
+          "children": [
+            {
+              "name": "SendText",
+              "baseClass": "Actor",
+              "id": 13211,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 0.85,
+                    "worldHeight": 0.43,
+                    "anchor": "top-left",
+                    "anchorOffset": [
+                      -48.975,
+                      3.095
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 11
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "horizontal",
+                    "spacingX": 0,
+                    "spacingY": 0,
+                    "justify": "center",
+                    "align": "center",
+                    "autoLayout": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#ffd700",
+                    "radius": 10,
+                    "width": 170,
+                    "height": 86,
+                    "name": "SendText"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "SendLabel",
+                  "baseClass": "Actor",
+                  "id": 13212,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 0.8,
+                        "worldHeight": 0.4,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "发送",
+                        "name": "SendLabel",
+                        "width": 160,
+                        "height": 80,
+                        "fontSize": 16,
+                        "color": "#2a1a3a",
+                        "align": "center",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 0,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Button",
+          "baseClass": "Actor",
+          "id": 13213,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 0.38,
+                "worldHeight": 0.35,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  17.28,
+                  -0.925
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 12
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {}
+            },
+            {
+              "baseClass": "ClickableComponent",
+              "properties": {}
+            }
+          ],
+          "children": [
+            {
+              "name": "Frame",
+              "baseClass": "Actor",
+              "id": 13214,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 0.38,
+                    "worldHeight": 0.35,
+                    "anchor": "top-left",
+                    "anchorOffset": [
+                      -50.8,
+                      3.25
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 13
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "horizontal",
+                    "spacingX": 0,
+                    "spacingY": 0,
+                    "justify": "center",
+                    "align": "center",
+                    "autoLayout": true
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#4a6fa5",
+                    "radius": 8,
+                    "width": 76,
+                    "height": 70,
+                    "name": "Frame"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Text",
+                  "baseClass": "Actor",
+                  "id": 13215,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 0.35,
+                        "worldHeight": 0.3,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 14
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "X",
+                        "name": "Text",
+                        "width": 70,
+                        "height": 60,
+                        "fontSize": 32,
+                        "color": "#ffffff",
+                        "align": "center",
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 0,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
             }
           ]
         }
