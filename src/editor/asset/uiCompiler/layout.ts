@@ -626,8 +626,6 @@ class Solver {
     // 第二遍：垂直堆排。坐标约定：Box.x/y = 内容盒原点；
     // 子项内容原点 = 父内容原点 + 子 margin + 子自身 padding/border
     for (const child of flowChildren) {
-      const mt = child.mt
-      const mb = child.mb
       child.x = parent.x + child.ml + child.pl + child.bl
       child.y = parent.y + cursorY + child.mt + child.pt + child.bt
       // 自适应水平 margin:auto → 居中
@@ -640,7 +638,8 @@ class Solver {
       }
       // 布置子树（flex/grid/table/块级各自求解）
       this.layoutSubtree(child)
-      cursorY += mt + this.borderBoxHeight(child) + mb
+      // borderBoxHeight 已含 mt/mb（margin 盒），不可再叠加，否则父内容高被双计撑大
+      cursorY += this.borderBoxHeight(child)
     }
 
     // 内容高度 = 流内容底部

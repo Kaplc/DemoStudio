@@ -1,32 +1,31 @@
 <widget name="BarracksPanel" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BarracksUi">
   <style>
-    .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 960px; top: 540px; z-index: 1; background-color: #0c0602b8; opacity: 0.72; }
-    .Panel { width: 1520px; height: 1000px; position: absolute; left: 960px; top: 540px; z-index: 2; background-color: #8a6a3a; border-radius: 24px; }
-    .PanelWood { width: 1480px; height: 960px; position: absolute; left: 0px; top: 0px; z-index: 3; background-color: #3a2418; border-radius: 18px; }
-    .TitleAccent { width: 240px; height: 16px; position: absolute; left: 1480px; top: 472px; z-index: 4; background-color: #f0a500; border-radius: 4px; }
-    .Title { width: 800px; height: 120px; position: absolute; left: 1720px; top: 420px; z-index: 5; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 1px 2px 6px #00000099; }
-    .Desc { width: 800px; height: 70px; position: absolute; left: 2520px; top: 445px; z-index: 6; font-size: 18px; color: #f5e6c8; text-align: center; text-shadow: 1px 2px 4px #00000073; }
-    .TroopList { width: 1100px; height: 380px; position: absolute; left: 3320px; top: 290px; z-index: 7; }
-    .QueueLabel { width: 1000px; height: 52px; position: absolute; left: 4420px; top: 454px; z-index: 8; font-size: 17px; color: #ffd700; text-align: center; text-shadow: 1px 2px 4px #00000080; }
-    .ArmyLabel { width: 1000px; height: 52px; position: absolute; left: 5420px; top: 454px; z-index: 9; font-size: 17px; color: #a5d6a7; text-align: center; text-shadow: 1px 2px 4px #00000080; }
-    .CapacityLabel { width: 1000px; height: 52px; position: absolute; left: 6420px; top: 454px; z-index: 10; font-size: 17px; color: #90caf9; text-align: center; text-shadow: 1px 2px 4px #00000080; }
-    .Btn_barracksClose { width: 320px; height: 100px; position: absolute; left: 7420px; top: 430px; z-index: 11; }
-    .Frame_close { width: 340px; height: 116px; position: absolute; left: -16600px; top: -1890px; z-index: 12; background-color: #ffae00; border-radius: 18px; }
-    .Label_close { width: 300px; height: 80px; position: absolute; left: -16600px; top: -1890px; z-index: 13; font-size: 24px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 1px 2px 2px #ffffff4d; }
+    .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #0c0602b8; }
+    .Panel { width: 1480px; height: 1000px; position: absolute; left: 220px; top: 40px; z-index: 1; background-color: #8a6a3a; border-radius: 24px; }
+    .PanelWood { width: 1440px; height: 960px; position: absolute; left: 20px; top: 20px; background-color: #3a2418; border-radius: 18px; }
+    .TitleAccent { width: 240px; height: 16px; position: absolute; left: 600px; top: 102px; background-color: #f0a500; border-radius: 4px; }
+    .Title { width: 800px; height: 50px; position: absolute; left: 320px; top: 130px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 1px 2px 6px #00000099; }
+    .Desc { width: 800px; height: 40px; position: absolute; left: 320px; top: 192px; font-size: 18px; color: #f5e6c8; text-align: center; text-shadow: 1px 2px 4px #00000073; }
+    .TroopList { width: 1100px; height: 380px; position: absolute; left: 170px; top: 244px; background-color: #00000042; border-radius: 14px; }
+    .QueueLabel { width: 1000px; height: 36px; position: absolute; left: 220px; top: 636px; font-size: 17px; color: #ffd700; text-align: center; text-shadow: 1px 2px 4px #00000080; }
+    .ArmyLabel { width: 1000px; height: 36px; position: absolute; left: 220px; top: 684px; font-size: 17px; color: #a5d6a7; text-align: center; text-shadow: 1px 2px 4px #00000080; }
+    .CapacityLabel { width: 1000px; height: 36px; position: absolute; left: 220px; top: 732px; font-size: 17px; color: #90caf9; text-align: center; text-shadow: 1px 2px 4px #00000080; }
+    .Btn_barracksClose { width: 260px; height: 78px; display: flex; justify-content: center; align-items: center; position: absolute; left: 590px; top: 780px; background-color: #ffae00; border-radius: 16px; }
+    .Label_close { width: 200px; height: 40px; font-size: 24px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
   </style>
     <div class="DimBackground"></div>
     <div class="Panel">
-      <div class="PanelWood"></div>
-          <div class="TitleAccent"></div>
-          <text class="Title">⚔️ 兵营</text>
-          <text class="Desc">选择兵种训练</text>
-          <div class="TroopList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:5,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.15,&quot;autoLayout&quot;:true}'></div>
-          <text class="QueueLabel">训练队列: 空闲</text>
-          <text class="ArmyLabel">当前军队: 无</text>
-          <text class="CapacityLabel">军队容量: 0/40</text>
-          <button class="Btn_barracksClose">
-        <div class="Frame_close"></div>
-              <text class="Label_close">🏠 关闭</text>
-      </button>
+      <div class="PanelWood">
+        <div class="TitleAccent"></div>
+              <text class="Title">⚔️ 兵营</text>
+              <text class="Desc">选择兵种训练</text>
+              <div class="TroopList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:5,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.15,&quot;autoLayout&quot;:true}'></div>
+              <text class="QueueLabel">训练队列: 空闲</text>
+              <text class="ArmyLabel">当前军队: 无</text>
+              <text class="CapacityLabel">军队容量: 0/40</text>
+              <button class="Btn_barracksClose">
+          <text class="Label_close">🏠 关闭</text>
+        </button>
+      </div>
     </div>
 </widget>
