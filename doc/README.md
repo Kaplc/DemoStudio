@@ -74,6 +74,7 @@
 | [`ui/ui_enhancement_system.md`](./editor/ui/ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast / Tooltip / 色盲模式 / 进度条 |
 | [`ui/ui_anchor_system.md`](./editor/ui/ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑 |
 | [`ui/ui_source_format_system.md`](./editor/ui/ui_source_format_system.md) | UI HTML 源格式：.widget.html 编译/反编译 + 双向同步 + MCP ui_compile |
+| [`ui/ui_widget_html_manual.md`](./editor/ui/ui_widget_html_manual.md) | UI Widget HTML 编写手册（作者版）：只写 HTML+CSS 前端，编译器自动映射；标签/CSS 白名单、布局配方、禁区清单 |
 
 ### 3.5 integration（外部集成，2 篇）
 

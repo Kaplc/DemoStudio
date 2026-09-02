@@ -65,3 +65,9 @@
 - insert:
     - id: ds-editor-tools
       name: '@demostudio/ds-editor-tools'
+
+- insert:
+    - id: ds-context-warning
+      name: '@demostudio/ds-context-warning'
+      config:
+        thresholdsK: [100,200,250,300]
