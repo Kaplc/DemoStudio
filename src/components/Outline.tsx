@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   getSelectedActor, select, getSelectionKey, onSelectionChange,
   getEditorScene, getSceneTree, focusOn,
@@ -44,6 +44,92 @@ function applyCollapse(tree: SceneTreeNode[], collapsedKeys: Set<string>, kind: 
     if (collapsed) foldStack.push(node.depth)
   }
   return rows
+}
+
+/** 模糊匹配：空格分段全部命中（大小写不敏感子串） */
+export function matchesQuery(name: string, q: string): boolean {
+  if (!q) return true
+  const lower = name.toLowerCase()
+  return q.split(/\s+/).filter(Boolean).every((w) => lower.includes(w))
+}
+
+/** 搜索过滤后的行：节点 + 原树索引 + 是否有子节点（原树口径） */
+export interface FilteredOutlineRow {
+  node: SceneTreeNode
+  /** 原树索引（无 actor 节点生成稳定 key 用） */
+  index: number
+  hasChildren: boolean
+}
+
+/**
+ * 模糊搜索过滤（先序扁平树）：保留名称命中的节点及其祖先链。
+ * 返回行保持先序；hasChildren 按原树相邻深度判断。
+ * 搜索模式下调用方应忽略折叠状态（结果全展开）。
+ */
+export function filterOutlineTree(tree: SceneTreeNode[], q: string): FilteredOutlineRow[] {
+  const all: FilteredOutlineRow[] = tree.map((node, i) => ({
+    node,
+    index: i,
+    hasChildren: i + 1 < tree.length && tree[i + 1].depth > node.depth,
+  }))
+  if (!q) return all
+  // 正向一遍找父索引（最近一个 depth 更小的前驱）
+  const parent = new Array<number>(tree.length).fill(-1)
+  const stack: number[] = []
+  for (let i = 0; i < tree.length; i++) {
+    while (stack.length && tree[stack[stack.length - 1]].depth >= tree[i].depth) stack.pop()
+    parent[i] = stack.length ? stack[stack.length - 1] : -1
+    stack.push(i)
+  }
+  // 后向传播：命中节点标记其祖先链
+  const keep = new Array<boolean>(tree.length).fill(false)
+  for (let i = tree.length - 1; i >= 0; i--) {
+    if (matchesQuery(tree[i].name, q)) keep[i] = true
+    if (keep[i] && parent[i] >= 0) keep[parent[i]] = true
+  }
+  return all.filter((_, i) => keep[i])
+}
+
+/** 收集树中所有"有子节点"的折叠 key（与 applyCollapse 的 key 规则一致） */
+export function collectKeysWithChildren(tree: SceneTreeNode[], kind: string): string[] {
+  const keys: string[] = []
+  for (let i = 0; i < tree.length; i++) {
+    const node = tree[i]
+    if (i + 1 < tree.length && tree[i + 1].depth > node.depth) {
+      keys.push(node.actor ? `${kind}:${node.actor.root.id}` : `${kind}-node-${i}`)
+    }
+  }
+  return keys
+}
+
+/**
+ * 默认折叠 hook：keysWithChildren 中首次出现的 key 自动折叠（新树/新节点默认收起）；
+ * 已见过的 key 不重置 —— 用户手动展开后，树刷新不会折叠回去。
+ */
+export function useDefaultCollapsed(
+  keysWithChildren: string[],
+): [Set<string>, (key: string) => void] {
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
+  const seenRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const fresh = keysWithChildren.filter((k) => !seenRef.current.has(k))
+    if (fresh.length === 0) return
+    for (const k of fresh) seenRef.current.add(k)
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev)
+      for (const k of fresh) next.add(k)
+      return next
+    })
+  }, [keysWithChildren])
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+  return [collapsedKeys, toggleCollapsed]
 }
 
 /** 折叠箭头：有子节点显示可点击箭头（▼ 展开态点击折叠 / ▶ 折叠态点击展开），无子节点显示占位对齐 */
@@ -114,8 +200,18 @@ function renderActorTreeNodes(
   hiddenKeys: Set<number>,
   onToggleHidden: (actor: Actor, hidden: boolean) => void,
   onContextMenu?: (e: React.MouseEvent, node: SceneTreeNode) => void,
+  filterQuery = '',
 ): React.ReactElement[] {
-  return applyCollapse(tree, collapsedKeys, kind).map((row, i) => {
+  // 搜索模式：过滤命中节点 + 祖先链，忽略折叠（全展开）
+  const rows = filterQuery
+    ? filterOutlineTree(tree, filterQuery).map((r) => ({
+        node: r.node,
+        key: r.node.actor ? `${kind}:${r.node.actor.root.id}` : `${kind}-node-${r.index}`,
+        hasChildren: r.hasChildren,
+        collapsed: false,
+      }))
+    : applyCollapse(tree, collapsedKeys, kind)
+  return rows.map((row, i) => {
     const { node, key: itemKey, hasChildren, collapsed } = row
     // 防止 null === null：selected 为 null（无选中）时，无 actor 节点（DirectionalLight/Group 等）不能高亮
     const isSelected = selected !== null && selected === node.actor
@@ -171,7 +267,11 @@ function renderActorTreeNodes(
           onContextMenu?.(e, node)
         }}
       >
-        <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={onToggle} />
+        {filterQuery ? (
+          <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />
+        ) : (
+          <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={onToggle} />
+        )}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
         {node.actor && (
           <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>
@@ -190,19 +290,10 @@ function renderActorTreeNodes(
   })
 }
 
-export function Outline() {
+export function Outline({ query = '' }: { query?: string }) {
   const [selectionKey, setSelectionKey] = useState(getSelectionKey())
-  /** 折叠的节点 key 集合（空 = 全部展开，默认） */
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
-  /** 切换节点折叠状态 */
-  const toggleCollapsed = useCallback((key: string) => {
-    setCollapsedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
+  /** 模糊搜索词（空 = 不过滤；命中节点 + 祖先链显示，全展开） */
+  const filterQuery = query.trim().toLowerCase()
   const selected = getSelectedActor()
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const dynamicTabs = useEditorStore((s) => s.dynamicTabs)
@@ -288,22 +379,46 @@ export function Outline() {
     return tree
   }, [spAssetPath, selectionKey, blueprintEditNonce])
 
+  // ─── 默认折叠：首次出现的有子节点 key 自动折叠（手动展开过的不重置） ───
+  const allParentKeys = useMemo(
+    () => [
+      ...collectKeysWithChildren(visibleTree, 'scene'),
+      ...collectKeysWithChildren(bpTree ?? [], 'blueprint'),
+      ...collectKeysWithChildren(spTree ?? [], 'scenePreview'),
+    ],
+    [visibleTree, bpTree, spTree],
+  )
+  const [collapsedKeys, toggleCollapsed] = useDefaultCollapsed(allParentKeys)
+
   // ─── 缓存：蓝图树渲染元素 ───
   const bpTreeElements = useMemo(() => {
     if (!bpTree || bpTree.length === 0) return null
-    return renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'blueprint'))
-  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu])
+    const els = renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'blueprint'), filterQuery)
+    // 搜索无匹配 → 空数组置 null，让外层渲染"无匹配"文案
+    return els.length > 0 ? els : null
+  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu, filterQuery])
 
   // ─── 缓存：场景预览树渲染元素 ───
   const spTreeElements = useMemo(() => {
     if (!spTree || spTree.length === 0) return null
-    return renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'scenePreview'))
-  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu])
+    const els = renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'scenePreview'), filterQuery)
+    return els.length > 0 ? els : null
+  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu, filterQuery])
 
   // ─── 缓存：Scene 树渲染元素 ───
   const sceneTreeElements = useMemo(() => {
-    if (visibleTree.length === 0) return null
-    return applyCollapse(visibleTree, collapsedKeys, 'scene').map((row, i) => {      const { node, key: itemKey, hasChildren, collapsed } = row
+    // 搜索模式：过滤命中节点 + 祖先链，忽略折叠（全展开）
+    const rows = filterQuery
+      ? filterOutlineTree(visibleTree, filterQuery).map((r) => ({
+          node: r.node,
+          key: r.node.actor ? `scene:${r.node.actor.root.id}` : `scene-node-${r.index}`,
+          hasChildren: r.hasChildren,
+          collapsed: false,
+        }))
+      : applyCollapse(visibleTree, collapsedKeys, 'scene')
+    if (rows.length === 0) return null
+    return rows.map((row, i) => {
+      const { node, key: itemKey, hasChildren, collapsed } = row
       // 防止 null === null：selected 为 null（无选中）时，无 actor 节点不能高亮
       const isSelected = selected !== null && selected === node.actor
       const hidden = node.actor ? hiddenKeys.has(node.actor.root.id) : false
@@ -319,7 +434,9 @@ export function Outline() {
             cursor: 'pointer',
             background: isSelected ? 'var(--accent)' : 'transparent',
             color: isSelected ? '#fff' : 'var(--text-primary)',
-            whiteSpace: 'nowrap',            opacity: hidden ? 0.55 : 1,          }}
+            whiteSpace: 'nowrap',
+            opacity: hidden ? 0.55 : 1,
+          }}
           onClick={() => select(isSelected ? null : node.actor)}
           onDoubleClick={() => {
             if (!node.actor) return
@@ -341,7 +458,11 @@ export function Outline() {
             setMenu({ x: e.clientX, y: e.clientY, node, kind: 'scene' })
           }}
         >
-          <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={toggleCollapsed} />
+          {filterQuery ? (
+            <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />
+          ) : (
+            <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={toggleCollapsed} />
+          )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
           {isBlueprint && (
             <span style={{ color: 'var(--accent)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>[BP]</span>
@@ -361,7 +482,7 @@ export function Outline() {
         </div>
       )
     })
-  }, [visibleTree, selected, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, gameRunning])
+  }, [visibleTree, selected, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, gameRunning, filterQuery])
 
   // ─── 右键菜单数据与操作 ───
   /** 当前菜单的模板组（按预览管理器类型判定：widget → UI 组；3D 蓝图/场景 → 3D 组） */
@@ -531,11 +652,11 @@ export function Outline() {
     <div className="panel-body" style={{ padding: 0 }}>
       {isScenePreviewTab ? (
         spTreeElements ?? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>{filterQuery ? '无匹配节点' : '无预览数据'}</div>
         )
       ) : isBlueprintTab ? (
         bpTreeElements ?? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>无预览数据</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>{filterQuery ? '无匹配节点' : '无预览数据'}</div>
         )
       ) : !getEditorScene() ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
@@ -543,7 +664,7 @@ export function Outline() {
         </div>
       ) : sceneTreeElements ?? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
-          场景中暂无对象
+          {filterQuery ? '无匹配节点' : '场景中暂无对象'}
         </div>
       )}
       {menuShouldShow && (

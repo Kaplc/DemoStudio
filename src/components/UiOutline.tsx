@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import {
   getSelectedActor, select, getSelectionKey, onSelectionChange, getRunningWorld,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
+import { collectKeysWithChildren, filterOutlineTree, useDefaultCollapsed } from './Outline'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
 
@@ -14,18 +15,10 @@ import type { Actor } from '../engine'
  *  - 上半部分：HUD 根节点（HUD Actor → uiActor 树）
  *  - 运行中可点击选中节点（Inspector 查看组件），不聚焦摄像机、不可隐藏
  */
-export function UiOutline() {
-  const [selectionKey, setSelectionKey] = useState(getSelectionKey())
-  /** 折叠的节点 key 集合（空 = 全部展开，默认） */
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
-  const toggleCollapsed = useCallback((key: string) => {
-    setCollapsedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
+export function UiOutline({ query = '' }: { query?: string }) {
+  const [selectionKey, setSelectionKey] = React.useState(getSelectionKey())
+  /** 模糊搜索词（空 = 不过滤；命中节点 + 祖先链显示，全展开） */
+  const filterQuery = query.trim().toLowerCase()
   const selected = getSelectedActor()
   /** 游戏运行中（UI 树仅在运行时有数据） */
   const gameRunning = useEditorStore((s) => s.gameState.running)
@@ -59,9 +52,22 @@ export function UiOutline() {
     return rows
   }, [gameRunning, selectionKey])
 
-  // ─── 折叠过滤（复用大纲逻辑）───
+  // ─── 默认折叠：首次出现的有子节点 key 自动折叠（手动展开过的不重置） ───
+  const allParentKeys = useMemo(() => collectKeysWithChildren(runningUiTree ?? [], 'ui'), [runningUiTree])
+  const [collapsedKeys, toggleCollapsed] = useDefaultCollapsed(allParentKeys)
+
+  // ─── 折叠过滤（复用大纲逻辑）；搜索模式：命中 + 祖先链，全展开 ───
   const rows = useMemo(() => {
     if (!runningUiTree || runningUiTree.length === 0) return []
+    // 搜索模式：过滤命中节点 + 祖先链，忽略折叠（全展开）
+    if (filterQuery) {
+      return filterOutlineTree(runningUiTree, filterQuery).map((r) => ({
+        node: r.node,
+        key: r.node.actor ? `ui:${r.node.actor.root.id}` : `ui-node-${r.index}`,
+        hasChildren: r.hasChildren,
+        collapsed: false,
+      }))
+    }
     const out: Array<{ node: SceneTreeNode; key: string; hasChildren: boolean; collapsed: boolean }> = []
     const foldStack: number[] = []
     for (let i = 0; i < runningUiTree.length; i++) {
@@ -75,7 +81,7 @@ export function UiOutline() {
       if (collapsed) foldStack.push(node.depth)
     }
     return out
-  }, [runningUiTree, collapsedKeys])
+  }, [runningUiTree, collapsedKeys, filterQuery])
 
   if (!gameRunning) {
     return (
@@ -91,7 +97,7 @@ export function UiOutline() {
     return (
       <div className="panel-body" style={{ padding: 0 }}>
         <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
-          暂无 UI 节点
+          {filterQuery ? '无匹配节点' : '暂无 UI 节点'}
         </div>
       </div>
     )
@@ -128,16 +134,20 @@ export function UiOutline() {
               if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
             }}
           >
-            <span
-              onClick={(e) => { e.stopPropagation(); toggleCollapsed(itemKey) }}
-              title={collapsed ? '展开' : '折叠'}
-              style={{
-                display: 'inline-block', width: 16, flexShrink: 0, textAlign: 'center',
-                cursor: 'pointer', fontSize: 9, color: 'var(--text-dim)', userSelect: 'none',
-              }}
-            >
-              {hasChildren ? (collapsed ? '▶' : '▼') : ''}
-            </span>
+            {filterQuery ? (
+              <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />
+            ) : (
+              <span
+                onClick={(e) => { e.stopPropagation(); toggleCollapsed(itemKey) }}
+                title={collapsed ? '展开' : '折叠'}
+                style={{
+                  display: 'inline-block', width: 16, flexShrink: 0, textAlign: 'center',
+                  cursor: 'pointer', fontSize: 9, color: 'var(--text-dim)', userSelect: 'none',
+                }}
+              >
+                {hasChildren ? (collapsed ? '▶' : '▼') : ''}
+              </span>
+            )}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
             {node.actor && (
               <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>

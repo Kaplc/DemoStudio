@@ -1442,7 +1442,7 @@ class Emitter {
     }
   }
 
-  private emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
+  emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
     const script = el.node.attrs['data-script']
     if (!script) return
     const scriptProps: Record<string, unknown> = { script }

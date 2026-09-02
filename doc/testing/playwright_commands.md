@@ -201,6 +201,7 @@ await page.getByRole('button', { name: 'UI 大纲' }).dispatchEvent('click', { b
 | hidden 页面拖不动 gizmo（即使坐标精确） | **根因：hidden 页面 rAF 停摆 → THREE `matrixWorld` 陈旧 → `gizmo.hitTest` 射线命中失败**。解法：先 `mgr.scene.updateMatrixWorld(true)` + `mgr.gizmo.syncTransform()` 再投影坐标（fiber 桥拿真实 mgr 实例，见下） |
 | 模拟 gizmo 拖拽 | **fiber 桥拿真实实例**：canvas 的 `parentElement` 上有 `__reactFiber$` 键 → 沿 `return` 找 `ScenePreviewEditor` fiber → 遍历 `memoizedState` 找含 `current.renderer` 的 ref → 得 mgr。然后 `updateMatrixWorld(true)` + 投影 cone 坐标（`group.children[0].children[1]` = X 轴 cone）→ `canvas.dispatchEvent(new PointerEvent('pointerdown/move/up', {...}))` 完整模拟拖拽（page.mouse 在 hidden 页不可靠）；`setPointerCapture` 报错可忽略（startDrag 已执行） |
 | 模拟 Inspector 直改属性（React 受控输入） | **native setter + 同步 blur 无效**（React state 未更新，commit 用旧值）→ 用 `page.locator('input').nth(i).fill('5')` 触发 onChange，**等 ~300ms 后再 blur**（或 Enter），commit 才会拿到新值；blur 后撤销按钮应启用 |
+| React 受控输入（MCP `browser_evaluate` 无 fill） | native setter 在 evaluate 里**单次调用即可生效**（实测 2026-09-02，左侧面板搜索框）：`const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))` → React onChange 立即触发、state 更新。与上一行 fill+blur 场景差异：该场景 onChange 同步 commit 即生效，无 blur 依赖 |
 | 保存/加载没生效 | 浏览器 electronAPI 是 Mock（内存缓存）→ 回 Electron 验证真实磁盘 |
 | Playwright MCP（`browser_*`）直连 Electron 窗口时 electronAPI 是**真 IPC** | 与内置浏览器的 Mock 不同：`writeJsonFile` 等直接落盘 → 测试产生的文件必须当场清理，勿当 Mock 对待 |
 | 多步长 `browser_evaluate` 超时（默认 10s） | 拆成多个短 evaluate 分步执行；超时后页面可能被导航刷新，工程打开状态/组件上下文全部丢失，需重走打开工程流程 |

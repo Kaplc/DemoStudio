@@ -145,6 +145,46 @@ function buildTree(files: AssetFile[], projectRootPrefix: string): TreeNode[] {
   return root.children
 }
 
+/** 查询词是否模糊命中名称：空格分段全部命中（大小写不敏感子串） */
+function matchesQuery(name: string, q: string): boolean {
+  if (!q) return true
+  const lower = name.toLowerCase()
+  return q.split(/\s+/).filter(Boolean).every((w) => lower.includes(w))
+}
+
+/** 递归收集目录折叠 key（与渲染层 key 规则一致） */
+function collectDirKeys(nodes: TreeNode[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.isDir) {
+      out.push(`dir:${n.path}`)
+      collectDirKeys(n.children, out)
+    }
+  }
+  return out
+}
+
+/**
+ * 模糊搜索过滤：文件名/目录名命中保留；目录名命中保留整棵子树；
+ * 否则仅保留含命中后代的目录（祖先链）。搜索模式下目录应全部展开。
+ */
+function filterAssetTree(nodes: TreeNode[], q: string): TreeNode[] {
+  if (!q) return nodes
+  const out: TreeNode[] = []
+  for (const n of nodes) {
+    if (n.isDir) {
+      if (matchesQuery(n.name, q)) {
+        out.push(n)
+        continue
+      }
+      const children = filterAssetTree(n.children, q)
+      if (children.length > 0) out.push({ ...n, children })
+    } else if (matchesQuery(n.name, q)) {
+      out.push(n)
+    }
+  }
+  return out
+}
+
 /** 格式化文件大小（导出供 Inspector 的资产信息卡片复用） */
 export function formatSize(size: number): string {
   if (size <= 0) return '-'
@@ -175,7 +215,7 @@ interface MenuTarget {
   targetName: string | null
 }
 
-export function AssetBrowser() {
+export function AssetBrowser({ query = '' }: { query?: string }) {
   const currentProject = useEditorStore((s) => s.currentProject)
   const openScenePreview = useEditorStore((s) => s.openScenePreview)
   const openBlueprintEditor = useEditorStore((s) => s.openBlueprintEditor)
@@ -186,7 +226,9 @@ export function AssetBrowser() {
 
   const [files, setFiles] = useState<AssetFile[]>([])
   const [error, setError] = useState<string | null>(null)
-  /** 折叠的目录 key 集合（默认全展开） */
+  /** 模糊搜索词（空 = 不过滤；命中条目 + 祖先目录显示，全展开） */
+  const filterQuery = query.trim().toLowerCase()
+  /** 折叠的目录 key 集合（首次出现的目录默认折叠，手动展开过不重置） */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   /** 右键菜单：null 关闭（含创建区 + 文件/目录操作区） */
   const [menu, setMenu] = useState<MenuTarget | null>(null)
@@ -502,6 +544,22 @@ export function AssetBrowser() {
     return buildTree(files, `src/projects/${currentProject.folder}/asset/`)
   }, [files, currentProject])
 
+  // 默认折叠：首次出现的目录自动折叠（用户手动展开过的目录不被重置）
+  const seenDirsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const fresh = collectDirKeys(tree).filter((k) => !seenDirsRef.current.has(k))
+    if (fresh.length === 0) return
+    for (const k of fresh) seenDirsRef.current.add(k)
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      for (const k of fresh) next.add(k)
+      return next
+    })
+  }, [tree])
+
+  /** 搜索过滤后的树（query 为空 = 原树） */
+  const visibleNodes = useMemo(() => filterAssetTree(tree, filterQuery), [tree, filterQuery])
+
   /** 资产根前缀（带尾斜杠），用于从文件完整路径截取所在目录 */
   const assetPrefix = currentProject ? `src/projects/${currentProject.folder}/asset/` : ''
 
@@ -547,7 +605,8 @@ export function AssetBrowser() {
   const renderNode = (node: TreeNode, depth: number): React.ReactNode => {
     const key = node.isDir ? `dir:${node.path}` : node.path
     if (node.isDir) {
-      const isOpen = !collapsed.has(key)
+      // 搜索模式下忽略折叠（全展开，便于浏览命中结果）
+      const isOpen = filterQuery ? true : !collapsed.has(key)
       return (
         <div key={key}>
           <div
@@ -605,12 +664,12 @@ export function AssetBrowser() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onContextMenu={(e) => openMenu(e, null, null, '')}>
       <div style={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'auto' }}>
-        {tree.length === 0 ? (
+        {visibleNodes.length === 0 ? (
           <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>
-            暂无资产文件（右键空白处创建）
+            {filterQuery ? '无匹配资产' : '暂无资产文件（右键空白处创建）'}
           </div>
         ) : (
-          tree.map((n) => renderNode(n, 0))
+          visibleNodes.map((n) => renderNode(n, 0))
         )}
       </div>
       {menu && (
