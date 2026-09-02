@@ -164,7 +164,7 @@ FishGameInstance
  │   └─ pause_menu.widget.json → PauseMenu.script.ts（ScriptRegistry 'gameplay/level/PauseMenu'）
  ├─ FishBaseGameMode
  │   └─ base_map.widget.json → MapPanel.script.ts（ScriptRegistry 'gameplay/base/MapPanel'）
- │       └─ level_card.blueprint.json（spawnUIActor 动态实例化）
+│       └─ level_card.widget.json（spawnUIActor 动态实例化）
  └─ levels.table.json → ConfigRegistry 'fish.levels'（FishConfigLoader.registerTableTransform + registerGlob）
 ```
 

@@ -39,16 +39,16 @@
 | `TroopAttackComponent`（`gameplay/battle/troops/`） | 兵攻击组件：射程内按间隔 0.5s 开火（伤害=dps×0.5）；dps≤0（healer）不攻击 |
 | `BuildingHealthBarComponent`（`gameplay/common/comp/BuildingHealthBarComponent.ts`） | 建筑血条组件（继承 ActorComponent）：BeginPlay 建背景/前景条（初始不可见）；`onDamaged(ratio)` 显示+刷新+重置 3s 计时；`Tick` 超时直接隐藏 |
 | `TroopHealthBarComponent`（`gameplay/common/comp/TroopHealthBarComponent.ts`） | 兵头顶血条组件（仿建筑血条）：宽 0.8/高 0.12、位于兵模型头顶（`troop.size[1] + 0.35`）；受击显示、**1.5s** 无受击隐藏、<30% 前景变红；随兵移动（attachTo 兵 Actor）；`TroopActors.assembleTroop` 统一挂载 |
-| `LootFlyFx`（`gameplay/common/fx/LootFlyFx.ts`） | 战利品飞行特效工具：`show(world, fromWorld, kind, { toUi, onArrive })`；世界坐标→UI 坐标投影（`GameInstance.getActiveCamera()` + `Vector3.project` → NDC × 画布半宽高）；spawn `loot_fly.blueprint.json` 圆形小圆点（金币 #fbc02d / 圣水 #8e24aa）；TweenSystem 弧线 0.6s（x 线性 + y sin 上抛 +1.0）飞向顶部栏；**挂到真实画布宿主**（HUD 是纯容器，锚点无容器尺寸会失效）；全局同时最多 8 个在飞，超出丢弃动画但数字照增 |
+| `LootFlyFx`（`gameplay/common/fx/LootFlyFx.ts`） | 战利品飞行特效工具：`show(world, fromWorld, kind, { toUi, onArrive })`；世界坐标→UI 坐标投影（`GameInstance.getActiveCamera()` + `Vector3.project` → NDC × 画布半宽高）；spawn `loot_fly.widget.json` 圆形小圆点（金币 #fbc02d / 圣水 #8e24aa）；TweenSystem 弧线 0.6s（x 线性 + y sin 上抛 +1.0）飞向顶部栏；**挂到真实画布宿主**（HUD 是纯容器，锚点无容器尺寸会失效）；全局同时最多 8 个在飞，超出丢弃动画但数字照增 |
 | `CapsuleMeshComponent`（`src/engine/rendering/CapsuleMeshComponent.ts`） | 引擎胶囊体网格组件（继承 MeshComponent）：properties `radius`/`length`/`color`，已注册 ComponentRegistry + assetLint 检查器 |
 | 兵种蓝图 × 10（`asset/blueprints/troops/*.blueprint.json`） | 每兵种一个：`Actor`（注册表注册名，GenericActor 实例）+ `TransformComponent`（贴地 y 偏移 = radius+length/2）+ `CapsuleMeshComponent`（颜色写死）；`TroopType.blueprint` 字段引用 |
 | `BattleProjectileActor`（`gameplay/battle/BattleProjectileActor.ts`） | 弹丸：构造指定起终点/速度/伤害/目标；Tick 直线飞行；命中 <0.4 或超出总路程 → 结算自毁 |
-| `BattleHudScript`（`gameplay/battle/BattleHud.script.ts`） | HUD 脚本（script id `gameplay/battle/BattleHud`）：读兵种表生成卡片（复用 `troop_card.blueprint.json`）、数量/禁用/放置中刷新；**顶部战利品栏**（`LootBar`/`LootCoinsText`/`LootElixirText`）：注册 `gm.onLootDisplayChange` → 飞行到达时 `refreshLootDisplay()` 刷新数字（仅变化时 setText）+ 文本脉冲（scale 1.25 → 1，backOut 0.2s） |
+| `BattleHudScript`（`gameplay/battle/BattleHud.script.ts`） | HUD 脚本（script id `gameplay/battle/BattleHud`）：读兵种表生成卡片（复用 `troop_card.widget.json`）、数量/禁用/放置中刷新；**顶部战利品栏**（`LootBar`/`LootCoinsText`/`LootElixirText`）：注册 `gm.onLootDisplayChange` → 飞行到达时 `refreshLootDisplay()` 刷新数字（仅变化时 setText）+ 文本脉冲（scale 1.25 → 1，backOut 0.2s） |
 | `BattleResultScript`（`gameplay/battle/BattleResult.script.ts`） | 结算脚本（script id `gameplay/battle/BattleResult`）：读 `getBattleResult()` 填充标题/明细、绑定回基地 |
 | `ClashBuildingType`（`gameplay/base/ClashBuildingTypes.ts`） | 类型表加战斗字段：hp（城镇大厅 1000/城墙 250 等）、lootCoins/lootElixir（掠夺量）、defense（防御塔 range 9/damage 30/cooldown 1s）、blocksGround |
 | `FishLevelPlayerController`（`gameplay/level/`） | 用户操作（Controller 承接）：`OnPointerDownScreen` → `onScreenDown` 立即放兵 + 启动长按连续放兵定时器（每 0.4s 在最近鼠标位置放一个）；`OnPointerMoveScreen` → 记录坐标 + 相机云台；左键释放（BindMouseButton 订阅）→ 停止长按 |
 | `BaseCameraActor`（`gameplay/base/BaseCameraActor.ts`） | 战斗相机复用：透视 + 滚轮缩放 + 右键平移（关边缘滚动，panLimit ±24） |
-| `battle_hud.widget.json` / `battle_result.widget.json`（`asset/blueprints/ui/`） | 战斗 HUD（CoC 木条底栏 + 8 列卡片 grid + 统计 + **顶部中央战利品栏 `LootBar`（半透明深色底条 + 金币/圣水文本）**）与结算面板（CoC 面板 + 回基地按钮）；另有 `loot_fly.blueprint.json`（飞行小圆点） |
+| `battle_hud.widget.json` / `battle_result.widget.json`（`asset/blueprints/ui/`） | 战斗 HUD（CoC 木条底栏 + 8 列卡片 grid + 统计 + **顶部中央战利品栏 `LootBar`（半透明深色底条 + 金币/圣水文本）**）与结算面板（CoC 面板 + 回基地按钮）；另有 `loot_fly.widget.json`（飞行小圆点） |
 
 ## 3. 使用方法
 

@@ -118,7 +118,7 @@ textComp.text = InputPromptSystem.instance.prompt('按 E 交互', '点击交互'
 ### 2.7 UIScrollListComponent
 
 ```json
-{ "baseClass": "UIScrollListComponent", "properties": { "itemWidget": "asset/blueprints/ui/troop_card.blueprint.json", "itemSize": [1.2, 0.5], "spacing": 0.15, "direction": "vertical", "draggable": true } }
+{ "baseClass": "UIScrollListComponent", "properties": { "itemWidget": "asset/blueprints/ui/troop_card.widget.json", "itemSize": [1.2, 0.5], "spacing": 0.15, "direction": "vertical", "draggable": true } }
 ```
 
 ```ts

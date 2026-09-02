@@ -313,3 +313,6 @@ AI 客户端 ──stdio──► editor/mcp-server.mjs ──HTTP :9877+──�
 | 启动页卡片点击后项目未打开 | 卡片 `onClick` 仅**选中**（出现 ✓），打开需双击卡片或点「打开工程」按钮（`App.tsx` StartupProjectSelector） | 选中后补点 `button:has-text("打开工程")`，等 10s+ 出现项目状态栏 |
 | `localhost:5173` 连接被拒但 Vite 在跑 | Vite 只监听 IPv6 `::1`，`localhost` 解析为 IPv4 `127.0.0.1` 时不通 | 导航用 `http://[::1]:5173/`，或改 `vite.config.ts` 的 `server.host` |
 | 9222 有 `LISTENING` 但 `Invoke-RestMethod /json/version` 超时（假监听） | 残留进程占着端口不放，CDP HTTP 服务已死；症状是 `browser_*` 全部 10s 超时且无连接错误 | netstat 确认 PID → kill 后按 §3.1 重启 Chrome；临时急用可切 VS Code 内置浏览器路径（`playwright_commands.md`），两套链路互不干扰 |
+| Electron 页挂在后台 tab 时游戏运行时"假死"：日志/生成队列 45-70s 才动一次 | Chrome 对后台页面 rAF 节流（约 1 帧/分钟），World tick 驱动的一切（蓝图生成队列、脚本 BeginPlay）都被拖慢；症状是 `ai.clickActor` 报"未找到 Actor"但放置日志正常 | `browser_run_code_unsafe` 里 `page.bringToFront()` 前台化后立即恢复；自测期间保持 Electron 页在前台 |
+| 改了 `.widget.json` 等资产后游戏行为没变 | `import.meta.glob` 资产注册是模块级求值，**重启游戏（start_game）不会重新读盘**；且 `BlueprintRegistry.cache` 同一会话内缓存 resolve 结果 | 必须 `page.reload()` 整页刷新让模块重新求值（顺带重置 Registry 缓存） |
+| 场景大纲类断言拿不到建筑 Actor | 同上：后台节流 + 旧注册缓存叠加，`ai.getActor`/大纲结果不代表最新磁盘资产 | 先 bringToFront + reload，再跑断言；大纲工具用 `ai.getSceneOutline` 事件 |

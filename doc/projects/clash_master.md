@@ -67,7 +67,7 @@ ClashMaster 演示了 DemoStudio 的完整项目形态：**一个项目 = `regis
 |---|---|
 | 项目显示名/描述 | `project.json` + `stores/projectStore.ts`（**两处必须同步**）+ `register.ts` 的 `fishMasterProject.name` |
 | 主菜单标题/副标题/提示 | `asset/blueprints/ui/main_menu.widget.json` 的 UITextComponent `text` |
-| GM 面板主题 | **资产驱动**：编辑 `asset/blueprints/ui/gm_panel.widget.json`（暗紫/部落金主题）即可，无需改代码；命令按钮（`GM_CmdList` 挂 `UIScrollListComponent` 滚动列表，item 来自 `gm_cmd_item.blueprint.json`，命令多时滚轮滚动）+ 发送按钮（`GM_SendBtn`）由基类运行时绑定（详见 [`../engine/gm_system.md`](../engine/gm_system.md) §3.6） |
+| GM 面板主题 | **资产驱动**：编辑 `asset/blueprints/ui/gm_panel.widget.json`（暗紫/部落金主题）即可，无需改代码；命令按钮（`GM_CmdList` 挂 `UIScrollListComponent` 滚动列表，item 来自 `gm_cmd_item.widget.json`，命令多时滚轮滚动）+ 发送按钮（`GM_SendBtn`）由基类运行时绑定（详见 [`../engine/gm_system.md`](../engine/gm_system.md) §3.6） |
 | 基地 HUD / 建筑菜单 / 地图面板 | `asset/blueprints/ui/{base_hud,build_menu,base_map,...}.widget.json` + 对应 `*.script.ts` |
 
 ## 4. 工作流程

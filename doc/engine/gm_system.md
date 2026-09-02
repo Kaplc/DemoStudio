@@ -34,7 +34,7 @@ GM（Game Master）命令系统是引擎层的调试基础设施，让项目开�
 | `GMCommandContext` | 传给 handler 的上下文：`gameInstance`（实际为项目子类实例）、`output(text)`（输出通道）、`logger` |
 | `GMRegistry` | 静态注册表：`register` / `get` / `getAll` / `findByName` / `clearAll` / `registerProjectGlob` |
 | `GMModule` | 实例级执行模块：`execute(line, out?)`、`enabled` 开关、`openConsole/closeConsole/toggleConsole/clearConsoleOutput`、`consoleOpen`、静态 `handleGlobalKeyDown/Up`（全局键盘钩子）、`dispose()` |
-| `GMConsoleHUD` | 控制台面板**基类**（继承 `HUD`，`isUIActor` 天然成立）：`buildUI()` 拼装控件树（可覆写），工具 `makeActor/makeText`，标题栏、命令列表、输出区（12 行滚动）、输入框，开建闭毁 |
+| `GMConsoleHUD` | 控制台面板**基类**（继承 `HUD`，`isUIActor` 天然成立）：资产驱动强制（`panelAssetPath` 指向 widget 资产，缺失/绑定失败构造时抛错），输出区（12 行滚动）、输入框、命令滚动列表，开建闭毁 |
 | `UITextInputComponent` | 文本输入组件（继承 `UITextComponent`）：`value` / `focus()` / `blur()` / `clear()` / `handleKey(key)` / `onSubmit` 回调；聚焦时显示 `值|` 光标，失焦空值时显示灰色占位 |
 
 ## 3. 使用方法
@@ -150,18 +150,18 @@ GMModule.setConsoleFactory((gm) => new MyGMConsoleHUD(gm))
 - 组件可用：`UITransformComponent / CanvasUIComponent / UIImageComponent / UITextComponent / UITextInputComponent / UIButtonComponent`（输入框组件已注册进 ComponentRegistry 并有 assetLint checker）
 
 **命令按钮 + 发送按钮（运行时绑定）**：
-- `GM_CmdList` 容器节点：挂 `UIScrollListComponent`（`itemWidget: asset/blueprints/ui/gm_cmd_item.blueprint.json`、`itemSize [2.7,0.24]`、`spacing 0.02`、`direction vertical`；**不配 `visibleCount`**——组件按容器尺寸自动推导可视数量，**只有命令超框才能滚动**），基类 `buildCommandButtons()` 遍历 `GMRegistry.getAll()` 设置 `list.totalCount = 命令数`，item 经对象池复用（`onItemSpawned` 填充命令名文本 + 绑定点击 → 命令名填入输入框并聚焦；赋值后补 `list.refresh()` 让初始 item 立即渲染文本）；命令多出可视区时滚轮滚动（向下滚看后面命令），超界 item 自动隐藏；新增 `*.gm.ts` 命令自动出现在按钮列表
-- **item 蓝图**：`gm_cmd_item.blueprint.json`（`UITransform` anchor center offset `[0,1.2]` 2.7×0.24 + `CanvasUIComponent` marker zOrder 2 + `UIImageComponent` #1a1028 radius 6 540×48 zOrder 2 + `UITextComponent` CmdLabel font 13 #e8d8a8 500×40 zOrder 3 + `UIButtonComponent`）
+- `GM_CmdList` 容器节点：挂 `UIScrollListComponent`（`itemWidget: asset/blueprints/ui/gm_cmd_item.widget.json`、`itemSize [2.7,0.24]`、`spacing 0.02`、`direction vertical`；**不配 `visibleCount`**——组件按容器尺寸自动推导可视数量，**只有命令超框才能滚动**），基类 `buildCommandButtons()` 遍历 `GMRegistry.getAll()` 设置 `list.totalCount = 命令数`，item 经对象池复用（`onItemSpawned` 填充命令名文本 + 绑定点击 → 命令名填入输入框并聚焦；赋值后补 `list.refresh()` 让初始 item 立即渲染文本）；命令多出可视区时滚轮滚动（向下滚看后面命令），超界 item 自动隐藏；新增 `*.gm.ts` 命令自动出现在按钮列表
+- **item widget**：`gm_cmd_item.widget.json`（根 `UITransform` 2.7×0.24 + `CanvasUIComponent`；`CmdButton` 子节点挂 `UIImageComponent` #1a1028 radius 6 540×48 + `UIButtonComponent`；`CmdLabel` 子节点 `UITextComponent` font 13 #e8d8a8 500×40）
 - `GM_SendBtn` 按钮节点（`UIButtonComponent`）：点击 → `submitInput()`（执行输入框内容 → 回显 → 清空 → 重新聚焦）；Enter 提交与发送按钮共用 `submitInput()`
 - 定位用 `findActorByName`（⚠️ 比较 `root.root.name`——`spawnUIActor` 只设置 Group 名，`Actor.name` 恒为类名）
 
-**命令搜索（模糊过滤）**：面板可配置搜索框（资产节点 `GM_SearchInput`，挂 `UITextInputComponent`；程序化兜底面板为 `GM_SearchBox`），基类 `applySearchFilter(query)` 按**命令 name / 注册 id（路径式）/ description** 小写包含模糊匹配，实时刷新 `GM_CmdList` 的 `totalCount` 并回到顶部；空词恢复全量。**Tab 键**在搜索框/输入框间切换焦点（`handleInputKey` 内处理，焦点所在框接收全部可打印键），面板打开默认聚焦输入框。搜索框缺失时仅 warn 不失败（跳过搜索能力）。
+**命令搜索（模糊过滤）**：面板可配置搜索框（资产节点 `GM_SearchInput`，挂 `UITextInputComponent`），基类 `applySearchFilter(query)` 按**命令 name / 注册 id（路径式）/ description** 小写包含模糊匹配，实时刷新 `GM_CmdList` 的 `totalCount` 并回到顶部；空词恢复全量。**Tab 键**在搜索框/输入框间切换焦点（`handleInputKey` 内处理，焦点所在框接收全部可打印键），面板打开默认聚焦输入框。搜索框缺失时仅 warn 不失败（跳过搜索能力）。
 
 **滚轮接线**：`Viewport` Game canvas wheel → `InputRouter.handleWheel` → `GameViewport.handleGameWheel` → `InputSys.handleScroll(delta)` → `GMModule.handleGlobalScroll`（面板打开 → 转发 `GMConsoleHUD.handleScroll`，返回 true 消费不穿透游戏）→ `_cmdList.scrollBy(delta > 0 ? 1 : -1)`。方向约定：滚轮向下（deltaY>0）= 看后面的命令（offset 增加）；越界由组件钳制（offset ≥ 0 且 ≤ totalCount - visibleCount）。
 
-**兜底**：资产缺失/解析失败/缺少关键组件 → `loadPanelFromAsset()` 返回 false → 回退程序化 `buildUI()`（引擎默认样式，兼容旧子类覆写 buildUI 的方式）。
+**fail-fast（无兜底）**：`panelAssetPath` 未配置、资产缺失/解析失败、缺少 `GM_OutputText`/`GM_InputText` 关键组件 → 构造时直接抛 `Error`（绑定失败先销毁已 spawn 的资产树防孤儿泄漏）。面板结构以资产为唯一事实源，不回退程序化构建。
 
-- 基类能力：`buildUI()`（程序化兜底入口）、`makeActor/makeText`（控件工具）、`gm/input/output`（protected 访问器）、`appendOutput/clearOutput/handleInputKey`（行为方法）、`GM_ZORDER_BASE/GM_TEXT_LAYER`（层级常量）、`panelAssetPath/readyMessage`（getter 覆写点）
+- 基类能力：`gm/input`（protected 访问器）、`appendOutput/clearOutput/handleInputKey`（行为方法）、`GM_ZORDER_BASE`（层级常量）、`panelAssetPath/readyMessage`（getter 覆写点）
 - fish 已实现 `FishGMConsoleHUD`（`gameplay/gm/`，部落冲突主题资产：暗紫面板 + 部落金描边 + 亮金标题，就绪消息 `⚔️ ClashMaster GM 控制台已就绪`）
 
 ## 4. 工作流程
