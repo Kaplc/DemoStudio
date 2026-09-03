@@ -1,7 +1,7 @@
 {
   "name": "FishMainMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-89cf4673",
+  "sourceHash": "fnv1a-a3202381",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -55,8 +55,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
+            "worldWidth": 1920,
+            "worldHeight": 1080,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -127,12 +127,12 @@
               1,
               1
             ],
-            "worldWidth": 1.3,
-            "worldHeight": 1.3,
+            "worldWidth": 260,
+            "worldHeight": 260,
             "anchor": "top-right",
             "anchorOffset": [
-              -0.5,
-              -0.6
+              -100,
+              -120
             ],
             "position": [
               0,
@@ -180,12 +180,12 @@
               1,
               1
             ],
-            "worldWidth": 0.9,
-            "worldHeight": 0.9,
+            "worldWidth": 180,
+            "worldHeight": 180,
             "anchor": "top-left",
             "anchorOffset": [
-              1,
-              -0.8
+              200,
+              -160
             ],
             "position": [
               0,
@@ -233,12 +233,12 @@
               1,
               1
             ],
-            "worldWidth": 0.6,
-            "worldHeight": 0.6,
+            "worldWidth": 120,
+            "worldHeight": 120,
             "anchor": "bottom-left",
             "anchorOffset": [
-              1.18,
-              0.9
+              236,
+              180
             ],
             "position": [
               0,
@@ -286,12 +286,12 @@
               1,
               1
             ],
-            "worldWidth": 0.45,
-            "worldHeight": 0.45,
+            "worldWidth": 90,
+            "worldHeight": 90,
             "anchor": "bottom-right",
             "anchorOffset": [
-              -0.85,
-              1.3
+              -170,
+              260
             ],
             "position": [
               0,
@@ -339,8 +339,8 @@
               1,
               1
             ],
-            "worldWidth": 3.6,
-            "worldHeight": 4.4,
+            "worldWidth": 720,
+            "worldHeight": 880,
             "position": [
               0,
               0,
@@ -402,8 +402,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 3.36,
-                "worldHeight": 4.16,
+                "worldWidth": 672,
+                "worldHeight": 832,
                 "position": [
                   0,
                   0,
@@ -465,11 +465,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.1,
-                    "worldHeight": 0.05,
+                    "worldWidth": 220,
+                    "worldHeight": 10,
                     "position": [
                       0,
-                      1.295,
+                      259,
                       0
                     ]
                   }
@@ -513,11 +513,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 3,
-                    "worldHeight": 0.55,
+                    "worldWidth": 600,
+                    "worldHeight": 110,
                     "position": [
                       0,
-                      0.885,
+                      177,
                       0
                     ]
                   }
@@ -568,11 +568,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.1,
-                    "worldHeight": 0.18,
+                    "worldWidth": 420,
+                    "worldHeight": 36,
                     "position": [
                       0,
-                      0.48,
+                      96,
                       0
                     ]
                   }
@@ -623,11 +623,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.52,
+                    "worldWidth": 400,
+                    "worldHeight": 104,
                     "position": [
                       0,
-                      -0.09,
+                      -18,
                       0
                     ]
                   }
@@ -688,8 +688,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 1.6,
-                        "worldHeight": 0.32,
+                        "worldWidth": 320,
+                        "worldHeight": 64,
                         "position": [
                           0,
                           0,
@@ -745,11 +745,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.8,
-                    "worldHeight": 0.32,
+                    "worldWidth": 560,
+                    "worldHeight": 64,
                     "position": [
                       0,
-                      -0.72,
+                      -144,
                       0
                     ]
                   }
@@ -765,7 +765,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n击败敌人赚取金币 · 金币归零则游戏结束",
+                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\r\n击败敌人赚取金币 · 金币归零则游戏结束",
                     "name": "TipText",
                     "width": 560,
                     "height": 64,
@@ -800,11 +800,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.12,
+                    "worldWidth": 400,
+                    "worldHeight": 24,
                     "position": [
                       0,
-                      -1.02,
+                      -204,
                       0
                     ]
                   }

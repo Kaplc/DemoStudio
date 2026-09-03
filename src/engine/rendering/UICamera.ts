@@ -2,10 +2,13 @@
  * UICamera — UI 独立叠加相机（游戏视口 UI 渲染）
  *
  * 负责游戏 UI 场景的独立正交相机 + 叠加渲染：
- *  - 相机：正交，contain 模式完整显示 UI 画布（9.6×5.4），
+ *  - 相机：正交，contain 模式完整显示 UI 画布（1920×1080），
  *    非 16:9 视口时画布完整居中、两侧留空（不裁切）
  *  - 渲染：主场景渲染后叠加（autoClear=false + clearDepth），UI 永远在顶层
  *  - 点击：PhySys.setupUI(camera) 用此相机做平行射线检测
+ *
+ * UI 世界单位 = 设计像素（1 单位 = 1px，UI 单位一元化，doc-dev/ui-unit-unification）：
+ * 相机 contain 视锥是把 1920×1080 的 UI 像素世界整体缩放到实际渲染视口的唯一开关。
  *
  * 由 SceneRendererComponent 持有；随组件销毁终态化（BObject.EndPlay）。
  *
@@ -15,9 +18,9 @@ import * as THREE from 'three'
 import { BObject } from '../entity/BObject'
 import { logger } from '../Logger'
 
-/** UI 根画布世界尺寸（资产约定：widget 蓝图根节点 worldWidth/worldHeight） */
-export const UI_CANVAS_W = 9.6
-export const UI_CANVAS_H = 5.4
+/** UI 根画布世界尺寸 = 设计像素尺寸（资产约定：widget 蓝图根节点 worldWidth/worldHeight = 画布 px） */
+export const UI_CANVAS_W = 1920
+export const UI_CANVAS_H = 1080
 
 export class UICamera extends BObject {
   /** 底层正交相机（视锥由 setCanvasSize 按 contain 模式维护） */
@@ -28,8 +31,8 @@ export class UICamera extends BObject {
 
   constructor() {
     super('UICamera')
-    // 初始视锥为 16:9 画布（9.6×5.4），实际由 setCanvasSize 按 contain 维护
-    this.camera = new THREE.OrthographicCamera(-4.8, 4.8, 2.7, -2.7, 0.1, 200)
+    // 初始视锥为 16:9 画布（1920×1080），实际由 setCanvasSize 按 contain 维护
+    this.camera = new THREE.OrthographicCamera(-960, 960, 540, -540, 0.1, 200)
     this.camera.position.set(0, 0, 10) // z=0 为 UI 面板平面（zOrder 偏移量级为 0.001）
     this.camera.lookAt(0, 0, 0)
   }
@@ -46,7 +49,7 @@ export class UICamera extends BObject {
   }
 
   /**
-   * contain 模式同步视锥：完整显示 UI 画布（9.6×5.4）。
+   * contain 模式同步视锥：完整显示 UI 画布（1920×1080 设计像素）。
    * 视口 16:9 → 画布正好铺满；更宽/更窄 → 画布完整居中，多余空间留空（不裁切）。
    * @param canvasW 画布像素宽（渲染器尺寸）
    * @param canvasH 画布像素高

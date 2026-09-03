@@ -304,8 +304,14 @@ class Solver {
       if (cb) inlineItems.push(cb)
     }
 
-    // 全部为块级子项 → 直接成树；否则挂 pendingInline（等宽度解析后在内联排版）
-    const allBlock = inlineItems.every((it) => it.kind !== 'text' && this.isBlockish(it as Box))
+    // 全部为块级子项 → 直接成树；否则挂 pendingInline（等宽度解析后在内联排版）。
+    // absolute/fixed 子项脱离文档流（不参与流判定，由 layoutBlockChildren 的
+    // absChildren 通道单独定位）——否则一个 inline-block 兄弟（如反编译产物中
+    // UA 缺省 button）会把整容器连同 absolute 子项卷进行内流，几何尽毁（根因四）
+    const isOutOfFlow = (it: Box | { kind: 'text' }): boolean =>
+      it.kind !== 'text' && ['absolute', 'fixed'].includes(this.num((it as Box).el, 'position') ?? 'static')
+    const flowItems = inlineItems.filter((it) => !isOutOfFlow(it))
+    const allBlock = flowItems.every((it) => it.kind !== 'text' && this.isBlockish(it as Box))
     if (allBlock) {
       box.children = inlineItems as Box[]
     } else {
@@ -369,10 +375,14 @@ class Solver {
     viewport: [number, number],
   ): Box[] {
     let items = originalItems
+    // absolute/fixed 子项脱离文档流：不参与流判定（块/内联分类只看流内子项）
+    const isOutOfFlow = (it: Box | { kind: 'text' }): boolean =>
+      it.kind !== 'text' && ['absolute', 'fixed'].includes(this.num((it as Box).el, 'position') ?? 'static')
+    const flowItems = items.filter((it) => !isOutOfFlow(it))
     // 全部子项都是块级 → 直接返回
-    const allBlock = items.every((it) => it.kind !== 'text' && this.isBlockish(it as Box))
-    const hasText = items.some((it) => it.kind === 'text')
-    const anyInline = hasText || items.some((it) => it.kind !== 'text' && !this.isBlockish(it as Box))
+    const allBlock = flowItems.every((it) => it.kind !== 'text' && this.isBlockish(it as Box))
+    const hasText = flowItems.some((it) => it.kind === 'text')
+    const anyInline = hasText || flowItems.some((it) => it.kind !== 'text' && !this.isBlockish(it as Box))
 
     if (allBlock && !hasText) {
       return items as Box[]
@@ -442,9 +452,18 @@ class Solver {
       lineFrac: number // vertical-align 近似：0 top / 0.5 middle / 1 bottom
     }
     const runs: Frag[][] = [[]]
+    const out: Box[] = []
     const availW = (): number => Math.max(1, parent.w)
 
     for (const it of items) {
+      if (it.kind !== 'text') {
+        // 脱流子项（absolute/fixed）不参与行内排布：原样保留（由 absChildren 通道定位）
+        const pos = this.num((it as Box).el, 'position') ?? 'static'
+        if (pos === 'absolute' || pos === 'fixed') {
+          out.push(it as Box)
+          continue
+        }
+      }
       if (it.kind === 'text') {
         const fontSize = this.fontSizeOf(it.el, this.viewportSize)
         const ls = this.resolveLen(it.el, 'letter-spacing', 0, fontSize, this.viewportSize) ?? 0
@@ -516,7 +535,6 @@ class Solver {
     }
 
     // 行框 → 片段盒
-    const out: Box[] = []
     let lineY = parent.pt
     const contentW = availW()
     for (const run of runs) {

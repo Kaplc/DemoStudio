@@ -38,7 +38,7 @@ export interface UIScrollContainerComponentOptions {
   direction?: UIScrollDirection
   draggable?: boolean
   scrollbar?: boolean
-  /** 初始滚动偏移（世界米，0 = 顶部/起始） */
+  /** 初始滚动偏移（世界单位 = 设计 px，0 = 顶部/起始） */
   scrollOffset?: number
 }
 
@@ -92,7 +92,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     this._updateScrollbar()
   }
 
-  /** 滚动偏移（世界米，0 = 顶部/起始；setter 钳制） */
+  /** 滚动偏移（世界单位 = 设计 px，0 = 顶部/起始；setter 钳制） */
   get scrollOffset(): number { return this._scrollOffset }
   set scrollOffset(v: number) {
     this._scrollOffset = Math.max(0, v)
@@ -100,7 +100,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     this._applyOffset()
   }
 
-  /** 最大滚动量（内容超出视口的部分，世界米） */
+  /** 最大滚动量（内容超出视口的部分，世界单位 = 设计 px） */
   get maxScroll(): number {
     const view = this._viewSize()
     const total = this._direction === 'vertical' ? this._contentSize[1] : this._contentSize[0]
@@ -140,7 +140,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     this._hitLayer = null
   }
 
-  /** 滚动指定世界米（正 = 看后面内容） */
+  /** 滚动指定世界单位（正 = 看后面内容） */
   scrollBy(deltaMeters: number): void {
     this.scrollOffset = this._scrollOffset + deltaMeters
   }
@@ -225,7 +225,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     const [vw, vh] = this._viewSize()
     const canvas = new CanvasUIComponent(this.owner, {
       width: 64, height: 64,
-      worldWidth: Math.max(0.1, vw), worldHeight: Math.max(0.1, vh),
+      worldWidth: Math.max(1, vw), worldHeight: Math.max(1, vh),
       name: 'ScrollHitLayer',
     })
     canvas.isClickOnly = true
@@ -252,7 +252,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
       const session = this._dragSession
       if (!session) return
       const rect = PhySys.viewportElement?.getBoundingClientRect()
-      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 0.02
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
       const deltaPx = this._direction === 'vertical' ? sy - session.sy : sx - session.sx
       // 内容跟随手指：手指下移（sy 增大）→ offset 减少
       this._scrollOffset = session.base - (deltaPx * worldPerPx)
@@ -297,7 +297,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     const trackTsf = new UITransformComponent(track, {
       position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
       anchor: 'center', anchorOffset: [0, 0],
-      worldWidth: 0.1, worldHeight: 0.4,
+      worldWidth: 8, worldHeight: 160,
     })
     track.addComponent(trackTsf)
     const trackImg = new UIImageComponent(track, {
@@ -314,7 +314,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
     const tsf = new UITransformComponent(thumb, {
       position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
       anchor: 'center', anchorOffset: [0, 0],
-      worldWidth: 0.08, worldHeight: 0.4,
+      worldWidth: 6, worldHeight: 160,
     })
     thumb.addComponent(tsf)
     const img = new UIImageComponent(thumb, {
@@ -333,7 +333,7 @@ export class UIScrollContainerComponent extends Component<Actor> {
       const max = this.maxScroll
       if (max <= 0) return
       const rect = PhySys.viewportElement?.getBoundingClientRect()
-      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 0.02
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
       const [, vh] = this._viewSize()
       const thumbH = this._thumbHeight(vh)
       const travel = vh - thumbH
@@ -361,8 +361,8 @@ export class UIScrollContainerComponent extends Component<Actor> {
   private _thumbHeight(viewH: number): number {
     const total = this._direction === 'vertical' ? this._contentSize[1] : this._contentSize[0]
     const view = this._direction === 'vertical' ? viewH : this._viewSize()[0]
-    if (total <= 0) return 0.15
-    return Math.max(0.15, view * (view / total))
+    if (total <= 0) return 12
+    return Math.max(12, view * (view / total))
   }
 
   /** 滚动条位置/尺寸刷新（内容未超框时隐藏） */
@@ -381,21 +381,21 @@ export class UIScrollContainerComponent extends Component<Actor> {
     track.bActive = true
     const [vw, vh] = this._viewSize()
     if (this._direction === 'vertical') {
-      const trackW = 0.1
+      const trackW = 8
       trackTsf.setWorldSize(trackW, vh)
       trackTsf.anchorOffset = [vw / 2 - trackW / 2, 0]
       const thumbH = this._thumbHeight(vh)
       const travel = vh - thumbH
-      tsf.setWorldSize(0.08, thumbH)
+      tsf.setWorldSize(6, thumbH)
       const ratio = Math.max(0, Math.min(1, this._scrollOffset / max))
       tsf.anchorOffset = [0, vh / 2 - thumbH / 2 - travel * ratio]
     } else {
-      const trackH = 0.1
+      const trackH = 8
       trackTsf.setWorldSize(vw, trackH)
       trackTsf.anchorOffset = [0, -(vh / 2 - trackH / 2)]
       const thumbW = this._thumbHeight(vw)
       const travel = vw - thumbW
-      tsf.setWorldSize(thumbW, 0.08)
+      tsf.setWorldSize(thumbW, 6)
       const ratio = Math.max(0, Math.min(1, this._scrollOffset / max))
       tsf.anchorOffset = [-(vw / 2 - thumbW / 2) + travel * ratio, 0]
     }

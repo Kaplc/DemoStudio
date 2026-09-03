@@ -98,7 +98,7 @@ if (!rf.ok) {
   else bad(`旋转异常: ${JSON.stringify(rot)}`)
   const grid = find(doc.children, 'grid')
   const cellW = grid?.children?.[0]?.components[0].properties.worldWidth as number
-  const expectW = (600 - 16) / 3 / 1920 * 4.8
+  const expectW = (600 - 16) / 3 // px 世界：json 几何 = 设计 px（一元化）
   if (Math.abs(cellW - expectW) < 0.01) ok('grid fr 列宽')
   else bad(`grid 列宽异常: ${cellW} 期望 ${expectW.toFixed(4)}`)
 }
@@ -280,7 +280,7 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
   else {
     const clip = (rm.doc as any).children[0]
     const mask = clip.components.find((c: any) => c.baseClass === 'UIMaskComponent')
-    const expectR = (16 / 1000) * 4.8
+    const expectR = 16 // px 世界：radius = border-radius 设计 px
     if (mask && Math.abs(mask.properties.radius - expectR) < 1e-4) ok('overflow:hidden → UIMaskComponent（radius=border-radius）')
     else bad(`UIMask 异常: ${JSON.stringify(mask?.properties)}`)
     const d = decompileWidgetJson(rm.doc!)
@@ -309,7 +309,7 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
       // 内容包围盒：4 行 60px（无 margin 紧贴）→ 280x240px？行宽 280、内容盒高 200 内 4×60=240 溢出
       const wW = wrapper.components[0].properties.worldWidth as number
       const wH = wrapper.components[0].properties.worldHeight as number
-      const m = (px: number) => (px / 1000) * 4.8
+      const m = (px: number) => px // px 世界：json 几何 = 设计 px
       if (Math.abs(wW - m(280)) < 1e-3 && Math.abs(wH - m(240)) < 1e-3) ok('overflow:auto → ScrollContainer + 内容层（包围盒 280x240px）')
       else bad(`内容层尺寸异常: ${wW.toFixed(3)}x${wH.toFixed(3)} 期望 ${m(280).toFixed(3)}x${m(240).toFixed(3)}`)
       // 容器自身高度必须保持显式 200px（视口语义，bug#7：曾被内容撑大到 240px → maxScroll 恒 0）
@@ -332,6 +332,72 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
         if (r2.ok && sc2 && sc2.properties.direction === 'vertical' && w2) ok('ScrollContainer 往返稳定（wrapper 折叠→还原）')
         else bad(`ScrollContainer 往返不一致: sc2=${JSON.stringify(sc2?.properties)} w2=${Boolean(w2)}`)
       } else bad('scroll 反编译未折叠 wrapper 或未还原 overflow 声明')
+    }
+  }
+}
+
+// ─── 7. 存量资产 round-trip 全量（TC-U13 批量化：编译→反编译→再编译几何保真）───
+// 判据 = 画布绝对矩形逐位相等（1e-6 容差吸收浮点解析噪声）：反编译会把流内/居中
+// 元素规范化为绝对定位表示（字段级编码变化但矩形等价），字段级逐位保真由
+// tests/uiUnitUnification.test.ts TC-U13 的纯 absolute 样例（RT_WIDGET）承担
+{
+  for (const dir of uiDirs) {
+    for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.widget.html'))) {
+      const src = fs.readFileSync(path.join(dir, f), 'utf-8')
+      const r1 = compileWidgetHtml(src, { resolveInclude: (h) => fs.readFileSync(path.join(dir, h), 'utf-8') })
+      const d = r1.ok ? decompileWidgetJson(r1.doc!) : null
+      const r2 = d?.html ? compileWidgetHtml(d.html, { resolveInclude: (h) => fs.readFileSync(path.join(dir, h), 'utf-8') }) : null
+      if (!r1.ok || !d?.ok || !r2?.ok) {
+        bad(`round-trip 管线失败: ${f}`)
+        continue
+      }
+      interface JN { name?: string; components?: any[]; children?: JN[] }
+      const tfp = (n: JN) => (n.components ?? []).find((c: any) => c.baseClass === 'UITransformComponent')?.properties ?? {}
+      const collect = (root: JN): Map<string, [number, number, number, number]> => {
+        const out = new Map<string, [number, number, number, number]>()
+        const cw = 1920
+        const ch = 1080
+        const walk = (n: JN, pc: { x: number; y: number }, pd: { pw: number; ph: number }, p: string): void => {
+          const t = tfp(n)
+          const ww = Number(t.worldWidth ?? 0)
+          const wh = Number(t.worldHeight ?? 0)
+          let cx = pc.x
+          let cy = pc.y
+          const anchor = t.anchor as string | undefined
+          const off = (t.anchorOffset as [number, number] | undefined) ?? [0, 0]
+          const lp = t.position as [number, number, number] | undefined
+          if (anchor && anchor !== 'stretch') {
+            const fx = anchor.includes('left') ? -1 : anchor.includes('right') ? 1 : 0
+            const fy = anchor.startsWith('top') ? 1 : anchor.startsWith('bottom') ? -1 : 0
+            cx += (fx * (pd.pw - ww)) / 2 + off[0]
+            cy -= (fy * (pd.ph - wh)) / 2 + off[1]
+          } else if (lp) {
+            cx += lp[0]
+            cy += -lp[1]
+          }
+          out.set(p, [cx - ww / 2, cy - wh / 2, ww, wh])
+          for (const c of n.children ?? []) walk(c, { x: cx, y: cy }, { pw: ww, ph: wh }, `${p}/${c.name}`)
+        }
+        walk(root, { x: cw / 2, y: ch / 2 }, { pw: cw, ph: ch }, 'root')
+        return out
+      }
+      const r1m = collect(r1.doc as JN)
+      const r2m = collect(r2.doc as JN)
+      let diffs = 0
+      for (const [p, a] of r1m) {
+        const b = r2m.get(p)
+        if (!b) { diffs++; console.log(`   ⚠ ${f} ${p}: 二次编译缺节点`); continue }
+        const dd = Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]), Math.abs(a[3] - b[3]))
+        if (dd > 1e-6) {
+          diffs++
+          if (diffs <= 5) console.log(`   ⚠ ${f} ${p}: (${a.map((v) => Math.round(v * 100) / 100).join(',')}) → (${b.map((v) => Math.round(v * 100) / 100).join(',')})`)
+        }
+      }
+      for (const p of r2m.keys()) {
+        if (!r1m.has(p)) { diffs++; console.log(`   ⚠ ${f} ${p}: 二次编译多节点`) }
+      }
+      if (diffs === 0) ok(`round-trip 几何保真: ${f}（${r1m.size} 节点矩形逐位相等）`)
+      else bad(`round-trip ${diffs} 处矩形差异: ${f}`)
     }
   }
 }

@@ -22,9 +22,9 @@ import { buildStyleTree, computeStyles, classesOf, type StyleElement } from './c
 import { UA_STYLESHEET } from './css/ua'
 import { solveLayout, type Box, type SolveContext } from './layout'
 import {
-  FULLSCREEN_WORLD_WIDTH, FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT,
+  FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT,
   JUSTIFY_MAP, ALIGN_MAP,
-  round2, round4, pxToWorldX, pxToWorldY,
+  round2, round4,
 } from './widgetMapping'
 
 /** 编译错误（面向源文件：行号指向 .widget.html） */
@@ -220,8 +220,6 @@ function mapEnum(map: Record<string, string>, value: string, prop: string, line:
 interface WorldCtx {
   canvasWidth: number
   canvasHeight: number
-  worldWidth: number
-  worldHeight: number
 }
 
 /** ─── 样式表收集 ─── */
@@ -524,16 +522,15 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
     if (!cm) throw new CompileFail(`<widget> canvas 属性格式应为 "宽x高"（如 canvas="960x540"）`, root.line)
     const canvasWidth = parseInt(cm[1], 10)
     const canvasHeight = parseInt(cm[2], 10)
-    let worldWidth = FULLSCREEN_WORLD_WIDTH
-    let worldHeight = round2(FULLSCREEN_WORLD_WIDTH * (canvasHeight / canvasWidth))
-    const worldStr = root.attrs['world']
-    if (worldStr) {
-      const wm = /^([\d.]+)x([\d.]+)$/.exec(worldStr)
-      if (!wm) throw new CompileFail(`<widget> world 属性格式应为 "宽x高"（米，如 world="4.8x0.9"）`, root.line)
-      worldWidth = round2(parseFloat(wm[1]))
-      worldHeight = round2(parseFloat(wm[2]))
+    // UI 单位一元化：canvas 即世界（根 worldWidth/Height = 画布 px）。
+    // <widget world> 属性废弃：解析保留但忽略 + deprecation 告警（TC-U10 带/不带逐位相等）
+    if (root.attrs['world']) {
+      warnings.push({
+        line: root.line,
+        message: '<widget world="..."> 属性已废弃（UI 世界单位 = px，canvas 即世界），已忽略',
+      })
     }
-    const wctx: WorldCtx = { canvasWidth, canvasHeight, worldWidth, worldHeight }
+    const wctx: WorldCtx = { canvasWidth, canvasHeight }
 
     // 3. 样式表：UA + 作者（style/link/@import）
     const bundle = collectStylesheets(headNodes, inlineStyles, options, warnings)
@@ -572,8 +569,8 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
-      worldWidth,
-      worldHeight,
+      worldWidth: canvasWidth, // canvas 即世界（px 一元化，D1）
+      worldHeight: canvasHeight,
     }
     const rootAnchor = root.attrs['anchor']
     if (rootAnchor) {
@@ -583,7 +580,7 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
       if (rootOffset) {
         const parts = rootOffset.split(',').map((s) => parseFloat(s.trim()))
         if (parts.length !== 2 || parts.some((v) => !Number.isFinite(v))) {
-          throw new CompileFail(`<widget> offset 属性格式应为 "x,y"（世界米）`, root.line)
+          throw new CompileFail(`<widget> offset 属性格式应为 "x,y"（px）`, root.line)
         }
         off[0] = round4(parts[0]); off[1] = round4(parts[1])
       }
@@ -648,6 +645,7 @@ function emitRootBackground(rootBox: Box, doc: Record<string, unknown>, wctx: Wo
   if (image) props.src = image
   else if (color) props.color = color
   const radius = el.computed.get('border-top-left-radius')
+  // px 世界：radius 直接 = CSS px 值（一元化前未过 wx 是 bug，如今语义自然正确，§2.1 审计项）
   if (radius) props.radius = parseFloat(radius) || 0
   const opacity = el.computed.get('opacity')
   if (opacity !== undefined) props.opacity = parseFloat(opacity)
@@ -664,11 +662,12 @@ class Emitter {
     private warnings: CompileWarning[],
   ) {}
 
+  /** px 世界一元化：几何落盘 = 直发布局求解结果，round4 仅作浮点噪声归一（无换算） */
   wx(px: number): number {
-    return pxToWorldX(px, this.wctx)
+    return round4(px)
   }
   wy(px: number): number {
-    return pxToWorldY(px, this.wctx)
+    return round4(px)
   }
 
   /** 发射一个盒子为 widget.json 子节点 */
@@ -801,10 +800,15 @@ class Emitter {
     // ─── sourceLayout 侧车：盒模型信息不落盘于组件 schema，json 侧车承载（sourceHash 先例）───
     const padArr = [box.pt, box.pr, box.pb, box.pl]
     const bordArr = [box.bt, box.br, box.bb, box.bl]
-    if (padArr.some((v) => v > 0) || bordArr.some((v) => v > 0)) {
+    // flex 子项的 shrink 语义同样不在 UILayoutComponent schema（容器级）内：
+    // 缺省丢失会使重编译按 CSS 缺省 shrink=1 压缩溢出 flex 容器的子项（根因五）
+    const isFlexItem = Boolean((parentBox as Box | undefined)?.flexRuntime)
+    const flexShrinkZero = isFlexItem && el.computed.get('flex-shrink') === '0'
+    if (padArr.some((v) => v > 0) || bordArr.some((v) => v > 0) || flexShrinkZero) {
       const sl: Record<string, unknown> = {}
       if (padArr.some((v) => v > 0)) sl.padding = padArr.map((v) => round2(v))
       if (bordArr.some((v) => v > 0)) sl.border = bordArr.map((v) => round2(v))
+      if (flexShrinkZero) sl.flexShrink = 0
       ;(node as Record<string, unknown>).sourceLayout = sl
     }
 

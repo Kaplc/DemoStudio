@@ -96,7 +96,7 @@ export function registerBuiltinComponents(): void {
       if (Array.isArray(p.scale)) tf.setScale(p.scale[0], p.scale[1], p.scale[2])
       if (p.worldWidth != null || p.worldHeight != null) {
         // 同步所有真实画布面板 scale（兜底组件创建顺序问题）
-        tf.setWorldSize(p.worldWidth ?? 5, p.worldHeight ?? 2.5)
+        tf.setWorldSize(p.worldWidth ?? 400, p.worldHeight ?? 200)
       }
       if (p.anchor !== undefined) tf.anchor = p.anchor as AnchorPreset
       if (p.anchorOffset !== undefined) tf.anchorOffset = p.anchorOffset as [number, number]
@@ -336,7 +336,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => {
       const ui = c as CanvasUIComponent
       if (p.worldWidth != null || p.worldHeight != null) {
-        ui.setWorldSize(p.worldWidth ?? 5, p.worldHeight ?? 2.5)
+        ui.setWorldSize(p.worldWidth ?? 400, p.worldHeight ?? 200)
       }
       if (p.opacity !== undefined) ui.setOpacity(p.opacity as number)
       if (p.zOrder !== undefined) ui.zOrder = p.zOrder as number

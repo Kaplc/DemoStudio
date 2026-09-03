@@ -7,8 +7,8 @@
  *  - ui:no-text-shadow：HUD 文本（UITextComponent）无 shadowColor → 警告（动态背景可读性）
  *  - ui:z-index-war：CanvasUIComponent.zOrder > 100 → 警告（层级魔数）
  *
- * 换算基准：1920×1080 画布 ↔ 9.6×5.4 世界（1 世界单位 = 200px），44px = 0.22 世界单位。
- * 按根画布世界尺寸实际换算（比例非 200 时按比例折算）。
+ * 换算基准：UI 单位一元化后 1 世界单位 = 1 设计像素（1920×1080 画布 ↔ 1920×1080 世界），
+ * 44px = 44 世界单位。按根画布世界尺寸实际换算（旧资产按实际比例折算）。
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
@@ -17,7 +17,7 @@ import type { CheckerContext, LintIssue } from '../types'
 /** 触控目标最小像素（Apple 44pt / Google 48dp 取严） */
 const MIN_TOUCH_PX = 44
 
-/** 世界单位 → 像素换算（按根画布尺寸推导；默认 1920/9.6=200） */
+/** 世界单位 → 像素换算（按根画布尺寸推导；px 世界默认 1920/1920=1） */
 function pxPerWorldUnit(root: unknown): number {
   // 找根 UITransformComponent worldWidth 与 CanvasUIComponent width
   const find = (node: unknown, baseClass: string): Record<string, unknown> | null => {
@@ -36,8 +36,8 @@ function pxPerWorldUnit(root: unknown): number {
   const canvas = find(rootNode, 'CanvasUIComponent')
   const tsf = find(rootNode, 'UITransformComponent')
   const pxW = typeof canvas?.width === 'number' ? (canvas.width as number) : 1920
-  const worldW = typeof tsf?.worldWidth === 'number' ? (tsf.worldWidth as number) : 9.6
-  return worldW > 0 ? pxW / worldW : 200
+  const worldW = typeof tsf?.worldWidth === 'number' ? (tsf.worldWidth as number) : 1920
+  return worldW > 0 ? pxW / worldW : 1
 }
 
 /** 递归遍历 widget 节点树 */

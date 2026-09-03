@@ -916,8 +916,8 @@ export class UIPreviewManager {
     const canvas = root.getComponent(CanvasUIComponent)
     const isFullscreen = canvas
       ? (!canvas.isMarkerOnly && canvas.getSize()[0] === 1920 && canvas.getSize()[1] === 1080) ||
-        (canvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 2.7)
-      : uiTf.getWorldSize()[1] >= 2.7
+        (canvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 540)
+      : uiTf.getWorldSize()[1] >= 540
     if (!isFullscreen) return
     const [ww, wh] = uiTf.getWorldSize()
     if (wh <= 0 || Math.abs(ww - wh * ratio) < 1e-6) return
@@ -1012,7 +1012,7 @@ export class UIPreviewManager {
       const rootCanvas = actor.parent === null ? actor.getComponent(CanvasUIComponent) : null
       const isFullscreenRoot = rootCanvas !== null && uiTf !== null && (
         (!rootCanvas.isMarkerOnly && rootCanvas.getSize()[0] === 1920 && rootCanvas.getSize()[1] === 1080)
-        || (rootCanvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 2.7)
+        || (rootCanvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 540)
       )
 
       // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───

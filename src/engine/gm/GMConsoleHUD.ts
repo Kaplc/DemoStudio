@@ -95,8 +95,8 @@ export class GMConsoleHUD extends HUD {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
-      worldWidth: 9.6,
-      worldHeight: 5.4,
+      worldWidth: 1920,
+      worldHeight: 1080,
       anchorOffset: [0, 0],
     })
     this.addComponent(CanvasUIComponent, {

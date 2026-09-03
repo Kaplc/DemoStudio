@@ -70,4 +70,21 @@ declare module 'troika-three-text' {
     x: number,
     y: number,
   ): { x: number; y: number; height: number; charIndex: number } | null
+
+  /** 预热字体：走与 Text.sync() 同一条渲染信息链路，结果缓存供后续 sync 命中 */
+  export function preloadFont(
+    options: { font?: string; characters?: string | string[]; sdfGlyphSize?: number },
+    callback: () => void,
+  ): void
+
+  /** 全局配置（unicodeFontsURL/defaultFontURL 等）：必须在首个字体请求前调用 */
+  export function configureTextBuilder(config: {
+    defaultFontURL?: string
+    unicodeFontsURL?: string
+    sdfGlyphSize?: number
+    sdfExponent?: number
+    sdfMargin?: number
+    textureWidth?: number
+    useWorker?: boolean
+  }): void
 }

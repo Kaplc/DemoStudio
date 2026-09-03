@@ -277,7 +277,7 @@ export class UITransformComponent extends TransformComponent {
     const rootCanvas = this.owner.parent === null ? this.owner.getComponent(CanvasUIComponent) : null
     const isFullscreenRoot = rootCanvas !== null && (
       (!rootCanvas.isMarkerOnly && rootCanvas.getSize()[0] === 1920 && rootCanvas.getSize()[1] === 1080)
-      || (rootCanvas.isMarkerOnly && this._worldH >= 2.7)
+      || (rootCanvas.isMarkerOnly && this._worldH >= 540)
     )
     const sizeReadonly = isFullscreenRoot
     return [

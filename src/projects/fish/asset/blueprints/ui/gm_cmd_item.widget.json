@@ -1,7 +1,7 @@
 {
   "name": "GMCmdItem",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-a18fcf5a",
+  "sourceHash": "fnv1a-fc0ceedd",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 2.7,
-        "worldHeight": 0.24
+        "worldWidth": 540,
+        "worldHeight": 48
       }
     },
     {
@@ -55,10 +55,10 @@
               1,
               1
             ],
-            "worldWidth": 2.74,
-            "worldHeight": 0.24,
+            "worldWidth": 548,
+            "worldHeight": 48,
             "position": [
-              0.02,
+              4,
               0,
               0
             ]
@@ -106,10 +106,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 2.5,
-                "worldHeight": 0.2,
+                "worldWidth": 500,
+                "worldHeight": 40,
                 "position": [
-                  -0.08,
+                  -16,
                   0,
                   0
                 ]

@@ -1,7 +1,7 @@
 {
   "name": "PauseMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-283cc3b9",
+  "sourceHash": "fnv1a-899b466d",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -61,8 +61,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
+            "worldWidth": 1920,
+            "worldHeight": 1080,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -113,8 +113,8 @@
               1,
               1
             ],
-            "worldWidth": 5.3,
-            "worldHeight": 3.6,
+            "worldWidth": 1060,
+            "worldHeight": 720,
             "position": [
               0,
               0,
@@ -160,8 +160,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 5,
-                "worldHeight": 3.3,
+                "worldWidth": 1000,
+                "worldHeight": 660,
                 "position": [
                   0,
                   0,
@@ -207,11 +207,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.2,
-                    "worldHeight": 0.08,
+                    "worldWidth": 240,
+                    "worldHeight": 16,
                     "position": [
                       0,
-                      1.41,
+                      282,
                       0
                     ]
                   }
@@ -255,11 +255,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.3,
+                    "worldWidth": 400,
+                    "worldHeight": 60,
                     "position": [
                       0,
-                      1.14,
+                      228,
                       0
                     ]
                   }
@@ -310,11 +310,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.6,
-                    "worldHeight": 0.6,
+                    "worldWidth": 520,
+                    "worldHeight": 120,
                     "position": [
                       0,
-                      0.34,
+                      68,
                       0
                     ]
                   }
@@ -361,8 +361,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 2.4,
-                        "worldHeight": 0.3,
+                        "worldWidth": 480,
+                        "worldHeight": 60,
                         "position": [
                           0,
                           0,
@@ -418,11 +418,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.6,
-                    "worldHeight": 0.6,
+                    "worldWidth": 520,
+                    "worldHeight": 120,
                     "position": [
                       0,
-                      -0.46,
+                      -92,
                       0
                     ]
                   }
@@ -469,8 +469,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 2.4,
-                        "worldHeight": 0.3,
+                        "worldWidth": 480,
+                        "worldHeight": 60,
                         "position": [
                           0,
                           0,

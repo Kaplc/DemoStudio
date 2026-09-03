@@ -3,8 +3,8 @@
  *
  * 挂在列表容器 Actor 上，按 direction 排布 item：
  *  - itemWidget：item 蓝图路径（每项实例化；可在 onItemSpawned 回调中填充内容）
- *  - itemSize：[w, h] 世界尺寸（默认 1×0.4）
- *  - spacing：项间距（默认 0.1）
+ *  - itemSize：[w, h] 世界尺寸（默认 200×80，px 世界）
+ *  - spacing：项间距（默认 20）
  *  - visibleCount：可视数量（默认自动推导）——决定对象池大小
  *  - scrollOffset：滚动偏移（项单位，可为小数）
  *  - draggable：鼠标拖拽滚动开关（默认 true；按住 item 拖动，位移超阈值视为拖拽不触发按钮点击）
@@ -45,9 +45,9 @@ export type UIScrollDirection = 'vertical' | 'horizontal'
 export interface UIScrollListComponentOptions {
   /** item 蓝图路径（UIManager.spawnUIActor 生成） */
   itemWidget?: string
-  /** item 世界尺寸 [w, h]（默认 [1, 0.4]） */
+  /** item 世界尺寸 [w, h]（默认 [200, 80]，px 世界） */
   itemSize?: [number, number]
-  /** 项间距（世界单位，默认 0.1） */
+  /** 项间距（世界单位 = 设计 px，默认 20） */
   spacing?: number
   /**
    * 可视数量（对象池大小，默认自动）。
@@ -121,8 +121,8 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     super(owner)
     this.name = 'UIScrollListComponent'
     this._itemWidget = options.itemWidget ?? null
-    this._itemSize = options.itemSize ?? [1, 0.4]
-    this._spacing = options.spacing ?? 0.1
+    this._itemSize = options.itemSize ?? [200, 80]
+    this._spacing = options.spacing ?? 20
     this._visibleCount = options.visibleCount ?? -1
     this._direction = options.direction ?? 'vertical'
     this._zOrderLift = options.zOrderLift ?? 0
@@ -375,8 +375,8 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
       scale: [1, 1, 1],
       anchor: 'center',
       anchorOffset: [0, 0],
-      worldWidth: 0.1,
-      worldHeight: 0.4,
+      worldWidth: 8,
+      worldHeight: 160,
     })
     track.addComponent(trackTsf)
     const trackImg = new UIImageComponent(track, {
@@ -402,8 +402,8 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
       scale: [1, 1, 1],
       anchor: 'center',
       anchorOffset: [0, 0],
-      worldWidth: 0.08,
-      worldHeight: 0.4,
+      worldWidth: 6,
+      worldHeight: 160,
     })
     thumb.addComponent(tsf)
     const img = new UIImageComponent(thumb, {
@@ -426,7 +426,7 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
       const session = this._thumbDrag
       if (!session) return
       const rect = PhySys.viewportElement?.getBoundingClientRect()
-      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 0.02
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
       const [cw, ch] = this._containerSize()
       const maxScroll = Math.max(0, this._totalCount - this._resolveVisibleCount())
       if (maxScroll <= 0) return
@@ -465,10 +465,10 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     return tf?.getWorldSize() ?? [iw * 2, ih * this._resolveVisibleCount()]
   }
 
-  /** 滚动条 thumb 高度：可视占比 × 容器高（保底 0.15） */
+  /** 滚动条 thumb 高度：可视占比 × 容器高（保底 12px） */
   private _thumbHeight(ch: number): number {
     const total = Math.max(1, this._totalCount)
-    return Math.max(0.15, ch * (this._resolveVisibleCount() / total))
+    return Math.max(12, ch * (this._resolveVisibleCount() / total))
   }
 
   /**
@@ -491,11 +491,11 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     }
     track.bActive = true
     // 轨道：右侧贴边，高 = 容器高
-    const trackW = 0.1
+    const trackW = 8
     trackTsf.setWorldSize(trackW, ch)
     trackTsf.anchorOffset = [cw / 2 - trackW / 2, 0]
     // thumb：居中于轨道，高按可视占比，y 按 offset 比例滑动
-    const thumbW = 0.08
+    const thumbW = 6
     const thumbH = this._thumbHeight(ch)
     tsf.setWorldSize(thumbW, thumbH)
     const travel = ch - thumbH
@@ -536,7 +536,7 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
       if (!session) return
       // 屏幕像素 → UI 世界单位（UI 画布高恒定 5.4，垂直方向始终铺满视口）
       const rect = PhySys.viewportElement?.getBoundingClientRect()
-      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 0.02
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
       const [iw, ih] = this._itemSize
       const step = this._direction === 'vertical' ? ih + this._spacing : iw + this._spacing
       // 内容跟随手指（自然拖拽约定）：手指下移/右移（sy/sx 增大）→ 内容下移/右移

@@ -1,7 +1,7 @@
 {
   "name": "LaboratoryPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-b8af87d3",
+  "sourceHash": "fnv1a-838b7e20",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -61,8 +61,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
+            "worldWidth": 1920,
+            "worldHeight": 1080,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -113,8 +113,8 @@
               1,
               1
             ],
-            "worldWidth": 7.3,
-            "worldHeight": 4.9,
+            "worldWidth": 1460,
+            "worldHeight": 980,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -165,8 +165,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 7.1,
-                "worldHeight": 4.7,
+                "worldWidth": 1420,
+                "worldHeight": 940,
                 "position": [
                   0,
                   0,
@@ -212,11 +212,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.25,
+                    "worldWidth": 400,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      1.385,
+                      277,
                       0
                     ]
                   }
@@ -267,11 +267,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 5.5,
-                    "worldHeight": 1.9,
+                    "worldWidth": 1100,
+                    "worldHeight": 380,
                     "position": [
                       0,
-                      0.23,
+                      46,
                       0
                     ]
                   }
@@ -299,8 +299,8 @@
                   "properties": {
                     "mode": "grid",
                     "columns": 5,
-                    "spacingX": 0.15,
-                    "spacingY": 0.12,
+                    "spacingX": 30,
+                    "spacingY": 24,
                     "autoLayout": true
                   }
                 }
@@ -325,11 +325,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 4.5,
-                    "worldHeight": 0.24,
+                    "worldWidth": 900,
+                    "worldHeight": 48,
                     "position": [
                       0,
-                      -0.92,
+                      -184,
                       0
                     ]
                   }
@@ -379,11 +379,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.3,
-                    "worldHeight": 0.39,
+                    "worldWidth": 260,
+                    "worldHeight": 78,
                     "position": [
                       0,
-                      -1.315,
+                      -263,
                       0
                     ]
                   }
@@ -430,8 +430,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 1,
-                        "worldHeight": 0.2,
+                        "worldWidth": 200,
+                        "worldHeight": 40,
                         "position": [
                           0,
                           0,

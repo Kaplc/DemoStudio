@@ -22,9 +22,7 @@
  */
 import * as THREE from 'three'
 import { Text as TroikaText } from 'troika-three-text'
-// 思源黑体（简体中文子集，支持中文/emoji 单色字形）——troika 只接受字体文件 URL，且不支持 woff2（用 woff）
-import notoSansSC400Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff?url'
-import notoSansSC700Url from '@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff?url'
+import { resolveTroikaFontURL } from './TroikaFontPreload'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { UITransformComponent } from './UITransformComponent'
@@ -59,9 +57,9 @@ export interface UITextComponentOptions {
   width?: number
   /** canvas 像素高（默认 128；作为 fontSize 映射基准） */
   height?: number
-  /** 3D 世界宽（默认按 canvas 比例自动推算，高度 2.5） */
+  /** 3D 世界宽（默认按 canvas 比例自动推算，高度 200，px 世界） */
   worldWidth?: number
-  /** 3D 世界高（默认 2.5） */
+  /** 3D 世界高（默认 200，px 世界） */
   worldHeight?: number
   /**
    * 像素 → 世界单位换算系数（持久化字段，跨蓝图重建保持字号稳定）。
@@ -76,15 +74,9 @@ export interface UITextComponentOptions {
 }
 
 /**
- * 解析 troika 字体 URL：
- *  - fontFamily 为 URL（http/https/data:/blob:/绝对路径）→ 直接用
- *  - 否则（CSS 字体名 / 未设置）→ 用内置思源黑体（支持中文；bold 用 700 变体）
- * troika 的 font 属性只接受字体文件 URL（XHR 加载），不支持 CSS font-family 名。
+ * troika 字体 URL 解析统一在 TroikaFontPreload.resolveTroikaFontURL：
+ * 预热与渲染必须命中同一个缓存键（字体绝对 URL），两处各写一份会让预热静默失效。
  */
-function resolveFontURL(family: string | undefined, bold: boolean): string {
-  if (family && /^(https?:|data:|blob:|\/)/.test(family)) return family
-  return bold ? notoSansSC700Url : notoSansSC400Url
-}
 
 export class UITextComponent extends CanvasUIComponent {
   protected _text = ''
@@ -134,8 +126,8 @@ export class UITextComponent extends CanvasUIComponent {
     let worldHeight = tsfHasSize ? undefined : options.worldHeight
     if (!tsfHasSize) {
       if (worldWidth == null && worldHeight == null) {
-        // 默认世界高度 2.5（与 CanvasUIComponent 一致），宽度按 canvas 比例
-        worldHeight = 2.5
+        // 默认世界高度 200（与 CanvasUIComponent 一致，px 世界），宽度按 canvas 比例
+        worldHeight = 200
         worldWidth = worldHeight * (width / height)
       } else if (worldWidth == null) {
         worldWidth = worldHeight! * (width / height)
@@ -237,11 +229,14 @@ export class UITextComponent extends CanvasUIComponent {
     ;(mesh as unknown as { whiteSpace: string }).whiteSpace = 'normal'
     ;(mesh as unknown as { overflowWrap: string }).overflowWrap = 'break-word'
     // troika 只接受字体文件 URL：CSS 名回退到内置思源黑体（bold 用 700 变体）
-    mesh.font = resolveFontURL(this._fontFamily, this._bold)
+    mesh.font = resolveTroikaFontURL(this._fontFamily, this._bold)
     // troika 类型声明缺失 fontWeight/fontStyle（运行时支持）
     ;(mesh as unknown as { fontWeight: number | string }).fontWeight = this._bold ? 700 : 400
     ;(mesh as unknown as { fontStyle: string }).fontStyle = this._italic ? 'italic' : 'normal'
-    mesh.letterSpacing = this.toWorldUnits(this._letterSpacing)
+    // troika letterSpacing 语义 = fontSize 的倍数（troika 源码 penX += letterSpacing * fontSize），
+    // 设计语义是绝对 px → 换算为 fontSize 比例（如 6px/22px = 0.2727）。
+    // 米制时代误传绝对世界值（6×0.005≈0），letter-spacing 实际从未生效——一元化后首次真实呈现
+    mesh.letterSpacing = this._fontSize > 0 ? this._letterSpacing / this._fontSize : 0
     // 行高：troika lineHeight 语义为无单位倍数（1.4 = fontSize × 1.4），
     // 它内部再乘 fontSize 得到世界单位行高——这里传倍数即可，不应再 toWorldUnits。
     mesh.lineHeight = this._lineHeight / 100

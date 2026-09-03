@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -61,8 +61,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
+            "worldWidth": 1920,
+            "worldHeight": 1080,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -113,8 +113,8 @@
               1,
               1
             ],
-            "worldWidth": 7.7,
-            "worldHeight": 5.1,
+            "worldWidth": 1540,
+            "worldHeight": 1020,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -165,11 +165,11 @@
                   1,
                   1
                 ],
-                "worldWidth": 7.4,
-                "worldHeight": 4.8,
+                "worldWidth": 1480,
+                "worldHeight": 960,
                 "position": [
                   0,
-                  0.15,
+                  30,
                   0
                 ]
               }
@@ -212,11 +212,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.2,
-                    "worldHeight": 0.08,
+                    "worldWidth": 240,
+                    "worldHeight": 16,
                     "position": [
                       0,
-                      2.21,
+                      442,
                       0
                     ]
                   }
@@ -260,11 +260,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.3,
+                    "worldWidth": 400,
+                    "worldHeight": 60,
                     "position": [
                       0,
-                      1.95,
+                      390,
                       0
                     ]
                   }
@@ -315,11 +315,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.24,
+                    "worldWidth": 400,
+                    "worldHeight": 48,
                     "position": [
                       0,
-                      1.64,
+                      328,
                       0
                     ]
                   }
@@ -369,11 +369,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 6.8,
-                    "worldHeight": 3,
+                    "worldWidth": 1360,
+                    "worldHeight": 600,
                     "position": [
                       0,
-                      -0.13,
+                      -26,
                       0
                     ]
                   }
@@ -407,12 +407,12 @@
                       1,
                       1
                     ],
-                    "worldWidth": 0.52,
-                    "worldHeight": 0.52,
+                    "worldWidth": 104,
+                    "worldHeight": 104,
                     "anchor": "top-right",
                     "anchorOffset": [
-                      -0.08,
-                      -0.2
+                      -16,
+                      -40
                     ],
                     "position": [
                       0,
@@ -474,8 +474,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 0.5,
-                        "worldHeight": 0.3,
+                        "worldWidth": 100,
+                        "worldHeight": 60,
                         "position": [
                           0,
                           0,

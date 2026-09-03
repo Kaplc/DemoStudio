@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -55,11 +55,11 @@
               1,
               1
             ],
-            "worldWidth": 3,
-            "worldHeight": 0.3,
+            "worldWidth": 600,
+            "worldHeight": 60,
             "position": [
-              -3.3,
-              2.55,
+              -660,
+              510,
               0
             ]
           }
@@ -108,11 +108,11 @@
               1,
               1
             ],
-            "worldWidth": 2.5,
-            "worldHeight": 0.3,
+            "worldWidth": 500,
+            "worldHeight": 60,
             "position": [
-              -3.55,
-              2.25,
+              -710,
+              450,
               0
             ]
           }
@@ -157,11 +157,11 @@
               1,
               1
             ],
-            "worldWidth": 2.5,
-            "worldHeight": 0.2,
+            "worldWidth": 500,
+            "worldHeight": 40,
             "position": [
-              -3.55,
-              2,
+              -710,
+              400,
               0
             ]
           }
@@ -202,11 +202,11 @@
               1,
               1
             ],
-            "worldWidth": 2.5,
-            "worldHeight": 1.25,
+            "worldWidth": 500,
+            "worldHeight": 250,
             "position": [
-              -3.55,
-              1.275,
+              -710,
+              255,
               0
             ]
           }
@@ -243,10 +243,10 @@
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "worldWidth": 2.3,
-                "worldHeight": 1.25,
+                "worldWidth": 460,
+                "worldHeight": 250,
                 "position": [
-                  -0.1,
+                  -20,
                   0,
                   0
                 ],
@@ -290,11 +290,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.3,
-                    "worldHeight": 0.25,
+                    "worldWidth": 460,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      0.5,
+                      100,
                       0
                     ]
                   }
@@ -343,11 +343,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.3,
-                    "worldHeight": 0.25,
+                    "worldWidth": 460,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      0.25,
+                      50,
                       0
                     ]
                   }
@@ -396,8 +396,8 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.3,
-                    "worldHeight": 0.25,
+                    "worldWidth": 460,
+                    "worldHeight": 50,
                     "position": [
                       0,
                       0,
@@ -449,11 +449,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.3,
-                    "worldHeight": 0.25,
+                    "worldWidth": 460,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      -0.25,
+                      -50,
                       0
                     ]
                   }
@@ -502,11 +502,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2.3,
-                    "worldHeight": 0.25,
+                    "worldWidth": 460,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      -0.5,
+                      -100,
                       0
                     ]
                   }
@@ -559,11 +559,11 @@
               1,
               1
             ],
-            "worldWidth": 1.5,
-            "worldHeight": 0.4,
+            "worldWidth": 300,
+            "worldHeight": 80,
             "position": [
-              -4.05,
-              0.45,
+              -810,
+              90,
               0
             ]
           }
@@ -606,8 +606,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 1.5,
-                "worldHeight": 0.4,
+                "worldWidth": 300,
+                "worldHeight": 80,
                 "position": [
                   0,
                   0,
@@ -662,11 +662,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.25,
+            "worldWidth": 700,
+            "worldHeight": 50,
             "position": [
-              -3.05,
-              0.125,
+              -610,
+              25,
               0
             ]
           }
@@ -715,11 +715,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.18,
+            "worldWidth": 700,
+            "worldHeight": 36,
             "position": [
-              -3.05,
-              -0.09,
+              -610,
+              -18,
               0
             ]
           }
@@ -768,11 +768,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.6,
+            "worldWidth": 700,
+            "worldHeight": 120,
             "position": [
-              -3.05,
-              -0.48,
+              -610,
+              -96,
               0
             ]
           }
@@ -789,8 +789,8 @@
           "baseClass": "UILayoutComponent",
           "properties": {
             "mode": "horizontal",
-            "spacingX": 0.1,
-            "spacingY": 0.1,
+            "spacingX": 20,
+            "spacingY": 20,
             "justify": "center",
             "align": "center",
             "autoLayout": true
@@ -825,10 +825,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.6,
-                "worldHeight": 0.4,
+                "worldWidth": 120,
+                "worldHeight": 80,
                 "position": [
-                  -0.7,
+                  -140,
                   0,
                   0
                 ]
@@ -872,8 +872,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.6,
-                "worldHeight": 0.3,
+                "worldWidth": 120,
+                "worldHeight": 60,
                 "position": [
                   0,
                   0,
@@ -919,10 +919,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.6,
-                "worldHeight": 0.2,
+                "worldWidth": 120,
+                "worldHeight": 40,
                 "position": [
-                  0.7,
+                  140,
                   0,
                   0
                 ]
@@ -968,11 +968,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.18,
+            "worldWidth": 700,
+            "worldHeight": 36,
             "position": [
-              -3.05,
-              -0.87,
+              -610,
+              -174,
               0
             ]
           }
@@ -1021,11 +1021,11 @@
               1,
               1
             ],
-            "worldWidth": 1.5,
-            "worldHeight": 1.25,
+            "worldWidth": 300,
+            "worldHeight": 250,
             "position": [
-              -4.05,
-              -1.585,
+              -810,
+              -317,
               0
             ]
           }
@@ -1042,8 +1042,8 @@
           "baseClass": "UILayoutComponent",
           "properties": {
             "mode": "vertical",
-            "spacingX": 0.05,
-            "spacingY": 0.05,
+            "spacingX": 10,
+            "spacingY": 10,
             "justify": "center",
             "align": "center",
             "autoLayout": true
@@ -1078,11 +1078,11 @@
                   1,
                   1
                 ],
-                "worldWidth": 1,
-                "worldHeight": 0.4,
+                "worldWidth": 200,
+                "worldHeight": 80,
                 "position": [
                   0,
-                  0.225,
+                  45,
                   0
                 ]
               }
@@ -1125,11 +1125,11 @@
                   1,
                   1
                 ],
-                "worldWidth": 1,
-                "worldHeight": 0.4,
+                "worldWidth": 200,
+                "worldHeight": 80,
                 "position": [
                   0,
-                  -0.225,
+                  -45,
                   0
                 ]
               }
@@ -1174,11 +1174,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.18,
+            "worldWidth": 700,
+            "worldHeight": 36,
             "position": [
-              -3.05,
-              -2.3,
+              -610,
+              -460,
               0
             ]
           }
@@ -1227,11 +1227,11 @@
               1,
               1
             ],
-            "worldWidth": 3.5,
-            "worldHeight": 0.5,
+            "worldWidth": 700,
+            "worldHeight": 100,
             "position": [
-              -3.05,
-              -2.64,
+              -610,
+              -528,
               0
             ]
           }
@@ -1284,10 +1284,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.75,
-                "worldHeight": 0.3,
+                "worldWidth": 150,
+                "worldHeight": 60,
                 "position": [
-                  -0.375,
+                  -75,
                   0,
                   0
                 ]
@@ -1331,10 +1331,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.75,
-                "worldHeight": 0.3,
+                "worldWidth": 150,
+                "worldHeight": 60,
                 "position": [
-                  0.375,
+                  75,
                   0,
                   0
                 ]

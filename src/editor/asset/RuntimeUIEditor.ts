@@ -22,12 +22,10 @@ import {
   select, notifySelectionChange,
 } from '../SelectionManager'
 import { AnchorGizmo } from '../AnchorGizmo'
+import { UI_CANVAS_W, UI_CANVAS_H } from '../../engine/rendering/UICamera'
 import { SelectionBoundsGizmo } from '../SelectionBoundsGizmo'
 import type { SceneTreeNode } from '../SelectionManager'
 
-// ─── UI 根画布世界尺寸（与 UICamera 常量保持一致） ───
-const UI_CANVAS_W = 9.6
-const UI_CANVAS_H = 5.4
 
 const CORNER_CURSORS = [
   'nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize',

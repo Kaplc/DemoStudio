@@ -4,14 +4,14 @@
     "name": "关卡 1",
     "desc": "平静海域 · 新手练手",
     "scene": "FishLevel1",
-    "pos": [-2.3, 0.3],
+    "pos": [-460, 60],
     "stars": 1
   },
   "level2": {
     "name": "关卡 2",
     "desc": "波涛渐起 · 稳步进阶",
     "scene": "FishLevel2",
-    "pos": [0, -0.4],
+    "pos": [0, -80],
     "stars": 2,
     "unlockRequirement": { "levelId": "level1", "stars": 1 }
   },
@@ -19,7 +19,7 @@
     "name": "关卡 3",
     "desc": "深海猎场 · 强者试炼",
     "scene": "FishLevel3",
-    "pos": [2.3, 0.3],
+    "pos": [460, 60],
     "stars": 3,
     "unlockRequirement": { "levelId": "level2", "stars": 1 },
     "timeLimit": 150

@@ -1,7 +1,7 @@
 {
   "name": "TroopCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-727e1983",
+  "sourceHash": "fnv1a-bcfe4b2b",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 0.96,
-        "worldHeight": 0.86
+        "worldWidth": 192,
+        "worldHeight": 172
       }
     },
     {
@@ -55,8 +55,8 @@
               1,
               1
             ],
-            "worldWidth": 0.96,
-            "worldHeight": 0.86,
+            "worldWidth": 192,
+            "worldHeight": 172,
             "position": [
               0,
               0,
@@ -113,8 +113,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 0.9,
-                "worldHeight": 0.8,
+                "worldWidth": 180,
+                "worldHeight": 160,
                 "position": [
                   0,
                   0,
@@ -164,11 +164,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 0.85,
-                    "worldHeight": 0.25,
+                    "worldWidth": 170,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      0.275,
+                      55,
                       0
                     ]
                   }
@@ -219,11 +219,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 0.85,
-                    "worldHeight": 0.2,
+                    "worldWidth": 170,
+                    "worldHeight": 40,
                     "position": [
                       0,
-                      -0.3,
+                      -60,
                       0
                     ]
                   }

@@ -1,7 +1,7 @@
 {
   "name": "DamageNumber",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-c7c1a3e7",
+  "sourceHash": "fnv1a-f5ec8a27",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 0.8,
-        "worldHeight": 0.4
+        "worldWidth": 160,
+        "worldHeight": 80
       }
     },
     {
@@ -55,8 +55,8 @@
               1,
               1
             ],
-            "worldWidth": 0.8,
-            "worldHeight": 0.4,
+            "worldWidth": 160,
+            "worldHeight": 80,
             "anchor": "center",
             "anchorOffset": [
               0,

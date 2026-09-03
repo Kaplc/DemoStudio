@@ -1,7 +1,7 @@
 {
   "name": "BattleHUD",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-b1bd5d7a",
+  "sourceHash": "fnv1a-2c538c3a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -61,8 +61,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 1.7,
+            "worldWidth": 1920,
+            "worldHeight": 340,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
@@ -113,12 +113,12 @@
               1,
               1
             ],
-            "worldWidth": 1.2,
-            "worldHeight": 0.08,
+            "worldWidth": 240,
+            "worldHeight": 16,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              1.7
+              340
             ],
             "position": [
               0,
@@ -166,12 +166,12 @@
               1,
               1
             ],
-            "worldWidth": 6,
-            "worldHeight": 0.28,
+            "worldWidth": 1200,
+            "worldHeight": 56,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              1.34
+              268
             ],
             "position": [
               0,
@@ -226,12 +226,12 @@
               1,
               1
             ],
-            "worldWidth": 7.6,
-            "worldHeight": 0.86,
+            "worldWidth": 1520,
+            "worldHeight": 172,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              0.35
+              70
             ],
             "position": [
               0,
@@ -252,8 +252,8 @@
           "baseClass": "UILayoutComponent",
           "properties": {
             "mode": "horizontal",
-            "spacingX": 0.05,
-            "spacingY": 0.1,
+            "spacingX": 10,
+            "spacingY": 20,
             "autoLayout": true
           }
         }
@@ -278,12 +278,12 @@
               1,
               1
             ],
-            "worldWidth": 5.5,
-            "worldHeight": 0.22,
+            "worldWidth": 1100,
+            "worldHeight": 44,
             "anchor": "bottom-center",
             "anchorOffset": [
               0,
-              0.06
+              12
             ],
             "position": [
               0,
@@ -337,12 +337,12 @@
               1,
               1
             ],
-            "worldWidth": 1.8,
-            "worldHeight": 0.35,
+            "worldWidth": 360,
+            "worldHeight": 70,
             "anchor": "top-right",
             "anchorOffset": [
-              -0.2,
-              -0.2
+              -40,
+              -40
             ],
             "position": [
               0,
@@ -397,12 +397,12 @@
               1,
               1
             ],
-            "worldWidth": 4.2,
-            "worldHeight": 0.55,
+            "worldWidth": 840,
+            "worldHeight": 110,
             "anchor": "top-center",
             "anchorOffset": [
               0,
-              -0.15
+              -30
             ],
             "position": [
               0,
@@ -423,8 +423,8 @@
           "baseClass": "UILayoutComponent",
           "properties": {
             "mode": "horizontal",
-            "spacingX": 0.3,
-            "spacingY": 0.3,
+            "spacingX": 60,
+            "spacingY": 60,
             "justify": "center",
             "align": "center",
             "autoLayout": true
@@ -460,10 +460,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 1.7,
-                "worldHeight": 0.34,
+                "worldWidth": 340,
+                "worldHeight": 68,
                 "position": [
-                  -1,
+                  -200,
                   0,
                   0
                 ]
@@ -515,10 +515,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 1.7,
-                "worldHeight": 0.34,
+                "worldWidth": 340,
+                "worldHeight": 68,
                 "position": [
-                  1,
+                  200,
                   0,
                   0
                 ]

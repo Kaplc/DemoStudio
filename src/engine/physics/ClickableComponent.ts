@@ -22,8 +22,24 @@ export class ClickableComponent extends Component<Actor> {
    * 所属层：
    *  - 'world'：3D 世界（主相机射线检测，默认）
    *  - 'ui'：屏幕空间 UI（独立 UI 相机平行射线检测，由 UIButtonComponent 等设置）
+   *
+   * 赋值即重注册：BeginPlay 按赋值瞬间的 layer 分流到 PhySys 注册表，而组件创建方
+   * 普遍是 addComponent（同步 BeginPlay 注册为缺省 world）之后才改 layer——只改字段
+   * 不迁移注册表会让 clickable 永久留在 world 集合，UI 射线永远扫不到（根因七）。
    */
-  layer: 'ui' | 'world' = 'world'
+  private _layer: 'ui' | 'world' = 'world'
+  get layer(): 'ui' | 'world' {
+    return this._layer
+  }
+  set layer(v: 'ui' | 'world') {
+    if (this._layer === v) return
+    // owner 已 BeginPlay = BeginPlay 时的注册已按旧 layer 落位 → 迁移注册表；
+    // 未开始则尚无注册，BeginPlay 会按新 layer 注册
+    const registered = this.owner?.bHasBegunPlay ?? false
+    if (registered) PhySys.unregister(this)
+    this._layer = v
+    if (registered) PhySys.register(this)
+  }
 
   /** 点击回调：传入命中的 Intersection 信息（含 point 坐标） */
   onClick: ((hit: THREE.Intersection) => void) | null = null

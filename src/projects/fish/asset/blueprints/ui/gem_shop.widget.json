@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 9.6,
-        "worldHeight": 5.4
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
@@ -61,8 +61,8 @@
               1,
               1
             ],
-            "worldWidth": 9.6,
-            "worldHeight": 5.4,
+            "worldWidth": 1920,
+            "worldHeight": 1080,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -113,8 +113,8 @@
               1,
               1
             ],
-            "worldWidth": 7.7,
-            "worldHeight": 5.1,
+            "worldWidth": 1540,
+            "worldHeight": 1020,
             "position": [
               0,
               0,
@@ -160,11 +160,11 @@
                   1,
                   1
                 ],
-                "worldWidth": 7.4,
-                "worldHeight": 4.8,
+                "worldWidth": 1480,
+                "worldHeight": 960,
                 "position": [
                   0,
-                  0.15,
+                  30,
                   0
                 ]
               }
@@ -207,11 +207,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.2,
-                    "worldHeight": 0.08,
+                    "worldWidth": 240,
+                    "worldHeight": 16,
                     "position": [
                       0,
-                      2.22,
+                      444,
                       0
                     ]
                   }
@@ -255,11 +255,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.3,
+                    "worldWidth": 400,
+                    "worldHeight": 60,
                     "position": [
                       0,
-                      1.96,
+                      392,
                       0
                     ]
                   }
@@ -310,11 +310,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 2,
-                    "worldHeight": 0.25,
+                    "worldWidth": 400,
+                    "worldHeight": 50,
                     "position": [
                       0,
-                      1.645,
+                      329,
                       0
                     ]
                   }
@@ -365,11 +365,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 5.8,
-                    "worldHeight": 2.4,
+                    "worldWidth": 1160,
+                    "worldHeight": 480,
                     "position": [
                       0,
-                      0.2,
+                      40,
                       0
                     ]
                   }
@@ -402,10 +402,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 2.6,
-                        "worldHeight": 2.4,
+                        "worldWidth": 520,
+                        "worldHeight": 480,
                         "position": [
-                          -1.6,
+                          -320,
                           0,
                           0
                         ]
@@ -449,11 +449,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 0.5,
-                            "worldHeight": 0.5,
+                            "worldWidth": 100,
+                            "worldHeight": 100,
                             "position": [
                               0,
-                              0.75,
+                              150,
                               0
                             ]
                           }
@@ -503,11 +503,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.25,
+                            "worldWidth": 400,
+                            "worldHeight": 50,
                             "position": [
                               0,
-                              0.295,
+                              59,
                               0
                             ]
                           }
@@ -557,11 +557,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.2,
+                            "worldWidth": 400,
+                            "worldHeight": 40,
                             "position": [
                               0,
-                              0.03,
+                              6,
                               0
                             ]
                           }
@@ -611,11 +611,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.2,
+                            "worldWidth": 400,
+                            "worldHeight": 40,
                             "position": [
                               0,
-                              -0.21,
+                              -42,
                               0
                             ]
                           }
@@ -666,11 +666,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 1.9,
-                            "worldHeight": 0.5,
+                            "worldWidth": 380,
+                            "worldHeight": 100,
                             "position": [
                               0,
-                              -0.66,
+                              -132,
                               0
                             ]
                           }
@@ -717,8 +717,8 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 1.6,
-                                "worldHeight": 0.25,
+                                "worldWidth": 320,
+                                "worldHeight": 50,
                                 "position": [
                                   0,
                                   0,
@@ -776,10 +776,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 2.6,
-                        "worldHeight": 2.4,
+                        "worldWidth": 520,
+                        "worldHeight": 480,
                         "position": [
-                          1.3,
+                          260,
                           0,
                           0
                         ]
@@ -823,11 +823,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 0.5,
-                            "worldHeight": 0.5,
+                            "worldWidth": 100,
+                            "worldHeight": 100,
                             "position": [
                               0,
-                              0.75,
+                              150,
                               0
                             ]
                           }
@@ -877,11 +877,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.25,
+                            "worldWidth": 400,
+                            "worldHeight": 50,
                             "position": [
                               0,
-                              0.295,
+                              59,
                               0
                             ]
                           }
@@ -931,11 +931,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.2,
+                            "worldWidth": 400,
+                            "worldHeight": 40,
                             "position": [
                               0,
-                              0.03,
+                              6,
                               0
                             ]
                           }
@@ -985,11 +985,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 2,
-                            "worldHeight": 0.2,
+                            "worldWidth": 400,
+                            "worldHeight": 40,
                             "position": [
                               0,
-                              -0.21,
+                              -42,
                               0
                             ]
                           }
@@ -1040,11 +1040,11 @@
                               1,
                               1
                             ],
-                            "worldWidth": 1.9,
-                            "worldHeight": 0.5,
+                            "worldWidth": 380,
+                            "worldHeight": 100,
                             "position": [
                               0,
-                              -0.66,
+                              -132,
                               0
                             ]
                           }
@@ -1091,8 +1091,8 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 1.6,
-                                "worldHeight": 0.25,
+                                "worldWidth": 320,
+                                "worldHeight": 50,
                                 "position": [
                                   0,
                                   0,
@@ -1152,11 +1152,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.6,
-                    "worldHeight": 0.5,
+                    "worldWidth": 320,
+                    "worldHeight": 100,
                     "position": [
                       0,
-                      -1.39,
+                      -278,
                       0
                     ]
                   }
@@ -1203,8 +1203,8 @@
                           1,
                           1
                         ],
-                        "worldWidth": 1.5,
-                        "worldHeight": 0.3,
+                        "worldWidth": 300,
+                        "worldHeight": 60,
                         "position": [
                           0,
                           0,

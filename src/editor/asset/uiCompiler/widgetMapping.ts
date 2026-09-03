@@ -4,28 +4,22 @@
  * 单一事实来源：编译器（compile.ts）与反编译器（decompile.ts）共用，
  * 保证双向映射对称、round-trip 稳定（html → json → html' 语义一致）。
  *
- * 像素 → 米换算（按根画布比例，与方案 §5 / TC-B4 公式一致）：
- *  - x 轴：px / canvasWidth × rootWorldWidth
- *  - y 轴：px / canvasHeight × rootWorldHeight
- *  根画布世界尺寸由 <widget world="WxH"> 声明（缺省全屏 4.8 × 4.8·canvasH/canvasW）。
- *  不同 widget 的画布分辨率不同（toast 960px→4.8m = 200px/m，全屏 1920px→4.8m = 400px/m），
- *  因此不存在全局 px/m 常数，一律按上下文换算。
+ * UI 单位一元化（doc-dev/ui-unit-unification，2026-09-03 定案）：
+ * json 几何字段（worldWidth/worldHeight/position/anchorOffset 等）直接存设计 px，
+ * 1 世界单位 = 1px，数据链路上不存在任何缩放系数——唯一的"缩放"是 UICamera
+ * contain 视锥把画布尺寸的 UI 世界整体投影到渲染视口（投影级，不触碰属性值）。
+ * 根节点 worldWidth/worldHeight = 画布尺寸（canvas 即世界）；
+ * <widget world> 属性已废弃（解析端忽略 + deprecation 告警）。
  */
 
-/** 编译上下文：画布基准（px ↔ 米换算的坐标系） */
+/** 编译上下文：画布基准（px 世界的坐标系，y 向上、原点画布中心） */
 export interface CompileContext {
   /** 根画布像素宽（<widget canvas="WxH">） */
   canvasWidth: number
   /** 根画布像素高 */
   canvasHeight: number
-  /** 根画布世界宽（米，<widget world="WxH"> 或缺省推导） */
-  worldWidth: number
-  /** 根画布世界高（米） */
-  worldHeight: number
 }
 
-/** 全屏画布世界宽（米）——与 UIPreviewManager / 现有资产惯例一致 */
-export const FULLSCREEN_WORLD_WIDTH = 4.8
 /** 全屏画布设计分辨率（缺省 canvas） */
 export const FULLSCREEN_CANVAS_WIDTH = 1920
 export const FULLSCREEN_CANVAS_HEIGHT = 1080
@@ -70,32 +64,12 @@ export const TEXT_ALIGN_MAP: Record<string, string> = {
 /** 引擎专有 CSS 属性（非标准属性，声明在普通规则里承载引擎能力） */
 export const ENGINE_PROPS = new Set(['z-order', 'hit-test'])
 
-/** 保留 2 位小数（现有资产 worldWidth/worldHeight 惯例精度；||0 归一 -0/NaN） */
+/** 保留 2 位小数（sourceLayout 侧车 padding/border 惯例精度；||0 归一 -0/NaN） */
 export function round2(v: number): number {
   return Math.round(v * 100) / 100 || 0
 }
 
-/** 保留 4 位小数（offset 精度；||0 归一 -0/NaN） */
+/** 保留 4 位小数（几何落盘的浮点噪声归一，0.0001px 网格；||0 归一 -0/NaN） */
 export function round4(v: number): number {
   return Math.round(v * 10000) / 10000 || 0
-}
-
-/** px → 米（x 轴：按画布宽比例） */
-export function pxToWorldX(px: number, ctx: CompileContext): number {
-  return round4((px / ctx.canvasWidth) * ctx.worldWidth)
-}
-
-/** px → 米（y 轴：按画布高比例） */
-export function pxToWorldY(px: number, ctx: CompileContext): number {
-  return round4((px / ctx.canvasHeight) * ctx.worldHeight)
-}
-
-/** 米 → px（x 轴，反编译用） */
-export function worldToPxX(world: number, ctx: CompileContext): number {
-  return (world / ctx.worldWidth) * ctx.canvasWidth
-}
-
-/** 米 → px（y 轴，反编译用） */
-export function worldToPxY(world: number, ctx: CompileContext): number {
-  return (world / ctx.worldHeight) * ctx.canvasHeight
 }

@@ -1,7 +1,7 @@
 {
   "name": "LevelCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-3d06a196",
+  "sourceHash": "fnv1a-21befbe8",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 1.78,
-        "worldHeight": 0.93
+        "worldWidth": 356,
+        "worldHeight": 186
       }
     },
     {
@@ -55,8 +55,8 @@
               1,
               1
             ],
-            "worldWidth": 1.78,
-            "worldHeight": 0.93,
+            "worldWidth": 356,
+            "worldHeight": 186,
             "position": [
               0,
               0,
@@ -113,8 +113,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 1.7,
-                "worldHeight": 0.85,
+                "worldWidth": 340,
+                "worldHeight": 170,
                 "position": [
                   0,
                   0,
@@ -164,11 +164,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.6,
-                    "worldHeight": 0.32,
+                    "worldWidth": 320,
+                    "worldHeight": 64,
                     "position": [
                       0,
-                      0.1925,
+                      38.5,
                       0
                     ]
                   }
@@ -219,11 +219,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1.6,
-                    "worldHeight": 0.28,
+                    "worldWidth": 320,
+                    "worldHeight": 56,
                     "position": [
                       0,
-                      -0.2125,
+                      -42.5,
                       0
                     ]
                   }

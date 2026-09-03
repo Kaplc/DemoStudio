@@ -19,6 +19,7 @@ import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
 import { useProjectStore } from './stores/projectStore'
 import { Editor } from './editor'
+import { preloadTroikaFonts } from './engine/ui/TroikaFontPreload'
 
 /** 是否运行在 Agent 独立窗口（与 Logger.isAgentWindow 同语义：search 参数判定，向后兼容） */
 const isAgentWindow = typeof window !== 'undefined'
@@ -51,6 +52,12 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [phase, setPhase] = useState<StartupPhase>('loading')
   const editorRef = useRef<Editor | null>(null)
+
+  // ─── troika 字体预热（fire-and-forget）：启动即后台下载/解析思源黑体并预生成
+  // 高频字形 SDF，首个含文本的 UI 面板打开时直接命中缓存、不再明显延迟 ───
+  useEffect(() => {
+    preloadTroikaFonts()
+  }, [])
 
   // ─── 编辑器初始化（仅执行一次） ───
   useEffect(() => {

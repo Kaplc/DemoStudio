@@ -20,7 +20,7 @@
  *     ctx.font = '24px monospace'
  *     ctx.fillText('任务公告', 20, 50)
  *   })
- *   ui.setWorldSize(5, 2.5)  // 设置 3D 世界尺寸（米）
+ *   ui.setWorldSize(400, 200)  // 设置 UI 世界尺寸（px 世界，1 单位 = 1 设计像素）
  */
 import * as THREE from 'three'
 import { Component, type EditableProperty } from '../entity/Component'
@@ -43,8 +43,8 @@ export type UIHitTestMode = 'visible' | 'block' | 'hitTestInvisible'
 export interface CanvasUIOptions {
   width?: number           // canvas 像素宽，默认 512
   height?: number          // canvas 像素高，默认 256
-  worldWidth?: number      // 3D 世界宽（米），默认 5
-  worldHeight?: number     // 3D 世界高（米），默认 2.5
+  worldWidth?: number      // UI 世界宽（px 世界），默认 400
+  worldHeight?: number     // UI 世界高（px 世界），默认 200
   doubleSided?: boolean    // 是否双面可见，默认 true
   name?: string
   zOrder?: number          // UI 层级（越大越靠前），默认 0
@@ -74,8 +74,8 @@ export class CanvasUIComponent extends Component<Actor> {
   private texture: THREE.CanvasTexture
   private _width: number
   private _height: number
-  private _worldW = 5
-  private _worldH = 2.5
+  private _worldW = 400
+  private _worldH = 200
   private _zOrder = 0
   /** 是否激活（false = 已创建但不渲染 panel） */
   private _bActive: boolean
@@ -122,8 +122,8 @@ export class CanvasUIComponent extends Component<Actor> {
     // 世界尺寸：优先 uitransform（尺寸归 transform 管，Unity RectTransform 风格）。
     //  - tsf 已显式设置且组件未传 → 用 tsf 值（JSON 迁移后标准）
     //  - 组件显式传入（uitext 推导 / 旧数据兼容）→ 组件值并同步回 tsf
-    let ww = options.worldWidth ?? 5
-    let wh = options.worldHeight ?? 2.5
+    let ww = options.worldWidth ?? 400
+    let wh = options.worldHeight ?? 200
     const uiTf = owner.getComponent(UITransformComponent)
     if (uiTf) {
       if (uiTf.worldSizeExplicit && options.worldWidth === undefined && options.worldHeight === undefined) {

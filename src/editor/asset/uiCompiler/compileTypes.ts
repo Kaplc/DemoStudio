@@ -4,10 +4,6 @@ export interface CompileContext {
   canvasWidth: number
   /** 根画布像素高 */
   canvasHeight: number
-  /** 根画布世界宽（米） */
-  worldWidth: number
-  /** 根画布世界高（米） */
-  worldHeight: number
 }
 
 export { type HtmlNode } from './miniParser'

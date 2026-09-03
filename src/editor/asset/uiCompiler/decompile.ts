@@ -10,7 +10,7 @@
  * 映射不到的组件/属性走 data-comp/data-props 逃逸通道，不丢信息（TC-C4）。
  */
 import type { CompileContext } from './compileTypes'
-import { FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT, worldToPxX, worldToPxY } from './widgetMapping'
+import { FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT } from './widgetMapping'
 
 /** 反编译结果 */
 export interface DecompileResult {
@@ -34,9 +34,9 @@ export interface JsonNode {
   active?: boolean
 }
 
-/** 数值格式化：整数不带小数点，最多 2 位小数 */
+/** 数值格式化：整数不带小数点，最多 4 位小数（对齐编译端 round4 落盘网格，逐位无损往返） */
 function fmtNum(v: number): string {
-  return String(Math.round(v * 100) / 100)
+  return String(Math.round(v * 10000) / 10000)
 }
 
 /** 组件查找 */
@@ -74,12 +74,11 @@ interface GradSpec {
 
 export function decompileWidgetJson(doc: unknown): DecompileResult {
   const warnings: string[] = []
-  // 根世界尺寸（px↔米反解用，闭包共享）
-  let rootWorldW = 4.8
-  let rootWorldH = 2.7
 
   try {
-    const root = doc as JsonNode
+    const root = JSON.parse(JSON.stringify(doc)) as JsonNode
+    // 深拷贝输入：反编译必须无副作用（_ScrollContent 折叠会重定基子项坐标，
+    // 原地改写会污染调用方持有的文档——round-trip 差异的隐形来源）
     if (!root || typeof root !== 'object' || Array.isArray(root)) {
       return { ok: false, warnings: ['文档不是对象'], html: undefined }
     }
@@ -92,14 +91,11 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     const canvasProps = (canvasComp?.properties ?? {}) as Record<string, number>
     const cw = Number(canvasProps.width ?? FULLSCREEN_CANVAS_WIDTH)
     const ch = Number(canvasProps.height ?? FULLSCREEN_CANVAS_HEIGHT)
-    rootWorldW = Number(rootTf.worldWidth ?? 4.8)
-    rootWorldH = Number(rootTf.worldHeight ?? (4.8 * ch) / cw)
-    const ctx: CompileContext = {
-      canvasWidth: cw, canvasHeight: ch, worldWidth: rootWorldW, worldHeight: rootWorldH,
-    }
+    // px 一元化：json 几何即画布 px，直读直写（无任何换算；D4）
+    const ctx: CompileContext = { canvasWidth: cw, canvasHeight: ch }
 
     const name = String(root.name ?? 'Widget')
-    const rootAttrs = [`name="${escapeAttr(name)}"`, `canvas="${cw}x${ch}"`, `world="${fmtNum(rootWorldW)}x${fmtNum(rootWorldH)}"`]
+    const rootAttrs = [`name="${escapeAttr(name)}"`, `canvas="${cw}x${ch}"`]
     if (rootTf.anchor) {
       rootAttrs.push(`anchor="${String(rootTf.anchor)}"`)
       const off = rootTf.anchorOffset as [number, number] | undefined
@@ -189,14 +185,14 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       const lp = tf.position as [number, number, number] | undefined
       if (!lp) return null
       // 子项自身内容内缩（sidecar）
-      const slc = (c as { sourceLayout?: { padding?: number[]; border?: number[] } }).sourceLayout
+      const slc = (c as { sourceLayout?: { padding?: number[]; border?: number[]; flexShrink?: number } }).sourceLayout
       const inXC = (slc?.padding?.[3] ?? 0) + (slc?.border?.[3] ?? 0)
       const inYC = (slc?.padding?.[0] ?? 0) + (slc?.border?.[0] ?? 0)
-      // 画布边盒左上（父边盒中心 + 米制本地偏移，与主流程换算一致）
-      const wpx = worldToPxX(wwC, ctx)
-      const hpx = worldToPxY(whC, ctx)
-      const bx = parentBox.cx + worldToPxX(lp[0], ctx) - wpx / 2
-      const by = parentBox.cy + worldToPxY(-lp[1], ctx) - hpx / 2
+      // 画布边盒左上（父边盒中心 + 本地偏移直读，px 世界无换算）
+      const wpx = wwC
+      const hpx = whC
+      const bx = parentBox.cx + lp[0] - wpx / 2
+      const by = parentBox.cy - lp[1] - hpx / 2
       rects.push({ cx0: bx + inXC, cy0: by + inYC, x: bx, y: by, w: wpx, h: hpx })
     }
     const contentX = parentBox.x + parentBox.inX
@@ -248,13 +244,13 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     // ─── 尺寸/定位：沿父链累计出画布绝对中心（编译产物的本地偏移/锚点均相对父） ───
     const ww = Number(tf.worldWidth ?? 0)
     const wh = Number(tf.worldHeight ?? 0)
-    if (ww > 0) decls.push(`width: ${pxOfX(ww, ctx)}px`)
-    if (wh > 0) decls.push(`height: ${pxOfY(wh, ctx)}px`)
+    if (ww > 0) decls.push(`width: ${fmtNum(ww)}px`)
+    if (wh > 0) decls.push(`height: ${fmtNum(wh)}px`)
     const anchor = tf.anchor as string | undefined
     const offset = (tf.anchorOffset as [number, number] | undefined) ?? [0, 0]
     const localPos = tf.position as [number, number, number] | undefined
     // ─── sourceLayout 侧车：盒模型重建（引擎/编译器约定 uitransform=边盒）───
-    const sl = (node as { sourceLayout?: { padding?: number[]; border?: number[] } }).sourceLayout
+    const sl = (node as { sourceLayout?: { padding?: number[]; border?: number[]; flexShrink?: number } }).sourceLayout
     const slPad = sl?.padding
     const slBord = sl?.border
     const hasPad = !!slPad && slPad.some((v) => v > 0.005)
@@ -263,6 +259,8 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       decls.push('box-sizing: border-box')
       if (hasPad) decls.push(`padding: ${slPad!.map((v) => fmtNum(v)).join('px ')}px`)
     }
+    // flex 子项 shrink 语义还原（编译端 sourceLayout.flexShrink 侧车，根因五）
+    if (Number(sl?.flexShrink ?? 1) === 0) decls.push('flex-shrink: 0')
 
     // 绝对中心（画布 px）：锚点语义 = 父边盒中心 + applyAnchor 公式（基准=父尺寸，
     // 与运行时 uitransform 容器一致）；流内 = 父中心 + 本地偏移。
@@ -271,14 +269,12 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     if (anchor && anchor !== 'stretch') {
       const fx = anchor.includes('left') ? -1 : anchor.includes('right') ? 1 : 0
       const fy = anchor.startsWith('top') ? 1 : anchor.startsWith('bottom') ? -1 : 0
-      const bbWpx = worldToPxX(ww, ctx)
-      const bbHpx = worldToPxY(wh, ctx)
-      centerX += (fx * (parentBox.w - bbWpx)) / 2 + worldToPxX(offset[0] ?? 0, ctx)
+      centerX += (fx * (parentBox.w - ww)) / 2 + (offset[0] ?? 0)
       // world y 向上、canvas y 向下：整体取负（含 offset）
-      centerY -= (fy * (parentBox.h - bbHpx)) / 2 + worldToPxY(offset[1] ?? 0, ctx)
+      centerY -= (fy * (parentBox.h - wh)) / 2 + (offset[1] ?? 0)
     } else if (localPos) {
-      centerX += worldToPxX(localPos[0], ctx)
-      centerY += worldToPxY(-localPos[1], ctx)
+      centerX += localPos[0]
+      centerY -= localPos[1]
     }
 
     // ─── 功能组件前置探测：UILayout → display:flex 结构还原 ───
@@ -295,8 +291,8 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       const sx = Number(p.spacingX ?? 0)
       const sy = Number(p.spacingY ?? 0)
       if (sx > 0.005 || sy > 0.005) {
-        if (Math.abs(sx - sy) < 0.005) decls.push(`gap: ${pxOfX(sx, ctx)}px`)
-        else decls.push(`gap: ${pxOfY(sy, ctx)}px ${pxOfX(sx, ctx)}px`)
+        if (Math.abs(sx - sy) < 0.005) decls.push(`gap: ${fmtNum(sx)}px`)
+        else decls.push(`gap: ${fmtNum(sy)}px ${fmtNum(sx)}px`)
       }
       // 引擎缺省 justify/align=center（v1 资产可能缺省）→ CSS 侧显式写全
       const j = String(p.justify ?? 'center')
@@ -311,8 +307,8 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     }
 
     // left/top 相对父内容盒原点（编译端绝对定位包含块 = 父内容盒；inX/inY = 父 padding+border）
-    const bbWpx0 = worldToPxX(ww, ctx)
-    const bbHpx0 = worldToPxY(wh, ctx)
+    const bbWpx0 = ww
+    const bbHpx0 = wh
     if (!parentFlow && (ww > 0 || wh > 0 || localPos || anchor)) {
       // CSS left 语义（与 layoutAbsolute 一致）= 子项边盒缘相对父内容原点
       // （编译端再自行加 ml+pl+bl 得内容原点；margin 不落盘恒 0，无需扣除）
@@ -424,8 +420,7 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     }
 
     if (scrollContainer) {
-      // 通用滚动容器（编译端 overflow auto/scroll + _ScrollContent 内容层）→ 溢出声明；
-      // 内容层子节点由下方 wrapper 折叠提升
+      // 通用滚动容器：溢出声明在此；_ScrollContent 内容层折叠在子节点区（需 emittedChildren）
       const p = (scrollContainer.properties ?? {}) as Record<string, unknown>
       decls.push(p.direction === 'horizontal' ? 'overflow-x: auto' : 'overflow-y: auto')
     }
@@ -436,7 +431,7 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       const hasScrollDecl = Boolean(scroll || scrollContainer)
       if (!hasScrollDecl) decls.push('overflow: hidden')
       const mr = Number((mask.properties ?? {}).radius ?? 0)
-      const maskRadiusPx = worldToPxX(mr, ctx)
+      const maskRadiusPx = mr
       const visualRadiusPx = Number((img?.properties ?? {}).radius ?? 0)
       if (mr > 0.005 && Math.abs(maskRadiusPx - visualRadiusPx) > 0.5) {
         decls.push(`border-radius: ${fmtNum(maskRadiusPx)}px`)
@@ -499,8 +494,8 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
 
     // ─── 子节点 ───
     const childLines: string[] = []
-    const bbWpxC = worldToPxX(ww, ctx)
-    const bbHpxC = worldToPxY(wh, ctx)
+    const bbWpxC = ww
+    const bbHpxC = wh
     const childBox = {
       cx: centerX, cy: centerY,
       x: centerX - bbWpxC / 2,
@@ -515,12 +510,28 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     // 命名 <父名>Border<Side> + UIImage 纯色。全部有边框的侧都找到条才折回，否则保留子节点。
     const emittedChildren: JsonNode[] = [...(node.children ?? [])]
     // 滚动内容层折叠（编译端 overflow auto/scroll 的产物形）：单一 <名>_ScrollContent
-    // 子 Actor → 子项提升到本节点（几何即原始内容坐标，配合 overflow 声明重编译还原）
+    // 子 Actor → 子项提升到本节点（配合 overflow 声明重编译还原）。
+    // 子项 position 是相对 wrapper 中心的本地坐标，提升后父中心变为容器中心，
+    // 必须按 wrapper 自身偏移重定基（矢量相加），否则整组内容平移（round-trip 损坏）
     if (scrollContainer) {
       const wi = emittedChildren.findIndex((c) => String(c.name ?? '').includes('_ScrollContent'))
       if (wi >= 0) {
         const wrapper = emittedChildren[wi]
+        const wtf = (compOf(wrapper, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
+        const wp = (wtf.position as [number, number, number] | undefined) ?? [0, 0, 0]
         const inner = wrapper.children ?? []
+        for (const c of inner) {
+          const ctf = (compOf(c, 'UITransformComponent')?.properties ?? {}) as Record<string, unknown>
+          if (!ctf.anchor && Array.isArray(ctf.position)) {
+            ctf.position = [
+              Number(ctf.position[0] ?? 0) + Number(wp[0] ?? 0),
+              Number(ctf.position[1] ?? 0) + Number(wp[1] ?? 0),
+              Number(ctf.position[2] ?? 0),
+            ]
+          } else {
+            warnings.push(`节点 "${name0}" 的 _ScrollContent 子项 "${c.name}" 带锚点：折叠提升未做坐标重定基`)
+          }
+        }
         emittedChildren.splice(wi, 1, ...inner)
       } else {
         warnings.push(`节点 "${name0}" 有 UIScrollContainerComponent 但未找到 _ScrollContent 内容层子节点`)
@@ -594,14 +605,6 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     void ctx
   }
 
-}
-
-/** px 格式化（世界米 → 画布 px） */
-function pxOfX(world: number, ctx: CompileContext): string {
-  return fmtNum(worldToPxX(world, ctx))
-}
-function pxOfY(world: number, ctx: CompileContext): string {
-  return fmtNum(worldToPxY(world, ctx))
 }
 
 /** class 名净化（字母/数字/-/_ 之外替换为 _） */

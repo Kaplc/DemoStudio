@@ -21,8 +21,8 @@
           1,
           1
         ],
-        "worldWidth": 3.2,
-        "worldHeight": 0.7
+        "worldWidth": 640,
+        "worldHeight": 140
       }
     },
     {
@@ -55,8 +55,8 @@
               1,
               1
             ],
-            "worldWidth": 3.2,
-            "worldHeight": 0.7,
+            "worldWidth": 640,
+            "worldHeight": 140,
             "anchor": "center",
             "anchorOffset": [
               0,
@@ -118,8 +118,8 @@
                   1,
                   1
                 ],
-                "worldWidth": 3,
-                "worldHeight": 0.6,
+                "worldWidth": 600,
+                "worldHeight": 120,
                 "position": [
                   0,
                   0,

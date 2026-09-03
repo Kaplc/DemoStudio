@@ -156,7 +156,7 @@ export class UIButtonComponent extends Component<Actor> {
   /**
    * 生成透明点击层并把射线目标锁定到它：
    *  - 尺寸 = owner uitransform 世界尺寸（无 transform 时回退 1×1）
-   *  - 像素 = 世界尺寸 × 200px/单位（与现有资产惯例一致，避免拉伸模糊）
+   *  - 像素 = 世界尺寸取整（px 世界 1 单位 = 1 设计像素；与视觉画布同分辨率）
    *  - **透明**（opacity 恒 0 + isClickOnly 标记）：仅提供命中 mesh，不渲染视觉
    *  - ClickableComponent.setTargets([panel])：命中 = 本按钮矩形，
    *    子节点 mesh 不参与（裸 Image 无 ClickableComponent 本就穿透）
@@ -177,8 +177,8 @@ export class UIButtonComponent extends Component<Actor> {
       logger.warn(`[UIButtonComponent] "${this.name}" 透明点击层生成失败：世界尺寸无效 ${w}×${h}`)
       return
     }
-    const pxW = Math.max(32, Math.round(w * 200))
-    const pxH = Math.max(32, Math.round(h * 200))
+    const pxW = Math.max(32, Math.round(w))
+    const pxH = Math.max(32, Math.round(h))
     const img = new UIImageComponent(this.owner, {
       color: '#ffffff',
       width: pxW,

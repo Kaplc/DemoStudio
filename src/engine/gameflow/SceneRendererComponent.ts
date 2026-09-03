@@ -375,7 +375,7 @@ export class SceneRendererComponent extends AObjectComponent<World> {
       // UICamera 内置正交相机（contain 模式，画布 9.6×5.4）
       this._uiCam = new UICamera()
       this.resize()
-      logger.info('[SceneRendererComponent] UI 独立叠加相机已创建（UICamera 正交 contain 9.6×5.4）')
+      logger.info('[SceneRendererComponent] UI 独立叠加相机已创建（UICamera 正交 contain 1920×1080 px 世界）')
     }
     this._uiCam?.attach(scene)
     if (!scene) {
