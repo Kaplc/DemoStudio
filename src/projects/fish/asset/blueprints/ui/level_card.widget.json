@@ -1,7 +1,7 @@
 {
   "name": "LevelCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-914e467e",
+  "sourceHash": "fnv1a-3d06a196",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -57,11 +57,6 @@
             ],
             "worldWidth": 1.78,
             "worldHeight": 0.93,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -78,6 +73,17 @@
           }
         },
         {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "horizontal",
+            "spacingX": 0,
+            "spacingY": 0,
+            "justify": "center",
+            "align": "center",
+            "autoLayout": true
+          }
+        },
+        {
           "baseClass": "UIImageComponent",
           "properties": {
             "color": "#8a6a3a",
@@ -88,77 +94,15 @@
           }
         }
       ],
-      "children": []
-    },
-    {
-      "name": "CardButton",
-      "baseClass": "Actor",
-      "id": 13202,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "worldWidth": 1.7,
-            "worldHeight": 0.85,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
-            "position": [
-              0,
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 2
-          }
-        },
-        {
-          "baseClass": "UIButtonComponent",
-          "properties": {}
-        },
-        {
-          "baseClass": "UIImageComponent",
-          "properties": {
-            "color": "#5c6b7a",
-            "radius": 12,
-            "width": 340,
-            "height": 170,
-            "name": "CardButton"
-          }
-        }
-      ],
       "children": [
         {
-          "name": "CardButtonText",
+          "name": "CardButton",
           "baseClass": "Actor",
-          "id": 13203,
+          "id": 13202,
           "components": [
             {
               "baseClass": "UITransformComponent",
               "properties": {
-                "position": [
-                  0,
-                  0,
-                  0
-                ],
                 "rotation": [
                   0,
                   0,
@@ -169,13 +113,13 @@
                   1,
                   1
                 ],
-                "anchor": "center",
-                "anchorOffset": [
+                "worldWidth": 1.7,
+                "worldHeight": 0.85,
+                "position": [
+                  0,
                   0,
                   0
-                ],
-                "worldWidth": 1.7,
-                "worldHeight": 0.85
+                ]
               }
             },
             {
@@ -183,147 +127,137 @@
               "properties": {
                 "markerOnly": true,
                 "name": "UIMarker",
-                "zOrder": 0
+                "zOrder": 2
               }
             },
             {
-              "baseClass": "UITextComponent",
+              "baseClass": "UIButtonComponent",
+              "properties": {}
+            },
+            {
+              "baseClass": "UIImageComponent",
               "properties": {
-                "text": "",
-                "name": "CardButtonText",
-                "fontSize": 16,
+                "color": "#5c6b7a",
+                "radius": 12,
                 "width": 340,
                 "height": 170,
-                "align": "center",
-                "shadowColor": "#00000066",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 0,
-                "shadowBlur": 4
+                "name": "CardButton"
               }
             }
           ],
-          "children": []
+          "children": [
+            {
+              "name": "Name",
+              "baseClass": "Actor",
+              "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1.6,
+                    "worldHeight": 0.32,
+                    "position": [
+                      0,
+                      0.1925,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 4
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "关卡名",
+                    "name": "Name",
+                    "width": 320,
+                    "height": 64,
+                    "fontSize": 22,
+                    "color": "#ffffff",
+                    "align": "center",
+                    "bold": true,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 0,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Info",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1.6,
+                    "worldHeight": 0.28,
+                    "position": [
+                      0,
+                      -0.2125,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 4
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "关卡描述",
+                    "name": "Info",
+                    "width": 320,
+                    "height": 56,
+                    "fontSize": 16,
+                    "color": "#f5e6c8",
+                    "align": "center",
+                    "shadowColor": "#00000080",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 0,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
         }
       ]
-    },
-    {
-      "name": "Name",
-      "baseClass": "Actor",
-      "id": 13204,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "worldWidth": 1.6,
-            "worldHeight": 0.32,
-            "anchor": "top-center",
-            "anchorOffset": [
-              -0.05,
-              -0.085
-            ],
-            "position": [
-              0,
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 4
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "关卡名",
-            "name": "Name",
-            "width": 320,
-            "height": 64,
-            "fontSize": 22,
-            "color": "#ffffff",
-            "align": "center",
-            "bold": true,
-            "shadowColor": "#00000099",
-            "shadowOffsetX": 0,
-            "shadowOffsetY": 0,
-            "shadowBlur": 4
-          }
-        }
-      ],
-      "children": []
-    },
-    {
-      "name": "Info",
-      "baseClass": "Actor",
-      "id": 13205,
-      "components": [
-        {
-          "baseClass": "UITransformComponent",
-          "properties": {
-            "rotation": [
-              0,
-              0,
-              0
-            ],
-            "scale": [
-              1,
-              1,
-              1
-            ],
-            "worldWidth": 1.6,
-            "worldHeight": 0.28,
-            "anchor": "bottom-center",
-            "anchorOffset": [
-              -0.05,
-              0.245
-            ],
-            "position": [
-              0,
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "baseClass": "CanvasUIComponent",
-          "properties": {
-            "markerOnly": true,
-            "name": "UIMarker",
-            "zOrder": 4
-          }
-        },
-        {
-          "baseClass": "UITextComponent",
-          "properties": {
-            "text": "关卡描述",
-            "name": "Info",
-            "width": 320,
-            "height": 56,
-            "fontSize": 16,
-            "color": "#f5e6c8",
-            "align": "center",
-            "shadowColor": "#00000080",
-            "shadowOffsetX": 0,
-            "shadowOffsetY": 0,
-            "shadowBlur": 4
-          }
-        }
-      ],
-      "children": []
     }
   ]
 }

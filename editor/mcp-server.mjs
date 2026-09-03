@@ -93,6 +93,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'ui_decompile',
+      description:
+        '反编译 widget.json → 回写 .widget.html（与 ui_compile 反向）。' +
+        '流程：读取已落盘的 .widget.json → 反编译为 HTML → 覆写同目录同名 .widget.html。' +
+        '适用于手动保存后需要同步源文件的场景。参数 asset = widget 资产路径' +
+        '（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            description: 'widget 资产路径（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
+          },
+        },
+        required: ['asset'],
+      },
+    },
+    {
       name: 'get_scene_outline',
       description:
         '获取编辑器当前场景的 Actor 大纲树（3D + UI Actor 层级结构）。' +
@@ -144,6 +162,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
     const result = await callEditor('ui_compile', { asset })
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    }
+  }
+
+  if (name === 'ui_decompile') {
+    const asset = args?.asset || ''
+    if (!asset) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 asset 参数' }, null, 2) }],
+      }
+    }
+    const result = await callEditor('ui_decompile', { asset })
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     }

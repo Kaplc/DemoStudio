@@ -410,6 +410,23 @@ export class BlueprintEditorService {
     return { ok: true, asset, types: this.listTypes() }
   }
 
+  /** 仅落盘，不触发反编译。供 MCP ui_compile / dispatch save 等非手动保存路径使用 */
+  static async saveAssetOnly(assetPath: string): Promise<BlueprintEditResult> {
+    const key = diskPathToAssetKey(assetPath)
+    const asset = this.workingCopies.get(key)
+    if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
+    logger.info(`[BlueprintEdit] saveAssetOnly 开始: ${key}`)
+    const written = await writeAsset(assetPath, asset)
+    if (!written.ok) {
+      logger.error(`[BlueprintEdit] saveAssetOnly 失败: ${key}: ${written.error}`)
+      return { ok: false, error: written.error, asset, types: this.listTypes() }
+    }
+    this.dirtyKeys.delete(key)
+    editorBus.emit(EditorEvent.BLUEPRINT_SAVED, assetPath)
+    logger.info(`[BlueprintEdit] saveAssetOnly 完成（已落盘，无反编译）: ${key}`)
+    return { ok: true, asset, types: this.listTypes() }
+  }
+
   /**
    * 预览拖拽松手统一提交入口：把拖拽目标节点变换组件的最终属性，通过 apply 链路提交。
    *  - 拖动中只改预览内存态（不产生撤销点）；松手调用本方法 = 撤回点才进栈（apply 内部 push 动作前快照）
@@ -581,7 +598,7 @@ export class BlueprintEditorService {
     const assetPath = params.assetPath as string | undefined
     if (!assetPath) return { ok: false, error: `${op} 需要 assetPath` }
     // 外部入口（MCP / window API）：保持"立即落盘"语义
-    if (op === 'save') return this.save(assetPath)
+    if (op === 'save') return this.saveAssetOnly(assetPath)
     if (op === 'undo') return this.undo(assetPath)
     if (op === 'redo') return this.redo(assetPath)
     // 关闭资产：清理工作副本/撤销栈并恢复注册表到磁盘版本（与页签关闭同语义）

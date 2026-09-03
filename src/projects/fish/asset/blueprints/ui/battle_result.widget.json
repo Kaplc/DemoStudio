@@ -1,7 +1,7 @@
 {
   "name": "BattleResult",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-1c0ac46f",
+  "sourceHash": "fnv1a-c72b3c53",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -133,17 +133,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 1
-          }
-        },
-        {
-          "baseClass": "UILayoutComponent",
-          "properties": {
-            "mode": "vertical",
-            "spacingX": 0,
-            "spacingY": 0,
-            "justify": "start",
-            "align": "center",
-            "autoLayout": true
           }
         },
         {

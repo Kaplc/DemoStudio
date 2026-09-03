@@ -141,6 +141,36 @@ export function collectKeysWithChildren<T extends OutlineNodeLike>(tree: T[], ki
 }
 
 /**
+ * 把先序扁平树渲染为 `|— ` 树形文本（每层一个 `|— ` 前缀，含尾随空格），可粘贴给 AI / 文档。
+ * 有 Actor 的节点带 `[类型名]` 后缀（与大纲行内展示一致）；无 actor 节点只输出名称。
+ * @param baseDepth 基准深度（默认 0）：低于该深度的层级截平，子树导出时以目标节点为根
+ */
+export function buildTreeText(tree: OutlineNodeLike[], baseDepth = 0): string {
+  const lines: string[] = []
+  for (const node of tree) {
+    const indent = '|— '.repeat(Math.max(0, node.depth - baseDepth))
+    const typeName = node.actor ? ` [${node.actor.constructor.name}]` : ''
+    lines.push(`${indent}${node.name}${typeName}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 导出单个节点及其全部子节点的树形文本：在先序扁平树中定位目标节点后，
+ * 收集所有 depth 更大的后继行，直到回到同级或更浅层级为止。
+ * 目标节点重缩进为顶层（导出文本自包含，不带其在大纲中的层级前缀）。
+ * @returns 树形文本；目标不存在返回 null（同层重名命中第一个）
+ */
+export function buildNodeSubtreeText(tree: OutlineNodeLike[], name: string): string | null {
+  const start = tree.findIndex((n) => n.name === name)
+  if (start < 0) return null
+  const rootDepth = tree[start].depth
+  let end = start + 1
+  while (end < tree.length && tree[end].depth > rootDepth) end++
+  return buildTreeText(tree.slice(start, end), rootDepth)
+}
+
+/**
  * 默认折叠 hook：keysWithChildren 中首次出现的 key 自动折叠（新树/新节点默认收起）；
  * 已见过的 key 不重置 —— 用户手动展开后，树刷新不会折叠回去。
  * key 稳定（结构 key）时，预览重建前后同一逻辑节点的 key 不变 → 展开状态保持。

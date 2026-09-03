@@ -1,12 +1,14 @@
 <widget name="LevelCard" canvas="356x186" world="1.78x0.93">
   <style>
-    .CardFrame { position: absolute; left: 0px; top: 0px; width: 356px; height: 186px; background-color: #8a6a3a; border-radius: 16px; z-index: 1; }
-    .CardButton { position: absolute; left: 8px; top: 8px; width: 340px; height: 170px; background-color: #5c6b7a; border-radius: 12px; z-index: 2; font-size: 16px; text-shadow: 0px 0px 4px #00000066; }
-    .Name { position: absolute; left: 8px; top: 17px; width: 320px; height: 64px; font-size: 22px; color: #ffffff; font-weight: bold; text-align: center; text-shadow: 0px 0px 4px #00000099; z-index: 4; }
-    .Info { position: absolute; left: 8px; top: 81px; width: 320px; height: 56px; font-size: 16px; color: #f5e6c8; text-align: center; text-shadow: 0px 0px 4px #00000080; z-index: 4; }
+    .CardFrame { width: 356px; height: 186px; display: flex; justify-content: center; align-items: center; z-index: 1; background-color: #8a6a3a; border-radius: 16px; }
+    .CardButton { width: 340px; height: 170px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 21px; z-index: 2; background-color: #5c6b7a; border-radius: 12px; }
+    .Name { width: 320px; height: 64px; z-index: 4; font-size: 22px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 0px 4px #00000099; }
+    .Info { width: 320px; height: 56px; z-index: 4; font-size: 16px; color: #f5e6c8; text-align: center; text-shadow: 0px 0px 4px #00000080; }
   </style>
-  <div class="CardFrame"></div>
-  <button class="CardButton"></button>
-  <text class="Name">关卡名</text>
-  <text class="Info">关卡描述</text>
+  <div class="CardFrame">
+    <button class="CardButton">
+      <text class="Name">关卡名</text>
+      <text class="Info">关卡描述</text>
+    </button>
+  </div>
 </widget>

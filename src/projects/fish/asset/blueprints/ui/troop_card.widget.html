@@ -1,12 +1,14 @@
 <widget name="TroopCard" canvas="192x172" world="0.96x0.86">
   <style>
-    .CardFrame { position: absolute; left: 0px; top: 0px; width: 192px; height: 172px; background-color: #8a6a3a; border-radius: 14px; z-index: 0; }
-    .TrainButton { position: absolute; left: 6px; top: 6px; width: 180px; height: 160px; background-color: #e53935; border-radius: 10px; z-index: 1; font-size: 16px; text-shadow: 1px 2px 4px #00000099; }
-    .Name { position: absolute; left: 11px; top: 0px; width: 170px; height: 50px; font-size: 20px; color: #ffffff; font-weight: bold; text-align: center; text-shadow: 1px 2px 4px #00000099; z-index: 2; }
-    .Info { position: absolute; left: 11px; top: 122px; width: 170px; height: 40px; font-size: 15px; color: #f5e6c8; text-align: center; text-shadow: 1px 2px 4px #00000099; z-index: 2; }
+    .CardFrame { width: 192px; height: 172px; display: flex; justify-content: center; align-items: center; z-index: 0; background-color: #8a6a3a; border-radius: 14px; }
+    .TrainButton { width: 180px; height: 160px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; z-index: 1; background-color: #e53935; border-radius: 10px; }
+    .Name { width: 170px; height: 50px; z-index: 2; font-size: 20px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 1px 2px 4px #00000099; }
+    .Info { width: 170px; height: 40px; z-index: 2; font-size: 15px; color: #f5e6c8; text-align: center; text-shadow: 1px 2px 4px #00000099; }
   </style>
-  <div class="CardFrame"></div>
-  <button class="TrainButton"></button>
-  <text class="Name"></text>
-  <text class="Info"></text>
+  <div class="CardFrame">
+    <button class="TrainButton">
+      <text class="Name"></text>
+      <text class="Info"></text>
+    </button>
+  </div>
 </widget>

@@ -1,56 +1,165 @@
 <widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
   <style>
-    .TopBar { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; z-index: 1; }
-    .TopBarWood { width: 1920px; height: 170px; position: absolute; left: 0px; top: 0px; z-index: 2; background-color: #22160cd9; }
-    .GoldPill { width: 500px; height: 124px; position: absolute; left: 34px; top: 23px; z-index: 3; background-color: #6b4a00; border-radius: 18px; }
-    .PillInner { width: 484px; height: 108px; position: absolute; left: 8px; top: 8px; z-index: 4; background-color: #4a3020; border-radius: 14px; }
-    .GoldLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; z-index: 5; font-size: 30px; color: #ffd700; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 5; }
-    .ElixirPill { width: 500px; height: 124px; position: absolute; left: 560px; top: 23px; z-index: 6; background-color: #5a1f7a; border-radius: 18px; }
-    .ElixirLabel { width: 440px; height: 80px; position: absolute; left: 24px; top: 14px; z-index: 7; font-size: 30px; color: #e4c3fe; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 7; }
-    .GemPill { width: 420px; height: 110px; position: absolute; left: 1086px; top: 30px; z-index: 8; background-color: #1b4d2e; border-radius: 18px; }
-    .GemLabel { width: 380px; height: 70px; position: absolute; left: 24px; top: 20px; z-index: 9; font-size: 28px; color: #7cffb2; text-align: left; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 9; }
-    .TitleLabel { width: 1000px; height: 100px; position: absolute; left: 460px; top: 35px; z-index: 10; font-size: 34px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #000000a6; z-index: 10; }
-    .HintLabel { width: 420px; height: 70px; position: absolute; left: 1460px; top: 50px; z-index: 11; font-size: 20px; color: #f5e6c8; text-align: center; text-shadow: 0px 1px 4px #0000008c; z-index: 11; }
-    .ActionBar { width: 1920px; height: 150px; position: absolute; left: 0px; top: 930px; z-index: 12; }
-    .ActionDock { width: 1920px; height: 150px; position: absolute; left: 0px; top: 0px; z-index: 13; background-color: #22160cd9; }
-    .Btn_build { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 466px; top: 13px; z-index: 14; background-color: #ffae00; border-radius: 18px; }
-    .Label_build { width: 200px; height: 60px; z-index: 15; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 15; }
-    .Btn_tasks { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 740px; top: 13px; z-index: 16; background-color: #64b5f6; border-radius: 18px; }
-    .Label_tasks { width: 200px; height: 60px; z-index: 17; font-size: 26px; color: #0d253f; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 17; }
-    .Btn_gemShop { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1016px; top: 13px; z-index: 18; background-color: #9c27b0; border-radius: 18px; }
-    .Label_gemShop { width: 200px; height: 60px; z-index: 19; font-size: 26px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; z-index: 19; }
-    .Btn_map { width: 216px; height: 124px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1290px; top: 13px; z-index: 20; background-color: #ffae00; border-radius: 18px; }
-    .Label_map { width: 200px; height: 60px; z-index: 21; font-size: 26px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; z-index: 21; }
+    .TopBar { width: 100%; height: 100%; position: relative; display: flex; flex-direction: row; align-items: flex-start; justify-content: flex-start; }
+    .PersonalCenter { width: 300px; height: 52px; display: flex; flex-direction: row; align-items: center; margin-top: 6px; margin-left: 8px; }
+    .LevelBadge { width: 52px; height: 52px; flex-shrink: 0; background-color: #3f7fd6; border-radius: 12px; border: 2px solid #ffffffcc; display: flex; align-items: center; justify-content: center; }
+    .LevelBadgeBorderTop { display: none; }
+    .LevelBadgeBorderRight { display: none; }
+    .LevelBadgeBorderBottom { display: none; }
+    .LevelBadgeBorderLeft { display: none; }
+    .LevelNum { font-size: 22px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; }
+    .PersonalCol { width: 230px; height: 48px; display: flex; flex-direction: column; margin-left: 10px; }
+    .PlayerName { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #000000b3; margin-top: 2px; }
+    .XpTrack { width: 224px; height: 20px; background-color: #241a10e0; border-radius: 8px; border: 2px solid #f5e7c855; display: flex; align-items: center; padding: 3px; margin-top: 4px; }
+    .XpTrackBorderTop { display: none; }
+    .XpTrackBorderRight { display: none; }
+    .XpTrackBorderBottom { display: none; }
+    .XpTrackBorderLeft { display: none; }
+    .XpFill { width: 128px; height: 10px; background-color: #a05ee0; border-radius: 5px; }
+    .ResCol { display: flex; flex-direction: column; gap: 6px; margin-left: auto; margin-right: 20px; margin-top: 6px; }
+    .ResPill { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
+    .ResPillBorderTop { display: none; }
+    .ResPillBorderRight { display: none; }
+    .ResPillBorderBottom { display: none; }
+    .ResPillBorderLeft { display: none; }
+    .GoldLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
+    .ResIcon { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
+    .ResPill_2 { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
+    .ResPill_2BorderTop { display: none; }
+    .ResPill_2BorderRight { display: none; }
+    .ResPill_2BorderBottom { display: none; }
+    .ResPill_2BorderLeft { display: none; }
+    .ElixirLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
+    .ResIcon_2 { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
+    .ResPill_3 { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
+    .ResPill_3BorderTop { display: none; }
+    .ResPill_3BorderRight { display: none; }
+    .ResPill_3BorderBottom { display: none; }
+    .ResPill_3BorderLeft { display: none; }
+    .GemLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
+    .ResIcon_3 { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
+    .Btn_map { width: 88px; height: 88px; position: absolute; left: 10px; bottom: 16px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .Btn_mapBorderTop { display: none; }
+    .Btn_mapBorderRight { display: none; }
+    .Btn_mapBorderBottom { display: none; }
+    .Btn_mapBorderLeft { display: none; }
+    .Label_map { font-size: 40px; text-shadow: 0px 1px 3px #00000099; }
+    .ActionRow { display: flex; flex-direction: row; gap: 16px; position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); }
+    .Btn_build { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .Btn_buildBorderTop { display: none; }
+    .Btn_buildBorderRight { display: none; }
+    .Btn_buildBorderBottom { display: none; }
+    .Btn_buildBorderLeft { display: none; }
+    .ActionIcon { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
+    .ActionLabel { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
+    .Btn_tasks { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .Btn_tasksBorderTop { display: none; }
+    .Btn_tasksBorderRight { display: none; }
+    .Btn_tasksBorderBottom { display: none; }
+    .Btn_tasksBorderLeft { display: none; }
+    .ActionIcon_2 { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
+    .ActionLabel_2 { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
+    .Btn_gemShop { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .Btn_gemShopBorderTop { display: none; }
+    .Btn_gemShopBorderRight { display: none; }
+    .Btn_gemShopBorderBottom { display: none; }
+    .Btn_gemShopBorderLeft { display: none; }
+    .ActionIcon_3 { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
+    .ActionLabel_3 { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
+    .ShopBtn { width: 156px; height: 116px; position: absolute; right: 16px; bottom: 16px; background-color: #3f2d1e; border-radius: 16px; border: 3px solid #f5c542aa; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .ShopBtnBorderTop { display: none; }
+    .ShopBtnBorderRight { display: none; }
+    .ShopBtnBorderBottom { display: none; }
+    .ShopBtnBorderLeft { display: none; }
+    .ShopIcon { font-size: 38px; text-shadow: 0px 2px 4px #000000b3; }
+    .ShopLabel { font-size: 18px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 4px; }
   </style>
-    <div class="TopBar">
-      <div class="TopBarWood"></div>
-          <div class="GoldPill">
-        <div class="PillInner">
-          <text class="GoldLabel">金币: 100</text>
+  <div class="TopBar">
+    <div class="PersonalCenter">
+      <div class="LevelBadge">
+        <div class="LevelBadgeBorderTop"></div>
+        <div class="LevelBadgeBorderRight"></div>
+        <div class="LevelBadgeBorderBottom"></div>
+        <div class="LevelBadgeBorderLeft"></div>
+        <text class="LevelNum">7</text>
+      </div>
+      <div class="PersonalCol">
+        <text class="PlayerName">指挥官</text>
+        <div class="XpTrack">
+          <div class="XpTrackBorderTop"></div>
+          <div class="XpTrackBorderRight"></div>
+          <div class="XpTrackBorderBottom"></div>
+          <div class="XpTrackBorderLeft"></div>
+          <div class="XpFill"></div>
         </div>
       </div>
-          <div class="ElixirPill">
+    </div>
+    <div class="ResCol">
+      <div class="ResPill">
+        <div class="ResPillBorderTop"></div>
+        <div class="ResPillBorderRight"></div>
+        <div class="ResPillBorderBottom"></div>
+        <div class="ResPillBorderLeft"></div>
+        <text class="GoldLabel">金币: 100</text>
+        <text class="ResIcon">🪙</text>
+      </div>
+      <div class="ResPill_2">
+        <div class="ResPill_2BorderTop"></div>
+        <div class="ResPill_2BorderRight"></div>
+        <div class="ResPill_2BorderBottom"></div>
+        <div class="ResPill_2BorderLeft"></div>
         <text class="ElixirLabel">药水: 0</text>
+        <text class="ResIcon_2">⚗️</text>
       </div>
-          <div class="GemPill">
-        <text class="GemLabel">💎 0</text>
+      <div class="ResPill_3">
+        <div class="ResPill_3BorderTop"></div>
+        <div class="ResPill_3BorderRight"></div>
+        <div class="ResPill_3BorderBottom"></div>
+        <div class="ResPill_3BorderLeft"></div>
+        <text class="GemLabel">0</text>
+        <text class="ResIcon_3">💎</text>
       </div>
-          <text class="TitleLabel">🏴‍☠️ 渔村基地</text>
-          <text class="HintLabel">点击建筑可移动 · 删除按钮移除</text>
     </div>
-    <div class="ActionBar">
-      <div class="ActionDock"></div>
-          <button class="Btn_build">
-        <text class="Label_build">🏗️ 建筑</text>
-      </button>
-          <button class="Btn_tasks">
-        <text class="Label_tasks">📋 任务</text>
-      </button>
-          <button class="Btn_gemShop">
-        <text class="Label_gemShop">💎 商店</text>
-      </button>
-          <button class="Btn_map">
-        <text class="Label_map">🗺️ 地图</text>
-      </button>
-    </div>
+  </div>
+  <button class="Btn_map">
+    <div class="Btn_mapBorderTop"></div>
+    <div class="Btn_mapBorderRight"></div>
+    <div class="Btn_mapBorderBottom"></div>
+    <div class="Btn_mapBorderLeft"></div>
+    <text class="Label_map">🗺️</text>
+  </button>
+  <div class="ActionRow">
+    <button class="Btn_build">
+      <div class="Btn_buildBorderTop"></div>
+      <div class="Btn_buildBorderRight"></div>
+      <div class="Btn_buildBorderBottom"></div>
+      <div class="Btn_buildBorderLeft"></div>
+      <text class="ActionIcon">🏗️</text>
+      <text class="ActionLabel">建筑</text>
+    </button>
+    <button class="Btn_tasks">
+      <div class="Btn_tasksBorderTop"></div>
+      <div class="Btn_tasksBorderRight"></div>
+      <div class="Btn_tasksBorderBottom"></div>
+      <div class="Btn_tasksBorderLeft"></div>
+      <text class="ActionIcon_2">📋</text>
+      <text class="ActionLabel_2">任务</text>
+    </button>
+    <button class="Btn_gemShop">
+      <div class="Btn_gemShopBorderTop"></div>
+      <div class="Btn_gemShopBorderRight"></div>
+      <div class="Btn_gemShopBorderBottom"></div>
+      <div class="Btn_gemShopBorderLeft"></div>
+      <text class="ActionIcon_3">💎</text>
+      <text class="ActionLabel_3">商店</text>
+    </button>
+  </div>
+  <button class="ShopBtn">
+    <div class="ShopBtnBorderTop"></div>
+    <div class="ShopBtnBorderRight"></div>
+    <div class="ShopBtnBorderBottom"></div>
+    <div class="ShopBtnBorderLeft"></div>
+    <text class="ShopIcon">🛒</text>
+    <text class="ShopLabel">商店</text>
+  </button>
 </widget>

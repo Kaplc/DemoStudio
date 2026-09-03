@@ -1755,7 +1755,7 @@ async function startMCPServer() {
         try {
           const cmd: MCPCommand = JSON.parse(body)
           // 往返模式：等渲染进程处理完回传结果（AI 需要拿到返回值）
-          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile' || cmd.command === 'get_scene_outline' || cmd.command === 'get_ui_outline' || cmd.command === 'get_assets') {
+          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile' || cmd.command === 'ui_decompile' || cmd.command === 'get_scene_outline' || cmd.command === 'get_ui_outline' || cmd.command === 'get_assets') {
             // ai.event 转发（仅 ai_event 有事件语义；用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
             if (cmd.command === 'ai_event') {
               publishSSE('ai.event', {

@@ -1,7 +1,7 @@
 {
   "name": "LootFly",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-9c2fd6ae",
+  "sourceHash": "fnv1a-7bf4ee13",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -57,11 +57,6 @@
             ],
             "worldWidth": 0.16,
             "worldHeight": 0.16,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,

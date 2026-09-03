@@ -1,7 +1,7 @@
 {
   "name": "TasksPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-cdf5641b",
+  "sourceHash": "fnv1a-c6648e73",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -501,17 +501,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true
                   }
                 },
                 {

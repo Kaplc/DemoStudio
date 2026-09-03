@@ -1,7 +1,7 @@
 {
   "name": "DamageNumber",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-294e7939",
+  "sourceHash": "fnv1a-c7c1a3e7",
   "components": [
     {
       "baseClass": "UITransformComponent",

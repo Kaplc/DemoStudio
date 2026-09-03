@@ -1,7 +1,7 @@
 {
   "name": "Toast",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-1e9a0522",
+  "sourceHash": "fnv1a-4c6fb76f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -62,11 +62,6 @@
             ],
             "worldWidth": 4.8,
             "worldHeight": 0.9,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -80,6 +75,17 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "horizontal",
+            "spacingX": 0,
+            "spacingY": 0,
+            "justify": "center",
+            "align": "center",
+            "autoLayout": true
           }
         },
         {
@@ -115,8 +121,8 @@
                 "worldWidth": 4.6,
                 "worldHeight": 0.8,
                 "position": [
-                  -0.1,
-                  0.05,
+                  0,
+                  0,
                   0
                 ]
               }

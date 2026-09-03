@@ -1,7 +1,7 @@
 {
   "name": "Tooltip",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-5a5cfd04",
+  "sourceHash": "fnv1a-d105905d",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -57,6 +57,11 @@
             ],
             "worldWidth": 3.2,
             "worldHeight": 0.7,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
             "position": [
               0,
               0,

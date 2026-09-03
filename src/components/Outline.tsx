@@ -13,6 +13,8 @@ import type { NodeTemplate } from '../editor/blueprintEdit/nodeTemplates'
 import { OutlineContextMenu } from './OutlineContextMenu'
 import {
   applyCollapse,
+  buildNodeSubtreeText,
+  buildTreeText,
   collectKeysWithChildren,
   computeStableKeys,
   filterOutlineTree,
@@ -217,11 +219,12 @@ export function Outline({ query = '' }: { query?: string }) {
   interface OutlineMenuState {
     x: number
     y: number
-    node: SceneTreeNode
+    /** 右键目标节点；右键面板空白处为 null（只提供复制大纲树） */
+    node: SceneTreeNode | null
     kind: 'blueprint' | 'scenePreview' | 'scene'
   }
   const [menu, setMenu] = useState<OutlineMenuState | null>(null)
-  const handleNodeContextMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode, kind: 'blueprint' | 'scenePreview' | 'scene') => {
+  const openMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode | null, kind: 'blueprint' | 'scenePreview' | 'scene') => {
     e.preventDefault()
     e.stopPropagation()
     setMenu({ x: e.clientX, y: e.clientY, node, kind })
@@ -284,17 +287,17 @@ export function Outline({ query = '' }: { query?: string }) {
   // ─── 缓存：蓝图树渲染元素 ───
   const bpTreeElements = useMemo(() => {
     if (!bpTree || bpTree.length === 0) return null
-    const els = renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'blueprint'), filterQuery)
+    const els = renderActorTreeNodes(bpTree, selected, bpAssetPath ?? null, 'blueprint', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => openMenu(e, node, 'blueprint'), filterQuery)
     // 搜索无匹配 → 空数组置 null，让外层渲染"无匹配"文案
     return els.length > 0 ? els : null
-  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu, filterQuery])
+  }, [bpTree, selected, bpAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, openMenu, filterQuery])
 
   // ─── 缓存：场景预览树渲染元素 ───
   const spTreeElements = useMemo(() => {
     if (!spTree || spTree.length === 0) return null
-    const els = renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => handleNodeContextMenu(e, node, 'scenePreview'), filterQuery)
+    const els = renderActorTreeNodes(spTree, selected, spAssetPath ?? null, 'scenePreview', collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, (e, node) => openMenu(e, node, 'scenePreview'), filterQuery)
     return els.length > 0 ? els : null
-  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, handleNodeContextMenu, filterQuery])
+  }, [spTree, selected, spAssetPath, collapsedKeys, toggleCollapsed, hiddenKeys, toggleHidden, openMenu, filterQuery])
 
   // ─── 缓存：Scene 树渲染元素 ───
   const sceneTreeElements = useMemo(() => {
@@ -346,9 +349,7 @@ export function Outline({ query = '' }: { query?: string }) {
           }}
           onContextMenu={(e) => {
             if (!node.actor) return
-            e.preventDefault()
-            e.stopPropagation()
-            setMenu({ x: e.clientX, y: e.clientY, node, kind: 'scene' })
+            openMenu(e, node, 'scene')
           }}
         >
           {filterQuery ? (
@@ -380,7 +381,7 @@ export function Outline({ query = '' }: { query?: string }) {
   // ─── 右键菜单数据与操作 ───
   /** 当前菜单的模板组（按预览管理器类型判定：widget → UI 组；3D 蓝图/场景 → 3D 组） */
   const menuTemplates = useMemo<NodeTemplate[]>(() => {
-    if (!menu) return []
+    if (!menu || !menu.node) return []
     const assetPath = menu.kind === 'blueprint' ? bpAssetPath : spAssetPath
     if (!assetPath) return []
     const mgr = AssetPreviewManager.get<BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager>(assetPath)
@@ -389,17 +390,17 @@ export function Outline({ query = '' }: { query?: string }) {
   }, [menu, bpAssetPath, spAssetPath])
 
   /** 菜单目标是否根节点（根节点只允许创建；复制/重命名/删除禁用） */
-  const menuIsRoot = menu ? menu.node.actor?.parent == null : false
+  const menuIsRoot = menu && menu.node ? menu.node.actor?.parent == null : false
   /** 菜单目标是否对应资产 JSON 节点（代码生成的子节点无法做资产级结构编辑） */
   const menuTargetInJson = useMemo(() => {
-    if (!menu || menu.node.actor == null || menu.node.actor.parent == null) return false
+    if (!menu || menu.node == null || menu.node.actor == null || menu.node.actor.parent == null) return false
     const assetPath = menu.kind === 'blueprint' ? bpAssetPath : spAssetPath
     if (!assetPath) return false
     const mgr = AssetPreviewManager.get<BlueprintPreviewManager | UIPreviewManager | ScenePreviewManager>(assetPath)
     return !!mgr && mgr.hasJsonNode(menu.node.actor)
   }, [menu, bpAssetPath, spAssetPath])
   /** 修改类操作（复制/重命名/删除）可用性 */
-  const menuCanModify = !menuIsRoot && menuTargetInJson
+  const menuCanModify = menuIsRoot !== null && !menuIsRoot && menuTargetInJson
 
   /** 菜单目标资产路径（当前激活页签，scene 类型无资产路径） */
   const menuAssetPath = menu ? (menu.kind === 'blueprint' ? bpAssetPath : spAssetPath) : null
@@ -415,7 +416,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }, [bpAssetPath])
 
   const handleBpCreate = async (tpl: NodeTemplate) => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const mgr = getBpMgr()
     if (!mgr) {
       logger.warn(`[Outline] 创建节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
@@ -437,7 +438,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleBpDuplicate = async () => {
-    if (!menu || !menu.node.actor) return
+    if (!menu || !menu.node || !menu.node.actor) return
     const mgr = getBpMgr()
     if (!mgr) {
       logger.warn(`[Outline] 复制节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
@@ -450,7 +451,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleBpRename = async (newName: string) => {
-    if (!menu || !menu.node.actor) return
+    if (!menu || !menu.node || !menu.node.actor) return
     const mgr = getBpMgr()
     if (!mgr) {
       logger.warn(`[Outline] 重命名失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
@@ -463,7 +464,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleBpDelete = async () => {
-    if (!menu || !menu.node.actor) return
+    if (!menu || !menu.node || !menu.node.actor) return
     const mgr = getBpMgr()
     if (!mgr) {
       logger.warn(`[Outline] 删除节点失败: 蓝图预览管理器不可用（${bpAssetPath}）`)
@@ -479,7 +480,7 @@ export function Outline({ query = '' }: { query?: string }) {
   const getSpMgr = () => (menu ? AssetPreviewManager.get<ScenePreviewManager>(spAssetPath ?? '') : null)
 
   const handleSpCreate = (tpl: NodeTemplate) => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const mgr = getSpMgr()
     if (!mgr) {
       logger.warn(`[Outline] 创建节点失败: 场景预览管理器不可用（${spAssetPath}）`)
@@ -493,7 +494,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleSpDuplicate = () => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const mgr = getSpMgr()
     const newName = mgr?.duplicateSceneObject(menu.node.actor!)
     if (!newName) logger.warn(`[Outline] 复制场景对象失败: ${menu.node.name}`)
@@ -501,7 +502,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleSpRename = (newName: string) => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const mgr = getSpMgr()
     const ok = mgr?.renameSceneObject(menu.node.actor!, newName)
     if (!ok) logger.warn(`[Outline] 重命名场景对象失败: ${menu.node.name}`)
@@ -509,7 +510,7 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleSpDelete = () => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const mgr = getSpMgr()
     const ok = mgr?.removeSceneObject(menu.node.actor!)
     if (!ok) logger.warn(`[Outline] 删除场景对象失败: ${menu.node.name}`)
@@ -534,15 +535,60 @@ export function Outline({ query = '' }: { query?: string }) {
     else void handleBpDelete()
   }
   const handleMenuCopyName = () => {
-    if (!menu) return
+    if (!menu || !menu.node) return
     const name = menu.node.name
     navigator.clipboard.writeText(name).catch(() => {
       logger.warn(`[Outline] 复制名称到剪贴板失败: ${name}`)
     })
   }
 
+  /** 当前菜单对应的树数据源（与页签渲染用的树一致，保证复制内容与所见相同） */
+  const menuTree = useMemo<import('../editor/SelectionManager').SceneTreeNode[] | null>(() => {
+    if (!menu) return null
+    if (menu.kind === 'blueprint') return bpTree
+    if (menu.kind === 'scenePreview') return spTree
+    return visibleTree
+  }, [menu, bpTree, spTree, visibleTree])
+
+  /** 复制大纲树（整树文本）到剪贴板 */
+  const handleCopyTree = () => {
+    if (!menu) return
+    const text = buildTreeText(menuTree ?? [])
+    if (!text) {
+      logger.warn('[Outline] 复制大纲树失败: 当前树为空')
+      setMenu(null)
+      return
+    }
+    navigator.clipboard.writeText(text).catch(() => {
+      logger.warn('[Outline] 复制大纲树到剪贴板失败')
+    })
+    setMenu(null)
+  }
+
+  /** 复制当前节点及其全部子节点（子树文本，目标重缩进为顶层）到剪贴板 */
+  const handleCopySubtree = () => {
+    if (!menu || !menu.node) return
+    const name = menu.node.name
+    const text = menuTree ? buildNodeSubtreeText(menuTree, name) : null
+    if (text == null) {
+      logger.warn(`[Outline] 复制节点子树失败: 未在当前树中找到节点 ${name}`)
+      setMenu(null)
+      return
+    }
+    navigator.clipboard.writeText(text).catch(() => {
+      logger.warn(`[Outline] 复制节点子树到剪贴板失败: ${name}`)
+    })
+    setMenu(null)
+  }
+
+  /** 右键面板空白处：无目标节点，仅提供「复制大纲树」（整树文本） */
+  const handlePanelContextMenu = useCallback((e: React.MouseEvent) => {
+    const kind = isScenePreviewTab ? 'scenePreview' : isBlueprintTab ? 'blueprint' : 'scene'
+    openMenu(e, null, kind)
+  }, [isScenePreviewTab, isBlueprintTab, openMenu])
+
   return (
-    <div className="panel-body" style={{ padding: 0 }}>
+    <div className="panel-body" style={{ padding: 0 }} onContextMenu={handlePanelContextMenu}>
       {isScenePreviewTab ? (
         spTreeElements ?? (
           <div style={{ color: 'var(--text-dim)', fontSize: 12, padding: 12, textAlign: 'center' }}>{filterQuery ? '无匹配节点' : '无预览数据'}</div>
@@ -560,17 +606,20 @@ export function Outline({ query = '' }: { query?: string }) {
           {filterQuery ? '无匹配节点' : '场景中暂无对象'}
         </div>
       )}
-      {menuShouldShow && (
+      {menuShouldShow && menu && (
         <OutlineContextMenu
           x={menu.x}
           y={menu.y}
-          targetLabel={menu.node.name}
+          targetLabel={menu.node?.name || '大纲'}
+          hasTarget={!!menu.node}
           canModify={menuCanModify}
           templates={menuTemplates}
           onClose={() => setMenu(null)}
           onCreate={handleMenuCreate}
           onDuplicate={handleMenuDuplicate}
           onCopyName={handleMenuCopyName}
+          onCopyTree={handleCopyTree}
+          onCopySubtree={handleCopySubtree}
           onRename={handleMenuRename}
           onDelete={handleMenuDelete}
         />

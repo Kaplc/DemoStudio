@@ -6,7 +6,7 @@
  *    （经 BlueprintEditorService.updateFromPreview 同步预览/工作副本）
  *  - 错误信息面向源文件（行号指向 .widget.html），不暴露生成物坐标
  */
-import { compileUiSource } from './uiSourceSync'
+import { compileUiSource, decompileBackOnSave, sourcePathOf } from './uiSourceSync'
 import { lintWidgetDoc } from './uiCompiler'
 import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
 import { logger } from '../../engine/Logger'
@@ -73,7 +73,7 @@ export async function compileUiSourceToAsset(assetPath: string): Promise<UiCompi
     assetPath,
     compiled.doc as unknown as Parameters<typeof BlueprintEditorService.updateFromPreview>[1],
   )
-  const saved = await BlueprintEditorService.save(assetPath)
+  const saved = await BlueprintEditorService.saveAssetOnly(assetPath)
   if (!saved.ok) {
     out.errors.push({ line: 0, message: `落盘失败: ${saved.error}` })
     return out
@@ -82,5 +82,47 @@ export async function compileUiSourceToAsset(assetPath: string): Promise<UiCompi
   logger.info(`[UiCompile] 编译成功: ${srcPath} → ${assetPath}（assetLint 零错误）`)
   out.ok = true
   out.assetPath = assetPath
+  return out
+}
+
+/**
+ * 反编译 widget.json → 回写 .widget.html（MCP ui_decompile 命令 / 手动触发）。
+ * 读取已落盘的 json → 反编译 → 回写源文件。
+ * @param assetPath widget 资产路径（src/projects/.../xxx.widget.json）
+ */
+export async function decompileWidgetAsset(assetPath: string): Promise<UiCompileAction> {
+  const out: UiCompileAction = { ok: false, errors: [], lintIssues: [], warnings: [] }
+  const srcPath = sourcePathOf(assetPath)
+
+  // 1. 检查源文件是否存在
+  const api = window.electronAPI
+  const srcExists = api?.readTextFile
+    ? (await api.readTextFile(srcPath)).success
+    : false
+  if (!srcExists) {
+    out.errors.push({ line: 0, message: `源文件不存在: ${srcPath}（无源资产无法反编译）` })
+    return out
+  }
+
+  // 2. 读取已落盘的 json
+  const readResult = api?.readJsonFile
+    ? await api.readJsonFile(assetPath)
+    : null
+  if (!readResult?.success || !readResult.data) {
+    out.errors.push({ line: 0, message: `资产文件读取失败: ${assetPath}${readResult?.error ? `（${readResult.error}）` : ''}` })
+    return out
+  }
+  const asset = readResult.data
+
+  // 3. 反编译回写
+  const sync = await decompileBackOnSave(assetPath, asset)
+  if (sync.error) {
+    out.errors.push({ line: 0, message: sync.error })
+    return out
+  }
+  out.warnings.push(...sync.warnings)
+  out.ok = true
+  out.assetPath = assetPath
+  logger.info(`[UiDecompile] 反编译成功: ${assetPath} → ${srcPath}${sync.conflict ? '（冲突仲裁：以 json 为准）' : ''}`)
   return out
 }

@@ -1,25 +1,25 @@
 <widget name="TasksPanel" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/TasksUi">
   <style>
     .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #0e0a04b8; }
-    .Panel { width: 1460px; height: 980px; position: absolute; left: 230px; top: 50px; z-index: 1; background-color: #8a6a3a; border-radius: 24px; }
-    .PanelWood { width: 1420px; height: 940px; position: absolute; left: 20px; top: 20px; background-color: #3a2418; border-radius: 18px; }
-    .Title { width: 400px; height: 50px; position: absolute; left: 510px; top: 40px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .DailyTitle { width: 700px; height: 36px; position: absolute; left: 360px; top: 106px; font-size: 18px; color: #ffd700; text-align: center; text-shadow: 0px 1px 4px #00000066; }
-    .DailyList { width: 700px; height: 200px; position: absolute; left: 360px; top: 158px; background-color: #00000042; border-radius: 14px; }
-    .AchTitle { width: 700px; height: 36px; position: absolute; left: 360px; top: 374px; font-size: 18px; color: #ffd700; text-align: center; text-shadow: 0px 1px 4px #00000066; }
-    .AchievementList { width: 880px; height: 380px; position: absolute; left: 270px; top: 426px; background-color: #00000042; border-radius: 14px; }
-    .Btn_tasksClose { width: 260px; height: 78px; display: flex; justify-content: center; align-items: center; position: absolute; left: 580px; top: 822px; background-color: #ffae00; border-radius: 16px; }
+    .Panel { width: 1460px; height: 980px; margin: 50px auto; z-index: 1; background-color: #8a6a3a; border-radius: 24px; }
+    .PanelWood { width: 1420px; height: 940px; margin: 20px auto; display: flex; flex-direction: column; align-items: center; background-color: #3a2418; border-radius: 18px; }
+    .Title { width: 400px; height: 50px; margin-top: 40px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .DailyTitle { width: 700px; height: 36px; margin-top: 16px; font-size: 18px; color: #ffd700; text-align: center; text-shadow: 0px 1px 4px #00000066; }
+    .DailyList { width: 700px; height: 200px; margin-top: 16px; background-color: #00000042; border-radius: 14px; }
+    .AchTitle { width: 700px; height: 36px; margin-top: 16px; font-size: 18px; color: #ffd700; text-align: center; text-shadow: 0px 1px 4px #00000066; }
+    .AchievementList { width: 880px; height: 380px; margin-top: 16px; background-color: #00000042; border-radius: 14px; }
+    .Btn_tasksClose { width: 260px; height: 78px; display: flex; justify-content: center; align-items: center; margin-top: 16px; background-color: #ffae00; border-radius: 16px; }
     .Label_tasksClose { width: 200px; height: 40px; font-size: 24px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
   </style>
     <div class="DimBackground"></div>
     <div class="Panel">
       <div class="PanelWood">
         <text class="Title">📜 任务与成就</text>
-              <text class="DailyTitle">—— 每日任务（跨天刷新）——</text>
-              <div class="DailyList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:3,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.1,&quot;autoLayout&quot;:true}'></div>
-              <text class="AchTitle">—— 成就（一次性里程碑）——</text>
-              <div class="AchievementList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:4,&quot;spacingX&quot;:0.12,&quot;spacingY&quot;:0.1,&quot;autoLayout&quot;:true}'></div>
-              <button class="Btn_tasksClose">
+        <text class="DailyTitle">—— 每日任务（跨天刷新）——</text>
+        <div class="DailyList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:3,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.1,&quot;autoLayout&quot;:true}'></div>
+        <text class="AchTitle">—— 成就（一次性里程碑）——</text>
+        <div class="AchievementList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:4,&quot;spacingX&quot;:0.12,&quot;spacingY&quot;:0.1,&quot;autoLayout&quot;:true}'></div>
+        <button class="Btn_tasksClose">
           <text class="Label_tasksClose">🏠 关闭</text>
         </button>
       </div>

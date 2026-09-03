@@ -1,53 +1,47 @@
 # Your patch layer for this dsh profile, applied after every bundle layer:
 # a top-level YAML array of loader patch entries (id-targeted config
 # overrides, disables, and insert lists; `!!js` expressions allowed).
+# 此文件由 scripts/sync-dsh-plugins.mjs 在 editor.bat 启动时动态生成
 
-# DemoStudio 记忆系统插件（@demostudio/ds-memory，junction 挂载自仓库 harness/ds-memory）
-# memoryDir 钉到项目根：编辑器以 harness/dsh-source 为 cwd 拉起内核时，记忆仍落在 DemoStudio 根
+# ── DemoStudio 记忆系统 ──
 - insert:
     - id: ds-memory
       name: '@demostudio/ds-memory'
       config:
         memoryDir: 'E:/DemoStudio/.dsh/memory'
 
-# DemoStudio 启动同步插件（@demostudio/ds-sync，junction 挂载自仓库 harness/ds-sync）
-# 启动时把 home(~/.dsh) 的记忆/skills/presets/profiles 同步到项目根 .dsh（内容变化才写）
+# ── DemoStudio 启动同步 ──
 - insert:
     - id: ds-sync
       name: '@demostudio/ds-sync'
       config:
         projectRoot: 'E:/DemoStudio'
 
-# DemoStudio 引擎工具插件（@demostudio/ds-engine-tools，junction 挂载自仓库 harness/ds-engine-tools）
-# 5 个引擎特化工具（inspect_scene / spawn_entity / run_scenario / get_game_state / set_game_speed）
+# ── DemoStudio 引擎工具 ──
 - insert:
     - id: ds-engine-tools
       name: '@demostudio/ds-engine-tools'
 
-# DemoStudio 插件管理器（@demostudio/ds-plugin-manager）
+# ── DemoStudio 插件管理器 ──
 - insert:
     - id: ds-plugin-manager
       name: '@demostudio/ds-plugin-manager'
 
-
-# DemoStudio 目录指令插件（@demostudio/ds-instructions，junction 挂载自仓库 harness/ds-instructions）
-# 读取 src/engine|src/projects 文件后自动注入 .dsh/instructions/*.instructions.md 项目规范
+# ── DemoStudio 目录指令 ──
 - insert:
     - id: ds-instructions
       name: '@demostudio/ds-instructions'
       config:
         projectRoot: 'E:/DemoStudio'
 
-# DemoStudio 反馈飞轮插件（@demostudio/ds-feedback，junction 挂载自仓库 harness/ds-feedback）
-# 规则库钉到项目根 .dsh/rules：用户纠正沉淀（rule_propose/rule_apply + 常驻规则段）
+# ── DemoStudio 反馈飞轮 ──
 - insert:
     - id: ds-feedback
       name: '@demostudio/ds-feedback'
       config:
         ruleDir: 'E:/DemoStudio/.dsh/rules'
 
-# DemoStudio 行为飞轮插件（@demostudio/ds-experience，junction 挂载自仓库 harness/ds-experience）
-# 经验库钉到项目根 .dsh/experience：历史会话检索 + 做事轨迹 episode + 回合末自动提炼
+# ── DemoStudio 行为飞轮 ──
 - insert:
     - id: ds-experience
       name: '@demostudio/ds-experience'
@@ -55,17 +49,17 @@
         experienceDir: 'E:/DemoStudio/.dsh/experience'
 
 # ── 行为飞轮：持久会话索引 ──
-# session-query-sqlite 覆盖是整行 config 替换，path/openAt 两键都要写全（不能只写其一）。
-# 索引放 home：派生数据不进 git，丢失自动重建；first-search = 首次搜索才建库（惰性语义）。
 - id: session-query-sqlite
   config:
-    path: 'C:/Users/Kaplc/.dsh/session-query/index.sqlite'
+    path: 'C:/Users/v_zhyyzheng/.dsh/session-query/index.sqlite'
     openAt: first-search
 
+# ── DemoStudio 编辑器工具 ──
 - insert:
     - id: ds-editor-tools
       name: '@demostudio/ds-editor-tools'
 
+# ── DemoStudio 上下文警告 ──
 - insert:
     - id: ds-context-warning
       name: '@demostudio/ds-context-warning'

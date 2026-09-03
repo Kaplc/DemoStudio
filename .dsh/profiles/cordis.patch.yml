@@ -1,10 +1,10 @@
 # DemoStudio 自定义配置补丁
-# 将本地 .dsh\presets 目录添加为额外的 preset 根目录
+# 由 scripts/sync-dsh-plugins.mjs 在 editor.bat 启动时动态生成
 
 - id: agent-presets
   name: '@deepseek-ai/dsh-agent-presets'
   config:
     default: standard
     roots:
-      - path: "E:\\DemoStudio\\.dsh\\presets"
+      - path: 'E:/DemoStudio/.dsh/presets'
         trust: user

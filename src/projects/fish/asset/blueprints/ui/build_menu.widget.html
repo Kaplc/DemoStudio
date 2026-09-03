@@ -1,66 +1,69 @@
 <widget name="BuildMenu" canvas="1920x1080" world="9.6x5.4" active="false" data-script="gameplay/base/BuildMenu">
   <style>
     .DockWood { width: 1920px; height: 220px; position: absolute; left: 0px; top: 860px; z-index: 1; background-color: #22160ce0; }
-    .Btn_townhall { width: 156px; height: 190px; position: absolute; left: 245px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_townhall { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #ffd700; border-radius: 8px; }
-    .Label_townhall { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_barracks { width: 156px; height: 190px; position: absolute; left: 455px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_barracks { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #e53935; border-radius: 8px; }
-    .Label_barracks { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_laboratory { width: 156px; height: 190px; position: absolute; left: 665px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_laboratory { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #26c6da; border-radius: 8px; }
-    .Label_laboratory { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_goldmine { width: 156px; height: 190px; position: absolute; left: 875px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_goldmine { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #fbc02d; border-radius: 8px; }
-    .Label_goldmine { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_elixir { width: 156px; height: 190px; position: absolute; left: 1085px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_elixir { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #b24cff; border-radius: 8px; }
-    .Label_elixir { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_cannon { width: 156px; height: 190px; position: absolute; left: 1295px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_cannon { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #90a4ae; border-radius: 8px; }
-    .Label_cannon { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_wall { width: 156px; height: 190px; position: absolute; left: 1505px; top: 880px; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
-    .Icon_wall { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #a1887f; border-radius: 8px; }
-    .Label_wall { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
-    .Btn_delete { width: 156px; height: 190px; position: absolute; left: 1715px; top: 880px; z-index: 2; background-color: #6b2a2a; border-radius: 16px; }
-    .Icon_delete { width: 84px; height: 84px; position: absolute; left: 36px; top: 12px; z-index: 3; background-color: #ef5350; border-radius: 8px; }
-    .Label_delete { width: 160px; height: 50px; position: absolute; left: -2px; top: 116px; z-index: 4; font-size: 18px; color: #ffd0cc; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .BuildRow { width: 1626px; height: 190px; display: flex; flex-direction: row; align-items: flex-start; gap: 54px; position: absolute; left: 245px; top: 880px; }
+    .Btn_townhall { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_townhall { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #ffd700; border-radius: 8px; }
+    .Label_townhall { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_barracks { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_barracks { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #e53935; border-radius: 8px; }
+    .Label_barracks { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_laboratory { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_laboratory { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #26c6da; border-radius: 8px; }
+    .Label_laboratory { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_goldmine { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_goldmine { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #fbc02d; border-radius: 8px; }
+    .Label_goldmine { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_elixir { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_elixir { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #b24cff; border-radius: 8px; }
+    .Label_elixir { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_cannon { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_cannon { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #90a4ae; border-radius: 8px; }
+    .Label_cannon { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_wall { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #8a6a3a; border-radius: 16px; }
+    .Icon_wall { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #a1887f; border-radius: 8px; }
+    .Label_wall { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
+    .Btn_delete { width: 156px; height: 190px; display: flex; flex-direction: column; align-items: center; z-index: 2; background-color: #6b2a2a; border-radius: 16px; }
+    .Icon_delete { width: 84px; height: 84px; margin-top: 12px; z-index: 3; background-color: #ef5350; border-radius: 8px; }
+    .Label_delete { width: 160px; height: 50px; margin-top: 20px; font-size: 18px; color: #ffd0cc; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
     .Btn_close { width: 140px; height: 140px; display: flex; justify-content: center; align-items: center; position: absolute; left: 1730px; top: 700px; z-index: 2; background-color: #8a6a3a; border-radius: 14px; }
     .Label_close { width: 100px; height: 60px; font-size: 34px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #0000008c; }
   </style>
     <div class="DockWood"></div>
-    <button class="Btn_townhall">
-      <div class="Icon_townhall"></div>
-          <text class="Label_townhall">大厅</text>
-    </button>
-    <button class="Btn_barracks">
-      <div class="Icon_barracks"></div>
-          <text class="Label_barracks">兵营</text>
-    </button>
-    <button class="Btn_laboratory">
-      <div class="Icon_laboratory"></div>
-          <text class="Label_laboratory">实验室</text>
-    </button>
-    <button class="Btn_goldmine">
-      <div class="Icon_goldmine"></div>
-          <text class="Label_goldmine">金矿</text>
-    </button>
-    <button class="Btn_elixir">
-      <div class="Icon_elixir"></div>
-          <text class="Label_elixir">水库</text>
-    </button>
-    <button class="Btn_cannon">
-      <div class="Icon_cannon"></div>
-          <text class="Label_cannon">防御塔</text>
-    </button>
-    <button class="Btn_wall">
-      <div class="Icon_wall"></div>
-          <text class="Label_wall">城墙</text>
-    </button>
-    <button class="Btn_delete">
-      <div class="Icon_delete"></div>
-          <text class="Label_delete">删除</text>
-    </button>
+    <div class="BuildRow">
+      <button class="Btn_townhall">
+        <div class="Icon_townhall"></div>
+        <text class="Label_townhall">大厅</text>
+      </button>
+      <button class="Btn_barracks">
+        <div class="Icon_barracks"></div>
+        <text class="Label_barracks">兵营</text>
+      </button>
+      <button class="Btn_laboratory">
+        <div class="Icon_laboratory"></div>
+        <text class="Label_laboratory">实验室</text>
+      </button>
+      <button class="Btn_goldmine">
+        <div class="Icon_goldmine"></div>
+        <text class="Label_goldmine">金矿</text>
+      </button>
+      <button class="Btn_elixir">
+        <div class="Icon_elixir"></div>
+        <text class="Label_elixir">水库</text>
+      </button>
+      <button class="Btn_cannon">
+        <div class="Icon_cannon"></div>
+        <text class="Label_cannon">防御塔</text>
+      </button>
+      <button class="Btn_wall">
+        <div class="Icon_wall"></div>
+        <text class="Label_wall">城墙</text>
+      </button>
+      <button class="Btn_delete">
+        <div class="Icon_delete"></div>
+        <text class="Label_delete">删除</text>
+      </button>
+    </div>
     <button class="Btn_close">
       <text class="Label_close">×</text>
     </button>

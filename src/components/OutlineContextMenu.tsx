@@ -17,6 +17,8 @@ export interface OutlineContextMenuProps {
   y: number
   /** 目标节点显示名（标题用） */
   targetLabel: string
+  /** 是否存在目标节点：右键面板空白处为 false，此时只保留「复制大纲树」 */
+  hasTarget?: boolean
   /** 是否允许修改类操作（复制/重命名/删除）：根节点或代码生成节点为 false */
   canModify: boolean
   /** 当前预览类型的模板组（3D 或 UI） */
@@ -29,6 +31,10 @@ export interface OutlineContextMenuProps {
   onDuplicate: () => void
   /** 复制节点名称到剪贴板 */
   onCopyName: () => void
+  /** 复制整个大纲树（树形文本）到剪贴板 */
+  onCopyTree?: () => void
+  /** 复制目标节点及其全部子节点（子树文本）到剪贴板 */
+  onCopySubtree?: () => void
   /** 重命名节点（返回是否成功） */
   onRename: (newName: string) => void
   /** 删除节点 */
@@ -72,7 +78,7 @@ const SEPARATOR_STYLE: React.CSSProperties = {
 }
 
 export function OutlineContextMenu({
-  x, y, targetLabel, canModify, templates, onClose, onCreate, onDuplicate, onCopyName, onRename, onDelete,
+  x, y, targetLabel, hasTarget = true, canModify, templates, onClose, onCreate, onDuplicate, onCopyName, onCopyTree, onCopySubtree, onRename, onDelete,
 }: OutlineContextMenuProps) {
   /** 重命名态：true 显示内嵌输入框 */
   const [renaming, setRenaming] = useState(false)
@@ -179,52 +185,84 @@ export function OutlineContextMenu({
         </div>
       ) : (
         <>
-          <div style={GROUP_LABEL_STYLE}>创建</div>
-          {templates.map((tpl) => (
+          {hasTarget && templates.length > 0 && (
+            <>
+              <div style={GROUP_LABEL_STYLE}>创建</div>
+              {templates.map((tpl) => (
+                <div
+                  key={tpl.baseName}
+                  style={ITEM_STYLE}
+                  onMouseEnter={hoverBg}
+                  onMouseLeave={leaveBg}
+                  onClick={() => onCreate(tpl)}
+                >
+                  <span>{tpl.label}</span>
+                </div>
+              ))}
+              <div style={SEPARATOR_STYLE} />
+            </>
+          )}
+          <div style={GROUP_LABEL_STYLE}>操作</div>
+          {hasTarget && (
             <div
-              key={tpl.baseName}
               style={ITEM_STYLE}
               onMouseEnter={hoverBg}
               onMouseLeave={leaveBg}
-              onClick={() => onCreate(tpl)}
+              onClick={() => { onCopyName(); onClose() }}
             >
-              <span>{tpl.label}</span>
+              <span>复制名称</span>
             </div>
-          ))}
-          <div style={SEPARATOR_STYLE} />
-          <div style={GROUP_LABEL_STYLE}>操作</div>
-          <div
-            style={ITEM_STYLE}
-            onMouseEnter={hoverBg}
-            onMouseLeave={leaveBg}
-            onClick={() => { onCopyName(); onClose() }}
-          >
-            <span>复制名称</span>
-          </div>
-          <div
-            style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
-            onMouseEnter={hoverBg}
-            onMouseLeave={leaveBg}
-            onClick={() => { if (canModify) onDuplicate() }}
-          >
-            <span>复制</span>
-          </div>
-          <div
-            style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
-            onMouseEnter={hoverBg}
-            onMouseLeave={leaveBg}
-            onClick={() => { if (canModify) { setRenameValue(targetLabel); setRenaming(true) } }}
-          >
-            <span>重命名</span>
-          </div>
-          <div
-            style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
-            onMouseEnter={hoverBg}
-            onMouseLeave={leaveBg}
-            onClick={() => { if (canModify) onDelete() }}
-          >
-            <span style={{ color: '#ff6b6b' }}>删除</span>
-          </div>
+          )}
+          {onCopyTree && (
+            <div
+              style={ITEM_STYLE}
+              onMouseEnter={hoverBg}
+              onMouseLeave={leaveBg}
+              onClick={() => onCopyTree()}
+            >
+              <span>复制大纲树</span>
+            </div>
+          )}
+          {hasTarget && onCopySubtree && (
+            <div
+              style={ITEM_STYLE}
+              onMouseEnter={hoverBg}
+              onMouseLeave={leaveBg}
+              onClick={() => onCopySubtree()}
+            >
+              <span>复制节点及子节点</span>
+            </div>
+          )}
+          {hasTarget && (
+            <div
+              style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
+              onMouseEnter={hoverBg}
+              onMouseLeave={leaveBg}
+              onClick={() => { if (canModify) onDuplicate() }}
+            >
+              <span>复制</span>
+            </div>
+          )}
+          {hasTarget && (
+            <div
+              style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
+              onMouseEnter={hoverBg}
+              onMouseLeave={leaveBg}
+              onClick={() => { if (canModify) { setRenameValue(targetLabel); setRenaming(true) } }}
+            >
+              <span>重命名</span>
+            </div>
+          )}
+          {hasTarget && (
+            <div
+              style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
+              onMouseEnter={hoverBg}
+              onMouseLeave={leaveBg}
+              onClick={() => { if (canModify) onDelete() }}
+            >
+              <span style={{ color: '#ff6b6b' }}>删除</span>
+            </div>
+          )}
         </>
       )}
     </div>

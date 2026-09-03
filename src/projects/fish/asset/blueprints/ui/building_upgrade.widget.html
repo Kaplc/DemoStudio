@@ -1,54 +1,54 @@
 <widget name="BuildingUpgradePanel" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BuildingUpgrade">
   <style>
     .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; z-index: 1; background-color: #0c0602b8; }
-    .Panel { width: 1540px; height: 1020px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; position: absolute; left: 190px; top: 30px; z-index: 2; background-color: #8a6a3a; border-radius: 24px; }
-    .PanelWood { width: 1480px; height: 960px; background-color: #3a2418; border-radius: 18px; }
-    .TitleAccent { width: 240px; height: 16px; position: absolute; left: 620px; top: 26px; background-color: #f0a500; border-radius: 4px; }
-    .Title { width: 400px; height: 60px; position: absolute; left: 540px; top: 56px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .BuildingInfo { width: 1200px; height: 300px; position: absolute; left: 140px; top: 146px; background-color: #2a1a0a; border-radius: 12px; }
-    .BuildingNameText { width: 500px; height: 50px; position: absolute; left: 350px; top: 24px; font-size: 28px; color: #ffd700; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .CurrentStatsText { width: 500px; height: 190px; position: absolute; left: 60px; top: 90px; font-size: 22px; color: #a5d6a7; text-align: left; text-shadow: 0px 1px 3px #00000066; }
-    .NextStatsText { width: 500px; height: 190px; position: absolute; left: 640px; top: 90px; font-size: 22px; color: #90caf9; text-align: left; text-shadow: 0px 1px 3px #00000066; }
-    .UpgradeCostText { width: 800px; height: 50px; position: absolute; left: 340px; top: 472px; font-size: 20px; color: #ffd54f; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .UpgradeProgressText { width: 800px; height: 40px; position: absolute; left: 340px; top: 532px; font-size: 18px; color: #ff9800; text-align: center; text-shadow: 0px 1px 3px #00000066; }
-    .ButtonPanel { width: 1400px; height: 136px; position: absolute; left: 40px; top: 602px; }
-    .Btn_upgrade { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; position: absolute; left: 10px; top: 0px; background-color: #4caf50; border-radius: 18px; }
+    .Panel { width: 1540px; height: 1020px; display: flex; flex-direction: column; align-items: center; margin: 30px auto; z-index: 2; background-color: #8a6a3a; border-radius: 24px; }
+    .PanelWood { width: 1480px; height: 960px; display: flex; flex-direction: column; align-items: center; background-color: #3a2418; border-radius: 18px; }
+    .TitleAccent { width: 240px; height: 16px; margin-top: 26px; background-color: #f0a500; border-radius: 4px; }
+    .Title { width: 400px; height: 60px; margin-top: 14px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .BuildingInfo { width: 1200px; height: 300px; margin-top: 30px; display: grid; grid-template-columns: 500px 500px; column-gap: 80px; row-gap: 16px; background-color: #2a1a0a; border-radius: 12px; }
+    .BuildingNameText { grid-column: 1 / 3; width: 500px; height: 50px; margin-top: 24px; margin-left: 350px; font-size: 28px; color: #ffd700; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .CurrentStatsText { width: 500px; height: 190px; margin-left: 60px; font-size: 22px; color: #a5d6a7; text-align: left; text-shadow: 0px 1px 3px #00000066; }
+    .NextStatsText { width: 500px; height: 190px; margin-left: 60px; font-size: 22px; color: #90caf9; text-align: left; text-shadow: 0px 1px 3px #00000066; }
+    .UpgradeCostText { width: 800px; height: 50px; margin-top: 26px; font-size: 20px; color: #ffd54f; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .UpgradeProgressText { width: 800px; height: 40px; margin-top: 10px; font-size: 18px; color: #ff9800; text-align: center; text-shadow: 0px 1px 3px #00000066; }
+    .ButtonPanel { width: 1400px; height: 136px; margin-top: 30px; display: flex; flex-direction: row; align-items: center; gap: 60px; }
+    .Btn_upgrade { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; margin-left: 10px; background-color: #4caf50; border-radius: 18px; }
     .Label_upgrade { width: 360px; height: 60px; font-size: 24px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .Btn_fastForward { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; position: absolute; left: 490px; top: 0px; background-color: #9c27b0; border-radius: 18px; }
+    .Btn_fastForward { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; background-color: #9c27b0; border-radius: 18px; }
     .Label_fastForward { width: 360px; height: 60px; font-size: 24px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .Btn_cancel { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; position: absolute; left: 970px; top: 0px; background-color: #f44336; border-radius: 18px; }
+    .Btn_cancel { width: 420px; height: 136px; display: flex; justify-content: center; align-items: center; margin-right: 10px; background-color: #f44336; border-radius: 18px; }
     .Label_cancel { width: 360px; height: 60px; font-size: 24px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .Btn_close { width: 320px; height: 100px; position: absolute; left: 580px; top: 774px; background-color: #ffae00; border-radius: 18px; }
-    .Label_close { width: 300px; height: 60px; position: absolute; left: 10px; top: 20px; font-size: 24px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
+    .Btn_close { width: 320px; height: 100px; display: flex; justify-content: center; align-items: center; margin-top: 36px; background-color: #ffae00; border-radius: 18px; }
+    .Label_close { width: 300px; height: 60px; font-size: 24px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
   </style>
     <div class="DimBackground"></div>
     <div class="Panel">
       <div class="PanelWood">
         <div class="TitleAccent"></div>
-              <text class="Title">🏗️ 建筑升级</text>
-              <div class="BuildingInfo">
+        <text class="Title">🏗️ 建筑升级</text>
+        <div class="BuildingInfo">
           <text class="BuildingNameText">大本营 Lv.1</text>
-                  <text class="CurrentStatsText">当前等级属性:
+          <text class="CurrentStatsText">当前等级属性:
 HP: 100
 产出: 10/分钟</text>
-                  <text class="NextStatsText">下一级属性:
+          <text class="NextStatsText">下一级属性:
 HP: 150
 产出: 15/分钟</text>
         </div>
-              <text class="UpgradeCostText">升级费用: 1000 金币 | 时间: 30秒</text>
-              <text class="UpgradeProgressText">升级中: 15秒 剩余</text>
-              <div class="ButtonPanel">
+        <text class="UpgradeCostText">升级费用: 1000 金币 | 时间: 30秒</text>
+        <text class="UpgradeProgressText">升级中: 15秒 剩余</text>
+        <div class="ButtonPanel">
           <button class="Btn_upgrade">
             <text class="Label_upgrade">⬆️ 升级</text>
           </button>
-                  <button class="Btn_fastForward">
+          <button class="Btn_fastForward">
             <text class="Label_fastForward">💎 宝石加速</text>
           </button>
-                  <button class="Btn_cancel">
+          <button class="Btn_cancel">
             <text class="Label_cancel">❌ 取消</text>
           </button>
         </div>
-              <button class="Btn_close">
+        <button class="Btn_close">
           <text class="Label_close">🏠 关闭</text>
         </button>
       </div>

@@ -1,7 +1,7 @@
 {
   "name": "GemShopPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-f3e7a999",
+  "sourceHash": "fnv1a-d2b6fd3e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -115,11 +115,6 @@
             ],
             "worldWidth": 7.7,
             "worldHeight": 5.1,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -133,17 +128,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 1
-          }
-        },
-        {
-          "baseClass": "UILayoutComponent",
-          "properties": {
-            "mode": "vertical",
-            "spacingX": 0,
-            "spacingY": 0,
-            "justify": "start",
-            "align": "center",
-            "autoLayout": true
           }
         },
         {

@@ -1,7 +1,7 @@
 {
   "name": "BuildingUpgradePanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-4715e2e4",
+  "sourceHash": "fnv1a-3d866890",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -115,11 +115,6 @@
             ],
             "worldWidth": 7.7,
             "worldHeight": 5.1,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -133,17 +128,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 2
-          }
-        },
-        {
-          "baseClass": "UILayoutComponent",
-          "properties": {
-            "mode": "vertical",
-            "spacingX": 0,
-            "spacingY": 0,
-            "justify": "start",
-            "align": "center",
-            "autoLayout": true
           }
         },
         {
@@ -375,14 +359,9 @@
                         ],
                         "worldWidth": 2.5,
                         "worldHeight": 0.25,
-                        "anchor": "top-center",
-                        "anchorOffset": [
-                          0,
-                          -0.12
-                        ],
                         "position": [
                           0,
-                          0,
+                          0.505,
                           0
                         ]
                       }
@@ -435,14 +414,9 @@
                         ],
                         "worldWidth": 2.5,
                         "worldHeight": 0.95,
-                        "anchor": "bottom-left",
-                        "anchorOffset": [
-                          0.3,
-                          0.1
-                        ],
                         "position": [
-                          0,
-                          0,
+                          -1.45,
+                          -0.175,
                           0
                         ]
                       }
@@ -458,14 +432,13 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "当前等级属性:\nHP: 100\n产出: 10/分钟",
+                        "text": "当前等级属性:\r\nHP: 100\r\n产出: 10/分钟",
                         "name": "CurrentStatsText",
                         "width": 500,
                         "height": 190,
                         "fontSize": 22,
                         "color": "#a5d6a7",
                         "align": "left",
-                        "lineHeight": 1.4,
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
@@ -495,14 +468,9 @@
                         ],
                         "worldWidth": 2.5,
                         "worldHeight": 0.95,
-                        "anchor": "bottom-right",
-                        "anchorOffset": [
-                          -0.3,
-                          0.1
-                        ],
                         "position": [
-                          0,
-                          0,
+                          1.45,
+                          -0.175,
                           0
                         ]
                       }
@@ -518,14 +486,13 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "下一级属性:\nHP: 150\n产出: 15/分钟",
+                        "text": "下一级属性:\r\nHP: 150\r\n产出: 15/分钟",
                         "name": "NextStatsText",
                         "width": 500,
                         "height": 190,
                         "fontSize": 22,
                         "color": "#90caf9",
                         "align": "left",
-                        "lineHeight": 1.4,
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
@@ -716,17 +683,6 @@
                         "markerOnly": true,
                         "name": "UIMarker",
                         "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UILayoutComponent",
-                      "properties": {
-                        "mode": "horizontal",
-                        "spacingX": 0,
-                        "spacingY": 0,
-                        "justify": "center",
-                        "align": "center",
-                        "autoLayout": true
                       }
                     },
                     {
@@ -954,17 +910,6 @@
                         "markerOnly": true,
                         "name": "UIMarker",
                         "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UILayoutComponent",
-                      "properties": {
-                        "mode": "horizontal",
-                        "spacingX": 0,
-                        "spacingY": 0,
-                        "justify": "center",
-                        "align": "center",
-                        "autoLayout": true
                       }
                     },
                     {

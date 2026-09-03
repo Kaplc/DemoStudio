@@ -2,20 +2,20 @@
   <style>
     .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #060e12b8; }
     .Panel { width: 1460px; height: 980px; position: absolute; left: 230px; top: 50px; z-index: 1; background-color: #3a5a6a; border-radius: 24px; }
-    .PanelInner { width: 1420px; height: 940px; position: absolute; left: 20px; top: 20px; background-color: #1a2a34; border-radius: 18px; }
-    .Title { width: 400px; height: 50px; position: absolute; left: 510px; top: 168px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .ResearchList { width: 1100px; height: 380px; position: absolute; left: 160px; top: 234px; background-color: #0a161cb0; border-radius: 14px; }
-    .ResearchLabel { width: 900px; height: 48px; position: absolute; left: 260px; top: 630px; font-size: 17px; color: #80deea; text-align: center; text-shadow: 0px 1px 4px #00000080; }
-    .Btn_labClose { width: 260px; height: 78px; display: flex; justify-content: center; align-items: center; position: absolute; left: 580px; top: 694px; background-color: #26c6da; border-radius: 16px; }
+    .PanelInner { width: 1420px; height: 940px; margin-left: 20px; margin-top: 20px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; background-color: #1a2a34; border-radius: 18px; }
+    .Title { width: 400px; height: 50px; margin-top: 168px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .ResearchList { width: 1100px; height: 380px; margin-top: 16px; background-color: #0a161cb0; border-radius: 14px; }
+    .ResearchLabel { width: 900px; height: 48px; margin-top: 16px; font-size: 17px; color: #80deea; text-align: center; text-shadow: 0px 1px 4px #00000080; }
+    .Btn_labClose { width: 260px; height: 78px; display: flex; justify-content: center; align-items: center; margin-top: 16px; background-color: #26c6da; border-radius: 16px; }
     .Label_labClose { width: 200px; height: 40px; font-size: 24px; color: #00323a; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff4d; }
   </style>
     <div class="DimBackground"></div>
     <div class="Panel">
       <div class="PanelInner">
         <text class="Title">⚗️ 实验室</text>
-              <div class="ResearchList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:5,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.12,&quot;autoLayout&quot;:true}'></div>
-              <text class="ResearchLabel">研究状态: 空闲</text>
-              <button class="Btn_labClose">
+        <div class="ResearchList" data-comp="UILayout" data-props='{&quot;mode&quot;:&quot;grid&quot;,&quot;columns&quot;:5,&quot;spacingX&quot;:0.15,&quot;spacingY&quot;:0.12,&quot;autoLayout&quot;:true}'></div>
+        <text class="ResearchLabel">研究状态: 空闲</text>
+        <button class="Btn_labClose">
           <text class="Label_labClose">🏠 关闭</text>
         </button>
       </div>

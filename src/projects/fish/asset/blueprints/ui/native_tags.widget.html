@@ -1,28 +1,28 @@
 <widget name="NativeTags" canvas="1920x1080" world="9.6x5.4">
   <style>
-    .Title { width: 600px; height: 60px; position: absolute; left: 0px; top: 0px; font-size: 36px; color: #ffffff; text-shadow: 1px 2px 4px #00000066; }
-    .NameInput { width: 500px; height: 60px; position: absolute; left: 0px; top: 60px; font-size: 26px; color: #ffffff; }
-    .HpBar { width: 500px; height: 40px; position: absolute; left: 0px; top: 120px; }
-    .ScrollList { width: 500px; height: 250px; position: absolute; left: 0px; top: 160px; overflow-y: auto; }
-    .Row1 { width: 460px; height: 50px; position: absolute; left: 0px; top: 0px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .Row2 { width: 460px; height: 50px; position: absolute; left: 0px; top: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .Row3 { width: 460px; height: 50px; position: absolute; left: 0px; top: 100px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .Row4 { width: 460px; height: 50px; position: absolute; left: 0px; top: 150px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .Row5 { width: 460px; height: 50px; position: absolute; left: 0px; top: 200px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .OkBtn { width: 300px; height: 80px; position: absolute; left: 0px; top: 410px; }
-    .OkBtnText { width: 300px; height: 80px; position: absolute; left: 0px; top: 0px; font-size: 30px; color: #ffffff; text-align: center; text-shadow: 1px 2px 4px #00000066; }
-    .LayoutTitle { width: 700px; height: 50px; position: absolute; left: 0px; top: 490px; font-size: 30px; color: #ffd700; text-shadow: 1px 2px 4px #00000066; }
-    .HBoxLabel { width: 700px; height: 36px; position: absolute; left: 0px; top: 540px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .HBox { width: 700px; height: 120px; display: flex; gap: 20px; justify-content: center; align-items: center; position: absolute; left: 0px; top: 576px; background-color: #28283ccc; }
+    .Title { width: 600px; height: 60px; font-size: 36px; color: #ffffff; text-shadow: 1px 2px 4px #00000066; }
+    .NameInput { width: 500px; height: 60px; font-size: 26px; color: #ffffff; }
+    .HpBar { width: 500px; height: 40px; }
+    .ScrollList { width: 500px; height: 250px; overflow-y: auto; }
+    .Row1 { width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .Row2 { width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .Row3 { width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .Row4 { width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .Row5 { width: 460px; height: 50px; font-size: 24px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .OkBtn { width: 300px; height: 80px; }
+    .OkBtnText { width: 300px; height: 80px; font-size: 30px; color: #ffffff; text-align: center; text-shadow: 1px 2px 4px #00000066; }
+    .LayoutTitle { width: 700px; height: 50px; font-size: 30px; color: #ffd700; text-shadow: 1px 2px 4px #00000066; }
+    .HBoxLabel { width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .HBox { width: 700px; height: 120px; display: flex; gap: 20px; justify-content: center; align-items: center; background-color: #28283ccc; }
     .Box1 { width: 120px; height: 80px; background-color: #e74c3c; }
     .Box2 { width: 120px; height: 60px; background-color: #2ecc71; }
     .Box3 { width: 120px; height: 40px; background-color: #3498db; }
-    .VBoxLabel { width: 700px; height: 36px; position: absolute; left: 0px; top: 696px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .VBox { width: 300px; height: 250px; display: flex; flex-direction: column; gap: 10px; justify-content: center; align-items: center; position: absolute; left: 0px; top: 732px; background-color: #28283ccc; }
+    .VBoxLabel { width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .VBox { width: 300px; height: 250px; display: flex; flex-direction: column; gap: 10px; justify-content: center; align-items: center; background-color: #28283ccc; }
     .SBox1 { width: 200px; height: 80px; background-color: #9b59b6; }
     .SBox2 { width: 200px; height: 80px; background-color: #f39c12; }
-    .JustifyLabel { width: 700px; height: 36px; position: absolute; left: 0px; top: 982px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
-    .JustifyBox { width: 700px; height: 100px; display: flex; justify-content: center; align-items: center; position: absolute; left: 0px; top: 1018px; background-color: #28283ccc; }
+    .JustifyLabel { width: 700px; height: 36px; font-size: 22px; color: #c8c8c8; text-shadow: 1px 2px 4px #00000066; }
+    .JustifyBox { width: 700px; height: 100px; display: flex; justify-content: center; align-items: center; background-color: #28283ccc; }
     .JBox1 { width: 150px; height: 60px; background-color: #9b59b6; }
     .JBox2 { width: 150px; height: 60px; background-color: #f39c12; }
   </style>

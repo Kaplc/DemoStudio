@@ -405,6 +405,8 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **38. `localhost:5173` 连接被拒但 Vite 在跑** —— 原因：Vite 有时只监听 IPv6 回环 `::1`，而 `localhost` 解析为 IPv4 `127.0.0.1`。规则：`netstat -ano | findstr :5173` 确认输出为 `[::1]:5173` 时，导航用 `http://[::1]:5173/`。
 
+**39. `window.dispatchEvent(KeyboardEvent)` 打不开 GM 面板（G+M 无效）** —— 现象：evaluate 里合成 `keydown('g')→keydown('m')` 后 `getGM().consoleOpen` 仍 false。原因：游戏键盘管线挂在 `Viewport.tsx` 的 `viewportFocused` 条件下（`:404` `if (!viewportFocused) return`），合成事件既不改变聚焦状态也可能被前置 return 挡住。规则：**模拟游戏按键一律走 `window.__ai.emit('ai.keyPress', { key })`**（`registerBuiltinAIHandlers.ts:652` 直通 `inputSys.handleKeyDown`，绕过 DOM 聚焦），G+M 组合 = 先 emit `g` 再 emit `m`，`Escape` 关面板同理。
+
 ---
 
 ## 7. 边界条件

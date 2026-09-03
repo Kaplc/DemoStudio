@@ -228,16 +228,28 @@ export interface CredentialInfo {
 
 // --- 设置管理类型 ---
 export interface SettingsPathOp {
-  op: 'add' | 'remove' | 'replace' | 'merge'
+  op: 'set' | 'unset' | 'add' | 'remove' | 'replace' | 'merge'
   path: string[]
   value?: unknown
 }
 
+export interface CustomProviderConfig {
+  displayName: string
+  api: 'openai-completions' | 'openai-responses' | 'anthropic-messages'
+  baseURL: string
+  apiKeyEnv?: string
+  models: Array<{
+    id: string
+    name?: string
+  }>
+}
+
 export interface SettingsDescribeResult {
-  namespaces: Record<string, {
-    schema?: unknown
+  namespaces: Array<{
+    ns: string
     user?: unknown
     merged?: unknown
+    schema?: unknown
   }>
 }
 
@@ -2188,9 +2200,9 @@ export class AgentService {
   }
 
   /** 修改设置（最小化 diff） */
-  async mutateSettings(ops: SettingsPathOp[]): Promise<void> {
-    await this.rpc('settings.mutate', { ops })
-    console.log(`[${logTime()}] [AgentService] 设置已更新:`, ops.length, '个操作')
+  async mutateSettings(ns: string, ops: SettingsPathOp[]): Promise<void> {
+    await this.rpc('settings.mutate', { ns, ops })
+    console.log(`[${logTime()}] [AgentService] 设置已更新: ns=${ns}, ${ops.length} 个操作`)
   }
 
   /** 获取 LLM provider 列表 */

@@ -1,33 +1,33 @@
 <widget name="SaveMenu" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/SaveMenu">
   <style>
     .DimBackground { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #0c0602b8; }
-    .Panel { width: 1060px; height: 720px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; position: absolute; left: 430px; top: 180px; z-index: 1; background-color: #8a6a3a; border-radius: 22px; }
-    .PanelWood { width: 1000px; height: 660px; background-color: #3a2418; border-radius: 16px; }
-    .TitleAccent { width: 240px; height: 14px; position: absolute; left: 380px; top: 36px; background-color: #f0a500; border-radius: 4px; }
-    .Title { width: 400px; height: 58px; position: absolute; left: 300px; top: 64px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .Btn_save { width: 520px; height: 118px; position: absolute; left: 240px; top: 172px; background-color: #2e5a1f; border-radius: 18px; }
-    .Label_save { width: 480px; height: 60px; position: absolute; left: 20px; top: 29px; font-size: 26px; color: #e6ffe0; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
-    .Btn_load { width: 520px; height: 118px; position: absolute; left: 240px; top: 320px; background-color: #1f3a5a; border-radius: 18px; }
-    .Label_load { width: 480px; height: 60px; position: absolute; left: 20px; top: 29px; font-size: 26px; color: #dceaff; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
-    .Btn_close { width: 520px; height: 118px; position: absolute; left: 240px; top: 468px; background-color: #444444; border-radius: 18px; }
-    .Label_close { width: 480px; height: 60px; position: absolute; left: 20px; top: 29px; font-size: 26px; color: #dddddd; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
-    .InfoLine { width: 880px; height: 48px; position: absolute; left: 60px; top: 612px; font-size: 20px; color: #cfc3a8; text-align: center; text-shadow: 0px 1px 3px #00000080; }
+    .Panel { width: 1060px; height: 720px; margin: 180px auto; z-index: 1; background-color: #8a6a3a; border-radius: 22px; }
+    .PanelWood { width: 1000px; height: 660px; margin: 30px auto; display: flex; flex-direction: column; align-items: center; background-color: #3a2418; border-radius: 16px; }
+    .TitleAccent { width: 240px; height: 14px; margin-top: 36px; background-color: #f0a500; border-radius: 4px; }
+    .Title { width: 400px; height: 58px; margin-top: 14px; font-size: 32px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
+    .Btn_save { width: 520px; height: 118px; margin-top: 50px; display: flex; justify-content: center; align-items: center; background-color: #2e5a1f; border-radius: 18px; }
+    .Label_save { width: 480px; height: 60px; font-size: 26px; color: #e6ffe0; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
+    .Btn_load { width: 520px; height: 118px; margin-top: 30px; display: flex; justify-content: center; align-items: center; background-color: #1f3a5a; border-radius: 18px; }
+    .Label_load { width: 480px; height: 60px; font-size: 26px; color: #dceaff; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
+    .Btn_close { width: 520px; height: 118px; margin-top: 30px; display: flex; justify-content: center; align-items: center; background-color: #444444; border-radius: 18px; }
+    .Label_close { width: 480px; height: 60px; font-size: 26px; color: #dddddd; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000080; }
+    .InfoLine { width: 880px; height: 48px; margin-top: 26px; font-size: 20px; color: #cfc3a8; text-align: center; text-shadow: 0px 1px 3px #00000080; }
   </style>
-    <div class="DimBackground"></div>
-    <div class="Panel">
-      <div class="PanelWood">
-        <div class="TitleAccent"></div>
-              <text class="Title">💾 存档管理</text>
-              <button class="Btn_save">
-          <text class="Label_save">💾 保存存档</text>
-        </button>
-              <button class="Btn_load">
-          <text class="Label_load">📂 读取存档</text>
-        </button>
-              <button class="Btn_close">
-          <text class="Label_close">✖ 关闭菜单</text>
-        </button>
-              <text class="InfoLine">上次保存：从未</text>
-      </div>
+  <div class="DimBackground"></div>
+  <div class="Panel">
+    <div class="PanelWood">
+      <div class="TitleAccent"></div>
+      <text class="Title">💾 存档管理</text>
+      <button class="Btn_save">
+        <text class="Label_save">💾 保存存档</text>
+      </button>
+      <button class="Btn_load">
+        <text class="Label_load">📂 读取存档</text>
+      </button>
+      <button class="Btn_close">
+        <text class="Label_close">✖ 关闭菜单</text>
+      </button>
+      <text class="InfoLine">上次保存：从未</text>
     </div>
+  </div>
 </widget>

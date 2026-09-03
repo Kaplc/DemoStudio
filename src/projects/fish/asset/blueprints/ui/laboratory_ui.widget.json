@@ -1,7 +1,7 @@
 {
   "name": "LaboratoryPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-aadc7779",
+  "sourceHash": "fnv1a-b8af87d3",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -115,6 +115,11 @@
             ],
             "worldWidth": 7.3,
             "worldHeight": 4.9,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
             "position": [
               0,
               0,
@@ -389,17 +394,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true
                   }
                 },
                 {

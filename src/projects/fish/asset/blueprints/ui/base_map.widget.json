@@ -1,7 +1,7 @@
 {
   "name": "MapPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-e0ea7be4",
+  "sourceHash": "fnv1a-584db457",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -388,80 +388,11 @@
                 }
               ],
               "children": []
-            }
-          ]
-        },
-        {
-          "name": "Btn_mapClose",
-          "baseClass": "Actor",
-          "id": 13208,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 0.52,
-                "worldHeight": 0.52,
-                "anchor": "top-right",
-                "anchorOffset": [
-                  -0.08,
-                  -0.2
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
             },
             {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 2
-              }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "horizontal",
-                "spacingX": 0,
-                "spacingY": 0,
-                "justify": "center",
-                "align": "center",
-                "autoLayout": true
-              }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": {}
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#5a1f1f",
-                "radius": 16,
-                "width": 104,
-                "height": 104,
-                "name": "Btn_mapClose"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "Label_mapClose",
+              "name": "Btn_mapClose",
               "baseClass": "Actor",
-              "id": 13209,
+              "id": 13208,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -476,8 +407,13 @@
                       1,
                       1
                     ],
-                    "worldWidth": 0.5,
-                    "worldHeight": 0.3,
+                    "worldWidth": 0.52,
+                    "worldHeight": 0.52,
+                    "anchor": "top-right",
+                    "anchorOffset": [
+                      -0.08,
+                      -0.2
+                    ],
                     "position": [
                       0,
                       0,
@@ -490,28 +426,92 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 0
+                    "zOrder": 2
                   }
                 },
                 {
-                  "baseClass": "UITextComponent",
+                  "baseClass": "UILayoutComponent",
                   "properties": {
-                    "text": "✕",
-                    "name": "Label_mapClose",
-                    "width": 100,
-                    "height": 60,
-                    "fontSize": 28,
-                    "color": "#ffe3e0",
+                    "mode": "horizontal",
+                    "spacingX": 0,
+                    "spacingY": 0,
+                    "justify": "center",
                     "align": "center",
-                    "bold": true,
-                    "shadowColor": "#00000080",
-                    "shadowOffsetX": 0,
-                    "shadowOffsetY": 1,
-                    "shadowBlur": 3
+                    "autoLayout": true
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {}
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#5a1f1f",
+                    "radius": 16,
+                    "width": 104,
+                    "height": 104,
+                    "name": "Btn_mapClose"
                   }
                 }
               ],
-              "children": []
+              "children": [
+                {
+                  "name": "Label_mapClose",
+                  "baseClass": "Actor",
+                  "id": 13209,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 0.5,
+                        "worldHeight": 0.3,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "✕",
+                        "name": "Label_mapClose",
+                        "width": 100,
+                        "height": 60,
+                        "fontSize": 28,
+                        "color": "#ffe3e0",
+                        "align": "center",
+                        "bold": true,
+                        "shadowColor": "#00000080",
+                        "shadowOffsetX": 0,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 3
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
             }
           ]
         }

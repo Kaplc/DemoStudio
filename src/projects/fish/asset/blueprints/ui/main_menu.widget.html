@@ -5,34 +5,34 @@
     .BubbleMedium { width: 180px; height: 180px; position: absolute; left: 200px; top: 160px; z-index: 1; background-color: #7fd4ff0f; border-radius: 90px; }
     .BubbleSmall1 { width: 120px; height: 120px; position: absolute; left: 236px; top: 780px; z-index: 1; background-color: #7fd4ff12; border-radius: 60px; }
     .BubbleSmall2 { width: 90px; height: 90px; position: absolute; left: 1660px; top: 730px; z-index: 1; background-color: #7fd4ff14; border-radius: 45px; }
-    .MenuFrame { width: 720px; height: 880px; display: flex; justify-content: center; align-items: center; position: absolute; left: 600px; top: 100px; z-index: 2; background-image: linear-gradient(165deg, #6b4a26 0%, #523819 55%, #43290f 100%); border-radius: 28px; }
-    .MenuPanel { width: 672px; height: 832px; background-image: linear-gradient(180deg, #26160e 0%, #1a0e08 60%, #140a06 100%); border-radius: 18px; }
-    .TitleAccent { width: 220px; height: 10px; position: absolute; left: 226px; top: 176px; background-color: #f0a500; border-radius: 5px; }
-    .Title { width: 600px; height: 110px; position: absolute; left: 36px; top: 208px; font-size: 84px; color: #ffd700; text-align: center; font-weight: bold; text-shadow: 0px 4px 14px #000000a6; }
-    .Subtitle { width: 420px; height: 36px; position: absolute; left: 126px; top: 326px; font-size: 22px; color: #d9c49a; text-align: center; letter-spacing: 6px; text-shadow: 0px 2px 6px #00000080; }
-    .StartButton { width: 400px; height: 104px; display: flex; justify-content: center; align-items: center; position: absolute; left: 136px; top: 406px; background-color: #ffae00; border-radius: 22px; }
+    .MenuFrame { width: 720px; height: 880px; margin: 100px auto; z-index: 2; background-image: linear-gradient(165deg, #6b4a26 0%, #523819 55%, #43290f 100%); border-radius: 28px; }
+    .MenuPanel { width: 672px; height: 832px; margin: 24px auto; display: flex; flex-direction: column; align-items: center; background-image: linear-gradient(180deg, #26160e 0%, #1a0e08 60%, #140a06 100%); border-radius: 18px; }
+    .TitleAccent { width: 220px; height: 10px; margin-top: 152px; background-color: #f0a500; border-radius: 5px; }
+    .Title { width: 600px; height: 110px; margin-top: 22px; font-size: 84px; color: #ffd700; text-align: center; font-weight: bold; text-shadow: 0px 4px 14px #000000a6; }
+    .Subtitle { width: 420px; height: 36px; margin-top: 8px; font-size: 22px; color: #d9c49a; text-align: center; letter-spacing: 6px; text-shadow: 0px 2px 6px #00000080; }
+    .StartButton { width: 400px; height: 104px; margin-top: 44px; display: flex; justify-content: center; align-items: center; background-color: #ffae00; border-radius: 22px; }
     .StartBtnText { width: 320px; height: 64px; font-size: 38px; color: #3a2200; text-align: center; font-weight: bold; text-shadow: 0px 1px 2px #ffffff59; }
-    .TipText { width: 560px; height: 64px; position: absolute; left: 56px; top: 552px; font-size: 18px; color: #c9b28a; text-align: center; line-height: 1.6; text-shadow: 0px 2px 4px #00000080; }
-    .FooterText { width: 400px; height: 24px; position: absolute; left: 136px; top: 632px; font-size: 14px; color: #8a7452; text-align: center; letter-spacing: 2px; text-shadow: 0px 2px 4px #00000066; }
+    .TipText { width: 560px; height: 64px; margin-top: 42px; font-size: 18px; color: #c9b28a; text-align: center; line-height: 1.6; text-shadow: 0px 2px 4px #00000080; }
+    .FooterText { width: 400px; height: 24px; margin-top: 16px; font-size: 14px; color: #8a7452; text-align: center; letter-spacing: 2px; text-shadow: 0px 2px 4px #00000066; }
     .StartButton:hover { color: #ffc65e; }
     .StartButton:active { color: #e09400; }
   </style>
-    <div class="SeaBackdrop"></div>
-    <div class="BubbleLarge"></div>
-    <div class="BubbleMedium"></div>
-    <div class="BubbleSmall1"></div>
-    <div class="BubbleSmall2"></div>
-    <div class="MenuFrame">
-      <div class="MenuPanel">
-        <div class="TitleAccent"></div>
-              <text class="Title">ClashMaster</text>
-              <text class="Subtitle">— CLASH MASTER —</text>
-              <button class="StartButton" data-script="gameplay/menu/MainMenu">
-          <text class="StartBtnText">▶ 开始游戏</text>
-        </button>
-              <text class="TipText">鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级
+  <div class="SeaBackdrop"></div>
+  <div class="BubbleLarge"></div>
+  <div class="BubbleMedium"></div>
+  <div class="BubbleSmall1"></div>
+  <div class="BubbleSmall2"></div>
+  <div class="MenuFrame">
+    <div class="MenuPanel">
+      <div class="TitleAccent"></div>
+      <text class="Title">ClashMaster</text>
+      <text class="Subtitle">— CLASH MASTER —</text>
+      <button class="StartButton" data-script="gameplay/menu/MainMenu">
+        <text class="StartBtnText">▶ 开始游戏</text>
+      </button>
+      <text class="TipText">鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级
 击败敌人赚取金币 · 金币归零则游戏结束</text>
-              <text class="FooterText">DEMOSTUDIO · FISH CLASH</text>
-      </div>
+      <text class="FooterText">DEMOSTUDIO · FISH CLASH</text>
     </div>
+  </div>
 </widget>

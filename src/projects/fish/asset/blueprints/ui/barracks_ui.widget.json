@@ -1,7 +1,7 @@
 {
   "name": "BarracksPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-006f1b1c",
+  "sourceHash": "fnv1a-d9e6cfd0",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -599,17 +599,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true
                   }
                 },
                 {

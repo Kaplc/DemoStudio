@@ -1,7 +1,7 @@
 {
   "name": "PauseMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-8b8a9a24",
+  "sourceHash": "fnv1a-283cc3b9",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -115,11 +115,6 @@
             ],
             "worldWidth": 5.3,
             "worldHeight": 3.6,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -133,17 +128,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 1
-          }
-        },
-        {
-          "baseClass": "UILayoutComponent",
-          "properties": {
-            "mode": "vertical",
-            "spacingX": 0,
-            "spacingY": 0,
-            "justify": "start",
-            "align": "center",
-            "autoLayout": true
           }
         },
         {
@@ -180,7 +164,7 @@
                 "worldHeight": 3.3,
                 "position": [
                   0,
-                  0.15,
+                  0,
                   0
                 ]
               }

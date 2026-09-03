@@ -1,7 +1,7 @@
 {
   "name": "BattleHUD",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-bb76ec64",
+  "sourceHash": "fnv1a-b1bd5d7a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -420,6 +420,17 @@
           }
         },
         {
+          "baseClass": "UILayoutComponent",
+          "properties": {
+            "mode": "horizontal",
+            "spacingX": 0.3,
+            "spacingY": 0.3,
+            "justify": "center",
+            "align": "center",
+            "autoLayout": true
+          }
+        },
+        {
           "baseClass": "UIImageComponent",
           "properties": {
             "color": "#140c06c7",
@@ -451,13 +462,8 @@
                 ],
                 "worldWidth": 1.7,
                 "worldHeight": 0.34,
-                "anchor": "middle-left",
-                "anchorOffset": [
-                  0.25,
-                  0
-                ],
                 "position": [
-                  0,
+                  -1,
                   0,
                   0
                 ]
@@ -511,13 +517,8 @@
                 ],
                 "worldWidth": 1.7,
                 "worldHeight": 0.34,
-                "anchor": "middle-right",
-                "anchorOffset": [
-                  -0.25,
-                  0
-                ],
                 "position": [
-                  0,
+                  1,
                   0,
                   0
                 ]

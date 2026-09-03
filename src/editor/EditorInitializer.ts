@@ -591,6 +591,31 @@ export function registerGlobalEventListeners(callbacks: {
             }
             break
           }
+          case 'ui_decompile': {
+            // 反编译 widget.json → 回写 .widget.html（MCP ui_decompile 命令）
+            const decompAssetPath = (params?.asset as string | undefined)?.trim()
+            if (!decompAssetPath || !decompAssetPath.endsWith('.widget.json')) {
+              const msg = { status: 'error', command: 'ui_decompile', message: '缺少 asset 参数（需 .widget.json 路径）' }
+              if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, msg)
+              break
+            }
+            const { decompileWidgetAsset } = await import('./asset/uiSourceActions')
+            const decompAction = await decompileWidgetAsset(decompAssetPath)
+            addConsoleOutput(
+              `[MCP] ui_decompile: ${decompAssetPath} → ${decompAction.ok ? '成功' : `失败（${decompAction.errors.length} 错误）`}`,
+            )
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: decompAction.ok ? 'ok' : 'error',
+                command: 'ui_decompile',
+                ok: decompAction.ok,
+                asset: decompAction.assetPath,
+                errors: decompAction.errors.map((e) => ({ line: e.line, message: e.message })),
+                warnings: decompAction.warnings,
+              })
+            }
+            break
+          }
           case 'ui_compile': {
             // UI 源格式编译（方案 devdoc/ui-html-source-format）：
             // params.asset = widget 资产路径（src/projects/.../xxx.widget.json）

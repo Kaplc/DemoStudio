@@ -1,7 +1,7 @@
 {
   "name": "FishMainMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-1b1f5266",
+  "sourceHash": "fnv1a-89cf4673",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -341,11 +341,6 @@
             ],
             "worldWidth": 3.6,
             "worldHeight": 4.4,
-            "anchor": "center",
-            "anchorOffset": [
-              0,
-              0
-            ],
             "position": [
               0,
               0,
@@ -359,17 +354,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 2
-          }
-        },
-        {
-          "baseClass": "UILayoutComponent",
-          "properties": {
-            "mode": "horizontal",
-            "spacingX": 0,
-            "spacingY": 0,
-            "justify": "center",
-            "align": "center",
-            "autoLayout": true
           }
         },
         {
@@ -483,14 +467,9 @@
                     ],
                     "worldWidth": 1.1,
                     "worldHeight": 0.05,
-                    "anchor": "top-center",
-                    "anchorOffset": [
-                      0,
-                      -0.88
-                    ],
                     "position": [
                       0,
-                      0,
+                      1.295,
                       0
                     ]
                   }
@@ -536,14 +515,9 @@
                     ],
                     "worldWidth": 3,
                     "worldHeight": 0.55,
-                    "anchor": "top-center",
-                    "anchorOffset": [
-                      0,
-                      -1.04
-                    ],
                     "position": [
                       0,
-                      0,
+                      0.885,
                       0
                     ]
                   }
@@ -596,14 +570,9 @@
                     ],
                     "worldWidth": 2.1,
                     "worldHeight": 0.18,
-                    "anchor": "top-center",
-                    "anchorOffset": [
-                      0,
-                      -1.63
-                    ],
                     "position": [
                       0,
-                      0,
+                      0.48,
                       0
                     ]
                   }
@@ -656,14 +625,9 @@
                     ],
                     "worldWidth": 2,
                     "worldHeight": 0.52,
-                    "anchor": "bottom-center",
-                    "anchorOffset": [
-                      0,
-                      1.61
-                    ],
                     "position": [
                       0,
-                      0,
+                      -0.09,
                       0
                     ]
                   }
@@ -674,17 +638,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true
                   }
                 },
                 {
@@ -794,14 +747,9 @@
                     ],
                     "worldWidth": 2.8,
                     "worldHeight": 0.32,
-                    "anchor": "bottom-center",
-                    "anchorOffset": [
-                      0,
-                      1.08
-                    ],
                     "position": [
                       0,
-                      0,
+                      -0.72,
                       0
                     ]
                   }
@@ -817,7 +765,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\r\n击败敌人赚取金币 · 金币归零则游戏结束",
+                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n击败敌人赚取金币 · 金币归零则游戏结束",
                     "name": "TipText",
                     "width": 560,
                     "height": 64,
@@ -854,14 +802,9 @@
                     ],
                     "worldWidth": 2,
                     "worldHeight": 0.12,
-                    "anchor": "bottom-center",
-                    "anchorOffset": [
-                      0,
-                      0.88
-                    ],
                     "position": [
                       0,
-                      0,
+                      -1.02,
                       0
                     ]
                   }

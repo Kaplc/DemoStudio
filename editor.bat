@@ -67,6 +67,36 @@ if not exist "node_modules" (
     )
 )
 
+REM ─── 编译并部署 Harness 插件（编译 + junction + 动态生成 cordis.patch.yml） ───
+echo [Deploy] 编译并部署 Harness 插件...
+echo.
+
+REM ── 编译插件（依赖自动安装 + src 更新时增量编译，详见 scripts/build-harness-plugins.mjs） ──
+node "%~dp0scripts\build-harness-plugins.mjs"
+echo.
+
+REM ── 创建 junction（在 ~/.dsh/profiles/{web,headless}/node_modules/@demostudio/ 下） ──
+echo       创建插件 junction...
+call :createJunctions "%USERPROFILE%\.dsh\profiles"
+call :createJunctions "%~dp0.dsh\profiles"
+echo.
+
+REM ── 动态生成 cordis.patch.yml（当前项目根绝对路径，适配任意设备） ──
+echo       生成 cordis.patch.yml...
+node "%~dp0scripts\sync-dsh-plugins.mjs"
+
+REM ── 复制到运行时目录（~/.dsh/profiles/） ──
+echo       复制到运行时目录...
+for %%P in (web headless) do (
+    if exist "%~dp0.dsh\profiles\%%P\cordis.patch.yml" (
+        copy /Y "%~dp0.dsh\profiles\%%P\cordis.patch.yml" "%USERPROFILE%\.dsh\profiles\%%P\cordis.patch.yml" >nul 2>nul
+    )
+)
+if exist "%~dp0.dsh\profiles\cordis.patch.yml" (
+    copy /Y "%~dp0.dsh\profiles\cordis.patch.yml" "%USERPROFILE%\.dsh\cordis.patch.yml" >nul 2>nul
+)
+echo.
+
 REM ─── 同步本地 Presets 到系统目录 ───
 set "LOCAL_PRESETS=%~dp0.dsh\presets"
 set "SYSTEM_PRESETS=%USERPROFILE%\.dsh\.agent-presets"
@@ -111,23 +141,8 @@ if exist "%LOCAL_PRESETS%" (
     echo.
 )
 
-REM ─── 创建 DSH 补丁文件（用于加载系统目录中的 presets） ───
-set "PATCH_FILE=%USERPROFILE%\.dsh\cordis.patch.yml"
+REM ─── 确保 DSH Home 目录存在 ───
 if not exist "%USERPROFILE%\.dsh" mkdir "%USERPROFILE%\.dsh"
-if not exist "%PATCH_FILE%" (
-    echo [Sync] 创建 DSH 补丁文件...
-    (
-        echo # DemoStudio 自定义配置补丁
-        echo # 由 editor.bat 自动生成
-        echo.
-        echo - id: agent-presets
-        echo   name: '@deepseek-ai/dsh-agent-presets'
-        echo   config:
-        echo     default: standard
-    ) > "%PATCH_FILE%"
-    echo       [OK] 补丁文件已创建: %PATCH_FILE%
-    echo.
-)
 
 echo [Launch] 正在启动 Electron 编辑器...
 echo.
@@ -161,3 +176,26 @@ REM Electron 退出后 Vite dev server 可能残留几秒，强制清理确保 b
 taskkill /F /IM electron.exe >nul 2>nul
 taskkill /F /IM vite.exe >nul 2>nul
 exit /b 0
+
+REM ═══════════════════════════════════════════════════════════
+REM 子程序：为指定 profile 目录下的插件创建 junction
+REM 用法：call :createJunctions "C:\Users\xxx\.dsh\profiles"
+REM ═══════════════════════════════════════════════════════════
+:createJunctions
+set "PROF_DIR=%~1"
+setlocal enabledelayedexpansion
+for /d %%P in ("%PROF_DIR%\*") do (
+    if exist "%%P\cordis.yml" (
+        set "JDIR=%%P\node_modules\@demostudio"
+        if not exist "!JDIR!" mkdir "!JDIR!" 2>nul
+        for /d %%D in ("harness\ds-*") do (
+            if exist "%%D\dist\index.js" (
+                if not exist "!JDIR!\%%~nxD" (
+                    powershell -NoProfile -Command "New-Item -ItemType Junction -Path '!JDIR!\%%~nxD' -Target '%%~fD' | Out-Null" 2>nul
+                )
+            )
+        )
+    )
+)
+endlocal
+goto :eof

@@ -1,11 +1,20 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import {
   getSelectedActor, select, getSelectionKey, onSelectionChange, getRunningWorld,
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
-import { collectKeysWithChildren, computeStableKeys, filterOutlineTree, useDefaultCollapsed } from './outlineCore'
+import { OutlineContextMenu } from './OutlineContextMenu'
+import {
+  buildNodeSubtreeText,
+  buildTreeText,
+  collectKeysWithChildren,
+  computeStableKeys,
+  filterOutlineTree,
+  useDefaultCollapsed,
+} from './outlineCore'
 import type { SceneTreeNode } from '../editor/SelectionManager'
 import type { Actor } from '../engine'
+import { logger } from '../engine'
 
 /**
  * UiOutline — 运行中游戏的 UI 大纲（独立页签）
@@ -62,6 +71,57 @@ export function UiOutline({ query = '' }: { query?: string }) {
     [runningUiTree],
   )
 
+  // ─── 右键菜单（运行中 UI 树：复制大纲树 / 复制节点及子节点 / 复制名称） ───
+  const [menu, setMenu] = useState<{ x: number; y: number; node: SceneTreeNode | null } | null>(null)
+  const openMenu = useCallback((e: React.MouseEvent, node: SceneTreeNode | null) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenu({ x: e.clientX, y: e.clientY, node })
+  }, [])
+
+  const handleMenuCopyName = useCallback(() => {
+    if (!menu || !menu.node) return
+    const name = menu.node.name
+    navigator.clipboard.writeText(name).catch(() => {
+      logger.warn(`[UiOutline] 复制名称到剪贴板失败: ${name}`)
+    })
+  }, [menu])
+
+  const handleCopyTree = useCallback(() => {
+    const text = buildTreeText(runningUiTree ?? [])
+    if (!text) {
+      logger.warn('[UiOutline] 复制大纲树失败: 当前 UI 树为空')
+      setMenu(null)
+      return
+    }
+    navigator.clipboard.writeText(text).catch(() => {
+      logger.warn('[UiOutline] 复制大纲树到剪贴板失败')
+    })
+    setMenu(null)
+  }, [runningUiTree])
+
+  const handleCopySubtree = useCallback(() => {
+    if (!menu || !menu.node) return
+    const name = menu.node.name
+    const text = runningUiTree ? buildNodeSubtreeText(runningUiTree, name) : null
+    if (text == null) {
+      logger.warn(`[UiOutline] 复制节点子树失败: 未在当前树中找到节点 ${name}`)
+      setMenu(null)
+      return
+    }
+    navigator.clipboard.writeText(text).catch(() => {
+      logger.warn('[UiOutline] 复制节点子树到剪贴板失败')
+    })
+    setMenu(null)
+  }, [menu, runningUiTree])
+
+  /** 右键面板空白处：无目标节点，仅提供「复制大纲树」（整树文本）。
+   *  必须定义在下方两个条件 return 之前——hooks 不能出现在提前 return 之后，
+   *  否则游戏启动（gameRunning false→true）时 hooks 数量变化会触发 React 崩溃。 */
+  const handlePanelContextMenu = useCallback((e: React.MouseEvent) => {
+    openMenu(e, null)
+  }, [openMenu])
+
   // ─── 折叠过滤（复用大纲逻辑）；搜索模式：命中 + 祖先链，全展开 ───
   const rows = useMemo(() => {
     if (!runningUiTree || runningUiTree.length === 0) return []
@@ -110,7 +170,7 @@ export function UiOutline({ query = '' }: { query?: string }) {
   }
 
   return (
-    <div className="panel-body" style={{ padding: 0 }}>
+    <div className="panel-body" style={{ padding: 0 }} onContextMenu={handlePanelContextMenu}>
       {rows.map((row, i) => {
         const { node, key: itemKey, hasChildren, collapsed } = row
         // 防止 null === null：无 actor 节点不参与高亮
@@ -139,6 +199,10 @@ export function UiOutline({ query = '' }: { query?: string }) {
             onMouseLeave={(e) => {
               if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'
             }}
+            onContextMenu={(e) => {
+              if (!node.actor) return
+              openMenu(e, node)
+            }}
           >
             {filterQuery ? (
               <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />
@@ -163,6 +227,24 @@ export function UiOutline({ query = '' }: { query?: string }) {
           </div>
         )
       })}
+      {menu && (
+        <OutlineContextMenu
+          x={menu.x}
+          y={menu.y}
+          targetLabel={menu.node?.name || 'UI 大纲'}
+          hasTarget={!!menu.node}
+          canModify={false}
+          templates={[]}
+          onClose={() => setMenu(null)}
+          onCreate={() => {}}
+          onDuplicate={() => {}}
+          onCopyName={handleMenuCopyName}
+          onCopyTree={handleCopyTree}
+          onCopySubtree={handleCopySubtree}
+          onRename={() => {}}
+          onDelete={() => {}}
+        />
+      )}
     </div>
   )
 }

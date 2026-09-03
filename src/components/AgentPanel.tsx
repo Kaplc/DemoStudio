@@ -1741,7 +1741,7 @@ export const AgentPanel: React.FC = () => {
                   className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
                 >
-                  <span>设置</span>
+                  <span>供应商设置</span>
                 </button>
               </div>
             )}
