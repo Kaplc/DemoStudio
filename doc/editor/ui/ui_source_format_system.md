@@ -569,5 +569,5 @@ runEditorAssetLint(outPath).then((code) => { process.exitCode = code })
 | 节点重名（手工资产） | 反编译改写为 `Name_2` 并警告 | 编辑器保存前先在 json 里改名 |
 | 空容器带 `UILayoutComponent` | 反编译走 `data-comp` 逃逸保留参数 | 保证往返不丢布局组件 |
 | `<textarea>` | 合法，等价 `<input>` | 引擎无多行输入，round-trip 统一还原为 input |
-| `overflow: hidden/visible/clip` | 不映射滚动列表 | 仅 `auto`/`scroll` 映射 `UIScrollListComponent` |
+| `overflow: hidden/visible/clip` | `hidden`/`clip` → `UIMaskComponent` 裁剪遮罩（radius=border-radius） | `visible` 不裁剪；`auto`/`scroll` → UIMask + `UIScrollContainerComponent` + `_ScrollContent` 内容层 |
 | `z-order` 与 `z-index` 同写 | `z-order` 优先，`z-index` 被忽略 | 二者择一 |

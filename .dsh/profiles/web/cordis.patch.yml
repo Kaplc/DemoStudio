@@ -70,4 +70,5 @@
     - id: ds-context-warning
       name: '@demostudio/ds-context-warning'
       config:
+        projectRoot: 'E:/DemoStudio'
         thresholdsK: [100,200,250,300]

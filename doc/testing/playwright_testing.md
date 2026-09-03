@@ -13,12 +13,14 @@ DemoStudio 是 Electron + Vite + React + Three.js 应用。除 Electron 窗口�
 | 维度 | Electron 窗口 | 集成浏览器（Playwright） |
 |---|---|---|
 | `electronAPI`（readJsonFile/writeJsonFile 等） | 可用 | **不可用**（Mock 内存缓存，`src/editor/MockElectronAPI.ts`） |
-| 页面可见性 | visible | **常为 `hidden`**（rAF 暂停、渲染循环停摆） |
+| 页面可见性 | 恒 `visible`（后台不节流，见下注） | **常为 `hidden`**（rAF 暂停、渲染循环停摆） |
 | 点击交互 | 正常 | Playwright `click()` 等待元素 stable **必超时**，需 `dispatchEvent` |
 | 游戏日志文件（`logs/game_*.log`） | 正常写盘 | **写入不稳定**（多次 Launch 可能不新建文件） |
 | 文件保存 | 真磁盘 | Mock 只写内存（`readJsonFile` 读缓存） |
 
 > ⚠️ **核心前提**：`electronAPI` 在浏览器不可用，涉及读盘/写盘的流程（打开工程 → 读工程文件）在浏览器能跑通是依赖 Mock 层，**保存/加载真实文件必须回 Electron 验证**。
+
+> **后台不停摆**：Electron 主窗口/Agent 窗口已配置 `backgroundThrottling: false`（`electron/main.ts`），窗口隐藏/最小化/被遮挡时 rAF 照常全速触发、`visibilityState` 恒 `visible`。本表右列与 §5.2 的 hidden 限制只针对集成浏览器/本地 Chrome，**对 Electron 窗口（含 CDP 直连的调试通道）不适用**，无需 dispatchEvent/手动驱动帧等绕行手段。
 
 ## 2. 核心概念
 

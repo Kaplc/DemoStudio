@@ -125,7 +125,7 @@ tickUI(dt: number) {
   ToastSystem.instance.update(dt)
 ```
 
-> **反直觉点**：TweenSystem **自带 rAF 循环**（`_ensureLoop`），游戏运行时 `tickUI` 又调一次 `update(dt)`——看起来会「双倍速」。但 rAF 在**页面隐藏时会被浏览器暂停**，而游戏循环（`World.tick` / `World.manualTick`）由渲染器驱动、不受页面可见性影响。双驱动就是为了让隐藏页面/无头测试环境下补间仍能推进。正常前台时 rAF 与 tick 各有各的 dt，补间按各自 dt 累加，**不会真的双倍速**（rAF 的 dt 来自 `performance.now()` 差值，tick 的 dt 来自渲染循环，两者都推进同一个 `_tweens`，进度累加而非重复计数——代价是前台时推进略快于单一驱动，这是已知的取舍）。
+> **反直觉点**：TweenSystem **自带 rAF 循环**（`_ensureLoop`），游戏运行时 `tickUI` 又调一次 `update(dt)`——看起来会「双倍速」。正常前台时 rAF 与 tick 各有各的 dt，补间按各自 dt 累加，**不会真的双倍速**（rAF 的 dt 来自 `performance.now()` 差值，tick 的 dt 来自渲染循环，两者都推进同一个 `_tweens`，进度累加而非重复计数——代价是前台时推进略快于单一驱动，这是已知的取舍）。双驱动兜底的是 **rAF 停摆的页面**：普通浏览器/Playwright 集成浏览器在页面 hidden 时会暂停 rAF，此时外部 `manualTick` → `tickUI` 驱动仍能推进补间；Electron 主窗口/Agent 窗口已配 `backgroundThrottling: false`，后台 rAF 不再暂停（见 [游戏流程](../../engine/gameflow_system.md)）。
 
 关掉自驱改由外部驱动（测试环境）：
 

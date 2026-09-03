@@ -74,6 +74,11 @@ UILayoutComponent 运行时发射（兼容旧资产与动态子项）；其余�
   aspect-ratio、flex-direction/wrap/grow/shrink/basis、justify-content(6)/
   align-items/align-self/stretch、grid-template-columns/rows（px/%/fr/auto、
   repeat()）、grid-column/row 线位与 span、order 忽略、z-index→zOrder。
+- **溢出与滚动**：`overflow: hidden/clip` → `UIMaskComponent`（radius 取同元素
+  border-radius；scissor 矩形 + 圆角 SDF 裁剪，troika 退化矩形）；
+  `overflow: auto/scroll` → `UIMaskComponent` + `UIScrollContainerComponent`
+  （子项包进 `_ScrollContent` 内容层，滚动/滚动条/回弹运行时驱动；显式
+  `data-comp="UIScrollList"` 时仍走等步长列表逃逸通道）。
 - **视觉**：background-color/image(url 剥离)/linear-gradient（引擎 UIImage 渐变
   渲染，见下）、border-radius（四角一致；不一致报错）、border（实线，四条子 Actor
   模拟）、opacity、visibility、transform(translate/rotate/scale/matrix→rotation/scale)、

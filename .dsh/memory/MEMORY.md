@@ -14,3 +14,5 @@
 - [ds_memory_search_no_llm](ds_memory_search_no_llm.md) — memory_search 改为纯文件读取，移除 LLM 调用
 - [ds_experience_search_no_llm](ds_experience_search_no_llm.md) — experience_search 改为纯文件读取，harness 下无 LLM 调用
 - [user_ui_no_icon_by_default](user_ui_no_icon_by_default.md) — UI 不加 icon/emoji，除非用户要求
+- [ds_memory_end_of_turn_reminder](ds_memory_end_of_turn_reminder.md) — ds-memory 插件新增回合末自动提醒机制，提示 agent 检查是否需要保存记忆
+- [mcp_new_editor_tools](mcp_new_editor_tools.md) — MCP/DSH 编辑器信息工具：get_scene_outline/get_ui_outline/get_assets + CDP 工具，含主进程往返模式踩坑记录

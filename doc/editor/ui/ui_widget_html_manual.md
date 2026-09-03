@@ -147,6 +147,19 @@
 
 要点：背景色/圆角写在 button 上，内部一个 text 居中；**不要**再造一层"背景 div"（除非要多层装饰）。
 
+### 配方 D：溢出裁剪与滚动列表（overflow 语义）
+
+```html
+<style>
+  .Card { width: 300px; height: 200px; overflow: hidden; border-radius: 16px; }
+  .List { width: 300px; height: 400px; overflow-y: auto; }
+</style>
+```
+
+- `overflow: hidden` → 自动挂裁剪遮罩（UIMask）：超出容器的子内容被裁掉，`border-radius` 同时成为圆角裁剪半径。适合头像框、卡片溢出图片裁剪。
+- `overflow-y: auto`（或 `overflow: auto/scroll/x-auto`）→ 裁剪 + 通用滚动容器：内容超出即可拖拽滚动（自带滚动条、越界回弹），编译器自动生成内容层，HTML 写法与浏览器一致。
+- 需要等步长 item 对象池列表（几百项不卡帧）时仍用配方 B 的 `data-comp="UIScrollList"`。
+
 ### 什么时候才用 absolute
 
 - 全屏遮罩/背景层（`left:0 top:0` 铺满）
@@ -202,11 +215,12 @@
 | `<script>` / `onclick` 等事件属性 | 硬报错 | `data-script`（§7） |
 | `select` `video` `audio` `canvas` `svg` `iframe` 等映射面外标签 | 硬报错（附替代建议） | 组合白名单标签 |
 | 未知标签（拼错也算） | 硬报错 | 查 §3 白名单 |
-| `overflow: hidden` | 硬报错（引擎无容器裁剪） | 圆角裁剪用嵌套+同色背景表达 |
 | `@keyframes` `@font-face` `@supports` | 硬报错 | 动效用 UIScript + TweenSystem |
 | 兄弟选择器 `~` `+`、`::before/::after`、属性选择器 | 硬报错 | 用 class/后代/子代选择器 |
 | `border-radius` 四角不一致 | 硬报错 | 四角一致（引擎单值） |
 | `<img>` 不给 width/height | 警告+按内容盒渲染 | 显式给尺寸 |
+
+注：`overflow: hidden` 已合法（映射 UIMaskComponent 裁剪遮罩，§5 配方 D）；`overflow: auto/scroll` 映射滚动容器。
 
 ---
 

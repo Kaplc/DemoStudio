@@ -83,6 +83,8 @@ flowchart LR
 - `GameSingleton`（`PhySys` / `AIModule` 等）由 `Game.launch` 收集、`Game.shutdown` 统一 `reset()` 回收，生命周期绑定 Game
 - 输入统一经 `GameInstance.inputSys` 路由（Viewport 不直接调用 PlayerController）
 
+**Tick 源与后台行为**：循环由视口 rAF 驱动，而 rAF 只在产帧时触发。Electron 侧已在 `electron/main.ts` 对主窗口与 Agent 窗口配置 `backgroundThrottling: false` + `disable-renderer-backgrounding` 等三开关——**窗口隐藏/最小化/被遮挡时 rAF 照常全速触发**，游戏逻辑与 UI 动画后台持续运行（副作用：`document.hidden` 恒为 false）。普通浏览器 hidden 页仍会停摆（测试场景见 [Playwright 测试流程](../testing/playwright_testing.md)）；原先为 hidden 页兜底的 World tick 看门狗（setInterval 降频驱动）已随该配置移除（2026-09-02）。
+
 ### 4.2 场景切换（World.SwitchScene）
 
 ```
