@@ -16,6 +16,10 @@
  *  - 裁剪仅支持轴对齐（UI 元素旋转/缩放后裁剪框仍按轴对齐包围处理）
  *  - 命中测试不裁剪：被裁掉的视觉区域仍可被射线命中（按钮点击区域与视觉可能不一致）
  *  - troika 文本圆角裁剪退化为矩形
+ *  - scissor 换算按 z=0 平面展开二维仿射（矩形两角投影时忽略 z 分量）。
+ *    UI 元素本就铺在 z≈0（层级靠 zOrder 的微小 z 偏移区分，量级 0.001 可忽略），
+ *    故当前正确；若将来 mask 子树被放到显著 z 偏移上，需改用
+ *    THREE.Vector3.project(camera) 走完整投影。
  *
  * HTML 映射：overflow: hidden / auto / scroll 的元素自动挂本组件
  * （radius 取同元素 border-radius），滚动语义再配 UIScrollContainerComponent。
@@ -189,7 +193,10 @@ function applyScissor(
     renderer.setScissor(0, 0, 0, 0)
     return
   }
-  // 相机视锥（正交）：世界 x∈[left,right] → 屏幕 x∈[0,W]
+  // 世界矩形 → NDC（−1..1）：用相机世界逆矩阵做投影，
+  // 而非只用 left/right/top/bottom——那样等于隐含"相机在原点、zoom=1"，
+  // 编辑器预览平移/缩放后 scissor 会停在错误位置（mask 内容被裁掉/错位遮挡）。
+  // 走完整矩阵后平移、缩放乃至旋转都自动正确；运行时 UICamera 恒在原点，结果不变。
   const size = new THREE.Vector2()
   renderer.getSize(size)
   const W = size.x
@@ -199,13 +206,34 @@ function applyScissor(
   let width = W
   let height = H
   if (camera) {
+    camera.updateMatrixWorld()
+    const inv = camera.matrixWorldInverse
+    // 矩形两角（左下、右上）投影到相机空间（正交：w=1，无需透视除法）
+    const e = inv.elements
+    const toView = (wx: number, wy: number): [number, number] => [
+      e[0] * wx + e[4] * wy + e[8] * 0 + e[12],
+      e[1] * wx + e[5] * wy + e[9] * 0 + e[13],
+    ]
+    const [x0, y0] = toView(rect.cx - rect.hw, rect.cy - rect.hh)
+    const [x1, y1] = toView(rect.cx + rect.hw, rect.cy + rect.hh)
     const cw = camera.right - camera.left
     const chh = camera.top - camera.bottom
     if (cw > 0 && chh > 0) {
-      left = ((rect.cx - rect.hw - camera.left) / cw) * W
-      width = ((rect.hw * 2) / cw) * W
-      bottom = ((rect.cy - rect.hh - camera.bottom) / chh) * H
-      height = ((rect.hh * 2) / chh) * H
+      // 相机空间 → NDC：正交投影下除以视锥尺寸，再考虑 zoom 缩放
+      const z = camera.zoom
+      const ndcX0 = (x0 * z - (camera.left + camera.right) / 2) / cw * 2
+      const ndcX1 = (x1 * z - (camera.left + camera.right) / 2) / cw * 2
+      const ndcY0 = (y0 * z - (camera.top + camera.bottom) / 2) / chh * 2
+      const ndcY1 = (y1 * z - (camera.top + camera.bottom) / 2) / chh * 2
+      // NDC → 像素（GL y 向上）
+      const px0 = (ndcX0 + 1) / 2 * W
+      const px1 = (ndcX1 + 1) / 2 * W
+      const py0 = (ndcY0 + 1) / 2 * H
+      const py1 = (ndcY1 + 1) / 2 * H
+      left = Math.min(px0, px1)
+      width = Math.abs(px1 - px0)
+      bottom = Math.min(py0, py1)
+      height = Math.abs(py1 - py0)
     }
   }
   renderer.setScissorTest(true)

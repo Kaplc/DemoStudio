@@ -1,11 +1,12 @@
 {
-    "mcpServers": {
-        "demostudio": {
-            "command": "G:\\NodeJs\\node.exe",
-            "args": [
-                "editor/mcp-server.mjs"
-            ],
-            "env": {}
-        }
+  "mcpServers": {
+    "demostudio": {
+      "command": "node",
+      "args": [
+        "editor/mcp-server.mjs"
+      ],
+      "env": {},
+      "disabled": false
     }
+  }
 }
