@@ -5,6 +5,8 @@
 > **什么时候会用到你**：AI 接到「做一个 HUD / 面板 / 弹窗 / 列表」任务从零写 widget 时、改现有 widget 时、编译报错不知道怎么改时、不确定某个 HTML/CSS 写法支不支持时。
 >
 > 代码位置：你写的源在 `src/projects/<project>/asset/blueprints/ui/*.widget.html`；编译器在 `src/editor/asset/uiCompiler/`
+>
+> **单位总则（UI 一元化）**：UI 世界 1 单位 = 1 设计像素。你写的 px 就是落盘值、就是运行时值——**全程无换算**。旧米制时代的 `world="9.6x5.4"` 属性已废弃（写了只是告警并忽略）；`data-props` 里的 itemSize/spacing 等也一律写 px。
 
 ---
 
@@ -27,7 +29,7 @@
 
 | 引擎概念 | 你要做的 |
 |---|---|
-| UITransform / worldWidth（米制） | 不用管。你写 px，编译器按画布比例自动换算 |
+| UITransform / worldWidth | 不用管。你写 px，1 世界单位 = 1px，几何原值直存（UI 世界单位 = 设计像素） |
 | 九宫格锚点 / anchorOffset | 不用管。flex / margin / absolute 由编译器解算成精确坐标 |
 | UILayout 运行时重排 | 不用管。纯静态布局自动出坐标；动态列表见 §7 |
 | 组件 properties / assetLint schema | 不用管。合法标签+CSS 编译产物必然过 lint |
@@ -45,7 +47,7 @@
 [toast.widget.html](../../../src/projects/fish/asset/blueprints/ui/toast.widget.html) 是仓库里最小的合法 widget，全文 9 行：
 
 ```html
-<widget name="Toast" canvas="960x180" world="4.8x0.9" anchor="top-center" offset="0,0.55">
+<widget name="Toast" canvas="960x180" anchor="top-center" offset="0,110">
   <style>
     .ToastPanel { width: 960px; height: 180px; position: absolute; left: 0px; top: 0px; background-color: #3a2418eb; border-radius: 24px; }
     .ToastText { width: 920px; height: 160px; z-index: 1; font-size: 28px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 1px 2px 4px #00000099; }
@@ -63,15 +65,15 @@
 ## 2. `<widget>` 根标签参数
 
 ```html
-<widget name="面板Actor名" canvas="宽x高(px)" world="宽x高(米)" anchor="锚点" offset="x,y(米)" data-script="脚本路径" active="false">
+<widget name="面板Actor名" canvas="宽x高(px)" anchor="锚点" offset="x,y(px)" data-script="脚本路径" active="false">
 ```
 
 | 属性 | 必填 | 说明 |
 |---|---|---|
 | `name` | ✅ | 根 Actor 名 |
 | `canvas` | ✅ | 画布像素尺寸，**你的 CSS 都按这个坐标系写**。全屏 1920x1080，小件自定（如 480x90） |
-| `world` | 推荐 | 根世界尺寸（米）。全屏 = `9.6x5.4`；缺省宽 4.8、高按画布比例 |
-| `anchor` / `offset` | 可选 | 根锚点（如 `top-center`）+ 世界米偏移。全屏面板不用写（铺满即可） |
+| `world` | 已废弃 | **不要再写**。UI 世界单位 = 设计像素（canvas 即世界），写了也只是告警并忽略 |
+| `anchor` / `offset` | 可选 | 根锚点（如 `top-center`）+ 偏移（px）。全屏面板不用写（铺满即可） |
 | `data-script` | 可选 | 面板行为脚本，挂根节点（§6） |
 | `active="false"` | 可选 | 根默认隐藏（脚本控制显示时用） |
 
@@ -103,7 +105,7 @@ if (rootAnchor) {
   if (rootOffset) {
     const parts = rootOffset.split(',').map((s) => parseFloat(s.trim()))
     if (parts.length !== 2 || parts.some((v) => !Number.isFinite(v))) {
-      throw new CompileFail(`<widget> offset 属性格式应为 "x,y"（世界米）`, root.line)
+      throw new CompileFail(`<widget> offset 属性格式应为 "x,y"（px）`, root.line)
     }
     off[0] = round4(parts[0]); off[1] = round4(parts[1])
   }
@@ -292,7 +294,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 参考 [tasks_ui.widget.html](../../../src/projects/fish/asset/blueprints/ui/tasks_ui.widget.html) 的结构（该源是保存回写后的规范形，全是 absolute；**新写的源用 flex 即可**）：
 
 ```html
-<widget name="MyPanel" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/MyPanel">
+<widget name="MyPanel" canvas="1920x1080" data-script="gameplay/base/MyPanel">
   <style>
     .Dim { position: absolute; left: 0px; top: 0px; width: 1920px; height: 1080px; background-color: #0e0a04b8; }
     .Panel { width: 1460px; height: 980px; margin: 50px auto; background-color: #8a6a3a; border-radius: 24px; }
@@ -329,7 +331,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 <div class="AchievementList" data-comp="UILayout" data-props='{"mode":"grid","columns":4,"spacingX":0.12,"spacingY":0.1,"autoLayout":true}'></div>
 ```
 
-要点：容器**显式给宽高**；宽 ≥ 列数×卡片宽+(列数-1)×间距px，高 ≥ 行数×卡高+(行数-1)×间距px（spacing 是世界米，×100≈px）。运行时脚本 spawn 的卡片由 UILayout 自动网格排列、自动换行。
+要点：容器**显式给宽高**；宽 ≥ 列数×卡片宽+(列数-1)×间距px，高 ≥ 行数×卡高+(行数-1)×间距px（spacing 单位 = 设计 px）。运行时脚本 spawn 的卡片由 UILayout 自动网格排列、自动换行。
 
 ### 配方 C：按钮（背景直接写按钮上）
 
@@ -370,7 +372,7 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 实际例子见 [gm_panel.widget.html](../../../src/projects/fish/asset/blueprints/ui/gm_panel.widget.html) 的命令列表：
 
 ```html
-<div class="GM_CmdList" data-comp="UIScrollList" data-props='{"itemWidget":"asset/blueprints/ui/gm_cmd_item.widget.json","itemSize":[2.7,0.24],"spacing":0.02,"zOrderLift":0,"draggable":true,"scrollbar":true}'></div>
+<div class="GM_CmdList" data-comp="UIScrollList" data-props='{"itemWidget":"asset/blueprints/ui/gm_cmd_item.widget.json","itemSize":[540,48],"spacing":4,"zOrderLift":0,"draggable":true,"scrollbar":true}'></div>
 ```
 
 ### 什么时候才用 absolute
@@ -388,15 +390,15 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 白名单标签覆盖不到的引擎组件，用逃逸通道挂载：
 
 ```html
-<div class="X" data-comp="UILayout" data-props='{"mode":"grid","columns":5,"spacingX":0.15}'></div>
+<div class="X" data-comp="UILayout" data-props='{"mode":"grid","columns":5,"spacingX":30}'></div>
 ```
 
 常用组件速查：
 
 | 组件 | 用途 | 关键 props |
 |---|---|---|
-| `UILayout` | 动态子项自动排列（配方 B） | `mode`(horizontal/vertical/grid) `columns` `spacingX/Y`(米) `autoLayout` |
-| `UIScrollList` | 滚动列表（itemWidget 复用） | `itemWidget`(资产路径) `itemSize`[米] `spacing` `scrollbar` `draggable` |
+| `UILayout` | 动态子项自动排列（配方 B） | `mode`(horizontal/vertical/grid) `columns` `spacingX/Y`(px) `autoLayout` |
+| `UIScrollList` | 滚动列表（itemWidget 复用） | `itemWidget`(资产路径) `itemSize`[px] `spacing`(px) `scrollbar` `draggable` |
 | `UIProgressBar` | 进度条 | 见组件 schema |
 
 `emitDataComp`（[compile.ts:1560](#)）的两个关键行为：

@@ -1,5 +1,5 @@
 {
-  "name": "dsh-profile-headless",
+  "name": "ds-profile-headless",
   "private": true,
   "dependencies": {},
   "dsh": {

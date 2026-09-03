@@ -2,12 +2,14 @@
 
 > 状态：方案定稿（2026-09-03，与 decompile 坐标 bug 根因链调查同步产出）｜ 对应可执行测试：`tests/uiUnitUnification.test.ts`
 > 关联：decompile 坐标 bug 专项调查（`stackGate` 基准盒错传、绝对定位 fill 宽、flex column 交叉轴三项修复已落 `layout.ts`）；本方案为后续 px 一元化专项的验收用例
+> 追记（2026-09-03，Phase 2 round-trip 批量化揪出）：**根因四——absolute 子项被卷入行内流**。`layout.ts` 判定容器是否走内联排版（buildBox 子项收集 + organizeChildren）时未排除 `position: absolute/fixed` 子项：反编译产物中 button 还原为 UA 缺省 `display: inline-block`（作者源里手写的 `display: flex` 属求解期信息不落盘、无法还原），容器被误判"含内联内容"→ `buildInlineRuns` 把 absolute 块级兄弟一并按行内片段排布，整容器几何尽毁。修复 = 流分类排除 absolute/fixed（CSS absolute 脱流语义），layout.ts 三处（buildBox 判定 / organizeChildren 判定 / buildInlineRuns 防御）。
+> 追记二（Phase 3 golden 对比揪出）：**根因六——UIText letterSpacing 误用 troika 乘数语义**。troika 0.52.5 的 `letterSpacing` 是 fontSize 的倍数（源码 `penX += letterSpacing * fontSize`），`UITextComponent.applyAll` 却传了绝对世界值 `toWorldUnits(letterSpacing)`：米制时代 ≈0（字距从未生效，隐性视觉 bug），px 世界 6×22=132 单位/字距 → 逐字断行。修复 = 传比例 `letterSpacing/fontSize`。副作用：设计本意的字距首次真实呈现，golden 基线（无字距的旧渲染）与after在该区域差异属预期修复。另：decompile 折叠 `_ScrollContent` 曾原地改写输入 json（无副作用红线），已入口深拷贝；`fmtNum` 2 位小数 → 4 位（对齐 round4 落盘网格）；sourceLayout 侧车新增 `flexShrink: 0`（反编译丢失导致重编译按 shrink=1 压扁溢出 flex 子项）。
 >
-> 定案摘要：
-> - widget.json 几何字段（`worldWidth/worldHeight/anchorOffset/position`）直接存 px，1 单位 = 1px，编译端布局求解器的 px 值无损落盘
+> 定案摘要（2026-09-03 v2，随 plan.md 采纳"UI 世界即像素世界"架构更新）：
+> - widget.json 几何字段（`worldWidth/worldHeight/anchorOffset/position`）直接存 px，1 单位 = 1px，编译端布局求解器的 px 值无损落盘；根节点 = 画布尺寸（canvas 即世界）
 > - `widgetMapping.ts` 的 `pxToWorldX/Y`、`worldToPxX/Y` 四个换算函数整体退场
 > - `<widget world="WxH">` 属性废弃（canvas 即世界，不存在第二种单位）
-> - 与米制世界的换算收敛到根节点一次性缩放（1920px 全屏面板根 `scale = 1/400 = 0.0025`），属引擎侧（CanvasUIComponent/UIManager）专项
+> - 与渲染视口的适配收敛到 UICamera contain 视锥一处（`UI_CANVAS_W/H` 9.6×5.4 → 1920×1080）：UI 世界即像素世界，json 与 Actor 树全程无缩放系数
 > - 与 `sourceRect` sidecar 专项互补：一元化杀"单位换算"bug 类，sidecar 杀"重求解"bug 类（文本自动尺寸、shrink-to-fit 内容高等依然有损）
 
 ## 一、测试策略（TDD 两阶段）
@@ -16,8 +18,8 @@
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| P1 基线 | 锁定当前米制行为（含既有缺陷：world 声明改变落盘数值、round4 量化丢真），改造前必须全绿，作为重构安全网 | 已实现，8/8 通过（`npx vitest run tests/uiUnitUnification.test.ts`） |
-| P2 目标 | 一元化目标口径断言，当前 `describe.skip`；实现落地后删除 skip 翻新启用并全绿 | 已写好，待实现 |
+| P1 基线 | 锁定当前米制行为（含既有缺陷：world 声明改变落盘数值、round4 量化丢真），改造前必须全绿，作为重构安全网 | 已实现，7/7 通过（`npx vitest run tests/uiUnitUnification.test.ts`，TC-U1~U7） |
+| P2 目标 | 一元化目标口径断言，当前 `describe.skip`；实现落地后删除 skip 翻新启用并全绿 | 已写好（TC-U8~U13），待实现 |
 
 公共样例资产（测试内联字符串，刻意隔离变量）：
 
@@ -96,11 +98,11 @@
 
 ## 四、引擎侧专项（不在本测试文件覆盖，另立用例）
 
-- 根节点缩放：1920px 全屏 widget 根 Actor `scale = 1/400`（200px/m 画布 = 1/200），视觉逐像素等价于现米制产物
-- `UILayoutComponent.spacing` 缺省 0.2 世界单位需改 px 口径（改后 0.2m ≈ 80px，行为变化需评审）
-- `zOrder` 0.001 分层步长在根缩放后 < 1ulp 风险，需按根缩放比例放大步长防 z-fighting
-- 存量 widget 资产一次性脚本迁移：按各根 px/m 比例缩放全部几何字段；fish 全量 UI 资产回归
-- 米制世界互动（如世界空间跟随血条与 gameplay 实体对齐）依赖根缩放换算，属 gameplay 联调用例
+- UI 世界切换（plan.md v2 D2/D3）：`UICamera.UI_CANVAS_W/H` 9.6×5.4 → 1920×1080（视口整体缩放的唯一开关）；手写米制 UI 一次性迁 px（GMConsoleHUD、滚动条尺寸、组件缺省值）
+- `UILayoutComponent.spacing` 缺省 0.2 不改（widget 编译器恒显式写值，px 世界下 0.2 ≈ 0.2px 无害；改缺省反而破坏手写 UI 语境）
+- `zOrder` 0.001 分层步长不改：正交相机深度精度 ≈1.2e-5（near 0.1/far 200 线性），步长余量 ~84×，相机视锥数值变化不影响深度精度
+- 存量 widget 资产处理（2026-09-03 用户定案：旧 json 直接弃）：不做原地迁移，编译端翻转后从 `.widget.html` 源全量重编译生成 px json（html 为唯一事实源）；fish 全量 UI 资产回归
+- 米制世界互动（如世界空间跟随血条与 gameplay 实体对齐）：3D 主世界仍为米制，与 px UI 世界仅通过屏幕投影/边界换算发生关系（如 DamageNumberFx 入参米→px 一次换算），属 gameplay 联调用例
 
 ## 五、执行方式
 
