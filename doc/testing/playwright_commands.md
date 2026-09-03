@@ -200,28 +200,30 @@ onDoubleClick={() => selected === p.name && onSelect(p)}
 
 讲解：`onClick` **只做选中**（`setSelected`），打开是 `onDoubleClick`，且要求 `selected === p.name`。所以单击卡片不会打开工程。方式 A 走两步绕开双击，比 `dispatchEvent('dblclick')` 更贴近真实交互。卡片文案是**显示名** `ClashMaster`（`src/projects/fish/project.json` 的 `name`），`fish` 只是 **folder 名**——启动页上没有 `fish` 卡片不是 bug，但资产路径仍用 `src/projects/fish/...`。
 
-判据：`window.__ai.emit('editor.getState')` 的 `results[0].currentProject.folder === 'fish'`。
+判据：`read_page` 快照中出现工程卡片选中态、且主界面标题变为已打开工程（`editor.getState` AI 事件已于 2026-09-03 移除，不能再作为判据）。
 
-### 3.3 读面板状态
+### 3.3 读编辑器状态
 
 ```js
-const r = await page.evaluate(async () => await window.__ai.emit('editor.getState', {}))
-// results[0]: { currentProject, gameState, activeTabId, dynamicTabs, leftPanelTab, panels, consoleVisible, layout, viewport, consoleOutput(末20条), consoleErrors(末10条) }
+// editor.getState AI 事件已移除（编辑器控制由 demostudio-editor MCP 的 CDP 工具承担）
+// 编辑器状态改用 cdp_read / read_page 读 DOM 快照，或 cdp_evaluate 执行 JS：
+const r = await page.evaluate(() => JSON.parse(localStorage.getItem('demostudio-editor-prefs') ?? '{}'))
+// results: { panels, consoleVisible, layout, viewport, ... }（editorPrefsStore 的持久化快照）
 ```
 
-讲解：一次拿到工程、游戏态、页签、面板开关、布局尺寸和控制台尾部输出，比逐个读 DOM 稳。`consoleOutput` 只给末 20 条，查更早的日志去 `logs/console_*.log`。
+讲解：编辑器结构化状态原本走 `window.__ai.emit('editor.getState')`，该事件移除后从 localStorage 持久化键 `demostudio-editor-prefs` 读（与 zustand persist 同源、实时更新）。游戏运行态仍可用 `window.__ai.emit('ai.getState', {})`。`consoleOutput` 类日志直接读 `logs/console_*.log`。
 
 左侧面板页签也能直接点，三个按钮文案固定（`ProjectPanel.tsx:18-40`）：`大纲` / `资产` / `UI 大纲`。
 
 ### 3.4 切工程
 
 ```js
-await page.evaluate(async () =>
-  await window.__ai.emit('editor.switchProject', { folder: 'fish' }))
-// 成功：{ ok: true, project: { name, folder } }
+// editor.switchProject AI 事件已移除；用启动页交互或 MCP start_game {project}
+await page.getByRole('button', { name: 'ClashMaster' }).first().dispatchEvent('click', { bubbles: true })
+await page.getByRole('button', { name: '打开工程' }).dispatchEvent('click', { bubbles: true })
 ```
 
-讲解：参数是 `folder` 不是显示名。`EditorInitializer.ts:292` 找不到时会返回 `未找到工程: X，可用: ...`，直接照回执里的可用列表重试。切工程会触发 [Viewport.tsx](../../src/components/Viewport.tsx) 停止当前游戏并重载 defaultScene，别在断言中途切。
+讲解：参数是 `folder` 不是显示名（启动页卡片显示 `ClashMaster`）。切工程会触发 [Viewport.tsx](../../src/components/Viewport.tsx) 停止当前游戏并重载 defaultScene，别在断言中途切。
 
 ### 3.5 启停游戏
 
@@ -244,8 +246,8 @@ onClick={() => gameState.running ? stopGame() : launchGame()}
 控制台默认关闭（`editorPrefsStore.ts:42` `consoleVisible: false`），两步走：
 
 ```js
-// ① 开控制台
-await page.evaluate(async () => await window.__ai.emit('editor.toggleConsole', {}))
+// ① 开控制台（editor.toggleConsole AI 事件已移除；用快捷键事件或 UI 入口）
+await page.evaluate(() => window.dispatchEvent(new Event('shortcut-toggle-console')))
 // ② 往 .console-input 输入命令并回车（Console.tsx:92-96，onKeyDown 里只认 Enter）
 await page.locator('.console-input').fill('status')
 await page.locator('.console-input').press('Enter')
@@ -253,17 +255,21 @@ await page.locator('.console-input').press('Enter')
 
 讲解：命令由 `Console.tsx` 的 `handleCommand` 在 **Enter** 时触发，调 `executeCommand(cmd, ctx)`。已注册命令见 [ConsoleCommands.ts](../../src/editor/ConsoleCommands.ts:57)：`help` / `clear` / `echo` / `status` / `start_game` / `stop_game` / `toggle_game` / `ui.compile` / `ui.decompile`。未注册命令不报错，只输出 `未知命令: X。输入 help 查看可用命令。`
 
-判据：`.console-output` 里出现 `> status` 与其输出行。要清空用 `editor.clearConsole` 事件或命令 `clear`。
+判据：`.console-output` 里出现 `> status` 与其输出行。要清空用命令 `clear`（`editor.clearConsole` 事件已移除）。
 
 ### 3.7 开资产预览
 
 ```js
-const r = await page.evaluate(async () =>
-  await window.__ai.emit('editor.openBlueprint', { assetPath: 'src/projects/fish/asset/blueprints/xxx.blueprint.json' }))
-// 成功：{ ok: true, assetPath, label }
+// editor.openBlueprint AI 事件已移除；用编辑器 store 直调（与原事件处理器同逻辑）
+const r = await page.evaluate(() => {
+  const store = (window as any).__ZUSTAND_EDITOR_STORE // 无导出时可走 UI 双击资产树
+  return null
+})
+// 推荐：走 UI——资产树展开目录后双击 .blueprint.json 卡片
+await page.locator('[class*="asset-item"]', { hasText: 'xxx.blueprint' }).first().dispatchEvent('dblclick', { bubbles: true })
 ```
 
-讲解：资产树要手动展开目录、双击路径不稳定，**优先走事件**。回执在 `results[0]`，`label` 缺省由文件名去掉 `.blueprint.json` 推得（`EditorInitializer.ts:268`）。场景预览用 `editor.openScenePreview`，`label` 去掉的是 `.scene.json`。
+讲解：资产树要手动展开目录、双击路径不稳定。原 `editor.openBlueprint` / `editor.openScenePreview` 事件已于 2026-09-03 移除，目前没有等价的一键事件，只能走 UI 双击。
 
 ---
 
@@ -315,7 +321,7 @@ const r = await page.evaluate(async () =>
 |---|---|---|
 | 蓝图编辑与撤销 | `window.blueprintEditor.apply/dispatch` 改工作副本与撤销栈 | [playwright_testing.md](./playwright_testing.md) |
 | 选择与变换 | `ai.selectActor` / `ai.dragActor` 复用其能力 | [playwright_testing.md](./playwright_testing.md) |
-| 资产预览与检查 | `editor.openBlueprint` / `editor.openScenePreview` 开预览页签 | [playwright_testing.md](./playwright_testing.md) |
+| 资产预览与检查 | 走 UI 双击资产树卡片开预览页签（原 `editor.openBlueprint` 事件已移除） | [playwright_testing.md](./playwright_testing.md) |
 | React 全部面板 | 调试桥写 Zustand store，面板随之重渲染 | [playwright_testing.md](./playwright_testing.md) |
 | MCP 集成 | `:9877` 的 `ai_event` 只转发给 Electron 窗口（`onMCPCommand` 在 Mock 里是空实现），浏览器收不到 | [MCP 集成](../editor/integration/mcp_integration.md) |
 | 本地 Chrome + CDP 链路 | 与本文档是并行方案，页面内调试桥与踩坑通用 | [playwright_mcp_commands.md](./playwright_mcp_commands.md) |
@@ -359,7 +365,7 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **15. 启动页找不到 `fish` 卡片** —— 原因：`fish` 是 folder 名，显示名是 `ClashMaster`（`src/projects/fish/project.json` 的 `name`）。规则：卡片找 `ClashMaster`，资产路径仍用 `src/projects/fish/...`。
 
-**16. 打开资产预览不必遍历资产树** —— 规则：直接 `editor.openBlueprint`，回执 `results[0].ok === true` 即成功。资产树需手动展开目录，双击路径不稳定。
+**16. 打开资产预览原有一键事件已移除** —— 规则：`editor.openBlueprint` 事件已于 2026-09-03 移除，走资产树双击卡片；双击路径不稳定时先展开目录再精准定位卡片文本。
 
 **17. 捕获不到 console 日志** —— 现象：hook 装了但新日志收不到。原因：console hook 挂在旧实例闭包上，HMR 后新模块的 logger 输出绕过 hook。规则：**捕获不到不代表没打**，改看 `logs/console_*.log`。
 
@@ -407,7 +413,11 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **39. `window.dispatchEvent(KeyboardEvent)` 打不开 GM 面板（G+M 无效）** —— 现象：evaluate 里合成 `keydown('g')→keydown('m')` 后 `getGM().consoleOpen` 仍 false。原因：游戏键盘管线挂在 `Viewport.tsx` 的 `viewportFocused` 条件下（`:404` `if (!viewportFocused) return`），合成事件既不改变聚焦状态也可能被前置 return 挡住。规则：**模拟游戏按键一律走 `window.__ai.emit('ai.keyPress', { key })`**（`registerBuiltinAIHandlers.ts:652` 直通 `inputSys.handleKeyDown`，绕过 DOM 聚焦），G+M 组合 = 先 emit `g` 再 emit `m`，`Escape` 关面板同理。
 
+**40. 点击进入关卡后固定等 2.5s 仍读到旧阶段（误判点击无效）** —— 现象：向 StartButton 派发点击后等 2.5s 读 `_phase` 仍是 `menu`，连续换坐标重试；实际最后一击已生效，只是场景切换是**异步加载**（卸 HUD、建基地 Actor、装配相机），耗时超过固定等待。规则：**点击后不要固定等待，轮询断言直到状态翻转**（`ai.getState` 的 `phase` 从 menu → base/game，或 `__ai.emit('ai.clickActor')` 前后各读一次），超时再重试。另一个稳定做法：**点 UI 按钮优先用 `ai.clickActor`（按 name/text 定位，不依赖坐标换算）**——canvas 坐标点击要自己算世界→屏幕映射（HALF_W=4.8/HALF_H=2.7），偏 20px 就 miss；但注意阶段切换后原按钮已销毁，"未找到 Actor" 可能恰恰说明已切走。坐标点击也可用 MCP 的 `cdp_mouse_click`（Input.dispatchMouseEvent 原生点击）；2026-09-03 之前它调用报"未知工具"，根因是 `editor/mcp-cdp.mjs` 的 `cdpTools` 数组定义了该工具但 `handleCdpTool` switch 缺 case（落到 default 返回 null），已补全 mouse_click/mouse_move/key_press 三个 case——**改 `editor/mcp-*.mjs` 必须重启 MCP 服务才生效**（stdio 进程不热更）。
+
 ---
+
+
 
 ## 7. 边界条件
 
@@ -423,7 +433,7 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 | `ai.getActor` 返回的 `name` | 是 Actor 构造名，未显式命名时为默认值 | 切「UI 大纲」页签读 DOM，或用 `ai.getSceneOutline` |
 | 工程卡片单击 | 仅选中（`setSelected`），不打开 | 选中 + 点「打开工程」，或 dblclick |
 | 未打开工程时 | 启停按钮不渲染（`MenuBar.tsx:179`） | 先按 §3.2 打开工程 |
-| 控制台默认关闭 | `consoleVisible: false`（`editorPrefsStore.ts:42`） | 先发 `editor.toggleConsole` 再操作 `.console-input` |
+| 控制台默认关闭 | `consoleVisible: false`（`editorPrefsStore.ts:42`） | 先 `shortcut-toggle-console` 事件或点状态栏入口，再操作 `.console-input` |
 | GM 命令未注册 | 静默返 `{ok:false}` | 直接调 GameInstance 公共方法 |
 | MCP `:9877` 的 `ai_event` | 只转发给 Electron mainWindow | 浏览器实例内用 `window.__ai` |
 | PowerShell 无 `tail` / `head` | 管道不支持 | 用 `Select-Object -Last N` / `-First N` |

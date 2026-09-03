@@ -22,14 +22,6 @@ export const AI_EVENT_SPAWN_ACTOR = 'ai.spawnActor'
 export const AI_EVENT_DESTROY_ACTOR = 'ai.destroyActor'
 /** 移动/旋转/缩放指定 Actor */
 export const AI_EVENT_TRANSFORM_ACTOR = 'ai.transformActor'
-/** 设置分数 */
-export const AI_EVENT_SET_SCORE = 'ai.setScore'
-/** 累加分数 */
-export const AI_EVENT_ADD_SCORE = 'ai.addScore'
-/** 游戏结束 */
-export const AI_EVENT_GAME_OVER = 'ai.gameOver'
-/** 切换场景（mode 或场景文件） */
-export const AI_EVENT_SWITCH_SCENE = 'ai.switchScene'
 /** 查询运行状态（分数/阶段/Actor 列表等，处理器返回值回传 AI） */
 export const AI_EVENT_GET_STATE = 'ai.getState'
 /** 在 UI 上显示一条消息（无现成 toast 时回退为日志通知） */
@@ -104,20 +96,6 @@ export interface AITransformActorPayload {
   position?: [number, number, number]
   rotation?: [number, number, number]
   scale?: [number, number, number]
-}
-
-export interface AISetScorePayload {
-  score: number
-}
-
-export interface AIAddScorePayload {
-  amount: number
-}
-
-export interface AISwitchScenePayload {
-  /** GameMode 名（WorldRegistry/GameModeRegistry）或场景文件路径 */
-  scene: string
-  mode?: string
 }
 
 export interface AIShowMessagePayload {

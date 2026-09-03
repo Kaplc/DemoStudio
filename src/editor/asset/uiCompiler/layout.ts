@@ -716,6 +716,37 @@ class Solver {
     return Math.min(available, Math.max(0, maxContent))
   }
 
+  /** 深度 max-content 测宽（absolute shrink-to-fit / flex 交叉轴用）：
+   *  元素盒递归取子项边盒宽最大者（子项显式宽优先，未知取其内容测宽）；
+   *  文本盒按 estimateTextWidth 整段测宽（不换行口径）。 */
+  private maxContentWidthDeep(box: Box, availW: number): number {
+    let max = 0
+    const fs = this.fontSizeOf(box.el, this.viewportSize)
+    const ls = this.resolveLen(box.el, 'letter-spacing', 0, fs, this.viewportSize) ?? 0
+    if (box.kind === 'text' && box.text) {
+      return Math.min(availW, estimateTextWidth(box.text, fs, ls))
+    }
+    for (const t of this.directTexts(box.el)) {
+      max = Math.max(max, estimateTextWidth(t, fs, ls))
+    }
+    for (const c of box.children) {
+      // 子项显式宽优先（含 border-box 扣减语义）；未知再按其内容测宽
+      const explicit = this.resolveLen(c.el, 'width', availW, this.fontSizeOf(c.el, this.viewportSize), this.viewportSize)
+      let cw: number
+      if (explicit !== null) {
+        const boxSizing = this.num(c.el, 'box-sizing') ?? 'content-box'
+        cw = boxSizing === 'border-box'
+          ? explicit
+          : explicit + c.pl + c.pr + c.bl + c.br
+      } else {
+        cw = this.borderBoxWidth(c) || this.maxContentWidthDeep(c, availW)
+      }
+      cw += c.ml + c.mr
+      max = Math.max(max, cw)
+    }
+    return max
+  }
+
   /** 最大内容宽度估算（块级子项取 max；文本取整段测宽） */
   private maxContentWidth(box: Box): number {
     let max = 0
@@ -855,7 +886,14 @@ class Solver {
       : { x: parent.x, y: parent.y, w: parent.w, h: parent.h }
 
     // 第一遍：解尺寸与内容（临时原点测量，auto 尺寸/内容高依赖子树）
-    this.resolveChildWidth(child, parent, parent.w)
+    // absolute 显式宽走常规解析；auto 宽 = shrink-to-fit（CSS 10.3.7：首选宽 =
+    // max-content，受包含块约束）——此前按块级 fill 解析，right/top 锚定的无宽
+    // 容器被撑满整幅画布（round-trip 坐标损坏主根因之一）
+    if (this.resolveLen(child.el, 'width', cb.w, fs, this.viewportSize) === null) {
+      child.w = Math.max(0, Math.min(cb.w, this.maxContentWidthDeep(child, cb.w)))
+    } else {
+      this.resolveChildWidth(child, parent, parent.w)
+    }
     this.layoutSubtree(child)
 
     const left = this.resolveLen(child.el, 'left', cb.w, fs, this.viewportSize)
@@ -920,8 +958,18 @@ class Solver {
     // flex-basis / 主轴基准尺寸
     interface FlexItem { box: Box; grow: number; shrink: number; basisMain: number; marginMain: number }
     const flexItems: FlexItem[] = []
-    for (const item of items) {
-      this.resolveChildWidth(item, box, isRow ? box.w : box.h)
+      // flex column 子项交叉轴（宽）auto 语义：CSS flexbox 列向子项宽度 =
+      // fit-content（shrink-to-fit），不由行向主轴基准决定——此前把行向基准
+      // （父宽 1920px）传给 resolveChildWidth，right 锚定无宽容器的子项被撑满
+      // 整幅画布，text 子项反被挤压（round-trip 坐标损坏主根因之一）
+      for (const item of items) {
+        if (isRow) {
+          this.resolveChildWidth(item, box, box.w)
+        } else if (this.resolveLen(item.el, 'width', crossAvail, fs, viewport) !== null) {
+          this.resolveChildWidth(item, box, crossAvail)
+        } else {
+          item.w = Math.max(0, Math.min(crossAvail, this.maxContentWidthDeep(item, crossAvail)))
+        }
       if (item.display === 'flex' || item.display === 'grid' || item.display === 'table' || item.display === 'table-row' || item.children.length > 0) {
         // 子树布局在尺寸定死后执行（下面统一）
       }

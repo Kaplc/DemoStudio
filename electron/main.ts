@@ -1847,6 +1847,57 @@ async function startMCPServer() {
             }))
             return
           }
+          // ─── 文件读写直处理（DSH FileBridge 通道；原 ai.readJsonFile/ai.writeFile 渲染层事件已移除） ───
+          if (cmd.command === 'read_json_file' || cmd.command === 'write_json_file') {
+            const relativePath = typeof cmd.params?.relativePath === 'string' ? cmd.params.relativePath : ''
+            if (!relativePath) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ status: 'error', message: '缺少 relativePath' }))
+              return
+            }
+            if (cmd.command === 'read_json_file') {
+              // 与 ipcMain.handle('read-json-file') 同逻辑：BOM 容错
+              try {
+                const fullPath = path.join(__dirname, '..', relativePath)
+                if (!fs.existsSync(fullPath)) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify({ success: false, error: `文件不存在: ${relativePath}` }))
+                  return
+                }
+                const content = fs.readFileSync(fullPath, 'utf-8')
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ success: true, data: JSON.parse(content.replace(/^\uFEFF/, '')) }))
+              } catch (err) {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ success: false, error: String(err) }))
+              }
+              return
+            }
+            // write_json_file：与 ipcMain.handle('write-json-file') 同逻辑：仅 .json + 路径逃逸防护
+            try {
+              if (!relativePath.toLowerCase().endsWith('.json')) {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ success: false, error: '仅允许写入 .json 文件' }))
+                return
+              }
+              const baseDir = path.join(__dirname, '..')
+              const fullPath = path.resolve(baseDir, relativePath)
+              const rel = path.relative(baseDir, fullPath)
+              if (rel.startsWith('..') || path.isAbsolute(rel)) {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ success: false, error: `非法路径: ${relativePath}` }))
+                return
+              }
+              fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+              fs.writeFileSync(fullPath, JSON.stringify(cmd.params?.data ?? null, null, 2) + '\n', 'utf-8')
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ success: true }))
+            } catch (err) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ success: false, error: String(err) }))
+            }
+            return
+          }
           // 发送 IPC 给渲染进程
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('mcp-command', cmd)

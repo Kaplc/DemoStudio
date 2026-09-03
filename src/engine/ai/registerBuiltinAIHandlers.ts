@@ -14,10 +14,6 @@ import {
   AI_EVENT_SPAWN_ACTOR,
   AI_EVENT_DESTROY_ACTOR,
   AI_EVENT_TRANSFORM_ACTOR,
-  AI_EVENT_SET_SCORE,
-  AI_EVENT_ADD_SCORE,
-  AI_EVENT_GAME_OVER,
-  AI_EVENT_SWITCH_SCENE,
   AI_EVENT_GET_STATE,
   AI_EVENT_SHOW_MESSAGE,
   AI_EVENT_CLICK_ACTOR,
@@ -37,9 +33,6 @@ import {
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
   type AITransformActorPayload,
-  type AISetScorePayload,
-  type AIAddScorePayload,
-  type AISwitchScenePayload,
   type AIShowMessagePayload,
   type AIClickActorPayload,
   type AIGetActorPayload,
@@ -110,10 +103,6 @@ const BUILTIN_EVENTS = [
   AI_EVENT_SPAWN_ACTOR,
   AI_EVENT_DESTROY_ACTOR,
   AI_EVENT_TRANSFORM_ACTOR,
-  AI_EVENT_SET_SCORE,
-  AI_EVENT_ADD_SCORE,
-  AI_EVENT_GAME_OVER,
-  AI_EVENT_SWITCH_SCENE,
   AI_EVENT_GET_STATE,
   AI_EVENT_CLICK_ACTOR,
   AI_EVENT_GET_ACTOR,
@@ -228,51 +217,6 @@ export function registerBuiltinAIHandlers(): void {
     if (p.scale) actor.setScale(p.scale[0], p.scale[1], p.scale[2])
     logger.info(`[AI] transformActor: ${p.name} -> pos=${p.position ? JSON.stringify(p.position) : '-'}`)
     return { ok: true, name: p.name }
-  })
-
-  // ─── ai.setScore / ai.addScore — 分数 ───
-  ai.register(AI_EVENT_SET_SCORE, (payload: unknown, ctx: AIEventContext) => {
-    const world = requireWorld(ctx)
-    if (!world || !world.gameState) return { ok: false, error: '游戏未运行或无 GameState' }
-    const p = (payload ?? {}) as AISetScorePayload
-    if (typeof p.score !== 'number') return { ok: false, error: '缺少 score' }
-    const gs = world.gameState
-    const diff = p.score - gs.score
-    gs.addScore(diff)
-    world.gameMode?.OnScoreChanged(p.score)
-    logger.info(`[AI] setScore: ${p.score}`)
-    return { ok: true, score: p.score }
-  })
-
-  ai.register(AI_EVENT_ADD_SCORE, (payload: unknown, ctx: AIEventContext) => {
-    const world = requireWorld(ctx)
-    if (!world || !world.gameState) return { ok: false, error: '游戏未运行或无 GameState' }
-    const p = (payload ?? {}) as AIAddScorePayload
-    if (typeof p.amount !== 'number') return { ok: false, error: '缺少 amount' }
-    world.gameState.addScore(p.amount)
-    world.gameMode?.OnScoreChanged(world.gameState.score)
-    logger.info(`[AI] addScore: +${p.amount}`)
-    return { ok: true, score: world.gameState.score }
-  })
-
-  // ─── ai.gameOver — 结束游戏 ───
-  ai.register(AI_EVENT_GAME_OVER, (_payload: unknown, ctx: AIEventContext) => {
-    const world = requireWorld(ctx)
-    if (!world || !world.gameState) return { ok: false, error: '游戏未运行或无 GameState' }
-    world.gameState.setPhase('gameover')
-    logger.info('[AI] gameOver: 已设置 gameover 阶段')
-    return { ok: true, phase: 'gameover' }
-  })
-
-  // ─── ai.switchScene — 切换场景 ───
-  ai.register(AI_EVENT_SWITCH_SCENE, (payload: unknown, ctx: AIEventContext) => {
-    const world = requireWorld(ctx)
-    if (!world) return { ok: false, error: '游戏未运行' }
-    const p = (payload ?? {}) as AISwitchScenePayload
-    if (!p.scene) return { ok: false, error: '缺少 scene' }
-    const ok = world.SwitchToScene(p.scene, undefined)
-    logger.info(`[AI] switchScene: ${p.scene} -> ${ok ? '成功' : '失败'}`)
-    return { ok, scene: p.scene }
   })
 
   // ─── ai.getState — 查询运行状态 ───

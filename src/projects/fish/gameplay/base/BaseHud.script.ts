@@ -105,25 +105,25 @@ export default class BaseHudScript extends BehaviourScript {
     const gemTextActor = this.findInChildren('GemLabel')
     const gemText = gemTextActor?.getComponent(UITextComponent)
     if (inst && goldText) {
-      // 立即刷新一次 + 资源变化自动更新
-      goldText.text = `金币: ${inst.resources.get('coins')}`
+      // 立即刷新一次 + 资源变化自动更新（纯数字文本，图标由 HUD 资产静态展示）
+      goldText.text = `${inst.resources.get('coins')}`
       inst.resources.onChange = () => {
-        goldText.text = `金币: ${inst.resources.get('coins')}`
-        if (elixirText) elixirText.text = `药水: ${inst.resources.get('elixir')}`
-        if (gemText) gemText.text = `💎 ${inst.resources.get('gems')}`
+        goldText.text = `${inst.resources.get('coins')}`
+        if (elixirText) elixirText.text = `${inst.resources.get('elixir')}`
+        if (gemText) gemText.text = `${inst.resources.get('gems')}`
       }
       logger.info('[BaseHudScript] 金币文本已绑定资源组件')
     } else {
       logger.warn(`[BaseHudScript] 金币文本未绑定（instance=${!!inst}, goldText=${!!goldText}）`)
     }
     if (inst && elixirText) {
-      elixirText.text = `药水: ${inst.resources.get('elixir')}`
+      elixirText.text = `${inst.resources.get('elixir')}`
       logger.info('[BaseHudScript] 药水文本已绑定资源组件（战斗掠夺入账后同步显示）')
     } else {
       logger.warn(`[BaseHudScript] 药水文本未绑定（instance=${!!inst}, elixirText=${!!elixirText}）`)
     }
     if (inst && gemText) {
-      gemText.text = `💎 ${inst.resources.get('gems')}`
+      gemText.text = `${inst.resources.get('gems')}`
       logger.info('[BaseHudScript] 宝石文本已绑定资源组件')
     } else {
       logger.info('[BaseHudScript] 未找到 GemLabel 节点，跳过宝石显示（旧版 HUD 无此栏为正常）')

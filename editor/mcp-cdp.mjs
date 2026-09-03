@@ -304,6 +304,25 @@ export const cdpTools = [
       required: ['key'],
     },
   },
+  {
+    name: 'cdp_dashboard_status',
+    description:
+      '获取目标页面的实时状态快照，包括页面信息、控制台日志、调试桥状态、自定义元素监控。' +
+      'AI 在每次操作前后都应调用此工具确认当前页面状态，避免盲操作。' +
+      '返回结构：{ page: {url/title/visibility/readyState/viewport}, console: {errors/warnings/recent[]}, ' +
+      'debugBridge: {__xxx 全局变量}, monitors: {选择器: {exists/visible}} }',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        targetId: { type: 'string', description: '目标 tab 的 targetId（缺省=第一个页面）' },
+        monitors: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '自定义 CSS 选择器列表，检查这些元素是否存在/可见',
+        },
+      },
+    },
+  },
 ]
 
 // ─── 辅助：在页面上下文中执行代码 ───
@@ -521,6 +540,47 @@ export async function handleCdpTool(name, args = {}) {
         return wrapResult({ status: 'ok', hovered: { x: pos.x, y: pos.y } })
       }
 
+      // ─── 坐标点击（canvas / 无 DOM 元素场景） ───
+      case 'cdp_mouse_click': {
+        const conn = await getPageConnection(targetId, port)
+        const x = Number(args.x ?? 0)
+        const y = Number(args.y ?? 0)
+        await sendCdp(conn.ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+        await sendCdp(conn.ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 })
+        await sendCdp(conn.ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 })
+        return wrapResult({ status: 'ok', clicked: { x, y } })
+      }
+
+      // ─── 坐标移动 ───
+      case 'cdp_mouse_move': {
+        const conn = await getPageConnection(targetId, port)
+        const x = Number(args.x ?? 0)
+        const y = Number(args.y ?? 0)
+        await sendCdp(conn.ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+        return wrapResult({ status: 'ok', moved: { x, y } })
+      }
+
+      // ─── 键盘按键 ───
+      case 'cdp_key_press': {
+        const conn = await getPageConnection(targetId, port)
+        const keyMap = {
+          'Enter': { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 },
+          'Escape': { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 },
+          'Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 },
+          'Backspace': { key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 },
+          'Delete': { key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46 },
+          'Space': { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 },
+          'ArrowUp': { key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38, nativeVirtualKeyCode: 38 },
+          'ArrowDown': { key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40, nativeVirtualKeyCode: 40 },
+          'ArrowLeft': { key: 'ArrowLeft', code: 'ArrowLeft', windowsVirtualKeyCode: 37, nativeVirtualKeyCode: 37 },
+          'ArrowRight': { key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 },
+        }
+        const ki = keyMap[args.key] || { key: args.key, code: args.key }
+        await sendCdp(conn.ws, 'Input.dispatchKeyEvent', { ...ki, type: 'keyDown' })
+        await sendCdp(conn.ws, 'Input.dispatchKeyEvent', { ...ki, type: 'keyUp' })
+        return wrapResult({ status: 'ok', action: 'press', key: args.key })
+      }
+
       // ─── 执行 JS ───
       case 'cdp_evaluate': {
         const conn = await getPageConnection(targetId, port)
@@ -619,6 +679,92 @@ export async function handleCdpTool(name, args = {}) {
 
         const screenshot = await sendCdp(conn.ws, 'Page.captureScreenshot', params)
         return wrapResult({ status: 'ok', data: screenshot.data, encoding: 'base64/png' })
+      }
+
+      // ─── 页面状态仪表盘 ───
+      case 'cdp_dashboard_status': {
+        const conn = await getPageConnection(targetId, port)
+        await injectHelper(conn.ws)
+
+        // 并行收集页面信息
+        const [pageInfo, consoleLogs, debugBridge, monitors] = await Promise.all([
+          // 页面基本信息
+          sendCdp(conn.ws, 'Runtime.evaluate', {
+            expression: `JSON.stringify({
+              url: location.href,
+              title: document.title,
+              visibility: document.visibilityState,
+              readyState: document.readyState,
+              viewport: { w: window.innerWidth, h: window.innerHeight },
+            })`,
+            returnByValue: true,
+          }),
+          // 控制台日志（通过 __ai_console 收集器）
+          sendCdp(conn.ws, 'Runtime.evaluate', {
+            expression: `JSON.stringify((function() {
+              const arr = window.__ai_console || [];
+              return {
+                errors: arr.filter(l => l.level === 'error').length,
+                warnings: arr.filter(l => l.level === 'warn').length,
+                infos: arr.filter(l => l.level === 'info').length,
+                recent: arr.slice(-10).reverse(),
+              };
+            })())`,
+            returnByValue: true,
+          }),
+          // 调试桥状态
+          sendCdp(conn.ws, 'Runtime.evaluate', {
+            expression: `JSON.stringify((function() {
+              const keys = Object.keys(window).filter(k => k.startsWith('__'));
+              const bridge = {};
+              keys.forEach(k => {
+                const v = window[k];
+                if (typeof v === 'function') bridge[k] = 'function';
+                else if (Array.isArray(v)) bridge[k] = 'array[' + v.length + ']';
+                else if (v && typeof v === 'object') bridge[k] = 'object';
+                else bridge[k] = String(v);
+              });
+              return bridge;
+            })())`,
+            returnByValue: true,
+          }),
+          // 自定义监控选择器
+          (async () => {
+            const selectors = args.monitors || []
+            if (selectors.length === 0) return { result: { value: '{}' } }
+            const result = await sendCdp(conn.ws, 'Runtime.evaluate', {
+              expression: `JSON.stringify((function() {
+                const sels = ${JSON.stringify(selectors)};
+                const result = {};
+                sels.forEach(sel => {
+                  try {
+                    const el = window.__mcp_findEl(sel);
+                    result[sel] = el ? { exists: true, tag: el.tagName, visible: el.offsetParent !== null } : { exists: false };
+                  } catch(e) {
+                    result[sel] = { exists: false, error: e.message };
+                  }
+                });
+                return result;
+              })())`,
+              returnByValue: true,
+            })
+            return result
+          })(),
+        ])
+
+        const page = JSON.parse(pageInfo.result.value)
+        const consoleData = JSON.parse(consoleLogs.result.value)
+        const bridge = JSON.parse(debugBridge.result.value)
+        const monitorData = JSON.parse(monitors.result.value)
+
+        return wrapResult({
+          status: 'ok',
+          page,
+          console: consoleData,
+          debugBridge: bridge,
+          monitors: monitorData,
+          timestamp: Date.now(),
+        })
       }
 
       default:

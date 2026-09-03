@@ -2,9 +2,10 @@
  * editor_emit — 通过 CDP 调用编辑器 AI 事件
  *
  * 在渲染进程上下文中调用 window.__ai.emit(event, payload)，
- * 复用编辑器已有的 AIModule 事件系统（editor.* / ai.* 事件）。
+ * 复用编辑器已有的 AIModule 事件系统（ai.* 事件）。
  *
  * 比走 MCP HTTP 更直接：省去了 main.ts 中转。
+ * （editor.* 编辑器控制事件已于 2026-09-03 移除，编辑器控制由 demostudio-editor MCP 的 CDP 工具承担）
  */
 import { getEditorPage } from '../cdpBridge'
 
@@ -12,7 +13,7 @@ import { getEditorPage } from '../cdpBridge'
 export const EDITOR_MCP_PORT_DEFAULT = 9877
 
 export interface EditorEmitArgs {
-  /** 事件名（如 editor.getState, editor.togglePanel） */
+/** 事件名（如 ai.getState, ai.getHUD） */
   event: string
   /** 事件载荷 */
   payload?: Record<string, unknown>
@@ -56,27 +57,21 @@ export const editorEmitTool = {
   name: 'editor_emit',
   description: `调用编辑器 AI 事件（通过 CDP 在渲染进程中执行 window.__ai.emit）。
 
-可用编辑器事件：
-- editor.getState: 获取编辑器完整状态 {}
-- editor.togglePanel: 开关面板 { panel: 'scene'|'game'|'inspector'|'console'|'project' }
-- editor.setActiveTab: 切换视口页签 { tabId: 'scene'|'game'|'bp:...' }
-- editor.openBlueprint: 打开蓝图编辑器 { assetPath: 'src/projects/fish/asset/unit.fish.blueprint.json' }
-- editor.openScenePreview: 打开场景预览 { assetPath: '...' }
-- editor.closeTab: 关闭动态页签 { tabId: '...' }
-- editor.switchProject: 切换工程 { folder: 'fish' }
-- editor.setLeftPanelTab: 切换左侧页签 { tab: 'outline'|'assets'|'ui' }
-- editor.clearConsole: 清空控制台 {}
-- editor.toggleConsole: 开关控制台 {}
-- editor.setGizmos: 开关 Gizmo { enabled: true|false }
-
-也可调用游戏层事件：
-- ai.getState: 获取游戏运行状态
-- ai.clickActor: 点击游戏 UI 按钮 { name: '...' }
+可用游戏层事件：
+- ai.getState: 获取游戏运行状态 {}
+- ai.getHUD: 获取 HUD 结构 {}
+- ai.getSceneOutline: 获取场景 Actor 大纲 {}
+- ai.clickActor: 点击游戏 UI 按钮 { name: '...' } / { text: '...' } / { path: '...' }
+- ai.getActor: 查询 Actor 信息 { name: '...' }
+- ai.spawnActor / ai.destroyActor / ai.transformActor: Actor 增删改
+- ai.mouseClick / ai.mouseMove / ai.mouseDrag: 输入模拟
+- ai.keyPress / ai.keyRelease: 键盘模拟
+- ai.gmCommand: GM 命令 { command: '...', args: [...] }
 等等...`,
   parameters: {
     type: 'object',
     properties: {
-      event: { type: 'string', description: '事件名（如 editor.getState）' },
+      event: { type: 'string', description: '事件名（如 ai.getState）' },
       payload: { type: 'object', description: '事件载荷' },
     },
     required: ['event'],

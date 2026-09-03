@@ -214,18 +214,6 @@ export function registerBuiltinAIHandlers(): void {
 
 `blueprint` 与 `baseClass` 二选一，都缺 → `缺少 blueprint 或 baseClass`。**只有 `baseClass` 分支调了 `manualTick(0)`**：`ActorRegistry.create` 的 Actor 需显式 `spawnActor` 入册再手动跑一帧让 `commitSpawn` 生效；走 `blueprint` 分支则没有这一句，紧接着的 `transformActor` 会报 `未找到 Actor`（见 §6 坑 3）。
 
-**`ai.setScore`（`:234`）**——写入事件的标准骨架（`requireWorld` 守卫 → payload 校验 → 副作用 → 回调）：
-
-```ts
-    const world = requireWorld(ctx)
-    if (!world || !world.gameState) return { ok: false, error: '游戏未运行或无 GameState' }
-    const diff = p.score - gs.score
-    gs.addScore(diff)          // 不是直接赋值
-    world.gameMode?.OnScoreChanged(p.score)
-```
-
-「算差值再 `addScore`」为的是统一触发 `OnScoreChanged` 通知 GameMode——跳过 `GameState.addScore` 直接改字段，GameMode 收不到通知。所有写入事件都是这个骨架。
-
 **`ai.gmCommand`（registerGMBridge.ts:32）**——唯一注册在别处的事件，走 `GameInstance.current.gm.execute`，是控制台之外的第二触发渠道：
 
 ```ts
@@ -236,7 +224,7 @@ export function registerGMBridge(): void {
 
 找它的处理器别只搜 `registerBuiltinAIHandlers`。
 
-**`ai.mouseClick`（`:578`）**——走完整输入管线，不是简单设状态：
+**`ai.mouseClick`（`:522`）**——走完整输入管线，不是简单设状态：
 
 ```ts
     // 执行完整点击管线：InputSys.handlePointerDown → PhySys.raycastClick → controller
@@ -249,18 +237,15 @@ export function registerGMBridge(): void {
 
 | 事件 | 处理器位置 | 用途 |
 |---|---|---|
-| `ai.showMessage` | `:156` | `ToastSystem.attached` 时出 toast，否则降级日志（**仍返回 `ok: true`**，见 §6 坑 6） |
-| `ai.notify` | `:144` | 通用日志通知，**不需要游戏运行** |
-| `ai.destroyActor` | `:205` | 按名称销毁，销毁后 `manualTick(0)` 立即提交 |
-| `ai.transformActor` | `:219` | 移动/旋转/缩放，三字段可缺省 |
-| `ai.addScore` | `:247` | 累加分数后回调 `OnScoreChanged` |
-| `ai.gameOver` | `:259` | `setPhase('gameover')` |
-| `ai.switchScene` | `:268` | 调 `world.SwitchToScene(scene, undefined)` |
-| `ai.clickActor` | `:304` | 按 name / text / path 触发按钮，path 最精确（取自 `getHUD`） |
-| `ai.getActor` / `ai.getHUD` | `:476` / `:680` | 单 Actor 详情（位置/缩放/激活/按钮/组件） / 递归 UI 树，带 `path` 供 clickActor 回查 |
-| `ai.scrollCamera` | `:515` | 滚轮缩放（正=拉远，负=拉近） |
-| `ai.mouseMove` / `mouseDrag` / `keyPress` / `keyRelease` | `:599` / `:618` / `:652` / `:666` | 模拟输入，`mouseDrag` 是 async |
-| `ai.getSceneOutline` | `:789` | 场景 Actor 大纲，`maxDepth` 缺省 6 |
+| `ai.showMessage` | `:145` | `ToastSystem.attached` 时出 toast，否则降级日志（**仍返回 `ok: true`**，见 §6 坑 6） |
+| `ai.notify` | `:133` | 通用日志通知，**不需要游戏运行** |
+| `ai.destroyActor` | `:194` | 按名称销毁，销毁后 `manualTick(0)` 立即提交 |
+| `ai.transformActor` | `:208` | 移动/旋转/缩放，三字段可缺省 |
+| `ai.clickActor` | `:248` | 按 name / text / path 触发按钮，path 最精确（取自 `getHUD`） |
+| `ai.getActor` / `ai.getHUD` | `:420` / `:624` | 单 Actor 详情（位置/缩放/激活/按钮/组件） / 递归 UI 树，带 `path` 供 clickActor 回查 |
+| `ai.scrollCamera` | `:459` | 滚轮缩放（正=拉远，负=拉近） |
+| `ai.mouseMove` / `mouseDrag` / `keyPress` / `keyRelease` | `:543` / `:562` / `:596` / `:610` | 模拟输入，`mouseDrag` 是 async |
+| `ai.getSceneOutline` | `:733` | 场景 Actor 大纲，`maxDepth` 缺省 6 |
 
 > `ai.getComponent` / `ai.setProperty` / `ai.callActor` 三个泛型 RPC 事件**在 `AIEvents.ts` 有常量和 payload 类型、也在 `BUILTIN_EVENTS` 里，但 `registerBuiltinAIHandlers.ts` 中没有对应的 `ai.register` 调用**——声明了但没实现，emit 返回 `handled: false`。这是当前代码的事实状态，别把它们写进可用事件清单。
 
@@ -278,11 +263,11 @@ export function registerGMBridge(): void {
 | `emit(event, payload)` | `AIModule.ts:149` | 同步派发并汇总返回值 | 无处理器 warn 不抛；async 处理器返回未决 Promise |
 | `attachContext(world, inst)` | `AIModule.ts:75` | 注入运行上下文 | `Game.launch` 调（`Game.ts:243`） |
 | `detachContext()` / `reset()` | `AIModule.ts:82` / `:89` | 清上下文（`reset` 是 `GameSingleton` 实现） | 只清上下文，**不清注册表** |
-| `requireWorld(ctx)` | `registerBuiltinAIHandlers.ts:75` | 处理器守卫：无 world 返回 null + warn | 一律返回 `{ ok: false, error: '游戏未运行' }` |
-| `findActorByName(world, name)` | `registerBuiltinAIHandlers.ts:84` | 递归查找（3D Actor + UI Actor 树） | 匹配 `a.name` **或** `a.root.name` |
-| `registerBuiltinAIHandlers()` | `registerBuiltinAIHandlers.ts:139` | 清表 + 注册 19 个引擎事件 | 幂等；新增事件必须同步 `BUILTIN_EVENTS`（`:107`） |
+| `requireWorld(ctx)` | `registerBuiltinAIHandlers.ts:68` | 处理器守卫：无 world 返回 null + warn | 一律返回 `{ ok: false, error: '游戏未运行' }` |
+| `findActorByName(world, name)` | `registerBuiltinAIHandlers.ts:77` | 递归查找（3D Actor + UI Actor 树） | 匹配 `a.name` **或** `a.root.name` |
+| `registerBuiltinAIHandlers()` | `registerBuiltinAIHandlers.ts:128` | 清表 + 注册 15 个引擎事件 | 幂等；新增事件必须同步 `BUILTIN_EVENTS`（`:100`） |
 | `registerGMBridge()` | [registerGMBridge.ts:28](../../src/engine/gm/registerGMBridge.ts) | 注册 `ai.gmCommand` | 不在 `BUILTIN_EVENTS` 内，单独 clearEvent |
-| `registerEditorAIHandlers()` | `EditorInitializer.ts:97` | 注册 `editor.*` + `ai.selectActor` / `ai.dragActor` | 受 `_editorAIHandlersInstalled`（`:358`）保护 |
+| `registerEditorAIHandlers()` | `EditorInitializer.ts:97` | 注册 `ai.selectActor` / `ai.dragActor` | 受 `_editorAIHandlersInstalled`（`:358`）保护 |
 | `case 'ai_event'` | `EditorInitializer.ts:477` | MCP → `emit` 的桥接 | 倒序取最后一个非 undefined，兼容 Promise |
 | `case 'ai_list_events'` | `EditorInitializer.ts:580` | 回传已注册事件列表 | 必须回 `requestId`，否则 AI 只拿到 ack |
 
@@ -306,7 +291,7 @@ export function registerGMBridge(): void {
 
 | 下游功能 | 波及点 | 相关文档 |
 |---|---|---|
-| World / GameState | `spawnActor` / `destroyActor` / `setScore` / `switchScene` 直接改运行状态，含 `manualTick(0)` 强制推进帧 | [游戏流程](./gameflow_system.md) |
+| World / GameState | `spawnActor` / `destroyActor` 直接改运行状态，含 `manualTick(0)` 强制推进帧 | [游戏流程](./gameflow_system.md) |
 | InputSys / PhySys | `mouseClick` / `mouseDrag` / `keyPress` 走完整输入管线（raycast → ClickableComponent → controller） | [游戏流程](./gameflow_system.md) |
 | UI 树（UIManager） | `getHUD` / `getActor` / `clickActor` 递归遍历 UI Actor，返回的 `path` 供 clickActor 回查 | [游戏流程](./gameflow_system.md) |
 | GM 命令系统 | `ai.gmCommand` → `GameInstance.current.gm.execute`，控制台之外的第二触发渠道 | [游戏流程](./gameflow_system.md) |

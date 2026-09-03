@@ -127,27 +127,27 @@ Start-Process -FilePath $chrome -ArgumentList @(
 
 ```js
 // 发事件并取回结果
-() => window.__ai.emit('editor.getState', {})
+() => window.__ai.emit('ai.getState', {})
 ```
 
 ```jsonc
 // 返回结构（断言数据在 results[0]，不是返回值本身）
 {
-  "event": "editor.getState",
+  "event": "ai.getState",
   "handled": true,
   "results": [{
-    "currentProject": { "name": "fish", "folder": "fish", "renderMode": "3d" },
-    "gameState": { "running": false, "score": 0 },
-    "activeTabId": null,
-    "dynamicTabs": [],
-    "consoleErrors": []
+    "running": false,
+    "phase": "idle",
+    "score": 0,
+    "actorCount": 0,
+    "actors": []
   }]
 }
 ```
 
-讲解三点：① `handled: false` + `results: []` 表示**事件名没注册**——先用 `listEvents()` 核对，常见错误是把 `ai.getState`（游戏运行时，`registerBuiltinAIHandlers.ts:279`，常量 `AI_EVENT_GET_STATE` 在 `AIEvents.ts:34`）和 `editor.getState`（编辑器 UI 快照，`EditorInitializer.ts:221`）搞混。② 返回体是 `AIModule.emit` 的原样结构（`AIModule.ts:149`），**处理器返回值一律进 `results` 数组**，断言要写 `results[0]`。③ `emit` 是**同步**的——异步事件（如 `ai.readJsonFile`）返回的是 Promise，evaluate 里要 `await`。
+讲解三点：① `handled: false` + `results: []` 表示**事件名没注册**——先用 `listEvents()` 核对（编辑器控制类 `editor.*` 事件已于 2026-09-03 移除，emit 它们一律 `handled:false`）。② 返回体是 `AIModule.emit` 的原样结构（`AIModule.ts:149`），**处理器返回值一律进 `results` 数组**，断言要写 `results[0]`。③ `emit` 是**同步**的——异步处理器返回的是 Promise，evaluate 里要 `await`。
 
-游戏运行时断言走 `ai.getState` / `ai.getActor` / `ai.getHUD` / `ai.getSceneOutline`（常量分别在 `AIEvents.ts:34/42/70/73`）：
+游戏运行时断言走 `ai.getState` / `ai.getActor` / `ai.getHUD` / `ai.getSceneOutline`：
 
 ```js
 () => window.__ai.emit('ai.getState', {})
@@ -321,13 +321,13 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 **21. 文档断链检测脚本会误报示例代码里的 `.md` 链接** —— 不剥离代码块会被当真实断链。规则：校验脚本必须**先剥离 ``` 围栏**再检测；PowerShell 里反引号是转义符，正则用字符类 `[\`]` 或 `[char]96` 表示。
 
-**22. 用 `editor.getState` 的 `consoleOutput` 找游戏运行时日志，结果为空** —— `consoleOutput` 只收**编辑器面板**的输出（启动横幅、AIModule 事件触发等）；游戏运行时 `logger.info`（如 `[BaseHudScript] 按钮已绑定`、`[BaseGM] 放置建筑`）走另一条链路落到 `logs/console_YYYY-MM-DD_HHmmss.log`。规则：验证游戏运行时行为（按钮绑定、GM 命令、阶段切换）时，grep 最新 `logs/console_*.log`，不要指望编辑器控制台。
+**22. 用编辑器面板 consoleOutput 找游戏运行时日志，结果为空** —— 编辑器控制台只收**编辑器面板**的输出（启动横幅、AIModule 事件触发等）；游戏运行时 `logger.info`（如 `[BaseHudScript] 按钮已绑定`、`[BaseGM] 放置建筑`）走另一条链路落到 `logs/console_YYYY-MM-DD_HHmmss.log`。规则：验证游戏运行时行为（按钮绑定、GM 命令、阶段切换）时，grep 最新 `logs/console_*.log`，不要指望编辑器控制台。
 
 **23. `ai.getHUD` 返回同一棵 widget 树的三份拷贝，inner 节点 `active` 语义难猜** —— 返回里 `/HUD/...`、`/Actor/...` 两个根各带一份完整子树，还有第三份 `active:false` 的拷贝；面板（如 build_menu）节点常驻树里靠 active 链显隐，扫文本节点判断"菜单开没开"会误判。规则：可见性断言以**根级** `active` + 日志里的 `[UIManager] 根节点失活/激活: "Xxx"` 行为准，不要在 inner 节点里猜。
 
 **24. 验证新 UI 功能时残留旧标签页跑旧代码，误判"功能不生效"** —— 多实例调试后 Chrome 里常留多个编辑器 tab（不同 Vite 端口 / 旧 HMR 会话），`browser_tabs list` 随手选的 tab 可能是**旧代码页面**：新加的菜单项/控件根本不存在，或右键行为与最新源码不符，误判为刚写的功能没接上。辨别方法：先核对页面里是否已出现本次新增的特征元素（如新菜单项文本），没有即旧页面。规则：验证前 `browser_tabs list` 关掉多余旧 tab，只保留一个；导航/刷新到最新代码页（多实例时先 `netstat` 确认存活端口）再断言。
 
-**25. React 面板组件 hooks 定义在条件 return 之后 → 游戏启动即崩 + `ai.getHUD` 误报"游戏未运行"** —— `UiOutline.tsx` 的 `handlePanelContextMenu` useCallback 曾写在 `if (!gameRunning) return` 之后：游戏启动使 `gameRunning` false→true，hooks 数量变多触发 `Rendered more hooks than during the previous render`，React 卸载整棵树、游戏被强制销毁。连带症状极具误导性：`editor.getState` 显示 `running:true`（判定链不同步），而 `ai.getHUD`/`ai.getSceneOutline` 因 AIModule world 上下文随崩溃丢失报"游戏未运行"，把排查引向"游戏没起来"。规则：编辑器 React 组件里**任何 hook（useCallback/useMemo/useEffect 等）必须放在所有条件 return 之前**；见到"getHUD 说没运行但 getState 说在跑"先查 console_*.log 里有没有 hooks 崩溃栈。
+**25. React 面板组件 hooks 定义在条件 return 之后 → 游戏启动即崩 + `ai.getHUD` 误报"游戏未运行"** —— `UiOutline.tsx` 的 `handlePanelContextMenu` useCallback 曾写在 `if (!gameRunning) return` 之后：游戏启动使 `gameRunning` false→true，hooks 数量变多触发 `Rendered more hooks than during the previous render`，React 卸载整棵树、游戏被强制销毁。连带症状极具误导性：状态栏/MCP `/api/status` 显示 `gameRunning:true`（判定链不同步），而 `ai.getHUD`/`ai.getSceneOutline` 因 AIModule world 上下文随崩溃丢失报"游戏未运行"，把排查引向"游戏没起来"。规则：编辑器 React 组件里**任何 hook（useCallback/useMemo/useEffect 等）必须放在所有条件 return 之前**；见到"getHUD 说没运行但状态栏说在跑"先查 console_*.log 里有没有 hooks 崩溃栈。
 
 **26. 编辑器保存把 `.widget.html` 反编译回写 absolute 规范形后，又被拿去 `ui_compile` → 负 px 坐标链污染 json，运行时 UI 全堆左上角** —— decompile 回写的 absolute HTML 中子元素 left/top 应相对父内容盒，但 base_hud 回写产物出现了"子元素 left = 父/兄弟画布绝对位置的负值"模式（`ResPill left:-300px` = -(ResCol 的 300)、`Btn_build left:-648px` = -(ActionRow 的 648)、`ShopIcon left:-1288px` ≈ -(ShopBtn 的 1320)），深层子元素坐标全部坍缩到画布左上角附近；ui_compile 对此零 lint（数据自洽），运行时忠实渲染错误布局。辨别方法：grep `\left:\s*-\d+px`，子元素负 left 与父元素正 left 呈"取反"关系即中招。规则：**反编译回写后的 html 不要直接再当 ui_compile 的源**（除非逐节点核对过坐标语义）；UI 重设计必须从人写流式源重新编译，改动后用 `ai.getHUD` 抽查深层子元素 world 坐标是否跑出父容器包围盒。
 

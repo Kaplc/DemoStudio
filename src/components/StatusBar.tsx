@@ -1,6 +1,7 @@
 import React from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useCodeLintStore } from '../stores/useCodeLintStore'
+import { DashboardPanel } from './DashboardPanel'
 
 interface StatusBarProps {
   renderFps: number
@@ -82,6 +83,7 @@ export function StatusBar({ renderFps, logicFps }: StatusBarProps) {
           )}
         </span>
         <span>Render: {renderFps} fps | Logic: {logicFps} fps</span>
+        <DashboardPanel />
       </div>
     </div>
   )

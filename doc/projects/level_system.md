@@ -178,7 +178,7 @@ mode.onBattleOver = () => {
 }
 ```
 
-战斗相机交给 World 托管（`spawnActor`），销毁由 World 队列负责；`EndPlay` 里的 `this.baseCamera?.destroy()` 只兜底「未托管」的情况（如 `ai.switchScene` 裸切换不跑 `extraSetup`），否则相机无 world 归属会永久泄漏。
+战斗相机交给 World 托管（`spawnActor`），销毁由 World 队列负责；`EndPlay` 里的 `this.baseCamera?.destroy()` 只兜底「未托管」的情况（如 GM 命令等裸切换不跑 `extraSetup`），否则相机无 world 归属会永久泄漏。
 
 ### 2.3 结算与返回
 

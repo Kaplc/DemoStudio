@@ -36,86 +36,13 @@ async function mcpEmit(event, payload = {}) {
 console.log('\n🔧 ds-editor-tools 全覆盖测试\n')
 console.log('='.repeat(60))
 
-// ═══ Part 1: editor.* AI 事件测试（通过 MCP HTTP） ═══
-console.log('\n📋 Part 1: editor.* AI 事件\n')
+// ═══ Part 1: editor.* AI 事件（已于 2026-09-03 移除，验证 unhandled） ═══
+console.log('\n📋 Part 1: editor.* AI 事件（已移除）\n')
 
-await test('editor.getState — 读取编辑器状态', async () => {
+await test('editor.* — 已移除（emit 返回 handled=false）', async () => {
   const r = await mcpEmit('editor.getState')
-  if (!r.currentProject && !r.gameState) throw new Error('返回结构异常')
-  return { currentProject: r.currentProject?.name ?? null, activeTab: r.activeTabId, panels: Object.keys(r.panels).filter(k => r.panels[k].visible) }
-})
-
-await test('editor.togglePanel — 开关 console 面板', async () => {
-  const before = await mcpEmit('editor.getState')
-  const r = await mcpEmit('editor.togglePanel', { panel: 'console' })
-  if (!r.ok) throw new Error(r.error)
-  const after = await mcpEmit('editor.getState')
-  // 恢复
-  await mcpEmit('editor.togglePanel', { panel: 'console' })
-  return { toggled: r.panel, beforeVisible: before.panels.console.visible, afterVisible: after.panels.console.visible }
-})
-
-await test('editor.togglePanel — 错误参数', async () => {
-  const r = await mcpEmit('editor.togglePanel', {})
-  if (r.ok) throw new Error('应该返回错误')
-  return { error: r.error }
-})
-
-await test('editor.togglePanel — 无效面板名', async () => {
-  const r = await mcpEmit('editor.togglePanel', { panel: 'nonexistent' })
-  if (r.ok) throw new Error('应该返回错误')
-  return { error: r.error }
-})
-
-await test('editor.setLeftPanelTab — 切换到 assets', async () => {
-  const r = await mcpEmit('editor.setLeftPanelTab', { tab: 'assets' })
-  if (!r.ok) throw new Error(r.error)
-  const state = await mcpEmit('editor.getState')
-  // 恢复
-  await mcpEmit('editor.setLeftPanelTab', { tab: 'outline' })
-  return { switched: r.leftPanelTab, confirmed: state.leftPanelTab }
-})
-
-await test('editor.setGizmos — 关闭 Gizmo', async () => {
-  const r = await mcpEmit('editor.setGizmos', { enabled: false })
-  if (!r.ok) throw new Error(r.error)
-  const state = await mcpEmit('editor.getState')
-  // 恢复
-  await mcpEmit('editor.setGizmos', { enabled: true })
-  return { gizmosOff: !state.viewport.gizmos }
-})
-
-await test('editor.toggleConsole — 开关控制台', async () => {
-  const r = await mcpEmit('editor.toggleConsole')
-  if (!r.ok) throw new Error(r.error)
-  // 恢复
-  await mcpEmit('editor.toggleConsole')
-  return { consoleVisible: r.consoleVisible }
-})
-
-await test('editor.clearConsole — 清空控制台', async () => {
-  const r = await mcpEmit('editor.clearConsole')
-  if (!r.ok) throw new Error(r.error)
-  const state = await mcpEmit('editor.getState')
-  return { consoleOutputLength: state.consoleOutput.length }
-})
-
-await test('editor.setActiveTab — 切换到 scene 页签', async () => {
-  const r = await mcpEmit('editor.setActiveTab', { tabId: 'scene' })
-  if (!r.ok) throw new Error(r.error)
-  return { activeTabId: r.activeTabId }
-})
-
-await test('editor.setActiveTab — 无效页签', async () => {
-  const r = await mcpEmit('editor.setActiveTab', { tabId: 'nonexistent' })
-  if (r.ok) throw new Error('应该返回错误')
-  return { error: r.error }
-})
-
-await test('editor.switchProject — 无 folder 参数', async () => {
-  const r = await mcpEmit('editor.switchProject', {})
-  if (r.ok) throw new Error('应该返回错误')
-  return { error: r.error }
+  if (r.handled !== false) throw new Error('editor.getState 应未被处理')
+  return { handled: r.handled }
 })
 
 // ═══ Part 2: CDP/Playwright 连接测试 ═══
@@ -174,12 +101,12 @@ await test('editor_read — 读取所有 tab 文本', async () => {
   return { tabCount: count, texts }
 })
 
-await test('editor_emit — 通过 CDP 调用 editor.getState', async () => {
+await test('editor_emit — 通过 CDP 调用 ai.getState', async () => {
   const result = await page.evaluate(() => {
     const w = window
     const ai = w.__ai
     if (!ai || typeof ai.emit !== 'function') throw new Error('window.__ai 未就绪')
-    return ai.emit('editor.getState', {})
+    return ai.emit('ai.getState', {})
   })
   return { handled: result?.handled, hasResult: result?.results?.length > 0 }
 })

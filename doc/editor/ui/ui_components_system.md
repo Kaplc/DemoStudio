@@ -126,7 +126,7 @@ export const useEditorPrefsStore = create<EditorPrefs>()(
 
 `persist` 是 zustand 中间件，写一次全 store 落盘，**没有 `partialize`**，即新增字段自动被持久化。`pushRecent` 用「去重置顶 + `slice(0, 10)`」把最近工程列表钉在 10 条。
 
-⚠️ `panels` 字段（五个面板的 `visible`）目前**没有任何组件订阅**——全仓库只有 `editor.togglePanel` 这个 AI 事件在读写它（`EditorInitializer.ts:248`）。UI 上的面板显隐实际由 `consoleVisible` 和各处硬编码决定。这是历史遗留的悬空状态，别把它当数据源用。
+⚠️ `panels` 字段（五个面板的 `visible`）目前**没有任何组件订阅**——原唯一读写方 `editor.togglePanel` AI 事件已于 2026-09-03 移除，现在是纯悬空字段。UI 上的面板显隐实际由 `consoleVisible` 和各处硬编码决定。别把它当数据源用。
 
 ### 2.4 `useCodeLintStore`：lint 引擎单向写入
 
@@ -499,7 +499,7 @@ export function Inspector() {
 | 蓝图编辑 | `applyBatch` → `bumpBlueprintEdit(nonce)` → 面板重读盘；`save` → `markBlueprintClean` | [蓝图编辑](../blueprint/blueprint_edit_system.md) |
 | 撤销/重做 | `editorBus` 的 `BLUEPRINT_TRANSFORM_DIRTY` → 脏标记；撤销栈状态驱动按钮可用态 | [撤销重做](../blueprint/undo_redo_system.md) |
 | 代码/资产检查 | 两个引擎整体覆盖 `useCodeLintStore` 的 `issues` / `assetIssues` | [代码检查](../asset/code_lint_system.md) |
-| MCP / AI 事件 | `editor.openBlueprint` / `editor.closeTab` / `editor.toggleConsole` 等直接调 store action | [MCP 集成](../integration/mcp_integration.md) |
+| MCP / AI 事件 | 游戏层 `ai.*` 事件经 `AIModule.emit` 间接读写 store（`editor.*` 控制事件已于 2026-09-03 移除） | [MCP 集成](../integration/mcp_integration.md) |
 | 视口偏好 | `editorPrefsStore.setViewport` 变化 → `UIPreviewManager.setViewportAspect` | [视口系统](../core/viewport_system.md) |
 
 ### 7.2 下游：它波及谁
@@ -578,9 +578,9 @@ export function Inspector() {
 
 **8. `panels` 是悬空状态**
 
-现象：调 `editor.togglePanel` 返回 `visible: true`，界面却毫无变化。
-原因：`editorPrefsStore.panels`（五个面板的可见性）**没有任何组件订阅**——App 用的是 `consoleVisible` 和 `layout`。
-规则：别用 `panels` 控制面板显隐，它目前只是个被 AI 事件读写的孤立字段。
+现象：`editorPrefsStore.panels`（五个面板的可见性）**没有任何组件订阅**——App 用的是 `consoleVisible` 和 `layout`。
+（历史注：原读写它的唯一入口 `editor.togglePanel` AI 事件已于 2026-09-03 移除。）
+规则：别用 `panels` 控制面板显隐，它是个悬空字段。
 
 ---
 

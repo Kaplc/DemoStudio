@@ -101,7 +101,7 @@ class HttpEngineBridge implements EngineBridgeLike {
 /**
  * 通过 HTTP 连接到编辑器的 FileBridge 实现。
  * 使用 DSH_ENGINE_PORT 环境变量来连接编辑器。
- * 通过 /api/command 端点调用编辑器的文件读写命令。
+ * 通过 /api/command 端点调用主进程直处理的 read_json_file / write_json_file 命令。
  */
 class HttpFileBridge implements FileBridgeLike {
   private port: number
@@ -111,23 +111,21 @@ class HttpFileBridge implements FileBridgeLike {
   }
 
   /**
-   * 通过 ai_event 往返通道调用编辑器（而非 fire-and-forget 的 IPC 命令）。
-   * 编辑器侧需注册 ai.readJsonFile / ai.writeFile 事件处理器。
+   * 调用主进程直处理的文件读写命令（原 ai.readJsonFile/ai.writeFile 渲染层事件已移除）。
    */
-  private async callAIEvent(event: string, payload: Record<string, unknown>): Promise<unknown> {
+  private async callFileCommand(command: string, params: Record<string, unknown>): Promise<unknown> {
     const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: 'ai_event', params: { event, payload } }),
+      body: JSON.stringify({ command, params }),
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const json = await resp.json() as { result?: unknown }
-    return json?.result ?? json
+    return await resp.json()
   }
 
   async readJsonFile(path: string): Promise<unknown | null> {
     try {
-      const result = await this.callAIEvent('ai.readJsonFile', { relativePath: path }) as { success?: boolean; data?: unknown } | null
+      const result = await this.callFileCommand('read_json_file', { relativePath: path }) as { success?: boolean; data?: unknown } | null
       if (result && result.success && result.data !== undefined) return result.data
       return null
     } catch {
@@ -137,8 +135,8 @@ class HttpFileBridge implements FileBridgeLike {
 
   async writeJsonFile(path: string, data: unknown): Promise<{ ok: boolean; error?: string }> {
     try {
-      const result = await this.callAIEvent('ai.writeFile', { relativePath: path, data }) as { ok?: boolean; error?: string } | null
-      return { ok: result?.ok ?? false, error: result?.error }
+      const result = await this.callFileCommand('write_json_file', { relativePath: path, data }) as { success?: boolean; error?: string } | null
+      return { ok: result?.success ?? false, error: result?.error }
     } catch (err) {
       return { ok: false, error: String(err) }
     }

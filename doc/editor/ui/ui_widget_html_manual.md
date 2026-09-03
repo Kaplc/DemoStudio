@@ -590,6 +590,10 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 现象：报"data-props 不是合法 JSON"。原因：HTML 属性值用双引号会和 JSON 内部的双引号冲突。规则：属性值用**单引号**包裹（`data-props='{...}'`）。
 
+**11. absolute 容器没写显式宽高，内部 flex 子项高度被压缩成几像素；`transform: translateX(-50%)` 被静默丢弃**
+
+现象：`position: absolute` 的分区容器（如竖排按钮列）只写了 `left/top` 没写 `width/height`，编译不报错，但反编译检查发现内部 88x88 的按钮全部变成 `height: 4px`（文本子项高度甚至被算成几千 px），布局坍缩；用 `transform: translateX(-50%)` 做水平居中的容器，解算后 left 停在 `left: 50%` 对应的原始位置（如 `left: 960px` 从容器左边缘算），整体偏右一半。原因：布局求解器（layout.ts）对 auto 高度的 flex 容器先按内容测高再分配，absolute 容器可用高度不确定时交叉轴尺寸求解异常；`transform` 不参与矩形布局求解，被忽略。规则：**所有 `position: absolute` 的容器一律显式写 `width`/`height`；内部所有 flex 子项（含 text）显式写宽高并加 `flex-shrink: 0`；水平居中不要用 `transform: translateX(-50%)`，直接算好 `left = (画布宽 − 容器宽) / 2` 写显式坐标**。验证方法：编译后 `node scripts/ui-compiler-cli.mjs decompile` 反编译产物，逐节点核对宽高与坐标是否与源一致。
+
 ---
 
 ## 15. 边界条件

@@ -1,7 +1,7 @@
 /**
  * emit_ai_event：通用 AI 事件调用工具
  *
- * 可调用编辑器注册的任意 AI 事件（ai.clickActor / ai.getActor / ai.switchScene 等），
+ * 可调用编辑器注册的任意 AI 事件（ai.clickActor / ai.getActor / ai.getHUD 等），
  * 而不是为每个事件硬编码单独的工具。
  *
  * 实现：editor HTTP `/api/command` → `ai_event` → AIModule.emit(event, payload)
@@ -13,7 +13,7 @@ import { getEngineContext } from '../engineContext'
 import { requiresApproval, askUser } from '../guards'
 
 export const emitAIEventSchema = z.object({
-  event: z.string().describe('AI 事件名（如 ai.clickActor, ai.getActor, ai.switchScene）'),
+  event: z.string().describe('AI 事件名（如 ai.clickActor, ai.getActor, ai.getHUD）'),
   payload: z.record(z.unknown()).optional().describe('事件载荷（JSON 对象，结构取决于具体事件）'),
 })
 
@@ -30,10 +30,6 @@ const HIGH_RISK_EVENTS = new Set([
   'ai.spawnActor',
   'ai.destroyActor',
   'ai.transformActor',
-  'ai.setScore',
-  'ai.addScore',
-  'ai.gameOver',
-  'ai.switchScene',
   'ai.clickActor',
   'ai.dragActor',
   'ai.selectActor',
@@ -131,15 +127,14 @@ export const emitAIEventTool = {
   description: `调用编辑器注册的任意 AI 事件。可触发游戏/编辑器操作，如：
 - ai.clickActor: 点击 UI 元素 {name: 'ButtonName'}
 - ai.getActor: 查询 Actor 信息 {name: 'ActorName'}
-- ai.switchScene: 切换场景 {scene: 'SceneName'}
+- ai.getHUD: 获取 HUD 结构 {}
 - ai.spawnActor: 生成 Actor {blueprint: 'path/to/unit.json'}
 - ai.getState: 获取游戏状态 {}
-- ai.setScore: 设置分数 {score: 100}
 - 等等...
 
 高危事件（spawn/destroy/click 等）默认需要用户确认。`,
   parameters: {
-    event: { type: 'string', description: 'AI 事件名（如 ai.clickActor, ai.getActor, ai.switchScene）' },
+    event: { type: 'string', description: 'AI 事件名（如 ai.clickActor, ai.getActor, ai.getHUD）' },
     payload: { type: 'object', description: '事件载荷（JSON 对象，结构取决于具体事件）' },
   },
   output: {

@@ -67,11 +67,12 @@
 | [`asset/asset_preview_lint_system.md`](./editor/asset/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
 | [`asset/code_lint_system.md`](./editor/asset/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器 |
 
-### 3.4 ui（面板与 UI 增强，5 篇）
+### 3.4 ui（面板与 UI 增强，6 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`ui/ui_components_system.md`](./editor/ui/ui_components_system.md) | React 面板组件与状态管理（stores/） |
+| [`ui/dashboard_panel_system.md`](./editor/ui/dashboard_panel_system.md) | 页面状态 Live Dashboard：HUD/Scene 树实时面板（AI 操作前确认目标） |
 | [`ui/ui_enhancement_system.md`](./editor/ui/ui_enhancement_system.md) | UI 增强系统：Tween 补间 / Toast / Tooltip / 色盲模式 / 进度条 |
 | [`ui/ui_anchor_system.md`](./editor/ui/ui_anchor_system.md) | UI 锚点系统：九宫格锚点布局算法 + AnchorGizmo 可视化编辑 |
 | [`ui/ui_source_format_system.md`](./editor/ui/ui_source_format_system.md) | UI HTML 源格式：.widget.html 编译/反编译 + 双向同步 + MCP ui_compile |
@@ -130,9 +131,9 @@
 
 ## 统计
 
-6 个模块共 **47 篇功能文档 + 1 篇元文档**：总览 1 / 引擎 13 / 编辑器 15（core 4 / blueprint 2 / asset 2 / ui 5 / integration 2）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1。
+6 个模块共 **48 篇功能文档 + 1 篇元文档**：总览 1 / 引擎 13 / 编辑器 16（core 4 / blueprint 2 / asset 2 / ui 6 / integration 2）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1。
 
-> **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
+> **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**（dashboard_panel_system.md 新建时即按新范式编写，累计 48 篇）——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
 >
 > 本次改造相对旧体系的三处结构性变更：
 >

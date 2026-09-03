@@ -344,7 +344,7 @@ GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](.
 | `registerAllProjectModules` | 启动时注册 GameInstance 工厂、内置 Actor/组件、AI 事件、GM 命令 | [资产与工具系统](./asset_tools_system.md) |
 | 项目 `register.ts` | `GameModeRegistry.register(mode, ctor)`——未注册则 `SwitchToScene` 返回 false | [gameplay 代码规范](../projects/gameplay_code_standard.md) |
 | `AssetRegistry` | 场景按 name 注册后 `SwitchToScene('Name')` 才查得到 | [资产与工具系统](./asset_tools_system.md) |
-| AI 事件系统 | `AIModule.attachContext(world, inst)`；`ai.switchScene` 直接调 `SwitchToScene` | [AI 事件系统](./ai_system.md) |
+| AI 事件系统 | `AIModule.attachContext(world, inst)`；游戏内切场景经 `SwitchToScene`（GM 命令/游戏逻辑触发） | [AI 事件系统](./ai_system.md) |
 | GM 命令系统 | `GameInstance.gm` 随实例生命周期；控制台 Actor 经 `spawnActor` 进世界 | [GM 命令系统](./gm_system.md) |
 
 ### 下游：它波及谁
@@ -366,7 +366,7 @@ GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](.
 **1. `spawnFromBlueprint` 后 Actor 不显示/不动** —— `SpawnActor` 只是入队，落地在 `commitSpawn()`，后者只在 `World.tick`/`BeginPlay` 里被调；世界还没 `BeginPlay` 时生成的 Actor 一直停在 `pendingSpawn`。规则：不要假设 `spawnActor()` 返回后 Actor 已可用，需要立即可见就调 `world.manualTick(0)` 强制提交一次（AI 事件处理器就是这么做的，[registerBuiltinAIHandlers.ts:190](../../src/engine/ai/registerBuiltinAIHandlers.ts)）。
 **2. 场景切换后新场景 Actor 全没初始化** —— `BeginPlay()` 里 `commitActorChanges()` 必须排在逐个 `BeginPlay` 之前（[World.ts:294](../../src/engine/gameflow/World.ts)）。
 **3. 覆写 `StartPlay` 忘了 `super.StartPlay()` → 点击场景无反应** —— 基类 `StartPlay` 内含 `SpawnPlayer()`（[GameMode.ts:93](../../src/engine/gameflow/GameMode.ts)），漏掉则 `mode.controller` 为 null，`start()` 直接 `return false`，InputSys 无 Controller 可转发。
-**4. GameMode 自己 new 的 Actor 泄漏** —— `reclaimForWorld` 只认 `world` 字段或 owner 链能上溯到本 World 的对象。GameMode 构造里 `new BaseCameraActor()` 时还没有 world 归属；正常路径由 `extraSetup` 里 `spawnActor(mode.baseCamera)` 托管，但**裸调 `ai.switchScene`（不执行 extraSetup）时无人托管**就永久泄漏。规则：GameMode 自己 new 的 Actor，必须在 `EndPlay` 里自己 `destroy()` 兜底（[FishLevelGameMode.ts:171](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) 即如此）。
+**4. GameMode 自己 new 的 Actor 泄漏** —— `reclaimForWorld` 只认 `world` 字段或 owner 链能上溯到本 World 的对象。GameMode 构造里 `new BaseCameraActor()` 时还没有 world 归属；正常路径由 `extraSetup` 里 `spawnActor(mode.baseCamera)` 托管，但**裸调 `SwitchToScene`（不执行 extraSetup，如 GM 命令切场景）时无人托管**就永久泄漏。规则：GameMode 自己 new 的 Actor，必须在 `EndPlay` 里自己 `destroy()` 兜底（[FishLevelGameMode.ts:171](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) 即如此）。
 **5. 顶层 `position/rotation/scale` 写了不生效** —— 严格模式（组件优先）：位置一律写在 `transform`/`uitransform` 组件的 properties 里。顶层字段存在即报 `childTransformViolation` 错误且**不应用该值**；蓝图根节点、ref 子节点、内联子节点三处都校验。
 **6. 切换工程/重复启动导致二次 dispose** —— `shutdown` 靠 `_shutdown` 布尔标记防重（effect cleanup 和切换工程可能同时触发），`createInstance` 里也内置了「已有实例先 shutdown」。规则：外部不要再包一层自己的防重，会与引擎状态机打架。
 **7. `SwitchScene` 残留诊断误报** —— baseline 必须在 `newMode` **构造之前**打快照（[World.ts:693](../../src/engine/gameflow/World.ts)），否则 newMode 构造期创建的对象被算成「旧场景残留」；直接调 `SwitchScene` 时用 `ownedBy(o, newMode)` 过滤兜底。

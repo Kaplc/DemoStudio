@@ -1,165 +1,116 @@
 <widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
   <style>
-    .TopBar { width: 100%; height: 100%; position: relative; display: flex; flex-direction: row; align-items: flex-start; justify-content: flex-start; }
-    .PersonalCenter { width: 300px; height: 52px; display: flex; flex-direction: row; align-items: center; margin-top: 6px; margin-left: 8px; }
-    .LevelBadge { width: 52px; height: 52px; flex-shrink: 0; background-color: #3f7fd6; border-radius: 12px; border: 2px solid #ffffffcc; display: flex; align-items: center; justify-content: center; }
-    .LevelBadgeBorderTop { display: none; }
-    .LevelBadgeBorderRight { display: none; }
-    .LevelBadgeBorderBottom { display: none; }
-    .LevelBadgeBorderLeft { display: none; }
-    .LevelNum { font-size: 22px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; }
-    .PersonalCol { width: 230px; height: 48px; display: flex; flex-direction: column; margin-left: 10px; }
-    .PlayerName { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #000000b3; margin-top: 2px; }
-    .XpTrack { width: 224px; height: 20px; background-color: #241a10e0; border-radius: 8px; border: 2px solid #f5e7c855; display: flex; align-items: center; padding: 3px; margin-top: 4px; }
-    .XpTrackBorderTop { display: none; }
-    .XpTrackBorderRight { display: none; }
-    .XpTrackBorderBottom { display: none; }
-    .XpTrackBorderLeft { display: none; }
-    .XpFill { width: 128px; height: 10px; background-color: #a05ee0; border-radius: 5px; }
-    .ResCol { display: flex; flex-direction: column; gap: 6px; margin-left: auto; margin-right: 20px; margin-top: 6px; }
-    .ResPill { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
-    .ResPillBorderTop { display: none; }
-    .ResPillBorderRight { display: none; }
-    .ResPillBorderBottom { display: none; }
-    .ResPillBorderLeft { display: none; }
-    .GoldLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
-    .ResIcon { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
-    .ResPill_2 { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
-    .ResPill_2BorderTop { display: none; }
-    .ResPill_2BorderRight { display: none; }
-    .ResPill_2BorderBottom { display: none; }
-    .ResPill_2BorderLeft { display: none; }
-    .ElixirLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
-    .ResIcon_2 { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
-    .ResPill_3 { width: 274px; height: 48px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 8px; }
-    .ResPill_3BorderTop { display: none; }
-    .ResPill_3BorderRight { display: none; }
-    .ResPill_3BorderBottom { display: none; }
-    .ResPill_3BorderLeft { display: none; }
-    .GemLabel { font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; margin-right: auto; margin-left: 8px; }
-    .ResIcon_3 { width: 34px; height: 34px; font-size: 24px; text-align: center; text-shadow: 0px 2px 4px #000000b3; flex-shrink: 0; }
-    .Btn_map { width: 88px; height: 88px; position: absolute; left: 10px; bottom: 16px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .Btn_mapBorderTop { display: none; }
-    .Btn_mapBorderRight { display: none; }
-    .Btn_mapBorderBottom { display: none; }
-    .Btn_mapBorderLeft { display: none; }
-    .Label_map { font-size: 40px; text-shadow: 0px 1px 3px #00000099; }
-    .ActionRow { display: flex; flex-direction: row; gap: 16px; position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); }
-    .Btn_build { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .Btn_buildBorderTop { display: none; }
-    .Btn_buildBorderRight { display: none; }
-    .Btn_buildBorderBottom { display: none; }
-    .Btn_buildBorderLeft { display: none; }
-    .ActionIcon { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
-    .ActionLabel { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
-    .Btn_tasks { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .Btn_tasksBorderTop { display: none; }
-    .Btn_tasksBorderRight { display: none; }
-    .Btn_tasksBorderBottom { display: none; }
-    .Btn_tasksBorderLeft { display: none; }
-    .ActionIcon_2 { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
-    .ActionLabel_2 { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
-    .Btn_gemShop { width: 88px; height: 88px; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .Btn_gemShopBorderTop { display: none; }
-    .Btn_gemShopBorderRight { display: none; }
-    .Btn_gemShopBorderBottom { display: none; }
-    .Btn_gemShopBorderLeft { display: none; }
-    .ActionIcon_3 { font-size: 30px; text-shadow: 0px 2px 4px #000000b3; }
-    .ActionLabel_3 { font-size: 16px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
-    .ShopBtn { width: 156px; height: 116px; position: absolute; right: 16px; bottom: 16px; background-color: #3f2d1e; border-radius: 16px; border: 3px solid #f5c542aa; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .ShopBtnBorderTop { display: none; }
-    .ShopBtnBorderRight { display: none; }
-    .ShopBtnBorderBottom { display: none; }
-    .ShopBtnBorderLeft { display: none; }
-    .ShopIcon { font-size: 38px; text-shadow: 0px 2px 4px #000000b3; }
-    .ShopLabel { font-size: 18px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #00000099; margin-top: 4px; }
+    /* 全屏容器：所有分区 absolute 显式定位（布局求解器要求显式宽高，否则子项高度会被压缩） */
+    .TopBar { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; }
+
+    /* ── 左上：等级徽章 + 昵称 + 经验条 ── */
+    .PersonalCenter { width: 342px; height: 72px; position: absolute; left: 12px; top: 10px; display: flex; flex-direction: row; align-items: center; }
+    .LevelBadge { width: 66px; height: 66px; flex-shrink: 0; background-color: #3f7fd6; border-radius: 12px; border: 3px solid #ffffffcc; display: flex; align-items: center; justify-content: center; }
+    .LevelNum { width: 66px; font-size: 26px; color: #ffffff; font-weight: bold; text-align: center; text-shadow: 0px 1px 2px #00000099; }
+    .PersonalCol { width: 260px; height: 70px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; margin-left: 10px; }
+    .PlayerName { width: 260px; height: 26px; font-size: 18px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 2px #000000b3; }
+    .XpTrack { width: 248px; height: 20px; flex-shrink: 0; background-color: #241a10e0; border-radius: 10px; border: 2px solid #f5e7c855; display: flex; align-items: center; padding: 3px; margin-top: 6px; }
+    .XpFill { width: 148px; height: 10px; flex-shrink: 0; background-color: #58a8e8; border-radius: 5px; }
+
+    /* ── 右上：三条资源栏（数字右对齐 + 图标靠右端，同参考图） ── */
+    .ResCol { width: 324px; height: 184px; position: absolute; right: 18px; top: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .ResPill { width: 300px; height: 52px; flex-shrink: 0; background-color: #241a10e0; border-radius: 12px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; padding: 0px 10px; }
+    .GoldLabel { width: 224px; height: 30px; flex-shrink: 0; font-size: 22px; color: #ffffff; font-weight: bold; text-align: right; text-shadow: 0px 1px 3px #000000b3; margin-right: 12px; }
+    .ElixirLabel { width: 224px; height: 30px; flex-shrink: 0; font-size: 22px; color: #ffffff; font-weight: bold; text-align: right; text-shadow: 0px 1px 3px #000000b3; margin-right: 12px; }
+    .GemLabel { width: 224px; height: 30px; flex-shrink: 0; font-size: 22px; color: #ffffff; font-weight: bold; text-align: right; text-shadow: 0px 1px 3px #000000b3; margin-right: 12px; }
+    .ResIcon { width: 36px; height: 36px; flex-shrink: 0; font-size: 26px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+
+    /* ── 顶部中央：工人 / 护盾信息条（显式坐标居中：428 宽 → left 746） ── */
+    .TopCenterRow { width: 428px; height: 52px; position: absolute; left: 746px; top: 10px; display: flex; flex-direction: row; gap: 20px; }
+    .BuilderPill { width: 150px; height: 52px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; }
+    .BuilderIcon { width: 40px; height: 36px; flex-shrink: 0; font-size: 26px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+    .BuilderText { width: 90px; height: 28px; flex-shrink: 0; font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; }
+    .ShieldPill { width: 250px; height: 52px; flex-shrink: 0; background-color: #1f150bd9; border-radius: 10px; border: 2px solid #f5e7c866; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; }
+    .ShieldIcon { width: 40px; height: 36px; flex-shrink: 0; font-size: 26px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+    .ShieldText { width: 190px; height: 28px; flex-shrink: 0; font-size: 20px; color: #ffffff; font-weight: bold; text-shadow: 0px 1px 3px #000000b3; }
+
+    /* ── 左侧竖排按钮列（对应参考图左侧一列，纯图标） ── */
+    .SideCol { width: 92px; height: 516px; position: absolute; left: 12px; top: 96px; display: flex; flex-direction: column; gap: 14px; }
+    .SideBtn { width: 88px; height: 88px; flex-shrink: 0; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; align-items: center; justify-content: center; }
+    .SideIcon { width: 88px; height: 59px; flex-shrink: 0; font-size: 42px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+
+    /* ── 左下角大按钮：进攻（地图） ── */
+    .Btn_map { width: 140px; height: 140px; position: absolute; left: 12px; bottom: 20px; background-color: #3f2d1e; border-radius: 16px; border: 3px solid #ffe9c255; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .Label_map { width: 134px; height: 62px; flex-shrink: 0; font-size: 44px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+    .MapText { width: 134px; height: 31px; flex-shrink: 0; font-size: 22px; color: #ffffff; font-weight: bold; text-align: center; text-shadow: 0px 1px 2px #00000099; margin-top: 2px; }
+
+    /* ── 右侧竖排：建筑 / 任务 / 宝石商店（纯图标，同参考图右侧） ── */
+    .RightCol { width: 92px; height: 304px; position: absolute; right: 16px; top: 430px; display: flex; flex-direction: column; gap: 14px; }
+    .Btn_build { width: 88px; height: 88px; flex-shrink: 0; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; align-items: center; justify-content: center; }
+    .Btn_tasks { width: 88px; height: 88px; flex-shrink: 0; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; align-items: center; justify-content: center; }
+    .Btn_gemShop { width: 88px; height: 88px; flex-shrink: 0; background-color: #3f2d1e; border-radius: 14px; border: 2px solid #ffe9c255; display: flex; align-items: center; justify-content: center; }
+    .ActionIcon { width: 88px; height: 59px; flex-shrink: 0; font-size: 40px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+
+    /* ── 右下角：商店大按钮 + 小夹板装饰 ── */
+    .ClipBtn { width: 76px; height: 76px; position: absolute; right: 212px; bottom: 24px; background-color: #ece5d0; border-radius: 12px; border: 2px solid #b8ad93; display: flex; align-items: center; justify-content: center; }
+    .ClipIcon { width: 72px; height: 54px; flex-shrink: 0; font-size: 38px; text-align: center; }
+    .ShopBtn { width: 180px; height: 132px; position: absolute; right: 18px; bottom: 20px; background-color: #3f2d1e; border-radius: 16px; border: 3px solid #f5c542aa; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .ShopIcon { width: 174px; height: 64px; flex-shrink: 0; font-size: 46px; text-align: center; text-shadow: 0px 2px 4px #000000b3; }
+    .ShopLabel { width: 174px; height: 31px; flex-shrink: 0; font-size: 22px; color: #ffffff; font-weight: bold; text-align: center; text-shadow: 0px 1px 2px #00000099; margin-top: 4px; }
   </style>
   <div class="TopBar">
     <div class="PersonalCenter">
       <div class="LevelBadge">
-        <div class="LevelBadgeBorderTop"></div>
-        <div class="LevelBadgeBorderRight"></div>
-        <div class="LevelBadgeBorderBottom"></div>
-        <div class="LevelBadgeBorderLeft"></div>
         <text class="LevelNum">7</text>
       </div>
       <div class="PersonalCol">
         <text class="PlayerName">指挥官</text>
         <div class="XpTrack">
-          <div class="XpTrackBorderTop"></div>
-          <div class="XpTrackBorderRight"></div>
-          <div class="XpTrackBorderBottom"></div>
-          <div class="XpTrackBorderLeft"></div>
           <div class="XpFill"></div>
         </div>
       </div>
     </div>
     <div class="ResCol">
       <div class="ResPill">
-        <div class="ResPillBorderTop"></div>
-        <div class="ResPillBorderRight"></div>
-        <div class="ResPillBorderBottom"></div>
-        <div class="ResPillBorderLeft"></div>
-        <text class="GoldLabel">金币: 100</text>
+        <text class="GoldLabel">100</text>
         <text class="ResIcon">🪙</text>
       </div>
-      <div class="ResPill_2">
-        <div class="ResPill_2BorderTop"></div>
-        <div class="ResPill_2BorderRight"></div>
-        <div class="ResPill_2BorderBottom"></div>
-        <div class="ResPill_2BorderLeft"></div>
-        <text class="ElixirLabel">药水: 0</text>
-        <text class="ResIcon_2">⚗️</text>
+      <div class="ResPill">
+        <text class="ElixirLabel">0</text>
+        <text class="ResIcon">⚗️</text>
       </div>
-      <div class="ResPill_3">
-        <div class="ResPill_3BorderTop"></div>
-        <div class="ResPill_3BorderRight"></div>
-        <div class="ResPill_3BorderBottom"></div>
-        <div class="ResPill_3BorderLeft"></div>
+      <div class="ResPill">
         <text class="GemLabel">0</text>
-        <text class="ResIcon_3">💎</text>
+        <text class="ResIcon">💎</text>
       </div>
     </div>
+    <div class="TopCenterRow">
+      <div class="BuilderPill">
+        <text class="BuilderIcon">👷</text>
+        <text class="BuilderText">0/6</text>
+      </div>
+      <div class="ShieldPill">
+        <text class="ShieldIcon">🛡️</text>
+        <text class="ShieldText">6小时29分钟</text>
+      </div>
+    </div>
+    <div class="SideCol">
+      <div class="SideBtn"><text class="SideIcon">🏆</text></div>
+      <div class="SideBtn"><text class="SideIcon">✉️</text></div>
+      <div class="SideBtn"><text class="SideIcon">💬</text></div>
+      <div class="SideBtn"><text class="SideIcon">🛡️</text></div>
+      <div class="SideBtn"><text class="SideIcon">⚔️</text></div>
+    </div>
+    <button class="Btn_map">
+      <text class="Label_map">🗺️</text>
+      <text class="MapText">进攻!</text>
+    </button>
+    <div class="RightCol">
+      <button class="Btn_build"><text class="ActionIcon">🏗️</text></button>
+      <button class="Btn_tasks"><text class="ActionIcon">📋</text></button>
+      <button class="Btn_gemShop"><text class="ActionIcon">💎</text></button>
+    </div>
+    <div class="ClipBtn">
+      <text class="ClipIcon">📜</text>
+    </div>
+    <button class="ShopBtn">
+      <text class="ShopIcon">🛒</text>
+      <text class="ShopLabel">商店</text>
+    </button>
   </div>
-  <button class="Btn_map">
-    <div class="Btn_mapBorderTop"></div>
-    <div class="Btn_mapBorderRight"></div>
-    <div class="Btn_mapBorderBottom"></div>
-    <div class="Btn_mapBorderLeft"></div>
-    <text class="Label_map">🗺️</text>
-  </button>
-  <div class="ActionRow">
-    <button class="Btn_build">
-      <div class="Btn_buildBorderTop"></div>
-      <div class="Btn_buildBorderRight"></div>
-      <div class="Btn_buildBorderBottom"></div>
-      <div class="Btn_buildBorderLeft"></div>
-      <text class="ActionIcon">🏗️</text>
-      <text class="ActionLabel">建筑</text>
-    </button>
-    <button class="Btn_tasks">
-      <div class="Btn_tasksBorderTop"></div>
-      <div class="Btn_tasksBorderRight"></div>
-      <div class="Btn_tasksBorderBottom"></div>
-      <div class="Btn_tasksBorderLeft"></div>
-      <text class="ActionIcon_2">📋</text>
-      <text class="ActionLabel_2">任务</text>
-    </button>
-    <button class="Btn_gemShop">
-      <div class="Btn_gemShopBorderTop"></div>
-      <div class="Btn_gemShopBorderRight"></div>
-      <div class="Btn_gemShopBorderBottom"></div>
-      <div class="Btn_gemShopBorderLeft"></div>
-      <text class="ActionIcon_3">💎</text>
-      <text class="ActionLabel_3">商店</text>
-    </button>
-  </div>
-  <button class="ShopBtn">
-    <div class="ShopBtnBorderTop"></div>
-    <div class="ShopBtnBorderRight"></div>
-    <div class="ShopBtnBorderBottom"></div>
-    <div class="ShopBtnBorderLeft"></div>
-    <text class="ShopIcon">🛒</text>
-    <text class="ShopLabel">商店</text>
-  </button>
 </widget>

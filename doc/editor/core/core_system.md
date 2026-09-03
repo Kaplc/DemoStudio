@@ -229,17 +229,13 @@ if (result.handled) {
 
 ### 3.3 AI 事件：`registerEditorAIHandlers`
 
-注册了 **15 个事件**（`EditorInitializer.ts` 内），分三类：
+注册了 **2 个事件**（`EditorInitializer.ts` 内）：
 
 **编辑器操作类**（操作选中与 gizmo）
 - `ai.selectActor` — 按名字选中 Actor，**优先查活动预览**（`AssetPreviewManager.getActivePath()`），找不到才回退场景树
 - `ai.dragActor` — 拖动，支持 `position` 覆盖或 `axis + delta` 增量
 
-**文件读写类**（给 DSH FileBridge 用）
-- `ai.readJsonFile` / `ai.writeFile` — 注意返回值**必须清理 undefined 属性**，否则 IPC 结构化克隆会抛错
-
-**UI 结构化操作类**（`editor.*`，ds-editor-tools 调用）
-- `editor.getState`、`editor.togglePanel`、`editor.setActiveTab`、`editor.openBlueprint`、`editor.openScenePreview`、`editor.closeTab`、`editor.switchProject`、`editor.setLeftPanelTab`、`editor.clearConsole`、`editor.toggleConsole`、`editor.setGizmos`
+> 原「文件读写类」（`ai.readJsonFile` / `ai.writeFile`）与「UI 结构化操作类」（`editor.getState` / `editor.togglePanel` 等 11 个）已于 2026-09-03 移除：编辑器控制由 demostudio-editor MCP 的 CDP 工具承担，文件读写改走主进程 MCP HTTP 直处理命令（`read_json_file` / `write_json_file`）。
 
 最后挂了浏览器调试入口：
 
@@ -310,7 +306,7 @@ if (result.handled) {
 
 **4. IPC 返回值不能带 undefined 属性**
 
-`ai.readJsonFile` / `ai.writeFile` 里专门构造 `clean` 对象剔除 undefined，否则结构化克隆直接抛错。
+经 IPC/MCP 往返的返回值不能带 undefined 属性（结构化克隆会直接抛错）。原 `ai.readJsonFile` / `ai.writeFile` 处理器里专门构造 `clean` 对象剔除 undefined（2026-09-03 已移除这两个事件，规则对新的 MCP 通道依然适用）。
 
 **5. `start_game` 切换工程后必须等 600ms**
 

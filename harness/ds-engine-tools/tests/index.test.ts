@@ -10,8 +10,8 @@ describe('ds-engine-tools 插件入口', () => {
     expect(inject).toEqual(['tools'])
   })
 
-  it('ALL_TOOLS 包含 7 个工具', () => {
-    expect(ALL_TOOLS).toHaveLength(7)
+  it('ALL_TOOLS 包含 9 个工具', () => {
+    expect(ALL_TOOLS).toHaveLength(9)
   })
 
   it('每个工具都有 name/description/parameters/execute', () => {
@@ -29,13 +29,15 @@ describe('ds-engine-tools 插件入口', () => {
   it('工具名列表正确', () => {
     const names = ALL_TOOLS.map(t => t.name).sort()
     expect(names).toEqual([
-      'cordis_define_robust',
-      'cordis_unwrap_demo',
-      'get_game_state',
-      'inspect_scene',
-      'run_scenario',
-      'set_game_speed',
-      'spawn_entity',
+      'emit_ai_event',
+      'get_assets',
+      'get_hud',
+      'get_scene_outline',
+      'get_ui_outline',
+      'key_press',
+      'mouse_click',
+      'mouse_drag',
+      'mouse_move',
     ])
   })
 
@@ -48,7 +50,7 @@ describe('ds-engine-tools 插件入口', () => {
         effect: (fn: () => void) => fn(),
       }
       apply(ctx)
-      expect(registered).toHaveLength(7)
+      expect(registered).toHaveLength(9)
     })
 
     it('直接注册工具（无 effect）', async () => {
@@ -58,7 +60,7 @@ describe('ds-engine-tools 插件入口', () => {
         tools: { register: (tool: unknown) => registered.push(tool) },
       }
       apply(ctx)
-      expect(registered).toHaveLength(7)
+      expect(registered).toHaveLength(9)
     })
 
     it('tools 为空时不注册', async () => {
