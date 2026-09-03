@@ -20,28 +20,29 @@
 
 | 文件 | 说明 |
 |---|---|
-| [`system_overview.md`](./system_overview.md) | **系统总览**：引擎/编辑器/项目/资产类型全量统计与架构索引 |
+| [`system_overview.md`](./system_overview.md) | **系统总览**：引擎 13 域 / 编辑器 4 二级目录 + 4 store / 项目 5 个 / 资产 5 类的架构索引 |
 
-## 2. 引擎模块（src/engine/，12 篇）
+## 2. 引擎模块（src/engine/，13 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`engine/entity_system.md`](./engine/entity_system.md) | 实体体系：OObject → AObject → BObject → Actor 层级 + 组件系统 |
 | [`engine/gameflow_system.md`](./engine/gameflow_system.md) | 游戏流程：Game / GameInstance / GameMode / GameState / World |
-| [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：相机族 / 渲染组件 / Compositor2D / 纹理 |
+| [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：ThreeObjectFactory 造对象 / SceneRendererComponent 每帧合成 / 相机族与 UICamera 双层 |
 | [`engine/ui_system.md`](./engine/ui_system.md) | 世界 UI：UIManager / HUD / UI 控件组件 |
 | [`engine/ui_canvas_component.md`](./engine/ui_canvas_component.md) | CanvasUIComponent 组件：画布渲染 + hitTest 命中测试 |
-| [`engine/input_physics_script_system.md`](./engine/input_physics_script_system.md) | 输入 / 物理 / 脚本：InputSys / PhySys / ScriptRegistry |
+| [`engine/input_system.md`](./engine/input_system.md) | 输入系统：InputSys / InputComponent / PlayerController 输入路由 |
+| [`engine/physics_system.md`](./engine/physics_system.md) | 物理与点击：PhySys / ClickableComponent / ColliderComponent 射线与碰撞 |
+| [`engine/script_system.md`](./engine/script_system.md) | 脚本系统：ScriptRegistry / BehaviourScript / UIScriptComponent |
 | [`engine/asset_tools_system.md`](./engine/asset_tools_system.md) | 资产与工具：AssetRegistry / BlueprintRegistry / 配置表 / 存档 |
 | [`engine/ai_system.md`](./engine/ai_system.md) | AI 事件系统：AIModule 事件总线（MCP 控制游戏） |
 | [`engine/gm_system.md`](./engine/gm_system.md) | GM 命令系统：*.gm.ts 自动注册 + 游戏内控制台 |
-| [`engine/navigation_system.md`](./engine/navigation_system.md) | 导航系统 |
-| [`engine/muzzle_flash_component.md`](./engine/muzzle_flash_component.md) | MuzzleFlashComponent 组件（fish 项目）：炮口闪光特效 |
+| [`engine/navigation_system.md`](./engine/navigation_system.md) | 导航系统：NavGrid 栅格阻挡表 + A\* 寻路（只算路不走路） |
 | [`engine/ursina_reference.md`](./engine/ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
 
-## 3. 编辑器模块（src/editor/ + src/components/，14 篇）
+## 3. 编辑器模块（src/editor/ + src/components/，15 篇）
 
-> **14 篇已于 2026-09-02 按新范式重写**：开篇三问 → 真实源码逐段讲解 → 关键方法速查（带行号）→ 流程影响（带文档链接）→ 踩坑清单。范本见 [core/core_system.md](./editor/core/core_system.md)，规范见 `.github/skills/skl-write-doc/SKILL.md` §3.1。
+> **15 篇全部为新范式**：开篇三问 → 真实源码逐段讲解 → 关键方法速查（带行号）→ 流程影响（带文档链接）→ 踩坑清单。范本见 [core/core_system.md](./editor/core/core_system.md)，规范见 `.github/skills/skl-write-doc/SKILL.md` §3.1。
 
 ### 3.1 core（核心与视口，4 篇）
 
@@ -66,7 +67,7 @@
 | [`asset/asset_preview_lint_system.md`](./editor/asset/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
 | [`asset/code_lint_system.md`](./editor/asset/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器 |
 
-### 3.4 ui（面板与 UI 增强，4 篇）
+### 3.4 ui（面板与 UI 增强，5 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -83,14 +84,17 @@
 | [`integration/mcp_integration.md`](./editor/integration/mcp_integration.md) | MCP 集成与调试桥：三客户端配置 / 9 个工具清单 / 多实例端口 |
 | [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 |
 
-## 4. 项目模块（src/projects/，4 篇）
+---
+
+## 4. 项目模块（src/projects/，5 篇）
 
 | 文件 | 说明 |
 |---|---|
-| [`projects/clash_master.md`](./projects/clash_master.md) | ClashMaster 项目（部落冲突风，原名 fish）：三阶段路由 / 表现层定制 / GM 命令 |
+| [`projects/clash_master.md`](./projects/clash_master.md) | ClashMaster 项目（目录仍为 fish）：register.ts 注册 + 三阶段路由 + 资产 glob 自动注册 |
 | [`projects/level_system.md`](./projects/level_system.md) | 关卡系统：HUD 双按钮 → 地图面板 → 关卡切换 → 返回基地 |
 | [`projects/battle_system.md`](./projects/battle_system.md) | 攻打战斗系统：敌方基地 / 放兵 / 兵 AI / 防御塔 / 胜负结算 |
 | [`projects/gameplay_code_standard.md`](./projects/gameplay_code_standard.md) | gameplay 代码规范：七角色职责边界与越界红线 |
+| [`projects/muzzle_flash_component.md`](./projects/muzzle_flash_component.md) | MuzzleFlashComponent 组件（fish 项目）：炮口闪光特效 |
 
 ## 5. Harness 模块（DSH 内核集成，9 篇）
 
@@ -126,6 +130,12 @@
 
 ## 统计
 
-6 个模块共 43 篇功能文档 + 1 篇元文档：总览 1 / 引擎 12 / 编辑器 14（core 4 / blueprint 2 / asset 2 / ui 4 / integration 2）/ 项目 4 / Harness 9 / 测试 3 / 元文档 1。
+6 个模块共 **47 篇功能文档 + 1 篇元文档**：总览 1 / 引擎 13 / 编辑器 15（core 4 / blueprint 2 / asset 2 / ui 5 / integration 2）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1。
 
-> **范式状态**：编辑器 14 篇已为新范式（2026-09-02），其余 29 篇仍为旧范式，按 [`doc_maintenance.md`](./doc_maintenance.md) §3 作业 C 逐步升级。
+> **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
+>
+> 本次改造相对旧体系的三处结构性变更：
+>
+> 1. **拆分**：`engine/input_physics_script_system.md`（一篇塞输入/物理/脚本三个系统）拆为 `input_system.md` / `physics_system.md` / `script_system.md` 三篇独立文档。
+> 2. **归位**：`engine/muzzle_flash_component.md` 描述的组件实际位于 `src/projects/fish/`，按「文档落点由源码目录决定」的归属铁律移入 `projects/`。
+> 3. **升级**：其余 29 篇旧范式文档（概述 → 核心类表格 → 使用方法 …）全部按新范式整体重写，重写过程逐篇重读源码核对，纠正了一批沿袭多年的事实错误（详见 [`doc_maintenance.md`](./doc_maintenance.md) §5）。

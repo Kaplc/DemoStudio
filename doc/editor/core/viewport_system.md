@@ -697,7 +697,7 @@ private restoreAllTextures() {
 | 资产预览 | 各预览编辑器（`ScenePreviewManager` / `BlueprintPreviewManager` / `UIPreviewManager`）用同样的 `autoClear=false` + `clearDepth` 叠加手法与独立 overlay 场景约定 | [资产预览与检查](../asset/asset_preview_lint_system.md) |
 | 引擎渲染 | 主场景渲染后 `UICamera` 叠加 UI 场景；`SceneRenderHost` 接口由 `PreviewSceneManager` 实现 | [引擎渲染](../../engine/rendering_system.md) |
 | 游戏流程 | `inst.tick(dt)` / `drawGizmos()` 挂在 Scene 视口 `onUpdate`；输入经 `inputSys` 进 Controller | [游戏流程](../../engine/gameflow_system.md) |
-| 输入物理脚本 | `PhySys.raycastClick` / `raycastHover` / `setupUI(uiCamera)` 的射线检测依赖视口坐标系 | [输入物理脚本](../../engine/input_physics_script_system.md) |
+| 物理系统 | `PhySys.raycastClick` / `raycastHover` / `setupUI(uiCamera)` 的射线检测依赖视口坐标系 | [物理系统](../../engine/physics_system.md) |
 | UI 组件 | 页签切换决定监听挂载与 `resize` 补调；比例下拉框 → `setTargetAspect` | [UI 组件](../ui/ui_components_system.md) |
 
 ---

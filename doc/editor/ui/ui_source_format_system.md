@@ -178,7 +178,7 @@ UA 样式表（`css/ua.ts`）**排在最前面**（`origin: 0`，作者样式 `o
 
 ### 2.4 发射：映射规则长什么样
 
-以 `emitBox`（`compile.ts:683`）为例，看一个盒子如何变成 json 节点：
+以 `emitBox`（`compile.ts:675`）为例，看一个盒子如何变成 json 节点：
 
 ```ts
     const nodeName = this.nameOf(el, box, usedNames)
@@ -453,7 +453,7 @@ runEditorAssetLint(outPath).then((code) => { process.exitCode = code })
 
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| `compileWidgetHtml(source, options?)` | `compile.ts:511` | 编译主入口，返回 `{ok, errors, warnings, doc}` | 内部重置 `nodeIdSeq`；所有错误带源行号 |
+| `compileWidgetHtml(source, options?)` | `compile.ts:503` | 编译主入口，返回 `{ok, errors, warnings, doc}` | 内部重置 `nodeIdSeq`；所有错误带源行号 |
 | `decompileWidgetJson(doc)` | `decompile.ts:74` | 反编译为规范形 HTML | 无 `sourceHash` 只警告不失败 |
 | `lintWidgetDoc(doc, filePath)` | `lintAdapter.ts:23` | 单文档 assetLint 桥接 | CLI 环境降级返回 `ok:true` |
 | `validateWidgetDoc(doc, filePath)` | `lintBridge.ts:14` | 真实 lint 实现（walk + checker 派发） | `.widget.json` 额外跑 `doc:ui-design` |
@@ -461,7 +461,7 @@ runEditorAssetLint(outPath).then((code) => { process.exitCode = code })
 | `decompileBackOnSave(widgetPath, doc)` | `uiSourceSync.ts:70` | 保存后反编译回写 + 冲突仲裁 | 失败只告警不影响保存 |
 | `sourcePathOf(widgetPath)` | `uiSourceSync.ts:61` | `.widget.json` → `.widget.html` | 大小写不敏感 |
 | `compileUiSource(source)` | `uiSourceSync.ts:114` | `compileWidgetHtml` 的薄封装 | 供编辑器编译按钮/MCP 共用 |
-| `Emitter.emitBox(...)` | `compile.ts:683` | 盒子 → json 节点（映射主干） | 尺寸用边盒；补 marker 组件 |
+| `Emitter.emitBox(...)` | `compile.ts:675` | 盒子 → json 节点（映射主干） | 尺寸用边盒；补 marker 组件 |
 | `Emitter.buildTransform(...)` | `compile.ts:1520` | 位置/尺寸/锚点反解 | absolute 走锚点，流内走本地偏移 |
 | `Emitter.emitDataComp(el, node)` | `compile.ts:1466` | `data-comp`/`data-props` 逃逸 | 同 baseClass 合并，非替换 |
 | `fnv1a(str)` | `compile.ts:70` / `uiSourceSync.ts:51` | sourceHash 指纹 | **两处独立实现，改要双边同步** |

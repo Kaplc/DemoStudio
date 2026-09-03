@@ -27,17 +27,18 @@
 ### 2.1 目录与归属
 
 ```mermaid
+```mermaid
 flowchart TD
     R["doc/README.md<br/>唯一索引"] --> O["system_overview.md<br/>架构总览"]
-    R --> E["engine/ 12 篇<br/>src/engine/"]
-    R --> ED["editor/ 14 篇<br/>src/editor/ + src/components/"]
-    R --> P["projects/ 4 篇<br/>src/projects/"]
+    R --> E["engine/ 13 篇<br/>src/engine/"]
+    R --> ED["editor/ 15 篇<br/>src/editor/ + src/components/"]
+    R --> P["projects/ 5 篇<br/>src/projects/"]
     R --> H["harness/ 9 篇<br/>DSH 集成"]
     R --> T["testing/ 3 篇<br/>Playwright"]
     ED --> C["core/ 4"]
     ED --> B["blueprint/ 2"]
     ED --> A["asset/ 2"]
-    ED --> U["ui/ 4"]
+    ED --> U["ui/ 5"]
     ED --> I["integration/ 2"]
 ```
 
@@ -53,9 +54,18 @@ flowchart TD
 
 编辑器二级子目录：`core`（核心与视口）、`blueprint`（蓝图与撤销）、`asset`（预览与检查）、`ui`（面板与 UI 增强）、`integration`（外部集成）。
 
-### 2.2 现状基线（2026-09-02）
+> **归属铁律的实际判例**：`muzzle_flash_component.md` 曾因「组件」二字被放在 `doc/engine/`，但它描述的类定义在 `src/projects/fish/gameplay/`，已于 2026-09-03 移入 `doc/projects/`。判断时只看 `class Xxx` 定义在哪个目录，不看它继承谁。
 
-6 个模块共 **43 篇**：总览 1 / 引擎 12 / 编辑器 14 / 项目 4 / Harness 9 / 测试 3。
+### 2.2 现状基线（2026-09-03）
+
+6 个模块共 **47 篇功能文档 + 1 篇元文档**：总览 1 / 引擎 13 / 编辑器 15（core 4 / blueprint 2 / asset 2 / ui 5 / integration 2）/ 项目 5 / Harness 9 / 测试 3。
+
+**全部 47 篇已为新范式**，断链 0、孤儿文档 0。核验方式见 §4。
+
+**范式状态**：46 篇**已全部升级为新范式**（2026-09-03 全量实测，5/5 要素达标、断链 0、孤儿 0）。作业 C 的存量改造已清零，后续只需对**新增文档**按新范式写、对**代码同步**时顺带维护。
+
+> 存量阶段已完成的改造：编辑器 15 篇（2026-09-02）、引擎 13 篇、项目 5 篇、Harness 9 篇、测试 3 篇、总览 1 篇（2026-09-03）。
+> 同时清理了 `input_physics_script_system.md`（已拆分为 `input_system.md` / `physics_system.md` / `script_system.md` 三篇并删除），并修复 `doc/engine/` 下 4 篇文档的源码链接深度错误 190 处。
 
 ---
 
@@ -177,6 +187,24 @@ Get-ChildItem (Join-Path $root 'editor') -Recurse -Filter *.md | ForEach-Object 
 现象：旧文档补一节"流程影响"就当完成，结果结构仍是"概述→核心类表格→…"，新人还是看不懂。
 规则：旧范式文档改造必须**整体重写**，不是追加章节。重写前必须重读源码——靠旧文档推不出代码细节。
 
+**7. 用单一关键词判定范式合规会误伤变体章节**
+
+现象：按「必须出现『关键方法速查』五个字」做合规扫描，7 篇已按新范式写就的文档被误判为不合规——它们用的是语义等价但名称不同的章节，如总览的「关键入口速查」、安装文档的「关键命令/脚本速查」、命令手册的「命令速查表」。
+原因：新范式要求的是「有速查表」这一功能要素，不是某个固定标题字符串；§3.2 骨架里也写了「章节编号可灵活，按内容需要增删」。
+规则：**合规检查用正则匹配要素族**（`(关键方法速查|方法速查|入口速查|命令速查|脚本速查|工具清单|速查表)`），不要逐字匹配单一标题。真缺要素的文档是连§1「先记住这几个文件」和「踩坑清单」都没有的那批。
+
+**8. 并行改造时让 worker 自己改索引会写出不一致的统计**
+
+现象：让十几个并行 worker 各改一篇文档、并禁止它们碰 `README.md`，最后仍有一篇（被 `system_overview` worker 顺手更新）写入了与实测不符的统计：模块篇数沿用旧值、子目录篇数漏算、把「修复链接深度」这类不存在于本次过程的动作写成已完成。
+原因：单个 worker 只掌握自己那篇的信息，没有全库视角，也无从核实别的 worker 刚刚做过什么。
+规则：**索引与统计由主控在全库实测后统一更新**，worker 一律不得改 `README.md`。统计数字必须来自 `Get-ChildItem` / `Select-String` 实测，不能沿用旧文档的既有数字。
+
+**9. 让 worker 改「PRD / 计划类」文档时，必须显式要求区分规划与实现**
+
+现象：`doc/harness/` 下 4 篇 PRD 与实施计划文档，旧版通篇用「系统会…」「模块负责…」描述尚未落地的内容，读起来像已完成系统。核实后发现 `dsh_vscode_demostudio_prd.md` 的 44 条 FR **没有一条**达成完整验收标准（根因是 `harness/vscode-ext/` 从未构建过），`dsh_data_flywheel_plan.md` 描述的三层飞轮代码已实现但运行时从未挂载激活。
+原因：PRD 是决策记录，天然用将来时；后人（含 AI）引用时把「计划要做」当成「已经做了」。
+规则：**给 PRD/计划类文档的改造任务必须显式要求新增「需求 ↔ 实现对照表」**，逐条标注已实现（附源码证据）/ 部分实现 / 未实现（附 grep 证据）。保留 PRD 原有的 FR 条款与修订历史不删减，但状态必须与仓库现状对齐。
+
 ---
 
 ## 6. 完成检查清单
@@ -203,7 +231,7 @@ Get-ChildItem (Join-Path $root 'editor') -Recurse -Filter *.md | ForEach-Object 
 | 文档与代码冲突 | **一律改文档**，代码是事实来源 | 若怀疑代码有 bug，另开议题，不在文档任务里改代码 |
 | 无法确认某 API 现状 | 不得凭印象写 | `read_file` / `grep_search` 查证；仍不确定就标注"未确认"并列出待查项 |
 | 文档描述的功能已被删除 | 删除对应文档或整节 | 同步更新 README 索引与统计 |
-| 一篇文档塞了多个系统 | 如 `input_physics_script_system.md` 含输入/物理/脚本三个系统 | 改造时拆分独立成文，更新索引 |
+| 一篇文档塞了多个系统 | 曾出现 `input_physics_script_system.md` 含输入/物理/脚本三个系统 | 改造时拆分独立成文，更新索引（该文档已于 2026-09-03 拆分为 `input_system.md` / `physics_system.md` / `script_system.md` 并删除，旧引用全部改链） |
 | 规范文件与文档现状不一致 | 以代码事实为准更新规范 | 同步检查所有 agent 定义文件是否残留旧说法 |
 | 巡检脚本要落盘 | 只能放 `cache/` 等临时目录，用完删除 | 不提交到仓库，避免污染 |
 | 篇数/分类变化 | README 统计段与模块表都要改 | 两处一起改，否则索引自相矛盾 |

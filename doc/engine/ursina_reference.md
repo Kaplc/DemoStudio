@@ -1,706 +1,234 @@
-# Ursina Engine 完整参考文档
+# Ursina API 兼容性参考（Ursina Reference）
 
-> 来源: https://www.ursinaengine.org
-> 整理日期: 2026-07-11
-> 用途: AI / 开发者快速查阅
-
----
-
-## 目录
-
-1. [安装指南](#1-安装指南)
-2. [快速入门](#2-快速入门)
-3. [Entity 基础](#3-entity-基础)
-4. [坐标系](#4-坐标系)
-5. [Ursina API](#5-ursina-api)
-6. [Entity API](#6-entity-api)
-7. [Button API](#7-button-api)
-8. [Sprite API](#8-sprite-api)
-9. [Text API](#9-text-api)
-10. [Audio API](#10-audio-api)
-11. [Camera API](#11-camera-api)
-12. [Mouse API](#12-mouse-api)
-13. [Window API](#13-window-api)
-14. [Application API](#14-application-api)
-15. [Scene API](#15-scene-api)
-16. [Color API](#16-color-api)
-17. [Vec2 / Vec3 / Vec4](#17-vec2--vec3--vec4)
-18. [Light 类型](#18-light-类型)
-19. [Mesh API](#19-mesh-api)
-20. [程序化模型](#20-程序化模型)
-21. [Prefabs](#21-prefabs)
-22. [着色器](#22-着色器)
-23. [全局变量](#23-全局变量)
-24. [工具函数](#24-工具函数)
+> **一句话定位**：这是一份 **Ursina（Python 引擎）API 的对照参考**——DemoStudio 早期编辑器由 Ursina 编写，本文件保留其 API 全貌，供设计新 API 时对齐命名与语义。
+>
+> **什么时候会用到你**：设计/评审引擎新 API 想参照成熟引擎的命名时、读历史 Ursina 代码（如遗留编辑器脚本）要查 API 时、判断"某个 Ursina 能力在 DemoStudio 里对应什么"时、排查坐标系/旋转方向差异导致的对不齐问题时。
+>
+> 代码位置：**本文档不描述源码系统**，它是外部 API 的参考资料。历史 Ursina 代码见 `editor/editor_app.py.backup`；对照的引擎侧实现见 `src/engine/`。
 
 ---
 
-## 1. 安装指南
+## 1. 先记住这几个文件
 
-```bash
-# 稳定版
-python -m pip install ursina
+| 文件 | 一句话职责 | 你要改它的场景 |
+|---|---|---|
+| [editor_app.py.backup](../editor/editor_app.py.backup) | DemoStudio 早期 Ursina 编辑器实现（唯一留存的 Ursina 代码） | 查某个 Ursina API 在本项目里被怎么用过 |
+| [SpriteComponent.ts](../../src/engine/rendering/SpriteComponent.ts) | 引擎侧 `Sprite` 对应物：2D 面片 | 对照 Ursina `Sprite` 的语义差异 |
+| [TroikaTextComponent.ts](../../src/engine/rendering/TroikaTextComponent.ts) | 引擎侧 `Text` 对应物：文本渲染 | 对照 Ursina `Text` 的语义差异 |
+| [UIButtonComponent.ts](../../src/engine/ui/UIButtonComponent.ts) | 引擎侧 `Button` 对应物：按钮状态机 | 对照 Ursina `Button` 的状态差异 |
+| [ActorUtils.ts](../../src/engine/gameflow/ActorUtils.ts) | 引擎侧 `destroy()`/`scene` 对应物 | 对照 Ursina 实体增删 |
 
-# 安装可选依赖
-pip install ursina[extras]
+**关键心智模型**：本文档是**参考资料，不是系统文档**。`src/` 下**没有任何 Ursina 兼容层**——全仓 grep `ursina` 在 `src/` 与 `scripts/` 里零命中，唯一命中是 `editor/editor_app.py.backup`（遗留备份）。所以 Ursina API **不能直接调用**，它的价值是：设计新 API 时提供一个"成熟引擎是怎么命名和拆分职责"的参照系。
 
-# GitHub 最新开发版
-python -m pip install https://github.com/pokepetter/ursina/archive/master.zip
-
-# 可编辑模式（适合修改源码）
-git clone https://github.com/pokepetter/ursina.git
-cd ursina
-python -m pip install --editable .
-```
+**第二个心智模型**：Ursina 用 `def update()` / `def input(key)` 这类**模块级函数 + 全局单例**组织；DemoStudio 用 **Actor + Component 组合 + 显式 Tick 派发**。这是两套世界观，对照时不要指望一一映射，要抓"职责"而不是"名字"。
 
 ---
 
-## 2. 快速入门
+## 2. 为什么会有这份文档：Ursina 与 DemoStudio 的关系
+
+### 2.1 历史事实
+
+DemoStudio 早期编辑器是用 Ursina 写的 Python 程序，`editor/editor_app.py.backup` 是它留下的唯一痕迹：
 
 ```python
 from ursina import *
 
-app = Ursina()
+app = Ursina(
+    title='DemoStudio Editor',
+    borderless=False,
+    vsync=True,
+    editor_ui_enabled=False,
+    development_mode=False,
+)
+window.size = window.windowed_size
+window.center_on_screen()
+```
 
-# Entity: 世界中的物体
-player = Entity(model='cube', color=color.orange, scale_y=2)
+它用 Ursina 的 `camera.ui` 归一化坐标系挂 UI，用 `window.size` 做像素换算，主循环是模块级 `update()` / `input(key)`：
 
-# update() 每帧自动调用
+```python
 def update():
-    player.x += held_keys['d'] * time.dt
-    player.x -= held_keys['a'] * time.dt
+    """每帧检测：画布动画 + 游戏进程 + MCP + 控制台"""
+    canvas_manager.update()
+    check_game()
+    check_mcp()
+    if console:
+        console.check_ipc()
+        console.update(time.dt)
+
 
 def input(key):
-    if key == 'space':
-        player.y += 1
-        invoke(setattr, player, 'y', player.y - 1, delay=.25)
-
-app.run()
+    """处理键盘输入，优先路由到控制台"""
+    global console
+    if key == '`':
+        if console:
+            console.toggle()
+        return
+    if console and console.enabled:
+        console.handle_key(key)
+        return
 ```
+
+**为什么这段代码值得看**：它解释了 DemoStudio 现在若干设计的由来——编辑器控制台用反引号切换（`shortcut-toggle-console`）、控制台优先吃键盘事件、UI 走归一化坐标系（今天的 `canvas` + 锚点体系前身）。读它能避免"重新发明一遍还发明歪了"。
+
+### 2.2 现状：Ursina 已被 Three.js + Electron 完全取代
+
+`app.run()` 启动的 Ursina 主循环，今天对应的是 `World` 的每帧 Tick；`camera.ui` 对应 `CanvasUIComponent` + `UITransformComponent`。**迁移已经完成，没有回退路径**，也不再有 Python 运行时依赖（除 `editor/` 下的 MCP 服务）。
 
 ---
 
-## 3. Entity 基础
+## 3. 对照表：Ursina API → DemoStudio 引擎
 
-### 什么是 Entity
+这是本文档的主体。左列 Ursina，右列 DemoStudio 对应物与语义差异。
 
-Entity 是世界中的"事物"——类似 Unity 的 GameObject 或 Unreal 的 Actor。可以有位置、旋转、缩放、模型、纹理、颜色、update/input 函数和脚本。
+### 3.1 实体与生命周期
 
-### Model（模型）
+| Ursina | DemoStudio | 差异 |
+|---|---|---|
+| `Entity(**kwargs)` | `Actor` 子类（`src/engine/entity/Actor.ts`） | Ursina 一个 `Entity` 类吃所有 kwarg；DemoStudio 用**组合**：Actor 挂 Component |
+| `e.enabled` | `Actor.bActive` / `Component.bEnabled` | Ursina 单开关；DemoStudio Actor 与组件各有开关，`ThreeObjectComponent.setVisible` 取两者合取 |
+| `destroy(entity, delay=0)` | `destroyActor(actor)`（`ActorUtils.ts:73`） | Ursina 支持延迟销毁；DemoStudio 无 delay 参数 |
+| `scene.entities` | `getAllActors()`（`ActorUtils.ts`） | Ursina 是属性列表；DemoStudio 是查询函数 |
+| `e.update = fn` / `def update()` | `override Tick(dt)` | Ursina 三种写法（赋值/继承/模块级）；DemoStudio **只有重写 `Tick` 一种**，且靠 `BObject.Tick` 遍历派发 |
+| `duplicate(entity)` | 无对应 | 需自行实现克隆 |
 
-内置模型: `'quad'`, `'plane'`, `'cube'`, `'sphere'`
+**最大的世界观差异**：Ursina 的 `update` 可以挂在实体上、也可以写成模块级函数（全局每帧跑一次）；DemoStudio 没有"全局 update 函数"这种东西，一切每帧逻辑都必须是某个 Actor/Component 的 `Tick`，且**只有被 World 每帧调用到的对象才会 Tick**。
 
-支持的模型文件: `.obj`, `.bam`(Panda3D), `.blend`(自动转obj), `.ursinamesh`
+### 3.2 变换与坐标系
 
-```python
-Entity(model='cube')
+| Ursina | DemoStudio | 差异 |
+|---|---|---|
+| `e.position` / `.x/.y/.z` | `Actor.setPosition(x,y,z)`（`Actor.ts:237`）、`.position` 属性 | Ursina 直接改分量即生效；DemoStudio 有 setter 方法 |
+| `e.rotation` / `.rotation_x/y/z` | `Actor.setRotation(x,y,z)`（`Actor.ts:241`） | 同上 |
+| `e.scale` / `.scale_x/y/z` | `SpriteComponent.mesh.scale` / `setSize()` | DemoStudio 的缩放是**渲染组件**的事，不是 Actor 的 |
+| `e.look_at(target)` | 无内置对应 | 需自行实现 |
+| `e.world_position` | `Actor` 世界变换经 root 矩阵推导 | 概念一致 |
+| `e.parent` | `Actor.children` / `attachTo` | Ursina 默认 `parent=scene`；DemoStudio 需显式挂 |
+
+**坐标系差异（最容易踩）**：Ursina 右手系，`x` 右、`y` 上、`z` 前。它还有一条反直觉的旋转约定：
+
+```
+从轴外部向内看：x/y 轴顺时针为正，z 轴逆时针为正
+可修改：Entity.rotation_directions = (-1, -1, 1)
 ```
 
-### Texture（纹理）
+`z` 轴与 `x`/`y` 反向，是**故意的**——为了让 2D 场景里的 `rotation_z` 表现为顺时针。DemoStudio 走 Three.js 标准右手系，没有这个反转。**从 Ursina 移植旋转代码时，`z` 分量必须取反**，否则炮台转向、飞船倾斜全都是反的。
 
-```python
-Entity(model='cube', texture='texture_name')
-Entity(model='cube', texture=e1.texture)       # 另一个纹理对象
-Entity(model='cube', texture=Texture(PIL.Image.new(...)))  # PIL纹理
-Entity(model='cube', texture='movie.mp4')      # 视频纹理
+UI 坐标系也不同：Ursina 的 `camera.ui` 是归一化 `-0.5 ~ 0.5`（`window.right = Vec2(0.5*aspect, 0)`）；DemoStudio 用 `canvas="宽x高"` 声明**像素画布**，编译期换算成米制（见 [UI 源格式](../editor/ui/ui_source_format_system.md)）。
 
-# Sprite: 自动适配纹理尺寸的 2D 精灵
-s = Sprite('texture_name')
-print(s.aspect_ratio)
-```
+### 3.3 渲染与控件
 
-### Color（颜色）
+| Ursina | DemoStudio | 差异 |
+|---|---|---|
+| `Sprite(texture)` | `SpriteComponent`（`rendering/SpriteComponent.ts`） | Ursina 自动适配纹理尺寸；DemoStudio 共享单位几何 + `scale`，需显式尺寸 |
+| `Text(text)` | `TroikaTextComponent`（`rendering/TroikaTextComponent.ts:66`） | Ursina 父级默认 `camera.ui`；DemoStudio 挂 Actor |
+| `Button(text, ...)` | `UIButtonComponent`（`ui/UIButtonComponent.ts:41`） | 两者都有 hover/pressed 状态机 |
+| `e.color = color.red` | `SpriteComponent.setColor()` / 材质 `color` | Ursina 有 `hsv()`/`rgb32()`/`hex()` 全家桶 |
+| `e.texture` | `SpriteComponent.setTexture()` | DemoStudio 传路径走 `loadTexture` 缓存 |
+| `e.animate('x', v, duration)` | 无内置补间 | 需用 Tween/脚本自行实现 |
+| `e.shader = ...` | 无对应（材质由组件管理） | — |
 
-```python
-e.color = color.red                    # 预设颜色
-e.color = hsv(120, .5, .5)             # HSV (0-1)
-e.color = rgb(.8, .1, 0)              # RGB (0-1)
-e.color = rgb32(16, 128, 255)         # RGB (0-255)
-e.color = '#aabbcc'                    # Hex
-e.color = e.color.tint(.1)            # 调亮
-e.color = color.random_color()        # 随机
-e.color = lerp(color.red, color.green, .5)  # 插值
-```
+**按钮状态机的关键差异**：Ursina 的 `Button` 有 `highlight_color`/`pressed_color`/`highlight_scale`/`pressed_scale`/声音等一整套状态配置。DemoStudio 的 `UIButtonComponent` 有状态机，但**状态色是通过编译期 CSS `:hover/:active/:disabled` 写进 `UIScript.args` 透传的**（见 [UI 源格式](../editor/ui/ui_source_format_system.md)），没有运行时 API 去设 `highlight_color`。
 
-### Position（位置）
+### 3.4 输入
 
-```python
-e.position = Vec3(0, 0, 0)
-e.position = (0, 0, 0)
-e.x = 0   # 单独设置 x/y/z/e
-e.world_position = Vec3(0, 0, 0)  # 世界坐标（忽略父级）
-```
+| Ursina | DemoStudio | 差异 |
+|---|---|---|
+| `held_keys['d']` | 输入系统状态查询（见 [输入系统](./input_system.md)） | Ursina 是全局 dict；DemoStudio 走 InputComponent/InputSys |
+| `def input(key)` | 输入事件回调 | Ursina 模块级函数；DemoStudio 由 PlayerController/组件接收 |
+| `mouse.hovered_entity` | `CanvasUIComponent` 的 hitTest | 概念对应，实现不同 |
+| `input_handler.bind('z','w')` | 输入映射配置 | 概念对应 |
 
-### Rotation（旋转）
-
-```python
-e.rotation = (0, 0, 0)
-e.rotation_y = 90
-e.look_at(target)                   # 看向目标
-e.look_at(target, axis='up')        # 指定 up 轴
-```
-
-### Scale（缩放）
-
-```python
-e = Entity(model='cube', scale=(3, 1, 1))
-```
-
-### Update（每帧调用）
-
-三种方式:
-
-```python
-# 方式1: 赋值
-e = Entity()
-def my_update(): e.x += 1 * time.dt
-e.update = my_update
-
-# 方式2: 继承
-class Player(Entity):
-    def update(self):
-        self.x += 1 * time.dt
-
-# 方式3: 模块顶层函数
-def update():
-    print('update')
-```
-
-### Input（输入处理）
-
-```python
-class Player(Entity):
-    def input(self, key):
-        if key == 'w': self.position += self.forward
-        if key == 'd': self.animate('rotation_y', self.rotation_y + 90, duration=.1)
-```
-
-### Mouse Input（鼠标输入）
-
-需要 Entity 有 collider。
-
-```python
-mouse.hovered_entity     # 鼠标下的实体
-my_entity.hovered        # 是否被悬停
-
-# 事件回调（需要 collider）
-on_click()
-on_double_click()
-on_mouse_enter()
-on_mouse_exit()
-```
-
-### 魔法函数
-
-```python
-on_enable()   # 启用时
-on_disable()  # 禁用时
-on_destroy()  # 销毁时
-```
+Ursina 的 `held_keys` 是**全局字典**，任何地方都能读；DemoStudio 的输入状态不通过全局单例暴露，这是为了避免"任何代码都能改输入状态"的耦合。
 
 ---
 
-## 4. 坐标系
+## 4. 关键方法速查
 
-### Entity 坐标系 (右手系)
+Ursina 侧是外部 API（无行号）；DemoStudio 侧给真实位置，便于对照查阅。
 
-```
-         y (up)
-         |
-         |
-  (forward) z
-         \ |
-          \|
-           *---------- x (right)
-```
-
-- **x**: 右 (right)    **y**: 上 (up)    **z**: 前 (forward)
-
-### UI 坐标系 (归一化, -0.5 ~ 0.5)
-
-```
-(-0.5, 0.5)  top_left          top_right  (0.5, 0.5)
-                  |            |
-      left ------ (0,0) ------ right
-                  |            |
-(-0.5, -0.5) bottom_left     bottom_right (0.5, -0.5)
-```
-
-- `window.right` = `Vec2(0.5 * window.aspect_ratio, 0)`
-- `camera.ui` 是一个 Entity，可移动和缩放
-
-### 旋转方向
-
-从轴外部向内看：x/y 轴顺时针为正，z 轴逆时针为正（后者是故意的——2D 中 `rotation_z` 顺时针）。
-可修改：`Entity.rotation_directions = (-1, -1, 1)`
-
-### Origin（原点）
-
-控制模型的定位点（锚点）。UI 中尤其有用。
-
-```
-origin=(-.5,.5) 左上角      origin=(0,0) 中心
-+----0----+                 0---------+
-|         |                 |         |
-|         |   vs            |         |
-|         |                 |         |
-+---------+                 +---------+
-```
+| DemoStudio 方法 | 位置 | 对应 Ursina | 注意 |
+|---|---|---|---|
+| `Actor.setPosition(x,y,z)` | `Actor.ts:237` | `e.position` / `e.x/.y/.z` | 有独立 setter，非纯属性写 |
+| `Actor.setRotation(x,y,z)` | `Actor.ts:241` | `e.rotation` / `e.rotation_z` | **旋转 z 方向与 Ursina 相反** |
+| `Actor.Tick(dt)` | `Actor.ts:97` | `def update()` / `e.update` | 递归子 Actor |
+| `BObject.Tick(dt)` | `BObject.ts:49` | `def update()`（模块级） | 遍历所有 `bEnabled` 组件派发 |
+| `SpriteComponent.setOpacity(o)` | `SpriteComponent.ts:71` | `e.color` 的 alpha | `<1` 自动开 `transparent` |
+| `SpriteComponent.setTexture(t)` | `SpriteComponent.ts:77` | `e.texture` | 传 string 才走缓存 |
+| `SpriteComponent.mesh` | `SpriteComponent.ts:47` | `e`（Entity 自身即渲染物） | DemoStudio 渲染物在组件里 |
+| `destroyActor(actor)` | `ActorUtils.ts:73` | `destroy(entity)` | 无 delay 参数 |
+| `findActor(type)` | `ActorUtils.ts:96` | `scene.entities` 过滤 | 按类型查 |
+| `UIButtonComponent` | `UIButtonComponent.ts:41` | `Button(...)` | 状态色走编译期 CSS 透传 |
+| `TroikaTextComponent` | `TroikaTextComponent.ts:66` | `Text(...)` | — |
+| `UITransformComponent` | `UITransformComponent.ts:56` | `e.origin` / UI 锚点 | 九宫格锚点体系 |
+| `CanvasUIComponent` | `CanvasUIComponent.ts:69` | `camera.ui` | UI 层承载与 hitTest |
 
 ---
 
-## 5. Ursina API
+## 5. 流程影响：牵动哪些功能
 
-```python
-Ursina(title='ursina', icon='textures/ursina.ico', borderless=False,
-       fullscreen=False, size=None, forced_aspect_ratio=None, position=None,
-       vsync=True, editor_ui_enabled=True, window_type='onscreen',
-       development_mode=True, render_mode=None, show_ursina_splash=False, **kwargs)
-```
+Ursina 已不参与运行时，它的影响是**设计参考层面**的：影响"新 API 怎么命名/拆分"，不影响任何运行时链路。
 
-- `.mouse` — 鼠标对象
-- `run(info=True)` — 启动主循环
-- `step()` — 手动控制更新循环
-- `input(key)`, `input_up(key)`, `input_hold(key)` — 输入处理
+### 上游：谁驱动它
 
----
+| 上游 | 怎么驱动 | 相关文档 |
+|---|---|---|
+| 引擎 API 设计评审 | 新 API 命名/职责拆分时参照本文档的成熟引擎做法 | [系统总览](../system_overview.md) |
+| 历史代码阅读 | 读 `editor_app.py.backup` 时查 API 语义 | [编辑器核心](../editor/core/core_system.md) |
+| 坐标系/旋转约定讨论 | 判断与 Ursina 差异，避免移植出错 | [实体体系](./entity_system.md) |
 
-## 6. Entity API
+### 下游：它波及谁
 
-```python
-Entity(add_to_scene_entities=True, enabled=True, **kwargs)
-Entity.rotation_directions = (-1, -1, 1)
-```
-
-### 属性
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `.enabled` | bool | 禁用后不可见且不运行代码 |
-| `.model` | str/Mesh | 模型名或 Mesh 对象 |
-| `.color` | Color | 颜色 |
-| `.eternal` | bool | scene.clear() 时不销毁 |
-| `.parent` | Entity | 父级 (默认 scene) |
-| `.position` / `.x` / `.y` / `.z` | Vec3/float | 位置 |
-| `.world_position` / `.world_x/y/z` | Vec3/float | 世界坐标 |
-| `.rotation` / `.rotation_x/y/z` | Vec3/float | 旋转 |
-| `.world_rotation` | Vec3 | 世界旋转 |
-| `.scale` / `.scale_x/y/z` | Vec3/float | 缩放 |
-| `.world_scale` | Vec3 | 世界缩放 |
-| `.quaternion` | Quat | 四元数 |
-| `.forward` / `.back` / `.right` / `.left` / `.up` / `.down` | Vec3 | 方向向量 |
-| `.screen_position` | Vec3 | UI 空间位置 |
-| `.texture` | Texture | 纹理 |
-| `.texture_scale` | Vec2 | 纹理重复次数 |
-| `.texture_offset` | Vec2 | 纹理偏移 |
-| `.shader` | Shader | 着色器 |
-| `.collider` | str/None | `'box'/'sphere'/'capsule'/'mesh'` |
-| `.collision` | bool | 切换碰撞 |
-| `.hovered` | bool | 鼠标悬停 |
-| `.visible` | bool | 可见性 |
-| `.unlit` | bool | 忽略光照 |
-| `.billboard` | bool | 始终面向相机 |
-| `.wireframe` | bool | 线框渲染 |
-| `.alpha` | float | 透明度快捷方式 |
-| `.double_sided` | bool | 双面渲染 |
-| `.origin` / `.origin_x/y/z` | Vec3 | 原点偏移 |
-| `.always_on_top` | bool | 最前显示 |
-| `.scripts` | list | 脚本列表 |
-| `.animations` | list | 动画列表 |
-| `.children` | list | 子级列表 |
-| `.on_click` | callable | 点击回调 |
-
-### 方法
-
-| 方法 | 说明 |
-|------|------|
-| `.enable()` / `.disable()` | 启用/禁用 |
-| `.look_at(target, axis='forward', up=None)` | 看向目标 |
-| `.look_at_2d(target, axis='z')` | 2D 看向 |
-| `.look_at_xy(target)` / `.look_at_xz(target)` | 看向 |
-| `.animate(name, value, duration=.1, curve=..., loop=False, ...)` | 属性动画 |
-| `.animate_position(value, duration=.1)` | 位置动画 |
-| `.animate_rotation(value, duration=.1)` | 旋转动画 |
-| `.animate_scale(value, duration=.1)` | 缩放动画 |
-| `.animate_color(value, duration=.1)` | 颜色动画 |
-| `.fade_out(value=0, duration=.5)` | 淡出 |
-| `.fade_in(value=1, duration=.5)` | 淡入 |
-| `.blink(value=color.clear, duration=.1)` | 闪烁 |
-| `.shake(duration=.2, magnitude=1)` | 震动 |
-| `.add_script(class_instance)` | 添加脚本 |
-| `.rotate(value, relative_to=None)` | 绕局部轴旋转 |
-| `.intersects(traverse_target=scene, ...)` | 碰撞检测 |
-| `.combine(analyze=False, auto_destroy=True)` | 合并网格 |
-| `.get_position(relative_to=scene)` | 获取相对位置 |
-| `.set_position(value, relative_to=scene)` | 设置相对位置 |
-| `.get_shader_input(name)` | 获取着色器输入 |
-| `.set_shader_input(name, value)` | 设置着色器输入 |
-| `.has_ancestor(entity)` | 是否有某祖先 |
-| `.get_changes(target_class=None)` | 获取变更字典 |
+| 下游功能 | 波及点 | 相关文档 |
+|---|---|---|
+| 实体/组件体系 | Actor + Component 组合 vs Ursina 单 Entity；Tick 派发机制 | [实体体系](./entity_system.md) |
+| 渲染系统 | `Sprite`/`Text` 的引擎对应物与"渲染物挂在组件里"的约定 | [渲染系统](./rendering_system.md) |
+| 引擎 UI 系统 | `camera.ui` → `CanvasUIComponent` + 锚点体系；按钮状态机 | [引擎 UI 系统](./ui_system.md) |
+| 输入系统 | `held_keys` 全局 dict → 受控输入状态，不暴露全局单例 | [输入系统](./input_system.md) |
+| UI 源格式 | Ursina 归一化坐标 → `canvas` 像素画布 + 编译期米制换算 | [UI 源格式](../editor/ui/ui_source_format_system.md) |
+| 游戏流 | Ursina `app.run()` 主循环 → `World` 每帧 Tick | [游戏流系统](./gameflow_system.md) |
 
 ---
 
-## 7. Button API
+## 6. 踩坑清单（都是真踩过的）
 
-```python
-Button(text='', parent=camera.ui, model=Default, radius=.1, origin=(0,0),
-       text_origin=(0,0), text_size=1, color=Default, collider='box',
-       highlight_scale=1, pressed_scale=1, disabled=False, **kwargs)
-```
+**1. 以为 Ursina API 能在 DemoStudio 里直接调用**
 
-- `.text` / `.text_color` / `.text_size` / `.text_origin`
-- `.icon` / `.icon_world_scale`
-- `.highlight_color` (默认 `.tint(.2)`) / `.pressed_color` (默认 `.tint(-.2)`)
-- `.highlight_scale` / `.pressed_scale`
-- `.highlight_sound` / `.pressed_sound`
-- `.disabled`
-- `.on_click` / `.on_mouse_enter()` / `.on_mouse_exit()`
-- `.fit_to_text(radius=.1, padding=...)`
+现象：照着本文档写 `Entity(model='cube')` 或 `destroy(e)`，编译/运行报错。原因：`src/` 与 `scripts/` 下全仓 grep `ursina` **零命中**，不存在任何兼容层；本文档是外部 API 参考。规则：Ursina API 只能作为**设计参照**，不能当调用清单；要能力先查右列的引擎对应物。
 
----
+**2. 照抄 Ursina 的 `rotation_z`，转向全反了**
 
-## 8. Sprite API
+现象：从 Ursina 移植旋转逻辑后，物体绕 z 轴转向相反。原因：Ursina 刻意让 z 轴逆时针为正（为让 2D 的 `rotation_z` 呈顺时针），`Entity.rotation_directions = (-1,-1,1)`；DemoStudio 走 Three.js 标准约定无此反转。规则：移植旋转代码时 **z 分量取反**，`x`/`y` 保持不变。
 
-```python
-Sprite(texture=None, ppu:int=None, **kwargs)
-Sprite.ppu = 100  # 类属性（每单位像素数）
-```
-本质是 `model='quad'` 的 Entity，自动适配纹理尺寸。`.update_scale()` — 更改纹理后刷新缩放。
+**3. 以为"全局 update 函数"在 DemoStudio 里也存在**
 
----
+现象：想写一个模块级 `update()` 做全局每帧逻辑，发现永不执行。原因：Ursina 支持模块级 `def update()` 自动每帧调用；DemoStudio 没有这回事，一切每帧逻辑必须是 Actor/Component 的 `Tick`，且由 `BObject.Tick` 遍历派发。规则：需要全局每帧逻辑就挂在 GameMode/GameInstance 上重写入 `Tick`。
 
-## 9. Text API
+**4. 以为 UI 坐标可以直接套用 Ursina 的 `-0.5 ~ 0.5`**
 
-```python
-Text(text='', **kwargs)
-Text.size = .025      # 类属性，默认文本大小
-```
+现象：按 Ursina 归一化坐标写 UI，元素位置全错。原因：Ursina 的 `camera.ui` 是归一化 `-0.5~0.5`；DemoStudio 用 `<widget canvas="宽x高">` 声明**像素画布**，编译期按根画布比例换算成米制。规则：UI 一律按 `canvas` 声明的像素尺寸写（见 [UI 源格式](../editor/ui/ui_source_format_system.md)），不要用归一化数值。
 
-- 父级默认 `camera.ui`
-- `.text` / `.color` / `.font` / `.size` / `.line_height`
-- `.wordwrap` — 字符数换行
-- `.width` / `.height` / `.lines`
-- `.background` — 背景
-- `.appear(speed=.025)` — 逐字出现动画
-- 支持 HTML 标签: `<red>`, `<blue>`, `<scale:2>`, `<image:texture>`
+**5. 以为 `destroy()` 支持延迟销毁**
+
+现象：移植 `destroy(entity, delay=0.5)` 后参数被忽略。原因：`destroyActor(actor)` 没有 delay 参数。规则：需要延迟销毁用定时器或延迟到下一帧的显式逻辑。
+
+**6. 把 Ursina 的 `e.scale` 直接映射到 Actor**
+
+现象：找 Actor 的 `scale` 属性找不到，或设了没效果。原因：Ursina 的 Entity 自身即渲染物，`scale` 在实体上；DemoStudio 的缩放属于**渲染组件**（`SpriteComponent.mesh.scale` / `setSize()`），Actor 只管位置旋转。规则：改视觉缩放找渲染组件，不要找 Actor。
 
 ---
 
-## 10. Audio API
-
-```python
-Audio(sound_file_name='', volume=1, pitch=1, balance=0, loop=False,
-      loops=1, autoplay=True, auto_destroy=False, **kwargs)
-Audio.volume_multiplier = .5
-```
-
-- `.play()` / `.pause()` / `.resume()` / `.stop()`
-- `.fade()` / `.fade_in()` / `.fade_out()`
-- `.length` / `.playing` / `.time`
-
----
-
-## 11. Camera API
-
-**Camera 继承自 Entity**，因此拥有 Entity 的所有属性/方法（位置、旋转、缩放、look_at 等）。
-
-```python
-camera.position = (x, y, z)      # 相机位置
-camera.rotation = (x, y, z)      # 整体旋转
-camera.rotation_x = 35           # 俯仰角 (pitch)
-camera.rotation_y = 45           # 偏航角 (heading)
-camera.rotation_z = 0            # 翻滚角 (roll)
-
-# 注意: Ursina 中 rotation 映射到 Panda3D 的 HPR:
-#   rotation_y → heading (偏航)
-#   rotation_x → pitch (俯仰)
-#   Actual mapping: Entity.setHpr(Vec3(value[1], value[0], value[2]) * (-1,-1,1))
-
-camera.look_at(target)           # 看向目标 (继承自 Entity)
-camera.fov = 30                  # 视野（透视时为水平 FOV）
-camera.orthographic = False      # 正交模式
-camera.clip_plane_near = 0.1     # 近裁剪面
-camera.clip_plane_far = 10000    # 远裁剪面
-camera.aspect_ratio              # 宽高比（只读）
-camera.shader                    # 后处理着色器
-camera.ui                        # UI 层（Entity）
-camera.overlay                   # 叠加层
-camera.set_shader_input(name, value)  # 设置后处理参数
-```
-
----
-
-## 12. Mouse API
-
-- `.position` / `.x` / `.y` — 鼠标位置
-- `.delta` / `.velocity` — 移动量
-- `.left` / `.right` / `.middle` — 按钮状态
-- `.hovered_entity` — 悬停实体
-- `.normal` / `.world_normal` — 表面法线
-- `.point` / `.world_point` — 命中点
-- `.visible` / `.locked` — 可见性/锁定
-- `.collision` / `.collisions` — 碰撞信息
-
----
-
-## 13. Window API
-
-- `.title` / `.icon` / `.color`
-- `.size` / `.position` / `.aspect_ratio`
-- `.fullscreen` / `.borderless` / `.vsync`
-- `.left` / `.right` / `.top` / `.bottom` / `.center`
-- `.top_left` / `.top_right` / `.bottom_left` / `.bottom_right`
-- `.forced_aspect_ratio` / `.always_on_top`
-- `.render_mode` — `'default'/'wireframe'/'colliders'/'normals'`
-- `.center_on_screen()` / `.next_render_mode()`
-
----
-
-## 14. Application API
-
-```python
-application.paused = False      # 全局暂停
-application.time_scale = 1      # 时间缩放
-application.development_mode    # 开发模式
-application.quit()              # 退出
-application.pause() / .resume()
-```
-
----
-
-## 15. Scene API
-
-```python
-scene.entities = []             # 所有实体
-scene.collidables = set()       # 可碰撞实体
-scene.fog_color                 # 雾颜色
-scene.fog_density               # 指数密度(float)或线性密度((start, end))
-scene.clear()                   # 销毁所有非 eternal 实体
-```
-
----
-
-## 16. Color API
-
-### 预定义颜色
-
-`color.white`, `.smoke`, `.light_gray`, `.gray`, `.dark_gray`, `.black`,
-`.red`, `.orange`, `.yellow`, `.lime`, `.green`, `.turquoise`, `.cyan`,
-`.azure`, `.blue`, `.violet`, `.magenta`, `.pink`, `.brown`, `.olive`,
-`.peach`, `.gold`, `.salmon`, `.clear`
-
-带透明度: `.white10/33/50/66`, `.black10/33/50/66/90`
-
-### 函数
-
-| 函数 | 说明 |
-|------|------|
-| `hsv(h, s, v, a=1)` | 创建 HSV 颜色 |
-| `rgb(r, g, b)` | RGB (0-1) |
-| `rgba(r, g, b, a)` | RGBA (0-1) |
-| `rgb32(r, g, b)` | RGB (0-255) |
-| `rgba32(r, g, b, a=255)` | RGBA (0-255) |
-| `hex(value)` | 十六进制颜色 |
-| `random_color()` | 随机颜色 |
-| `tint(color, amount=.2)` | 调亮 |
-| `lerp(a, b, t)` | 颜色插值 |
-| `inverse(color)` | 反转色 |
-| `brightness(color)` | 亮度值 |
-| `rgb_to_hex(r, g, b, a=1)` | 转十六进制 |
-
----
-
-## 17. Vec2 / Vec3 / Vec4
-
-```python
-Vec2(x, y)     # .x .y .X .Y .yx
-Vec3(x, y, z)  # .x .y .z .xy .yx .xz .yz .X .Y .Z
-Vec4(x, y, z, w)
-```
-
-支持运算: `+`, `-`, `*`, `/`, `round()`, `lerp()`
-
----
-
-## 18. Light 类型
-
-```python
-# 方向光（默认投射阴影）
-DirectionalLight(shadows=True, **kwargs)
-.look_at(Vec3(-1, -2, -1))
-.shadow_map_resolution = Vec2(1024, 1024)
-.update_bounds(entity=scene)
-
-# 环境光
-AmbientLight(**kwargs)
-
-# 点光源 / 聚光灯
-PointLight(**kwargs)
-SpotLight(**kwargs)
-```
-
----
-
-## 19. Mesh API
-
-```python
-Mesh(vertices=[], triangles=[], colors=[], uvs=[], normals=[],
-     static=True, mode='triangle', thickness=1, ...)
-```
-
-- mode: `'triangle'`, `'line'`, `'point'`, `'ngon'`
-- `.generate()` / `.save()` / `.clear()` / `.generate_normals()`
-- `.colorize(left=..., right=..., up=..., down=...)`
-
----
-
-## 20. 程序化模型
-
-```python
-Quad(segments=0, ...)                         # 四边形
-Circle(resolution=16, radius=.5, mode='ngon') # 圆形
-Plane(subdivisions=(1,1))                     # 平面
-Grid(width, height, mode='line')              # 网格
-Cone(resolution=4, radius=.5, height=1)       # 圆锥
-Cylinder(resolution=8, radius=.5, height=1)   # 圆柱
-Pipe(base_shape=Quad, path=..., thicknesses=...)  # 管道
-Terrain(heightmap='', height_values=None)     # 地形
-```
-
----
-
-## 21. Prefabs
-
-### Sky
-```python
-Sky(**kwargs)  # 天空球
-Sky.instances = []  # 所有天空实例
-```
-
-### EditorCamera
-```python
-EditorCamera(**kwargs)
-# 按住右键拖动旋转，滚轮缩放
-# .rotate_key='right mouse', .zoom_speed=1.25
-# 快捷键: shift+p 正交切换, shift+f 聚焦
-```
-
-### FirstPersonController
-```python
-FirstPersonController(**kwargs)
-.speed=5, .height=2, .mouse_sensitivity=Vec2(40,40)
-.gravity=1, .jump_height=2, .max_jumps=1
-```
-
-### PlatformerController2d
-```python
-PlatformerController2d(**kwargs)
-.walk_speed=8, .jump_height=4, .max_jumps=1, .gravity=1
-```
-
-### Animation
-```python
-Animation(name, fps=12, loop=True)      # 2D 帧动画（图片序列或 GIF）
-FrameAnimation3d(name, fps=12)          # 3D 帧动画（OBJ 序列）
-SpriteSheetAnimation(texture, animations, tileset_size=[4,1])  # 精灵表动画
-Animator(animations={'idle': ..., 'walk': ...}, start_state='idle')
-```
-
-### Conversation (对话系统)
-```python
-Conversation(variables_object=Empty)
-.start_conversation(text)  # 启动对话树
-# 支持带 * 选项的对话树语法
-```
-
----
-
-## 22. 着色器
-
-### 实体着色器
-
-| 名称 | 说明 | 关键输入 |
-|------|------|----------|
-| `unlit_shader` | 无光照（默认） | texture_scale, texture_offset |
-| `lit_with_shadows_shader` | 光照+阴影 | shadow_color, shadow_blur |
-| `matcap_shader` | Matcap材质 |
-| `colored_lights_shader` | 彩色光照 | top/bottom/left/right/front/back_color |
-| `fresnel_shader` | 菲涅尔边缘光 | fresnel_color, fresnel_texture |
-| `triplanar_shader` | 三平面贴图 | side_texture, side_texture_scale |
-| `normals_shader` | 显示法线 |
-
-### 屏幕空间(后处理)着色器
-
-| 名称 | 说明 |
-|------|------|
-| `camera_grayscale_shader` | 灰度 |
-| `camera_contrast_shader` | 对比度 |
-| `camera_vertical_blur_shader` | 垂直模糊 |
-| `pixelation_shader` | 像素化 |
-| `camera_outline_shader` | 轮廓描边 |
-| `fxaa` | 抗锯齿 |
-| `ssao` | 环境光遮蔽 |
-
-用法: `camera.shader = camera_grayscale_shader`
-
----
-
-## 23. 全局变量
-
-```python
-time.dt        # 增量时间（秒）
-time.time      # 程序运行时间（方法，需要调用）
-
-held_keys      # dict，记录当前按下的键
-# 如: held_keys['d'] -> 0或1
-# held_keys['w'] / 'a' / 's' / 'up arrow' / 'down arrow'
-# held_keys['left mouse down'] / 'right mouse down'
-
-mouse          # 鼠标对象
-camera         # 相机对象
-window         # 窗口对象
-scene          # 场景对象
-application    # 应用对象
-```
-
-### input_handler
-
-```python
-input_handler.bind('z', 'w')        # z 键注册为 w
-input_handler.unbind('z')           # 解除绑定
-input_handler.rebind('to_key', 'from_key')
-```
-
----
-
-## 24. 工具函数
-
-```python
-destroy(entity, delay=0)                      # 销毁实体
-invoke(function, *args, delay=0)              # 延迟调用
-Func(func, *args, **kwargs)                   # 函数包装器（用于 Sequence）
-Sequence(func1, delay, Func(...), loop=True)  # 序列动作
-Wait(duration)                                # 等待
-duplicate(entity, **kwargs)                   # 复制实体
-
-# 射线/碰撞检测
-raycast(origin, direction, distance=9999, ignore=[], debug=False) -> HitInfo
-boxcast(origin, direction, distance=9999, thickness=(1,1), ...) -> HitInfo
-terraincast(world_position, terrain_entity, height_values) -> float
-
-# 数学工具
-distance(a, b)
-distance_2d(a, b)
-lerp(a, b, t)
-clamp(value, floor, ceiling)
-round_to_closest(value, step)
-rotate_around_point_2d(point, origin, deg)
-
-# 工具
-chunk_list(list, size)
-flatten_list(list)
-enumerate_2d(list2d)
-
-# 加载模型/纹理
-load_model(name, folder=..., file_types=..., use_deepcopy=False)
-load_texture(name, path=..., filtering='default')
+## 7. 边界条件
+
+| 条件 | 行为 | 怎么应对 |
+|---|---|---|
+| 想直接调用 Ursina API | 不存在兼容层，全仓 `src/` grep 无命中 | 查 §3 对照表找引擎对应物 |
+| 移植 Ursina 旋转代码 | `z` 轴方向与 Ursina 相反，不取反则转向错误 | `z` 分量取反，`x`/`y` 不变 |
+| 需要"全局每帧函数" | 无此机制 | 挂 GameMode/GameInstance 重写 `Tick` |
+| 需要延迟销毁 | `destroyActor` 无 delay 参数 | 自行用定时器实现 |
+| 需要属性补间动画 | 引擎无 `animate()` 对应物 | 用 Tween/脚本在 `Tick` 里插值 |
+| 需要 Ursina 的 `highlight_color` 等按钮状态配置 | 无运行时 API | 用 CSS `:hover/:active/:disabled` 在编译期声明 |
+| 需要 `e.combine()` 合并网格 | 无对应 | 需自行实现 |
+| UI 坐标想用归一化值 | DemoStudio 用像素 canvas，不认归一化 | 按 `canvas` 声明的像素尺寸写 |
+| 需要 `look_at` | 无内置对应 | 自行实现朝向计算 |
+| 查某个 Ursina API 本项目是否用过 | 只有 `editor_app.py.backup` 一个文件 | 在该文件里 grep |

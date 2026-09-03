@@ -1,241 +1,417 @@
-# 攻打战斗系统（Battle System）
+# 战斗系统（Battle）
 
-> fish 项目（ClashMaster，部落冲突风格）的“攻打其他部落”战斗玩法：基地训练军队 → 地图面板选关卡 → 进入战斗场景放兵攻打敌方基地 → 防御塔反击 / 兵拆建筑（受击显示血条）→ 摧毁城镇大厅胜利或军队全灭失败 → 掠夺金币+药水实时累计+飞行动画 → 结算一次性入账 → 结算面板回基地。
-> 代码位置：`src/projects/fish/gameplay/`（`level/FishLevelGameMode.ts` 战斗 GameMode、`battle/` 兵/弹丸/HUD/结算脚本、`base/ClashBuildingTypes.ts` 建筑类型表、`common/comp/` 资源/训练/血条组件、`common/fx/` 战斗特效、`FishGameInstance.ts` 阶段路由）、`src/projects/fish/asset/`（`fish_level*.scene.json` 战斗场景、`blueprints/ui/battle_*.widget.json` 战斗 UI）。
-> 相关文档：[`level_system.md`](./level_system.md)（关卡入口与切换流程，本文档承接其"关卡场景"环节）、[`../engine/gameflow_system.md`](../engine/gameflow_system.md)、[`../engine/ui_system.md`](../engine/ui_system.md)、[`../engine/input_physics_script_system.md`](../engine/input_physics_script_system.md)。
+> **一句话定位**：战斗系统把「关卡场景」改造成一场攻打战——场景资产里的敌方基地是关卡内容，玩家点兵卡选兵、点战场放兵，兵自动寻路拆建筑，防御塔自动索敌开火，打到时限或摧毁城镇大厅后按摧毁率结算星级与掠夺。
+>
+> **什么时候会用到你**：改放兵手感（长按节奏 / 放置校验）、调兵种 AI（索敌偏好 / 寻路 / 攻击节奏）、调防御塔数值、加战斗计时或胜负规则、排查「兵不动 / 放不出兵 / 掠夺数字不跳 / 结算不来」。
+>
+> 代码位置：`src/projects/fish/gameplay/battle/`、`src/projects/fish/gameplay/level/`
 
-## 1. 概述
+---
 
-战斗系统把 3 个空壳关卡场景改造为**战斗场景**（场景资产内置敌方基地，随 `SwitchToScene` 加载），关卡玩法 = 战斗玩法：玩家在基地兵营训练军队（金币扣费 + 训练倒计时），通过地图面板点关卡进入战斗，底部兵种卡片选兵 + 点战场放置，兵自动直线移动攻击敌方建筑（被城墙挡则攻击城墙、飞行兵越过城墙），敌方防御塔在射程内自动攻击最近兵（弹丸命中扣血）。**掠夺实时化**：兵每次伤害按比例实时累计掠夺（金矿→金币、水库→圣水），顶部战利品栏数字实时跳变，彩色小圆点从建筑飞向顶部栏；战斗结束一次性入账并弹出结算面板。**兵也有血条**：受击显示、1.5 秒无受击隐藏。
+## 1. 先记住这几个文件
 
-关键角色与职责：
+| 文件 | 一句话职责 | 你要改它的场景 |
+|---|---|---|
+| [FishLevelGameMode.ts](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 战斗权威：收集敌方建筑、放兵校验、伤害与掠夺、防御塔开火、计时与结算 | 改战斗规则 / 数值 / 结算条件 |
+| [FishLevelPlayerController.ts](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) | 玩家输入：左键放兵 + 长按连续放兵 + 鼠标位置转发相机云台 | 改放兵手感、输入绑定 |
+| [TroopMoveComponent.ts](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts) | 兵移动：A* 寻路调用点、阻挡改目标、卡死重算、飞行兵直线 | 兵走位异常、绕不过墙 |
+| [BattleProjectileActor.ts](../../src/projects/fish/gameplay/battle/BattleProjectileActor.ts) | 弹丸：池化直线飞行，命中建筑或兵后扣血并归还池 | 改弹道 / 命中判定 |
 
-| 角色 | 职责 |
-|---|---|
-| `FishGameInstance` | 阶段路由（`enterLevel` / `returnToBase`）、资源组件（金币+药水）、训练组件持有者、`window.__fishBattle` 调试桥 |
-| `FishLevelGameMode` | 战斗权威：收集敌方建筑/hp 表/血条组件、兵索敌与碰撞、防御塔开火、放兵交互、胜负判定、**按伤害比例实时掠夺累计 + 触发飞行特效**、结算面板 |
-| `TroopActors.ts`（`gameplay/battle/troops/`） | 兵 Actor 集合：**每个兵种一个 Actor 类**（BarbarianActor/PekkaActor 等 10 类，无基类），战斗功能全部由组件组合承载（TroopHealthComponent 受击死亡 / TroopTargetComponent 索敌 / TroopMoveComponent 移动阻挡 / TroopAttackComponent 攻击节奏 / **TroopHealthBarComponent 头顶血条**）；工厂 `createTroopActor(troopId, ...)` 按 id 实例化，`TroopActor` 接口为统一视图 |
-| `BuildingHealthBarComponent` | 建筑血条组件：默认隐藏、受击显示、3 秒无受击自动隐藏（全权自管，GameMode 只调 onDamaged） |
-| `TroopHealthBarComponent` | 兵头顶血条组件（仿建筑血条）：更小（0.8×0.12）、受击显示、**1.5 秒**无受击自动隐藏、<30% 变红；放兵时自动挂载、随兵移动 |
-| `LootFlyFx` | 战利品飞行特效：世界坐标→UI 坐标投影、彩色小圆点（金/紫）弧线 0.6s 飞向顶部栏、全局 8 个并发频控 |
-| `BattleProjectileActor` | 弹丸 Actor：直线飞行、命中扣血（建筑/兵双目标）、超出路程自毁 |
-| `BattleHudScript` | 战斗 HUD：兵种卡片（数量/禁用/放置高亮）+ 已部署统计 + **顶部战利品栏（金币/圣水实时刷新 + 脉冲动画）**，每帧刷新 |
-| `BattleResultScript` | 结算面板：胜负标题 + 掠夺明细 + 回基地按钮 |
-| `ClashBuildingTypes.ts` | 建筑类型单一数据源：新增 hp/lootCoins/lootElixir/defense/blocksGround |
-| `TrainingComponent` | 训练军队组件：新增 `deployTroop`（放兵消耗）/`isArmyEmpty`（失败判定）/`debugAddArmy`（调试注入） |
-| `fish_level{1,2,3}.scene.json` | 战斗场景：草地地面 + 敌方基地建筑 ref 节点（10~15 个） |
+**关键心智模型**：**用户操作全在 Controller，游戏逻辑全在 GameMode，兵的行为全在组件**。Controller 不认识建筑，GameMode 不碰鼠标事件，兵 Actor 只做薄装配——三方靠 `FishLevelGameMode` 的公开方法（`onScreenDown` / `getBestTargetFor` / `damageBuilding`）对接。
 
-与相邻功能边界：**建造系统**（基地 `FishBaseGameMode` 放置/移动建筑）与战斗无关，敌方基地直接以场景资产存在；**出海捕鱼**（`FishGameMode`）仍走 `startGameplay()`（`_levelId=null`），与战斗互斥；**训练**（`BarracksUiScript` → `trainTroop`）在基地阶段完成，战斗只消耗军队。
+---
 
-## 2. 核心类 / 模块
+## 2. 一场战斗怎么打完：从进入到结算
 
-| 类 / 模块 | 说明 |
-|---|---|
-| `FishLevelGameMode`（`gameplay/level/FishLevelGameMode.ts`） | 战斗 GameMode（mode="level" 注册）：`collectBuildings`/`attachHealthBar`（挂 `BuildingHealthBarComponent`）、`damageBuilding`（**按实际扣血比例实时掠夺 + 触发飞行**）/`onBuildingDestroyed`（**补发剩余掠夺**）、`getBestTargetFor`/`findBlockerAt`/`fireTroopAttack`、防御塔 `Tick` 索敌、`onScreenDown`/`spawnTroopActor`（蓝图预检 + 放兵 + 挂兵血条）、`finishBattle` 胜负+入账+结算面板、`onLootDisplayChange` 回调（HUD 刷新钩子） |
-| 兵种 Actor（`gameplay/battle/troops/TroopActors.ts`） | **每兵种一个 Actor 类**（extends GenericActor 显式具名，无共同基类）：Barbarian/Archer/Goblin/Giant/WallBreaker/Balloon/Wizard/Healer/Dragon/PekkaActor；构造只做装配（共享 `assembleTroop`：定位 + 模型 attachTo + 挂组件组合）；`TROOP_ACTOR_CLASSES` 兵种 id → 类映射，`createTroopActor` 工厂实例化 |
-| `TroopHealthComponent`（`gameplay/battle/troops/`） | 兵生命组件：`takeDamage` 扣血 → **刷新头顶血条**（TroopHealthBarComponent.onDamaged）→ 死亡回调 GameMode（移出列表 + 失败判定）→ 销毁宿主 |
-| `TroopTargetComponent`（`gameplay/battle/troops/`） | 兵索敌组件：每帧 `getBestTargetFor`（含目标覆盖）输出 `target`，供移动/攻击组件消费；导出 `troopAttackDist`（射程+建筑半宽）判定工具 |
-| `TroopMoveComponent`（`gameplay/battle/troops/`） | 兵移动组件：射程外直线移动；地面兵 AABB 阻挡贴墙 + 目标覆盖；飞行兵无视阻挡 |
-| `TroopAttackComponent`（`gameplay/battle/troops/`） | 兵攻击组件：射程内按间隔 0.5s 开火（伤害=dps×0.5）；dps≤0（healer）不攻击 |
-| `BuildingHealthBarComponent`（`gameplay/common/comp/BuildingHealthBarComponent.ts`） | 建筑血条组件（继承 ActorComponent）：BeginPlay 建背景/前景条（初始不可见）；`onDamaged(ratio)` 显示+刷新+重置 3s 计时；`Tick` 超时直接隐藏 |
-| `TroopHealthBarComponent`（`gameplay/common/comp/TroopHealthBarComponent.ts`） | 兵头顶血条组件（仿建筑血条）：宽 0.8/高 0.12、位于兵模型头顶（`troop.size[1] + 0.35`）；受击显示、**1.5s** 无受击隐藏、<30% 前景变红；随兵移动（attachTo 兵 Actor）；`TroopActors.assembleTroop` 统一挂载 |
-| `LootFlyFx`（`gameplay/common/fx/LootFlyFx.ts`） | 战利品飞行特效工具：`show(world, fromWorld, kind, { toUi, onArrive })`；世界坐标→UI 坐标投影（`GameInstance.getActiveCamera()` + `Vector3.project` → NDC × 画布半宽高）；spawn `loot_fly.widget.json` 圆形小圆点（金币 #fbc02d / 圣水 #8e24aa）；TweenSystem 弧线 0.6s（x 线性 + y sin 上抛 +1.0）飞向顶部栏；**挂到真实画布宿主**（HUD 是纯容器，锚点无容器尺寸会失效）；全局同时最多 8 个在飞，超出丢弃动画但数字照增 |
-| `CapsuleMeshComponent`（`src/engine/rendering/CapsuleMeshComponent.ts`） | 引擎胶囊体网格组件（继承 MeshComponent）：properties `radius`/`length`/`color`，已注册 ComponentRegistry + assetLint 检查器 |
-| 兵种蓝图 × 10（`asset/blueprints/troops/*.blueprint.json`） | 每兵种一个：`Actor`（注册表注册名，GenericActor 实例）+ `TransformComponent`（贴地 y 偏移 = radius+length/2）+ `CapsuleMeshComponent`（颜色写死）；`TroopType.blueprint` 字段引用 |
-| `BattleProjectileActor`（`gameplay/battle/BattleProjectileActor.ts`） | 弹丸：构造指定起终点/速度/伤害/目标；Tick 直线飞行；命中 <0.4 或超出总路程 → 结算自毁 |
-| `BattleHudScript`（`gameplay/battle/BattleHud.script.ts`） | HUD 脚本（script id `gameplay/battle/BattleHud`）：读兵种表生成卡片（复用 `troop_card.widget.json`）、数量/禁用/放置中刷新；**顶部战利品栏**（`LootBar`/`LootCoinsText`/`LootElixirText`）：注册 `gm.onLootDisplayChange` → 飞行到达时 `refreshLootDisplay()` 刷新数字（仅变化时 setText）+ 文本脉冲（scale 1.25 → 1，backOut 0.2s） |
-| `BattleResultScript`（`gameplay/battle/BattleResult.script.ts`） | 结算脚本（script id `gameplay/battle/BattleResult`）：读 `getBattleResult()` 填充标题/明细、绑定回基地 |
-| `ClashBuildingType`（`gameplay/base/ClashBuildingTypes.ts`） | 类型表加战斗字段：hp（城镇大厅 1000/城墙 250 等）、lootCoins/lootElixir（掠夺量）、defense（防御塔 range 9/damage 30/cooldown 1s）、blocksGround |
-| `FishLevelPlayerController`（`gameplay/level/`） | 用户操作（Controller 承接）：`OnPointerDownScreen` → `onScreenDown` 立即放兵 + 启动长按连续放兵定时器（每 0.4s 在最近鼠标位置放一个）；`OnPointerMoveScreen` → 记录坐标 + 相机云台；左键释放（BindMouseButton 订阅）→ 停止长按 |
-| `BaseCameraActor`（`gameplay/base/BaseCameraActor.ts`） | 战斗相机复用：透视 + 滚轮缩放 + 右键平移（关边缘滚动，panLimit ±24） |
-| `battle_hud.widget.json` / `battle_result.widget.json`（`asset/blueprints/ui/`） | 战斗 HUD（CoC 木条底栏 + 8 列卡片 grid + 统计 + **顶部中央战利品栏 `LootBar`（半透明深色底条 + 金币/圣水文本）**）与结算面板（CoC 面板 + 回基地按钮）；另有 `loot_fly.widget.json`（飞行小圆点） |
+### 2.1 谁开始了它
 
-## 3. 使用方法
-
-### 3.1 玩家入口（正常流程）
+玩家点地图面板关卡卡片 → `inst.enterLevel(id)`（[MapPanel.script.ts:119](../../src/projects/fish/gameplay/base/MapPanel.script.ts)），校验关卡与解锁后切阶段（[FishGameInstance.ts:849](../../src/projects/fish/gameplay/FishGameInstance.ts)）：
 
 ```ts
-// 基地 → 地图面板（MapPanel.script.ts 关卡卡片点击）
-cardBtn.onClick = () => inst?.enterLevel(id)
-// → FishGameInstance.enterLevel：查 levels.table.json → _levelId → switchToPhase('game')
-// → 场景 mode="level" → FishLevelGameMode → 战斗开始（敌方基地 + 战斗 HUD）
-
-// 战斗 HUD 卡片点击 → 放置模式（BattleHudScript 内）
-troopBtn.onClick = () => gm.selectTroop(id)
-// → 点击战场（±24、禁叠建筑）→ FishLevelGameMode.onScreenDown 部署兵（训练军队 -1）
-
-// 结算面板「回基地」（BattleResultScript 内）
-backBtn.onClick = () => inst.returnToBase()
+this._levelId = id
+this._phase = 'game'
+const ok = this.switchToPhase('game')
 ```
 
-### 3.2 AI 调试直跳入口（Playwright 验证）
+> `switchToPhase('game')` 按 `_levelId` 分流——有 id 走 `setupLevelPhase()`（关卡战斗），无 id 走 `setupGamePhase()`（出海捕鱼，[FishGameInstance.ts:600](../../src/projects/fish/gameplay/FishGameInstance.ts)）。**出征与关卡战斗共用同一套战斗代码**，区别只是 `_levelId` 为 null 时不记通关、不评关卡星级。
+
+装配把相机交给 World 托管并注入结算回调（[FishGameInstance.ts:716](../../src/projects/fish/gameplay/FishGameInstance.ts)）：
 
 ```ts
-// FishGameInstance.start() 安装 window.__fishBattle
-;(window as any).__fishBattle.enterLevel('level1')          // 直跳关卡战斗（跳过基地/地图面板）
-;(window as any).__fishBattle.addArmy('barbarian', 10)      // 调试注入军队（绕过训练队列）
-;(window as any).__fishBattle.getState()                    // { phase, levelId, coins, elixir, army }
-;(window as any).__fishBattle.getBattle()                   // 战斗快照（含实时掠夺 lootCoins/lootElixir）
-;(window as any).__fishBattle.getTroopHealthBars()          // 兵血条快照：{ name, hp, maxHp, shown, hideTimer }[]
+private setupLevelPhase(): void {
+  const mode = this.world.gameMode as FishLevelGameMode
+  this._levelGameMode = mode
+  spawnActor(mode.baseCamera)                       // 相机托管给 World（构造者 ≠ 托管者，见坑 5）
+  this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
+  // PhySys.setup(camera, uiLayer)：screenToGround 依赖它，没 setup 就永远放不出兵
+  if (mode.controller) { this._controller = mode.controller }  // 为 null 说明 StartPlay 漏调 super
+  mode.onBattleOver = () => { /* progression.settleBattle({ destroyRate, townhallDestroyed, ... }) */ }
+}
 ```
 
-### 3.3 触发时机
+> 相机是 **GameMode 构造的，却由 `setupLevelPhase` 托管**——「构造者 ≠ 托管者」是历史坑源，见 §5 坑 5；`PhySys.setup` 又是放兵的前置（`screenToGround` 靠它做屏幕→地面求交）。调试可直跳：`window.__fishBattle.enterLevel('level1')` / `addArmy('barbarian', 10)` / `deploy('barbarian', 0, 10)` / `getBattle()`（[FishGameInstance.ts:274](../../src/projects/fish/gameplay/FishGameInstance.ts)）。
 
-- **进入战斗**：地图面板点关卡卡片（或 `__fishBattle.enterLevel`）→ `enterLevel` → `switchToPhase('game')`
-- **放兵**：HUD 卡片点击（`selectTroop`）→ 战场空地左键（`InputSys` 未被 Clickable 消费 → `OnPointerDownScreen` → `onScreenDown` 立即放 1 个）；**长按连续放兵**（按住期间每 0.4s 在最近鼠标位置再放，CoC 风格；松开即停）；Esc / 再次点卡片取消放置模式；**右键平移不取消放置模式**（可平移地图继续放兵）
-- **兵攻击**：兵组件组合（TroopTargetComponent 索敌 → TroopMoveComponent 靠近 → TroopAttackComponent 开火）→ 攻击间隔 0.5s → `fireTroopAttack` 弹丸
-- **防御塔攻击**：`FishLevelGameMode.Tick` 冷却计时 → 射程内最近兵 → 弹丸
-- **兵受击**：防御塔弹丸命中 → `TroopHealthComponent.takeDamage` 扣血 + 头顶血条显示（1.5s 隐藏计时）
-- **实时掠夺**：兵弹丸命中建筑 → `damageBuilding` 按伤害比例累计 + 触发战利品飞行（`LootFlyFx` 弧线 0.6s）→ 到达时 `onLootDisplayChange` 刷新顶部栏
-- **胜负结算**：摧毁城镇大厅（`onBuildingDestroyed`）或军队全灭（`Tick`/`onTroopDied`）→ `finishBattle` → 掠夺一次性入账（浮点取整）+ 结算面板
-- **返回基地**：结算面板按钮 → `returnToBase`（复用三阶段清理流程）
-
-### 3.4 使用前提
-
-- 军队非空：兵种在基地兵营训练完成（或 `__fishBattle.addArmy` / GM `unlockBattle` 注入），否则无法放兵、全灭立即判负
-- 场景资产 mode 必须为 `"level"`（GameModeRegistry → FishLevelGameMode）；敌方基地以 `type: "ref"` 节点写在场景 `objects` 中
-- 战斗场景的 3D 血条由 GameMode 在 BeginPlay 时动态挂载（无需在蓝图/场景中声明）：`BuildingHealthBarComponent` 默认隐藏、受击显示、3 秒无受击自动隐藏
-- 兵种模型蓝图必须可解析（`TroopType.blueprint` 路径），否则放兵被拒（严格模式，军队不消耗）
-
-## 4. 工作流程
-
-### 4.1 主流程
+### 2.2 战场构建
 
 ```mermaid
 flowchart TD
-  A[基地训练军队] --> B[地图面板点关卡 enterLevel]
-  B --> C[switchToPhase game → SwitchToScene 关卡场景]
-  C --> D[场景 ref 生成敌方建筑 + FishLevelGameMode.BeginPlay]
-  D --> E[collectBuildings: hp 表 + 挂血条组件<br/>BuildingHealthBarComponent 默认隐藏]
-  E --> F[BattleHudScript 生成兵种卡片 grid]
-  F --> G{玩家点卡片 selectTroop}
-  G -->|数量>0| H[进入放置模式]
-  G -->|数量=0| G2[卡片置灰禁用]
-  H --> I[点战场空地 onScreenDown]
-  I --> J{校验: 军队有兵 / ±24 范围 / 不叠建筑}
-  J -->|失败| I
-  J -->|通过| K[spawnTroopActor: 蓝图模型预检 →<br/>deployTroop 军队-1 → createTroopActor 生成兵 Actor]
-  K --> L[兵 Tick: preferred 索敌 → 直线移动]
-  L --> M{目标在 range 内?}
-  M -->|否| N{地面兵撞阻挡建筑?}
-  N -->|是| O[回退 + 改目标为阻挡物攻击]
-  N -->|否| L
-  M -->|是| P[站桩攻击 0.5s/次 → 弹丸命中 damageBuilding]
-  P --> P1[按实际扣血比例实时掠夺<br/>dealt / maxHp × loot（浮点累计）]
-  P1 --> P2[触发战利品飞行 LootFlyFx<br/>金色/紫色小圆点 弧线 0.6s 飞向顶部栏]
-  P2 --> P3[飞行到达 → onLootDisplayChange<br/>顶部金币/圣水数字跳变 + 脉冲]
-  P3 --> Q[onDamaged: 血条显示 + 刷新 + 重置 3s 计时<br/>（3s 无受击自动隐藏）]
-  Q --> R{hp ≤ 0?}
-  R -->|否| L
-  R -->|是| S[onBuildingDestroyed: 补发剩余掠夺 → 销毁]
-  S --> S1[剩余 = loot − 已掠夺浮点<br/>保证每建筑总量 = 类型表 loot]
-  S1 --> T{是城镇大厅?}
-  T -->|是| U[胜利 finishBattle true]
-  T -->|否| L
-  K --> V[防御塔 Tick: 冷却 → 射程内最近兵 → 弹丸]
-  V --> W[兵 takeDamage 扣血 + 头顶血条刷新<br/>TroopHealthBarComponent 显示 + 1.5s 计时]
-  W --> X{兵 hp ≤ 0?}
-  X -->|是| Y[onTroopDied 移出列表]
-  X -->|否| L
-  Y --> Z{场上兵 0 且军队耗尽?}
-  Z -->|是| AA[失败 finishBattle false]
-  Z -->|否| L
-  U --> AB[掠夺一次性入账 coins+elixir<br/>（战斗内已实时累计的浮点取整）]
-  AA --> AB
-  AB --> AC[结算面板: 胜败标题 + 掠夺明细]
-  AC --> AD[回基地 returnToBase → 基地 HUD 金币/药水同步]
+  A["enterLevel(id) → switchToPhase('game')"] --> B["SwitchToScene 关卡场景<br/>mode='level' → FishLevelGameMode"]
+  B --> C["objects 的 ref 节点 → SpawnActorFromBlueprint<br/>→ ClashBuildingBaseActor 实例"]
+  C --> D["FishLevelGameMode.BeginPlay()"]
+  D --> E["pools.init(world) 池预分配注入 World"]
+  E --> F["collectBuildings() 建 hp 表 + attachHealthBar()"]
+  F --> G["navigation.grid.rebuildFromStaticColliders()<br/>从静态碰撞体建 A* 阻挡格"]
+  G --> H["订阅 BATTLE_TROOP_ATTACK → fireTroopAttack"]
+  H --> I["读关卡表 timeLimit → battleTimeLimit"]
 ```
 
-### 4.2 分阶段说明
+**敌方基地不是代码生成的，是场景资产摆好的**。`fish_level3.scene.json` 里 15 个 `type: "ref"` 节点，形如 `{ "type": "ref", "name": "Townhall_1", "ref": "asset/blueprints/buildings/townhall.blueprint.json", "position": [0, 0, -8] }`。
 
-| 阶段 | 触发点 | 关键调用 | 产物 |
+> 换关卡布阵 = 改场景资产，**不动一行战斗代码**。加一关只需加 `.scene.json` + `levels.table.json` 一行（场景 `mode` 必须是 `"level"`，否则 GameMode 不匹配）。
+
+`BeginPlay` 把散在场景里的建筑收拢成战斗状态（[FishLevelGameMode.ts:141](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+this.pools.init(this.world!)
+this.collectBuildings()                                   // 建 hp 表 + 挂血条
+this.navigation.grid.rebuildFromStaticColliders(this.world!.physics)
+this._unsubTroopAttack = this.gameInstance?.events.on<TroopAttackEvent>(BATTLE_TROOP_ATTACK,
+  (ev) => { this.fireTroopAttack(ev.troop, ev.target, ev.damage) }) ?? null
+this.battleTimeLimit = level?.timeLimit ?? 180
+```
+
+> **顺序不能换**：`collectBuildings()` 必须早于 `rebuildFromStaticColliders`——网格从**物理静态碰撞体**栅格化，建筑 collider 得先 BeginPlay 建好，晚一步网格为空，兵会全部直线穿墙。另两个易漏点：兵攻击走**事件**（组件只 `emit`，由这里统一转 `fireTroopAttack`，攻击组件因此不持有弹丸池）；时限按 `level?.timeLimit ?? 180` 取，`levels.table.json` 里只有 `level3` 显式写了 `150`。
+
+`collectBuildings`（[FishLevelGameMode.ts:258](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）遍历 `GetAllActors` 收 `ClashBuildingBaseActor`，建 hp 表并 `attachHealthBar`。
+
+> 血条是**运行时挂组件**，不写进蓝图也不写进场景——所以基地阶段（同一个 `ClashBuildingActors` 类）不会长出敌人血条。`attachHealthBar` 里的 `b.enableTick()` 不能漏：血条的「3 秒无受击隐藏」倒计时靠建筑 Actor 的 Tick 驱动。
+
+### 2.3 放兵链路
+
+```mermaid
+flowchart TD
+  A["HUD 兵种卡 onClick（count>0）→ gm.selectTroop(id)"] --> B["进入放置模式 selectedTroopId=id"]
+  B --> C["左键按下 → Controller.OnPointerDownScreen"]
+  C --> D["gm.onScreenDown(sx,sy)"]
+  D --> E{"已选法术?"}
+  E -->|是| E1["tryCastSpellAtScreen → 施放后 return"]
+  E -->|否| F["deployAtScreen → screenToGround（PhySys 射线 ∩ y=0）"]
+  F --> G["spawnTroopActor 校验：±24 / 兵种存在 / 不叠建筑"]
+  G --> H["inst.training.deployTroop 扣军队"]
+  H --> I["pools.acquireTroop → activate → _assemble"]
+  I --> J["push 进 gm.troops + deployedCount++"]
+  C --> K["同时 startHoldDeploy()：setInterval 每 0.2s 再放一个"]
+  K --> L["左键 released → stopHoldDeploy()"]
+```
+
+**Controller 侧：按下立即放一个，同时起长按定时器**（[FishLevelPlayerController.ts:37](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts)）：
+
+```ts
+override OnPointerDownScreen(screenX: number, screenY: number): void {
+  this.lastX = screenX; this.lastY = screenY
+  this.gameMode?.onScreenDown(screenX, screenY)
+  this.startHoldDeploy()
+}
+private startHoldDeploy(): void {
+  this.stopHoldDeploy()
+  this.holdTimer = window.setInterval(() => {
+    if (!this.gameMode?.placeTroopId) { this.stopHoldDeploy(); return }
+    this.gameMode.deployAtScreen(this.lastX, this.lastY, true)   // true = silent
+  }, HOLD_DEPLOY_INTERVAL * 1000)
+}
+```
+
+`HOLD_DEPLOY_INTERVAL = 0.2`（[FishLevelPlayerController.ts:17](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts)）。三个反直觉处：**节流靠 GameMode 状态而非消息**——定时器每 tick 读 `gameMode.placeTroopId`，玩家取消后 `cancelPlaceMode()` 只置空 `selectedTroopId`、**不反向通知 Controller**，定时器下一 tick 自行退出（单向依赖：Controller 认识 GameMode，反之不然）；**`silent=true` 是必须的**，否则按住划过建筑群时日志每秒刷 5 条「与建筑重叠」；**长按跟着鼠标走**——`OnPointerMoveScreen` 持续更新 `lastX/lastY`，按住拖动是「刷兵」而非原地叠一堆。
+
+**GameMode 侧：校验顺序决定「军队什么时候扣」**（[FishLevelGameMode.ts:569](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+if (Math.abs(x) > PLACE_HALF || Math.abs(z) > PLACE_HALF) { /* warn：超范围 */ return false }
+const troop = inst.getTroop(troopId)                       // 兵种表未加载或行缺失 → error 返回
+if (!troop || this.findBlockerAt(x, z, troop.size[0] / 2)) { /* warn：与建筑重叠 */ return false }
+if (!inst.training.deployTroop(troopId)) { /* warn：军队无此兵 */ return false }
+try { actor = this.pools.acquireTroop({ troopId, gm: this, troop, x, z }) }
+catch (e) { inst.training.refundTroop(troopId); return false }
+this.troops.push(actor as TroopActor); this.deployedCount++
+```
+
+> **先扣军队，取池失败再 `refundTroop` 退回**。所有前置校验（范围 / 兵种 / 重叠）都在扣军队**之前**，扣完之后唯一失败点只剩 `acquireTroop` 抛异常，用 try/catch + refund 兜住。别把 `deployTroop` 挪到 `acquireTroop` 之后——那样兵已站到场上而军队未扣，玩家可靠异常刷出无限兵。`PLACE_HALF = 24`（[ClashBaseBuilder.ts:20](../../src/projects/fish/gameplay/base/ClashBaseBuilder.ts)）；`findBlockerAt` 传**半宽** `troop.size[0] / 2`，传全宽会让碰撞盒双倍大（见 §5 坑 1~3）。
+
+兵 Actor 由池取出（[FishObjectPools.ts:106](../../src/projects/fish/gameplay/game/FishObjectPools.ts)），装配分首次与复用两条路径（[TroopActors.ts:76](../../src/projects/fish/gameplay/battle/troops/TroopActors.ts)）：
+
+```ts
+protected _assemble(opts: TroopDeployOptions): void {
+  const { gm, troop, x, z } = opts
+  this.setPosition(x, troop.flying ? 2 : 0, z)
+  if (!this._assembled) {                    // 首次：建 mesh / collider / 五个战斗组件
+    const cdo = BlueprintRegistry.resolve(troop.blueprint)
+    // cdo 里的 CapsuleMeshComponent → ComponentRegistry.create，手动应用蓝图 Transform 偏移
+    // !flying → CircleColliderComponent，radius = troop.size[0] / 2
+    this.health = this.addComponent(TroopHealthComponent, gm, troop)
+    this.addComponent(TroopHealthBarComponent, troop)
+    this.addComponent(TroopTargetComponent, gm, troop)
+    this.addComponent(TroopMoveComponent, gm, troop)
+    this.addComponent(TroopAttackComponent, gm, troop)
+    // ability 分派：wallBreaker → WallBreakerAbilityComponent，healer → HealerAbilityComponent
+    this._assembled = true
+  }
+  if (this._collider) this._collider.restore()   // 复用：只 restore + 重置血量
+  this.health.resetHp(); this.enableTick()
+}
+```
+
+> **对象池复用的是整棵 Actor 子树，不是单个 mesh**。`_assembled` 让 mesh / 碰撞体 / 五个战斗组件**只创建一次**，之后每次放兵只 `restore()` + `resetHp()` + `enableTick()`；每兵种一个独立池（[FishObjectPools.ts:57](../../src/projects/fish/gameplay/game/FishObjectPools.ts)，上限 50）。**`flying` 兵没有碰撞体**，不受物理阻挡也不触发 `onCollisionEnter`，天然越过城墙；代价是移动组件里 `collider` 为 null 必须走直线分支。mesh **从蓝图 CDO 克隆**不走 `SpawnActor`，所以不产生额外 Actor 树；蓝图 `TransformComponent.position` 需手动应用到 `mesh.position`——克隆出来的是组件不是 Actor，父级偏移不会自动生效。
+
+### 2.4 兵 AI 与移动 / 攻击
+
+每个兵挂 5 个组件，每帧按 `Target → Move → Attack` 各跑各的 Tick：`TroopTargetComponent` 调 `gm.getBestTargetFor()` 输出 `target`；`TroopMoveComponent` 在射程外 A* 靠近；`TroopAttackComponent` 在射程内按 0.5s 间隔 emit 攻击事件。
+
+**索敌**（[FishLevelGameMode.ts:386](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：目标覆盖优先 → 按 `preferred` 偏好过滤 → 平方距离取最近。
+
+```ts
+const override = this.troopTargetOverride.get(troop)
+if (override && !override.bPendingDestroy) return override    // 覆盖优先
+if (override) this.troopTargetOverride.delete(troop)          // 覆盖目标已摧毁 → 清除后重新索敌
+const candidates = this.buildings.filter((b) => this.matchPreferred(b.type.id, troop.troop.preferred))
+const list = candidates.length > 0 ? candidates : this.buildings   // 偏好无候选 → 回退全部
+```
+
+> 两个防御性设计：偏好过滤不到候选时**回退全部建筑**（否则巨人打光防御塔后会因无 `defenses` 候选原地发呆）；目标覆盖的建筑被摧毁（`bPendingDestroy`）时**自动清除覆盖**，兵重新索敌。
+
+**移动**：寻路终点不是建筑中心，而是「兵→建筑连线上距中心 attackDist 的点」（[TroopMoveComponent.ts:126](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)）：
+
+```ts
+const attackDist = troopAttackDist(this.troop, target)
+const edgeX = center.x - (dx / distToCenter) * attackDist   // 终点取在连线上的攻击范围边界
+const edgeZ = center.z - (dz / distToCenter) * attackDist
+if (this._inAttackRange) { this.stopMove(); if (!wasInRange) this.path = null; return }
+if (!this.collider) {                       // 飞行兵：无碰撞体，直接改 pos
+  const step = this.troop.speed * dt
+  pos.x += (dx2 / dist) * step; pos.z += (dz2 / dist) * step; return
+}
+```
+
+> **终点取在连线上是刻意的**：A* 目标点若直接给建筑中心，而中心在阻挡格里，寻路会绕到建筑背后甚至失败；取连线上的边缘点保证路径方向始终是「兵朝建筑」。`troopAttackDist = troop.range + building.type.size / 2`（[TroopTargetComponent.ts:22](../../src/projects/fish/gameplay/battle/troops/TroopTargetComponent.ts)）把射程换算成**中心距**，否则近战兵被 AABB 挡在 `half + 兵半宽` 处时中心距永远大于 range，兵贴着墙却打不到（实测死锁，见 §5 坑 1~3）。飞行兵改 `pos`、地面兵改物理 `velocity`——两条路径都必须保留。
+
+寻路重算不是每帧做的（[TroopMoveComponent.ts:195](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)）：
+
+```ts
+const needRepath = (() => {
+  if (this.pathTickCounter < TroopMoveComponent.REPATH_INTERVAL) return false   // 24 帧最小间隔
+  if (this.pathFailCooldownSec > 0) return false                                // 失败后 0.15s 冷却
+  if (this.stuckTicks > 36) return true                                         // 卡死强制重算
+  if (this.pathTarget !== target) return true
+  return this.path && this.path.length > 0 && wpd > this.gm.navigation.grid.cellSize * 2
+})()
+if (needRepath) {                                            // 唯一寻路调用点
+  this.path = this.gm.navigation.findPath(pos, edgePoint)
+  if (this.path?.length >= 2) { this.stuckTicks = 0 } else { this.path = null; this.pathFailCooldownSec = 0.15 }
+}
+```
+
+> `REPATH_INTERVAL = 24`（[TroopMoveComponent.ts:34](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)，约 0.8s @30fps）、`pathFailCooldownSec = 0.15`、`wpd > cellSize * 2` 构成三层节流。**唯一寻路调用点是 `this.gm.navigation.findPath(pos, edgePoint)`**，其余都是记账。**卡死检测独立于寻路**（`stuckTicks > 36`，`moved < 0.05` 计数），给「A* 成功但物理没动」兜底；另有备用 AABB 重叠检测（`POS_CHECK_INTERVAL = 8`，[TroopMoveComponent.ts:41](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)），因为 cannon 的 `onCollisionEnter` 在高速穿透时不触发。
+
+撞到建筑时**改目标而非改方向**（`onHitBuilding`，[TroopMoveComponent.ts:83](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)）：校验目标是 `ClashBuildingBaseActor`、非 `bPendingDestroy`、且不等于当前目标，然后 `gm.setTroopTargetOverride(...)` + `this.path = null`——部落冲突式的「被挡即拆挡路的」，让兵自然拆开墙；挡路建筑已是当前目标时直接 return。
+
+**攻击判定**（[TroopAttackComponent.ts:49](../../src/projects/fish/gameplay/battle/troops/TroopAttackComponent.ts)）：
+
+```ts
+if (this.troop.dps <= 0) return               // 治疗师走 HealerAbilityComponent
+this.attackTimer = Math.max(0, this.attackTimer - dt)
+const halfSum = target.type.size / 2 + this.troop.size[0] / 2
+const touching = Math.abs(dx) <= halfSum && Math.abs(dz) <= halfSum   // AABB 接触 OR 中心距在射程内
+if (!touching && dist > troopAttackDist(this.troop, target)) return
+if (this.attackTimer > 0) return
+this.attackTimer = TROOP_ATTACK_INTERVAL
+this.gm.gameInstance?.events.emit(BATTLE_TROOP_ATTACK, {
+  troop: this.owner as TroopActor, target,
+  damage: this.troop.dps * TROOP_ATTACK_INTERVAL * rageMul,
+} as TroopAttackEvent)
+```
+
+> 判定是 **AABB 接触 OR 中心距在射程内**的或关系，只判中心距会在斜向撞墙时打不到（见 §5 坑 1~3）。伤害 `dps * 0.5` 配 `TROOP_ATTACK_INTERVAL = 0.5`（[TroopAttackComponent.ts:32](../../src/projects/fish/gameplay/battle/troops/TroopAttackComponent.ts)）保证每秒总伤害恒等于配置表 `dps`——**改间隔必须同步改伤害系数**。`dps <= 0` 的治疗师跳过攻击，走 `HealerAbilityComponent`。
+
+### 2.5 防御塔与投射物
+
+防御塔逻辑**不在组件里，在 GameMode.Tick 里**（[FishLevelGameMode.ts:201](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+for (const b of this.buildings) {
+  const defense = b.type.defense
+  if (!defense) continue
+  const remain = (this.cannonCooldown.get(b) ?? 0) - dt    // 先扣 dt 再判断，到期帧不开火
+  this.cannonCooldown.set(b, Math.max(0, remain))
+  if (remain > 0) continue
+  const target = this.findNearestTroopInRange(b, defense.range)
+  if (!target) continue
+  this.cannonCooldown.set(b, defense.cooldown)
+  this.pools.acquireProjectile({ gm: this, from, to, speed: TOWER_PROJ_SPEED, damage: defense.damage, target })
+}
+```
+
+> 塔为什么不放进组件？**塔的索敌要遍历全部兵，兵的索敌要遍历全部建筑**——全局查询放进单个 Actor 的组件会形成 N×M 互相引用；GameMode 持有 `troops` 与 `buildings`，天然是查询归属。防御塔参数写死在 `ClashBuildingTypes.ts`（`cannon` 的 `defense: { range: 9, damage: 30, cooldown: 1.0 }`，[ClashBuildingTypes.ts:59](../../src/projects/fish/gameplay/base/ClashBuildingTypes.ts)），**不在 `cannon.config.json`**——后者是出海捕鱼玩法的炮台等级表。冷却讲究：**先扣 dt 再判断**，且 `remain > 0` 用扣减前的值，到期那一帧不开火。
+
+索敌只看存活兵、不追击（[FishLevelGameMode.ts:454](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+let bestDist = range * range                // 初值 = range²，射程与最近判定合成一次比较
+for (const t of this.troops) {
+  if (t.health.isDead) continue             // 过滤已死但尚未从列表移除的兵
+  const d = (p.x - c.x) ** 2 + (p.z - c.z) ** 2
+  if (d <= bestDist) { bestDist = d; best = t }
+}
+```
+
+弹丸池化，命中后归还（[BattleProjectileActor.ts:106](../../src/projects/fish/gameplay/battle/BattleProjectileActor.ts)）：
+
+```ts
+this.traveled += this.speed * dt
+if (this.traveled >= this.totalDist || pos.distanceTo(this.end) < 0.4) {
+  if (this.targetBuilding && !this.targetBuilding.bPendingDestroy) {
+    this.gm!.damageBuilding(this.targetBuilding, this.damage)
+  } else if (this.targetTroop && !this.targetTroop.health.isDead) {
+    this.targetTroop.health.takeDamage(this.damage)
+  }
+  this.pool?.release(this); return
+}
+```
+
+> **`traveled >= totalDist` 是防泄漏兜底**：只靠 `distanceTo < 0.4` 判定在目标移动或坐标不更新时会让弹丸永远飞下去。命中前两个守卫（`bPendingDestroy` / `isDead`）保证不对已销毁对象结算。弹速按来源区分：`TOWER_PROJ_SPEED = 15` / `RANGED_PROJ_SPEED = 20` / `MELEE_PROJ_SPEED = 25`（[FishLevelGameMode.ts:41](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）；近战兵也发弹丸，只是速度极快、路程极短，视觉上等同挥砍——**近战没有独立动画或瞬时伤害路径**。另外**战斗里没有炮口闪光**：`MuzzleFlashComponent` 只被出海玩法的 `FishCannon` 使用，防御塔开火不触发它。
+
+兵受击统一走 `TroopHealthComponent.takeDamage`（[TroopHealthComponent.ts:78](../../src/projects/fish/gameplay/battle/troops/TroopHealthComponent.ts)）：扣血 → 刷血条 → `hp <= 0` 时置 `_dead`、回调 `gm.onTroopDied(...)`、`pool.release(...)`。死亡是**归还对象池而非 destroy**——Actor 树还在，下次放同种兵直接复用；`_dead` 防重复死亡回调。
+
+### 2.6 计时与结算
+
+**伤害与掠夺**：按实际扣血比例实时累计，摧毁时补发余量（[FishLevelGameMode.ts:308](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+const before = this.buildingHp.get(b)!
+const hp = Math.max(0, before - amount)
+const dealt = before - hp                        // 实际扣血，防最后一击超额掠夺
+this.barCompMap.get(b)?.onDamaged(hp / b.type.hp)
+const ratio = b.type.hp > 0 ? dealt / b.type.hp : 0
+const gain = b.type.lootCoins * ratio
+this.lootCoins += gain
+this.lootElixir += b.type.lootElixir * ratio
+this.lootedCoinsByBuilding.set(b, (this.lootedCoinsByBuilding.get(b) ?? 0) + gain)
+this.triggerLootFly(b, coinDelta, elixirDelta)
+if (hp <= 0) this.onBuildingDestroyed(b)
+```
+
+> 用 `dealt`（实际扣血）而非 `amount`（名义伤害）算比例，是为了**最后一击不超额掠夺**：金矿剩 10 血挨一记 350 的火球只能拿走 10/200 的战利品。每建筑单独记账，摧毁时补发 `loot − 已掠夺`，保证每栋建筑掠夺总量恒等于类型表 `lootCoins/lootElixir`（类型表里只有金矿 150 金、水库 150 水，其余为 0）。内部浮点累计，展示与入账才 `Math.round`。
+
+**计时与胜负**：三种结束条件都在 GameMode.Tick 里（[FishLevelGameMode.ts:201](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+if (this.deployedCount > 0 && this.troops.length === 0 && this.isArmyEmpty()) { this.finishBattle(false); return }
+this.timeRemaining = Math.max(0, this.timeRemaining - dt)
+if (this.timeRemaining <= 10 && !this.timeWarned) { this.timeWarned = true }
+if (this.timeRemaining <= 0) this.finishBattle(this.getDestroyRate() >= 0.5 || this.isTownhallDestroyed())
+```
+
+> **超时不等于失败**：到 0 时按「摧毁率 ≥ 50% 或大本营已毁」判胜。失败只有一条路径——部署过兵、场上兵全灭、军队也空了；`deployedCount > 0` 是必须的，否则玩家一个兵没放时会瞬间判负。
+
+摧毁城镇大厅立即判胜（[FishLevelGameMode.ts:347](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：补发剩余掠夺后清 5 份状态表（`lootedCoinsByBuilding` / `buildings` / `buildingHp` / `barCompMap` / `cannonCooldown`），遍历 `troopTargetOverride` 清掉指向它的覆盖，`b.destroy()`，最后 `if (b.type.id === 'townhall') this.finishBattle(true)`。漏掉覆盖清理会让 `getBestTargetFor` 返回已移除的建筑；`b.destroy()` 是**真销毁**，与兵的 `pool.release()` 不同——建筑不参与对象池。
+
+**结算**（[FishLevelGameMode.ts:714](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）：
+
+```ts
+if (this.battleEnded || this.lootSettled) return
+this.battleEnded = true; this.winResult = win
+if (!this.lootSettled) {
+  this.lootSettled = true
+  if (coins > 0) inst.resources.add('coins', Math.round(this.lootCoins))
+  if (elixir > 0) inst.resources.add('elixir', Math.round(this.lootElixir))
+}
+this.gameState.setPhase('gameover')
+try { this.onBattleOver?.() } catch (e) { logger.error(`[BattleGM] 星级结算异常: ${e}`) }
+const panel = w.ui.spawnUIActor('asset/blueprints/ui/battle_result.widget.json')
+```
+
+> `battleEnded` 与 `lootSettled` 是两把不同的锁：前者停掉一切战斗逻辑（Tick、放兵、开火、伤害），后者只保证资源入账一次。顺序是「入账 → 置 gameover → 评星 → 面板」，`onBattleOver` 用 try/catch 包住——**评星失败不能阻止结算面板弹出**。
+
+返回基地由结算面板按钮触发 `inst.returnToBase()`（[BattleResult.script.ts:19](../../src/projects/fish/gameplay/battle/BattleResult.script.ts)）：清 `_levelGameMode` 与相机注册后 `switchToPhase('base')`，`syncToKV('回城')` 落盘（[FishGameInstance.ts:791](../../src/projects/fish/gameplay/FishGameInstance.ts)）；战斗侧清理在 `EndPlay` 做（[FishLevelGameMode.ts:171](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。
+
+---
+
+## 3. 关键方法速查
+
+| 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| 场景加载 | `SwitchToScene` | `loadSceneAsActors`（ref → `SpawnActorFromBlueprint`） | 敌方建筑 Actor（ClashBuildingActors 类实例） |
-| 战斗初始化 | `FishLevelGameMode.BeginPlay` | `collectBuildings` / `attachHealthBar`（挂 `BuildingHealthBarComponent`） | hp 表、血条组件（默认隐藏） |
-| HUD 装配 | HUD Actor BeginPlay | `BattleHudScript.onStart`：`spawnUIActor(troop_card)` × 8 | 兵种卡片 + grid 布局 + 统计文本 |
-| 放兵 | 空地左键 | `onScreenDown` → `spawnTroopActor`（蓝图模型预检 → `deployTroop` → `createTroopActor` → `SpawnActor`）→ 兵 Actor 装配时挂 `TroopHealthBarComponent` | 场上兵（每兵种 Actor 类 + 胶囊体模型子 Actor + 头顶血条）+ 军队 -1 |
-| 兵战斗 | 组件组合 Tick（Target→Move→Attack） | `getBestTargetFor` / `findBlockerAt` / `fireTroopAttack` | 移动/攻击/弹丸 |
-| 兵受击 | 防御塔弹丸命中 | `TroopHealthComponent.takeDamage` → `TroopHealthBarComponent.onDamaged` | 头顶血条显示 + 1.5s 无受击隐藏 |
-| 实时掠夺 | 弹丸命中建筑（`damageBuilding`） | 按 `dealt/maxHp × loot` 浮点累计 → `LootFlyFx.show` 飞行 | 顶部栏数字实时跳变 + 脉冲；飞行物 0.6s 到达 |
-| 建筑摧毁 | hp ≤ 0 | `onBuildingDestroyed` | 补发剩余掠夺（`loot − 已掠夺`）+ 飞行 → 销毁 |
-| 防御塔反击 | `FishLevelGameMode.Tick` | `findNearestTroopInRange` → `SpawnActor(BattleProjectileActor)` | 炮弹命中兵扣血 |
-| 胜负结算 | 城镇大厅摧毁 / 兵全灭 | `finishBattle` | `battleEnded=true`、掠夺入账、结算面板 |
+| `StartPlay` | [FishLevelGameMode.ts:132](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 调基类 `SpawnPlayer` 后置 `waiting` 阶段 | **必须 `super.StartPlay()`**，否则无 Controller |
+| `BeginPlay` / `EndPlay` | [FishLevelGameMode.ts:141](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:171](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 收集建筑、建网格、订阅攻击事件、读时限；清 Map、释放池、销毁相机 | `collectBuildings` 必须早于 `rebuildFromStaticColliders` |
+| `Tick` | [FishLevelGameMode.ts:201](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 防御塔开火 + 失败判定 + 倒计时 | `battleEnded` 后整体 return |
+| `collectBuildings` / `attachHealthBar` | [FishLevelGameMode.ts:258](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:280](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 收建筑建 hp 表；挂血条并 `enableTick` | 只读场景资产；漏 `enableTick` → 血条永不隐藏 |
+| `damageBuilding` / `onBuildingDestroyed` | [FishLevelGameMode.ts:308](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:347](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 扣血 + 按比例实时掠夺；摧毁补发余量 + 清 5 份状态表 + 大厅判胜 | 用 `dealt`（实际扣血）算比例；需清 `troopTargetOverride` |
+| `getBestTargetFor` / `findBlockerAt` | [FishLevelGameMode.ts:386](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:424](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 覆盖优先 → 偏好过滤 → 最近；AABB 判点是否与阻挡建筑重叠 | 偏好无候选时回退全部建筑；`findBlockerAt` 传**半宽** |
+| `fireTroopAttack` / `findNearestTroopInRange` | [FishLevelGameMode.ts:438](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:454](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 按近战/远程选弹速取池化弹丸；射程内最近存活兵 | 前者由 `BATTLE_TROOP_ATTACK` 驱动；后者 `bestDist` 初值 = `range²` |
+| `selectTroop` / `cancelPlaceMode` | [FishLevelGameMode.ts:475](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:486](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 进入 / 取消放置模式 | 取消只置空 id，Controller 定时器自行退出 |
+| `onScreenDown` / `onBuildingClick` / `spawnTroopActor` | [FishLevelGameMode.ts:524](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:556](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:569](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 法术落点优先否则放兵；后者为空实现防崩溃；校验 → 扣军队 → 取池 → 入列 | 空地点击未被 Clickable 消费时才到达；**先扣军队，取池失败 `refundTroop`** |
+| `onTroopDied` / `finishBattle` / `getDestroyRate` | [FishLevelGameMode.ts:700](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:714](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) / [:758](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 移出列表 + 失败判定；入账 + 置 gameover + 评星 + 弹面板；按初始总 hp 归一的摧毁率 | 与 Tick 判定构成双保险；`onBattleOver` 外包 try/catch；分母是**存活**建筑总 hp |
+| `OnPointerDownScreen` / `startHoldDeploy` | [FishLevelPlayerController.ts:37](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) / [:55](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) | 输入侧唯一入口 / 每 0.2s 在最近鼠标位置放兵 | 每 tick 查 `placeTroopId`，取消后自停 |
+| `TroopMoveComponent.Tick` / `onHitBuilding` | [TroopMoveComponent.ts:126](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts) / [:83](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts) | 算边缘终点 → 重算 A* → 设 velocity / 撞建筑改目标 + 清路径 | 唯一寻路调用点：`navigation.findPath` |
+| `troopAttackDist` / `TroopAttackComponent.Tick` | [TroopTargetComponent.ts:22](../../src/projects/fish/gameplay/battle/troops/TroopTargetComponent.ts) / [TroopAttackComponent.ts:49](../../src/projects/fish/gameplay/battle/troops/TroopAttackComponent.ts) | `range + 建筑半宽` 换算中心距阈值；接触或射程内 → 每 0.5s emit 攻击事件 | 不含这个半宽会导致近战兵够不到墙；伤害 `dps × 0.5`，改间隔须同步改系数 |
+| `TroopHealthComponent.takeDamage` / `_assemble` / `acquireTroop` / `acquireProjectile` | [TroopHealthComponent.ts:78](../../src/projects/fish/gameplay/battle/troops/TroopHealthComponent.ts) / [TroopActors.ts:76](../../src/projects/fish/gameplay/battle/troops/TroopActors.ts) / [FishObjectPools.ts:106](../../src/projects/fish/gameplay/game/FishObjectPools.ts) / [:95](../../src/projects/fish/gameplay/game/FishObjectPools.ts) | 扣血 → 刷血条 → 死亡回调 → 归还池；首次建 mesh/collider/组件，复用只 restore；池取对象注入 World | 死亡是 `pool.release()` 不是 `destroy()`；无兵种池时 throw，调用方负责 refund |
+| `BattleProjectileActor.Tick` / `LootFlyFx.show` / `SpellCaster.castAtScreen` | [BattleProjectileActor.ts:106](../../src/projects/fish/gameplay/battle/BattleProjectileActor.ts) / [LootFlyFx.ts:65](../../src/projects/fish/gameplay/common/fx/LootFlyFx.ts) / [SpellCaster.ts:80](../../src/projects/fish/gameplay/battle/SpellCaster.ts) | 直线飞行 → 命中结算 → `pool.release`；世界→UI 投影飞行战利品；屏幕落点扣药水按 effect 分发 | `traveled >= totalDist` 是防永久飞行的兜底；并发上限 8，超限丢动画但数字照加；扣费失败不产生状态变化 |
 
-### 4.3 设计要点
+---
 
-- **敌方基地 = 场景资产**：建筑以 `type: "ref"` 节点写在 `fish_level*.scene.json`，随场景切换加载/销毁（复用 `DestroyAllActors` 清理），GameMode 只读不建；每关卡 ~15 个建筑（L1 城墙横列、L2 城墙围城、L3 双塔 + 城墙横列）
-- **血条 = 运行时挂组件（组件优先）**：不修改建筑蓝图/类，GameMode 在 BeginPlay 给每个建筑挂 `BuildingHealthBarComponent`（组件全权自管：默认隐藏、受击 `onDamaged(ratio)` 显示 + 前景 scale.x 缩水 + <30% 变红 + 重置 3s 计时、`Tick` 超时直接隐藏无动画）；所有建筑（城墙/防御塔/金矿/水库/城镇大厅）规则统一
-- **兵血条 = 同类组件**：`TroopHealthBarComponent` 在 `assembleTroop` 装配时挂到每个兵 Actor（尺寸更小 0.8×0.12、隐藏超时更短 1.5s），`TroopHealthComponent.takeDamage` 扣血后调用 `onDamaged(ratio)` 刷新；组件 attachTo 兵 Actor 随兵移动，兵死亡随宿主销毁自动释放
-- **掠夺 = 按伤害比例实时累计（CoC 风格）**：`damageBuilding` 里按**实际扣血量**（`dealt = min(amount, 当前hp)`）比例掠夺：`dealt / 类型表hp × lootCoins/lootElixir`，内部浮点累计（展示取整）；每建筑已掠夺量单独记账（`lootedCoinsByBuilding`/`lootedElixirByBuilding`），**摧毁时补发剩余**（`loot − 已掠夺`），保证每建筑掠夺总量恒等于类型表 loot；结束仍一次性 `resources.add`（浮点取整），`lootSettled` 防重复
-- **战利品飞行动画**：每次伤害（对应 loot > 0 的建筑）触发一次 `LootFlyFx.show`：世界坐标 → UI 坐标投影（相机 `project` → NDC × 画布半宽 4.8/半高 2.7）→ 挂真实画布宿主（BattleHUD）下锚点定位 → TweenSystem 弧线 0.6s（x 线性 + y sin 上抛 +1.0）飞向顶部栏 → 到达 `onArrive` 回调刷新数字 + 销毁；**全局同时最多 8 个在飞**（超出丢弃动画但数字照增）；`battleEnded` 后不再触发
-- **兵模型 = 蓝图胶囊体**：每个兵种一个 `asset/blueprints/troops/{id}.blueprint.json`（`Actor` + `TransformComponent` 贴地 y 偏移 + `CapsuleMeshComponent`，颜色写死）；`TroopType.blueprint` 字段引用（`DEFAULT_TROOPS`/`troop.table.json`/transform 三处同步，缺失按行键回退路径 + 告警）。放兵时 `spawnTroopActor` 先 `SpawnActorFromBlueprint` 预检模型（严格模式：失败 = 放兵失败、军队不消耗、无兵生成），成功则模型子 Actor attach 到兵 Actor（`assembleTroop`）。碰撞仍用 `troop.size` 半宽 AABB，飞行兵悬空 y=2 不变
-- **建筑点击回调兼容**：`ClashBuildingBaseActor` 的点击回调硬编码 cast 成 `FishBaseGameMode` 调 `onBuildingClick`——战斗 GameMode 必须提供同名方法（空实现），否则点击敌方建筑抛 TypeError
-- **放兵走 InputSys 消费链**：UI 按钮与建筑（有 ClickableComponent）的点击被 `PhySys.raycastClick` 消费；草地无 Clickable → 未被消费 → `controller.OnPointerDownScreen` → 放兵。禁叠建筑由 AABB 检查兜底
-- **攻击数值自洽**：兵每 0.5s 打一击，每击伤害 = `dps × 0.5`（每秒总伤害 = dps）；防御塔 `defense.damage/cooldown` 独立配置
-- **掠夺只结算一次**：`lootSettled` 标志防重复入账（胜利后残余弹丸命中不再改变掠夺）；掠夺量按建筑类型固定（金矿 +150 金币、水库 +150 药水），**战斗内按伤害比例实时累计、摧毁补发剩余**、结束一次性 `resources.add`（浮点取整）
-- **失败判定双触发**：`Tick`（场上兵 0 且军队耗尽）与 `onTroopDied` 都检查，保证防御塔击杀最后一个兵时立即判负
-- **healer（dps=0）不生成战斗卡片**：治疗超范围，避免无攻击能力的兵放上场
+## 4. 流程影响：牵动哪些功能
 
-## 5. 边界条件
+### 上游：谁驱动它
 
-| 条件 | 行为/后果 | 处理方式 |
+| 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
-| 军队为空进入战斗 | 无法放兵；不部署任何兵则战斗持续等待（不判负） | HUD 卡片全部置灰；`deployTroop` 返回 false 并日志；GM `unlockBattle` 可给每个兵种注入 999 军队（战斗 HUD 卡片数量即时刷新） |
-| 部署过兵且军队耗尽+场上兵 0 | 判负 → 结算面板 | `deployedCount > 0` 且 `troops.length === 0` 且 `isArmyEmpty()` |
-| 放兵点超出 ±24 | 拒绝部署（军队不扣除） | `spawnTroopActor` 范围校验 + warn 日志 |
-| 放兵点与建筑重叠 | 拒绝部署 | AABB 相交检查（type.size 半宽 + 兵半宽） |
-| 兵种模型蓝图缺失/解析失败 | 该次放兵失败：`logger.error` + 军队不消耗、无兵生成（严格模式，无 BoxMesh 兜底） | `spawnTroopActor` 在 `deployTroop` 之前 `SpawnActorFromBlueprint` 预检 |
-| 建筑受击 | 血条立即显示 + 刷新比例/低血量变红 + 重置 3s 隐藏计时 | `BuildingHealthBarComponent.onDamaged` |
-| 建筑 3 秒无受击 | 血条自动隐藏（直接 `visible=false` 无动画） | 组件 `Tick` 倒计时归零隐藏 |
-| 兵受击 | 头顶血条立即显示 + 刷新比例 + 重置 **1.5s** 隐藏计时（比建筑更短） | `TroopHealthComponent.takeDamage` → `TroopHealthBarComponent.onDamaged` |
-| 兵 1.5 秒无受击 | 血条自动隐藏（随兵移动，`attachTo` 兵 Actor） | 组件 `Tick` 倒计时归零隐藏 |
-| 伤害比例掠夺 | 每次命中按 `实际扣血 / 总hp × loot` 浮点累计（如金矿 200hp/150loot，一击 30 → +22.5）；顶部显示取整 | `damageBuilding` 实时累计 + `getLootDisplay()` 取整 |
-| 建筑摧毁补发 | 补发 `loot − 已掠夺浮点`，保证总量恒等于类型表 loot | `onBuildingDestroyed` 按 `lootedCoinsByBuilding`/`lootedElixirByBuilding` 补发 + 飞行 |
-| 飞行并发超限 | 同时在飞 > 8 丢弃动画（数字照常增加） | `LootFlyFx` 全局计数 `activeFlyCount` |
-| 世界坐标投影失败 | 相机不可用/点在相机背面 → 跳过飞行（数字照常增加） | `worldToUi` 返回 null → warn + 直接 `onArrive` |
-| 战斗结束 | 不再触发飞行（`battleEnded` 前置检查）；在飞飞行物自然结束 | `triggerLootFly` 守卫 |
-| 点击敌方建筑 | 无交互（不选中/不移动） | `onBuildingClick` 空实现防崩溃 |
-| 地面兵直线路径被挡 | 位置不动（贴包围盒边缘）+ 改目标攻击阻挡物 | `findBlockerAt` 命中 → `setTroopTargetOverride` |
-| 飞行兵 | 无视阻挡直接飞越 | `troop.flying` 跳过碰撞检测（出生 y=2 悬空） |
-| 目标建筑被摧毁 | 兵重新索敌（覆盖目标自动清除） | `getBestTargetFor` 检查 `bPendingDestroy` |
-| 战斗结束（胜负已判） | 兵/防御塔停火，弹丸停止扣血 | `battleEnded` 标志（`Tick`/`damageBuilding`/`fireTroopAttack` 前置检查） |
-| 重复触发结算 | 只入账一次 | `lootSettled` 标志 |
-| 战斗不中途暂停 | Esc = 取消放置模式（不再弹暂停菜单） | `spawnPlayerInternal` 绑定 `battle-cancel` |
-| 长按放兵 | 按住左键每 0.4s 放一个兵（在最近鼠标位置），松开停止 | `FishLevelPlayerController` 定时器（hidden 页面 setInterval 会被节流，真实窗口正常） |
-| 右键平移 | 平移地图，**不取消放置模式**（可平移后继续放兵） | `CameraRigComponent`（无 onRightPanStart 绑定） |
-| 战斗相机 | 透视俯瞰（12,16,18）+ 滚轮缩放 + 右键平移，panLimit ±24 | 复用 `BaseCameraActor`（关边缘滚动） |
-| 无兵种表（配置未加载） | HUD 卡片列表为空 | BattleHudScript warn 跳过 |
-| 兵种 dps=0（治疗师） | 不生成卡片、无法放兵 | 生成时 `troop.dps <= 0` 过滤 |
+| 地图面板 `MapPanel.script.ts` + `switchToPhase('game')` | 卡片点击 → `enterLevel(id)`；按 `_levelId` 分流 → `setupLevelPhase()` 装配相机与结算回调 | [level_system.md](./level_system.md) / [gameflow_system.md](../engine/gameflow_system.md) |
+| 兵营训练 `TrainingComponent` + 配置表（`troop` / `levels` / `spell`） | 基地训练的军队由 `deployTroop` 消耗；配置表给兵种属性、关卡时限、法术参数 | [clash_master.md](./clash_master.md) |
+| `battle_hud.widget.json` + `BattleHudScript` | HUDClass 自动创建，卡片点击 → `selectTroop` / `selectSpell` | [script_system.md](../engine/script_system.md) |
+| `NavigationModule` | `rebuildFromStaticColliders` 建网格，`findPath` 供兵移动 | [navigation_system.md](../engine/navigation_system.md) |
 
-## 6. 依赖关系 / 注册机制
+### 下游：它波及谁
 
-```
-FishGameInstance（资源/训练组件 + 阶段路由）
-  └─ enterLevel(id) → switchToPhase('game')
-       └─ World.SwitchToScene(关卡场景, mode="level")
-            ├─ GameModeRegistry('level') → FishLevelGameMode
-            ├─ loadSceneAsActors → ref 节点 → SpawnActorFromBlueprint
-            │     └─ BlueprintRegistry('asset/blueprints/buildings/*.blueprint.json')
-            │           └─ ActorRegistry（TownhallActor 等，register.ts 批量注册）
-            └─ HUDClass 'asset/blueprints/ui/battle_hud.widget.json'
-                  └─ UIScriptComponent script='gameplay/battle/BattleHud'
-                        └─ ScriptRegistry（asset/index.ts import.meta.glob 自动注册 .script.ts）
-```
+| 下游功能 | 波及点 | 相关文档 |
+|---|---|---|
+| 结算面板 `BattleResultScript` | 读 `getBattleResult()` / `getDestroyRate()` / `isTownhallDestroyed()` 填胜负与星级 | [script_system.md](../engine/script_system.md) |
+| 资源组件 + 成就 + 存档 + 基地阶段 | `add('coins'/'elixir')`、`settleBattle` 评星、`syncToKV('回城')` 落盘；`returnToBase()` 切回基地，战斗状态由 `EndPlay` 清空 | [clash_master.md](./clash_master.md) / [level_system.md](./level_system.md) |
+| 战斗相机 + 对象池 + 七角色边界 | 相机 GameMode 构造、`setupLevelPhase` 托管、结束回收；池 `pools.init(world)` 注入、`releaseAll()` 释放；放兵在 Controller、逻辑在 GameMode、兵行为在组件 | [gameflow_system.md](../engine/gameflow_system.md) / [gameplay_code_standard.md](./gameplay_code_standard.md) |
 
-- 建筑/弹丸/兵均为场景 Actor，由 `World.SpawnActor` 托管生命周期（`DestroyAllActors` 统一回收，MeshComponent.EndPlay 自动释放网格资源）；兵模型子 Actor 经 `attachTo` 挂树随兵递归销毁，蓝图根 TransformComponent 的贴地偏移在 `SpawnActorFromBlueprint` 实例化时应用
-- 战斗相机 `BaseCameraActor` 由 GameMode 构造创建、`setupLevelPhase` 经 `SpawnActor` 托管；**GameMode.EndPlay 必须 `this.baseCamera?.destroy()` 自销毁**——裸切换（如 `ai.switchScene` 不执行 extraSetup）时相机从未被托管（无 world），只能由拥有者回收（已托管路径幂等短路）
-- 结算面板为运行时 `world.ui.spawnUIActor` 动态生成（挂 HUD，World 销毁时统一回收）
-- 新资产全部自动注册（glob），无需改 `register.ts` / `asset/index.ts`
+---
 
-## 7. 踩坑记录
+## 5. 踩坑清单
 
-- `World` 不暴露 `gameInstance` 属性：战斗 GameMode 取共享组件（resources/training）用 `GameInstance.current as FishGameInstance`，不能写 `this.world.gameInstance`
-- `FishGameInstance.getActiveCamera()` 的 game 分支原只查 `_gameMode`（出海），关卡阶段相机返回 null 导致战斗画面黑屏——需改为 `(this._gameMode ?? this._levelGameMode)`
-- 场景 ref 节点与蓝图/actor 节点不同：顶层 `position/rotation/scale` 是 ref 节点 schema 的合法字段（node:ref 检查器允许），不要套用 actor 节点的"组件优先"规则
-- 弹丸/兵是场景 Actor，`Tick` 由 World 驱动；建筑血条组件挂到建筑 Actor 上（建筑是 ref 实例，`bActive` 隐藏整个子树会连带隐藏血条），组件 Tick 由建筑 Actor 的 Tick 驱动
-- **近战兵 AABB 边缘死锁**（Playwright 实测发现）：兵移动步长（speed×dt，哥布林 32/30fps≈1.07）大于攻击距离余量时，被挡在 AABB 外不动的兵永远"够不到"阻挡物（只挨塔打不拆墙）。修复：① 攻击距离判定 = `range + 目标半宽`（换算兵中心到建筑中心的 gap）；② 被挡时用 slab 法沿移动方向把兵**贴到 AABB 边缘**（距离 = 半宽+兵半宽 ≤ 攻击距离），下一帧即可攻击
-- **碰撞半宽传错**：`findBlockerAt` 曾传入兵全宽（`size[0]`）而非半宽（`size[0]/2`），碰撞盒双倍大导致放兵/移动判定异常——统一传半宽
-- **飞行物必须挂真实画布宿主**（Playwright 实测发现）：`world.ui.spawnUIActor` 默认 attach 到 HUD（纯容器，无 UITransformComponent/CanvasUIComponent），`UITransformComponent.applyAnchor` 找不到父容器尺寸直接跳过 → 锚点失效、飞行物钉在画布中心 (0,0)（`anchorOffset` 字段在变但 `position` 不变）。修复：`LootFlyFx.findCanvasHost` 找 HUD 子树第一个非 markerOnly 画布（BattleHUD）作为 parent 再 spawn
-- **世界坐标 → UI 坐标投影**：战斗相机是透视俯瞰（12,16,18），`Vector3.project(cam)` 前须 `cam.updateMatrixWorld()`（CameraComponent 的 camera 对象位置由 `PlayerCameraManager.UpdateCamera` 每帧 `SyncFromActor` 同步，直接投影即正确）；NDC → UI = `ndc.x × 4.8, ndc.y × 2.7`（画布 9.6×5.4 中心原点，16:9 视口下 UICamera contain 模式正好铺满）
-- hidden 页面 rAF/setInterval 会被浏览器深度节流（setInterval 可降至 ~1 次/分钟）：调试桥 `stepTicks(n)` 同步批量推进 n×(1/30)s 游戏时间，Playwright 断言不依赖实时等待（`startTickDriver` 仅作真实时间兜底）
-- 浏览器环境 assetLint 降级为内存态扫描（`RegistryAssetSource`，无 electronAPI 时），扫描日志见 `[AssetLint] 扫描完成`；新建资产零 lint 错误即通过
+**1~3. 近战打不到建筑（三种 AABB 边缘死锁）** —— ① 兵被挡在 `half + 兵半宽` 处，攻击只判 `dist <= range` 时中心距永远超标，兵只挨塔打不拆墙；② `findBlockerAt` 传全宽 `troop.size[0]` 让碰撞盒双倍大，放兵被大面积拒绝；③ 斜贴墙角时中心距超标但包围盒已接触。修复：攻击距离改为 `troopAttackDist = range + 建筑半宽`（[TroopTargetComponent.ts:22](../../src/projects/fish/gameplay/battle/troops/TroopTargetComponent.ts)）、攻击加 AABB `touching` 分支（[TroopAttackComponent.ts:63](../../src/projects/fish/gameplay/battle/troops/TroopAttackComponent.ts)）、放兵一律传半宽（[FishLevelGameMode.ts:591](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。规则：**涉及建筑尺寸的判定统一用中心距且阈值加建筑半宽；攻击判定是「AABB 接触 OR 中心距在射程内」，缺一不可。**
+
+**4. `StartPlay` 漏调 `super`** —— 基类 `StartPlay` 内含 `SpawnPlayer()`，漏掉后 `mode.controller` 为 null，`setupLevelPhase` 报「controller 为空」，`InputSys.handlePointerDown` 无 Controller 可转发，点场景永远放不了兵。规则：**重写生命周期先 `super`**（[FishLevelGameMode.ts:132](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。
+
+**5. 战斗相机泄漏（构造者 ≠ 托管者）** —— 相机由 GameMode 构造，却由 `setupLevelPhase` 的 `spawnActor` 托管；裸切换场景时相机从未托管、无 world 归属，`reclaimForWorld` 回收不到。规则：**`EndPlay` 必须 `this.baseCamera?.destroy()`**（[FishLevelGameMode.ts:190](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。
+
+**6. 飞行小圆点钉在画布中心 / 投影坐标镜像** —— 两个独立成因：① `world.ui.spawnUIActor` 默认 attach 到 HUD，而 HUD 是纯容器（无 `UITransformComponent`/`CanvasUIComponent`），`applyAnchor` 取不到父容器尺寸直接跳过，`anchorOffset` 在变但 `position` 不动；② `project` 前没 `cam.updateMatrixWorld()`，且点在相机背面时 `v.z` 超出 [-1,1]，结果是镜像的错误坐标。修复：找 HUD 子树第一个非 `markerOnly` 的画布宿主再 spawn（`findCanvasHost`，[LootFlyFx.ts:141](../../src/projects/fish/gameplay/common/fx/LootFlyFx.ts)）；`worldToUi` 先 `updateMatrixWorld()` 再 project，`v.z > 1 || v.z < -1` 返回 null（[LootFlyFx.ts:128](../../src/projects/fish/gameplay/common/fx/LootFlyFx.ts)）。规则：**需锚点定位的动态 UI 不能直接挂 HUD 根；投影失败要直接调 `onArrive`，不能连数字一起丢。**
+
+**7. `World` 上取不到 GameInstance** —— 战斗 GameMode 取共享组件（resources/training）只能 `GameInstance.current as FishGameInstance`（[FishLevelGameMode.ts:517](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。规则：**跨阶段共享状态一律走 `GameInstance.current`。**
+
+**8. 战斗场景黑屏** —— `getActiveCamera()` 的 game 分支若只查 `_gameMode`（出海），关卡阶段返回 null，画面全黑。规则：该分支必须写 `(this._gameMode ?? this._levelGameMode)`（[FishGameInstance.ts:1014](../../src/projects/fish/gameplay/FishGameInstance.ts)），`syncCamera` 同理。
+
+**9. 点击敌方建筑崩溃** —— 点击回调把 `world.gameMode` 硬编码 cast 成 `FishBaseGameMode` 并调 `onBuildingClick`；战斗阶段是 `FishLevelGameMode`，没有同名方法就抛 TypeError。规则：**战斗 GameMode 必须保留 `onBuildingClick` 空实现**（[FishLevelGameMode.ts:556](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。
+
+**10. 长按放兵把日志刷爆** —— 按住鼠标划过建筑群时，每个 0.2s tick 都触发「与建筑重叠」warn。规则：长按路径必须传 `silent = true`（[FishLevelPlayerController.ts:67](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts)）。
+
+**11. hidden 页面 setInterval 被深度节流** —— 后台标签页可降至约 1 次/分钟，长按放兵与动画停摆。规则：Playwright 验证用调试桥 `__fishBattle.deploy`（世界坐标直放），别依赖真实时间。
+
+**12. 边遍历边删 `buildings`** —— `onBuildingDestroyed` 会修改 `this.buildings`，直接遍历会漏项。规则：全量遍历且会删除元素的场景用快照 `[...this.buildings]`（[FishLevelGameMode.ts:837](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts)）。
+
+---
+
+## 6. 边界条件
+
+| 条件 | 行为 | 怎么应对 |
+|---|---|---|
+| `StartPlay` 未调 `super` / 裸场景切换 | controller 为 null，点场景不放兵 / 相机无 world 归属 | 重写生命周期先调基类（坑 4）；`EndPlay` 自销毁相机（坑 5） |
+| 军队为空进入战斗 / 部署过兵且兵全灭且军队空 | 放兵被拒、卡片置灰、**不判负** / 判负 → 结算面板 | `deployedCount === 0` 守卫；Tick 与 `onTroopDied` 双触发 |
+| 放兵点超 ±24 / 与建筑重叠 / 兵种不存在 | 拒绝，军队不扣 | `spawnTroopActor` 前置三项校验（`findBlockerAt` 传半宽） |
+| `acquireTroop` 抛异常 / 长按移至非法位置 / `dps <= 0` 且无 ability | `refundTroop` 退回 / 静默失败不刷日志 / HUD 不生成卡片 | 先扣后取 + try/catch；`silent = true`；**有 ability 的治疗师仍生成卡片** |
+| 战斗时限到 0 / 关卡表无 `timeLimit` | **超时不判负**，按「摧毁率 ≥ 50% 或大本营已毁」判胜 / 走 180s 兜底 | `finishBattle(rate >= 0.5 \|\| isTownhallDestroyed())`；`level?.timeLimit ?? 180` |
+| 城镇大厅被摧毁 / 目标建筑被摧毁 / 被建筑阻挡 | 立即判胜 / 重新索敌且覆盖自动清除 / 改目标为阻挡物并清路径 | `type.id === 'townhall'`；`bPendingDestroy`；`onHitBuilding` → `setTroopTargetOverride` |
+| 战斗已结束 / 重复结算 / 评星回调抛异常 | 停 Tick、拒放兵、拒伤害；只入账一次；评星失败记 error 但面板照常弹出 | `battleEnded` 前置检查；`lootSettled`；`onBattleOver` 外包 try/catch |
+| 兵种 `flying` / A* 寻路失败 / 兵卡死 36 帧 | 无碰撞体、出生 y=2、走直线分支、无视阻挡 / 回退直线 + 0.15s 冷却 / 强制重算 | `collider === null`；`pathFailCooldownSec`；`stuckTicks` |
+| 弹丸超出总路程 / 战利品并发 > 8 / 投影失败 / 建筑 3 秒（兵 1.5 秒）无受击 | 未命中自毁归还池 / 丢弃动画 / 跳过飞行，三者数字都照增 / 血条直接隐藏（无动画） | `traveled >= totalDist`；`MAX_ACTIVE_FLY = 8`；`worldToUi` 返回 null；`BAR_HIDE_DELAY` |
+| 点击敌方建筑 / Esc / 右键平移 / 配置表未加载 / 兵种蓝图缺失 | 无交互（空实现防崩溃）/ 取消放置模式（不弹暂停菜单）/ 平移且不取消放置 / HUD 卡片为空 / 兵无模型（战斗逻辑照常） | `BindAction('battle-cancel', 'Escape', ...)`；`BattleHudScript` warn 跳过；`if (cdoMesh)` 静默跳过 |

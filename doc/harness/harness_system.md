@@ -1,434 +1,352 @@
-# DemoStudio Harness 工程（VS Code 扩展 + DSH 内核集成 + 引擎特化插件）
+# Harness 工程：VS Code 扩展 + DSH 内核 + 引擎插件
 
-> DemoStudio 仓库内的 agent 工作台工程：在 VS Code 中以原生体验连接 DeepSeek Harness（DSH）内核，让 agent 完成"改代码 → 启动游戏 → 读日志 → 迭代"闭环。
-> 代码位置：`harness/`（VS Code 扩展 + DSH 插件包 + DSH Profile + DSH 源码克隆）
-> 相关文档：[系统总览](../system_overview.md) / [AI 事件系统](../engine/ai_system.md) / [编辑器核心](../editor/core/core_system.md)
+> **一句话定位**：`harness/` 是 DemoStudio 仓库内的 **agent 工作台源码区**——9 个 DSH 插件包（能力本体）+ 1 个 VS Code 扩展壳（未被当前主链路使用）+ 1 份 DSH 内核源码克隆，共同回答一个问题：**agent 用的那些工具是从哪个目录编译、被谁挂载、又通过哪条通道摸到编辑器的**。
+>
+> **什么时候会用到你**：新增/修改一个 agent 插件工具、排查「改了插件代码没生效」「agent 说没有某某工具」、确认某段代码该放插件包还是别处、理解 MCP/HTTP/CDP 三条通道分别通向编辑器哪个进程。
+>
+> 代码位置：`harness/`
 
-## 1. 概述
+---
 
-### 1.1 背景
+## 1. 先记住这几个文件/目录
 
-DemoStudio 游戏编辑器目前仅能通过通用 MCP 工具（`mcp-server.mjs`）进行粗粒度控制，缺少：
-
-- **原生 VS Code 体验的 agent 工作台**（侧边栏聊天、状态栏、终端、文件资源管理器集成）
-- **与引擎深度耦合的特化 agent 能力**（场景检查、实体生成、测试闭环、崩溃自动诊断等）
-
-### 1.2 目标
-
-在 `harness/` 下构建一个三分区工程，对外提供 VSIX 扩展，让用户安装后在 VS Code 内打开 DemoStudio 仓库即可：
-
-1. 聊天侧边栏调用 DSH agent
-2. agent 通过引擎特化工具直接操控编辑器/游戏（启动/停止/读日志/检查场景）
-3. 引擎事件（生命周期/崩溃/场景/AI）实时推送到 agent，触发自动响应（如崩溃自动诊断）
-4. agent 写文件改动通过 VS Code 资源管理器与 Git 面板可见
-
-### 1.3 核心设计决策
-
-| 决策 | 方案 | 理由 |
+| 文件 / 目录 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| 内核运行方式 | **进程内 import** `@deepseek-ai/dsh-headless` | 启动快、可直接访问 Cordis 上下文、便于事件流透传；DSH 升级需重装扩展但符合"先内置优先"原则 |
-| 内核来源 | 从 GitHub `clone deepseek-ai/deepseek-harness` 到 `harness/dsh-source/`，本地 `tsc` 构建后作为 vscode-ext 依赖 | 全量打包进 VSIX，内置优先；不修改 DSH 源码，只消费构建产物 |
-| 内核交互边界 | **KernelAdapter 接口**集中在 `harness/vscode-ext/src/dsh/adapter.ts` | UI/命令/EngineBridge 仅依赖接口，未来切换 CLI stdio 模式不改上层 |
-| 引擎通信 | **EngineBridge 双通道**：MCP 客户端（复用 `mcp-server.mjs`）+ HTTP 兜底（直接调编辑器 API） | MCP 优先；HTTP 用于快速操作（如 `get_status`、`read_console_logs`） |
-| 引擎事件推送 | **编辑器新增 SSE 端点**（仅绑定 `127.0.0.1`），4 类事件：game.lifecycle / game.error / scene.change / ai.event | 实时性 < 1s；SSE 断线时自动重连 + 轮询 `console-logs` 兜底 |
-| agent 工具来源 | **DSH 原生工具**（`ctx.tools.register` + `defineTool`），不复用 MCP 服务器 | MCP 给 VS Code 内置 agent 用；DSH agent 走 Cordis 工具注册 |
-| 工程结构 | **三分区**：`vscode-ext/`（扩展工程）+ `ds-engine-tools/`（插件包）+ `profile/`（DSH Profile 配置） | 三层职责单一入口，便于独立版本化 |
-| 产物打包 | `vsce package` 全量打包（含 dsh-headless 及其依赖），`.vscodeignore` 仅排除源码/测试 | 用户全新环境安装即用 |
-| 协议层 | 沿用 DSH 原生事件流格式，**薄协议层只做透传** | 不重新发明协议 |
-| 端口 | 编辑器 HTTP/SSE 仅绑定 `127.0.0.1`；端口探测从 `9877` 起递增 | 避免暴露到外网；多实例兼容 |
+| [ds-plugin-manager/src/tools/mountPlugin.ts](../../harness/ds-plugin-manager/src/tools/mountPlugin.ts) | 一键部署入口：`build → junction → patch → validate` 四步 | 新插件首次挂载、挂载失败排查 |
+| [ds-engine-tools/src/index.ts](../../harness/ds-engine-tools/src/index.ts) | 引擎工具插件入口：`name`/`inject`/`apply`，导出 `ALL_TOOLS` | 加/删一个游戏运行时工具 |
+| [ds-editor-tools/src/index.ts](../../harness/ds-editor-tools/src/index.ts) | 编辑器 UI 工具插件入口，7 个工具经 CDP 操控编辑器 | 加/删一个编辑器 UI 操作工具 |
+| [vscode-ext/src/extension.ts](../../harness/vscode-ext/src/extension.ts) | VS Code 扩展壳 `activate`，自带一套 `KernelManager` + `EngineBridge` | **当前主链路不走这里**，看 §2.4 再决定要不要动 |
 
-### 1.4 责任表
+**关键心智模型**：`harness/` 里跑着**两套互不相同的装配方式**，别混。
 
-| 层 | 模块 | 职责 | 不做 |
-|---|---|---|---|
-| VS Code 扩展 | `extension.ts` | activate/deactivate、生命周期、命令注册、状态栏 | 直接调 DSH API / 直接调引擎 API |
-| VS Code 扩展 | `dsh/adapter.ts` | KernelAdapter 抽象接口定义 | 任何 DSH 具体实现 |
-| VS Code 扩展 | `dsh/embeddedAdapter.ts` | 进程内 import dsh-headless 实现 | UI 渲染 / 引擎调用 |
-| VS Code 扩展 | `bridge/engineBridge.ts` | MCP + HTTP 双通道桥接引擎 | 直接调 DSH API / 渲染 UI |
-| VS Code 扩展 | `ui/chatView.ts` + `ui/chatApp/` | WebviewView + React 18 聊天 UI | 直接调内核 / 引擎 API |
-| DSH 插件包 | `ds-engine-tools/src/` | 注册引擎特化工具、守卫、事件联动、UI 槽 | 直接调 DSH 内部 API（只调 ctx.* 公开接口） |
-| DSH Profile | `profile/dsh.profile`、`cordis.patch.yml`、`skills/` | 声明插件包依赖 + persona 提示词 + 技能目录 | 业务逻辑 |
-| DSH 源码 | `dsh-source/` | 本地克隆并构建，供 vscode-ext 引用 | 修改（仅 clone） |
+- **真正在跑的（主链路）**：Electron 主进程 `electron/main.ts` 拉起 DSH 内核（`:3080`），内核启动时按 `~/.dsh/profiles/{web,headless}/cordis.patch.yml` 的 `insert` 行 import 插件包，包名经 **Windows junction** 解析到 `harness/<插件>/dist/index.js`。插件工具再通过 **HTTP 或 CDP** 反向摸编辑器。
+- **仓库里有但当前未装配的**：`vscode-ext/`（VS Code 扩展壳）和 `harness/profile/`（内置 profile）。它们有完整源码，但目录内无 `dist/`、无 `node_modules/`，且 `profile/cordis.patch.yml` 引用了**不存在**的 `dsh-agent-service.cjs`。细节见 §2.4 与 §6 坑 1。
 
-## 2. 核心类 / 模块
+> 一句话：**改插件走主链路，别去动 `vscode-ext/`。**
 
-| 类 / 模块 | 说明 |
-|---|---|
-| `KernelAdapter`（`harness/vscode-ext/src/dsh/adapter.ts`） | 内核抽象接口：`start/stop/send/on/version/health`；上层唯一依赖 |
-| `EmbeddedKernelAdapter`（`dsh/embeddedAdapter.ts`） | 进程内 `import @deepseek-ai/dsh-headless`，调 `createHeadless()` 获取 Cordis ctx |
-| `KernelManager`（`dsh/kernel.ts`） | 包装 Adapter + 启动/停止/健康检查/自动重启（最多 3 次）+ 崩溃日志 |
-| `KernelUpdater`（`dsh/updater.ts`） | 启动时 + 每日一次查 npm registry，与本机版本比对；新版提示状态栏 + 一键更新 |
-| `EngineBridge`（`bridge/engineBridge.ts`） | 端口探测（9877+ 递增）→ 自动拉起（`npm run dev`）→ MCP/HTTP 双通道工具调用 |
-| `ChatViewProvider`（`ui/chatView.ts`） | `WebviewViewProvider` 实现，托管 webview 与 DSH 事件流 |
-| `ChatApp`（`ui/chatApp/`） | React 18 + Webview UI Toolkit 聊天 UI：流式消息、工具卡片、代码块、@提及 |
-| `StatusBarManager`（`ui/statusBar.ts`） | 状态栏：引擎状态 + 内核版本 + 更新徽标；点击跳转命令 |
-| `tools/inspectScene`（`ds-engine-tools/src/tools/inspectScene.ts`） | 读场景 JSON，返回 Actor/组件摘要 |
-| `tools/spawnEntity`（`ds-engine-tools/src/tools/spawnEntity.ts`） | 经 EngineBridge 调 `ai.spawnActor` 生成 Actor |
-| `tools/runScenario`（`ds-engine-tools/src/tools/runScenario.ts`） | 启动测试场景 → 等结果 → 返回 |
-| `tools/getGameState`（`ds-engine-tools/src/tools/getGameState.ts`） | 经 EngineBridge 调 `ai.getState` 拿快照 |
-| `tools/setGameSpeed`（`ds-engine-tools/src/tools/setGameSpeed.ts`） | 经 EngineBridge 调 time scale |
-| `guards.ts`（`ds-engine-tools/src/guards.ts`） | 工具守卫：高危操作默认 `ask`，可配置 |
-| `events.ts`（`ds-engine-tools/src/events.ts`） | 引擎事件 → agent 行动联动（如崩溃自动诊断） |
-| `slots.tsx`（`ds-engine-tools/src/slots.tsx`） | UI 槽：工具结果渲染文本卡片（场景摘要、游戏状态面板、console 摘要） |
+---
 
-## 3. 使用方法
+## 2. 一次改动怎么生效：从改代码到 agent 用上新能力
 
-### 3.1 用户使用（开发/调试场景）
+### 2.1 谁启动了它
 
-```bash
-# 1. 安装 VSIX
-code --install-extension harness/vscode-ext/demostudio-harness-0.1.0.vsix
-
-# 2. 打开 DemoStudio 仓库
-code e:/DemoStudio
-
-# 3. 自动行为
-# - 激活扩展 → 内置 DSH 内核自动启动（OutputChannel "DSH" 可见日志）
-# - 状态栏显示引擎状态；未启动时点击可触发自动拉起
-# - 侧边栏点开 DSH 聊天 → 输入"启动游戏" → agent 调用 start_game → 引擎拉起
-
-# 4. 典型闭环演示（agent 对话）
-# 用户："把 eatfish 项目的鱼游速调快一倍，然后跑一局游戏，把最后分数告诉我"
-#   → agent: 编辑 eatfish/config/*.config.json → save
-#   → agent: start_game → 等 30s → get_game_state → stop_game
-#   → agent: 报告最终分数 + 改动文件列表
-```
-
-### 3.2 扩展调用 KernelAdapter（程序入口）
+主链路上 DSH 内核由 Electron 主进程拉起（[electron/main.ts](../../electron/main.ts) `bootstrapDSH`），不是由 `harness/` 里的任何脚本启动：
 
 ```ts
-// harness/vscode-ext/src/extension.ts
-import { KernelManager } from './dsh/kernel'
+const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
+const DSH_PORT_DEFAULT = 3080
+const DSH_STATE_DIR = path.join(__dirname, '..', 'cache', 'dsh-runtime')
 
-const kernel = new KernelManager(new EmbeddedKernelAdapter())
-await kernel.start({ profile: 'demostudio' })
-
-// 订阅事件流
-kernel.on('message', (msg) => chatView.postMessage(msg))
-kernel.on('toolCall', (call) => chatView.showToolCard(call))
-
-// 发送用户消息
-await kernel.send({ role: 'user', content: '启动游戏' })
-
-// 健康检查 + 关闭
-if (kernel.health()) await kernel.stop()
+// DSH 要求 Node.js ^22.19.0 || >=24.0.0，而 Electron 内置的 Node.js 版本较低
 ```
 
-### 3.3 插件包注册 DSH 原生工具
+DSH CLI 由 `getDshCliPath()` 决定，它按候选顺序取第一个存在的文件：`npm root -g` 下的 `@deepseek-ai/dsh/lib/bin.js` → `where npm.cmd` 推导的全局 `node_modules` 同路径 → 全部落空则 `spawnDshAgent` 抛 `DSH CLI 不存在（本地和全局均未找到）`。启动必须经过 `scripts/dsh-agent-launcher.cmd`，因为 launcher 立即退出、让 agent 成为孤儿进程，从而躲开 vite-plugin-electron 的 `treeKillSync`（`taskkill /T /F`）连带误杀。
+
+> **代码与报错文案不一致**：错误写着「本地和全局均未找到」，但 `getDshCliPath()` 实际只构建了**全局 npm** 两类候选，从未把 `harness/dsh-source` 的构建产物当作 CLI 候选——`DSH_SOURCE_DIR` 只作 `cwd` 和 git/npm 操作的执行目录（服务于 `dsh-switch-version`）。结论：**agent 实际跑的是全局 npm 安装的 DSH**，`harness/dsh-source` 是版本管理用的源码副本，不是运行时 CLI 来源。
+
+拉起命令（[electron/main.ts](../../electron/main.ts) `spawnDshAgent`）：
 
 ```ts
-// harness/ds-engine-tools/src/index.ts
-import { Context } from 'cordis'
-import { defineTool } from '@deepseek-ai/dsh-headless'
-import { z } from 'zod'
-
-export const name = '@demostudio/ds-engine-tools'
-
-export function apply(ctx: Context) {
-  ctx.tools.register(defineTool({
-    name: 'inspect_scene',
-    description: '读取 DemoStudio 当前场景的结构摘要（Actor 列表、组件类型、位置）',
-    parameters: z.object({
-      scenePath: z.string().optional().describe('场景资产路径，省略时取当前打开场景'),
-    }),
-    async execute(args, ctx) {
-      // 仅依赖 EngineBridge / HTTP API，不依赖 DSH 内部
-      const bridge = (ctx as any).engineBridge  // 由扩展注入
-      return await bridge.inspectScene(args.scenePath)
-    },
-  }))
-}
+const launcherPath = path.join(__dirname, '..', 'scripts', 'dsh-agent-launcher.cmd')
+// ...
+cwd: DSH_SOURCE_DIR,
+stdio: 'ignore',        // launcher 自身的 stdio 不需要（DSH 输出已重定向到日志文件）
 ```
 
-### 3.4 配置项（`contributes.configuration`）
+> **`cwd: DSH_SOURCE_DIR` 是 `harness/` 下所有「相对路径踩坑」的总根**。内核进程的工作目录是 `harness/dsh-source`，所以任何插件里写 `process.cwd()` 拼出来的目录都会落在源码克隆里。这是 §6 坑 2 的成因，也是每个目录型 config 都必须用绝对路径钉死的理由。
 
-| 键 | 类型 | 默认 | 说明 |
-|---|---|---|---|
-| `dsh.autoStartEngine` | boolean | `true` | 激活时自动拉起编辑器 |
-| `dsh.enginePort` | number | `0` | `0` = 自动探测（9877 起递增） |
-| `dsh.engineCommand` | string | `npm run dev` | 拉起编辑器命令 |
-| `dsh.guardPolicy` | object | 高危工具 `ask` | 工具守卫策略（allow/deny/ask） |
-| `dsh.enableEngineEvents` | boolean | `true` | 引擎事件 → agent 联动开关 |
-| `dsh.checkUpdates` | boolean | `true` | 更新检查开关 |
+各子工程**没有统一的根级构建脚本**——仓库根 `package.json` 里 grep 不到任何 `harness` 相关 script。构建命令写在每个插件自己的 `package.json` 里，一律是 `npm run build`（tsc）：
 
-## 4. 工作流程
-
-### 4.1 工程结构（三分区）
-
-```
-E:\DemoStudio\harness\
-├── vscode-ext/                    # VS Code 扩展工程
-│   ├── package.json               # contributes: commands/views/configuration/mcpServers
-│   ├── tsconfig.json
-│   ├── .vscodeignore
-│   ├── src/
-│   │   ├── extension.ts           # activate/deactivate、生命周期
-│   │   ├── dsh/
-│   │   │   ├── adapter.ts         # ★ KernelAdapter 抽象接口（上层唯一依赖）
-│   │   │   ├── embeddedAdapter.ts # 内置实现：import dsh-headless（进程内）
-│   │   │   ├── kernel.ts          # 启动/停止/健康检查/自动重启
-│   │   │   └── updater.ts         # npm 版本检查与更新
-│   │   ├── bridge/
-│   │   │   └── engineBridge.ts    # ★ 唯一接触引擎（MCP + HTTP 双通道）
-│   │   ├── ui/
-│   │   │   ├── chatView.ts        # WebviewViewProvider
-│   │   │   └── chatApp/           # React + Webview UI Toolkit 聊天 UI
-│   │   │       ├── index.tsx
-│   │   │       ├── ChatPanel.tsx
-│   │   │       ├── MessageBubble.tsx
-│   │   │       ├── ToolCard.tsx
-│   │   │       ├── CodeBlock.tsx
-│   │   │       └── InputBox.tsx
-│   │   └── commands.ts            # 命令面板命令注册
-│   ├── media/                     # Webview 静态资源（CSS/图标）
-│   └── esbuild.js                 # 扩展主体 esbuild 构建脚本
-├── ds-engine-tools/                # DSH 插件包（@demostudio/ds-engine-tools）
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── src/
-│   │   ├── index.ts               # name/inject/apply
-│   │   ├── tools/
-│   │   │   ├── inspectScene.ts
-│   │   │   ├── spawnEntity.ts
-│   │   │   ├── runScenario.ts
-│   │   │   ├── getGameState.ts
-│   │   │   └── setGameSpeed.ts
-│   │   ├── guards.ts              # 工具守卫
-│   │   ├── events.ts              # 引擎事件联动
-│   │   └── slots.tsx              # UI 槽（文本卡片）
-│   └── tsconfig.json
-├── profile/                       # DSH profile 配置
-│   ├── package.json               # 声明 ds-engine-tools 依赖
-│   ├── dsh.profile                # bundles 清单
-│   ├── cordis.patch.yml           # persona / 提示词补丁
-│   └── skills/                    # 引擎知识技能（预留目录）
-│       └── .gitkeep
-└── dsh-source/                    # DSH 源码（git clone deepseek-ai/deepseek-harness）
-    └── ...                        # 本地 tsc 构建后作为 vscode-ext 依赖
+```powershell
+cd E:\DemoStudio\harness\ds-memory
+npm install
+npm run build      # tsc → dist/index.js
 ```
 
-### 4.2 整体闭环（"改代码 → 启动游戏 → 读日志 → 迭代"）
+### 2.2 装配链路
 
 ```mermaid
 flowchart TD
-    A[用户在 VS Code 侧边栏聊天输入] --> B[ChatView.postMessage]
-    B --> C[KernelAdapter.send]
-    C --> D[EmbeddedAdapter<br/>进程内调 dsh-headless]
-    D --> E[DSH agent LLM 推理]
-    E --> F{需要调工具?}
-    F -- 否 --> G[直接回文本<br/>流式推送]
-    F -- 是 --> H[查 ctx.tools<br/>找注册的引擎工具]
-    H --> I[inspect_scene / spawn_entity /<br/>start_game / run_scenario 等]
-    I --> J[tools/*.ts 实现<br/>调 EngineBridge]
-    J --> K{通道}
-    K -- MCP 优先 --> L[StdioClientTransport<br/>连 mcp-server.mjs]
-    K -- HTTP 兜底 --> M[fetch /api/command 等]
-    L --> N[编辑器 HTTP API<br/>main.ts]
-    M --> N
-    N --> O[main.ts 路由<br/>广播 SSE 事件]
-    O --> P[SSE /api/events]
-    P --> Q[ds-engine-tools events.ts 订阅]
-    Q --> R{是重要事件?<br/>崩溃/场景切换}
-    R -- 是 --> S[agent 二次推理<br/>自动诊断/迭代]
-    R -- 否 --> T[忽略]
-    S --> E
-    G --> U[Webview UI 渲染<br/>消息气泡/工具卡片/代码块]
-    L --> U
-    M --> U
-    U --> A
+    A["改 harness/&lt;插件&gt;/src/*.ts"] --> B["npm run build<br/>tsc → dist/index.js"]
+    B --> C["mountPlugin.ts Step2<br/>ensureJunctions()"]
+    C --> D["PowerShell New-Item -ItemType Junction<br/>~/.dsh/profiles/{web,headless}/node_modules/@demostudio/&lt;pkg&gt;"]
+    B --> E["mountPlugin.ts Step3<br/>ensurePatchEntry() 写 insert 行"]
+    E --> F["~/.dsh/profiles/{web,headless}/cordis.patch.yml"]
+    D --> G["electron/main.ts bootstrapDSH()<br/>spawn dsh（port :3080）"]
+    F --> G
+    G --> H["DSH loader 组合配置树<br/>import '@demostudio/&lt;pkg&gt;'"]
+    H --> I["junction 命中 → dist/index.js<br/>unwrapExports 拿 name/inject/Config/apply"]
+    I --> J{"inject 服务已就绪?"}
+    J -->|否| X["boot 失败<br/>pending waiting for service"]
+    J -->|是| K["apply(ctx, config)<br/>ctx.tools.register / systemPrompt.section"]
+    K --> L["agent 可用工具清单"]
+    L --> M["引擎侧工具 → HTTP :9877+ /api/command"]
+    L --> N["编辑器侧工具 → CDP :9222"]
 ```
 
-### 4.3 分阶段说明
+逐段讲代码。
 
-#### M0：扩展骨架（基础可运行）
+**① 挂载：四步合成一个工具**
 
-- `vscode-ext/` 工程初始化：`package.json`（contributes: 7 个命令 + 1 个侧边栏视图 + 6 个配置项 + mcpServers）
-- 7 个命令面板命令占位（`DSH: 打开聊天/启动引擎/停止引擎/启动游戏/停止游戏/重启内核/检查内核更新`）
-- 状态栏占位（引擎状态显示 "未启动" / "运行中" / "游戏运行中"）
-- 空 WebviewView 聊天侧边栏（React + Webview UI Toolkit，显示 "DSH 内核尚未启动" 占位）
-- OutputChannel "DSH" 接入，扩展自身日志走该通道
-- `vsce package` 成功产出 `.vsix`，本地安装无报错
+[mountPlugin.ts](../../harness/ds-plugin-manager/src/tools/mountPlugin.ts) 是 agent 自己调的一键部署工具（`mount_plugin`），把 build / junction / patch / validate 串成一次调用：
 
-#### M1：引擎桥（端口探测 + 自动拉起 + SSE）
+```ts
+// Step 2: Junction
+// ⚠️ 必须传 entryId（去掉 @demostudio/ scope），junction.ts 内部会再拼 @demostudio 前缀；
+// 传完整包名会导致 node_modules/@demostudio/@demostudio/<pkg> 嵌套错位（曾导致 web profile 启动失败）
+const junctionResults: JunctionResult[] = ensureJunctions(pluginDir, entryId, dshHome)
+```
 
-- 编辑器 `main.ts` 新增 `/api/events` SSE 端点（仅绑定 `127.0.0.1`）
-- 4 类事件：`game.lifecycle`（launch/stop/crash）/ `game.error`（console.error/未捕获/WebGL context lost）/ `scene.change`（加载/切换/Actor 增减）/ `ai.event`（AIModule 现有事件）
-- EngineBridge：端口探测（9877 起递增，`GET /api/status`）→ 未运行时自动拉起（`npm run dev`）→ MCP/HTTP 双通道
-- 多实例支持（`--port` 语义对齐 `editor_mcp.bat`）
-- 引擎不可达时工具返回明确错误，扩展侧不崩溃
+> 为什么反复强调「传 `entryId` 而不是包名」：`ensureJunctions` 内部自己拼 `@demostudio/` 前缀。传全名会拼出 `@demostudio/@demostudio/ds-x` 双层目录，Node 解析不到，表现为「web profile 启动失败」这种看起来和 junction 毫无关系的症状。这是真踩过的（见 §6 坑 3）。
 
-#### M2：内核接入（dsh-headless 进程内 + 事件流透传）
+**② junction 必须用 PowerShell 建**
 
-- `KernelAdapter` 接口定型 + `EmbeddedAdapter` 实现（`import @deepseek-ai/dsh-headless`，调 `createHeadless()` 拿 Cordis ctx）
-- KernelManager：启动/停止/健康检查/自动重启（最多 3 次，避免死循环）+ 崩溃日志保留
-- 消息协议：沿用 DSH 原生事件流格式，薄协议层只做透传到 ChatView
-- WebviewView 流式渲染 + 工具卡片 + 代码块 + @提及
+[junction.ts](../../harness/ds-plugin-manager/src/junction.ts) `ensureJunctionForProfile` 的创建段：
 
-#### M3：闭环（EngineBridge 工具注入 agent）
+```ts
+execFileSync('powershell', [
+  '-NoProfile', '-Command',
+  `New-Item -ItemType Junction -Path "${junctionPath}" -Target "${sourcePath}" | Out-Null`,
+], { stdio: 'pipe', timeout: 10_000 })
+```
 
-- 插件包通过 profile 的 `dsh.profile.bundles` 加载
-- 5 个引擎特化工具：`inspect_scene` / `spawn_entity` / `run_scenario` / `get_game_state` / `set_game_speed`
-- 工具守卫：高危操作（启动游戏、重置场景、批量删除）默认 `ask`，可配 `allow`/`deny`
-- 工具实现只依赖 EngineBridge 或编辑器 HTTP API，不依赖 DSH 内部 API
-- 端到端演示："改代码 → 启动游戏 → 读日志 → 迭代"
+> 为什么不用 `mklink /J`：Git Bash 会对 `/J` 做路径改写，报 `Invalid switch`。为什么不用 npm 拷贝：npm 对 `file:` 依赖是**拷贝**，改一次源码就得重装一次；junction 是目录链接，`dist/` 重建后内核下次加载即拿新代码。junction 还不需要管理员权限。
 
-#### M4：特化插件包 + 更新检查器 + 专家 persona
+注意 `ensureJunctionForProfile` 开头读了 `fs.readlinkSync(junctionPath)` 比对目标，已存在且指向正确就返回 `skipped`——**幂等**，可反复跑。
 
-- 工具守卫策略对象化（`dsh.guardPolicy`）
-- 引擎事件联动：崩溃自动诊断流程
-- 引擎专家 persona（`cordis.patch.yml` 精简版系统提示词：DemoStudio 目录结构 + 关键 API + 引擎架构概要）
-- UI 槽：工具结果渲染文本卡片（场景摘要、游戏状态面板、console 摘要），通过 `ctx.slots` 注册
-- 引擎知识技能：`harness/profile/skills/` 预留 markdown 技能文件夹（第一版只建目录结构），通过 `ctx.skills.registerProvider` 注册
-- 更新检查器：启动时 + 每日一次查 npm registry，与本机版本比对；有新版状态栏提示 + 一键更新（`npm i -g @deepseek-ai/dsh`）
+**③ 插件入口：注册即副作用**
 
-### 4.4 设计要点
+[ds-engine-tools/src/index.ts](../../harness/ds-engine-tools/src/index.ts)：
 
-- **三层边界单一入口**：DSH 交互走 `dsh/adapter.ts`、引擎交互走 `bridge/engineBridge.ts`、插件包通过 profile 注册。三层各管一段，互不越界。
-- **DSH 升级解耦**：所有 DSH API 集中于 `dsh/adapter.ts` 与 `ds-engine-tools/`，DSH 升级 API 变更只影响这两处；UI / 命令 / EngineBridge 通过接口稳定。
-- **场景文件直改**：M3 起允许 agent 直接读写项目场景 `.json` 文件（经 VS Code 文件系统 `vscode.workspace.fs`），编辑器侧复用现有 `fs.watch` + IPC `asset-changed` 机制检测外部文件变更。
-- **协议层透传**：聊天 UI 看到的就是 DSH 原生事件流（消息 / 工具调用 / 工具结果 / 流式 token），不在中间层重新建模。
-- **SSE 仅本地**：服务端绑定 `127.0.0.1`，避免暴露外网；断线重连 + 轮询兜底保证可靠性。
-- **薄桥接层**：MCP client 是 thin wrapper（5 行代码）；HTTP 通道是 `fetch` 直调；两通道复用 EngineBridge 的统一 API。
+```ts
+export const name = '@demostudio/ds-engine-tools'
 
-## 5. 边界条件
+/** 本插件访问的 Cordis 服务：tools（工具注册表）。logger 是 Context 内建属性，不走 inject。 */
+export const inject = ['tools']
 
-| 条件 | 行为 / 后果 | 处理方式 |
+export function apply(ctx: DSHContext): void {
+  if (typeof ctx.effect === 'function') {
+    ctx.effect(() => registerTools(ctx))
+  } else {
+    registerTools(ctx)
+  }
+}
+
+function registerTools(ctx: DSHContext): void {
+  const tools = ctx.tools
+  if (!tools || typeof tools.register !== 'function') return
+  for (const tool of ALL_TOOLS) {
+    tools.register(tool)
+  }
+}
+```
+
+> **为什么 `apply` 要判断 `ctx.effect` 存不存在**：Cordis 新旧版本注册入口不同（effect 版 vs 直调版）。判断存在性再分支，让同一份 `dist/index.js` 能在不同内核版本上跑，不用为每个内核版本发一个包。
+>
+> **为什么 `inject` 写得极度克制**：Cordis 的 `ctx` 是 Proxy，`apply` 里访问未在 `inject` 声明的键会直接抛 `cannot get property X without inject`。反过来，把 `logger` 这类**内建属性**写进 `inject` 也会炸——boot 卡在 `pending (waiting for service: logger)`。所以规则是：多一个键 boot 失败，少一个键运行时抛错，只写真正通过 fiber 解析的服务键。
+
+**④ 工具怎么摸到编辑器：两个方向**
+
+`ds-engine-tools`（游戏运行时）走编辑器 HTTP API，端口从 9877 起递增，与 [electron/main.ts](../../electron/main.ts) 的 `MCP_API_PORT_START = 9877` 对齐：
+
+```ts
+// engineBridge.ts（vscode-ext 侧实现，同构的还有 engineContext.ts 的 HttpEngineBridge）
+const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ command: name, params: args }),
+})
+```
+
+`ds-editor-tools`（编辑器 UI）走 CDP，[cdpBridge.ts](../../harness/ds-editor-tools/src/cdpBridge.ts) 连 Electron 已开启的调试端口：
+
+```ts
+const CDP_URL = 'http://127.0.0.1:9222'
+// 懒连接：首次工具调用时才建立连接；断开后下次调用自动重建
+```
+
+> 编辑器开了 `--remote-debugging-port=9222`（[electron/main.ts:2171](../../electron/main.ts)），所以 CDP 这条通道不需要 `harness/` 额外起服务。两条通道的分工是硬的：改游戏运行时状态走 HTTP，点编辑器按钮/截图走 CDP，别交叉用。
+
+**⑤ 插件拿 bridge 的三种来源**
+
+[engineContext.ts](../../harness/ds-engine-tools/src/engineContext.ts) `getEngineContext` 按优先级找 bridge：ctx 直接注入 → `globalThis.__dshEngineCtx` → 环境变量 `DSH_ENGINE_PORT` 自建 `HttpEngineBridge`。三个都落空返回 `null`，工具会拿不到上下文。
+
+### 2.3 验证闭环
+
+改完插件后按这个顺序确认，每一步都能定位到具体失败环节：
+
+```powershell
+# 1. 编译产物是否刷新
+Test-Path E:\DemoStudio\harness\<插件>\dist\index.js
+
+# 2. junction 是否存在且指向正确
+cmd /c dir "$env:USERPROFILE\.dsh\profiles\web\node_modules\@demostudio"
+
+# 3. 配置树里是否有这一行
+dsh web --dump-config | Select-String '<插件名>'
+
+# 4. 运行时确认：起新会话问 agent「你有 xxx 工具吗」
+```
+
+最直接的验证是第 4 步——`--dump-config` 只能证明配置树里有这一行，**不能证明 `apply` 跑成功了**（`inject` 写错就是有行但 boot 卡住）。所以第 4 步不可替代。
+
+> **web 与 headless 是两个 profile，两份 junction + 两份 patch 都要建**。只建一份会出现「一个 profile 能跑另一个不能」。`ensureJunctions` 内部已经对 `['web', 'headless']` 循环，别自己只写一半。
+
+### 2.4 关于 `vscode-ext/`：仓库里有，但当前未装配
+
+[vscode-ext/src/extension.ts](../../harness/vscode-ext/src/extension.ts) 有一套完整的自洽设计——`KernelManager`（[kernel.ts:35](../../harness/vscode-ext/src/dsh/kernel.ts)）选 adapter、`EngineBridge`（[engineBridge.ts:43](../../harness/vscode-ext/src/bridge/engineBridge.ts)）探测 9877+ 端口并自动拉起编辑器、`loadPluginTools`（[pluginBridge.ts:42](../../harness/vscode-ext/src/bridge/pluginBridge.ts)）require 插件 dist。源码可读、逻辑自洽，**但它是未被当前主链路使用的分支**，理由有三条硬事实：
+
+1. 目录内无 `dist/`、无 `node_modules/`（`activate` 跑不起来，扩展从未被构建过）；
+2. `activate` 里 `pluginDist` 拼的是 `path.resolve(context.extensionPath, '..', '..', 'ds-engine-tools', 'dist', 'index.js')`——依赖扩展被装在 `harness/vscode-ext/` 下这个特定布局，而 `harness/ds-engine-tools/dist/` 当前不存在；
+3. [profile/cordis.patch.yml](../../harness/profile/cordis.patch.yml) 的注释写着「此文件被 `dsh-agent-service.cjs` 自动创建的 profile 加载」，但全仓库 grep `dsh-agent-service` 只在这两处注释里命中，**没有这个脚本的实现**。
+
+`pluginBridge.ts` 自己的文件头注释也承认了这一点：
+
+```ts
+* 第一版简化：ds-engine-tools 工具不与 DSH runtime 真集成，而是由 vscode-ext 直接 import
+* 插件的 `ALL_TOOLS` 并通过一个轻量"AgentExecutor"绑定到 KernelAdapter 事件流。
+* 等 DSH SDK 提供 `defineTool` 工具装饰器（FR-4.1）稳定后，迁移到真 DSH registration。
+```
+
+> 结论：这个壳是**规划中/未落地**的过渡方案。当前 agent 能力的真实装配路径是 §2.2 的 junction + patch，不是 VS Code 扩展。改 `vscode-ext/` 不会改变任何 agent 行为。
+
+---
+
+## 3. 工程清单
+
+`harness/` 下 9 个 DSH 插件包 + 1 个扩展壳 + 1 份内核源码 + 1 份 profile。构建方式**完全一致**：`npm install` → `npm run build`（tsc）→ `dist/index.js`。
+
+| 目录 | 职责 | `inject` | 与其他文档的分工 |
+|---|---|---|---|
+| [ds-engine-tools/](../../harness/ds-engine-tools) | 游戏运行时工具 9 个（HUD/场景大纲/UI 大纲/资产/鼠标键盘模拟/AI 事件） | `['tools']` | 本文档 §2 |
+| [ds-editor-tools/](../../harness/ds-editor-tools) | 编辑器 UI 工具 7 个，经 CDP :9222 点击/输入/截图/发 AI 事件 | `['tools']` | 本文档 §2.2 ④ |
+| [ds-memory/](../../harness/ds-memory) | 记忆系统：4 个 memory_* 工具 + 常驻记忆指导段 + 回合末提醒 | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
+| [ds-feedback/](../../harness/ds-feedback) | 反馈飞轮：规则库段（order 3100）+ rule_propose/rule_apply | `['tools','systemPrompt']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| [ds-experience/](../../harness/ds-experience) | 经验飞轮：经历存取与检索 | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| [ds-instructions/](../../harness/ds-instructions) | 目录指令：读文件触发 `.dsh/instructions/*.md` 注入 | `['tools','systemPrompt']` | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
+| [ds-sync/](../../harness/ds-sync) | 启动时把 `~/.dsh` 记忆/skills/profiles/presets 同步到项目 `.dsh` | `[]` | [插件安装](./dsh_plugin_install.md) §3 |
+| [ds-context-warning/](../../harness/ds-context-warning) | 上下文水位告警（100/200/250/300K 阈值） | `[]` | 本文档总览 |
+| [ds-plugin-manager/](../../harness/ds-plugin-manager) | 管理上面这些插件：create/mount/unmount 三个工具 | `['tools']` | 本文档 §2.2 ①② |
+| [vscode-ext/](../../harness/vscode-ext) | VS Code 扩展壳（自带 KernelManager + EngineBridge） | — | **未装配**，见 §2.4 |
+| [profile/](../../harness/profile) | 内置 profile 与 skills；实际生效的是 `~/.dsh` | — | [插件安装](./dsh_plugin_install.md) 踩坑 3 |
+| [dsh-source/](../../harness/dsh-source) | DSH 内核源码克隆（.gitignore 忽略），只消费不改 | — | [DSH 引擎集成](./dsh_engine_integration.md) |
+
+> `ds-engine-tools/package.json` 的 `description` 仍写着 PRD 初期的 5 个工具名（`inspect_scene`/`spawn_entity`/`run_scenario`/`get_game_state`/`set_game_speed`），但 `src/index.ts` 里 `ALL_TOOLS` 实际是另外 9 个。**描述与实现已经不同步**——以源码为准（见 §6 坑 4）。
+
+---
+
+## 4. 关键方法/脚本速查
+
+| 名称 | 位置 | 干什么 | 注意 |
+|---|---|---|---|
+| `mountPluginTool` | [mountPlugin.ts:25](../../harness/ds-plugin-manager/src/tools/mountPlugin.ts) | 一键部署：build → junction → patch → validate | 只接受 `harness/` 下的目录，越界直接拒绝 |
+| `ensureJunctions` | [junction.ts:82](../../harness/ds-plugin-manager/src/junction.ts) | 为 web+headless 各建一个 junction | **传裸包名**，内部会拼 `@demostudio/` |
+| `unmountPluginTool` | [unmountPlugin.ts:24](../../harness/ds-plugin-manager/src/tools/unmountPlugin.ts) | 移除 junction + 删除 patch insert 行 | 与 mount 侧同用 `entryId` |
+| `apply`（引擎工具） | [ds-engine-tools/src/index.ts:41](../../harness/ds-engine-tools/src/index.ts) | 注册 9 个运行时工具 | `inject=['tools']`，多写少写都 boot 失败 |
+| `apply`（编辑器工具） | [ds-editor-tools/src/index.ts:43](../../harness/ds-editor-tools/src/index.ts) | 注册 7 个 CDP 工具，effect 卸载时 `disconnectCDP()` | 与引擎工具按通道分工，不交叉 |
+| `apply`（记忆） | [ds-memory/src/index.ts:69](../../harness/ds-memory/src/index.ts) | 注册 4 个 memory 工具 + 指导段 + 回合末提醒 | 提醒有 60s 冷却 |
+| `getEngineContext` | [engineContext.ts:152](../../harness/ds-engine-tools/src/engineContext.ts) | 三种来源找 bridge（ctx / globalThis / env port） | 全落空返回 `null` |
+| `getEditorPage` | [cdpBridge.ts:24](../../harness/ds-editor-tools/src/cdpBridge.ts) | 懒连接 + 自动重连 CDP :9222，共享 Page | 编辑器需已开 remote-debugging |
+| `probePort` | [engineBridge.ts:175](../../harness/vscode-ext/src/bridge/engineBridge.ts) | 9877→9927 逐个 `GET /api/status` 探活 | 属 `vscode-ext/`（未装配），仅作对照 |
+| `resolveRuntimeLaunch` | [kernel.ts:126](../../harness/vscode-ext/src/dsh/kernel.ts) | 决定 DSH CLI 路径（env → dsh-source → 全局） | 同上，未装配 |
+| `activate` | [extension.ts:25](../../harness/vscode-ext/src/extension.ts) | 扩展壳装配 10 步 | 同上，未装配 |
+
+---
+
+## 5. 流程影响：牵动哪些功能
+
+### 上游：谁驱动它
+
+| 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
-| 编辑器未运行 | 桥接层工具调用失败 | EngineBridge 自动拉起（`npm run dev`），启动过程状态栏显示进度 |
-| 端口被占用 | 自动探测 9877+ 递增 | `enginePort = 0` 时自动；`enginePort = N` 时直连 N，失败则明确报错 |
-| DSH 内核加载失败 | 启动命令报"DSH 不可用" | 状态栏红点 + 提示检查 `harness/dsh-source/` 构建状态 + 引导 `npm run build` |
-| DSH 内核崩溃 | 进程异常退出 | KernelManager 自动重启，最多 3 次，超过则报错并保留崩溃日志到 OutputChannel |
-| 引擎进程被外部关闭 | 状态栏不同步 | SSE 断线信号 + 引擎进程探活（轮询 `/api/status`），确认断开后状态降级 |
-| SSE 断线 | 事件丢失 | 客户端自动 reconnect；服务端保留最近 100 条事件缓冲；彻底断时降级为轮询 `console-logs`（2s 间隔） |
-| MCP 客户端断连 | MCP 通道工具不可用 | 自动重连；失败后 EngineBridge 切 HTTP 兜底 |
-| 工具守卫拒绝 | 高危操作返回 `{ ok: false, error: 'requires approval' }` | agent 收到错误后询问用户，用户在 VS Code 弹窗或状态栏点确认 |
-| 工作区切换 | 内核会话需清理 | `deactivate` 时清理内核资源与 MCP 连接；切换文件夹时按需重启内核/复用会话（按 workspace 路径映射） |
-| VS Code 关闭 | 扩展退出 | `deactivate` 清理所有资源（内核、MCP、终端任务、SSE 订阅） |
-| DSH 版本升级 | API 变更 | 适配层变更 + CHANGELOG；上层模块无感 |
-| 场景文件外部改动 | 编辑器需感知 | 复用 `fs.watch` + IPC `asset-changed` 检测外部变更并提示刷新 |
-| 多 DSH 实例 | profile 冲突 | 按 workspace 路径哈希生成唯一 profile 名；切换工作区复用/新建 |
-| 网络受限（npm registry） | 更新检查失败 | 静默忽略，不打扰用户；状态栏不显示 |
-| 插件包加载失败 | 工具不可用 | 启动日志明确报错；状态栏提示禁用引擎特化能力 |
-| 全新环境首次激活 | 内核未就绪 / 引擎未拉起 | 状态栏引导："DSH: 启动引擎" + "DSH: 重启内核" 一键直达 |
+| Electron 主进程 | `bootstrapDSH()` 探测/认领 `:3080`，否则 spawn DSH 内核，内核加载插件 | [DSH 引擎集成](./dsh_engine_integration.md) |
+| `~/.dsh/profiles/{web,headless}/cordis.patch.yml` | `insert` 行决定哪些插件进配置树 | [插件安装](./dsh_plugin_install.md) |
+| Windows junction | 决定包名能否解析到 `harness/<插件>/dist` | [插件安装](./dsh_plugin_install.md) |
+| 开发者 `npm run build` | 产出 `dist/index.js`，junction 指向它 | 本文档 §2.1 |
+| 编辑器 HTTP API（`:9877+`） | `/api/command`、`/api/status`、`/api/console-logs` | [MCP 集成](../editor/integration/mcp_integration.md) |
 
-## 6. 依赖关系 / 注册机制
+### 下游：它波及谁
 
-### 6.1 模块依赖
+| 下游功能 | 波及点 | 相关文档 |
+|---|---|---|
+| 插件挂载与加载 | 全部 9 个插件包按同一机制挂载，junction/patch 细节归该文档 | [插件安装](./dsh_plugin_install.md) |
+| 引擎集成与自愈 | 内核由 Electron 拉起（`:3080`），常驻化/崩溃自愈归该文档 | [DSH 引擎集成](./dsh_engine_integration.md) |
+| 斜杠命令 | 复用同一 AgentService 通道，`skill.list` 等 RPC | [斜杠命令](./slash_command_system.md) |
+| Preset 同步 | `ds-sync` 镜像 `~/.dsh/.agent-presets` → 项目 `.dsh/presets` | [Preset 同步](./preset-sync-mechanism.md) |
+| 数据飞轮 | `ds-feedback` / `ds-experience` 同机制挂载，规则库与经验库 | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| 飞轮验收 | ds-feedback/ds-experience 的测试用例 | [数据飞轮测试用例](./dsh_data_flywheel_test_cases.md) |
+| Agent 面板 | 插件注册的工具进入 agent 可调用清单，面板展示 | [Agent 面板](../editor/integration/agent_panel_system.md) |
+| 引擎工具调用 | `editor/mcp-server.mjs` 提供 MCP stdio 通道 | [MCP 集成](../editor/integration/mcp_integration.md) |
 
-```
-extension.ts
-  ├── dsh/kernel.ts → dsh/adapter.ts + dsh/embeddedAdapter.ts
-  ├── dsh/updater.ts
-  ├── bridge/engineBridge.ts → editor MCP / HTTP API
-  ├── ui/chatView.ts → dsh/kernel.ts (事件流)
-  ├── ui/statusBar.ts → bridge/engineBridge.ts (状态) + dsh/updater.ts (版本)
-  └── commands.ts → dsh/kernel.ts + bridge/engineBridge.ts
+---
 
-ds-engine-tools/src/index.ts (Cordis plugin)
-  ├── tools/*.ts → bridge/engineBridge.ts (注入到 ctx.engineBridge)
-  ├── guards.ts → ctx.tools 配置
-  ├── events.ts → SSE 订阅
-  └── slots.tsx → ctx.slots 注册
-```
+## 6. 踩坑清单
 
-### 6.2 VS Code 扩展贡献
+**1. 把 `vscode-ext/` 当成当前装配路径**
 
-```jsonc
-// harness/vscode-ext/package.json
-{
-  "contributes": {
-    "commands": [
-      { "command": "dsh.openChat",       "title": "DSH: 打开聊天" },
-      { "command": "dsh.startEngine",    "title": "DSH: 启动引擎" },
-      { "command": "dsh.stopEngine",     "title": "DSH: 停止引擎" },
-      { "command": "dsh.startGame",      "title": "DSH: 启动游戏" },
-      { "command": "dsh.stopGame",       "title": "DSH: 停止游戏" },
-      { "command": "dsh.restartKernel",  "title": "DSH: 重启内核" },
-      { "command": "dsh.checkUpdate",    "title": "DSH: 检查内核更新" }
-    ],
-    "viewsContainers": {
-      "activitybar": [{
-        "id": "dsh",
-        "title": "DSH",
-        "icon": "assets/dsh-icon.svg"
-      }]
-    },
-    "views": {
-      "dsh": [{ "type": "webview", "id": "dsh.chat", "name": "Chat" }]
-    },
-    "configuration": { "title": "DSH", "properties": { /* FR-6 配置项 */ } },
-    "mcpServers": { /* 重复注册现有 mcp.json，使 VS Code 内置 agent 可用引擎工具 */ }
-  }
-}
-```
+现象：改了 `vscode-ext/src/` 的代码，agent 行为毫无变化。
+原因：该扩展从未被构建（无 `dist/`、无 `node_modules/`），且 `profile/cordis.patch.yml` 引用的 `dsh-agent-service.cjs` 在全仓库只存在于两处注释里，没有实现。
+规则：认准主链路是 Electron → DSH → junction + patch。`vscode-ext/` 是未落地的过渡方案，改它不改变任何 agent 行为。
 
-### 6.3 DSH 插件包加载
+**2. 以 `harness/dsh-source` 为 cwd 拉起内核，相对路径全偏**
 
-`harness/profile/dsh.profile`：
-```yaml
-name: demostudio
-bundles:
-  - "@demostudio/ds-engine-tools"  # 本地相对路径
-```
+现象：插件里用 `process.cwd()` 拼的目录落在 `dsh-source` 下，找不到项目文件。
+原因：`spawnDshAgent` 里 `cwd: DSH_SOURCE_DIR`。
+规则：目录型 config（`memoryDir`/`ruleDir`/`experienceDir`/`projectRoot`/`instructionsDir`）用**绝对路径**在 patch 里钉死。`ds-instructions` 的 README 也明确写了 `projectRoot` 必须显式配置，就是这个原因。
 
-`harness/profile/package.json`：
-```json
-{
-  "name": "@demostudio/ds-profile",
-  "dependencies": {
-    "@demostudio/ds-engine-tools": "file:../ds-engine-tools"
-  }
-}
-```
+**3. `ensureJunctions` 传了完整包名导致 profile 启动失败**
 
-`harness/profile/cordis.patch.yml`：
-```yaml
-# 精简版系统提示词：DemoStudio 目录结构 + 关键 API + 引擎架构概要
-inject:
-  - target: 'system.persona'
-    content: |
-      你是 DemoStudio 引擎的专家 agent ...（略）
-```
+现象：junction 建出来了，但 web profile 启动失败。
+原因：`ensureJunctions` 内部会自己拼 `@demostudio/` 前缀，传 `@demostudio/ds-x` 会拼出 `node_modules/@demostudio/@demostudio/ds-x` 嵌套错位。
+规则：传 `entryId`（剥掉 scope 的裸包名）。`mountPlugin.ts` 里 `pkgName.replace(/^@demostudio\//, '')` 就是干这个的。
 
-## 7. 失败处理
+**4. 把 PRD 里的「5 个工具」当成现状**
 
-| 失败 | 处理 |
-|---|---|
-| DSH 内核加载失败 | 状态栏红点 + OutputChannel 报错 + 提示检查 `harness/dsh-source/` 构建状态 + 引导 `npm run build` |
-| 引擎不可达 | 工具返回 `{ ok: false, error: '编辑器未运行' / '端口未找到' }`；EngineBridge 尝试自动拉起；agent 据此采取行动 |
-| SSE 断线 | 客户端自动 reconnect（最多 5 次）+ 服务端保留最近 100 条事件缓冲；彻底断时降级为轮询 `console-logs`（2s 间隔） |
-| 内核崩溃 | KernelManager 自动重启（最多 3 次），超过则报错并保留崩溃日志到 OutputChannel |
-| MCP 客户端断连 | 自动重连；失败后 EngineBridge 切 HTTP 兜底 |
-| 工具守卫拒绝 | 返回 `{ ok: false, error: 'requires approval' }`；agent 询问用户，用户在 VS Code 弹窗或状态栏点确认 |
-| 插件包加载失败 | 启动日志明确报错；状态栏提示禁用引擎特化能力 |
+现象：照旧文档 grep `inspect_scene`/`spawn_entity`，一个都找不到。
+原因：`ds-engine-tools/package.json` 的 `description` 还写着 PRD 初期的 5 个工具名，但 `src/index.ts` 的 `ALL_TOOLS` 实际是 9 个（emitAIEvent / mouseClick / mouseMove / mouseDrag / keyPress / getHUD / getSceneOutline / getUiOutline / getAssets）。
+规则：**写调用链前 grep 确认符号存在**。package.json 的 description 和 PRD 需求清单都不等同于当前代码。
 
-## 8. 验收标准
+**5. `inject` 多写内建属性导致 boot 卡死**
 
-- [ ] `vsce package` 成功产出 `.vsix`，本地安装无报错
-- [ ] 命令面板 7 个 DSH 命令全部可执行
-- [ ] 侧边栏聊天视图可收发消息，UI 适配深浅主题，支持流式渲染/工具卡片/代码块/@提及
-- [ ] 状态栏实时显示引擎状态、内核版本
-- [ ] 自动探测编辑器端口并连接；编辑器未运行时可自动拉起
-- [ ] SSE 事件推送通道可订阅游戏生命周期/崩溃/场景/AI 事件
-- [ ] DSH 内核进程内启动成功，可完成一次 agent 对话
-- [ ] 5 个引擎特化工具（inspect_scene 等）可被 agent 调用并返回正确结果
-- [ ] "改代码 → 启动游戏 → 读日志 → 迭代"闭环演示通过
-- [ ] 引擎崩溃 → agent 自动诊断流程触发
-- [ ] 更新检查器：有新版本时状态栏提示可见
-- [ ] 扩展卸载无残留进程
+现象：boot 报 `pending (waiting for service: logger)`，内核一直起不来。
+原因：`inject` 数组里写了 `'logger'`，但 logger 是 Context 内建属性、不是可注入服务键。
+规则：`inject` 只声明通过 fiber 解析的服务键，取具名 logger 用 `ctx.logger('名字')`。反过来漏声明也会抛 `cannot get property X without inject`。
 
-## 9. 约束与禁忌
+**6. Git Bash 下 `mklink /J` 报 Invalid switch**
 
-- **不 fork 或修改 DSH 内核源码**（`dsh-source/` 只 clone 不改）
-- **不重写 DemoStudio 编辑器本体**
-- 扩展上层模块（UI/命令/EngineBridge）只依赖 `KernelAdapter`，不感知 DSH 内部实现
-- 工具实现只依赖 EngineBridge 或编辑器 HTTP API，不依赖 DSH 内部 API
-- 引擎 HTTP/SSE 端口仅绑定 `127.0.0.1`
+现象：建 junction 失败。
+原因：Git Bash 对 `/J` 做路径改写。
+规则：一律用 `powershell New-Item -ItemType Junction`（`junction.ts` 就是这么写的）。junction 不需要管理员权限。
 
-## 10. 不做范围（二期）
+**7. 只建了一个 profile 的挂载**
 
-- 多用户/云端协作
-- 外壳型方案（DSH Web UI 直接嵌入 VS Code）
-- 截图/实时 Three.js 预览
-- 版本兼容矩阵 CI（FR-2.5）
-- Skill 内容（第一版只预留目录结构）
+现象：web profile 能跑，headless 不能（或反之）。
+原因：两个 profile 是两份独立的 junction + 两份独立的 patch。
+规则：`ensureJunctions` 已对 `['web','headless']` 循环；手写时两边都要建。
+
+**8. 误以为 `harness/dsh-source` 就是编辑器实际运行的内核**
+
+现象：改了 `dsh-source` 的构建产物，编辑器 agent 行为没变。
+原因：`getDshCliPath()` 只把**全局 npm** 的 `@deepseek-ai/dsh` 作为 CLI 候选，`harness/dsh-source` 从未进入候选列表（它只当 `cwd` 和版本切换目录）。运行时 CLI 与源码副本是两套。
+规则：改内核行为要动全局 npm 那套，或走 `dsh-switch-version`（git checkout + pnpm install + pnpm run build）重建后再确认。切换/版本管理见 [DSH 引擎集成](./dsh_engine_integration.md)。
+
+---
+
+## 7. 边界条件
+
+| 条件 | 行为 | 怎么应对 |
+|---|---|---|
+| 插件未编译（无 `dist/index.js`） | import 失败，boot 报模块解析错误 | 插件目录 `npm run build` |
+| `inject` 写了不可注入的键 | boot 卡 `pending (waiting for service: X)` | 从 `inject` 删除，`logger` 走内建属性 |
+| `inject` 漏了要用的键 | `apply` 里访问时抛 `cannot get property X without inject` | 补进 `inject` |
+| junction 指向的目录被删除 | 包名解析失败，boot 报模块找不到 | 重建 junction（`mount_plugin` 幂等，可重跑） |
+| 编辑器以 `dsh-source` 为 cwd | 基于 `process.cwd()` 的默认路径全偏 | 目录型 config 用绝对路径钉死 |
+| `enabled: false` | `apply` 直接 return，section/工具/监听全不注册 | 无需删行即可静默停用 |
+| web profile（`patchReload: live`） | 改 patch 或 rebuild 后热重挂 | 无需重启内核 |
+| headless 一次性进程 | 无热重载，改动下次启动才生效 | 每次改动后重启内核 |
+| `mount_plugin` 传入 `harness/` 外的目录 | 直接拒绝：`只能操作 harness/ 目录下的插件` | 安全限制，不可绕过 |
+| `dist/` 已存在且未传 `forceBuild` | 跳过 build 步骤（`skipped`） | 改过源码必须传 `forceBuild: true` |
+| 端口漂移（多开编辑器） | 编辑器 HTTP 从 9877 起递增 | 先探测再连；CDP 固定 9222，不受影响 |
+| DSH CLI 本地与全局都不存在 | `bootstrapDSH` 失败 → `degraded` 终态，不阻断编辑器其余功能 | 装 `@deepseek-ai/dsh` 或构建 `dsh-source` |
+| `getEngineContext` 三种来源全空 | 返回 `null`，工具拿不到 bridge | 检查 ctx 注入 / `globalThis.__dshEngineCtx` / `DSH_ENGINE_PORT` |
+| 插件改源码后未重建 | junction 指向目录本身，但内核加载的是旧 `dist/` | 必须 `npm run build`，junction 不会自动编译 |

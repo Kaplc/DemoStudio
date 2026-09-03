@@ -788,7 +788,7 @@ zOrder 报错信息也点明了惯例区间是 `0~4`。
 |---|---|---|
 | 游戏实例启动 | `GameInstance.start()` 调 `ToastSystem.attach` / `ColorblindService.attach` | [游戏流程](../../engine/gameflow_system.md) |
 | 世界 Tick | `World.tick` / `World.manualTick` → `UIManager.tickUI` → `TweenSystem.update` + `ToastSystem.update` | [游戏流程](../../engine/gameflow_system.md) |
-| 输入系统 | `handleKeyDown` → `setDevice('keyboard')`；`handlePointerDown` → `setDevice('mouse')`；`handlePointerMove` → `PhySys.dispatchDragMove` 驱动列表拖拽 | [输入物理脚本](../../engine/input_physics_script_system.md) |
+| 输入系统 | `handleKeyDown` → `setDevice('keyboard')`；`handlePointerDown` → `setDevice('mouse')`；`handlePointerMove` → `PhySys.dispatchDragMove` 驱动列表拖拽 | [输入系统](../../engine/input_system.md) |
 | UI 管理器 | `spawnUIActor` 提供动态生成 + 浮动层偏移；`getAllUIActors` 供色盲遍历 | [UI 系统](../../engine/ui_system.md) |
 | 资产检查引擎 | 对 `.widget.json` 额外调度 `doc:ui-design` 检查器 | [资产预览与检查](../asset/asset_preview_lint_system.md) |
 | AI 事件 | `ai.showMessage` 按 `ToastSystem.attached` 决定走 toast 还是日志 | [AI 事件系统](../../engine/ai_system.md) |
@@ -799,7 +799,7 @@ zOrder 报错信息也点明了惯例区间是 `0~4`。
 |---|---|---|
 | 画布渲染 | `fade` 遍历整树改 `opacity`；进度条/列表改子 Actor 尺寸 | [CanvasUIComponent](../../engine/ui_canvas_component.md) |
 | 锚点布局 | 进度条 fill 生长方向、tooltip 偏移写入分支、item 根锚点被置 null | [UI 锚点系统](./ui_anchor_system.md) |
-| 点击/拖拽分发 | 绑定 `onDragMove` 的 Clickable 自动启用「拖拽取消点击」（8px 阈值） | [输入物理脚本](../../engine/input_physics_script_system.md) |
+| 点击/拖拽分发 | 绑定 `onDragMove` 的 Clickable 自动启用「拖拽取消点击」（8px 阈值） | [物理系统](../../engine/physics_system.md) |
 | widget 资产源格式 | 设计级 lint 对 `.widget.json` 生效，`ui_compile` 走 lintBridge 同一套规则 | [UI 源格式系统](./ui_source_format_system.md) |
 | 编辑器面板 | 设计级 lint 结果全 warn，不阻断资产通过率 | [UI 组件系统](./ui_components_system.md) |
 | 资产检查面板 | 设计级检查器经 `registerAssetChecker` 注册，结果汇入 assetLint issue 列表 | [资产预览与检查](../asset/asset_preview_lint_system.md) |

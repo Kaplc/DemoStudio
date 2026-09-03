@@ -1,61 +1,212 @@
-# ds-instructions 插件需求文档（修订版）
+# ds-instructions 插件 PRD（修订版）
 
-## 1. 背景与目标
+> **一句话定位**：`ds-instructions` 插件的产品需求文档——给 DemoStudio 补一套「路径前缀 → 目录指令文件」的映射机制，让 agent 读到 `src/engine/**` 下的文件后，下一次模型请求自动带上 `engine.instructions.md`。
+>
+> **什么时候会用到你**：实现或修改 `harness/ds-instructions/` 插件、确认某条生命周期/去重/安全规则该怎么定、写或跑该插件的测试用例、判断某个行为是 bug 还是设计。
+>
+> 代码位置：`harness/ds-instructions/src/`（实现）、`harness/ds-instructions/tests/`（测试）、`.dsh/instructions/`（指令文件）
+>
+> 文档状态：修订版 v0.2（修订历史与开放问题见 §9）
 
-DemoStudio 的 Agent 使用 DSH 内核。Agent 读取项目文件后，需要自动获得该文件所属代码区域的开发规范，以便后续分析和修改遵循项目约定。
+**关键心智模型**：本文档**既有规划也有实现**，两者必须分开读。§5「需求 ↔ 实现对照表」是核心：它逐条标注每条需求当前落地到哪一步。除 §5 标为「已实现」的条目外，其余条款**都是尚未落地的规划**，不要当成现状。
 
-本插件 `@demostudio/ds-instructions` 为 DemoStudio 提供一套补充性的目录指令机制：
+---
 
-```text
-src/engine/...   -> .dsh/instructions/engine.instructions.md
-src/projects/... -> .dsh/instructions/project.instructions.md
+## 1. 先记住这几个文件
+
+| 文件 | 一句话职责 | 你要改它的场景 |
+|---|---|---|
+| [index.ts](../../harness/ds-instructions/src/index.ts) | 插件入口：全部生命周期监听与状态边界 | 改注入时机、去重、并发语义 |
+| [mapping.ts](../../harness/ds-instructions/src/mapping.ts) | 路径前缀 → 指令文件映射（最长前缀优先） | 加/改映射规则 |
+| [frontmatter.ts](../../harness/ds-instructions/src/frontmatter.ts) | 从指令文件头部 `prefix:` 自动推导映射 | 新增指令文件后不想改 patch |
+| [state.ts](../../harness/ds-instructions/src/state.ts) | session 可见状态、reconcile、set/replace/remove | 改去重与更新语义 |
+| [config.ts](../../harness/ds-instructions/src/config.ts) | `projectRoot`/`instructionsDir`/预算配置与 schema | 加配置项 |
+| [files.ts](../../harness/ds-instructions/src/files.ts) | 指令加载与缓存（版本+size 校验） | 改缓存策略、安全兜底 |
+| [render.ts](../../harness/ds-instructions/src/render.ts) | 正文渲染、`<system-reminder>` 边界、字节预算 | 改注入正文措辞/截断策略 |
+
+**当前指令目录实况**（`.dsh/instructions/`）：`engine.instructions.md`（`prefix: src/engine`）、`harness.instructions.md`（`prefix: harness`）、`global.instructions.md`（`prefix: /`）。默认映射里的 `project.instructions.md` **当前不存在**——读到 `src/projects/**` 不会注入任何指令（见 §5 FR-1）。
+
+---
+
+## 2. 一条目录指令怎么生效：从文件到 systemPrompt
+
+### 2.1 谁加载了它
+
+标准 Cordis 插件，靠 `name` + `inject` + `apply` 三件套被 DSH loader 加载（[index.ts:48](../../harness/ds-instructions/src/index.ts)）：
+
+```ts
+export const name = '@demostudio/ds-instructions'
+
+/** 本插件访问的 Cordis 服务。logger 是 Context 内建能力不走 inject；fs 通过 ctx.get('fs') 运行时可选获取。 */
+export const inject = ['tools', 'systemPrompt']
 ```
 
-插件只负责 DemoStudio 专用的 `.dsh/instructions/*.instructions.md` 文件，不处理 `AGENTS.md`、`CLAUDE.md` 或 `.github/instructions`。DSH 已有的 `@deepseek-ai/dsh-agent-instructions` 继续负责通用工作区指令，两者不读取同一类文件。
+`inject` 里**只有两项**：`logger` 是 Context 内建属性，写进 `inject` 会让 boot 卡在 `pending (waiting for service: logger)`；`fs` 故意不静态声明，改在运行时 `ctx.get('fs')` 可选获取（[index.ts:120](../../harness/ds-instructions/src/index.ts)），这样没有 fs provider 的环境不会因注入失败而启动不了。
 
-## 2. 现有能力与兼容边界
+`apply` 第一行是短路开关，`enabled: false` 时**连 systemPrompt 段都不注册**：
 
-DSH 已内置 `@deepseek-ai/dsh-agent-instructions`，并支持：
-
-- `agent/pre-step` 消息注入
-- 成功文件工具后的指令刷新
-- 文件版本/digest 去重
-- session 恢复与 Agent 重建
-- `agent-instructions` ContextCard 来源
-
-因此本插件不能简单复制一套通用 `AGENTS.md` loader。它只实现 DemoStudio 的“路径前缀到自定义指令文件”的映射。
-
-当前 `game-editor` preset 已挂载官方 `agent-instructions`；本插件应使用独立的插件名和文件命名空间，避免重复读取同一内容。
-
-本插件虽然只增加 DemoStudio 专用的路径映射，但其生命周期能力必须达到官方实现的可靠性要求。不能因为文件名规则更简单，就省略 session、压缩、版本、并发或持久化处理。
-
-实现原则：生命周期直接遵循 DSH 官方 `agent-instructions` 的处理顺序和状态语义。自定义插件只实现“路径映射”和“指令文件加载”，不另造一套简化的注入生命周期，也不依赖官方插件的私有函数。
-
-### 2.1 能力范围决策
-
-```text
-官方 agent-instructions
-  -> AGENTS.md / CLAUDE.md 的通用工作区指令
-
-ds-instructions
-  -> .dsh/instructions/*.instructions.md 的 DemoStudio 专用目录指令
+```ts
+export function apply(ctx: Context, config?: Partial<Config>): void {
+  if (config?.enabled === false) return
+  const resolved: ResolvedConfig = resolveConfig(config ?? {})
 ```
 
-两者可以同时挂载，但不能读取同一文件，也不能互相覆盖对方的状态。官方插件已经解决的生命周期问题，本插件需要遵循相同的行为约定。
+挂载三件事（`dist/index.js` + junction 让包名可解析 + patch `insert` 行）的机制见 [插件安装](./dsh_plugin_install.md)。两 profile 的 patch 都只写了 `projectRoot: 'E:/DemoStudio'`，**没写** `mappings`——映射全靠 frontmatter 自动扫描（§2.2 ①）。
 
-本插件应复用的官方生命周期为：
+### 2.2 映射链路
 
-```text
-tools/result 成功
-  -> execution token 向外层汇总
-  -> 当前 step 结束
-  -> projection 串行化并读取最新指令
-  -> reconcile Agent inbox 与 session surface
-  -> agent/pre-step 等待 projection
-  -> 将 durable instruction message 放入下一次请求
+```mermaid
+flowchart TD
+    A["tools/pre-execute<br/>executionCandidates.set(token, [file_path])"] --> B["工具实际执行"]
+    B --> C["tools/result"]
+    C -->|"isError / 无 agent / aborted"| X["touches = []，连同嵌套已汇总的一起丢"]
+    C -->|"成功 且 trackedTools.has(name)"| D["确认 touch"]
+    D --> E{"exec.parent?"}
+    E -->|"有 parent"| F["汇总进 executionTouches[parent]，return"]
+    E -->|"根调用"| G["projectTouch(touch)"]
+    G --> H{"stepIsOpen(session)?"}
+    H -->|"是"| I["累计进 stepTouches，等 step/end"]
+    H -->|"否"| J["queueProjection"]
+    I -->|"session/event: step/end"| J
+    J --> K["deliver()<br/>resolveTouch 算指令文件 + 预热缓存"]
+    K --> L["agent/pre-step"]
+    L --> M["await next() 取 decision"]
+    M --> N["waitForProjections(agent)"]
+    N --> O["visibleInstructionState<br/>从 session durable 事件推导"]
+    O --> P["reconcileTargets<br/>set / replace / remove"]
+    P --> Q["composeMessage<br/>renderBatch + createUserMessage"]
+    Q --> R{"reject 或 step===1 且无消息?"}
+    R -->|"是"| S["保留 pending，返回原 decision"]
+    R -->|"否"| T["toSpliced 插到 claimed 批次之后"]
 ```
 
-## 3. 成功标准
+#### ① 映射从哪来：frontmatter 自动扫描（显式配置兜底）
+
+指令文件自己声明前缀，插件扫一遍目录（[frontmatter.ts:32](../../harness/ds-instructions/src/frontmatter.ts)）：
+
+```ts
+export function parseFrontmatterPrefix(content: string): string | undefined {
+  // 匹配 --- 包裹的 frontmatter 块（兼容 CRLF）
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!match?.[1]) return undefined
+  const frontmatter = match[1]
+  // 提取 prefix: value 行（值可能带引号）
+  const prefixMatch = frontmatter.match(/^prefix:\s*['"]?([^'"\n\r]+)['"]?\s*$/m)
+  if (!prefixMatch?.[1]) return undefined
+  const value = prefixMatch[1].trim()
+  return value.length > 0 ? value : undefined
+}
+```
+
+这是**正则提取，不是 YAML 解析**——只认 `prefix:` 一个字段，不引第三方依赖。三个反直觉处：正则不校验 YAML 合法性，写错缩进不报错只静默返回 `undefined`；只扫指令目录下的 `*.instructions.md`（[frontmatter.ts:52](../../harness/ds-instructions/src/frontmatter.ts) 的 `entry.endsWith('.instructions.md')`）；**只读前 4096 字节**探测，frontmatter 必须在文件头部。
+
+真实样例（`.dsh/instructions/engine.instructions.md`）：
+
+```text
+---
+prefix: src/engine
+---
+# 引擎开发规范（ds-instructions 验证）
+```
+
+`prefix: /` 是**全局映射**，匹配项目根下一切路径。扫描结果与显式 `mappings` 合并时**显式优先**，同 prefix 不覆盖（[config.ts:215](../../harness/ds-instructions/src/config.ts)）；自动扫描的 `order` 从 1000 起跳，保证同长度前缀时显式声明排在前面。
+
+#### ② 路径前缀怎么匹配：段级最长前缀，不是 includes
+
+映射在解析期就被拆成「路径段数组」并按段数倒序排好（[config.ts:143](../../harness/ds-instructions/src/config.ts)）：
+
+```ts
+  // 最长前缀优先（段数多者优先），全局（0 段）自然垫底；同长按声明顺序
+  return resolved.sort((a, b) =>
+    b.segments.length - a.segments.length || a.order - b.order,
+  )
+```
+
+匹配时按段逐个比（[mapping.ts:37](../../harness/ds-instructions/src/mapping.ts)）：
+
+```ts
+export function matchMapping(relPath: string, mappings: readonly ResolvedMapping[]): ResolvedMapping | undefined {
+  const segments = relPath.split(/[\\/]+/).filter(segment => segment.length > 0)
+  for (const mapping of mappings) {
+    if (segments.length < mapping.segments.length) continue
+    const ok = mapping.segments.every((segment, index) =>
+      pathCompareKey(segments[index]!) === pathCompareKey(segment),
+    )
+    if (ok) return mapping
+  }
+  return undefined
+}
+```
+
+三个反直觉处。**第一**，比的是**段数组**而非字符串前缀：`src/engine2/a.ts` 的段是 `['src','engine2','a.ts']`，第 2 段 `engine2 !== engine`，不会误命中——用 `includes` 就会错。**第二**，mappings 已按段数倒序排好，遇到第一个 `ok` 即可 `return`，这就是「最长前缀优先」的全部实现。**第三**，全局映射是空段数组：`segments.length < 0` 恒假、`every` 对空数组恒真，所以它匹配一切，且排序时自然垫底，只在无具体前缀命中时兜底。Windows 上 `pathCompareKey` 转小写比较，是平台一致化而非 bug。
+
+#### ③ 路径规范化与越界拦截
+
+工具参数的 `file_path` 先规范化（[mapping.ts:19](../../harness/ds-instructions/src/mapping.ts)）：
+
+```ts
+export function normalizeTouchedPath(root: string, rawPath: unknown): string | undefined {
+  if (typeof rawPath !== 'string') return undefined
+  const trimmed = rawPath.trim()
+  if (trimmed.length === 0) return undefined
+  const absolute = resolve(root, trimmed)
+  return containedRelative(root, absolute)
+}
+```
+
+`resolve(root, trimmed)` 同时吃相对路径、绝对路径和 Windows `\`——相对路径基于 `projectRoot` 解析，**不是** `process.cwd()`。越界判定在 `containedRelative`（[config.ts:175](../../harness/ds-instructions/src/config.ts)）：`relative()` 结果以 `..` 开头或为绝对路径（跨盘）即返回 `undefined`，调用方静默跳过。
+
+#### ④ 指令文件路径与 scope 编码
+
+命中后拼绝对路径并算 scope（[mapping.ts:79](../../harness/ds-instructions/src/mapping.ts)）：
+
+```ts
+  const absolutePath = resolve(resolved.instructionsDir, instructionFile)
+  // scope 与官方 candidateScopeKey 同构：<相对目录>\u0000<文件名>，
+  // 让官方 agent-instructions 共存时把我们的 scope 探测到同一个文件（digest 一致 → 静默）
+  const displayPath = `${resolved.instructionsDisplayDir}/${instructionFile}`
+  return { absolutePath, displayPath, scope: `${resolved.instructionsDisplayDir}\u0000${instructionFile}` }
+```
+
+scope 里的 `\u0000` 分隔符是为了和官方 `dsh-agent-instructions` 的 `candidateScopeKey` 同构。官方 reconcile 时会把我们的 scope 当普通指令 scope 探测同名文件，digest 一致就静默，双方状态互不覆盖——刻意设计，不是巧合。
+
+### 2.3 注入与生效
+
+**systemPrompt 段在 `apply` 里注册一次，内容是常量**（[index.ts:84](../../harness/ds-instructions/src/index.ts)）：
+
+```ts
+  ctx.systemPrompt.section({
+    name: SECTION_NAME,
+    order: SECTION_ORDER,
+    text: SECTION_TEXT,
+  })
+```
+
+`SECTION_ORDER = 3300`（[index.ts:58](../../harness/ds-instructions/src/index.ts)），排在 ds-experience(3000) / ds-feedback(3100) / ds-memory(3200) 之后。`text` 是**静态字符串**而非函数——对比 ds-feedback 传 `text: (assembly) => {...}` 每步重算的写法，本插件的段每步都一样，因为它只是一句「可能有目录指令，遵循它」的宣告，具体内容靠 user message 注入。
+
+真正的注入在 `agent/pre-step`（[index.ts:308](../../harness/ds-instructions/src/index.ts)）。先 `await next()` 拿到下游 decision 并保留其字段，再 splice 进消息批次：
+
+```ts
+      const lastClaimedIndex = decision.messages.findLastIndex(message => messages.includes(message))
+      const entered = decision.messages.toSpliced(lastClaimedIndex + 1, 0, desired)
+      return { ...decision, messages: entered }
+```
+
+`lastClaimedIndex + 1` 就是「用户输入之后、运行时 context 之前」。用 `toSpliced`（返回新数组）而非 `splice`，是为了不改动下游插件持有的同一个数组引用。
+
+**最关键的一处反直觉**：注入成功后**不清 pending**（[index.ts:359](../../harness/ds-instructions/src/index.ts) 的注释写明「durable 落地前的注入是『临时的』」）。消息进 decision 只是进了这一次请求，还没写进 session durable 事件；只有落进 durable，下一次 `visibleInstructionState` 才看得见它并抑制重复注入。所以每步都重新对账，写失败就下一步重试，这叫自愈。
+
+---
+
+## 3. 背景与目标
+
+DemoStudio 的规范散落在 `doc/` 与 `.github/instructions/` 下，agent 只有主动去查才看得到。通行做法是让工作区指令「跟着文件走」：读到哪个目录的文件，就把哪个目录的规范自动带进上下文。
+
+DSH 官方的 `@deepseek-ai/dsh-agent-instructions` 已解决 `AGENTS.md` / `CLAUDE.md` 这类通用工作区指令的发现、注入、去重与生命周期（含 session、压缩、版本、并发、持久化），但它不认 `.dsh/instructions/*.instructions.md` 这套 DemoStudio 专用目录指令，也不做「按被读文件路径选指令」的映射。因此本插件只**补上映射这一件事**，其余生命周期必须对齐官方的顺序与状态语义——官方已解决的问题不能因为文件名规则更简单就省略。
+
+**能力范围**：官方 `agent-instructions` 管 `AGENTS.md` / `CLAUDE.md` 通用工作区指令，本插件管 `.dsh/instructions/*.instructions.md` 的 DemoStudio 专用目录指令。两者可以同时挂载，但**不读取同一文件、不互相覆盖对方状态**。
+
+**成功标准（12 条）**：
 
 1. Agent 成功读取 `src/engine/Entity.ts` 后，下一次模型请求包含 `engine.instructions.md`。
 2. Agent 成功读取 `src/projects/snake/SnakePawn.ts` 后，下一次模型请求包含 `project.instructions.md`。
@@ -70,514 +221,180 @@ tools/result 成功
 11. 指令文件读取遵循 DSH `ctx.fs` 的路径、沙箱和版本策略。
 12. 指令消息具备大小限制、版本校验和 durable message 记录。
 
-## 4. 非目标
+**非目标**：不修改 DSH 源码；不修改 `ds-memory`、`ds-engine-tools` 或官方 `dsh-agent-instructions` 源码；不解析 `.github/instructions/*.md` 的 `applyTo` glob，也不解析 frontmatter `paths` 条件；不监听 shell 命令中的目录变化（只跟踪结构化文件工具调用）；不修改工具参数与工具结果；不把指令内容追加到当前工具结果，只在后续模型请求前作为 user message 注入。
 
-- 不修改 DSH 源码。
-- 不修改 `ds-memory`、`ds-engine-tools` 或官方 `dsh-agent-instructions` 源码。
-- 不解析 `.github/instructions/*.md` 的 `applyTo` glob。
-- 不解析 frontmatter `paths` 条件。
-- 不监听 shell 命令中的目录变化；只跟踪结构化文件工具调用。
-- 不修改工具参数，也不修改工具结果。
-- 不把指令内容追加到当前工具结果；只在后续模型请求前作为 user message 注入。
+---
 
-## 5. 路径映射
+## 4. 术语表
 
-### 5.1 显式映射
-
-默认映射如下，匹配使用路径前缀，最长匹配优先：
-
-| 文件路径前缀 | 指令文件 |
+| 术语 | 含义 |
 |---|---|
-| `src/engine` | `.dsh/instructions/engine.instructions.md` |
-| `src/projects` | `.dsh/instructions/project.instructions.md` |
+| 目录指令 / frontmatter 映射 | `.dsh/instructions/*.instructions.md` 下的专用规范文件；头部 `---` 块里的 `prefix:` 声明由插件自动扫描，免除手工维护 patch |
+| 路径前缀映射 / 全局映射 | `prefix`（项目根相对路径段）→ 指令文件名，最长段级前缀优先；`prefix: /` 段数组为空，匹配一切路径，兜底 |
+| touch / execution token | touch = 一次成功的被跟踪文件读取（注入的唯一触发源）；token 带 `parent` 关系，嵌套 touch 沿 parent 向外层汇总 |
+| projection / durable surface | projection = 把 touch 换算成待投递目标并预热缓存（同 Agent 串行）；surface = `session.surface.nodes`，去重的唯一权威 |
+| digest / set·replace·remove | digest = 内容 SHA-1，变化即允许再次注入；三种迁移 = 首次出现 / 新替代旧 / 已删除或不再适用 |
+| scope / projectRoot / inbox | scope = `<指令目录>\u0000<文件名>`（与官方 `candidateScopeKey` 同构）；projectRoot 是解析与越界判定基准；inbox 是官方暂存机制，本插件改用 Agent 级 WeakMap |
 
-不能使用简单的字符串 `includes` 匹配。例如 `src/engine2/a.ts` 不得匹配 `engine`。
+---
 
-### 5.2 路径规范化
+## 5. 需求 ↔ 实现对照表
 
-路径处理必须：
+判定标准：能在 `harness/ds-instructions/` 下 grep 到实现代码 = 已实现；只有规划无代码 = 未实现。
 
-- 支持相对路径、绝对路径和 Windows `\\` 分隔符。
-- 基于配置的 `projectRoot` 解析相对路径。
-- 使用 `resolve` 和 `relative` 检查路径是否位于项目根内。
-- 拒绝或忽略 `..` 越过项目根的路径。
-- 对路径前缀和大小写采用平台一致的比较规则。
-- 不根据用户提供的目录名直接拼接任意文件路径。
+| 编号 | 需求摘要 | 落地状态 | 源码证据 |
+|---|---|---|---|
+| FR-1 | `src/engine` → `engine.instructions.md`，`src/projects` → `project.instructions.md` | **部分实现** | 默认映射在 [config.ts:11](../../harness/ds-instructions/src/config.ts)；但 `.dsh/instructions/` 下**无** `project.instructions.md`，后半条与成功标准 2 当前不成立 |
+| FR-2 | 路径前缀最长匹配优先，`src/engine2` 不得匹配 `engine` | 已实现 | `matchMapping` 段级比较 [mapping.ts:37](../../harness/ds-instructions/src/mapping.ts) + 段数倒序 [config.ts:143](../../harness/ds-instructions/src/config.ts) |
+| FR-3 | 路径规范化：相对/绝对/`\`、`..` 越界拒绝、平台一致比较 | 已实现 | `normalizeTouchedPath` [mapping.ts:19](../../harness/ds-instructions/src/mapping.ts)、`containedRelative` [config.ts:175](../../harness/ds-instructions/src/config.ts)、`pathCompareKey` [config.ts:117](../../harness/ds-instructions/src/config.ts) |
+| FR-4 | 不把 `process.cwd()` 固定当项目根，支持 `projectRoot`/`instructionsDir` 显式配置 | 已实现 | `resolveSessionConfig` [state.ts:41](../../harness/ds-instructions/src/state.ts)；两 profile patch 均写了 `projectRoot: 'E:/DemoStudio'` |
+| FR-5 | frontmatter `prefix:` 自动扫描，免除手工维护 patch | 已实现（`DEFAULT_AUTO_SCAN = true`） | `scanFrontmatterMappings` [frontmatter.ts:52](../../harness/ds-instructions/src/frontmatter.ts)、`mergeMappingRules` [config.ts:215](../../harness/ds-instructions/src/config.ts) |
+| FR-6 | `prefix: /` 全局映射，第一步自动注入无需等文件读取 | 已实现 | [index.ts:325](../../harness/ds-instructions/src/index.ts) `step === 1 && !globalInjected.has(agent)`；`global.instructions.md` 用 `prefix: /` |
+| FR-7 | 只跟踪 `read`/`read_image`，`write`/`edit` 默认关闭 | 已实现 | `DEFAULT_TRACKED_TOOLS` [config.ts:17](../../harness/ds-instructions/src/config.ts) |
+| FR-8 | `tools/pre-execute` 只登记候选，不确认成功 | 已实现 | [index.ts:165](../../harness/ds-instructions/src/index.ts) 写入 `executionCandidates` |
+| FR-9 | 仅 `tools/result` 成功时确认 touch；失败/取消/拒绝不注入 | 已实现 | [index.ts:183](../../harness/ds-instructions/src/index.ts) `result.isError \|\| agent === undefined \|\| signal.aborted` |
+| FR-10 | 嵌套工具通过 `parent` token 向外层汇总，外层失败整体丢弃 | 已实现 | [index.ts:196](../../harness/ds-instructions/src/index.ts) `exec.parent !== undefined` 分支 |
+| FR-11 | 打开的 step 内只累计 touch，`step/end` 后投影 | 已实现 | `session/event` 监听 [index.ts:216](../../harness/ds-instructions/src/index.ts)、`stepIsOpen` [index.ts:233](../../harness/ds-instructions/src/index.ts) |
+| FR-12 | 同一 Agent 的 projection 串行化，并发合并后再 reconcile | 已实现 | `queueProjection` [index.ts:257](../../harness/ds-instructions/src/index.ts)、`projectionTails` [index.ts:101](../../harness/ds-instructions/src/index.ts) |
+| FR-13 | `agent/pre-step` 先 `await next()` 并等待未完成 projection | 已实现 | [index.ts:312](../../harness/ds-instructions/src/index.ts) `const decision = await next()`、[index.ts:314](../../harness/ds-instructions/src/index.ts) `await waitForProjections(agent)` |
+| FR-14 | 去重维度 `session + instructionPath + contentDigest` | 已实现 | `visibleInstructionState` [state.ts:85](../../harness/ds-instructions/src/state.ts) + digest 比对 [state.ts:194](../../harness/ds-instructions/src/state.ts) |
+| FR-15 | 状态从 session durable 事件重新推导，不把 WeakMap 当持久状态 | 已实现 | `visibleInstructionState` 遍历 `session.events` 并用 `surface.nodes` 过滤可见性 [state.ts:90](../../harness/ds-instructions/src/state.ts) |
+| FR-16 | durable 写入前不提交「已注入」状态 | 已实现 | 注入后不清 pending [index.ts:359](../../harness/ds-instructions/src/index.ts)；只在无迁移时结算 [index.ts:356](../../harness/ds-instructions/src/index.ts) |
+| FR-17 | set / replace / remove 三种语义 | 已实现 | `reconcileTargets` [state.ts:153](../../harness/ds-instructions/src/state.ts)；措辞在 `render.ts` 的 `SET_INTRO`/`REPLACE_INTRO`/`REMOVE_INTRO` |
+| FR-18 | 指令文件修改/删除离线也能被发现（对账时） | 已实现 | `visibleTargets` 把可见路径补进对账目标 [state.ts:119](../../harness/ds-instructions/src/state.ts) |
+| FR-19 | 消息用 `createUserMessage` + 官方 `agent-instructions` source contract | 已实现 | `composeMessage` [index.ts:297](../../harness/ds-instructions/src/index.ts)；scope 编码 [mapping.ts:88](../../harness/ds-instructions/src/mapping.ts) |
+| FR-20 | 字节预算 `maxSourceBytes`/`maxMessageBytes`，UTF-8 安全截断 | 已实现 | 默认 262144/65536 [config.ts:20](../../harness/ds-instructions/src/config.ts)；`renderBatch` 二分截断 [render.ts:102](../../harness/ds-instructions/src/render.ts)、`truncateUtf8` [render.ts:36](../../harness/ds-instructions/src/render.ts) |
+| FR-21 | `<system-reminder>` 边界，正文里的闭合标记转义 | 已实现 | `escapeFrameBody` [render.ts:45](../../harness/ds-instructions/src/render.ts) |
+| FR-22 | systemPrompt 段注册（name/order/text），`logger` 不进 `inject` | 已实现 | [index.ts:84](../../harness/ds-instructions/src/index.ts)、`SECTION_ORDER = 3300` [index.ts:58](../../harness/ds-instructions/src/index.ts) |
+| FR-23 | `ctx.effect` 清理所有副作用 | 已实现 | [index.ts:113](../../harness/ds-instructions/src/index.ts) abort lifecycle + clear 两个 Map |
+| FR-24 | 优先 `ctx.fs`，provider 缺席时限定的 Node 兜底 + containment | 已实现 | `currentFs` [index.ts:120](../../harness/ds-instructions/src/index.ts)、`createNodeFallbackAccess` [files.ts:207](../../harness/ds-instructions/src/files.ts)、`nodeContained` realpath 校验 |
+| FR-25 | 缓存按版本+size 判定，命中不重读 | 已实现 | `loadInstruction` [files.ts:252](../../harness/ds-instructions/src/files.ts)；Node 兜底版本为 `mtime:${info.mtimeNs}` |
+| FR-26 | pre-step reject / 空第一步保留 pending 不丢 | 已实现 | [index.ts:351](../../harness/ds-instructions/src/index.ts) |
+| FR-27 | ContextCard 显示指令来源与文件路径（前端无需改动） | 已实现（前端侧） | `describeContextSource` 对 `kind === 'agent-instructions'` 取 `changes[].path` 作 label，[AgentService.ts:1976](../../src/editor/AgentService.ts) |
+| FR-28 | 插件来源 `{ kind: 'plugin', plugin: ... }` 备选契约 | 未实现（仓库无代码） | 实现只走 `kind: 'agent-instructions'`（[types.ts:28](../../harness/ds-instructions/src/types.ts)），无 plugin 分支 |
+| FR-29 | `mappings` 显式配置在 patch 里维护 | 未启用（代码支持但未使用） | schema 支持 [config.ts:58](../../harness/ds-instructions/src/config.ts)，两 profile patch 均未写 `mappings`，全靠 frontmatter 扫描 |
+| FR-30 | 集成测试与 ContextCard 回放测试全部通过 | 部分实现 | 测试文件 6 个共 83 个用例；本次运行环境 `harness/ds-instructions/node_modules` 为空，`@deepseek-ai/cordis` 等无法解析，仅 `render.test.ts`（13 个）可跑通 |
+| FR-31 | 真机冒烟：headless profile 跑通端到端注入 | 未验证 | 当前机器 `~/.dsh/profiles/{web,headless}/node_modules/@demostudio/` 目录不存在，junction 未挂载 |
 
-### 5.3 项目根
+**汇总**：31 条需求中已实现 22 条、部分实现 3 条（FR-1、FR-30、FR-31）、未启用 1 条（FR-29）、未实现 1 条（FR-28）。
 
-插件不得把 `process.cwd()` 固定当作 DemoStudio 项目根。编辑器启动 DSH 时 cwd 可能是 `harness/dsh-source`。
+---
 
-配置必须支持：
+## 6. 关键方法速查
 
-```yaml
-projectRoot: 'E:/DemoStudio'
-instructionsDir: 'E:/DemoStudio/.dsh/instructions'
+| 方法 | 位置 | 干什么 | 注意 |
+|---|---|---|---|
+| `apply(ctx, config)` | [index.ts:79](../../harness/ds-instructions/src/index.ts) | 插件入口，注册全部生命周期 | `enabled === false` 时直接 return，连 section 都不注册 |
+| `tools/pre-execute` 监听 | [index.ts:165](../../harness/ds-instructions/src/index.ts) | 登记 execution token 与候选路径 | 不确认成功；只取 `file_path` |
+| `tools/result` 监听 | [index.ts:178](../../harness/ds-instructions/src/index.ts) | 确认 touch、嵌套向 parent 汇总 | 失败/取消时把已汇总的嵌套 touch 一起丢弃 |
+| `session/event` 监听 | [index.ts:216](../../harness/ds-instructions/src/index.ts) | step 边界处理 | `step/end` 与 `turn/end` 都关闭 step |
+| `stepIsOpen(session)` | [index.ts:233](../../harness/ds-instructions/src/index.ts) | 判断 durable step 是否打开 | 无缓存时回放 `session.events` 推导 |
+| `queueProjection(agent, touch)` | [index.ts:257](../../harness/ds-instructions/src/index.ts) | 同 Agent projection 串行化 | 靠 `projectionTails` 链 Promise |
+| `deliver(agent, touches)` | [index.ts:275](../../harness/ds-instructions/src/index.ts) | 算指令文件 + 预热缓存 | 不在此提交任何 session 状态 |
+| `agent/pre-step` 监听 | [index.ts:308](../../harness/ds-instructions/src/index.ts) | 对账 + 注入 | 先 `await next()`；注入成功后不清 pending |
+| `composeMessage(changes)` | [index.ts:297](../../harness/ds-instructions/src/index.ts) | 渲染 + `createUserMessage` | 空 text 或空 changes 返回 undefined |
+| `resolveMappings(rules)` | [config.ts:126](../../harness/ds-instructions/src/config.ts) | 解析映射并按最长前缀排序 | 空数组视为未配置，回落 `DEFAULT_MAPPINGS` |
+| `bindRootConfig(...)` | [config.ts:188](../../harness/ds-instructions/src/config.ts) | 绑定项目根为运行时配置 | 指令目录越界或映射为空 → 返回 undefined 整体禁用 |
+| `normalizeTouchedPath(root, rawPath)` | [mapping.ts:19](../../harness/ds-instructions/src/mapping.ts) | 路径规范化 | 相对路径基于 projectRoot 解析 |
+| `matchMapping(relPath, mappings)` | [mapping.ts:37](../../harness/ds-instructions/src/mapping.ts) | 段级最长前缀匹配 | mappings 必须已按段数倒序排好 |
+| `instructionPaths(resolved, file)` | [mapping.ts:79](../../harness/ds-instructions/src/mapping.ts) | 算绝对路径/displayPath/scope | scope 含 `\u0000` 分隔符，与官方同构 |
+| `scanFrontmatterMappings(dir, ...)` | [frontmatter.ts:52](../../harness/ds-instructions/src/frontmatter.ts) | 扫描目录推导映射 | 只扫 `*.instructions.md`，只读前 4096 字节 |
+| `visibleInstructionState(agent, ...)` | [state.ts:85](../../harness/ds-instructions/src/state.ts) | 从 durable 事件推导可见状态 | 用 `surface.nodes` 过滤，压缩后自动失效 |
+| `reconcileTargets(...)` | [state.ts:153](../../harness/ds-instructions/src/state.ts) | 产出 set/replace/remove | probe `unavailable` 时保留最后已知状态，不发 remove |
+| `loadInstruction(access, cache, ...)` | [files.ts:252](../../harness/ds-instructions/src/files.ts) | probe + 缓存 + 读取 | 版本与 size 都一致才命中缓存 |
+| `createNodeFallbackAccess(root)` | [files.ts:207](../../harness/ds-instructions/src/files.ts) | Node 受限兜底 | realpath 后必须仍在项目根内 |
+| `renderBatch(items, maxBytes)` | [render.ts:102](../../harness/ds-instructions/src/render.ts) | 渲染合并消息 + 预算 | 整体超限时**从最前段开始整段省略** |
+
+验证命令（`harness/ds-instructions` 目录下）：
+
+```bash
+npm run build     # tsc → dist/
+npm test          # vitest：6 个文件 83 个用例
+npm run lint      # oxlint src tests
 ```
 
-没有显式配置时，才允许使用 session cwd 的项目根探测结果作为兜底。
-
-## 6. 工具事件设计
-
-### 6.1 支持的工具
-
-第一版只跟踪：
-
-- `read`，参数 `file_path`
-- `read_image`，参数 `file_path`（如果该工具已启用）
-
-是否跟踪 `write`、`edit` 必须由配置决定；默认关闭，因为本需求的触发条件是“读取文件”。
-
-### 6.2 不在 pre-execute 中确认成功
-
-`tools/pre-execute` 发生在工具执行前，只能记录候选调用，不能认为文件已经成功读取。工具可能随后被拒绝、取消或执行失败。
-
-流程必须是：
-
-```text
-tools/pre-execute
-    -> 记录 execution token 与候选路径
-工具实际执行
-    -> tools/result
-    -> 仅 result.isError === false 时确认 touch
-agent/pre-step
-    -> 加载、去重并注入指令
-```
-
-失败、拒绝、取消的工具调用不得触发注入。
-
-### 6.3 嵌套和并发工具
-
-`tools/result` 可能收到 `run_code` 等复合工具产生的嵌套调用。实现必须：
-
-- 通过 execution token 的 `parent` 关系向外层汇总 touch。
-- 只在外层执行完成后提交投影。
-- 同一步并行读取多个目录时合并为一条指令消息。
-- 指令顺序稳定，按映射声明顺序或路径排序。
-- 工具结果事件结束后再修改 inbox，避免在打开的 step 中抢占当前输入。
-
-## 7. 状态与去重
-
-### 7.1 状态结构
-
-Agent 相关的临时状态使用 WeakMap 隔离：
-
-```ts
-interface PendingState {
-  paths: Set<string>
-}
-
-interface InstructionCacheEntry {
-  absolutePath: string
-  mtimeNs: string
-  size: number
-  content: string
-  digest: string
-}
-```
-
-但“是否已经注入”不能只使用 `WeakSet<Agent>`。成功标准是 session 级别，必须至少以以下组合判断：
-
-```text
-session + instructionPath + contentDigest
-```
-
-### 7.2 消息级去重
-
-注入前需要检查：
-
-1. 当前 session 的可见历史中是否已有相同插件来源、相同路径、相同内容的指令消息。
-2. Agent inbox 中是否已有相同消息。
-3. 当前待注入批次中是否已经包含该路径和 digest。
-
-文件内容变化后 digest 变化，允许再次注入。更新消息必须明确说明新内容替代旧内容，避免模型同时采用两个版本。
-
-### 7.3 Agent/session 生命周期
-
-- Agent 被销毁后，WeakMap 状态自动释放。
-- Agent 重建并恢复同一 session 时，必须从 session 历史恢复去重判断。
-- session clear 或新建 session 后，必须重新注入当前适用指令。
-- 指令文件删除后，不能继续把旧内容当作当前有效指令；至少要清理缓存并发送移除通知，或在下一次注入时明确声明已移除。
-- 上下文压缩后，必须根据压缩后的可见 surface 重新核对当前指令；如果旧指令已不可见，应重新注入当前版本。
-- durable message 写入失败时不得提前提交“已注入”状态，避免模型未看到指令但后续永久跳过。
-
-### 7.4 更新与移除语义
-
-同一路径的新 digest 不应简单地当作一条无上下文的新消息。注入正文必须明确其语义：
-
-- `set`：首次出现的指令。
-- `replace`：同一路径内容已变化，新内容替代旧内容。
-- `remove`：文件已删除或不再适用，旧指令不再有效。
-
-更新和移除事件都必须进入 durable session，使恢复后的 Agent 能重建当前有效状态。
-
-### 7.5 官方生命周期对齐要求
-
-实现必须采用与 DSH 官方 `agent-instructions` 等价的生命周期边界：
-
-1. `tools/pre-execute` 只登记 execution token 和候选路径，不确认读取成功。
-2. `tools/result` 只接受成功结果；失败、取消和拒绝不产生指令 touch。
-3. 嵌套工具通过 `parent` token 向外层汇总，不能在子工具结果阶段直接注入。
-4. 当前 step 打开时只累计 touch，等 `step/end` 后再进行异步 projection。
-5. 同一 Agent 的 projection 必须串行化，多个并发结果必须合并后再 reconcile。
-6. `agent/pre-step` 必须等待该 Agent 尚未完成的 projection，再计算本次进入的消息。
-7. reconcile 时同时检查 Agent inbox 和 session surface，执行新增、替换、移除或复用。
-8. durable message 成功进入 session 前，不得提交新的“已注入”版本状态。
-9. Agent 重建、session 恢复和压缩后，必须以 session 可见状态重新对账，不能只依赖内存 WeakMap。
-
-推荐沿用以下状态边界，而不是使用一个简单的 `WeakSet<Agent>`：
-
-```ts
-const executionTouches = new Map<ToolExecutionToken, ProjectionTouch[]>()
-const projectionTails = new WeakMap<Agent, Promise<void>>()
-const openSteps = new WeakMap<Session, boolean>()
-const stepTouches = new WeakMap<Session, ProjectionTouch[]>()
-const instructionVersions = new WeakMap<Session, Map<string, InstructionVersionState>>()
-```
-
-## 8. 指令加载与缓存
-
-### 8.1 文件位置
-
-指令文件位于：
-
-```text
-<projectRoot>/.dsh/instructions/
-```
-
-`instructionsDir` 可配置，但最终路径必须经过项目根边界检查。
-
-### 8.2 缓存策略
-
-- 首次需要时加载，不要求插件启动时读取所有指令文件。
-- 缓存键为规范化后的绝对路径。
-- 每次相关成功文件 touch 时先检查文件是否存在及版本元数据。
-- 使用 `mtimeNs + size` 判断缓存是否仍然有效；元数据不可用时重新读取并计算 digest。
-- 文件变化时重新加载，不使用旧缓存内容。
-- 文件不存在时静默跳过，不写入“已注入”状态。
-- 文件读取错误只记录 debug/warn，不阻断工具或 Agent。
-
-缓存只能作为性能优化，不能作为 session 可见状态的唯一来源。session 状态必须以 durable message 和可见 surface 为准。
-
-### 8.3 DSH 文件系统与安全边界
-
-必须优先使用 DSH 的 `ctx.fs`/`ctx.get('fs')` 读取指令文件，以便复用项目根、沙箱、文件版本和可取消读取策略。文件版本应直接参与官方生命周期的 reconcile 判断。
-
-如果运行环境没有 `ctx.fs`，可以使用受限的 Node 文件系统兜底，但必须先完成 `projectRoot` containment 检查，且不能读取项目根之外的指令文件。直接使用 Node `fs` 时无法自动继承 DSH 沙箱策略，必须在文档和测试中明确这一差异。
-
-### 8.4 内容限制
-
-配置必须提供：
-
-- `maxSourceBytes`：单个指令文件最大字节数。
-- `maxMessageBytes`：单次合并注入的最大字节数。
-
-超限文件应跳过或截断，并记录原因。默认建议：
-
-```yaml
-maxSourceBytes: 262144
-maxMessageBytes: 65536
-```
-
-指令内容应包裹在明确的提示边界中，并声明：它是项目规范，不能覆盖 system、developer 或用户直接指令。
-
-## 9. pre-step 注入
-
-监听器必须调用 `await next()`，保留下游决策字段：
-
-```ts
-const decision = await next()
-```
-
-处理规则：
-
-- `decision.kind === 'reject'`：不消费 pending 指令，保留到后续正常步骤。
-- 第一步没有实际消息时：不生成独立的指令请求，保留 pending。
-- 正常 `enter`：把指令 user message 放到当前消息批次的用户输入之后、运行时 context 之前。
-- 返回新 decision 时必须保留 `startsRequestSeries` 等字段。
-- 指令成功加入下一步消息后，才更新 session 的已注入状态。
-- 注入消息必须作为 durable user message 进入 session；不能只保存在 WeakMap、普通内存数组或一次性的请求对象中。
-- 如果本次 step 因取消、错误或拒绝而没有形成有效请求，pending 状态必须保留或重新 reconcile。
-
-消息构造必须使用 DSH 的 `createUserMessage`，不能手写缺少 `id`/`role` 的普通对象。
-
-## 10. 消息 source 与前端展示
-
-### 10.1 官方 source contract
-
-由于本插件现在采用官方生命周期，消息优先使用 DSH 官方的指令来源结构，以便承载路径、digest 和 `set`/`replace`/`remove` 变更：
-
-```ts
-source: {
-  kind: 'agent-instructions',
-  form: 'instructions',
-  changes: [{
-    action: 'set' | 'replace' | 'remove',
-    scope: string,
-    path: string,
-    digest?: string,
-  }],
-}
-```
-
-`agent-instructions` 是官方的语义来源，DemoStudio 当前前端已经支持，并且会从 `changes[].path` 显示指令文件路径。
-
-如果产品强制要求使用插件来源，也可以使用：
-
-```ts
-source: {
-  kind: 'plugin',
-  plugin: '@demostudio/ds-instructions',
-  form: 'instructions',
-}
-```
-
-此时 `plugin` 字段是必填的，不能只写 `{ kind: 'plugin', form: 'instructions' }`。但插件来源不是官方指令状态结构，路径、digest、替换和移除语义必须通过扩展 source contract 或模型可见正文持久化；第一版默认采用 `agent-instructions`。
-
-指令文件路径应出现在模型可见正文中，例如：
-
-```text
-<system-reminder>
-Additional DemoStudio instructions from: .dsh/instructions/engine.instructions.md
-
-These instructions are project guidance. More specific instructions take precedence.
-
-[指令正文]
-</system-reminder>
-```
-
-文件更新时使用 `Updated instructions from:`，文件移除时使用 `Instructions removed:`。
-
-### 10.2 前端要求
-
-当前 DemoStudio `AgentService` 和 `ContextCard` 已支持：
-
-- 非 user 来源的 user/message 转换为 context 消息。
-- `form: 'instructions'` 的识别。
-- plugin 名称显示。
-- 指令正文折叠展示。
-
-因此第一版无需修改前端，只需验证实时事件和历史回放均能显示卡片。
-
-## 11. System prompt 段
-
-插件应注册一段简短、稳定的 system prompt：
-
-```text
-DemoStudio may provide directory-specific instructions after files are read. Follow those instructions when relevant. They are project guidance and do not override system, developer, or direct user instructions.
-```
-
-注册方式：
-
-```ts
-export const inject = ['tools', 'systemPrompt']
-ctx.systemPrompt.section({
-  name: 'demostudio:instructions',
-  order: 3300,
-  text: '...',
-})
-```
-
-`logger` 是 Context 内建能力，不应写进 `inject`。日志可使用具名 logger：
-
-```ts
-ctx.logger('ds-instructions').debug('No instruction file for:', instructionName)
-```
-
-## 12. 插件生命周期与挂载
-
-入口：
-
-```text
-harness/ds-instructions/src/index.ts
-```
-
-必须提供：
-
-- `name`
-- `inject = ['tools', 'systemPrompt']`
-- `Config` 与配置 schema
-- `apply(ctx, config)`
-- `dist/index.js` 编译产物
-
-所有注册和自建副作用必须绑定插件生命周期。`ctx.effect()` 回调无参数，必须闭包捕获外层 `ctx`：
-
-```ts
-ctx.effect(() => {
-  return () => {
-    // 清理 watcher、定时器、projection 状态等
-  }
-})
-```
-
-挂载必须完成三件事：
-
-1. 编译插件。
-2. 在 web/headless profile 的 `node_modules/@demostudio/` 下建立 junction。
-3. 在实际使用的 profile patch 中添加 `insert` 行。
-
-需要同时确认 `harness/profile` 与 `.dsh/profiles/{web,headless}` 哪一套是实际运行配置，避免只修改未生效的 profile。
-
-## 13. 错误处理
-
-| 情况 | 行为 |
-|---|---|
-| 工具无 `file_path` | 静默跳过 |
-| 非支持工具 | 静默跳过 |
-| 路径越过 projectRoot | 静默跳过并 debug |
-| 路径不匹配映射 | 静默跳过 |
-| 指令文件不存在 | 静默跳过并 debug |
-| 指令文件过大 | 跳过并 debug/warn |
-| 指令文件读取失败 | 不影响原工具，记录 warn |
-| 工具执行失败/取消 | 不注入，不标记已注入 |
-| Agent 不存在 | 不注入 |
-| Agent/session 已销毁 | 丢弃待处理状态 |
-| pre-step 被 reject | 保留 pending，不丢失 |
-
-所有插件异常必须被隔离，不能让文件读取工具或主 Agent 循环失败。
-
-## 14. 测试与验收
-
-### 14.1 单元测试
-
-- 默认映射：`src/engine/Entity.ts` → `engine`。
-- 默认映射：`src/projects/snake/X.ts` → `project`。
-- `src/engine2/X.ts` 不匹配。
-- 相对路径、绝对路径、Windows 反斜杠路径。
-- `..` 越界路径被拒绝。
-- 缺少 `file_path` 或非字符串参数被忽略。
-- 不支持的工具被忽略。
-- 文件不存在时无异常。
-- 文件内容变化后 digest 变化并重新注入。
-- 文件内容未变化时不重复注入。
-- 同一步多个目录读取合并为一条消息。
-- 工具失败、拒绝、取消时不注入。
-- pre-step reject 后 pending 不丢失。
-- Agent/session 隔离。
-- Agent 重建恢复 session 后不重复注入。
-- session clear 后可以再次注入。
-- 上下文压缩使旧指令离开可见 surface 后，当前指令会重新出现。
-- 指令文件修改后产生 `replace` 语义的 durable 消息。
-- 指令文件删除后产生 `remove` 语义的 durable 消息。
-- durable message 持久化失败时不会错误更新去重状态。
-- `ctx.fs` 沙箱拒绝项目外路径时，插件不会绕过策略读取文件。
-
-### 14.2 集成测试
-
-至少验证：
-
-1. 启动 headless profile。
-2. 调用真实 `read` 工具读取 `src/engine` 文件。
-3. 等待下一次模型请求。
-4. 检查请求消息含 `engine.instructions.md` 的内容。
-5. 再次读取同目录文件，确认没有重复消息。
-6. 修改指令文件后再次读取，确认出现更新内容。
-7. 通过 DemoStudio 前端检查 ContextCard 的 instructions 和路径展示。
-
-### 14.3 官方生命周期与边界测试矩阵
-
-以下测试是 P0/P1，不能只依赖 Agent 最终回答判断。应同时检查工具结果、session durable event、下一次请求消息、inbox 和 ContextCard 投影。
-
-#### 生命周期顺序
-
-- `tools/pre-execute` 只记录候选，不产生注入。
-- 成功 `tools/result` 后才产生 touch。
-- 失败、拒绝、取消和 aborted signal 不产生 touch。
-- 当前 step 未结束时不修改最终注入状态。
-- `step/end` 后才执行 projection。
-- `agent/pre-step` 会等待同一 Agent 的未完成 projection。
-- 同一 Agent 的多个 projection 按顺序串行执行。
-- durable message 写入失败时不提交版本和去重状态。
-- 插件 dispose 后不再响应工具结果，也不残留 projection。
-
-#### 嵌套与并发
-
-- 单层 `parent` token 能正确汇总到外层。
-- 多层嵌套 token 能正确汇总到根调用。
-- 外层失败时，子调用成功也不能注入。
-- 同一步并行读取 `engine` 和 `project` 时只生成一条合并消息。
-- 并行读取同一目录多次时只生成一份指令。
-- 两个 Agent 并发读取时状态、projection 和 inbox 完全隔离。
-- projection 期间 Agent 被销毁时不写入已销毁 Agent。
-
-#### session、恢复与压缩
-
-- Agent 重启后恢复相同 session，不重复注入相同 path/digest。
-- 恢复时旧指令已变化，会产生 `replace` 更新。
-- 恢复时旧指令已删除，会产生 `remove` 更新。
-- 新建 session 不继承旧 session 的去重状态。
-- session clear 后能重新注入当前指令。
-- 上下文压缩移除旧指令后，当前版本会重新出现。
-- 压缩期间发生文件 touch，压缩完成后不会丢失更新。
-- 历史回放、实时事件和下一次模型请求看到的指令内容一致。
-
-#### 文件系统与版本
-
-- `ctx.fs` 返回文件不存在、目录目标、沙箱拒绝和 provider unavailable 时行为正确。
-- `ctx.fs` 返回新版本号时会刷新缓存。
-- 文件修改但路径不变时产生 `replace`。
-- 文件删除后产生 `remove`，文件重新出现后可再次 `set`。
-- 读取过程中版本变化不会提交不一致内容。
-- Node fallback 不能读取 projectRoot 外的指令文件。
-- 符号链接、断开的符号链接和链接到项目外的文件符合安全策略。
-
-#### 映射与缓存
-
-- `src/engine/X.ts` 匹配 `engine`。
-- `src/engine2/X.ts` 不匹配 `engine`。
-- `src/projects/snake/X.ts` 匹配 `project`。
-- 重叠前缀使用最长前缀映射。
-- 相对路径、绝对路径、反斜杠路径和路径大小写符合平台规则。
-- `..` 越过 projectRoot 时被忽略。
-- 相同内容但不同路径是否合并，按明确的产品规则验证，不能隐式决定。
-- 缓存命中时不重复读取正文，版本变化时必须重新读取。
-- 文件不存在后创建、删除后恢复都能突破旧缓存状态。
-
-#### 内容、消息和前端
-
-- 空文件不注入或按约定生成空指令消息。
-- 单文件刚好达到、超过 `maxSourceBytes` 时行为正确。
-- 合并消息刚好达到、超过 `maxMessageBytes` 时行为正确。
-- UTF-8 多字节内容按字节而不是 JavaScript 字符数限制。
-- 指令正文中的 `<\/system-reminder>` 等控制文本不会破坏消息边界。
-- 消息 source 包含完整的 `kind`、`form`、路径和变更语义。
-- `set`、`replace`、`remove` 均能在实时 ContextCard 和历史回放中正确展示。
-- ContextCard 展示的正文与模型实际收到的正文一致。
-
-#### 插件组合与回归
-
-- 与官方 `agent-instructions` 同时挂载时不读取同名文件、不重复注入。
-- 与 `ds-memory` 同时挂载时，两个 `agent/pre-step` listener 都保留各自消息和 `startsRequestSeries`。
-- 与 `ds-engine-tools` 同时挂载时不改变其工具注册和执行结果。
-- HMR 重挂后 listener、缓存、projection 和定时器没有重复注册。
-- web 和 headless profile 都能加载同一编译产物并通过测试。
-
-#### 测试方法约束
-
-- 不以 Agent 自己回答“我看到了指令”作为唯一证据。
-- 必须检查 session 中实际写入的 durable `user/message`。
-- 必须检查下一次 LLM 请求的 messages，而不是只检查工具结果。
-- 必须检查失败路径下原始工具仍正常返回。
-- 所有并发测试都要使用可控的 deferred promise，稳定复现不同完成顺序。
-- 所有临时 workspace、session、Agent 和 watcher 都必须在测试结束时 dispose。
-
-## 15. 实现检查清单
-
-- [ ] 明确 `projectRoot` 与 `instructionsDir`。
-- [ ] 使用显式路径映射和最长前缀匹配。
-- [ ] 只在 `tools/result` 成功后确认文件 touch。
-- [ ] 处理 `file_path`，而不是只处理 `path`。
-- [ ] 处理 execution token、嵌套调用和并发调用。
-- [ ] 使用 session + path + digest 去重。
-- [ ] 支持文件变化、删除和恢复。
-- [ ] 支持 Agent 重启、session 恢复和上下文压缩后的状态重建。
-- [ ] pre-step reject/cancel 不丢 pending。
-- [ ] 使用 `createUserMessage` 和官方 `agent-instructions` source contract。
-- [ ] 限制指令文件和注入消息大小。
-- [ ] 使用 `ctx.fs` 或明确受限的安全兜底读取。
-- [ ] 使用版本校验和 durable message，不把 WeakMap 当作持久状态。
-- [ ] 正确处理并发工具、嵌套工具和 step 边界。
-- [ ] `ctx.effect` 回调无参数并清理所有副作用。
-- [ ] web/headless 实际 profile 均完成编译、junction、patch 挂载。
-- [ ] 不与官方 `agent-instructions` 读取同名文件。
-- [ ] 完成单元测试、headless 集成测试和 ContextCard 回放测试。
+---
+
+## 7. 流程影响：牵动哪些功能
+
+### 上游：谁驱动它
+
+| 上游 | 怎么驱动 | 相关文档 |
+|---|---|---|
+| DSH 工具执行 | `tools/pre-execute` / `tools/result` 事件驱动整条注入链路 | [插件安装](./dsh_plugin_install.md) |
+| 插件挂载（junction + patch） | 三者是「与」关系，少任何一样插件静默不存在 | [插件安装](./dsh_plugin_install.md) |
+| profile patch 配置 | `projectRoot` 决定相对路径解析基准与越界判定 | [插件安装](./dsh_plugin_install.md) |
+| `.dsh/instructions/*.md` | frontmatter 的 `prefix:` 决定映射表内容 | [Harness 工程](./harness_system.md) |
+| 用户 slash 命令触发的读取 | 命令内部读文件也会产生 touch 并触发注入 | [Slash 命令系统](./slash_command_system.md) |
+
+### 下游：它波及谁
+
+| 下游功能 | 波及点 | 相关文档 |
+|---|---|---|
+| 模型请求消息 | 指令作为 durable user message 插到 claimed 批次之后 | [DSH 引擎集成](./dsh_engine_integration.md) |
+| system prompt 装配 | 本插件 section order 3300，排在 memory(3200) 之后 | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| ContextCard 展示 | `kind: 'agent-instructions'` 时取 `changes[].path` 作卡片标签 | [Agent 面板](../editor/integration/agent_panel_system.md) |
+| 官方 `agent-instructions` | 共存：scope 编码同构，digest 一致时官方静默，状态互不覆盖 | [插件安装](./dsh_plugin_install.md) |
+| ds-memory / ds-feedback / ds-experience | 同挂 `agent/pre-step`，各自 `await next()` 保留 `startsRequestSeries` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| harness 插件开发 | `harness.instructions.md` 由本插件在读 `harness/**` 时注入 | [Harness 工程](./harness_system.md) |
+
+---
+
+## 8. 踩坑清单
+
+1. **在 `tools/pre-execute` 里就认定读取成功** —— 现象：工具被拒绝/取消后仍注入了指令。原因：`pre-execute` 发生在执行前。规则：只登记 execution token 与候选路径，**只在 `tools/result` 且 `!isError && agent 存在 && !signal.aborted` 时**确认 touch（[index.ts:183](../../harness/ds-instructions/src/index.ts)）。
+2. **用字符串 `includes` 做路径匹配** —— 现象：`src/engine2/a.ts` 错误匹配到 `engine`。原因：字符串包含无法区分段边界。规则：拆成路径段数组逐个比，且 mappings 按段数倒序排好，命中即返回。
+3. **把 `process.cwd()` 当项目根** —— 现象：编辑器拉起 agent 时 cwd 是 `harness/dsh-source`，指令文件全部找不到。规则：`projectRoot` 必须在 patch 里用**绝对路径**钉死；未配置才回退 session cwd 的 `.git` 向上探测（[state.ts:65](../../harness/ds-instructions/src/state.ts)）。
+4. **用 `WeakSet<Agent>` 判断是否已注入** —— 现象：Agent 重建或 session 恢复后重复注入，或压缩后指令永久丢失。原因：WeakMap/WeakSet 是内存态，Agent 一销毁就没了。规则：去重至少用 `session + instructionPath + contentDigest`，状态永远从 durable 事件重新推导。
+5. **durable 写入失败却先提交了「已注入」** —— 现象：模型从未看到指令，但后续永久跳过。规则：注入后**不清 pending**（[index.ts:359](../../harness/ds-instructions/src/index.ts)），下一步重新对账自动重试。
+6. **嵌套工具在子结果阶段就注入** —— 现象：`run_code` 内部读取文件后，外层还没执行完就注入了。原因：未处理 `parent` 关系。规则：嵌套 touch 汇总到 `executionTouches[exec.parent]` 后 `return`，只在外层完成时投影；外层失败时子调用成功也不注入。
+7. **在打开的 step 内直接改 decision** —— 现象：当前输入被抢占，指令乱序。规则：打开的 step 内只累计进 `stepTouches`，`step/end` 后再投影，且同 Agent 串行。
+8. **把 `logger` 写进 `inject`** —— 现象：boot 报 `pending (waiting for service: logger)`。原因：logger 是 Context 内建属性，不是可注入服务键。规则：`inject = ['tools', 'systemPrompt']`，日志用 `ctx.logger('ds-instructions')`（[index.ts:90](../../harness/ds-instructions/src/index.ts)）。
+9. **只改了 `harness/profile` 却发现不生效** —— 现象：patch 改了但插件行为没变。原因：实际运行的是 `~/.dsh/profiles/{web,headless}`。规则：挂载前先确认哪套 profile 生效，两边都要建 junction 与 patch 行。
+10. **用 Node `fs` 兜底时绕过了沙箱** —— 现象：能读到项目根之外的指令文件。原因：Node `fs` 不继承 `ctx.fs` 的沙箱策略。规则：Node 兜底必须 `realpath` 后做 containment，断链视为不存在、指向项目外的链接拒绝读取（[files.ts:109](../../harness/ds-instructions/src/files.ts)）。
+11. **frontmatter 写了却没生效** —— 现象：新增指令文件后读对应目录不注入。三个原因逐一排查：文件名不以 `.instructions.md` 结尾；`prefix:` 不在文件头部前 4096 字节内；该 prefix 已被显式 `mappings` 占用（显式优先，自动扫描不覆盖）。
+12. **默认映射指向的文件不存在** —— 现象：读了 `src/projects/**` 却毫无反应且不报错。原因：`.dsh/instructions/` 下没有 `project.instructions.md`。规则：新增映射前先确认指令文件已创建，否则是静默无操作。
+
+---
+
+## 9. 修订历史与开放问题
+
+### 修订历史
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v0.1 | 初稿 | 确立路径前缀映射、官方生命周期对齐、durable 去重、set/replace/remove 语义 |
+| v0.2 | 修订版 | 补齐 frontmatter 自动扫描与全局映射（`prefix: /`）；明确 Node 兜底与 `ctx.fs` 的沙箱差异；补充嵌套/并发/step 边界的测试矩阵 |
+
+### 开放问题
+
+1. **外层失败是否丢弃嵌套成功读取**：当前实现与官方插件语义相反（官方保留嵌套成功）。PRD §14.3 要求丢弃，实现按 PRD 执行。若与未来官方行为冲突需重新决策。
+2. **投影产物不进 inbox**：PRD §7.5 描述为「reconcile Agent inbox 与 session surface」，实现改为 reconcile「Agent 级 pending 目标集 + 可见 surface」，以避开官方 `syncInbox` 的 inbox 所有权冲突。是否长期维持此差异未决。
+3. **插件来源契约是否启用**：`{ kind: 'plugin', plugin: ... }` 备选方案未实现，路径/digest/替换语义无法承载，需先扩展 source contract 才能启用。
+4. **相同内容不同路径是否合并**：按明确的产品规则验证，不能隐式决定。
+5. **空指令文件的处理**：不注入还是生成空指令消息，未定。当前实现按 `content.trim().length > 0` 判定为不注入。
+6. **显式 `mappings` 与 frontmatter 的长期分工**：当前 patch 里不写 `mappings`，全部依赖扫描。是否需要在 patch 里保留一份兜底未决。
+
+---
+
+## 10. 边界条件
+
+| 条件 | 行为 | 怎么应对 |
+|---|---|---|
+| 工具无 `file_path` 或不是字符串 | 静默跳过 | 无需处理 |
+| 非 `trackedTools` 内的工具 | 静默跳过（默认只 `read`/`read_image`） | 在 patch 里显式加 `trackedTools` |
+| 路径越过 projectRoot（`..`、跨盘） | `containedRelative` 返回 undefined，静默跳过 | 检查 `projectRoot` 是否配错 |
+| 路径不匹配任何映射 | 静默跳过 | 给指令文件加 frontmatter `prefix:` |
+| `src/engine2/X.ts` | 不匹配 `engine`（段级前缀） | 无需处理，这是设计 |
+| 指令文件不存在 / 为空或纯空白 | 静默跳过，不写「已注入」（按 `content.trim().length > 0` 判定） | 创建对应文件；空文件处理见 §9 开放问题 5 |
+| 指令文件超 `maxSourceBytes` / 合并消息超 `maxMessageBytes` | 跳过该文件记入 omitted；消息超限从最前段整段省略，仍超限则二分截断最后一段 | 调预算或拆分文件；截断会在消息里写明 bytes |
+| 指令文件读取失败 / probe 返回 `unavailable` | 不影响原工具只记 warn；`unavailable` 保留最后已知状态，**不发 remove** | 防 provider 抖动误删指令 |
+| 工具执行失败/取消/aborted | 不注入，不标记已注入 | 无需处理 |
+| 嵌套子工具成功但外层失败 | 整体丢弃（与官方语义相反） | 见 §9 开放问题 1 |
+| Agent 不存在 / session 已销毁 | 不注入 / 丢弃待处理状态 | 无需处理 |
+| pre-step 被 reject / 第一步无实际消息 | 保留 pending 不丢失，不生成独立指令请求 | 下个正常步骤继续 |
+| 上下文压缩后旧指令不可见 | 重新注入当前版本 | 由 `surface.nodes` 过滤自动生效 |
+| 指令文件删除 / 内容变化 | 分别产生 `remove`（`Instructions removed:`）与 `replace`（`Updated instructions from:`） | 删除后恢复可再次 `set` |
+| 指令文件中有 `</system-reminder>` | 转义为 `<\/system-reminder>`，不破坏边界 | 无需处理 |
+| 无 `ctx.fs` provider | 受限 Node 兜底 + realpath containment | 明确沙箱差异（§8 坑 10） |
+| `enabled: false` / headless profile 改动 | `apply` 直接 return，段与监听都不注册；headless 无 live reload | 停用用开关；headless 改完重启 |

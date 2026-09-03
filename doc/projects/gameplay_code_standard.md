@@ -1,129 +1,213 @@
-# gameplay 代码规范：GameMode / Controller / Pawn / GameState / 组件 / GameInstance / World 职责边界
+# gameplay 代码规范（Gameplay Code Standard）
 
-> ClashMaster（fish）项目 gameplay 代码的分层规范：**GameMode（规则权威）/ Controller（用户输入操作）/ Pawn（世界化身）/ GameState（全局状态）/ 组件（行为模块）/ GameInstance（阶段路由+跨阶段共享）/ World（场景世界）** 七类角色的职责范围与禁止越界的红线。任何 gameplay 新增功能（放兵交互、建造、出海、UI 联动等）必须先按本文档归类落点，再动手写代码。
-> 代码位置：`src/projects/fish/gameplay/`（各阶段 `{menu,base,game,level}/` 下的 GameMode/Controller/Pawn 三件套 + 阶段玩法）、引擎基类 `src/engine/`（`gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts`、`gameflow/GameInstance.ts`、`gameflow/World.ts`、`entity/Component.ts`）。
-> 相关文档：[`../engine/gameflow_system.md`](../engine/gameflow_system.md)（游戏流程基类与注册）、[`../engine/input_physics_script_system.md`](../engine/input_physics_script_system.md)（InputSys 输入路由）、[`../engine/entity_system.md`](../engine/entity_system.md)（实体与组件体系）、[`./battle_system.md`](./battle_system.md)（战斗玩法，本文档的规范实例）、[`./clash_master.md`](./clash_master.md)（项目总览）。
+> **一句话定位**：这是一份**给七类 gameplay 角色划地盘的裁判手册**——它不描述任何系统怎么实现，只回答一个问题：你新写的这段代码该放进 `GameMode` / `Controller` / `Pawn` / `GameState` / 组件 / `GameInstance` / `World` 的哪一个。
+>
+> **什么时候会用到你**：新增放兵/建造/出海/UI 联动等 gameplay 功能前决定代码落点；`ag-gameplay-reviewer` 子代理审查改动时的**唯一判定依据**；纠结"定时器该放哪""掠夺累计该记在哪"时；重构已有 gameplay 代码前确认归属。
+>
+> 代码位置：`src/projects/fish/gameplay/`（各阶段 `{menu,base,game,level}/` 下的 GameMode/Controller/Pawn 三件套）、引擎基类 `src/engine/`（`gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts`、`gameflow/GameInstance.ts`、`gameflow/World.ts`、`entity/Component.ts`）。
 
-## 1. 概述
+---
 
-DemoStudio 的 gameplay 沿用 UE 风格角色模型：**GameMode 是规则权威**（生成/胜负/分数/世界对象管理），**Controller 是用户输入操作者**（把鼠标/键盘意图翻译成对游戏逻辑的调用），**Pawn 是玩家在世界中的化身**（移动/动作/属性，或占位标记）。项目每个阶段（menu / base / game / level）都注册一个"三件套"：`Fish{阶段}GameMode` + `Fish{阶段}PlayerController` + `Fish{阶段}Pawn`（见 §2）。
+## 1. 先记住这几个文件
 
-在此之上还有四个支撑角色，各自解决不同的问题：
-
-| 角色 | 一句话职责 | 关键问题 |
+| 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| `GameMode` | 规则权威：本阶段游戏世界怎么运转 | 胜负/分数/生成/世界对象 |
-| `Controller` | 用户输入操作者：把操作翻译成调用 | 鼠标/键盘意图 → 游戏逻辑 |
-| `Pawn` | 玩家世界化身（或占位标记） | 玩家长什么样/在哪 |
-| `GameState` | 可观察的全局状态（阶段/分数/时间） | React/HUD/存档读什么 |
-| `Component` | 行为模块：挂到 Actor/Instance 上自管生命周期 | 单点行为内聚（血条/索敌/资源） |
-| `GameInstance` | 阶段路由 + 跨阶段共享资源/军队 + 调试桥 | 整个游戏实例的"骨架" |
-| `World` | 场景世界：Actor 生成/销毁/查询/场景切换 | 对象放在哪个场景里 |
+| [GameMode.ts](../../src/engine/gameflow/GameMode.ts) | 规则权威基类：持有 `gameState`/`cameraManager`/`controller`，统一驱动生命周期 | 所有 GameMode 的基类，加通用生命周期逻辑时 |
+| [PlayerController.ts](../../src/engine/input/PlayerController.ts) | 输入操作者基类：持有 `pawn`+`inputComponent`，屏幕/世界坐标输入回调 | 加新的输入回调类型时 |
+| [FishLevelGameMode.ts](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 战斗规则权威（放兵/掠夺/胜负），**本规范的最佳正面样例** | 改战斗规则、加战斗逻辑方法 |
+| [FishLevelPlayerController.ts](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) | 战斗输入操作者（长按放兵定时器/坐标记录），**"操作归 Controller"的纠正后样板** | 改放兵交互、长按/连点手势 |
+| [FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts) | 阶段路由 + 跨阶段共享组件持有者 + 调试桥 | 加阶段、加跨阶段共享数据 |
+| [World.ts](../../src/engine/gameflow/World.ts) | 场景世界：Actor 生成/销毁/查询/场景切换 | 加对象生命周期或场景切换能力 |
 
-**为什么需要这份规范**：七者的接口天然相邻（Controller 调 GameMode、GameMode 用 World/GameState、组件挂 Actor 上），职责一旦越界就会把"用户操作状态机"（定时器、坐标记录）、"规则状态"（掠夺、胜负）、"全局状态"（分数、阶段）塞进错误的类，导致同类逻辑分散多处、难维护难测试。真实教训：战斗放兵的长按连续放兵定时器曾一度写在 `FishLevelGameMode` 里，被纠正回 `FishLevelPlayerController`（见 §8 踩坑记录）。
+**关键心智模型**：七角色里只有 **GameMode 是规则权威、Controller 是操作执行者**，其余五个都是"被二者使用的容器/模块"。判断归属时不要问"这段代码跟谁有关"，而要问"**这段代码是规则、是操作、还是数据**"——规则进 GameMode，操作进 Controller，数据按"全局可观察/单点行为/跨阶段共享"分流到 GameState/组件/GameInstance。最容易误解的一点：**Controller 持有 `gameMode` 引用，但 GameMode 绝不反向调用 Controller**——需要通知时 GameMode 只暴露公开回调（如 `onLootDisplayChange`），由订阅方自己去读。
 
-**核心分工一句话**：
-- **GameMode**：游戏世界怎么运转（规则），对外暴露游戏逻辑方法
-- **Controller**：玩家怎么操作（输入），把操作翻译成对 GameMode/Pawn 的调用，**只做操作不做规则**
-- **Pawn**：玩家长什么样/在哪（化身），被动响应 Controller 的命令
-- **GameState**：可观察的全局状态（phase/score/timeElapsed/gameOver），**只存状态不做规则**
-- **Component**：行为模块（组件优先原则），挂到 Actor/GameInstance 上自管生命周期
-- **GameInstance**：阶段路由 + 跨阶段共享（resources/training）+ 调试桥，整个游戏实例的骨架
-- **World**：场景世界（Actor 生命周期/场景切换），GameMode 与组件的操作对象
+---
 
-与相邻文档的边界：引擎基类的生命周期与注册机制归 `gameflow_system.md`；输入系统的路由链路（Viewport → InputSys → Controller）归 `input_physics_script_system.md`；实体/组件体系归 `entity_system.md`；战斗玩法具体规则归 `battle_system.md`。本文档只讲**职责归属红线**，不重复描述各系统实现。
+## 2. 七角色职责边界：谁该拥有你写的那行代码
 
-## 2. 核心类 / 模块
+### 2.1 谁驱动这条链 —— 引擎基类的生命周期模板
 
-### 2.1 引擎基类（src/engine/）
+引擎 `GameMode` 基类把生命周期做成模板方法，`StartPlay` 里直接调 `SpawnPlayer()` 创建三件套，并在 `BeginPlay`/`Tick`/`EndPlay` 里统一驱动 GameState 与 Controller：
 
-| 类 | 文件 | 职责 |
-|---|---|---|
-| `GameMode` | `gameflow/GameMode.ts` | 游戏规则基类（项目继承）：持有 `gameState` / `cameraManager` / `controller`；`InitGame` / `StartPlay` / `BeginPlay` / `EndPlay` / `Tick` 统一驱动 GameState → Controller → 相机；`HUDClass` 声明 HUD 蓝图；`SpawnPlayer()` 模板方法 → `spawnPlayerInternal()` 创建 controller + pawn |
-| `PlayerController` | `input/PlayerController.ts` | 输入操作者基类：持有 `pawn` + `inputComponent`；`Possess` / `Unpossess`；屏幕坐标输入 `OnPointerDownScreen` / `OnPointerMoveScreen`（由 `InputSys.handlePointerDown/Move` 调用）、世界坐标输入 `OnPointerDown/Move/Up`、`OnScroll` |
-| `Pawn` | `entity/Pawn.ts` | 玩家化身基类（Actor 子类）：`PossessedBy` / `Unpossessed`；`MoveForward` / `MoveRight` / `Jump`；`destroy()` 时自动 `Unpossess` |
-| `GameState` | `gameflow/GameState.ts` | 可观察的全局状态基类：`phase`（waiting/playing/paused/gameover）/ `score` / `timeElapsed` / `gameOver`；`setPhase` / `addScore` / `reset` / `serialize` / `restoreFrom`；`subscribe` 供 React/HUD 监听；**只存状态不做规则**，由 GameMode 驱动（`BeginPlay`/`Tick`/`EndPlay` 由 GameMode 统一调） |
-| `Component`（`AObjectComponent`/`BObjectComponent`/`ActorComponent`） | `entity/Component.ts` 等 | 行为模块基类：挂到 Actor/GameInstance 上，`BeginPlay`/`Tick`/`EndPlay` 自管生命周期（随宿主自动驱动/回收）；**组件优先原则**——新行为优先组件实现，不塞进拥有者类 |
-| `GameInstance` | `gameflow/GameInstance.ts` | 游戏实例基类（全局唯一 `GameInstance.current`）：持有 `inputSys` / `gm` / `renderContainer`；抽象 `controller` / `start` / `tick` / `stop` / `destroy`；项目继承 `FishGameInstance` 做阶段路由与跨阶段共享 |
-| `World` | `gameflow/World.ts` | 场景世界（继承 AObject）：持有 `THREE.Scene`、`gameMode`、`ui`（UIManager）、`actorMgr`（ActorManagerComponent）；`SpawnActor` / `SpawnActorFromBlueprint` / `FindActors` / `DestroyAllActors` / `SwitchToScene` / `createBoxMesh` 等；`running` 标记运行态 |
+```ts
+StartPlay(): void {
+  this.gameState.setPhase('playing')
+  // GameMode 创建时自动生成玩家 Controller + Pawn（子类实现 spawnPlayerInternal）
+  this.SpawnPlayer()
+}
 
-### 2.2 项目三件套（src/projects/fish/gameplay/，每阶段一套）
+override Tick(dt: number): void {
+  super.Tick(dt) // component ticks
+  // 统一驱动：GameState → Controller → 摄像机管理器（由 GameMode 集中驱动，World 不再逐个调用）
+  this.gameState.Tick(dt)
+  this.controller?.Tick(dt)
+  this.cameraManager.UpdateCamera()
+}
+```
 
-| 阶段 | GameMode | Controller | Pawn |
-|---|---|---|---|
-| menu | `FishMainMenuGameMode`（`menu/`） | `FishMainMenuPlayerController` | `FishMainMenuPawn`（占位） |
-| base（村庄建造） | `FishBaseGameMode`（`base/`） | `FishBasePlayerController`：`OnPointerDownScreen` → `gm.onScreenDown`（放置/选中建筑）、`OnPointerMoveScreen` → `gm.setMouseScreen` + `gm.onScreenMove`（预览跟随） | `FishBasePawn`（**占位标记**，玩家无物理化身） |
-| game（出海） | `FishGameMode`（`game/`） | `FishPlayerController`：`OnPossess` 绑定 1~5 键切炮、`OnPointerMove` → `pawn.SetAimTarget`、`OnPointerDown/Up` → `pawn.SetFiring(true/false)`、`OnScroll` 切炮等级 | `FishCannon`（**真化身**：炮塔，`SetLevel`/`SetAimTarget`/`SetFiring`） |
-| level（战斗） | `FishLevelGameMode`（`level/`） | `FishLevelPlayerController`：`OnPointerDownScreen` → `gm.onScreenDown` 立即放兵 + 启动长按连续放兵定时器（`HOLD_DEPLOY_INTERVAL = 0.2`）、`OnPointerMoveScreen` 记录坐标 + 转发云台、构造里 `BindMouseButton` 订阅左键释放停止长按 | `FishLevelPawn`（**占位标记**） |
+> **为什么这样写**：Controller 与 GameState 的生命周期**归 GameMode 管理，World 不持有它们**（基类注释写明）。好处是场景切换时 `SetGameMode` 清理旧 GameMode，`EndPlay` 会级联带走 Controller 与 GameState，不会残留。不这么写就要在 World 里逐个调用，任何一处漏调都会留下幽灵 Controller 继续收输入。
 
-### 2.3 项目支撑角色实例（GameState / 组件 / GameInstance / World 在 fish 中的形态）
+`SpawnPlayer` 是模板方法，真正的创建点留给子类 `spawnPlayerInternal`：
 
-| 角色 | 实例 | 使用方式 |
-|---|---|---|
-| GameState | `GameMode.gameState`（基类内置，各 GameMode 直接使用） | 阶段流转：`InitGame`/`StartPlay` 里 `setPhase('waiting'/'playing')`、`finishBattle` 里 `setPhase('gameover')`、出海 `addScore`；`FishGameInstance` 订阅 `mode.gameState.subscribe(...)` 驱动 HUD 分数/阶段回调 |
-| 组件（GameInstance 级） | `ResourcesComponent` / `TrainingComponent`（`common/comp/`） | 跨阶段共享的资源/军队：`FishGameInstance` 构造里 `new` + `addComponent`，各阶段经 `GameInstance.current as FishGameInstance` 访问 `inst.resources` / `inst.training` |
-| 组件（Actor 级） | `BuildingHealthBarComponent` / `TroopHealthBarComponent`（血条）、`TroopHealthComponent` / `TroopTargetComponent` / `TroopMoveComponent` / `TroopAttackComponent`（兵组合）、`MuzzleFlashComponent`（炮口特效） | 挂到具体 Actor 上，组件自管生命周期（默认隐藏/受击显示/超时隐藏等），GameMode 只调 `onDamaged` 等公开方法 |
-| 脚本组件 | `BaseHud.script.ts` / `BattleHud.script.ts` / `BuildMenu.script.ts` / `BarracksUi.script.ts` / `MapPanel.script.ts` 等（`extends BehaviourScript`，经 `UIScriptComponent` 挂 widget 资产） | UI 行为：绑定按钮、读表生成卡片、每帧刷新；经 `GameInstance.current` 拿实例、经宿主 Actor 的 `this.actor`/`this.world` 操作 UI |
-| GameInstance | `FishGameInstance`（`gameplay/FishGameInstance.ts`） | 阶段路由中枢：`switchToPhase` / `setupXxxPhase`（创建 GameMode 三件套、托管相机、`PhySys.setup`）/ `enterLevel` / `returnToBase`；共享组件持有者（`resources` / `training`）；`window.__fishBattle` 调试桥；`getActiveCamera()` |
-| World | `this.world`（GameMode/Actor/脚本都可访问） | `SpawnActor` / `SpawnActorFromBlueprint`（生成建筑/兵/弹丸）、`FindActors`（按类型查）、`actorMgr`（`GetAllActors`）、`world.ui`（UIManager：`spawnUIActor` / `destroyUIActor`）、`SwitchToScene`（阶段场景切换）、`createBoxMesh` 等网格工厂、`running` 运行态标记 |
+```ts
+SpawnPlayer(): { controller: PlayerController; pawn: Pawn } | null {
+  const result = this.spawnPlayerInternal()
+  if (!result) return null
+  this.controller = result.controller
+  // Pawn 由 World 统一生成；生成完成后经 OnPawnSpawned 通知 Controller（Possess）
+  this.world?.actorMgr.SpawnPawn(result.pawn, (pawn) => this.OnPawnSpawned(pawn))
+  return result
+}
+```
 
-## 3. 职责边界（红线）
+### 2.2 七角色分工图
 
-### 3.1 GameMode 只做
+```mermaid
+flowchart TD
+  U["玩家输入<br/>Viewport/InputSys"] --> C["Controller<br/>操作状态机"]
+  C -->|"调公开方法"| GM["GameMode<br/>规则权威"]
+  C -->|"控 this.pawn"| P["Pawn<br/>世界化身"]
+  GM -->|"驱动 setPhase/addScore"| GS["GameState<br/>可观察状态"]
+  GM -->|"SpawnActor/FindActors"| W["World<br/>场景世界"]
+  GM -->|"读共享组件"| GI["GameInstance<br/>阶段路由+共享"]
+  GM -->|"挂/调组件"| CP["Component<br/>单点行为"]
+  GS -->|"subscribe"| HUD["HUD/React"]
+  GI -->|"switchToPhase"| GM
+```
 
-1. **规则权威**：胜负判定、分数、生成/回收、掠夺累计（如 `FishLevelGameMode.finishBattle` / `damageBuilding`）
-2. **游戏状态表**：hp 表、军队、放置模式当前选中兵种（`selectedTroopId`）等——状态归 GameMode，但**只通过公开方法/回调向外暴露**（如 `placeTroopId` getter、`getLootDisplay()`、`onLootDisplayChange` 回调）
-3. **世界对象管理**：收集建筑、`SpawnActor` 兵/弹丸、挂组件（血条）、相机托管（`baseCamera`）
-4. **对外提供游戏逻辑方法**：`onScreenDown` / `deployAtScreen` / `spawnTroopActor` / `selectTroop` / `cancelPlaceMode` 等——Controller 只调这些，不重复实现
-5. **装配期绑定**（仅限 `spawnPlayerInternal` 内）：创建 controller + pawn、`rig.bindInput(controller.inputComponent)`（相机滚轮/右键）、`BindAction('battle-cancel', 'Escape', ...)` 等**一次性装配**——这是唯一允许 GameMode 碰输入组件的地方
+### 2.3 逐角色讲解
 
-### 3.2 Controller 只做
+**① GameMode —— 规则权威**
 
-1. **用户输入操作**：把鼠标/键盘意图翻译成对 GameMode / Pawn 的调用（`OnPointerDownScreen` → `gm.onScreenDown`、`OnPointerMove` → `pawn.SetAimTarget`）
-2. **操作状态机**：长按连续放兵定时器（`startHoldDeploy` / `stopHoldDeploy`）、最近坐标记录（`lastX/lastY`）、按下/释放状态——**定时器、坐标、按住标记这类"用户操作过程状态"必须留在 Controller**
-3. **输入绑定**：`inputComponent.BindAction`（键盘动作）、`BindMouseButton`（鼠标按下/释放广播）、`BindScroll`——除 `spawnPlayerInternal` 装配期外，交互输入一律在 Controller 构造/`OnPossess` 里绑定
-4. **控制 Pawn**：`this.pawn` 上的方法（`SetLevel` / `SetFiring` / `MoveForward`…）
+只做五件事：胜负/分数/生成回收等规则判定、状态表（hp 表、军队、当前选中兵种 `selectedTroopId`）、世界对象管理（`collectBuildings`/`SpawnActor`/挂血条组件）、对外暴露游戏逻辑方法（`onScreenDown`/`deployAtScreen`/`spawnTroopActor`/`selectTroop`）、以及**仅限装配期内**的输入绑定。
 
-### 3.3 Pawn 只做
+状态归 GameMode 但**只经公开方法/回调外泄**。以当前放置兵种为例——字段是 private，外面只读 getter：
 
-1. **玩家世界化身**：位置/移动/动作/属性（`FishCannon` 的等级、瞄准、开火）
-2. **占位标记**：无物理化身的阶段（base / level）Pawn 保持空壳，**不塞逻辑**
-3. 被动响应 Controller 的命令，**不主动查询输入、不碰规则**
+```ts
+/** 当前放置模式兵种 id（HUD 卡片高亮判断） */
+get placeTroopId(): string | null {
+  return this.selectedTroopId
+}
+```
 
-### 3.4 GameState 只做
+> **为什么用 getter 而不是把字段设成 public**：Controller 的长按定时器需要"读一下现在还有没有放置模式"来决定要不要自停，但绝不能让 Controller 改它。getter 把这个契约固化在类型上——想改只能调 `selectTroop`/`cancelPlaceMode`，规则变更永远走 GameMode。
 
-1. **可观察的全局状态**：`phase` / `score` / `timeElapsed` / `gameOver`，`subscribe` 供 React/HUD/GameInstance 监听
-2. **状态读写 API**：`setPhase` / `addScore` / `reset` / `serialize` / `restoreFrom`（存档）
-3. 由 GameMode 驱动（`InitGame` → `reset`、`StartPlay` → `setPhase('playing')`、Tick/EndPlay 由 GameMode 统一调）——**GameState 不自己推规则**
+**② Controller —— 用户输入操作者**
 
-### 3.5 组件系统只做（组件优先原则）
+只做四件事：把输入翻译成对 GameMode/Pawn 的调用、**操作状态机**（定时器/坐标/按住标记）、输入绑定、控制 `this.pawn`。这是历史上踩过坑的角色，见 §2.4。
 
-1. **单点行为模块**：血条（`BuildingHealthBarComponent` / `TroopHealthBarComponent`）、兵战斗组合（`TroopHealth/Target/Move/Attack`）、特效（`MuzzleFlashComponent`）、跨阶段共享（`ResourcesComponent` / `TrainingComponent`）——**每个组件内聚一个职责，自管生命周期与资源**
-2. **自管生命周期**：`BeginPlay` 建资源（网格/订阅）、`Tick` 驱动自身逻辑（倒计时/索敌）、`EndPlay` 释放（MeshComponent 机制自动释放）；**拥有者只调公开方法**（如 `onDamaged(ratio)`），不替组件管理内部状态
-3. **UI 行为用脚本组件**：`BehaviourScript` 经 `UIScriptComponent` 挂 widget 资产（`BaseHud` / `BattleHud` / `BuildMenu` / `MapPanel` 等），绑定按钮、读表生成、每帧刷新
-4. **组件优先判定**：新功能先问"能否做成组件挂到某个 Actor/Instance 上"？能 → 组件实现，**非必要不修改拥有者（GameMode/Actor/GameInstance）类**（项目铁律，见 copilot-instructions.md）
+**③ Pawn —— 玩家世界化身**
 
-### 3.6 GameInstance 只做
+做位置/移动/动作/属性（`FishCannon` 的 `SetLevel`/`SetAimTarget`/`SetFiring`）。**无物理化身的阶段（base/level）Pawn 保持空壳**——[FishLevelPawn.ts](../../src/projects/fish/gameplay/level/FishLevelPawn.ts) 就是占位。Pawn 被动响应 Controller 命令，不主动查询输入、不碰规则。
 
-1. **阶段路由**：`switchToPhase` / `setupXxxPhase`（创建三件套、托管相机、`PhySys.setup`）/ `enterLevel` / `returnToBase`
-2. **跨阶段共享组件持有者**：`resources` / `training`（构造里 `new` + `addComponent`，各阶段经 `GameInstance.current as FishGameInstance` 访问）
-3. **调试桥**：`window.__fishBattle`（enterLevel/addArmy/deploy/getBattle/stepTicks…）
-4. **实例级服务挂接**：Toast / Colorblind 等（`start()` 里 `attach`）
-5. **相机委托**：`getActiveCamera()`（渲染器每帧委托）
+**④ GameState —— 可观察的全局状态**
 
-### 3.7 World 只做
+只存 `phase`/`score`/`timeElapsed`/`gameOver` 并提供 `setPhase`/`addScore`/`subscribe` 等读写 API。**只存状态不做规则**，由 GameMode 驱动（`InitGame`→`reset`、`StartPlay`→`setPhase('playing')`）。
 
-1. **Actor 生命周期**：`SpawnActor` / `SpawnActorFromBlueprint` / `DestroyAllActors` / `actorMgr.GetAllActors`
-2. **场景切换**：`SwitchToScene(name, extraSetup?)`（阶段切换由 GameInstance 调，裸切换由调试桥）
-3. **查询与工厂**：`FindActors`（按类型）、`createBoxMesh` / `createPlaneMesh` / `createGridLines` 等网格工厂
-4. **UI 入口**：`world.ui`（UIManager：`spawnUIActor` / `destroyUIActor`）
-5. **运行态标记**：`world.running`（动态 UI 生成/特效判断前置）
+**⑤ 组件 —— 单点行为模块（组件优先原则）**
 
-### 3.8 禁止越界（红线清单）
+项目铁律：新行为**优先做成组件挂到 Actor/Instance 上**，非必要不修改拥有者类。组件自管生命周期，`BeginPlay` 建资源、`Tick` 驱动自身、`EndPlay` 释放；拥有者只调公开方法（如 `onDamaged(ratio)`）。
+
+**⑥ GameInstance —— 阶段路由 + 跨阶段共享**
+
+只做：阶段路由（`switchToPhase`/`setupXxxPhase`/`enterLevel`/`returnToBase`）、跨阶段共享组件持有者（`resources`/`training`）、调试桥（`window.__fishBattle`）、实例级服务挂接（Toast/Colorblind）、相机委托（`getActiveCamera()`）。
+
+**阶段玩法逻辑严禁写进 GameInstance**——它只做路由与共享，`FishLevelGameMode` 才是放兵判定的家。
+
+**⑦ World —— 场景世界**
+
+只做：Actor 生命周期（`SpawnActor`/`SpawnActorFromBlueprint`/`DestroyAllActors`/`actorMgr.GetAllActors`）、场景切换（`SwitchToScene`）、查询与网格工厂（`FindActors`/`createBoxMesh`）、UI 入口（`world.ui`）、运行态标记（`world.running`）。
+
+### 2.4 真实教训：长按放兵定时器为什么必须在 Controller
+
+这是本规范最有价值的一条红线，它是被真实纠正出来的。当前 [FishLevelPlayerController.ts](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) 的正确写法：
+
+```ts
+/** 长按连续放兵间隔（秒）：按住期间每隔该时长放一个兵 */
+const HOLD_DEPLOY_INTERVAL = 0.2
+
+export class FishLevelPlayerController extends PlayerController {
+  /** 所属 GameMode（SpawnPlayer 时由 GameMode 注入） */
+  gameMode: FishLevelGameMode | null = null
+  /** 长按连续放兵定时器 id（null = 未在长按） */
+  private holdTimer: number | null = null
+  /** 最近鼠标屏幕坐标（长按期间按此位置放兵） */
+  private lastX = 0
+  private lastY = 0
+
+  constructor() {
+    super('FishLevelPlayerController')
+    // 左键释放 → 结束长按连续放兵（InputSys.handlePointerUp → ProcessMouseButton 广播）
+    this.inputComponent.BindMouseButton((button, eventType) => {
+      if (button !== 0) return
+      if (eventType === 'released') this.stopHoldDeploy()
+    })
+  }
+
+  override OnPointerDownScreen(screenX: number, screenY: number): void {
+    this.lastX = screenX
+    this.lastY = screenY
+    this.gameMode?.onScreenDown(screenX, screenY)
+    this.startHoldDeploy()
+  }
+```
+
+```ts
+private startHoldDeploy(): void {
+  this.stopHoldDeploy()
+  this.holdTimer = window.setInterval(() => {
+    if (!this.gameMode) return
+    // 放置模式取消（Esc/点卡片）后不再放兵
+    if (!this.gameMode.placeTroopId) {
+      this.stopHoldDeploy()
+      return
+    }
+    this.gameMode.deployAtScreen(this.lastX, this.lastY, true)
+  }, HOLD_DEPLOY_INTERVAL * 1000)
+}
+
+override EndPlay(): void {
+  // 清理定时器（防悬挂）
+  this.stopHoldDeploy()
+  super.EndPlay()
+}
+```
+
+> **为什么定时器/坐标/释放订阅三者必须同在 Controller**：初版把它们写进了 `FishLevelGameMode.spawnPlayerInternal`，用 `placingHold` 字段记录按住态。问题在于——这些是**"用户操作过程状态"**，不是游戏规则。塞进 GameMode 后：(a) 规则类被操作细节污染，`deployAtScreen` 的规则校验与"现在是按住的第几帧"混在一起；(b) 定时器生命周期跟着 GameMode 走，而 GameMode 的 `EndPlay` 只清规则状态与相机，定时器悬挂；(c) 同类交互（连点、拖拽）再来一次就只能在 GameMode 里继续堆字段。
+> 归位后 GameMode 只剩 `onScreenDown`/`deployAtScreen`/`spawnTroopActor` 三个纯规则方法，Controller 持有 `holdTimer`/`lastX`/`lastY` 并在 `EndPlay` 里自清。
+> **注意 `deployAtScreen(..., true)` 的第三个参数 `silent`**：长按重复路径必须静默，否则按住非法位置会每 0.2 秒刷一条 warn 日志。
+
+> **为什么 Controller 能自停而不需要 GameMode 反向通知**：`startHoldDeploy` 每次触发先检查 `this.gameMode.placeTroopId`，为空就 `stopHoldDeploy()`。GameMode 的 `cancelPlaceMode()` 只把 `selectedTroopId` 置 null，**不反向调用 Controller**——单向依赖是刻意的设计。
+
+### 2.5 装配期唯一例外：`spawnPlayerInternal`
+
+这是 GameMode **唯一允许碰输入组件**的地方。以战斗为例：
+
+```ts
+override spawnPlayerInternal() {
+  const controller = new FishLevelPlayerController()
+  controller.gameMode = this
+  const pawn = new FishLevelPawn()
+  // 滚轮缩放 + 右键平移：把 controller 的输入组件绑定到战斗摄像机云台
+  this.baseCamera.rig.bindInput(controller.inputComponent)
+  // 相机平移边界与战场范围一致（±24）
+  this.baseCamera.rig.panLimit = PLACE_HALF
+  // Esc → 取消放置模式（不弹暂停菜单，战斗不中途暂停）
+  controller.inputComponent.BindAction('battle-cancel', 'Escape', 'pressed', () => this.cancelPlaceMode())
+  return { controller, pawn }
+}
+```
+
+> **为什么这里允许**：此刻 Controller 刚刚 `new` 出来、尚未完全就绪，这些绑定是"**场景级装配**"（相机云台接输入、全局 Esc 动作），不是"用户操作状态机"。装配完就把 Controller 交出去，之后所有交互输入一律在 Controller 构造/`OnPossess` 里绑。
+> **为什么 `controller.gameMode = this` 是注入而不是 Controller 自己找**：保持 Controller 对 GameMode 的引用由装配期一次性建立，Controller 不反向依赖具体场景查找逻辑。
+
+---
+
+## 3. 禁止越界（红线清单）
 
 | 红线 | 正确归属 | 错误示范 |
 |---|---|---|
-| ❌ GameMode 里写用户操作状态机（定时器/坐标/按住标记） | Controller | 长按连续放兵的 `setInterval` 写在 `FishLevelGameMode`（历史踩坑，见 §8） |
+| ❌ GameMode 里写用户操作状态机（定时器/坐标/按住标记） | Controller | 长按连续放兵的 `setInterval` 写在 `FishLevelGameMode`（**真实踩坑，见 §2.4**） |
 | ❌ Controller 直接改游戏状态/世界对象 | GameMode 公开方法 | Controller 里直接 `world.SpawnActor`、直接改 `lootCoins` |
 | ❌ Controller 持有规则数据 | GameMode | Controller 里缓存"掠夺累计值" |
 | ❌ Pawn 查询输入或实现规则 | Controller / GameMode | `FishLevelPawn` 里做放兵判定 |
@@ -131,102 +215,134 @@ DemoStudio 的 gameplay 沿用 UE 风格角色模型：**GameMode 是规则权�
 | ❌ 项目逻辑写进引擎基类 | 项目层继承覆写 | 改 `PlayerController.ts` 加战斗逻辑 |
 | ❌ 规则逻辑写进 GameState | GameMode | 在 `GameState.setPhase` 里塞胜负判定 |
 | ❌ 把行为写进拥有者类而非组件 | 新组件 | 在 `FishLevelGameMode` 里直接实现兵的血条显隐逻辑（应该用 `TroopHealthBarComponent`） |
-| ❌ 阶段玩法逻辑写进 GameInstance | 对应阶段 GameMode | `FishGameInstance` 里做放兵判定/建造逻辑（GameInstance 只做路由与共享） |
+| ❌ 阶段玩法逻辑写进 GameInstance | 对应阶段 GameMode | `FishGameInstance` 里做放兵判定/建造逻辑 |
 | ❌ GameMode/组件直接改全局共享资源 | GameInstance 的组件 | 战斗里直接改 `resources` 数值而不经 `ResourcesComponent` |
 | ❌ 跨阶段共享逻辑写进单阶段 GameMode | GameInstance / 共享组件 | 把训练军队逻辑写进 `FishLevelGameMode` |
-| ❌ 绕开 World 生命周期直接操作 THREE 对象 | World.SpawnActor / 组件 | 手动 `scene.add` 而不经 `SpawnActor`（漏生命周期/回收） |
+| ❌ 绕开 World 生命周期直接操作 THREE 对象 | `World.SpawnActor` / 组件 | 手动 `scene.add` 而不经 `SpawnActor`（漏生命周期/回收） |
 
-## 4. 工作流程（用户操作 → 游戏逻辑的流转）
-
-### 4.1 主流程（以战斗放兵为例）
-
-```mermaid
-flowchart TD
-  A[Viewport mousedown] --> B[InputSys.handlePointerDown<br/>button=0]
-  B --> C{PhySys.raycastClick 消费?}
-  C -->|是 UI/建筑| D[点击被消费，不再下发 Controller]
-  C -->|否 空地| E[controller.OnPointerDownScreen]
-  E --> F[FishLevelPlayerController:<br/>记录 lastX/lastY]
-  F --> G[gm.onScreenDown 立即放 1 个兵]
-  G --> H[FishLevelGameMode.deployAtScreen<br/>→ spawnTroopActor 校验/扣军队/SpawnActor]
-  F --> I[startHoldDeploy: setInterval<br/>每 HOLD_DEPLOY_INTERVAL 秒]
-  I --> J[检查 placeTroopId 非空]
-  J --> K[gm.deployAtScreen lastX/lastY silent]
-  E2[Viewport mouseup] --> L[InputSys.handlePointerUp<br/>button=0]
-  L --> M[inputComponent.ProcessMouseButton released]
-  M --> N[FishLevelPlayerController.stopHoldDeploy<br/>clearInterval]
-```
-
-### 4.2 分阶段说明
-
-| 阶段 | 触发点 | 关键调用 | 归属 |
-|---|---|---|---|
-| 输入路由 | Viewport mousedown/mousemove/mouseup | `InputSys.handlePointerDown/Move/Up` | 引擎（input_physics_script_system.md） |
-| 操作翻译 | 空地按下 / 移动 / 释放 | `Controller.OnPointerDownScreen/MoveScreen`、`BindMouseButton` 回调 | Controller |
-| 规则执行 | Controller 调用 | `GameMode.onScreenDown` / `deployAtScreen` / `spawnTroopActor` | GameMode |
-| 化身响应 | Controller 控制 | `Pawn.SetLevel` / `SetAimTarget` / `SetFiring`（出海） | Pawn |
-| 装配 | 阶段切换 | `GameMode.spawnPlayerInternal`：new Controller/Pawn → `rig.bindInput` → 注入 `controller.gameMode = this` | GameMode（装配期） |
-
-### 4.3 设计要点
-
-- **Controller → GameMode 单向依赖**：Controller 持有 `gameMode` 引用（`spawnPlayerInternal` 注入），GameMode **不反向持有操作细节**；GameMode 需要通知外部时用公开回调（如 `onLootDisplayChange`）而不是反向调用 Controller
-- **Controller → Pawn 通过 `this.pawn`**：出海玩法 Controller 在 `OnPossess(pawn)` 里把输入绑定到 Pawn 方法（`FishPlayerController` 先例）；占位阶段不绑
-- **装配期例外**：`spawnPlayerInternal` 是 GameMode 创建三件套的唯一入口，允许在此绑相机输入（`rig.bindInput`）与全局动作（Esc），因为此时 Controller 尚未完全就绪、且这些绑定是"场景级装配"而非"用户操作状态机"
-- **状态归属判定法**：写代码前逐问——"这是规则吗？"→ GameMode；"这是操作过程吗？"→ Controller；"这是化身行为吗？"→ Pawn；"这是全局可观察状态吗？"→ GameState；"这是单点行为/资源吗？"→ 组件；"这是跨阶段共享/阶段路由吗？"→ GameInstance；"这是对象生成/场景切换吗？"→ World
-
-## 5. 边界条件（越界自查表）
+### 3.1 越界自查表
 
 新增 gameplay 代码前逐条对照：
 
 | 检查项 | 判定 | 正确落点 |
 |---|---|---|
 | 要放一个兵/扣一滴血/判定胜负 | 规则/世界状态 | GameMode 公开方法 |
-| 要响应鼠标按下/释放/移动、长按、连点 | 用户操作 | Controller（`OnPointerDownScreen` / `BindMouseButton` / 定时器） |
-| 要响应键盘（Esc 取消放置等） | 装配期 → GameMode `spawnPlayerInternal`；阶段内 → Controller `BindAction` | 见 §3.1-5 |
+| 要响应鼠标按下/释放/移动、长按、连点 | 用户操作 | Controller（`OnPointerDownScreen`/`BindMouseButton`/定时器） |
+| 要响应键盘（Esc 取消放置等） | 装配期 → GameMode `spawnPlayerInternal`；阶段内 → Controller `BindAction` | 见 §2.3/§2.5 |
 | 要动玩家模型/位置/属性 | 化身行为 | Pawn |
-| 需要跨阶段共享（资源/军队） | 非三者职责 | GameInstance / 组件（`ResourcesComponent` / `TrainingComponent`） |
+| 需要跨阶段共享（资源/军队） | 非三者职责 | GameInstance / 组件（`ResourcesComponent`/`TrainingComponent`） |
 | 需要 UI 联动（HUD 刷新） | 非三者职责 | UIScriptComponent 脚本 / 公开回调 |
 | Controller 需要"再等 0.5 秒做什么" | 定时器 | Controller（**不得写进 GameMode.Tick**） |
-| GameMode 需要"知道鼠标在哪" | 操作过程坐标 | Controller 记录并在需要时传给 GameMode 方法参数 |
-| 需要记录"当前是第几关/游戏是否结束" | 全局可观察状态 | GameState（`setPhase` / `subscribe`），**规则判定留在 GameMode** |
-| 需要一个血条/索敌/特效/资源这类单点行为 | 组件优先 | 新建组件挂到 Actor/Instance，**不塞拥有者类** |
-| 需要给某建筑/兵种加一个可复用行为 | 组件 | 新建 `XxxComponent` + `addComponent` 挂载（血条/兵组合先例） |
+| GameMode 需要"知道鼠标在哪" | 操作过程坐标 | Controller 记录并作为参数传给 GameMode 方法 |
+| 需要记录"当前是第几关/是否结束" | 全局可观察状态 | GameState（`setPhase`/`subscribe`），**规则判定留在 GameMode** |
+| 需要血条/索敌/特效/资源这类单点行为 | 组件优先 | 新建组件挂到 Actor/Instance，**不塞拥有者类** |
+| 需要给某建筑/兵种加可复用行为 | 组件 | 新建 `XxxComponent` + `addComponent` 挂载 |
 | 需要切换阶段/维护跨阶段资源/暴露调试桥 | 实例级骨架 | GameInstance |
-| 需要生成/销毁/查询 Actor 或切换场景 | 世界操作 | World（`SpawnActor` / `FindActors` / `SwitchToScene`） |
-| 要读当前阶段/分数/是否 gameover | 只读状态 | GameState（`phase` / `score` / `gameOver`） |
+| 需要生成/销毁/查询 Actor 或切换场景 | 世界操作 | World（`SpawnActor`/`FindActors`/`SwitchToScene`） |
+| 要读当前阶段/分数/是否 gameover | 只读状态 | GameState（`phase`/`score`/`gameOver`） |
 
-**失败/边界行为**：
-- Controller 定时器触发时若放置模式已取消（`placeTroopId` 为空）→ 立即 `stopHoldDeploy` 自停（`FishLevelPlayerController` 先例），不依赖 GameMode 反向通知
-- Controller `EndPlay` 必须清理定时器（防悬挂）；GameMode `EndPlay` 只清规则状态与相机（`baseCamera?.destroy()`），不清理 Controller 私有状态
-- 长按移动到非法位置（叠建筑/超范围）→ GameMode 静默失败参数（`deployAtScreen(..., silent=true)`），Controller 不自行做合法性判断
-- 组件 `BeginPlay` 依赖 `this.owner.world`（无 world 时静默跳过，如未托管 Actor）；组件随宿主销毁自动 `EndPlay` 释放资源
-- `GameInstance.current` 全局唯一，脚本/组件在运行中才能取到（未运行返回 null，须判空）
-- `world.running` 为 false（场景切换期/未启动）时动态生成 UI/特效可能无 HUD 可挂——前置检查
+---
 
-## 6. 依赖关系 / 注册机制
+## 4. 关键方法速查
 
+| 方法 | 位置（文件:行号） | 干什么 | 注意 |
+|---|---|---|---|
+| `GameMode.StartPlay()` | `GameMode.ts:45` | 置 `playing` → `SpawnPlayer()` | **子类覆写必须 `super.StartPlay()`**，漏调则 `controller` 为 null，点击永远放不了兵 |
+| `GameMode.SpawnPlayer()` | `GameMode.ts:93` | 调 `spawnPlayerInternal` 并登记 controller | 模板方法，别覆写它 |
+| `GameMode.spawnPlayerInternal()` | `GameMode.ts:103` | 子类创建 Controller+Pawn 的覆写点 | **唯一允许 GameMode 碰输入组件的地方** |
+| `GameMode.Tick(dt)` | `GameMode.ts:72` | 统一驱动 GameState → Controller → 相机 | 别在这里塞操作定时器 |
+| `GameMode.EndPlay()` | `GameMode.ts:62` | 级联结束 GameState/Controller/相机 | Controller 私有状态由 Controller 自己清 |
+| `PlayerController.OnPointerDownScreen` | `PlayerController.ts:69` | 屏幕坐标按下回调 | 由 `InputSys.handlePointerDown` 转发 |
+| `PlayerController.OnPointerMoveScreen` | `PlayerController.ts:71` | 屏幕坐标移动回调 | 同上 |
+| `FishLevelPlayerController.startHoldDeploy` | `FishLevelPlayerController.ts:55` | 启动长按连续放兵定时器 | 操作状态机的正确落点 |
+| `FishLevelPlayerController.stopHoldDeploy` | `FishLevelPlayerController.ts:71` | 清理定时器 | `EndPlay` 必须调，防悬挂 |
+| `FishLevelPlayerController.OnPointerDownScreen` | `FishLevelPlayerController.ts:37` | 记录坐标 → `gm.onScreenDown` → 起长按 | 只做操作，不做规则 |
+| `FishLevelGameMode.spawnPlayerInternal` | `FishLevelGameMode.ts:239` | 装配 Controller/Pawn + 相机输入 + Esc | 装配期例外的唯一现场 |
+| `FishLevelGameMode.placeTroopId` | `FishLevelGameMode.ts:495` | 放置模式兵种 getter（只读） | Controller 据此自停长按 |
+| `FishLevelGameMode.cancelPlaceMode` | `FishLevelGameMode.ts:486` | 取消放置模式 | **不反向通知 Controller** |
+
+---
+
+## 5. 流程影响：牵动哪些功能
+
+### 上游：谁驱动它
+
+| 上游 | 怎么驱动 | 相关文档 |
+|---|---|---|
+| 输入系统（InputSys） | `handlePointerDown/Move` 转发到 `Controller.OnPointerDownScreen/MoveScreen` | [输入系统](../engine/input_system.md) |
+| 物理/点击系统（PhySys） | `raycastClick` 先消费 UI/建筑点击，未消费才下发 Controller | [物理系统](../engine/physics_system.md) |
+| 游戏流程注册表 | `GameModeRegistry.register('menu'/'base'/'game'/'level')` 决定场景 mode 创建哪个 GameMode | [游戏流程系统](../engine/gameflow_system.md) |
+| 项目注册入口 | `register.ts` 注册 GameMode/Actor/GM，是三件套的装配源头 | [ClashMaster 项目总览](./clash_master.md) |
+
+### 下游：它波及谁
+
+| 下游功能 | 波及点 | 相关文档 |
+|---|---|---|
+| 攻打战斗系统 | 本文档是它的规范来源；放兵/掠夺/胜负全部按七角色归位 | [攻打战斗系统](./battle_system.md) |
+| 关卡系统 | `enterLevel`/`returnToBase` 的路由职责归 GameInstance，不由 GameMode 代劳 | [关卡系统](./level_system.md) |
+| 战斗 HUD / 结算面板 | 经 `onLootDisplayChange` 等公开回调联动，GameMode 不直接操控 UI | [UI 系统](../engine/ui_system.md) |
+| 脚本组件（BehaviourScript） | UI 行为脚本经 `GameInstance.current` 拿实例，不塞进 GameMode | [脚本系统](../engine/script_system.md) |
+| 实体与组件体系 | 组件优先原则的落点，`BeginPlay/Tick/EndPlay` 自管生命周期 | [实体系统](../engine/entity_system.md) |
+| 世界与场景切换 | GameMode 经 `World.SpawnActor`/`SwitchToScene` 操作世界 | [游戏流程系统](../engine/gameflow_system.md) |
+
+---
+
+## 6. 踩坑清单（都是真踩过的）
+
+**1. 长按连续放兵定时器误入 GameMode（2026-08-17）**
+
+现象：初版把"放置模式 + 左键长按每 0.4s 放一个兵"的定时器与释放处理写在 `FishLevelGameMode.spawnPlayerInternal`（`BindMouseButton` 回调里置 `placingHold` 字段）。
+原因：把"用户操作过程状态"误判成规则。用户纠正：**用户操作应写在 Controller 里**。
+规则：重构后定时器/坐标/释放订阅全部移入 `FishLevelPlayerController`，GameMode 只保留 `onScreenDown`/`deployAtScreen`/`spawnTroopActor` 游戏逻辑方法。判定口诀——"这是操作还是规则？"操作归 Controller。（当前间隔已由 0.4s 调整为 `HOLD_DEPLOY_INTERVAL = 0.2`）
+
+**2. 部署后自动退出放置模式（2026-08-17 反转）**
+
+现象：曾按"防连点"思路在 `spawnTroopActor` 成功后调 `cancelPlaceMode()`。
+原因：与 CoC 风格长按连续放兵矛盾。
+规则：用户要求**部署后保持放置模式**，已删除该调用；放置模式仅由 Esc / 再次点卡片退出。当前 `spawnTroopActor` 注释明确写了这条。
+
+**3. 右键平移取消放置（2026-08-17 反转）**
+
+现象：曾绑 `rig.onRightPanStart = () => cancelPlaceMode()`（右键与放置互斥）。
+原因：与"平移地图继续放兵"的诉求冲突。
+规则：用户要求**右键平移不取消放置模式**，已删除该绑定；`CameraRigComponent.onRightPanStart` 回调机制保留给基地阶段使用。注意 `FishLevelGameMode.EndPlay` 里仍会 `this.baseCamera.rig.onRightPanStart = null` 防悬挂。
+
+**4. `super.StartPlay()` 漏调导致放兵全链路失效**
+
+现象：`FishLevelGameMode.StartPlay` 若不调 `super.StartPlay()`，基类里的 `SpawnPlayer()` 不执行 → `mode.controller` 为 null → `setupLevelPhase` 拿不到控制器 → `InputSys.handlePointerDown` 无 Controller 可转发 → 点击场景永远放不了兵。
+原因：基类把 `SpawnPlayer()` 藏在 `StartPlay` 里，子类覆写时极易漏掉基类调用。
+规则：**任何覆写 `StartPlay` 的 GameMode 必须第一句 `super.StartPlay()`**。源码注释已就地写明这段因果链。
+
+**5. World 不暴露 gameInstance 属性**
+
+现象：战斗 GameMode 想取共享组件（`resources`/`training`）时写 `this.world.gameInstance` 取不到。
+原因：`World` 没有这个属性，GameInstance 是全局单例。
+规则：用 `GameInstance.current as FishGameInstance`。`FishLevelGameMode` 把它封装成 getter：
+
+```ts
+/** 战斗 GameInstance（资源/训练组件跨阶段共享） */
+get gameInstance(): FishGameInstance | null {
+  return GameInstance.current as FishGameInstance | null
+}
 ```
-FishGameInstance（阶段路由 + 共享组件 resources/training + 调试桥）
-  ├─ start() → switchToPhase('menu'|'base'|'game') → setupXxxPhase
-  │    └─ World.SwitchToScene(场景名) → GameModeRegistry 创建对应 GameMode
-  │         ├─ GameMode（规则权威：GameState 驱动 + 世界对象管理 + HUDClass）
-  │         └─ setupXxxPhase 里 mode.SpawnPlayer() → GameMode.spawnPlayerInternal()
-  │              ├─ new Fish{阶段}PlayerController()  →  controller.gameMode = mode（注入）
-  │              ├─ new Fish{阶段}Pawn()
-  │              └─ rig.bindInput(controller.inputComponent)（相机输入装配）
-  │         └─ _controller = spawn.controller（GameInstance 持有当前阶段 Controller）
-  ├─ World（SpawnActor/FindActors/SwitchToScene/网格工厂/world.ui）
-  ├─ GameState（GameMode.gameState：phase/score，subscribe 供 HUD/GameInstance）
-  └─ 组件（挂 Actor：血条/兵组合/特效；挂 GameInstance：resources/training；挂 widget：*.script.ts）
-GameModeRegistry.register('menu'|'base'|'game'|'level', ctor)  → 场景 mode 字符串映射（register.ts）
-```
 
-- 七角色的注册/生命周期（GameMode 驱动 Controller/GameState Tick、World 驱动 Actor/组件）归 `gameflow_system.md` / `entity_system.md`；输入路由链路归 `input_physics_script_system.md`；各阶段玩法文档（`battle_system.md` / `level_system.md`）是本文档的规范实例
-- 新增一个阶段 = `register.ts` 注册 GameMode + 新建三件套类 + `setupXxxPhase` 装配，职责归属照本文档 §3
-- 新增可复用行为 = 新建组件（`common/comp/` 或 `battle/troops/`）挂载，不修改拥有者类（组件优先原则）
+**6. `GameInstance.current` 运行中才有值**
 
-## 7. 踩坑记录 / 历史决策
+现象：脚本/组件在未运行时取 `GameInstance.current` 返回 null。
+原因：全局唯一实例，未启动/已销毁时为 null。
+规则：取到后必须判空再用（上面的 getter 返回 `| null` 就是在类型层面强制这件事）。
 
-- **长按连续放兵定时器误入 GameMode（2026-08-17）**：初版把"放置模式 + 左键长按每 0.4s 放一个兵"的定时器与释放处理写在 `FishLevelGameMode.spawnPlayerInternal`（`BindMouseButton` 回调里置 `placingHold` 字段）。用户纠正：**用户操作应写在 Controller 里**。重构后定时器/坐标/释放订阅全部移入 `FishLevelPlayerController`，GameMode 只保留 `onScreenDown` / `deployAtScreen` / `spawnTroopActor` 游戏逻辑方法。教训：判断"这是操作还是规则"——操作归 Controller。
-- **部署后自动退出放置模式（2026-08-17 反转）**：曾按"防连点"思路在 `spawnTroopActor` 成功后调 `cancelPlaceMode()`，用户要求 CoC 风格**部署后保持放置模式**（长按连续放兵），已删除该调用；放置模式仅由 Esc / 再次点卡片退出。
-- **右键平移取消放置（2026-08-17 反转）**：曾绑 `rig.onRightPanStart = () => cancelPlaceMode()`（右键与放置互斥），用户要求**右键平移不取消放置模式**（可平移地图继续放兵），已删除该绑定；`CameraRigComponent.onRightPanStart` 回调机制保留给基地阶段使用。
+---
+
+## 7. 边界条件
+
+| 条件 | 行为 | 怎么应对 |
+|---|---|---|
+| Controller 定时器触发时放置模式已取消（`placeTroopId` 为空） | 立即 `stopHoldDeploy()` 自停 | 不依赖 GameMode 反向通知，Controller 自行检查 |
+| Controller `EndPlay` | 必须清理定时器防悬挂 | `FishLevelPlayerController.EndPlay` 调 `stopHoldDeploy()` |
+| GameMode `EndPlay` | 只清规则状态与相机（`baseCamera?.destroy()`） | **不清理 Controller 私有状态** |
+| 长按移动到非法位置（叠建筑/超范围） | GameMode 静默失败 | 走 `deployAtScreen(..., silent=true)`，Controller 不自行做合法性判断 |
+| 组件 `BeginPlay` 依赖 `this.owner.world` | 无 world 时静默跳过（如未托管 Actor） | 组件随宿主销毁自动 `EndPlay` 释放资源 |
+| `world.running` 为 false（场景切换期/未启动） | 动态生成 UI/特效可能无 HUD 可挂 | 动态 UI/特效前做前置检查 |
+| 扫不出调用方的"文档主链路"方法 | 该方法可能是死代码 | 写调用链前必须先 grep 确认调用方存在 |
+| 组件/脚本需要访问 GameInstance | 运行中才能取到 | 判空，**不缓存到模块级变量**（跨阶段会失效） |
