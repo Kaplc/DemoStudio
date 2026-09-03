@@ -33,6 +33,8 @@ import { UITransformComponent, type AnchorPreset } from '../ui/UITransformCompon
 import { UILayoutComponent, type UILayoutMode, type UILayoutJustify, type UILayoutAlign } from '../ui/UILayoutComponent'
 import { UIProgressBarComponent, type UIProgressDirection } from '../ui/UIProgressBarComponent'
 import { UIScrollListComponent, type UIScrollDirection } from '../ui/UIScrollListComponent'
+import { UIMaskComponent } from '../ui/UIMaskComponent'
+import { UIScrollContainerComponent } from '../ui/UIScrollContainerComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
@@ -582,7 +584,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UILayoutComponent ─── props: { mode?, columns?, spacingX?, spacingY?, autoLayout?, justify?, align? }
+  // ─── UILayoutComponent ─── props: { mode?, columns?, spacingX?, spacingY?, autoLayout?, justify?, align?, wrap?, autoHeight? }
   // 布局组件：挂在容器 Actor 上，自动按模式（水平/垂直/网格）排列其子 UI 节点。
   ComponentRegistry.register(
     'UILayoutComponent',
@@ -595,6 +597,8 @@ export function registerBuiltinComponents(): void {
         autoLayout: p.autoLayout as boolean | undefined,
         justify: p.justify as UILayoutJustify | undefined,
         align: p.align as UILayoutAlign | undefined,
+        wrap: p.wrap as boolean | undefined,
+        autoHeight: p.autoHeight as boolean | undefined,
       }),
     (c, p) => {
       const layout = c as UILayoutComponent
@@ -605,6 +609,42 @@ export function registerBuiltinComponents(): void {
       if (p.autoLayout !== undefined) layout.autoLayout = p.autoLayout as boolean
       if (p.justify !== undefined) layout.justify = p.justify as UILayoutJustify
       if (p.align !== undefined) layout.align = p.align as UILayoutAlign
+      if (p.wrap !== undefined) layout.wrap = p.wrap as boolean
+      if (p.autoHeight !== undefined) layout.autoHeight = p.autoHeight as boolean
+    },
+  )
+
+  // ─── UIMaskComponent ─── props: { radius?, name? }
+  // 裁剪遮罩：裁剪框 = owner uitransform 边盒，子树渲染对象裁剪到框内
+  // （scissor 矩形 + MeshBasic 圆角 SDF + troika clipRect）。HTML overflow 映射。
+  ComponentRegistry.register(
+    'UIMaskComponent',
+    (owner, p = {}) => new UIMaskComponent(owner as Actor, {
+      radius: p.radius as number | undefined,
+      name: p.name as string | undefined,
+    }),
+    (c, p) => {
+      const mask = c as UIMaskComponent
+      if (p.radius !== undefined) mask.radius = p.radius as number
+    },
+  )
+
+  // ─── UIScrollContainerComponent ─── props: { direction?, draggable?, scrollbar?, scrollOffset? }
+  // 通用滚动容器：单一内容子 Actor（_ScrollContent）驱动滚动范围，配合 UIMask 裁剪。
+  ComponentRegistry.register(
+    'UIScrollContainerComponent',
+    (owner, p = {}) => new UIScrollContainerComponent(owner as Actor, {
+      direction: p.direction as UIScrollDirection | undefined,
+      draggable: p.draggable as boolean | undefined,
+      scrollbar: p.scrollbar as boolean | undefined,
+      scrollOffset: p.scrollOffset as number | undefined,
+    }),
+    (c, p) => {
+      const scroll = c as UIScrollContainerComponent
+      if (p.direction !== undefined) scroll.direction = p.direction as UIScrollDirection
+      if (p.draggable !== undefined) scroll.draggable = p.draggable as boolean
+      if (p.scrollbar !== undefined) scroll.scrollbar = p.scrollbar as boolean
+      if (p.scrollOffset !== undefined) scroll.scrollOffset = p.scrollOffset as number
     },
   )
 }

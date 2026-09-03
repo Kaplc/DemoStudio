@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import type { Context } from "@deepseek-ai/cordis"
 import type { Agent, PreStepDecision } from "@deepseek-ai/dsh-agent"
 import { createUserMessage } from "@deepseek-ai/dsh-llm"
@@ -120,21 +120,15 @@ export class ContextTracker {
     return { ...decision, messages: [...decision.messages, alertMessage] }
   }
 
-  private buildWarning(thresholdK: number, pressureTokens: number, contextWindow: number | undefined): string {
-    const fmt = (n: number): string => {
-      if (n < 1_000) return String(n)
-      if (n < 1_000_000) return (n / 1_000).toFixed(1) + "K"
-      return (n / 1_000_000).toFixed(1) + "M"
-    }
-    const pct = contextWindow !== undefined && contextWindow > 0
-      ? "（约 " + Math.round(pressureTokens / contextWindow * 100) + "% / 窗口 " + fmt(contextWindow) + "）"
-      : ""
+  private buildWarning(_thresholdK: number, _pressureTokens: number, _contextWindow: number | undefined): string {
     const memoryIndex = clip(safeRead(this.indexes.memoryIndex) ?? "（无记忆索引）", 3000)
     const experienceIndex = clip(safeRead(this.indexes.experienceIndex) ?? "（无经验索引）", 3000)
     const rulesIndex = clip(safeRead(this.indexes.rulesIndex) ?? "（无规则索引）", 3000)
     return [
-      "[上下文占用提醒] 当前 prompt 已达 " + fmt(pressureTokens) + " tokens，触发 " + thresholdK + "K 阈值" + pct + "。",
-      "上下文即将接近上限，请检查以下索引，判断是否有需要保存到记忆/经验/规则的内容，或是否应结束对话：",
+      "⚠️ 重要提醒：请判断是否需要查找相关记忆和经验资料来辅助当前工作。",
+      "如有相关条目，用 memory_search / experience_search 检索后再继续；如无需要可跳过。",
+      "",
+      "以下是相关索引：",
       "",
       "## 记忆索引",
       memoryIndex,

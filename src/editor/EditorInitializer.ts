@@ -17,7 +17,7 @@ import { assetLintEngine } from './asset/assetLint/AssetLintEngine'
 import { codeLintEngine } from './codeLint/CodeLintEngine'
 import { Actor } from '../engine/entity/Actor'
 import { AssetPreviewManager } from './asset/AssetPreviewManager'
-import { getSceneTree, select, notifySelectionChange } from './SelectionManager'
+import { getSceneTree, getRunningWorld, select, notifySelectionChange } from './SelectionManager'
 import { logger } from '../engine/Logger'
 
 export type InitLogger = (message: string) => void
@@ -625,6 +625,123 @@ export function registerGlobalEventListeners(callbacks: {
               addConsoleOutput(`[MCP] 发送按键: ${params.key}`)
             }
             break
+          case 'get_scene_outline': {
+            // 获取场景大纲（Actor 树）：优先用活动预览管理器的 getActorTree，否则用运行中 World
+            try {
+              let tree: Array<{ depth: number; name: string; type: string; components: string[]; children: any[] }> = []
+              const active = AssetPreviewManager.getActive()
+              if (active && 'getActorTree' in active) {
+                // 蓝图/场景/widget 预览
+                const buildNodes = (nodes: any[], depth: number): any[] =>
+                  nodes.map((n: any) => ({
+                    depth,
+                    name: n.name || '(unnamed)',
+                    type: n.actor ? n.actor.constructor.name : 'Unknown',
+                    components: n.actor ? n.actor.getAllComponents().map((c: any) => c.constructor.name) : [],
+                    children: n.children ? buildNodes(n.children, depth + 1) : [],
+                  }))
+                tree = buildNodes((active as any).getActorTree(), 0)
+              } else {
+                // 运行中游戏：从 World 获取 Actor 树
+                const world = getRunningWorld()
+                if (world) {
+                  const buildFromActor = (actor: any, depth: number) => ({
+                    depth,
+                    name: actor.root?.name || actor.name || '(unnamed)',
+                    type: actor.constructor.name,
+                    active: actor.bActive,
+                    components: actor.getAllComponents().map((c: any) => c.constructor.name),
+                    children: actor.getChildren().map((c: any) => buildFromActor(c, depth + 1)),
+                  })
+                  tree = world.actorMgr.GetAllActors().map((a: any) => buildFromActor(a, 0))
+                }
+              }
+              addConsoleOutput(`[MCP] get_scene_outline: ${tree.length} 个顶层节点`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, {
+                  status: 'ok',
+                  command: 'get_scene_outline',
+                  outline: tree,
+                  count: tree.length,
+                })
+              }
+            } catch (err) {
+              addConsoleOutput(`[MCP] get_scene_outline 失败: ${err}`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, { status: 'error', command: 'get_scene_outline', message: String(err) })
+              }
+            }
+            break
+          }
+          case 'get_ui_outline': {
+            // 获取 UI 大纲（运行中游戏的 UI Widget 树）
+            try {
+              const world = getRunningWorld()
+              if (!world) {
+                if (requestId) {
+                  window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'get_ui_outline', outline: [], count: 0, message: '游戏未运行' })
+                }
+                break
+              }
+              const uiActors = world.ui.getAllUIActors()
+              const buildUiTree = (actor: any, depth: number): any => ({
+                depth,
+                name: actor.root?.name || actor.name || '(unnamed)',
+                type: actor.constructor.name,
+                active: actor.bActive,
+                components: actor.getAllComponents().map((c: any) => c.constructor.name),
+                children: actor.getChildren()
+                  .filter((c: any) => c.bActive !== false)
+                  .map((c: any) => buildUiTree(c, depth + 1)),
+              })
+              // 只取无 parent 的顶层 UI Actor
+              const tree = uiActors.filter((a: any) => !a.parent).map((a: any) => buildUiTree(a, 0))
+              addConsoleOutput(`[MCP] get_ui_outline: ${tree.length} 个顶层 UI 节点`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, {
+                  status: 'ok',
+                  command: 'get_ui_outline',
+                  outline: tree,
+                  count: tree.length,
+                })
+              }
+            } catch (err) {
+              addConsoleOutput(`[MCP] get_ui_outline 失败: ${err}`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, { status: 'error', command: 'get_ui_outline', message: String(err) })
+              }
+            }
+            break
+          }
+          case 'get_assets': {
+            // 获取资产浏览器文件列表
+            try {
+              const project = useEditorStore.getState().currentProject
+              if (!project) {
+                if (requestId) {
+                  window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'get_assets', files: [], count: 0, message: '未打开工程' })
+                }
+                break
+              }
+              const files = await window.electronAPI?.listProjectAssets?.(project.folder) ?? []
+              addConsoleOutput(`[MCP] get_assets: ${files.length} 个文件`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, {
+                  status: 'ok',
+                  command: 'get_assets',
+                  project: project.folder,
+                  files: files.map((f: any) => ({ path: f.path, ext: f.ext, size: f.size })),
+                  count: files.length,
+                })
+              }
+            } catch (err) {
+              addConsoleOutput(`[MCP] get_assets 失败: ${err}`)
+              if (requestId) {
+                window.electronAPI?.sendMCPResponse?.(requestId, { status: 'error', command: 'get_assets', message: String(err) })
+              }
+            }
+            break
+          }
           default:
             addConsoleOutput(`[MCP] 未知命令: ${command}`)
         }

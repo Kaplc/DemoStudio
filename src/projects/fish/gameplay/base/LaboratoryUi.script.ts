@@ -86,9 +86,11 @@ export default class LaboratoryUiScript extends BehaviourScript {
       const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
       if (nameText) nameText.text = troop.name
       const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
-      const bg = card.getComponent(UIImageComponent)
+      // 兵种色 + 点击：image/button 挂在 TrainButton 子节点（2026-09-02 资产重建后根节点不再直挂）
+      const btnHost = findChild(card, 'TrainButton')
+      const bg = btnHost?.getComponent(UIImageComponent)
       if (bg) bg.color = colorToCss(troop.color)
-      const cardBtn = card.getComponent(UIButtonComponent)
+      const cardBtn = btnHost?.getComponent(UIButtonComponent)
       if (cardBtn) cardBtn.onClick = () => inst?.researchTroop(id)
       if (cardBtn) this.cards.push({ troopId: id, btn: cardBtn, infoText })
       created++

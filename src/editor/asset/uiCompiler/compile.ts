@@ -353,16 +353,8 @@ function validateComputedStyles(el: StyleElement, warnings: CompileWarning[]): v
       }
     }
   }
-  // overflow hidden → 硬报错（引擎无视觉裁剪）
-  for (const p of ['overflow-x', 'overflow-y']) {
-    const v = el.computed.get(p)
-    if (v === 'hidden' || v === 'clip') {
-      throw new CompileFail(
-        `${p}: ${v} 不受支持（引擎无容器视觉裁剪；圆角裁剪用 border-radius，滚动用 auto/scroll）`,
-        el.node.line,
-      )
-    }
-  }
+  // overflow hidden/clip → 合法：发射 UIMaskComponent 裁剪遮罩（引擎 UIMask 裁剪能力）；
+  // auto/scroll → UIMask + UIScrollContainerComponent（见 emitBox 功能组件区）
   for (const child of el.children) validateComputedStyles(child, warnings)
 }
 
@@ -726,8 +718,20 @@ class Emitter {
     else if (hitTest === 'visible' || hitTest === 'block' || hitTest === 'hitTestInvisible') markerProps.hitTest = hitTest
     ;(node.components as unknown[]).push({ baseClass: 'CanvasUIComponent', properties: markerProps })
 
+    // ─── 功能组件前置判断（flexRuntime 补发与滚动容器互斥需要）───
+    const scrollDir = this.scrollDirectionOf(el)
+    const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
+      const v = el.computed.get(p)
+      return v === 'hidden' || v === 'clip'
+    })
+    const explicitScrollList = el.node.attrs['data-comp'] === 'UIScrollList'
+      || (el.node.attrs['data-comp'] === 'UIScroll' && Boolean(el.node.attrs['data-props']))
+    const wrapScrollContent = scrollDir !== null && !explicitScrollList && box.children.length > 0
+
     // ─── UILayout（flex 静态解可被运行时公式复现时补挂：保留 v1 动态子项重排能力）───
-    if (box.flexRuntime) {
+    // 滚动容器不补发：子项已包进内容层，运行时重排会破坏内容几何（滚动语义由
+    // UIScrollContainerComponent 接管，运行时动态子项应 spawn 到内容层下并调 refresh）
+    if (box.flexRuntime && !wrapScrollContent) {
       const fr = box.flexRuntime
       ;(node.components as unknown[]).push({
         baseClass: 'UILayoutComponent',
@@ -745,11 +749,22 @@ class Emitter {
     }
 
     // ─── 功能组件 ───
-    const scrollDir = this.scrollDirectionOf(el)
-    if (scrollDir) {
+    // 裁剪遮罩：overflow hidden/clip（纯裁剪）与 auto/scroll（滚动裁剪）都发射；
+    // radius 取同元素 border-radius（CSS 圆角裁剪语义）
+    if (overflowHidden || scrollDir) {
+      const radiusRaw = el.computed.get('border-top-left-radius')
+      const radiusPx = radiusRaw ? this.resolveRadiusPx(radiusRaw, el) : 0
       ;(node.components as unknown[]).push({
-        baseClass: 'UIScrollListComponent',
-        properties: { direction: scrollDir },
+        baseClass: 'UIMaskComponent',
+        properties: { radius: round4(this.wx(radiusPx)) },
+      })
+    }
+    if (scrollDir && !explicitScrollList) {
+      // 通用滚动容器（任意内容层）：显式 data-comp="UIScrollList" 时走等步长列表
+      // 逃逸通道（emitDataComp），不重复发射
+      ;(node.components as unknown[]).push({
+        baseClass: 'UIScrollContainerComponent',
+        properties: { direction: scrollDir, draggable: true, scrollbar: true },
       })
     }
 
@@ -813,9 +828,88 @@ class Emitter {
       node.children = node.children as unknown[]
       ;(node.children as unknown[]).push(this.emitMarkerActor(markerBox, box, nodeName, usedNames))
     }
-    for (const child of box.children) {
-      if (skipSelfText && child.kind === 'text' && child.el === el) continue
-      this.emitBox(child, node as unknown as { children: unknown[] }, box, usedNames, depth + 1, nodeName)
+    // ─── 滚动容器内容包裹：overflow auto/scroll 的子项包进单一内容层 ───
+    // UIScrollContainerComponent 滚动该层（_applyOffset 平移其 position），
+    // UIMask 裁剪溢出部分。反编译按名称含 _ScrollContent 识别并折叠回 overflow 声明。
+    if (wrapScrollContent) {
+      // 子项 border-box 并集（像素，容器内容盒坐标系）
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const child of box.children) {
+        if (skipSelfText && child.kind === 'text' && child.el === el) continue
+        const cx2 = child.x - child.pl - child.bl
+        const cy2 = child.y - child.pt - child.bt
+        const cw2 = child.w + child.pl + child.pr + child.bl + child.br
+        const ch2 = child.h + child.pt + child.pb + child.bt + child.bb
+        minX = Math.min(minX, cx2)
+        minY = Math.min(minY, cy2)
+        maxX = Math.max(maxX, cx2 + cw2)
+        maxY = Math.max(maxY, cy2 + ch2)
+      }
+      const wrapW = Math.max(1, maxX - minX)
+      const wrapH = Math.max(1, maxY - minY)
+      const wrapCx = minX + wrapW / 2
+      const wrapCy = minY + wrapH / 2
+      // 先发射子项到临时父，再统一平移到 wrapper 局部坐标
+      const fake = { children: [] as unknown[] }
+      for (const child of box.children) {
+        if (skipSelfText && child.kind === 'text' && child.el === el) continue
+        this.emitBox(child, fake as unknown as { children: unknown[] }, box, usedNames, depth + 1, nodeName)
+      }
+      // 按发射序对应原始 Box，子项改为无锚点 position（相对 wrapper：子项边盒中心 − wrapper 中心）
+      const flowChildren = box.children.filter((c) => !(skipSelfText && c.kind === 'text' && c.el === el))
+      const emittedNodes = fake.children as Array<Record<string, unknown>>
+      for (let i = 0; i < emittedNodes.length && i < flowChildren.length; i++) {
+        const b = flowChildren[i]
+        const comps = emittedNodes[i].components as Array<{ baseClass: string, properties: Record<string, unknown> }> | undefined
+        const tf = comps?.find((c) => c.baseClass === 'UITransformComponent')
+        if (!tf) continue
+        const ccx = b.x - b.pl - b.bl + (b.w + b.pl + b.pr + b.bl + b.br) / 2
+        const ccy = b.y - b.pt - b.bt + (b.h + b.pt + b.pb + b.bt + b.bb) / 2
+        delete tf.properties.anchor
+        delete tf.properties.anchorOffset
+        tf.properties.position = [
+          round4(this.wx(ccx - wrapCx)),
+          round4(this.wy(-(ccy - wrapCy))),
+          0,
+        ]
+      }
+      // wrapper 节点（无锚点 position = 包围盒中心相对容器边盒中心）
+      const bbX0 = box.x - box.pl - box.bl
+      const bbY0 = box.y - box.pt - box.bt
+      const bbW0 = box.w + box.pl + box.pr + box.bl + box.br
+      const bbH0 = box.h + box.pt + box.pb + box.bt + box.bb
+      const wrapNode: Record<string, unknown> = {
+        name: `${nodeName}_ScrollContent`,
+        baseClass: 'Actor',
+        id: nextNodeId(),
+        components: [
+          {
+            baseClass: 'UITransformComponent',
+            properties: {
+              worldWidth: round4(this.wx(wrapW)),
+              worldHeight: round4(this.wy(wrapH)),
+              position: [
+                round4(this.wx(wrapCx - (bbX0 + bbW0 / 2))),
+                round4(this.wy(-(wrapCy - (bbY0 + bbH0 / 2)))),
+                0,
+              ],
+              rotation: [0, 0, 0],
+              scale: [1, 1, 1],
+            },
+          },
+          { baseClass: 'CanvasUIComponent', properties: { markerOnly: true, name: 'UIMarker', zOrder: 0 } },
+        ],
+        children: fake.children,
+      }
+      ;(node.children as unknown[]).push(wrapNode)
+    } else {
+      for (const child of box.children) {
+        if (skipSelfText && child.kind === 'text' && child.el === el) continue
+        this.emitBox(child, node as unknown as { children: unknown[] }, box, usedNames, depth + 1, nodeName)
+      }
     }
 
     parent.children.push(node)

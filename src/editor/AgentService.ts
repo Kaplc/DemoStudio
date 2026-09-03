@@ -126,7 +126,7 @@ interface DshEvent {
     // --- todo/write ---
     todos?: TodoItem[]
     // --- request/header ---
-    header?: { config?: { model?: string; provider?: string }; adapterDefaults?: unknown; system?: string; tools?: unknown[] }
+    header?: { config?: { model?: string; provider?: string; reasoningEffort?: string }; adapterDefaults?: unknown; system?: string; tools?: unknown[] }
     // --- request/context ---
     provider?: string
     model?: string
@@ -302,6 +302,8 @@ export class AgentService {
   private _agentPort = 0
   /** 已解析的默认工作区（应用根目录）缓存：getAppInfo 一次进程内不变 */
   private _workspaceCwd: string | null = null
+  /** 上一次 request/header 中的模型名：仅模型真正切换时才上屏"模型切换" */
+  private _lastHeaderModel: string | undefined
   /** 实例标识：HMR 会并存多个服务实例（旧实例泄漏时只写日志不进 UI），用于区分日志来源 */
   private readonly instanceId = (() => {
     const g = globalThis as unknown as Record<string, number | undefined>
@@ -378,6 +380,7 @@ export class AgentService {
     this.clearLiveBuffers()
     this.lastFlushSeq = undefined
     this.pendingTools.clear()
+    this._lastHeaderModel = undefined
   }
 
   /** 以服务端最新 seq 刷新去重基线（只推进游标，不消费历史事件进 UI） */
@@ -1336,12 +1339,22 @@ export class AgentService {
 
     // ─── 请求配置 ───
     if (event.type === 'request/header') {
-      const header = d?.header
-      const reason = d?.reason || 'change'
-      this.emit({
-        type: 'requestHeader',
-        payload: { model: header?.config?.model, provider: header?.config?.provider, reason, seq: event.seq, time } as RequestHeaderPayload,
-      })
+      const hd = d as any  // request/header data 多态，用 any 取 reason/header
+      const header = hd?.header
+      const reason: string = hd?.reason || 'change'
+      const model: string | undefined = header?.config?.model
+      const reasoningEffort: string | undefined = header?.config?.reasoningEffort
+      // 只有模型真正变化时才视为"模型切换"上屏；
+      // reason=change 可能是工具列表/temperature 等变更，不应误报为模型切换。
+      const modelChanged = reason === 'initial' || reason === 'resume'
+        || (reason === 'change' && model !== this._lastHeaderModel)
+      if (model !== undefined) this._lastHeaderModel = model
+      if (modelChanged) {
+        this.emit({
+          type: 'requestHeader',
+          payload: { model, provider: header?.config?.provider, reasoningEffort, reason: reason as any, seq: event.seq, time } as RequestHeaderPayload,
+        })
+      }
       return false
     }
 
@@ -1563,6 +1576,8 @@ export class AgentService {
       const commandStates = new Map<string, CommandState>()
       // 压缩状态：compactionId -> CompactionState
       const compactionStates = new Map<string, CompactionState>()
+      // 历史折叠中追踪上一个模型名：仅模型真正变化时才上屏"模型切换"
+      let lastFoldHeaderModel: string | undefined
       // chunk 增量累积（对齐实时路径 assistantBuf 语义）：fold 期间遇到
       // assistant/chunk 先累积，边界处提交；assistant/message 到达时整段覆盖。
       let foldAssistantBuf = ''
@@ -1825,13 +1840,22 @@ export class AgentService {
 
         // ─── request/header ───
         if (event.type === 'request/header') {
-          // 对齐实时路径：只有 reason=change 的请求头才视为模型切换上屏，
-          // 每轮常规请求头不留痕，避免加载历史时多出实时看不到的切换记录
-          if ((d?.reason || 'change') !== 'change') continue
-          const header = d?.header
+          const hd = d as any  // request/header data 多态
+          const reason: string = hd?.reason || 'change'
+          const header = hd?.header
+          const model: string | undefined = header?.config?.model
+          const reasoningEffort: string | undefined = header?.config?.reasoningEffort
+          // 仅模型真正变化时才上屏，对齐实时路径
+          const modelChanged = reason === 'initial' || reason === 'resume'
+            || (reason === 'change' && model !== lastFoldHeaderModel)
+          if (model !== undefined) lastFoldHeaderModel = model
+          if (!modelChanged) continue
+          // 格式化推理强度
+          let effortLabel = ''
+          if (reasoningEffort) effortLabel = ` · 推理${reasoningEffort}`
           messages.push({
             role: 'system',
-            content: `模型切换: ${header?.config?.model || '未知'}`,
+            content: `模型切换: ${model || '未知'}${effortLabel}`,
             seq: event.seq,
             ts: time,
           })

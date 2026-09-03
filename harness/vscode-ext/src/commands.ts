@@ -103,7 +103,7 @@ export function registerCommands(deps: CommandDeps): vscode.Disposable[] {
     const result = await bridge.callTool('stop_game')
     vscode.window.showInformationMessage(`停止游戏: ${JSON.stringify(result)}`)
     statusBar.setEngineStatus('running')
-    chatView.postMessage({ type: 'status', payload: { gameRunning: false, gameScore: 0 } })
+    chatView.postMessage({ type: 'status', payload: { gameRunning: false } })
   }))
 
   subs.push(vscode.commands.registerCommand('dsh.restartKernel', async () => {

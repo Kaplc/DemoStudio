@@ -54,7 +54,6 @@ export const ChatPanel: React.FC = () => {
     kernelDetail: '',
     toolCount: 0,
     gameRunning: false,
-    gameScore: 0,
   })
   const scrollerRef = React.useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = React.useState(false)
@@ -272,7 +271,6 @@ export const ChatPanel: React.FC = () => {
       kernelDetail: (payload.kernelDetail as string) ?? s.kernelDetail,
       toolCount: (payload.toolCount as number) ?? s.toolCount,
       gameRunning: (payload.gameRunning as boolean) ?? s.gameRunning,
-      gameScore: (payload.gameScore as number) ?? s.gameScore,
     }))
   }
 
@@ -335,9 +333,6 @@ export const ChatPanel: React.FC = () => {
               <span className="chat-status-item" title="游戏运行中">
                 <span className="chat-status-item__icon">🎮</span>
                 <span className="chat-status-item__text">运行中</span>
-                {status.gameScore > 0 && (
-                  <span className="chat-status-item__score">⭐ {status.gameScore}</span>
-                )}
               </span>
             </>
           )}

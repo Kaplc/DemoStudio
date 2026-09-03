@@ -187,6 +187,18 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 
 没有触发点就不要保存——宁缺毋滥，普通问答、实现细节和过程流水账不存（见上方"不要保存"清单）。用户显式要求时照办：删除用 memory_forget，整理审查用 memory_review。`
 
+/** 回合末记忆提醒文本（新增机制）。 */
+export const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆检查
+
+每回合结束前，快速回顾本回合是否有值得跨会话记住的信息。如果有，立即调用 memory_write 保存。常见触发点：
+- 用户纠正或确认了某个方向
+- 做出了架构/设计/工作流决策
+- 定位到可复用的根因教训
+- 了解到用户的角色/偏好/工作习惯
+- 拿到外部系统指针（看板/文档站 URL）
+
+如果没有触发点，不要保存。宁缺毋滥。`
+
 // ---------------------------------------------------------------------------
 // 注入与提醒的文本模板（FR-2 / FR-3 / FR-5）
 // ---------------------------------------------------------------------------
@@ -214,6 +226,7 @@ export function memoryGuideSectionText(memoryIndex: string | undefined): string 
     WHAT_NOT_TO_SAVE_TEXT,
     SAVE_FLOW_TEXT,
     WHEN_TO_ACCESS_TEXT,
+    END_OF_TURN_REMINDER_TEXT,
     `## 记忆与其他持久化机制的分工
 
 - **Plan** — 当前任务的方案对齐，会话内有效

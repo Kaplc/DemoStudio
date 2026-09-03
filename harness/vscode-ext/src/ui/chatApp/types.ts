@@ -54,5 +54,4 @@ export interface StatusBarState {
   kernelDetail: string
   toolCount: number
   gameRunning: boolean
-  gameScore: number
 }

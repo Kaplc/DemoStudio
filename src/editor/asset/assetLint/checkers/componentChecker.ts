@@ -296,6 +296,29 @@ class UIScrollListComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UIScrollListComponent', UIScrollListComponentChecker)
 
+/** comp:UIMaskComponent — 裁剪遮罩（裁剪框 = 节点 uitransform 边盒；HTML overflow 映射） */
+class UIMaskComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIMaskComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, label: '圆角半径（世界米，0 = 矩形）' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIMaskComponent', UIMaskComponentChecker)
+
+/** comp:UIScrollContainerComponent — 通用滚动容器（任意内容层 + 拖拽/滚动条，配 UIMask 裁剪） */
+class UIScrollContainerComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIScrollContainerComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.direction', type: 'string', label: '滚动方向（vertical/horizontal）' },
+    { field: 'properties.scrollOffset', type: 'number', min: 0, label: '初始滚动偏移（世界米）' },
+    { field: 'properties.draggable', type: 'boolean', label: '鼠标拖拽滚动开关' },
+    { field: 'properties.scrollbar', type: 'boolean', label: '滚动条开关' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIScrollContainerComponent', UIScrollContainerComponentChecker)
+
 /** comp:UIProgressBarComponent — 进度条组件（数值模型 value/min/max + fill 子 Actor + 填充方向） */
 class UIProgressBarComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIProgressBarComponent'
@@ -397,6 +420,8 @@ class UILayoutComponentChecker extends AbstractAssetChecker {
     { field: 'properties.spacingX', type: 'number', min: 0, label: 'X 轴间距' },
     { field: 'properties.spacingY', type: 'number', min: 0, label: 'Y 轴间距' },
     { field: 'properties.autoLayout', type: 'boolean', label: '自动布局（子项变化时重排）' },
+    { field: 'properties.wrap', type: 'boolean', label: '主轴换行（grid 列数/水平换行/垂直换列按容器尺寸自动推导）' },
+    { field: 'properties.autoHeight', type: 'boolean', label: '自适应高度（布局后容器高度写回内容包围盒高）' },
     {
       field: 'properties.justify',
       type: 'string',

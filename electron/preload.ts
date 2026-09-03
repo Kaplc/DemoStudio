@@ -62,7 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('stop-game-log'),
 
   // ─── MCP 报告游戏状态 ───
-  reportGameState: (state: { running: boolean; score?: number }) =>
+  reportGameState: (state: { running: boolean }) =>
     ipcRenderer.invoke('mcp-report-state', state),
 
   // ─── DevTools ───

@@ -18,8 +18,8 @@ export interface EngineBridgeLike {
    * 返回任意 JSON。
    */
   callTool(name: string, args?: Record<string, unknown>): Promise<unknown>
-  /** 编辑器侧 get_status；可读 gameRunning/gameScore 字段 */
-  getStatus(): Promise<{ running: boolean; gameRunning: boolean; gameScore?: number } | null>
+  /** 编辑器侧 get_status；可读 gameRunning 字段 */
+  getStatus(): Promise<{ running: boolean; gameRunning: boolean } | null>
   /** 编辑器侧 console-logs（最近 50 行） */
   readConsoleLogs(): Promise<string[]>
 }
@@ -77,11 +77,11 @@ class HttpEngineBridge implements EngineBridgeLike {
     }
   }
 
-  async getStatus(): Promise<{ running: boolean; gameRunning: boolean; gameScore?: number } | null> {
+  async getStatus(): Promise<{ running: boolean; gameRunning: boolean } | null> {
     try {
       const resp = await fetch(`http://127.0.0.1:${this.port}/api/status`)
       if (!resp.ok) return null
-      return await resp.json() as { running: boolean; gameRunning: boolean; gameScore?: number }
+      return await resp.json() as { running: boolean; gameRunning: boolean }
     } catch {
       return null
     }

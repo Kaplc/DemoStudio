@@ -358,6 +358,7 @@ export interface TodoWritePayload {
 export interface RequestHeaderPayload {
   model?: string
   provider?: string
+  reasoningEffort?: string
   reason: 'initial' | 'resume' | 'change'
   seq: number
   time: number

@@ -198,6 +198,11 @@ export class CanvasUIComponent extends Component<Actor> {
     }
   }
 
+  /** 已注册的子组件渲染对象（troika 文本 mesh 等；只读视图，UIMask 收集裁剪目标用） */
+  get renderObjects(): readonly THREE.Object3D[] {
+    return this._registeredObjects
+  }
+
   /** 注销渲染对象（一般在子组件 EndPlay 销毁自身 mesh 时调用） */
   unregisterRenderObject(obj: THREE.Object3D): void {
     const i = this._registeredObjects.indexOf(obj)

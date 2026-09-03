@@ -112,7 +112,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           kernelDetail: kernelManager.getState().mode,
           toolCount: tools.length,
           gameRunning: false,
-          gameScore: 0,
         }
       })
     }

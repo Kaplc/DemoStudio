@@ -116,10 +116,11 @@ export default class BarracksUiScript extends BehaviourScript {
           infoText.text = `HP ${troop.hp} · ${troop.dps > 0 ? `伤 ${troop.dps}` : '治疗'} · 费 ${troop.cost}`
         }
 
-        // 背景色（兵种色）：改节点自身 image 的颜色（视觉归 image，按钮只管交互）
-        const bg = card.getComponent(UIImageComponent)
+        // 兵种色 + 点击：image/button 挂在 TrainButton 子节点（2026-09-02 资产重建后根节点不再直挂）
+        const btnHost = findChild(card, 'TrainButton')
+        const bg = btnHost?.getComponent(UIImageComponent)
         if (bg) bg.color = colorToCss(troop.color)
-        const troopBtn = card.getComponent(UIButtonComponent)
+        const troopBtn = btnHost?.getComponent(UIButtonComponent)
         if (troopBtn) {
           troopBtn.onClick = () => inst?.trainTroop(id)
         }

@@ -1,8 +1,8 @@
 /**
- * 状态栏管理器：显示引擎状态 / 内核版本 / 工具数量 / 游戏分数 / 连接状态。
+ * 状态栏管理器：显示引擎状态 / 内核版本 / 工具数量 / 连接状态。
  *
  * 状态栏布局（从左到右）：
- * [引擎状态] [内核版本] [工具数量] [游戏分数] [连接状态]
+ * [引擎状态] [内核版本] [工具数量] [连接状态]
  */
 import * as vscode from 'vscode'
 
@@ -14,7 +14,6 @@ export class StatusBarManager implements vscode.Disposable {
   private engineItem: vscode.StatusBarItem      // 引擎状态
   private versionItem: vscode.StatusBarItem     // 内核版本
   private toolsItem: vscode.StatusBarItem       // 工具数量
-  private scoreItem: vscode.StatusBarItem       // 游戏分数
   private kernelItem: vscode.StatusBarItem      // 内核连接状态
   private chatItem: vscode.StatusBarItem        // 聊天快捷入口
 
@@ -22,8 +21,6 @@ export class StatusBarManager implements vscode.Disposable {
   private currentEngineStatus: EngineStatus = 'unknown'
   private currentKernelStatus: KernelStatus = 'disconnected'
   private toolCount = 0
-  private gameScore = 0
-  private isGameRunning = false
 
   constructor() {
     // 1. 引擎状态（最左侧，优先级最高）
@@ -41,18 +38,12 @@ export class StatusBarManager implements vscode.Disposable {
     this.toolsItem.text = '$(tools) 0 工具'
     this.toolsItem.tooltip = '已加载的引擎特化工具数量'
 
-    // 4. 游戏分数（仅在游戏运行时显示）
-    this.scoreItem = this.createItem(97, undefined)
-    this.scoreItem.text = ''
-    this.scoreItem.tooltip = '当前游戏分数'
-    this.scoreItem.hide()  // 默认隐藏
-
-    // 5. 内核连接状态
+    // 4. 内核连接状态
     this.kernelItem = this.createItem(96, 'dsh.restartKernel')
     this.kernelItem.text = '$(circle-slash) DSH 内核'
     this.kernelItem.tooltip = 'DSH 内核连接状态（点击重启）'
 
-    // 6. 聊天快捷入口（最右侧）
+    // 5. 聊天快捷入口（最右侧）
     this.chatItem = this.createItem(95, 'dsh.openChat')
     this.chatItem.text = '$(comment-discussion) DSH 聊天'
     this.chatItem.tooltip = '打开 DSH 聊天面板'
@@ -99,13 +90,6 @@ export class StatusBarManager implements vscode.Disposable {
     this.toolsItem.tooltip = `已加载 ${count} 个引擎特化工具`
   }
 
-  /** 更新游戏分数 */
-  setGameScore(score: number): void {
-    this.gameScore = score
-    this.scoreItem.text = `$(star) ${score} 分`
-    this.scoreItem.show()
-  }
-
   /** 更新内核连接状态 */
   setKernelStatus(status: KernelStatus, detail?: string): void {
     this.currentKernelStatus = status
@@ -120,16 +104,6 @@ export class StatusBarManager implements vscode.Disposable {
     this.kernelItem.tooltip = m.tip
   }
 
-  /** 设置游戏运行状态（控制分数显示） */
-  setGameRunning(running: boolean): void {
-    this.isGameRunning = running
-    if (running) {
-      this.scoreItem.show()
-    } else {
-      this.scoreItem.hide()
-    }
-  }
-
   /** 获取当前引擎状态 */
   getCurrentStatus(): EngineStatus {
     return this.currentEngineStatus
@@ -139,7 +113,6 @@ export class StatusBarManager implements vscode.Disposable {
     this.engineItem.dispose()
     this.versionItem.dispose()
     this.toolsItem.dispose()
-    this.scoreItem.dispose()
     this.kernelItem.dispose()
     this.chatItem.dispose()
   }

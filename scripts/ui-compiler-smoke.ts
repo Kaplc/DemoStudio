@@ -5,8 +5,10 @@
  *  1. 旧资产回归：src/projects 各工程 asset/blueprints/ui 下全部 .widget.html 编译成功
  *  2. 完整映射综合用例：块级流/内联混排/flex(wrap+grow)/grid/表格/列表标记/
  *     @media/渐变/transform/绝对定位/命名色/calc/var/实体/inline style
- *  3. 越界硬报错：未知标签/未知 CSS 属性/内嵌 script/overflow:hidden/兄弟选择器
+ *  3. 越界硬报错：未知标签/未知 CSS 属性/内嵌 script/兄弟选择器
+ *     （overflow:hidden 已合法化 → UIMaskComponent 裁剪遮罩，见 §6）
  *  4. round-trip：html → json → html' → json'' 布局与组件全等效（0.05px 容差）
+ *  6. UIMask 裁剪 / ScrollContainer 滚动内容层 / 往返
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -110,7 +112,6 @@ const expectFail = (label: string, src: string): void => {
 expectFail('未知 CSS 属性', '<widget name="x"><style>.x{color:red;foo-bar:8px}</style><div class="x">x</div></widget>')
 expectFail('内嵌 script', '<widget name="x"><script>evil()</script></widget>')
 expectFail('未知标签', '<widget name="x"><marquee>x</marquee></widget>')
-expectFail('overflow:hidden', '<widget name="x"><style>.a{overflow:hidden}</style><div class="a">x</div></widget>')
 expectFail('兄弟选择器', '<widget name="x"><style>a ~ b { color: red }</style><div><a>x</a><b>y</b></div></widget>')
 expectFail('select 不支持', '<widget name="x"><select><option>1</option></select></widget>')
 expectFail('@keyframes', '<widget name="x"><style>@keyframes spin { from { opacity: 0 } }</style><div>x</div></widget>')
@@ -263,6 +264,74 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
       if (ul && ul.properties.mode === 'horizontal' && okPos) {
         ok('v1 旧 json → flex 还原 → UILayout/公式位置复原')
       } else bad(`v1 还原异常: ul=${JSON.stringify(ul?.properties)} xs=${JSON.stringify(xs)} expect±0.275`)
+    }
+  }
+}
+
+// ─── 6. UIMask 裁剪 / ScrollContainer 滚动内容层（overflow 合法化后语义）───
+{
+  // 6a. overflow:hidden → UIMaskComponent（radius 取 border-radius，px→米）
+  const rm = compileWidgetHtml(`<widget name="M" canvas="1000x500">
+<style>.clip { width: 300px; height: 200px; overflow: hidden; border-radius: 16px; background-color: #333; }
+.c { width: 500px; height: 300px; background-color: teal; }</style>
+<div class="clip"><div class="c"></div></div>
+</widget>`)
+  if (!rm.ok) bad(`overflow:hidden 用例编译失败: ${rm.errors.map((e) => e.message).join('; ')}`)
+  else {
+    const clip = (rm.doc as any).children[0]
+    const mask = clip.components.find((c: any) => c.baseClass === 'UIMaskComponent')
+    const expectR = (16 / 1000) * 4.8
+    if (mask && Math.abs(mask.properties.radius - expectR) < 1e-4) ok('overflow:hidden → UIMaskComponent（radius=border-radius）')
+    else bad(`UIMask 异常: ${JSON.stringify(mask?.properties)}`)
+    const d = decompileWidgetJson(rm.doc!)
+    if (d.ok && /overflow: hidden/.test(d.html!) && /border-radius: 16px/.test(d.html!)) ok('UIMask 作者层还原（overflow:hidden 往返）')
+    else bad(`UIMask 还原异常: ${d.html?.slice(0, 200)}`)
+  }
+
+  // 6b. overflow-y:auto → UIScrollContainer + _ScrollContent 内容层 + 子项平移
+  const rs = compileWidgetHtml(`<widget name="S" canvas="1000x500">
+<style>.list { width: 300px; height: 200px; overflow-y: auto; background-color: #222; }
+.row { width: 280px; height: 60px; background-color: teal; }</style>
+<div class="list"><div class="row">1</div><div class="row">2</div><div class="row">3</div><div class="row">4</div></div>
+</widget>`)
+  if (!rs.ok) bad(`overflow:auto 用例编译失败: ${rs.errors.map((e) => e.message).join('; ')}`)
+  else {
+    const list = (rs.doc as any).children[0]
+    const sc = list.components.find((c: any) => c.baseClass === 'UIScrollContainerComponent')
+    const mask = list.components.find((c: any) => c.baseClass === 'UIMaskComponent')
+    const layout = list.components.find((c: any) => c.baseClass === 'UILayoutComponent')
+    const wrapper = (list.children as any[]).find((c) => String(c.name).includes('_ScrollContent'))
+    if (!sc || sc.properties.direction !== 'vertical') bad(`ScrollContainer 异常: ${JSON.stringify(sc?.properties)}`)
+    else if (!mask) bad('ScrollContainer 缺 UIMask')
+    else if (layout) bad('滚动容器不应补发 UILayout')
+    else if (!wrapper) bad('缺 _ScrollContent 内容层')
+    else {
+      // 内容包围盒：4 行 60px（无 margin 紧贴）→ 280x240px？行宽 280、内容盒高 200 内 4×60=240 溢出
+      const wW = wrapper.components[0].properties.worldWidth as number
+      const wH = wrapper.components[0].properties.worldHeight as number
+      const m = (px: number) => (px / 1000) * 4.8
+      if (Math.abs(wW - m(280)) < 1e-3 && Math.abs(wH - m(240)) < 1e-3) ok('overflow:auto → ScrollContainer + 内容层（包围盒 280x240px）')
+      else bad(`内容层尺寸异常: ${wW.toFixed(3)}x${wH.toFixed(3)} 期望 ${m(280).toFixed(3)}x${m(240).toFixed(3)}`)
+      // 容器自身高度必须保持显式 200px（视口语义，bug#7：曾被内容撑大到 240px → maxScroll 恒 0）
+      const viewH = (list as any).components[0].properties.worldHeight as number
+      if (Math.abs(viewH - m(200)) < 1e-3) ok('overflow 容器显式高度不被内容撑大（视口 200px）')
+      else bad(`容器高度异常: ${viewH.toFixed(3)} 期望 ${m(200).toFixed(3)}`)
+      // 子项相对 wrapper 无锚点居中：首行中心在 wrapper 中心上方 90px（世界 y=+90px）
+      const first = (wrapper.children as any[])[0]
+      const pos = first.components[0].properties.position as number[]
+      if (Math.abs(pos[0]) < 1e-6 && Math.abs(pos[1] - m(90)) < 1e-3) ok('滚动内容层子项坐标平移（相对 wrapper）')
+      else bad(`子项平移异常: ${JSON.stringify(pos)} 期望 y=${m(90).toFixed(3)}`)
+      // 6c. 往返：折叠 wrapper → overflow 声明 → 重编译组件一致
+      const d = decompileWidgetJson(rs.doc!)
+      if (!d.ok) bad('scroll 往返反编译失败')
+      else if (!/_ScrollContent/.test(d.html!) && /overflow-y: auto/.test(d.html!)) {
+        const r2 = compileWidgetHtml(d.html!)
+        const list2 = r2.ok ? (r2.doc as any).children[0] : null
+        const sc2 = list2?.components.find((c: any) => c.baseClass === 'UIScrollContainerComponent')
+        const w2 = (list2?.children as any[]).find((c) => String(c.name).includes('_ScrollContent'))
+        if (r2.ok && sc2 && sc2.properties.direction === 'vertical' && w2) ok('ScrollContainer 往返稳定（wrapper 折叠→还原）')
+        else bad(`ScrollContainer 往返不一致: sc2=${JSON.stringify(sc2?.properties)} w2=${Boolean(w2)}`)
+      } else bad('scroll 反编译未折叠 wrapper 或未还原 overflow 声明')
     }
   }
 }

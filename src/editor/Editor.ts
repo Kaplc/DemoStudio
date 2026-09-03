@@ -75,10 +75,7 @@ export class Editor {
       // 同步状态到 Electron main
       const gs = useEditorStore.getState().gameState
       if (window.electronAPI?.reportGameState) {
-        window.electronAPI.reportGameState({
-          running: gs.running,
-          score: gs.score,
-        })
+        window.electronAPI.reportGameState({ running: gs.running })
       }
     })
 

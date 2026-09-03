@@ -642,8 +642,9 @@ class Solver {
       cursorY += this.borderBoxHeight(child)
     }
 
-    // 内容高度 = 流内容底部
-    parent.h = Math.max(parent.h, cursorY)
+    // 内容高度 = 流内容底部；仅 auto 高（h=0）容器被内容撑大，
+    // 显式 height 是固定视口语义——内容溢出交 overflow 处理（hidden/auto → UIMask/ScrollContainer）
+    if (parent.h === 0) parent.h = cursorY
 
     // 绝对定位子项（含 fixed：包含块=画布）
     for (const child of absChildren) {

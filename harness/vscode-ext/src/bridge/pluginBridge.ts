@@ -66,6 +66,6 @@ export function loadPluginTools(pluginDistPath: string, opts: PluginBridgeOpts):
 // ─── EngineBridge 鸭子类型（plugin 内 EngineBridgeLike 与 vscode-ext EngineBridge 同构）───
 interface EngineBridgeLike {
   callTool(name: string, args?: Record<string, unknown>): Promise<unknown>
-  getStatus(): Promise<{ running: boolean; gameRunning: boolean; gameScore?: number } | null>
+  getStatus(): Promise<{ running: boolean; gameRunning: boolean } | null>
   readConsoleLogs(): Promise<string[]>
 }

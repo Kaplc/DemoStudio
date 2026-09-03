@@ -160,7 +160,7 @@ export class EngineBridge implements vscode.Disposable {
   }
 
   /** 编辑器状态查询（HTTP 直调）。 */
-  async getStatus(): Promise<{ running: boolean; gameRunning: boolean; gameScore?: number } | null> {
+  async getStatus(): Promise<{ running: boolean; gameRunning: boolean } | null> {
     if (!this.port) return null
     try {
       const resp = await fetch(`http://127.0.0.1:${this.port}/api/status`)

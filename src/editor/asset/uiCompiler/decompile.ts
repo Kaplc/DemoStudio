@@ -50,6 +50,7 @@ const COMMON_COMPS = new Set(['UITransformComponent', 'CanvasUIComponent'])
 const NATIVE_MAPPED_COMPS = new Set([
   'UIImageComponent', 'UITextComponent', 'UIButtonComponent', 'UILayoutComponent',
   'UITextInputComponent', 'UIProgressBarComponent', 'UIScrollListComponent',
+  'UIScrollContainerComponent', 'UIMaskComponent',
   'UITooltipComponent', 'UIScriptComponent',
 ])
 /** 未映射组件逃逸白名单（与编译器 KNOWN_UI_COMPONENTS 一致 + 其它引擎组件放行） */
@@ -358,6 +359,8 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     const input = funcComps.find((c) => c.baseClass === 'UITextInputComponent')
     const progress = funcComps.find((c) => c.baseClass === 'UIProgressBarComponent')
     const scroll = funcComps.find((c) => c.baseClass === 'UIScrollListComponent')
+    const scrollContainer = funcComps.find((c) => c.baseClass === 'UIScrollContainerComponent')
+    const mask = funcComps.find((c) => c.baseClass === 'UIMaskComponent')
     const tooltip = funcComps.find((c) => c.baseClass === 'UITooltipComponent')
     const script = funcComps.find((c) => c.baseClass === 'UIScriptComponent')
 
@@ -417,6 +420,26 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       delete extras.direction
       if (Object.keys(extras).length > 0) {
         attrs.push(`data-comp="UIScrollList" data-props='${escapeAttr(JSON.stringify(extras))}'`)
+      }
+    }
+
+    if (scrollContainer) {
+      // 通用滚动容器（编译端 overflow auto/scroll + _ScrollContent 内容层）→ 溢出声明；
+      // 内容层子节点由下方 wrapper 折叠提升
+      const p = (scrollContainer.properties ?? {}) as Record<string, unknown>
+      decls.push(p.direction === 'horizontal' ? 'overflow-x: auto' : 'overflow-y: auto')
+    }
+
+    if (mask) {
+      // 裁剪遮罩：有滚动声明时裁剪语义已蕴含，仅补 overflow:hidden（纯裁剪）；
+      // radius 与视觉圆角（UIImage.radius px）不一致时补 border-radius（重编译重建 UIMask）
+      const hasScrollDecl = Boolean(scroll || scrollContainer)
+      if (!hasScrollDecl) decls.push('overflow: hidden')
+      const mr = Number((mask.properties ?? {}).radius ?? 0)
+      const maskRadiusPx = worldToPxX(mr, ctx)
+      const visualRadiusPx = Number((img?.properties ?? {}).radius ?? 0)
+      if (mr > 0.005 && Math.abs(maskRadiusPx - visualRadiusPx) > 0.5) {
+        decls.push(`border-radius: ${fmtNum(maskRadiusPx)}px`)
       }
     }
 
@@ -491,6 +514,18 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     // 边框条子 Actor（编译端 border 的产物形）折回 border CSS：
     // 命名 <父名>Border<Side> + UIImage 纯色。全部有边框的侧都找到条才折回，否则保留子节点。
     const emittedChildren: JsonNode[] = [...(node.children ?? [])]
+    // 滚动内容层折叠（编译端 overflow auto/scroll 的产物形）：单一 <名>_ScrollContent
+    // 子 Actor → 子项提升到本节点（几何即原始内容坐标，配合 overflow 声明重编译还原）
+    if (scrollContainer) {
+      const wi = emittedChildren.findIndex((c) => String(c.name ?? '').includes('_ScrollContent'))
+      if (wi >= 0) {
+        const wrapper = emittedChildren[wi]
+        const inner = wrapper.children ?? []
+        emittedChildren.splice(wi, 1, ...inner)
+      } else {
+        warnings.push(`节点 "${name0}" 有 UIScrollContainerComponent 但未找到 _ScrollContent 内容层子节点`)
+      }
+    }
     if (hasBord) {
       const sideNames = ['Top', 'Right', 'Bottom', 'Left']
       const folded: string[] = []

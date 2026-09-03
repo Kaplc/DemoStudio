@@ -22,6 +22,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { cdpTools, handleCdpTool } from './mcp-cdp.mjs'
 
 // 解析 --port 参数（多实例场景下连接指定编辑器实例）
 function resolveEditorPort() {
@@ -74,103 +75,6 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
-      name: 'start_game',
-      description: '从编辑器启动游戏（可选 project 参数指定项目名，如 FishMaster）',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          project: { type: 'string', description: '项目名（如 Snake / FishMaster / Demo2D / Racing / EatFish）' },
-        },
-      },
-    },
-    {
-      name: 'stop_game',
-      description: '停止正在运行的游戏',
-      inputSchema: { type: 'object', properties: {} },
-    },
-    {
-      name: 'toggle_game',
-      description: '切换游戏启动/停止',
-      inputSchema: { type: 'object', properties: {} },
-    },
-    {
-      name: 'get_status',
-      description: '获取编辑器状态（游戏是否运行、分数等）',
-      inputSchema: { type: 'object', properties: {} },
-    },
-    {
-      name: 'run_asset_lint',
-      description:
-        '手动触发资产检查（assetLint）：全量扫描工程 asset/ 目录（场景/蓝图/UI widget/配置表），' +
-        '返回全部违规列表（file/nodePath/field/rule/severity/message，含 total/errors/warns 计数）。' +
-        '可选 project 参数指定目标工程（folder 或显示名，如 fish / FishMaster），缺省为当前打开的工程',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          project: { type: 'string', description: '目标工程 folder 或显示名（如 fish / FishMaster）；缺省=当前打开的工程' },
-        },
-      },
-    },
-    {
-      name: 'run_code_lint',
-      description:
-        '手动触发代码检查（codeLint）：全量扫描工程 src/projects/<folder>/ 下 .ts/.tsx 源码（排除 .d.ts），' +
-        '返回全部违规列表（file/line/col/rule/message，含 total 计数；内置规则 bareThree=裸 new THREE 可渲染对象、addComponent=addComponent(new X) 旧写法）。' +
-        '可选 project 参数指定目标工程（folder 或显示名，如 fish / FishMaster），缺省为当前打开的工程',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          project: { type: 'string', description: '目标工程 folder 或显示名（如 fish / FishMaster）；缺省=当前打开的工程' },
-        },
-      },
-    },
-    {
-      name: 'send_input',
-      description: '发送键盘按键到编辑器（方向键控制蛇移动）',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          key: {
-            type: 'string',
-            description: '按键名，如 ArrowUp/ArrowDown/ArrowLeft/ArrowRight',
-          },
-        },
-        required: ['key'],
-      },
-    },
-    {
-      name: 'ai_event',
-      description:
-        '发送 AI 事件到引擎（事件模式，控制游戏场景或编辑器选中/gizmo）。' +
-        '游戏事件(需运行): ai.notify(通知), ai.spawnActor({blueprint|baseClass,name?,position?,rotation?,scale?}), ' +
-        'ai.destroyActor({name}), ai.transformActor({name,position?,rotation?,scale?}), ' +
-        'ai.setScore({score}), ai.addScore({amount}), ai.gameOver, ' +
-        'ai.switchScene({scene}), ai.clickActor({name}) 按大纲名点击 UI 按钮(无需鼠标坐标), ' +
-        'ai.getState(查询运行状态), ai.showMessage({text}), ' +
-        'ai.scrollCamera({delta, camera?}) 模拟鼠标滚轮缩放摄像机(delta>0 拉远 / <0 拉近, 如 -100 拉近; camera 可选指定摄像机 Actor 名, 默认当前 GameMode 的缩放摄像机)。' +
-        'ai.gmCommand({line}) 执行 GM 命令（GMRegistry 已注册命令，如 help/list/clear/gm.enable），' +
-        '编辑器事件(无需运行): ai.selectActor({name}) 选中场景 Actor 显示 gizmo, ' +
-        'ai.dragActor({name,axis:"x"|"y"|"z",delta} 或 {name,position:[x,y,z]}) 拖动 Actor(等价 gizmo 拖拽)。' +
-        'notify/getState/selectActor/dragActor 无需游戏运行。',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          event: { type: 'string', description: '事件名，如 ai.spawnActor / ai.getState' },
-          payload: {
-            type: 'object',
-            description: '事件参数（事件名对应的 payload）',
-            additionalProperties: true,
-          },
-        },
-        required: ['event'],
-      },
-    },
-    {
-      name: 'ai_list_events',
-      description: '列出引擎当前已注册的 AI 事件名',
-      inputSchema: { type: 'object', properties: {} },
-    },
-    {
       name: 'ui_compile',
       description:
         '编译 UI 资产 HTML 源（*.widget.html）为 widget.json（devdoc/ui-html-source-format 方案）。' +
@@ -188,6 +92,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['asset'],
       },
     },
+    {
+      name: 'get_scene_outline',
+      description:
+        '获取编辑器当前场景的 Actor 大纲树（3D + UI Actor 层级结构）。' +
+        '返回每个节点的 name/type/components/children，可选 project 参数指定目标工程。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: '目标工程 folder（可选，缺省=当前打开的工程）' },
+        },
+      },
+    },
+    {
+      name: 'get_ui_outline',
+      description:
+        '获取运行中游戏的 UI Widget 大纲树（HUD/面板/按钮等 UI 元素层级）。' +
+        '需要游戏正在运行，返回每个 UI 节点的 name/type/active/components/children。',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'get_assets',
+      description:
+        '获取当前工程的资产浏览器文件列表（所有 .json/.ts/.html 等资源文件）。' +
+        '返回每个文件的 path/ext/size 信息。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: '目标工程 folder（可选，缺省=当前打开的工程）' },
+        },
+      },
+    },
+    // ─── CDP 浏览器操控工具（from mcp-cdp.mjs）───
+    ...cdpTools,
   ],
 }))
 
@@ -196,82 +136,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
-  switch (name) {
-    case 'start_game': {
-      const project = args?.project || undefined
-      const result = await callEditor('start_game', project ? { project } : {})
+  if (name === 'ui_compile') {
+    const asset = args?.asset || ''
+    if (!asset) {
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 asset 参数' }, null, 2) }],
       }
     }
-    case 'stop_game': {
-      const result = await callEditor('stop_game')
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      }
+    const result = await callEditor('ui_compile', { asset })
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     }
-    case 'toggle_game': {
-      const status = await getEditorStatus()
-      if (status.gameRunning) {
-        return (await callEditor('stop_game'))
-      } else {
-        return (await callEditor('start_game'))
-      }
-    }
-    case 'get_status': {
-      const info = await getEditorStatus()
-      return {
-        content: [{ type: 'text', text: JSON.stringify(info, null, 2) }],
-      }
-    }
-    case 'run_asset_lint':
-    case 'run_code_lint': {
-      const project = args?.project || undefined
-      const result = await callEditor(name, project ? { project } : {})
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      }
-    }
-    case 'ui_compile': {
-      const asset = args?.asset || ''
-      if (!asset) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 asset 参数' }, null, 2) }],
-        }
-      }
-      const result = await callEditor('ui_compile', { asset })
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      }
-    }
-    case 'send_input': {
-      const key = args?.key || ''
-      await callEditor('send_input', { key })
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'ok', key }, null, 2) }],
-      }
-    }
-    case 'ai_event': {
-      const event = args?.event || ''
-      if (!event) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 event 参数' }, null, 2) }],
-        }
-      }
-      const result = await callEditor('ai_event', { event, payload: args?.payload ?? {} })
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      }
-    }
-    case 'ai_list_events': {
-      const result = await callEditor('ai_list_events', {})
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      }
-    }
-    default:
-      throw new Error(`未知工具: ${name}`)
   }
+
+  if (name === 'get_scene_outline') {
+    const result = await callEditor('get_scene_outline', args?.project ? { project: args.project } : {})
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+  }
+
+  if (name === 'get_ui_outline') {
+    const result = await callEditor('get_ui_outline', {})
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+  }
+
+  if (name === 'get_assets') {
+    const result = await callEditor('get_assets', args?.project ? { project: args.project } : {})
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+  }
+
+  // CDP 工具
+  const cdpResult = await handleCdpTool(name, args)
+  if (cdpResult) return cdpResult
+
+  throw new Error(`未知工具: ${name}`)
 })
 
 // ─── 启动 STDIO 传输 ───

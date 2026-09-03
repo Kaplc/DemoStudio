@@ -468,10 +468,11 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'requestHeader': {
+          // AgentService 已过滤：只有模型真正变化时才 emit
           const header = event.payload as any
-          if (header?.reason === 'change') {
-            pushSystem(`模型切换: ${header?.model || '未知'}`)
-          }
+          let msg = `模型切换: ${header?.model || '未知'}`
+          if (header?.reasoningEffort) msg += ` · 推理${header.reasoningEffort}`
+          pushSystem(msg)
           break
         }
 

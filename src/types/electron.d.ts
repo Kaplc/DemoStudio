@@ -15,7 +15,7 @@ export interface ElectronAPI {
   onMCPCommand: (callback: (command: string, params: any, requestId?: string) => void) => () => void
   /** MCP 往返响应（renderer → main，ai_event 等往返请求回传） */
   sendMCPResponse: (requestId: string, result: unknown) => void
-  reportGameState: (state: { running: boolean; score?: number }) => Promise<void>
+  reportGameState: (state: { running: boolean }) => Promise<void>
   sendAppReady: () => void
   writeLogFile: (level: string, message: string) => Promise<void>
   readLogFile: (options?: { tail?: number }) => Promise<string>

@@ -64,6 +64,20 @@ export interface UILayoutComponentOptions {
   justify?: UILayoutJustify
   /** 交叉轴对齐（align-items 语义，缺省 center；stretch = 未显式设尺寸的子项拉伸至容器内尺寸） */
   align?: UILayoutAlign
+  /**
+   * 主轴换行（flex-wrap 语义，默认 false）：
+   *  - grid：忽略固定 columns，列数按容器宽自动推导（floor((容器宽+gap)/(项宽+gap))，≥1）
+   *  - horizontal：同上（主轴放不下换行）
+   *  - vertical：行数按容器高自动推导，主轴放不下换列（列内先填满再开新列）
+   * 容器无显式尺寸时退化为不换行（单行/单列/固定列数 grid）
+   */
+  wrap?: boolean
+  /**
+   * 自适应高度（默认 false）：vertical/grid/horizontal 布局后把容器 worldHeight
+   * 写回为内容包围盒高（动态子项数量变化时容器跟着变高，配合 UIMask/滚动使用）。
+   * 宽度不变；仅显式尺寸容器生效。
+   */
+  autoHeight?: boolean
 }
 
 export class UILayoutComponent extends ActorComponent<Actor> {
@@ -74,6 +88,10 @@ export class UILayoutComponent extends ActorComponent<Actor> {
   private _autoLayout: boolean
   private _justify: UILayoutJustify
   private _align: UILayoutAlign
+  private _wrap: boolean
+  private _autoHeight: boolean
+  /** 最近一次布局的内容包围盒 [w, h]（世界单位） */
+  private _contentSize: [number, number] = [0, 0]
   /** 上次布局的子项签名（数量 + 名字序列），用于 Tick 变化检测 */
   private _lastSignature = ''
   /** 子项基准尺寸快照（uid → [w,h]）：首次布局时记录，stretch 写回不污染基准（重排无漂移） */
@@ -91,6 +109,8 @@ export class UILayoutComponent extends ActorComponent<Actor> {
     this._autoLayout = options.autoLayout ?? true
     this._justify = options.justify ?? 'center'
     this._align = options.align ?? 'center'
+    this._wrap = options.wrap ?? false
+    this._autoHeight = options.autoHeight ?? false
   }
 
   get mode(): UILayoutMode { return this._mode }
@@ -129,6 +149,20 @@ export class UILayoutComponent extends ActorComponent<Actor> {
   set align(v: UILayoutAlign) {
     if (this._align === v) return
     this._align = v
+    this.layout()
+  }
+  /** 主轴换行（flex-wrap 语义：grid 列数/水平换行/垂直换列按容器尺寸自动推导） */
+  get wrap(): boolean { return this._wrap }
+  set wrap(v: boolean) {
+    if (this._wrap === v) return
+    this._wrap = !!v
+    this.layout()
+  }
+  /** 自适应高度（布局后容器 worldHeight 写回内容包围盒高） */
+  get autoHeight(): boolean { return this._autoHeight }
+  set autoHeight(v: boolean) {
+    if (this._autoHeight === v) return
+    this._autoHeight = !!v
     this.layout()
   }
 
@@ -197,14 +231,44 @@ export class UILayoutComponent extends ActorComponent<Actor> {
     // stretch 需写回的子项尺寸（uid → [w,h]，循环末统一应用）
     const stretchTo = new Map<number, [number, number]>()
 
-    if (this._mode === 'grid') {
-      // grid：首行在上，逐行向下（justify/align 不参与，保持旧公式）
-      const rows = Math.ceil(n / cols)
+    if (this._mode === 'grid' || (this._wrap && this._mode !== 'vertical')) {
+      // grid（wrap 与否）/ horizontal+wrap：首行在上，逐行向下（justify/align 不参与，保持旧公式）
+      // grid 且 wrap=false 时 effCols=columns，与原固定列数公式逐位一致
+      let effCols = cols
+      if (this._wrap) {
+        // wrap：列数按容器宽自动推导（容器不可得 → 退化为固定列数）
+        const ownTf = this.owner.getComponent(UITransformComponent)
+        const container = ownTf?.worldSizeExplicit ? ownTf.getWorldSize() : null
+        if (container) {
+          effCols = Math.max(1, Math.floor((container[0] + this._spacingX) / (itemW + this._spacingX)))
+        } else if (!this._containerWarned) {
+          this._containerWarned = true
+          logger.warn(`[UILayoutComponent] "${this.owner.root.name}" wrap 需容器显式尺寸，已退化为固定 ${cols} 列`)
+        }
+      }
+      const rows = Math.ceil(n / effCols)
       for (let i = 0; i < n; i++) {
-        const row = Math.floor(i / cols)
-        const col = i % cols
+        const row = Math.floor(i / effCols)
+        const col = i % effCols
         offsets.push([
-          (col - (cols - 1) / 2) * (itemW + this._spacingX),
+          (col - (effCols - 1) / 2) * (itemW + this._spacingX),
+          ((rows - 1) / 2 - row) * (itemH + this._spacingY),
+        ])
+      }
+    } else if (this._mode === 'vertical' && this._wrap) {
+      // vertical+wrap：行数按容器高推导，列内先填满再开新列（列优先，CSS multi-column 语义）
+      const ownTf = this.owner.getComponent(UITransformComponent)
+      const container = ownTf?.worldSizeExplicit ? ownTf.getWorldSize() : null
+      let rows = n
+      if (container) {
+        rows = Math.max(1, Math.floor((container[1] + this._spacingY) / (itemH + this._spacingY)))
+      }
+      const useCols = Math.ceil(n / rows)
+      for (let i = 0; i < n; i++) {
+        const col = Math.floor(i / rows)
+        const row = i % rows
+        offsets.push([
+          (col - (useCols - 1) / 2) * (itemW + this._spacingX),
           ((rows - 1) / 2 - row) * (itemH + this._spacingY),
         ])
       }
@@ -313,7 +377,36 @@ export class UILayoutComponent extends ActorComponent<Actor> {
         tf.setPosition(ox, oy, 0)
       }
     }
+    // 内容包围盒缓存（getContentSize / autoHeight 用）：各项边盒并集，世界单位
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (let i = 0; i < children.length; i++) {
+      const [bw, bh] = baseSizes[i]
+      const [ox, oy] = offsets[i]
+      minX = Math.min(minX, ox - bw / 2)
+      maxX = Math.max(maxX, ox + bw / 2)
+      minY = Math.min(minY, oy - bh / 2)
+      maxY = Math.max(maxY, oy + bh / 2)
+    }
+    this._contentSize = [Math.max(0, maxX - minX), Math.max(0, maxY - minY)]
+    // autoHeight：容器 worldHeight 写回内容高（动态子项数量变化时容器跟着变高）
+    if (this._autoHeight) {
+      const ownTf = this.owner.getComponent(UITransformComponent)
+      if (ownTf) {
+        const [cw, ch] = ownTf.getWorldSize()
+        if (this._contentSize[1] > 0.001 && Math.abs(ch - this._contentSize[1]) > 0.001) {
+          ownTf.setWorldSize(cw, this._contentSize[1], true)
+        }
+      }
+    }
     logger.debug(`[UILayoutComponent] "${this.owner.root.name}" ${this._mode} 布局完成: ${n} 个子项（步长 ${itemW.toFixed(2)}x${itemH.toFixed(2)}，justify=${this._justify}，align=${this._align}）`)
+  }
+
+  /** 最近一次布局的内容包围盒尺寸 [w, h]（世界单位；未布局过为 [0,0]） */
+  get contentSize(): [number, number] {
+    return [this._contentSize[0], this._contentSize[1]]
   }
 
   /** Inspector 属性展示 */
@@ -326,6 +419,9 @@ export class UILayoutComponent extends ActorComponent<Actor> {
       autoLayout: this._autoLayout,
       justify: this._justify,
       align: this._align,
+      wrap: this._wrap,
+      autoHeight: this._autoHeight,
+      contentSize: [Math.round(this._contentSize[0] * 100) / 100, Math.round(this._contentSize[1] * 100) / 100],
       childCount: this.owner.getChildren().length,
     }
   }
@@ -367,6 +463,16 @@ export class UILayoutComponent extends ActorComponent<Actor> {
         key: 'align', type: 'enum', options: UILAYOUT_ALIGN_OPTIONS,
         get: () => this._align,
         set: (v) => { this.align = v as UILayoutAlign },
+      },
+      {
+        key: 'wrap', type: 'boolean',
+        get: () => this._wrap,
+        set: (v) => { this.wrap = v as boolean },
+      },
+      {
+        key: 'autoHeight', type: 'boolean',
+        get: () => this._autoHeight,
+        set: (v) => { this.autoHeight = v as boolean },
       },
     ]
   }

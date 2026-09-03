@@ -6,6 +6,9 @@
 import { emitAIEventTool } from './tools/emitAIEvent'
 import { mouseClickTool, mouseMoveTool, mouseDragTool, keyPressTool } from './tools/mouseSimulation'
 import { getHUDTool } from './tools/getHUD'
+import { getSceneOutlineTool } from './tools/getSceneOutline'
+import { getUiOutlineTool } from './tools/getUiOutline'
+import { getAssetsTool } from './tools/getAssets'
 
 export const name = '@demostudio/ds-engine-tools'
 
@@ -19,6 +22,9 @@ const ALL_TOOLS = [
   mouseDragTool,
   keyPressTool,
   getHUDTool,
+  getSceneOutlineTool,
+  getUiOutlineTool,
+  getAssetsTool,
 ]
 
 interface DSHContext {

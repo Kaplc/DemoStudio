@@ -18,7 +18,6 @@ import { spawn, exec, execSync, type ChildProcess } from 'child_process'
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
-let _gameScore = 0
 
 // ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 孤儿进程独立运行） ───
 // 生命周期状态机：off → probing → claimed(复用旧实例) | spawning → running → restart-wait(自愈中) | degraded(自愈超限终态)
@@ -251,6 +250,9 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // 后台不停摆：最小化/被遮挡时仍持续产帧（rAF 不断），游戏循环/预览全速运行。
+      // 副作用：Page Visibility API 恒为 visible（document.hidden 恒 false）。
+      backgroundThrottling: false,
     },
     frame: true,
     show: false, // 由 app-ready 控制显示
@@ -1600,16 +1602,14 @@ ipcMain.handle('stop-watch-project-assets', async () => {
 
 // ─── MCP 游戏状态 ───
 
-ipcMain.handle('mcp-report-state', (_event, state: { running: boolean; score?: number }) => {
+ipcMain.handle('mcp-report-state', (_event, state: { running: boolean }) => {
   const wasRunning = _gameRunning
   _gameRunning = state.running
-  if (state.score !== undefined) _gameScore = state.score
   // game.lifecycle 事件：编辑器层最早能感知到游戏启停变更的接入点（MCP 报告语义相同）
   if (state.running !== wasRunning) {
     publishSSE('game.lifecycle', {
       event: state.running ? 'launch' : 'stop',
       reason: 'mcp-report-state',
-      score: state.score,
       ts: Date.now(),
     })
   }
@@ -1755,7 +1755,7 @@ async function startMCPServer() {
         try {
           const cmd: MCPCommand = JSON.parse(body)
           // 往返模式：等渲染进程处理完回传结果（AI 需要拿到返回值）
-          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile') {
+          if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile' || cmd.command === 'get_scene_outline' || cmd.command === 'get_ui_outline' || cmd.command === 'get_assets') {
             // ai.event 转发（仅 ai_event 有事件语义；用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
             if (cmd.command === 'ai_event') {
               publishSSE('ai.event', {
@@ -1937,7 +1937,6 @@ async function startMCPServer() {
         editor: 'DemoStudio Editor v0.1.0',
         platform: process.platform,
         gameRunning: _gameRunning,
-        gameScore: _gameScore,
       }))
       return
     }
@@ -2126,6 +2125,8 @@ function openAgentWindow(): void {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // 后台不停摆：隐藏/最小化时 agent 面板的定时器/动画不降频（e2e 也依赖该窗口路由）
+      backgroundThrottling: false,
     },
     show: false,
   })
@@ -2169,6 +2170,15 @@ function openAgentWindow(): void {
 if (!app.commandLine.hasSwitch('remote-debugging-port')) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
 }
+
+// 后台持续运行（与各窗口 backgroundThrottling:false 配合）：
+// - disable-renderer-backgrounding：页面进入后台时 renderer 进程不被降优先级（定时器不降到 1Hz）
+// - disable-backgrounding-occluded-windows：Win10+ 原生遮挡检测不把被遮挡窗口标记为 hidden
+// - disable-background-timer-throttling：后台定时器不被节流（World tick 看门狗的 100ms 轮询因此保持真实节奏）
+// 三开关对本进程所有 renderer（含 Playwright/CDP 连入的页面）生效
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-background-timer-throttling')
 
 app.whenReady().then(() => {
   startApp()

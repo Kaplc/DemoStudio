@@ -126,12 +126,13 @@ export default class BattleHudScript extends BehaviourScript {
         // 属性/数量文本（onUpdate 刷新）
         const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
 
-        // 背景色（兵种色）：改节点自身 image 的颜色（视觉归 image，按钮只管交互）
-        const bg = card.getComponent(UIImageComponent)
+        // 兵种色 + 点击：image/button 挂在 TrainButton 子节点（2026-09-02 资产重建后根节点不再直挂）
+        const btnHost = findChild(card, 'TrainButton')
+        const bg = btnHost?.getComponent(UIImageComponent)
         if (bg) bg.color = colorToCss(troop.color)
 
         // 点击 → 选择兵种进入放置模式（数量 > 0 才响应）
-        const troopBtn = card.getComponent(UIButtonComponent)
+        const troopBtn = btnHost?.getComponent(UIButtonComponent)
         if (troopBtn) {
           troopBtn.onClick = () => {
             const count = this.inst?.training.getArmyCount(id) ?? 0
@@ -166,9 +167,10 @@ export default class BattleHudScript extends BehaviourScript {
       const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
       if (nameText) nameText.text = `✨${spell.name}`
       const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
-      const bg = card.getComponent(UIImageComponent)
+      const btnHost = findChild(card, 'TrainButton')
+      const bg = btnHost?.getComponent(UIImageComponent)
       if (bg) bg.color = colorToCss(typeof spell.color === 'number' ? spell.color : 0xab47bc)
-      const btn = card.getComponent(UIButtonComponent)
+      const btn = btnHost?.getComponent(UIButtonComponent)
       if (btn) {
         btn.onClick = () => {
           if ((this.inst?.resources.get('elixir') ?? 0) < spell.cost) {
