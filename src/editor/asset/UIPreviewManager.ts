@@ -23,6 +23,7 @@ import { Actor } from '../../engine/entity/Actor'
 import type { ActorComponent } from '../../engine/entity/ActorComponent'
 import { CanvasUIComponent } from '../../engine/rendering/CanvasUIComponent'
 import { UITransformComponent } from '../../engine/ui/UITransformComponent'
+import { UIWorldAnchorComponent } from '../../engine/ui/UIWorldAnchorComponent'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AnchorGizmo } from '../AnchorGizmo'
@@ -792,6 +793,17 @@ export class UIPreviewManager {
       return false
     }
     this._rootActor = actor
+
+    // 禁用锚定组件（须在 world.BeginPlay 前）：预览是设计空间（1 单位=1 设计像素），
+    // 而 world 模式 anchor 的 BeginPlay 会做真实世界换算（根 scale=1/pxPerMeter +
+    // canvas 密度×N），520px 面板被缩成视野中约 2px 的针尖；screen 模式的每帧投影
+    // 也会与编辑器 gizmo 的直接变换操作互相打架。禁用而非移除：保存回写序列化不受
+    // 影响，组件仍随资产声明保留（运行时 spawnAnchoredWidget 以资产声明为准）。
+    const disableAnchors = (a: Actor) => {
+      for (const c of a.getComponents(UIWorldAnchorComponent)) c.bEnabled = false
+      for (const child of a.getChildren()) disableAnchors(child)
+    }
+    disableAnchors(actor)
 
     // 构建 Actor.uid → JSON 节点映射（跳过 ref 实例，它们属于另一文件）
     if (!this._jsonTree) return false

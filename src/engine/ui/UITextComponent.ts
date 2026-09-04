@@ -114,6 +114,13 @@ export class UITextComponent extends CanvasUIComponent {
   /** troika 文本 mesh（构造即创建；字形几何异步生成，属性同步设置） */
   private mesh: TroikaText | null = null
 
+  /**
+   * world 定序模式（enableWorldRendering 标记）：文本 renderOrder 用 zOrder+0.5 半步
+   * 偏移稳定压住同层面板底。屏幕模式关闭——uiScene 靠 z 偏移（+0.0002）区分文本与
+   * 面板底，renderOrder 保持与面板同值（历史行为，不扰动既有层级）。
+   */
+  private _worldRendering = false
+
   constructor(owner: Actor, options: UITextComponentOptions = {}) {
     const width = options.width ?? 512
     const height = options.height ?? 128
@@ -303,8 +310,24 @@ export class UITextComponent extends CanvasUIComponent {
   override set zOrder(v: number) {
     super.zOrder = v
     if (this.mesh) {
-      this.mesh.renderOrder = v
+      // world 模式深度写入已关，定序只认 renderOrder：半步偏移保证文本恒在其面板底之上
+      this.mesh.renderOrder = this._worldRendering ? v + 0.5 : v
       this.mesh.position.z = v * 0.001 + 0.0002
+    }
+  }
+
+  /**
+   * world 模式渲染适配（覆写基类；UIText 是 markerOnly，无 canvas 纹理/面板）：
+   * troika mesh 关深度写入（内部定序全交 renderOrder，避免与面板底深度打架），
+   * 并按半步偏移重排 renderOrder。
+   */
+  override enableWorldRendering(maxAnisotropy: number): void {
+    this._worldRendering = true
+    if (this.mesh) {
+      // troika Text 的类型声明未暴露 material（运行时是 THREE.Mesh）→ 双保险转换
+      const mat = (this.mesh as unknown as THREE.Mesh).material as THREE.Material | undefined
+      if (mat) mat.depthWrite = false
+      this.mesh.renderOrder = this.zOrder + 0.5
     }
   }
 

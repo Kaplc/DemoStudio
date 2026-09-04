@@ -217,6 +217,19 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
         }
       }
     }
+    // world 渲染适配（递归整树）：canvas 纹理开 mipmap + 各向异性（透视缩小采样稳定，
+    // 消除拉远/移动相机时的纹理闪烁）；面板/文本关深度写入，内部前后定序全交 renderOrder
+    // （zOrder×0.001 的 z 偏移经根 scale(1/pxPerMeter) 缩放后低于透视相机深度量化精度，
+    // 依赖它会 z-fighting 闪烁）
+    const maxAniso = this.owner.world?.gameRenderer?.getMaxAnisotropy() ?? 8
+    const walkRender = (a: Actor): void => {
+      // 打世界 UI 标记：此后 BeginPlay 的晚生成 canvas 组件（UIButton 点击层等）
+      // 经 CanvasUIComponent.BeginPlay 的祖先链检测自行补课（见 isInWorldUI）
+      a.root.userData.__dsWorldUI = true
+      for (const c of a.getComponents(CanvasUIComponent)) c.enableWorldRendering(maxAniso)
+      for (const child of a.getChildren()) walkRender(child)
+    }
+    walkRender(this.owner)
     // 子树 clickable 全部切 world 层（主相机射线命中；UIButton 透明点击层随之生效）
     this.switchClickablesToWorld(this.owner)
   }

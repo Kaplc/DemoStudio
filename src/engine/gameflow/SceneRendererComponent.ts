@@ -41,6 +41,11 @@ export class SceneRendererComponent extends AObjectComponent<World> {
   /** UI 覆盖层宿主 */
   readonly uiLayer: HTMLDivElement
 
+  /** 渲染器支持的最大各向异性过滤级数（world UI 纹理用；渲染器未就绪回退 8） */
+  getMaxAnisotropy(): number {
+    return this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 8
+  }
+
   /**
    * 相机委托：每帧从 GameInstance 获取当前主摄像机直接渲染（不再复制同步）。
    * 由 Game.launch 注册；返回 null 时跳过主场景渲染（UI 仍可叠加）。

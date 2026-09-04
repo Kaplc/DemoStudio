@@ -241,6 +241,24 @@ export class CanvasUIComponent extends Component<Actor> {
     // 仅当失活时需要主动下推；激活为默认态，交由 applyActiveTree 统一计算。
     if (!this._bActive) this.owner.bActive = false
     // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 退出`)
+
+    // world 模式晚生成组件自适配：applyWorldMode 在根锚定组件 BeginPlay 时遍历整树，
+    // 但此后仍会有 canvas 组件诞生（如 UIButton 的透明点击层，BeginPlay 期间才创建），
+    // 默认 depthWrite=true 的隐形层在 world 根缩放下与同面元素深度量化冲突 → 闪烁。
+    // applyWorldMode 遍历时已在树内各 Actor root.userData 打 __dsWorldUI 标记，
+    // 这里按 owner 祖先链检测补课（幂等，早被打过的组件重复调用无副作用）。
+    if (CanvasUIComponent.isInWorldUI(this.owner)) {
+      const aniso = this.owner.world?.gameRenderer?.getMaxAnisotropy() ?? 8
+      this.enableWorldRendering(aniso)
+    }
+  }
+
+  /** owner 或祖先链上是否有 UIWorldAnchorComponent(world) 打的世界 UI 标记（root.userData.__dsWorldUI） */
+  static isInWorldUI(actor: Actor): boolean {
+    for (let a: Actor | null = actor; a; a = a.parent) {
+      if (a.root.userData.__dsWorldUI) return true
+    }
+    return false
   }
 
   /** 获取 canvas 像素尺寸 */
@@ -360,6 +378,26 @@ export class CanvasUIComponent extends Component<Actor> {
   markDirty() {
     this.texture.needsUpdate = true
     // logger.debug(`[CanvasUIComponent] "${this.name}" 纹理标记脏`)
+  }
+
+  /**
+   * world 模式渲染适配（UIWorldAnchorComponent.applyWorldMode 递归调用；屏幕 UI 不受影响）：
+   *  1. canvas 纹理开 mipmap + 各向异性：构造默认 LinearFilter（无 mip）在正交 1:1 映射的
+   *     uiScene 无碍，但 world 面板经根 scale(1/pxPerMeter) 进入透视主场景，缩小时
+   *     minification 无 mip 采样逐帧跳变 → 拉远/移动相机闪烁；
+   *  2. panel 关深度写入（保留 depthTest 对世界几何遮挡）：内部前后定序完全交给
+   *     renderOrder——zOrder×0.001 的 z 偏移经根缩放后低于透视相机深度量化精度，
+   *     同层元素会 z-fighting 闪烁，深度通路就此废弃。
+   */
+  enableWorldRendering(maxAnisotropy: number): void {
+    this.texture.generateMipmaps = true
+    this.texture.minFilter = THREE.LinearMipmapLinearFilter
+    this.texture.magFilter = THREE.LinearFilter
+    this.texture.anisotropy = maxAnisotropy
+    this.texture.needsUpdate = true
+    if (this.panel) {
+      ;(this.panel.material as THREE.MeshBasicMaterial).depthWrite = false
+    }
   }
 
   override EndPlay() {
