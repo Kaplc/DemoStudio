@@ -596,6 +596,18 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 现象：`position: absolute` 的分区容器（如竖排按钮列）只写了 `left/top` 没写 `width/height`，编译不报错，但反编译检查发现内部 88x88 的按钮全部变成 `height: 4px`（文本子项高度甚至被算成几千 px），布局坍缩；用 `transform: translateX(-50%)` 做水平居中的容器，解算后 left 停在 `left: 50%` 对应的原始位置（如 `left: 960px` 从容器左边缘算），整体偏右一半。原因：布局求解器（layout.ts）对 auto 高度的 flex 容器先按内容测高再分配，absolute 容器可用高度不确定时交叉轴尺寸求解异常；`transform` 不参与矩形布局求解，被忽略。规则：**所有 `position: absolute` 的容器一律显式写 `width`/`height`；内部所有 flex 子项（含 text）显式写宽高并加 `flex-shrink: 0`；水平居中不要用 `transform: translateX(-50%)`，直接算好 `left = (画布宽 − 容器宽) / 2` 写显式坐标**。验证方法：编译后 `node scripts/ui-compiler-cli.mjs decompile` 反编译产物，逐节点核对宽高与坐标是否与源一致。
 
+**12. `border`/`text-shadow` 简写里的 `rgba()` 带空格，编译报"边框颜色 "rgba(90," 无法解析"**
+
+现象：`border: 3px solid rgba(90, 200, 255, 0.6)` 编译报错，行号指向该声明，报错信息里颜色被截断成 `"rgba(90,"`。原因：`border` 简写值按空格切 token，颜色函数内部的空格把一个颜色切成了多段。规则：**颜色函数内部不留空格**（写 `rgba(90,200,255,0.6)`）；`text-shadow`/`box-shadow` 同理。
+
+**13. 全新资产首次 `ui_compile` 报"落盘失败: 没有打开的工作副本（请先编辑再保存）"**
+
+现象：编译和 lint 都过了（`lintIssues` 已返回），最后落盘失败，报错 line=0。原因：`compileUiSourceToAsset` 落盘走 `BlueprintEditorService` 工作副本，`updateFromPreview` 建副本前要先从磁盘读到目标 `.widget.json`（getWorkingCopy → readAsset），全新资产 json 还不存在 → 建副本失败。规则：**先手写一个最小骨架 seed json**（`name`/`baseClass: "Actor"`/根 `UITransformComponent`+`CanvasUIComponent`/空 `children`，内容随意——编译成功后会被完整覆写），再跑 `ui_compile`。
+
+**14. 锚定 widget（data-comp=UIWorldAnchorComponent）的承载 div 用 absolute 布局，lint 报 `ui:world-anchor-conflict`**
+
+现象：编译通过但产物根带 `anchor: "center"`（或子节点 anchor），触发 warn"位姿由 UIWorldAnchorComponent 接管，applyAnchor 会覆盖投影写入的 position"。原因：`position: absolute` 的元素编译期发射 anchor+offset（布局需要）；而锚定 widget 根的 anchor 必须 null（运行时 applyAnchor 会覆盖锚定系统写入的 position）。规则：**锚定组件所在的承载 div 用流式布局**（`width: 100%; height: 100%`，不发 anchor）；面板内部的绝对定位子元素不受影响（规则只查 widget 根）。
+
 ---
 
 ## 15. 边界条件
