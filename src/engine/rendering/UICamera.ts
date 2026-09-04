@@ -22,7 +22,38 @@ import { logger } from '../Logger'
 export const UI_CANVAS_W = 1920
 export const UI_CANVAS_H = 1080
 
+/** 复用临时向量（projectToUi 高频调用，避免每帧分配） */
+const _projVec = new THREE.Vector3()
+/** 剔除判定专用向量（project 内部会再乘 viewMatrix，不能与投影共用） */
+const _cullVec = new THREE.Vector3()
+
 export class UICamera extends BObject {
+  /**
+   * 世界坐标 → UI 设计像素坐标（静态工具，World-Space UI 投影唯一入口）。
+   *
+   * NDC 投影后线性映射到 1920×1080 设计画布（原点画布中心、y 向上）：
+   *   ui.x = ndc.x * 960 + 960, ui.y = ndc.y * 540 + 540
+   *
+   * 背面剔除：相机背后的点投影会镜像翻转到屏内，以 NDC z/w 判定剔除返回 null
+   * （点在相机后方时 project 产生的 w<0，投影坐标不可信）。视锥内的裁剪交由上层
+   * （clamping 出屏钳制 / 背后隐藏整树）处理，本方法只负责"可信投影 or null"。
+   *
+   * @param camera   主透视/正交相机（内部会先刷新矩阵，容忍位姿刚变未 update）
+   * @param worldPos 世界坐标（米制 3D 世界）
+   * @returns [x, y] UI 设计像素坐标；相机背面/无相机返回 null
+   */
+  static projectToUi(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null, worldPos: THREE.Vector3): [number, number] | null {
+    if (!camera) return null
+    camera.updateMatrixWorld()
+    // 背面剔除（先于投影）：变换到相机空间，相机看向 -z，相机空间 z>0 即在相机背后
+    // （此时透视除法产生的镜像坐标不可信）。用独立向量——project 内部会再乘 viewMatrix。
+    _cullVec.copy(worldPos)
+    const camSpaceZ = _cullVec.applyMatrix4(camera.matrixWorldInverse).z
+    if (camSpaceZ > 0) return null
+    // project 内部：applyMatrix4(viewMatrix) → applyMatrix4(projectionMatrix) → 透视除法
+    const v = _projVec.copy(worldPos).project(camera)
+    return [v.x * UI_CANVAS_W * 0.5 + UI_CANVAS_W * 0.5, v.y * UI_CANVAS_H * 0.5 + UI_CANVAS_H * 0.5]
+  }
   /** 底层正交相机（视锥由 setCanvasSize 按 contain 模式维护） */
   readonly camera: THREE.OrthographicCamera
 

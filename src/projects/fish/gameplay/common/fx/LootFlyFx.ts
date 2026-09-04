@@ -17,24 +17,20 @@
  * 前置：游戏运行中（world.running），HUD 已创建（动态生成自动获得浮动层 zOrder 偏移）。
  */
 import * as THREE from 'three'
-import { TweenSystem, UITransformComponent, UIImageComponent, CanvasUIComponent, logger, GameInstance } from '@/engine'
+import { TweenSystem, UITransformComponent, UIImageComponent, CanvasUIComponent, logger, GameInstance, UICamera } from '@/engine'
 import type { World, Actor } from '@/engine'
 
 /** 飞行物 widget 路径（圆形小圆点在 Fly 子节点，颜色运行时设置） */
 const FLY_WIDGET = 'asset/blueprints/ui/loot_fly.widget.json'
 
-/** UI 画布半宽/半高（画布 9.6×5.4，中心为原点；NDC → UI 坐标映射基准） */
-const UI_HALF_W = 4.8
-const UI_HALF_H = 2.7
-
 /** 飞行时长（秒） */
 const FLY_DURATION = 0.6
-/** 弧线最高点（UI 单位，相对起终点直线） */
-const FLY_ARC = 1.0
+/** 弧线最高点（UI px，相对起终点直线；旧米制 1.0m × 200px/m） */
+const FLY_ARC = 200
 /** 全局同时在飞数量上限（超出丢弃动画） */
 const MAX_ACTIVE_FLY = 8
-/** 顶部战利品栏中心 UI 坐标（LootBar top-center 锚点 + 底条半高） */
-const TOP_BAR_UI: [number, number] = [0, 2.4]
+/** 顶部战利品栏中心 UI 坐标（LootBar top-center 锚点 + 底条半高；px 世界 200px/m 惯例 ×200） */
+const TOP_BAR_UI: [number, number] = [0, 480]
 
 /** 战利品类型：金币 / 圣水 */
 export type LootKind = 'coins' | 'elixir'
@@ -125,16 +121,10 @@ export class LootFlyFx {
   }
 }
 
-/** 世界坐标 → UI 画布坐标（相机 project → NDC → 画布坐标；16:9 标准映射） */
+/** 世界坐标 → UI 画布坐标（收编到 UICamera.projectToUi：背面剔除 + NDC → 设计 px 映射） */
 function worldToUi(pos: { x: number; y: number; z: number }): [number, number] | null {
-  const cam = GameInstance.current?.getActiveCamera()
-  if (!cam) return null
-  const v = new THREE.Vector3(pos.x, pos.y, pos.z)
-  cam.updateMatrixWorld()
-  v.project(cam)
-  // 相机背面（z 超出近远裁剪）不投影
-  if (v.z > 1 || v.z < -1) return null
-  return [v.x * UI_HALF_W, v.y * UI_HALF_H]
+  const cam = GameInstance.current?.getActiveCamera() ?? null
+  return UICamera.projectToUi(cam, new THREE.Vector3(pos.x, pos.y, pos.z))
 }
 
 /**

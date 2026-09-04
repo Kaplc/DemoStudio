@@ -25,7 +25,8 @@ import { Actor } from '../entity/Actor'
 import { TransformComponent } from '../entity/TransformComponent'
 import { GenericActor } from '../entity/GenericActor'
 import { AObjectComponent } from '../entity/AObjectComponent'
-import { ensureUITransformComponent } from './UITransformComponent'
+import { ensureUITransformComponent, UITransformComponent } from './UITransformComponent'
+import { UIWorldAnchorComponent, type UIWorldAnchorComponentOptions } from './UIWorldAnchorComponent'
 import { HUD } from './HUD'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { BlueprintRegistry } from '../asset/BlueprintRegistry'
@@ -45,6 +46,19 @@ import type { ResolvedChildDef } from '../asset/BlueprintAsset'
  * 非树序路径（如程序化直接设置 zOrder）的兜底偏移常量保留。
  */
 export const FLOAT_LAYER_BIAS = 100
+
+/**
+ * 锚定 widget 句柄（spawnAnchoredWidget 返回）。
+ * actor/transform 在 widget 销毁后读取为 null（惰性判活）；release() 幂等。
+ */
+export interface AnchoredWidgetHandle {
+  /** widget 根 Actor（销毁后为 null） */
+  readonly actor: Actor | null
+  /** widget 根 UITransformComponent（销毁后为 null） */
+  readonly transform: UITransformComponent | null
+  /** 销毁 widget（幂等；延迟到下一帧 tickUI 提交） */
+  release(): void
+}
 
 /**
  * 严格模式校验子节点 transform 数据（组件优先）：
@@ -96,6 +110,9 @@ export class UIManager extends AObjectComponent<World> {
   /**
    * 判断 Actor 是否属于 UI：自身或子树含 CanvasUIComponent，或是 HUD 容器。
    * 返回 true 的 Actor 由 add() 挂到独立 UI 场景（与 3D 场景分离，叠加渲染）。
+   * 例外：根含 UIWorldAnchorComponent(mode='world') 的 widget 归 UIManager 生命周期
+   * 管理，但挂主场景（世界空间面板，见 commitSpawn 分流）——本方法返回 true 保证
+   * 生命周期统一，场景归属由 commitSpawn 单独判断。
    */
   isUIActor(actor: Actor): boolean {
     if (actor instanceof HUD) return true
@@ -107,6 +124,16 @@ export class UIManager extends AObjectComponent<World> {
       return false
     }
     return walk(actor)
+  }
+
+  /**
+   * 判断 Actor 是否为"世界空间面板"（UIWorldAnchorComponent(mode='world) 根）：
+   * 此类 Actor 归 UIManager 生命周期管理，但 mesh 挂主场景（深度遮挡/透视正确）。
+   * 仅根 Actor 判定——子树随根 Object3D 走，逐节点无需感知。
+   */
+  isWorldSpaceUI(actor: Actor): boolean {
+    const anchor = actor.getComponent(UIWorldAnchorComponent)
+    return anchor?.mode === 'world'
   }
 
   /** 将 Actor 挂到 UI 场景（仅当属于 UI） */
@@ -305,6 +332,57 @@ export class UIManager extends AObjectComponent<World> {
   }
 
   /**
+   * 生成世界锚定 widget（World-Space UI 统一入口，doc-dev/ui-world-space）。
+   *
+   * 与 spawnUIActor 的差异：
+   *  - 自动补挂 UIWorldAnchorComponent（资产未声明时按 opts 注入）；
+   *  - world 模式 widget 禁止挂 HUD 子树（必须顶层，否则场景分流失效）——检测到
+   *    parent 参数时告警并忽略；
+   *  - 返回句柄：release() 销毁 widget；target（按名解析的 3D Actor）被销毁时
+   *    widget 在下一帧锚定 tick 中自动销毁（跟随目标生命周期）。
+   *
+   * @param path      widget 蓝图路径
+   * @param target    锚定目标（screen 模式必填语义；world 面板传 null 表示位姿静态）
+   * @param opts      锚定参数（缺省 mode='screen'，其余见 UIWorldAnchorComponentOptions）
+   * @returns 句柄（actor/transform 可能随销毁变 null）；生成失败返回 null
+   */
+  spawnAnchoredWidget(
+    path: string,
+    target: Actor | null,
+    opts: UIWorldAnchorComponentOptions & { targetActorId?: string } = {},
+  ): AnchoredWidgetHandle | null {
+    // world 模式必须顶层（场景分流按根 Actor 判定；挂 HUD 子树会让面板留在 uiScene）
+    const parent = opts.mode === 'world' ? undefined : undefined
+    if (opts.mode === 'world' && target) {
+      logger.warn(`[UIManager] spawnAnchoredWidget: mode='world' 面板忽略 target（世界面板位姿由场景决定，跟随需求用 mode='screen'）`)
+    }
+    const actor = this.spawnUIActor(path, parent)
+    if (!actor) return null
+
+    // 补挂/复用锚定组件（资产已声明 data-comp=UIWorldAnchorComponent 时以资产为准，
+    // 运行时 opts 覆盖 targetActorId）
+    let anchor = actor.getComponent(UIWorldAnchorComponent)
+    if (!anchor) {
+      anchor = new UIWorldAnchorComponent(actor, opts)
+      actor.addComponent(anchor)
+    } else if (opts.targetActorId) {
+      anchor.targetActorId = opts.targetActorId
+    }
+    if (target) anchor.targetActorId = target.root.name
+
+    // 句柄：actor 引用惰性判活（bPendingDestroy / 注册表注销后置 null）
+    const handle: AnchoredWidgetHandle = {
+      get actor() { return actor.bPendingDestroy ? null : actor },
+      get transform() {
+        return actor.bPendingDestroy ? null : actor.getComponent(UITransformComponent)
+      },
+      release: () => this.destroyUIActor(actor),
+    }
+    logger.info(`[UIManager] spawnAnchoredWidget: "${actor.root.name}" (${path}) mode=${anchor.mode} target=${anchor.targetActorId || '-'}`)
+    return handle
+  }
+
+  /**
    * 提升一棵 UI 树的 zOrder（浮动面板层级基准，兼容保留）：
    * 树序遍历分配（reassignTreeOrder）已保证浮动面板（HUD 子树末尾）天然盖过
    * 常驻 HUD，此方法保留用于非树序路径的程序化 UI（如 UIScrollList 滚动条）
@@ -362,7 +440,13 @@ export class UIManager extends AObjectComponent<World> {
     for (const actor of this._pendingSpawn) {
       this._uiActors.add(actor)
       if (!actor.parent) {
-        this.scene.add(actor.root)
+        // 世界空间面板（UIWorldAnchor mode='world'）挂主场景：深度遮挡/透视正确；
+        // 其余 UI Actor 挂独立 uiScene（叠加渲染，永在顶层）
+        if (this.isWorldSpaceUI(actor)) {
+          this.owner.scene.add(actor.root)
+        } else {
+          this.scene.add(actor.root)
+        }
       }
       if (this._running) {
         actor.BeginPlay()
@@ -380,7 +464,9 @@ export class UIManager extends AObjectComponent<World> {
     for (const actor of this._pendingDestroy) {
       if (this._uiActors.has(actor)) {
         actor.EndPlay()
-        this.scene.remove(actor.root)
+        // 世界空间面板挂主场景，销毁时从对应场景移除
+        if (this.isWorldSpaceUI(actor)) this.owner.scene.remove(actor.root)
+        else this.scene.remove(actor.root)
         this._uiActors.delete(actor)
         // 从父 Actor 树拆离：运行时动态生成的 UI（如兵营面板 spawnUIActor 挂 HUD 下）
         // 必须 detach，否则大纲递归 HUD 子树仍显示已销毁节点
@@ -477,7 +563,16 @@ export class UIManager extends AObjectComponent<World> {
     this.commitSpawn()
     this.commitDestroy()
     for (const actor of this._uiActors) {
-      if (!actor.bPendingDestroy) actor.Tick(dt)
+      if (actor.bPendingDestroy) continue
+      // 锚定 widget 的 target 生命周期联动：target 消失（被销毁）→ widget 一并销毁。
+      // world 面板无 target 语义，不受影响。
+      const anchor = actor.getComponent(UIWorldAnchorComponent)
+      if (anchor && anchor.mode === 'screen' && anchor.targetActorId && !this.owner.findActorByName(anchor.targetActorId)) {
+        logger.info(`[UIManager] 锚定 widget "${actor.root.name}" 的 target "${anchor.targetActorId}" 已销毁 → 联动销毁`)
+        this.destroyUIActor(actor)
+        continue
+      }
+      actor.Tick(dt)
     }
   }
 
@@ -506,7 +601,8 @@ export class UIManager extends AObjectComponent<World> {
     // 清理已提交的 UI Actor
     for (const actor of [...this._uiActors]) {
       actor.EndPlay()
-      this.scene.remove(actor.root)
+      if (this.isWorldSpaceUI(actor)) this.owner.scene.remove(actor.root)
+      else this.scene.remove(actor.root)
     }
     this._uiActors.clear()
     this._pendingDestroy = []

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * registerBuiltinComponents — 集中注册引擎内置 Component
  *
  * 每个注册项定义：
@@ -43,7 +43,13 @@ import { UIImageComponent, type UIImageComponentOptions } from '../ui/UIImageCom
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { UITooltipComponent } from '../ui/UITooltipComponent'
+import {
+  UIWorldAnchorComponent,
+  type UIWorldAnchorMode,
+  type UIWorldAnchorClamping,
+} from '../ui/UIWorldAnchorComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
+import { ShadowBlobComponent } from '../rendering/ShadowBlobComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
 import { createMesh } from '../gameflow/ThreeObjectUtils'
@@ -103,16 +109,22 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── SpriteComponent ─── props: { width?, height?, color?, opacity?, texture?, name? }
+  // ─── SpriteComponent ─── props: { width?, height?, color?, opacity?, texture?, kind?, castShadow?, receiveShadow?, name? }
+  // kind（scene-shadow 方案 D4）：'basic'（缺省，unlit）| 'standard'（受光、可接收阴影）。
+  // 阴影标记缺省：castShadow true（可投影）、receiveShadow false（面向相机的精灵面接收阴影无意义）。
   ComponentRegistry.register(
     'SpriteComponent',
     (owner, p = {}) =>
       new SpriteComponent(owner as Actor, p.width ?? 1, p.height ?? 1, p.name ?? 'SpriteComponent'),
     (c, p) => {
       const sp = c as SpriteComponent
+      if (p.kind !== undefined) sp.setMaterialKind(p.kind === 'standard' ? 'standard' : 'basic')
       if (p.color !== undefined) sp.setColor(p.color as THREE.ColorRepresentation)
       if (p.opacity !== undefined) sp.setOpacity(p.opacity as number)
       if (p.texture !== undefined) sp.setTexture(p.texture as string | THREE.Texture)
+      const mesh = sp.obj.object
+      mesh.castShadow = p.castShadow !== undefined ? !!p.castShadow : true
+      mesh.receiveShadow = p.receiveShadow !== undefined ? !!p.receiveShadow : false
     },
   )
 
@@ -219,10 +231,12 @@ export function registerBuiltinComponents(): void {
       ),
   )
 
-  // ─── BoxMeshComponent ─── props: { size?, color?, opacity?, name? }
+  // ─── BoxMeshComponent ─── props: { size?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
   // 轴对齐盒几何。MeshComponent 是抽象基类不注册——必须声明 BoxMeshComponent /
   // SphereMeshComponent / PlaneMeshComponent / CapsuleMeshComponent 之一。
   // size: [w, h, d]
+  // 材质两态（scene-shadow 方案 D4）：kind 'standard'（缺省，受光可接收阴影）| 'basic'（unlit）。
+  // 阴影标记缺省 true（对齐 SceneLoader 旧格式默认值）：接收面必须 standard 材质（basic+receiveShadow 由 assetLint warn）。
   const applyMeshColor = (
     c: MeshComponent,
     p: Record<string, unknown>,
@@ -233,6 +247,18 @@ export function registerBuiltinComponents(): void {
       mat.transparent = true
       mat.opacity = p.opacity as number
     }
+  }
+  /** mesh 阴影/材质两态标记：castShadow/receiveShadow 缺省 true（对齐旧格式默认），kind 决定材质类型 */
+  const applyMeshMaterialKind = (
+    mesh: THREE.Mesh,
+    p: Record<string, unknown>,
+  ): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial => {
+    if (p.kind === 'basic') {
+      mesh.material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+    }
+    mesh.castShadow = p.castShadow !== undefined ? !!p.castShadow : true
+    mesh.receiveShadow = p.receiveShadow !== undefined ? !!p.receiveShadow : true
+    return mesh.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
   }
   ComponentRegistry.register(
     'BoxMeshComponent',
@@ -246,6 +272,7 @@ export function registerBuiltinComponents(): void {
         mat.opacity = p.opacity as number
       }
       const mesh = createMesh(geo, mat)
+      applyMeshMaterialKind(mesh.object, p)
       const comp = new BoxMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'BoxMeshComponent')
       comp.size = [size[0] ?? 1, size[1] ?? 1, size[2] ?? 1]
       return comp
@@ -253,7 +280,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, name? }
+  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
   ComponentRegistry.register(
     'SphereMeshComponent',
     (owner, p = {}) => {
@@ -266,6 +293,7 @@ export function registerBuiltinComponents(): void {
         mat.opacity = p.opacity as number
       }
       const mesh = createMesh(geo, mat)
+      applyMeshMaterialKind(mesh.object, p)
       const comp = new SphereMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'SphereMeshComponent')
       comp.radius = radius
       return comp
@@ -273,7 +301,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── PlaneMeshComponent ─── props: { size?, color?, opacity?, name? }
+  // ─── PlaneMeshComponent ─── props: { size?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
   // size: [w, h]
   ComponentRegistry.register(
     'PlaneMeshComponent',
@@ -283,6 +311,7 @@ export function registerBuiltinComponents(): void {
       const color = (p.color as number | string) ?? 0xffffff
       const mat = new THREE.MeshStandardMaterial({ color, transparent: p.opacity !== undefined, opacity: (p.opacity as number) ?? 1, depthWrite: p.opacity === undefined })
       const mesh = createMesh(geo, mat)
+      applyMeshMaterialKind(mesh.object, p)
       const comp = new PlaneMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'PlaneMeshComponent')
       comp.size = [size[0] ?? 1, size[1] ?? 1]
       return comp
@@ -290,7 +319,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, name? }
+  // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, kind?, castShadow?, receiveShadow?, name? }
   // 胶囊体网格（兵种等角色模型）：radius=半径，length=圆柱段长度（0=纯球）
   // 几何体中心在胶囊体中心，贴地偏移由蓝图 TransformComponent 控制
   ComponentRegistry.register(
@@ -302,6 +331,7 @@ export function registerBuiltinComponents(): void {
       const color = (p.color as number | string) ?? 0xffffff
       const mat = new THREE.MeshStandardMaterial({ color })
       const mesh = createMesh(geo, mat)
+      applyMeshMaterialKind(mesh.object, p)
       const comp = new CapsuleMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'CapsuleMeshComponent')
       comp.radius = radius
       comp.length = length
@@ -541,6 +571,37 @@ export function registerBuiltinComponents(): void {
     },
   )
 
+  // ─── UIWorldAnchorComponent ─── props: { mode?, targetActorId?, localOffset?, faceCamera?, constantScreenSize?, clamping?, pxPerMeter?, pixelDensity? }
+  // 3D 场景 UI 锚定组件（World-Space UI 双模式）：screen=屏幕跟随（uiScene 投影）/
+  // world=世界空间面板（主场景分流 + pxPerMeter 换算 + billboard）。
+  // 运行时动态创建统一走 UIManager.spawnAnchoredWidget（句柄管理）；此处注册支持
+  // widget.html data-comp 声明式挂载。
+  ComponentRegistry.register(
+    'UIWorldAnchorComponent',
+    (owner, p = {}) =>
+      new UIWorldAnchorComponent(owner as Actor, {
+        mode: p.mode as UIWorldAnchorMode | undefined,
+        targetActorId: p.targetActorId as string | undefined,
+        localOffset: p.localOffset as [number, number, number] | undefined,
+        faceCamera: p.faceCamera as boolean | undefined,
+        constantScreenSize: p.constantScreenSize as boolean | undefined,
+        clamping: p.clamping as UIWorldAnchorClamping | undefined,
+        pxPerMeter: p.pxPerMeter as number | undefined,
+        pixelDensity: p.pixelDensity as number | undefined,
+      }),
+    (c, p) => {
+      const a = c as UIWorldAnchorComponent
+      if (p.mode !== undefined) a.mode = p.mode as UIWorldAnchorMode
+      if (p.targetActorId !== undefined) a.targetActorId = p.targetActorId as string
+      if (p.localOffset !== undefined) a.localOffset = p.localOffset as [number, number, number]
+      if (p.faceCamera !== undefined) a.faceCamera = p.faceCamera as boolean
+      if (p.constantScreenSize !== undefined) a.constantScreenSize = p.constantScreenSize as boolean
+      if (p.clamping !== undefined) a.clamping = p.clamping as UIWorldAnchorClamping
+      if (p.pxPerMeter !== undefined) a.pxPerMeter = p.pxPerMeter as number
+      if (p.pixelDensity !== undefined) a.pixelDensity = p.pixelDensity as number
+    },
+  )
+
   // ─── UIScriptComponent ─── props: { script?, args? }
   // UI 资产「挂载脚本」组件（Unity MonoBehaviour 挂载点）：BeginPlay 时按 script id
   // 从 ScriptRegistry 实例化脚本并注入宿主，转发 onStart/onUpdate/onDestroy。
@@ -560,8 +621,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── LightComponent ─── props: { type?, color?, intensity?, castShadow?, position?, ... }
+  // ─── LightComponent ─── props: { type?, color?, intensity?, castShadow?, shadowExtent?, shadowMapSize?, shadowBias?, shadowNormalBias?, shadowRadius?, position?, ... }
   // 灯光挂载到 Actor（灯光 Actor 模式）：Scene 视口默认灯光与场景资产灯光声明均走此组件。
+  // 阴影参数（scene-shadow 方案 D2）：shadowExtent/mapSize 决定阴影可见性，bias 三件套防痤疮/漏光。
   ComponentRegistry.register(
     'LightComponent',
     (owner, p = {}) =>
@@ -574,13 +636,45 @@ export function registerBuiltinComponents(): void {
         angle: p.angle as number | undefined,
         penumbra: p.penumbra as number | undefined,
         castShadow: p.castShadow as boolean | undefined,
+        shadowExtent: p.shadowExtent as number | undefined,
+        shadowMapSize: p.shadowMapSize as number | undefined,
+        shadowBias: p.shadowBias as number | undefined,
+        shadowNormalBias: p.shadowNormalBias as number | undefined,
+        shadowRadius: p.shadowRadius as number | undefined,
         position: p.position as [number, number, number] | undefined,
+        targetPosition: p.targetPosition as [number, number, number] | undefined,
       }),
     (c, p) => {
       const lc = c as LightComponent
       if (p.color !== undefined) lc.color = p.color as string
       if (p.intensity !== undefined) lc.intensity = p.intensity as number
       if (p.castShadow !== undefined) lc.castShadow = p.castShadow as boolean
+      if (p.shadowExtent !== undefined) lc.shadowExtent = p.shadowExtent as number
+      if (p.shadowMapSize !== undefined) lc.shadowMapSize = p.shadowMapSize as number
+      if (p.shadowBias !== undefined) lc.shadowBias = p.shadowBias as number
+      if (p.shadowNormalBias !== undefined) lc.shadowNormalBias = p.shadowNormalBias as number
+      if (p.shadowRadius !== undefined) lc.shadowRadius = p.shadowRadius as number
+    },
+  )
+
+  // ─── ShadowBlobComponent ─── props: { normal?, offset?, radius?, opacity?, name? }
+  // Blob 假阴影：贴地半透明椭圆暗斑（unlit 场景/单位群/风格化阴影，scene-shadow 方案 D3）。
+  // normal: [0,1,0]=XZ 地面（缺省），[0,0,1]=XY 世界（FishMenu）。
+  ComponentRegistry.register(
+    'ShadowBlobComponent',
+    (owner, p = {}) =>
+      new ShadowBlobComponent(owner as Actor, {
+        normal: p.normal as [number, number, number] | undefined,
+        offset: p.offset as number | undefined,
+        radius: p.radius as number | undefined,
+        opacity: p.opacity as number | undefined,
+      }, (p.name as string) ?? 'ShadowBlobComponent'),
+    (c, p) => {
+      const bc = c as ShadowBlobComponent
+      if (p.radius !== undefined) bc.radius = p.radius as number
+      if (p.opacity !== undefined) bc.opacity = p.opacity as number
+      if (p.normal !== undefined) bc.normal = p.normal as [number, number, number]
+      if (p.offset !== undefined) bc.offset = p.offset as number
     },
   )
 

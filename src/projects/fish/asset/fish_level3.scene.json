@@ -25,6 +25,9 @@
             "color": "#ffffff",
             "intensity": 1.2,
             "castShadow": true,
+            "shadowExtent": 40,
+            "shadowMapSize": 2048,
+            "targetPosition": [-15, -25, -10],
             "name": "KeyLightComp"
           }
         }

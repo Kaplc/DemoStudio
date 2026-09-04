@@ -509,6 +509,21 @@ export class World extends AObject {
   }
 
   /**
+   * 按名称查找 Actor（UIWorldAnchor.targetActorId 解析用）。
+   * 范围：3D 已提交 + UI 已提交集合；找不到返回 null。
+   */
+  findActorByName(name: string): Actor | null {
+    if (!name) return null
+    for (const a of this.actorMgr.GetAllActors()) {
+      if (a.root.name === name) return a
+    }
+    for (const a of this.ui.getAllUIActors()) {
+      if (a.root.name === name) return a
+    }
+    return null
+  }
+
+  /**
    * 加载场景资产数据，将其中所有对象创建为 Actor 并生成到世界。
    * 新格式（actor/ref 节点）保持 BlueprintChildDef 风格层级；
    * 旧格式（box/plane 等几何捷径）降级为 GenericActor + MeshComponent。

@@ -7,6 +7,50 @@
   "objects": [
     {
       "type": "actor",
+      "name": "KeyLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0.3, 1.2, 1.5],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "color": "#ffffff",
+            "intensity": 1.2,
+            "castShadow": true,
+            "shadowExtent": 22,
+            "shadowMapSize": 2048,
+            "targetPosition": [-0.3, -1.2, -1.5],
+            "name": "KeyLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "AmbientLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "ambient",
+            "color": "#ffffff",
+            "intensity": 0.6,
+            "name": "AmbientLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
       "name": "plane_1",
       "baseClass": "Actor",
       "position": [
@@ -40,7 +84,7 @@
           "properties": {
             "size": [60, 36],
             "color": "#0a2a4a",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -81,7 +125,7 @@
             "width": 0.6,
             "height": 4,
             "color": "#1b5e20",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -122,7 +166,7 @@
             "width": 0.6,
             "height": 5,
             "color": "#2e7d32",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -163,7 +207,7 @@
             "width": 0.5,
             "height": 3,
             "color": "#388e3c",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -204,7 +248,7 @@
             "width": 0.6,
             "height": 4.5,
             "color": "#2e7d32",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -245,7 +289,7 @@
             "width": 0.5,
             "height": 3.5,
             "color": "#1b5e20",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -286,7 +330,7 @@
             "width": 0.6,
             "height": 5,
             "color": "#388e3c",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -327,7 +371,7 @@
             "width": 1.2,
             "height": 0.8,
             "color": "#ff7043",
-            "kind": "basic"
+"kind": "standard"
           }
         }
       ]
@@ -368,7 +412,7 @@
             "width": 1,
             "height": 0.7,
             "color": "#ec407a",
-            "kind": "basic"
+            "kind": "standard"
           }
         }
       ]

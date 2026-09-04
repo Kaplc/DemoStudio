@@ -248,6 +248,21 @@ export class CanvasUIComponent extends Component<Actor> {
     return [this._width, this._height]
   }
 
+  /**
+   * 重设 canvas 像素分辨率（world 模式 pixelDensity 用）：
+   * 位图尺寸 ×N 提升近景清晰度；世界尺寸（uitransform）不变。
+   * 重置后调用 markDirty 标记纹理更新，内容重绘由子类/持有者按需触发。
+   */
+  resizeCanvas(w: number, h: number): void {
+    if (w <= 0 || h <= 0) return
+    this._width = Math.round(w)
+    this._height = Math.round(h)
+    this.canvas.width = this._width
+    this.canvas.height = this._height
+    this.markDirty()
+    logger.info(`[CanvasUIComponent] "${this.name}" canvas 分辨率重设: ${this._width}×${this._height}`)
+  }
+
   /** 设置 3D 世界尺寸（单位：米）；同步到 owner 的 uitransform（尺寸权威在 transform） */
   setWorldSize(w: number, h: number) {
     this._worldW = w

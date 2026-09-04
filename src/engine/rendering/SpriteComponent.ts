@@ -13,6 +13,9 @@ import { ThreeObjectComponent } from './ThreeObjectComponent'
 import type { Actor } from '../entity/Actor'
 import { loadTexture } from './TextureLoader'
 
+/** sprite 材质两态（scene-shadow 方案 D4）：'basic'=unlit（缺省，现状）；'standard'=受光可接收阴影 */
+export type SpriteMaterialKind = 'basic' | 'standard'
+
 export class SpriteComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh>> {
   /** 所有 SpriteComponent 共享的单位平面几何体 */
   private static sharedGeo: THREE.PlaneGeometry | null = null
@@ -43,6 +46,42 @@ export class SpriteComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh
     this.attachToRoot(this.obj)
   }
 
+  /**
+   * 材质两态切换：'standard' → 替换为 MeshStandardMaterial（受光、可接收阴影）。
+   * 'basic' 恢复 unlit。同一时刻只有一种材质实例（换材质时旧实例 dispose）。
+   * setColor/setOpacity 对两种材质同样生效（接口一致）。
+   */
+  setMaterialKind(kind: SpriteMaterialKind): void {
+    const mesh = this.obj.object
+    const isStandard = mesh.material instanceof THREE.MeshStandardMaterial
+    if (kind === 'standard' && !isStandard) {
+      const old = mesh.material as THREE.MeshBasicMaterial
+      const next = new THREE.MeshStandardMaterial({
+        color: old.color.clone(),
+        transparent: old.transparent,
+        opacity: old.opacity,
+        map: old.map,
+      })
+      mesh.material = next
+      old.dispose()
+    } else if (kind === 'basic' && isStandard) {
+      const old = mesh.material as THREE.MeshStandardMaterial
+      const next = new THREE.MeshBasicMaterial({
+        color: old.color.clone(),
+        transparent: old.transparent,
+        opacity: old.opacity,
+        map: old.map,
+      })
+      mesh.material = next
+      old.dispose()
+    }
+  }
+
+  /** 当前材质类型（Inspector 展示 / 测试断言用） */
+  get materialKind(): SpriteMaterialKind {
+    return this.obj.object.material instanceof THREE.MeshStandardMaterial ? 'standard' : 'basic'
+  }
+
   /** 便捷访问（语义化别名） */
   get mesh(): THREE.Mesh {
     return this.obj.object
@@ -62,33 +101,38 @@ export class SpriteComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh
     this.object.scale.set(width, height, 1)
   }
 
-  /** 设置纯色（与纹理互斥：有贴图时设为白色基底避免染色） */
+  /** 设置纯色（与纹理互斥：有贴图时设为白色基底避免染色）。basic/standard 材质均生效 */
   setColor(hex: THREE.ColorRepresentation) {
-    this.material.color.set(hex)
+    const mat = this.obj.object.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
+    mat.color.set(hex)
   }
 
   /** 设置不透明度（<1 自动开启 transparent） */
   setOpacity(opacity: number) {
-    this.material.opacity = opacity
-    this.material.transparent = opacity < 1
+    const mat = this.obj.object.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
+    mat.opacity = opacity
+    mat.transparent = opacity < 1
   }
 
   /** 设置纹理：可传路径（走缓存）或已加载的 Texture */
   setTexture(pathOrTexture: string | THREE.Texture) {
     const tex = typeof pathOrTexture === 'string' ? loadTexture(pathOrTexture) : pathOrTexture
-    this.material.map = tex
-    this.material.color.set(0xffffff)
-    this.material.needsUpdate = true
+    const mat = this.obj.object.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
+    mat.map = tex
+    mat.color.set(0xffffff)
+    mat.needsUpdate = true
   }
 
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
     const size = this.getSize()
+    const mat = this.obj.object.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial
     return {
       Size: `${round2(size[0])}×${round2(size[1])}`,
-      Color: `#${this.material.color.getHexString()}`,
-      Opacity: round2(this.material.opacity),
-      Texture: this.material.map ? '有' : '（无）',
+      Color: `#${mat.color.getHexString()}`,
+      Opacity: round2(mat.opacity),
+      Material: this.materialKind,
+      Texture: mat.map ? '有' : '（无）',
     }
   }
 

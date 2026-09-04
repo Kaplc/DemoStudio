@@ -15,6 +15,7 @@ import { FishLevelGameMode } from './level/FishLevelGameMode'
 import { FishPlayerController } from './game/FishPlayerController'
 import type { FishCannon } from './game/FishCannon'
 import { FishConfigLoader } from '../FishConfigLoader'
+import { DamageNumberFx } from './common/fx/DamageNumberFx'
 import { ResourcesComponent } from './common/comp/ResourcesComponent'
 import { TrainingComponent, type TrainingItem } from './common/comp/TrainingComponent'
 import { ProductionService } from './base/ProductionService'
@@ -587,6 +588,9 @@ export class FishGameInstance extends GameInstance {
    * 否则 → 海域（mode="game" → FishGameMode）。
    */
   private switchToPhase(phase: Phase): boolean {
+    // 跨场景清理钩子（gameplay 审查 ❌2）：世界即将 Pause → DestroyAllActors，
+    // 队列中待补放的伤害数字锚定的目标 Actor 即将销毁，跨场景补放必然错位 → 统一丢弃
+    DamageNumberFx.clearQueue()
     this._phase = phase
     const sceneName = phase === 'menu' ? 'FishMenu'
       : phase === 'base' ? 'FishBaseIsland'

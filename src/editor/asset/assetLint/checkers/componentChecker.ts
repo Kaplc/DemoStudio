@@ -10,7 +10,24 @@ import { registerAssetChecker } from '../AssetCheckerRegistry'
 import type { FieldSpec, LintIssue, CheckerContext } from '../types'
 import { UILAYOUT_JUSTIFY_OPTIONS, UILAYOUT_ALIGN_OPTIONS } from '../../../../engine/ui/UILayoutComponent'
 
-/** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]。 */
+/**
+ * TC-S10（scene-shadow 方案 D4）：basic 材质不接收阴影。
+ * kind:"basic"（unlit）+ receiveShadow:true → "设了字段没效果"，warn 提示（不 block）。
+ * 四个 mesh 组件 checker 共用。
+ */
+function checkBasicReceiveShadow(node: unknown, ctx: CheckerContext): LintIssue[] {
+  const issues: LintIssue[] = []
+  if (!node || typeof node !== 'object') return issues
+  const props = (node as Record<string, unknown>).properties as Record<string, unknown> | undefined
+  if (!props) return issues
+  if (props.kind === 'basic' && props.receiveShadow === true) {
+    issues.push(ctx.issue('properties.receiveShadow', 'basic-material-no-receive-shadow',
+      'basic 材质不接收阴影（unlit）：receiveShadow:true 无效果——需要接收阴影请改 kind:"standard" 或去掉该字段', 'warn', true))
+  }
+  return issues
+}
+
+/** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]；kind 材质两态；阴影标记。 */
 class SpriteComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SpriteComponent'
   schema: FieldSpec[] = [
@@ -18,8 +35,14 @@ class SpriteComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', required: true, min: 0, minExclusive: true, label: '高度' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkBasicReceiveShadow(node, ctx)
+  }
 }
 registerAssetChecker('comp:SpriteComponent', SpriteComponentChecker)
 
@@ -108,51 +131,75 @@ class MeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
 
-/** comp:BoxMeshComponent — 轴对齐盒：size: [w, h, d]；color；opacity [0,1]。 */
+/** comp:BoxMeshComponent — 轴对齐盒：size: [w, h, d]；color；opacity [0,1]；kind 材质两态；阴影标记。 */
 class BoxMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:BoxMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.size', type: 'array', minItems: 3, maxItems: 3, label: '盒尺寸 [w, h, d]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkBasicReceiveShadow(node, ctx)
+  }
 }
 registerAssetChecker('comp:BoxMeshComponent', BoxMeshComponentChecker)
 
-/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]。 */
+/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]；kind 材质两态；阴影标记。 */
 class SphereMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SphereMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkBasicReceiveShadow(node, ctx)
+  }
 }
 registerAssetChecker('comp:SphereMeshComponent', SphereMeshComponentChecker)
 
-/** comp:PlaneMeshComponent — 平面：size: [w, h]；color；opacity [0,1]。 */
+/** comp:PlaneMeshComponent — 平面：size: [w, h]；color；opacity [0,1]；kind 材质两态；阴影标记。 */
 class PlaneMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:PlaneMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.size', type: 'array', minItems: 2, maxItems: 2, label: '平面尺寸 [w, h]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkBasicReceiveShadow(node, ctx)
+  }
 }
 registerAssetChecker('comp:PlaneMeshComponent', PlaneMeshComponentChecker)
 
-/** comp:CapsuleMeshComponent — 胶囊体：radius/length/color。 */
+/** comp:CapsuleMeshComponent — 胶囊体：radius/length/color；kind 材质两态；阴影标记。 */
 class CapsuleMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:CapsuleMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
     { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
+    { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkBasicReceiveShadow(node, ctx)
+  }
 }
 registerAssetChecker('comp:CapsuleMeshComponent', CapsuleMeshComponentChecker)
 
@@ -172,6 +219,12 @@ class LightComponentChecker extends AbstractAssetChecker {
     { field: 'properties.angle', type: 'number', min: 0, label: '锥角' },
     { field: 'properties.penumbra', type: 'number', min: 0, label: '半影' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
+    { field: 'properties.shadowExtent', type: 'number', min: 0, label: '阴影正交范围（缺省 0=不改，three 默认 ±5）' },
+    { field: 'properties.shadowMapSize', type: 'integer', enum: [512, 1024, 2048, 4096], label: '阴影贴图边长' },
+    { field: 'properties.shadowBias', type: 'number', label: '阴影深度偏移' },
+    { field: 'properties.shadowNormalBias', type: 'number', min: 0, label: '阴影法线偏移' },
+    { field: 'properties.shadowRadius', type: 'number', min: 0, label: '阴影柔化半径' },
+    { field: 'properties.targetPosition', type: 'vec3', label: 'target 局部偏移（directional/spot）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -395,6 +448,23 @@ class CanvasUIComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:CanvasUIComponent', CanvasUIComponentChecker)
 
+/** comp:UIWorldAnchorComponent — 3D 场景 UI 锚定（World-Space UI 双模式：screen 跟随 / world 面板） */
+class UIWorldAnchorComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:UIWorldAnchorComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.mode', type: 'string', enum: ['screen', 'world'], label: '锚定模式' },
+    { field: 'properties.targetActorId', type: 'string', label: '锚定目标 Actor 名' },
+    { field: 'properties.localOffset', type: 'vec3', label: '局部偏移（米）' },
+    { field: 'properties.faceCamera', type: 'boolean', label: 'billboard 朝向相机' },
+    { field: 'properties.constantScreenSize', type: 'boolean', label: '恒定屏占' },
+    { field: 'properties.clamping', type: 'string', enum: ['none', 'clamp'], label: '出屏策略' },
+    { field: 'properties.pxPerMeter', type: 'number', min: 1, label: '设计 px → 米换算基准' },
+    { field: 'properties.pixelDensity', type: 'number', min: 1, max: 4, label: 'canvas 纹理密度倍数' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:UIWorldAnchorComponent', UIWorldAnchorComponentChecker)
+
 /** comp:UIScriptComponent — UI 资产「挂载脚本」组件（Unity MonoBehaviour 挂载点） */
 class UIScriptComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIScriptComponent'
@@ -438,3 +508,29 @@ class UILayoutComponentChecker extends AbstractAssetChecker {
   ]
 }
 registerAssetChecker('comp:UILayoutComponent', UILayoutComponentChecker)
+
+/** comp:ShadowBlobComponent — Blob 假阴影：radius > 0；opacity [0,1]；normal vec3（不可零向量）；offset ≥ 0。 */
+class ShadowBlobComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:ShadowBlobComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '暗斑半径' },
+    { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.normal', type: 'vec3', label: '贴地法线（[0,1,0]=XZ 地面，[0,0,1]=XY 世界）' },
+    { field: 'properties.offset', type: 'number', min: 0, label: '沿法线抬升' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    const issues: LintIssue[] = []
+    if (!node || typeof node !== 'object') return issues
+    const props = (node as Record<string, unknown>).properties as Record<string, unknown> | undefined
+    const normal = props?.normal
+    if (Array.isArray(normal) && normal.length === 3 && normal.every((v) => typeof v === 'number')) {
+      if (Math.hypot(normal[0], normal[1], normal[2]) === 0) {
+        issues.push(ctx.issue('properties.normal', 'shadow-blob-normal-zero',
+          '贴地法线不可为零向量：XZ 地面用 [0,1,0]，XY 世界用 [0,0,1]', 'error', normal))
+      }
+    }
+    return issues
+  }
+}
+registerAssetChecker('comp:ShadowBlobComponent', ShadowBlobComponentChecker)

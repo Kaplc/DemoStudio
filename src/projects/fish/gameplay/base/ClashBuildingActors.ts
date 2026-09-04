@@ -55,6 +55,7 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
       const baseMesh = createMesh(baseGeo, baseMat)
       const baseComp = new BoxMeshComponent(this, baseMesh, 'BaseMesh')
       baseComp.mesh.position.y = 0.075
+      baseComp.mesh.castShadow = true
       this.addComponent(baseComp)
 
       // ─── 主体（彩色立方体）→ 子 Actor（BodyMeshActor 挂 1 个 MeshComponent）───
@@ -64,6 +65,7 @@ export abstract class ClashBuildingBaseActor extends BuildingActor {
       const bodyMesh = createMesh(bodyGeo, bodyMat)
       const bodyComp = new BoxMeshComponent(bodyActor, bodyMesh, 'BodyMesh')
       bodyComp.mesh.position.y = 0.15 + this.type.height / 2
+      bodyComp.mesh.castShadow = true
       bodyActor.addComponent(bodyComp)
       bodyActor.attachTo(this)
       spawnActor(bodyActor)

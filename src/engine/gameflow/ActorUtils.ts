@@ -113,6 +113,16 @@ export function getAllActors(): Actor[] {
 }
 
 /**
+ * 按名称查找 Actor（3D 与 UI 全范围；UIWorldAnchor.targetActorId 解析用）。
+ * 搜索范围：已生成 3D + 待生成 3D + 已生成 UI + 待生成 UI；找不到返回 null。
+ */
+export function findActorByName(name: string): Actor | null {
+  const world = tryGetWorld()
+  if (!world || !name) return null
+  return world.findActorByName(name)
+}
+
+/**
  * 在世界中查找所有挂载了指定 Component 类型的 Actor 及其实例。
  */
 export function getAllActorComponents<T extends Component>(

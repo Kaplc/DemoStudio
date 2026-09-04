@@ -135,6 +135,25 @@ class UiDesignChecker extends AbstractAssetChecker {
           canvasProps.zOrder,
         ))
       }
+
+      // 5. World-Space UI 锚定（doc-dev/ui-world-space TC-W3.5）：
+      //    UIWorldAnchorComponent(mode='world') 根禁用 anchor（位姿由锚定系统接管）；
+      //    screen 模式根同样应 anchor:null（applyAnchor 会覆盖投影写入的 position）。
+      const anchorProps = compProps(n, 'UIWorldAnchorComponent')
+      if (anchorProps) {
+        const tsfProps2 = compProps(n, 'UITransformComponent')
+        const anchorVal = tsfProps2?.anchor
+        const isWorld = anchorProps.mode === 'world'
+        if (anchorVal !== undefined && anchorVal !== null) {
+          issues.push(ctx.issue(
+            'properties.anchor',
+            'ui:world-anchor-conflict',
+            `${isWorld ? 'world' : 'screen'} 模式锚定 widget 根声明了 anchor "${String(anchorVal)}"——位姿由 UIWorldAnchorComponent 接管，applyAnchor 会覆盖投影写入的 position；请删除 anchor（保持 null）`,
+            'warn',
+            anchorVal,
+          ))
+        }
+      }
     })
 
     return issues
