@@ -315,6 +315,18 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 
 要点：外框/内衬用**嵌套 div**（不要写成兄弟叠加，兄弟会垂直堆排出画布）；面板 `margin: 上下px auto` 居中；内容 flex 纵向栈 `justify-content: center` + `gap`。
 
+### 配方 A2：全屏容器（两轴 100% → stretch 锚，随视口自适应）
+
+全屏层（HUD 容器/全屏遮罩）推荐两轴 `100%` 写法，编译器会映射为 `stretch` 全锚：
+
+```css
+.TopBar { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+```
+
+效果：运行时 `applyAnchor` 让它**填满父容器**，视口比例切换（引擎视口重排 `relayoutForViewport`）时尺寸/位置自动跟随，子元素锚点随新容器重算。实测见 [base_hud.widget.html](../../../src/projects/fish/asset/blueprints/ui/base_hud.widget.html) 的 `.TopBar`。
+
+**为什么不用旧的 `width: 1920px; height: 1080px` 写法**：旧写法编译为 `center` 锚 + 快照尺寸，16:9 视口下视觉完全等效，但**视口比例切换时是重排盲区**——根面板变大/变宽，center 容器居中不动、尺寸不变，整个 HUD 纹丝不动（base_hud 2026-09-04 实测踩坑）。见 §14 坑 15。
+
 ### 配方 B：动态卡片列表容器（脚本生成子项）
 
 ```html
@@ -607,6 +619,10 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 **14. 锚定 widget（data-comp=UIWorldAnchorComponent）的承载 div 用 absolute 布局，lint 报 `ui:world-anchor-conflict`**
 
 现象：编译通过但产物根带 `anchor: "center"`（或子节点 anchor），触发 warn"位姿由 UIWorldAnchorComponent 接管，applyAnchor 会覆盖投影写入的 position"。原因：`position: absolute` 的元素编译期发射 anchor+offset（布局需要）；而锚定 widget 根的 anchor 必须 null（运行时 applyAnchor 会覆盖锚定系统写入的 position）。规则：**锚定组件所在的承载 div 用流式布局**（`width: 100%; height: 100%`，不发 anchor）；面板内部的绝对定位子元素不受影响（规则只查 widget 根）。
+
+**15. 全屏容器写 `width: 1920px; height: 1080px`，视口比例切换时 HUD 纹丝不动**
+
+现象：调整视口比例（Game 视口拖拽/窗口 resize），全屏 HUD 根面板在重排变大（日志可见 `[UIManager] 视口重排`），但 HUD 内容全部原地不动。原因：旧写法编译为 `center` 锚 + 快照尺寸 1920×1080，16:9 下与全屏视觉等效，但 `applyAnchor` 对 center 锚的语义是"保持自身尺寸、居中到父中心"——父容器变大它也不动，其下所有分区锚点的容器基准跟着不变，整个子树重排结果为零（2026-09-04 base_hud 实测）。规则：**全屏层一律写两轴 `100%`**（编译为 stretch 全锚，父容器变即跟随），见 §7 配方 A2；存量资产把固定 px 全屏容器改成 `100%/100%` 后重编译即可。
 
 ---
 

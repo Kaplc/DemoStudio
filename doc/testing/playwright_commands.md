@@ -415,6 +415,8 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **40. 点击进入关卡后固定等 2.5s 仍读到旧阶段（误判点击无效）** —— 现象：向 StartButton 派发点击后等 2.5s 读 `_phase` 仍是 `menu`，连续换坐标重试；实际最后一击已生效，只是场景切换是**异步加载**（卸 HUD、建基地 Actor、装配相机），耗时超过固定等待。规则：**点击后不要固定等待，轮询断言直到状态翻转**（`ai.getState` 的 `phase` 从 menu → base/game，或 `__ai.emit('ai.clickActor')` 前后各读一次），超时再重试。另一个稳定做法：**点 UI 按钮优先用 `ai.clickActor`（按 name/text 定位，不依赖坐标换算）**——canvas 坐标点击要自己算世界→屏幕映射（HALF_W=4.8/HALF_H=2.7），偏 20px 就 miss；但注意阶段切换后原按钮已销毁，"未找到 Actor" 可能恰恰说明已切走。坐标点击也可用 MCP 的 `cdp_mouse_click`（Input.dispatchMouseEvent 原生点击）；2026-09-03 之前它调用报"未知工具"，根因是 `editor/mcp-cdp.mjs` 的 `cdpTools` 数组定义了该工具但 `handleCdpTool` switch 缺 case（落到 default 返回 null），已补全 mouse_click/mouse_move/key_press 三个 case——**改 `editor/mcp-*.mjs` 必须重启 MCP 服务才生效**（stdio 进程不热更）。
 
+**41. 改 `.scene.json` 后运行时仍加载旧场景（stop/launch 无效）** —— 现象：编辑并保存场景 JSON 后 `stop_game`+`launchGame` 重启游戏实例，`SwitchToScene` 日志里 objects 数量还是旧的。原因：场景 JSON 经 `import.meta.glob(eager)` 在 **打开工程时一次性注册** 进 `AssetRegistry`（`editorStore.setCurrentProject → registerProjectAssets`，只跑一次）；Vite HMR 会更新 JSON 模块本身，但**不会重跑注册**，注册表 Map 里仍是旧引用。规则：改场景资产要看到运行时效果，**Reload 页面**（或重新走一次项目切换）再启动游戏；急验证可用热注入——CDP `import('/src/projects/fish/<项目>/asset/<场景>.scene.json?import&fresh=' + Date.now())` 拿新模块后 `AssetRegistry.registerAll({ scenes: [新场景] })`（按 name 覆盖 Map 项），再 launchGame。另注意：CDP `evaluate` 里动态 `import('/src/....json?import&t=' + Date.now())` 与页面模块图是**两个实例**（坑 7 同源），用带时间戳的模块只能做"数据验证"，别把它当页面真身。
+
 ---
 
 
