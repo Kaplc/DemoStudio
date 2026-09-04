@@ -1,7 +1,7 @@
 {
   "name": "LaboratoryPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-838b7e20",
+  "sourceHash": "fnv1a-4cb9626e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

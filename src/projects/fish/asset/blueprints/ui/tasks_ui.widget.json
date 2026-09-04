@@ -1,7 +1,7 @@
 {
   "name": "TasksPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-b894df9c",
+  "sourceHash": "fnv1a-50503a5e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

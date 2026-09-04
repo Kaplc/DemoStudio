@@ -88,7 +88,7 @@ export type {
   AIHUDNode,
 } from './ai'
 export type { SceneGroup } from './asset/SceneLoader'
-export type { SceneAsset, SceneNode, SpriteNode, MaterialProps } from './asset/SceneAsset'
+export type { SceneAsset, SceneNode, RefNode, ActorNode } from './asset/SceneAsset'
 export { GameFactoryRegistry } from './tools/GameFactoryRegistry'
 export type { GameInstanceFactory } from './tools/GameFactoryRegistry'
 export { GameModeRegistry } from './tools/GameModeRegistry'

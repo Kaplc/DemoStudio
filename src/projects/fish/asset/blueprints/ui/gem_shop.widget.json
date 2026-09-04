@@ -1,7 +1,7 @@
 {
   "name": "GemShopPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-d2b6fd3e",
+  "sourceHash": "fnv1a-031ac133",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

@@ -8,7 +8,7 @@
  * 特性：
  *  - 独立的 THREE.Scene（默认光照 + 网格地面）
  *  - 专用 WebGLRenderer
- *  - 通过 loadScene 加载场景资产并将网格生成为 GenericActor + MeshComponent
+ *  - 通过 loadScene 归集场景节点，ref/actor 节点实例化为 Actor（预览经 PreviewObjectFactoryComponent）
  *  - 自动清理（dispose）
  */
 import * as THREE from 'three'
@@ -16,7 +16,7 @@ import { World, ActorComponent, EditorActorComponent } from '../../engine'
 import { PreviewObjectFactoryComponent } from '../../engine'
 import { logger } from '../../engine'
 import { loadScene } from '../../engine'
-import { GenericActor, BoxMeshComponent, SphereMeshComponent, PlaneMeshComponent, Actor } from '../../engine'
+import { GenericActor, Actor } from '../../engine'
 import { LightComponent } from '../../engine'
 import type { LightComponentOptions } from '../../engine'
 import type { SceneAsset } from '../../engine'
@@ -346,36 +346,6 @@ export class ScenePreviewManager {
     const rootActor = new GenericActor(sceneData.name)
     this.world.getComponent(EditorActorComponent)!.Spawn(rootActor)
 
-    // 标记已有 actor/ref 节点的 mesh（避免与新格式重复创建 GenericActor）
-    const actorRefNames = new Set<string>()
-    for (const an of (result.actorNodes ?? [])) { if (an.name) actorRefNames.add(an.name) }
-    for (const rn of (result.refNodes ?? [])) { if (rn.name) actorRefNames.add(rn.name) }
-    for (const bp of (result.blueprintNodes ?? [])) { if (bp.name) actorRefNames.add(bp.name) }
-
-    // 几何节点 → GenericActor + MeshComponent（跳过已有 actor/ref 的 mesh）
-    const meshes: THREE.Mesh[] = []
-    result.group.traverse((node) => {
-      if (node instanceof THREE.Mesh) meshes.push(node)
-    })
-    for (const mesh of meshes) {
-      const ownerName = mesh.name?.split('_mesh')[0] ?? ''
-      if (ownerName && actorRefNames.has(ownerName)) continue
-
-      result.group.remove(mesh)
-      const actor = new GenericActor(`Preview_${mesh.name || ''}`)
-      // 按 mesh.geometry 实际类型选派生类（MeshComponent 是抽象基类）
-      const g = mesh.geometry
-      if (g instanceof THREE.PlaneGeometry) {
-        actor.addComponent(PlaneMeshComponent, mesh, mesh.name)
-      } else if (g instanceof THREE.SphereGeometry) {
-        actor.addComponent(SphereMeshComponent, mesh, mesh.name)
-      } else {
-        actor.addComponent(BoxMeshComponent, mesh, mesh.name)
-      }
-      actor.attachTo(rootActor)
-      this.world.getComponent(EditorActorComponent)!.Spawn(actor)
-    }
-
     // ref 节点 → Instantiate（标记为整体，实例级 children 递归挂载）
     for (const rn of (result.refNodes ?? [])) {
       const overrides: Record<string, unknown> = { ...(rn.overrides ?? {}) }
@@ -399,21 +369,6 @@ export class ScenePreviewManager {
             })
           }
         }
-      }
-    }
-
-    // blueprint 节点（旧格式兼容，标记为整体）
-    for (const bp of (result.blueprintNodes ?? [])) {
-      const overrides: Record<string, unknown> = { ...(bp.overrides ?? {}) }
-      if (bp.pos) overrides.position = bp.pos
-      if (bp.rot) overrides.rotation = bp.rot
-      if (bp.scale) overrides.scale = bp.scale
-      const actor = this.world.getComponent(EditorActorComponent)!.Instantiate(bp.blueprint, overrides)
-      if (actor) {
-        actor.isRefInstance = true
-        actor.attachTo(rootActor)
-        const jsonNode = (sceneData.objects ?? []).find((o) => o.name === bp.name)
-        if (jsonNode) this._actorJsonMap.set(actor, jsonNode as unknown as Record<string, unknown>)
       }
     }
 
@@ -444,14 +399,14 @@ export class ScenePreviewManager {
     this.notifyChange()
 
     // 聚焦
-    this.fitToScene(result.group)
+    this.fitToScene()
 
     // 通知 UI 刷新（Outline 依赖 selectionKey 重建树）
     logger.debug(`[OutlinerTrace] loadSceneAsset 完成, 调用 notifySelectionChange, currentScenePath=${this._currentScenePath}, actorCount=${this.world.actorCount}`)
     notifySelectionChange()
 
     const actorCount = this.world.actorCount
-    logger.info(`[ScenePreview] 加载场景预览: ${sceneData.name}, ${actorCount} 个 Actor（网格=${meshes.length}, ref=${(result.refNodes ?? []).length}, actor=${(result.actorNodes ?? []).length}）`)
+    logger.info(`[ScenePreview] 加载场景预览: ${sceneData.name}, ${actorCount} 个 Actor（ref=${(result.refNodes ?? []).length}, actor=${(result.actorNodes ?? []).length}）`)
     return true
   }
 
@@ -487,8 +442,12 @@ export class ScenePreviewManager {
     this._actorJsonPath.set(actor, [...pathStack])
   }
 
-  private fitToScene(group: THREE.Group) {
-    const box = new THREE.Box3().setFromObject(group)
+  /** 按 spawn 后的 Actor 集合计算包围盒并聚焦相机（loadScene 不再产出 mesh，group 为空壳） */
+  private fitToScene() {
+    const box = new THREE.Box3()
+    for (const actor of this.world.actorMgr.GetAllActors()) {
+      box.expandByObject(actor.root)
+    }
     const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
 

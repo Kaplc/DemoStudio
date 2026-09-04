@@ -578,19 +578,6 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     if (node.name) actor.root.name = node.name
 
-    // 严格模式（组件优先）：内联 Actor 位置只写在 transform/uitransform 组件，
-    // 顶层 position/rotation/scale 是旧格式兜底，存在即报错
-    const violation = childTransformViolation({
-      name: node.name,
-      components: node.components,
-      position: node.position,
-      rotation: node.rotation,
-      scale: node.scale,
-    })
-    if (violation) {
-      logger.error(`[ActorManagerComponent] spawnInlineActor: ${violation}`)
-    }
-
     // 挂 Component
     for (const cdef of (node.components ?? [])) {
       // TransformComponent 复用：Actor 构造已自带，避免重复挂载

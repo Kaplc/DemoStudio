@@ -5,12 +5,13 @@
  *
  * 玩法：
  *  - HUD 底部"地图"按钮进入建筑模式 → 打开建筑菜单（独立 widget，默认隐藏）
- *  - 建筑菜单点击选择要放置的建筑类型（不同颜色立方体，吸附网格）
+ *  - 建筑菜单点击选择要放置的建筑类型（不同颜色立方体，吸附网格；虚影绿=可放/红=占用）
+ *  - 城墙等 continuous 类型：按住左键拖过格子连续放置（部落冲突风格圈地）
  *  - 点击已放置建筑 → 选中（金色线框高亮），点击其他格子可移动
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, GameInstance, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, GameInstance, GenericActor, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
@@ -48,9 +49,13 @@ export class FishBaseGameMode extends GameMode {
   private selectedType: ClashBuildingType | null = null
   /** 当前选中的已放置建筑 */
   private selectedBuilding: ClashBuildingBaseActor | null = null
+  /** 拖动连放去重游标：上一次连放吸附的格子键（`${gx},${gz}`，同格不重复放置；按住手势态归 Controller，经 onScreenMove 参数透传） */
+  private lastDragKey: string | null = null
   /** 放置模式跟随鼠标的半透明预览（MeshComponent 托管，showPreview 时替换） */
   private previewComp: MeshComponent | null = null
   private previewMesh: THREE.Mesh | null = null
+  /** 预览宿主子 Actor（挂 decor 下，切类型时销毁重建防累积泄漏） */
+  private previewHost: GenericActor | null = null
   /** 放置示意网格 Actor（PlaceGridActor，默认隐藏，进入放置模式显示） */
   private placeGridActor: PlaceGridActor | null = null
   /** 兵营专属 UI 面板（打开时隐藏建造菜单 base_hud，关闭时恢复） */
@@ -311,11 +316,12 @@ export class FishBaseGameMode extends GameMode {
     }
   }
 
-  /** 取消放置模式：清除选中类型 + 隐藏预览 + 隐藏放置示意网格 */
+  /** 取消放置模式：清除选中类型 + 隐藏预览 + 隐藏放置示意网格 + 重置拖放游标 */
   private cancelPlaceMode() {
     this.selectedType = null
     this.hidePreview()
     this.setPlaceGridVisible(false)
+    this.lastDragKey = null
   }
 
   /** HUD 删除按钮点击：删除当前选中的建筑 */
@@ -334,29 +340,44 @@ export class FishBaseGameMode extends GameMode {
   }
 
   /**
-   * 放置建筑（网格吸附，格子坐标 = 世界坐标整数）。
-   * 建筑从蓝图资产生成：baseClass 引用具体 Actor 类（每个建筑一个类），
-   * 网格坐标写类的 gridX/gridZ 字段。
-   * 冲突检测：网格占用表 + 物理查询（建筑碰撞体 AABB，兜底 footprint 重叠）。
-   * @returns 是否放置成功
+   * 放置合法性校验（越界/占格/碰撞三重检查，预览与放置共用同一口径）：
+   *  - 越界：|gx|/|gz| > PLACE_HALF
+   *  - 占格：gridOccupied（建筑）/ obstacleOccupied（障碍物）
+   *  - 碰撞：物理查询与既有建筑 AABB 重叠
+   * @param silent true = 静默模式（预览/拖动连放高频调用，失败不刷 warn 日志）
    */
-  private placeBuilding(typeId: string, gx: number, gz: number): boolean {
-    const world = this.world
-    const type = CLASH_BUILDING_TYPES.find((t) => t.id === typeId)
-    if (!world || !type) return false
+  private canPlaceAt(type: ClashBuildingType, gx: number, gz: number, silent = false): boolean {
+    if (!this.world) return false
     if (Math.abs(gx) > PLACE_HALF || Math.abs(gz) > PLACE_HALF) return false
     const key = `${gx},${gz}`
     if (this.gridOccupied.has(key)) return false
     if (this.obstacleOccupied.has(key)) {
-      logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 被障碍物占用`)
+      if (!silent) logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 被障碍物占用`)
       return false
     }
     // 物理查询：与已放置建筑（static 碰撞体）重叠则拒绝（建筑半宽 = type.size/2）
     const half = type.size / 2
-    if (this.world!.physics.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
-      logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 与既有建筑碰撞重叠`)
+    if (this.world.physics.overlapTest(new THREE.Vector3(gx, 0, gz), half, half, { group: CollisionLayer.BUILDING })) {
+      if (!silent) logger.warn(`[BaseGM] 放置失败：位置 (${gx},${gz}) 与既有建筑碰撞重叠`)
       return false
     }
+    return true
+  }
+
+  /**
+   * 放置建筑（网格吸附，格子坐标 = 世界坐标整数）。
+   * 建筑从蓝图资产生成：baseClass 引用具体 Actor 类（每个建筑一个类），
+   * 网格坐标写类的 gridX/gridZ 字段。
+   * 冲突检测：canPlaceAt（越界/占用表/物理查询三重校验，与预览着色共用口径）。
+   * @param silent true = 静默模式（拖动连放重复路径，失败不刷 warn 日志）
+   * @returns 是否放置成功
+   */
+  private placeBuilding(typeId: string, gx: number, gz: number, silent = false): boolean {
+    const world = this.world
+    const type = CLASH_BUILDING_TYPES.find((t) => t.id === typeId)
+    if (!world || !type) return false
+    if (!this.canPlaceAt(type, gx, gz, silent)) return false
+    const key = `${gx},${gz}`
 
     const building = Instantiate(type.blueprint) as ClashBuildingBaseActor | null
     if (!building) {
@@ -649,14 +670,18 @@ export class FishBaseGameMode extends GameMode {
       return
     }
 
-    // 放置模式：放置当前选中的类型
+    // 放置模式：放置当前选中的类型（continuous 类型的连放由拖动手势驱动，见 onScreenMove）
     if (this.selectedType) {
       this.placeBuilding(this.selectedType.id, gx, gz)
     }
   }
 
-  /** 鼠标移动：放置模式下更新半透明预览位置 */
-  onScreenMove(sx: number, sy: number) {
+  /**
+   * 鼠标移动：放置模式下更新半透明预览位置（绿=可放/红=不可放），
+   * 按住（dragging）时每进入一个新格子尝试连放一块（失败静默跳过不断链）。
+   * @param dragging 左键按住中（拖动手势态由 Controller 透传，GameMode 不存储）
+   */
+  onScreenMove(sx: number, sy: number, dragging = false) {
     if (!this.selectedType || !this.previewMesh) return
     const ground = this.screenToGround(sx, sy)
     if (!ground) {
@@ -672,6 +697,17 @@ export class FishBaseGameMode extends GameMode {
     const type = this.selectedType
     this.previewMesh.visible = true
     this.previewMesh.position.set(gx, 0.15 + type.height / 2, gz)
+    // 合法性着色：canPlaceAt 与实际放置共用同一口径（预览说能放就真能放）
+    const ok = this.canPlaceAt(type, gx, gz, true)
+    ;(this.previewMesh.material as THREE.MeshStandardMaterial).color.setHex(ok ? type.color : 0xff4444)
+    // 拖动连放：continuous 类型按住期间进入新格子 → 尝试放置（silent 长按重复路径必须静默）
+    if (dragging && type.continuous) {
+      const key = `${gx},${gz}`
+      if (key !== this.lastDragKey) {
+        this.lastDragKey = key
+        this.placeBuilding(type.id, gx, gz, true)
+      }
+    }
   }
 
   /** 屏幕坐标 → 地面交点（y=0 平面），用于网格放置 */
@@ -686,19 +722,37 @@ export class FishBaseGameMode extends GameMode {
   /** 显示放置预览方块 */
   private showPreview(type: ClashBuildingType) {
     const w = this.world
-    // 预览宿主：场景资产的装饰根 Actor（草地随场景资产生成，预览方块挂它下面统一回收）
+    // 预览宿主：场景资产的装饰根 Actor（草地随场景资产生成，预览挂它下面统一回收）
     const decor = w?.findActorByName('BattleGround') ?? this.baseBuilder?.decor
     if (!w || !decor) {
       logger.warn('[BaseGM] showPreview: 未找到预览宿主（场景 BattleGround 与 builder.decor 均为空，检查场景资产）')
       return
     }
     this.hidePreview()
+    // 独立预览子 Actor：宿主（BattleGround 草地）已有 Plane mesh，
+    // 直接在宿主上挂 MeshComponent 会被"一个 Actor 只能挂一个 Mesh"拒绝挂树
+    // （日志报 [MeshComponent] 拒绝挂载 ... 被拒: "PreviewMesh"）→ 拆子 Actor 挂载。
+    // 切类型时销毁旧子 Actor（内联节点无 world 归属，走本地 EndPlay 递归释放组件资源）；
+    // 本地 EndPlay 不自动脱离父树 → 必须手动 detach，否则 decor.children 残留幽灵节点
+    if (this.previewHost) {
+      this.previewHost.destroy()
+      this.previewHost.detach()
+      this.previewHost = null
+    }
+    const host = new GenericActor('PreviewHost')
+    host.attachTo(decor)
+    // 宿主（BattleGround 草地平面）在场景资产里绕 X 轴转了 -90°，直接挂它下面
+    // 局部 y/z 轴与世界系错位：position.set(gx, h, gz) 的 y 分量会落到世界 -z、
+    // z 分量变成世界 -y（虚影被埋进地下 y=-gz，俯视摄像机永远看不见）。
+    // 补偿：host 世界旋转 = 父链世界旋转的逆 → host 局部系与世界系对齐，
+    // mesh.position 保持世界系语义（gx, 0.15+h/2, gz）直接可用。
+    decor.root.updateWorldMatrix(true, false)
+    host.root.quaternion.copy(decor.root.getWorldQuaternion(new THREE.Quaternion()).invert())
     const mesh = w.createBoxMesh(type.size, type.height, type.size, type.color, true, 0.5)
     mesh.visible = false
-    // 替换装饰 Actor 上的预览组件（旧组件移除时自动释放旧 mesh 资源）
-    if (this.previewComp) decor.removeComponent(this.previewComp)
-    this.previewComp = new BoxMeshComponent(decor, mesh, 'PreviewMesh')
-    decor.addComponent(this.previewComp)
+    this.previewComp = new BoxMeshComponent(host, mesh, 'PreviewMesh')
+    host.addComponent(this.previewComp)
+    this.previewHost = host
     this.previewMesh = mesh
   }
 
@@ -911,6 +965,7 @@ export class FishBaseGameMode extends GameMode {
     this.baseBuilder = null
     this.previewComp = null
     this.previewMesh = null
+    this.previewHost = null
     // PlaceGrid Actor 由 World.DestroyAllActors 统一销毁（其 LineComponent 自动释放线条资源）
     this.placeGridActor = null
     // 兵营面板是 UI Actor，由 World 销毁时 UIManager.destroyAll 统一销毁，这里只清引用
@@ -930,5 +985,6 @@ export class FishBaseGameMode extends GameMode {
     this.obstacleOccupied.clear()
     this.selectedType = null
     this.selectedBuilding = null
+    this.lastDragKey = null
   }
 }

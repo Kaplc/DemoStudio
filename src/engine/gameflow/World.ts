@@ -17,9 +17,6 @@ import { GameInstance } from './GameInstance'
 import { gizmos } from '../tools/Gizmos'
 import { logger } from '../Logger'
 import { UIManager } from '../ui/UIManager'
-import { BoxMeshComponent } from '../rendering/BoxMeshComponent'
-import { SphereMeshComponent } from '../rendering/SphereMeshComponent'
-import { PlaneMeshComponent } from '../rendering/PlaneMeshComponent'
 import { loadScene } from '../asset/SceneLoader'
 import { GameModeRegistry } from '../tools/GameModeRegistry'
 import { AssetRegistry } from '../asset/AssetRegistry'
@@ -525,8 +522,7 @@ export class World extends AObject {
 
   /**
    * 加载场景资产数据，将其中所有对象创建为 Actor 并生成到世界。
-   * 新格式（actor/ref 节点）保持 BlueprintChildDef 风格层级；
-   * 旧格式（box/plane 等几何捷径）降级为 GenericActor + MeshComponent。
+   * 仅支持新格式：ref / actor 节点（以及遗留 blueprint 透传节点）。
    * 所有顶层 Actor 挂载到场景根 Actor 下，供 Outline 展示统一树形结构。
    * 同时应用场景的 skybox 配置（背景色 + 雾效）。
    * 返回生成的 Actor 数量。
@@ -542,58 +538,7 @@ export class World extends AObject {
     this.getComponent(EditorActorComponent)!.Spawn(rootActor)
     count++
 
-    // 几何节点 → GenericActor + MeshComponent（旧格式兼容）
-    // 仅处理没有对应 actor/ref 节点的 mesh（避免与新格式重复）
-    const actorRefPaths = new Set<string>()
-    for (const an of (asset.actorNodes ?? [])) {
-      // actor 节点的 mesh 会在 spawnInlineActor 中创建，这里标记跳过
-      if (an.name) actorRefPaths.add(an.name)
-    }
-    for (const rn of (asset.refNodes ?? [])) {
-      if (rn.name) actorRefPaths.add(rn.name)
-    }
-    for (const bp of (asset.blueprintNodes ?? [])) {
-      if (bp.name) actorRefPaths.add(bp.name)
-    }
-
-    const meshes: THREE.Mesh[] = []
-    asset.group.traverse((node) => {
-      if (node instanceof THREE.Mesh) meshes.push(node)
-    })
-    for (const mesh of meshes) {
-      // 跳过已有 actor/ref 节点的 mesh（它们在后面会作为正式 Actor 创建）
-      const ownerName = mesh.name?.split('_mesh')[0] ?? ''
-      if (ownerName && actorRefPaths.has(ownerName)) continue
-
-      asset.group.remove(mesh)
-      const actor = new GenericActor(`Scene_${sceneAsset.name}_${mesh.name || ''}`)
-      // 按 mesh.geometry 实际类型选派生类（MeshComponent 是抽象基类不允许直接挂载）
-      const g = mesh.geometry
-      if (g instanceof THREE.PlaneGeometry) {
-        actor.addComponent(PlaneMeshComponent, mesh, mesh.name)
-      } else if (g instanceof THREE.SphereGeometry) {
-        actor.addComponent(SphereMeshComponent, mesh, mesh.name)
-      } else {
-        // 默认 Box（THREE.BoxGeometry 或其他未知 BufferGeometry → 回退 Box）
-        actor.addComponent(BoxMeshComponent, mesh, mesh.name)
-      }
-      actor.attachTo(rootActor)
-      this.getComponent(EditorActorComponent)!.Spawn(actor)
-      count++
-    }
-
-    // blueprint 节点（旧格式兼容）→ Instantiate（标记为整体，大纲不展开内部） */
-    const bpNodes = asset.blueprintNodes ?? []
-    for (const bp of bpNodes) {
-      const overrides: PropertyPatch = { ...(bp.overrides ?? {}) }
-      if (bp.pos) overrides.position = bp.pos
-      if (bp.rot) overrides.rotation = bp.rot
-      if (bp.scale) overrides.scale = bp.scale
-      const actor = this.getComponent(EditorActorComponent)!.Instantiate(bp.blueprint, overrides)
-      if (actor) { actor.isRefInstance = true; actor.attachTo(rootActor); count++ }
-    }
-
-    // ref 节点（新格式）→ Instantiate（标记为整体） */
+    // ref 节点 → Instantiate（标记为整体，大纲不展开内部）
     const refNodes = asset.refNodes ?? []
     for (const rn of refNodes) {
       const overrides: PropertyPatch = { ...(rn.overrides ?? {}) }
@@ -626,7 +571,7 @@ export class World extends AObject {
       }
     }
     logger.debug(
-      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（根=${1}, mesh=${meshes.length}, blueprint=${bpNodes.length}, ref=${refNodes.length}, actor=${actorNodes.length}）`,
+      `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（根=${1}, ref=${refNodes.length}, actor=${actorNodes.length}）`,
     )
     return count
   }

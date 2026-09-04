@@ -1,7 +1,7 @@
 {
   "name": "SaveMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-fb0b19be",
+  "sourceHash": "fnv1a-cd383bfa",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

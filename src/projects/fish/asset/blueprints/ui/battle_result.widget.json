@@ -1,7 +1,7 @@
 {
   "name": "BattleResult",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-c72b3c53",
+  "sourceHash": "fnv1a-982ccd06",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

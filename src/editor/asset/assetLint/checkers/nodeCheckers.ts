@@ -2,8 +2,8 @@
  * assetLint/checkers/nodeCheckers — 新格式场景节点检查器
  *
  * 旧格式几何节点（box/plane/sphere/sprite/checkerFloor/gridLines/pillar/wallRing）
- * 及其检查器已完全移除——旧格式节点现在会触发 "未注册的检查器" warn，
- * 提醒迁移到新格式（type: actor + baseClass + components）。
+ * 及其检查器已完全移除——旧格式节点会触发 "未注册的检查器" error（lint 不通过），
+ * 必须迁移到新格式（type: actor + baseClass + components，或 type: ref）。
  *
  * 保留的新格式节点：
  *   - node:ref    — 引用蓝图资产（ref + position/rotation/scale）

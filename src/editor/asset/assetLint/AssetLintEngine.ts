@@ -235,8 +235,8 @@ class AssetLintEngine {
             t.nodePath,
             '-',
             'unknown-kind',
-            'warn',
-            `未注册的检查器 '${t.kind}'，跳过深度校验`,
+            'error',
+            `未注册的检查器 '${t.kind}'（旧格式或未知节点类型，仅允许 node:actor / node:ref）`,
           ),
         )
         continue

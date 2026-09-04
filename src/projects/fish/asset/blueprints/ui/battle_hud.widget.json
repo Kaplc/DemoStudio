@@ -1,7 +1,7 @@
 {
   "name": "BattleHUD",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-2c538c3a",
+  "sourceHash": "fnv1a-7cbdc3d9",
   "components": [
     {
       "baseClass": "UITransformComponent",

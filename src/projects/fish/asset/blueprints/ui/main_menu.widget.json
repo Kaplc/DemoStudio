@@ -1,7 +1,7 @@
 {
   "name": "FishMainMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-a3202381",
+  "sourceHash": "fnv1a-d193243e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -57,7 +57,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0
@@ -765,7 +765,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\r\n击败敌人赚取金币 · 金币归零则游戏结束",
+                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n击败敌人赚取金币 · 金币归零则游戏结束",
                     "name": "TipText",
                     "width": 560,
                     "height": 64,

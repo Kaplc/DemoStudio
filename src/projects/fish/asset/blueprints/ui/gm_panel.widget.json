@@ -1,7 +1,7 @@
 {
   "name": "GMPanelRoot",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-993e0ec2",
+  "sourceHash": "fnv1a-051602ec",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -57,7 +57,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0

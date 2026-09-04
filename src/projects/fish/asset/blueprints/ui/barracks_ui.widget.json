@@ -1,7 +1,7 @@
 {
   "name": "BarracksPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-4b5f48c5",
+  "sourceHash": "fnv1a-b9b7a979",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -63,7 +63,7 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 1080,
-            "anchor": "center",
+            "anchor": "stretch",
             "anchorOffset": [
               0,
               0
