@@ -144,6 +144,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: 'run_asset_lint',
+      description:
+        '手动触发资产检查（assetLint 全量扫描，绕过内容指纹缓存）。' +
+        '覆盖工程 asset/ 下全部 .scene.json / .blueprint.json / .widget.json / 配置表资产，' +
+        '返回 { status, total, errors, warns, issues[] }（每条含 file/nodePath/field/rule/severity/message）。' +
+        '创建或修改场景/蓝图/UI/配置资产后必须调用，errors 必须为 0。' +
+        '参数 project = 工程 folder 或显示名（可选，缺省=当前打开的工程）。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: '目标工程 folder（可选，缺省=当前打开的工程）' },
+        },
+      },
+    },
     // ─── CDP 浏览器操控工具（from mcp-cdp.mjs）───
     ...cdpTools,
   ],
@@ -192,6 +207,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (name === 'get_assets') {
     const result = await callEditor('get_assets', args?.project ? { project: args.project } : {})
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+  }
+
+  if (name === 'run_asset_lint') {
+    const result = await callEditor('run_asset_lint', args?.project ? { project: args.project } : {})
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
   }
 

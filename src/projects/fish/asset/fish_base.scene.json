@@ -1,53 +1,460 @@
 {
-    "name":  "FishBaseIsland",
-    "mode":  "base",
-    "skybox":  {
-                   "backgroundColor":  "#87ceeb"
-               },
-    "objects":  [
-                   {
-                       "type":  "actor",
-                       "name":  "KeyLight",
-                       "baseClass":  "Actor",
-                       "components":  [
-                                          {
-                                              "baseClass":  "TransformComponent",
-                                              "properties":  {
-                                                                 "position":  [15, 25, 10],
-                                                                 "rotation":  [0, 0, 0],
-                                                                 "scale":  [1, 1, 1]
-                                                             }
-                                          },
-                                          {
-                                              "baseClass":  "LightComponent",
-                                              "properties":  {
-                                                                 "type":  "directional",
-                                                                 "color":  "#ffffff",
-                                                                 "intensity":  1.2,
-                                                                 "castShadow":  true,
-                                                                 "shadowExtent":  40,
-                                                                 "shadowMapSize":  2048,
-                                                                 "targetPosition":  [-15, -25, -10],
-                                                                 "name":  "KeyLightComp"
-                                                             }
-                                          }
-                                      ]
-                   },
-                   {
-                       "type":  "actor",
-                       "name":  "AmbientLight",
-                       "baseClass":  "Actor",
-                       "components":  [
-                                          {
-                                              "baseClass":  "LightComponent",
-                                              "properties":  {
-                                                                 "type":  "ambient",
-                                                                 "color":  "#ffffff",
-                                                                 "intensity":  0.7,
-                                                                 "name":  "AmbientLightComp"
-                                                             }
-                                          }
-                                      ]
-                   }
-                 ]
+  "name": "FishBaseIsland",
+  "mode": "base",
+  "skybox": { "backgroundColor": "#87ceeb" },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "KeyLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [15, 25, 10], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": { "type": "directional", "color": "#ffffff", "intensity": 1.2, "castShadow": true, "shadowExtent": 40, "shadowMapSize": 2048, "targetPosition": [-15, -25, -10], "name": "KeyLightComp" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "AmbientLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "LightComponent",
+          "properties": { "type": "ambient", "color": "#ffffff", "intensity": 0.7, "name": "AmbientLightComp" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "OuterGround",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [0, -0.06, 0], "rotation": [-1.5708, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "PlaneMeshComponent",
+          "properties": { "size": [72, 72], "color": "#55803a", "kind": "standard", "receiveShadow": true }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "BattleGround",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [0, -0.02, 0], "rotation": [-1.5708, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "PlaneMeshComponent",
+          "properties": { "size": [48, 48], "color": "#7cb342", "kind": "standard", "receiveShadow": true }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_A",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-27, 0, -16], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_B",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [26, 0, -18], "rotation": [0, 0.6, 0], "scale": [1.15, 1.05, 1.15] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#388e3c", "kind": "standard" } }
+          ]
+        },
+        {
+          "name": "CrownTop",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 2.6, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#388e3c", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_C",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-25, 0, 6], "rotation": [0, 1.2, 0], "scale": [0.9, 1, 0.9] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.2, "color": "#1b5e20", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_D",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [27, 0, 10], "rotation": [0, 0.3, 0], "scale": [1.1, 1.05, 1.1] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_E",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-10, 0, -26], "rotation": [0, 0.9, 0], "scale": [1.05, 1, 1.05] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#33691e", "kind": "standard" } }
+          ]
+        },
+        {
+          "name": "CrownTop",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 2.6, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#33691e", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_F",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [6, 0, -27], "rotation": [0, 1.6, 0], "scale": [0.95, 1, 0.95] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.25, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_G",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-4, 0, 27], "rotation": [0, 0.2, 0], "scale": [1.1, 1.1, 1.1] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#388e3c", "kind": "standard" } }
+          ]
+        },
+        {
+          "name": "CrownTop",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 2.6, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#388e3c", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_H",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [12, 0, 26], "rotation": [0, 1.1, 0], "scale": [1, 1, 1] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_I",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-26, 0, 22], "rotation": [0, 2.0, 0], "scale": [0.85, 0.95, 0.85] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.2, "color": "#1b5e20", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_J",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [25, 0, -4], "rotation": [0, 0.5, 0], "scale": [1.2, 1.1, 1.2] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#33691e", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_K",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-31, 0, 14], "rotation": [0, 1.4, 0], "scale": [1, 1, 1] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_L",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [32, 0, -2], "rotation": [0, 0.8, 0], "scale": [1.05, 1, 1.05] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#388e3c", "kind": "standard" } }
+          ]
+        },
+        {
+          "name": "CrownTop",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 2.6, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#388e3c", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_M",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-18, 0, 29], "rotation": [0, 0.4, 0], "scale": [0.9, 1, 0.9] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.25, "color": "#1b5e20", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Tree_N",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [20, 0, -30], "rotation": [0, 1.9, 0], "scale": [1.15, 1.05, 1.15] } },
+        { "baseClass": "BoxMeshComponent", "properties": { "size": [0.5, 1.8, 0.5], "color": "#6d4c41", "kind": "standard", "name": "Trunk" } }
+      ],
+      "children": [
+        {
+          "name": "Crown",
+          "baseClass": "Actor",
+          "components": [
+            { "baseClass": "TransformComponent", "properties": { "position": [0, 1.4, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+            { "baseClass": "SphereMeshComponent", "properties": { "radius": 1.3, "color": "#2e7d32", "kind": "standard" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Rock_1",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-28, 0.2, -8], "rotation": [0, 0.8, 0], "scale": [1, 0.8, 1] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#9e9e9e", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Rock_2",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [28, 0.15, -12], "rotation": [0, 2.1, 0], "scale": [0.8, 0.6, 0.8] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#8d8d8d", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Rock_3",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-12, 0.12, 28], "rotation": [0, 1.4, 0], "scale": [0.7, 0.5, 0.7] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#a8a8a8", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Rock_4",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [8, 0.18, -29], "rotation": [0, 0.3, 0], "scale": [0.9, 0.7, 0.9] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#9e9e9e", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Rock_5",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [30, 0.15, 20], "rotation": [0, 1.7, 0], "scale": [1.1, 0.7, 1.1] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.9, "color": "#8d8d8d", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_1",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-27, 0.1, -27], "rotation": [0, 0, 0], "scale": [1.2, 0.7, 1.2] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#33691e", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_2",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [27, 0.1, 27], "rotation": [0, 0, 0], "scale": [1.3, 0.8, 1.3] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#2e7d32", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_3",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-27, 0.1, 27], "rotation": [0, 0, 0], "scale": [1, 0.6, 1] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#388e3c", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_4",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [27, 0.1, -27], "rotation": [0, 0, 0], "scale": [1.1, 0.65, 1.1] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#33691e", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_5",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [0, 0.1, -30], "rotation": [0, 0, 0], "scale": [1.4, 0.8, 1.4] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#2e7d32", "kind": "standard" } }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Bush_6",
+      "baseClass": "Actor",
+      "components": [
+        { "baseClass": "TransformComponent", "properties": { "position": [-30, 0.1, 2], "rotation": [0, 0, 0], "scale": [1.2, 0.7, 1.2] } },
+        { "baseClass": "SphereMeshComponent", "properties": { "radius": 0.8, "color": "#388e3c", "kind": "standard" } }
+      ]
+    }
+  ]
 }

@@ -244,9 +244,17 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     // ─── 尺寸/定位：沿父链累计出画布绝对中心（编译产物的本地偏移/锚点均相对父） ───
     const ww = Number(tf.worldWidth ?? 0)
     const wh = Number(tf.worldHeight ?? 0)
-    if (ww > 0) decls.push(`width: ${fmtNum(ww)}px`)
-    if (wh > 0) decls.push(`height: ${fmtNum(wh)}px`)
     const anchor = tf.anchor as string | undefined
+    // stretch 全锚 → width/height:100%（原生全屏惯用法，与编译端"两轴 100% → stretch"
+    // 映射互为不动点：html(100%) → json(stretch) → html(100%)）；若回写显式 px，
+    // 编辑器保存后再编译会退化为 center + 快照尺寸（视口重排盲区）
+    if (anchor === 'stretch') {
+      decls.push('width: 100%')
+      decls.push('height: 100%')
+    } else {
+      if (ww > 0) decls.push(`width: ${fmtNum(ww)}px`)
+      if (wh > 0) decls.push(`height: ${fmtNum(wh)}px`)
+    }
     const offset = (tf.anchorOffset as [number, number] | undefined) ?? [0, 0]
     const localPos = tf.position as [number, number, number] | undefined
     // ─── sourceLayout 侧车：盒模型重建（引擎/编译器约定 uitransform=边盒）───
@@ -309,7 +317,13 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
     // left/top 相对父内容盒原点（编译端绝对定位包含块 = 父内容盒；inX/inY = 父 padding+border）
     const bbWpx0 = ww
     const bbHpx0 = wh
-    if (!parentFlow && (ww > 0 || wh > 0 || localPos || anchor)) {
+    if (anchor === 'stretch') {
+      // stretch 回写定位：left/top 0%（声明贴父内容盒原点；编译端两轴 100% 分支
+      // 不推导锚点，此声明仅表达全屏语义，与运行时填满父容器的行为一致）
+      decls.push('position: absolute')
+      decls.push('left: 0%')
+      decls.push('top: 0%')
+    } else if (!parentFlow && (ww > 0 || wh > 0 || localPos || anchor)) {
       // CSS left 语义（与 layoutAbsolute 一致）= 子项边盒缘相对父内容原点
       // （编译端再自行加 ml+pl+bl 得内容原点；margin 不落盘恒 0，无需扣除）
       decls.push('position: absolute')

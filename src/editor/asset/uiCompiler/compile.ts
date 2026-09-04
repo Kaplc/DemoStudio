@@ -1635,6 +1635,25 @@ class Emitter {
     props.worldHeight = this.wy(bbH)
 
     if (pos === 'absolute' || pos === 'fixed') {
+      // 两轴 100% → stretch（原生 HTML 全屏惯用法映射）：width/height 显式声明
+      // 100% 且解算恰等包含块（浮点容差）时，发射全锚 stretch——运行时
+      // applyAnchor 语义为"填满父容器、父尺寸变化自动跟随"（视口比例自适应），
+      // 优于"center + 固定尺寸"的等效快照（后者视口重排时是盲区）。单轴 100%
+      // 不映射（保持九宫格锚点推导，行为与旧版一致）。
+      const wRaw = this.numOf(el, 'width')
+      const hRaw = this.numOf(el, 'height')
+      const wIsFull = typeof wRaw === 'string' && /^\s*100%/.test(wRaw)
+      const hIsFull = typeof hRaw === 'string' && /^\s*100%/.test(hRaw)
+      const cbW = parentBox.w + parentBox.pl + parentBox.pr + parentBox.bl + parentBox.br
+      const cbH = parentBox.h + parentBox.pt + parentBox.pb + parentBox.bt + parentBox.bb
+      const wSolvedFull = wIsFull && Math.abs(this.wx(bbW) - this.wx(cbW)) < 1e-4
+      const hSolvedFull = hIsFull && Math.abs(this.wy(bbH) - this.wy(cbH)) < 1e-4
+      if (wSolvedFull && hSolvedFull) {
+        props.anchor = 'stretch'
+        props.anchorOffset = [0, 0]
+        props.position = [0, 0, 0]
+        return props
+      }
       // 锚点化：包含块 = 父内容盒（与求解器/反编译器三方一致）。
       // 运行时 applyAnchor 的容器基准即父 uitransform 尺寸（内容盒），此处公式对齐
       const cx = bbX + bbW / 2

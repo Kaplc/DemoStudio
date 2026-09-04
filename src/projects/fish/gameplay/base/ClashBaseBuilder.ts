@@ -1,26 +1,25 @@
 /**
- * ClashBaseBuilder — 部落冲突基地地图构建器（专门负责创建基地地图）
+ * ClashBaseBuilder — 部落冲突基地初始建筑布局构建器
  *
  * 职责：
- *  - 草地铺满整个放置范围（48x48，承接整个基地）
  *  - 初始建筑布局（townhall/barracks/goldmine/elixir/cannon/wall）
+ *  - 放置预览的宿主 Actor（decor，GameMode 把半透明预览方块挂到它上面）
+ *
+ * 草地与景物（路/池塘/树/石/花/栅栏）由场景资产 fish_base.scene.json 声明
+ * （World.SwitchToScene → loadSceneAsActors 统一生成，草地 kind:standard 接收阴影），
+ * 本类不再创建任何装饰网格。
  *
  * 建筑放置的运行时交互（选中/移动/删除/占用表/预览）由 FishBaseGameMode 管理，
- * 本类只负责"地图"本身的创建与持有。
+ * 本类只负责"初始布局"的创建与预览宿主的持有。
  *
  * 生命周期：继承 BObject（构造自动注册到 ObjectRegistry），
  * 由 GameMode.BeginPlay 创建并驱动 build()，GameMode.EndPlay 驱动 EndPlay()（自动注销）。
  */
-import * as THREE from 'three'
-import { BObject, GenericActor, spawnActor, PlaneMeshComponent, logger } from '@/engine'
-import { createMesh, createPlaneGeometry, createMeshBasicMaterial } from '@/engine/gameflow/ThreeObjectUtils'
+import { BObject, GenericActor, spawnActor, logger } from '@/engine'
 import type { World } from '@/engine'
 
 /** 放置区域半边长（世界单位）：覆盖整个草地（±24），每格 1 单位 */
 export const PLACE_HALF = 24
-
-/** 草地边长（世界单位）：铺满整个放置范围 */
-export const GRASS_SIZE = PLACE_HALF * 2
 
 /** 初始建筑布局：类型 id + 格子坐标（网格吸附，格子坐标 = 世界坐标整数） */
 const INITIAL_LAYOUT: ReadonlyArray<{ id: string; gx: number; gz: number }> = [
@@ -36,9 +35,9 @@ const INITIAL_LAYOUT: ReadonlyArray<{ id: string; gx: number; gz: number }> = [
 ]
 
 export class ClashBaseBuilder extends BObject {
-  /** 所属 World（build 时用于创建网格/托管 Actor） */
+  /** 所属 World（build 时用于托管 Actor） */
   readonly world: World
-  /** 装饰根 Actor（草地统一挂载，经 World 托管生命周期） */
+  /** 预览兜底宿主 Actor（正常路径预览挂场景资产的 BattleGround，本 Actor 仅在场景缺失时兜底） */
   decor: GenericActor | null = null
 
   constructor(world: World) {
@@ -47,25 +46,13 @@ export class ClashBaseBuilder extends BObject {
   }
 
   /**
-   * 构建基地地图：草地铺满放置范围 + 初始建筑布局。
+   * 构建初始建筑布局 + 创建预览宿主。
    * @param placeBuilding 放置建筑回调（由 GameMode 提供：维护占用表/列表等运行时状态）
    */
   build(placeBuilding: (typeId: string, gx: number, gz: number) => boolean): void {
-    // ─── 装饰根 Actor：草地统一挂载，经 World 托管生命周期 ───
+    // ─── 预览宿主 Actor：放置预览方块统一挂载，经 World 托管生命周期 ───
     // （DestroyAllActors/Destroy 时组件 EndPlay 自动释放 geometry/material）
     const decor = new GenericActor('ClashDecor')
-
-    // ─── 草地（铺满整个放置范围 ±PLACE_HALF，承接整个基地）───
-    // 平面默认朝 +Z，需要绕 X 旋转 -90° 使其水平放置
-    const grassGeo = createPlaneGeometry(GRASS_SIZE, GRASS_SIZE)
-    const grassMat = createMeshBasicMaterial({ color: 0x7cb342 })
-    const grassMesh = createMesh(grassGeo, grassMat)
-    const grassComp = new PlaneMeshComponent(decor, grassMesh, 'GrassMesh')
-    decor.addComponent(grassComp)
-    grassComp.mesh.rotation.x = -Math.PI / 2
-    grassComp.mesh.position.y = -0.05
-
-    // 装饰 Actor 进 World 统一管理
     spawnActor(decor)
     this.decor = decor
 
@@ -74,12 +61,13 @@ export class ClashBaseBuilder extends BObject {
       placeBuilding(id, gx, gz)
     }
 
-    logger.info(`[BaseBuilder] 基地地图已构建（草地 ${GRASS_SIZE}x${GRASS_SIZE} 铺满放置范围 ±${PLACE_HALF}）`)
+    logger.info(`[BaseBuilder] 基地初始布局已构建（草地/景物由场景资产 FishBaseIsland 声明，放置范围 ±${PLACE_HALF}）`)
   }
 
   override EndPlay(): void {
-    // 装饰 Actor 由 World.DestroyAllActors 统一销毁（组件 EndPlay 自动释放资源），
+    // 预览宿主 Actor 由 World.DestroyAllActors 统一销毁（组件 EndPlay 自动释放资源），
     // 这里只清引用
+    logger.info('[BaseBuilder] EndPlay: 清理预览兜底宿主引用（decor 由 World 统一销毁）')
     this.decor = null
     super.EndPlay()
   }

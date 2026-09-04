@@ -402,5 +402,51 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
   }
 }
 
+// ─── 8. width/height:100% → stretch 锚映射（P2 目标口径，已启用）───
+{
+  // P2：两轴 100% → anchor=stretch + 固定父尺寸世界值（运行时 applyAnchor
+  // 填满父容器）；round-trip 回写 width/height:100%（不动点，编辑器保存
+  // 不退化为 center + 快照尺寸）
+  const src = `<widget name="St" canvas="1920x1080">
+<style>.full { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #333333; }
+.half { width: 100px; height: 100px; position: absolute; left: 500px; top: 300px; background-color: teal; }</style>
+<div class="full"><div class="half"></div></div>
+</widget>`
+  const r = compileWidgetHtml(src)
+  if (!r.ok) {
+    bad(`100% 用例编译失败: ${r.errors.map((e) => e.message).join('; ')}`)
+  } else {
+    const full = (r.doc as any).children[0]
+    const tf = full.components[0].properties
+    if (tf.anchor === 'stretch' && Math.abs(tf.worldWidth - 1920) < 1e-6) {
+      ok('两轴 100% → anchor=stretch + 父尺寸世界值')
+    } else {
+      bad(`stretch 映射异常: anchor=${tf.anchor} ww=${tf.worldWidth}`)
+    }
+    // round-trip：html(100%) → json(stretch) → html(100%) 不动点
+    const d = decompileWidgetJson(r.doc!)
+    if (d.ok && /width:\s*100%/.test(d.html!) && /height:\s*100%/.test(d.html!)
+      && !/width:\s*1920px/.test(d.html!)) {
+      const r2 = compileWidgetHtml(d.html!)
+      const tf2 = r2.ok ? (r2.doc as any).children[0].components[0].properties : null
+      if (r2.ok && tf2?.anchor === 'stretch' && Math.abs(tf2.worldWidth - 1920) < 1e-6) {
+        ok('stretch round-trip 不动点（100% → stretch → 100%）')
+      } else bad(`stretch 二次编译丢失: ${tf2 ? `anchor=${tf2.anchor}` : '编译失败'}`)
+    } else bad(`stretch 反编译未回写 100%: ok=${d.ok} html=${d.html?.slice(0, 120)}`)
+  }
+
+  // 边界锁定：单轴 100%（height 缺省）不映射 stretch（行为不变）
+  const r1 = compileWidgetHtml(`<widget name="St1" canvas="1920x1080">
+<style>.wonly { width: 100%; position: absolute; left: 0px; top: 0px; background-color: #444444; }</style>
+<div class="wonly"></div>
+</widget>`)
+  if (!r1.ok) bad('单轴 100% 用例编译失败')
+  else {
+    const t = (r1.doc as any).children[0].components[0].properties
+    if (t.anchor !== 'stretch') ok('边界：单轴 100% 不映射 stretch')
+    else bad(`单轴 100% 误映射 stretch: anchor=${t.anchor}`)
+  }
+}
+
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)
 process.exit(failures === 0 ? 0 : 1)

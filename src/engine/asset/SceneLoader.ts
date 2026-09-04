@@ -152,9 +152,14 @@ function renderActorMesh(node: ActorNode, track: (m: THREE.Mesh) => void): void 
   actorGroup.scale.set(s[0], s[1], s[2])
 
   // 展开 Group 中的 mesh 并 track
+  // 必须先收集后 track：track 内部 group.add(mesh) 会 removeFromParent 把 mesh 从
+  // 本 actorGroup.children 中 splice 掉，边 traverse 边删会让数组左移越界读到 undefined
+  // （单节点含多个 mesh 时必崩，如"树 = 自身树干 + 子节点树冠"组合体）
+  const meshesToTrack: THREE.Mesh[] = []
   actorGroup.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) track(obj)
+    if (obj instanceof THREE.Mesh) meshesToTrack.push(obj)
   })
+  for (const m of meshesToTrack) track(m)
 }
 
 /** 将 BlueprintChildDef（内联 baseClass）递归转为 THREE.Group */

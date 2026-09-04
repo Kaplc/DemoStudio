@@ -352,8 +352,14 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
 
-    // 同步 UI 独立叠加相机视锥（UICamera contain 模式：完整显示 9.6×5.4 画布）
+    // 同步 UI 独立叠加相机视锥（UICamera contain 模式：完整显示 1920×1080 画布）
     this._uiCam?.setCanvasSize(w, h)
+    // UI 视口自适应：全屏 HUD 根重排到 contain 视锥尺寸（World 未就绪时跳过，
+    // 如编辑器 Game 视口无运行 World 的阶段）
+    if (this.owner.ui) {
+      const [vw, vh] = UICamera.computeContainFrustum(w, h)
+      this.owner.ui.relayoutForViewport(vw, vh)
+    }
 
     this.uiLayer.style.width = `${w}px`
     this.uiLayer.style.height = `${h}px`

@@ -1,7 +1,8 @@
 <widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
   <style>
-    /* 全屏容器：所有分区 absolute 显式定位（布局求解器要求显式宽高，否则子项高度会被压缩） */
-    .TopBar { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; }
+    /* 全屏容器：两轴 100% → 编译为 stretch 锚（运行时随视口比例自适应）；
+       分区 absolute 显式定位（布局求解器要求显式宽高，否则子项高度会被压缩） */
+    .TopBar { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
 
     /* ── 左上：等级徽章 + 昵称 + 经验条 ── */
     .PersonalCenter { width: 342px; height: 72px; position: absolute; left: 12px; top: 10px; display: flex; flex-direction: row; align-items: center; }

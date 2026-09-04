@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+﻿import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { MenuBar } from './components/MenuBar'
 import { ProjectPanel } from './components/ProjectPanel'
 import { Viewport } from './components/Viewport'
@@ -13,7 +13,6 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { LoadingScreen } from './components/LoadingScreen'
 import { CodeLintPanel } from './components/CodeLintPanel'
 import { ErrorStatusPanel } from './components/ErrorStatusPanel'
-import { DashboardPanel } from './components/DashboardPanel'
 import { PluginControlCenter } from './components/PluginControlCenter'
 import { useEditorStore } from './stores/editorStore'
 import { useEditorPrefsStore } from './stores/editorPrefsStore'
@@ -173,8 +172,6 @@ export default function App() {
       <CodeLintPanel />
       {/* 控制台报错悬浮面板（状态栏报错徽标控制，fixed 定位不占布局） */}
       <ErrorStatusPanel />
-      {/* 持续页面状态面板（状态栏入口，fixed 浮动面板） */}
-      <DashboardPanel />
       <ProjectSelector />
       <NewProjectDialog />
       {/* 插件控制中心全局弹窗 */}

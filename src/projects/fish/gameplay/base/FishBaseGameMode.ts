@@ -36,7 +36,7 @@ export class FishBaseGameMode extends GameMode {
   /** HUD 蓝图：基地主 HUD（顶部资源栏 + 地图按钮；建筑菜单是独立 widget，建筑模式才显示） */
   override HUDClass = 'asset/blueprints/ui/base_hud.widget.json'
 
-  /** 基地地图构建器（专门负责创建地面/草地/初始建筑布局，BeginPlay 创建，EndPlay 回收） */
+  /** 基地地图构建器（创建预览宿主 + 初始建筑布局，BeginPlay 创建，EndPlay 回收） */
   private baseBuilder: ClashBaseBuilder | null = null
   /** 已放置的建筑（每个建筑一个 Actor 类实例） */
   private clashBuildings: ClashBuildingBaseActor[] = []
@@ -118,7 +118,8 @@ export class FishBaseGameMode extends GameMode {
 
   override BeginPlay() {
     super.BeginPlay()
-    // 基地地图由专门的构建类创建（地面/草地/初始建筑布局），放置回调走本 GameMode 的 placeBuilding
+    // 草地/景物由场景资产 FishBaseIsland 创建（SwitchToScene 的 loadSceneAsActors），
+    // 这里只构建初始建筑布局（放置回调走本 GameMode 的 placeBuilding）并创建预览宿主
     this.baseBuilder = new ClashBaseBuilder(this.world!)
     this.baseBuilder.build((id, gx, gz) => this.placeBuilding(id, gx, gz))
     // 障碍物生成（树/石头，占格不可建；存档快照恢复由宿主层处理，这里按存档键补差）
@@ -685,8 +686,12 @@ export class FishBaseGameMode extends GameMode {
   /** 显示放置预览方块 */
   private showPreview(type: ClashBuildingType) {
     const w = this.world
-    const decor = this.baseBuilder?.decor
-    if (!w || !decor) return
+    // 预览宿主：场景资产的装饰根 Actor（草地随场景资产生成，预览方块挂它下面统一回收）
+    const decor = w?.findActorByName('BattleGround') ?? this.baseBuilder?.decor
+    if (!w || !decor) {
+      logger.warn('[BaseGM] showPreview: 未找到预览宿主（场景 BattleGround 与 builder.decor 均为空，检查场景资产）')
+      return
+    }
     this.hidePreview()
     const mesh = w.createBoxMesh(type.size, type.height, type.size, type.color, true, 0.5)
     mesh.visible = false

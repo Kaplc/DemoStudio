@@ -479,6 +479,62 @@ export class UIManager extends AObjectComponent<World> {
   }
 
   /**
+   * 视口比例变化 → 重排全屏 HUD 根到 contain 视锥尺寸（UI 视口自适应，方案 doc-dev/ui-viewport-relayout）。
+   *
+   * 由 SceneRendererComponent.resize() 在同步相机视锥后调用（传入视锥设计尺寸）：
+   *  - 全屏根（HUD 子树根：真实画布 1920×1080 或 markerOnly 容器高 ≥ 半屏）
+   *    重设为视锥尺寸 → 根铺满视锥，任意比例视口两侧/上下不再留空；
+   *  - 递归重算子树锚点（stretch 子节点跟随新容器、九宫格锚点位置重算）；
+   *  - 浮层 widget / 锚定 widget（顶层 Actor）不在根子树内，天然豁免；
+   *  - 幂等：尺寸未变化时不重排。
+   *
+   * 与预览态的分工：编辑器 widget 预览的同类逻辑在 UIPreviewManager.applyViewportAspect
+   * （fitToWidget 视口语境，保持高度改宽）；运行时以 contain 视锥为准（根 = 视锥）。
+   *
+   * @param frustumW contain 视锥设计宽（UICamera.computeContainFrustum）
+   * @param frustumH contain 视锥设计高
+   */
+  relayoutForViewport(frustumW: number, frustumH: number): void {
+    if (frustumW <= 0 || frustumH <= 0) return
+    const root = this._hud?.uiActor
+    if (!root) return
+    this.relayoutFullscreenRoot(root, frustumW, frustumH)
+  }
+
+  /**
+   * 重排一个全屏根子树（供 relayoutForViewport 驱动；GM 控制台等特殊 HUD 同构可复用）。
+   * 幂等：根尺寸已等于目标时跳过（同比例 resize 零开销）。
+   */
+  private relayoutFullscreenRoot(root: Actor, frustumW: number, frustumH: number): void {
+    const rootTsf = root.getComponent(UITransformComponent)
+    if (!rootTsf) return
+    // 全屏根判定（与 UIPreviewManager.applyViewportAspect 同式）：
+    // 真实画布根 1920×1080，或 markerOnly 容器根高 ≥ 半屏（HUD 挂点类布局容器）
+    const canvas = root.getComponent(CanvasUIComponent)
+    const isFullscreen = canvas
+      ? (!canvas.isMarkerOnly && canvas.getSize()[0] === 1920 && canvas.getSize()[1] === 1080)
+        || (canvas.isMarkerOnly && rootTsf.getWorldSize()[1] >= 540)
+      : rootTsf.getWorldSize()[1] >= 540
+    if (!isFullscreen) return
+    const [ww, wh] = rootTsf.getWorldSize()
+    // 幂等：已等于目标尺寸（16:9 视锥 = 原画布）时跳过
+    if (Math.abs(ww - frustumW) < 1e-6 && Math.abs(wh - frustumH) < 1e-6) return
+    rootTsf.setWorldSize(frustumW, frustumH)
+    rootTsf.applyAnchor()
+    // 容器尺寸已变：递归重算子树锚点（父先定，子锚点用新容器求解）
+    const applyAnchors = (a: Actor): void => {
+      for (const child of a.getChildren()) {
+        child.getComponent(UITransformComponent)?.applyAnchor()
+        applyAnchors(child)
+      }
+    }
+    applyAnchors(root)
+    logger.info(
+      `[UIManager] 视口重排: 根 "${root.root.name}" ${ww.toFixed(0)}x${wh.toFixed(0)} → ${frustumW.toFixed(0)}x${frustumH.toFixed(0)}（contain 视锥）`,
+    )
+  }
+
+  /**
    * 按大纲树序遍历重排渲染层级（zOrder）。
    *
    * 渲染层级 = 大纲树结构位置：深度优先遍历所有顶层 UI Actor（顺序与 UiOutline

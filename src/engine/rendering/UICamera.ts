@@ -80,15 +80,25 @@ export class UICamera extends BObject {
   }
 
   /**
+   * contain 视锥设计尺寸（共享计算，UIManager.relayoutForViewport 与 setCanvasSize 同式）：
+   * scale = min(canvasW/1920, canvasH/1080)，视锥 = 画布/scale（设计单位，恒 ⊇ 画布）。
+   * 16:9 → 1920×1080；4:3 画布(1440×1080) → 1920×1440；超宽(2560×1080) → 2560×1080。
+   */
+  static computeContainFrustum(canvasW: number, canvasH: number): [number, number] {
+    const scale = Math.min(canvasW / UI_CANVAS_W, canvasH / UI_CANVAS_H)
+    return [canvasW / scale, canvasH / scale]
+  }
+
+  /**
    * contain 模式同步视锥：完整显示 UI 画布（1920×1080 设计像素）。
    * 视口 16:9 → 画布正好铺满；更宽/更窄 → 画布完整居中，多余空间留空（不裁切）。
    * @param canvasW 画布像素宽（渲染器尺寸）
    * @param canvasH 画布像素高
    */
   setCanvasSize(canvasW: number, canvasH: number): void {
-    const scale = Math.min(canvasW / UI_CANVAS_W, canvasH / UI_CANVAS_H)
-    const halfW = canvasW / scale / 2
-    const halfH = canvasH / scale / 2
+    const [vw, vh] = UICamera.computeContainFrustum(canvasW, canvasH)
+    const halfW = vw / 2
+    const halfH = vh / 2
     this.camera.left = -halfW
     this.camera.right = halfW
     this.camera.top = halfH
