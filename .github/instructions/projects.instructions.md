@@ -1,6 +1,6 @@
 ---
-description: "Use when creating or modifying files under src/projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, asset/config/, gameplay/, hud/)."
-applyTo: "src/projects/**"
+description: "Use when creating or modifying files under src/projects/ or projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, asset/config/, gameplay/, hud/)."
+applyTo: "src/projects/**,projects/**"
 ---
 # src/projects 工程文件夹结构规则
 

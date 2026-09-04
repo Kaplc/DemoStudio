@@ -4,7 +4,7 @@
 > **什么时候会用到你**：实现"新建工程不再写进 `src/projects/`"改造时；排查"外部工程不被发现/资产读不到/蓝图保存路径错误"问题时；后续评估"任意磁盘目录作为工程根"二期方案时。
 > **代码位置**：`src/projects/registry.ts`、`electron/main.ts`、`src/stores/projectStore.ts`、`src/stores/editorStore.ts`、`src/editor/MockElectronAPI.ts`、`tsconfig.json`、`.gitignore`
 
-**状态**：方案已定稿待实施（2026-09-04）。文中"现状"均经源码逐条核实（read_file / grep 验证），"改造点"为待实施项。
+**状态**：已实施（2026-09-04，方案 §5 改造点已全部落地并经运行时验证；新增 §10 实施踩坑清单）。
 
 ---
 
@@ -283,3 +283,23 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
 `npx tsc --noEmit` 全量过 → 自启动 `npm run electron:dev` → Electron 模式验证：双轨工程发现、create-project 落 `projects/`、外部工程打开/资产浏览器/蓝图编辑保存/游戏启动、fish 案例回归 → 浏览器 Mock 模式复验双前缀路径翻译（§4.3，最易漏的回归盲区）→ assetLint / codeLint 零错误。
 
 方案本身不改动任何现有项目代码，风险集中在 electron 路径处理函数的根数组化这一处。
+
+---
+
+## 10. 实施踩坑清单（2026-09-04）
+
+### 10.1 测试夹具越权删除真实目录（已修复）
+
+- **现象**：外部示例工程 `projects/hello/` 反复"消失"，且每次都发生在页面刷新验证之前。
+- **原因**：`tests/externalRoots.test.ts` 的 `projectRootFor` 用例在 `finally` 里写的是 `fs.rmSync(path.join(APP_ROOT, 'projects'), { recursive: true, force: true })` —— 本意清理 `__ext_probe__` 夹具，实际递归删除了**整个真实外部根**。时间线上 vitest 恰在每次浏览器验证之前运行，制造了"刷新导致删除"的假象（刷新无辜）。
+- **连带问题**：`resolveProjectRoots` 用例断言 `toHaveLength(1)`，隐含要求外部根**不存在**才通过——测试通过与目录被删绑定。
+- **修复**：`finally` 只删夹具目录 `extDir`；`resolveProjectRoots` 用例改为动态断言（外部根存在时返回双根、不存在时单根）。
+- **规则**：测试夹具清理永远只删自己创建的那一级目录；对真实目录断言"必须不存在"的用例必须用动态断言或独立 cwd。
+
+### 10.2 编辑器写入链路连带回滚非本链路文件（现象记录，未定因）
+
+- **现象**：同一会话内，通过 AI 编辑工具（read→replace/write）写入的文件，之后对**其他文件**做编辑操作时会被静默回滚到旧版本，连"仅创建、从未再次编辑"的目录（`projects/hello/`）也会整体消失；终端直写（`[IO.File]::WriteAllText`）的文件不受影响。
+- **已验证排除**：vitest 误删（§10.1，修复后复测仍复现）、vite 配置清理逻辑、主进程删除逻辑（grep 全部 `rmSync` 仅 DSH 状态文件一处）。
+- **规避**：本会话关键产物一律走终端直写落盘并立即验证，不走编辑器写入链路。
+- **规则**：遇到"刚写入的文件无端消失"，先用 `git status` / 文件清单双时点对比定位删除动作的执行者，再决定重建方式；不要把删除归因给刚做过的无关操作（如刷新页面）。
+
