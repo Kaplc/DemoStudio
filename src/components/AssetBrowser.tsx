@@ -30,6 +30,13 @@ const ASSET_PATTERNS: AssetKind[] = [
 ]
 
 /** 按文件名匹配资产类型；不在白名单返回 null（project.json、其他 json、代码等不显示） */
+/** 工程的仓库根相对前缀（外部根目录工程支持）：内置 src/projects/<folder>，外部 projects/<folder> */
+function projectAssetRoot(project: { folder: string; source?: 'builtin' | 'external' }): string {
+  return project.source === 'external'
+    ? `projects/${project.folder}`
+    : `src/projects/${project.folder}`
+}
+
 function classify(filename: string): AssetKind | null {
   for (const p of ASSET_PATTERNS) {
     if (p.re.test(filename)) return p
@@ -342,7 +349,7 @@ export function AssetBrowser({ query = '' }: { query?: string }) {
     const filename = `${base.replace(/\s+/g, '_')}${creating.suffix}`
     const jsonName = base.replace(/\s+/g, '')
     const dirPart = creating.dirRelPath ? `/${creating.dirRelPath}` : ''
-    const filePath = `src/projects/${currentProject.folder}/asset${dirPart}/${filename}`
+    const filePath = `${projectAssetRoot(currentProject)}/asset${dirPart}/${filename}`
     if (files.some((f) => f.path === filePath)) {
       logger.warn(`[AssetBrowser] 创建资产重名: ${filePath}`)
       addConsoleOutput(`❌ 创建失败: ${filename} 已存在于 asset${dirPart}/`)
@@ -546,7 +553,7 @@ export function AssetBrowser({ query = '' }: { query?: string }) {
 
   const tree = useMemo(() => {
     if (!currentProject) return []
-    return buildTree(files, `src/projects/${currentProject.folder}/asset/`)
+    return buildTree(files, `${projectAssetRoot(currentProject)}/asset/`)
   }, [files, currentProject])
 
   // 默认折叠：首次出现的目录自动折叠（用户手动展开过的目录不被重置）
@@ -566,7 +573,7 @@ export function AssetBrowser({ query = '' }: { query?: string }) {
   const visibleNodes = useMemo(() => filterAssetTree(tree, filterQuery), [tree, filterQuery])
 
   /** 资产根前缀（带尾斜杠），用于从文件完整路径截取所在目录 */
-  const assetPrefix = currentProject ? `src/projects/${currentProject.folder}/asset/` : ''
+  const assetPrefix = currentProject ? `${projectAssetRoot(currentProject)}/asset/` : ''
 
   const toggleDir = (key: string) => {
     setCollapsed((prev) => {

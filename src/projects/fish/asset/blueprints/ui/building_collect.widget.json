@@ -1,0 +1,402 @@
+{
+  "name": "BuildingCollectBubble",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-8448d2bb",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 160,
+        "worldHeight": 160
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 160,
+        "height": 160,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/base/BuildingCollect"
+      }
+    },
+    {
+      "baseClass": "UIWorldAnchorComponent",
+      "properties": {
+        "mode": "world",
+        "pxPerMeter": 350,
+        "pixelDensity": 2,
+        "faceCamera": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "BubbleRoot",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 160,
+            "worldHeight": 160,
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "Bubble",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 168,
+                "worldHeight": 168,
+                "anchor": "center",
+                "anchorOffset": [
+                  4,
+                  -4
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {}
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ffc107f2",
+                "radius": 80,
+                "width": 168,
+                "height": 168,
+                "name": "Bubble"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "BubbleBorderTop",
+              "baseClass": "Actor",
+              "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      82,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 168,
+                    "worldHeight": 4
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "BubbleBorderTop",
+                    "color": "#fff8e1",
+                    "width": 168,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "BubbleBorderRight",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      82,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 4,
+                    "worldHeight": 168
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "BubbleBorderRight",
+                    "color": "#fff8e1",
+                    "width": 8,
+                    "height": 168
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "BubbleBorderBottom",
+              "baseClass": "Actor",
+              "id": 13205,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -82,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 168,
+                    "worldHeight": 4
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "BubbleBorderBottom",
+                    "color": "#fff8e1",
+                    "width": 168,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "BubbleBorderLeft",
+              "baseClass": "Actor",
+              "id": 13206,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -82,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 4,
+                    "worldHeight": 168
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "BubbleBorderLeft",
+                    "color": "#fff8e1",
+                    "width": 8,
+                    "height": 168
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "BubbleIcon",
+              "baseClass": "Actor",
+              "id": 13207,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 120,
+                    "worldHeight": 120,
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "🪙",
+                    "name": "BubbleIcon",
+                    "width": 120,
+                    "height": 120,
+                    "fontSize": 64,
+                    "align": "center",
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ],
+          "sourceLayout": {
+            "border": [
+              4,
+              4,
+              4,
+              4
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

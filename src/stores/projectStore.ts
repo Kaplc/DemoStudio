@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Project } from './editorStore'
+import { mergeProjects } from './projectMerge'
 
 interface ProjectStore {
   projects: Project[]
@@ -17,6 +18,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'snake', '2.5d'],
     folder: 'snake',
+    source: 'builtin',
     defaultScene: 'src/projects/snake/snake.scene.json',
   },
   {
@@ -25,6 +27,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'eatfish', '3d', 'underwater'],
     folder: 'eatfish',
+    source: 'builtin',
   },
   {
     name: 'Demo2D',
@@ -32,6 +35,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', '2d', 'sprite'],
     folder: 'demo2d',
+    source: 'builtin',
     renderMode: '2d',
     defaultScene: 'src/projects/demo2d/demo2d.scene.json',
   },
@@ -41,6 +45,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'racing', '3d', 'car'],
     folder: 'racing',
+    source: 'builtin',
   },
   {
     name: 'ClashMaster',
@@ -48,6 +53,7 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'clash', '2d'],
     folder: 'fish',
+    source: 'builtin',
     renderMode: '2d',
     defaultScene: 'src/projects/fish/asset/fish_menu.scene.json',
   },
@@ -64,7 +70,11 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       if (window.electronAPI?.discoverProjectsScan) {
         const scanned = await window.electronAPI.discoverProjectsScan()
         if (scanned.length > 0) {
-          set({ projects: scanned, loading: false })
+          // 双轨合并：内置在前（根序），外部同名覆盖内置（mergeProjects 语义，tests/externalRoots.test.ts 锁定）。
+          // source 缺省（旧 IPC）视为内置，向后兼容。
+          const external = scanned.filter(p => p.source === 'external')
+          const builtin = scanned.filter(p => p.source !== 'external')
+          set({ projects: mergeProjects(builtin, external), loading: false })
           return
         }
       }

@@ -520,6 +520,7 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
         if (child.name) {
           childActor.root.name = child.name
+          childActor.name = child.name
         }
 
         if (child.children && child.children.length > 0) {
@@ -549,8 +550,10 @@ export class ActorManagerComponent extends AObjectComponent<World> {
 
     // 4.5 应用蓝图根节点 name（子节点已在 spawnChildObjects 应用 child.name，
     // 根节点遗漏会导致大纲等显示 baseClass 默认名如 'Actor' 而非资产名）
+    // 双轨同步：BObject.name 与 root.name 一致（读侧 getHUD/serialize/AI 依赖 actor.name）
     if (resolved.name) {
       actor.root.name = resolved.name
+      actor.name = resolved.name
     }
 
     // 5. 蓝图元数据
@@ -576,7 +579,10 @@ export class ActorManagerComponent extends AObjectComponent<World> {
       return null
     }
 
-    if (node.name) actor.root.name = node.name
+    if (node.name) {
+      actor.root.name = node.name
+      actor.name = node.name
+    }
 
     // 挂 Component
     for (const cdef of (node.components ?? [])) {
@@ -643,7 +649,10 @@ export class ActorManagerComponent extends AObjectComponent<World> {
           if (child.overrides && Object.keys(child.overrides).length > 0) {
             childActor.applyPatch(child.overrides)
           }
-          if (child.name) childActor.root.name = child.name
+          if (child.name) {
+            childActor.root.name = child.name
+            childActor.name = child.name
+          }
           // 挂组件
           for (const cdef of (child.components ?? [])) {
             // TransformComponent 复用：子 Actor 构造已自带，避免重复挂载

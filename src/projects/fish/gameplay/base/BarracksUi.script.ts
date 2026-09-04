@@ -105,6 +105,7 @@ export default class BarracksUiScript extends BehaviourScript {
         }
         // 节点名 = Troop_{id}（沿用旧命名，便于按兵种定位）
         card.root.name = `Troop_${id}`
+        card.name = `Troop_${id}`
 
         // 名称文本
         const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)

@@ -13,6 +13,8 @@ export interface Project {
   renderMode?: '2d' | '3d'
   /** 默认场景资产路径（相对于项目根），点击项目时加载此场景并读取其 mode */
   defaultScene?: string
+  /** 工程轨道：builtin=内置案例（src/projects/），external=外部工程（projects/）；缺省视为内置 */
+  source?: 'builtin' | 'external'
 }
 
 export interface GameState {

@@ -110,9 +110,11 @@ async function findEditorPort(): Promise<number | null> {
 
 function parseWidgetPath(outPath: string): { folder: string | null; assetRel: string } {
   const norm = outPath.replaceAll('\\', '/')
-  const m = /src\/projects\/([^/]+)\/(.+\.widget\.json)$/i.exec(norm)
+  // 双工程根：内置 src/projects/<folder>/... 与外部 projects/<folder>/...
+  const m = /(?:src\/)?projects\/([^/]+)\/(.+\.widget\.json)$/i.exec(norm)
   if (!m) return { folder: null, assetRel: norm }
-  return { folder: m[1], assetRel: `src/projects/${m[1]}/${m[2]}` }
+  const prefix = norm.toLowerCase().startsWith('src/projects/') ? 'src/projects' : 'projects'
+  return { folder: m[1], assetRel: `${prefix}/${m[1]}/${m[2]}` }
 }
 
 async function runEditorAssetLint(outPath: string): Promise<number> {

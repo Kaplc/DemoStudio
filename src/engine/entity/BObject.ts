@@ -21,7 +21,13 @@ import { AObject } from './AObject'
 import type { BObjectComponent } from './BObjectComponent'
 
 export abstract class BObject extends AObject {
-  public readonly name: string
+  /**
+   * 标识名（可写）。约定：Actor 的 name 与 root.name 双轨同步——
+   * 实例化后按资产唯一名改名时，必须同时写 this.name 与 root.name
+   * （见 ActorManagerComponent / UIManager / registerBuiltinAIHandlers 各赋值点）。
+   * 读侧（getHUD 路径段、serialize、AI findActorByName）以本字段为准。
+   */
+  public name: string
 
   /** 生命周期状态 */
   public bHasBegunPlay = false

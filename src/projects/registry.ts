@@ -18,6 +18,7 @@ import {
   ScriptRegistry,
   registerGMBridge,
   registerBuiltinGMCommands,
+  logger,
 } from '../engine'
 import { registerBuiltinAIHandlers } from '../engine/ai'
 import type { GameInstance } from '../engine'
@@ -49,6 +50,34 @@ import { demo2DProject } from './demo2d/register'
 import { racingProject } from './racing/register'
 import { fishMasterProject } from './fish/register'
 
+// ─── 外部工程根（仓库根下 projects/）自动收集 ───
+// 内置工程走上方静态 import（ALL_PROJECTS 数组），外部工程走本 glob 动态并入同一个注册表。
+// eager: true —— GameFactoryRegistry 的工厂签名是同步的（createGameInstance 同步契约），
+// 懒加载会破坏该契约。代价：新增外部工程后需重启 dev server（或整页刷新）才能被发现，
+// 符合"创建工程"的交互节奏（见 doc/dev/external_project_roots.md §2）。
+const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/*/register.ts', { eager: true })
+
+const externalProjects: ProjectModule[] = []
+for (const [globPath, mod] of Object.entries(externalModules)) {
+  try {
+    // register.ts 以 export const 具名导出 ProjectModule（无 default），此处取首个符合
+    // ProjectModule 形状的导出（有 name 字符串字段），兼容 default 与具名两种写法
+    const candidate = Object.values(mod).find(
+      (v): v is ProjectModule =>
+        typeof v === 'object' && v !== null &&
+        typeof (v as ProjectModule).name === 'string' &&
+        typeof (v as ProjectModule).createGameInstance === 'function',
+    )
+    if (candidate) {
+      externalProjects.push(candidate)
+    } else {
+      logger.warn(`[Registry] 外部工程模块缺少 ProjectModule 导出（跳过）: ${globPath}`)
+    }
+  } catch (err) {
+    logger.warn(`[Registry] 外部工程模块解析失败（跳过）: ${globPath} — ${String(err)}`)
+  }
+}
+
 const ALL_PROJECTS: ProjectModule[] = [
   snakeProject,
   eatFishProject,
@@ -56,6 +85,18 @@ const ALL_PROJECTS: ProjectModule[] = [
   racingProject,
   fishMasterProject,
 ]
+
+// 外部并入：同名（ProjectModule.name 相同）覆盖内置并告警（刻意支持"复制 fish 到 projects/
+// 魔改、不污染案例库"的工作流）；无冲突追加尾部
+for (const ext of externalProjects) {
+  const idx = ALL_PROJECTS.findIndex(p => p.name === ext.name)
+  if (idx >= 0) {
+    logger.warn(`[Registry] 外部工程 "${ext.name}" 覆盖内置同名工程（外部优先，可魔改不污染案例库）`)
+    ALL_PROJECTS[idx] = ext
+  } else {
+    ALL_PROJECTS.push(ext)
+  }
+}
 
 // ─── 项目模块名称索引（供延迟加载用）───
 

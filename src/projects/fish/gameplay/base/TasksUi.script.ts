@@ -67,6 +67,7 @@ export default class TasksUiScript extends BehaviourScript {
         const card = world.ui.spawnUIActor(TASK_CARD_BLUEPRINT, achList)
         if (!card) continue
         card.root.name = `Ach_${snap.id}`
+        card.name = `Ach_${snap.id}`
         const name = findChild(card, 'Name')?.getComponent(UITextComponent)
         if (name) name.text = snap.def.name.replace('{n}', String(snap.def.target))
         const info = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null
@@ -93,6 +94,7 @@ export default class TasksUiScript extends BehaviourScript {
         const card = world.ui.spawnUIActor(TASK_CARD_BLUEPRINT, dailyList)
         if (!card) continue
         card.root.name = `Daily_${t.taskId}`
+        card.name = `Daily_${t.taskId}`
         const name = findChild(card, 'Name')?.getComponent(UITextComponent)
         if (name) name.text = t.name.replace('{n}', String(t.target))
         const info = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null

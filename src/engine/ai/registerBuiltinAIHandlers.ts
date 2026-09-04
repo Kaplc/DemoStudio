@@ -181,7 +181,10 @@ export function registerBuiltinAIHandlers(): void {
       return { ok: false, error: '缺少 blueprint 或 baseClass' }
     }
 
-    if (p.name) { actor.root.name = p.name }
+    if (p.name) {
+      actor.root.name = p.name
+      actor.name = p.name
+    }
     if (p.position) actor.setPosition(p.position[0], p.position[1], p.position[2])
     if (p.rotation) actor.setRotation(p.rotation[0], p.rotation[1], p.rotation[2])
     if (p.scale) actor.setScale(p.scale[0], p.scale[1], p.scale[2])

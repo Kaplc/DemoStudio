@@ -11,6 +11,7 @@ import z from '@deepseek-ai/schemastery'
 export const DEFAULT_MAPPINGS: readonly MappingRule[] = [
   { prefix: 'src/engine', file: 'engine.instructions.md' },
   { prefix: 'src/projects', file: 'project.instructions.md' },
+  { prefix: 'projects', file: 'project.instructions.md' },
 ]
 
 /** 默认跟踪的结构化文件工具（触发条件是“读取文件”，write/edit 默认关闭）。 */

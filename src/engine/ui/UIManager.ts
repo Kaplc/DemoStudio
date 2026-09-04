@@ -152,10 +152,12 @@ export class UIManager extends AObjectComponent<World> {
    * → 组件 → 递归子 Actor → overrides → blueprintRef），生成后经 world.SpawnActor 进入
    * World 统一生命周期管理。所有 UI Actor 的生成统一走此方法。
    * @param path    蓝图路径
-   * @param parent  父 Actor（默认当前 HUD；无 HUD 时生成为独立顶层 Actor）
+   * @param parent  父 Actor（未指定/undefined 时默认当前 HUD；显式传 null 表示生成为
+   *                独立顶层 Actor——world 模式 anchored widget 依赖顶层身份，commitSpawn
+   *                才会按 isWorldSpaceUI 将其分流到主场景）
    * @returns 生成的 UI Actor；失败返回 null
    */
-  spawnUIActor(path: string, parent?: Actor): Actor | null {
+  spawnUIActor(path: string, parent?: Actor | null): Actor | null {
     let resolved
     try {
       resolved = BlueprintRegistry.resolve(path)
@@ -287,7 +289,10 @@ export class UIManager extends AObjectComponent<World> {
             logger.error(`[UIManager] spawnUIActor: ${violation}`)
           }
         }
-        if (child.name) childActor.root.name = child.name
+        if (child.name) {
+          childActor.root.name = child.name
+          childActor.name = child.name
+        }
 
         if (child.children && child.children.length > 0) {
           spawnChildObjects(child.children, childActor)
@@ -304,6 +309,7 @@ export class UIManager extends AObjectComponent<World> {
     actor.blueprintRef = { id: path }
     if (resolved.name) {
       actor.root.name = resolved.name
+      actor.name = resolved.name
     }
     this.owner.actorMgr.SpawnActor(actor)
 
@@ -313,9 +319,9 @@ export class UIManager extends AObjectComponent<World> {
       logger.info(`[UIManager] 根节点失活: "${resolved.name}" (${path}) → bActive=false`)
     }
 
-    // 5. 挂载到父 Actor
-    const p = parent ?? this._hud
-    if (p) actor.attachTo(p)
+    // 5. 挂载到父 Actor（undefined = 未指定 → 默认 HUD；null = 显式顶层 → 跳过挂载）
+    if (parent === undefined) parent = this._hud
+    if (parent) actor.attachTo(parent)
     // 5.5 world 归属：内联子节点（spawnChildObjects attachTo 挂树）不经 SpawnActor，
     // 不会被 commitSpawn 设置 world（字段恒 null）→ 显式整树传播，
     // 供依赖 owner.world 的组件（UIScrollListComponent 等）在 BeginPlay 时取用。
@@ -351,8 +357,11 @@ export class UIManager extends AObjectComponent<World> {
     target: Actor | null,
     opts: UIWorldAnchorComponentOptions & { targetActorId?: string } = {},
   ): AnchoredWidgetHandle | null {
-    // world 模式必须顶层（场景分流按根 Actor 判定；挂 HUD 子树会让面板留在 uiScene）
-    const parent = opts.mode === 'world' ? undefined : undefined
+    // world 模式必须顶层（场景分流按根 Actor 判定；挂 HUD 子树会让面板留在 uiScene）。
+    // 必须传 null 而非 undefined：spawnUIActor 中 `parent ?? this._hud` 对 undefined
+    // 会回落挂到当前 HUD，只有显式 null 才跳过挂载，widget 保持顶层（commitSpawn
+    // 才会按 isWorldSpaceUI 把它分流到主场景，获得深度遮挡与透视）
+    const parent = opts.mode === 'world' ? null : undefined
     if (opts.mode === 'world' && target) {
       logger.warn(`[UIManager] spawnAnchoredWidget: mode='world' 面板忽略 target（世界面板位姿由场景决定，跟随需求用 mode='screen'）`)
     }

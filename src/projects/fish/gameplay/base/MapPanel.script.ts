@@ -90,6 +90,7 @@ export default class MapPanelScript extends BehaviourScript {
         }
         // 节点名 = Level_{id}（便于按关卡定位）
         card.root.name = `Level_${id}`
+        card.name = `Level_${id}`
 
         // 名称文本（含难度星 + 历史最高星）
         const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)

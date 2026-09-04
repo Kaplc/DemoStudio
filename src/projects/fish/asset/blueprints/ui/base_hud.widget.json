@@ -1,7 +1,7 @@
 {
   "name": "FishBaseHUD",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-d2ff1467",
+  "sourceHash": "fnv1a-b0c9fbb2",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -5819,7 +5819,11 @@
                     "width": 72,
                     "height": 54,
                     "fontSize": 38,
-                    "align": "center"
+                    "align": "center",
+                    "shadowColor": "#000000b3",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
                   }
                 }
               ],

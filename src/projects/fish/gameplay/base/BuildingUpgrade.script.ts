@@ -21,6 +21,7 @@ import {
   GameInstance,
 } from '@/engine'
 import TipsScript from './Tips.script'
+import { BuildingUpgradeState } from './BuildingPanelState'
 import type { Actor } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
@@ -59,6 +60,13 @@ export default class BuildingUpgradeScript extends BehaviourScript {
   override onStart(): void {
     this.mode = this.gameMode as FishBaseGameMode | null
     this.inst = GameInstance.current as FishGameInstance | null
+
+    // buildingId 由 GameMode.openBuildingUpgradePanel 写入静态暂存
+    // （脚本实例经 UIManager.commitSpawn 异步创建，spawn 后同步 setBuildingId 时机不可靠）
+    if (!this.buildingId) {
+      this.buildingId = BuildingUpgradeState.pendingBuildingId
+      BuildingUpgradeState.pendingBuildingId = ''
+    }
 
     if (!this.mode || !this.inst) {
       logger.warn('[BuildingUpgradeScript] 未找到 GameMode 或 GameInstance，跳过绑定')

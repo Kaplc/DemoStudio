@@ -222,8 +222,8 @@ export class GMConsoleHUD extends HUD {
 
   /**
    * 按 name 递归查找资产树中的 Actor（用于定位命令容器/发送按钮等动态绑定点）。
-   * ⚠️ 比较 `root.root.name`（Group 名）：spawnUIActor 只设置 actor.root.name，
-   * Actor.name（BObject）始终是类名（如 'Actor'），不能用来定位资产节点。
+   * 比较 `root.root.name`（Group 名）。注：BObject.name 与 root.name 现已双轨同步
+   * （实例化时按资产唯一名同时赋值），两者等价；本方法沿用 root.name 定位。
    */
   private findActorByName(root: Actor, name: string): Actor | null {
     if (root.root.name === name) return root

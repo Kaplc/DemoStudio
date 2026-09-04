@@ -1,0 +1,9 @@
+{
+  "name": "Hello",
+  "description": "外部工程根示例 — 最小可运行 3D 工程（弹跳球）",
+  "version": "1.0.0",
+  "main": "projects/hello/index.ts",
+  "tags": ["game", "3d", "external-sample"],
+  "renderMode": "3d",
+  "defaultScene": "projects/hello/asset/hello.scene.json"
+}

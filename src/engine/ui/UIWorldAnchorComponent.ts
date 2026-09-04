@@ -198,14 +198,16 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
 
   // ─── world 模式：场景分流后的单位换算 ───
 
-  /** world 模式一次性应用：设计 px ÷ pxPerMeter = 米 + pixelDensity canvas 翻倍 */
+  /** world 模式一次性应用：整树设计 px ÷ pxPerMeter = 米 + pixelDensity canvas 翻倍 */
   private applyWorldMode(): void {
     const tsf = this.owner.getComponent(UITransformComponent)
     if (!tsf || this._pxPerMeter <= 0) return
-    const [pw, ph] = tsf.getWorldSize()
-    const metersW = pw / this._pxPerMeter
-    const metersH = ph / this._pxPerMeter
-    tsf.setWorldSize(metersW, metersH)
+    // px→米统一换算走根 scale：子 Actor 的渲染尺寸（CanvasUIComponent.panel.scale）
+    // 是各自独立的 px 级量，逐节点 setWorldSize 只能换算锚定节点自身、子树内容仍按
+    // px 渲染（520px 面板在世界里 = 520 米）；根 scale 是 THREE 变换属性，整树渲染/
+    // 命中（matrixWorld 逆变换）随缩，canvas 纹理分辨率不受影响（pixelDensity 独立控制）
+    const s = 1 / this._pxPerMeter
+    this.owner.setScale(s, s, s)
     // canvas 纹理密度（近景不糊）：实际像素 ×N，设计 px 语义不变
     if (this._pixelDensity !== 1) {
       for (const c of this.owner.getAllComponents()) {

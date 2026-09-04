@@ -83,6 +83,7 @@ export default class LaboratoryUiScript extends BehaviourScript {
       const card = world.ui.spawnUIActor(TROOP_CARD_BLUEPRINT, list)
       if (!card) continue
       card.root.name = `Research_${id}`
+      card.name = `Research_${id}`
       const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
       if (nameText) nameText.text = troop.name
       const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null

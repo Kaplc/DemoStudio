@@ -35,7 +35,7 @@ export interface ElectronAPI {
   onBlueprintRequest: (callback: (requestId: string, op: string, params: any) => void) => () => void
   /** 蓝图编辑 MCP 往返：渲染进程回传结果给主进程 */
   sendBlueprintResponse: (requestId: string, result: unknown) => void
-  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }>>
+  discoverProjectsScan: () => Promise<Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string; source?: 'builtin' | 'external' }>>
   listProjectAssets: (folder: string) => Promise<Array<{ path: string; ext: string; size: number }>>
   /** 资产文件操作（仅限 src/projects/*/asset/** 内的文件）：delete 删除 / rename 重命名 / reveal 在系统文件管理器中定位 / copy-path 复制绝对路径到剪贴板 */
   assetFileOps: (op: 'delete' | 'rename' | 'reveal' | 'copy-path', path: string, newName?: string) => Promise<{ success: boolean; error?: string }>

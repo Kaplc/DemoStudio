@@ -14,10 +14,20 @@ import fs from 'fs'
 import http from 'http'
 import net from 'net'
 import { spawn, exec, execSync, type ChildProcess } from 'child_process'
+import {
+  appRootFromMainDir,
+  resolveProjectRoots,
+  projectRootFor,
+  relativeRootFor,
+  isProjectAssetRel,
+} from './projectRoots'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
+
+// ─── 双工程根（外部根目录工程支持）：内置 src/projects/ + 外部 projects/ ───
+const APP_ROOT = path.join(__dirname, '..')
 
 // ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 孤儿进程独立运行） ───
 // 生命周期状态机：off → probing → claimed(复用旧实例) | spawning → running → restart-wait(自愈中) | degraded(自愈超限终态)
@@ -1052,7 +1062,10 @@ ipcMain.handle('read-log-file', async (_event, options?: { tail?: number }) => {
 
 ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' | '3d' = '3d') => {
   try {
-    const projectDir = path.join(__dirname, '..', 'src', 'projects', projectName.toLowerCase())
+    // 新建工程统一落盘到外部工程根 projects/（内置 src/projects/ 保留为只读案例轨道，
+    // 见 doc/dev/external_project_roots.md）
+    const folder = projectName.toLowerCase()
+    const projectDir = path.join(APP_ROOT, 'projects', folder)
     if (fs.existsSync(projectDir)) {
       return { success: false, error: `工程 "${projectName}" 已存在` }
     }
@@ -1060,15 +1073,16 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
     // 创建目录
     fs.mkdirSync(projectDir, { recursive: true })
 
-    // project.json（2D 工程写入 renderMode: "2d"，编辑器据此启用正交相机）
+    // project.json（2D 工程写入 renderMode: "2d"，编辑器据此启用正交相机；
+    // main/defaultScene 用仓库根相对路径 projects/ 前缀）
     const projectJson: Record<string, unknown> = {
       name: projectName,
       description: `${projectName} 游戏项目`,
       version: '1.0.0',
-      main: `src/projects/${projectName.toLowerCase()}/index.ts`,
+      main: `projects/${folder}/index.ts`,
       tags: ['game', mode === '2d' ? '2d' : '3d'],
       renderMode: mode === '2d' ? '2d' : '3d',
-      defaultScene: `src/projects/${projectName.toLowerCase()}/${projectName.toLowerCase()}.scene.json`,
+      defaultScene: `projects/${folder}/asset/${folder}.scene.json`,
     }
     fs.writeFileSync(path.join(projectDir, 'project.json'), JSON.stringify(projectJson, null, 2), 'utf-8')
 
@@ -1085,8 +1099,8 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
  *               .setTexture(path) / .setColor(hex) / .setOpacity(o)
  *   - 声明式场景： scene.json 用 { "type": "sprite", "size": [w,h], "texture": "..." }
  *
- * 参照 src/projects/demo2d 实现 GameMode/GameInstance/Pawn，
- * 随后在 src/App.tsx 注册 WorldRegistry + GameFactoryRegistry。
+ * 参照 projects/hello 实现 GameMode/GameInstance/Pawn，
+ * 随后在 register.ts 导出 ProjectModule（本模板已生成骨架）。
  */
 export { }
 `
@@ -1097,6 +1111,47 @@ export { }
 export { }
 `
     fs.writeFileSync(path.join(projectDir, 'index.ts'), indexTs, 'utf-8')
+
+    // register.ts（ProjectModule 骨架：本文件经 registry 的外部 glob 自动发现，
+    // 新工程创建后重启 dev server 即并入注册表）
+    const registerTs = `/**
+ * ${projectName} — 项目注册模块（自动生成骨架）
+ *
+ * 本文件位于外部工程根，经 src/projects/registry.ts 的
+ * import.meta.glob('/projects/*/register.ts') 自动发现并注册。
+ * 实现 GameMode/GameInstance 后，在 index.ts 导出实例类并补全下方工厂。
+ */
+import type { ProjectModule } from '../../src/projects/registry'
+
+export const projectNameProject: ProjectModule = {
+  name: '${projectName}',
+  // TODO: 实现 GameInstance 后接入工厂
+  // createGameInstance: (renderContainer) => { ... },
+}
+`
+    fs.writeFileSync(path.join(projectDir, 'register.ts'), registerTs, 'utf-8')
+
+    // asset/ 目录 + 默认场景骨架（零 assetLint 错误：transform 全部进 TransformComponent）
+    const assetDir = path.join(projectDir, 'asset')
+    fs.mkdirSync(assetDir, { recursive: true })
+    const sceneJson = {
+      name: projectName,
+      mode: 'game',
+      skybox: { backgroundColor: mode === '2d' ? '#101020' : '#1a2a3a' },
+      objects: [
+        {
+          type: 'actor',
+          name: 'Ground',
+          baseClass: 'Actor',
+          components: [
+            { baseClass: 'TransformComponent', properties: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } },
+            { baseClass: 'PlaneMeshComponent', properties: { size: [24, 24], color: '#2d4a3e', kind: 'standard', receiveShadow: true } },
+          ],
+          children: [],
+        },
+      ],
+    }
+    fs.writeFileSync(path.join(assetDir, `${folder}.scene.json`), JSON.stringify(sceneJson, null, 2), 'utf-8')
 
     return { success: true, path: projectDir }
   } catch (err) {
@@ -1343,29 +1398,36 @@ function extractCapabilities(packageJson: any): string[] {
 
 ipcMain.handle('discover-projects', async () => {
   try {
-    const projectsDir = path.join(__dirname, '..', 'src', 'projects')
-    if (!fs.existsSync(projectsDir)) return []
+    // 双根扫描：内置 src/projects/ + 外部 projects/（外部根可能不存在，懒创建）
+    const roots = resolveProjectRoots(APP_ROOT)
+    if (roots.length === 0) return []
 
-    const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
-    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }> = []
+    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string; source: 'builtin' | 'external' }> = []
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const jsonPath = path.join(projectsDir, entry.name, 'project.json')
-      if (!fs.existsSync(jsonPath)) continue
-      try {
-        const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
-        projects.push({
-          name: data.name || entry.name,
-          description: data.description || '',
-          version: data.version || '1.0.0',
-          tags: data.tags || [],
-          folder: entry.name,
-          renderMode: data.renderMode === '2d' ? '2d' : '3d',
-          defaultScene: data.defaultScene || undefined,
-        })
-      } catch {
-        // 单个 project.json 解析失败不影响其他
+    for (const projectsDir of roots) {
+      const source: 'builtin' | 'external'
+        = path.relative(APP_ROOT, projectsDir).replace(/\\/g, '/') === 'projects' ? 'external' : 'builtin'
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const jsonPath = path.join(projectsDir, entry.name, 'project.json')
+        if (!fs.existsSync(jsonPath)) continue
+        try {
+          const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
+          projects.push({
+            name: data.name || entry.name,
+            description: data.description || '',
+            version: data.version || '1.0.0',
+            tags: data.tags || [],
+            folder: entry.name,
+            renderMode: data.renderMode === '2d' ? '2d' : '3d',
+            defaultScene: data.defaultScene || undefined,
+            source,
+          })
+        } catch {
+          // 单个 project.json 解析失败不影响其他
+        }
       }
     }
 
@@ -1382,8 +1444,9 @@ const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts']
 
 ipcMain.handle('list-project-assets', async (_event, folder: string) => {
   try {
-    const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder, 'asset')
-    if (!fs.existsSync(projectRoot)) return []
+    const rootRel = projectRootFor(APP_ROOT, folder)
+    const projectRoot = rootRel ? path.join(APP_ROOT, rootRel, folder, 'asset') : null
+    if (!projectRoot || !fs.existsSync(projectRoot)) return []
 
     const rootAbs = path.join(__dirname, '..')
     const result: Array<{ path: string; ext: string; size: number }> = []
@@ -1429,12 +1492,11 @@ ipcMain.handle('asset-file-ops', async (_event, op: string, relPath: string, new
     if (rel.startsWith('..') || path.isAbsolute(rel)) {
       return { success: false, error: `非法路径: ${relPath}` }
     }
-    // 仅允许操作项目资产目录内的文件/目录（与 AssetBrowser 可见范围一致；
+    // 仅允许操作任一工程根的资产目录内的文件/目录（与 AssetBrowser 可见范围一致；
     // 最低要求 <folder>/asset，reveal asset 根目录也允许）
-    const assetRel = path.relative(path.join(baseDir, 'src', 'projects'), fullPath)
-    if (assetRel.startsWith('..') || path.isAbsolute(assetRel)
-      || assetRel.split(path.sep).length < 2 || assetRel.split(path.sep)[1] !== 'asset') {
-      return { success: false, error: `仅允许操作 src/projects/*/asset/ 下的文件: ${relPath}` }
+    const relNorm = rel.replace(/\\/g, '/')
+    if (!isProjectAssetRel(relNorm)) {
+      return { success: false, error: `仅允许操作工程 asset/ 目录下的文件（内置或外部工程）: ${relPath}` }
     }
 
     if (op === 'reveal') {
@@ -1480,8 +1542,9 @@ ipcMain.handle('asset-file-ops', async (_event, op: string, relPath: string, new
 
 ipcMain.handle('list-project-src', async (_event, folder: string) => {
   try {
-    const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder)
-    if (!fs.existsSync(projectRoot)) return []
+    const rootRel = projectRootFor(APP_ROOT, folder)
+    const projectRoot = rootRel ? path.join(APP_ROOT, rootRel, folder) : null
+    if (!projectRoot || !fs.existsSync(projectRoot)) return []
 
     const rootAbs = path.join(__dirname, '..')
     const result: string[] = []
@@ -1542,8 +1605,9 @@ function closeProjectWatchers(): void {
 ipcMain.handle('watch-project-assets', async (_event, folder: string) => {
   closeProjectWatchers()
 
-  const projectRoot = path.join(__dirname, '..', 'src', 'projects', folder)
-  if (!fs.existsSync(projectRoot)) return { ok: false }
+  const rootRel = projectRootFor(APP_ROOT, folder)
+  const projectRoot = rootRel ? path.join(APP_ROOT, rootRel, folder) : null
+  if (!projectRoot || !fs.existsSync(projectRoot)) return { ok: false }
   try {
     // 1) 资产目录监听（只在 asset 目录存在时建立）
     const assetRoot = path.join(projectRoot, 'asset')

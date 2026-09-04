@@ -1,0 +1,56 @@
+{
+  "name": "Hello",
+  "mode": "game",
+  "skybox": {
+    "backgroundColor": "#0e1a2e"
+  },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "Ground",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "PlaneMeshComponent",
+          "properties": {
+            "size": [24, 24],
+            "color": "#2d4a3e",
+            "kind": "standard",
+            "receiveShadow": true
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "type": "actor",
+      "name": "SunLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [10, 14, 8]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "intensity": 1.2,
+            "castShadow": true
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

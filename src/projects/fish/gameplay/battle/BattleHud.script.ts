@@ -118,6 +118,7 @@ export default class BattleHudScript extends BehaviourScript {
         }
         // 节点名 = BattleCard_{id}（同资产内唯一，便于定位）
         card.root.name = `BattleCard_${id}`
+        card.name = `BattleCard_${id}`
 
         // 名称文本
         const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
@@ -164,6 +165,7 @@ export default class BattleHudScript extends BehaviourScript {
         continue
       }
       card.root.name = `SpellCard_${id}`
+      card.name = `SpellCard_${id}`
       const nameText = findChild(card, 'Name')?.getComponent(UITextComponent)
       if (nameText) nameText.text = `✨${spell.name}`
       const infoText = findChild(card, 'Info')?.getComponent(UITextComponent) ?? null

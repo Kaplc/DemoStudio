@@ -11,16 +11,17 @@
  *  - 菜单末尾红色"删除"按钮 → 删除选中的建筑
  */
 import * as THREE from 'three'
-import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, GameInstance, GenericActor, type Actor } from '@/engine'
+import { GameMode, PhySys, logger, MeshComponent, BoxMeshComponent, CollisionLayer, ColliderComponent, Instantiate, GameInstance, GenericActor, UITransformComponent, type Actor } from '@/engine'
 import { BaseCameraActor } from './BaseCameraActor'
 import { FishBasePlayerController } from './FishBasePlayerController'
 import { FishBasePawn } from './FishBasePawn'
 import { CLASH_BUILDING_TYPES, type ClashBuildingType } from './ClashBuildingTypes'
-import { ClashBuildingBaseActor, BarracksActor, LaboratoryActor } from './ClashBuildingActors'
+import { ClashBuildingBaseActor } from './ClashBuildingActors'
 import { ClashBaseBuilder, PLACE_HALF } from './ClashBaseBuilder'
 import { PlaceGridActor } from './PlaceGridActor'
 import { clearObstacleReward, spawnObstaclesForBase, finishObstacleClear, obstacleCount } from './ObstacleSystem'
 import { fastForwardGemCost } from './ProductionService'
+import { BuildingInfoState, BuildingUpgradeState } from './BuildingPanelState'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 地面平面（y=0），用于屏幕坐标 → 世界坐标求交 */
@@ -68,6 +69,12 @@ export class FishBaseGameMode extends GameMode {
   private buildingUpgradePanel: Actor | null = null
   /** 宝石商店面板（HUD按钮打开） */
   private gemShopPanel: Actor | null = null
+  /** 建筑信息牌（场景 UI：点击建筑弹出，跟随建筑上方；同一时刻最多一张） */
+  private buildingInfoPanel: Actor | null = null
+  /** 当前展示信息牌的建筑（重开/关闭判定用） */
+  private buildingInfoTarget: ClashBuildingBaseActor | null = null
+  /** 收集泡泡（场景 UI：金矿/水库积压 ≥80% 容量时生成，建筑头顶） */
+  private collectBubbles = new Map<ClashBuildingBaseActor, Actor>()
   /** 建筑模式状态（true = 建筑菜单显示，可放置/移动/删除建筑） */
   private buildMode = false
   /** 建筑菜单 UI Actor（build_menu.widget.json，根 active:false 默认隐藏，建筑模式才显示） */
@@ -79,7 +86,7 @@ export class FishBaseGameMode extends GameMode {
   /** 模态 UI 打开中（存档菜单）：屏蔽地面点击，防面板下点穿操作建筑 */
   uiModalOpen = false
 
-  /** 外部设置：每帧基地经营回调（收集气泡/进度刷新，FishGameInstance.tick base 分支驱动） */
+  /** 外部设置：每帧基地经营回调（收集泡泡巡检/进度刷新，FishGameInstance.tick base 分支驱动） */
   onBaseTick: (() => void) | null = null
 
 
@@ -149,6 +156,8 @@ export class FishBaseGameMode extends GameMode {
 
   override Tick(dt: number) {
     super.Tick(dt)
+    // 收集泡泡巡检（积压 ≥80% 生成 / 回落销毁；幂等，成本极低）
+    this.refreshCollectBubbles()
     // baseCamera 已由 World 托管（SpawnActor），其 Tick（云台边缘平移检测）由 World 自动驱动
   }
 
@@ -195,6 +204,7 @@ export class FishBaseGameMode extends GameMode {
     // 与建筑菜单/地图面板互斥单向：打开本面板先收起其他模态
     if (this.mapPanel) this.closeMapPanel()
     if (this.tasksPanel) this.closeTasksPanel()
+    this.closeBuildingInfoPanel()
     this.exitBuildMode()
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/save_menu.widget.json')
     if (!panel) {
@@ -270,6 +280,7 @@ export class FishBaseGameMode extends GameMode {
     }
     // 打开地图面板时自动退出建筑模式（建筑菜单隐藏；关闭地图面板后可重新进入）
     this.exitBuildMode()
+    this.closeBuildingInfoPanel()
     const w = this.world
     if (!w) {
       logger.error('[BaseGM] 打开地图面板失败：world 为空')
@@ -396,44 +407,28 @@ export class FishBaseGameMode extends GameMode {
     return true
   }
 
-  /** 点击已放置建筑：兵营/实验室打开专属面板，金矿/水库收集，其他建筑打开升级面板 */
+  /** 点击已放置建筑：建筑模式走选中/移动；其余统一弹出建筑信息牌（升级/收集入口在信息牌上） */
   onBuildingClick(b: ClashBuildingBaseActor) {
     if (this.uiModalOpen) return // 模态 UI 打开中，屏蔽建筑选中/面板穿透
-    const inst = this.gameInstance
-    // 兵营：打开兵营专属 UI，不进入选中/移动模式
-    if (b instanceof BarracksActor) {
-      this.openBarracksPanel()
-      return
-    }
-    // 实验室：打开研究面板（等级不足时也允许查看）
-    if (b instanceof LaboratoryActor) {
-      this.openLaboratoryPanel()
-      return
-    }
-    // 金矿/水库：点击收集（积压 > 0 时收集入仓；建筑模式内仍走选中移动）
-    if (!this.buildMode && inst && (b.type.id === 'goldmine' || b.type.id === 'elixir')) {
-      const got = inst.production.collect(b.type.id === 'goldmine' ? 'goldmine' : 'elixir')
-      if (got > 0) {
-        logger.info(`[BaseGM] 收集 ${b.type.name}: +${got}（点击收集）`)
-        return
+    // 建筑模式：选中/移动（点击目标已是建筑，信息牌不参与）
+    if (this.buildMode) {
+      if (this.selectedBuilding === b) {
+        this.deselectBuilding()
+      } else {
+        this.deselectBuilding()
+        this.selectedBuilding = b
+        b.setSelected(true)
+        // 退出放置模式，进入移动模式：点击地面移动建筑
+        this.cancelPlaceMode()
       }
-      // 积压为 0 或仓库满 → 落回选中/移动逻辑
-    }
-    // 其他建筑：打开升级面板
-    if (!this.buildMode) {
-      this.openBuildingUpgradePanel(b.type.id)
       return
     }
-    // 建筑模式：选中/移动
-    if (this.selectedBuilding === b) {
-      this.deselectBuilding()
-    } else {
-      this.deselectBuilding()
-      this.selectedBuilding = b
-      b.setSelected(true)
-      // 退出放置模式，进入移动模式：点击地面移动建筑
-      this.cancelPlaceMode()
+    // 非建筑模式：统一弹出信息牌（同一建筑再点 = 关闭）
+    if (this.buildingInfoTarget === b) {
+      this.closeBuildingInfoPanel()
+      return
     }
+    this.openBuildingInfoPanel(b)
   }
 
   /** GameInstance 引用（生产/进度服务互调用） */
@@ -455,6 +450,7 @@ export class FishBaseGameMode extends GameMode {
     this.closeMapPanel()
     if (this.laboratoryPanel) this.closeLaboratoryPanel()
     if (this.tasksPanel) this.closeTasksPanel()
+    this.closeBuildingInfoPanel()
     // 广播兵营面板开启：HUD 由 BaseHudScript 自行隐藏（组件自治，GameMode 不直接操控 HUD）
     this.onBarracksPanelChange?.(true)
     // 建筑模式下同步隐藏建筑菜单（兵营面板打开时互斥）
@@ -495,6 +491,7 @@ export class FishBaseGameMode extends GameMode {
     this.closeMapPanel()
     if (this.barracksPanel) this.closeBarracksPanel()
     if (this.tasksPanel) this.closeTasksPanel()
+    this.closeBuildingInfoPanel()
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/laboratory_ui.widget.json')
     if (!panel) {
       logger.error('[BaseGM] 实验室 UI 生成失败')
@@ -530,6 +527,7 @@ export class FishBaseGameMode extends GameMode {
     this.closeMapPanel()
     if (this.barracksPanel) this.closeBarracksPanel()
     if (this.laboratoryPanel) this.closeLaboratoryPanel()
+    this.closeBuildingInfoPanel()
     const panel = w.ui.spawnUIActor('asset/blueprints/ui/tasks_ui.widget.json')
     if (!panel) {
       logger.error('[BaseGM] 任务面板生成失败')
@@ -650,10 +648,14 @@ export class FishBaseGameMode extends GameMode {
   //  鼠标交互（由 FishBasePlayerController 转发）
   // ════════════════════════════════════════════
 
-  /** 鼠标按下：放置建筑 / 移动选中建筑（仅建筑模式响应） */
+  /** 鼠标按下：放置建筑 / 移动选中建筑（仅建筑模式响应）；空地点击关闭信息牌 */
   onScreenDown(sx: number, sy: number) {
     if (this.uiModalOpen) return // 模态 UI 打开中（存档菜单），屏蔽地面点击防穿透
-    if (!this.buildMode) return
+    if (!this.buildMode) {
+      // 非建筑模式点空地：关闭建筑信息牌（命中建筑的一击已被 ClickableComponent 消费，不会到这）
+      this.closeBuildingInfoPanel()
+      return
+    }
     const ground = this.screenToGround(sx, sy)
     if (!ground) return
 
@@ -869,19 +871,145 @@ export class FishBaseGameMode extends GameMode {
   }
 
   // ════════════════════════════════════════════
+  //  建筑信息牌（场景 UI：点击建筑弹出，摆在建筑上方）
+  // ════════════════════════════════════════════
+
+  /** 打开建筑信息牌（场景 UI，摆建筑上方 billboard；同一时刻最多一张） */
+  private openBuildingInfoPanel(b: ClashBuildingBaseActor) {
+    const w = this.world
+    if (!w || this.buildingInfoPanel) return
+    BuildingInfoState.currentBuildingId = b.type.id
+    // world 模式必须顶层生成且引擎忽略 target（挂 HUD 子树会让场景分流失效），
+    // 位姿由 spawn 后显式 setPosition 表达（BaseHologram 同款先例）
+    const handle = w.ui.spawnAnchoredWidget('asset/blueprints/ui/building_info.widget.json', null, {
+      mode: 'world',
+      faceCamera: true,
+      pxPerMeter: 450,
+      pixelDensity: 2,
+    })
+    if (!handle) {
+      logger.error('[BaseGM] 建筑信息牌生成失败')
+      return
+    }
+    const top = b.actorLocation
+    handle.transform?.setPosition(top.x, top.y + (b.type.height + 0.15) / 2 + 1.1, top.z)
+    this.buildingInfoPanel = handle.actor
+    this.buildingInfoTarget = b
+    logger.info(`[BaseGM] 打开建筑信息牌: ${b.type.name}`)
+  }
+
+  /** 关闭建筑信息牌（信息牌关闭按钮 / 空地点击 / 再点同一建筑调用） */
+  closeBuildingInfoPanel() {
+    if (!this.buildingInfoPanel) return
+    this.buildingInfoPanel.destroy()
+    this.buildingInfoPanel = null
+    this.buildingInfoTarget = null
+    logger.info('[BaseGM] 关闭建筑信息牌')
+  }
+
+  /** 按建筑类型收集该矿积压（信息牌收集入口；校验在 ProductionService.collect） */
+  collectFromBuilding(typeId: string): number {
+    const inst = this.gameInstance
+    if (!inst || (typeId !== 'goldmine' && typeId !== 'elixir')) return 0
+    const got = inst.production.collect(typeId)
+    if (got > 0) logger.info(`[BaseGM] 信息牌收集 ${typeId}: +${got}`)
+    return got
+  }
+
+  /** 收集泡泡点击结算入口（脚本只传自身 actor，矿种由泡泡→建筑映射反查，规则归 GameMode） */
+  collectFromBubble(bubble: Actor): number {
+    for (const [b, actor] of this.collectBubbles) {
+      if (actor === bubble) {
+        return this.collectFromBuilding(b.type.id)
+      }
+    }
+    logger.warn('[BaseGM] 收集泡泡点击：未找到所属建筑（泡泡可能刚被移除）')
+    return 0
+  }
+
+  // ════════════════════════════════════════════
+  //  收集泡泡（金矿/水库积压 ≥80% 容量时出现，点击一键收集）
+  // ════════════════════════════════════════════
+
+  /** 收集泡泡出现阈值（积压/容量比例；配表容量 600 起，80% = 480 即约 4 分钟积满） */
+  private static readonly COLLECT_BUBBLE_RATIO = 0.8
+
+  /** 每帧巡检（GameMode.Tick 驱动）：积压达标的矿生成泡泡，收集后/不达标的销毁 */
+  private refreshCollectBubbles() {
+    const inst = this.gameInstance
+    const w = this.world
+    if (!inst || !w) return
+    for (const b of this.clashBuildings) {
+      if (b.type.id !== 'goldmine' && b.type.id !== 'elixir') continue
+      const stats = inst.production.buildingStats(b.type.id, inst.production.getBuildingLevel(b.type.id))
+      const ratio = stats && stats.storage > 0 ? inst.production.getStored(b.type.id as 'goldmine' | 'elixir') / stats.storage : 0
+      const has = this.collectBubbles.has(b)
+      if (ratio >= FishBaseGameMode.COLLECT_BUBBLE_RATIO && !has) {
+        this.spawnCollectBubble(b)
+      } else if (ratio < FishBaseGameMode.COLLECT_BUBBLE_RATIO && has) {
+        this.removeCollectBubble(b)
+      }
+    }
+    // 已销毁建筑的残留泡泡（建筑删除/清场时序差）兜底清理
+    for (const [b, bubble] of [...this.collectBubbles]) {
+      if (b.bPendingDestroy) {
+        this.collectBubbles.delete(b)
+        bubble.destroy()
+      }
+    }
+  }
+
+  /** 生成收集泡泡（建筑头顶，点击一键收集；widget 池里金矿/水库共用金币图标） */
+  private spawnCollectBubble(b: ClashBuildingBaseActor) {
+    const w = this.world
+    if (!w || this.collectBubbles.has(b)) return
+    // world 模式引擎忽略 target：传 null（多实例同名校验也不可靠），位姿 spawn 后显式 setPosition
+    const handle = w.ui.spawnAnchoredWidget('asset/blueprints/ui/building_collect.widget.json', null, {
+      mode: 'world',
+      faceCamera: true,
+      pxPerMeter: 350,
+      pixelDensity: 2,
+    })
+    if (!handle) {
+      logger.error(`[BaseGM] 收集泡泡生成失败: ${b.type.name}`)
+      return
+    }
+    const bubbleActor = handle.actor
+    if (!bubbleActor) {
+      logger.error(`[BaseGM] 收集泡泡生成后即失效（pendingDestroy）: ${b.type.name}`)
+      return
+    }
+    const top = b.actorLocation
+    bubbleActor.getComponent(UITransformComponent)?.setPosition(top.x, top.y + (b.type.height + 0.15) / 2 + 0.9, top.z)
+    this.collectBubbles.set(b, bubbleActor)
+    logger.info(`[BaseGM] 收集泡泡已生成: ${b.type.name} (${b.gridX},${b.gridZ})`)
+  }
+
+  /** 销毁收集泡泡 */
+  private removeCollectBubble(b: ClashBuildingBaseActor) {
+    const bubble = this.collectBubbles.get(b)
+    if (!bubble) return
+    this.collectBubbles.delete(b)
+    bubble.destroy()
+    logger.info(`[BaseGM] 收集泡泡已移除: ${b.type.name} (${b.gridX},${b.gridZ})`)
+  }
+
+  // ════════════════════════════════════════════
   //  建筑升级面板
   // ════════════════════════════════════════════
 
-  /** 打开建筑升级面板 */
+  /** 打开建筑升级面板（buildingId 经 BuildingUpgradeState 暂存传入面板脚本） */
   openBuildingUpgradePanel(buildingId: string) {
     const w = this.world
     if (!w || this.buildingUpgradePanel) return
-    
+    BuildingUpgradeState.pendingBuildingId = buildingId
+
     // 退出选中/放置模式
     this.deselectBuilding()
     this.cancelPlaceMode()
-    
-    // 互斥关闭其他面板
+
+    // 互斥关闭其他面板（信息牌一并关闭：升级面板打开后信息牌无意义）
+    this.closeBuildingInfoPanel()
     this.closeMapPanel()
     if (this.barracksPanel) this.closeBarracksPanel()
     if (this.laboratoryPanel) this.closeLaboratoryPanel()
@@ -924,6 +1052,7 @@ export class FishBaseGameMode extends GameMode {
     
     // 退出建筑模式
     this.exitBuildMode()
+    this.closeBuildingInfoPanel()
     
     // 互斥关闭其他面板
     this.closeMapPanel()
@@ -976,6 +1105,15 @@ export class FishBaseGameMode extends GameMode {
     this.gemShopPanel = null
     this.buildMenuPanel = null
     this.mapPanel = null
+    // 信息牌/收集泡泡（场景 UI Actor）：场景销毁前主动销毁（spawnAnchoredWidget 顶层生成，不在 destroyAll 遗漏链上）
+    this.buildingInfoPanel?.destroy()
+    this.buildingInfoPanel = null
+    this.buildingInfoTarget = null
+    for (const bubble of this.collectBubbles.values()) bubble.destroy()
+    this.collectBubbles.clear()
+    // 暂存状态复位
+    BuildingInfoState.currentBuildingId = ''
+    BuildingUpgradeState.pendingBuildingId = ''
     // 存档菜单同理只清引用；模态标记复位（场景已销毁）
     this.saveMenuPanel = null
     this.uiModalOpen = false

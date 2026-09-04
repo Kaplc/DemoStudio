@@ -52,6 +52,8 @@ snake_log.txt
 # ═══════════════════════════════════════
 src/projects/*/data/*
 !src/projects/*/data/.gitkeep
+projects/*/data/*
+!projects/*/data/.gitkeep
 
 # ═══════════════════════════════════════
 # 编辑器 & IDE
