@@ -95,15 +95,13 @@ argument-hint: '蓝图名称或蓝图用途描述'
       }
     },
     {
-      "baseClass": "MeshComponent",
+      "baseClass": "BoxMeshComponent",
       "properties": {
-        "geometry": "box",
         "size": [2.4, 0.15, 2.4],
         "color": "#a67c52",
         "name": "FoundationMesh"
       }
-    }
-  ],
+    },
   "children": []
 }
 ```
@@ -125,17 +123,19 @@ argument-hint: '蓝图名称或蓝图用途描述'
 ### TransformComponent
 `position` / `rotation` / `scale`（vec3）+ `name`（可选）
 
-### MeshComponent
-| 属性 | 类型 | 规则 |
+### 网格组件（MeshComponent 是抽象基类，直接声明 → `mesh-base-class-forbidden` error）
+
+| 组件 | 几何属性 | 规则 |
 |------|------|------|
-| `geometry` | string | 枚举 `box` / `sphere` / `plane` |
-| `size` | array | 1~3 元素（box→[w,h,d]，sphere→[radius]，plane→[w,h]） |
-| `color` | color | 可选 |
-| `opacity` | number | [0,1] |
-| `name` | string | 可选 |
+| `BoxMeshComponent` | `size` | [w, h, d] 3 元素 |
+| `SphereMeshComponent` | `radius` | > 0 |
+| `PlaneMeshComponent` | `size` | [w, h] 2 元素 |
+| `CapsuleMeshComponent` | `radius` + `length` | radius > 0，length ≥ 0 |
+
+网格组件公共属性：`color`（可选）、`opacity` [0,1]、`kind`（`standard`/`basic`）、`castShadow`/`receiveShadow`（boolean）、`name`（可选）
 
 ### SpriteComponent
-`width`/`height` **必填 > 0**；`opacity` [0,1]；`color`；`name`
+`width`/`height` **必填 > 0**；`opacity` [0,1]；`kind`（`standard`/`basic`）；`color`；`name`
 
 ### CameraComponent
 `mode`（perspective/orthographic）；`fov` [1,170]；`orthoSize` > 0；`near`/`far` > 0；`priority`（integer）

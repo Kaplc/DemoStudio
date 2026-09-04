@@ -333,6 +333,14 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 ---
 
+**27. hidden 页面用 Win32 还原窗口：`page.bringToFront()`/CDP `Page.bringToFront` 都救不了最小化** —— Chrome 调试窗口被**最小化**（不是被遮挡）时，tab 级激活与 CDP `Page.bringToFront` 均无法还原，页面恒 `hidden`、rAF 停摆；`Get-Process` 的 `MainWindowTitle` 有值极具误导性。辨别方法：P/Invoke `IsIconic(hWnd)`，`True` 即最小化（最小化时 `GetWindowRect` 返回 `-21333,-21333` 也是特征）。规则：`ShowWindow(hWnd, 4)`（SW_SHOWNOACTIVATE）+ `ShowWindow(hWnd, 9)`（SW_RESTORE）两连发后复查 `IsIconic`；还原后页面转 `visible`、rAF 恢复（实测 49fps）。
+
+**28. CDP `Page.captureScreenshot` 返回缓存帧：画面不变 ≠ 功能失效** —— 虚影跟随类验证中，两次不同 mouseMove 坐标后的截图**逐字节一致**（`byteDiff=0`），但 mesh 世界坐标实测在动——CDP 截图走合成层缓存，不强制重新栅格化，静止 UI 场景下帧不更新。规则：位置/跟随类断言**以调试桥读数为裁决**（如动态 `import('/src/engine/gameflow/ActorUtils.ts')` 存 `window.__au` 后遍历 `getAllActors()` 找目标 Actor，读 `mesh.getWorldPosition()` 前后对比），截图只作视觉参考；`ai.getActor` 的 `renderVisible` 只是组件标志位，不等于真实世界坐标。
+
+**29. 挂到带旋转的场景节点下：子节点局部坐标系跟着转** —— 场景资产节点常带预旋转（如 `BattleGround` 草地平面 `rotation: [-1.5708,0,0]` 绕 X 转 -90° 平躺），子 Actor `attachTo` 后局部 y/z 轴与世界系错位：`position.set(gx, h, gz)` 的 y 分量落到世界 -z、z 分量变成世界 -y（观测：格 z=18 → 世界 y=-18.02，对象被**埋进地下**俯视摄像机看不见，且 `getActor` 的 `active:true` 完全看不出来）。规则：给带旋转的宿主挂"需要世界系语义 position"的子节点时，挂载后补偿 `host.root.quaternion.copy(decor.root.getWorldQuaternion(new THREE.Quaternion()).invert())`；排查此类问题时用 `mesh.getWorldPosition()` 实测世界坐标与预期比对，不要信局部 position。
+
+---
+
 ## 7. 边界条件
 
 | 条件 | 行为 | 怎么应对 |

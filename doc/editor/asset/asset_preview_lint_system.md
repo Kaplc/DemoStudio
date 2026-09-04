@@ -603,7 +603,7 @@ export function registerAssetChecker(kind: CheckerKind, Ctor: CheckerCtor): void
 
 新增检查器两步：写文件 + 在 [checkers/index.ts](../../../src/editor/asset/assetLint/checkers/index.ts) 加一行 import。当前已注册 **30 个 kind**：`doc:scene` / `doc:blueprint` / `doc:ui-design`、`node:ref` / `node:actor`、以及 25 个 `comp:*`。
 
-> 旧格式几何节点（`box` / `plane` / `sphere` / `sprite` / `checkerFloor` / `gridLines` / `pillar` / `wallRing`）的检查器**已完全移除**——现在遇到它们会报「未注册的检查器 'node:box'」warn，这是故意的迁移提醒（见 [nodeCheckers.ts](../../../src/editor/asset/assetLint/checkers/nodeCheckers.ts) 头部注释）。
+> 旧格式几何节点（`box` / `plane` / `sphere` / `sprite` / `checkerFloor` / `gridLines` / `pillar` / `wallRing`）的检查器**已完全移除**——现在遇到它们会报「未注册的检查器 'node:box'」**error**（lint 不通过，必须迁移到 `type: actor` / `type: ref` 新格式），见 [nodeCheckers.ts](../../../src/editor/asset/assetLint/checkers/nodeCheckers.ts) 头部注释。
 
 ### 3.8 结果发布：面板全量覆盖，日志只报增量
 

@@ -125,41 +125,31 @@ flowchart TD
 
 > `ScriptRegistry` 的完整说明见 [脚本系统](./script_system.md)。
 
-### 2.3 `loadScene` 内部：一个 SceneAsset 被拆成四类东西
+### 2.3 `loadScene` 内部：一个 SceneAsset 被拆成两类东西
 
-`loadScene` 在 [SceneLoader.ts](../../src/engine/asset/SceneLoader.ts):49，**只做展开与分类，不做实例化**。核心循环：
+`loadScene` 在 [SceneLoader.ts](../../src/engine/asset/SceneLoader.ts):46，**只做归集分类，不建任何 mesh、不做实例化**。核心循环：
 
 ```ts
 for (const node of asset.objects) {
-  if (node.type === 'blueprint') {
-    blueprintNodes.push(node)
-    refNodes.push({ ref: node.blueprint, position: node.pos ?? [0,0,0], ... })  // 同时归一化到 refNodes（兼容旧格式）
-    continue
-  }
+  // ref 节点 — 引用蓝图
   if (node.type === 'ref') {
     refNodes.push({
       ref: node.ref,
-      position: node.position ?? node.pos ?? [0, 0, 0],   // 新旧字段名都收
-      rotation: node.rotation ?? node.rot ?? [0, 0, 0],
+      position: node.position ?? [0, 0, 0],
+      rotation: node.rotation ?? [0, 0, 0],
       scale: node.scale ?? [1, 1, 1],
       overrides: node.overrides, components: node.components, children: node.children, name: node.name,
     })
     continue
   }
-  if (node.type === 'actor') {
-    actorNodes.push(node)
-    renderActorMesh(node, track)   // 渲染 mesh 预览，真身由 World 生成
-    continue
-  }
-  expandNode(node, track, node.name)   // 几何节点：当场建 THREE.Mesh 并 track
+  // actor 节点 — 内联 Actor：收集供 World 层 spawn
+  actorNodes.push(node)
 }
 ```
 
-**逐类讲**：几何节点（box/plane/sphere/sprite/checkerFloor/gridLines）走 `expandNode`，**当场建成 `THREE.Mesh` 并 `track()`**，属「旧格式」，用于纯背景装饰。`actor` 节点既渲染预览 mesh 又收集进 `actorNodes`——预览是为了编辑器里看得见，真身由 World 造。`ref` / `blueprint` 节点**只收集不建 mesh**，loader 层不认识蓝图内容，必须等 `World` 调 `BlueprintRegistry.resolve` 后才能实例化；旧 `blueprint` 类型会被**同时**塞进两份数组，为的是兼容老代码。
+**逐类讲**：场景节点只剩 `ref` / `actor` 两种新格式。`ref` 节点**只收集不建 mesh**，loader 层不认识蓝图内容，必须等 `World` 调 `BlueprintRegistry.resolve` 后才能实例化；`actor` 节点同样只收集，渲染由 spawn 出的 Actor 自带 MeshComponent（编辑器预览经 `PreviewObjectFactoryComponent`）。旧格式几何节点（box/plane/sprite/checkerFloor/gridLines 等）与 `blueprint` 透传节点已从类型与 loader 中**整体移除**——资产里残留会被 assetLint 报 `unknown-kind` error（见 [nodeCheckers.ts](../../src/editor/asset/assetLint/checkers/nodeCheckers.ts) 头部注释）。
 
-`track` 登记待释放资源，配合返回的 `dispose()`：逐个 `d.geo.dispose()` / `d.mats.forEach((m) => m.dispose())` 后 `group.clear()`。
-
-> **不清理 geometry/material 会直接泄漏显存**——这是编辑器开久了显存飙涨的常见来源。`disposed` 标记保证幂等，因为场景切换、预览刷新会反复调用它。
+返回的 `SceneGroup.group` 现在是空壳（保留字段兼容既有签名），真正的可视对象全部由 `World.loadSceneAsActors` / `ScenePreviewManager.loadSceneAsset` spawn 的 Actor 承担，无需 mesh 级 dispose。
 
 真正的实例化在 [World.ts](../../src/engine/gameflow/World.ts):519 的 `loadSceneAsActors`：先 `loadScene(sceneAsset)`，再把 `actorNodes` / `refNodes` 逐个 spawn 并挂到场景根 Actor 下。
 

@@ -53,11 +53,11 @@ argument-hint: '场景名称或场景用途描述'
       }
     },
     {
-      "baseClass": "MeshComponent",
+      "baseClass": "BoxMeshComponent",
       "properties": {
-        "geometry": "box",
         "size": [2, 1, 2],
-        "color": "#a67c52"
+        "color": "#a67c52",
+        "kind": "standard"
       }
     }
   ],
@@ -108,7 +108,7 @@ argument-hint: '场景名称或场景用途描述'
    - 顶层 `position`/`rotation`/`scale` 字段已**废弃**——如果节点带 TransformComponent 组件却仍有顶层 transform → `top-transform-forbidden` error；如果无变换组件却声明了顶层 transform → `missing-transform-component` error
    - `position`/`rotation`/`scale` 只允许出现在 TransformComponent/UITransformComponent 组件，出现在其他组件 properties 里 → `comp-forbidden-transform` error
 2. **name 唯一**：同一父节点下所有节点 `name` 必须唯一（AI 按 name 定位：`ai.clickActor` / `ai.dragActor` / `ai.selectActor`），重复 → `duplicate-name` error；嵌套子对象按父节点范围各自唯一
-3. **旧格式几何节点已移除**：`type: box/plane/sphere/sprite/checkerFloor/gridLines/pillar/wallRing` 全部废弃，会触发"未注册的检查器" warn——一律用 `type: actor` + MeshComponent/SpriteComponent 替代
+3. **旧格式几何节点已移除**：`type: box/plane/sphere/sprite/checkerFloor/gridLines/pillar/wallRing` 全部废弃，会触发"未注册的检查器" **error**（lint 不通过）——一律用 `type: actor` + 网格组件派生类（`BoxMeshComponent` 等）/`SpriteComponent` 替代
 4. **颜色格式**：CSS hex（`#rgb`/`#rgba`/`#rrggbb`/`#rrggbbaa`）或 `rgba(r,g,b,a)`
 
 ## 组件 properties 校验规则（comp:* 检查器）
@@ -119,19 +119,23 @@ argument-hint: '场景名称或场景用途描述'
 | `position` / `rotation` / `scale` | vec3 | 位置/旋转/缩放（**唯一允许 transform 的组件**） |
 | `name` | string | 可选 |
 
-### MeshComponent
-| 属性 | 类型 | 规则 |
+### 网格组件（MeshComponent 是抽象基类，直接声明 → `mesh-base-class-forbidden` error）
+
+| 组件 | 几何属性 | 规则 |
 |------|------|------|
-| `geometry` | string | 枚举 `box` / `sphere` / `plane` |
-| `size` | array | 1~3 个元素（box→[w,h,d]，sphere→[radius]，plane→[w,h]） |
-| `color` | color | 可选 |
-| `opacity` | number | [0,1] |
+| `BoxMeshComponent` | `size` | [w, h, d] 3 元素 |
+| `SphereMeshComponent` | `radius` | > 0 |
+| `PlaneMeshComponent` | `size` | [w, h] 2 元素 |
+| `CapsuleMeshComponent` | `radius` + `length` | radius > 0，length ≥ 0 |
+
+网格组件公共属性：`color`（可选）、`opacity` [0,1]、`kind`（`standard`/`basic`）、`castShadow`/`receiveShadow`（boolean）、`name`
 
 ### SpriteComponent
 | 属性 | 类型 | 规则 |
 |------|------|------|
 | `width` / `height` | number | **必填**，必须 > 0 |
 | `opacity` | number | [0,1] |
+| `kind` | string | 枚举 `standard` / `basic` |
 | `color` | color | 可选 |
 | `texture` | string | 可选 |
 | `name` | string | 可选 |
@@ -157,7 +161,7 @@ argument-hint: '场景名称或场景用途描述'
 1. 确认目标项目与场景名（name 唯一，不与现有场景重复）
 2. 确定 `mode`（menu/base/game）与 `skybox.backgroundColor`
 3. 按需填充 `objects`：
-   - 静态 3D 物体（地面、墙、装饰）→ `type: actor` + `TransformComponent` + `MeshComponent`/`SpriteComponent`
+   - 静态 3D 物体（地面、墙、装饰）→ `type: actor` + `TransformComponent` + `BoxMeshComponent` 等派生类/`SpriteComponent`
    - 复用蓝图（房屋、塔、树等预制体）→ `type: ref` + `ref` 路径
 4. 检查所有节点：顶层 transform 已删除、name 唯一、组件属性合规
 

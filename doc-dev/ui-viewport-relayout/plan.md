@@ -71,6 +71,8 @@ base_hud 实测暴露的盲区闭环：运行时重排只对**锚点子节点**�
 
 手册同步：`doc/editor/ui/ui_widget_html_manual.md` 新增 §7 配方 A2（全屏容器推荐写法）+ §14 坑 15（固定 px 全屏容器是重排盲区）。注意：**流式布局的 100% div 不受影响**（映射仅在 absolute 分支内，锚定 widget 承载 div 的流式写法约定不变，见手册坑 14）。
 
+**存量资产全量改造（同日）**：扫描全部 25 个 widget HTML，12 个存在同款固定 px 全屏容器（DimBackground/SeaBackdrop/TipsBackground/GM_Dim），全部改为两轴 100% 并重编译：barracks_ui / base_map / battle_result / building_upgrade / gem_shop / gm_panel / laboratory_ui / main_menu / pause_menu / save_menu / tasks_ui / tips。13 个产物含 stretch 锚（含 base_hud），全部经编辑器 MCP ui_compile 通道通过 assetLint 零错误门槛。未改动的 HTML（tips/toast/tooltip 等轻量弹层与卡片）无全屏容器，无需处理。
+
 ## 六、执行命令
 
 ```bash
