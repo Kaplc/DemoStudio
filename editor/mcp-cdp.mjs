@@ -11,6 +11,8 @@
  */
 
 import http from 'http'
+import fs from 'node:fs'
+import path from 'node:path'
 import WebSocket from 'ws'
 
 // ─── CDP 连接管理 ───
@@ -39,6 +41,73 @@ function httpGet(url) {
       })
     }).on('error', reject)
   })
+}
+
+// ─── CDP 端口发现 ───
+// Windows 上旧实例死亡后其 9222 socket 句柄可能被遗留子进程继承，形成"幽灵监听"：
+// TCP 能连上（内核完成握手）但无 HTTP 响应（所有调用超时）。因此端口不能写死 9222：
+//   1. 优先读 userData/DevToolsActivePort——Chromium 启动时把实际绑定端口写进该文件
+//      （main.ts 检测到幽灵端口会改用随机端口 0，此时只有这条路能发现真实端口）
+//   2. 回退固定端口 9222
+// 每个候选端口经短超时 /json/version 活性探测（幽灵端口会超时被自然淘汰），
+// 结果缓存复用；缓存失活（编辑器重启换了端口）时自动重新探测。
+
+const CDP_HTTP_TIMEOUT = 1500
+let _resolvedPort = null
+
+/** 从 userData 的 DevToolsActivePort 收集候选端口（dev 与打包后的目录名都试） */
+function devToolsActivePortCandidates() {
+  const appdata = process.env.APPDATA
+  if (!appdata) return []
+  const ports = []
+  for (const name of ['demostudio', 'DemoStudio']) {
+    try {
+      const first = fs.readFileSync(path.join(appdata, name, 'DevToolsActivePort'), 'utf8').split(/\r?\n/)[0]
+      const port = parseInt(first, 10)
+      if (Number.isInteger(port) && port > 0 && port <= 65535) ports.push(port)
+    } catch { /* 无该文件 = 实例绑定固定端口或未启动 */ }
+  }
+  return ports
+}
+
+/** 带超时的 HTTP GET（幽灵端口 connect 成功但不响应，必须靠超时淘汰） */
+function httpGetRaw(url, timeoutMs = CDP_HTTP_TIMEOUT) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      let data = ''
+      res.on('data', (chunk) => (data += chunk))
+      res.on('end', () => resolve(data))
+    })
+    req.on('error', reject)
+    req.setTimeout(timeoutMs, () => req.destroy(new Error(`timeout ${timeoutMs}ms`)))
+  })
+}
+
+/** 探测候选端口 CDP HTTP 服务是否可用 */
+async function isCdpAlive(port) {
+  try {
+    const raw = await httpGetRaw(`http://127.0.0.1:${port}/json/version`)
+    return !!JSON.parse(raw).webSocketDebuggerUrl
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 解析当前可用的 CDP 端口。
+ * 显式 args.port 优先（e2e/多实例定向操控）；否则按 DevToolsActivePort → 9222 顺序活性探测，成功端口缓存。
+ */
+export async function resolveCdpPort(explicitPort) {
+  if (explicitPort) return explicitPort
+  if (_resolvedPort && await isCdpAlive(_resolvedPort)) return _resolvedPort
+  const candidates = [...new Set([...devToolsActivePortCandidates(), 9222])]
+  for (const port of candidates) {
+    if (await isCdpAlive(port)) {
+      _resolvedPort = port
+      return port
+    }
+  }
+  throw new Error(`CDP 端口不可用：已探测 [${candidates.join(', ')}] 均无响应（编辑器未启动，或调试端口被幽灵 socket 占用且回退未生效）`)
 }
 
 /**
@@ -372,7 +441,12 @@ function wrapError(msg) {
  * @returns {object|null} MCP content result，非 CDP 工具返回 null
  */
 export async function handleCdpTool(name, args = {}) {
-  const port = args.port || 9222
+  let port
+  try {
+    port = await resolveCdpPort(args.port)
+  } catch (err) {
+    return wrapError(String(err))
+  }
   const targetId = args.targetId || null
 
   try {

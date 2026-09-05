@@ -1114,11 +1114,13 @@ export { }
 
     // register.ts（ProjectModule 骨架：本文件经 registry 的外部 glob 自动发现，
     // 新工程创建后重启 dev server 即并入注册表）
+    // 注意：块注释内不得出现 "*/" 字面量（如 glob 模式 '/projects/x/register.ts'），
+    // 否则注释被提前终止、生成非法 TS，eager glob 会让整个应用白屏
     const registerTs = `/**
  * ${projectName} — 项目注册模块（自动生成骨架）
  *
- * 本文件位于外部工程根，经 src/projects/registry.ts 的
- * import.meta.glob('/projects/*/register.ts') 自动发现并注册。
+ * 本文件位于外部工程根，经 src/projects/registry.ts 的 import.meta.glob
+ * 自动发现并注册（无需修改内置代码）。
  * 实现 GameMode/GameInstance 后，在 index.ts 导出实例类并补全下方工厂。
  */
 import type { ProjectModule } from '../../src/projects/registry'
@@ -2278,12 +2280,51 @@ function openAgentWindow(): void {
 
 // 多实例支持：不申请单实例锁，允许多个编辑器实例同时运行
 // Vite 端口 (5173+) 与 MCP 端口 (9877+) 均自动递增分配，互不冲突
+
+/**
+ * 检测端口是否被"幽灵 socket"占用：内核层仍在 LISTEN，但属主 PID 已不存在
+ * （旧实例死亡时 CDP 监听句柄被遗留子进程继承所致）。同步解析 netstat，
+ * 在模块加载期完成，保证 appendSwitch 的端口决策先于 app ready 事件。
+ * 端口空闲，或被存活进程占用（让 Chromium bind 自然失败暴露真问题），均返回 false。
+ */
+function isCdpPortGhosted(port: number): boolean {
+  if (process.platform !== 'win32') return false
+  try {
+    const out = execSync('netstat -ano -p tcp', { encoding: 'utf8', timeout: 5000, windowsHide: true })
+    let sawListen = false
+    for (const line of out.split('\n')) {
+      // 行形如：TCP    127.0.0.1:9222    0.0.0.0:0    LISTENING    30688
+      const cols = line.trim().split(/\s+/)
+      if (cols.length < 5 || cols[3] !== 'LISTENING') continue
+      if (!new RegExp(`:${port}$`).test(cols[1])) continue
+      sawListen = true
+      const pid = Number(cols[4])
+      if (pid > 0) {
+        try {
+          process.kill(pid, 0) // 探活：进程存在（无权限时抛 EPERM，同样视为存活）
+          return false
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === 'EPERM') return false
+        }
+      }
+    }
+    return sawListen
+  } catch {
+    return false
+  }
+}
+
 // 开启远程调试端口（Playwright/CDP 可连接已有实例）
 // 仅在启动参数未显式指定调试端口时追加：外部调试工具（如 Playwright electron.launch 传
 // --remote-debugging-port=0 走 pipe 模式）会自带该参数，无条件覆盖会与运行中实例的 9222
 // 冲突（bind 失败 → devtools http server 起不来 → 调试链路瘫痪）
 if (!app.commandLine.hasSwitch('remote-debugging-port')) {
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  if (isCdpPortGhosted(9222)) {
+    console.warn('[main] 9222 被幽灵 socket 占用（属主 PID 已死），改用随机调试端口（实际端口见 userData/DevToolsActivePort）')
+    app.commandLine.appendSwitch('remote-debugging-port', '0')
+  } else {
+    app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  }
 }
 
 // 后台持续运行（与各窗口 backgroundThrottling:false 配合）：
