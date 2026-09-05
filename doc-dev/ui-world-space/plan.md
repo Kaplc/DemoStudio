@@ -70,7 +70,7 @@
 1. **分流**：`isUIActor` 增加第三支——根含 `UIWorldAnchorComponent(mode='world')` 的 Actor 仍归 UIManager 生命周期管理，但挂**主场景**。子树随根 Object3D 走，逐节点无需感知。（注意：此类 widget 不能作为 HUD 子节点 spawn，统一走 `spawnAnchoredWidget`。）
 2. **单位**：设计 px 仍是唯一事实源，`worldWidth(米) = px / pxPerMeter`，**pxPerMeter 缺省 200**——延续既有 200px/m 设计直觉：一张 1920×1080 全屏面板 = 9.6m×5.4m 的全息墙，数值上与 v2 之前的旧语义无缝衔接。`pixelDensity: 2` 时 canvas 实际像素 ×2（近景不糊），设计 px 不变。
 3. **billboard**：`faceCamera=true` 时每帧根 quaternion = 相机 quaternion（仅根，子树局部布局/UILayout 不受影响）。
-4. **输入**：BeginPlay 遍历子树把 `ClickableComponent.layer` 切 `'world'`，UIButton 自动点击层（透明 mesh）即被主相机射线命中。⚠️ 语义差异要文档化：screen 层的 `block`"消费点击"在 world 层不存在——**纯展示面板不挡其身后物体的点击**；如需挡，给面板根挂一个空回调 ClickableComponent（mesh 最近命中天然形成遮挡）。
+4. **输入**：BeginPlay 遍历子树把 `ClickableComponent.layer` 切 `'world'`，UIButton 自动点击层（透明 mesh）即被主相机射线命中。~~⚠️ 语义差异要文档化：screen 层的 `block`"消费点击"在 world 层不存在~~ **【2026-09-05 已实现】**：PhySys 世界层改为"收集全部命中取射线最近者"（`pickFrontmostHit`，注册顺序不再参与归属——本条原假设"mesh 最近命中天然形成遮挡"与当时的注册序实现不符，现已被修正），且 `hit-test: block` 经编译器落到带背景节点的 `UIImageComponent` 视觉块后，world 模式画布参与世界层拦截（`__dsWorldUI` 分流 + 主相机射线检测）。面板要挡身后点击：给带背景节点写 `hit-test: block`（先例 building_info `.Card`；详见 doc/engine/physics_system.md 踩坑 8）。
 5. **排序**：树内 zOrder → renderOrder 照旧；跨面板/粒子按 three 透明排序（距离）——world 面板量小可接受，约定面板 `zOrder` 保持低位避免压过粒子。
 
 ### D4：拒绝 render-to-texture 路线（明确否决）

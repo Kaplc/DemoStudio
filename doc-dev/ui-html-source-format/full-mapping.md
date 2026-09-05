@@ -133,9 +133,37 @@ padding/flex/v1 旧 json 用例，容差 0.1px = 世界 2 位小数量化精度�
 已知边界：grid 轨道模板不还原（保持绝对坐标，几何精确）；手工拖动过的
 流内子项保持绝对定位（不丢拖动结果）。
 
+region 承载组件（`UIWorldAnchorComponent`，见 §7）反编译时**前置摘出**：
+全部节点的该组件按节点名摘进 `<properties>` 参数区（`<widget>` 开标签后、
+规范格式 2 空格缩进），节点 components 与 `<widget>` data-comp 均无锚点残留；
+decompile → recompile 语义逐位等价（锚点经 region 原样还原）。
+
 ## 6. 工具链
 
 - CLI（`scripts/ui-compiler-cli.mjs`）改为 **esbuild 现场打包 TS 源**执行——
   单一事实来源，旧 mjs 手工镜像已废弃；外部样式相对源文件解析。
 - MCP `ui_compile` / 编辑器命令透传 `warnings`。
 - `CompileOptions.resolveInclude`：编辑器/CLI 注入文件读取以支持 link/@import。
+
+## 7. `<properties>` 参数区（2026-09-05 实施详见 properties-region.md）
+
+原生 HTML 保持纯设计（结构 + CSS + 内联文本），无 CSS 表达位的组件参数收敛到
+文件内一个机器管理的 `<properties>` 参数区（方案与职责边界见
+[properties-region.md](properties-region.md)）：
+
+- **语法**：`<widget>` 直接子级（full-document 模式 = `<body>` 直接子级），
+  内容为原始 JSON（miniParser RAW_TEXT：不解析实体、不解析子节点）；
+  键结构 `节点名（编译产物 name）→ 组件 baseClass → properties 对象`；
+  至多一个，嵌套进设计树 / `<head>` / 重复声明一律 CompileFail。
+- **编译语义**：tokenize + 参数区提取（样式收集前摘出，不参与布局求解与
+  标签白名单校验）→ JSON/结构/视觉组件三类校验（CompileFail 带行号）→
+  发射完成后 `applyPropertiesRegion` 按节点名挂载：组件已存在则键级合并
+  （region 覆盖，与 emitDataComp 同语义），不存在则新挂；应用顺序在
+  emitDataComp 之后 → 双声明迁移期 region 永远赢。sourceHash 对全文计算。
+- **禁声明**：UITransform / CanvasUI / UIText / UIImage / UIButton 五类视觉
+  组件（有原生标签/CSS 表达位，防双真相源）。
+- **保存链路**：`UIWorldAnchorComponent` 差分 → 解析参数区 → 并入差分键 →
+  整块规范化重写（`JSON.stringify(,2)` + 整体 2 空格缩进；与反编译输出同一
+  规范形，`propertiesRegion.ts` 三方共享）；参数区缺失时在 `<widget>` 开标签
+  后创建（legacy data-props 残留被覆盖）。其余组件差分走既有 span 补丁。
+- **反编译**：见 §5 末段——前置摘出 region 承载组件 → 规范 `<properties>` 块。

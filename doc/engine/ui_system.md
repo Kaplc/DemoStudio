@@ -198,15 +198,17 @@ widget 源文件怎么编译成蓝图、锚点九宫格完整取值与编辑器�
 
 ```mermaid
 flowchart TD
-    A["InputSys.handlePointerDown(x, y)<br/>InputSys.ts:36"] --> B["PhySys.raycastClick(x, y)<br/>PhySys.ts:151"]
-    B --> C["UI 层：screenToRay(UI 相机)<br/>平行射线"]
-    C --> D{"遮挡竞争<br/>clickable vs block 画布<br/>按 zOrder 取最高"}
+    A["InputSys.handlePointerDown(x, y)<br/>InputSys.ts:36"] --> B["PhySys.raycastClick(x, y)<br/>PhySys.ts:155"]
+    B --> C["UI 层 resolveUIStage<br/>screenToRay(UI 相机) 平行射线"]
+    C --> D{"pickFrontmostHit<br/>clickable vs block 画布<br/>按 zOrder 竞争"}
     D -->|"顶层是 block"| E["消费点击 return true"]
-    D -->|"命中 clickable"| F["ClickableComponent.handleClick<br/>ClickableComponent.ts:181"]
+    D -->|"命中 clickable"| F["ClickableComponent.handleClick<br/>ClickableComponent.ts:197"]
     F --> G["onPress → onClick<br/>（绑 onDragMove 则延迟到释放）"]
-    G --> H["UIButtonComponent.triggerClick<br/>UIButtonComponent.ts:103 → _onClick?.()"]
-    D -->|"未命中"| J["世界层 screenToRay(主相机)"]
-    J --> K["controller.OnPointerDownScreen"]
+    D -->|"未命中"| J["世界层 resolveWorldStage<br/>screenToRay(主相机)"]
+    J --> K{"pickFrontmostHit<br/>收集全部命中取射线最近<br/>（世界 clickable + world block 画布<br/>同面按 zOrder 决胜）"}
+    K -->|"最近是 block"| L["消费点击 return true"]
+    K -->|"最近是 clickable"| M["handleClick 命中即消费<br/>冷却中则穿透"]
+    K -->|"无命中"| N["controller.OnPointerDownScreen<br/>（空地点击等游戏逻辑）"]
 ```
 
 **① 输入入口只认左键，且被消费后不再下发 Controller**
@@ -219,16 +221,20 @@ if (consumed) return true
 
 > 右键不参与 UI 点击检测（它归摄像机平移）。左键命中 UI 后直接 `return true`，Controller 的 `OnPointerDownScreen` 不会执行 —— 这就是"点按钮不会同时触发放置建筑"的实现点。
 
-**② 遮挡竞争：zOrder 最高者胜**
+**② 遮挡竞争：UI 层按 zOrder，世界层按射线最近**
 
-`raycastClick` 先遍历所有 UI `ClickableComponent` 做 `hitTest`，再遍历 `hitTestMode === 'block'` 的拦截画布，取 zOrder 最大者：
+`raycastClick` 分两级。**UI 层**（`resolveUIStage`）沿用 zOrder 竞争：遍历所有 UI `ClickableComponent` 做 `hitTest`，再遍历 `hitTestMode === 'block'` 的拦截画布（world 模式画布被排除，归世界层），由 `pickFrontmostHit` 取最高：
 
 ```ts
 // 同 zOrder 时 clickable 优先（同层按钮先于遮罩）
-if (z > bestZ) { bestZ = z; bestClickable = null; topBlocked = true }
+const cWins = c.z > best.z || (c.z === best.z && c.kind === 'clickable' && best.kind === 'blocked')
 ```
 
-> 比较是**严格大于**：同层时按钮赢过遮罩，否则模态遮罩会把自己上面的按钮吃掉。`uiZOrder` 取 owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder（[ClickableComponent.ts](../../src/engine/physics/ClickableComponent.ts):273），所以父节点层级高则整棵子树在竞争中都占优。
+> 比较是**严格大于**：同层时按钮赢过遮罩，否则模态遮罩会把自己上面的按钮吃掉。`uiZOrder` 取 owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder（[ClickableComponent.ts](../../src/engine/physics/ClickableComponent.ts):289），所以父节点层级高则整棵子树在竞争中都占优。
+
+**世界层**（`resolveWorldStage`）不按注册顺序——收集**全部**命中（世界 clickable + world 模式 block 画布）取**射线最近者**，距离差小于 `SAME_PLANE_EPS`（1e-3，世界模式 z 偏移经 1/pxPerMeter 缩放后约 5e-5）视为同面、按 zOrder 决胜。这是 UE 语义："游戏输入是 UI 未命中时的兜底，命中归属由几何决定，与注册时机无关"。没有这一层仲裁时，后 spawn 的 world 面板按钮会被先注册的建筑 clickZone 抢走点击（历史上信息牌"点升级"变成重新选中建筑的根因）。
+
+**world 模式面板的底板拦截**：widget 里 `hit-test: block` 的带背景节点，编译器会把 `hitTest` 落到该节点的 `UIImageComponent` 视觉块（marker 块无 mesh 拦不住射线），其 panel mesh 注册进 `_uiBlockers`，PhySys 按 `__dsWorldUI` 标记分流到世界层用主相机射线检测——信息牌（building_info）的 `.Card` 即此配方：点卡片空白处被消费，不再穿透到空地把面板关掉。
 
 **③ 按钮的点击层是自动生成的，且射线目标被锁定**
 
@@ -324,7 +330,7 @@ try {
 | `setWorldSize(w, h, explicit?)` | [UITransformComponent.ts:102](../../src/engine/ui/UITransformComponent.ts) | 改尺寸并同步 canvas 面板 scale + `onWorldSizeChange` | `explicit=false` 用于布局拉伸写回，不污染作者意图 |
 | `ensureUITransformComponent(actor)` | [UITransformComponent.ts:336](../../src/engine/ui/UITransformComponent.ts) | 复用 / 替换 / 补挂 UI 变换组件 | 替换下的旧组件必须显式 `EndPlay`，否则注册表残留 |
 | `createHitLayer()` / `triggerClick()` | [UIButtonComponent.ts:165](../../src/engine/ui/UIButtonComponent.ts) / [UIButtonComponent.ts:103](../../src/engine/ui/UIButtonComponent.ts) | 生成透明点击层并 `setTargets` 锁定射线 / 触发 `_onClick` | 前者幂等（`_hitLayer` 判空）；后者 `disabled` 直接返回，非鼠标通道补 100ms 动效 |
-| `raycastClick(x, y)` | [PhySys.ts:151](../../src/engine/physics/PhySys.ts) | UI 层优先 → 世界层；返回是否消费 | 遮挡竞争按 zOrder，block 画布同层时劣后 |
+| `raycastClick(x, y)` | [PhySys.ts:155](../../src/engine/physics/PhySys.ts) | UI 层优先 → 世界层（收集全部命中取射线最近，`pickFrontmostHit`）；返回是否消费 | UI 层遮挡竞争按 zOrder，block 画布同层时劣后；世界层同面按 zOrder 决胜 |
 | `setupUI(camera)` | [PhySys.ts:94](../../src/engine/physics/PhySys.ts) | 注入 UI 相机（平行射线） | 游戏停止传 null；不注入则 UI 层检测整体跳过 |
 | `handleClick(ray)` / `handleRelease()` | [ClickableComponent.ts:181](../../src/engine/physics/ClickableComponent.ts) / [ClickableComponent.ts:231](../../src/engine/physics/ClickableComponent.ts) | 命中后 `onPress` → `onClick`（或延迟到释放）/ 恢复按下态并触发延迟点击 | 500ms `clickCooldown` 防连点；释放无需射线，拖出窗口松手也恢复 |
 | `attachUIScene(scene)` | [SceneRendererComponent.ts:373](../../src/engine/gameflow/SceneRendererComponent.ts) | 挂载 UI 场景叠加渲染（autoClear=false + clearDepth） | 内部创建/终态化 `UICamera`，传 null 即分离 |
@@ -350,7 +356,7 @@ try {
 | 下游功能 | 波及点 | 相关文档 |
 |---|---|---|
 | Canvas 渲染与命中拦截 | `reassignTreeOrder` 写的就是 `CanvasUIComponent.zOrder`；`hitTestMode='block'` 的画布经 `registerUIBlocker` 参与遮挡竞争 | [CanvasUIComponent](./ui_canvas_component.md) |
-| 射线点击与遮挡竞争 | UI 层先于世界层检测，命中即消费，Controller 收不到该次点击 | [物理系统](./physics_system.md) |
+| 射线点击与遮挡竞争 | UI 层先于世界层检测，命中即消费；世界层按射线最近命中仲裁（world 面板按钮不再被先注册的建筑抢走），world 模式 block 画布参与世界层拦截；hover 互斥（仅每层最前端命中者悬停，被遮挡者 `clearHover`） | [物理系统](./physics_system.md) |
 | 编辑器 UI 预览 / 运行时 UI 编辑 | 前者 `UIPreviewManager` 内置 World+UIManager 渲染 `ui.scene`；后者（UIScene 页签）遍历 `getAllUIActors()` 建大纲与拾取 | [资产预览与检查](../editor/asset/asset_preview_lint_system.md) |
 | UI 锚点编辑 / widget 源与编译 | 前者把手拖动走 `syncAnchorOffset`，与运行时 `applyAnchor` 必须互逆；后者编译产物即本文档的蓝图输入，组件字段变动同时影响资产检查 | [UI 锚点系统](../editor/ui/ui_anchor_system.md) |
 | 滚动列表 / 遮罩 / 输入框等增强组件 | 依赖 `owner.world`（由 `setWorld` 传播）与 `reassignTreeOrder` 重排 | [UI 增强系统](../editor/ui/ui_enhancement_system.md) |

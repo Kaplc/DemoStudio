@@ -48,21 +48,20 @@ return consumed
 flowchart TD
     A["handlePointerDown / GameViewport.ts:100"] --> B{"button === 0?"}
     B -->|否| Z["只广播 ProcessMouseButton，不走射线"]
-    B -->|是| C["PhySys.raycastClick / PhySys.ts:151"]
+    B -->|是| C["PhySys.raycastClick / PhySys.ts:155"]
     C --> D{"_uiCamera 存在?"}
-    D -->|是| E["screenToRay(x, y, _uiCamera) / PhySys.ts:128"]
-    E --> F["候选1: _uiClickables 逐个 hitTest，取 uiZOrder 最大"]
-    E --> G["候选2: _uiBlockers 逐个 intersectObject，取 zOrder 最大"]
-    F --> H{"遮挡竞争：严格大于才替换"}
-    G --> H
-    H -->|"topBlocked"| I["消费点击，return true（世界层收不到）"]
-    H -->|"bestClickable"| J["ClickableComponent.handleClick / :181"]
-    J --> K["冷却判定 → hitTest → onPress → onClick 或 _pendingClick"]
+    D -->|是| E["resolveUIStage：UI clickable + 屏幕 block 画布<br/>收集为候选（world 画布排除）"]
+    E --> F{"pickFrontmostHit<br/>UI 层 = zOrder 竞争<br/>同 z clickable 优先"}
+    F -->|"blocked"| I["消费点击，return true（世界层收不到）"]
+    F -->|"clickable"| J["ClickableComponent.handleClick / :197"]
+    J --> K["冷却判定 → onPress → onClick 或 _pendingClick"]
     K --> L["记录 _pressedClickable，return true"]
-    D -->|否| M["screenToRay(x, y) 用主相机"]
-    J -->|"未命中"| M
-    M --> N["遍历 _clickables，首个 handleClick 命中即 return true"]
-    N --> O["return false → 交给 controller.OnPointerDownScreen"]
+    J -->|"未命中（冷却中）"| M
+    D -->|否| M["resolveWorldStage：世界 clickable + world block 画布<br/>收集为候选，检测前刷新面板矩阵"]
+    M --> N{"pickFrontmostHit<br/>世界层 = 射线最近命中<br/>同面按 zOrder 决胜"}
+    N -->|"blocked"| I
+    N -->|"clickable"| J
+    N -->|"无候选"| O["return false → 交给 controller.OnPointerDownScreen"]
 ```
 
 **① `screenToRay`：屏幕坐标 → NDC → Raycaster**（[PhySys.ts:128](../../src/engine/physics/PhySys.ts)）
@@ -95,37 +94,33 @@ register(c: ClickableComponent): void {
 }
 ```
 
-> 这不是位掩码过滤，而是**注册期分流**。`ClickableComponent.BeginPlay`（:85）调 `PhySys.register(this)`，所以 **`layer` 必须在 `addComponent`（触发 BeginPlay）之前赋值**——之后再改不会挪集合，组件留在错误的层里被错误的相机打射线。`GMConsoleHUD` 有明确注释（[GMConsoleHUD.ts:379](../../src/engine/gm/GMConsoleHUD.ts)）：资产声明的 `ClickableComponent` **schema 里没有 `layer` 字段**（[componentChecker.ts:83](../../src/editor/asset/assetLint/checkers/componentChecker.ts) 只认 `clickCooldown`），UI 层 clickable 一律代码创建。设 `layer = 'ui'` 的共 5 处：`UIButtonComponent.ts:68`、`UIScrollListComponent.ts:421`、`UIScrollContainerComponent.ts:213/326`、`UITooltipComponent.ts:111`、`GMConsoleHUD.ts:392/395`。
+> 这不是位掩码过滤，而是**注册期分流**。`ClickableComponent.BeginPlay`（:101）调 `PhySys.register(this)`；`layer` setter 赋值即重注册（BeginPlay 后改层会自动迁移集合，[ClickableComponent.ts:34](../../src/engine/physics/ClickableComponent.ts)），但为免歧义仍建议在 `addComponent` 前定好层。`GMConsoleHUD` 有明确注释（[GMConsoleHUD.ts:379](../../src/engine/gm/GMConsoleHUD.ts)）：资产声明的 `ClickableComponent` **schema 里没有 `layer` 字段**（[componentChecker.ts:83](../../src/editor/asset/assetLint/checkers/componentChecker.ts) 只认 `clickCooldown`），UI 层 clickable 一律代码创建。设 `layer = 'ui'` 的共 5 处：`UIButtonComponent.ts:68`、`UIScrollListComponent.ts:421`、`UIScrollContainerComponent.ts:213/326`、`UITooltipComponent.ts:111`、`GMConsoleHUD.ts:392/395`。
 
-**③ UI 层遮挡竞争：clickable 与 block 画布抢最高 zOrder**（[PhySys.ts:151](../../src/engine/physics/PhySys.ts)）
+**③ 两级仲裁：UI 层按 zOrder，世界层按射线最近**（[PhySys.ts:262](../../src/engine/physics/PhySys.ts)）
+
+`raycastClick` / `raycastHover` 共用两个解析器，命中归属由 `pickFrontmostHit` 纯函数决定（可单测，[physysArbitration.test.ts](../../tests/physysArbitration.test.ts)）：
 
 ```ts
-let bestZ = -Infinity
-let bestClickable: ClickableComponent | null = null
-let topBlocked = false
-for (const c of this._uiClickables) {          // 候选 1：可点击元素
-  if (!c.bEnabled || c.isDestroyed()) continue
-  if (c.hitTest(uiRay)) {
-    const z = c.uiZOrder
-    if (z > bestZ) { bestZ = z; bestClickable = c; topBlocked = false }
+// UI 层 resolveUIStage：clickable 与屏幕 block 画布收集为候选（world 模式画布被排除），
+// 世界层 resolveWorldStage：世界 clickable 与 world 模式 block 画布收集为候选。
+// 仲裁规则统一：
+export function pickFrontmostHit(candidates: HitCandidate[]): HitCandidate | null {
+  let best: HitCandidate | null = null
+  for (const c of candidates) {
+    if (!best) { best = c; continue }
+    if (c.distance < best.distance - SAME_PLANE_EPS) {
+      best = c                                   // 明显更近 → 直接胜出
+    } else if (c.distance <= best.distance + SAME_PLANE_EPS) {
+      const cWins = c.z > best.z                 // 同面（差 < 1e-3）→ zOrder 高者胜
+        || (c.z === best.z && c.kind === 'clickable' && best.kind === 'blocked')
+      if (cWins) best = c                        // 同 z 时 clickable 优先于拦截画布
+    }
   }
-}
-for (const b of this._uiBlockers) {            // 候选 2：block 拦截画布
-  if (!b.panel || !isVisibleChain(b.panel)) continue
-  if (uiRay.intersectObject(b.panel, false).length > 0) {
-    const z = b.zOrder
-    // 同 zOrder 时 clickable 优先（同层按钮先于遮罩）
-    if (z > bestZ) { bestZ = z; bestClickable = null; topBlocked = true }
-  }
-}
-if (topBlocked) return true   // 顶层是拦截画布 → 消费点击，世界层收不到
-if (bestClickable && bestClickable.handleClick(uiRay)) {
-  this._pressedClickable = bestClickable
-  return true
+  return best
 }
 ```
 
-> **（a）严格大于**：同 `zOrder` 时先跑的 clickable 赢，block 画布挤不掉它——模态遮罩通常铺在按钮**下面**，用 `>=` 会让它把自己上面的按钮吃掉。**（b）`uiZOrder` 只在 UI 层内比**，取 owner 及祖先链上 `CanvasUIComponent` 的最大 `zOrder`（[ClickableComponent.ts:273](../../src/engine/physics/ClickableComponent.ts)，`layer !== 'ui'` 直接返回 0），按钮不必自己设 zOrder，继承祖先面板层级即可。**（c）世界层不排序**：`for (const c of this._clickables)` 首个 `handleClick` 返回 true 者即赢，由 Set 插入顺序决定，不保证"最近的物体优先"。
+> **（a）严格大于**：同 `zOrder` 时先跑的 clickable 赢，block 画布挤不掉它——模态遮罩通常铺在按钮**下面**，用 `>=` 会让它把自己上面的按钮吃掉。**（b）`uiZOrder` 取 owner 及祖先链上 `CanvasUIComponent` 的最大 `zOrder`**（[ClickableComponent.ts:289](../../src/engine/physics/ClickableComponent.ts)，`layer !== 'ui'` 直接返回 0），按钮不必自己设 zOrder，继承祖先面板层级即可。**（c）世界层按最近命中仲裁，不按注册序**：收集全部命中（世界 clickable + world 模式 block 画布）取射线最近者——这是 UE 语义"游戏输入是 UI 未命中时的兜底，归属由几何决定"。没有这一层时，后 spawn 的 world 面板按钮会被先注册的建筑 clickZone 抢走点击（信息牌"点升级"变成重选建筑的根因）。**（d）block 画布按空间分流**：屏幕画布归 UI 层（UICamera 射线），`__dsWorldUI` 标记的 world 画布归世界层（主相机射线）——world 坐标在米制世界系，拿 UICamera（原点附近正交）的射线检测会数值性误命中；检测前必须 `updateWorldMatrix`（billboard 逐帧旋转，旧矩阵会算错命中）。
 
 **④ 为什么 UI 用独立 `uiCamera`**：渲染端是双摄像机，主相机跑 3D，`UICamera`（正交，contain 模式完整显示 9.6×5.4 画布，[UICamera.ts:22](../../src/engine/rendering/UICamera.ts)）在主场景后叠加（`autoClear=false` + `clearDepth`）；它在 `SceneRendererComponent.attachUIScene`（:373）里创建、`uiCamera` getter（:81）暴露。`Game.launch` 把**同一台**交给 PhySys（[Game.ts:208](../../src/engine/gameflow/Game.ts)）：
 
@@ -245,7 +240,7 @@ if (stepped) { this.dispatchCollisionEvents(); this.syncActorsFromBodies() }
 
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| `screenToRay(x, y, cam?)` / `raycastClick(x, y)` | [PhySys.ts:128](../../src/engine/physics/PhySys.ts) / [:151](../../src/engine/physics/PhySys.ts) | 前者屏幕 → NDC → Raycaster；后者 UI 层遮挡竞争 → 世界层，返回是否消费 | 返回**复用实例**，不可跨帧持有；视口宽高 0 返回 null；世界层不排序，首个命中即赢 |
+| `screenToRay(x, y, cam?)` / `raycastClick(x, y)` | [PhySys.ts:131](../../src/engine/physics/PhySys.ts) / [:155](../../src/engine/physics/PhySys.ts) | 前者屏幕 → NDC → Raycaster；后者 UI 层（zOrder 竞争）→ 世界层（射线最近命中，`pickFrontmostHit`），返回是否消费 | 返回**复用实例**，不可跨帧持有；视口宽高 0 返回 null；世界层命中归属由几何决定，与注册顺序无关 |
 | `raycastRelease()` / `dispatchDragMove(x, y)` | [PhySys.ts:212](../../src/engine/physics/PhySys.ts) / [:222](../../src/engine/physics/PhySys.ts) | 向 `_pressedClickable` 分发释放 / 拖拽 | 都不发射线；拖出命中区仍持续收到 |
 | `raycastHover(x, y)` / `isVisibleChain(o)` | [PhySys.ts:231](../../src/engine/physics/PhySys.ts) / [:251](../../src/engine/physics/PhySys.ts) | 逐个 `handleHover`，不竞争 / 沿父链判可见 | 拖拽期间由 InputSys 跳过；`isVisibleChain` 是**非导出**的模块级函数 |
 | `setup(camera, uiEl)` / `setupUI(cam \| null)` | [PhySys.ts:82](../../src/engine/physics/PhySys.ts) / [:94](../../src/engine/physics/PhySys.ts) | 注入主相机 + 视口 DOM / 注入 UI 相机 | 前者阶段切换时调（[FishGameInstance.ts:622](../../src/projects/fish/gameplay/FishGameInstance.ts)）；UI 相机为 null 时 UI 层整体跳过 |
@@ -285,11 +280,11 @@ if (stepped) { this.dispatchCollisionEvents(); this.syncActorsFromBodies() }
 
 ## 6. 踩坑清单
 
-**1. 改了 `layer` 但命中还是走错层** —— `PhySys.register` 分流发生在 `BeginPlay`（触发于 `addComponent`），之后再改不改集合。**规则**：`clickable.layer = 'ui'` 必须写在 `addComponent(clickable)` **之前**。
+**1. 改了 `layer` 但命中还是走错层** —— `PhySys.register` 分流发生在 `BeginPlay`（触发于 `addComponent`）；`layer` setter 现已赋值即重注册（BeginPlay 后改层自动迁移集合），但仍建议在 `addComponent(clickable)` **之前**写好，避免依赖迁移时序。
 
 **2. 模态遮罩盖不住它上面的按钮** —— 遮挡竞争用**严格大于**比较，同 `zOrder` 时 clickable 优先。**规则**：遮罩 `zOrder` 必须严格更高；GM 控制台靠 `GM_ZORDER_BASE = 1000` 整树抬升。
 
-**3. 连点第二下没反应** —— `clickCooldown` 默认 500ms，**每组件独立**计数。**规则**：需要高频的自己调小（200/300/500 项目里都有先例）；只有命中才刷新时间戳。
+**3. 连点第二下没反应** —— `clickCooldown` 默认 500ms，**每组件独立**计数。**规则**：需要高频的自己调小（200/300/500 项目里都有先例）；只有命中才刷新时间戳；冷却中的最前端命中会让本次点击穿透到 controller（被遮挡者不会接管）。
 
 **4. 隐藏的 UI 仍然能被点中** —— `THREE.Raycaster` 不检查 `visible`，父节点隐藏时子 mesh 照样命中。**规则**：隐藏一律走 `bActive = false`（经 `applyActive` 级联 `owner.bActive`），不要只改单个 mesh 的 `visible`。
 
@@ -298,6 +293,10 @@ if (stepped) { this.dispatchCollisionEvents(); this.syncActorsFromBodies() }
 **6. 拖拽滚动列表明显卡顿** —— 每个 UI clickable 的 `hitTest` 都强制 `updateWorldMatrix(true, false)`，拖拽时每帧跑全套射线是主要开销。**规则**：`InputSys.handlePointerMove` 已用 `PhySys.isDragging` 跳过，别再往 `raycastHover` 链路加遍历。
 
 **7. 停止游戏后再启动，点击打到旧 World 的组件** —— 残留组件闭包链指向已销毁的旧 `GameInstance`/`World`。**规则**：`PhySys.clear()` 清空三个 Set，由 `Game.shutdown` 的 `reset()` 兜底；`isDestroyed()` 只是第二道防线。
+
+**8. world 面板的按钮点不动 / 点面板空白处把面板关了** —— 前者是历史 bug：世界层曾按注册序先到先得，先注册的建筑 clickZone 抢走后 spawn 的面板按钮点击（已改为射线最近仲裁）；后者是面板底板没有拦截能力，点击穿透到空地触发"点空地关牌"。**规则**：world 模式面板要挡住身后点击，给**带背景的节点**声明 `hit-test: block`（编译器落到该节点 `UIImageComponent` 视觉块的 `hitTest`，marker 块无 mesh 拦不住）；按钮与底板的 zOrder 用 CSS `z-index` 表达，同面时 zOrder 高者胜。
+
+**9. hover 状态"透"到被遮挡的物体上** —— `raycastHover` 已互斥化：只有每层最前端命中者处于 hover，其余（含被 UI/blocker 盖住的世界物体）统一 `clearHover()`。**规则**：不要再依赖"多个 clickable 同时 hovering"；tooltip 与按钮同节点时 `onHover` 仍会互相覆盖（各自单回调字段，见 `UITooltipComponent`）。
 
 **8. 预览视口里碰撞体不生效** —— 设计如此：`ColliderComponent.BeginPlay` 检查 `phys.active`，预览 World 从不 `begin()`。**规则**：验证碰撞得跑 `Game.launch` 的运行时 World。
 

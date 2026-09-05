@@ -75,7 +75,7 @@
 | `world` | 已废弃 | **不要再写**。UI 世界单位 = 设计像素（canvas 即世界），写了也只是告警并忽略 |
 | `anchor` / `offset` | 可选 | 根锚点（如 `top-center`）+ 偏移（px）。全屏面板不用写（铺满即可） |
 | `data-script` | 可选 | 面板行为脚本，挂根节点（§6） |
-| `data-comp` / `data-props` | 可选 | **根 Actor 组件声明**（如世界空间锚点 `UIWorldAnchorComponent`）。`data-props` 为单引号包裹的 JSON。注意：写在 body 元素上的 `data-comp` 挂的是该元素对应的**子 Actor**，根级组件必须写在 `<widget>` 标签上。反编译会把根级组件逃逸回写为这两个属性（往返不丢） |
+| `data-comp` / `data-props` | 可选（迁移期） | 根 Actor 组件声明的**旧通道**，仍可编译。组件参数现在推荐写 `<properties>` 参数区（见 §2.1）；反编译会把根级组件还原进参数区。写在 body 元素上的 `data-comp` 挂的是该元素对应的**子 Actor**，根级组件必须写在 `<widget>` 标签上 |
 | `active="false"` | 可选 | 根默认隐藏（脚本控制显示时用） |
 
 编译器怎么读这些属性（[compile.ts:514](#) `compileWidgetHtml` 内）：
@@ -121,6 +121,40 @@ if (rootAnchor) {
 ```ts
 if (root.attrs['active'] === 'false') doc.active = false
 ```
+
+### 2.1 `<properties>` 参数区（组件参数）
+
+**设计归 HTML+CSS，参数归参数区**：`<widget>` 直接子级放一个 `<properties>` 块（内容为原始 JSON，不解析实体），承载所有"CSS 里写不出来"的组件参数——世界空间锚点、脚本参数、未来的行为组件。AI 画的原生结构里不再挂着转义 JSON：
+
+```html
+<widget name="BuildingInfoCard" canvas="520x300" data-script="gameplay/base/BuildingInfo">
+  <properties>
+    {
+      "BuildingInfoCard": { "UIWorldAnchorComponent": { "mode": "world", "pxPerMeter": 300, "pixelDensity": 2, "faceCamera": true, "alwaysOnTop": true } },
+      "Btn_collect": { "UIScriptComponent": { "args": { "hover": { "color": "#66bb6a" } } } }
+    }
+  </properties>
+  <style>…纯视觉样式…</style>
+  <div class="CardRoot">…纯原生结构…</div>
+</widget>
+```
+
+键结构是 **`节点名 → 组件 baseClass → properties 对象`**，节点名必须与编译产物 name 一致（`usedNames` 保证全局唯一；节点改名后参数区键要同步，否则编译报错"引用了不存在的节点"）。
+
+**什么该写进参数区**——判定标准是"该值在 HTML/CSS 里有没有原生表达位"（不是"影不影响外观"）：
+
+| 表达位 | 归属 | 例 |
+|---|---|---|
+| 有 CSS/标签对应写法 | 原生 HTML | `fontSize`→`font-size:`、`color`、`z-index`、`gap`→UILayout spacing、文本内容内联 |
+| 无 CSS 对应物的组件参数/挂载 | `<properties>` 区 | `UIWorldAnchorComponent` 全部参数（pxPerMeter/pixelDensity/mode/faceCamera/alwaysOnTop）、`UIScriptComponent.args`、未来行为组件 |
+
+硬规则：
+
+- **视觉组件禁止声明**：`UITransformComponent` / `CanvasUIComponent` / `UITextComponent` / `UIImageComponent` / `UIButtonComponent` 写进参数区直接编译报错（避免同一视觉值两个真相源），用标签 + CSS 表达。
+- **编译顺序在 data-comp 之后**：同一组件同时写在属性和参数区（迁移期双声明）→ 参数区赢，lint 不告警。存量资产不用急着迁。
+- **嵌套/重复不识别**：`<properties>` 只认 `<widget>`（full-document 模式为 `<body>`）直接子级，塞进 `<div>` 里会按未知标签硬报错；至多一个。
+- **机器管理区**：Inspector 改属性保存时，编辑器自动把差分键重写进参数区（2 空格缩进规范化重写，手写排版不保留——这是数据区定位使然）；参数区缺失时自动创建。人工一般不需要手改它。
+- **sourceHash 对全文计算**：只改参数区一个值也会换 hash，双边同改的冲突检测照常生效。
 
 ---
 
@@ -252,6 +286,7 @@ private nameOf(el: StyleElement, box: Box | null, usedNames: Set<string>, fallba
 - **按钮状态**：`:hover/:active/:disabled` 的颜色自动传给运行时，无需任何脚本。
 - **输入框**：`<input>` 自带焦点/占位符；`placeholder` 属性直接写。
 - **点击行为**：按钮的响应逻辑写在 data-script 指向的脚本里，不在 HTML 里。
+- **点击拦截**：默认所有节点都不挡点击（只有 `<button>` 能被点）。要"点面板空白处不穿透到场景"，给**带背景的节点**写 `hit-test: block`（见下方配方）。
 
 `data-script` 发射成 `UIScriptComponent`（[compile.ts:1537](#)）：
 
@@ -388,6 +423,28 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 <div class="GM_CmdList" data-comp="UIScrollList" data-props='{"itemWidget":"asset/blueprints/ui/gm_cmd_item.widget.json","itemSize":[540,48],"spacing":4,"zOrderLift":0,"draggable":true,"scrollbar":true}'></div>
 ```
 
+### 配方 E：模态面板挡住身后点击（hit-test: block）
+
+默认语义仿 UE 的 SelfHitTestInvisible：**只有 `<button>` 能接住点击，其他一切穿透**。模态遮罩、world 模式信息牌/全息面板这类"点空白处不该穿透到场景"的节点，给**带背景的节点**写 `hit-test: block`：
+
+```html
+<style>
+  /* world 模式建筑信息牌：点卡片空白处被消费，不再穿透到身后的建筑/空地 */
+  .Card { width: 526px; height: 306px; background-color: #140e06e0; border-radius: 28px; hit-test: block; }
+  .Btn_upgrade { width: 210px; height: 84px; background-color: #ffae00; border-radius: 18px; }
+</style>
+<div class="Card">
+  <button class="Btn_upgrade"><text>升 级</text></button>
+</div>
+```
+
+规则：
+
+- `hit-test: block` 必须写在**有 `background-color`/渐变的节点**上——编译器把它落到该节点的 `UIImageComponent` 视觉块（命中拦截的实现方是有 mesh 的 CanvasUI 组件；纯容器 div 没有 mesh，写了也白写）。
+- 挡住的区域内按钮照常可点：点击归属按"射线最近 + zOrder 最高"仲裁（同面时 `z-index` 高者胜、clickable 优先于底板），所以底板 block 不会吃掉自己上面的按钮。
+- `hit-test: hitTestInvisible` / `pointer-events: none`：显式声明穿透（默认行为一致，用于表达意图）。
+- 现成例子：[building_info.widget.html](../../../src/projects/fish/asset/blueprints/ui/building_info.widget.html) 的 `.Card`、GM 控制台根画布（代码声明 `hitTest: 'block'`）。
+
 ### 什么时候才用 absolute
 
 - 全屏遮罩/背景层（`left:0 top:0` 铺满）
@@ -445,6 +502,7 @@ private emitDataComp(el: StyleElement, node: Record<string, unknown>): void {
 - `data-comp="UILayout"` 会**自动补 `Component` 后缀**再查，所以两种写法都行。
 - 已存在的同 baseClass 组件是**合并而非替换**（`props` 在后，显式声明优先）。这样 `<div title="x" data-comp="UITooltip" data-props='{"delay":0.5}'>` 能精确覆盖默认 text，不丢 text。
 - `data-props` 必须**单引号包裹**（`data-props='{...}'`），因为 JSON 里是双引号。JSON 非法则带行号硬报错。
+- 世界空间锚点（`UIWorldAnchorComponent`）这类**无 CSS 表达位**的参数，推荐写 `<properties>` 参数区（§2.1）；`data-comp` 通道保留兼容，双声明时参数区赢。
 
 ---
 
