@@ -8,13 +8,17 @@
  *
  * 定位语义：每个子项的 UITransformComponent 为 anchor=center + anchorOffset，
  * 布局即写入 anchorOffset（相对父容器中心的世界偏移）并 applyAnchor 生效；
- * 子项未配置锚点时退回直接 setPosition（相对父 Actor 的本地坐标）。
+ * 子项锚点为其他预设（编译器角锚点等）时归一化为 center 再写（edge 锚的
+ * offset 语义不同，直接写会错位）；未配置锚点时退回直接 setPosition。
  * 因此子项的世界尺寸（worldWidth/worldHeight）决定格子步长：
  * 步长 = 子项尺寸 + 对应方向 spacing。
  *
+ * 失活子项（bActive=false）不参与布局（CSS display:none 出流语义）：
+ * 隐藏/恢复经 Tick 签名检测自动重排，剩余子项按 justify 重新分布。
+ *
  * 触发时机：
  *  - BeginPlay 初次布局（树构建完成后）
- *  - Tick 自动检测子项数量/名字变化 → 重新布局（autoLayout，默认开）
+ *  - Tick 自动检测子项数量/名字/激活态变化 → 重新布局（autoLayout，默认开）
  *  - 代码主动调用 layout()（如脚本动态生成子节点后）
  *
  * 资产配置示例（挂在兵营 TroopList 容器上）：
@@ -174,11 +178,12 @@ export class UILayoutComponent extends ActorComponent<Actor> {
 
   override Tick(_dt: number): void {
     super.Tick(_dt)
-    // 自动布局：子项集合变化（数量/名字）时重排，避免每帧无谓重算
+    // 自动布局：子项集合变化（数量/名字/激活态）时重排，避免每帧无谓重算。
+    // 激活态入签名：隐藏/恢复子项（如信息牌隐藏收集按钮）自动按 justify 重排
     if (!this._autoLayout) return
     const sig = this.owner
       .getChildren()
-      .map((c) => c.root.name)
+      .map((c) => `${c.root.name}${c.bActive ? '' : '~'}`)
       .join('|')
     if (sig !== this._lastSignature) {
       this._lastSignature = sig
@@ -199,17 +204,22 @@ export class UILayoutComponent extends ActorComponent<Actor> {
    *    不可得时 justify/align 全部退回 center 行为（与旧版一致）并告警一次
    */
   layout(): void {
+    // 失活子项不参与布局（display:none 出流语义）：隐藏后剩余子项按 justify 重排；
+    // _baseSizes 保留其快照（恢复激活时重取 getWorldSize，值不受显隐影响）
     const children = this.owner
       .getChildren()
-      .filter((c) => c.getComponent(UITransformComponent))
+      .filter((c) => c.bActive && c.getComponent(UITransformComponent))
     if (children.length === 0) return
 
     // 子项基准尺寸：首次布局时快照（uid 键）。stretch 写回 worldSize 不置 explicit，
-    // 后续改回 center 等对齐时恢复基准尺寸；快照保证重排不再漂移
+    // 后续改回 center 等对齐时恢复基准尺寸；快照保证重排不再漂移。
+    // 快照保留范围含失活子项（uid 不清理）：隐藏期间基准不丢，恢复激活无漂移
     const baseSizes: Array<[number, number]> = []
     const liveUids = new Set<number>()
+    for (const c of this.owner.getChildren()) {
+      if (c.getComponent(UITransformComponent)) liveUids.add(c.uid)
+    }
     for (const c of children) {
-      liveUids.add(c.uid)
       let base = this._baseSizes.get(c.uid)
       if (!base) {
         base = c.getComponent(UITransformComponent)!.getWorldSize()
@@ -368,13 +378,20 @@ export class UILayoutComponent extends ActorComponent<Actor> {
     for (let i = 0; i < children.length; i++) {
       const tf = children[i].getComponent(UITransformComponent)!
       const [ox, oy] = offsets[i]
-      if (tf.anchor) {
-        // 锚点定位：anchorOffset 即相对父中心的偏移（anchor=center 时）
-        tf.anchorOffset = [ox, oy]
-        tf.applyAnchor()
+      if (tf.anchor === 'center' || !tf.anchor) {
+        // 中心锚：anchorOffset 即相对父中心的偏移（offsets 全按此语义计算）
+        if (tf.anchor) {
+          tf.anchorOffset = [ox, oy]
+          tf.applyAnchor()
+        } else {
+          // 无锚点：直接设相对父 Actor 的本地位置（z 保持父容器层级）
+          tf.setPosition(ox, oy, 0)
+        }
       } else {
-        // 无锚点：直接设相对父 Actor 的本地位置（z 保持父容器层级）
-        tf.setPosition(ox, oy, 0)
+        // 其他预设锚点（编译器角锚点等）：offset 语义是相对锚定边的，直接写
+        // offsets 会错位——归一化为 center 锚再写，布局容器接管子项定位
+        tf.anchor = 'center'
+        tf.anchorOffset = [ox, oy]
       }
     }
     // 内容包围盒缓存（getContentSize / autoHeight 用）：各项边盒并集，世界单位

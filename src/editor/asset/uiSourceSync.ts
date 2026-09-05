@@ -9,7 +9,7 @@
  *
  * 全部经 electronAPI 文件 IO（相对项目根路径），浏览器 Mock 环境降级为内存缓存。
  */
-import { compileWidgetHtml, decompileWidgetJson } from './uiCompiler'
+import { compileWidgetHtml, decompileWidgetJson, patchWidgetHtmlInPlace } from './uiCompiler'
 import type { CompileError, CompileWarning } from './uiCompiler'
 import { logger } from '../../engine/Logger'
 
@@ -71,44 +71,65 @@ export async function decompileBackOnSave(
   widgetPath: string,
   widgetDoc: unknown,
 ): Promise<UiSyncResult> {
-  const srcPath = sourcePathOf(widgetPath)
-  const warnings: string[] = []
-  try {
-    // 无源资产（TC-D5）：静默跳过，不报错不误写
-    const existing = await readText(srcPath)
-    if (existing === null) {
-      return { written: false, conflict: false, warnings }
-    }
+    const srcPath = sourcePathOf(widgetPath)
+    const warnings: string[] = []
+    try {
+      // 无源资产（TC-D5）：静默跳过，不报错不误写
+      const existing = await readText(srcPath)
+      if (existing === null) {
+        return { written: false, conflict: false, warnings }
+      }
 
-    const result = decompileWidgetJson(widgetDoc)
-    warnings.push(...result.warnings)
-    if (!result.ok || !result.html) {
-      logger.warn(`[UiSourceSync] 反编译失败，跳过回写: ${srcPath}: ${result.warnings.join('; ')}`)
-      return { written: false, conflict: false, warnings, error: result.warnings.join('; ') }
-    }
+      // 冲突检测口径：json 里的 sourceHash vs 现有源编译指纹（双边同改）
+      const jsonHash = (widgetDoc as Record<string, unknown>).sourceHash as string | undefined
+      const diskCompile = compileWidgetHtml(existing)
+      const diskHash = diskCompile.doc ? (diskCompile.doc.sourceHash as string) : undefined
+      const conflict = Boolean(jsonHash && diskHash && jsonHash !== diskHash)
 
-    // 冲突检测：磁盘源当前编译指纹 vs json 里的 sourceHash
-    const jsonHash = (widgetDoc as Record<string, unknown>).sourceHash as string | undefined
-    const diskCompile = compileWidgetHtml(existing)
-    const diskHash = diskCompile.doc ? (diskCompile.doc.sourceHash as string) : undefined
-    const conflict = Boolean(jsonHash && diskHash && jsonHash !== diskHash)
-    if (conflict) {
-      // 以最后保存方（json）为准：反编译覆盖源（方案 §11.3），并告警
-      warnings.push('检测到源文件与 widget.json 同时被改（sourceHash 不一致）：以最后保存方（json）为准，源文件已被反编译结果覆盖')
-      logger.warn(`[UiSourceSync] 双边同改冲突，以 json 为准回写源: ${srcPath}`)
-    }
+      // 优先「原地数值补丁」：只改真实变化的值，保留用户排版（注释/换行/属性顺序）。
+      // 人工编辑只有属性值修改（widget 大纲已无创建/复制/删除入口），补丁几乎必成；
+      // 结构变化/无法定位时回退整篇反编译重写。
+      const patch = patchWidgetHtmlInPlace(existing, widgetDoc as Record<string, unknown>)
+      if (patch.ok) {
+        await writeText(srcPath, patch.html)
+        const newHash = fnv1a(patch.html.replace(/^\uFEFF/, ''))
+        if (patch.edits.length > 0) {
+          logger.info(
+            `[UiSourceSync] 原地数值补丁 ${patch.edits.length} 处: ${srcPath}` +
+            `${conflict ? '（冲突仲裁：以 json 为准）' : ''}（${patch.edits.join('；')}；newHash=${newHash}）`,
+          )
+          if (conflict) warnings.push('检测到源文件与 widget.json 同时被改（sourceHash 不一致）：以最后保存方（json）为准，已原地覆盖对应数值')
+        } else {
+          logger.info(`[UiSourceSync] 源与 json 无差分，跳过回写: ${srcPath}`)
+        }
+        return { written: patch.edits.length > 0, conflict, warnings }
+      }
+      logger.info(`[UiSourceSync] 原地补丁不可用（${patch.reason}），改走整篇反编译: ${srcPath}`)
 
-    // 回写源 + 重算 sourceHash（json 与源重新等效）
-    await writeText(srcPath, result.html)
-    const newHash = fnv1a(result.html.replace(/^\uFEFF/, ''))
-    logger.info(`[UiSourceSync] 反编译回写源文件: ${srcPath}（conflict=${conflict}，newHash=${newHash}）`)
-    return { written: true, conflict, warnings }
-  } catch (e) {
-    const msg = (e as Error).message
-    logger.error(`[UiSourceSync] 回写异常: ${srcPath}: ${msg}`)
-    return { written: false, conflict: false, warnings, error: msg }
+      const result = decompileWidgetJson(widgetDoc)
+      warnings.push(...result.warnings)
+      if (!result.ok || !result.html) {
+        logger.warn(`[UiSourceSync] 反编译失败，跳过回写: ${srcPath}: ${result.warnings.join('; ')}`)
+        return { written: false, conflict: false, warnings, error: result.warnings.join('; ') }
+      }
+
+      if (conflict) {
+        // 以最后保存方（json）为准：反编译覆盖源（方案 §11.3），并告警
+        warnings.push('检测到源文件与 widget.json 同时被改（sourceHash 不一致）：以最后保存方（json）为准，源文件已被反编译结果覆盖')
+        logger.warn(`[UiSourceSync] 双边同改冲突，以 json 为准回写源: ${srcPath}`)
+      }
+
+      // 回写源 + 重算 sourceHash（json 与源重新等效）
+      await writeText(srcPath, result.html)
+      const newHash = fnv1a(result.html.replace(/^\uFEFF/, ''))
+      logger.info(`[UiSourceSync] 反编译回写源文件: ${srcPath}（conflict=${conflict}，newHash=${newHash}）`)
+      return { written: true, conflict, warnings }
+    } catch (e) {
+      const msg = (e as Error).message
+      logger.error(`[UiSourceSync] 回写异常: ${srcPath}: ${msg}`)
+      return { written: false, conflict: false, warnings, error: msg }
+    }
   }
-}
 
 /** 编译源并返回结果（编辑器编译按钮 / MCP ui_compile 共用） */
 export function compileUiSource(source: string): { ok: boolean; errors: CompileError[]; warnings: CompileWarning[]; doc?: Record<string, unknown> } {

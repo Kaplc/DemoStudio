@@ -311,9 +311,22 @@ export class UITextComponent extends CanvasUIComponent {
     super.zOrder = v
     if (this.mesh) {
       // world 模式深度写入已关，定序只认 renderOrder：半步偏移保证文本恒在其面板底之上
-      this.mesh.renderOrder = this._worldRendering ? v + 0.5 : v
+      this.mesh.renderOrder = this._renderOrderBias + v + (this._worldRendering ? 0.5 : 0)
       this.mesh.position.z = v * 0.001 + 0.0002
     }
+  }
+
+  /**
+   * 始终顶层（覆写基类）：troika mesh 同步关深度测试 + renderOrder 基准偏移，
+   * 半步偏移（+0.5）保持文本恒压其面板底的相对序。
+   */
+  override setAlwaysOnTop(on: boolean, orderBias: number): void {
+    super.setAlwaysOnTop(on, orderBias)
+    if (!this.mesh) return
+    // troika Text 的类型声明未暴露 material（运行时是 THREE.Mesh）→ 双保险转换
+    const mat = (this.mesh as unknown as THREE.Mesh).material as THREE.Material | undefined
+    if (mat) mat.depthTest = !on
+    this.mesh.renderOrder = this._renderOrderBias + this.zOrder + (this._worldRendering ? 0.5 : 0)
   }
 
   /**
@@ -327,7 +340,7 @@ export class UITextComponent extends CanvasUIComponent {
       // troika Text 的类型声明未暴露 material（运行时是 THREE.Mesh）→ 双保险转换
       const mat = (this.mesh as unknown as THREE.Mesh).material as THREE.Material | undefined
       if (mat) mat.depthWrite = false
-      this.mesh.renderOrder = this.zOrder + 0.5
+      this.mesh.renderOrder = this._renderOrderBias + this.zOrder + 0.5
     }
   }
 

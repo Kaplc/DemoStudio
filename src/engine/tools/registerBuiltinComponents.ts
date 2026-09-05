@@ -571,7 +571,7 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIWorldAnchorComponent ─── props: { mode?, targetActorId?, localOffset?, faceCamera?, constantScreenSize?, clamping?, pxPerMeter?, pixelDensity? }
+  // ─── UIWorldAnchorComponent ─── props: { mode?, targetActorId?, localOffset?, faceCamera?, constantScreenSize?, clamping?, pxPerMeter?, pixelDensity?, alwaysOnTop? }
   // 3D 场景 UI 锚定组件（World-Space UI 双模式）：screen=屏幕跟随（uiScene 投影）/
   // world=世界空间面板（主场景分流 + pxPerMeter 换算 + billboard）。
   // 运行时动态创建统一走 UIManager.spawnAnchoredWidget（句柄管理）；此处注册支持
@@ -588,6 +588,7 @@ export function registerBuiltinComponents(): void {
         clamping: p.clamping as UIWorldAnchorClamping | undefined,
         pxPerMeter: p.pxPerMeter as number | undefined,
         pixelDensity: p.pixelDensity as number | undefined,
+        alwaysOnTop: p.alwaysOnTop as boolean | undefined,
       }),
     (c, p) => {
       const a = c as UIWorldAnchorComponent
@@ -599,6 +600,7 @@ export function registerBuiltinComponents(): void {
       if (p.clamping !== undefined) a.clamping = p.clamping as UIWorldAnchorClamping
       if (p.pxPerMeter !== undefined) a.pxPerMeter = p.pxPerMeter as number
       if (p.pixelDensity !== undefined) a.pixelDensity = p.pixelDensity as number
+      if (p.alwaysOnTop !== undefined) a.alwaysOnTop = p.alwaysOnTop as boolean
     },
   )
 

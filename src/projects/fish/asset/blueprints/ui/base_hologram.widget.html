@@ -1,4 +1,6 @@
-<widget name="base_hologram" canvas="960x540">
+<widget name="base_hologram" canvas="960x540"
+        data-comp="UIWorldAnchorComponent"
+        data-props='{"mode":"world","pxPerMeter":200,"pixelDensity":2,"faceCamera":true}'>
   <style>
     .Root { width: 100%; height: 100%; }
     .Panel { width: 960px; height: 540px; position: absolute; left: 0px; top: 0px;
@@ -14,9 +16,7 @@
             font-size: 22px; color: rgba(191,233,255,0.55); text-align: center;
             text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
   </style>
-  <div class="Root"
-       data-comp="UIWorldAnchorComponent"
-       data-props='{"mode":"world","pxPerMeter":200,"pixelDensity":2,"faceCamera":true}'>
+  <div class="Root">
     <div class="Panel"></div>
     <text class="Title">基地核心</text>
     <text class="Info">全息面板 · World-Space UI</text>

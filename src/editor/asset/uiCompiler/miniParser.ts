@@ -26,6 +26,17 @@ export interface HtmlNode {
   line: number
   /** 原始文本内容（仅 script/style 等 rawText 元素） */
   raw?: string
+  /** 源偏移：元素 '<' 起点（注释按等长空格剥离，偏移与原始源一致；'#text' 无） */
+  start?: number
+  /** 源偏移：开标签 '>' 之后 */
+  openEnd?: number
+  /** 源偏移：闭合标签 '</tag' 起点（void/自闭合/rawText 无） */
+  closeStart?: number
+  /** 源偏移：元素终点（闭合 '>' / '/>' / rawText 闭合 '>' 之后） */
+  end?: number
+  /** 源偏移：rawText 内容区间 [rawStart, rawEnd)（仅 script/style） */
+  rawStart?: number
+  rawEnd?: number
 }
 
 export class ParseError extends Error {
@@ -121,6 +132,7 @@ export function tokenizeHtml(src: string): { root: HtmlNode } {
     }
     const tag = m[1].toLowerCase()
     const line = lineOf(noComment, pos)
+    const elemStart = pos
     pos += m[0].length
 
     // 属性
@@ -140,15 +152,16 @@ export function tokenizeHtml(src: string): { root: HtmlNode } {
     // 自闭合
     if (noComment.startsWith('/>', pos)) {
       pos += 2
-      return { tag, attrs, children: [], text: '', line }
+      return { tag, attrs, children: [], text: '', line, start: elemStart, openEnd: pos, end: pos }
     }
     if (noComment[pos] !== '>') {
       throw new ParseError(`标签 <${tag}> 未正确闭合`, lineOf(noComment, pos))
     }
     pos++ // 越过 '>'
+    const openEnd = pos
 
     if (VOID_TAGS.has(tag)) {
-      return { tag, attrs, children: [], text: '', line }
+      return { tag, attrs, children: [], text: '', line, start: elemStart, openEnd, end: pos }
     }
 
     // 原始文本元素：内容直读到对应闭合标签，不解析、不解码
@@ -159,7 +172,7 @@ export function tokenizeHtml(src: string): { root: HtmlNode } {
       let closeEnd = noComment.indexOf('>', close)
       if (closeEnd === -1) throw new ParseError(`标签 <${tag}> 闭合符缺失`, lineOf(noComment, close))
       pos = closeEnd + 1
-      return { tag, attrs, children: [], text: '', line, raw }
+      return { tag, attrs, children: [], text: '', line, raw, start: elemStart, openEnd, end: pos, rawStart: openEnd, rawEnd: close }
     }
 
     // 子内容
@@ -170,9 +183,10 @@ export function tokenizeHtml(src: string): { root: HtmlNode } {
       if (noComment.startsWith(`</${tag}`, pos)) {
         const closeEnd = noComment.indexOf('>', pos)
         if (closeEnd === -1) throw new ParseError(`标签 <${tag}> 闭合符缺失`, lineOf(noComment, pos))
+        const closeStart = pos
         flushText()
         pos = closeEnd + 1
-        return { tag, attrs, children, text: '', line }
+        return { tag, attrs, children, text: '', line, start: elemStart, openEnd, closeStart, end: pos }
       }
       if (noComment[pos] === '<') {
         // 子元素（</ 在元素内出现而不匹配自身 = 子元素提前闭合，报错定位到下层）

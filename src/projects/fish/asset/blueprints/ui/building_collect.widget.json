@@ -1,7 +1,7 @@
 {
   "name": "BuildingCollectBubble",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-8448d2bb",
+  "sourceHash": "fnv1a-826cb0c1",
   "components": [
     {
       "baseClass": "UITransformComponent",

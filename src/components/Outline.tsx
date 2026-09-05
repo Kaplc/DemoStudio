@@ -16,6 +16,7 @@ import {
   buildNodeSubtreeText,
   buildTreeText,
   collectKeysWithChildren,
+  computeEffectiveHidden,
   computeStableKeys,
   filterOutlineTree,
   useDefaultCollapsed,
@@ -56,7 +57,7 @@ function TreeArrow({
  * 眼睛按钮：仅预览表现——点击后节点及其子节点不再渲染（root.visible=false），
  * 但资产/场景本身不变，游戏运行时仍会正常渲染生成。
  */
-function TreeEye({
+export function TreeEye({
   hidden, disabled, onToggle,
 }: {
   hidden: boolean
@@ -105,11 +106,15 @@ function renderActorTreeNodes(
         collapsed: false,
       }))
     : applyCollapse(tree, collapsedKeys, kind)
+  // 行置灰 = 有效隐藏（自身或任一祖先被眼睛隐藏，子树继承视口表现）
+  const hiddenFlags = computeEffectiveHidden(rows, hiddenKeys)
   return rows.map((row, i) => {
     const { node, key: itemKey, hasChildren, collapsed } = row
     // 防止 null === null：selected 为 null（无选中）时，无 actor 节点（DirectionalLight/Group 等）不能高亮
     const isSelected = selected !== null && selected === node.actor
-    const hidden = node.actor ? hiddenKeys.has(itemKey) : false
+    // 眼睛图标/切换 = 自身 previewHidden；置灰 = 有效隐藏（含祖先链继承）
+    const selfHidden = node.actor ? hiddenKeys.has(itemKey) : false
+    const hidden = hiddenFlags[i]
     return (
       <div
         key={itemKey}
@@ -173,9 +178,9 @@ function renderActorTreeNodes(
         )}
         {node.actor && (
           <TreeEye
-            hidden={hidden}
+            hidden={selfHidden}
             disabled={false}
-            onToggle={() => onToggleHidden(itemKey, node.actor!, !hidden)}
+            onToggle={() => onToggleHidden(itemKey, node.actor!, !selfHidden)}
           />
         )}
       </div>
@@ -313,11 +318,15 @@ export function Outline({ query = '' }: { query?: string }) {
         }))
       : applyCollapse(visibleTree, collapsedKeys, 'scene')
     if (rows.length === 0) return null
-    return rows.map((row) => {
+    // 行置灰 = 有效隐藏（自身或任一祖先被眼睛隐藏，子树继承视口表现）
+    const hiddenFlags = computeEffectiveHidden(rows, hiddenKeys)
+    return rows.map((row, i) => {
       const { node, key: itemKey, hasChildren, collapsed } = row
       // 防止 null === null：selected 为 null（无选中）时，无 actor 节点不能高亮
       const isSelected = selected !== null && selected === node.actor
-      const hidden = node.actor ? hiddenKeys.has(itemKey) : false
+      // 眼睛图标/切换 = 自身 previewHidden；置灰 = 有效隐藏（含祖先链继承）
+      const selfHidden = node.actor ? hiddenKeys.has(itemKey) : false
+      const hidden = hiddenFlags[i]
       const isBlueprint = !!node.actor?.blueprintRef
       return (
         <div
@@ -368,9 +377,9 @@ export function Outline({ query = '' }: { query?: string }) {
           )}
           {node.actor && (
             <TreeEye
-              hidden={hidden}
+              hidden={selfHidden}
               disabled={gameRunning}
-              onToggle={() => toggleHidden(itemKey, node.actor!, !hidden)}
+              onToggle={() => toggleHidden(itemKey, node.actor!, !selfHidden)}
             />
           )}
         </div>
@@ -401,6 +410,8 @@ export function Outline({ query = '' }: { query?: string }) {
   }, [menu, bpAssetPath, spAssetPath])
   /** 修改类操作（复制/重命名/删除）可用性 */
   const menuCanModify = menuIsRoot !== null && !menuIsRoot && menuTargetInJson
+  /** widget 资产：人工只改属性值（重命名），创建/复制/删除等结构改动走 AI 改 HTML 源 */
+  const menuIsWidget = menu?.kind === 'blueprint' && !!bpAssetPath && bpAssetPath.endsWith('.widget.json')
 
   /** 菜单目标资产路径（当前激活页签，scene 类型无资产路径） */
   const menuAssetPath = menu ? (menu.kind === 'blueprint' ? bpAssetPath : spAssetPath) : null
@@ -416,6 +427,11 @@ export function Outline({ query = '' }: { query?: string }) {
   }, [bpAssetPath])
 
   const handleBpCreate = async (tpl: NodeTemplate) => {
+    if (bpAssetPath?.endsWith('.widget.json')) {
+      logger.warn('[Outline] widget 资产不支持人工加节点：请让 AI 修改 .widget.html 源后重新编译')
+      setMenu(null)
+      return
+    }
     if (!menu || !menu.node) return
     const mgr = getBpMgr()
     if (!mgr) {
@@ -438,6 +454,11 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleBpDuplicate = async () => {
+    if (bpAssetPath?.endsWith('.widget.json')) {
+      logger.warn('[Outline] widget 资产不支持人工复制节点：请让 AI 修改 .widget.html 源后重新编译')
+      setMenu(null)
+      return
+    }
     if (!menu || !menu.node || !menu.node.actor) return
     const mgr = getBpMgr()
     if (!mgr) {
@@ -464,6 +485,11 @@ export function Outline({ query = '' }: { query?: string }) {
   }
 
   const handleBpDelete = async () => {
+    if (bpAssetPath?.endsWith('.widget.json')) {
+      logger.warn('[Outline] widget 资产不支持人工删除节点：请让 AI 修改 .widget.html 源后重新编译')
+      setMenu(null)
+      return
+    }
     if (!menu || !menu.node || !menu.node.actor) return
     const mgr = getBpMgr()
     if (!mgr) {
@@ -613,6 +639,7 @@ export function Outline({ query = '' }: { query?: string }) {
           targetLabel={menu.node?.name || '大纲'}
           hasTarget={!!menu.node}
           canModify={menuCanModify}
+          allowStructure={!menuIsWidget}
           templates={menuTemplates}
           onClose={() => setMenu(null)}
           onCreate={handleMenuCreate}

@@ -40,6 +40,13 @@ import { PhySys } from '../physics/PhySys'
  */
 export type UIHitTestMode = 'visible' | 'block' | 'hitTestInvisible'
 
+/**
+ * world 模式"始终顶层"的 renderOrder 全局基准：three 透明队列先按 renderOrder 排序，
+ * 场景内常规透明物（水/收集泡泡等）均在 0 附近，整树 + 此基准后恒最后绘制；
+ * 基准对树内每个元素同加，内部前后定序仍按各自 zOrder 相对值。
+ */
+export const WORLD_UI_TOP_RENDER_ORDER = 10000
+
 export interface CanvasUIOptions {
   width?: number           // canvas 像素宽，默认 512
   height?: number          // canvas 像素高，默认 256
@@ -77,6 +84,8 @@ export class CanvasUIComponent extends Component<Actor> {
   private _worldW = 400
   private _worldH = 200
   private _zOrder = 0
+  /** 始终顶层 renderOrder 偏移基准（setAlwaysOnTop 写入；zOrder setter 叠加到 panel） */
+  protected _renderOrderBias = 0
   /** 是否激活（false = 已创建但不渲染 panel） */
   private _bActive: boolean
   /** 仅标记模式（不渲染） */
@@ -209,12 +218,12 @@ export class CanvasUIComponent extends Component<Actor> {
     if (i >= 0) this._registeredObjects.splice(i, 1)
   }
 
-  /** UI 层级（越大越靠前）：设置 renderOrder + panel z 偏移分层 */
+  /** UI 层级（越大越靠前）：设置 renderOrder（含始终顶层基准偏移）+ panel z 偏移分层 */
   get zOrder(): number { return this._zOrder }
   set zOrder(v: number) {
     this._zOrder = v
     if (!this.panel) return
-    this.panel.renderOrder = v
+    this.panel.renderOrder = this._renderOrderBias + v
     // z 偏移分层：zOrder 每 +1 对应 0.001 世界单位前移（正交相机下无透视变形）
     this.panel.position.z = v * 0.001
   }
@@ -250,6 +259,10 @@ export class CanvasUIComponent extends Component<Actor> {
     if (CanvasUIComponent.isInWorldUI(this.owner)) {
       const aniso = this.owner.world?.gameRenderer?.getMaxAnisotropy() ?? 8
       this.enableWorldRendering(aniso)
+      // 始终顶层随世界 UI 标记一同补课（晚生成的点击层/文本等，幂等）
+      if (CanvasUIComponent.isInWorldUIAlwaysTop(this.owner)) {
+        this.setAlwaysOnTop(true, WORLD_UI_TOP_RENDER_ORDER)
+      }
     }
   }
 
@@ -257,6 +270,14 @@ export class CanvasUIComponent extends Component<Actor> {
   static isInWorldUI(actor: Actor): boolean {
     for (let a: Actor | null = actor; a; a = a.parent) {
       if (a.root.userData.__dsWorldUI) return true
+    }
+    return false
+  }
+
+  /** owner 或祖先链上是否打了"始终顶层"标记（root.userData.__dsWorldUIAlwaysTop，随 alwaysOnTop 热切） */
+  static isInWorldUIAlwaysTop(actor: Actor): boolean {
+    for (let a: Actor | null = actor; a; a = a.parent) {
+      if (a.root.userData.__dsWorldUIAlwaysTop) return true
     }
     return false
   }
@@ -397,6 +418,21 @@ export class CanvasUIComponent extends Component<Actor> {
     this.texture.needsUpdate = true
     if (this.panel) {
       ;(this.panel.material as THREE.MeshBasicMaterial).depthWrite = false
+    }
+  }
+
+  /**
+   * 始终顶层（world 模式可选，UIWorldAnchorComponent.alwaysOnTop 整树调用）：
+   *  - 面板关深度测试：不再被建筑等 3D 物体遮挡（enableWorldRendering 已关深度写入，
+   *    至此深度通路完全退出，前后定序全交 renderOrder）；
+   *  - renderOrder 加全局基准偏移：压过场景内其他透明物，恒最后绘制。
+   * 传 false 恢复深度遮挡与原 renderOrder（基准归零）。UIText 覆写同步 troika mesh。
+   */
+  setAlwaysOnTop(on: boolean, orderBias: number): void {
+    this._renderOrderBias = on ? orderBias : 0
+    if (this.panel) {
+      ;(this.panel.material as THREE.MeshBasicMaterial).depthTest = !on
+      this.panel.renderOrder = this._renderOrderBias + this._zOrder
     }
   }
 

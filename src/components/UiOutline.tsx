@@ -4,10 +4,12 @@ import {
 } from '../editor/SelectionManager'
 import { useEditorStore } from '../stores/editorStore'
 import { OutlineContextMenu } from './OutlineContextMenu'
+import { TreeEye } from './Outline'
 import {
   buildNodeSubtreeText,
   buildTreeText,
   collectKeysWithChildren,
+  computeEffectiveHidden,
   computeStableKeys,
   filterOutlineTree,
   useDefaultCollapsed,
@@ -22,7 +24,8 @@ import { logger } from '../engine'
  * 显示当前运行中游戏 world.ui（UI 独立场景）的 HUD / UI 树：
  *  - 数据源：Viewport 启动游戏时经 setRunningWorld 记录的运行中 World
  *  - 上半部分：HUD 根节点（HUD Actor → uiActor 树）
- *  - 运行中可点击选中节点（Inspector 查看组件），不聚焦摄像机、不可隐藏
+ *  - 运行中可点击选中节点（Inspector 查看组件），不聚焦摄像机
+ *  - 眼睛按钮：运行表现级临时隐藏（setPreviewHidden，不写资产），子树继承置灰
  */
 export function UiOutline({ query = '' }: { query?: string }) {
   const [selectionKey, setSelectionKey] = React.useState(getSelectionKey())
@@ -149,6 +152,23 @@ export function UiOutline({ query = '' }: { query?: string }) {
     return out
   }, [runningUiTree, stableKeys, collapsedKeys, filterQuery])
 
+  // ─── 眼睛隐藏：直接读写 Actor.previewHidden（运行时 Actor 实例即真值源，
+  //     重开游戏后新实例从 false 起步，不残留上次运行的置灰） ───
+  const [hiddenNonce, setHiddenNonce] = useState(0)
+  const toggleHidden = useCallback((actor: Actor) => {
+    actor.setPreviewHidden(!actor.previewHidden)
+    setHiddenNonce((n) => n + 1)
+  }, [])
+
+  // 行置灰 = 有效隐藏（自身或任一祖先被眼睛隐藏，子树继承视口表现）
+  const hiddenFlags = useMemo(() => {
+    const selfKeys = new Set<string>()
+    rows.forEach((r) => {
+      if (r.node.actor?.previewHidden) selfKeys.add(r.key)
+    })
+    return computeEffectiveHidden(rows, selfKeys)
+  }, [rows, hiddenNonce])
+
   if (!gameRunning) {
     return (
       <div className="panel-body" style={{ padding: 0 }}>
@@ -175,6 +195,9 @@ export function UiOutline({ query = '' }: { query?: string }) {
         const { node, key: itemKey, hasChildren, collapsed } = row
         // 防止 null === null：无 actor 节点不参与高亮
         const isSelected = selected !== null && selected === node.actor
+        // 眼睛图标/切换 = 自身 previewHidden；置灰 = 有效隐藏（含祖先链继承）
+        const selfHidden = node.actor?.previewHidden ?? false
+        const hidden = hiddenFlags[i]
         return (
           <div
             key={itemKey}
@@ -187,6 +210,7 @@ export function UiOutline({ query = '' }: { query?: string }) {
               background: isSelected ? 'var(--accent)' : 'transparent',
               color: isSelected ? '#fff' : 'var(--text-primary)',
               whiteSpace: 'nowrap',
+              opacity: hidden ? 0.55 : 1,
             }}
             onClick={() => {
               if (!node.actor) return
@@ -223,6 +247,13 @@ export function UiOutline({ query = '' }: { query?: string }) {
               <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>
                 [{node.actor.constructor.name}]
               </span>
+            )}
+            {node.actor && (
+              <TreeEye
+                hidden={selfHidden}
+                disabled={false}
+                onToggle={() => toggleHidden(node.actor!)}
+              />
             )}
           </div>
         )

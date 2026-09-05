@@ -877,15 +877,19 @@ export class FishBaseGameMode extends GameMode {
   /** 打开建筑信息牌（场景 UI，摆建筑上方 billboard；同一时刻最多一张） */
   private openBuildingInfoPanel(b: ClashBuildingBaseActor) {
     const w = this.world
-    if (!w || this.buildingInfoPanel) return
+    if (!w) return
+    // 已有信息牌先关旧的（点击其他建筑直接切换；同一建筑再点=关闭已在 onBuildingClick 拦截）
+    if (this.buildingInfoPanel) this.closeBuildingInfoPanel()
     BuildingInfoState.currentBuildingId = b.type.id
     // world 模式必须顶层生成且引擎忽略 target（挂 HUD 子树会让场景分流失效），
-    // 位姿由 spawn 后显式 setPosition 表达（BaseHologram 同款先例）
+    // 位姿由 spawn 后显式 setPosition 表达（BaseHologram 同款先例）。
+    // 资产已声明锚点时以下 opts 不生效（以资产为准），仅作资产未声明时的兜底
     const handle = w.ui.spawnAnchoredWidget('asset/blueprints/ui/building_info.widget.json', null, {
       mode: 'world',
       faceCamera: true,
-      pxPerMeter: 450,
+      pxPerMeter: 300,
       pixelDensity: 2,
+      alwaysOnTop: true,
     })
     if (!handle) {
       logger.error('[BaseGM] 建筑信息牌生成失败')

@@ -127,6 +127,28 @@ export function filterOutlineTree<T extends OutlineNodeLike>(tree: T[], q: strin
   return all.filter((_, i) => keep[i])
 }
 
+/**
+ * 计算每行的"有效隐藏"：自身被眼睛隐藏，或任一祖先被隐藏（子树继承置灰）。
+ * 与输入行序一一对应；行只能来自 applyCollapse / filterOutlineTree（折叠只去后辈、
+ * 搜索只保留祖先链，祖先行必在后代行之前），故按先序 + 深度栈回溯祖先链即可。
+ */
+export function computeEffectiveHidden(
+  rows: ReadonlyArray<{ node: { depth: number }; key: string }>,
+  hiddenKeys: Set<string>,
+): boolean[] {
+  const flags: boolean[] = []
+  /** 深度栈：每层最近一个祖先行的有效隐藏态 */
+  const stack: Array<{ depth: number; hidden: boolean }> = []
+  for (const row of rows) {
+    const depth = row.node.depth
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop()
+    const hidden = (stack.length > 0 && stack[stack.length - 1].hidden) || hiddenKeys.has(row.key)
+    stack.push({ depth, hidden })
+    flags.push(hidden)
+  }
+  return flags
+}
+
 /** 收集树中所有"有子节点"的折叠 key（与 applyCollapse 的 key 规则一致） */
 export function collectKeysWithChildren<T extends OutlineNodeLike>(tree: T[], kind: string): string[] {
   const stableKeys = computeStableKeys(tree, kind)

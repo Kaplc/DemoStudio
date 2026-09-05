@@ -1,7 +1,7 @@
 {
   "name": "BuildingInfoCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-a23ee447",
+  "sourceHash": "fnv1a-40e046e8",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -22,12 +22,7 @@
           1
         ],
         "worldWidth": 520,
-        "worldHeight": 300,
-        "anchorOffset": [
-          0,
-          0
-        ],
-        "anchor": null
+        "worldHeight": 300
       }
     },
     {
@@ -37,8 +32,7 @@
         "height": 300,
         "name": "Canvas",
         "zOrder": 0,
-        "active": true,
-        "hitTest": "visible"
+        "active": true
       }
     },
     {
@@ -51,17 +45,10 @@
       "baseClass": "UIWorldAnchorComponent",
       "properties": {
         "mode": "world",
-        "pxPerMeter": 500,
+        "pxPerMeter": 300,
         "pixelDensity": 2,
         "faceCamera": true,
-        "targetActorId": "",
-        "localOffset": [
-          0,
-          0,
-          0
-        ],
-        "constantScreenSize": true,
-        "clamping": "none"
+        "alwaysOnTop": true
       }
     }
   ],
@@ -90,11 +77,6 @@
               0,
               0,
               0
-            ],
-            "anchor": null,
-            "anchorOffset": [
-              0,
-              0
             ]
           }
         },
@@ -104,7 +86,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 1,
-            "active": true,
             "hitTest": "visible"
           }
         }
@@ -136,8 +117,8 @@
                   -3
                 ],
                 "position": [
-                  3,
-                  -3,
+                  0,
+                  0,
                   0
                 ]
               }
@@ -148,7 +129,6 @@
                 "markerOnly": true,
                 "name": "UIMarker",
                 "zOrder": 2,
-                "active": true,
                 "hitTest": "visible"
               }
             },
@@ -159,9 +139,7 @@
                 "radius": 28,
                 "width": 526,
                 "height": 306,
-                "name": "Card",
-                "zOrder": 2,
-                "opacity": 1
+                "name": "Card"
               }
             }
           ],
@@ -190,12 +168,7 @@
                       1
                     ],
                     "worldWidth": 526,
-                    "worldHeight": 3,
-                    "anchor": null,
-                    "anchorOffset": [
-                      0,
-                      0
-                    ]
+                    "worldHeight": 3
                   }
                 },
                 {
@@ -203,9 +176,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 3,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 0
                   }
                 },
                 {
@@ -214,10 +185,7 @@
                     "name": "CardBorderTop",
                     "color": "#ffae00bf",
                     "width": 526,
-                    "height": 8,
-                    "zOrder": 3,
-                    "radius": 0,
-                    "opacity": 1
+                    "height": 8
                   }
                 }
               ],
@@ -247,12 +215,7 @@
                       1
                     ],
                     "worldWidth": 3,
-                    "worldHeight": 306,
-                    "anchor": null,
-                    "anchorOffset": [
-                      0,
-                      0
-                    ]
+                    "worldHeight": 306
                   }
                 },
                 {
@@ -260,9 +223,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 4,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 0
                   }
                 },
                 {
@@ -271,10 +232,7 @@
                     "name": "CardBorderRight",
                     "color": "#ffae00bf",
                     "width": 8,
-                    "height": 306,
-                    "zOrder": 4,
-                    "radius": 0,
-                    "opacity": 1
+                    "height": 306
                   }
                 }
               ],
@@ -304,12 +262,7 @@
                       1
                     ],
                     "worldWidth": 526,
-                    "worldHeight": 3,
-                    "anchor": null,
-                    "anchorOffset": [
-                      0,
-                      0
-                    ]
+                    "worldHeight": 3
                   }
                 },
                 {
@@ -317,9 +270,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 5,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 0
                   }
                 },
                 {
@@ -328,10 +279,7 @@
                     "name": "CardBorderBottom",
                     "color": "#ffae00bf",
                     "width": 526,
-                    "height": 8,
-                    "zOrder": 5,
-                    "radius": 0,
-                    "opacity": 1
+                    "height": 8
                   }
                 }
               ],
@@ -361,12 +309,7 @@
                       1
                     ],
                     "worldWidth": 3,
-                    "worldHeight": 306,
-                    "anchor": null,
-                    "anchorOffset": [
-                      0,
-                      0
-                    ]
+                    "worldHeight": 306
                   }
                 },
                 {
@@ -374,9 +317,7 @@
                   "properties": {
                     "markerOnly": true,
                     "name": "UIMarker",
-                    "zOrder": 6,
-                    "active": true,
-                    "hitTest": "visible"
+                    "zOrder": 0
                   }
                 },
                 {
@@ -385,10 +326,7 @@
                     "name": "CardBorderLeft",
                     "color": "#ffae00bf",
                     "width": 8,
-                    "height": 306,
-                    "zOrder": 6,
-                    "radius": 0,
-                    "opacity": 1
+                    "height": 306
                   }
                 }
               ],
@@ -421,7 +359,7 @@
                     ],
                     "position": [
                       0,
-                      102,
+                      0,
                       0
                     ]
                   }
@@ -432,7 +370,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 7,
-                    "active": true,
                     "hitTest": "visible"
                   }
                 },
@@ -450,12 +387,7 @@
                     "shadowColor": "#00000099",
                     "shadowOffsetX": 0,
                     "shadowOffsetY": 2,
-                    "shadowBlur": 6,
-                    "zOrder": 7,
-                    "italic": false,
-                    "lineHeight": 1.4,
-                    "letterSpacing": 0,
-                    "fontSizeScale": 1
+                    "shadowBlur": 6
                   }
                 }
               ],
@@ -488,7 +420,7 @@
                     ],
                     "position": [
                       0,
-                      50,
+                      0,
                       0
                     ]
                   }
@@ -499,7 +431,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 8,
-                    "active": true,
                     "hitTest": "visible"
                   }
                 },
@@ -516,20 +447,14 @@
                     "shadowColor": "#00000099",
                     "shadowOffsetX": 0,
                     "shadowOffsetY": 1,
-                    "shadowBlur": 4,
-                    "zOrder": 8,
-                    "bold": false,
-                    "italic": false,
-                    "lineHeight": 1.4,
-                    "letterSpacing": 0,
-                    "fontSizeScale": 1
+                    "shadowBlur": 4
                   }
                 }
               ],
               "children": []
             },
             {
-              "name": "Btn_collect",
+              "name": "BtnRow",
               "baseClass": "Actor",
               "id": 13209,
               "components": [
@@ -546,16 +471,16 @@
                       1,
                       1
                     ],
-                    "worldWidth": 210,
+                    "worldWidth": 520,
                     "worldHeight": 84,
-                    "anchor": "bottom-left",
+                    "anchor": "bottom-center",
                     "anchorOffset": [
-                      43,
+                      0,
                       69
                     ],
                     "position": [
-                      -115,
-                      -42,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -566,7 +491,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 9,
-                    "active": true,
                     "hitTest": "visible"
                   }
                 },
@@ -574,47 +498,17 @@
                   "baseClass": "UILayoutComponent",
                   "properties": {
                     "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
+                    "spacingX": 20,
+                    "spacingY": 20,
                     "justify": "center",
                     "align": "center",
-                    "autoLayout": true,
-                    "columns": 5,
-                    "wrap": false,
-                    "autoHeight": false
-                  }
-                },
-                {
-                  "baseClass": "UIButtonComponent",
-                  "properties": {}
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "color": "#4caf50",
-                    "radius": 18,
-                    "width": 210,
-                    "height": 84,
-                    "name": "Btn_collect",
-                    "zOrder": 9,
-                    "opacity": 1
-                  }
-                },
-                {
-                  "baseClass": "UIScriptComponent",
-                  "properties": {
-                    "script": "",
-                    "args": {
-                      "hover": {
-                        "color": "#66bb6a"
-                      }
-                    }
+                    "autoLayout": true
                   }
                 }
               ],
               "children": [
                 {
-                  "name": "Label_collect",
+                  "name": "Btn_collect",
                   "baseClass": "Actor",
                   "id": 13210,
                   "components": [
@@ -631,15 +525,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 170,
-                        "worldHeight": 44,
+                        "worldWidth": 210,
+                        "worldHeight": 84,
                         "position": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "anchor": null,
-                        "anchorOffset": [
+                          -115,
                           0,
                           0
                         ]
@@ -650,125 +539,108 @@
                       "properties": {
                         "markerOnly": true,
                         "name": "UIMarker",
-                        "zOrder": 10,
-                        "active": true,
+                        "zOrder": 9,
                         "hitTest": "visible"
                       }
                     },
                     {
-                      "baseClass": "UITextComponent",
+                      "baseClass": "UILayoutComponent",
                       "properties": {
-                        "text": "收 集",
-                        "name": "Label_collect",
-                        "width": 170,
-                        "height": 44,
-                        "fontSize": 30,
-                        "color": "#ffffff",
+                        "mode": "horizontal",
+                        "spacingX": 0,
+                        "spacingY": 0,
+                        "justify": "center",
                         "align": "center",
-                        "bold": true,
-                        "shadowColor": "#00000099",
-                        "shadowOffsetX": 0,
-                        "shadowOffsetY": 1,
-                        "shadowBlur": 3,
-                        "zOrder": 10,
-                        "italic": false,
-                        "lineHeight": 1.4,
-                        "letterSpacing": 0,
-                        "fontSizeScale": 1
+                        "autoLayout": true
+                      }
+                    },
+                    {
+                      "baseClass": "UIButtonComponent",
+                      "properties": {}
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "color": "#4caf50",
+                        "radius": 18,
+                        "width": 210,
+                        "height": 84,
+                        "name": "Btn_collect"
+                      }
+                    },
+                    {
+                      "baseClass": "UIScriptComponent",
+                      "properties": {
+                        "script": "",
+                        "args": {
+                          "hover": {
+                            "color": "#66bb6a"
+                          }
+                        }
                       }
                     }
                   ],
-                  "children": []
-                }
-              ]
-            },
-            {
-              "name": "Btn_upgrade",
-              "baseClass": "Actor",
-              "id": 13211,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 210,
-                    "worldHeight": 84,
-                    "anchor": "bottom-right",
-                    "anchorOffset": [
-                      -43,
-                      69
-                    ],
-                    "position": [
-                      115,
-                      -42,
-                      0
-                    ]
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 11,
-                    "active": true,
-                    "hitTest": "visible"
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true,
-                    "columns": 5,
-                    "wrap": false,
-                    "autoHeight": false
-                  }
-                },
-                {
-                  "baseClass": "UIButtonComponent",
-                  "properties": {}
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "color": "#ffae00",
-                    "radius": 18,
-                    "width": 210,
-                    "height": 84,
-                    "name": "Btn_upgrade",
-                    "zOrder": 11,
-                    "opacity": 1
-                  }
-                },
-                {
-                  "baseClass": "UIScriptComponent",
-                  "properties": {
-                    "script": "",
-                    "args": {
-                      "hover": {
-                        "color": "#ffc233"
-                      }
+                  "children": [
+                    {
+                      "name": "Label_collect",
+                      "baseClass": "Actor",
+                      "id": 13211,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 170,
+                            "worldHeight": 44,
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 10,
+                            "hitTest": "visible"
+                          }
+                        },
+                        {
+                          "baseClass": "UITextComponent",
+                          "properties": {
+                            "text": "收 集",
+                            "name": "Label_collect",
+                            "width": 170,
+                            "height": 44,
+                            "fontSize": 30,
+                            "color": "#ffffff",
+                            "align": "center",
+                            "bold": true,
+                            "shadowColor": "#00000099",
+                            "shadowOffsetX": 0,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 3
+                          }
+                        }
+                      ],
+                      "children": []
                     }
-                  }
-                }
-              ],
-              "children": [
+                  ]
+                },
                 {
-                  "name": "Label_upgrade",
+                  "name": "Btn_upgrade",
                   "baseClass": "Actor",
                   "id": 13212,
                   "components": [
@@ -785,15 +657,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 170,
-                        "worldHeight": 44,
+                        "worldWidth": 210,
+                        "worldHeight": 84,
                         "position": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "anchor": null,
-                        "anchorOffset": [
+                          115,
                           0,
                           0
                         ]
@@ -804,42 +671,112 @@
                       "properties": {
                         "markerOnly": true,
                         "name": "UIMarker",
-                        "zOrder": 12,
-                        "active": true,
+                        "zOrder": 11,
                         "hitTest": "visible"
                       }
                     },
                     {
-                      "baseClass": "UITextComponent",
+                      "baseClass": "UILayoutComponent",
                       "properties": {
-                        "text": "升 级",
-                        "name": "Label_upgrade",
-                        "width": 170,
-                        "height": 44,
-                        "fontSize": 30,
-                        "color": "#3d2600",
+                        "mode": "horizontal",
+                        "spacingX": 0,
+                        "spacingY": 0,
+                        "justify": "center",
                         "align": "center",
-                        "bold": true,
-                        "shadowColor": "#00000066",
-                        "shadowOffsetX": 0,
-                        "shadowOffsetY": 1,
-                        "shadowBlur": 3,
-                        "zOrder": 12,
-                        "italic": false,
-                        "lineHeight": 1.4,
-                        "letterSpacing": 0,
-                        "fontSizeScale": 1
+                        "autoLayout": true
+                      }
+                    },
+                    {
+                      "baseClass": "UIButtonComponent",
+                      "properties": {}
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "color": "#ffae00",
+                        "radius": 18,
+                        "width": 210,
+                        "height": 84,
+                        "name": "Btn_upgrade"
+                      }
+                    },
+                    {
+                      "baseClass": "UIScriptComponent",
+                      "properties": {
+                        "script": "",
+                        "args": {
+                          "hover": {
+                            "color": "#ffc233"
+                          }
+                        }
                       }
                     }
                   ],
-                  "children": []
+                  "children": [
+                    {
+                      "name": "Label_upgrade",
+                      "baseClass": "Actor",
+                      "id": 13213,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 170,
+                            "worldHeight": 44,
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 12,
+                            "hitTest": "visible"
+                          }
+                        },
+                        {
+                          "baseClass": "UITextComponent",
+                          "properties": {
+                            "text": "升 级",
+                            "name": "Label_upgrade",
+                            "width": 170,
+                            "height": 44,
+                            "fontSize": 30,
+                            "color": "#3d2600",
+                            "align": "center",
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 0,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 3
+                          }
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
                 }
               ]
             },
             {
               "name": "Btn_close",
               "baseClass": "Actor",
-              "id": 13213,
+              "id": 13214,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -862,8 +799,8 @@
                       -17
                     ],
                     "position": [
-                      214,
-                      106,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -874,7 +811,6 @@
                     "markerOnly": true,
                     "name": "UIMarker",
                     "zOrder": 13,
-                    "active": true,
                     "hitTest": "visible"
                   }
                 },
@@ -886,10 +822,7 @@
                     "spacingY": 0,
                     "justify": "center",
                     "align": "center",
-                    "autoLayout": true,
-                    "columns": 5,
-                    "wrap": false,
-                    "autoHeight": false
+                    "autoLayout": true
                   }
                 },
                 {
@@ -903,9 +836,7 @@
                     "radius": 30,
                     "width": 60,
                     "height": 60,
-                    "name": "Btn_close",
-                    "zOrder": 13,
-                    "opacity": 1
+                    "name": "Btn_close"
                   }
                 },
                 {
@@ -924,7 +855,7 @@
                 {
                   "name": "Label_close",
                   "baseClass": "Actor",
-                  "id": 13214,
+                  "id": 13215,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -945,11 +876,6 @@
                           0,
                           0,
                           0
-                        ],
-                        "anchor": null,
-                        "anchorOffset": [
-                          0,
-                          0
                         ]
                       }
                     },
@@ -959,7 +885,6 @@
                         "markerOnly": true,
                         "name": "UIMarker",
                         "zOrder": 14,
-                        "active": true,
                         "hitTest": "visible"
                       }
                     },
@@ -976,13 +901,7 @@
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
-                        "shadowBlur": 3,
-                        "zOrder": 14,
-                        "bold": false,
-                        "italic": false,
-                        "lineHeight": 1.4,
-                        "letterSpacing": 0,
-                        "fontSizeScale": 1
+                        "shadowBlur": 3
                       }
                     }
                   ],

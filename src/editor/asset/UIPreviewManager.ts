@@ -44,6 +44,10 @@ function diskPathToAssetKey(diskPath: string): string {
   return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
 }
 
+/** 游戏画布设计高度（px 世界）；浮层 widget 的参考框宽度 = 1080 × 视口比例（Free 回退 16:9） */
+const GAME_CANVAS_H = 1080
+const GAME_CANVAS_DEFAULT_RATIO = 16 / 9
+
 /** 把手悬停光标：0-3 角（TL/TR/BL/BR），4-7 边（T/R/B/L） */
 const CORNER_CURSORS = [
   'nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize', // TL TR BL BR
@@ -123,6 +127,10 @@ export class UIPreviewManager {
 
   // ─── Game 渲染视口范围框（常显）：显示放到 Game 时实际会被渲染的世界范围（= 根画布尺寸，跟随视口比例）───
   private viewportBounds: THREE.LineSegments | null = null
+  /** 游戏画布参考框（浮层 widget 用）：按视口比例绘制的 1080 高标准画布轮廓，
+   *  供设计师在"相对整个游戏画面"的坐标系审视浮层的大小与摆放；
+   *  全屏 widget 根画布即视口，无需此框 */
+  private gameCanvasFrame: THREE.LineSegments | null = null
 
   // ─── 包围盒 8 把手拖拽（4 角 + 4 边中点，拖动实时调整范围大小）───
   private cornerHandleGroup: THREE.Group | null = null
@@ -830,9 +838,10 @@ export class UIPreviewManager {
       this.applyViewportAspect()
     }
 
-    this.fitToWidget(actor.root)
-    // Game 渲染视口范围框：以根画布世界尺寸为范围（切换视口比例后再次更新）
+    // 先更新范围框/游戏画布参考框（fitToWidget 需把参考框一并纳入取景）
     this.updateViewportBounds()
+    this.fitToWidget(actor.root)
+    // Game 渲染视口范围框已随上文更新（切换视口比例后会再次更新）
     this.notifyChange()
 
     logger.info(`[UIPreview] 加载 UI 资产预览: ${path}${this._currentWidgetDiskPath ? `（磁盘 ${this._currentWidgetDiskPath}）` : ''}`)
@@ -862,15 +871,50 @@ export class UIPreviewManager {
     this.viewportBounds = lines
   }
 
-  /** 更新 Game 渲染视口范围框：尺寸 = 根画布世界尺寸（无根画布时隐藏） */
+  /** 判定根画布是否全屏（决定视口比例改根画布本身 or 仅改游戏画布参考框） */
+  private isFullscreenRoot(root: Actor): boolean {
+    const uiTf = root.getComponent(UITransformComponent)
+    if (!uiTf) return false
+    const canvas = root.getComponent(CanvasUIComponent)
+    return canvas
+      ? (!canvas.isMarkerOnly && canvas.getSize()[0] === 1920 && canvas.getSize()[1] === 1080) ||
+          (canvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 540)
+      : uiTf.getWorldSize()[1] >= 540
+  }
+
+  /** 惰性创建游戏画布参考框（样式同视口范围框但更淡，避免喧宾夺主） */
+  private ensureGameCanvasFrame(): void {
+    if (this.gameCanvasFrame) return
+    const geo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1))
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.35,
+    })
+    const lines = new THREE.LineSegments(geo, mat)
+    lines.name = '__ui_game_canvas_ref__'
+    lines.renderOrder = 995
+    lines.visible = false
+    this.overlayScene.add(lines)
+    this.gameCanvasFrame = lines
+  }
+
+  /** 更新 Game 渲染视口范围框：尺寸 = 根画布世界尺寸（无根画布时隐藏）。
+   *  浮层 widget 额外叠显游戏画布参考框（1080 高 × 视口比例，居中于根），
+   *  供"相对整个游戏画面"审视布局；全屏 widget 根画布即视口，不叠参考框。 */
   private updateViewportBounds(): void {
     this.ensureViewportBounds()
+    this.ensureGameCanvasFrame()
     const lines = this.viewportBounds
-    if (!lines) return
+    const ref = this.gameCanvasFrame
+    if (!lines || !ref) return
     const root = this._rootActor
     const uiTf = root?.getComponent(UITransformComponent)
     if (!root || !uiTf) {
       lines.visible = false
+      ref.visible = false
       return
     }
     const [ww, wh] = uiTf.getWorldSize()
@@ -878,6 +922,14 @@ export class UIPreviewManager {
     // 位置跟随根 Actor：锚点定位的根（如 bottom-center 的操作栏）被偏移后参考线仍贴合
     lines.position.copy(root.root.position)
     lines.visible = true
+    if (!this.isFullscreenRoot(root)) {
+      const ratio = this._viewportAspect ?? GAME_CANVAS_DEFAULT_RATIO
+      ref.scale.set(GAME_CANVAS_H * ratio, GAME_CANVAS_H, 1)
+      ref.position.copy(root.root.position)
+      ref.visible = true
+    } else {
+      ref.visible = false
+    }
   }
 
   clearPreview() {
@@ -911,7 +963,17 @@ export class UIPreviewManager {
   setViewportAspect(ratio: number | null): void {
     // 记录当前比例：加载/重建 widget 时按此覆盖根画布尺寸
     this._viewportAspect = ratio
-    if (ratio != null && ratio > 0) this.applyViewportAspect()
+    if (ratio != null && ratio > 0) {
+      this.applyViewportAspect()
+    } else {
+      // Free：根画布不动；浮层 widget 的参考框回退标准 16:9 并重新取景
+      const root = this._rootActor
+      if (root && !this.isFullscreenRoot(root)) {
+        this.updateViewportBounds()
+        this.fitToWidget(root.root)
+        this.notifyChange()
+      }
+    }
   }
 
   /** 应用当前记录的视口比例到根画布（无比例/无根时跳过） */
@@ -924,13 +986,14 @@ export class UIPreviewManager {
     // 仅"全屏画布" widget 跟随视口比例（保持高度、宽度按比例）：
     //  - 真实画布 1920×1080（标准全屏设计分辨率）
     //  - markerOnly 容器根且高度 ≥ 半屏（HUD 挂点/底部工具栏根等全屏布局容器）
-    // 浮层 widget（toast/tooltip 等小画布）保持设计尺寸，不参与比例缩放
-    const canvas = root.getComponent(CanvasUIComponent)
-    const isFullscreen = canvas
-      ? (!canvas.isMarkerOnly && canvas.getSize()[0] === 1920 && canvas.getSize()[1] === 1080) ||
-        (canvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 540)
-      : uiTf.getWorldSize()[1] >= 540
-    if (!isFullscreen) return
+    // 浮层 widget（toast/tooltip 等小画布）设计尺寸不变（与运行时语义一致），
+    // 仅更新游戏画布参考框并重新取景，让设计师仍能按画面比例审视布局
+    if (!this.isFullscreenRoot(root)) {
+      this.updateViewportBounds()
+      this.fitToWidget(root.root)
+      this.notifyChange()
+      return
+    }
     const [ww, wh] = uiTf.getWorldSize()
     if (wh <= 0 || Math.abs(ww - wh * ratio) < 1e-6) return
     uiTf.setWorldSize(wh * ratio, wh)
@@ -1593,6 +1656,14 @@ export class UIPreviewManager {
     collect(root)
     // 若根无直接 mesh（如纯容器），退化为整体包围盒
     if (!hasMesh) box.setFromObject(root)
+    // 浮层 widget：把游戏画布参考框一并纳入取景（预览语义 = 相对游戏画面审视布局）
+    if (this.gameCanvasFrame?.visible) {
+      const c = this.gameCanvasFrame.position
+      const hw = this.gameCanvasFrame.scale.x / 2
+      const hh = this.gameCanvasFrame.scale.y / 2
+      box.expandByPoint(new THREE.Vector3(c.x - hw, c.y - hh, 0))
+      box.expandByPoint(new THREE.Vector3(c.x + hw, c.y + hh, 0))
+    }
 
     const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
@@ -1729,6 +1800,13 @@ export class UIPreviewManager {
       this.viewportBounds.geometry.dispose()
       ;(this.viewportBounds.material as THREE.LineBasicMaterial).dispose()
       this.viewportBounds = null
+    }
+    // 清理游戏画布参考框（浮层 widget）
+    if (this.gameCanvasFrame) {
+      this.overlayScene.remove(this.gameCanvasFrame)
+      this.gameCanvasFrame.geometry.dispose()
+      ;(this.gameCanvasFrame.material as THREE.LineBasicMaterial).dispose()
+      this.gameCanvasFrame = null
     }
     if (this.boundsHelper) {
       this.overlayScene.remove(this.boundsHelper)

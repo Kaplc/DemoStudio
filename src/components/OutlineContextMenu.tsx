@@ -21,6 +21,10 @@ export interface OutlineContextMenuProps {
   hasTarget?: boolean
   /** 是否允许修改类操作（复制/重命名/删除）：根节点或代码生成节点为 false */
   canModify: boolean
+  /** 是否允许结构性操作（创建模板/复制/删除/重命名）：widget 资产人工只改属性值，
+   *  结构改动走 AI 改 HTML 源 + ui_compile（class 兼作 CSS/脚本钩子，改名也属结构），
+   *  默认 true（3D 蓝图/场景不受限） */
+  allowStructure?: boolean
   /** 当前预览类型的模板组（3D 或 UI） */
   templates: NodeTemplate[]
   /** 关闭菜单（点击外部/Esc/操作完成后由调用方关闭） */
@@ -78,7 +82,7 @@ const SEPARATOR_STYLE: React.CSSProperties = {
 }
 
 export function OutlineContextMenu({
-  x, y, targetLabel, hasTarget = true, canModify, templates, onClose, onCreate, onDuplicate, onCopyName, onCopyTree, onCopySubtree, onRename, onDelete,
+  x, y, targetLabel, hasTarget = true, canModify, allowStructure = true, templates, onClose, onCreate, onDuplicate, onCopyName, onCopyTree, onCopySubtree, onRename, onDelete,
 }: OutlineContextMenuProps) {
   /** 重命名态：true 显示内嵌输入框 */
   const [renaming, setRenaming] = useState(false)
@@ -185,7 +189,7 @@ export function OutlineContextMenu({
         </div>
       ) : (
         <>
-          {hasTarget && templates.length > 0 && (
+          {hasTarget && allowStructure && templates.length > 0 && (
             <>
               <div style={GROUP_LABEL_STYLE}>创建</div>
               {templates.map((tpl) => (
@@ -233,7 +237,7 @@ export function OutlineContextMenu({
               <span>复制节点及子节点</span>
             </div>
           )}
-          {hasTarget && (
+          {hasTarget && allowStructure && (
             <div
               style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
               onMouseEnter={hoverBg}
@@ -243,7 +247,7 @@ export function OutlineContextMenu({
               <span>复制</span>
             </div>
           )}
-          {hasTarget && (
+          {hasTarget && allowStructure && (
             <div
               style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
               onMouseEnter={hoverBg}
@@ -253,7 +257,7 @@ export function OutlineContextMenu({
               <span>重命名</span>
             </div>
           )}
-          {hasTarget && (
+          {hasTarget && allowStructure && (
             <div
               style={{ ...ITEM_STYLE, ...(canModify ? {} : { opacity: 0.4, cursor: 'default' }) }}
               onMouseEnter={hoverBg}

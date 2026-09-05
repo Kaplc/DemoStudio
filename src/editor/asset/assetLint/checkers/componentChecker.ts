@@ -460,6 +460,7 @@ class UIWorldAnchorComponentChecker extends AbstractAssetChecker {
     { field: 'properties.clamping', type: 'string', enum: ['none', 'clamp'], label: '出屏策略' },
     { field: 'properties.pxPerMeter', type: 'number', min: 1, label: '设计 px → 米换算基准' },
     { field: 'properties.pixelDensity', type: 'number', min: 1, max: 4, label: 'canvas 纹理密度倍数' },
+    { field: 'properties.alwaysOnTop', type: 'boolean', label: '始终顶层（world 面板关深度测试，不被 3D 物体遮挡）' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

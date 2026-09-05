@@ -604,6 +604,9 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
     const usedNames = new Set<string>([name])
     // 根节点行为脚本（<widget data-script="...">，旧资产根挂 UIScript 的等价写法）
     emitter.emitDataScript(styleRoot, doc as unknown as Record<string, unknown>)
+    // 根节点 data-comp（<widget data-comp="..." data-props="...">）：世界空间面板锚点等
+    // 根级组件的声明式挂载——body 元素上的 data-comp 只能挂到子 Actor，够不到 widget 根
+    emitter.emitDataComp(styleRoot, doc as unknown as Record<string, unknown>)
     for (const child of rootBox.children) {
       emitter.emitBox(child, doc as unknown as { children: unknown[] }, rootBox, usedNames, 0)
     }
@@ -1561,7 +1564,7 @@ class Emitter {
     }
   }
 
-  private emitDataComp(el: StyleElement, node: Record<string, unknown>): void {
+  emitDataComp(el: StyleElement, node: Record<string, unknown>): void {
     const compName = el.node.attrs['data-comp']
     if (!compName) return
     const baseClass = compName.endsWith('Component') ? compName : `${compName}Component`

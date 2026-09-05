@@ -75,6 +75,7 @@
 | `world` | 已废弃 | **不要再写**。UI 世界单位 = 设计像素（canvas 即世界），写了也只是告警并忽略 |
 | `anchor` / `offset` | 可选 | 根锚点（如 `top-center`）+ 偏移（px）。全屏面板不用写（铺满即可） |
 | `data-script` | 可选 | 面板行为脚本，挂根节点（§6） |
+| `data-comp` / `data-props` | 可选 | **根 Actor 组件声明**（如世界空间锚点 `UIWorldAnchorComponent`）。`data-props` 为单引号包裹的 JSON。注意：写在 body 元素上的 `data-comp` 挂的是该元素对应的**子 Actor**，根级组件必须写在 `<widget>` 标签上。反编译会把根级组件逃逸回写为这两个属性（往返不丢） |
 | `active="false"` | 可选 | 根默认隐藏（脚本控制显示时用） |
 
 编译器怎么读这些属性（[compile.ts:514](#) `compileWidgetHtml` 内）：
@@ -618,7 +619,7 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 **14. 锚定 widget（data-comp=UIWorldAnchorComponent）的承载 div 用 absolute 布局，lint 报 `ui:world-anchor-conflict`**
 
-现象：编译通过但产物根带 `anchor: "center"`（或子节点 anchor），触发 warn"位姿由 UIWorldAnchorComponent 接管，applyAnchor 会覆盖投影写入的 position"。原因：`position: absolute` 的元素编译期发射 anchor+offset（布局需要）；而锚定 widget 根的 anchor 必须 null（运行时 applyAnchor 会覆盖锚定系统写入的 position）。规则：**锚定组件所在的承载 div 用流式布局**（`width: 100%; height: 100%`，不发 anchor）；面板内部的绝对定位子元素不受影响（规则只查 widget 根）。
+现象：编译通过但产物根带 `anchor: "center"`（或子节点 anchor），触发 warn"位姿由 UIWorldAnchorComponent 接管，applyAnchor 会覆盖投影写入的 position"。原因：`position: absolute` 的元素编译期发射 anchor+offset（布局需要）；而锚定 widget 根的 anchor 必须 null（运行时 applyAnchor 会覆盖锚定系统写入的 position）。规则：**锚定组件所在的承载 div 用流式布局**（`width: 100%; height: 100%`，不发 anchor）；面板内部的绝对定位子元素不受影响（规则只查 widget 根）。**根级锚点的规范写法是把 `data-comp`/`data-props` 写在 `<widget>` 标签上**（编译进根 Actor components；UIManager.spawnAnchoredWidget 只查根 Actor 的锚点组件）——写在 body div 上会挂到子 Actor，生成时引擎在根上再补一个锚点、子 Actor 锚点又再缩一次，双重换算。
 
 **15. 全屏容器写 `width: 1920px; height: 1080px`，视口比例切换时 HUD 纹丝不动**
 

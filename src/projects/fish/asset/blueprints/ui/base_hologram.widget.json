@@ -1,7 +1,7 @@
 {
   "name": "base_hologram",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-848d6d2d",
+  "sourceHash": "fnv1a-9c696f1b",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -33,6 +33,15 @@
         "name": "Canvas",
         "zOrder": 0,
         "active": true
+      }
+    },
+    {
+      "baseClass": "UIWorldAnchorComponent",
+      "properties": {
+        "mode": "world",
+        "pxPerMeter": 200,
+        "pixelDensity": 2,
+        "faceCamera": true
       }
     }
   ],
@@ -70,15 +79,6 @@
             "markerOnly": true,
             "name": "UIMarker",
             "zOrder": 0
-          }
-        },
-        {
-          "baseClass": "UIWorldAnchorComponent",
-          "properties": {
-            "mode": "world",
-            "pxPerMeter": 200,
-            "pixelDensity": 2,
-            "faceCamera": true
           }
         }
       ],

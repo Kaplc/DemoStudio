@@ -1,12 +1,15 @@
-<widget name="BuildingInfoCard" canvas="520x300" data-script="gameplay/base/BuildingInfo">
+<widget name="BuildingInfoCard" canvas="520x300" data-script="gameplay/base/BuildingInfo"
+        data-comp="UIWorldAnchorComponent"
+        data-props='{"mode":"world","pxPerMeter":300,"pixelDensity":2,"faceCamera":true,"alwaysOnTop":true}'>
   <style>
-    .CardRoot { width: 520px; height: 300px; position: absolute; left: 0px; top: 0px; z-index: 1; hit-test: visible; }
+    .CardRoot { width: 520px; height: 300px; z-index: 1; hit-test: visible; }
     .Card { width: 526px; height: 306px; box-sizing: border-box; position: absolute; left: 0px; top: 0px; z-index: 2; hit-test: visible; background-color: #140e06e0; border-radius: 28px; border-top: 3px solid #ffae00bf; border-right: 3px solid #ffae00bf; border-bottom: 3px solid #ffae00bf; border-left: 3px solid #ffae00bf; }
     .BuildingName { width: 460px; height: 52px; position: absolute; left: 30px; top: 22px; z-index: 7; hit-test: visible; font-size: 34px; color: #ffd75e; text-align: center; font-weight: bold; text-shadow: 0px 2px 6px #00000099; z-index: 7; }
     .BuildingLevel { width: 460px; height: 44px; position: absolute; left: 30px; top: 78px; z-index: 8; hit-test: visible; font-size: 26px; color: #e8dcc0; text-align: center; text-shadow: 0px 1px 4px #00000099; z-index: 8; }
-    .Btn_collect { width: 210px; height: 84px; display: flex; justify-content: center; align-items: center; position: absolute; left: 40px; top: 150px; z-index: 9; hit-test: visible; background-color: #4caf50; border-radius: 18px; }
+    .BtnRow { width: 520px; height: 84px; position: absolute; left: 0px; top: 150px; display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 9; hit-test: visible; }
+    .Btn_collect { width: 210px; height: 84px; display: flex; justify-content: center; align-items: center; z-index: 9; hit-test: visible; background-color: #4caf50; border-radius: 18px; }
     .Label_collect { width: 170px; height: 44px; z-index: 10; hit-test: visible; font-size: 30px; color: #ffffff; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000099; z-index: 10; }
-    .Btn_upgrade { width: 210px; height: 84px; display: flex; justify-content: center; align-items: center; position: absolute; left: 270px; top: 150px; z-index: 11; hit-test: visible; background-color: #ffae00; border-radius: 18px; }
+    .Btn_upgrade { width: 210px; height: 84px; display: flex; justify-content: center; align-items: center; z-index: 11; hit-test: visible; background-color: #ffae00; border-radius: 18px; }
     .Label_upgrade { width: 170px; height: 44px; z-index: 12; hit-test: visible; font-size: 30px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 0px 1px 3px #00000066; z-index: 12; }
     .Btn_close { width: 60px; height: 60px; display: flex; justify-content: center; align-items: center; position: absolute; left: 444px; top: 14px; z-index: 13; hit-test: visible; background-color: #4e342e; border-radius: 30px; }
     .Label_close { width: 44px; height: 44px; z-index: 14; hit-test: visible; font-size: 30px; color: #f5e6c8; text-align: center; text-shadow: 0px 1px 3px #00000066; z-index: 14; }
@@ -17,16 +20,19 @@
     <div class="CardRoot">
       <div class="Card">
         <text class="BuildingName"></text>
-              <text class="BuildingLevel">Lv.1</text>
-              <button class="Btn_collect">
-          <text class="Label_collect">收 集</text>
-        </button>
-              <button class="Btn_upgrade">
-          <text class="Label_upgrade">升 级</text>
-        </button>
-              <button class="Btn_close">
-          <text class="Label_close">✕</text>
-        </button>
+          <text class="BuildingLevel">Lv.1</text>
+          <div class="BtnRow" data-comp="UILayoutComponent"
+              data-props='{"mode":"horizontal","justify":"center","align":"center","spacingX":20,"autoLayout":true}'>
+            <button class="Btn_collect">
+              <text class="Label_collect">收 集</text>
+            </button>
+            <button class="Btn_upgrade">
+              <text class="Label_upgrade">升 级</text>
+            </button>
+          </div>
+          <button class="Btn_close">
+            <text class="Label_close">✕</text>
+          </button>
       </div>
     </div>
 </widget>

@@ -22,7 +22,7 @@ import * as THREE from 'three'
 import { ActorComponent, type EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
 import { UITransformComponent } from './UITransformComponent'
-import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { CanvasUIComponent, WORLD_UI_TOP_RENDER_ORDER } from '../rendering/CanvasUIComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { UICamera } from '../rendering/UICamera'
 import { GameInstance } from '../gameflow/GameInstance'
@@ -47,10 +47,15 @@ export interface UIWorldAnchorComponentOptions {
   /** screen 模式：恒定屏占（true=不随距离缩放；false=近大远小） */
   constantScreenSize?: boolean
   clamping?: UIWorldAnchorClamping
-  /** world 模式：设计 px → 米换算基准（缺省 200px/m） */
+  /** world 模式：设计 px → 米换算基准（缺省 200px/m；值越小面板越大） */
   pxPerMeter?: number
   /** world 模式：canvas 纹理像素密度倍数（2 = 近景不糊；设计 px 不变） */
   pixelDensity?: number
+  /**
+   * world 模式：始终顶层（默认 false）。面板整树关深度测试 + renderOrder 抬到全局
+   * 基准（WORLD_UI_TOP_RENDER_ORDER），不被建筑等 3D 物体遮挡；内部层级仍按 zOrder。
+   */
+  alwaysOnTop?: boolean
 }
 
 /** 复用临时向量（每帧投影路径，避免分配） */
@@ -65,9 +70,13 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
   private _clamping: UIWorldAnchorClamping
   private _pxPerMeter: number
   private _pixelDensity: number
+  private _alwaysOnTop: boolean
 
   /** 屏幕像素基准尺寸（applyScreenScale 用；Create 时从根 UITransform 捕获） */
   private _basePx: [number, number] = [0, 0]
+
+  /** applyWorldMode 是否已执行（alwaysOnTop 运行时热切的门槛） */
+  private _worldApplied = false
 
   constructor(owner: Actor, options: UIWorldAnchorComponentOptions = {}) {
     super(owner)
@@ -80,6 +89,7 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
     this._clamping = options.clamping ?? 'none'
     this._pxPerMeter = options.pxPerMeter ?? 200
     this._pixelDensity = options.pixelDensity ?? 1
+    this._alwaysOnTop = options.alwaysOnTop ?? false
   }
 
   // ─── 可配置属性（Inspector / 资产 / 运行时热更） ───
@@ -107,6 +117,17 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
 
   get pixelDensity(): number { return this._pixelDensity }
   set pixelDensity(v: number) { this._pixelDensity = v }
+
+  /**
+   * 始终顶层（仅 world 模式有意义）。BeginPlay 前赋值仅暂存（applyWorldMode 统一
+   * 应用）；已应用后赋值整树热切（Inspector/脚本运行时开关）。
+   */
+  get alwaysOnTop(): boolean { return this._alwaysOnTop }
+  set alwaysOnTop(v: boolean) {
+    if (this._alwaysOnTop === v) return
+    this._alwaysOnTop = v
+    if (this._mode === 'world' && this._worldApplied) this.applyAlwaysOnTopTree()
+  }
 
   // ─── 生命周期 ───
 
@@ -232,6 +253,26 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
     walkRender(this.owner)
     // 子树 clickable 全部切 world 层（主相机射线命中；UIButton 透明点击层随之生效）
     this.switchClickablesToWorld(this.owner)
+    // 始终顶层（整树关深度测试 + renderOrder 全局基准偏移）
+    if (this._alwaysOnTop) this.applyAlwaysOnTopTree()
+    this._worldApplied = true
+  }
+
+  /**
+   * 整树热切"始终顶层"：各 Actor root 打 __dsWorldUIAlwaysTop 标记（晚生成的
+   * canvas 组件经 CanvasUIComponent.BeginPlay 祖先链检测自行补课），并对树内
+   * 已有 canvas 组件立即生效。false 时恢复深度遮挡（标记同步清除）。
+   */
+  private applyAlwaysOnTopTree(): void {
+    const walk = (a: Actor): void => {
+      a.root.userData.__dsWorldUIAlwaysTop = this._alwaysOnTop
+      for (const c of a.getComponents(CanvasUIComponent)) {
+        c.setAlwaysOnTop(this._alwaysOnTop, WORLD_UI_TOP_RENDER_ORDER)
+      }
+      for (const child of a.getChildren()) walk(child)
+    }
+    walk(this.owner)
+    logger.info(`[UIWorldAnchor] "${this.owner.name}" 始终顶层 → ${this._alwaysOnTop}`)
   }
 
   /** 递归切换子树全部 ClickableComponent 到 world 层（BeginPlay 后赋值自动迁移注册表） */
@@ -255,6 +296,7 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
       clamping: this._clamping,
       pxPerMeter: this._pxPerMeter,
       pixelDensity: this._pixelDensity,
+      alwaysOnTop: this._alwaysOnTop,
     }
   }
 
@@ -268,6 +310,7 @@ export class UIWorldAnchorComponent extends ActorComponent<Actor> {
       { key: 'clamping', type: 'enum', options: ['none', 'clamp'], get: () => this._clamping, set: (v) => { this._clamping = v as UIWorldAnchorClamping } },
       { key: 'pxPerMeter', type: 'number', step: 10, min: 1, get: () => this._pxPerMeter, set: (v) => { this._pxPerMeter = v as number } },
       { key: 'pixelDensity', type: 'number', step: 1, min: 1, max: 4, get: () => this._pixelDensity, set: (v) => { this._pixelDensity = v as number } },
+      { key: 'alwaysOnTop', type: 'boolean', get: () => this._alwaysOnTop, set: (v) => { this.alwaysOnTop = v as boolean } },
     ]
   }
 }

@@ -136,6 +136,15 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       }
     }
     const usedNames = new Set<string>()
+    // 其余根组件 → data-comp/data-props 逃逸回写 <widget> 属性（TC-C4 不丢信息；
+    // 编译端 <widget data-comp> 等价还原为根 Actor 组件）
+    const knownRootComps = new Set(['UITransformComponent', 'CanvasUIComponent', 'UIScriptComponent'])
+    for (const c of root.components ?? []) {
+      if (knownRootComps.has(c.baseClass) || c === rootBg) continue
+      const p = (c.properties ?? {}) as Record<string, unknown>
+      rootAttrs.push(`data-comp="${escapeAttr(String(c.baseClass))}"`)
+      if (Object.keys(p).length > 0) rootAttrs.push(`data-props='${escapeAttr(JSON.stringify(p))}'`)
+    }
     const bodyLines: string[] = []
     // 父盒（画布 px）：cx/cy=边盒中心，x/y=边盒左上，w/h=边盒尺寸，inX/inY=内容内缩（padding+border）
     const parentBox0 = { cx: cw / 2, cy: ch / 2, x: 0, y: 0, w: cw, h: ch, inX: 0, inY: 0 }
