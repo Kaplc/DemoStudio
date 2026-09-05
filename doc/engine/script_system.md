@@ -200,17 +200,7 @@ if (this.timerText) {
 两个反直觉点：
 
 - **`data-script` 可以写在任意元素上，不一定是根节点**。多数面板挂根（`base_hud`），但 `main_menu` 挂在按钮上：`<button class="StartButton" data-script="gameplay/menu/MainMenu">`。此时 `this.actor` 是那个 button 节点，`MainMenu.script.ts` 就直接 `this.actor.getComponent(UIButtonComponent)`，不用 `findInChildren`。
-- **`args` 有第二个来源**：`:hover` / `:active` / `:disabled` 的 color/opacity 由 `emitButtonStates`（[compile.ts:1491](../../src/editor/asset/uiCompiler/compile.ts)）合并进 `UIScriptComponent.args`，供脚本在 `onUpdate` 里轮询按钮状态来上色（`UIButtonComponent` 不代理颜色）。`MainMenu.script.ts` 消费的就是这份 args：
-
-```ts
-// src/projects/fish/gameplay/menu/MainMenu.script.ts:41
-const states = (args ?? {}) as InteractiveStateArgs
-this.hoverColor = states.hover?.color ?? null
-this.pressedColor = states.pressed?.color ?? null
-this.baseColor = this.image?.color ?? null
-```
-
-> **没有 `data-script` 却写了交互态色**，编译器会推一条 warning（「需运行时脚本消费才会生效」）并**照样发射**一个 `script: ''` 的空组件——运行时走到 `BeginPlay` 的 `!this.script` 分支，`logger.warn` 跳过。所以那行 warning 不修，色值就是死数据。
+- **按钮交互态色不经过脚本**：`:hover` / `:active` / `:disabled` 的 color/opacity 由 `emitButtonStates`（[compile.ts](../../src/editor/asset/uiCompiler/compile.ts)）写进 `UIButtonComponent.stateColors`，状态机切换时按钮**原生驱动**同 Actor 的视觉 Image 上色（`applyStateVisual`），脚本零参与、也无须轮询（历史上有过"透传 args + 脚本 onUpdate 轮询上色"的方案，已被原生机制取代；旧资产里的 `UIScript.args.hover` 键反编译仍识别，属兼容残留）。
 
 脚本内查节点用 `findInChildren`，它沿 `root.name` 精确匹配递归（[BehaviourScript.ts:63](../../src/engine/script/BehaviourScript.ts)，底层 `Actor.getChildren` 见 [Actor.ts:292](../../src/engine/entity/Actor.ts)）：
 
@@ -267,7 +257,7 @@ if (buildBtn) {
 | `registerProjectAssets` / `clearProjectAssets` | 打开工程时注册、切换工程时 `ScriptRegistry.clearAll()` | [./asset_tools_system.md](./asset_tools_system.md) |
 | `ComponentRegistry.register('UIScriptComponent')` | 资产里的 `baseClass` 靠它造出组件实例并填 `script` / `args` | [./asset_tools_system.md](./asset_tools_system.md) |
 | `World.tick` → `UIManager.tickUI` → `Actor.Tick` → `BObject.Tick` | 每帧把 `onUpdate` 送到脚本 | [./gameflow_system.md](./gameflow_system.md) |
-| UI 编译器 `emitDataScript` / `emitButtonStates` | `.widget.html` 的 `data-script` 与交互态色 → 组件 `properties.script` / `args` | [./ui_system.md](./ui_system.md) |
+| UI 编译器 `emitDataScript` / `emitButtonStates` | `.widget.html` 的 `data-script` → `UIScriptComponent`；交互态色 → `UIButtonComponent.stateColors`（引擎原生驱动） | [./ui_system.md](./ui_system.md) |
 | `assetLint` 的 `comp:UIScriptComponent` 检查器 | 校验 `properties.script` 为 string、`args` 为 object | [./asset_tools_system.md](./asset_tools_system.md) |
 
 ### 下游：它波及谁

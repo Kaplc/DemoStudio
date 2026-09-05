@@ -1,8 +1,8 @@
 /**
  * ConfigLoaderBase — 项目配置加载器基类（注册器基类）
  *
- * 每个游戏项目在项目根目录建一个配置构造类继承本基类（如 FishConfigLoader、
- * EatFishConfigLoader），统一"注册默认值 + 异步加载配置表"的流程。
+ * 每个游戏项目在项目根目录建一个配置构造类继承本基类（如 FishConfigLoader），
+ * 统一"注册默认值 + 异步加载配置表"的流程。
  * 由 GameInstance 构造时实例化并调用 init()（各阶段 GameMode 共享同一份配置缓存）。
  *
  * 用法：

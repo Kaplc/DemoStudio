@@ -7,21 +7,14 @@
  *  2. 收集按钮（仅金矿/水库显示）→ 一键收集该矿积压
  *  3. 升级按钮 → 关闭信息牌 + 打开建筑升级面板（面板打开时传入 buildingId）
  *  4. 关闭按钮 → 关闭信息牌
- *  5. 消费编译器透传的交互态色（.Btn_*:hover/:active → UIScript.args），
- *     轮询按钮状态机给背景 Image 上色（UIButtonComponent 不代理颜色，见其文件头）
+ * （按钮 hover/pressed 变色由 UIButtonComponent.stateColors 原生驱动，脚本不轮询）
  *
  * 由 FishBaseGameMode.openBuildingInfoPanel 经 spawnAnchoredWidget 打开
  * （mode='world' 场景 UI：面板摆在建筑上方，billboard 正对相机，近大远小）。
  */
-import { BehaviourScript, UIButtonComponent, UITextComponent, UIImageComponent, UIScriptComponent, logger } from '@/engine'
+import { BehaviourScript, UIButtonComponent, UITextComponent, logger } from '@/engine'
 import { BuildingInfoState } from './BuildingPanelState'
 import type { FishBaseGameMode } from './FishBaseGameMode'
-
-/** 编译器 emitButtonStates 透传的交互态（仅 color/opacity） */
-interface InteractiveStateArgs {
-  hover?: { color?: string; opacity?: number }
-  pressed?: { color?: string; opacity?: number }
-}
 
 /** 建筑显示名（与 BuildingUpgradeScript.getBuildingName 同口径） */
 const BUILDING_NAMES: Record<string, string> = {
@@ -43,16 +36,6 @@ export default class BuildingInfoScript extends BehaviourScript {
   private upgradeBtn: UIButtonComponent | null = null
   private closeBtn: UIButtonComponent | null = null
   private collectBtn: UIButtonComponent | null = null
-  private upgradeImage: UIImageComponent | null = null
-  private closeImage: UIImageComponent | null = null
-  private collectImage: UIImageComponent | null = null
-  /** 交互态色（编译器透传） */
-  private upgradeStates: InteractiveStateArgs = {}
-  private closeStates: InteractiveStateArgs = {}
-  private collectStates: InteractiveStateArgs = {}
-  private upgradeBaseColor: string | null = null
-  private closeBaseColor: string | null = null
-  private collectBaseColor: string | null = null
 
   override onStart(_args?: Record<string, unknown>): void {
     this.mode = this.gameMode as FishBaseGameMode | null
@@ -75,24 +58,20 @@ export default class BuildingInfoScript extends BehaviourScript {
     const upgradeActor = this.findInChildren('Btn_upgrade')
     if (upgradeActor) {
       this.upgradeBtn = upgradeActor.getComponent(UIButtonComponent)
-      this.upgradeImage = upgradeActor.getComponent(UIImageComponent)
       if (this.upgradeBtn) {
         this.upgradeBtn.onClick = () => this.openUpgradePanel()
         logger.info('[BuildingInfoScript] 升级按钮已绑定')
       }
-      this.upgradeStates = (upgradeActor.getComponent(UIScriptComponent)?.args ?? {}) as InteractiveStateArgs
     }
 
     // ─── 收集按钮（仅金矿/水库显示）───
     const collectActor = this.findInChildren('Btn_collect')
     if (collectActor) {
       this.collectBtn = collectActor.getComponent(UIButtonComponent)
-      this.collectImage = collectActor.getComponent(UIImageComponent)
       if (this.collectBtn) {
         this.collectBtn.onClick = () => this.collect()
         logger.info('[BuildingInfoScript] 收集按钮已绑定')
       }
-      this.collectStates = (collectActor.getComponent(UIScriptComponent)?.args ?? {}) as InteractiveStateArgs
       const isMine = buildingId === 'goldmine' || buildingId === 'elixir'
       collectActor.bActive = isMine
       if (!isMine) logger.info('[BuildingInfoScript] 非矿建筑：收集按钮已隐藏')
@@ -102,41 +81,10 @@ export default class BuildingInfoScript extends BehaviourScript {
     const closeActor = this.findInChildren('Btn_close')
     if (closeActor) {
       this.closeBtn = closeActor.getComponent(UIButtonComponent)
-      this.closeImage = closeActor.getComponent(UIImageComponent)
       if (this.closeBtn) {
         this.closeBtn.onClick = () => this.mode?.closeBuildingInfoPanel()
         logger.info('[BuildingInfoScript] 关闭按钮已绑定')
       }
-      this.closeStates = (closeActor.getComponent(UIScriptComponent)?.args ?? {}) as InteractiveStateArgs
-    }
-
-    this.upgradeBaseColor = this.upgradeImage?.color ?? null
-    this.closeBaseColor = this.closeImage?.color ?? null
-    this.collectBaseColor = this.collectImage?.color ?? null
-  }
-
-  /** 每帧：轮询按钮状态机应用交互态色（MainMenuScript 同款先例） */
-  override onUpdate(_deltaTime: number): void {
-    if (this.upgradeBtn && this.upgradeImage) {
-      const target =
-        this.upgradeBtn.state === 'pressed' ? this.upgradeStates.pressed?.color ?? null
-        : this.upgradeBtn.state === 'hover' ? this.upgradeStates.hover?.color ?? null
-        : this.upgradeBaseColor
-      if (target && this.upgradeImage.color !== target) this.upgradeImage.color = target
-    }
-    if (this.closeBtn && this.closeImage) {
-      const target =
-        this.closeBtn.state === 'pressed' ? this.closeStates.pressed?.color ?? null
-        : this.closeBtn.state === 'hover' ? this.closeStates.hover?.color ?? null
-        : this.closeBaseColor
-      if (target && this.closeImage.color !== target) this.closeImage.color = target
-    }
-    if (this.collectBtn && this.collectImage) {
-      const target =
-        this.collectBtn.state === 'pressed' ? this.collectStates.pressed?.color ?? null
-        : this.collectBtn.state === 'hover' ? this.collectStates.hover?.color ?? null
-        : this.collectBaseColor
-      if (target && this.collectImage.color !== target) this.collectImage.color = target
     }
   }
 

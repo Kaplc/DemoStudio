@@ -344,12 +344,17 @@ export class UITextComponent extends CanvasUIComponent {
     }
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示：只放 text 自身属性 + zOrder。
+   * 基类的 canvas 尺寸/active/markerOnly/hitTest 是节点/marker 视角的信息
+   * （节点显隐开关与 V2 命中权威都在同/父节点的 marker 上），不在文本块上露脸；
+   * zOrder 保留——代码构建 UI（无 marker 的独立 text）的分层编辑入口。
+   * 注意本方法是 Inspector 的行清单：键不在列表里的可编辑属性不渲染行。
+   */
   override getProperties(): Record<string, unknown> {
-    const base = super.getProperties()
     const [ww] = this.getWorldSize()
     return {
-      ...base,
+      zOrder: this.zOrder,
       text: this._text.length > 60 ? `${this._text.slice(0, 60)}…` : this._text,
       fontSize: this._fontSize,
       fontFamily: this._fontFamily,
@@ -370,10 +375,10 @@ export class UITextComponent extends CanvasUIComponent {
 
   /** Inspector 可编辑属性：文本/字号/颜色/对齐/加粗/斜体（camelCase 与 JSON 属性名一致） */
   override getEditableProperties(): EditableProperty[] {
-    // UIText 不是节点显隐开关：active 由同/父节点的 CanvasUIComponent 统一控制，这里过滤掉；
-    // hitTest 同理：V2 命中权威在节点 marker（block 时 marker 懒创建射线 mesh），
-    // 文本块的 hitTest 字段仅为旧资产兼容，不再作为编辑面
-    const base = super.getEditableProperties().filter((p) => p.key !== 'active' && p.key !== 'hitTest')
+    // 基类编辑属性只保留 zOrder：active/hitTest 已归位同/父节点的 marker（节点显隐开关与
+    // V2 命中权威），对文本块是误导编辑面。zOrder 不能裁——代码构建 UI（无 marker 的独立
+    // text）唯一的分层编辑入口，且持久化默认遍历可编辑属性取值，裁掉即停存。
+    const base = super.getEditableProperties().filter((p) => p.key === 'zOrder')
     return [
       ...base,
       {

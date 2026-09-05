@@ -7,9 +7,10 @@
  *  - 承载 UI 树：UI Actor（从蓝图生成）attach 到本 HUD，随 HUD 进出场景
  *  - 不参与 UI 生成逻辑 —— UI Actor 的创建统一由 UIManager 负责
  *
- * 生命周期：
- *  - 创建：UIManager.createHUD() → new HUD() → SpawnActor → attachUI(uiActor)
- *  - 销毁：UIManager.destroyAll() 遍历 _uiActors 时 EndPlay（UI 子系统独立管理，不与 World.allActors 混管）
+ * 生命周期（对齐 UE AHUD：引用归 PlayerController 持有）：
+ *  - 创建：GameMode.SpawnPlayer → PC.ClientSetHUD(HUDClass) → UIManager.createHUD() → new HUD() → SpawnActor → attachUI(uiActor)
+ *  - 引用持有：PlayerController.hud（对位 UE MyHUD）
+ *  - 销毁：PC.EndPlay → UIManager.destroyHUD()（对齐 UE PC::Destroyed）；场景切换由 DestroyAllActors → destroyAll() 全清
  */
 import { Actor } from '../entity/Actor'
 

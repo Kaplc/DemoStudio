@@ -9,7 +9,6 @@ const files = [
   'src/projects/fish/asset/fish_level2.scene.json',
   'src/projects/fish/asset/fish_level3.scene.json',
   'src/projects/fish/asset/fish.scene.json',
-  'src/projects/snake/snake.scene.json',
 ]
 let bad = 0
 for (const f of files) {

@@ -422,10 +422,10 @@ export class World extends AObject {
    * 封装了阶段性场景切换的通用流程（如 menu→base→game）：
    * 1. Pause() 暂停 Tick 循环
    * 2. DestroyAllActors() 销毁并释放所有 Actor
-   * 3. SetGameMode(newMode) 切换 GameMode（InitGame + StartPlay，因 _running=false 不触发 BeginPlay）
-   * 4. 创建 HUD（若 newMode.HUDClass 声明）— UI 对象创建由 World 统一管理
-   * 5. 执行可选的 setup 回调（加载场景资产、设置相机、生成玩家等）
-   * 6. BeginPlay() 恢复世界运行，触发新 GameMode.BeginPlay + commitSpawn
+   * 3. SetGameMode(newMode) 切换 GameMode（InitGame + StartPlay，因 _running=false 不触发 BeginPlay；
+   *    HUD 由 StartPlay→SpawnPlayer→PC.ClientSetHUD 在此阶段创建，对齐 UE InitNewPlayer→ClientSetHUD）
+   * 4. 执行可选的 setup 回调（加载场景资产、设置相机、生成玩家等）
+   * 5. BeginPlay() 恢复世界运行，触发新 GameMode.BeginPlay + commitSpawn
    *
    * @param newMode  目标 GameMode
    * @param setup    在 BeginPlay 之前执行的设置回调（场景加载、相机、Controller 等）
@@ -446,12 +446,7 @@ export class World extends AObject {
       logger.warn(`[World#${this.id}] SwitchScene 残留诊断：旧场景 Actor 集合未清空（3D=${leftover3D}, UI=${leftoverUI}）`)
     }
     this.SetGameMode(newMode)
-    // 创建 HUD（模仿 UE：GameMode.HUDClass → UIManager 统一创建 UI）
-    if (newMode.HUDClass) {
-      this.ui.createHUD(newMode.HUDClass)
-    } else {
-      logger.info('[World] SwitchScene: GameMode 未声明 HUDClass，跳过 HUD 创建')
-    }
+    // HUD 已由新 GameMode 登录链创建（StartPlay→SpawnPlayer→PC.ClientSetHUD，对齐 UE InitNewPlayer→ClientSetHUD）
     logger.info('[World] SwitchScene: 执行 setup 回调（加载场景资产 / 项目专属设置）...')
     setup?.()
     this.BeginPlay()

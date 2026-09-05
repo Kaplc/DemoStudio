@@ -1,7 +1,7 @@
 {
   "name": "FishMainMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-d193243e",
+  "sourceHash": "fnv1a-1bc5d174",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -643,8 +643,13 @@
                 {
                   "baseClass": "UIScriptComponent",
                   "properties": {
-                    "script": "gameplay/menu/MainMenu",
-                    "args": {
+                    "script": "gameplay/menu/MainMenu"
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "stateColors": {
                       "hover": {
                         "color": "#ffc65e"
                       },
@@ -653,10 +658,6 @@
                       }
                     }
                   }
-                },
-                {
-                  "baseClass": "UIButtonComponent",
-                  "properties": {}
                 },
                 {
                   "baseClass": "UIImageComponent",
@@ -765,7 +766,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\n击败敌人赚取金币 · 金币归零则游戏结束",
+                    "text": "鼠标瞄准 · 按住开火 · 滚轮/1-5 切换炮等级\r\n击败敌人赚取金币 · 金币归零则游戏结束",
                     "name": "TipText",
                     "width": 560,
                     "height": 64,

@@ -283,7 +283,7 @@ private nameOf(el: StyleElement, box: Box | null, usedNames: Set<string>, fallba
 ## 6. 行为与交互
 
 - **面板行为**：根标签 `data-script="gameplay/base/MyPanel"`，脚本 id 必须真实存在于 `src/projects/<project>/gameplay/**/*.script.ts`。
-- **按钮状态**：`:hover/:active/:disabled` 的颜色自动传给运行时，无需任何脚本。
+- **按钮状态**：`:hover/:active/:disabled` 的颜色/透明度由引擎原生驱动——编译器写入 `UIButtonComponent.stateColors`，状态机切换时按钮自己给背景 Image 上色，**无需任何脚本**（也不要再写轮询 `state` 改 `image.color` 的脚本，会跟原生驱动打架）。
 - **输入框**：`<input>` 自带焦点/占位符；`placeholder` 属性直接写。
 - **点击行为**：按钮的响应逻辑写在 data-script 指向的脚本里，不在 HTML 里。
 - **点击拦截**：默认所有节点都不挡点击（只有 `<button>` 能被点）。要"点面板空白处不穿透到场景"，给**带背景的节点**写 `hit-test: block`（见下方配方）。
@@ -303,7 +303,8 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
       throw new CompileFail(`data-args 属性不是合法 JSON: "${dataArgs}"`, el.node.line)
     }
   }
-  // 与交互态合并（emitButtonStates 可能已建）
+  // 已有 UIScriptComponent（data-comp 逃逸等路径预建）时合并：script 以 data-script 为准，
+  // 已有 args 覆盖 data-args
   const existing = (node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>)
     .find((c) => c.baseClass === 'UIScriptComponent')
   if (existing) {
@@ -315,7 +316,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 }
 ```
 
-注意合并逻辑：**已有的 `args` 覆盖 `data-args`**。因为按钮状态色（`emitButtonStates`）会先写入 `args`，`data-script` 后发射时必须保住它们，否则 `:hover` 配的颜色就丢了。这也是为什么 [compile.ts:771](#) 有注释强调"`data-script` 先于功能组件发射"。
+注意合并逻辑：**已有的 `args` 覆盖 `data-args`**（region 参数区键并入先于功能组件发射的产物形态）。按钮交互态与 `UIScriptComponent` 无关——`:hover` 等状态色落在 `UIButtonComponent.stateColors`，由引擎状态机原生驱动（§6 按钮状态）。
 
 `data-args` 可传脚本参数，但**必须是合法 JSON，否则硬报错**。
 
@@ -703,6 +704,13 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 | `overflow: hidden/clip` | → `UIMaskComponent` 裁剪遮罩（radius=border-radius） | 见 §7 配方 D |
 | `overflow: auto/scroll` | → UIMask + UIScrollContainer + 内容层 | 见 §7 配方 D |
 | `z-order` 与 `z-index` 同写 | `z-order` 优先，`z-index` 被忽略 | 二者择一 |
+| `z-index`（标准 CSS） | **只影响命中优先级**（marker 层），不影响视觉叠放 | 视觉叠放见下 |
+
+**视觉叠放与 z-index 的边界**（重要）：引擎 zOrder 是**全局扁平排序，没有 CSS 层叠上下文**——因此标准 `z-index` 不会进视觉块。视觉叠放规则：
+
+- **默认（不写任何 z 属性）**：按 DOM 顺序绘制，后写的在上——与浏览器一致，覆盖 99% 场景。
+- **需要显式控制绘制层级**：写引擎专有 `z-order`（marker 命中层与视觉绘制层同步生效）。⚠️ 容器（有子孙的面板/底板）慎用：容器 `z-order: N` 会让 DOM 靠后但 z-order 为 0 的子孙沉到容器下方（引擎无层叠上下文，子元素不会自动跟随父级）；用 z-order 时整条可见链（容器+内容）要一起写。
+- **只想调整点击优先级**：写标准 `z-index` 或 `hit-test`（只进 marker 层，视觉不动）。
 | 编译成功但 assetLint 有 error | 拒绝落盘，返回 `lintIssues` | 按 `nodePath`/`rule` 修源重编译 |
 | assetLint 只有 warn | 正常落盘，warn 透传 | 可忽略 |
 | 保存 json 后源被回写 | 反编译为规范形（absolute 坐标），渲染等效 | 见 §14 坑 9 |

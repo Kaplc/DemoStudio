@@ -2,9 +2,12 @@
  * UIButtonComponent — 按钮交互组件（纯交互 + 自有透明点击层）
  *
  * 模仿 Unity Button 的交互部分：状态机（normal / hover / pressed / disabled）、
- * 点击回调、按下缩放动效。**不渲染任何视觉、不驱动任何 Image 的颜色**：
- *  - 视觉背景由同 Actor 的 UIImageComponent 或子节点（Frame 等）提供
- *  - 颜色变化（hover 高亮等）由脚本 / Inspector 直接修改目标 Image，按钮不代理
+ * 点击回调、按下缩放动效。**不渲染任何视觉**：视觉背景由同 Actor 的
+ * UIImageComponent 或子节点（Frame 等）提供。
+ *  - 默认不驱动任何 Image 的颜色：颜色变化由脚本 / Inspector 直接修改目标 Image
+ *  - 配置 stateColors（编译器 emitButtonStates 透传 / 手工赋值）后，状态机切换
+ *    由按钮原生驱动同 Actor 的视觉 Image（跳过透明点击层）上色/调透明度，
+ *    无需再写轮询脚本（applyStateVisual）
  *
  * 命中层（射线语义）：
  *  - BeginPlay 自动生成**透明点击层**（UIImageComponent，opacity 恒 0 +
@@ -18,7 +21,7 @@
  * 注意：
  *  - 透明点击层不参与状态色驱动 / TweenSystem.fade（避免 fade 后变可见）
  *  - 按钮文字由独立子 Actor 挂 UITextComponent 提供（如 blueprints/ui/main_menu.widget.json）
- *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { pressScale? } }
+ *  - 数据配置：{ baseClass: 'UIButtonComponent', properties: { pressScale?, stateColors? } }
  *  - 按下动效：mousedown 命中（onPress）→ 立即微缩（pressScale=0.92）并保持；
  *    mouseup（onRelease）→ 恢复原始缩放（长按期间持续保持按下态）
  */
@@ -32,10 +35,25 @@ import type { Actor } from '../entity/Actor'
 
 export type ButtonState = 'normal' | 'hover' | 'pressed' | 'disabled'
 
+/** 单个交互态的视觉覆盖（对齐 CSS 交互态白名单：仅 color/opacity） */
+export interface UIButtonStateVisual {
+  color?: string
+  opacity?: number
+}
+
+/** 交互态视觉表：状态机切换时按钮原生驱动同 Actor 的视觉 Image（键与 ButtonState 对齐） */
+export interface UIButtonStateColors {
+  hover?: UIButtonStateVisual
+  pressed?: UIButtonStateVisual
+  disabled?: UIButtonStateVisual
+}
+
 export interface UIButtonComponentOptions {
   onClick?: () => void
   /** 按下缩放比例（默认 0.92；>=1 或 <=0 时关闭缩放动效） */
   pressScale?: number
+  /** 交互态视觉表（编译器 emitButtonStates 透传；缺省 = 不驱动颜色，行为同纯交互） */
+  stateColors?: UIButtonStateColors
 }
 
 export class UIButtonComponent extends Component<Actor> {
@@ -47,6 +65,10 @@ export class UIButtonComponent extends Component<Actor> {
   private _pressScale: number
   /** 原始缩放：首次按下时缓存 owner.root.scale（尊重蓝图/Inspector 设置的原始缩放） */
   private _baseScale: THREE.Vector3 | null = null
+  /** 交互态视觉表（null = 不驱动颜色） */
+  private _stateColors: UIButtonStateColors | null = null
+  /** 基线视觉：离开常态应用状态色前捕获，回常态时还原（脚本在常态改色后基线跟随刷新） */
+  private _baseVisual: { color: string; opacity: number } | null = null
   /** 鼠标是否正在按住本按钮（onPress 置位 / onRelease 清除；长按期间保持 pressed 状态） */
   private _pointerPressed = false
 
@@ -56,6 +78,7 @@ export class UIButtonComponent extends Component<Actor> {
 
     this._onClick = options.onClick ?? null
     this._pressScale = options.pressScale ?? 0.92
+    this._stateColors = options.stateColors ?? null
 
     // 自动挂载可点击组件：命中透明点击层 → triggerClick（PhySys 射线分发，无需额外代码）
     // 复用已有 ClickableComponent（数据显式配置时），否则新建
@@ -72,7 +95,7 @@ export class UIButtonComponent extends Component<Actor> {
       this.triggerClick()
     }
     clickable.onRelease = () => this.release()
-    // 悬停：驱动状态机（外部可查询；无颜色副作用，视觉高亮由脚本自理）
+    // 悬停：驱动状态机（外部可查询；颜色副作用仅当配置 stateColors，见 applyStateVisual）
     clickable.onHover = (hit) => this.hover(hit !== null)
   }
 
@@ -84,8 +107,18 @@ export class UIButtonComponent extends Component<Actor> {
   get state(): ButtonState { return this._state }
   set state(v: ButtonState) {
     if (this._state === v) return
+    const prev = this._state
     this._state = v
     this.applyPressScale()
+    this.applyStateVisual(prev)
+  }
+
+  /** 交互态视觉表（null = 不驱动颜色）；热更新赋值后立即按当前态重新应用 */
+  get stateColors(): UIButtonStateColors | null { return this._stateColors }
+  set stateColors(v: UIButtonStateColors | null) {
+    this._stateColors = v
+    this._baseVisual = null
+    this.applyStateVisual(this._state)
   }
 
   /** 点击回调（外部绑定，如菜单按钮 → 开始游戏） */
@@ -149,8 +182,33 @@ export class UIButtonComponent extends Component<Actor> {
     } else if (this._baseScale) {
       // 松开恢复原始缩放
       this.owner.root.scale.copy(this._baseScale)
-      logger.debug(`[UIButtonComponent] 松开恢复缩放: ${this.owner.root.scale.x.toFixed(3)}`)
+      logger.debug(`[UIButtonComponent] 松开恢复缩放: ${this._baseScale.x.toFixed(3)}`)
     }
+  }
+
+  /**
+   * 状态机切换 → 驱动同 Actor 视觉 Image（stateColors 未配置或无目标 Image 时空转）：
+   *  - 目标 = 同 Actor 首个非 isClickOnly 的 UIImageComponent（透明点击层永不参与）
+   *  - 离开常态时捕获基线（脚本可在常态下改基色，如按建筑等级上色），回常态还原
+   *  - 状态只覆盖其声明的属性（hover 仅 color → pressed 时 opacity 延续 hover 值，
+   *    回常态统一还原基线）
+   */
+  private applyStateVisual(prevState: ButtonState): void {
+    if (!this._stateColors) return
+    const target = this.owner.getComponents(UIImageComponent).find((c) => !c.isClickOnly) ?? null
+    if (!target) return
+    if (prevState === 'normal' || !this._baseVisual) {
+      this._baseVisual = { color: target.color, opacity: target.opacity }
+    }
+    if (this._state === 'normal') {
+      target.color = this._baseVisual.color
+      target.opacity = this._baseVisual.opacity
+      return
+    }
+    const st = this._stateColors[this._state]
+    if (!st) return
+    if (st.color !== undefined) target.color = st.color
+    if (st.opacity !== undefined) target.opacity = st.opacity
   }
 
   /**
@@ -202,6 +260,7 @@ export class UIButtonComponent extends Component<Actor> {
     return {
       State: this._state,
       PressScale: this._pressScale,
+      StateColors: this._stateColors ?? '（未配置，不驱动颜色）',
       HitLayer: this._hitLayer ? 'UIImageComponent（透明点击层）' : '（未生成，等待 BeginPlay）',
     }
   }

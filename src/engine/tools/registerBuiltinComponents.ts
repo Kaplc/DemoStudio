@@ -40,7 +40,7 @@ import { TroikaTextComponent } from '../rendering/TroikaTextComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { UIImageComponent, type UIImageComponentOptions } from '../ui/UIImageComponent'
-import { UIButtonComponent } from '../ui/UIButtonComponent'
+import { UIButtonComponent, UIButtonStateColors } from '../ui/UIButtonComponent'
 import { UIScriptComponent } from '../ui/UIScriptComponent'
 import { UITooltipComponent } from '../ui/UITooltipComponent'
 import {
@@ -486,21 +486,23 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UIButtonComponent ─── props: { pressScale?, onClick? (代码设置) }
+  // ─── UIButtonComponent ─── props: { pressScale?, stateColors?, onClick? (代码设置) }
   // 纯交互组件：状态机 + 点击回调 + 按下缩放；BeginPlay 自动生成透明点击层（自有
   // UIImageComponent，opacity 0 + isClickOnly）并把射线目标锁定到该层——命中区域 =
-  // uitransform 世界尺寸，与子节点 mesh 无关。视觉背景/颜色变化由同 Actor 的
-  // uiimage 或子节点提供，脚本直接改 image.color，按钮不代理颜色。
+  // uitransform 世界尺寸，与子节点 mesh 无关。视觉背景由同 Actor 的 uiimage 提供；
+  // 配置 stateColors 时按钮原生驱动视觉 Image 上色（编译器 emitButtonStates 透传），
+  // 未配置则不代理颜色，脚本直接改 image.color。
   ComponentRegistry.register(
     'UIButtonComponent',
     (owner, p = {}) =>
       new UIButtonComponent(owner as Actor, {
         pressScale: p.pressScale as number | undefined,
+        stateColors: p.stateColors as UIButtonStateColors | undefined,
       }),
     (c, p) => {
-      // pressScale 热更新暂不支持（构造期参数）；属性更新回调保留空实现以占位
-      void c
-      void p
+      const btn = c as UIButtonComponent
+      // pressScale 热更新暂不支持（构造期参数）；stateColors 可热替换并按当前态重应用
+      if (p.stateColors !== undefined) btn.stateColors = p.stateColors as UIButtonStateColors
     },
   )
 

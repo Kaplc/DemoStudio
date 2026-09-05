@@ -8,26 +8,14 @@
  *
  * 泡泡的图标固定金币（池里金矿/水库共用同一份 widget 资产）——收集量由
  * ProductionService.collect 按矿内实际积压结算，图标仅作交互提示。
- *
- * 交互态色：源 .Bubble:active（按下反馈）由编译器透传到 UIScript.args，
- * 这里消费 pressed 色（泡泡无 hover 语义，按下变色即可）。
  */
-import { BehaviourScript, UIButtonComponent, UIImageComponent, UIScriptComponent, logger } from '@/engine'
+import { BehaviourScript, UIButtonComponent, logger } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
-
-/** 编译器 emitButtonStates 透传的交互态（仅 color/opacity） */
-interface InteractiveStateArgs {
-  hover?: { color?: string; opacity?: number }
-  pressed?: { color?: string; opacity?: number }
-}
 
 export default class BuildingCollectScript extends BehaviourScript {
   /** GameMode 引用 */
   private mode: FishBaseGameMode | null = null
   private btn: UIButtonComponent | null = null
-  private image: UIImageComponent | null = null
-  private states: InteractiveStateArgs = {}
-  private baseColor: string | null = null
 
   override onStart(_args?: Record<string, unknown>): void {
     this.mode = this.gameMode as FishBaseGameMode | null
@@ -39,23 +27,10 @@ export default class BuildingCollectScript extends BehaviourScript {
       return
     }
     this.btn = bubbleActor.getComponent(UIButtonComponent)
-    this.image = bubbleActor.getComponent(UIImageComponent)
-    this.states = (bubbleActor.getComponent(UIScriptComponent)?.args ?? {}) as InteractiveStateArgs
-    this.baseColor = this.image?.color ?? null
     if (this.btn) {
       this.btn.onClick = () => this.collect()
       logger.info('[BuildingCollectScript] 收集按钮已绑定')
     }
-  }
-
-  /** 每帧：按下反馈色（pressed 优先，其余回常态） */
-  override onUpdate(_deltaTime: number): void {
-    if (!this.btn || !this.image) return
-    const target =
-      this.btn.state === 'pressed' ? this.states.pressed?.color ?? null
-      : this.btn.state === 'hover' ? this.states.hover?.color ?? null
-      : this.baseColor
-    if (target && this.image.color !== target) this.image.color = target
   }
 
   /** 点击泡泡：一键收集——只把自身 actor 引用交给 GameMode，矿种由 GameMode 反查（多泡泡并存时全局态会串味） */

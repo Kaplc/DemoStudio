@@ -101,6 +101,17 @@ if (!rf.ok) {
   const expectW = (600 - 16) / 3 // px 世界：json 几何 = 设计 px（一元化）
   if (Math.abs(cellW - expectW) < 0.01) ok('grid fr 列宽')
   else bad(`grid 列宽异常: ${cellW} 期望 ${expectW.toFixed(4)}`)
+  // 交互态：:hover → UIButtonComponent.stateColors（引擎原生驱动），不再搭便车 UIScript.args
+  const heroBtn = hero?.components.find((c: any) => c.baseClass === 'UIButtonComponent')
+  const sc = heroBtn?.properties?.stateColors
+  if (sc?.hover?.color === '#ffd700') ok(':hover → UIButtonComponent.stateColors 原生透传')
+  else bad(`交互态异常: ${JSON.stringify(sc)}`)
+  const heroScript = hero?.components.find((c: any) => c.baseClass === 'UIScriptComponent')
+  if (heroScript && !(heroScript.properties.args as Record<string, unknown> | undefined)?.hover) {
+    ok('交互态不再并入 UIScript.args')
+  } else if (heroScript) {
+    bad(`UIScript.args 残留交互态: ${JSON.stringify(heroScript.properties.args)}`)
+  }
 }
 
 // ─── 3. 越界硬报错 ───

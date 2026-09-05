@@ -1,7 +1,7 @@
 /**
  * DataTable — 键值行表（UE DataTable 风格）
  *
- * 由 JSON 文件描述（如 src/projects/eatfish/asset/config/fish.table.json），结构为
+ * 由 JSON 文件描述（如 src/projects/fish/asset/config/levels.table.json），结构为
  * `{ "行名": 行数据, ... }`。ConfigRegistry.loadTable 读取后构造为 DataTable。
  *
  * 设计要点：

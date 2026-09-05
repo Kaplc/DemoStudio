@@ -423,11 +423,21 @@ class UIImageComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:UIImageComponent', UIImageComponentChecker)
 
-/** comp:UIButtonComponent — 按钮纯交互组件（按下缩放 pressScale；自动生成透明点击层，不驱动颜色） */
+/** comp:UIButtonComponent — 按钮纯交互组件（按下缩放 pressScale；stateColors 交互态视觉表由引擎状态机原生驱动） */
 class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIButtonComponent'
   schema: FieldSpec[] = [
     { field: 'properties.pressScale', type: 'number', min: 0, max: 1, label: '按下缩放比例' },
+    { field: 'properties.stateColors', type: 'object', label: '交互态视觉表（HTML 源 :hover/:active/:disabled 编译映射）' },
+    { field: 'properties.stateColors.hover', type: 'object', label: 'hover 态视觉' },
+    { field: 'properties.stateColors.hover.color', type: 'color', label: 'hover 填充色' },
+    { field: 'properties.stateColors.hover.opacity', type: 'number', min: 0, max: 1, label: 'hover 不透明度' },
+    { field: 'properties.stateColors.pressed', type: 'object', label: 'pressed 态视觉' },
+    { field: 'properties.stateColors.pressed.color', type: 'color', label: 'pressed 填充色' },
+    { field: 'properties.stateColors.pressed.opacity', type: 'number', min: 0, max: 1, label: 'pressed 不透明度' },
+    { field: 'properties.stateColors.disabled', type: 'object', label: 'disabled 态视觉' },
+    { field: 'properties.stateColors.disabled.color', type: 'color', label: 'disabled 填充色' },
+    { field: 'properties.stateColors.disabled.opacity', type: 'number', min: 0, max: 1, label: 'disabled 不透明度' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

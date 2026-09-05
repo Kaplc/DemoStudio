@@ -364,7 +364,7 @@ const panel = w.ui.spawnUIActor('asset/blueprints/ui/battle_result.widget.json')
 |---|---|---|
 | 地图面板 `MapPanel.script.ts` + `switchToPhase('game')` | 卡片点击 → `enterLevel(id)`；按 `_levelId` 分流 → `setupLevelPhase()` 装配相机与结算回调 | [level_system.md](./level_system.md) / [gameflow_system.md](../engine/gameflow_system.md) |
 | 兵营训练 `TrainingComponent` + 配置表（`troop` / `levels` / `spell`） | 基地训练的军队由 `deployTroop` 消耗；配置表给兵种属性、关卡时限、法术参数 | [clash_master.md](./clash_master.md) |
-| `battle_hud.widget.json` + `BattleHudScript` | HUDClass 自动创建，卡片点击 → `selectTroop` / `selectSpell` | [script_system.md](../engine/script_system.md) |
+| `battle_hud.widget.json` + `BattleHudScript` | HUD 由登录链自动创建（`SpawnPlayer → PC.ClientSetHUD(HUDClass)`），卡片点击 → `selectTroop` / `selectSpell` | [script_system.md](../engine/script_system.md) |
 | `NavigationModule` | `rebuildFromStaticColliders` 建网格，`findPath` 供兵移动 | [navigation_system.md](../engine/navigation_system.md) |
 
 ### 下游：它波及谁

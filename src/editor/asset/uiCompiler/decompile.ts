@@ -435,6 +435,20 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
 
     if (btn) {
       tag = 'button'
+      // 交互态 stateColors → 源格式 :hover/:active/:disabled 规则（引擎原生驱动，无需脚本）
+      const sc = ((btn.properties ?? {}) as Record<string, unknown>).stateColors as
+        | Record<string, Record<string, unknown>>
+        | undefined
+      if (sc && typeof sc === 'object') {
+        for (const [stateKey, pseudo] of [['hover', 'hover'], ['pressed', 'active'], ['disabled', 'disabled']] as Array<[string, string]>) {
+          const st = sc[stateKey]
+          if (!st || typeof st !== 'object') continue
+          const sdecls: string[] = []
+          if (st.color) sdecls.push(`color: ${String(st.color)}`)
+          if (st.opacity !== undefined) sdecls.push(`opacity: ${fmtNum(Number(st.opacity))}`)
+          if (sdecls.length > 0) stateRules.push({ selector: `.${cls}`, pseudo, decls: sdecls })
+        }
+      }
     }
 
     if (input) {

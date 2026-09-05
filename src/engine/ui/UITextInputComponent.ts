@@ -436,9 +436,17 @@ export class UITextInputComponent extends UITextComponent {
     }
   }
 
+  /**
+   * Inspector 属性展示：只放输入框自身语义字段。zOrder/fontSize/color 是输入框自己的
+   * 有效样式（可编辑面与此一致）；父类 UIText 的静态文本专属行（text/fontFamily/bold/
+   * italic/align/lineHeight/letterSpacing/render*）是 UIText 的属性——输入框渲染由
+   * value/placeholder 驱动，与可编辑层的 blocked 过滤同一取舍，不显示。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      ...super.getProperties(),
+      zOrder: this.zOrder,
+      fontSize: this.fontSize,
+      color: this.color,
       Value: this._value,
       Focused: this._focused,
     }

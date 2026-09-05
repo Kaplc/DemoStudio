@@ -155,7 +155,7 @@ private switchToPhase(phase: Phase): boolean {
 
 用的是 `World.SwitchToScene(name, extraSetup)`（[World.ts:671](../../src/engine/gameflow/World.ts)），不是直接 `new GameMode`。内部按场景资产的 `mode` 从注册表取构造函数——`register.ts:22` 注册了 `GameModeRegistry.register('level', FishLevelGameMode)`，所以 `fish_level1.scene.json` 里 `"mode": "level"` 是硬要求。
 
-**旧 World（旧场景）的处置**在 `World.SwitchScene`（[World.ts:427](../../src/engine/gameflow/World.ts)）：`Pause()` → `DestroyAllActors()` → 残留诊断 → `SetGameMode(newMode)` → 建 HUD → `extraSetup()` → `BeginPlay()`。三个反直觉点：`extraSetup` 在 `BeginPlay` **之前**跑（世界暂停、Actor 已加载未 BeginPlay，故 `spawnActor(mode.baseCamera)` 与 `PhySys.setup(...)` 安全）；场景建筑是 `type: "ref"` 节点，`BeginPlay` 后才建好网格，故 `collectBuildings()` 只能在 `BeginPlay` 调；切换前记 `baseline = new Set(ObjectRegistry.snapshot())`，切换后比对残留并报类名×数量，这是查「切场景后相机/Actor 泄漏」的第一手线索。
+**旧 World（旧场景）的处置**在 `World.SwitchScene`（[World.ts:427](../../src/engine/gameflow/World.ts)）：`Pause()` → `DestroyAllActors()` → 残留诊断 → `SetGameMode(newMode)`（登录链内 `SpawnPlayer → PC.ClientSetHUD` 完成 HUD 创建）→ `extraSetup()` → `BeginPlay()`。三个反直觉点：`extraSetup` 在 `BeginPlay` **之前**跑（世界暂停、Actor 已加载未 BeginPlay，故 `spawnActor(mode.baseCamera)` 与 `PhySys.setup(...)` 安全）；场景建筑是 `type: "ref"` 节点，`BeginPlay` 后才建好网格，故 `collectBuildings()` 只能在 `BeginPlay` 调；切换前记 `baseline = new Set(ObjectRegistry.snapshot())`，切换后比对残留并报类名×数量，这是查「切场景后相机/Actor 泄漏」的第一手线索。
 
 **⑥ 结算回调与相机托管**（`FishGameInstance.ts:716` 的 `setupLevelPhase`）：
 

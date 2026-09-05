@@ -246,17 +246,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   launchGame: () =>
     set((state) => {
       const name = state.currentProject?.name ?? 'Game'
-      const tips = name === 'Snake'
-        ? ['  方向键/WASD控制方向', '  Ctrl+Enter 停止游戏']
-        : name === 'EatFish'
-        ? ['  WASD/方向键控制游动', '  吃小鱼长大 · 避开大鱼', '  Ctrl+Enter 停止游戏']
-        : name === 'Racing'
-        ? ['  ↑/W 油门, ↓/S 刹车, ←/A 左转, →/D 右转', '  空格手刹 · 完成3圈获胜', '  Ctrl+Enter 停止游戏']
-        : ['  Ctrl+Enter 停止游戏']
       return {
         launchCount: state.launchCount + 1,
         gameState: { running: true, score: 0, gameOver: false },
-        consoleOutput: [...state.consoleOutput.slice(-199), `🎮 启动${name}游戏...`, '', ...tips],
+        consoleOutput: [...state.consoleOutput.slice(-199), `🎮 启动${name}游戏...`, '', '  Ctrl+Enter 停止游戏'],
       }
     }),
   stopGame: () =>

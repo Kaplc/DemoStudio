@@ -25,7 +25,7 @@
 
 ### 2.1 谁调用了它
 
-入口有两条：**场景切换时建 HUD**（[World.ts](../../src/engine/gameflow/World.ts):445），**运行时动态弹面板**（项目代码直接调 `world.ui.spawnUIActor`）。
+入口有两条：**玩家登录链建 HUD**（`GameMode.SpawnPlayer` → PC，见下），**运行时动态弹面板**（项目代码直接调 `world.ui.spawnUIActor`）。
 
 HUD 由 `GameMode.HUDClass` 声明，值就是一个 widget 蓝图路径（[FishBaseGameMode.ts](../../src/projects/fish/gameplay/base/FishBaseGameMode.ts):37）：
 
@@ -33,15 +33,15 @@ HUD 由 `GameMode.HUDClass` 声明，值就是一个 widget 蓝图路径（[Fish
 override HUDClass = 'asset/blueprints/ui/base_hud.widget.json'
 ```
 
-`World.SwitchScene` 在销毁旧 Actor、切完 GameMode 之后创建它：
+创建权在 **PlayerController**（对齐 UE `APlayerController::ClientSetHUD`，方案 doc-dev/hud-pc-creation）。`GameMode.SpawnPlayer` 登记 controller 后签发 HUDClass，`SetGameMode → StartPlay → SpawnPlayer` 这条登录链在 `World.SwitchScene` 第 3 步内部完成：
 
 ```ts
-if (newMode.HUDClass) {
-  this.ui.createHUD(newMode.HUDClass)
-} else {
-  logger.info('[World] SwitchScene: GameMode 未声明 HUDClass，跳过 HUD 创建')
-}
+// GameMode.SpawnPlayer 尾部（对齐 UE InitializeHUDForPlayer）：
+result.controller.world = this.world
+result.controller.ClientSetHUD(this.HUDClass)
 ```
+
+`ClientSetHUD` 三分支同构 UE：已持有且蓝图路径相同 → 复用；已持有 → `UIManager.destroyHUD()` 销毁重建；有路径且无 HUD → `UIManager.createHUD` 创建。HUD 引用归 `PlayerController.hud` 持有（对位 UE `MyHUD`），PC `EndPlay` 时随之销毁（对齐 UE `APlayerController::Destroyed`）。无玩家（`spawnPlayerInternal` 返回 null）则无 HUD——这是 UE 语义。
 
 运行时弹面板就是一行，父 Actor 省略时**默认挂到当前 HUD**：
 
@@ -66,7 +66,7 @@ if (world?.ui?.scene) {
 
 ```mermaid
 flowchart TD
-    A["World.SwitchScene / 项目代码"] --> B["UIManager.createHUD(hudClass)<br/>UIManager.ts:332"]
+    A["PC.ClientSetHUD(hudClass)<br/>GameMode.SpawnPlayer 签发"] --> B["UIManager.createHUD(hudClass)<br/>UIManager.ts:332"]
     B --> B1["new HUD() → actorMgr.SpawnActor(hud)"]
     B --> C["spawnUIActor(path, parent?)<br/>UIManager.ts:131"]
     C --> C1["resolve(path) 失败→null<br/>ActorRegistry.create(baseClass)"]
@@ -319,7 +319,8 @@ try {
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
 | `spawnUIActor(path, parent?)` | [UIManager.ts:131](../../src/engine/ui/UIManager.ts) | 蓝图 → UI Actor 树，挂到 `parent ?? _hud` | 只入 `pendingSpawn`，BeginPlay 要等 `commitSpawn`；失败返回 null |
-| `createHUD(hudClass)` | [UIManager.ts:332](../../src/engine/ui/UIManager.ts) | 建 HUD 容器 + 从 HUDClass 蓝图实例化内容 | 由 `World.SwitchScene` 调；GameMode 没声明 HUDClass 就不调 |
+| `createHUD(hudClass)` | [UIManager.ts:332](../../src/engine/ui/UIManager.ts) | 建 HUD 容器 + 从 HUDClass 蓝图实例化内容 | 生成体；发起方是 `PC.ClientSetHUD`（GameMode.SpawnPlayer 签发），HUDClass 未声明则三分支静默跳过 |
+| `destroyHUD()` | [UIManager.ts:438](../../src/engine/ui/UIManager.ts) | 销毁当前 HUD 并清 `_hud`（幂等） | 调用方：`PC.ClientSetHUD` 替换/清除、`PC.EndPlay`（对齐 UE `PC::Destroyed`） |
 | `commitSpawn()` / `commitDestroy()` | [UIManager.ts:359](../../src/engine/ui/UIManager.ts) / [UIManager.ts:377](../../src/engine/ui/UIManager.ts) | 提交生成 / 销毁队列，各自动 `reassignTreeOrder` | private；销毁不 `detach()` 会让已销毁节点仍显示在大纲 |
 | `reassignTreeOrder()` | [UIManager.ts:409](../../src/engine/ui/UIManager.ts) | 按大纲树序分配 zOrder | 层级 = 树序；`HUD.layerBaseZ` 可整树抬升 |
 | `destroyUIActor(actor)` | [UIManager.ts:436](../../src/engine/ui/UIManager.ts) | 延迟销毁；未提交生成时直接取消生成 | 子树节点走本地递归分支，不能入队（会被丢弃 → 泄漏） |
@@ -344,7 +345,8 @@ try {
 
 | 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
-| `World.SwitchScene` | 切场景时 `ui.destroyAll()` → `newMode.HUDClass` 存在则 `createHUD` | [游戏流系统](./gameflow_system.md) |
+| `GameMode.SpawnPlayer` → `PC.ClientSetHUD` | 登录链签发 HUDClass：创建/替换/清除三分支，经 `createHUD`/`destroyHUD` | [游戏流系统](./gameflow_system.md) |
+| `World.SwitchScene` | 切场景时 `DestroyAllActors → ui.destroyAll()` 全清（HUD 创建在登录链内完成） | [游戏流系统](./gameflow_system.md) |
 | `World.tick` / `manualTick` | 每帧调 `ui.tickUI(dt)`，再 `consumeUiListDirty()` 通知大纲刷新 | [游戏流系统](./gameflow_system.md) |
 | `ActorManagerComponent` | `commitSpawn` 按 `isUIActor` 分流；`DestroyActor` 委托 `ui.destroyUIActor`；`DestroyAllActors` 先调 `ui.destroyAll()` | [实体系统](./entity_system.md) |
 | `InputSys` / `PhySys` | 点击、hover、拖拽、释放四条输入流汇入 UI 层射线 | [输入系统](./input_system.md) / [物理系统](./physics_system.md) |
@@ -395,7 +397,7 @@ try {
 | 蓝图路径错 / `baseClass` 未注册 | `spawnUIActor` 返回 null，仅 error 日志 | 调用方判 null；查蓝图是否注册 |
 | 组件 `baseClass` 未注册 | warn 后跳过该组件，其余照常生成 | 查日志里的"组件未注册" |
 | 蓝图根写顶层 `position/rotation/scale` | 严格模式：报错且**不应用**顶层值，位置只认 transform 组件 | 把变换写进 `transform`/`uitransform` 组件的 properties |
-| 无 HUD 时 `spawnUIActor` / GameMode 未声明 `HUDClass` | 前者生成为独立顶层 Actor；后者 `SwitchScene` 跳过 HUD 创建（info 日志） | 动态 UI 不依赖 HUD 也能用；需常驻 HUD 就在 GameMode 上声明 |
+| 无 HUD 时 `spawnUIActor` / GameMode 未声明 `HUDClass` 或无玩家 | 前者生成为独立顶层 Actor；后两者 `ClientSetHUD` 三分支静默跳过，全程无 HUD | 动态 UI 不依赖 HUD 也能用；需常驻 HUD 就在 GameMode 上声明 HUDClass 且保证 SpawnPlayer 出 controller |
 | `world.running` 为 false | 不施加 `FLOAT_LAYER_BIAS`；`tickUI` 直接返回 | 预览/未启动状态下不要依赖 tick 推进 |
 | 子节点 `active: false` | 节点已创建但不渲染，作用于整个子树 | 用于"先建好再显示"的面板 |
 | 拖拽位移 ≤ 8px | 仍判定为点击，释放时触发 `onClick` | 拖拽阈值见 `DRAG_THRESHOLD_PX` |

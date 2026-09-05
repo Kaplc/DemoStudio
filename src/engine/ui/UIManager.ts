@@ -3,19 +3,19 @@
  *
  * 由 World 持有，专门负责 UI 对象的创建与管理：
  *  - 生成 UI Actor（从蓝图实例化）—— 生成逻辑自持，不依赖 World.SpawnActorFromBlueprint
- *  - 创建/销毁 HUD（模仿 UE GameMode.HUDClass → 场景切换时创建）
+ *  - 创建/销毁 HUD（对齐 UE：GameMode.HUDClass → SpawnPlayer 时由 PC.ClientSetHUD 发起创建/替换）
  *  - 维护当前 HUD 引用
  *  - 独立管理 UI Actor 生命周期（与 3D Actor 分离，不受 World.allActors 管控）
  *
  * 职责划分：
  *  - UIManager：UI 对象的"生成/挂载/清空"（含完整蓝图解析与实例化流程）+ UI 场景（uiScene）持有与 Actor 归类
- *  - HUD：纯容器（Actor），承载 UI 树，不参与生成逻辑
+ *  - HUD：纯容器（Actor），承载 UI 树，不参与生成逻辑；引用归 PlayerController.hud 持有（对位 UE MyHUD）
  *  - World：3D Actor 的生命周期管理，UI Actor 委托给 UIManager
  *
  * 用法：
- *   // World 内部（SwitchScene）：
- *   this.ui.destroyAll()
- *   if (newMode.HUDClass) this.ui.createHUD(newMode.HUDClass)
+ *   // GameMode.SpawnPlayer 登记 controller 后（对齐 UE InitializeHUDForPlayer）：
+ *   controller.world = this.world
+ *   controller.ClientSetHUD(this.HUDClass)   // 内部经 createHUD/destroyHUD
  *
  *   // 代码动态生成 UI（挂到当前 HUD）：
  *   const panel = world.ui.spawnUIActor('asset/blueprints/ui/some_panel.blueprint.json')
@@ -411,7 +411,7 @@ export class UIManager extends AObjectComponent<World> {
   }
 
   /**
-   * 创建 HUD（模仿 UE：GameMode.HUDClass → 场景切换时创建）。
+   * 创建 HUD（生成体；创建/替换的发起方是 PlayerController.ClientSetHUD，对齐 UE）。
    * 生成 HUD Actor + 从 HUDClass 蓝图实例化 UI 内容。
    * @param hudClass HUD 蓝图路径
    * @returns 创建的 HUD；失败返回 null
@@ -427,6 +427,20 @@ export class UIManager extends AObjectComponent<World> {
     this._hud = hud
     logger.info(`[UIManager] HUD 已创建: ${hudClass} (hasUI=${hud.hasUI})`)
     return hud
+  }
+
+  /**
+   * 销毁当前 HUD 并清空引用（幂等：已 pendingDestroy 或不存在时只清引用）。
+   * 调用方：PC.ClientSetHUD 替换/清除分支、PC.EndPlay（对齐 UE APlayerController::Destroyed → MyHUD->Destroy()）。
+   * 销毁走 actorMgr.DestroyObject（确定性路由到 DestroyActor → destroyUIActor，不依赖全局活跃 World）。
+   * 场景切换路径不经此方法（DestroyAllActors → destroyAll 全清，含 _hud 置空）。
+   */
+  destroyHUD(): void {
+    const hud = this._hud
+    if (hud && !hud.bPendingDestroy) {
+      this.owner.actorMgr.DestroyObject(hud)
+    }
+    this._hud = null
   }
 
   // ════════════════════════════════════════════

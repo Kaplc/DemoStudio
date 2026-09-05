@@ -14,7 +14,7 @@
 |---|---|---|
 | [InputSys.ts](../../src/engine/input/InputSys.ts) | 路由中枢：收 `handle*` 调用，决定这一击归 PhySys 还是 Controller | 加新输入类型（触控/手柄）、改按键优先级、改左右键语义 |
 | [InputComponent.ts](../../src/engine/input/InputComponent.ts) | 订阅总线：挂在 Controller 上，存 Action 绑定与滚轮/鼠标/指针三类监听器 | 项目侧绑定按键、加一种可订阅的输入事件 |
-| [PlayerController.ts](../../src/engine/input/PlayerController.ts) | 输入终点：持有 `inputComponent`，暴露 `OnPointerDownScreen` 等空实现供子类 override | 加一个新的鼠标虚方法、改 Possess 时的绑定清理 |
+| [PlayerController.ts](../../src/engine/input/PlayerController.ts) | 输入终点：持有 `inputComponent`，暴露 `OnPointerDownScreen` 等空实现供子类 override；兼持 HUD 引用（`hud`，对位 UE MyHUD）并发起创建/替换（`ClientSetHUD`，由 GameMode.SpawnPlayer 签发） | 加一个新的鼠标虚方法、改 Possess 时的绑定清理、改 HUD 签发时机（见 [UI 系统](./ui_system.md)） |
 | [GameViewport.ts](../../src/editor/GameViewport.ts) | 视口侧转发：把 MouseEvent/KeyboardEvent 翻译成 InputSys 的方法参数 | 改变坐标换算方式、改哪些 DOM 事件进游戏 |
 
 **关键心智模型**：`InputSys` **不监听任何 DOM 事件**。它是一组纯粹的 `handle*` 方法，由视口的 `useEffect` 挂上原生监听器后调进来。所以「输入没反应」的第一现场永远在绑定层，不在 `InputSys` 内部。
@@ -340,7 +340,7 @@ handleScroll(delta: number, controller?: PlayerController | null): void {
 |---|---|---|
 | PhySys 射线拾取 | `raycastClick` / `raycastHover` / `raycastRelease` / `dispatchDragMove` 全部由 InputSys 调用；`isDragging` 由 InputSys 读取 | [./physics_system.md](./physics_system.md) |
 | `ClickableComponent` | 点击/悬停/拖拽释放的唯一触发者，含 8px 拖拽阈值与 500ms 冷却 | [./physics_system.md](./physics_system.md) |
-| PlayerController | `OnPointerDownScreen` 等屏幕坐标虚方法、`ProcessInput` 键盘分发 | [./gameflow_system.md](./gameflow_system.md) |
+| PlayerController | `OnPointerDownScreen` 等屏幕坐标虚方法、`ProcessInput` 键盘分发；兼持 HUD 引用并发起创建/替换（`ClientSetHUD`） | [./gameflow_system.md](./gameflow_system.md) / [./ui_system.md](./ui_system.md) |
 | `InputComponent` 订阅者（摄像机云台、放兵长按） | `ProcessMouseButton` / `ProcessPointerMove` / `ProcessScroll` 广播，**不受 UI 消费影响** | [./rendering_system.md](./rendering_system.md) |
 | `InputPromptSystem` 设备态 | `setDevice('keyboard'/'mouse')` 驱动提示文本切换 | [../editor/ui/ui_enhancement_system.md](../editor/ui/ui_enhancement_system.md) |
 | GM 控制台 | `handleKeyDown` / `handleScroll` 的优先拦截点，消费后游戏收不到 | [./gm_system.md](./gm_system.md) |

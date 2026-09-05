@@ -164,7 +164,7 @@ function readActorText(actor: any): string | undefined {
 | 条件 | 行为 | 怎么应对 |
 |---|---|---|
 | 游戏未运行 | HUD/Scene 区显示"（游戏未运行）"，Page/Console 正常 | 无需处理，属正常态 |
-| 游戏运行中无 UI Actor | HUD 区显示"（无 UI Actor）" | 检查 GameMode.HUDClass 是否配置 |
+| 游戏运行中无 UI Actor | HUD 区显示"（无 UI Actor）" | 检查 GameMode.HUDClass 是否配置且 SpawnPlayer 出了 controller（无玩家即无 HUD，对齐 UE） |
 | 树超 300 行 | 截断 + 尾部提示 | 先折叠再定位目标子树，或临时调大 `MAX_TREE_LINES` |
 | `world.ui` 抛异常 | 整个 collectStatus 进 catch，面板显示错误行 | 看错误信息定位引擎侧问题 |
 | 面板收起 | 轮询停止，数据冻结在收起时刻 | 重新展开会立即采集一次 |

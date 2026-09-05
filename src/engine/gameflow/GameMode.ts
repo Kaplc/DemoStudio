@@ -28,7 +28,8 @@ export abstract class GameMode extends BObject {
 
   /**
    * HUD 蓝图路径（模仿 UE GameMode.HUDClass）。
-   * World 在场景切换时据此调用 UIManager.createHUD 创建 HUD，UI Actor 的生成由 UIManager 统一管理。
+   * SpawnPlayer 登记 controller 后由 PC.ClientSetHUD 创建并持有 HUD（对齐 UE InitializeHUDForPlayer），
+   * UI Actor 的生成仍由 UIManager 统一管理。无 controller（spawnPlayerInternal 返回 null）则无 HUD（UE 语义）。
    */
   HUDClass?: string
 
@@ -94,6 +95,9 @@ export abstract class GameMode extends BObject {
     const result = this.spawnPlayerInternal()
     if (!result) return null
     this.controller = result.controller
+    // 对齐 UE InitializeHUDForPlayer：controller 诞生即签发 HUDClass（PC.ClientSetHUD 创建并持有 HUD）
+    result.controller.world = this.world
+    result.controller.ClientSetHUD(this.HUDClass)
     // Pawn 由 World 统一生成；生成完成后经 OnPawnSpawned 通知 Controller（Possess）
     this.world?.actorMgr.SpawnPawn(result.pawn, (pawn) => this.OnPawnSpawned(pawn))
     return result

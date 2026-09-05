@@ -188,9 +188,9 @@ this.SwitchScene(newMode, () => { this.loadSceneAsActors(sceneOrName); extraSetu
 return true
 ```
 
-`SwitchScene` 固定顺序：**`Pause()` → `DestroyAllActors()` → `SetGameMode()` → 创建 HUD（`HUDClass`）→ 执行 setup 回调 → `BeginPlay()`**。
+`SwitchScene` 固定顺序：**`Pause()` → `DestroyAllActors()` → `SetGameMode()`（登录链内 `SpawnPlayer → PC.ClientSetHUD` 完成 HUD 创建）→ 执行 setup 回调 → `BeginPlay()`**。
 
-> **为什么 `extraSetup` 排在 HUD 之后、BeginPlay 之前**：`setupXxxPhase` 要绑 UI 按钮（靠 HUD 已存在），但场景 Actor 此刻还在 `pendingSpawn` 队列没提交——所以 `onLayoutBuilt` 回调是在 `BeginPlay` 末尾才触发的，那时建筑**尚未真正生成**。
+> **为什么 `extraSetup` 排在 HUD 之后、BeginPlay 之前**：HUD 在 `SetGameMode` 内部（登录链）就已创建，故 `setupXxxPhase` 可以绑 UI 按钮；但场景 Actor 此刻还在 `pendingSpawn` 队列没提交——所以 `onLayoutBuilt` 回调是在 `BeginPlay` 末尾才触发的，那时建筑**尚未真正生成**。
 
 ### 3.2 每阶段的 GameMode / Pawn / Controller 组合
 
@@ -347,5 +347,5 @@ this.switchToPhase('base')
 | 首次运行无 `baseBuildings` 存档键 | `_baseRestored` 直接置 true，保留默认布局 | 属正常设计行为，非 bug |
 | 切阶段时旧场景对象未回收 | `SwitchScene` 打「残留诊断」warn 并按类分组统计 | 按打印的 owner/parent 链定位泄漏根对象 |
 | 直接关窗（App 未走 destroy） | `save.onDestroy()` 来不及执行 | 靠 `SaveSlotComponent` 的 ≤10s 周期 flush 兜底 |
-| `FishGameMode` 未声明 `HUDClass` | `SwitchScene` 跳过 HUD 创建 | 需要 HUD 的阶段必须在 GameMode 里声明 `HUDClass` |
+| `FishGameMode` 未声明 `HUDClass`，或 `spawnPlayerInternal` 返回 null | 登录链 `PC.ClientSetHUD` 三分支静默跳过，全程无 HUD（对齐 UE：无玩家即无 HUD） | 需要 HUD 的阶段必须声明 `HUDClass` 且保证 SpawnPlayer 出 controller |
 | 新增 `.script.ts` 后 widget 引用不到 | 脚本 id 由路径推导，路径变 id 就变 | 保持 `gameplay/**/*.script.ts` 路径与 widget 里 script 引用一致 |

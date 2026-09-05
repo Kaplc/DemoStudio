@@ -900,8 +900,8 @@ class Emitter {
       })
     }
 
-    // data-script 先于功能组件发射：按钮交互态（emitButtonStates）需要找到已有
-    // UIScriptComponent 并入 args，否则误报"无 data-script"
+    // data-script 先于功能组件发射（与按钮交互态无耦合：stateColors 落 UIButtonComponent，
+    // 见 emitButtonStates；顺序仅保持产物稳定）
     this.emitDataScript(el, node)
 
     switch (box.tag) {
@@ -1201,7 +1201,7 @@ class Emitter {
       const textActor = this.buttonTextActor(box, text, nodeName, usedNames)
       ;(node.children as unknown[]).push(textActor)
     }
-    // 交互态 → UIScript args 透传（hover/pressed/disabled 颜色）
+    // 交互态 → UIButtonComponent.stateColors 原生透传（hover/pressed/disabled 颜色）
     this.emitButtonStates(el, node)
     if (el.node.attrs['disabled'] !== undefined) {
       this.warnings.push({
@@ -1491,6 +1491,10 @@ class Emitter {
       }
       if (v < 1) props.opacity = v
     }
+    // 层级：只认引擎专有 z-order（两层同步：marker 命中层与视觉绘制层）。
+    // 不吃标准 z-index——引擎 zOrder 是全局扁平排序（无 CSS 层叠上下文），容器吃 z-index
+    // 会把 DOM 靠后的 z=0 子孙全部盖住（实测 243 对翻转）；存量 z-index 全是装饰写法，
+    // 视觉叠放契约 = DOM 序，显式控制才写 z-order（语义见手册"引擎专有属性"）
     const z = el.computed.get('z-order')
     if (z !== undefined) props.zOrder = parseInt(z, 10) || 0
     // hit-test 不写入功能块：命中测试唯一实现方是 CanvasUIComponent（marker 块见 markerPropsOf/emitBox）
@@ -1591,6 +1595,8 @@ class Emitter {
         if (l && l.unit === 'px') props.shadowBlur = Math.round(l.value)
       }
     }
+    // 层级：只认引擎专有 z-order（与 collectImageProps/markerPropsOf 同源，两层同步）；
+    // 标准z-index 不进视觉块的原因见 collectImageProps 注释（无层叠上下文，容器会盖子孙）
     const z = el.computed.get('z-order')
     if (z !== undefined) props.zOrder = parseInt(z, 10) || 0
     // hit-test 不写入功能块：命中测试唯一实现方是 CanvasUIComponent（marker 块见 markerPropsOf/emitBox）
@@ -1626,51 +1632,43 @@ class Emitter {
     return [nums[0], nums[1], nums[2] ?? 0, color]
   }
 
-  /** 按钮交互态（:hover/:active/:disabled）→ UIScript.args 透传 */
+  /** 按钮交互态（:hover/:active/:disabled）→ UIButtonComponent.stateColors 原生透传（引擎状态机直接驱动视觉 Image） */
   private emitButtonStates(el: StyleElement, node: Record<string, unknown>): void {
-    const states: Array<['hover' | 'active' | 'disabled', Map<string, string>, string]> = [
+    const states: Array<['hover' | 'active' | 'disabled', Map<string, string>, 'hover' | 'pressed' | 'disabled']> = [
       ['hover', el.stateDecls.hover, 'hover'],
       ['active', el.stateDecls.active, 'pressed'],
       ['disabled', el.stateDecls.disabled, 'disabled'],
     ]
-    for (const [kind, decls, argKey] of states) {
+    // emitButtonStates 仅由 emitButton 调用（UIButtonComponent 必已发射），兜底防御
+    let btnComp = (node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>)
+      .find((c) => c.baseClass === 'UIButtonComponent')
+    if (!btnComp) {
+      btnComp = { baseClass: 'UIButtonComponent', properties: {} }
+      ;(node.components as unknown[]).push(btnComp)
+    }
+    const stateColors: Record<string, Record<string, unknown>> = {}
+    for (const [kind, decls, stateKey] of states) {
       if (decls.size === 0) continue
-      const args: Record<string, unknown> = {}
-      let allowed = true
+      const st: Record<string, unknown> = {}
       for (const [prop, value] of decls) {
         if (!STATE_ALLOWED_PROPS.has(prop)) {
           this.warnings.push({
             line: el.node.line,
             message: `:${kind} 中的 "${prop}" 不支持（交互态仅支持 color/background-color/opacity）`,
           })
-          allowed = false
           continue
         }
         if (prop === 'color' || prop === 'background-color' || prop === 'background') {
           const c = normalizeColor(value)
           if (!c) throw new CompileFail(`:${kind} 颜色 "${value}" 无法解析`, el.node.line)
-          args.color = c
+          st.color = c
         } else if (prop === 'opacity') {
-          args.opacity = parseFloat(value)
+          st.opacity = parseFloat(value)
         }
       }
-      const hasAny = Object.keys(args).length > 0
-      if (!hasAny) continue
-      // 找/建 UIScriptComponent；无 data-script 时披露（色值需运行时脚本消费）
-      let scriptComp = (node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>)
-        .find((c) => c.baseClass === 'UIScriptComponent')
-      if (!scriptComp) {
-        if (!allowed) continue
-        this.warnings.push({
-          line: el.node.line,
-          message: `:${kind} 状态色已写入 UIScript.args.${argKey}，但元素无 data-script——需运行时脚本消费才会生效`,
-        })
-        scriptComp = { baseClass: 'UIScriptComponent', properties: { script: '', args: {} } }
-        ;(node.components as unknown[]).push(scriptComp)
-      }
-      const sp = scriptComp.properties
-      sp.args = { ...(sp.args as Record<string, unknown> | undefined), [argKey]: args }
+      if (Object.keys(st).length > 0) stateColors[stateKey] = st
     }
+    if (Object.keys(stateColors).length > 0) btnComp.properties.stateColors = stateColors
   }
 
   emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
@@ -1685,7 +1683,8 @@ class Emitter {
         throw new CompileFail(`data-args 属性不是合法 JSON: "${dataArgs}"`, el.node.line)
       }
     }
-    // 与交互态合并（emitButtonStates 可能已建）
+    // 已有 UIScriptComponent（data-comp 逃逸/旧产物等路径预建）时合并：script 以 data-script 为准，
+    // 已有 args 覆盖 data-args（region 键并入先于功能组件发射的产物形态）
     const existing = (node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>)
       .find((c) => c.baseClass === 'UIScriptComponent')
     if (existing) {

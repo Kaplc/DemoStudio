@@ -1,6 +1,0 @@
-export { SnakePawn } from './SnakePawn'
-export { SnakeFoodPawn } from './SnakeFoodPawn'
-export { SnakePlayerController } from './SnakePlayerController'
-export { SnakeGameMode } from './SnakeGameMode'
-export { SnakeGameInstance } from './SnakeGameInstance'
-export * from './types'

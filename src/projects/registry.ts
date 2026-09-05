@@ -44,10 +44,7 @@ export interface ProjectModule {
 
 // ─── 逐个导入项目注册模块 ───
 
-import { snakeProject } from './snake/register'
-import { eatFishProject } from './eatfish/register'
 import { demo2DProject } from './demo2d/register'
-import { racingProject } from './racing/register'
 import { fishMasterProject } from './fish/register'
 
 // ─── 外部工程根（仓库根下 projects/）自动收集 ───
@@ -79,10 +76,7 @@ for (const [globPath, mod] of Object.entries(externalModules)) {
 }
 
 const ALL_PROJECTS: ProjectModule[] = [
-  snakeProject,
-  eatFishProject,
   demo2DProject,
-  racingProject,
   fishMasterProject,
 ]
 

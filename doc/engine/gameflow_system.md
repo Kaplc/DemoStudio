@@ -165,7 +165,7 @@ this.gameRenderer?.dispose()
 
 #### 场景切换：旧 World 不销毁，只清 Actor
 
-场景切换**不是销毁 World**，而是在同一个 World 上换内容（[World.ts:427](../../src/engine/gameflow/World.ts)），六步：`Pause()` → `DestroyAllActors()` → `SetGameMode`（旧 GameMode EndPlay）→ `createHUD` → `setup()` → `BeginPlay()`：
+场景切换**不是销毁 World**，而是在同一个 World 上换内容（[World.ts:427](../../src/engine/gameflow/World.ts)），五步：`Pause()` → `DestroyAllActors()` → `SetGameMode`（旧 GameMode EndPlay；新 GameMode 登录链在此**内部**完成 HUD 创建）→ `setup()` → `BeginPlay()`：
 
 ```ts
 const b = baseline ?? new Set(ObjectRegistry.snapshot().filter((o) => !this.ownedBy(o, newMode)))
@@ -173,8 +173,9 @@ this.Pause()
 this.DestroyAllActors()
 const leftover3D = this.actorMgr.actorCount + this.actorMgr.pendingSpawnCount  // 残留诊断
 if (leftover3D > 0) { logger.warn(`[World#${this.id}] SwitchScene 残留诊断：旧场景 Actor 集合未清空`) }
+// SetGameMode 内部：旧 GM.EndPlay → 新 GM.InitGame + StartPlay → SpawnPlayer →
+// PC.ClientSetHUD(HUDClass)（HUD 创建/替换在登录链内完成，对齐 UE InitNewPlayer→ClientSetHUD）
 this.SetGameMode(newMode)
-if (newMode.HUDClass) { this.ui.createHUD(newMode.HUDClass) }
 setup?.()
 this.BeginPlay()
 ```
@@ -319,7 +320,7 @@ GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](.
 | `World.SetGameMode` | [World.ts:172](../../src/engine/gameflow/World.ts) | 旧 EndPlay → 换引用 → `InitGame`+`StartPlay` | `running` 时才补 `BeginPlay` |
 | `World.BeginPlay` | [World.ts:294](../../src/engine/gameflow/World.ts) | 先提交 pendingSpawn，再逐个 BeginPlay | GameMode 的 BeginPlay 排最后 |
 | `World.manualTick` | [World.ts:333](../../src/engine/gameflow/World.ts) | 驱动一帧（提交 → Actor → UI → GameMode → 物理） | `!running` 直接返回 |
-| `World.SwitchScene` | [World.ts:427](../../src/engine/gameflow/World.ts) | Pause → 清 Actor → 换 GameMode → HUD → setup → BeginPlay | 带残留诊断，需传 baseline |
+| `World.SwitchScene` | [World.ts:427](../../src/engine/gameflow/World.ts) | Pause → 清 Actor → 换 GameMode（登录链内建 HUD）→ setup → BeginPlay | 带残留诊断，需传 baseline |
 | `World.SwitchToScene` | [World.ts:671](../../src/engine/gameflow/World.ts) | 按资产/场景名切换，从注册表造 GameMode | 场景或 mode 未注册返回 false |
 | `World.Destroy` | [World.ts:774](../../src/engine/gameflow/World.ts) | 清 UI → GameMode EndPlay → 清 Actor → 物理 reset → 兜底回收 | 由项目 `destroy` 调用 |
 | `GameMode.StartPlay` | [GameMode.ts:45](../../src/engine/gameflow/GameMode.ts) | 置 phase=playing → `SpawnPlayer()` | 子类必须 `super.StartPlay()` |
@@ -353,7 +354,7 @@ GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](.
 |---|---|---|
 | Actor / 实体体系 | `SpawnActor` 延迟提交决定 `BeginPlay` 时机；`DestroyActor` 走队列 | [实体体系](./entity_system.md) |
 | 输入 / 物理 | Controller 生命周期归 GameMode；`physics.begin()` 是运行时/预览分界，`step` 在每帧最后 | [物理系统](./physics_system.md) |
-| UI 系统 | `UIManager` 独立驱动，UI Actor 不进 `allActors`；`HUDClass` 在 `SwitchScene` 时创建 | [UI 系统](./ui_system.md) |
+| UI 系统 | `UIManager` 独立驱动，UI Actor 不进 `allActors`；HUD 由 `SpawnPlayer`→`PC.ClientSetHUD` 在登录链内创建（对齐 UE） | [UI 系统](./ui_system.md) |
 | 渲染系统 | `SceneRendererComponent` 由 `ensureGameRenderer` 创建；相机经 `setCameraProvider` 委托 | [渲染系统](./rendering_system.md) |
 | 编辑器大纲 / 只读桥 | `onActorListChanged` 通知刷新；`EditorGameBridgeComponent` 提供只读快照 | [编辑器核心](../editor/core/core_system.md) |
 | 蓝图 / 场景预览 | 预览 World 复用同一套 `SpawnActorFromBlueprint`，但 `physics` 永不 begin | [资产预览与检查](../editor/asset/asset_preview_lint_system.md) |

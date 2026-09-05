@@ -12,7 +12,7 @@ export type CameraMode = 'perspective' | 'orthographic'
  *   'perspective'  — 透视(3D 场景默认)
  *   'orthographic' — 正交(2D 场景,无近大远小)
  *
- * 构造签名保持向后兼容:第二参数仍为 name(snake/eatfish 用 new CameraComponent(this, 'GameCamera')),
+ * 构造签名保持向后兼容:第二参数仍为 name(如 new CameraComponent(this, 'GameCamera')),
  * mode 作为第三参数,默认 'perspective'。2D 项目传 'orthographic'。
  */
 export class CameraComponent extends BObjectComponent<BObject> {
