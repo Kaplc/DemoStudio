@@ -1,14 +1,13 @@
 import React, { useState } from 'react'
 import { useEditorStore } from '../stores/editorStore'
 import { useProjectStore } from '../stores/projectStore'
-import type { Project } from '../stores/editorStore'
 import { validateProjectName } from '../editor'
 
 type ProjectMode = '2d' | '3d'
 
 export function NewProjectDialog() {
-  const { showNewProjectDialog, setShowNewProjectDialog, setCurrentProject, addConsoleOutput } = useEditorStore()
-  const { projects, setProjects } = useProjectStore()
+  const { showNewProjectDialog, setShowNewProjectDialog, addConsoleOutput } = useEditorStore()
+  const { projects, discoverProjects } = useProjectStore()
   const [name, setName] = useState('')
   const [mode, setMode] = useState<ProjectMode>('3d')
   const [creating, setCreating] = useState(false)
@@ -38,20 +37,15 @@ export function NewProjectDialog() {
       }
 
       if (result.success) {
-        const newProject: Project = {
-          name: projectName,
-          description: `${projectName} ${mode === '2d' ? '2D' : '3D'} 游戏项目`,
-          version: '1.0.0',
-          tags: ['game', mode === '2d' ? '2d' : '3d'],
-          folder: projectName.toLowerCase(),
-          renderMode: mode,
-        }
-        setProjects([...projects, newProject])
-        addConsoleOutput(`✅ 工程 "${projectName}" (${mode.toUpperCase()}) 已创建`)
-        setCurrentProject(newProject) // 自动选中新建的工程并进入编辑器
+        // 不自动进入工程：新建会触发 vite 对新 register.ts 的热重载（整页刷新 →
+        // discoverProjects 重新扫描，拿到带 defaultScene/source 的完整工程条目），
+        // 用户从工程列表点"打开工程"进入，避免用内存里的残缺条目（无 defaultScene）进编辑器
+        addConsoleOutput(`✅ 工程 "${projectName}" (${mode.toUpperCase()}) 已创建，热重载后从工程列表打开`)
         setShowNewProjectDialog(false)
         setName('')
         setMode('3d')
+        // 热重载未触发时（如打包环境无 vite）也要刷新列表；dev 下随后被整页刷新覆盖，无副作用
+        void discoverProjects()
       } else {
         setError(result.error || '创建失败')
       }
