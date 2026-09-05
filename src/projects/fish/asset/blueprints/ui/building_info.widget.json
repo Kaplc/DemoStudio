@@ -1,7 +1,7 @@
 {
   "name": "BuildingInfoCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-40e046e8",
+  "sourceHash": "fnv1a-2a25016a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -129,7 +129,7 @@
                 "markerOnly": true,
                 "name": "UIMarker",
                 "zOrder": 2,
-                "hitTest": "visible"
+                "hitTest": "block"
               }
             },
             {
@@ -139,7 +139,8 @@
                 "radius": 28,
                 "width": 526,
                 "height": 306,
-                "name": "Card"
+                "name": "Card",
+                "hitTest": "block"
               }
             }
           ],

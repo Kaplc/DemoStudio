@@ -12,6 +12,7 @@ import { NODE3D_TEMPLATES, UI_TEMPLATES, cloneTemplateComponents } from '../edit
 import type { NodeTemplate } from '../editor/blueprintEdit/nodeTemplates'
 import { OutlineContextMenu } from './OutlineContextMenu'
 import {
+  actorTypeLabel,
   applyCollapse,
   buildNodeSubtreeText,
   buildTreeText,
@@ -115,6 +116,7 @@ function renderActorTreeNodes(
     // 眼睛图标/切换 = 自身 previewHidden；置灰 = 有效隐藏（含祖先链继承）
     const selfHidden = node.actor ? hiddenKeys.has(itemKey) : false
     const hidden = hiddenFlags[i]
+    const typeLabel = actorTypeLabel(node.actor)
     return (
       <div
         key={itemKey}
@@ -171,9 +173,9 @@ function renderActorTreeNodes(
           <TreeArrow hasChildren={hasChildren} collapsed={collapsed} itemKey={itemKey} onToggle={onToggle} />
         )}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
-        {node.actor && (
+        {typeLabel && (
           <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>
-            [{node.actor.constructor.name}]
+            [{typeLabel}]
           </span>
         )}
         {node.actor && (
@@ -328,6 +330,7 @@ export function Outline({ query = '' }: { query?: string }) {
       const selfHidden = node.actor ? hiddenKeys.has(itemKey) : false
       const hidden = hiddenFlags[i]
       const isBlueprint = !!node.actor?.blueprintRef
+      const typeLabel = actorTypeLabel(node.actor)
       return (
         <div
           key={itemKey}
@@ -370,9 +373,9 @@ export function Outline({ query = '' }: { query?: string }) {
           {isBlueprint && (
             <span style={{ color: 'var(--accent)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>[BP]</span>
           )}
-          {node.actor && (
+          {typeLabel && (
             <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>
-              [{node.actor.constructor.name}]
+              [{typeLabel}]
             </span>
           )}
           {node.actor && (

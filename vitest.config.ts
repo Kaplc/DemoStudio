@@ -12,6 +12,8 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    // Playwright e2e spec（tests/e2e/）由 playwright.config 单独跑，vitest 收集会报 test.describe 误用
+    exclude: ['tests/e2e/**'],
     environment: 'jsdom',
     globals: false,
     css: false,

@@ -277,17 +277,28 @@ export class ClickableComponent extends Component<Actor> {
     return hovering
   }
 
+  /**
+   * 强制清除悬停态（PhySys 互斥仲裁判定本组件被更前端元素覆盖时调用）。
+   * leave 沿语义与 handleHover 未命中相同：onHover(null)。
+   */
+  clearHover(): void {
+    if (!this._hovering) return
+    this._hovering = false
+    this.onHover?.(null)
+  }
+
   /** 当前悬停状态 */
   get isHovering(): boolean {
     return this._hovering
   }
 
   /**
-   * UI 层 zOrder（PhySys 遮挡竞争用）：owner 及祖先链上 CanvasUIComponent 的最大 zOrder。
-   * 无 canvas 组件（非 UI 点击）返回 0。
+   * 遮挡竞争 zOrder：owner 及祖先链上 CanvasUIComponent 的最大 zOrder。
+   * screen 与 world 模式 UI 通用——world 模式 clickable 的 layer 已切 'world'，
+   * 不能再按 layer 短路（否则面板按钮 zOrder 恒 0，与底板/其他面板的平局裁决必输）；
+   * 纯 3D clickable（建筑 clickZone 等）无 canvas 祖先，恒返回 0。
    */
   get uiZOrder(): number {
-    if (this.layer !== 'ui') return 0
     let z = 0
     let a: Actor | null = this.owner
     while (a) {

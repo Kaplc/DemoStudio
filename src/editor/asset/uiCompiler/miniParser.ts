@@ -93,8 +93,8 @@ export const VOID_TAGS = new Set([
   'link', 'meta', 'param', 'source', 'track', 'wbr',
 ])
 
-/** 原始文本元素：内容不解析为子节点、不解码实体 */
-export const RAW_TEXT_TAGS = new Set(['script', 'style'])
+/** 原始文本元素：内容不解析为子节点、不解码实体（properties = 参数区原始 JSON，见 properties-region.md） */
+export const RAW_TEXT_TAGS = new Set(['script', 'style', 'properties'])
 
 /**
  * 解析 HTML 源为节点树。

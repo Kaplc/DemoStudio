@@ -6,6 +6,7 @@ import { useEditorStore } from '../stores/editorStore'
 import { OutlineContextMenu } from './OutlineContextMenu'
 import { TreeEye } from './Outline'
 import {
+  actorTypeLabel,
   buildNodeSubtreeText,
   buildTreeText,
   collectKeysWithChildren,
@@ -198,6 +199,7 @@ export function UiOutline({ query = '' }: { query?: string }) {
         // 眼睛图标/切换 = 自身 previewHidden；置灰 = 有效隐藏（含祖先链继承）
         const selfHidden = node.actor?.previewHidden ?? false
         const hidden = hiddenFlags[i]
+        const typeLabel = actorTypeLabel(node.actor)
         return (
           <div
             key={itemKey}
@@ -243,9 +245,9 @@ export function UiOutline({ query = '' }: { query?: string }) {
               </span>
             )}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
-            {node.actor && (
+            {typeLabel && (
               <span style={{ color: 'var(--text-dim)', marginLeft: 4, fontSize: 10, flexShrink: 0 }}>
-                [{node.actor.constructor.name}]
+                [{typeLabel}]
               </span>
             )}
             {node.actor && (

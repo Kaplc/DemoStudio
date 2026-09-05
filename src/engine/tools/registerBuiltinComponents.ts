@@ -472,6 +472,9 @@ export function registerBuiltinComponents(): void {
         worldHeight: p.worldHeight as number | undefined,
         width: p.width as number | undefined,
         height: p.height as number | undefined,
+        // hit-test: block 落在视觉块上才有意义（marker 无 mesh 拦不住射线），
+        // 编译器把 CSS hit-test 写进本组件 properties，这里必须透传
+        ...(p.hitTest !== undefined ? { hitTest: p.hitTest as 'visible' | 'block' | 'hitTestInvisible' } : {}),
       }),
     (c, p) => {
       const img = c as UIImageComponent

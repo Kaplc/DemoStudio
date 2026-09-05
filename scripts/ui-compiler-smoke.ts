@@ -12,7 +12,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { compileWidgetHtml, decompileWidgetJson } from '../src/editor/asset/uiCompiler/index'
+import { compileWidgetHtml, decompileWidgetJson, patchWidgetHtmlInPlace } from '../src/editor/asset/uiCompiler/index'
 
 let failures = 0
 const ok = (msg: string): void => console.log(`✅ ${msg}`)
@@ -445,6 +445,291 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
     const t = (r1.doc as any).children[0].components[0].properties
     if (t.anchor !== 'stretch') ok('边界：单轴 100% 不映射 stretch')
     else bad(`单轴 100% 误映射 stretch: anchor=${t.anchor}`)
+  }
+}
+
+// ─── 9. <properties> 参数区（doc-dev/ui-html-source-format/properties-region.md G 组）───
+{
+  const findComp = (doc: any, baseClass: string): any =>
+    (doc.components ?? []).find((c: any) => c.baseClass === baseClass)
+  const failMsg = (r: any): string => r.errors.map((e: any) => `行${e.line}:${e.message}`).join('; ')
+
+  // G1 根节点组件挂载（region 声明根锚点，无 data-comp）
+  const g1src = `<widget name="R" canvas="520x300">
+  <properties>
+    {
+      "R": { "UIWorldAnchorComponent": { "mode": "world", "pxPerMeter": 300, "pixelDensity": 2, "faceCamera": true, "alwaysOnTop": true } }
+    }
+  </properties>
+  <style>.a { width: 100px; height: 80px; }</style>
+  <div class="a"></div>
+</widget>`
+  const g1 = compileWidgetHtml(g1src)
+  if (!g1.ok) bad(`G1 编译失败: ${failMsg(g1)}`)
+  else {
+    const p = findComp(g1.doc, 'UIWorldAnchorComponent')?.properties ?? {}
+    if (p.mode === 'world' && p.pxPerMeter === 300 && p.pixelDensity === 2 && p.faceCamera === true && p.alwaysOnTop === true) {
+      ok('G1 根节点锚点经 region 挂载（属性逐键一致）')
+    } else bad(`G1 锚点异常: ${JSON.stringify(p)}`)
+  }
+
+  // G2 子节点组件挂载
+  const g2 = compileWidgetHtml(`<widget name="W" canvas="400x300">
+  <properties>
+    { "Btn": { "UIScriptComponent": { "args": { "hover": { "color": "#66bb6a" } } } } }
+  </properties>
+  <style>.b { width: 100px; height: 40px; }</style>
+  <button class="b" data-name="Btn">ok</button>
+</widget>`)
+  if (!g2.ok) bad(`G2 编译失败: ${failMsg(g2)}`)
+  else {
+    const btn = (g2.doc as any).children.find((c: any) => c.name === 'Btn')
+    const args = btn?.components?.find((c: any) => c.baseClass === 'UIScriptComponent')?.properties?.args
+    if (JSON.stringify(args) === '{"hover":{"color":"#66bb6a"}}') ok('G2 子节点组件经 region 挂载')
+    else bad(`G2 子节点挂载异常: ${JSON.stringify(args)}`)
+  }
+
+  // G3 与原生组件键级合并（data-script 提供 script，region 提供 args）
+  const g3 = compileWidgetHtml(`<widget name="M" canvas="400x300" data-script="gameplay/X">
+  <properties>
+    { "M": { "UIScriptComponent": { "args": { "a": 1 } } } }
+  </properties>
+  <style>.b { width: 10px; height: 10px; }</style><div class="b"></div>
+</widget>`)
+  if (!g3.ok) bad(`G3 编译失败: ${failMsg(g3)}`)
+  else {
+    const scripts = (g3.doc as any).components.filter((c: any) => c.baseClass === 'UIScriptComponent')
+    const p = scripts[0]?.properties ?? {}
+    if (scripts.length === 1 && p.script === 'gameplay/X' && JSON.stringify(p.args) === '{"a":1}') {
+      ok('G3 region 与 data-script 键级合并（单组件）')
+    } else bad(`G3 合并异常: n=${scripts.length} ${JSON.stringify(p)}`)
+  }
+
+  // G4 region 覆盖 legacy 双声明
+  const g4 = compileWidgetHtml(`<widget name="L" canvas="400x300" data-comp="UIWorldAnchorComponent" data-props='{"mode":"world","pxPerMeter":100}'>
+  <properties>
+    { "L": { "UIWorldAnchorComponent": { "pxPerMeter": 250 } } }
+  </properties>
+  <style>.b { width: 10px; height: 10px; }</style><div class="b"></div>
+</widget>`)
+  if (!g4.ok) bad(`G4 编译失败: ${failMsg(g4)}`)
+  else {
+    const anchors = (g4.doc as any).components.filter((c: any) => c.baseClass === 'UIWorldAnchorComponent')
+    const p = anchors[0]?.properties ?? {}
+    if (anchors.length === 1 && p.pxPerMeter === 250 && p.mode === 'world') ok('G4 region 覆盖 legacy data-comp（键级）')
+    else bad(`G4 覆盖异常: n=${anchors.length} ${JSON.stringify(p)}`)
+  }
+
+  // G5 空/缺失 region 等价
+  const g5a = compileWidgetHtml('<widget name="E" canvas="100x100"><properties></properties><style>.b{width:10px;height:10px}</style><div class="b"></div></widget>')
+  const g5b = compileWidgetHtml('<widget name="E" canvas="100x100"><properties>\n  {}\n</properties><style>.b{width:10px;height:10px}</style><div class="b"></div></widget>')
+  const g5c = compileWidgetHtml('<widget name="E" canvas="100x100"><style>.b{width:10px;height:10px}</style><div class="b"></div></widget>')
+  if (g5a.ok && g5b.ok && g5c.ok
+    && !(g5a.doc as any).components.some((c: any) => c.baseClass === 'UIWorldAnchorComponent')) {
+    ok('G5 空属性区/空对象/无参数区 三者等价')
+  } else bad(`G5 空参数区异常: ${[g5a, g5b, g5c].map((r) => r.ok).join(',')} ${!g5a.ok ? failMsg(g5a) : ''}`)
+
+  // G6 sourceHash 随 region 变化
+  const g6a = compileWidgetHtml(g1src)
+  const g6b = compileWidgetHtml(g1src.replace('"pxPerMeter": 300', '"pxPerMeter": 301'))
+  if (g6a.ok && g6b.ok && (g6a.doc as any).sourceHash !== (g6b.doc as any).sourceHash) ok('G6 sourceHash 随 region 值变化')
+  else bad('G6 sourceHash 未随 region 变化')
+
+  // G7 坏 JSON（带行号）
+  const g7 = compileWidgetHtml(`<widget name="B" canvas="100x100">
+  <properties>
+    { "B": { "UIWorldAnchorComponent": { "pxPerMeter": } } }
+  </properties>
+  <style>.b{width:10px;height:10px}</style><div class="b"></div></widget>`)
+  if (!g7.ok && g7.errors[0].line === 2 && /JSON/.test(g7.errors[0].message)) ok(`G7 坏 JSON 拦截（行 ${g7.errors[0].line}）`)
+  else bad(`G7 坏 JSON 未拦截或行号错误: ${g7.ok ? '编译通过' : failMsg(g7)}`)
+
+  // G8 未知节点名
+  const g8 = compileWidgetHtml(`<widget name="U" canvas="100x100">
+  <properties>{ "Ghost": { "UIWorldAnchorComponent": { "pxPerMeter": 1 } } }</properties>
+  <style>.b{width:10px;height:10px}</style><div class="b"></div></widget>`)
+  if (!g8.ok && /Ghost/.test(g8.errors[0].message)) ok('G8 未知节点名拦截')
+  else bad(`G8 未知节点未拦截: ${g8.ok ? '编译通过' : failMsg(g8)}`)
+
+  // G9 视觉组件禁声明
+  const g9 = compileWidgetHtml(`<widget name="V" canvas="100x100">
+  <properties>{ "V": { "UITextComponent": { "text": "x" } } }</properties>
+  <style>.b{width:10px;height:10px}</style><div class="b"></div></widget>`)
+  if (!g9.ok && /视觉组件/.test(g9.errors[0].message)) ok('G9 视觉组件禁声明拦截')
+  else bad(`G9 视觉组件未拦截: ${g9.ok ? '编译通过' : failMsg(g9)}`)
+
+  // G10 嵌套 properties 不识别（按未知标签拒绝）
+  const g10 = compileWidgetHtml(`<widget name="N" canvas="100x100">
+  <style>.b{width:10px;height:10px}</style>
+  <div class="b"><properties>{}</properties></div></widget>`)
+  if (!g10.ok) ok('G10 嵌套参数区拒绝（非 widget 直接子级）')
+  else bad('G10 嵌套参数区未被拦截')
+
+  // G11 锚点参数改写 region（补丁路径；其余内容逐字节不变）
+  const g11doc = JSON.parse(JSON.stringify(g1.doc)) as any
+  g11doc.components.find((c: any) => c.baseClass === 'UIWorldAnchorComponent').properties.pxPerMeter = 150
+  const g11 = patchWidgetHtmlInPlace(g1src, g11doc)
+  const stripRegion = (s: string): string => s.replace(/<properties>[\s\S]*?<\/properties>/, '<properties/>')
+  if (g11.ok && g11.edits.length === 1 && /"pxPerMeter": 150/.test(g11.html)
+    && stripRegion(g11.html) === stripRegion(g1src)) {
+    ok('G11 pxPerMeter 经 region 键重写（参数区外逐字节不变）')
+  } else bad(`G11 补丁异常: ok=${g11.ok} edits=${g11.edits.length} reason=${g11.reason}`)
+
+  // G12 legacy data-props 锚点 → 自动创建 region（region 赢，data-props 残留被覆盖）
+  const g12src = `<widget name="L" canvas="400x300" data-comp="UIWorldAnchorComponent" data-props='{"mode":"world","pxPerMeter":100,"faceCamera":true}'>
+  <style>.b { width: 10px; height: 10px; }</style><div class="b"></div>
+</widget>`
+  const g12c = compileWidgetHtml(g12src)
+  const g12doc = JSON.parse(JSON.stringify(g12c.doc)) as any
+  g12doc.components.find((c: any) => c.baseClass === 'UIWorldAnchorComponent').properties.pxPerMeter = 200
+  const g12 = patchWidgetHtmlInPlace(g12src, g12doc)
+  if (g12.ok && /<properties>/.test(g12.html) && /"pxPerMeter": 200/.test(g12.html)
+    && /data-props=/.test(g12.html)) {
+    const re12 = compileWidgetHtml(g12.html)
+    const p12 = re12.ok ? findComp(re12.doc, 'UIWorldAnchorComponent')?.properties : null
+    if (p12?.pxPerMeter === 200 && p12.mode === 'world' && p12.faceCamera === true) {
+      ok('G12 legacy 资产自动创建 region（重编译 region 赢）')
+    } else bad(`G12 重编译异常: ${JSON.stringify(p12)}`)
+  } else bad(`G12 补丁异常: ok=${g12.ok} reason=${g12.reason}`)
+
+  // G13 多键同改单次重写
+  const g13doc = JSON.parse(JSON.stringify(g1.doc)) as any
+  const g13anchor = g13doc.components.find((c: any) => c.baseClass === 'UIWorldAnchorComponent').properties
+  g13anchor.pxPerMeter = 99
+  g13anchor.faceCamera = false
+  const g13 = patchWidgetHtmlInPlace(g1src, g13doc)
+  if (g13.ok && g13.edits.length === 1 && /"pxPerMeter": 99/.test(g13.html) && /"faceCamera": false/.test(g13.html)) {
+    ok('G13 多键同改单次规范化重写')
+  } else bad(`G13 补丁异常: ok=${g13.ok} edits=${g13.edits.length} reason=${g13.reason}`)
+
+  // G14 视觉属性回归：fontSize 补丁走 CSS span，region 零改动
+  const g14src = `<widget name="T" canvas="400x300">
+  <properties>
+    { "T": { "UIWorldAnchorComponent": { "mode": "world", "pxPerMeter": 100 } } }
+  </properties>
+  <style>.Label { width: 100px; height: 40px; font-size: 20px; color: #ffffff; }</style>
+  <text class="Label">hi</text>
+</widget>`
+  const g14new = compileWidgetHtml(g14src.replace('font-size: 20px', 'font-size: 30px'))
+  const g14 = patchWidgetHtmlInPlace(g14src, g14new.doc as any)
+  const regionOf = (s: string): string => /<properties>[\s\S]*?<\/properties>/.exec(s)?.[0] ?? ''
+  if (g14.ok && /font-size: 30px/.test(g14.html) && regionOf(g14.html) === regionOf(g14src)) {
+    ok('G14 视觉属性补丁与参数区互不干扰')
+  } else bad(`G14 补丁异常: ok=${g14.ok} reason=${g14.reason}`)
+
+  // G15 UILayout 调参仍走元素 data-props 属性路径（不迁 region；单子项容器 spacing
+  // 变化无几何影响，避免与"子项位置为求解器派生值"的既有设计内回退纠缠）
+  const g15src = `<widget name="F" canvas="400x300">
+  <properties>
+    { "F": { "UIWorldAnchorComponent": { "mode": "world", "pxPerMeter": 100 } } }
+  </properties>
+  <style>.row { width: 300px; height: 100px; display: flex; justify-content: center; align-items: center; gap: 20px; }
+  .kid { width: 50px; height: 50px; }</style>
+  <div class="row"><div class="kid"></div></div>
+</widget>`
+  const g15old = compileWidgetHtml(g15src)
+  const g15doc = structuredClone(g15old.doc) as any
+  g15doc.children[0].components.find((c: any) => c.baseClass === 'UILayoutComponent').properties.spacingX = 30
+  const g15 = patchWidgetHtmlInPlace(g15src, g15doc)
+  if (g15.ok && /data-comp='UILayoutComponent'/.test(g15.html) && /"spacingX":30/.test(g15.html)
+    && regionOf(g15.html) === regionOf(g15src)) {
+    ok('G15 UILayout 调参走 data-props 属性路径（region 不动）')
+  } else bad(`G15 补丁异常: ok=${g15.ok} reason=${g15.reason}`)
+
+  // G16 根锚点反编译输出 region（无 data-comp 残留）
+  const g16 = decompileWidgetJson(g1.doc!)
+  if (g16.ok && /<properties>/.test(g16.html!) && /"R"/.test(g16.html!)
+    && /"pxPerMeter": 300/.test(g16.html!) && !/UIWorldAnchor/.test((g16.html!.match(/<widget [^>]+>/) ?? [''])[0])) {
+    ok('G16 根锚点反编译 → 规范 region 块（开标签无锚点残留）')
+  } else bad(`G16 反编译异常: ok=${g16.ok} ${g16.html?.slice(0, 160)}`)
+
+  // G17 子节点锚点反编译 → region 按节点名键控
+  const j17 = {
+    name: 'W', baseClass: 'Actor', sourceHash: 'x',
+    components: [
+      { baseClass: 'UITransformComponent', properties: { position: [0, 0, 0], worldWidth: 400, worldHeight: 300 } },
+      { baseClass: 'CanvasUIComponent', properties: { width: 400, height: 300, name: 'Canvas', zOrder: 0, active: true } },
+    ],
+    children: [{
+      name: 'Bubble', baseClass: 'Actor', id: 1,
+      components: [
+        { baseClass: 'UITransformComponent', properties: { position: [0, 0, 0], worldWidth: 100, worldHeight: 100 } },
+        { baseClass: 'CanvasUIComponent', properties: { markerOnly: true, name: 'UIMarker', zOrder: 0 } },
+        { baseClass: 'UIWorldAnchorComponent', properties: { mode: 'world', pxPerMeter: 350 } },
+      ],
+      children: [],
+    }],
+  }
+  const g17 = decompileWidgetJson(j17)
+  const g17r = g17.ok ? compileWidgetHtml(g17.html!) : null
+  const bubble17 = g17r?.ok ? (g17r.doc as any).children.find((c: any) => c.name === 'Bubble') : null
+  const p17 = bubble17?.components?.find((c: any) => c.baseClass === 'UIWorldAnchorComponent')?.properties
+  if (g17.ok && g17r?.ok && p17?.pxPerMeter === 350 && p17.mode === 'world') {
+    ok('G17 子节点锚点经 region 往返还原')
+  } else bad(`G17 往返异常: ok=${g17.ok}/${g17r?.ok} p17=${JSON.stringify(p17)} ${g17r && !g17r.ok ? failMsg(g17r) : ''}`)
+
+  // G18 3 资产反编译往返：几何逐位等价 + 非 UITransform 组件逐键等价（含 region 锚点）。
+  // UITransform 不逐键比：反编译按规范把流内 position 重编码为 anchor+anchorOffset
+  //（矩形等价，既有 §7 已覆盖），字段级编码差异是设计内行为
+  {
+    interface JN { name?: string; components?: any[]; children?: JN[] }
+    const sortify = (v: any): any => Array.isArray(v) ? v.map(sortify)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortify(v[k])]))
+        : v
+    const collect18 = (root: JN): Map<string, string> => {
+      const out = new Map<string, string>()
+      const rootCanvas = (root.components ?? []).find((c: any) => c.baseClass === 'CanvasUIComponent')
+      const cw = Number((rootCanvas?.properties as any)?.width ?? 1920)
+      const ch = Number((rootCanvas?.properties as any)?.height ?? 1080)
+      const walk = (n: JN, pc: { x: number; y: number }, pd: { pw: number; ph: number }, p: string): void => {
+        const tf = (n.components ?? []).find((c: any) => c.baseClass === 'UITransformComponent')?.properties ?? {}
+        const ww = Number(tf.worldWidth ?? 0)
+        const wh = Number(tf.worldHeight ?? 0)
+        let cx = pc.x
+        let cy = pc.y
+        const anchor = tf.anchor as string | undefined
+        const off = (tf.anchorOffset as [number, number] | undefined) ?? [0, 0]
+        const lp = tf.position as [number, number, number] | undefined
+        if (anchor && anchor !== 'stretch') {
+          const fx = anchor.includes('left') ? -1 : anchor.includes('right') ? 1 : 0
+          const fy = anchor.startsWith('top') ? 1 : anchor.startsWith('bottom') ? -1 : 0
+          cx += (fx * (pd.pw - ww)) / 2 + off[0]
+          cy -= (fy * (pd.ph - wh)) / 2 + off[1]
+        } else if (lp) {
+          cx += lp[0]
+          cy += -lp[1]
+        }
+        const rect = [cx - ww / 2, cy - wh / 2, ww, wh].map((v) => Math.round(v * 1e9) / 1e9).join(',')
+        const comps = (n.components ?? []).filter((c: any) => c.baseClass !== 'UITransformComponent')
+          .map((c: any) => c.baseClass + ':' + JSON.stringify(sortify(c.properties ?? {})))
+          .sort()
+        out.set(p, `${rect}|${comps.join(' ')}`)
+        for (const c of n.children ?? []) walk(c, { x: cx, y: cy }, { pw: ww, ph: wh }, `${p}/${c.name}`)
+      }
+      walk(root, { x: cw / 2, y: ch / 2 }, { pw: cw, ph: ch }, 'root')
+      return out
+    }
+    const dir = 'src/projects/fish/asset/blueprints/ui'
+    for (const f of ['building_info', 'building_collect', 'base_hologram']) {
+      const src = fs.readFileSync(path.join(dir, `${f}.widget.html`), 'utf-8')
+      const r1 = compileWidgetHtml(src)
+      const d = r1.ok ? decompileWidgetJson(r1.doc!) : null
+      const r2 = d?.html ? compileWidgetHtml(d.html) : null
+      if (!r1.ok || !d?.ok || !r2?.ok) {
+        bad(`G18 管线失败: ${f} ${!r1.ok ? failMsg(r1) : ''} ${r2 && !r2.ok ? failMsg(r2) : ''}`)
+        continue
+      }
+      const m1 = collect18(r1.doc as JN)
+      const m2 = collect18(r2.doc as JN)
+      let diffs = 0
+      for (const [k, v] of m1) {
+        if (m2.get(k) !== v) { diffs++; if (diffs <= 3) console.log(`   ⚠ ${f} ${k}\n     一次: ${v}\n     二次: ${m2.get(k)}`) }
+      }
+      for (const k of m2.keys()) if (!m1.has(k)) { diffs++; console.log(`   ⚠ ${f} 多余: ${k}`) }
+      if (diffs === 0) ok(`G18 往返语义等价（矩形逐位 + 组件逐键）: ${f}`)
+      else bad(`G18 ${f} ${diffs} 处差异`)
+    }
   }
 }
 

@@ -11,6 +11,10 @@
 import type { HtmlNode } from './miniParser'
 import { tokenizeHtml, ParseError } from './miniParser'
 import {
+  PROPS_REGION_TAG, REGION_BLOCKED_COMPS,
+  regionCompBaseClass,
+} from './propertiesRegion'
+import {
   tokenizeStylesheet, CssParseError,
   type CssRule, type Stylesheet,
 } from './css/tokenize'
@@ -451,6 +455,126 @@ function stripStyleScript(node: HtmlNode, inlineStyles: string[], headNodes: Htm
   return { ...node, children }
 }
 
+/** ─── <properties> 参数区（properties-region.md：提取 + 校验 + 挂载） ─── */
+
+/** 参数区数据形：节点名 → 组件 baseClass → properties 对象 */
+type RegionData = Record<string, Record<string, Record<string, unknown>>>
+
+interface RegionExtract {
+  region: RegionData
+  /** <properties> 元素源行号（错误定位用） */
+  line: number
+}
+
+/**
+ * 提取 <properties> 参数区并从树中移除（不参与布局求解与标签白名单校验）。
+ * 合法位置仅限 <widget>/<body> 直接子级（full-document 模式 = <body> 直接子级）；
+ * 嵌套进设计树 / <head> 内 / 重复声明一律 CompileFail（防参数区被意外吞掉或双真相源）。
+ */
+function extractPropertiesRegion(root: HtmlNode): RegionExtract | null {
+  const container = root.tag === 'html' ? root.children.find((c) => c.tag === 'body') : root
+  const found: Array<{ el: HtmlNode; legal: boolean }> = []
+  const walk = (el: HtmlNode, legal: boolean): void => {
+    for (const c of el.children) {
+      if (c.tag === PROPS_REGION_TAG) found.push({ el: c, legal: legal && el === container })
+      walk(c, false)
+    }
+  }
+  walk(root, true)
+  if (found.length === 0) return null
+  const legal = found.filter((f) => f.legal)
+  if (legal.length === 0) {
+    throw new CompileFail(
+      `<${PROPS_REGION_TAG}> 参数区必须是 <widget>（full-document 模式为 <body>）的直接子级，不能嵌进设计树或 <head>`,
+      found[0].el.line,
+    )
+  }
+  if (legal.length > 1) {
+    throw new CompileFail(`重复的 <${PROPS_REGION_TAG}> 参数区（至多一个）`, legal[1].el.line)
+  }
+  const el = legal[0].el
+  // 从树中移除（唯一合法宿主是 container；原地摘除，后续 unwrap/级联/白名单校验不再见到该标签）
+  const siblings = (container as HtmlNode).children
+  const idx = siblings.indexOf(el)
+  if (idx >= 0) siblings.splice(idx, 1)
+  const raw = (el.raw ?? '').trim()
+  let data: unknown
+  if (raw === '') {
+    data = {}
+  } else {
+    try {
+      data = JSON.parse(raw)
+    } catch (e) {
+      throw new CompileFail(`<properties> 参数区不是合法 JSON: ${(e as Error).message}`, el.line)
+    }
+  }
+  const region = validateRegionShape(data, el.line)
+  return { region, line: el.line }
+}
+
+/** 参数区结构校验：节点名 → 组件 baseClass → properties 对象；视觉组件拒绝（引导用标签+CSS） */
+function validateRegionShape(data: unknown, line: number): RegionData {
+  if (!isPlainObject(data)) {
+    throw new CompileFail('<properties> 参数区顶层必须是对象（节点名 → 组件 baseClass → properties）', line)
+  }
+  const out: RegionData = {}
+  for (const [nodeName, comps] of Object.entries(data)) {
+    if (!isPlainObject(comps)) {
+      throw new CompileFail(`参数区节点 "${nodeName}" 的值必须是对象（组件 baseClass → properties）`, line)
+    }
+    const nodeEntry: Record<string, Record<string, unknown>> = {}
+    for (const [compKey, props] of Object.entries(comps)) {
+      const baseClass = regionCompBaseClass(compKey)
+      if (REGION_BLOCKED_COMPS.has(baseClass)) {
+        throw new CompileFail(
+          `视觉组件 ${baseClass} 禁止在 <properties> 参数区声明（有原生标签/CSS 表达位，避免同一视觉值双真相源）——请用标签属性 + CSS 表达`,
+          line,
+        )
+      }
+      if (!isPlainObject(props)) {
+        throw new CompileFail(`参数区 ${nodeName} → ${baseClass} 的 properties 必须是对象`, line)
+      }
+      nodeEntry[baseClass] = props
+    }
+    out[nodeName] = nodeEntry
+  }
+  return out
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** 参数区挂载：按节点名在产物树上挂/合并组件（发射完成后调用 → region 永远赢） */
+function applyPropertiesRegion(doc: Record<string, unknown>, region: RegionData, line: number): void {
+  const byName = new Map<string, Record<string, unknown>>()
+  const walk = (n: Record<string, unknown>): void => {
+    byName.set(String(n.name ?? ''), n)
+    for (const c of (n.children as Array<Record<string, unknown>> | undefined) ?? []) walk(c)
+  }
+  walk(doc)
+  for (const [nodeName, comps] of Object.entries(region)) {
+    const node = byName.get(nodeName)
+    if (!node) {
+      throw new CompileFail(
+        `<properties> 参数区引用了不存在的节点 "${nodeName}"（键必须与编译产物 name 一致；节点改名需同步参数区）`,
+        line,
+      )
+    }
+    if (!Array.isArray(node.components)) node.components = []
+    const compsArr = node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>
+    for (const [baseClass, props] of Object.entries(comps)) {
+      const existing = compsArr.find((c) => c.baseClass === baseClass)
+      if (existing) {
+        // 键级合并，region 覆盖（与 emitDataComp 现语义一致）
+        existing.properties = { ...existing.properties, ...props }
+      } else {
+        compsArr.push({ baseClass, properties: { ...props } })
+      }
+    }
+  }
+}
+
 /** ─── inline style 解析 ─── */
 
 function parseInlineStyle(text: string): Map<string, { value: string; important: boolean }> {
@@ -505,9 +629,12 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
   decorationCount = 0
   try {
     // 1. HTML 解析
-    const { root: rawRoot } = tokenizeHtml(source)
-    assertNoEventAttrs(rawRoot)
-    const { root, headNodes, inlineStyles } = unwrapDocument(rawRoot)
+    const { root: rawRoot0 } = tokenizeHtml(source)
+    assertNoEventAttrs(rawRoot0)
+    // 1.5 <properties> 参数区提取（unwrapDocument 前：嵌套/重复/非法位置一律报错；
+    //     提取后的树不再含参数区，不参与布局求解与标签白名单校验）
+    const regionResult = extractPropertiesRegion(rawRoot0)
+    const { root, headNodes, inlineStyles } = unwrapDocument(rawRoot0)
 
     // 2. <widget> 根属性（name/canvas/world/anchor/offset；full-document 模式合并到 body）
     const name = root.attrs['name'] ?? root.attrs['data-name']
@@ -610,6 +737,9 @@ export function compileWidgetHtml(source: string, options: CompileOptions = {}):
     for (const child of rootBox.children) {
       emitter.emitBox(child, doc as unknown as { children: unknown[] }, rootBox, usedNames, 0)
     }
+    // 8. <properties> 参数区挂载：在 emitDataComp（legacy data-comp）之后应用 →
+    //    同组件双声明时 region 覆盖（迁移期容忍，见 properties-region.md §2.3）
+    if (regionResult) applyPropertiesRegion(doc as Record<string, unknown>, regionResult.region, regionResult.line)
     if (decorationCount > 0) {
       warnings.push({ line: 0, message: `共 ${decorationCount} 处装饰类声明不渲染（cursor/user-select 等，见文档偏差表）` })
     }
@@ -1231,6 +1361,12 @@ class Emitter {
     const elH = box.h + box.pt + box.pb + box.bt + box.bb
     const bgProps = this.collectImageProps(el, elW, elH, nodeName)
     if (bgProps) {
+      // hit-test: block 必须落到视觉块：命中拦截唯一实现方是有 panel 的 CanvasUI 组件，
+      // marker 块（panel=null）拦不住射线；仅 block 落盘，visible 不写避免全量资产 churn
+      //（pointer-events: none 语义优先，见 marker 分支）
+      if (el.computed.get('pointer-events') !== 'none' && el.computed.get('hit-test') === 'block') {
+        bgProps.hitTest = 'block'
+      }
       ;(node.components as unknown[]).push({ baseClass: 'UIImageComponent', properties: bgProps })
     }
     this.emitBorders(box, node, nodeName)

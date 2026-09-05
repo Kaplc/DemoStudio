@@ -7,8 +7,9 @@
  *  - 面板挂在城镇大厅上方（localOffset [0, 3, 0]），主场景渲染（深度遮挡/近大远小）；
  *  - 提供 open/close 供 GM 或后续交互调用（面板随场景切换由 destroyAll 统一回收）。
  *
- * 边界：不改 GameMode 状态、不写资产；面板仅展示（world 层 block 语义不存在，
- * 不挡身后点击——如需遮挡语义给面板根挂空回调 ClickableComponent，见 plan D3）。
+ * 边界：不改 GameMode 状态、不写资产；面板仅展示。如需"点面板空白处不穿透到身后
+ * 建筑"，给 base_hologram.widget.html 的带背景节点声明 `hit-test: block` 即可
+ * （PhySys 已支持 world 模式 block 画布世界层拦截，见 doc/engine/physics_system.md 踩坑 8）。
  */
 import { BehaviourScript, logger } from '@/engine'
 import type { AnchoredWidgetHandle } from '@/engine'

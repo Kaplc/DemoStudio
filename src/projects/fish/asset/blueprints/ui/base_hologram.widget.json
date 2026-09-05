@@ -1,7 +1,7 @@
 {
   "name": "base_hologram",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-9c696f1b",
+  "sourceHash": "fnv1a-c033ba59",
   "components": [
     {
       "baseClass": "UITransformComponent",

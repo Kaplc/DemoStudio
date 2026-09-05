@@ -305,6 +305,151 @@ export class FishGameInstance extends GameInstance {
         this.inputSys.handlePointerUp(undefined, this.controller, button)
         return { consumed, placeTroopId: this._levelGameMode?.placeTroopId ?? null }
       },
+      /** 直跳基地阶段（Playwright 测试基地世界 UI 点击链路用） */
+      enterBase: () => {
+        this.switchToPhase('base')
+        return this._phase === 'base'
+      },
+      /** 打开某类型建筑的信息牌（等价点击建筑；Playwright 世界面板点击链路用） */
+      openBuildingInfo: (typeId: string) => {
+        const gm = this._baseGameMode
+        if (!gm) return false
+        const buildings = (gm as unknown as { clashBuildings: Array<{ type: { id: string } }> }).clashBuildings
+        const b = buildings.find((x) => x.type.id === typeId)
+        if (!b) return false
+        gm.onBuildingClick(b as Parameters<typeof gm.onBuildingClick>[0])
+        return true
+      },
+      /** 基地面板状态（Playwright 断言信息牌/升级面板开关） */
+      getBasePanels: () => {
+        const gm = this._baseGameMode as unknown as
+          | { buildingInfoPanel: unknown; buildingUpgradePanel: unknown }
+          | null
+        return {
+          phase: this._phase,
+          buildingInfo: !!gm?.buildingInfoPanel,
+          buildingUpgrade: !!gm?.buildingUpgradePanel,
+        }
+      },
+      /** 世界坐标 → 屏幕像素（Playwright 定位 world 面板/按钮的点击点用） */
+      debugWorldToScreen: (x: number, y: number, z: number) => {
+        const cam = (PhySys as unknown as { _camera?: THREE.Camera | null })._camera
+        const el = PhySys.viewportElement
+        if (!cam || !el) return null
+        cam.updateMatrixWorld()
+        const v = new THREE.Vector3(x, y, z).project(cam)
+        if (v.z < -1 || v.z > 1) return null
+        const r = el.getBoundingClientRect()
+        return {
+          x: Math.round(r.left + ((v.x + 1) / 2) * r.width),
+          y: Math.round(r.top + ((1 - v.y) / 2) * r.height),
+        }
+      },
+      /** 按 root.name 查 Actor 的世界坐标（定位 world 面板/按钮用；递归搜索场景与 UI 子树） */
+      debugActorWorldPos: (name: string) => {
+        const find = (a: import('@/engine').Actor): import('@/engine').Actor | null => {
+          if (a.root.name === name) return a
+          for (const child of a.getChildren()) {
+            const hit = find(child)
+            if (hit) return hit
+          }
+          return null
+        }
+        let target: import('@/engine').Actor | null = null
+        for (const a of this.world.actorMgr.GetAllActors()) {
+          target = find(a)
+          if (target) break
+        }
+        if (!target) {
+          for (const a of this.world.ui.getAllUIActors()) {
+            target = find(a)
+            if (target) break
+          }
+        }
+        if (!target) return null
+        target.root.updateWorldMatrix(true, false)
+        const p = target.root.getWorldPosition(new THREE.Vector3())
+        return { name: target.root.name, x: p.x, y: p.y, z: p.z }
+      },
+      /** 世界层命中诊断（镜像 debugHit）：给定屏幕点的世界层最近命中与 block 画布清单 */
+      debugWorldHit: (sx: number, sy: number) => {
+        const sys = PhySys as unknown as {
+          screenToRay?: (x: number, y: number, cam?: unknown) => { ray?: { origin: THREE.Vector3; direction: THREE.Vector3 } } | null
+          resolveWorldStage?: (ray: unknown) => {
+            kind: string
+            z: number
+            distance: number
+            clickable?: { owner: { root: { name: string } } }
+          } | null
+          _uiBlockers?: Set<{ panel: { visible: boolean } | null; owner: import('@/engine').Actor }>
+        }
+        const ray = sys.screenToRay?.(sx, sy)
+        if (!ray) return { ray: false }
+        const top = sys.resolveWorldStage?.(ray)
+        const blockers: string[] = []
+        for (const b of sys._uiBlockers ?? []) {
+          let world = false
+          for (let a: import('@/engine').Actor | null = b.owner; a; a = a.parent) {
+            if (a.root.userData.__dsWorldUI) { world = true; break }
+          }
+          blockers.push(`${b.owner.root.name}${world ? '(world)' : ''}${b.panel?.visible === false ? '(hidden)' : ''}`)
+        }
+        return {
+          ray: true,
+          top: top
+            ? `${top.kind}:${top.clickable?.owner.root.name ?? '(blocker)'}@z${top.z}@d${top.distance.toFixed(3)}`
+            : null,
+          blockers,
+          candidates: (sys as unknown as { debugWorldCandidates?: (x: number, y: number) => string[] })
+            .debugWorldCandidates?.(sx, sy) ?? null,
+          origin: ray.ray?.origin ? `(${ray.ray.origin.x.toFixed(2)},${ray.ray.origin.y.toFixed(2)},${ray.ray.origin.z.toFixed(2)})` : '?',
+          dir: ray.ray?.direction ? `(${ray.ray.direction.x.toFixed(3)},${ray.ray.direction.y.toFixed(3)},${ray.ray.direction.z.toFixed(3)})` : '?',
+        }
+      },
+      /** 直接对指定 actor 子树的 mesh 做射线相交（绕过注册表，诊断用） */
+      debugMeshRaycast: (name: string, sx: number, sy: number) => {
+        const sys = PhySys as unknown as {
+          screenToRay?: (x: number, y: number, cam?: unknown) => { intersectObject?: (o: unknown, r: boolean) => Array<{ distance: number }> } | null
+        }
+        const ray = sys.screenToRay?.(sx, sy)
+        if (!ray) return { ray: false }
+        const find = (a: import('@/engine').Actor): import('@/engine').Actor | null => {
+          if (a.root.name === name) return a
+          for (const child of a.getChildren()) {
+            const hit = find(child)
+            if (hit) return hit
+          }
+          return null
+        }
+        let target: import('@/engine').Actor | null = null
+        for (const a of this.world.actorMgr.GetAllActors()) {
+          target = find(a)
+          if (target) break
+        }
+        if (!target) {
+          for (const a of this.world.ui.getAllUIActors()) {
+            target = find(a)
+            if (target) break
+          }
+        }
+        if (!target) return { ray: true, found: false }
+        target.root.updateWorldMatrix(true, true)
+        const p = target.root.getWorldPosition(new THREE.Vector3())
+        const hits: Array<{ distance: number }> = []
+        target.root.traverse((o) => {
+          if ((o as { isMesh?: boolean }).isMesh) {
+            const h = ray.intersectObject?.(o, false) ?? []
+            if (h.length > 0) hits.push(...h)
+          }
+        })
+        return {
+          ray: true,
+          found: true,
+          meshPos: `(${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)})`,
+          hitCount: hits.length,
+          nearest: hits.length > 0 ? Math.min(...hits.map((h) => h.distance)).toFixed(3) : null,
+        }
+      },
       addArmy: (troopId: string, count: number) => {
         const troop = this.getTroop(troopId)
         if (!troop) return false
@@ -546,7 +691,7 @@ export class FishGameInstance extends GameInstance {
         army: this.training.getArmySummary(),
       }),
     }
-  logger.info('[Fish] 战斗调试桥已安装: window.__fishBattle { enterLevel, addArmy, deploy, gmSpawnTroop, selectTroop, getPlaceTroopId, debugClick, probe, getTroops, executeGM, startTickDriver, stopTickDriver, getBattle, getState }')
+  logger.info('[Fish] 战斗调试桥已安装: window.__fishBattle { enterLevel, enterBase, openBuildingInfo, getBasePanels, debugWorldToScreen, debugActorWorldPos, addArmy, deploy, gmSpawnTroop, selectTroop, getPlaceTroopId, debugClick, probe, getTroops, executeGM, startTickDriver, stopTickDriver, getBattle, getState }')
   }
 
   /** 调试 tick 驱动器定时器 id（null = 未启动） */

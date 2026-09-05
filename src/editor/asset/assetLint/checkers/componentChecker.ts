@@ -418,6 +418,7 @@ class UIImageComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', min: 1, label: 'Canvas 像素高' },
     { field: 'properties.zOrder', type: 'number', label: 'UI 层级' },
     { field: 'properties.name', type: 'string', label: '组件名' },
+    { field: 'properties.hitTest', type: 'string', enum: ['visible', 'block', 'hitTestInvisible'], label: '命中测试（仿 UE：block=拦截点击，落在本视觉 mesh 上；CSS hit-test 编译产物）' },
   ]
 }
 registerAssetChecker('comp:UIImageComponent', UIImageComponentChecker)

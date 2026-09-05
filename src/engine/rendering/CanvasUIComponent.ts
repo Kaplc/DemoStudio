@@ -234,15 +234,18 @@ export class CanvasUIComponent extends Component<Actor> {
     if (this._hitTest === v) return
     const wasBlock = this._hitTest === 'block'
     this._hitTest = v
-    // block 模式注册到 PhySys 参与点击拦截；退出 block 注销
-    if (v === 'block' && !wasBlock) PhySys.registerUIBlocker(this)
-    else if (wasBlock && v !== 'block') PhySys.unregisterUIBlocker(this)
+    // block 模式注册到 PhySys 参与点击拦截；退出 block 注销（markerOnly 无 panel 不参与）
+    if (!this._markerOnly) {
+      if (v === 'block' && !wasBlock) PhySys.registerUIBlocker(this)
+      else if (wasBlock && v !== 'block') PhySys.unregisterUIBlocker(this)
+    }
     logger.info(`[CanvasUIComponent] "${this.name}" 命中测试模式 → ${v}`)
   }
 
   override BeginPlay() {
-    // block 命中测试模式：注册到 PhySys 参与点击拦截（构造时可能组件未全挂载，BeginPlay 兜底）
-    if (this._hitTest === 'block') PhySys.registerUIBlocker(this)
+    // block 命中测试模式：注册到 PhySys 参与点击拦截（构造时可能组件未全挂载，BeginPlay 兜底）。
+    // markerOnly 无 panel，注册了也会被 PhySys 按 !b.panel 跳过，纯噪音 → 不注册
+    if (this._hitTest === 'block' && !this._markerOnly) PhySys.registerUIBlocker(this)
     // 注释：每个 UI 组件（UIMarker/UIText/UIImage/Canvas）都会触发，属高频噪音
     // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
     super.BeginPlay()

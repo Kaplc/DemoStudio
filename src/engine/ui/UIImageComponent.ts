@@ -4,7 +4,7 @@
  * 模仿 Unity Image。支持纯色填充、可选圆角、可选贴图（同步加载）。
  */
 import * as THREE from 'three'
-import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { CanvasUIComponent, type UIHitTestMode } from '../rendering/CanvasUIComponent'
 import { type EditableProperty } from '../entity/Component'
 import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
@@ -31,6 +31,8 @@ export interface UIImageComponentOptions {
   /** 3D 世界尺寸（默认 1×1 米） */
   worldWidth?: number
   worldHeight?: number
+  /** 命中测试模式（仿 UE：block=拦截点击；CSS hit-test 编译落点，block 时本 mesh 注册拦截） */
+  hitTest?: UIHitTestMode
 }
 
 export class UIImageComponent extends CanvasUIComponent {
@@ -48,6 +50,7 @@ export class UIImageComponent extends CanvasUIComponent {
       // 只传显式世界尺寸；未设置时由 CanvasUIComponent 从 owner 的 uitransform 读取
       ...(options.worldWidth !== undefined ? { worldWidth: options.worldWidth } : {}),
       ...(options.worldHeight !== undefined ? { worldHeight: options.worldHeight } : {}),
+      ...(options.hitTest !== undefined ? { hitTest: options.hitTest } : {}),
     })
     this.name = 'UIImageComponent'
     this._color = options.color ?? '#ffffff'

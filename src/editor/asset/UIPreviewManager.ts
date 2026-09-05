@@ -81,6 +81,11 @@ export class UIPreviewManager {
   /** Actor → JSON 节点映射（以对象引用为 key），由 loadWidget 在 spawn 后构建 */
   private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
 
+  /** 加载时属性基线：组件实例 → 构造态持久化属性快照。collectSaveData 只写回与基线
+   *  不同的键——未动过的属性（含未在 JSON 声明的默认值键）不再膨胀进资产
+   *  （此前保存会把 data-props 撑成全量键集） */
+  private _propBaseline = new Map<ActorComponent, Record<string, unknown>>()
+
   // ─── 撤回系统（与 ScenePreviewManager 同构：内存栈 + 原地回滚，不重建预览）───
   /** 撤销栈 key（asset/...，activate 时建立；UndoManager 全局共享） */
   private _undoKey: string | null = null
@@ -826,6 +831,16 @@ export class UIPreviewManager {
     }
     buildMapping(actor, this._jsonTree)
 
+    // 属性基线快照（构造态，BeginPlay 前——预览锚点已禁用、布局求解不改变持久化值）：
+    // 保存时只写回与基线不同的键，未动过的属性不进 JSON
+    for (const [a] of this._actorJsonMap) {
+      for (const comp of a.getAllComponents() as ActorComponent[]) {
+        if (!comp.persistType) continue
+        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
+        this._propBaseline.set(comp, JSON.parse(JSON.stringify(comp.getPersistentProps())) as Record<string, unknown>)
+      }
+    }
+
     this.world.BeginPlay()
     this.world.manualTick(0)
 
@@ -942,6 +957,7 @@ export class UIPreviewManager {
     this._currentWidgetDiskPath = null
     this._jsonTree = null
     this._actorJsonMap = null
+    this._propBaseline.clear()
     this._actorTreeCache = null
     if (this.viewportBounds) this.viewportBounds.visible = false
     this.notifyChange()
@@ -1106,8 +1122,12 @@ export class UIPreviewManager {
           delete persist.worldWidth
           delete persist.worldHeight
         }
-        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
+        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）；
+        // 与加载基线相同的键跳过——只写回用户真正改过的属性，JSON 保持最小声明
+        // （未声明的默认值键不再被膨胀进资产）
+        const baseline = this._propBaseline.get(comp)
         for (const [k, v] of Object.entries(persist)) {
+          if (baseline && k in baseline && JSON.stringify(v) === JSON.stringify(baseline[k])) continue
           props[k] = v
         }
       }

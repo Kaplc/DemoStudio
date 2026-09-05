@@ -11,6 +11,7 @@
  */
 import type { CompileContext } from './compileTypes'
 import { FULLSCREEN_CANVAS_WIDTH, FULLSCREEN_CANVAS_HEIGHT } from './widgetMapping'
+import { REGION_FAMILY_COMPS, formatRegionContent } from './propertiesRegion'
 
 /** 反编译结果 */
 export interface DecompileResult {
@@ -86,6 +87,25 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
       warnings.push('该 widget.json 无 sourceHash（非编译器产物或旧资产）：尽力转换，映射不到的组件走 data-comp 逃逸')
     }
 
+    // 前置摘出：region 承载组件（UIWorldAnchorComponent）从全部节点摘出 →
+    // <properties> 参数区（按节点名键控）；其余组件沿用既有通道（data-comp/data-props 等）。
+    // 键用摘出时的原始节点名（编译产物 name 全局唯一；重名防御改写的手工资产会告警，
+    // 其 region 键可能失配——编译端按"引用不存在节点"硬报错，不静默丢参数）
+    const region: Record<string, Record<string, Record<string, unknown>>> = {}
+    const pullRegionComps = (n: JsonNode): void => {
+      const comps = n.components ?? []
+      for (const baseClass of REGION_FAMILY_COMPS) {
+        const idx = comps.findIndex((c) => c.baseClass === baseClass)
+        if (idx >= 0) {
+          const name = String(n.name ?? 'Node')
+          region[name] = { ...(region[name] ?? {}), [baseClass]: { ...(comps[idx].properties ?? {}) } }
+          comps.splice(idx, 1)
+        }
+      }
+      for (const c of n.children ?? []) pullRegionComps(c)
+    }
+    pullRegionComps(root)
+
     const rootTf = compOf(root, 'UITransformComponent')?.properties ?? {}
     const canvasComp = root.components?.find((c) => c.baseClass === 'CanvasUIComponent' && !(c.properties as { markerOnly?: boolean } | undefined)?.markerOnly)
     const canvasProps = (canvasComp?.properties ?? {}) as Record<string, number>
@@ -155,6 +175,12 @@ export function decompileWidgetJson(doc: unknown): DecompileResult {
 
     const out: string[] = []
     out.push(`<widget ${rootAttrs.join(' ')}>`)
+    // region 非空 → <widget> 开标签后输出规范格式 <properties> 块（2 空格缩进）
+    if (Object.keys(region).length > 0) {
+      out.push('  <properties>')
+      for (const l of formatRegionContent(region).split('\n')) out.push(l)
+      out.push('  </properties>')
+    }
     out.push('  <style>')
     for (const r of rules) out.push(`    ${r.selector} { ${r.decls.join('; ')}; }`)
     for (const r of stateRules) out.push(`    ${r.selector}:${r.pseudo} { ${r.decls.join('; ')}; }`)

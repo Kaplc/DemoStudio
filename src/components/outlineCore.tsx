@@ -163,16 +163,26 @@ export function collectKeysWithChildren<T extends OutlineNodeLike>(tree: T[], ki
 }
 
 /**
- * 把先序扁平树渲染为 `|— ` 树形文本（每层一个 `|— ` 前缀，含尾随空格），可粘贴给 AI / 文档。
- * 有 Actor 的节点带 `[类型名]` 后缀（与大纲行内展示一致）；无 actor 节点只输出名称。
+ * Actor 类型展示标签（面板行内灰字 / 复制文本共用规则）：GenericActor 是引擎缺省类型，
+ * UI 树所有节点都是它，无区分信息量 → 返回 null 不显示；其余类型返回类名（如 MeshActor）。
+ */
+export function actorTypeLabel(actor: OutlineActorLike | null | undefined): string | null {
+  const name = actor?.constructor.name
+  return name && name !== 'GenericActor' ? name : null
+}
+
+/**
+ * 把先序扁平树渲染为树形文本（层级前缀为单根 `|` + 随深度延长的 `—`，如 `|———— `，含尾随空格），可粘贴给 AI / 文档。
+ * 非 GenericActor 的节点带 `[类型名]` 后缀（与大纲行内展示一致）；无 actor 节点只输出名称。
  * @param baseDepth 基准深度（默认 0）：低于该深度的层级截平，子树导出时以目标节点为根
  */
 export function buildTreeText(tree: OutlineNodeLike[], baseDepth = 0): string {
   const lines: string[] = []
   for (const node of tree) {
-    const indent = '|— '.repeat(Math.max(0, node.depth - baseDepth))
-    const typeName = node.actor ? ` [${node.actor.constructor.name}]` : ''
-    lines.push(`${indent}${node.name}${typeName}`)
+    const level = Math.max(0, node.depth - baseDepth)
+    const indent = level > 0 ? `|${'—'.repeat(level)} ` : ''
+    const typeLabel = actorTypeLabel(node.actor)
+    lines.push(`${indent}${node.name}${typeLabel ? ` [${typeLabel}]` : ''}`)
   }
   return lines.join('\n')
 }

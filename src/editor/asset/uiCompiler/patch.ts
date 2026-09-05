@@ -23,6 +23,7 @@
  */
 import { compileWidgetHtml } from './compile'
 import { decodeEntities, tokenizeHtml, type HtmlNode } from './miniParser'
+import { PROPS_REGION_TAG, REGION_FAMILY_COMPS, formatRegionContent } from './propertiesRegion'
 
 /** 补丁结果；ok=false 时调用方应回退整篇反编译（html 原样返回） */
 export interface PatchResult {
@@ -49,13 +50,14 @@ type DocComp = { baseClass: string; properties: Record<string, unknown> }
 
 /** 以 data-props JSON 承载的组件（值变化 → data-props 属性整体合并重写） */
 const DATA_COMP_FAMILY = new Set([
-  'UIWorldAnchorComponent', 'UILayoutComponent', 'UIScrollListComponent', 'UIScrollContainerComponent',
+  'UILayoutComponent', 'UIScrollListComponent', 'UIScrollContainerComponent',
   'UITooltipComponent', 'UIProgressComponent', 'UITextInputComponent', 'UIProgressBarComponent',
 ])
-/** 有专用源映射的组件；其余组件（UIButton/UIImage 子状态等）出现差分一律回退 */
+/** 有专用源映射的组件；其余组件（UIButton/UIImage 子状态等）出现差分一律回退。
+ *  UIWorldAnchorComponent 走 <properties> 参数区键重写（propertiesRegion.ts） */
 const MAPPED_COMPS = new Set([
   'UITransformComponent', 'CanvasUIComponent', 'UITextComponent', 'UIImageComponent',
-  'UIScriptComponent', ...DATA_COMP_FAMILY,
+  'UIScriptComponent', 'UIWorldAnchorComponent', ...DATA_COMP_FAMILY,
 ])
 
 function round4(v: number): number {
@@ -128,9 +130,14 @@ interface DeclSpan {
   value: string
 }
 
-/** class 名 → (css 属性 → 声明值 span)。只收单类选择器（.A / .A, .B），伪类/@规则不收 */
-function collectStyleDecls(clean: string, widgetEl: HtmlNode): Map<string, Map<string, DeclSpan>> {
-  const map = new Map<string, Map<string, DeclSpan>>()
+/** class 名 → (css 属性 → 声明值 span) + class 规则块 '}' 位置（缺声明时插入用）。
+ *  只收单类选择器（.A / .A, .B），伪类/@规则不收 */
+function collectStyleDecls(clean: string, widgetEl: HtmlNode): {
+  decls: Map<string, Map<string, DeclSpan>>
+  ruleEnd: Map<string, number>
+} {
+  const decls = new Map<string, Map<string, DeclSpan>>()
+  const ruleEnd = new Map<string, number>()
   const visit = (el: HtmlNode): void => {
     if (el.tag === 'style' && el.rawStart !== undefined && el.rawEnd !== undefined) {
       const raw = clean.slice(el.rawStart, el.rawEnd)
@@ -146,6 +153,8 @@ function collectStyleDecls(clean: string, widgetEl: HtmlNode): Map<string, Map<s
         if (!selector.startsWith('@') && !selector.includes(':')) {
           const classes = [...selector.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((m) => m[1])
           if (classes.length > 0) {
+            const absRuleEnd = el.rawStart! + blockEnd
+            for (const c of classes) if (!ruleEnd.has(c)) ruleEnd.set(c, absRuleEnd)
             const block = raw.slice(brace + 1, blockEnd)
             let j = 0
             while (j < block.length) {
@@ -162,8 +171,8 @@ function collectStyleDecls(clean: string, widgetEl: HtmlNode): Map<string, Map<s
                 const absStart = el.rawStart! + brace + 1 + colon + 1 + lead
                 const absEnd = absStart + value.length
                 for (const c of classes) {
-                  if (!map.has(c)) map.set(c, new Map())
-                  map.get(c)!.set(prop, { start: absStart, end: absEnd, value })
+                  if (!decls.has(c)) decls.set(c, new Map())
+                  decls.get(c)!.set(prop, { start: absStart, end: absEnd, value })
                 }
               }
               j = semi + 1
@@ -176,7 +185,7 @@ function collectStyleDecls(clean: string, widgetEl: HtmlNode): Map<string, Map<s
     for (const c of el.children) visit(c)
   }
   visit(widgetEl)
-  return map
+  return { decls, ruleEnd }
 }
 
 function classesOfEl(el: HtmlNode): string[] {
@@ -184,10 +193,10 @@ function classesOfEl(el: HtmlNode): string[] {
 }
 
 /** 元素的某 css 属性声明 span：命中 0 或 >1 处（多类冲突）都视为不可定位 */
-function findDecl(styleMap: Map<string, Map<string, DeclSpan>>, el: HtmlNode, prop: string): DeclSpan | null {
+function findDecl(styleMap: { decls: Map<string, Map<string, DeclSpan>> }, el: HtmlNode, prop: string): DeclSpan | null {
   let found: DeclSpan | null = null
   for (const c of classesOfEl(el)) {
-    const d = styleMap.get(c)?.get(prop)
+    const d = styleMap.decls.get(c)?.get(prop)
     if (!d) continue
     if (found && found.start !== d.start) return null
     found = d
@@ -290,6 +299,20 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
       edits.push({ start: d.start, end: d.end, text: newValue, desc: `${label(el)} ${prop}: ${d.value} → ${newValue}` })
       void what
     }
+    /** css 声明直写，声明缺失时在 class 规则块 `}` 前插入 `prop: value;`（结构不变）。
+     *  元素无 class 规则块（如无类名的 <widget> 根）时抛回退 */
+    const writeDeclIns = (el: HtmlNode, prop: string, newValue: string, what: string): void => {
+      const d = findDecl(styleMap, el, prop)
+      if (d) {
+        writeDecl(el, prop, newValue, what)
+        return
+      }
+      const cls = classesOfEl(el)[0]
+      const end = cls ? styleMap.ruleEnd.get(cls) : undefined
+      if (end === undefined) throw new PatchBail(`${label(el)} 缺少 ${prop} 声明且无规则块可插入`)
+      const lead = clean[end - 1] === ' ' || clean[end - 1] === '\n' ? '' : ' '
+      edits.push({ start: end, end, text: `${lead}${prop}: ${newValue};`, desc: `${label(el)} 插入 ${prop}: ${newValue}` })
+    }
     /** px 长度增量（原值必须是纯 <num>px；delta 0 跳过） */
     const deltaLenDecl = (el: HtmlNode, prop: string, delta: number): void => {
       if (delta === 0) return
@@ -323,10 +346,66 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
       const paths = leafDiffs(oldP, newP)
       if (paths.length === 0) return
 
+      // ── region 承载组件：解析 <properties> 参数区 → 并入差分键 → 整块规范化重写 ──
+      //（机器管理数据区，规范化即特性；region 缺失时在 widget 开标签后创建——
+      // legacy data-props 残留但被 region 覆盖，后续编辑继续走 region）
+      if (REGION_FAMILY_COMPS.has(base)) {
+        const regionEl = wEl.children.find((c) => c.tag === PROPS_REGION_TAG)
+        let region: Record<string, Record<string, Record<string, unknown>>> = {}
+        const rawRegion = (regionEl?.raw ?? '').trim()
+        if (rawRegion) {
+          try {
+            region = JSON.parse(rawRegion) as typeof region
+          } catch {
+            throw new PatchBail('<properties> 参数区 JSON 解析失败')
+          }
+        }
+        const diffEntries: Record<string, unknown> = {}
+        for (const p of paths) diffEntries[p.split('.')[0]] = newP[p.split('.')[0]]
+        const nodeEntry: Record<string, Record<string, unknown>> = { ...(region[nodeName] ?? {}) }
+        nodeEntry[base] = { ...(nodeEntry[base] ?? {}), ...diffEntries }
+        region[nodeName] = nodeEntry
+        if (regionEl) {
+          if (regionEl.rawStart === undefined || regionEl.rawEnd === undefined) {
+            throw new PatchBail('<properties> 参数区缺少源偏移')
+          }
+          edits.push({
+            start: regionEl.rawStart,
+            end: regionEl.rawEnd,
+            text: formatRegionContent(region),
+            desc: `${label(el)} ${base} → 参数区重写（${paths.join(', ')}）`,
+          })
+        } else {
+          if (wEl.openEnd === undefined) throw new PatchBail('widget 无开标签偏移')
+          edits.push({
+            start: wEl.openEnd,
+            end: wEl.openEnd,
+            text: `\n  <${PROPS_REGION_TAG}>\n${formatRegionContent(region)}\n  </${PROPS_REGION_TAG}>`,
+            desc: `${label(el)} 创建 <properties> 参数区（${base}: ${paths.join(', ')}）`,
+          })
+        }
+        descs.push(`${label(el)} ${base} 参数区写入（${paths.join(', ')}）`)
+        return
+      }
+
       if (DATA_COMP_FAMILY.has(base)) {
+        // 最小合并：只把差分键并进 data-props（attr 已有键保持原值），未声明的
+        // 组件键不膨胀进源码；attr 不存在时先补 data-comp（编译器按 data-comp
+        // 挂载 data-props，单独的 data-props 会被忽略）再插入差分键
         const span = findAttrSpan(clean, el, 'data-props')
-        const merged = span ? mergeDataProps(clean.slice(span.valueStart, span.valueEnd), newP) : JSON.stringify(newP)
-        if (merged === null) throw new PatchBail(`${label(el)} data-props JSON 解析失败`)
+        const diffEntries: Record<string, unknown> = {}
+        for (const p of paths) diffEntries[p.split('.')[0]] = newP[p.split('.')[0]]
+        if (!span && !findAttrSpan(clean, el, 'data-comp')) {
+          writeAttr(el, 'data-comp', base, 'data-comp')
+        }
+        let merged: string
+        if (span) {
+          const parsed = mergeDataProps(clean.slice(span.valueStart, span.valueEnd), { ...JSON.parse(decodeEntities(clean.slice(span.valueStart, span.valueEnd))) as Record<string, unknown>, ...diffEntries })
+          if (parsed === null) throw new PatchBail(`${label(el)} data-props JSON 解析失败`)
+          merged = parsed
+        } else {
+          merged = JSON.stringify(diffEntries)
+        }
         writeAttr(el, 'data-props', merged, 'data-props')
         descs.push(`${label(el)} data-props 更新（${paths.join(', ')}）`)
         return
@@ -355,15 +434,11 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
             if (w !== undefined && h !== undefined) writeAttr(wEl, 'canvas', `${w}x${h}`, `根 canvas → ${w}x${h}`)
             return
           }
-          // 非根：只支持 position/worldWidth/worldHeight（其余键必须无差分）
+          // 非根：支持 position/worldWidth/worldHeight/anchorOffset（其余键必须无差分）
           for (const p of paths) {
-            if (!['position', 'worldWidth', 'worldHeight'].includes(p)) {
+            if (!['position', 'worldWidth', 'worldHeight', 'anchorOffset'].includes(p)) {
               throw new PatchBail(`tf.${p} 差分不支持`)
             }
-          }
-          const posDecl = findDecl(styleMap, el, 'position')
-          if (!posDecl || !/^(absolute|fixed)$/.test(posDecl.value.trim())) {
-            throw new PatchBail(`${label(el)} 非绝对定位，position 增量不支持`)
           }
           const arr = (n: Record<string, unknown>): number[] => (Array.isArray(n.position) ? n.position as number[] : [0, 0, 0])
           const oldPos = arr(oldP)
@@ -371,19 +446,35 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
           const num2 = (v: unknown): number => (typeof v === 'number' ? v : 0)
           const dW = num2(newP.worldWidth) - num2(oldP.worldWidth)
           const dH = num2(newP.worldHeight) - num2(oldP.worldHeight)
-          if (oldPos[0] !== newPos[0] || oldPos[1] !== newPos[1]) {
+          const posDecl = findDecl(styleMap, el, 'position')
+          if (paths.includes('anchorOffset')) {
+            // 锚点偏移增量 ⇔ left/top 等量平移（left+20/top+10 ⇒ offset [3,-3]→[23,-13]，探测证实）；
+            // position 是锚点系统的派生值，验证时对齐重编译结果（relax）
+            const oldOff = (Array.isArray(oldP.anchorOffset) ? oldP.anchorOffset : [0, 0]) as number[]
+            const newOff = (Array.isArray(newP.anchorOffset) ? newP.anchorOffset : [0, 0]) as number[]
+            deltaLenDecl(el, 'left', newOff[0] - oldOff[0])
+            deltaLenDecl(el, 'top', -(newOff[1] - oldOff[1]))
+            if (oldP.anchor) relaxAnchorNames.add(nodeName)
+            descs.push(`${label(el)} 锚点偏移增量（Δ${round4(num2((newP.anchorOffset as number[] | undefined)?.[0]) - num2((oldP.anchorOffset as number[] | undefined)?.[0]))}, Δ${round4(num2((newP.anchorOffset as number[] | undefined)?.[1]) - num2((oldP.anchorOffset as number[] | undefined)?.[1]))}）`)
+          } else if (oldPos[0] !== newPos[0] || oldPos[1] !== newPos[1]) {
             // 锚定元素（编译器对绝对定位元素一律发射 anchor）的 position 恒为 [0,0,0]、
             // 摆放编码在 anchor+anchorOffset——position 无法被重编译复现，回退整篇反编译
             if (oldP.anchor) throw new PatchBail('锚定元素 position 为编译派生值（锚点系统驱动）')
-            if (!posDecl) throw new PatchBail(`${label(el)} 缺少 position 声明`)
+            if (!posDecl || !/^(absolute|fixed)$/.test(posDecl.value.trim())) {
+              // flex/grid 子项的 position 由布局求解器派生：width/height 声明补丁后
+              // 重编译自会重排（运行时 UILayout 同式），跳过即可，验证环节兜底
+              descs.push(`${label(el)} position 为布局派生值（交给重编译重算）`)
+              return
+            }
             deltaLenDecl(el, 'left', newPos[0] - oldPos[0])
             deltaLenDecl(el, 'top', -(newPos[1] - oldPos[1]))
           }
           if (dW !== 0 || dH !== 0) {
-            // 尺寸：worldWidth/Height ← width/height 声明（盒模型边距不变时线性）
+            // 尺寸：worldWidth/Height ← width/height 声明（盒模型边距不变时线性）。
+            // 自身一律 relax：canvas/UIImage 镜像宽高、锚定子树的派生锚点值随尺寸重算
             deltaLenDecl(el, 'width', dW)
             deltaLenDecl(el, 'height', dH)
-            if (oldP.anchor) relaxAnchorNames.add(nodeName)
+            relaxAnchorNames.add(nodeName)
           }
           if (dW !== 0 || dH !== 0 || oldPos[0] !== newPos[0] || oldPos[1] !== newPos[1]) {
             descs.push(`${label(el)} 位姿/尺寸增量（Δx${round4(newPos[0] - oldPos[0])}, Δy${round4(newPos[1] - oldPos[1])}, Δw${dW}, Δh${dH}）`)
@@ -395,15 +486,26 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
           const real = paths.filter((p) => p !== 'width' && p !== 'height')
           for (const p of real) {
             if (isRoot && p === 'hitTest') {
-              writeDecl(el, 'hit-test', String(newP.hitTest), '根 hit-test')
+              writeDeclIns(el, 'hit-test', String(newP.hitTest), '根 hit-test')
               continue
             }
             if (p === 'zOrder') {
-              writeDecl(el, 'z-index', String(newP.zOrder), 'z-index')
+              writeDeclIns(el, 'z-index', String(newP.zOrder), 'z-index')
               continue
             }
             if (p === 'hitTest') {
-              writeDecl(el, 'hit-test', String(newP.hitTest), 'hit-test')
+              writeDeclIns(el, 'hit-test', String(newP.hitTest), 'hit-test')
+              continue
+            }
+            if (p === 'active') {
+              // 编译期 visibility:hidden ⇔ 节点 inactive；隐藏可插入声明，
+              // 恢复可见需"删除声明"（span 替换表达不了）→ 回退
+              const target = newP.active === false || newP.active === undefined ? 'hidden' : 'visible'
+              if (target === 'visible') {
+                const d = findDecl(styleMap, el, 'visibility')
+                if (!d) throw new PatchBail('active 置 true 需删除 visibility 声明，不支持')
+              }
+              writeDeclIns(el, 'visibility', target, 'visibility')
               continue
             }
             throw new PatchBail(`canvas.${p} 差分不支持`)
@@ -421,10 +523,33 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
                 break
               }
               case 'fontSize': writeDecl(el, 'font-size', `${newP.fontSize}px`, 'font-size'); break
-              case 'color': writeDecl(el, 'color', String(newP.color), 'color'); break
-              case 'textAlign': writeDecl(el, 'text-align', String(newP.textAlign), 'text-align'); break
-              case 'fontWeight': writeDecl(el, 'font-weight', String(newP.fontWeight), 'font-weight'); break
-              case 'letterSpacing': writeDecl(el, 'letter-spacing', `${newP.letterSpacing}px`, 'letter-spacing'); break
+              case 'color': {
+                const c = newP.color
+                if (c === null || c === undefined) throw new PatchBail('text.color 置空不支持')
+                writeDecl(el, 'color', String(c), 'color')
+                break
+              }
+              case 'align': writeDecl(el, 'text-align', String(newP.align), 'text-align'); break
+              case 'bold': {
+                // 原声明是数字（700/400）保持数字风格，否则写 bold/normal
+                const d = findDecl(styleMap, el, 'font-weight')
+                if (!d) throw new PatchBail(`${label(el)} 缺少 font-weight 声明`)
+                const numeric = parseFloat(d.value)
+                const next = Number.isFinite(numeric) ? (newP.bold ? '700' : '400') : (newP.bold ? 'bold' : 'normal')
+                writeDecl(el, 'font-weight', next, 'font-weight')
+                break
+              }
+              case 'italic': writeDeclIns(el, 'font-style', newP.italic ? 'italic' : 'normal', 'font-style'); break
+              case 'lineHeight': {
+                // 编译期 lineHeight 恒为比例（无单位 1.5 ⇔ 51px@34px，探测证实）：
+                // 有 px 声明按 v×fontSize 换算回写，无声明/无单位声明直接写比例值
+                const d = findDecl(styleMap, el, 'line-height')
+                const fs = num(newP.fontSize) ?? 28
+                if (d && /px$/.test(d.value.trim())) writeDecl(el, 'line-height', `${round4((num(newP.lineHeight) ?? 1) * fs)}px`, 'line-height')
+                else writeDeclIns(el, 'line-height', String(newP.lineHeight), 'line-height')
+                break
+              }
+              case 'letterSpacing': writeDeclIns(el, 'letter-spacing', `${newP.letterSpacing}px`, 'letter-spacing'); break
               default: throw new PatchBail(`text.${p} 差分不支持`)
             }
           }
@@ -441,7 +566,7 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
                 break
               }
               case 'radius': writeDecl(el, 'border-radius', `${newP.radius}px`, 'border-radius'); break
-              case 'opacity': writeDecl(el, 'opacity', String(newP.opacity), 'opacity'); break
+              case 'opacity': writeDeclIns(el, 'opacity', String(newP.opacity), 'opacity'); break
               case 'src': {
                 const src = newP.src
                 writeDecl(el, 'background-image', src === 'none' || src === undefined || src === null ? 'none' : `url(${src})`, 'background-image')
@@ -527,16 +652,25 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
     // 等编译器派生节点，无对应源元素）两侧同时剔除后再比——尺寸变化会连带重算它们。
     const re = compileWidgetHtml(out)
     if (!re.ok || !re.doc) return fail('补丁后重编译失败')
-    const stripForVerify = (n: DocNode): DocNode => {
+    const stripForVerify = (n: DocNode, inherited = false): DocNode => {
       const name = String(n.name ?? '')
-      const volatile = relaxAnchorNames.has(name)
+      // 子树继承：父节点尺寸/偏移变化会连带重推导全部后代的派生锚点值
+      const volatile = inherited || relaxAnchorNames.has(name)
       const clone: DocNode = { ...n }
-      if (volatile) {
-        clone.components = compsOf(n).map((c) => {
+      // UILayoutComponent 双侧豁免：是否补挂由编译器按"运行时公式可复现静态解"的
+      // 保守启发式决定（子项尺寸变化可翻转），属运行时布局提示；几何一致性仍由
+      // 各节点 position/worldWidth 逐项比较保证
+      clone.components = compsOf(n)
+        .filter((c) => c.baseClass !== 'UILayoutComponent')
+        .map((c) => {
+          // 仅易变节点（自身/祖先被补丁改过尺寸或偏移）剥离派生字段；
+          // 其余节点 anchor/position 全量比较——验证的核心安全网
+          if (!volatile) return c
           if (c.baseClass === 'UITransformComponent') {
             const p = { ...c.properties }
             delete p.anchor
             delete p.anchorOffset
+            delete p.position
             return { ...c, properties: p }
           }
           if (c.baseClass === 'CanvasUIComponent' || c.baseClass === 'UIImageComponent') {
@@ -548,11 +682,10 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
           }
           return c
         })
-      }
       if (n.children) {
         clone.children = childrenOf(n)
           .filter((c) => !(volatile && !elementByName.has(String(c.name ?? ''))))
-          .map(stripForVerify)
+          .map((c) => stripForVerify(c, volatile))
       }
       return clone
     }

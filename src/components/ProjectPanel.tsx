@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Outline } from './Outline'
 import { UiOutline } from './UiOutline'
 import { AssetBrowser } from './AssetBrowser'
@@ -10,8 +10,17 @@ export function ProjectPanel() {
   // 左侧面板页签状态提升到 editorStore：资产双击打开时自动切到大纲
   const activeTab = useEditorStore((s) => s.leftPanelTab)
   const setActiveTab = useEditorStore((s) => s.setLeftPanelTab)
-  // 顶部模糊搜索词（三个页签共用，切换页签保留）
-  const [query, setQuery] = useState('')
+  // 顶部模糊搜索词按视口资产页签隔离：切到新页签为空（上一资产的过滤不带入），
+  // 切回旧页签恢复该页签上次的输入（tabId 由 assetPath 确定性生成，关掉重开也能恢复）
+  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const projectName = useEditorStore((s) => s.currentProject?.name ?? null)
+  const [queryMap, setQueryMap] = useState<Record<string, string>>({})
+  // 换工程时整体清空：activeTabId 复位为 'scene' 等固定 id，不清会跨工程残留
+  useEffect(() => {
+    setQueryMap({})
+  }, [projectName])
+  const query = queryMap[activeTabId] ?? ''
+  const setQuery = (q: string) => setQueryMap((m) => ({ ...m, [activeTabId]: q }))
 
   return (
     <div className="panel">
