@@ -24,6 +24,7 @@ import type { BlueprintChildDef } from '../../engine'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
+import { PreviewSaveCollector } from './PreviewSaveCollector'
 import { UndoManager } from '../blueprintEdit/UndoManager'
 import { uniqueNodeName, cloneTemplateComponents } from '../blueprintEdit/nodeTemplates'
 import type { NodeTemplate } from '../blueprintEdit/nodeTemplates'
@@ -57,6 +58,8 @@ export class ScenePreviewManager {
   private _actorJsonMap = new Map<Actor, Record<string, unknown>>()
   /** Actor → JSON 节点路径（从 objects 顶层开始的 name 链，供嵌套定位/重绑/原地回滚） */
   private _actorJsonPath = new Map<Actor, string[]>()
+  /** 保存收集器（全量模式 + 缺组件新建：场景节点的组件可能由蓝图/代码生成） */
+  private _saveCollector = new PreviewSaveCollector()
 
   // ─── 撤回系统（与蓝图/UI 资产预览同语义：拖拽松手 = 一个撤销点，不写盘） ───
   /** 撤销栈 key（asset/...，由资产磁盘路径推导）；activate 时建立 */
@@ -127,6 +130,8 @@ export class ScenePreviewManager {
     // 必须先建 World：SceneComponent 持有 actor 挂载场景，预览场景直接复用 world.scene，
     // 保证渲染/大纲遍历与 actor 挂载在同一个 THREE.Scene（否则大纲看不到节点、预览渲染为空）
     this.world = new World()
+    // 预览世界禁脚本（World.scriptsEnabled）：运行时脚本按业务上下文改场景/UI 表现，预览态没有该上下文会误伤
+    this.world.scriptsEnabled = false
 
     // ─── 预览对象工厂：编辑器预览独立 THREE 创建器（不依赖 GameInstance）───
     // 组件工厂（Mesh 组件等）经 ThreeObjectUtils 自动分流到本工厂，对象由本组件追踪，
@@ -1047,30 +1052,11 @@ export class ScenePreviewManager {
       if (!actor || !jsonNode) continue
       const isActorRef = jsonNode.type === 'actor' || jsonNode.type === 'ref'
 
-      // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON（Inspector 直改后撤回需要）───
-      const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      for (const comp of actor.getAllComponents() as ActorComponent[]) {
-        if (!comp.persistType) continue
-        // 跳过运行时自动生成的内部组件（如 UIButton 透明点击层 UIImageComponent，isClickOnly=true）：
-        // 不写进资产，避免保存后出现重复 image 组件
-        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
-        // 场景节点（ref/actor）的 JSON 可能没有该组件（组件由蓝图/代码生成，
-        // 如 Goldmine 的 MeshComponent）——找不到 target 时新增 JSON 组件节点，
-        // 否则组件属性（size/color 等）永远写不进 _sceneAsset，Inspector 直改
-        // 被判定"内容无变化"而不进撤销栈。
-        let target = jsonComps.find((c) => c.baseClass === comp.persistType)
-        if (!target) {
-          target = { baseClass: comp.persistType, properties: {} }
-          jsonComps.push(target)
-          ;(jsonNode.components as Array<Record<string, any>> | undefined) = jsonComps
-        }
-        const props = (target.properties ?? {}) as Record<string, unknown>
-        const persist = comp.getPersistentProps()
-        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
-        for (const [k, v] of Object.entries(persist)) {
-          props[k] = v
-        }
-      }
+      // ─── 通用组件属性持久化（全量合入 + 缺组件新建，Inspector 直改后撤回需要）───
+      // 场景节点（ref/actor）的 JSON 可能没有该组件（组件由蓝图/代码生成，
+      // 如 Goldmine 的 MeshComponent）——writeComponentProps 的 createMissing
+      // 选项新建 JSON 组件节点，否则组件属性（size/color 等）永远写不进 _sceneAsset。
+      this._saveCollector.writeComponentProps(actor, jsonNode, { createMissing: true })
 
       // 组件优先：内联 actor 的位置写在 components 的 TransformComponent properties
       // （组件为权威，顶层 position/rotation/scale 是废弃冗余，写入后删除）

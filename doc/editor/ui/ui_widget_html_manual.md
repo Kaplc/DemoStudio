@@ -425,7 +425,7 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 
 ### 配方 E：模态面板挡住身后点击（hit-test: block）
 
-默认语义仿 UE 的 SelfHitTestInvisible：**只有 `<button>` 能接住点击，其他一切穿透**。模态遮罩、world 模式信息牌/全息面板这类"点空白处不该穿透到场景"的节点，给**带背景的节点**写 `hit-test: block`：
+默认语义仿 UE 的 SelfHitTestInvisible：**只有 `<button>` 能接住点击，其他一切穿透**。模态遮罩、world 模式信息牌/全息面板这类"点空白处不该穿透到场景"的节点，给节点写 `hit-test: block`：
 
 ```html
 <style>
@@ -440,10 +440,10 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 
 规则：
 
-- `hit-test: block` 必须写在**有 `background-color`/渐变的节点**上——编译器把它落到该节点的 `UIImageComponent` 视觉块（命中拦截的实现方是有 mesh 的 CanvasUI 组件；纯容器 div 没有 mesh，写了也白写）。
-- 挡住的区域内按钮照常可点：点击归属按"射线最近 + zOrder 最高"仲裁（同面时 `z-index` 高者胜、clickable 优先于底板），所以底板 block 不会吃掉自己上面的按钮。
+- `hit-test: block` 写在**节点级**：编译器落到该节点 marker 块，引擎懒创建 UI_HIT_LAYER 透明射线 mesh（相机不渲染、零绘制成本，仅射线可命中）。**无背景的纯容器/透明遮罩层也能拦截**，不再要求节点自带视觉。
+- 挡住的区域内按钮照常可点：点击归属按"射线最近 + zOrder 最高"仲裁（同面时 `z-index` 高者胜、clickable 优先于底板），底板 block 不会吃掉自己上面的按钮；面板树 `alwaysOnTop` 时对 3D 物体拥有视觉优先权（所见即所点）。
 - `hit-test: hitTestInvisible` / `pointer-events: none`：显式声明穿透（默认行为一致，用于表达意图）。
-- 现成例子：[building_info.widget.html](../../../src/projects/fish/asset/blueprints/ui/building_info.widget.html) 的 `.Card`、GM 控制台根画布（代码声明 `hitTest: 'block'`）。
+- 现成例子：[building_info.widget.html](../../../src/projects/fish/asset/blueprints/ui/building_info.widget.html) 的 `.Card`、GM 控制台根画布（代码声明 `hitTest: 'block'`，走视觉块 panel 旧通道）。
 
 ### 什么时候才用 absolute
 

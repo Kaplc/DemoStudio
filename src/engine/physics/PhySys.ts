@@ -21,8 +21,19 @@ import type { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { logger } from '../Logger'
 import type { GameSingleton } from '../gameflow/Game'
 
+/**
+ * UI 命中专用 layer：marker 射线 mesh 挂此层。
+ * 相机默认只渲染 layer 0 → 零绘制成本；仅 PhySys 的 raycaster 放行此层。
+ * 必须先于模块底部的单例求值声明（构造函数引用它，TDZ）。
+ */
+export const UI_HIT_LAYER = 1
+
 class PhySysImpl implements GameSingleton {
   readonly name = 'PhySys'
+
+  constructor() {
+    this.raycaster.layers.enable(UI_HIT_LAYER)
+  }
 
   /** 全局复用 raycaster */
   readonly raycaster = new THREE.Raycaster()
@@ -267,30 +278,47 @@ class PhySysImpl implements GameSingleton {
       if (hit) candidates.push({ kind: 'clickable', clickable: c, distance: hit.distance, z: c.uiZOrder })
     }
     for (const b of this._uiBlockers) {
-      if (!b.panel || !isVisibleChain(b.panel)) continue
+      // 载体：视觉块的 panel（旧语义/代码构建 UI）或 marker 的射线 mesh（V2 节点级命中）
+      const carrier = b.hitMesh ?? b.panel
+      if (!carrier || !isVisibleChain(carrier)) continue
       // world 模式画布在世界坐标系，UI 相机（原点附近正交）的射线会数值性误命中 → 只归世界层管
       if (isWorldModeUI(b.owner)) continue
-      const hits = rayWithFreshMatrix(uiRay, b.panel)
+      const hits = rayWithFreshMatrix(uiRay, carrier)
       if (hits) candidates.push({ kind: 'blocked', distance: hits.distance, z: b.zOrder })
     }
     return pickFrontmostHit(candidates)
   }
 
-  /** 世界层解析：世界 clickable + world 模式 block 画布 → 射线最近命中；无命中返回 null */
+  /** 世界层解析：world 模式 UI（clickable+blocker）与 3D clickable 分池仲裁。
+   *  alwaysOnTop 面板树对 3D 拥有视觉优先权（渲染恒在顶层 → 所见即所点），
+   *  其余按射线最近命中。 */
   private resolveWorldStage(ray: THREE.Raycaster): HitCandidate | null {
-    const candidates: HitCandidate[] = []
+    const uiCandidates: HitCandidate[] = []
+    const solidCandidates: HitCandidate[] = []
     for (const c of this._clickables) {
       if (!c.bEnabled || c.isDestroyed()) continue
       const hit = c.hitTest(ray)
-      if (hit) candidates.push({ kind: 'clickable', clickable: c, distance: hit.distance, z: c.uiZOrder })
+      if (!hit) continue
+      const cand: HitCandidate = { kind: 'clickable', clickable: c, distance: hit.distance, z: c.uiZOrder }
+      if (isWorldModeUI(c.owner)) uiCandidates.push(cand)
+      else solidCandidates.push(cand)
     }
     for (const b of this._uiBlockers) {
-      if (!b.panel || !isVisibleChain(b.panel)) continue
+      const carrier = b.hitMesh ?? b.panel
+      if (!carrier || !isVisibleChain(carrier)) continue
       if (!isWorldModeUI(b.owner)) continue
-      const hits = rayWithFreshMatrix(ray, b.panel)
-      if (hits) candidates.push({ kind: 'blocked', distance: hits.distance, z: b.zOrder })
+      const hits = rayWithFreshMatrix(ray, carrier)
+      if (hits) uiCandidates.push({ kind: 'blocked', distance: hits.distance, z: b.zOrder, blockerOwner: b.owner })
     }
-    return pickFrontmostHit(candidates)
+    const uiWinner = pickFrontmostHit(uiCandidates)
+    const solidWinner = pickFrontmostHit(solidCandidates)
+    if (!uiWinner) return solidWinner
+    if (!solidWinner) return uiWinner
+    // 面板树声明 alwaysOnTop（渲染恒在 3D 之上）→ 面板胜过一切 3D 命中，
+    // 消除"面板与建筑盒深度交叠时几像素射线抖动翻转归属"的不稳定
+    const uiOwner = uiWinner.clickable?.owner ?? uiWinner.blockerOwner
+    if (uiOwner && isAlwaysTopUI(uiOwner)) return uiWinner
+    return pickFrontmostHit([uiWinner, solidWinner])
   }
 
   /** 诊断：给定屏幕点输出世界层全部命中候选（Playwright 定位仲裁问题用） */
@@ -304,9 +332,10 @@ class PhySysImpl implements GameSingleton {
       if (hit) out.push(`clickable:${c.owner.root.name}@z${c.uiZOrder}@d${hit.distance.toFixed(4)}`)
     }
     for (const b of this._uiBlockers) {
-      if (!b.panel || !isVisibleChain(b.panel)) continue
+      const carrier = b.hitMesh ?? b.panel
+      if (!carrier || !isVisibleChain(carrier)) continue
       if (!isWorldModeUI(b.owner)) continue
-      const hit = rayWithFreshMatrix(ray, b.panel)
+      const hit = rayWithFreshMatrix(ray, carrier)
       if (hit) out.push(`blocked:${b.owner.root.name}@z${b.zOrder}@d${hit.distance.toFixed(4)}`)
     }
     return out
@@ -335,6 +364,17 @@ function isWorldModeUI(owner: { root: THREE.Object3D; parent: unknown } | null |
 }
 
 /**
+ * owner 或祖先链是否声明 alwaysOnTop（UIWorldAnchorComponent 整树打的 __dsWorldUIAlwaysTop 标记）。
+ * 该面板渲染恒在 3D 之上 → 命中仲裁给视觉优先权（所见即所点）。
+ */
+function isAlwaysTopUI(owner: { root: THREE.Object3D; parent: unknown } | null | undefined): boolean {
+  for (let a = owner as { root: THREE.Object3D; parent: unknown } | null; a; a = a.parent as typeof a) {
+    if (a.root.userData.__dsWorldUIAlwaysTop) return true
+  }
+  return false
+}
+
+/**
  * 刷新 mesh 世界矩阵后做射线相交（返回最近交点或 null）。
  * blocker 面板是逐帧 billboard/缩放的（world 模式 constantScreenSize），不刷新会用
  * 上一帧矩阵算错命中——与 ClickableComponent.hitTest 的父链刷新同款保障。
@@ -358,6 +398,8 @@ export interface HitCandidate {
   z: number
   /** kind='clickable' 时的组件 */
   clickable?: ClickableComponent
+  /** kind='blocked' 时拦截画布的 owner（alwaysOnTop 视觉优先权判定用） */
+  blockerOwner?: { root: THREE.Object3D; parent: unknown }
 }
 
 /** 距离差小于该值视为同一平面（world 模式 z 偏移经 1/pxPerMeter 缩放后约 5e-5 米，按钮点击层 vs 面板底板靠 zOrder 决胜） */

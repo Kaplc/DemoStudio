@@ -37,6 +37,10 @@ import type { BlueprintAsset, BlueprintComponentDef, BlueprintChildDef } from '.
 import type { SceneTreeNode } from '../SelectionManager'
 import { uniqueNodeName, nextChildId, reassignChildIds } from '../blueprintEdit/nodeTemplates'
 import { useEditorStore } from '../../stores/editorStore'
+import {
+  PreviewSaveCollector,
+  registerPreviewBaseline, unregisterPreviewBaseline,
+} from './PreviewSaveCollector'
 
 /** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
 function diskPathToAssetKey(diskPath: string): string {
@@ -81,10 +85,8 @@ export class UIPreviewManager {
   /** Actor → JSON 节点映射（以对象引用为 key），由 loadWidget 在 spawn 后构建 */
   private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
 
-  /** 加载时属性基线：组件实例 → 构造态持久化属性快照。collectSaveData 只写回与基线
-   *  不同的键——未动过的属性（含未在 JSON 声明的默认值键）不再膨胀进资产
-   *  （此前保存会把 data-props 撑成全量键集） */
-  private _propBaseline = new Map<ActorComponent, Record<string, unknown>>()
+  /** 保存收集器：属性基线（快照/差量/strict 抛错）+ 通用组件属性回写 + Inspector 注册表 */
+  private _saveCollector = new PreviewSaveCollector()
 
   // ─── 撤回系统（与 ScenePreviewManager 同构：内存栈 + 原地回滚，不重建预览）───
   /** 撤销栈 key（asset/...，activate 时建立；UndoManager 全局共享） */
@@ -206,6 +208,8 @@ export class UIPreviewManager {
     // 必须先建 World：SceneComponent 持有 actor 挂载场景，预览场景直接复用 world.scene，
     // 保证渲染/大纲遍历与 actor 挂载在同一个 THREE.Scene（否则大纲看不到节点、预览渲染为空）
     this.world = new World()
+    // 预览世界禁脚本（World.scriptsEnabled）：运行时脚本按业务上下文改 UI 显隐/文案，预览态没有该上下文会误伤
+    this.world.scriptsEnabled = false
 
     // ─── 预览对象工厂：编辑器预览独立 THREE 创建器（不依赖 GameInstance）───
     // 组件工厂（Mesh/UI 组件等）经 ThreeObjectUtils 自动分流到本工厂，对象由本组件追踪，
@@ -831,21 +835,19 @@ export class UIPreviewManager {
     }
     buildMapping(actor, this._jsonTree)
 
-    // 属性基线快照（构造态，BeginPlay 前——预览锚点已禁用、布局求解不改变持久化值）：
-    // 保存时只写回与基线不同的键，未动过的属性不进 JSON
-    for (const [a] of this._actorJsonMap) {
-      for (const comp of a.getAllComponents() as ActorComponent[]) {
-        if (!comp.persistType) continue
-        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
-        this._propBaseline.set(comp, JSON.parse(JSON.stringify(comp.getPersistentProps())) as Record<string, unknown>)
-      }
-    }
-
     this.world.BeginPlay()
     this.world.manualTick(0)
 
+    // 属性基线快照（BeginPlay + 首 tick 之后 = 预览就绪态）：运行时初始化期的派生改写
+    // （UIManager.reassignTreeOrder 的树序 zOrder 重排、UILayout 首排、脚本 onStart）一并
+    // 收编进基线——它们不是用户编辑，经基线差量写回会把运行时值硬灌进资产。
+    // 保存时只写回与基线不同的键，未动过的属性不进 JSON
+    this._saveCollector.snapshotBaselines(this._actorJsonMap.keys())
+
     this._currentWidgetKey = path
     this._currentWidgetDiskPath = diskPath ?? null
+    registerPreviewBaseline(path, this._saveCollector)
+    if (diskPath) registerPreviewBaseline(diskPath, this._saveCollector)
 
     // 根画布尺寸由视口比例驱动：若已选过比例（非 Free），加载后立即覆盖根节点尺寸
     // （资产 JSON 里根 worldWidth/worldHeight 只是设计基准，预览时始终跟随视口）
@@ -953,11 +955,13 @@ export class UIPreviewManager {
     this.anchorGizmo.detach()
     this.world.DestroyAllActors()
     this._rootActor = null
+    if (this._currentWidgetKey) unregisterPreviewBaseline(this._currentWidgetKey)
+    if (this._currentWidgetDiskPath) unregisterPreviewBaseline(this._currentWidgetDiskPath)
     this._currentWidgetKey = null
     this._currentWidgetDiskPath = null
     this._jsonTree = null
     this._actorJsonMap = null
-    this._propBaseline.clear()
+    this._saveCollector.clear()
     this._actorTreeCache = null
     if (this.viewportBounds) this.viewportBounds.visible = false
     this.notifyChange()
@@ -1085,6 +1089,11 @@ export class UIPreviewManager {
     return result
   }
 
+  /** 组件的加载基线快照（Inspector 差量提交查询用）；无基线返回 null */
+  baselineOf(comp: object): Record<string, unknown> | null {
+    return this._saveCollector.baselineOf(comp)
+  }
+
   /**
    * 收集保存数据：遍历大纲 Actor，通过 _actorJsonMap 把实时 transform 回写到各 Actor
    * 对应的 JSON 节点，返回一份干净的深拷贝供写入磁盘。
@@ -1106,31 +1115,17 @@ export class UIPreviewManager {
         || (rootCanvas.isMarkerOnly && uiTf.getWorldSize()[1] >= 540)
       )
 
-      // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
-      const jsonCompsAll = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      for (const comp of actor.getAllComponents() as ActorComponent[]) {
-        if (!comp.persistType) continue
-        // 跳过运行时自动生成的内部组件（如 UIButton 透明点击层 UIImageComponent，isClickOnly=true）：
-        // 不写进资产，避免保存后出现重复 image 组件
-        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
-        const target = jsonCompsAll.find((c) => c.baseClass === comp.persistType)
-        if (!target) continue
-        const props = (target.properties ?? {}) as Record<string, unknown>
-        const persist = comp.getPersistentProps()
-        // 全屏根：尺寸由视口驱动，worldWidth/worldHeight 不写回（保留 JSON 设计基准值）
-        if (isFullscreenRoot && comp === uiTf) {
-          delete persist.worldWidth
-          delete persist.worldHeight
-        }
-        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）；
-        // 与加载基线相同的键跳过——只写回用户真正改过的属性，JSON 保持最小声明
-        // （未声明的默认值键不再被膨胀进资产）
-        const baseline = this._propBaseline.get(comp)
-        for (const [k, v] of Object.entries(persist)) {
-          if (baseline && k in baseline && JSON.stringify(v) === JSON.stringify(baseline[k])) continue
-          props[k] = v
-        }
-      }
+      // ─── 通用组件属性持久化（基线差量，基线缺失抛错）───
+      this._saveCollector.writeComponentProps(actor, jsonNode, {
+        mode: 'strict',
+        filterProps: (comp, persist) => {
+          // 全屏根：尺寸由视口驱动，worldWidth/worldHeight 不写回（保留 JSON 设计基准值）
+          if (isFullscreenRoot && comp === uiTf) {
+            delete persist.worldWidth
+            delete persist.worldHeight
+          }
+        },
+      })
 
       // 组件优先：含 transform/uitransform 组件的节点，位置/旋转/缩放只写在组件 properties，
       // 顶层 position/rotation/scale 冗余字段直接删除（引擎加载时组件为权威，无需兜底）
@@ -1863,8 +1858,11 @@ export class UIPreviewManager {
     this._actorJsonMap = null
     this._jsonTree = null
     this._actorTreeCache = null
+    if (this._currentWidgetKey) unregisterPreviewBaseline(this._currentWidgetKey)
+    if (this._currentWidgetDiskPath) unregisterPreviewBaseline(this._currentWidgetDiskPath)
     this._currentWidgetKey = null
     this._currentWidgetDiskPath = null
+    this._saveCollector.clear()
   }
 
   // ═══════════════════════════════════

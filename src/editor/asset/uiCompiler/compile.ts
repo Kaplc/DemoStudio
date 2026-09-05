@@ -1361,12 +1361,8 @@ class Emitter {
     const elH = box.h + box.pt + box.pb + box.bt + box.bb
     const bgProps = this.collectImageProps(el, elW, elH, nodeName)
     if (bgProps) {
-      // hit-test: block 必须落到视觉块：命中拦截唯一实现方是有 panel 的 CanvasUI 组件，
-      // marker 块（panel=null）拦不住射线；仅 block 落盘，visible 不写避免全量资产 churn
-      //（pointer-events: none 语义优先，见 marker 分支）
-      if (el.computed.get('pointer-events') !== 'none' && el.computed.get('hit-test') === 'block') {
-        bgProps.hitTest = 'block'
-      }
+      // hit-test 不写视觉块：V2 起命中权威在节点 marker（block 时引擎懒创建射线 mesh），
+      // 视觉块 hitTest 字段仅为旧资产兼容，不再发射
       ;(node.components as unknown[]).push({ baseClass: 'UIImageComponent', properties: bgProps })
     }
     this.emitBorders(box, node, nodeName)
@@ -1854,7 +1850,10 @@ class Emitter {
     const zi = el.computed.get('z-index')
     if (zi !== undefined && zi !== 'auto' && z === undefined) markerProps.zOrder = parseInt(zi, 10) || 0
     const pe = el.computed.get('pointer-events')
+    const hitTest = el.computed.get('hit-test')
+    // V2 命中权威在 marker：文本节点同样读取 hit-test（block 时引擎给 marker 懒创建射线 mesh）
     if (pe === 'none') markerProps.hitTest = 'hitTestInvisible'
+    else if (hitTest === 'visible' || hitTest === 'block' || hitTest === 'hitTestInvisible') markerProps.hitTest = hitTest
     return markerProps
   }
 

@@ -104,7 +104,7 @@ export async function decompileBackOnSave(
         }
         return { written: patch.edits.length > 0, conflict, warnings }
       }
-      logger.info(`[UiSourceSync] 原地补丁不可用（${patch.reason}），改走整篇反编译: ${srcPath}`)
+      logger.warn(`[UiSourceSync] 原地补丁不可用（${patch.reason}），改走整篇反编译重写源文件: ${srcPath}`)
 
       const result = decompileWidgetJson(widgetDoc)
       warnings.push(...result.warnings)
@@ -122,6 +122,7 @@ export async function decompileBackOnSave(
       // 回写源 + 重算 sourceHash（json 与源重新等效）
       await writeText(srcPath, result.html)
       const newHash = fnv1a(result.html.replace(/^\uFEFF/, ''))
+      warnings.push(`原地补丁不可用（${patch.reason}），源文件已被整篇反编译重写为规范形（排版不保留）`)
       logger.info(`[UiSourceSync] 反编译回写源文件: ${srcPath}（conflict=${conflict}，newHash=${newHash}）`)
       return { written: true, conflict, warnings }
     } catch (e) {

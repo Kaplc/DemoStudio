@@ -294,7 +294,7 @@ if (stepped) { this.dispatchCollisionEvents(); this.syncActorsFromBodies() }
 
 **7. 停止游戏后再启动，点击打到旧 World 的组件** —— 残留组件闭包链指向已销毁的旧 `GameInstance`/`World`。**规则**：`PhySys.clear()` 清空三个 Set，由 `Game.shutdown` 的 `reset()` 兜底；`isDestroyed()` 只是第二道防线。
 
-**8. world 面板的按钮点不动 / 点面板空白处把面板关了** —— 前者是历史 bug：世界层曾按注册序先到先得，先注册的建筑 clickZone 抢走后 spawn 的面板按钮点击（已改为射线最近仲裁）；后者是面板底板没有拦截能力，点击穿透到空地触发"点空地关牌"。**规则**：world 模式面板要挡住身后点击，给**带背景的节点**声明 `hit-test: block`（编译器落到该节点 `UIImageComponent` 视觉块的 `hitTest`，marker 块无 mesh 拦不住）；按钮与底板的 zOrder 用 CSS `z-index` 表达，同面时 zOrder 高者胜。
+**8. world 面板的按钮点不动 / 点面板空白处把面板关了** —— 前者是历史 bug：世界层曾按注册序先到先得，先注册的建筑 clickZone 抢走后 spawn 的面板按钮点击（已改为几何仲裁 + alwaysOnTop 视觉优先权）；后者是面板底板没有拦截能力，点击穿透到空地触发"点空地关牌"。**规则**：world 模式面板要挡住身后点击，给节点声明 `hit-test: block`——V2 命中权威在节点 marker（编译器写 marker 块，引擎懒创建 UI_HIT_LAYER 透明射线 mesh，相机不渲染零绘制成本）；无背景的纯容器也能拦截。面板树 `alwaysOnTop` 时对 3D 命中拥有视觉优先权（面板与建筑盒深度交叠时不再按几何距离翻转归属）；按钮与底板的 zOrder 用 CSS `z-index` 表达，同面时 zOrder 高者胜。
 
 **9. hover 状态"透"到被遮挡的物体上** —— `raycastHover` 已互斥化：只有每层最前端命中者处于 hover，其余（含被 UI/blocker 盖住的世界物体）统一 `clearHover()`。**规则**：不要再依赖"多个 clickable 同时 hovering"；tooltip 与按钮同节点时 `onHover` 仍会互相覆盖（各自单回调字段，见 `UITooltipComponent`）。
 

@@ -6,6 +6,7 @@ import { getSelected, getSelectedActor, select, getSelectionKey, onSelectionChan
 import { Actor, Component, type EditableProperty, type EditablePropertyAssetTarget } from '../engine'
 import type { BlueprintAsset } from '../engine'
 import { BlueprintEditorService } from '../editor/blueprintEdit/BlueprintEditorService'
+import { diffedPersistProps, getPreviewBaseline } from '../editor/asset/PreviewSaveCollector'
 import { AssetPreviewManager } from '../editor/asset/AssetPreviewManager'
 
 function fmt(v: number): string {
@@ -111,6 +112,15 @@ function EditablePropertyInput({ prop, onEdited, assetTarget, currentComp, sibli
       //   2. 同 actor 其它组件的 persistentProps——如改 UITransform 尺寸时同步固化
       //      同节点 UITextComponent 的字号系数，防止重建时按新尺寸重算导致字号漂移。
       const buildProps = (c: Component, overrideKey?: string, overrideVal?: unknown) => {
+        // widget 预览：按加载基线差量提交（与 UIPreviewManager.collectSaveData 的最小声明
+        // 契约一致）——全量 persistentProps 固化会把构造缺省键硬写进资产（异常写入）。
+        // 无活跃 widget 预览（3D 蓝图/场景）时维持全量语义（既有行为）
+        const baseline = assetTarget ? getPreviewBaseline(assetTarget.assetPath, c) : null
+        const diffed = diffedPersistProps(c as { getPersistentProps(): Record<string, unknown> }, baseline)
+        if (diffed) {
+          if (overrideKey) diffed[overrideKey] = overrideVal
+          return diffed
+        }
         const p: Record<string, unknown> =
           (c.getPersistentProps ? c.getPersistentProps() : {}) as Record<string, unknown>
         if (overrideKey) p[overrideKey] = overrideVal

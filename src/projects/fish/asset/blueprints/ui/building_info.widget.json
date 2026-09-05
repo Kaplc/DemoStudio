@@ -1,7 +1,7 @@
 {
   "name": "BuildingInfoCard",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-2a25016a",
+  "sourceHash": "fnv1a-3137c1f4",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -45,7 +45,7 @@
       "baseClass": "UIWorldAnchorComponent",
       "properties": {
         "mode": "world",
-        "pxPerMeter": 300,
+        "pxPerMeter": 150,
         "pixelDensity": 2,
         "faceCamera": true,
         "alwaysOnTop": true
@@ -139,8 +139,7 @@
                 "radius": 28,
                 "width": 526,
                 "height": 306,
-                "name": "Card",
-                "hitTest": "block"
+                "name": "Card"
               }
             }
           ],

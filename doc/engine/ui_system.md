@@ -234,7 +234,7 @@ const cWins = c.z > best.z || (c.z === best.z && c.kind === 'clickable' && best.
 
 **世界层**（`resolveWorldStage`）不按注册顺序——收集**全部**命中（世界 clickable + world 模式 block 画布）取**射线最近者**，距离差小于 `SAME_PLANE_EPS`（1e-3，世界模式 z 偏移经 1/pxPerMeter 缩放后约 5e-5）视为同面、按 zOrder 决胜。这是 UE 语义："游戏输入是 UI 未命中时的兜底，命中归属由几何决定，与注册时机无关"。没有这一层仲裁时，后 spawn 的 world 面板按钮会被先注册的建筑 clickZone 抢走点击（历史上信息牌"点升级"变成重新选中建筑的根因）。
 
-**world 模式面板的底板拦截**：widget 里 `hit-test: block` 的带背景节点，编译器会把 `hitTest` 落到该节点的 `UIImageComponent` 视觉块（marker 块无 mesh 拦不住射线），其 panel mesh 注册进 `_uiBlockers`，PhySys 按 `__dsWorldUI` 标记分流到世界层用主相机射线检测——信息牌（building_info）的 `.Card` 即此配方：点卡片空白处被消费，不再穿透到空地把面板关掉。
+**world 模式面板的底板拦截**：widget 里声明 `hit-test: block` 的节点，编译器把 `hitTest` 落到该节点的 marker 块，引擎为 marker 懒创建 UI_HIT_LAYER 透明射线 mesh（相机不渲染、零绘制成本，纯容器/透明遮罩也能拦），注册进 `_uiBlockers`；PhySys 按 `__dsWorldUI` 标记分流到世界层用主相机射线检测，面板树 `alwaysOnTop` 时对 3D 命中拥有视觉优先权——信息牌（building_info）的 `.Card` 即此配方：点卡片空白处被消费，不再穿透到空地把面板关掉。视觉块的 `hitTest` 字段仅为旧资产兼容，不再发射。
 
 **③ 按钮的点击层是自动生成的，且射线目标被锁定**
 

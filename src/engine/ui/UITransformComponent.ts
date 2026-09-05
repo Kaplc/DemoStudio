@@ -110,6 +110,8 @@ export class UITransformComponent extends TransformComponent {
     for (const ui of this.owner.getComponents(CanvasUIComponent)) {
       // 真实画布：同步面板缩放
       if (!ui.isMarkerOnly && ui.panel) ui.panel.scale.set(w, h, 1)
+      // marker 射线 mesh（V2 节点级命中权威）：跟随节点尺寸
+      ui.hitMesh?.scale.set(w, h, 1)
       // 所有 UI 组件（含 markerOnly 文本）：通知尺寸变化，让子类重算内部布局（如 troika 字号）
       ui.onWorldSizeChange()
     }

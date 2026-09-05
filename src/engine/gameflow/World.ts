@@ -58,6 +58,15 @@ export class World extends AObject {
   readonly physics = new PhysicsWorld()
 
   /**
+   * 脚本执行开关（默认 true，游戏 World 不受影响）。编辑器预览 World 置 false：
+   * UIScriptComponent.BeginPlay 跳过脚本实例化（onStart/onUpdate/onDestroy 全不跑），
+   * 预览只呈现资产静态结构——预览态没有业务上下文，运行时脚本按业务假设改显隐/文案
+   * 会误伤（如 BuildingInfoScript 按 currentBuildingId 隐藏收集按钮）。
+   * 与 physics 同一隔离思路：预览/运行时天然分离。
+   */
+  scriptsEnabled = true
+
+  /**
    * UI 统一管理器组件（负责 HUD / UI Actor 的创建与管理，并持有 UI 独立场景 uiScene）。
    * 由 World 构造时创建并挂载。
    */

@@ -94,7 +94,8 @@ export class UIImageComponent extends CanvasUIComponent {
   /** Inspector 可编辑属性：颜色（color 选择器）、圆角（number） */
   override getEditableProperties(): EditableProperty[] {
     // UIImage 不是节点显隐开关：active 由同/父节点的 CanvasUIComponent 统一控制，这里过滤掉；
-    // hitTest 同理归位节点级 Canvas marker 块（写进 UIImage 块会被 assetLint 报 unknown-property）
+    // hitTest 同理：V2 命中权威在节点 marker（block 时 marker 懒创建射线 mesh），
+    // 视觉块的 hitTest 字段仅为旧资产兼容，不再作为编辑面
     const base = super.getEditableProperties().filter((p) => p.key !== 'active' && p.key !== 'hitTest')
     return [
       ...base,

@@ -29,7 +29,7 @@ import type { Actor } from '../entity/Actor'
 // 循环引用（UITransformComponent → CanvasUIComponent）：ESM 活绑定，构造时使用安全
 import { UITransformComponent } from '../ui/UITransformComponent'
 // 值导入（运行时注册/注销 blocker 到 PhySys；PhySys 对 CanvasUIComponent 仅 type 引用，无循环）
-import { PhySys } from '../physics/PhySys'
+import { PhySys, UI_HIT_LAYER } from '../physics/PhySys'
 
 /**
  * UI 画布命中测试模式（仿 UE EVisibility 的命中测试语义）：
@@ -76,6 +76,12 @@ export interface CanvasUIOptions {
 export class CanvasUIComponent extends Component<Actor> {
   /** 渲染面板；markerOnly 模式下为 null */
   public panel: THREE.Mesh | null
+  /**
+   * marker 节点级射线 mesh（V2 命中权威；仅 markerOnly + hitTest='block' 时存在）。
+   * 挂 UI_HIT_LAYER：相机默认不渲染（零绘制成本），仅 PhySys 的 raycaster 放行；
+   * 尺寸/显隐/z 偏移与 panel 同规则同步。视觉块的拦截仍走 panel（旧资产/代码构建 UI 兼容）。
+   */
+  public hitMesh: THREE.Mesh | null = null
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   private texture: THREE.CanvasTexture
@@ -145,8 +151,10 @@ export class CanvasUIComponent extends Component<Actor> {
     this._worldH = wh
 
     if (this._markerOnly) {
-      // 仅标记模式：不创建 mesh、不挂到场景，仅声明"本 Actor 是 UI"
+      // 仅标记模式：不创建渲染 mesh、不挂到场景，仅声明"本 Actor 是 UI"
       this.panel = null
+      // V2 命中权威：marker 声明 block 时持有透明射线 mesh（layer 1，相机不渲染）
+      if (this._hitTest === 'block') this.ensureHitMesh()
       // 注释：每个 UI 子元素都会创建 UIMarker，属高频噪音
       // logger.info(`[CanvasUIComponent] 创建 "${this.name}": 仅标记模式（不渲染，标记 Actor 为 UI）`)
     } else {
@@ -190,9 +198,37 @@ export class CanvasUIComponent extends Component<Actor> {
   /** 激活状态应用到渲染对象（panel + 注册对象 + 节点级级联） */
   protected applyActive(): void {
     if (this.panel) this.panel.visible = this._bActive
+    if (this.hitMesh) this.hitMesh.visible = this._bActive
     for (const obj of this._registeredObjects) obj.visible = this._bActive
     // 节点级显隐开关：canvas active 统一控制自身 + 子对象所有渲染组件（Actor.applyActiveTree 递归）
     this.owner.bActive = this._bActive
+  }
+
+  /**
+   * 懒创建 marker 射线 mesh（仅 markerOnly 有意义；视觉块拦截走 panel）。
+   * 挂 UI_HIT_LAYER：相机默认不渲染 layer 1（零绘制成本），仅 PhySys raycaster 放行；
+   * colorWrite/depthWrite 双关兜底——即使有相机误开此层也不产生任何像素。
+   */
+  private ensureHitMesh(): void {
+    if (this.hitMesh) return
+    const geo = new THREE.PlaneGeometry(1, 1)
+    const mat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
+    this.hitMesh = new THREE.Mesh(geo, mat)
+    this.hitMesh.name = 'UIHitMesh'
+    this.hitMesh.scale.set(this._worldW, this._worldH, 1)
+    this.hitMesh.position.z = this._zOrder * 0.001
+    this.hitMesh.layers.set(UI_HIT_LAYER)
+    this.hitMesh.visible = this._bActive
+    this.owner.root.add(this.hitMesh)
+  }
+
+  /** 移除并释放 marker 射线 mesh（hitTest 离开 block 时） */
+  private removeHitMesh(): void {
+    if (!this.hitMesh) return
+    this.owner.root.remove(this.hitMesh)
+    this.hitMesh.geometry.dispose()
+    ;(this.hitMesh.material as THREE.Material).dispose()
+    this.hitMesh = null
   }
 
   /**
@@ -222,6 +258,7 @@ export class CanvasUIComponent extends Component<Actor> {
   get zOrder(): number { return this._zOrder }
   set zOrder(v: number) {
     this._zOrder = v
+    if (this.hitMesh) this.hitMesh.position.z = v * 0.001
     if (!this.panel) return
     this.panel.renderOrder = this._renderOrderBias + v
     // z 偏移分层：zOrder 每 +1 对应 0.001 世界单位前移（正交相机下无透视变形）
@@ -234,8 +271,17 @@ export class CanvasUIComponent extends Component<Actor> {
     if (this._hitTest === v) return
     const wasBlock = this._hitTest === 'block'
     this._hitTest = v
-    // block 模式注册到 PhySys 参与点击拦截；退出 block 注销（markerOnly 无 panel 不参与）
-    if (!this._markerOnly) {
+    if (this._markerOnly) {
+      // marker（V2 命中权威）：block ⇔ 射线 mesh 懒创建/移除 + 拦截注册
+      if (v === 'block' && !wasBlock) {
+        this.ensureHitMesh()
+        PhySys.registerUIBlocker(this)
+      } else if (wasBlock && v !== 'block') {
+        this.removeHitMesh()
+        PhySys.unregisterUIBlocker(this)
+      }
+    } else {
+      // 视觉块/根画布：block ⇔ panel 注册拦截（旧语义，代码构建 UI 依赖）
       if (v === 'block' && !wasBlock) PhySys.registerUIBlocker(this)
       else if (wasBlock && v !== 'block') PhySys.unregisterUIBlocker(this)
     }
@@ -244,8 +290,8 @@ export class CanvasUIComponent extends Component<Actor> {
 
   override BeginPlay() {
     // block 命中测试模式：注册到 PhySys 参与点击拦截（构造时可能组件未全挂载，BeginPlay 兜底）。
-    // markerOnly 无 panel，注册了也会被 PhySys 按 !b.panel 跳过，纯噪音 → 不注册
-    if (this._hitTest === 'block' && !this._markerOnly) PhySys.registerUIBlocker(this)
+    // marker 的载体是 hitMesh（构造时 block 已懒创建），视觉块的载体是 panel
+    if (this._hitTest === 'block') PhySys.registerUIBlocker(this)
     // 注释：每个 UI 组件（UIMarker/UIText/UIImage/Canvas）都会触发，属高频噪音
     // logger.debug(`[CanvasUIComponent] "${this.name}" BeginPlay 进入`)
     super.BeginPlay()
@@ -310,6 +356,7 @@ export class CanvasUIComponent extends Component<Actor> {
     this._worldW = w
     this._worldH = h
     this.panel?.scale.set(w, h, 1)
+    this.hitMesh?.scale.set(w, h, 1)
     this.owner.getComponent(UITransformComponent)?.setWorldSize(w, h)
   }
 
@@ -443,6 +490,8 @@ export class CanvasUIComponent extends Component<Actor> {
     super.EndPlay()
     // block 模式注销（点击拦截注册随组件销毁清理）
     if (this._hitTest === 'block') PhySys.unregisterUIBlocker(this)
+    // marker 射线 mesh 释放（marker 无 panel，须在 panel 早退之前清理）
+    this.removeHitMesh()
     if (!this.panel) return // 仅标记模式无渲染资源
     this.owner.root.remove(this.panel)
     this.texture.dispose()

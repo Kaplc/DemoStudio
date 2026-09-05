@@ -33,6 +33,9 @@ export class UIScriptComponent extends Component<Actor> {
 
   override BeginPlay() {
     super.BeginPlay()
+    // 预览世界禁脚本（World.scriptsEnabled=false）：不实例化不回调，预览呈现纯静态结构；
+    // 置于 script 空校验之前，预览下连"未配置 script"的 hover 态组件警告也不产生
+    if (this.owner.world && !this.owner.world.scriptsEnabled) return
     if (!this.script) {
       logger.warn(`[UIScriptComponent] "${this.owner.name}" 未配置 script，跳过`)
       return

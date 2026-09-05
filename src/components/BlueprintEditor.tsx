@@ -59,6 +59,8 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   const previewMgrRef = useRef<BlueprintPreviewManager | UIPreviewManager | null>(null)
   const [previewReady, setPreviewReady] = useState(false)
   const [saving, setSaving] = useState(false)
+  /** 保存中止的可见报错（如属性基线缺失拒绝写入） */
+  const [saveError, setSaveError] = useState<string | null>(null)
   /** 撤销/重做按钮可用状态与忙碌标记（historyVersion 递增触发重查） */
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
@@ -428,6 +430,7 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
     if (!mgr || !data || saving) return
 
     setSaving(true)
+    setSaveError(null)
     try {
       // 记住当前摄像机位姿 + 选中节点，供 useEffect 重建预览后恢复
       pendingCamRef.current = {
@@ -437,8 +440,15 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       const sel = getSelectedActor()
       pendingSelectRef.current = sel ? sel.root.name : null
 
-      // 保存前先把预览内存态同步进工作副本（拖动松手已同步，此处兜底），再 flush 落盘
-      const saveData = mgr.collectSaveData()
+      // 保存前先把预览内存态同步进工作副本（拖动松手已同步，此处兜底），再 flush 落盘。
+      // 基线缺失等异常状态 collectSaveData 直接抛错 → 保存中止并可见报错，绝不硬写入
+      let saveData: Record<string, unknown> | null
+      try {
+        saveData = mgr.collectSaveData()
+      } catch (e) {
+        setSaveError(`保存已中止：${(e as Error).message}`)
+        return
+      }
       if (saveData) BlueprintEditorService.updateFromPreview(assetPath, saveData as unknown as BlueprintAsset)
       const r = await BlueprintEditorService.save(assetPath)
       if (!r.ok) console.error('[BlueprintEditor] 保存失败:', r.error)
@@ -536,6 +546,18 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
           ) : null}
           {saving ? '保存中' : '保存'}
         </button>
+        {saveError && (
+          <span
+            title={saveError}
+            style={{
+              fontSize: 11, color: 'var(--error)', marginLeft: 8,
+              maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+            onClick={() => setSaveError(null)}
+          >
+            ⚠ {saveError}
+          </span>
+        )}
       </div>
 
       {/* 主体：全屏预览视口 */}

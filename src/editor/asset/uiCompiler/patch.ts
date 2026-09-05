@@ -366,13 +366,15 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
         nodeEntry[base] = { ...(nodeEntry[base] ?? {}), ...diffEntries }
         region[nodeName] = nodeEntry
         if (regionEl) {
-          if (regionEl.rawStart === undefined || regionEl.rawEnd === undefined) {
+          // 整个元素替换为规范形（与反编译输出一致；raw 内容区间替换会把
+          // <properties> 后的换行/缩进吃掉导致标签粘连）
+          if (regionEl.start === undefined || regionEl.end === undefined) {
             throw new PatchBail('<properties> 参数区缺少源偏移')
           }
           edits.push({
-            start: regionEl.rawStart,
-            end: regionEl.rawEnd,
-            text: formatRegionContent(region),
+            start: regionEl.start,
+            end: regionEl.end,
+            text: `<${PROPS_REGION_TAG}>\n${formatRegionContent(region)}\n  </${PROPS_REGION_TAG}>`,
             desc: `${label(el)} ${base} → 参数区重写（${paths.join(', ')}）`,
           })
         } else {
@@ -457,17 +459,22 @@ export function patchWidgetHtmlInPlace(source: string, newDoc: DocNode): PatchRe
             if (oldP.anchor) relaxAnchorNames.add(nodeName)
             descs.push(`${label(el)} 锚点偏移增量（Δ${round4(num2((newP.anchorOffset as number[] | undefined)?.[0]) - num2((oldP.anchorOffset as number[] | undefined)?.[0]))}, Δ${round4(num2((newP.anchorOffset as number[] | undefined)?.[1]) - num2((oldP.anchorOffset as number[] | undefined)?.[1]))}）`)
           } else if (oldPos[0] !== newPos[0] || oldPos[1] !== newPos[1]) {
-            // 锚定元素（编译器对绝对定位元素一律发射 anchor）的 position 恒为 [0,0,0]、
-            // 摆放编码在 anchor+anchorOffset——position 无法被重编译复现，回退整篇反编译
-            if (oldP.anchor) throw new PatchBail('锚定元素 position 为编译派生值（锚点系统驱动）')
-            if (!posDecl || !/^(absolute|fixed)$/.test(posDecl.value.trim())) {
+            if (oldP.anchor) {
+              // 锚定元素的 position 是锚点系统的运行时派生值（applyAnchor 每帧回写真实
+              // 位置，与编译产物 [0,0,0] 编码不同源；collectSaveData 无条件回写 position
+              // → 真实保存链路必然出现此差分）：跳过写回 + 验证对该节点豁免。
+              // 真实的摆放变化经 anchorOffset 增量路径（上方分支）处理，不受影响。
+              relaxAnchorNames.add(nodeName)
+              descs.push(`${label(el)} 锚定元素 position 为派生值（跳过，验证豁免）`)
+            } else if (!posDecl || !/^(absolute|fixed)$/.test(posDecl.value.trim())) {
               // flex/grid 子项的 position 由布局求解器派生：width/height 声明补丁后
               // 重编译自会重排（运行时 UILayout 同式），跳过即可，验证环节兜底
               descs.push(`${label(el)} position 为布局派生值（交给重编译重算）`)
               return
+            } else {
+              deltaLenDecl(el, 'left', newPos[0] - oldPos[0])
+              deltaLenDecl(el, 'top', -(newPos[1] - oldPos[1]))
             }
-            deltaLenDecl(el, 'left', newPos[0] - oldPos[0])
-            deltaLenDecl(el, 'top', -(newPos[1] - oldPos[1]))
           }
           if (dW !== 0 || dH !== 0) {
             // 尺寸：worldWidth/Height ← width/height 声明（盒模型边距不变时线性）。

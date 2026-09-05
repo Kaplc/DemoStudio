@@ -23,6 +23,7 @@ import { TransformComponent } from '../../engine/entity/TransformComponent'
 import { select, notifySelectionChange } from '../SelectionManager'
 import { TransformGizmo } from '../TransformGizmo'
 import { AssetPreviewManager } from './AssetPreviewManager'
+import { PreviewSaveCollector } from './PreviewSaveCollector'
 import { BlueprintEditorService } from '../blueprintEdit/BlueprintEditorService'
 import { runOp as ops_runOp } from '../blueprintEdit/BlueprintEditorService'
 import { UndoManager } from '../blueprintEdit/UndoManager'
@@ -63,6 +64,9 @@ export class BlueprintPreviewManager {
 
   /** Actor → JSON 节点映射（以对象引用为 key），由 loadBlueprint 在 spawn 后构建 */
   private _actorJsonMap: Map<Actor, Record<string, unknown>> | null = null
+
+  /** 保存收集器（全量模式：3D 蓝图无基线差量语义，persistentProps 原样合入） */
+  private _saveCollector = new PreviewSaveCollector()
 
   // ─── 撤回系统（与 ScenePreviewManager 同构：内存栈 + 原地回滚，不重建预览）───
   /** 撤销栈 key（asset/...，activate 时建立；UndoManager 全局共享） */
@@ -135,6 +139,8 @@ export class BlueprintPreviewManager {
     // 必须先建 World：SceneComponent 持有 actor 挂载场景，预览场景直接复用 world.scene，
     // 保证渲染/大纲遍历与 actor 挂载在同一个 THREE.Scene（否则大纲看不到节点、预览渲染为空）
     this.world = new World()
+    // 预览世界禁脚本（World.scriptsEnabled）：运行时脚本按业务上下文改 UI 显隐/文案，预览态没有该上下文会误伤
+    this.world.scriptsEnabled = false
 
     // ─── 预览对象工厂：编辑器预览独立 THREE 创建器（不依赖 GameInstance）───
     // 组件工厂（Mesh 组件等）经 ThreeObjectUtils 自动分流到本工厂，对象由本组件追踪，
@@ -469,22 +475,8 @@ export class BlueprintPreviewManager {
       const jsonNode = actor ? this._actorJsonMap.get(actor) : undefined
       if (!actor || !jsonNode) continue
 
-      // ─── 通用组件属性持久化：扫描每个组件可编辑属性写回 JSON ───
-      const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
-      for (const comp of actor.getAllComponents() as ActorComponent[]) {
-        if (!comp.persistType) continue
-        // 跳过运行时自动生成的内部组件（如 UIButton 透明点击层 UIImageComponent，isClickOnly=true）：
-        // 不写进资产，避免保存后出现重复 image 组件
-        if ((comp as unknown as { isClickOnly?: boolean }).isClickOnly) continue
-        const target = jsonComps.find((c) => c.baseClass === comp.persistType)
-        if (!target) continue
-        const props = (target.properties ?? {}) as Record<string, unknown>
-        const persist = comp.getPersistentProps()
-        // 合入（不删除现有键，避免丢失 JSON 中只读/代码配置的属性）
-        for (const [k, v] of Object.entries(persist)) {
-          props[k] = v
-        }
-      }
+      // ─── 通用组件属性持久化（全量合入，行为与基线抽取前一致）───
+      this._saveCollector.writeComponentProps(actor, jsonNode)
 
       // 组件优先：含 transform/uitransform 组件的节点，位置/旋转/缩放只写在组件 properties，
       // 顶层 position/rotation/scale 冗余字段直接删除（引擎加载时组件为权威，无需兜底）
@@ -498,6 +490,7 @@ export class BlueprintPreviewManager {
       delete jsonNode.position
       delete jsonNode.rotation
       delete jsonNode.scale
+      const jsonComps = (jsonNode.components as Array<Record<string, any>> | undefined) ?? []
       const target = jsonComps.find((c) => c.baseClass === 'TransformComponent' || c.baseClass === 'UITransformComponent')
       if (target) {
         const props = (target.properties ?? {}) as Record<string, unknown>
