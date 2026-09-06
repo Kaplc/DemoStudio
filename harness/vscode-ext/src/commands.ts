@@ -2,7 +2,7 @@
  * 命令面板命令注册。
  *
  * M1+ 接入：
- * - 5 个引擎命令接入 EngineBridge（startEngine/stopEngine/startGame/stopGame/checkUpdate）
+ * - 3 个引擎命令接入 EngineBridge（startEngine/stopEngine/checkUpdate）
  * - 内核重启接 KernelManager
  * - 用户消息上行接 AgentExecutor（M3 简化路径）或 KernelAdapter.send（M2 路径）
  */
@@ -90,20 +90,6 @@ export function registerCommands(deps: CommandDeps): vscode.Disposable[] {
     statusBar.setEngineStatus('stopped')
     chatView.postMessage({ type: 'status', payload: { kernelStatus: 'disconnected', gameRunning: false } })
     vscode.window.showInformationMessage('DemoStudio 编辑器已断开')
-  }))
-
-  subs.push(vscode.commands.registerCommand('dsh.startGame', async () => {
-    const result = await bridge.callTool('start_game')
-    vscode.window.showInformationMessage(`启动游戏: ${JSON.stringify(result)}`)
-    statusBar.setEngineStatus('gameRunning')
-    chatView.postMessage({ type: 'status', payload: { gameRunning: true } })
-  }))
-
-  subs.push(vscode.commands.registerCommand('dsh.stopGame', async () => {
-    const result = await bridge.callTool('stop_game')
-    vscode.window.showInformationMessage(`停止游戏: ${JSON.stringify(result)}`)
-    statusBar.setEngineStatus('running')
-    chatView.postMessage({ type: 'status', payload: { gameRunning: false } })
   }))
 
   subs.push(vscode.commands.registerCommand('dsh.restartKernel', async () => {

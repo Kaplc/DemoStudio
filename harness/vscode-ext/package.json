@@ -44,16 +44,6 @@
         "category": "DSH"
       },
       {
-        "command": "dsh.startGame",
-        "title": "DSH: 启动游戏",
-        "category": "DSH"
-      },
-      {
-        "command": "dsh.stopGame",
-        "title": "DSH: 停止游戏",
-        "category": "DSH"
-      },
-      {
         "command": "dsh.restartKernel",
         "title": "DSH: 重启内核",
         "category": "DSH"

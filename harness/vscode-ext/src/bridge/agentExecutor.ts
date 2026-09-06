@@ -2,7 +2,7 @@
  * AgentExecutor：把 KernelAdapter 用户消息 → 工具调用循环 → 事件流输出回 KernelAdapter。
  *
  * 工作流（最简化版，无 LLM 推理）：
- * 1. 用户消息 → 启发式匹配工具名（如 "启动游戏" → start_game via run_scenario）
+ * 1. 用户消息 → 启发式匹配工具名（如 "启动游戏" → run_scenario）
  *    注：真 LLM 推理由 DSH runtime 在子进程内完成（未来 M3.5）
  *    本 executor 在 DSH 0.1.x 上线前作为"工具模拟器"，验证 EngineBridge + Plugin + 工具调用闭环
  * 2. 经 EngineBridge 调工具，结果回流到 KernelAdapter 事件流

@@ -315,17 +315,6 @@ export const cdpTools = [
     },
   },
   {
-    name: 'cdp_screenshot',
-    description: '截取编辑器页面的屏幕截图，返回 Base64 编码的 PNG 图片。',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        selector: { type: 'string', description: '截取该元素（省略则截全屏）' },
-        targetId: { type: 'string', description: '目标 tab 的 targetId' },
-      },
-    },
-  },
-  {
     name: 'cdp_list_tabs',
     description: '列出 CDP 可操控的所有浏览器 tab（含 targetId、URL、标题），用于选择操作目标。',
     inputSchema: {
@@ -728,31 +717,6 @@ export async function handleCdpTool(name, args = {}) {
           })
         }
         return wrapResult({ status: 'ok', scrolled: { deltaY: dy, deltaX: dx, selector: args.selector || '(page)' } })
-      }
-
-      // ─── 截图 ───
-      case 'cdp_screenshot': {
-        const conn = await getPageConnection(targetId, port)
-        let params = { format: 'png' }
-
-        if (args.selector) {
-          await injectHelper(conn.ws)
-          const evalResult = await sendCdp(conn.ws, 'Runtime.evaluate', {
-            expression: `(function() {
-              const el = window.__mcp_findEl(${JSON.stringify(args.selector)});
-              if (!el) return JSON.stringify({ error: '元素未找到' });
-              const r = el.getBoundingClientRect();
-              return JSON.stringify({ x: r.x, y: r.y, w: r.width, h: r.height });
-            })()`,
-            returnByValue: true,
-          })
-          const rect = JSON.parse(evalResult.result.value)
-          if (rect.error) return wrapError(rect.error)
-          params.clip = { x: rect.x, y: rect.y, width: rect.w, height: rect.h, scale: 1 }
-        }
-
-        const screenshot = await sendCdp(conn.ws, 'Page.captureScreenshot', params)
-        return wrapResult({ status: 'ok', data: screenshot.data, encoding: 'base64/png' })
       }
 
       // ─── 页面状态仪表盘 ───

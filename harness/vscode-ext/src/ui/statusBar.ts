@@ -63,12 +63,12 @@ export class StatusBarManager implements vscode.Disposable {
   /** 更新引擎状态 */
   setEngineStatus(status: EngineStatus): void {
     this.currentEngineStatus = status
-    const map: Record<EngineStatus, { icon: string; text: string; cmd: string; tip: string }> = {
+    const map: Record<EngineStatus, { icon: string; text: string; cmd: string | undefined; tip: string }> = {
       unknown:     { icon: '$(circle-outline)', text: 'DSH: 引擎未启动',     cmd: 'dsh.startEngine', tip: '点击启动 DemoStudio 编辑器' },
       stopped:     { icon: '$(circle-slash)',   text: 'DSH: 引擎已停止',     cmd: 'dsh.startEngine', tip: '点击启动 DemoStudio 编辑器' },
       starting:    { icon: '$(sync~spin)',      text: 'DSH: 引擎启动中...',  cmd: 'dsh.stopEngine',  tip: '启动中...' },
       running:     { icon: '$(check)',          text: 'DSH: 编辑器运行中',   cmd: 'dsh.stopEngine',  tip: '点击停止编辑器' },
-      gameRunning: { icon: '$(play)',           text: 'DSH: 游戏运行中',     cmd: 'dsh.stopGame',    tip: '点击停止游戏' }
+      gameRunning: { icon: '$(play)',           text: 'DSH: 游戏运行中',     cmd: undefined,         tip: '游戏运行中' }
     }
     const m = map[status]
     this.engineItem.text = `${m.icon} ${m.text}`

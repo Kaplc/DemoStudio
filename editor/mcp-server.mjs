@@ -133,26 +133,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: 'start_game',
-      description:
-        '启动游戏（Launch）。可选 project 参数指定工程名（自动切换/打开目标工程后启动）。' +
-        "返回 status:'ok' 表示已触发启动（启动为异步，稍后可用 cdp_dashboard_status 确认页面状态）。",
-      inputSchema: {
-        type: 'object',
-        properties: {
-          project: { type: 'string', description: '目标工程名（可选，缺省=当前打开的工程）' },
-        },
-      },
-    },
-    {
-      name: 'stop_game',
-      description: '停止当前运行中的游戏（Stop）。',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-      },
-    },
-    {
       name: 'get_assets',
       description:
         '获取当前工程的资产浏览器文件列表（所有 .json/.ts/.html 等资源文件）。' +
@@ -232,16 +212,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (name === 'run_asset_lint') {
     const result = await callEditor('run_asset_lint', args?.project ? { project: args.project } : {})
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
-  }
-
-  if (name === 'start_game') {
-    const result = await callEditor('start_game', args?.project ? { project: args.project } : {})
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
-  }
-
-  if (name === 'stop_game') {
-    const result = await callEditor('stop_game', {})
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
   }
 

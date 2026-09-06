@@ -331,8 +331,7 @@ export function registerGlobalEventListeners(callbacks: {
       mcpCleanup = window.electronAPI.onMCPCommand(async (command, params, requestId) => {
         addConsoleOutput(`[MCP] 收到命令: ${command}`)
         switch (command) {
-          case 'launchGame':
-          case 'start_game': {
+          case 'launchGame': {
             // 支持指定项目启动：params.project = 项目名（AI 测试指定场景用）
             // 否则无项目时自动选中第一个可用项目（页面重载后项目状态会丢失）。
             // 切换项目会触发 Viewport 的停止流程（异步 effect），等待其完成再启动，避免竞争
@@ -346,7 +345,7 @@ export function registerGlobalEventListeners(callbacks: {
                 addConsoleOutput(`[MCP] 切换项目: ${target.name}`)
                 needWait = true
               } else {
-                addConsoleOutput(`[MCP] start_game: 未找到项目 "${targetName}"`)
+                addConsoleOutput(`[MCP] launchGame: 未找到项目 "${targetName}"`)
                 break
               }
             } else if (!cur) {
@@ -356,7 +355,7 @@ export function registerGlobalEventListeners(callbacks: {
                 addConsoleOutput(`[MCP] 自动选中项目: ${first.name}`)
                 needWait = true
               } else {
-                addConsoleOutput('[MCP] start_game: 无可用项目')
+                addConsoleOutput('[MCP] launchGame: 无可用项目')
                 break
               }
             }
@@ -364,15 +363,14 @@ export function registerGlobalEventListeners(callbacks: {
             onLaunchGame()
             if (requestId) {
               const name = useEditorStore.getState().currentProject?.name ?? ''
-              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'start_game', project: name, message: `已触发启动（${name}）` })
+              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'launchGame', project: name, message: `已触发启动（${name}）` })
             }
             break
           }
           case 'stopGame':
-          case 'stop_game':
             onStopGame()
             if (requestId) {
-              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'stop_game', message: '已触发停止' })
+              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'stopGame', message: '已触发停止' })
             }
             break
           case 'toggle_game':
