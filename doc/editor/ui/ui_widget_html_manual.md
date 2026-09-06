@@ -47,9 +47,9 @@
 [toast.widget.html](../../../src/projects/fish/asset/blueprints/ui/toast.widget.html) 是仓库里最小的合法 widget，全文 9 行：
 
 ```html
-<widget name="Toast" canvas="960x180" anchor="top-center" offset="0,110">
+<widget name="Toast" canvas="1920x1080">
   <style>
-    .ToastPanel { width: 960px; height: 180px; position: absolute; left: 0px; top: 0px; background-color: #3a2418eb; border-radius: 24px; }
+    .ToastPanel { width: 960px; height: 180px; position: absolute; left: 480px; top: 110px; display: flex; justify-content: center; align-items: center; background-color: #3a2418eb; border-radius: 24px; }
     .ToastText { width: 920px; height: 160px; z-index: 1; font-size: 28px; color: #f5e6c8; text-align: center; font-weight: bold; text-shadow: 1px 2px 4px #00000099; }
   </style>
     <div class="ToastPanel">
@@ -57,6 +57,8 @@
     </div>
 </widget>
 ```
+
+注意根的写法：**根 = 全屏 1920×1080 画布（默认全锚），位置自定义写在根内子元素**（这里 `ToastPanel` 用 `position: absolute` 钉在顶部居中）。不要在 `<widget>` 根上写 `anchor`/`offset`（§2，lint 会报 error）。
 
 **class 名就是节点名**（§5）。`<style>` 里的 CSS 支持级联/继承/选择器全套（§3）。注意它的 `<text>` 是**空标签**——游戏里文案由脚本填，源里只占位。
 
@@ -73,7 +75,7 @@
 | `name` | ✅ | 根 Actor 名 |
 | `canvas` | ✅ | 画布像素尺寸，**你的 CSS 都按这个坐标系写**。全屏 1920x1080，小件自定（如 480x90） |
 | `world` | 已废弃 | **不要再写**。UI 世界单位 = 设计像素（canvas 即世界），写了也只是告警并忽略 |
-| `anchor` / `offset` | 可选 | 根锚点（如 `top-center`）+ 偏移（px）。全屏面板不用写（铺满即可） |
+| `anchor` / `offset` | **禁止** | **不要写**。根节点默认全屏全锚，位置自定义写在根内子元素；根上写 anchor 在游戏内顶层生成时无父容器可解算，`applyAnchor` 会静默跳过（编辑器预览有容器所以看不出来），lint 规则 `ui:root-anchor` 直接报 error |
 | `data-script` | 可选 | 面板行为脚本，挂根节点（§6） |
 | `data-comp` / `data-props` | 可选（迁移期） | 根 Actor 组件声明的**旧通道**，仍可编译。组件参数现在推荐写 `<properties>` 参数区（见 §2.1）；反编译会把根级组件还原进参数区。写在 body 元素上的 `data-comp` 挂的是该元素对应的**子 Actor**，根级组件必须写在 `<widget>` 标签上 |
 | `active="false"` | 可选 | 根默认隐藏（脚本控制显示时用） |
@@ -95,26 +97,9 @@ if (!cm) throw new CompileFail(`<widget> canvas 属性格式应为 "宽x高"（�
 
 `name` 缺了直接报错——它是根节点名，脚本按名字找控件的前提。`canvas` 有默认值（全屏），但**强烈建议显式写**：缺省时你按 960 宽度写的 CSS 会被当成 1920 画布解算，所有尺寸差一倍。
 
-`anchor` 与 `offset` 是**成对**的，写了 `anchor` 才会去解析 `offset`（`compile.ts:578`）：
+`anchor` 与 `offset` 是**成对**的，写了 `anchor` 才会去解析 `offset`（`compile.ts:578`）——但**这对属性已经禁止用在根上**（lint `ui:root-anchor` 报 error）。原因：编译产物会把 anchor 带进根 Actor，而游戏内顶层生成（HUDClass / `spawnUIActor` 默认挂 HUD）时根的父级是无尺寸的 HUD Actor，运行时 `applyAnchor` 向上找不到父容器会**静默跳过**——编辑器预览有预览容器所以看不出来，进游戏位置就错乱（hoi4 TopBar 跑到屏幕正中的实锤根因）。
 
-```ts
-const rootAnchor = root.attrs['anchor']
-if (rootAnchor) {
-  rootTfProps.anchor = rootAnchor
-  const off: [number, number] = [0, 0]
-  const rootOffset = root.attrs['offset']
-  if (rootOffset) {
-    const parts = rootOffset.split(',').map((s) => parseFloat(s.trim()))
-    if (parts.length !== 2 || parts.some((v) => !Number.isFinite(v))) {
-      throw new CompileFail(`<widget> offset 属性格式应为 "x,y"（px）`, root.line)
-    }
-    off[0] = round4(parts[0]); off[1] = round4(parts[1])
-  }
-  rootTfProps.anchorOffset = off
-}
-```
-
-**只写 `offset` 不写 `anchor` 是无效的**——`offset` 的解析整体嵌在 `if (rootAnchor)` 里，会被静默跳过。这是最容易踩的静默失效，不报错但位置不对。
+**正确姿势**：根保持全屏（canvas 默认 1920×1080）= 默认全锚；想钉在顶部/角落的条条框框，写成一个 `position: absolute; left/top` 定位的根内子元素，编译器会把它映射成子元素九宫格锚点（`position:absolute + left/top` ↔ anchor + anchorOffset，相对全屏根画布在运行时解算，必然生效）。列表 item / 跟随型小控件的精确尺寸根不受此规则约束（它们不带 anchor，由父容器定位）。
 
 `active="false"` 直接反映到根 Actor（[compile.ts:601](#)）：
 
@@ -640,9 +625,9 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 现象：外框+内衬想做嵌套效果，结果内衬跑到画布外。原因：块级流下兄弟元素**垂直堆叠**，不是叠加。规则：**嵌套** div（外框包内衬 + 内衬 `margin: (框厚)px auto`）。
 
-**5. 只写 `offset` 不写 `anchor`，位置静默失效**
+**5. 根上写 `anchor`/`offset`，编辑器预览正常、游戏内位置错乱（现 lint 报 error）**
 
-现象：设了偏移但元素没动，且不报错。原因：`offset` 的解析整体嵌在 `if (rootAnchor)` 块内（§2），没有 `anchor` 就整段跳过。规则：`anchor` 和 `offset` 必须成对写。
+现象：`anchor="top-center"` 写在 `<widget>` 根上，编辑器预览位置正确，进游戏控件跑到屏幕正中。原因：游戏内顶层生成时根的父级是无尺寸 HUD Actor，`applyAnchor` 找不到父容器静默跳过，锚点不生效；预览有容器所以看不出来。规则：**根默认全屏全锚，位置自定义写在根内子元素**（`position: absolute` + left/top）；lint 规则 `ui:root-anchor` 对根 anchor 直接报 error。历史上的衍生坑"只写 `offset` 不写 `anchor`"（解析嵌在 `if (rootAnchor)` 里整段静默跳过）随根锚点一起废除。
 
 **6. 写了 `@keyframes` 做动画，编译直接失败**
 

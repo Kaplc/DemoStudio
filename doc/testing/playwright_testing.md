@@ -300,6 +300,22 @@ handleHotUpdate({ file }) {
 
 原因：文档示例代码常含 `.md` 链接占位，不剥离代码块会被当真实断链。规则：校验脚本必须**先剥离 ``` 围栏**再检测；PowerShell 里反引号是转义符，正则用字符类 `[\`]` 或 `[char]96` 表示。
 
+**16. CDP `:9222` 是僵尸监听，真实端口在 DevToolsActivePort**
+
+现象：`netstat` 显示 9222 LISTENING 但连接 ECONNREFUSED；`demostudio` MCP 的 `cdp_*` 工具却正常。原因：多实例/重启后 Electron 的 CDP 端口漂移，9222 残留半死监听。规则：自写 CDP 脚本先读 `%APPDATA%/demostudio/DevToolsActivePort` 首行拿真实端口（`editor/mcp-cdp.mjs` 的 `resolveCdpPort` 同逻辑）；MCP 工具内部已自动解析可直接用。
+
+**17. `ai.getActor` 对 HUD/动态 UI 子树的 children 不稳定**
+
+现象：同一 Actor 有时 children 返回完整树、有时返回空数组（sceneOutline 亦然）。规则：树形断言不可靠，**组件状态一律走 `ai.getComponent`**（`actor` 参数是名称，`component` 是构造类名）读属性值；存在性用 `results[0].ok === true` 判。
+
+**18. overflow 滚动容器 + 运行时 spawn 行 = 三个连环坑，动态等大行列表用 UIScrollListComponent**
+
+现象：`overflow-y:auto` 容器运行时 `spawnUIActor` 填充国家/外交行——① 行挂到 `_ScrollContent` 还是内层排版容器易挂错；② `_ScrollContent` 的 UITransform 是**编译期死值**（空内容 660×1），运行时加行不更新 → `maxScroll=0` 永不能滚；③ UILayout `justify` 缺省 `center`，内容超框时列表垂直居中、起点跑到负 y。规则：**编译期未知数量的等大 item 列表一律用 `data-comp="UIScrollList"` 对象池**（`itemWidget`+`itemSize`+`spacing`，脚本设 `totalCount` + `onItemSpawned(row, idx)` 填内容，见 `gm_panel.widget.html` / HOI4 CountrySelect）；`overflow` 静态方案只用于编译期已知内容。另注意池化 item 会被复用换绑数据，回调里按 actor 引用清理旧映射，且不得在脚本 onDestroy 里销毁池 item。
+
+**19. 页面重载后 UI 点 Launch 可能启动错误工程**
+
+现象：编辑器页被 HMR/会话恢复重载后，UI 点「▶ Launch」启动的不是当前选中的工程卡片（store 状态错位），且主进程 `:9877` 的 `start_game` 转发可能 504。规则：Launch 前先核对顶部栏工程名与 Inspector 的 Name 一致；`start_game` 504 时先 `curl :9877/api/status` 探活（504=渲染进程命令超时，非端口死）；重启游戏验证相机/首屏类断言时，Launch 后等 bootstrap 日志出现再读状态。
+
 ---
 
 ## 7. 边界条件
