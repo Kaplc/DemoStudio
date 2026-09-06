@@ -75,4 +75,10 @@ export interface SceneAsset {
   objects: SceneNode[]
   /** 天空盒/背景/雾效配置（可选） */
   skybox?: SkyboxConfig
+  /**
+   * 物理重力加速度 [x, y, z]（可选；缺省/字段缺省 = 引擎默认 [0,0,0] 俯视角零重力，
+   * fish 等既有场景不受影响）。第三人称场景如 arena 填 [0, -20, 0]。
+   * loadSceneAsActors 应用到 world.physics。
+   */
+  gravity?: Vec3
 }

@@ -1,0 +1,7 @@
+{
+  "_comment": "HOI4-like 国家 AI 权重（单例）。civMilRatio=民厂/军厂低于该比值先补民厂；\ntrainEquipmentBuffer=库存装备≥模板需求×该值才继续排训练；attackAdvantage=发起进攻的本地战力比；defendRatio=边境留守比例。",
+  "civMilRatio": 2.0,
+  "trainEquipmentBuffer": 1.5,
+  "attackAdvantage": 1.6,
+  "defendRatio": 0.6
+}

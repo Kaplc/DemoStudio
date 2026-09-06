@@ -1,0 +1,9 @@
+{
+  "name": "Arena",
+  "description": "第三人称动作 Roguelite 竞技场 — 引擎深水区测试场（doc-dev/game-demo-arena-roguelite）",
+  "version": "0.1.0",
+  "main": "src/projects/arena/index.ts",
+  "tags": ["game", "action", "3d"],
+  "renderMode": "3d",
+  "defaultScene": "src/projects/arena/asset/arena_room1.scene.json"
+}

@@ -132,14 +132,17 @@ export class ConfigRegistry {
    * name 规则：`{projectName}.{文件名}`（cannon.config.json → fish.cannon）。
    * 需归一化的字段先经 registerConfigTransform / registerTableTransform 注册 transform
    * （须在本方法之前调用，加载为 fire-and-forget 异步，读取期间 transform 已就绪）。
+   * basePath：配置目录相对仓库根路径。内置工程默认 `src/projects/<name>/asset/config`；
+   * 外部根工程（projects/<name>）显式传 `projects/<name>/asset/config`（read-json-file 无根限制）。
    */
-  static registerGlob(projectName: string, modules: ConfigGlobModules): void {
+  static registerGlob(projectName: string, modules: ConfigGlobModules, basePath?: string): void {
+    const base = basePath ?? `src/projects/${projectName}/asset/config`
     let configCount = 0
     for (const key of Object.keys(modules.configModules ?? {})) {
       if (!key.endsWith('.config.json')) continue
       const rel = key.replace(/^\.\//, '')
       const name = `${projectName}.${rel.replace(/\.config\.json$/, '')}`
-      const path = `src/projects/${projectName}/asset/config/${rel}`
+      const path = `${base}/${rel}`
       void this.loadConfig(name, path, this.configTransforms.get(name) as ((raw: any) => unknown) | undefined)
       configCount++
     }
@@ -148,11 +151,11 @@ export class ConfigRegistry {
       if (!key.endsWith('.table.json')) continue
       const rel = key.replace(/^\.\//, '')
       const name = `${projectName}.${rel.replace(/\.table\.json$/, '')}`
-      const path = `src/projects/${projectName}/asset/config/${rel}`
+      const path = `${base}/${rel}`
       void this.loadTable(name, path, this.tableTransforms.get(name) as ((row: any, rowName: string) => unknown) | undefined)
       tableCount++
     }
-    logger.info(`[ConfigRegistry] registerGlob(${projectName}): config=${configCount}, table=${tableCount}`)
+    logger.info(`[ConfigRegistry] registerGlob(${projectName} @ ${base}): config=${configCount}, table=${tableCount}`)
   }
 
   // ═════════ 热更新 / 清理 ═════════

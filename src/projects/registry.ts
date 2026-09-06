@@ -46,6 +46,7 @@ export interface ProjectModule {
 
 import { demo2DProject } from './demo2d/register'
 import { fishMasterProject } from './fish/register'
+import { arenaProject } from './arena/register'
 
 // ─── 外部工程根（仓库根下 projects/）自动收集 ───
 // 内置工程走上方静态 import（ALL_PROJECTS 数组），外部工程走本 glob 动态并入同一个注册表。
@@ -78,6 +79,7 @@ for (const [globPath, mod] of Object.entries(externalModules)) {
 const ALL_PROJECTS: ProjectModule[] = [
   demo2DProject,
   fishMasterProject,
+  arenaProject,
 ]
 
 // 外部并入：同名（ProjectModule.name 相同）覆盖内置并告警（刻意支持"复制 fish 到 projects/

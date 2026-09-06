@@ -1,0 +1,60 @@
+<widget name="FocusTreePanel" canvas="1920x1080" active="false" data-script="gameplay/ui/FocusTreePanel">
+  <style>
+    .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #0b1018c0; }
+    .Panel { width: 1420px; height: 940px; margin: 40px auto; display: flex; flex-direction: column; align-items: center; background-color: #1d2733; border: 2px solid #3a4a5c; border-radius: 18px; hit-test: block; }
+    .Head { width: 1360px; height: 56px; margin-top: 14px; display: flex; flex-direction: row; align-items: center; }
+    .Title { width: 560px; height: 44px; font-size: 28px; color: #e0a83c; text-align: left; font-weight: bold; }
+    .InfoText { width: 560px; height: 36px; font-size: 17px; color: #8fa3b8; text-align: right; }
+    .Btn_close { width: 110px; height: 44px; margin-left: 20px; display: flex; justify-content: center; align-items: center; background-color: #7a3a38; border-radius: 10px; }
+    .Btn_close:hover { background-color: #964644; }
+    .Label_close { width: 84px; height: 28px; font-size: 18px; color: #ffe4e0; text-align: center; }
+    .Tree { width: 1160px; height: 830px; margin-top: 10px; overflow-y: auto; }
+    .TreeInner { position: relative; left: 0px; top: 0px; width: 1160px; height: 830px; }
+    .LineV { position: absolute; width: 6px; height: 80px; background-color: #4a5c70; }
+    .Node { position: absolute; width: 200px; height: 90px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #31445c; border-radius: 12px; }
+    .NodeName { width: 180px; height: 52px; font-size: 17px; color: #e8eef5; text-align: center; }
+    .NodeDays { width: 180px; height: 24px; font-size: 14px; color: #a8bac9; text-align: center; }
+  </style>
+  <div class="Dim"></div>
+  <div class="Panel">
+    <div class="Head">
+      <text class="Title">国策树</text>
+      <text class="InfoText" data-name="InfoText"></text>
+      <button class="Btn_close" data-name="Btn_close"><text class="Label_close">关闭</text></button>
+    </div>
+    <div class="Tree">
+      <div class="TreeInner">
+        <div class="LineV" style="left: 137px; top: 130px;"></div>
+        <div class="LineV" style="left: 137px; top: 300px;"></div>
+        <div class="LineV" style="left: 357px; top: 130px;"></div>
+        <div class="LineV" style="left: 357px; top: 300px;"></div>
+        <div class="LineV" style="left: 577px; top: 130px;"></div>
+        <div class="LineV" style="left: 577px; top: 300px;"></div>
+        <div class="LineV" style="left: 797px; top: 130px;"></div>
+        <div class="LineV" style="left: 797px; top: 300px;"></div>
+        <div class="LineV" style="left: 1017px; top: 130px;"></div>
+        <div class="LineV" style="left: 1017px; top: 300px;"></div>
+        <div class="LineV" style="left: 1017px; top: 470px;"></div>
+        <div class="LineV" style="left: 1017px; top: 640px;"></div>
+
+        <button class="Node" data-name="F_political_focus" style="left: 40px; top: 40px;"><text class="NodeName">政治聚焦</text><text class="NodeDays">35 天 · 政治点+120</text></button>
+        <button class="Node" data-name="F_propaganda" style="left: 40px; top: 210px;"><text class="NodeName">宣传攻势</text><text class="NodeDays">70 天 · 战争支持+10</text></button>
+        <button class="Node" data-name="F_total_mobilization_prep" style="left: 40px; top: 380px;"><text class="NodeName">总动员准备</text><text class="NodeDays">70 天 · 人力+100k</text></button>
+        <button class="Node" data-name="F_industrial_mobilization" style="left: 260px; top: 40px;"><text class="NodeName">工业动员</text><text class="NodeDays">70 天 · 民厂+2</text></button>
+        <button class="Node" data-name="F_infrastructure_investment" style="left: 260px; top: 210px;"><text class="NodeName">基础设施投资</text><text class="NodeDays">70 天 · 工业研究加速</text></button>
+        <button class="Node" data-name="F_military_industry_expansion" style="left: 260px; top: 380px;"><text class="NodeName">军工扩张</text><text class="NodeDays">70 天 · 军厂+2</text></button>
+        <button class="Node" data-name="F_research_institute" style="left: 480px; top: 40px;"><text class="NodeName">研究机构</text><text class="NodeDays">70 天 · 工业研究加速</text></button>
+        <button class="Node" data-name="F_doctrine_preparation" style="left: 480px; top: 210px;"><text class="NodeName">学说预备研究</text><text class="NodeDays">70 天 · 学说研究加速</text></button>
+        <button class="Node" data-name="F_weapons_modernization" style="left: 480px; top: 380px;"><text class="NodeName">武器现代化</text><text class="NodeDays">70 天 · 步兵研究+装备</text></button>
+        <button class="Node" data-name="F_army_reform" style="left: 700px; top: 40px;"><text class="NodeName">陆军改革</text><text class="NodeDays">70 天 · 步兵装备 2000</text></button>
+        <button class="Node" data-name="F_organization_expansion" style="left: 700px; top: 210px;"><text class="NodeName">编制改革</text><text class="NodeDays">70 天 · 炮兵研究加速</text></button>
+        <button class="Node" data-name="F_armor_program" style="left: 700px; top: 380px;"><text class="NodeName">装甲兵建设</text><text class="NodeDays">70 天 · 装甲研究加速</text></button>
+        <button class="Node" data-name="F_war_propaganda" style="left: 920px; top: 40px;"><text class="NodeName">战争宣传</text><text class="NodeDays">70 天 · 借口耗时-50%</text></button>
+        <button class="Node" data-name="F_war_economy_push" style="left: 920px; top: 210px;"><text class="NodeName">战备经济</text><text class="NodeDays">70 天 · 战支+15 稳定+5</text></button>
+        <button class="Node" data-name="F_rhineland" style="left: 920px; top: 380px;"><text class="NodeName">进军莱茵区(德)</text><text class="NodeDays">70 天 · 战支+10</text></button>
+        <button class="Node" data-name="F_eastern_claims" style="left: 920px; top: 550px;"><text class="NodeName">东方渗透(德)</text><text class="NodeDays">70 天 · 对波战争目标</text></button>
+        <button class="Node" data-name="F_western_revanche" style="left: 920px; top: 720px;"><text class="NodeName">西线复仇(德)</text><text class="NodeDays">70 天 · 对法战争目标</text></button>
+      </div>
+    </div>
+  </div>
+</widget>

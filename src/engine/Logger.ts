@@ -128,6 +128,13 @@ class LoggerInstance {
       window.electronAPI.forwardAgentLog(level, formatted)
     }
 
+    // 2.5 多订阅者监听（级别随行；__ai_console 收集器等消费方）
+    for (const cb of this._listeners) {
+      try {
+        cb(level, formatted)
+      } catch { /* 监听器异常不影响日志主链路 */ }
+    }
+
     // 3. 写入文件（Electron IPC — 已废弃，文件写入由 console-message 监听承载）
     // if (this.enableFile && ...) { ... }
 
@@ -170,6 +177,19 @@ class LoggerInstance {
   /** 设置 Console 面板输出回调 */
   setOutputCallback(cb: (text: string) => void) {
     this.onOutput = cb
+  }
+
+  // ─── 多订阅者日志监听（__ai_console 收集器等；级别随行）───
+  /** 额外日志监听器（与 onOutput 并行；write 每条日志都会通知） */
+  private _listeners = new Set<(level: LogLevel, formatted: string) => void>()
+
+  /**
+   * 追加日志监听器（返回取消函数）。与 setOutputCallback 互不影响：
+   * Console 面板走 onOutput，AI 收集器等走本通道。
+   */
+  addLogListener(cb: (level: LogLevel, formatted: string) => void): () => void {
+    this._listeners.add(cb)
+    return () => this._listeners.delete(cb)
   }
 }
 

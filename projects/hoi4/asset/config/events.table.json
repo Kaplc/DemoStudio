@@ -1,0 +1,120 @@
+{
+  "_comment": "HOI4-like 事件表（DataTable 行表）。trigger.minHour=最早触发游戏小时（自 1936-1-1）；\ntags=限定国家（缺省=任意）；atWar=是否仅限处于战争；chance=每日判定概率（缺省=条件满足即触发）。\noptions[].effects 与国策共用效果 DSL；once 缺省 true。",
+  "rheinland_reoccupation": {
+    "name": "莱茵区的旗帜", "desc": "部队开进莱茵非军事区，西方列强仅提出口头抗议。民众欢欣鼓舞。",
+    "trigger": { "minHour": 1584, "tags": ["GER"] },
+    "options": [
+      { "name": "这是我们的土地", "effects": [{ "type": "war_support", "amount": 5 }, { "type": "pp", "amount": 25 }] },
+      { "name": "保持克制，静待时机", "effects": [{ "type": "pp", "amount": 50 }] }
+    ]
+  },
+  "eastern_demands": {
+    "name": "东方的领土要求", "desc": "外交部送呈了一份关于东方边境走廊的备忘录，参谋部认为时机正在成熟。",
+    "trigger": { "minHour": 8760, "tags": ["GER"], "chance": 0.02 },
+    "options": [
+      { "name": "提出领土要求", "effects": [{ "type": "war_goal", "tag": "POL" }, { "type": "war_support", "amount": 5 }] },
+      { "name": "维持现状", "effects": [{ "type": "pp", "amount": 30 }] }
+    ]
+  },
+  "soviet_rearmament": {
+    "name": "东方的兵工厂", "desc": "五年计划的重工业指标提前完成，新的坦克厂已经投产。",
+    "trigger": { "minHour": 4384, "tags": ["SOV"] },
+    "options": [{ "name": "继续前进", "effects": [{ "type": "pp", "amount": 50 }, { "type": "war_support", "amount": 5 }] }]
+  },
+  "great_purge": {
+    "name": "内部的清洗", "desc": "一场针对军官团的政治审查正在展开，部队条令的推行受到影响。",
+    "trigger": { "minHour": 7000, "tags": ["SOV"] },
+    "options": [
+      { "name": "彻底清洗", "effects": [{ "type": "stability", "amount": -10 }, { "type": "pp", "amount": 60 }] },
+      { "name": "适可而止", "effects": [{ "type": "stability", "amount": -4 }] }
+    ]
+  },
+  "mediterranean_ambition": {
+    "name": "我们的海", "desc": "海军部提交了扩大地中海存在的方案，元首拍板照准。",
+    "trigger": { "minHour": 5000, "tags": ["ITA"] },
+    "options": [{ "name": "罗马复兴", "effects": [{ "type": "pp", "amount": 50 }, { "type": "war_support", "amount": 10 }] }]
+  },
+  "border_incident": {
+    "name": "边境摩擦", "desc": "边防巡逻队在界碑附近与邻国士兵发生冲突，双方各有指责。",
+    "trigger": { "minHour": 1000, "chance": 0.005, "atWar": false },
+    "options": [
+      { "name": "严正谴责", "effects": [{ "type": "pp", "amount": 10 }] },
+      { "name": "陈兵威慑", "effects": [{ "type": "war_support", "amount": 3 }, { "type": "stability", "amount": -2 }] }
+    ]
+  },
+  "general_strike": {
+    "name": "全国大罢工", "desc": "煤炭工人宣布总罢工，工厂的汽笛声消失了。",
+    "trigger": { "minHour": 720, "chance": 0.004 },
+    "options": [
+      { "name": "政治让步", "effects": [{ "type": "pp", "amount": -25 }] },
+      { "name": "强制复工", "effects": [{ "type": "stability", "amount": -5 }] }
+    ]
+  },
+  "harvest_festival": {
+    "name": "丰收之年", "desc": "风调雨顺，粮仓充盈，乡间的集市热闹非凡。",
+    "trigger": { "minHour": 4000, "chance": 0.006 },
+    "options": [{ "name": "感谢上苍", "effects": [{ "type": "manpower", "amount": 20 }] }]
+  },
+  "industrial_expo": {
+    "name": "工业博览会", "desc": "本国工程师的新式机床在博览会上引起轰动。",
+    "trigger": { "minHour": 2000, "chance": 0.005 },
+    "options": [
+      { "name": "推广新技术", "effects": [{ "type": "research_bonus", "category": "industry", "amount": 0.3 }] },
+      { "name": "充盈国库", "effects": [{ "type": "pp", "amount": 40 }] }
+    ]
+  },
+  "economic_boom": {
+    "name": "经济景气", "desc": "订单如雪片般飞来，新工厂的建设论证已经摆上案头。",
+    "trigger": { "minHour": 1500, "chance": 0.004 },
+    "options": [{ "name": "扩大产能", "effects": [{ "type": "factory", "civ": 1 }] }]
+  },
+  "recession_years": {
+    "name": "经济寒冬", "desc": "出口萎缩，银行坏账攀升，财政部要求缩减开支。",
+    "trigger": { "minHour": 900, "chance": 0.004 },
+    "options": [
+      { "name": "紧缩开支", "effects": [{ "type": "pp", "amount": -20 }] },
+      { "name": "赤字渡劫", "effects": [{ "type": "stability", "amount": -3 }, { "type": "factory", "mil": 1 }] }
+    ]
+  },
+  "war_weary": {
+    "name": "厌战情绪", "desc": "前线的伤亡名单越来越长，后方开始出现反战传单。",
+    "trigger": { "minHour": 0, "chance": 0.01, "atWar": true },
+    "options": [
+      { "name": "加强新闻管制", "effects": [{ "type": "stability", "amount": -3 }, { "type": "war_support", "amount": 3 }] },
+      { "name": "发表前线讲话", "effects": [{ "type": "war_support", "amount": 5 }, { "type": "pp", "amount": -10 }] }
+    ]
+  },
+  "foreign_volunteers": {
+    "name": "外国志愿队", "desc": "一批怀揣理想主义的外国青年请求加入本国军队。",
+    "trigger": { "minHour": 2500, "chance": 0.003 },
+    "options": [{ "name": "接收志愿队", "effects": [{ "type": "equipment", "id": "infantry_equipment", "amount": 500 }] }]
+  },
+  "mobilization_fever": {
+    "name": "参军热潮", "desc": "报纸头版全是前线的胜利消息，征兵站前排起长队。",
+    "trigger": { "minHour": 0, "chance": 0.008, "atWar": true },
+    "options": [{ "name": "顺势扩军", "effects": [{ "type": "manpower", "amount": 50 }] }]
+  },
+  "doctrine_breakthrough": {
+    "name": "演习中的灵感", "desc": "参谋们在大型演习中发现了一种全新的作战思路。",
+    "trigger": { "minHour": 3000, "chance": 0.003 },
+    "options": [{ "name": "整理成条令", "effects": [{ "type": "research_bonus", "category": "doctrine", "amount": 0.3 }] }]
+  },
+  "factory_fire": {
+    "name": "工厂火灾", "desc": "一座大型工厂夜间起火，重建需要时间。",
+    "trigger": { "minHour": 1200, "chance": 0.003 },
+    "options": [
+      { "name": "全力抢救设备", "effects": [{ "type": "pp", "amount": -20 }] },
+      { "name": "接受损失", "effects": [{ "type": "stability", "amount": -3 }] }
+    ]
+  },
+  "foreign_capital": {
+    "name": "外国资本", "desc": "一个跨国财团希望在边境州投资建厂。",
+    "trigger": { "minHour": 1800, "chance": 0.004 },
+    "options": [{ "name": "批准投资", "effects": [{ "type": "factory", "civ": 1 }] }]
+  },
+  "polish_mobilization": {
+    "name": "西部边境动员", "desc": "鉴于紧张的边境局势，总参谋部下令西部各州预备役报到。",
+    "trigger": { "minHour": 9000, "tags": ["POL"], "chance": 0.01 },
+    "options": [{ "name": "加强戒备", "effects": [{ "type": "manpower", "amount": 30 }, { "type": "war_support", "amount": 5 }] }]
+  }
+}

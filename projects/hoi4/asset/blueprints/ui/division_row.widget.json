@@ -1,0 +1,190 @@
+{
+  "name": "DivisionRow",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-213a968c",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 330,
+        "worldHeight": 60
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 330,
+        "height": 60,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "Root",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 330,
+            "worldHeight": 60,
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#24313f",
+            "radius": 8,
+            "width": 330,
+            "height": 60,
+            "name": "Root"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "NameText",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 300,
+                "worldHeight": 30,
+                "position": [
+                  -1,
+                  12,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "name": "NameText",
+                "width": 300,
+                "height": 30,
+                "fontSize": 18,
+                "color": "#e8eef5",
+                "align": "left"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "OrgText",
+          "baseClass": "Actor",
+          "id": 13203,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 300,
+                "worldHeight": 24,
+                "position": [
+                  -1,
+                  -15,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "name": "OrgText",
+                "width": 300,
+                "height": 24,
+                "fontSize": 15,
+                "color": "#8fa3b8",
+                "align": "left"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

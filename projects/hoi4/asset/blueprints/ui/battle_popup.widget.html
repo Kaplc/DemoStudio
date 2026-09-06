@@ -1,0 +1,14 @@
+<widget name="BattlePopup" canvas="240x100">
+  <style>
+    .Root { width: 240px; height: 100px; display: flex; flex-direction: column; align-items: center; background-color: #20141acc; border: 2px solid #a05248; border-radius: 12px; }
+    .AtkText { width: 210px; height: 30px; margin-top: 6px; font-size: 17px; color: #ffd76e; text-align: center; }
+    .Bar { width: 210px; height: 20px; margin-top: 4px; background-color: #17222e; border-radius: 5px; }
+    .Fill { position: absolute; left: 0px; top: 0px; width: 210px; height: 20px; background-color: #c0504d; border-radius: 5px; }
+    .DefText { width: 210px; height: 28px; margin-top: 4px; font-size: 15px; color: #a8bac9; text-align: center; }
+  </style>
+  <div class="Root">
+    <text class="AtkText" data-name="AtkText"></text>
+    <div class="Bar" data-name="Bar" data-comp="UIProgressBar" data-props='{"value":0,"max":100}'><div class="Fill" data-name="Fill"></div></div>
+    <text class="DefText" data-name="DefText"></text>
+  </div>
+</widget>

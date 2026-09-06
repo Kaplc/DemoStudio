@@ -1,0 +1,9 @@
+{
+  "_comment": "HOI4-like 装备表（DataTable 行表）。键=装备 id。\nsteelPerUnit/oilPerUnit=每件日消耗资源（产出受国家资源池约束，缺口按比例降产出）。",
+  "infantry_equipment": { "name": "步兵装备", "steelPerUnit": 0.2 },
+  "support_equipment": { "name": "支援装备", "steelPerUnit": 0.5 },
+  "artillery": { "name": "火炮", "steelPerUnit": 1.2 },
+  "light_tank": { "name": "轻型坦克", "steelPerUnit": 2.0, "oilPerUnit": 0.5 },
+  "medium_tank": { "name": "中型坦克", "steelPerUnit": 2.8, "oilPerUnit": 0.8 },
+  "motorized": { "name": "摩托化装备", "steelPerUnit": 1.0, "oilPerUnit": 0.3 }
+}

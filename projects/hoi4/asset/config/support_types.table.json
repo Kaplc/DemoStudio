@@ -1,0 +1,19 @@
+{
+  "_comment": "HOI4-like 支援连表（DataTable 行表）。每师每类支援连至多一个；属性直接加到师（不吃营分类科技加成）。",
+  "engineer": {
+    "name": "工兵连", "manpower": 300, "org": 0, "softAttack": 0, "hardAttack": 0,
+    "defense": 10, "breakthrough": 0, "equipment": { "support_equipment": 20 }
+  },
+  "recon": {
+    "name": "侦察连", "manpower": 250, "org": 0, "softAttack": 2, "hardAttack": 2,
+    "defense": 2, "breakthrough": 8, "equipment": { "support_equipment": 20 }
+  },
+  "artillery_support": {
+    "name": "炮兵支援连", "manpower": 300, "org": 0, "softAttack": 12, "hardAttack": 2,
+    "defense": 0, "breakthrough": 2, "equipment": { "artillery": 8, "support_equipment": 10 }
+  },
+  "logistics": {
+    "name": "后勤连", "manpower": 200, "org": 0, "softAttack": 0, "hardAttack": 0,
+    "defense": 4, "breakthrough": 4, "equipment": { "support_equipment": 20 }
+  }
+}

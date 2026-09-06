@@ -34,6 +34,14 @@ export const CollisionLayer = {
   TROOP: 2,
   /** 建筑层 */
   BUILDING: 4,
+  /** 玩家角色层（第三人称角色控制器） */
+  PLAYER: 8,
+  /** 敌人层 */
+  ENEMY: 16,
+  /** 投射物层 */
+  PROJECTILE: 32,
+  /** 拾取物层 */
+  PICKUP: 64,
 } as const
 
 /** 层名 → group 位（组件属性 group/mask 用字符串名配置；扩展新层在此追加） */
@@ -41,6 +49,16 @@ export const COLLISION_LAYER_GROUPS: Record<string, number> = {
   default: CollisionLayer.DEFAULT,
   troop: CollisionLayer.TROOP,
   building: CollisionLayer.BUILDING,
+  player: CollisionLayer.PLAYER,
+  enemy: CollisionLayer.ENEMY,
+  projectile: CollisionLayer.PROJECTILE,
+  pickup: CollisionLayer.PICKUP,
+}
+
+/** 物理世界初始化选项（World 构造/场景加载透传；缺省保持俯视角零重力不变） */
+export interface PhysicsWorldOptions {
+  /** 重力加速度 [x, y, z]（米/秒²）；缺省 [0, 0, 0] */
+  gravity?: [number, number, number]
 }
 
 /** 查询命中的碰撞体信息（overlapTest / queryAll 返回） */
@@ -66,6 +84,8 @@ export class PhysicsWorld {
   private _accumulator = 0
   /** 暂停标记（Game 暂停时物理同步暂停） */
   private _paused = false
+  /** 最近一次设置的重力（构造 options / setGravity 写入；禁用态也可读） */
+  private _gravity: [number, number, number] = [0, 0, 0]
 
   /** 已注册碰撞体组件集合（查询 API 遍历用） */
   private _colliders = new Set<ColliderComponent>()
@@ -73,15 +93,19 @@ export class PhysicsWorld {
   /** 与 cannon world 一一对应的接触对键集合（碰撞事件 Enter/Exit 判定） */
   private _contactPairs = new Map<string, { a: ColliderComponent; b: ColliderComponent }>()
 
-  constructor() {
-    this.init()
+  constructor(options?: PhysicsWorldOptions) {
+    this.init(options)
   }
 
   /** 初始化 cannon 世界（构造时调用一次；失败降级禁用物理） */
-  private init(): void {
+  private init(options?: PhysicsWorldOptions): void {
     try {
+      const gravity = options?.gravity ?? [0, 0, 0]
+      this._gravity = [gravity[0], gravity[1], gravity[2]]
       const world = new CANNON.World({
-        gravity: new CANNON.Vec3(0, 0, 0), // 俯视角玩法：无重力（y 由组件锁定）
+        gravity: new CANNON.Vec3(gravity[0], gravity[1], gravity[2]),
+        // 缺省零重力 = 俯视角玩法（y 由组件锁定）；第三人称场景经
+        // setGravity / 场景资产 gravity 字段覆盖
       })
       // 宽相位：SAP（轴扫掠）对 100+ 动态刚体效率好，cannon-es 内置
       world.broadphase = new CANNON.SAPBroadphase(world)
@@ -89,12 +113,29 @@ export class PhysicsWorld {
       world.allowSleep = true
       this._world = world
       this._enabled = true
-      logger.info('[PhysicsWorld] cannon-es 物理世界已初始化（固定步长 1/60，重力 0）')
+      logger.info(`[PhysicsWorld] cannon-es 物理世界已初始化（固定步长 1/60，重力 [${gravity.join(', ')}]）`)
     } catch (e) {
       logger.error(`[PhysicsWorld] 初始化失败，物理已禁用: ${(e as Error).message}`)
       this._world = null
       this._enabled = false
     }
+  }
+
+  /**
+   * 运行时设置重力加速度（场景加载 loadSceneAsActors 按 scene.gravity 调用）。
+   * cannon 支持热改重力，下一次 step 即生效。禁用态静默忽略。
+   */
+  setGravity(gravity: [number, number, number]): void {
+    this._gravity = [gravity[0], gravity[1], gravity[2]]
+    if (this._world) {
+      this._world.gravity.set(gravity[0], gravity[1], gravity[2])
+    }
+    logger.info(`[PhysicsWorld] 重力已设置为 [${gravity.join(', ')}]`)
+  }
+
+  /** 当前重力加速度（世界未初始化时也返回最近一次设置值，供诊断） */
+  get gravity(): [number, number, number] {
+    return this._gravity ? [this._gravity[0], this._gravity[1], this._gravity[2]] : [0, 0, 0]
   }
 
   /** 物理是否可用（禁用时所有接口静默降级，游戏可继续） */
@@ -112,6 +153,19 @@ export class PhysicsWorld {
     if (this._active) return
     this._active = true
     logger.info('[PhysicsWorld] 物理已激活（游戏运行态）')
+  }
+
+  /**
+   * 设置全局默认摩擦系数（写 defaultContactMaterial.friction，下一步生效）。
+   * 俯视角零重力下摩擦预算恒为 0（mug = friction × |gravity|），此值无感；
+   * 重力世界（第三人称）默认摩擦会瞬间杀掉切向速度——直接速度控制的角色/
+   * 敌人应设低摩擦（如 0），由控制器全权管理速度。
+   */
+  setDefaultFriction(friction: number): void {
+    if (this._world) {
+      this._world.defaultContactMaterial.friction = Math.max(0, friction)
+      logger.info(`[PhysicsWorld] 默认摩擦系数已设置为 ${friction}`)
+    }
   }
 
   /** 内部 cannon world（碰撞体组件创建 body 用；禁用时 null） */
@@ -193,7 +247,9 @@ export class PhysicsWorld {
     const world = this._world
     if (!world) return
     const current = new Map<string, { a: ColliderComponent; b: ColliderComponent }>()
-    // 遍历窄相位生成的接触：a.body / b.body → 反查碰撞体组件
+    // 遍历窄相位生成的接触：a.body / b.body → 反查碰撞体组件。
+    // 触发体（isTrigger）的接触方程被求解器跳过（无物理响应）但仍会进入
+    // world.contacts，因此触发事件与碰撞事件共用本套对比分发。
     for (const contact of world.contacts) {
       const compA = this.findColliderByBody(contact.bi)
       const compB = this.findColliderByBody(contact.bj)
@@ -204,15 +260,29 @@ export class PhysicsWorld {
     // Exit：上一帧有、本帧无
     for (const [key, pair] of this._contactPairs) {
       if (!current.has(key)) {
-        pair.a.onCollisionExit?.({ other: pair.b })
-        pair.b.onCollisionExit?.({ other: pair.a })
+        if (pair.a.isTrigger || pair.b.isTrigger) {
+          pair.a.onTriggerExit?.({ other: pair.b })
+          pair.b.onTriggerExit?.({ other: pair.a })
+        } else {
+          pair.a.onCollisionExit?.({ other: pair.b })
+          pair.b.onCollisionExit?.({ other: pair.a })
+        }
         this._contactPairs.delete(key)
       }
     }
     // Enter + Stay
     for (const [key, pair] of current) {
       const isNew = !this._contactPairs.has(key)
-      if (isNew) {
+      if (pair.a.isTrigger || pair.b.isTrigger) {
+        // 触发对：只走 onTrigger* 委托（双方都可订阅；非触发方也可感知进出区域）
+        if (isNew) {
+          pair.a.onTriggerEnter?.({ other: pair.b })
+          pair.b.onTriggerEnter?.({ other: pair.a })
+        } else {
+          pair.a.onTriggerStay?.({ other: pair.b })
+          pair.b.onTriggerStay?.({ other: pair.a })
+        }
+      } else if (isNew) {
         pair.a.onCollisionEnter?.({ other: pair.b })
         pair.b.onCollisionEnter?.({ other: pair.a })
       } else {

@@ -1,0 +1,21 @@
+<widget name="DiploRow" canvas="1000x76">
+  <style>
+    .Root { width: 1000px; height: 76px; display: flex; flex-direction: row; align-items: center; background-color: #24313f; border-radius: 10px; }
+    .Swatch { width: 36px; height: 36px; margin-left: 16px; border-radius: 6px; }
+    .NameText { width: 150px; height: 34px; margin-left: 12px; font-size: 21px; color: #e8eef5; text-align: left; }
+    .RelText { width: 190px; height: 30px; margin-left: 8px; font-size: 17px; color: #8fa3b8; text-align: left; }
+    .InfoText { width: 150px; height: 30px; margin-left: 8px; font-size: 16px; color: #a8bac9; text-align: left; }
+    .Btn_act { width: 150px; height: 50px; margin-left: auto; margin-right: 12px; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
+    .Btn_act:hover { background-color: #3d566f; }
+    .Label_act { width: 130px; height: 28px; font-size: 17px; color: #cfd8e3; text-align: center; }
+    .Btn_war { background-color: #7a3a38; }
+    .Btn_war:hover { background-color: #964644; }
+  </style>
+  <div class="Root">
+    <div class="Swatch" data-name="Swatch"></div>
+    <text class="NameText" data-name="NameText"></text>
+    <text class="RelText" data-name="RelText"></text>
+    <text class="InfoText" data-name="InfoText"></text>
+    <button class="Btn_act" data-name="Btn_act"><text class="Label_act" data-name="Label_act">制造借口</text></button>
+  </div>
+</widget>

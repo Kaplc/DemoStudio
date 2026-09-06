@@ -1,0 +1,9 @@
+{
+  "_comment": "HOI4-like 师编制模板（DataTable 行表）。battalions=营类型 id→数量（上限 1-25 营）；supports=支援连 id 列表。\n编制设计器保存的自定义模板写入国家运行时状态，本表只是出厂预置。",
+  "inf_1": { "name": "步兵师", "battalions": { "infantry": 7 }, "supports": ["engineer"] },
+  "inf_2": { "name": "大步兵师", "battalions": { "infantry": 9, "artillery": 2 }, "supports": ["engineer", "artillery_support"] },
+  "cav_1": { "name": "骑兵师", "battalions": { "cavalry": 6 }, "supports": ["recon"] },
+  "mot_1": { "name": "摩托化师", "battalions": { "motorized": 6, "artillery": 1 }, "supports": ["recon"] },
+  "arm_1": { "name": "轻型装甲师", "battalions": { "light_armor": 4, "motorized": 4 }, "supports": ["engineer", "recon"] },
+  "arm_2": { "name": "中型装甲师", "battalions": { "medium_armor": 4, "motorized": 4 }, "supports": ["engineer", "logistics"] }
+}

@@ -1,0 +1,19 @@
+{
+  "_comment": "HOI4-like 法律阶梯（单例）。cg=消费品占比（占用民厂比例）；ppCost=切换政治点花费；\nreqWarSupport=切换所需的最低战争支持度。同一 category 内按数组顺序升级（回退也允许，同样扣 PP）。",
+  "economy": [
+    { "id": "civilian_economy", "name": "民用经济", "ppCost": 0, "cg": 0.35, "factoryOutputMod": 1.0, "constrMod": 1.0 },
+    { "id": "early_mobilitation", "name": "早期动员", "ppCost": 150, "cg": 0.3, "factoryOutputMod": 1.1, "constrMod": 1.1 },
+    { "id": "partial_mobilitation", "name": "局部动员", "ppCost": 150, "cg": 0.25, "factoryOutputMod": 1.2, "constrMod": 1.2 },
+    { "id": "war_economy", "name": "战时经济", "ppCost": 150, "cg": 0.15, "factoryOutputMod": 1.35, "constrMod": 1.3, "reqWarSupport": 50 }
+  ],
+  "conscription": [
+    { "id": "voluntary", "name": "志愿兵役", "ppCost": 0, "manpowerMod": 1.0 },
+    { "id": "limited", "name": "有限征兵", "ppCost": 100, "manpowerMod": 1.6 },
+    { "id": "extensive", "name": "大规模征兵", "ppCost": 125, "manpowerMod": 2.2, "reqWarSupport": 40 }
+  ],
+  "trade": [
+    { "id": "free_trade", "name": "自由贸易", "ppCost": 0, "researchMod": 1.1, "factoryOutputMod": 1.05 },
+    { "id": "export_focus", "name": "出口重点", "ppCost": 100, "researchMod": 1.0, "factoryOutputMod": 1.0 },
+    { "id": "limited_export", "name": "限制出口", "ppCost": 100, "researchMod": 0.95, "factoryOutputMod": 0.97 }
+  ]
+}

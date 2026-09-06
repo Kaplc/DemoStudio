@@ -1,0 +1,38 @@
+{
+  "_comment": "HOI4-like 营类型表（DataTable 行表）。width=战斗宽度；org/hp/四维攻防/armor/hardness=营战斗属性；\nequipment=编成一个营的装备需求。属性会随国家科技 stat_bonus 按营分类（category 字段=科技加成查找键）再乘成师属性。",
+  "infantry": {
+    "name": "步兵营", "category": "infantry", "width": 2, "manpower": 1000,
+    "org": 60, "hp": 25, "softAttack": 6, "hardAttack": 2, "defense": 22, "breakthrough": 5,
+    "armor": 0, "hardness": 0.05, "equipment": { "infantry_equipment": 100 }
+  },
+  "cavalry": {
+    "name": "骑兵营", "category": "infantry", "width": 2, "manpower": 800,
+    "org": 55, "hp": 20, "softAttack": 5, "hardAttack": 2, "defense": 16, "breakthrough": 8,
+    "armor": 0, "hardness": 0.05, "equipment": { "infantry_equipment": 80 }
+  },
+  "motorized": {
+    "name": "摩托化营", "category": "infantry", "width": 2, "manpower": 900,
+    "org": 60, "hp": 22, "softAttack": 6, "hardAttack": 3, "defense": 18, "breakthrough": 12,
+    "armor": 2, "hardness": 0.3, "equipment": { "motorized": 60, "infantry_equipment": 50 }
+  },
+  "artillery": {
+    "name": "炮兵营", "category": "artillery", "width": 3, "manpower": 500,
+    "org": 20, "hp": 5, "softAttack": 28, "hardAttack": 4, "defense": 6, "breakthrough": 10,
+    "armor": 0, "hardness": 0, "equipment": { "artillery": 12, "infantry_equipment": 20 }
+  },
+  "anti_tank": {
+    "name": "反坦克营", "category": "artillery", "width": 2, "manpower": 450,
+    "org": 20, "hp": 5, "softAttack": 4, "hardAttack": 32, "defense": 12, "breakthrough": 4,
+    "armor": 0, "hardness": 0, "equipment": { "support_equipment": 30, "infantry_equipment": 60 }
+  },
+  "light_armor": {
+    "name": "轻型坦克营", "category": "armor", "width": 2, "manpower": 500,
+    "org": 28, "hp": 12, "softAttack": 14, "hardAttack": 14, "defense": 8, "breakthrough": 26,
+    "armor": 20, "hardness": 0.8, "equipment": { "light_tank": 40 }
+  },
+  "medium_armor": {
+    "name": "中型坦克营", "category": "armor", "width": 2, "manpower": 550,
+    "org": 26, "hp": 16, "softAttack": 22, "hardAttack": 26, "defense": 10, "breakthrough": 38,
+    "armor": 40, "hardness": 0.9, "equipment": { "medium_tank": 40 }
+  }
+}

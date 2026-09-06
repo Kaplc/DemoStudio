@@ -1,0 +1,20 @@
+<widget name="CountrySelect" canvas="1920x1080" active="false" data-script="gameplay/ui/CountrySelect">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #0b1018d9; }
+    .Panel { width: 760px; height: 1000px; margin: 40px auto; display: flex; flex-direction: column; align-items: center; background-color: #1d2733; border: 2px solid #3a4a5c; border-radius: 18px; }
+    .Title { width: 500px; height: 56px; margin-top: 28px; font-size: 34px; color: #e0a83c; text-align: center; font-weight: bold; }
+    .Hint { width: 640px; height: 40px; margin-top: 8px; font-size: 18px; color: #8fa3b8; text-align: center; }
+    .List { width: 660px; height: 780px; margin-top: 16px; }
+    .Btn_close { width: 220px; height: 60px; margin-top: 18px; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 12px; }
+    .Btn_close:hover { background-color: #3d566f; }
+    .Label_close { width: 180px; height: 34px; font-size: 20px; color: #cfd8e3; text-align: center; }
+  </style>
+  <div class="Root">
+    <div class="Panel">
+      <text class="Title">选择你的国家</text>
+      <text class="Hint">1936 年 1 月 1 日 · 大陆局势正走向深渊</text>
+      <div class="List" data-name="CountryList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":8,"spacingY":8,"autoLayout":true}'></div>
+      <button class="Btn_close" data-name="Btn_close"><text class="Label_close">暂不选择</text></button>
+    </div>
+  </div>
+</widget>

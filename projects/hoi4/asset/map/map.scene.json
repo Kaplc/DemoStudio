@@ -1,0 +1,31 @@
+{
+  "name": "Hoi4Map",
+  "mode": "map",
+  "skybox": {
+    "backgroundColor": "#101623"
+  },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "SunLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [60, 120, 40]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "intensity": 1.1,
+            "castShadow": false
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

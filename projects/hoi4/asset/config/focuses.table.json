@@ -1,0 +1,90 @@
+{
+  "_comment": "HOI4-like 国策树（DataTable 行表）。days=完成天数（70 为基准）；x/y=树面板布局像素（200x90 节点）；\ntags=限定国家（缺省=全通用）；aiWillDo=AI 选策权重。effects 与事件共用小型效果 DSL（core 内解释执行）。",
+  "political_focus": {
+    "name": "政治聚焦", "desc": "集中权力，政治点 +120。", "days": 35, "x": 40, "y": 40,
+    "prereq": [], "mutuallyExclusive": [], "effects": [{ "type": "pp", "amount": 120 }], "aiWillDo": 8
+  },
+  "propaganda": {
+    "name": "宣传攻势", "desc": "舆论动员，战争支持度 +10。", "days": 70, "x": 40, "y": 210,
+    "prereq": ["political_focus"], "mutuallyExclusive": [],
+    "effects": [{ "type": "war_support", "amount": 10 }], "aiWillDo": 5
+  },
+  "total_mobilization_prep": {
+    "name": "总动员准备", "desc": "预备役体系整编，人力 +100k、战争支持度 +10。", "days": 70, "x": 40, "y": 380,
+    "prereq": ["propaganda"], "mutuallyExclusive": [],
+    "effects": [{ "type": "manpower", "amount": 100 }, { "type": "war_support", "amount": 10 }], "aiWillDo": 4
+  },
+  "industrial_mobilization": {
+    "name": "工业动员", "desc": "新建 2 座民用工厂。", "days": 70, "x": 260, "y": 40,
+    "prereq": [], "mutuallyExclusive": [],
+    "effects": [{ "type": "factory", "civ": 2 }], "aiWillDo": 9
+  },
+  "infrastructure_investment": {
+    "name": "基础设施投资", "desc": "建造体系改良，建造速度 +10%。", "days": 70, "x": 260, "y": 210,
+    "prereq": ["industrial_mobilization"], "mutuallyExclusive": [],
+    "effects": [{ "type": "research_bonus", "category": "industry", "amount": 0.5 }], "aiWillDo": 6
+  },
+  "military_industry_expansion": {
+    "name": "军工扩张", "desc": "新建 2 座军工厂。", "days": 70, "x": 260, "y": 380,
+    "prereq": ["infrastructure_investment"], "mutuallyExclusive": [],
+    "effects": [{ "type": "factory", "mil": 2 }], "aiWillDo": 8
+  },
+  "research_institute": {
+    "name": "研究机构", "desc": "组建国家研究委员会，工业研究加速。", "days": 70, "x": 480, "y": 40,
+    "prereq": [], "mutuallyExclusive": [],
+    "effects": [{ "type": "research_bonus", "category": "industry", "amount": 1.0 }], "aiWillDo": 7
+  },
+  "doctrine_preparation": {
+    "name": "学说预备研究", "desc": "陆军学说预研，学说研究加速。", "days": 70, "x": 480, "y": 210,
+    "prereq": ["research_institute"], "mutuallyExclusive": [],
+    "effects": [{ "type": "research_bonus", "category": "doctrine", "amount": 1.0 }], "aiWillDo": 5
+  },
+  "weapons_modernization": {
+    "name": "武器现代化", "desc": "步兵装备研发加速，并入库 1000 步兵装备。", "days": 70, "x": 480, "y": 380,
+    "prereq": ["doctrine_preparation"], "mutuallyExclusive": [],
+    "effects": [
+      { "type": "research_bonus", "category": "infantry", "amount": 1.0 },
+      { "type": "equipment", "id": "infantry_equipment", "amount": 1000 }
+    ], "aiWillDo": 6
+  },
+  "army_reform": {
+    "name": "陆军改革", "desc": "整编换装，入库 2000 步兵装备。", "days": 70, "x": 700, "y": 40,
+    "prereq": [], "mutuallyExclusive": [],
+    "effects": [{ "type": "equipment", "id": "infantry_equipment", "amount": 2000 }], "aiWillDo": 8
+  },
+  "organization_expansion": {
+    "name": "编制改革", "desc": "师编制扩编（炮兵研究加速）。", "days": 70, "x": 700, "y": 210,
+    "prereq": ["army_reform"], "mutuallyExclusive": [],
+    "effects": [{ "type": "research_bonus", "category": "artillery", "amount": 1.0 }], "aiWillDo": 6
+  },
+  "armor_program": {
+    "name": "装甲兵建设", "desc": "启动装甲兵项目（装甲研究加速）。", "days": 70, "x": 700, "y": 380,
+    "prereq": ["organization_expansion"], "mutuallyExclusive": [],
+    "effects": [{ "type": "research_bonus", "category": "armor", "amount": 1.0 }], "aiWillDo": 5
+  },
+  "war_propaganda": {
+    "name": "战争宣传", "desc": "制造借口的耗时 -50%。", "days": 70, "x": 920, "y": 40,
+    "prereq": [], "mutuallyExclusive": [],
+    "effects": [{ "type": "justification_speed", "mod": 0.5 }], "aiWillDo": 3
+  },
+  "war_economy_push": {
+    "name": "战备经济", "desc": "经济向战备转型，战争支持度 +15、稳定度 +5。", "days": 70, "x": 920, "y": 210,
+    "prereq": ["war_propaganda"], "mutuallyExclusive": [],
+    "effects": [{ "type": "war_support", "amount": 15 }, { "type": "stability", "amount": 5 }], "aiWillDo": 3
+  },
+  "rhineland": {
+    "name": "进军莱茵区", "desc": "重占莱茵区，战争支持度 +10、政治点 +25。", "days": 70, "x": 920, "y": 380,
+    "prereq": ["war_economy_push"], "mutuallyExclusive": [], "tags": ["GER"],
+    "effects": [{ "type": "war_support", "amount": 10 }, { "type": "pp", "amount": 25 }], "aiWillDo": 9
+  },
+  "eastern_claims": {
+    "name": "东方渗透", "desc": "对东方邻国提出领土要求（获得战争目标）。", "days": 70, "x": 920, "y": 550,
+    "prereq": ["rhineland"], "mutuallyExclusive": ["western_revanche"], "tags": ["GER"],
+    "effects": [{ "type": "war_goal", "tag": "POL" }], "aiWillDo": 8
+  },
+  "western_revanche": {
+    "name": "西线复仇", "desc": "对西方邻国提出领土要求（获得战争目标）。", "days": 70, "x": 920, "y": 700,
+    "prereq": ["rhineland"], "mutuallyExclusive": ["eastern_claims"], "tags": ["GER"],
+    "effects": [{ "type": "war_goal", "tag": "FRA" }], "aiWillDo": 6
+  }
+}

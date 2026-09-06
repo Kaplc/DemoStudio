@@ -1,0 +1,21 @@
+<widget name="ProvincePanel" canvas="380x600" anchor="top-right" offset="-20,-10" active="false" data-script="gameplay/ui/ProvincePanel">
+  <style>
+    .Root { width: 380px; height: 600px; display: flex; flex-direction: column; align-items: center; background-color: #1d2733ee; border: 2px solid #3a4a5c; border-radius: 14px; hit-test: block; }
+    .Title { width: 340px; height: 44px; margin-top: 16px; font-size: 24px; color: #e0a83c; text-align: center; font-weight: bold; }
+    .InfoText { width: 330px; height: 150px; margin-top: 10px; font-size: 19px; color: #cfd8e3; text-align: left; }
+    .ListTitle { width: 330px; height: 36px; margin-top: 8px; font-size: 19px; color: #8fa3b8; text-align: left; }
+    .DivList { width: 344px; height: 250px; margin-top: 4px; overflow: hidden; }
+    .Btn_deploy { width: 330px; height: 56px; margin-top: 10px; display: flex; justify-content: center; align-items: center; background-color: #6a7c34; border-radius: 12px; }
+    .Btn_deploy:hover { background-color: #7f9440; }
+    .Label_deploy { width: 300px; height: 32px; font-size: 20px; color: #f2f7e6; text-align: center; }
+    .HintText { width: 330px; height: 30px; margin-top: 8px; font-size: 16px; color: #64788c; text-align: center; }
+  </style>
+  <div class="Root">
+    <text class="Title" data-name="Title"></text>
+    <text class="InfoText" data-name="InfoText"></text>
+    <text class="ListTitle">驻扎师（点击行选中/取消，选中后点目标省下令）</text>
+    <div class="DivList" data-name="DivList" data-comp="UILayout" data-props='{"mode":"vertical","spacingY":6,"autoLayout":true}'></div>
+    <button class="Btn_deploy" data-name="Btn_deploy"><text class="Label_deploy">部署一个师到此省</text></button>
+    <text class="HintText" data-name="HintText"></text>
+  </div>
+</widget>

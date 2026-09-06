@@ -1,0 +1,9 @@
+{
+  "name": "Hoi4",
+  "description": "HOI4-like 大战略游戏 demo（自制省份地图 + 时间步进 + 经济军事外交 AI）",
+  "version": "0.1.0",
+  "main": "projects/hoi4/index.ts",
+  "tags": ["game", "strategy", "grand-strategy", "map"],
+  "renderMode": "3d",
+  "defaultScene": "projects/hoi4/asset/map/map.scene.json"
+}

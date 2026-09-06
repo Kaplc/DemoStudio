@@ -196,6 +196,9 @@ function registerEditorAIHandlers(): () => void {
     listEvents: () => ai.listEvents(),
   }
 
+  // 运行时报错可见（C2）：__ai_console 收集器（引擎 Logger 回调 + window.onerror）
+  installAiConsoleCollector()
+
   return () => {
     delete (window as any).__ai
     unsubs.forEach((u) => u())
@@ -204,6 +207,45 @@ function registerEditorAIHandlers(): () => void {
 
 /** 编辑器层 AI 事件处理器注册标记（避免重复注册） */
 let _editorAIHandlersInstalled = false
+
+/**
+ * 安装 __ai_console 运行时报错收集器（C2）。
+ * 三个半成品之一的落地：Logger 多订阅回调 + window.onerror/unhandledrejection
+ * 统一写入 window.__ai_console（{level,text,timestamp} 环形缓冲，上限 300 条），
+ * cdp_dashboard_status / DashboardPanel 的既有读者即刻生效。
+ * window 标志幂等（HMR/重复调用不重复挂监听）。
+ */
+export function installAiConsoleCollector(): void {
+  const w = window as unknown as {
+    __ai_console?: Array<{ level: string; text: string; timestamp: number }>
+    __ai_console_installed?: boolean
+  }
+  if (w.__ai_console_installed) return
+  w.__ai_console_installed = true
+  const buf = w.__ai_console ?? []
+  w.__ai_console = buf
+
+  // 引擎 Logger（info/warn/error；debug 噪音不进收集器）
+  logger.addLogListener((level, formatted) => {
+    if (level === 'debug') return
+    buf.push({ level, text: formatted, timestamp: Date.now() })
+    if (buf.length > 300) buf.splice(0, buf.length - 300)
+  })
+
+  // 未捕获异常（游戏运行期报错的主入口）
+  window.addEventListener('error', (ev) => {
+    const msg = `[window.onerror] ${ev.message}${ev.filename ? ` @${ev.filename}:${ev.lineno}:${ev.colno}` : ''}`
+    buf.push({ level: 'error', text: msg, timestamp: Date.now() })
+    if (buf.length > 300) buf.splice(0, buf.length - 300)
+  })
+  window.addEventListener('unhandledrejection', (ev) => {
+    const reason = (ev as PromiseRejectionEvent).reason
+    const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
+    buf.push({ level: 'error', text: `[unhandledrejection] ${detail}`, timestamp: Date.now() })
+    if (buf.length > 300) buf.splice(0, buf.length - 300)
+  })
+  logger.info('[AI] __ai_console 收集器已安装（Logger + window.onerror + unhandledrejection）')
+}
 
 /**
  * 注册所有内置项目到编辑器的各个注册表中
@@ -320,11 +362,18 @@ export function registerGlobalEventListeners(callbacks: {
             }
             if (needWait) await new Promise((r) => setTimeout(r, 600))
             onLaunchGame()
+            if (requestId) {
+              const name = useEditorStore.getState().currentProject?.name ?? ''
+              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'start_game', project: name, message: `已触发启动（${name}）` })
+            }
             break
           }
           case 'stopGame':
           case 'stop_game':
             onStopGame()
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, { status: 'ok', command: 'stop_game', message: '已触发停止' })
+            }
             break
           case 'toggle_game':
             onLaunchGame()

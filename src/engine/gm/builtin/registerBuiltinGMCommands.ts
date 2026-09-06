@@ -6,14 +6,15 @@
  *  - list：只列命令名
  *  - clear：清空面板输出区
  *  - gm.enable / gm.disable：切换 GM 开关（gmOnly 命令的闸门）
+ *  - timescale / hitstop：World 时间缩放与顿帧（A5/B7 落地后解禁）
  *
- * 注意：引擎无 timeScale 机制，本系统不提供 timescale 命令。
  * 注册幂等：每次调用先 clear 内置命令 id（HMR 重载不产生重复条目），
  * 再逐个 register。
  */
 import { GMRegistry } from '../GMRegistry'
 import { formatGMUsage } from '../GMCommand'
 import { logger } from '../../Logger'
+import type { World } from '../../gameflow/World'
 
 /** 内置命令定义集合 */
 const BUILTIN_COMMANDS: Array<{ id: string; def: Parameters<typeof GMRegistry.register>[1] }> = [
@@ -79,6 +80,41 @@ const BUILTIN_COMMANDS: Array<{ id: string; def: Parameters<typeof GMRegistry.re
         if (!gm) return
         gm.enabled = false
         ctx.output('GM 模式已关闭（gmOnly 命令已禁用；输入 gm.enable 恢复）')
+      },
+    },
+  },
+  {
+    id: 'builtin/timescale',
+    def: {
+      name: 'timescale',
+      description: '设置全局时间缩放（0=冻结但 UI 仍动；1=正常；0.5=慢动作）',
+      params: [{ name: 'value', type: 'float', required: true, desc: '缩放值（0~任意正数）' }],
+      handler: (ctx, value) => {
+        const world: World | null = (ctx.gameInstance as unknown as { world?: World }).world ?? null
+        if (!world) {
+          ctx.output('游戏未运行（无 World）')
+          return
+        }
+        world.setTimeScale(value as number)
+        ctx.output(`timeScale = ${world.timeScale}`)
+      },
+    },
+  },
+  {
+    id: 'builtin/hitstop',
+    def: {
+      name: 'hitstop',
+      description: '触发一次全局顿帧（打击反馈调试）',
+      params: [{ name: 'ms', type: 'int', required: false, desc: '冻结毫秒数（缺省 60）' }],
+      handler: (ctx, ms) => {
+        const world: World | null = (ctx.gameInstance as unknown as { world?: World }).world ?? null
+        if (!world) {
+          ctx.output('游戏未运行（无 World）')
+          return
+        }
+        const duration = (ms as number) ?? 60
+        world.hitstop(duration)
+        ctx.output(`hitstop ${duration}ms`)
       },
     },
   },

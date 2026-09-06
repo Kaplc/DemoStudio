@@ -1,0 +1,4036 @@
+{
+  "name": "FocusTreePanel",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-b0cb0cef",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 1920,
+        "worldHeight": 1080
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/ui/FocusTreePanel"
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "Dim",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 1920,
+            "worldHeight": 1080,
+            "anchor": "stretch",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#0b1018c0",
+            "width": 1920,
+            "height": 1080,
+            "name": "Dim"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "name": "Panel",
+      "baseClass": "Actor",
+      "id": 13202,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 1424,
+            "worldHeight": 944,
+            "position": [
+              0,
+              28,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0,
+            "hitTest": "block"
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#1d2733",
+            "radius": 18,
+            "width": 1424,
+            "height": 944,
+            "name": "Panel"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "PanelBorderTop",
+          "baseClass": "Actor",
+          "id": 13203,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  471,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1424,
+                "worldHeight": 2
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "PanelBorderTop",
+                "color": "#3a4a5c",
+                "width": 1424,
+                "height": 8
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "PanelBorderRight",
+          "baseClass": "Actor",
+          "id": 13204,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  711,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 2,
+                "worldHeight": 944
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "PanelBorderRight",
+                "color": "#3a4a5c",
+                "width": 8,
+                "height": 944
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "PanelBorderBottom",
+          "baseClass": "Actor",
+          "id": 13205,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  -471,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1424,
+                "worldHeight": 2
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "PanelBorderBottom",
+                "color": "#3a4a5c",
+                "width": 1424,
+                "height": 8
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "PanelBorderLeft",
+          "baseClass": "Actor",
+          "id": 13206,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  -711,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 2,
+                "worldHeight": 944
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "PanelBorderLeft",
+                "color": "#3a4a5c",
+                "width": 8,
+                "height": 944
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Head",
+          "baseClass": "Actor",
+          "id": 13207,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1360,
+                "worldHeight": 56,
+                "position": [
+                  0,
+                  428,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Title",
+              "baseClass": "Actor",
+              "id": 13208,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 560,
+                    "worldHeight": 44,
+                    "position": [
+                      -400,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "国策树",
+                    "name": "Title",
+                    "width": 560,
+                    "height": 44,
+                    "fontSize": 28,
+                    "color": "#e0a83c",
+                    "align": "left",
+                    "bold": true
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "InfoText",
+              "baseClass": "Actor",
+              "id": 13209,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 560,
+                    "worldHeight": 36,
+                    "position": [
+                      160,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "InfoText",
+                    "width": 560,
+                    "height": 36,
+                    "fontSize": 17,
+                    "color": "#8fa3b8",
+                    "align": "right"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_close",
+              "baseClass": "Actor",
+              "id": 13210,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 110,
+                    "worldHeight": 44,
+                    "position": [
+                      515,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "stateColors": {
+                      "hover": {
+                        "color": "#964644"
+                      }
+                    }
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#7a3a38",
+                    "radius": 10,
+                    "width": 110,
+                    "height": 44,
+                    "name": "Btn_close"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Label_close",
+                  "baseClass": "Actor",
+                  "id": 13211,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 84,
+                        "worldHeight": 28,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "关闭",
+                        "name": "Label_close",
+                        "width": 84,
+                        "height": 28,
+                        "fontSize": 18,
+                        "color": "#ffe4e0",
+                        "align": "center"
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Tree",
+          "baseClass": "Actor",
+          "id": 13212,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1160,
+                "worldHeight": 830,
+                "position": [
+                  0,
+                  -25,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIMaskComponent",
+              "properties": {
+                "radius": 0
+              }
+            },
+            {
+              "baseClass": "UIScrollContainerComponent",
+              "properties": {
+                "direction": "vertical",
+                "draggable": true,
+                "scrollbar": true
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Tree_ScrollContent",
+              "baseClass": "Actor",
+              "id": 13277,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "worldWidth": 1160,
+                    "worldHeight": 830,
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "TreeInner",
+                  "baseClass": "Actor",
+                  "id": 13213,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1160,
+                        "worldHeight": 830,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    }
+                  ],
+                  "children": [
+                    {
+                      "name": "LineV",
+                      "baseClass": "Actor",
+                      "id": 13214,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              137,
+                              -130
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_2",
+                      "baseClass": "Actor",
+                      "id": 13215,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              137,
+                              -300
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_2"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_3",
+                      "baseClass": "Actor",
+                      "id": 13216,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              357,
+                              -130
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_3"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_4",
+                      "baseClass": "Actor",
+                      "id": 13217,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              357,
+                              -300
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_4"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_5",
+                      "baseClass": "Actor",
+                      "id": 13218,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-center",
+                            "anchorOffset": [
+                              0,
+                              -130
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_5"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_6",
+                      "baseClass": "Actor",
+                      "id": 13219,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-center",
+                            "anchorOffset": [
+                              0,
+                              -300
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_6"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_7",
+                      "baseClass": "Actor",
+                      "id": 13220,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -357,
+                              -130
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_7"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_8",
+                      "baseClass": "Actor",
+                      "id": 13221,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -357,
+                              -300
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_8"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_9",
+                      "baseClass": "Actor",
+                      "id": 13222,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -137,
+                              -130
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_9"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_10",
+                      "baseClass": "Actor",
+                      "id": 13223,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -137,
+                              -300
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_10"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_11",
+                      "baseClass": "Actor",
+                      "id": 13224,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "bottom-right",
+                            "anchorOffset": [
+                              -137,
+                              280
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_11"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "LineV_12",
+                      "baseClass": "Actor",
+                      "id": 13225,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 6,
+                            "worldHeight": 80,
+                            "anchor": "bottom-right",
+                            "anchorOffset": [
+                              -137,
+                              110
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#4a5c70",
+                            "width": 8,
+                            "height": 80,
+                            "name": "LineV_12"
+                          }
+                        }
+                      ],
+                      "children": []
+                    },
+                    {
+                      "name": "F_political_focus",
+                      "baseClass": "Actor",
+                      "id": 13226,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              40,
+                              -40
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_political_focus"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName",
+                          "baseClass": "Actor",
+                          "id": 13227,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "政治聚焦",
+                                "name": "NodeName",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays",
+                          "baseClass": "Actor",
+                          "id": 13228,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "35 天 · 政治点+120",
+                                "name": "NodeDays",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_propaganda",
+                      "baseClass": "Actor",
+                      "id": 13229,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              40,
+                              -210
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_propaganda"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_2",
+                          "baseClass": "Actor",
+                          "id": 13230,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "宣传攻势",
+                                "name": "NodeName_2",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_2",
+                          "baseClass": "Actor",
+                          "id": 13231,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 战争支持+10",
+                                "name": "NodeDays_2",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_total_mobilization_prep",
+                      "baseClass": "Actor",
+                      "id": 13232,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "middle-left",
+                            "anchorOffset": [
+                              40,
+                              -10
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_total_mobilization_prep"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_3",
+                          "baseClass": "Actor",
+                          "id": 13233,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "总动员准备",
+                                "name": "NodeName_3",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_3",
+                          "baseClass": "Actor",
+                          "id": 13234,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 人力+100k",
+                                "name": "NodeDays_3",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_industrial_mobilization",
+                      "baseClass": "Actor",
+                      "id": 13235,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              260,
+                              -40
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_industrial_mobilization"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_4",
+                          "baseClass": "Actor",
+                          "id": 13236,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "工业动员",
+                                "name": "NodeName_4",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_4",
+                          "baseClass": "Actor",
+                          "id": 13237,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 民厂+2",
+                                "name": "NodeDays_4",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_infrastructure_investment",
+                      "baseClass": "Actor",
+                      "id": 13238,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-left",
+                            "anchorOffset": [
+                              260,
+                              -210
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_infrastructure_investment"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_5",
+                          "baseClass": "Actor",
+                          "id": 13239,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "基础设施投资",
+                                "name": "NodeName_5",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_5",
+                          "baseClass": "Actor",
+                          "id": 13240,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 工业研究加速",
+                                "name": "NodeDays_5",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_military_industry_expansion",
+                      "baseClass": "Actor",
+                      "id": 13241,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "middle-left",
+                            "anchorOffset": [
+                              260,
+                              -10
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_military_industry_expansion"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_6",
+                          "baseClass": "Actor",
+                          "id": 13242,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "军工扩张",
+                                "name": "NodeName_6",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_6",
+                          "baseClass": "Actor",
+                          "id": 13243,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 军厂+2",
+                                "name": "NodeDays_6",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_research_institute",
+                      "baseClass": "Actor",
+                      "id": 13244,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-center",
+                            "anchorOffset": [
+                              0,
+                              -40
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_research_institute"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_7",
+                          "baseClass": "Actor",
+                          "id": 13245,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "研究机构",
+                                "name": "NodeName_7",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_7",
+                          "baseClass": "Actor",
+                          "id": 13246,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 工业研究加速",
+                                "name": "NodeDays_7",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_doctrine_preparation",
+                      "baseClass": "Actor",
+                      "id": 13247,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-center",
+                            "anchorOffset": [
+                              0,
+                              -210
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_doctrine_preparation"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_8",
+                          "baseClass": "Actor",
+                          "id": 13248,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "学说预备研究",
+                                "name": "NodeName_8",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_8",
+                          "baseClass": "Actor",
+                          "id": 13249,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 学说研究加速",
+                                "name": "NodeDays_8",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_weapons_modernization",
+                      "baseClass": "Actor",
+                      "id": 13250,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "center",
+                            "anchorOffset": [
+                              0,
+                              -10
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_weapons_modernization"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_9",
+                          "baseClass": "Actor",
+                          "id": 13251,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "武器现代化",
+                                "name": "NodeName_9",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_9",
+                          "baseClass": "Actor",
+                          "id": 13252,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 步兵研究+装备",
+                                "name": "NodeDays_9",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_army_reform",
+                      "baseClass": "Actor",
+                      "id": 13253,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -260,
+                              -40
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_army_reform"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_10",
+                          "baseClass": "Actor",
+                          "id": 13254,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "陆军改革",
+                                "name": "NodeName_10",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_10",
+                          "baseClass": "Actor",
+                          "id": 13255,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 步兵装备 2000",
+                                "name": "NodeDays_10",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_organization_expansion",
+                      "baseClass": "Actor",
+                      "id": 13256,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -260,
+                              -210
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_organization_expansion"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_11",
+                          "baseClass": "Actor",
+                          "id": 13257,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "编制改革",
+                                "name": "NodeName_11",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_11",
+                          "baseClass": "Actor",
+                          "id": 13258,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 炮兵研究加速",
+                                "name": "NodeDays_11",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_armor_program",
+                      "baseClass": "Actor",
+                      "id": 13259,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "middle-right",
+                            "anchorOffset": [
+                              -260,
+                              -10
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_armor_program"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_12",
+                          "baseClass": "Actor",
+                          "id": 13260,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "装甲兵建设",
+                                "name": "NodeName_12",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_12",
+                          "baseClass": "Actor",
+                          "id": 13261,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 装甲研究加速",
+                                "name": "NodeDays_12",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_war_propaganda",
+                      "baseClass": "Actor",
+                      "id": 13262,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -40,
+                              -40
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_war_propaganda"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_13",
+                          "baseClass": "Actor",
+                          "id": 13263,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "战争宣传",
+                                "name": "NodeName_13",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_13",
+                          "baseClass": "Actor",
+                          "id": 13264,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 借口耗时-50%",
+                                "name": "NodeDays_13",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_war_economy_push",
+                      "baseClass": "Actor",
+                      "id": 13265,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "top-right",
+                            "anchorOffset": [
+                              -40,
+                              -210
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_war_economy_push"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_14",
+                          "baseClass": "Actor",
+                          "id": 13266,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "战备经济",
+                                "name": "NodeName_14",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_14",
+                          "baseClass": "Actor",
+                          "id": 13267,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 战支+15 稳定+5",
+                                "name": "NodeDays_14",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_rhineland",
+                      "baseClass": "Actor",
+                      "id": 13268,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "middle-right",
+                            "anchorOffset": [
+                              -40,
+                              -10
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_rhineland"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_15",
+                          "baseClass": "Actor",
+                          "id": 13269,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "进军莱茵区(德)",
+                                "name": "NodeName_15",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_15",
+                          "baseClass": "Actor",
+                          "id": 13270,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 战支+10",
+                                "name": "NodeDays_15",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_eastern_claims",
+                      "baseClass": "Actor",
+                      "id": 13271,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "bottom-right",
+                            "anchorOffset": [
+                              -40,
+                              190
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_eastern_claims"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_16",
+                          "baseClass": "Actor",
+                          "id": 13272,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "东方渗透(德)",
+                                "name": "NodeName_16",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_16",
+                          "baseClass": "Actor",
+                          "id": 13273,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 对波战争目标",
+                                "name": "NodeDays_16",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "F_western_revanche",
+                      "baseClass": "Actor",
+                      "id": 13274,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 200,
+                            "worldHeight": 90,
+                            "anchor": "bottom-right",
+                            "anchorOffset": [
+                              -40,
+                              20
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {}
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#31445c",
+                            "radius": 12,
+                            "width": 200,
+                            "height": 90,
+                            "name": "F_western_revanche"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "NodeName_17",
+                          "baseClass": "Actor",
+                          "id": 13275,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 52,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "西线复仇(德)",
+                                "name": "NodeName_17",
+                                "width": 180,
+                                "height": 52,
+                                "fontSize": 17,
+                                "color": "#e8eef5",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "NodeDays_17",
+                          "baseClass": "Actor",
+                          "id": 13276,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 180,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  -26,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "70 天 · 对法战争目标",
+                                "name": "NodeDays_17",
+                                "width": 180,
+                                "height": 24,
+                                "fontSize": 14,
+                                "color": "#a8bac9",
+                                "align": "center"
+                              }
+                            }
+                          ],
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "sourceLayout": {
+        "border": [
+          2,
+          2,
+          2,
+          2
+        ]
+      }
+    }
+  ],
+  "active": false
+}

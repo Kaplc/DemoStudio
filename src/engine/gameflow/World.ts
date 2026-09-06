@@ -126,6 +126,49 @@ export class World extends AObject {
   private _running = false
   private _tickCallbacks: Array<(dt: number) => void> = []
 
+  // ─── timeScale / hitstop（B7 依托 A5）───
+  /** 全局时间缩放（1 = 正常；0 = 冻结但 rAF/UI tick 仍驱动，强化卡界面用） */
+  private _timeScale = 1
+  /** hitstop 截止时刻（performance.now() 毫秒；0 = 无 hitstop） */
+  private _hitstopUntilReal = 0
+
+  /** 当前时间缩放（setTimeScale 设置值；hitstop 生效期间读数为 0） */
+  get timeScale(): number {
+    return this.effectiveTimeScale
+  }
+
+  /** 本帧实际生效的时间缩放（hitstop 短冻结优先于 _timeScale） */
+  get effectiveTimeScale(): number {
+    if (this._timeScale <= 0) return 0
+    return performance.now() < this._hitstopUntilReal ? 0 : this._timeScale
+  }
+
+  /**
+   * 设置全局时间缩放（缩放 Actor/GameMode/物理的 dt；UI tick 不受影响走真实 dt）。
+   * 未调用的调用方恒为 1，是恒等变换（fish 不受影响）。
+   */
+  setTimeScale(v: number): void {
+    const clamped = Math.max(0, Number.isFinite(v) ? v : 1)
+    if (clamped === this._timeScale) return
+    this._timeScale = clamped
+    logger.info(`[World#${this.id}] setTimeScale: ${clamped}`)
+  }
+
+  /**
+   * 顿帧（hitstop）：全局短冻结指定毫秒（真实时间计量）。
+   * 打击反馈三件套之一；结束自动恢复，不影响 _timeScale 长期设定。
+   */
+  hitstop(ms: number): void {
+    if (!(ms > 0)) return
+    const until = performance.now() + ms
+    if (until > this._hitstopUntilReal) this._hitstopUntilReal = until
+  }
+
+  /** 立即解除 hitstop（确定性步进工具/e2e 用：stepTicks 不应被真实时间冻结卡住） */
+  clearHitstop(): void {
+    this._hitstopUntilReal = 0
+  }
+
   /**
    * THREE 对象工厂组件：统一创建 + 追踪释放，禁止裸 new THREE.xxx。
    */
@@ -255,33 +298,41 @@ export class World extends AObject {
 
   private tick(dt: number) {
     this._lastDt = dt
+    // timeScale/hitstop：游戏侧 dt 统一缩放；UI tick 走真实 dt（冻结态 UI 仍驱动）
+    const sdt = dt * this.effectiveTimeScale
     // 1. 处理待生成/销毁（ActorManagerComponent）
     this.commitActorChanges()
 
     // 2. Tick 所有 3D Actor（bTickEnabled=true 才参与；UI Actor 由 UIManager 独立驱动）
-    for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(dt)
+    if (sdt > 0) {
+      for (const actor of this.actorMgr.GetAllActors()) {
+        if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(sdt)
+      }
     }
 
-    // 3. Tick UI 子系统
+    // 3. Tick UI 子系统（真实 dt：timeScale=0 时强化卡界面照常动）
     this.ui.tickUI(dt)
     // UI Actor 列表变化（提交/销毁）也通知大纲
     if (this.ui.consumeUiListDirty()) {
       this.notifyActorListChanged()
     }
 
-    // 4. Tick GameMode（内部统一驱动 GameState + Controller + 摄像机）
-    this.gameMode?.Tick(dt)
+    // 4. Tick GameMode（内部统一驱动 GameState + Controller）
+    if (sdt > 0) {
+      this.gameMode?.Tick(sdt)
+    }
 
     // 5. 外部回调
-    for (const cb of this._tickCallbacks) {
-      cb(dt)
+    if (sdt > 0) {
+      for (const cb of this._tickCallbacks) {
+        cb(sdt)
+      }
     }
 
     // 6. 物理步进（固定步长 + accumulator；组件 Tick 注入速度后统一模拟。
     //    置于最后：保证本帧所有 Tick 读到的是上一帧求解后的位置，与旧全局驱动时序一致；
     //    未 begin 的预览 World 静默跳过）
-    this.physics.step(dt)
+    this.physics.step(sdt)
   }
 
   /**
@@ -339,9 +390,13 @@ export class World extends AObject {
   manualTick(dt: number) {
     if (!this._running) return
     this._lastDt = dt
+    // timeScale/hitstop 与 tick() 同一套缩放（游戏侧缩放，UI 走真实 dt）
+    const sdt = dt * this.effectiveTimeScale
     this.commitActorChanges()
-    for (const actor of this.actorMgr.GetAllActors()) {
-      if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(dt)
+    if (sdt > 0) {
+      for (const actor of this.actorMgr.GetAllActors()) {
+        if (!actor.bPendingDestroy && actor.bTickEnabled) actor.Tick(sdt)
+      }
     }
     // UI 子系统（与 tick() 一致）：运行时 spawnUIActor 生成的 UI Actor 依赖此处
     // 提交（BeginPlay / UIScriptComponent 初始化），否则永远停在待生成队列
@@ -350,12 +405,16 @@ export class World extends AObject {
       this.notifyActorListChanged()
     }
     // GameMode 统一驱动 GameState + Controller + 摄像机
-    this.gameMode?.Tick(dt)
-    for (const cb of this._tickCallbacks) {
-      cb(dt)
+    if (sdt > 0) {
+      this.gameMode?.Tick(sdt)
+    }
+    if (sdt > 0) {
+      for (const cb of this._tickCallbacks) {
+        cb(sdt)
+      }
     }
     // 物理步进（与 tick() 一致：置于本帧最后；未激活的预览 World 静默跳过）
-    this.physics.step(dt)
+    this.physics.step(sdt)
   }
 
   /** 注册外部 Tick 回调 */
@@ -573,6 +632,10 @@ export class World extends AObject {
       if (asset.skybox.backgroundColor) {
         this.sceneComp.setBackground(asset.skybox.backgroundColor)
       }
+    }
+    // 应用场景级物理重力（缺省字段 = 保持当前重力不动；引擎默认零重力不受影响）
+    if (sceneAsset.gravity) {
+      this.physics.setGravity(sceneAsset.gravity)
     }
     logger.debug(
       `[World] loadSceneAsActors(${sceneAsset.name}): 生成 ${count} 个 Actor（根=${1}, ref=${refNodes.length}, actor=${actorNodes.length}）`,

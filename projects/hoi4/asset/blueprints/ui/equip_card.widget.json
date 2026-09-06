@@ -1,0 +1,200 @@
+{
+  "name": "EquipCard",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-86b3cf54",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 320,
+        "worldHeight": 88
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 320,
+        "height": 88,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "Btn_add",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 320,
+            "worldHeight": 88,
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0
+          }
+        },
+        {
+          "baseClass": "UIButtonComponent",
+          "properties": {
+            "stateColors": {
+              "hover": {
+                "color": "#3d566f"
+              }
+            }
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#31445c",
+            "radius": 12,
+            "width": 320,
+            "height": 88,
+            "name": "Btn_add"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "Label_equip",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 280,
+                "worldHeight": 30,
+                "position": [
+                  0,
+                  12,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "name": "Label_equip",
+                "width": 280,
+                "height": 30,
+                "fontSize": 19,
+                "color": "#cfd8e3",
+                "align": "center"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "SubLabel",
+          "baseClass": "Actor",
+          "id": 13203,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 280,
+                "worldHeight": 24,
+                "position": [
+                  0,
+                  -15,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "",
+                "name": "SubLabel",
+                "width": 280,
+                "height": 24,
+                "fontSize": 15,
+                "color": "#8fa3b8",
+                "align": "center"
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

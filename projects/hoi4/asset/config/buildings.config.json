@@ -1,0 +1,6 @@
+{
+  "_comment": "HOI4-like 建筑参数（单例）。cost=建造点数（民用工厂·日）；建造队列经建造面板落位到州。",
+  "civilian_factory": { "name": "民用工厂", "cost": 1080 },
+  "military_factory": { "name": "军工厂", "cost": 720 },
+  "infrastructure": { "name": "基础设施", "cost": 300 }
+}

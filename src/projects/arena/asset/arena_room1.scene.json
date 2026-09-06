@@ -1,0 +1,276 @@
+{
+  "name": "ArenaRoom1",
+  "mode": "arena",
+  "gravity": [0, -25, 0],
+  "skybox": {
+    "backgroundColor": "#1a1226"
+  },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "KeyLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [12, 20, 8],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "color": "#ffe8c8",
+            "intensity": 1.1,
+            "castShadow": true,
+            "shadowExtent": 30,
+            "shadowMapSize": 2048,
+            "targetPosition": [-12, -20, -8],
+            "name": "KeyLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "AmbientLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "ambient",
+            "color": "#8a7fb0",
+            "intensity": 0.55,
+            "name": "AmbientLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Floor",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0, -0.5, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": {
+            "size": [30, 1, 30],
+            "color": "#4a4158",
+            "castShadow": true,
+            "receiveShadow": true
+          }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": {
+            "size": [30, 1, 30],
+            "bodyType": "static",
+            "group": "default",
+            "name": "FloorCollider"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Wall_S",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [0, 1.5, 15], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [32, 3, 1], "color": "#3a3350", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [32, 3, 1], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Wall_E",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [15, 1.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [1, 3, 30], "color": "#3a3350", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [1, 3, 30], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Wall_W",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [-15, 1.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [1, 3, 30], "color": "#3a3350", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [1, 3, 30], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Wall_N1",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [-9.5, 1.5, -15], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [13, 3, 1], "color": "#3a3350", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [13, 3, 1], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Wall_N2",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [9.5, 1.5, -15], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [13, 3, 1], "color": "#3a3350", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [13, 3, 1], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Door",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [0, 1.5, -15], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [6, 3, 1.2], "color": "#c8873a", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [6, 3, 1.2], "bodyType": "static", "group": "default", "name": "DoorCollider" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Pillar_1",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [-8, 1.5, -8], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [1.2, 3, 1.2], "color": "#574a72", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [1.2, 3, 1.2], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "Pillar_2",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [8, 1.5, -8], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        },
+        {
+          "baseClass": "BoxMeshComponent",
+          "properties": { "size": [1.2, 3, 1.2], "color": "#574a72", "castShadow": true, "receiveShadow": true }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": { "size": [1.2, 3, 1.2], "bodyType": "static", "group": "default" }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "HealCircle",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [10, 0.08, 8], "rotation": [0, 0, 0], "scale": [1, 0.1, 1] }
+        },
+        {
+          "baseClass": "SphereMeshComponent",
+          "properties": { "radius": 1.6, "color": "#3ddc84", "kind": "basic", "castShadow": false, "receiveShadow": false }
+        },
+        {
+          "baseClass": "BoxColliderComponent",
+          "properties": {
+            "size": [2.8, 1.5, 2.8],
+            "bodyType": "static",
+            "isTrigger": true,
+            "group": "pickup",
+            "offset": [0, 0.75, 0],
+            "name": "HealTrigger"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "PlayerSpawn",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": { "position": [0, 0.9, 10], "rotation": [0, 0, 0], "scale": [1, 1, 1] }
+        }
+      ]
+    }
+  ]
+}

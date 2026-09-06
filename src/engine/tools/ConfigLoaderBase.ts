@@ -87,12 +87,14 @@ export abstract class ConfigLoaderBase {
   /**
    * 批量注册 asset/config/ 下所有配置（glob 结果由 asset/config/index.ts 提供）。
    * name 推导：`{projectName}.{文件名}`（cannon.config.json → fish.cannon）。
+   * basePath：外部根工程传 `projects/<name>/asset/config`（缺省 = 内置轨 src/projects）。
    */
   protected registerGlob(
     configModules?: Record<string, unknown>,
     tableModules?: Record<string, unknown>,
+    basePath?: string,
   ): void {
-    ConfigRegistry.registerGlob(this.projectName, { configModules, tableModules })
+    ConfigRegistry.registerGlob(this.projectName, { configModules, tableModules }, basePath)
   }
 
   // ═════════ 同步读取（消费方调用） ═════════

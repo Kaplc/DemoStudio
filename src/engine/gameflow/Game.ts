@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { logger, PhySys } from '..'
+import { AudioSys } from '../audio/AudioSys'
 import type { SceneRendererComponent } from './SceneRendererComponent'
 import type { SceneRenderHost } from '../rendering/SceneRenderHost'
 import { GameInstance } from './GameInstance'
@@ -185,6 +186,12 @@ export class Game {
     // Game 视口渲染器：DOM 保存在 instance.viewport.container，启动时取出创建
     const gameMgr = this.ensureGameMgr()
 
+    // 游戏世界物理进入运行态（必须在 inst.start() 之前：start → onStart →
+    // world.BeginPlay 期间场景碰撞体组件会检查 active 并注册 body；若在
+    // start 之后才 begin，场景静态碰撞体将全部跳过注册——第三人称重力房间
+    // 的地板/墙/门因此需要此顺序）。
+    inst.world.physics.begin()
+
     // 启动游戏实例（UI 渲染统一走 UI 摄像机 + CanvasTexture 体系，无 DOM UI 层）
     logger.info(`[Game] 启动游戏实例: ${inst.constructor.name}`)
     const ok = inst.start()
@@ -232,10 +239,7 @@ export class Game {
 
     // 运行级单例注册表：启动时收集（shutdown 时统一回收）
     // 物理不在此列：PhysicsWorld 已改为 World 级实例（world.physics），随 World.Destroy 回收
-    this._singletons = [PhySys, AIModule.instance]
-
-    // 游戏世界物理进入运行态（碰撞体组件自此可注册 body；预览 World 永不 begin）
-    inst.world.physics.begin()
+    this._singletons = [PhySys, AIModule.instance, AudioSys.instance]
 
     // AI 事件模块：附加运行上下文（world 来自游戏实例的 duck-typed 字段）
     const world = (inst as unknown as { world?: World }).world

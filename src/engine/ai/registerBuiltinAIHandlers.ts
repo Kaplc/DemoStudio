@@ -62,6 +62,8 @@ import { UIImageComponent } from '../ui/UIImageComponent'
 import { UITransformComponent } from '../ui/UITransformComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
+import { HealthComponent } from '../gameplay/HealthComponent'
+import { StateMachineComponent } from '../gameplay/StateMachineComponent'
 import { destroyActor, getAllActors, spawnActor } from '../gameflow/ActorUtils'
 
 /** 需要运行中 World 的守卫：返回 world 或 null（并提示） */
@@ -71,6 +73,22 @@ function requireWorld(ctx: AIEventContext): World | null {
     return null
   }
   return ctx.world
+}
+
+/**
+ * callActor 方法白名单（C1）：默认仅允许调用本表 + 引擎约定安全方法；
+ * payload.allowAll=true 时放开到任意非下划线公开方法（深度调试用，保守默认）。
+ * 项目可经 aiAllowActorMethod(name) 追加。
+ */
+const ACTOR_METHOD_WHITELIST = new Set<string>([
+  'setPosition', 'setRotation', 'setScale', 'SetActive', 'applyPatch', 'destroy',
+  'jump', 'dodge', 'attack', 'takeDamage', 'heal', 'revive', 'resetHp',
+  'setState', 'setVelocity', 'syncStaticPosition',
+])
+
+/** 追加 callActor 白名单方法名（项目侧扩展通道） */
+export function aiAllowActorMethod(...names: string[]): void {
+  for (const n of names) ACTOR_METHOD_WHITELIST.add(n)
 }
 
 /** 按名称查找 Actor（name 或 root.name，递归子节点，同时搜索 3D 和 UI Actor） */
@@ -225,12 +243,25 @@ export function registerBuiltinAIHandlers(): void {
   // ─── ai.getState — 查询运行状态 ───
   ai.register(AI_EVENT_GET_STATE, (_payload: unknown, ctx: AIEventContext) => {
     const world = ctx.world
-    const mapActor = (a: import('../entity/Actor').Actor) => ({
-      name: a.name,
-      type: a.constructor.name,
-      scale: [a.root.scale.x, a.root.scale.y, a.root.scale.z] as [number, number, number],
-      active: a.bActive,
-    })
+    // C5：血量/状态机当前态进快照（挂了对应组件才输出对应字段）
+    const mapActor = (a: import('../entity/Actor').Actor) => {
+      const base = {
+        name: a.name,
+        type: a.constructor.name,
+        scale: [a.root.scale.x, a.root.scale.y, a.root.scale.z] as [number, number, number],
+        active: a.bActive,
+      }
+      const health = a.getComponent(HealthComponent)
+      if (health) {
+        ;(base as { hp?: number; maxHp?: number }).hp = Math.round(health.hp * 10) / 10
+        ;(base as { maxHp?: number }).maxHp = health.maxHp
+      }
+      const fsm = a.getComponent(StateMachineComponent)
+      if (fsm && fsm.current) {
+        ;(base as { state?: string }).state = fsm.current
+      }
+      return base
+    }
     const snapshot: AIGameStateSnapshot = {
       running: !!world?.running,
       phase: world?.gameState?.phase ?? 'idle',
@@ -456,6 +487,147 @@ export function registerBuiltinAIHandlers(): void {
       info.buttons = buttons.map((b) => ({ state: b.state, pressScale: b.pressScale }))
     }
     return { ok: true, actor: info }
+  })
+
+  // ─── ai.getComponent — 查询组件公开状态（C1：editable 属性 + 可序列化公开字段） ───
+  ai.register(AI_EVENT_GET_COMPONENT, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AIGetComponentPayload
+    if (!p.actor) return { ok: false, error: '缺少 actor' }
+
+    const actor = findActorByName(world, p.actor)
+    if (!actor) return { ok: false, error: `未找到 Actor: ${p.actor}` }
+
+    const all = actor.getAllComponents()
+    // 未指定组件：返回组件清单（类型名 + 名称）
+    if (!p.component) {
+      return {
+        ok: true,
+        actor: p.actor,
+        components: all.map((c) => ({
+          type: c.constructor.name,
+          name: (c as unknown as { name?: string }).name,
+        })),
+      }
+    }
+    const comp = all.find((c) => c.constructor.name === p.component)
+    if (!comp) {
+      return { ok: false, error: `未找到组件 ${p.component}（可用: ${all.map((c) => c.constructor.name).join(', ')}）` }
+    }
+    // 优先 getEditableProperties 通道（Inspector 同源）；叠加可序列化公开字段
+    const props: Record<string, unknown> = {}
+    const editable = (comp as unknown as { getEditableProperties?: () => Array<{ key: string; get: () => unknown; readonly?: boolean }> }).getEditableProperties?.() ?? []
+    for (const ep of editable) {
+      try {
+        props[ep.key] = ep.get()
+      } catch { /* getter 异常跳过 */ }
+    }
+    // 公开可序列化字段补充（editable 未覆盖的：非函数、非 _ 开头、基础类型/数组/纯对象）
+    for (const [k, v] of Object.entries(comp as unknown as Record<string, unknown>)) {
+      if (k.startsWith('_') || k in props) continue
+      const t = typeof v
+      if (t === 'number' || t === 'boolean' || t === 'string' || Array.isArray(v)) {
+        props[k] = v
+      }
+    }
+    return { ok: true, actor: p.actor, component: p.component, properties: props }
+  })
+
+  // ─── ai.setProperty — 写组件/Actor 公开属性（C1：editable 通道优先，公开字段兜底） ───
+  ai.register(AI_EVENT_SET_PROPERTY, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AISetPropertyPayload
+    if (!p.actor || !p.property) return { ok: false, error: '缺少 actor 或 property' }
+
+    const actor = findActorByName(world, p.actor)
+    if (!actor) return { ok: false, error: `未找到 Actor: ${p.actor}` }
+
+    // 组件属性（component 指定时）
+    if (p.component) {
+      const comp = actor.getAllComponents().find((c) => c.constructor.name === p.component)
+      if (!comp) return { ok: false, error: `未找到组件 ${p.component}` }
+      const editable = (comp as unknown as { getEditableProperties?: () => Array<{ key: string; get: () => unknown; set: (v: unknown) => void }> }).getEditableProperties?.() ?? []
+      const ep = editable.find((e) => e.key === p.property)
+      if (ep) {
+        try {
+          ep.set(p.value)
+          return { ok: true, actor: p.actor, component: p.component, property: p.property, value: ep.get() }
+        } catch (e) {
+          return { ok: false, error: `属性 ${p.property} 写入失败: ${(e as Error).message}` }
+        }
+      }
+      // 公开字段兜底（非 _ 开头）
+      const rec = comp as unknown as Record<string, unknown>
+      if (p.property in rec && !p.property.startsWith('_') && typeof rec[p.property] !== 'function') {
+        rec[p.property] = p.value
+        return { ok: true, actor: p.actor, component: p.component, property: p.property, value: rec[p.property] }
+      }
+      return { ok: false, error: `组件 ${p.component} 无可写属性 ${p.property}（editable: ${editable.map((e) => e.key).join(', ') || '无'}）` }
+    }
+
+    // Actor 自身属性（position/rotation/scale 快捷 + 公开字段）
+    if (p.property === 'position' && Array.isArray(p.value)) {
+      actor.setPosition(p.value[0], p.value[1], p.value[2])
+      return { ok: true, actor: p.actor, property: 'position', value: [actor.root.position.x, actor.root.position.y, actor.root.position.z] }
+    }
+    if (p.property === 'rotation' && Array.isArray(p.value)) {
+      actor.setRotation(p.value[0], p.value[1], p.value[2])
+      return { ok: true, actor: p.actor, property: 'rotation', value: [actor.root.rotation.x, actor.root.rotation.y, actor.root.rotation.z] }
+    }
+    if (p.property === 'scale' && Array.isArray(p.value)) {
+      actor.setScale(p.value[0], p.value[1], p.value[2])
+      return { ok: true, actor: p.actor, property: 'scale', value: [actor.root.scale.x, actor.root.scale.y, actor.root.scale.z] }
+    }
+    const rec = actor as unknown as Record<string, unknown>
+    if (p.property in rec && !p.property.startsWith('_') && typeof rec[p.property] !== 'function') {
+      rec[p.property] = p.value
+      return { ok: true, actor: p.actor, property: p.property, value: rec[p.property] }
+    }
+    return { ok: false, error: `Actor ${p.actor} 无可写属性 ${p.property}（position/rotation/scale 或公开字段）` }
+  })
+
+  // ─── ai.callActor — 调用 Actor/组件方法（C1：白名单制，allowAll 放开调试） ───
+  ai.register(AI_EVENT_CALL_ACTOR, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const p = (payload ?? {}) as AICallActorPayload
+    if (!p.actor || !p.method) return { ok: false, error: '缺少 actor 或 method' }
+
+    const actor = findActorByName(world, p.actor)
+    if (!actor) return { ok: false, error: `未找到 Actor: ${p.actor}` }
+
+    // 白名单闸门（allowAll=true 放开：仅非下划线方法）
+    if (!p.allowAll && !ACTOR_METHOD_WHITELIST.has(p.method)) {
+      return { ok: false, error: `方法 "${p.method}" 不在白名单（可用: ${[...ACTOR_METHOD_WHITELIST].join(', ')}；深度调试可传 allowAll:true）` }
+    }
+
+    let target: unknown = actor
+    if (p.component) {
+      const comp = actor.getAllComponents().find((c) => c.constructor.name === p.component)
+      if (!comp) return { ok: false, error: `未找到组件 ${p.component}` }
+      target = comp
+    }
+    const fn = (target as Record<string, unknown>)?.[p.method]
+    if (typeof fn !== 'function') {
+      return { ok: false, error: `${p.component ?? 'Actor'} 上无方法 ${p.method}` }
+    }
+    if (p.method.startsWith('_')) {
+      return { ok: false, error: `拒绝调用私有方法 ${p.method}` }
+    }
+    try {
+      const result = (fn as (...args: unknown[]) => unknown).apply(target, p.args ?? [])
+      logger.info(`[AI] callActor: ${p.actor}.${p.component ? p.component + '.' : ''}${p.method}(${JSON.stringify(p.args ?? [])})`)
+      return {
+        ok: true,
+        actor: p.actor,
+        method: p.method,
+        result: result === undefined ? null : (typeof result === 'object' ? JSON.parse(JSON.stringify(result)) : result),
+      }
+    } catch (e) {
+      return { ok: false, error: `调用失败: ${(e as Error).message}` }
+    }
   })
 
   // ─── ai.scrollCamera — 模拟鼠标滚轮缩放摄像机（delta>0 拉远 / <0 拉近，与 PlayerController.OnScroll 一致） ───

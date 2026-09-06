@@ -1,0 +1,36 @@
+<widget name="ConstructionPanel" canvas="1920x1080" active="false" data-script="gameplay/ui/ConstructionPanel">
+  <style>
+    .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #0b1018c0; }
+    .Panel { width: 1100px; height: 860px; margin: 70px auto; display: flex; flex-direction: column; align-items: center; background-color: #1d2733; border: 2px solid #3a4a5c; border-radius: 18px; hit-test: block; }
+    .Head { width: 1040px; height: 60px; margin-top: 20px; display: flex; flex-direction: row; align-items: center; }
+    .Title { width: 500px; height: 48px; font-size: 30px; color: #e0a83c; text-align: left; font-weight: bold; }
+    .Btn_close { width: 120px; height: 48px; margin-left: auto; display: flex; justify-content: center; align-items: center; background-color: #7a3a38; border-radius: 10px; }
+    .Btn_close:hover { background-color: #964644; }
+    .Label_close { width: 90px; height: 30px; font-size: 19px; color: #ffe4e0; text-align: center; }
+    .CivText { width: 460px; height: 36px; margin-top: 8px; font-size: 19px; color: #8fa3b8; text-align: left; }
+    .BuildBox { width: 1040px; height: 100px; margin-top: 10px; display: flex; flex-direction: row; align-items: center; background-color: #24313f; border-radius: 12px; }
+    .BuildLabel { width: 220px; height: 40px; margin-left: 20px; font-size: 20px; color: #cfd8e3; text-align: left; }
+    .Btn_build { width: 200px; height: 60px; margin-left: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #31445c; border-radius: 10px; }
+    .Btn_build:hover { background-color: #3d566f; }
+    .Label_build { width: 170px; height: 30px; font-size: 19px; color: #cfd8e3; text-align: center; }
+    .SubLabel { width: 170px; height: 22px; font-size: 14px; color: #8fa3b8; text-align: center; }
+    .QueueTitle { width: 1040px; height: 40px; margin-top: 14px; font-size: 20px; color: #8fa3b8; text-align: left; }
+    .QueueList { width: 1040px; height: 480px; margin-top: 6px; }
+  </style>
+  <div class="Dim"></div>
+  <div class="Panel">
+    <div class="Head">
+      <text class="Title">建造</text>
+      <button class="Btn_close" data-name="Btn_close"><text class="Label_close">关闭</text></button>
+    </div>
+    <text class="CivText" data-name="CivText"></text>
+    <div class="BuildBox">
+      <text class="BuildLabel">新建建筑（自动落位到本国州）</text>
+      <button class="Btn_build" data-name="Btn_civ"><text class="Label_build">民用工厂</text><text class="SubLabel">1080 建造点</text></button>
+      <button class="Btn_build" data-name="Btn_mil"><text class="Label_build">军工厂</text><text class="SubLabel">720 建造点</text></button>
+      <button class="Btn_build" data-name="Btn_infra"><text class="Label_build">基础设施</text><text class="SubLabel">300 建造点</text></button>
+    </div>
+    <text class="QueueTitle">建造队列（吞吐全部灌给队首项目）</text>
+    <div class="QueueList" data-name="QueueList" data-comp="UILayout" data-props='{"mode":"vertical","spacingY":8,"autoLayout":true}'></div>
+  </div>
+</widget>

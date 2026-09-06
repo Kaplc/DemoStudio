@@ -1,0 +1,13 @@
+{
+  "_comment": "HOI4-like 国家表（DataTable 行表）。键=国家 tag。\n生成器（scripts/hoi4-map-gen.mjs）读取本表把州分配给国家——tag/color/name 的唯一事实来源在这里。\n字段：name=显示名（中文，本地化不做 i18n）；color=政治地图色 #rrggbb；\nideology=意识形态（democratic/communist/fascist/neutral）；\npp=初始政治点；stability=初始稳定度(0-100)；warSupport=初始战争支持度(0-100)；\nmanpower=初始人力（k 人）；ai=AI 权重（aggressive 越高越倾向进攻；null=永远玩家可选但由 AI 接管时的基础档）。",
+  "GER": { "name": "德意志", "color": "#7a7a6f", "ideology": "fascist", "pp": 65, "stability": 60, "warSupport": 55, "manpower": 1200, "ai": { "aggressive": 0.9, "industrial": 0.9 } },
+  "FRA": { "name": "法兰西", "color": "#5b8fbf", "ideology": "democratic", "pp": 55, "stability": 65, "warSupport": 40, "manpower": 900, "ai": { "aggressive": 0.3, "industrial": 0.7 } },
+  "ENG": { "name": "不列颠", "color": "#c96f6f", "ideology": "democratic", "pp": 60, "stability": 70, "warSupport": 35, "manpower": 850, "ai": { "aggressive": 0.25, "industrial": 0.8 } },
+  "ITA": { "name": "意大利", "color": "#6faa72", "ideology": "fascist", "pp": 58, "stability": 55, "warSupport": 50, "manpower": 800, "ai": { "aggressive": 0.7, "industrial": 0.55 } },
+  "POL": { "name": "波兰", "color": "#c9c9d6", "ideology": "neutral", "pp": 45, "stability": 55, "warSupport": 45, "manpower": 600, "ai": { "aggressive": 0.35, "industrial": 0.45 } },
+  "SOV": { "name": "苏维埃", "color": "#b04a4a", "ideology": "communist", "pp": 70, "stability": 60, "warSupport": 60, "manpower": 2200, "ai": { "aggressive": 0.75, "industrial": 0.95 } },
+  "HUN": { "name": "匈牙利", "color": "#7f9563", "ideology": "fascist", "pp": 40, "stability": 55, "warSupport": 40, "manpower": 300, "ai": { "aggressive": 0.5, "industrial": 0.35 } },
+  "ROM": { "name": "罗马尼亚", "color": "#a98751", "ideology": "neutral", "pp": 40, "stability": 50, "warSupport": 40, "manpower": 350, "ai": { "aggressive": 0.4, "industrial": 0.4 } },
+  "YUG": { "name": "南斯拉夫", "color": "#8a6fae", "ideology": "neutral", "pp": 38, "stability": 50, "warSupport": 45, "manpower": 380, "ai": { "aggressive": 0.35, "industrial": 0.35 } },
+  "SWI": { "name": "瑞士", "color": "#d0695f", "ideology": "democratic", "pp": 35, "stability": 80, "warSupport": 20, "manpower": 200, "ai": { "aggressive": 0.05, "industrial": 0.4 } }
+}

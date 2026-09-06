@@ -96,7 +96,9 @@ export abstract class GameInstance extends AObject {
   start(): boolean {
     logger.info(`[${this.constructor.name}] 启动游戏...`)
 
-    // 创建 GameMode 并挂载到 World
+    // 创建 GameMode 并挂载到 World（SetGameMode 内部已调用 InitGame + StartPlay
+    // → SpawnPlayer 生成 controller/pawn；此处不得重复调用——旧版双份调用会
+    // 让 SpawnPlayer 执行两遍，场景里出现双份玩家）
     const gm = this.createGameMode()
     this.world.SetGameMode(gm)
     this.world.Stop()
@@ -111,8 +113,6 @@ export abstract class GameInstance extends AObject {
       }
     })
 
-    gm.InitGame()
-    gm.StartPlay()
     const ctrl = gm.controller
     if (!ctrl) {
       logger.error(`[${this.constructor.name}] StartPlay 后 controller 为空`)

@@ -1,0 +1,18 @@
+<widget name="BatRow" canvas="400x60">
+  <style>
+    .Root { width: 400px; height: 60px; display: flex; flex-direction: row; align-items: center; background-color: #2c3b4c; border-radius: 8px; }
+    .NameText { width: 170px; height: 30px; margin-left: 14px; font-size: 18px; color: #e8eef5; text-align: left; }
+    .CountText { width: 60px; height: 30px; margin-left: 10px; font-size: 19px; color: #e0a83c; text-align: center; }
+    .Btn_sub { width: 52px; height: 42px; margin-left: auto; display: flex; justify-content: center; align-items: center; background-color: #7a3a38; border-radius: 8px; }
+    .Btn_sub:hover { background-color: #964644; }
+    .Btn_add { width: 52px; height: 42px; margin-left: 10px; margin-right: 12px; display: flex; justify-content: center; align-items: center; background-color: #55683a; border-radius: 8px; }
+    .Btn_add:hover { background-color: #6a8046; }
+    .Label_pm { width: 36px; height: 28px; font-size: 22px; color: #f5f0e0; text-align: center; }
+  </style>
+  <div class="Root">
+    <text class="NameText" data-name="NameText"></text>
+    <text class="CountText" data-name="CountText">0</text>
+    <button class="Btn_sub" data-name="Btn_sub"><text class="Label_pm">−</text></button>
+    <button class="Btn_add" data-name="Btn_add"><text class="Label_pm">+</text></button>
+  </div>
+</widget>

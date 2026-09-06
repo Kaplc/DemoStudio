@@ -1,0 +1,141 @@
+{
+  "_comment": "HOI4-like 科技表（DataTable 行表）。days=研究天数（乘国家 researchMod）；effect.type:\nstat_bonus=按 category 的营分类加成（category 缺省=全营）；unlock_equipment/unlock_battalion=解锁；\nfactory_output/construction_speed=国家修正加成。aiWillDo=AI 选研权重（0=永不自动）。",
+  "inf_weapons_1": {
+    "name": "步兵武器 I", "desc": "制式步枪与轻机枪换装，步兵火力小幅提升。",
+    "category": "infantry", "days": 120, "prereq": [],
+    "effect": { "type": "stat_bonus", "category": "infantry", "softAttack": 0.05, "defense": 0.05 }, "aiWillDo": 8
+  },
+  "inf_weapons_2": {
+    "name": "步兵武器 II", "desc": "半自动步枪列装一线部队。",
+    "category": "infantry", "days": 150, "prereq": ["inf_weapons_1"],
+    "effect": { "type": "stat_bonus", "category": "infantry", "softAttack": 0.05, "defense": 0.05 }, "aiWillDo": 6
+  },
+  "inf_weapons_3": {
+    "name": "步兵武器 III", "desc": "突击武器与班属火力体系成型。",
+    "category": "infantry", "days": 180, "prereq": ["inf_weapons_2"],
+    "effect": { "type": "stat_bonus", "category": "infantry", "softAttack": 0.06, "defense": 0.05 }, "aiWillDo": 4
+  },
+  "support_eq": {
+    "name": "支援装备生产", "desc": "工兵/通信/后勤制式器材量产，支援连解锁。",
+    "category": "infantry", "days": 100, "prereq": [],
+    "effect": { "type": "unlock_equipment", "id": "support_equipment" }, "aiWillDo": 7
+  },
+  "artillery_1": {
+    "name": "制式火炮", "desc": "75mm 级野战炮量产，炮兵营解锁。",
+    "category": "artillery", "days": 140, "prereq": [],
+    "effect": { "type": "unlock_equipment", "id": "artillery" }, "aiWillDo": 8
+  },
+  "artillery_2": {
+    "name": "改良火炮", "desc": "105mm 级火炮与射控改良。",
+    "category": "artillery", "days": 170, "prereq": ["artillery_1"],
+    "effect": { "type": "stat_bonus", "category": "artillery", "softAttack": 0.08 }, "aiWillDo": 5
+  },
+  "at_guns": {
+    "name": "反坦克炮", "desc": "37mm 级反坦克炮量产，反坦克营解锁。",
+    "category": "artillery", "days": 150, "prereq": ["artillery_1"],
+    "effect": { "type": "unlock_battalion", "id": "anti_tank" }, "aiWillDo": 4
+  },
+  "light_tank_1": {
+    "name": "轻型坦克", "desc": "轮式悬挂轻型坦克量产，轻坦营解锁。",
+    "category": "armor", "days": 160, "prereq": [],
+    "effect": { "type": "unlock_equipment", "id": "light_tank" }, "aiWillDo": 6
+  },
+  "light_armor_battalion": {
+    "name": "装甲兵战术", "desc": "独立装甲营编制与训练体系。",
+    "category": "armor", "days": 100, "prereq": ["light_tank_1"],
+    "effect": { "type": "unlock_battalion", "id": "light_armor" }, "aiWillDo": 5
+  },
+  "light_tank_2": {
+    "name": "轻型坦克 II", "desc": "悬挂与火炮升级。",
+    "category": "armor", "days": 180, "prereq": ["light_armor_battalion"],
+    "effect": { "type": "stat_bonus", "category": "armor", "softAttack": 0.08, "hardAttack": 0.08 }, "aiWillDo": 3
+  },
+  "medium_tank": {
+    "name": "中型坦克", "desc": "20 吨级坦克量产，中坦营解锁。",
+    "category": "armor", "days": 220, "prereq": ["light_tank_2"],
+    "effect": { "type": "unlock_equipment", "id": "medium_tank" }, "aiWillDo": 4
+  },
+  "medium_armor_battalion": {
+    "name": "中型装甲营编制", "desc": "中型坦克营入编。",
+    "category": "armor", "days": 120, "prereq": ["medium_tank"],
+    "effect": { "type": "unlock_battalion", "id": "medium_armor" }, "aiWillDo": 3
+  },
+  "motorization": {
+    "name": "摩托化", "desc": "卡车量产与摩托化步兵编制。",
+    "category": "infantry", "days": 140, "prereq": [],
+    "effect": { "type": "unlock_equipment", "id": "motorized" }, "aiWillDo": 5
+  },
+  "machine_tools": {
+    "name": "基础机械工具", "desc": "流水线工装普及，建造速度提升。",
+    "category": "industry", "days": 100, "prereq": [],
+    "effect": { "type": "construction_speed" }, "bonus": 0.1, "aiWillDo": 9
+  },
+  "industry_1": {
+    "name": "分散工业 I", "desc": "工厂分散布局，产出提升。",
+    "category": "industry", "days": 150, "prereq": ["machine_tools"],
+    "effect": { "type": "factory_output" }, "bonus": 0.05, "aiWillDo": 9
+  },
+  "industry_2": {
+    "name": "分散工业 II", "desc": "工业体系二次升级。",
+    "category": "industry", "days": 180, "prereq": ["industry_1"],
+    "effect": { "type": "factory_output" }, "bonus": 0.05, "aiWillDo": 6
+  },
+  "construction_1": {
+    "name": "建设工程 I", "desc": "标准化施工工法。",
+    "category": "industry", "days": 120, "prereq": ["machine_tools"],
+    "effect": { "type": "construction_speed" }, "bonus": 0.1, "aiWillDo": 7
+  },
+  "construction_2": {
+    "name": "建设工程 II", "desc": "预制构件与工程机械普及。",
+    "category": "industry", "days": 150, "prereq": ["construction_1"],
+    "effect": { "type": "construction_speed" }, "bonus": 0.1, "aiWillDo": 5
+  },
+  "fp_1": {
+    "name": "优势火力学说", "desc": "以炮兵与火力压制为核心的陆军学说。",
+    "category": "doctrine", "days": 150, "prereq": [],
+    "mutuallyExclusive": ["mobile_1", "mass_1"],
+    "effect": { "type": "stat_bonus", "softAttack": 0.05 }, "aiWillDo": 6
+  },
+  "fp_2": {
+    "name": "优势火力 II", "desc": "师属炮兵扩编。",
+    "category": "doctrine", "days": 170, "prereq": ["fp_1"],
+    "effect": { "type": "stat_bonus", "softAttack": 0.05 }, "aiWillDo": 4
+  },
+  "fp_3": {
+    "name": "优势火力 III", "desc": "火力与后勤体系深度融合。",
+    "category": "doctrine", "days": 200, "prereq": ["fp_2"],
+    "effect": { "type": "stat_bonus", "org": 3 }, "aiWillDo": 3
+  },
+  "mobile_1": {
+    "name": "机动作战学说", "desc": "以装甲突破为核心的陆军学说。",
+    "category": "doctrine", "days": 150, "prereq": [],
+    "mutuallyExclusive": ["fp_1", "mass_1"],
+    "effect": { "type": "stat_bonus", "breakthrough": 0.08 }, "aiWillDo": 5
+  },
+  "mobile_2": {
+    "name": "机动作战 II", "desc": "装甲师独立作战条令。",
+    "category": "doctrine", "days": 170, "prereq": ["mobile_1"],
+    "effect": { "type": "stat_bonus", "org": 2 }, "aiWillDo": 3
+  },
+  "mobile_3": {
+    "name": "机动作战 III", "desc": "装甲集群战役理论成熟。",
+    "category": "doctrine", "days": 200, "prereq": ["mobile_2"],
+    "effect": { "type": "stat_bonus", "hardAttack": 0.06 }, "aiWillDo": 2
+  },
+  "mass_1": {
+    "name": "人海突击学说", "desc": "以纵深防御与兵力优势为核心的陆军学说。",
+    "category": "doctrine", "days": 150, "prereq": [],
+    "mutuallyExclusive": ["fp_1", "mobile_1"],
+    "effect": { "type": "stat_bonus", "defense": 0.08 }, "aiWillDo": 5
+  },
+  "mass_2": {
+    "name": "人海突击 II", "desc": "纵深梯次防御体系。",
+    "category": "doctrine", "days": 170, "prereq": ["mass_1"],
+    "effect": { "type": "stat_bonus", "org": 2 }, "aiWillDo": 3
+  },
+  "mass_3": {
+    "name": "人海突击 III", "desc": "总动员防御理论。",
+    "category": "doctrine", "days": 200, "prereq": ["mass_2"],
+    "effect": { "type": "stat_bonus", "defense": 0.06 }, "aiWillDo": 2
+  }
+}

@@ -1,0 +1,15 @@
+<widget name="ResultPanel" canvas="1920x1080" active="false" data-script="gameplay/ui/ResultScript">
+  <style>
+    .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #0b1018e0; }
+    .Panel { width: 860px; height: 420px; margin: 300px auto; display: flex; flex-direction: column; align-items: center; background-color: #1d2733; border: 3px solid #e0a83c; border-radius: 18px; hit-test: block; }
+    .Title { width: 760px; height: 90px; margin-top: 50px; font-size: 52px; color: #e0a83c; text-align: center; font-weight: bold; }
+    .Desc { width: 760px; height: 130px; margin-top: 24px; font-size: 21px; color: #cfd8e3; text-align: center; }
+    .Hint { width: 760px; height: 40px; margin-top: 16px; font-size: 17px; color: #64788c; text-align: center; }
+  </style>
+  <div class="Dim"></div>
+  <div class="Panel">
+    <text class="Title" data-name="Title"></text>
+    <text class="Desc" data-name="Desc"></text>
+    <text class="Hint">GM 命令 reset 可重开一局（当前版本）</text>
+  </div>
+</widget>

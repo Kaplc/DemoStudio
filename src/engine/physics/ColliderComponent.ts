@@ -38,12 +38,17 @@ export abstract class ColliderComponent extends ActorComponent {
   onCollisionExit: ((e: CollisionEvent) => void) | null = null
   onCollisionStay: ((e: CollisionEvent) => void) | null = null
 
+  // ─── 触发事件委托（isTrigger 碰撞体专用；双方都可订阅，非触发方也可感知进出）───
+  onTriggerEnter: ((e: CollisionEvent) => void) | null = null
+  onTriggerExit: ((e: CollisionEvent) => void) | null = null
+  onTriggerStay: ((e: CollisionEvent) => void) | null = null
+
   // ─── 可配置属性（蓝图 properties / Inspector 可编辑）───
   /** 刚体类型：static 建筑用（不动）；dynamic 兵用（会被推挤） */
   bodyType: ColliderBodyType = 'static'
   /** 质量（dynamic 时生效；static 恒视为无穷大） */
   mass = 1
-  /** 碰撞层名（COLLISION_LAYER_GROUPS key：default/troop/building） */
+  /** 碰撞层名（COLLISION_LAYER_GROUPS key：default/troop/building/player/enemy/projectile/pickup） */
   group = 'default'
   /** 碰撞掩码层名列表（与哪些层碰撞；空数组 = 全部） */
   mask: string[] = []
@@ -53,6 +58,11 @@ export abstract class ColliderComponent extends ActorComponent {
   linearDamping = 0.4
   /** 是否锁定 y（俯视角玩法默认锁：禁弹跳） */
   lockY = true
+  /**
+   * 触发体（Unity 语义）：产生 Enter/Stay/Exit 事件但不产生物理响应
+   * （可穿过）。拾取圈/毒圈/门感应区用。cannon 侧映射 body.isTrigger。
+   */
+  isTrigger = false
 
   /** 创建好的 cannon body（BeginPlay 后有值；EndPlay 置 null） */
   body: CANNON.Body | null = null
@@ -108,6 +118,9 @@ export abstract class ColliderComponent extends ActorComponent {
       ? this.mask.reduce((acc, n) => acc | (COLLISION_LAYER_GROUPS[n] ?? 0), 0)
       : -1 // 全部
     body.collisionFilterMask = maskBits
+    // 触发体：cannon 原生语义——接触照常生成（驱动 Enter/Stay/Exit 事件），
+    // 求解器跳过其方程（无物理响应，可穿过）
+    body.isTrigger = this.isTrigger
     // 动态体参数：高阻尼 + 锁旋转（俯视角：永不翻倒）
     if (!isStatic) {
       body.linearDamping = this.linearDamping
@@ -181,8 +194,12 @@ export abstract class ColliderComponent extends ActorComponent {
       position: new CANNON.Vec3(pos.x + this.offset[0], pos.y + this.offset[1], pos.z + this.offset[2]),
       type: isStatic ? CANNON.Body.STATIC : CANNON.Body.DYNAMIC,
     })
-    body.collisionFilterGroup = 0
-    body.collisionFilterMask = -1
+    body.collisionFilterGroup = COLLISION_LAYER_GROUPS[this.group] ?? COLLISION_LAYER_GROUPS.default
+    const restoreMaskBits = this.mask.length > 0
+      ? this.mask.reduce((acc, n) => acc | (COLLISION_LAYER_GROUPS[n] ?? 0), 0)
+      : -1
+    body.collisionFilterMask = restoreMaskBits
+    body.isTrigger = this.isTrigger
     if (!isStatic) {
       body.linearDamping = this.linearDamping
       body.angularDamping = 1
@@ -276,11 +293,12 @@ export abstract class ColliderComponent extends ActorComponent {
       group: this.group,
       mask: this.mask.join(','),
       offset: `[${this.offset.join(', ')}]`,
+      isTrigger: this.isTrigger,
       hasBody: this.body !== null,
     }
   }
 
-  /** 通用可编辑属性（bodyType/mass/group/mask 及派生类尺寸），Inspector 编辑 + 蓝图持久化 */
+  /** 通用可编辑属性（bodyType/mass/group/mask/isTrigger 及派生类尺寸），Inspector 编辑 + 蓝图持久化 */
   override getEditableProperties(): EditableProperty[] {
     return [
       {
@@ -302,6 +320,14 @@ export abstract class ColliderComponent extends ActorComponent {
         key: 'mask', type: 'string',
         get: () => this.mask.join(','),
         set: (v) => { this.mask = String(v).split(',').map((s) => s.trim()).filter(Boolean) },
+      },
+      {
+        key: 'isTrigger', type: 'boolean',
+        get: () => this.isTrigger,
+        set: (v) => {
+          this.isTrigger = !!v
+          if (this.body) this.body.isTrigger = this.isTrigger
+        },
       },
       {
         key: 'linearDamping', type: 'number', min: 0, step: 0.05,

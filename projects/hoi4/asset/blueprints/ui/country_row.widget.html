@@ -1,0 +1,17 @@
+<widget name="CountryRow" canvas="640x72">
+  <style>
+    .Root { width: 640px; height: 72px; display: flex; flex-direction: row; align-items: center; background-color: #24313f; border-radius: 10px; }
+    .Swatch { width: 40px; height: 40px; margin-left: 14px; }
+    .NameText { width: 130px; height: 36px; margin-left: 14px; font-size: 22px; color: #e8eef5; text-align: left; }
+    .InfoText { width: 250px; height: 32px; margin-left: 10px; font-size: 17px; color: #8fa3b8; text-align: left; }
+    .Btn_pick { width: 110px; height: 48px; margin-left: auto; margin-right: 14px; display: flex; justify-content: center; align-items: center; background-color: #6a7c34; border-radius: 10px; }
+    .Btn_pick:hover { background-color: #7f9440; }
+    .Label_pick { width: 80px; height: 30px; font-size: 19px; color: #f2f7e6; text-align: center; }
+  </style>
+  <div class="Root">
+    <div class="Swatch" data-name="Swatch"></div>
+    <text class="NameText" data-name="NameText"></text>
+    <text class="InfoText" data-name="InfoText"></text>
+    <button class="Btn_pick" data-name="Btn_pick"><text class="Label_pick">选择</text></button>
+  </div>
+</widget>

@@ -16,6 +16,7 @@ class SceneDocChecker extends AbstractAssetChecker {
     { field: 'name', type: 'string', required: true, label: '场景名' },
     { field: 'mode', type: 'string', label: '模式' },
     { field: 'objects', type: 'array', required: true, itemsType: 'object', label: '对象列表' },
+    { field: 'gravity', type: 'array', itemsType: 'number', label: '物理重力 [x,y,z]（缺省零重力）' },
   ]
 
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {

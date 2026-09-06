@@ -1,0 +1,29 @@
+<widget name="LawsPanel" canvas="1920x1080" active="false" data-script="gameplay/ui/LawsPanel">
+  <style>
+    .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #0b1018c0; }
+    .Panel { width: 1240px; height: 760px; margin: 90px auto; display: flex; flex-direction: column; align-items: center; background-color: #1d2733; border: 2px solid #3a4a5c; border-radius: 18px; hit-test: block; }
+    .Head { width: 1180px; height: 60px; margin-top: 20px; display: flex; flex-direction: row; align-items: center; }
+    .Title { width: 560px; height: 48px; font-size: 30px; color: #e0a83c; text-align: left; font-weight: bold; }
+    .Btn_close { width: 120px; height: 48px; margin-left: auto; display: flex; justify-content: center; align-items: center; background-color: #7a3a38; border-radius: 10px; }
+    .Btn_close:hover { background-color: #964644; }
+    .Label_close { width: 90px; height: 30px; font-size: 19px; color: #ffe4e0; text-align: center; }
+    .PpText { width: 1160px; height: 36px; margin-top: 6px; font-size: 19px; color: #8fa3b8; text-align: left; }
+    .Columns { width: 1180px; height: 560px; margin-top: 12px; display: flex; flex-direction: row; }
+    .Col { width: 380px; height: 560px; margin-left: 10px; display: flex; flex-direction: column; background-color: #24313f; border-radius: 12px; }
+    .ColTitle { width: 340px; height: 44px; margin-top: 10px; font-size: 21px; color: #cfd8e3; text-align: center; font-weight: bold; }
+    .LawList { width: 340px; height: 480px; margin-top: 6px; overflow-y: auto; }
+  </style>
+  <div class="Dim"></div>
+  <div class="Panel">
+    <div class="Head">
+      <text class="Title">法律</text>
+      <button class="Btn_close" data-name="Btn_close"><text class="Label_close">关闭</text></button>
+    </div>
+    <text class="PpText" data-name="PpText"></text>
+    <div class="Columns">
+      <div class="Col"><text class="ColTitle">经济法</text><div class="LawList" data-name="List_economy"></div></div>
+      <div class="Col"><text class="ColTitle">征兵法</text><div class="LawList" data-name="List_conscription"></div></div>
+      <div class="Col"><text class="ColTitle">贸易法</text><div class="LawList" data-name="List_trade"></div></div>
+    </div>
+  </div>
+</widget>

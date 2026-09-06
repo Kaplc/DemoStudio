@@ -1,0 +1,23 @@
+{
+  "_comment": "HOI4-like 陆战参数（单例）——所有战斗/经济调参出口（GM 台热改+热重载对拍）。\nwidth 单位=营宽；orgDamageCoef=每小时双方输出→对方组织度伤害系数；\n堑壕=每小时+entrenchPerHour（上限 entrenchMax），每点+entrenchDefensePerPoint 防御。",
+  "baseWidth": 90,
+  "widthPerExtraDirection": 30,
+  "divisionWidth": 20,
+  "orgDamageCoef": 0.055,
+  "strengthDamageCoef": 0.35,
+  "entrenchPerHour": 0.2,
+  "entrenchMax": 5,
+  "entrenchDefensePerPoint": 0.04,
+  "orgRegenPerHour": 0.3,
+  "orgRegenInBattlePerHour": 0.05,
+  "moveHoursBase": 10,
+  "trainingDays": 90,
+  "ppPerDay": 2,
+  "civFactoryOutput": 5,
+  "milFactoryOutput": 4.5,
+  "constrMaxFactories": 15,
+  "efficiencyStart": 0.2,
+  "efficiencyGainPerDay": 0.015,
+  "efficiencyMax": 1.0,
+  "manpowerPerDayPerState": 6
+}

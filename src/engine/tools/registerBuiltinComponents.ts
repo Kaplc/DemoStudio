@@ -25,6 +25,11 @@ import { SpriteComponent } from '../rendering/SpriteComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
 import { BoxColliderComponent, CircleColliderComponent, CapsuleColliderComponent } from '../physics/ColliderComponents'
 import type { ColliderBodyType } from '../physics/ColliderComponent'
+import { CharacterControllerComponent } from '../physics/CharacterControllerComponent'
+import { FollowCameraComponent } from '../rendering/FollowCameraComponent'
+import { ParticleEmitterComponent } from '../rendering/ParticleEmitterComponent'
+import { HealthComponent, type HealthTeam } from '../gameplay/HealthComponent'
+import { StateMachineComponent } from '../gameplay/StateMachineComponent'
 import { CameraComponent, type CameraMode } from '../rendering/CameraComponent'
 import { InputComponent } from '../input/InputComponent'
 import { SpawnComponent } from '../entity/SpawnComponent'
@@ -148,6 +153,7 @@ export function registerBuiltinComponents(): void {
     if (Array.isArray(p.offset)) c.offset = p.offset as [number, number, number]
     if (p.linearDamping !== undefined) c.linearDamping = p.linearDamping as number
     if (p.lockY !== undefined) c.lockY = p.lockY as boolean
+    if (p.isTrigger !== undefined) c.isTrigger = !!p.isTrigger
   }
 
   // Box：props 额外 { size: [w,h,d] }（建筑等盒形碰撞体）
@@ -747,5 +753,79 @@ export function registerBuiltinComponents(): void {
       if (p.scrollbar !== undefined) scroll.scrollbar = p.scrollbar as boolean
       if (p.scrollOffset !== undefined) scroll.scrollOffset = p.scrollOffset as number
     },
+  )
+
+  // ─── CharacterControllerComponent ─── props: { speed?, acceleration?, jumpSpeed?, dodgeSpeed?, dodgeDuration?, dodgeCooldown?, turnSpeed?, cameraRelative? }
+  // 第三人称角色控制器（A2）：输入→期望速度→body 速度注入 + 跳跃/翻滚/击退/地面检测。
+  // 事件回调（无）与移动输入由代码/Pawn 驱动；前置 dynamic 碰撞体（lockY=false）+ 世界重力。
+  ComponentRegistry.register(
+    'CharacterControllerComponent',
+    (owner, p = {}) => {
+      const comp = new CharacterControllerComponent(owner as Actor)
+      if (p.speed !== undefined) comp.speed = p.speed as number
+      if (p.acceleration !== undefined) comp.acceleration = p.acceleration as number
+      if (p.jumpSpeed !== undefined) comp.jumpSpeed = p.jumpSpeed as number
+      if (p.dodgeSpeed !== undefined) comp.dodgeSpeed = p.dodgeSpeed as number
+      if (p.dodgeDuration !== undefined) comp.dodgeDuration = p.dodgeDuration as number
+      if (p.dodgeCooldown !== undefined) comp.dodgeCooldown = p.dodgeCooldown as number
+      if (p.turnSpeed !== undefined) comp.turnSpeed = p.turnSpeed as number
+      if (p.cameraRelative !== undefined) comp.cameraRelative = !!p.cameraRelative
+      return comp
+    },
+    () => {},
+  )
+
+  // ─── FollowCameraComponent ─── props: { offset?, followSpeed?, lookAtHeight?, lookAtSpeed? }
+  // 第三人称跟随相机（A4）：target 阻尼跟随 + lookAt + shake 屏震。target 由代码 setTarget。
+  ComponentRegistry.register(
+    'FollowCameraComponent',
+    (owner, p = {}) => {
+      const comp = new FollowCameraComponent(owner as Actor)
+      if (Array.isArray(p.offset)) comp.offset = p.offset as [number, number, number]
+      if (p.followSpeed !== undefined) comp.followSpeed = p.followSpeed as number
+      if (p.lookAtHeight !== undefined) comp.lookAtHeight = p.lookAtHeight as number
+      if (p.lookAtSpeed !== undefined) comp.lookAtSpeed = p.lookAtSpeed as number
+      return comp
+    },
+    () => {},
+  )
+
+  // ─── HealthComponent ─── props: { maxHp?, team?, invulnDuration? }
+  // 通用血量/伤害（B2）：damage/heal/revive + 无敌帧窗口 + 阵营。事件委托代码订阅。
+  ComponentRegistry.register(
+    'HealthComponent',
+    (owner, p = {}) => {
+      const comp = new HealthComponent(owner as Actor)
+      if (p.maxHp !== undefined) comp.maxHp = Math.max(1, p.maxHp as number)
+      if (p.team !== undefined) comp.team = p.team as HealthTeam
+      if (p.invulnDuration !== undefined) comp.invulnDuration = p.invulnDuration as number
+      comp.resetHp()
+      return comp
+    },
+    () => {},
+  )
+
+  // ─── StateMachineComponent ─── props: { initial? }
+  // 表驱动 FSM（A8）：states/transitions 由代码注册（回调无法 JSON 表达）。
+  ComponentRegistry.register(
+    'StateMachineComponent',
+    (owner, p = {}) => {
+      const comp = new StateMachineComponent(owner as Actor)
+      if (p.initial !== undefined) comp.initial = p.initial as string
+      return comp
+    },
+    () => {},
+  )
+
+  // ─── ParticleEmitterComponent ─── props: { maxParticles? }
+  // 粒子发射器（A7 最小形态）：emit(config) 一次性爆发；Points CPU 更新。
+  ComponentRegistry.register(
+    'ParticleEmitterComponent',
+    (owner, p = {}) => {
+      const comp = new ParticleEmitterComponent(owner as Actor)
+      if (p.maxParticles !== undefined) comp.maxParticles = Math.max(16, p.maxParticles as number)
+      return comp
+    },
+    () => {},
   )
 }

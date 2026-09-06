@@ -272,6 +272,12 @@ export interface AIGameStateSnapshot {
     scale: [number, number, number]
     /** 是否激活（UI 失活属性，false = 已创建但不渲染） */
     active: boolean
+    /** 血量（挂 HealthComponent 时输出；C5） */
+    hp?: number
+    /** 最大血量（同上） */
+    maxHp?: number
+    /** 当前状态机状态名（挂 StateMachineComponent 时输出；C5） */
+    state?: string
   }>
 }
 

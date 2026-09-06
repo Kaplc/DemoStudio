@@ -4,10 +4,15 @@
  */
 import type { PlayerController } from '../input/PlayerController'
 import { Actor } from './Actor'
+import { CharacterControllerComponent } from '../physics/CharacterControllerComponent'
 
 export abstract class Pawn extends Actor {
   /** 当前控制此 Pawn 的控制器 */
   public controller: PlayerController | null = null
+
+  /** 移动轴状态（pressed/released 事件驱动；world 系输入 = right·x + forward·z） */
+  private _axisForward = 0
+  private _axisRight = 0
 
   constructor(name = 'Pawn') {
     super(name)
@@ -23,12 +28,27 @@ export abstract class Pawn extends Actor {
     this.controller = null
   }
 
-  /** 前后移动 */
-  MoveForward(_value: number): void {}
-  /** 左右移动 */
-  MoveRight(_value: number): void {}
+  /** 前后移动（+1 前进 / -1 后退 / 0 停；pressed/released 配对驱动） */
+  MoveForward(value: number): void {
+    this._axisForward = value
+    this._syncMoveInput()
+  }
+
+  /** 左右移动（+1 右 / -1 左 / 0 停） */
+  MoveRight(value: number): void {
+    this._axisRight = value
+    this._syncMoveInput()
+  }
+
   /** 跳跃/动作 */
-  Jump(): void {}
+  Jump(): void {
+    this.getComponent(CharacterControllerComponent)?.jump()
+  }
+
+  /** 轴状态 → CharacterController 输入（相机相对换算在控制器组件内完成） */
+  private _syncMoveInput(): void {
+    this.getComponent(CharacterControllerComponent)?.setMoveInput(this._axisRight, this._axisForward)
+  }
 
   override destroy() {
     if (this.controller) {
