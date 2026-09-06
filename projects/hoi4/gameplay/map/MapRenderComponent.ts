@@ -5,6 +5,7 @@
  *   terrain    地形底图（terrain.png 原图）
  *   political  政治色层（按国家归属逐省染色；省→色 LUT 一次扫描成图）
  *   overlay    边界线 + 选中高亮（省界细线 / 国界粗黑线 / 选中亮边）
+ * 合成后主画布再叠国名标注（领土质心 + 面积定字号，随政治 LUT 一同刷新）。
  * 地图模式切换（政治/地形）与归属变化 → repaint()（单次全图扫描 ~10ms 级，仅事件驱动）。
  *
  * 拾取：pickProvince(screenX, screenY) —— 相机射线与 y=0 平面求交 → 像素 →
@@ -41,6 +42,13 @@ export class MapRenderComponent extends ActorComponent<Actor> {
   private idData: Uint8ClampedArray | null = null
   /** 省 id → 控制国颜色 LUT（repaint 前由 GameMode 刷新） */
   private colorLUT: Uint32Array
+  /** 湖省标记（sea 且 terrain≠ocean：底图按陆地色绘制的水域），政治模式下统一刷成洋面色 */
+  private lakeLUT: Uint8Array
+  /** 洋面基准色（loadImages 时从底图 ocean 省中心取样） */
+  private lakeColor = 0x0e1c30
+  /** 国名标注：pid → 标签序号（0xFFFF=无），同一国名共享一个标签 */
+  private labelLUT: Uint16Array
+  private labelTexts: string[] = []
   /** 选中/路点高亮：pid → 0xRRGGBB */
   private highlights = new Map<number, number>()
   private planeSize: { w: number; h: number }
@@ -67,6 +75,11 @@ export class MapRenderComponent extends ActorComponent<Actor> {
     this.overlayLayer.width = W
     this.overlayLayer.height = H
     this.colorLUT = new Uint32Array(65536)
+    this.lakeLUT = new Uint8Array(65536)
+    for (const [pid, p] of map.provinces) {
+      if (p.sea && p.terrain !== 'ocean') this.lakeLUT[pid] = 1
+    }
+    this.labelLUT = new Uint16Array(65536).fill(0xffff)
     this.texture = new THREE.CanvasTexture(this.canvas)
     this.texture.colorSpace = THREE.SRGBColorSpace
     this.texture.anisotropy = 4
@@ -104,8 +117,20 @@ export class MapRenderComponent extends ActorComponent<Actor> {
     const tctx = this.terrainLayer.getContext('2d')!
     tctx.drawImage(terrainImg, 0, 0)
     this.idData = readImageData(provImg)
+    this.lakeColor = this.sampleOceanColor(tctx)
     logger.info('[MapRender] 底图与省 ID 图已就绪')
     this.repaint()
+  }
+
+  /** 从底图取样洋面基准色（任一 ocean 省中心点），供政治模式湖面着色对齐水面观感 */
+  private sampleOceanColor(tctx: CanvasRenderingContext2D): number {
+    for (const p of this.map.provinces.values()) {
+      if (p.sea && p.terrain === 'ocean') {
+        const d = tctx.getImageData(p.x, p.y, 1, 1).data
+        return (d[0] << 16) | (d[1] << 8) | d[2]
+      }
+    }
+    return 0x0e1c30
   }
 
   /** 图片是否已就绪（bootstrap 门槛之一） */
@@ -149,6 +174,24 @@ export class MapRenderComponent extends ActorComponent<Actor> {
     this.repaint()
   }
 
+  /** 刷新国名标注 LUT（不主动重绘，由随后的 setColorLUT 等触发 repaint 一并出图） */
+  setCountryLabels(resolve: (province: number) => string | null): void {
+    this.labelLUT.fill(0xffff)
+    this.labelTexts = []
+    const indexByText = new Map<string, number>()
+    for (const pid of this.map.provinces.keys()) {
+      const text = resolve(pid)
+      if (text === null) continue
+      let idx = indexByText.get(text)
+      if (idx === undefined) {
+        idx = this.labelTexts.length
+        indexByText.set(text, idx)
+        this.labelTexts.push(text)
+      }
+      this.labelLUT[pid] = idx
+    }
+  }
+
   /** 全图重绘（地形底图 → 政治层 → 边界/高亮层 → 合成） */
   repaint(): void {
     if (!this.idData) return
@@ -165,19 +208,35 @@ export class MapRenderComponent extends ActorComponent<Actor> {
     const oimg = octx.createImageData(pxW, pxH)
     const odata = oimg.data
     const idData = this.idData
+    // 国名标注统计：每标签像素计数与坐标和（质心 = 和/计数）
+    const lcount = new Array<number>(this.labelTexts.length).fill(0)
+    const lsumX = new Array<number>(this.labelTexts.length).fill(0)
+    const lsumY = new Array<number>(this.labelTexts.length).fill(0)
     // 州归属辅助：省 → 控制国 byte（LUT 指针即国家，边界判断直接比 LUT 值）
     for (let y = 0; y < pxH; y++) {
       const row = y * pxW
       for (let x = 0; x < pxW; x++) {
         const i = row + x
         const pid = idData[i * 4] | (idData[i * 4 + 1] << 8)
+        const li = this.labelLUT[pid]
+        if (li !== 0xffff) {
+          lcount[li]++
+          lsumX[li] += x
+          lsumY[li] += y
+        }
         const color = this.colorLUT[pid]
         const o4 = i * 4
         if (color !== 0 && this.mode === 'political') {
           pdata[o4] = (color >> 16) & 255
           pdata[o4 + 1] = (color >> 8) & 255
           pdata[o4 + 2] = color & 255
-          pdata[o4 + 3] = 170 // 政治色半透明，透出地形纹理
+          pdata[o4 + 3] = 255 // 政治色不透明：同国省份必须同色，不受底图地形色干扰
+        } else if (color === 0 && this.mode === 'political' && this.lakeLUT[pid] === 1) {
+          // 湖：底图误用陆地色绘制的水域，政治模式下刷成洋面色
+          pdata[o4] = (this.lakeColor >> 16) & 255
+          pdata[o4 + 1] = (this.lakeColor >> 8) & 255
+          pdata[o4 + 2] = this.lakeColor & 255
+          pdata[o4 + 3] = 255
         }
         // 边界：与右/下邻省不同 id → 画线（国界黑、省界深灰）
         const pidR = x + 1 < pxW ? idData[(i + 1) * 4] | (idData[(i + 1) * 4 + 1] << 8) : -1
@@ -210,7 +269,31 @@ export class MapRenderComponent extends ActorComponent<Actor> {
     px.drawImage(this.terrainLayer, 0, 0)
     if (this.mode === 'political') px.drawImage(this.politicalLayer, 0, 0)
     px.drawImage(this.overlayLayer, 0, 0)
+    if (this.labelTexts.length > 0) this.drawLabels(lcount, lsumX, lsumY)
     this.texture.needsUpdate = true
+  }
+
+  /** 国名标注：领土质心定位，字号随领土面积缩放，描边保证任何政治色上可读 */
+  private drawLabels(counts: number[], sumX: number[], sumY: number[]): void {
+    const ctx = this.ctx
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    for (let i = 0; i < this.labelTexts.length; i++) {
+      const n = counts[i]
+      if (n < 120) continue // 碎占飞地不标，避免小字号糊成一团
+      const cx = sumX[i] / n
+      const cy = sumY[i] / n
+      const size = Math.min(72, Math.max(20, Math.sqrt(n) * 0.22))
+      ctx.font = `700 ${size}px "Source Han Sans SC", "Microsoft YaHei", sans-serif`
+      ctx.letterSpacing = `${Math.round(size * 0.22)}px`
+      ctx.strokeStyle = 'rgba(12, 15, 20, 0.65)'
+      ctx.lineWidth = Math.max(2, size / 8)
+      ctx.strokeText(this.labelTexts[i], cx, cy)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+      ctx.fillText(this.labelTexts[i], cx, cy)
+    }
+    ctx.letterSpacing = '0px'
   }
 
   // ═══════════════ 拾取 ═══════════════

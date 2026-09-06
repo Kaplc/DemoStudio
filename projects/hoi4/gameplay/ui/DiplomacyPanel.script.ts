@@ -1,7 +1,9 @@
 /**
  * DiplomacyPanelScript — 外交面板（列国关系 + 借口/宣战按钮）
+ *
+ * 列表用 UIScrollList 对象池（itemWidget=diplo_row）：171 国全部列出，onItemSpawned 填内容。
  */
-import { BehaviourScript, UILayoutComponent, UIImageComponent, logger, UIButtonComponent, UITextComponent, Actor, ActorComponent } from '@/engine'
+import { BehaviourScript, UIScrollListComponent, UIImageComponent, logger, UIButtonComponent, UITextComponent, Actor, ActorComponent } from '@/engine'
 import { Hoi4PanelScript, hoi4Mode, findButton, findText, TextBinder } from './uiCommon'
 
 const ROW_WIDGET = 'asset/blueprints/ui/diplo_row.widget.json'
@@ -23,16 +25,20 @@ export default class DiplomacyPanelScript extends Hoi4PanelScript {
     const state = mode.coreState
     const tables = mode.getTables()
     if (list && state) {
-      for (const tag of Object.keys(tables.countries)) {
-        if (tag === state.playerTag) continue
-        const row = this.world?.ui.spawnUIActor(ROW_WIDGET, list)
-        if (!row) continue
+      const listComp = list.getComponent(UIScrollListComponent)
+      if (!listComp) {
+        logger.error('[DiplomacyPanelScript] CountryList 缺少 UIScrollListComponent')
+        return
+      }
+      const tags = Object.keys(tables.countries).filter((t) => t !== state.playerTag)
+      listComp.onItemSpawned = (row, idx) => {
+        const tag = tags[idx]
+        if (!tag) return
+        // 对象池复用：同一行可能换绑新 tag，清掉旧映射再登记
+        for (const [t, r] of this.rows) if (r.actor === row) this.rows.delete(t)
         row.root.name = `DiploRow_${tag}`
-        const swatch = row.getComponent(UIImageComponent)
         const nameT = findText(row, 'NameText')
         if (nameT) nameT.text = tables.countries[tag]?.name ?? tag
-        const sw = findText(row, 'InfoText')
-        void sw
         const swatchEl = findComp(row, 'Swatch', UIImageComponent)
         if (swatchEl) swatchEl.color = tables.countries[tag]?.color ?? '#888888'
         const btn = findButton(row, 'Btn_act')
@@ -48,7 +54,7 @@ export default class DiplomacyPanelScript extends Hoi4PanelScript {
         }
         this.rows.set(tag, { actor: row, swatch: swatchEl, btn, label: findText(row, 'Label_act') })
       }
-      list.getComponent(UILayoutComponent)?.layout()
+      listComp.totalCount = tags.length
     }
     this.refresh()
   }
@@ -93,7 +99,7 @@ export default class DiplomacyPanelScript extends Hoi4PanelScript {
 
   override onDestroy(): void {
     hoi4Mode()?.hourTickListeners.delete(this.onTick)
-    for (const r of this.rows.values()) this.world?.ui.destroyUIActor(r.actor)
+    // 池 item 由 UIScrollListComponent 管理，这里只清映射
     this.rows.clear()
   }
 }

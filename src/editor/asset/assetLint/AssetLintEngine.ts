@@ -245,7 +245,8 @@ class AssetLintEngine {
       issues.push(...checker.run(t.node, ctx))
     }
 
-    // widget 资产（UI 蓝图）：额外跑游戏 UI 设计级检查（字号/触控/阴影/zOrder，全部 warn）
+    // widget 资产（UI 蓝图）：额外跑游戏 UI 设计级检查（ui:root-anchor 硬规则 +
+    // 字号/触控/阴影/zOrder 设计准则 warn）
     if (f.path.endsWith('.widget.json')) {
       const designChecker = getChecker('doc:ui-design')
       if (designChecker) {

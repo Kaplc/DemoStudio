@@ -1,7 +1,7 @@
 {
   "name": "Toast",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-63d132c8",
+  "sourceHash": "fnv1a-d717c28d",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,20 +21,15 @@
           1,
           1
         ],
-        "worldWidth": 960,
-        "worldHeight": 180,
-        "anchor": "top-center",
-        "anchorOffset": [
-          0,
-          0.55
-        ]
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
-        "width": 960,
-        "height": 180,
+        "width": 1920,
+        "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
         "active": true
@@ -62,6 +57,11 @@
             ],
             "worldWidth": 960,
             "worldHeight": 180,
+            "anchor": "top-center",
+            "anchorOffset": [
+              0,
+              -110
+            ],
             "position": [
               0,
               0,

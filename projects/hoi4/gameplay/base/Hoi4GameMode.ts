@@ -24,6 +24,7 @@ import { queueTraining } from '../core/Military'
 import { ConfigRegistry } from '@/engine'
 import { MapRenderComponent, type MapMode } from '../map/MapRenderComponent'
 import { UnitMarkers } from '../map/UnitMarkers'
+import { UnitModels } from '../map/UnitModels'
 import { Hoi4CameraActor } from './Hoi4CameraActor'
 import { Hoi4PlayerController } from './Hoi4PlayerController'
 import { Hoi4Pawn } from './Hoi4Pawn'
@@ -40,6 +41,7 @@ export class Hoi4GameMode extends GameMode {
   readonly gameTime = new GameTime()
   mapRender: MapRenderComponent | null = null
   markers: UnitMarkers | null = null
+  models: UnitModels | null = null
   camera: Hoi4CameraActor
 
   /** core 整局状态（bootstrap 后非空） */
@@ -53,6 +55,8 @@ export class Hoi4GameMode extends GameMode {
   deployArmed = false
   /** 玩家关闭了选国面板（不再自动弹） */
   countrySelectDismissed = false
+  /** 玩家关闭了省面板（选中新省时重新弹出） */
+  provincePanelDismissed = false
 
   /** 对外广播（UI 脚本订阅；GameMode 不反向调 UI）。多订阅者用 Set，脚本 onDestroy 里 remove */
   readonly hourTickListeners = new Set<() => void>()
@@ -111,6 +115,7 @@ export class Hoi4GameMode extends GameMode {
       this.tryBootstrap()
     })
     this.markers = new UnitMarkers(this)
+    this.models = new UnitModels(this)
     // 物理/点击：PhySys 挂游戏相机 + UI 层（UI 点击优先于地图拾取）
     const inst = GameInstance.current
     if (inst?.world.gameRenderer) PhySys.setup(this.camera.cameraComponent.camera, inst.world.gameRenderer.uiLayer)
@@ -193,6 +198,8 @@ export class Hoi4GameMode extends GameMode {
     if (state.result && this.gameState.phase !== 'gameover') {
       this.onResult?.(state.result)
     }
+    // 兵模每帧变换（行军插值/选中光环）
+    this.models?.tick(dt)
   }
 
   /** core 步进后的视图同步（控制权变化检测 → 地图重染；单位计数器） */
@@ -204,9 +211,10 @@ export class Hoi4GameMode extends GameMode {
       this.refreshColorLUT()
     }
     this.markers?.sync()
+    this.models?.sync()
   }
 
-  /** 刷新省→控制国颜色 LUT 并重绘地图 */
+  /** 刷新省→控制国颜色与国名标注 LUT 并重绘地图 */
   refreshColorLUT(): void {
     if (!this.mapRender || !this.coreState || !this.tables) return
     const state = this.coreState
@@ -219,6 +227,11 @@ export class Hoi4GameMode extends GameMode {
       }
       return v
     }
+    this.mapRender.setCountryLabels((pid) => {
+      const ctrl = state.provinceControl[pid]
+      if (!ctrl) return null
+      return this.tables!.countries[ctrl]?.name ?? null
+    })
     this.mapRender.setColorLUT((pid) => {
       const ctrl = state.provinceControl[pid]
       if (!ctrl) return null
@@ -263,6 +276,7 @@ export class Hoi4GameMode extends GameMode {
       this.onDeployArmedChange?.(false)
       if (div) {
         this.markers?.sync()
+        this.models?.sync()
         this.emitHourTick()
         logger.info(`[Hoi4GameMode] 师已部署: ${div.name} → 省 ${pid}`)
       }
@@ -280,6 +294,7 @@ export class Hoi4GameMode extends GameMode {
       }
       if (ordered > 0) {
         this.markers?.sync()
+        this.models?.sync()
         this.emitHourTick()
       }
       return
@@ -291,6 +306,7 @@ export class Hoi4GameMode extends GameMode {
   /** 选省（自动选中该省己方师） */
   selectProvince(pid: number): void {
     const state = this.coreState
+    this.provincePanelDismissed = false
     this.mapRender?.clearHighlights()
     this.selectedDivisions.clear()
     this.selectedProvince = pid
@@ -441,6 +457,7 @@ export class Hoi4GameMode extends GameMode {
     state.playerTag = tag
     for (const [t, c] of Object.entries(state.countries)) c.isAI = t !== tag
     this.countrySelectDismissed = false
+    this.provincePanelDismissed = false
     logger.info(`[Hoi4GameMode] 玩家国家: ${tag}`)
     this.emitHourTick()
   }
@@ -491,12 +508,14 @@ export class Hoi4GameMode extends GameMode {
     this.clearSelection()
     this.refreshColorLUT()
     this.markers?.sync()
+    this.models?.sync()
     this.emitHourTick()
     logger.info(`[Hoi4GameMode] 存档已回填（hour=${snap.hour}）`)
     return true
   }
 
   override EndPlay(): void {
+    this.models?.destroyAll()
     this.markers?.destroyAll()
     for (const a of this.tempAnchors) this.world?.actorMgr.DestroyActor(a)
     this.tempAnchors = []

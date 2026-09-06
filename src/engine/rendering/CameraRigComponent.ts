@@ -245,9 +245,7 @@ export class CameraRigComponent extends Component {
     _tmpRight.set(1, 0, 0).applyQuaternion(cam.quaternion)
     _tmpRight.y = 0
     _tmpRight.normalize()
-    cam.getWorldDirection(_tmpForward)
-    _tmpTop.set(_tmpForward.x, 0, _tmpForward.z)
-    _tmpTop.normalize()
+    this.computeScreenUp(cam)
     _tmpRight.multiplyScalar(ix)
     _tmpTop.multiplyScalar(iy)
     const vx = _tmpRight.x + _tmpTop.x
@@ -324,13 +322,27 @@ export class CameraRigComponent extends Component {
     _tmpRight.set(1, 0, 0).applyQuaternion(cam.quaternion)
     _tmpRight.y = 0
     _tmpRight.normalize()
-    cam.getWorldDirection(_tmpForward)
-    _tmpTop.set(_tmpForward.x, 0, _tmpForward.z)
-    _tmpTop.normalize()
+    this.computeScreenUp(cam)
     this.pan(
       -_tmpRight.x * dx + _tmpTop.x * dy,
       -_tmpRight.z * dx + _tmpTop.z * dy,
     )
+  }
+
+  /**
+   * 求屏幕上方对应的水平世界方向（写入 _tmpTop）：视线方向的水平投影。
+   * 垂直俯视时视线无水平分量（投影为零向量，normalize 会得 NaN），
+   * 退化为相机局部 +Y 的水平投影（由相机 up 轴决定，正俯视下即屏幕上方指向）。
+   */
+  private computeScreenUp(cam: THREE.Camera): void {
+    cam.getWorldDirection(_tmpForward)
+    _tmpTop.set(_tmpForward.x, 0, _tmpForward.z)
+    if (_tmpTop.lengthSq() < 1e-8) {
+      _tmpTop.set(0, 1, 0).applyQuaternion(cam.quaternion)
+      _tmpTop.y = 0
+      if (_tmpTop.lengthSq() < 1e-8) _tmpTop.set(0, 0, -1)
+    }
+    _tmpTop.normalize()
   }
 
   /**

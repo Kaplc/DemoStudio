@@ -1,7 +1,13 @@
 /**
  * assetLint/checkers/uiDesignChecker — 游戏 UI 设计级规则检查器（widget 资产）
  *
- * 在 assetLint 硬规则之上，补充 game-ui-design 设计准则的自动校验（全部 warn，不影响通过率）：
+ * 在 assetLint 硬规则之上，补充 game-ui-design 设计准则的自动校验：
+ * 硬规则（error，进 ui_compile 零错误门槛）：
+ *  - ui:root-anchor：widget 根声明 anchor/anchorOffset → 报错。
+ *    根节点默认全屏全锚（canvas 默认 1920×1080），位置自定义写在根内子元素；
+ *    游戏内顶层生成（HUDClass / spawnUIActor 默认挂 HUD）时根无父容器可解算，
+ *    applyAnchor 会静默跳过 → 编辑器预览正常、游戏内位置错乱。
+ * 设计准则（warn，不影响通过率）：
  *  - ui:font-size：UITextComponent.fontSize < 14 → 警告（TV/掌机可读性）
  *  - ui:small-touch-target：交互节点（含 UIButtonComponent）worldWidth/Height 换算触控尺寸 < 44px → 警告
  *  - ui:no-text-shadow：HUD 文本（UITextComponent）无 shadowColor → 警告（动态背景可读性）
@@ -75,6 +81,26 @@ class UiDesignChecker extends AbstractAssetChecker {
     const issues: LintIssue[] = []
     if (!node || typeof node !== 'object') return issues
     const root = node as Record<string, unknown>
+
+    // 0. 根锚点禁用（硬规则）：widget 根默认全屏全锚，位置自定义写在根内子元素。
+    //    游戏内顶层生成时根的父级是 HUD Actor（无 UITransform/Canvas 尺寸），
+    //    applyAnchor 找不到父容器会静默跳过 → 锚点声明在游戏内不生效（编辑器预览
+    //    有预览容器所以看不出）。仅查文档根；子元素的 anchor 是编译器
+    //    position:absolute + left/top % 的合法映射产物，不受此规则约束。
+    const rootTsf = compProps(root, 'UITransformComponent')
+    if (rootTsf) {
+      const rootAnchor = rootTsf.anchor
+      const hasOffset = Array.isArray(rootTsf.anchorOffset)
+      if ((rootAnchor !== undefined && rootAnchor !== null) || hasOffset) {
+        issues.push(ctx.issue(
+          'properties.anchor',
+          'ui:root-anchor',
+          `widget 根声明了 anchor "${String(rootAnchor ?? '（无）')}"（含 anchorOffset）——游戏内顶层生成时无父容器，applyAnchor 静默跳过，位置不生效；根节点默认全屏全锚（canvas 默认 1920x1080），自定义定位写在根内子元素（position: absolute + left/top）`,
+          'error',
+          rootAnchor ?? rootTsf.anchorOffset,
+        ))
+      }
+    }
 
     walkNodes(node, (n, nodePath) => {
       const textProps = compProps(n, 'UITextComponent')

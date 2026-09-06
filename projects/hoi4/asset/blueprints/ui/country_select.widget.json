@@ -1,7 +1,7 @@
 {
   "name": "CountrySelect",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-b2704e4d",
+  "sourceHash": "fnv1a-fad1b78f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -418,7 +418,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "1936 年 1 月 1 日 · 大陆局势正走向深渊",
+                    "text": "1936 年 1 月 1 日 · 主要国家在前，更多国家请向下滚动",
                     "name": "Hint",
                     "width": 640,
                     "height": 39,
@@ -466,12 +466,17 @@
                   }
                 },
                 {
-                  "baseClass": "UILayoutComponent",
+                  "baseClass": "UIScrollListComponent",
                   "properties": {
-                    "mode": "vertical",
-                    "spacingX": 8,
-                    "spacingY": 8,
-                    "autoLayout": true
+                    "itemWidget": "asset/blueprints/ui/country_row.widget.json",
+                    "itemSize": [
+                      640,
+                      72
+                    ],
+                    "spacing": 8,
+                    "zOrderLift": 0,
+                    "draggable": true,
+                    "scrollbar": true
                   }
                 }
               ],

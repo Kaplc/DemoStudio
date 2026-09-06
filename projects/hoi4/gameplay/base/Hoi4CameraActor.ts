@@ -22,11 +22,16 @@ export class Hoi4CameraActor extends CameraActor {
     this.rig.edgePanSpeed = 22
   }
 
-  /** 俯瞰就位（略带俯角，避免 lookAt 与 up 向量平行） */
+  /** 垂直俯视就位（up 轴设为世界 -Z，地图北向朝屏幕上方）；开局对准欧洲主战场 */
   place(): void {
-    const d = this.rig.maxDistance * 0.85
-    this.camera.position.set(0, d * 0.92, d * 0.4)
-    this.camera.lookAt(0, 0, 0)
+    // 欧洲中部 lon 15E / lat 52N → 世界坐标（地图 256x128，中心为 lon 0 / lat 0）
+    const tx = ((15 + 180) / 360) * 256 - 128
+    const tz = ((90 - 52) / 180) * 128 - 64
+    this.rig.target.set(tx, 0, tz)
+    const d = 72 // 欧级视野（min 12 ~ max 345）
+    this.camera.up.set(0, 0, -1)
+    this.camera.position.set(tx, d, tz)
+    this.camera.lookAt(tx, 0, tz)
     this.SyncToActor()
   }
 }

@@ -23,6 +23,17 @@ export default class ProvincePanelScript extends BehaviourScript {
     }
     mode.selectionListeners.add(this.onSelect)
     mode.hourTickListeners.add(this.onTick)
+    // 关闭按钮：置 dismissed 标记（TopBar 不再自动弹出），取消选中并自毁；点地图选新省时重新打开
+    const closeBtn = findButton(this.actor, 'Btn_close')
+    if (closeBtn) {
+      closeBtn.onClick = () => {
+        const m = hoi4Mode()
+        if (!m) return
+        m.provincePanelDismissed = true
+        this.world?.ui.destroyUIActor(this.actor)
+        m.clearSelection()
+      }
+    }
     const deployBtn = findButton(this.actor, 'Btn_deploy')
     if (deployBtn) {
       deployBtn.onClick = () => {

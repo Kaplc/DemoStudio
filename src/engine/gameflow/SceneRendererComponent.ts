@@ -5,12 +5,10 @@
  * 与编辑器层 Scene 视口渲染器（PreviewSceneManager）完全独立。
  * 职责：
  *  - 管理 WebGL 渲染器、共享场景、摄像机
- *  - orbit 摄像机控制
  *  - 强制画面比例 letterbox
  *  - UI 覆盖层宿主（挂载 GameUI 已废弃：UI 渲染统一走 UI 摄像机叠加）
  */
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { logger } from '../Logger'
 import { AObjectComponent } from '../entity/AObjectComponent'
 import { gizmos } from '../tools/Gizmos'
@@ -37,7 +35,6 @@ export class SceneRendererComponent extends AObjectComponent<World> {
   /** 当前渲染相机（由 cameraProvider 委托每帧获取；null = 不渲染 3D 主场景） */
   public camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null = null
   public renderer: THREE.WebGLRenderer
-  public controls: OrbitControls | null = null
   /** UI 覆盖层宿主 */
   readonly uiLayer: HTMLDivElement
 
@@ -57,20 +54,10 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     provider: (() => THREE.PerspectiveCamera | THREE.OrthographicCamera | null) | null,
   ): void {
     this.cameraProvider = provider
-    // 立即取一次相机，以便重建 OrbitControls（跟随新相机，仍禁止交互）
+    // 立即取一次相机（每帧 animate 循环也会重新取）
     this.camera = provider ? provider() : null
-    if (this.controls) {
-      this.controls.dispose()
-      this.controls = null
-    }
-    if (this.camera) {
-      this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-      this.controls.enableRotate = false
-      this.controls.enablePan = false
-      this.controls.enableZoom = false
-      this.controls.enableDamping = false
-      this.controls.enabled = false
-    }
+    // 勿给游戏相机挂 OrbitControls：其构造/每帧 update 会把相机重定向到 target
+    // （默认世界原点），覆盖游戏相机自己的姿态（如俯瞰/跟随相机）
     this.resize()
     logger.info(`[SceneRendererComponent] setCameraProvider: ${this.camera ? this.camera.type : 'null'}`)
   }
@@ -236,19 +223,6 @@ export class SceneRendererComponent extends AObjectComponent<World> {
    */
   setCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null): void {
     this.camera = camera
-    // 相机更换后重建 OrbitControls（跟随新相机，仍禁止交互）
-    if (this.controls) {
-      this.controls.dispose()
-      this.controls = null
-    }
-    if (camera) {
-      this.controls = new OrbitControls(camera, this.renderer.domElement)
-      this.controls.enableRotate = false
-      this.controls.enablePan = false
-      this.controls.enableZoom = false
-      this.controls.enableDamping = false
-      this.controls.enabled = false
-    }
     this.resize()
     logger.info(`[SceneRendererComponent] setCamera: ${camera ? camera.type : 'null'}`)
   }
@@ -257,10 +231,7 @@ export class SceneRendererComponent extends AObjectComponent<World> {
   resetView(): void {
     if (!this.camera) return
     this.camera.position.set(17, 17, 17)
-    if (this.controls) {
-      this.controls.target.set(0, 0, 0)
-      this.controls.update()
-    }
+    this.camera.lookAt(0, 0, 0)
   }
 
   // ════════════════════════════════════════════
@@ -306,12 +277,7 @@ export class SceneRendererComponent extends AObjectComponent<World> {
       distance * Math.sin(phi),
       distance * Math.cos(phi) * Math.cos(theta),
     )
-    if (this.controls) {
-      this.controls.target.set(0, 0, 0)
-      this.controls.update()
-    } else {
-      this.camera.lookAt(0, 0, 0)
-    }
+    this.camera.lookAt(0, 0, 0)
   }
 
   // ════════════════════════════════════════════
@@ -432,8 +398,6 @@ export class SceneRendererComponent extends AObjectComponent<World> {
           cam.updateProjectionMatrix()
         }
       }
-
-      this.controls?.update()
 
       for (const cb of this.updateCallbacks) {
         cb(dt)

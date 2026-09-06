@@ -143,8 +143,8 @@ export default class TopBarScript extends BehaviourScript {
       this.countrySelect = null
     }
 
-    // 省面板：bootstrap 且已选国后常驻
-    if (state.playerTag && !this.provincePanel) {
+    // 省面板：bootstrap 且已选国后常驻（玩家点 × 关闭后不再自动弹，选中新省时重开）
+    if (state.playerTag && !mode.provincePanelDismissed && !this.provincePanel) {
       this.provincePanel = this.world?.ui.spawnUIActor(PROVINCE_WIDGET) ?? null
       if (this.provincePanel) this.provincePanel.bActive = true
     }

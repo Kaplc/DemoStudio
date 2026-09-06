@@ -1,7 +1,7 @@
 {
   "name": "TopBar",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-c0eab671",
+  "sourceHash": "fnv1a-9854fa5a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -22,19 +22,14 @@
           1
         ],
         "worldWidth": 1920,
-        "worldHeight": 80,
-        "anchor": "top-center",
-        "anchorOffset": [
-          0,
-          0
-        ]
+        "worldHeight": 1080
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
         "width": 1920,
-        "height": 80,
+        "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
         "active": true
@@ -68,9 +63,14 @@
             ],
             "worldWidth": 1920,
             "worldHeight": 82,
+            "anchor": "top-center",
+            "anchorOffset": [
+              0,
+              0
+            ],
             "position": [
               0,
-              -1,
+              0,
               0
             ]
           }

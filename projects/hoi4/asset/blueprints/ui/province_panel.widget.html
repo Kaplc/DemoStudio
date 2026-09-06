@@ -1,6 +1,9 @@
-<widget name="ProvincePanel" canvas="380x600" anchor="top-right" offset="-20,-10" active="false" data-script="gameplay/ui/ProvincePanel">
+<widget name="ProvincePanel" canvas="1920x1080" active="false" data-script="gameplay/ui/ProvincePanel">
   <style>
-    .Root { width: 380px; height: 600px; display: flex; flex-direction: column; align-items: center; background-color: #1d2733ee; border: 2px solid #3a4a5c; border-radius: 14px; hit-test: block; }
+    .Root { position: absolute; left: 1520px; top: 10px; width: 380px; height: 600px; display: flex; flex-direction: column; align-items: center; background-color: #1d2733ee; border: 2px solid #3a4a5c; border-radius: 14px; hit-test: block; }
+    .Btn_close { position: absolute; right: 10px; top: 10px; width: 44px; height: 44px; display: flex; justify-content: center; align-items: center; background-color: #7a3a38; border-radius: 8px; }
+    .Btn_close:hover { background-color: #964644; }
+    .Label_close { width: 24px; height: 24px; font-size: 20px; color: #f2dede; text-align: center; }
     .Title { width: 340px; height: 44px; margin-top: 16px; font-size: 24px; color: #e0a83c; text-align: center; font-weight: bold; }
     .InfoText { width: 330px; height: 150px; margin-top: 10px; font-size: 19px; color: #cfd8e3; text-align: left; }
     .ListTitle { width: 330px; height: 36px; margin-top: 8px; font-size: 19px; color: #8fa3b8; text-align: left; }
@@ -11,6 +14,7 @@
     .HintText { width: 330px; height: 30px; margin-top: 8px; font-size: 16px; color: #64788c; text-align: center; }
   </style>
   <div class="Root">
+    <button class="Btn_close" data-name="Btn_close"><text class="Label_close">×</text></button>
     <text class="Title" data-name="Title"></text>
     <text class="InfoText" data-name="InfoText"></text>
     <text class="ListTitle">驻扎师（点击行选中/取消，选中后点目标省下令）</text>

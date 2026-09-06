@@ -26,6 +26,7 @@ export default {
     state.countries[state.playerTag].deployPool.push(tplId)
     const div = deployDivision(state, tables, mode!.map, state.playerTag, target)
     mode!.markers?.sync()
+    mode!.models?.sync()
     ctx.output(div ? `已生成 ${div.name} @ 省 ${target}` : '生成失败（落省不合法）')
   },
 } as GMCommandDef

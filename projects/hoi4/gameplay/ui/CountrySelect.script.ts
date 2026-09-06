@@ -1,14 +1,18 @@
 /**
  * CountrySelectScript — 开局选国面板
+ *
+ * 列表用 UIScrollList 对象池（itemWidget=country_row）：171 国按“10 个 playtag 在前
+ * + 其余按人力降序”排序，totalCount 驱动池化生成，onItemSpawned 回调填充内容。
  */
-import { BehaviourScript, UIImageComponent, UILayoutComponent, logger, ActorComponent } from '@/engine'
+import { BehaviourScript, UIScrollListComponent, UIImageComponent, logger, ActorComponent } from '@/engine'
 import { hoi4Mode, findButton, findText } from './uiCommon'
 
 const ROW_WIDGET = 'asset/blueprints/ui/country_row.widget.json'
+const PLAYTAGS = ['GER', 'FRA', 'ENG', 'ITA', 'POL', 'SOV', 'HUN', 'ROM', 'YUG', 'SWI']
 
 export default class CountrySelectScript extends BehaviourScript {
   private built = false
-  private rows: Array<{ tag: string; btn: import('@/engine').UIButtonComponent; swatch: UIImageComponent | null }> = []
+  private ordered: string[] = []
 
   override onStart(): void {
     const mode = hoi4Mode()
@@ -29,15 +33,21 @@ export default class CountrySelectScript extends BehaviourScript {
     if (this.built) return
     const mode = hoi4Mode()
     if (!mode?.bootedFlag) return
-    const state = mode.coreState
     const tables = mode.getTables()
     const list = this.findInChildren('CountryList')
-    if (!state || !list) return
+    if (!tables || !list) return
+    const listComp = list.getComponent(UIScrollListComponent)
+    if (!listComp) return
     this.built = true
-    for (const tag of Object.keys(tables.countries)) {
+    this.ordered = Object.keys(tables.countries).sort((a, b) => {
+      const pa = PLAYTAGS.indexOf(a), pb = PLAYTAGS.indexOf(b)
+      if (pa >= 0 || pb >= 0) return (pa >= 0 ? pa : 99) - (pb >= 0 ? pb : 99)
+      return (tables.countries[b].manpower ?? 0) - (tables.countries[a].manpower ?? 0)
+    })
+    listComp.onItemSpawned = (row, idx) => {
+      const tag = this.ordered[idx]
+      if (!tag) return
       const def = tables.countries[tag]
-      const row = this.world?.ui.spawnUIActor(ROW_WIDGET, list)
-      if (!row) continue
       const name = findText(row, 'NameText')
       if (name) name.text = def.name
       const info = findText(row, 'InfoText')
@@ -47,8 +57,8 @@ export default class CountrySelectScript extends BehaviourScript {
         info.text = `${tag} · ${states}州 · 胜利点${vp} · ${ideologyName(def.ideology)}`
       }
       const swatch = findChildComp(row, 'Swatch', UIImageComponent)
-      const btn = findButton(row, 'Btn_pick')
       if (swatch) swatch.color = def.color
+      const btn = findButton(row, 'Btn_pick')
       if (btn) {
         btn.onClick = () => {
           const m = hoi4Mode()
@@ -57,14 +67,13 @@ export default class CountrySelectScript extends BehaviourScript {
           m.setPaused(false)
           logger.info(`[CountrySelect] 选择国家 ${tag}`)
         }
-        this.rows.push({ tag, btn, swatch })
       }
     }
-    list.getComponent(UILayoutComponent)?.layout()
+    listComp.totalCount = this.ordered.length
   }
 
   override onDestroy(): void {
-    this.rows = []
+    this.ordered = []
   }
 }
 

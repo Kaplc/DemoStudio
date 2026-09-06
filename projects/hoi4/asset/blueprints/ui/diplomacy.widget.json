@@ -1,7 +1,7 @@
 {
   "name": "DiplomacyPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-42528919",
+  "sourceHash": "fnv1a-937f5ae2",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -627,11 +627,17 @@
               }
             },
             {
-              "baseClass": "UILayoutComponent",
+              "baseClass": "UIScrollListComponent",
               "properties": {
-                "mode": "vertical",
-                "spacingY": 8,
-                "autoLayout": true
+                "itemWidget": "asset/blueprints/ui/diplo_row.widget.json",
+                "itemSize": [
+                  1000,
+                  76
+                ],
+                "spacing": 8,
+                "zOrderLift": 0,
+                "draggable": true,
+                "scrollbar": true
               }
             }
           ],

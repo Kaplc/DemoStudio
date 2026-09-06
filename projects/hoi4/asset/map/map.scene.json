@@ -26,6 +26,29 @@
         }
       ],
       "children": []
+    },
+    {
+      "type": "actor",
+      "name": "FillAmbient",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0, 0, 0]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "ambient",
+            "color": "#cfd6e4",
+            "intensity": 0.55,
+            "castShadow": false
+          }
+        }
+      ],
+      "children": []
     }
   ]
 }

@@ -1,13 +1,2226 @@
 {
-  "_comment": "HOI4-like 国家表（DataTable 行表）。键=国家 tag。\n生成器（scripts/hoi4-map-gen.mjs）读取本表把州分配给国家——tag/color/name 的唯一事实来源在这里。\n字段：name=显示名（中文，本地化不做 i18n）；color=政治地图色 #rrggbb；\nideology=意识形态（democratic/communist/fascist/neutral）；\npp=初始政治点；stability=初始稳定度(0-100)；warSupport=初始战争支持度(0-100)；\nmanpower=初始人力（k 人）；ai=AI 权重（aggressive 越高越倾向进攻；null=永远玩家可选但由 AI 接管时的基础档）。",
-  "GER": { "name": "德意志", "color": "#7a7a6f", "ideology": "fascist", "pp": 65, "stability": 60, "warSupport": 55, "manpower": 1200, "ai": { "aggressive": 0.9, "industrial": 0.9 } },
-  "FRA": { "name": "法兰西", "color": "#5b8fbf", "ideology": "democratic", "pp": 55, "stability": 65, "warSupport": 40, "manpower": 900, "ai": { "aggressive": 0.3, "industrial": 0.7 } },
-  "ENG": { "name": "不列颠", "color": "#c96f6f", "ideology": "democratic", "pp": 60, "stability": 70, "warSupport": 35, "manpower": 850, "ai": { "aggressive": 0.25, "industrial": 0.8 } },
-  "ITA": { "name": "意大利", "color": "#6faa72", "ideology": "fascist", "pp": 58, "stability": 55, "warSupport": 50, "manpower": 800, "ai": { "aggressive": 0.7, "industrial": 0.55 } },
-  "POL": { "name": "波兰", "color": "#c9c9d6", "ideology": "neutral", "pp": 45, "stability": 55, "warSupport": 45, "manpower": 600, "ai": { "aggressive": 0.35, "industrial": 0.45 } },
-  "SOV": { "name": "苏维埃", "color": "#b04a4a", "ideology": "communist", "pp": 70, "stability": 60, "warSupport": 60, "manpower": 2200, "ai": { "aggressive": 0.75, "industrial": 0.95 } },
-  "HUN": { "name": "匈牙利", "color": "#7f9563", "ideology": "fascist", "pp": 40, "stability": 55, "warSupport": 40, "manpower": 300, "ai": { "aggressive": 0.5, "industrial": 0.35 } },
-  "ROM": { "name": "罗马尼亚", "color": "#a98751", "ideology": "neutral", "pp": 40, "stability": 50, "warSupport": 40, "manpower": 350, "ai": { "aggressive": 0.4, "industrial": 0.4 } },
-  "YUG": { "name": "南斯拉夫", "color": "#8a6fae", "ideology": "neutral", "pp": 38, "stability": 50, "warSupport": 45, "manpower": 380, "ai": { "aggressive": 0.35, "industrial": 0.35 } },
-  "SWI": { "name": "瑞士", "color": "#d0695f", "ideology": "democratic", "pp": 35, "stability": 80, "warSupport": 20, "manpower": 200, "ai": { "aggressive": 0.05, "industrial": 0.4 } }
+  "_comment": "HOI4-like 国家表（DataTable 行表）。10 个 playtag（GER/FRA/ENG/ITA/POL/SOV/HUN/ROM/YUG/SWI）为手工调校数据，其余真实国家由 scripts/hoi4-map-gen.mjs 从 Natural Earth 数据自动生成（tag=ADM0_A3，可手工微调后重跑生成器保留）。\n字段：name=显示名（中文）；color=政治地图色 #rrggbb；ideology=democratic/communist/fascist/neutral；pp=初始政治点；stability=初始稳定度(0-100)；warSupport=初始战争支持度(0-100)；manpower=初始人力（k 人）；ai=AI 权重（aggressive 越高越倾向进攻）。",
+  "GER": {
+    "name": "德意志",
+    "color": "#7a7a6f",
+    "ideology": "fascist",
+    "pp": 65,
+    "stability": 60,
+    "warSupport": 55,
+    "manpower": 1200,
+    "ai": {
+      "aggressive": 0.9,
+      "industrial": 0.9
+    }
+  },
+  "FRA": {
+    "name": "法兰西",
+    "color": "#5b8fbf",
+    "ideology": "democratic",
+    "pp": 55,
+    "stability": 65,
+    "warSupport": 40,
+    "manpower": 900,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.7
+    }
+  },
+  "ENG": {
+    "name": "不列颠",
+    "color": "#c96f6f",
+    "ideology": "democratic",
+    "pp": 60,
+    "stability": 70,
+    "warSupport": 35,
+    "manpower": 850,
+    "ai": {
+      "aggressive": 0.25,
+      "industrial": 0.8
+    }
+  },
+  "ITA": {
+    "name": "意大利",
+    "color": "#6faa72",
+    "ideology": "fascist",
+    "pp": 58,
+    "stability": 55,
+    "warSupport": 50,
+    "manpower": 800,
+    "ai": {
+      "aggressive": 0.7,
+      "industrial": 0.55
+    }
+  },
+  "POL": {
+    "name": "波兰",
+    "color": "#c9c9d6",
+    "ideology": "neutral",
+    "pp": 45,
+    "stability": 55,
+    "warSupport": 45,
+    "manpower": 600,
+    "ai": {
+      "aggressive": 0.35,
+      "industrial": 0.45
+    }
+  },
+  "SOV": {
+    "name": "苏维埃",
+    "color": "#b04a4a",
+    "ideology": "communist",
+    "pp": 70,
+    "stability": 60,
+    "warSupport": 60,
+    "manpower": 2200,
+    "ai": {
+      "aggressive": 0.75,
+      "industrial": 0.95
+    }
+  },
+  "HUN": {
+    "name": "匈牙利",
+    "color": "#7f9563",
+    "ideology": "fascist",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 300,
+    "ai": {
+      "aggressive": 0.5,
+      "industrial": 0.35
+    }
+  },
+  "ROM": {
+    "name": "罗马尼亚",
+    "color": "#a98751",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 50,
+    "warSupport": 40,
+    "manpower": 350,
+    "ai": {
+      "aggressive": 0.4,
+      "industrial": 0.4
+    }
+  },
+  "YUG": {
+    "name": "南斯拉夫",
+    "color": "#8a6fae",
+    "ideology": "neutral",
+    "pp": 38,
+    "stability": 50,
+    "warSupport": 45,
+    "manpower": 380,
+    "ai": {
+      "aggressive": 0.35,
+      "industrial": 0.35
+    }
+  },
+  "SWI": {
+    "name": "瑞士",
+    "color": "#d0695f",
+    "ideology": "democratic",
+    "pp": 35,
+    "stability": 80,
+    "warSupport": 20,
+    "manpower": 200,
+    "ai": {
+      "aggressive": 0.05,
+      "industrial": 0.4
+    }
+  },
+  "CHI": {
+    "name": "中华民国",
+    "color": "#c8a05a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 214415,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "IND": {
+    "name": "印度",
+    "color": "#8c872d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 204963,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "USA": {
+    "name": "美国",
+    "color": "#98393f",
+    "ideology": "democratic",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 49236,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "IDN": {
+    "name": "印度尼西亚",
+    "color": "#c7ce2f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 40594,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PAK": {
+    "name": "巴基斯坦",
+    "color": "#956831",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 32485,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BRA": {
+    "name": "巴西",
+    "color": "#386683",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 31657,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NGA": {
+    "name": "尼日利亚",
+    "color": "#527e38",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 30145,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BGD": {
+    "name": "孟加拉国",
+    "color": "#8a7e2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 24457,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MEX": {
+    "name": "墨西哥",
+    "color": "#8b3750",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 19136,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "JPN": {
+    "name": "日本",
+    "color": "#ad5e31",
+    "ideology": "fascist",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 18940,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ETH": {
+    "name": "埃塞俄比亚",
+    "color": "#bec33e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 16812,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PHL": {
+    "name": "菲律宾",
+    "color": "#8f642e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 16217,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "EGY": {
+    "name": "埃及",
+    "color": "#4a953b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 15058,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "VNM": {
+    "name": "越南",
+    "color": "#cdcf33",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 14469,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "COD": {
+    "name": "刚果民主共和国",
+    "color": "#6a7737",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 13019,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TUR": {
+    "name": "土耳其",
+    "color": "#a13732",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 12514,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "IRN": {
+    "name": "伊朗",
+    "color": "#937a2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 12437,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "THA": {
+    "name": "泰国",
+    "color": "#bdbb32",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 10444,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ZAF": {
+    "name": "南非",
+    "color": "#727535",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 8784,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TZA": {
+    "name": "坦桑尼亚",
+    "color": "#a4a73a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 8701,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MMR": {
+    "name": "缅甸",
+    "color": "#cb3c30",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 8107,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KEN": {
+    "name": "肯尼亚",
+    "color": "#4aa93a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 7886,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KOR": {
+    "name": "大韩民国",
+    "color": "#a88732",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 7756,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "COL": {
+    "name": "哥伦比亚",
+    "color": "#298456",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 7551,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ESP": {
+    "name": "西班牙",
+    "color": "#3831ab",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 7062,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ARG": {
+    "name": "阿根廷",
+    "color": "#3a8e9a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 6741,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "UKR": {
+    "name": "乌克兰",
+    "color": "#2f4fb6",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 6658,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "UGA": {
+    "name": "乌干达",
+    "color": "#4d7936",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 6640,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "DZA": {
+    "name": "阿尔及利亚",
+    "color": "#8cc23d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 6458,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SDN": {
+    "name": "苏丹",
+    "color": "#747f38",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 6422,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "IRQ": {
+    "name": "伊拉克",
+    "color": "#947e2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5896,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "AFG": {
+    "name": "阿富汗",
+    "color": "#826e2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5706,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CAN": {
+    "name": "加拿大",
+    "color": "#ab3b75",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5638,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MAR": {
+    "name": "摩洛哥",
+    "color": "#94a53a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5471,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SAU": {
+    "name": "沙特阿拉伯",
+    "color": "#be3031",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5140,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "UZB": {
+    "name": "乌兹别克斯坦",
+    "color": "#a87a31",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 5037,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PER": {
+    "name": "秘鲁",
+    "color": "#3a799a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4877,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MYS": {
+    "name": "马来西亚",
+    "color": "#9b2f33",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4792,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "AGO": {
+    "name": "安哥拉",
+    "color": "#679b3c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4774,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GHA": {
+    "name": "加纳",
+    "color": "#438b3b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4563,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MOZ": {
+    "name": "莫桑比克",
+    "color": "#82ba3d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4555,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "YEM": {
+    "name": "也门",
+    "color": "#a26e2f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4374,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NPL": {
+    "name": "尼泊尔",
+    "color": "#84512c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4291,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "VEN": {
+    "name": "委内瑞拉",
+    "color": "#37757c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4277,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MDG": {
+    "name": "马达加斯加",
+    "color": "#a6bc3b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 4045,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CMR": {
+    "name": "喀麦隆",
+    "color": "#65b63a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3881,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CIV": {
+    "name": "科特迪瓦",
+    "color": "#598239",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3857,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PRK": {
+    "name": "朝鲜民主主义人民共和国",
+    "color": "#ac9c2f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3850,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "AUS": {
+    "name": "澳大利亚",
+    "color": "#593b96",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3805,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NER": {
+    "name": "尼日尔",
+    "color": "#468236",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3497,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LKA": {
+    "name": "斯里兰卡",
+    "color": "#977531",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3270,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BFA": {
+    "name": "布基纳法索",
+    "color": "#a2a33a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 3048,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MLI": {
+    "name": "马里",
+    "color": "#699b39",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2949,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CHL": {
+    "name": "智利",
+    "color": "#3baa71",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2843,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MWI": {
+    "name": "马拉维",
+    "color": "#83973b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2794,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KAZ": {
+    "name": "哈萨克斯坦",
+    "color": "#8e6821",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2777,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ZMB": {
+    "name": "赞比亚",
+    "color": "#48c03c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2679,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ECU": {
+    "name": "厄瓜多尔",
+    "color": "#3b7ba5",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2606,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NLD": {
+    "name": "荷兰",
+    "color": "#2e5485",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2600,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SYR": {
+    "name": "叙利亚",
+    "color": "#bd5e45",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2561,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GTM": {
+    "name": "危地马拉",
+    "color": "#be613d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2491,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KHM": {
+    "name": "柬埔寨",
+    "color": "#8e8430",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2473,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SEN": {
+    "name": "塞内加尔",
+    "color": "#83a13d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2444,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CZE": {
+    "name": "捷克斯洛伐克",
+    "color": "#b8b24d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2419,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TCD": {
+    "name": "乍得",
+    "color": "#53b150",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2392,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ZWE": {
+    "name": "津巴布韦",
+    "color": "#7a872a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 2197,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GIN": {
+    "name": "几内亚",
+    "color": "#3aa73d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1916,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "RWA": {
+    "name": "卢旺达",
+    "color": "#82b052",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1894,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BEN": {
+    "name": "贝宁",
+    "color": "#4f8d38",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1770,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TUN": {
+    "name": "突尼斯",
+    "color": "#828e38",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1754,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BDI": {
+    "name": "布隆迪",
+    "color": "#4ab13a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1730,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BOL": {
+    "name": "玻利维亚",
+    "color": "#3eaa59",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1727,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BEL": {
+    "name": "比利时",
+    "color": "#2e5495",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1723,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CUB": {
+    "name": "古巴",
+    "color": "#a23b54",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1700,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "HTI": {
+    "name": "海地",
+    "color": "#c04077",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1689,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SDS": {
+    "name": "南苏丹",
+    "color": "#7e8039",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1659,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "DOM": {
+    "name": "多米尼加",
+    "color": "#832958",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1611,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GRC": {
+    "name": "希腊",
+    "color": "#2e5abf",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1607,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SWE": {
+    "name": "瑞典",
+    "color": "#318bab",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1543,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PRT": {
+    "name": "葡萄牙",
+    "color": "#2f37ad",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1540,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SOM": {
+    "name": "索马里",
+    "color": "#6c7734",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1529,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "JOR": {
+    "name": "约旦",
+    "color": "#ae2e32",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1515,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "AZE": {
+    "name": "阿塞拜疆",
+    "color": "#815b2c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1503,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ARE": {
+    "name": "阿拉伯联合酋长国",
+    "color": "#a4892e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1466,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "HND": {
+    "name": "洪都拉斯",
+    "color": "#84363b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1462,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BLR": {
+    "name": "白俄罗斯",
+    "color": "#333091",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1420,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TJK": {
+    "name": "塔吉克斯坦",
+    "color": "#c23230",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1398,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ISR": {
+    "name": "以色列",
+    "color": "#b9a030",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1358,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "AUT": {
+    "name": "奥地利",
+    "color": "#306fa2",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1332,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PNG": {
+    "name": "巴布亚新几内亚",
+    "color": "#863db3",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1316,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TGO": {
+    "name": "多哥",
+    "color": "#3eb440",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1212,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SLE": {
+    "name": "塞拉利昂",
+    "color": "#7ea13c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1172,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LAO": {
+    "name": "老挝",
+    "color": "#a47430",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1075,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PRY": {
+    "name": "巴拉圭",
+    "color": "#3d88ab",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1057,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BGR": {
+    "name": "保加利亚",
+    "color": "#2f3092",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1046,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LBN": {
+    "name": "黎巴嫩",
+    "color": "#8a572f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1028,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LBY": {
+    "name": "利比亚",
+    "color": "#537f39",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 1017,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NIC": {
+    "name": "尼加拉瓜",
+    "color": "#c2416f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 982,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KGZ": {
+    "name": "吉尔吉斯斯坦",
+    "color": "#cdc932",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 969,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SLV": {
+    "name": "萨尔瓦多",
+    "color": "#a03d5f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 968,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ERI": {
+    "name": "厄立特里亚",
+    "color": "#387534",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 912,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TKM": {
+    "name": "土库曼斯坦",
+    "color": "#9a9f2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 891,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "DNK": {
+    "name": "丹麦",
+    "color": "#c46a6a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 881,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "FIN": {
+    "name": "芬兰",
+    "color": "#32c3be",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 828,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "COG": {
+    "name": "刚果共和国",
+    "color": "#a7c13c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 807,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NOR": {
+    "name": "挪威",
+    "color": "#3158a9",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 802,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SOL": {
+    "name": "索马里兰",
+    "color": "#6a7535",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 764,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CRI": {
+    "name": "哥斯达黎加",
+    "color": "#a63b56",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 757,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "OMN": {
+    "name": "阿曼",
+    "color": "#cfc62f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 746,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "IRL": {
+    "name": "爱尔兰",
+    "color": "#2e4395",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 741,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LBR": {
+    "name": "利比里亚",
+    "color": "#518038",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 741,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NZL": {
+    "name": "新西兰",
+    "color": "#573990",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 738,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CAF": {
+    "name": "中非共和国",
+    "color": "#95b53d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 712,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PSX": {
+    "name": "巴勒斯坦",
+    "color": "#87672d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 703,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MRT": {
+    "name": "毛里塔尼亚",
+    "color": "#668d3a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 679,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PAN": {
+    "name": "巴拿马",
+    "color": "#83363c",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 637,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KWT": {
+    "name": "科威特",
+    "color": "#b1a82f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 631,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GEO": {
+    "name": "格鲁吉亚",
+    "color": "#a87a30",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 558,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "URY": {
+    "name": "乌拉圭",
+    "color": "#34766e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 519,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MNG": {
+    "name": "蒙古国",
+    "color": "#a14730",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 484,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PRI": {
+    "name": "波多黎各",
+    "color": "#a3543a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 479,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ARM": {
+    "name": "亚美尼亚",
+    "color": "#ac8c32",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 444,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "JAM": {
+    "name": "牙买加",
+    "color": "#c23f8b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 442,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ALB": {
+    "name": "阿尔巴尼亚",
+    "color": "#3095b9",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 428,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "QAT": {
+    "name": "卡塔尔",
+    "color": "#c9402f",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 425,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LTU": {
+    "name": "立陶宛",
+    "color": "#2e3d9d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 418,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "MDA": {
+    "name": "摩尔多瓦",
+    "color": "#2fbbca",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 399,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NAM": {
+    "name": "纳米比亚",
+    "color": "#4d9a3a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 374,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GMB": {
+    "name": "冈比亚",
+    "color": "#52ad50",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 352,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BWA": {
+    "name": "博茨瓦纳",
+    "color": "#407937",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 346,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GAB": {
+    "name": "加蓬",
+    "color": "#428537",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 326,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LSO": {
+    "name": "莱索托",
+    "color": "#479539",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 319,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GNB": {
+    "name": "几内亚比绍",
+    "color": "#3aab3e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 288,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LVA": {
+    "name": "拉脱维亚",
+    "color": "#3378b3",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 287,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TTO": {
+    "name": "特立尼达和多巴哥",
+    "color": "#b53b72",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 209,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GNQ": {
+    "name": "赤道几内亚",
+    "color": "#40aa3b",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 203,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "EST": {
+    "name": "爱沙尼亚",
+    "color": "#372fa2",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 199,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "TLS": {
+    "name": "东帝汶",
+    "color": "#989c2e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 194,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CYP": {
+    "name": "塞浦路斯",
+    "color": "#9d5f32",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 180,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SWZ": {
+    "name": "斯威士兰",
+    "color": "#729839",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 172,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "DJI": {
+    "name": "吉布提",
+    "color": "#96b03e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 146,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "FJI": {
+    "name": "斐济",
+    "color": "#b43ec3",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 133,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "GUY": {
+    "name": "圭亚那",
+    "color": "#3c958a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 117,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BTN": {
+    "name": "不丹",
+    "color": "#b48332",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 114,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SLB": {
+    "name": "所罗门群岛",
+    "color": "#4b3ca0",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 100,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "LUX": {
+    "name": "卢森堡",
+    "color": "#457dbc",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 93,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SAH": {
+    "name": "西撒哈拉",
+    "color": "#a4b33d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 90,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SUR": {
+    "name": "苏里南",
+    "color": "#388952",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 87,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CPV": {
+    "name": "佛得角",
+    "color": "#869f3d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 82,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BRN": {
+    "name": "文莱",
+    "color": "#832d37",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 65,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BLZ": {
+    "name": "伯利兹",
+    "color": "#7f4f37",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 59,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "BHS": {
+    "name": "巴哈马",
+    "color": "#ba643a",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 58,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ISL": {
+    "name": "冰岛",
+    "color": "#323cc4",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 54,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "CYN": {
+    "name": "北塞浦路斯土耳其共和国",
+    "color": "#95672d",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 49,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "VUT": {
+    "name": "瓦努阿图",
+    "color": "#b33cb4",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 45,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "NCL": {
+    "name": "新喀里多尼亚",
+    "color": "#57388e",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 43,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "PYF": {
+    "name": "法属波利尼西亚",
+    "color": "#8b39a4",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 42,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "KAS": {
+    "name": "锡亚琴冰川",
+    "color": "#bc8d44",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 20,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "FLK": {
+    "name": "福克兰群岛",
+    "color": "#3ab976",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 20,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "ATF": {
+    "name": "法属南部和南极领地",
+    "color": "#42a4ba",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 20,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  },
+  "SGS": {
+    "name": "南乔治亚和南桑威奇群岛",
+    "color": "#408fa0",
+    "ideology": "neutral",
+    "pp": 40,
+    "stability": 55,
+    "warSupport": 40,
+    "manpower": 20,
+    "ai": {
+      "aggressive": 0.3,
+      "industrial": 0.4
+    }
+  }
 }

@@ -1,7 +1,7 @@
 {
   "name": "ProvincePanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-2b1db47f",
+  "sourceHash": "fnv1a-587b69c0",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,20 +21,15 @@
           1,
           1
         ],
-        "worldWidth": 380,
-        "worldHeight": 600,
-        "anchor": "top-right",
-        "anchorOffset": [
-          -20,
-          -10
-        ]
+        "worldWidth": 1920,
+        "worldHeight": 1080
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
-        "width": 380,
-        "height": 600,
+        "width": 1920,
+        "height": 1080,
         "name": "Canvas",
         "zOrder": 0,
         "active": true
@@ -68,9 +63,14 @@
             ],
             "worldWidth": 384,
             "worldHeight": 604,
+            "anchor": "top-right",
+            "anchorOffset": [
+              -16,
+              -10
+            ],
             "position": [
-              2,
-              -2,
+              0,
+              0,
               0
             ]
           }
@@ -285,9 +285,134 @@
           "children": []
         },
         {
-          "name": "Title",
+          "name": "Btn_close",
           "baseClass": "Actor",
           "id": 13206,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 44,
+                "worldHeight": 44,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -12,
+                  -12
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UILayoutComponent",
+              "properties": {
+                "mode": "horizontal",
+                "spacingX": 0,
+                "spacingY": 0,
+                "justify": "center",
+                "align": "center",
+                "autoLayout": true
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "stateColors": {
+                  "hover": {
+                    "color": "#964644"
+                  }
+                }
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#7a3a38",
+                "radius": 8,
+                "width": 44,
+                "height": 44,
+                "name": "Btn_close"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Label_close",
+              "baseClass": "Actor",
+              "id": 13207,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 24,
+                    "worldHeight": 24,
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "×",
+                    "name": "Label_close",
+                    "width": 24,
+                    "height": 24,
+                    "fontSize": 20,
+                    "color": "#f2dede",
+                    "align": "center"
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "Title",
+          "baseClass": "Actor",
+          "id": 13208,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -338,7 +463,7 @@
         {
           "name": "InfoText",
           "baseClass": "Actor",
-          "id": 13207,
+          "id": 13209,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -388,7 +513,7 @@
         {
           "name": "ListTitle",
           "baseClass": "Actor",
-          "id": 13208,
+          "id": 13210,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -438,7 +563,7 @@
         {
           "name": "DivList",
           "baseClass": "Actor",
-          "id": 13209,
+          "id": 13211,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -490,7 +615,7 @@
         {
           "name": "Btn_deploy",
           "baseClass": "Actor",
-          "id": 13210,
+          "id": 13212,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -547,7 +672,7 @@
             {
               "name": "Label_deploy",
               "baseClass": "Actor",
-              "id": 13211,
+              "id": 13213,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -599,7 +724,7 @@
         {
           "name": "HintText",
           "baseClass": "Actor",
-          "id": 13212,
+          "id": 13214,
           "components": [
             {
               "baseClass": "UITransformComponent",
