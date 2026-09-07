@@ -9,7 +9,6 @@
  * 产物（projects/hoi4/asset/map/）：
  *   map.json      省/州元数据 + 邻接表 + 世界换算参数（结构与运行时契约不变）
  *   provinces.png 省份 ID 图：RGB = (id & 0xFF, id >> 8, 0)（无抗锯齿）
- *   terrain.png   地形底图（气候带真实着色 + 地形噪点 + 海洋深浅）
  * 另更新 projects/hoi4/asset/config/countries.table.json：
  *   10 个 playtag 手工块原样保留，其余真实国家自动追加。
  *
@@ -406,6 +405,40 @@ for (let i = 0; i < W * H; i++) provOf[i] = seedId[i] >= 0 ? seedToProv[seedId[i
       queue[qt++] = j
     }
   }
+  // 清尾：同型扩散到不了的孤岛 0 像素（JFA 盲区）——按海陆型各自就近种子归属（类型约束版：
+  // 旧实现忽略海陆型就近归并，曾把海峡海像素分给岛上陆省、半岛陆尖端分给海省，海南被焊死在大陆上）
+  {
+    let left = 0
+    for (let i = 0; i < W * H; i++) if (provOf[i] === 0) left++
+    if (left > 0) {
+      const typeCount = { land: 0, sea: 0 }
+      // 陆/海种子分桶；陆像素只认同国陆种子（每国保底 ≥1 种子），海像素只认海种子
+      const landSeedsByCountry = new Map() // keptIdx → [seedIdx]
+      const seaSeedList = []
+      seeds.forEach((s, si) => {
+        if (s.sea) seaSeedList.push(si)
+        else {
+          let arr = landSeedsByCountry.get(s.country)
+          if (!arr) { arr = []; landSeedsByCountry.set(s.country, arr) }
+          arr.push(si)
+        }
+      })
+      for (let i = 0; i < W * H; i++) {
+        if (provOf[i] !== 0) continue
+        const x = i % W, y = (i / W) | 0
+        const cands = countryOf[i] < 0 ? seaSeedList : (landSeedsByCountry.get(countryOf[i]) ?? [])
+        let best = -1, bestD = Infinity
+        for (const si of cands) {
+          const dx = seeds[si].x - x, dy = seeds[si].y - y
+          const d = dx * dx + dy * dy
+          if (d < bestD) { bestD = d; best = si }
+        }
+        if (best >= 0) provOf[i] = seedToProv[best]
+        ;(countryOf[i] < 0 ? typeCount.sea++ : typeCount.land++)
+      }
+      console.log(`[geo] 清尾: ${left} 个孤岛 0 像素已按类型就近种子归属（陆型 ${typeCount.land} / 海型 ${typeCount.sea}）`)
+    }
+  }
 }
 
 // 省连通修复：非最大连通分量的碎块并入相邻省（保证每省像素连通 → 州/寻路无飞地）
@@ -455,6 +488,7 @@ for (let i = 0; i < W * H; i++) provOf[i] = seedId[i] >= 0 ? seedToProv[seedId[i
     queue[0] = i; let qh = 0, qt = 1
     const seen = new Set([i])
     let target = 0
+    const isSea = countryOf[i] < 0
     while (qh < qt && target === 0) {
       const cur = queue[qh++]
       const x = cur % W, y = (cur / W) | 0
@@ -464,7 +498,8 @@ for (let i = 0; i < W * H; i++) provOf[i] = seedId[i] >= 0 ? seedToProv[seedId[i
         const j = ny * W + nx
         if (seen.has(j)) continue
         seen.add(j)
-        if (provOf[j] !== 0 && provOf[j] !== provOf[i] && m.get(comp[j]) !== -1) { target = provOf[j]; break }
+        // 类型约束：陆省碎块只能并回陆省、海省碎块只能并回海省（否则海峡会被陆省吞并成陆桥）
+        if (provOf[j] !== 0 && provOf[j] !== provOf[i] && m.get(comp[j]) !== -1 && (countryOf[j] < 0) === isSea) { target = provOf[j]; break }
         if (provOf[j] === provOf[i]) { queue[qt++] = j }
       }
     }
@@ -845,6 +880,421 @@ function encodePng(width, height, rgb) {
   return Buffer.concat([sig, pngChunk('IHDR', ihdr), pngChunk('IDAT', idat), pngChunk('IEND', Buffer.alloc(0))])
 }
 
+// ───────────────────────── 产物：map.geo.json（矢量边界 + 省填充网格） ─────────────────────────
+// 从 provOf 栅格提取无裂缝共享边界：
+//   1. 单元边界边（右/下邻省不同 + 画布虚拟边）→ pair 链 → junction 间 span（折线）
+//   2. span 逐条 DP 简化（共享几何，两侧省份用同一点序 → 放大无裂缝）
+//   3. 省多边形 = 有向 span 图最左转游走（外环 + 洞按包含关系分类）→ earcut 三角化
+// 运行时契约：lineVerts/lineSpans（边界线，国别分类由运行时 colorLUT 决定）、
+//             fillVerts/fillTris/fillRanges（省填充三角网，pid → 顶点/三角形区间）
+{
+  const { ShapeUtils, Vector2 } = await import('three')
+
+  // ── 1. 单元边界边 ──
+  // V 边（竖）：格点 (x+1,y)-(x+1,y+1)，a=西省，b=东省；H 边（横）：格点 (x,y+1)-(x+1,y+1)，a=北省，b=南省
+  // 画布四条外边补 a/b=0 的虚拟边（省多边形得以闭合；运行时不画 0 配对线，对齐旧栅格行为）
+  const LAT_W = W + 1
+  const vid = (x, y) => y * LAT_W + x
+  const vx = (v) => v % LAT_W
+  const vy = (v) => (v / LAT_W) | 0
+  const edges = []
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const p = provOf[y * W + x]
+      if (p === 0) continue
+      if (x + 1 < W && provOf[y * W + x + 1] !== p) edges.push({ t: 0, v0: vid(x + 1, y), v1: vid(x + 1, y + 1), a: p, b: provOf[y * W + x + 1] })
+      if (y + 1 < H && provOf[(y + 1) * W + x] !== p) edges.push({ t: 1, v0: vid(x, y + 1), v1: vid(x + 1, y + 1), a: p, b: provOf[(y + 1) * W + x] })
+    }
+  }
+  for (let y = 0; y < H; y++) {
+    edges.push({ t: 0, v0: vid(0, y), v1: vid(0, y + 1), a: 0, b: provOf[y * W] })
+    edges.push({ t: 0, v0: vid(W, y), v1: vid(W, y + 1), a: provOf[y * W + W - 1], b: 0 })
+  }
+  for (let x = 0; x < W; x++) {
+    edges.push({ t: 1, v0: vid(x, 0), v1: vid(x + 1, 0), a: 0, b: provOf[x] })
+    edges.push({ t: 1, v0: vid(x, H), v1: vid(x + 1, H), a: provOf[(H - 1) * W + x], b: 0 })
+  }
+  for (const e of edges) {
+    if (e.b === e.a) continue // 虚拟边与 0 省配对可能重复（角落），靠 pair 去重即可
+    e.key = e.a < e.b ? e.a * 65536 + e.b : e.b * 65536 + e.a
+  }
+
+  // ── 2. junction 判定：度数 ≠2 或同一顶点多对省相遇 ──
+  const deg = new Map()
+  const pairsAt = new Map()
+  for (const e of edges) {
+    if (e.key === undefined) continue
+    for (const v of [e.v0, e.v1]) {
+      deg.set(v, (deg.get(v) ?? 0) + 1)
+      let s = pairsAt.get(v)
+      if (!s) { s = new Set(); pairsAt.set(v, s) }
+      s.add(e.key)
+    }
+  }
+  const junction = (v) => (deg.get(v) ?? 0) !== 2 || pairsAt.get(v).size > 1
+
+  // ── 3. pair 内链边 → span（junction 间折线；无 junction 即闭环）──
+  const byPair = new Map()
+  for (let i = 0; i < edges.length; i++) {
+    if (edges[i].key === undefined) continue
+    let arr = byPair.get(edges[i].key)
+    if (!arr) { arr = []; byPair.set(edges[i].key, arr) }
+    arr.push(i)
+  }
+  const spans = [] // { key, e0, pts(格点 vid 序), spts(简化后) , closed }
+  for (const [, list] of byPair) {
+    const adj = new Map()
+    for (const ei of list) {
+      const e = edges[ei]
+      if (!adj.has(e.v0)) adj.set(e.v0, [])
+      adj.get(e.v0).push([ei, e.v1])
+      if (!adj.has(e.v1)) adj.set(e.v1, [])
+      adj.get(e.v1).push([ei, e.v0])
+    }
+    const used = new Set()
+    for (const ei0 of list) {
+      if (used.has(ei0)) continue
+      const e0 = edges[ei0]
+      // 起向：从 junction 端出发；两端皆非 junction（闭环）任取
+      const fwd = junction(e0.v0) || !junction(e0.v1)
+      const startV = fwd ? e0.v0 : e0.v1
+      const pts = [startV]
+      let cur = fwd ? e0.v1 : e0.v0
+      used.add(ei0)
+      pts.push(cur)
+      let closed = false
+      for (;;) {
+        if (cur === startV) { closed = true; break }
+        if (junction(cur)) break
+        const cands = (adj.get(cur) ?? []).filter(([ei]) => !used.has(ei))
+        if (cands.length === 0) break
+        used.add(cands[0][0])
+        cur = cands[0][1]
+        pts.push(cur)
+      }
+      spans.push({ key: e0.key, e0: ei0, pts, closed })
+    }
+  }
+
+  // ── 4. span DP 简化（tol=0.25px：保留全部格点拐角（偏弦 ≥0.707），仅删共线点；
+  //       容差 >0.707 会把阶梯角削成对角弦 → 多边形游走产生退化幻影环）──
+  const TOL2 = 0.25 * 0.25
+  function dpSeg(pts, i0, i1, keep) {
+    const stack = [[i0, i1]]
+    while (stack.length) {
+      const [a, b] = stack.pop()
+      if (b <= a + 1) continue
+      const ax = vx(pts[a]), ay = vy(pts[a])
+      const dx = vx(pts[b]) - ax, dy = vy(pts[b]) - ay
+      const len2 = dx * dx + dy * dy
+      let maxD = -1, maxI = -1
+      for (let i = a + 1; i < b; i++) {
+        const px = vx(pts[i]) - ax, py = vy(pts[i]) - ay
+        let d
+        if (len2 === 0) d = px * px + py * py
+        else {
+          const t = (px * dx + py * dy) / len2
+          const cx = px - t * dx, cy = py - t * dy
+          d = cx * cx + cy * cy
+        }
+        if (d > maxD) { maxD = d; maxI = i }
+      }
+      if (maxD > TOL2) {
+        keep.add(maxI)
+        stack.push([a, maxI], [maxI, b])
+      }
+    }
+  }
+  for (const s of spans) {
+    let pts = s.pts
+    if (s.closed) {
+      pts = pts.slice(0, -1) // 去重复尾点
+      let far = 0, fd = -1
+      for (let i = 1; i < pts.length; i++) {
+        const dx = vx(pts[i]) - vx(pts[0]), dy = vy(pts[i]) - vy(pts[0])
+        const d = dx * dx + dy * dy
+        if (d > fd) { fd = d; far = i }
+      }
+      const seg1 = pts.slice(0, far + 1)
+      const seg2 = pts.slice(far).concat([pts[0]])
+      const k1 = new Set(), k2 = new Set()
+      dpSeg(seg1, 0, seg1.length - 1, k1)
+      dpSeg(seg2, 0, seg2.length - 1, k2)
+      s.spts = seg1.filter((_, i) => i === 0 || i === seg1.length - 1 || k1.has(i))
+      s.spts.push(...seg2.filter((_, i) => i > 0 && i < seg2.length - 1 && k2.has(i)))
+    } else {
+      const keep = new Set()
+      dpSeg(pts, 0, pts.length - 1, keep)
+      s.spts = pts.filter((_, i) => i === 0 || i === pts.length - 1 || keep.has(i))
+    }
+  }
+
+  // ── 5. 省多边形组装：span 按 p-on-left 取向，junction 最左转游走 → 外环(负 shoelace)+洞(正) ──
+  const spanEndsByProv = new Map() // pid → Map<startV, [{si, fwd, endV, dx, dy}]>
+  for (let si = 0; si < spans.length; si++) {
+    const s = spans[si]
+    const e0 = edges[s.e0]
+    // 链构建时 pts[0] = 种子边的 v0（chainFwd）或 v1：链按此方向遍历每条单元边
+    const chainFwd = s.pts[0] === e0.v0
+    for (const p of [e0.a, e0.b]) {
+      if (p === 0) continue
+      // p-on-left 取向：H 边行走 v0→v1（向东）左侧=北=a；V 边 v0→v1（向南）左侧=东=b
+      const canonFwd = p === (e0.t === 1 ? e0.a : e0.b)
+      const fwd = chainFwd === canonFwd // spts 存储序 == p-on-left 序 ?
+      const v0 = s.spts[0], v1 = s.spts[s.spts.length - 1]
+      // 闭环 span（省界被单一邻居整包）自环：start=end=环首
+      const startV = s.closed ? v0 : (fwd ? v0 : v1)
+      const endV = s.closed ? v0 : (fwd ? v1 : v0)
+      const seq = fwd ? s.spts : [...s.spts].reverse()
+      let dx = 1, dy = 0
+      for (let i = 1; i < seq.length; i++) {
+        if (seq[i] !== seq[0]) { dx = vx(seq[i]) - vx(seq[0]); dy = vy(seq[i]) - vy(seq[0]); break }
+      }
+      let m = spanEndsByProv.get(p)
+      if (!m) { m = new Map(); spanEndsByProv.set(p, m) }
+      let l = m.get(startV)
+      if (!l) { l = []; m.set(startV, l) }
+      l.push({ si, fwd, endV, dx, dy })
+    }
+  }
+  const WORLD_HALF_W = W / PX_PER_UNIT / 2
+  const WORLD_HALF_H = H / PX_PER_UNIT / 2
+  const toWX2 = (px) => px / PX_PER_UNIT - WORLD_HALF_W
+  const toWZ2 = (py) => py / PX_PER_UNIT - WORLD_HALF_H
+  const toWX = (v) => vx(v) / PX_PER_UNIT - WORLD_HALF_W
+  const toWZ = (v) => vy(v) / PX_PER_UNIT - WORLD_HALF_H
+  const provPolys = new Map() // pid → { outers, holes, holeOf }
+  const areaOf = (loop) => {
+    let s2 = 0
+    for (let i = 0; i < loop.length; i++) {
+      const j = (i + 1) % loop.length
+      s2 += vx(loop[i]) * vy(loop[j]) - vx(loop[j]) * vy(loop[i])
+    }
+    return s2 / 2
+  }
+  // even-odd 射线法点在环内测试（格点坐标）
+  const pointInLoop = (pt, loop) => {
+    let inside = false
+    for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+      const xi = vx(loop[i]), yi = vy(loop[i]), xj = vx(loop[j]), yj = vy(loop[j])
+      if ((yi > pt.y) !== (yj > pt.y) && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi) inside = !inside
+    }
+    return inside
+  }
+  // 环内严格内点：扫 bbox 格心（±0.5 避开整数边界），从中心行向外找
+  const interiorPoint = (loop) => {
+    let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity
+    for (const v of loop) {
+      const x = vx(v), y = vy(v)
+      if (x < minx) minx = x
+      if (x > maxx) maxx = x
+      if (y < miny) miny = y
+      if (y > maxy) maxy = y
+    }
+    const midRow = (miny + maxy) >> 1
+    for (let off = 0; off <= maxy - miny; off++) {
+      for (const y of off === 0 ? [midRow] : [midRow - off, midRow + off]) {
+        if (y < miny || y > maxy) continue
+        for (let x = minx; x <= maxx; x++) {
+          const pt = { x: x + 0.5, y: y + 0.5 }
+          if (pointInLoop(pt, loop)) return pt
+        }
+      }
+    }
+    return null
+  }
+  for (const [p, ends] of spanEndsByProv) {
+    try {
+      const used = new Set()
+      const loops = []
+      for (const [startV0, list] of ends) {
+        for (const first of list) {
+          if (used.has(first.si)) continue
+          const loop = []
+          let cur = first
+          let guard = 0
+          for (;;) {
+            if (guard++ > 400000) throw new Error('边界游走失控')
+            used.add(cur.si)
+            const raw = spans[cur.si].spts
+            const seq = cur.fwd ? raw : [...raw].reverse()
+            if (spans[cur.si].closed) seq.push(seq[0]) // 闭环补回首点
+            for (let i = 0; i < seq.length - 1; i++) loop.push(seq[i])
+            if (cur.endV === startV0) break
+            const prevV = seq[seq.length - 2]
+            const inDx = vx(cur.endV) - vx(prevV), inDy = vy(cur.endV) - vy(prevV)
+            const cands = (ends.get(cur.endV) ?? []).filter((c) => !used.has(c.si))
+            if (cands.length === 0) throw new Error(`边界断裂 @v${cur.endV}`)
+            let best = null, bestAng = Infinity
+            for (const c of cands) {
+              const ang = Math.atan2(inDx * c.dy - inDy * c.dx, inDx * c.dx + inDy * c.dy)
+              if (ang < bestAng) { bestAng = ang; best = c }
+            }
+            cur = best
+          }
+          loops.push(loop)
+        }
+      }
+      const outers = []
+      const holes = []
+      for (const loop of loops) (areaOf(loop) < 0 ? outers : holes).push(loop)
+      if (outers.length === 0) throw new Error('无外环')
+      // 洞 → 最小包含外环（切角接触的省有多外环；洞必属唯一外环）
+      const holeOf = new Array(holes.length).fill(-1)
+      for (let hi = 0; hi < holes.length; hi++) {
+        const pt = interiorPoint(holes[hi])
+        if (!pt) throw new Error('洞无内点（退化环）')
+        let best = -1, bestArea = Infinity
+        for (let oi = 0; oi < outers.length; oi++) {
+          if (pointInLoop(pt, outers[oi])) {
+            const a = Math.abs(areaOf(outers[oi]))
+            if (a < bestArea) { bestArea = a; best = oi }
+          }
+        }
+        if (best < 0) throw new Error('洞无所属外环')
+        holeOf[hi] = best
+      }
+      provPolys.set(p, { outers, holes, holeOf })
+    } catch (err) {
+      console.log(`[geo] 省 ${p} 多边形组装失败: ${err.message}（该省跳过填充，边界线不受影响）`)
+    }
+  }
+
+  // ── 6. earcut 三角化 + 输出数组 ──
+  const fillVerts = []
+  const fillTris = []
+  const fillRanges = [] // [pid, vStart, vCount, tStart, tCount]*
+  const lineVerts = []
+  const lineSpans = [] // [a, b, vStart, vCount]*（a/b=0 的画布虚拟边不入线表）
+  let worstAreaErr = 0
+  let triFail = 0
+  for (let pid = 1; pid <= PROV_COUNT; pid++) {
+    if (pxCount[pid] === 0) continue
+    const poly = provPolys.get(pid)
+    if (!poly) { triFail++; continue }
+    // 逐 part（外环 + 所属洞）三角化；切角接触省有多 part
+    const vStart = fillVerts.length / 2
+    const tStart = fillTris.length / 3
+    let vCount = 0, tCount = 0
+    let area = 0
+    for (let oi = 0; oi < poly.outers.length; oi++) {
+      const myHoles = poly.holes.filter((_, hi) => poly.holeOf[hi] === oi)
+      const contour = poly.outers[oi].map((v) => new Vector2(vx(v), vy(v)))
+      const holeArrs = myHoles.map((h) => h.map((v) => new Vector2(vx(v), vy(v))))
+      let tris
+      try {
+        tris = ShapeUtils.triangulateShape(contour, holeArrs)
+      } catch {
+        triFail++
+        continue
+      }
+      area += Math.abs(areaOf(poly.outers[oi]))
+      for (const h of myHoles) area -= Math.abs(areaOf(h))
+      const partVBase = vStart + vCount
+      for (const pt of contour) fillVerts.push(toWX2(pt.x), toWZ2(pt.y))
+      for (const h of holeArrs) for (const pt of h) fillVerts.push(toWX2(pt.x), toWZ2(pt.y))
+      // earcut 索引为 part 内局部序：contour + holes 平铺；全局基址 = 本省顶点起点 + part 内已推顶点数
+      for (const f of tris) fillTris.push(f[0] + partVBase, f[1] + partVBase, f[2] + partVBase)
+      vCount += contour.length + holeArrs.reduce((s2, h) => s2 + h.length, 0)
+      tCount += tris.length * 3
+    }
+    if (vCount === 0) continue // 全 part 三角化失败
+    worstAreaErr = Math.max(worstAreaErr, Math.abs(area - pxCount[pid]) / pxCount[pid])
+    fillRanges.push(pid, vStart, vCount, tStart, tCount)
+  }
+  for (const s of spans) {
+    const a = Math.floor(s.key / 65536)
+    const b = s.key % 65536
+    if (a === 0 || b === 0) continue
+    const vStart = lineVerts.length / 2
+    for (const v of s.spts) lineVerts.push(toWX2(vx(v)), toWZ2(vy(v)))
+    lineSpans.push(a, b, vStart, s.spts.length)
+  }
+
+  // ── 6.5 Natural Earth 矢量大边界线（海岸线/国界）+ 海面罩层网格 ──
+  // 大边界不经过栅格化：直接用 NE 50m 环段，放大平滑。段分类以最终 countryOf 栅格为准：
+  // 两侧同国=内部段丢弃、两侧异国=国界(kind 2)、任一侧海=海岸线(kind 1)。
+  const bVerts = []
+  const bSpans = [] // [kind, vStart, vCount]*
+  {
+    const tagAt = (px, py) => {
+      const xx = ((Math.round(px) % W) + W) % W
+      const yy = Math.min(H - 1, Math.max(0, Math.round(py)))
+      return countryOf[yy * W + xx]
+    }
+    let droppedSegs = 0
+    for (const f of countriesGj.features) {
+      const a3 = f.properties.ADM0_A3 || f.properties.ISO_A3_EH
+      const tag = a3ToTag.get(a3)
+      if (tag === undefined || DROP_A3.has(a3)) continue
+      const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates
+      for (const poly of polys) {
+        for (const ringRaw of poly) {
+          const pts = unwrapRing(ringRaw).map(([lon, lat]) => [lon2x(lon), lat2y(lat)])
+          // 连续同类的段合成一条 span；折点在换类处共享
+          let curKind = 0, spanStart = -1
+          const flush = (endIdx) => {
+            if (curKind === 0 || spanStart < 0 || endIdx <= spanStart) { curKind = 0; spanStart = -1; return }
+            const vStart = bVerts.length / 2
+            for (let i = spanStart; i <= endIdx; i++) bVerts.push(toWX2(pts[i][0]), toWZ2(pts[i][1]))
+            bSpans.push(curKind, vStart, endIdx - spanStart + 1)
+            curKind = 0; spanStart = -1
+          }
+          for (let i = 0; i + 1 < pts.length; i++) {
+            const [x1, y1] = pts[i], [x2, y2] = pts[i + 1]
+            if (Math.abs(x2 - x1) > W / 2) { droppedSegs++; flush(i); continue } // 日界线跳变段弃画
+            const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
+            const len = Math.hypot(x2 - x1, y2 - y1) || 1
+            const nx = -(y2 - y1) / len * 1.5, ny = (x2 - x1) / len * 1.5
+            const sA = tagAt(mx + nx, my + ny)
+            const sB = tagAt(mx - nx, my - ny)
+            const kind = sA >= 0 && sB >= 0 ? (sA === sB ? 0 : 2) : 1
+            if (kind !== curKind) { flush(i); curKind = kind; spanStart = i }
+          }
+          flush(pts.length - 1)
+        }
+      }
+    }
+    console.log(`[geo] NE大边界: 线点 ${bVerts.length / 2} span ${bSpans.length / 3}（日界线弃段 ${droppedSegs}）`)
+  }
+
+  // 海面罩层：全图矩形挖掉全部国家环（earcut 多洞），运行时盖在省填充上方，
+  // 遮掉栅格海岸相对 NE 平滑海岸线 ±1px 的锯齿溢出 → 海岸线任意放大平滑
+  const seaVerts = []
+  const seaTris = []
+  {
+    const rect = [new Vector2(-4, -4), new Vector2(W + 4, -4), new Vector2(W + 4, H + 4), new Vector2(-4, H + 4)]
+    const holeArrs = []
+    let skippedRings = 0
+    for (const f of countriesGj.features) {
+      const a3 = f.properties.ADM0_A3 || f.properties.ISO_A3_EH
+      if (!a3ToTag.has(a3) || DROP_A3.has(a3)) continue
+      const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates
+      for (const poly of polys) {
+        for (const ringRaw of poly) {
+          const ring = unwrapRing(ringRaw).map(([lon, lat]) => [lon2x(lon), lat2y(lat)])
+          if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ring.pop()
+          let minx = Infinity, maxx = -Infinity
+          for (const [x] of ring) { if (x < minx) minx = x; if (x > maxx) maxx = x }
+          if (maxx - minx > W / 2 || ring.length < 3) { skippedRings++; continue } // 跨日界线环弃用
+          holeArrs.push(ring.map(([x, y]) => new Vector2(x, y)))
+        }
+      }
+    }
+    let tris = []
+    try { tris = ShapeUtils.triangulateShape(rect, holeArrs) } catch { tris = [] }
+    for (const part of [rect, ...holeArrs]) for (const pt of part) seaVerts.push(toWX2(pt.x), toWZ2(pt.y))
+    for (const t of tris) seaTris.push(t[0], t[1], t[2])
+    console.log(`[geo] 海面罩层: 洞 ${holeArrs.length} 个（跳过跨日界线环 ${skippedRings}）三角形 ${tris.length}`)
+  }
+
+  // ── 7. 写 map.geo.json ──
+  const geoJson = { lineVerts, lineSpans, fillVerts, fillTris, fillRanges, bVerts, bSpans, seaVerts, seaTris }
+  fs.writeFileSync(path.join(OUT_DIR, 'map.geo.json'), JSON.stringify(geoJson))
+  console.log(`[geo] spans=${spans.length} linePts=${lineVerts.length / 2} fillVerts=${fillVerts.length / 2}`
+    + ` tris=${fillTris.length / 3} 三角化失败省=${triFail} 面积最大误差=${(worstAreaErr * 100).toFixed(2)}%`)
+}
+
 // ───────────────────────── 产物：map.json ─────────────────────────
 const provincesJson = {}
 for (let id = 1; id <= PROV_COUNT; id++) {
@@ -904,74 +1354,6 @@ fs.writeFileSync(path.join(OUT_DIR, 'map.json'), JSON.stringify(mapJson))
   fs.writeFileSync(path.join(OUT_DIR, 'provinces.png'), encodePng(W, H, rgb))
 }
 
-// ───────────────────────── 产物：terrain.png（气候带真实着色） ─────────────────────────
-{
-  const CLIMATE_COLOR = {
-    snow: [225, 230, 235], tundra: [150, 158, 145], taiga: [74, 104, 78], temperate: [124, 158, 92],
-    savanna: [168, 168, 96], desert: [214, 190, 138], rainforest: [58, 100, 62], ocean: [44, 74, 108],
-  }
-  const rgb = new Uint8Array(W * H * 3)
-  // 海洋离岸深度（两遍 chamfer 距离变换）
-  const seaDist = new Int16Array(W * H)
-  {
-    const INF = 32767
-    for (let i = 0; i < W * H; i++) seaDist[i] = countryOf[i] >= 0 ? 0 : INF
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = y * W + x
-      let d = seaDist[i]
-      if (x > 0) d = Math.min(d, seaDist[i - 1] + 3)
-      if (y > 0) d = Math.min(d, seaDist[i - W] + 3)
-      if (x > 0 && y > 0) d = Math.min(d, seaDist[i - W - 1] + 4)
-      if (x < W - 1 && y > 0) d = Math.min(d, seaDist[i - W + 1] + 4)
-      seaDist[i] = d
-    }
-    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
-      const i = y * W + x
-      let d = seaDist[i]
-      if (x < W - 1) d = Math.min(d, seaDist[i + 1] + 3)
-      if (y < H - 1) d = Math.min(d, seaDist[i + W] + 3)
-      if (x < W - 1 && y < H - 1) d = Math.min(d, seaDist[i + W + 1] + 4)
-      if (x > 0 && y < H - 1) d = Math.min(d, seaDist[i + W - 1] + 4)
-      seaDist[i] = d
-    }
-  }
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = y * W + x
-      const id = provOf[i]
-      let r, g, b
-      if (countryOf[i] < 0 || id === 0) {
-        // 海洋：纬度色温（赤道暖浅 → 极地冷深）+ 离岸深度变深 + 噪纹
-        const lat = Math.abs(90 - ((y + 0.5) / H) * 180)
-        const warm = 1 - Math.min(1, lat / 80)
-        const deep = Math.min(1, seaDist[i] / 90)
-        r = 52 + warm * 24 - deep * 22
-        g = 88 + warm * 26 - deep * 30
-        b = 122 + warm * 30 - deep * 26
-        const n = noiseA.noise2(x * 0.08, y * 0.08) * 10
-        r += n; g += n; b += n
-      } else {
-        const cl = provClimate[id] ?? 'temperate'
-        const c = CLIMATE_COLOR[cl] ?? CLIMATE_COLOR.temperate
-        r = c[0]; g = c[1]; b = c[2]
-        // 山地省：海拔噪声提灰，tundra/snow 气候的高山雪线
-        if (provTerrain[id] === 'mountain') {
-          const e = noiseB.fbm((x / W) * 22, (y / H) * 22, 4)
-          const k = 0.72 + e * 0.75
-          r = (r * 0.55 + 130) * k; g = (g * 0.55 + 126) * k; b = (b * 0.55 + 120) * k
-          if (e > 0.66 && (cl === 'snow' || cl === 'tundra' || e > 0.78)) { r = 235; g = 238; b = 242 }
-        } else {
-          const k = 0.88 + noiseA.noise2(x * 0.35, y * 0.35) * 0.14 + noiseB.fbm((x / W) * 14, (y / H) * 14, 3) * 0.12
-          r *= k; g *= k; b *= k
-        }
-      }
-      rgb[i * 3] = Math.max(0, Math.min(255, r | 0))
-      rgb[i * 3 + 1] = Math.max(0, Math.min(255, g | 0))
-      rgb[i * 3 + 2] = Math.max(0, Math.min(255, b | 0))
-    }
-  }
-  fs.writeFileSync(path.join(OUT_DIR, 'terrain.png'), encodePng(W, H, rgb))
-}
 
 // ───────────────────────── 产物：countries.table.json（playtag 手工块 + 自动国） ─────────────────────────
 {

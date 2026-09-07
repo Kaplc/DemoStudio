@@ -1,0 +1,11 @@
+{
+  "_comment": "星图布局配置（画布坐标 1920×1080，y 向下）。hitTolerance=节点命中容差(px)；routeHitDistance=航线点击命中距离(px)；\n nodes=节点位置与半径（earth/moon/europa/mars：x,y=画布坐标，r=显示半径）。",
+  "hitTolerance": 28,
+  "routeHitDistance": 14,
+  "nodes": {
+    "earth": { "x": 960, "y": 600, "r": 52 },
+    "moon": { "x": 1340, "y": 430, "r": 36 },
+    "europa": { "x": 380, "y": 300, "r": 42 },
+    "mars": { "x": 1750, "y": 850, "r": 48 }
+  }
+}

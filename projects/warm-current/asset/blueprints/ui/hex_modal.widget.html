@@ -1,0 +1,42 @@
+<widget name="HexModal" canvas="1920x1080" data-script="gameplay/ui/HexModalScript">
+  <style>
+    .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #050d14cc; hit-test: block; }
+    .HexPanel { width: 860px; height: 640px; margin: 220px auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; background-color: #10202ef2; border-radius: 20px; border: 2px solid #2a4a5e; padding: 24px; }
+    .HexTitle { width: 780px; height: 44px; flex-shrink: 0; font-size: 30px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000aa; }
+    .CardRow { width: 800px; height: 460px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; gap: 20px; }
+    .CardWrap { width: 250px; height: 450px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; background-color: #172c3c; border-radius: 14px; padding: 12px 10px; }
+    .CardName { width: 220px; height: 56px; flex-shrink: 0; font-size: 24px; color: #7fdcff; text-align: center; font-weight: bold; }
+    .CardGain { width: 220px; height: 170px; flex-shrink: 0; font-size: 20px; color: #7fe0a0; text-align: center; }
+    .CardCost { width: 220px; height: 110px; flex-shrink: 0; font-size: 20px; color: #ff8f7a; text-align: center; }
+    .Btn_card { width: 220px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #ffae00; border-radius: 12px; }
+    .Btn_card:hover { background-color: #ffc233; }
+    .Label_card { width: 200px; height: 32px; font-size: 22px; color: #3d2600; text-align: center; font-weight: bold; }
+    .HexHint { width: 780px; height: 36px; flex-shrink: 0; font-size: 20px; color: #6f8ba0; text-align: center; }
+  </style>
+  <div class="Dim">
+    <div class="HexPanel">
+      <text class="HexTitle" data-name="HexTitle">交点达成 · 三选一</text>
+      <div class="CardRow">
+        <div class="CardWrap" data-name="CardWrap0">
+          <text class="CardName" data-name="CardName0"></text>
+          <text class="CardGain" data-name="CardGain0"></text>
+          <text class="CardCost" data-name="CardCost0"></text>
+          <button class="Btn_card" data-name="Btn_card0"><text class="Label_card">选 择</text></button>
+        </div>
+        <div class="CardWrap" data-name="CardWrap1">
+          <text class="CardName" data-name="CardName1"></text>
+          <text class="CardGain" data-name="CardGain1"></text>
+          <text class="CardCost" data-name="CardCost1"></text>
+          <button class="Btn_card" data-name="Btn_card1"><text class="Label_card">选 择</text></button>
+        </div>
+        <div class="CardWrap" data-name="CardWrap2">
+          <text class="CardName" data-name="CardName2"></text>
+          <text class="CardGain" data-name="CardGain2"></text>
+          <text class="CardCost" data-name="CardCost2"></text>
+          <button class="Btn_card" data-name="Btn_card2"><text class="Label_card">选 择</text></button>
+        </div>
+      </div>
+      <text class="HexHint" data-name="HexHint">研究冻结中 · 其余系统照常运转</text>
+    </div>
+  </div>
+</widget>

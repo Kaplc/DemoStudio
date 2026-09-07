@@ -1,0 +1,5 @@
+{
+  "_comment": "事件节奏配置（模块06/07）。\n gravity=引力弹弓窗口：period=周期(秒)、warn=预警(秒)、active=持续(秒)、speedMult/fuelMult=窗口期速度/油耗倍率（仅木卫二线）；\n flare=太阳耀斑：minInterval/maxInterval=随机间隔(秒)、duration=持续(秒)、warnLead=事件预警卡提前量(秒)、firstDelay=二幕后首次耀斑最早时间(秒)。",
+  "gravity": { "period": 90, "warn": 10, "active": 20, "speedMult": 2.0, "fuelMult": 0.5 },
+  "flare": { "minInterval": 120, "maxInterval": 180, "duration": 15, "warnLead": 10, "firstDelay": 60 }
+}

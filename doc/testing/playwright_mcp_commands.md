@@ -198,13 +198,12 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 | `cdp_navigate` | `url`、`targetId` | 导航；**省略 `url` = 刷新当前页** | 刷页是清 `import.meta.glob` 缓存的唯一手段 |
 | `cdp_wait` | `selector` / `text`、`timeoutMs`(默认 5000)、`targetId` | 等元素出现或文本出现 | 两个条件都不传会立刻返回 |
 | `cdp_scroll` | `selector`、`deltaY`、`deltaX`、`targetId` | 滚动元素或整页 | 省略 `selector` 滚整页 |
-| `cdp_screenshot` | `selector`、`targetId` | 截图，返回 **base64 内联 PNG** | **不受 MCP 沙箱路径限制**，比 `browser_take_screenshot` 实用 |
 | `cdp_list_tabs` | `port`（默认 9222） | 列所有可控 tab（id/type/title/url） | **区分 Electron 窗口与本地 Chrome 的唯一手段** |
 | `cdp_mouse_click` | `x`（必填）、`y`（必填）、`targetId` | 原生 `Input.dispatchMouseEvent` 坐标点击 | canvas / 无 DOM 元素场景用 |
 | `cdp_mouse_move` | `x`（必填）、`y`（必填）、`targetId` | 鼠标移动 | — |
 | `cdp_key_press` | `key`（必填）、`targetId` | 模拟按键（`Enter`/`Escape`/`Space`…） | — |
 
-讲解：这张表里只有前 4 个是 `mcp-server.mjs` 自己实现的编辑器命令，其余 13 个 `cdp_*` 来自 [mcp-cdp.mjs](../../editor/mcp-cdp.mjs)`143-307`，由 `handleCdpTool`（`mcp-cdp.mjs:355`）统一分发，**默认端口 `args.port || 9222`**。
+讲解：这张表里只有前 4 个是 `mcp-server.mjs` 自己实现的编辑器命令，其余 12 个 `cdp_*` 来自 [mcp-cdp.mjs](../../editor/mcp-cdp.mjs)，由 `handleCdpTool` 统一分发，**默认端口 `args.port || 9222`**。
 
 ---
 
@@ -289,7 +288,7 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 **5. `browser_evaluate` 执行超时** —— 多步操作超时（默认 10s），超时后页面**被导航刷新**，工程打开状态与组件上下文全丢。原因：`browser_evaluate` **没有** `run_playwright_code` 的 `deferredResultId` 异步化机制，要么同步返回要么超时。规则：拆成多次短调用，或改用 `browser_run_code_unsafe`；超时后重走打开工程流程。
 
-**6. 截图路径沙箱 `File access denied ... outside allowed roots`** —— 产物只能落 `C:\Users\<用户名>\background_agent_cli\.playwright-mcp\`。规则：不传 `filename` 用默认名；或改用 `cdp_screenshot`（返 base64 内联，不受限）。
+**6. 截图路径沙箱 `File access denied ... outside allowed roots`** —— 产物只能落 `C:\Users\<用户名>\background_agent_cli\.playwright-mcp\`。规则：不传 `filename` 用默认名（原 `cdp_screenshot` 工具已移除，base64 内联方案不再可用）。
 
 **7. 截图生成了但 AI 读不了** —— 沙箱目录在**工作区外**，AI 读图/读文件工具被拒。规则：改用 `browser_snapshot` / `browser_find` 读文本结构；需要 AI 自己读图就切[内置浏览器路径](./playwright_commands.md)。
 
@@ -351,7 +350,7 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 | 页面 `visibilityState === 'hidden'` | `browser_click` / `browser_hover` 等 `visible+stable` 超时（5000ms） | 改用 `browser_evaluate` + `dispatchEvent` |
 | hidden 页 rAF 停摆 | 实测 1 秒 0 帧；动画/渲染类断言失效 | 断言用 DOM 与调试桥；或用 `stepTicks(n)` 同步推时间 |
 | `browser_evaluate` 超时 | 无 `deferredResultId` 兜底，直接报错，页面被刷新 | 拆成多次短调用，或改用 `browser_run_code_unsafe` |
-| 截图传工作区绝对路径 | `File access denied: ... outside allowed roots` | 不传 `filename` 用默认名；或改用 `cdp_screenshot` |
+| 截图传工作区绝对路径 | `File access denied: ... outside allowed roots` | 不传 `filename` 用默认名 |
 | 读取沙箱目录内文件 | 目录在工作区外，AI 工具被拒 | 改用 `browser_snapshot` / `browser_find`；需读图切内置路径 |
 | 调试的 Chrome 被关闭 | 连接断开，工具全部失败 | 重新执行 §2.2 启动命令 |
 | Vite 多实例 | 页面端口非 5173（递增），MCP HTTP 端口 9877+ 独立递增 | `netstat -ano \| findstr :5173` 确认实际端口再导航 |

@@ -30,7 +30,7 @@ import { Hoi4PlayerController } from './Hoi4PlayerController'
 import { Hoi4Pawn } from './Hoi4Pawn'
 import mapDefJson from '../../asset/map/map.json'
 import provincesPngUrl from '../../asset/map/provinces.png'
-import terrainPngUrl from '../../asset/map/terrain.png'
+import mapGeoUrl from '../../asset/map/map.geo.json?url'
 import type { MapDef } from '../core/types'
 
 export class Hoi4GameMode extends GameMode {
@@ -77,6 +77,10 @@ export class Hoi4GameMode extends GameMode {
 
   /** 控制权签名缓存（归属变化 → 地图重染） */
   private controlSig = ''
+  /** 开局控制权快照（pid → tag），占领检测基准 */
+  private bootControl: Record<number, string> = {}
+  /** 是否已发生占领（决定 NE 静态国界线显隐） */
+  private bordersStale = false
 
   private static mapDef: MapDef = mapDefJson as unknown as MapDef
 
@@ -104,16 +108,21 @@ export class Hoi4GameMode extends GameMode {
 
   override BeginPlay(): void {
     super.BeginPlay()
-    // 地图 Actor + 渲染组件（图片异步加载，加载完自动 repaint）
+    // 地图 Actor + 渲染组件（矢量数据/底图异步加载，全就绪后自动建视图）
     const mapActor = new GenericActor('Hoi4MapRoot')
+    mapActor.enableTick() // 国名标注 Sprite 屏幕恒定字号需逐帧缩放
     this.world?.actorMgr.SpawnActor(mapActor)
     const render = new MapRenderComponent(mapActor, this.map)
     mapActor.addComponent(render)
     this.mapRender = render
-    void render.loadImages(terrainPngUrl, provincesPngUrl).then(() => {
-      logger.info('[Hoi4GameMode] 地图图片就绪')
-      this.tryBootstrap()
-    })
+    void fetch(mapGeoUrl)
+      .then((r) => r.json())
+      .then((geo) => render.loadImages(provincesPngUrl, geo))
+      .then(() => {
+        logger.info('[Hoi4GameMode] 地图数据就绪')
+        this.tryBootstrap()
+      })
+      .catch((err) => logger.error(`[Hoi4GameMode] 地图加载失败: ${err?.message ?? err}`))
     this.markers = new UnitMarkers(this)
     this.models = new UnitModels(this)
     // 物理/点击：PhySys 挂游戏相机 + UI 层（UI 点击优先于地图拾取）
@@ -157,6 +166,14 @@ export class Hoi4GameMode extends GameMode {
       aiWeights,
     })
     this.coreState = createInitialState(this.tables, this.map, 20260906)
+    // 开局控制权快照：之后任何省份控制权变化 = 国界变动 → NE 静态国界线切省网格
+    this.bootControl = { ...this.coreState.provinceControl }
+    // 地形模式色板（terrains.config → 矢量地块色，程序生成无底图纹理）
+    const terrainColors: Record<string, number> = {}
+    for (const [key, def] of Object.entries(this.tables.terrains)) {
+      if (def.color) terrainColors[key] = parseInt(def.color.replace('#', ''), 16)
+    }
+    this.mapRender?.setTerrainPalette(terrainColors)
     this.refreshColorLUT()
     this.booted = true
     logger.info(`[Hoi4GameMode] bootstrap 完成（省=${this.map.provinceCount}, 国=${Object.keys(this.tables.countries).length}）`)
@@ -209,6 +226,15 @@ export class Hoi4GameMode extends GameMode {
     if (sig !== this.controlSig) {
       this.controlSig = sig
       this.refreshColorLUT()
+      // 占领检测：任一省控制国 ≠ 开局归属 → NE 静态国界线过期，省网格国界接管
+      let stale = false
+      for (const [pid, tag] of Object.entries(this.bootControl)) {
+        if (state.provinceControl[Number(pid)] !== tag) { stale = true; break }
+      }
+      if (stale !== this.bordersStale) {
+        this.bordersStale = stale
+        this.mapRender?.setNationalBordersStale(stale)
+      }
     }
     this.markers?.sync()
     this.models?.sync()

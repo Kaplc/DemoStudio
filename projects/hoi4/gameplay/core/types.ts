@@ -28,6 +28,8 @@ export interface TerrainDef {
   defMod: number
   /** 行军时间乘数 */
   moveMult: number
+  /** 地形模式地块色 #rrggbb（矢量填色，程序生成） */
+  color?: string
 }
 
 export interface BuildingDef {

@@ -191,8 +191,8 @@ flowchart LR
 
 | 命令 | 做什么 | 是否往返 |
 |---|---|---|
-| `start_game` / `launchGame` | 启动游戏，可带 `params.project` 指定工程 | 否 |
-| `stop_game` / `stopGame` | 停止游戏 | 否 |
+| `launchGame` | 启动游戏，可带 `params.project` 指定工程 | 否 |
+| `stopGame` | 停止游戏 | 否 |
 | `toggle_game` | 同 `launchGame` | 否 |
 | `ai_event` | `AIModule.instance.emit(event, payload)` | **是**（requestId） |
 | `run_asset_lint` | `assetLintEngine.runNow(folder)` | **是** |
@@ -201,7 +201,7 @@ flowchart LR
 | `ui_compile` | 编译 `.widget.html` 源 | 是 |
 | `send_input` | 合成 `KeyboardEvent` | 否 |
 
-**`start_game` 有个 600ms 等待**，这是踩过坑的设计：
+**`launchGame` 有个 600ms 等待**，这是踩过坑的设计：
 
 ```ts
 if (needWait) await new Promise((r) => setTimeout(r, 600))
@@ -308,7 +308,7 @@ if (result.handled) {
 
 经 IPC/MCP 往返的返回值不能带 undefined 属性（结构化克隆会直接抛错）。原 `ai.readJsonFile` / `ai.writeFile` 处理器里专门构造 `clean` 对象剔除 undefined（2026-09-03 已移除这两个事件，规则对新的 MCP 通道依然适用）。
 
-**5. `start_game` 切换工程后必须等 600ms**
+**5. `launchGame` 切换工程后必须等 600ms**
 
 不等会和 Viewport 的停止 effect 竞争，导致启动失败或状态错乱。
 
@@ -323,10 +323,10 @@ if (result.handled) {
 | 条件 | 行为 | 怎么应对 |
 |---|---|---|
 | 浏览器模式（无 electronAPI） | 全链路可选链跳过，静默失效 | 用 Electron 环境或 `window.__ai` 桥 |
-| MCP `start_game` 无项目 | 自动选第一个；都失败输出 `[MCP] start_game: 无可用项目` | 先创建项目 |
+| MCP `launchGame` 无项目 | 自动选第一个；都失败输出 `[MCP] launchGame: 无可用项目` | 先创建项目 |
 | MCP `ai_event` 缺 event | `{ status:'error', message:'缺少 event 参数' }` | 补 `event` 参数 |
 | 快捷键时输入框聚焦 | `INPUT/TEXTAREA` 直接 return 不拦截 | 引擎内置防护 |
 | F12 | `electronAPI?.toggleDevTools?.()`，浏览器无操作 | — |
 | 未知控制台命令 | `未知命令: X。输入 help 查看可用命令。` 不抛异常 | — |
-| `start_game` 已运行 / `stop_game` 未运行 | 提示 `⚠ 游戏已在运行中` / `⚠ 游戏未在运行` | — |
+| 控制台命令 `start_game` 已运行 / `stop_game` 未运行 | 提示 `⚠ 游戏已在运行中` / `⚠ 游戏未在运行` | — |
 | 未知 MCP 命令 | 打印 `[MCP] 未知命令: X` | 检查命令名 |

@@ -62,6 +62,11 @@ export class ThreeFactoryComponent extends AObjectComponent {
     return this._track(new ThreeObject(new THREE.LineSegments(geometry, material)))
   }
 
+  /** 连续折线（THREE.Line；虚线材质需调用方随后 computeLineDistances()） */
+  createPolyline(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[]): ThreeObject<THREE.Line> {
+    return this._track(new ThreeObject(new THREE.Line(geometry, material)))
+  }
+
   trackObject<T extends THREE.Object3D>(object: T): ThreeObject<T> {
     return this._track(new ThreeObject(object))
   }
@@ -84,8 +89,15 @@ export class ThreeFactoryComponent extends AObjectComponent {
     return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
   }
 
-  createRingGeometry(innerRadius: number, outerRadius: number, thetaSegments = 32): THREE.RingGeometry {
-    return new THREE.RingGeometry(innerRadius, outerRadius, thetaSegments)
+  createRingGeometry(
+    innerRadius: number,
+    outerRadius: number,
+    thetaSegments = 32,
+    phiSegments = 1,
+    thetaStart = 0,
+    thetaLength = Math.PI * 2,
+  ): THREE.RingGeometry {
+    return new THREE.RingGeometry(innerRadius, outerRadius, thetaSegments, phiSegments, thetaStart, thetaLength)
   }
 
   createEdgesGeometry(source: THREE.BufferGeometry, thresholdAngle = 1): THREE.EdgesGeometry {
@@ -102,12 +114,36 @@ export class ThreeFactoryComponent extends AObjectComponent {
     return new THREE.MeshBasicMaterial(params)
   }
 
+  createMeshLambertMaterial(params: THREE.MeshLambertMaterialParameters = {}): THREE.MeshLambertMaterial {
+    return new THREE.MeshLambertMaterial(params)
+  }
+
   createMeshStandardMaterial(params: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
     return new THREE.MeshStandardMaterial(params)
   }
 
   createLineBasicMaterial(params: THREE.LineBasicMaterialParameters = {}): THREE.LineBasicMaterial {
     return new THREE.LineBasicMaterial(params)
+  }
+
+  createLineDashedMaterial(params: THREE.LineDashedMaterialParameters = {}): THREE.LineDashedMaterial {
+    return new THREE.LineDashedMaterial(params)
+  }
+
+  createSpriteMaterial(params: THREE.SpriteMaterialParameters = {}): THREE.SpriteMaterial {
+    return new THREE.SpriteMaterial(params)
+  }
+
+  // ─── Texture 工厂（纹理不经 _materials 追踪，由调用方在 EndPlay 自行 dispose）───
+
+  /** 创建 CanvasTexture（追踪释放由调用方负责） */
+  createCanvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
+    return new THREE.CanvasTexture(canvas)
+  }
+
+  /** 从 URL 加载纹理（追踪释放由调用方负责） */
+  createTextureFromUrl(url: string): Promise<THREE.Texture> {
+    return new THREE.TextureLoader().loadAsync(url)
   }
 
   private _track<T extends THREE.Object3D>(obj: ThreeObject<T>): ThreeObject<T> {

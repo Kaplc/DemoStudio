@@ -1,0 +1,15 @@
+{
+  "name": "WarmCurrent",
+  "description": "《暖流计划》— 拖拽画线星际物流生存游戏：拉回氦-3，延续人类（聚能环研究海克斯 + 三幕进程 + 引力窗口/极寒停航）",
+  "version": "0.1.0",
+  "main": "projects/warm-current/index.ts",
+  "tags": [
+    "game",
+    "3d",
+    "strategy",
+    "simulation",
+    "sci-fi"
+  ],
+  "renderMode": "2d",
+  "defaultScene": "projects/warm-current/asset/scenes/warm_current.scene.json"
+}

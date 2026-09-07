@@ -25,12 +25,11 @@ type: project
 
 ## CDP 浏览器操控工具（mcp-cdp.mjs）
 
-独立模块 `editor/mcp-cdp.mjs`，通过 WebSocket CDP（端口 9222）操控 Electron 渲染进程 DOM。13 个工具：
+独立模块 `editor/mcp-cdp.mjs`，通过 WebSocket CDP（端口 9222）操控 Electron 渲染进程 DOM。12 个工具：
 - cdp_click/type/read/hover（DOM 操作）
 - cdp_evaluate（执行 JS）
 - cdp_navigate/wait/scroll（页面控制）
-- cdp_screenshot（截图）
 - cdp_list_tabs（列出页面）
 - cdp_mouse_click/mouse_move/key_press（输入模拟）
 
-注意：CDP 截图 `Page.captureScreenshot` 和 `Input.dispatchMouseEvent` 在 Electron 中可能超时（15s），需要增大 timeout 或用替代方案。
+注意：CDP `Input.dispatchMouseEvent` 在 Electron 中可能超时（15s），需要增大 timeout 或用替代方案。（原 `cdp_screenshot` 截图工具已于 2026-09-06 移除。）

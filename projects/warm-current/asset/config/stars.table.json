@@ -1,0 +1,6 @@
+{
+  "_comment": "资源星表（DataTable 行表）。键=星 id。\n load=单船满载量(吨H3)；dist=距离系数(影响单程时间与油耗)；unlockAct=解锁幕。",
+  "moon": { "name": "月球", "load": 200, "dist": 1.0, "unlockAct": 1 },
+  "europa": { "name": "木卫二", "load": 600, "dist": 3.0, "unlockAct": 2 },
+  "mars": { "name": "火星", "load": 1500, "dist": 6.0, "unlockAct": 3 }
+}

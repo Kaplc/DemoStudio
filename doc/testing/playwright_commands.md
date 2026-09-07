@@ -218,7 +218,7 @@ const r = await page.evaluate(() => JSON.parse(localStorage.getItem('demostudio-
 ### 3.4 切工程
 
 ```js
-// editor.switchProject AI 事件已移除；用启动页交互或 MCP start_game {project}
+// editor.switchProject AI 事件已移除（MCP start_game 工具也已移除）；用启动页交互
 await page.getByRole('button', { name: 'ClashMaster' }).first().dispatchEvent('click', { bubbles: true })
 await page.getByRole('button', { name: '打开工程' }).dispatchEvent('click', { bubbles: true })
 ```

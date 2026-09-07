@@ -19,8 +19,10 @@
 
 **关键心智模型**：这条链路**不是一整条**，中间被 `requestId` 切成两种语义：
 
-- **往返**（`ai_event` / `ai_list_events` / `run_asset_lint` / `run_code_lint` / `ui_compile`）：主进程生成 `requestId` + 挂起 HTTP 响应，渲染进程干完活 `sendMCPResponse` 回来才 resolve。**有返回值、有 20s 超时、窗口死了会 503。**
-- **发射后不管**（`start_game` / `stop_game` / `send_input` / `addConsoleOutput`）：主进程立刻回 `200 { status:'ok', command }`，**拿不到执行结果**，且窗口已销毁时**照样返回 ok**。
+- **往返**（`ai_event` / `ai_list_events` / `run_asset_lint` / `run_code_lint` / `ui_compile` / `ui_decompile` / `get_scene_outline` / `get_ui_outline` / `get_assets`）：主进程生成 `requestId` + 挂起 HTTP 响应，渲染进程干完活 `sendMCPResponse` 回来才 resolve。**有返回值、有 20s 超时、窗口死了会 503。**
+- **发射后不管**（`send_input` / `addConsoleOutput` 等不在白名单的命令）：主进程立刻回 `200 { status:'ok', command }`，**拿不到执行结果**，且窗口已销毁时**照样返回 ok**。
+
+> 游戏启停的 MCP 工具（`start_game` / `stop_game`）已于 2026-09-06 移除；渲染进程侧的 `launchGame` / `stopGame` / `toggle_game` 命令分支保留，仅供直接 HTTP 调用方与历史流程使用。
 
 想拿执行结果，就只能用往返类命令。这是本系统最容易踩的一处认知偏差。
 
@@ -69,18 +71,7 @@ async function callEditor(command, params = {}) {
 
 三个需要留意的分支写法：
 
-```js
-case 'toggle_game': {
-  const status = await getEditorStatus()      // GET /api/status，不是 /api/command
-  if (status.gameRunning) {
-    return (await callEditor('stop_game'))
-  } else {
-    return (await callEditor('start_game'))
-  }
-}
-```
-
-> `toggle_game` **在服务器侧被拆成两次调用**：先查状态再决定发哪个命令。它**不会**发 `toggle_game` 给渲染进程——所以渲染进程里的 `toggle_game` 分支（`EditorInitializer.ts:471`）只在别的调用方（如直接 HTTP）才会走到，而那个分支无条件 `onLaunchGame()`，**没有停止能力**。这是历史遗留的不对称，别指望 `toggle_game` 能停游戏。
+> 游戏启停工具（`start_game` / `stop_game`，以及服务器侧拆成"先查状态再发命令"的 `toggle_game`）**已移除**（2026-09-06）。渲染进程仍保留 `launchGame` / `stopGame` / `toggle_game` 命令分支：其中 `toggle_game` 分支无条件 `onLaunchGame()`，**没有停止能力**——这是历史遗留的不对称，别指望 `toggle_game` 能停游戏。
 
 ```js
 case 'send_input': {
@@ -364,16 +355,16 @@ sendMCPResponse: () => {},           // MockElectronAPI.ts:158
 | `resolveEditorPort()` | `mcp-server.mjs:27` | 解析 `--port`，缺省 9877 | 只接受正整数，非法值静默回落 9877 |
 | `callEditor(command, params)` | `mcp-server.mjs:41` | POST `/api/command` 转发 | catch 内返回 `{status:'error'}` 而非 throw |
 | `getEditorStatus()` | `mcp-server.mjs:55` | GET `/api/status`（**不是** command） | 返回 `{gameRunning, gameScore}` |
-| `ListToolsRequestSchema` handler | `mcp-server.mjs:74` | 声明 10 个工具与 description | 与 CallTool switch 是**两张表**，必须同步 |
+| `ListToolsRequestSchema` handler | `mcp-server.mjs:74` | 声明编辑器工具 + CDP 工具清单与 description | 与 CallTool switch 是**两张表**，必须同步 |
 | `CallToolRequestSchema` handler | `mcp-server.mjs:196` | 工具名 → HTTP 命令分发 | 漏 case 会抛"未知工具" |
 | `findFreePort(start)` | `main.ts:1713` | 9877 起真监听探测空闲端口 | 越界抛 `未找到可用端口` |
-| `/api/command` 往返分支 | `main.ts:1751` | 白名单判定 + requestId + 挂起 | 白名单含 5 个命令，加命令要同步改这里 |
+| `/api/command` 往返分支 | `main.ts:1751` | 白名单判定 + requestId + 挂起 | 白名单含 9 个命令，加命令要同步改这里 |
 | `/api/command` 发射后不管分支 | `main.ts:1851` | 发 IPC 后立即 200 | 窗口已销毁**照样返回 ok** |
 | `ipcMain.on('mcp-response')` | `main.ts:1629` | 按 requestId resolve 挂起响应 | `!pending` 时**静默丢弃** |
 | `onMCPCommand(cb)` | `preload.ts:36` | contextBridge 暴露 mcp-command | 清理用 `removeAllListeners` |
 | `sendMCPResponse(requestId, result)` | `preload.ts:46` | renderer → main 回传 | 结果**不能含 undefined 属性** |
 | `onMCPCommand` switch | `EditorInitializer.ts:431` | 命令分发总入口 | 所有提前 break 分支须先回 requestId |
-| `case 'start_game'` | `EditorInitializer.ts:435` | 切工程后等 600ms 再启动 | 只在切工程/无工程时 `needWait` |
+| `case 'launchGame'` | `EditorInitializer.ts:434` | 切工程后等 600ms 再启动 | 只在切工程/无工程时 `needWait`（原 `start_game` MCP 工具已移除） |
 | `case 'ai_event'` | `EditorInitializer.ts:477` | `AIModule.instance.emit`（`:486`） | 倒序取最后一个非 undefined 结果 |
 | `case 'run_asset_lint'` | `EditorInitializer.ts:511` | `assetLintEngine.runNow(folder)` | 无效工程返回可用 folder 列表 |
 | `case 'ui_compile'` | `EditorInitializer.ts:594` | 动态 import 编译 UI 源 | 路径必须是 `.widget.json` |
@@ -404,7 +395,7 @@ sendMCPResponse: () => {},           // MockElectronAPI.ts:158
 | 代码检查 | `run_code_lint` → `codeLintEngine.runNow()`，同上语义 | [代码检查](../asset/code_lint_system.md) |
 | UI 源编译 | `ui_compile` → 动态 `import('./asset/uiSourceActions')` 编译 `.widget.html` | [UI 源格式](../ui/ui_source_format_system.md) |
 | 编辑器核心 | `onMCPCommand` 注册在 `registerGlobalEventListeners` 内，随编辑器 init 建立 | [编辑器核心](../core/core_system.md) |
-| 游戏启停 | `start_game` / `stop_game` 委托给核心的 `launchGame` / `stopGame` 回调，发射后不管 | [游戏流程](../../engine/gameflow_system.md) |
+| 游戏启停 | MCP 工具 `start_game` / `stop_game` 已移除（2026-09-06）；渲染进程保留 `launchGame` / `stopGame` 命令，委托核心同名回调，发射后不管 | [游戏流程](../../engine/gameflow_system.md) |
 
 ---
 
@@ -475,11 +466,11 @@ persist=true（MCP/脚本 dispatch）：保持旧语义立即落盘。
 
 规则：加工具时两处同步改；改完用 `ai_list_events` 或直接调用实测一遍。
 
-**7. 误以为 `start_game` 的返回 ok 代表游戏已启动**
+**7. 误以为发射后不管游戏命令（如 `launchGame`）的返回 ok 代表游戏已启动**
 
-现象：`start_game` 返回 `{status:'ok'}`，但游戏没起来。
+现象：HTTP 发 `launchGame` 返回 `{status:'ok'}`，但游戏没起来。
 
-原因：它是发射后不管分支，主进程**发完 IPC 立即回 200**（`main.ts:1854`），连窗口销毁都照样回 ok。
+原因：它是发射后不管分支，主进程**发完 IPC 立即回 200**（`main.ts:1854`），连窗口销毁都照样回 ok。（原 MCP 工具 `start_game` 同理，已移除。）
 
 规则：要确认启动结果，用往返命令 `ai_event({ event: 'ai.getState' })` 复查，或读 `/api/status`。
 
@@ -507,8 +498,8 @@ persist=true（MCP/脚本 dispatch）：保持旧语义立即落盘。
 | `ui_compile` 路径非 `.widget.json` | `{ status:'error', message:'缺少 asset 参数（需 .widget.json 路径）' }` | 传 widget 资产路径 |
 | lint 工具指定无效工程 | `{ status:'error', message:'未找到工程: X，可用: ...' }` | 用 message 列出的可用 folder |
 | lint 工具指定非当前工程 | 正常扫描（旁路，不覆盖检查面板） | 结果以返回值为准 |
-| `start_game` 无项目 | 自动选第一个；都无则控制台 `[MCP] start_game: 无可用项目` | 先创建项目 |
-| `start_game` 需切工程 | `await 600ms` 等 Viewport 停止流程 | 勿删该等待，会竞争 |
+| `launchGame` 无项目 | 自动选第一个；都无则控制台 `[MCP] launchGame: 无可用项目` | 先创建项目 |
+| `launchGame` 需切工程 | `await 600ms` 等 Viewport 停止流程 | 勿删该等待，会竞争 |
 | `toggle_game`（renderer 分支） | 无条件 `onLaunchGame()`，**不能停止游戏** | MCP 侧已改用 get_status 判定 |
 | 未知命令 | 渲染进程输出 `[MCP] 未知命令: X`，HTTP 侧无返回 | 核对命令名 |
 | 端口 9877-9927 全占用 | `未找到可用端口（9877-9927 均被占用）` | 关闭残留进程 |

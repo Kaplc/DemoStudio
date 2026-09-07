@@ -155,8 +155,6 @@ function readActorText(actor: any): string | undefined {
 
 **3. 不要把 DOM 选择器当"调试数据"** —— 初版 Monitors 区监控 CSS 选择器、Debug Bridge 区列 `__xxx` 全局变量，实测对游戏调试无用（AI 要的是 HUD 树和场景对象，不是 DOM）。规则：给 AI 的调试信息应该与引擎数据同源（`getRunningWorld`），而不是浏览器 DOM 层的间接信息。
 
-**4. MCP 截图返回可能超长被落盘** —— `cdp_screenshot` 整页/大面板截图的 base64 超过工具结果上限会被写成 txt 缓存文件。规则：小元素用 `selector` 截元素级截图；结果落盘时用脚本提取 `"data"` 字段 base64 落成 png 再看。
-
 ---
 
 ## 7. 边界条件

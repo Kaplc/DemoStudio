@@ -1,0 +1,65 @@
+{
+  "name": "WarmCurrentMap",
+  "mode": "main",
+  "skybox": {
+    "backgroundColor": "#050d14"
+  },
+  "objects": [
+    {
+      "type": "actor",
+      "name": "SunLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0, 100, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        },
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "directional",
+            "color": "#fff4e0",
+            "intensity": 1.35,
+            "targetPosition": [0, -1, -0.35],
+            "name": "SunLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "AmbientLight",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "LightComponent",
+          "properties": {
+            "type": "ambient",
+            "color": "#9fc8e8",
+            "intensity": 0.55,
+            "name": "AmbientLightComp"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actor",
+      "name": "StarMap",
+      "baseClass": "Actor",
+      "components": [
+        {
+          "baseClass": "TransformComponent",
+          "properties": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0],
+            "scale": [1, 1, 1]
+          }
+        }
+      ]
+    }
+  ]
+}

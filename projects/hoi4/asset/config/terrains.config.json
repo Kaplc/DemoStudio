@@ -1,10 +1,45 @@
 {
-  "_comment": "HOI4-like 地形参数（单例）。defMod=守方防御乘数；moveMult=行军时间乘数。",
-  "plains": { "name": "平原", "defMod": 1.0, "moveMult": 1.0 },
-  "forest": { "name": "森林", "defMod": 1.2, "moveMult": 1.25 },
-  "hills": { "name": "丘陵", "defMod": 1.4, "moveMult": 1.5 },
-  "mountain": { "name": "山地", "defMod": 1.8, "moveMult": 2.0 },
-  "marsh": { "name": "沼泽", "defMod": 1.5, "moveMult": 1.8 },
-  "city": { "name": "城市", "defMod": 1.6, "moveMult": 1.0 },
-  "ocean": { "name": "海洋", "defMod": 1.0, "moveMult": 1.0 }
+  "_comment": "HOI4-like 地形参数（单例）。defMod=守方防御乘数；moveMult=行军时间乘数。 color=地形模式地块色（矢量填色，程序生成）。",
+  "plains": {
+    "name": "平原",
+    "defMod": 1,
+    "moveMult": 1,
+    "color": "#b3a878"
+  },
+  "forest": {
+    "name": "森林",
+    "defMod": 1.2,
+    "moveMult": 1.25,
+    "color": "#6f8b5c"
+  },
+  "hills": {
+    "name": "丘陵",
+    "defMod": 1.4,
+    "moveMult": 1.5,
+    "color": "#a89968"
+  },
+  "mountain": {
+    "name": "山地",
+    "defMod": 1.8,
+    "moveMult": 2,
+    "color": "#99897a"
+  },
+  "marsh": {
+    "name": "沼泽",
+    "defMod": 1.5,
+    "moveMult": 1.8,
+    "color": "#8ba17e"
+  },
+  "city": {
+    "name": "城市",
+    "defMod": 1.6,
+    "moveMult": 1,
+    "color": "#b0a0a0"
+  },
+  "ocean": {
+    "name": "海洋",
+    "defMod": 1,
+    "moveMult": 1,
+    "color": "#2c4a6c"
+  }
 }

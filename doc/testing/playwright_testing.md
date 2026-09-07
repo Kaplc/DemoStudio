@@ -314,7 +314,7 @@ handleHotUpdate({ file }) {
 
 **19. 页面重载后 UI 点 Launch 可能启动错误工程**
 
-现象：编辑器页被 HMR/会话恢复重载后，UI 点「▶ Launch」启动的不是当前选中的工程卡片（store 状态错位），且主进程 `:9877` 的 `start_game` 转发可能 504。规则：Launch 前先核对顶部栏工程名与 Inspector 的 Name 一致；`start_game` 504 时先 `curl :9877/api/status` 探活（504=渲染进程命令超时，非端口死）；重启游戏验证相机/首屏类断言时，Launch 后等 bootstrap 日志出现再读状态。
+现象：编辑器页被 HMR/会话恢复重载后，UI 点「▶ Launch」启动的不是当前选中的工程卡片（store 状态错位）。规则：Launch 前先核对顶部栏工程名与 Inspector 的 Name 一致；HTTP 命令无响应时先 `curl :9877/api/status` 探活；重启游戏验证相机/首屏类断言时，Launch 后等 bootstrap 日志出现再读状态。
 
 ---
 
