@@ -1,0 +1,8 @@
+{
+  "name": "WarmCurrentMenu",
+  "mode": "warm-menu",
+  "skybox": {
+    "backgroundColor": "#000000"
+  },
+  "objects": []
+}

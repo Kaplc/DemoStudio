@@ -231,7 +231,7 @@ export function registerGMBridge(): void {
     const consumed = gi.inputSys.handlePointerDown(p.screenX, p.screenY, worldPos, gi.controller, button)
 ```
 
-与 `ai.clickActor`（按 Actor 名称直接 `triggerClick()`）是两条路：前者模拟真实屏幕点击（经 raycast，命中受 UI 遮挡影响），后者绕过坐标直接触发按钮。自动化测试优先 `clickActor`，验证输入管线本身才用 `mouseClick`。
+与 `ai.clickActor` 是两条路，但**殊途同归**：2026-09-07 起 `clickActor` 不再直接 `triggerClick()`，而是把目标命中层中心反投屏幕坐标后走同一条 `InputSys.handlePointerDown → PhySys.raycastClick` 管线——隐藏按钮（父链 `visible=false`）点不响、500ms 点击冷却同样生效、被 UI 拦截画布挡住就拒绝，与真实鼠标完全同语义。`mouseClick` 需要自己提供 `screenX/screenY`，`clickActor` 按目标自动算坐标；自动化测试优先 `clickActor`，验证指定屏幕坐标的管线行为才用 `mouseClick`。
 
 其余事件（载荷与用途详见 [AIEvents.ts](../../src/engine/ai/AIEvents.ts)）：
 
@@ -241,7 +241,7 @@ export function registerGMBridge(): void {
 | `ai.notify` | `:133` | 通用日志通知，**不需要游戏运行** |
 | `ai.destroyActor` | `:194` | 按名称销毁，销毁后 `manualTick(0)` 立即提交 |
 | `ai.transformActor` | `:208` | 移动/旋转/缩放，三字段可缺省 |
-| `ai.clickActor` | `:248` | 按 name / text / path 触发按钮，path 最精确（取自 `getHUD`） |
+| `ai.clickActor` | `:248` | 按 name / text / path 找按钮，**反投屏幕坐标走射线管线触发**（隐藏/被拦截/冷却窗内拒绝），path 最精确（取自 `getHUD`） |
 | `ai.getActor` / `ai.getHUD` | `:420` / `:624` | 单 Actor 详情（位置/缩放/激活/按钮/组件） / 递归 UI 树，带 `path` 供 clickActor 回查 |
 | `ai.scrollCamera` | `:459` | 滚轮缩放（正=拉远，负=拉近） |
 | `ai.mouseMove` / `mouseDrag` / `keyPress` / `keyRelease` | `:543` / `:562` / `:596` / `:610` | 模拟输入，`mouseDrag` 是 async |

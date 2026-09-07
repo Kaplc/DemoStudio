@@ -11,5 +11,5 @@
     "sci-fi"
   ],
   "renderMode": "2d",
-  "defaultScene": "projects/warm-current/asset/scenes/warm_current.scene.json"
+  "defaultScene": "projects/warm-current/asset/scenes/warm_menu.scene.json"
 }

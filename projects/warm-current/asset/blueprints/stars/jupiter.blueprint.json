@@ -1,0 +1,23 @@
+{
+  "name": "JupiterActor",
+  "baseClass": "JupiterActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 46,
+        "color": "#c9a678",
+        "name": "JupiterMesh"
+      }
+    }
+  ],
+  "children": []
+}

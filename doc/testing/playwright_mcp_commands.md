@@ -340,6 +340,10 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 ---
 
+**30. 开菜单后立即 `ai.clickActor` 菜单内按钮报"未找到"** —— `spawnUIActor` 生成面板是**异步排队**（pendingSpawn），同一 evaluate 里 `togglePauseMenu()` 后马上 `ai.clickActor('Btn_resume')` 时按钮还没生成，`findActorByName` 返回 null 报"未找到 Actor"；而 `PauseMenuScript.onStart` 里的 `findInChildren` 绑定是生效的（面板就绪后按钮就在 UI 树里）。规则：**开面板与点面板内按钮必须分离成两步**，点按钮用 `waitForFunction` 轮询 `ai.clickActor(...).results[0].ok === true`（未就绪 ok=false 下一轮重试，成功即停不重复触发）；同样地，菜单切场景类 onClick 也是异步，断言一律轮询状态迁移而非同步读返回值。
+
+**31. `page.evaluate` 模板字符串内联 IIFE 返回 undefined** —— e2e 里 `page.evaluate(\`(() => {...return {...}})\`)`（模板字符串传代码字符串）在部分用例中稳定返回 `undefined`，后续读属性报 `Cannot read properties of undefined`；同样的代码改成**函数式传参** `page.evaluate(() => {...})` 就正常。规则：e2e 一律用函数式 evaluate；需要复用的深度查找函数注入 `window.__findRec` 后在函数体内引用。
+
 ## 7. 边界条件
 
 | 条件 | 行为 | 怎么应对 |

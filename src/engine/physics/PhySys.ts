@@ -105,6 +105,16 @@ class PhySysImpl implements GameSingleton {
     return this._uiEl
   }
 
+  /** UI 独立叠加相机只读访问（AI 反投屏幕坐标用；未设置时 null） */
+  get uiCamera(): THREE.Camera | null {
+    return this._uiCamera
+  }
+
+  /** 最近一次点击消费的 ClickableComponent（仅 handlePointerDown 与 handlePointerUp 之间有效；拦截画布消费时为 null） */
+  get pressedClickable(): ClickableComponent | null {
+    return this._pressedClickable
+  }
+
   /** 设置 UI 独立叠加相机（由 Game 启动时传入 SceneRendererComponent.uiCamera） */
   setupUI(camera: THREE.Camera | null): void {
     this._uiCamera = camera

@@ -111,7 +111,13 @@ export class CameraRigComponent extends Component {
 
   override BeginPlay() {
     super.BeginPlay()
-    this._camera = this.owner.getComponent(CameraComponent)
+    this.resolveCamera()
+  }
+
+  /** 惰性解析同 Actor 的 CameraComponent（BeginPlay 前调用 zoom/pan 也能工作，便于装配期/单测驱动） */
+  private resolveCamera(): CameraComponent | null {
+    if (!this._camera) this._camera = this.owner.getComponent(CameraComponent)
+    return this._camera
   }
 
   override EndPlay() {
@@ -167,7 +173,7 @@ export class CameraRigComponent extends Component {
    * delta 约定（与 PlayerController.OnScroll 一致）：delta > 0（向下滚）→ 拉远；< 0 → 拉近。
    */
   zoom(delta: number): void {
-    const cam = this._camera?.camera
+    const cam = this.resolveCamera()?.camera
     if (!cam) return
     // 相机当前位置相对注视目标的方向与距离
     const dir = cam.position.clone().sub(this.target)
@@ -192,7 +198,7 @@ export class CameraRigComponent extends Component {
    * @param dz 世界 Z 方向位移
    */
   pan(dx: number, dz: number): void {
-    const cam = this._camera?.camera
+    const cam = this.resolveCamera()?.camera
     if (!cam || (dx === 0 && dz === 0)) return
     // 相机相对目标的偏移（保持方向与距离不变）
     const offset = cam.position.clone().sub(this.target)

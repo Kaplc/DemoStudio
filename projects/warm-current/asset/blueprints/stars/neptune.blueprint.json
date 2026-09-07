@@ -1,0 +1,23 @@
+{
+  "name": "NeptuneActor",
+  "baseClass": "NeptuneActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 23,
+        "color": "#5a8fd8",
+        "name": "NeptuneMesh"
+      }
+    }
+  ],
+  "children": []
+}

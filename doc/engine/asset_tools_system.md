@@ -236,7 +236,7 @@ throw new Error(`[ConfigRegistry] 配置 "${name}" 未注册（需先 registerDe
 
 > 这个设计让 `loadConfig` 可以 **fire-and-forget**（`void this.loadConfig(...)`）：JSON 经 IPC 异步读，但消费方（GameMode / Pawn 构造）是同步的。竞态下最多首帧用默认值，**不抛错、不返回 undefined**。
 >
-> 反过来 `getTable` 返回 `undefined` 而不是抛错，因为数据表**经常真的没配**。消费方一律 `?? null` 或 `if` 守卫——[EatFishGameMode.ts](../../src/projects/eatfish/EatFishGameMode.ts):60 即 `ConfigRegistry.getTable<FishArchetype>('eatfish.fish') ?? null`。
+> 反过来 `getTable` 返回 `undefined` 而不是抛错，因为数据表**经常真的没配**。消费方一律 `?? null` 或 `if` 守卫——`FishGameInstance.ts:965` 即 `ConfigRegistry.getTable<LevelType>('fish.levels')`（[FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts)），调用侧再 `?? null`。
 
 半自动注册（[ConfigRegistry.ts](../../src/engine/tools/ConfigRegistry.ts):136）：
 

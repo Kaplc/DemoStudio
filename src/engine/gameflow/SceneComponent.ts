@@ -58,6 +58,16 @@ export class SceneComponent extends AObjectComponent<World> {
     this._scene.background = color === null ? null : new THREE.Color(color)
   }
 
+  /**
+   * 设置场景背景纹理（程序化星空等等距柱状全景图）。
+   * 统一设置 mapping/colorSpace，保证 scene.background 直接按天空盒渲染。
+   */
+  setBackgroundTexture(tex: THREE.Texture): void {
+    tex.mapping = THREE.EquirectangularReflectionMapping
+    tex.colorSpace = THREE.SRGBColorSpace
+    this._scene.background = tex
+  }
+
   /** 设置场景雾效（场景资产 skybox 配置应用；null 清除雾） */
   setFog(fog: THREE.Fog | THREE.FogExp2 | null): void {
     this._scene.fog = fog

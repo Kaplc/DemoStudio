@@ -1,0 +1,23 @@
+{
+  "name": "MercuryActor",
+  "baseClass": "MercuryActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 11,
+        "color": "#9a8f84",
+        "name": "MercuryMesh"
+      }
+    }
+  ],
+  "children": []
+}

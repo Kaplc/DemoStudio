@@ -40,6 +40,7 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
       if (line) line.progress = 0
       s.pendingCard = {
         line: lineId,
+        since: s.time,
         choices: drawCards(lineId, s.takenCards, s.mods.stationUnlocked, s.mods.flareWarning, this.sc.rng),
       }
       this.sc.emit({ type: 'card_pending', text: LINE_DEFS.find((d) => d.id === lineId)?.name })

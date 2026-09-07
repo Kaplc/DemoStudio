@@ -669,6 +669,14 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 现象：调整视口比例（Game 视口拖拽/窗口 resize），全屏 HUD 根面板在重排变大（日志可见 `[UIManager] 视口重排`），但 HUD 内容全部原地不动。原因：旧写法编译为 `center` 锚 + 快照尺寸 1920×1080，16:9 下与全屏视觉等效，但 `applyAnchor` 对 center 锚的语义是"保持自身尺寸、居中到父中心"——父容器变大它也不动，其下所有分区锚点的容器基准跟着不变，整个子树重排结果为零（2026-09-04 base_hud 实测）。规则：**全屏层一律写两轴 `100%`**（编译为 stretch 全锚，父容器变即跟随），见 §7 配方 A2；存量资产把固定 px 全屏容器改成 `100%/100%` 后重编译即可。
 
+**16. `<progress>` 标签内写 fill 子元素，运行时 `UIProgressBarComponent` 找不到 fill（日志刷 warn）**
+
+现象：`<progress ...><div class="Fill"></div></progress>` 编译零错误零警告，但运行时日志反复刷 `[UIProgressBarComponent] 未找到 fill 子 Actor "Fill"`，进度条不显示。原因：`emitProgress`（compile.ts:1338）只把 `<progress>` 发射成挂 `UIProgressBarComponent` 的容器节点，**不递归其子元素**——fill 子节点根本没进产物。规则：**进度条一律用 `<div data-comp="UIProgressBar" data-props='{"max":N}'>` 逃逸通道**，fill 写成容器内普通子 div（div 会正常递归子树），fill 子节点用 `position: absolute; left: 0px; top: 0px; width: 100%; height: 100%` 贴左缘、由组件驱动 `setWorldSize` 生长。
+
+**17. 同一 widget 里多个进度条的 fill 子节点同名（如都叫 `data-name="Fill"`），第二个起全部失效**
+
+现象：三个进度条各自包了 `<div data-name="Fill">`，编译零错误，运行时只有第一个进度条有填充，后两个刷"未找到 fill 子 Actor"。原因：节点名全资产去重（§5），第二个起自动加后缀变 `Fill_2`/`Fill_3`，而 `UIProgressBarComponent` 默认按 `fillActorName="Fill"` 查找，名字对不上。规则：**每个 fill 子节点给语义化唯一 class（如 NodesFill/ContFill/BufferFill），且在该进度条的 `data-props` 里显式写 `"fillActorName":"XxxFill"`**——显式声明比依赖默认值稳，重命名 class 时编译期就能看出引用关系。
+
 ---
 
 ## 15. 边界条件

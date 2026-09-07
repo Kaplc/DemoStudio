@@ -98,7 +98,7 @@ register(c: ClickableComponent): void {
 
 **③ 两级仲裁：UI 层按 zOrder，世界层按射线最近**（[PhySys.ts:262](../../src/engine/physics/PhySys.ts)）
 
-`raycastClick` / `raycastHover` 共用两个解析器，命中归属由 `pickFrontmostHit` 纯函数决定（可单测，[physysArbitration.test.ts](../../tests/physysArbitration.test.ts)）：
+`raycastClick` / `raycastHover` 共用两个解析器，命中归属由 `pickFrontmostHit` 纯函数决定（纯函数，便于单测）：
 
 ```ts
 // UI 层 resolveUIStage：clickable 与屏幕 block 画布收集为候选（world 模式画布被排除），

@@ -1,8 +1,8 @@
 {
   "name": "WarmCurrentMap",
-  "mode": "main",
+  "mode": "warm-main",
   "skybox": {
-    "backgroundColor": "#050d14"
+    "backgroundColor": "#000000"
   },
   "objects": [
     {

@@ -1,0 +1,53 @@
+<widget name="RingPanel" canvas="1920x1080" data-script="gameplay/ui/RingPanelScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .Panel { width: 300px; height: 216px; position: absolute; right: 24px; top: 84px; display: flex; flex-direction: column; align-items: stretch; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .HeadRow { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-shrink: 0; }
+    .HeadText { width: 180px; height: 30px; flex-shrink: 0; font-size: 21px; color: #ffb03d; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .StateText { width: 88px; height: 30px; flex-shrink: 0; font-size: 19px; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .NodesRow { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 8px; flex-shrink: 0; }
+    .NodesText { width: 96px; height: 26px; flex-shrink: 0; font-size: 20px; color: #43d17c; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .NodesBar { width: 100%; height: 10px; position: relative; }
+    .NodesFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #43d17c; border-radius: 5px; }
+    .ContinuityRow { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 8px; flex-shrink: 0; }
+    .ContText { width: 96px; height: 26px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .ContBar { width: 100%; height: 8px; position: relative; }
+    .ContFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #7fdcff; border-radius: 4px; }
+    .BufferRow { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 8px; flex-shrink: 0; }
+    .BufferText { width: 130px; height: 26px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .BufferBar { width: 100%; height: 8px; position: relative; }
+    .BufferFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffe9a8; border-radius: 4px; }
+    .FlowText { height: 26px; margin-top: 8px; font-size: 18px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
+    .DemandText { height: 26px; margin-top: 4px; font-size: 18px; color: #9fc4d8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
+    .WarnText { height: 24px; min-height: 24px; margin-top: 4px; font-size: 17px; flex-shrink: 0; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="Panel" data-name="Panel">
+      <div class="HeadRow">
+        <text class="HeadText" data-name="HeadText">聚能环</text>
+        <text class="StateText" data-name="StateText">运转</text>
+      </div>
+      <div class="NodesRow">
+        <text class="NodesText" data-name="NodesText">交点 0/12</text>
+        <div class="NodesBar" data-name="NodesBar" data-comp="UIProgressBar" data-props='{"max":12,"value":0,"fillActorName":"NodesFill"}'>
+          <div class="NodesFill"></div>
+        </div>
+      </div>
+      <div class="ContinuityRow">
+        <text class="ContText" data-name="ContText">延续 100%</text>
+        <div class="ContBar" data-name="ContBar" data-comp="UIProgressBar" data-props='{"max":100,"value":100,"fillActorName":"ContFill"}'>
+          <div class="ContFill"></div>
+        </div>
+      </div>
+      <div class="BufferRow">
+        <text class="BufferText" data-name="BufferText">缓冲 0/0s</text>
+        <div class="BufferBar" data-name="BufferBar" data-comp="UIProgressBar" data-props='{"max":60,"value":0,"fillActorName":"BufferFill"}'>
+          <div class="BufferFill"></div>
+        </div>
+      </div>
+      <text class="FlowText" data-name="FlowText">净流 +0.0/s</text>
+      <text class="DemandText" data-name="DemandText">需求 0 t/s · 储量 0 t</text>
+      <text class="WarnText" data-name="WarnText"></text>
+    </div>
+  </div>
+</widget>

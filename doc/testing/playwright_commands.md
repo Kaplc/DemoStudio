@@ -295,7 +295,7 @@ await page.locator('[class*="asset-item"]', { hasText: 'xxx.blueprint' }).first(
 | `window.__ai.listEvents()` | `EditorInitializer.ts:338` | 列出已注册事件名 | 编辑器卸载时 `delete window.__ai` |
 | `window.blueprintEditor.read/apply/dispatch` | `windowApi.ts:41-45` | 蓝图读盘/编辑/统一入口 | 幂等安装，HMR 后仍是同一实例 |
 | `ai.selectActor` / `ai.dragActor` | `EditorInitializer.ts:108` / `:142` | 按**名字**选中/拖动 Actor | 免坐标，等价 gizmo 操作 |
-| `ai.clickActor` | `registerBuiltinAIHandlers.ts:304` | 按 `name`/`text`/`path` 触发点击 | 游戏运行时用；回执 `{ok, clicked, type}` |
+| `ai.clickActor` | `registerBuiltinAIHandlers.ts:304` | 按 `name`/`text`/`path` 找按钮，反投屏幕坐标走射线管线触发（与真实鼠标同语义） | 游戏运行时用；回执 `{ok, clicked, type, error?}`；**500ms 点击冷却**，连点间隔 ≥600ms（见坑 44） |
 | `ai.getActor` | `registerBuiltinAIHandlers.ts:476` | 查 Actor 详情 | `name` 是**构造时传入的 Actor 名**，不是类名 |
 | `ai.getState` | `registerBuiltinAIHandlers.ts:279` | 查运行时状态 | 数据在 `results[0]` |
 | `ai.getSceneOutline` | `registerBuiltinAIHandlers.ts:789` | 查场景大纲 | 后台节流时可能拿到陈旧结果 |
@@ -416,6 +416,14 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 **40. 点击进入关卡后固定等 2.5s 仍读到旧阶段（误判点击无效）** —— 现象：向 StartButton 派发点击后等 2.5s 读 `_phase` 仍是 `menu`，连续换坐标重试；实际最后一击已生效，只是场景切换是**异步加载**（卸 HUD、建基地 Actor、装配相机），耗时超过固定等待。规则：**点击后不要固定等待，轮询断言直到状态翻转**（`ai.getState` 的 `phase` 从 menu → base/game，或 `__ai.emit('ai.clickActor')` 前后各读一次），超时再重试。另一个稳定做法：**点 UI 按钮优先用 `ai.clickActor`（按 name/text 定位，不依赖坐标换算）**——canvas 坐标点击要自己算世界→屏幕映射（HALF_W=4.8/HALF_H=2.7），偏 20px 就 miss；但注意阶段切换后原按钮已销毁，"未找到 Actor" 可能恰恰说明已切走。坐标点击也可用 MCP 的 `cdp_mouse_click`（Input.dispatchMouseEvent 原生点击）；2026-09-03 之前它调用报"未知工具"，根因是 `editor/mcp-cdp.mjs` 的 `cdpTools` 数组定义了该工具但 `handleCdpTool` switch 缺 case（落到 default 返回 null），已补全 mouse_click/mouse_move/key_press 三个 case——**改 `editor/mcp-*.mjs` 必须重启 MCP 服务才生效**（stdio 进程不热更）。
 
 **41. 改 `.scene.json` 后运行时仍加载旧场景（stop/launch 无效）** —— 现象：编辑并保存场景 JSON 后 `stop_game`+`launchGame` 重启游戏实例，`SwitchToScene` 日志里 objects 数量还是旧的。原因：场景 JSON 经 `import.meta.glob(eager)` 在 **打开工程时一次性注册** 进 `AssetRegistry`（`editorStore.setCurrentProject → registerProjectAssets`，只跑一次）；Vite HMR 会更新 JSON 模块本身，但**不会重跑注册**，注册表 Map 里仍是旧引用。规则：改场景资产要看到运行时效果，**Reload 页面**（或重新走一次项目切换）再启动游戏；急验证可用热注入——CDP `import('/src/projects/fish/<项目>/asset/<场景>.scene.json?import&fresh=' + Date.now())` 拿新模块后 `AssetRegistry.registerAll({ scenes: [新场景] })`（按 name 覆盖 Map 项），再 launchGame。另注意：CDP `evaluate` 里动态 `import('/src/....json?import&t=' + Date.now())` 与页面模块图是**两个实例**（坑 7 同源），用带时间戳的模块只能做"数据验证"，别把它当页面真身。
+
+**42. Playwright MCP `browser_take_screenshot` 的 `filename` 受允许根目录白名单限制** —— 现象：传工作区相对路径（`hex.png`）或 `E:/DemoStudio/...` 绝对路径都拿不到文件（前者落在 MCP 进程 CWD，后者直接报 `File access denied ... outside allowed roots`）。原因：MCP 服务的截图输出受 `allowed roots` 约束（本机为 `C:\Users\<user>\background_agent_cli` 及其 `.playwright-mcp`），工作区路径不在白名单内。规则：**filename 传白名单内的绝对路径**（如 `C:/Users/<user>/background_agent_cli/.playwright-mcp/xx.png`），需要入库/查看时再 `Copy-Item` 复制回 `E:\DemoStudio\.playwright-mcp\`（目录不存在先 `New-Item -ItemType Directory -Force`）。游戏画面是 canvas 内绘制（非 DOM），视觉断言只能靠截图或引擎侧探针（`findActorByName('HexModal').root.visible` 等），DOM 查询无效。
+
+**43. evaluate 里动态 `import('/src/engine/...')` 拿到的是第二模块图实例** —— 现象：e2e 里 `await import('/src/engine/physics/PhySys.ts')` 后读 `PhySys._uiBlockers` 恒空、`ready=false`，与页面运行状态对不上（实测 `real === dyn` 为 false）。原因：Playwright evaluate 的 import 走原始路径，与页面经 `@/engine` 别名导入的模块分属两个模块图、**单例有两份**。规则：**运行时状态一律经调试桥借道**——在 `GameInstance` 的 `installDebugBridge()` 桥对象上暴露探针方法（如 `phy: () => PhySys`），e2e 里 `window.__warmCurrent.phy()` 拿到的才是页面真身；动态 import 只能读"数据验证"型模块（坑 41 同源）。
+
+**44. `ai.clickActor` 射线语义下 back-to-back 连点被 500ms 冷却吞** —— 现象：同一 evaluate 里连续 `emit('ai.clickActor')` 四次，只有第一次生效，后续 `ok=false`（回执 error 含"未命中"）。原因：2026-09-07 起 clickActor 走 `InputSys → PhySys.raycastClick` 完整管线（与真实鼠标同语义），`ClickComponent.clickCooldown=500ms` 拒绝冷却窗内重复点击；旧直调 `triggerClick()` 时代无此限制。规则：**相邻点击间隔 ≥600ms 且分步 emit**（点一次 → `waitForTimeout(600)` → 读状态 → 再点），不能塞进同一个 evaluate 原子执行；回执 `ok=false` 时先看 `error` 再判断是冷却、隐藏还是被拦截。
+
+**45. 长跑仿真自然 defeat 的全屏 Dim 拦截层干扰 UI 点击测试** —— 现象：warm 星图仿真跑到 ~424s 时 `outcome='defeat'`，SettleModal/HexModal 全屏 Dim（`hit-test: block`）亮起，之后一切 `ai.clickActor` 返回未命中；且 defeat 会随 `sim.runTick` 持续重写，手动改 `outcome='playing'` 也压不住。规则：**UI 点击类 e2e 在 `waitGameReady` 后立即 `m.togglePause()` 冻结仿真**（`GameMode.Tick` 判 `paused` 不推进），从根上杜绝结局弹窗出现；确需推进仿真时间的用例再自行恢复运行。
 
 ---
 

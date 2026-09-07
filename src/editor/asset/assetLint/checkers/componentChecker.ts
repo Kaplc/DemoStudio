@@ -149,13 +149,14 @@ class BoxMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:BoxMeshComponent', BoxMeshComponentChecker)
 
-/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]；kind 材质两态；阴影标记。 */
+/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]；texture 贴图路径；kind 材质两态；阴影标记。 */
 class SphereMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SphereMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.texture', type: 'string', label: '贴图路径' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },

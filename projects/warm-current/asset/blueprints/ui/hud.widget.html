@@ -1,86 +1,67 @@
 <widget name="WarmCurrentHud" canvas="1920x1080" data-script="gameplay/ui/HudScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
-    .InfoPanel { width: 560px; height: 200px; position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; background-color: #0e1a24e8; border-radius: 14px; padding: 14px 18px; }
-    .GameTitle { width: 320px; height: 34px; flex-shrink: 0; font-size: 24px; color: #7fdcff; font-weight: bold; text-shadow: 1px 2px 4px #000000aa; }
-    .TopRow { width: 520px; height: 32px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
-    .ActText { width: 170px; height: 30px; flex-shrink: 0; font-size: 22px; color: #ffb03d; font-weight: bold; }
-    .TimeText { width: 110px; height: 30px; flex-shrink: 0; font-size: 22px; color: #cfe3ee; }
-    .NodesText { width: 220px; height: 30px; flex-shrink: 0; font-size: 22px; color: #43d17c; font-weight: bold; }
-    .ResRow { width: 520px; height: 34px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
-    .ReserveText { width: 210px; height: 32px; flex-shrink: 0; font-size: 23px; color: #ffe9a8; font-weight: bold; }
-    .DemandText { width: 160px; height: 32px; flex-shrink: 0; font-size: 21px; color: #cfe3ee; }
-    .NetText { width: 140px; height: 32px; flex-shrink: 0; font-size: 21px; color: #9fc4d8; }
-    .ContRow { width: 520px; height: 32px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
-    .ContText { width: 280px; height: 30px; flex-shrink: 0; font-size: 22px; color: #7fe0a0; font-weight: bold; }
-    .BufferText { width: 230px; height: 30px; flex-shrink: 0; font-size: 21px; color: #ff8f7a; }
-    .EventBanner { width: 620px; height: 46px; position: absolute; left: 650px; top: 18px; font-size: 26px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000cc; }
-    .ResearchPanel { width: 520px; height: 320px; position: absolute; left: 1386px; top: 16px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 6px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; }
-    .FleetText { width: 480px; height: 30px; flex-shrink: 0; font-size: 20px; color: #9fc4d8; }
-    .LineRow { width: 490px; height: 40px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; }
-    .LineText { width: 320px; height: 32px; flex-shrink: 0; font-size: 20px; color: #cfe3ee; }
-    .Btn_oc { width: 150px; height: 36px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_oc:hover { background-color: #3d566f; }
-    .Label_oc { width: 140px; height: 28px; font-size: 18px; color: #ffd9a8; text-align: center; }
-    .ShipRow { width: 490px; height: 46px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .Btn_ship { width: 150px; height: 42px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a5a3a; border-radius: 8px; }
-    .Btn_ship:hover { background-color: #35704a; }
-    .Label_ship { width: 140px; height: 30px; font-size: 19px; color: #b8ffd8; text-align: center; }
-    .ActionPanel { width: 400px; height: 80px; position: absolute; left: 1504px; top: 984px; display: flex; flex-direction: row; align-items: center; gap: 12px; }
-    .Btn_ctrl { width: 120px; height: 72px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d2c3a; border-radius: 10px; }
+    .TopBar { width: 1824px; height: 60px; position: absolute; left: 48px; top: 12px; display: flex; flex-direction: row; align-items: center; gap: 14px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 18px; hit-test: block; }
+    .TimeText { width: 100px; height: 30px; flex-shrink: 0; font-size: 22px; color: #cfe3ee; text-shadow: 1px 1px 4px #00000066; }
+    .ReserveChip { width: 190px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #12283a; border-radius: 10px; }
+    .ReserveText { width: 174px; height: 30px; flex-shrink: 0; font-size: 23px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_ctrl { width: 96px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d2c3a; border-radius: 10px; }
     .Btn_ctrl:hover { background-color: #2a3f52; }
-    .Label_ctrl { width: 108px; height: 34px; font-size: 22px; color: #cfe3ee; text-align: center; }
+    .Btn_restart { width: 96px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #3a2a1d; border-radius: 10px; }
+    .Btn_restart:hover { background-color: #4a3828; }
+    .Label_ctrl { width: 84px; height: 30px; flex-shrink: 0; font-size: 20px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Divider { width: 2px; height: 30px; flex-shrink: 0; background-color: #2a4358; }
+    .Btn_info { width: 140px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
+    .Btn_info:hover { background-color: #27506e; }
+    .Label_info { width: 128px; height: 30px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Space { width: 2px; height: 30px; flex-shrink: 0; }
+    .EventBanner { width: 620px; height: 46px; position: absolute; left: 650px; top: 84px; font-size: 26px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000cc; }
+    .HexBadge { width: 230px; height: 46px; position: absolute; left: 16px; top: 84px; display: flex; justify-content: center; align-items: center; background-color: #5a4210; border-radius: 10px; }
+    .HexBadge:hover { background-color: #6f5216; }
+    .HexBadge:active { background-color: #80621c; }
+    .Label_hex { width: 220px; height: 32px; flex-shrink: 0; font-size: 19px; color: #ffd9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .MissionBtn { width: 400px; height: 68px; position: absolute; left: 1504px; top: 900px; display: flex; justify-content: center; align-items: center; background-color: #7a5a18; border-radius: 12px; }
     .MissionBtn:hover { background-color: #96701f; }
-    .Label_mission { width: 380px; height: 34px; font-size: 22px; color: #ffe9a8; text-align: center; font-weight: bold; }
+    .Label_mission { width: 380px; height: 34px; font-size: 22px; color: #ffe9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .BottomBar { width: 560px; height: 60px; position: absolute; left: 680px; top: 1000px; display: flex; flex-direction: row; align-items: center; gap: 12px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 16px; hit-test: block; }
+    .Btn_research { width: 180px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
+    .Btn_research:hover { background-color: #27506e; }
+    .Btn_research:active { background-color: #2f6284; }
+    .Label_research { width: 168px; height: 30px; flex-shrink: 0; font-size: 20px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .ResearchBadge { width: 280px; height: 30px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
     .SelPanel { width: 500px; height: 250px; position: absolute; left: 16px; top: 814px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; }
-    .SelText { width: 468px; height: 120px; flex-shrink: 0; font-size: 21px; color: #cfe3ee; }
+    .SelText { width: 468px; height: 120px; flex-shrink: 0; font-size: 21px; color: #cfe3ee; text-shadow: 1px 1px 4px #00000066; }
     .SelBtnRow1 { width: 468px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
     .SelBtnRow2 { width: 468px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
     .Btn_sel { width: 226px; height: 46px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
     .Btn_sel:hover { background-color: #27506e; }
-    .Label_sel { width: 214px; height: 30px; font-size: 19px; color: #7fdcff; text-align: center; }
+    .Label_sel { width: 214px; height: 30px; flex-shrink: 0; font-size: 19px; color: #7fdcff; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .ToastBox { width: 980px; height: 210px; position: absolute; left: 470px; top: 854px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
     .Toast { width: 980px; height: 42px; flex-shrink: 0; font-size: 22px; color: #cfe3ee; text-align: center; text-shadow: 1px 2px 4px #000000cc; }
     .TutText { width: 1100px; height: 56px; position: absolute; left: 410px; top: 770px; font-size: 26px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000cc; }
   </style>
   <div class="Root">
-    <div class="InfoPanel">
-      <text class="GameTitle">《暖流计划》</text>
-      <div class="TopRow">
-        <text class="ActText" data-name="ActText">第一幕 · 求生</text>
-        <text class="TimeText" data-name="TimeText">0:00</text>
-        <text class="NodesText" data-name="NodesText">交点 1/12</text>
-      </div>
-      <div class="ResRow">
+    <div class="TopBar" data-name="TopBar">
+      <text class="TimeText" data-name="TimeText">0:00</text>
+      <div class="ReserveChip">
         <text class="ReserveText" data-name="ReserveText">储量 1000 t</text>
-        <text class="DemandText" data-name="DemandText">消耗 0.0/s</text>
-        <text class="NetText" data-name="NetText">净流 +0.0</text>
       </div>
-      <div class="ContRow">
-        <text class="ContText" data-name="ContText">延续度 100%</text>
-        <text class="BufferText" data-name="BufferText"></text>
-      </div>
+      <div class="Divider"></div>
+      <button class="Btn_ctrl" data-name="Btn_pause"><text class="Label_ctrl" data-name="Label_pause">暂停</text></button>
+      <button class="Btn_ctrl" data-name="Btn_speed"><text class="Label_ctrl" data-name="Label_speed">倍速 x1</text></button>
+      <button class="Btn_restart" data-name="Btn_restart"><text class="Label_ctrl" data-name="Label_restart">重开</text></button>
+      <div class="Space"></div>
+      <button class="Btn_info" data-name="Btn_info"><text class="Label_info">📦 储量详情</text></button>
     </div>
     <text class="EventBanner" data-name="EventText"></text>
-    <div class="ResearchPanel">
-      <text class="FleetText" data-name="FleetText">船队 3（空闲 3 · 在途 0 · 冻毁 0）</text>
-      <div class="LineRow"><text class="LineText" data-name="Line_engine">引擎线 0%</text><button class="Btn_oc" data-name="Btn_oc_engine"><text class="Label_oc">超频 +50%</text></button></div>
-      <div class="LineRow"><text class="LineText" data-name="Line_cargo">货舱线 0%</text><button class="Btn_oc" data-name="Btn_oc_cargo"><text class="Label_oc">超频 +50%</text></button></div>
-      <div class="LineRow"><text class="LineText" data-name="Line_ring">环线 0%</text><button class="Btn_oc" data-name="Btn_oc_ring"><text class="Label_oc">超频 +50%</text></button></div>
-      <div class="LineRow"><text class="LineText" data-name="Line_infra">基建线 0%</text><button class="Btn_oc" data-name="Btn_oc_infra"><text class="Label_oc">超频 +50%</text></button></div>
-      <div class="LineRow"><text class="LineText" data-name="Line_expand">扩张线 0%</text><button class="Btn_oc" data-name="Btn_oc_expand"><text class="Label_oc">超频 +50%</text></button></div>
-      <div class="ShipRow">
-        <button class="Btn_ship" data-name="Btn_ship"><text class="Label_ship">造船 150</text></button>
-      </div>
-    </div>
-    <div class="ActionPanel">
-      <button class="Btn_ctrl" data-name="Btn_pause"><text class="Label_ctrl">暂停</text></button>
-      <button class="Btn_ctrl" data-name="Btn_speed"><text class="Label_ctrl">倍速</text></button>
-      <button class="Btn_ctrl" data-name="Btn_restart"><text class="Label_ctrl">重开</text></button>
-    </div>
+    <button class="HexBadge" data-name="Btn_hex"><text class="Label_hex" data-name="Label_hex">✦ 待选海克斯 +1</text></button>
     <button class="MissionBtn" data-name="Btn_mission"><text class="Label_mission">发射火星模块运输</text></button>
-    <div class="SelPanel">
+    <div class="BottomBar" data-name="BottomBar">
+      <button class="Btn_research" data-name="Btn_research"><text class="Label_research" data-name="Label_research">☰ 科研</text></button>
+      <text class="ResearchBadge" data-name="ResearchBadge"></text>
+      <text class="Label_research" data-name="BadgeFiller"></text>
+    </div>
+    <div class="SelPanel" data-name="SelPanel">
       <text class="SelText" data-name="SelText"></text>
       <div class="SelBtnRow1">
         <button class="Btn_sel" data-name="Btn_build_station"><text class="Label_sel">中点建补给站</text></button>

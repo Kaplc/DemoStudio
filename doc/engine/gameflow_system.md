@@ -106,7 +106,7 @@ if (this._running) { gm.BeginPlay() }
 
 ### 2.3 每帧怎么走
 
-`inst.tick(dt)` 由项目实现，主流写法是转发给 World（[FishGameInstance.ts:957](../../src/projects/fish/gameplay/FishGameInstance.ts)、[SnakeGameInstance.ts:41](../../src/projects/snake/SnakeGameInstance.ts)）：`this.world.manualTick(dt)`。`World.manualTick` 与私有 `World.tick` **逻辑完全平行**（[World.ts:333](../../src/engine/gameflow/World.ts)），六步顺序严格固定：
+`inst.tick(dt)` 由项目实现，主流写法是转发给 World（[FishGameInstance.ts:957](../../src/projects/fish/gameplay/FishGameInstance.ts)）：`this.world.manualTick(dt)`。`World.manualTick` 与私有 `World.tick` **逻辑完全平行**（[World.ts:333](../../src/engine/gameflow/World.ts)），六步顺序严格固定：
 
 ```ts
 manualTick(dt: number) {

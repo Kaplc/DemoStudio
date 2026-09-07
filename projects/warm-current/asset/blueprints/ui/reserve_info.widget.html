@@ -1,0 +1,43 @@
+<widget name="WarmCurrentReserveInfo" canvas="1920x1080" data-script="gameplay/ui/ReserveInfoScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .Dim { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #050a10a8; font-size: 16px; text-shadow: 1px 1px 4px #00000066; }
+    .InfoCard { width: 520px; height: 316px; position: absolute; left: 48px; top: 84px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; background-color: #0e1a24f0; border-radius: 14px; padding: 16px 20px; }
+    .InfoTitle { width: 400px; height: 34px; flex-shrink: 0; font-size: 23px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_close_info { width: 104px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
+    .Btn_close_info:hover { background-color: #3d566f; }
+    .Label_close_info { width: 96px; height: 28px; flex-shrink: 0; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .InfoRow { width: 480px; height: 36px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+    .InfoKey { width: 240px; height: 30px; flex-shrink: 0; font-size: 20px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .InfoVal { width: 240px; height: 30px; flex-shrink: 0; font-size: 20px; color: #ffe9a8; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <button class="Dim" data-name="Dim"></button>
+    <div class="InfoCard">
+      <div class="InfoRow">
+        <text class="InfoTitle">储量详情</text>
+        <button class="Btn_close_info" data-name="Btn_close_info"><text class="Label_close_info">✕ 关闭</text></button>
+      </div>
+      <div class="InfoRow">
+        <text class="InfoKey">当前储量</text>
+        <text class="InfoVal" data-name="Val_reserve">1000 t</text>
+      </div>
+      <div class="InfoRow">
+        <text class="InfoKey">消耗速率</text>
+        <text class="InfoVal" data-name="Val_demand">0.0/s</text>
+      </div>
+      <div class="InfoRow">
+        <text class="InfoKey">净流量</text>
+        <text class="InfoVal" data-name="Val_net">+0.0</text>
+      </div>
+      <div class="InfoRow">
+        <text class="InfoKey">延续度</text>
+        <text class="InfoVal" data-name="Val_cont">100%</text>
+      </div>
+      <div class="InfoRow">
+        <text class="InfoKey">环缓冲</text>
+        <text class="InfoVal" data-name="Val_buffer">—</text>
+      </div>
+    </div>
+  </div>
+</widget>

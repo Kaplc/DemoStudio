@@ -1,0 +1,23 @@
+{
+  "name": "EarthActor",
+  "baseClass": "EarthActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 38,
+        "color": "#4a86b0",
+        "name": "EarthMesh"
+      }
+    }
+  ],
+  "children": []
+}

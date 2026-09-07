@@ -189,6 +189,35 @@ export class ClickableComponent extends Component<Actor> {
   }
 
   /**
+   * 命中目标联合包围盒中心（世界坐标）。
+   * 全部目标不可见（自身或父链 visible=false）或无目标时返回 null —— 与 hitTest
+   * 的可见性过滤同链，保证"隐藏的目标无命中中心"。AI 反投屏幕坐标用
+   * （ai.clickActor 走完整射线管线，见 registerBuiltinAIHandlers）。
+   */
+  getHitCenterWorld(): THREE.Vector3 | null {
+    const box = new THREE.Box3()
+    for (const t of this.getTargets()) {
+      let o: THREE.Object3D | null = t
+      let visible = true
+      while (o) {
+        if (!o.visible) {
+          visible = false
+          break
+        }
+        o = o.parent
+      }
+      if (!visible) continue
+      // 与 hitTest 同款：先强制刷新父链世界矩阵再取包围盒（陈旧矩阵会算错中心）
+      t.updateWorldMatrix(true, false)
+      box.expandByObject(t)
+    }
+    if (box.isEmpty()) return null
+    const center = new THREE.Vector3()
+    box.getCenter(center)
+    return center
+  }
+
+  /**
    * 处理点击事件（带防连点）。命中时先触发 onPress（按下），再触发 onClick（点击逻辑）。
    * 拖拽语义（绑定了 onDragMove）：onClick 延迟到释放时触发，移动超过阈值即取消
    * （拖拽 ≠ 点击，滚动列表拖拽不误触按钮）。

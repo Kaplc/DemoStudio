@@ -17,6 +17,9 @@ class SceneDocChecker extends AbstractAssetChecker {
     { field: 'mode', type: 'string', label: '模式' },
     { field: 'objects', type: 'array', required: true, itemsType: 'object', label: '对象列表' },
     { field: 'gravity', type: 'array', itemsType: 'number', label: '物理重力 [x,y,z]（缺省零重力）' },
+    // ─── skybox.*：背景/雾/程序化星空 ───
+    { field: 'skybox.backgroundColor', type: 'color', label: '背景色 #rrggbb' },
+    { field: 'skybox.skyboxPath', type: 'string', label: '立方体贴图路径前缀' },
   ]
 
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {

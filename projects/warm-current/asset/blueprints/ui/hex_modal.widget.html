@@ -5,13 +5,13 @@
     .HexTitle { width: 780px; height: 44px; flex-shrink: 0; font-size: 30px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000aa; }
     .CardRow { width: 800px; height: 460px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; gap: 20px; }
     .CardWrap { width: 250px; height: 450px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; background-color: #172c3c; border-radius: 14px; padding: 12px 10px; }
-    .CardName { width: 220px; height: 56px; flex-shrink: 0; font-size: 24px; color: #7fdcff; text-align: center; font-weight: bold; }
-    .CardGain { width: 220px; height: 170px; flex-shrink: 0; font-size: 20px; color: #7fe0a0; text-align: center; }
-    .CardCost { width: 220px; height: 110px; flex-shrink: 0; font-size: 20px; color: #ff8f7a; text-align: center; }
+    .CardName { width: 220px; height: 56px; flex-shrink: 0; font-size: 24px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CardGain { width: 220px; height: 170px; flex-shrink: 0; font-size: 20px; color: #7fe0a0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .CardCost { width: 220px; height: 110px; flex-shrink: 0; font-size: 20px; color: #ff8f7a; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .Btn_card { width: 220px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #ffae00; border-radius: 12px; }
     .Btn_card:hover { background-color: #ffc233; }
-    .Label_card { width: 200px; height: 32px; font-size: 22px; color: #3d2600; text-align: center; font-weight: bold; }
-    .HexHint { width: 780px; height: 36px; flex-shrink: 0; font-size: 20px; color: #6f8ba0; text-align: center; }
+    .Label_card { width: 200px; height: 32px; font-size: 22px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .HexHint { width: 780px; height: 36px; flex-shrink: 0; font-size: 20px; color: #6f8ba0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Dim">
     <div class="HexPanel">
@@ -36,7 +36,7 @@
           <button class="Btn_card" data-name="Btn_card2"><text class="Label_card">选 择</text></button>
         </div>
       </div>
-      <text class="HexHint" data-name="HexHint">研究冻结中 · 其余系统照常运转</text>
+      <text class="HexHint" data-name="HexHint">研究冻结中 · 15s 后自动收纳（待选 +1，可随时重开）</text>
     </div>
   </div>
 </widget>

@@ -58,6 +58,7 @@ import { ShadowBlobComponent } from '../rendering/ShadowBlobComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
 import { createMesh } from '../gameflow/ThreeObjectUtils'
+import { loadTexture } from '../rendering/TextureLoader'
 
 /** 注册工厂 owner 收窄：渲染类组件需要 Actor（挂场景节点）；逻辑类组件接受任意 BObject */
 
@@ -286,7 +287,8 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, texture?, kind?, castShadow?, receiveShadow?, name? }
+  // texture：贴图路径（loadTexture 缓存加载，sRGB；赋给材质 map 作 albedo）
   ComponentRegistry.register(
     'SphereMeshComponent',
     (owner, p = {}) => {
@@ -297,6 +299,10 @@ export function registerBuiltinComponents(): void {
       if (p.opacity !== undefined) {
         mat.transparent = true
         mat.opacity = p.opacity as number
+      }
+      if (typeof p.texture === 'string' && p.texture) {
+        mat.map = loadTexture(p.texture)
+        mat.needsUpdate = true
       }
       const mesh = createMesh(geo, mat)
       applyMeshMaterialKind(mesh.object, p)

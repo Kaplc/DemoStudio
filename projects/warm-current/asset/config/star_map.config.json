@@ -1,11 +1,18 @@
 {
-  "_comment": "星图布局配置（画布坐标 1920×1080，y 向下）。hitTolerance=节点命中容差(px)；routeHitDistance=航线点击命中距离(px)；\n nodes=节点位置与半径（earth/moon/europa/mars：x,y=画布坐标，r=显示半径）。",
+  "_comment": "星图布局配置（画布坐标 1920×1080，y 向下）。hitTolerance=节点命中容差(px)；routeHitDistance=航线点击命中距离(px)；\n nodes=天体布局与显示半径：sun=太阳（聚能环圆心，布局圆心=画布中心/世界系原点）；mercury..neptune=八大行星（绕日公转，初相位=本布局方位角，日心距单调递增）；moon/europa=卫星。\n 行星轨道半径 = 真实半长轴(AU) × 250px（地球=1AU）：水0.387→97 / 金0.723→181 / 地1→250 / 火1.524→381 / 木5.203→1301 / 土9.537→2384 / 天19.19→4797 / 海30.07→7517。\n ⚠ 卫星由 balance 的 B.map.moons 驱动（moon 绕 earth 半径120、europa 绕 jupiter 半径76）：卫星布局锚点 = 相对 parent 的初相位，其距 parent 布局点的距离必须等于对应 moons[id].radius，否则开局卫星脱离轨道环。",
   "hitTolerance": 28,
   "routeHitDistance": 14,
   "nodes": {
-    "earth": { "x": 960, "y": 600, "r": 52 },
-    "moon": { "x": 1340, "y": 430, "r": 36 },
-    "europa": { "x": 380, "y": 300, "r": 42 },
-    "mars": { "x": 1750, "y": 850, "r": 48 }
+    "sun": { "x": 960, "y": 540, "r": 96 },
+    "mercury": { "x": 932, "y": 447, "r": 11 },
+    "venus": { "x": 1131, "y": 599, "r": 17 },
+    "earth": { "x": 960, "y": 790, "r": 38 },
+    "moon": { "x": 1080, "y": 790, "r": 17 },
+    "mars": { "x": 1230, "y": 271, "r": 34 },
+    "jupiter": { "x": -296, "y": 877, "r": 46 },
+    "europa": { "x": -296, "y": 801, "r": 30 },
+    "saturn": { "x": 3263, "y": 1158, "r": 40 },
+    "uranus": { "x": -3674, "y": -703, "r": 24 },
+    "neptune": { "x": 8418, "y": -407, "r": 23 }
   }
 }

@@ -56,6 +56,8 @@ export class WarmCurrentPlayerController extends PlayerController {
   }
 
   override OnPointerMoveScreen(screenX: number, screenY: number): void {
+    // 转发给相机云台（屏幕边缘平移的鼠标位置源）
+    this.mode.cameraActor?.rig.setMouseScreen(screenX, screenY)
     const map = this.toMap(screenX, screenY)
     if (map) {
       this.lastMap = map

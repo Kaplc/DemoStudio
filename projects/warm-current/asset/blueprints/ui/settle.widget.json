@@ -1,7 +1,7 @@
 {
   "name": "SettleModal",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-4e4b698d",
+  "sourceHash": "fnv1a-170c031a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -429,7 +429,11 @@
                     "height": 40,
                     "fontSize": 22,
                     "color": "#cfe3ee",
-                    "align": "center"
+                    "align": "center",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
                   }
                 }
               ],
@@ -479,7 +483,11 @@
                     "height": 150,
                     "fontSize": 22,
                     "color": "#9fc4d8",
-                    "align": "center"
+                    "align": "center",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
                   }
                 }
               ],
@@ -598,7 +606,11 @@
                         "fontSize": 22,
                         "color": "#3d2600",
                         "align": "center",
-                        "bold": true
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -719,7 +731,11 @@
                         "fontSize": 22,
                         "color": "#b8ffd8",
                         "align": "center",
-                        "bold": true
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -840,7 +856,11 @@
                         "fontSize": 22,
                         "color": "#3d2600",
                         "align": "center",
-                        "bold": true
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
                       }
                     }
                   ],

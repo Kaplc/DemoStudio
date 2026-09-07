@@ -62,6 +62,7 @@ import { UIImageComponent } from '../ui/UIImageComponent'
 import { UITransformComponent } from '../ui/UITransformComponent'
 import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { ClickableComponent } from '../physics/ClickableComponent'
+import { PhySys } from '../physics/PhySys'
 import { HealthComponent } from '../gameplay/HealthComponent'
 import { StateMachineComponent } from '../gameplay/StateMachineComponent'
 import { destroyActor, getAllActors, spawnActor } from '../gameflow/ActorUtils'
@@ -286,13 +287,71 @@ export function registerBuiltinAIHandlers(): void {
 
     if (!p.name && !p.text && !p.path) return { ok: false, error: '缺少 name、text 或 path' }
 
-    /** 在指定 Actor 上查找并触发按钮（UIButtonComponent → ClickableComponent 兜底） */
-    const triggerButtonsOn = (actor: import('../entity/Actor').Actor): { ok: boolean; clicked?: number; type?: string } => {
-      // 优先触发 UI 按钮
+    // ═══ 射线管线封装：命中层中心反投屏幕坐标 → InputSys 完整管线 → 消费身份核验 ═══
+    /**
+     * 由目标命中层中心反投屏幕坐标，走 InputSys.handlePointerDown → PhySys.raycastClick
+     * 完整管线触发（与真实鼠标点击完全同路：UI zOrder 仲裁 / 拦截画布消费 / 可见性过滤）。
+     * 消费身份核验：管线必须由目标（或其子 actor）的 ClickableComponent 消费，防止
+     * "目标藏在大面板后面，同一屏幕点被更前端的元素吃掉"的伪命中。
+     */
+    const raycastClickThrough = (
+      actor: import('../entity/Actor').Actor,
+    ): { ok: boolean; consumed?: boolean; byOther?: boolean; reason?: string } => {
+      const gi = ctx.gameInstance
+      if (!gi) return { ok: false, reason: '无 GameInstance' }
+
+      // 1. 找目标的 ClickableComponent（优先自身，其次递归子树——与旧递归口径一致）
+      const findClickable = (a: import('../entity/Actor').Actor): ClickableComponent | null => {
+        const c = a.getComponent(ClickableComponent)
+        if (c) return c
+        for (const child of a.getChildren()) {
+          const hit = findClickable(child)
+          if (hit) return hit
+        }
+        return null
+      }
+      const clickable = findClickable(actor)
+      if (!clickable) return { ok: false, reason: '目标上没有 ClickableComponent' }
+
+      // 2. 命中层中心（全部不可见 → null，与 hitTest 可见性过滤同链）→ 拒绝
+      const center = clickable.getHitCenterWorld()
+      if (!center) return { ok: false, reason: '命中层不可见或无有效目标（未命中）' }
+
+      // 3. 世界坐标反投屏幕坐标（UI 用 uiCamera，world 用主相机；沿用 PhySys 同款换算）
+      let screenX: number
+      let screenY: number
+      const vp = PhySys.viewportElement
+      if (!vp) return { ok: false, reason: '视口未就绪' }
+      const cam = clickable.layer === 'ui' ? PhySys.uiCamera : gi.getActiveCamera()
+      if (!cam) return { ok: false, reason: `${clickable.layer === 'ui' ? 'UI 相机' : '主相机'}未就绪` }
+      const rect = vp.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return { ok: false, reason: '视口尺寸为 0' }
+      const v = center.clone().project(cam)
+      screenX = rect.left + (v.x + 1) / 2 * rect.width
+      screenY = rect.top + (1 - v.y) / 2 * rect.height
+
+      // 4. 完整管线：handlePointerDown → raycastClick（UI/world 两级仲裁）→ controller 兜底
+      const consumed = gi.inputSys.handlePointerDown(screenX, screenY, undefined, gi.controller, 0)
+
+      // 5. 消费身份核验：必须由目标（或子 actor）的 clickable 消费
+      const pressed = PhySys.pressedClickable
+      const fromTargetTree = pressed === clickable
+      if (!fromTargetTree) {
+        // 拦截画布消费 / 更前端元素消费 / 未命中任何 clickable：均视为未命中目标
+        return { ok: false, byOther: consumed, reason: '点击未命中目标（被拦截画布或更前端元素消费，未命中）' }
+      }
+      // 6. 释放：分发 handleRelease（onRelease/按钮恢复 normal 态），完整按下-释放序列
+      gi.inputSys.handlePointerUp(undefined, gi.controller, 0)
+      return { ok: true, consumed: true }
+    }
+
+    /** 在指定 Actor 上触发按钮点击（射线管线版）：UIButtonComponent → ClickableComponent 兜底 */
+    const triggerButtonsOn = (actor: import('../entity/Actor').Actor): { ok: boolean; clicked?: number; type?: string; error?: string } => {
+      // 优先触发 UI 按钮（owner 树上找 UIButtonComponent，其内部 ClickableComponent 承担射线）
       const buttons = actor.getComponents(UIButtonComponent)
       if (buttons.length > 0) {
-        for (const b of buttons) b.triggerClick()
-        return { ok: true, clicked: buttons.length, type: 'button' }
+        const r = raycastClickThrough(actor)
+        return r.ok ? { ok: true, clicked: buttons.length, type: 'button' } : { ok: false, error: r.reason }
       }
       // 兜底：递归子树找按钮
       const findButtonActor = (a: import('../entity/Actor').Actor): import('../entity/Actor').Actor | null => {
@@ -306,16 +365,16 @@ export function registerBuiltinAIHandlers(): void {
       const buttonActor = findButtonActor(actor)
       if (buttonActor) {
         const bs = buttonActor.getComponents(UIButtonComponent)
-        for (const b of bs) b.triggerClick()
-        return { ok: true, clicked: bs.length, type: 'button' }
+        const r = raycastClickThrough(buttonActor)
+        return r.ok ? { ok: true, clicked: bs.length, type: 'button' } : { ok: false, error: r.reason }
       }
-      // 兜底：触发可点击组件
+      // 兜底：纯 ClickableComponent（信息牌/建筑等无 UIButton 的可点击物）
       const clickables = actor.getComponents(ClickableComponent)
       if (clickables.length > 0) {
-        for (const c of clickables) c.onClick?.(undefined as never)
-        return { ok: true, clicked: clickables.length, type: 'clickable' }
+        const r = raycastClickThrough(actor)
+        return r.ok ? { ok: true, clicked: 1, type: 'clickable' } : { ok: false, error: r.reason }
       }
-      return { ok: false }
+      return { ok: false, error: '目标上没有可点击组件' }
     }
 
     // ─── 按路径查找（最精确，getHUD 返回的 path） ───
@@ -374,10 +433,10 @@ export function registerBuiltinAIHandlers(): void {
         logger.info(`[AI] clickActor(path="${targetPath}"): 触发 ${result.clicked} 个 ${result.type}`)
         return result
       }
-      return { ok: false, error: `路径 "${targetPath}" 对应的元素上没有可点击组件` }
+      return { ok: false, error: result.error ?? `路径 "${targetPath}" 对应的元素上没有可点击组件` }
     }
 
-    // ─── 按名称查找（原有逻辑） ───
+    // ─── 按名称查找（射线管线） ───
     if (p.name) {
       const actor = findActorByName(world, p.name)
       if (!actor) return { ok: false, error: `未找到 Actor: ${p.name}` }
@@ -386,7 +445,7 @@ export function registerBuiltinAIHandlers(): void {
         logger.info(`[AI] clickActor(name="${p.name}"): 触发 ${result.clicked} 个 ${result.type}`)
         return result
       }
-      return { ok: false, error: `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
+      return { ok: false, error: result.error ?? `${p.name} 上没有 UIButtonComponent / ClickableComponent` }
     }
 
     // ─── 按 UI 文字查找（新逻辑）：遍历所有 UI Actor，找到包含指定文字的 Actor，触发其按钮 ───
@@ -443,7 +502,7 @@ export function registerBuiltinAIHandlers(): void {
           return result
         }
       }
-      return { ok: false, error: `找到文字 "${searchText}"（在 ${target.name}），但周围没有可点击元素` }
+      return { ok: false, error: btnResult.error ?? `找到文字 "${searchText}"（在 ${target.name}），但周围没有可点击元素` }
     }
 
     logger.info(`[AI] clickActor(text="${searchText}"): 在 "${target.name}" 触发 ${btnResult.clicked} 个 ${btnResult.type}`)

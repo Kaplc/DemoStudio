@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three'
 import { MeshComponent } from './MeshComponent'
+import { loadTexture } from './TextureLoader'
 import { createSphereGeometry } from '../gameflow/ThreeObjectUtils'
 import type { Actor } from '../entity/Actor'
 import type { EditableProperty } from '../entity/ActorComponent'
@@ -50,6 +51,13 @@ export class SphereMeshComponent extends MeshComponent {
     old.dispose()
   }
 
+  /** 设置贴图（路径走 loadTexture 缓存；传 Texture 直接用） */
+  setTexture(pathOrTexture: string | THREE.Texture): void {
+    const mat = this.obj.object.material as THREE.MeshStandardMaterial
+    mat.map = typeof pathOrTexture === 'string' ? loadTexture(pathOrTexture) : pathOrTexture
+    mat.needsUpdate = true
+  }
+
   /** Inspector 属性展示 */
   override getProperties(): Record<string, unknown> {
     const mat = this.obj.object.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial | null
@@ -57,6 +65,7 @@ export class SphereMeshComponent extends MeshComponent {
       radius: Math.round(this._radius * 100) / 100,
       color: mat?.color ? `#${mat.color.getHexString()}` : '#ffffff',
       opacity: mat ? Math.round((mat.opacity ?? 1) * 100) / 100 : 1,
+      texture: (mat as THREE.MeshStandardMaterial | null)?.map ? '已设置' : '（无）',
       visible: this.obj.object.visible,
     }
   }

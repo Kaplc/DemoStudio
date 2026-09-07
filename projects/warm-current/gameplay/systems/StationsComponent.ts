@@ -6,6 +6,7 @@
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
+import { starPosAt, stationAnchorPos } from '../core/helpers'
 import type { SimStation, StarId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -28,7 +29,7 @@ export class StationsComponent extends BObjectComponent<WarmCurrentGameMode> {
     const starEp = route.from.kind === 'star' ? route.from.star : null
     if (!starEp) return false
     const star: StarId = starEp
-    const a = B.map.nodes[star], b = B.map.nodes.earth
+    const a = starPosAt(s, star), b = starPosAt(s, 'earth')
     const station: SimStation = {
       id: maxStationId(s) + 1,
       routeId,
@@ -55,7 +56,8 @@ export class StationsComponent extends BObjectComponent<WarmCurrentGameMode> {
     st.stock -= need
     st.level = (st.level + 1) as SimStation['level']
     st.need = st.level >= 3 ? 0 : B.station.upgradeMaterials[st.level + 1]
-    this.sc.emit({ type: 'station_upgraded', value: st.level, x: st.x, y: st.y })
+    const p = stationAnchorPos(s, st)
+    this.sc.emit({ type: 'station_upgraded', value: st.level, x: p.x, y: p.y })
     return true
   }
 
@@ -82,7 +84,8 @@ export class StationsComponent extends BObjectComponent<WarmCurrentGameMode> {
     const s = this.sc.state
     st.stock += materials
     st.invested += materials
-    this.sc.emit({ type: 'unload', value: Math.round(materials), x: st.x, y: st.y })
+    const p = stationAnchorPos(s, st)
+    this.sc.emit({ type: 'unload', value: Math.round(materials), x: p.x, y: p.y })
     if (st.level === 0 && st.stock >= st.need) {
       st.level = 1
       st.need = B.station.upgradeMaterials[2]

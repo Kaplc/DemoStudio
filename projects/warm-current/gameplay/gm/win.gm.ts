@@ -3,7 +3,7 @@
  */
 import type { GMCommandDef } from '@/engine'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
-import { B } from '../core/balance'
+import { starPosAt } from '../core/helpers'
 
 export default {
   name: 'win',
@@ -16,7 +16,7 @@ export default {
     s.module.state = 'delivered'
     s.nodes = 12
     s.outcome = 'victory'
-    mode.simState.events.push({ type: 'victory', x: B.map.nodes.earth.x, y: B.map.nodes.earth.y })
+    mode.simState.events.push({ type: 'victory', ...starPosAt(s, 'earth') })
     ctx.output('全球环网建成（胜利结算面板应出现）')
   },
 } as GMCommandDef

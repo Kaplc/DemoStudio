@@ -7,8 +7,9 @@
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import {
-  endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, windowAffected,
+  endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
   legSeconds, roundFuel, starLoad, cargoCap, stationByEndpoint,
+  TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { Endpoint, SimRoute, SimShip, StarId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
@@ -34,11 +35,13 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (s.outcome !== 'playing' && !s.sandbox) return false
     if (s.flare.phase === 'active') { this.sc.hint('太阳耀斑 · 通讯中断，无法修改航线'); return false }
 
-    // 首次引导：只认 月球↔地球
+    // 首次引导：只认 月球↔地球（端点取 core 单一数据源 TUTORIAL_TARGETS，
+    // 渲染层教学环 / GameMode.dragValidity 消费同一常量，改引导只需改一处）
     if (s.tutorial) {
-      const ok = (endpointKey(a) === 'earth' && endpointKey(b) === 'star:moon') ||
-        (endpointKey(b) === 'earth' && endpointKey(a) === 'star:moon')
-      if (!ok) { this.sc.hint('再试一次，从月球拖一条线到地球'); return false }
+      const [tutStar, tutPlanet] = TUTORIAL_TARGETS
+      const ok = (endpointKey(a) === tutPlanet && endpointKey(b) === `star:${tutStar}`) ||
+        (endpointKey(b) === tutPlanet && endpointKey(a) === `star:${tutStar}`)
+      if (!ok) { this.sc.hint(`再试一次，从${B.stars[tutStar].name}拖一条线到地球`); return false }
     }
 
     if (endpointKey(a) === endpointKey(b)) { this.sc.hint('航线两端不能是同一节点'); return false }
@@ -342,7 +345,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       s.nodes = B.totalNodes
       if (s.outcome === 'playing') {
         s.outcome = 'victory'
-        const p = B.map.nodes.earth
+        const p = starPosAt(s, 'earth')
         this.sc.emit({ type: 'victory', x: p.x, y: p.y })
       }
       return
@@ -353,7 +356,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       const net = Math.max(0, ship.cargo - ship.roundFuel)
       s.earthH3 += net
       s.stats.delivered += net
-      const p = B.map.nodes.earth
+      const p = starPosAt(s, 'earth')
       this.sc.emit({ type: 'unload', value: Math.round(net), x: p.x, y: p.y })
     } else {
       const st = stationByEndpoint(s, route.to)

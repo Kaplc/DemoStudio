@@ -1,0 +1,23 @@
+{
+  "name": "UranusActor",
+  "baseClass": "UranusActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 24,
+        "color": "#9fd8dd",
+        "name": "UranusMesh"
+      }
+    }
+  ],
+  "children": []
+}

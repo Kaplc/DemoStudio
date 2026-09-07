@@ -1,0 +1,213 @@
+/**
+ * starTextures — 星图天体程序化贴图（Canvas 程序噪声，无外部资产依赖）
+ *
+ * 图像生成 API 额度受限/不可用时保证星图可换装：每张贴图 = 纬度底色分带 + 噪声
+ * 斑点层叠涂，经度环绕（x 出界回卷）弱化球面接缝；Canvas → CanvasTexture（sRGB）。
+ * 天体色调沿用星图原配色（sun 熔金 / earth 蓝绿 / moon 灰月海 / europa 冰裂 / mars 锈红）。
+ *
+ * 先例：引擎 ShadowBlobComponent 的 sharedTexture 程序化兜底思路（环境无 DOM canvas
+ * 时降级）。无模块级缓存：每个天体 Actor 生成时调用一次（BeginPlay），贴图挂在其
+ * SphereMesh 材质上，Actor 销毁时经 ThreeObject.dispose 递归释放。
+ */
+import * as THREE from 'three'
+
+/** 斑点层（噪声基元）：数量 + 半径范围 + 颜色 + 不透明度 */
+interface BlobLayer {
+  count: number
+  rMin: number
+  rMax: number
+  color: string
+  alpha: number
+}
+
+/** 每天体贴图配方 */
+interface StarTexRecipe {
+  /** 底色带（纬度分段：y 比例 → 颜色），从北极到南极 */
+  bands: Array<{ at: number; color: string }>
+  /** 斑点层（叠涂） */
+  blobs: BlobLayer[]
+}
+
+/** 暖流星图调色（与 balance.COLORS 同源观感） */
+const RECIPES: Record<string, StarTexRecipe> = {
+  sun: {
+    bands: [
+      { at: 0, color: '#ffd98a' }, { at: 0.5, color: '#ffb347' },
+      { at: 0.82, color: '#ff9840' }, { at: 1, color: '#e07b30' },
+    ],
+    blobs: [
+      { count: 90, rMin: 2, rMax: 9, color: '#ffdf9e', alpha: 0.5 },
+      { count: 26, rMin: 4, rMax: 14, color: '#e8871f', alpha: 0.4 },
+      { count: 7, rMin: 3, rMax: 8, color: '#b8651a', alpha: 0.5 },
+    ],
+  },
+  earth: {
+    bands: [
+      { at: 0, color: '#dfeef5' }, { at: 0.12, color: '#bcd9e8' }, { at: 0.22, color: '#3f83a8' },
+      { at: 0.5, color: '#2f6d92' }, { at: 0.78, color: '#3f83a8' }, { at: 0.9, color: '#bcd9e8' },
+      { at: 1, color: '#e8f2f8' },
+    ],
+    blobs: [
+      { count: 12, rMin: 14, rMax: 42, color: '#5e9468', alpha: 0.9 },
+      { count: 10, rMin: 8, rMax: 26, color: '#8aa66a', alpha: 0.85 },
+      { count: 26, rMin: 10, rMax: 36, color: '#e8f2f8', alpha: 0.25 },
+      { count: 40, rMin: 2, rMax: 7, color: '#ffffff', alpha: 0.35 },
+    ],
+  },
+  moon: {
+    bands: [
+      { at: 0, color: '#d8dee4' }, { at: 0.5, color: '#c9d4de' }, { at: 1, color: '#b9c4cf' },
+    ],
+    blobs: [
+      { count: 9, rMin: 16, rMax: 40, color: '#a8b4c0', alpha: 0.55 },
+      { count: 46, rMin: 2, rMax: 8, color: '#8e9aa6', alpha: 0.5 },
+      { count: 26, rMin: 1.5, rMax: 5, color: '#e8edf2', alpha: 0.5 },
+    ],
+  },
+  europa: {
+    bands: [
+      { at: 0, color: '#e8f4fa' }, { at: 0.5, color: '#bfe0f0' }, { at: 1, color: '#a8d0e8' },
+    ],
+    blobs: [
+      { count: 30, rMin: 1, rMax: 4, color: '#b06a4a', alpha: 0.55 },
+      { count: 16, rMin: 2, rMax: 6, color: '#c88a62', alpha: 0.4 },
+      { count: 8, rMin: 8, rMax: 20, color: '#d8ecf6', alpha: 0.5 },
+    ],
+  },
+  mercury: {
+    bands: [
+      { at: 0, color: '#a89c90' }, { at: 0.5, color: '#9a8f84' }, { at: 1, color: '#847a70' },
+    ],
+    blobs: [
+      { count: 52, rMin: 2, rMax: 7, color: '#6e645c', alpha: 0.5 },
+      { count: 20, rMin: 1.5, rMax: 4, color: '#c4bab0', alpha: 0.45 },
+    ],
+  },
+  venus: {
+    bands: [
+      { at: 0, color: '#e8cf9e' }, { at: 0.5, color: '#d9b06c' }, { at: 1, color: '#c29a58' },
+    ],
+    blobs: [
+      { count: 14, rMin: 18, rMax: 48, color: '#e8d8a8', alpha: 0.4 },
+      { count: 10, rMin: 10, rMax: 28, color: '#b8905a', alpha: 0.35 },
+    ],
+  },
+  jupiter: {
+    bands: [
+      { at: 0, color: '#e0cba8' }, { at: 0.18, color: '#c9a678' }, { at: 0.34, color: '#a87c50' },
+      { at: 0.46, color: '#d9b88c' }, { at: 0.58, color: '#b8865a' }, { at: 0.74, color: '#c9a678' },
+      { at: 0.9, color: '#e0cba8' }, { at: 1, color: '#a87850' },
+    ],
+    blobs: [
+      { count: 16, rMin: 8, rMax: 26, color: '#e8d8b8', alpha: 0.4 },
+      { count: 8, rMin: 4, rMax: 10, color: '#b05a3a', alpha: 0.55 },
+      { count: 24, rMin: 2, rMax: 6, color: '#f0e4cc', alpha: 0.35 },
+    ],
+  },
+  saturn: {
+    bands: [
+      { at: 0, color: '#e8d8ac' }, { at: 0.5, color: '#d8c08c' }, { at: 0.85, color: '#c8ac74' },
+      { at: 1, color: '#e0d0a0' },
+    ],
+    blobs: [
+      { count: 12, rMin: 10, rMax: 30, color: '#f0e4c0', alpha: 0.35 },
+      { count: 10, rMin: 6, rMax: 16, color: '#b09868', alpha: 0.3 },
+    ],
+  },
+  uranus: {
+    bands: [
+      { at: 0, color: '#b8e4e8' }, { at: 0.5, color: '#9fd8dd' }, { at: 1, color: '#88c8d0' },
+    ],
+    blobs: [
+      { count: 6, rMin: 10, rMax: 24, color: '#c8ecf0', alpha: 0.3 },
+    ],
+  },
+  neptune: {
+    bands: [
+      { at: 0, color: '#6a9ce0' }, { at: 0.5, color: '#5a8fd8' }, { at: 1, color: '#4a7cc8' },
+    ],
+    blobs: [
+      { count: 8, rMin: 6, rMax: 16, color: '#3a68b0', alpha: 0.4 },
+      { count: 4, rMin: 2, rMax: 5, color: '#d8e8f8', alpha: 0.45 },
+    ],
+  },
+  mars: {
+    bands: [
+      { at: 0, color: '#e8d8c8' }, { at: 0.1, color: '#d8a878' }, { at: 0.5, color: '#e8926f' },
+      { at: 0.9, color: '#c87850' }, { at: 1, color: '#e8dcc8' },
+    ],
+    blobs: [
+      { count: 26, rMin: 6, rMax: 22, color: '#a85a38', alpha: 0.5 },
+      { count: 44, rMin: 2, rMax: 8, color: '#f0b088', alpha: 0.4 },
+      { count: 10, rMin: 4, rMax: 12, color: '#7a4228', alpha: 0.45 },
+    ],
+  },
+}
+
+/** 确定性 PRNG（mulberry32，配方稳定 → 贴图稳定，快照/重放观感一致） */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t ^ (t >>> 14)) >>> 0
+    return t / 4294967296
+  }
+}
+
+/** 纬度取色（bands 分段：相邻带硬切，观感为纬向色层） */
+function bandColor(recipe: StarTexRecipe, t: number): string {
+  for (let i = 0; i < recipe.bands.length - 1; i++) {
+    if (t >= recipe.bands[i].at && t <= recipe.bands[i + 1].at) {
+      const f = (t - recipe.bands[i].at) / Math.max(1e-6, recipe.bands[i + 1].at - recipe.bands[i].at)
+      return f < 0.5 ? recipe.bands[i].color : recipe.bands[i + 1].color
+    }
+  }
+  return recipe.bands[recipe.bands.length - 1].color
+}
+
+/** 画一个经度环绕的圆（x 出界回卷，接缝两侧纹理连续） */
+function wrapCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, W: number): void {
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fill()
+  if (x < r) { ctx.beginPath(); ctx.arc(x + W, y, r, 0, Math.PI * 2); ctx.fill() }
+  if (x > W - r) { ctx.beginPath(); ctx.arc(x - W, y, r, 0, Math.PI * 2); ctx.fill() }
+}
+
+/**
+ * 生成天体贴图（equirect 2:1，球面 UV 直接包裹）。
+ * 环境无 DOM canvas（单测/极简容器）返回 null，调用方保持无贴图纯色。
+ */
+export function makeStarTexture(bodyId: string): THREE.CanvasTexture | null {
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+  if (!canvas) return null
+  const recipe = RECIPES[bodyId] ?? RECIPES.moon
+  const W = 512
+  const H = 256
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  // 1) 纬度底色带
+  for (let y = 0; y < H; y++) {
+    ctx.fillStyle = bandColor(recipe, y / (H - 1))
+    ctx.fillRect(0, y, W, 1)
+  }
+  // 2) 斑点层（叠涂，经度环绕）
+  const rnd = mulberry32(0x5742)
+  for (const layer of recipe.blobs) {
+    ctx.fillStyle = layer.color
+    ctx.globalAlpha = layer.alpha
+    for (let i = 0; i < layer.count; i++) {
+      const r = layer.rMin + rnd() * (layer.rMax - layer.rMin)
+      const x = rnd() * W
+      const y = H * 0.08 + rnd() * H * 0.84
+      wrapCircle(ctx, x, y, r, W)
+    }
+  }
+  ctx.globalAlpha = 1
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}

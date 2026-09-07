@@ -8,7 +8,7 @@ import { B, MAP_H, MAP_W } from './balance'
 import type { CardDef } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
-  Endpoint, ResearchLineId, SimEvent, SimRoute, SimShip, SimState, SimStation, StarId,
+  Endpoint, PlanetBodyId, PlanetId, ResearchLineId, SimEvent, SimRoute, SimShip, SimState, SimStation, StarId,
 } from './types'
 
 // ─── 确定性随机（耀斑调度可复现） ───
@@ -31,6 +31,83 @@ export const LINE_DEFS: Array<{ id: ResearchLineId; name: string; init: number }
   { id: 'infra', name: '基建线', init: 0.36 },
   { id: 'expand', name: '扩张线', init: 0.48 },
 ]
+
+// ─── 太阳系公转（位置 = 仿真时间的纯函数：确定性、快照/重放安全） ───
+
+/** 太阳系天体（太阳 + 地球 + 三资源星） */
+export type SolarBodyId = 'sun' | PlanetBodyId
+
+/** 行星公转角速度系数（rad/s × 半径px）：切向速度统一 ≈3.9px/s */
+export const ORBIT_SPEED_COEFF = 3.9
+
+/** 卫星角速度系数（相对行星）：切向速度统一 ≈3.3px/s（半径入 B.map.moons[id].radius） */
+export const MOON_SPEED_COEFF = 3.3
+
+/** 行星轨道半径（px，距太阳；布局坐标推导，渲染层画轨道圈共用） */
+export function orbitRadiusPx(body: PlanetBodyId): number {
+  const n = B.map.nodes[body]
+  const s = B.map.nodes.sun
+  return Math.hypot(n.x - s.x, n.y - s.y)
+}
+
+// ─── 首次引导（单一数据源：规则判定 / 渲染定位 / 测试 共用） ───
+
+/**
+ * 首次引导的航线端点（顺序即教学双环顺序）：月球 → 地球。
+ *
+ * ⚠ 权威在 TransportComponent.tryCreateRoute（引导只认 moon↔earth）。
+ * 三方消费本常量，不得各自硬编码（改引导只改这一处）：
+ *   1. TransportComponent.tryCreateRoute —— 建线规则判定
+ *   2. WarmCurrentGameMode.dragValidity —— 拖线视觉合法性（规则镜像）
+ *   3. StarMapRenderComponent.buildTutorial/syncTutorial —— 教学双环定位
+ */
+export const TUTORIAL_TARGETS = ['moon', 'earth'] as const satisfies ReadonlyArray<SolarBodyId>
+
+export type TutorialBodyId = (typeof TUTORIAL_TARGETS)[number]
+
+/** 教学环缩放半径 = 天体显示半径 + 边距（渲染层画环共用，保证环不贴星球边缘） */
+export const TUTORIAL_RING_PAD = 12
+
+export function tutorialRingRadius(body: TutorialBodyId): number {
+  return B.map.nodes[body].r + TUTORIAL_RING_PAD
+}
+
+/** 行星角速度 ∝ 1/轨道半径（远轨道更慢，开普勒式观感）；地球再慢 30%（聚能环叙事：近"静止"） */
+function orbitAngularSpeed(body: PlanetBodyId): number {
+  return (ORBIT_SPEED_COEFF * (body === 'earth' ? 0.7 : 1)) / Math.max(120, orbitRadiusPx(body))
+}
+
+/** 行星初相位 = 初始布局方位角（改 star_map 配置即改初相位，布局即轨道锚点） */
+function orbitPhase(body: PlanetBodyId): number {
+  const n = B.map.nodes[body]
+  const s = B.map.nodes.sun
+  return Math.atan2(n.y - s.y, n.x - s.x)
+}
+
+/** 天体当前位置（地图画布系）：行星绕太阳公转，卫星绕 parent 行星（t = 仿真时间，太阳静态） */
+export function starPosAt(state: SimState, body: SolarBodyId): { x: number; y: number } {
+  if (body === 'sun') return B.map.nodes.sun
+  // 卫星：轨道中心 = parent 实时位置（布局中的锚点 = 相对 parent 的初相位）
+  const moonCfg = (B.map.moons as Record<string, { parent: PlanetId; radius: number } | undefined>)[body]
+  if (moonCfg) {
+    const p = starPosAt(state, moonCfg.parent)
+    const m = B.map.nodes[body as SolarBodyId]
+    const a = Math.atan2(m.y - B.map.nodes[moonCfg.parent].y, m.x - B.map.nodes[moonCfg.parent].x)
+      + state.time * (MOON_SPEED_COEFF / moonCfg.radius)
+    return { x: p.x + Math.cos(a) * moonCfg.radius, y: p.y + Math.sin(a) * moonCfg.radius }
+  }
+  const s = B.map.nodes.sun
+  const r = orbitRadiusPx(body)
+  const a = orbitPhase(body) + state.time * orbitAngularSpeed(body)
+  return { x: s.x + Math.cos(a) * r, y: s.y + Math.sin(a) * r }
+}
+
+/** 补给站锚点（依附正向航线，随行星公转实时漂移） */
+export function stationAnchorPos(state: SimState, st: SimStation): { x: number; y: number } {
+  const a = starPosAt(state, st.star)
+  const b = starPosAt(state, 'earth')
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
 
 let nextRouteId = 1
 let nextStationId = 1
@@ -77,6 +154,8 @@ export function createInitialState(seed: number): SimState {
     research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: d.init, nextMult: 1 })),
     overclocked: [],
     pendingCard: null,
+    /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳待重开（待卡不弃） */
+    hexHiddenAt: null,
     cardQueue: [],
     gravity: { phase: 'idle', timer: B.gravity.period - B.gravity.warn - B.gravity.active },
     flare: { phase: 'idle', timer: 0, nextIn: Number.POSITIVE_INFINITY },
@@ -105,10 +184,10 @@ export function starOfEndpoint(state: SimState, e: Endpoint): StarId | null {
 }
 
 export function endpointPos(state: SimState, e: Endpoint): { x: number; y: number } {
-  if (e.kind === 'earth') return B.map.nodes.earth
-  if (e.kind === 'star') return B.map.nodes[e.star]
+  if (e.kind === 'earth') return starPosAt(state, 'earth')
+  if (e.kind === 'star') return starPosAt(state, e.star)
   const st = state.stations.find((s) => s.id === e.stationId)
-  return st ? { x: st.x, y: st.y } : B.map.nodes.earth
+  return st ? stationAnchorPos(state, st) : starPosAt(state, 'earth')
 }
 
 export function endpointName(state: SimState, e: Endpoint): string {
@@ -202,12 +281,12 @@ export function estimateNetFlow(state: SimState, demand: number): number {
 /** 船当前位置（星图画布坐标；耀斑护盾判定 / 渲染共用） */
 export function shipPos(state: SimState, ship: SimShip): { x: number; y: number } {
   if (ship.mission) {
-    const a = B.map.nodes.earth, b = B.map.nodes.mars
+    const a = starPosAt(state, 'earth'), b = starPosAt(state, 'mars')
     const t = ship.leg === 'outbound' ? ship.progress : 1 - ship.progress
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
   }
   const route = state.routes.find((r) => r.id === ship.routeId)
-  if (!route) return B.map.nodes.earth
+  if (!route) return starPosAt(state, 'earth')
   const from = endpointPos(state, route.from), to = endpointPos(state, route.to)
   const t = ship.leg === 'outbound' ? ship.progress : 1 - ship.progress
   return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }

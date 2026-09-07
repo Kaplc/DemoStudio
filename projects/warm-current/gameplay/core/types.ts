@@ -8,6 +8,15 @@ import type { CardId } from './balance'
 
 export type StarId = 'moon' | 'europa' | 'mars'
 
+/** 行星 id：八大行星（绕太阳；资源星 3 颗是行星的真子集，非资源行星纯装饰/取景） */
+export type PlanetId = 'mercury' | 'venus' | 'earth' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune'
+
+/** 卫星 id：绕行星旋转的天体（B.map.moons 配置驱动） */
+export type MoonId = 'moon' | 'europa'
+
+/** 行星或卫星（公转纯函数 starPosAt 的消费域） */
+export type PlanetBodyId = PlanetId | MoonId
+
 /** 航线端点：地球 / 资源星 / 补给站站点 */
 export type Endpoint =
   | { kind: 'earth' }
@@ -90,6 +99,8 @@ export interface SimResearchLine {
 
 export interface PendingCard {
   line: ResearchLineId
+  /** 卡生成时刻（仿真秒）：15s 自动收纳倒计时基准，重开不重置 */
+  since: number
   choices: CardId[]
 }
 
@@ -171,6 +182,8 @@ export interface SimState {
   research: SimResearchLine[]
   overclocked: ResearchLineId[]
   pendingCard: PendingCard | null
+  /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳（待卡不弃，HUD 徽标重开） */
+  hexHiddenAt: number | null
   /** 选卡排队（多线同时满进度） */
   cardQueue: ResearchLineId[]
   gravity: { phase: 'idle' | 'warn' | 'active'; timer: number }

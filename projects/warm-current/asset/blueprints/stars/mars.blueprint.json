@@ -1,0 +1,23 @@
+{
+  "name": "MarsActor",
+  "baseClass": "MarsActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 34,
+        "color": "#e8926f",
+        "name": "MarsMesh"
+      }
+    }
+  ],
+  "children": []
+}

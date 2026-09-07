@@ -22,7 +22,7 @@
 |---|---|
 | [`system_overview.md`](./system_overview.md) | **系统总览**：引擎 13 域 / 编辑器 4 二级目录 + 4 store / 项目 5 个 / 资产 5 类的架构索引 |
 
-## 2. 引擎模块（src/engine/，13 篇）
+## 2. 引擎模块（src/engine/，21 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -31,6 +31,9 @@
 | [`engine/rendering_system.md`](./engine/rendering_system.md) | 渲染系统：ThreeObjectFactory 造对象 / SceneRendererComponent 每帧合成 / 相机族与 UICamera 双层 |
 | [`engine/ui_system.md`](./engine/ui_system.md) | 世界 UI：UIManager / HUD / UI 控件组件 |
 | [`engine/ui_canvas_component.md`](./engine/ui_canvas_component.md) | CanvasUIComponent 组件：画布渲染 + hitTest 命中测试 |
+| [`engine/ui_control_components.md`](./engine/ui_control_components.md) | UI 控件组件：UIImage/UIText/UITextInput 三个基础视觉控件 |
+| [`engine/ui_layout_components.md`](./engine/ui_layout_components.md) | UI 布局与容器：UILayout/UIMask/UIScrollContainer 排列/裁剪/滚动 |
+| [`engine/ui_world_anchor_script.md`](./engine/ui_world_anchor_script.md) | 世界锚定与脚本：UIWorldAnchor/UIScript/TroikaFontPreload |
 | [`engine/input_system.md`](./engine/input_system.md) | 输入系统：InputSys / InputComponent / PlayerController 输入路由 |
 | [`engine/physics_system.md`](./engine/physics_system.md) | 物理与点击：PhySys / ClickableComponent / ColliderComponent 射线与碰撞 |
 | [`engine/script_system.md`](./engine/script_system.md) | 脚本系统：ScriptRegistry / BehaviourScript / UIScriptComponent |
@@ -38,9 +41,14 @@
 | [`engine/ai_system.md`](./engine/ai_system.md) | AI 事件系统：AIModule 事件总线（MCP 控制游戏） |
 | [`engine/gm_system.md`](./engine/gm_system.md) | GM 命令系统：*.gm.ts 自动注册 + 游戏内控制台 |
 | [`engine/navigation_system.md`](./engine/navigation_system.md) | 导航系统：NavGrid 栅格阻挡表 + A\* 寻路（只算路不走路） |
+| [`engine/audio_system.md`](./engine/audio_system.md) | 音频系统：AudioSys WebAudio 三总线 + 程序化合成音效 + 3D 衰减 |
+| [`engine/gameplay_components.md`](./engine/gameplay_components.md) | gameplay 通用组件：HealthComponent 血量结算 + StateMachineComponent 表驱动 FSM |
+| [`engine/physics_character_controller.md`](./engine/physics_character_controller.md) | 碰撞体三兄弟（Box/Circle/Capsule）+ 第三人称角色控制器（移动/跳跃/翻滚） |
+| [`engine/rendering_components.md`](./engine/rendering_components.md) | 渲染组件族：灯光 actor 化 / CPU 粒子 / Blob 假阴影 / 跟随相机与屏震 |
+| [`engine/save_slot_component.md`](./engine/save_slot_component.md) | 存档组件：KV 内存表 + 手动/自动落盘 IPC + 浏览器内存降级 |
 | [`engine/ursina_reference.md`](./engine/ursina_reference.md) | Ursina 参考文档（涉及 API 兼容性设计时参考） |
 
-## 3. 编辑器模块（src/editor/ + src/components/，15 篇）
+## 3. 编辑器模块（src/editor/ + src/components/，18 篇）
 
 > **15 篇全部为新范式**：开篇三问 → 真实源码逐段讲解 → 关键方法速查（带行号）→ 流程影响（带文档链接）→ 踩坑清单。范本见 [core/core_system.md](./editor/core/core_system.md)，规范见 `.github/skills/skl-write-doc/SKILL.md` §3.1。
 
@@ -60,12 +68,13 @@
 | [`blueprint/blueprint_edit_system.md`](./editor/blueprint/blueprint_edit_system.md) | 蓝图编辑：BlueprintEditorService / blueprintOps / UndoManager |
 | [`blueprint/undo_redo_system.md`](./editor/blueprint/undo_redo_system.md) | 蓝图编辑器撤销/重做系统设计 |
 
-### 3.3 asset（预览与检查，2 篇）
+### 3.3 asset（预览与检查，3 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`asset/asset_preview_lint_system.md`](./editor/asset/asset_preview_lint_system.md) | 资产预览与检查：PreviewManagers / assetLint |
 | [`asset/code_lint_system.md`](./editor/asset/code_lint_system.md) | 代码扫描检查：CodeLintEngine / TS 源码规则检查器 |
+| [`asset/config_edit_model.md`](./editor/asset/config_edit_model.md) | 配置编辑数据模型：段检测 / 纯函数表格编辑 / 类型强转 / 撤销衔接 |
 
 ### 3.4 ui（面板与 UI 增强，6 篇）
 
@@ -78,12 +87,13 @@
 | [`ui/ui_source_format_system.md`](./editor/ui/ui_source_format_system.md) | UI HTML 源格式：.widget.html 编译/反编译 + 双向同步 + MCP ui_compile |
 | [`ui/ui_widget_html_manual.md`](./editor/ui/ui_widget_html_manual.md) | UI Widget HTML 编写手册（作者版）：只写 HTML+CSS 前端，编译器自动映射；标签/CSS 白名单、布局配方、禁区清单 |
 
-### 3.5 integration（外部集成，2 篇）
+### 3.5 integration（外部集成，3 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`integration/mcp_integration.md`](./editor/integration/mcp_integration.md) | MCP 集成与调试桥：三客户端配置 / 9 个工具清单 / 多实例端口 |
 | [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 |
+| [`integration/electron_main_ipc.md`](./editor/integration/electron_main_ipc.md) | Electron 主进程与 IPC：启动编排 / 30+ 通道清单 / 往返模式 / DSH 状态机 |
 
 ---
 
@@ -139,7 +149,7 @@
 
 ## 统计
 
-7 个模块共 **48 篇功能文档 + 1 篇元文档 + 1 篇开发方案**：总览 1 / 引擎 13 / 编辑器 16（core 4 / blueprint 2 / asset 2 / ui 6 / integration 2）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1 / 开发方案 1。
+7 个模块共 **58 篇功能文档 + 1 篇元文档 + 1 篇开发方案**：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1 / 开发方案 1。
 
 > **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**（dashboard_panel_system.md 新建时即按新范式编写，累计 48 篇）——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
 >

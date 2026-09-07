@@ -1,7 +1,7 @@
 {
   "name": "HexModal",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-8e96c312",
+  "sourceHash": "fnv1a-ece4c45c",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -514,7 +514,11 @@
                             "fontSize": 24,
                             "color": "#7fdcff",
                             "align": "center",
-                            "bold": true
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -564,7 +568,11 @@
                             "height": 170,
                             "fontSize": 20,
                             "color": "#7fe0a0",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -614,7 +622,11 @@
                             "height": 110,
                             "fontSize": 20,
                             "color": "#ff8f7a",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -733,7 +745,11 @@
                                 "fontSize": 22,
                                 "color": "#3d2600",
                                 "align": "center",
-                                "bold": true
+                                "bold": true,
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
                               }
                             }
                           ],
@@ -843,7 +859,11 @@
                             "fontSize": 24,
                             "color": "#7fdcff",
                             "align": "center",
-                            "bold": true
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -893,7 +913,11 @@
                             "height": 170,
                             "fontSize": 20,
                             "color": "#7fe0a0",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -943,7 +967,11 @@
                             "height": 110,
                             "fontSize": 20,
                             "color": "#ff8f7a",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1062,7 +1090,11 @@
                                 "fontSize": 22,
                                 "color": "#3d2600",
                                 "align": "center",
-                                "bold": true
+                                "bold": true,
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
                               }
                             }
                           ],
@@ -1172,7 +1204,11 @@
                             "fontSize": 24,
                             "color": "#7fdcff",
                             "align": "center",
-                            "bold": true
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1222,7 +1258,11 @@
                             "height": 170,
                             "fontSize": 20,
                             "color": "#7fe0a0",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1272,7 +1312,11 @@
                             "height": 110,
                             "fontSize": 20,
                             "color": "#ff8f7a",
-                            "align": "center"
+                            "align": "center",
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1391,7 +1435,11 @@
                                 "fontSize": 22,
                                 "color": "#3d2600",
                                 "align": "center",
-                                "bold": true
+                                "bold": true,
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
                               }
                             }
                           ],
@@ -1449,13 +1497,17 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "研究冻结中 · 其余系统照常运转",
+                    "text": "研究冻结中 · 15s 后自动收纳（待选 +1，可随时重开）",
                     "name": "HexHint",
                     "width": 780,
                     "height": 36,
                     "fontSize": 20,
                     "color": "#6f8ba0",
-                    "align": "center"
+                    "align": "center",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
                   }
                 }
               ],

@@ -1,0 +1,24 @@
+{
+  "name": "SunActor",
+  "baseClass": "SunActor",
+  "components": [
+    {
+      "baseClass": "TransformComponent",
+      "properties": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    },
+    {
+      "baseClass": "SphereMeshComponent",
+      "properties": {
+        "radius": 96,
+        "color": "#ffb347",
+        "kind": "basic",
+        "name": "SunMesh"
+      }
+    }
+  ],
+  "children": []
+}

@@ -7,7 +7,7 @@
  * 星图布局用画布坐标（1920×1080，y 向下），与渲染/拾取约定一致。
  */
 import { ConfigRegistry } from '@/engine'
-import type { ResearchLineId, StarId } from './types'
+import type { PlanetId, ResearchLineId, StarId } from './types'
 
 // ─── 类型 ───
 
@@ -56,6 +56,14 @@ export interface CardDef {
 export const MAP_W = 1920
 export const MAP_H = 1080
 
+/** 地图系 → 世界系（XZ 地面；渲染/拾取/相机/GM 共用换算） */
+export const toWX = (mx: number): number => mx - MAP_W / 2
+export const toWZ = (my: number): number => my - MAP_H / 2
+
+/** 太阳系取景天体清单（sol GM 命令与 focusSolarSystem 共用，天体增减只改此处） */
+export const SOLAR_FOCUS_BODIES = ['sun', 'earth', 'moon', 'europa', 'mars'] as const
+export type SolarFocusBody = (typeof SOLAR_FOCUS_BODIES)[number]
+
 /** 配色（模块 10 §2） */
 export const COLORS = {
   bg0: '#0a1822',
@@ -74,7 +82,7 @@ export const COLORS = {
 
 export const B = {
   // 全局
-  earthH3Start: 1000,
+  earthH3Start: 800,
   baseBurnPerLeg: 20,
   baseLegSeconds: 6,
   loadSeconds: 2,
@@ -83,14 +91,14 @@ export const B = {
   startNodes: 1,
   researchNodeCap: 11,
   totalNodes: 12,
-  nodeInterval: 100,
+  nodeInterval: 130,
   runningRateBonus: 1.25,
   overclockRateMult: 1.5,
-  overclockCostPerS: 5,
-  bufferSeconds: 30,
+  overclockCostPerS: 6,
+  bufferSeconds: 24,
   continuityRecoverRate: 20,
   initialShips: 3,
-  shipBuildCost: 150,
+  shipBuildCost: 180,
   shipBuildTime: 15,
   cargoBase: 200,
   shipRebuildCost: 150,
@@ -101,6 +109,8 @@ export const B = {
   moduleLegSeconds: 36,
   moduleLoadSeconds: 3,
   moduleUnloadSeconds: 3,
+  /** 海克斯三选一自动收纳（秒）：显示满 15s 未选 → 弹窗隐藏，待卡不弃可重开 */
+  hexAutoCloseSeconds: 15,
   // 资源星
   stars: {
     moon: { id: 'moon', name: '月球', load: 200, dist: 1.0, unlockAct: 1 },
@@ -111,7 +121,7 @@ export const B = {
   nodeBurn: [2.0, 2.8, 3.8, 5.0, 6.5, 8.0, 9.5, 11.0, 12.3, 13.6, 14.8, 16.0],
   // 事件
   gravity: { period: 90, warn: 10, active: 20, speedMult: 2.0, fuelMult: 0.5 },
-  flare: { minInterval: 120, maxInterval: 180, duration: 15, warnLead: 10, firstDelay: 60 },
+  flare: { minInterval: 100, maxInterval: 150, duration: 20, warnLead: 10, firstDelay: 60 },
   // 补给站
   station: {
     buildMaterials: 300,
@@ -126,11 +136,36 @@ export const B = {
     hitTolerance: 28,
     routeHitDistance: 14,
     nodes: {
-      earth: { x: 960, y: 600, r: 52 },
-      moon: { x: 1340, y: 430, r: 36 },
-      europa: { x: 380, y: 300, r: 42 },
-      mars: { x: 1750, y: 850, r: 48 },
-    } as Record<'earth' | StarId, MapNodeCfg>,
+      // 太阳：恒星本体 + 聚能环圆心（非航线端点，仅取景/环布局用；可被 star_map 配置覆盖）
+      // 布局圆心 = 画布中心（世界系原点），轨道圈以真实比例展开
+      sun: { x: 960, y: 540, r: 96 },
+      // 八大行星（水金地木土天海；t=0 初相位 = 方位角，ω ∝ 1/轨道半径；日心距单调递增）
+      // 轨道半径 = 真实半长轴（AU）× 250px（地球 = 1 AU）：
+      //   水 0.387→97 / 金 0.723→181 / 地 1→250 / 火 1.524→381 /
+      //   木 5.203→1301 / 土 9.537→2384 / 天 19.19→4797 / 海 30.07→7517
+      // 行星半径（显示）保持游戏化尺寸，未按真实比例（否则不可见）
+      mercury: { x: 932, y: 447, r: 11 },
+      venus: { x: 1131, y: 599, r: 17 },
+      earth: { x: 960, y: 790, r: 38 },
+      mars: { x: 1230, y: 271, r: 34 },
+      jupiter: { x: -296, y: 877, r: 46 },
+      saturn: { x: 3263, y: 1158, r: 40 },
+      uranus: { x: -3674, y: -703, r: 24 },
+      neptune: { x: 8418, y: -407, r: 23 },
+      // 卫星布局锚点（相对 parent 布局点的初相位；距 parent 必须 = moons[id].radius）
+      // moon/earth 与 europa/jupiter 随 parent 平移，相对方位与旧版一致（moon 东侧 / europa 正上）
+      moon: { x: 1080, y: 790, r: 17 },
+      europa: { x: -296, y: 801, r: 30 },
+    } as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
+    /** 卫星配置：parent（行星）+ 轨道半径（px）；布局锚点距 parent 必须 = radius（开局不脱环） */
+    moons: {
+      moon: { parent: 'earth', radius: 120 },
+      europa: { parent: 'jupiter', radius: 76 },
+    } as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
+    /** 装饰行星中文名（非资源星，纯标注） */
+    planetNames: {
+      mercury: '水星', venus: '金星', jupiter: '木星', saturn: '土星', uranus: '天王星', neptune: '海王星',
+    } as Record<PlanetId, string | undefined>,
   },
   // 卡库（refreshBalanceFromConfigs 时由 warm-current.cards 表覆盖；空表回退 DEFAULT_CARDS）
   cards: [] as CardDef[],
@@ -176,7 +211,7 @@ export function refreshBalanceFromConfigs(): void {
       'runningRateBonus', 'overclockRateMult', 'overclockCostPerS', 'bufferSeconds',
       'continuityRecoverRate', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'act2Nodes', 'act3Nodes', 'act3SurviveSeconds',
-      'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
+      'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds', 'hexAutoCloseSeconds',
     ])
   } catch { /* 未注册 → 默认值 */ }
 
