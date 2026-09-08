@@ -1,7 +1,7 @@
 {
   "name": "ViewLoading",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-35d2f601",
+  "sourceHash": "fnv1a-038800c2",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -172,7 +172,11 @@
                     "color": "#cfe3ee",
                     "align": "center",
                     "bold": true,
-                    "letterSpacing": 12
+                    "letterSpacing": 12,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
                   }
                 }
               ],

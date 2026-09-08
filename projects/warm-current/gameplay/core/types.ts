@@ -84,7 +84,8 @@ export interface SimBuilding {
   invested: number
 }
 
-export type ResearchLineId = 'engine' | 'cargo' | 'ring' | 'infra' | 'expand'
+/** 研究线 id（2026-09-08 环线移除：聚能环建设独立成 RingBuildComponent，科研四线） */
+export type ResearchLineId = 'engine' | 'cargo' | 'infra' | 'expand'
 
 export interface SimResearchLine {
   id: ResearchLineId
@@ -99,8 +100,6 @@ export interface SimResearchLine {
 
 export interface PendingCard {
   line: ResearchLineId
-  /** 卡生成时刻（仿真秒）：15s 自动收纳倒计时基准，重开不重置 */
-  since: number
   choices: CardId[]
 }
 
@@ -137,6 +136,8 @@ export interface SimLedger {
   demolishRefund: number
   /** 聚能环焚烧（持续） */
   ringBurn: number
+  /** 聚能环建设计费（持续，按建设点数 × 每点每秒单价；脱离科研的独立流） */
+  ringBuild: number
   /** 研究点数计费（持续，按各线已分配点数合计 × 每点每秒单价） */
   research: number
   /** 舰队维护费（持续，按船队规模查 fleet_maint 阶梯） */
@@ -154,6 +155,7 @@ export interface SimLedger {
 export type SimEventType =
   | 'route_built'
   | 'route_deleted'
+  | 'node_built'
   | 'ship_built'
   | 'ship_rebuilt'
   | 'unload'
@@ -199,14 +201,16 @@ export interface SimState {
   act: 1 | 2 | 3
   /** 已解锁节点数 = 覆盖交点数 */
   nodes: number
+  /** 聚能环建设（脱离科研的独立流）：建设点数（默认 1、最低 1，ring_build 配置表可调） */
+  ringBuild: { points: number }
+  /** 聚能环建设进度 0..1（当前交点；满 1 → 交点 +1 归零） */
+  ringBuildProgress: number
   ships: SimShip[]
   routes: SimRoute[]
   /** 地图建筑（自由放置） */
   buildings: SimBuilding[]
   research: SimResearchLine[]
   pendingCard: PendingCard | null
-  /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳（待卡不弃，HUD 徽标重开） */
-  hexHiddenAt: number | null
   /** 选卡排队（多线同时满进度） */
   cardQueue: ResearchLineId[]
   gravity: { phase: 'idle' | 'warn' | 'active'; timer: number }
@@ -242,6 +246,8 @@ export interface SimMods {
   otherLoadAdd: number
   /** 单节点消耗乘区（节能/tradeoff 叠乘） */
   burnMult: number
+  /** 聚能环建设计费乘区（环网扩容卡 −25%，叠乘） */
+  ringBuildCostMult: number
   /** 缓冲衰减加秒（储备扩容 +5s/张） */
   bufferAdd: number
   /** 引力窗口加秒（引力延长 +5s/张） */

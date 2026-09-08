@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SimStateComponent — 仿真状态持有组件（GameMode 上的组件位）
  *
  * 持有 SimState 纯数据 + 事件队列 + 确定性 rng；快照/重试本幕/沙盒/派生查询。
@@ -56,7 +56,13 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return s.research.reduce((sum, l) => sum + l.points, 0) * B.researchPointCostPerS
   }
 
-  /** 已分配研究点总数（五线合计） */
+  /** 聚能环建设计费（吨/秒）：建设点数 × 每点单价 × 计费乘区（环网扩容卡）；储量耗尽（断环）停建停费 */
+  get ringBuildCost(): number {
+    const s = this.state
+    return s.earthH3 > 0 ? s.ringBuild.points * B.ringBuild.costPerS * s.mods.ringBuildCostMult : 0
+  }
+
+  /** 已分配研究点总数（四线合计） */
   get allocatedResearchPoints(): number {
     return this.state.research.reduce((sum, l) => sum + l.points, 0)
   }
@@ -68,9 +74,9 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return Math.max(0, ringLevelOf(s.nodes, researchMax).level - this.allocatedResearchPoints)
   }
 
-  /** 当前总需求（焚烧 + 研究点计费，衰减期为 0） */
+  /** 当前总需求（焚烧 + 研究点计费 + 建设计费，衰减期为 0） */
   get demand(): number {
-    return this.state.ring === 'running' ? this.burnRate + this.researchCost : 0
+    return this.state.ring === 'running' ? this.burnRate + this.researchCost + this.ringBuildCost : 0
   }
 
   get idleShips(): number {

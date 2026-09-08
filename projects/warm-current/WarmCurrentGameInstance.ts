@@ -51,10 +51,12 @@ export interface WarmCurrentDebugBridge {
   rebuildShip(shipId: number): boolean
   /** 研究点分配（delta = +1 分配 / −1 回收；科研面板 +/− 同款回调） */
   allocateResearch(line: string, delta: 1 | -1): boolean
+  /** 聚能环建设点数分配（delta = +1 / −1；环详情面板 +/− 同款回调） */
+  allocateBuildPoints(delta: 1 | -1): boolean
+  /** 把建设进度直接推满（e2e/GM 用；下帧 tickBuild 结算交点 +1） */
+  forceBuild(): void
   forceResearch(): string | null
   chooseCardByIndex(i: number): boolean
-  /** 重开自动收纳的海克斯弹窗（HUD 徽标同款回调） */
-  reopenHexModal(): boolean
   setNodes(n: number): void
   setH3(v: number): void
   /** 建筑系统（building 表驱动）：放置（x/y 画布系，内部网格吸附）/ 拆除 / 选中 */
@@ -339,9 +341,13 @@ export class WarmCurrentGameInstance extends GameInstance {
       rebuildShip: (shipId) => instance._gameMode?.transport.tryRebuildShip(shipId) ?? false,
       allocateResearch: (line, delta) =>
         instance._gameMode?.research.allocateResearch(line as import('./gameplay/core/types').ResearchLineId, delta) ?? false,
-      forceResearch: () => instance._gameMode?.research.forceResearch() ?? null,
+    forceResearch: () => instance._gameMode?.research.forceResearch() ?? null,
+    allocateBuildPoints: (delta) => instance._gameMode?.ringBuild.allocateBuildPoints(delta) ?? false,
+    forceBuild: () => {
+      const m = instance._gameMode
+      if (m) m.simState.state.ringBuildProgress = 1
+    },
       chooseCardByIndex: (i) => instance._gameMode?.chooseCardByIndex(i) ?? false,
-      reopenHexModal: () => instance._gameMode?.reopenHexModal() ?? false,
       setNodes: (n) => {
         const mode = instance._gameMode
         if (mode) mode.simState.state.nodes = Math.max(1, Math.min(12, Math.round(n)))

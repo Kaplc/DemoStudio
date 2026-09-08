@@ -24,12 +24,14 @@ export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
       // 储备归零同样触发缓冲衰减（维护费也是生存压力的一部分）
       const burn = this.sc.burnRate
       const rc = this.sc.researchCost
+      const bc = this.sc.ringBuildCost
       const maint = fleetMaintPerS(s.ships.length)
-      s.earthH3 -= (burn + rc + maint) * dt
+      s.earthH3 -= (burn + rc + bc + maint) * dt
       // 收支账本（统计面板）：持续项按速率×时长累计
       const led = s.ledger
       led.ringBurn += burn * dt
       led.research += rc * dt
+      led.ringBuild += bc * dt
       led.fleetMaint += maint * dt
       if (s.earthH3 <= 0) {
         s.earthH3 = 0

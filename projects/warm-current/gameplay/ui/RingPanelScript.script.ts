@@ -1,18 +1,16 @@
 /**
- * RingPanelScript — 聚能环信息面板行为脚本（ring_panel.widget.json 根节点）
+ * RingPanelScript — 聚能环详情面板行为脚本（ring_panel.widget.json 根节点）
  *
- * 右上角常驻面板，集中展示聚能环相关状态（原散在 HUD 顶栏的交点数迁入此处）：
- *  - 状态徽标：运转（橙）/ 衰减（红闪语义由文本+颜色表达）/ 已建成（绿）
- *  - 等级行：聚能环等级 Lv/25 + 全球覆盖度（= 交点/12）+ 升级进度条
- *    （五线研究最靠前进度，随时间连续推进、选卡冻结；满级 Lv25 = 全球组网）
- *  - 交点进度条（0-12，UIProgressBarComponent 驱动 Fill）
- *  - 延续度条（0-100%）+ 缓冲条（running 时显示剩余缓冲秒数占比）
- *  - 净流估算 / 需求-储量行 / 危险警示行（danger 时红色提示）
+ * 2026-09-08 改版（用户拍板：聚能环建设脱离科研）：
+ *  - 独立 widget 居中大面板（对齐 ResearchPanel 520x442 居中规格），底部 HUD「聚能环」入口
+ *    toggleCenterPanel 开关，面板内「✕ 关闭」收起（ResearchPanel 同款 open/close）
+ *  - 新增建设控制区：交点建设进度条（建设流 = 交点解锁唯一来源）+ 建设点数 +/−（默认 1、最低 1）
+ *    + 每点 H3 计费速率显示；点数下限提示走 toast（GameMode.hint）
+ *  - 保留原有状态徽标/等级/交点/延续度/缓冲/净流/危险警示展示
  * 数据全部来自 GameMode.buildViewModel()，0.15s 差分刷新（TextBinder/ColorBinder 避免逐帧重绘）。
- * 由 HudScript 一次 spawn（research_panel 同款惯例），自身自驱动，无按钮绑定。
  */
 import { BehaviourScript, UIProgressBarComponent, UIImageComponent, logger } from '@/engine'
-import { ColorBinder, TextBinder, VisBinder, findChild, findText, wcMode } from './uiCommon'
+import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
 
 /** 聚能环面板 widget 资产路径（HudScript spawn 用） */
 export const RING_PANEL_WIDGET = 'asset/blueprints/ui/ring_panel.widget.json'
@@ -31,9 +29,53 @@ export default class RingPanelScript extends BehaviourScript {
   private colors = new ColorBinder()
   private vis = new VisBinder()
   private acc = 0.15
+  /** 面板开合状态（默认收起，HudScript 底部入口读取 isOpen 决定 open/close） */
+  private openState = false
+
+  /** 面板当前是否展开（HudScript 底部入口按钮读取） */
+  get isOpen(): boolean { return this.openState }
 
   override onStart(): void {
-    logger.info('[RingPanelScript] 聚能环信息面板就绪（右上角常驻）')
+    const mode = wcMode()
+    if (!mode) logger.warn('[RingPanelScript] GameMode 未就绪')
+    // 默认收起（脚本置位 + 编译产物默认态双保险）
+    this.openState = false
+    this.applyVisible()
+    const bind = (name: string, fn: () => void): void => {
+      const btn = findButton(this.actor, name)
+      if (btn) btn.onClick = fn
+    }
+    // 面板内 ✕ 关闭（对齐 ResearchPanel 惯例）
+    bind('Btn_panel_close', () => {
+      this.openState = false
+      this.applyVisible()
+      logger.info('[RingPanelScript] 聚能环详情面板收起（面板内关闭）')
+    })
+    // 建设点数 +/−（min 封底由组件内 hint 提示）
+    bind('Btn_build_inc', () => wcMode()?.ringBuild.allocateBuildPoints(1))
+    bind('Btn_build_dec', () => wcMode()?.ringBuild.allocateBuildPoints(-1))
+    logger.info('[RingPanelScript] 聚能环详情面板就绪（默认收起，底部入口开关）')
+  }
+
+  /** 应用显隐：Panel 整树开关 */
+  private applyVisible(): void {
+    this.vis.set(this.actor, 'Panel', this.openState)
+  }
+
+  /** 打开面板（HudScript 底部入口调用） */
+  open(): void {
+    if (this.openState) return
+    this.openState = true
+    this.applyVisible()
+    logger.info('[RingPanelScript] 聚能环详情面板打开')
+  }
+
+  /** 关闭面板 */
+  close(): void {
+    if (!this.openState) return
+    this.openState = false
+    this.applyVisible()
+    logger.info('[RingPanelScript] 聚能环详情面板关闭')
   }
 
   override onUpdate(dt: number): void {
@@ -63,7 +105,7 @@ export default class RingPanelScript extends BehaviourScript {
       this.colors.set(stateText, STATE_RUNNING_COLOR)
     }
 
-    // ─── 等级行：聚能环等级 Lv/25 + 全球覆盖度 + 升级进度（研究随时间推进，选卡冻结） ───
+    // ─── 等级行：聚能环等级 Lv/25 + 全球覆盖度 ───
     const lv = vm.ringLevel
     const levelText = findText(this.actor, 'LevelText')
     const coverage = `${Math.round(lv.coverage * 100)}%`
@@ -79,6 +121,16 @@ export default class RingPanelScript extends BehaviourScript {
     // ─── 交点进度条 ───
     this.binder.set(findText(this.actor, 'NodesText'), `交点 ${vm.nodes}/12`)
     this.setProgress('NodesBar', vm.nodes, 12)
+
+    // ─── 建设控制区：交点建设进度 + 点数 +/− + 计费速率 ───
+    this.binder.set(findText(this.actor, 'BuildText'), `建设 ${(vm.ringBuildProgress * 100).toFixed(0)}%`)
+    this.setProgress('BuildBar', vm.ringBuildProgress, 1)
+    const pts = findText(this.actor, 'BuildPtsText')
+    this.binder.set(pts, `建设 ${vm.ringBuildPoints} 点`)
+    this.colors.set(pts, vm.ringBuildPoints <= vm.ringBuildMin ? IDLE_COLOR : '#ffe9a8')
+    const cost = findText(this.actor, 'BuildCostText')
+    this.binder.set(cost, `${vm.ringBuildCost.toFixed(1)}/s · ${vm.ringBuildRate > 0 ? `${(vm.ringBuildRate * 100).toFixed(1)}%/s` : '停建'}`)
+    this.colors.set(cost, vm.ringBuildRate > 0 ? '#7fdcff' : WARN_COLOR)
 
     // ─── 延续度（0-100%） ───
     const cont = Math.max(0, Math.min(100, Math.round(vm.continuity)))

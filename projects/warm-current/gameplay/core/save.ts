@@ -2,21 +2,26 @@
  * WarmCurrent 存档领域逻辑（三槽位，纯函数，无 IO）
  *
  * 模型对齐引擎 SaveSlotComponent 的 KV 约定：
- *  - 每个槽位一个 JSON 文件（projects/warm-current/data/slot{1..3}.json），
+ *  每个槽位一个 JSON 文件（projects/warm-current/data/slot{1..3}.json），
  *    文件内容 = { [SAVE_KEY]: SaveSlotPayload }
  *  - 游戏状态以 SimState 深快照整体进 payload（SimStateComponent.snapshot/restore 同源）
  *  - 读档恢复 rng：SimState.seed 落在状态里，mulberry32(seed) 重放
  * 纯函数无引擎类依赖（除 KVValue 类型），单测可脱离 World 直接覆盖。
  */
 import type { KVValue } from '@/engine'
+import { B } from './balance'
 import { deepSnapshot, freshLedger, mulberry32 } from './helpers'
 import type { SimState } from './types'
 
 /** 存档格式版本（payload 结构变更时 +1，读档兼容处理依据）。
  *  v2：SimState.stations（旧补给站）→ SimState.buildings（自由放置建筑，无法映射，旧档站点丢弃）。
  *  v3：研究点数制（超频下线）——SimState.research[].points 新增（旧档补 0）、
- *      SimLedger.overclock 改名 research（旧档缺失字段按 0 兜底）。 */
-export const SAVE_FORMAT_VERSION = 3
+ *      SimLedger.overclock 改名 research（旧档缺失字段按 0 兜底）。
+ *  v4：海克斯弹卡暂停（2026-09-08 拍板）——hexHiddenAt/自动收纳下线（旧档读入时清字段）。
+ *  v5：聚能环建设脱离科研（2026-09-08）——ringBuild/ringBuildProgress 新增（旧档补默认 1 点/0 进度）、
+ *      SimLedger.ringBuild 计费项新增（freshLedger 合并兜底）。
+ *  v6：环线移除（2026-09-08）——科研 5 线 → 4 线，旧档 research 残留环线行读入时过滤。 */
+export const SAVE_FORMAT_VERSION = 6
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -129,11 +134,25 @@ export function restoreSimState(
   // 旧档残留 kind:'station' 航线端点 → endpointPos/buildingByEndpoint 兜底回地球，不炸渲染
   if (!Array.isArray((sim as Partial<SimState>).buildings)) sim.buildings = []
   // v2→v3 兼容（研究点数制）：旧档研究线无 points 字段 → 补 0（未分配任何点数）
+  // v5→v6 兼容（环线移除）：旧档残留环线行 → 过滤（环线职责已并入聚能环建设流）
   if (Array.isArray(sim.research)) {
+    sim.research = sim.research.filter((l) => (l.id as string) !== 'ring')
     for (const line of sim.research) {
       if (typeof line.points !== 'number' || !Number.isFinite(line.points)) line.points = 0
     }
   }
+  // v3→v4 兼容（弹卡暂停）：hexHiddenAt/自动收纳机制下线 → 清旧档残留字段；
+  // pendingCard.since（自动收纳倒计时基准）同批删除，弹窗不再有超时概念
+  delete (sim as unknown as Record<string, unknown>).hexHiddenAt
+  if (sim.pendingCard && typeof sim.pendingCard === 'object') {
+    delete (sim.pendingCard as unknown as Record<string, unknown>).since
+  }
+  // v4→v5 兼容（聚能环建设脱离科研）：旧档无 ringBuild/ringBuildProgress → 补默认点数/0 进度
+  const rb = (sim as Partial<SimState>).ringBuild
+  if (!rb || typeof rb !== 'object' || typeof (rb as { points?: number }).points !== 'number') {
+    sim.ringBuild = { points: B.ringBuild.defaultPoints }
+  }
+  if (typeof (sim as Partial<SimState>).ringBuildProgress !== 'number') sim.ringBuildProgress = 0
   // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
   // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键
   sim.ledger = { ...freshLedger(), ...(typeof sim.ledger === 'object' && sim.ledger !== null ? sim.ledger : {}) }

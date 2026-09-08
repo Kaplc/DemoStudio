@@ -2314,6 +2314,58 @@ function isCdpPortGhosted(port: number): boolean {
   }
 }
 
+/**
+ * 窗口全关退出前清理 CDP 调试端口残留（与 isCdpPortGhosted 成对：启动时绕开、退出时清扫）：
+ * - 属主为带 --remote-debugging-port 的浏览器（手动启动的调试 Chrome 不随编辑器退出）→ taskkill 进程树
+ * - 属主已死的幽灵 socket → 用户态无法强制回收（监听句柄被继承后原 PID 消失，内核要等所有
+ *   句柄副本关闭才释放），记 warn 留痕；下次启动 isCdpPortGhosted 会自动绕开
+ * 仅扫 LISTENING 属主，不碰既有连接的客户端进程；全程同步执行，必须先于 process.exit(0) 完成。
+ */
+function cleanupCdpPortOnExit(port: number): void {
+  if (process.platform !== 'win32') return
+  try {
+    const out = execSync('netstat -ano -p tcp', { encoding: 'utf8', timeout: 5000, windowsHide: true })
+    const pids = new Set<number>()
+    for (const line of out.split('\n')) {
+      // 行形如：TCP    127.0.0.1:9222    0.0.0.0:0    LISTENING    30688
+      const cols = line.trim().split(/\s+/)
+      if (cols.length < 5 || cols[3] !== 'LISTENING') continue
+      if (!new RegExp(`:${port}$`).test(cols[1])) continue
+      const pid = Number(cols[4])
+      // 排除自身：本实例的调试监听随进程退出自然释放，无需处理
+      if (pid > 0 && pid !== process.pid) pids.add(pid)
+    }
+    for (const pid of pids) {
+      let alive = true
+      try {
+        process.kill(pid, 0) // 探活：进程存在（EPERM 同样视为存活）
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EPERM') alive = false
+      }
+      if (!alive) {
+        console.warn(`[main] 退出清理：${port} 上的幽灵 socket（属主 PID ${pid} 已死）无法用户态回收，重启系统后释放`)
+        continue
+      }
+      try {
+        const cmdline = execSync(
+          `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine"`,
+          { encoding: 'utf8', timeout: 8000, windowsHide: true },
+        ).trim()
+        if (/(chrome|msedge)\.exe/i.test(cmdline) && /--remote-debugging-port=\d+/.test(cmdline)) {
+          console.log(`[main] 退出清理：终止残留调试浏览器 PID ${pid}，释放 ${port}`)
+          execSync(`taskkill /PID ${pid} /T /F`, { encoding: 'utf8', timeout: 5000, windowsHide: true })
+        } else {
+          console.warn(`[main] 退出清理：${port} 仍被存活进程 PID ${pid} 监听（非调试浏览器，不清理）`)
+        }
+      } catch (err) {
+        console.warn(`[main] 退出清理：PID ${pid} 处置失败：${err}`)
+      }
+    }
+  } catch (err) {
+    console.warn(`[main] 退出清理 CDP 端口 ${port} 失败：${err}`)
+  }
+}
+
 // 开启远程调试端口（Playwright/CDP 可连接已有实例）
 // 仅在启动参数未显式指定调试端口时追加：外部调试工具（如 Playwright electron.launch 传
 // --remote-debugging-port=0 走 pipe 模式）会自带该参数，无条件覆盖会与运行中实例的 9222
@@ -2343,6 +2395,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   // 注销本实例心跳，断开 mux WS。agent 为孤儿进程独立运行，编辑器退出不影响。
   stopDSHService()
+  // 退出前清扫 CDP 端口残留：杀掉遗留的调试浏览器进程树，避免下次启动撞上幽灵 socket / 假监听
+  cleanupCdpPortOnExit(9222)
   // process.exit(0) 强制立即退出，避免 Vite dev server 的文件监听/WS 等异步句柄拖住 bat 窗口
   process.exit(0)
 })

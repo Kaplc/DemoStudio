@@ -1,10 +1,10 @@
-/**
+﻿/**
  * helpers — 纯逻辑工具（对 SimState 的纯函数 + 初始状态工厂）
  *
  * core 铁律：这里全部是无状态纯函数（或纯数据工厂），不依赖引擎对象，
  * 便于单测与快照。带 B 的数值读取（balance 运行时单例，配置表可覆盖）。
  */
-import { B, MAP_H, MAP_W } from './balance'
+import { B, MAP_H, MAP_W, toWX, toWZ } from './balance'
 import type { BuildingDef, CardDef } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
@@ -23,13 +23,13 @@ export function mulberry32(seed: number): () => number {
   }
 }
 
-/** 研究线定义（初始进度错峰，避免首波五卡齐发） */
-export const LINE_DEFS: Array<{ id: ResearchLineId; name: string; init: number }> = [
-  { id: 'engine', name: '引擎线', init: 0.0 },
-  { id: 'cargo', name: '货舱线', init: 0.12 },
-  { id: 'ring', name: '环线', init: 0.24 },
-  { id: 'infra', name: '基建线', init: 0.36 },
-  { id: 'expand', name: '扩张线', init: 0.48 },
+/** 研究线定义（纯点数驱动：无初始进度，进度全由分配的研究点推进）；
+ *  2026-09-08 环线移除（用户拍板）：聚能环建设/计费已独立成 RingBuildComponent，环线职责清空 */
+export const LINE_DEFS: Array<{ id: ResearchLineId; name: string }> = [
+  { id: 'engine', name: '引擎线' },
+  { id: 'cargo', name: '货舱线' },
+  { id: 'infra', name: '基建线' },
+  { id: 'expand', name: '扩张线' },
 ]
 
 // ─── 聚能环等级（模块 03 §5：交点 1:1 绑定覆盖，等级阶梯随研究/交点连续爬升） ───
@@ -45,7 +45,7 @@ export interface RingLevelInfo {
   maxed: boolean
   /** 全球覆盖度 0..1（= 已覆盖交点 / totalNodes，物理值随交点跳升） */
   coverage: number
-  /** 升级进度 0..1（距下一级；五线研究最靠前进度驱动，随时间连续推进、选卡冻结；满级恒 1） */
+  /** 升级进度 0..1（距下一级；四线研究最靠前进度驱动，随时间连续推进、选卡冻结；满级恒 1） */
   progress: number
 }
 
@@ -74,14 +74,17 @@ export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo 
 }
 
 /**
- * 单线研究推进速率（进度/秒）：
- * 基础 1/nodeInterval × 环运转加成 × 点数加成（每点 +researchPointRateAdd，加算）
- * × 生长修正（卡效果）；断环或储量耗尽时点数加成失效（无 H3 支撑），只保留基础速率。
+ * 单线研究推进速率（进度/秒）：**纯点数驱动**（2026-09-08 用户拍板，废弃被动推进）：
+ * 无点数速率为 0（研究完全靠分配点数，每点也是一份持续 H3 计费）；有点数时
+ * 速率 = 基础 1/nodeInterval × 环运转加成 × 点数加成（每点 +researchPointRateAdd，加算）
+ * × 生长修正（卡效果）；断环或储量耗尽时点数加成失效（无 H3 支撑），速率为 0。
  */
 export function researchRateOf(line: SimResearchLine, state: SimState): number {
+  if (line.points <= 0) return 0
   const powered = state.ring === 'running' && state.earthH3 > 0
-  const runningBonus = state.ring === 'running' ? B.runningRateBonus : 1
-  const pointMult = powered ? 1 + line.points * B.researchPointRateAdd : 1
+  if (!powered) return 0
+  const runningBonus = B.runningRateBonus
+  const pointMult = 1 + line.points * B.researchPointRateAdd
   return (1 / B.nodeInterval) * runningBonus * pointMult * line.nextMult
 }
 
@@ -89,6 +92,21 @@ export function researchRateOf(line: SimResearchLine, state: SimState): number {
 export function researchCostOf(line: SimResearchLine, state: SimState): number {
   const powered = state.ring === 'running' && state.earthH3 > 0
   return powered ? line.points * B.researchPointCostPerS : 0
+}
+
+// ─── 聚能环建设（脱离科研的独立流，模块 03 §5 物理层） ───
+
+/**
+ * 聚能环建设推进速率（交点进度/秒）：纯点数驱动（最低 1 点常转）。
+ * 速率 = 1/nodeInterval × 环运转加成 × (1 + points×rateAdd)；
+ * 储量耗尽完全停建（无燃料支撑工程）。配置表 ring_build.config.json 全字段可调。
+ * （计费速率消费方走 SimStateComponent.ringBuildCost，含 mods.ringBuildCostMult 乘区）
+ */
+export function ringBuildRateOf(state: SimState): number {
+  if (state.earthH3 <= 0) return 0
+  const runningBonus = B.runningRateBonus
+  const pointMult = 1 + state.ringBuild.points * B.ringBuild.rateAdd
+  return (1 / B.ringBuild.nodeInterval) * runningBonus * pointMult
 }
 
 // ─── 太阳系公转（位置 = 仿真时间的纯函数：确定性、快照/重放安全） ───
@@ -194,6 +212,57 @@ export function earthPos(state: SimState): { x: number; y: number } {
   return starPosAt(state, 'earth')
 }
 
+// ─── 行星系视角隐藏天体 Actor 隔离（点击判定 = 真实 Actor 世界位置，隐藏 = 移远 = 点不到） ───
+
+/**
+ * 天体 Actor 的"隔离点"（每帧 syncFrom 的目标位置）：
+ *  - 太阳系全景（solar）：世界系 = 地图系平移，返回 starPosAt 实时公转位置（世界系）
+ *  - 行星系（聚焦某行星）：坐标系 = 舞台相对系（舞台 = 太阳位/世界原点，镜头钉死舞台，
+ *    渲染 systemGroup 内容与指针拾取均按舞台系反算地图坐标）：
+ *      聚焦行星 + 其卫星（moons 配置）→ 舞台相对位（聚焦行星钉在舞台中心，
+ *        卫星按真实相对几何绕它转——与旧 ox/oz 舞台补偿数学完全等价）
+ *      太阳 → 舞台锚点 (0,0)（渲染层隐藏 + 点击 pickable 拒绝，Actor 原地钉死防飞掠相机）
+ *      其余隐藏天体 → 布局锚方位 × 隔离半径 12000（相机 panLimit 9000 拉不到，
+ *        Actor 物理不可点；方向取布局锚相对太阳的方位，舞台系下方向不变）
+ *
+ * 纯函数（确定性/快照安全）：只读 B 与 state.time，不依赖引擎对象。
+ */
+export function hiddenActorIsolated(
+  state: SimState,
+  body: SolarBodyId,
+  viewMode: 'solar' | 'earth',
+  focus: PlanetId,
+): { x: number; z: number } {
+  if (viewMode === 'solar') {
+    const p = starPosAt(state, body)
+    return { x: toWX(p.x), z: toWZ(p.y) }
+  }
+  const fp = starPosAt(state, focus)
+  const fx = toWX(fp.x)
+  const fz = toWZ(fp.y)
+  const family = new Set<string>([focus])
+  for (const [mid, mc] of Object.entries(B.map.moons)) {
+    if (mc.parent === focus) family.add(mid)
+  }
+  if (family.has(body)) {
+    // 本系成员：舞台相对位（聚焦行星钉在舞台中心，卫星按真实相对几何贴放）
+    const p = starPosAt(state, body)
+    return { x: toWX(p.x) - fx, z: toWZ(p.y) - fz }
+  }
+  // 太阳 = 舞台锚点（世界原点）：镜头钉死在舞台，太阳若甩远景会造飞掠相机，原地隐藏
+  if (body === 'sun') return { x: 0, z: 0 }
+  // 其余隐藏天体：布局锚（卫星用 parent）方位 × 隔离半径——各星向各自方位甩出，
+  // 距舞台 12000 ≥ 相机 panLimit 9000 + 最大视野半径余量，行星系视角物理不可点
+  const anchor = body in B.map.moons
+    ? B.map.nodes[B.map.moons[body as keyof typeof B.map.moons].parent]
+    : B.map.nodes[body as PlanetId]
+  const dx = anchor.x - B.map.nodes.sun.x
+  const dy = anchor.y - B.map.nodes.sun.y
+  const len = Math.hypot(dx, dy) || 1
+  const ISO_R = 12000
+  return { x: (dx / len) * ISO_R, z: (dy / len) * ISO_R }
+}
+
 let nextRouteId = 1
 let nextBuildingId = 1
 let nextShipId = 1
@@ -214,7 +283,7 @@ export function makeShip(index: number): SimShip {
 export function freshMods(): SimState['mods'] {
   return {
     fuelMult: 1, speedMult: 1, cargoMult: 1, moonLoadAdd: 0, otherLoadAdd: 0,
-    burnMult: 1, bufferAdd: 0, gravityAdd: 0, recoverMult: 1,
+    burnMult: 1, ringBuildCostMult: 1, bufferAdd: 0, gravityAdd: 0, recoverMult: 1,
     flareWarning: false, fleetBonus: 0,
   }
 }
@@ -222,7 +291,7 @@ export function freshMods(): SimState['mods'] {
 /** 全零账本（新局 / 旧存档兜底） */
 export function freshLedger(): SimLedger {
   return {
-    unload: 0, demolishRefund: 0, ringBurn: 0, research: 0, fleetMaint: 0,
+    unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0,
     shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0,
   }
 }
@@ -231,7 +300,7 @@ export function freshLedger(): SimLedger {
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
   const income = l.unload + l.demolishRefund
-  const expense = l.ringBurn + l.research + l.fleetMaint + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
+  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
   return { income, expense, net: income - expense }
 }
 
@@ -249,13 +318,13 @@ export function createInitialState(seed: number): SimState {
     bufferTotal: B.bufferSeconds,
     act: 1,
     nodes: B.startNodes,
+    ringBuild: { points: B.ringBuild.defaultPoints },
+    ringBuildProgress: 0,
     ships,
     routes: [],
     buildings: [],
-    research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: d.init, nextMult: 1, points: 0 })),
+    research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: 0, nextMult: 1, points: 0 })),
     pendingCard: null,
-    /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳待重开（待卡不弃） */
-    hexHiddenAt: null,
     cardQueue: [],
     gravity: { phase: 'idle', timer: B.gravity.period - B.gravity.warn - B.gravity.active },
     flare: { phase: 'idle', timer: 0, nextIn: Number.POSITIVE_INFINITY },

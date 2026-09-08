@@ -54,6 +54,8 @@ export type CardType = 'unlock' | 'upgrade'
 
 export interface CardEffects {
   fuelMult?: number; speedMult?: number; cargoMult?: number; burnMult?: number; recoverMult?: number
+  /** 聚能环建设计费乘区（环网扩容 0.75，叠乘） */
+  ringBuildCostMult?: number
   moonLoadAdd?: number; otherLoadAdd?: number; bufferAdd?: number; gravityAdd?: number; fleetBonus?: number
   flareWarning?: boolean
   /** 本次点亮交点数（双生节点=2，缺省 1） */
@@ -122,6 +124,17 @@ export const B = {
   researchPointRateAdd: 0.5,
   /** 研究点数计费：每点每秒消耗 H3（吨/秒/点；断环或储量耗尽不计费不加成） */
   researchPointCostPerS: 3,
+  /** 聚能环建设（脱离科研的独立流，ring_build.config.json 可覆盖）：
+   *  defaultPoints = 开局默认建设点数；minPoints = 最低保留点数（回收封底）；
+   *  rateAdd = 每点对建设速率的加算倍率；costPerS = 每点每秒 H3 计费；
+   *  nodeInterval = 1 交点基准建设时长（秒）。断环（=储量耗尽）完全停建停费，无衰减乘区。 */
+  ringBuild: {
+    defaultPoints: 1,
+    minPoints: 1,
+    rateAdd: 0.5,
+    costPerS: 2,
+    nodeInterval: 100,
+  },
   bufferSeconds: 24,
   continuityRecoverRate: 20,
   initialShips: 3,
@@ -144,20 +157,16 @@ export const B = {
   moduleLegSeconds: 36,
   moduleLoadSeconds: 3,
   moduleUnloadSeconds: 3,
-  /** 海克斯三选一自动收纳（秒）：显示满 15s 未选 → 弹窗隐藏，待卡不弃可重开 */
-  hexAutoCloseSeconds: 15,
   // 资源星
   stars: {
     moon: { id: 'moon', name: '月球', load: 200, dist: 1.0, unlockAct: 1 },
     europa: { id: 'europa', name: '木卫二', load: 600, dist: 3.0, unlockAct: 2 },
     mars: { id: 'mars', name: '火星', load: 1500, dist: 6.0, unlockAct: 3 },
   } as Record<StarId, StarBalance>,
-  // 等级焚烧表（下标 = 聚能环等级 − 1）：等级提升 → H3 消耗指数增长
-  // 指数曲线 burn(l) = 2.0 × (16/2)^((l-1)/24)：Lv1(开局1交点)=2.0 → Lv25(满级12交点全球组网)=16.0，每级 ≈ +9.05%
-  levelBurn: [
-    2, 2.18, 2.38, 2.59, 2.83, 3.08, 3.36, 3.67, 4, 4.36, 4.76, 5.19,
-    5.66, 6.17, 6.73, 7.34, 8, 8.72, 9.51, 10.37, 11.31, 12.34, 13.45, 14.67, 16,
-  ],
+  // 等级焚烧表（下标 = 聚能环等级 − 1）：等级提升 → H3 消耗每一级翻倍
+  // 指数曲线 burn(l) = 2^l：Lv1(开局1交点)=2 → Lv25(满级12交点全球组网)=2^25，每一级都是上一级的翻倍（×2）
+  // 与 asset/config/level_burn.table.json 双写同步（tests/warm_level_burn.test.ts 锁定）
+  levelBurn: Array.from({ length: 25 }, (_, i) => 2 ** (i + 1)),
   // 事件
   gravity: { period: 90, warn: 10, active: 20, speedMult: 2.0, fuelMult: 0.5 },
   flare: { minInterval: 100, maxInterval: 150, duration: 20, warnLead: 10, firstDelay: 60 },
@@ -219,12 +228,10 @@ export const DEFAULT_CARDS: CardDef[] = [
   { id: 'moon_enrich', name: '月球富集', type: 'upgrade', line: 'engine', gain: '月球单船满载 +50', cost: '其他星满载 −10', effects: { moonLoadAdd: 50, otherLoadAdd: -10 } },
   { id: 'cargo_expand', name: '扩容货舱', type: 'upgrade', line: 'cargo', gain: '单船货舱 +20%', cost: '单船油耗 +10%', effects: { cargoMult: 1.2, fuelMult: 1.1 } },
   { id: 'fleet_expand', name: '扩编船队', type: 'upgrade', line: 'cargo', gain: '飞船 +1（立即入列空闲池）', cost: '单节点消耗 +5%', effects: { fleetBonus: 1, burnMult: 1.05 } },
-  { id: 'ring_saving', name: '环节能', type: 'upgrade', line: 'ring', gain: '单节点消耗 −10%', cost: '环线下次生长 −15%', effects: { burnMult: 0.9, nextGrowth: { line: 'ring', mult: 0.85 } } },
-  { id: 'reserve_expand', name: '储备扩容', type: 'upgrade', line: 'ring', gain: '缓冲衰减期 +5 秒（临终喘息更长）', cost: '单节点消耗 +4%', effects: { bufferAdd: 5, burnMult: 1.04 } },
-  { id: 'thermal_redundancy', name: '恒温冗余', type: 'upgrade', line: 'ring', gain: '补燃料后延续度回升速度 ×2', cost: '单节点消耗 +3%', effects: { recoverMult: 2, burnMult: 1.03 } },
+  // 2026-09-08 环线移除：环线卡（ring_saving/reserve_expand/thermal_redundancy）下线
   { id: 'gravity_extend', name: '引力延长', type: 'upgrade', line: 'infra', gain: '引力窗口 +5 秒', cost: '单节点消耗 +2%', effects: { gravityAdd: 5, burnMult: 1.02 } },
   { id: 'growth_accel', name: '生长加速', type: 'upgrade', line: 'expand', gain: '本线下一个节点进度条提速 +50%', cost: '单节点消耗 +6%', effects: { nextGrowth: { line: 'self', mult: 1.5 }, burnMult: 1.06 } },
-  { id: 'twin_node', name: '双生节点', type: 'upgrade', line: 'expand', gain: '本次节点额外 +1 覆盖段', cost: '本线下次生长 −20%', effects: { extraNodes: 2, nextGrowth: { line: 'self', mult: 0.8 } } },
+  { id: 'twin_node', name: '环网扩容', type: 'upgrade', line: 'expand', gain: '聚能环建设计费 −25%（施工更省 H3）', cost: '本线下次生长 −20%', effects: { ringBuildCostMult: 0.75, nextGrowth: { line: 'self', mult: 0.8 } } },
 ]
 
 // ─── 配置覆盖 ───
@@ -243,15 +250,24 @@ function assignNumeric(target: Record<string, unknown>, src: Record<string, unkn
  */
 export function refreshBalanceFromConfigs(): void {
   try {
-    const g = ConfigRegistry.getConfig<Record<string, number>>('warm-current.global')
+    const g = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.global')
     assignNumeric(B as unknown as Record<string, unknown>, g, [
       'earthH3Start', 'baseBurnPerLeg', 'baseLegSeconds', 'loadSeconds', 'unloadSeconds',
       'dangerReserveSeconds', 'startNodes', 'researchNodeCap', 'totalNodes', 'ringLevels', 'nodeInterval',
       'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'bufferSeconds',
       'continuityRecoverRate', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'act2Nodes', 'act3Nodes', 'act3SurviveSeconds',
-      'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds', 'hexAutoCloseSeconds',
+      'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
     ])
+  // 聚能环建设参数（独立配置表 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底）
+  try {
+    const rbCfg = ConfigRegistry.getConfig<Record<string, number>>('warm-current.ring_build')
+    if (rbCfg) {
+      for (const k of ['defaultPoints', 'minPoints', 'rateAdd', 'costPerS', 'nodeInterval'] as const) {
+        if (typeof rbCfg[k] === 'number') (B.ringBuild as unknown as Record<string, number>)[k] = rbCfg[k]
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
   } catch { /* 未注册 → 默认值 */ }
 
   try {

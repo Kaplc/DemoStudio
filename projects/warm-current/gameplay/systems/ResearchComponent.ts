@@ -1,8 +1,9 @@
-/**
+﻿/**
  * ResearchComponent — 聚能环多线研究组件（模块 03/05）
  *
- * 5 线并行推进（环运转加成 + 研究点数提速 + 下一节点生长修正）→ 节点达成弹
- * 海克斯三选一（研究冻结、其余系统照常）→ 选卡数据驱动应用 effects。
+ * 4 线并行推进（环运转加成 + 研究点数提速 + 下一节点生长修正）→ 节点达成弹
+ * 海克斯三选一（2026-09-08 改版：弹卡即整体暂停仿真，选卡恢复；本组件内
+ * pendingCard 自冻结保留为双保险防御）→ 选卡数据驱动应用 effects。
  *
  * 研究点数：聚能环每升 1 级得 1 点（含开局 Lv1），科研面板 +/− 按钮分配到线；
  * 点数越多该线推进越快，同时按点数持续消耗 H3（断环/储量耗尽时加成与计费一并失效）。
@@ -24,7 +25,7 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   tickResearch(dt: number): void {
     const s = this.sc.state
-    // 海克斯选卡期间：仅冻结研究推进，其余系统照常
+    // 海克斯选卡期间：GameMode.Tick 门已整体冻结仿真，此处自冻结为双保险防御
     if (s.pendingCard) return
     if (s.nodes >= B.researchNodeCap) return
     for (const line of s.research) {
@@ -40,7 +41,6 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
       if (line) line.progress = 0
       s.pendingCard = {
         line: lineId,
-        since: s.time,
         choices: drawCards(lineId, s.takenCards, s.mods.flareWarning, this.sc.rng),
       }
       this.sc.emit({ type: 'card_pending', text: LINE_DEFS.find((d) => d.id === lineId)?.name })
@@ -60,6 +60,7 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (fx.speedMult !== undefined) s.mods.speedMult *= fx.speedMult
     if (fx.cargoMult !== undefined) s.mods.cargoMult *= fx.cargoMult
     if (fx.burnMult !== undefined) s.mods.burnMult *= fx.burnMult
+    if (fx.ringBuildCostMult !== undefined) s.mods.ringBuildCostMult *= fx.ringBuildCostMult
     if (fx.recoverMult !== undefined) s.mods.recoverMult *= fx.recoverMult
     // 加法
     if (fx.moonLoadAdd !== undefined) s.mods.moonLoadAdd += fx.moonLoadAdd
@@ -80,8 +81,9 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
       const line = s.research.find((l) => l.id === target)
       if (line) line.nextMult *= fx.nextGrowth.mult
     }
-    // 节点推进（twin_node extraNodes=2 → 本节点+额外 1 段）
-    const gained = fx.extraNodes ?? 1
+    // 节点推进：2026-09-08 改版——交点解锁双流叠加（本处选卡恒 +1 保底解锁；
+    // 建设流 RingBuildComponent.tickBuild 独立持续推进），twin_node 的 extraNodes 批量效果已废弃
+    const gained = 1
     s.nodes = Math.min(B.researchNodeCap, s.nodes + gained)
     const line = s.research.find((l) => l.id === lineId)
     if (line) line.progress = 0

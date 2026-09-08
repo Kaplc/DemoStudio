@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentHud",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-4146a2ed",
+  "sourceHash": "fnv1a-caf02d4f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1101,145 +1101,9 @@
           "children": []
         },
         {
-          "name": "Btn_hex",
-          "baseClass": "Actor",
-          "id": 13219,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 230,
-                "worldHeight": 46,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  16,
-                  -84
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UILayoutComponent",
-              "properties": {
-                "mode": "horizontal",
-                "spacingX": 0,
-                "spacingY": 0,
-                "justify": "center",
-                "align": "center",
-                "autoLayout": true
-              }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": {
-                "stateColors": {
-                  "hover": {
-                    "color": "#6f5216"
-                  },
-                  "pressed": {
-                    "color": "#80621c"
-                  }
-                }
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#5a4210",
-                "radius": 10,
-                "width": 230,
-                "height": 46,
-                "name": "Btn_hex"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "Label_hex",
-              "baseClass": "Actor",
-              "id": 13220,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 220,
-                    "worldHeight": 32,
-                    "position": [
-                      0,
-                      0,
-                      0
-                    ]
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UITextComponent",
-                  "properties": {
-                    "text": "✦ 待选海克斯 +1",
-                    "name": "Label_hex",
-                    "width": 220,
-                    "height": 32,
-                    "fontSize": 19,
-                    "color": "#ffd9a8",
-                    "align": "center",
-                    "bold": true,
-                    "shadowColor": "#00000066",
-                    "shadowOffsetX": 1,
-                    "shadowOffsetY": 1,
-                    "shadowBlur": 4
-                  }
-                }
-              ],
-              "children": [],
-              "sourceLayout": {
-                "flexShrink": 0
-              }
-            }
-          ]
-        },
-        {
           "name": "Btn_mission",
           "baseClass": "Actor",
-          "id": 13221,
+          "id": 13219,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1312,7 +1176,7 @@
             {
               "name": "Label_mission",
               "baseClass": "Actor",
-              "id": 13222,
+              "id": 13220,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1369,7 +1233,7 @@
         {
           "name": "BottomBar",
           "baseClass": "Actor",
-          "id": 13223,
+          "id": 13221,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1384,7 +1248,7 @@
                   1,
                   1
                 ],
-                "worldWidth": 962,
+                "worldWidth": 1102,
                 "worldHeight": 60,
                 "anchor": "bottom-center",
                 "anchorOffset": [
@@ -1412,7 +1276,7 @@
               "properties": {
                 "color": "#0e1a24e8",
                 "radius": 14,
-                "width": 962,
+                "width": 1102,
                 "height": 60,
                 "name": "BottomBar"
               }
@@ -1422,7 +1286,7 @@
             {
               "name": "Btn_build",
               "baseClass": "Actor",
-              "id": 13224,
+              "id": 13222,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1440,7 +1304,7 @@
                     "worldWidth": 130,
                     "worldHeight": 44,
                     "position": [
-                      -400,
+                      -470,
                       0,
                       0
                     ]
@@ -1493,7 +1357,7 @@
                 {
                   "name": "Label_bar",
                   "baseClass": "Actor",
-                  "id": 13225,
+                  "id": 13223,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -1553,7 +1417,7 @@
             {
               "name": "Btn_transport",
               "baseClass": "Actor",
-              "id": 13226,
+              "id": 13224,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1571,7 +1435,7 @@
                     "worldWidth": 130,
                     "worldHeight": 44,
                     "position": [
-                      -258,
+                      -328,
                       0,
                       0
                     ]
@@ -1624,7 +1488,7 @@
                 {
                   "name": "Label_bar_2",
                   "baseClass": "Actor",
-                  "id": 13227,
+                  "id": 13225,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -1684,7 +1548,7 @@
             {
               "name": "Btn_routes",
               "baseClass": "Actor",
-              "id": 13228,
+              "id": 13226,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1702,7 +1566,7 @@
                     "worldWidth": 130,
                     "worldHeight": 44,
                     "position": [
-                      -116,
+                      -186,
                       0,
                       0
                     ]
@@ -1755,7 +1619,7 @@
                 {
                   "name": "Label_bar_3",
                   "baseClass": "Actor",
-                  "id": 13229,
+                  "id": 13227,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -1815,7 +1679,7 @@
             {
               "name": "Btn_research",
               "baseClass": "Actor",
-              "id": 13230,
+              "id": 13228,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1833,7 +1697,7 @@
                     "worldWidth": 180,
                     "worldHeight": 44,
                     "position": [
-                      51,
+                      -19,
                       0,
                       0
                     ]
@@ -1886,7 +1750,7 @@
                 {
                   "name": "Label_research",
                   "baseClass": "Actor",
-                  "id": 13231,
+                  "id": 13229,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -1944,6 +1808,137 @@
               ]
             },
             {
+              "name": "Btn_ring",
+              "baseClass": "Actor",
+              "id": 13230,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 130,
+                    "worldHeight": 44,
+                    "position": [
+                      148,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "horizontal",
+                    "spacingX": 0,
+                    "spacingY": 0,
+                    "justify": "center",
+                    "align": "center",
+                    "autoLayout": true
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "stateColors": {
+                      "hover": {
+                        "color": "#27506e"
+                      },
+                      "pressed": {
+                        "color": "#2f6284"
+                      }
+                    }
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#1d3a52",
+                    "radius": 10,
+                    "width": 130,
+                    "height": 44,
+                    "name": "Btn_ring"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Label_bar_4",
+                  "baseClass": "Actor",
+                  "id": 13231,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 118,
+                        "worldHeight": 30,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "聚能环",
+                        "name": "Label_bar_4",
+                        "width": 118,
+                        "height": 30,
+                        "fontSize": 20,
+                        "color": "#7fdcff",
+                        "align": "center",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": [],
+                  "sourceLayout": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            },
+            {
               "name": "ResearchBadge",
               "baseClass": "Actor",
               "id": 13232,
@@ -1964,7 +1959,7 @@
                     "worldWidth": 280,
                     "worldHeight": 30,
                     "position": [
-                      293,
+                      365,
                       0,
                       0
                     ]

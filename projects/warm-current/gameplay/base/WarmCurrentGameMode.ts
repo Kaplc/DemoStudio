@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WarmCurrentGameMode — 游戏规则胶水（hoi4 base/ 架构位）
  *
  * 仿真子系统全部做成 GameMode 上的引擎组件（对齐 SpawnComponent/CameraComponent 惯例）：
@@ -9,6 +9,7 @@
  * 建筑模式（buildMode）下指针变为放置：网格吸附预览 + 点击落位（Esc 取消，优先于暂停菜单）。
  * 太阳系取景：SolarCameraActor 云台（滚轮缩放 + 右键/边缘平移）+ sol GM 命令聚焦天体。
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
+ * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
 import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger } from '@/engine'
 import { makeStarTexture } from '../map/starTextures'
@@ -21,7 +22,7 @@ import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
   alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
-  fleetMaintPerS, moonRelativeAngle, resetMoonPhaseAdj, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
+  fleetMaintPerS, hiddenActorIsolated, moonRelativeAngle, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
   routeNetPerTrip, starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
@@ -35,6 +36,7 @@ import { SimStateComponent } from '../systems/SimStateComponent'
 import { TransportComponent } from '../systems/TransportComponent'
 import { EconomyComponent } from '../systems/EconomyComponent'
 import { ResearchComponent } from '../systems/ResearchComponent'
+import { RingBuildComponent } from '../systems/RingBuildComponent'
 import { HazardsComponent } from '../systems/HazardsComponent'
 import { BuildingsComponent } from '../systems/BuildingsComponent'
 import { ActsComponent } from '../systems/ActsComponent'
@@ -140,7 +142,7 @@ export interface WarmCurrentVM {
   bufferTotal: number
   reserve: number
   demand: number
-  /** 研究点数计费速率（H3/秒，五线合计；断环/储量耗尽为 0） */
+  /** 研究点数计费速率（H3/秒，四线合计；断环/储量耗尽为 0） */
   researchCost: number
   netFlow: number
   danger: boolean
@@ -152,10 +154,16 @@ export interface WarmCurrentVM {
   fleet: { total: number; idle: number; flying: number; frozen: number; building: number; buildRemain: number; maintPerS: number }
   /** H3 收支账本（对局累计 + income/expense/net 合计，统计面板消费） */
   ledger: SimLedger & { income: number; expense: number; net: number }
-  /** 五线研究行（points = 已分配点数，rate = 该线当前 H3 消耗速率） */
+  /** 四线研究行（points = 已分配点数，rate = 该线当前 H3 消耗速率） */
   research: Array<{ id: string; name: string; progress: number; points: number; rate: number }>
   /** 可用研究点（聚能环等级 − 已分配，科研面板 +/− 分配） */
   researchUnspent: number
+  /** 聚能环建设（脱离科研的独立流：详情面板消费） */
+  ringBuildPoints: number
+  ringBuildProgress: number
+  ringBuildCost: number
+  ringBuildRate: number
+  ringBuildMin: number
   pending: { lineName: string; cards: CardDef[] } | null
   routeInfo: HudRouteInfo | null
   buildingInfo: HudBuildingInfo | null
@@ -186,6 +194,8 @@ export class WarmCurrentGameMode extends GameMode {
   readonly transport: TransportComponent = this.addComponent(TransportComponent)
   readonly economy: EconomyComponent = this.addComponent(EconomyComponent)
   readonly research: ResearchComponent = this.addComponent(ResearchComponent)
+  /** 聚能环建设（脱离科研的独立流：交点解锁/建设点数/计费） */
+  readonly ringBuild: RingBuildComponent = this.addComponent(RingBuildComponent)
   readonly hazards: HazardsComponent = this.addComponent(HazardsComponent)
   /** 地图建筑（建造面板选型 → 星图自由放置） */
   readonly buildings: BuildingsComponent = this.addComponent(BuildingsComponent)
@@ -290,7 +300,8 @@ export class WarmCurrentGameMode extends GameMode {
   override Tick(dt: number): void {
     super.Tick(dt)
     const s = this.simState.state
-    if (!this.paused && (s.outcome === 'playing' || s.sandbox)) {
+    // 弹卡暂停：pendingCard 挂起期间仿真整体冻结（选卡即恢复，无跳过选项）
+    if (!this.paused && !s.pendingCard && (s.outcome === 'playing' || s.sandbox)) {
       this.sim.runTick(dt * this.timeScale)
     }
     this.drainEvents()
@@ -301,22 +312,17 @@ export class WarmCurrentGameMode extends GameMode {
     this.fx.floats = this.fx.floats.filter((f) => f.age < 1.4)
     for (const t of this.toasts) t.age += dt
     this.toasts = this.toasts.filter((t) => t.age < 3.6)
-    // 天体位置自驱动（蓝图 Actor：位置 = starPosAt 纯函数 + 自转；暂停时 dt=0 只保持位置）
-    // 行星系视角的渲染坐标变换：聚焦行星钉在舞台中心（像太阳一样固定），其余天体按与它的
-    // 真实相对位置贴放（卫星像行星一样绕它转）——纯显示变换，仿真数据不动
+    // 天体位置自驱动（蓝图 Actor：位置 = hiddenActorIsolated 隔离点纯函数 + 自转；暂停时 dt=0 只保持位置）
+    // 行星系视角：聚焦行星 + 卫星按真实相对位置绕舞台中心（聚焦行星钉在舞台），
+    // 其余天体 Actor 本体移到远景隔离点（布局锚方位 × 12000）——渲染层本就将其
+    // visible=false 隐藏，Actor 移远后点击判定（收口真实 Actor 位置）自然点不到
     const sdt = this.paused ? 0 : dt * this.timeScale
-    if (this.viewMode === 'earth') {
-      const f = starPosAt(this.simState.state, this.planetFocusBody)
-      const stage = planetStageOffset(this.planetFocusBody as PlanetId)
-      const ox = stage.x - toWX(f.x)
-      const oz = stage.z - toWZ(f.y)
-      for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt, ox, oz)
-      // rig.target 已由 focusOn 一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
-      // rig.pan 成对移动 target 与相机，若只把 target 拉回舞台而相机留在原位，
-      // 下次拖拽的 lookAt 会把镜头掰向舞台中心——右键平移退化成绕行星旋转
-    } else {
-      for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt)
-    }
+    const vm = this.viewMode
+    const focus = this.planetFocusBody as PlanetId
+    for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt, vm, focus)
+    // rig.target 已由 focusOn 一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
+    // rig.pan 成对移动 target 与相机，若只把 target 拉回舞台而相机留在原位，
+    // 下次拖拽的 lookAt 会把镜头掰向舞台中心——右键平移退化成绕行星旋转
     this.starMap?.render(this.paused ? 0 : dt * this.timeScale, this.gameCamera.camera)
   }
 
@@ -360,6 +366,10 @@ export class WarmCurrentGameMode extends GameMode {
           if (unloadSounds++ < 2) audioSys.play('wc.unload', { volume: 0.5 })
           break
         case 'route_built': audioSys.play('wc.ok'); break
+        case 'node_built':
+          audioSys.play('wc.ok', { volume: 0.6 })
+          this.toast(`聚能环新交点点亮（${ev.value ?? 0}/12）`, '#7fdcff')
+          break
         case 'route_deleted': audioSys.play('wc.bad', { volume: 0.5 }); break
         case 'ship_built': this.toast('新船下水，已入列空闲池', '#b8ffd8'); break
         case 'ship_rebuilt': this.toast('冻毁飞船已重建', '#b8ffd8'); break
@@ -368,7 +378,9 @@ export class WarmCurrentGameMode extends GameMode {
           break
         case 'card_pending':
           audioSys.play('wc.card')
-          this.toast(`「${ev.text ?? ''}」节点达成 — 三选一（研究冻结中）`, '#ffb03d')
+          this.toast(`「${ev.text ?? ''}」节点达成 — 三选一（仿真暂停中）`, '#ffb03d')
+          // 弹卡即暂停：选卡前仿真冻结（Tick 门 + drainEvents 双保险）
+          this.paused = true
           break
         case 'card_chosen':
           this.toast(`已解锁「${ev.text ?? ''}」 · 环点亮新交点`, '#7fe0a0')
@@ -540,8 +552,9 @@ export class WarmCurrentGameMode extends GameMode {
   /** 太阳命中（点击聚焦取景，不参与航线端点/拖拽） */
   /**
    * 当前视图的世界位移（世界坐标 → 地图画布坐标须减去）：
-   * 行星系视角 = 舞台位移（stage - 聚焦行星画布系中心，与渲染 syncStage/StarActor.syncFrom 同口径）；
-   * 太阳系全景 = 0（世界原点即地图中心）。PlayerController 指针拾取共用，改口径须两边同步。
+   * 行星系视角 = 舞台位移（stage - 聚焦行星世界位置，与渲染 syncStage/StarActor.syncFrom
+   * 同口径——聚焦行星在隔离口径下恒钉在舞台中心，两者恒等）；太阳系全景 = 0
+   * （世界原点即地图中心）。PlayerController 指针拾取共用，改口径须两边同步。
    */
   viewStageOffset(): { x: number; z: number } {
     if (this.viewMode !== 'earth') return { x: 0, z: 0 }
@@ -550,7 +563,20 @@ export class WarmCurrentGameMode extends GameMode {
     return { x: stage.x - toWX(f.x), z: stage.z - toWZ(f.y) }
   }
 
+  /** 天体当前视图下是否可点（与渲染 visibleBodySet 同口径：行星系视角 = 聚焦行星 + 其卫星） */
+  private starActorPickable(body: SolarBodyId): boolean {
+    if (this.viewMode === 'solar') return true
+    const focus = this.planetFocusBody as PlanetId
+    if (body === focus) return true
+    const mc = B.map.moons[body as keyof typeof B.map.moons]
+    return !!mc && mc.parent === focus
+  }
+
+  /** 太阳命中（点击聚焦取景，不参与航线端点/拖拽）。
+   *  ⚠ 判定收口：行星系视角下太阳本体被渲染隐藏（sunMesh.visible=false），
+   *  Actor 虽钉在舞台锚（世界原点）但 pickable=false，不可点。 */
   private sunAt(p: { x: number; y: number }): boolean {
+    if (!this.starActorPickable('sun')) return false
     const s0 = B.map.nodes.sun
     return dist(p.x, p.y, s0.x, s0.y) <= s0.r + B.map.hitTolerance
   }
@@ -559,29 +585,45 @@ export class WarmCurrentGameMode extends GameMode {
   private lastPlanetClick: { body: PlanetId | null; t: number } = { body: null, t: 0 }
 
   /** 行星本体命中（含未解锁装饰行星；太阳与卫星不参与双击进入行星系）。
-   *  ⚠ 用 starPosAt 实时公转位置判定（渲染在哪就点哪）；布局坐标只在开局重合，玩一会儿必然 miss。 */
+   *  ⚠ 判定收口到"真实 Actor 世界位置"（行星系视角下隐藏天体 Actor 已移远景，
+   *  看不见 = 点不到；太阳系全景 Actor 全在公转位，渲染在哪就点哪）。 */
   private planetAt(p: { x: number; y: number }): PlanetId | null {
-    const s = this.simState.state
     for (const body of Object.keys(B.map.nodes) as Array<keyof typeof B.map.nodes>) {
       if (body === 'sun') continue
       if (B.map.moons[body as keyof typeof B.map.moons]) continue
-      const n = starPosAt(s, body)
-      if (dist(p.x, p.y, n.x, n.y) <= B.map.nodes[body].r + B.map.hitTolerance) return body as PlanetId
+      const pos = this.starActorWorldPos(body)
+      if (!pos) continue
+      if (dist(p.x, p.y, pos.x, pos.y) <= B.map.nodes[body].r + B.map.hitTolerance) return body as PlanetId
     }
     return null
+  }
+
+  /** 天体蓝图 Actor 的世界位置 → 星图画布坐标（Actor 不存在 = 蓝图生成失败，按同口径
+   *  隔离计算兜底：hiddenActorIsolated → 画布系减舞台位移，与 Actor 主分支同构——
+   *  行星系视角下隐藏天体兜底坐标同样远离地图画布 → 命中半径恒不覆盖）。 */
+  private starActorWorldPos(body: keyof typeof B.map.nodes): { x: number; y: number } | null {
+    const off = this.viewStageOffset()
+    const actor = this.starActors.get(body as StarBodyId)
+    if (!actor) {
+      const iso = hiddenActorIsolated(this.simState.state, body as SolarBodyId, this.viewMode, this.planetFocusBody as PlanetId)
+      return { x: iso.x + MAP_W / 2 - off.x, y: iso.z + MAP_H / 2 - off.z }
+    }
+    const root = actor.root
+    return { x: root.position.x + MAP_W / 2 - off.x, y: root.position.z + MAP_H / 2 - off.z }
   }
 
   private nodeAt(p: { x: number; y: number }): Endpoint | null {
     const s = this.simState.state
     for (const star of Object.values(B.stars)) {
       if (!this.transport.starUnlocked(star.id)) continue
-      const node = starPosAt(s, star.id)
-      if (dist(p.x, p.y, node.x, node.y) <= B.map.nodes[star.id].r + B.map.hitTolerance) {
+      const pos = this.starActorWorldPos(star.id)
+      if (!pos) continue
+      if (dist(p.x, p.y, pos.x, pos.y) <= B.map.nodes[star.id].r + B.map.hitTolerance) {
         return { kind: 'star', star: star.id }
       }
     }
-    const e = starPosAt(s, 'earth')
-    if (dist(p.x, p.y, e.x, e.y) <= B.map.nodes.earth.r + B.map.hitTolerance) return { kind: 'earth' }
+    const e = this.starActorWorldPos('earth')
+    if (e && dist(p.x, p.y, e.x, e.y) <= B.map.nodes.earth.r + B.map.hitTolerance) return { kind: 'earth' }
     return null
   }
 
@@ -832,25 +874,19 @@ export class WarmCurrentGameMode extends GameMode {
     return pack
   }
 
-  /** 海克斯选卡（脚本按钮回调） */
+  /** 海克斯选卡（脚本按钮回调）：选卡决策完成 → 解除弹卡暂停恢复运行 */
   chooseCardByIndex(i: number): boolean {
     const pend = this.simState.state.pendingCard
     if (!pend) return false
     const ok = this.research.chooseCard(pend.choices[i])
-    if (ok) audioSys.play('wc.ok', { volume: 0.8 })
+    if (ok) {
+      audioSys.play('wc.ok', { volume: 0.8 })
+      // 此前未手动暂停的局恢复运行（胜负终局/暂停菜单各自维持原冻结态）
+      const s = this.simState.state
+      if (s.outcome === 'playing' || s.sandbox) this.paused = false
+      logger.info('[WarmCurrent] 海克斯选卡完成，仿真恢复运行')
+    }
     return ok
-  }
-
-  /** 重开海克斯三选一弹窗（HUD 徽标回调）：仅在有 pendingCard 时有效（隐藏 ≠ 放弃，待卡不弃） */
-  reopenHexModal(): boolean {
-    const s = this.simState.state
-    if (!s.pendingCard) return false
-    if (s.hexHiddenAt === null) return true
-    s.hexHiddenAt = null
-    // 重开 = 新一轮决策窗口：倒计时基准刷新为当前时刻（否则超时很久后重开会一帧内被秒收）
-    s.pendingCard.since = s.time
-    logger.info('[WarmCurrent] 海克斯弹窗重开（待选继续，重新计时）')
-    return true
   }
 
   // ═══════════════════════════════════════════
@@ -870,8 +906,8 @@ export class WarmCurrentGameMode extends GameMode {
       maintPerS: fleetMaintPerS(s.ships.length),
     }
     const ledger = { ...s.ledger, ...ledgerTotals(s.ledger) }
-    // pending 折算：pendingCard 存在但已自动收纳（hexHiddenAt 非 null）时不进入 VM（弹窗隐藏）
-    const pending = s.pendingCard && s.hexHiddenAt === null
+    // pending 折算：弹卡即暂停且不再自动收纳，pendingCard 存在 = 弹窗可见
+    const pending = s.pendingCard
       ? {
           lineName: s.research.find((l) => l.id === s.pendingCard!.line)?.name ?? '',
           cards: s.pendingCard.choices
@@ -983,6 +1019,12 @@ export class WarmCurrentGameMode extends GameMode {
         rate: s.ring === 'running' && s.earthH3 > 0 ? l.points * B.researchPointCostPerS : 0,
       })),
       researchUnspent: sc.unspentResearchPoints,
+      // 聚能环建设（独立流）：点数/交点进度/计费/速率（面板 +/− 与进度条消费）
+      ringBuildPoints: s.ringBuild.points,
+      ringBuildProgress: s.ringBuildProgress,
+      ringBuildCost: sc.ringBuildCost,
+      ringBuildRate: ringBuildRateOf(s),
+      ringBuildMin: B.ringBuild.minPoints,
       pending,
       routeInfo,
       buildingInfo,

@@ -2,7 +2,9 @@
  * StatsPanelScript — H3 收支统计面板 widget 行为脚本（stats_panel.widget.json 根节点）
  *
  * 职责：
- *  - 默认隐藏（active=false），HudScript 顶栏「📊 收支统计」经居中互斥 toggleCenterPanel 调 open()/close()
+ *  - 默认隐藏（widget 种子不得带 active=false——bActive 级联会整树隐藏子树，
+ *    显隐唯一权威是脚本 root.visible），HudScript 顶栏「📊 收支统计」经居中互斥
+ *    toggleCenterPanel 调 open()/close()
  *  - 打开时 8Hz 差分同步 GameMode.buildViewModel().ledger（九项收支 + 收入/支出/净结余合计）
  *  - ✕ 关闭按钮 → close()
  */
@@ -17,6 +19,7 @@ const LEDGER_ROWS: Array<{ node: string; pick: (l: import('../core/types').SimLe
   { node: 'Val_unload', pick: (l) => l.unload },
   { node: 'Val_refund', pick: (l) => l.demolishRefund },
   { node: 'Val_ring', pick: (l) => l.ringBurn },
+  { node: 'Val_ringbuild', pick: (l) => l.ringBuild },
   { node: 'Val_research', pick: (l) => l.research },
   { node: 'Val_maint', pick: (l) => l.fleetMaint },
   { node: 'Val_build', pick: (l) => l.shipBuild },
@@ -43,7 +46,7 @@ export default class StatsPanelScript extends BehaviourScript {
   get isOpen(): boolean { return this.openState }
 
   override onStart(): void {
-    // 默认隐藏（与 seed json active=false 双保险，ReserveInfoScript 同款）
+    // 默认隐藏（种子无 active，脚本侧单保险收起；显隐唯一权威 = root.visible）
     this.actor.root.visible = false
     const btn = findButton(this.actor, 'Btn_close')
     if (btn) btn.onClick = () => this.close()

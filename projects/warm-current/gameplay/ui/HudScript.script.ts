@@ -1,10 +1,10 @@
-/**
+﻿/**
  * HudScript — 主 HUD 行为脚本（hud.widget.json 根节点）
  *
  * 职责：
  *  - 顶部状态栏（并入主 HUD）：时间/交点/储量摘要 + 暂停/倍速/重开 + 「储量详情」入口（开关 reserve_info widget）
- *  - 底部 bar：「建造」「运输」「航线」「☰ 科研」入口（前三个开关居中二级面板同屏互斥；航线为右侧独立面板）+ 科研徽标（均进度/船队概况）
- *  - 绑定海克斯重开徽标 / 选中面板（建站/升级/拆除）/ 火星任务按钮
+ *  - 底部 bar：「建造」「运输」「航线」「☰ 科研」「聚能环」入口（前两个 + 聚能环为居中二级面板同屏互斥；航线为右侧独立面板）+ 科研徽标（均进度/船队概况）
+ *  - 绑定火星任务按钮；海克斯三选一弹窗（hex_modal）由其脚本自驱动（弹卡即暂停，选卡恢复）
  *  - 8Hz 差分同步 GameMode.buildViewModel()（文本/颜色/可见性三 binder，避免逐帧重绘）
  *  - toast 队列渲染（mode.toasts 末 4 条）
  *  - 生成独立子 widget（一次生成，各自脚本自驱动）：
@@ -93,7 +93,6 @@ export default class HudScript extends BehaviourScript {
     }
     // 选中面板：无选中内容时整体隐藏（onUpdate 差分驱动显隐）
     this.vis.set(this.actor, 'SelPanel', false)
-    bind('Btn_hex', () => wcMode()?.reopenHexModal())
     bind('Btn_mission', () => wcMode()?.transport.startMarsMission())
     bind('Btn_demolish', () => {
       const m = wcMode()
@@ -122,11 +121,14 @@ export default class HudScript extends BehaviourScript {
     const buildEntry: CenterPanelEntry = { actor: () => this.buildPanel, is: (s) => s instanceof BuildPanelScript, label: '建造面板' }
     const transportEntry: CenterPanelEntry = { actor: () => this.transportPanel, is: (s) => s instanceof TransportPanelScript, label: '运输面板' }
     const statsEntry: CenterPanelEntry = { actor: () => this.statsPanel, is: (s) => s instanceof StatsPanelScript, label: '收支统计面板' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry]
+    // 聚能环详情面板（居中大面板，与其它居中面板同屏互斥）
+    const ringEntry: CenterPanelEntry = { actor: () => this.ringPanel, is: (s) => s instanceof RingPanelScript, label: '聚能环详情面板' }
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry]
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
     bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
     bind('Btn_transport', () => this.toggleCenterPanel(transportEntry))
     bind('Btn_stats', () => this.toggleCenterPanel(statsEntry))
+    bind('Btn_ring', () => this.toggleCenterPanel(ringEntry))
     // ─── 航线管理入口（右侧独立面板，不占居中区，不参与居中互斥） ───
     bind('Btn_routes', () => toggleSubPanel(this.routesPanel, s => s instanceof RoutesPanelScript, '航线管理面板'))
     // 独立子面板一次生成（各自脚本自驱动可见性）
@@ -134,7 +136,7 @@ export default class HudScript extends BehaviourScript {
     this.settleModal = this.world?.ui.spawnUIActor(SETTLE_WIDGET) ?? null
     if (!this.hexModal) logger.warn('[HudScript] hex_modal 生成失败')
     if (!this.settleModal) logger.warn('[HudScript] settle 生成失败')
-    // 科研二级面板（五线点数分配/船队明细，ResearchPanelScript 自驱动，默认收起）
+    // 科研二级面板（四线点数分配/船队明细，ResearchPanelScript 自驱动，默认收起）
     this.researchPanel = this.world?.ui.spawnUIActor(RESEARCH_PANEL_WIDGET) ?? null
     if (!this.researchPanel) logger.warn('[HudScript] research_panel 生成失败')
     // 建造二级面板（building 表驱动建筑行，BuildPanelScript 自驱动，默认收起）
@@ -152,7 +154,7 @@ export default class HudScript extends BehaviourScript {
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')
-    // 聚能环信息面板（右上角常驻：状态/交点/延续/缓冲/净流，RingPanelScript 自驱动）
+    // 聚能环详情面板（底部「聚能环」入口开关：状态/交点/建设点数/延续/缓冲/净流，RingPanelScript 自驱动）
     this.ringPanel = this.world?.ui.spawnUIActor(RING_PANEL_WIDGET) ?? null
     if (!this.ringPanel) logger.warn('[HudScript] ring_panel 生成失败')
     // 视角切换 widget 一次生成（右下角常驻，ViewToggleScript 自驱动选中态）
@@ -186,14 +188,6 @@ export default class HudScript extends BehaviourScript {
       vm.research.reduce((sum, l) => sum + l.progress, 0) / Math.max(1, vm.research.length) * 100,
     )
     this.binder.set(findText(this.actor, 'ResearchBadge'), `均 ${lineSum}% · 船 ${vm.fleet.idle}/${vm.fleet.total}`)
-
-    // ─── 海克斯待选徽标（自动收纳后出现，点击重开；弹窗可见时隐藏） ───
-    const hexPend = mode.simState.state.pendingCard
-    const hexHidden = mode.simState.state.hexHiddenAt !== null
-    this.vis.set(this.actor, 'Btn_hex', !!hexPend && hexHidden)
-    if (hexPend && hexHidden) {
-      this.binder.set(findText(this.actor, 'Label_hex'), '✦ 待选海克斯 +1')
-    }
 
     // ─── 事件横幅 ───
     let ev = ''

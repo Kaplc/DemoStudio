@@ -1,4 +1,4 @@
-<widget name="StatsPanel" canvas="1920x1080" data-script="gameplay/ui/StatsPanelScript" active="false">
+<widget name="StatsPanel" canvas="1920x1080" data-script="gameplay/ui/StatsPanelScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
     .StatsCard { width: 560px; height: 640px; position: absolute; left: 680px; top: 210px; display: flex; flex-direction: column; gap: 4px; background-color: #0e1a24f2; border-radius: 14px; padding: 16px 16px; hit-test: block; }
@@ -23,7 +23,8 @@
     <div class="LedgerRow"><text class="LedgerKey">航线卸货净收</text><text class="LedgerVal ValIn" data-name="Val_unload"></text></div>
     <div class="LedgerRow"><text class="LedgerKey">拆站返还</text><text class="LedgerVal ValIn" data-name="Val_refund"></text></div>
     <text class="SecHead">── 支出 ──</text>
-    <div class="LedgerRow"><text class="LedgerKey">聚能环焚烧</text><text class="LedgerVal ValOut" data-name="Val_ring"></text></div>
+<div class="LedgerRow"><text class="LedgerKey">聚能环焚烧</text><text class="LedgerVal ValOut" data-name="Val_ring"></text></div>
+      <div class="LedgerRow"><text class="LedgerKey">聚能环建设</text><text class="LedgerVal ValOut" data-name="Val_ringbuild"></text></div>
     <div class="LedgerRow"><text class="LedgerKey">研究点计费</text><text class="LedgerVal ValOut" data-name="Val_research"></text></div>
     <div class="LedgerRow"><text class="LedgerKey">舰队维护费</text><text class="LedgerVal ValOut" data-name="Val_maint"></text></div>
     <div class="LedgerRow"><text class="LedgerKey">造船</text><text class="LedgerVal ValOut" data-name="Val_build"></text></div>

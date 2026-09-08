@@ -3,8 +3,9 @@
  *
  * 每个天体一个类（fish 建筑同构：类名 = ActorRegistry key = 蓝图 baseClass），
  * 蓝图负责外观（SphereMeshComponent + 贴图），本类只负责两件事：
- *  1. 位置自驱动：syncFrom(simState, dt) —— 位置 = starPosAt 纯函数（行星绕太阳，
- *     月球绕地球），地图系 → 世界系换算 + 半球嵌入地面（y = r*0.55，与旧渲染一致）
+ *  1. 位置自驱动：syncFrom(simState, dt, viewMode, focus) —— 位置 = hiddenActorIsolated
+ *     纯函数（太阳系全景正常公转；行星系视角非本系天体 Actor 移到远景隔离点，
+ *     与渲染层 visibleBodySet 隐藏口径一致，点击判定收口真实 Actor 位置）
  *  2. 自转：mesh.rotation.y 累计（dt 直接累加，1 rad/s）
  *
  * 渲染组件（StarMapRenderComponent）仍持有 starViews 的标签/窗口环/选中态等
@@ -16,8 +17,9 @@
  */
 import * as THREE from 'three'
 import { Actor, SphereMeshComponent, logger } from '@/engine'
-import { B, MAP_H, MAP_W } from '../core/balance'
-import { starPosAt } from '../core/helpers'
+import { B } from '../core/balance'
+import { hiddenActorIsolated } from '../core/helpers'
+import type { PlanetId } from '../core/types'
 import type { SimState } from '../core/types'
 
 export abstract class StarActor extends Actor {
@@ -31,17 +33,18 @@ export abstract class StarActor extends Actor {
   }
 
   /**
-   * 位置自驱动（GameMode 每帧调用）：位置 = starPosAt(state, body)，
-   * 半径与 y 偏移读 star_map 配置（r 变化 → 视觉实时跟随）。
-   * ox/oz = 行星系舞台偏移（舞台 = 太阳位/世界原点；行星系视图非零：聚焦行星钉在舞台中心，
-   * 其余天体按与它的真实相对位置贴放；太阳系视图恒 0）。
-   * sync 跳过重置跳变：sim.restart 时 starPosAt 可能大角度跳变，
+   * 位置自驱动（GameMode 每帧调用）：位置 = hiddenActorIsolated 隔离点纯函数。
+   * 太阳系（solar）= starPosAt 实时公转位置；行星系（earth）视角下聚焦行星 + 其卫星
+   * 正常跟随舞台，其余天体 Actor 本体移到远景隔离点（布局锚方位 × 12000，远超相机
+   * panLimit 9000 → 物理不可点）。viewMode/focus 由 GameMode 决策层传入，
+   * 本类只忠实执行（隐藏 = 谁 Actor 被甩远景）。
+   * sync 跳过重置跳变：sim.restart 时位置可能大角度跳变，
    * 直接按 teleport 处理（无补间，重开一局跳变符合预期）。
    */
-  syncFrom(sim: SimState, dt: number, ox = 0, oz = 0): void {
-    const pos = starPosAt(sim, this.body)
+  syncFrom(sim: SimState, dt: number, viewMode: 'solar' | 'earth' = 'solar', focus: PlanetId = 'earth'): void {
+    const iso = hiddenActorIsolated(sim, this.body, viewMode, focus)
     const r = B.map.nodes[this.body as 'sun'].r
-    this.setPosition(pos.x - MAP_W / 2 + ox, r * 0.55, pos.y - MAP_H / 2 + oz)
+    this.setPosition(iso.x, r * 0.55, iso.z)
     this.spin += dt * StarActor.SPIN_RATE
     const mesh = this.getComponent(SphereMeshComponent)
     if (mesh) mesh.obj.object.rotation.y = this.spin

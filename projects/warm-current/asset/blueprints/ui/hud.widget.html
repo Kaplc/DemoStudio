@@ -16,14 +16,10 @@
     .Label_info { width: 128px; height: 30px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .Space { width: 2px; height: 30px; flex-shrink: 0; }
     .EventBanner { width: 620px; height: 46px; position: absolute; left: 650px; top: 84px; font-size: 26px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000cc; }
-    .HexBadge { width: 230px; height: 46px; position: absolute; left: 16px; top: 84px; display: flex; justify-content: center; align-items: center; background-color: #5a4210; border-radius: 10px; }
-    .HexBadge:hover { background-color: #6f5216; }
-    .HexBadge:active { background-color: #80621c; }
-    .Label_hex { width: 220px; height: 32px; flex-shrink: 0; font-size: 19px; color: #ffd9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .MissionBtn { width: 400px; height: 68px; position: absolute; left: 1504px; top: 900px; display: flex; justify-content: center; align-items: center; background-color: #7a5a18; border-radius: 12px; }
     .MissionBtn:hover { background-color: #96701f; }
     .Label_mission { width: 380px; height: 34px; font-size: 22px; color: #ffe9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .BottomBar { width: 930px; height: 60px; position: absolute; left: 495px; top: 1000px; display: flex; flex-direction: row; align-items: center; gap: 12px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 16px; hit-test: block; }
+    .BottomBar { width: 1070px; height: 60px; position: absolute; left: 425px; top: 1000px; display: flex; flex-direction: row; align-items: center; gap: 12px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 16px; hit-test: block; }
     .Btn_bar { width: 130px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
     .Btn_bar:hover { background-color: #27506e; }
     .Btn_bar:active { background-color: #2f6284; }
@@ -58,13 +54,13 @@
       <button class="Btn_info" data-name="Btn_stats"><text class="Label_info">📊 收支统计</text></button>
     </div>
     <text class="EventBanner" data-name="EventText"></text>
-    <button class="HexBadge" data-name="Btn_hex"><text class="Label_hex" data-name="Label_hex">✦ 待选海克斯 +1</text></button>
     <button class="MissionBtn" data-name="Btn_mission"><text class="Label_mission">发射火星模块运输</text></button>
     <div class="BottomBar" data-name="BottomBar">
       <button class="Btn_bar" data-name="Btn_build"><text class="Label_bar">建造</text></button>
       <button class="Btn_bar" data-name="Btn_transport"><text class="Label_bar">运输</text></button>
       <button class="Btn_bar" data-name="Btn_routes"><text class="Label_bar">航线</text></button>
       <button class="Btn_research" data-name="Btn_research"><text class="Label_research" data-name="Label_research">☰ 科研</text></button>
+      <button class="Btn_bar" data-name="Btn_ring"><text class="Label_bar">聚能环</text></button>
       <text class="ResearchBadge" data-name="ResearchBadge"></text>
     </div>
     <div class="SelPanel" data-name="SelPanel">

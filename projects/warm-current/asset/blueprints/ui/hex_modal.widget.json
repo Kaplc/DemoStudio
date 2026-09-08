@@ -1,7 +1,7 @@
 {
   "name": "HexModal",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-ece4c45c",
+  "sourceHash": "fnv1a-3dbee210",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1497,7 +1497,7 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "研究冻结中 · 15s 后自动收纳（待选 +1，可随时重开）",
+                    "text": "仿真已暂停 · 三选一后恢复运行",
                     "name": "HexHint",
                     "width": 780,
                     "height": 36,
