@@ -16,7 +16,8 @@ export class SolarCameraActor extends CameraActor {
 
   constructor(canvasW: number, canvasH: number) {
     super('SolarCamera', 'perspective')
-    this.cameraComponent.SetView(50, 2, 30000)
+    // 远裁剪面拉满（等效关掉视野距离裁剪）：全景拉远+平移到边缘时，远端天体不再被 far 面切掉
+    this.cameraComponent.SetView(50, 2, 500000)
     this.cameraComponent.priority = 10
     // 每帧驱动：自适应缩放步长（Tick 里按当前距离刷新 rig.step）
     this.enableTick()

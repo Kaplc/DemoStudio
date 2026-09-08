@@ -23,7 +23,11 @@
     .MissionBtn { width: 400px; height: 68px; position: absolute; left: 1504px; top: 900px; display: flex; justify-content: center; align-items: center; background-color: #7a5a18; border-radius: 12px; }
     .MissionBtn:hover { background-color: #96701f; }
     .Label_mission { width: 380px; height: 34px; font-size: 22px; color: #ffe9a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .BottomBar { width: 560px; height: 60px; position: absolute; left: 680px; top: 1000px; display: flex; flex-direction: row; align-items: center; gap: 12px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 16px; hit-test: block; }
+    .BottomBar { width: 930px; height: 60px; position: absolute; left: 495px; top: 1000px; display: flex; flex-direction: row; align-items: center; gap: 12px; background-color: #0e1a24e8; border-radius: 14px; padding: 0px 16px; hit-test: block; }
+    .Btn_bar { width: 130px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
+    .Btn_bar:hover { background-color: #27506e; }
+    .Btn_bar:active { background-color: #2f6284; }
+    .Label_bar { width: 118px; height: 30px; flex-shrink: 0; font-size: 20px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .Btn_research { width: 180px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
     .Btn_research:hover { background-color: #27506e; }
     .Btn_research:active { background-color: #2f6284; }
@@ -32,7 +36,6 @@
     .SelPanel { width: 500px; height: 250px; position: absolute; left: 16px; top: 814px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; }
     .SelText { width: 468px; height: 120px; flex-shrink: 0; font-size: 21px; color: #cfe3ee; text-shadow: 1px 1px 4px #00000066; }
     .SelBtnRow1 { width: 468px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
-    .SelBtnRow2 { width: 468px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
     .Btn_sel { width: 226px; height: 46px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
     .Btn_sel:hover { background-color: #27506e; }
     .Label_sel { width: 214px; height: 30px; flex-shrink: 0; font-size: 19px; color: #7fdcff; text-align: center; text-shadow: 1px 1px 4px #00000066; }
@@ -52,22 +55,21 @@
       <button class="Btn_restart" data-name="Btn_restart"><text class="Label_ctrl" data-name="Label_restart">重开</text></button>
       <div class="Space"></div>
       <button class="Btn_info" data-name="Btn_info"><text class="Label_info">📦 储量详情</text></button>
+      <button class="Btn_info" data-name="Btn_stats"><text class="Label_info">📊 收支统计</text></button>
     </div>
     <text class="EventBanner" data-name="EventText"></text>
     <button class="HexBadge" data-name="Btn_hex"><text class="Label_hex" data-name="Label_hex">✦ 待选海克斯 +1</text></button>
     <button class="MissionBtn" data-name="Btn_mission"><text class="Label_mission">发射火星模块运输</text></button>
     <div class="BottomBar" data-name="BottomBar">
+      <button class="Btn_bar" data-name="Btn_build"><text class="Label_bar">建造</text></button>
+      <button class="Btn_bar" data-name="Btn_transport"><text class="Label_bar">运输</text></button>
+      <button class="Btn_bar" data-name="Btn_routes"><text class="Label_bar">航线</text></button>
       <button class="Btn_research" data-name="Btn_research"><text class="Label_research" data-name="Label_research">☰ 科研</text></button>
       <text class="ResearchBadge" data-name="ResearchBadge"></text>
-      <text class="Label_research" data-name="BadgeFiller"></text>
     </div>
     <div class="SelPanel" data-name="SelPanel">
       <text class="SelText" data-name="SelText"></text>
       <div class="SelBtnRow1">
-        <button class="Btn_sel" data-name="Btn_build_station"><text class="Label_sel">中点建补给站</text></button>
-        <button class="Btn_sel" data-name="Btn_upgrade_station"><text class="Label_sel">升级补给站</text></button>
-      </div>
-      <div class="SelBtnRow2">
         <button class="Btn_sel" data-name="Btn_demolish"><text class="Label_sel">拆除返还 50%</text></button>
       </div>
     </div>

@@ -16,7 +16,7 @@ import { WarmCurrentMenuGameMode } from './gameplay/menu/WarmCurrentMenuGameMode
 import type { MenuAction } from './gameplay/menu/WarmCurrentMenuGameMode'
 import { WarmCurrentPlayerController } from './gameplay/base/WarmCurrentPlayerController'
 import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
-import { endpointPos } from './gameplay/core/helpers'
+import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
 import { SAVE_KEY, SAVE_SLOT_FILES, SAVE_SLOT_COUNT, serializeSlot, readSlotMetaWithSlot, findLatestSlotMeta } from './gameplay/core/save'
 import type { Endpoint, SimState } from './gameplay/core/types'
 
@@ -41,7 +41,7 @@ export interface WarmCurrentDebugBridge {
   pointerDown(x: number, y: number): void
   pointerMove(x: number, y: number): void
   pointerUp(x: number, y: number): void
-  /** 端点名 → 建航线：'earth' | 'moon' | 'europa' | 'mars' | 'station:<id>' */
+  /** 端点名 → 建航线：'earth' | 'moon' | 'europa' | 'mars' | 'building:<id>' */
   createRoute(a: string, b: string): boolean
   addShip(routeId: number): boolean
   removeShip(routeId: number): boolean
@@ -49,16 +49,22 @@ export interface WarmCurrentDebugBridge {
   routes(): Array<{ id: number; direction: string; ships: number }>
   buildShip(): boolean
   rebuildShip(shipId: number): boolean
-  toggleOverclock(line: string): boolean
+  /** 研究点分配（delta = +1 分配 / −1 回收；科研面板 +/− 同款回调） */
+  allocateResearch(line: string, delta: 1 | -1): boolean
   forceResearch(): string | null
   chooseCardByIndex(i: number): boolean
   /** 重开自动收纳的海克斯弹窗（HUD 徽标同款回调） */
   reopenHexModal(): boolean
   setNodes(n: number): void
   setH3(v: number): void
-  buildStation(routeId: number): boolean
-  upgradeStation(stationId: number): boolean
-  selectStation(stationId: number): void
+  /** 建筑系统（building 表驱动）：放置（x/y 画布系，内部网格吸附）/ 拆除 / 选中 */
+  placeBuilding(type: string, x: number, y: number): boolean
+  demolishBuilding(id: number): boolean
+  selectBuilding(id: number): void
+  /** 建筑模式（星图网格放置）：进入 / 取消 / 当前状态 */
+  enterBuildMode(type: string): boolean
+  cancelBuildMode(): void
+  buildModeInfo(): { typeId: string } | null
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
   setShipFlying(progress: number): boolean
   triggerFlare(): void
@@ -76,6 +82,22 @@ export interface WarmCurrentDebugBridge {
   loadSlot(n: number): Promise<boolean>
   slotMeta(n: number): ReturnType<typeof readSlotMetaWithSlot>
   togglePauseMenu(): boolean
+  /** 视图状态快照（视角/行星系 e2e 用） */
+  view(): {
+    viewMode: 'earth' | 'solar'
+    planetFocusBody: string
+    viewSwitching: boolean
+    loadingPanel: boolean
+    cameraX: number
+    cameraY: number
+    cameraZ: number
+  } | null
+  /** 天体当前地图画布坐标（starPosAt 权威值；'sun'/'earth'/'moon'/行星名） */
+  bodyPos(name: string): { x: number; y: number } | null
+  /** 天体蓝图 Actor 当前世界坐标（渲染位置；含行星系舞台变换） */
+  bodyWorldPos(name: string): { x: number; y: number; z: number } | null
+  /** 原子双击行星（单次调用内同步两次按下-抬起，走真实 onMapPointerDown 双击链路） */
+  doubleClickPlanet(name: string): boolean
   /** 引擎探针（e2e 诊断专用）：与运行时同模块图的 PhySys 单例 */
   phy(): typeof import('@/engine').PhySys
 }
@@ -132,6 +154,8 @@ export class WarmCurrentGameInstance extends GameInstance {
       this._controller = null
       mode.onMenuAction = (action: MenuAction) => { void this.handleMenuAction(action) }
       mode.cameraManager.RegisterCamera(mode.gameCamera)
+      // 菜单场景也挂调试桥：e2e/GM 需经 startNewGame() 进入星图（桥在切图时才 ready）
+      this.installDebugBridge()
       if (this.world.gameRenderer?.uiLayer) {
         PhySys.setup(mode.gameCamera.camera, this.world.gameRenderer.uiLayer)
       } else {
@@ -296,7 +320,7 @@ export class WarmCurrentGameInstance extends GameInstance {
         const toEp = (name: string): Endpoint | null => {
           if (name === 'earth') return { kind: 'earth' }
           if (name === 'moon' || name === 'europa' || name === 'mars') return { kind: 'star', star: name }
-          if (name.startsWith('station:')) return { kind: 'station', stationId: Number(name.slice(8)) }
+          if (name.startsWith('building:')) return { kind: 'building', buildingId: Number(name.slice(9)) }
           return null
         }
         const ea = toEp(a)
@@ -313,8 +337,8 @@ export class WarmCurrentGameInstance extends GameInstance {
       },
       buildShip: () => instance._gameMode?.transport.tryBuildShip() ?? false,
       rebuildShip: (shipId) => instance._gameMode?.transport.tryRebuildShip(shipId) ?? false,
-      toggleOverclock: (line) =>
-        instance._gameMode?.research.toggleOverclock(line as import('./gameplay/core/types').ResearchLineId) ?? false,
+      allocateResearch: (line, delta) =>
+        instance._gameMode?.research.allocateResearch(line as import('./gameplay/core/types').ResearchLineId, delta) ?? false,
       forceResearch: () => instance._gameMode?.research.forceResearch() ?? null,
       chooseCardByIndex: (i) => instance._gameMode?.chooseCardByIndex(i) ?? false,
       reopenHexModal: () => instance._gameMode?.reopenHexModal() ?? false,
@@ -326,12 +350,20 @@ export class WarmCurrentGameInstance extends GameInstance {
         const mode = instance._gameMode
         if (mode) mode.simState.state.earthH3 = Math.max(0, v)
       },
-      buildStation: (routeId) => instance._gameMode?.stations.tryBuildStation(routeId) ?? false,
-      upgradeStation: (stationId) => instance._gameMode?.stations.tryUpgradeStation(stationId) ?? false,
-      selectStation: (stationId) => {
+      placeBuilding: (type, x, y) => {
         const mode = instance._gameMode
-        if (mode) mode.selection = { type: 'station', id: stationId }
+        if (!mode) return false
+        const snapped = snapToGrid(x, y)
+        return mode.buildings.tryPlace(type, snapped.x, snapped.y)
       },
+      demolishBuilding: (id) => instance._gameMode?.buildings.tryDemolish(id) ?? false,
+      selectBuilding: (id) => {
+        const mode = instance._gameMode
+        if (mode) mode.selection = { type: 'building', id }
+      },
+      enterBuildMode: (type) => instance._gameMode?.enterBuildMode(type) ?? false,
+      cancelBuildMode: () => instance._gameMode?.cancelBuildMode(),
+      buildModeInfo: () => instance._gameMode?.buildMode ?? null,
       setShipFlying: (progress) => {
         const mode = instance._gameMode
         if (!mode) return false
@@ -354,6 +386,41 @@ export class WarmCurrentGameInstance extends GameInstance {
       loadSlot: (n) => instance.loadSlot(n),
       slotMeta: (n) => instance.slotMeta(n),
       togglePauseMenu: () => instance._gameMode?.togglePauseMenu() ?? false,
+      view: () => {
+        const mode = instance._gameMode
+        if (!mode) return null
+        const cam = mode.gameCamera.camera.position
+        return {
+          viewMode: mode.viewMode,
+          planetFocusBody: mode.planetFocusBody,
+          viewSwitching: mode.viewSwitching,
+          loadingPanel: !!mode.viewLoadingPanel,
+          cameraX: cam.x,
+          cameraY: cam.y,
+          cameraZ: cam.z,
+        }
+      },
+      bodyPos: (name) => {
+        const mode = instance._gameMode
+        if (!mode) return null
+        return starPosAt(mode.simState.state, name as import('./gameplay/core/helpers').SolarBodyId)
+      },
+      bodyWorldPos: (name) => {
+        const actor = instance._gameMode?.starActors.get(name as never)
+        if (!actor) return null
+        const p = actor.position
+        return { x: p.x, y: p.y, z: p.z }
+      },
+      doubleClickPlanet: (name) => {
+        const mode = instance._gameMode
+        if (!mode) return false
+        const p = starPosAt(mode.simState.state, name as import('./gameplay/core/helpers').SolarBodyId)
+        mode.onMapPointerDown({ x: p.x, y: p.y })
+        mode.onMapPointerUp({ x: p.x, y: p.y })
+        mode.onMapPointerDown({ x: p.x, y: p.y })
+        mode.onMapPointerUp({ x: p.x, y: p.y })
+        return true
+      },
       // 引擎探针（e2e 诊断专用）：返回本模块 import 的 PhySys（与运行时同模块图实例；
       // e2e 动态 import /src/... 会创建第二模块图实例，不能直接用）
       phy: () => PhySys,
@@ -368,7 +435,7 @@ export class WarmCurrentGameInstance extends GameInstance {
     const s = this._gameMode.simState.state
     if (name === 'earth') return endpointPos(s, { kind: 'earth' })
     if (name === 'moon' || name === 'europa' || name === 'mars') return endpointPos(s, { kind: 'star', star: name })
-    if (name.startsWith('station:')) return endpointPos(s, { kind: 'station', stationId: Number(name.slice(8)) })
+    if (name.startsWith('building:')) return endpointPos(s, { kind: 'building', buildingId: Number(name.slice(9)) })
     return null
   }
 

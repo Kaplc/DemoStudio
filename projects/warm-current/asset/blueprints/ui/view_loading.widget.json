@@ -1,0 +1,283 @@
+{
+  "name": "ViewLoading",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-35d2f601",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 1920,
+        "worldHeight": 1080
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "LoadingRoot",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 1920,
+            "worldHeight": 1080,
+            "anchor": "stretch",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0,
+            "hitTest": "block"
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#04070cf0",
+            "width": 1920,
+            "height": 1080,
+            "name": "LoadingRoot"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "LoadingBox",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 560,
+                "worldHeight": 220,
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LoadingTitle",
+              "baseClass": "Actor",
+              "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 520,
+                    "worldHeight": 60,
+                    "position": [
+                      0,
+                      18,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "跃迁中",
+                    "name": "LoadingTitle",
+                    "width": 520,
+                    "height": 60,
+                    "fontSize": 42,
+                    "color": "#cfe3ee",
+                    "align": "center",
+                    "bold": true,
+                    "letterSpacing": 12
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "LoadingBar",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 460,
+                    "worldHeight": 8,
+                    "position": [
+                      0,
+                      -44,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#16222e",
+                    "radius": 4,
+                    "width": 460,
+                    "height": 8,
+                    "name": "LoadingBar"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "LoadingBarFill",
+                  "baseClass": "Actor",
+                  "id": 13205,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 140,
+                        "worldHeight": 8,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "color": "#6fc3ff",
+                        "radius": 4,
+                        "width": 140,
+                        "height": 8,
+                        "name": "LoadingBarFill"
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
-  legSeconds, roundFuel, starLoad, cargoCap, stationByEndpoint,
+  legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { Endpoint, SimRoute, SimShip, StarId } from '../core/types'
@@ -27,8 +27,9 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
   }
 
   /**
-   * 建立/延长航线。合法组合：地球↔资源星（正向）、地球↔补给站（反向）。
+   * 建立/延长航线。合法组合：地球↔资源星（正向）、地球↔中转站（反向补给线）。
    * 已存在同端点航线 = 再派 1 艘（平行线捷径）。
+   * 航线可空船创建：无空闲船时航线保留，造船后从航线面板补派。
    */
   tryCreateRoute(a: Endpoint, b: Endpoint): boolean {
     const s = this.sc.state
@@ -48,7 +49,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
 
     const kinds = [a.kind, b.kind]
     let forward: { star: StarId } | null = null
-    let reverseToStation: number | null = null
+    let reverseToBuilding: number | null = null
     if (kinds.includes('earth') && kinds.includes('star')) {
       const starEp = a.kind === 'star' ? a : b
       const star = (starEp as { kind: 'star'; star: StarId }).star
@@ -57,11 +58,15 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
         return false
       }
       forward = { star }
-    } else if (kinds.includes('earth') && kinds.includes('station')) {
-      const stEp = (a.kind === 'station' ? a : b) as { kind: 'station'; stationId: number }
-      reverseToStation = stEp.stationId
+    } else if (kinds.includes('earth') && kinds.includes('building')) {
+      const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
+      const bd = buildingByEndpoint(s, bEp)
+      if (!bd) { this.sc.hint('建筑不存在'); return false }
+      const def = buildingDefOf(bd.type)
+      if (!def?.linkable) { this.sc.hint(`${def?.name ?? '该建筑'}不能接入航线`); return false }
+      reverseToBuilding = bd.id
     } else {
-      this.sc.hint('航线必须是「星—地」或「地—站点」组合')
+      this.sc.hint('航线必须是「星—地」或「地—中转站」组合')
       return false
     }
 
@@ -69,14 +74,14 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     const existing = findRoute(s, a, b)
     if (existing) return this.tryAddShip(existing.id)
 
-    if (!forward && reverseToStation === null) { this.sc.hint('航线不合法'); return false }
+    if (!forward && reverseToBuilding === null) { this.sc.hint('航线不合法'); return false }
 
     const route: SimRoute = forward
       ? { id: this.nextRouteId(), from: { kind: 'star', star: forward.star }, to: { kind: 'earth' }, direction: 'forward', shipIds: [] }
-      : { id: this.nextRouteId(), from: { kind: 'earth' }, to: { kind: 'station', stationId: reverseToStation! }, direction: 'reverse', shipIds: [] }
+      : { id: this.nextRouteId(), from: { kind: 'earth' }, to: { kind: 'building', buildingId: reverseToBuilding! }, direction: 'reverse', shipIds: [] }
     s.routes.push(route)
     if (!this.assignIdleShip(route)) {
-      this.sc.hint('没有空闲飞船，先造船或从其他航线召回')
+      this.sc.hint('空船建线：航线已建立（无空闲船），造船后从航线面板补派')
       const pos = endpointPos(s, route.from)
       this.sc.emit({ type: 'route_built', x: pos.x, y: pos.y })
       s.tutorial = false
@@ -101,8 +106,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (s.flare.phase === 'active') { this.sc.hint('通讯中断，无法派船'); return false }
     const route = s.routes.find((r) => r.id === routeId)
     if (!route) return false
-    if (route.direction === 'reverse' && !stationByEndpoint(s, route.to)) {
-      this.sc.hint('站点已不存在')
+    if (route.direction === 'reverse' && !buildingByEndpoint(s, route.to)) {
+      this.sc.hint('建筑已不存在')
       return false
     }
     if (!this.assignIdleShip(route)) { this.sc.hint('没有空闲飞船'); return false }
@@ -193,6 +198,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     const s = this.sc.state
     if (s.earthH3 < B.shipBuildCost) { this.sc.hint(`H3 不足（造船需 ${B.shipBuildCost}）`); return false }
     s.earthH3 -= B.shipBuildCost
+    s.ledger.shipBuild += B.shipBuildCost
     s.buildQueue.push(B.shipBuildTime)
     return true
   }
@@ -204,6 +210,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (!ship) return false
     if (s.earthH3 < B.shipRebuildCost) { this.sc.hint(`H3 不足（重建需 ${B.shipRebuildCost}）`); return false }
     s.earthH3 -= B.shipRebuildCost
+    s.ledger.shipRebuild += B.shipRebuildCost
     ship.state = 'idle'
     ship.routeId = null
     s.stats.rebuiltCount++
@@ -311,15 +318,15 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.roundFuel = roundFuel(s.mods, B.stars[star].dist, windowed ? B.gravity.fuelMult : 1)
       ship.materials = 0
     } else {
-      const st = stationByEndpoint(s, route.to)
-      if (!st) { this.detachShipToIdle(ship); return }
-      const dist = B.stars[st.star].dist * 0.5
+      const b = buildingByEndpoint(s, route.to)
+      if (!b) { this.detachShipToIdle(ship); return }
+      const dist = supplyDistCoeff(s, route.to)
       const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
       const fuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1)
-      const want = Math.min(cargoCap(s.mods), Math.max(0, st.need - st.stock))
+      const want = Math.min(cargoCap(s.mods), this.owner.buildings.bufferLeft(b))
       const affordable = Math.floor(Math.max(0, s.earthH3 - fuel) / B.materialH3PerUnit)
       const load = Math.min(want, affordable)
-      if (load <= 0) return // 等待：站点无需求或 H3 不足油耗
+      if (load <= 0) return // 等待：缓存已满或 H3 不足油耗
       ship.speedMult = speed * (windowed ? B.gravity.speedMult : 1)
       ship.legTime = legSeconds(dist, ship.speedMult)
       ship.roundFuel = fuel
@@ -327,6 +334,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.cargo = 0
       // 建材从地球 H3 家底折算扣除（航行与建材均与生存争夺燃料）
       s.earthH3 -= fuel + load * B.materialH3PerUnit
+      s.ledger.reverseFuel += fuel
+      s.ledger.materials += load * B.materialH3PerUnit
       if (s.earthH3 < 0) s.earthH3 = 0
     }
     ship.state = 'flying'
@@ -355,13 +364,14 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (route.direction === 'forward') {
       const net = Math.max(0, ship.cargo - ship.roundFuel)
       s.earthH3 += net
+      s.ledger.unload += net
       s.stats.delivered += net
       const p = starPosAt(s, 'earth')
       this.sc.emit({ type: 'unload', value: Math.round(net), x: p.x, y: p.y })
     } else {
-      const st = stationByEndpoint(s, route.to)
-      if (st) {
-        this.owner.stations.onDelivery(st, ship.materials)
+      const b = buildingByEndpoint(s, route.to)
+      if (b) {
+        this.owner.buildings.onDelivery(b, ship.materials)
       }
     }
     ship.leg = 'return'

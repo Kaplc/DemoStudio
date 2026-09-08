@@ -1,11 +1,12 @@
 /**
  * EconomyComponent — 经济系统组件（模块 01/04）
  *
- * 地球储量焚烧（节点消耗 + 超频支出）、缓冲衰减（储量 ≤ 0 → 延续度缓降，
+ * 地球储量焚烧（节点消耗 + 研究点数计费）、缓冲衰减（储量 ≤ 0 → 延续度缓降，
  * 补燃料即恢复）、延续度回升。
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
+import { fleetMaintPerS } from '../core/helpers'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
 export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
@@ -19,14 +20,22 @@ export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
   tickEconomy(dt: number): void {
     const s = this.sc.state
     if (s.ring === 'running') {
-      const cost = this.sc.demand * dt
-      s.earthH3 -= cost
+      // 舰队维护费：按总船数查 fleet_maint 阶梯（H3/秒），与环焚烧/研究计费同池争夺地球储备，
+      // 储备归零同样触发缓冲衰减（维护费也是生存压力的一部分）
+      const burn = this.sc.burnRate
+      const rc = this.sc.researchCost
+      const maint = fleetMaintPerS(s.ships.length)
+      s.earthH3 -= (burn + rc + maint) * dt
+      // 收支账本（统计面板）：持续项按速率×时长累计
+      const led = s.ledger
+      led.ringBurn += burn * dt
+      led.research += rc * dt
+      led.fleetMaint += maint * dt
       if (s.earthH3 <= 0) {
         s.earthH3 = 0
         s.ring = 'decaying'
         s.bufferTotal = B.bufferSeconds + s.mods.bufferAdd
         s.bufferLeft = s.bufferTotal
-        s.overclocked.length = 0
       }
       // 运转中延续度回满（缓冲后恢复期）
       if (s.continuity < 100) {

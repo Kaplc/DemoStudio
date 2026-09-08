@@ -3,12 +3,13 @@
  *
  * 职责：
  *  - 顶部状态栏（并入主 HUD）：时间/交点/储量摘要 + 暂停/倍速/重开 + 「储量详情」入口（开关 reserve_info widget）
- *  - 底部 bar：「☰ 科研」入口（开关 research_panel widget）+ 科研徽标（均进度/船队概况）
+ *  - 底部 bar：「建造」「运输」「航线」「☰ 科研」入口（前三个开关居中二级面板同屏互斥；航线为右侧独立面板）+ 科研徽标（均进度/船队概况）
  *  - 绑定海克斯重开徽标 / 选中面板（建站/升级/拆除）/ 火星任务按钮
  *  - 8Hz 差分同步 GameMode.buildViewModel()（文本/颜色/可见性三 binder，避免逐帧重绘）
  *  - toast 队列渲染（mode.toasts 末 4 条）
  *  - 生成独立子 widget（一次生成，各自脚本自驱动）：
- *      research_panel（科研二级面板）、hex_modal（海克斯三选一）、settle（结算）
+ *      research_panel（科研二级面板）、build_panel（建造二级面板）、transport_panel（运输二级面板）、
+ *      routes_panel（航线管理面板）、hex_modal（海克斯三选一）、settle（结算）
  *      ring_panel（聚能环信息面板，交点数由顶栏迁入此处）
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
@@ -18,6 +19,10 @@ import ResearchPanelScript, { RESEARCH_PANEL_WIDGET } from './ResearchPanelScrip
 import RingPanelScript, { RING_PANEL_WIDGET } from './RingPanelScript.script'
 import ReserveInfoScript, { RESERVE_INFO_WIDGET } from './ReserveInfoScript.script'
 import ViewToggleScript, { VIEW_TOGGLE_WIDGET } from './ViewToggleScript.script'
+import BuildPanelScript, { BUILD_PANEL_WIDGET } from './BuildPanelScript.script'
+import TransportPanelScript, { TRANSPORT_PANEL_WIDGET } from './TransportPanelScript.script'
+import RoutesPanelScript, { ROUTES_PANEL_WIDGET } from './RoutesPanelScript.script'
+import StatsPanelScript, { STATS_PANEL_WIDGET } from './StatsPanelScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -36,6 +41,13 @@ function toggleSubPanel(actor: Actor | null, isTarget: (s: unknown) => boolean, 
   }
 }
 
+/** 居中二级面板登记项（同屏互斥：面板同在画布正中，叠开会互相遮挡） */
+interface CenterPanelEntry {
+  actor: () => Actor | null
+  is: (s: unknown) => boolean
+  label: string
+}
+
 export default class HudScript extends BehaviourScript {
   private binder = new TextBinder()
   private colors = new ColorBinder()
@@ -43,10 +55,31 @@ export default class HudScript extends BehaviourScript {
   private hexModal: Actor | null = null
   private settleModal: Actor | null = null
   private researchPanel: Actor | null = null
+  private buildPanel: Actor | null = null
+  private transportPanel: Actor | null = null
+  private routesPanel: Actor | null = null
+  private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
   private viewToggle: Actor | null = null
+  /** 居中二级面板互斥登记（科研/建造/运输，onStart 填充） */
+  private centerPanels: CenterPanelEntry[] = []
   private acc = 1
+
+  /** 居中面板互斥开关：只收起其它「展开中」的居中面板（只关不开，对关闭面板 toggle 会误开），再 toggle 目标 */
+  private toggleCenterPanel(target: CenterPanelEntry): void {
+    for (const p of this.centerPanels) {
+      if (p === target) continue
+      const inst = p.actor()?.getComponent(UIScriptComponent)?.instance
+      if (!inst || !p.is(inst)) continue
+      const panel = inst as unknown as { isOpen: boolean, close: () => void }
+      if (panel.isOpen) {
+        panel.close()
+        logger.info(`[HudScript] ${p.label}关闭（居中互斥）`)
+      }
+    }
+    toggleSubPanel(target.actor(), target.is, target.label)
+  }
 
   override onStart(): void {
     const mode = wcMode()
@@ -62,17 +95,9 @@ export default class HudScript extends BehaviourScript {
     this.vis.set(this.actor, 'SelPanel', false)
     bind('Btn_hex', () => wcMode()?.reopenHexModal())
     bind('Btn_mission', () => wcMode()?.transport.startMarsMission())
-    bind('Btn_build_station', () => {
-      const m = wcMode()
-      if (m?.selection?.type === 'route') m.stations.tryBuildStation(m.selection.id)
-    })
-    bind('Btn_upgrade_station', () => {
-      const m = wcMode()
-      if (m?.selection?.type === 'station') m.stations.tryUpgradeStation(m.selection.id)
-    })
     bind('Btn_demolish', () => {
       const m = wcMode()
-      if (m?.selection?.type === 'station') m.stations.tryDemolishStation(m.selection.id)
+      if (m?.selection?.type === 'building') m.buildings.tryDemolish(m.selection.id)
     })
     // ─── 时间控制（原 TopBarScript 并入） ───
     bind('Btn_pause', () => {
@@ -92,16 +117,38 @@ export default class HudScript extends BehaviourScript {
       wcMode()?.restart()
     })
     bind('Btn_info', () => toggleSubPanel(this.reserveInfo, s => s instanceof ReserveInfoScript, '储量详情'))
-    // ─── 科研入口（底部 bar，开关 research_panel 二级面板） ───
-    bind('Btn_research', () => toggleSubPanel(this.researchPanel, s => s instanceof ResearchPanelScript, '科研面板'))
+    // ─── 居中二级面板（科研/建造/运输，同屏互斥） ───
+    const researchEntry: CenterPanelEntry = { actor: () => this.researchPanel, is: (s) => s instanceof ResearchPanelScript, label: '科研面板' }
+    const buildEntry: CenterPanelEntry = { actor: () => this.buildPanel, is: (s) => s instanceof BuildPanelScript, label: '建造面板' }
+    const transportEntry: CenterPanelEntry = { actor: () => this.transportPanel, is: (s) => s instanceof TransportPanelScript, label: '运输面板' }
+    const statsEntry: CenterPanelEntry = { actor: () => this.statsPanel, is: (s) => s instanceof StatsPanelScript, label: '收支统计面板' }
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry]
+    bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
+    bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
+    bind('Btn_transport', () => this.toggleCenterPanel(transportEntry))
+    bind('Btn_stats', () => this.toggleCenterPanel(statsEntry))
+    // ─── 航线管理入口（右侧独立面板，不占居中区，不参与居中互斥） ───
+    bind('Btn_routes', () => toggleSubPanel(this.routesPanel, s => s instanceof RoutesPanelScript, '航线管理面板'))
     // 独立子面板一次生成（各自脚本自驱动可见性）
     this.hexModal = this.world?.ui.spawnUIActor(HEX_WIDGET) ?? null
     this.settleModal = this.world?.ui.spawnUIActor(SETTLE_WIDGET) ?? null
     if (!this.hexModal) logger.warn('[HudScript] hex_modal 生成失败')
     if (!this.settleModal) logger.warn('[HudScript] settle 生成失败')
-    // 科研二级面板（五线/造船/船队明细，ResearchPanelScript 自驱动，默认收起）
+    // 科研二级面板（五线点数分配/船队明细，ResearchPanelScript 自驱动，默认收起）
     this.researchPanel = this.world?.ui.spawnUIActor(RESEARCH_PANEL_WIDGET) ?? null
     if (!this.researchPanel) logger.warn('[HudScript] research_panel 生成失败')
+    // 建造二级面板（building 表驱动建筑行，BuildPanelScript 自驱动，默认收起）
+    this.buildPanel = this.world?.ui.spawnUIActor(BUILD_PANEL_WIDGET) ?? null
+    if (!this.buildPanel) logger.warn('[HudScript] build_panel 生成失败')
+    // 运输二级面板（造船/船队明细/冻毁重建，TransportPanelScript 自驱动，默认收起）
+    this.transportPanel = this.world?.ui.spawnUIActor(TRANSPORT_PANEL_WIDGET) ?? null
+    if (!this.transportPanel) logger.warn('[HudScript] transport_panel 生成失败')
+    // 收支统计面板（H3 九项收支+合计，StatsPanelScript 自驱动，默认收起，参与居中互斥）
+    this.statsPanel = this.world?.ui.spawnUIActor(STATS_PANEL_WIDGET) ?? null
+    if (!this.statsPanel) logger.warn('[HudScript] stats_panel 生成失败')
+    // 航线管理面板（右侧常驻位：全航线派船/召回/删线，RoutesPanelScript 自驱动，默认收起）
+    this.routesPanel = this.world?.ui.spawnUIActor(ROUTES_PANEL_WIDGET) ?? null
+    if (!this.routesPanel) logger.warn('[HudScript] routes_panel 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')
@@ -169,24 +216,23 @@ export default class HudScript extends BehaviourScript {
     this.vis.set(this.actor, 'Btn_mission', vm.canStartMission)
 
     // ─── 左下选中面板（无选中整体隐藏，不再常驻） ───
-    const hasSel = !!vm.routeInfo || !!vm.stationInfo
+    const hasSel = !!vm.routeInfo || !!vm.buildingInfo
     this.vis.set(this.actor, 'SelPanel', hasSel)
     if (vm.routeInfo) {
       const r = vm.routeInfo
       this.binder.set(findText(this.actor, 'SelText'),
-        `${r.name}（${r.direction === 'forward' ? '正向运 H3' : '反向送建材'}）\n`
+        `${r.name}（${r.direction === 'forward' ? '正向运 H3' : '反向送建材入缓存'}）\n`
         + `配船 ${r.ships} 艘 · 单船净 ${r.direction === 'forward' ? `${r.net}t` : `载建材 ${r.net}`} · 往返 ${r.cycle.toFixed(0)}s`)
-    } else if (vm.stationInfo) {
-      const st = vm.stationInfo
-      this.binder.set(findText(this.actor, 'SelText'),
-        `补给站 Lv${st.level} · 护盾半径 ${st.radius} · 保全容量 ${st.cap} 艘\n`
-        + `建材 ${Math.floor(st.stock)}/${st.need}${st.level === 0 ? '（达标自动建成）' : ''}`)
+    } else if (vm.buildingInfo) {
+      const b = vm.buildingInfo
+      const info = b.bufferCap > 0
+        ? `缓存 ${b.stock}/${b.bufferCap} · 航线可链接`
+        : `护盾半径 ${b.radius} · 保全容量 ${b.cap} 艘`
+      this.binder.set(findText(this.actor, 'SelText'), `${b.name} ${b.id}\n${info}`)
     } else {
       this.binder.set(findText(this.actor, 'SelText'), '')
     }
-    this.vis.set(this.actor, 'Btn_build_station', !!vm.routeInfo?.canBuildStation)
-    this.vis.set(this.actor, 'Btn_upgrade_station', !!vm.stationInfo?.canUpgrade)
-    this.vis.set(this.actor, 'Btn_demolish', !!vm.stationInfo && vm.stationInfo.level >= 1)
+    this.vis.set(this.actor, 'Btn_demolish', !!vm.buildingInfo && vm.buildingInfo.canDemolish)
 
     // ─── toast（末 4 条） ───
     for (let i = 0; i < 4; i++) {

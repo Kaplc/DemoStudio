@@ -5,10 +5,10 @@
  * 便于单测与快照。带 B 的数值读取（balance 运行时单例，配置表可覆盖）。
  */
 import { B, MAP_H, MAP_W } from './balance'
-import type { CardDef } from './balance'
+import type { BuildingDef, CardDef } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
-  Endpoint, PlanetBodyId, PlanetId, ResearchLineId, SimEvent, SimRoute, SimShip, SimState, SimStation, StarId,
+  Endpoint, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimResearchLine, SimRoute, SimShip, SimState, StarId,
 } from './types'
 
 // ─── 确定性随机（耀斑调度可复现） ───
@@ -31,6 +31,65 @@ export const LINE_DEFS: Array<{ id: ResearchLineId; name: string; init: number }
   { id: 'infra', name: '基建线', init: 0.36 },
   { id: 'expand', name: '扩张线', init: 0.48 },
 ]
+
+// ─── 聚能环等级（模块 03 §5：交点 1:1 绑定覆盖，等级阶梯随研究/交点连续爬升） ───
+
+export interface RingLevelInfo {
+  /** 当前等级 1..maxLevel（连续阶梯：研究推进即缓慢爬升，交点解锁即跳升） */
+  level: number
+  /** 等级上限（B.ringLevels，默认 25；满级 = 覆盖 100% 全球组网） */
+  maxLevel: number
+  /** 等级名（Lv1..Lv25） */
+  name: string
+  /** 已满级（覆盖 100%，全球组网） */
+  maxed: boolean
+  /** 全球覆盖度 0..1（= 已覆盖交点 / totalNodes，物理值随交点跳升） */
+  coverage: number
+  /** 升级进度 0..1（距下一级；五线研究最靠前进度驱动，随时间连续推进、选卡冻结；满级恒 1） */
+  progress: number
+}
+
+/**
+ * 聚能环等级推导：25 级阶梯铺在「开局 1 交点 → 12 交点全球组网」的旅程上
+ * （按 2.5h 局时长 ≈ 每级 6 分钟）。连续进度 raw = (已覆盖交点−1 + 下一交点研究进度)
+ * ÷ (totalNodes−1)：研究随时间连续推进（运转加成/研究点数提速，选卡冻结），某线满进度
+ * → 选卡 → 交点解锁 → 等级跳升、覆盖度 +1/12。覆盖度是物理值（交点/12）。
+ */
+export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo {
+  const total = Math.max(1, B.totalNodes)
+  const maxLevel = Math.max(1, B.ringLevels)
+  const node = Math.max(1, Math.min(total, Math.round(nodes)))
+  const maxed = node >= total
+  const next = Math.max(0, Math.min(1, nextNodeProgress))
+  const raw = maxed ? 1 : Math.min(1, (node - 1 + next) / (total - 1))
+  const level = Math.min(maxLevel, 1 + Math.floor(raw * (maxLevel - 1)))
+  return {
+    level,
+    maxLevel,
+    name: `Lv${level}`,
+    maxed,
+    coverage: node / total,
+    progress: maxed ? 1 : (raw * (maxLevel - 1)) % 1,
+  }
+}
+
+/**
+ * 单线研究推进速率（进度/秒）：
+ * 基础 1/nodeInterval × 环运转加成 × 点数加成（每点 +researchPointRateAdd，加算）
+ * × 生长修正（卡效果）；断环或储量耗尽时点数加成失效（无 H3 支撑），只保留基础速率。
+ */
+export function researchRateOf(line: SimResearchLine, state: SimState): number {
+  const powered = state.ring === 'running' && state.earthH3 > 0
+  const runningBonus = state.ring === 'running' ? B.runningRateBonus : 1
+  const pointMult = powered ? 1 + line.points * B.researchPointRateAdd : 1
+  return (1 / B.nodeInterval) * runningBonus * pointMult * line.nextMult
+}
+
+/** 单线研究 H3 消耗速率（吨/秒，点数计费；断环/储量耗尽不计费） */
+export function researchCostOf(line: SimResearchLine, state: SimState): number {
+  const powered = state.ring === 'running' && state.earthH3 > 0
+  return powered ? line.points * B.researchPointCostPerS : 0
+}
 
 // ─── 太阳系公转（位置 = 仿真时间的纯函数：确定性、快照/重放安全） ───
 
@@ -84,6 +143,31 @@ function orbitPhase(body: PlanetBodyId): number {
   return Math.atan2(n.y - s.y, n.x - s.x)
 }
 
+// ─── 月球相位校正（视图切换对齐） ───
+// 唯一的非纯状态（打破 core 无状态铁律的受控例外）：切去太阳系期间仿真时间继续走，
+// 切回地球系时月球相位已转走。GameMode 在离开地球系时记录月球相对地球的相位角，
+// 切回时用 alignMoonRelativeAngle 把月球拨回该相位（地球系=独立小场景，来回切换月球不跳变）。
+// 角度加在 moon 分支的 a 上，地球/太阳位置不受影响；restart/读档须 resetMoonPhaseAdj()。
+let moonPhaseAdj = 0
+
+/** 月球当前相对地球的相位角（rad，含校正量；渲染/记录共用同一口径） */
+export function moonRelativeAngle(state: SimState): number {
+  const mc = B.map.moons.moon
+  const m = B.map.nodes.moon
+  const p0 = B.map.nodes[mc.parent]
+  return Math.atan2(m.y - p0.y, m.x - p0.x) + state.time * (MOON_SPEED_COEFF / mc.radius) + moonPhaseAdj
+}
+
+/** 校正相位：使月球当前相对地球的角度 = targetAngle（立即生效，星图/天体 Actor 下帧贴上） */
+export function alignMoonRelativeAngle(state: SimState, targetAngle: number): void {
+  moonPhaseAdj += targetAngle - moonRelativeAngle(state)
+}
+
+/** 重置校正（重开一局 / 读档：仿真时间归零，旧校正量失效） */
+export function resetMoonPhaseAdj(): void {
+  moonPhaseAdj = 0
+}
+
 /** 天体当前位置（地图画布系）：行星绕太阳公转，卫星绕 parent 行星（t = 仿真时间，太阳静态） */
 export function starPosAt(state: SimState, body: SolarBodyId): { x: number; y: number } {
   if (body === 'sun') return B.map.nodes.sun
@@ -92,8 +176,11 @@ export function starPosAt(state: SimState, body: SolarBodyId): { x: number; y: n
   if (moonCfg) {
     const p = starPosAt(state, moonCfg.parent)
     const m = B.map.nodes[body as SolarBodyId]
-    const a = Math.atan2(m.y - B.map.nodes[moonCfg.parent].y, m.x - B.map.nodes[moonCfg.parent].x)
-      + state.time * (MOON_SPEED_COEFF / moonCfg.radius)
+    // 月球走带校正量的口径（视图切换对齐）；其余卫星（木卫二）保持原纯函数口径
+    const a = body === 'moon'
+      ? moonRelativeAngle(state)
+      : Math.atan2(m.y - B.map.nodes[moonCfg.parent].y, m.x - B.map.nodes[moonCfg.parent].x)
+        + state.time * (MOON_SPEED_COEFF / moonCfg.radius)
     return { x: p.x + Math.cos(a) * moonCfg.radius, y: p.y + Math.sin(a) * moonCfg.radius }
   }
   const s = B.map.nodes.sun
@@ -102,19 +189,17 @@ export function starPosAt(state: SimState, body: SolarBodyId): { x: number; y: n
   return { x: s.x + Math.cos(a) * r, y: s.y + Math.sin(a) * r }
 }
 
-/** 补给站锚点（依附正向航线，随行星公转实时漂移） */
-export function stationAnchorPos(state: SimState, st: SimStation): { x: number; y: number } {
-  const a = starPosAt(state, st.star)
-  const b = starPosAt(state, 'earth')
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+/** 地球当前位置（建筑几何/补给线距离共用基准） */
+export function earthPos(state: SimState): { x: number; y: number } {
+  return starPosAt(state, 'earth')
 }
 
 let nextRouteId = 1
-let nextStationId = 1
+let nextBuildingId = 1
 let nextShipId = 1
 
 export function resetIds(): void {
-  nextRouteId = 1; nextStationId = 1; nextShipId = 1
+  nextRouteId = 1; nextBuildingId = 1; nextShipId = 1
 }
 
 export function makeShip(index: number): SimShip {
@@ -130,8 +215,24 @@ export function freshMods(): SimState['mods'] {
   return {
     fuelMult: 1, speedMult: 1, cargoMult: 1, moonLoadAdd: 0, otherLoadAdd: 0,
     burnMult: 1, bufferAdd: 0, gravityAdd: 0, recoverMult: 1,
-    flareWarning: false, stationUnlocked: false, fleetBonus: 0,
+    flareWarning: false, fleetBonus: 0,
   }
+}
+
+/** 全零账本（新局 / 旧存档兜底） */
+export function freshLedger(): SimLedger {
+  return {
+    unload: 0, demolishRefund: 0, ringBurn: 0, research: 0, fleetMaint: 0,
+    shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0,
+  }
+}
+
+/** 账本收支合计（旧档缺 ledger 字段时按零账本计） */
+export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
+  const l = led ?? freshLedger()
+  const income = l.unload + l.demolishRefund
+  const expense = l.ringBurn + l.research + l.fleetMaint + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
+  return { income, expense, net: income - expense }
 }
 
 export function createInitialState(seed: number): SimState {
@@ -150,9 +251,8 @@ export function createInitialState(seed: number): SimState {
     nodes: B.startNodes,
     ships,
     routes: [],
-    stations: [],
-    research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: d.init, nextMult: 1 })),
-    overclocked: [],
+    buildings: [],
+    research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: d.init, nextMult: 1, points: 0 })),
     pendingCard: null,
     /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳待重开（待卡不弃） */
     hexHiddenAt: null,
@@ -166,7 +266,8 @@ export function createInitialState(seed: number): SimState {
     tutorial: true,
     outcome: 'playing',
     sandbox: false,
-    stats: { delivered: 0, frozenCount: 0, rebuiltCount: 0, stationsBuilt: 0, cardsTaken: 0 },
+    stats: { delivered: 0, frozenCount: 0, rebuiltCount: 0, buildingsBuilt: 0, cardsTaken: 0 },
+    ledger: freshLedger(),
     actSnapshots: { act2: null, act3: null },
   }
 }
@@ -174,27 +275,26 @@ export function createInitialState(seed: number): SimState {
 // ─── 端点 ───
 
 export function endpointKey(e: Endpoint): string {
-  return e.kind === 'earth' ? 'earth' : e.kind === 'star' ? `star:${e.star}` : `st:${e.stationId}`
+  return e.kind === 'earth' ? 'earth' : e.kind === 'star' ? `star:${e.star}` : `b:${e.buildingId}`
 }
 
 export function starOfEndpoint(state: SimState, e: Endpoint): StarId | null {
-  if (e.kind === 'star') return e.star
-  if (e.kind === 'station') return state.stations.find((s) => s.id === e.stationId)?.star ?? null
-  return null
+  return e.kind === 'star' ? e.star : null
 }
 
 export function endpointPos(state: SimState, e: Endpoint): { x: number; y: number } {
   if (e.kind === 'earth') return starPosAt(state, 'earth')
   if (e.kind === 'star') return starPosAt(state, e.star)
-  const st = state.stations.find((s) => s.id === e.stationId)
-  return st ? stationAnchorPos(state, st) : starPosAt(state, 'earth')
+  const b = state.buildings.find((x) => x.id === e.buildingId)
+  return b ? { x: b.x, y: b.y } : starPosAt(state, 'earth')
 }
 
 export function endpointName(state: SimState, e: Endpoint): string {
   if (e.kind === 'earth') return '地球'
   if (e.kind === 'star') return B.stars[e.star].name
-  const st = state.stations.find((s) => s.id === e.stationId)
-  return st ? `补给站 ${st.id}${st.level > 0 ? ` Lv${st.level}` : '（站点）'}` : '补给站'
+  const b = state.buildings.find((x) => x.id === e.buildingId)
+  if (!b) return '建筑'
+  return `${buildingDefOf(b.type)?.name ?? b.type} ${b.id}`
 }
 
 export function findRoute(state: SimState, a: Endpoint, b: Endpoint): SimRoute | undefined {
@@ -203,6 +303,34 @@ export function findRoute(state: SimState, a: Endpoint, b: Endpoint): SimRoute |
     const ra = endpointKey(r.from), rb = endpointKey(r.to)
     return (ra === ka && rb === kb) || (ra === kb && rb === ka)
   })
+}
+
+// ─── 建筑 ───
+
+/** 建筑定义查询（building 表行；未知类型返回 null） */
+export function buildingDefOf(type: string): BuildingDef | null {
+  return (B.buildings as Record<string, BuildingDef | undefined>)[type] ?? null
+}
+
+export function buildingByEndpoint(state: SimState, e: Endpoint): SimBuilding | null {
+  return e.kind === 'building' ? state.buildings.find((x) => x.id === e.buildingId) ?? null : null
+}
+
+/** 建筑放置吸附（世界原点锚定的方格网，画布系进出；放置/预览/网格线同一口径） */
+export function snapToGrid(mx: number, my: number): { x: number; y: number } {
+  const g = Math.max(1, B.build.grid)
+  return {
+    x: MAP_W / 2 + Math.round((mx - MAP_W / 2) / g) * g,
+    y: MAP_H / 2 + Math.round((my - MAP_H / 2) / g) * g,
+  }
+}
+
+/** 反向补给线距离系数（几何：地→建筑实际画布距离 ÷ 1AU=250px，影响航段时长与油耗） */
+export function supplyDistCoeff(state: SimState, e: Endpoint): number {
+  const b = buildingByEndpoint(state, e)
+  if (!b) return 1
+  const earth = earthPos(state)
+  return Math.max(0.1, Math.hypot(b.x - earth.x, b.y - earth.y) / 250)
 }
 
 // ─── 数值 ───
@@ -227,6 +355,17 @@ export function roundFuel(mods: SimState['mods'], distCoeff: number, windowMult 
   return 2 * distCoeff * B.baseBurnPerLeg * mods.fuelMult * windowMult
 }
 
+/**
+ * 舰队维护费：按总船数查 B.fleetMaint 阶梯（升序，首档 ships ≥ 船数者命中，
+ * 超出末档沿用末档）→ 维护费速率（H3/秒，全舰队合计；tickEconomy 持续扣地球储备）。
+ */
+export function fleetMaintPerS(fleetSize: number): number {
+  const tiers = B.fleetMaint
+  if (tiers.length === 0) return 0
+  const hit = tiers.find((t) => fleetSize <= t.ships) ?? tiers[tiers.length - 1]
+  return Math.max(0, hit.costPerS)
+}
+
 /** 该航线是否受引力窗口影响（木卫二正向线 / 木卫二线中点补给站） */
 export function windowAffected(state: SimState, route: SimRoute): boolean {
   return starOfEndpoint(state, route.from) === 'europa' || starOfEndpoint(state, route.to) === 'europa'
@@ -243,10 +382,6 @@ export function routeNetPerTrip(state: SimState, route: SimRoute): number {
   return Math.round(cargoCap(state.mods))
 }
 
-export function stationByEndpoint(state: SimState, e: Endpoint): SimStation | null {
-  return e.kind === 'station' ? state.stations.find((s) => s.id === e.stationId) ?? null : null
-}
-
 /** 航线往返时长（展示用，秒） */
 export function routeCycleSeconds(state: SimState, route: SimRoute): number {
   if (route.direction === 'forward') {
@@ -255,13 +390,11 @@ export function routeCycleSeconds(state: SimState, route: SimRoute): number {
     const leg = legSeconds(B.stars[star].dist, state.mods.speedMult * w)
     return leg * 2 + B.loadSeconds + B.unloadSeconds
   }
-  const st = stationByEndpoint(state, route.to)
-  const dist = st ? B.stars[st.star].dist * 0.5 : 1
-  const leg = legSeconds(dist, state.mods.speedMult)
+  const leg = legSeconds(supplyDistCoeff(state, route.to), state.mods.speedMult)
   return leg * 2 + B.loadSeconds + B.unloadSeconds
 }
 
-/** 粗估净流（吨/秒，展示用）：卸货收入 − 反向支出 − 环焚烧 */
+/** 粗估净流（吨/秒，展示用）：卸货收入 − 反向支出 − 舰队维护费 − 环焚烧 */
 export function estimateNetFlow(state: SimState, demand: number): number {
   let income = 0
   for (const route of state.routes) {
@@ -270,12 +403,14 @@ export function estimateNetFlow(state: SimState, demand: number): number {
     const cycle = Math.max(1, routeCycleSeconds(state, route))
     if (route.direction === 'forward') income += (n * routeNetPerTrip(state, route)) / cycle
     else {
-      const st = stationByEndpoint(state, route.to)
-      const dist = st ? B.stars[st.star].dist * 0.5 : 1
-      income -= (n * (roundFuel(state.mods, dist) + Math.min(cargoCap(state.mods), st ? Math.max(0, st.need - st.stock) : 0) * B.materialH3PerUnit)) / cycle
+      const dist = supplyDistCoeff(state, route.to)
+      const st = buildingByEndpoint(state, route.to)
+      const cap = st ? buildingDefOf(st.type)?.bufferCap ?? 0 : 0
+      const want = st ? Math.max(0, cap - st.stock) : 0
+      income -= (n * (roundFuel(state.mods, dist) + Math.min(cargoCap(state.mods), want) * B.materialH3PerUnit)) / cycle
     }
   }
-  return income - demand
+  return income - demand - fleetMaintPerS(state.ships.length)
 }
 
 /** 船当前位置（星图画布坐标；耀斑护盾判定 / 渲染共用） */
@@ -296,4 +431,4 @@ export function deepSnapshot<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
-export type { CardDef, SimEvent, SimRoute, SimShip, SimState, SimStation, StarId, MAP_H, MAP_W }
+export type { BuildingDef, CardDef, SimBuilding, SimEvent, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }

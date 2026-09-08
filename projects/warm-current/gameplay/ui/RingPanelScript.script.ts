@@ -3,6 +3,8 @@
  *
  * 右上角常驻面板，集中展示聚能环相关状态（原散在 HUD 顶栏的交点数迁入此处）：
  *  - 状态徽标：运转（橙）/ 衰减（红闪语义由文本+颜色表达）/ 已建成（绿）
+ *  - 等级行：聚能环等级 Lv/25 + 全球覆盖度（= 交点/12）+ 升级进度条
+ *    （五线研究最靠前进度，随时间连续推进、选卡冻结；满级 Lv25 = 全球组网）
  *  - 交点进度条（0-12，UIProgressBarComponent 驱动 Fill）
  *  - 延续度条（0-100%）+ 缓冲条（running 时显示剩余缓冲秒数占比）
  *  - 净流估算 / 需求-储量行 / 危险警示行（danger 时红色提示）
@@ -22,6 +24,7 @@ const WARN_COLOR = '#ff5a4a'
 const IDLE_COLOR = '#9fc4d8'
 const BUFFER_FILL_NORMAL = '#ffe9a8'
 const BUFFER_FILL_WARN = '#ff5a4a'
+const LEVEL_COLOR = '#ffb03d'
 
 export default class RingPanelScript extends BehaviourScript {
   private binder = new TextBinder()
@@ -59,6 +62,19 @@ export default class RingPanelScript extends BehaviourScript {
       this.binder.set(stateText, '运转中')
       this.colors.set(stateText, STATE_RUNNING_COLOR)
     }
+
+    // ─── 等级行：聚能环等级 Lv/25 + 全球覆盖度 + 升级进度（研究随时间推进，选卡冻结） ───
+    const lv = vm.ringLevel
+    const levelText = findText(this.actor, 'LevelText')
+    const coverage = `${Math.round(lv.coverage * 100)}%`
+    if (lv.maxed) {
+      this.binder.set(levelText, `全球组网 ${coverage}`)
+      this.colors.set(levelText, STATE_DONE_COLOR)
+    } else {
+      this.binder.set(levelText, `${lv.name}/${lv.maxLevel} 覆盖${coverage}`)
+      this.colors.set(levelText, LEVEL_COLOR)
+    }
+    this.setProgress('LevelBar', lv.progress, 1)
 
     // ─── 交点进度条 ───
     this.binder.set(findText(this.actor, 'NodesText'), `交点 ${vm.nodes}/12`)

@@ -1,0 +1,8 @@
+{
+  "_comment": "舰队维护费阶梯表（DataTable 行表）。船队规模越大维护费越高，按时间从地球 H3 储备持续扣除（与聚能环焚烧争夺燃料，储备归零同样触发缓冲衰减）。\n字段含义：\n  ships = 该档船队规模上限（含；总船数 ≤ ships 命中本档，行按 ships 升序排列，超出末档沿用末档 costPerS）；\n  costPerS = 该档维护费速率（H3/秒，全舰队合计，非单船）。\n行名 m0..mN 仅作键，数值以 ships 为准；改表后重开一局生效。",
+  "m0": { "ships": 3, "costPerS": 0 },
+  "m1": { "ships": 5, "costPerS": 1 },
+  "m2": { "ships": 8, "costPerS": 2 },
+  "m3": { "ships": 12, "costPerS": 3.5 },
+  "m4": { "ships": 99, "costPerS": 5 }
+}

@@ -1,10 +1,14 @@
 <widget name="RingPanel" canvas="1920x1080" data-script="gameplay/ui/RingPanelScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
-    .Panel { width: 300px; height: 216px; position: absolute; right: 24px; top: 84px; display: flex; flex-direction: column; align-items: stretch; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .Panel { width: 300px; height: 250px; position: absolute; right: 24px; top: 84px; display: flex; flex-direction: column; align-items: stretch; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
     .HeadRow { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-shrink: 0; }
     .HeadText { width: 180px; height: 30px; flex-shrink: 0; font-size: 21px; color: #ffb03d; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .StateText { width: 88px; height: 30px; flex-shrink: 0; font-size: 19px; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .LevelRow { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 8px; flex-shrink: 0; }
+    .LevelText { width: 142px; height: 26px; flex-shrink: 0; font-size: 18px; color: #ffb03d; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .LevelBar { width: 100%; height: 8px; position: relative; }
+    .LevelFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffb03d; border-radius: 4px; }
     .NodesRow { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 8px; flex-shrink: 0; }
     .NodesText { width: 96px; height: 26px; flex-shrink: 0; font-size: 20px; color: #43d17c; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .NodesBar { width: 100%; height: 10px; position: relative; }
@@ -26,6 +30,12 @@
       <div class="HeadRow">
         <text class="HeadText" data-name="HeadText">聚能环</text>
         <text class="StateText" data-name="StateText">运转</text>
+      </div>
+      <div class="LevelRow">
+        <text class="LevelText" data-name="LevelText">Lv1/25 覆盖8%</text>
+        <div class="LevelBar" data-name="LevelBar" data-comp="UIProgressBar" data-props='{"max":1,"value":0,"fillActorName":"LevelFill"}'>
+          <div class="LevelFill"></div>
+        </div>
       </div>
       <div class="NodesRow">
         <text class="NodesText" data-name="NodesText">交点 0/12</text>

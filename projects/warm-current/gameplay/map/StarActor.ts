@@ -31,15 +31,17 @@ export abstract class StarActor extends Actor {
   }
 
   /**
-   * 位置自驱动（渲染组件每帧调用）：位置 = starPosAt(state, body)，
+   * 位置自驱动（GameMode 每帧调用）：位置 = starPosAt(state, body)，
    * 半径与 y 偏移读 star_map 配置（r 变化 → 视觉实时跟随）。
+   * ox/oz = 行星系舞台偏移（舞台 = 太阳位/世界原点；行星系视图非零：聚焦行星钉在舞台中心，
+   * 其余天体按与它的真实相对位置贴放；太阳系视图恒 0）。
    * sync 跳过重置跳变：sim.restart 时 starPosAt 可能大角度跳变，
    * 直接按 teleport 处理（无补间，重开一局跳变符合预期）。
    */
-  syncFrom(sim: SimState, dt: number): void {
+  syncFrom(sim: SimState, dt: number, ox = 0, oz = 0): void {
     const pos = starPosAt(sim, this.body)
     const r = B.map.nodes[this.body as 'sun'].r
-    this.setPosition(pos.x - MAP_W / 2, r * 0.55, pos.y - MAP_H / 2)
+    this.setPosition(pos.x - MAP_W / 2 + ox, r * 0.55, pos.y - MAP_H / 2 + oz)
     this.spin += dt * StarActor.SPIN_RATE
     const mesh = this.getComponent(SphereMeshComponent)
     if (mesh) mesh.obj.object.rotation.y = this.spin

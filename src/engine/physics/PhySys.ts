@@ -291,6 +291,8 @@ class PhySysImpl implements GameSingleton {
       // 载体：视觉块的 panel（旧语义/代码构建 UI）或 marker 的射线 mesh（V2 节点级命中）
       const carrier = b.hitMesh ?? b.panel
       if (!carrier || !isVisibleChain(carrier)) continue
+      // 视觉联动：panel 材质 opacity=0 = 视觉隐藏，不再拦截（marker/点击层豁免，见 hitVisualActive）
+      if (!b.hitVisualActive) continue
       // world 模式画布在世界坐标系，UI 相机（原点附近正交）的射线会数值性误命中 → 只归世界层管
       if (isWorldModeUI(b.owner)) continue
       const hits = rayWithFreshMatrix(uiRay, carrier)
@@ -316,6 +318,8 @@ class PhySysImpl implements GameSingleton {
     for (const b of this._uiBlockers) {
       const carrier = b.hitMesh ?? b.panel
       if (!carrier || !isVisibleChain(carrier)) continue
+      // 视觉联动：panel opacity=0 不再拦截（与 resolveUIStage 同口径）
+      if (!b.hitVisualActive) continue
       if (!isWorldModeUI(b.owner)) continue
       const hits = rayWithFreshMatrix(ray, carrier)
       if (hits) uiCandidates.push({ kind: 'blocked', distance: hits.distance, z: b.zOrder, blockerOwner: b.owner })
@@ -344,6 +348,8 @@ class PhySysImpl implements GameSingleton {
     for (const b of this._uiBlockers) {
       const carrier = b.hitMesh ?? b.panel
       if (!carrier || !isVisibleChain(carrier)) continue
+      // 视觉联动：panel opacity=0 不再拦截（与 resolveUIStage 同口径）
+      if (!b.hitVisualActive) continue
       if (!isWorldModeUI(b.owner)) continue
       const hit = rayWithFreshMatrix(ray, carrier)
       if (hit) out.push(`blocked:${b.owner.root.name}@z${b.zOrder}@d${hit.distance.toFixed(4)}`)

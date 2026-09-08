@@ -106,6 +106,17 @@ export class CanvasUIComponent extends Component<Actor> {
   /** 命中测试模式（仿 UE：visible=可命中 / block=拦截 / hitTestInvisible=穿透） */
   private _hitTest: UIHitTestMode
   /**
+   * 命中有效性（视觉联动，PhySys 拦截评估用）：视觉块的 panel 材质 opacity=0 视为
+   * "视觉隐藏"，不再参与射线拦截（看不见就不该挡）。marker 纯命中面（hitMesh 存在）
+   * 与按钮透明点击层（_isClickOnly）不受影响——它们的"隐形"是设计语义，拦截有效性
+   * 只由 active/visible 链管理（active=false / 祖先 visible=false 已由 isVisibleChain 覆盖）。
+   */
+  get hitVisualActive(): boolean {
+    if (this._isClickOnly) return true
+    if (!this.panel || this.hitMesh) return true
+    return this.opacity > 0
+  }
+  /**
    * 子组件（如 UIText 的 troika mesh）注册到本 canvas 的渲染对象列表。
    * canvas 组件作为本 UI 节点的"显隐控制中心"：
    *  - active=false 时统一隐藏 panel + 所有已注册的渲染对象

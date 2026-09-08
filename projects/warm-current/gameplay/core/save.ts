@@ -9,11 +9,14 @@
  * 纯函数无引擎类依赖（除 KVValue 类型），单测可脱离 World 直接覆盖。
  */
 import type { KVValue } from '@/engine'
-import { deepSnapshot, mulberry32 } from './helpers'
+import { deepSnapshot, freshLedger, mulberry32 } from './helpers'
 import type { SimState } from './types'
 
-/** 存档格式版本（payload 结构变更时 +1，读档兼容处理依据） */
-export const SAVE_FORMAT_VERSION = 1
+/** 存档格式版本（payload 结构变更时 +1，读档兼容处理依据）。
+ *  v2：SimState.stations（旧补给站）→ SimState.buildings（自由放置建筑，无法映射，旧档站点丢弃）。
+ *  v3：研究点数制（超频下线）——SimState.research[].points 新增（旧档补 0）、
+ *      SimLedger.overclock 改名 research（旧档缺失字段按 0 兜底）。 */
+export const SAVE_FORMAT_VERSION = 3
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -122,6 +125,18 @@ export function restoreSimState(
 ): { state: SimState; rng: () => number } | null {
   if (!sim || typeof sim !== 'object') return null
   if (!Array.isArray(sim.ships) || !Array.isArray(sim.routes) || typeof sim.seed !== 'number') return null
+  // v1→v2 兼容：旧档无 buildings 字段（补给站无法映射为自由建筑，置空）；
+  // 旧档残留 kind:'station' 航线端点 → endpointPos/buildingByEndpoint 兜底回地球，不炸渲染
+  if (!Array.isArray((sim as Partial<SimState>).buildings)) sim.buildings = []
+  // v2→v3 兼容（研究点数制）：旧档研究线无 points 字段 → 补 0（未分配任何点数）
+  if (Array.isArray(sim.research)) {
+    for (const line of sim.research) {
+      if (typeof line.points !== 'number' || !Number.isFinite(line.points)) line.points = 0
+    }
+  }
+  // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
+  // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键
+  sim.ledger = { ...freshLedger(), ...(typeof sim.ledger === 'object' && sim.ledger !== null ? sim.ledger : {}) }
   return { state: deepSnapshot(sim), rng: mulberry32(sim.seed) }
 }
 

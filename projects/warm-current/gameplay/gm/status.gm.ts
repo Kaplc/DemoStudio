@@ -16,11 +16,11 @@ export default {
     const sim = mode.simState
     ctx.output([
       `t=${s.time.toFixed(0)}s 幕${s.act} 节点${s.nodes}/12 延续度${s.continuity.toFixed(0)}%`,
-      `储量 ${s.earthH3.toFixed(0)} t · 需求 ${sim.demand.toFixed(1)}/s（焚烧 ${sim.burnRate.toFixed(1)} + 超频 ${sim.overclockCost}）`,
+      `储量 ${s.earthH3.toFixed(0)} t · 需求 ${sim.demand.toFixed(1)}/s（焚烧 ${sim.burnRate.toFixed(1)} + 研究 ${sim.researchCost.toFixed(1)}）`,
       `净流估 ${estimateNetFlow(s, sim.demand).toFixed(1)}/s · 环 ${s.ring}${s.ring === 'decaying' ? ` ${s.bufferLeft.toFixed(0)}s` : ''}`,
-      `船 ${s.ships.length}（空闲${sim.idleShips} 冻毁${sim.frozenShips.length}）· 航线 ${s.routes.length} · 站 ${s.stations.length}`,
+      `船 ${s.ships.length}（空闲${sim.idleShips} 冻毁${sim.frozenShips.length}）· 航线 ${s.routes.length} · 建筑 ${s.buildings.length}`,
       `窗口 ${s.gravity.phase} ${s.gravity.timer.toFixed(0)}s · 耀斑 ${s.flare.phase} next=${s.flare.nextIn === Infinity ? '∞' : s.flare.nextIn.toFixed(0)}s`,
-      `研究: ${s.research.map((l) => `${l.id} ${(l.progress * 100).toFixed(0)}%${s.overclocked.includes(l.id) ? '⚡' : ''}`).join(' | ')}`,
+      `研究点 可用${sim.unspentResearchPoints} · ${s.research.map((l) => `${l.id} ${(l.progress * 100).toFixed(0)}% ${l.points}点`).join(' | ')}`,
       `pendingCard=${s.pendingCard ? s.pendingCard.choices.join(',') : '无'} · module=${s.module.state} · outcome=${s.outcome}`,
     ].join('\n'))
   },

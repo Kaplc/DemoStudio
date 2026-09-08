@@ -1,7 +1,7 @@
 {
   "name": "RingPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-ff5b666c",
+  "sourceHash": "fnv1a-e6b3838e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -104,7 +104,7 @@
                   1
                 ],
                 "worldWidth": 328,
-                "worldHeight": 240,
+                "worldHeight": 274,
                 "anchor": "top-right",
                 "anchorOffset": [
                   -24,
@@ -132,7 +132,7 @@
                 "color": "#0e1a24e8",
                 "radius": 14,
                 "width": 328,
-                "height": 240,
+                "height": 274,
                 "name": "Panel"
               }
             }
@@ -160,7 +160,7 @@
                     "worldHeight": 30,
                     "position": [
                       -14,
-                      93,
+                      110,
                       0
                     ]
                   }
@@ -286,7 +286,7 @@
               ]
             },
             {
-              "name": "NodesRow",
+              "name": "LevelRow",
               "baseClass": "Actor",
               "id": 13206,
               "components": [
@@ -307,7 +307,200 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      57,
+                      74,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "LevelText",
+                  "baseClass": "Actor",
+                  "id": 13207,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 142,
+                        "worldHeight": 26,
+                        "position": [
+                          -65,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "Lv1/25 覆盖8%",
+                        "name": "LevelText",
+                        "width": 142,
+                        "height": 26,
+                        "fontSize": 18,
+                        "color": "#ffb03d",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "LevelBar",
+                  "baseClass": "Actor",
+                  "id": 13208,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 120,
+                        "worldHeight": 8,
+                        "position": [
+                          76,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIProgressBarComponent",
+                      "properties": {
+                        "max": 1,
+                        "value": 0,
+                        "fillActorName": "LevelFill"
+                      }
+                    }
+                  ],
+                  "children": [
+                    {
+                      "name": "LevelFill",
+                      "baseClass": "Actor",
+                      "id": 13209,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 120,
+                            "worldHeight": 8,
+                            "anchor": "stretch",
+                            "anchorOffset": [
+                              0,
+                              0
+                            ],
+                            "position": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#ffb03d",
+                            "radius": 4,
+                            "width": 120,
+                            "height": 8,
+                            "name": "LevelFill"
+                          }
+                        }
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "NodesRow",
+              "baseClass": "Actor",
+              "id": 13210,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 272,
+                    "worldHeight": 26,
+                    "position": [
+                      -14,
+                      40,
                       0
                     ]
                   }
@@ -325,7 +518,7 @@
                 {
                   "name": "NodesText",
                   "baseClass": "Actor",
-                  "id": 13207,
+                  "id": 13211,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -379,7 +572,7 @@
                 {
                   "name": "NodesBar",
                   "baseClass": "Actor",
-                  "id": 13208,
+                  "id": 13212,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -424,7 +617,7 @@
                     {
                       "name": "NodesFill",
                       "baseClass": "Actor",
-                      "id": 13209,
+                      "id": 13213,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -481,7 +674,7 @@
             {
               "name": "ContinuityRow",
               "baseClass": "Actor",
-              "id": 13210,
+              "id": 13214,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -500,7 +693,7 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      23,
+                      6,
                       0
                     ]
                   }
@@ -518,7 +711,7 @@
                 {
                   "name": "ContText",
                   "baseClass": "Actor",
-                  "id": 13211,
+                  "id": 13215,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -571,7 +764,7 @@
                 {
                   "name": "ContBar",
                   "baseClass": "Actor",
-                  "id": 13212,
+                  "id": 13216,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -616,7 +809,7 @@
                     {
                       "name": "ContFill",
                       "baseClass": "Actor",
-                      "id": 13213,
+                      "id": 13217,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -673,7 +866,7 @@
             {
               "name": "BufferRow",
               "baseClass": "Actor",
-              "id": 13214,
+              "id": 13218,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -692,7 +885,7 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      -11,
+                      -28,
                       0
                     ]
                   }
@@ -710,7 +903,7 @@
                 {
                   "name": "BufferText",
                   "baseClass": "Actor",
-                  "id": 13215,
+                  "id": 13219,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -763,7 +956,7 @@
                 {
                   "name": "BufferBar",
                   "baseClass": "Actor",
-                  "id": 13216,
+                  "id": 13220,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -808,7 +1001,7 @@
                     {
                       "name": "BufferFill",
                       "baseClass": "Actor",
-                      "id": 13217,
+                      "id": 13221,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -865,7 +1058,7 @@
             {
               "name": "FlowText",
               "baseClass": "Actor",
-              "id": 13218,
+              "id": 13222,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -884,7 +1077,7 @@
                     "worldHeight": 25.2,
                     "position": [
                       -14,
-                      -44.6,
+                      -61.6,
                       0
                     ]
                   }
@@ -918,7 +1111,7 @@
             {
               "name": "DemandText",
               "baseClass": "Actor",
-              "id": 13219,
+              "id": 13223,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -937,7 +1130,7 @@
                     "worldHeight": 25.2,
                     "position": [
                       -14,
-                      -73.8,
+                      -90.8,
                       0
                     ]
                   }
@@ -971,7 +1164,7 @@
             {
               "name": "WarnText",
               "baseClass": "Actor",
-              "id": 13220,
+              "id": 13224,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -990,7 +1183,7 @@
                     "worldHeight": 24,
                     "position": [
                       -14,
-                      -102.4,
+                      -119.4,
                       0
                     ]
                   }

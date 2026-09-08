@@ -2,11 +2,11 @@
  * SimStateComponent — 仿真状态持有组件（GameMode 上的组件位）
  *
  * 持有 SimState 纯数据 + 事件队列 + 确定性 rng；快照/重试本幕/沙盒/派生查询。
- * 子系统组件（transport/economy/research/hazards/stations/acts）都经 mode.simState 读写状态。
+ * 子系统组件（transport/economy/research/hazards/buildings/acts）都经 mode.simState 读写状态。
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { createInitialState, deepSnapshot, mulberry32 } from '../core/helpers'
+import { createInitialState, deepSnapshot, mulberry32, ringLevelOf } from '../core/helpers'
 import type { SimEvent, SimShip, SimState } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -41,19 +41,36 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   // ─── 派生查询 ───
 
-  /** 单节点焚烧（吨/秒，含节能修正） */
+  /** 实时焚烧（吨/秒）：随聚能环等级增长（B.levelBurn / level_burn 表），含节能修正 */
   get burnRate(): number {
-    return B.nodeBurn[Math.min(this.state.nodes, B.totalNodes) - 1] * this.state.mods.burnMult
+    const s = this.state
+    const researchMax = s.research.reduce((m, l) => Math.max(m, l.progress), 0)
+    const lv = ringLevelOf(s.nodes, researchMax).level
+    return (B.levelBurn[lv - 1] ?? B.levelBurn[B.levelBurn.length - 1] ?? 0) * s.mods.burnMult
   }
 
-  /** 超频支出（吨/秒） */
-  get overclockCost(): number {
-    return this.state.overclocked.length * B.overclockCostPerS
+  /** 研究点数计费（吨/秒）：各线已分配点数合计 × 每点单价；断环/储量耗尽不计费 */
+  get researchCost(): number {
+    const s = this.state
+    if (s.ring !== 'running' || s.earthH3 <= 0) return 0
+    return s.research.reduce((sum, l) => sum + l.points, 0) * B.researchPointCostPerS
   }
 
-  /** 当前总需求（焚烧 + 超频，衰减期为 0） */
+  /** 已分配研究点总数（五线合计） */
+  get allocatedResearchPoints(): number {
+    return this.state.research.reduce((sum, l) => sum + l.points, 0)
+  }
+
+  /** 可用研究点 = 当前聚能环等级 − 已分配（每级 1 点，含开局 Lv1；等级只升不降） */
+  get unspentResearchPoints(): number {
+    const s = this.state
+    const researchMax = s.research.reduce((m, l) => Math.max(m, l.progress), 0)
+    return Math.max(0, ringLevelOf(s.nodes, researchMax).level - this.allocatedResearchPoints)
+  }
+
+  /** 当前总需求（焚烧 + 研究点计费，衰减期为 0） */
   get demand(): number {
-    return this.state.ring === 'running' ? this.burnRate + this.overclockCost : 0
+    return this.state.ring === 'running' ? this.burnRate + this.researchCost : 0
   }
 
   get idleShips(): number {

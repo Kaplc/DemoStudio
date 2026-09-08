@@ -28,7 +28,7 @@ export class WarmCurrentPlayerController extends PlayerController {
     })
   }
 
-  /** 屏幕坐标 → 星图画布坐标（射线 ∩ y=0 地面） */
+  /** 屏幕坐标 → 星图画布坐标（射线 ∩ y=0 地面，再减当前视图舞台位移——行星系视角世界被搬到远景舞台） */
   private toMap(screenX: number, screenY: number): { x: number; y: number } | null {
     const el = this.mode.world?.gameRenderer?.uiLayer
     const cam = this.mode.gameCamera.camera
@@ -44,7 +44,8 @@ export class WarmCurrentPlayerController extends PlayerController {
     if (dir.y >= -1e-6) return null
     const t = -this._raycaster.ray.origin.y / dir.y
     this._raycaster.ray.at(t, this._hit)
-    return { x: this._hit.x + MAP_W / 2, y: this._hit.z + MAP_H / 2 }
+    const off = this.mode.viewStageOffset()
+    return { x: this._hit.x + MAP_W / 2 - off.x, y: this._hit.z + MAP_H / 2 - off.z }
   }
 
   override OnPointerDownScreen(screenX: number, screenY: number): void {

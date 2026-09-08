@@ -3,35 +3,40 @@
  *
  * 仿真子系统全部做成 GameMode 上的引擎组件（对齐 SpawnComponent/CameraComponent 惯例）：
  * simState（状态+快照）/ transport（航线飞船）/ economy（焚烧衰减）/ research（研究海克斯）
- * / hazards（引力窗口+耀斑）/ stations（补给站）/ acts（三幕）+ sim（总控编排器）。
+ * / hazards（引力窗口+耀斑）/ buildings（地图建筑：建造面板选型→星图网格放置）/ acts（三幕）+ sim（总控编排器）。
  * HUD 不在此构建（HUDClass 指向 hud.widget.json，由 gameplay/ui/*.script.ts 消费 buildViewModel）。
- * 指针事件经 WarmCurrentPlayerController 进来后做节点/航线几何命中，转成组件指令。
+ * 指针事件经 WarmCurrentPlayerController 进来后做节点/航线几何命中，转成组件指令；
+ * 建筑模式（buildMode）下指针变为放置：网格吸附预览 + 点击落位（Esc 取消，优先于暂停菜单）。
  * 太阳系取景：SolarCameraActor 云台（滚轮缩放 + 右键/边缘平移）+ sol GM 命令聚焦天体。
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
  */
 import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger } from '@/engine'
 import { makeStarTexture } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
-import type { SolarFocusBody } from '../core/balance'
+import type { BuildingDef, SolarFocusBody } from '../core/balance'
 import type { CardDef } from '../core/balance'
+import type { PlanetId } from '../core/types'
+import type { SolarBodyId } from '../core/helpers'
 import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
-  cargoCap, estimateNetFlow, endpointPos, findRoute, roundFuel, routeCycleSeconds,
-  routeNetPerTrip, starLoad, starOfEndpoint, starPosAt, stationAnchorPos,
+  alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
+  fleetMaintPerS, moonRelativeAngle, resetMoonPhaseAdj, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
+  routeNetPerTrip, starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
-import type { Endpoint, SimRoute, SimStation, StarId } from '../core/types'
-import { StarMapRenderComponent } from '../map/StarMapRenderComponent'
+import type { RingLevelInfo } from '../core/helpers'
+import type { Endpoint, SimBuilding, SimLedger, SimRoute, StarId } from '../core/types'
+import { StarMapRenderComponent, planetStageOffset } from '../map/StarMapRenderComponent'
 import { SolarCameraActor } from '../map/SolarCameraActor'
 import { STAR_BLUEPRINTS, type StarBodyId } from '../map/StarActor'
-import type { DragState, MapFx, MapSelection } from '../map/StarMapRenderComponent'
+import type { BuildCursor, DragState, MapFx, MapSelection } from '../map/StarMapRenderComponent'
 import { SimStateComponent } from '../systems/SimStateComponent'
 import { TransportComponent } from '../systems/TransportComponent'
 import { EconomyComponent } from '../systems/EconomyComponent'
 import { ResearchComponent } from '../systems/ResearchComponent'
 import { HazardsComponent } from '../systems/HazardsComponent'
-import { StationsComponent } from '../systems/StationsComponent'
+import { BuildingsComponent } from '../systems/BuildingsComponent'
 import { ActsComponent } from '../systems/ActsComponent'
 import { SimulationComponent } from '../systems/SimulationComponent'
 import { WarmCurrentPlayerController } from './WarmCurrentPlayerController'
@@ -40,6 +45,9 @@ import { registerWarmCurrentAudio } from './audio'
 
 /** 暂停菜单 widget 资产（Esc 呼出，动态 spawn/destroy） */
 const PAUSE_MENU_WIDGET = 'asset/blueprints/ui/pause_menu.widget.json'
+
+/** 视图切换加载遮罩（地球系/太阳系跃迁过渡，动态 spawn/destroy） */
+const VIEW_LOADING_WIDGET = 'asset/blueprints/ui/view_loading.widget.json'
 
 export const WARM_CURRENT_SCENE = 'WarmCurrentMap'
 export const HUD_WIDGET = 'asset/blueprints/ui/hud.widget.json'
@@ -64,41 +72,104 @@ export interface HudRouteInfo {
   ships: number
   net: number
   cycle: number
-  canBuildStation: boolean
 }
 
-export interface HudStationInfo {
-  level: number
+export interface HudBuildingInfo {
+  id: number
+  type: string
+  /** 建筑名（building 表） */
+  name: string
+  /** 功能半径（护盾建筑 > 0） */
   radius: number
+  /** 护盾保全容量 */
   cap: number
+  /** 缓存物资/上限（非缓存建筑 cap=0） */
   stock: number
-  need: number
-  canUpgrade: boolean
-  nextNeed: number
+  bufferCap: number
+  canDemolish: boolean
+}
+
+/** 建造面板行（building 表驱动，build_panel.widget 消费） */
+export interface HudBuildRow {
+  /** 建筑类型 id（building 表行键；放置按钮参数） */
+  id: string
+  name: string
+  desc: string
+  /** 放置造价（H3） */
+  cost: number
+  /** 当前可放置（预算足 & 非耀斑 & 对局进行中） */
+  canPlace: boolean
+}
+
+/** 运输面板船行（transport_panel.widget 消费，最多展示 SHIP_ROWS 行） */
+export interface HudShipRow {
+  id: number
+  name: string
+  state: import('../core/types').ShipState
+  /** 位置描述（「基地待命」「去程 · 月球线」「冻毁」等） */
+  place: string
+  cargo: number
+  materials: number
+  /** 冻毁可重建 */
+  canRebuild: boolean
+}
+
+/** 航线管理面板行（routes_panel.widget 消费，全部航线的紧凑视图） */
+export interface HudRouteRow {
+  id: number
+  /** 行名（正向「月球线」，反向「供应线·木卫二」） */
+  name: string
+  direction: 'forward' | 'reverse'
+  /** 在线配船数 */
+  ships: number
+  /** 单趟净补（正向 t）/ 单趟载建材（反向） */
+  net: number
+  /** 往返时长（秒，展示用） */
+  cycle: number
 }
 
 export interface WarmCurrentVM {
   time: number
   act: 1 | 2 | 3
   nodes: number
+  /** 聚能环等级（按已覆盖交点数分阶，模块 03 §5；level 4 = 终局全球环网） */
+  ringLevel: RingLevelInfo
   continuity: number
   ring: 'running' | 'decaying'
   bufferLeft: number
   bufferTotal: number
   reserve: number
   demand: number
-  ocCost: number
+  /** 研究点数计费速率（H3/秒，五线合计；断环/储量耗尽为 0） */
+  researchCost: number
   netFlow: number
   danger: boolean
   windowPhase: 'idle' | 'warn' | 'active'
   windowRemain: number
   flarePhase: 'idle' | 'warn' | 'active'
   flareRemain: number
-  fleet: { total: number; idle: number; flying: number; frozen: number; building: number; buildRemain: number }
-  research: Array<{ id: string; name: string; progress: number; oc: boolean }>
+  /** 舰队维护费速率（H3/秒，按总船数查 fleet_maint 阶梯；从地球储备持续扣除） */
+  fleet: { total: number; idle: number; flying: number; frozen: number; building: number; buildRemain: number; maintPerS: number }
+  /** H3 收支账本（对局累计 + income/expense/net 合计，统计面板消费） */
+  ledger: SimLedger & { income: number; expense: number; net: number }
+  /** 五线研究行（points = 已分配点数，rate = 该线当前 H3 消耗速率） */
+  research: Array<{ id: string; name: string; progress: number; points: number; rate: number }>
+  /** 可用研究点（聚能环等级 − 已分配，科研面板 +/− 分配） */
+  researchUnspent: number
   pending: { lineName: string; cards: CardDef[] } | null
   routeInfo: HudRouteInfo | null
-  stationInfo: HudStationInfo | null
+  buildingInfo: HudBuildingInfo | null
+  /** 建造面板行（building 表顺序） */
+  buildRows: HudBuildRow[]
+  /** 建筑模式当前选型（building 表行键；null = 非建筑模式） */
+  buildActive: string | null
+  /** 运输面板船行（截断到面板行池容量，超出部分 UI 用「另有 N 艘」提示） */
+  shipRows: HudShipRow[]
+  /** 航线管理面板行（全部航线，RoutesPanelScript 消费） */
+  routes: HudRouteRow[]
+  /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
+  shipBuildCost: number
+  shipRebuildCost: number
   tutorial: boolean
   paused: boolean
   timeScale: number
@@ -106,7 +177,7 @@ export interface WarmCurrentVM {
   canStartMission: boolean
   outcome: 'playing' | 'victory' | 'defeat'
   sandbox: boolean
-  stats: { delivered: number; frozen: number; stations: number; cards: number }
+  stats: { delivered: number; frozen: number; buildings: number; cards: number }
 }
 
 export class WarmCurrentGameMode extends GameMode {
@@ -116,7 +187,8 @@ export class WarmCurrentGameMode extends GameMode {
   readonly economy: EconomyComponent = this.addComponent(EconomyComponent)
   readonly research: ResearchComponent = this.addComponent(ResearchComponent)
   readonly hazards: HazardsComponent = this.addComponent(HazardsComponent)
-  readonly stations: StationsComponent = this.addComponent(StationsComponent)
+  /** 地图建筑（建造面板选型 → 星图自由放置） */
+  readonly buildings: BuildingsComponent = this.addComponent(BuildingsComponent)
   readonly acts: ActsComponent = this.addComponent(ActsComponent)
   /** 总控编排器（固定顺序驱动各子系统 tick） */
   readonly sim: SimulationComponent = this.addComponent(SimulationComponent)
@@ -135,10 +207,23 @@ export class WarmCurrentGameMode extends GameMode {
   selection: MapSelection = null
   fx: MapFx = { pulses: [], floats: [] }
 
+  /** 建筑模式（建造面板选型后进入：星图网格线 + 吸附预览，点击落位 / Esc 取消） */
+  buildMode: { typeId: string } | null = null
+  /** 建筑模式光标（网格吸附后画布系坐标 + 合法性，渲染 ghost 消费） */
+  buildCursor: BuildCursor | null = null
+
   paused = false
   timeScale: 1 | 2 = 1
-  /** 星图视角模式：earth = 地球系跟随取景（开局默认），solar = 太阳系全景 */
+  /** 星图视角模式：earth = 行星系跟随取景（聚焦 planetFocusBody，开局默认地球系），solar = 太阳系全景 */
   viewMode: 'earth' | 'solar' = 'earth'
+  /** 行星系视角当前聚焦的行星（viewMode='earth' 时生效；太阳系全景忽略） */
+  planetFocusBody: SolarBodyId = 'earth'
+  /** 离开地球系时记录的月球相对相位（rad；null = 无待回拨），切回地球系时对齐用 */
+  private moonAngleAtLeave: number | null = null
+  /** 视图切换进行中（加载遮罩已上屏、镜头尚未跳转）：期间忽略重复切换（e2e 桥只读） */
+  viewSwitching = false
+  /** 当前加载遮罩面板（null = 无；e2e 断言切换收尾后必须归零） */
+  viewLoadingPanel: import('@/engine').Actor | null = null
 
   /** 事件 toast 队列（HudScript 每帧消费渲染） */
   toasts: Array<{ text: string; color: string; age: number }> = []
@@ -173,8 +258,14 @@ export class WarmCurrentGameMode extends GameMode {
     const controller = new WarmCurrentPlayerController(this)
     // 装配期：相机云台接输入（滚轮缩放 + 右键拖拽平移；规范 §2.5 唯一例外现场，hoi4 同款）
     this.cameraActor.rig.bindInput(controller.inputComponent)
-    // Esc：呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单）
-    controller.inputComponent.BindAction('wc-pause-menu', 'Escape', 'pressed', () => this.togglePauseMenu())
+    // Esc：建筑模式中先取消放置（不误开暂停菜单），否则呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单）
+    controller.inputComponent.BindAction('wc-pause-menu', 'Escape', 'pressed', () => {
+      if (this.buildMode) {
+        this.cancelBuildMode()
+        return
+      }
+      this.togglePauseMenu()
+    })
     return { controller, pawn: new WarmCurrentPawn() }
   }
 
@@ -211,13 +302,20 @@ export class WarmCurrentGameMode extends GameMode {
     for (const t of this.toasts) t.age += dt
     this.toasts = this.toasts.filter((t) => t.age < 3.6)
     // 天体位置自驱动（蓝图 Actor：位置 = starPosAt 纯函数 + 自转；暂停时 dt=0 只保持位置）
+    // 行星系视角的渲染坐标变换：聚焦行星钉在舞台中心（像太阳一样固定），其余天体按与它的
+    // 真实相对位置贴放（卫星像行星一样绕它转）——纯显示变换，仿真数据不动
     const sdt = this.paused ? 0 : dt * this.timeScale
-    for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt)
-    // 地球系跟随视角：target 每帧贴地球实时位置（与 syncFrom 同一时间轴，零相对漂移；保留用户缩放偏移）
     if (this.viewMode === 'earth') {
-      const e = starPosAt(this.simState.state, 'earth')
-      this.cameraActor.rig.target.set(toWX(e.x), 0, toWZ(e.y))
-      this.cameraActor.SyncToActor()
+      const f = starPosAt(this.simState.state, this.planetFocusBody)
+      const stage = planetStageOffset(this.planetFocusBody as PlanetId)
+      const ox = stage.x - toWX(f.x)
+      const oz = stage.z - toWZ(f.y)
+      for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt, ox, oz)
+      // rig.target 已由 focusOn 一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
+      // rig.pan 成对移动 target 与相机，若只把 target 拉回舞台而相机留在原位，
+      // 下次拖拽的 lookAt 会把镜头掰向舞台中心——右键平移退化成绕行星旋转
+    } else {
+      for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt)
     }
     this.starMap?.render(this.paused ? 0 : dt * this.timeScale, this.gameCamera.camera)
   }
@@ -288,9 +386,18 @@ export class WarmCurrentGameMode extends GameMode {
           this.toast(`${ev.value ?? 0} 艘飞船冻毁（150 H3 可重建）`, '#ff5a4a')
           audioSys.play('wc.bad')
           break
-        case 'station_built': this.toast('补给站建成 —— 极寒护盾上线', '#7fdcff'); audioSys.play('wc.build'); break
-        case 'station_upgraded': this.toast(`补给站升至 Lv${ev.value}`, '#7fdcff'); break
-        case 'station_demolished': this.toast(`补给站拆除，返还 ${Math.round(ev.value ?? 0)} H3`, '#9fc4d8'); break
+        case 'building_built':
+          if (ev.x !== undefined && ev.y !== undefined) {
+            this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
+            this.fx.floats.push({ text: `-${ev.value}`, x: ev.x, y: ev.y - 30, age: 0 })
+          }
+          this.toast(`「${ev.text ?? '建筑'}」已放置 —— 可从星图拖线链接`, '#7fdcff')
+          audioSys.play('wc.build')
+          break
+        case 'building_demolished':
+          if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
+          this.toast(`建筑拆除，返还 ${Math.round(ev.value ?? 0)} H3`, '#9fc4d8')
+          break
         case 'act2':
           this.toast('第二幕 · 复苏：木卫二 / 引力窗口 / 极寒停航启用，需求暴涨！', '#ffb03d')
           audioSys.play('wc.alarm')
@@ -320,15 +427,25 @@ export class WarmCurrentGameMode extends GameMode {
   private static readonly EARTH_VIEW_MIN_DIST = 80
   private static readonly EARTH_VIEW_MAX_DIST = 520
 
-  /** 聚焦指定天体：实时轨道位置 + 取景距离档位（规则决策），机位数学在 SolarCameraActor.focusOn */
+  /** 聚焦指定天体：太阳 = 太阳系全景；行星 = 进入其行星系（跟随取景）。机位数学在 SolarCameraActor.focusOn */
   focusSolarSystem(body: SolarFocusBody): void {
-    const p = starPosAt(this.simState.state, body)
-    // 取景距离随星体尺寸：太阳 480（中景看轨道），地球 320（月球环 120 全入画留边），月球/木卫二/火星 220
-    const d = body === 'sun' ? 480 : body === 'earth' ? 320 : 220
-    // 太阳 = 全景取景（退出跟随）；其余天体 = 对应系跟随取景（随该天体公转）
-    this.viewMode = body === 'sun' ? 'solar' : 'earth'
+    const toSolar = body === 'sun'
+    // 月球相位对齐（仅地月系）：离开地月系时记录相位，切回地月系（含从其它行星系切回）时拨回
+    const leavingEarthSys = this.viewMode === 'earth' && this.planetFocusBody === 'earth'
+    const enteringEarthSys = !toSolar && body === 'earth'
+    if (leavingEarthSys && !enteringEarthSys) this.moonAngleAtLeave = moonRelativeAngle(this.simState.state)
+    if (enteringEarthSys && this.moonAngleAtLeave !== null) {
+      alignMoonRelativeAngle(this.simState.state, this.moonAngleAtLeave)
+      this.moonAngleAtLeave = null
+    }
+    if (!toSolar) this.planetFocusBody = body
+    this.viewMode = toSolar ? 'solar' : 'earth'
     this.applyViewMode()
-    this.cameraActor.focusOn(toWX(p.x), toWZ(p.y), d)
+    // 取景距离随星体尺寸：太阳 480（中景看轨道），地球 320（月球环 120 全入画留边），其余行星 220
+    const d = body === 'sun' ? 480 : body === 'earth' ? 320 : 220
+    // 行星系取景目标 = 舞台中心（行星会被渲染钉在舞台中心，镜头只是切区）
+    const off = this.viewMode === 'earth' ? planetStageOffset(this.planetFocusBody as PlanetId) : { x: 0, z: 0 }
+    this.cameraActor.focusOn(off.x, off.z, d)
     logger.info(`[WarmCurrent] 太阳系取景 → ${body} (dist=${d}, mode=${this.viewMode})`)
   }
 
@@ -343,9 +460,36 @@ export class WarmCurrentGameMode extends GameMode {
     logger.info(`[WarmCurrent] 视图隔离：${solar ? '太阳系全景（缩放 60~12000）' : `地球系小星系（缩放 ${WarmCurrentGameMode.EARTH_VIEW_MIN_DIST}~${WarmCurrentGameMode.EARTH_VIEW_MAX_DIST}，只见地月）`}`)
   }
 
-  /** 视角切换（ViewToggle widget 按钮）：earth = 地球系跟随，solar = 太阳系全景 */
+  /** 视角切换（ViewToggle widget 按钮）：earth = 地球系（行星系），solar = 太阳系全景 */
   setViewMode(mode: 'earth' | 'solar'): void {
-    this.focusSolarSystem(mode === 'earth' ? 'earth' : 'sun')
+    if (mode === 'solar') this.switchView('solar')
+    else this.enterPlanetSystem('earth')
+  }
+
+  /** 双击行星进入其行星系（加载遮罩过渡；已在同一行星系则忽略） */
+  enterPlanetSystem(body: SolarBodyId): void {
+    if (this.viewMode === 'earth' && this.planetFocusBody === body) return
+    this.switchView(body)
+  }
+
+  /** 统一视图切换：加载遮罩先上屏（盖住舞台搬移/镜头跳转防穿帮），下一拍再切 */
+  private switchView(target: 'solar' | SolarBodyId): void {
+    if (this.viewSwitching) return
+    if (target === 'solar' && this.viewMode === 'solar') return
+    this.viewSwitching = true
+    const panel = this.world?.ui.spawnUIActor(VIEW_LOADING_WIDGET) ?? null
+    this.viewLoadingPanel = panel
+    if (!panel) logger.warn('[WarmCurrent] 视图切换加载遮罩生成失败，退化为硬切')
+    window.setTimeout(() => {
+      try {
+        this.focusSolarSystem(target === 'solar' ? 'sun' : target)
+      } finally {
+        // 遮罩销毁失败不得卡死 viewSwitching（否则后续所有切换永久失灵）
+        try { panel?.destroy() } catch (e) { logger.error(`[WarmCurrent] 加载遮罩销毁失败：${e}`) }
+        this.viewLoadingPanel = null
+        this.viewSwitching = false
+      }
+    }, 450)
   }
 
   override EndPlay(): void {
@@ -356,22 +500,75 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   // ═══════════════════════════════════════════
+  //  建筑模式（建造面板选型 → 星图网格放置）
+  // ═══════════════════════════════════════════
+
+  /** 进入建筑模式（建造面板「放置」按钮；预算校验通过才进入） */
+  enterBuildMode(typeId: string): boolean {
+    const def = buildingDefOf(typeId)
+    if (!def) return false
+    const s = this.simState.state
+    if (s.outcome !== 'playing' && !s.sandbox) return false
+    if (s.earthH3 < def.cost) { this.simState.hint(`H3 不足（需 ${def.cost}）`); return false }
+    this.buildMode = { typeId }
+    this.buildCursor = null
+    this.drag = null
+    logger.info(`[WarmCurrent] 建筑模式：${def.name}（点击星图落位，Esc 取消）`)
+    return true
+  }
+
+  /** 退出建筑模式（落位成功 / Esc / 面板关闭） */
+  cancelBuildMode(): void {
+    if (!this.buildMode) return
+    this.buildMode = null
+    this.buildCursor = null
+    logger.info('[WarmCurrent] 建筑模式退出')
+  }
+
+  // ═══════════════════════════════════════════
   //  星图指针交互
   // ═══════════════════════════════════════════
 
-  private stationAt(p: { x: number; y: number }): SimStation | null {
+  private buildingAt(p: { x: number; y: number }): SimBuilding | null {
     const s = this.simState.state
-    for (const st of s.stations) {
-      const anchor = stationAnchorPos(s, st)
-      if (dist(p.x, p.y, anchor.x, anchor.y) <= 26 + B.map.hitTolerance) return st
+    for (const b of s.buildings) {
+      if (dist(p.x, p.y, b.x, b.y) <= 26 + B.map.hitTolerance) return b
     }
     return null
   }
 
   /** 太阳命中（点击聚焦取景，不参与航线端点/拖拽） */
+  /**
+   * 当前视图的世界位移（世界坐标 → 地图画布坐标须减去）：
+   * 行星系视角 = 舞台位移（stage - 聚焦行星画布系中心，与渲染 syncStage/StarActor.syncFrom 同口径）；
+   * 太阳系全景 = 0（世界原点即地图中心）。PlayerController 指针拾取共用，改口径须两边同步。
+   */
+  viewStageOffset(): { x: number; z: number } {
+    if (this.viewMode !== 'earth') return { x: 0, z: 0 }
+    const stage = planetStageOffset(this.planetFocusBody as PlanetId)
+    const f = starPosAt(this.simState.state, this.planetFocusBody)
+    return { x: stage.x - toWX(f.x), z: stage.z - toWZ(f.y) }
+  }
+
   private sunAt(p: { x: number; y: number }): boolean {
     const s0 = B.map.nodes.sun
     return dist(p.x, p.y, s0.x, s0.y) <= s0.r + B.map.hitTolerance
+  }
+
+  /** 双击判定状态（行星系入口）：最近一次点中的行星 + 时刻 */
+  private lastPlanetClick: { body: PlanetId | null; t: number } = { body: null, t: 0 }
+
+  /** 行星本体命中（含未解锁装饰行星；太阳与卫星不参与双击进入行星系）。
+   *  ⚠ 用 starPosAt 实时公转位置判定（渲染在哪就点哪）；布局坐标只在开局重合，玩一会儿必然 miss。 */
+  private planetAt(p: { x: number; y: number }): PlanetId | null {
+    const s = this.simState.state
+    for (const body of Object.keys(B.map.nodes) as Array<keyof typeof B.map.nodes>) {
+      if (body === 'sun') continue
+      if (B.map.moons[body as keyof typeof B.map.moons]) continue
+      const n = starPosAt(s, body)
+      if (dist(p.x, p.y, n.x, n.y) <= B.map.nodes[body].r + B.map.hitTolerance) return body as PlanetId
+    }
+    return null
   }
 
   private nodeAt(p: { x: number; y: number }): Endpoint | null {
@@ -398,16 +595,43 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   onMapPointerDown(p: { x: number; y: number }): void {
-    const s = this.simState.state
-    if (s.outcome === 'defeat' || s.pendingCard) return
+    // 建筑模式优先：点击 = 网格吸附落位（成功即退出模式，失败提示后留在模式中可换点）
+    if (this.buildMode) {
+      const snapped = snapToGrid(p.x, p.y)
+      const ok = this.buildings.tryPlace(this.buildMode.typeId, snapped.x, snapped.y)
+      if (ok) {
+        audioSys.play('wc.build')
+        this.cancelBuildMode()
+      } else {
+        audioSys.play('wc.bad', { volume: 0.5 })
+      }
+      return
+    }
+    // 双击行星 → 进入其行星系（加载遮罩过渡）
+    // ⚠ 行星命中优先于太阳（水星轨道 97 < 太阳命中半径 124，先判太阳会整颗吃掉水星）
+    // ⚠ 视图切换不受败局/选卡冻结影响（pendingCard 挂起期间航线交互冻结，但镜头必须可用）
+    const planet = this.planetAt(p)
+    if (planet) {
+      const now = performance.now()
+      if (this.lastPlanetClick.body === planet && now - this.lastPlanetClick.t < 350) {
+        this.lastPlanetClick = { body: null, t: 0 }
+        this.enterPlanetSystem(planet)
+        audioSys.play('wc.ok', { volume: 0.4 })
+        return
+      }
+      this.lastPlanetClick = { body: planet, t: now }
+      // 单击行星：不参与太阳聚焦，继续走建筑/节点/航线判定（行星也可能是资源星节点）
+    }
     // 太阳：点击聚焦取景（不参与航线/选择）
     if (this.sunAt(p)) {
       this.focusSolarSystem('sun')
       audioSys.play('wc.ok', { volume: 0.4 })
       return
     }
-    const st = this.stationAt(p)
-    if (st) { this.selection = { type: 'station', id: st.id }; return }
+    const s = this.simState.state
+    if (s.outcome === 'defeat' || s.pendingCard) return
+    const b = this.buildingAt(p)
+    if (b) { this.selection = { type: 'building', id: b.id }; return }
     const node = this.nodeAt(p)
     if (node) {
       const pos = endpointPos(s, node)
@@ -424,6 +648,18 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   onMapPointerMove(p: { x: number; y: number }): void {
+    // 建筑模式：光标位置刷新网格吸附预览（渲染 ghost 消费）
+    if (this.buildMode) {
+      const snapped = snapToGrid(p.x, p.y)
+      const def = buildingDefOf(this.buildMode.typeId)
+      const issue = this.buildings.placementIssue(this.buildMode.typeId, snapped.x, snapped.y)
+      this.buildCursor = {
+        x: snapped.x, y: snapped.y,
+        valid: issue === null,
+        label: issue ?? (def ? `${def.name} · ${def.cost} H3` : ''),
+      }
+      return
+    }
     const drag = this.drag
     if (!drag) return
     drag.curX = p.x
@@ -463,9 +699,15 @@ export class WarmCurrentGameMode extends GameMode {
     }
     if (ka === 'earth' && kb === 'star') return this.transport.starUnlocked((b as { star: StarId }).star)
     if (ka === 'star' && kb === 'earth') return this.transport.starUnlocked((a as { star: StarId }).star)
-    if (ka === 'earth' && kb === 'station') return true
-    if (ka === 'station' && kb === 'earth') return true
+    if (ka === 'earth' && kb === 'building') return this.buildingLinkable(b)
+    if (ka === 'building' && kb === 'earth') return this.buildingLinkable(a)
     return false
+  }
+
+  /** 建筑 endpoint 可接航线（预览镜像；权威判定在 transport.tryCreateRoute） */
+  private buildingLinkable(e: Endpoint): boolean {
+    const b = buildingByEndpoint(this.simState.state, e)
+    return !!b && !!buildingDefOf(b.type)?.linkable
   }
 
   private epEq(a: Endpoint, b: Endpoint): boolean {
@@ -484,8 +726,14 @@ export class WarmCurrentGameMode extends GameMode {
     }
     if (a.kind === 'earth' && b.kind === 'star') return this.forwardLabel(b.star)
     if (a.kind === 'star' && b.kind === 'earth') return this.forwardLabel(a.star)
-    const cap = Math.round(cargoCap(this.simState.state.mods))
-    return `载建材 ${cap} · 折算 ${(cap * B.materialH3PerUnit).toFixed(0)} H3`
+    // 地↔建筑补给线（建筑端点必有其一）
+    const bEp = a.kind === 'building' ? a : b
+    const bd = buildingByEndpoint(this.simState.state, bEp)
+    if (!bd) return '不合法'
+    const def = buildingDefOf(bd.type)
+    if (!def?.linkable) return `${def?.name ?? '该建筑'}不能接入航线`
+    const left = this.buildings.bufferLeft(bd)
+    return `送建材入缓存 · 余量 ${left}/${def.bufferCap}`
   }
 
   private forwardLabel(star: StarId): string {
@@ -549,8 +797,12 @@ export class WarmCurrentGameMode extends GameMode {
   restart(): void {
     refreshBalanceFromConfigs()
     this.simState.reset()
+    resetMoonPhaseAdj()
+    this.moonAngleAtLeave = null
     this.selection = null
     this.drag = null
+    this.buildMode = null
+    this.buildCursor = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -565,8 +817,12 @@ export class WarmCurrentGameMode extends GameMode {
     if (!pack) return null
     this.simState.state = pack.state
     this.simState.rng = pack.rng
+    resetMoonPhaseAdj()
+    this.moonAngleAtLeave = null
     this.selection = null
     this.drag = null
+    this.buildMode = null
+    this.buildCursor = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -611,7 +867,9 @@ export class WarmCurrentGameMode extends GameMode {
       frozen: sc.frozenShips.length,
       building: s.buildQueue.length,
       buildRemain: s.buildQueue.length > 0 ? Math.ceil(s.buildQueue[0]) : 0,
+      maintPerS: fleetMaintPerS(s.ships.length),
     }
+    const ledger = { ...s.ledger, ...ledgerTotals(s.ledger) }
     // pending 折算：pendingCard 存在但已自动收纳（hexHiddenAt 非 null）时不进入 VM（弹窗隐藏）
     const pending = s.pendingCard && s.hexHiddenAt === null
       ? {
@@ -627,43 +885,90 @@ export class WarmCurrentGameMode extends GameMode {
       if (route) {
         const star = starOfEndpoint(s, route.from) ?? starOfEndpoint(s, route.to)
         routeInfo = {
-          name: route.direction === 'forward' ? `${star ? B.stars[star].name : '?'}线` : '补给站供应线',
+          name: route.direction === 'forward' ? `${star ? B.stars[star].name : '?'}线` : '中转站供应线',
           direction: route.direction,
           ships: route.shipIds.length,
           net: routeNetPerTrip(s, route),
           cycle: routeCycleSeconds(s, route),
-          canBuildStation: route.direction === 'forward' && s.mods.stationUnlocked
-            && !s.stations.some((st) => st.routeId === route.id) && s.flare.phase !== 'active',
         }
       }
     }
-    let stationInfo: HudStationInfo | null = null
-    if (this.selection?.type === 'station') {
-      const st = s.stations.find((x) => x.id === this.selection!.id)
-      if (st) {
-        stationInfo = {
-          level: st.level,
-          radius: B.station.radius[st.level],
-          cap: B.station.shipCap[st.level],
-          stock: st.stock,
-          need: st.need,
-          canUpgrade: st.level >= 1 && st.level < 3 && st.stock >= B.station.upgradeMaterials[st.level + 1],
-          nextNeed: st.level === 0 ? st.need : st.level >= 3 ? 0 : B.station.upgradeMaterials[st.level + 1],
+    let buildingInfo: HudBuildingInfo | null = null
+    if (this.selection?.type === 'building') {
+      const b = s.buildings.find((x) => x.id === this.selection!.id)
+      const def = b ? buildingDefOf(b.type) : null
+      if (b && def) {
+        buildingInfo = {
+          id: b.id,
+          type: b.type,
+          name: def.name,
+          radius: def.radius,
+          cap: def.shipCap,
+          stock: Math.floor(b.stock),
+          bufferCap: def.bufferCap,
+          canDemolish: s.flare.phase !== 'active',
         }
       }
     }
     const demand = sc.demand
+    // 建造面板行：building 表顺序（表驱动，加建筑只改表）
+    const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const buildRows: HudBuildRow[] = Object.entries(B.buildings).map(([id, def]) => ({
+      id,
+      name: def.name,
+      desc: def.desc,
+      cost: def.cost,
+      canPlace: playable && s.earthH3 >= def.cost,
+    }))
+    // 航线管理面板行：全部航线紧凑视图（正向「月球线」/ 反向「供应线·中转站 N」，命名与运输面板 routeNameOf 同口径）
+    const routeNameOf = (route: SimRoute): string => {
+      if (route.direction === 'forward') {
+        const star = starOfEndpoint(s, route.from)
+        return `${star ? B.stars[star].name : '?'}线`
+      }
+      const b = buildingByEndpoint(s, route.to)
+      const def = b ? buildingDefOf(b.type) : null
+      return `供应线·${def?.name ?? '中转站'}${b ? ` ${b.id}` : ''}`
+    }
+    const nameOfRouteId = (routeId: number | null): string => {
+      if (routeId === null) return ''
+      const r = s.routes.find((x) => x.id === routeId)
+      return r ? routeNameOf(r) : ''
+    }
+    const shipRows: HudShipRow[] = s.ships.slice(0, 10).map((ship) => ({
+      id: ship.id,
+      name: ship.name,
+      state: ship.state,
+      place: ship.mission ? '火星任务'
+        : ship.state === 'idle' ? '基地待命'
+        : ship.state === 'frozen' ? '冻毁'
+        : ship.state === 'loading' ? `装载中 · ${nameOfRouteId(ship.routeId)}`
+        : ship.state === 'unloading' ? `卸载中 · ${nameOfRouteId(ship.routeId)}`
+        : `${ship.leg === 'outbound' ? '去程' : '回程'} · ${nameOfRouteId(ship.routeId)}`,
+      cargo: Math.round(ship.cargo),
+      materials: Math.round(ship.materials),
+      canRebuild: ship.state === 'frozen',
+    }))
+    const routes: HudRouteRow[] = s.routes.map((route) => ({
+      id: route.id,
+      name: routeNameOf(route),
+      direction: route.direction,
+      ships: route.shipIds.length,
+      net: routeNetPerTrip(s, route),
+      cycle: routeCycleSeconds(s, route),
+    }))
     return {
       time: s.time,
       act: s.act,
       nodes: s.nodes,
+      ringLevel: ringLevelOf(s.nodes, s.research.reduce((m, l) => Math.max(m, l.progress), 0)),
       continuity: s.continuity,
       ring: s.ring,
       bufferLeft: s.bufferLeft,
       bufferTotal: s.bufferTotal,
       reserve: s.earthH3,
       demand,
-      ocCost: sc.overclockCost,
+      researchCost: sc.researchCost,
       netFlow: estimateNetFlow(s, demand),
       danger: s.ring === 'running' && demand > 0 && s.earthH3 < demand * B.dangerReserveSeconds,
       windowPhase: s.gravity.phase,
@@ -671,10 +976,22 @@ export class WarmCurrentGameMode extends GameMode {
       flarePhase: s.flare.phase,
       flareRemain: s.flare.phase === 'active' ? Math.ceil(s.flare.timer) : Math.max(0, Math.ceil(s.flare.nextIn)),
       fleet,
-      research: s.research.map((l) => ({ id: l.id, name: l.name, progress: l.progress, oc: s.overclocked.includes(l.id) })),
+      ledger,
+      // 研究行：rate = 该线当前 H3 消耗速率（点数计费；断环/储量耗尽为 0，点数加成同口径失效）
+      research: s.research.map((l) => ({
+        id: l.id, name: l.name, progress: l.progress, points: l.points,
+        rate: s.ring === 'running' && s.earthH3 > 0 ? l.points * B.researchPointCostPerS : 0,
+      })),
+      researchUnspent: sc.unspentResearchPoints,
       pending,
       routeInfo,
-      stationInfo,
+      buildingInfo,
+      buildRows,
+      buildActive: this.buildMode?.typeId ?? null,
+      shipRows,
+      routes,
+      shipBuildCost: B.shipBuildCost,
+      shipRebuildCost: B.shipRebuildCost,
       tutorial: s.tutorial,
       paused: this.paused,
       timeScale: this.timeScale,
@@ -682,7 +999,7 @@ export class WarmCurrentGameMode extends GameMode {
       canStartMission: s.act >= 3 && s.module.state === 'available' && sc.idleShips > 0 && s.flare.phase !== 'active',
       outcome: s.outcome,
       sandbox: s.sandbox,
-      stats: { delivered: s.stats.delivered, frozen: s.stats.frozenCount, stations: s.stats.stationsBuilt, cards: s.stats.cardsTaken },
+      stats: { delivered: s.stats.delivered, frozen: s.stats.frozenCount, buildings: s.stats.buildingsBuilt, cards: s.stats.cardsTaken },
     }
   }
 }

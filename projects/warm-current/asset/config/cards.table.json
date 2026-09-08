@@ -1,10 +1,5 @@
 {
-  "_comment": "海克斯卡库（模块03 §4 · 固定得失组合 · 每局按线洗牌）。\n type=unlock(解锁新功能，一次性)/upgrade(升级属性，可重复)；line=所属研究线；gain/cost=得失描述文案；\n effects=数值效果（数据驱动，由 sim.chooseCard 统一应用）：\n   fuelMult/speedMult/cargoMult/burnMult/recoverMult=乘区（叠乘）；moonLoadAdd/otherLoadAdd/bufferAdd/gravityAdd/fleetBonus=加法；\n   stationUnlock/flareWarning=解锁旗标；extraNodes=本次额外点亮交点数(含本节点)；\n   nextGrowth={line:self|线id, mult}=该线下个节点生长倍率（一次性，节点完成后复位）。",
-  "station_unlock": {
-    "name": "补给站解锁", "type": "unlock", "line": "infra",
-    "gain": "开启\"无人补给站\"建造权限（反向航线送建材建站）", "cost": "单节点消耗 +3%",
-    "effects": { "stationUnlock": true, "burnMult": 1.03 }
-  },
+  "_comment": "海克斯卡库（模块03 §4 · 固定得失组合 · 每局按线洗牌）。\n type=unlock(解锁新功能，一次性)/upgrade(升级属性，可重复)；line=所属研究线；gain/cost=得失描述文案；\n effects=数值效果（数据驱动，由 sim.chooseCard 统一应用）：\n   fuelMult/speedMult/cargoMult/burnMult/recoverMult=乘区（叠乘）；moonLoadAdd/otherLoadAdd/bufferAdd/gravityAdd/fleetBonus=加法；\n   flareWarning=解锁旗标；extraNodes=本次额外点亮交点数(含本节点)；\n   nextGrowth={line:self|线id, mult}=该线下个节点生长倍率（一次性，节点完成后复位）。",
   "event_warning": {
     "name": "事件预警", "type": "unlock", "line": "infra",
     "gain": "极寒停航提前 10 秒预告", "cost": "该线下次生长 −10%",

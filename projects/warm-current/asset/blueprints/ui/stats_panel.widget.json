@@ -1,0 +1,2257 @@
+{
+  "name": "StatsPanel",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-3bd813e8",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 1920,
+        "worldHeight": 1080
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 1920,
+        "height": 1080,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    },
+    {
+      "baseClass": "UIScriptComponent",
+      "properties": {
+        "script": "gameplay/ui/StatsPanelScript"
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "StatsCard",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 592,
+            "worldHeight": 672,
+            "anchor": "center",
+            "anchorOffset": [
+              16,
+              -6
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 0,
+            "hitTest": "block"
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#0e1a24f2",
+            "radius": 14,
+            "width": 592,
+            "height": 672,
+            "name": "StatsCard"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "TitleRow",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 44,
+                "position": [
+                  -16,
+                  298,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "StatsTitle",
+              "baseClass": "Actor",
+              "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 380,
+                    "worldHeight": 34,
+                    "position": [
+                      -74,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "H3 收支统计（本局累计）",
+                    "name": "StatsTitle",
+                    "width": 380,
+                    "height": 34,
+                    "fontSize": 24,
+                    "color": "#7fdcff",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_close",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 104,
+                    "worldHeight": 44,
+                    "position": [
+                      212,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UILayoutComponent",
+                  "properties": {
+                    "mode": "horizontal",
+                    "spacingX": 0,
+                    "spacingY": 0,
+                    "justify": "center",
+                    "align": "center",
+                    "autoLayout": true
+                  }
+                },
+                {
+                  "baseClass": "UIButtonComponent",
+                  "properties": {
+                    "stateColors": {
+                      "hover": {
+                        "color": "#3d566f"
+                      }
+                    }
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#31445c",
+                    "radius": 8,
+                    "width": 104,
+                    "height": 44,
+                    "name": "Btn_close"
+                  }
+                }
+              ],
+              "children": [
+                {
+                  "name": "Label_close",
+                  "baseClass": "Actor",
+                  "id": 13205,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 96,
+                        "worldHeight": 28,
+                        "position": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "✕ 关闭",
+                        "name": "Label_close",
+                        "width": 96,
+                        "height": 28,
+                        "fontSize": 18,
+                        "color": "#cfe3ee",
+                        "align": "center",
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": [],
+                  "sourceLayout": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SecHead",
+          "baseClass": "Actor",
+          "id": 13206,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 28,
+                "position": [
+                  -16,
+                  258,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "── 收入 ──",
+                "name": "SecHead",
+                "width": 528,
+                "height": 28,
+                "fontSize": 20,
+                "color": "#9fc4d8",
+                "bold": true,
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "LedgerRow",
+          "baseClass": "Actor",
+          "id": 13207,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  224,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey",
+              "baseClass": "Actor",
+              "id": 13208,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "航线卸货净收",
+                    "name": "LedgerKey",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_unload",
+              "baseClass": "Actor",
+              "id": 13209,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_unload",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#b8ffd8",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_2",
+          "baseClass": "Actor",
+          "id": 13210,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  188,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_2",
+              "baseClass": "Actor",
+              "id": 13211,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "拆站返还",
+                    "name": "LedgerKey_2",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_refund",
+              "baseClass": "Actor",
+              "id": 13212,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_refund",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#b8ffd8",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "SecHead_2",
+          "baseClass": "Actor",
+          "id": 13213,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 28,
+                "position": [
+                  -16,
+                  154,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "── 支出 ──",
+                "name": "SecHead_2",
+                "width": 528,
+                "height": 28,
+                "fontSize": 20,
+                "color": "#9fc4d8",
+                "bold": true,
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "LedgerRow_3",
+          "baseClass": "Actor",
+          "id": 13214,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  120,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_3",
+              "baseClass": "Actor",
+              "id": 13215,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "聚能环焚烧",
+                    "name": "LedgerKey_3",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_ring",
+              "baseClass": "Actor",
+              "id": 13216,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_ring",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_4",
+          "baseClass": "Actor",
+          "id": 13217,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  84,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_4",
+              "baseClass": "Actor",
+              "id": 13218,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "研究点计费",
+                    "name": "LedgerKey_4",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_research",
+              "baseClass": "Actor",
+              "id": 13219,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_research",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_5",
+          "baseClass": "Actor",
+          "id": 13220,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  48,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_5",
+              "baseClass": "Actor",
+              "id": 13221,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "舰队维护费",
+                    "name": "LedgerKey_5",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_maint",
+              "baseClass": "Actor",
+              "id": 13222,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_maint",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_6",
+          "baseClass": "Actor",
+          "id": 13223,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  12,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_6",
+              "baseClass": "Actor",
+              "id": 13224,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "造船",
+                    "name": "LedgerKey_6",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_build",
+              "baseClass": "Actor",
+              "id": 13225,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_build",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_7",
+          "baseClass": "Actor",
+          "id": 13226,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -24,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_7",
+              "baseClass": "Actor",
+              "id": 13227,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "冻毁船重建",
+                    "name": "LedgerKey_7",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_rebuild",
+              "baseClass": "Actor",
+              "id": 13228,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_rebuild",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_8",
+          "baseClass": "Actor",
+          "id": 13229,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -60,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_8",
+              "baseClass": "Actor",
+              "id": 13230,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "反向航线油耗",
+                    "name": "LedgerKey_8",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_rfuel",
+              "baseClass": "Actor",
+              "id": 13231,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_rfuel",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_9",
+          "baseClass": "Actor",
+          "id": 13232,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -96,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_9",
+              "baseClass": "Actor",
+              "id": 13233,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "建材折算（送站）",
+                    "name": "LedgerKey_9",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_mat",
+              "baseClass": "Actor",
+              "id": 13234,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_mat",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "SecHead_3",
+          "baseClass": "Actor",
+          "id": 13235,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 28,
+                "position": [
+                  -16,
+                  -130,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "── 合计 ──",
+                "name": "SecHead_3",
+                "width": 528,
+                "height": 28,
+                "fontSize": 20,
+                "color": "#9fc4d8",
+                "bold": true,
+                "shadowColor": "#00000066",
+                "shadowOffsetX": 1,
+                "shadowOffsetY": 1,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "LedgerRow_10",
+          "baseClass": "Actor",
+          "id": 13236,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -164,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_10",
+              "baseClass": "Actor",
+              "id": 13237,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "收入合计",
+                    "name": "LedgerKey_10",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_income",
+              "baseClass": "Actor",
+              "id": 13238,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_income",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#b8ffd8",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_11",
+          "baseClass": "Actor",
+          "id": 13239,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -200,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_11",
+              "baseClass": "Actor",
+              "id": 13240,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "支出合计",
+                    "name": "LedgerKey_11",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_expense",
+              "baseClass": "Actor",
+              "id": 13241,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_expense",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffb3a0",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_12",
+          "baseClass": "Actor",
+          "id": 13242,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -236,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_12",
+              "baseClass": "Actor",
+              "id": 13243,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "净结余",
+                    "name": "LedgerKey_12",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#9fc4d8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_net",
+              "baseClass": "Actor",
+              "id": 13244,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_net",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ffe9a8",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ],
+      "sourceLayout": {
+        "padding": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    }
+  ],
+  "active": false
+}

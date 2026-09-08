@@ -1,7 +1,7 @@
 /**
  * WarmCurrentConfigLoader — 配置表加载类（hoi4 同款）
  *
- * 注册 asset/config/ 全部 7 张配置（global/stars/node_burn/station/events/star_map/cards）。
+ * 注册 asset/config/ 全部配置（glob 扫描：global/stars/level_burn/fleet_maint/building/events/star_map/cards）。
  * 数值默认值在代码 B（balance.ts）中兜底：表未加载完时 refreshBalanceFromConfigs
  * 静默保留默认值（值与表一致，竞态无害）；GameInstance 在表就绪后补一次 refresh。
  */
@@ -18,7 +18,7 @@ export class WarmCurrentConfigLoader extends ConfigLoaderBase {
     // 注册名规则：warm-current.<文件名去扩展>（ConfigLoaderBase 实现）。
     // 外部工程根：显式传 projects/ 前缀（内置轨默认 src/projects/）。
     this.registerGlob(configGlob.configModules, configGlob.tableModules, 'projects/warm-current/asset/config')
-    this.log('[WarmCurrent/Config] 配置表已注册（7 张）')
+    this.log('[WarmCurrent/Config] 配置表已注册（8 张）')
   }
 }
 

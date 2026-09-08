@@ -1,9 +1,0 @@
-{
-  "_comment": "无人补给站配置（模块11）。buildMaterials=建站所需建材(反向航线运抵)；\n upgradeMaterials=升级所需建材（下标=目标等级，Lv2=400、Lv3=500）；\n radius=护盾半径(地图px，Lv1近/Lv2中/Lv3远)；shipCap=可保护船数；resumeDelay=耀斑结束护盾内船只恢复延迟(秒)；\n demolishRefund=拆除返还比例（按已投入建材折算H3）。",
-  "buildMaterials": 300,
-  "upgradeMaterials": [0, 0, 400, 500],
-  "radius": [0, 180, 320, 500],
-  "shipCap": [0, 2, 4, 8],
-  "resumeDelay": [0, 5, 2, 0],
-  "demolishRefund": 0.5
-}

@@ -50,7 +50,7 @@ export default class SettleScript extends BehaviourScript {
     this.binder.set(findText(this.actor, 'SettleStats'),
       `存活 ${fmtTime(vm.time)} · 第${['一', '二', '三'][vm.act - 1]}幕 · 交点 ${vm.nodes}/12\n`
       + `累计送达 ${Math.round(vm.stats.delivered)}t · 冻毁 ${vm.stats.frozen} 艘\n`
-      + `建站 ${vm.stats.stations} 座 · 解锁节点卡 ${vm.stats.cards} 张`)
+      + `建筑 ${vm.stats.buildings} 座 · 解锁节点卡 ${vm.stats.cards} 张`)
     // 重试本幕：仅当存在幕入口快照（第一幕失败只能重开）
     const hasSnap = s.act === 3 ? !!s.actSnapshots.act3 : s.act === 2 ? !!s.actSnapshots.act2 : false
     this.vis.set(this.actor, 'Btn_retry', want === 'defeat' && hasSnap)

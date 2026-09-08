@@ -11,7 +11,7 @@
  */
 import * as THREE from 'three'
 import { ActorComponent, logger } from '@/engine'
-import type { ThreeFactoryComponent } from '@/engine'
+import type { ThreeFactoryComponent, ThreeObject } from '@/engine'
 import type { Actor } from '@/engine'
 import { B, MAP_H, MAP_W, toWX, toWZ } from '../core/balance'
 import {
@@ -24,16 +24,17 @@ import {
 import { SphereMeshComponent } from '@/engine'
 import {
   endpointPos,
+  buildingDefOf,
   orbitRadiusPx,
   shipPos,
   starLoad,
   starPosAt,
-  stationAnchorPos,
   windowAffected,
   TUTORIAL_TARGETS,
   TUTORIAL_RING_PAD,
 } from '../core/helpers'
-import type { Endpoint, PlanetId, SimState, SimStation, StarId } from '../core/types'
+import type { Endpoint, PlanetId, SimBuilding, SimState, StarId } from '../core/types'
+import type { SolarBodyId } from '../core/helpers'
 
 /** 拖线状态（GameMode 维护，渲染只读；坐标 = 星图画布系） */
 export interface DragState {
@@ -48,7 +49,16 @@ export interface DragState {
   label: string
 }
 
-export type MapSelection = { type: 'route' | 'station'; id: number } | null
+export type MapSelection = { type: 'route' | 'building'; id: number } | null
+
+/** 建筑模式光标（GameMode 维护，渲染只读；坐标 = 星图画布系，已网格吸附） */
+export interface BuildCursor {
+  x: number
+  y: number
+  valid: boolean
+  /** 光标旁浮层（建筑名+造价 / 不可放置原因） */
+  label: string
+}
 
 export interface MapFx {
   pulses: Array<{ x: number; y: number; age: number }>
@@ -59,10 +69,16 @@ export interface MapFx {
 export interface MapViewProvider {
   /** 天体蓝图 Actor（id → 实例；星球 mesh 的属主，渲染组件只读消费 mesh 引用） */
   readonly starActors: Map<string, import('@/engine').Actor>
+  /** 行星系视角当前聚焦的行星（viewMode = earth 时生效；太阳系全景忽略） */
+  readonly planetFocusBody: SolarBodyId
   simState: { state: SimState }
   drag: DragState | null
   selection: MapSelection
   fx: MapFx
+  /** 建筑模式（非空 = 星图铺网格线 + 吸附放置预览） */
+  buildMode: { typeId: string } | null
+  /** 建筑模式光标（网格吸附坐标 + 合法性） */
+  buildCursor: BuildCursor | null
 }
 
 /** 星球是否已解锁（对齐 TransportComponent.starUnlocked 语义） */
@@ -85,10 +101,40 @@ const C_SHIP_MISSION = 0xffe9a8
 
 // ─── 视图分组（星图切换：地球系 / 太阳系；ViewToggle → GameMode.setViewMode → applyViewMode） ───
 
-/** 地球系视图常显天体（星球 mesh 属蓝图 Actor 不在渲染组内，切换走 visible；其余天体表现归 systemGroup） */
-const EARTH_VIEW_BODIES = new Set<string>(['earth', 'moon'])
-/** 地球系视图特效可见半径（px，距地球）：覆盖地月航线/月球站锚（≤240），排除木卫二/火星站锚 */
+// ─── 视图分组（星图切换：太阳系 / 行星系；ViewToggle/双击行星 → GameMode → applyViewMode） ───
+
+/** 地球系视图特效可见半径（px，距聚焦行星）：覆盖地月航线/月球站锚（≤240），排除他系站锚 */
 const EARTH_VIEW_RADIUS_PX = 260
+
+/** 卫星归属母星（B.map.moons 反查；卫星与卫星环 = 行星系内容，太阳系全景不显示） */
+function satelliteParentOf(body: string): PlanetId | null {
+  const mc = (B.map.moons as Record<string, { parent: PlanetId } | undefined>)[body]
+  return mc ? mc.parent : null
+}
+
+/** 网格步长（span 内单向线数 ≤ maxLines 的最小 g 整数倍） */
+function spanStep(min: number, max: number, g: number, maxLines: number): number {
+  const span = Math.max(g, max - min)
+  const mult = Math.max(1, Math.ceil(span / g / maxLines))
+  return g * mult
+}
+
+/** 母星的全部卫星 id */
+function satellitesOf(parent: PlanetId): string[] {
+  return Object.entries(B.map.moons).filter(([, mc]) => mc.parent === parent).map(([mid]) => mid)
+}
+
+/**
+ * 行星系"舞台"锚点：行星系内容复用太阳的位置（世界原点）。
+ * 进入行星系时其它行星（含标签）整组隐藏，聚焦行星被钉在太阳位上，
+ * 其卫星像行星绕日一样绕它公转、卫星环按配置半径（真实比例）展开；
+ * 切回太阳系时舞台位移归零，各行星归位。所有行星系共用原点，无需错开。
+ * 锚点读太阳节点配置（画布中心 → 世界原点；配置被覆盖时跟随）。
+ * GameMode 的相机取景/天体 Actor 定位/指针拾取共用同一函数。
+ */
+export function planetStageOffset(_body: PlanetId): { x: number; z: number } {
+  return { x: toWX(B.map.nodes.sun.x), z: toWZ(B.map.nodes.sun.y) }
+}
 
 // ─── 纹理工厂（一次性生成） ───
 
@@ -192,9 +238,11 @@ class SpriteLabel {
   private tex: THREE.CanvasTexture | null = null
   private key = ''
 
-  constructor(private factory: ThreeFactoryComponent, parent: THREE.Object3D, renderOrder = 60) {
+  constructor(private factory: ThreeFactoryComponent, owner: Actor, parent: THREE.Object3D, renderOrder = 60) {
     this.mat = factory.createSpriteMaterial({ transparent: true, depthWrite: false, depthTest: false })
-    this.sprite = factory.createSprite(this.mat).object
+    const spriteObj = factory.createSprite(this.mat)
+    spriteObj.owner = owner
+    this.sprite = spriteObj.object
     this.sprite.renderOrder = renderOrder
     this.sprite.visible = false
     parent.add(this.sprite)
@@ -245,19 +293,19 @@ class SpriteLabel {
   }
 }
 
-// ─── 补给站视图 ───
+// ─── 建筑视图（类型分支外观：中转站=琥珀色仓库环 / 护盾发生器=蓝色护盾气泡） ───
 
-interface StationView {
+interface BuildingView {
   group: THREE.Group
-  shield: THREE.Mesh
-  equator: THREE.Mesh
+  /** 功能气泡（护盾建筑：半透明球；无半径功能建筑为 null） */
+  shield: THREE.Mesh | null
+  equator: THREE.Mesh | null
   core: THREE.Mesh
-  siteLine: THREE.LineLoop
-  progressRing: THREE.Mesh | null
   title: SpriteLabel
   sub: SpriteLabel
-  lastStockKey: string
-  lastLevel: number
+  lastSubKey: string
+  /** 缓存类型（表改动/重建视图判定） */
+  type: string
 }
 
 export class StarMapRenderComponent extends ActorComponent<Actor> {
@@ -267,6 +315,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private sunGroup!: THREE.Group
   /** 通用组：地月共有的表现（航线/船/站点/引导/拖线/特效），不参与视图切换 */
   private systemGroup!: THREE.Group
+  /** 舞台组：行星系 gameplay 内容（systemGroup），逐帧平移把聚焦行星钉在舞台中心（太阳位）；星空地面不在此组（恒世界系） */
+  private stageGroup!: THREE.Group
   /** 当前星图视图模式（GameMode.setViewMode → applyViewMode 传导） */
   private viewMode: 'earth' | 'solar' = 'earth'
   private tex: Record<string, THREE.Texture> = {}
@@ -290,10 +340,20 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private lastArcKey = ''
   /** 细轨道圈几何（1.5% 环宽，公转轨道专用；flatRingGeo 太粗） */
   private flatOrbitGeo!: THREE.RingGeometry
-  /** 卫星环（月球绕地轨道圈，圆心每帧贴地球实时位置） */
-  private moonOrbitRing: THREE.Mesh | null = null
-  private starViews: Partial<Record<string, { body: THREE.Mesh; mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial; name: SpriteLabel; sub: SpriteLabel; windowRing: THREE.Mesh; radius: number }>> = {}
-  private stationViews = new Map<number, StationView>()
+  /** 卫星环（卫星绕母星轨道圈，圆心每帧贴母星实时位置；id → mesh） */
+  private moonRings = new Map<string, THREE.Mesh>()
+  private starViews: Partial<Record<string, { body: THREE.Mesh; mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial; sub: SpriteLabel; windowRing: THREE.Mesh; radius: number }>> = {}
+  private buildingViews = new Map<number, BuildingView>()
+
+  /** 建筑模式组（网格线 + 放置 ghost；挂 systemGroup 保持贴地图坐标系） */
+  private buildGroup!: THREE.Group
+  private gridLines: THREE.LineSegments | null = null
+  /** 网格当前覆盖的世界系矩形（相机视野超出即重建） */
+  private gridRect: { x0: number; z0: number; x1: number; z1: number } | null = null
+  private gridMat!: THREE.LineBasicMaterial
+  private ghostRing!: THREE.Mesh
+  private ghostMat!: THREE.MeshBasicMaterial
+  private ghostLabel!: SpriteLabel
 
   private tutGroup!: THREE.Group
   private tutRings: THREE.Mesh[] = []
@@ -331,18 +391,29 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private trackMat<T extends THREE.Material>(m: T): T { this.mats.push(m); return m }
   private trackGeo<T extends THREE.BufferGeometry>(g: T): T { this.geos.push(g); return g }
 
+  /** 工厂对象认领归属 Actor：批量渲染基础设施不走 ThreeObjectComponent 逐个挂载，World 销毁的孤儿诊断按 owner 豁免 */
+  private own<T extends ThreeObject>(o: T): T {
+    o.owner = this.owner
+    return o
+  }
+
   override BeginPlay(): void {
     this.factory = this.owner.world?.factory ?? null
     if (!this.factory) {
       logger.error('[StarMap] World 工厂不可用，星图将无法创建渲染对象')
       return
     }
-    this.root3 = this.F.createGroup().object
-    this.tutGroup = this.F.createGroup().object
-    this.flareGroup = this.F.createGroup().object
-    this.sunGroup = this.F.createGroup().object
-    this.systemGroup = this.F.createGroup().object
-    this.root3.add(this.sunGroup, this.systemGroup)
+    this.root3 = this.own(this.F.createGroup()).object
+    this.tutGroup = this.own(this.F.createGroup()).object
+    this.flareGroup = this.own(this.F.createGroup()).object
+    this.sunGroup = this.own(this.F.createGroup()).object
+    this.systemGroup = this.own(this.F.createGroup()).object
+    // 舞台分组：只有行星系 gameplay 内容（systemGroup）挂这里，进入行星系时迁到
+    // 太阳位（planetStageOffset 锚点 = 世界原点），聚焦行星钉在原点、其余行星隐藏；
+    // 星空地面恒挂世界系（不随舞台走，行星系背景静止）；太阳系全景时舞台回原点、sunGroup 全显
+    this.stageGroup = this.own(this.F.createGroup()).object
+    this.root3.add(this.sunGroup, this.stageGroup)
+    this.stageGroup.add(this.systemGroup)
     this.flatQuadGeo = this.F.createPlaneGeometry(1, 1)
     this.flatQuadGeo.rotateX(-Math.PI / 2)
     this.flatRingGeo = this.F.createRingGeometry(0.92, 1, 96)
@@ -371,9 +442,12 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         ? this.F.createMeshBasicMaterial({ map: this.tex.starfield, depthWrite: false })
         : this.F.createMeshBasicMaterial({ color: 0x000000, depthWrite: false }),
     )
-    const ground = this.F.createMesh(groundGeo, groundMat).object
+    const ground = this.own(this.F.createMesh(groundGeo, groundMat)).object
     ground.position.y = -0.5
     ground.renderOrder = 0
+    // 星空地面恒挂世界系（不进舞台组）：行星系视图下舞台每帧平移补偿聚焦行星的公转位移，
+    // 星空若随舞台走，背景会跟着漂移（看起来"还是原来太阳系在动"）；固定后背景静止，
+    // 行星系读作"行星种在舞台中心的定场小星系"
     this.root3.add(ground)
 
     this.tex.glow = makeGlowTexture()
@@ -388,8 +462,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.buildFxPools()
     this.buildFlare()
     this.buildMissionLine()
+    this.buildBuildMode()
 
     this.owner.root.add(this.root3)
+    // 开局即地球系视图（GameMode.focusSolarSystem 在 starMap 就绪前已跑过）：补应用一次视图分组，太阳本体球不漏显
+    this.applyViewMode()
     logger.info('[WarmCurrent] 星图渲染就绪（3D：XZ 地面 + 球体 + 俯视透视）')
   }
 
@@ -398,8 +475,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const m of this.mats) m.dispose()
     for (const g of this.geos) g.dispose()
     for (const t of Object.values(this.tex)) t?.dispose()
-    for (const sv of this.stationViews.values()) this.disposeStation(sv)
-    this.stationViews.clear()
+    for (const bv of this.buildingViews.values()) this.disposeBuilding(bv)
+    this.buildingViews.clear()
     this.unitSphere.dispose()
     this.flatQuadGeo.dispose()
     this.flatRingGeo.dispose()
@@ -412,7 +489,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const geo = this.trackGeo(this.F.createSphereGeometry(4.5, 12, 10))
     for (let i = 0; i < this.SHIP_CAP; i++) {
       const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_SHIP_OUTBOUND }))
-      const mesh = this.F.createMesh(geo, mat).object
+      const mesh = this.own(this.F.createMesh(geo, mat)).object
       mesh.position.y = 9
       mesh.renderOrder = 14
       mesh.visible = false
@@ -420,7 +497,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         map: this.tex.glow, color: C_SHIP_OUTBOUND, transparent: true,
         blending: THREE.AdditiveBlending, depthWrite: false,
       }))
-      const glow = this.F.createSprite(glowMat).object
+      const glow = this.own(this.F.createSprite(glowMat)).object
       glow.scale.set(30, 30, 1)
       mesh.add(glow)
       this.shipPool.push({ mesh, mat, glow, glowMat })
@@ -436,7 +513,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const sunWX = toWX(sun.x)
     const sunWZ = toWZ(sun.y)
     const sunGlowMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff8c2e, transparent: true, opacity: 0.18, depthWrite: false }))
-    const sunGlow = this.F.createMesh(this.unitSphere, sunGlowMat).object
+    const sunGlow = this.own(this.F.createMesh(this.unitSphere, sunGlowMat)).object
     sunGlow.scale.setScalar(sun.r * 1.35)
     sunGlow.position.set(sunWX, sun.r * 0.5, sunWZ)
     sunGlow.renderOrder = 11
@@ -445,7 +522,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     sunLight.position.set(sunWX, 80, sunWZ)
     this.sunGroup.add(sunLight)
     // 太阳标签
-    const sunLabel = new SpriteLabel(this.F, this.sunGroup)
+    const sunLabel = new SpriteLabel(this.F, this.owner, this.sunGroup)
     sunLabel.set('太阳', 24, '#ffd9a0')
     sunLabel.setPos(sun.x, sun.y - sun.r - 38, 96)
 
@@ -458,7 +535,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       // 行星轨道圈：圆心=太阳，半径=布局距离（布局即初相位，改 star_map 配置即改轨道）；卫星走 moons 环单独建
       if (!moonCfg) {
         const orbitMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x7896af, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }))
-        const orbit = this.F.createMesh(this.flatOrbitGeo, orbitMat).object
+        const orbit = this.own(this.F.createMesh(this.flatOrbitGeo, orbitMat)).object
         orbit.position.set(sunWX, 2.5, sunWZ)
         orbit.scale.setScalar(orbitRadiusPx(body))
         orbit.renderOrder = 9
@@ -479,49 +556,42 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         logger.warn(`[StarMap] ${body} 无蓝图 Actor，兜底代码建球`)
         mesh = this.makeFallbackSphere(body, cfg.r)
       }
-      // 标签名：资源星读 B.stars（含满载副标），装饰行星读 planetNames
-      const labelName = B.stars[body as StarId]?.name ?? B.map.planetNames[body as PlanetId] ?? body
-      const labelParent = EARTH_VIEW_BODIES.has(body) ? this.systemGroup : this.sunGroup
-      const name = new SpriteLabel(this.F, labelParent)
-      name.set(labelName, 22, '#dff0fa')
-      const sub = new SpriteLabel(this.F, labelParent)
+      // 副标（满载/解锁提示）全归 systemGroup（随舞台迁移）；显隐由视图天体集（visibleBodySet）每帧仲裁
+      const labelParent = this.systemGroup
+      const sub = new SpriteLabel(this.F, this.owner, labelParent)
       const ringMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xffb03d, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }))
-      const windowRing = this.F.createMesh(this.flatRingGeo, ringMat).object
+      const windowRing = this.own(this.F.createMesh(this.flatRingGeo, ringMat)).object
       windowRing.position.y = 4
       windowRing.renderOrder = 11
       windowRing.visible = false
       labelParent.add(windowRing)
-      this.starViews[body] = { body: mesh, mat: (mesh.material as THREE.MeshStandardMaterial | THREE.MeshLambertMaterial), name, sub, windowRing, radius: cfg.r }
+      this.starViews[body] = { body: mesh, mat: (mesh.material as THREE.MeshStandardMaterial | THREE.MeshLambertMaterial), sub, windowRing, radius: cfg.r }
       // 土星环（表现附件，only saturn；贴地压平的斜置薄环）
       if (body === 'saturn') {
         const saturnRingMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xcbb890, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }))
         const saturnRingGeo = this.trackGeo(this.F.createRingGeometry(1.45, 2.05, 96))
         saturnRingGeo.rotateX(-Math.PI / 2 + 0.35)
-        const saturnRing = this.F.createMesh(saturnRingGeo, saturnRingMat).object
+        const saturnRing = this.own(this.F.createMesh(saturnRingGeo, saturnRingMat)).object
         saturnRing.scale.setScalar(cfg.r)
         saturnRing.renderOrder = 10
         mesh.add(saturnRing)
       }
     }
     // 卫星环：moons 配置驱动（月球绕地 + 木卫二绕木；半径=配置值，圆心每帧贴 parent 实时位置）
-    this.moonOrbitRing = null
+    // 全部归 systemGroup：卫星环=行星系内容，太阳系全景隐藏、仅对应行星系视角显示（applyViewMode）
+    this.moonRings.clear()
     for (const [mid, mc] of Object.entries(B.map.moons)) {
       const moonOrbitMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x8fa8bd, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }))
-      const moonOrbit = this.F.createMesh(this.flatOrbitGeo, moonOrbitMat).object
+      const moonOrbit = this.own(this.F.createMesh(this.flatOrbitGeo, moonOrbitMat)).object
       moonOrbit.position.y = 2.5
       moonOrbit.scale.setScalar(mc.radius)
       moonOrbit.renderOrder = 9
-      // 月球绕地环 = 地球系核心表现（圆心每帧贴地球）；木卫二环属木星系全景（圆心每帧贴木星）
-      if (mid === 'moon') {
-        this.moonOrbitRing = moonOrbit
-        this.systemGroup.add(moonOrbit)
-      } else {
-        moonOrbit.name = `moonOrbit_${mid}`
-        this.sunGroup.add(moonOrbit)
-      }
+      moonOrbit.visible = false
+      this.moonRings.set(mid, moonOrbit)
+      this.systemGroup.add(moonOrbit)
     }
     // 地球标签（锚在太阳下缘：聚能环的属主标注，随弧归太阳系视图）
-    const earthLabel = new SpriteLabel(this.F, this.sunGroup)
+    const earthLabel = new SpriteLabel(this.F, this.owner, this.sunGroup)
     earthLabel.set('地球', 22, '#cfe8f5')
     earthLabel.setPos(sun.x, sun.y + sun.r + 26, 96)
   }
@@ -533,7 +603,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       jupiter: 0xc9a678, europa: 0x8fd0f0, saturn: 0xd8c08c, uranus: 0x9fd8dd, neptune: 0x5a8fd8,
     }
     const fallbackMat = this.trackMat(this.F.createMeshLambertMaterial({ color: colors[body] ?? 0xaaaaaa, transparent: true, opacity: 1 }))
-    const mesh = this.F.createMesh(this.unitSphere, fallbackMat).object
+    const mesh = this.own(this.F.createMesh(this.unitSphere, fallbackMat)).object
     mesh.scale.setScalar(r)
     mesh.renderOrder = 12
     // 与蓝图星球同口径：归通用组由视图切换按 EARTH_VIEW_BODIES 显隐（root3 常显会泄漏太阳系全景）
@@ -545,7 +615,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private makeRouteQuad(): { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial } {
     const mat = this.trackMat(this.F.createMeshBasicMaterial({ transparent: true, depthWrite: false }))
-    const mesh = this.F.createMesh(this.flatQuadGeo, mat).object
+    const mesh = this.own(this.F.createMesh(this.flatQuadGeo, mat)).object
     mesh.position.y = 1.5
     mesh.renderOrder = 10
     this.systemGroup.add(mesh)
@@ -583,7 +653,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       if (!q) continue
       q.mesh.position.set(toWX((from.x + to.x) / 2), 1.5, toWZ((from.y + to.y) / 2))
       q.mesh.rotation.y = angleY
-      q.mesh.scale.set(len, 1, selected ? 5 : windowed ? 4 : 2.5)
+      q.mesh.scale.set(len, 1, selected ? 2 : windowed ? 1.8 : 1)
       const wantDash = !selected && !windowed && route.direction === 'reverse'
       if (wantDash && !q.dashTex) {
         const tex = this.tex.dash.clone()
@@ -601,10 +671,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         q.mat.opacity = 0.95
       } else if (windowed) {
         q.mat.color.setHex(C_ROUTE_REVERSE)
-        q.mat.opacity = 0.9
+        q.mat.opacity = 0.7
       } else {
         q.mat.color.setHex(route.direction === 'reverse' ? C_ROUTE_REVERSE : C_ROUTE_FORWARD)
-        q.mat.opacity = 0.55
+        q.mat.opacity = 0.28
       }
     }
   }
@@ -614,10 +684,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private syncShips(): void {
     const { simState: sim } = this.provider
     const flareActive = sim.state.flare.phase === 'active'
-    // 视图过滤（口径与航线过滤一致：地球系只显示地月归属的船，太阳系全显）
+    // 视图过滤（口径与航线过滤一致：行星系只显示本地归属的船，太阳系全显）
     const solar = this.viewMode === 'solar'
-    const e = starPosAt(sim.state, 'earth')
-    const inView = (x: number, y: number): boolean => solar || Math.hypot(x - e.x, y - e.y) <= EARTH_VIEW_RADIUS_PX
+    const c = starPosAt(sim.state, this.provider.planetFocusBody)
+    const inView = (x: number, y: number): boolean => solar || Math.hypot(x - c.x, y - c.y) <= EARTH_VIEW_RADIUS_PX
     let n = 0
     const place = (mx: number, my: number, color: number, glowScale: number) => {
       if (n >= this.SHIP_CAP) return
@@ -669,7 +739,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const arcGeo = this.F.createRingGeometry(arcRadius - 7, arcRadius, 96, 1, -Math.PI / 2, coverage * Math.PI * 2)
       arcGeo.rotateX(-Math.PI / 2)
       const arcMat = this.F.createMeshBasicMaterial({ color: COLORS_ORANGE, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
-      this.earthArc = this.F.createMesh(arcGeo, arcMat).object
+      this.earthArc = this.own(this.F.createMesh(arcGeo, arcMat)).object
       this.earthArc.position.set(toWX(B.map.nodes.sun.x), 3.5, toWZ(B.map.nodes.sun.y))
       this.earthArc.renderOrder = 11
       // 聚能弧画在地球公转轨道上（圆心=太阳）＝太阳系全景信息，地球系视图不显示
@@ -687,8 +757,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       view.mat.opacity = unlocked ? 1 : 0.25
       view.mat.transparent = !unlocked
       const pos = starPosAt(sim.state, star.id)
-      view.name.set(star.name, 22, unlocked ? '#dff0fa' : '#5a707f')
-      view.name.setPos(pos.x, pos.y - view.radius - 34, 96)
       const sub = unlocked ? `满载 ${Math.round(starLoad(sim.state.mods, star.id))}/船` : `第${star.unlockAct}幕解锁`
       view.sub.set(sub, 16, unlocked ? '#8fb2c6' : '#48606f')
       view.sub.setPos(pos.x, pos.y + view.radius + 30, 82)
@@ -706,134 +774,193 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     }
     // 卫星环贴 parent 实时位置（moons 配置驱动：月球环随地球、木卫二环随木星，各自跟随）
     for (const [mid, mc] of Object.entries(B.map.moons)) {
-      const ring = mid === 'moon' ? this.moonOrbitRing : this.sunGroup.getObjectByName(`moonOrbit_${mid}`)
+      const ring = this.moonRings.get(mid)
       if (!ring) continue
       const pp = starPosAt(sim.state, mc.parent)
       ring.position.x = toWX(pp.x)
       ring.position.z = toWZ(pp.y)
     }
-    // 装饰行星标签跟随（资源星标签在上方 B.stars 循环内已同步；非资源行星只有主标签）
-    for (const body of ['mercury', 'venus', 'jupiter', 'saturn', 'uranus', 'neptune'] as const) {
-      const view = this.starViews[body]
-      if (!view) continue
-      const pos = starPosAt(sim.state, body)
-      view.name.setPos(pos.x, pos.y - view.radius - 34, 96)
-    }
   }
 
-  // ─── 补给站 ───
+  // ─── 地图建筑 ───
 
-  private buildStationView(st: SimStation): StationView {
-    const group = this.F.createGroup().object
-    const shieldMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x5ac8ff, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }))
-    const shield = this.F.createMesh(this.unitSphere, shieldMat).object
-    shield.position.y = 2
-    shield.renderOrder = 9
-    const equatorMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x5ac8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }))
-    const equator = this.F.createMesh(this.flatRingGeo, equatorMat).object
-    equator.position.y = 2
-    equator.renderOrder = 9
-    const coreMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x9fdcff }))
-    const core = this.F.createMesh(this.unitSphere, coreMat).object
-    core.scale.setScalar(10)
-    core.position.y = 10
+  /** 建筑外观色（表行键 → 主色；未列类型回退冰蓝） */
+  private static readonly BUILDING_COLORS: Record<string, number> = {
+    relay: 0xffb03d,
+    shield: 0x5ac8ff,
+  }
+
+  private buildBuildingView(b: SimBuilding): BuildingView {
+    const def = buildingDefOf(b.type)
+    const color = StarMapRenderComponent.BUILDING_COLORS[b.type] ?? 0x9fdcff
+    const group = this.own(this.F.createGroup()).object
+    const radius = def?.radius ?? 0
+    // 功能气泡（护盾建筑）：半透明球 + 赤道环
+    let shield: THREE.Mesh | null = null
+    let equator: THREE.Mesh | null = null
+    if (radius > 0) {
+      const shieldMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }))
+      shield = this.own(this.F.createMesh(this.unitSphere, shieldMat)).object
+      shield.position.y = 2
+      shield.renderOrder = 9
+      const equatorMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }))
+      equator = this.own(this.F.createMesh(this.flatRingGeo, equatorMat)).object
+      equator.position.y = 2
+      equator.renderOrder = 9
+      group.add(shield, equator)
+    }
+    const coreMat = this.trackMat(this.F.createMeshBasicMaterial({ color }))
+    const core = this.own(this.F.createMesh(this.unitSphere, coreMat)).object
+    core.scale.setScalar(9)
+    core.position.y = 9
     core.renderOrder = 12
-    // 站点虚线圈
-    const pts: THREE.Vector3[] = []
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * Math.PI * 2
-      pts.push(new THREE.Vector3(Math.cos(a) * 22, 0, Math.sin(a) * 22))
-    }
-    const siteGeo = this.trackGeo(this.F.createBufferGeometry().setFromPoints(pts))
-    const siteMat = this.trackMat(this.F.createLineDashedMaterial({ color: 0xffb03d, transparent: true, opacity: 0.8, dashSize: 6, gapSize: 6, depthWrite: false }))
-    const siteLine = new THREE.LineLoop(siteGeo, siteMat)
-    siteLine.computeLineDistances()
-    siteLine.renderOrder = 9
-    group.add(shield, equator, core, siteLine)
-    const title = new SpriteLabel(this.F, group)
-    const sub = new SpriteLabel(this.F, group)
-    group.position.set(toWX(st.x), 0, toWZ(st.y))
+    group.add(core)
+    const title = new SpriteLabel(this.F, this.owner, group)
+    const sub = new SpriteLabel(this.F, this.owner, group)
+    group.position.set(toWX(b.x), 0, toWZ(b.y))
     this.systemGroup.add(group)
-    return { group, shield, equator, core, siteLine, progressRing: null, title, sub, lastStockKey: '', lastLevel: -1 }
+    return { group, shield, equator, core, title, sub, lastSubKey: '', type: b.type }
   }
 
-  private disposeStation(v: StationView): void {
+  private disposeBuilding(v: BuildingView): void {
     v.title.dispose()
     v.sub.dispose()
-    if (v.progressRing) {
-      v.progressRing.geometry.dispose()
-      ;(v.progressRing.material as THREE.Material).dispose()
-    }
   }
 
-  private syncStations(): void {
+  private syncBuildings(): void {
     const { simState: sim, selection } = this.provider
-    for (const [id, view] of this.stationViews) {
-      if (!sim.state.stations.find((st) => st.id === id)) {
+    // 拆除 → 视图回收
+    for (const [id, view] of this.buildingViews) {
+      if (!sim.state.buildings.find((b) => b.id === id)) {
         this.systemGroup.remove(view.group)
-        this.disposeStation(view)
-        this.stationViews.delete(id)
+        this.disposeBuilding(view)
+        this.buildingViews.delete(id)
       }
     }
-    for (const st of sim.state.stations) {
-      let view = this.stationViews.get(st.id)
-      if (!view) {
-        view = this.buildStationView(st)
-        this.stationViews.set(st.id, view)
+    for (const b of sim.state.buildings) {
+      let view = this.buildingViews.get(b.id)
+      if (!view || view.type !== b.type) {
+        if (view) {
+          this.systemGroup.remove(view.group)
+          this.disposeBuilding(view)
+        }
+        view = this.buildBuildingView(b)
+        this.buildingViews.set(b.id, view)
       }
-      const selected = selection?.type === 'station' && selection.id === st.id
-      const built = st.level >= 1
-      view.siteLine.visible = !built
-      view.shield.visible = built
-      view.equator.visible = built
-      view.core.visible = built
-      if (built) {
-        const r = B.station.radius[st.level]
-        view.shield.scale.setScalar(r)
-        view.equator.scale.setScalar(r)
+      const def = buildingDefOf(b.type)
+      const selected = selection?.type === 'building' && selection.id === b.id
+      const color = StarMapRenderComponent.BUILDING_COLORS[b.type] ?? 0x9fdcff
+      view.group.position.set(toWX(b.x), 0, toWZ(b.y))
+      if (view.shield && view.equator && def && def.radius > 0) {
+        view.shield.scale.setScalar(def.radius)
+        view.equator.scale.setScalar(def.radius)
+        ;(view.equator.material as THREE.MeshBasicMaterial).color.setHex(color)
         ;(view.equator.material as THREE.MeshBasicMaterial).opacity = selected ? 0.7 : 0.35
         ;(view.shield.material as THREE.MeshBasicMaterial).opacity = selected ? 0.12 : 0.07
       }
-      // 站台随轨吸附（锚点=依附星与地球连线中点，实时漂移；st.x/y 为建站时锚定值）
-      const anchor = stationAnchorPos(sim.state, st)
-      view.group.position.set(toWX(anchor.x), 0, toWZ(anchor.y))
-      if (built) {
-        view.title.set(`补给站 Lv${st.level}`, 18, '#9fdcff')
-        view.title.setPos(st.x, st.y, B.station.radius[st.level] * 0.5 + 30)
-        const sub = st.level < 3 && st.need > 0 ? `升级建材 ${Math.floor(st.stock)}/${st.need}` : '护盾在线'
-        view.sub.set(sub, 15, '#7fa8bc')
-        view.sub.setPos(st.x, st.y, 40)
-      } else {
-        view.title.set(`站点 ${Math.floor(st.stock)}/${st.need}`, 16, '#ffb03d')
-        view.title.setPos(st.x, st.y, 56)
-        view.sub.clear()
+      ;(view.core.material as THREE.MeshBasicMaterial).color.setHex(color)
+      view.core.scale.setScalar(selected ? 11 : 9)
+      const name = def?.name ?? b.type
+      const isRelay = (def?.bufferCap ?? 0) > 0
+      if (isRelay && def) {
+        view.title.set(`${name} ${b.id} · 缓存 ${Math.floor(b.stock)}/${def.bufferCap}`, 16, '#ffd9a0')
+        view.sub.set(def.linkable ? '航线可链接' : '', 13, '#8fb2c6')
+      } else if (def) {
+        view.title.set(`${name} ${b.id}`, 16, '#9fdcff')
+        view.sub.set(`护盾半径 ${def.radius} · 保全 ${def.shipCap} 艘`, 13, '#7fa8bc')
       }
-      // 进度弧（到货才重建）
-      const nextNeed = st.level === 0 ? st.need : st.level < 3 ? st.need : 0
-      const key = `${Math.floor(st.stock)}|${st.level}|${nextNeed}`
-      if (key !== view.lastStockKey) {
-        view.lastStockKey = key
-        if (view.progressRing) {
-          view.group.remove(view.progressRing)
-          view.progressRing.geometry.dispose()
-          ;(view.progressRing.material as THREE.Material).dispose()
-          view.progressRing = null
-        }
-        if (nextNeed > 0 && st.stock > 0) {
-          const frac = Math.min(1, st.stock / nextNeed)
-          const r = built ? 26 : 34
-          const geo = this.F.createRingGeometry(r - 3.5, r, 64, 1, -Math.PI / 2, frac * Math.PI * 2)
-          geo.rotateX(-Math.PI / 2)
-          const mat = this.F.createMeshBasicMaterial({ color: 0xffb03d, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false })
-          const ring = this.F.createMesh(geo, mat).object
-          ring.position.y = 4
-          ring.renderOrder = 10
-          view.progressRing = ring
-          view.group.add(ring)
-        }
-      }
+      view.title.setPos(b.x, b.y, 42)
+      view.sub.setPos(b.x, b.y, 22)
+      view.lastSubKey = ''
     }
   }
+
+  // ─── 建筑模式（网格线 + 放置 ghost） ───
+
+  private buildBuildMode(): void {
+    this.buildGroup = this.own(this.F.createGroup()).object
+    this.systemGroup.add(this.buildGroup)
+    this.gridMat = this.trackMat(this.F.createLineBasicMaterial({ color: 0x3fa9f5, transparent: true, opacity: 0.16, depthWrite: false }))
+    this.ghostMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x43d17c, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }))
+    this.ghostRing = this.own(this.F.createMesh(this.flatRingGeo, this.ghostMat)).object
+    this.ghostRing.position.y = 8
+    this.ghostRing.renderOrder = 30
+    this.ghostRing.visible = false
+    this.buildGroup.add(this.ghostRing)
+    this.ghostLabel = new SpriteLabel(this.F, this.owner, this.buildGroup, 66)
+    this.buildGroup.visible = false
+  }
+
+  /** 网格线覆盖当前相机视野（世界系，原点锚定 step=build.grid；视野超出已有覆盖即重建） */
+  private ensureGridCoverage(cam: THREE.Camera | null): void {
+    if (!cam) return
+    const g = Math.max(1, B.build.grid)
+    const perspective = cam as THREE.PerspectiveCamera
+    const distY = Math.max(g * 2, cam.position.y)
+    const halfH = Math.tan(((perspective.fov ?? 50) * Math.PI) / 360) * distY
+    const halfW = halfH * Math.max(0.4, perspective.aspect || 1.6)
+    const PAD = g * 6
+    const need = {
+      x0: Math.max(-16000, cam.position.x - halfW - PAD),
+      x1: Math.min(16000, cam.position.x + halfW + PAD),
+      z0: Math.max(-16000, cam.position.z - halfH - PAD),
+      z1: Math.min(16000, cam.position.z + halfH + PAD),
+    }
+    const cur = this.gridRect
+    if (cur && cur.x0 <= need.x0 && cur.x1 >= need.x1 && cur.z0 <= need.z0 && cur.z1 >= need.z1) return
+    // 单向线数上限（拉太远时加倍步长，防几何爆炸）
+    const MAX_LINES = 240
+    const stepX = spanStep(need.x0, need.x1, g, MAX_LINES)
+    const stepZ = spanStep(need.z0, need.z1, g, MAX_LINES)
+    const pts: number[] = []
+    const y = 1.2
+    for (let x = Math.ceil(need.x0 / stepX) * stepX; x <= need.x1; x += stepX) {
+      pts.push(x, y, need.z0, x, y, need.z1)
+    }
+    for (let z = Math.ceil(need.z0 / stepZ) * stepZ; z <= need.z1; z += stepZ) {
+      pts.push(need.x0, y, z, need.x1, y, z)
+    }
+    const geo = this.trackGeo(this.F.createBufferGeometry())
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3))
+    if (this.gridLines) {
+      this.buildGroup.remove(this.gridLines)
+      this.gridLines.geometry.dispose()
+    }
+    this.gridLines = this.own(this.F.createLineSegments(geo, this.gridMat)).object
+    this.gridLines.renderOrder = 7
+    this.buildGroup.add(this.gridLines)
+    this.gridRect = need
+    logger.info(`[StarMap] 建筑网格重建（世界系 x ${Math.round(need.x0)}~${Math.round(need.x1)} / z ${Math.round(need.z0)}~${Math.round(need.z1)}）`)
+  }
+
+  private syncBuildMode(cam: THREE.Camera | null): void {
+    const on = !!this.provider.buildMode
+    this.buildGroup.visible = on
+    if (!on) {
+      this.ghostRing.visible = false
+      this.ghostLabel.clear()
+      return
+    }
+    this.ensureGridCoverage(cam)
+    const cur = this.provider.buildCursor
+    if (!cur) {
+      this.ghostRing.visible = false
+      this.ghostLabel.clear()
+      return
+    }
+    this.ghostRing.visible = true
+    this.ghostRing.position.set(toWX(cur.x), 8, toWZ(cur.y))
+    this.ghostRing.scale.setScalar(24 + Math.sin(this.animTime * 6) * 2)
+    this.ghostMat.color.setHex(cur.valid ? 0x43d17c : 0xe84545)
+    this.ghostMat.opacity = cur.valid ? 0.55 : 0.8
+    if (cur.label) {
+      this.ghostLabel.set(cur.label, 16, cur.valid ? '#c8f5d8' : '#ffc0b8')
+      this.ghostLabel.setPos(cur.x + 30, cur.y + 26, 60)
+    } else {
+      this.ghostLabel.clear()
+    }
+  }
+
 
   // ─── 引导 ───
 
@@ -841,7 +968,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const body of TUTORIAL_TARGETS) {
       const p = B.map.nodes[body]
       const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff6a3d, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }))
-      const ring = this.F.createMesh(this.flatRingGeo, mat).object
+      const ring = this.own(this.F.createMesh(this.flatRingGeo, mat)).object
       ring.position.set(toWX(p.x), 6, toWZ(p.y))
       ring.renderOrder = 20
       this.tutRings.push(ring)
@@ -855,7 +982,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.trackGeo(tri)
     for (let i = 0; i < 3; i++) {
       const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff6a3d, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
-      const arrow = this.F.createMesh(tri, mat).object
+      const arrow = this.own(this.F.createMesh(tri, mat)).object
       arrow.position.y = 8
       arrow.renderOrder = 21
       this.tutArrows.push(arrow)
@@ -865,8 +992,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }
 
   private syncTutorial(): void {
+    // 引导双环锚在地月之间：只在地月系视角显示（其它行星系舞台/太阳系全景不显示，防止环漂在错误区域）
     const on = this.provider.simState.state.tutorial
+      && this.viewMode === 'earth'
+      && this.provider.planetFocusBody === 'earth'
     this.tutGroup.visible = on
+    for (const ring of this.tutRings) ring.visible = on
+    for (const arrow of this.tutArrows) arrow.visible = on
     if (!on) return
     const t = this.animTime
     const pulse = 1 + Math.sin(t * 4) * 0.12
@@ -903,7 +1035,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       new THREE.Vector3(toWX(B.map.nodes.mars.x), 1.8, toWZ(B.map.nodes.mars.y)),
     ]))
     const mat = this.trackMat(this.F.createLineDashedMaterial({ color: 0xffdc8c, transparent: true, opacity: 0.45, dashSize: 8, gapSize: 12, depthWrite: false }))
-    this.missionLine = this.F.createPolyline(geo, mat).object
+    this.missionLine = this.own(this.F.createPolyline(geo, mat)).object
     this.missionLine.computeLineDistances()
     this.missionLine.renderOrder = 8
     this.missionLine.visible = false
@@ -927,20 +1059,20 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private buildDrag(): void {
     this.dragMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x96a5b4, transparent: true, opacity: 0.7, depthWrite: false }))
-    this.dragQuad = this.F.createMesh(this.flatQuadGeo, this.dragMat).object
+    this.dragQuad = this.own(this.F.createMesh(this.flatQuadGeo, this.dragMat)).object
     this.dragQuad.position.y = 18
     this.dragQuad.renderOrder = 24
     this.dragQuad.visible = false
     this.systemGroup.add(this.dragQuad)
-    this.dragRing = this.F.createMesh(
+    this.dragRing = this.own(this.F.createMesh(
       this.flatRingGeo,
       this.trackMat(this.F.createMeshBasicMaterial({ color: 0x96a5b4, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })),
-    ).object
+    )).object
     this.dragRing.position.y = 17
     this.dragRing.renderOrder = 25
     this.dragRing.visible = false
     this.systemGroup.add(this.dragRing)
-    this.dragLabel = new SpriteLabel(this.F, this.systemGroup, 65)
+    this.dragLabel = new SpriteLabel(this.F, this.owner, this.systemGroup, 65)
   }
 
   private syncDrag(): void {
@@ -957,7 +1089,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     if (!drag.valid && drag.hoverEp) { colorHex = 0xe84545; opacity = 0.9 }
     else if (drag.hoverEp) {
       colorHex = drag.hoverEp.kind === 'earth' ? 0x43d17c
-        : drag.hoverEp.kind === 'station' ? 0x57c4f0
+        : drag.hoverEp.kind === 'building' ? 0x57c4f0
           : 0x3fa9f5
       opacity = 0.95
     }
@@ -993,7 +1125,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private buildFxPools(): void {
     for (let i = 0; i < 6; i++) {
       const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff8c50, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }))
-      const mesh = this.F.createMesh(this.flatRingGeo, mat).object
+      const mesh = this.own(this.F.createMesh(this.flatRingGeo, mat)).object
       mesh.position.y = 12
       mesh.renderOrder = 26
       mesh.visible = false
@@ -1001,15 +1133,15 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.systemGroup.add(mesh)
     }
     for (let i = 0; i < 8; i++) {
-      this.floatPool.push({ label: new SpriteLabel(this.F, this.systemGroup, 62), busy: false })
+      this.floatPool.push({ label: new SpriteLabel(this.F, this.owner, this.systemGroup, 62), busy: false })
     }
   }
 
   private syncFx(): void {
     const { fx } = this.provider
-    // 视图过滤（地球系视图只显示地月范围特效）
+    // 视图过滤（行星系视图只显示本地范围特效）
     const solar = this.viewMode === 'solar'
-    const e = starPosAt(this.provider.simState.state, 'earth')
+    const e = starPosAt(this.provider.simState.state, this.provider.planetFocusBody)
     const inView = (x: number, y: number): boolean => solar || Math.hypot(x - e.x, y - e.y) <= EARTH_VIEW_RADIUS_PX
     for (const p of this.pulsePool) p.busy = false
     for (const pulse of fx.pulses) {
@@ -1051,12 +1183,12 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     noiseGeo.rotateX(-Math.PI / 2)
     this.flareNoiseMat = this.trackMat(this.F.createMeshBasicMaterial({ map: this.tex.noise, transparent: true, opacity: 0, depthWrite: false }))
     this.tex.noise.repeat.set(10, 6)
-    const noise = this.F.createMesh(noiseGeo, this.flareNoiseMat).object
+    const noise = this.own(this.F.createMesh(noiseGeo, this.flareNoiseMat)).object
     noise.position.y = 420
     noise.renderOrder = 70
     this.flareGroup.add(noise)
     this.flareVigMat = this.trackMat(this.F.createMeshBasicMaterial({ map: this.tex.vignette, transparent: true, opacity: 0, depthWrite: false }))
-    const vig = this.F.createMesh(noiseGeo, this.flareVigMat).object
+    const vig = this.own(this.F.createMesh(noiseGeo, this.flareVigMat)).object
     vig.position.y = 430
     vig.renderOrder = 71
     this.flareGroup.add(vig)
@@ -1075,18 +1207,17 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   // ─── 标注 LOD（群星式）：拉近显示全标注，拉远折叠为纯星点 ───
 
-  /** 依相机高度衰减标注透明度（垂直俯视下相机 y = 观察距离） */
+  /** 依相机高度衰减标注透明度（垂直俯视下相机 y = 观察距离）；视图外天体（他系行星/卫星）标签一并隐藏 */
   private syncLabelLod(cam: THREE.Camera | null): void {
     if (!cam) return
     const dist = cam.position.y
-    const nameA = THREE.MathUtils.clamp((820 - dist) / 160, 0, 1)
     const subA = THREE.MathUtils.clamp((580 - dist) / 160, 0, 1)
-    for (const sv of Object.values(this.starViews)) {
+    const inView = this.visibleBodySet()
+    for (const [body, sv] of Object.entries(this.starViews)) {
       if (!sv) continue
-      sv.name.sprite.material.opacity = nameA
-      sv.name.sprite.visible = nameA > 0.02
+      const show = inView.has(body)
       sv.sub.sprite.material.opacity = subA
-      sv.sub.sprite.visible = subA > 0.02
+      sv.sub.sprite.visible = show && subA > 0.02
     }
   }
 
@@ -1099,31 +1230,58 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.applyViewMode()
   }
 
-  /** 应用视图分组：太阳系专属表现整组显隐 + 蓝图星球 mesh 显隐 + 站点过滤 */
+  /** 当前视图应显示的天体集合：太阳系=行星（卫星/卫星环属行星系细节，不显示）；行星系=聚焦行星 + 其卫星 */
+  private visibleBodySet(): Set<string> {
+    if (this.viewMode === 'solar') {
+      const out = new Set<string>(Object.keys(B.map.nodes))
+      for (const mid of Object.keys(B.map.moons)) out.delete(mid)
+      return out
+    }
+    // 行星系视角聚焦的必是行星（太阳走 solar 分支）；类型上 SolarBodyId 含 sun，此处收窄
+    const f = this.provider.planetFocusBody as PlanetId
+    return new Set([f, ...satellitesOf(f)])
+  }
+
+  /** 应用视图分组：舞台平移（行星系搬到星空远处）+ 太阳系专属表现整组显隐 + 天体/卫星环按视图集显隐 + 站点过滤 */
   private applyViewMode(): void {
     const solar = this.viewMode === 'solar'
+    const focus = this.provider.planetFocusBody as PlanetId
+    // 舞台初始位移（每帧由 syncStage 按聚焦行星实时位置精调：行星钉在舞台中心，本地内容按相对几何贴放）
+    const stage = solar ? { x: 0, z: 0 } : planetStageOffset(focus)
+    this.stageGroup.position.set(stage.x, 0, stage.z)
     this.sunGroup.visible = solar
+    // 太阳本体球是蓝图 Actor（不在 sunGroup，也不在 starViews——buildNodes 只建行星视图），行星系须单独隐藏
+    const sunActor = this.provider.starActors?.get('sun')
+    if (sunActor) {
+      const sunMesh = sunActor.getComponent(SphereMeshComponent)
+      if (sunMesh) sunMesh.obj.object.visible = solar
+    }
+    const inView = this.visibleBodySet()
     for (const [body, view] of Object.entries(this.starViews)) {
       if (!view) continue
-      view.body.visible = solar || EARTH_VIEW_BODIES.has(body)
+      view.body.visible = inView.has(body)
     }
-    // 站点视图过滤（站点 group 归 systemGroup 常显，此处只做显隐）；
-    // 锚点用 stationAnchorPos 实时值（站点随轨漂移，与 syncStations 定位同源，不用建站锚定值）
-    for (const [id, view] of this.stationViews) {
-      const st = this.provider.simState.state.stations.find((s) => s.id === id)
-      if (!st) continue
-      const e = starPosAt(this.provider.simState.state, 'earth')
-      const anchor = stationAnchorPos(this.provider.simState.state, st)
-      const d = Math.hypot(anchor.x - e.x, anchor.y - e.y)
+    // 卫星环 = 行星系内容：太阳系全景一律隐藏；行星系视角只显示聚焦行星的卫星环
+    for (const [mid, mc] of Object.entries(B.map.moons)) {
+      const ring = this.moonRings.get(mid)
+      if (ring) ring.visible = !solar && focus === mc.parent
+    }
+    // 建筑视图过滤（建筑 group 归 systemGroup 常显，此处只做显隐）；
+    // 建筑位置固定（自由放置，不随轨道漂移）
+    for (const [id, view] of this.buildingViews) {
+      const b = this.provider.simState.state.buildings.find((x) => x.id === id)
+      if (!b) continue
+      const c = starPosAt(this.provider.simState.state, focus)
+      const d = Math.hypot(b.x - c.x, b.y - c.y)
       view.group.visible = solar || d <= EARTH_VIEW_RADIUS_PX
     }
     if (solar) {
-      // 太阳系全显：复位被地球系过滤隐藏的航线 quad / 飞船 mesh / 浮字标签
+      // 太阳系全显：复位被行星系过滤隐藏的航线 quad / 飞船 mesh / 浮字标签
       for (const q of this.routeQuads.values()) q.mesh.visible = true
       for (const s of this.shipPool) s.mesh.visible = false // 交由 syncShips 每帧重建可见性
       for (const f of this.floatPool) f.label.sprite.visible = false
     }
-    logger.info(`[StarMap] 视图切换 → ${solar ? '太阳系' : '地球系'}`)
+    logger.info(`[StarMap] 视图切换 → ${solar ? '太阳系' : `${focus} 行星系`}`)
   }
 
   /** 每帧过滤：航线/飞船/站点按当前视图归属显隐（位置更新照常，只裁可见性） */
@@ -1134,9 +1292,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       for (const q of this.routeQuads.values()) q.mesh.visible = true
       return
     }
-    // 地球系视图：只显示两端都入画的地月航线（长跨系航线如地球→木卫二整条隐藏，不穿屏）
-    const e = starPosAt(this.provider.simState.state, 'earth')
-    const inEarthView = (x: number, y: number): boolean => Math.hypot(x - e.x, y - e.y) <= EARTH_VIEW_RADIUS_PX
+    // 行星系视图：只显示两端都入画的本地航线（长跨系航线整条隐藏，不穿屏）
+    const c = starPosAt(this.provider.simState.state, this.provider.planetFocusBody)
+    const inEarthView = (x: number, y: number): boolean => Math.hypot(x - c.x, y - c.y) <= EARTH_VIEW_RADIUS_PX
     for (const [key, q] of this.routeQuads) {
       const id = Number(key.split(':')[0])
       const route = this.provider.simState.state.routes.find((r) => r.id === id)
@@ -1145,24 +1303,38 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const to = endpointPos(this.provider.simState.state, route.to)
       q.mesh.visible = inEarthView(from.x, from.y) && inEarthView(to.x, to.y)
     }
-    for (const [id, view] of this.stationViews) {
-      const st = this.provider.simState.state.stations.find((s) => s.id === id)
-      if (!st) continue
-      const anchor = stationAnchorPos(this.provider.simState.state, st)
-      view.group.visible = inEarthView(anchor.x, anchor.y)
+    for (const [id, view] of this.buildingViews) {
+      const b = this.provider.simState.state.buildings.find((x) => x.id === id)
+      if (!b) continue
+      view.group.visible = inEarthView(b.x, b.y)
     }
   }
 
-  /** 每帧同步（GameMode.Tick 驱动；dt = 真实时间；cam = 太阳系相机，用于标注 LOD） */
+  /**
+   * 每帧舞台位移（行星系视角）：舞台 = 专属远景坐标 - 聚焦行星实时地图位置。
+   * 效果 = 聚焦行星被钉在舞台中心（像太阳一样固定不公转），航线/飞船/站点/卫星环
+   * 按与它的真实相对几何贴放（卫星像行星一样绕它转）；纯显示变换，仿真数据不动。
+   */
+  private syncStage(): void {
+    if (this.viewMode === 'solar') return // 太阳系全景：舞台恒在原点（applyViewMode 已复位）
+    const f = this.provider.planetFocusBody as PlanetId
+    const fp = starPosAt(this.provider.simState.state, f)
+    const stage = planetStageOffset(f)
+    this.stageGroup.position.set(stage.x - toWX(fp.x), 0, stage.z - toWZ(fp.y))
+  }
+
+  /** 每帧同步（GameMode.Tick 驱动；dt = 真实时间；cam = 太阳系相机，用于标注 LOD / 建筑网格覆盖） */
   render(dt: number, cam?: THREE.Camera | null): void {
     this.animTime += dt
+    this.syncStage()
     this.syncRoutes()
     this.syncShips()
     this.syncNodes()
-    this.syncStations()
+    this.syncBuildings()
     this.syncTutorial()
     this.syncMissionLine()
     this.syncDrag()
+    this.syncBuildMode(cam ?? null)
     this.syncFx()
     this.syncFlare()
     this.syncLabelLod(cam ?? null)

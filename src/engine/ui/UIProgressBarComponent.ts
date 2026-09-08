@@ -9,6 +9,8 @@
  * 填充实现：水平方向改 fill 的 UITransform.worldWidth（锚点 middle-left/middle-right 贴合容器内边），
  * 垂直方向改 worldHeight（锚点 bottom-center/top-center）。fill 尺寸必须从锚点贴边生长，
  * 因此 fill 子节点应配置对应方向的锚点（middle-left / middle-right / bottom-center / top-center）。
+ * HTML 编译产物例外：width/height:100% 的 fill 编译为 stretch 全锚，会被 applyAnchor
+ * 重置回满容器（进度条恒满）——首刷自动降级为无锚点 + 按方向手动贴边（语义同 middle-left）。
  *
  * 资产配置示例（血条容器）：
  *   { "baseClass": "UIProgressBarComponent", "properties": {
@@ -151,14 +153,28 @@ export class UIProgressBarComponent extends ActorComponent<Actor> {
     if (hostW <= 0 || hostH <= 0) return
     const ratio = this.ratio
     // 水平方向：改宽度（高度保持容器高）；垂直方向：改高度（宽度保持容器宽）
-    if (this._direction === 'left-to-right' || this._direction === 'right-to-left') {
-      tsf.setWorldSize(hostW * ratio, hostH)
+    const horizontal = this._direction === 'left-to-right' || this._direction === 'right-to-left'
+    const fillW = horizontal ? hostW * ratio : hostW
+    const fillH = horizontal ? hostH : hostH * ratio
+    // HTML 编译器把 width/height:100% 的 fill 发成 stretch 全锚，而 stretch 的 applyAnchor
+    // 会按容器尺寸重写宽高，把进度尺寸吞回满条（进度条恒满）。fill 几何归本组件管：
+    // stretch 一次性降级为无锚点；无锚点 fill 每刷按方向手动贴边（等价 middle-left
+    // 等锚点的生长语义），有锚点 fill 维持引擎原 applyAnchor 语义。
+    if (tsf.anchor === 'stretch') tsf.anchor = null
+    tsf.setWorldSize(fillW, fillH)
+    if (tsf.anchor !== null) {
+      // 锚点已配置（middle-left 等）→ applyAnchor 让 fill 贴边生长
+      tsf.applyAnchor()
     } else {
-      tsf.setWorldSize(hostW, hostH * ratio)
+      // 无锚点：按方向把 fill 贴到容器边缘（position 相对父中心，等价锚点逆推公式）
+      const px = horizontal
+        ? (this._direction === 'left-to-right' ? -(hostW - fillW) : (hostW - fillW)) / 2
+        : 0
+      const py = horizontal
+        ? 0
+        : (this._direction === 'bottom-to-top' ? -(hostH - fillH) : (hostH - fillH)) / 2
+      this._fill.setPosition(px, py, this._fill.root.position.z)
     }
-    // 锚点已配置（middle-left 等）→ applyAnchor 让 fill 贴边生长；
-    // 未配置锚点 → fill 中心默认在容器中心，宽度缩小时两侧同时收缩（效果同 center 填充）
-    tsf.applyAnchor()
   }
 
   /** 按 root.name 深度查找子 Actor */

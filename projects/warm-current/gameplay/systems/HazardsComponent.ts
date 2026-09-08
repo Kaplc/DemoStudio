@@ -6,8 +6,9 @@
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { shipPos } from '../core/helpers'
-import type { SimStation } from '../core/types'
+import type { BuildingDef } from '../core/balance'
+import { buildingDefOf, shipPos } from '../core/helpers'
+import type { SimBuilding } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
 export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
@@ -86,26 +87,27 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
     f.nextIn = Number.POSITIVE_INFINITY
   }
 
-  /** 耀斑结束：护盾气泡内保全（限额 + 恢复延迟），其余冻毁 */
+  /** 耀斑结束：护盾气泡内保全（限额 + 恢复延迟），其余冻毁。
+   *  护盾源 = 磁场护盾发生器（radius>0 的建筑，配置表驱动；建筑位置固定不漂移）。 */
   private resolveFlareDamage(): void {
     const s = this.sc.state
     const flying = s.ships.filter((x) => x.state === 'flying')
-    const stations = s.stations.filter((st) => st.level >= 1)
-    const assigned = new Map<number, number>() // stationId → 已占名额
+    const shields = s.buildings.map((b) => ({ b, def: buildingDefOf(b.type) }))
+      .filter((x): x is { b: SimBuilding; def: BuildingDef } => !!x.def && x.def.radius > 0)
+    const assigned = new Map<number, number>() // buildingId → 已占名额
     const saved = new Set<number>()
     for (const ship of flying) {
       const pos = shipPos(s, ship)
-      let best: SimStation | null = null
+      let best: SimBuilding | null = null
       let bestD = Infinity
-      for (const st of stations) {
-        const cap = B.station.shipCap[st.level]
-        if ((assigned.get(st.id) ?? 0) >= cap) continue
-        const d = Math.hypot(pos.x - st.x, pos.y - st.y)
-        if (d <= B.station.radius[st.level] && d < bestD) { best = st; bestD = d }
+      for (const { b, def } of shields) {
+        if ((assigned.get(b.id) ?? 0) >= def.shipCap) continue
+        const d = Math.hypot(pos.x - b.x, pos.y - b.y)
+        if (d <= def.radius && d < bestD) { best = b; bestD = d }
       }
       if (best) {
         assigned.set(best.id, (assigned.get(best.id) ?? 0) + 1)
-        ship.resumeDelay = B.station.resumeDelay[best.level]
+        ship.resumeDelay = buildingDefOf(best.type)?.resumeDelay ?? 0
         saved.add(ship.id)
       }
     }

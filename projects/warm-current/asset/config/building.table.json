@@ -1,0 +1,13 @@
+{
+  "_comment": "地图建筑配置表（建造面板行序 = 行键序）。行键 = 建筑类型 id（SimBuilding.type）。\n cost=放置造价(H3，点击星图落位即扣)；radius=功能半径(地图px，护盾气泡/服务范围，0=无)；\n bufferCap=缓存物资上限(中转站：反向补给线运抵建材入缓存)；shipCap=护盾保全容量(耀斑结算按最近就近分配名额)；\n resumeDelay=耀斑结束护盾内存活船恢复延迟(秒)；refundPct=拆除返还比例(按造价+缓存物资折算H3)；\n linkable=可否被航线链接(中转站 true：地球↔中转站补给线；false=不可接线的功能建筑)。\n 加新建筑：加一行 + 建造面板自动多一行（行池见 BuildPanelScript BUILD_ROWS），渲染外观在 StarMapRenderComponent 按类型分支。",
+  "relay": {
+    "name": "中转站", "desc": "被航线链接 · 缓存物资",
+    "cost": 150, "radius": 0, "bufferCap": 800,
+    "shipCap": 0, "resumeDelay": 0, "refundPct": 0.5, "linkable": true
+  },
+  "shield": {
+    "name": "磁场护盾发生器", "desc": "耀斑护盾 · 半径内保全飞船",
+    "cost": 220, "radius": 220, "bufferCap": 0,
+    "shipCap": 2, "resumeDelay": 3, "refundPct": 0.5, "linkable": false
+  }
+}

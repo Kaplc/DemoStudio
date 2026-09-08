@@ -17,11 +17,11 @@ export type MoonId = 'moon' | 'europa'
 /** 行星或卫星（公转纯函数 starPosAt 的消费域） */
 export type PlanetBodyId = PlanetId | MoonId
 
-/** 航线端点：地球 / 资源星 / 补给站站点 */
+/** 航线端点：地球 / 资源星 / 地图建筑（中转站可接航线） */
 export type Endpoint =
   | { kind: 'earth' }
   | { kind: 'star'; star: StarId }
-  | { kind: 'station'; stationId: number }
+  | { kind: 'building'; buildingId: number }
 
 export type RouteDirection = 'forward' | 'reverse'
 
@@ -67,22 +67,20 @@ export interface SimShip {
   mission: boolean
 }
 
-export type StationLevel = 0 | 1 | 2 | 3
+export type BuildingTypeId = 'relay' | 'shield'
 
-/** 无人补给站：level 0 = 站点（建材未达标），1..3 已建成 */
-export interface SimStation {
+/** 地图建筑（建造面板选型 → 星图自由放置；type = building 表行键）。
+ *  中转站（relay）：可被航线链接，反向补给线送建材入缓存；
+ *  磁场护盾发生器（shield）：耀斑期间保护半径内飞船（容量限额）。 */
+export interface SimBuilding {
   id: number
-  /** 所依附的正向航线（月球/木卫二/火星线中点） */
-  routeId: number
-  star: StarId
+  /** 建筑类型（building.table.json 行键，B.buildings 查数值） */
+  type: string
   x: number
   y: number
-  level: StationLevel
-  /** 已运抵建材 */
+  /** 缓存物资（中转站：反向补给线运抵的建材，上限 B.buildings[type].bufferCap） */
   stock: number
-  /** 当前目标所需建材（建站 300 / 升级见平衡表） */
-  need: number
-  /** 累计运抵建材（拆除返还计算用） */
+  /** 建造投入 H3（拆除返还折算用） */
   invested: number
 }
 
@@ -95,6 +93,8 @@ export interface SimResearchLine {
   progress: number
   /** 下一节点推进倍率（卡 tradeoff / 生长加速 一次性修正，节点完成后复位 1） */
   nextMult: number
+  /** 已分配研究点数（聚能环每升 1 级得 1 点；点数提速同时按点计 H3 消耗） */
+  points: number
 }
 
 export interface PendingCard {
@@ -120,10 +120,35 @@ export interface SimStats {
   frozenCount: number
   /** 重建船数 */
   rebuiltCount: number
-  /** 建成补给站数 */
-  stationsBuilt: number
+  /** 建成建筑数 */
+  buildingsBuilt: number
   /** 已选海克斯卡数 */
   cardsTaken: number
+}
+
+/**
+ * H3 收支账本（对局累计，吨；统计面板消费）。
+ * 收入项：unload / demolishRefund；支出项：其余。每一项都对应 earthH3 的一个真实变动点。
+ */
+export interface SimLedger {
+  /** 航线卸货净收入（正向到港 net = 满载 − 油耗） */
+  unload: number
+  /** 拆除补给站返还（按投入建材折算 H3） */
+  demolishRefund: number
+  /** 聚能环焚烧（持续） */
+  ringBurn: number
+  /** 研究点数计费（持续，按各线已分配点数合计 × 每点每秒单价） */
+  research: number
+  /** 舰队维护费（持续，按船队规模查 fleet_maint 阶梯） */
+  fleetMaint: number
+  /** 造船 */
+  shipBuild: number
+  /** 冻毁船重建 */
+  shipRebuild: number
+  /** 反向航线油耗（送建材往返） */
+  reverseFuel: number
+  /** 反向航线建材折算 H3 */
+  materials: number
 }
 
 export type SimEventType =
@@ -141,10 +166,8 @@ export type SimEventType =
   | 'flare_start'
   | 'flare_end'
   | 'frozen'
-  | 'station_built'
-  | 'station_upgraded'
-  | 'station_demolished'
-  | 'act2'
+  | 'building_built'
+  | 'building_demolished'  | 'act2'
   | 'act3'
   | 'module_available'
   | 'victory'
@@ -178,9 +201,9 @@ export interface SimState {
   nodes: number
   ships: SimShip[]
   routes: SimRoute[]
-  stations: SimStation[]
+  /** 地图建筑（自由放置） */
+  buildings: SimBuilding[]
   research: SimResearchLine[]
-  overclocked: ResearchLineId[]
   pendingCard: PendingCard | null
   /** 海克斯自动收纳时刻（仿真秒）：null=弹窗可见；非 null=已收纳（待卡不弃，HUD 徽标重开） */
   hexHiddenAt: number | null
@@ -200,6 +223,8 @@ export interface SimState {
   /** 胜利后沙盒模式（无失败压力） */
   sandbox: boolean
   stats: SimStats
+  /** H3 收支账本（对局累计，统计面板消费；结构化克隆安全） */
+  ledger: SimLedger
   /** 幕入口快照（重试本幕用） */
   actSnapshots: { act2: string | null; act3: string | null }
 }
@@ -225,8 +250,6 @@ export interface SimMods {
   recoverMult: number
   /** 事件预警（耀斑提前 10s 预告） */
   flareWarning: boolean
-  /** 补给站建造权限 */
-  stationUnlocked: boolean
   /** 扩编船队 +1/张 */
   fleetBonus: number
 }

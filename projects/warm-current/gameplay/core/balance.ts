@@ -24,6 +24,29 @@ export interface StarBalance {
 
 export interface MapNodeCfg { x: number; y: number; r: number }
 
+/** 舰队维护费阶梯行：ships = 船队规模上限（含），costPerS = 维护费速率（H3/秒，全舰队合计） */
+export interface FleetMaintTier { ships: number; costPerS: number }
+
+/** 建筑定义（= building.table.json 行，行键 = SimBuilding.type） */
+export interface BuildingDef {
+  name: string
+  desc: string
+  /** 放置造价（H3） */
+  cost: number
+  /** 功能半径（地图 px；护盾气泡等，0 = 无半径功能） */
+  radius: number
+  /** 缓存物资上限（中转站） */
+  bufferCap: number
+  /** 护盾保全容量（耀斑结算名额） */
+  shipCap: number
+  /** 耀斑结束护盾内存活船恢复延迟（秒） */
+  resumeDelay: number
+  /** 拆除返还比例（按造价+缓存物资折算 H3） */
+  refundPct: number
+  /** 可否被航线链接（地球↔建筑 补给线） */
+  linkable: boolean
+}
+
 /** 卡 id（= cards.table.json 行键） */
 export type CardId = string
 
@@ -32,7 +55,7 @@ export type CardType = 'unlock' | 'upgrade'
 export interface CardEffects {
   fuelMult?: number; speedMult?: number; cargoMult?: number; burnMult?: number; recoverMult?: number
   moonLoadAdd?: number; otherLoadAdd?: number; bufferAdd?: number; gravityAdd?: number; fleetBonus?: number
-  stationUnlock?: boolean; flareWarning?: boolean
+  flareWarning?: boolean
   /** 本次点亮交点数（双生节点=2，缺省 1） */
   extraNodes?: number
   /** 该线（self=触发线）下一节点生长倍率（一次性，节点完成后复位 1） */
@@ -60,8 +83,8 @@ export const MAP_H = 1080
 export const toWX = (mx: number): number => mx - MAP_W / 2
 export const toWZ = (my: number): number => my - MAP_H / 2
 
-/** 太阳系取景天体清单（sol GM 命令与 focusSolarSystem 共用，天体增减只改此处） */
-export const SOLAR_FOCUS_BODIES = ['sun', 'earth', 'moon', 'europa', 'mars'] as const
+/** 太阳系取景天体清单（sol GM 命令与 focusSolarSystem 共用，天体增减只改此处；行星均可进入行星系视角） */
+export const SOLAR_FOCUS_BODIES = ['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'europa', 'saturn', 'uranus', 'neptune'] as const
 export type SolarFocusBody = (typeof SOLAR_FOCUS_BODIES)[number]
 
 /** 配色（模块 10 §2） */
@@ -91,10 +114,14 @@ export const B = {
   startNodes: 1,
   researchNodeCap: 11,
   totalNodes: 12,
+  /** 聚能环等级阶梯级数（满级 = 覆盖 100% 全球组网；25 级 × 2.5h 局时长 ≈ 每级 6 分钟） */
+  ringLevels: 25,
   nodeInterval: 130,
   runningRateBonus: 1.25,
-  overclockRateMult: 1.5,
-  overclockCostPerS: 6,
+  /** 研究点数加成：每点对所在线推进速率的加算倍率（速率 = 基础 × (1 + 点数×此值)） */
+  researchPointRateAdd: 0.5,
+  /** 研究点数计费：每点每秒消耗 H3（吨/秒/点；断环或储量耗尽不计费不加成） */
+  researchPointCostPerS: 3,
   bufferSeconds: 24,
   continuityRecoverRate: 20,
   initialShips: 3,
@@ -103,6 +130,14 @@ export const B = {
   cargoBase: 200,
   shipRebuildCost: 150,
   materialH3PerUnit: 0.5,
+  // 舰队维护费阶梯（按总船数升序查档：船越多维护费越高 → H3/秒 从地球储备持续扣除）
+  fleetMaint: [
+    { ships: 3, costPerS: 0 },
+    { ships: 5, costPerS: 1 },
+    { ships: 8, costPerS: 2 },
+    { ships: 12, costPerS: 3.5 },
+    { ships: 99, costPerS: 5 },
+  ] as FleetMaintTier[],
   act2Nodes: 4,
   act3Nodes: 8,
   act3SurviveSeconds: 240,
@@ -117,19 +152,28 @@ export const B = {
     europa: { id: 'europa', name: '木卫二', load: 600, dist: 3.0, unlockAct: 2 },
     mars: { id: 'mars', name: '火星', load: 1500, dist: 6.0, unlockAct: 3 },
   } as Record<StarId, StarBalance>,
-  // 节点焚烧表（下标 = 已解锁节点数 − 1）
-  nodeBurn: [2.0, 2.8, 3.8, 5.0, 6.5, 8.0, 9.5, 11.0, 12.3, 13.6, 14.8, 16.0],
+  // 等级焚烧表（下标 = 聚能环等级 − 1）：等级提升 → H3 消耗指数增长
+  // 指数曲线 burn(l) = 2.0 × (16/2)^((l-1)/24)：Lv1(开局1交点)=2.0 → Lv25(满级12交点全球组网)=16.0，每级 ≈ +9.05%
+  levelBurn: [
+    2, 2.18, 2.38, 2.59, 2.83, 3.08, 3.36, 3.67, 4, 4.36, 4.76, 5.19,
+    5.66, 6.17, 6.73, 7.34, 8, 8.72, 9.51, 10.37, 11.31, 12.34, 13.45, 14.67, 16,
+  ],
   // 事件
   gravity: { period: 90, warn: 10, active: 20, speedMult: 2.0, fuelMult: 0.5 },
   flare: { minInterval: 100, maxInterval: 150, duration: 20, warnLead: 10, firstDelay: 60 },
-  // 补给站
-  station: {
-    buildMaterials: 300,
-    upgradeMaterials: [0, 0, 400, 500],
-    radius: [0, 180, 320, 500],
-    shipCap: [0, 2, 4, 8],
-    resumeDelay: [0, 5, 2, 0],
-    demolishRefund: 0.5,
+  // 地图建筑（building.table.json 覆盖；行键 = SimBuilding.type，建造面板行序 = 键序）
+  buildings: {
+    relay: { name: '中转站', desc: '被航线链接 · 缓存物资', cost: 150, radius: 0, bufferCap: 800, shipCap: 0, resumeDelay: 0, refundPct: 0.5, linkable: true },
+    shield: { name: '磁场护盾发生器', desc: '耀斑护盾 · 半径内保全飞船', cost: 220, radius: 220, bufferCap: 0, shipCap: 2, resumeDelay: 3, refundPct: 0.5, linkable: false },
+  } as Record<string, BuildingDef>,
+  // 建筑放置（建造模式）
+  build: {
+    /** 网格间距（地图 px；放置吸附 + 网格线） */
+    grid: 40,
+    /** 建筑间最小间距（地图 px） */
+    minSpacing: 44,
+    /** 距太阳最小净空（太阳半径 + 该值内不可放） */
+    sunClearance: 24,
   },
   // 星图布局
   map: {
@@ -162,10 +206,6 @@ export const B = {
       moon: { parent: 'earth', radius: 120 },
       europa: { parent: 'jupiter', radius: 76 },
     } as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
-    /** 装饰行星中文名（非资源星，纯标注） */
-    planetNames: {
-      mercury: '水星', venus: '金星', jupiter: '木星', saturn: '土星', uranus: '天王星', neptune: '海王星',
-    } as Record<PlanetId, string | undefined>,
   },
   // 卡库（refreshBalanceFromConfigs 时由 warm-current.cards 表覆盖；空表回退 DEFAULT_CARDS）
   cards: [] as CardDef[],
@@ -173,7 +213,6 @@ export const B = {
 
 /** 代码内置默认卡库（cards.table.json 未加载时的兜底；与表内容保持同步） */
 export const DEFAULT_CARDS: CardDef[] = [
-  { id: 'station_unlock', name: '补给站解锁', type: 'unlock', line: 'infra', gain: '开启"无人补给站"建造权限（反向航线送建材建站）', cost: '单节点消耗 +3%', effects: { stationUnlock: true, burnMult: 1.03 } },
   { id: 'event_warning', name: '事件预警', type: 'unlock', line: 'infra', gain: '极寒停航提前 10 秒预告', cost: '该线下次生长 −10%', effects: { flareWarning: true, nextGrowth: { line: 'self', mult: 0.9 } } },
   { id: 'engine_overdrive', name: '引擎超频', type: 'upgrade', line: 'engine', gain: '所有航线油耗 −15%', cost: '航速 −5%', effects: { fuelMult: 0.85, speedMult: 0.95 } },
   { id: 'speed_up', name: '航速提升', type: 'upgrade', line: 'engine', gain: '飞行速度 +20%', cost: '油耗 +8%', effects: { speedMult: 1.2, fuelMult: 1.08 } },
@@ -207,8 +246,8 @@ export function refreshBalanceFromConfigs(): void {
     const g = ConfigRegistry.getConfig<Record<string, number>>('warm-current.global')
     assignNumeric(B as unknown as Record<string, unknown>, g, [
       'earthH3Start', 'baseBurnPerLeg', 'baseLegSeconds', 'loadSeconds', 'unloadSeconds',
-      'dangerReserveSeconds', 'startNodes', 'researchNodeCap', 'totalNodes', 'nodeInterval',
-      'runningRateBonus', 'overclockRateMult', 'overclockCostPerS', 'bufferSeconds',
+      'dangerReserveSeconds', 'startNodes', 'researchNodeCap', 'totalNodes', 'ringLevels', 'nodeInterval',
+      'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'bufferSeconds',
       'continuityRecoverRate', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'act2Nodes', 'act3Nodes', 'act3SurviveSeconds',
       'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds', 'hexAutoCloseSeconds',
@@ -227,24 +266,34 @@ export function refreshBalanceFromConfigs(): void {
   } catch { /* 未注册 → 默认值 */ }
 
   try {
-    const table = ConfigRegistry.getTable<{ burn: number }>('warm-current.node_burn')
+    const table = ConfigRegistry.getTable<{ burn: number }>('warm-current.level_burn')
     if (table) {
       const burns: number[] = []
       const keys = table.getRowNames().sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
       for (const k of keys) burns.push(table.getRow(k)!.burn)
-      if (burns.length > 0) B.nodeBurn = burns
+      if (burns.length > 0) B.levelBurn = burns
     }
   } catch { /* 未注册 → 默认值 */ }
 
   try {
-    const st = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.station')
-    if (st) {
-      if (st.buildMaterials !== undefined) B.station.buildMaterials = st.buildMaterials as number
-      if (Array.isArray(st.upgradeMaterials)) B.station.upgradeMaterials = [...(st.upgradeMaterials as number[])]
-      if (Array.isArray(st.radius)) B.station.radius = [...(st.radius as number[])]
-      if (Array.isArray(st.shipCap)) B.station.shipCap = [...(st.shipCap as number[])]
-      if (Array.isArray(st.resumeDelay)) B.station.resumeDelay = [...(st.resumeDelay as number[])]
-      if (st.demolishRefund !== undefined) B.station.demolishRefund = st.demolishRefund as number
+    const table = ConfigRegistry.getTable<FleetMaintTier>('warm-current.fleet_maint')
+    if (table) {
+      const tiers = table.getRowNames()
+        .map((k) => table.getRow(k))
+        .filter((r): r is FleetMaintTier => !!r && typeof r.ships === 'number' && typeof r.costPerS === 'number')
+        .sort((a, b) => a.ships - b.ships)
+      if (tiers.length > 0) B.fleetMaint = tiers
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  try {
+    const table = ConfigRegistry.getTable<Partial<BuildingDef>>('warm-current.building')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.buildings as Record<string, BuildingDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+      }
     }
   } catch { /* 未注册 → 默认值 */ }
 
