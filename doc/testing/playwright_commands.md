@@ -425,6 +425,8 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **45. 长跑仿真自然 defeat 的全屏 Dim 拦截层干扰 UI 点击测试** —— 现象：warm 星图仿真跑到 ~424s 时 `outcome='defeat'`，SettleModal/HexModal 全屏 Dim（`hit-test: block`）亮起，之后一切 `ai.clickActor` 返回未命中；且 defeat 会随 `sim.runTick` 持续重写，手动改 `outcome='playing'` 也压不住。规则：**UI 点击类 e2e 在 `waitGameReady` 后立即 `m.togglePause()` 冻结仿真**（`GameMode.Tick` 判 `paused` 不推进），从根上杜绝结局弹窗出现；确需推进仿真时间的用例再自行恢复运行。
 
+**46. 同 spec 文件多个 test 触发 beforeEach 二次启动游戏超时** —— 现象：第一个 test 全流程通过后，同文件第二个 test 的 `beforeEach` 卡 `waitGameRunning` 直到 120s 超时，页面快照仍停在启动页。原因：warm 的「打开工程 → ▶」流程带整页重载与场景异步切换，同一 dev server 会话内连续二次走完整启动链路时部分状态未复位（与坑 23 场景残留同源），第二个用例起不来。规则：**warm 游戏 e2e 一个 spec 文件合并为一个 test**（断言按节组织），避免二次启动；需要多组断言时在一个 test 内顺序完成。
+
 ---
 
 
