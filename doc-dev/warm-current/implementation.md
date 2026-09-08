@@ -35,7 +35,7 @@ projects/warm-current/
 | `SimStateComponent` | SimState 纯数据 + 事件队列 + rng + 快照/重试本幕/沙盒/派生查询（burnRate/demand/idleShips…） |
 | `TransportComponent` | 航线 CRUD/派船召回/造船重建/火星任务 + 飞船状态机（loading→flying→unloading） |
 | `EconomyComponent` | 焚烧 → 缓冲衰减 → 延续度回升 |
-| `ResearchComponent` | 5 线推进 + cardQueue/pendingCard + 选卡 effects 数据驱动应用 + 超频 |
+| `ResearchComponent` | 5 线推进 + cardQueue/pendingCard + 选卡 effects 数据驱动应用 + 研究点分配（allocateResearch，2026-09-08 点数制替代超频） |
 | `HazardsComponent` | 引力窗口周期 + 耀斑（失联停滞/护盾限额保全/盾外冻毁） |
 | `StationsComponent` | 中点建站/升级/拆除返还 + onDelivery 自动建成 |
 | `ActsComponent` | 三幕门槛 + 幕入口快照 |
