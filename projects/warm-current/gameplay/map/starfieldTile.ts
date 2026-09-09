@@ -5,10 +5,9 @@
  * 可无缝平铺的小 tile（512²），由 StarMapRenderComponent 铺在放大数倍的地面
  * 平面上靠 RepeatWrapping 重复拼接——单 drawcall、显存恒定、星空"无限大"。
  *
- * 无缝三要素：
+ * 无缝两要素：
  *  1. 底色渐变只沿 v 轴且首尾同色（对称渐变）→ 上下拼接无色阶跳变
- *  2. 星点/星云全部按 ±tile 九宫格环绕绘制 → 跨边元素在相邻边补画，无截断
- *  3. 星云带横向正弦起伏以 tile 宽为周期 → 左右拼接波形连续
+ *  2. 星点全部按 ±tile 九宫格环绕绘制 → 跨边元素在相邻边补画，无截断
  *
  * 环境无 2D canvas（单测/极简容器）返回 null，调用方退化为纯色地面
  * （先例：同目录 starTextures.ts makeStarTexture 的守卫写法）。
@@ -33,8 +32,6 @@ export interface StarfieldTileOptions {
   seed?: number
   /** 星点数（缺省 72，密度与旧版 340 颗/全图相当） */
   stars?: number
-  /** 星云强度 [0,1]（缺省 0.5） */
-  nebula?: number
 }
 
 /** mulberry32 — 种子确定性 PRNG（与引擎 ShadowBlob 系列同款） */
@@ -71,7 +68,6 @@ export function makeStarfieldTileTexture(opts: StarfieldTileOptions = {}): THREE
   const S = TILE_SIZE
   const seed = Math.floor(opts.seed ?? STARFIELD_TILE_SEED)
   const starCount = Math.max(1, Math.round(opts.stars ?? 72))
-  const nebula = Math.min(1, Math.max(0, opts.nebula ?? 0.5))
   const rng = mulberry32(seed)
   canvas.width = S
   canvas.height = S
@@ -95,49 +91,9 @@ export function makeStarfieldTileTexture(opts: StarfieldTileOptions = {}): THREE
     for (const ox of xs) for (const oy of ys) draw(x + ox, y + oy)
   }
 
-  // ─── 2. 星云：全 tile 均匀软刷（平铺后呈均匀深空云；带状设计会随平铺重复出条纹） ───
-  if (nebula > 0) {
-    for (let i = 0; i < 22; i++) {
-      const x = rng() * S
-      const y = rng() * S
-      const r = S * (0.06 + rng() * 0.15)
-      const a = (0.04 + 0.05 * nebula) * (0.5 + rng() * 0.5)
-      drawWrapped(
-        (ox, oy) => {
-          const rg = g.createRadialGradient(ox, oy, 0, ox, oy, r)
-          rg.addColorStop(0, `rgba(210,228,255,${a})`)
-          rg.addColorStop(1, 'rgba(210,228,255,0)')
-          g.fillStyle = rg
-          g.fillRect(ox - r, oy - r, r * 2, r * 2)
-        },
-        x,
-        y,
-        r,
-      )
-    }
-    // 彩色暗斑（紫/青各一，10% 强度，点亮色温层次）
-    const tintColors = ['rgba(120,90,200,', 'rgba(70,160,190,']
-    for (let i = 0; i < 2; i++) {
-      const x = rng() * S
-      const y = S * (0.3 + rng() * 0.4)
-      const r = S * (0.18 + rng() * 0.1)
-      const a = 0.08 * nebula
-      drawWrapped(
-        (ox, oy) => {
-          const rg = g.createRadialGradient(ox, oy, 0, ox, oy, r)
-          rg.addColorStop(0, `${tintColors[i]}${a})`)
-          rg.addColorStop(1, `${tintColors[i]}0)`)
-          g.fillStyle = rg
-          g.fillRect(ox - r, oy - r, r * 2, r * 2)
-        },
-        x,
-        y,
-        r,
-      )
-    }
-  }
-
-  // ─── 3. 星点：全部九宫格环绕（跨边星在对面补画）；少数亮星带十字光晕 ───
+  // ─── 2. 星点：全部九宫格环绕（跨边星在对面补画）；少数亮星带十字光晕 ───
+  // 注：原白色星云/雾层软刷（含紫/青暗斑）已按用户要求移除，背景只保留星星
+  // （2026-09-09 拍板）。星云随机数消耗一并删除，starCount 起点即星点。
   for (let i = 0; i < starCount; i++) {
     const x = rng() * S
     const y = rng() * S
