@@ -2,7 +2,7 @@
  * SimulationComponent — 仿真总控组件（编排器）
  *
  * 不持有规则：按固定顺序驱动各子系统组件 tick（buildQueue → 引力窗口 → 耀斑
- * → 飞船 → 经济 → 研究 → 环建设 → 三幕 → 失败判定），与原 sim.tick 顺序一致。
+ * → 飞船 → 经济 → 研究 → 环建设 → 轨道建筑 → 三幕 → 失败判定），与原 sim.tick 顺序一致。
  * 暂停/终局门由 GameMode.Tick 把守（胜利后沙盒继续跑；海克斯弹卡暂停在 GameMode.Tick/drainEvents）。
  */
 import { BObjectComponent } from '@/engine'
@@ -27,6 +27,7 @@ export class SimulationComponent extends BObjectComponent<WarmCurrentGameMode> {
     this.owner.economy.tickEconomy(dt)
     this.owner.research.tickResearch(dt)
     this.owner.ringBuild.tickBuild(dt)
+    this.owner.orbitBuild.tickBuild(dt)
     this.owner.acts.tickActs()
     sc.checkDefeat()
   }

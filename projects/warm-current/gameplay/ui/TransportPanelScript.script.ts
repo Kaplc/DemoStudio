@@ -3,8 +3,9 @@
  *
  * 职责（入口按钮在主 HUD 底部 bar，本脚本只管面板本体）：
  *  - 面板内「✕ 关闭」收起（open/close 自驱动显隐，open 由 HudScript 底部入口调用）
- *  - 造船（tryBuildShip，造价标签配置表驱动）+ 船队明细（VM.shipRows 行池，冻毁可重建）
- *  - 8Hz 差分同步：船队摘要/储量/行池文案与重建按钮可用性
+ *  - 船队明细（VM.shipRows 行池，冻毁可重建）
+ *  - 8Hz 差分同步：船队摘要/行池文案与重建按钮可用性
+ *  （2026-09-09 造船入口收口到轨道船坞：面板内无造船按钮）
  */
 import { BehaviourScript, logger } from '@/engine'
 import { TextBinder, VisBinder, findButton, findText, wcMode } from './uiCommon'
@@ -39,8 +40,7 @@ export default class TransportPanelScript extends BehaviourScript {
       this.applyVisible()
       logger.info('[TransportPanelScript] 运输面板收起（面板内关闭）')
     })
-    // 造船（行为口径与 ResearchPanel 的 Btn_ship 一致）
-    bind('Btn_ship', () => wcMode()?.transport.tryBuildShip())
+    // （2026-09-09 造船入口收口到轨道船坞：面板内不再有造船按钮）
     // 行池重建按钮：船 id 从最新 VM 行取（截断行池外的船不给重建入口）
     for (let i = 0; i < SHIP_ROWS; i++) {
       bind(`Btn_rebuild_${i}`, () => {
@@ -90,9 +90,6 @@ export default class TransportPanelScript extends BehaviourScript {
       `船队 ${vm.fleet.total}/${vm.fleet.cap}（空闲 ${vm.fleet.idle} · 在途 ${vm.fleet.flying} · 冻毁 ${vm.fleet.frozen}）`
       + (vm.fleet.building > 0 ? ` · 建造中 ${vm.fleet.buildRemain}s` : '')
       + ` · 维护 ${vm.fleet.maintPerS}/s`)
-    this.binder.set(findText(this.actor, 'ReserveText'), `储量 ${Math.round(vm.reserve)} t`)
-    this.binder.set(findText(this.actor, 'Label_ship'), `造船 ${vm.shipBuildCost}`)
-    this.vis.set(this.actor, 'Btn_ship', playing)
     for (let i = 0; i < SHIP_ROWS; i++) {
       const row = vm.shipRows[i]
       let text = ''

@@ -8,7 +8,7 @@ import { B, MAP_H, MAP_W, toWX, toWZ } from './balance'
 import type { BuildingDef, CardDef } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
-  Endpoint, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimResearchLine, SimRoute, SimShip, SimState, StarId,
+  Endpoint, OrbitBuilding, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimResearchLine, SimRoute, SimShip, SimState, StarId,
 } from './types'
 
 // ─── 确定性随机（耀斑调度可复现） ───
@@ -305,7 +305,7 @@ export function freshMods(): SimState['mods'] {
 /** 全零账本（新局 / 旧存档兜底） */
 export function freshLedger(): SimLedger {
   return {
-    unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0,
+    unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0, orbitBuild: 0,
     shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0,
   }
 }
@@ -314,7 +314,7 @@ export function freshLedger(): SimLedger {
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
   const income = l.unload + l.demolishRefund
-  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
+  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
   return { income, expense, net: income - expense }
 }
 
@@ -335,12 +335,14 @@ export function createInitialState(seed: number): SimState {
     ships,
     routes: [],
     buildings: [],
+    orbitBuildings: [],
     research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: 0, nextMult: 1, points: 0 })),
     pendingCard: null,
     cardQueue: [],
     gravity: { phase: 'idle', timer: B.gravity.period - B.gravity.warn - B.gravity.active },
     flare: { phase: 'idle', timer: 0, nextIn: Number.POSITIVE_INFINITY },
     module: { state: 'locked', shipId: null },
+    // 造船队列（逐船一卡 SimShipBuild：remain 倒计时 / dockId 承接船坞；GM 无参路径 dockId=0）
     buildQueue: [],
     mods: freshMods(),
     takenCards: [],
@@ -451,6 +453,17 @@ export function supplyDistCoeff(state: SimState, e: Endpoint): number {
   const p = buildingPos(state, b)
   const earth = earthPos(state)
   return Math.max(0.1, Math.hypot(p.x - earth.x, p.y - earth.y) / 250)
+}
+
+// ─── 近地轨道建筑（2026-09-09：点行星 → 轨道建设 → 建筑绕行星均布公转） ───
+
+/** 轨道建筑实时位置（画布系，渲染/拾取的唯一口径）：
+ *  绕锚行星固定环半径公转（ω = B.orbitBuild.orbitSpeed / ringRadius，与地图建筑入轨同口径，
+ *  纯时间函数 → 无需 tick、快照/读档/重放天然确定） */
+export function orbitBuildingPos(state: SimState, ob: Pick<OrbitBuilding, 'anchor' | 'a0'>): { x: number; y: number } {
+  const a = starPosAt(state, ob.anchor)
+  const ang = ob.a0 + (B.orbitBuild.orbitSpeed / Math.max(1, B.orbitBuild.ringRadius)) * state.time
+  return { x: a.x + Math.cos(ang) * B.orbitBuild.ringRadius, y: a.y + Math.sin(ang) * B.orbitBuild.ringRadius }
 }
 
 // ─── 数值 ───

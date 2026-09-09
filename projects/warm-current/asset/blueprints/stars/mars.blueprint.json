@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 34,
-        "color": "#e8926f",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/mars.jpg",
         "name": "MarsMesh"
       }
     }

@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 17,
-        "color": "#d9b06c",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/venus.jpg",
         "name": "VenusMesh"
       }
     }

@@ -57,6 +57,15 @@ export class CameraRigComponent extends Component {
   /** 右键拖拽平移灵敏度（1 = 拖动一个视口高度移动对应世界跨度，数值越大移动越快） */
   public rightPanSensitivity = 1
 
+  /** 轨道环绕模式（true = 右键拖拽变为绕 target 球面旋转，false = 默认平移；行星观察视角用） */
+  public orbitMode = false
+  /** 轨道旋转灵敏度（弧度/像素） */
+  public orbitSensitivity = 0.005
+  /** 轨道仰角范围（弧度，限制在极点内侧避免 up 向量退化翻转） */
+  public orbitPitchMin = -Math.PI / 2 + 0.15
+  public orbitPitchMax = Math.PI / 2 - 0.15
+
+
   /** 同一 Actor 上的 CameraComponent（BeginPlay 时查找） */
   private _camera: CameraComponent | null = null
 
@@ -73,6 +82,9 @@ export class CameraRigComponent extends Component {
 
   /** 右键拖拽平移中 */
   private rightDragging = false
+  /** 轨道旋转左键拖拽中（orbitMode 下左键环绕；右键环绕复用 rightDragging） */
+  private orbitDragging = false
+
   /** 右键拖拽上一次记录的鼠标坐标（client 坐标；-1 = 未记录） */
   private dragLastX = -1
   private dragLastY = -1
@@ -129,7 +141,9 @@ export class CameraRigComponent extends Component {
     this.unsubPointerMove?.()
     this.unsubPointerMove = null
     this.rightDragging = false
+    this.orbitDragging = false
     super.EndPlay()
+
   }
 
   /**
@@ -150,12 +164,29 @@ export class CameraRigComponent extends Component {
     if (!input) return
     // 滚轮缩放：delta 约定与 PlayerController.OnScroll 一致（正=拉远，负=拉近）
     this.unsubScroll = input.BindScroll((delta) => this.zoom(delta))
-    // 鼠标按钮：右键按下开始拖拽平移，右键释放结束
+    // 鼠标按钮：右键按下开始拖拽平移，右键释放结束；
+    // 轨道模式（orbitMode）下左键按下/释放驱动环绕旋转（行星观察视角：左键拖 = 环绕）
     this.unsubMouseButton = input.BindMouseButton((button, eventType) => {
-      if (button !== 2) return
-      if (eventType === 'pressed') this.beginRightPan()
-      else this.endRightPan()
+      if (button === 2) {
+        if (eventType === 'pressed') this.beginRightPan()
+        else this.endRightPan()
+        return
+      }
+      if (button === 0) {
+        if (this.orbitMode && eventType === 'pressed') {
+          this.orbitDragging = true
+          this.dragLastX = this.mouseX
+          this.dragLastY = this.mouseY
+        } else if (eventType === 'released') {
+          // 释放无条件清拖拽态（不判 orbitMode：观察中 Esc 退出后松键也须清，防悬停旋转残留）
+          this.orbitDragging = false
+          this.dragLastX = -1
+          this.dragLastY = -1
+        }
+      }
+
     })
+
     // 指针移动：右键按住期间按屏幕位移平移（跟手拖拽地图）
     this.unsubPointerMove = input.BindPointerMove((sx, sy) => this.onRightPanMove(sx, sy))
   }
@@ -298,11 +329,61 @@ export class CameraRigComponent extends Component {
   }
 
   /**
+   * 轨道环绕（orbitMode 下右键拖拽消费）：相机绕 target 沿球面旋转。
+   * yaw 无限位（水平环绕），pitch 夹紧在 [orbitPitchMin, orbitPitchMax]
+   * 避免越过极点导致 lookAt 的 up 向量退化翻转。距离保持不变（缩放走滚轮）。
+   * @param deltaYaw 水平旋转增量（弧度，正 = 相机绕 target 向右环绕）
+   * @param deltaPitch 仰角增量（弧度，正 = 相机升高）
+   */
+  private orbitRotate(deltaYaw: number, deltaPitch: number): void {
+    const cam = this.resolveCamera()?.camera
+    if (!cam) return
+    const dir = cam.position.clone().sub(this.target)
+    const distance = dir.length()
+    if (distance < 1e-6) return
+    // 当前球面坐标（Y-up：yaw 绕世界 Y 轴，pitch 为相对水平面的仰角）
+    const pitch = Math.asin(THREE.MathUtils.clamp(dir.y / distance, -1, 1))
+    const yaw = Math.atan2(dir.x, dir.z)
+    const nextPitch = THREE.MathUtils.clamp(pitch + deltaPitch, this.orbitPitchMin, this.orbitPitchMax)
+    const nextYaw = yaw + deltaYaw
+    const horiz = Math.cos(nextPitch) * distance
+    cam.position.set(
+      this.target.x + horiz * Math.sin(nextYaw),
+      this.target.y + Math.sin(nextPitch) * distance,
+      this.target.z + horiz * Math.cos(nextYaw),
+    )
+    // up 用世界 +Y：斜视角下行星北极朝屏幕上方（垂直俯视由 focusOn 复位为 -Z）
+    cam.up.set(0, 1, 0)
+    cam.lookAt(this.target)
+    // 写回 Actor root，否则每帧 SyncFromActor 会把相机位置覆盖回去
+    this._camera!.SyncToActor()
+  }
+
+
+  /**
    * 右键拖拽中移动：把屏幕位移换算成世界水平位移并平移（跟手拖拽地图）。
    * 方向与边缘平移一致：屏幕右 → 相机局部 +X 的水平投影；屏幕下 → 视线方向水平投影。
    * 缩放比例基于相机距离与视口高度：拖动一个视口高度 = 移动该距离下视口的世界跨度。
    */
   onRightPanMove(sx: number, sy: number): void {
+    // 轨道环绕模式：左键或右键拖拽 → 绕 target 球面旋转（水平拖 = 经度，垂直拖 = 仰角）
+    if (this.orbitMode) {
+      if (!this.rightDragging && !this.orbitDragging) return
+      // 起点未记录（按下时鼠标尚未移动过）→ 以本次位置为起点，跳过首帧跳变
+      if (this.dragLastX < 0 || this.dragLastY < 0) {
+        this.dragLastX = sx
+        this.dragLastY = sy
+        return
+      }
+      const dx = sx - this.dragLastX
+      const dy = sy - this.dragLastY
+      this.dragLastX = sx
+      this.dragLastY = sy
+      if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return
+      this.orbitRotate(dx * this.orbitSensitivity, dy * this.orbitSensitivity)
+      return
+    }
+
     if (!this.rightDragging) return
     const cam = this._camera?.camera
     if (!cam) return
@@ -313,11 +394,14 @@ export class CameraRigComponent extends Component {
       return
     }
     const scale = this.rightPanScale(cam)
+
     const dx = (sx - this.dragLastX) * scale
     const dy = (sy - this.dragLastY) * scale
     this.dragLastX = sx
     this.dragLastY = sy
     if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return
+
+
 
     // 屏幕方向 → 世界水平方向（按摄像机自身面朝方向映射）：
     // 屏幕右 = 相机局部 +X 的水平投影；屏幕下 = 相机面朝方向（forward）的水平投影

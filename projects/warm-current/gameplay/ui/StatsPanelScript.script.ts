@@ -22,6 +22,7 @@ const LEDGER_ROWS: Array<{ node: string; pick: (l: import('../core/types').SimLe
   { node: 'Val_ringbuild', pick: (l) => l.ringBuild },
   { node: 'Val_research', pick: (l) => l.research },
   { node: 'Val_maint', pick: (l) => l.fleetMaint },
+  { node: 'Val_orbit', pick: (l) => l.orbitBuild },
   { node: 'Val_build', pick: (l) => l.shipBuild },
   { node: 'Val_rebuild', pick: (l) => l.shipRebuild },
   { node: 'Val_rfuel', pick: (l) => l.reverseFuel },

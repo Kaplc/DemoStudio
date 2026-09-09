@@ -21,6 +21,7 @@
 import type { SceneAsset } from './SceneAsset'
 import type { BlueprintAsset } from './BlueprintAsset'
 import { BlueprintRegistry } from './BlueprintRegistry'
+import { TextureRegistry, type TextureUrlModules } from './TextureRegistry'
 import { ScriptRegistry, type ScriptModules } from '../script/ScriptRegistry'
 import { logger } from '../Logger'
 
@@ -33,6 +34,9 @@ export interface ProjectAssets {
   /** import.meta.glob 结果：key = 相对 asset/ 的脚本文件路径（如 "../gameplay/base/Foo.script.ts"），
    *  由 ScriptRegistry 从 key 自动推导脚本 id（无需手写 register） */
   scriptModules?: ScriptModules
+  /** import.meta.glob(?url) 结果：key = 相对 asset/ 的贴图文件路径（如 "./textures/earth.jpg"），
+   *  由 TextureRegistry 推导为 asset/... 注册路径；蓝图 texture 字段直接写该注册路径 */
+  textureModules?: TextureUrlModules
 }
 
 /** 将 import.meta.glob key（相对 asset/，如 "./blueprints/foo.blueprint.json"）转为注册路径（asset/...） */
@@ -53,7 +57,7 @@ export class AssetRegistry {
   /**
    * 批量注册项目的所有资产。
    * 蓝图自动注册到 BlueprintRegistry（注册 key 由 glob key 推导为 asset/...），
-   * 场景按 name 索引。
+   * 场景按 name 索引，贴图转发 TextureRegistry（注册 key 同样由 glob key 推导）。
    */
   static registerAll(assets: ProjectAssets): void {
     // 注册蓝图（从 glob key 推导注册路径）
@@ -64,6 +68,11 @@ export class AssetRegistry {
         BlueprintRegistry.loadFromJson(path, bp)
         logger.debug(`[AssetRegistry] 注册蓝图: ${path} (来自 ${key})`)
       }
+    }
+
+    // 注册贴图资产（texture 字段引用路径 → 打包 URL）
+    if (assets.textureModules) {
+      TextureRegistry.registerGlob(assets.textureModules)
     }
 
     // 注册场景
@@ -88,7 +97,8 @@ export class AssetRegistry {
       `[AssetRegistry] 注册完成: ` +
         `场景=${assets.scenes?.length ?? 0}, ` +
         `蓝图=${assets.blueprintModules ? Object.keys(assets.blueprintModules).length : 0}, ` +
-        `脚本=${assets.scriptModules ? Object.keys(assets.scriptModules).length : 0}`,
+        `脚本=${assets.scriptModules ? Object.keys(assets.scriptModules).length : 0}, ` +
+        `贴图=${assets.textureModules ? Object.keys(assets.textureModules).length : 0}`,
     )
   }
 

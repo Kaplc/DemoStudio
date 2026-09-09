@@ -11,23 +11,23 @@
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
  * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
-import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger } from '@/engine'
-import { makeStarTexture } from '../map/starTextures'
+import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent, CloudLayerComponent } from '@/engine'
+import { starTextureFor } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
-import type { BuildingDef, SolarFocusBody } from '../core/balance'
+import type { BuildingDef, OrbitBuildingDef, SolarFocusBody } from '../core/balance'
 import type { CardDef } from '../core/balance'
-import type { PlanetId } from '../core/types'
+import type { PlanetId, PlanetBodyId } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
 import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
   alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, buildingPos, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
-  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
+  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
   routeNetPerTrip, starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { RingLevelInfo } from '../core/helpers'
-import type { Endpoint, SimBuilding, SimLedger, SimRoute, StarId } from '../core/types'
+import type { Endpoint, OrbitBuilding, SimBuilding, SimLedger, SimRoute, StarId } from '../core/types'
 import { StarMapRenderComponent, planetStageOffset } from '../map/StarMapRenderComponent'
 import { SolarCameraActor } from '../map/SolarCameraActor'
 import { STAR_BLUEPRINTS, type StarBodyId } from '../map/StarActor'
@@ -39,6 +39,7 @@ import { ResearchComponent } from '../systems/ResearchComponent'
 import { RingBuildComponent } from '../systems/RingBuildComponent'
 import { HazardsComponent } from '../systems/HazardsComponent'
 import { BuildingsComponent } from '../systems/BuildingsComponent'
+import { OrbitBuildComponent, isShipyardType, orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import { ActsComponent } from '../systems/ActsComponent'
 import { SimulationComponent } from '../systems/SimulationComponent'
 import { WarmCurrentPlayerController } from './WarmCurrentPlayerController'
@@ -165,6 +166,93 @@ export interface HudPlanetInfo {
   routable: boolean
 }
 
+/** 轨道建设面板类型行（orbit_build.table 行投影） */
+export interface HudOrbitBuildRow {
+  /** 建筑类型 id（表行键；建造按钮参数） */
+  id: string
+  name: string
+  desc: string
+  /** 建造造价（H3） */
+  cost: number
+  /** 建造工期（秒） */
+  buildTime: number
+  /** 该天体轨道上此类型数量 / 上限 */
+  count: number
+  max: number
+  /** 当前可建造（预算足 & 非耀斑 & 未超上限 & 对局进行中） */
+  canBuild: boolean
+}
+
+/** 轨道建设面板在册设施行 */
+export interface HudOrbitBuildingRow {
+  id: number
+  name: string
+  /** 建造中百分比（0~100）或已建成 */
+  built: boolean
+  progressPct: number
+  /** 建成且具造船能力：经此建筑造船的折后造价 */
+  canBuildShip: boolean
+  shipCost: number
+}
+
+/** 轨道建设面板数据（null = 收起；OrbitPanelScript 消费） */
+export interface HudOrbitBuild {
+  /** 轨道锚天体 id */
+  anchor: string
+  /** 天体名（面板标题「近地轨道 · 地球」） */
+  anchorName: string
+  /** 可建类型行（orbit_build.table 键序） */
+  rows: HudOrbitBuildRow[]
+  /** 该轨道在册设施（含在建） */
+  buildings: HudOrbitBuildingRow[]
+  /** 经建成船坞造船的折后造价（无建成船坞 = 基准价） */
+  shipCost: number
+  /** 是否有建成船坞（面板文案开关；折扣态判定在 GameMode，UI 不持规则） */
+  hasShipyard: boolean
+}
+
+/** 船坞造船面板在造船卡片行（逐船一卡：队列每项一张卡片，2026-09-09 用户需求） */
+export interface HudShipBuildCard {
+  /** 队列序号（0 = 队首建造中） */
+  idx: number
+  /** 剩余秒（展示 ceil） */
+  remainS: number
+  /** 本艘总建造秒（入队时锁定） */
+  totalS: number
+  /** 建造进度 0..100（队首卡片进度条口径） */
+  progressPct: number
+}
+
+/** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费） */
+export interface HudShipyard {
+  /** 承接船坞的轨道建筑 id */
+  dockId: number
+  /** 船坞名（面板标题「船坞 · 地球」） */
+  name: string
+  /** 轨道锚天体 id */
+  anchor: string
+  /** 天体名 */
+  anchorName: string
+  /** 是否建成（在建只显示建造进度，无造船按钮） */
+  built: boolean
+  /** 建造进度 0..100（在建展示口径） */
+  progressPct: number
+  /** 建成且具造船能力（造船按钮开关） */
+  canBuildShip: boolean
+  /** 经本船坞造船的折后造价 */
+  shipCost: number
+  /** 造船队列（逐船一卡，队首 = 建造中） */
+  queue: HudShipBuildCard[]
+  /** 船队总艘数 */
+  fleetShips: number
+  /** 排队艘数 */
+  queueCount: number
+  /** 飞船上限（聚能环等级口径） */
+  cap: number
+  /** 当前可再排一艘（能力 + 对局中 + cap 余量） */
+  canQueue: boolean
+}
+
 export interface WarmCurrentVM {
   time: number
   act: 1 | 2 | 3
@@ -214,11 +302,16 @@ export interface WarmCurrentVM {
   routes: HudRouteRow[]
   /** 星球信息面板数据（null = 收起；PlanetInfoScript 消费） */
   planetInfo: HudPlanetInfo | null
+  /** 轨道建设面板数据（null = 收起；OrbitPanelScript 消费） */
+  orbitBuild: HudOrbitBuild | null
+  /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费，点船坞打开） */
+  shipyard: HudShipyard | null
   /** 航线编辑模式（HUD「航线编辑」按钮高亮态） */
   routeEditMode: boolean
   /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
-  shipBuildCost: number
   shipRebuildCost: number
+  /** 当前轨道锚是否有建成船坞（轨道建设面板文案开关；折扣态判定在 GameMode，UI 不持规则） */
+  hasShipyard: boolean
   tutorial: boolean
   paused: boolean
   timeScale: number
@@ -240,6 +333,8 @@ export class WarmCurrentGameMode extends GameMode {
   readonly hazards: HazardsComponent = this.addComponent(HazardsComponent)
   /** 地图建筑（建造面板选型 → 星图自由放置） */
   readonly buildings: BuildingsComponent = this.addComponent(BuildingsComponent)
+  /** 近地轨道建筑（点行星 → 轨道建设面板；船坞造船乘区） */
+  readonly orbitBuild: OrbitBuildComponent = this.addComponent(OrbitBuildComponent)
   readonly acts: ActsComponent = this.addComponent(ActsComponent)
   /** 总控编排器（固定顺序驱动各子系统 tick） */
   readonly sim: SimulationComponent = this.addComponent(SimulationComponent)
@@ -262,6 +357,10 @@ export class WarmCurrentGameMode extends GameMode {
   routeEditMode = false
   /** 星球信息面板当前展示的天体（非编辑模式点星球打开；点空地/面板关闭按钮清空；null = 收起） */
   planetInfoSel: SolarBodyId | null = null
+  /** 轨道建设面板当前锚天体（点星球信息面板「近地轨道建设」/ 点建成轨道设施打开；null = 收起） */
+  orbitBuildSel: PlanetBodyId | null = null
+  /** 船坞造船面板当前承接船坞 id（点船坞打开；null = 收起，ShipyardPanelScript 消费） */
+  shipyardSel: number | null = null
 
   /** 建筑模式（建造面板选型后进入：星图网格线 + 吸附预览，点击落位 / Esc 取消） */
   buildMode: { typeId: string } | null = null
@@ -280,6 +379,10 @@ export class WarmCurrentGameMode extends GameMode {
   viewSwitching = false
   /** 当前加载遮罩面板（null = 无；e2e 断言切换收尾后必须归零） */
   viewLoadingPanel: import('@/engine').Actor | null = null
+
+  /** 行星观察模式当前观察的天体（null = 未在观察；行星系内双击聚焦行星进入，Esc 退出） */
+  observeBody: PlanetId | null = null
+
 
   /** 事件 toast 队列（HudScript 每帧消费渲染） */
   toasts: Array<{ text: string; color: string; age: number }> = []
@@ -320,8 +423,14 @@ export class WarmCurrentGameMode extends GameMode {
         this.cancelBuildMode()
         return
       }
+      // 行星观察模式：Esc 先退观察回行星系俯视（不误开暂停菜单）
+      if (this.observeBody) {
+        this.exitPlanetObserve()
+        return
+      }
       this.togglePauseMenu()
     })
+
     return { controller, pawn: new WarmCurrentPawn() }
   }
 
@@ -376,18 +485,27 @@ export class WarmCurrentGameMode extends GameMode {
   //  星图天体蓝图 Actor（外观资产化：.blueprint.json）
   // ═══════════════════════════════════════════
 
-  /** 生成 5 个天体蓝图 Actor；单张失败（未注册/lint 错）回退代码生成该天体，星图不缺星 */
+  /**
+   * 生成 11 个天体蓝图 Actor；单张失败（未注册/lint 错）由渲染组件兜底建球，星图不缺星。
+   * 贴图来源：蓝图 texture 资产字段（引擎 factory 装配）优先；仅蓝图未声明贴图的天体
+   * （europa，SSS 无真贴图）走 starTextureFor 程序化 CanvasTexture 兜底。
+   */
   private spawnStarActors(): void {
     if (!this.world) return
     for (const [body, path] of Object.entries(STAR_BLUEPRINTS) as Array<[StarBodyId, string]>) {
       const actor = Instantiate(path)
       if (actor) {
-        // 程序化贴图（无 DOM canvas 环境自动跳过，保持蓝图纯色）
         const mesh = actor.getComponent(SphereMeshComponent)
-        const tex = makeStarTexture(body)
-        if (mesh && tex) mesh.setTexture(tex)
+        let texSource = ''
+        if (mesh && !mesh.hasTextureMap) {
+          const tex = starTextureFor(body)
+          if (tex && mesh) {
+            mesh.setTexture(tex)
+            texSource = typeof tex === 'string' ? '（程序化兜底·真贴图 URL）' : '（程序化兜底·Canvas）'
+          }
+        }
         this.starActors.set(body, actor)
-        logger.info(`[WarmCurrent] 天体生成 ${body} ← ${path}${tex ? '（程序化贴图）' : ''}`)
+        logger.info(`[WarmCurrent] 天体生成 ${body} ← ${path}${mesh ? (mesh.hasTextureMap ? '（蓝图贴图资产）' : texSource || '（无贴图）') : '（缺 SphereMesh）'}`)
       } else {
         logger.error(`[WarmCurrent] 天体蓝图生成失败，该天体缺失（检查 assetLint）：${path}`)
       }
@@ -452,6 +570,11 @@ export class WarmCurrentGameMode extends GameMode {
           this.toast(`「${ev.text ?? '建筑'}」已放置 —— 可从星图拖线链接`, '#7fdcff')
           audioSys.play('wc.build')
           break
+        case 'orbit_building_built':
+          if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
+          this.toast(`「${ev.text ?? '轨道设施'}」已建成 —— 点它打开轨道建设面板`, '#7fdcff')
+          audioSys.play('wc.build')
+          break
         case 'building_demolished':
           if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
           this.toast(`建筑拆除，返还 ${Math.round(ev.value ?? 0)} H3`, '#9fc4d8')
@@ -503,9 +626,22 @@ export class WarmCurrentGameMode extends GameMode {
     const d = body === 'sun' ? 480 : body === 'earth' ? 3200 : 220
     // 行星系取景目标 = 舞台中心（行星会被渲染钉在舞台中心，镜头只是切区）
     const off = this.viewMode === 'earth' ? planetStageOffset(this.planetFocusBody as PlanetId) : { x: 0, z: 0 }
+    // 任何取景切换统一退出观察态（切太阳/切行星系/视角按钮都会走到这里）
+    this.clearObserveState()
     this.cameraActor.focusOn(off.x, off.z, d)
     logger.info(`[WarmCurrent] 太阳系取景 → ${body} (dist=${d}, mode=${this.viewMode})`)
   }
+
+  /** 清观察态（不做取景复位）：observeBody 归零 + 关轨道旋转 + 恢复边缘平移 + 复位特写增益。
+   *  取景切换 / 重开 / 读档三条退出路径共用，保证清理不漏。 */
+  private clearObserveState(): void {
+    if (!this.observeBody) return
+    this.observeBody = null
+    this.cameraActor.rig.orbitMode = false
+    this.cameraActor.rig.setEdgePanEnabled(true)
+    this.resetObserveBoost()
+  }
+
 
   /** 视图模式 → 相机缩放边界（视图隔离：地球系锁死地月尺度，滚轮拉远也只见地月） */
   private applyViewMode(): void {
@@ -518,17 +654,92 @@ export class WarmCurrentGameMode extends GameMode {
     logger.info(`[WarmCurrent] 视图隔离：${solar ? '太阳系全景（缩放 60~12000）' : `地球系小星系（缩放 ${WarmCurrentGameMode.EARTH_VIEW_MIN_DIST}~${WarmCurrentGameMode.EARTH_VIEW_MAX_DIST}，只见地月）`}`)
   }
 
-  /** 视角切换（ViewToggle widget 按钮）：earth = 地球系（行星系），solar = 太阳系全景 */
+  /** 视角切换（ViewToggle widget 按钮）：earth = 地球系（行星系），solar = 太阳系全景。
+   *  ⚠ 按钮路径绕过 enterPlanetSystem 的观察 toggle：已在地球系 = 复位俯视取景，不进观察 */
   setViewMode(mode: 'earth' | 'solar'): void {
-    if (mode === 'solar') this.switchView('solar')
-    else this.enterPlanetSystem('earth')
+    if (this.viewSwitching) return
+    if (mode === 'solar') {
+      this.switchView('solar')
+      return
+    }
+    if (this.viewMode === 'earth' && this.planetFocusBody === 'earth') {
+      // 已在地球系：复位俯视取景（观察态由 focusSolarSystem 统一清理）
+      this.focusSolarSystem('earth')
+      return
+    }
+    this.switchView('earth')
   }
 
-  /** 双击行星进入其行星系（加载遮罩过渡；已在同一行星系则忽略） */
+
+
+  /** 双击行星进入其行星系（加载遮罩过渡；已在同一行星系则切换行星观察视角） */
   enterPlanetSystem(body: SolarBodyId): void {
-    if (this.viewMode === 'earth' && this.planetFocusBody === body) return
+    // 切换进行中忽略（450ms 窗口内 toggle 会先观察再被延迟取景清掉，镜头闪跳）
+    if (this.viewSwitching) return
+    if (this.viewMode === 'earth' && this.planetFocusBody === body) {
+      // 已在该行星系：双击 = 切换观察视角（未观察 → 进入环绕；观察中 → 退出回俯视）
+      if (this.observeBody === body) this.exitPlanetObserve()
+      else this.enterPlanetObserve(body as PlanetId)
+      return
+    }
     this.switchView(body)
   }
+
+
+  /** 进入行星观察视角：斜对准行星（3D 环绕，左键/右键拖拽旋转，Esc 退出回俯视取景）。
+   *  ⚠ 仅限当前行星系内：不在该行星系时忽略（跨系观察先双击进入行星系） */
+  enterPlanetObserve(body: PlanetId): void {
+    if (this.viewMode !== 'earth' || this.planetFocusBody !== body) return
+    // 建筑/航线编辑模式与观察互斥（左键在观察中是环绕拖拽，不能同时落位/拖线）
+    if (this.buildMode) this.cancelBuildMode()
+    if (this.routeEditMode) this.toggleRouteEditMode()
+    this.observeBody = body
+
+    const rig = this.cameraActor.rig
+    // 观察距离 = 节点半径 × 4（r 11~96 → dist 44~384，近者被 minDistance 兜底到 80）
+    const r = B.map.nodes[body].r
+    // 定位用舞台偏移权威值（右键平移过地图时 rig.target 已偏离舞台，不可作锚点）
+    const stage = planetStageOffset(body)
+    // 边缘平移会拖走注视点破坏环绕，观察期间关闭（退出/切视图时恢复）
+    rig.setEdgePanEnabled(false)
+    this.cameraActor.observeFocus(stage.x, stage.z, r * 4)
+    rig.orbitMode = true
+    // 特写观感增强：被观察行星的大气/云层提亮（组件在无此挂载的天体上自动跳过）
+    this.applyObserveBoost(body)
+    audioSys.play('wc.ok', { volume: 0.4 })
+    logger.info(`[WarmCurrent] 行星观察：${PLANET_NAMES[body] ?? body}（拖拽环绕 · 滚轮缩放 · Esc/再双击退出）`)
+
+  }
+
+  /** 行星观察特写增益：大气 ×1.8、云层透明度 +0.1（上限 1）。基础值由组件快照持有，退出经 resetObserveBoost 统一复位 */
+  private applyObserveBoost(body: PlanetId): void {
+    for (const [id, actor] of this.starActors) {
+      const on = id === body
+      const atmo = actor.getComponent(AtmosphereComponent)
+      if (atmo) atmo.intensity = on ? Math.min(3, atmo.baseIntensity * 1.8) : atmo.baseIntensity
+      const cloud = actor.getComponent(CloudLayerComponent)
+      if (cloud) cloud.opacity = on ? Math.min(1, cloud.baseOpacity + 0.1) : cloud.baseOpacity
+    }
+  }
+
+  /** 复位全部天体的特写增益（退出观察/清理收口共用） */
+  private resetObserveBoost(): void {
+    for (const actor of this.starActors.values()) {
+      const atmo = actor.getComponent(AtmosphereComponent)
+      if (atmo) atmo.intensity = atmo.baseIntensity
+      const cloud = actor.getComponent(CloudLayerComponent)
+      if (cloud) cloud.opacity = cloud.baseOpacity
+    }
+  }
+
+  /** 退出行星观察视角：复位该行星系俯视取景（focusSolarSystem 顺带清观察状态与轨道开关） */
+  exitPlanetObserve(): void {
+    if (!this.observeBody) return
+    this.focusSolarSystem(this.planetFocusBody)
+    logger.info('[WarmCurrent] 行星观察退出（回行星系俯视）')
+  }
+
+
 
   /** 统一视图切换：加载遮罩先上屏（盖住舞台搬移/镜头跳转防穿帮），下一拍再切 */
   private switchView(target: 'solar' | SolarBodyId): void {
@@ -601,6 +812,7 @@ export class WarmCurrentGameMode extends GameMode {
     if (this.buildMode) this.cancelBuildMode()
     this.routeEditMode = true
     this.planetInfoSel = null
+    this.orbitBuildSel = null
     this.toast('航线编辑：从星球拖线到地球即可建立航线（再点按钮退出）', '#7fdcff')
     audioSys.play('wc.ok', { volume: 0.5 })
     logger.info('[WarmCurrent] 航线编辑模式进入')
@@ -616,6 +828,16 @@ export class WarmCurrentGameMode extends GameMode {
       // 入轨建筑按实时位置判定（放置静态落点会随公转漂移）
       const bp = buildingPos(s, b)
       if (dist(p.x, p.y, bp.x, bp.y) <= 26 + B.map.hitTolerance) return b
+    }
+    return null
+  }
+
+  /** 近地轨道设施命中（绕锚行星均布公转，实时位置同口径；点中 = 打开轨道建设面板） */
+  private orbitBuildingAt(p: { x: number; y: number }): OrbitBuilding | null {
+    const s = this.simState.state
+    for (const ob of s.orbitBuildings) {
+      const op = orbitBuildingPos(s, ob)
+      if (dist(p.x, p.y, op.x, op.y) <= 24 + B.map.hitTolerance) return ob
     }
     return null
   }
@@ -730,12 +952,42 @@ export class WarmCurrentGameMode extends GameMode {
   /** 打开星球信息面板（非航线编辑模式点星球 / 点不可拖天体；再点其它星球切换内容） */
   openPlanetInfo(body: SolarBodyId): void {
     this.planetInfoSel = body
+    this.orbitBuildSel = null
+    this.shipyardSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
   }
 
   /** 关闭星球信息面板（面板内 ✕ / 点空地） */
   closePlanetInfo(): void {
     this.planetInfoSel = null
+  }
+
+  /** 打开轨道建设面板（星球信息面板「近地轨道建设」按钮 / 点已建成轨道设施） */
+  openOrbitBuild(anchor: PlanetBodyId): void {
+    this.orbitBuildSel = anchor
+    this.planetInfoSel = null
+    this.shipyardSel = null
+    audioSys.play('wc.draw', { volume: 0.3 })
+    logger.info(`[WarmCurrent] 轨道建设面板：${anchor}`)
+  }
+
+  /** 关闭轨道建设面板（面板内 ✕ / 点空地） */
+  closeOrbitBuild(): void {
+    this.orbitBuildSel = null
+  }
+
+  /** 打开船坞造船面板（星图点船坞轨道设施；与轨道建设/星球信息面板互斥） */
+  openShipyardPanel(dockId: number): void {
+    this.shipyardSel = dockId
+    this.planetInfoSel = null
+    this.orbitBuildSel = null
+    audioSys.play('wc.draw', { volume: 0.3 })
+    logger.info(`[WarmCurrent] 船坞造船面板：dock ${dockId}`)
+  }
+
+  /** 关闭船坞造船面板（面板内 ✕ / 点空地） */
+  closeShipyardPanel(): void {
+    this.shipyardSel = null
   }
 
   private routeAt(p: { x: number; y: number }): SimRoute | null {
@@ -760,6 +1012,20 @@ export class WarmCurrentGameMode extends GameMode {
       }
       return
     }
+    // 行星观察模式：左键 = 环绕拖拽（相机层消费），星图点击判定冻结；
+    // 仅保留双击当前行星 = 退出观察回俯视（toggle 入口）
+    if (this.observeBody) {
+      const planet = this.planetAt(p)
+      const now = performance.now()
+      if (planet === this.observeBody && this.lastPlanetClick.body === planet && now - this.lastPlanetClick.t < 350) {
+        this.lastPlanetClick = { body: null, t: 0 }
+        this.exitPlanetObserve()
+      } else {
+        this.lastPlanetClick = planet ? { body: planet, t: now } : { body: null, t: 0 }
+      }
+      return
+    }
+
     // 双击行星 → 进入其行星系（加载遮罩过渡）
     // ⚠ 行星命中优先于太阳（水星轨道 97 < 太阳命中半径 124，先判太阳会整颗吃掉水星）
     // ⚠ 视图切换不受败局/选卡冻结影响（pendingCard 挂起期间航线交互冻结，但镜头必须可用）
@@ -768,6 +1034,7 @@ export class WarmCurrentGameMode extends GameMode {
       const now = performance.now()
       if (this.lastPlanetClick.body === planet && now - this.lastPlanetClick.t < 350) {
         this.lastPlanetClick = { body: null, t: 0 }
+        this.orbitBuildSel = null
         this.enterPlanetSystem(planet)
         audioSys.play('wc.ok', { volume: 0.4 })
         return
@@ -785,6 +1052,13 @@ export class WarmCurrentGameMode extends GameMode {
     if (s.outcome === 'defeat' || s.pendingCard) return
     const b = this.buildingAt(p)
     if (b) { this.selection = { type: 'building', id: b.id }; return }
+    // 近地轨道设施：船坞 → 船坞造船面板（造船入口）；其它类型（含在建）→ 轨道建设面板
+    const ob = this.orbitBuildingAt(p)
+    if (ob) {
+      if (isShipyardType(ob.type)) this.openShipyardPanel(ob.id)
+      else this.openOrbitBuild(ob.anchor)
+      return
+    }
     const node = this.nodeAt(p)
     if (node) {
       // 未进入航线编辑模式：点星球 = 打开星球信息面板（拖线被门槛挡住）
@@ -812,6 +1086,8 @@ export class WarmCurrentGameMode extends GameMode {
     if (body) { this.openPlanetInfo(body); return }
     this.selection = null
     this.planetInfoSel = null
+    this.orbitBuildSel = null
+    this.shipyardSel = null
   }
 
   onMapPointerMove(p: { x: number; y: number }): void {
@@ -966,12 +1242,16 @@ export class WarmCurrentGameMode extends GameMode {
     this.simState.reset()
     resetMoonPhaseAdj()
     this.moonAngleAtLeave = null
+    this.clearObserveState()
     this.selection = null
+
     this.drag = null
     this.buildMode = null
     this.buildCursor = null
     this.routeEditMode = false
     this.planetInfoSel = null
+    this.orbitBuildSel = null
+    this.shipyardSel = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -988,12 +1268,16 @@ export class WarmCurrentGameMode extends GameMode {
     this.simState.rng = pack.rng
     resetMoonPhaseAdj()
     this.moonAngleAtLeave = null
+    this.clearObserveState()
     this.selection = null
+
     this.drag = null
     this.buildMode = null
     this.buildCursor = null
     this.routeEditMode = false
     this.planetInfoSel = null
+    this.orbitBuildSel = null
+    this.shipyardSel = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -1031,7 +1315,7 @@ export class WarmCurrentGameMode extends GameMode {
       flying: sc.flyingShips,
       frozen: sc.frozenShips.length,
       building: s.buildQueue.length,
-      buildRemain: s.buildQueue.length > 0 ? Math.ceil(s.buildQueue[0]) : 0,
+      buildRemain: s.buildQueue.length > 0 ? Math.ceil(s.buildQueue[0].remain) : 0,
       maintPerS: fleetMaintPerS(s.ships.length),
       cap: sc.shipCap,
     }
@@ -1125,6 +1409,10 @@ export class WarmCurrentGameMode extends GameMode {
     }))
     // 星球信息面板数据（planetInfoSel 为空 = 收起）
     const planetInfo = this.planetInfoSel ? this.buildPlanetInfo(this.planetInfoSel) : null
+    // 轨道建设面板数据（orbitBuildSel 为空 = 收起）
+    const orbitBuild = this.orbitBuildSel ? this.buildOrbitBuild(this.orbitBuildSel) : null
+    // 船坞造船面板数据（shipyardSel 为空 = 收起；船坞被拆/不存在 → null 收起）
+    const shipyard = this.shipyardSel !== null ? this.buildShipyardVM(this.shipyardSel) : null
     return {
       time: s.time,
       act: s.act,
@@ -1164,9 +1452,11 @@ export class WarmCurrentGameMode extends GameMode {
       shipRows,
       routes,
       planetInfo,
+      orbitBuild,
+      shipyard,
       routeEditMode: this.routeEditMode,
-      shipBuildCost: B.shipBuildCost,
       shipRebuildCost: B.shipRebuildCost,
+      hasShipyard: !!this.orbitBuildSel && this.orbitBuild.shipyardMults(this.orbitBuildSel) !== null,
       tutorial: s.tutorial,
       paused: this.paused,
       timeScale: this.timeScale,
@@ -1204,6 +1494,80 @@ export class WarmCurrentGameMode extends GameMode {
       demand: isEarth ? Math.round(this.simState.demand * 10) / 10 : 0,
       netFlow: isEarth ? Math.round(estimateNetFlow(s, this.simState.demand) * 10) / 10 : 0,
       routable: isEarth || !!starDef,
+    }
+  }
+
+  /** 轨道建设面板数据装配（orbitBuildSel → HudOrbitBuild；表驱动类型行 + 在册设施行） */
+  private buildOrbitBuild(anchor: PlanetBodyId): HudOrbitBuild {
+    const s = this.simState.state
+    const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const shipyard = this.orbitBuild.shipyardMults(anchor)
+    const rows: HudOrbitBuildRow[] = Object.entries(B.orbitBuildings).map(([id, def]) => {
+      const count = s.orbitBuildings.filter((x) => x.type === id && x.anchor === anchor).length
+      return {
+        id,
+        name: def.name,
+        desc: def.desc,
+        cost: def.cost,
+        buildTime: def.buildTime,
+        count,
+        max: B.orbitBuild.maxPerType,
+        canBuild: playable && count < B.orbitBuild.maxPerType && s.earthH3 >= def.cost,
+      }
+    })
+    const buildings: HudOrbitBuildingRow[] = s.orbitBuildings
+      .filter((x) => x.anchor === anchor)
+      .map((x) => {
+        const def = orbitBuildingDefOf(x.type)
+        const yard = x.built && isShipyardType(x.type)
+        return {
+          id: x.id,
+          name: def?.name ?? x.type,
+          built: x.built,
+          progressPct: Math.round(x.progress * 100),
+          canBuildShip: !!yard,
+          shipCost: yard ? Math.round(B.shipBuildCost * (def?.shipBuildCostMult ?? 1)) : 0,
+        }
+      })
+    return {
+      anchor,
+      anchorName: PLANET_NAMES[anchor] ?? B.stars[anchor as StarId]?.name ?? anchor,
+      rows,
+      buildings,
+      shipCost: Math.round(B.shipBuildCost * (shipyard?.costMult ?? 1)),
+      hasShipyard: shipyard !== null,
+    }
+  }
+
+  /** 船坞造船面板数据装配（shipyardSel → HudShipyard；逐船一卡队列 + 船队/上限口径） */
+  private buildShipyardVM(dockId: number): HudShipyard | null {
+    const s = this.simState.state
+    const dock = s.orbitBuildings.find((x) => x.id === dockId)
+    if (!dock) return null
+    const def = orbitBuildingDefOf(dock.type)
+    const yard = dock.built && isShipyardType(dock.type)
+    const shipCost = Math.round(B.shipBuildCost * (def?.shipBuildCostMult ?? 1))
+    const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const total = s.ships.length + s.buildQueue.length
+    return {
+      dockId,
+      name: def?.name ?? dock.type,
+      anchor: dock.anchor,
+      anchorName: PLANET_NAMES[dock.anchor] ?? B.stars[dock.anchor as StarId]?.name ?? dock.anchor,
+      built: dock.built,
+      progressPct: Math.round(dock.progress * 100),
+      canBuildShip: yard,
+      shipCost,
+      queue: s.buildQueue.map((q, i) => ({
+        idx: i,
+        remainS: Math.ceil(q.remain),
+        totalS: q.total,
+        progressPct: Math.round(Math.max(0, Math.min(1, 1 - q.remain / Math.max(0.01, q.total))) * 100),
+      })),
+      fleetShips: s.ships.length,
+      queueCount: s.buildQueue.length,
+      cap: this.simState.shipCap,
+      canQueue: yard && playable && total < this.simState.shipCap,
     }
   }
 }

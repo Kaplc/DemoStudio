@@ -16,6 +16,8 @@ import {
   BlueprintRegistry,
   AssetRegistry,
   ScriptRegistry,
+  TextureRegistry,
+  clearTextureCache,
   registerGMBridge,
   registerBuiltinGMCommands,
   logger,
@@ -168,4 +170,6 @@ export function clearProjectAssets(): void {
   AssetRegistry.reset()
   BlueprintRegistry.clearAll()
   ScriptRegistry.clearAll()
+  TextureRegistry.clearAll()
+  clearTextureCache()
 }

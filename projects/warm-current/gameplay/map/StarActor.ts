@@ -16,7 +16,12 @@
  * 生成。位置/半径不写在蓝图（半径在 star_map 配置，位置每帧算），蓝图只定外观。
  */
 import * as THREE from 'three'
-import { Actor, SphereMeshComponent, logger } from '@/engine'
+import { Actor, SphereMeshComponent, logger, CloudLayerComponent, AtmosphereComponent } from '@/engine'
+import {
+  earthCloudsUrl,
+  makeEarthNightTexture,
+  makeEarthBumpTexture,
+} from './starTextures'
 import { B } from '../core/balance'
 import { hiddenActorIsolated } from '../core/helpers'
 import type { PlanetId } from '../core/types'
@@ -30,6 +35,14 @@ export abstract class StarActor extends Actor {
 
   constructor(name: string) {
     super(name)
+  }
+
+  /** 特写增强装配点（子类覆写）：BeginPlay 时挂云层/大气/夜灯等，通用天体默认无 */
+  protected setupCloseup(): void {}
+
+  override BeginPlay(): void {
+    super.BeginPlay()
+    this.setupCloseup()
   }
 
   /**
@@ -68,6 +81,43 @@ export class SunActor extends StarActor {
 export class EarthActor extends StarActor {
   constructor() { super('Earth') }
   protected get body(): keyof typeof B.map.nodes { return 'earth' }
+
+  /**
+   * 地球特写增强（观察模式观感）：云层壳（错速自转）+ 大气 Fresnel 辉光壳
+   * + 夜面城市灯光 emissiveMap + 地形 bumpMap。全部类内装配，蓝图不感知
+   * （蓝图只定本体外观，引擎组件由 StarActor 基类钩子挂载）。
+   */
+  protected override setupCloseup(): void {
+    this.addComponent(CloudLayerComponent, {
+      texture: earthCloudsUrl(),
+      altitude: 1.03,
+      spin: 0.02,
+      opacity: 0.85,
+    })
+    this.addComponent(AtmosphereComponent, {
+      color: '#7fb8ff',
+      intensity: 1.2,
+      power: 2.6,
+      shellScale: 1.05,
+    })
+    const mesh = this.getComponent(SphereMeshComponent)
+    if (!mesh) {
+      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，夜灯/bump 贴图跳过（云层/大气已挂载）')
+      return
+    }
+    const night = makeEarthNightTexture()
+    if (night) {
+      mesh.setEmissiveMap(night)
+      mesh.emissive = '#ffd9a0'
+      mesh.emissiveIntensity = 1.4
+    }
+    const bump = makeEarthBumpTexture()
+    if (bump) {
+      mesh.setBumpMap(bump)
+      mesh.bumpScale = 0.06
+    }
+    logger.info('[StarActor] Earth 特写增强装配完成（云层/大气/夜灯/bump）')
+  }
 }
 
 export class MoonActor extends StarActor {

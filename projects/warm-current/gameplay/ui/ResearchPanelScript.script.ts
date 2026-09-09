@@ -4,7 +4,8 @@
  * 职责（入口按钮在主 HUD 底部 bar，本脚本只管面板本体）：
  *  - 面板内「✕ 关闭」收起（open/close 自驱动显隐，open 由 HudScript 底部入口调用）
  *  - 研究点数分配：四线各一对 +/− 按钮（可用点 = 聚能环等级 − 已分配）
- *  - 8Hz 差分同步：船队明细、可用点与四线点数、每线实时 H3 消耗速率、造船按钮态
+ *  - 8Hz 差分同步：船队明细、可用点与四线点数、每线实时 H3 消耗速率
+ *  （2026-09-09 造船入口收口到轨道船坞：面板内无造船按钮）
  */
 import { BehaviourScript, logger } from '@/engine'
 import { ColorBinder, TextBinder, VisBinder, findButton, findText, wcMode } from './uiCommon'
@@ -49,9 +50,8 @@ export default class ResearchPanelScript extends BehaviourScript {
       this.applyVisible()
       logger.info('[ResearchPanelScript] 科研面板收起（面板内关闭）')
     })
-    // 二级业务按钮（行为口径与拆分前一致）
-    bind('Btn_ship', () => wcMode()?.transport.tryBuildShip())
     // 研究点分配：+ 分配 / − 回收（无可用点时组件内 hint 提示）
+    // （2026-09-09 造船入口收口到轨道船坞：面板内不再有造船按钮）
     for (const id of LINES) {
       bind(`Btn_inc_${id}`, () => wcMode()?.research.allocateResearch(id, 1))
       bind(`Btn_dec_${id}`, () => wcMode()?.research.allocateResearch(id, -1))
@@ -108,7 +108,5 @@ export default class ResearchPanelScript extends BehaviourScript {
       this.binder.set(rateText, `${line.rate.toFixed(1)}/s`)
       this.colors.set(rateText, line.rate > 0 ? RATE_ACTIVE_COLOR : RATE_IDLE_COLOR)
     }
-    // 造船按钮态
-    this.vis.set(this.actor, 'Btn_ship', vm.outcome === 'playing' && !vm.pending)
   }
 }

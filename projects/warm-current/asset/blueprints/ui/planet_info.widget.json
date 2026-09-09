@@ -1,7 +1,7 @@
 {
   "name": "PlanetInfoPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-05c057dd",
+  "sourceHash": "fnv1a-73efa50e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -104,11 +104,11 @@
                   1
                 ],
                 "worldWidth": 460,
-                "worldHeight": 372,
-                "anchor": "middle-left",
+                "worldHeight": 428,
+                "anchor": "bottom-left",
                 "anchorOffset": [
                   16,
-                  -26
+                  272
                 ],
                 "position": [
                   0,
@@ -146,7 +146,7 @@
                       1
                     ],
                     "worldWidth": 488,
-                    "worldHeight": 396,
+                    "worldHeight": 452,
                     "position": [
                       14,
                       -12,
@@ -169,7 +169,7 @@
                     "color": "#0e1a24e8",
                     "radius": 14,
                     "width": 488,
-                    "height": 396,
+                    "height": 452,
                     "name": "InfoBody"
                   }
                 }
@@ -197,7 +197,7 @@
                         "worldHeight": 44,
                         "position": [
                           -15,
-                          164,
+                          192,
                           0
                         ]
                       }
@@ -417,7 +417,7 @@
                         "worldHeight": 28,
                         "position": [
                           -15,
-                          120,
+                          148,
                           0
                         ]
                       }
@@ -467,10 +467,10 @@
                           1
                         ],
                         "worldWidth": 430,
-                        "worldHeight": 116,
+                        "worldHeight": 88,
                         "position": [
                           -15,
-                          40,
+                          82,
                           0
                         ]
                       }
@@ -489,7 +489,7 @@
                         "text": "",
                         "name": "InfoText",
                         "width": 430,
-                        "height": 116,
+                        "height": 88,
                         "fontSize": 19,
                         "color": "#cfe3ee",
                         "lineHeight": 1.47,
@@ -524,7 +524,7 @@
                         "worldHeight": 56,
                         "position": [
                           -15,
-                          -54,
+                          2,
                           0
                         ]
                       }
@@ -578,7 +578,7 @@
                         "worldHeight": 48,
                         "position": [
                           -15,
-                          -114,
+                          -58,
                           0
                         ]
                       }
@@ -609,6 +609,186 @@
                     }
                   ],
                   "children": []
+                },
+                {
+                  "name": "OrbitRow",
+                  "baseClass": "Actor",
+                  "id": 13212,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 430,
+                        "worldHeight": 44,
+                        "position": [
+                          -15,
+                          -112,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UILayoutComponent",
+                      "properties": {
+                        "mode": "horizontal",
+                        "spacingX": 0,
+                        "spacingY": 0,
+                        "justify": "space-between",
+                        "align": "center",
+                        "autoLayout": true
+                      }
+                    }
+                  ],
+                  "children": [
+                    {
+                      "name": "Btn_orbit",
+                      "baseClass": "Actor",
+                      "id": 13213,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 210,
+                            "worldHeight": 44,
+                            "position": [
+                              -110,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        },
+                        {
+                          "baseClass": "UILayoutComponent",
+                          "properties": {
+                            "mode": "horizontal",
+                            "spacingX": 0,
+                            "spacingY": 0,
+                            "justify": "center",
+                            "align": "center",
+                            "autoLayout": true
+                          }
+                        },
+                        {
+                          "baseClass": "UIButtonComponent",
+                          "properties": {
+                            "stateColors": {
+                              "hover": {
+                                "color": "#35607a"
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "baseClass": "UIImageComponent",
+                          "properties": {
+                            "color": "#2a4a5a",
+                            "radius": 8,
+                            "width": 210,
+                            "height": 44,
+                            "name": "Btn_orbit"
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "Label_orbit",
+                          "baseClass": "Actor",
+                          "id": 13214,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 200,
+                                "worldHeight": 28,
+                                "position": [
+                                  0,
+                                  0,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "🛰 近地轨道建设",
+                                "name": "Label_orbit",
+                                "width": 200,
+                                "height": 28,
+                                "fontSize": 17,
+                                "color": "#9fdcff",
+                                "align": "center",
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
+                              }
+                            }
+                          ],
+                          "children": [],
+                          "sourceLayout": {
+                            "flexShrink": 0
+                          }
+                        }
+                      ],
+                      "sourceLayout": {
+                        "flexShrink": 0
+                      }
+                    }
+                  ]
                 }
               ],
               "sourceLayout": {

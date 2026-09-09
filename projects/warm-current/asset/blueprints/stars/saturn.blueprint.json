@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 40,
-        "color": "#d8c08c",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/saturn.jpg",
         "name": "SaturnMesh"
       }
     }

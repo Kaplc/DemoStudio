@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 46,
-        "color": "#c9a678",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/jupiter.jpg",
         "name": "JupiterMesh"
       }
     }

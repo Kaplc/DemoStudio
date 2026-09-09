@@ -7,6 +7,7 @@
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
+import { TextureRegistry } from '../../../../engine/asset/TextureRegistry'
 import type { FieldSpec, LintIssue, CheckerContext } from '../types'
 import { UILAYOUT_JUSTIFY_OPTIONS, UILAYOUT_ALIGN_OPTIONS } from '../../../../engine/ui/UILayoutComponent'
 
@@ -27,7 +28,31 @@ function checkBasicReceiveShadow(node: unknown, ctx: CheckerContext): LintIssue[
   return issues
 }
 
-/** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]；kind 材质两态；阴影标记。 */
+/**
+ * 贴图资产引用校验：properties.texture 指向 asset/ 路径时查 TextureRegistry 注册表，
+ * 未注册 → warn（不 block 保存；运行时 loadTexture 回退原值不 404 崩溃）。
+ * 外部 URL（http/blob/data/绝对路径）不校验；注册表为空（未开工程/浏览器降级）时容忍。
+ */
+function checkTextureAssetRef(node: unknown, ctx: CheckerContext): LintIssue[] {
+  const issues: LintIssue[] = []
+  if (!node || typeof node !== 'object') return issues
+  const props = (node as Record<string, unknown>).properties as Record<string, unknown> | undefined
+  const tex = props?.texture
+  if (typeof tex !== 'string' || !tex.startsWith('asset/')) return issues
+  if (TextureRegistry.getRegisteredPaths().length === 0) return issues
+  if (!TextureRegistry.has(tex)) {
+    issues.push(ctx.issue(
+      'properties.texture',
+      'texture-asset-not-registered',
+      `贴图资产未注册: "${tex}"（asset/ 下的图片文件需存在并被项目 asset/index.ts 的贴图 glob 收集）`,
+      'warn',
+      tex,
+    ))
+  }
+  return issues
+}
+
+/** comp:SpriteComponent — width/height 必填 > 0；opacity ∈ [0,1]；kind 材质两态；阴影标记；texture 贴图路径。 */
 class SpriteComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SpriteComponent'
   schema: FieldSpec[] = [
@@ -35,13 +60,14 @@ class SpriteComponentChecker extends AbstractAssetChecker {
     { field: 'properties.height', type: 'number', required: true, min: 0, minExclusive: true, label: '高度' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.texture', type: 'string', label: '贴图路径' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
-    return checkBasicReceiveShadow(node, ctx)
+    return [...checkBasicReceiveShadow(node, ctx), ...checkTextureAssetRef(node, ctx)]
   }
 }
 registerAssetChecker('comp:SpriteComponent', SpriteComponentChecker)
@@ -149,21 +175,28 @@ class BoxMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:BoxMeshComponent', BoxMeshComponentChecker)
 
-/** comp:SphereMeshComponent — 球体：radius；color；opacity [0,1]；texture 贴图路径；kind 材质两态；阴影标记。 */
+/** comp:SphereMeshComponent — 球体：radius；segments [w,h] 分段≥3；color；opacity [0,1]；texture/bumpMap/roughnessMap/emissiveMap 贴图路径；bumpScale/emissive/emissiveIntensity 数值；kind 材质两态；阴影标记。 */
 class SphereMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SphereMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
+    { field: 'properties.segments', type: 'vec2', min: 3, label: '球体分段 [widthSegments, heightSegments]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.texture', type: 'string', label: '贴图路径' },
+    { field: 'properties.bumpMap', type: 'string', label: '凹凸贴图路径' },
+    { field: 'properties.bumpScale', type: 'number', label: '凹凸强度' },
+    { field: 'properties.roughnessMap', type: 'string', label: '粗糙度贴图路径' },
+    { field: 'properties.emissiveMap', type: 'string', label: '自发光贴图路径' },
+    { field: 'properties.emissive', type: 'color', label: '自发光颜色' },
+    { field: 'properties.emissiveIntensity', type: 'number', min: 0, label: '自发光强度' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
     { field: 'properties.name', type: 'string', label: '网格名' },
   ]
   override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
-    return checkBasicReceiveShadow(node, ctx)
+    return [...checkBasicReceiveShadow(node, ctx), ...checkTextureAssetRef(node, ctx)]
   }
 }
 registerAssetChecker('comp:SphereMeshComponent', SphereMeshComponentChecker)
@@ -547,3 +580,32 @@ class ShadowBlobComponentChecker extends AbstractAssetChecker {
   }
 }
 registerAssetChecker('comp:ShadowBlobComponent', ShadowBlobComponentChecker)
+
+/** comp:AtmosphereComponent — 行星大气 Fresnel 辉光壳：color 大气色；intensity 辉光强度 [0.2,3]；power 边缘锐度；shellScale 外壳半径倍率 ≥1.01。 */
+class AtmosphereComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:AtmosphereComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.color', type: 'color', label: '大气颜色' },
+    { field: 'properties.intensity', type: 'number', min: 0.2, max: 3, label: '辉光强度' },
+    { field: 'properties.power', type: 'number', min: 0.5, label: '边缘锐度' },
+    { field: 'properties.shellScale', type: 'number', min: 1.01, label: '外壳半径倍率' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+}
+registerAssetChecker('comp:AtmosphereComponent', AtmosphereComponentChecker)
+
+/** comp:CloudLayerComponent — 行星云层壳：texture 云图路径；altitude 外壳高度倍率 ≥1.01；spin 自转速率 rad/s；opacity [0,1]。 */
+class CloudLayerComponentChecker extends AbstractAssetChecker {
+  readonly kind = 'comp:CloudLayerComponent'
+  schema: FieldSpec[] = [
+    { field: 'properties.texture', type: 'string', label: '云层贴图路径' },
+    { field: 'properties.altitude', type: 'number', min: 1.01, label: '外壳高度倍率' },
+    { field: 'properties.spin', type: 'number', label: '自转速率（rad/s）' },
+    { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.name', type: 'string', label: '组件名' },
+  ]
+  override validate(node: unknown, ctx: CheckerContext): LintIssue[] {
+    return checkTextureAssetRef(node, ctx)
+  }
+}
+registerAssetChecker('comp:CloudLayerComponent', CloudLayerComponentChecker)

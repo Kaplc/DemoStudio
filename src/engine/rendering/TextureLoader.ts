@@ -7,17 +7,19 @@
  * 调用方无需 await。
  */
 import * as THREE from 'three'
+import { TextureRegistry } from '../asset/TextureRegistry'
 
 const cache = new Map<string, THREE.Texture>()
 const loader = new THREE.TextureLoader()
 
-/** 加载纹理（同路径返回缓存实例） */
+/** 加载纹理（同路径返回缓存实例）。项目资产路径（TextureRegistry 已注册）翻译为打包 URL */
 export function loadTexture(path: string): THREE.Texture {
-  const cached = cache.get(path)
+  const resolved = TextureRegistry.resolve(path) ?? path
+  const cached = cache.get(resolved)
   if (cached) return cached
-  const tex = loader.load(path)
+  const tex = loader.load(resolved)
   tex.colorSpace = THREE.SRGBColorSpace
-  cache.set(path, tex)
+  cache.set(resolved, tex)
   return tex
 }
 

@@ -65,6 +65,12 @@ export abstract class MeshComponent extends ThreeObjectComponent<ThreeObject<THR
     return this.obj.object
   }
 
+  /** 材质是否已带贴图（albedo map 非空）。运行时判断蓝图 texture 字段是否已生效的依据 */
+  get hasTextureMap(): boolean {
+    const m = this.obj.object.material as THREE.MeshStandardMaterial | null
+    return !!m?.map
+  }
+
   // ─── 公共 setter（基类共享）───
   // 调用方应走两阶段：先 addComponent(类, mesh, name)，再调 setter 设参。
   // 派生类各自暴露 size/radius 等几何参数 setter（不同几何 rebuild 方式不同）。

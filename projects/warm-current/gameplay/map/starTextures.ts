@@ -11,6 +11,39 @@
  */
 import * as THREE from 'three'
 
+// ─── Solar System Scope 真贴图（CC BY 4.0，1638×819 equirect）───
+// 来源 Solar System Scope / NASA imagery，经 Qt qt3d planets-qml 分发；
+// 许可与归属：asset/textures/LICENSE-solarsystemscope.txt + qt_attribution.json。
+// Vite 静态资源 URL import（hoi4 provinces.png 同款），构建期保证路径有效，
+// 运行时直接得到可用 URL 喂 loadTexture 缓存。europa 木卫二官方无提供，程序化兜底。
+import sunUrl from '../../asset/textures/sun.jpg'
+import mercuryUrl from '../../asset/textures/mercury.jpg'
+import venusUrl from '../../asset/textures/venus.jpg'
+import earthUrl from '../../asset/textures/earth.jpg'
+import moonUrl from '../../asset/textures/moon.jpg'
+import marsUrl from '../../asset/textures/mars.jpg'
+import jupiterUrl from '../../asset/textures/jupiter.jpg'
+import saturnUrl from '../../asset/textures/saturn.jpg'
+import uranusUrl from '../../asset/textures/uranus.jpg'
+import neptuneUrl from '../../asset/textures/neptune.jpg'
+
+/** 天体 → SSS 真贴图 URL（官方未提供的 europa/未知天体不在表中 → null） */
+export function bodyTextureUrl(bodyId: string): string | null {
+  const table: Record<string, string> = {
+    sun: sunUrl, mercury: mercuryUrl, venus: venusUrl, earth: earthUrl, moon: moonUrl,
+    mars: marsUrl, jupiter: jupiterUrl, saturn: saturnUrl, uranus: uranusUrl, neptune: neptuneUrl,
+  }
+  return table[bodyId] ?? null
+}
+
+/**
+ * 地球云层贴图 URL（SSS 官方未提供云图 → 恒 null，走 CloudLayerComponent
+ * 程序化云絮兜底；日后补真云图（SSS earth clouds 或自绘）在此返回 URL 即全链生效）。
+ */
+export function earthCloudsUrl(): string | null {
+  return null
+}
+
 /** 斑点层（噪声基元）：数量 + 半径范围 + 颜色 + 不透明度 */
 interface BlobLayer {
   count: number
@@ -209,5 +242,111 @@ export function makeStarTexture(bodyId: string): THREE.CanvasTexture | null {
   ctx.globalAlpha = 1
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/**
+ * 天体贴图统一入口：真贴图优先（SSS CC-BY 4.0），程序化兜底。
+ * 返回 string = 真贴图 URL（调用方 setTexture(string) 走 loadTexture 缓存）；
+ * 返回 Texture = 程序化 CanvasTexture（europa 及配方内未知天体）；
+ * null = 无 DOM canvas 环境且无真贴图，调用方保持无贴图纯色。
+ */
+export function starTextureFor(bodyId: string): string | THREE.Texture | null {
+  return bodyTextureUrl(bodyId) ?? makeStarTexture(bodyId)
+}
+
+// ─── 地球特写增强贴图（观察模式三件套：夜灯 / 地形凹凸）───
+// 确定性随机（mulberry32 固定种子）→ 贴图稳定，快照/重放观感一致。
+// 无 DOM canvas（单测/极简容器）返回 null，调用方跳过该层（材质保持默认）。
+
+/**
+ * 地球夜面城市灯光图（equirect 512×256，配 albedo UV）。
+ * 暖黄光点按"城市簇"分布：中纬度密、两极稀、经度成簇（模拟大陆城市群），
+ * 面向日面时被光照淹没、夜面呈星点灯光 → emissiveMap 消费。
+ */
+export function makeEarthNightTexture(): THREE.CanvasTexture | null {
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+  if (!canvas) return null
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const W = 512
+  const H = 256
+  canvas.width = W
+  canvas.height = H
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, W, H)
+  const rnd = mulberry32(0xe277)
+  // 32 个城市簇（每个 = 中心亮斑 + 周边灯点晕），中纬度带加权
+  for (let c = 0; c < 32; c++) {
+    const cx = rnd() * W
+    const cy = H * (0.28 + rnd() * 0.44) // 避开两极
+    const spread = 8 + rnd() * 22
+    for (let i = 0; i < 26; i++) {
+      const ang = rnd() * Math.PI * 2
+      const d = rnd() * spread
+      const x = cx + Math.cos(ang) * d
+      const y = cy + Math.sin(ang) * d * 0.6
+      const r = 0.6 + rnd() * 1.6
+      const warm = rnd()
+      ctx.fillStyle = warm > 0.75 ? '#ffe9b0' : warm > 0.4 ? '#ffd27a' : '#ffbe55'
+      ctx.globalAlpha = 0.55 + rnd() * 0.45
+      for (const dx of [0, -W, W]) {
+        ctx.beginPath()
+        ctx.arc(x + dx, y, r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  }
+  ctx.globalAlpha = 1
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/**
+ * 地球地形凹凸灰度图（equirect 512×256，配 albedo UV）。
+ * 低频"大陆板块"隆起 + 高频噪声细部；灰度 = 高度 → bumpMap 消费
+ * （bumpScale 控强度）。与夜灯图同确定性风格。
+ */
+export function makeEarthBumpTexture(): THREE.CanvasTexture | null {
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+  if (!canvas) return null
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const W = 512
+  const H = 256
+  canvas.width = W
+  canvas.height = H
+  // 海平面中灰（海洋平坦）
+  ctx.fillStyle = '#808080'
+  ctx.fillRect(0, 0, W, H)
+  const rnd = mulberry32(0xb0b5)
+  // 14 块大陆板块（亮 = 高地），椭圆叠涂 + 经度环绕
+  for (let c = 0; c < 14; c++) {
+    const cx = rnd() * W
+    const cy = H * (0.2 + rnd() * 0.6)
+    const rx = 30 + rnd() * 70
+    const ry = rx * (0.4 + rnd() * 0.5)
+    const lift = 150 + Math.floor(rnd() * 80)
+    ctx.fillStyle = `rgb(${lift},${lift},${lift})`
+    ctx.globalAlpha = 0.5
+    for (const dx of [0, -W, W]) {
+      ctx.beginPath()
+      ctx.ellipse(cx + dx, cy, rx, ry, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+  // 高频山脉噪声细部
+  ctx.globalAlpha = 0.25
+  for (let i = 0; i < 900; i++) {
+    const g = 90 + Math.floor(rnd() * 140)
+    ctx.fillStyle = `rgb(${g},${g},${g})`
+    const x = rnd() * W
+    const y = H * 0.1 + rnd() * H * 0.8
+    ctx.fillRect(x, y, 1 + rnd() * 3, 1 + rnd() * 2)
+  }
+  ctx.globalAlpha = 1
+  const tex = new THREE.CanvasTexture(canvas)
+  // 凹凸图是数据（非线性）贴图：不设 sRGB
   return tex
 }

@@ -55,6 +55,8 @@ import {
 } from '../ui/UIWorldAnchorComponent'
 import { LightComponent, type LightType } from '../rendering/LightComponent'
 import { ShadowBlobComponent } from '../rendering/ShadowBlobComponent'
+import { AtmosphereComponent } from '../rendering/AtmosphereComponent'
+import { CloudLayerComponent } from '../rendering/CloudLayerComponent'
 import type { Actor } from '../entity/Actor'
 import type { BObject } from '../entity/BObject'
 import { createMesh } from '../gameflow/ThreeObjectUtils'
@@ -261,7 +263,20 @@ export function registerBuiltinComponents(): void {
     p: Record<string, unknown>,
   ): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial => {
     if (p.kind === 'basic') {
-      mesh.material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+      // basic（unlit）替换材质时继承原材质已赋属性：texture（map）/opacity/transparent/side 等。
+      // 顺序上本函数在 factory 中位于 texture 赋值之后，直接 new 裸材质会把已挂的 map 静默丢掉
+      // （如天体蓝图 kind:"basic" + texture 组合，预览/运行时贴图同时失效）。
+      const prev = mesh.material as THREE.MeshStandardMaterial | undefined
+      const next = new THREE.MeshBasicMaterial({ color: prev?.color.clone() ?? 0xffffff })
+      if (prev) {
+        next.map = prev.map ?? null
+        next.transparent = prev.transparent
+        next.opacity = prev.opacity
+        next.alphaMap = prev.alphaMap ?? null
+        next.side = prev.side
+        next.depthWrite = prev.depthWrite
+      }
+      mesh.material = next
     }
     mesh.castShadow = p.castShadow !== undefined ? !!p.castShadow : true
     mesh.receiveShadow = p.receiveShadow !== undefined ? !!p.receiveShadow : true
@@ -287,13 +302,19 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── SphereMeshComponent ─── props: { radius?, color?, opacity?, texture?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── SphereMeshComponent ─── props: { radius?, segments?: [w, h], color?, opacity?, texture?, bumpMap?, bumpScale?, roughnessMap?, emissiveMap?, emissive?, emissiveIntensity?, kind?, castShadow?, receiveShadow?, name? }
   // texture：贴图路径（loadTexture 缓存加载，sRGB；赋给材质 map 作 albedo）
+  // segments：球体分段 [widthSegments, heightSegments]（默认 16,16），行星等大球体可配高段数提升圆滑度
+  // bumpMap/bumpScale：凹凸贴图与强度；roughnessMap：粗糙度分区；emissiveMap/emissive/emissiveIntensity：自发光（夜面灯光）
+  // ── 赋值顺序在 applyMeshMaterialKind 之前：kind:"basic" 整体替换材质时才继承得到这些贴图
   ComponentRegistry.register(
     'SphereMeshComponent',
     (owner, p = {}) => {
       const radius = (p.radius as number) ?? 0.5
-      const geo = new THREE.SphereGeometry(radius, 16, 16)
+      const seg = (p.segments as number[]) ?? []
+      const widthSegments = Math.max(3, Math.floor(seg[0] ?? 16))
+      const heightSegments = Math.max(3, Math.floor(seg[1] ?? 16))
+      const geo = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
       const color = (p.color as number | string) ?? 0xffffff
       const mat = new THREE.MeshStandardMaterial({ color })
       if (p.opacity !== undefined) {
@@ -304,6 +325,12 @@ export function registerBuiltinComponents(): void {
         mat.map = loadTexture(p.texture)
         mat.needsUpdate = true
       }
+      if (typeof p.bumpMap === 'string' && p.bumpMap) mat.bumpMap = loadTexture(p.bumpMap)
+      if (p.bumpScale !== undefined) mat.bumpScale = p.bumpScale as number
+      if (typeof p.roughnessMap === 'string' && p.roughnessMap) mat.roughnessMap = loadTexture(p.roughnessMap)
+      if (typeof p.emissiveMap === 'string' && p.emissiveMap) mat.emissiveMap = loadTexture(p.emissiveMap)
+      if (p.emissive !== undefined) mat.emissive.set(p.emissive as THREE.ColorRepresentation)
+      if (p.emissiveIntensity !== undefined) mat.emissiveIntensity = p.emissiveIntensity as number
       const mesh = createMesh(geo, mat)
       applyMeshMaterialKind(mesh.object, p)
       const comp = new SphereMeshComponent(owner as Actor, mesh, (p.name as string) ?? 'SphereMeshComponent')
@@ -694,6 +721,48 @@ export function registerBuiltinComponents(): void {
       if (p.opacity !== undefined) bc.opacity = p.opacity as number
       if (p.normal !== undefined) bc.normal = p.normal as [number, number, number]
       if (p.offset !== undefined) bc.offset = p.offset as number
+    },
+  )
+
+  // ─── AtmosphereComponent ─── props: { color?, intensity?, power?, shellScale?, name? }
+  // 行星大气 Fresnel 辉光壳（unlit ShaderMaterial，BackSide 外壳，观察模式特写用）。
+  // shellScale = 外壳半径倍率（scale 名保留给 TransformComponent，doc 层硬规则禁非 tsf 组件声明 scale）。
+  ComponentRegistry.register(
+    'AtmosphereComponent',
+    (owner, p = {}) =>
+      new AtmosphereComponent(owner as Actor, {
+        color: p.color as string | undefined,
+        intensity: p.intensity as number | undefined,
+        power: p.power as number | undefined,
+        shellScale: p.shellScale as number | undefined,
+      }, (p.name as string) ?? 'AtmosphereComponent'),
+    (c, p) => {
+      const ac = c as AtmosphereComponent
+      if (p.color !== undefined) ac.color = p.color as string
+      if (p.intensity !== undefined) ac.intensity = p.intensity as number
+      if (p.power !== undefined) ac.power = p.power as number
+      if (p.shellScale !== undefined) ac.shellScale = p.shellScale as number
+    },
+  )
+
+  // ─── CloudLayerComponent ─── props: { texture?, altitude?, spin?, opacity?, name? }
+  // 行星云层壳（贴图外壳 + Tick 错速自转；asset/ 路径走 loadTexture，无路径程序化兜底）。
+  ComponentRegistry.register(
+    'CloudLayerComponent',
+    (owner, p = {}) => {
+      const comp = new CloudLayerComponent(owner as Actor, {
+        texture: p.texture as string | undefined,
+        altitude: p.altitude as number | undefined,
+        spin: p.spin as number | undefined,
+        opacity: p.opacity as number | undefined,
+      }, (p.name as string) ?? 'CloudLayerComponent')
+      return comp
+    },
+    (c, p) => {
+      const cc = c as CloudLayerComponent
+      if (p.altitude !== undefined) cc.altitude = p.altitude as number
+      if (p.spin !== undefined) cc.spin = p.spin as number
+      if (p.opacity !== undefined) cc.opacity = p.opacity as number
     },
   )
 

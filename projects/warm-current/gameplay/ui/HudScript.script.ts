@@ -11,6 +11,8 @@
  *      research_panel（科研二级面板）、build_panel（建造二级面板）、transport_panel（运输二级面板）、
  *      routes_panel（航线管理面板）、hex_modal（海克斯三选一）、settle（结算）
  *      ring_panel（聚能环信息面板，交点数由顶栏迁入此处）
+ *      orbit_build_panel（近地轨道建设面板，GameMode.orbitBuildSel 状态驱动）
+ *      shipyard_panel（船坞造船面板，GameMode.shipyardSel 状态驱动，点船坞打开；逐船一卡队列）
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
@@ -24,6 +26,8 @@ import TransportPanelScript, { TRANSPORT_PANEL_WIDGET } from './TransportPanelSc
 import RoutesPanelScript, { ROUTES_PANEL_WIDGET } from './RoutesPanelScript.script'
 import PlanetInfoScript, { PLANET_INFO_WIDGET } from './PlanetInfoScript.script'
 import StatsPanelScript, { STATS_PANEL_WIDGET } from './StatsPanelScript.script'
+import OrbitPanelScript, { ORBIT_BUILD_PANEL_WIDGET } from './OrbitPanelScript.script'
+import ShipyardPanelScript, { SHIPYARD_PANEL_WIDGET } from './ShipyardPanelScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -60,6 +64,8 @@ export default class HudScript extends BehaviourScript {
   private transportPanel: Actor | null = null
   private routesPanel: Actor | null = null
   private planetInfoPanel: Actor | null = null
+  private orbitPanel: Actor | null = null
+  private shipyardPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -74,6 +80,16 @@ export default class HudScript extends BehaviourScript {
       if (p === target) continue
       const inst = p.actor()?.getComponent(UIScriptComponent)?.instance
       if (!inst || !p.is(inst)) continue
+      // 状态驱动面板（轨道建设）：无 open/close 方法，关闭走 GameMode 公开方法
+      if (inst instanceof OrbitPanelScript) {
+        if (inst.isOpen) wcMode()?.closeOrbitBuild()
+        continue
+      }
+      // 状态驱动面板（船坞造船）：同轨道建设口径
+      if (inst instanceof ShipyardPanelScript) {
+        if (inst.isOpen) wcMode()?.closeShipyardPanel()
+        continue
+      }
       const panel = inst as unknown as { isOpen: boolean, close: () => void }
       if (panel.isOpen) {
         panel.close()
@@ -125,7 +141,11 @@ export default class HudScript extends BehaviourScript {
     const statsEntry: CenterPanelEntry = { actor: () => this.statsPanel, is: (s) => s instanceof StatsPanelScript, label: '收支统计面板' }
     // 聚能环详情面板（居中大面板，与其它居中面板同屏互斥）
     const ringEntry: CenterPanelEntry = { actor: () => this.ringPanel, is: (s) => s instanceof RingPanelScript, label: '聚能环详情面板' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry]
+    // 轨道建设面板（居中位，GameMode.orbitBuildSel 状态驱动开合：无 open/close，只登记用于被其它居中面板收起）
+    const orbitEntry: CenterPanelEntry = { actor: () => this.orbitPanel, is: (s) => s instanceof OrbitPanelScript, label: '轨道建设面板' }
+    // 船坞造船面板（居中位，GameMode.shipyardSel 状态驱动开合：点船坞打开，只登记用于被其它居中面板收起）
+    const shipyardEntry: CenterPanelEntry = { actor: () => this.shipyardPanel, is: (s) => s instanceof ShipyardPanelScript, label: '船坞造船面板' }
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry]
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
     bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
     bind('Btn_transport', () => this.toggleCenterPanel(transportEntry))
@@ -163,6 +183,12 @@ export default class HudScript extends BehaviourScript {
     // 星球信息面板（左侧常驻位：非航线编辑模式点星球弹出，PlanetInfoScript 读 vm.planetInfo 自驱动）
     this.planetInfoPanel = this.world?.ui.spawnUIActor(PLANET_INFO_WIDGET) ?? null
     if (!this.planetInfoPanel) logger.warn('[HudScript] planet_info 生成失败')
+    // 轨道建设面板（居中位：星球信息面板「近地轨道建设」/ 点轨道设施弹出，OrbitPanelScript 读 vm.orbitBuild 自驱动）
+    this.orbitPanel = this.world?.ui.spawnUIActor(ORBIT_BUILD_PANEL_WIDGET) ?? null
+    if (!this.orbitPanel) logger.warn('[HudScript] orbit_build_panel 生成失败')
+    // 船坞造船面板（居中位：星图点船坞弹出，ShipyardPanelScript 读 vm.shipyard 自驱动）
+    this.shipyardPanel = this.world?.ui.spawnUIActor(SHIPYARD_PANEL_WIDGET) ?? null
+    if (!this.shipyardPanel) logger.warn('[HudScript] shipyard_panel 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')
@@ -259,7 +285,7 @@ export default class HudScript extends BehaviourScript {
       }
     }
 
-    // ─── 教学 / 造船按钮态 ───
+    // ─── 教学提示 ───
     this.vis.set(this.actor, 'TutText', vm.tutorial)
   }
 

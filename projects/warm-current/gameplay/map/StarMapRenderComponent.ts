@@ -13,6 +13,8 @@ import * as THREE from 'three'
 import { ActorComponent, logger } from '@/engine'
 import type { ThreeFactoryComponent, ThreeObject } from '@/engine'
 import type { Actor } from '@/engine'
+import type { AnchoredWidgetHandle } from '@/engine'
+import { UITextComponent } from '@/engine'
 import { B, MAP_H, MAP_W, toWX, toWZ } from '../core/balance'
 import {
   makeStarfieldTileTexture,
@@ -22,10 +24,12 @@ import {
   STARFIELD_TILE_SEED,
 } from './starfieldTile'
 import { SphereMeshComponent } from '@/engine'
+import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import {
   endpointPos,
   buildingDefOf,
   buildingPos,
+  orbitBuildingPos,
   orbitRadiusPx,
   shipPos,
   starLoad,
@@ -34,7 +38,7 @@ import {
   TUTORIAL_TARGETS,
   TUTORIAL_RING_PAD,
 } from '../core/helpers'
-import type { Endpoint, PlanetId, SimBuilding, SimState, StarId } from '../core/types'
+import type { Endpoint, OrbitBuilding, PlanetId, SimBuilding, SimState, StarId } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
 
 /** 拖线状态（GameMode 维护，渲染只读；坐标 = 星图画布系） */
@@ -303,11 +307,15 @@ interface BuildingView {
   dome: THREE.Mesh | null
   rim: THREE.Mesh | null
   core: THREE.Mesh
-  title: SpriteLabel
-  sub: SpriteLabel
-  lastSubKey: string
+  /** 标题/副标文本组件（世界空间 UI widget 子节点，titleHandles 差分持有） */
+  title: UITextComponent | null
+  sub: UITextComponent | null
   /** 缓存类型（表改动/重建视图判定） */
   type: string
+  /** 轨道建筑标记（null = 地图建筑；轨道建筑走 orbitBuildingPos 定位 + 建造进度环） */
+  orbit: { obId: number } | null
+  /** 轨道建筑建造进度环（在建时显示，满格消失；地图建筑恒 null） */
+  progressRing: THREE.Mesh | null
 }
 
 /** 半球罩极轴（罩体朝背日侧弯曲），定向用单位向量 */
@@ -352,7 +360,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   /** 卫星环（卫星绕母星轨道圈，圆心每帧贴母星实时位置；id → mesh） */
   private moonRings = new Map<string, THREE.Mesh>()
   private starViews: Partial<Record<string, { body: THREE.Mesh; mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial; sub: SpriteLabel; windowRing: THREE.Mesh; radius: number }>> = {}
-  private buildingViews = new Map<number, BuildingView>()
+  /** 建筑视图池（键 = `b<id>` 地图建筑 / `ob<id>` 轨道建筑；类型变更重建视图） */
+  private buildingViews = new Map<string, BuildingView>()
+  /** 建筑标签（世界空间 UI widget）句柄差分表（键同 buildingViews；拆建筑/重建视图 release 回收） */
+  private labelHandles = new Map<string, AnchoredWidgetHandle>()
+  /** 建筑标签 widget 资产（世界空间 UI：UIWorldAnchor mode=world + faceCamera + UIText 文本节点） */
+  private static readonly BUILDING_LABEL_WIDGET = 'asset/blueprints/ui/building_label.widget.json'
+  /** 轨道环装饰（锚天体 id → 环 mesh；有轨道建筑的天体显示，行星系视角可见） */
+  private orbitRings = new Map<string, ThreeObject>()
 
   /** 建筑模式组（网格线 + 放置 ghost；挂 systemGroup 保持贴地图坐标系） */
   private buildGroup!: THREE.Group
@@ -382,6 +397,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private missionLine!: THREE.Line
 
   private animTime = 0
+
+  /** 当前帧相机（render 入口缓存；建筑标签距离 LOD 消费，无相机不裁剪） */
+  private lastCam: THREE.Camera | null = null
 
   private factory: ThreeFactoryComponent | null = null
 
@@ -501,8 +519,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const m of this.mats) m.dispose()
     for (const g of this.geos) g.dispose()
     for (const t of Object.values(this.tex)) t?.dispose()
-    for (const bv of this.buildingViews.values()) this.disposeBuilding(bv)
+    for (const [bvKey, bv] of this.buildingViews) this.disposeBuilding(bv, bvKey)
     this.buildingViews.clear()
+    this.labelHandles.clear()
     this.unitSphere.dispose()
     this.unitDome.dispose()
     this.flatQuadGeo.dispose()
@@ -779,24 +798,26 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     }
     // 星球状态（位置由蓝图 StarActor.syncFrom 唯一驱动；此处只写标签/窗口环/解锁透明度）
     for (const star of Object.values(B.stars)) {
-      const view = this.starViews[star.id]!
+      const sv = this.starViews[star.id]!
       const unlocked = starUnlocked(sim.state, star.id)
-      view.mat.opacity = unlocked ? 1 : 0.25
-      view.mat.transparent = !unlocked
+      sv.mat.opacity = unlocked ? 1 : 0.25
+      sv.mat.transparent = !unlocked
       const pos = starPosAt(sim.state, star.id)
       const sub = unlocked ? `满载 ${Math.round(starLoad(sim.state.mods, star.id))}/船` : `第${star.unlockAct}幕解锁`
-      view.sub.set(sub, 16, unlocked ? '#8fb2c6' : '#48606f')
-      view.sub.setPos(pos.x, pos.y + view.radius + 30, 82)
+      sv.sub.set(sub, 16, unlocked ? '#8fb2c6' : '#48606f')
+      // 注意：此标签父级 = systemGroup（组自身零位移），世界坐标 setPos 语义成立；
+      // 与建筑视图标签（父级 = 已定位的视图组，须写本地偏移）不同，勿混用两种口径
+      sv.sub.setPos(pos.x, pos.y + sv.radius + 30, 82)
       if (star.id === 'europa' && sim.state.gravity.phase !== 'idle') {
         const active = sim.state.gravity.phase === 'active'
-        view.windowRing.visible = true
-        view.windowRing.position.set(toWX(pos.x), 4, toWZ(pos.y))
-        const s = (view.radius + 12) * (1 + Math.sin(this.animTime * 5) * 0.05)
-        view.windowRing.scale.setScalar(s)
-        ;(view.windowRing.material as THREE.MeshBasicMaterial).color.setHex(active ? 0xffb03d : 0x8a6a3a)
-        ;(view.windowRing.material as THREE.MeshBasicMaterial).opacity = active ? 0.8 : 0.45
+        sv.windowRing.visible = true
+        sv.windowRing.position.set(toWX(pos.x), 4, toWZ(pos.y))
+        const s = (sv.radius + 12) * (1 + Math.sin(this.animTime * 5) * 0.05)
+        sv.windowRing.scale.setScalar(s)
+        ;(sv.windowRing.material as THREE.MeshBasicMaterial).color.setHex(active ? 0xffb03d : 0x8a6a3a)
+        ;(sv.windowRing.material as THREE.MeshBasicMaterial).opacity = active ? 0.8 : 0.45
       } else {
-        view.windowRing.visible = false
+        sv.windowRing.visible = false
       }
     }
     // 卫星环贴 parent 实时位置（moons 配置驱动：月球环随地球、木卫二环随木星，各自跟随）
@@ -815,6 +836,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private static readonly BUILDING_COLORS: Record<string, number> = {
     relay: 0xffb03d,
     shield: 0x5ac8ff,
+    dock: 0x7dffb0,
   }
 
   private buildBuildingView(b: SimBuilding): BuildingView {
@@ -844,38 +866,127 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     core.position.y = 9
     core.renderOrder = 12
     group.add(core)
-    const title = new SpriteLabel(this.F, this.owner, group)
-    const sub = new SpriteLabel(this.F, this.owner, group)
+    const title = null
+    const sub = null
     const p0 = buildingPos(this.provider.simState.state, b)
     group.position.set(toWX(p0.x), 0, toWZ(p0.y))
     this.systemGroup.add(group)
-    return { group, bubble, dome, rim, core, title, sub, lastSubKey: '', type: b.type }
+    return { group, bubble, dome, rim, core, title, sub, type: b.type, orbit: null, progressRing: null }
   }
 
-  private disposeBuilding(v: BuildingView): void {
-    v.title.dispose()
-    v.sub.dispose()
+  /** 轨道建筑视图（近地轨道建设 2026-09-09）：核心球 + 建造进度环，定位走 orbitBuildingPos */
+  private buildOrbitView(ob: OrbitBuilding): BuildingView {
+    const def = orbitBuildingDefOf(ob.type)
+    const color = StarMapRenderComponent.BUILDING_COLORS[ob.type] ?? 0x7dffb0
+    const group = this.own(this.F.createGroup()).object
+    const coreMat = this.trackMat(this.F.createMeshBasicMaterial({ color }))
+    const core = this.own(this.F.createMesh(this.unitSphere, coreMat)).object
+    core.scale.setScalar(8)
+    core.position.y = 8
+    core.renderOrder = 12
+    group.add(core)
+    // 建造进度环（在建显示：按 progress 扫弧；满格建成移除）
+    let progressRing: THREE.Mesh | null = null
+    if (!ob.built) {
+      const ringMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }))
+      progressRing = this.own(this.F.createMesh(this.flatRingGeo, ringMat)).object
+      progressRing.scale.setScalar(16)
+      progressRing.renderOrder = 11
+      group.add(progressRing)
+    }
+    const title = null
+    const sub = null
+    const p0 = orbitBuildingPos(this.provider.simState.state, ob)
+    group.position.set(toWX(p0.x), 0, toWZ(p0.y))
+    this.systemGroup.add(group)
+    return { group, bubble: null, dome: null, rim: null, core, title, sub, type: ob.type, orbit: { obId: ob.id }, progressRing }
+  }
+
+  private disposeBuilding(v: BuildingView, key: string): void {
+    const h = this.labelHandles.get(key)
+    if (h) {
+      h.release()
+      this.labelHandles.delete(key)
+    }
   }
 
   private syncBuildings(): void {
     const { simState: sim, selection } = this.provider
+    // 轨道环装饰差分：有轨道设施（含在建）的锚天体画一圈细环（半径 = ringRadius，世界系跟锚公转）
+    const needRings = new Set<string>(sim.state.orbitBuildings.map((x) => x.anchor))
+    for (const [anchor, ring] of this.orbitRings) {
+      if (!needRings.has(anchor)) {
+        this.systemGroup.remove(ring.object)
+        this.orbitRings.delete(anchor)
+      }
+    }
+    for (const anchor of needRings) {
+      if (this.orbitRings.has(anchor)) continue
+      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }))
+      const ring = this.own(this.F.createMesh(this.flatRingGeo, mat))
+      ring.object.renderOrder = 5
+      this.orbitRings.set(anchor, ring)
+      this.systemGroup.add(ring.object)
+    }
+    for (const [anchor, ring] of this.orbitRings) {
+      const ap = starPosAt(sim.state, anchor as PlanetId)
+      ring.object.position.set(toWX(ap.x), 1, toWZ(ap.y))
+      ring.object.scale.setScalar(B.orbitBuild.ringRadius)
+    }
     // 拆除 → 视图回收
     for (const [id, view] of this.buildingViews) {
-      if (!sim.state.buildings.find((b) => b.id === id)) {
+      const isOrbit = view.orbit !== null
+      const alive = isOrbit
+        ? sim.state.orbitBuildings.some((x) => `ob${x.id}` === id)
+        : sim.state.buildings.some((b) => `b${b.id}` === id)
+      if (!alive) {
         this.systemGroup.remove(view.group)
-        this.disposeBuilding(view)
+        this.disposeBuilding(view, id)
         this.buildingViews.delete(id)
       }
     }
+    // 轨道建筑（近地轨道建设）：绕锚行星均布公转，视图键 ob<id>
+    for (const ob of sim.state.orbitBuildings) {
+      const key = `ob${ob.id}`
+      let view = this.buildingViews.get(key)
+      if (!view || view.type !== ob.type) {
+        if (view) {
+          this.systemGroup.remove(view.group)
+          this.disposeBuilding(view, key)
+        }
+        view = this.buildOrbitView(ob)
+        this.buildingViews.set(key, view)
+      }
+      const def = orbitBuildingDefOf(ob.type)
+      const color = StarMapRenderComponent.BUILDING_COLORS[ob.type] ?? 0x7dffb0
+      const op = orbitBuildingPos(sim.state, ob)
+      view.group.position.set(toWX(op.x), 0, toWZ(op.y))
+      ;(view.core.material as THREE.MeshBasicMaterial).color.setHex(ob.built ? color : 0x6a8496)
+      if (view.progressRing) {
+        // 建造进度环：随 progress 缩放（0 → 收缩点，1 → 满环后随建成移除）
+        view.progressRing.scale.setScalar(4 + ob.progress * 14)
+        ;(view.progressRing.material as THREE.MeshBasicMaterial).opacity = ob.built ? 0 : 0.85
+      }
+      const name = def?.name ?? ob.type
+      this.ensureBuildingLabel(
+        key,
+        view,
+        toWX(op.x),
+        toWZ(op.y),
+        ob.built ? `${name} ${ob.id}` : `${name} ${ob.id} · 建造中 ${Math.round(ob.progress * 100)}%`,
+        ob.built ? '近地轨道设施' : '',
+      )
+    }
     for (const b of sim.state.buildings) {
-      let view = this.buildingViews.get(b.id)
+      const key = `b${b.id}`
+      let view = this.buildingViews.get(key)
       if (!view || view.type !== b.type) {
         if (view) {
           this.systemGroup.remove(view.group)
-          this.disposeBuilding(view)
+          this.disposeBuilding(view, key)
         }
         view = this.buildBuildingView(b)
-        this.buildingViews.set(b.id, view)
+        this.buildingViews.set(key, view)
       }
       const def = buildingDefOf(b.type)
       const selected = selection?.type === 'building' && selection.id === b.id
@@ -901,16 +1012,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       view.core.scale.setScalar(selected ? 11 : 9)
       const name = def?.name ?? b.type
       const isRelay = (def?.bufferCap ?? 0) > 0
-      if (isRelay && def) {
-        view.title.set(`${name} ${b.id} · 缓存 ${Math.floor(b.stock)}/${def.bufferCap}`, 16, '#ffd9a0')
-        view.sub.set(def.linkable ? '航线可链接' : '', 13, '#8fb2c6')
-      } else if (def) {
-        view.title.set(`${name} ${b.id}`, 16, '#9fdcff')
-        view.sub.set(`护盾半径 ${def.radius} · 保全 ${def.shipCap} 艘`, 13, '#7fa8bc')
-      }
-      view.title.setPos(bp.x, bp.y, 42)
-      view.sub.setPos(bp.x, bp.y, 22)
-      view.lastSubKey = ''
+      this.ensureBuildingLabel(
+        key,
+        view,
+        toWX(bp.x),
+        toWZ(bp.y),
+        isRelay && def ? `${name} ${b.id} · 缓存 ${Math.floor(b.stock)}/${def.bufferCap}` : `${name} ${b.id}`,
+        isRelay && def ? (def.linkable ? '航线可链接' : '') : `护盾半径 ${def?.radius ?? 0} · 保全 ${def?.shipCap ?? 0} 艘`,
+      )
     }
   }
 
@@ -1308,7 +1417,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     // 建筑视图过滤（建筑 group 归 systemGroup 常显，此处只做显隐）；
     // 入轨建筑按实时位置判定（跟随锚行星公转，落点静态坐标会漂出画幅口径）
     for (const [id, view] of this.buildingViews) {
-      const b = this.provider.simState.state.buildings.find((x) => x.id === id)
+      const ob = id.startsWith('ob') ? this.provider.simState.state.orbitBuildings.find((x) => `ob${x.id}` === id) : null
+      if (ob) {
+        // 轨道建筑：锚在聚焦天体系内才显示（锚 = 聚焦行星或其卫星）
+        const mc = (B.map.moons as Record<string, { parent: PlanetId } | undefined>)[ob.anchor]
+        view.group.visible = !solar && (ob.anchor === focus || mc?.parent === focus)
+        continue
+      }
+      const b = this.provider.simState.state.buildings.find((x) => `b${x.id}` === id)
       if (!b) continue
       const c = starPosAt(this.provider.simState.state, focus)
       const bp = buildingPos(this.provider.simState.state, b)
@@ -1344,7 +1460,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       q.mesh.visible = inEarthView(from.x, from.y) && inEarthView(to.x, to.y)
     }
     for (const [id, view] of this.buildingViews) {
-      const b = this.provider.simState.state.buildings.find((x) => x.id === id)
+      const ob = id.startsWith('ob') ? this.provider.simState.state.orbitBuildings.find((x) => `ob${x.id}` === id) : null
+      if (ob) {
+        const op = orbitBuildingPos(this.provider.simState.state, ob)
+        view.group.visible = inEarthView(op.x, op.y)
+        continue
+      }
+      const b = this.provider.simState.state.buildings.find((x) => `b${x.id}` === id)
       if (!b) continue
       const bp = buildingPos(this.provider.simState.state, b)
       view.group.visible = inEarthView(bp.x, bp.y)
@@ -1364,9 +1486,60 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.stageGroup.position.set(stage.x - toWX(fp.x), 0, stage.z - toWZ(fp.y))
   }
 
-  /** 每帧同步（GameMode.Tick 驱动；dt = 真实时间；cam = 太阳系相机，用于标注 LOD / 建筑网格覆盖） */
+  /**
+   * 建筑 → 世界 UI 标签差分（键 = 差分键 ob<id>/b<id>；拆建筑/重建视图经 disposeBuilding(同名键) release）。
+   * 标签 = building_label.widget.json（UIWorldAnchor mode=world + faceCamera）：位置逐帧贴建筑世界坐标（悬浮高度 B.orbitBuild.labelHeight），billboard 朝相机。
+   * 舞台补偿（2026-09-09）：世界 UI 根挂主场景、不随 stageGroup 平移，而建筑视图在 stageGroup 里 ——
+   * 行星系舞台每帧平移补偿聚焦行星公转位移，标签位置必须叠加同一偏移，否则与建筑分离漂出屏。
+   * 距离 LOD：相机距标签超过 B.orbitBuild.labelLodDist 整树隐藏（bActive 级联，句柄保留可恢复）。
+   * 文本差分：Title 常驻，Sub 空串即清空（世界 UI Actor 复用，不反复生成销毁）。
+   */
+  private ensureBuildingLabel(viewKey: string, view: BuildingView, wx: number, wz: number, titleText: string, subText: string): void {
+    let h: AnchoredWidgetHandle | undefined = this.labelHandles.get(viewKey)
+    if (!h) {
+      const spawned = this.owner.world?.ui.spawnAnchoredWidget(StarMapRenderComponent.BUILDING_LABEL_WIDGET, null, { mode: 'world', faceCamera: true })
+      if (!spawned) {
+        logger.warn('[StarMap] 建筑标签 widget 生成失败（building_label），本轮跳过')
+        return
+      }
+      h = spawned
+      this.labelHandles.set(viewKey, h)
+    }
+    const root = h.actor
+    if (!root) return
+    // 位置 = 建筑世界坐标 + 舞台偏移（sg 不为零时建筑真实渲染位 = 坐标 + 偏移；世界 UI 不在舞台组内须自带）
+    const sg = this.stageGroup.position
+    const lh = B.orbitBuild.labelHeight
+    h.transform?.setPosition(wx + sg.x, lh, wz + sg.z)
+    // 距离 LOD：相机与标签三维距离超过阈值隐藏整树（bActive 级联子树，差分防每帧重算祖先链）；
+    // 且与建筑组可见性同源（applyViewMode/syncViewFilter 隐藏建筑组时标签一并隐藏，防孤儿悬浮标签）。
+    // 距离必须含 Y：本作是垂直俯视相机，XZ 恒 ≈ 焦点半径（不随缩放变），缩放改变的只有相机高度
+    const cam = this.lastCam
+    if (cam) {
+      const dx = cam.position.x - (wx + sg.x)
+      const dy = cam.position.y - lh
+      const dz = cam.position.z - (wz + sg.z)
+      const want = view.group.visible && dx * dx + dy * dy + dz * dz <= B.orbitBuild.labelLodDist * B.orbitBuild.labelLodDist
+      if (root.bActive !== want) root.bActive = want
+    }
+    const title = root.getChildren().find((c) => c.root.name === 'Title')?.getComponent(UITextComponent) ?? null
+    const sub = root.getChildren().find((c) => c.root.name === 'Sub')?.getComponent(UITextComponent) ?? null
+    if (title && title.text !== titleText) title.text = titleText
+    if (sub) {
+      if (subText) {
+        if (sub.text !== subText) sub.text = subText
+      } else if (sub.text) {
+        sub.text = ''
+      }
+    }
+    view.title = title
+    view.sub = sub
+  }
+
+  /** 每帧同步（GameMode.Tick 驱动；dt = 真实时间；cam = 太阳系相机，用于标注 LOD / 建筑网格覆盖 / 标签距离裁剪） */
   render(dt: number, cam?: THREE.Camera | null): void {
     this.animTime += dt
+    this.lastCam = cam ?? null
     this.syncStage()
     this.syncRoutes()
     this.syncShips()

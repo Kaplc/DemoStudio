@@ -17,10 +17,6 @@
     .Label_pt { width: 32px; height: 30px; font-size: 20px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .PtsText { width: 52px; height: 30px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .RateText { width: 100px; height: 30px; flex-shrink: 0; font-size: 17px; color: #9fc4d8; text-align: right; text-shadow: 1px 1px 4px #00000066; }
-    .ShipRow { width: 490px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 10px; }
-    .Btn_ship { width: 150px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a5a3a; border-radius: 8px; }
-    .Btn_ship:hover { background-color: #35704a; }
-    .Label_ship { width: 140px; height: 30px; font-size: 19px; color: #b8ffd8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="PanelRoot" data-name="PanelRoot">
@@ -32,9 +28,6 @@
         <div class="LineRow"><text class="LineText" data-name="Line_cargo">货舱线 0%</text><button class="Btn_pt" data-name="Btn_dec_cargo"><text class="Label_pt">-</text></button><text class="PtsText" data-name="Pts_cargo">0点</text><button class="Btn_pt" data-name="Btn_inc_cargo"><text class="Label_pt">+</text></button><text class="RateText" data-name="Rate_cargo">0.0/s</text></div>
         <div class="LineRow"><text class="LineText" data-name="Line_infra">基建线 0%</text><button class="Btn_pt" data-name="Btn_dec_infra"><text class="Label_pt">-</text></button><text class="PtsText" data-name="Pts_infra">0点</text><button class="Btn_pt" data-name="Btn_inc_infra"><text class="Label_pt">+</text></button><text class="RateText" data-name="Rate_infra">0.0/s</text></div>
         <div class="LineRow"><text class="LineText" data-name="Line_expand">扩张线 0%</text><button class="Btn_pt" data-name="Btn_dec_expand"><text class="Label_pt">-</text></button><text class="PtsText" data-name="Pts_expand">0点</text><button class="Btn_pt" data-name="Btn_inc_expand"><text class="Label_pt">+</text></button><text class="RateText" data-name="Rate_expand">0.0/s</text></div>
-        <div class="ShipRow">
-          <button class="Btn_ship" data-name="Btn_ship"><text class="Label_ship">造船 180</text></button>
-        </div>
       </div>
     </div>
   </div>

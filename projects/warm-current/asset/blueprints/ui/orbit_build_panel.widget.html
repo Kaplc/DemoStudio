@@ -1,0 +1,30 @@
+<widget name="OrbitBuildPanel" canvas="1920x1080" data-script="gameplay/ui/OrbitPanelScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .PanelRoot { width: 560px; height: 560px; position: absolute; left: 680px; top: 240px; display: flex; flex-direction: column; gap: 8px; }
+    .OrbitBody { width: 560px; height: 560px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .PanelTitleRow { width: 530px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 300px; height: 34px; flex-shrink: 0; font-size: 22px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_close_panel { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
+    .Btn_close_panel:hover { background-color: #3d566f; }
+    .Label_close_panel { width: 110px; height: 28px; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .FleetText { width: 530px; height: 28px; flex-shrink: 0; font-size: 19px; color: #ffd9a8; text-shadow: 1px 1px 4px #00000066; }
+    .OrbitRow { width: 530px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 8px; }
+    .OrbitInfo { width: 420px; height: 52px; flex-shrink: 0; font-size: 17px; line-height: 24px; color: #cfe3ee; text-shadow: 1px 1px 6px #00000099; }
+    .Btn_ob { width: 100px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a5a3a; border-radius: 8px; }
+    .Btn_ob:hover { background-color: #35704a; }
+    .ObLabel { width: 90px; height: 28px; font-size: 18px; color: #b8ffd8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="PanelRoot" data-name="PanelRoot">
+      <div class="OrbitBody" data-name="OrbitBody">
+        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">近地轨道</text><button class="Btn_close_panel" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button></div>
+        <text class="FleetText" data-name="FleetText"></text>
+        <div class="OrbitRow" data-name="OrbitRow_0"><text class="OrbitInfo" data-name="OrbitInfo_0"></text><button class="Btn_ob" data-name="Btn_ob_0"><text class="ObLabel">建造</text></button></div>
+        <div class="OrbitRow" data-name="OrbitRow_1"><text class="OrbitInfo" data-name="OrbitInfo_1"></text><button class="Btn_ob" data-name="Btn_ob_1"><text class="ObLabel">建造</text></button></div>
+        <div class="OrbitRow" data-name="OrbitRow_2"><text class="OrbitInfo" data-name="OrbitInfo_2"></text><button class="Btn_ob" data-name="Btn_ob_2"><text class="ObLabel">建造</text></button></div>
+        <div class="OrbitRow" data-name="OrbitRow_3"><text class="OrbitInfo" data-name="OrbitInfo_3"></text><button class="Btn_ob" data-name="Btn_ob_3"><text class="ObLabel">建造</text></button></div>
+      </div>
+    </div>
+  </div>
+</widget>

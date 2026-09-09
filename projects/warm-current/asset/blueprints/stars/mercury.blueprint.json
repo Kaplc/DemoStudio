@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 11,
-        "color": "#9a8f84",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/mercury.jpg",
         "name": "MercuryMesh"
       }
     }

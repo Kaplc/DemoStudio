@@ -14,8 +14,10 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 96,
-        "color": "#ffb347",
+        "segments": [48, 32],
+        "color": "#ffffff",
         "kind": "basic",
+        "texture": "asset/textures/sun.jpg",
         "name": "SunMesh"
       }
     }

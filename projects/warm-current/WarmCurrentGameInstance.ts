@@ -19,7 +19,7 @@ import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
 import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
 import { B } from './gameplay/core/balance'
 import { SAVE_KEY, SAVE_SLOT_FILES, SAVE_SLOT_COUNT, serializeSlot, readSlotMetaWithSlot, findLatestSlotMeta } from './gameplay/core/save'
-import type { Endpoint, SimState } from './gameplay/core/types'
+import type { Endpoint, PlanetBodyId, SimState } from './gameplay/core/types'
 
 declare global {
   interface Window {
@@ -74,6 +74,10 @@ export interface WarmCurrentDebugBridge {
   setRouteEditMode(on: boolean): void
   routeEditMode(): boolean
   openPlanetInfo(body: string): void
+  /** 轨道建设面板（点行星 → 近地轨道建设）：开合 + 表驱动落位（e2e 直驱） */
+  openOrbitBuild(anchor: string): void
+  closeOrbitBuild(): void
+  placeOrbitBuilding(type: string, anchor: string): boolean
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
   setShipFlying(progress: number): boolean
   triggerFlare(): void
@@ -385,6 +389,9 @@ export class WarmCurrentGameInstance extends GameInstance {
       },
       routeEditMode: () => instance._gameMode?.routeEditMode ?? false,
       openPlanetInfo: (body) => instance._gameMode?.openPlanetInfo(body as import('./gameplay/core/helpers').SolarBodyId),
+      openOrbitBuild: (anchor) => instance._gameMode?.openOrbitBuild(anchor as PlanetBodyId),
+      closeOrbitBuild: () => instance._gameMode?.closeOrbitBuild(),
+      placeOrbitBuilding: (type, anchor) => instance._gameMode?.orbitBuild.tryPlace(type, anchor as PlanetBodyId) ?? false,
       setShipFlying: (progress) => {
         const mode = instance._gameMode
         if (!mode) return false

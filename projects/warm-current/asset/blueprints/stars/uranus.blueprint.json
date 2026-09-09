@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 24,
-        "color": "#9fd8dd",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/uranus.jpg",
         "name": "UranusMesh"
       }
     }

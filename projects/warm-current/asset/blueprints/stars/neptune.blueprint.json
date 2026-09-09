@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 23,
-        "color": "#5a8fd8",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/neptune.jpg",
         "name": "NeptuneMesh"
       }
     }

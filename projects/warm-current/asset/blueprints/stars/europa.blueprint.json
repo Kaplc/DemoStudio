@@ -14,6 +14,7 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 30,
+        "segments": [48, 32],
         "color": "#8fd0f0",
         "name": "EuropaMesh"
       }

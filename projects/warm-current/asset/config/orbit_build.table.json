@@ -1,0 +1,8 @@
+{
+  "_comment": "近地轨道建筑配置表（轨道建设面板行序 = 行键序）。行键 = 建筑类型 id（OrbitBuilding.type）。\n cost=建造造价(H3，选型落位即扣)；buildTime=建造工期(秒，tickBuild 灌进度)；\n shipBuildCostMult=经此建筑造船的造价乘区(<1 更便宜，1=无折扣)；shipBuildSpeedMult=造船时长除数(>1 更快)。\n 加新建筑：加一行 + 轨道建设面板自动多一行（行池见 OrbitPanelScript ORBIT_ROWS），渲染外观在 StarMapRenderComponent 按类型分支。",
+  "dock": {
+    "name": "船坞", "desc": "轨道造船 · 造价 −25% / 提速 30%",
+    "cost": 260, "buildTime": 60,
+    "shipBuildCostMult": 0.75, "shipBuildSpeedMult": 1.3
+  }
+}

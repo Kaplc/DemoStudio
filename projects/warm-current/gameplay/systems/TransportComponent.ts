@@ -3,14 +3,17 @@
  *
  * 拖线建航线（正向运 H3 / 反向运建材）、派船/召回/删线、造船/重建、
  * 飞船循环运输状态机（loading → flying → unloading → …）、火星模块任务。
+ * 造船队列逐船一卡（SimShipBuild {remain, total, dockId}）：每艘在造船独立倒计时条目，
+ * 承接船坞 id 随行记录（造船队列全游戏唯一——单生产线 FIFO，船坞面板展示全局队列）。
  */
-import { BObjectComponent } from '@/engine'
+import { BObjectComponent, logger } from '@/engine'
 import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
   legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
+import { isShipyardType, orbitBuildingDefOf } from './OrbitBuildComponent'
 import type { Endpoint, SimRoute, SimShip, StarId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -194,18 +197,38 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
   }
 
   /** 主动造船（shipBuildCost H3 + shipBuildTime 秒；受聚能环等级飞船上限约束：
-   *  在册 + 建造排队总数 < ship_cap 表当前等级 cap，超限 hint 拒绝） */
-  tryBuildShip(): boolean {
+   *  在册 + 建造排队总数 < ship_cap 表当前等级 cap，超限 hint 拒绝。
+   *  2026-09-09 造船入口收口：面板路径必传 orbitBuildingId（建成船坞），
+   *  乘区取传入船坞自己的表值（对着哪座坞造船就按哪座坞计价，与面板展示价同源）；
+   *  缺省（GM/调试桥）保持无船坞原价原时长） */
+  tryBuildShip(orbitBuildingId?: number): boolean {
     const s = this.sc.state
     const cap = this.sc.shipCap
     if (s.ships.length + s.buildQueue.length >= cap) {
       this.sc.hint(`飞船已达当前聚能环上限 ${cap} 艘（提升聚能环等级解锁更多船位）`)
       return false
     }
-    if (s.earthH3 < B.shipBuildCost) { this.sc.hint(`H3 不足（造船需 ${B.shipBuildCost}）`); return false }
-    s.earthH3 -= B.shipBuildCost
-    s.ledger.shipBuild += B.shipBuildCost
-    s.buildQueue.push(B.shipBuildTime)
+    // 船坞乘区：面板路径传建成船坞 id；查不到/未建成/无造船能力 = 拒绝（面板只能对着建成船坞造船）
+    let costMult = 1
+    let speedMult = 1
+    if (orbitBuildingId !== undefined) {
+      const ob = s.orbitBuildings.find((x) => x.id === orbitBuildingId)
+      const def = ob ? orbitBuildingDefOf(ob.type) : null
+      if (!ob || !ob.built || !def || !isShipyardType(ob.type)) return false
+      costMult = def.shipBuildCostMult
+      speedMult = def.shipBuildSpeedMult
+    }
+    const cost = Math.round(B.shipBuildCost * costMult)
+    if (s.earthH3 < cost) { this.sc.hint(`H3 不足（造船需 ${cost}）`); return false }
+    s.earthH3 -= cost
+    s.ledger.shipBuild += cost
+    // 逐船入队（每艘一卡；total 锁定本艘总时长，dockId 记录承接船坞，无参路径 = 0）
+    const remainS = B.shipBuildTime / speedMult
+    s.buildQueue.push({ remain: remainS, total: remainS, dockId: orbitBuildingId ?? 0 })
+    logger.info(
+      `[Transport] 造船入队：队列 ${s.buildQueue.length} 艘 · 本艘 ${remainS.toFixed(1)}s · ` +
+      `折后 ${cost} H3（船坞 ${orbitBuildingId ?? '无'}）`,
+    )
     return true
   }
 
@@ -247,8 +270,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
   tickBuildQueue(dt: number): void {
     const s = this.sc.state
     if (s.buildQueue.length === 0) return
-    s.buildQueue[0] -= dt
-    if (s.buildQueue[0] <= 0) {
+    s.buildQueue[0].remain -= dt
+    if (s.buildQueue[0].remain <= 0) {
       s.buildQueue.shift()
       s.ships.push(makeShip(s.ships.length + 1))
       this.sc.emit({ type: 'ship_built' })

@@ -1,0 +1,10 @@
+{
+  "_comment": "近地轨道建设参数（单例配置）。ringRadius=轨道环半径(画布px，距锚行星中心，建筑绕环均布公转)；orbitSpeed=环上角速度基准(rad/s，实际 ω = orbitSpeed / ringRadius，与地图建筑入轨同口径)；maxPerType=同型建筑上限；labelHeight=建筑标签悬浮高度(世界单位)；labelLodDist=建筑标签显示距离(相机距标签超过此值隐藏)。加参数：balance.ts B.orbitBuild 加字段 + 此表覆盖。",
+  "orbitBuild": {
+    "ringRadius": 96,
+    "orbitSpeed": 0.5,
+    "maxPerType": 3,
+    "labelHeight": 64,
+    "labelLodDist": 420
+  }
+}

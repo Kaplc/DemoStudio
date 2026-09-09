@@ -34,6 +34,20 @@ export interface MapSystemCfg { center: string; nodes: Record<string, MapNodeCfg
 /** 舰队维护费阶梯行：ships = 船队规模上限（含），costPerS = 维护费速率（H3/秒，全舰队合计） */
 export interface FleetMaintTier { ships: number; costPerS: number }
 
+/** 轨道建筑定义（= orbit_build.table.json 行，行键 = OrbitBuilding.type；2026-09-09 近地轨道建设） */
+export interface OrbitBuildingDef {
+  name: string
+  desc: string
+  /** 建造造价（H3，选型落位时一次性扣除） */
+  cost: number
+  /** 建造工期（秒，tickBuild 灌进度） */
+  buildTime: number
+  /** 造船造价乘区（<1 = 经此建筑造船更便宜；仅对有造船能力的建筑生效） */
+  shipBuildCostMult: number
+  /** 造船时长除数（>1 = 经此建筑造船更快） */
+  shipBuildSpeedMult: number
+}
+
 /** 建筑定义（= building.table.json 行，行键 = SimBuilding.type） */
 export interface BuildingDef {
   name: string
@@ -262,6 +276,23 @@ export const B = {
     relay: { name: '中转站', desc: '被航线链接 · 缓存物资', cost: 150, radius: 0, bufferCap: 800, shipCap: 0, resumeDelay: 0, refundPct: 0.5, linkable: true },
     shield: { name: '磁场护盾发生器', desc: '耀斑护盾 · 半径内保全飞船', cost: 220, radius: 220, bufferCap: 0, shipCap: 2, resumeDelay: 3, refundPct: 0.5, linkable: false },
   } as Record<string, BuildingDef>,
+  // 近地轨道建筑（orbit_build.table.json 覆盖；行键 = OrbitBuilding.type，轨道建设面板行序 = 键序）
+  orbitBuildings: {
+    dock: { name: '船坞', desc: '轨道造船 · 造价 −25% / 提速 30%', cost: 260, buildTime: 60, shipBuildCostMult: 0.75, shipBuildSpeedMult: 1.3 },
+  } as Record<string, OrbitBuildingDef>,
+  // 近地轨道建设参数（orbit_build.config.json 覆盖）
+  orbitBuild: {
+    /** 轨道环半径（画布 px，距锚行星中心；建筑绕环均布） */
+    ringRadius: 96,
+    /** 环上角速度（rad/s，与地图建筑入轨同口径 ω = orbitSpeed / ringRadius） */
+    orbitSpeed: 0.5,
+    /** 同型建筑上限 */
+    maxPerType: 3,
+    /** 建筑 UI 标签悬浮高度（世界单位 = 设计 px；building_label 世界空间 UI 逐帧贴此高度） */
+    labelHeight: 64,
+    /** 建筑 UI 标签显示距离（世界单位；相机距标签超过此值隐藏，近了恢复） */
+    labelLodDist: 420,
+  },
   // 建筑放置（建造模式）
   build: {
     /** 网格间距（地图 px；放置吸附 + 网格线） */
@@ -402,6 +433,34 @@ export function refreshBalanceFromConfigs(): void {
         const row = table.getRow(key)
         const def = (B.buildings as Record<string, BuildingDef | undefined>)[key]
         if (def && row) Object.assign(def, row)
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 近地轨道建设参数（orbit_build.config.json：单例 config；字段级覆盖，未配置字段保留 B 兜底。
+  // 注：文件内容包在 "orbitBuild" 键下，getConfig 返回顶层 → 取 obCfg.orbitBuild 解包）
+  try {
+    const obRaw = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.orbit_build')
+    const obCfg = ((obRaw as { orbitBuild?: Record<string, number> } | undefined)?.orbitBuild ?? obRaw) as Record<string, number> | undefined
+    if (obCfg) {
+for (const k of ['ringRadius', 'orbitSpeed', 'maxPerType', 'labelHeight', 'labelLodDist'] as const) {
+        if (typeof obCfg[k] === 'number') (B.orbitBuild as unknown as Record<string, number>)[k] = obCfg[k]
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 近地轨道建筑表（orbit_build.table.json：行键 = OrbitBuilding.type，整行覆盖默认值；
+  // 表新增行而代码无默认值时按兜底行插入，保证纯表驱动加建筑可行）
+  try {
+    const table = ConfigRegistry.getTable<Partial<OrbitBuildingDef>>('warm-current.orbit_buildings')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.orbitBuildings as Record<string, OrbitBuildingDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.orbitBuildings as Record<string, OrbitBuildingDef>)[key] = {
+          name: key, desc: '', cost: 0, buildTime: 0, shipBuildCostMult: 1, shipBuildSpeedMult: 1, ...row,
+        }
       }
     }
   } catch { /* 未注册 → 默认值 */ }

@@ -67,6 +67,31 @@ export interface SimShip {
   mission: boolean
 }
 
+/** 造船队列项（逐船一卡：2026-09-09 用户需求——船坞面板每艘在造船一张卡片排队展示） */
+export interface SimShipBuild {
+  /** 剩余建造秒数（tickBuildQueue 递减） */
+  remain: number
+  /** 本艘总建造秒（入队时锁定，进度分母 = 1 − remain/total） */
+  total: number
+  /** 承接船坞的轨道建筑 id（全游戏唯一造船队列的归属记录；GM/桥无参路径 = 0 无船坞归属） */
+  dockId: number
+}
+
+/** 近地轨道建筑（2026-09-09 用户需求：点行星 → 轨道建设 → 建筑绕行星均布公转；表驱动类型） */
+export interface OrbitBuilding {
+  id: number
+  /** 建筑类型（orbit_build.table.json 行键，B.orbitBuildings 查数值） */
+  type: string
+  /** 轨道锚定天体（行星或卫星；环绕其公转） */
+  anchor: PlanetBodyId
+  /** t=0 相位角（rad）；同锚建筑按落位顺序均布 2π/n */
+  a0: number
+  /** 建造进度 0..1（落位 0 起步，tickBuild 灌进） */
+  progress: number
+  /** 是否建成（false = 在建；造船等能力需 built=true） */
+  built: boolean
+}
+
 export type BuildingTypeId = 'relay' | 'shield'
 
 /** 地图建筑（建造面板选型 → 星图自由放置；type = building 表行键）。
@@ -151,6 +176,8 @@ export interface SimLedger {
   research: number
   /** 舰队维护费（持续，按船队规模查 fleet_maint 阶梯） */
   fleetMaint: number
+  /** 近地轨道建筑建造（一次性：落位全款） */
+  orbitBuild: number
   /** 造船 */
   shipBuild: number
   /** 冻毁船重建 */
@@ -178,6 +205,7 @@ export type SimEventType =
   | 'flare_end'
   | 'frozen'
   | 'building_built'
+  | 'orbit_building_built'
   | 'building_demolished'  | 'act2'
   | 'act3'
   | 'module_available'
@@ -215,6 +243,8 @@ export interface SimState {
   routes: SimRoute[]
   /** 地图建筑（自由放置） */
   buildings: SimBuilding[]
+  /** 近地轨道建筑（点行星 → 轨道建设面板；绕锚行星均布公转） */
+  orbitBuildings: OrbitBuilding[]
   research: SimResearchLine[]
   pendingCard: PendingCard | null
   /** 选卡排队（多线同时满进度） */
@@ -222,7 +252,8 @@ export interface SimState {
   gravity: { phase: 'idle' | 'warn' | 'active'; timer: number }
   flare: { phase: 'idle' | 'warn' | 'active'; timer: number; nextIn: number }
   module: MarsModule
-  buildQueue: number[]
+  /** 造船队列（逐船一卡：每项一艘在造船，remain 倒计时 / dockId 承接船坞） */
+  buildQueue: SimShipBuild[]
   /** 卡片修正集中营（卡效果落地处） */
   mods: SimMods
   /** 已拿卡（解锁型不重复出现） */

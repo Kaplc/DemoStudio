@@ -24,13 +24,20 @@ export function registerWarmCurrentAssets(): void {
     { eager: true },
   )
 
+  // 贴图资产（SSS 天体贴图等）：import 得到打包 URL（dev 文件路径 / build 带 hash），glob 自动收集零代码
+  const textureModules = import.meta.glob<{ default: string }>('./textures/*.{jpg,png,webp}', {
+    eager: true,
+    query: '?url',
+  })
+
   AssetRegistry.registerAll({
     scenes,
     blueprintModules: bpModules,
     scriptModules,
+    textureModules,
   })
 
   logger.info(
-    `[WarmCurrent/Asset] 注册完成: 场景=${scenes.map((s) => s.name).join(', ')} | widget=${Object.keys(bpModules).length} | 脚本=${Object.keys(scriptModules).length}`,
+    `[WarmCurrent/Asset] 注册完成: 场景=${scenes.map((s) => s.name).join(', ')} | widget=${Object.keys(bpModules).length} | 脚本=${Object.keys(scriptModules).length} | 贴图=${Object.keys(textureModules).length}`,
   )
 }

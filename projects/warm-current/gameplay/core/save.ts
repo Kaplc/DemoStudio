@@ -26,8 +26,14 @@ import type { SimState } from './types'
  *      mods.bufferAdd/recoverMult 字段删除（旧档残留读入时清）。
  *  v8：建筑入轨（2026-09-08 用户拍板：建筑放置后绕最近行星公转）——SimBuilding 新增
  *      anchor/orbitR/orbitA0（纯增量字段：旧档缺失 = 静态建筑，读入无需迁移；新档旧代码读入
- *      多余字段亦无害）。 */
-export const SAVE_FORMAT_VERSION = 8
+ *      多余字段亦无害）。
+ *  v9：近地轨道建筑（2026-09-09 用户需求：点行星 → 轨道建设 → 建筑绕行星均布公转）——
+ *      SimState.orbitBuildings 新增（旧档补空数组）、SimLedger.orbitBuild 计费项新增
+ *      （freshLedger 合并兜底）、SimEvent.orbit_building_built 事件新增。
+ *  v10：船坞独立造船面板（2026-09-09 用户需求：点船坞开独立面板，逐船一卡排队）——
+ *      SimState.buildQueue 从剩余秒数组 number[] 升级为 SimShipBuild[]（{remain, total, dockId}），
+ *      旧档读入时逐项映射 {remain: 原值, total: 原值, dockId: 0}（GM 无船坞归属口径）。 */
+export const SAVE_FORMAT_VERSION = 10
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -159,6 +165,24 @@ export function restoreSimState(
     sim.ringBuild = { points: B.ringBuild.defaultPoints }
   }
   if (typeof (sim as Partial<SimState>).ringBuildProgress !== 'number') sim.ringBuildProgress = 0
+  // v8→v9 兼容（近地轨道建筑）：旧档无 orbitBuildings → 补空数组（纯增量字段，无迁移语义）
+  if (!Array.isArray((sim as Partial<SimState>).orbitBuildings)) sim.orbitBuildings = []
+  // v9→v10 兼容（船坞独立造船面板）：buildQueue 剩余秒数组 → 逐船结构
+  // （{remain, total, dockId}；旧档无船坞归属 → dockId=0、total=remain（进度从当前剩余继续），
+  //  同 GM/桥无参路径口径）
+  if (Array.isArray(sim.buildQueue)) {
+    sim.buildQueue = sim.buildQueue.map((x) =>
+      typeof x === 'number'
+        ? { remain: x, total: x, dockId: 0 }
+        : {
+            remain: typeof x?.remain === 'number' ? x.remain : 0,
+            total: typeof x?.total === 'number' && x.total > 0 ? x.total : (typeof x?.remain === 'number' ? x.remain : 0),
+            dockId: typeof x?.dockId === 'number' ? x.dockId : 0,
+          },
+    )
+  } else {
+    sim.buildQueue = []
+  }
   // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
   // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键
   sim.ledger = { ...freshLedger(), ...(typeof sim.ledger === 'object' && sim.ledger !== null ? sim.ledger : {}) }

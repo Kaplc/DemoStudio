@@ -6,6 +6,7 @@
  *  - 点空地 / 面板内 ✕ → GameMode.closePlanetInfo() → vm.planetInfo 为 null → 面板收起
  *  - 内容按天体类型分支：地球（储量/需求/净流）、资源星（满载/油耗/航时，锁定星给解锁幕）、
  *    装饰行星（身份说明 + 双击进行星系提示）
+ *  - 「近地轨道建设」按钮：打开该天体的轨道建设面板（GameMode.openOrbitBuild）
  */
 import { BehaviourScript, logger } from '@/engine'
 import { TextBinder, VisBinder, findButton, findText, wcMode } from './uiCommon'
@@ -25,6 +26,13 @@ export default class PlanetInfoScript extends BehaviourScript {
     // 面板内 ✕ 关闭 = 清空 GameMode.planetInfoSel（点空地同链路）
     const btn = findButton(this.actor, 'Btn_panel_close')
     if (btn) btn.onClick = () => wcMode()?.closePlanetInfo()
+    // 近地轨道建设入口：打开该天体的轨道建设面板（互斥收起本面板，openOrbitBuild 内处理；
+    // 太阳无近地轨道语义，不给入口行为）
+    const orbitBtn = findButton(this.actor, 'Btn_orbit')
+    if (orbitBtn) orbitBtn.onClick = () => {
+      const sel = wcMode()?.planetInfoSel
+      if (sel && sel !== 'sun') wcMode()?.openOrbitBuild(sel)
+    }
     // 默认收起（脚本置位，先于首帧渲染）
     this.vis.set(this.actor, 'InfoBody', false)
     logger.info('[PlanetInfoScript] 星球信息面板就绪（默认收起）')

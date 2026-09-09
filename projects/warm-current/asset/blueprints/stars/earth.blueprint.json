@@ -14,7 +14,9 @@
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 38,
-        "color": "#4a86b0",
+        "segments": [48, 32],
+        "color": "#ffffff",
+        "texture": "asset/textures/earth.jpg",
         "name": "EarthMesh"
       }
     }
