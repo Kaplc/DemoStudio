@@ -15,7 +15,7 @@ projects/warm-current/
 ├─ WarmCurrentConfigLoader.ts      # ConfigLoaderBase：registerGlob 7 张表（'projects/…' 外部根前缀）
 ├─ asset/
 │  ├─ scenes/warm_current.scene.json   # WarmCurrentMap(mode=main)：SunLight/AmbientLight/StarMap 三 actor
-│  ├─ config/                      # 7 张配置（global/stars/node_burn/station/events/star_map/cards）+ index.ts glob
+│  ├─ config/                      # 11 张配置（global/stars/level_burn/level_cost/fleet_maint/building/ship_cap/ring_build/events/star_map/cards）+ index.ts glob；star_map=每行星系一张子表（systems.solar/earth/jupiter，子系局部画布，flattenMapSystems 展开为扁平 nodes/moons，B.map.moons 由表派生）
 │  └─ blueprints/ui/               # hud / hex_modal / settle 三 widget（.widget.html 单源 → ui_compile）
 └─ gameplay/
    ├─ base/    WarmCurrentGameMode（组件宿主+VM+指针命中）/ PlayerController（射线∩y=0）/ Pawn / audio
@@ -34,8 +34,8 @@ projects/warm-current/
 |---|---|
 | `SimStateComponent` | SimState 纯数据 + 事件队列 + rng + 快照/重试本幕/沙盒/派生查询（burnRate/demand/idleShips…） |
 | `TransportComponent` | 航线 CRUD/派船召回/造船重建/火星任务 + 飞船状态机（loading→flying→unloading） |
-| `EconomyComponent` | 焚烧 → 缓冲衰减 → 延续度回升 |
-| `ResearchComponent` | 5 线推进 + cardQueue/pendingCard + 选卡 effects 数据驱动应用 + 研究点分配（allocateResearch，2026-09-08 点数制替代超频） |
+| `EconomyComponent` | 焚烧 → 断环堆心降温 → 补燃料堆心回温（2026-09-08 堆心温度改版替代缓冲倒计时） |
+| `ResearchComponent` | 4 线推进 + cardQueue/pendingCard + 选卡 effects 数据驱动应用 + 研究点分配（allocateResearch，2026-09-08 点数制替代超频；环线已移除） |
 | `HazardsComponent` | 引力窗口周期 + 耀斑（失联停滞/护盾限额保全/盾外冻毁） |
 | `StationsComponent` | 中点建站/升级/拆除返还 + onDelivery 自动建成 |
 | `ActsComponent` | 三幕门槛 + 幕入口快照 |
@@ -73,7 +73,7 @@ triggerFlare/triggerWindow/suppressFlare/startMission/retryAct/restart/togglePau
 单长用例全链路（34.6s）：启动教学关 → 拖线（europa 拒/moon 过）→ 首船净补 +160（载 200−油 40）→
 forceResearch 三选一连选至队列清空 → setNodes(4) 推二幕 → 引力窗口木卫二线 speedMult 2/legTime 9s →
 补给站物流链（建线自动派船 + 显式补船，送满 300 自动建成 Lv1）→ 耀斑护盾盾内(0.5)保全/盾外(0.95)冻毁 →
-setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重推二幕 → 断燃料衰减 → 延续度归零 → 重试本幕恢复。
+setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重推二幕 → 断燃料断环 → 堆心降温归零 → 重试本幕恢复。
 
 **确定性三板斧**（踩出来的）：
 1. 编辑器 rAF 在用例步进间隙实时推进仿真 → **关键段落用 withBridge 在单次 evaluate 内
