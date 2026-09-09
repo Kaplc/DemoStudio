@@ -8,7 +8,9 @@
  *   - getActor 返回单个 Actor 的基础信息（名称/类型/位置/缩放）
  *   - getHUD 返回完整 UI 树结构，包含文字内容、按钮状态等 UI 特有信息
  */
-import { getEngineContext } from '../engineContext'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { getEngineContext } from '../engineContext.js'
 
 const EDITOR_MCP_PORT_DEFAULT = 9877
 
@@ -24,7 +26,7 @@ function discoverMCPBridgePort(ec: { engineBridge: { port?: number } }): number 
   return EDITOR_MCP_PORT_DEFAULT
 }
 
-async function callAIEventRaw(ctx: unknown, event: string, payload: Record<string, unknown>): Promise<unknown> {
+async function callAIEventRaw(ctx: unknown, event: string, payload: Record<string, unknown>): Promise<JsonValue> {
   const ec = getEngineContext(ctx)
   const port = ec ? discoverMCPBridgePort(ec as { engineBridge: { port?: number } }) : EDITOR_MCP_PORT_DEFAULT
   const resp = await fetch(`http://127.0.0.1:${port}/api/command`, {
@@ -33,7 +35,7 @@ async function callAIEventRaw(ctx: unknown, event: string, payload: Record<strin
     body: JSON.stringify({ command: 'ai_event', params: { event, payload } }),
   })
   if (!resp.ok) throw new Error(`MCP HTTP ${resp.status}`)
-  const r = await resp.json() as { status?: string; result?: unknown; error?: string }
+  const r = await resp.json() as { status?: string; result?: JsonValue; error?: string }
   if (r?.status === 'error') throw new Error(r.error ?? '编辑器返回错误')
   return r?.result ?? r
 }
@@ -73,7 +75,7 @@ function formatHUDTree(nodes: unknown[], indent = ''): string {
   return lines.join('\n')
 }
 
-export const getHUDTool = {
+export const getHUDTool = defineTool({
   name: 'get_hud',
   description: `获取游戏 HUD 完整结构（递归遍历 UI 大纲树）。
 
@@ -99,16 +101,7 @@ zOrder 是派生值，仅作参考；大纲树顺序是权威。
 与 ai.getState 的区别：getState 返回 Actor 列表和游戏状态，getHUD 返回 UI 树结构和文字内容。`,
   parameters: {},
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        hud: { type: 'array', description: 'UI 树结构' },
-        formatted: { type: 'string', description: '格式化的可读文本' },
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => {
       const v = value as { formatted?: string; hud?: unknown[] }
       if (v?.formatted) {
@@ -117,11 +110,11 @@ zOrder 是派生值，仅作参考；大纲树顺序是权威。
       return [{ type: 'text', text: JSON.stringify(value, null, 2) }]
     },
   },
-  execute: async (_args: unknown, ctx?: unknown) => {
+  execute: async (_args: unknown, ctx?: unknown): Promise<JsonValue> => {
     try {
-      const result = await callAIEventRaw(ctx, 'ai.getHUD', {}) as Record<string, unknown>
+      const result = await callAIEventRaw(ctx, 'ai.getHUD', {}) as { ok?: boolean; hud?: JsonValue[] }
       if (result && result.ok === false) return result
-      const hud = (result as { hud?: unknown[] })?.hud ?? []
+      const hud = result?.hud ?? []
       return {
         ok: true,
         hud,
@@ -131,4 +124,4 @@ zOrder 是派生值，仅作参考；大纲树顺序是权威。
       return { ok: false, error: String(err) }
     }
   },
-}
+})

@@ -2231,6 +2231,10 @@ html, body, #root {
   color: var(--dsw-alias-label-secondary);
   max-height: 240px;
   overflow-y: auto;
+  /* 横向轴恒定 hidden：隐式 auto 会让流式期间逐帧的溢出判定把滚动条打成反复显隐 */
+  overflow-x: hidden;
+  /* 长 token（路径/hash）不可断会横向溢出，强制折行消掉溢出源头 */
+  overflow-wrap: anywhere;
 }
 /* bare 模式：被 StepProcess 收纳时仍保留自身限高滚动。
    若不限高，单个超长推理块会把过程区撑得极长，外层要拖很久才能看到后面的工具卡片。
@@ -2238,6 +2242,8 @@ html, body, #root {
 .reasoning-block__text--bare {
   max-height: 180px;
   overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
   overscroll-behavior: contain;
 }
 
@@ -2583,6 +2589,8 @@ html, body, #root {
 .agent-step-process__body {
   max-height: 0;
   overflow-y: auto;
+  /* 横向恒定 hidden：与推理块同理，避免流式期间滚动条显隐抖动 */
+  overflow-x: hidden;
   opacity: 0;
   margin: 0;
   padding: 0 2px;
@@ -3088,6 +3096,26 @@ html, body, #root {
   border-top: 1px solid var(--dsw-alias-border-l1);
   margin-top: 4px;
 }
+/* --- 会话侧边栏：3 天前会话折叠组（默认收起） --- */
+.session-sidebar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font: var(--dsw-font-xxxs);
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  margin-top: 4px;
+  user-select: none;
+  transition: background 0.15s;
+}
+.session-sidebar__group:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.session-sidebar__group-arrow {
+  display: inline-block;
+  width: 10px;
+  flex-shrink: 0;
+}
 
 /* --- 连接状态文字 --- */
 .connection-indicator__text {
@@ -3280,6 +3308,75 @@ html, body, #root {
 .composer__stop:hover {
   background: var(--dsw-alias-state-error-primary);
   color: #fff;
+}
+/* 队列发送按钮（AI 运行时出现在发送按钮旁的时钟图标） */
+.composer__queue {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+.composer__queue:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+/* 队列发送条（输入框上方，排队中的消息） */
+.agent-send-queue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(780px, 100%);
+  margin: 0 auto;
+  padding: 0 24px 6px;
+  flex-wrap: wrap;
+}
+.agent-send-queue__label {
+  font: var(--dsw-font-xxs);
+  color: var(--dsw-alias-label-caption);
+  flex-shrink: 0;
+  user-select: none;
+}
+.agent-send-queue__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  font: var(--dsw-font-xxs);
+  color: var(--dsw-alias-label-secondary);
+}
+/* 已被接管（回合结束、等上轮结论显示完就发）的条目高亮 */
+.agent-send-queue__item--pending {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+.agent-send-queue__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-send-queue__remove {
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px;
+  border-radius: 50%;
+}
+.agent-send-queue__remove:hover {
+  color: var(--dsw-alias-state-error-primary);
 }
 .composer__footer {
   display: flex;

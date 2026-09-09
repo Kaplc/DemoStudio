@@ -12,12 +12,15 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { memoryAge, memoryAgeDays, memoryFreshnessText } from './memoryAge.js'
 import {
+  buildManualWritePrompt,
   MAX_MEMORY_CONTENT_CHARS,
   MEMORY_ENTRYPOINT,
   MEMORY_TYPES,
   STALE_MEMORY_DAYS,
+  normalizeMemoryName,
+  parsePrefixExpr,
 } from './memoryTypes.js'
-import { forgetMemories, readAllMemories, removeFromIndex, writeMemory } from './memoryStore.js'
+import { forgetMemories, readAllMemories, removeFromIndex } from './memoryStore.js'
 import type { MemoryRecord } from './memoryStore.js'
 
 /** 工具运行所需宿主环境（由 index.ts 装配时闭包注入）。 */
@@ -58,16 +61,20 @@ function assertNotChildAgent(agent: Agent | undefined): void {
 // memory_write
 // ---------------------------------------------------------------------------
 
-/** 保存/更新一条记忆（FR-1）。 */
+/**
+ * 保存/更新一条记忆：工具只做参数校验 + 按 name/description 查重，
+ * 返回写入指引提示词；落盘与索引同步由 agent 用 write/edit 手动完成，
+ * 完成后按指引全库检查过时记忆。
+ */
 export function createMemoryWriteTool(host: MemoryToolHost) {
   return defineTool({
     name: 'memory_write',
-    description: '保存/更新一条跨会话持久记忆（Markdown 文件 + MEMORY.md 索引）。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动使用；同名或同描述的已有记忆会被更新而不是重复新建。name 用语义化小写下划线（如 user_role）。',
+    description: '保存/更新一条跨会话持久记忆。本工具不直接落盘：校验参数并按 name/description 查重后返回写入指引（目标路径/frontmatter 格式/索引同步/全库过时检查），由你用 write/edit 手动完成三步才算保存。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动使用；同名或同描述的已有记忆会被指引更新而非新建。name 用语义化小写下划线（如 user_role）。',
     parameters: {
       name: { type: 'string', required: true, description: '语义化小写下划线文件名（不含 .md），如 user_role' },
-      content: { type: 'string', required: true, description: '记忆正文（Markdown）。feedback/project 类型需含 **Why:** 与 **How to apply:**；相对日期转绝对日期' },
       type: { type: 'string', enum: MEMORY_TYPES, required: true, description: 'user=用户画像 | feedback=纠正与确认 | project=项目决策动态 | reference=外部系统指针' },
       description: { type: 'string', required: true, description: '一行描述，用于检索相关性判断与去重' },
+      prefix: { type: 'string', description: '可选联想前缀表达式：项目根相对路径，支持代码风格运算符组合多路径——`a || b` 任一命中触发、`a && b` 会话内全部读过才触发（如 `src/engine || doc/engine`、`src/engine && doc/editor`；`&&` 优先级高于 `||`；单值如 `src/engine`；`/` = 全局）。读到满足表达式的文件时本条记忆全文自动注入（每会话一次）。不写则只走按需检索' },
       scope: { type: 'string', enum: ['private', 'team'], description: '记忆作用域，默认 private；当前仅实现 private' },
     },
     output: {
@@ -75,35 +82,50 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
         type: 'object',
         additionalProperties: false,
         properties: {
-          status: { type: 'string', enum: ['created', 'updated'], required: true },
+          action: { type: 'string', enum: ['manual_write'], required: true },
           file: { type: 'string', required: true },
           deduped_by: { type: 'string', enum: ['name', 'description'] },
-          note: { type: 'string' },
+          existing_file: { type: 'string' },
+          prompt: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{
-        type: 'text',
-        text: value.status === 'created'
-          ? `已保存记忆 ${value.file} 并更新 MEMORY.md 索引。${value.note ?? ''}`
-          : `已更新已有记忆 ${value.file}（按${value.deduped_by === 'name' ? '同名' : '同描述'}去重），索引已同步。${value.note ?? ''}`,
-      }],
+      render: (_args, value) => [{ type: 'text', text: value.prompt }],
     },
     async execute(args, exec) {
       assertNotChildAgent(exec.agent)
       if (args.scope !== undefined && args.scope !== 'private') {
         throw new Error(`scope "${args.scope}" 尚未实现；当前仅支持 private`)
       }
-      const result = await writeMemory(host.memoryDirectory, {
-        name: args.name,
-        content: args.content,
+      const fileName = normalizeMemoryName(args.name)
+      if (!(MEMORY_TYPES as readonly string[]).includes(args.type)) {
+        throw new Error(`type "${args.type}" 非法；必须是 ${MEMORY_TYPES.join('/')}`)
+      }
+      if (args.prefix !== undefined && parsePrefixExpr(args.prefix) === undefined) {
+        throw new Error(`prefix 表达式 "${args.prefix}" 无效：运算符用双字符 && / ||，至少含一个非空路径`)
+      }
+      const all = await readAllMemories(host.memoryDirectory)
+      const byName = all.find(record => record.fileName === fileName)
+      const hit = byName ?? all.find(record => record.description !== undefined && record.description === args.description)
+      const filePath = join(host.memoryDirectory, hit?.fileName ?? fileName)
+      const mode = byName !== undefined
+        ? 'update-by-name'
+        : hit !== undefined ? 'update-by-description' : 'create'
+      const prompt = buildManualWritePrompt({
+        filePath,
+        mode,
+        existingFile: hit?.fileName,
         type: args.type,
-        description: args.description,
+        prefix: args.prefix,
       })
+      const deduped_by = byName !== undefined
+        ? 'name' as const
+        : hit !== undefined ? 'description' as const : undefined
       return {
-        status: result.status,
-        file: result.fileName,
-        ...(result.dedupedBy === undefined ? {} : { deduped_by: result.dedupedBy }),
-        ...(args.scope === undefined ? {} : { note: 'scope 字段已接受；当前实现仅 private（team 为预留）。' }),
+        action: 'manual_write' as const,
+        file: filePath,
+        deduped_by,
+        existing_file: hit?.fileName,
+        prompt,
       }
     },
   })

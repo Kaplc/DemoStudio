@@ -174,9 +174,10 @@ export interface AgentConfig {
 
 // ─── Agent 事件类型（完整对齐 DSH） ───
 export type AgentEventType =
-  // 流式内容（reasoning.delta：live 推理节流下发，payload 见 ReasoningDeltaPayload）
+  // 流式内容（reasoning.delta / content.delta：live 推理与正文节流下发，payload 见 *DeltaPayload）
   | 'message.delta'
   | 'reasoning.delta'
+  | 'content.delta'
   // 消息生命周期
   | 'message'
   | 'context'
@@ -241,6 +242,14 @@ export interface SessionInfo {
  * 全量推理文本（非增量）。面板显示队列空闲时据此即时渲染 live 推理卡片。
  */
 export interface ReasoningDeltaPayload {
+  text: string
+}
+
+/**
+ * 实时正文下发（content.delta）：text-delta 在服务端按周期节流合并后的
+ * 全量正文文本（非增量）。面板显示队列空闲时据此即时渲染 live 正文。
+ */
+export interface ContentDeltaPayload {
   text: string
 }
 

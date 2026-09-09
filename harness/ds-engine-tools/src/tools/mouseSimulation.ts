@@ -9,7 +9,9 @@
  *   - mouse_click 按屏幕坐标触发（真实模拟，走完整射线管线）
  */
 import { z } from 'zod'
-import { getEngineContext } from '../engineContext'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { getEngineContext } from '../engineContext.js'
 
 // ═══════════════════════════════════════
 //  通用 HTTP 调用（复用 emitAIEvent 的通道）
@@ -29,7 +31,7 @@ function discoverMCPBridgePort(ec: { engineBridge: { port?: number } }): number 
   return EDITOR_MCP_PORT_DEFAULT
 }
 
-async function callAIEventRaw(ctx: unknown, event: string, payload: Record<string, unknown>): Promise<unknown> {
+async function callAIEventRaw(ctx: unknown, event: string, payload: Record<string, unknown>): Promise<JsonValue> {
   const ec = getEngineContext(ctx)
   const port = ec ? discoverMCPBridgePort(ec as { engineBridge: { port?: number } }) : EDITOR_MCP_PORT_DEFAULT
   const resp = await fetch(`http://127.0.0.1:${port}/api/command`, {
@@ -38,7 +40,7 @@ async function callAIEventRaw(ctx: unknown, event: string, payload: Record<strin
     body: JSON.stringify({ command: 'ai_event', params: { event, payload } }),
   })
   if (!resp.ok) throw new Error(`MCP HTTP ${resp.status}`)
-  const r = await resp.json() as { status?: string; result?: unknown; error?: string }
+  const r = await resp.json() as { status?: string; result?: JsonValue; error?: string }
   if (r?.status === 'error') throw new Error(r.error ?? '编辑器返回错误')
   return r?.result ?? r
 }
@@ -53,7 +55,7 @@ const mouseClickSchema = z.object({
   button: z.number().optional().describe('鼠标按键：0=左键（默认），2=右键'),
 })
 
-export const mouseClickTool = {
+export const mouseClickTool = defineTool({
   name: 'mouse_click',
   description: `模拟玩家鼠标点击游戏画面（走完整射线管线：屏幕坐标 → PhySys 射线检测 → ClickableComponent/Controller）。
 
@@ -68,36 +70,26 @@ export const mouseClickTool = {
 - 点击屏幕中央的按钮：mouse_click({screenX: 960, screenY: 540})
 - 右键点击：mouse_click({screenX: 500, screenY: 300, button: 2})`,
   parameters: {
-    screenX: { type: 'number', description: '屏幕 X 坐标（像素）' },
-    screenY: { type: 'number', description: '屏幕 Y 坐标（像素）' },
+    screenX: { type: 'number', required: true, description: '屏幕 X 坐标（像素）' },
+    screenY: { type: 'number', required: true, description: '屏幕 Y 坐标（像素）' },
     button: { type: 'number', description: '鼠标按键：0=左键（默认），2=右键' },
   },
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        screenX: { type: 'number' },
-        screenY: { type: 'number' },
-        consumed: { type: 'boolean', description: '是否有 ClickableComponent 消费了点击' },
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   },
-  execute: async (args: unknown, ctx?: unknown) => {
+  execute: async (args: unknown, ctx?: unknown): Promise<JsonValue> => {
     const parsed = mouseClickSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     const { screenX, screenY, button } = parsed.data
     try {
-      const result = await callAIEventRaw(ctx, 'ai.mouseClick', { screenX, screenY, button: button ?? 0 }) as Record<string, unknown>
+      const result = await callAIEventRaw(ctx, 'ai.mouseClick', { screenX, screenY, button: button ?? 0 })
       return result ?? { ok: true, screenX, screenY }
     } catch (err) {
       return { ok: false, error: String(err) }
     }
   },
-}
+})
 
 // ═══════════════════════════════════════
 //  2. mouse_move — 模拟鼠标移动
@@ -108,7 +100,7 @@ const mouseMoveSchema = z.object({
   screenY: z.number().describe('屏幕 Y 坐标（像素）'),
 })
 
-export const mouseMoveTool = {
+export const mouseMoveTool = defineTool({
   name: 'mouse_move',
   description: `模拟玩家鼠标移动（触发 hover 射线检测 + 拖拽分发）。
 
@@ -120,34 +112,25 @@ export const mouseMoveTool = {
 用法示例：
 - 移动到屏幕中央：mouse_move({screenX: 960, screenY: 540})`,
   parameters: {
-    screenX: { type: 'number', description: '屏幕 X 坐标（像素）' },
-    screenY: { type: 'number', description: '屏幕 Y 坐标（像素）' },
+    screenX: { type: 'number', required: true, description: '屏幕 X 坐标（像素）' },
+    screenY: { type: 'number', required: true, description: '屏幕 Y 坐标（像素）' },
   },
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        screenX: { type: 'number' },
-        screenY: { type: 'number' },
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   },
-  execute: async (args: unknown, ctx?: unknown) => {
+  execute: async (args: unknown, ctx?: unknown): Promise<JsonValue> => {
     const parsed = mouseMoveSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     const { screenX, screenY } = parsed.data
     try {
-      const result = await callAIEventRaw(ctx, 'ai.mouseMove', { screenX, screenY }) as Record<string, unknown>
+      const result = await callAIEventRaw(ctx, 'ai.mouseMove', { screenX, screenY })
       return result ?? { ok: true, screenX, screenY }
     } catch (err) {
       return { ok: false, error: String(err) }
     }
   },
-}
+})
 
 // ═══════════════════════════════════════
 //  3. mouse_drag — 模拟鼠标拖拽
@@ -162,7 +145,7 @@ const mouseDragSchema = z.object({
   stepDelayMs: z.number().optional().describe('每步间隔毫秒（默认 16，即一帧）'),
 })
 
-export const mouseDragTool = {
+export const mouseDragTool = defineTool({
   name: 'mouse_drag',
   description: `模拟玩家鼠标拖拽（按下→多步移动→释放，完整序列）。
 
@@ -176,30 +159,18 @@ export const mouseDragTool = {
 - 从屏幕中央向右拖拽 200px：mouse_drag({startX: 960, startY: 540, endX: 1160, endY: 540})
 - 慢速向上滑动：mouse_drag({startX: 500, startY: 600, endX: 500, endY: 200, steps: 20, stepDelayMs: 50})`,
   parameters: {
-    startX: { type: 'number', description: '起始屏幕 X 坐标（像素）' },
-    startY: { type: 'number', description: '起始屏幕 Y 坐标（像素）' },
-    endX: { type: 'number', description: '结束屏幕 X 坐标（像素）' },
-    endY: { type: 'number', description: '结束屏幕 Y 坐标（像素）' },
+    startX: { type: 'number', required: true, description: '起始屏幕 X 坐标（像素）' },
+    startY: { type: 'number', required: true, description: '起始屏幕 Y 坐标（像素）' },
+    endX: { type: 'number', required: true, description: '结束屏幕 X 坐标（像素）' },
+    endY: { type: 'number', required: true, description: '结束屏幕 Y 坐标（像素）' },
     steps: { type: 'number', description: '移动步数（默认 10）' },
     stepDelayMs: { type: 'number', description: '每步间隔毫秒（默认 16）' },
   },
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        startX: { type: 'number' },
-        startY: { type: 'number' },
-        endX: { type: 'number' },
-        endY: { type: 'number' },
-        steps: { type: 'number' },
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   },
-  execute: async (args: unknown, ctx?: unknown) => {
+  execute: async (args: unknown, ctx?: unknown): Promise<JsonValue> => {
     const parsed = mouseDragSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     const { startX, startY, endX, endY, steps, stepDelayMs } = parsed.data
@@ -208,13 +179,13 @@ export const mouseDragTool = {
         startX, startY, endX, endY,
         steps: steps ?? 10,
         stepDelayMs: stepDelayMs ?? 16,
-      }) as Record<string, unknown>
+      })
       return result ?? { ok: true, startX, startY, endX, endY }
     } catch (err) {
       return { ok: false, error: String(err) }
     }
   },
-}
+})
 
 // ═══════════════════════════════════════
 //  4. key_press — 模拟键盘按键（按下+释放）
@@ -224,7 +195,7 @@ const keyPressSchema = z.object({
   key: z.string().describe('按键名（如 "a", "Space", "Enter", "Escape", "ArrowLeft"）'),
 })
 
-export const keyPressTool = {
+export const keyPressTool = defineTool({
   name: 'key_press',
   description: `模拟玩家键盘按键（完整按下+释放序列）。
 
@@ -245,21 +216,13 @@ export const keyPressTool = {
 - 按空格：key_press({key: "Space"})
 - 按 ESC：key_press({key: "Escape"})`,
   parameters: {
-    key: { type: 'string', description: '按键名（标准 KeyboardEvent.key 值）' },
+    key: { type: 'string', required: true, description: '按键名（标准 KeyboardEvent.key 值）' },
   },
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        key: { type: 'string' },
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   },
-  execute: async (args: unknown, ctx?: unknown) => {
+  execute: async (args: unknown, ctx?: unknown): Promise<JsonValue> => {
     const parsed = keyPressSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     const { key } = parsed.data
@@ -272,4 +235,4 @@ export const keyPressTool = {
       return { ok: false, error: String(err) }
     }
   },
-}
+})

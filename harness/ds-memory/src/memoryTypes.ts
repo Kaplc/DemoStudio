@@ -74,11 +74,36 @@ export interface MemoryFrontmatter {
   name?: string
   description?: string
   type?: MemoryType
+  /**
+   * 联想前缀表达式（可选）：项目根相对路径前缀，支持 `||`（任一命中）与
+   * `&&`（会话内全部读过才触发）组合多路径（如 `src/engine || doc/engine`）。
+   * 会话中 Agent 读到满足表达式的文件时，本条记忆全文会被自动注入（每会话一次）。
+   */
+  prefix?: string
+}
+
+/**
+ * 解析 prefix 表达式为 DNF（OR 组的列表，每组是 AND 项列表）：
+ * - `src/engine` → `[['src/engine']]`（单项单组，等同旧单前缀语义）
+ * - `a || b` → `[['a'], ['b']]`（任一命中触发）
+ * - `a && b` → `[['a', 'b']]`（会话中全部读过才触发，可跨多次读取累计）
+ * - `a && b || c` → `[['a', 'b'], ['c']]`（`&&` 优先级高于 `||`，与代码一致）
+ * 空项/空组被丢弃；全部为空返回 undefined（视为未声明，不参与联想）。
+ */
+export function parsePrefixExpr(expr: string): string[][] | undefined {
+  const normalized = expr.trim()
+  if (normalized.length === 0) return undefined
+  const groups = normalized
+    .split('||')
+    .map(group => group.split('&&').map(term => term.trim()).filter(term => term.length > 0))
+    .filter(group => group.length > 0)
+  return groups.length === 0 ? undefined : groups
 }
 
 /**
  * 解析记忆文件的 frontmatter + 正文。
  * 仅认 `---` 首尾围栏内每行一条 `key: value`；无围栏、空输入按无 frontmatter 处理。
+ * prefix 值支持代码风格逻辑运算符组合多路径（`a || b` / `a && b`，见 parsePrefixExpr）。
  */
 export function parseFrontmatter(text: string): { data: MemoryFrontmatter; body: string } {
   const trimmed = text.replace(/^\uFEFF/, '')
@@ -99,14 +124,37 @@ export function parseFrontmatter(text: string): { data: MemoryFrontmatter; body:
     if (key === 'name' && value.length > 0) data.name = value
     else if (key === 'description' && value.length > 0) data.description = value
     else if (key === 'type') data.type = parseMemoryType(value)
+    else if (key === 'prefix') {
+      const prefix = unquoteFrontmatterValue(value)
+      if (prefix.length > 0) data.prefix = prefix
+    }
   }
   return { data, body }
 }
 
-/** 按规范序列化一份记忆文件（FR-4 格式）。 */
-export function renderMemoryFile(name: string, description: string, type: MemoryType, content: string): string {
+/** 去掉 frontmatter 值两侧的成对引号（支持 `prefix: 'src/engine'` 写法）。 */
+function unquoteFrontmatterValue(value: string): string {
+  if (value.length >= 2) {
+    const head = value[0]!
+    const tail = value[value.length - 1]!
+    if ((head === "'" && tail === "'") || (head === '"' && tail === '"')) {
+      return value.slice(1, -1)
+    }
+  }
+  return value
+}
+
+/** 按规范序列化一份记忆文件（FR-4 格式）。prefix 为可选联想前缀，缺省不写该行。 */
+export function renderMemoryFile(
+  name: string,
+  description: string,
+  type: MemoryType,
+  content: string,
+  prefix?: string,
+): string {
   const normalizedContent = content.endsWith('\n') ? content : `${content}\n`
-  return `---\nname: ${name}\ndescription: ${description}\ntype: ${type}\n---\n${normalizedContent}`
+  const prefixLine = prefix !== undefined && prefix.trim() !== '' ? `prefix: ${prefix.trim()}\n` : ''
+  return `---\nname: ${name}\ndescription: ${description}\ntype: ${type}\n${prefixLine}---\n${normalizedContent}`
 }
 
 /**
@@ -185,6 +233,8 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 - 了解到用户的角色、长期偏好、工作习惯（user）
 - 拿到看板/监控/文档站等外部系统指针（reference）
 
+memory_write **不直接落盘**：它做参数校验与查重后返回写入指引，你按指引手动完成三步——① 用 write/edit 写记忆文件（frontmatter + 条目格式）② 同步 MEMORY.md 索引行 ③ 按指引全库检查过时记忆并顺便更新/清理。三步做完才算保存完成。
+
 没有触发点就不要保存——宁缺毋滥，普通问答、实现细节和过程流水账不存（见上方"不要保存"清单）。用户显式要求时照办：删除用 memory_forget，整理审查用 memory_review。`
 
 /** 回合末记忆提醒文本（新增机制）。 */
@@ -198,6 +248,71 @@ export const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆检查
 - 拿到外部系统指针（看板/文档站 URL）
 
 如果没有触发点，不要保存。宁缺毋滥。`
+
+/** prefix 自动联想说明文本：声明 prefix 的记忆命中后全文自动加载，正文必须精炼。 */
+export const ASSOCIATE_LOAD_TEXT = `## prefix 自动联想（命中即自动加载全文）
+
+- 记忆文件 frontmatter 可加一行 \`prefix:\` 声明适用路径前缀（如 \`src/engine\`、\`harness\`）。会话中 Agent 读到该前缀下的文件时，本条记忆**全文会被自动注入**上下文（同一会话内同一条只注入一次），无需手动检索。
+- 支持代码风格逻辑运算符组合多文件/多目录：
+  - \`prefix: src/engine || doc/engine\` — **OR**：任一路径命中即触发；
+  - \`prefix: src/engine && doc/editor\` — **AND**：这些前缀在会话中**全部**被读过才触发（可跨多次读取累计，顺序不限）；
+  - 混用时 \`&&\` 优先级高于 \`||\`（\`a && b || c\` = (a且b) 或 c），与代码语义一致。
+- \`prefix: /\` = 全局：读取任意文件都触发；**未声明 prefix 的记忆不会被自动加载**，只走 memory_search 按需检索。
+- ⚠️ 自动全文加载意味着正文会整篇进入上下文：声明 prefix 的记忆**必须最精炼**——只保留不可推导的核心事实（踩坑四段 / 规则三段 / 指针 URL），不要背景介绍、过程流水账或读代码可推导的内容。
+- prefix 是段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`），路径相对项目根；\`memory_write\` 的 \`prefix\` 参数可选，不带则只写不联想。`
+
+// ---------------------------------------------------------------------------
+// memory_write 手动落盘指引（工具只校验+查重，返回本提示词由 agent 手动写文件）
+// ---------------------------------------------------------------------------
+
+/** memory_write 手动落盘指引的组装输入。 */
+export interface ManualWritePromptInput {
+  /** 目标记忆文件绝对路径（已按查重结果定稿）。 */
+  filePath: string
+  /** create=新建；update-by-name/update-by-description=命中已有记忆，应更新而非新建。 */
+  mode: 'create' | 'update-by-name' | 'update-by-description'
+  /** 命中的已有记忆文件名（mode 非 create 时存在）。 */
+  existingFile?: string
+  /** 记忆类型（已校验的合法值）。 */
+  type: string
+  /** 本次声明的联想前缀表达式（已校验；声明了就要写进 frontmatter）。 */
+  prefix?: string
+}
+
+/**
+ * 组装 memory_write 的手动落盘指引提示词（纯函数）。
+ * 三步缺一不可：写文件 → 同步索引 → 全库过时检查。
+ */
+export function buildManualWritePrompt(input: ManualWritePromptInput): string {
+  const writeStep = input.mode === 'create'
+    ? `用 **write** 新建文件 \`${input.filePath}\``
+    : `用 **edit** 更新已有文件 \`${input.filePath}\`（按${input.mode === 'update-by-name' ? '同名' : '同描述'}命中 \`${input.existingFile}\`，不要新建重复文件）`
+  return [
+    '## 记忆写入指引（memory_write 不直接落盘，按本指引手动完成三步）',
+    '',
+    `**① 写记忆文件**：${writeStep}。frontmatter 必含 name/description/type，可选 prefix（支持代码风格表达式：\`a || b\` 任一路径命中触发、\`a && b\` 会话内全部读过才触发，\`&&\` 优先级高于 \`||\`；\`/\` = 全局。带 prefix 的正文必须精炼——命中即整篇注入）：`,
+    '',
+    '```',
+    '---',
+    'name: <小写下划线名>',
+    'description: <一行描述>',
+    `type: ${input.type}`,
+    '---',
+    '<正文>',
+    '```',
+    '',
+    '条目格式：踩坑/教训类用四段 **Problem:** → **Cause:** → **Solution:** → **Applicable:**；普通规则/约定用 规则 → **Why:** → **How to apply:**。一份文件一个主题；多条目每条一个 `## 短名` 小节，description 覆盖全部条目。相对日期转绝对日期。',
+    ...(input.prefix !== undefined
+      ? [`本次声明的 prefix：写进 frontmatter 的 \`prefix: ${input.prefix}\` 行（更新已有记忆时如无变更则保留原行）。`]
+      : []),
+    '',
+    '**② 同步 MEMORY.md 索引**：同名行原位替换 / 新记忆追加到末尾，格式 `- [name](name.md) — 一行钩子（概述）`。',
+    '',
+    '**③ 全库过时检查（必做）**：写完后通读记忆目录全部记忆，发现与当前事实冲突、含已过期日期、或内容已过时的条目，顺便用 edit 更新或删除（删除时同步移除索引行）。',
+    '',
+    '⚠️ 只留未来会话有用的信息；代码可推导的内容与一次性流水账不存。',
+  ].join('\n')
+}
 
 // ---------------------------------------------------------------------------
 // 注入与提醒的文本模板（FR-2 / FR-3 / FR-5）
@@ -226,6 +341,7 @@ export function memoryGuideSectionText(memoryIndex: string | undefined): string 
     WHAT_NOT_TO_SAVE_TEXT,
     SAVE_FLOW_TEXT,
     WHEN_TO_ACCESS_TEXT,
+    ASSOCIATE_LOAD_TEXT,
     END_OF_TURN_REMINDER_TEXT,
     `## 记忆与其他持久化机制的分工
 

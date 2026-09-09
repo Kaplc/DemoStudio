@@ -58,6 +58,9 @@ function StepProcessInner({ items, concluded }: StepProcessProps) {
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
+  /** 程序写入 scrollTop 的标记：自己的写入触发的 scroll 事件只消费标记不参与判定，
+   *  防止「上次写入的事件 × 刚提交的内容」算出假距离误杀贴底标记，跟随静默停摆 */
+  const programmaticScrollRef = useRef(false)
 
   const expanded = userExpanded ?? !concluded
 
@@ -95,8 +98,21 @@ function StepProcessInner({ items, concluded }: StepProcessProps) {
   const handleScroll = useCallback(() => {
     const el = bodyRef.current
     if (!el) return
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false
+      return
+    }
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     stickToBottomRef.current = distanceToBottom < STICK_THRESHOLD
+  }, [])
+
+  /** 程序化贴底：已在底部时跳过（不产生事件、不留悬空标记吞用户滚动） */
+  const scrollBodyToBottom = useCallback(() => {
+    const el = bodyRef.current
+    if (!el) return
+    if (el.scrollTop >= el.scrollHeight - el.clientHeight - 0.5) return
+    programmaticScrollRef.current = true
+    el.scrollTop = el.scrollHeight
   }, [])
 
   // 展开时贴底：跟随最新内容，或让用户展开后直接看到最新进度
@@ -108,10 +124,10 @@ function StepProcessInner({ items, concluded }: StepProcessProps) {
     const raf = requestAnimationFrame(() => {
       const e = bodyRef.current
       if (!e || !stickToBottomRef.current) return
-      e.scrollTop = e.scrollHeight
+      scrollBodyToBottom()
     })
     return () => cancelAnimationFrame(raf)
-  }, [signature, expanded])
+  }, [signature, expanded, scrollBodyToBottom])
 
   // 标签文案：优先反映"正在做什么"
   const label = active

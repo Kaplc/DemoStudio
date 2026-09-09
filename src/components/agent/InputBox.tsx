@@ -10,6 +10,8 @@ import { logger } from '../../engine/Logger'
 
 interface InputBoxProps {
   onSend: (text: string) => void
+  /** 加入发送队列：当前回合完成后自动发送（运行时显示在发送按钮旁） */
+  onQueueSend?: (text: string) => void
   onStop?: () => void
   disabled?: boolean
   running?: boolean
@@ -22,6 +24,7 @@ interface InputBoxProps {
 
 export const InputBox: React.FC<InputBoxProps> = ({
   onSend,
+  onQueueSend,
   onStop,
   disabled = false,
   running = false,
@@ -84,6 +87,15 @@ export const InputBox: React.FC<InputBoxProps> = ({
     // 允许在 running 状态下发送（steer 模式）
     logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running})`)
     onSend(trimmed)
+    setText('')
+  }
+
+  // 加入发送队列：当前回合完成后由 AgentPanel 自动发送
+  const queueSend = () => {
+    const trimmed = text.trim()
+    if (!trimmed || disabled || !onQueueSend) return
+    logger.info(`[InputBox] 消息加入队列: "${trimmed}"`)
+    onQueueSend(trimmed)
     setText('')
   }
 
@@ -185,6 +197,20 @@ export const InputBox: React.FC<InputBoxProps> = ({
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <rect x="3" y="3" width="10" height="10" rx="2" />
+                </svg>
+              </button>
+            )}
+            {/* 队列发送按钮：AI 运行且有内容时显示，消息排队等当前回合完成后自动发送 */}
+            {running && !isEmpty && onQueueSend && (
+              <button
+                className="composer__queue"
+                onClick={queueSend}
+                disabled={disabled}
+                title="排队发送：当前回合完成后自动发送"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <circle cx="8" cy="8" r="6" />
+                  <path d="M8 4.5V8l2.5 1.5" />
                 </svg>
               </button>
             )}

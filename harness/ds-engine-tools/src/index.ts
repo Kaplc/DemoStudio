@@ -3,12 +3,12 @@
  *
  * 工具实现只依赖 EngineBridge / 编辑器 HTTP API，不依赖 DSH 内部 API（架构红线 FR-4.7）。
  */
-import { emitAIEventTool } from './tools/emitAIEvent'
-import { mouseClickTool, mouseMoveTool, mouseDragTool, keyPressTool } from './tools/mouseSimulation'
-import { getHUDTool } from './tools/getHUD'
-import { getSceneOutlineTool } from './tools/getSceneOutline'
-import { getUiOutlineTool } from './tools/getUiOutline'
-import { getAssetsTool } from './tools/getAssets'
+import { emitAIEventTool } from './tools/emitAIEvent.js'
+import { mouseClickTool, mouseMoveTool, mouseDragTool, keyPressTool } from './tools/mouseSimulation.js'
+import { getHUDTool } from './tools/getHUD.js'
+import { getSceneOutlineTool } from './tools/getSceneOutline.js'
+import { getUiOutlineTool } from './tools/getUiOutline.js'
+import { getAssetsTool } from './tools/getAssets.js'
 
 export const name = '@demostudio/ds-engine-tools'
 

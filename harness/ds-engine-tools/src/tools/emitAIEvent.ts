@@ -9,19 +9,22 @@
  * 安全：根据事件类型可能影响游戏状态，默认 ask 守卫
  */
 import { z } from 'zod'
-import { getEngineContext } from '../engineContext'
-import { requiresApproval, askUser } from '../guards'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { getEngineContext } from '../engineContext.js'
+import { requiresApproval, askUser } from '../guards.js'
 
 export const emitAIEventSchema = z.object({
   event: z.string().describe('AI 事件名（如 ai.clickActor, ai.getActor, ai.getHUD）'),
   payload: z.record(z.unknown()).optional().describe('事件载荷（JSON 对象，结构取决于具体事件）'),
 })
 
-export interface EmitAIEventResult {
+/** 返回值形状仅约束工具自建字段；编辑器透传字段可能是任意 JSON。 */
+type EmitAIEventResult = {
   ok: boolean
   event: string
   handled?: boolean
-  result?: unknown
+  result?: JsonValue
   error?: string
 }
 
@@ -62,14 +65,14 @@ function discoverMCPBridgePort(ec: { engineBridge: { port?: number } }): number 
   return EDITOR_MCP_PORT_DEFAULT
 }
 
-async function callMCPRaw(port: number, command: string, params: Record<string, unknown>): Promise<unknown> {
+async function callMCPRaw(port: number, command: string, params: Record<string, unknown>): Promise<JsonValue> {
   const resp = await fetch(`http://127.0.0.1:${port}/api/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command, params }),
   })
   if (!resp.ok) throw new Error(`MCP HTTP ${resp.status}`)
-  return await resp.json()
+  return (await resp.json()) as JsonValue
 }
 
 export async function emitAIEvent(args: z.infer<typeof emitAIEventSchema>, ctx: unknown): Promise<EmitAIEventResult> {
@@ -101,8 +104,8 @@ export async function emitAIEvent(args: z.infer<typeof emitAIEventSchema>, ctx: 
       status?: string
       event?: string
       handled?: boolean
-      result?: unknown
-      results?: unknown[]
+      result?: JsonValue
+      results?: JsonValue[]
       error?: string
     } | null
 
@@ -122,7 +125,7 @@ export async function emitAIEvent(args: z.infer<typeof emitAIEventSchema>, ctx: 
   }
 }
 
-export const emitAIEventTool = {
+export const emitAIEventTool = defineTool({
   name: 'emit_ai_event',
   description: `调用编辑器注册的任意 AI 事件。可触发游戏/编辑器操作，如：
 - ai.clickActor: 点击 UI 元素 {name: 'ButtonName'}
@@ -134,22 +137,12 @@ export const emitAIEventTool = {
 
 高危事件（spawn/destroy/click 等）默认需要用户确认。`,
   parameters: {
-    event: { type: 'string', description: 'AI 事件名（如 ai.clickActor, ai.getActor, ai.getHUD）' },
-    payload: { type: 'object', description: '事件载荷（JSON 对象，结构取决于具体事件）' },
+    event: { type: 'string', required: true, description: 'AI 事件名（如 ai.clickActor, ai.getActor, ai.getHUD）' },
+    payload: { type: 'object', additionalProperties: true, description: '事件载荷（JSON 对象，结构取决于具体事件）' },
   },
   output: {
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        event: { type: 'string' },
-        handled: { type: 'boolean' },
-        result: {},
-        error: { type: 'string' },
-      },
-    },
+    schema: { type: 'json' },
     render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   },
   execute: emitAIEvent,
-}
+})

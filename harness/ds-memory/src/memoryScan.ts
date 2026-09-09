@@ -30,6 +30,8 @@ export interface MemoryHeader {
   description?: string
   /** 记忆类型；frontmatter 缺失或非法时为 undefined。 */
   type: MemoryType | undefined
+  /** 联想前缀（可选）：读到该前缀下文件时本条记忆自动加载。 */
+  prefix?: string
 }
 
 /** 只读文件前若干行（及字节上限），单趟带出 mtime。 */
@@ -80,6 +82,7 @@ export async function scanMemoryFiles(memoryDir: string, signal?: AbortSignal): 
       mtimeMs,
       description: data.description,
       type: data.type,
+      prefix: data.prefix,
     }
   }))
   const headers = results

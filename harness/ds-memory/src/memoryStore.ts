@@ -27,6 +27,8 @@ export interface MemoryRecord {
   name?: string
   description?: string
   type: MemoryType | undefined
+  /** frontmatter 声明的联想前缀（可选；读取该前缀下文件时自动加载全文）。 */
+  prefix?: string
   /** frontmatter 之后的正文。 */
   content: string
 }
@@ -48,6 +50,8 @@ export interface WriteInput {
   type: MemoryType
   /** 一行描述，检索相关性判断依据；同时作为去重键之一。 */
   description: string
+  /** 联想前缀（可选）：项目根相对路径前缀，读到该前缀下文件时自动注入全文。 */
+  prefix?: string
 }
 
 /** 读入记忆目录下全部记忆（全量读取正文；跳过 MEMORY.md 与读取失败的文件）。 */
@@ -67,6 +71,7 @@ export async function readAllMemories(memoryDirectory: string): Promise<MemoryRe
         name: data.name,
         description: data.description,
         type: data.type,
+        prefix: data.prefix,
         content: body,
       })
     } catch {
@@ -162,6 +167,8 @@ export async function writeMemory(memoryDirectory: string, input: WriteInput): P
     input.description,
     input.type,
     input.content,
+    // 更新已有记忆且未给 prefix 时保留旧的（避免同名更新意外清掉联想键）
+    input.prefix !== undefined ? input.prefix : duplicate?.prefix,
   )
   const targetPath = join(memoryDirectory, sanitizePathKey(target))
   await assertSafeWritePath(memoryDirectory, target)

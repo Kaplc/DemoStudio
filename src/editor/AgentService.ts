@@ -11,6 +11,7 @@
  *
  * 事件覆盖：对齐 DSH 官方 48 种 SessionEvent 类型
  *   assistant/chunk 的 reasoning-delta 额外以 reasoning.delta（60ms 节流全量）
+ *   assistant/chunk 的 text-delta 额外以 content.delta（60ms 节流全量，live 正文）
  *   实时下发，供面板在显示队列空闲时即时渲染 live 推理卡片；完整段仍按
  *   step/tool/turn 边界以 message 事件提交（flushAssistant）。
  */
@@ -23,7 +24,7 @@ import type {
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
   RequestHeaderPayload, SandboxModePayload, PlanModePayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
-  ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload,
+  ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
 } from '../types/agent'
 import { logTime } from '../utils/logTime'
 
@@ -32,6 +33,16 @@ const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
 const WATCHDOG_INTERVAL_MS = 3000 // mux 推送静默后的兜底拉取周期
 const WATCHDOG_IDLE_MS = 1500     // 静默判定阈值（推送正常流动时心跳自动空转）
 const REASONING_EMIT_INTERVAL_MS = 60 // live 推理节流周期（首个 delta 立即出卡，后续合并下发）
+
+/** tool/result 是否失败。事件级 data.error 是可选的结构化 info（{name,code}），
+ *  工具以 isError 结果返回错误（如 Edit 的 ReplaceFileW EIO）时它不出现，
+ *  权威标志在 message.content[0].isError 上——两处任一命中即失败。 */
+function isToolResultFailure(d: {
+  error?: unknown
+  message?: { content?: Array<{ isError?: boolean }> }
+} | undefined): boolean {
+  return d?.error != null || d?.message?.content?.[0]?.isError === true
+}
 const RECONNECT_BASE_DELAY = 1000 // 重连基础延迟 ms
 const RECONNECT_MAX_DELAY = 16000 // 重连最大延迟 ms
 const RECONNECT_MAX_ATTEMPTS = 5  // 最大重连次数
@@ -51,6 +62,9 @@ interface ContentPart {
   text?: string
   /** tool-result 嵌套内容（DSH ToolResultBlock: content 数组套 text 块） */
   content?: Array<{ type: string; text?: string }>
+  /** DSH ToolResultBlock.isError：工具失败的权威标志（事件级 error 字段仅在有
+   *  结构化 error.info 时才存在，工具以 isError 结果返回错误时它缺失） */
+  isError?: boolean
 }
 
 interface DshChunk {
@@ -299,6 +313,9 @@ export class AgentService {
   /** live 推理节流：待触发的下发定时器与上次下发时间 */
   private reasoningEmitTimer: ReturnType<typeof setTimeout> | null = null
   private lastReasoningEmitAt = 0
+  /** live 正文节流：与推理同构，flush 前末次下发保证 message 事件时正文已全量上屏 */
+  private contentEmitTimer: ReturnType<typeof setTimeout> | null = null
+  private lastContentEmitAt = 0
   /** 最近一次消费事件的时间（心跳判定推送是否静默） */
   private lastEventAt = 0
   private watchdogTimer: ReturnType<typeof setInterval> | null = null
@@ -1067,13 +1084,46 @@ export class AgentService {
     this.emit({ type: 'reasoning.delta', payload })
   }
 
+  /** live 正文节流下发：与推理同构（首个 delta 立即 emit，之后每周期合并一次全量文本）。
+   * 面板在显示队列空闲时据此即时上屏正文；忙碌时不实时上屏，delta 留在缓冲由 flush 走回放。 */
+  private scheduleContentEmit(): void {
+    const elapsed = Date.now() - this.lastContentEmitAt
+    if (elapsed >= REASONING_EMIT_INTERVAL_MS) {
+      this.emitContentDelta()
+      return
+    }
+    if (!this.contentEmitTimer) {
+      this.contentEmitTimer = setTimeout(() => {
+        this.contentEmitTimer = null
+        this.emitContentDelta()
+      }, REASONING_EMIT_INTERVAL_MS - elapsed)
+    }
+  }
+
+  /** 取消待触发的 live 正文下发（清除缓冲时调用，避免缓冲清空后的迟到空发） */
+  private cancelContentEmit(): void {
+    if (this.contentEmitTimer) {
+      clearTimeout(this.contentEmitTimer)
+      this.contentEmitTimer = null
+    }
+  }
+
+  private emitContentDelta(): void {
+    this.cancelContentEmit()
+    if (!this.assistantBuf) return
+    this.lastContentEmitAt = Date.now()
+    const payload: ContentDeltaPayload = { text: this.assistantBuf }
+    this.emit({ type: 'content.delta', payload })
+  }
+
   /** 提交当前累积的 assistant 段（UI 只接收完整段）。工具调用会把一个 turn 切成
    * 多个 assistant -> tool -> assistant 段，必须在边界事件到达前提交缓冲区。
-   * 提交前先发末次 live 推理并掐掉节流定时器：保证 message 事件之后不再有迟到的
-   * reasoning.delta，否则面板可能在段落采纳后又建出重复的 live 卡片。 */
+   * 提交前先发末次 live 推理与正文并掐掉节流定时器：保证 message 事件之后不再有
+   * 迟到的 delta，否则面板可能在段落采纳后建出重复的 live 卡片。 */
   private flushAssistant(turnCompleted = false, turnEndReason?: TurnEndReason, seq?: number): void {
     if (!this.assistantBuf && !this.reasoningBuf) return
     this.emitReasoningDelta()
+    this.emitContentDelta()
     this.emit({
       type: 'message',
       payload: {
@@ -1094,6 +1144,7 @@ export class AgentService {
   /** 丢弃半截缓冲（stop / 发送前调用，不触发 UI 派发） */
   private clearLiveBuffers(): void {
     this.cancelReasoningEmit()
+    this.cancelContentEmit()
     this.assistantBuf = ''
     this.reasoningBuf = ''
     this.assistantBufLastSeq = undefined
@@ -1162,6 +1213,7 @@ export class AgentService {
       if (chunk.type === 'text-delta' && chunk.text) {
         this.assistantBuf += chunk.text
         this.assistantBufLastSeq = event.seq
+        this.scheduleContentEmit() // live 正文：节流后实时下发（面板空闲时即时上屏）
       }
       if (chunk.type === 'reasoning-delta' && chunk.text) {
         this.reasoningBuf += chunk.text
@@ -1241,7 +1293,7 @@ export class AgentService {
         type: 'toolResult',
         payload: {
           id: callId || `tr-${event.seq}`, name: pendingName || 'tool',
-          result: resultText || JSON.stringify(d), status: d?.error ? 'failure' : 'success',
+          result: resultText || JSON.stringify(d), status: isToolResultFailure(d) ? 'failure' : 'success',
           resultTime: time, error: d?.error,
         },
       })
@@ -1633,7 +1685,7 @@ export class AgentService {
           const callId = String(d?.message?.source?.callId || d?.source?.callId || '')
           const tool = callId ? pendingTools.get(callId) : undefined
           if (tool) {
-            tool.status = d?.error ? 'failure' : 'success'
+            tool.status = isToolResultFailure(d) ? 'failure' : 'success'
             tool.result = d?.message?.content
             tool.error = d?.error ? { name: d.error.name ?? '', code: d.error.code ?? '' } : undefined
             tool.resultTime = time

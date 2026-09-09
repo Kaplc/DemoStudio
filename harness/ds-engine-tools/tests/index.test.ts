@@ -41,6 +41,13 @@ describe('ds-engine-tools 插件入口', () => {
     ])
   })
 
+  it('每个工具的 parameters 都是根 type:"object" 的 JSON Schema（裸对象注册会致 LLM 400 type:null）', () => {
+    for (const tool of ALL_TOOLS) {
+      const params = tool.parameters as { type?: string }
+      expect(params.type, `${tool.name} parameters 缺少根 type:"object"`).toBe('object')
+    }
+  })
+
   describe('apply 函数', () => {
     it('通过 effect 注册工具', async () => {
       const { apply } = await import('../src/index.js')

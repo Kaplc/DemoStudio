@@ -25,7 +25,7 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, TodoItem } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
 import { ApprovalCard } from './agent/ApprovalCard'
@@ -113,6 +113,12 @@ function previousHistoryStart(items: Message[], currentStart: number, turnCount 
   return previousStarts[Math.max(0, previousStarts.length - turnCount)] ?? 0
 }
 
+/** 队列发送项：AI 运行期间排队、当前回合正常完成后自动发送 */
+interface QueuedSend {
+  id: number
+  text: string
+}
+
 function toPanelHistoryMessage(
   history: HistoryMessage,
   sessionKey: string,
@@ -194,6 +200,16 @@ export const AgentPanel: React.FC = () => {
   }, [headerMenuOpen])
   const [currentModel, setCurrentModel] = useState<{ provider: string; model: string } | undefined>(undefined)
   const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
+  // 队列发送：输入框上方排队，回合正常完成后逐条自动发出。
+  // ref 镜像供 turnEnd（挂载一次的事件回调）与显示队列 drain 读取，规避闭包过期。
+  const [queuedSends, setQueuedSends] = useState<QueuedSend[]>([])
+  const queuedSendsRef = useRef<QueuedSend[]>([])
+  const queuedSendSeqRef = useRef(0)
+  /** 已取出待发送的队列项 id：等显示队列空闲（上轮结论打完）后真正 send。
+   *  期间仍留在可见队列中；stop / 切换会话时归 null，条目保留供用户手动处理。 */
+  const pendingQueuedSendRef = useRef<number | null>(null)
+  /** drain 空闲分支发送排队消息用的间接引用（handleSend 定义在 drain 之后，避免 TDZ） */
+  const sendNowRef = useRef<(text: string) => Promise<void> | void>(() => {})
   // 完整消息提交后递增，用于触发列表自动滚动
   const [contentVersion, setContentVersion] = useState(0)
   // 会话切换/恢复的代号：变化时通知 VirtualList 强制回到底部（旧会话的贴底状态不继承）
@@ -344,6 +360,11 @@ export const AgentPanel: React.FC = () => {
           break
         }
 
+        case 'content.delta': {
+          handleLiveContent((event.payload as ContentDeltaPayload)?.text || '')
+          break
+        }
+
         case 'turnStart': {
           // 对齐 DSH WebUI：todo 列表在下一轮/turn 开始时清空。
           // 放在 turnStart 而非 turnEnd，是为了让上一轮结果在回合结束后
@@ -382,6 +403,13 @@ export const AgentPanel: React.FC = () => {
             }
             // 等当前 assistant 段打字完成后再显示结束提示，避免系统消息插队。
             pendingTurnSystemRef.current = reasonMap[turnPayload?.reason?.kind] || '回合异常结束'
+            drainQueueRef.current()
+          } else if (queuedSendsRef.current.length > 0) {
+            // 回合正常完成且有排队消息：取出队首，等显示队列空闲（上轮结论打完）后自动发送。
+            // 非 completed（停止/出错等）不动队列，条目留在输入框上方供用户手动处理。
+            const next = queuedSendsRef.current[0]
+            pendingQueuedSendRef.current = next.id
+            console.log(`[${logTime()}] [AgentPanel] 回合完成，接管队列发送: "${next.text.slice(0, 24)}"`)
             drainQueueRef.current()
           }
           break
@@ -616,6 +644,9 @@ export const AgentPanel: React.FC = () => {
   const handleLiveReasoning = useCallback((text: string) => {
     if (!text) return
     if (activeDisplayRef.current || displayQueueRef.current.length > 0 || displayPhaseRef.current) return
+    // 恢复窗口守卫：列表尾是历史回放的半截段时不去 live——live 卡 = 回放前缀 + 新增量，
+    // 会与半截段重复上屏；增量留在缓冲，flush 完整段走队列原地替换半截段。
+    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) return
     const liveId = liveAssistantIdRef.current
     if (!liveId) {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
@@ -631,6 +662,33 @@ export const AgentPanel: React.FC = () => {
       }])
     } else {
       setMessages(cur => cur.map(message => message.id === liveId ? { ...message, reasoning: text } : message))
+    }
+    setContentVersion(v => v + 1)
+  }, [])
+
+  // content.delta 直达上屏：与 live 推理同构。队列空闲时正文增量实时写入 live 卡片
+  // （已有推理卡则原地续写，正文一出现 StepProcess 自动折叠推理区）；忙碌时留在
+  // 服务端缓冲，flush 完整段走打字机回放。flush 前有末次 content.delta，保证采纳
+  // 时正文已全量上屏。
+  const handleLiveContent = useCallback((text: string) => {
+    if (!text) return
+    if (activeDisplayRef.current || displayQueueRef.current.length > 0 || displayPhaseRef.current) return
+    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) return
+    const liveId = liveAssistantIdRef.current
+    if (!liveId) {
+      const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
+      liveAssistantIdRef.current = id
+      console.log(`[${logTime()}] [AgentPanel] live 正文卡片创建: ${id} (${text.length} 字符)`)
+      setMessages(cur => [...cur, {
+        id,
+        role: 'assistant' as const,
+        content: text,
+        reasoning: '',
+        streaming: true,
+        ts: Date.now(),
+      }])
+    } else {
+      setMessages(cur => cur.map(message => message.id === liveId ? { ...message, content: text } : message))
     }
     setContentVersion(v => v + 1)
   }, [])
@@ -724,6 +782,19 @@ export const AgentPanel: React.FC = () => {
           ts: Date.now(),
         }])
         setContentVersion(v => v + 1)
+      }
+      // 队列发送：显示完全空闲后发出被接管的排队消息（通过 sendNowRef 间接调用
+      // handleSend，因其定义在本回调之后，进依赖数组会在渲染期触发 TDZ）
+      else if (!activeDisplayRef.current && displayQueueRef.current.length === 0 && pendingQueuedSendRef.current !== null) {
+        const pendingId = pendingQueuedSendRef.current
+        pendingQueuedSendRef.current = null
+        const item = queuedSendsRef.current.find(q => q.id === pendingId)
+        queuedSendsRef.current = queuedSendsRef.current.filter(q => q.id !== pendingId)
+        setQueuedSends(queuedSendsRef.current)
+        if (item) {
+          console.log(`[${logTime()}] [AgentPanel] 队列发送: "${item.text.slice(0, 24)}"`)
+          void sendNowRef.current(item.text)
+        }
       }
       return
     }
@@ -872,14 +943,9 @@ export const AgentPanel: React.FC = () => {
     })
     setContentVersion(v => v + 1)
 
-    if (adopting && next.content) {
-      // 推理已上屏：直接进入正文打字。正文首字符落地后本段过程被"结论打断"，
-      // StepProcess 会自动折叠推理区，视觉顺序与 WebUI 一致（思考完 → 收起 → 出答案）。
-      displayPhaseRef.current = 'content'
-      typewriter.reset()
-      typewriter.setFull(next.content)
-    } else if (adopting) {
-      // 纯推理段（无正文，后随工具调用）：推理已展示完，直接完成本段，工具卡片立即落地
+    if (adopting) {
+      // live 推理/正文已实时上屏（flush 前的末次 delta 保证全量）：原地补全收尾，
+      // 跳过打字机回放。正文首字符落地时本段过程已被"结论打断"，StepProcess 自动折叠推理区。
       finishAssistantDisplay()
     } else if (next.reasoning) {
       displayPhaseRef.current = 'reasoning'
@@ -907,8 +973,8 @@ export const AgentPanel: React.FC = () => {
   }, [drainDisplayQueue])
 
   // 提交一个已收集完成的 assistant 段，显示顺序由队列统一控制。
-  // adoptId 非空时表示该段的推理已通过 live 卡片实时上屏：队列项直接沿用 live 消息 id，
-  // 轮到消费时原地采纳（跳过推理回放），正文继续走打字机。
+  // adoptId 非空时表示该段的推理/正文已通过 live 卡片实时上屏：队列项直接沿用 live 消息 id，
+  // 轮到消费时原地采纳收尾（推理与正文均跳过打字机回放）。
   const commitStreamingMessage = useCallback((text: string, reasoning?: string, stats?: any, turnCompleted?: boolean, turnEndReason?: any, adoptId?: string) => {
     messageSequenceRef.current += 1
     const queueLength = displayQueueRef.current.length
@@ -1073,6 +1139,8 @@ export const AgentPanel: React.FC = () => {
     pendingRetryChainsRef.current.clear()
     displayedRetryIdsRef.current.clear()
     pendingTurnSystemRef.current = null
+    // 待发的队列发送归位：条目仍留在可见队列中，由用户决定移除或等下个回合
+    pendingQueuedSendRef.current = null
     typewriter.reset()
     reasoningTypewriter.reset()
   }, [finalizeLiveReasoning, reasoningTypewriter.reset, typewriter.reset])
@@ -1274,6 +1342,25 @@ export const AgentPanel: React.FC = () => {
     }
   }, [addConsoleOutput, pushSystem, refreshSessions])
 
+  // handleSend 就绪后挂到间接引用，供显示队列 drain 的空闲分支发送排队消息
+  useEffect(() => {
+    sendNowRef.current = handleSend
+  }, [handleSend])
+
+  // 加入发送队列：当前回合完成后自动发出
+  const handleQueueSend = useCallback((text: string) => {
+    const item: QueuedSend = { id: ++queuedSendSeqRef.current, text }
+    queuedSendsRef.current = [...queuedSendsRef.current, item]
+    setQueuedSends(queuedSendsRef.current)
+    addConsoleOutput(`[Agent] 已加入发送队列: ${text}`)
+  }, [addConsoleOutput])
+
+  // 移除排队消息（仅限尚未取出的；已被接管的在下一次 drain 前移除则放弃发送）
+  const handleRemoveQueuedSend = useCallback((id: number) => {
+    queuedSendsRef.current = queuedSendsRef.current.filter(q => q.id !== id)
+    setQueuedSends(queuedSendsRef.current)
+  }, [])
+
   // 停止 AI
   const handleStop = useCallback(async () => {
     console.log(`[${logTime()}] [AgentPanel] handleStop: 点击停止按钮`)
@@ -1294,6 +1381,10 @@ export const AgentPanel: React.FC = () => {
   const handleSwitchSession = useCallback(async (sessionId: string) => {
     console.log(`[${logTime()}]`, '[AgentPanel] 切换会话:', sessionId)
     clearDisplayQueue()
+    // 队列发送绑定会话上下文，切换时整体清空，避免误发进另一个会话
+    queuedSendsRef.current = []
+    setQueuedSends([])
+    pendingQueuedSendRef.current = null
     resetHistoryWindow()
     await agentService.switchSession(sessionId)
     historySessionKeyRef.current = sessionId
@@ -1865,8 +1956,32 @@ export const AgentPanel: React.FC = () => {
         />
       ))}
 
+      {/* 队列发送（输入框上方排队，当前回合完成后逐条自动发送） */}
+      {queuedSends.length > 0 && (
+        <div className="agent-send-queue">
+          <span className="agent-send-queue__label">队列</span>
+          {queuedSends.map(q => (
+            <span
+              key={q.id}
+              className={`agent-send-queue__item ${q.id === pendingQueuedSendRef.current ? 'agent-send-queue__item--pending' : ''}`}
+              title={q.id === pendingQueuedSendRef.current ? '已接管，上轮结论显示完后发送' : q.text}
+            >
+              <span className="agent-send-queue__text">{q.text}</span>
+              <button
+                className="agent-send-queue__remove"
+                onClick={() => handleRemoveQueuedSend(q.id)}
+                title="移除"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       <InputBox
         onSend={handleSend}
+        onQueueSend={handleQueueSend}
         onStop={handleStop}
         disabled={connectionState !== 'connected'}
         running={isAgentRunning}

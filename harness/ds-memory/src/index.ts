@@ -3,14 +3,18 @@
  *
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"记忆指导"段（含 MEMORY.md 索引，仅在有内容时注入）
- * - `ctx.tools.register()` × 4 — memory_write / memory_search / memory_forget / memory_review
+ * - `ctx.tools.register()` × 5 — memory_write / memory_search / memory_forget / memory_review / memory_list
  * - `ctx.on('session/event')` — 回合末（turn/end）主动注入记忆提醒，提示 agent 检查是否需要保存记忆
+ * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 路径自动联想：
+ *   读到满足记忆 `prefix:` 表达式的文件时把该记忆全文自动注入（每会话一次）；
+ *   表达式支持 `||`（任一路径命中）与 `&&`（会话内全部路径读过，跨读取累计）
  *
- * 记忆保存与检索完全由主 agent 自觉调用工具完成：
+ * 记忆保存与检索的默认分工：
  * - 保存：主 agent 在回合内主动调用 memory_write（指导段 SAVE_FLOW_TEXT 给出具体触发点）
  *   + 回合末自动提醒（END_OF_TURN_REMINDER_TEXT）
- * - 检索：主 agent 看到 MEMORY.md 索引后，相关时主动调用 memory_search 按需检索
- * 子 agent（delegationDepth > 0）变更类记忆工具（write/forget/review）在工具层拒绝调用。
+ * - 检索：声明 prefix 的记忆由联想器按读取路径自动注入；未声明的按需 memory_search
+ * 子 agent（delegationDepth > 0）变更类记忆工具（write/forget/review）在工具层拒绝调用，
+ * 联想注入也只服务主 agent（上下文归属父 agent）。
  *
  * @module @demostudio/ds-memory
  */
@@ -20,6 +24,7 @@ import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { deriveProjectRoot, registerAssociator } from './associate.js'
 import { truncateEntrypoint } from './memoryScan.js'
 import {
   MEMORY_ENTRYPOINT,
@@ -52,6 +57,12 @@ export interface Config {
   memoryDir?: string
   /** 是否启用回合末自动提醒（默认 true）。 */
   enableEndOfTurnReminder?: boolean
+  /**
+   * 是否启用 prefix 自动联想（默认 true）：读到声明了 prefix 的记忆所适用
+   * 路径下的文件时自动注入其全文。联想基准的项目根从 memoryDir 推导
+   * （<root>/.dsh/memory 形态）；推导不出时联想自动停用并记 warn 日志。
+   */
+  enableAutoAssociate?: boolean
 }
 
 /** Loader 配置 schema：默认值在此声明，代码内另有 DEFAULT_* 兜底。 */
@@ -59,6 +70,7 @@ export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
   memoryDir: z.string(),
   enableEndOfTurnReminder: z.boolean().default(true),
+  enableAutoAssociate: z.boolean().default(true),
 })
 
 /**
@@ -71,6 +83,7 @@ export function apply(ctx: Context, config?: Config): void {
     enabled: config?.enabled ?? true,
     memoryDir: config?.memoryDir,
     enableEndOfTurnReminder: config?.enableEndOfTurnReminder ?? true,
+    enableAutoAssociate: config?.enableAutoAssociate ?? true,
   }
   // enabled: false — 一切静默，什么都不注册
   if (!resolved.enabled) return
@@ -90,12 +103,29 @@ export function apply(ctx: Context, config?: Config): void {
     text: () => memoryGuideSectionText(readEntrypointSync(memoryDirectory)),
   })
 
-  // ── 4 个显式记忆工具 ──
+  // ── 5 个显式记忆工具 ──
   for (const tool of createMemoryTools({
     memoryDirectory,
     ctx,
   })) {
     ctx.tools.register(tool)
+  }
+
+  // ── prefix 路径自动联想（默认开；项目根推导不出时停用并 warn） ──
+  if (resolved.enableAutoAssociate) {
+    const associationRoot = deriveProjectRoot(memoryDirectory)
+    if (associationRoot === undefined) {
+      logger.warn(
+        'enableAutoAssociate 已开启但无法从 memoryDir (%s) 推导项目根（期望 <root>/.dsh/memory 形态）；自动联想停用',
+        memoryDirectory,
+      )
+    } else {
+      registerAssociator(ctx, {
+        memoryDirectory,
+        projectRoot: associationRoot,
+      })
+      logger.info('prefix 自动联想已启用（项目根 %s）', associationRoot)
+    }
   }
 
   // ── 回合末记忆提醒（可配置关闭） ──

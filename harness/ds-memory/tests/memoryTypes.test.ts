@@ -8,6 +8,7 @@ import {
   normalizeMemoryName,
   parseFrontmatter,
   parseMemoryType,
+  parsePrefixExpr,
   renderMemoryFile,
 } from '../src/memoryTypes.js'
 import { renderIndexLine } from '../src/memoryStore.js'
@@ -84,6 +85,60 @@ describe('renderIndexLineHelper', () => {
   })
 })
 
+describe('renderMemoryFile / prefix 联想键', () => {
+  it('带 prefix 序列化出 prefix 行并可解析回', () => {
+    const file = renderMemoryFile('engine_pitfall', '引擎坑', 'project', '正文', 'src/engine')
+    expect(file).toContain('prefix: src/engine')
+    const { data, body } = parseFrontmatter(file)
+    expect(data.prefix).toBe('src/engine')
+    expect(body).toBe('正文\n')
+  })
+
+  it('不带 prefix 时不写 prefix 行；值为空串等同不带', () => {
+    expect(renderMemoryFile('a', 'd', 'user', 'c')).not.toContain('prefix:')
+    expect(renderMemoryFile('a', 'd', 'user', 'c', '  ')).not.toContain('prefix:')
+  })
+
+  it('解析带引号 prefix 值与全局 /', () => {
+    expect(parseFrontmatter("---\nprefix: 'src/engine'\n---\nx").data.prefix).toBe('src/engine')
+    expect(parseFrontmatter('---\nprefix: "/"\n---\nx').data.prefix).toBe('/')
+    expect(parseFrontmatter('---\nprefix:\n---\nx').data.prefix).toBeUndefined()
+  })
+})
+
+describe('parsePrefixExpr（&&/|| 组合表达式）', () => {
+  it('单值退化为单项单组（旧单前缀语义兼容）', () => {
+    expect(parsePrefixExpr('src/engine')).toEqual([['src/engine']])
+    expect(parsePrefixExpr('  src/engine  ')).toEqual([['src/engine']])
+    expect(parsePrefixExpr('/')).toEqual([['/']])
+  })
+
+  it('|| 拆为多个 OR 组：任一路径命中触发', () => {
+    expect(parsePrefixExpr('src/engine || doc/engine')).toEqual([['src/engine'], ['doc/engine']])
+  })
+
+  it('&& 合为一个 AND 组：会话内全部读过才触发', () => {
+    expect(parsePrefixExpr('src/engine && doc/editor')).toEqual([['src/engine', 'doc/editor']])
+  })
+
+  it('&& 优先级高于 ||（与代码语义一致）', () => {
+    expect(parsePrefixExpr('a && b || c')).toEqual([['a', 'b'], ['c']])
+    expect(parsePrefixExpr('a || b && c')).toEqual([['a'], ['b', 'c']])
+  })
+
+  it('容忍多余空白与悬挂运算符（空项/空组丢弃）', () => {
+    expect(parsePrefixExpr(' a &&  b ')).toEqual([['a', 'b']])
+    expect(parsePrefixExpr('&& a ||')).toEqual([['a']])
+    expect(parsePrefixExpr('a && && b')).toEqual([['a', 'b']])
+  })
+
+  it('空/全空表达式返回 undefined（视为未声明，不参与联想）', () => {
+    expect(parsePrefixExpr('')).toBeUndefined()
+    expect(parsePrefixExpr('   ')).toBeUndefined()
+    expect(parsePrefixExpr('&& ||')).toBeUndefined()
+  })
+})
+
 describe('KM-01 记忆指导段踩坑四段结构（数据飞轮·知识飞轮）', () => {
   it('指导段含踩坑四段标签 Problem/Cause/Solution/Applicable', () => {
     const section = memoryGuideSectionText(undefined)
@@ -110,5 +165,12 @@ describe('KM-01 记忆指导段踩坑四段结构（数据飞轮·知识飞轮�
     expect(SAVE_FLOW_TEXT).toContain('当回合立即')
     expect(SAVE_FLOW_TEXT).toContain('memory_write')
     expect(SAVE_FLOW_TEXT).toContain('宁缺毋滥')
+  })
+  it('指导段说明 prefix 自动联想：命中自动加载全文、正文须精炼', () => {
+    const section = memoryGuideSectionText(undefined)
+    expect(section).toContain('prefix 自动联想')
+    expect(section).toContain('全文会被自动注入')
+    expect(section).toContain('必须最精炼')
+    expect(section).toContain('段级前缀')
   })
 })
