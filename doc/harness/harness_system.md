@@ -220,7 +220,7 @@ dsh web --dump-config | Select-String '<插件名>'
 |---|---|---|---|
 | [ds-engine-tools/](../../harness/ds-engine-tools) | 游戏运行时工具 9 个（HUD/场景大纲/UI 大纲/资产/鼠标键盘模拟/AI 事件） | `['tools']` | 本文档 §2 |
 | [ds-editor-tools/](../../harness/ds-editor-tools) | 编辑器 UI 工具 7 个，经 CDP :9222 点击/输入/截图/发 AI 事件 | `['tools']` | 本文档 §2.2 ④ |
-| [ds-memory/](../../harness/ds-memory) | 记忆系统：4 个 memory_* 工具 + 常驻记忆指导段 + 回合末提醒 | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
+| [ds-memory/](../../harness/ds-memory) | 记忆系统：5 个 memory_* 工具（memory_write 返回写入指引、由 agent 手动落盘 + 全库过时检查）+ 常驻记忆指导段 + 回合末提醒 + frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入，每会话去重；prefix 支持代码风格表达式组合多路径——`a \|\| b` 任一命中触发、`a && b` 会话内全部读过才触发，`&&` 优先级高于 `\|\|`，解析在 memoryTypes `parsePrefixExpr`、求值在 associate `evalPrefixGroups`） | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
 | [ds-feedback/](../../harness/ds-feedback) | 反馈飞轮：规则库段（order 3100）+ rule_propose/rule_apply | `['tools','systemPrompt']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | [ds-experience/](../../harness/ds-experience) | 经验飞轮：经历存取与检索 | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | [ds-instructions/](../../harness/ds-instructions) | 目录指令：读文件触发 `.dsh/instructions/*.md` 注入 | `['tools','systemPrompt']` | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |

@@ -702,7 +702,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | 下游功能 | 波及点 | 相关文档 |
 |---|---|---|
 | `AgentPanel` 消息列表 | `onEvent(cb)` 订阅事件流；`message` / `reasoning.delta` / `turnStart` 驱动显示队列与打字机 | [UI 面板组件](../ui/ui_components_system.md) |
-| `SessionSidebar` | `listSessions()` 拉列表；切换/新建/删除全部回写 localStorage 映射 | [UI 面板组件](../ui/ui_components_system.md) |
+| `SessionSidebar` | `listSessions()` 拉列表；切换/新建/删除全部回写 localStorage 映射；按 `updatedAt` 自动分组——超过 3 天的会话收进「3 天前的会话（N）」折叠组（默认收起，点击展开，`sessionGrouping.ts` 纯逻辑），当前会话与缺 `updatedAt` 的会话始终平铺在近期组 | [UI 面板组件](../ui/ui_components_system.md) |
 | `InputBox` | `isRunning()` 决定 send/steer 分流与 placeholder；停止按钮仅 running 时出现 | [UI 面板组件](../ui/ui_components_system.md) |
 | `QuestionCard` / `ApprovalCard` | `question/requested`、`approval/requested` 渲染交互卡，回答经 `answerQuestion(rpcId)` 回传 | [UI 面板组件](../ui/ui_components_system.md) |
 | `ConnectionIndicator` | 状态灯映射八态；`degraded` 点击 → `handleRestartAgent()` → `dshRestart()` IPC | [UI 面板组件](../ui/ui_components_system.md) |

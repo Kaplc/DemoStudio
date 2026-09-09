@@ -88,6 +88,8 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 
 > **为什么不写后台提取**：早期版本有回合末 side-query 提取，实践中要么漏存、要么滥存（把过程流水账全存进来）。现在改为「触发点绑定 + 回合末提醒」两段提示词，由主 agent 在回合内当场判定——它有完整上下文，比事后拿转录摘要判断准。
 
+> **memory_write 已改为「返回指引、手动落盘」**（2026-09-09）：工具只做参数校验（name/type/prefix 表达式）与按 name/description 查重，然后返回写入指引提示词（`memoryTypes.ts` 的 `buildManualWritePrompt`）——由主 agent 用 write/edit 手动完成三步：① 写记忆文件 ② 同步 MEMORY.md 索引行 ③ 全库检查过时记忆并顺便更新/清理。触发点清单与三步要求见更新后的 `SAVE_FLOW_TEXT`。
+
 **读回路径**：[index.ts:89](../../harness/ds-memory/src/index.ts) 注册常驻段 `memory:guide`（order 3200），`text` 每次装配时重算，把截断后的 `MEMORY.md` 索引拼进段尾；主 agent 看到索引后按需调 `memory_search` 按文件名取正文。
 
 ### 2.2 反馈飞轮（ds-feedback）：从纠正到规则的完整往返

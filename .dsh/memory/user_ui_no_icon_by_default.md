@@ -2,6 +2,7 @@
 name: user_ui_no_icon_by_default
 description: UI 不加 icon/emoji，除非用户要求
 type: user
+prefix: /
 ---
 UI 菜单/按钮默认不加 icon（emoji），只有用户明确要求时才加。
 
