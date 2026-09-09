@@ -344,6 +344,8 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 **31. `page.evaluate` 模板字符串内联 IIFE 返回 undefined** —— e2e 里 `page.evaluate(\`(() => {...return {...}})\`)`（模板字符串传代码字符串）在部分用例中稳定返回 `undefined`，后续读属性报 `Cannot read properties of undefined`；同样的代码改成**函数式传参** `page.evaluate(() => {...})` 就正常。规则：e2e 一律用函数式 evaluate；需要复用的深度查找函数注入 `window.__findRec` 后在函数体内引用。
 
+**32. `cdp_evaluate` 省略 `targetId` 默认连到第一个 tab（常是 DevTools 页）** —— 页面里有 DevTools tab 时，不传 `targetId` 的 `cdp_evaluate` 会在 `devtools://...` 页面上下文执行：`window.__ai` / 调试桥全不存在，location.href 显示 devtools URL，误判"页面没起来"。规则：**每次 `cdp_*` 都显式带 `cdp_list_tabs` 查到的编辑器窗口 targetId**（title=`DemoStudio Editor`、url=`http://localhost:5173/` 那个）。
+
 ## 7. 边界条件
 
 | 条件 | 行为 | 怎么应对 |

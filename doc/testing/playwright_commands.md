@@ -427,6 +427,14 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **46. 同 spec 文件多个 test 触发 beforeEach 二次启动游戏超时** —— 现象：第一个 test 全流程通过后，同文件第二个 test 的 `beforeEach` 卡 `waitGameRunning` 直到 120s 超时，页面快照仍停在启动页。原因：warm 的「打开工程 → ▶」流程带整页重载与场景异步切换，同一 dev server 会话内连续二次走完整启动链路时部分状态未复位（与坑 23 场景残留同源），第二个用例起不来。规则：**warm 游戏 e2e 一个 spec 文件合并为一个 test**（断言按节组织），避免二次启动；需要多组断言时在一个 test 内顺序完成。
 
+**47. Playwright MCP `browser_click` 的 ref 跨快照失效，需 snapshot→click 紧邻调用** —— 现象：`browser_snapshot` 返回的 ref（如 `e36`）隔了一轮其他操作后 `click` 报 `Ref e36 not found in the current page snapshot`；且该工具校验同时要求 `target`（客户端 schema）与 `ref`（服务端），只传其一报 `element and ref are required`。规则：**ref 只在"最近一次快照"内有效**，snapshot→click 必须紧邻两连调用（中间不能插 navigate/其他工具）；参数按校验提示 `element` + `target`（+`ref`）都传。ref 不稳时**直接切 `browser_run_code_unsafe`**（locator + dispatchEvent，见坑 1），不再依赖快照 ref。
+
+**48. `browser_run_code_unsafe` 内置 10s 超时，长等待任务直接超时** —— 现象：单段 code 里 `waitForFunction`/多步等待超过 10s，工具报 `请求超时, 超时时间:10000 ms`，无 deferredResultId 可取。规则：**长任务拆短**——每次只做一步（点击或读取），轮询等待用 `browser_wait_for`（独立工具不受此限）或拆多次 run_code 分步执行；断言读取类代码一次一取。
+
+**49. Playwright MCP 各工具"当前页面"漂移，evaluate 可能落到别的标签页** —— 现象：`browser_snapshot` 显示编辑器页，紧接的 `browser_evaluate` 却返回 `card not found`，Page URL 变成 `chrome://new-tab-page/`；快照与执行落在不同 page 上，`browser_click`/`browser_evaluate` 交替调用时反复漂移。规则：**操作前先核对 Page URL**，发现漂移先 `browser_navigate` 回目标 URL 或用 `browser_run_code_unsafe`（page 对象固定）连续完成多步；`browser_navigate` 自带快照，后续用 run_code 续接不再切工具。
+
+**50. 启动页工程卡片带入场动画，locator.click 等 stable 超时** —— 现象：`getByRole('button', { name: /WarmCurrent/ }).click()` 卡在 `waiting for element to be visible, enabled and stable` 直到超时（元素已 resolve）。原因：`startup-project-card` 有 CSS 入场动画，Playwright actionability 检查等不到 stable。规则：启动页卡片/菜单类元素**用 `page.evaluate` DOM 直点**（`(el).click()`）绕过 actionability；「打开工程」按钮同理，点完用 `browser_wait_for` 等重载。
+
 ---
 
 
