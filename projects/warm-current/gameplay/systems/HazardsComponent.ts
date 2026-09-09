@@ -2,12 +2,12 @@
  * HazardsComponent — 事件系统组件（模块 06/07）
  *
  * 引力弹弓窗口周期（木卫二线 ×2 速 ×0.5 耗）+ 太阳耀斑（通讯中断、
- * 在途船失联停滞、结束时护盾气泡外冻毁）。
+ * 在途船失联停滞、结束时护盾罩外冻毁；罩 = 面朝太阳的背日半圆）。
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import type { BuildingDef } from '../core/balance'
-import { buildingDefOf, shipPos } from '../core/helpers'
+import { buildingDefOf, buildingPos, shipPos } from '../core/helpers'
 import type { SimBuilding } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -87,22 +87,34 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
     f.nextIn = Number.POSITIVE_INFINITY
   }
 
-  /** 耀斑结束：护盾气泡内保全（限额 + 恢复延迟），其余冻毁。
-   *  护盾源 = 磁场护盾发生器（radius>0 的建筑，配置表驱动；建筑位置固定不漂移）。 */
+  /** 耀斑结束：护盾罩内保全（限额 + 恢复延迟），其余冻毁。
+   *  护盾源 = 磁场护盾发生器（radius>0 的建筑，配置表驱动；入轨建筑按实时位置判定）。
+   *  罩体面朝太阳（与渲染同口径）：保护域 = 以建筑为圆心的背日半圆 ——
+   *  距离 ≤ radius 且船位落在 (bp - sun) 方向一侧；朝阳侧半圆不在罩内。 */
   private resolveFlareDamage(): void {
     const s = this.sc.state
+    const sun = B.map.nodes.sun
     const flying = s.ships.filter((x) => x.state === 'flying')
-    const shields = s.buildings.map((b) => ({ b, def: buildingDefOf(b.type) }))
-      .filter((x): x is { b: SimBuilding; def: BuildingDef } => !!x.def && x.def.radius > 0)
+    const shields: Array<{ b: SimBuilding; def: BuildingDef; bp: { x: number; y: number }; ax: number; az: number }> = []
+    for (const b of s.buildings) {
+      const def = buildingDefOf(b.type)
+      if (!def || def.radius <= 0) continue
+      const bp = buildingPos(s, b)
+      // 背日方向（未归一化，仅作点积定向）
+      shields.push({ b, def, bp, ax: bp.x - sun.x, az: bp.y - sun.y })
+    }
     const assigned = new Map<number, number>() // buildingId → 已占名额
     const saved = new Set<number>()
     for (const ship of flying) {
       const pos = shipPos(s, ship)
       let best: SimBuilding | null = null
       let bestD = Infinity
-      for (const { b, def } of shields) {
+      for (const { b, def, bp, ax, az } of shields) {
         if ((assigned.get(b.id) ?? 0) >= def.shipCap) continue
-        const d = Math.hypot(pos.x - b.x, pos.y - b.y)
+        const dx = pos.x - bp.x
+        const dy = pos.y - bp.y
+        if (dx * ax + dy * az < 0) continue // 朝阳侧：罩外
+        const d = Math.hypot(dx, dy)
         if (d <= def.radius && d < bestD) { best = b; bestD = d }
       }
       if (best) {

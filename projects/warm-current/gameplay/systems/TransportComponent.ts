@@ -193,9 +193,15 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     return true
   }
 
-  /** 主动造船（150 H3 + 15s） */
+  /** 主动造船（shipBuildCost H3 + shipBuildTime 秒；受聚能环等级飞船上限约束：
+   *  在册 + 建造排队总数 < ship_cap 表当前等级 cap，超限 hint 拒绝） */
   tryBuildShip(): boolean {
     const s = this.sc.state
+    const cap = this.sc.shipCap
+    if (s.ships.length + s.buildQueue.length >= cap) {
+      this.sc.hint(`飞船已达当前聚能环上限 ${cap} 艘（提升聚能环等级解锁更多船位）`)
+      return false
+    }
     if (s.earthH3 < B.shipBuildCost) { this.sc.hint(`H3 不足（造船需 ${B.shipBuildCost}）`); return false }
     s.earthH3 -= B.shipBuildCost
     s.ledger.shipBuild += B.shipBuildCost
@@ -351,7 +357,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.state = 'idle'
       s.module.state = 'delivered'
       s.module.shipId = null
-      s.nodes = B.totalNodes
+      // 2026-09-08 交点单流化：模块交付只判胜利，不再点亮剩余交点（交点唯一来源 = 建设流）
       if (s.outcome === 'playing') {
         s.outcome = 'victory'
         const p = starPosAt(s, 'earth')

@@ -24,6 +24,13 @@ export interface StarBalance {
 
 export interface MapNodeCfg { x: number; y: number; r: number }
 
+/**
+ * 行星系子表（star_map.config.json systems 键，每系统一张表）：
+ * center=本系中心天体（solar=sun，子系=行星）；nodes=本系成员布局（本系局部画布
+ * 1920×1080，中心天体放 (960,540)，成员方位=初相位、距中心距离=轨道半径）。
+ */
+export interface MapSystemCfg { center: string; nodes: Record<string, MapNodeCfg> }
+
 /** 舰队维护费阶梯行：ships = 船队规模上限（含），costPerS = 维护费速率（H3/秒，全舰队合计） */
 export interface FleetMaintTier { ships: number; costPerS: number }
 
@@ -53,10 +60,10 @@ export type CardId = string
 export type CardType = 'unlock' | 'upgrade'
 
 export interface CardEffects {
-  fuelMult?: number; speedMult?: number; cargoMult?: number; burnMult?: number; recoverMult?: number
+  fuelMult?: number; speedMult?: number; cargoMult?: number; burnMult?: number
   /** 聚能环建设计费乘区（环网扩容 0.75，叠乘） */
   ringBuildCostMult?: number
-  moonLoadAdd?: number; otherLoadAdd?: number; bufferAdd?: number; gravityAdd?: number; fleetBonus?: number
+  moonLoadAdd?: number; otherLoadAdd?: number; gravityAdd?: number; fleetBonus?: number
   flareWarning?: boolean
   /** 本次点亮交点数（双生节点=2，缺省 1） */
   extraNodes?: number
@@ -103,6 +110,79 @@ export const COLORS = {
   dim: '#5a707f',
 } as const
 
+// ─── 星图布局（每行星系一张子表；扁平 nodes/moons 由 flattenMapSystems 派生） ───
+
+/** 代码内置默认星图子表（star_map.config.json 未加载时兜底；与表内容保持同步） */
+export const DEFAULT_MAP_SYSTEMS = {
+  solar: {
+    center: 'sun',
+    nodes: {
+      sun: { x: 960, y: 540, r: 96 },
+      mercury: { x: 932, y: 447, r: 11 },
+      venus: { x: 1131, y: 599, r: 17 },
+      earth: { x: 960, y: 790, r: 38 },
+      mars: { x: 1230, y: 271, r: 34 },
+      jupiter: { x: -296, y: 877, r: 46 },
+      saturn: { x: 3263, y: 1158, r: 40 },
+      uranus: { x: -3674, y: -703, r: 24 },
+      neptune: { x: 8418, y: -407, r: 23 },
+    },
+  },
+  earth: {
+    center: 'earth',
+    nodes: {
+      earth: { x: 960, y: 540, r: 38 },
+      moon: { x: 2160, y: 540, r: 17 },
+    },
+  },
+  jupiter: {
+    center: 'jupiter',
+    nodes: {
+      jupiter: { x: 960, y: 540, r: 46 },
+      europa: { x: 960, y: 464, r: 30 },
+    },
+  },
+} as Record<string, MapSystemCfg>
+
+/**
+ * 子表展开 → 全局扁平布局（B.map.nodes / B.map.moons，8 处消费文件的兼容接口）：
+ * solar 表节点直落全局画布；子系表按"中心天体贴 solar 表同名锚点"整体平移，
+ * 成员距中心距离 = 卫星轨道半径、方位 = 初相位（moons 由子系表自动派生，不再手写）。
+ * 纯函数：改子表后重开一局由 refreshBalanceFromConfigs 重展开。
+ */
+export function flattenMapSystems(systems: Record<string, MapSystemCfg>): {
+  nodes: Record<string, MapNodeCfg>
+  moons: Record<string, { parent: string; radius: number }>
+} {
+  const nodes: Record<string, MapNodeCfg> = {}
+  const moons: Record<string, { parent: string; radius: number }> = {}
+  const solar = systems.solar
+  if (solar) for (const [id, n] of Object.entries(solar.nodes)) nodes[id] = { ...n }
+  for (const sys of Object.values(systems)) {
+    if (!sys || sys === solar) continue
+    const c = sys.nodes[sys.center]
+    if (!c) continue
+    // 子系中心锚点 = solar 表同名天体（其显示半径 r 亦以 solar 表为准）
+    const anchor = nodes[sys.center] ?? { x: c.x, y: c.y, r: c.r }
+    for (const [id, n] of Object.entries(sys.nodes)) {
+      if (id === sys.center) continue
+      nodes[id] = { x: anchor.x + (n.x - c.x), y: anchor.y + (n.y - c.y), r: n.r }
+      moons[id] = { parent: sys.center, radius: Math.hypot(n.x - c.x, n.y - c.y) }
+    }
+  }
+  return { nodes, moons }
+}
+
+/** 用当前 B.map.systems 重展开扁平 nodes/moons（配置覆盖后调用） */
+function applyMapSystems(): void {
+  const flat = flattenMapSystems(B.map.systems)
+  B.map.nodes = flat.nodes as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>
+  B.map.moons = flat.moons as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>
+}
+
+/** 默认子表的初始扁平派生（B 字面量初始化用；展开语义见 flattenMapSystems） */
+const DEFAULT_MAP_FLAT = flattenMapSystems(DEFAULT_MAP_SYSTEMS)
+
 // ─── 运行时数值单例（默认值 = 平衡方案 V1） ───
 
 export const B = {
@@ -124,19 +204,23 @@ export const B = {
   researchPointRateAdd: 0.5,
   /** 研究点数计费：每点每秒消耗 H3（吨/秒/点；断环或储量耗尽不计费不加成） */
   researchPointCostPerS: 3,
-  /** 聚能环建设（脱离科研的独立流，ring_build.config.json 可覆盖）：
-   *  defaultPoints = 开局默认建设点数；minPoints = 最低保留点数（回收封底）；
-   *  rateAdd = 每点对建设速率的加算倍率；costPerS = 每点每秒 H3 计费；
-   *  nodeInterval = 1 交点基准建设时长（秒）。断环（=储量耗尽）完全停建停费，无衰减乘区。 */
+  /** 聚能环建设（造价制，2026-09-08 拍板：每级交点独立 H3 造价，进度 = 已投入 ÷ 本级造价。
+   *  ring_build.config.json（标量）+ level_cost.table.json（逐级造价）可覆盖：
+   *  defaultPoints = 开局建设点数；minPoints = 最低保留点数（回收封底，0 = 可清空暂停建设）；
+   *  costPerS = 每点每秒灌入 H3（吨/秒/点，灌入即计费；全局速度杠杆，速度 = costPerS × 点数 ÷ 本级造价）；
+   *  levelCost = 第 n 个交点的总造价（吨；灌满 → 交点点亮；运行时 × ringBuildCostMult 卡折扣）。
+   *  点数 0 或断环（=储量耗尽）停建，断环还停费，无衰减乘区。原 rateAdd/nodeInterval 随造价制移除
+   *  （提速调 costPerS，节奏调表造价）。 */
   ringBuild: {
     defaultPoints: 1,
-    minPoints: 1,
-    rateAdd: 0.5,
+    minPoints: 0,
     costPerS: 2,
-    nodeInterval: 100,
+    levelCost: [107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107],
   },
-  bufferSeconds: 24,
-  continuityRecoverRate: 20,
+  /** 堆心温度降温时长（秒）：储量耗尽（断环）期间堆心从满温缓降到 0 = 堆心熄灭 */
+  coreCoolSeconds: 30,
+  /** 堆心温度升温时长（秒）：补入燃料后堆心从 0 缓慢回满（不会瞬间回满） */
+  coreWarmSeconds: 10,
   initialShips: 3,
   shipBuildCost: 180,
   shipBuildTime: 15,
@@ -151,6 +235,9 @@ export const B = {
     { ships: 12, costPerS: 3.5 },
     { ships: 99, costPerS: 5 },
   ] as FleetMaintTier[],
+  // 飞船数量上限（按聚能环等级查 ship_cap 表 l1..l25；只挡主动造船，卡片/GM 加船可越限）。
+  // 曲线 2+⌈0.4×等级⌉：Lv1=3（开局满编，升环解锁造船）→ Lv25=12（与 fleetMaint 顶档对齐）
+  shipCap: [3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12, 12],
   act2Nodes: 4,
   act3Nodes: 8,
   act3SurviveSeconds: 240,
@@ -183,38 +270,21 @@ export const B = {
     minSpacing: 44,
     /** 距太阳最小净空（太阳半径 + 该值内不可放） */
     sunClearance: 24,
+    /** 建筑入轨：本征轨道切向公转速度（px/s；角速度 = orbitSpeed / orbitR，离行星越近转越快） */
+    orbitSpeed: 1.5,
+    /** 建筑入轨吸附半径（放置点距行星中心 ≤ 此值自动入轨绕其公转，否则静态放置） */
+    orbitAttach: 400,
+    /** 轨道半径抬底（入轨半径下限 = 行星显示半径 + 此值，避免轨道穿进行星本体） */
+    orbitMinPad: 30,
   },
-  // 星图布局
+  // 星图布局（权威 = systems，每行星系一张子表，结构见 MapSystemCfg / star_map.config.json；
+  // nodes/moons 为子表展开的扁平缓存：行星轨道圈/卫星环/系视角成员等消费接口不变）
   map: {
     hitTolerance: 28,
     routeHitDistance: 14,
-    nodes: {
-      // 太阳：恒星本体 + 聚能环圆心（非航线端点，仅取景/环布局用；可被 star_map 配置覆盖）
-      // 布局圆心 = 画布中心（世界系原点），轨道圈以真实比例展开
-      sun: { x: 960, y: 540, r: 96 },
-      // 八大行星（水金地木土天海；t=0 初相位 = 方位角，ω ∝ 1/轨道半径；日心距单调递增）
-      // 轨道半径 = 真实半长轴（AU）× 250px（地球 = 1 AU）：
-      //   水 0.387→97 / 金 0.723→181 / 地 1→250 / 火 1.524→381 /
-      //   木 5.203→1301 / 土 9.537→2384 / 天 19.19→4797 / 海 30.07→7517
-      // 行星半径（显示）保持游戏化尺寸，未按真实比例（否则不可见）
-      mercury: { x: 932, y: 447, r: 11 },
-      venus: { x: 1131, y: 599, r: 17 },
-      earth: { x: 960, y: 790, r: 38 },
-      mars: { x: 1230, y: 271, r: 34 },
-      jupiter: { x: -296, y: 877, r: 46 },
-      saturn: { x: 3263, y: 1158, r: 40 },
-      uranus: { x: -3674, y: -703, r: 24 },
-      neptune: { x: 8418, y: -407, r: 23 },
-      // 卫星布局锚点（相对 parent 布局点的初相位；距 parent 必须 = moons[id].radius）
-      // moon/earth 与 europa/jupiter 随 parent 平移，相对方位与旧版一致（moon 东侧 / europa 正上）
-      moon: { x: 1080, y: 790, r: 17 },
-      europa: { x: -296, y: 801, r: 30 },
-    } as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
-    /** 卫星配置：parent（行星）+ 轨道半径（px）；布局锚点距 parent 必须 = radius（开局不脱环） */
-    moons: {
-      moon: { parent: 'earth', radius: 120 },
-      europa: { parent: 'jupiter', radius: 76 },
-    } as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
+    systems: DEFAULT_MAP_SYSTEMS,
+    nodes: DEFAULT_MAP_FLAT.nodes as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
+    moons: DEFAULT_MAP_FLAT.moons as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
   },
   // 卡库（refreshBalanceFromConfigs 时由 warm-current.cards 表覆盖；空表回退 DEFAULT_CARDS）
   cards: [] as CardDef[],
@@ -254,18 +324,41 @@ export function refreshBalanceFromConfigs(): void {
     assignNumeric(B as unknown as Record<string, unknown>, g, [
       'earthH3Start', 'baseBurnPerLeg', 'baseLegSeconds', 'loadSeconds', 'unloadSeconds',
       'dangerReserveSeconds', 'startNodes', 'researchNodeCap', 'totalNodes', 'ringLevels', 'nodeInterval',
-      'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'bufferSeconds',
-      'continuityRecoverRate', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
+      'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'coreCoolSeconds', 'coreWarmSeconds', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'act2Nodes', 'act3Nodes', 'act3SurviveSeconds',
       'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
     ])
-  // 聚能环建设参数（独立配置表 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底）
+  // 聚能环建设参数（独立配置 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底。
+  // 注：文件内容包在 "ringBuild" 键下，getConfig 返回顶层 → 取 rbCfg.ringBuild 解包）
   try {
-    const rbCfg = ConfigRegistry.getConfig<Record<string, number>>('warm-current.ring_build')
+    const rbRaw = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.ring_build')
+    const rbCfg = (rbRaw?.ringBuild ?? rbRaw) as Record<string, number>
     if (rbCfg) {
-      for (const k of ['defaultPoints', 'minPoints', 'rateAdd', 'costPerS', 'nodeInterval'] as const) {
+      for (const k of ['defaultPoints', 'minPoints', 'costPerS'] as const) {
         if (typeof rbCfg[k] === 'number') (B.ringBuild as unknown as Record<string, number>)[k] = rbCfg[k]
       }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 聚能环交点造价表（level_cost.table.json：n1..n12 行 → B.ringBuild.levelCost 按序覆盖）
+  try {
+    const costTable = ConfigRegistry.getTable<{ cost: number }>('warm-current.level_cost')
+    if (costTable) {
+      const costs: number[] = []
+      const keys = costTable.getRowNames().sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
+      for (const k of keys) costs.push(costTable.getRow(k)!.cost)
+      if (costs.length > 0) B.ringBuild.levelCost = costs
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 飞船数量上限表（ship_cap.table.json：l1..l25 行 → B.shipCap 按序覆盖）
+  try {
+    const capTable = ConfigRegistry.getTable<{ cap: number }>('warm-current.ship_cap')
+    if (capTable) {
+      const caps: number[] = []
+      const keys = capTable.getRowNames().sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))
+      for (const k of keys) caps.push(capTable.getRow(k)!.cap)
+      if (caps.length > 0) B.shipCap = caps
     }
   } catch { /* 未注册 → 默认值 */ }
   } catch { /* 未注册 → 默认值 */ }
@@ -319,16 +412,25 @@ export function refreshBalanceFromConfigs(): void {
     if (ev?.flare) Object.assign(B.flare, ev.flare)
   } catch { /* 未注册 → 默认值 */ }
 
+  // 星图布局：systems 子表逐系逐节点合并（默认值兜底；config 新子表可直接追加），合并后重展开扁平 nodes/moons
   try {
-    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; nodes?: Record<string, MapNodeCfg> }>('warm-current.star_map')
+    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; systems?: Record<string, Partial<MapSystemCfg>> }>('warm-current.star_map')
     if (mp) {
       if (mp.hitTolerance !== undefined) B.map.hitTolerance = mp.hitTolerance
       if (mp.routeHitDistance !== undefined) B.map.routeHitDistance = mp.routeHitDistance
-      if (mp.nodes) {
-        for (const [k, node] of Object.entries(mp.nodes)) {
-          const cur = (B.map.nodes as Record<string, MapNodeCfg | undefined>)[k]
-          if (cur && node) Object.assign(cur, node)
+      if (mp.systems) {
+        for (const [sid, sys] of Object.entries(mp.systems)) {
+          if (!sys) continue
+          let cur = B.map.systems[sid]
+          if (!cur) { cur = { center: '', nodes: {} }; B.map.systems[sid] = cur }
+          if (sys.center !== undefined) cur.center = sys.center
+          for (const [k, node] of Object.entries(sys.nodes ?? {})) {
+            const cn = cur.nodes[k]
+            if (cn && node) Object.assign(cn, node)
+            else if (node) cur.nodes[k] = { ...node }
+          }
         }
+        applyMapSystems()
       }
     }
   } catch { /* 未注册 → 默认值 */ }

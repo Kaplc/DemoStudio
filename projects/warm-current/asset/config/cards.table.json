@@ -1,5 +1,5 @@
 {
-  "_comment": "海克斯卡库（模块03 §4 · 固定得失组合 · 每局按线洗牌）。\n type=unlock(解锁新功能，一次性)/upgrade(升级属性，可重复)；line=所属研究线；gain/cost=得失描述文案；\n effects=数值效果（数据驱动，由 sim.chooseCard 统一应用）：\n   fuelMult/speedMult/cargoMult/burnMult/recoverMult/ringBuildCostMult=乘区（叠乘）；moonLoadAdd/otherLoadAdd/bufferAdd/gravityAdd/fleetBonus=加法；\n   flareWarning=解锁旗标；\n   （2026-09-08 建设脱离科研改版：extraNodes 已废弃——交点解锁归聚能环建设流，选卡恒 +1）\n   nextGrowth={line:self|线id, mult}=该线下个节点生长倍率（一次性，节点完成后复位）。",
+  "_comment": "海克斯卡库（模块03 §4 · 固定得失组合 · 每局按线洗牌）。\n type=unlock(解锁新功能，一次性)/upgrade(升级属性，可重复)；line=所属研究线；gain/cost=得失描述文案；\n effects=数值效果（数据驱动，由 sim.chooseCard 统一应用）：\n   fuelMult/speedMult/cargoMult/burnMult/ringBuildCostMult=乘区（叠乘）；moonLoadAdd/otherLoadAdd/gravityAdd/fleetBonus=加法；\n   flareWarning=解锁旗标；\n   （2026-09-08 交点单流化：extraNodes 已废弃，选卡不再 +1 交点——交点唯一来源=聚能环建设流，选卡只出效果）\n   （2026-09-08 堆心温度改版：recoverMult/bufferAdd 随缓冲倒计时下线删除）\n   nextGrowth={line:self|线id, mult}=该线下个节点生长倍率（一次性，节点完成后复位）。",
   "event_warning": {
     "name": "事件预警", "type": "unlock", "line": "infra",
     "gain": "极寒停航提前 10 秒预告", "cost": "该线下次生长 −10%",

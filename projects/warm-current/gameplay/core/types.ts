@@ -71,17 +71,26 @@ export type BuildingTypeId = 'relay' | 'shield'
 
 /** 地图建筑（建造面板选型 → 星图自由放置；type = building 表行键）。
  *  中转站（relay）：可被航线链接，反向补给线送建材入缓存；
- *  磁场护盾发生器（shield）：耀斑期间保护半径内飞船（容量限额）。 */
+ *  磁场护盾发生器（shield）：耀斑期间保护半径内飞船（容量限额）。
+ *  入轨（2026-09-08 拍板）：靠近行星放置的建筑自动锚定该行星入轨绕其公转
+ *  （渲染/航线/护盾判定一律走 buildingPos 实时位置）；远离行星 = 静态放置。 */
 export interface SimBuilding {
   id: number
   /** 建筑类型（building.table.json 行键，B.buildings 查数值） */
   type: string
+  /** 放置落点（画布系；入轨建筑仅作放置记录，实时位置走 buildingPos） */
   x: number
   y: number
   /** 缓存物资（中转站：反向补给线运抵的建材，上限 B.buildings[type].bufferCap） */
   stock: number
   /** 建造投入 H3（拆除返还折算用） */
   invested: number
+  /** 轨道锚定天体（行星或卫星；缺失 = 未入轨静态建筑，旧档兼容口径） */
+  anchor?: PlanetBodyId
+  /** 轨道半径（px，距锚行星中心；放置过近按行星显示半径+pad 抬底） */
+  orbitR?: number
+  /** t=0 相位角（rad）：实时相位 = orbitA0 + ω·time，ω = orbitSpeed/orbitR（纯时间函数） */
+  orbitA0?: number
 }
 
 /** 研究线 id（2026-09-08 环线移除：聚能环建设独立成 RingBuildComponent，科研四线） */
@@ -191,13 +200,10 @@ export interface SimState {
   seed: number
   time: number
   earthH3: number
-  /** 延续度 0..100 */
-  continuity: number
+  /** 堆心温度 0..100（100 = 满温运转；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
+  coreTemp: number
+  /** 燃料门：有燃料 running（焚烧/研究/建设照常），储量耗尽 decaying（停烧停建，堆心降温） */
   ring: 'running' | 'decaying'
-  /** 缓冲衰减剩余（秒） */
-  bufferLeft: number
-  /** 本次缓冲衰减总时长（延续度 = bufferLeft/bufferTotal × 100） */
-  bufferTotal: number
   act: 1 | 2 | 3
   /** 已解锁节点数 = 覆盖交点数 */
   nodes: number
@@ -248,12 +254,8 @@ export interface SimMods {
   burnMult: number
   /** 聚能环建设计费乘区（环网扩容卡 −25%，叠乘） */
   ringBuildCostMult: number
-  /** 缓冲衰减加秒（储备扩容 +5s/张） */
-  bufferAdd: number
   /** 引力窗口加秒（引力延长 +5s/张） */
   gravityAdd: number
-  /** 延续度回升倍率（恒温冗余 ×2） */
-  recoverMult: number
   /** 事件预警（耀斑提前 10s 预告） */
   flareWarning: boolean
   /** 扩编船队 +1/张 */

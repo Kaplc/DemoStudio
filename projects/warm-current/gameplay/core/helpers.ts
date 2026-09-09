@@ -45,15 +45,17 @@ export interface RingLevelInfo {
   maxed: boolean
   /** 全球覆盖度 0..1（= 已覆盖交点 / totalNodes，物理值随交点跳升） */
   coverage: number
-  /** 升级进度 0..1（距下一级；四线研究最靠前进度驱动，随时间连续推进、选卡冻结；满级恒 1） */
+  /** 升级进度 0..1（距下一级；建设流交点进度驱动，随建设连续推进、交点落成跳升；满级恒 1） */
   progress: number
 }
 
 /**
  * 聚能环等级推导：25 级阶梯铺在「开局 1 交点 → 12 交点全球组网」的旅程上
- * （按 2.5h 局时长 ≈ 每级 6 分钟）。连续进度 raw = (已覆盖交点−1 + 下一交点研究进度)
- * ÷ (totalNodes−1)：研究随时间连续推进（运转加成/研究点数提速，选卡冻结），某线满进度
- * → 选卡 → 交点解锁 → 等级跳升、覆盖度 +1/12。覆盖度是物理值（交点/12）。
+ * （按 2.5h 局时长 ≈ 每级 6 分钟）。连续进度 raw = (已覆盖交点−1 + 下一交点建设进度)
+ * ÷ (totalNodes−1)：2026-09-08 建设脱离科研后，下一交点进度只由建设流推进
+ * （建设点数控速，0 点停建则等级条冻结）；交点落成（建设满 1，唯一来源——选卡 +1
+ * 已随交点单流化移除）→ 等级跳升、覆盖度 +1/12。覆盖度是物理值（交点/12）。科研进度不再入等级
+ * （旧版用四线最靠前研究进度驱动，会让等级在停建时虚涨、焚烧随之虚增）。
  */
 export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo {
   const total = Math.max(1, B.totalNodes)
@@ -77,36 +79,35 @@ export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo 
  * 单线研究推进速率（进度/秒）：**纯点数驱动**（2026-09-08 用户拍板，废弃被动推进）：
  * 无点数速率为 0（研究完全靠分配点数，每点也是一份持续 H3 计费）；有点数时
  * 速率 = 基础 1/nodeInterval × 环运转加成 × 点数加成（每点 +researchPointRateAdd，加算）
- * × 生长修正（卡效果）；断环或储量耗尽时点数加成失效（无 H3 支撑），速率为 0。
+ * × 生长修正（卡效果）；储量耗尽时点数加成失效（无 H3 支撑），速率为 0。
  */
 export function researchRateOf(line: SimResearchLine, state: SimState): number {
   if (line.points <= 0) return 0
-  const powered = state.ring === 'running' && state.earthH3 > 0
-  if (!powered) return 0
+  if (state.earthH3 <= 0) return 0
   const runningBonus = B.runningRateBonus
   const pointMult = 1 + line.points * B.researchPointRateAdd
   return (1 / B.nodeInterval) * runningBonus * pointMult * line.nextMult
 }
 
-/** 单线研究 H3 消耗速率（吨/秒，点数计费；断环/储量耗尽不计费） */
+/** 单线研究 H3 消耗速率（吨/秒，点数计费；储量耗尽不计费） */
 export function researchCostOf(line: SimResearchLine, state: SimState): number {
-  const powered = state.ring === 'running' && state.earthH3 > 0
-  return powered ? line.points * B.researchPointCostPerS : 0
+  return state.earthH3 > 0 ? line.points * B.researchPointCostPerS : 0
 }
 
 // ─── 聚能环建设（脱离科研的独立流，模块 03 §5 物理层） ───
 
 /**
- * 聚能环建设推进速率（交点进度/秒）：纯点数驱动（最低 1 点常转）。
- * 速率 = 1/nodeInterval × 环运转加成 × (1 + points×rateAdd)；
- * 储量耗尽完全停建（无燃料支撑工程）。配置表 ring_build.config.json 全字段可调。
- * （计费速率消费方走 SimStateComponent.ringBuildCost，含 mods.ringBuildCostMult 乘区）
+ * 聚能环建设推进速率（交点进度/秒，详情面板 %/s 展示口径）：造价制——
+ * 灌入速率（建设点数 × costPerS，0 点/断环为 0，与 SimStateComponent.ringBuildCost 同式）
+ * ÷ 本级有效造价（levelCost × ringBuildCostMult，卡折扣省总 H3）。
+ * 实际扣费/账本在 RingBuildComponent.tickBuild（灌入即计费）。
  */
 export function ringBuildRateOf(state: SimState): number {
-  if (state.earthH3 <= 0) return 0
-  const runningBonus = B.runningRateBonus
-  const pointMult = 1 + state.ringBuild.points * B.ringBuild.rateAdd
-  return (1 / B.ringBuild.nodeInterval) * runningBonus * pointMult
+  const base = B.ringBuild.levelCost[Math.min(state.nodes, B.ringBuild.levelCost.length - 1)]
+  const cost = base * state.mods.ringBuildCostMult
+  if (!(cost > 0)) return 0
+  const pump = state.earthH3 > 0 ? state.ringBuild.points * B.ringBuild.costPerS : 0
+  return pump / cost
 }
 
 // ─── 太阳系公转（位置 = 仿真时间的纯函数：确定性、快照/重放安全） ───
@@ -125,6 +126,21 @@ export function orbitRadiusPx(body: PlanetBodyId): number {
   const n = B.map.nodes[body]
   const s = B.map.nodes.sun
   return Math.hypot(n.x - s.x, n.y - s.y)
+}
+
+// ─── 行星系子表查询（star_map systems：每系统一张表，系视角成员读表） ───
+
+/**
+ * 行星系视角成员清单 = 该行星子表的全部键（中心行星 + 其卫星，顺序=表内键序）；
+ * 无子表的行星 → [自身]。隐藏隔离/系内容判定共用（子表增删即生效，无代码改动）。
+ */
+export function systemFamilyIds(focus: PlanetId): string[] {
+  const out: string[] = [focus]
+  for (const [sid, sys] of Object.entries(B.map.systems)) {
+    if (sid === 'solar' || sys.center !== focus) continue
+    for (const id of Object.keys(sys.nodes)) if (id !== focus) out.push(id)
+  }
+  return out
 }
 
 // ─── 首次引导（单一数据源：规则判定 / 渲染定位 / 测试 共用） ───
@@ -219,7 +235,7 @@ export function earthPos(state: SimState): { x: number; y: number } {
  *  - 太阳系全景（solar）：世界系 = 地图系平移，返回 starPosAt 实时公转位置（世界系）
  *  - 行星系（聚焦某行星）：坐标系 = 舞台相对系（舞台 = 太阳位/世界原点，镜头钉死舞台，
  *    渲染 systemGroup 内容与指针拾取均按舞台系反算地图坐标）：
- *      聚焦行星 + 其卫星（moons 配置）→ 舞台相对位（聚焦行星钉在舞台中心，
+ *      聚焦行星 + 其子系表成员（star_map systems）→ 舞台相对位（聚焦行星钉在舞台中心，
  *        卫星按真实相对几何绕它转——与旧 ox/oz 舞台补偿数学完全等价）
  *      太阳 → 舞台锚点 (0,0)（渲染层隐藏 + 点击 pickable 拒绝，Actor 原地钉死防飞掠相机）
  *      其余隐藏天体 → 布局锚方位 × 隔离半径 12000（相机 panLimit 9000 拉不到，
@@ -240,10 +256,8 @@ export function hiddenActorIsolated(
   const fp = starPosAt(state, focus)
   const fx = toWX(fp.x)
   const fz = toWZ(fp.y)
-  const family = new Set<string>([focus])
-  for (const [mid, mc] of Object.entries(B.map.moons)) {
-    if (mc.parent === focus) family.add(mid)
-  }
+  // 本系成员 = 聚焦行星子表全键（star_map systems，读表即得）
+  const family = new Set<string>(systemFamilyIds(focus))
   if (family.has(body)) {
     // 本系成员：舞台相对位（聚焦行星钉在舞台中心，卫星按真实相对几何贴放）
     const p = starPosAt(state, body)
@@ -283,7 +297,7 @@ export function makeShip(index: number): SimShip {
 export function freshMods(): SimState['mods'] {
   return {
     fuelMult: 1, speedMult: 1, cargoMult: 1, moonLoadAdd: 0, otherLoadAdd: 0,
-    burnMult: 1, ringBuildCostMult: 1, bufferAdd: 0, gravityAdd: 0, recoverMult: 1,
+    burnMult: 1, ringBuildCostMult: 1, gravityAdd: 0,
     flareWarning: false, fleetBonus: 0,
   }
 }
@@ -312,10 +326,8 @@ export function createInitialState(seed: number): SimState {
     seed,
     time: 0,
     earthH3: B.earthH3Start,
-    continuity: 100,
+    coreTemp: 100,
     ring: 'running',
-    bufferLeft: 0,
-    bufferTotal: B.bufferSeconds,
     act: 1,
     nodes: B.startNodes,
     ringBuild: { points: B.ringBuild.defaultPoints },
@@ -355,7 +367,7 @@ export function endpointPos(state: SimState, e: Endpoint): { x: number; y: numbe
   if (e.kind === 'earth') return starPosAt(state, 'earth')
   if (e.kind === 'star') return starPosAt(state, e.star)
   const b = state.buildings.find((x) => x.id === e.buildingId)
-  return b ? { x: b.x, y: b.y } : starPosAt(state, 'earth')
+  return b ? buildingPos(state, b) : starPosAt(state, 'earth')
 }
 
 export function endpointName(state: SimState, e: Endpoint): string {
@@ -385,6 +397,44 @@ export function buildingByEndpoint(state: SimState, e: Endpoint): SimBuilding | 
   return e.kind === 'building' ? state.buildings.find((x) => x.id === e.buildingId) ?? null : null
 }
 
+/**
+ * 建筑入轨参数推导（放置时一次性计算，2026-09-08 拍板：建筑入轨绕行星公转）：
+ *  - 锚 = orbitAttach 半径内最近的天体（八大行星+卫星；太阳不作锚，静态无公转意义）。
+ *    卫星可作锚（2026-09-08 地月距 ×10：月球旁放置若仍锚 parent 会超 attach 半径 →
+ *    无锚静态漂移，故绕月公转）；
+ *    无候选 → null（静态放置，行为同旧版）
+ *  - orbitR = 距锚中心距离，按「天体显示半径 + orbitMinPad」抬底（轨道不穿本体）
+ *  - orbitA0 = 放置瞬时相位回推到 t=0（实时相位 = orbitA0 + ω·time，ω = orbitSpeed/orbitR；
+ *    纯时间函数口径 → 无需 tick、快照/读档/重放天然确定）
+ */
+export function resolveBuildingOrbit(state: SimState, x: number, y: number): { anchor: PlanetBodyId; orbitR: number; orbitA0: number } | null {
+  let best: PlanetBodyId | null = null
+  let bestD = B.build.orbitAttach
+  for (const key of Object.keys(B.map.nodes) as Array<keyof typeof B.map.nodes>) {
+    if (key === 'sun') continue
+    const p = starPosAt(state, key)
+    const d = Math.hypot(x - p.x, y - p.y)
+    if (d < bestD) { bestD = d; best = key as PlanetBodyId }
+  }
+  if (!best) return null
+  const p = starPosAt(state, best)
+  const orbitR = Math.max(B.map.nodes[best].r + B.build.orbitMinPad, Math.hypot(x - p.x, y - p.y))
+  const w = B.build.orbitSpeed / Math.max(1, orbitR)
+  return { anchor: best, orbitR, orbitA0: Math.atan2(y - p.y, x - p.x) - w * state.time }
+}
+
+/**
+ * 建筑实时位置（画布系，渲染/拾取/航线/护盾判定的唯一口径）：
+ * 入轨建筑 = 锚行星实时公转位 + 本征轨道极坐标（相位随仿真时间推进，建筑跟随行星绕日、
+ * 同时自绕行星公转）；未入轨（旧档 / 远离行星放置）= 静态放置坐标。
+ */
+export function buildingPos(state: SimState, b: SimBuilding): { x: number; y: number } {
+  if (!b.anchor || typeof b.orbitR !== 'number' || typeof b.orbitA0 !== 'number') return { x: b.x, y: b.y }
+  const a = starPosAt(state, b.anchor)
+  const ang = b.orbitA0 + (B.build.orbitSpeed / Math.max(1, b.orbitR)) * state.time
+  return { x: a.x + Math.cos(ang) * b.orbitR, y: a.y + Math.sin(ang) * b.orbitR }
+}
+
 /** 建筑放置吸附（世界原点锚定的方格网，画布系进出；放置/预览/网格线同一口径） */
 export function snapToGrid(mx: number, my: number): { x: number; y: number } {
   const g = Math.max(1, B.build.grid)
@@ -394,12 +444,13 @@ export function snapToGrid(mx: number, my: number): { x: number; y: number } {
   }
 }
 
-/** 反向补给线距离系数（几何：地→建筑实际画布距离 ÷ 1AU=250px，影响航段时长与油耗） */
+/** 反向补给线距离系数（几何：地→建筑实时位置画布距离 ÷ 1AU=250px，影响航段时长与油耗；入轨建筑随公转变化） */
 export function supplyDistCoeff(state: SimState, e: Endpoint): number {
   const b = buildingByEndpoint(state, e)
   if (!b) return 1
+  const p = buildingPos(state, b)
   const earth = earthPos(state)
-  return Math.max(0.1, Math.hypot(b.x - earth.x, b.y - earth.y) / 250)
+  return Math.max(0.1, Math.hypot(p.x - earth.x, p.y - earth.y) / 250)
 }
 
 // ─── 数值 ───

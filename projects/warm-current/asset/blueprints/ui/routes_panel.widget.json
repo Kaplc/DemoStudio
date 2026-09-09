@@ -1,7 +1,7 @@
 {
   "name": "RoutesPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-721d1f04",
+  "sourceHash": "fnv1a-e1ad8662",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -4017,7 +4017,7 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "尚无航线 —— 回星图从星球拖线到地球即可建立",
+                        "text": "尚无航线 —— 点底部「航线编辑」进入后，从星球拖线到地球即可建立",
                         "name": "EmptyText",
                         "width": 610,
                         "height": 40,

@@ -44,22 +44,22 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
   /** 实时焚烧（吨/秒）：随聚能环等级增长（B.levelBurn / level_burn 表），含节能修正 */
   get burnRate(): number {
     const s = this.state
-    const researchMax = s.research.reduce((m, l) => Math.max(m, l.progress), 0)
-    const lv = ringLevelOf(s.nodes, researchMax).level
+    const lv = ringLevelOf(s.nodes, s.ringBuildProgress).level
     return (B.levelBurn[lv - 1] ?? B.levelBurn[B.levelBurn.length - 1] ?? 0) * s.mods.burnMult
   }
 
-  /** 研究点数计费（吨/秒）：各线已分配点数合计 × 每点单价；断环/储量耗尽不计费 */
+  /** 研究点数计费（吨/秒）：各线已分配点数合计 × 每点单价；储量耗尽不计费 */
   get researchCost(): number {
     const s = this.state
-    if (s.ring !== 'running' || s.earthH3 <= 0) return 0
+    if (s.earthH3 <= 0) return 0
     return s.research.reduce((sum, l) => sum + l.points, 0) * B.researchPointCostPerS
   }
 
-  /** 聚能环建设计费（吨/秒）：建设点数 × 每点单价 × 计费乘区（环网扩容卡）；储量耗尽（断环）停建停费 */
+  /** 聚能环建设灌入速率（吨/秒，即每秒实扣）：建设点数 × 每点单价；储量耗尽停建停费。
+   *  造价制下卡效果 ringBuildCostMult 不乘灌入速率，而是折扣本级造价（省总 H3 = 同速更快），见 RingBuildComponent。 */
   get ringBuildCost(): number {
     const s = this.state
-    return s.earthH3 > 0 ? s.ringBuild.points * B.ringBuild.costPerS * s.mods.ringBuildCostMult : 0
+    return s.earthH3 > 0 ? s.ringBuild.points * B.ringBuild.costPerS : 0
   }
 
   /** 已分配研究点总数（四线合计） */
@@ -67,16 +67,26 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return this.state.research.reduce((sum, l) => sum + l.points, 0)
   }
 
-  /** 可用研究点 = 当前聚能环等级 − 已分配（每级 1 点，含开局 Lv1；等级只升不降） */
+  /** 可用研究点 = 当前聚能环等级 − 已分配（每级 1 点，含开局 Lv1；等级只升不降，随建设流推进） */
   get unspentResearchPoints(): number {
     const s = this.state
-    const researchMax = s.research.reduce((m, l) => Math.max(m, l.progress), 0)
-    return Math.max(0, ringLevelOf(s.nodes, researchMax).level - this.allocatedResearchPoints)
+    return Math.max(0, ringLevelOf(s.nodes, s.ringBuildProgress).level - this.allocatedResearchPoints)
   }
 
-  /** 当前总需求（焚烧 + 研究点计费 + 建设计费，衰减期为 0） */
+  /** 当前聚能环等级（1..ringLevels，随建设流派生；造船上限等消费方的唯一口径） */
+  get ringLevel(): number {
+    return ringLevelOf(this.state.nodes, this.state.ringBuildProgress).level
+  }
+
+  /** 飞船数量上限（ship_cap 表按当前等级；主动造船的在册+排队总数不可超，卡片/GM 加船可越限） */
+  get shipCap(): number {
+    const arr = B.shipCap
+    return arr[Math.min(this.ringLevel, arr.length) - 1]
+  }
+
+  /** 当前总需求（焚烧 + 研究点计费 + 建设计费，储量耗尽为 0） */
   get demand(): number {
-    return this.state.ring === 'running' ? this.burnRate + this.researchCost + this.ringBuildCost : 0
+    return this.state.earthH3 > 0 ? this.burnRate + this.researchCost + this.ringBuildCost : 0
   }
 
   get idleShips(): number {
@@ -126,16 +136,16 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
   enterSandbox(): void {
     this.state.sandbox = true
     this.state.outcome = 'playing'
-    this.state.continuity = 100
+    this.state.coreTemp = 100
     this.state.ring = 'running'
     if (this.state.earthH3 < B.earthH3Start) this.state.earthH3 = B.earthH3Start
   }
 
-  /** 延续度归零 → 失败（唯一硬性失败线） */
+  /** 堆心温度归零 → 堆心熄灭 → 失败（唯一硬性失败线） */
   checkDefeat(): void {
     const s = this.state
-    if (s.continuity <= 0 && !s.sandbox) {
-      s.continuity = 0
+    if (s.coreTemp <= 0 && !s.sandbox) {
+      s.coreTemp = 0
       s.outcome = 'defeat'
       this.emit({ type: 'defeat' })
     }

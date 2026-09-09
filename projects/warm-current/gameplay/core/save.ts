@@ -20,8 +20,14 @@ import type { SimState } from './types'
  *  v4：海克斯弹卡暂停（2026-09-08 拍板）——hexHiddenAt/自动收纳下线（旧档读入时清字段）。
  *  v5：聚能环建设脱离科研（2026-09-08）——ringBuild/ringBuildProgress 新增（旧档补默认 1 点/0 进度）、
  *      SimLedger.ringBuild 计费项新增（freshLedger 合并兜底）。
- *  v6：环线移除（2026-09-08）——科研 5 线 → 4 线，旧档 research 残留环线行读入时过滤。 */
-export const SAVE_FORMAT_VERSION = 6
+ *  v6：环线移除（2026-09-08）——科研 5 线 → 4 线，旧档 research 残留环线行读入时过滤。
+ *  v7：堆心温度（2026-09-08 用户拍板：无燃料不再是倒计时）——continuity/bufferLeft/bufferTotal
+ *      下线，改 coreTemp（旧档按 ring 映射：运转满温、断环按缓冲剩余折算温度）；
+ *      mods.bufferAdd/recoverMult 字段删除（旧档残留读入时清）。
+ *  v8：建筑入轨（2026-09-08 用户拍板：建筑放置后绕最近行星公转）——SimBuilding 新增
+ *      anchor/orbitR/orbitA0（纯增量字段：旧档缺失 = 静态建筑，读入无需迁移；新档旧代码读入
+ *      多余字段亦无害）。 */
+export const SAVE_FORMAT_VERSION = 8
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -156,6 +162,22 @@ export function restoreSimState(
   // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
   // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键
   sim.ledger = { ...freshLedger(), ...(typeof sim.ledger === 'object' && sim.ledger !== null ? sim.ledger : {}) }
+  // v6→v7 兼容（堆心温度）：旧档 continuity/bufferLeft/bufferTotal 下线 →
+  // coreTemp 按旧字段折算（运转满温；断环取缓冲剩余比例），旧字段删除
+  const legacy = sim as unknown as Record<string, unknown>
+  if (typeof (sim as Partial<SimState>).coreTemp !== 'number') {
+    const bufferLeft = typeof legacy.bufferLeft === 'number' ? legacy.bufferLeft : 0
+    const bufferTotal = typeof legacy.bufferTotal === 'number' && legacy.bufferTotal > 0 ? legacy.bufferTotal : 1
+    sim.coreTemp = legacy.ring === 'decaying' ? Math.max(0, Math.min(100, (bufferLeft / bufferTotal) * 100)) : 100
+  }
+  delete legacy.continuity
+  delete legacy.bufferLeft
+  delete legacy.bufferTotal
+  // v6→v7 兼容：mods 里已删除的字段（bufferAdd/recoverMult）从旧档清除
+  if (sim.mods && typeof sim.mods === 'object') {
+    delete (sim.mods as unknown as Record<string, unknown>).bufferAdd
+    delete (sim.mods as unknown as Record<string, unknown>).recoverMult
+  }
   return { state: deepSnapshot(sim), rng: mulberry32(sim.seed) }
 }
 

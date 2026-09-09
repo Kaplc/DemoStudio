@@ -42,10 +42,10 @@ export default class SettleScript extends BehaviourScript {
       this.binder.set(findText(this.actor, 'SettleTitle'), '环网建成')
       this.binder.set(findText(this.actor, 'SettleSub'), vm.sandbox
         ? '沙盒续行中：无失败压力，自由扩建环网'
-        : '第 12 交点点亮，地球重获暖流')
+        : '火星聚能模块运回，地球重获暖流')
     } else {
       this.binder.set(findText(this.actor, 'SettleTitle'), '环已熄灭')
-      this.binder.set(findText(this.actor, 'SettleSub'), '延续度归零 —— 人类文明失去最后的热源')
+      this.binder.set(findText(this.actor, 'SettleSub'), '堆心温度归零 —— 人类文明失去最后的热源')
     }
     this.binder.set(findText(this.actor, 'SettleStats'),
       `存活 ${fmtTime(vm.time)} · 第${['一', '二', '三'][vm.act - 1]}幕 · 交点 ${vm.nodes}/12\n`

@@ -7,7 +7,7 @@ import { B } from '../core/balance'
 
 export default {
   name: 'node',
-  description: '解锁研究节点 node(count)（自动推幕；上限 11，第 12 交点由火星模块点亮）',
+  description: '解锁研究节点 node(count)（自动推幕；上限 11，正式局交点由建设流点亮）',
   params: [{ name: 'count', type: 'int', required: false, desc: '数量（缺省 1）' }],
   handler: (ctx, count) => {
     const mode = (ctx.gameInstance as unknown as { gameMode?: WarmCurrentGameMode }).gameMode

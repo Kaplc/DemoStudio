@@ -1,7 +1,7 @@
 {
   "name": "RingPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-b6f10abd",
+  "sourceHash": "fnv1a-af5ddc67",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1380,7 +1380,7 @@
               ]
             },
             {
-              "name": "ContinuityRow",
+              "name": "CoreRow",
               "baseClass": "Actor",
               "id": 13227,
               "components": [
@@ -1417,7 +1417,7 @@
               ],
               "children": [
                 {
-                  "name": "ContText",
+                  "name": "CoreText",
                   "baseClass": "Actor",
                   "id": 13228,
                   "components": [
@@ -1454,12 +1454,13 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "延续 100%",
-                        "name": "ContText",
+                        "text": "堆心温度 100%",
+                        "name": "CoreText",
                         "width": 200,
                         "height": 26,
                         "fontSize": 19,
-                        "color": "#9fc4d8",
+                        "color": "#ffe9a8",
+                        "bold": true,
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 1,
                         "shadowOffsetY": 1,
@@ -1470,7 +1471,7 @@
                   "children": []
                 },
                 {
-                  "name": "ContBar",
+                  "name": "CoreBar",
                   "baseClass": "Actor",
                   "id": 13229,
                   "components": [
@@ -1488,7 +1489,7 @@
                           1
                         ],
                         "worldWidth": 280,
-                        "worldHeight": 8,
+                        "worldHeight": 10,
                         "position": [
                           105,
                           0,
@@ -1509,13 +1510,13 @@
                       "properties": {
                         "max": 100,
                         "value": 100,
-                        "fillActorName": "ContFill"
+                        "fillActorName": "CoreFill"
                       }
                     }
                   ],
                   "children": [
                     {
-                      "name": "ContFill",
+                      "name": "CoreFill",
                       "baseClass": "Actor",
                       "id": 13230,
                       "components": [
@@ -1533,7 +1534,7 @@
                               1
                             ],
                             "worldWidth": 280,
-                            "worldHeight": 8,
+                            "worldHeight": 10,
                             "anchor": "stretch",
                             "anchorOffset": [
                               0,
@@ -1557,11 +1558,11 @@
                         {
                           "baseClass": "UIImageComponent",
                           "properties": {
-                            "color": "#7fdcff",
-                            "radius": 4,
+                            "color": "#ffb03d",
+                            "radius": 5,
                             "width": 280,
-                            "height": 8,
-                            "name": "ContFill"
+                            "height": 10,
+                            "name": "CoreFill"
                           }
                         }
                       ],
@@ -1572,7 +1573,7 @@
               ]
             },
             {
-              "name": "BufferRow",
+              "name": "CoreStateText",
               "baseClass": "Actor",
               "id": 13231,
               "components": [
@@ -1590,10 +1591,10 @@
                       1
                     ],
                     "worldWidth": 490,
-                    "worldHeight": 34,
+                    "worldHeight": 26,
                     "position": [
                       -15,
-                      -78,
+                      -68,
                       0
                     ]
                   }
@@ -1605,168 +1606,29 @@
                     "name": "UIMarker",
                     "zOrder": 0
                   }
-                }
-              ],
-              "children": [
-                {
-                  "name": "BufferText",
-                  "baseClass": "Actor",
-                  "id": 13232,
-                  "components": [
-                    {
-                      "baseClass": "UITransformComponent",
-                      "properties": {
-                        "rotation": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "scale": [
-                          1,
-                          1,
-                          1
-                        ],
-                        "worldWidth": 200,
-                        "worldHeight": 26,
-                        "position": [
-                          -145,
-                          0,
-                          0
-                        ]
-                      }
-                    },
-                    {
-                      "baseClass": "CanvasUIComponent",
-                      "properties": {
-                        "markerOnly": true,
-                        "name": "UIMarker",
-                        "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UITextComponent",
-                      "properties": {
-                        "text": "缓冲 0/0s",
-                        "name": "BufferText",
-                        "width": 200,
-                        "height": 26,
-                        "fontSize": 19,
-                        "color": "#9fc4d8",
-                        "shadowColor": "#00000066",
-                        "shadowOffsetX": 1,
-                        "shadowOffsetY": 1,
-                        "shadowBlur": 4
-                      }
-                    }
-                  ],
-                  "children": []
                 },
                 {
-                  "name": "BufferBar",
-                  "baseClass": "Actor",
-                  "id": 13233,
-                  "components": [
-                    {
-                      "baseClass": "UITransformComponent",
-                      "properties": {
-                        "rotation": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "scale": [
-                          1,
-                          1,
-                          1
-                        ],
-                        "worldWidth": 280,
-                        "worldHeight": 8,
-                        "position": [
-                          105,
-                          0,
-                          0
-                        ]
-                      }
-                    },
-                    {
-                      "baseClass": "CanvasUIComponent",
-                      "properties": {
-                        "markerOnly": true,
-                        "name": "UIMarker",
-                        "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UIProgressBarComponent",
-                      "properties": {
-                        "max": 60,
-                        "value": 0,
-                        "fillActorName": "BufferFill"
-                      }
-                    }
-                  ],
-                  "children": [
-                    {
-                      "name": "BufferFill",
-                      "baseClass": "Actor",
-                      "id": 13234,
-                      "components": [
-                        {
-                          "baseClass": "UITransformComponent",
-                          "properties": {
-                            "rotation": [
-                              0,
-                              0,
-                              0
-                            ],
-                            "scale": [
-                              1,
-                              1,
-                              1
-                            ],
-                            "worldWidth": 280,
-                            "worldHeight": 8,
-                            "anchor": "stretch",
-                            "anchorOffset": [
-                              0,
-                              0
-                            ],
-                            "position": [
-                              0,
-                              0,
-                              0
-                            ]
-                          }
-                        },
-                        {
-                          "baseClass": "CanvasUIComponent",
-                          "properties": {
-                            "markerOnly": true,
-                            "name": "UIMarker",
-                            "zOrder": 0
-                          }
-                        },
-                        {
-                          "baseClass": "UIImageComponent",
-                          "properties": {
-                            "color": "#ffe9a8",
-                            "radius": 4,
-                            "width": 280,
-                            "height": 8,
-                            "name": "BufferFill"
-                          }
-                        }
-                      ],
-                      "children": []
-                    }
-                  ]
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "满温运转",
+                    "name": "CoreStateText",
+                    "width": 490,
+                    "height": 26,
+                    "fontSize": 18,
+                    "color": "#ffe9a8",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
                 }
-              ]
+              ],
+              "children": []
             },
             {
               "name": "FlowText",
               "baseClass": "Actor",
-              "id": 13235,
+              "id": 13232,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1785,7 +1647,7 @@
                     "worldHeight": 28,
                     "position": [
                       -15,
-                      -117,
+                      -103,
                       0
                     ]
                   }
@@ -1819,7 +1681,7 @@
             {
               "name": "DemandText",
               "baseClass": "Actor",
-              "id": 13236,
+              "id": 13233,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1838,7 +1700,7 @@
                     "worldHeight": 26,
                     "position": [
                       -15,
-                      -148,
+                      -134,
                       0
                     ]
                   }
@@ -1872,7 +1734,7 @@
             {
               "name": "WarnText",
               "baseClass": "Actor",
-              "id": 13237,
+              "id": 13234,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1891,7 +1753,7 @@
                     "worldHeight": 26,
                     "position": [
                       -15,
-                      -178,
+                      -164,
                       0
                     ]
                   }

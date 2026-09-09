@@ -11,7 +11,7 @@
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import { drawCards, getCardDef } from '../core/cards'
-import { LINE_DEFS, makeShip, researchRateOf, ringLevelOf } from '../core/helpers'
+import { LINE_DEFS, makeShip, researchRateOf } from '../core/helpers'
 import type { ResearchLineId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -61,11 +61,9 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (fx.cargoMult !== undefined) s.mods.cargoMult *= fx.cargoMult
     if (fx.burnMult !== undefined) s.mods.burnMult *= fx.burnMult
     if (fx.ringBuildCostMult !== undefined) s.mods.ringBuildCostMult *= fx.ringBuildCostMult
-    if (fx.recoverMult !== undefined) s.mods.recoverMult *= fx.recoverMult
     // 加法
     if (fx.moonLoadAdd !== undefined) s.mods.moonLoadAdd += fx.moonLoadAdd
     if (fx.otherLoadAdd !== undefined) s.mods.otherLoadAdd += fx.otherLoadAdd
-    if (fx.bufferAdd !== undefined) s.mods.bufferAdd += fx.bufferAdd
     if (fx.gravityAdd !== undefined) s.mods.gravityAdd += fx.gravityAdd
     // 旗标
     if (fx.flareWarning) s.mods.flareWarning = true
@@ -81,10 +79,7 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
       const line = s.research.find((l) => l.id === target)
       if (line) line.nextMult *= fx.nextGrowth.mult
     }
-    // 节点推进：2026-09-08 改版——交点解锁双流叠加（本处选卡恒 +1 保底解锁；
-    // 建设流 RingBuildComponent.tickBuild 独立持续推进），twin_node 的 extraNodes 批量效果已废弃
-    const gained = 1
-    s.nodes = Math.min(B.researchNodeCap, s.nodes + gained)
+    // 2026-09-08 交点单流化：选卡不再 +1 交点，交点唯一来源 = 建设流 RingBuildComponent.tickBuild
     const line = s.research.find((l) => l.id === lineId)
     if (line) line.progress = 0
     s.takenCards.push(cardId)

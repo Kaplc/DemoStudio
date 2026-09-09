@@ -26,14 +26,11 @@
     .Label_pts { width: 30px; height: 28px; font-size: 20px; color: #7fdcff; text-align: center; font-weight: bold; }
     .BuildPtsText { width: 150px; height: 28px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .BuildCostText { width: 180px; height: 28px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-align: right; text-shadow: 1px 1px 4px #00000066; }
-    .ContinuityRow { width: 490px; height: 34px; margin-top: 10px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .ContText { width: 200px; height: 26px; flex-shrink: 0; font-size: 19px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
-    .ContBar { width: 100%; height: 8px; position: relative; }
-    .ContFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #7fdcff; border-radius: 4px; }
-    .BufferRow { width: 490px; height: 34px; margin-top: 10px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .BufferText { width: 200px; height: 26px; flex-shrink: 0; font-size: 19px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
-    .BufferBar { width: 100%; height: 8px; position: relative; }
-    .BufferFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffe9a8; border-radius: 4px; }
+    .CoreRow { width: 490px; height: 34px; margin-top: 10px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
+    .CoreText { width: 200px; height: 26px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CoreBar { width: 100%; height: 10px; position: relative; }
+    .CoreFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffb03d; border-radius: 5px; }
+    .CoreStateText { width: 490px; height: 26px; margin-top: 4px; font-size: 18px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
     .FlowText { width: 490px; height: 28px; margin-top: 8px; font-size: 19px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
     .DemandText { width: 490px; height: 26px; margin-top: 4px; font-size: 18px; color: #9fc4d8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
     .WarnText { width: 490px; height: 26px; min-height: 26px; margin-top: 4px; font-size: 18px; flex-shrink: 0; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
@@ -69,18 +66,13 @@
         <button class="Btn_pts" data-name="Btn_build_inc"><text class="Label_pts">+</text></button>
         <text class="BuildCostText" data-name="BuildCostText">2.0/s</text>
       </div>
-      <div class="ContinuityRow">
-        <text class="ContText" data-name="ContText">延续 100%</text>
-        <div class="ContBar" data-name="ContBar" data-comp="UIProgressBar" data-props='{"max":100,"value":100,"fillActorName":"ContFill"}'>
-          <div class="ContFill"></div>
+      <div class="CoreRow">
+        <text class="CoreText" data-name="CoreText">堆心温度 100%</text>
+        <div class="CoreBar" data-name="CoreBar" data-comp="UIProgressBar" data-props='{"max":100,"value":100,"fillActorName":"CoreFill"}'>
+          <div class="CoreFill"></div>
         </div>
       </div>
-      <div class="BufferRow">
-        <text class="BufferText" data-name="BufferText">缓冲 0/0s</text>
-        <div class="BufferBar" data-name="BufferBar" data-comp="UIProgressBar" data-props='{"max":60,"value":0,"fillActorName":"BufferFill"}'>
-          <div class="BufferFill"></div>
-        </div>
-      </div>
+      <text class="CoreStateText" data-name="CoreStateText">满温运转</text>
       <text class="FlowText" data-name="FlowText">净流 +0.0/s</text>
       <text class="DemandText" data-name="DemandText">需求 0 t/s · 储量 0 t</text>
       <text class="WarnText" data-name="WarnText"></text>

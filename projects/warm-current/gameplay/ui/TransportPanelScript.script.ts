@@ -87,7 +87,7 @@ export default class TransportPanelScript extends BehaviourScript {
     const vm = mode.buildViewModel()
     const playing = vm.outcome === 'playing' && !vm.pending
     this.binder.set(findText(this.actor, 'FleetText'),
-      `船队 ${vm.fleet.total}（空闲 ${vm.fleet.idle} · 在途 ${vm.fleet.flying} · 冻毁 ${vm.fleet.frozen}）`
+      `船队 ${vm.fleet.total}/${vm.fleet.cap}（空闲 ${vm.fleet.idle} · 在途 ${vm.fleet.flying} · 冻毁 ${vm.fleet.frozen}）`
       + (vm.fleet.building > 0 ? ` · 建造中 ${vm.fleet.buildRemain}s` : '')
       + ` · 维护 ${vm.fleet.maintPerS}/s`)
     this.binder.set(findText(this.actor, 'ReserveText'), `储量 ${Math.round(vm.reserve)} t`)

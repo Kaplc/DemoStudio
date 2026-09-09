@@ -21,8 +21,8 @@ import type { SolarBodyId } from '../core/helpers'
 import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
-  alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
-  fleetMaintPerS, hiddenActorIsolated, moonRelativeAngle, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
+  alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, buildingPos, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
+  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
   routeNetPerTrip, starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
@@ -56,6 +56,12 @@ export const HUD_WIDGET = 'asset/blueprints/ui/hud.widget.json'
 
 function dist(px: number, py: number, x: number, y: number): number {
   return Math.hypot(px - x, py - y)
+}
+
+/** 星图天体中文名（资源星名走 stars 表，表外天体此处兜底；月球/木卫二/火星以表为准） */
+const PLANET_NAMES: Record<string, string> = {
+  earth: '地球', mercury: '水星', venus: '金星',
+  jupiter: '木星', saturn: '土星', uranus: '天王星', neptune: '海王星',
 }
 
 function segDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
@@ -130,19 +136,50 @@ export interface HudRouteRow {
   cycle: number
 }
 
+/** 星球信息面板数据（planet_info.widget 消费；非航线编辑模式点星球打开） */
+export interface HudPlanetInfo {
+  /** 天体 id（B.map.nodes 行键；地球/资源星/卫星/装饰行星） */
+  body: string
+  name: string
+  /** 类型标签（基地/资源星/卫星/行星） */
+  kind: string
+  /** 资源星是否已解锁（地球恒 true；装饰行星 true = 无解锁概念） */
+  unlocked: boolean
+  /** 解锁幕（资源星专用；地球/装饰行星 0） */
+  unlockAct: number
+  /** 资源星：单船满载（t，含卡加成；未解锁 0） */
+  load: number
+  /** 资源星：单程油耗（H3） */
+  fuel: number
+  /** 资源星：单程航时（s，标称速度） */
+  legS: number
+  /** 关联航线数（地球 = earth 端点线；资源星 = 该星线；装饰行星恒 0） */
+  routes: number
+  /** 关联航线配船合计 */
+  ships: number
+  /** 地球专用：储量 / 需求 / 净流 */
+  earthH3: number
+  demand: number
+  netFlow: number
+  /** 是否航线端点（地球或资源星）— 面板据此显示拖线引导 */
+  routable: boolean
+}
+
 export interface WarmCurrentVM {
   time: number
   act: 1 | 2 | 3
   nodes: number
   /** 聚能环等级（按已覆盖交点数分阶，模块 03 §5；level 4 = 终局全球环网） */
   ringLevel: RingLevelInfo
-  continuity: number
+  /** 堆心温度 0..100（100 = 满温；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
+  coreTemp: number
+  /** 堆心状态：warming = 升温中（有燃料），cooling = 降温中（断环） */
+  coreState: 'warming' | 'cooling'
+  /** 燃料门：有燃料 running（焚烧/研究/建设照常），储量耗尽 decaying（停烧停建，堆心降温） */
   ring: 'running' | 'decaying'
-  bufferLeft: number
-  bufferTotal: number
   reserve: number
   demand: number
-  /** 研究点数计费速率（H3/秒，四线合计；断环/储量耗尽为 0） */
+  /** 研究点数计费速率（H3/秒，四线合计；储量耗尽为 0） */
   researchCost: number
   netFlow: number
   danger: boolean
@@ -150,15 +187,15 @@ export interface WarmCurrentVM {
   windowRemain: number
   flarePhase: 'idle' | 'warn' | 'active'
   flareRemain: number
-  /** 舰队维护费速率（H3/秒，按总船数查 fleet_maint 阶梯；从地球储备持续扣除） */
-  fleet: { total: number; idle: number; flying: number; frozen: number; building: number; buildRemain: number; maintPerS: number }
+  /** 舰队维护费速率（H3/秒，按总船数查 fleet_maint 阶梯；从地球储备持续扣除）；cap = 聚能环等级飞船上限 */
+  fleet: { total: number; idle: number; flying: number; frozen: number; building: number; buildRemain: number; maintPerS: number; cap: number }
   /** H3 收支账本（对局累计 + income/expense/net 合计，统计面板消费） */
   ledger: SimLedger & { income: number; expense: number; net: number }
   /** 四线研究行（points = 已分配点数，rate = 该线当前 H3 消耗速率） */
   research: Array<{ id: string; name: string; progress: number; points: number; rate: number }>
   /** 可用研究点（聚能环等级 − 已分配，科研面板 +/− 分配） */
   researchUnspent: number
-  /** 聚能环建设（脱离科研的独立流：详情面板消费） */
+  /** 聚能环建设（造价制：详情面板消费；ringBuildRate = 灌入速率 ÷ 本级造价，%/s 展示口径） */
   ringBuildPoints: number
   ringBuildProgress: number
   ringBuildCost: number
@@ -175,6 +212,10 @@ export interface WarmCurrentVM {
   shipRows: HudShipRow[]
   /** 航线管理面板行（全部航线，RoutesPanelScript 消费） */
   routes: HudRouteRow[]
+  /** 星球信息面板数据（null = 收起；PlanetInfoScript 消费） */
+  planetInfo: HudPlanetInfo | null
+  /** 航线编辑模式（HUD「航线编辑」按钮高亮态） */
+  routeEditMode: boolean
   /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
   shipBuildCost: number
   shipRebuildCost: number
@@ -216,6 +257,11 @@ export class WarmCurrentGameMode extends GameMode {
   drag: DragState | null = null
   selection: MapSelection = null
   fx: MapFx = { pulses: [], floats: [] }
+
+  /** 航线编辑模式（底部 HUD「航线编辑」进入；开启后星图节点才可拖线建航线，退出后点星球 = 信息面板） */
+  routeEditMode = false
+  /** 星球信息面板当前展示的天体（非编辑模式点星球打开；点空地/面板关闭按钮清空；null = 收起） */
+  planetInfoSel: SolarBodyId | null = null
 
   /** 建筑模式（建造面板选型后进入：星图网格线 + 吸附预览，点击落位 / Esc 取消） */
   buildMode: { typeId: string } | null = null
@@ -435,9 +481,9 @@ export class WarmCurrentGameMode extends GameMode {
   //  太阳系取景（sol GM 命令 + 缩放相机）
   // ═══════════════════════════════════════════
 
-  /** 地球系视图缩放范围（min/max 距离）：独立小星系取景（月球轨道 120：特写 80 ~ 全景 520） */
+  /** 地球系视图缩放范围（min/max 距离）：独立小星系取景（月球轨道 1200：特写 80 ~ 全景 5200） */
   private static readonly EARTH_VIEW_MIN_DIST = 80
-  private static readonly EARTH_VIEW_MAX_DIST = 520
+  private static readonly EARTH_VIEW_MAX_DIST = 5200
 
   /** 聚焦指定天体：太阳 = 太阳系全景；行星 = 进入其行星系（跟随取景）。机位数学在 SolarCameraActor.focusOn */
   focusSolarSystem(body: SolarFocusBody): void {
@@ -453,8 +499,8 @@ export class WarmCurrentGameMode extends GameMode {
     if (!toSolar) this.planetFocusBody = body
     this.viewMode = toSolar ? 'solar' : 'earth'
     this.applyViewMode()
-    // 取景距离随星体尺寸：太阳 480（中景看轨道），地球 320（月球环 120 全入画留边），其余行星 220
-    const d = body === 'sun' ? 480 : body === 'earth' ? 320 : 220
+    // 取景距离随星体尺寸：太阳 480（中景看轨道），地球 3200（月球环 1200 全入画留边），其余行星 220
+    const d = body === 'sun' ? 480 : body === 'earth' ? 3200 : 220
     // 行星系取景目标 = 舞台中心（行星会被渲染钉在舞台中心，镜头只是切区）
     const off = this.viewMode === 'earth' ? planetStageOffset(this.planetFocusBody as PlanetId) : { x: 0, z: 0 }
     this.cameraActor.focusOn(off.x, off.z, d)
@@ -515,7 +561,7 @@ export class WarmCurrentGameMode extends GameMode {
   //  建筑模式（建造面板选型 → 星图网格放置）
   // ═══════════════════════════════════════════
 
-  /** 进入建筑模式（建造面板「放置」按钮；预算校验通过才进入） */
+  /** 进入建筑模式（建造面板「放置」按钮；预算校验通过才进入；与航线编辑模式互斥） */
   enterBuildMode(typeId: string): boolean {
     const def = buildingDefOf(typeId)
     if (!def) return false
@@ -525,6 +571,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildMode = { typeId }
     this.buildCursor = null
     this.drag = null
+    this.routeEditMode = false
     logger.info(`[WarmCurrent] 建筑模式：${def.name}（点击星图落位，Esc 取消）`)
     return true
   }
@@ -538,15 +585,55 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   // ═══════════════════════════════════════════
+  //  航线编辑模式（底部 HUD「航线编辑」开关）
+  // ═══════════════════════════════════════════
+
+  /** 切换航线编辑模式：开启 = 星图节点可拖线；关闭 = 点星球打开信息面板。与建筑模式互斥。 */
+  toggleRouteEditMode(): void {
+    if (this.routeEditMode) {
+      this.routeEditMode = false
+      this.drag = null
+      this.toast('航线编辑已退出 — 点星球查看信息', '#9fc4d8')
+      audioSys.play('wc.ok', { volume: 0.3 })
+      logger.info('[WarmCurrent] 航线编辑模式退出')
+      return
+    }
+    if (this.buildMode) this.cancelBuildMode()
+    this.routeEditMode = true
+    this.planetInfoSel = null
+    this.toast('航线编辑：从星球拖线到地球即可建立航线（再点按钮退出）', '#7fdcff')
+    audioSys.play('wc.ok', { volume: 0.5 })
+    logger.info('[WarmCurrent] 航线编辑模式进入')
+  }
+
+  // ═══════════════════════════════════════════
   //  星图指针交互
   // ═══════════════════════════════════════════
 
   private buildingAt(p: { x: number; y: number }): SimBuilding | null {
     const s = this.simState.state
     for (const b of s.buildings) {
-      if (dist(p.x, p.y, b.x, b.y) <= 26 + B.map.hitTolerance) return b
+      // 入轨建筑按实时位置判定（放置静态落点会随公转漂移）
+      const bp = buildingPos(s, b)
+      if (dist(p.x, p.y, bp.x, bp.y) <= 26 + B.map.hitTolerance) return b
     }
     return null
+  }
+
+  /** 功能范围命中（radius>0 建筑的示意范围，半径与赤道环渲染同值=表值 radius 地图px）；
+   *  多建筑范围重叠取离核心最近者 */
+  private buildingZoneAt(p: { x: number; y: number }): SimBuilding | null {
+    const s = this.simState.state
+    let best: SimBuilding | null = null
+    let bestD = Infinity
+    for (const b of s.buildings) {
+      const def = buildingDefOf(b.type)
+      if (!def || def.radius <= 0) continue
+      const bp = buildingPos(s, b)
+      const d = dist(p.x, p.y, bp.x, bp.y)
+      if (d <= def.radius && d < bestD) { best = b; bestD = d }
+    }
+    return best
   }
 
   /** 太阳命中（点击聚焦取景，不参与航线端点/拖拽） */
@@ -627,6 +714,30 @@ export class WarmCurrentGameMode extends GameMode {
     return null
   }
 
+  /** 任意天体命中（星球信息面板用：行星 + 卫星，含未解锁资源星；太阳走聚焦取景不进面板）。
+   *  与 planetAt 的差异 = 含卫星（planetAt 专供双击进行星系，有意排除卫星），同收口真实 Actor 世界位置。 */
+  private bodyAt(p: { x: number; y: number }): SolarBodyId | null {
+    for (const body of Object.keys(B.map.nodes) as Array<SolarBodyId>) {
+      if (body === 'sun') continue
+      if (!this.starActorPickable(body)) continue
+      const pos = this.starActorWorldPos(body)
+      if (!pos) continue
+      if (dist(p.x, p.y, pos.x, pos.y) <= B.map.nodes[body].r + B.map.hitTolerance) return body
+    }
+    return null
+  }
+
+  /** 打开星球信息面板（非航线编辑模式点星球 / 点不可拖天体；再点其它星球切换内容） */
+  openPlanetInfo(body: SolarBodyId): void {
+    this.planetInfoSel = body
+    audioSys.play('wc.draw', { volume: 0.3 })
+  }
+
+  /** 关闭星球信息面板（面板内 ✕ / 点空地） */
+  closePlanetInfo(): void {
+    this.planetInfoSel = null
+  }
+
   private routeAt(p: { x: number; y: number }): SimRoute | null {
     for (const route of this.simState.state.routes) {
       const a = endpointPos(this.simState.state, route.from)
@@ -676,6 +787,11 @@ export class WarmCurrentGameMode extends GameMode {
     if (b) { this.selection = { type: 'building', id: b.id }; return }
     const node = this.nodeAt(p)
     if (node) {
+      // 未进入航线编辑模式：点星球 = 打开星球信息面板（拖线被门槛挡住）
+      if (!this.routeEditMode) {
+        this.openPlanetInfo(node.kind === 'star' ? node.star : 'earth')
+        return
+      }
       const pos = endpointPos(s, node)
       this.drag = {
         fromEp: node, fromX: pos.x, fromY: pos.y,
@@ -686,7 +802,16 @@ export class WarmCurrentGameMode extends GameMode {
     }
     const route = this.routeAt(p)
     if (route) { this.selection = { type: 'route', id: route.id }; return }
+    // 护盾气泡兜底：点功能示意范围（radius 内切圆）也选中发生器；
+    // 排在节点/航线之后，范围罩住天体或航线时不吞拖线/选线交互
+    const zone = this.buildingZoneAt(p)
+    if (zone) { this.selection = { type: 'building', id: zone.id }; return }
+    // 天体兜底（含卫星/未解锁资源星）：非编辑模式点任何星球都开信息面板；
+    // 编辑模式下可拖节点已在上面分流，落到这里 = 点了不可拖天体，同样开面板
+    const body = this.bodyAt(p)
+    if (body) { this.openPlanetInfo(body); return }
     this.selection = null
+    this.planetInfoSel = null
   }
 
   onMapPointerMove(p: { x: number; y: number }): void {
@@ -845,6 +970,8 @@ export class WarmCurrentGameMode extends GameMode {
     this.drag = null
     this.buildMode = null
     this.buildCursor = null
+    this.routeEditMode = false
+    this.planetInfoSel = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -865,6 +992,8 @@ export class WarmCurrentGameMode extends GameMode {
     this.drag = null
     this.buildMode = null
     this.buildCursor = null
+    this.routeEditMode = false
+    this.planetInfoSel = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -904,6 +1033,7 @@ export class WarmCurrentGameMode extends GameMode {
       building: s.buildQueue.length,
       buildRemain: s.buildQueue.length > 0 ? Math.ceil(s.buildQueue[0]) : 0,
       maintPerS: fleetMaintPerS(s.ships.length),
+      cap: sc.shipCap,
     }
     const ledger = { ...s.ledger, ...ledgerTotals(s.ledger) }
     // pending 折算：弹卡即暂停且不再自动收纳，pendingCard 存在 = 弹窗可见
@@ -993,30 +1123,31 @@ export class WarmCurrentGameMode extends GameMode {
       net: routeNetPerTrip(s, route),
       cycle: routeCycleSeconds(s, route),
     }))
+    // 星球信息面板数据（planetInfoSel 为空 = 收起）
+    const planetInfo = this.planetInfoSel ? this.buildPlanetInfo(this.planetInfoSel) : null
     return {
       time: s.time,
       act: s.act,
       nodes: s.nodes,
-      ringLevel: ringLevelOf(s.nodes, s.research.reduce((m, l) => Math.max(m, l.progress), 0)),
-      continuity: s.continuity,
+      ringLevel: ringLevelOf(s.nodes, s.ringBuildProgress),
+      coreTemp: s.coreTemp,
+      coreState: s.earthH3 > 0 ? 'warming' : 'cooling',
       ring: s.ring,
-      bufferLeft: s.bufferLeft,
-      bufferTotal: s.bufferTotal,
       reserve: s.earthH3,
       demand,
       researchCost: sc.researchCost,
       netFlow: estimateNetFlow(s, demand),
-      danger: s.ring === 'running' && demand > 0 && s.earthH3 < demand * B.dangerReserveSeconds,
+      danger: s.earthH3 > 0 && demand > 0 && s.earthH3 < demand * B.dangerReserveSeconds,
       windowPhase: s.gravity.phase,
       windowRemain: Math.max(0, Math.ceil(s.gravity.timer)),
       flarePhase: s.flare.phase,
       flareRemain: s.flare.phase === 'active' ? Math.ceil(s.flare.timer) : Math.max(0, Math.ceil(s.flare.nextIn)),
       fleet,
       ledger,
-      // 研究行：rate = 该线当前 H3 消耗速率（点数计费；断环/储量耗尽为 0，点数加成同口径失效）
+      // 研究行：rate = 该线当前 H3 消耗速率（点数计费；储量耗尽为 0，点数加成同口径失效）
       research: s.research.map((l) => ({
         id: l.id, name: l.name, progress: l.progress, points: l.points,
-        rate: s.ring === 'running' && s.earthH3 > 0 ? l.points * B.researchPointCostPerS : 0,
+        rate: s.earthH3 > 0 ? l.points * B.researchPointCostPerS : 0,
       })),
       researchUnspent: sc.unspentResearchPoints,
       // 聚能环建设（独立流）：点数/交点进度/计费/速率（面板 +/− 与进度条消费）
@@ -1032,6 +1163,8 @@ export class WarmCurrentGameMode extends GameMode {
       buildActive: this.buildMode?.typeId ?? null,
       shipRows,
       routes,
+      planetInfo,
+      routeEditMode: this.routeEditMode,
       shipBuildCost: B.shipBuildCost,
       shipRebuildCost: B.shipRebuildCost,
       tutorial: s.tutorial,
@@ -1042,6 +1175,35 @@ export class WarmCurrentGameMode extends GameMode {
       outcome: s.outcome,
       sandbox: s.sandbox,
       stats: { delivered: s.stats.delivered, frozen: s.stats.frozenCount, buildings: s.stats.buildingsBuilt, cards: s.stats.cardsTaken },
+    }
+  }
+
+  /** 星球信息面板数据装配（planetInfoSel → HudPlanetInfo；装饰行星无仿真数据，只给身份与类型） */
+  private buildPlanetInfo(body: SolarBodyId): HudPlanetInfo {
+    const s = this.simState.state
+    const starDef = B.stars[body as StarId] ?? null
+    const isEarth = body === 'earth'
+    const moonCfg = (B.map.moons as Record<string, { parent: PlanetId } | undefined>)[body]
+    const unlocked = isEarth || (!!starDef && this.transport.starUnlocked(starDef.id))
+    const linked = s.routes.filter((r) => {
+      if (isEarth) return r.from.kind === 'earth' || r.to.kind === 'earth'
+      return starDef ? [r.from, r.to].some((e) => e.kind === 'star' && e.star === body) : false
+    })
+    return {
+      body,
+      name: starDef?.name ?? PLANET_NAMES[body] ?? body,
+      kind: isEarth ? '基地' : starDef ? '资源星' : moonCfg ? '卫星' : '行星',
+      unlocked,
+      unlockAct: starDef?.unlockAct ?? 0,
+      load: unlocked && starDef ? Math.round(starLoad(s.mods, starDef.id)) : 0,
+      fuel: starDef ? Math.round(roundFuel(s.mods, starDef.dist)) : 0,
+      legS: starDef ? legSeconds(starDef.dist, s.mods.speedMult) : 0,
+      routes: linked.length,
+      ships: linked.reduce((n, r) => n + r.shipIds.length, 0),
+      earthH3: isEarth ? Math.floor(s.earthH3) : 0,
+      demand: isEarth ? Math.round(this.simState.demand * 10) / 10 : 0,
+      netFlow: isEarth ? Math.round(estimateNetFlow(s, this.simState.demand) * 10) / 10 : 0,
+      routable: isEarth || !!starDef,
     }
   }
 }

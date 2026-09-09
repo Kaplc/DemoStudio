@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentReserveInfo",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-50f6562d",
+  "sourceHash": "fnv1a-00c85d55",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -219,7 +219,7 @@
                   1
                 ],
                 "worldWidth": 560,
-                "worldHeight": 348,
+                "worldHeight": 312,
                 "anchor": "top-left",
                 "anchorOffset": [
                   48,
@@ -246,7 +246,7 @@
                 "color": "#0e1a24f0",
                 "radius": 14,
                 "width": 560,
-                "height": 348,
+                "height": 312,
                 "name": "InfoCard"
               }
             }
@@ -274,7 +274,7 @@
                     "worldHeight": 36,
                     "position": [
                       -20,
-                      131,
+                      108,
                       0
                     ]
                   }
@@ -494,7 +494,7 @@
                     "worldHeight": 36,
                     "position": [
                       -20,
-                      85,
+                      62,
                       0
                     ]
                   }
@@ -658,7 +658,7 @@
                     "worldHeight": 36,
                     "position": [
                       -20,
-                      39,
+                      16,
                       0
                     ]
                   }
@@ -822,7 +822,7 @@
                     "worldHeight": 36,
                     "position": [
                       -20,
-                      -7,
+                      -30,
                       0
                     ]
                   }
@@ -986,7 +986,7 @@
                     "worldHeight": 36,
                     "position": [
                       -20,
-                      -53,
+                      -76,
                       0
                     ]
                   }
@@ -1050,7 +1050,7 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "延续度",
+                        "text": "堆心温度",
                         "name": "InfoKey_4",
                         "width": 240,
                         "height": 30,
@@ -1069,7 +1069,7 @@
                   }
                 },
                 {
-                  "name": "Val_cont",
+                  "name": "Val_temp",
                   "baseClass": "Actor",
                   "id": 13220,
                   "components": [
@@ -1107,171 +1107,7 @@
                       "baseClass": "UITextComponent",
                       "properties": {
                         "text": "100%",
-                        "name": "Val_cont",
-                        "width": 240,
-                        "height": 30,
-                        "fontSize": 20,
-                        "color": "#ffe9a8",
-                        "align": "right",
-                        "bold": true,
-                        "shadowColor": "#00000066",
-                        "shadowOffsetX": 1,
-                        "shadowOffsetY": 1,
-                        "shadowBlur": 4
-                      }
-                    }
-                  ],
-                  "children": [],
-                  "sourceLayout": {
-                    "flexShrink": 0
-                  }
-                }
-              ]
-            },
-            {
-              "name": "InfoRow_6",
-              "baseClass": "Actor",
-              "id": 13221,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 480,
-                    "worldHeight": 36,
-                    "position": [
-                      -20,
-                      -99,
-                      0
-                    ]
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "space-between",
-                    "align": "center",
-                    "autoLayout": true
-                  }
-                }
-              ],
-              "children": [
-                {
-                  "name": "InfoKey_5",
-                  "baseClass": "Actor",
-                  "id": 13222,
-                  "components": [
-                    {
-                      "baseClass": "UITransformComponent",
-                      "properties": {
-                        "rotation": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "scale": [
-                          1,
-                          1,
-                          1
-                        ],
-                        "worldWidth": 240,
-                        "worldHeight": 30,
-                        "position": [
-                          -120,
-                          0,
-                          0
-                        ]
-                      }
-                    },
-                    {
-                      "baseClass": "CanvasUIComponent",
-                      "properties": {
-                        "markerOnly": true,
-                        "name": "UIMarker",
-                        "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UITextComponent",
-                      "properties": {
-                        "text": "环缓冲",
-                        "name": "InfoKey_5",
-                        "width": 240,
-                        "height": 30,
-                        "fontSize": 20,
-                        "color": "#9fc4d8",
-                        "shadowColor": "#00000066",
-                        "shadowOffsetX": 1,
-                        "shadowOffsetY": 1,
-                        "shadowBlur": 4
-                      }
-                    }
-                  ],
-                  "children": [],
-                  "sourceLayout": {
-                    "flexShrink": 0
-                  }
-                },
-                {
-                  "name": "Val_buffer",
-                  "baseClass": "Actor",
-                  "id": 13223,
-                  "components": [
-                    {
-                      "baseClass": "UITransformComponent",
-                      "properties": {
-                        "rotation": [
-                          0,
-                          0,
-                          0
-                        ],
-                        "scale": [
-                          1,
-                          1,
-                          1
-                        ],
-                        "worldWidth": 240,
-                        "worldHeight": 30,
-                        "position": [
-                          120,
-                          0,
-                          0
-                        ]
-                      }
-                    },
-                    {
-                      "baseClass": "CanvasUIComponent",
-                      "properties": {
-                        "markerOnly": true,
-                        "name": "UIMarker",
-                        "zOrder": 0
-                      }
-                    },
-                    {
-                      "baseClass": "UITextComponent",
-                      "properties": {
-                        "text": "—",
-                        "name": "Val_buffer",
+                        "name": "Val_temp",
                         "width": 240,
                         "height": 30,
                         "fontSize": 20,

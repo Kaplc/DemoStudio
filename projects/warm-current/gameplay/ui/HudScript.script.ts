@@ -22,6 +22,7 @@ import ViewToggleScript, { VIEW_TOGGLE_WIDGET } from './ViewToggleScript.script'
 import BuildPanelScript, { BUILD_PANEL_WIDGET } from './BuildPanelScript.script'
 import TransportPanelScript, { TRANSPORT_PANEL_WIDGET } from './TransportPanelScript.script'
 import RoutesPanelScript, { ROUTES_PANEL_WIDGET } from './RoutesPanelScript.script'
+import PlanetInfoScript, { PLANET_INFO_WIDGET } from './PlanetInfoScript.script'
 import StatsPanelScript, { STATS_PANEL_WIDGET } from './StatsPanelScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
@@ -58,6 +59,7 @@ export default class HudScript extends BehaviourScript {
   private buildPanel: Actor | null = null
   private transportPanel: Actor | null = null
   private routesPanel: Actor | null = null
+  private planetInfoPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -131,6 +133,13 @@ export default class HudScript extends BehaviourScript {
     bind('Btn_ring', () => this.toggleCenterPanel(ringEntry))
     // ─── 航线管理入口（右侧独立面板，不占居中区，不参与居中互斥） ───
     bind('Btn_routes', () => toggleSubPanel(this.routesPanel, s => s instanceof RoutesPanelScript, '航线管理面板'))
+    // ─── 航线编辑模式开关（进入后星图节点才可拖线；退出后点星球 = 信息面板） ───
+    bind('Btn_routeedit', () => {
+      const m = wcMode()
+      if (!m) return
+      m.toggleRouteEditMode()
+      logger.info(`[HudScript] 航线编辑切换 → ${m.routeEditMode}`)
+    })
     // 独立子面板一次生成（各自脚本自驱动可见性）
     this.hexModal = this.world?.ui.spawnUIActor(HEX_WIDGET) ?? null
     this.settleModal = this.world?.ui.spawnUIActor(SETTLE_WIDGET) ?? null
@@ -151,6 +160,9 @@ export default class HudScript extends BehaviourScript {
     // 航线管理面板（右侧常驻位：全航线派船/召回/删线，RoutesPanelScript 自驱动，默认收起）
     this.routesPanel = this.world?.ui.spawnUIActor(ROUTES_PANEL_WIDGET) ?? null
     if (!this.routesPanel) logger.warn('[HudScript] routes_panel 生成失败')
+    // 星球信息面板（左侧常驻位：非航线编辑模式点星球弹出，PlanetInfoScript 读 vm.planetInfo 自驱动）
+    this.planetInfoPanel = this.world?.ui.spawnUIActor(PLANET_INFO_WIDGET) ?? null
+    if (!this.planetInfoPanel) logger.warn('[HudScript] planet_info 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')
@@ -188,6 +200,11 @@ export default class HudScript extends BehaviourScript {
       vm.research.reduce((sum, l) => sum + l.progress, 0) / Math.max(1, vm.research.length) * 100,
     )
     this.binder.set(findText(this.actor, 'ResearchBadge'), `均 ${lineSum}% · 船 ${vm.fleet.idle}/${vm.fleet.total}`)
+
+    // ─── 底部 bar：航线编辑按钮激活态（金色 + ● 前缀，模式开关的可见反馈） ───
+    const routeEditLabel = findText(this.actor, 'Label_routeedit')
+    this.binder.set(routeEditLabel, vm.routeEditMode ? '● 航线编辑' : '航线编辑')
+    this.colors.set(routeEditLabel, vm.routeEditMode ? '#ffe9a8' : '#7fdcff')
 
     // ─── 事件横幅 ───
     let ev = ''

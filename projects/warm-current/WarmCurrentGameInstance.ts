@@ -17,6 +17,7 @@ import type { MenuAction } from './gameplay/menu/WarmCurrentMenuGameMode'
 import { WarmCurrentPlayerController } from './gameplay/base/WarmCurrentPlayerController'
 import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
 import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
+import { B } from './gameplay/core/balance'
 import { SAVE_KEY, SAVE_SLOT_FILES, SAVE_SLOT_COUNT, serializeSlot, readSlotMetaWithSlot, findLatestSlotMeta } from './gameplay/core/save'
 import type { Endpoint, SimState } from './gameplay/core/types'
 
@@ -61,12 +62,18 @@ export interface WarmCurrentDebugBridge {
   setH3(v: number): void
   /** 建筑系统（building 表驱动）：放置（x/y 画布系，内部网格吸附）/ 拆除 / 选中 */
   placeBuilding(type: string, x: number, y: number): boolean
+  /** 网格吸附预演（snapToGrid 同口径，不落盘）— e2e 按格点摆放建筑/选点位用 */
+  snapPos(x: number, y: number): { x: number; y: number }
   demolishBuilding(id: number): boolean
   selectBuilding(id: number): void
   /** 建筑模式（星图网格放置）：进入 / 取消 / 当前状态 */
   enterBuildMode(type: string): boolean
   cancelBuildMode(): void
   buildModeInfo(): { typeId: string } | null
+  /** 航线编辑模式开关（拖线门槛）/ 当前状态；openPlanetInfo 供点星球面板 e2e 直驱 */
+  setRouteEditMode(on: boolean): void
+  routeEditMode(): boolean
+  openPlanetInfo(body: string): void
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
   setShipFlying(progress: number): boolean
   triggerFlare(): void
@@ -362,6 +369,7 @@ export class WarmCurrentGameInstance extends GameInstance {
         const snapped = snapToGrid(x, y)
         return mode.buildings.tryPlace(type, snapped.x, snapped.y)
       },
+      snapPos: (x, y) => snapToGrid(x, y),
       demolishBuilding: (id) => instance._gameMode?.buildings.tryDemolish(id) ?? false,
       selectBuilding: (id) => {
         const mode = instance._gameMode
@@ -370,6 +378,13 @@ export class WarmCurrentGameInstance extends GameInstance {
       enterBuildMode: (type) => instance._gameMode?.enterBuildMode(type) ?? false,
       cancelBuildMode: () => instance._gameMode?.cancelBuildMode(),
       buildModeInfo: () => instance._gameMode?.buildMode ?? null,
+      setRouteEditMode: (on) => {
+        const mode = instance._gameMode
+        if (!mode) return
+        if (mode.routeEditMode !== on) mode.toggleRouteEditMode()
+      },
+      routeEditMode: () => instance._gameMode?.routeEditMode ?? false,
+      openPlanetInfo: (body) => instance._gameMode?.openPlanetInfo(body as import('./gameplay/core/helpers').SolarBodyId),
       setShipFlying: (progress) => {
         const mode = instance._gameMode
         if (!mode) return false
@@ -409,7 +424,10 @@ export class WarmCurrentGameInstance extends GameInstance {
       bodyPos: (name) => {
         const mode = instance._gameMode
         if (!mode) return null
-        return starPosAt(mode.simState.state, name as import('./gameplay/core/helpers').SolarBodyId)
+        const p = starPosAt(mode.simState.state, name as import('./gameplay/core/helpers').SolarBodyId)
+        // r = 天体显示半径（行星/卫星分支 starPosAt 不带 r；入轨抬底口径 e2e 需要）
+        const node = (B.map.nodes as Record<string, { r: number } | undefined>)[name as string]
+        return { ...p, r: node?.r }
       },
       bodyWorldPos: (name) => {
         const actor = instance._gameMode?.starActors.get(name as never)

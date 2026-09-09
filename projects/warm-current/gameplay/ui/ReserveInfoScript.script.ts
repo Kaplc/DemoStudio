@@ -64,10 +64,8 @@ export default class ReserveInfoScript extends BehaviourScript {
     const net = vm.netFlow
     this.binder.set(findText(this.actor, 'Val_net'), `${net >= 0 ? '+' : ''}${net.toFixed(1)}`)
     this.colors.set(findText(this.actor, 'Val_net'), net >= 0 ? '#ffe9a8' : '#ff8f7a')
-    this.binder.set(findText(this.actor, 'Val_cont'), `${vm.continuity.toFixed(0)}%${vm.danger ? ' ⚠' : ''}`)
-    this.colors.set(findText(this.actor, 'Val_cont'), vm.danger ? '#ff5a4a' : '#ffe9a8')
-    this.binder.set(findText(this.actor, 'Val_buffer'), vm.ring === 'decaying'
-      ? `${vm.bufferLeft.toFixed(0)}s`
-      : '—')
+    this.binder.set(findText(this.actor, 'Val_temp'),
+      `${vm.coreTemp.toFixed(0)}%${vm.coreState === 'cooling' ? ' ⚠ 降温中' : ''}`)
+    this.colors.set(findText(this.actor, 'Val_temp'), vm.coreState === 'cooling' ? '#ff5a4a' : '#ffe9a8')
   }
 }

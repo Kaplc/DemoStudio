@@ -6,7 +6,7 @@
  * 都保持接近恒定的屏幕手感（固定步长在远距离会显得"滚不动"、近距离又太跳）。
  * 生命周期对齐 hoi4：GameMode 构造时创建（不托管），BeginPlay 由 World spawn。
  * 缩放边界：默认太阳系全景 60~12000；GameMode.applyViewMode 按视图模式切换
- * （地球系视图锁死 90~450，滚轮只见地月——视图隔离在 GameMode 决策，本类只管机位数学）。
+ * （地球系视图锁死地月尺度，滚轮只见地月——边界数值在 GameMode，本类只管机位数学）。
  */
 import * as THREE from 'three'
 import { CameraActor, CameraRigComponent, logger } from '@/engine'

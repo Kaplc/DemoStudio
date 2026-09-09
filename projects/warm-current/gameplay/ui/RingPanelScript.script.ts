@@ -4,24 +4,28 @@
  * 2026-09-08 改版（用户拍板：聚能环建设脱离科研）：
  *  - 独立 widget 居中大面板（对齐 ResearchPanel 520x442 居中规格），底部 HUD「聚能环」入口
  *    toggleCenterPanel 开关，面板内「✕ 关闭」收起（ResearchPanel 同款 open/close）
- *  - 新增建设控制区：交点建设进度条（建设流 = 交点解锁唯一来源）+ 建设点数 +/−（默认 1、最低 1）
+ *  - 新增建设控制区：交点建设进度条（建设流 = 交点解锁唯一来源）+ 建设点数 +/−（默认 1、可清 0 停建）
  *    + 每点 H3 计费速率显示；点数下限提示走 toast（GameMode.hint）
- *  - 保留原有状态徽标/等级/交点/延续度/缓冲/净流/危险警示展示
+ *  - 保留原有状态徽标/等级/交点/净流/危险警示展示
+ *
+ * 2026-09-08 堆心温度改版（用户拍板：无燃料不再是倒计时）：原「延续度 + 缓冲倒计时」两行
+ * 改为「堆心温度」进度条 + 「堆心状态」（升温中/降温中 + 预计秒数）；温度归零才是终结。
  * 数据全部来自 GameMode.buildViewModel()，0.15s 差分刷新（TextBinder/ColorBinder 避免逐帧重绘）。
  */
 import { BehaviourScript, UIProgressBarComponent, UIImageComponent, logger } from '@/engine'
+import { B } from '../core/balance'
 import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
 
 /** 聚能环面板 widget 资产路径（HudScript spawn 用） */
 export const RING_PANEL_WIDGET = 'asset/blueprints/ui/ring_panel.widget.json'
 
 const STATE_RUNNING_COLOR = '#ffb03d'
-const STATE_DECAYING_COLOR = '#ff5a4a'
+const STATE_COOLING_COLOR = '#ff5a4a'
 const STATE_DONE_COLOR = '#43d17c'
 const WARN_COLOR = '#ff5a4a'
 const IDLE_COLOR = '#9fc4d8'
-const BUFFER_FILL_NORMAL = '#ffe9a8'
-const BUFFER_FILL_WARN = '#ff5a4a'
+const CORE_FILL_WARM = '#ffb03d'
+const CORE_FILL_COOL = '#ff5a4a'
 const LEVEL_COLOR = '#ffb03d'
 
 export default class RingPanelScript extends BehaviourScript {
@@ -91,12 +95,12 @@ export default class RingPanelScript extends BehaviourScript {
     if (!mode) return
     const vm = mode.buildViewModel()
 
-    // ─── 状态徽标：运转 / 衰减 / 已建成（12 交点闭环） ───
+    // ─── 状态徽标：运转 / 降温 / 已建成（12 交点闭环） ───
     const done = vm.nodes >= 12
     const stateText = findText(this.actor, 'StateText')
-    if (vm.ring === 'decaying') {
-      this.binder.set(stateText, `衰减 ${Math.ceil(vm.bufferLeft)}s`)
-      this.colors.set(stateText, STATE_DECAYING_COLOR)
+    if (vm.coreState === 'cooling') {
+      this.binder.set(stateText, '降温中')
+      this.colors.set(stateText, STATE_COOLING_COLOR)
     } else if (done) {
       this.binder.set(stateText, '已建成')
       this.colors.set(stateText, STATE_DONE_COLOR)
@@ -132,26 +136,29 @@ export default class RingPanelScript extends BehaviourScript {
     this.binder.set(cost, `${vm.ringBuildCost.toFixed(1)}/s · ${vm.ringBuildRate > 0 ? `${(vm.ringBuildRate * 100).toFixed(1)}%/s` : '停建'}`)
     this.colors.set(cost, vm.ringBuildRate > 0 ? '#7fdcff' : WARN_COLOR)
 
-    // ─── 延续度（0-100%） ───
-    const cont = Math.max(0, Math.min(100, Math.round(vm.continuity)))
-    this.binder.set(findText(this.actor, 'ContText'), `延续 ${cont}%`)
-    this.setProgress('ContBar', cont, 100)
-
-    // ─── 缓冲条：running 时隐藏（无缓冲概念），decaying 时显示剩余/总量 ───
-    const showBuffer = vm.ring === 'decaying' && vm.bufferTotal > 0
-    this.vis.set(this.actor, 'BufferRow', showBuffer)
-    if (showBuffer) {
-      this.binder.set(findText(this.actor, 'BufferText'),
-        `缓冲 ${Math.ceil(vm.bufferLeft)}/${Math.ceil(vm.bufferTotal)}s`)
-      this.setProgress('BufferBar', vm.bufferLeft, vm.bufferTotal)
-      // 缓冲告急（<30%）填充条变红
-      const fill = findChild(this.actor, 'BufferBar')?.getChildren().find((c) => c.root.name === 'Fill')
-      const img = fill?.getComponent(UIImageComponent)
-      if (img) {
-        const c = vm.bufferLeft / vm.bufferTotal < 0.3 ? BUFFER_FILL_WARN : BUFFER_FILL_NORMAL
-        if (img.color !== c) img.color = c
-      }
+    // ─── 堆心温度（0-100%）：满温运转，断环缓降，归零 = 堆心熄灭 = 终结 ───
+    const temp = Math.max(0, Math.min(100, vm.coreTemp))
+    const tempText = findText(this.actor, 'CoreText')
+    this.binder.set(tempText, `堆心温度 ${temp.toFixed(0)}%`)
+    this.colors.set(tempText, vm.coreState === 'cooling' ? STATE_COOLING_COLOR : '#ffe9a8')
+    this.setProgress('CoreBar', temp, 100)
+    const coreFill = findChild(this.actor, 'CoreBar')?.getChildren().find((c) => c.root.name === 'CoreFill')
+    const coreImg = coreFill?.getComponent(UIImageComponent)
+    if (coreImg) {
+      const c = vm.coreState === 'cooling' ? CORE_FILL_COOL : CORE_FILL_WARM
+      if (coreImg.color !== c) coreImg.color = c
     }
+
+    // ─── 堆心状态行：升温中/降温中 + 预计抵达满温/熄灭的秒数 ───
+    const rate = vm.coreState === 'cooling'
+      ? 100 / Math.max(1, B.coreCoolSeconds)
+      : 100 / Math.max(1, B.coreWarmSeconds)
+    const remain = vm.coreState === 'cooling' ? temp / rate : (100 - temp) / rate
+    const stateLine = findText(this.actor, 'CoreStateText')
+    this.binder.set(stateLine, vm.coreState === 'cooling'
+      ? `降温中 · ${remain.toFixed(0)}s 后熄灭`
+      : temp >= 100 ? '满温运转' : `升温中 · ${remain.toFixed(0)}s 后满温`)
+    this.colors.set(stateLine, vm.coreState === 'cooling' ? WARN_COLOR : '#ffe9a8')
 
     // ─── 净流 / 需求-储量 ───
     const flow = vm.netFlow

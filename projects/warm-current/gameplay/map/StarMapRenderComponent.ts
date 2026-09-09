@@ -25,6 +25,7 @@ import { SphereMeshComponent } from '@/engine'
 import {
   endpointPos,
   buildingDefOf,
+  buildingPos,
   orbitRadiusPx,
   shipPos,
   starLoad,
@@ -103,8 +104,8 @@ const C_SHIP_MISSION = 0xffe9a8
 
 // ─── 视图分组（星图切换：太阳系 / 行星系；ViewToggle/双击行星 → GameMode → applyViewMode） ───
 
-/** 地球系视图特效可见半径（px，距聚焦行星）：覆盖地月航线/月球站锚（≤240），排除他系站锚 */
-const EARTH_VIEW_RADIUS_PX = 260
+/** 地球系视图特效可见半径（px，距聚焦行星）：覆盖地月航线/月球站锚（≤2400），排除他系站锚 */
+const EARTH_VIEW_RADIUS_PX = 2600
 
 /** 卫星归属母星（B.map.moons 反查；卫星与卫星环 = 行星系内容，太阳系全景不显示） */
 function satelliteParentOf(body: string): PlanetId | null {
@@ -293,13 +294,14 @@ class SpriteLabel {
   }
 }
 
-// ─── 建筑视图（类型分支外观：中转站=琥珀色仓库环 / 护盾发生器=蓝色护盾气泡） ───
+// ─── 建筑视图（类型分支外观：中转站=琥珀色仓库环 / 护盾发生器=面朝太阳的半球磁场罩） ───
 
 interface BuildingView {
   group: THREE.Group
-  /** 功能气泡（护盾建筑：半透明球；无半径功能建筑为 null） */
-  shield: THREE.Mesh | null
-  equator: THREE.Mesh | null
+  /** 功能气泡组（护盾建筑：半球罩+罩底缘环，整体按太阳方向定向；无半径建筑为 null） */
+  bubble: THREE.Group | null
+  dome: THREE.Mesh | null
+  rim: THREE.Mesh | null
   core: THREE.Mesh
   title: SpriteLabel
   sub: SpriteLabel
@@ -307,6 +309,11 @@ interface BuildingView {
   /** 缓存类型（表改动/重建视图判定） */
   type: string
 }
+
+/** 半球罩极轴（罩体朝背日侧弯曲），定向用单位向量 */
+const DOME_AXIS = new THREE.Vector3(0, 1, 0)
+/** 朝向解算复用向量（避免逐帧分配） */
+const domeDir = new THREE.Vector3()
 
 export class StarMapRenderComponent extends ActorComponent<Actor> {
   private provider: MapViewProvider
@@ -329,6 +336,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private flatRingGeo!: THREE.RingGeometry
   /** 单位球（缩放复用） */
   private unitSphere!: THREE.SphereGeometry
+  /** 单位半球罩（护盾气泡：+Y = 罩体极轴，罩底开口朝 -Y） */
+  private unitDome!: THREE.SphereGeometry
 
   private routeQuads = new Map<string, { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; dashTex?: THREE.Texture }>()
   private routeSig = ''
@@ -421,6 +430,23 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.flatOrbitGeo = this.F.createRingGeometry(0.985, 1, 128)
     this.flatOrbitGeo.rotateX(-Math.PI / 2)
     this.unitSphere = this.F.createSphereGeometry(1, 28, 20)
+    // 半球罩：工厂球不带半球参数，按索引丢弃 y<0 的三角形裁出上半壳（罩底开放）
+    this.unitDome = this.F.createSphereGeometry(1, 32, 16)
+    {
+      const pos = this.unitDome.attributes.position
+      const idx = this.unitDome.index
+      if (idx) {
+        const keep: number[] = []
+        for (let t = 0; t < idx.count; t += 3) {
+          let above = true
+          for (let k = 0; k < 3; k++) {
+            if (pos.getY(idx.getX(t + k)) < -1e-4) { above = false; break }
+          }
+          if (above) keep.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2))
+        }
+        this.unitDome.setIndex(keep)
+      }
+    }
 
     // ─── 灯光（3D 标准：球体材质需要光照） ───
     this.root3.add(new THREE.AmbientLight(0xcfe3ee, 0.85))
@@ -478,6 +504,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const bv of this.buildingViews.values()) this.disposeBuilding(bv)
     this.buildingViews.clear()
     this.unitSphere.dispose()
+    this.unitDome.dispose()
     this.flatQuadGeo.dispose()
     this.flatRingGeo.dispose()
     this.flatOrbitGeo.dispose()
@@ -795,19 +822,21 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const color = StarMapRenderComponent.BUILDING_COLORS[b.type] ?? 0x9fdcff
     const group = this.own(this.F.createGroup()).object
     const radius = def?.radius ?? 0
-    // 功能气泡（护盾建筑）：半透明球 + 赤道环
-    let shield: THREE.Mesh | null = null
-    let equator: THREE.Mesh | null = null
+    // 功能气泡（护盾建筑）：面朝太阳的半球磁场罩（罩体在背日侧弯曲）+ 罩底朝阳缘环
+    let bubble: THREE.Group | null = null
+    let dome: THREE.Mesh | null = null
+    let rim: THREE.Mesh | null = null
     if (radius > 0) {
-      const shieldMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }))
-      shield = this.own(this.F.createMesh(this.unitSphere, shieldMat)).object
-      shield.position.y = 2
-      shield.renderOrder = 9
-      const equatorMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }))
-      equator = this.own(this.F.createMesh(this.flatRingGeo, equatorMat)).object
-      equator.position.y = 2
-      equator.renderOrder = 9
-      group.add(shield, equator)
+      bubble = this.own(this.F.createGroup()).object
+      bubble.position.y = 2
+      const domeMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }))
+      dome = this.own(this.F.createMesh(this.unitDome, domeMat)).object
+      dome.renderOrder = 9
+      const rimMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }))
+      rim = this.own(this.F.createMesh(this.flatRingGeo, rimMat)).object
+      rim.renderOrder = 9
+      bubble.add(dome, rim)
+      group.add(bubble)
     }
     const coreMat = this.trackMat(this.F.createMeshBasicMaterial({ color }))
     const core = this.own(this.F.createMesh(this.unitSphere, coreMat)).object
@@ -817,9 +846,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     group.add(core)
     const title = new SpriteLabel(this.F, this.owner, group)
     const sub = new SpriteLabel(this.F, this.owner, group)
-    group.position.set(toWX(b.x), 0, toWZ(b.y))
+    const p0 = buildingPos(this.provider.simState.state, b)
+    group.position.set(toWX(p0.x), 0, toWZ(p0.y))
     this.systemGroup.add(group)
-    return { group, shield, equator, core, title, sub, lastSubKey: '', type: b.type }
+    return { group, bubble, dome, rim, core, title, sub, lastSubKey: '', type: b.type }
   }
 
   private disposeBuilding(v: BuildingView): void {
@@ -850,13 +880,22 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const def = buildingDefOf(b.type)
       const selected = selection?.type === 'building' && selection.id === b.id
       const color = StarMapRenderComponent.BUILDING_COLORS[b.type] ?? 0x9fdcff
-      view.group.position.set(toWX(b.x), 0, toWZ(b.y))
-      if (view.shield && view.equator && def && def.radius > 0) {
-        view.shield.scale.setScalar(def.radius)
-        view.equator.scale.setScalar(def.radius)
-        ;(view.equator.material as THREE.MeshBasicMaterial).color.setHex(color)
-        ;(view.equator.material as THREE.MeshBasicMaterial).opacity = selected ? 0.7 : 0.35
-        ;(view.shield.material as THREE.MeshBasicMaterial).opacity = selected ? 0.12 : 0.07
+      // 入轨建筑跟随锚行星公转（buildingPos 实时位置；未入轨 = 静态落点）
+      const bp = buildingPos(sim.state, b)
+      view.group.position.set(toWX(bp.x), 0, toWZ(bp.y))
+      if (view.bubble && view.dome && view.rim && def && def.radius > 0) {
+        view.bubble.scale.setScalar(def.radius)
+        // 罩体面朝太阳：半球极轴指向背日侧（磁场罩形，罩底缘环竖立朝阳）；
+        // 口径 = 画布系 (bp - sun) 映射世界 XZ（toWX/toWZ 纯平移，向量同向），
+        // 与 HazardsComponent 免伤半圆判定共用同一方向约定
+        const sx = bp.x - B.map.nodes.sun.x
+        const sz = bp.y - B.map.nodes.sun.y
+        const sl = Math.hypot(sx, sz) || 1
+        domeDir.set(sx / sl, 0, sz / sl)
+        view.bubble.quaternion.setFromUnitVectors(DOME_AXIS, domeDir)
+        ;(view.rim.material as THREE.MeshBasicMaterial).color.setHex(color)
+        ;(view.rim.material as THREE.MeshBasicMaterial).opacity = selected ? 0.7 : 0.35
+        ;(view.dome.material as THREE.MeshBasicMaterial).opacity = selected ? 0.12 : 0.07
       }
       ;(view.core.material as THREE.MeshBasicMaterial).color.setHex(color)
       view.core.scale.setScalar(selected ? 11 : 9)
@@ -869,8 +908,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         view.title.set(`${name} ${b.id}`, 16, '#9fdcff')
         view.sub.set(`护盾半径 ${def.radius} · 保全 ${def.shipCap} 艘`, 13, '#7fa8bc')
       }
-      view.title.setPos(b.x, b.y, 42)
-      view.sub.setPos(b.x, b.y, 22)
+      view.title.setPos(bp.x, bp.y, 42)
+      view.sub.setPos(bp.x, bp.y, 22)
       view.lastSubKey = ''
     }
   }
@@ -1267,12 +1306,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       if (ring) ring.visible = !solar && focus === mc.parent
     }
     // 建筑视图过滤（建筑 group 归 systemGroup 常显，此处只做显隐）；
-    // 建筑位置固定（自由放置，不随轨道漂移）
+    // 入轨建筑按实时位置判定（跟随锚行星公转，落点静态坐标会漂出画幅口径）
     for (const [id, view] of this.buildingViews) {
       const b = this.provider.simState.state.buildings.find((x) => x.id === id)
       if (!b) continue
       const c = starPosAt(this.provider.simState.state, focus)
-      const d = Math.hypot(b.x - c.x, b.y - c.y)
+      const bp = buildingPos(this.provider.simState.state, b)
+      const d = Math.hypot(bp.x - c.x, bp.y - c.y)
       view.group.visible = solar || d <= EARTH_VIEW_RADIUS_PX
     }
     if (solar) {
@@ -1306,7 +1346,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const [id, view] of this.buildingViews) {
       const b = this.provider.simState.state.buildings.find((x) => x.id === id)
       if (!b) continue
-      view.group.visible = inEarthView(b.x, b.y)
+      const bp = buildingPos(this.provider.simState.state, b)
+      view.group.visible = inEarthView(bp.x, bp.y)
     }
   }
 
