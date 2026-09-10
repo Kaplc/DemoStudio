@@ -110,6 +110,37 @@ export interface ContextEventPayload extends ContextCardInfo {
   time: number
 }
 
+// ─── 图片附件（输入框粘贴/拖拽 → 随消息发送） ───
+/** DSH session.prompt 接受的图片 MIME 白名单（对齐 dsh-client-ui-conversation imageMediaType） */
+export const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
+
+/** 输入框草稿中的待发送图片：file 为原始文件（发送时编码 base64），previewUrl 为本地预览 URL */
+export interface PendingImage {
+  id: string
+  file: File
+  previewUrl: string
+  name: string
+}
+
+/** 用户消息上屏携带的图片引用（渲染用，不参与发送） */
+export interface MessageImageRef {
+  id: string
+  previewUrl: string
+  name?: string
+}
+
+/** session.prompt 的 content part：text 或 image（对齐 DSH 线上格式） */
+export interface PromptContentPart {
+  type: 'text' | 'image'
+  text?: string
+  /** 图片 MIME（type === 'image' 时必填） */
+  mediaType?: string
+  /** 图片纯 base64（不带 data: 前缀，type === 'image' 时必填） */
+  data?: string
+  /** 图片可选文件名 */
+  name?: string
+}
+
 // ─── 消息节点 ───
 export interface Message {
   id: string
@@ -117,6 +148,8 @@ export interface Message {
   content: string
   reasoning?: string        // 推理过程文本
   streaming?: boolean
+  /** 用户消息携带的图片（仅上屏渲染；历史回放不补齐图片） */
+  images?: MessageImageRef[]
   /** 回合是否真正结束（turn/end completed），控制底部操作栏显示 */
   turnCompleted?: boolean
   /** 回合结束原因 */

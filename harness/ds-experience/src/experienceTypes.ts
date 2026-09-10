@@ -219,6 +219,8 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 你有跨会话经验库，存放于项目根 \`.dsh/experience/\`，记录"一次完整任务是怎么做的"。与记忆系统的分工（硬约束）：
 - **记忆（ds-memory）** = 事实与规则 — **禁止把经验轨迹/任务过程写进 memory_write**。
 - **经验（本插件）** = 做事轨迹（怎么做的、什么有效、踩了什么）— **禁止把事实/规则写进 experience_save**。
+- 同一次事件常需**双写**：蒸馏后的结论/规则进记忆（memory_write），做事轨迹进本库（experience_save）。
+- **Lessons 引用而不复述**：规则已沉淀进记忆时写"规则见 memory:条目名"，不要复述规则本身——两库 prefix 相近会被同时注入，复述浪费上下文（记忆侧同理不复述轨迹）。
 
 ## 何时用经验工具
 

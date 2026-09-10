@@ -8,12 +8,12 @@ import { ModelSelector } from './ModelSelector'
 import { ContextRing } from './ContextRing'
 import { SlashMenu, useSlashCommand, registerDshCommandSource, registerDshSkillSource } from './slash-command'
 import { logger } from '../../engine/Logger'
-import type { ContextPressurePayload } from '../../types/agent'
+import type { ContextPressurePayload, PendingImage } from '../../types/agent'
 
 interface InputBoxProps {
-  onSend: (text: string) => void
+  onSend: (text: string, images: PendingImage[]) => void
   /** 加入发送队列：当前回合完成后自动发送（运行时显示在发送按钮旁） */
-  onQueueSend?: (text: string) => void
+  onQueueSend?: (text: string, images: PendingImage[]) => void
   onStop?: () => void
   disabled?: boolean
   running?: boolean
@@ -27,6 +27,12 @@ interface InputBoxProps {
   agentService?: any
   /** 上下文占用快照（输入框底部进度圈数据源，对齐 DSH WebUI ContextMeter） */
   contextPressure?: ContextPressurePayload | null
+  /** 待发送图片草稿（粘贴/拖拽收集，随下一条消息一起发送） */
+  images?: PendingImage[]
+  /** 收集粘贴的图片文件（MIME 校验与上限在面板侧统一处理） */
+  onAddImages?: (files: File[]) => void
+  /** 移除一张待发送图片 */
+  onRemoveImage?: (id: string) => void
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -42,6 +48,9 @@ export const InputBox: React.FC<InputBoxProps> = ({
   draft,
   onDraftChange,
   contextPressure,
+  images = [],
+  onAddImages,
+  onRemoveImage,
 }) => {
   const [ownText, setOwnText] = useState('')
   // 受控草稿优先（按会话保留），未提供时退回内部状态
@@ -95,24 +104,40 @@ export const InputBox: React.FC<InputBoxProps> = ({
 
   const submit = () => {
     const trimmed = text.trim()
-    logger.debug(`[InputBox] submit: text="${text}", trimmed="${trimmed}"`)
-    if (!trimmed || disabled) {
-      logger.debug('[InputBox] submit 跳过: 空文本或禁用')
+    logger.debug(`[InputBox] submit: text="${text}", trimmed="${trimmed}", images=${images.length}`)
+    // 允许只发图片不带文本（对齐 DSH WebUI）；空文本且无图片才跳过
+    if ((!trimmed && images.length === 0) || disabled) {
+      logger.debug('[InputBox] submit 跳过: 空内容或禁用')
       return
     }
     // 允许在 running 状态下发送（steer 模式）
-    logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running})`)
-    onSend(trimmed)
+    logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running}, images=${images.length})`)
+    onSend(trimmed, images)
     updateText('')
   }
 
   // 加入发送队列：当前回合完成后由 AgentPanel 自动发送
   const queueSend = () => {
     const trimmed = text.trim()
-    if (!trimmed || disabled || !onQueueSend) return
-    logger.info(`[InputBox] 消息加入队列: "${trimmed}"`)
-    onQueueSend(trimmed)
+    if ((!trimmed && images.length === 0) || disabled || !onQueueSend) return
+    logger.info(`[InputBox] 消息加入队列: "${trimmed}", images=${images.length}`)
+    onQueueSend(trimmed, images)
     updateText('')
+  }
+
+  // 粘贴图片：剪贴板里的图片文件收集进草稿，随下一条消息一起发送
+  // （对齐 DSH WebUI composer onPaste：文本照常插入，仅图片时拦截默认行为）
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onAddImages) return
+    const imageFiles = Array.from(e.clipboardData.items)
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    if (imageFiles.length === 0) return
+    logger.info(`[InputBox] 粘贴图片 ${imageFiles.length} 张: ${imageFiles.map(f => f.type).join(', ')}`)
+    onAddImages(imageFiles)
+    const clipText = e.clipboardData.getData('text/plain')
+    if (clipText === '') e.preventDefault()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -156,7 +181,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
     }
   }, [text])
 
-  const isEmpty = !text.trim()
+  const isEmpty = !text.trim() && images.length === 0
 
   // 动态 placeholder：AI 运行时显示 steer 提示
   const dynamicPlaceholder = running
@@ -166,6 +191,28 @@ export const InputBox: React.FC<InputBoxProps> = ({
   return (
     <div className="composer">
       <div className={`composer__card ${running ? 'composer__card--steer' : ''}`}>
+        {/* 待发送图片缩略图 rail（粘贴收集，随下一条消息发送） */}
+        {images.length > 0 && (
+          <div className="composer__images" role="list" aria-label="待发送图片">
+            {images.map(img => (
+              <div key={img.id} className="composer__image-item" role="listitem">
+                <img
+                  className="composer__image-thumb"
+                  src={img.previewUrl}
+                  alt={img.name || '待发送图片'}
+                />
+                <button
+                  type="button"
+                  className="composer__image-remove"
+                  onClick={() => onRemoveImage?.(img.id)}
+                  title={img.name ? `移除 ${img.name}` : '移除图片'}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="composer__scroll">
           <div className="composer__grow">
             <div className="composer__mirror" ref={mirrorRef} aria-hidden="true" />
@@ -175,6 +222,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
               value={text}
               onChange={handleInput}
               onKeyDown={onKeyDown}
+              onPaste={handlePaste}
               placeholder={dynamicPlaceholder}
               rows={1}
               disabled={disabled}

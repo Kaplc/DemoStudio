@@ -25,8 +25,36 @@ import type {
   RequestHeaderPayload, SandboxModePayload, PlanModePayload, ContextPressurePayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
+  PendingImage, PromptContentPart,
 } from '../types/agent'
 import { logTime } from '../utils/logTime'
+
+/** session.prompt 接受的图片 MIME 白名单（对齐 DSH dsh-client-ui-conversation imageMediaType） */
+const IMAGE_MEDIA_TYPES = new Set<string>(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+
+/** 分块 btoa：String.fromCharCode 一次性展开超大 Uint8Array 会栈溢出（与 DSH WebUI 同法） */
+export function bytesToBase64(data: Uint8Array): string {
+  let binary = ''
+  const chunk = 32768
+  for (let offset = 0; offset < data.length; offset += chunk) {
+    binary += String.fromCharCode(...data.subarray(offset, offset + chunk))
+  }
+  return btoa(binary)
+}
+
+/** 浏览器图片文件 → session.prompt 的 image part（纯 base64 线上格式，不带 data: 前缀；对齐 DSH WebUI encodeImage） */
+export async function encodeImagePart(file: File): Promise<PromptContentPart> {
+  if (!IMAGE_MEDIA_TYPES.has(file.type)) {
+    throw new Error(`不支持的图片格式: ${file.type || '未知'}（仅支持 png/jpeg/webp/gif）`)
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return {
+    type: 'image',
+    mediaType: file.type,
+    data: bytesToBase64(bytes),
+    ...(file.name ? { name: file.name } : {}),
+  }
+}
 
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
 const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
@@ -992,7 +1020,21 @@ export class AgentService {
   }
 
   // --- 发送消息 ---
-  async send(text: string): Promise<void> {
+
+  /**
+   * 构造 session.prompt 的 content：图片 parts 在前、文本 part 在后
+   * （对齐 DSH WebUI sendSession 的线上格式；text 为空且带图时只发图片 parts）
+   */
+  private async buildPromptContent(text: string, images?: PendingImage[]): Promise<PromptContentPart[]> {
+    const parts: PromptContentPart[] = []
+    for (const image of images ?? []) {
+      parts.push(await encodeImagePart(image.file))
+    }
+    if (text !== '') parts.push({ type: 'text', text })
+    return parts
+  }
+
+  async send(text: string, images?: PendingImage[]): Promise<void> {
     if (this.state !== 'connected' || !this.sessionId) {
       throw new Error('未连接到 DSH')
     }
@@ -1007,14 +1049,24 @@ export class AgentService {
     // 以服务端最新 seq 为去重基线，隔离上一次 stop 遗留的迟到事件
     await this.refreshSeqBaseline()
 
-    this.emit({ type: 'message', payload: { role: 'user', content: text } })
+    // 图片编码（base64）在最前面完成：格式不合法时在此抛错，不发 RPC 也不上屏
+    const content = await this.buildPromptContent(text, images)
+    this.emit({
+      type: 'message',
+      payload: {
+        role: 'user',
+        content: text,
+        ...(images?.length ? { images: images.map(i => ({ id: i.id, previewUrl: i.previewUrl, name: i.name })) } : {}),
+      },
+    })
     this.setRunning(true) // AI 开始运行
 
     try {
+      console.log(`[${logTime()}] [AgentService] session.prompt: text=${text.length}ch, images=${images?.length ?? 0}, contentParts=${content.length}`)
       await this.rpc('session.prompt', {
         sessionId: this.sessionId,
         mode: 'queue',
-        content: [{ type: 'text', text }],
+        content,
       })
       // mux 下行流在线时由 session/event 推送驱动；离线才回退轮询
       if (!this.isMuxAlive()) await this.pollForResponse()
@@ -1031,20 +1083,30 @@ export class AgentService {
   /**
    * 引导 AI：在 AI 运行中发送新消息，实时注入到当前 turn
    * @param text - 引导消息内容
+   * @param images - 随引导消息发送的图片（可选）
    */
-  async steer(text: string): Promise<void> {
+  async steer(text: string, images?: PendingImage[]): Promise<void> {
     if (this.state !== 'connected' || !this.sessionId) {
       throw new Error('未连接到 DSH')
     }
 
-    console.log(`[${logTime()}] [AgentService] 引导 AI: text="${text}", sessionId=${this.sessionId}`)
-    this.emit({ type: 'message', payload: { role: 'user', content: text } })
+    console.log(`[${logTime()}] [AgentService] 引导 AI: text="${text}", images=${images?.length ?? 0}, sessionId=${this.sessionId}`)
+    // 图片编码（base64）在最前面完成：格式不合法时在此抛错，不发 RPC 也不上屏
+    const content = await this.buildPromptContent(text, images)
+    this.emit({
+      type: 'message',
+      payload: {
+        role: 'user',
+        content: text,
+        ...(images?.length ? { images: images.map(i => ({ id: i.id, previewUrl: i.previewUrl, name: i.name })) } : {}),
+      },
+    })
 
     try {
       const result = await this.rpc('session.prompt', {
         sessionId: this.sessionId,
         mode: 'steer',
-        content: [{ type: 'text', text }],
+        content,
       })
       console.log(`[${logTime()}] [AgentService] 引导消息已发送:`, result)
     } catch (error) {

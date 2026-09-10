@@ -87,14 +87,14 @@ function registerAgent(
   setup: TestSetup,
   injections: Injected[],
   header: Record<string, unknown> = {},
-): { session: Session } {
+): { session: Session; agent: Record<string, unknown> } {
   const session = { header } as unknown as Session
-  const agent = {
+  const agent: Record<string, unknown> = {
     session,
     inject: (message: Injected) => injections.push(message),
   }
   setup.handlers.get('agent/status')![0]({ agent } as never)
-  return { session }
+  return { session, agent }
 }
 
 describe('apply 注册冒烟', () => {
@@ -172,10 +172,141 @@ describe('回合末经验提醒', () => {
     expect(injected).toHaveLength(0)
   })
 
-  it('enableEndOfTurnReminder: false — 不注册提醒监听', () => {
+  it('enableEndOfTurnReminder: false — 不注册提醒监听（session/event + 跳过判定的 pre-step/tools-result）', () => {
     const setup = fakeCtx()
     apply(setup.ctx, { experienceDir: dir, enableEndOfTurnReminder: false })
     expect(setup.handlers.get('session/event')).toBeUndefined()
+    // experienceDir 非标准形态时联想不注册监听，这里的 agent/pre-step、tools/result 全部来自提醒跳过判定
+    expect(setup.handlers.get('agent/pre-step')).toBeUndefined()
+    expect(setup.handlers.get('tools/result')).toBeUndefined()
+  })
+})
+
+describe('回合末经验提醒：本回合已 experience_save 则跳过', () => {
+  type PreStepHandler = (
+    payload: { agent: Record<string, unknown>; turn: number },
+    next: () => Promise<Record<string, unknown>>,
+  ) => Promise<unknown>
+  type ToolResultHandler = (
+    exec: { name: string; agent?: Record<string, unknown> },
+    result: { isError: boolean },
+  ) => unknown
+
+  interface SkipSetup {
+    setup: TestSetup
+    preStep: PreStepHandler
+    toolResult: ToolResultHandler
+  }
+
+  /** 装配插件并取出跳过判定监听器（experienceDir 非标准形态 → 联想不注册，监听器全部来自提醒块）。 */
+  function setupWithSkip(): SkipSetup {
+    const setup = fakeCtx()
+    apply(setup.ctx, { experienceDir: dir })
+    const preStep = setup.handlers.get('agent/pre-step')!.at(-1) as PreStepHandler
+    const toolResult = setup.handlers.get('tools/result')!.at(-1) as ToolResultHandler
+    expect(preStep).toBeDefined()
+    expect(toolResult).toBeDefined()
+    return { setup, preStep, toolResult }
+  }
+
+  /** 走一遍"回合内保存成功"：pre-step 记回合号 → tools/result 记保存成功。 */
+  async function saveInTurn(
+    preStep: PreStepHandler,
+    toolResult: ToolResultHandler,
+    agent: Record<string, unknown>,
+    turn: number,
+    toolName: string,
+    isError = false,
+  ): Promise<void> {
+    await preStep({ agent, turn }, async () => ({ kind: 'continue', messages: [] }))
+    toolResult({ name: toolName, agent }, { isError })
+  }
+
+  function fireTurnEnd(setup: TestSetup, session: Session): void {
+    setup.handlers.get('session/event')![0](session, ev('turn/end') as never)
+  }
+
+  it('本回合 experience_save 成功：跳过提醒', async () => {
+    const { setup, preStep, toolResult } = setupWithSkip()
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    await saveInTurn(preStep, toolResult, agent, 3, 'experience_save')
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(0)
+  })
+
+  it('本回合只保存了记忆（memory_write）：经验提醒照常注入（各自只看自己）', async () => {
+    const { setup, preStep, toolResult } = setupWithSkip()
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    await saveInTurn(preStep, toolResult, agent, 3, 'memory_write')
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(1)
+  })
+
+  it('保存在更早的回合：本回合仍提醒', async () => {
+    const { setup, preStep, toolResult } = setupWithSkip()
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    await saveInTurn(preStep, toolResult, agent, 3, 'experience_save')
+    await preStep({ agent, turn: 4 }, async () => ({ kind: 'continue', messages: [] }))
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(1)
+  })
+
+  it('保存失败（isError）：不算已保存，仍提醒', async () => {
+    const { setup, preStep, toolResult } = setupWithSkip()
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    await saveInTurn(preStep, toolResult, agent, 5, 'experience_save', true)
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(1)
+  })
+
+  it('未观测到回合号（无 pre-step）：不登记，仍提醒（fail-open）', () => {
+    const { setup, toolResult } = setupWithSkip()
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    toolResult({ name: 'experience_save', agent }, { isError: false })
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(1)
+  })
+
+  it('reminderSkipTools: [] 关闭判定：保存后仍提醒', async () => {
+    const setup = fakeCtx()
+    apply(setup.ctx, { experienceDir: dir, reminderSkipTools: [] })
+    const preStep = setup.handlers.get('agent/pre-step')!.at(-1) as PreStepHandler
+    const toolResult = setup.handlers.get('tools/result')!.at(-1) as ToolResultHandler
+    const injected: Injected[] = []
+    const { session, agent } = registerAgent(setup, injected)
+    await saveInTurn(preStep, toolResult, agent, 6, 'experience_save')
+
+    fireTurnEnd(setup, session)
+
+    expect(injected).toHaveLength(1)
+  })
+
+  it('agent/pre-step 原样透传下游决策（waterfall 不 veto）', async () => {
+    const { setup, preStep } = setupWithSkip()
+    const injected: Injected[] = []
+    const { agent } = registerAgent(setup, injected)
+    const decision = { kind: 'continue', messages: [] }
+    const next = vi.fn(async () => decision)
+
+    const returned = await preStep({ agent, turn: 11 }, next)
+
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(returned).toBe(decision)
   })
 })
 
@@ -184,8 +315,9 @@ describe('prefix 自动联想装配', () => {
     const setup = fakeCtx()
     apply(setup.ctx, { experienceDir: nestedDir })
     expect(setup.handlers.get('tools/pre-execute')).toHaveLength(1)
-    expect(setup.handlers.get('tools/result')).toHaveLength(1)
-    expect(setup.handlers.get('agent/pre-step')).toHaveLength(1)
+    // tools/result、agent/pre-step 各 2 个：联想器 + 回合末提醒的"已保存"跳过判定（各自独立注册）
+    expect(setup.handlers.get('tools/result')).toHaveLength(2)
+    expect(setup.handlers.get('agent/pre-step')).toHaveLength(2)
   })
 
   it('非标准目录形态：联想停用并 warn，不抛出', () => {

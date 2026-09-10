@@ -9,7 +9,9 @@
  *   表达式支持 `||`（任一路径命中）与 `&&`（会话内全部路径读过，跨读取累计）
  * - `ctx.on('agent/turn-stopping')` — 回合末记忆提醒：回合结束前通过 steer 注入一条
  *   "检查是否需要保存记忆"的提醒（agent.steer()，驱动会多跑一步处理提醒）；
- *   **本回合已成功保存过记忆（memory_write）或经验（experience_save）时跳过**
+ *   **本回合已成功保存过记忆（memory_write）时跳过**——跳过判定"各自只看自己"：
+ *   同一次事件常需双写（结论进记忆、轨迹进经验），只存了经验不代表没漏存记忆，
+ *   所以经验保存不抑制本提醒（经验侧由 ds-experience 的回合末提醒自行判定）
  *   （agent/pre-step 记录当前回合号，tools/result 登记保存类工具的成功调用）
  *
  * 记忆保存与检索的默认分工：
@@ -67,12 +69,13 @@ const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆提醒
 
 /**
  * 回合末提醒的"已保存"判定工具：本回合内成功调用过其中之一就不再提醒。
- * memory_write 由本插件提供，experience_save 由 @demostudio/ds-experience 提供——
- * 两者都是"保存"动作，任一发生即说明本回合已经沉淀过，无需再催一次。
+ * 默认只认本插件的 memory_write——跳过判定"各自只看自己"：
+ * 同一次事件常需双写（结论进记忆、轨迹进经验），只存了经验不代表没漏存记忆，
+ * 因此 experience_save 不再抑制本提醒（经验侧由 @demostudio/ds-experience 的
+ * 回合末提醒自行判定，那边默认只认 experience_save）。
  */
 export const DEFAULT_REMINDER_SKIP_TOOLS: readonly string[] = [
   'memory_write',
-  'experience_save',
 ]
 
 /** 插件配置（cordis.yml 可配置项）。 */
@@ -89,7 +92,8 @@ export interface Config {
   enableEndOfTurnReminder?: boolean
   /**
    * 本回合内已成功调用过这些工具时，跳过回合末提醒
-   * （默认 memory_write + experience_save——记忆或经验任一已保存即无需提醒）。
+   * （默认仅 memory_write——记忆/经验提醒各自只看自己的保存工具，
+   * 经验保存不抑制记忆提醒；需旧行为可配 ["memory_write","experience_save"]）。
    * 传空数组 = 关闭该判定，退回"每回合都提醒"。
    */
   reminderSkipTools?: string[]
@@ -170,8 +174,10 @@ export function apply(ctx: Context, config?: Config): void {
   // 投递通道：agent/turn-stopping + agent.steer()：回合即将关闭时注入 steering，
   // 驱动会多跑一步处理提醒（模型看到"上一回合已结束"的提示后自行决定是否保存记忆）。
   // 时机：回合结束前（turn-stopping serial 事件），提醒在当前回合末尾被模型处理。
-  // 跳过条件：本回合内已成功调用过保存类工具（默认 memory_write / experience_save）——
-  // 已经保存过记忆或经验就不再提醒，避免"刚存完又被催一次"。
+  // 跳过条件：本回合内已成功调用过保存类工具（默认仅 memory_write）——
+  // 已经保存过记忆就不再提醒，避免"刚存完又被催一次"。
+  // 跳过判定"各自只看自己"：经验保存不抑制本提醒（双写场景下只存了经验仍可能漏存记忆），
+  // 经验侧的同类判定在 ds-experience 插件。
   if (resolved.enableEndOfTurnReminder) {
     // 冷却按 agent 记（WeakMap 随 Agent 回收）；插件全局单水位会让多 agent 互相挤掉提醒
     const lastReminderByAgent = new WeakMap<Agent, number>()
@@ -231,9 +237,9 @@ export function apply(ctx: Context, config?: Config): void {
         // 子 agent 上下文归属父 agent，不提醒
         if (isChildAgent(agent)) return
 
-        // 本回合已经保存过记忆/经验 → 不需要提醒
+        // 本回合已经保存过记忆 → 不需要提醒
         if (savedTurnByAgent.get(agent) === turn) {
-          logger.info('回合 %d 已保存过记忆/经验，跳过回合末提醒', turn)
+          logger.info('回合 %d 已保存过记忆，跳过回合末提醒', turn)
           return
         }
 

@@ -88,14 +88,6 @@ const patchContent = `# Your patch layer for this dsh profile, applied after eve
 - insert:
     - id: ds-editor-tools
       name: '@demostudio/ds-editor-tools'
-
-# ── DemoStudio 上下文警告 ──
-- insert:
-    - id: ds-context-warning
-      name: '@demostudio/ds-context-warning'
-      config:
-        projectRoot: '${yamlPath}'
-        thresholdsK: [100,200,250,300]
 `
 
 // 写入项目 .dsh/profiles/ 目录（editor.bat 会 copy 到 ~/.dsh/profiles/）

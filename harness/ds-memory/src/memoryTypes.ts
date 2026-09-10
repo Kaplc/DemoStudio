@@ -332,6 +332,12 @@ export function memoryGuideSectionText(memoryIndex: string | undefined): string 
     WHEN_TO_ACCESS_TEXT,
     ASSOCIATE_LOAD_TEXT,
     END_OF_TURN_REMINDER_TEXT,
+    `## 与经验库的分工（同一事件双写）
+
+- 记忆（本系统）存**结论**：事实、规则、根因知识——脱离具体任务仍为真。
+- 经验（\`.dsh/experience/\`）存**轨迹**：一次完整任务怎么做的、什么有效、踩了什么。
+- 同一次事件常需双写：可泛化的结论按条目格式进记忆，做事路线用 experience_save 存为经验。
+- 交叉引用不复述：经验 Lessons 应引用记忆条目名（如"规则见 memory:条目名"）而非复述规则；记忆条目也不复述做事过程——两库 prefix 相近会被同时注入，重复内容浪费上下文。`,
     `## 记忆与其他持久化机制的分工
 
 - **Plan** — 当前任务的方案对齐，会话内有效

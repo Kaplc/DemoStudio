@@ -200,17 +200,17 @@ describe('回合末记忆提醒：本回合已保存过则跳过', () => {
 
     expect(agent.steer).not.toHaveBeenCalled()
     expect(logger.info).toHaveBeenCalledWith('回合 %d 内已成功调用 %s，回合末不再提醒', 7, 'memory_write')
-    expect(logger.info).toHaveBeenCalledWith('回合 %d 已保存过记忆/经验，跳过回合末提醒', 7)
+    expect(logger.info).toHaveBeenCalledWith('回合 %d 已保存过记忆，跳过回合末提醒', 7)
   })
 
-  it('本回合 experience_save 成功：同样跳过提醒（跨插件保存也算已沉淀）', async () => {
+  it('本回合 experience_save 成功：不再抑制提醒（各自只看自己——双写场景下只存了经验仍可能漏存记忆）', async () => {
     const { turnStopping, preStep, toolResult } = await applyWithReminder()
     const agent = makeAgent()
     await saveInTurn(preStep, toolResult, agent, 3, 'experience_save')
 
     await turnStopping({ agent, turn: 3, signal: liveSignal() })
 
-    expect(agent.steer).not.toHaveBeenCalled()
+    expect(agent.steer).toHaveBeenCalledTimes(1)
   })
 
   it('保存发生在更早的回合：本回合仍提醒', async () => {

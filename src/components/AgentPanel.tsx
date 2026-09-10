@@ -24,7 +24,8 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage } from '../types/agent'
+import { IMAGE_MEDIA_TYPES } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
 import { ApprovalCard } from './agent/ApprovalCard'
@@ -115,6 +116,7 @@ function previousHistoryStart(items: Message[], currentStart: number, turnCount 
 interface QueuedSend {
   id: number
   text: string
+  images?: PendingImage[]
 }
 
 function toPanelHistoryMessage(
@@ -205,6 +207,12 @@ export const AgentPanel: React.FC = () => {
   // 写穿式：任何变更立即落回 map，切换会话只做键切换与载入，无保存时序问题。
   const draftsBySessionRef = useRef<Map<string, string>>(new Map())
   const [composerDraft, setComposerDraft] = useState('')
+  // 待发送图片草稿（按会话保留）：粘贴收集，随下一条消息一起发送。
+  // 已发送图片的 blob URL 保留给上屏消息渲染（不 revoke，泄漏以会话生命周期内发送量为上限）；
+  // 仅未发送就手动移除的图片立即 revoke。
+  const imagesBySessionRef = useRef<Map<string, PendingImage[]>>(new Map())
+  const [composerImages, setComposerImages] = useState<PendingImage[]>([])
+  const imageSeqRef = useRef(0)
   const queuesBySessionRef = useRef<Map<string, QueuedSend[]>>(new Map())
   const [queuedSends, setQueuedSends] = useState<QueuedSend[]>([]) // 当前会话队列（显示用）
   const currentSessionKeyRef = useRef('current')
@@ -213,7 +221,7 @@ export const AgentPanel: React.FC = () => {
    *  期间仍留在会话队列中；stop / 切换会话时归 null（条目随旧会话队列保留）。 */
   const pendingQueuedSendRef = useRef<number | null>(null)
   /** drain 空闲分支发送排队消息用的间接引用（handleSend 定义在 drain 之后，避免 TDZ） */
-  const sendNowRef = useRef<(text: string) => Promise<void> | void>(() => {})
+  const sendNowRef = useRef<(text: string, images?: PendingImage[]) => Promise<void> | void>(() => {})
 
   /** 把当前会话队列同步到显示状态 */
   const syncQueuedSendsState = useCallback(() => {
@@ -225,6 +233,7 @@ export const AgentPanel: React.FC = () => {
     pendingQueuedSendRef.current = null
     currentSessionKeyRef.current = newKey
     setComposerDraft(draftsBySessionRef.current.get(newKey) ?? '')
+    setComposerImages(imagesBySessionRef.current.get(newKey) ?? [])
     setQueuedSends(queuesBySessionRef.current.get(newKey) ?? [])
   }, [])
   // 完整消息提交后递增，用于触发列表自动滚动
@@ -820,8 +829,8 @@ export const AgentPanel: React.FC = () => {
         queuesBySessionRef.current.set(key, queue.filter(q => q.id !== pendingId))
         syncQueuedSendsState()
         if (item) {
-          console.log(`[${logTime()}] [AgentPanel] 队列发送: "${item.text.slice(0, 24)}"`)
-          void sendNowRef.current(item.text)
+          console.log(`[${logTime()}] [AgentPanel] 队列发送: "${item.text.slice(0, 24)}", images=${item.images?.length ?? 0}`)
+          void sendNowRef.current(item.text, item.images)
         }
       }
       return
@@ -1334,37 +1343,43 @@ export const AgentPanel: React.FC = () => {
     }, 1000)
   }, [addConsoleOutput, refreshSessions])
 
-  // 发送消息（AI 运行中自动使用 steer 引导）
-  const handleSend = useCallback(async (text: string) => {
+  // 发送消息（AI 运行中自动使用 steer 引导）；图片随消息一起发送
+  const handleSend = useCallback(async (text: string, images: PendingImage[] = []) => {
     const isRunning = agentService.isRunning()
-    console.log(`[${logTime()}] [AgentPanel] handleSend: text="${text}", isRunning=${isRunning}`)
-    
+    console.log(`[${logTime()}] [AgentPanel] handleSend: text="${text}", images=${images.length}, isRunning=${isRunning}`)
+
     try {
       setMessages(prev => [...prev, {
         id: `u-${Date.now()}`,
         role: 'user',
         content: text,
+        // 上屏缩略图直接复用草稿的 blob URL（发送后不 revoke，保留给消息渲染）
+        ...(images.length ? { images: images.map(i => ({ id: i.id, previewUrl: i.previewUrl, name: i.name })) } : {}),
         ts: Date.now()
       }])
       // 新一轮开始：清空任务面板（webui 语义：cleared on the next turn/start）。
       // steer 引导同样开启新一轮，故一并清空。
       setTodos([])
-      
-      
+
+
       if (isRunning) {
         // AI 正在运行，使用 steer 引导
         console.log(`[${logTime()}] [AgentPanel] 使用 steer 引导 AI`)
         addConsoleOutput(`[Agent] 引导 AI: ${text}`)
-        await agentService.steer(text)
+        await agentService.steer(text, images)
         // steer 同样会进入等待期：本轮尚未有输出时显示思考卡片
         setIsAgentRunning(true)
       } else {
         // AI 空闲，正常发送
         console.log(`[${logTime()}] [AgentPanel] 正常发送消息`)
         setIsAgentRunning(true) // AI 开始运行
-        await agentService.send(text)
+        await agentService.send(text, images)
         addConsoleOutput(`[Agent] 发送消息: ${text}`)
       }
+      // 发送成功：清空当前会话的图片草稿（blob URL 保留给上屏消息，不 revoke）
+      const key = currentSessionKeyRef.current
+      imagesBySessionRef.current.delete(key)
+      setComposerImages([])
       refreshSessions()
     } catch (error) {
       setIsAgentRunning(false) // 出错时停止
@@ -1379,11 +1394,14 @@ export const AgentPanel: React.FC = () => {
   }, [handleSend])
 
   // 加入发送队列：当前回合完成后自动发出（写穿到当前会话的队列）
-  const handleQueueSend = useCallback((text: string) => {
+  const handleQueueSend = useCallback((text: string, images: PendingImage[] = []) => {
     const key = currentSessionKeyRef.current
     const queue = queuesBySessionRef.current.get(key) ?? []
-    queuesBySessionRef.current.set(key, [...queue, { id: ++queuedSendSeqRef.current, text }])
+    queuesBySessionRef.current.set(key, [...queue, { id: ++queuedSendSeqRef.current, text, ...(images.length ? { images } : {}) }])
     syncQueuedSendsState()
+    // 图片随排队消息一起走：从草稿移除（URL 保留给队列项，发送后由 handleSend 处理）
+    imagesBySessionRef.current.delete(key)
+    setComposerImages([])
     addConsoleOutput(`[Agent] 已加入发送队列: ${text}`)
   }, [addConsoleOutput, syncQueuedSendsState])
 
@@ -1400,6 +1418,51 @@ export const AgentPanel: React.FC = () => {
   const handleDraftChange = useCallback((text: string) => {
     draftsBySessionRef.current.set(currentSessionKeyRef.current, text)
     setComposerDraft(text)
+  }, [])
+
+  /** 每条消息最多携带的图片数（对齐 DSH WebUI 常用量级） */
+  const MAX_IMAGES_PER_MESSAGE = 9
+
+  // 待发送图片收集（粘贴/拖拽入口）：MIME 白名单过滤 + 数量上限，超高部分提示忽略
+  const handleAddImages = useCallback((files: File[]) => {
+    const accepted = files.filter(f => (IMAGE_MEDIA_TYPES as readonly string[]).includes(f.type))
+    if (accepted.length === 0) {
+      pushSystem('仅支持 png / jpeg / webp / gif 图片')
+      return
+    }
+    const key = currentSessionKeyRef.current
+    const existing = imagesBySessionRef.current.get(key) ?? []
+    const room = MAX_IMAGES_PER_MESSAGE - existing.length
+    if (room <= 0) {
+      pushSystem(`每条消息最多 ${MAX_IMAGES_PER_MESSAGE} 张图片`)
+      return
+    }
+    const admitted = accepted.slice(0, room).map(file => ({
+      id: `img-${++imageSeqRef.current}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      name: file.name || '',
+    }))
+    const next = [...existing, ...admitted]
+    imagesBySessionRef.current.set(key, next)
+    setComposerImages(next)
+    if (accepted.length > admitted.length) {
+      pushSystem(`每条消息最多 ${MAX_IMAGES_PER_MESSAGE} 张图片，超出部分已忽略`)
+    }
+    console.log(`[${logTime()}] [AgentPanel] 收集待发送图片: +${admitted.length}, 共 ${next.length}`)
+  }, [pushSystem])
+
+  // 移除一张未发送的图片草稿（立即释放预览 URL）
+  const handleRemoveImage = useCallback((id: string) => {
+    const key = currentSessionKeyRef.current
+    const existing = imagesBySessionRef.current.get(key) ?? []
+    const target = existing.find(i => i.id === id)
+    if (!target) return
+    URL.revokeObjectURL(target.previewUrl)
+    const next = existing.filter(i => i.id !== id)
+    imagesBySessionRef.current.set(key, next)
+    setComposerImages(next)
+    console.log(`[${logTime()}] [AgentPanel] 移除待发送图片: ${id}, 剩余 ${next.length}`)
   }, [])
 
   // 停止 AI
@@ -2033,6 +2096,9 @@ export const AgentPanel: React.FC = () => {
         onStop={handleStop}
         draft={composerDraft}
         onDraftChange={handleDraftChange}
+        images={composerImages}
+        onAddImages={handleAddImages}
+        onRemoveImage={handleRemoveImage}
         disabled={connectionState !== 'connected'}
         running={isAgentRunning}
         placeholder={

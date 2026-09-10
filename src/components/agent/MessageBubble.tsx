@@ -85,10 +85,24 @@ const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) 
 
       {/* 消息内容 */}
       <div className="message__body">
+        {/* 用户消息携带的图片缩略图（渲染在文本之前；blob URL 由发送时保留） */}
+        {isUser && message.images && message.images.length > 0 && (
+          <div className="message__images">
+            {message.images.map(img => (
+              <img
+                key={img.id}
+                className="message__image-thumb"
+                src={img.previewUrl}
+                alt={img.name || '消息图片'}
+                title={img.name || '消息图片'}
+              />
+            ))}
+          </div>
+        )}
         {isAssistant ? (
           <MarkdownRenderer content={message.content} streaming={message.streaming} />
         ) : (
-          <span>{message.content}</span>
+          message.content && <span>{message.content}</span>
         )}
       </div>
 
@@ -127,4 +141,5 @@ export const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
     && prev.message.ts === next.message.ts
     && prev.isFinal === next.isFinal
     && prev.message.stats === next.message.stats
+    && prev.message.images === next.message.images
 })
