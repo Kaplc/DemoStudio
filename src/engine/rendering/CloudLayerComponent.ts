@@ -147,14 +147,17 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this.obj.object.rotation.y += deltaTime * this._spin
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。key 与 getEditableProperties() 一致为 camelCase（精确匹配
+   * 渲染编辑控件）；texture 为只读信息行，无对应可编辑属性。
+   */
   override getProperties(): Record<string, unknown> {
     const mat = this.obj.object.material as THREE.MeshBasicMaterial
     return {
-      Altitude: Math.round(this._altitude * 100) / 100,
-      Spin: Math.round(this._spin * 1000) / 1000,
-      Opacity: Math.round(this._opacity * 100) / 100,
-      Texture: mat.map ? '已设置' : '（无）',
+      altitude: Math.round(this._altitude * 100) / 100,
+      spin: Math.round(this._spin * 1000) / 1000,
+      opacity: Math.round(this._opacity * 100) / 100,
+      texture: mat.map ? '已设置' : '（无）',
     }
   }
 

@@ -10,6 +10,7 @@
  */
 import type { AbstractAssetChecker } from './AbstractAssetChecker'
 import type { CheckerKind } from './types'
+import { ComponentRegistry } from '../../../engine/tools/ComponentRegistry'
 
 type CheckerCtor = new () => AbstractAssetChecker
 
@@ -30,4 +31,29 @@ export function getChecker(kind: CheckerKind): AbstractAssetChecker | null {
 /** 已注册的所有 kind（诊断用）。 */
 export function registeredKinds(): CheckerKind[] {
   return [...registry.keys()]
+}
+
+/** kind 解析结果：lint 检查器命中 / 合法组件缺 schema / 完全未知。 */
+export type CheckerResolution =
+  | { type: 'checker'; checker: AbstractAssetChecker }
+  | { type: 'schemaless'; baseClass: string }
+  | { type: 'unknown' }
+
+/**
+ * kind 解析——AssetLintEngine 与 uiCompiler/lintBridge 两条派发路径共用的唯一策略：
+ *   1. lint 检查器命中 → checker；
+ *   2. comp:* 且 ComponentRegistry 工厂注册过 → schemaless（合法组件、无 lint schema，
+ *      properties 不校验；调用方降级为 warn，避免把合法资产误伤成「未注册的检查器」error）；
+ *   3. 其余 → unknown（调用方报 error）。
+ * 依赖 ComponentRegistry 已初始化（编辑器进程内 registerBuiltinComponents 已跑）；
+ * 离线 CLI 未初始化时工厂判定从紧（unknown），仅影响极少数声明游戏组件的 widget。
+ */
+export function resolveChecker(kind: CheckerKind): CheckerResolution {
+  const checker = getChecker(kind)
+  if (checker) return { type: 'checker', checker }
+  if (kind.startsWith('comp:')) {
+    const baseClass = kind.slice('comp:'.length)
+    if (ComponentRegistry.has(baseClass)) return { type: 'schemaless', baseClass }
+  }
+  return { type: 'unknown' }
 }

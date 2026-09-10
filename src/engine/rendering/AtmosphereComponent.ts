@@ -18,6 +18,10 @@
  *  - ShaderMaterial unlit（不受灯光）：行星光来自太阳方向光，Fresnel 用视线夹角
  *    近似即可，避免真实大气散射积分的复杂度；观察模式增强走 intensity setter。
  *  - renderOrder = 1：透明壳在行星本体之后绘制，保证混合正确。
+ *  - 外发散光晕（haloScale/haloIntensity）：Fresnel 壳只亮贴边一圈、外壳边界即
+ *    戛然而止，没有"向外发散"——光晕用星图飞船/太阳同款的相机朝向加色 Sprite
+ *    （径向渐变 mask + AdditiveBlending + depthWrite off），深度测试让本体裁掉
+ *    Sprite 中心 → 只露轮廓外的外溢光圈；haloScale 0 = 关。
  *
  * 蓝图声明用：
  *   { "baseClass": "AtmosphereComponent", "properties": { "color": "#7fb8ff", "intensity": 1.2, "power": 2.6, "scale": 1.05 } }
@@ -57,6 +61,29 @@ const FRAG = /* glsl */ `
   }
 `
 
+/** 外发散光晕径向渐变贴图（白 = 色乘 mask，加色混合）：与星图飞船/太阳光晕同配方。
+ *  过渡带按 haloScale 2.6 调校（0.385 ≈ 1/2.6 = 星球轮廓位置，贴边最亮向外渐隐）。 */
+function makeHaloTexture(): THREE.CanvasTexture | null {
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+  if (!canvas) return null
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const S = 256
+  canvas.width = S
+  canvas.height = S
+  const g = ctx.createRadialGradient(S / 2, S / 2, S * 0.02, S / 2, S / 2, S / 2)
+  g.addColorStop(0, 'rgba(255,255,255,0.5)')
+  g.addColorStop(0.385, 'rgba(255,255,255,0.45)')
+  g.addColorStop(0.6, 'rgba(255,255,255,0.2)')
+  g.addColorStop(0.8, 'rgba(255,255,255,0.07)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, S, S)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
 export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.Mesh>> {
   public readonly obj: ThreeObject<THREE.Mesh>
 
@@ -72,6 +99,12 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
   private _shellScale: number
   /** 本体半径快照（构造时从 owner 的 SphereMeshComponent 解析；缺失兜底 1） */
   private readonly _bodyRadius: number
+  /** 外发散光晕直径倍率（相对本体半径；0 = 关。直径 = 2 × 本体半径 × haloScale） */
+  private _haloScale: number
+  /** 外发散光晕强度（加色 Sprite opacity [0,1]） */
+  private _haloIntensity: number
+  /** 外发散光晕 Sprite（相机朝向；深度测试让本体裁掉中心 → 只露轮廓外光圈） */
+  private haloObj: ThreeObject<THREE.Sprite> | null = null
 
   constructor(owner: Actor, options: Record<string, unknown> = {}, name = 'AtmosphereComponent') {
     super(owner, name)
@@ -81,6 +114,9 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this._power = typeof options.power === 'number' ? options.power : 2.6
     this._shellScale = typeof options.shellScale === 'number' ? Math.max(1.01, options.shellScale) : 1.05
     this._bodyRadius = owner.getComponent(SphereMeshComponent)?.radius ?? 1
+    this._haloScale = typeof options.haloScale === 'number' ? Math.max(0, options.haloScale) : 2.6
+    this._haloIntensity = typeof options.haloIntensity === 'number' ? THREE.MathUtils.clamp(options.haloIntensity, 0, 1) : 0.9
+    this.buildHalo()
 
     const geo = new THREE.SphereGeometry(1, 48, 32)
     const mat = new THREE.ShaderMaterial({
@@ -101,11 +137,47 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this.attachToRoot(this.obj)
   }
 
-  /** 大气颜色 */
+  /** 外发散光晕装配：相机朝向加色 Sprite（径向渐变 mask），无 DOM canvas 环境静默跳过 */
+  private buildHalo(): void {
+    if (this._haloScale <= 0) return
+    const mat = new THREE.SpriteMaterial({
+      map: makeHaloTexture() ?? undefined,
+      color: this._color,
+      transparent: true,
+      opacity: this._haloIntensity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    const sprite = new THREE.Sprite(mat)
+    sprite.scale.setScalar(this._bodyRadius * 2 * this._haloScale)
+    sprite.renderOrder = 1
+    this.haloObj = new ThreeObject(sprite, { disposeGeometry: false })
+    this.attachToRoot(this.haloObj)
+  }
+
+  /** 测试/检查口：外发散光晕 Sprite（haloScale 0 = null） */
+  get halo(): THREE.Sprite | null { return this.haloObj?.object ?? null }
+
+  override EndPlay(): void {
+    if (this.haloObj) {
+      this.owner.root.remove(this.haloObj.object)
+      this.haloObj.dispose()
+      this.haloObj = null
+    }
+    super.EndPlay()
+  }
+
+  override setVisible(visible: boolean): void {
+    super.setVisible(visible)
+    if (this.haloObj) this.haloObj.object.visible = visible && this.owner.bActive !== false
+  }
+
+  /** 大气颜色（同步 Fresnel 壳 uniform 与外发散光晕 Sprite 乘色） */
   get color(): string { return `#${this._color.getHexString()}` }
   set color(v: string) {
     this._color.set(v)
     ;(this.obj.object.material as THREE.ShaderMaterial).uniforms.uColor.value = this._color
+    if (this.haloObj) (this.haloObj.object.material as THREE.SpriteMaterial).color.set(v)
   }
 
   /** 辉光强度 [0.2, 3]（观察模式增强走此 setter） */
@@ -129,13 +201,33 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this.obj.object.scale.setScalar(this._bodyRadius * this._shellScale)
   }
 
-  /** Inspector 属性展示 */
+  /** 外发散光晕直径倍率（相对本体半径；0 = 关；直径 = 2 × 本体半径 × haloScale） */
+  get haloScale(): number { return this._haloScale }
+  set haloScale(v: number) {
+    this._haloScale = Math.max(0, v)
+    if (this.haloObj) this.haloObj.object.scale.setScalar(this._bodyRadius * 2 * this._haloScale)
+  }
+
+  /** 外发散光晕强度 [0,1] */
+  get haloIntensity(): number { return this._haloIntensity }
+  set haloIntensity(v: number) {
+    this._haloIntensity = THREE.MathUtils.clamp(v, 0, 1)
+    if (this.haloObj) (this.haloObj.object.material as THREE.SpriteMaterial).opacity = this._haloIntensity
+  }
+
+  /**
+   * Inspector 属性展示。key 必须与 getEditableProperties() 的 key 完全一致
+   * （camelCase）：Inspector 按 `p.key === k` 精确匹配决定渲染编辑控件还是灰色
+   * 只读文本（大小写不同 = 静默变只读，见 doc/editor/core/property_edit_system.md 坑 1）。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Color: this.color,
-      Intensity: Math.round(this._intensity * 100) / 100,
-      Power: Math.round(this._power * 100) / 100,
-      ShellScale: Math.round(this._shellScale * 100) / 100,
+      color: this.color,
+      intensity: Math.round(this._intensity * 100) / 100,
+      power: Math.round(this._power * 100) / 100,
+      shellScale: Math.round(this._shellScale * 100) / 100,
+      haloScale: Math.round(this._haloScale * 100) / 100,
+      haloIntensity: Math.round(this._haloIntensity * 100) / 100,
     }
   }
 
@@ -161,6 +253,16 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
         key: 'shellScale', type: 'number', step: 0.01, min: 1.01,
         get: () => this._shellScale,
         set: (v) => { this.shellScale = v as number },
+      },
+      {
+        key: 'haloScale', type: 'number', step: 0.1, min: 0,
+        get: () => this._haloScale,
+        set: (v) => { this.haloScale = v as number },
+      },
+      {
+        key: 'haloIntensity', type: 'number', step: 0.05, min: 0, max: 1,
+        get: () => this._haloIntensity,
+        set: (v) => { this.haloIntensity = v as number },
       },
     ]
   }

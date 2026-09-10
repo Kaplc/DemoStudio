@@ -447,8 +447,9 @@ export class UITextInputComponent extends UITextComponent {
       zOrder: this.zOrder,
       fontSize: this.fontSize,
       color: this.color,
-      Value: this._value,
-      Focused: this._focused,
+      placeholder: this._placeholder,
+      value: this._value,
+      focused: this._focused,
     }
   }
 

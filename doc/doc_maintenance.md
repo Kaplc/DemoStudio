@@ -12,7 +12,7 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [README.md](./README.md) | **文档唯一索引**：6 个模块 43 篇的落点表 | 新增/删除/移动任何文档后（**必改**） |
+| [README.md](./README.md) | **文档唯一索引**：9 个模块 74 篇的落点表 | 新增/删除/移动任何文档后（**必改**） |
 | [system_overview.md](./system_overview.md) | 子系统全量统计与架构索引 | 子系统数量/构成变化时 |
 | [.github/skills/skl-write-doc/SKILL.md](../.github/skills/skl-write-doc/SKILL.md) | **写作规范**：新范式模板（§3.1/§3.2）+ 完成检查清单（§7） | 规范本身要演进时 |
 | [.github/agents/ag-doc-writer.agent.md](../.github/agents/ag-doc-writer.agent.md) | 写文档的智能体（新建/重写单篇） | 规范变了要同步它 |
@@ -27,45 +27,44 @@
 ### 2.1 目录与归属
 
 ```mermaid
-```mermaid
 flowchart TD
     R["doc/README.md<br/>唯一索引"] --> O["system_overview.md<br/>架构总览"]
-    R --> E["engine/ 13 篇<br/>src/engine/"]
-    R --> ED["editor/ 15 篇<br/>src/editor/ + src/components/"]
+    R --> E["engine/ 21 篇<br/>src/engine/"]
+    R --> ED["editor/ 18 篇<br/>src/editor/ + src/components/"]
     R --> P["projects/ 5 篇<br/>src/projects/"]
+    R --> G["game/ 14 篇<br/>暖流计划设计文档"]
     R --> H["harness/ 9 篇<br/>DSH 集成"]
-    R --> T["testing/ 3 篇<br/>Playwright"]
+    R --> T["testing/ 4 篇<br/>Playwright"]
     ED --> C["core/ 4"]
     ED --> B["blueprint/ 2"]
-    ED --> A["asset/ 2"]
-    ED --> U["ui/ 5"]
-    ED --> I["integration/ 2"]
+    ED --> A["asset/ 3"]
+    ED --> U["ui/ 6"]
+    ED --> I["integration/ 3"]
 ```
 
 **归属铁律**：文档放哪由**它描述的源码目录**决定，不看主题相似度。
 
 | 源码位置 | 文档落点 |
 |---|---|
-| `src/engine/`、`src/components/engine/` | `doc/engine/` |
+| `src/engine/` | `doc/engine/` |
 | `src/editor/`、`src/components/`（React 面板） | `doc/editor/<子目录>` |
-| `src/projects/` | `doc/projects/` |
-| `editor/`（Python MCP）、`harness/`、`scripts/` | `doc/harness/` |
+| `src/projects/`、`projects/`（外部根工程） | `doc/projects/` |
+| `editor/`（MCP 桥，现为 .mjs 实现）、`harness/`、`scripts/` | `doc/harness/` |
+| 游戏设计文档（无对应源码目录，按主题归属） | `doc/game/` |
 | 测试/调试方法 | `doc/testing/` |
 
 编辑器二级子目录：`core`（核心与视口）、`blueprint`（蓝图与撤销）、`asset`（预览与检查）、`ui`（面板与 UI 增强）、`integration`（外部集成）。
 
 > **归属铁律的实际判例**：`muzzle_flash_component.md` 曾因「组件」二字被放在 `doc/engine/`，但它描述的类定义在 `src/projects/fish/gameplay/`，已于 2026-09-03 移入 `doc/projects/`。判断时只看 `class Xxx` 定义在哪个目录，不看它继承谁。
 
-### 2.2 现状基线（2026-09-03）
+### 2.2 现状基线（2026-09-10 实测）
 
-6 个模块共 **47 篇功能文档 + 1 篇元文档**：总览 1 / 引擎 13 / 编辑器 15（core 4 / blueprint 2 / asset 2 / ui 5 / integration 2）/ 项目 5 / Harness 9 / 测试 3。
+9 个模块共 **74 篇文档**：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / 游戏设计 14 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。`doc/` 下共 75 个 `.md`（含 [README](./README.md)）。
 
-**全部 47 篇已为新范式**，断链 0、孤儿文档 0。核验方式见 §4。
+**断链 0、README 孤儿 0**（§4.1 脚本实测）。范式状态：2026-09-03 完成过一次全量范式改造（覆盖当时的 48 篇）；此后新增的 `doc/game/`（14 篇设计文档，沿用设计文档结构）等**未纳入新范式**——所以现在**不宣称全库五要素达标**，只保证事实与索引正确。
 
-**范式状态**：46 篇**已全部升级为新范式**（2026-09-03 全量实测，5/5 要素达标、断链 0、孤儿 0）。作业 C 的存量改造已清零，后续只需对**新增文档**按新范式写、对**代码同步**时顺带维护。
-
-> 存量阶段已完成的改造：编辑器 15 篇（2026-09-02）、引擎 13 篇、项目 5 篇、Harness 9 篇、测试 3 篇、总览 1 篇（2026-09-03）。
-> 同时清理了 `input_physics_script_system.md`（已拆分为 `input_system.md` / `physics_system.md` / `script_system.md` 三篇并删除），并修复 `doc/engine/` 下 4 篇文档的源码链接深度错误 190 处。
+> **2026-09-10 本轮巡检做了什么**：分 5 个作业逐条对源码核实，修正一批与代码不符的失真表述（引擎 UI/渲染、编辑器、Harness、项目层、游戏设计/测试）；重写 [README](./README.md) 与 [system_overview](./system_overview.md) 的统计口径并补齐 `doc/game/` 索引。
+> **本轮没做**（已登记到 §8 待办清单）：全库行号重锚、缺失章节补写、新增组件文档覆盖。
 
 ---
 
@@ -132,7 +131,9 @@ $bad | Select-Object -First 40
 校验每篇文档是否具备新范式五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）：
 
 ```powershell
-Get-ChildItem (Join-Path $root 'editor') -Recurse -Filter *.md | ForEach-Object {
+# 独立运行需自带 $root（§4.1 的脚本里它定义在同一会话，单独复制本段会报 Path is null）
+$root = Join-Path 'E:\DemoStudio' 'doc'
+Get-ChildItem $root -Recurse -Filter *.md | ForEach-Object {
   $rel=$_.FullName.Substring($root.Length+1).Replace('\','/')
   $t=[IO.File]::ReadAllText($_.FullName)
   $ok = $t.Contains('**一句话定位**') -and $t.Contains('先记住这') -and `
@@ -140,6 +141,8 @@ Get-ChildItem (Join-Path $root 'editor') -Recurse -Filter *.md | ForEach-Object 
   "{0} {1}" -f $(if($ok){'OK  '}else{'MISS'}),$rel
 }
 ```
+
+> **判读注意**：① 逐字匹配会误伤变体标题（「关键入口速查」「命令速查表」等语义等价章节被判 MISS），真缺要素的是连「先记住这几个文件」和「踩坑清单」都没有的那批——见 §5 坑 7；② 适用范围仅限 2026-09-03 改造覆盖的文档，`doc/game/` 设计文档不按此规范评判。
 
 ### 4.3 抽查：机器查不出的失真
 
@@ -235,3 +238,56 @@ Get-ChildItem (Join-Path $root 'editor') -Recurse -Filter *.md | ForEach-Object 
 | 规范文件与文档现状不一致 | 以代码事实为准更新规范 | 同步检查所有 agent 定义文件是否残留旧说法 |
 | 巡检脚本要落盘 | 只能放 `cache/` 等临时目录，用完删除 | 不提交到仓库，避免污染 |
 | 篇数/分类变化 | README 统计段与模块表都要改 | 两处一起改，否则索引自相矛盾 |
+
+---
+
+## 8. 待办清单（2026-09-10 巡检登记）
+
+本轮巡检口径：**只修「会误导排障的事实错误」+ 索引统计**。以下三类按口径跳过，登记在此，下轮维护按序处理。
+
+### 8.1 行号锚点系统性漂移（数百处，最高优先）
+
+代码近期多次大改，几乎所有文档的「关键方法速查」`文件:行号` 都已漂移。实测偏移量（2026-09-10）：
+
+| 范围 | 漂移量 | 重灾区 |
+|---|---|---|
+| `doc/engine/ui_*.md`、`rendering_system.md`、`rendering_components.md` | +3 ~ +150 行 | UIManager.ts / PhySys.ts / ClickableComponent.ts / CanvasUIComponent.ts / UICamera.ts |
+| `doc/editor/**` | +10 ~ +260 行 | `AgentService.ts`（agent_panel_system §7 整表 +100~260）、`Inspector.tsx`（+10）、`electron/main.ts`（+66~120）、`ScenePreviewManager/UIPreviewManager` |
+| `doc/harness/**` | +10 ~ +101 行 | `electron/main.ts`、`AgentService.ts`、`editor.bat`（+30）、dsh-source 行号（0.1.2 后失效） |
+| `doc/projects/**`、`doc/testing/**` | +1 ~ +190 行 | `FishGameInstance.ts`、`registerBuiltinAIHandlers.ts`（已移到 `src/engine/ai/`） |
+| `doc/system_overview.md` §7、`doc/dev/external_project_roots.md` §4 | 成片漂移 | 均已偏离目标行 |
+
+> **建议**：下轮做一次批量重锚（每个引用 grep 符号名定位新行号）；或评估把「硬编码行号」降级为「文件 + 符号名」锚定，避免每次代码变动全库返工——若采纳，需同步改 §3.1 写作规范与 `skl-write-doc`。
+
+### 8.2 缺失覆盖（源码有、文档无）
+
+- `AtmosphereComponent` / `CloudLayerComponent` **无任何文档**：`rendering_components.md` 只写了 4 个效果型组件，而 `src/engine/rendering/` 实际有 6 个注册组件（两者均为 `ThreeObjectComponent` 自托管外壳，且有 assetLint checker）。
+- `LightComponent` 新增可编辑键 `targetPosition` / `shadowBias` / `shadowNormalBias` / `shadowRadius` 未记录（§2.3 只写了 shadowExtent/shadowMapSize）。
+- 各 UI 组件 `getProperties()` 的 camelCase 新键、Mesh 系 `visible` 属性未记录（规则本身已在 [property_edit_system.md](./editor/core/property_edit_system.md) §2.2 说明）。
+- `SessionTitle`（`src/components/agent/SessionTitle.tsx`，会话标题投影）未进 `ui_components_system.md` 组件清单（agent_panel_system §8.2 已有）。
+- `PreviewSaveCollector` 的「加载基线差量提交」未记录（property_edit_system / blueprint_edit_system）。
+- 「蓝图保存把运行时挂载组件全量写回资产 → 与运行时再挂载撞成重复实例」的坑未进 `blueprint_edit_system.md`（目前只在 `.dsh/memory/blueprint_save_dumps_runtime_components.md`）。
+- `core_system.md` §3.2 MCP 命令表缺 5 条（`addConsoleOutput` / `ui_decompile` / `get_scene_outline` / `get_ui_outline` / `get_assets`）；`installAiConsoleCollector`（`window.__ai_console` 环形缓冲）未记录。
+- `doc-dev/warm-current/implementation.md` 缺「后续变更」章节（2026-09-08~10 改版、地球大气资产化、云层移除、重复组件根因）。
+
+### 8.3 游戏设计文档的未实现项（已在文中就地标注，待产品决策）
+
+补给站三级/升级体系、删线确认条与撤销、引导期锁定其他 UI、「补给站解锁」「引力窗口开启」卡、建筑等级化升级——均已标注「（设计意图，当前未实现）」，需要确认是补实现还是从设计中移除。
+
+### 8.4 源码注释过时（本轮只改文档、未动源码）
+
+| 文件 | 过时注释 |
+|---|---|
+| `src/engine/ui/ToastSystem.ts` 头注释 | 「超出时新通知顶掉最旧的非 critical」与实现相反（实际排队等空位） |
+| `src/engine/ui/UIScrollListComponent.ts` | 「UI 画布高恒定 5.4」 |
+| `src/engine/gameflow/SceneRendererComponent.ts`、`src/editor/asset/RuntimeUIEditor.ts` | 多处 9.6×5.4 画布尺寸 |
+| `src/projects/registry.ts` 头注释 | 「必须在本文件 ALL_PROJECTS 数组加入」——外部工程已 glob 自动 |
+| `src/engine/rendering/AtmosphereComponent.ts` | 示例字段 `scale`（实际为 `shellScale`） |
+| `src/projects/warm-current/gameplay/map/StarActor.ts` | 「BeginPlay 挂大气/bump」——大气已改资产声明 |
+
+### 8.5 其他
+
+- `dsh_vscode_demostudio_prd.md` 的「需求 ↔ 实现对照表」需按本轮实测逐条回填（vscode-ext 已构建出 dist/vsix 但主链路仍未装配）。
+- `doc/dev/external_project_roots.md` §5/§6 的「改造点清单」仍是计划口吻，未逐条回填完成状态。
+- `doc/game/平衡方案-V1初版.md` 的演算段（§7/§8）仍基于旧模型（5 线 / 旧焚烧曲线），仅在顶部注记了差异。
+- **源码/测试问题（非文档，巡检顺带发现）**：`harness/ds-instructions` 单测 1 红——`tests/mapping.test.ts` 的 `DEFAULT_MAPPINGS` 期望含 `projects` 前缀映射，实现未给（2026-09-10 实测 82 过 / 1 红），需单独修源码。

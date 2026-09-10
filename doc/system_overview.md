@@ -6,7 +6,7 @@
 >
 > 代码位置：`src/engine/`（引擎）、`src/editor/` + `src/components/` + `src/stores/`（编辑器）、`src/projects/`（游戏项目）
 >
-> 统计基准：2026-09-03 全量实扫（`Get-ChildItem -Recurse` + `Select-String`），**非沿用旧稿数字**
+> 统计基准：2026-09-10 全量实扫（`find` / `grep` + 逐后缀计数），**非沿用旧稿数字**
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---|---|---|
 | **引擎层** | `src/engine/` | 运行时通用能力：对象层级 + 组件 + 游戏流 + 渲染/UI/输入/物理 | 加组件、改游戏流、改渲染或命中逻辑 |
 | **编辑器层** | `src/editor/` + `src/components/` + `src/stores/` | 编辑期能力：视口、选择变换、蓝图编辑、资产检查 | 改面板、改编辑器行为、加调试能力 |
-| **项目层** | `src/projects/` | 具体游戏的玩法实现（每个目录一个游戏） | 写玩法、加关卡、加 GameMode |
+| **项目层** | `src/projects/` + `projects/`（外部根） | 具体游戏的玩法实现（每个目录一个游戏；外部根工程由 glob 自动并入） | 写玩法、加关卡、加 GameMode |
 | **资产层** | `src/projects/*/asset/` | 数据资产：场景 / 蓝图 / UI widget / 配置表，由 `import.meta.glob` 自动注册 | 配场景、写蓝图、调数值 |
 
 **关键心智模型**：本仓库是**单向依赖链**——`projects/` → `editor/` → `engine/`，**引擎永远不反向 import 编辑器或项目**。
@@ -29,9 +29,9 @@
 
 ```mermaid
 flowchart LR
-    subgraph PROJ[项目层 src/projects]
+    subgraph PROJ[项目层 src/projects + projects（外部根）]
         Fish["fish（ClashMaster）<br/>完整参照实现"]
-        Others["snake / racing / eatfish / demo2d"]
+        Others["内部 arena / demo2d<br/>外部 warm-current / hoi4 / hello"]
     end
     subgraph EDIT[编辑器层 src/editor + components + stores]
         Core["Editor 核心<br/>生命周期 / 事件总线"]
@@ -81,21 +81,23 @@ export { NavigationModule } from './navigation/NavigationModule'
 
 ---
 
-## 3. 引擎子系统清单（13 个功能域 / 116 个 .ts）
+## 3. 引擎子系统清单（15 个功能域 / 128 个 .ts）
 
-实扫 `src/engine/` 得到 **13 个子目录 + 2 个根文件（`index.ts`、`Logger.ts`），共 116 个 `.ts`**。
+实扫 `src/engine/` 得到 **15 个子目录 + 2 个根文件（`index.ts`、`Logger.ts`），共 128 个 `.ts`**。
 
 | 功能域 | 文件数 | 关键类 | 你要改它的场景 | 文档 |
 |---|---:|---|---|---|
 | `entity/` | 12 | `OObject` / `AObject` / `BObject` / `Actor` / `Component` 族 | 加组件基类、改对象生命周期 | [实体体系](./engine/entity_system.md) |
 | `gameflow/` | 20 | `Game` / `GameInstance` / `GameMode` / `GameState` / `World` | 改阶段路由、改生成/胜负规则 | [游戏流程](./engine/gameflow_system.md) |
-| `rendering/` | 22 | `CameraComponent` / `SpriteComponent` / `CanvasUIComponent` / `Compositor2D` / `TextureLoader` | 改渲染管线、加渲染组件 | [渲染系统](./engine/rendering_system.md) |
-| `ui/` | 18 | `UIManager` / `HUD` / `UIText|Image|Button...Component` / `UIScriptComponent` | 加 UI 控件、改 UI 生命周期 | [世界 UI](./engine/ui_system.md)、[CanvasUIComponent](./engine/ui_canvas_component.md) |
+| `rendering/` | 27 | `CameraComponent` / `SpriteComponent` / `CanvasUIComponent` / `Compositor2D` / `TextureLoader` | 改渲染管线、加渲染组件 | [渲染系统](./engine/rendering_system.md) |
+| `audio/` | 1 | `AudioSys`（WebAudio 三总线 + 程序化合成音效） | 加音效、改总线音量 | [音频系统](./engine/audio_system.md) |
+| `ui/` | 20 | `UIManager` / `HUD` / `UIText|Image|Button...Component` / `UIScriptComponent` | 加 UI 控件、改 UI 生命周期 | [世界 UI](./engine/ui_system.md)、[CanvasUIComponent](./engine/ui_canvas_component.md) |
 | `input/` | 3 | `InputSys` / `InputComponent` / `PlayerController` | 加新输入类型、改按键路由优先级 | [输入系统](./engine/input_system.md) |
-| `physics/` | 5 | `PhySys`（全局射线）/ `PhysicsWorld`（World 级碰撞）/ `ColliderComponent` | 点不中、碰撞不触发、重叠判定 | [物理与射线命中](./engine/physics_system.md) |
+| `physics/` | 6 | `PhySys`（全局射线）/ `PhysicsWorld`（World 级碰撞）/ `ColliderComponent` | 点不中、碰撞不触发、重叠判定 | [物理与射线命中](./engine/physics_system.md) |
+| `gameplay/` | 2 | `HealthComponent` / `StateMachineComponent`（表驱动 FSM） | 加通用玩法组件 | [gameplay 通用组件](./engine/gameplay_components.md) |
 | `script/` | 2 | `BehaviourScript` / `ScriptRegistry` | 给 UI 面板写交互脚本 | [脚本系统](./engine/script_system.md) |
 | `navigation/` | 3 | `NavigationModule` / `NavGrid` / `AStarPathfinder` | 改寻路、加障碍判定 | [导航系统](./engine/navigation_system.md) |
-| `asset/` | 5 | `AssetRegistry` / `BlueprintRegistry` / `SceneLoader` | 加新资产类型、改加载流程 | [资产与工具](./engine/asset_tools_system.md) |
+| `asset/` | 6 | `AssetRegistry` / `BlueprintRegistry` / `SceneLoader` | 加新资产类型、改加载流程 | [资产与工具](./engine/asset_tools_system.md) |
 | `tools/` | 13 | `ComponentRegistry` / `ActorRegistry` / `GameModeRegistry` / `ConfigRegistry` / `ObjectPool` | 加注册表、改配置表加载 | [资产与工具](./engine/asset_tools_system.md) |
 | `ai/` | 4 | `AIModule` 事件总线 | 加一个 AI 可调用的事件 | [AI 事件系统](./engine/ai_system.md) |
 | `gm/` | 6 | `GMModule` / `GMRegistry` / `GMConsoleHUD` | 加一个游戏内调试命令 | [GM 命令系统](./engine/gm_system.md) |
@@ -103,27 +105,27 @@ export { NavigationModule } from './navigation/NavigationModule'
 
 另有一篇与域无关但改 API 前必读的兼容性参考：[Ursina 参考](./engine/ursina_reference.md)。
 
-> **旧稿修正**：2026-09-03 实扫确认旧总览**遗漏了 `gm/`、`navigation/`、`pools/` 三个功能域**，本文已补齐。判断一个域是否存在，以 `ls src/engine/` 为准，不要沿用旧文档结论。
+> **旧稿修正**：2026-09-03 实扫确认旧总览**遗漏了 `gm/`、`navigation/`、`pools/` 三个功能域**；2026-09-10 实扫又补齐 **`gameplay/`、`audio/`** 两个域（各 2 / 1 个 `.ts`）。判断一个域是否存在，以 `ls src/engine/` 为准，不要沿用旧文档结论。
 
 ---
 
-## 4. 编辑器子系统清单（69 + 55 个 ts/tsx，4 个 store）
+## 4. 编辑器子系统清单（74 + 61 个 ts/tsx，4 个 store）
 
 编辑器基于 React 18 + zustand + Three.js，经 Electron preload 用 `electronAPI` 桥接文件系统；**浏览器调试模式下 `electronAPI` 不存在**，走 `MockElectronAPI`。
 
-### 4.1 `src/editor/` —— 69 个文件（根目录 22 + 4 个二级目录 47）
+### 4.1 `src/editor/` —— 74 个文件（根目录 24 + 4 个二级目录 50）
 
 | 位置 | 文件数 | 一句话职责 | 文档 |
 |---|---:|---|---|
-| 根目录 | 22 | `Editor.ts` 生命周期 / `EditorInitializer.ts` 装配 / `SceneViewport.ts` 与 `GameViewport.ts` 两类视口 / `SelectionManager.ts` + `TransformGizmo.ts` + `AnchorGizmo.ts` / `ConsoleCommands.ts` / `KeyboardShortcuts.ts` / `LogPoller.ts` / `FpsTracker.ts` / `MockElectronAPI.ts` | [编辑器核心](./editor/core/core_system.md)、[视口](./editor/core/viewport_system.md)、[选择与变换](./editor/core/selection_transform_system.md) |
-| `asset/` | 33 | 资产预览四 Manager + `assetLint/`（12 文件资产检查引擎）+ `uiCompiler/`（14 文件 widget 编译） | [资产预览与检查](./editor/asset/asset_preview_lint_system.md)、[UI 源格式](./editor/ui/ui_source_format_system.md) |
+| 根目录 | 24 | `Editor.ts` 生命周期 / `EditorInitializer.ts` 装配 / `SceneViewport.ts` 与 `GameViewport.ts` 两类视口 / `SelectionManager.ts` + `TransformGizmo.ts` + `AnchorGizmo.ts` / `ConsoleCommands.ts` / `KeyboardShortcuts.ts` / `LogPoller.ts` / `FpsTracker.ts` / `MockElectronAPI.ts` | [编辑器核心](./editor/core/core_system.md)、[视口](./editor/core/viewport_system.md)、[选择与变换](./editor/core/selection_transform_system.md) |
+| `asset/` | 36 | 资产预览四 Manager + `assetLint/`（12 文件资产检查引擎）+ `uiCompiler/`（16 文件 widget 编译）+ `AgentService.ts` 等 | [资产预览与检查](./editor/asset/asset_preview_lint_system.md)、[UI 源格式](./editor/ui/ui_source_format_system.md) |
 | `blueprintEdit/` | 5 | `BlueprintEditorService` / `blueprintOps` / `UndoManager` / `nodeTemplates` / `windowApi` | [蓝图编辑](./editor/blueprint/blueprint_edit_system.md)、[撤销/重做](./editor/blueprint/undo_redo_system.md) |
-| `codeLint/` | 8 | `CodeLintEngine` + `checkers/`（3 个规则：addComponent / bareThree） | [代码检查](./editor/asset/code_lint_system.md) |
+| `codeLint/` | 8 | `CodeLintEngine` + `checkers/`（2 个规则：addComponent / bareThree） | [代码检查](./editor/asset/code_lint_system.md) |
 | `configEdit/` | 1 | 配置表编辑能力 | [资产与工具](./engine/asset_tools_system.md) |
 
-### 4.2 `src/components/`（55 个）+ `src/stores/`（4 个）
+### 4.2 `src/components/`（61 个）+ `src/stores/`（4 个 store + 1 个纯函数模块）
 
-`components/` 根目录 26 个面板 tsx + `agent/`（28）+ `icons/`（1）。主要面板：`Viewport`（[Viewport.tsx:40](../src/components/Viewport.tsx#L40)）、`Inspector`（[Inspector.tsx:991](../src/components/Inspector.tsx#L991)）、`Outline` / `UiOutline`、`AssetBrowser`、`BlueprintEditor`（[BlueprintEditor.tsx:54](../src/components/BlueprintEditor.tsx#L54)）、`ScenePreviewEditor`、`UISceneView`、`Console`、`StatusBar` / `MenuBar`、`RightPanel`、`ProjectSelector`。
+`components/` 根目录 27 个面板 tsx + `agent/`（33）+ `icons/`（1）。主要面板：`Viewport`（[Viewport.tsx:40](../src/components/Viewport.tsx#L40)）、`Inspector`（[Inspector.tsx:991](../src/components/Inspector.tsx#L991)）、`Outline` / `UiOutline`、`AssetBrowser`、`BlueprintEditor`（[BlueprintEditor.tsx:54](../src/components/BlueprintEditor.tsx#L54)）、`ScenePreviewEditor`、`UISceneView`、`Console`、`StatusBar` / `MenuBar`、`RightPanel`、`ProjectSelector`。
 
 | Store | 用途 | 文档 |
 |---|---|---|
@@ -134,48 +136,52 @@ export { NavigationModule } from './navigation/NavigationModule'
 
 其余 UI 专题：[UI 增强](./editor/ui/ui_enhancement_system.md)（Tween / Toast / Tooltip / 色盲模式）、[UI 锚点](./editor/ui/ui_anchor_system.md)、[widget HTML 手册](./editor/ui/ui_widget_html_manual.md)、[MCP 集成](./editor/integration/mcp_integration.md)、[Agent 面板](./editor/integration/agent_panel_system.md)。
 
-> **旧稿修正**：旧总览只列了 3 个 store，实扫有 **4 个**（`useCodeLintStore.ts` 为后加）。
+> **旧稿修正**：旧总览只列了 3 个 store，实扫有 **4 个**（`useCodeLintStore.ts` 为后加）。另：`src/stores/` 目录共 5 个文件，`projectMerge.ts` 是项目列表合并纯函数（非 store），不计入 store 数。
 
 ---
 
 ## 5. 项目与资产
 
-### 5.1 项目清单（5 个）
+### 5.1 项目清单（内置 3 个 + 外部根工程 3 个）
 
-实扫 `src/projects/` 得到 **5 个项目**（旧稿写的 6 个含 `mainmenu`，该目录**已不存在**）。每个项目含 `project.json` + `register.ts`，由 `registry.ts` 统一收集：
+实扫得到 **内置 3 个项目**（`src/projects/`：fish / arena / demo2d；旧稿写的 snake / racing / eatfish 与 `mainmenu` **均已删除**）+ **外部根工程 3 个**（仓库根 `projects/`：warm-current / hoi4 / hello）。每个工程含 `project.json` + `register.ts`：
 
 ```ts
 const ALL_PROJECTS: ProjectModule[] = [
-  snakeProject,
-  eatFishProject,
   demo2DProject,
-  racingProject,
   fishMasterProject,
+  arenaProject,
 ]
+
+// 外部工程根（仓库根 projects/）自动收集：eager glob，同名覆盖内置并告警
+const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/*/register.ts', { eager: true })
 ```
 
-> **这段代码说明什么**（[registry.ts:52](../src/projects/registry.ts#L52)）：项目列表是**手写数组**，不是 `import.meta.glob` 自动扫描。所以**新增一个项目必须回来改这个文件**——这一点与资产（全自动）相反，是最容易忘的一步。
+> **这段代码说明什么**（[registry.ts:81](../src/projects/registry.ts#L81)）：**内置项目是手写数组，外部根工程走 `import.meta.glob` 自动扫描**（同名外部工程优先覆盖内置，支持"复制 fish 到 projects/ 魔改、不污染案例库"）。新增内置项目改数组；新增外部工程只需建目录 + `register.ts`，但要重启 dev server（eager glob 不热更）。逐条依据见 [外部根目录工程方案](./dev/external_project_roots.md)。
 
 | 项目（`ProjectModule.name`） | 目录 | 玩法 | ts/tsx | 文档 |
 |---|---|---|---:|---|
-| `ClashMaster` | `fish/` | 基地建造 + 兵种训练 + 攻打敌方基地，**完整参照实现** | 78 | [ClashMaster](./projects/clash_master.md)、[关卡](./projects/level_system.md)、[战斗](./projects/battle_system.md)、[炮口闪光](./projects/muzzle_flash_component.md) |
-| `Snake` | `snake/` | 贪吃蛇 | 8 | — |
-| `Racing` | `racing/` | 竞速 | 7 | — |
-| `EatFish` | `eatfish/` | 吃鱼 | 12 | — |
-| `Demo2D` | `demo2d/` | 2D 演示 | 8 | — |
+| `ClashMaster` | `src/projects/fish/` | 基地建造 + 兵种训练 + 攻打敌方基地，**完整参照实现** | 82 | [ClashMaster](./projects/clash_master.md)、[关卡](./projects/level_system.md)、[战斗](./projects/battle_system.md)、[炮口闪光](./projects/muzzle_flash_component.md) |
+| `Arena` | `src/projects/arena/` | 第三人称动作 Roguelite 竞技场（引擎深水区测试场） | 14 | — |
+| `Demo2D` | `src/projects/demo2d/` | 2D 正交相机 + Sprite 演示 | 8 | — |
+| `WarmCurrent` | `projects/warm-current/`（外部） | 《暖流计划》拖拽画线星际物流生存 | 59 | [实现报告](../doc-dev/warm-current/implementation.md) |
+| `Hoi4` | `projects/hoi4/`（外部） | HOI4-like 大战略 demo | 56 | — |
+| `Hello` | `projects/hello/`（外部） | 外部工程根示例（最小 3D 工程） | 7 | — |
 
-只有 `fish/` 有 `gameplay/` 目录（73 个 ts，按 `menu` / `base` / `level` / `battle` / `game` / `gm` / `common` 分包），也是新项目的结构样板。写 gameplay 代码前必读 [gameplay 代码规范](./projects/gameplay_code_standard.md)。
+`fish/` 与 `arena/` 都有 `gameplay/` 目录（fish 77 个 ts，按 `menu` / `base` / `level` / `battle` / `game` / `gm` / `common` 分包；arena 14 个），也是新项目的结构样板；外部根工程 hoi4 / warm-current 同样按此结构。写 gameplay 代码前必读 [gameplay 代码规范](./projects/gameplay_code_standard.md)。
 
 ### 5.2 资产类型与数量（实扫 `src/` 递归）
 
 | 资产类型 | 后缀 | 数量 | 分布 | 创建方式 | 文档 |
 |---|---|---:|---|---|---|
-| 场景资产 | `*.scene.json` | 9 | fish 7（含 blueprints 下 1）/ demo2d 1 / snake 1 | `skl-create-scene-asset` | [资产与工具](./engine/asset_tools_system.md) |
+| 场景资产 | `*.scene.json` | 9 | fish 7（含 blueprints 下 1）/ demo2d 1 / arena 1 | `skl-create-scene-asset` | [资产与工具](./engine/asset_tools_system.md) |
 | 蓝图资产 | `*.blueprint.json` | 21 | 全部在 fish（顶层 4 + buildings 7 + troops 10） | `skl-create-blueprint-asset` | [资产与工具](./engine/asset_tools_system.md) |
-| UI widget | `*.widget.json` | 24 | 全部在 `fish/asset/blueprints/ui/` | `skl-create-ui-widget-asset` | [UI 源格式](./editor/ui/ui_source_format_system.md) |
-| UI widget 源 | `*.widget.html` | 24 | 同上，与 `.widget.json` **一一对应**（24/24） | 手写 HTML+CSS → `ui_compile` | [widget HTML 手册](./editor/ui/ui_widget_html_manual.md) |
-| 单例配置 | `*.config.json` | 6 | fish 5 / eatfish 1 | `skl-create-config-asset` | [资产与工具](./engine/asset_tools_system.md) |
-| 数据表 | `*.table.json` | 6 | fish 5 / eatfish 1 | `skl-create-config-asset` | [资产与工具](./engine/asset_tools_system.md) |
+| UI widget | `*.widget.json` | 27 | 全部在 `fish/asset/blueprints/ui/` | `skl-create-ui-widget-asset` | [UI 源格式](./editor/ui/ui_source_format_system.md) |
+| UI widget 源 | `*.widget.html` | 27 | 同上，与 `.widget.json` **一一对应**（27/27） | 手写 HTML+CSS → `ui_compile` | [widget HTML 手册](./editor/ui/ui_widget_html_manual.md) |
+| 单例配置 | `*.config.json` | 5 | 全部在 fish | `skl-create-config-asset` | [资产与工具](./engine/asset_tools_system.md) |
+| 数据表 | `*.table.json` | 5 | 全部在 fish | `skl-create-config-asset` | [资产与工具](./engine/asset_tools_system.md) |
+
+> **口径**：上表只统计 `src/` 递归（内置工程）。仓库根 `projects/` 外部根工程的资产不在此列。
 
 > **资产文件新增无需改代码**：项目 `asset/` 目录由 `import.meta.glob` 自动注册（见 `src/projects/fish/asset/index.ts` 的 `registerFishAssets`）。**这条只对资产成立，对 `gameplay/` 下的 `.ts` 不成立**。
 
@@ -185,21 +191,21 @@ const ALL_PROJECTS: ProjectModule[] = [
 
 | 项 | 数量 | 统计方式 |
 |---|---:|---|
-| 引擎功能域 | 13 | `Get-ChildItem src/engine -Directory` |
-| 引擎 .ts 文件 | 116 | `Get-ChildItem src/engine -Recurse -Include *.ts` |
-| 引擎对外导出符号 | 254 | 解析 `src/engine/index.ts` 的 150 条 `export {}`（含 44 条 `export type`） |
-| 内置注册组件 | 29 | 解析 `registerBuiltinComponents.ts` 的 `ComponentRegistry.register(` 调用 |
+| 引擎功能域 | 15 | `ls -d src/engine/*/` |
+| 引擎 .ts 文件 | 128 | `find src/engine -name "*.ts"`（15 子目录 126 + 根 2） |
+| 引擎对外导出符号 | 274 | 解析 `src/engine/index.ts` 的 169 条 `export {}`（含 52 条 `export type`），去重符号名 |
+| 内置注册组件 | 38 | `grep -c "ComponentRegistry.register(" src/engine/tools/registerBuiltinComponents.ts` |
 | 内置注册 Actor | 1 | `registerBuiltinActors.ts` 仅注册 `'Actor'` → `GenericActor` |
-| 编辑器 .ts/.tsx 文件 | 69 | `Get-ChildItem src/editor -Recurse -Include *.ts,*.tsx` |
-| React 面板文件 | 55 | `Get-ChildItem src/components -Recurse -Include *.ts,*.tsx` |
-| zustand store | 4 | `Get-ChildItem src/stores -File` |
-| 游戏项目 | 5 | `Get-ChildItem src/projects -Directory` |
-| 资产总数（6 类） | 90 | `Get-ChildItem src -Recurse -Filter` 逐后缀统计（9+21+24+24+6+6） |
-| GM 命令文件 | 8 | `Get-ChildItem src -Recurse -Filter *.gm.ts`（全在 `fish/gameplay/gm/`） |
-| 行为脚本文件 | 14 | `Get-ChildItem src/projects -Recurse -Filter *.script.ts` |
-| `doc/` 文档总数 | 48 | `Get-ChildItem doc -Recurse -Filter *.md` |
+| 编辑器 .ts/.tsx 文件 | 74 | `find src/editor -name "*.ts*"`（根 24 + asset 36 / blueprintEdit 5 / codeLint 8 / configEdit 1） |
+| React 面板文件 | 61 | `find src/components -name "*.ts*"`（根 27 + agent 33 + icons 1） |
+| zustand store | 4 | `ls src/stores`（4 个 store + `projectMerge.ts` 纯函数） |
+| 游戏项目 | 3 内置 + 3 外部 | `ls -d src/projects/*/` + `ls -d projects/*/` |
+| 资产总数（6 类，仅 src/） | 94 | 逐后缀 `find src`（9+21+27+27+5+5） |
+| GM 命令文件 | 12 | `find src -name "*.gm.ts"`（fish 8 + arena 4） |
+| 行为脚本文件 | 17 | `find src/projects -name "*.script.ts"` |
+| `doc/` 文档总数 | 75 | `find doc -name "*.md"` |
 
-文档分布：总览 1 / 引擎 13 / 编辑器 15（core 4 / blueprint 2 / asset 2 / ui 5 / integration 2）/ 项目 5 / Harness 9 / 测试 3 / 根级 3。完整索引见 [doc/README.md](./README.md)。
+文档分布：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 4 / 游戏设计 14（`doc/game/`）/ 开发方案 1 / 根级 2（README + 维护规范）。完整索引见 [doc/README.md](./README.md)。
 
 ---
 
@@ -207,10 +213,10 @@ const ALL_PROJECTS: ProjectModule[] = [
 
 | 入口 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| 引擎统一出口 | [index.ts](../src/engine/index.ts) | 254 个对外符号的唯一契约面 | 新增引擎能力必须在这里补 export |
-| 内置组件注册 | [registerBuiltinComponents.ts:56](../src/engine/tools/registerBuiltinComponents.ts#L56) | 注册 29 个组件工厂 | 幂等（`_registered` 标记） |
+| 引擎统一出口 | [index.ts](../src/engine/index.ts) | 274 个对外符号的唯一契约面（169 条 export） | 新增引擎能力必须在这里补 export |
+| 内置组件注册 | [registerBuiltinComponents.ts:56](../src/engine/tools/registerBuiltinComponents.ts#L56) | 注册 38 个组件工厂 | 幂等（`_registered` 标记） |
 | 内置 Actor 注册 | [registerBuiltinActors.ts:15](../src/engine/tools/registerBuiltinActors.ts#L15) | 注册 `'Actor'` 蓝图默认 baseClass | 项目行为类在各项目 `register.ts` 里注册 |
-| 项目模块收集 | [registry.ts:52](../src/projects/registry.ts#L52) | `ALL_PROJECTS` 手写数组 | **新增项目必须改这里** |
+| 项目模块收集 | [registry.ts:81](../src/projects/registry.ts#L81) | `ALL_PROJECTS` 内置手写数组 + 外部根 glob 并入 | **新增内置项目必须改这里**；外部工程建目录即可 |
 | 项目批量注册 | [registry.ts:76](../src/projects/registry.ts#L76) | 注册组件/Actor/AI/GM + 游戏工厂 | 配置表延迟到 `initProjectConfigs` |
 | 配置表延迟加载 | [registry.ts:105](../src/projects/registry.ts#L105) | 按项目名加载配置表 | 打开工程时才调 |
 | 工程资产注册/清理 | [registry.ts:119](../src/projects/registry.ts#L119) / [:130](../src/projects/registry.ts#L130) | 切工程时清旧资产再注册新资产 | 直接 `reset` + `clearAll` 三个注册表 |
@@ -247,7 +253,7 @@ const ALL_PROJECTS: ProjectModule[] = [
 |---|---|---|
 | `src/` 目录结构变化 | 新增/删除功能域、项目、store → §3/§4/§5 的清单与统计失真 | — |
 | `src/engine/index.ts` 导出变化 | 新增引擎对外能力 → §6 导出符号数与 §7 入口表要改 | [资产与工具](./engine/asset_tools_system.md) |
-| 注册表变化 | `registerBuiltinComponents` 加一个组件 → §6 组件数 29 要改 | [资产与工具](./engine/asset_tools_system.md) |
+| 注册表变化 | `registerBuiltinComponents` 加一个组件 → §6 组件数 38 要改 | [资产与工具](./engine/asset_tools_system.md) |
 | 资产文件增删 | 新增 `.scene.json` / `.blueprint.json` 等 → §5.2 数量要改 | [资产预览与检查](./editor/asset/asset_preview_lint_system.md) |
 | 文档新建/拆分/移动 | `doc/` 下文件增删 → §3/§4 的文档列出现断链 | [文档维护](./doc_maintenance.md) |
 
@@ -288,14 +294,14 @@ const ALL_PROJECTS: ProjectModule[] = [
 现象：本文位于 `doc/` 根目录，到仓库根是 `../`。同一份链接在 `doc/engine/` 下的文档里要写成 `../../src/`，在本文里要写成 `../src/`，直接复制会全断。
 规则：**源码相对链接一律用两级**（`../src/...`）。跨文档互链用 `./engine/xxx.md`、`./projects/xxx.md` 这种同根相对路径。
 
-**5. 以为「项目是自动扫描注册的」**
+**5. 以为「项目都是自动扫描注册的」**
 
-现象：资产确实由 `import.meta.glob` 自动注册，于是以为项目也是，结果新增项目后 `ALL_PROJECTS` 没加条目，游戏工厂永远查不到。
-规则：**资产自动、项目手写**。`src/projects/registry.ts:52` 的 `ALL_PROJECTS` 数组新增项目必须手动加。
+现象：资产确实由 `import.meta.glob` 自动注册，外部根工程（`projects/`）也被 glob 自动并入，于是以为内置项目同样自动，结果新增内置项目后 `ALL_PROJECTS` 没加条目，游戏工厂永远查不到。
+规则：**资产全自动；外部根工程自动（eager glob，改完需重启 dev server）；内置项目必须手改数组**。`src/projects/registry.ts:81` 的 `ALL_PROJECTS` 数组新增内置项目必须手动加。
 
 **6. 把统计口径混为一谈**
 
-现象：「组件数」可以指 `registerBuiltinComponents` 的 29 个注册项，也可以指 `entity/` 下的组件基类文件数（12）；「导出符号数」可以指 150 条 export 语句，也可以指 254 个符号名。
+现象：「组件数」可以指 `registerBuiltinComponents` 的 38 个注册项，也可以指 `entity/` 下的组件基类文件数（12）；「导出符号数」可以指 169 条 export 语句，也可以指 274 个符号名。
 规则：**每个数字后面必须写清统计方式**（本文 §6 的第三列），否则下次更新无法复现口径。
 
 ---

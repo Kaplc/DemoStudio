@@ -2,47 +2,52 @@
 
 > 2026-09-07 全量交付。拖线星际物流生存游戏：拖拽画线建立航线，把氦-3 拉回地球维持聚能环运转；
 > 研究海克斯三选一、三幕进程、引力窗口与太阳耀斑事件、物流派补给站、火星模块胜利。
-> 设计文档 `doc/game/`（11 模块 + 平衡 V1），工程外部根 `projects/warm-current/`（hoi4 同款）。
+> 设计文档 `doc/game/modules/`（12 篇，含 00 总览）+ 平衡 V1，工程外部根 `projects/warm-current/`（hoi4 同款）。
 
 ## 一、最终架构
 
 ```
 projects/warm-current/
-├─ project.json                    # defaultScene → asset/scenes/warm_current.scene.json
-├─ register.ts                     # GameModeRegistry.register('main') + GM glob + assets + configs
+├─ project.json                    # defaultScene → asset/scenes/warm_menu.scene.json（启动进主菜单）
+├─ register.ts                     # GameModeRegistry.register('warm-menu'/'warm-main') + 天体 Actor 注册 + GM glob + assets/configs
 ├─ index.ts                        # 集中 re-export（instance/mode/config loader/core 纯逻辑）
 ├─ WarmCurrentGameInstance.ts      # SwitchToScene 流程 + window.__warmCurrent 调试桥 + PhySys.setup
-├─ WarmCurrentConfigLoader.ts      # ConfigLoaderBase：registerGlob 7 张表（'projects/…' 外部根前缀）
+├─ WarmCurrentConfigLoader.ts      # ConfigLoaderBase：registerGlob 13 个配置 json（'projects/…' 外部根前缀）
 ├─ asset/
-│  ├─ scenes/warm_current.scene.json   # WarmCurrentMap(mode=main)：SunLight/AmbientLight/StarMap 三 actor
-│  ├─ config/                      # 11 张配置（global/stars/level_burn/level_cost/fleet_maint/building/ship_cap/ring_build/events/star_map/cards）+ index.ts glob；star_map=每行星系一张子表（systems.solar/earth/jupiter，子系局部画布，flattenMapSystems 展开为扁平 nodes/moons，B.map.moons 由表派生）
-│  └─ blueprints/ui/               # hud / hex_modal / settle 三 widget（.widget.html 单源 → ui_compile）
+│  ├─ scenes/warm_menu.scene.json      # WarmCurrentMenu(mode=warm-menu)：启动默认场景（主菜单）
+│  ├─ scenes/warm_current.scene.json   # WarmCurrentMap(mode=warm-main)：SunLight/AmbientLight/StarMap 三 actor
+│  ├─ config/                      # 13 个配置 json：8 张 *.table.json（building/cards/stars/level_burn/level_cost/fleet_maint/ship_cap/orbit_build）+ 5 个 *.config.json（global/events/star_map/ring_build/orbit_build）+ index.ts glob；star_map=每行星系一张子表（systems.solar/earth/jupiter，子系局部画布，flattenMapSystems 展开为扁平 nodes/moons，B.map.moons 由表派生）
+│  ├─ blueprints/ui/               # 19 个 .widget.json（hud / hex_modal / settle / main_menu / 各面板…；.widget.html 单源 → ui_compile）
+│  └─ textures/                    # 行星贴图（*.jpg，天体蓝图按 asset/textures/… 引用；程序化贴图兜底见 map/starTextures.ts）
 └─ gameplay/
    ├─ base/    WarmCurrentGameMode（组件宿主+VM+指针命中）/ PlayerController（射线∩y=0）/ Pawn / audio
-   ├─ core/    balance（B 单例+配置覆盖）/ helpers（纯函数+初始状态）/ types / cards
-   ├─ systems/ 8 个 BObjectComponent（见下）
-   ├─ map/     StarMapRenderComponent（3D 星图渲染器）
-   ├─ ui/      uiCommon + HudScript / HexModalScript / SettleScript（.script.ts）
-   └─ gm/      status/h3/node/ship/flare/window/win 七条 GM 命令
+   ├─ core/    balance（B 单例+配置覆盖）/ helpers（纯函数+初始状态）/ types / cards / save（三槽位序列化）
+   ├─ systems/ 10 个 BObjectComponent（见下）
+   ├─ map/     StarMapRenderComponent（3D 星图渲染器）+ StarActor（天体蓝图 Actor）/ starTextures（程序化贴图）/ starfieldTile（平铺星空）/ SolarCameraActor（云台相机）
+   ├─ menu/    WarmCurrentMenuGameMode / Pawn / PlayerController / MainMenuScript
+   ├─ ui/      uiCommon + 15 个 *.script.ts（HudScript / HexModalScript / SettleScript / 各面板）
+   └─ gm/      status/h3/node/ship/flare/window/win/sol 八条 GM 命令
 ```
 
 ### 仿真子系统 = GameMode 上的引擎组件（用户定案）
 
-`sim.ts` 单体类已删除，拆为 8 个 `BObjectComponent<WarmCurrentGameMode>`，对齐 SpawnComponent/CameraComponent 惯例：
+`sim.ts` 单体类已删除，拆为 10 个 `BObjectComponent<WarmCurrentGameMode>`，对齐 SpawnComponent/CameraComponent 惯例：
 
 | 组件 | 职责 |
 |---|---|
-| `SimStateComponent` | SimState 纯数据 + 事件队列 + rng + 快照/重试本幕/沙盒/派生查询（burnRate/demand/idleShips…） |
+| `SimStateComponent` | SimState 纯数据 + 事件队列 + 确定性 rng + 快照/重试本幕/沙盒/派生查询（burnRate/demand/idleShips…） |
 | `TransportComponent` | 航线 CRUD/派船召回/造船重建/火星任务 + 飞船状态机（loading→flying→unloading） |
 | `EconomyComponent` | 焚烧 → 断环堆心降温 → 补燃料堆心回温（2026-09-08 堆心温度改版替代缓冲倒计时） |
 | `ResearchComponent` | 4 线推进 + cardQueue/pendingCard + 选卡 effects 数据驱动应用 + 研究点分配（allocateResearch，2026-09-08 点数制替代超频；环线已移除） |
+| `RingBuildComponent` | 聚能环建设独立流（2026-09-08 从科研拆出）：交点解锁唯一来源、建设点数分配/计费（level_cost × 折扣，灌满 → 交点 +1） |
 | `HazardsComponent` | 引力窗口周期 + 耀斑（失联停滞/护盾限额保全/盾外冻毁） |
-| `StationsComponent` | 中点建站/升级/拆除返还 + onDelivery 自动建成 |
+| `BuildingsComponent` | 地图建筑（中转站/护盾发生器）：放置即扣 H3 建成、拆除按 refundPct（表值 0.5）返还、onDelivery 建材入缓存；无升级流 |
+| `OrbitBuildComponent` | 近地轨道建筑（2026-09-09：点行星 → 轨道建设面板；船坞造船折扣/提速） |
 | `ActsComponent` | 三幕门槛 + 幕入口快照 |
-| `SimulationComponent` | 编排器：固定顺序 tick 全部子系统（buildQueue→引力→耀斑→飞船→经济→研究→三幕→失败判定） |
+| `SimulationComponent` | 编排器：固定顺序 tick 全部子系统（buildQueue→引力→耀斑→飞船→经济→研究→环建设→轨道建筑→三幕→失败判定） |
 
-GameMode 持有 `readonly simState/transport/economy/research/hazards/stations/acts/sim`，
-Tick 门禁 `!paused && (playing||sandbox)` → `this.sim.runTick(dt * timeScale)`。
+GameMode 持有 `readonly simState/transport/economy/research/ringBuild/hazards/buildings/orbitBuild/acts/sim`，
+Tick 门禁 `!paused && !s.pendingCard && (playing||sandbox)` → `this.sim.runTick(dt * timeScale)`（弹卡期间整体冻结）。
 
 ### GameMode 字段注入的类型坑（重要）
 
@@ -56,7 +61,7 @@ Tick 门禁 `!paused && (playing||sandbox)` → `this.sim.runTick(dt * timeScale
   `node.addComponent(StarMapRenderComponent, this)` 挂载（provider 传 GameMode 自身，MapViewProvider 结构化最小依赖 `simState: { state }`）。
 - **配置表**：代码默认值在 `B`（balance.ts）兜底，`refreshBalanceFromConfigs()` 读 ConfigRegistry 覆盖；
   glob 异步加载竞态下首局用默认值（与表同值，无害），GameInstance `watchConfigs` 轮询就绪后 `restart()` 应用真表值。
-- **HUD**：三 widget 全部 `.widget.html` 源 + `ui_compile` 编译（MCP 参数传 **.widget.json** 路径）；
+- **HUD**：hud / hex_modal / settle 三 widget 全部 `.widget.html` 源 + `ui_compile` 编译（MCP 参数传 **.widget.json** 路径）；
   HUD 由 `HUDClass = 'asset/blueprints/ui/hud.widget.json'` 经 PC.ClientSetHUD 链创建；
   hex/settle 由 HudScript.onStart `world.ui.spawnUIActor` 一次性生成，各自脚本自驱动可见性。
 - **UI 脚本**：`gameplay/ui/*.script.ts` 被 asset/index.ts glob 注册（id='gameplay/ui/HudScript'）；
@@ -64,15 +69,18 @@ Tick 门禁 `!paused && (playing||sandbox)` → `this.sim.runTick(dt * timeScale
 
 ### 调试桥（e2e/GM）
 
-`window.__warmCurrent`（WarmCurrentGameInstance.installDebugBridge，镜像 arena `__arena`）：
-`ready/state/vm/stepTicks/pointerDown|Move|Up/createRoute/addShip/deleteRoute/buildStation/setNodes/setH3/
-triggerFlare/triggerWindow/suppressFlare/startMission/retryAct/restart/togglePause…` 全部走组件 API。
+`window.__warmCurrent`（WarmCurrentGameInstance.installDebugBridge，镜像 arena `__arena`；权威清单见 `WarmCurrentDebugBridge` 接口）：
+`ready/state/vm/stepTicks/pointerDown|Move|Up/createRoute/addShip/removeShip/deleteRoute/buildShip/rebuildShip/
+allocateResearch/allocateBuildPoints/forceBuild/forceResearch/chooseCardByIndex/setNodes/setH3/
+placeBuilding/demolishBuilding/selectBuilding/enterBuildMode/enterSandbox/placeOrbitBuilding/setShipFlying/
+triggerFlare/triggerWindow/suppressFlare/startMission/retryAct/restart/togglePause/startNewGame/
+saveSlot/loadSlot/slotMeta/doubleClickPlanet/view/bodyPos…` 全部走组件 API。
 
 ## 二、e2e（tests/e2e/warm-current/warm-current.spec.ts）
 
 单长用例全链路（34.6s）：启动教学关 → 拖线（europa 拒/moon 过）→ 首船净补 +160（载 200−油 40）→
 forceResearch 三选一连选至队列清空 → setNodes(4) 推二幕 → 引力窗口木卫二线 speedMult 2/legTime 9s →
-补给站物流链（建线自动派船 + 显式补船，送满 300 自动建成 Lv1）→ 耀斑护盾盾内(0.5)保全/盾外(0.95)冻毁 →
+中转站补给链（H3 直接放置 relay → 地↔站反向线建线自动派 1 艘 + 显式补 1 艘 → 建材入缓存 stock ≥200）→ 耀斑护盾盾内(0.5)保全/盾外(0.95)冻毁 →
 setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重推二幕 → 断燃料断环 → 堆心降温归零 → 重试本幕恢复。
 
 **确定性三板斧**（踩出来的）：
@@ -85,7 +93,7 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
 
 ## 三、渲染与门禁
 
-- **3D 标准**：XZ 地面 + 真实球体 + Lambert + 灯光 + 垂直俯视透视相机（fov50 @ y=1160，up=(0,0,-1)）；
+- **3D 标准**：XZ 地面 + 真实球体 + Lambert + 灯光 + 垂直俯视透视相机（fov50，`SolarCameraActor.place` 开局就位 y=3400，`applyViewMode` 取景 dist 太阳 480 / 地球 3200，up=(0,0,-1)）；
   文字走 CanvasTexture Sprite（脏检查），实测 **71 fps**（旧 canvas2d 方案 8fps 已弃）。
 - 指针拾取不用编辑器注入 worldPos（那是 z=0 平面交点），Controller 自己射线 ∩ y=0 再 +半宽半高回画布系。
 - **CodeLint 全绿**：项目代码禁止裸 `new THREE.Mesh/Group/Line/*Geometry/*Material` → 全部改走
@@ -116,6 +124,6 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
 
 ## 五、运行入口
 
-- 编辑器 Dashboard → WarmCurrent → Launch（拖月球到地球开局）。
-- GM 命令：`status/h3/node/ship/flare/window/win`（GMRegistry glob 自动注册）。
+- 编辑器 Dashboard → WarmCurrent → Launch → 主菜单（warm_menu.scene.json）→ 点「▶ 新的远征」切星图（`startNewGame`）后拖月球到地球建首条航线。
+- GM 命令：`status/h3/node/ship/flare/window/win/sol`（GMRegistry glob 自动注册）。
 - e2e：`cd tests/e2e && npx playwright test warm-current`（dev server :5174 由外部管理）。

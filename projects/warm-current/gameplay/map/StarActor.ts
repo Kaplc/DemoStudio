@@ -16,7 +16,7 @@
  * 生成。位置/半径不写在蓝图（半径在 star_map 配置，位置每帧算），蓝图只定外观。
  */
 import * as THREE from 'three'
-import { Actor, SphereMeshComponent, logger, AtmosphereComponent } from '@/engine'
+import { Actor, SphereMeshComponent, logger } from '@/engine'
 import { makeEarthBumpTexture } from './starTextures'
 import { B } from '../core/balance'
 import { hiddenActorIsolated } from '../core/helpers'
@@ -79,8 +79,11 @@ export class EarthActor extends StarActor {
   protected get body(): keyof typeof B.map.nodes { return 'earth' }
 
   /**
-   * 地球特写增强（观察模式观感）：大气 Fresnel 辉光壳 + 地形 bumpMap。
-   * 全部类内装配，蓝图不感知（蓝图只定本体外观，引擎组件由 StarActor 基类钩子挂载）。
+   * 地球特写增强（观察模式观感）：地形 bumpMap。
+   * 大气辉光壳改为蓝图资产声明（2026-09-10 用户决策"资产挂组件"）：
+   * earth.blueprint.json 显式挂 AtmosphereComponent（颜色/强度/锐度/壳倍率在
+   * Inspector 调整后随资产保存），运行时不再硬编码挂载——此前蓝图实例与
+   * setupCloseup 各挂一个会叠出双层辉光（组件重复告警）。未声明大气的天体保持无大气。
    * 夜面城市灯光已按用户要求移除（2026-09-10）：emissive 灯点在游戏环境光下不随昼夜
    * 变暗，观察视角总读作脏点。
    * 云层壳已按用户要求移除（2026-09-10）：无真云图资产（earthCloudsUrl 恒 null）→ 恒走
@@ -88,15 +91,9 @@ export class EarthActor extends StarActor {
    * 观察增益（opacity +0.1）与 earthCloudsUrl() 随之成为死代码，一并删除。
    */
   protected override setupCloseup(): void {
-    this.addComponent(AtmosphereComponent, {
-      color: '#7fb8ff',
-      intensity: 1.2,
-      power: 2.6,
-      shellScale: 1.05,
-    })
     const mesh = this.getComponent(SphereMeshComponent)
     if (!mesh) {
-      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，bump 贴图跳过（大气已挂载）')
+      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，bump 贴图跳过')
       return
     }
     const bump = makeEarthBumpTexture()
@@ -104,7 +101,7 @@ export class EarthActor extends StarActor {
       mesh.setBumpMap(bump)
       mesh.bumpScale = 0.06
     }
-    logger.info('[StarActor] Earth 特写增强装配完成（大气/bump；云层已移除）')
+    logger.info('[StarActor] Earth 特写增强装配完成（bump；大气由蓝图声明、云层已移除）')
   }
 }
 

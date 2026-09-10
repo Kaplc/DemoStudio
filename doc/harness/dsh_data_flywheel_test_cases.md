@@ -24,7 +24,7 @@
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
-**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 67 个单测通过。
+**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 80 个单测通过（6 文件，2026-09-10 实测）。
 
 ---
 
@@ -36,7 +36,7 @@
 
 > `test` 是单跑一次不是 watch；`lint` 用 **oxlint**，与仓库根缺失的 eslint 无关。
 
-跑用例前先装依赖——**三个插件的 `node_modules` 目前只有 `.vite` 缓存，没有 `@deepseek-ai/*` 依赖包**，直接 `npx vitest run` 会报 `Cannot find package '@deepseek-ai/dsh-llm'`：
+三个插件的依赖**已装好**（2026-09-10 实测各含 16~19 个 `@deepseek-ai/*` 包），可直接 `npx vitest run`；只有新 clone / 换机器导致依赖缺失时才会报 `Cannot find package '@deepseek-ai/dsh-llm'`，补装即可：
 
 ```powershell
 cd harness/ds-memory     && npm install && npm run build && npm test
@@ -54,7 +54,7 @@ cd harness/ds-experience && npm install && npm run build && npm test
 
 手动用例反过来，**必须**先清空经验库再跑：`Move-Item E:\DemoStudio\.dsh\experience\*.md E:\DemoStudio\.dsh\experience\_bak\ -Force`。
 
-> 为什么要清空：`.dsh/experience/` 现有 24 个历史 episode。断言「落了 1 条 episode」时旧数据会让你分不清新旧——尤其同名 episode 走**覆盖更新**不新建（EXP-02），旧文件被静默改写，断言直接失真。
+> 为什么要清空：`.dsh/experience/` 现有 46 个 `.md`（45 个历史 episode + INDEX.md，2026-09-10 实测）。断言「落了 1 条 episode」时旧数据会让你分不清新旧——尤其同名 episode 走**覆盖更新**不新建（EXP-02），旧文件被静默改写，断言直接失真。
 
 ---
 
@@ -91,7 +91,7 @@ it('不保存清单不再包含无差别的"调试修复配方"，改为限定�
 | 编号 | 类型 | 验证什么 / 怎么跑 | 预期 |
 |---|---|---|---|
 | KM-01 | 单测 | 四段标签、`WHAT_NOT_TO_SAVE` 语义、容器规则、保存触发点（`memoryTypes.test.ts:87` 起 5 个 it） | 全绿 |
-| KM-02 | 单测 | memory 四工具 + 解析用例全量重跑，提示词改动不得破坏解析/落盘 | 全绿（2026-09-11 实测 9 文件 121 用例全绿；历史红因见 §7 坑 2） |
+| KM-02 | 单测 | memory 四工具 + 解析用例全量重跑，提示词改动不得破坏解析/落盘 | 全绿（2026-09-10 实测 9 文件 124 用例全绿；历史红因见 §7 坑 2） |
 | KM-03 | 手动 | 真实踩一个可复用坑 → 等提取 → 查 `.dsh/memory/` | 新记忆按 Problem/Cause/Solution/Applicable 四段组织 |
 | KM-04 | 手动 | 一次无可复用根因的单点 bug 修复后等提取 | 不生成修复流水账记忆（宁缺毋滥） |
 | KM-05 | 手动 | 同一主题下连踩多个坑 | 合并进同一文件，每坑一个 `## 小节`，不拆碎 |
@@ -248,12 +248,12 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 
 | 命令 / 位置 | 干什么 | 注意 |
 |---|---|---|
-| `npm install && npm run build && npm test`（各插件目录） | 装依赖 + 编译 + 跑单测 | **依赖当前未安装**，不装会报 `Cannot find package` |
+| `npm run build && npm test`（各插件目录） | 编译 + 跑单测 | 依赖已装（2026-09-10 实测）；新 clone / 换机器才需先 `npm install` |
 | `npm test -- ruleStore`（各插件目录） | 只跑匹配名称的测试文件 | vitest 过滤器 |
 | `npm run typecheck` / `npm run lint` | `tsc --noEmit` / `oxlint src tests` | lint 用 oxlint，**不是**仓库根的 eslint |
 | `dsh web --dump-config \| Select-String "ds-experience\|session-query-sqlite"` | 查挂载是否在册 | PowerShell 用 `Select-String`，不是 `grep` |
 | `Get-Item $env:USERPROFILE\.dsh\profiles\web\node_modules\@demostudio\ds-experience \| Select Target` | 确认 junction 指向 | 必须是 Junction 不是硬链接 |
-| `E:\DemoStudio\.dsh/experience/` | 经验库，现有 24 个 episode | 手动用例前先备份清空 |
+| `E:\DemoStudio\.dsh/experience/` | 经验库，现有 46 个 `.md`（45 episode + INDEX.md，2026-09-10 实测） | 手动用例前先备份清空 |
 | `E:\DemoStudio\.dsh/rules/` | 规则库（`RULES.md` + `pending/`） | 手动用例 RL-17/18 的落盘 |
 
 位置速查（`文件:行号`，均已在 §4 各表中出现过）：KM-01 → [memoryTypes.test.ts:87](../../harness/ds-memory/tests/memoryTypes.test.ts)；RL-01/03 → [ruleStore.test.ts:34](../../harness/ds-feedback/tests/ruleStore.test.ts)，RL-05/06/07 → `:87`，SP-04 → `:153`；RL-12 → [preScreen.test.ts:5](../../harness/ds-feedback/tests/preScreen.test.ts)；RL-14 → [turnEnd.test.ts:105](../../harness/ds-feedback/tests/turnEnd.test.ts)；EXP-01~03 → [experienceStore.test.ts:27](../../harness/ds-experience/tests/experienceStore.test.ts)；EXP-07 → [historyTools.test.ts:35](../../harness/ds-experience/tests/historyTools.test.ts)；提炼禁用点 → [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts)。
@@ -278,7 +278,7 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 |---|---|---|
 | ds-memory 记忆格式 | KM 组锁定四段格式与容器规则 | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | ds-feedback 规则库 | RL 组锁定提案-确认制与预筛行为 | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
-| ds-experience 经验库 | EXP 组锁定落盘/检索；**08/09/11/12 需翻新口径** | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| ds-experience 经验库 | EXP 组锁定落盘/检索（08/09/11/12 已随提炼禁用翻新/删除，见 §4.3） | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | system prompt 装配 | SP 组锁定段序 3000/3100/3200/3300 与 6 工具清单 | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
 | 双通道分离 | M-04 是硬约束回归点 | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | git 跟踪决策 | M-05 涉及 `.dsh/{memory,rules,experience}` 是否提交 | [插件安装](./dsh_plugin_install.md) |
@@ -287,13 +287,13 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 
 ## 7. 踩坑清单
 
-**1. `npx vitest run` 报 `Cannot find package '@deepseek-ai/dsh-llm'`** —— 三个插件 `node_modules` 下只有 `.vite` 缓存，依赖没装（`dsh-source/node_modules` 里也没有）；ds-experience 4/5、ds-feedback 2/4 文件因此 FAIL。规则：先 `npm install`；**这类「Failed to load url」是环境问题不是用例失败**，别去改测试代码。
+**1. `npx vitest run` 报 `Cannot find package '@deepseek-ai/dsh-llm'`** —— 依赖没装（新 clone / 换机器常见；2026-09-10 实测本机三插件依赖均已装好，可直接跑）。规则：先 `npm install`；**这类「Failed to load url」是环境问题不是用例失败**，别去改测试代码。
 
-**2. 用例跟着实现走，实现变了测试没变 → 恒红**（两代同型坑）—— ① `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`：`src/selectMemories.ts` 已删除，孤儿测试还在（**已删，2026-09-11 复核全绿**）。② `endOfTurnReminder.test.ts` 锁的还是「`agent/pre-step` 新回合第一步注入」的旧实现，而提醒早已改走 `agent/turn-stopping` + `steer`——5 个用例恒红（**2026-09-11 已按现行实现翻新**，并补上「本回合已保存过则跳过」用例）。规则：**改提醒投递通道（pre-step ↔ turn-stopping/steer ↔ inject）必须同步 `endOfTurnReminder.test.ts`**；这类「Failed to load / 断言 undefined」是**假红**，最坏后果是掩盖真实回归信号，别当成环境噪声绕过。
+**2. 用例跟着实现走，实现变了测试没变 → 恒红**（两代同型坑）—— ① `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`：`src/selectMemories.ts` 已删除，孤儿测试还在（**已删，2026-09-10 复核全绿**）。② `endOfTurnReminder.test.ts` 锁的还是「`agent/pre-step` 新回合第一步注入」的旧实现，而提醒早已改走 `agent/turn-stopping` + `steer`——5 个用例恒红（**2026-09-10 已按现行实现翻新**，并补上「本回合已保存过则跳过」用例）。规则：**改提醒投递通道（pre-step ↔ turn-stopping/steer ↔ inject）必须同步 `endOfTurnReminder.test.ts`**；这类「Failed to load / 断言 undefined」是**假红**，最坏后果是掩盖真实回归信号，别当成环境噪声绕过。
 
-**3. EXP-08/09/10/11/12 的断言与代码永久冲突** —— `extractFromSession` 恒定返回 `{ ok: true, saved: [], updated: [] }`，测试却断言 `saved` 非空、`maxTurn` 推进，而 `ExtractResult` 已移除 `maxTurn`。规则：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
+**3. EXP-08/09/10/11/12 的断言曾与代码永久冲突（2026-09-09 已翻新/删除，见 §4.3）** —— `extractFromSession` 恒定返回 `{ ok: true, saved: [], updated: [] }`，测试却断言 `saved` 非空、`maxTurn` 推进，而 `ExtractResult` 已移除 `maxTurn`。规则：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
 
-**4. 手动用例被旧 episode 干扰** —— `.dsh/experience/` 现有 24 个文件，且同名 save 走**覆盖更新**不新建，旧文件被静默改写。规则：跑前先备份/清空。
+**4. 手动用例被旧 episode 干扰** —— `.dsh/experience/` 现有 46 个 `.md`（2026-09-10 实测），且同名 save 走**覆盖更新**不新建，旧文件被静默改写。规则：跑前先备份/清空。
 
 **5. 只靠「模型说看到了指令」验收** —— LLM 会顺着提问给肯定回答，口头确认不是证据。规则：必须检查 session 里实际写入的 durable `user/message`，以及下一次 LLM 请求的 messages。
 
@@ -314,10 +314,10 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 | 单测 vs 手动 | 单测锁行为，手动验真实内核/LLM/落盘 | 两类都不能省 |
 | 依赖未安装 | `Cannot find package`，非用例失败 | 先 `npm install` |
 | `selectMemories.test.ts` 孤儿测试（已删）、提醒通道变更（已翻新） | 恒红假信号，掩盖真实回归 | 实现变更时同步测试；`endOfTurnReminder.test.ts` 跟着投递通道走 |
-| `extractFromSession` 已禁用 | 恒定 `ok:true`/不落盘，无 `maxTurn` | EXP-08/09/11/12 翻新口径 |
+| `extractFromSession` 已禁用 | 恒定 `ok:true`/不落盘，无 `maxTurn` | EXP-08/09/11/12 已随禁用翻新/删除（见 §4.3） |
 | headless 内核 | 改动需重启，无热重载 | 每次改动后重启 |
 | web profile | `patchReload: live` 热重挂 | 多次改动后查无重复 section/定时器（M-03） |
-| `.dsh/experience/` 有旧数据（现 24 个） | 干扰手动断言，同名覆盖静默改写 | 先备份/清空 |
+| `.dsh/experience/` 有旧数据（现 46 个 `.md`，2026-09-10 实测） | 干扰手动断言，同名覆盖静默改写 | 先备份/清空 |
 | 搜索其他 cwd 会话 | 不命中（SQ-04 预期） | cwd 过滤隔离是设计，非 bug |
 | `openAt: never` | 全文搜索报 `SESSION_QUERY_SEARCH_DISABLED`，精确读仍可用 | SQ-05 预期 |
 | 子 agent（`delegationDepth>0`） | 不预筛、不提炼、不注入（EXP-10、RL-15） | 门控是设计 |

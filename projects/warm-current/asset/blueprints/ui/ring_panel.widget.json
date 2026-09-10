@@ -1,7 +1,7 @@
 {
   "name": "RingPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-af5ddc67",
+  "sourceHash": "fnv1a-2627c0d1",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1139,7 +1139,11 @@
                             "fontSize": 20,
                             "color": "#7fdcff",
                             "align": "center",
-                            "bold": true
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1315,7 +1319,11 @@
                             "fontSize": 20,
                             "color": "#7fdcff",
                             "align": "center",
-                            "bold": true
+                            "bold": true,
+                            "shadowColor": "#00000066",
+                            "shadowOffsetX": 1,
+                            "shadowOffsetY": 1,
+                            "shadowBlur": 4
                           }
                         }
                       ],

@@ -543,20 +543,28 @@ private validateDoc(f: AssetFile): LintIssue[] {
   }
 
   for (const t of tasks) {
-    const checker = getChecker(t.kind)
-    if (!checker) {
+    // 三态解析（与 uiCompiler/lintBridge 共用唯一策略）
+    const res = resolveChecker(t.kind)
+    if (res.type === 'schemaless') {
       issues.push(
-        this.makeIssue(f.path, t.nodePath, '-', 'unknown-kind', 'warn',
-          `未注册的检查器 '${t.kind}'，跳过深度校验`),
+        this.makeIssue(f.path, t.nodePath, '-', 'comp-no-lint-schema', 'warn',
+          `组件 "${res.baseClass}" 合法（工厂已注册）但无 assetLint schema——properties 不做校验；建议补 comp:${res.baseClass} 检查器`),
+      )
+      continue
+    }
+    if (res.type === 'unknown') {
+      issues.push(
+        this.makeIssue(f.path, t.nodePath, '-', 'unknown-kind', 'error',
+          `未注册的检查器 '${t.kind}'（既无 lint 检查器也无组件工厂注册——旧格式或未知类型）`),
       )
       continue
     }
     const ctx = this.makeContext(f.path, t.nodePath)
-    issues.push(...checker.run(t.node, ctx))
+    issues.push(...res.checker.run(t.node, ctx))
   }
 
-  // widget 资产（UI 蓝图）：额外跑游戏 UI 设计级检查（字号/触控/阴影/zOrder，全部 warn）
-  if (f.path.endsWith('.widget.json')) {
+  // UI 资产（widget 产物 / 含 CanvasUIComponent 的 UI 蓝图）：额外跑游戏 UI 设计级检查
+  if (shouldRunUiDesignCheck(f.path, rootKind, f.doc)) {
     const designChecker = getChecker('doc:ui-design')
     if (designChecker) {
       issues.push(...designChecker.run(f.doc, this.makeContext(f.path, '<widget 根>')))
@@ -565,6 +573,15 @@ private validateDoc(f: AssetFile): LintIssue[] {
   return issues
 }
 ```
+
+**派发是三态的，不是非黑即白**（[AssetCheckerRegistry.ts](../../../src/editor/asset/assetLint/AssetCheckerRegistry.ts) `resolveChecker`，`AssetLintEngine` 与 `lintBridge` 两条路径共用）：lint 检查器命中 → 校验；`comp:*` 但检查器未注册、而 `ComponentRegistry` 工厂注册过（如 `ParticleEmitterComponent` / `HealthComponent` 等 gameplay 组件）→ **warn 降级**（`comp-no-lint-schema`，合法组件不该拦保存）；两者都不认 → **error**（`unknown-kind`）。历史实现里引擎记 error、lintBridge 静默跳过，两条路径策略漂移过一段时间后才统一。
+
+**UI 设计级检查（`doc:ui-design`）的触发面与规则**（触发条件在 [AssetWalker.ts](../../../src/editor/asset/assetLint/AssetWalker.ts) `shouldRunUiDesignCheck`，同样两条路径共用）：
+
+- `.widget.json` 后缀恒跑；普通 `.blueprint.json` 树中任意节点挂了 `CanvasUIComponent` 也跑（UI 蓝图此前完全绕过设计检查）；场景与纯 3D 蓝图不跑。
+- 硬规则：`ui:root-anchor`（widget 根声明 anchor → error）。
+- 设计 warn：`ui:font-size`（<14px）、`ui:no-text-shadow`（无 shadowColor；按钮链豁免——自身/祖先挂 UIButtonComponent 或名字链含 `Btn`）、`ui:weak-text-shadow`（有 shadowColor 但 blur 显式 <4）、`ui:progress-fill-missing`（`fillActorName` 缺省 `"Fill"` 在子树中找不到同名子 Actor，与引擎 `_findChildByName` 深度递归同语义）、`ui:small-touch-target`（<44px）、`ui:z-index-war`（zOrder>100）、`ui:world-anchor-conflict`（挂锚定组件又声明 anchor）。
+- **定位约定**：检查器内部的 issue 带**节点名链**（如 `<widget 根>/Panel/HeadText`），只有根规则落在 `<widget 根>`——排查面板条目时按名链直达节点；ctx 传入的固定 nodePath 只有 `ui:root-anchor` 会用。
 
 组件属性还额外跑一层「未声明字段」校验（[schemaEngine.ts:211](../../../src/editor/asset/assetLint/schemaEngine.ts)）：
 
@@ -601,7 +618,7 @@ export function registerAssetChecker(kind: CheckerKind, Ctor: CheckerCtor): void
 }
 ```
 
-新增检查器两步：写文件 + 在 [checkers/index.ts](../../../src/editor/asset/assetLint/checkers/index.ts) 加一行 import。当前已注册 **30 个 kind**：`doc:scene` / `doc:blueprint` / `doc:ui-design`、`node:ref` / `node:actor`、以及 25 个 `comp:*`。
+新增检查器两步：写文件 + 在 [checkers/index.ts](../../../src/editor/asset/assetLint/checkers/index.ts) 加一行 import。当前已注册 **36 个 kind**：`doc:scene` / `doc:blueprint` / `doc:ui-design`、`node:ref` / `node:actor`、以及 31 个 `comp:*`。
 
 > 旧格式几何节点（`box` / `plane` / `sphere` / `sprite` / `checkerFloor` / `gridLines` / `pillar` / `wallRing`）的检查器**已完全移除**——现在遇到它们会报「未注册的检查器 'node:box'」**error**（lint 不通过，必须迁移到 `type: actor` / `type: ref` 新格式），见 [nodeCheckers.ts](../../../src/editor/asset/assetLint/checkers/nodeCheckers.ts) 头部注释。
 
@@ -649,7 +666,7 @@ export function createAssetSource(): AssetSource {
 }
 ```
 
-`ElectronAssetSource` 走 `listProjectAssets` + `readJsonFile`，能抓到**解析失败的文件**（`ok: false` → `parseError` 产出 error 级 issue）。`RegistryAssetSource` 只遍历内存注册表，抓不到解析失败的文件（它们压根没注册成功），只能校验已加载资产。浏览器 Playwright 调试时就是这个降级态——且 `MockElectronAPI` 里 `watchProjectAssets` 返回 `{ ok: false }`、`onAssetChanged` 永不触发，**浏览器模式下 assetLint 只有首扫、没有增量**。
+`ElectronAssetSource` 走 `listProjectAssets` + `readJsonFile`，能抓到**解析失败的文件**（`ok: false` → `parseError` 产出 error 级 issue）。`RegistryAssetSource` 只遍历内存注册表，抓不到解析失败的文件（它们压根没注册成功），只能校验已加载资产——含 widget 编译产物（ui 目录下 `.json` 同样注册进 `BlueprintRegistry`，按路径真实扩展名过滤并标注 ext）。浏览器 Playwright 调试时就是这个降级态——且 `MockElectronAPI` 里 `watchProjectAssets` 返回 `{ ok: false }`、`onAssetChanged` 永不触发，**浏览器模式下 assetLint 只有首扫、没有增量**。
 
 两者都按 `/\.(scene|blueprint|widget)\.json$/i` 过滤。
 
@@ -736,6 +753,8 @@ export function createAssetSource(): AssetSource {
 
 **9. 扫描中重入会静默返回空数组** —— `scanInternal` 开头 `if (this.running) return []`，没有排队也没有报错。MCP `run_asset_lint` 连续调用时第二次可能拿到空列表，只能稍后重试。
 
+**10. ui-design 检查器的 issue 曾全部固定记在 `<widget 根>` 上** —— 历史实现由派发方以固定 nodePath 构造 ctx，walk 途中逐节点发现的字号/阴影/触控问题全部落在根上：多条同类告警一字不差无法定位（ring_panel 两个按钮文本撞出两条完全相同的 warn），且 `reportNew` 的日志指纹（`filePath::nodePath::field::ruleId`）会把它们折叠成一条。同理，按钮豁免曾用结构路径 `nodePath.includes('Btn')` 判定——结构路径是 `root.children[0]...` 永远不含名字，属恒 false 死代码。规则：**检查器内部自行构造带节点名链的 issue，按钮豁免按「自身/祖先挂 UIButtonComponent 或名字链含 Btn」判定**；给检查器新增规则时勿再依赖 ctx 的固定 nodePath。
+
 ---
 
 ## 7. 边界条件
@@ -751,7 +770,9 @@ export function createAssetSource(): AssetSource {
 | 无 `electronAPI`（浏览器模式） | `AssetSource` 降级为 `RegistryAssetSource`；`startWatch` 静默 return | 验证资产检查要用 Electron 环境 |
 | 无工程打开 | `onProjectChanged` 清空面板并停止监听；`scanInternal` 返回空数组 | 引擎内置静默语义 |
 | 未知文档根 | `unknown-doc` warn：`无法识别文档根（既非 scene 也非 blueprint）` | 检查资产是否缺 `name` / `objects` / `baseClass` |
-| 未知节点/组件 kind | `unknown-kind` warn：`未注册的检查器 'X'，跳过深度校验` | 旧格式几何节点（box/plane/sphere…）会命中此条，是新格式迁移提醒 |
+| 未知节点/组件 kind | 三态分档（`resolveChecker`）：工厂注册过的组件 → `comp-no-lint-schema` **warn**（属性不校验）；两者都不认 → `unknown-kind` **error** | 旧格式几何节点（box/plane/sphere…）会命中 error，是新格式迁移提醒；gameplay 组件（ParticleEmitter 等）只降级 warn |
+| UI 设计检查触发面 | `.widget.json` 恒跑；含 `CanvasUIComponent` 的蓝图也跑（`shouldRunUiDesignCheck`） | 场景与纯 3D 蓝图无 UI 语义，不跑 |
+| ui-design issue 定位 | 节点名链（`<widget 根>/Panel/Title`），仅根规则落在 `<widget 根>` | 按名链直达节点；多条同类告警可区分 |
 | JSON 解析失败 | `parse` error 级 issue：`JSON 解析失败: ...` | 仅 Electron 磁盘扫描能抓到；浏览器降级抓不到 |
 | MCP `run_asset_lint` 无工程且无 `project` 参数 | 返回 `{ total:0, errors:0, warns:0, issues:[] }` | 传 `project`（folder 或显示名）或先打开工程 |
 | MCP `run_asset_lint` 指定无效工程 | `{ status:'error', message:'未找到工程: X，可用: ...' }` | 用 message 里列出的可用 folder |

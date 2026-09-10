@@ -191,6 +191,17 @@ export function composeExperienceAssociateMessage(
   return { text: lines.join('\n'), included, omitted }
 }
 
+/**
+ * 组装注入卡片摘要（user message source.summary，编辑器上下文卡片折叠行展示）：
+ * 首行条数（超预算截断时附未加载数），随后**每行一个**实际装入的经验文件名。
+ * 文件路径较长，故逐行拆开、由前端 `white-space: pre-line` 折行展示。
+ * 与 ds-memory 的 buildAssociateSummary 同构。
+ */
+export function buildAssociateSummary(included: readonly string[], omitted: number): string {
+  const head = `自动联想经验 ${included.length} 条${omitted > 0 ? `（另有 ${omitted} 条超出预算未加载）` : ''}`
+  return included.length === 0 ? head : [head, ...included].join('\n')
+}
+
 /** 联想器运行参数。 */
 export interface AssociatorOptions {
   /** 经验目录（绝对路径）。 */
@@ -366,7 +377,7 @@ export function registerExperienceAssociator(ctx: Context, options: AssociatorOp
           kind: 'plugin',
           plugin: '@demostudio/ds-experience',
           form: 'recall',
-          summary: `自动联想经验 ${composed.included.length} 条`,
+          summary: buildAssociateSummary(composed.included, composed.omitted),
         },
       })
       for (const fileName of composed.included) injected.add(fileName)

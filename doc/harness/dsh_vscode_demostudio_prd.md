@@ -21,7 +21,7 @@
 | §5 需求 ↔ 实现对照表 | **逐条 FR 标注落地状态与源码证据** | 判断某需求做到哪一步 |
 | [harness_system.md](./harness_system.md) | 该 PRD 的**当前实现状态**（主链路是 Electron → DSH，不是本扩展壳） | 查现状而非需求原文 |
 
-**关键心智模型**：**本 PRD 是需求文档，不是现状文档**。PRD 规划的是「VS Code 扩展壳 → DSH 内核 → EngineBridge → 编辑器」；但当前仓库里**真正在跑的主链路**是 Electron 主进程直接拉起 DSH 内核、插件经 junction + patch 挂载（见 [Harness 工程](./harness_system.md) §2）。`vscode-ext/` 有完整源码但**从未被构建**。一句话：**查需求看本 PRD，查现状看代码与 [harness_system.md](./harness_system.md)。**
+**关键心智模型**：**本 PRD 是需求文档，不是现状文档**。PRD 规划的是「VS Code 扩展壳 → DSH 内核 → EngineBridge → 编辑器」；但当前仓库里**真正在跑的主链路**是 Electron 主进程直接拉起 DSH 内核、插件经 junction + patch 挂载（见 [Harness 工程](./harness_system.md) §2）。`vscode-ext/` 有完整源码，且已构建出 `dist/` 与 `.vsix`（均被 `harness/.gitignore` 忽略），但**从未装配进主链路**。一句话：**查需求看本 PRD，查现状看代码与 [harness_system.md](./harness_system.md)。**
 
 ---
 
@@ -101,7 +101,7 @@ async function bootstrapDSH(source: string = 'startup'): Promise<void> {
 
 > `_dshBootstrapInFlight` 是防重入闸门——`bootstrapDSH` 有 5 个调用点（startup / auto-restart / manual-restart / version-switch / mcp-restart），没有它会并发 spawn 多个 agent。**多实例共享一个 agent**（端口固定 `:3080`），靠「探测到存活就认领」实现。`degraded` 是终态——agent 起不来时编辑器**照常可用**，只是没有 agent 能力。这条优先级高于「保证 agent 一定在」，因为编辑器本体不可用比没有 AI 助手严重得多。
 
-### 2.4 `vscode-ext/`：有完整源码，但从未构建
+### 2.4 `vscode-ext/`：有完整源码，但从未装配进主链路
 
 `activate` 装配 10 步（[extension.ts:25](../../harness/vscode-ext/src/extension.ts)），逻辑自洽。第 3 步加载插件工具时暴露了它对特定目录布局的依赖（[extension.ts:59](../../harness/vscode-ext/src/extension.ts)）：
 
@@ -109,7 +109,7 @@ async function bootstrapDSH(source: string = 'startup'): Promise<void> {
 const pluginDist = path.resolve(context.extensionPath, '..', '..', 'ds-engine-tools', 'dist', 'index.js')
 ```
 
-> 这行假设扩展装在 `harness/vscode-ext/` 下，往上两级回 `harness/`，再进 `ds-engine-tools/dist`。而 `harness/ds-engine-tools/dist/index.js` 当前**不存在**（`Test-Path` 核实为 False）。更关键的是 `vscode-ext/` **没有 `dist/`、没有 `node_modules/`**，`package.json` 的 `main` 指向 `./dist/extension.js`——扩展从未被构建，装都装不上。
+> 这行假设扩展装在 `harness/vscode-ext/` 下，往上两级回 `harness/`，再进 `ds-engine-tools/dist`——普通 VS Code 安装（`%USERPROFILE%\.vscode\extensions\`）下解析不到。现状（2026-09-10 实测）：`harness/ds-engine-tools/dist/index.js` 已存在，`vscode-ext/` 也已有 `dist/extension.js`（883KB）、`node_modules/` 和打包产物 `.vsix`（671KB，2026-08-23 构建，均被 `harness/.gitignore` 忽略）——扩展可以构建，但从未被安装、也**从未装配进主链路**。
 
 `pluginBridge.ts` 头注释自己承认这是过渡方案（[pluginBridge.ts:17](../../harness/vscode-ext/src/bridge/pluginBridge.ts)）：「第一版简化：ds-engine-tools 工具不与 DSH runtime 真集成……等 DSH SDK 提供 `defineTool` 工具装饰器（FR-4.1）稳定后，迁移到真 DSH registration」。
 
@@ -166,8 +166,8 @@ const pluginDist = path.resolve(context.extensionPath, '..', '..', 'ds-engine-to
 
 | 编号 | 需求摘要 | 状态 | 源码证据 |
 |---|---|---|---|
-| FR-1.1 | 7 个命令面板命令 | 部分 | 声明完整 [package.json:32](../../harness/vscode-ext/package.json)，处理器 [commands.ts:31](../../harness/vscode-ext/src/commands.ts) 起全数注册。**但扩展无 `dist/`，命令实际不可执行** |
-| FR-1.2 | 聊天侧边栏 WebviewView + React | 部分 | [chatView.ts](../../harness/vscode-ext/src/ui/chatView.ts) + [chatApp/](../../harness/vscode-ext/src/ui/chatApp/) 9 组件齐全，`registerWebviewViewProvider` 在 [extension.ts:79](../../harness/vscode-ext/src/extension.ts)。**未构建未验证** |
+| FR-1.1 | 7 个命令面板命令 | 部分 | `contributes.commands` 实际**声明 5 条**（[package.json:30-56](../../harness/vscode-ext/package.json)），[commands.ts:31](../../harness/vscode-ext/src/commands.ts) 起注册 **7 个处理器**（含 `sendUserMessage`/`cancelGeneration` 两条不在命令面板声明的内部命令）。**扩展未装配，命令实际不可执行** |
+| FR-1.2 | 聊天侧边栏 WebviewView + React | 部分 | [chatView.ts](../../harness/vscode-ext/src/ui/chatView.ts) + [chatApp/](../../harness/vscode-ext/src/ui/chatApp/) 9 组件齐全，`registerWebviewViewProvider` 在 [extension.ts:79](../../harness/vscode-ext/src/extension.ts)。**未装配未验证** |
 | FR-1.3 | 状态栏（引擎/内核版本/更新徽标） | 部分 | [statusBar.ts:47](../../harness/vscode-ext/src/ui/statusBar.ts)；[extension.ts:75](../../harness/vscode-ext/src/extension.ts) `setKernelVersion(await kernelManager.getAdapter()?.version() ?? '0.0.0')` |
 | FR-1.4 | shell 工具映射原生终端/任务 | 部分 | 仅更新流程用 `vscode.tasks.executeTask`（[updater.ts:77](../../harness/vscode-ext/src/dsh/updater.ts)）；**grep `createTerminal` 全仓库 0 命中** |
 | FR-1.5 | 文件操作用 `vscode.workspace.fs` | 部分 | [fileBridge.ts:20](../../harness/vscode-ext/src/bridge/fileBridge.ts) 读、[:36](../../harness/vscode-ext/src/bridge/fileBridge.ts) 写均已实现；[chatView.ts:71](../../harness/vscode-ext/src/ui/chatView.ts) 注释自认「M3 实装」 |
@@ -207,11 +207,11 @@ const pluginDist = path.resolve(context.extensionPath, '..', '..', 'ds-engine-to
 | FR-6.5 `guardPolicy` | object，高危 `ask` | 已声明但守卫失效 | [package.json:96](../../harness/vscode-ext/package.json)；读取点 [extension.ts:61](../../harness/vscode-ext/src/extension.ts)。名单问题见 FR-4.2 |
 | FR-6.6 `enableEngineEvents` | boolean，默认 `true` | 已声明 | [package.json:101](../../harness/vscode-ext/package.json)；读取点 [eventLinker.ts:33](../../harness/vscode-ext/src/bridge/eventLinker.ts) |
 | FR-6.7 `checkUpdates` | boolean，默认 `true` | 已声明 | [package.json:106](../../harness/vscode-ext/package.json)；读取点 [updater.ts:42](../../harness/vscode-ext/src/dsh/updater.ts) |
-| FR-7.1 | `vsce package` 产出 `.vsix` | **未实现，无产物** | 脚本已配（[package.json:119](../../harness/vscode-ext/package.json) + [.vscodeignore](../../harness/vscode-ext/.vscodeignore)）；**全仓库 search_files `.vsix` 0 命中**，从未打包。另 `viewsContainers` 引用 `assets/dsh-icon.svg`（[package.json:67](../../harness/vscode-ext/package.json)），该图标文件不存在 |
-| FR-7.2 | 暂不公开发布 | 符合现状 | 无发布痕迹、无 `.vsix`，与「本地开发调试」一致 |
-| FR-7.3 | 插件包与 profile 独立版本化 | 部分 | [ds-engine-tools/package.json:3](../../harness/ds-engine-tools/package.json) `"version": "0.1.0"`，`main` 指向 `dist/index.js`（产物不存在）；无独立 tag 发布痕迹 |
+| FR-7.1 | `vsce package` 产出 `.vsix` | 部分 | 脚本已配（[package.json:119](../../harness/vscode-ext/package.json) + [.vscodeignore](../../harness/vscode-ext/.vscodeignore)）；已产出 `demostudio-harness-0.1.0.vsix`（671KB，2026-08-23 构建，被 `harness/.gitignore` 忽略，故 `search_files` 0 命中），但扩展未装配、产物未随源码重建。另 `viewsContainers` 引用 `assets/dsh-icon.svg`（[package.json:67](../../harness/vscode-ext/package.json)），该图标文件不存在 |
+| FR-7.2 | 暂不公开发布 | 符合现状 | 无发布痕迹；`.vsix` 仅为本地构建产物（`.gitignore` 忽略），与「本地开发调试」一致 |
+| FR-7.3 | 插件包与 profile 独立版本化 | 部分 | [ds-engine-tools/package.json:3](../../harness/ds-engine-tools/package.json) `"version": "0.1.0"`，`main` 指向 `dist/index.js`（产物已存在，2026-09-10 实测）；无独立 tag 发布痕迹 |
 
-**汇总**：**没有任何一条 FR 达成其完整验收标准。** 已实现 7 条（FR-2.4 / FR-3.1 / FR-3.4 / FR-3.5 / FR-3.7 / FR-4.7 加 FR-6 中 1 条），部分实现 19 条，未实现 10 条，符合现状 1 条。**阻塞根因是 `vscode-ext/` 从未构建**（`dist/`、`node_modules/` 均不存在）。真正跑通的只有 FR-3 系列（编辑器侧控制面）与 FR-2.4 / FR-4.7（架构红线），且它们依托的是 Electron 主链路而非本扩展壳。
+**汇总**（2026-09-10 按表逐条重算，共 44 条）：**没有任何一条 FR 达成其完整验收标准。** 已实现 6 条（FR-2.4 / FR-3.1 / FR-3.4 / FR-3.5 / FR-3.7 / FR-4.7），部分实现 19 条，未实现 12 条，FR-6 配置项已声明 6 条（其中 `enginePort` 未读取、`guardPolicy` 守卫失效），符合现状 1 条。**阻塞根因是 `vscode-ext/` 从未装配进主链路**——虽然该目录已构建出 `dist/` 与 `.vsix`（均被 `harness/.gitignore` 忽略）。真正跑通的只有 FR-3 系列（编辑器侧控制面）与 FR-2.4 / FR-4.7（架构红线），且它们依托的是 Electron 主链路而非本扩展壳。
 
 ---
 
@@ -270,27 +270,25 @@ const pluginDist = path.resolve(context.extensionPath, '..', '..', 'ds-engine-to
 
 **1. 把 PRD 的「5 个工具」当成当前实现** —— 照 FR-4.1 找 `inspect_scene`/`spawn_entity` 会 grep 不到。原因：PRD 记录初始需求清单，实现已换成 9 个（`emit_ai_event`/`mouse_click`/`mouse_move`/`mouse_drag`/`key_press`/`get_hud`/`get_scene_outline`/`get_ui_outline`/`get_assets`，见 [index.ts:20](../../harness/ds-engine-tools/src/index.ts)）。规则：**查现状看代码与 [harness_system.md](./harness_system.md)，查需求看本 PRD**；写调用链前必须 grep 确认符号存在。
 
-**2. `ds-engine-tools/package.json` 的 description 也是过期的** —— 它写着 `inspect_scene/spawn_entity/run_scenario/get_game_state/set_game_speed`（[package.json:4](../../harness/ds-engine-tools/package.json)），与 `ALL_TOOLS` 不符。规则：**package.json 的 description、PRD 需求清单都不等同于当前代码**，只有 `src/index.ts` 是事实。
+**2. 守卫名单与实际工具名零交集，守卫形同虚设** —— `HIGH_RISK_TOOLS = new Set(['spawn_entity','run_scenario','set_game_speed'])`（[guards.ts:17](../../harness/ds-engine-tools/src/guards.ts)）里三个名字在当前 9 个工具中都不存在，于是 `getDecision` 对每个真实工具都落到 `DEFAULT_DECISION = 'allow'`。规则：**改工具名必须同步改 `HIGH_RISK_TOOLS`**，否则高危操作静默放行。
 
-**3. 守卫名单与实际工具名零交集，守卫形同虚设** —— `HIGH_RISK_TOOLS = new Set(['spawn_entity','run_scenario','set_game_speed'])`（[guards.ts:17](../../harness/ds-engine-tools/src/guards.ts)）里三个名字在当前 9 个工具中都不存在，于是 `getDecision` 对每个真实工具都落到 `DEFAULT_DECISION = 'allow'`。规则：**改工具名必须同步改 `HIGH_RISK_TOOLS`**，否则高危操作静默放行。
+**3. 单元测试曾断言已不存在的工具名（已修复）** —— `tests/index.test.ts` 早期断言的是 7 个旧工具名；现已翻新为断言 `ALL_TOOLS` 长度 9 与 9 个真实工具名，2026-09-10 实测 2 文件 20 用例全绿。规则：**改工具清单必须同步修测试**，别让旧断言留在仓库里掩盖回归。
 
-**4. 单元测试断言的是已不存在的工具名** —— [index.test.ts:14](../../harness/ds-engine-tools/tests/index.test.ts) 断言 `ALL_TOOLS` 长度为 7、名字为 `inspect_scene` 等，与实际的 9 个不符。规则：**这份测试当前是红的**，不要当基线；修工具清单时同步修测试。
+**4. `inject` 写了内建属性导致插件 boot 失败** —— 现象 `pending (waiting for service: logger)`。原因：`logger` 是 Context 内建属性、不是可注入服务键。规则：`inject` 只声明真正经 fiber 解析的服务键（[index.ts:15](../../harness/ds-engine-tools/src/index.ts) 只需 `['tools']`）。另注意 [cordis.patch.yml:59](../../harness/profile/cordis.patch.yml) 的 insert 段写了 `inject: [tools, effect, session, on]`，比源码多 3 个键——**两边不一致**，是 boot 隐患。
 
-**5. `inject` 写了内建属性导致插件 boot 失败** —— 现象 `pending (waiting for service: logger)`。原因：`logger` 是 Context 内建属性、不是可注入服务键。规则：`inject` 只声明真正经 fiber 解析的服务键（[index.ts:15](../../harness/ds-engine-tools/src/index.ts) 只需 `['tools']`）。另注意 [cordis.patch.yml:59](../../harness/profile/cordis.patch.yml) 的 insert 段写了 `inject: [tools, effect, session, on]`，比源码多 3 个键——**两边不一致**，是 boot 隐患。
+**5. 把非 bundle 包写进 `dsh.profile.bundles`** —— boot 抛 `declares no dsh.bundle in its package.json`。规则：插件一律用 patch `insert` 行挂载，不进 bundles。
 
-**6. 把非 bundle 包写进 `dsh.profile.bundles`** —— boot 抛 `declares no dsh.bundle in its package.json`。规则：插件一律用 patch `insert` 行挂载，不进 bundles。
+**6. 上层模块直接 import DSH API，内核升级即碎** —— 现象：DSH 升 rc 版本后扩展多处编译失败。规则：上层只依赖 `KernelAdapter`（FR-2.4）。当前 [vscode-ext/src/](../../harness/vscode-ext/src) 守住了这条——`@deepseek-ai` 仅出现在 `embeddedAdapter.ts`。
 
-**7. 上层模块直接 import DSH API，内核升级即碎** —— 现象：DSH 升 rc 版本后扩展多处编译失败。规则：上层只依赖 `KernelAdapter`（FR-2.4）。当前 [vscode-ext/src/](../../harness/vscode-ext/src) 守住了这条——`@deepseek-ai` 仅出现在 `embeddedAdapter.ts`。
+**7. 把不存在的 `dsh.kernelMode` 当配置项** —— 它在 [package.json](../../harness/vscode-ext/package.json) 里没有声明，`KernelMode` 类型也没有 `external`。规则：改内核模式前先 grep 确认类型分支存在。
 
-**8. 把不存在的 `dsh.kernelMode` 当配置项** —— 它在 [package.json](../../harness/vscode-ext/package.json) 里没有声明，`KernelMode` 类型也没有 `external`。规则：改内核模式前先 grep 确认类型分支存在。
+**8. 内置模式加载失败被静默降级** —— [kernel.ts:46](../../harness/vscode-ext/src/dsh/kernel.ts) 失败时打一行日志就切 Stub，用户无感。规则：必须**明确报错并指引切回外置，不静默降级**（FR-2.8）。当前代码与该验收标准相反。
 
-**9. 内置模式加载失败被静默降级** —— [kernel.ts:46](../../harness/vscode-ext/src/dsh/kernel.ts) 失败时打一行日志就切 Stub，用户无感。规则：必须**明确报错并指引切回外置，不静默降级**（FR-2.8）。当前代码与该验收标准相反。
+**9. 端口暴露到外网有安全风险** —— HTTP/SSE 绑定 `0.0.0.0` 时局域网可访问编辑器控制面。规则：引擎 HTTP/SSE 端口**仅绑定 `127.0.0.1`**（FR-3.7）。
 
-**10. 端口暴露到外网有安全风险** —— HTTP/SSE 绑定 `0.0.0.0` 时局域网可访问编辑器控制面。规则：引擎 HTTP/SSE 端口**仅绑定 `127.0.0.1`**（FR-3.7）。
+**10. 误以为 `vscode-ext/` 是当前装配路径** —— 改它的代码 agent 行为毫无变化。规则：主链路是 Electron → DSH → junction + patch；`vscode-ext/` 虽已构建出 `dist/`/`.vsix`（被 `.gitignore` 忽略），但从未装配进主链路。
 
-**11. 误以为 `vscode-ext/` 是当前装配路径** —— 改它的代码 agent 行为毫无变化。规则：主链路是 Electron → DSH → junction + patch；`vscode-ext/` 无 `dist/`、无 `node_modules/`，从未构建。
-
-**12. `dsh-agent-service.cjs` 全仓库不存在** —— [cordis.patch.yml:6](../../harness/profile/cordis.patch.yml) 注释称该文件自动创建 profile，但 grep `dsh-agent-service` 全仓库只命中 4 处注释，**没有实现**。规则：不要按该注释推断 profile 的创建者。
+**11. `dsh-agent-service.cjs` 全仓库不存在** —— [cordis.patch.yml:6](../../harness/profile/cordis.patch.yml) 注释称该文件自动创建 profile，但 grep `dsh-agent-service` 全仓库只命中 4 处注释，**没有实现**。规则：不要按该注释推断 profile 的创建者。
 
 ---
 
@@ -392,7 +390,7 @@ export interface KernelAdapter {
 
 **建议工程结构（PRD 原文，非实际结构）**：PRD 建议 `vscode-extension/`、`ds-profile/`、`packages/ds-engine-tools/`，实际收在 `harness/` 下（`harness/vscode-ext/`、`harness/profile/`、`harness/ds-engine-tools/`），落地结构见 [harness_system.md](./harness_system.md)。
 
-**验证命令（PRD 规划，尚未产生产物）**：`cd harness/vscode-ext && npm install && npm run build && npm run package`，随后 `code --install-extension demostudio-harness-0.1.0.vsix`。
+**验证命令（PRD 规划）**：`cd harness/vscode-ext && npm install && npm run build && npm run package`，随后 `code --install-extension demostudio-harness-0.1.0.vsix`——该 `.vsix` 已于 2026-08-23 构建过一次（被 `harness/.gitignore` 忽略），但扩展仍未装配进主链路。
 
 ---
 
@@ -414,6 +412,6 @@ export interface KernelAdapter {
 | 场景文件外部改动 | 编辑器 `fs.watch` + IPC `asset-changed`（[main.ts:1551/1559](../../electron/main.ts)） | 已落地，避免双写覆盖 |
 | 网络受限（npm registry） | 更新检查失败静默忽略 | 状态栏不显示 |
 | 平台 | 优先 Windows；Linux/macOS 未验证 | 见 [DSH 引擎集成](./dsh_engine_integration.md) |
-| 扩展从未构建 | `dist/`、`node_modules/` 均不存在，`main` 指向的 `./dist/extension.js` 缺失 | 需先 `npm install && npm run build`；当前所有 FR-1/FR-2 验收项无法执行 |
+| 扩展未装配进主链路 | `dist/extension.js` 与 `.vsix` 已存在（2026-08-23 构建，被 `.gitignore` 忽略），但从未安装/装配；源码在 2026-09-06 后仍有改动，产物未随源码重建 | 需先决定是否要走扩展壳；当前所有 FR-1/FR-2 验收项无法执行 |
 | 截图/实时 Three.js 预览 | 留二期，本期 UI 槽只做文本卡片 | 见 [harness_system.md](./harness_system.md) |
 | 插件 `inject` 与 patch 不一致 | 源码 `['tools']`，patch 写 `[tools, effect, session, on]` | 以源码为准；patch 多声明的键是 boot 失败隐患 |

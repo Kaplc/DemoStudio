@@ -273,10 +273,10 @@ DSH 官方的 `@deepseek-ai/dsh-agent-instructions` 已解决 `AGENTS.md` / `CLA
 | FR-27 | ContextCard 显示指令来源与文件路径（前端无需改动） | 已实现（前端侧） | `describeContextSource` 对 `kind === 'agent-instructions'` 取 `changes[].path` 作 label，[AgentService.ts:1976](../../src/editor/AgentService.ts) |
 | FR-28 | 插件来源 `{ kind: 'plugin', plugin: ... }` 备选契约 | 未实现（仓库无代码） | 实现只走 `kind: 'agent-instructions'`（[types.ts:28](../../harness/ds-instructions/src/types.ts)），无 plugin 分支 |
 | FR-29 | `mappings` 显式配置在 patch 里维护 | 未启用（代码支持但未使用） | schema 支持 [config.ts:58](../../harness/ds-instructions/src/config.ts)，两 profile patch 均未写 `mappings`，全靠 frontmatter 扫描 |
-| FR-30 | 集成测试与 ContextCard 回放测试全部通过 | 部分实现 | 测试文件 6 个共 83 个用例；本次运行环境 `harness/ds-instructions/node_modules` 为空，`@deepseek-ai/cordis` 等无法解析，仅 `render.test.ts`（13 个）可跑通 |
-| FR-31 | 真机冒烟：headless profile 跑通端到端注入 | 未验证 | 当前机器 `~/.dsh/profiles/{web,headless}/node_modules/@demostudio/` 目录不存在，junction 未挂载 |
+| FR-30 | 集成测试与 ContextCard 回放测试全部通过 | 部分实现 | 测试文件 6 个共 83 个用例；依赖已装好（`node_modules` 含 24 个 `@deepseek-ai/*` 包），2026-09-10 实测 **82 过 / 1 红**（`mapping.test.ts` 对 `DEFAULT_MAPPINGS` 的期望少一条 `projects` 映射），未全绿 |
+| FR-31 | 真机冒烟：headless profile 跑通端到端注入 | 未验证 | 两 profile 的 junction 已挂载（2026-09-10 实测各 8 个，含 ds-instructions），但端到端注入冒烟尚无成功记录 |
 
-**汇总**：31 条需求中已实现 22 条、部分实现 3 条（FR-1、FR-30、FR-31）、未启用 1 条（FR-29）、未实现 1 条（FR-28）。
+**汇总**（2026-09-10 按表逐条重算）：31 条需求中已实现 26 条、部分实现 2 条（FR-1、FR-30）、未验证 1 条（FR-31）、未启用 1 条（FR-29）、未实现 1 条（FR-28）。
 
 ---
 

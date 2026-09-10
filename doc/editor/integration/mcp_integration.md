@@ -35,7 +35,7 @@ flowchart LR
     A["AI 客户端<br/>callTool(ai_event)"] -->|stdio| B["mcp-server.mjs<br/>CallToolRequestSchema:196"]
     B -->|"POST /api/command"| C["main.ts:1751<br/>JSON.parse(body)"]
     C --> D{"command 在<br/>往返白名单?"}
-    D -->|"ai_event 等 5 个"| E["requestId = ai-N<br/>:1773 挂起 + 20s timer"]
+    D -->|"ai_event 等 9 个"| E["requestId = ai-N<br/>:1773 挂起 + 20s timer"]
     D -->|其他| F["webContents.send<br/>'mcp-command' :1852<br/>立即 200 ack"]
     E -->|"publishSSE('ai.event')"| G["SSE /api/events 旁路"]
     E --> H["webContents.send<br/>'mcp-command' + requestId :1797"]
@@ -69,35 +69,47 @@ async function callEditor(command, params = {}) {
 
 > **为什么 catch 里返回一个"正常对象"而不是 throw**：MCP 客户端把 throw 当成工具崩溃，会把整个调用栈甩给用户；而"编辑器没开"是**预期内的常见状态**，应当让 AI 读到一句人话自己去启动编辑器。同理 `resp.ok` 为 false 时也主动 throw，好让 503/504 走同一个 catch 出口。
 
-三个需要留意的分支写法：
+工具分发**没有 switch**，是「声明式工具数组 + 逐项 if 分发 + CDP 兜底」三段式。工具清单纯粹是一个数组字面量，末尾用 `...cdpTools` 把 `mcp-cdp.mjs` 的 CDP 工具一起声明：
+
+```js
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    { name: 'ui_compile', description: '...', inputSchema: { ... } },
+    { name: 'ui_decompile', ... },
+    { name: 'get_scene_outline', ... },
+    { name: 'get_ui_outline', ... },
+    { name: 'get_assets', ... },
+    { name: 'run_asset_lint', ... },
+    ...cdpTools,   // CDP 浏览器操控工具（from mcp-cdp.mjs）
+  ],
+}))
+```
+
+调用侧同样是逐项 `if`，编辑器返回什么就原样回传（**不再有服务器自己伪造的 `{ status:'ok' }`**——那个手法随旧 `send_input` case 一起消失了）：
+
+```js
+if (name === 'ui_compile') {
+  const result = await callEditor('ui_compile', { asset: args?.asset || '' })
+  return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+}
+// ... ui_decompile / get_scene_outline / get_ui_outline / get_assets / run_asset_lint 同构
+
+// 所有 if 都没命中 → CDP 兜底；仍不是 CDP 工具才抛错
+const cdpResult = await handleCdpTool(name, args)
+if (cdpResult) return cdpResult
+throw new Error(`未知工具: ${name}`)
+```
+
+> 工具列表里**已没有 `send_input` / `ai_event`**——这两个名字现在只是主进程 `/api/command` 认识的命令（`ai_event` 在往返白名单里，`send_input` 走发射后不管分支）。新增工具时：只往工具数组里加，会"列表可见但调用抛未知工具"；只写 if 分发，则根本不会出现在列表里。工具数组与 if 分发是**两张表**，必须同步改——这就是历史上 `run_asset_lint` 出过的那个缺陷。
 
 > 游戏启停工具（`start_game` / `stop_game`，以及服务器侧拆成"先查状态再发命令"的 `toggle_game`）**已移除**（2026-09-06）。渲染进程仍保留 `launchGame` / `stopGame` / `toggle_game` 命令分支：其中 `toggle_game` 分支无条件 `onLaunchGame()`，**没有停止能力**——这是历史遗留的不对称，别指望 `toggle_game` 能停游戏。
-
-```js
-case 'send_input': {
-  const key = args?.key || ''
-  await callEditor('send_input', { key })
-  return {
-    content: [{ type: 'text', text: JSON.stringify({ status: 'ok', key }, null, 2) }],
-  }
-}
-```
-
-> 这个 `{ status:'ok' }` 是 **MCP 服务器自己伪造的**，不是编辑器回的。因为 `send_input` 走发射后不管分支，编辑器那边即使窗口已销毁也照样回 ok。
-
-```js
-default:
-  throw new Error(`未知工具: ${name}`)
-```
-
-> 新增工具时，**忘了在 `CallToolRequestSchema` 的 switch 里加 case，工具照样会出现在工具列表里**（因为 `ListToolsRequestSchema` 是独立的），只是调用时才抛"未知工具"。两个 switch 必须同步改——这就是历史上 `run_asset_lint` 出过的那个缺陷。
 
 ### 2.2 第二跳：主进程判定"往返还是发射后不管"
 
 这是整条链路的**分水岭**，判定就是一行白名单：
 
 ```ts
-if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile') {
+if (cmd.command === 'ai_event' || cmd.command === 'ai_list_events' || cmd.command === 'run_asset_lint' || cmd.command === 'run_code_lint' || cmd.command === 'ui_compile' || cmd.command === 'ui_decompile' || cmd.command === 'get_scene_outline' || cmd.command === 'get_ui_outline' || cmd.command === 'get_assets') {
   // ai.event 转发（仅 ai_event 有事件语义；用于 ds-engine-tools 订阅；不影响原有的 renderer 往返）
   if (cmd.command === 'ai_event') {
     publishSSE('ai.event', {
@@ -354,8 +366,8 @@ sendMCPResponse: () => {},           // MockElectronAPI.ts:158
 |---|---|---|---|
 | `resolveEditorPort()` | `mcp-server.mjs:27` | 解析 `--port`，缺省 9877 | 只接受正整数，非法值静默回落 9877 |
 | `callEditor(command, params)` | `mcp-server.mjs:41` | POST `/api/command` 转发 | catch 内返回 `{status:'error'}` 而非 throw |
-| `getEditorStatus()` | `mcp-server.mjs:55` | GET `/api/status`（**不是** command） | 返回 `{gameRunning, gameScore}` |
-| `ListToolsRequestSchema` handler | `mcp-server.mjs:74` | 声明编辑器工具 + CDP 工具清单与 description | 与 CallTool switch 是**两张表**，必须同步 |
+| `getEditorStatus()` | `mcp-server.mjs:55` | GET `/api/status`（**不是** command） | 返回 `{status, editor, platform, gameRunning}`，无 `gameScore` |
+| `ListToolsRequestSchema` handler | `mcp-server.mjs:74` | 声明编辑器工具 + CDP 工具清单与 description | 与 CallTool 的 if 分发是**两张表**，必须同步 |
 | `CallToolRequestSchema` handler | `mcp-server.mjs:196` | 工具名 → HTTP 命令分发 | 漏 case 会抛"未知工具" |
 | `findFreePort(start)` | `main.ts:1713` | 9877 起真监听探测空闲端口 | 越界抛 `未找到可用端口` |
 | `/api/command` 往返分支 | `main.ts:1751` | 白名单判定 + requestId + 挂起 | 白名单含 9 个命令，加命令要同步改这里 |
@@ -462,7 +474,7 @@ persist=true（MCP/脚本 dispatch）：保持旧语义立即落盘。
 
 现象：`run_asset_lint` 曾出现在工具列表里，一调用就抛 `未知工具: run_asset_lint`。
 
-原因：`ListToolsRequestSchema`（`:74`）与 `CallToolRequestSchema`（`:196`）是**两个独立 switch**，加工具只改了前者。
+原因：`ListToolsRequestSchema`（工具数组，`:75`）与 `CallToolRequestSchema`（if 分发，`:169`）是**两张独立的表**，加工具只改了前者。
 
 规则：加工具时两处同步改；改完用 `ai_list_events` 或直接调用实测一遍。
 

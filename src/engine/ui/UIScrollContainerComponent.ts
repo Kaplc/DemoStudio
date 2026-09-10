@@ -401,14 +401,18 @@ export class UIScrollContainerComponent extends Component<Actor> {
     }
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。可编辑键（camelCase）与 getEditableProperties() 精确匹配
+   * 渲染编辑控件；offset/content 为只读信息行（滚动/布局的实时派生态，不开放手编）。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Direction: this._direction,
-      Offset: `${this._scrollOffset.toFixed(2)}/${this.maxScroll.toFixed(2)}`,
-      Content: [Math.round(this._contentSize[0] * 100) / 100, Math.round(this._contentSize[1] * 100) / 100],
-      Draggable: this._draggable,
-      Scrollbar: this._scrollbar,
+      direction: this._direction,
+      scrollOffset: Math.round(this._scrollOffset * 100) / 100,
+      maxScroll: this.maxScroll.toFixed(2),
+      content: [Math.round(this._contentSize[0] * 100) / 100, Math.round(this._contentSize[1] * 100) / 100],
+      draggable: this._draggable,
+      scrollbar: this._scrollbar,
     }
   }
 

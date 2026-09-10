@@ -87,8 +87,8 @@ owner.root.add(this.panel)
 ```ts
 //  - tsf 已显式设置且组件未传 → 用 tsf 值（JSON 迁移后标准）
 //  - 组件显式传入（uitext 推导 / 旧数据兼容）→ 组件值并同步回 tsf
-let ww = options.worldWidth ?? 5
-let wh = options.worldHeight ?? 2.5
+let ww = options.worldWidth ?? 400
+let wh = options.worldHeight ?? 200
 const uiTf = owner.getComponent(UITransformComponent)
 if (uiTf) {
   if (uiTf.worldSizeExplicit && options.worldWidth === undefined && options.worldHeight === undefined) {
@@ -99,7 +99,7 @@ if (uiTf) {
 }
 ```
 
-> 尺寸权威在 `UITransformComponent`（Unity RectTransform 风格），组件自身只是缓存。**为什么判据带 `worldSizeExplicit`**：布局系统写回尺寸时那个 `explicit=false` 的分支不代表作者意图，若直接读会污染"用户到底想不想自己定尺寸"这个信息。注册项也配合做了"只传显式值"（[registerBuiltinComponents.ts:319](../../src/engine/tools/registerBuiltinComponents.ts) 注释），否则默认值 5×2.5 会反过来覆盖资产里配好的尺寸。
+> 尺寸权威在 `UITransformComponent`（Unity RectTransform 风格），组件自身只是缓存。**为什么判据带 `worldSizeExplicit`**：布局系统写回尺寸时那个 `explicit=false` 的分支不代表作者意图，若直接读会污染"用户到底想不想自己定尺寸"这个信息。注册项也配合做了"只传显式值"（[registerBuiltinComponents.ts:319](../../src/engine/tools/registerBuiltinComponents.ts) 注释），否则默认值 400×200 会反过来覆盖资产里配好的尺寸。
 
 **④ 重绘与脏标记（最容易踩的一段）**
 
@@ -124,7 +124,7 @@ markDirty() {
 >
 > 结论：**`draw()` 只改 CPU 侧像素，不通知 GPU**。首次绘制赶在首帧上传之前所以看得见；之后若只有 `draw()` 而没有 `markDirty()`，画面不会更新。子类 `UIImageComponent.redraw()`（[UIImageComponent.ts:144](../../src/engine/ui/UIImageComponent.ts)）走的就是 `draw(...)`。
 >
-> **规则**：任何时候改完画布内容（含绕过 `draw()` 直接用 `this.ctx` 画），都必须跟一次 `markDirty()`。目前 `src/` 下 `markDirty()` 只有定义、没有调用方，新增重绘路径时别默认"已经有人标记了"。
+> **规则**：任何时候改完画布内容（含绕过 `draw()` 直接用 `this.ctx` 画），都必须跟一次 `markDirty()`。目前 `src/` 下只有 `resizeCanvas()`（重设 canvas 分辨率）会调用它，新增重绘路径时别默认"已经有人标记了"。
 >
 > 顺带说性能：这里**没有任何节流或脏标记合并**，也没挂每帧重绘 —— 重绘是完全按需的（改颜色、改圆角、图片 `onload`）。代价是前述的漏标记问题，收益是静止 UI 零重绘开销。不要在这里加"每帧 markDirty"来绕开漏标记，那会让每个 UI 面板每帧重传一张位图到 GPU。
 
@@ -173,10 +173,10 @@ flowchart TD
     D --> D1["rect = _uiEl.getBoundingClientRect()<br/>NDC = (x-left)/w*2-1, -(y-top)/h*2+1"]
     D1 --> E["候选1: _uiClickables 逐个 hitTest<br/>过滤 !bEnabled / isDestroyed"]
     E --> E1["ClickableComponent.hitTest<br/>ClickableComponent.ts:148<br/>沿父链过滤 !visible + updateWorldMatrix"]
-    E1 --> F["候选2: _uiBlockers<br/>isVisibleChain(panel) + intersectObject"]
-    F --> G{"遮挡竞争<br/>z = clickable.uiZOrder vs blocker.zOrder<br/>严格大于才替换"}
-    G -->|"topBlocked"| H["消费点击 return true<br/>更低层 UI 与世界都收不到"]
-    G -->|"bestClickable"| I["handleClick → onPress → onClick"]
+    E1 --> F["候选2: _uiBlockers<br/>carrier = hitMesh ?? panel<br/>isVisibleChain + 射线求交"]
+    F --> G{"pickFrontmostHit 仲裁<br/>射线距离最近者胜；同面(±1e-3)按 zOrder<br/>同 z 时 clickable 优先"}
+    G -->|"kind=blocked"| H["消费点击 return true<br/>更低层 UI 与世界都收不到"]
+    G -->|"kind=clickable"| I["handleClick → onPress → onClick"]
     G -->|"都没中"| W
 ```
 
@@ -235,27 +235,24 @@ for (const t of targets) {
 
 > `THREE.Raycaster` **不检查 `visible`** —— 隐藏的 mesh 照样会被命中。若不沿父链过滤，父节点 `bActive=false` 隐藏的按钮仍会响应点击（与 Unity 行为不符）。`updateWorldMatrix(true, false)` 则是补渲染循环之外矩阵可能陈旧的情形（刚生成、渲染已停止），否则射线打空。
 
-**④ 遮挡竞争：zOrder 严格大于才替换**
+**④ 遮挡竞争：距离优先，同面才比 zOrder**
 
 ```ts
 // 候选 2：拦截画布（hitTestMode='block'，如 GM 控制台全屏遮罩）
 for (const b of this._uiBlockers) {
-  if (!b.panel || !isVisibleChain(b.panel)) continue
-  if (uiRay.intersectObject(b.panel, false).length > 0) {
-    const z = b.zOrder
-    // 同 zOrder 时 clickable 优先（同层按钮先于遮罩）
-    if (z > bestZ) {
-      bestZ = z
-      bestClickable = null
-      topBlocked = true
-    }
-  }
+  const carrier = b.hitMesh ?? b.panel   // marker 用射线 mesh，视觉块用 panel
+  if (!carrier || !isVisibleChain(carrier)) continue
+  if (!b.hitVisualActive) continue       // 视觉块 opacity=0 = 看不见不挡
+  if (isWorldModeUI(b.owner)) continue   // world 模式归世界层
+  const hits = rayWithFreshMatrix(uiRay, carrier)
+  if (hits) candidates.push({ kind: 'blocked', distance: hits.distance, z: b.zOrder })
 }
+return pickFrontmostHit(candidates)
 ```
 
-> 比较是**严格大于**，不是大于等于 —— 这是刻意的：同层时按钮赢过遮罩，否则模态遮罩会把自己上面的按钮吃掉。`clickable.uiZOrder`（[ClickableComponent.ts:273](../../src/engine/physics/ClickableComponent.ts)）取的是 **owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder**，所以父节点层级高，整棵子树在竞争中都占优。
+> clickable 与 block 画布各产出一条候选，由 `pickFrontmostHit` **先比射线距离**，距离差小于 `SAME_PLANE_EPS`（1e-3）视为同面、再按 zOrder 决胜（同 z 时 clickable 优先于拦截画布）——屏幕 UI 的面板 z 偏移（zOrder×0.001）正好是这个量级，所以"层级高的赢"在屏幕 UI 下依旧成立。`clickable.uiZOrder`（[ClickableComponent.ts:330](../../src/engine/physics/ClickableComponent.ts)）取的是 **owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder**，所以父节点层级高，整棵子树在竞争中都占优。
 >
-> `intersectObject(b.panel, false)` 的 `false` 是**不递归子对象**：拦截只认这块画布自己的矩形。
+> 拦截求交只针对载体 mesh 自身（`intersectObject(carrier, false)` 不递归子对象）：拦截只认这块画布自己的矩形；`block` 的载体是 marker 的 `hitMesh`，视觉块的载体才是 `panel`。
 
 **⑤ 命中之后怎么拿到控件内的局部坐标**（以输入框光标定位为例）
 
@@ -299,7 +296,7 @@ set hitTestMode(v: UIHitTestMode) {
 |---|---|---|---|
 | `constructor(owner, options)` | [CanvasUIComponent.ts:102](../../src/engine/rendering/CanvasUIComponent.ts) | 建 canvas + 纹理 + plane mesh，读 uitransform 定世界尺寸 | `hitTest` 走字段直赋不过 setter；`markerOnly` 时 `panel=null` |
 | `draw(fn)` | [CanvasUIComponent.ts:338](../../src/engine/rendering/CanvasUIComponent.ts) | `clearRect` 后执行回调 | **不标记纹理更新**，需自行 `markDirty()` |
-| `markDirty()` | [CanvasUIComponent.ts:345](../../src/engine/rendering/CanvasUIComponent.ts) | `texture.needsUpdate = true` → bump version 触发 GPU 重传 | 当前 `src/` 下无调用方 |
+| `markDirty()` | [CanvasUIComponent.ts:345](../../src/engine/rendering/CanvasUIComponent.ts) | `texture.needsUpdate = true` → bump version 触发 GPU 重传 | `resizeCanvas()` 会调用；业务重绘需自行配对（见踩坑 1） |
 | `setWorldSize(w, h)` | [CanvasUIComponent.ts:252](../../src/engine/rendering/CanvasUIComponent.ts) | 改 `panel.scale` 并同步回 uitransform | 不重建 geometry，也不重画位图 |
 | `getWorldSize()` | [CanvasUIComponent.ts:266](../../src/engine/rendering/CanvasUIComponent.ts) | 优先读 owner 的 uitransform | 与 `getSize()`（像素，:247）不是一回事 |
 | `onWorldSizeChange()` | [CanvasUIComponent.ts:263](../../src/engine/rendering/CanvasUIComponent.ts) | 尺寸变化钩子，由 uitransform 遍历调用 | 空实现，子类覆写（如 UIText 重算换行宽度） |
@@ -320,8 +317,8 @@ set hitTestMode(v: UIHitTestMode) {
 | `setupUI(camera)` | [PhySys.ts:94](../../src/engine/physics/PhySys.ts) | 注入 UI 相机 | [Game.ts:208](../../src/engine/gameflow/Game.ts) 注入、[:282](../../src/engine/gameflow/Game.ts) 传 null |
 | `isVisibleChain(o)` | [PhySys.ts:251](../../src/engine/physics/PhySys.ts) | 沿父链判可见（任一祖先 `visible=false` 即隐藏） | 模块级函数，非导出 |
 | `hitTest(raycaster)` | [ClickableComponent.ts:148](../../src/engine/physics/ClickableComponent.ts) | 过滤隐藏目标 + 刷矩阵 + 求交 | Raycaster 自身不检查 visible |
-| `uiZOrder` | [ClickableComponent.ts:273](../../src/engine/physics/ClickableComponent.ts) | owner 及祖先链上 CanvasUIComponent 的最大 zOrder | `layer !== 'ui'` 时返回 0 |
-| `setCanvasSize(w, h)` | [UICamera.ts:54](../../src/engine/rendering/UICamera.ts) | contain 模式同步正交视锥 | 基准画布 9.6×5.4（:19-20） |
+| `uiZOrder` | [ClickableComponent.ts:273](../../src/engine/physics/ClickableComponent.ts) | owner 及祖先链上 CanvasUIComponent 的最大 zOrder | 无 canvas 祖先的纯 3D clickable 恒为 0（不再按 `layer` 短路） |
+| `setCanvasSize(w, h)` | [UICamera.ts:54](../../src/engine/rendering/UICamera.ts) | contain 模式同步正交视锥 | 基准画布 1920×1080（`UI_CANVAS_W/H`） |
 
 ---
 
@@ -364,7 +361,7 @@ set hitTestMode(v: UIHitTestMode) {
 
 **4. 刚生成就隐藏的面板，子树仍然可见** —— 构造时子节点未挂载，`applyActive` 的级联到不了子树。**规则**：依赖 `BeginPlay` 里那句 `if (!this._bActive) this.owner.bActive = false` 兜底下推；激活态是默认值无需处理。
 
-**5. 模态遮罩拦不住上面的按钮** —— 遮挡竞争用**严格大于**比较，同 `zOrder` 时 clickable 优先。**规则**：遮罩要压住按钮，`zOrder` 必须严格更高；GM 控制台靠 `GM_ZORDER_BASE = 1000` 整树抬升来保证。
+**5. 模态遮罩拦不住上面的按钮** —— 同面（射线距离差 < `SAME_PLANE_EPS`）时按 `zOrder` 决胜，且 `zOrder` 相同时 clickable 优先。**规则**：遮罩要压住按钮，`zOrder` 必须严格更高；GM 控制台靠 `GM_ZORDER_BASE = 1000` 整树抬升来保证。
 
 **6. 点 UI 空白处直接穿到 3D 世界** —— `hitTest: 'visible'` 的画布自身不是拦截体，命中靠挂在上面的 `ClickableComponent`。没有 clickable 的裸画布（以及 `hitTestInvisible`）点击必然穿透。**规则**：要拦截就显式设 `'block'`，别指望 `'visible'` 兜底。
 
@@ -386,15 +383,15 @@ set hitTestMode(v: UIHitTestMode) {
 
 | 条件 | 行为 | 怎么应对 |
 |---|---|---|
-| `markerOnly: true` | `panel = null`，不建 mesh、不进场景、不参与拦截；仅声明"本 Actor 是 UI" | 矢量文本（troika）与纯容器用；锚点容器查找会跳过它 |
+| `markerOnly: true` | `panel = null`，不建渲染 mesh、不进场景；但 `hitTest: 'block'` 时构造期即建透明射线 mesh（`hitMesh`，UI_HIT_LAYER），`BeginPlay` 注册为 blocker，仍参与拦截 | 矢量文本（troika）与纯容器用；锚点容器查找会跳过它 |
 | `isClickOnly: true` | 有 mesh 但 `opacity` 恒 0，仅作命中体；`TweenSystem.fade` 与三个 PreviewManager 跳过 | 按钮无背景时自动生成，命名 `HitLayer` 避免重名警告 |
 | `hitTest: 'block'` 但画布或其祖先 `visible=false` | 不拦截（`isVisibleChain` 返回 false，射线穿过） | 引擎内置；隐藏即失效，符合预期 |
-| 同 zOrder 的 clickable 与 block 画布同时命中 | clickable 优先（严格大于比较） | 遮罩需更高 zOrder |
+| 同面且同 zOrder 的 clickable 与 block 画布同时命中 | clickable 优先 | 遮罩需更高 zOrder |
 | 构造时传 `hitTest: 'block'` | 字段直赋不过 setter，**构造期不注册**；由 `BeginPlay` 兜底 | 构造后到 BeginPlay 之间有短暂窗口不拦截 |
 | 非 UI 相机（`PhySys._uiCamera` 为 null） | UI 层检测整体跳过（含 block 拦截），点击直落世界层 | 由 `Game.ts` 在启动/停止时注入与置空 |
 | 视口宽或高为 0 | `screenToRay` 返回 null，本次点击/悬停作废 | 面板隐藏或未布局时的正常行为 |
 | `zOrder` 超出 [0, 10000] | Inspector 约束 min 0、max 10000；代码可写负值（低于世界层基准） | 拦截用途不要用负值 |
 | 组件销毁时仍为 `block` | `EndPlay` 自动 `unregisterUIBlocker` | 引擎内置，无需手动 |
 | `draw()` 后未 `markDirty()` / 每帧 `markDirty()` | 前者 GPU 纹理不更新；后者每帧重传整张位图 | 见踩坑 1，重绘必须按需且必须配对标记 |
-| 非 16:9 视口 | UI 画布 contain 居中、两侧留空不裁切 | 见 `UICamera.setCanvasSize`（基准 9.6×5.4） |
+| 非 16:9 视口 | UI 画布 contain 居中、两侧留空不裁切 | 见 `UICamera.setCanvasSize`（基准 1920×1080） |
 | WebGL 上下文丢失 | GPU 纹理失效，UI 全白 | `restoreAllTextures()` 在 `webglcontextlost` 时重置 |

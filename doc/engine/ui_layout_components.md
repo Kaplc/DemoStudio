@@ -167,20 +167,21 @@ const injectRoundClip = (material: THREE.Material, ...) => {
 ### 3.2 嵌套遮罩
 
 ```ts
-// 嵌套 mask = 链上矩形求交
-const collectMaskChain = (actor: Actor): UIMaskComponent[] => {
-  const masks: UIMaskComponent[] = []
-  let current: Actor | null = actor
-  while (current) {
-    const mask = current.getComponent(UIMaskComponent)
-    if (mask) masks.push(mask)
-    current = current.parent
+// 嵌套 mask = 链上矩形求交（模块私有函数，入参是渲染对象而非 Actor）
+function collectMaskChain(obj: THREE.Object3D): UIMaskFrame[] {
+  const chain: UIMaskFrame[] = []
+  const a = (obj.userData.__uiMaskOwner as Actor | undefined) ?? null  // 宿主 Actor 登记
+  let cur: Actor | null = a
+  while (cur) {
+    const m = cur.getComponent(UIMaskComponent)
+    if (m && m.enabled) chain.push({ actor: cur, radius: m.radius })
+    cur = cur.parent
   }
-  return masks
+  return chain
 }
 ```
 
-> 从当前节点向上遍历父链，收集所有 `UIMaskComponent`，取各 mask 世界矩形的交集作为最终裁剪区域。
+> 从**渲染对象登记的宿主 Actor**（`userData.__uiMaskOwner`）向上遍历父链，收集所有启用中的 `UIMaskComponent`（近 → 远），取各 mask 世界矩形的交集作为最终裁剪区域（`intersectMaskRects`）。
 
 ### 3.3 已知限制
 
@@ -209,37 +210,48 @@ const collectMaskChain = (actor: Actor): UIMaskComponent[] => {
 ### 4.2 拖拽滚动
 
 ```ts
-// 通过 ClickableComponent onDrag 实现
-clickable.onDragStart = (hit) => { /* 记录拖拽起点 */ }
-clickable.onDragMove = (hit) => {
-  const delta = startPos - currentPos
-  this.scrollBy(delta)
+// 通过 ClickableComponent onDrag 实现（绑定后自动启用"拖拽取消点击"）
+clickable.onDragStart = (sx, sy) => {
+  if (this._bounceTween) { this._bounceTween.kill(); this._bounceTween = null }
+  this._dragSession = { sx, sy, base: this._scrollOffset }  // sx/sy = 屏幕像素
 }
-clickable.onDragEnd = () => { /* 越界回弹 */ }
+clickable.onDragMove = (sx, sy) => {
+  const session = this._dragSession
+  if (!session) return
+  const rect = PhySys.viewportElement?.getBoundingClientRect()
+  const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
+  const deltaPx = this._direction === 'vertical' ? sy - session.sy : sx - session.sx
+  // 屏幕位移 × worldPerPx → 直接写 _scrollOffset（允许越界，松手回弹）
+  this._scrollOffset = session.base - (deltaPx * worldPerPx)
+  this._applyOffset()
+}
+clickable.onDragEnd = () => this._bounceBack()
 ```
 
-> 滚动容器自动创建 `ClickableComponent` 和透明命中层（`ensureClickable` → `ensureHitLayer`）。拖拽位移映射为内容平移。
+> 滚动容器自动创建 `ClickableComponent` 和透明命中层（`_ensureClickable` → `_ensureHitLayer`）。拖拽位移按视口比例换算成 UI 世界单位后直接写内部偏移，不经 `scrollOffset` setter（setter 会立刻钳掉越界值）。
 
 ### 4.3 越界回弹
 
 ```ts
-// 越界回弹：TweenSystem quadOut 0.25s
-if (offset > 0) {
-  // 超出顶部：回弹到 0
-  TweenSystem.instance.to(this._scrollContent.position, { y: 0 }, 0.25, 'quadOut')
-} else if (offset < maxScroll) {
-  // 超出底部：回弹到 maxScroll
-  TweenSystem.instance.to(this._scrollContent.position, { y: maxScroll }, 0.25, 'quadOut')
-}
+// 越界回弹：TweenSystem quadOut 0.25s（仅真正越界过才补间）
+if (!this._dragOverscrolled) return
+const target = Math.max(0, Math.min(this.maxScroll, this._scrollOffset))
+const start = this._scrollOffset
+this._bounceTween = TweenSystem.instance.to({ v: start }, { v: target }, {
+  duration: 0.25,
+  easing: 'quadOut',
+  // 补间临时对象，onUpdate 里手动写 _scrollOffset（走 setter 会被钳掉）
+  onUpdate: (values) => { this._scrollOffset = values.v as number; this._applyOffset() },
+})
 ```
 
-> 拖拽超出内容边界时，松手自动回弹到合法范围。回弹动画用 `quadOut` 缓动，0.25 秒。
+> 拖拽超出内容边界时，松手自动回弹到合法范围；界内滑动松手不弹。回弹动画用 `quadOut` 缓动，0.25 秒。
 
 ### 4.4 程序化滚动条
 
 ```ts
-// UIScrollContainerComponent.ts 关键逻辑
-createScrollbar(): void {
+// UIScrollContainerComponent.ts 关键逻辑（私有方法，BeginPlay / scrollbar setter 调用）
+private _createScrollbar(): void {
   // 轨道（track）：背景条
   // 滑块（thumb）：可拖拽的指示器
   // 滑块尺寸 = 轨道尺寸 × (容器高 / 内容高)
@@ -276,12 +288,12 @@ scrollBy(delta: number): void {
 | `UILayoutComponent.layout()` | [UILayoutComponent.ts:190](../../src/engine/ui/UILayoutComponent.ts) | 重新布局所有子 UI 节点 | 动态生成子节点后手动调用；BeginPlay 自动调用一次 |
 | `UILayoutComponent.Tick()` | [UILayoutComponent.ts:170](../../src/engine/ui/UILayoutComponent.ts) | 签名检测子项变化自动重排 | `autoLayout=true` 时生效；签名 = 数量+名字+激活态 |
 | `UILayoutComponent.contentSize` | [UILayoutComponent.ts:430](../../src/engine/ui/UILayoutComponent.ts) | 最近一次布局的内容包围盒 [w,h] | 未布局过为 [0,0] |
-| `UIMaskComponent.collectMaskChain()` | [UIMaskComponent.ts:200](../../src/engine/ui/UIMaskComponent.ts) | 收集父链上所有 mask 求交 | 嵌套 mask = 链上矩形求交 |
+| `collectMaskChain(obj)` | [UIMaskComponent.ts:200](../../src/engine/ui/UIMaskComponent.ts) | 收集父链上所有 mask 求交 | 模块私有函数（非组件方法）；入参是渲染对象，宿主 Actor 经 `__uiMaskOwner` 登记 |
 | `UIMaskComponent.applyScissor()` | [UIMaskComponent.ts:150](../../src/engine/ui/UIMaskComponent.ts) | 设置 GL scissor 矩形裁剪 | 所有对象兜底裁剪 |
 | `UIMaskComponent.injectRoundClip()` | [UIMaskComponent.ts:180](../../src/engine/ui/UIMaskComponent.ts) | 注入 fragment shader 圆角 discard | 仅对 MeshBasicMaterial 生效 |
 | `UIScrollContainerComponent.refresh()` | [UIScrollContainerComponent.ts:100](../../src/engine/ui/UIScrollContainerComponent.ts) | 重新计算内容尺寸 + 更新滚动范围 | 子项变化后调用 |
 | `UIScrollContainerComponent.scrollBy(delta)` | [UIScrollContainerComponent.ts:130](../../src/engine/ui/UIScrollContainerComponent.ts) | 平移内容 + 钳制边界 + 更新滚动条 | 自动回弹越界 |
-| `UIScrollContainerComponent.createScrollbar()` | [UIScrollContainerComponent.ts:200](../../src/engine/ui/UIScrollContainerComponent.ts) | 程序化生成轨道+滑块 | 与 UIScrollList 同款 |
+| `UIScrollContainerComponent._createScrollbar()` | [UIScrollContainerComponent.ts:200](../../src/engine/ui/UIScrollContainerComponent.ts) | 程序化生成轨道+滑块 | 私有；与 UIScrollList 同款 |
 
 ---
 
@@ -320,7 +332,7 @@ scrollBy(delta: number): void {
 
 **5. mask 圆角不生效 / 文本被 mask 错误裁剪** —— 圆角 mask 通过 shader inject 实现，仅对 `MeshBasicMaterial` 生效；troika 文本用 `clipRect` 矩形裁剪，圆角退化为矩形。**规则**：圆角 mask 对 UIText 不生效；嵌套 mask 链上矩形求交。
 
-**6. 滚动内容超出容器不滚动** —— 滚动容器需要单一内容子 Actor（`_ScrollContent`），且内容高度 > 容器高度才可滚动。**规则**：子项必须挂在 `_ScrollContent` 下（由 `refresh()` 自动创建），内容尺寸不足时不滚动。
+**6. 滚动内容超出容器不滚动** —— 滚动容器需要单一内容子 Actor（`_ScrollContent`），且内容高度 > 容器高度才可滚动。**规则**：子项必须挂在单一内容层 `_ScrollContent` 下（编译器从 HTML overflow 元素生成；找不到内容层时 `refresh()` 只 warn 不创建），内容尺寸不足时不滚动。
 
 **7. 滚动回弹不生效 / 回弹动画不执行** —— 越界回弹依赖 `TweenSystem`，需 `TweenSystem.instance` 已初始化。**规则**：确认 TweenSystem 在游戏启动时已初始化；回弹 `quadOut` 0.25s 是硬编码。
 
@@ -334,7 +346,7 @@ scrollBy(delta: number): void {
 | 子项无 `UITransformComponent` | 被过滤，不参与布局 | 确保子项有 uitransform |
 | grid 模式 `columns=0` | 钳制为 1 | 最小 1 列 |
 | wrap 容器无显式尺寸 | 退化为不换行（固定列数） | 给容器设显式尺寸 |
-| mask 矩形 w/h ≤ 0 | scissor 不生效 | 确保 mask 容器有正尺寸 |
+| mask 矩形 w/h ≤ 0（或链上无交集） | scissor 置 0×0，内容被完全裁掉 | 确保 mask 容器有正尺寸 |
 | 嵌套 mask 无交集 | 裁剪区域为空（全黑） | 避免 mask 完全错位 |
 | 滚动内容小于容器 | 不滚动，滚动条隐藏 | 正常行为 |
 | 拖拽位移 ≤ 8px | 判为点击而非拖拽 | 滚动组件绑 `onDragMove` 走拖拽语义 |

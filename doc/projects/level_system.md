@@ -319,7 +319,7 @@ isLevelUnlocked(requirement: { levelId: string, stars: number } | undefined): bo
 
 ## 6. 踩坑清单
 
-**1. 卡片点了没反应，日志刷「关卡未解锁」却看不到** —— `isLevelUnlocked` 用 `logger.debug` 输出，默认不可见；面板侧只在点击时才 `logger.warn`。规则：先查 `levelRecords[前置关].bestStars`，或用 `gmUnlockLevel(id)` 强制写 3★ 验证。
+**1. 卡片点了没反应，日志刷「关卡未解锁」却看不到** —— `isLevelUnlocked` 用 `logger.debug` 输出，默认不可见；面板侧只在点击时才 `logger.warn`。规则：先查 `levelRecords[前置关].bestStars`；要强制写 3★，停游戏后直接改存档 `src/projects/fish/data/save.json` 的 `levelRecords.<关卡id>.bestStars = 3` 再重进（`ProgressionService.gmUnlockLevel()` 全仓无调用方、也未注册 GM 命令，控制台不可达，要用得先加一条 `*.gm.ts` 包装）。
 
 **2. 页面 hidden 导致 tick 停摆，动态生成的面板卡在 pendingSpawn** —— Playwright 集成浏览器 `visibilityState` 常为 hidden，rAF 暂停 → 游戏 tick 停 → `spawnUIActor` 的关卡卡片停在 pendingSpawn 队列，`MapPanelScript.onStart` 根本不执行。规则：浏览器验证时手动 `__fishBattle.startTickDriver()` 驱动，真实 Electron 无此问题。
 
@@ -341,7 +341,7 @@ isLevelUnlocked(requirement: { levelId: string, stars: number } | undefined): bo
 
 | 条件 | 行为 | 怎么应对 |
 |---|---|---|
-| 前置关卡无记录 | 视为未解锁（`?? 0`）；第 1 关无 `unlockRequirement` 默认解锁 | 用 `gmUnlockLevel` 验证是配置错还是流程错 |
+| 前置关卡无记录 | 视为未解锁（`?? 0`）；第 1 关无 `unlockRequirement` 默认解锁 | 改存档 `levelRecords` 写 3★ 后重进，验证是配置错还是流程错（`gmUnlockLevel` 未暴露 GM 命令，暂不可用） |
 | 战斗时限到 0 | 按摧毁率 ≥50% 或大本营已毁判胜，**超时 ≠ 失败** | 时限来自 `timeLimit`，缺省 180 |
 | 军队全灭且已部署过兵 | 判负，`finishBattle(false)` | 一次没放兵不判负（`deployedCount > 0` 门槛） |
 | 普通出征（`_levelId = null`） | `settleBattle` 跳过 `levelRecords`，只上报成就 | 评星展示在结算面板由 `BattleResultScript` 独立算 |

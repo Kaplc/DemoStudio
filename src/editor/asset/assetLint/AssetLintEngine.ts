@@ -16,8 +16,8 @@ import { logger } from '../../../engine/Logger'
 import { useEditorStore } from '../../../stores/editorStore'
 import { useCodeLintStore, type AssetIssueView } from '../../../stores/useCodeLintStore'
 import { createAssetSource, type AssetSource } from './AssetSource'
-import { walkDocument } from './AssetWalker'
-import { getChecker } from './AssetCheckerRegistry'
+import { walkDocument, shouldRunUiDesignCheck } from './AssetWalker'
+import { getChecker, resolveChecker } from './AssetCheckerRegistry'
 import type { AssetFile, LintIssue, CheckerContext } from './types'
 
 const RESCHEDULE_DELAY = 300
@@ -227,8 +227,23 @@ class AssetLintEngine {
     }
 
     for (const t of tasks) {
-      const checker = getChecker(t.kind)
-      if (!checker) {
+      // 三态解析（与 uiCompiler/lintBridge 共用唯一策略）：
+      // checker 命中 → 校验；工厂合法但无 lint schema → warn 降级；完全未知 → error
+      const res = resolveChecker(t.kind)
+      if (res.type === 'schemaless') {
+        issues.push(
+          this.makeIssue(
+            f.path,
+            t.nodePath,
+            '-',
+            'comp-no-lint-schema',
+            'warn',
+            `组件 "${res.baseClass}" 合法（工厂已注册）但无 assetLint schema——properties 不做校验；建议补 comp:${res.baseClass} 检查器`,
+          ),
+        )
+        continue
+      }
+      if (res.type === 'unknown') {
         issues.push(
           this.makeIssue(
             f.path,
@@ -236,18 +251,18 @@ class AssetLintEngine {
             '-',
             'unknown-kind',
             'error',
-            `未注册的检查器 '${t.kind}'（旧格式或未知节点类型，仅允许 node:actor / node:ref）`,
+            `未注册的检查器 '${t.kind}'（既无 lint 检查器也无组件工厂注册——旧格式或未知类型）`,
           ),
         )
         continue
       }
       const ctx = this.makeContext(f.path, t.nodePath)
-      issues.push(...checker.run(t.node, ctx))
+      issues.push(...res.checker.run(t.node, ctx))
     }
 
-    // widget 资产（UI 蓝图）：额外跑游戏 UI 设计级检查（ui:root-anchor 硬规则 +
-    // 字号/触控/阴影/zOrder 设计准则 warn）
-    if (f.path.endsWith('.widget.json')) {
+    // UI 资产（widget 产物 / 含 CanvasUIComponent 的 UI 蓝图）：额外跑游戏 UI 设计级
+    // 检查（ui:root-anchor 硬规则 + 字号/触控/阴影/zOrder/fill 引用设计准则 warn）
+    if (shouldRunUiDesignCheck(f.path, rootKind, f.doc)) {
       const designChecker = getChecker('doc:ui-design')
       if (designChecker) {
         issues.push(...designChecker.run(f.doc, this.makeContext(f.path, '<widget 根>')))

@@ -20,7 +20,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| [`system_overview.md`](./system_overview.md) | **系统总览**：引擎 13 域 / 编辑器 4 二级目录 + 4 store / 项目 5 个 / 资产 5 类的架构索引 |
+| [`system_overview.md`](./system_overview.md) | **系统总览**：引擎 15 域 / 编辑器 4 二级目录 + 4 store / 项目 3 内置 + 3 外部根 / 资产 6 类的架构索引 |
 
 ## 2. 引擎模块（src/engine/，21 篇）
 
@@ -50,7 +50,7 @@
 
 ## 3. 编辑器模块（src/editor/ + src/components/，18 篇）
 
-> **15 篇全部为新范式**：开篇三问 → 真实源码逐段讲解 → 关键方法速查（带行号）→ 流程影响（带文档链接）→ 踩坑清单。范本见 [core/core_system.md](./editor/core/core_system.md)，规范见 `.github/skills/skl-write-doc/SKILL.md` §3.1。
+> **18 篇全部为新范式**：开篇三问 → 真实源码逐段讲解 → 关键方法速查（带行号）→ 流程影响（带文档链接）→ 踩坑清单。范本见 [core/core_system.md](./editor/core/core_system.md)，规范见 `.github/skills/skl-write-doc/SKILL.md` §3.1。
 
 ### 3.1 core（核心与视口，4 篇）
 
@@ -92,7 +92,7 @@
 | 文件 | 说明 |
 |---|---|
 | [`integration/mcp_integration.md`](./editor/integration/mcp_integration.md) | MCP 集成与调试桥：三客户端配置 / 9 个工具清单 / 多实例端口 |
-| [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 |
+| [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 / 使用统计 |
 | [`integration/electron_main_ipc.md`](./editor/integration/electron_main_ipc.md) | Electron 主进程与 IPC：启动编排 / 30+ 通道清单 / 往返模式 / DSH 状态机 |
 
 ---
@@ -107,7 +107,30 @@
 | [`projects/gameplay_code_standard.md`](./projects/gameplay_code_standard.md) | gameplay 代码规范：七角色职责边界与越界红线 |
 | [`projects/muzzle_flash_component.md`](./projects/muzzle_flash_component.md) | MuzzleFlashComponent 组件（fish 项目）：炮口闪光特效 |
 
-## 5. Harness 模块（DSH 内核集成，9 篇）
+## 5. 游戏设计（doc/game/，14 篇）
+
+> 《暖流计划》的设计文档（主方案 + 平衡快照 + 12 篇模块设计）。**设计意图与实装现状的差异**：2026-09-10 已对「与代码相反」的描述做校正、对「设计未实现」处就地标注，读到时以标注为准。
+
+| 文件 | 说明 |
+|---|---|
+| [`game/暖流计划-游戏设计方案.md`](./game/暖流计划-游戏设计方案.md) | 主设计方案：核心循环 / 三幕 / 系统总纲 |
+| [`game/平衡方案-V1初版.md`](./game/平衡方案-V1初版.md) | 平衡 V1 初版**快照**（正文不改，顶部注记列出与现行实现的差异） |
+| [`game/modules/00-模块总览.md`](./game/modules/00-模块总览.md) | 模块总览与索引 |
+| [`game/modules/01-资源与燃料系统.md`](./game/modules/01-资源与燃料系统.md) | 氦-3 资源与燃料 |
+| [`game/modules/02-航线与飞船系统.md`](./game/modules/02-航线与飞船系统.md) | 航线绘制与飞船 |
+| [`game/modules/03-聚能环系统.md`](./game/modules/03-聚能环系统.md) | 聚能环研究与建设流 |
+| [`game/modules/04-人类种族延续度.md`](./game/modules/04-人类种族延续度.md) | 延续度 / 堆心温度 |
+| [`game/modules/05-科技升级系统.md`](./game/modules/05-科技升级系统.md) | 四条研究线 |
+| [`game/modules/06-引力弹弓窗口.md`](./game/modules/06-引力弹弓窗口.md) | 引力窗口增益 |
+| [`game/modules/07-极寒停航与补给站.md`](./game/modules/07-极寒停航与补给站.md) | 耀斑 / 停航 / 护盾 |
+| [`game/modules/08-三幕进程系统.md`](./game/modules/08-三幕进程系统.md) | 三幕推进条件 |
+| [`game/modules/09-胜负与结算.md`](./game/modules/09-胜负与结算.md) | 胜负判定与结算 |
+| [`game/modules/10-UI与美术方向.md`](./game/modules/10-UI与美术方向.md) | UI 布局与配色 |
+| [`game/modules/11-特殊建筑系统.md`](./game/modules/11-特殊建筑系统.md) | 中转站 / 护盾 / 船坞 |
+
+---
+
+## 6. Harness 模块（DSH 内核集成，9 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -121,7 +144,7 @@
 | [`harness/dsh_data_flywheel_plan.md`](./harness/dsh_data_flywheel_plan.md) | 数据飞轮实施计划：知识（ds-memory）/ 反馈（ds-feedback）/ 行为（ds-experience）三层 |
 | [`harness/dsh_data_flywheel_test_cases.md`](./harness/dsh_data_flywheel_test_cases.md) | 数据飞轮测试用例集：KM / RL / SQ / EXP / SP / M 编号体系与手动用例 |
 
-## 6. 测试模块（4 篇）
+## 7. 测试模块（4 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -132,13 +155,13 @@
 
 ---
 
-## 7. 元文档（1 篇）
+## 8. 元文档（1 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`doc_maintenance.md`](./doc_maintenance.md) | **文档维护作业规范**：体系归属 / 四类维护作业 / 断链巡检脚本 / 维护踩坑清单（智能体与人共用） |
 
-## 8. 开发方案（doc/dev/，1 篇）
+## 9. 开发方案（doc/dev/，1 篇）
 
 > 落盘待实施的设计方案，实施完成后内容应随代码现状更新或归档。
 
@@ -150,12 +173,12 @@
 
 ## 统计
 
-7 个模块共 **59 篇功能文档 + 1 篇元文档 + 1 篇开发方案**：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。
+9 个模块共 **74 篇文档**（含元文档 1 + 开发方案 1）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / 游戏设计 14 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。`doc/` 下共 **75 个 `.md`**（含本索引）。
 
-> **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**（dashboard_panel_system.md 新建时即按新范式编写，累计 48 篇）——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
+> **范式状态**：2026-09-03 完成一次全量范式改造（覆盖当时的 48 篇，编辑器 15 / 引擎 13 / 项目 5 / Harness 9 / 测试 3 / 总览 1 等）；此后文档增至 75 篇，新增的 `doc/game/`（14 篇设计文档，沿用设计文档结构）等未纳入新范式。2026-09-10 只做了事实与索引核对（修正失真表述、补齐索引与统计），**未重新做全量范式审计**；断链 0、孤儿 0（实测）。
 >
-> 本次改造相对旧体系的三处结构性变更：
+> 2026-09-03 改造相对旧体系的三处结构性变更（历史记录）：
 >
 > 1. **拆分**：`engine/input_physics_script_system.md`（一篇塞输入/物理/脚本三个系统）拆为 `input_system.md` / `physics_system.md` / `script_system.md` 三篇独立文档。
 > 2. **归位**：`engine/muzzle_flash_component.md` 描述的组件实际位于 `src/projects/fish/`，按「文档落点由源码目录决定」的归属铁律移入 `projects/`。
-> 3. **升级**：其余 29 篇旧范式文档（概述 → 核心类表格 → 使用方法 …）全部按新范式整体重写，重写过程逐篇重读源码核对，纠正了一批沿袭多年的事实错误（详见 [`doc_maintenance.md`](./doc_maintenance.md) §5）。
+> 3. **升级**：其余旧范式文档（概述 → 核心类表格 → 使用方法 …）全部按新范式整体重写，重写过程逐篇重读源码核对，纠正了一批沿袭多年的事实错误（详见 [`doc_maintenance.md`](./doc_maintenance.md) §5）。

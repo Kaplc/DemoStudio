@@ -19,7 +19,7 @@
 
 **关键心智模型**：SelectionManager **只管"选中了谁 + 该显示哪个 gizmo"**，它**不负责提交**。拖拽过程中只改内存里的 Object3D 变换，松手由**调用方**（Viewport / BlueprintEditor / 各预览管理器）决定怎么提交。所以"拖完属性没保存"永远是调用方的问题，不是 gizmo 的问题。
 
-第二个反直觉点：全局 `getTransformGizmo()` / `getAnchorGizmo()` / `getSelectionBoundsGizmo()` 是**单例**，但 `UIPreviewManager` 和 `RuntimeUIEditor` **各自 new 了自己的实例**（`UIPreviewManager.ts:218`、`RuntimeUIEditor.ts:134`），不复用全局单例。改全局单例的行为不会影响这两个页签。
+第二个反直觉点：全局 `getTransformGizmo()` / `getAnchorGizmo()` / `getSelectionBoundsGizmo()` 是**单例**，但 `UIPreviewManager` 和 `RuntimeUIEditor` 各自 new 了自己的 gizmo：`UIPreviewManager` new 的是 `TransformGizmo` 与 `AnchorGizmo`（`UIPreviewManager.ts:237`、`:241`），`RuntimeUIEditor` new 的是 `AnchorGizmo` 与 `SelectionBoundsGizmo`（`RuntimeUIEditor.ts:134`、`:138`），都不复用全局单例。改全局单例的行为不会影响这两个页签。
 
 ---
 
@@ -510,11 +510,11 @@ Viewport（Scene 页签）的 3D 拖拽**没有提交步骤**——它拖的是�
 
 **7. UI gizmo 必须挂独立 overlay Scene，不能挂游戏 UI 场景**
 
-`SelectionManager.ts:45` 的注释：挂进 `world.ui.scene` 会被 `World.Destroy` 的泄漏检测当成"未被 Actor 跟踪的 THREE 对象"告警。所以全局两个 UI gizmo 常驻 `_runtimeUiOverlayScene`，由 Viewport 经 `SceneRendererComponent.onAfterRender` 用 UICamera 叠加渲染。`attachAnchorGizmoToScene(scene)` 的 `scene` 参数**已无实际作用**，只有传 null 时触发 detach。
+`SelectionManager.ts:45` 的注释：挂进 `world.ui.scene` 会被 `World.Destroy` 的泄漏检测当成"未被 Actor 跟踪的 THREE 对象"告警。所以全局两个 UI gizmo 常驻 `_runtimeUiOverlayScene`。注意「由 Viewport 经 `SceneRendererComponent.onAfterRender` 用 UICamera 叠加渲染」只是源码注释描述的设计意图——**当前 Game 视口并没有渲染这一层**（`getRuntimeUIOverlayScene` 除定义与导出外无消费方，详见 [视口系统 §4.1](./viewport_system.md)），运行时选中 UI 节点在 Game 视口看不到锚点框。`attachAnchorGizmoToScene(scene)` 的 `scene` 参数**已无实际作用**，只有传 null 时触发 detach。
 
 **8. 全局单例与预览管理器的实例是两套**
 
-`UIPreviewManager.ts:218` 自己 `new TransformGizmo()`（挂自己的 `overlayScene`），`UIPreviewManager.ts:222` / `RuntimeUIEditor.ts:135` 各自 `new AnchorGizmo()`，`RuntimeUIEditor.ts:138` 自己 `new SelectionBoundsGizmo()`——都不复用 `getTransformGizmo()` / `getAnchorGizmo()` / `getSelectionBoundsGizmo()` 全局单例。改了全局单例的构造参数或默认行为，UI 预览与 UIScene 页签**不会**跟着变。
+`UIPreviewManager.ts:237` 自己 `new TransformGizmo()`（挂自己的 `overlayScene`），`:241` 自己 `new AnchorGizmo()`；`RuntimeUIEditor.ts:134` 自己 `new AnchorGizmo()`，`:138` 自己 `new SelectionBoundsGizmo()`——都不复用 `getTransformGizmo()` / `getAnchorGizmo()` / `getSelectionBoundsGizmo()` 全局单例。改了全局单例的构造参数或默认行为，UI 预览与 UIScene 页签**不会**跟着变。
 
 **9. `RuntimeUIEditor.syncSelection` 故意不调 `select()`**
 

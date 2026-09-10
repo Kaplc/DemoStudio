@@ -220,11 +220,14 @@ private handleMuxFrame(frame: unknown): void {
     }
     return
   }
-  // ... question/resolved、approval/requested、approval/resolved、session/event、session/subscribed
+  // ... question/resolved、approval/requested、approval/resolved、session/event、
+  //     session/projection、session/subscribed
 }
 ```
 
 `method = f.method || f.type` 这个 fallback 是因为帧有两套形状（外层 `server-request` 信封 vs 原始帧），`payload = f.payload || f` 同理。
+
+**`session/projection` 分支（投影实时推送）**：DSH host 在投影（`title`/`sessionStats` 等）变化时主动推 `{ type: 'session/projection', sessionId, key, value, seq }` 帧——这是 DSH WebUI 会话标题实时刷新的同一机制。编辑器侧把它合并进会话列表缓存并广播 `sessionsUpdated` 事件：`mergeProjectionFrame`（纯函数）按 `${sessionId}:${key}` 记 seq 水位做 last-wins 去重（`seq <= 水位` 的帧丢弃，对齐 WebUI `projectionStore.apply`）；会话不在缓存（blank→listed 过渡）或未跟踪键走 300ms 防抖 `listSessions()` 全量刷新。`session/subscribed` 分支同时做水位截断（对齐 WebUI `projectionStore.truncate`）：agent 重启后基线回退，高于 `lastSeq` 的本地水位不可信，丢弃后防抖全量重种。
 
 **每个分支都先比 `sessionId !== this.sessionId` 再 return**——mux 是整个连接的**多路复用**流，会把同一 DSH 上其他会话的 pending 帧一起推过来（编辑器内嵌面板和独立窗口共享 :3080）。少了这道判断，A 会话会渲染出 B 会话的问答卡片。
 
@@ -280,7 +283,7 @@ private consumeSessionEvent(event: DshEvent): boolean {
 | `step/end` | `flushAssistant(false, undefined, seq)` → emit(`stepEnd`) | 没有工具的普通 step 也要在边界显示完整消息 |
 | `assistant/chunk` | `text-delta` 累加进 `assistantBuf`；`reasoning-delta` 累加进 `reasoningBuf` 并 `scheduleReasoningEmit()` | 推理走 60ms 节流**全量**下发（不是增量），乱序/丢帧可自愈 |
 | `tool/call` | **先 `flushAssistant()`** → emit(`toolCall`)，记 `pendingTools` | 工具会把 assistant 段切开，不先提交则后续文本失去归属 |
-| `tool/result` | 从 `pendingTools` 取工具名配对 → emit(`toolResult`) | — |
+| `tool/result` | 从 `pendingTools` 取工具名配对 → emit(`toolResult`)；`extractDiffsFromMeta(d.meta)` 提取 write/edit 的已应用差异一并下发 | 差异数据入口见 §12 |
 | `user/message` | `source.kind !== 'user'` 时 emit(`context`) | 插件注入的上下文卡片；`surfaceOp !== 'append'` 与 `plugin === 'compact'` 跳过 |
 | `session.idle` | `flushAssistant(true)` → `setRunning(false)` | 旧版兼容 |
 
@@ -372,7 +375,7 @@ private persistSession(): void {
 }
 ```
 
-映射在四个时刻写：`connect()` 阶段 3 新建成功后、`switchSession()`、`createSession()`。读取失败（`try/catch` 包 `JSON.parse`）一律当无映射处理，回落到新建路径。
+映射在三个时刻写：`connect()` 阶段 3 新建成功后、`switchSession()`、`createSession()`。读取失败（`try/catch` 包 `JSON.parse`）一律当无映射处理，回落到新建路径。
 
 **注意 `port` 只是记录、不参与判定**——`readSavedSession()` 把 `port` 读出来了，但 `connect()` 阶段 2 里**没有任何代码比对 `saved.port` 与当前 `_agentPort`**。是否 recover 只看 `validateSession()` 能否在 `session.list` 里找到这个 id。agent 换了端口但会话还在，照样恢复。
 
@@ -723,7 +726,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `refreshSeqBaseline()` | AgentService.ts:460 | 把 `_lastSeq` 顶到服务端最新 | 失败不阻塞主流程；**切会话已不再单独调用**（随 §4.6 合并） |
 | `connectMux()` | AgentService.ts:620 | 建 mux 下行流（Electron IPC / 浏览器 WS） | 浏览器 WS 断线 3s 自动重连 |
 | `isMuxAlive()` | AgentService.ts:655 | Electron 模式**恒 true** | 决定轮询回路是否启动 |
-| `handleMuxFrame(frame)` | AgentService.ts:696 | mux 帧分派（question/approval/session.event/subscribed） | 每分支先比对 sessionId |
+| `handleMuxFrame(frame)` | AgentService.ts:696 | mux 帧分派（question/approval/session.event/projection/subscribed） | 每分支先比对 sessionId |
 | `consumeSessionEvent(ev)` | AgentService.ts:1090 | **三路汇合**：seq 去重后分发 | 返回是否为回合收尾 |
 | `handleSessionEvent(ev)` | AgentService.ts:1107 | 48 种事件类型分发 | `tool/call` 前必须 flush |
 | `flushAssistant(...)` | AgentService.ts:1059 | 提交 assistant 段为 `message` 事件 | 先发末次推理再提交 |
@@ -768,6 +771,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 |---|---|---|
 | `AgentPanel` 消息列表 | `onEvent(cb)` 订阅事件流；`message` / `reasoning.delta` / `turnStart` 驱动显示队列与打字机 | [UI 面板组件](../ui/ui_components_system.md) |
 | `SessionSidebar` | `listSessions()` 拉列表；切换/新建/删除全部回写 localStorage 映射；按 `updatedAt` 自动分组——超过 3 天的会话收进「3 天前的会话（N）」折叠组（默认收起，点击展开，`sessionGrouping.ts` 纯逻辑），当前会话与缺 `updatedAt` 的会话始终平铺在近期组 | [UI 面板组件](../ui/ui_components_system.md) |
+| `SessionTitle`（头部当前会话标题） | 头部左侧显示当前会话标题投影：`resolveSessionTitle` 纯函数解析——无会话回退「Agent」、blank 新会话或标题投影仍回退 sessionId 原文时显示「新会话」，其余显示标题原文；实时性由 `session/projection` 投影帧合并 → `sessionsUpdated` 事件驱动（§3.2），`turnEnd`/切换/连接时另有 `refreshSessions()` 全量对账 | [UI 面板组件](../ui/ui_components_system.md) |
 | `InputBox` | `isRunning()` 决定 send/steer 分流与 placeholder；停止按钮仅 running 时出现 | [UI 面板组件](../ui/ui_components_system.md) |
 | `ContextRing`（输入框进度圈） | `contextPressure` 事件驱动；分子分母任一缺失不出环（§4.5） | [UI 面板组件](../ui/ui_components_system.md) |
 | `QuestionCard` / `ApprovalCard` | `question/requested`、`approval/requested` 渲染交互卡，回答经 `answerQuestion(rpcId)` 回传 | [UI 面板组件](../ui/ui_components_system.md) |
@@ -864,3 +868,97 @@ const handleRestartAgent = useCallback(async () => {
 | Electron 独立窗口 | `agent.html` → `agent-main.tsx`，只挂 `AgentPanel`，不初始化引擎 | 与内嵌面板共享同一 :3080 与同一批会话 |
 | `answerQuestion` 的 rpcId 不在 pending | 打 warn 并返回 `false`，面板提示「回答提交失败」 | 通常已被 `question/resolved` 广播清掉 |
 | `seedPendingTurn` 遇 live 缓冲越过 fold 末尾 | 退化为文本拼接，warn「拼接采纳」，可能重复重叠段 | 搜这条 warn 可定位消息重复 |
+
+---
+
+## 11. 使用统计面板：Token 消耗统计（2026-09-10）
+
+头部「更多」(⋮) 下拉菜单 → 「使用统计」→ `UsageStatsPanel` 模态弹窗。布局对齐产品级用量统计页：五格统计行（累计 Token / 单日峰值 / 累计回合 / 当前连续天数 / 最长连续天数）+ 近 38 周 Token 活动热力图（12px 固定格，`HEATMAP_WEEKS` 常量与月份标签 grid 同源）+ 近 7 日 / 近 30 日切换的每日 Token 趋势图（输入侧 / 输出侧两条折线）。
+
+### 11.1 数据从哪来：一次 session.list，零日志加载
+
+```
+UsageStatsPanel 挂载
+  → agentService.listSessionUsage()           // AgentService.ts，一次 session.list RPC
+    → 每行取 projections.values.tokenUsage / sessionStats / title
+    → 过滤：blank 会话、零用量会话、本地删除黑名单
+  → usageStats.ts 纯函数聚合（框架无关，vitest 全分支覆盖）
+```
+
+关键点：DSH 的 `tokenUsage` 投影（`@deepseek-ai/dsh-token-meter`）本身就是**整日志累计值**（`uncachedInputTokens / outputTokens / cacheReadTokens / cacheWriteTokens` 四桶互斥），由 host 端投影注册表的 watermark 缓存随 `session.list` 行携带——不用翻任何一条历史事件，278+ 会话也是一次 RPC。
+
+### 11.2 按日分桶的口径与近似
+
+`usageStats.buildDailyUsage` 把每个会话的全部用量归到其 `updatedAt` 的**本地日期**（活跃日归属）。这是有意的近似：DSH 投影不携带逐事件时间分布，逐事件分桶需对全部会话全量拉历史，不可承受。长会话跨天时历史 token 会整体记在最后活跃日——面板上有口径说明文案，别把这当 bug 修。
+
+连续天数：`computeStreaks` 基于从最早活跃日到今天的连续日序列；今天未活跃时宽限跳过一天从昨天起算（GitHub/Duolingo 同惯例）。热力图强度按单日最大值的四分位分 0-4 档（`heatmapLevel`）。
+
+### 11.3 改动时注意
+
+- **新文件**：`src/components/agent/usageStats.ts`（纯函数）/ `UsageStatsPanel.tsx`（组件）；入口接线在 `AgentPanel` 头部下拉（`showUsageStats` 状态）。样式在 `src/styles/editor.css` 的 `usage-stats-*` 区段。
+- **面板是条件渲染**（`{showUsageStats && <UsageStatsPanel/>}`），每次打开重新拉数——不要改成常驻 `visible` prop 模式，否则数据陈旧。
+- **测试分工**：纯函数与组件分支在 `tests/usageStats.test.tsx`（mock 掉 AgentService）；真实链路在 `tests/e2e/agent/usage-stats.spec.ts`（期望值用页面内同源 `fetch('/api/session.list')` 现场推导，不硬编码）。
+- e2e 的 DSH 探测要带重试：Vite 代理首访预热可能超 3s，`isDshAlive` 现为 5s 超时 + 2 次尝试。
+
+---
+
+## 12. 工具卡片 diff 视图：write/edit 卡片（2026-09-10）
+
+agent 面板里 write/edit 工具卡片**默认自动展开**，展开体不是 JSON 参数而是 diff 视图：文件路径行 + 带行号的 ctx/del/add 行（del 红底红号带 `-`、add 绿底绿号带 `+`、ctx 白号）、hover 右上角复制按钮。失败调用与非文件工具回退原来的「输入/输出」JSON 视图。
+
+### 12.1 数据从哪来：两路，权威路优先
+
+```
+工具调用中（无 result）        settle 后（有 result）
+deriveDiffsFromArgs(name,args)          d.meta.diffs（DSH 已应用 hunk）
+   ↑ 入参派生"将要做的修改"                 ↑ write/edit 的 presentResult 产物
+   edit → {old_string,new_string}          computeHunkDiffs 用 structuredPatch(context:3)
+   write → {content}（整文件全 add）        产出 [{path,oldText,newText}]，**带 3 行上下文**
+```
+
+权威路才是"真正落到文件里的修改"（入参可能与实际不一致：工具报错、旧串不唯一、同文件多次编辑），所以 `ToolCard` 的取值是：
+
+```ts
+const diffs = tool.diffs?.length ? tool.diffs
+  : (tool.status === 'running' || tool.status === 'pending') ? deriveDiffsFromArgs(tool.name, tool.args)
+  : null   // 失败/无 diffs（旧会话回放）→ 通用 JSON 视图
+```
+
+`tool.diffs` 的入口是 `AgentService.extractDiffsFromMeta(meta)`（模块级纯函数，防御式收窄，对齐 DSH `dsh-tool-fs` 的 `diffsFromMeta`）：形状不符整表拒绝返回 `undefined`，宁可回退通用卡片也不渲染半份 diff。**实时路径（`handleSessionEvent` 的 `tool/result`）与历史 fold 路径（`loadHistory`）都要接**——两处都已接，漏一处就是"实时有、切会话后没了"。
+
+### 12.2 行对齐：前缀/后缀切分而不是 LCS
+
+`toolDiff.alignDiffRows` 不引入 diff 库：把 hunk 的 `oldText`/`newText` 按数组行做**公共前缀 + 公共后缀**切分，中段 old 侧全 `del`、new 侧全 `add`：
+
+```
+oldText: a b c OLD d e f      →  rows: ctx a@6 ctx b@7 ctx c@8
+newText: a b c NEW d e f               del OLD@9
+    前缀=3 后缀=3                       add NEW@9     ← 单 gutter：del 显旧号、add 显新号
+                                       ctx d@10 ctx e@11 ctx f@12
+```
+
+够用且确定性好：DSH 给的 hunk 只有一处连续改动（context=3），前缀/后缀切分与 LCS 结果一致；代价是中段有多个分散改动时会显示为"先全删后全加"，不追求逐行配对。
+
+### 12.3 绝对行号：读文件锚定，失败回退 1
+
+hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/newStart`），所以 `resolveDiffStartLines` 展开时异步读当前文件（`window.electronAPI.readTextFile`），用锚点文本定位：
+
+- 锚点 = `newText`（纯删除时退回 `oldText`），按路径缓存文件内容、同文件多 hunk 用**游标顺序推进**（否则重复内容全命中第一处）；
+- 读到的文件是 CRLF、DSH diff 基线是 LF → 定位前统一 `\r\n → \n` 归一；
+- 任一环失败（无 electronAPI / 读不到 / 内容已被后续编辑覆盖）→ 该 hunk 无行号，渲染回退 1 起始。**这是 best-effort 装饰，不要让它阻塞渲染**。
+
+### 12.4 三条验收行为（改这块别再改回去）
+
+| 行为 | 决策 | 锁定它的测试 |
+|---|---|---|
+| 默认展开 | edit/write 卡片 `useState(() => isDiffToolName(tool.name))`，点击头部仍可收起 | `tests/toolCardDiff.test.tsx` 收起/再展开用例 |
+| 不折叠 | 长 diff 全量渲染，**没有**「其余 N 行」折叠（DSH WebUI 默认折 16 行，这里按用户要求去掉） | 同上「30 行直接全部渲染」用例 |
+| 行号配色 | ctx 白（`label-primary`）、del 红（`state-error-primary` + `-`）、add 绿（`state-success-primary` + `+`） | `tests/e2e/agent/tool-card-diff.spec.ts` 断言 computedStyle 精确 RGB |
+
+### 12.5 文件与测试分工
+
+- 纯函数：`src/components/agent/toolDiff.ts`（`isDiffToolName` / `deriveDiffsFromArgs` / `alignDiffRows` / `buildDiffRows` / `formatDiffRowsForCopy` / `resolveDiffStartLines`）→ `tests/toolDiff.test.ts` 全分支。
+- 组件：`src/components/agent/ToolCard.tsx`（`DiffBody`）→ `tests/toolCardDiff.test.tsx`（自动展开/回退/复制/行号锚定）。
+- 数据入口：`src/editor/AgentService.ts` 的 `extractDiffsFromMeta` → `tests/extractDiffsFromMeta.test.ts`。
+- 真实链路：`tests/e2e/agent/tool-card-diff.spec.ts`——**用 `addInitScript` 把 `/api/*` 的 fetch 换成合成 RPC**（`session.list` / `session.history` 返回带 `meta.diffs` 的合成事件），因此不依赖 DSH 真身、无副作用；行号锚定的 `readTextFile` 也由页面内 stub 提供。这个"合成历史 + localStorage 命中恢复路径"的存根模式可复用到任何需要渲染既有转录的面板用例。
+- 样式：`src/styles/editor.css` 的 `.tool-diff*` 区段（在 `.tool-card__details` 之后）。

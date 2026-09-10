@@ -268,7 +268,7 @@ dsh web --dump-config | grep ds-memory
 
 > grep 到说明 patch 行进树且包名可解析；再到新会话问 agent "你有 memory_write 工具吗"，答 YES 才算 `apply` 真跑过。
 >
-> **注意**：当前本机 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml` 内容是 `[]`，且 9 个插件 `dist/` 均未构建——这套挂载在本机**尚未激活**，直接跑上面三条检查会全部落空，先执行 `mount_plugin` 重建。
+> **本机现状（2026-09-10 实测）**：这套挂载**已激活**——8 个插件的 `dist/index.js` 全部存在；`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/` 各有 8 个 junction 指向 `harness/<插件>`；两 profile 的 `cordis.patch.yml`（含 8 条 `insert` + `session-query-sqlite` 覆盖）与根级 `~/.dsh/cordis.patch.yml`（`agent-presets` roots）均由 `editor.bat` 生成写入。上面三条检查可直接跑；换机器/新 clone 时由 `editor.bat` 自动重建（编译 → junction → patch），也可手动 `mount_plugin`。
 
 **内核起不来时的第一现场**：`logs/dsh-agent.log`（路径由 [electron/main.ts:514](../../electron/main.ts) `path.join(LOG_DIR, 'dsh-agent.log')` 指定）。插件加载失败、boot 降级（degraded）都先看它。
 
@@ -339,7 +339,7 @@ dsh web --dump-config | grep ds-memory
 
 **13. 往 `dsh.profile.bundles` 里加非 bundle 包，boot 抛 `declares no dsh.bundle in its package.json`** —— bundles 只接受声明了 `dsh.bundle` 的包（如 `@deepseek-ai/dsh-base`）。规则：**自研插件一律用 insert 行挂载，不进 bundles**；且 `harness/profile/` 不是运行时生效配置，实际运行时读的是 `~/.dsh`。
 
-**14. 换机器 clone 项目后 `.dsh/memory/` 只剩 `.gitkeep`** —— 记忆文件曾未被 git 跟踪，MEMORY.md 索引会重建但正文丢失。规则：迁移前 `git add .dsh/memory/` 提交，或整目录拷贝。当前仓库该目录 17 个文件**已在跟踪中**，但新增记忆文件仍需 `git add`。
+**14. 换机器 clone 项目后 `.dsh/memory/` 只剩 `.gitkeep`** —— 记忆文件曾未被 git 跟踪，MEMORY.md 索引会重建但正文丢失。规则：迁移前 `git add .dsh/memory/` 提交，或整目录拷贝。当前仓库该目录 21 个 `.md`（含 MEMORY.md 索引；2026-09-10 实测）**已在跟踪中**，但新增记忆文件仍需 `git add`。
 
 ---
 
@@ -353,5 +353,5 @@ dsh web --dump-config | grep ds-memory
 | web profile 改动 | `patchReload: live` 热重挂 | 无需重启，但多实例共用 home 会连带重挂 |
 | headless profile 改动 | 无热重载，下次启动才生效 | 重启内核；异步副作用需挂起定时器维持事件循环 |
 | mount 传入 `harness/` 之外的目录 | 工具返回 `安全限制：只能操作 harness/ 目录下的插件` | 传 `harness/ds-<短名>` 或 `harness/` 下的绝对路径 |
-| 换机器 / 新 clone | junction 与 patch 行在 `%USERPROFILE%` 不随项目走；ds-sync 镜像也跳过 `node_modules`（含 junction）、`.git`、`dist` | 用 `mount_plugin` 重建两处 junction + 两处 patch |
+| 换机器 / 新 clone | junction 与 patch 行在 `%USERPROFILE%` 不随项目走；ds-sync 镜像也跳过 `node_modules`（含 junction）、`.git`、`dist` | 重跑 `editor.bat` 自动重建，或用 `mount_plugin` 重建两处 junction + 两处 patch |
 | 项目 `.dsh/` 与 home `~/.dsh/` 内容不一致 | 项目侧是 ds-sync 的**同步镜像**，运行时生效的是 home 侧 | 改挂载改 home 侧；项目侧由 ds-sync 启动时镜像 |

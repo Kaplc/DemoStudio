@@ -24,7 +24,7 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage, SessionsUpdatedPayload, FileDiff } from '../types/agent'
 import { IMAGE_MEDIA_TYPES } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
@@ -34,6 +34,8 @@ import { SettingsPanel } from './agent/SettingsPanel'
 import { KernelUpdateModal } from './agent/KernelUpdateModal'
 import { SkillManager } from './agent/SkillManager'
 import { FileManager } from './agent/FileManager'
+import { SessionTitle } from './agent/SessionTitle'
+import { UsageStatsPanel } from './agent/UsageStatsPanel'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -183,6 +185,8 @@ export const AgentPanel: React.FC = () => {
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [showMemoryManager, setShowMemoryManager] = useState(false)
   const [showExperienceManager, setShowExperienceManager] = useState(false)
+  // Token 消耗统计弹窗（头部「更多」下拉菜单入口）
+  const [showUsageStats, setShowUsageStats] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
@@ -417,6 +421,7 @@ export const AgentPanel: React.FC = () => {
         case 'turnEnd': {
           console.log(`[${logTime()}] [AgentPanel] AI 回合结束: reason=${(event.payload as any)?.reason?.kind || 'unknown'}`)
           setIsAgentRunning(false) // turn 结束，AI 不再运行
+          void refreshSessions() // 回合结束刷新会话列表：标题/统计投影可能已更新（头部标题与侧边栏保持新鲜）
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
             // 非正常结束的回合显示系统消息
@@ -599,6 +604,14 @@ export const AgentPanel: React.FC = () => {
             pushSystem('已连接到 DSH Agent')
           }
           refreshSessions()
+          break
+        }
+
+        case 'sessionsUpdated': {
+          // 会话列表实时推送（session/projection 投影帧合并 / 防抖全量刷新的结果）：
+          // 直接采纳，头部标题与侧边栏不再依赖重开面板才刷新
+          const list = (event.payload as SessionsUpdatedPayload | undefined)?.sessions
+          if (list) setSessions(list)
           break
         }
 
@@ -1107,6 +1120,8 @@ export const AgentPanel: React.FC = () => {
     name: string
     result: unknown
     status: 'success' | 'failure'
+    /** write/edit 工具的已应用差异 hunk（result meta 携带，展开卡片渲染 diff 视图） */
+    diffs?: FileDiff[]
   }) => {
     console.log(`[${logTime()}]`, '[AgentPanel] toolResult, tool:', payload.name, 'status:', payload.status)
     const previous = pendingToolStatesRef.current.get(payload.id)
@@ -1117,6 +1132,7 @@ export const AgentPanel: React.FC = () => {
       result: payload.result,
       status: payload.status,
       error: previous?.error,
+      diffs: payload.diffs,
     })
     setMessages((cur) => {
       const idx = cur.findIndex((m) => m.role === 'tool' && m.tool?.id === payload.id)
@@ -1129,7 +1145,8 @@ export const AgentPanel: React.FC = () => {
           id: payload.id,
           name: payload.name,
           result: payload.result,
-          status: payload.status
+          status: payload.status,
+          diffs: payload.diffs
         }
       }
       return next
@@ -1876,7 +1893,10 @@ export const AgentPanel: React.FC = () => {
             onRestart={handleRestartAgent}
             dotOnly
           />
-          <span className="agent-panel__title">Agent</span>
+          <SessionTitle
+            sessionId={agentService.getSessionId() || undefined}
+            sessions={sessions}
+          />
         </div>
 
         <div className="agent-panel__header-right">
@@ -1941,6 +1961,12 @@ export const AgentPanel: React.FC = () => {
                 </button>
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowUsageStats(true) }}
+                >
+                  <span>使用统计</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
                 >
                   <span>供应商设置</span>
@@ -1999,6 +2025,11 @@ export const AgentPanel: React.FC = () => {
         visible={showExperienceManager}
         onClose={() => setShowExperienceManager(false)}
       />
+
+      {/* Token 消耗统计弹窗 */}
+      {showUsageStats && (
+        <UsageStatsPanel onClose={() => setShowUsageStats(false)} />
+      )}
 
       {/* DSH 内核更新浮动窗口 */}
       {showKernelUpdate && (

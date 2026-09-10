@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   MAX_ASSOCIATE_TOTAL_CHARS,
+  buildAssociateSummary,
   composeExperienceAssociateMessage,
   deriveExperienceProjectRoot,
   evalPrefixGroups,
@@ -164,6 +165,22 @@ describe('composeExperienceAssociateMessage', () => {
     expect(composed.included).toEqual(['exp_one.md'])
     expect(composed.omitted).toBe(1)
     expect(composed.text).toContain('其余 1 条匹配经验超出单次注入字符上限')
+  })
+})
+
+describe('buildAssociateSummary（注入卡片摘要：条数 + 逐行文件名）', () => {
+  it('首行条数，随后每行一个实际装入的经验文件名', () => {
+    expect(buildAssociateSummary(['fix_junction_mount.md', 'scan_assets.md'], 0))
+      .toBe('自动联想经验 2 条\nfix_junction_mount.md\nscan_assets.md')
+  })
+
+  it('超预算截断时首行附 omitted 数', () => {
+    expect(buildAssociateSummary(['newest.md'], 2))
+      .toBe('自动联想经验 1 条（另有 2 条超出预算未加载）\nnewest.md')
+  })
+
+  it('空装入列表返回仅条数行', () => {
+    expect(buildAssociateSummary([], 0)).toBe('自动联想经验 0 条')
   })
 })
 

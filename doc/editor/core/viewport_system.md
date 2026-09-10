@@ -162,7 +162,7 @@ this.uiLayer.remove()
 | 创建时机 | `setupScene` 时，一次 | 每次 `Game.launch()`，经 `World.ensureGameRenderer()` |
 | 生命周期 | 跟随编辑器，永不销毁 | 启动创建、停止 `dispose` |
 | 相机来源 | **自己创建并持有**（`createCamera`） | **每帧从游戏委托取**（`setCameraProvider`） |
-| 控制模式 | `fly`（左键转视角、右键平移、滚轮推拉）+ WASD | OrbitControls，但 `enableRotate/Pan/Zoom` 全关、`enabled = false` |
+| 控制模式 | `fly`（左键转视角、右键平移、滚轮推拉）+ WASD | 无交互控件，相机完全由游戏驱动（`setControlsEnabled` 为空实现） |
 | 渲染的场景 | `viewScene`（默认共享场景；运行时切为游戏场景**只读**） | `world.scene`（游戏自建场景） |
 | 输入去向 | WASD → 相机位移；指针 → TransformGizmo | 键鼠 → `GameInstance.inputSys` |
 
@@ -175,24 +175,15 @@ setCameraProvider(
   provider: (() => THREE.PerspectiveCamera | THREE.OrthographicCamera | null) | null,
 ): void {
   this.cameraProvider = provider
+  // 立即取一次相机（每帧 animate 循环也会重新取）
   this.camera = provider ? provider() : null
-  if (this.controls) {
-    this.controls.dispose()
-    this.controls = null
-  }
-  if (this.camera) {
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableRotate = false
-    this.controls.enablePan = false
-    this.controls.enableZoom = false
-    this.controls.enableDamping = false
-    this.controls.enabled = false
-  }
+  // 勿给游戏相机挂 OrbitControls：其构造/每帧 update 会把相机重定向到 target
+  // （默认世界原点），覆盖游戏相机自己的姿态（如俯瞰/跟随相机）
   this.resize()
 }
 ```
 
-`Game.launch()` 里注册的是 `() => inst.getActiveCamera()`。既然相机完全由游戏控制，为何还要建 OrbitControls？只为保留 `controls` 引用与 `resetView()` 能力，所有交互开关都关掉了——**Game 视口不接受手动相机操作**。
+`Game.launch()` 里注册的是 `() => inst.getActiveCamera()`。**Game 视口不挂任何交互控件、不接受手动相机操作**——源码注释明确写了「勿给游戏相机挂 OrbitControls」（其构造/每帧 `update` 会把相机重定向到 target，覆盖游戏相机自己的姿态），`setControlsEnabled()` 也只是个空实现。相机的移动/旋转完全由游戏逻辑驱动。
 
 ### 3.2 Scene 视口在游戏运行时改看游戏场景
 
@@ -667,7 +658,7 @@ private restoreAllTextures() {
 | `handleGameMouseDown(e, game, gameMgr, out)` | `GameViewport.ts:89` | 转世界坐标 → `inputSys.handlePointerDown` | 透传 `e.button`（0=左，2=右） |
 | `clientToWorld(...)` | `GameViewport.ts:139` | Game 侧坐标转换封装 | `gameMgr` 为 null 时原样返回传入缓冲 |
 | `handleKeyDown(e, ctx)` | `InputRouter.ts:33` | 按 `activeTabId` 分流键盘 | 非 scene/game 返回 `false` 不消费 |
-| `SceneRendererComponent.setCameraProvider(fn)` | `SceneRendererComponent.ts:51` | 注册相机委托，每帧取游戏主相机 | 相机非自己创建；OrbitControls 全禁用 |
+| `SceneRendererComponent.setCameraProvider(fn)` | `SceneRendererComponent.ts:51` | 注册相机委托，每帧取游戏主相机 | 相机非自己创建；**不挂 OrbitControls**，姿态完全由游戏决定 |
 | `SceneRendererComponent.attachUIScene(scene)` | `SceneRendererComponent.ts:373` | 挂载 UI 独立场景并建 `UICamera` | 传 `null` 即分离并终态化 |
 | `SceneRendererComponent.clientToWorld()` | `SceneRendererComponent.ts:503` | Game 侧屏幕→世界 | 相机为 null 时 `out` 保原值 |
 | `addDefaultContent(scene)` | `SceneDefaults.ts:28` | 四盏 Actor 化灯 + GridHelper，挂 `Default` 容器 | 编辑器正式路径，与 `setupLighting` 二选一 |

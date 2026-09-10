@@ -324,16 +324,23 @@ export class LightComponent extends Component<Actor> {
     super.EndPlay()
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。可编辑键（camelCase）与 getEditableProperties() 精确匹配
+   * 渲染编辑控件；lightPosition 为只读信息行（跟随 Actor 变换，无对应可编辑属性）。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Type: this._lightType,
-      Color: `#${this.color.getHexString()}`,
-      Intensity: Math.round(this.intensity * 100) / 100,
-      'Cast Shadow': this._castShadow,
-      'Shadow Extent': this.shadowExtent || '默认(±5)',
-      'Shadow MapSize': this.shadowMapSize || '默认(512)',
-      Position: `[${this.lightPosition.map((n) => Math.round(n * 100) / 100).join(', ')}]`,
+      type: this._lightType,
+      color: `#${this.color.getHexString()}`,
+      intensity: Math.round(this.intensity * 100) / 100,
+      castShadow: this._castShadow,
+      shadowExtent: this.shadowExtent,
+      shadowMapSize: this.shadowMapSize,
+      lightPosition: `[${this.lightPosition.map((n) => Math.round(n * 100) / 100).join(', ')}]`,
+      targetPosition: this.targetPosition,
+      shadowBias: this.shadowBias,
+      shadowNormalBias: this.shadowNormalBias,
+      shadowRadius: this.shadowRadius,
     }
   }
 

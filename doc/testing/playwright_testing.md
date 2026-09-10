@@ -107,7 +107,7 @@ const ok = await page.evaluate(async () => {
 await page.evaluate(() => document.body.innerText)
 ```
 
-> **为什么 `name` 是类名**：`ai.getActor`（`registerBuiltinAIHandlers.ts:475`）返回的 `name` 是构造类名（如 `Actor`/`GenericActor`），不是资产节点名。要断言真实节点名就切「UI 大纲」页签读 DOM——接口设计如此，不是 bug。
+> **`name` 与 `type` 的区别**：`ai.getActor`（`registerBuiltinAIHandlers.ts:475`）返回的 `name` 是 Actor 构造时传入的名字（未显式命名时为默认值，如 `Actor`），与资产里的 UI 节点名是两回事；`type` 才是类名（`actor.constructor.name`）。要断言真实节点名就切「UI 大纲」页签读 DOM，或用 `ai.getSceneOutline`——接口设计如此，不是 bug。
 
 **判定优先级**：调试桥回执 `results[0].ok` > DOM 文本/属性 > 数值断言（手算相机/矩阵换算）> 截图。截图只在粗粒度确认「有没有渲染出东西」时用。
 
@@ -204,7 +204,7 @@ handleHotUpdate({ file }) {
 | `window.blueprintEditor.read/apply/dispatch` | `windowApi.ts:38` | 蓝图读/编辑/统一入口 | 幂等安装（`windowApi.ts:40`），HMR 后仍是同一实例 |
 | `ai.selectActor` / `ai.dragActor` | `EditorInitializer.ts:108` / `:142` | 编辑器侧按名选中/拖动 | 免坐标，等价 gizmo 操作 |
 | `ai.clickActor` | `registerBuiltinAIHandlers.ts:303` | 游戏运行时按 name/text/path 点击 | 递归查找，无需坐标 |
-| `ai.getActor` | `registerBuiltinAIHandlers.ts:475` | 查 Actor 详情 | 返回 `name` 是**类名**，别断言节点名 |
+| `ai.getActor` | `registerBuiltinAIHandlers.ts:475` | 查 Actor 详情 | 返回 `name` 是 **Actor 构造名**（未命名时为默认值），不是节点名；`type` 才是类名 |
 | `ai.getState` | `registerBuiltinAIHandlers.ts:278` | 查运行时状态 | 数据在 `results[0]` |
 | `ai.getSceneOutline` | `registerBuiltinAIHandlers.ts:788` | 查场景大纲 | 后台节流时会拿到陈旧结果 |
 | `registerBuiltinAIHandlers()` | `registerBuiltinAIHandlers.ts:139` | 注册引擎侧内置 AI 事件 | 经 `registry.ts:84` 由 `registerAllProjectModules` 调用 |
@@ -280,9 +280,9 @@ handleHotUpdate({ file }) {
 
 ① 不可见碰撞体射线打不中：`ClickableComponent.hitTest` **沿父链过滤 `visible=false` 目标**（THREE.Raycaster 本身不检查 visible）→ 不可见点击区必须保持 `visible` + `colorWrite:false` 材质，**禁用 `setVisible(false)`**。② 点击结果无日志可观察：`logger.debug` 不进控制台 → 断言用 `PhySys._pressedClickable`（命中者引用），测完 `sys.raycastRelease()` 清理。③ `__fishBattle.debugHit(sx,sy)` 只查 `_uiClickables`（UI 相机射线），**别用它断言 3D 命中**，世界层走 `PhySys` 单例。
 
-**11. `ai.getActor` 的 `name` 是类名 + 回执当真值恒真**
+**11. `ai.getActor` 的 `name` 不是节点名 + 回执当真值恒真**
 
-两条同源：返回的 `name` 是构造类名不是节点名；`emit` 失败也返回对象（error 在 `results[0].error`），`if (r)` **恒真**。规则：断言节点名切「UI 大纲」页签读 DOM；断言成功必须写成 `res?.results?.[0]?.ok === true`。
+两条同源：返回的 `name` 是 Actor 构造名（未显式命名时为默认值，如 `Actor`）不是节点名（类名在 `type`）；`emit` 失败也返回对象（error 在 `results[0].error`），`if (r)` **恒真**。规则：断言节点名切「UI 大纲」页签读 DOM，或用 `ai.getSceneOutline`；断言成功必须写成 `res?.results?.[0]?.ok === true`。
 
 **12. 浏览器实例收不到 MCP `ai_event`**
 
@@ -329,7 +329,7 @@ handleHotUpdate({ file }) {
 | 改资产 JSON / `.widget.html` | HMR 已被 `vite.config.ts:129` 挡掉，不触发重载 | 必须整页 reload 让 `import.meta.glob` 重新求值 |
 | 动态 `import('/src/...')` | 带 `?t=` 的裸 import 是独立实例 | 走 `window.__ai` / `window.blueprintEditor` |
 | 未注册 AI 事件 | `registerBuiltinAIHandlers` 在 `registerAllProjectModules`（`registry.ts:84`）内调用，随编辑器启动完成 | 事件不存在先查 `listEvents()` |
-| `ai.getActor` 返回的 `name` | 是类名不是节点名 | 切「UI 大纲」页签读真实树名 |
+| `ai.getActor` 返回的 `name` | 是 Actor 构造名（未显式命名时为默认值），不是 UI 树节点名；类名在 `type` | 切「UI 大纲」页签读真实树名，或用 `ai.getSceneOutline` |
 | `watchProjectAssets` / `onAssetChanged` | Mock 恒返 `{ ok: false }`、回调永不触发 | 资产热更新类结论回 Electron 验证 |
 | 游戏日志 / assetLint（浏览器） | 多次 Launch 不新建文件；assetLint 依赖 Electron 文件系统跑不了 | 用行为证据断言；资产结构用 node 脚本静态验证 |
 | `logs/console_*.log` 捕获 | HMR 后新模块输出绕过 console hook | 捕获不到不代表没打，直接读日志文件 |

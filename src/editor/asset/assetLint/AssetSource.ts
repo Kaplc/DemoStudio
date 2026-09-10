@@ -6,7 +6,7 @@
  * RegistryAssetSource（降级）：window.electronAPI 不存在时，遍历 AssetRegistry /
  *   BlueprintRegistry 内存态。抓不到 parse 失败文件，但能校验已加载资产。
  *
- * 两者都按扩展名过滤只收 *.scene.json / *.blueprint.json。
+ * 两者都按扩展名过滤只收 *.scene.json / *.blueprint.json / *.widget.json。
  */
 import { AssetRegistry, BlueprintRegistry } from '../../../engine'
 import type { AssetFile } from './types'
@@ -18,6 +18,12 @@ export interface AssetSource {
 
 /** 仅收场景/蓝图/widget 资产（按命名约定）。 */
 const ASSET_EXT_RE = /\.(scene|blueprint|widget)\.json$/i
+
+/** 从资产路径推导展示用扩展名标签（降级源无磁盘 ext 字段）。 */
+function extOf(path: string): string {
+  const m = /\.([a-z]+)\.json$/i.exec(path)
+  return m ? `.${m[1]}.json` : '.json'
+}
 
 function errMsg(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -68,11 +74,13 @@ class RegistryAssetSource implements AssetSource {
       }
     }
 
-    // 蓝图资产
+    // 蓝图资产（含 widget 编译产物——ui 目录下 .json 同样注册进 BlueprintRegistry；
+    // 旧实现把所有路径硬标 '.blueprint.json'，widget 资产因此脱离设计检查）
     for (const p of BlueprintRegistry.getRegisteredPaths()) {
+      if (!ASSET_EXT_RE.test(p)) continue
       const bp = BlueprintRegistry.get(p)
       if (bp) {
-        files.push({ path: p, ext: '.blueprint.json', ok: true, doc: bp })
+        files.push({ path: p, ext: extOf(p), ok: true, doc: bp })
       }
     }
 

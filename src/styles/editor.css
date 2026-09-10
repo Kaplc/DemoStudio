@@ -1696,11 +1696,15 @@ html, body, #root {
   left: auto;
   right: 0;
 }
+/* 头部当前会话标题：显示会话标题投影（未连接回退 Agent / 未命名回退 新会话） */
 .agent-panel__title {
   font: var(--dsw-font-xxs-strong);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   color: var(--dsw-alias-label-primary);
+  min-width: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .agent-panel__sidebar-btn {
   background: none;
@@ -1873,9 +1877,9 @@ html, body, #root {
 .agent-context-card__summary {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* pre-line：摘要可能带多行文件清单（联想记忆/经验文件名逐行一个），保留换行并允许折行 */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
   color: var(--dsw-alias-label-tertiary);
 }
 .agent-context-card__chevron {
@@ -2492,6 +2496,87 @@ html, body, #root {
   overflow: hidden;
   border: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-layer-2);
+}
+
+/* --- 工具卡片 diff 视图（write/edit 工具展开，对齐 DSH DiffBlock 风格）---
+   行号列配色（用户决策 2026-09-10）：ctx 白色、del 红色、add 绿色，del/add 行号带 +/- 前缀 */
+.tool-diff {
+  position: relative;
+  font: var(--dsw-font-code-block-small);
+}
+.tool-diff__body {
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.tool-diff__row {
+  display: flex;
+  align-items: baseline;
+  min-width: max-content;
+}
+.tool-diff__gutter {
+  flex: none;
+  min-width: 3em;
+  padding: 0 8px 0 10px;
+  text-align: right;
+  font-family: var(--dsw-font-family-code);
+  color: var(--dsw-alias-label-primary);
+  user-select: none;
+}
+.tool-diff__row--del .tool-diff__gutter {
+  color: var(--dsw-alias-state-error-primary);
+}
+.tool-diff__row--add .tool-diff__gutter {
+  color: var(--dsw-alias-state-success-primary);
+}
+.tool-diff__text {
+  font-family: var(--dsw-font-family-code);
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre;
+  padding-right: 12px;
+}
+.tool-diff__row--del {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
+}
+.tool-diff__row--del .tool-diff__text {
+  color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 75%, var(--dsw-alias-label-primary));
+}
+.tool-diff__row--add {
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+}
+.tool-diff__row--add .tool-diff__text {
+  color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 70%, var(--dsw-alias-label-primary));
+}
+.tool-diff__row--path {
+  padding: 3px 12px 1px;
+}
+.tool-diff__pathtext {
+  font-family: var(--dsw-font-family-code);
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  white-space: pre;
+}
+.tool-diff__row--gap .tool-diff__pathtext {
+  color: var(--dsw-alias-label-dimmed);
+}
+.tool-diff__copy {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 4px;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tool-diff:hover .tool-diff__copy { opacity: 1; }
+.tool-diff__copy:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 /* 推理块折叠动画 */
@@ -3946,6 +4031,265 @@ html, body, #root {
   font-size: 12px;
   color: var(--text-secondary);
   text-align: center;
+}
+
+/* ═══ UsageStatsPanel（Token 消耗统计弹窗）═══ */
+.usage-stats-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.usage-stats-modal {
+  width: 620px;
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  padding: 18px 20px 16px;
+}
+
+.usage-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.usage-stats-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.usage-stats-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.usage-stats-close:hover {
+  color: var(--text-primary);
+}
+
+/* 加载/错误/空态 */
+.usage-stats-state {
+  padding: 32px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.usage-stats-retry {
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.usage-stats-retry:hover {
+  background: var(--bg-hover);
+}
+
+/* 统计行：五格横排 */
+.usage-stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 4px;
+  margin-bottom: 16px;
+}
+
+.usage-stats-cell {
+  text-align: center;
+  padding: 0 4px;
+}
+
+.usage-stats-cell + .usage-stats-cell {
+  border-left: 1px solid var(--border);
+}
+
+.usage-stats-cell__value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.usage-stats-cell__label {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 区块通用 */
+.usage-stats-section {
+  margin-bottom: 16px;
+}
+
+.usage-stats-section__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.usage-stats-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* 热力图：列=周，行=周一~周日（固定 12px 格，窄窗口横向滚动兜底） */
+.usage-heatmap {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.usage-heatmap__col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.usage-heatmap__cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.usage-heatmap__cell--l0 { background: var(--bg-tertiary); border: 1px solid var(--border); }
+.usage-heatmap__cell--l1 { background: rgba(74, 158, 255, 0.25); }
+.usage-heatmap__cell--l2 { background: rgba(74, 158, 255, 0.45); }
+.usage-heatmap__cell--l3 { background: rgba(74, 158, 255, 0.7); }
+.usage-heatmap__cell--l4 { background: #4a9eff; }
+.usage-heatmap__cell--future { opacity: 0.35; }
+
+/* 月份标签行：grid 与热力图列对齐（列数/列宽由组件按 HEATMAP_WEEKS/CELL_PX 写入内联样式） */
+.usage-heatmap__months {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.usage-heatmap__month {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* 时间范围切换 */
+.usage-stats-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.usage-stats-range__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.usage-stats-range__toggle {
+  display: flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.usage-stats-range__btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.usage-stats-range__btn.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 趋势图 */
+.usage-stats-chart__title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.usage-stats-chart__legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.usage-stats-chart__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.usage-stats-chart__key i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.usage-stats-chart__svg {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+
+.usage-stats-chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.usage-stats-chart__xlabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-dim);
 }
 
 .file-manager-error {

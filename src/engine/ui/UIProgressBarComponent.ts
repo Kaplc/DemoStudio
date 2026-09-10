@@ -79,13 +79,18 @@ export class UIProgressBarComponent extends ActorComponent<Actor> {
     return this._max <= this._min ? 0 : (this._value - this._min) / (this._max - this._min)
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。可编辑键（camelCase）与 getEditableProperties() 精确匹配
+   * 渲染编辑控件；ratio 为只读信息行（由 value/max 推导）。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Value: `${this._value} / ${this._max}`,
-      Ratio: `${(this.ratio * 100).toFixed(0)}%`,
-      FillActor: this._fillActorName,
-      Direction: this._direction,
+      value: this._value,
+      min: this._min,
+      max: this._max,
+      ratio: `${(this.ratio * 100).toFixed(0)}%`,
+      fillActorName: this._fillActorName,
+      direction: this._direction,
     }
   }
 

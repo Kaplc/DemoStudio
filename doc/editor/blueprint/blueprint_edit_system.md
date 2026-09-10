@@ -91,7 +91,7 @@ static async dispatch(op: string, params: Record<string, unknown> = {}): Promise
   const assetPath = params.assetPath as string | undefined
   if (!assetPath) return { ok: false, error: `${op} 需要 assetPath` }
   // 外部入口（MCP / window API）：保持"立即落盘"语义
-  if (op === 'save') return this.save(assetPath)
+  if (op === 'save') return this.saveAssetOnly(assetPath)
   if (op === 'undo') return this.undo(assetPath)
   if (op === 'redo') return this.redo(assetPath)
   // 关闭资产：清理工作副本/撤销栈并恢复注册表到磁盘版本（与页签关闭同语义）
@@ -104,6 +104,8 @@ static async dispatch(op: string, params: Record<string, unknown> = {}): Promise
 ```
 
 注意 `listTypes` 和 `read` 在取 `assetPath` **之前**就分流了——只有这两个 op 允许不带 `assetPath`。最后一行是全文最关键的一句：**dispatch 兜底的所有 op 都带 `persist: true`**，这就是「MCP/脚本改一下就落盘、UI 改一下只在内存」差异的全部来源。
+
+`save` 走的是 `saveAssetOnly()` 而不是 `save()`：`save()` 是手动保存（Ctrl+S / 保存按钮）语义，保存 `.widget.json` 时会触发 `.widget.html` 反编译回写（UI 源双向同步）；`saveAssetOnly()` 明确只落盘、不触发反编译（源码注释：「供 MCP ui_compile / dispatch save 等非手动保存路径使用」）。排查「MCP 保存后 UI 源没同步」时先确认这一点。
 
 ### 2.3 op 是怎么注册的：`runOp` 的 switch
 
@@ -136,6 +138,8 @@ export function runOp(asset: BlueprintAsset, op: string, p: Record<string, unkno
   }
 }
 ```
+
+> 上面是**节选**，只列了 7 个常用 case；`runOp` 实际共 **18 个 case**，其余 11 个为 `addChild`、`addChildToParentById`、`removeChildById`、`renameChildDeep`、`removeChild`、`setChildComponentProps`、`setBaseClass`、`setPosition`、`setRotation`、`setScale`、`replace`。完整实现见 [BlueprintEditorService.ts](../../../src/editor/blueprintEdit/BlueprintEditorService.ts)。
 
 **加一个新 op 要做三件事**：在 `blueprintOps.ts` 写纯函数 → 在 `runOp` switch 加 case → （可选）在 `logParams` 加一行日志摘要。漏第三步不影响功能，但 applyBatch 的开始日志会退化成「参数键名列表」，排查时看不出改了什么。
 

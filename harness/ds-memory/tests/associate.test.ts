@@ -4,6 +4,7 @@ import { relative, resolve, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   MAX_ASSOCIATE_TOTAL_CHARS,
+  buildAssociateSummary,
   composeAssociateMessage,
   deriveProjectRoot,
   evalPrefixGroups,
@@ -187,6 +188,22 @@ describe('composeAssociateMessage', () => {
 
   it('默认预算常量存在且为正', () => {
     expect(MAX_ASSOCIATE_TOTAL_CHARS).toBeGreaterThan(0)
+  })
+})
+
+describe('buildAssociateSummary（注入卡片摘要：条数 + 逐行文件名）', () => {
+  it('首行条数，随后每行一个实际装入的记忆文件名', () => {
+    expect(buildAssociateSummary(['engine_pitfall.md', 'ui_no_icon.md'], 0))
+      .toBe('自动联想记忆 2 条\nengine_pitfall.md\nui_no_icon.md')
+  })
+
+  it('超预算截断时首行附 omitted 数', () => {
+    expect(buildAssociateSummary(['newest.md'], 2))
+      .toBe('自动联想记忆 1 条（另有 2 条超出预算未加载）\nnewest.md')
+  })
+
+  it('空装入列表返回仅条数行', () => {
+    expect(buildAssociateSummary([], 0)).toBe('自动联想记忆 0 条')
   })
 })
 

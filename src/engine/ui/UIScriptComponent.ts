@@ -74,9 +74,13 @@ export class UIScriptComponent extends Component<Actor> {
     this.instance = null
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。script 键与 getEditableProperties() 精确匹配渲染编辑控件
+   * （编辑时输入框读 prop.get()，'|| 未设置' 兜底只在只读态可见）；args 为只读信息行
+   * （结构不定，由代码/JSON 配置）。
+   */
   override getProperties(): Record<string, unknown> {
-    return { Script: this.script || '（未设置）', Args: this.args ?? null }
+    return { script: this.script || '（未设置）', args: this.args ?? null }
   }
 
   /** Inspector 可编辑属性：script（字符串）。args 不直接编辑（结构不定，由代码/JSON 配置） */

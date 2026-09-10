@@ -137,10 +137,10 @@ function hashFile(filePath: string): string {
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| home → 项目根文件镜像（含 presets） | ✅ 已实现，10 个 vitest 用例覆盖 | `harness/ds-sync/src/sync.ts:55` + `tests/sync.test.ts` |
+| home → 项目根文件镜像（含 presets） | ✅ 已实现，12 个 vitest 用例覆盖（2 文件，2026-09-10 实测） | `harness/ds-sync/src/sync.ts:55` + `tests/sync.test.ts` |
 | 项目根 → home 反向推送 | ✅ 已实现 | `editor.bat:86-105` 的 `for /d` + `xcopy` |
 | 反向推送接入 `npm run electron:dev` | ❌ 未落地 | 同步逻辑只在 `editor.bat`，npm 脚本不含它 |
-| 通过 `--patch` 追加 preset root | ❌ 不可能生效，见下 | `profile-boot.ts:164` 强制覆盖 `roots` |
+| 通过 `--patch` 追加 preset root | ❌ 不可能生效（rc.2 运行时），见下 | `profile-boot.ts:164` 强制覆盖 `roots`；dsh-source 0.1.2 已删除该替换，改落 home 层，见 §3 版本注记 |
 | DSH 存活期的增量同步 | ❌ 未落地 | `apply()` 只在插件挂载时跑一次，无 watch |
 | 冲突检测 / 双向合并 | ❌ 未落地 | 两侧都是单向覆盖，无版本/时间戳仲裁 |
 | 同步成功的程序化校验 | ❌ 未落地 | 只能看日志与 UI，无自测命令 |
@@ -161,6 +161,8 @@ if (rows.has('agent-presets')) {
 ```
 
 `composedOverlays` 排在所有 `--patch` overlay 之后（同函数 `:146-151`），把整行的 `roots` **整段替换**成 `SHIPPED_PRESET_ROOT`（`profile-boot.ts:35`，CLI 自带的 `config/agent-presets/`）。任何层配的 `roots` 都被冲掉。
+
+> **版本注记（2026-09-10 实测）**：上面引用的行号与强制替换逻辑属于**运行中的全局 DSH 0.1.1-rc.2**（boot 时最后一层仍把 `roots` 换成 `SHIPPED_PRESET_ROOT`）。checkout 的 `harness/dsh-source` 已升到 **0.1.2-alpha.1**——该版本 `apps/cli/src/profile-boot.ts` 里这段替换已删除，`composeProfile` 只按 `bundlePatches → profile.patches → homePatches → overlays` 组合。0.1.2 起 `roots` 补丁的新落点是 **home 层 `~/.dsh/cordis.patch.yml`**（由 `editor.bat` 复制 `scripts/sync-dsh-plugins.mjs` 生成的文件而来）：homePatches 叠加在 profile 层之后，**优先级高于 profile**——当前该文件承载的正是 `agent-presets` 的 `roots` 配置。注意：在 rc.2 下这份 home 层 `roots` 同样会被上述最后一层替换冲掉（preset 发现实际仍靠 `includeUserRoot` 追加的 home 用户根），升级到 0.1.2+ 后 `roots` 才真正生效。
 
 真正让 `game-editor` 被发现的，是 `includeUserRoot` 默认为 true 时自动追加的 home 用户根（`index.ts:133-135`）：
 
@@ -221,8 +223,8 @@ this.resolvedRoots = config.includeUserRoot
 
 **1. 在项目根 patch 里配 `roots` 追加本地 preset 目录，永远不生效**
 现象：写了 `roots: [{path: "E:\\DemoStudio\\.dsh\\presets", trust: user}]`，preset 依旧只从 home 读。
-原因：`profile-boot.ts:164` 在最后一层 overlay 把 `roots` 整键替换成 `SHIPPED_PRESET_ROOT`，任何层配的都被覆盖。
-规则：不要用 patch 配 roots。自定义 preset 放 `~/.dsh/.agent-presets/`，靠 `includeUserRoot` 默认追加。
+原因：运行中的 **0.1.1-rc.2** 在 `profile-boot.ts:164` 最后一层 overlay 把 `roots` 整键替换成 `SHIPPED_PRESET_ROOT`，任何层配的都被覆盖（dsh-source **0.1.2-alpha.1** 已删除该替换，roots 补丁改落 home 层，见 §3 版本注记）。
+规则：rc.2 下不要用 patch 配 roots——自定义 preset 放 `~/.dsh/.agent-presets/`，靠 `includeUserRoot` 默认追加；升级到 0.1.2+ 后才把 `roots` 补丁写进 home 层 `~/.dsh/cordis.patch.yml`。
 
 **2. 跑 `npm run electron:dev` 时 preset 反向推送被整个跳过**
 现象：在项目 `.dsh/presets` 改了 preset，启动后 DSH 用的还是旧版。
@@ -268,7 +270,7 @@ this.resolvedRoots = config.includeUserRoot
 | 遇到符号链接 / junction | 跳过，不复制链接本身 | junction 挂载的插件不会同步，需目标机器重建 |
 | 预设 id 撞上内置 preset | home 用户根排在最后，被内置挡掉 | 换独有 id |
 | `agent.cordis.yml` 缺失或 YAML 非法 | 标记 `broken`，仍在列表但不可挂载 | 查 `broken` 字段文案 |
-| 在 patch 里配 `roots` | 被 `profile-boot.ts:164` 覆盖，无效 | 改用 home 用户根 |
+| 在 patch 里配 `roots` | rc.2 运行时被 `profile-boot.ts:164` 强制覆盖，无效；dsh-source 0.1.2 已删除该逻辑 | rc.2 用 home 用户根；0.1.2+ 写 home 层 patch（见 §3 版本注记） |
 | 未传 `--patch` 启动 | overlay 不应用（Electron 启动路径本就不传） | 与 preset 发现无关 |
 | 直接跑 `npm run electron:dev` | 跳过 `editor.bat` 反向推送 | 手动复制或改走 bat |
 | `session.create` 报 preset 不存在 | 回退 `agentPreset: 'cordis'` 重试一次 | 两次都失败才进 error，`AgentService.ts:580` |

@@ -42,7 +42,7 @@ flowchart TD
 
 ```ts
 // e2e/fish/smoke.spec.ts（每个项目一个文件夹）
-import { test, expect } from './framework/fixtures'
+import { test, expect } from '../framework/fixtures'
 
 test.use({ project: 'fish' })
 

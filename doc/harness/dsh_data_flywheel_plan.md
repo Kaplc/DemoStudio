@@ -195,7 +195,7 @@ _ctx.logger?.info('ds-experience: extractFromSession 已被禁用，经验保存
 return { ok: true, saved: [], updated: [] }
 ```
 
-> 2026-09-09 起经验侧对齐了 ds-memory 的两条**确定性**链路（对 LLM 自动提炼裁撤决策的补充而非回退——不加任何模型请求）：① 回合末提醒（纯文本注入）；② frontmatter `prefix:` 路径自动联想（associate.ts，读到满足表达式的文件时该经验全文注入，每会话去重；表达式支持 `||`/`&&`）。早期"LLM 自动提炼"的失衡教训仍然成立：判定永远在主 agent，插件只给触发信号。
+> 2026-09-09 起经验侧对齐了 ds-memory 的两条**确定性**链路（对 LLM 自动提炼裁撤决策的补充而非回退——不加任何模型请求）：① 回合末提醒（纯文本注入）；② frontmatter `prefix:` 路径自动联想（associate.ts，读到满足表达式的文件时该经验全文注入，每会话去重；表达式支持 `||`/`&&`；注入卡片的摘要列出实际装入的文件名，首行条数、逐行一个）。早期"LLM 自动提炼"的失衡教训仍然成立：判定永远在主 agent，插件只给触发信号。
 
 **② 历史会话检索**（[historyTools.ts:75](../../harness/ds-experience/src/historyTools.ts)）
 
@@ -252,28 +252,28 @@ const page = await host.ctx.sessionQuery.searchSessions({
 
 ## 4. 落地状态对照
 
-**这一节是本文档最该看的部分**——代码实现了 ≠ 运行时在跑。当前三个插件的 `dist/index.js` 均未构建，junction 均未建立。
+**这一节是本文档最该看的部分**——代码实现了 ≠ 运行时在跑。截至 **2026-09-10 实测已挂载激活**：三个插件的 `dist/index.js` 均已构建，两 profile 的 junction 与 patch 均已就位（逐项见下表）。
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
 | ds-memory 提示词四段结构 | ✅ 代码已实现 | `MEMORY_ENTRY_FORMAT_TEXT` 在 [memoryTypes.ts:147](../../harness/ds-memory/src/memoryTypes.ts) |
 | ds-memory 后台自动提取 | ❌ 已删除，仓库无实现 | 无 `EXTRACT_SYSTEM_PROMPT`、无 `extractMemory` 模块（全库 grep 无命中） |
-| ds-memory 数据落盘 | ✅ 已有数据 | `.dsh/memory/` 17 个文件 + MEMORY.md |
-| ds-memory 运行时激活 | ❌ 未激活 | `harness/ds-memory/dist/index.js` 不存在；junction 未挂载 |
+| ds-memory 数据落盘 | ✅ 已有数据 | `.dsh/memory/` 21 个 `.md`（20 个记忆文件 + MEMORY.md 索引；2026-09-10 实测） |
+| ds-memory 运行时激活 | ✅ 已激活（2026-09-10 实测） | `harness/ds-memory/dist/index.js` 存在；`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/ds-memory` junction 已挂载 |
 | ds-feedback 插件全套代码 | ✅ 代码已实现 | `rule_propose`/`rule_apply` + 规则段 + 预筛接线齐全 |
 | ds-feedback 提案落盘 | ✅ 已有数据 | `.dsh/rules/pending/ui_default_no_icon.proposed.md`（date 2026-09-02） |
 | ds-feedback active 规则 | ⚠️ 空库 | `RULES.md` 仅标题头，无 active 规则行 |
-| ds-feedback 运行时激活 | ❌ 未激活 | `dist/index.js` 不存在；junction 未挂载 |
+| ds-feedback 运行时激活 | ✅ 已激活（2026-09-10 实测） | `harness/ds-feedback/dist/index.js` 存在；`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/ds-feedback` junction 已挂载 |
 | ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段 + 回合末提醒 + prefix 联想齐全 |
-| ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 22 个 episode + INDEX.md |
+| ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 46 个 `.md`（45 个 episode + INDEX.md；2026-09-10 实测） |
 | ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；无 side-query/水位逻辑 |
 | ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却；本回合已成功 `experience_save` 则跳过，`reminderSkipTools` 可改）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
 | session-query 持久索引 patch | ✅ 已写入配置 | `.dsh/profiles/{web,headless}/cordis.patch.yml` 均含 `path` + `openAt: first-search` |
-| session-query sqlite 文件 | ❌ 尚未建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 不存在（`first-search` 惰性，未跑过首搜） |
-| home 侧运行时 patch | ❌ 当前为空 | `%USERPROFILE%\.dsh\profiles\{web,headless}\cordis.patch.yml` 内容为 `[]` |
-| 换机器后重建挂载 | ⚠️ 需人工 `mount_plugin` | junction 与 patch 在 home 侧，不随项目走，见 [插件安装](./dsh_plugin_install.md) |
+| session-query sqlite 文件 | ✅ 已建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 存在（约 36MB，2026-09-10 实测；`first-search` 惰性，首次搜索时建库） |
+| home 侧运行时 patch | ✅ 已写入（2026-09-10 实测） | `%USERPROFILE%\.dsh\profiles\{web,headless}\cordis.patch.yml` 含 8 条插件 `insert` + `session-query-sqlite` 覆盖；根级 `~/.dsh/cordis.patch.yml` 含 `agent-presets` roots（均由 `editor.bat` 生成写入） |
+| 换机器后重建挂载 | ✅ 重跑 `editor.bat` 自动重建（或手动 `mount_plugin`） | junction 与 patch 在 home 侧，不随项目走，见 [插件安装](./dsh_plugin_install.md) |
 
-> 判据说明：`dist/index.js` 是否存在用 `Test-Path` 实测；junction 用 `Get-ChildItem ...\@demostudio` 实测为空；patch 行用 `Select-String session-query-sqlite` 实测命中。
+> 判据说明（2026-09-10 实测）：`dist/index.js` 用 `Test-Path` 逐个确认存在（8/8）；junction 用 `Get-ChildItem ...\@demostudio` 数到两 profile 各 8 个且指向 `harness/<插件>`；patch 行用 `Select-String` 在 home 侧 profile patch 与项目 `.dsh/profiles/{web,headless}/cordis.patch.yml` 均命中；sqlite 以文件存在与体积确认。
 
 ---
 

@@ -473,18 +473,24 @@ InputPromptSystem.instance.setDevice('mouse')
 
 ```ts
 const ratio = this.ratio
-// 水平方向：改宽度（高度保持容器高）；垂直方向：改高度（宽度保持容器宽）
-if (this._direction === 'left-to-right' || this._direction === 'right-to-left') {
-  tsf.setWorldSize(hostW * ratio, hostH)
+const horizontal = this._direction === 'left-to-right' || this._direction === 'right-to-left'
+const fillW = horizontal ? hostW * ratio : hostW
+const fillH = horizontal ? hostH : hostH * ratio
+// HTML 编译器把 width/height:100% 的 fill 发成 stretch 全锚，而 stretch 的 applyAnchor
+// 会按容器尺寸重写宽高（进度条恒满）→ 一次性降级为无锚点
+if (tsf.anchor === 'stretch') tsf.anchor = null
+tsf.setWorldSize(fillW, fillH)
+if (tsf.anchor !== null) {
+  tsf.applyAnchor()          // 锚点已配置（middle-left 等）→ fill 贴边生长
 } else {
-  tsf.setWorldSize(hostW, hostH * ratio)
+  // 无锚点：按 direction 显式贴到容器边缘（等价锚点逆推公式），不会居中双向收缩
+  const px = horizontal ? (this._direction === 'left-to-right' ? -(hostW - fillW) : (hostW - fillW)) / 2 : 0
+  const py = horizontal ? 0 : (this._direction === 'bottom-to-top' ? -(hostH - fillH) : (hostH - fillH)) / 2
+  this._fill.setPosition(px, py, this._fill.root.position.z)
 }
-// 锚点已配置（middle-left 等）→ applyAnchor 让 fill 贴边生长；
-// 未配置锚点 → fill 中心默认在容器中心，宽度缩小时两侧同时收缩（效果同 center 填充）
-tsf.applyAnchor()
 ```
 
-> **关键**：组件只改**尺寸**，不改位置。「从左往右」还是「从右往左」完全由 fill 子节点的**锚点**决定——`middle-left` 锚点时，宽度变小它贴左边；`middle-right` 时贴右边。忘了配锚点，血条会从中间向两边同时缩短。这是和锚点系统耦合最深的一处，见 [锚点系统](./ui_anchor_system.md)。
+> **关键**：`stretch` 锚点会被组件降级为无锚点（否则 `applyAnchor` 按容器尺寸重写宽高，进度条恒满）。有锚点时由锚点决定贴边方向（`middle-left` 贴左、`middle-right` 贴右）；无锚点（含降级来的）时组件按 `direction` 显式 `setPosition` 贴到容器边缘，等价锚点逆推公式——"没配锚点就从中间向两边缩"的旧行为已不存在。这是和锚点系统耦合最深的一处，见 [锚点系统](./ui_anchor_system.md)。
 
 容器尺寸为 0 时直接返回，不刷：
 
@@ -592,9 +598,9 @@ private _bindItemDrag(item: Actor): void {
   clickable.onDragMove = (sx, sy) => {
     const session = this._dragSession
     if (!session) return
-    // 屏幕像素 → UI 世界单位（UI 画布高恒定 5.4，垂直方向始终铺满视口）
+    // 屏幕像素 → UI 世界单位（UI 画布高恒定 1080 设计像素，垂直方向始终铺满视口）
     const rect = PhySys.viewportElement?.getBoundingClientRect()
-    const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 0.02
+    const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
     ...
     const deltaPx = this._direction === 'vertical' ? sy - session.sy : sx - session.sx
     this._setDragOffset(session.baseOffset - (deltaPx * worldPerPx) / step)
@@ -729,8 +735,8 @@ if (filePath.endsWith('.widget.json')) {
 
 ```ts
 const pxW = typeof canvas?.width === 'number' ? (canvas.width as number) : 1920
-const worldW = typeof tsf?.worldWidth === 'number' ? (tsf.worldWidth as number) : 9.6
-return worldW > 0 ? pxW / worldW : 200
+const worldW = typeof tsf?.worldWidth === 'number' ? (tsf.worldWidth as number) : 1920
+return worldW > 0 ? pxW / worldW : 1
 ```
 
 `ui:z-index-war` 的判据在注释里说明了动机：
@@ -875,7 +881,7 @@ zOrder 报错信息也点明了惯例区间是 `0~4`。
 | Tooltip 宿主未挂 World | `_show` warn 跳过 | 挂到已生成的 UI 树 |
 | Tooltip widget 缺 `TooltipText` | 文本不设置 + warn | 按约定命名 |
 | ProgressBar 宿主尺寸为 0 | `_refresh` 直接 return，不刷 | 等布局完成后再设 value |
-| ProgressBar 找不到 fill 子 Actor | warn 一次后不再重试（`_fill` 缓存 null 前的判断） | 改名后调 `refresh()` |
+| ProgressBar 找不到 fill 子 Actor | `_fill` 保持 null，每次 `_refresh()` 都重查并重复 warn（并非只警告一次） | 改名后调 `refresh()`，或修正 `fillActorName` |
 | ScrollList 未配 `itemWidget` | `_initialize` warn 跳过，池为空 | 在资产里配 `itemWidget` |
 | ScrollList `owner.world` 未就绪 | `_initialize` debug 日志后返回，延迟到 `BeginPlay` | 引擎内置时序处理 |
 | ScrollList item 无 `ClickableComponent` | `_bindItemDrag` 直接 return，拖拽静默不绑（按钮点击不受影响） | item 需含按钮/图片命中组件 |

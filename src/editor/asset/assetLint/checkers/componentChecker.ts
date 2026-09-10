@@ -3,7 +3,9 @@
  *
  * comp:<Component.baseClass>：校验 BlueprintComponentDef.properties 的构造/可配置参数。
  * properties 字段以 'properties.' 前缀（dot 路径）校验。
- * 与 ComponentRegistry key 同源；未覆盖的 component type 由 engine 记一条 warn。
+ * 与 ComponentRegistry key 同源；未覆盖的 component type 由派发方经 resolveChecker
+ * 分档——工厂已注册（合法组件）→ warn（comp-no-lint-schema，属性不校验），
+ * 工厂也未注册（旧格式/未知类型）→ error（unknown-kind）。
  */
 import { AbstractAssetChecker } from '../AbstractAssetChecker'
 import { registerAssetChecker } from '../AssetCheckerRegistry'
@@ -157,13 +159,14 @@ class MeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:MeshComponent', MeshComponentChecker)
 
-/** comp:BoxMeshComponent — 轴对齐盒：size: [w, h, d]；color；opacity [0,1]；kind 材质两态；阴影标记。 */
+/** comp:BoxMeshComponent — 轴对齐盒：size: [w, h, d]；color；opacity [0,1]；visible 显隐；kind 材质两态；阴影标记。 */
 class BoxMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:BoxMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.size', type: 'array', minItems: 3, maxItems: 3, label: '盒尺寸 [w, h, d]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.visible', type: 'boolean', label: '是否可见' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
@@ -175,7 +178,7 @@ class BoxMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:BoxMeshComponent', BoxMeshComponentChecker)
 
-/** comp:SphereMeshComponent — 球体：radius；segments [w,h] 分段≥3；color；opacity [0,1]；texture/bumpMap/roughnessMap/emissiveMap 贴图路径；bumpScale/emissive/emissiveIntensity 数值；kind 材质两态；阴影标记。 */
+/** comp:SphereMeshComponent — 球体：radius；segments [w,h] 分段≥3；color；opacity [0,1]；visible 显隐；texture/bumpMap/roughnessMap/emissiveMap 贴图路径；bumpScale/emissive/emissiveIntensity 数值；kind 材质两态；阴影标记。 */
 class SphereMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:SphereMeshComponent'
   schema: FieldSpec[] = [
@@ -183,6 +186,7 @@ class SphereMeshComponentChecker extends AbstractAssetChecker {
     { field: 'properties.segments', type: 'vec2', min: 3, label: '球体分段 [widthSegments, heightSegments]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.visible', type: 'boolean', label: '是否可见' },
     { field: 'properties.texture', type: 'string', label: '贴图路径' },
     { field: 'properties.bumpMap', type: 'string', label: '凹凸贴图路径' },
     { field: 'properties.bumpScale', type: 'number', label: '凹凸强度' },
@@ -201,13 +205,14 @@ class SphereMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:SphereMeshComponent', SphereMeshComponentChecker)
 
-/** comp:PlaneMeshComponent — 平面：size: [w, h]；color；opacity [0,1]；kind 材质两态；阴影标记。 */
+/** comp:PlaneMeshComponent — 平面：size: [w, h]；color；opacity [0,1]；visible 显隐；kind 材质两态；阴影标记。 */
 class PlaneMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:PlaneMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.size', type: 'array', minItems: 2, maxItems: 2, label: '平面尺寸 [w, h]' },
     { field: 'properties.color', type: 'color', label: '颜色' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
+    { field: 'properties.visible', type: 'boolean', label: '是否可见' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
@@ -219,13 +224,14 @@ class PlaneMeshComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:PlaneMeshComponent', PlaneMeshComponentChecker)
 
-/** comp:CapsuleMeshComponent — 胶囊体：radius/length/color；kind 材质两态；阴影标记。 */
+/** comp:CapsuleMeshComponent — 胶囊体：radius/length/color；visible 显隐；kind 材质两态；阴影标记。 */
 class CapsuleMeshComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:CapsuleMeshComponent'
   schema: FieldSpec[] = [
     { field: 'properties.radius', type: 'number', min: 0, minExclusive: true, label: '半径' },
     { field: 'properties.length', type: 'number', min: 0, label: '圆柱段长度' },
     { field: 'properties.color', type: 'color', label: '颜色' },
+    { field: 'properties.visible', type: 'boolean', label: '是否可见' },
     { field: 'properties.kind', type: 'string', enum: ['standard', 'basic'], label: '材质类型' },
     { field: 'properties.castShadow', type: 'boolean', label: '投射阴影' },
     { field: 'properties.receiveShadow', type: 'boolean', label: '接收阴影' },
@@ -581,7 +587,7 @@ class ShadowBlobComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:ShadowBlobComponent', ShadowBlobComponentChecker)
 
-/** comp:AtmosphereComponent — 行星大气 Fresnel 辉光壳：color 大气色；intensity 辉光强度 [0.2,3]；power 边缘锐度；shellScale 外壳半径倍率 ≥1.01。 */
+/** comp:AtmosphereComponent — 行星大气 Fresnel 辉光壳：color 大气色；intensity 辉光强度 [0.2,3]；power 边缘锐度；shellScale 外壳半径倍率 ≥1.01；haloScale 外发散光晕直径倍率 ≥0（0=关）；haloIntensity 光晕强度 [0,1]。 */
 class AtmosphereComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:AtmosphereComponent'
   schema: FieldSpec[] = [
@@ -589,6 +595,8 @@ class AtmosphereComponentChecker extends AbstractAssetChecker {
     { field: 'properties.intensity', type: 'number', min: 0.2, max: 3, label: '辉光强度' },
     { field: 'properties.power', type: 'number', min: 0.5, label: '边缘锐度' },
     { field: 'properties.shellScale', type: 'number', min: 1.01, label: '外壳半径倍率' },
+    { field: 'properties.haloScale', type: 'number', min: 0, label: '外发散光晕倍率' },
+    { field: 'properties.haloIntensity', type: 'number', min: 0, max: 1, label: '光晕强度' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }

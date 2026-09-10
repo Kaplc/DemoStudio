@@ -214,7 +214,7 @@ render(renderer: THREE.WebGLRenderer): void {
 | [PlayerCameraManager.ts](../../src/engine/rendering/PlayerCameraManager.ts) | 选活跃相机 | 注册时 `priority >=` 就顶替当前活跃 |
 | [CameraRigComponent.ts](../../src/engine/rendering/CameraRigComponent.ts) | 俯瞰相机交互（缩放+平移+边缘平移+右键拖拽） | 与 CameraComponent 挂同一 Actor，`BeginPlay` 里 `getComponent(CameraComponent)` |
 | [CameraZoomComponent.ts](../../src/engine/rendering/CameraZoomComponent.ts) | 只要滚轮缩放的轻量版 | `zoom()` 与 Rig 逐行相同，但无平移/边缘/拖拽 |
-| [UICamera.ts](../../src/engine/rendering/UICamera.ts) | UI 独立正交相机，contain 模式 | 画布固定 9.6×5.4（`UI_CANVAS_W/H`） |
+| [UICamera.ts](../../src/engine/rendering/UICamera.ts) | UI 独立正交相机，contain 模式 | 画布固定 1920×1080 设计像素（`UI_CANVAS_W/H`） |
 
 **投影：所有参数变更都必须重算矩阵**
 
@@ -389,6 +389,6 @@ if (this.rightDragging) return
 | `renderOverlay` 渲染器尺寸为 0 | 直接 return | 引擎内置防御 |
 | 未安装 `troika-three-text` | `TroikaTextComponent` 静默降级，`mesh` 保持 null | 不崩溃；`setText` 排队到 `_pendingText` |
 | `TroikaTextComponent` 未 ready 时改文本 | 存入 `_pendingText`，加载完成后补应用 | 引擎内置 |
-| 视口非 16:9 | UI 画布 contain 模式居中留空，不裁切 | 资产按 9.6×5.4 设计 |
+| 视口非 16:9 | UI 画布 contain 模式居中留空，不裁切 | 资产按 1920×1080 设计 |
 | 灯光改 `lightType` | 重建 light，保留 position/color/intensity，旧灯 `dispose()` | `readonly light` 通过断言替换引用 |
 | `SphereMeshComponent.radius` 传 ≤0 | `Math.max(0.01, v)` 兜底 | 引擎内置 |

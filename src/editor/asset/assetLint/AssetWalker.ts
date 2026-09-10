@@ -60,6 +60,34 @@ export function walkDocument(doc: unknown): WalkResult {
   return { rootKind: null, tasks }
 }
 
+/**
+ * 是否对该文档跑 UI 设计级检查（doc:ui-design）——两条派发路径共用：
+ *   1. .widget.json 后缀（UI 源编译产物）恒跑；
+ *   2. 其余蓝图：树中任意节点挂 CanvasUIComponent 即视为 UI 蓝图（蓝图编辑器 /
+ *      AI 直编 json 产出的 UI 树此前完全绕过 ui:root-anchor 等设计规则）；
+ *   3. 场景与 3D 蓝图不跑（无 UI 语义）。
+ */
+export function shouldRunUiDesignCheck(filePath: string, rootKind: WalkResult['rootKind'], doc: unknown): boolean {
+  if (filePath.endsWith('.widget.json')) return true
+  if (rootKind !== 'doc:blueprint') return false
+  return treeHasCanvasUI(doc)
+}
+
+/** 递归查树中是否有节点挂 CanvasUIComponent。 */
+function treeHasCanvasUI(node: unknown): boolean {
+  if (!node || typeof node !== 'object') return false
+  const n = node as Record<string, unknown>
+  if (Array.isArray(n.components)) {
+    for (const c of n.components as Array<Record<string, unknown>>) {
+      if (c && typeof c === 'object' && c.baseClass === 'CanvasUIComponent') return true
+    }
+  }
+  if (Array.isArray(n.children)) {
+    return n.children.some((child) => treeHasCanvasUI(child))
+  }
+  return false
+}
+
 /** 遍历 SceneNode 数组，每个节点按 type 派发 node:<type>；actor 节点递归派发其 components。 */
 function walkNodes(nodes: unknown[], tasks: DispatchTask[], base: string): void {
   nodes.forEach((n, i) => {

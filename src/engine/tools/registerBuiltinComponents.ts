@@ -240,7 +240,7 @@ export function registerBuiltinComponents(): void {
       ),
   )
 
-  // ─── BoxMeshComponent ─── props: { size?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── BoxMeshComponent ─── props: { size?, color?, opacity?, visible?, kind?, castShadow?, receiveShadow?, name? }
   // 轴对齐盒几何。MeshComponent 是抽象基类不注册——必须声明 BoxMeshComponent /
   // SphereMeshComponent / PlaneMeshComponent / CapsuleMeshComponent 之一。
   // size: [w, h, d]
@@ -256,6 +256,10 @@ export function registerBuiltinComponents(): void {
       mat.transparent = true
       mat.opacity = p.opacity as number
     }
+    // visible 由 MeshComponent 基类 getEditableProperties 注册，保存资产时随
+    // persistentProps 全量写回——工厂/applier 必须消费，否则 ComponentRegistry
+    // 报"工厂未消费属性"且重建后显隐丢失
+    if (p.visible !== undefined) c.mesh.visible = !!p.visible
   }
   /** mesh 阴影/材质两态标记：castShadow/receiveShadow 缺省 true（对齐旧格式默认），kind 决定材质类型 */
   const applyMeshMaterialKind = (
@@ -280,6 +284,8 @@ export function registerBuiltinComponents(): void {
     }
     mesh.castShadow = p.castShadow !== undefined ? !!p.castShadow : true
     mesh.receiveShadow = p.receiveShadow !== undefined ? !!p.receiveShadow : true
+    // 节点级显隐（MeshComponent 基类可编辑属性，缺省 true 不覆盖 three 默认）
+    if (p.visible !== undefined) mesh.visible = !!p.visible
     return mesh.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
   }
   ComponentRegistry.register(
@@ -302,7 +308,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── SphereMeshComponent ─── props: { radius?, segments?: [w, h], color?, opacity?, texture?, bumpMap?, bumpScale?, roughnessMap?, emissiveMap?, emissive?, emissiveIntensity?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── SphereMeshComponent ─── props: { radius?, segments?: [w, h], color?, opacity?, visible?, texture?, bumpMap?, bumpScale?, roughnessMap?, emissiveMap?, emissive?, emissiveIntensity?, kind?, castShadow?, receiveShadow?, name? }
   // texture：贴图路径（loadTexture 缓存加载，sRGB；赋给材质 map 作 albedo）
   // segments：球体分段 [widthSegments, heightSegments]（默认 16,16），行星等大球体可配高段数提升圆滑度
   // bumpMap/bumpScale：凹凸贴图与强度；roughnessMap：粗糙度分区；emissiveMap/emissive/emissiveIntensity：自发光（夜面灯光）
@@ -340,7 +346,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── PlaneMeshComponent ─── props: { size?, color?, opacity?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── PlaneMeshComponent ─── props: { size?, color?, opacity?, visible?, kind?, castShadow?, receiveShadow?, name? }
   // size: [w, h]
   ComponentRegistry.register(
     'PlaneMeshComponent',
@@ -358,7 +364,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => applyMeshColor(c as MeshComponent, p),
   )
 
-  // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, kind?, castShadow?, receiveShadow?, name? }
+  // ─── CapsuleMeshComponent ─── props: { radius?, length?, color?, visible?, kind?, castShadow?, receiveShadow?, name? }
   // 胶囊体网格（兵种等角色模型）：radius=半径，length=圆柱段长度（0=纯球）
   // 几何体中心在胶囊体中心，贴地偏移由蓝图 TransformComponent 控制
   ComponentRegistry.register(
@@ -724,9 +730,10 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── AtmosphereComponent ─── props: { color?, intensity?, power?, shellScale?, name? }
+  // ─── AtmosphereComponent ─── props: { color?, intensity?, power?, shellScale?, haloScale?, haloIntensity?, name? }
   // 行星大气 Fresnel 辉光壳（unlit ShaderMaterial，BackSide 外壳，观察模式特写用）。
   // shellScale = 外壳半径倍率（scale 名保留给 TransformComponent，doc 层硬规则禁非 tsf 组件声明 scale）。
+  // haloScale/haloIntensity = 外发散光晕（相机朝向加色 Sprite；haloScale 0 = 关）。
   ComponentRegistry.register(
     'AtmosphereComponent',
     (owner, p = {}) =>
@@ -735,6 +742,8 @@ export function registerBuiltinComponents(): void {
         intensity: p.intensity as number | undefined,
         power: p.power as number | undefined,
         shellScale: p.shellScale as number | undefined,
+        haloScale: p.haloScale as number | undefined,
+        haloIntensity: p.haloIntensity as number | undefined,
       }, (p.name as string) ?? 'AtmosphereComponent'),
     (c, p) => {
       const ac = c as AtmosphereComponent
@@ -742,6 +751,8 @@ export function registerBuiltinComponents(): void {
       if (p.intensity !== undefined) ac.intensity = p.intensity as number
       if (p.power !== undefined) ac.power = p.power as number
       if (p.shellScale !== undefined) ac.shellScale = p.shellScale as number
+      if (p.haloScale !== undefined) ac.haloScale = p.haloScale as number
+      if (p.haloIntensity !== undefined) ac.haloIntensity = p.haloIntensity as number
     },
   )
 

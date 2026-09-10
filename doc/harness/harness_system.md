@@ -1,6 +1,6 @@
 # Harness 工程：VS Code 扩展 + DSH 内核 + 引擎插件
 
-> **一句话定位**：`harness/` 是 DemoStudio 仓库内的 **agent 工作台源码区**——9 个 DSH 插件包（能力本体）+ 1 个 VS Code 扩展壳（未被当前主链路使用）+ 1 份 DSH 内核源码克隆，共同回答一个问题：**agent 用的那些工具是从哪个目录编译、被谁挂载、又通过哪条通道摸到编辑器的**。
+> **一句话定位**：`harness/` 是 DemoStudio 仓库内的 **agent 工作台源码区**——8 个 DSH 插件包（能力本体）+ 1 个 VS Code 扩展壳（未被当前主链路使用）+ 1 份 DSH 内核源码克隆，共同回答一个问题：**agent 用的那些工具是从哪个目录编译、被谁挂载、又通过哪条通道摸到编辑器的**。
 >
 > **什么时候会用到你**：新增/修改一个 agent 插件工具、排查「改了插件代码没生效」「agent 说没有某某工具」、确认某段代码该放插件包还是别处、理解 MCP/HTTP/CDP 三条通道分别通向编辑器哪个进程。
 >
@@ -20,7 +20,7 @@
 **关键心智模型**：`harness/` 里跑着**两套互不相同的装配方式**，别混。
 
 - **真正在跑的（主链路）**：Electron 主进程 `electron/main.ts` 拉起 DSH 内核（`:3080`），内核启动时按 `~/.dsh/profiles/{web,headless}/cordis.patch.yml` 的 `insert` 行 import 插件包，包名经 **Windows junction** 解析到 `harness/<插件>/dist/index.js`。插件工具再通过 **HTTP 或 CDP** 反向摸编辑器。
-- **仓库里有但当前未装配的**：`vscode-ext/`（VS Code 扩展壳）和 `harness/profile/`（内置 profile）。它们有完整源码，但目录内无 `dist/`、无 `node_modules/`，且 `profile/cordis.patch.yml` 引用了**不存在**的 `dsh-agent-service.cjs`。细节见 §2.4 与 §6 坑 1。
+- **仓库里有但当前未装配的**：`vscode-ext/`（VS Code 扩展壳）和 `harness/profile/`（内置 profile）。二者都有完整源码；`vscode-ext/` 已构建出 `dist/` 并打出过 `.vsix`（均被 `harness/.gitignore` 忽略，2026-08-23 构建），但**从未装配进主链路**；`harness/profile/` 目录内仍无 `dist/`、无 `node_modules/`，且 `profile/cordis.patch.yml` 引用了**不存在**的 `dsh-agent-service.cjs`。细节见 §2.4 与 §6 坑 1。
 
 > 一句话：**改插件走主链路，别去动 `vscode-ext/`。**
 
@@ -55,7 +55,7 @@ stdio: 'ignore',        // launcher 自身的 stdio 不需要（DSH 输出已重
 
 > **`cwd: DSH_SOURCE_DIR` 是 `harness/` 下所有「相对路径踩坑」的总根**。内核进程的工作目录是 `harness/dsh-source`，所以任何插件里写 `process.cwd()` 拼出来的目录都会落在源码克隆里。这是 §6 坑 2 的成因，也是每个目录型 config 都必须用绝对路径钉死的理由。
 
-各子工程**没有统一的根级构建脚本**——仓库根 `package.json` 里 grep 不到任何 `harness` 相关 script。构建命令写在每个插件自己的 `package.json` 里，一律是 `npm run build`（tsc）：
+各子工程没有写进仓库根 `package.json` 的 script，但**已有统一部署入口**：`scripts/build-harness-plugins.mjs`（依赖缺失自动 `npm install` + 增量编译，`editor.bat` 调用）与 `scripts/sync-dsh-plugins.mjs`（生成 `cordis.patch.yml`），双击 `editor.bat` 即自动完成编译 → junction → patch。手动构建仍可用每个插件自己的 `package.json`（一律是 `npm run build`，tsc）：
 
 ```powershell
 cd E:\DemoStudio\harness\ds-memory
@@ -161,11 +161,12 @@ const resp = await fetch(`http://127.0.0.1:${this.port}/api/command`, {
 `ds-editor-tools`（编辑器 UI）走 CDP，[cdpBridge.ts](../../harness/ds-editor-tools/src/cdpBridge.ts) 连 Electron 已开启的调试端口：
 
 ```ts
-const CDP_URL = 'http://127.0.0.1:9222'
+const DEFAULT_PORT = 9222            // 直连默认端口（最快路径）
+// 端口发现三级：9222 → 读 userData/DevToolsActivePort → 扫描 9222-9232
 // 懒连接：首次工具调用时才建立连接；断开后下次调用自动重建
 ```
 
-> 编辑器开了 `--remote-debugging-port=9222`（[electron/main.ts:2171](../../electron/main.ts)），所以 CDP 这条通道不需要 `harness/` 额外起服务。两条通道的分工是硬的：改游戏运行时状态走 HTTP，点编辑器按钮/截图走 CDP，别交叉用。
+> 编辑器默认开 `--remote-debugging-port=9222`；9222 被幽灵 socket 占用时 Electron 会改用随机端口并把实际端口写进 `userData/DevToolsActivePort`（[electron/main.ts:2373-2378](../../electron/main.ts)）。`cdpBridge.ts` 的三级自动发现正是为此，所以 CDP 这条通道不需要 `harness/` 额外起服务。两条通道的分工是硬的：改游戏运行时状态走 HTTP，点编辑器按钮/截图走 CDP，别交叉用。
 
 **⑤ 插件拿 bridge 的三种来源**
 
@@ -196,8 +197,8 @@ dsh web --dump-config | Select-String '<插件名>'
 
 [vscode-ext/src/extension.ts](../../harness/vscode-ext/src/extension.ts) 有一套完整的自洽设计——`KernelManager`（[kernel.ts:35](../../harness/vscode-ext/src/dsh/kernel.ts)）选 adapter、`EngineBridge`（[engineBridge.ts:43](../../harness/vscode-ext/src/bridge/engineBridge.ts)）探测 9877+ 端口并自动拉起编辑器、`loadPluginTools`（[pluginBridge.ts:42](../../harness/vscode-ext/src/bridge/pluginBridge.ts)）require 插件 dist。源码可读、逻辑自洽，**但它是未被当前主链路使用的分支**，理由有三条硬事实：
 
-1. 目录内无 `dist/`、无 `node_modules/`（`activate` 跑不起来，扩展从未被构建过）；
-2. `activate` 里 `pluginDist` 拼的是 `path.resolve(context.extensionPath, '..', '..', 'ds-engine-tools', 'dist', 'index.js')`——依赖扩展被装在 `harness/vscode-ext/` 下这个特定布局，而 `harness/ds-engine-tools/dist/` 当前不存在；
+1. 目录内**已有** `dist/extension.js`、`node_modules/` 和打包产物 `.vsix`（均被 `harness/.gitignore` 忽略，2026-08-23 构建），但扩展从未被安装/装配进当前主链路；
+2. `activate` 里 `pluginDist` 拼的是 `path.resolve(context.extensionPath, '..', '..', 'ds-engine-tools', 'dist', 'index.js')`——依赖扩展被装在 `harness/vscode-ext/` 下这个特定布局，普通 VS Code 安装（`%USERPROFILE%\.vscode\extensions\`）下解析不到；
 3. [profile/cordis.patch.yml](../../harness/profile/cordis.patch.yml) 的注释写着「此文件被 `dsh-agent-service.cjs` 自动创建的 profile 加载」，但全仓库 grep `dsh-agent-service` 只在这两处注释里命中，**没有这个脚本的实现**。
 
 `pluginBridge.ts` 自己的文件头注释也承认了这一点：
@@ -219,10 +220,10 @@ dsh web --dump-config | Select-String '<插件名>'
 | 目录 | 职责 | `inject` | 与其他文档的分工 |
 |---|---|---|---|
 | [ds-engine-tools/](../../harness/ds-engine-tools) | 游戏运行时工具 9 个（HUD/场景大纲/UI 大纲/资产/鼠标键盘模拟/AI 事件） | `['tools']` | 本文档 §2 |
-| [ds-editor-tools/](../../harness/ds-editor-tools) | 编辑器 UI 工具 8 个，经 CDP :9222 点击/输入/滚动/截图落盘/发 AI 事件 | `['tools']` | 本文档 §2.2 ④ |
-| [ds-memory/](../../harness/ds-memory) | 记忆系统：5 个 memory_* 工具（memory_write 半自动：直接写 frontmatter + 同步索引，正文由 agent 按提醒手写 + 全库过时检查）+ 常驻记忆指导段 + 回合末提醒（`agent/turn-stopping` + `steer` 注入；**本回合已成功保存过记忆则跳过**——跳过判定"各自只看自己"，默认仅 `memory_write`，`experience_save` 不抑制记忆提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入，每会话去重；prefix 支持代码风格表达式组合多路径——`a \|\| b` 任一命中触发、`a && b` 会话内全部读过才触发，`&&` 优先级高于 `\|\|`，解析在 memoryTypes `parsePrefixExpr`、求值在 associate `evalPrefixGroups`） | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
+| [ds-editor-tools/](../../harness/ds-editor-tools) | 编辑器 UI 工具 8 个，经 CDP（9222 起自动发现）点击/输入/滚动/截图落盘/发 AI 事件 | `['tools']` | 本文档 §2.2 ④ |
+| [ds-memory/](../../harness/ds-memory) | 记忆系统：5 个 memory_* 工具（memory_write 半自动：直接写 frontmatter + 同步索引，正文由 agent 按提醒手写 + 全库过时检查）+ 常驻记忆指导段 + 回合末提醒（`agent/turn-stopping` + `steer` 注入；**本回合已成功保存过记忆则跳过**——跳过判定"各自只看自己"，默认仅 `memory_write`，`experience_save` 不抑制记忆提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入，每会话去重；prefix 支持代码风格表达式组合多路径——`a \|\| b` 任一命中触发、`a && b` 会话内全部读过才触发，`&&` 优先级高于 `\|\|`，解析在 memoryTypes `parsePrefixExpr`、求值在 associate `evalPrefixGroups`；注入卡片的摘要（source.summary）列出实际装入的文件名——首行条数、逐行一个，前端 `white-space: pre-line` 折行展示） | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
 | [ds-feedback/](../../harness/ds-feedback) | 反馈飞轮：规则库段（order 3100）+ rule_propose/rule_apply | `['tools','systemPrompt']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
-| [ds-experience/](../../harness/ds-experience) | 经验飞轮：history_search/history_read + experience_save/search 4 工具 + 常驻经验指导段 + 回合末保存提醒（60s 冷却，`enableEndOfTurnReminder` 可关；**本回合已成功 `experience_save` 则跳过**——跳过判定"各自只看自己"，默认仅 `experience_save`，记忆保存不抑制经验提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入、每会话去重；表达式 `a \|\| b`/`a && b` 与 ds-memory 同构，实现在 src/associate.ts，`enableAutoAssociate` 可关） | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| [ds-experience/](../../harness/ds-experience) | 经验飞轮：history_search/history_read + experience_save/search 4 工具 + 常驻经验指导段 + 回合末保存提醒（60s 冷却，`enableEndOfTurnReminder` 可关；**本回合已成功 `experience_save` 则跳过**——跳过判定"各自只看自己"，默认仅 `experience_save`，记忆保存不抑制经验提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入、每会话去重；表达式 `a \|\| b`/`a && b` 与 ds-memory 同构，实现在 src/associate.ts，`enableAutoAssociate` 可关；摘要同款列出装入文件名、逐行折行） | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | [ds-instructions/](../../harness/ds-instructions) | 目录指令：读文件触发 `.dsh/instructions/*.md` 注入 | `['tools','systemPrompt']` | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
 | [ds-sync/](../../harness/ds-sync) | 启动时把 `~/.dsh` 记忆/skills/profiles/presets 同步到项目 `.dsh` | `[]` | [插件安装](./dsh_plugin_install.md) §3 |
 | [ds-plugin-manager/](../../harness/ds-plugin-manager) | 管理上面这些插件：create/mount/unmount 三个工具 | `['tools']` | 本文档 §2.2 ①② |
@@ -230,7 +231,7 @@ dsh web --dump-config | Select-String '<插件名>'
 | [profile/](../../harness/profile) | 内置 profile 与 skills；实际生效的是 `~/.dsh` | — | [插件安装](./dsh_plugin_install.md) 踩坑 3 |
 | [dsh-source/](../../harness/dsh-source) | DSH 内核源码克隆（.gitignore 忽略），只消费不改 | — | [DSH 引擎集成](./dsh_engine_integration.md) |
 
-> `ds-engine-tools/package.json` 的 `description` 仍写着 PRD 初期的 5 个工具名（`inspect_scene`/`spawn_entity`/`run_scenario`/`get_game_state`/`set_game_speed`），但 `src/index.ts` 里 `ALL_TOOLS` 实际是另外 9 个。**描述与实现已经不同步**——以源码为准（见 §6 坑 4）。
+> `ds-engine-tools/package.json` 的 `description` 已更新为当前工具族（`emit_ai_event`/`mouse_*`/`key_press`/`get_*`），与 `src/index.ts` 的 `ALL_TOOLS`（9 个）一致；但包描述与 PRD 需求清单仍不等同于代码契约——写调用链前以源码为准。
 
 ---
 
@@ -245,7 +246,7 @@ dsh web --dump-config | Select-String '<插件名>'
 | `apply`（编辑器工具） | [ds-editor-tools/src/index.ts:43](../../harness/ds-editor-tools/src/index.ts) | 注册 8 个 CDP 工具，effect 卸载时 `disconnectCDP()` | 与引擎工具按通道分工，不交叉 |
 | `apply`（记忆） | [ds-memory/src/index.ts:69](../../harness/ds-memory/src/index.ts) | 注册 5 个 memory 工具 + 指导段 + 回合末提醒（`turn-stopping` + `steer`） | 提醒有 60s 冷却；本回合已保存过记忆（默认仅 `memory_write`，见 `reminderSkipTools`）则跳过 |
 | `getEngineContext` | [engineContext.ts:152](../../harness/ds-engine-tools/src/engineContext.ts) | 三种来源找 bridge（ctx / globalThis / env port） | 全落空返回 `null` |
-| `getEditorPage` | [cdpBridge.ts:24](../../harness/ds-editor-tools/src/cdpBridge.ts) | 懒连接 + 自动重连 CDP :9222，共享 Page | 编辑器需已开 remote-debugging |
+| `getEditorPage` | [cdpBridge.ts:24](../../harness/ds-editor-tools/src/cdpBridge.ts) | 懒连接 + 自动发现/重连 CDP 端口（9222 → DevToolsActivePort → 9222-9232 扫描），共享 Page | 编辑器需已开 remote-debugging |
 | `probePort` | [engineBridge.ts:175](../../harness/vscode-ext/src/bridge/engineBridge.ts) | 9877→9927 逐个 `GET /api/status` 探活 | 属 `vscode-ext/`（未装配），仅作对照 |
 | `resolveRuntimeLaunch` | [kernel.ts:126](../../harness/vscode-ext/src/dsh/kernel.ts) | 决定 DSH CLI 路径（env → dsh-source → 全局） | 同上，未装配 |
 | `activate` | [extension.ts:25](../../harness/vscode-ext/src/extension.ts) | 扩展壳装配 10 步 | 同上，未装配 |
@@ -268,7 +269,7 @@ dsh web --dump-config | Select-String '<插件名>'
 
 | 下游功能 | 波及点 | 相关文档 |
 |---|---|---|
-| 插件挂载与加载 | 全部 9 个插件包按同一机制挂载，junction/patch 细节归该文档 | [插件安装](./dsh_plugin_install.md) |
+| 插件挂载与加载 | 全部 8 个插件包按同一机制挂载，junction/patch 细节归该文档 | [插件安装](./dsh_plugin_install.md) |
 | 引擎集成与自愈 | 内核由 Electron 拉起（`:3080`），常驻化/崩溃自愈归该文档 | [DSH 引擎集成](./dsh_engine_integration.md) |
 | 斜杠命令 | 复用同一 AgentService 通道，`skill.list` 等 RPC | [斜杠命令](./slash_command_system.md) |
 | Preset 同步 | `ds-sync` 镜像 `~/.dsh/.agent-presets` → 项目 `.dsh/presets` | [Preset 同步](./preset-sync-mechanism.md) |
@@ -284,7 +285,7 @@ dsh web --dump-config | Select-String '<插件名>'
 **1. 把 `vscode-ext/` 当成当前装配路径**
 
 现象：改了 `vscode-ext/src/` 的代码，agent 行为毫无变化。
-原因：该扩展从未被构建（无 `dist/`、无 `node_modules/`），且 `profile/cordis.patch.yml` 引用的 `dsh-agent-service.cjs` 在全仓库只存在于两处注释里，没有实现。
+原因：该扩展虽已构建出 `dist/` 与 `.vsix`（被 `harness/.gitignore` 忽略），但**从未装配进主链路**；且 `profile/cordis.patch.yml` 引用的 `dsh-agent-service.cjs` 在全仓库只存在于两处注释里，没有实现。
 规则：认准主链路是 Electron → DSH → junction + patch。`vscode-ext/` 是未落地的过渡方案，改它不改变任何 agent 行为。
 
 **2. 以 `harness/dsh-source` 为 cwd 拉起内核，相对路径全偏**
@@ -299,31 +300,25 @@ dsh web --dump-config | Select-String '<插件名>'
 原因：`ensureJunctions` 内部会自己拼 `@demostudio/` 前缀，传 `@demostudio/ds-x` 会拼出 `node_modules/@demostudio/@demostudio/ds-x` 嵌套错位。
 规则：传 `entryId`（剥掉 scope 的裸包名）。`mountPlugin.ts` 里 `pkgName.replace(/^@demostudio\//, '')` 就是干这个的。
 
-**4. 把 PRD 里的「5 个工具」当成现状**
-
-现象：照旧文档 grep `inspect_scene`/`spawn_entity`，一个都找不到。
-原因：`ds-engine-tools/package.json` 的 `description` 还写着 PRD 初期的 5 个工具名，但 `src/index.ts` 的 `ALL_TOOLS` 实际是 9 个（emitAIEvent / mouseClick / mouseMove / mouseDrag / keyPress / getHUD / getSceneOutline / getUiOutline / getAssets）。
-规则：**写调用链前 grep 确认符号存在**。package.json 的 description 和 PRD 需求清单都不等同于当前代码。
-
-**5. `inject` 多写内建属性导致 boot 卡死**
+**4. `inject` 多写内建属性导致 boot 卡死**
 
 现象：boot 报 `pending (waiting for service: logger)`，内核一直起不来。
 原因：`inject` 数组里写了 `'logger'`，但 logger 是 Context 内建属性、不是可注入服务键。
 规则：`inject` 只声明通过 fiber 解析的服务键，取具名 logger 用 `ctx.logger('名字')`。反过来漏声明也会抛 `cannot get property X without inject`。
 
-**6. Git Bash 下 `mklink /J` 报 Invalid switch**
+**5. Git Bash 下 `mklink /J` 报 Invalid switch**
 
 现象：建 junction 失败。
 原因：Git Bash 对 `/J` 做路径改写。
 规则：一律用 `powershell New-Item -ItemType Junction`（`junction.ts` 就是这么写的）。junction 不需要管理员权限。
 
-**7. 只建了一个 profile 的挂载**
+**6. 只建了一个 profile 的挂载**
 
 现象：web profile 能跑，headless 不能（或反之）。
 原因：两个 profile 是两份独立的 junction + 两份独立的 patch。
 规则：`ensureJunctions` 已对 `['web','headless']` 循环；手写时两边都要建。
 
-**8. 误以为 `harness/dsh-source` 就是编辑器实际运行的内核**
+**7. 误以为 `harness/dsh-source` 就是编辑器实际运行的内核**
 
 现象：改了 `dsh-source` 的构建产物，编辑器 agent 行为没变。
 原因：`getDshCliPath()` 只把**全局 npm** 的 `@deepseek-ai/dsh` 作为 CLI 候选，`harness/dsh-source` 从未进入候选列表（它只当 `cwd` 和版本切换目录）。运行时 CLI 与源码副本是两套。
@@ -345,7 +340,7 @@ dsh web --dump-config | Select-String '<插件名>'
 | headless 一次性进程 | 无热重载，改动下次启动才生效 | 每次改动后重启内核 |
 | `mount_plugin` 传入 `harness/` 外的目录 | 直接拒绝：`只能操作 harness/ 目录下的插件` | 安全限制，不可绕过 |
 | `dist/` 已存在且未传 `forceBuild` | 跳过 build 步骤（`skipped`） | 改过源码必须传 `forceBuild: true` |
-| 端口漂移（多开编辑器） | 编辑器 HTTP 从 9877 起递增 | 先探测再连；CDP 固定 9222，不受影响 |
+| 端口漂移（多开编辑器） | 编辑器 HTTP 从 9877 起递增 | 先探测再连；CDP 走三级自动发现（9222 → DevToolsActivePort → 9222-9232 扫描），同样不受影响 |
 | DSH CLI 本地与全局都不存在 | `bootstrapDSH` 失败 → `degraded` 终态，不阻断编辑器其余功能 | 装 `@deepseek-ai/dsh` 或构建 `dsh-source` |
 | `getEngineContext` 三种来源全空 | 返回 `null`，工具拿不到 bridge | 检查 ctx 注入 / `globalThis.__dshEngineCtx` / `DSH_ENGINE_PORT` |
 | 插件改源码后未重建 | junction 指向目录本身，但内核加载的是旧 `dist/` | 必须 `npm run build`，junction 不会自动编译 |

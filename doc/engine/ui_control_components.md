@@ -304,7 +304,7 @@ private updateSelectionMesh(): void {
 
 ### 4.5 持久化与 Inspector
 
-UITextInputComponent 覆写 `getEditableProperties` 和 `getPersistentProps`，**过滤掉父类 UITextComponent 的静态文本专属字段**（`text/align/bold/italic/lineHeight/letterSpacing`）：
+UITextInputComponent 覆写 `getEditableProperties` 和 `getPersistentProps`，**过滤掉父类 UITextComponent 的静态文本专属字段与基类 `hitTest`**（`text/align/bold/italic/lineHeight/letterSpacing/hitTest`）：
 
 ```ts
 // UITextInputComponent.ts:300

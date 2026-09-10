@@ -200,13 +200,16 @@ export class ShadowBlobComponent extends ThreeObjectComponent<ThreeObject<THREE.
     super.EndPlay()
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。key 与 getEditableProperties() 一致为 camelCase（精确匹配
+   * 渲染编辑控件），四行全部可编辑。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Radius: Math.round(this._radius * 100) / 100,
-      Opacity: Math.round(this._opacity * 100) / 100,
-      Normal: `[${this._normal.map((n) => Math.round(n * 100) / 100).join(', ')}]`,
-      Offset: Math.round(this._offset * 100) / 100,
+      radius: Math.round(this._radius * 100) / 100,
+      opacity: Math.round(this._opacity * 100) / 100,
+      normal: [...this._normal],
+      offset: Math.round(this._offset * 100) / 100,
     }
   }
 

@@ -9,12 +9,24 @@ export type MessageRole = 'user' | 'assistant' | 'tool' | 'system'
   | 'command' | 'compaction' | 'retry' | 'turn-error' | 'turn-max-tokens' | 'todo'
   | 'context'
 
+/** 文件差异 hunk（对齐 DSH write/edit 工具 result meta.diffs 的权威格式，含 3 行上下文） */
+export interface FileDiff {
+  /** 相对会话 cwd 的文件路径 */
+  path: string
+  /** 变更前文本（上下文 + 删除行）；纯新增为 null */
+  oldText: string | null
+  /** 变更后文本（上下文 + 新增行）；纯删除为空串 */
+  newText: string | null
+}
+
 export interface ToolState {
   id: string
   name: string
   args: unknown
   result?: unknown
   status: 'pending' | 'running' | 'success' | 'failure'
+  /** write/edit 工具的已应用差异 hunk（tool/result meta 携带，展开卡片渲染 diff 视图） */
+  diffs?: FileDiff[]
   /** 仅 ask_user_question 工具：待回答的问题请求 */
   questionRequest?: PendingQuestionRequest
   /** 子工具调用列表（code-dispatch 嵌套） */
@@ -256,6 +268,8 @@ export type AgentEventType =
   | 'closed'
   // 运行态变更（含断档续听/会话恢复时的补发，驱动输入框运行态边框）
   | 'runningChange'
+  // 会话列表快照更新（session/projection 投影帧实时合并 / listSessions 全量刷新后推送）
+  | 'sessionsUpdated'
 
 export interface AgentEvent {
   type: AgentEventType
@@ -267,6 +281,45 @@ export interface SessionInfo {
   title?: string
   updatedAt?: number
   turns?: number
+}
+
+/** sessionsUpdated 事件 payload：合并投影帧 / 全量刷新后的最新会话列表快照 */
+export interface SessionsUpdatedPayload {
+  sessions: SessionInfo[]
+}
+
+// ─── 使用统计（对齐 DSH token-meter / session-stats 投影） ───
+
+/**
+ * 单会话累计 provider 用量（对齐 DSH TokenUsageProjection，四桶互斥）。
+ * reasoning tokens 已含在 outputTokens 内，不重复累计。
+ */
+export interface SessionTokenUsage {
+  uncachedInputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/** 单会话整日志回合/步数与墙钟统计（对齐 DSH SessionStatsProjection 视图） */
+export interface SessionStatsProjection {
+  turns: number
+  steps: number
+  llmMs: number
+  toolMs: number
+  ttftMs: number
+  ttftSteps: number
+  decodeMs: number
+  decodeTokens: number
+}
+
+/** 使用统计面板的单会话条目（session.list 投影行的编辑器侧映射） */
+export interface SessionUsageEntry {
+  sessionId: string
+  title?: string
+  updatedAt?: number
+  usage: SessionTokenUsage
+  stats?: SessionStatsProjection
 }
 
 // ─── 事件 payload 类型 ───

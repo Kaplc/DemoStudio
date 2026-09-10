@@ -63,6 +63,8 @@ flowchart LR
 
 ## 4. 现状链路：一个工程从被发现到被打开（真实代码逐段）
 
+> ⚠️ **本节记录改造前现状（2026-09-04 双轨改造已完成，下方代码仅为改造前快照，行号已漂移）——实现对照见 §5 改造点清单与 §10 实施踩坑清单。**
+
 ### 4.1 谁调用了发现入口
 
 `discover-projects` IPC（main.ts:1344）是发现的唯一入口，编辑器启动时由 projectStore 的 `discoverProjects()` 触发。现状代码（main.ts:1344 起）：
@@ -91,7 +93,7 @@ ipcMain.handle('discover-projects', async () => {
 })
 ```
 
-讲解：单根硬编码在 `path.join(__dirname, '..', 'src', 'projects')` 这一行。返回结构里**没有 `source` 字段**——双轨改造的第一件事就是抽 `PROJECT_ROOTS` 常量遍历两次，并在返回值上加 `source: 'builtin' | 'external'`。
+讲解：改造前单根硬编码在 `path.join(__dirname, '..', 'src', 'projects')` 这一行，返回结构里**没有 `source` 字段**。此项**已落地**：`discover-projects` 现经 `resolveProjectRoots(APP_ROOT)` 双根遍历，返回值带 `source: 'builtin' | 'external'`（[main.ts:1404](../../electron/main.ts) 起，字段定义 :1407、赋值 :1428）。
 
 前端侧消费（projectStore.ts:56 起）：
 
@@ -115,7 +117,7 @@ discoverProjects: async () => {
 }
 ```
 
-讲解：`DEFAULT_PROJECTS` 兜底列表（projectStore.ts:11 起）在 IPC 不可用时生效，五个内置工程在这里写死。改造时兜底条目需补 `source: 'builtin'`，Mock 模式下外部工程的兜底为空列表（Mock 无磁盘）。
+讲解：`DEFAULT_PROJECTS` 兜底列表在 IPC 不可用时生效，现为 **2 条内置工程**（Demo2D / ClashMaster，[projectStore.ts:14-35](../../src/stores/projectStore.ts)），均已带 `source: 'builtin'`；外部工程的兜底为空列表（Mock 无磁盘）。IPC 结果则按 `source` 拆内置/外部后 `mergeProjects` 合并（projectStore.ts:50-52）。
 
 ### 4.2 打开工程时发生了什么
 
@@ -172,7 +174,7 @@ function normalizePath(globPath: string): string {
 
 ### 4.4 创建工程的现状
 
-`create-project`（main.ts:1053 起）现状只生成两个文件且落 `src/projects/`：
+`create-project`（[main.ts:1063](../../electron/main.ts) 起）改造前只生成两个文件且落 `src/projects/`；**现已落地**：落盘根改为 `path.join(APP_ROOT, 'projects', folder)`（main.ts:1066-1070），并额外生成 `register.ts` 模板（main.ts:1115-1134）。下方为改造前代码快照：
 
 ```ts
 ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' | '3d' = '3d') => {
@@ -184,7 +186,7 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
     // ...project.json + index.ts 模板写入（略）
 ```
 
-讲解：注意现状模板**没有生成 `register.ts`**——新工程连 `ProjectModule` 都没有，`project.json` 的 `main` 字段也指向一个不存在实际内容的 `index.ts`。双轨改造时模板需升级为自带 `register.ts` + `asset/index.ts`（相对 glob 零改动即可注册），否则创建出的外部工程既不被发现也不可运行。
+讲解：改造前模板**没有生成 `register.ts`**——新工程连 `ProjectModule` 都没有。此项**已落地**：现模板自带 `register.ts`（`ProjectModule` 骨架，经 registry 外部 glob 自动发现）+ `asset/` 默认场景，`project.json` 的 `main`/`defaultScene` 均带 `projects/` 前缀——创建出的外部工程重启 dev server 后即可被发现。
 
 ---
 

@@ -2,12 +2,17 @@
  * warm-current 地球特写 e2e（回归锁：地球不得回潮挂云层壳）
  *
  * 需求（2026-09-10 用户）：地球不需要云层 → 移除地球的云层壳组件。
- * 注意云层不在蓝图里（earth.blueprint.json 只有 Transform + SphereMesh），
- * 而是 EarthActor.setupCloseup() 在 BeginPlay 里 addComponent(CloudLayerComponent) 挂的，
- * 所以"移除"必须锁在运行时组件表上，断言口径 = 构造器名（与 ai.getSceneOutline 同源）。
+ * 注意云层当年不在蓝图里（而是 EarthActor.setupCloseup() 在 BeginPlay 里
+ * addComponent(CloudLayerComponent) 挂的），所以"移除"锁在运行时组件表上，
+ * 断言口径 = 构造器名（与 ai.getSceneOutline 同源）。
+ *
+ * 2026-09-10 用户决策（资产挂组件）：大气辉光壳改为 earth.blueprint.json 显式
+ * 声明 AtmosphereComponent（Inspector 调参随资产保存），setupCloseup 不再运行时
+ * 挂载——回归锁增加"大气恰好一个"断言，防蓝图实例 + 运行时重复挂载叠出双层辉光
+ * （重复挂载当时的症状：AObject 同名组件告警 + 大气过亮）。
  *
  * 不变量：
- *  1. 星图 EarthActor 运行时组件表：含 AtmosphereComponent / SphereMeshComponent，不含 CloudLayerComponent
+ *  1. 星图 EarthActor 运行时组件表：含恰好 1 个 AtmosphereComponent / SphereMeshComponent，不含 CloudLayerComponent
  *  2. 场景大纲口径一致；其他天体（Sun/Moon）同样无云层壳（全仓已无 CloudLayerComponent 使用者）
  *  3. 行星观察分支（原「云层 opacity +0.1」增益所在路径）：地球仍无云层壳，
  *     大气增益 ×1.8 生效，退出观察复位回基准
@@ -62,6 +67,10 @@ test.describe('warm-current 地球特写（云层壳已移除）', () => {
     const comps = await readEarthComponents(page)
     expect(comps, '地球本体网格应在').toContain('SphereMeshComponent')
     expect(comps, '地球应保留大气壳').toContain('AtmosphereComponent')
+    expect(
+      comps.filter((c) => c === 'AtmosphereComponent').length,
+      '大气壳应恰好一个（蓝图资产声明，运行时不得重复挂载叠出双层辉光）',
+    ).toBe(1)
     expect(comps, '地球不得挂云层壳（2026-09-10 用户要求移除）').not.toContain('CloudLayerComponent')
   })
 

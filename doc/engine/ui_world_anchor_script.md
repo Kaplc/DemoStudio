@@ -149,9 +149,13 @@ UIScriptComponent 是 UI 节点挂载 BehaviourScript 的桥接层。widget 蓝�
 ```ts
 // UIScriptComponent.ts:34
 override BeginPlay(): void {
-  if (!this.script) return
-  // 预览世界禁脚本
+  super.BeginPlay()
+  // 预览世界禁脚本（置于 script 空校验之前：预览下连"未配置 script"的警告都不产生）
   if (this.owner.world && !this.owner.world.scriptsEnabled) return
+  if (!this.script) {
+    logger.warn(`[UIScriptComponent] "${this.owner.name}" 未配置 script，跳过`)
+    return
+  }
   const inst = ScriptRegistry.create(this.script)
   if (!inst) {
     logger.error(`[UIScriptComponent] 脚本 "${this.script}" 未注册（owner="${this.owner.name}"）...`)
@@ -173,10 +177,9 @@ override BeginPlay(): void {
 
 ```ts
 // UIScriptComponent.ts:60
-override Tick(dt: number): void {
-  if (this.instance && this.owner.world?.scriptsEnabled) {
-    this.instance.onUpdate(dt)
-  }
+override Tick(deltaTime: number): void {
+  super.Tick(deltaTime)
+  this.instance?.onUpdate(deltaTime)
 }
 
 override EndPlay(): void {
@@ -188,7 +191,7 @@ override EndPlay(): void {
 }
 ```
 
-> 脚本接入完整生命周期：`onStart`（BeginPlay）→ `onUpdate`（Tick）→ `onDestroy`（EndPlay）。预览世界禁脚本（`World.scriptsEnabled=false`）。
+> 脚本接入完整生命周期：`onStart`（BeginPlay）→ `onUpdate`（Tick）→ `onDestroy`（EndPlay）。预览世界禁脚本（`World.scriptsEnabled=false`）——BeginPlay 不实例化，`Tick` 里 `instance` 恒为 null 自然跳过（Tick 自身不查 `scriptsEnabled`）。
 
 ### 3.3 注意事项
 
@@ -257,7 +260,7 @@ const WARMUP_CHARS =
 | `UIWorldAnchorComponent.applyAlwaysOnTopTree()` | [UIWorldAnchorComponent.ts:250](../../src/engine/ui/UIWorldAnchorComponent.ts) | 整树关深度测试 + renderOrder 抬升 | 运行时热切；打 `__dsWorldUIAlwaysTop` 标记 |
 | `UIWorldAnchorComponent.switchClickablesToWorld()` | [UIWorldAnchorComponent.ts:270](../../src/engine/ui/UIWorldAnchorComponent.ts) | 递归切换子树 ClickableComponent 到 world 层 | BeginPlay 后赋值自动迁移注册表 |
 | `UIScriptComponent.BeginPlay()` | [UIScriptComponent.ts:34](../../src/engine/ui/UIScriptComponent.ts) | 创建 BehaviourScript 实例 + 调 onStart | 预览世界禁脚本；onStart 抛错不中断 |
-| `UIScriptComponent.Tick(dt)` | [UIScriptComponent.ts:60](../../src/engine/ui/UIScriptComponent.ts) | 调脚本 onUpdate | 脚本禁用时跳过 |
+| `UIScriptComponent.Tick(dt)` | [UIScriptComponent.ts:60](../../src/engine/ui/UIScriptComponent.ts) | 调脚本 onUpdate | 预览世界靠 BeginPlay 不实例化（`instance` 为 null），Tick 自身不判 `scriptsEnabled` |
 | `UIScriptComponent.EndPlay()` | [UIScriptComponent.ts:70](../../src/engine/ui/UIScriptComponent.ts) | 调 onDestroy + 脚本 EndPlay | 清空 instance |
 | `preloadTroikaFonts()` | [TroikaFontPreload.ts:50](../../src/engine/ui/TroikaFontPreload.ts) | 异步预热思源黑体 400/700 字体 | fire-and-forget，幂等；App 启动时调用一次 |
 | `resolveTroikaFontURL(family, bold)` | [TroikaFontPreload.ts:30](../../src/engine/ui/TroikaFontPreload.ts) | 解析 troika 字体 URL | 预热与渲染必须共用此函数 |
@@ -271,7 +274,7 @@ const WARMUP_CHARS =
 | 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
 | `UIManager.spawnAnchoredWidget` | 创建带 UIWorldAnchor 的 widget，持有 `AnchoredWidgetHandle` | [世界 UI 系统](./ui_system.md) |
-| `GameInstance.start()` | 调用 `preloadTroikaFonts()` 预热字体 | [游戏流系统](./gameflow_system.md) |
+| `App.tsx` 启动（`src/App.tsx:58`） | 调用 `preloadTroikaFonts()` 预热字体（唯一调用点，不在 `GameInstance.start()`） | [UI 控件组件](./ui_control_components.md) |
 | 编译器 `emitDataScript` | `.widget.html` 的 `data-script` → `UIScriptComponent.script` | [UI 源格式与编译器](../editor/ui/ui_source_format_system.md) |
 | `World.scriptsEnabled` | 预览世界禁脚本，UIScriptComponent 跳过创建 | [实体系统](./entity_system.md) |
 
@@ -314,6 +317,6 @@ const WARMUP_CHARS =
 | world 模式 `pxPerMeter=0` | `applyWorldMode` 跳过（除零保护） | 确保 pxPerMeter > 0 |
 | world 模式 `pixelDensity=1` | 不放大 canvas 纹理 | 近景不糊时调大（2~4） |
 | `alwaysOnTop` 运行时切换 | 整树热切深度测试 + renderOrder | 打 `__dsWorldUIAlwaysTop` 标记 |
-| UIScriptComponent 无 `script` id | BeginPlay 直接返回 | 不报错 |
+| UIScriptComponent 无 `script` id | BeginPlay `logger.warn` 后返回（先过 `scriptsEnabled` 早退） | 查日志里的"未配置 script" |
 | 脚本 `onStart` 抛错 | 只 error 日志，不中断 UI 构建 | 查日志定位脚本错误 |
 | `preloadTroikaFonts` 重复调用 | 幂等保护（`started` 标志） | 多次调用无害 |

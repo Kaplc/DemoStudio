@@ -29,15 +29,17 @@
 
 ### 2.1 谁注册了它
 
-项目**不是被扫描发现的**，而是在 registry 里手写 import 的——这是新人最容易误解的一点。
+内置项目（`src/projects/`）**不是被扫描发现的**，而是在 registry 里手写 import 的；仓库根 `projects/` 下的外部工程则走 glob 自动并入——这是新人最容易误解的一点。
 
 ```ts
+import { demo2DProject } from './demo2d/register'
 import { fishMasterProject } from './fish/register'
+import { arenaProject } from './arena/register'
 
-const ALL_PROJECTS: ProjectModule[] = [snakeProject, eatFishProject, demo2DProject, racingProject, fishMasterProject]
+const ALL_PROJECTS: ProjectModule[] = [demo2DProject, fishMasterProject, arenaProject]
 ```
 
-> **为什么不自动扫描**：`ProjectModule` 里有工厂函数和 glob 调用，必须静态 import 才能保证 Vite 把整棵依赖打进包里。新增项目要**手动加这一行 import + 数组条目**，这是唯一需要改 registry 的地方。
+> **为什么不自动扫描内置项目**：`ProjectModule` 里有工厂函数和 glob 调用，必须静态 import 才能保证 Vite 把整棵依赖打进包里。**外部工程**（`projects/*/register.ts`）由 `import.meta.glob('/projects/*/register.ts', { eager: true })` 收集后并入同一个 `ALL_PROJECTS`（同名外部工程覆盖内置并 `logger.warn`，见 [registry.ts:58-97](../../src/projects/registry.ts)）——新增外部工程**不需要改 registry**，只有加内置项目才要手写 import + 数组条目。
 
 [register.ts](../../src/projects/fish/register.ts) 把四类东西一次性注册掉：
 

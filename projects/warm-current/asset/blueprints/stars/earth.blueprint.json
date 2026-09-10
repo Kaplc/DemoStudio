@@ -5,19 +5,47 @@
     {
       "baseClass": "TransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       }
     },
     {
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 38,
-        "segments": [48, 32],
+        "segments": [
+          48,
+          32
+        ],
         "color": "#ffffff",
         "texture": "asset/textures/earth.jpg",
-        "name": "EarthMesh"
+        "name": "EarthMesh",
+        "opacity": 1,
+        "visible": true
+      }
+    },
+    {
+      "baseClass": "AtmosphereComponent",
+      "properties": {
+        "color": "#5cc0ff",
+        "intensity": 1,
+        "power": 6,
+        "shellScale": 1.01,
+        "haloScale": 2.6,
+        "haloIntensity": 0.9
       }
     }
   ],

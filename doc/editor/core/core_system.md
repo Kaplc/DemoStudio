@@ -118,7 +118,7 @@ this.fpsTracker.start((info) => {
   setAppInfo({ renderFps: info.renderFps, logicFps: info.logicFps, project: info.projectName })
   const gs = useEditorStore.getState().gameState
   if (window.electronAPI?.reportGameState) {        // 可选链：浏览器模式静默跳过
-    window.electronAPI.reportGameState({ running: gs.running, score: gs.score })
+    window.electronAPI.reportGameState({ running: gs.running })
   }
 })
 assetLintEngine.start()   // 资产格式检查（单例）
@@ -260,7 +260,7 @@ if (result.handled) {
 | `Editor.destroy()` | `Editor.ts:126` | 停 FPS + LogPoller + 执行 cleanupFns | 重复调用安全；**不停 lint 引擎** |
 | `registerAllProjects(log)` | `EditorInitializer.ts` | 注册项目模块 + AI 处理器 | 幂等（`_editorAIHandlersInstalled`） |
 | `installEventBridge()` | `EditorInitializer.ts` | editorBus → Zustand 映射 | 加新事件通知改这里 |
-| `registerEditorAIHandlers()` | `EditorInitializer.ts` | 注册 15 个 AI 事件 | 内部先 `clearEvent` 防重复 |
+| `registerEditorAIHandlers()` | `EditorInitializer.ts` | 注册 2 个 AI 事件（`ai.selectActor` / `ai.dragActor`） | 内部先 `clearEvent` 防重复 |
 | `registerGlobalEventListeners(cb)` | `EditorInitializer.ts` | 快捷键 + 菜单 + MCP | 返回清理函数 |
 
 ---

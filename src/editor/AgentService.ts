@@ -26,7 +26,10 @@ import type {
   ContextCardInfo, ContextEventPayload, KnownContextForm,
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
   PendingImage, PromptContentPart,
+  SessionUsageEntry, SessionInfo, SessionsUpdatedPayload,
+  FileDiff,
 } from '../types/agent'
+import type { SessionStatsProjection } from '../types/agent'
 import { logTime } from '../utils/logTime'
 
 /** session.prompt 接受的图片 MIME 白名单（对齐 DSH dsh-client-ui-conversation imageMediaType） */
@@ -56,6 +59,66 @@ export async function encodeImagePart(file: File): Promise<PromptContentPart> {
   }
 }
 
+// ─── session/projection 投影帧合并（纯函数，供单测与 mux 分支共用） ───
+
+/** 会话列表条目：listSessions 返回 / 会话列表缓存的统一形状 */
+export type SessionListItem = SessionInfo & { agentPreset?: string }
+
+/** session/projection 推送帧的编辑器侧形状（对齐 DSH WebUI mux 帧：扁平 sessionId/key/value/seq） */
+export interface ProjectionFrame {
+  sessionId?: string
+  key?: string
+  value?: unknown
+  seq?: number
+}
+
+/** 投影帧合并结果：applied=已合并出新列表；dropped=畸形/过期帧丢弃；ignored=会话不在列表（需全量刷新） */
+export type ProjectionMergeResult =
+  | { kind: 'applied'; sessions: SessionListItem[] }
+  | { kind: 'dropped' }
+  | { kind: 'ignored' }
+
+/** 编辑器侧关心的投影键集合（其余键只记水位不触发面板更新） */
+const TRACKED_PROJECTION_KEYS = new Set(['title', 'sessionStats'])
+
+/**
+ * 把 session/projection 帧合并进会话列表（不可变更新）。
+ * 对齐 DSH WebUI projectionStore.apply：seq <= 已知水位的帧丢弃（last-wins）；
+ * 会话不在列表（典型：blank 新会话刚获得首个投影）或未知投影键 → ignored，
+ * 由调用方走防抖全量刷新保持列表权威。
+ */
+export function mergeProjectionFrame(
+  sessions: SessionListItem[],
+  seqs: Map<string, number>,
+  frame: ProjectionFrame,
+): ProjectionMergeResult {
+  const { sessionId, key, value, seq } = frame
+  if (!sessionId || typeof key !== 'string' || typeof seq !== 'number') return { kind: 'dropped' }
+  const watermarkKey = `${sessionId}:${key}`
+  const known = seqs.get(watermarkKey)
+  if (known !== undefined && seq <= known) return { kind: 'dropped' }
+
+  const index = sessions.findIndex(s => s.sessionId === sessionId)
+  if (index === -1 || !TRACKED_PROJECTION_KEYS.has(key)) {
+    seqs.set(watermarkKey, seq)
+    return { kind: 'ignored' }
+  }
+
+  const next = { ...sessions[index]! }
+  if (key === 'title') {
+    if (typeof value !== 'string') return { kind: 'dropped' }
+    next.title = value
+  } else {
+    const stats = value as Partial<SessionStatsProjection> | null
+    if (!stats || typeof stats.turns !== 'number') return { kind: 'dropped' }
+    next.turns = stats.turns
+  }
+  seqs.set(watermarkKey, seq)
+  const merged = sessions.slice()
+  merged[index] = next
+  return { kind: 'applied', sessions: merged }
+}
+
 const POLL_INTERVAL = 200   // 轮询间隔 ms（平衡延迟与性能）
 const MAX_POLL_ATTEMPTS = 180 // 最多轮询次数（~144s）
 const WATCHDOG_INTERVAL_MS = 3000 // mux 推送静默后的兜底拉取周期
@@ -70,6 +133,27 @@ function isToolResultFailure(d: {
   message?: { content?: Array<{ isError?: boolean }> }
 } | undefined): boolean {
   return d?.error != null || d?.message?.content?.[0]?.isError === true
+}
+
+/**
+ * 从 tool/result 事件的 meta 中提取已应用的文件差异 hunk（write/edit 工具的权威展示数据）。
+ * 对齐 DSH dsh-tool-fs diffsFromMeta 的防御式收窄：meta/diffs 形状不符（旧版本、回放损坏、
+ * 非 diff 工具）返回 undefined，展示层回退通用卡片而不是抛错。
+ */
+export function extractDiffsFromMeta(meta: unknown): FileDiff[] | undefined {
+  if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return undefined
+  const diffs = (meta as { diffs?: unknown }).diffs
+  if (!Array.isArray(diffs) || diffs.length === 0) return undefined
+  const valid: FileDiff[] = []
+  for (const item of diffs) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return undefined
+    const { path, oldText, newText } = item as Record<string, unknown>
+    if (typeof path !== 'string') return undefined
+    if (oldText !== null && typeof oldText !== 'string') return undefined
+    if (typeof newText !== 'string') return undefined
+    valid.push({ path, oldText: oldText ?? null, newText })
+  }
+  return valid.length > 0 ? valid : undefined
 }
 const RECONNECT_BASE_DELAY = 1000 // 重连基础延迟 ms
 const RECONNECT_MAX_DELAY = 16000 // 重连最大延迟 ms
@@ -357,6 +441,13 @@ export class AgentService {
   // --- Mux WS 下行流（question/requested、session/event 等帧） ---
   private muxWs: WebSocket | null = null
   private muxCleanup: (() => void) | null = null
+  // --- 会话列表实时性（session/projection 投影帧 → sessionsUpdated 事件） ---
+  /** 会话列表缓存：listSessions 权威数据 + 投影帧实时合并，经 sessionsUpdated 事件推给面板 */
+  private sessionsCache: SessionListItem[] = []
+  /** 投影 seq 水位表（键 `${sessionId}:${key}`，last-wins 去重，对齐 WebUI projectionStore） */
+  private projectionSeqs = new Map<string, number>()
+  /** 投影帧触发的防抖全量刷新定时器（覆盖 blank→listed 等结构性变化，300ms 合并窗口） */
+  private projectionRefreshTimer: ReturnType<typeof setTimeout> | null = null
   /** 已消费的最大事件 seq（推送/轮询/心跳三路共用，按 seq 去重） */
   private _lastSeq = -1
   /**
@@ -865,6 +956,12 @@ export class AgentService {
       return
     }
 
+    // ── session/projection：投影实时推送（title/sessionStats 等，与 DSH WebUI 同一 mux 帧）──
+    if (method === 'session/projection') {
+      this.consumeProjectionFrame(payload as ProjectionFrame)
+      return
+    }
+
     // ── session/subscribed：mux 连接/会话创建时的订阅基线（lastSeq 之前的进历史加载） ──
     if (method === 'session/subscribed') {
       const sid = payload.sessionId as string | undefined
@@ -877,9 +974,40 @@ export class AgentService {
         if (this._lastSeq > before) {
           console.log(`[${logTime()}] [Trace][baseline] ${this.instanceId} session/subscribed 基线前跳: ${before} → ${this._lastSeq} (lastSeq=${lastSeq})`)
         }
+        // 投影水位截断（对齐 WebUI projectionStore.truncate）：agent 重启后 seq 基线回退，
+        // 本地高于基线的水位不可信 → 丢弃水位并防抖全量刷新，由 session.list 权威重种
+        let truncated = false
+        for (const [k, s] of this.projectionSeqs) {
+          if (s > lastSeq) { this.projectionSeqs.delete(k); truncated = true }
+        }
+        if (truncated) this.scheduleProjectionRefresh()
       }
       return
     }
+  }
+
+  /** 消费 session/projection 帧：合并进缓存并推送 sessionsUpdated；会话不在缓存走防抖全量刷新 */
+  private consumeProjectionFrame(frame: ProjectionFrame): void {
+    const result = mergeProjectionFrame(this.sessionsCache, this.projectionSeqs, frame)
+    if (result.kind === 'applied') {
+      console.log(`[${logTime()}] [AgentService] session/projection 合并: ${frame.sessionId}:${frame.key} (seq=${frame.seq}) → sessionsUpdated`)
+      this.sessionsCache = result.sessions
+      this.emit({ type: 'sessionsUpdated', payload: { sessions: result.sessions } satisfies SessionsUpdatedPayload })
+    } else if (result.kind === 'ignored') {
+      // 会话不在缓存（blank→listed 过渡）或未跟踪键：防抖拉一次全量，由 session.list 权威数据重种
+      this.scheduleProjectionRefresh()
+    }
+  }
+
+  /** 投影触发的防抖全量刷新（300ms 合并窗口），完成后同样推 sessionsUpdated */
+  private scheduleProjectionRefresh(): void {
+    if (this.projectionRefreshTimer) return
+    this.projectionRefreshTimer = setTimeout(() => {
+      this.projectionRefreshTimer = null
+      void this.listSessions().then(sessions => {
+        this.emit({ type: 'sessionsUpdated', payload: { sessions } satisfies SessionsUpdatedPayload })
+      })
+    }, 300)
   }
 
   /** 获取当前 pending 的问题请求 */
@@ -1397,12 +1525,15 @@ export class AgentService {
       }
       const pendingName = callId ? this.pendingTools.get(callId) : undefined
       if (callId) this.pendingTools.delete(callId)
+      // write/edit 工具的已应用差异（result meta 携带，面板展开卡片渲染 diff 视图）
+      const diffs = extractDiffsFromMeta(d?.meta)
       this.emit({
         type: 'toolResult',
         payload: {
           id: callId || `tr-${event.seq}`, name: pendingName || 'tool',
           result: resultText || JSON.stringify(d), status: isToolResultFailure(d) ? 'failure' : 'success',
           resultTime: time, error: d?.error,
+          ...(diffs ? { diffs } : {}),
         },
       })
       return false
@@ -1833,6 +1964,9 @@ export class AgentService {
           if (tool) {
             tool.status = isToolResultFailure(d) ? 'failure' : 'success'
             tool.result = d?.message?.content
+            // write/edit 工具的已应用差异（与实时路径同源：result meta.diffs）
+            const foldDiffs = extractDiffsFromMeta(d?.meta)
+            if (foldDiffs) tool.diffs = foldDiffs
             tool.error = d?.error ? { name: d.error.name ?? '', code: d.error.code ?? '' } : undefined
             tool.resultTime = time
             pendingTools.delete(callId)
@@ -2228,10 +2362,10 @@ export class AgentService {
   }
 
   // --- 会话管理 ---
-  async listSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt?: number; turns?: number; agentPreset?: string }>> {
+  async listSessions(): Promise<SessionListItem[]> {
     try {
       const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
-      return (value?.items || [])
+      const items: SessionListItem[] = (value?.items || [])
         .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
         .map(item => ({
           sessionId: item.sessionId,
@@ -2240,7 +2374,62 @@ export class AgentService {
           turns: item.projections?.values?.sessionStats?.turns,
           agentPreset: item.agentPreset,
         }))
-    } catch {
+      this.sessionsCache = items
+      return items
+    } catch (err) {
+      console.warn(`[${logTime()}] [AgentService] session.list 失败，回退缓存列表:`, err)
+      return this.sessionsCache
+    }
+  }
+
+  /**
+   * 拉取全部会话的 token 用量条目（使用统计面板数据源）。
+   * 数据全部来自 session.list 行内投影（tokenUsage / sessionStats），
+   * 零日志加载：blank 会话与零用量会话被过滤，本地黑名单会话同样剔除。
+   */
+  async listSessionUsage(): Promise<SessionUsageEntry[]> {
+    try {
+      const value = (await this.rpc('session.list')) as {
+        items?: Array<{
+          sessionId: string
+          updatedAt?: number
+          blank?: boolean
+          projections?: {
+            values?: {
+              title?: string
+              tokenUsage?: { uncachedInputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number }
+              sessionStats?: SessionStatsProjection
+            }
+          }
+        }>
+      }
+      const items = value?.items ?? []
+      const entries: SessionUsageEntry[] = []
+      for (const item of items) {
+        if (item.blank || this.deletedSessionIds.has(item.sessionId)) continue
+        const u = item.projections?.values?.tokenUsage
+        if (!u) continue
+        const usage: SessionUsageEntry['usage'] = {
+          uncachedInputTokens: u.uncachedInputTokens ?? 0,
+          outputTokens: u.outputTokens ?? 0,
+          cacheReadTokens: u.cacheReadTokens ?? 0,
+          cacheWriteTokens: u.cacheWriteTokens ?? 0,
+        }
+        // 零用量会话（空壳/仅权限事件）不进入统计
+        const total = usage.uncachedInputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens
+        if (total <= 0) continue
+        entries.push({
+          sessionId: item.sessionId,
+          ...(item.projections?.values?.title ? { title: item.projections.values.title } : {}),
+          updatedAt: item.updatedAt,
+          usage,
+          ...(item.projections?.values?.sessionStats ? { stats: item.projections.values.sessionStats } : {}),
+        })
+      }
+      console.log(`[${logTime()}] [AgentService] 使用统计加载: ${entries.length}/${items.length} 个会话含用量`)
+      return entries
+    } catch (err) {
+      console.warn(`[${logTime()}] [AgentService] 使用统计加载失败:`, err)
       return []
     }
   }

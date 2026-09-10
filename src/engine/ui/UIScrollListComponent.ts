@@ -182,17 +182,23 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     this._initialize()
   }
 
-  /** Inspector 属性展示 */
+  /**
+   * Inspector 属性展示。可编辑键（camelCase）与 getEditableProperties() 精确匹配
+   * 渲染编辑控件；items/offset/pool 为只读信息行（列表内容的实时派生态）。
+   */
   override getProperties(): Record<string, unknown> {
     return {
-      Items: `${this._totalCount}`,
-      Offset: this._scrollOffset.toFixed(2),
-      Widget: this._itemWidget ?? '未设置',
-      Pool: this._pool.length,
-      Direction: this._direction,
-      ZLift: this._zOrderLift,
-      Draggable: this._draggable,
-      Scrollbar: this._scrollbar,
+      itemWidget: this._itemWidget ?? '',
+      itemSize: [...this._itemSize],
+      spacing: this._spacing,
+      visibleCount: this._visibleCount,
+      items: `${this._totalCount}`,
+      offset: this._scrollOffset.toFixed(2),
+      pool: this._pool.length,
+      direction: this._direction,
+      zOrderLift: this._zOrderLift,
+      draggable: this._draggable,
+      scrollbar: this._scrollbar,
     }
   }
 

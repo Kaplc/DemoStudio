@@ -200,7 +200,7 @@ widget 源文件怎么编译成蓝图、锚点九宫格完整取值与编辑器�
 flowchart TD
     A["InputSys.handlePointerDown(x, y)<br/>InputSys.ts:36"] --> B["PhySys.raycastClick(x, y)<br/>PhySys.ts:155"]
     B --> C["UI 层 resolveUIStage<br/>screenToRay(UI 相机) 平行射线"]
-    C --> D{"pickFrontmostHit<br/>clickable vs block 画布<br/>按 zOrder 竞争"}
+    C --> D{"pickFrontmostHit<br/>clickable vs block 画布<br/>距离最近者胜，同面按 zOrder"}
     D -->|"顶层是 block"| E["消费点击 return true"]
     D -->|"命中 clickable"| F["ClickableComponent.handleClick<br/>ClickableComponent.ts:197"]
     F --> G["onPress → onClick<br/>（绑 onDragMove 则延迟到释放）"]
@@ -221,16 +221,16 @@ if (consumed) return true
 
 > 右键不参与 UI 点击检测（它归摄像机平移）。左键命中 UI 后直接 `return true`，Controller 的 `OnPointerDownScreen` 不会执行 —— 这就是"点按钮不会同时触发放置建筑"的实现点。
 
-**② 遮挡竞争：UI 层按 zOrder，世界层按射线最近**
+**② 遮挡竞争：UI 层距离优先（同面按 zOrder），世界层按射线最近**
 
-`raycastClick` 分两级。**UI 层**（`resolveUIStage`）沿用 zOrder 竞争：遍历所有 UI `ClickableComponent` 做 `hitTest`，再遍历 `hitTestMode === 'block'` 的拦截画布（world 模式画布被排除，归世界层），由 `pickFrontmostHit` 取最高：
+`raycastClick` 分两级。**UI 层**（`resolveUIStage`）统一收集候选：遍历所有 UI `ClickableComponent` 做 `hitTest`，再遍历 `hitTestMode === 'block'` 的拦截画布（world 模式画布被排除，归世界层），由 `pickFrontmostHit` 先按射线距离取最近、距离差 < `SAME_PLANE_EPS`（1e-3）视为同面再按 zOrder 决胜：
 
 ```ts
 // 同 zOrder 时 clickable 优先（同层按钮先于遮罩）
 const cWins = c.z > best.z || (c.z === best.z && c.kind === 'clickable' && best.kind === 'blocked')
 ```
 
-> 比较是**严格大于**：同层时按钮赢过遮罩，否则模态遮罩会把自己上面的按钮吃掉。`uiZOrder` 取 owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder（[ClickableComponent.ts](../../src/engine/physics/ClickableComponent.ts):289），所以父节点层级高则整棵子树在竞争中都占优。
+> 同面时 zOrder 比较是**严格大于**（同 z 时按钮赢过遮罩），否则模态遮罩会把自己上面的按钮吃掉。屏幕 UI 的面板 z 偏移（zOrder×0.001）与 `SAME_PLANE_EPS` 同量级，所以"层级高的占优"在屏幕 UI 下依旧成立。`uiZOrder` 取 owner 及祖先链上 `CanvasUIComponent` 的最大 zOrder（[ClickableComponent.ts](../../src/engine/physics/ClickableComponent.ts):289），所以父节点层级高则整棵子树在竞争中都占优。
 
 **世界层**（`resolveWorldStage`）不按注册顺序——收集**全部**命中（世界 clickable + world 模式 block 画布）取**射线最近者**，距离差小于 `SAME_PLANE_EPS`（1e-3，世界模式 z 偏移经 1/pxPerMeter 缩放后约 5e-5）视为同面、按 zOrder 决胜。这是 UE 语义："游戏输入是 UI 未命中时的兜底，命中归属由几何决定，与注册时机无关"。没有这一层仲裁时，后 spawn 的 world 面板按钮会被先注册的建筑 clickZone 抢走点击（历史上信息牌"点升级"变成重新选中建筑的根因）。
 
@@ -382,7 +382,7 @@ try {
 
 **7. 快速连点第二下没反应 / 拖拽滚动误触发按钮点击 / 拖拽卡顿** —— `clickCooldown` 默认 **500ms**；绑定 `onDragMove` 才走拖拽语义（位移超 8px 取消点击）；每个 UI clickable 的 `hitTest` 会沿父链强制 `updateWorldMatrix`，所以 `InputSys.handlePointerMove` 用 `PhySys.isDragging` 跳过拖拽期间的 hover 射线。**规则**：高频响应显式调小 `clickCooldown`（项目里已有 200/300ms 先例）；滚动类组件必须绑 `onDragMove`；不要在拖拽路径上加全量 hover 射线。
 
-**8. 关掉的 UI 按钮仍然响应点击** —— `THREE.Raycaster` 不检查 `visible`，父节点隐藏时子 mesh 仍会被命中，`ClickableComponent.hitTest` 因此沿父链过滤不可见目标。**规则**：隐藏 UI 用 `bActive=false`（走 `syncVisibility`），不要只改单个 mesh 的 visible。
+**8. 关掉的 UI 按钮仍然响应点击** —— `THREE.Raycaster` 不检查 `visible`，父节点隐藏时子 mesh 仍会被命中，`ClickableComponent.hitTest` 因此沿父链过滤不可见目标。**规则**：隐藏 UI 用 `bActive=false`（显隐级联走 `applyActive` / `Actor.applyActiveTree`），不要只改单个 mesh 的 visible。
 
 **9. `UIScrollListComponent` 建池失败 / item 泄漏 / 游戏停止后 UI 仍被点击命中** —— 前两者源于内联子节点不走 `SpawnActor`、`world` 恒 null（靠 `setWorld` 整树传播补齐），且 `BeginPlay` 用 `_initialized` 保护、重复初始化会让旧 item 停在 pendingSpawn 销毁失效；第三者靠 `PhySys.clear()` 清空 `_clickables`/`_uiClickables`/`_uiBlockers`（残留组件闭包链指向已销毁的旧 World，会导致旧 world 被驱动）。**规则**：新增依赖 `owner.world` 的 UI 组件要确认 BeginPlay 时能拿到 world；停止游戏必须走 `PhySys.setupUI(null)` + `reset()`。
 
@@ -401,8 +401,8 @@ try {
 | `world.running` 为 false | 不施加 `FLOAT_LAYER_BIAS`；`tickUI` 直接返回 | 预览/未启动状态下不要依赖 tick 推进 |
 | 子节点 `active: false` | 节点已创建但不渲染，作用于整个子树 | 用于"先建好再显示"的面板 |
 | 拖拽位移 ≤ 8px | 仍判定为点击，释放时触发 `onClick` | 拖拽阈值见 `DRAG_THRESHOLD_PX` |
-| 同 zOrder 的按钮 vs block 画布 | 按钮优先（比较是严格大于） | 遮罩要压住按钮必须 zOrder 更高 |
+| 同面且同 zOrder 的按钮 vs block 画布 | 按钮优先 | 遮罩要压住按钮必须 zOrder 更高 |
 | 非 16:9 视口 | UI 画布 contain 居中、两侧留空不裁切 | 见 `UICamera.setCanvasSize` |
-| Toast 超过 `maxVisible`（默认 3） | 非 critical 的旧通知被顶掉 | 调 `maxVisible` 或用 critical 优先级 |
+| Toast 超过 `maxVisible`（默认 3） | 已显示的条目不会被顶掉；溢出条目留在队列，等空位后按优先级弹出（critical 只是"有空位时优先"） | 调 `maxVisible` 加速消化 |
 | UI Actor 销毁 / 已销毁组件仍在注册表 | 走 `UIManager.destroyUIActor`（子树走本地递归分支）；`handleClick`/`handleHover` 开头 `isDestroyed()` 拒绝响应 | 不要对 UI Actor 调 3D 销毁路径；引擎只短路不根治 |
 
