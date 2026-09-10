@@ -29,7 +29,7 @@ export function isOldSession(s: SessionInfo, currentSessionId: string | undefine
   return s.updatedAt < now - OLD_SESSION_THRESHOLD_MS
 }
 
-/** 把活跃会话（调用方已过滤 blank）分为近期/更早两组 */
+/** 把会话分为近期/更早两组（blank 会话已在 AgentService.listSessions 过滤） */
 export function splitSessionsByAge(
   sessions: SessionInfo[],
   currentSessionId: string | undefined,

@@ -3054,7 +3054,7 @@ html, body, #root {
   background: var(--dsw-alias-bg-layer-2);
   border-left-color: var(--dsw-alias-state-business-primary);
 }
-.session-sidebar__item--blank { opacity: 0.6; }
+
 .session-sidebar__item-row {
   display: flex;
   align-items: center;
@@ -3088,13 +3088,6 @@ html, body, #root {
 .session-sidebar__delete:hover {
   color: var(--dsw-alias-state-error-primary);
   background: var(--dsw-alias-interactive-bg-hover-danger, rgba(242,90,90,0.15));
-}
-.session-sidebar__divider {
-  padding: 6px 12px;
-  font: var(--dsw-font-xxxs);
-  color: var(--dsw-alias-label-caption);
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  margin-top: 4px;
 }
 /* --- 会话侧边栏：3 天前会话折叠组（默认收起） --- */
 .session-sidebar__group {

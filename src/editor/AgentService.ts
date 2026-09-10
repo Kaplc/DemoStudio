@@ -2166,16 +2166,15 @@ export class AgentService {
   }
 
   // --- 会话管理 ---
-  async listSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt?: number; blank?: boolean; turns?: number; agentPreset?: string }>> {
+  async listSessions(): Promise<Array<{ sessionId: string; title?: string; updatedAt?: number; turns?: number; agentPreset?: string }>> {
     try {
       const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
       return (value?.items || [])
-        .filter(item => !this.deletedSessionIds.has(item.sessionId))
+        .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
         .map(item => ({
           sessionId: item.sessionId,
           title: item.projections?.values?.title || item.sessionId,
           updatedAt: item.updatedAt,
-          blank: item.blank,
           turns: item.projections?.values?.sessionStats?.turns,
           agentPreset: item.agentPreset,
         }))

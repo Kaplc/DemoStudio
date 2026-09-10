@@ -233,7 +233,6 @@ export interface SessionInfo {
   sessionId: string
   title?: string
   updatedAt?: number
-  blank?: boolean
   turns?: number
 }
 

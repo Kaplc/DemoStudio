@@ -36,9 +36,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
   }
 
-  const activeSessions = sessions.filter(s => !s.blank)
-  const blankSessions = sessions.filter(s => s.blank)
-  const { recent: recentSessions, older: olderSessions } = splitSessionsByAge(activeSessions, currentSessionId)
+  const { recent: recentSessions, older: olderSessions } = splitSessionsByAge(sessions, currentSessionId)
 
   // 生命周期埋点：侧边栏每次打开/列表变化时记录分组结果，便于从日志还原执行路径
   useEffect(() => {
@@ -90,7 +88,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       </button>
 
       <div className="session-sidebar__list">
-        {activeSessions.length === 0 && (
+        {sessions.length === 0 && (
           <div className="session-sidebar__empty">暂无会话</div>
         )}
         {recentSessions.map(s => renderItem(s))}
@@ -107,23 +105,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
               <span>3 天前的会话（{olderSessions.length}）</span>
             </div>
             {olderExpanded && olderSessions.map(s => renderItem(s))}
-          </>
-        )}
-
-        {blankSessions.length > 0 && (
-          <>
-            <div className="session-sidebar__divider">空白会话</div>
-            {blankSessions.slice(0, 3).map(s => (
-              <div
-                key={s.sessionId}
-                className="session-sidebar__item session-sidebar__item--blank"
-                onClick={() => onSwitch(s.sessionId)}
-              >
-                <div className="session-sidebar__item-title">
-                  {s.sessionId.slice(0, 12)}...
-                </div>
-              </div>
-            ))}
           </>
         )}
       </div>
