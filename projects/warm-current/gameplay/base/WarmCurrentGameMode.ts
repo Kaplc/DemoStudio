@@ -55,6 +55,9 @@ const VIEW_LOADING_WIDGET = 'asset/blueprints/ui/view_loading.widget.json'
 export const WARM_CURRENT_SCENE = 'WarmCurrentMap'
 export const HUD_WIDGET = 'asset/blueprints/ui/hud.widget.json'
 
+/** 地面建筑命中半径（地图px；buildingAt 选中与 nodeAt 拖线端点共用，改口径两处同步） */
+const BUILDING_HIT_R = 26
+
 function dist(px: number, py: number, x: number, y: number): number {
   return Math.hypot(px - x, py - y)
 }
@@ -826,7 +829,7 @@ export class WarmCurrentGameMode extends GameMode {
     for (const b of s.buildings) {
       // 入轨建筑按实时位置判定（放置静态落点会随公转漂移）
       const bp = buildingPos(s, b)
-      if (dist(p.x, p.y, bp.x, bp.y) <= 26 + B.map.hitTolerance) return b
+      if (dist(p.x, p.y, bp.x, bp.y) <= BUILDING_HIT_R + B.map.hitTolerance) return b
     }
     return null
   }
@@ -932,6 +935,14 @@ export class WarmCurrentGameMode extends GameMode {
     }
     const e = this.starActorWorldPos('earth')
     if (e && dist(p.x, p.y, e.x, e.y) <= B.map.nodes.earth.r + B.map.hitTolerance) return { kind: 'earth' }
+    // 可接航线建筑（中转站）= 补给线端点：hover/落点判定走这里；命中半径与 buildingAt 同口径
+    for (const b of s.buildings) {
+      if (!buildingDefOf(b.type)?.linkable) continue
+      const bp = buildingPos(s, b)
+      if (dist(p.x, p.y, bp.x, bp.y) <= BUILDING_HIT_R + B.map.hitTolerance) {
+        return { kind: 'building', buildingId: b.id }
+      }
+    }
     return null
   }
 
@@ -1050,7 +1061,21 @@ export class WarmCurrentGameMode extends GameMode {
     const s = this.simState.state
     if (s.outcome === 'defeat' || s.pendingCard) return
     const b = this.buildingAt(p)
-    if (b) { this.selection = { type: 'building', id: b.id }; return }
+    if (b) {
+      // 航线编辑模式：可接航线建筑（中转站）优先作为拖线起点，点击选中留给非编辑态
+      if (this.routeEditMode && buildingDefOf(b.type)?.linkable) {
+        const ep: Endpoint = { kind: 'building', buildingId: b.id }
+        const bp = endpointPos(s, ep)
+        this.drag = {
+          fromEp: ep, fromX: bp.x, fromY: bp.y,
+          curX: p.x, curY: p.y, hoverEp: null, valid: false, label: '',
+        }
+        audioSys.play('wc.draw', { volume: 0.4 })
+        return
+      }
+      this.selection = { type: 'building', id: b.id }
+      return
+    }
     // 近地轨道设施：船坞 → 船坞造船面板（造船入口）；其它类型（含在建）→ 轨道建设面板
     const ob = this.orbitBuildingAt(p)
     if (ob) {
