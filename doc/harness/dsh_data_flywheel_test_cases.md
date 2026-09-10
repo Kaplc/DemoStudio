@@ -13,6 +13,7 @@
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
 | [memoryTypes.test.ts](../../harness/ds-memory/tests/memoryTypes.test.ts) | KM-01：锁住记忆指导段四段格式与「什么不该存」文案 | 改 `memoryTypes.ts` 提示词后必跑 |
+| [endOfTurnReminder.test.ts](../../harness/ds-memory/tests/endOfTurnReminder.test.ts) | KM-06~08：回合末提醒接线（`turn-stopping` + `steer`、60s 冷却、子 agent 门控、中止/抛错兜底）+「本回合已保存过则跳过」判定 | 改 `index.ts` 提醒块或 `reminderSkipTools` |
 | [ruleStore.test.ts](../../harness/ds-feedback/tests/ruleStore.test.ts) | RL-01~10：规则名校验、提案落盘、同名 mode 冲突、索引单行、超限截断 | 改 `ruleStore.ts` 落盘逻辑 |
 | [preScreen.test.ts](../../harness/ds-feedback/tests/preScreen.test.ts) | RL-12~13：纠正关键词预筛 + 提示块渲染 | 调关键词或摘录上限 |
 | [turnEnd.test.ts](../../harness/ds-feedback/tests/turnEnd.test.ts) | RL-14~16：回合末接线、agent 隔离、子 agent 门控、running 撤销补检 | 改 `index.ts` 空闲监听 |
@@ -61,7 +62,7 @@ cd harness/ds-experience && npm install && npm run build && npm test
 
 | 编号 | 管什么 | 对应插件 | 主要测试文件 |
 |---|---|---|---|
-| KM | 知识飞轮：ds-memory 提示词结构化 | ds-memory | `memoryTypes.test.ts` |
+| KM | 知识飞轮：ds-memory 提示词结构化 | ds-memory | `memoryTypes.test.ts`、`endOfTurnReminder.test.ts` |
 | RL | 反馈飞轮：规则提案/应用 + 回合末预筛 | ds-feedback | `ruleStore.test.ts`、`tools.test.ts`、`preScreen.test.ts`、`turnEnd.test.ts` |
 | SQ | 会话索引：`session-query-sqlite` patch | 内核 + profile patch | 无（纯手动） |
 | EXP | 经验插件：落盘/检索/历史转录 | ds-experience | `experienceStore.test.ts`、`experienceTools.test.ts`、`historyTools.test.ts`、`extractExperience.test.ts`、`index.test.ts` |
@@ -76,7 +77,7 @@ cd harness/ds-experience && npm install && npm run build && npm test
 
 ### 4.1 KM 知识飞轮（ds-memory）
 
-KM-01 是唯一有单测的 KM 用例，锁的是**提示词文本本身**（改文案极易回退，必须断言）：
+KM-01 锁的是**提示词文本本身**（改文案极易回退，必须断言）：
 
 ```ts
 it('不保存清单不再包含无差别的"调试修复配方"，改为限定一次性修复过程', () => {
@@ -90,10 +91,13 @@ it('不保存清单不再包含无差别的"调试修复配方"，改为限定�
 | 编号 | 类型 | 验证什么 / 怎么跑 | 预期 |
 |---|---|---|---|
 | KM-01 | 单测 | 四段标签、`WHAT_NOT_TO_SAVE` 语义、容器规则、保存触发点（`memoryTypes.test.ts:87` 起 5 个 it） | 全绿 |
-| KM-02 | 单测 | memory 四工具 + 解析用例全量重跑，提示词改动不得破坏解析/落盘 | 全绿。**当前 7 个文件红 1 个，见 §7 坑 2** |
+| KM-02 | 单测 | memory 四工具 + 解析用例全量重跑，提示词改动不得破坏解析/落盘 | 全绿（2026-09-11 实测 9 文件 121 用例全绿；历史红因见 §7 坑 2） |
 | KM-03 | 手动 | 真实踩一个可复用坑 → 等提取 → 查 `.dsh/memory/` | 新记忆按 Problem/Cause/Solution/Applicable 四段组织 |
 | KM-04 | 手动 | 一次无可复用根因的单点 bug 修复后等提取 | 不生成修复流水账记忆（宁缺毋滥） |
 | KM-05 | 手动 | 同一主题下连踩多个坑 | 合并进同一文件，每坑一个 `## 小节`，不拆碎 |
+| KM-06 | 单测 | 回合末提醒接线：`agent/turn-stopping` + `steer` 注入（文本/`source` 契约）、60s 冷却按 agent 隔离、子 agent 门控、signal 中止与 steer 抛错兜底、配置关闭时不注册监听（`endOfTurnReminder.test.ts`） | 全绿 |
+| KM-07 | 单测 | 提醒跳过判定：本回合 `memory_write` 或 `experience_save` 成功 → 跳过；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`endOfTurnReminder.test.ts`） | 全绿 |
+| KM-08 | 单测 | `reminderSkipTools` 配置面：`[]` 关闭判定、自定义清单替换默认（`endOfTurnReminder.test.ts`） | 全绿 |
 
 KM-02 的单测部分锁的是「改了结构后解析函数还能吃下老格式」——`parseFrontmatter` 对 BOM、缺 `name`/`description`、无闭合 fence、空输入一律返回 `{}` 而非抛错（`memoryTypes.test.ts:27` 起 4 个 it）。
 
@@ -285,7 +289,7 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 
 **1. `npx vitest run` 报 `Cannot find package '@deepseek-ai/dsh-llm'`** —— 三个插件 `node_modules` 下只有 `.vite` 缓存，依赖没装（`dsh-source/node_modules` 里也没有）；ds-experience 4/5、ds-feedback 2/4 文件因此 FAIL。规则：先 `npm install`；**这类「Failed to load url」是环境问题不是用例失败**，别去改测试代码。
 
-**2. `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`** —— `src/selectMemories.ts` 已删除（`ds-memory/src` 现只剩 8 个文件），测试文件还在；ds-memory 7 个文件红 1 个，其余 6 个 55 测试全绿。规则：KM-02「全量重跑」当前无法全绿，要么恢复源码要么删孤儿测试。
+**2. 用例跟着实现走，实现变了测试没变 → 恒红**（两代同型坑）—— ① `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`：`src/selectMemories.ts` 已删除，孤儿测试还在（**已删，2026-09-11 复核全绿**）。② `endOfTurnReminder.test.ts` 锁的还是「`agent/pre-step` 新回合第一步注入」的旧实现，而提醒早已改走 `agent/turn-stopping` + `steer`——5 个用例恒红（**2026-09-11 已按现行实现翻新**，并补上「本回合已保存过则跳过」用例）。规则：**改提醒投递通道（pre-step ↔ turn-stopping/steer ↔ inject）必须同步 `endOfTurnReminder.test.ts`**；这类「Failed to load / 断言 undefined」是**假红**，最坏后果是掩盖真实回归信号，别当成环境噪声绕过。
 
 **3. EXP-08/09/10/11/12 的断言与代码永久冲突** —— `extractFromSession` 恒定返回 `{ ok: true, saved: [], updated: [] }`，测试却断言 `saved` 非空、`maxTurn` 推进，而 `ExtractResult` 已移除 `maxTurn`。规则：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
 
@@ -309,7 +313,7 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 |---|---|---|
 | 单测 vs 手动 | 单测锁行为，手动验真实内核/LLM/落盘 | 两类都不能省 |
 | 依赖未安装 | `Cannot find package`，非用例失败 | 先 `npm install` |
-| `src/selectMemories.ts` 已删除 | `selectMemories.test.ts` 恒红 | 恢复源码或删孤儿测试 |
+| `selectMemories.test.ts` 孤儿测试（已删）、提醒通道变更（已翻新） | 恒红假信号，掩盖真实回归 | 实现变更时同步测试；`endOfTurnReminder.test.ts` 跟着投递通道走 |
 | `extractFromSession` 已禁用 | 恒定 `ok:true`/不落盘，无 `maxTurn` | EXP-08/09/11/12 翻新口径 |
 | headless 内核 | 改动需重启，无热重载 | 每次改动后重启 |
 | web profile | `patchReload: live` 热重挂 | 多次改动后查无重复 section/定时器（M-03） |
