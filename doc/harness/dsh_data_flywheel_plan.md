@@ -88,7 +88,7 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 
 > **为什么不写后台提取**：早期版本有回合末 side-query 提取，实践中要么漏存、要么滥存（把过程流水账全存进来）。现在改为「触发点绑定 + 回合末提醒」两段提示词，由主 agent 在回合内当场判定——它有完整上下文，比事后拿转录摘要判断准。
 
-> **memory_write 已改为「返回指引、手动落盘」**（2026-09-09）：工具只做参数校验（name/type/prefix 表达式）与按 name/description 查重，然后返回写入指引提示词（`memoryTypes.ts` 的 `buildManualWritePrompt`）——由主 agent 用 write/edit 手动完成三步：① 写记忆文件 ② 同步 MEMORY.md 索引行 ③ 全库检查过时记忆并顺便更新/清理。触发点清单与三步要求见更新后的 `SAVE_FLOW_TEXT`。
+> **memory_write 语义沿革**：全自动落盘 → 「返回指引、手动三步」（2026-09-09 上午）→ **「半自动：frontmatter 工具落盘、正文 agent 手写」**（2026-09-09 定稿）。现状：工具做校验（name/type/prefix 表达式）+ 按 name/description 查重后，**直接写 frontmatter**（新建文件只落头部、已有文件原位更新头部且正文原样保留）并同步 MEMORY.md 索引行，返回结果 + 正文补写提醒（`memoryTypes.ts` 的 `buildBodyWriteReminder`）——主 agent 只剩两步：① 用 write/edit 补写正文（按条目格式）② 顺便全库过时检查。格式确定性归工具、内容自由度归 agent。直接动机之一是内核 lossless JSON 边界：工具返回值不得含显式 `undefined` 键（否则 `ToolOutputError: value is not lossless JSON`），半自动把返回值收敛为纯字符串字段。
 
 **读回路径**：[index.ts:89](../../harness/ds-memory/src/index.ts) 注册常驻段 `memory:guide`（order 3200），`text` 每次装配时重算，把截断后的 `MEMORY.md` 索引拼进段尾；主 agent 看到索引后按需调 `memory_search` 按文件名取正文。
 
@@ -187,7 +187,7 @@ return { status: existing ? 'updated' : 'created', fileName }
 
 > 同名即覆盖、不产生副本——episode 是「某类任务怎么做」的一条路线，同类型第二次做应更新同一条，而不是堆出 `fix_junction_mount_2`。真实落盘格式见 `.dsh/experience/auto_scan_ds_instructions.md`：frontmatter 四键 `name/task_type/outcome/date` + `## Summary` / `## Lessons` / `## Effective Path` 三个固定小节。
 >
-> **触发方式**：完全靠主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
+> **触发方式**：主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）+ **回合末提醒兜底**（`session/event` 的 `turn/end` 注入"回合末经验提醒"，60 秒冷却，配置 `enableEndOfTurnReminder`）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
 
 ```ts
 // 此功能已被禁用，不再调用 LLM
@@ -195,7 +195,7 @@ _ctx.logger?.info('ds-experience: extractFromSession 已被禁用，经验保存
 return { ok: true, saved: [], updated: [] }
 ```
 
-> ds-experience 的 `index.ts` 里**没有任何** `ctx.on` / `setTimeout` / 水位逻辑——早期版本有回合末自动提炼，落地首日暴露出「自动落 5 条 episode、规则库 0 提案」的失衡，两侧一起裁撤。
+> 2026-09-09 起经验侧对齐了 ds-memory 的两条**确定性**链路（对 LLM 自动提炼裁撤决策的补充而非回退——不加任何模型请求）：① 回合末提醒（纯文本注入）；② frontmatter `prefix:` 路径自动联想（associate.ts，读到满足表达式的文件时该经验全文注入，每会话去重；表达式支持 `||`/`&&`）。早期"LLM 自动提炼"的失衡教训仍然成立：判定永远在主 agent，插件只给触发信号。
 
 **② 历史会话检索**（[historyTools.ts:75](../../harness/ds-experience/src/historyTools.ts)）
 
@@ -264,9 +264,10 @@ const page = await host.ctx.sessionQuery.searchSessions({
 | ds-feedback 提案落盘 | ✅ 已有数据 | `.dsh/rules/pending/ui_default_no_icon.proposed.md`（date 2026-09-02） |
 | ds-feedback active 规则 | ⚠️ 空库 | `RULES.md` 仅标题头，无 active 规则行 |
 | ds-feedback 运行时激活 | ❌ 未激活 | `dist/index.js` 不存在；junction 未挂载 |
-| ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段齐全 |
+| ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段 + 回合末提醒 + prefix 联想齐全 |
 | ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 22 个 episode + INDEX.md |
-| ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；`index.ts` 无 `ctx.on`/`setTimeout` |
+| ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；无 side-query/水位逻辑 |
+| ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
 | session-query 持久索引 patch | ✅ 已写入配置 | `.dsh/profiles/{web,headless}/cordis.patch.yml` 均含 `path` + `openAt: first-search` |
 | session-query sqlite 文件 | ❌ 尚未建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 不存在（`first-search` 惰性，未跑过首搜） |
 | home 侧运行时 patch | ❌ 当前为空 | `%USERPROFILE%\.dsh\profiles\{web,headless}\cordis.patch.yml` 内容为 `[]` |

@@ -16,12 +16,14 @@
 | [ruleStore.test.ts](../../harness/ds-feedback/tests/ruleStore.test.ts) | RL-01~10：规则名校验、提案落盘、同名 mode 冲突、索引单行、超限截断 | 改 `ruleStore.ts` 落盘逻辑 |
 | [preScreen.test.ts](../../harness/ds-feedback/tests/preScreen.test.ts) | RL-12~13：纠正关键词预筛 + 提示块渲染 | 调关键词或摘录上限 |
 | [turnEnd.test.ts](../../harness/ds-feedback/tests/turnEnd.test.ts) | RL-14~16：回合末接线、agent 隔离、子 agent 门控、running 撤销补检 | 改 `index.ts` 空闲监听 |
-| [experienceStore.test.ts](../../harness/ds-experience/tests/experienceStore.test.ts) | EXP-01~03：episode 落盘、同名覆盖、非法名拒绝 | 改经验落盘格式 |
+| [experienceStore.test.ts](../../harness/ds-experience/tests/experienceStore.test.ts) | EXP-01~03：episode 落盘、同名覆盖、非法名拒绝 + prefix frontmatter/索引标注/单行校验 | 改经验落盘格式 |
 | [historyTools.test.ts](../../harness/ds-experience/tests/historyTools.test.ts) | EXP-06~07 + cwd 过滤：报错透出、转录跳过注入 | 改历史检索/转录渲染 |
+| [associate.test.ts](../../harness/ds-experience/tests/associate.test.ts) | EXP-16~19：prefix 段级匹配、&&/|| 求值、组装文本、项目根推导 + 联想器集成（登记→确认→注入、子 agent 门控、AND 累计） | 改 `associate.ts` 联想逻辑 |
+| [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24：注册冒烟、回合末提醒（内容/冷却/门控）、联想装配与停用 warn | 改 `index.ts` 装配 |
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
-**本次全量核实后必须知道的一件事**：旧文档的执行记录与实际代码已经脱节——KM-02 全量、EXP-08/09、EXP-10 对照组、EXP-11/12 在当前代码下**无法通过**，详见 §4.3 与 §7。
+**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 67 个单测通过。
 
 ---
 
@@ -184,20 +186,25 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 
 > 为什么要过滤：会话事件流里混着 ds-memory 注入的召回内容（`source.kind: 'plugin'`）和工具结果。不过滤，`history_read` 读回来的「上次怎么做的」会夹带一大坨当时的记忆注入，token 爆炸且语义错乱。
 
-但 **EXP-08/09/10 与 EXP-11/12 已和代码脱节**。`extractFromSession` 已被禁用，[extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 现在只有一行日志加 `return { ok: true, saved: [], updated: [] }`——**恒定返回空结果**，而 [extractExperience.test.ts:110](../../harness/ds-experience/tests/extractExperience.test.ts) 仍断言 `expect(result.saved).toEqual(['build_ds_experience_plugin.md'])` 与 `expect(result.maxTurn).toBe(1)`；`ExtractResult` 接口里**已经没有 `maxTurn` 字段**（只有 `ok`/`saved`/`updated`）。
+~~但 EXP-08/09/10 与 EXP-11/12 已和代码脱节~~（**2026-09-09 已修复**：脱节断言删除/翻新，见下方状态表）。`extractFromSession` 已被禁用，[extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 恒定返回 `{ ok: true, saved: [], updated: [] }`。
 
 | 编号 | 状态 | 证据 |
 |---|---|---|
-| EXP-08 | ❌ 已失效 | 断言 `saved` 非空 / `maxTurn` 推进，实际恒定返回空数组且无该字段 |
-| EXP-09 | ❌ 已失效 | 断言 `ok:false` + 水位不推进，实际恒定 `ok:true`；「非法 JSON 重试」路径已不存在 |
-| EXP-10 | ⚠️ 部分失效 | 子 agent 门控仍成立；但 `index.test.ts:89` 对照组断言会落 `should_not_appear.md`，提炼禁用后不再落盘 |
-| EXP-11 | ❌ 前提已变 | 「跑任务→等空闲→自动落 1 条 episode」，自动提炼已禁用，不调 `experience_save` 就不会落盘 |
-| EXP-12 | ❌ 已失效 | 「只对新增回合提炼（水位增量）」依赖的水位机制随提炼一起停用 |
+| EXP-08 | ✅ 已翻新（2026-09-09） | 脱节的 `saved`/`maxTurn` 断言删除；`extractExperience.test.ts` 只留 `parseExtractionOutput` 纯函数回归（4 例） |
+| EXP-09 | ✅ 已删除 | 失败路径随提炼禁用一并移除，无对应断言 |
+| EXP-10 | ✅ 已翻新（2026-09-09） | `index.test.ts` 重写：注册冒烟 + 回合末提醒（内容/60s 冷却/事件门控/无 inject 不抛）+ 联想装配（标准目录启用、非标形态 warn 停用、配置关断） |
+| EXP-11 | ✅ 前提重述 | 「跑任务→回合末提醒→agent 自觉 experience_save」，提醒已落地（`index.test.ts` 锁文本与冷却） |
+| EXP-12 | ✅ 随提炼退役 | 水位机制无对应断言 |
 | EXP-13 | ⚠️ 语义变更 | 现在只有主 agent 调 `experience_save` 才会覆盖，无自动 notice 通道 |
 | EXP-14 | ⚠️ 前提消失 | 后台提炼不存在了，也就无所谓「静默失败」 |
 | EXP-15 | ✅ 有效 | `history_search` → `history_read` → 模型复述，纯工具链，不依赖提炼 |
+| EXP-16 | ✅ 新增 | `associate.test.ts`：normalizeRelPath 越界/非法输入、matchExperiencePrefix 段级边界/全局 `/`/win32 大小写 |
+| EXP-17 | ✅ 新增 | `evalPrefixGroups` &&/|| 求值 + AND 跨调用累计（顺序不限）；`parsePrefixExpr` DNF 解析 |
+| EXP-18 | ✅ 新增 | `composeExperienceAssociateMessage` 组装/预算截断/omitted 提示；`deriveExperienceProjectRoot` 形态推导 |
+| EXP-19 | ✅ 新增 | 联想器集成：pre-execute 登记→result 确认→pre-step 注入全文；子 agent/失败结果不注入；AND 前缀跨读取集齐才注入；同会话去重 |
+| EXP-20 | ✅ 新增 | `experienceStore.test.ts` prefix 往返：frontmatter 落盘/读回、INDEX 行 `[联想 …]` 标注、update 不残留、换行 prefix 拒绝 |
 
-> 这些不是「暂时红了」，而是**被测能力已从代码中移除**。修法只有两条：把 `extractExperience.test.ts` / `index.test.ts` 里对应断言翻新为「禁用后恒定 `ok:true`/不落盘」的新口径，或直接删掉这两组测试文件——保留一套永远无法通过的断言，比没有测试更糟。
+> ~~这些不是「暂时红了」……修法只有两条~~ **已于 2026-09-09 按第一条修法执行**：`extractExperience.test.ts` 翻新为纯函数回归、`index.test.ts` 重写为提醒/联想装配用例。教训保留：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
 
 其余用例：
 
@@ -206,8 +213,8 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 | EXP-01 | 单测 | `experienceStore.test.ts:27` 新建 episode | `<dir>/<name>.md` + INDEX.md 各一行，含 task_type/outcome/date/Summary/Lessons |
 | EXP-02 | 单测 | `:54` 同名重复 save | `status:'updated'`，目录内**只有**一个文件，索引单行 |
 | EXP-03 | 单测 | `:72` 非法名拒绝 | 大写/分隔符/空名/保留名 `index` 一律抛错 |
-| EXP-04 | 单测 | `experienceTools.test.ts:40` 空库检索 | `count:0` + 友好文案，不报错 |
-| EXP-05 | 单测 | `:54` 命中检索 | ≤3 条；清单外/不存在的 `ghost.md` 被过滤 |
+| EXP-04 | 单测 | `experienceTools.test.ts` 空库检索（`names: []`） | `count:0` + 友好文案，不报错 |
+| EXP-05 | 单测 | `experienceTools.test.ts` 按文件名命中/不存在过滤/`.md` 后缀兼容/全部摘要 | 精确匹配返回 summary/lessons；`ghost` 过滤；省略 `names` 返回全部 |
 | EXP-06 | 单测 | `historyTools.test.ts:142` 不存在 session | `SESSION_QUERY_SESSION_NOT_FOUND` 透出为工具错误 |
 | EXP-07 | 单测 | `:35` 转录渲染 | 保留用户/助手/工具调用；跳过插件注入与 tool-result |
 | SQ-01 | 手动 | `dsh web --dump-config` | 持久 path + `openAt: first-search`，无 `:memory:` 残留 |

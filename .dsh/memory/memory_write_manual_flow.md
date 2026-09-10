@@ -1,11 +1,13 @@
 ---
 name: memory_write_manual_flow
-description: memory_write 已改为返回写入指引不落盘：agent 手动写文件→同步索引→全库过时检查三步（2026-09-09）
+description: memory_write 半自动语义（2026-09-09 定稿）：工具直写 frontmatter + 同步索引，正文由 agent 按提醒手写；返回值禁显式 undefined 键
 type: project
 prefix: harness/ds-memory
 ---
-规则：memory_write 工具**不直接落盘**（2026-09-09 用户要求改为返回提示词）——工具只做参数校验（name/type/prefix 表达式合法性）与按 name/description 查重，然后返回写入指引（`memoryTypes.ts` 的 `buildManualWritePrompt`）；由 agent 用 write/edit 手动完成三步：① 写记忆文件（frontmatter + 条目格式）② 同步 MEMORY.md 索引行 ③ **全库检查过时记忆并顺便更新/清理**。三步做完才算保存完成。content 参数已从工具 schema 移除（正文由 agent 落盘时直接写）。
+规则：memory_write 为**半自动**（2026-09-09 用户定稿"工具专写 md 开头的 frontmatter 格式"）——工具做校验 + 按 name/description 查重后，**直接落盘 frontmatter**：新建文件只写头部格式（正文为空）；已有文件**原位更新头部、正文原样保留**，并同步 MEMORY.md 索引行（description + prefix 标注）。返回 `action: write_frontmatter` + `reminder`（`memoryTypes.ts` 的 `buildBodyWriteReminder`），agent 只剩两步：① write/edit 补写正文（条目格式）② 顺便全库过时检查。**prefix 必填**（2026-09-09 二次定稿）：声明联想触发路径；无联想或更新时保持原样填 `hold`（大小写不敏感、容忍空白；hold 不落 frontmatter、更新=保留旧值）。experience_save 的 prefix 同语义。
 
-**Why:** 工具落盘的固定模板（renderMemoryFile + upsertIndexLine）跟不上记忆格式演进（prefix 表达式、多条目文件等），且用户希望写完顺便整备全库；工具保留校验+查重做确定性兜底，写入自由度交给 agent。
+**Why:** 格式确定性归工具、内容自由度归 agent（frontmatter 模板演进由代码收敛，不再靠 agent 手抄）。直接动机：内核对工具返回值有 **lossless JSON 边界**——显式 `undefined` 键（旧版新建路径的 `deduped_by`/`existing_file`）会被拒收报 `ToolOutputError: value is not lossless JSON`；可选字段必须条件展开（键缺席而非 undefined 值），测试用 `JSON.parse(JSON.stringify(v))) toStrictEqual v` 锁死。
 
-**How to apply:** 调用 memory_write 后按返回的指引逐字执行三步；指引里已有查重结论（deduped_by=update 时用 edit 改已有文件）。memoryStore 的 writeMemory/upsertIndexLine 函数保留（测试与脚本可用）但工具链路不再调用。系统提示 SAVE_FLOW_TEXT 已同步说明此流程。
+**How to apply:** 调用 memory_write 后按 reminder 补写正文；查重命中（updated）时正文要合并而非覆盖。给 harness 工具写 execute 返回值时一律避免显式 undefined 键（ds-experience 的 experience_search `date` 字段同修）。语义沿革：全自动 → 手动三步（2026-09-09 上午）→ 半自动（同日定稿）。
+
+**复发排查（2026-09-10 实测）**：若 dist 已是修复版（条件展开）但报错仍复现——是**运行中 agent 进程的内存里还是旧代码**（junction 代码随进程启动载入，重编译不影响运行中进程）。特征：仅「新建」路径报错、「已有文件/查重更新」路径正常。处置：手动三步落盘顶住，重启编辑器让进程加载新 dist 即恢复。

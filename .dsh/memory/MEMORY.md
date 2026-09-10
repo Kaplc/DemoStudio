@@ -10,5 +10,7 @@
 - [editor_mcp_roundtrip_pitfall](editor_mcp_roundtrip_pitfall.md) — 新增编辑器命令必须进主进程往返模式 if 列表（prefix: electron）
 - [editor_tools_channel_choice](editor_tools_channel_choice.md) — 通道选择：游戏层 emit_ai_event / 编辑器 UI editor_* CDP（prefix: harness/ds-editor-tools）
 - [harness_no_llm_design](harness_no_llm_design.md) — 用户决策：harness 插件不做隐性 LLM 调用（prefix: harness）
-- [memory_write_manual_flow](memory_write_manual_flow.md) — memory_write 返回指引不落盘，手动三步落盘（prefix: harness/ds-memory）
+- [memory_write_manual_flow](memory_write_manual_flow.md) — memory_write 半自动：工具写 frontmatter+索引、正文 agent 手写；返回值禁显式 undefined 键（prefix: harness/ds-memory）
+- [root_lint_script_broken](root_lint_script_broken.md) — root lint script is broken: eslint not installed, use tsc + vitest as gates（prefix: package…
+- [ds_experience_reminder_and_associate](ds_experience_reminder_and_associate.md) — ds-experience 回合末提醒 + prefix 联想（2026-09-09 与 ds-memory 同构，prefix: harness/ds-experience）
 - [user_ui_no_icon_by_default](user_ui_no_icon_by_default.md) — UI 不加 icon/emoji，除非用户要求（prefix: / 全局）

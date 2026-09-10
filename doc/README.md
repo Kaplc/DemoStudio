@@ -121,13 +121,14 @@
 | [`harness/dsh_data_flywheel_plan.md`](./harness/dsh_data_flywheel_plan.md) | 数据飞轮实施计划：知识（ds-memory）/ 反馈（ds-feedback）/ 行为（ds-experience）三层 |
 | [`harness/dsh_data_flywheel_test_cases.md`](./harness/dsh_data_flywheel_test_cases.md) | 数据飞轮测试用例集：KM / RL / SQ / EXP / SP / M 编号体系与手动用例 |
 
-## 6. 测试模块（3 篇）
+## 6. 测试模块（4 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`testing/playwright_testing.md`](./testing/playwright_testing.md) | Playwright 浏览器测试流程：环境限制、通用操作与踩坑记录 |
 | [`testing/playwright_commands.md`](./testing/playwright_commands.md) | Playwright 命令速查 + 踩坑（VS Code 内置浏览器） |
 | [`testing/playwright_mcp_commands.md`](./testing/playwright_mcp_commands.md) | Playwright MCP 调试（本地 Chrome，CDP :9222） |
+| [`testing/e2e_framework.md`](./testing/e2e_framework.md) | E2E 回归框架：多项目共用引导/断言/失败取证，新项目三步接入 |
 
 ---
 
@@ -149,7 +150,7 @@
 
 ## 统计
 
-7 个模块共 **58 篇功能文档 + 1 篇元文档 + 1 篇开发方案**：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 3 / 元文档 1 / 开发方案 1。
+7 个模块共 **59 篇功能文档 + 1 篇元文档 + 1 篇开发方案**：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。
 
 > **范式状态**（2026-09-03 全量改造完成）：**47 篇功能文档已全部为新范式**（dashboard_panel_system.md 新建时即按新范式编写，累计 48 篇）——五要素（开篇三问 / 先记住这几个文件 / 关键方法速查 / 流程影响 / 踩坑清单）47/47 达标，全库断链 0、孤儿文档 0。
 >

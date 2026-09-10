@@ -406,14 +406,9 @@ private resumePendingTurnIfNeeded(): void {
       const events = hist?.events ?? []
       if (!events.length) return
       const tailEvent = events[events.length - 1].event
-      // 从尾向头找回合边界：先遇 turn/end = 已闭合；先遇 turn/start = 未闭合；
-      // 两者都未遇到（如新会话仅有 permission/approval 固定事件）= 历史中无回合，无需续听
-      let unclosedTurn = false
-      for (let i = events.length - 1; i >= 0; i--) {
-        const t = events[i].event.type
-        if (t === 'turn/end') return            // 最后回合已收尾 → 无未完成工作
-        if (t === 'turn/start') { unclosedTurn = true; break }
-      }
+      // 从尾向头找回合边界（scanUnclosedTurn）：先遇 turn/end = 已闭合；
+      // 先遇 turn/start = 未闭合；都未遇到 = 历史中无回合，无需续听
+      const unclosedTurn = scanUnclosedTurn(events)
       if (!unclosedTurn) return
       console.log(`[${logTime()}]`, '[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
       await this.refreshSeqBaseline()
@@ -455,6 +450,50 @@ seedPendingTurn(partial: PendingTurnPartial): void {
 ```
 
 三个分支讲清了 fold 与 live 缓冲的三重关系，判定全靠 `throughSeq` 与缓冲末 chunk 的 seq 比较。最后一个分支是**已知会重复**的退化路径，源码用 `console.warn` 明说了——排查"消息重复"时搜这条 warn 就能定位。
+
+### 4.5 附带产物：上下文占用 fold 与输入框进度圈
+
+输入框底部的上下文进度圈（`ContextRing`，对齐 DSH WebUI 的 ContextMeter）的数据链路是一条**独立的轻量 fold**，与消息 fold 同源不同算：
+
+```
+DSH 事件流 ──┬─ request/context      → _ctxWindow（分母，last-wins，无声明时清除）
+             ├─ assistant/chunk(usage) → _ctxUsedTokens（分子，早期采样）
+             └─ assistant/message(usage)→ _ctxUsedTokens（分子，同一步权威值覆盖）
+                        │
+                        ▼
+          emit('contextPressure', { usedTokens, contextWindow })
+                        │
+                        ▼
+          AgentPanel case 'contextPressure' → setContextPressure → InputBox → ContextRing
+```
+
+要点三条：
+
+- **分子口径**：`input + cacheRead + cacheWrite + output`，即"该步完成时的实际占用"，恰是下一步请求将看到的确定性近似。DSH 的 `projectedTokens` 依赖完整表面折算（响应 compaction 立时缩小），编辑器没有表面 meter，靠下一次 usage 采样自校正——compaction 后的第一步会把分子拉回真实值。
+- **双路 seed 与重置**：实时路径在 `handleSessionEvent` 里三处采样；`loadHistory` 全量 fold 时按同口径回放 seed（分页 prepend 不回写，防旧值覆盖实时新值），fold 完成后 emit 一次让切换会话后进度圈立即可用。`setSession` 清零 fold 状态（已并入"全清"清单）。
+- **无数据不出环**：`usedTokens` 或 `contextWindow` 任一缺失，`ContextRing` 返回 null（对齐 DSH ContextMeter 行为）——新会话首条消息前、模型未声明容量时，输入框不显示圈。
+
+---
+
+### 4.6 切换会话：`switchSession` 合并为单次 history RPC（2026-09-10）
+
+点击侧边栏切会话曾经连发**三次** `session.history`（服务端对冷会话每次都要全量解压+解析整个 `session.jsonl.zstd`，大会话明显卡顿）：`refreshSeqBaseline`（基线前跳）+ `resumePendingTurnIfNeeded`（未闭合回合探测）+ `loadHistoryPage`（尾页加载）。现在合并为一次——尾页本就同时携带这三份信息：
+
+```
+switchSession(id)
+  ├─ abortPolling → pendingQuestions/Approvals 清空 → clearLiveBuffers
+  ├─ drainPollingLoop() → setRunning(false) → setSession(id) → persistSession
+  ├─ switchHoldback = []          ← 切换窗口开启：mux 推流暂存不消费
+  ├─ await loadHistoryPage()      ← 唯一一次 session.history
+  │     fold 完成时原子推进 _lastSeq（loadHistory 内建语义）
+  ├─ finally：重放暂存事件（seq ≤ 基线的被去重丢弃，真正的增量照常消费）
+  ├─ resumePendingTurnFromPage()  ← 页内 unclosedTurn → setRunning(true)，mux 离线才启轮询
+  └─ 返回 HistoryPage 给面板直接上屏（面板不再二次 loadHistoryPage）
+```
+
+**为什么需要 `switchHoldback` 暂存窗口**：`setSession` 把基线清到 -1，到尾页 fold 立起新基线之间有一个 RPC 往返的窗口；mux 在此期间仍在推目标会话的事件，若直接消费，「已随 fold 上屏的历史」会同时进实时缓冲造成双路径重复消费。暂存后按 seq 门限重放即可——持久化过的事件 seq ≤ 基线被去重，只有真正的新增量通过。日志标记：`[Trace][switch] 切换窗口暂存 N 条…`。
+
+**为什么可以不先立基线**：`loadHistory` 在 fold 结束时会把 `_lastSeq` 原子推进到页尾 seq（fold 循环同步无 await，见源码「fold 与去重基线在同一原子时刻推进」注释）；连接恢复路径（`connect()` → 面板 `restoreHistory()`）从来就是靠这套语义，切会话沿用即可。未闭合回合的探测改由尾页事件扫描 `scanUnclosedTurn`（纯函数，见 §7）完成，与原探测同一盲区（只看窗口内边界事件），语义不变。
 
 ---
 
@@ -660,7 +699,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `validateSession(id)` | AgentService.ts:402 | 拉 `session.list` 比对 id | 网络级失败会 throw |
 | `readSavedSession()` / `persistSession()` | AgentService.ts:346 / 358 | localStorage 会话映射读写 | `port` 只记录不判定 |
 | `setSession(id)` | AgentService.ts:375 | 绑会话 + 重置 seq/缓冲/工具表 | **不清零新会话事件全被去重挡掉** |
-| `refreshSeqBaseline()` | AgentService.ts:384 | 把 `_lastSeq` 顶到服务端最新 | 失败不阻塞主流程 |
+| `refreshSeqBaseline()` | AgentService.ts:460 | 把 `_lastSeq` 顶到服务端最新 | 失败不阻塞主流程；**切会话已不再单独调用**（随 §4.6 合并） |
 | `connectMux()` | AgentService.ts:620 | 建 mux 下行流（Electron IPC / 浏览器 WS） | 浏览器 WS 断线 3s 自动重连 |
 | `isMuxAlive()` | AgentService.ts:655 | Electron 模式**恒 true** | 决定轮询回路是否启动 |
 | `handleMuxFrame(frame)` | AgentService.ts:696 | mux 帧分派（question/approval/session.event/subscribed） | 每分支先比对 sessionId |
@@ -674,12 +713,17 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `pollForResponse()` | AgentService.ts:1403 | 兜底轮询（浏览器模式） | 有增量即重置 attempts；finally 里中止不 flush |
 | `startTurnWatchdog()` | AgentService.ts:1373 | 回合内 3s 心跳补漏 | 静默 <1.5s 时空转 |
 | `scheduleReconnect()` | AgentService.ts:875 | 指数退避重连，1s→16s，最多 5 次 | `autoReconnect` 关时不排 |
-| `resumePendingTurnIfNeeded()` | AgentService.ts:444 | 断档续听探测 | `polling` 为真时**静默跳过** |
+| `resumePendingTurnIfNeeded()` | AgentService.ts:520 | 断档续听探测（connect/reattach 路径） | `polling` 为真时**静默跳过**；切会话改走页内版 `resumePendingTurnFromPage` |
 | `seedPendingTurn(partial)` | AgentService.ts:1905 | fold 半截段续入实时缓冲 | 罕见竞态会 warn「拼接采纳」 |
+| `recordContextUsage(usage)` | AgentService.ts:1489 | 上下文占用分子采样（last-wins + 去重） | 变化才 emit，见 §4.5 |
+| `emitContextPressure(seq, time)` | AgentService.ts:1505 | 下发占用快照（进度圈数据源） | 分子分母独立 last-wins |
 | `answerQuestion(rpcId, ans)` | AgentService.ts:826 | 回传问答（走 `respond`） | 不在 pending 里返回 false |
 | `answerApproval(rpcId, outcome)` | AgentService.ts:856 | 回传审批（同一 `respond` 通路） | outcome 仅 allowed-once/rejected |
-| `switchSession(id)` | AgentService.ts:1998 | 切会话（清缓冲→drain→重立基线→续听） | 见 §9 坑 3 |
-| `createSession()` | AgentService.ts:2016 | 新建会话（含 cordis fallback） | 复用 switchSession 的清理语义 |
+| `scanUnclosedTurn(events)` | AgentService.ts:230 | 页内回合边界判定（纯函数，全分支单测） | 从尾向头：先遇 turn/end=闭合，先遇 turn/start=未闭合 |
+| `loadHistoryPage(beforeSeq?)` | AgentService.ts:2086 | 尾页/翻页加载（每页 50 条消息） | 返回含 `pendingTurnPartial` / `unclosedTurn` |
+| `switchSession(id)` | AgentService.ts:2204 | 切会话 + 尾页加载**合并为 1 次 RPC**（清缓冲→drain→holdback 暂存→单次加载→基线随 fold 立起→页内续听） | 见 §4.6 与 §9 坑 3 |
+| `resumePendingTurnFromPage(page)` | AgentService.ts:2242 | 页内版断档续听（免二次 RPC） | `unclosedTurn` 才恢复运行态；mux 离线才启轮询 |
+| `createSession()` | AgentService.ts:2250 | 新建会话（含 cordis fallback） | 复用 switchSession 的清理语义 |
 | `releaseForHmr()` / `reattachLiveStream()` | AgentService.ts:672 / 684 | HMR 释放旧下行流 / 新实例重挂 | 见 §9 坑 4 |
 
 ---
@@ -704,6 +748,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `AgentPanel` 消息列表 | `onEvent(cb)` 订阅事件流；`message` / `reasoning.delta` / `turnStart` 驱动显示队列与打字机 | [UI 面板组件](../ui/ui_components_system.md) |
 | `SessionSidebar` | `listSessions()` 拉列表；切换/新建/删除全部回写 localStorage 映射；按 `updatedAt` 自动分组——超过 3 天的会话收进「3 天前的会话（N）」折叠组（默认收起，点击展开，`sessionGrouping.ts` 纯逻辑），当前会话与缺 `updatedAt` 的会话始终平铺在近期组 | [UI 面板组件](../ui/ui_components_system.md) |
 | `InputBox` | `isRunning()` 决定 send/steer 分流与 placeholder；停止按钮仅 running 时出现 | [UI 面板组件](../ui/ui_components_system.md) |
+| `ContextRing`（输入框进度圈） | `contextPressure` 事件驱动；分子分母任一缺失不出环（§4.5） | [UI 面板组件](../ui/ui_components_system.md) |
 | `QuestionCard` / `ApprovalCard` | `question/requested`、`approval/requested` 渲染交互卡，回答经 `answerQuestion(rpcId)` 回传 | [UI 面板组件](../ui/ui_components_system.md) |
 | `ConnectionIndicator` | 状态灯映射八态；`degraded` 点击 → `handleRestartAgent()` → `dshRestart()` IPC | [UI 面板组件](../ui/ui_components_system.md) |
 | `ModelSelector` / `SettingsPanel` / `SkillManager` | 直接 import `agentService` 单例调 `getModels` / `selectModel` / `describeSettings` / `rpc('skill.list')` | [UI 面板组件](../ui/ui_components_system.md) |
@@ -758,7 +803,7 @@ const handleRestartAgent = useCallback(async () => {
 现象：恢复/重连后 AI 的半截结论永远等不到补全，UI 卡在"运行中"。原因：`refreshSeqBaseline()` 或 `session/subscribed` 把 `_lastSeq` 顶到服务端最新，若此时 `turn/end` 已产生，它就会因 `seq <= _lastSeq` 被去重永久丢弃。规则：排查时搜日志里的 `[Trace][baseline]`——`consumeSessionEvent` 对 `turn/end` 被抑制有专门一行日志「基线跳过事件」，一旦出现即为命中。
 
 **3. 切会话必须 drain 轮询回路，否则续听被静默跳过**
-现象：切到正在跑的会话后不显示"运行中"。原因：`resumePendingTurnIfNeeded()` 开头 `if (this.polling) return`，而旧回路还没退出。规则：`switchSession()` / `createSession()` 都按 `abortPolling = true` → `drainPollingLoop()`（等 ≤1200ms）→ `setSession()` → `refreshSeqBaseline()` → `abortPolling = false` → `resumePendingTurnIfNeeded()` 的顺序走，新增切会话路径照抄这套。
+现象：切到正在跑的会话后不显示"运行中"。原因：续听入口开头 `if (this.polling) return`，而旧回路还没退出。规则：`switchSession()` 按 `abortPolling = true` → `drainPollingLoop()`（等 ≤1200ms）→ `setSession()` → `switchHoldback = []` → 单次 `loadHistoryPage()` → 重放暂存事件 → `resumePendingTurnFromPage()` 的顺序走（2026-09-10 起三次 history RPC 已合并为一次，见 §4.6）；`createSession()` 沿用同一套清理语义。新增切会话路径照抄这套。
 
 **4. HMR 不会自动重挂 mux，必须显式重建**
 现象：改完代码热更新后，面板不再收到实时事件（状态灯还显示已连接）。原因：WS 连接 / IPC 监听不会跨模块热替换存活。规则：模块底部 HMR 守卫先 `releaseForHmr()` 存状态并掐断旧实例复活路径，新实例再 `reattachLiveStream()` 重建 mux 并续听；`AgentPanel` 挂载时也要判 `currentState === 'connected'` 改走 `restoreHistory()`（见 §2.1）。
