@@ -1,7 +1,7 @@
 {
   "name": "@demostudio/ds-experience",
   "version": "0.1.0",
-  "description": "DSH 行为飞轮插件：做事轨迹经验库（.dsh/experience/ episode + INDEX.md）与历史会话检索（history_search/history_read 包装 ctx.sessionQuery），回合末保存提醒 + frontmatter prefix 路径联想自动注入（读匹配文件即整篇注入、每会话去重），经验保存由主 agent 自觉调用 experience_save（冷通道，与 ds-memory 热通道严格分离）。",
+  "description": "DSH 行为飞轮插件：做事轨迹经验库（.dsh/experience/ episode + INDEX.md）与历史会话检索（history_search/history_read 包装 ctx.sessionQuery），回合末保存提醒 + frontmatter prefix 路径联想自动注入（读匹配文件即整篇注入、每会话去重），经验保存由主 agent 自觉调用 experience_save。",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

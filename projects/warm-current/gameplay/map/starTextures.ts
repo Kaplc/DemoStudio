@@ -36,14 +36,6 @@ export function bodyTextureUrl(bodyId: string): string | null {
   return table[bodyId] ?? null
 }
 
-/**
- * 地球云层贴图 URL（SSS 官方未提供云图 → 恒 null，走 CloudLayerComponent
- * 程序化云絮兜底；日后补真云图（SSS earth clouds 或自绘）在此返回 URL 即全链生效）。
- */
-export function earthCloudsUrl(): string | null {
-  return null
-}
-
 /** 斑点层（噪声基元）：数量 + 半径范围 + 颜色 + 不透明度 */
 interface BlobLayer {
   count: number
@@ -260,6 +252,8 @@ export function starTextureFor(bodyId: string): string | THREE.Texture | null {
 // 无 DOM canvas（单测/极简容器）返回 null，调用方跳过该层（材质保持默认）。
 // 夜面城市灯光已按用户要求移除（2026-09-10）：原 makeEarthNightTexture 连同
 // EarthActor 的日面遮罩 shader 一并删除。
+// 地球云层壳亦已按用户要求移除（2026-09-10）：原 earthCloudsUrl() 是恒 null 的死导出
+// （SSS 未提供云图，云层恒走程序化兜底），随云层壳一并删除；本区只剩 bump 一张。
 
 /**
  * 地球地形凹凸灰度图（equirect 512×256，配 albedo UV）。

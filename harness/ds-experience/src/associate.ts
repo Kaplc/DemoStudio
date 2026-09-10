@@ -1,5 +1,5 @@
 /**
- * 经验自动联想（prefix 路径召回）——与 ds-memory 的记忆联想同构，冷通道变半热：
+ * 经验自动联想（prefix 路径召回）——与 ds-memory 的记忆联想同构：
  *
  * - 只跟踪读取类工具（read/read_image）的成功结果（tools/pre-execute 登记 →
  *   tools/result 确认，嵌套调用向 parent 汇总，失败/取消整体丢弃）；

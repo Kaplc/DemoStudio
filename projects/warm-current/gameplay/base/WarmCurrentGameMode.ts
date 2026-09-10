@@ -11,7 +11,7 @@
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
  * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
-import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent, CloudLayerComponent } from '@/engine'
+import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent } from '@/engine'
 import { starTextureFor } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
 import type { BuildingDef, OrbitBuildingDef, SolarFocusBody } from '../core/balance'
@@ -704,21 +704,22 @@ export class WarmCurrentGameMode extends GameMode {
     rig.setEdgePanEnabled(false)
     this.cameraActor.observeFocus(stage.x, stage.z, r * 4)
     rig.orbitMode = true
-    // 特写观感增强：被观察行星的大气/云层提亮（组件在无此挂载的天体上自动跳过）
+    // 特写观感增强：被观察行星的大气提亮（组件在无此挂载的天体上自动跳过）
     this.applyObserveBoost(body)
     audioSys.play('wc.ok', { volume: 0.4 })
     logger.info(`[WarmCurrent] 行星观察：${PLANET_NAMES[body] ?? body}（拖拽环绕 · 滚轮缩放 · Esc/再双击退出）`)
 
   }
 
-  /** 行星观察特写增益：大气 ×1.8、云层透明度 +0.1（上限 1）。基础值由组件快照持有，退出经 resetObserveBoost 统一复位 */
+  /**
+   * 行星观察特写增益：大气 ×1.8（上限 3）。基础值由组件快照持有，退出经 resetObserveBoost
+   * 统一复位。云层增益随云层壳移除（2026-09-10，地球不再挂云，全仓无 CloudLayerComponent）。
+   */
   private applyObserveBoost(body: PlanetId): void {
     for (const [id, actor] of this.starActors) {
       const on = id === body
       const atmo = actor.getComponent(AtmosphereComponent)
       if (atmo) atmo.intensity = on ? Math.min(3, atmo.baseIntensity * 1.8) : atmo.baseIntensity
-      const cloud = actor.getComponent(CloudLayerComponent)
-      if (cloud) cloud.opacity = on ? Math.min(1, cloud.baseOpacity + 0.1) : cloud.baseOpacity
     }
   }
 
@@ -727,8 +728,6 @@ export class WarmCurrentGameMode extends GameMode {
     for (const actor of this.starActors.values()) {
       const atmo = actor.getComponent(AtmosphereComponent)
       if (atmo) atmo.intensity = atmo.baseIntensity
-      const cloud = actor.getComponent(CloudLayerComponent)
-      if (cloud) cloud.opacity = cloud.baseOpacity
     }
   }
 

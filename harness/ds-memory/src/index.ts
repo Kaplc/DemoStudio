@@ -4,11 +4,13 @@
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"记忆指导"段（含 MEMORY.md 索引，仅在有内容时注入）
  * - `ctx.tools.register()` × 5 — memory_write / memory_search / memory_forget / memory_review / memory_list
- * - `ctx.on('agent/pre-step')` — 回合末记忆提醒：新回合第一个 pre-step 追加一条
- *   "检查是否需要保存记忆"的提醒（decision.messages，同 prefix 联想的投递通道）
  * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 路径自动联想：
  *   读到满足记忆 `prefix:` 表达式的文件时把该记忆全文自动注入（每会话一次）；
  *   表达式支持 `||`（任一路径命中）与 `&&`（会话内全部路径读过，跨读取累计）
+ * - `ctx.on('agent/turn-stopping')` — 回合末记忆提醒：回合结束前通过 steer 注入一条
+ *   "检查是否需要保存记忆"的提醒（agent.steer()，驱动会多跑一步处理提醒）；
+ *   **本回合已成功保存过记忆（memory_write）或经验（experience_save）时跳过**
+ *   （agent/pre-step 记录当前回合号，tools/result 登记保存类工具的成功调用）
  *
  * 记忆保存与检索的默认分工：
  * - 保存：主 agent 在回合内主动调用 memory_write（指导段 SAVE_FLOW_TEXT 给出具体触发点）
@@ -26,6 +28,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { deriveProjectRoot, isChildAgent, registerAssociator } from './associate.js'
 import { truncateEntrypoint } from './memoryScan.js'
 import {
@@ -48,8 +51,8 @@ const SECTION_ORDER = 3200
 const REMINDER_COOLDOWN_MS = 60_000
 
 /**
- * 回合末提醒注入文本。agent.inject 在 turn/end 时入队、下一回合 pre-step 进入上下文，
- * 因此措辞按"上一回合已结束、本回合处理"书写。
+ * 回合末提醒注入文本。agent/turn-stopping 时通过 steer 注入，驱动会多跑一步处理提醒，
+ * 因此措辞按"上一回合已结束、请检查是否需要保存记忆"书写。
  */
 const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆提醒
 
@@ -61,6 +64,16 @@ const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆提醒
 - 拿到外部系统指针（看板/文档站 URL）？
 
 没有触发点就不要保存。`
+
+/**
+ * 回合末提醒的"已保存"判定工具：本回合内成功调用过其中之一就不再提醒。
+ * memory_write 由本插件提供，experience_save 由 @demostudio/ds-experience 提供——
+ * 两者都是"保存"动作，任一发生即说明本回合已经沉淀过，无需再催一次。
+ */
+export const DEFAULT_REMINDER_SKIP_TOOLS: readonly string[] = [
+  'memory_write',
+  'experience_save',
+]
 
 /** 插件配置（cordis.yml 可配置项）。 */
 export interface Config {
@@ -75,6 +88,12 @@ export interface Config {
   /** 是否启用回合末自动提醒（默认 true）。 */
   enableEndOfTurnReminder?: boolean
   /**
+   * 本回合内已成功调用过这些工具时，跳过回合末提醒
+   * （默认 memory_write + experience_save——记忆或经验任一已保存即无需提醒）。
+   * 传空数组 = 关闭该判定，退回"每回合都提醒"。
+   */
+  reminderSkipTools?: string[]
+  /**
    * 是否启用 prefix 自动联想（默认 true）：读到声明了 prefix 的记忆所适用
    * 路径下的文件时自动注入其全文。联想基准的项目根从 memoryDir 推导
    * （<root>/.dsh/memory 形态）；推导不出时联想自动停用并记 warn 日志。
@@ -87,6 +106,7 @@ export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
   memoryDir: z.string(),
   enableEndOfTurnReminder: z.boolean().default(true),
+  reminderSkipTools: z.array(z.string()).default([...DEFAULT_REMINDER_SKIP_TOOLS]),
   enableAutoAssociate: z.boolean().default(true),
 })
 
@@ -100,6 +120,7 @@ export function apply(ctx: Context, config?: Config): void {
     enabled: config?.enabled ?? true,
     memoryDir: config?.memoryDir,
     enableEndOfTurnReminder: config?.enableEndOfTurnReminder ?? true,
+    reminderSkipTools: config?.reminderSkipTools ?? [...DEFAULT_REMINDER_SKIP_TOOLS],
     enableAutoAssociate: config?.enableAutoAssociate ?? true,
   }
   // enabled: false — 一切静默，什么都不注册
@@ -146,32 +167,82 @@ export function apply(ctx: Context, config?: Config): void {
   }
 
   // ── 回合末记忆提醒（可配置关闭） ──
-  // 投递通道：agent/pre-step + decision.messages（与 associate.ts 同款，是被 prefix 联想
-  // 长期验证能进入模型请求的路径）。不使用 session/event + agent.inject：Session 无 agent
-  // 反向引用需 WeakMap 反查、inject 投递链路不可观测，2026-09-10 实测注入从未落会话日志。
-  // 时机：新回合第一个 pre-step（此时上一个回合已结束），与 inject 的实际到达时机一致。
+  // 投递通道：agent/turn-stopping + agent.steer()：回合即将关闭时注入 steering，
+  // 驱动会多跑一步处理提醒（模型看到"上一回合已结束"的提示后自行决定是否保存记忆）。
+  // 时机：回合结束前（turn-stopping serial 事件），提醒在当前回合末尾被模型处理。
+  // 跳过条件：本回合内已成功调用过保存类工具（默认 memory_write / experience_save）——
+  // 已经保存过记忆或经验就不再提醒，避免"刚存完又被催一次"。
   if (resolved.enableEndOfTurnReminder) {
     // 冷却按 agent 记（WeakMap 随 Agent 回收）；插件全局单水位会让多 agent 互相挤掉提醒
     const lastReminderByAgent = new WeakMap<Agent, number>()
 
+    // 保存类工具名（去空项；空集合 = 关闭"已保存"判定，退回每回合都提醒）
+    const skipTools: ReadonlySet<string> = new Set(
+      resolved.reminderSkipTools
+        .filter((toolName): toolName is string => typeof toolName === 'string' && toolName.trim() !== '')
+        .map(toolName => toolName.trim()),
+    )
+    // 当前回合号（agent/pre-step 携带 turn）与"保存类工具成功时所在回合"（tools/result 登记）
+    const currentTurnByAgent = new WeakMap<Agent, number>()
+    const savedTurnByAgent = new WeakMap<Agent, number>()
+
+    // 记录当前回合号：agent/pre-step 是 waterfall 事件，必须 await next() 并把决策原样传下去
+    // （不调用 next() 会否决链上后续监听器与内建行为）
     ctx.on('agent/pre-step', async (
-      { agent, step, signal }: { agent: Agent; step: number; signal?: AbortSignal },
-      next,
+      { agent, turn }: { agent: Agent; turn: number },
+      next: () => Promise<PreStepDecision>,
     ): Promise<PreStepDecision> => {
       const decision = await next()
       try {
-        if (decision.kind === 'reject') return decision
-        // 只在新回合第一步注入（每回合至多一条）
-        if (step !== 1) return decision
+        currentTurnByAgent.set(agent, turn)
+      } catch (error) {
+        // 登记失败不影响对话
+        logger.warn('回合号登记失败: %o', error)
+      }
+      return decision
+    })
+
+    // 登记"本回合已保存"：只有成功（!isError）的保存类工具调用才算数
+    // （tools/result 的返回值类型是 undefined，必须显式 return undefined）
+    ctx.on('tools/result', (
+      exec: Readonly<ToolExecution>,
+      result: Readonly<ToolExecutionResult>,
+    ): undefined => {
+      try {
+        if (result.isError) return
+        const agent = exec.agent
+        if (agent === undefined) return
+        if (!skipTools.has(exec.name)) return
+        const turn = currentTurnByAgent.get(agent)
+        if (turn === undefined) return
+        savedTurnByAgent.set(agent, turn)
+        logger.info('回合 %d 内已成功调用 %s，回合末不再提醒', turn, exec.name)
+      } catch (error) {
+        // 登记失败按"未保存"处理（该提醒还是要提醒），不阻塞对话
+        logger.warn('保存类工具登记失败: %o', error)
+      }
+      return undefined
+    })
+
+    ctx.on('agent/turn-stopping', async (
+      { agent, turn, signal }: { agent: Agent; turn: number; signal: AbortSignal },
+    ): Promise<void> => {
+      try {
         // 子 agent 上下文归属父 agent，不提醒
-        if (isChildAgent(agent)) return decision
+        if (isChildAgent(agent)) return
+
+        // 本回合已经保存过记忆/经验 → 不需要提醒
+        if (savedTurnByAgent.get(agent) === turn) {
+          logger.info('回合 %d 已保存过记忆/经验，跳过回合末提醒', turn)
+          return
+        }
 
         const now = Date.now()
         if (now - (lastReminderByAgent.get(agent) ?? 0) < REMINDER_COOLDOWN_MS) {
-          return decision
+          return
         }
 
-        signal?.throwIfAborted()
+        signal.throwIfAborted()
         const message = createUserMessage({
           content: [{ type: 'text', text: END_OF_TURN_REMINDER_TEXT }],
           source: {
@@ -182,12 +253,11 @@ export function apply(ctx: Context, config?: Config): void {
           },
         })
         lastReminderByAgent.set(agent, now)
+        agent.steer(message)
         logger.info('已注入回合末记忆提醒')
-        return { ...decision, messages: [...decision.messages, message] }
       } catch (error) {
         // 注入失败不应阻塞对话
-        if (!signal?.aborted) logger.warn('回合末记忆提醒注入失败: %o', error)
-        return decision
+        if (!signal.aborted) logger.warn('回合末记忆提醒注入失败: %o', error)
       }
     })
   }

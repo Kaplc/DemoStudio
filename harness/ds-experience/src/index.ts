@@ -3,7 +3,7 @@
  *
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"经验库指导"段（order 3000；含 INDEX.md 索引，
- *   仅在有内容时注入；分工声明：记忆=事实与规则热通道，经验=做事轨迹冷通道）
+ *   仅在有内容时注入；分工声明：记忆=事实与规则，经验=做事轨迹）
  * - `ctx.tools.register()` × 4 — history_search / history_read（包装 ctx.sessionQuery）/
  *   experience_save / experience_search（按文件名直接读取）
  * - `ctx.on('session/event')` — 回合末（turn/end）主动注入经验提醒，提示 agent

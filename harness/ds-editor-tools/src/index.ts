@@ -18,6 +18,7 @@ import { editorReadTool } from './tools/editorRead'
 import { editorEmitTool } from './tools/editorEvent'
 import { editorRestartTool } from './tools/editorRestart'
 import { editorScrollTool } from './tools/editorScroll'
+import { editorScreenshotTool } from './tools/editorScreenshot'
 import { disconnect as disconnectCDP } from './cdpBridge'
 
 export const name = '@demostudio/ds-editor-tools'
@@ -33,6 +34,7 @@ const ALL_TOOLS = [
   editorEmitTool,
   editorRestartTool,
   editorScrollTool,
+  editorScreenshotTool,
 ]
 
 interface DSHContext {

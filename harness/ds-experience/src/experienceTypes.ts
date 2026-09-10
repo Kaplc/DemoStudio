@@ -214,11 +214,11 @@ export function renderEpisodeFile(input: EpisodeInput, date: string): string {
  */
 export function experienceGuideSectionText(indexText: string | undefined): string {
   const parts = [
-    `# 经验库（做事轨迹，冷通道）
+    `# 经验库（做事轨迹）
 
 你有跨会话经验库，存放于项目根 \`.dsh/experience/\`，记录"一次完整任务是怎么做的"。与记忆系统的分工（硬约束）：
-- **记忆（ds-memory，热通道）** = 事实与规则，每步自动注入 — **禁止把经验轨迹/任务过程写进 memory_write**。
-- **经验（本插件，冷通道）** = 做事轨迹（怎么做的、什么有效、踩了什么）— **禁止把事实/规则写进 experience_save**。
+- **记忆（ds-memory）** = 事实与规则 — **禁止把经验轨迹/任务过程写进 memory_write**。
+- **经验（本插件）** = 做事轨迹（怎么做的、什么有效、踩了什么）— **禁止把事实/规则写进 experience_save**。
 
 ## 何时用经验工具
 

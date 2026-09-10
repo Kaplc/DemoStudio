@@ -47,6 +47,7 @@
 ### FR-2 回合末自动提取（P0）
 - 常驻指导：通过 `ctx.systemPrompt.section()` 注入"记忆指导"段（内容见 FR-6），主 agent 在回合过程中自觉判断并调用 `memory_write` 保存。
 - 回合结束轻量提醒：监听 `agent/turn-stopping`，每回合注入一行短提醒（约 30 token）：「如果本回合出现了值得长期记住的信息（用户偏好/纠正/项目决策/外部系统指针），请用 memory_write 保存；否则忽略」。
+- **现状补充（2026-09-11）**：投递通道是 `agent/turn-stopping` + `agent.steer()`（回合即将关闭时注入，驱动多跑一步）；**本回合已成功保存过则跳过**——`agent/pre-step` 记当前回合号、`tools/result` 登记保存类工具（默认 `memory_write` + `experience_save`，配置 `reminderSkipTools` 可改），命中即不提醒（"刚存完又被催一次"是噪声）。
 
 ### FR-3 AI 选择检索注入（P0）
 - 每次请求前：扫描 `.dsh/memory/` 下所有 `.md` 文件（排除 `MEMORY.md`，上限 200 个文件，按 mtime 新→旧排序取前 200），读取 frontmatter 生成清单（`[type] filename (ISO时间): description`）。

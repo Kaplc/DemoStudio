@@ -16,11 +16,8 @@
  * 生成。位置/半径不写在蓝图（半径在 star_map 配置，位置每帧算），蓝图只定外观。
  */
 import * as THREE from 'three'
-import { Actor, SphereMeshComponent, logger, CloudLayerComponent, AtmosphereComponent } from '@/engine'
-import {
-  earthCloudsUrl,
-  makeEarthBumpTexture,
-} from './starTextures'
+import { Actor, SphereMeshComponent, logger, AtmosphereComponent } from '@/engine'
+import { makeEarthBumpTexture } from './starTextures'
 import { B } from '../core/balance'
 import { hiddenActorIsolated } from '../core/helpers'
 import type { PlanetId } from '../core/types'
@@ -36,7 +33,7 @@ export abstract class StarActor extends Actor {
     super(name)
   }
 
-  /** 特写增强装配点（子类覆写）：BeginPlay 时挂云层/大气/夜灯等，通用天体默认无 */
+  /** 特写增强装配点（子类覆写）：BeginPlay 时挂大气/bump 等，通用天体默认无 */
   protected setupCloseup(): void {}
 
   override BeginPlay(): void {
@@ -82,18 +79,15 @@ export class EarthActor extends StarActor {
   protected get body(): keyof typeof B.map.nodes { return 'earth' }
 
   /**
-   * 地球特写增强（观察模式观感）：云层壳（错速自转）+ 大气 Fresnel 辉光壳
-   * + 地形 bumpMap。全部类内装配，蓝图不感知（蓝图只定本体外观，引擎组件由
-   * StarActor 基类钩子挂载）。夜面城市灯光已按用户要求移除（2026-09-10）：
-   * emissive 灯点在游戏环境光下不随昼夜变暗，观察视角总读作脏点。
+   * 地球特写增强（观察模式观感）：大气 Fresnel 辉光壳 + 地形 bumpMap。
+   * 全部类内装配，蓝图不感知（蓝图只定本体外观，引擎组件由 StarActor 基类钩子挂载）。
+   * 夜面城市灯光已按用户要求移除（2026-09-10）：emissive 灯点在游戏环境光下不随昼夜
+   * 变暗，观察视角总读作脏点。
+   * 云层壳已按用户要求移除（2026-09-10）：无真云图资产（earthCloudsUrl 恒 null）→ 恒走
+   * 程序化云絮兜底，观察视角读作糊在球面上的灰斑，去掉后本体贴图细节更清楚。云层专属的
+   * 观察增益（opacity +0.1）与 earthCloudsUrl() 随之成为死代码，一并删除。
    */
   protected override setupCloseup(): void {
-    this.addComponent(CloudLayerComponent, {
-      texture: earthCloudsUrl(),
-      altitude: 1.03,
-      spin: 0.02,
-      opacity: 0.85,
-    })
     this.addComponent(AtmosphereComponent, {
       color: '#7fb8ff',
       intensity: 1.2,
@@ -102,7 +96,7 @@ export class EarthActor extends StarActor {
     })
     const mesh = this.getComponent(SphereMeshComponent)
     if (!mesh) {
-      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，bump 贴图跳过（云层/大气已挂载）')
+      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，bump 贴图跳过（大气已挂载）')
       return
     }
     const bump = makeEarthBumpTexture()
@@ -110,7 +104,7 @@ export class EarthActor extends StarActor {
       mesh.setBumpMap(bump)
       mesh.bumpScale = 0.06
     }
-    logger.info('[StarActor] Earth 特写增强装配完成（云层/大气/bump）')
+    logger.info('[StarActor] Earth 特写增强装配完成（大气/bump；云层已移除）')
   }
 }
 

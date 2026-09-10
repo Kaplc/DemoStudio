@@ -36,7 +36,7 @@ export interface ExperienceToolHost {
 export function createExperienceSaveTool(host: Pick<ExperienceToolHost, 'experienceDirectory' | 'ctx'>) {
   return defineTool({
     name: 'experience_save',
-    description: '把一次完整任务的做事轨迹沉淀为经验（episode）：怎么做的、什么有效、踩了什么坑。经验是冷通道按需检索，绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明路径联想，会话中读到匹配路径的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
+    description: '把一次完整任务的做事轨迹沉淀为经验（episode）：怎么做的、什么有效、踩了什么坑。绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明路径联想，会话中读到匹配路径的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
     parameters: {
       name: { type: 'string', required: true, description: '经验名，语义化小写下划线（如 fix_junction_mount）' },
       task_type: { type: 'string', required: true, description: '任务类型短语（如 build-fix / feature / refactor / debug）' },
