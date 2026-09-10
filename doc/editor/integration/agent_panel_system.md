@@ -614,6 +614,27 @@ async stop(): Promise<void> {
 | `steer` | `session.prompt` | `steer` | 否 | 否 | 不变 | 否 |
 | `stop` | `session.cancel` | 协作式中止 | 是 | 否 | →false | 否（掐断） |
 
+### 5.5 图片附件：粘贴 → 随消息发送（2026-09-10）
+
+输入框支持 Ctrl+V 粘贴图片（截图/复制的图），随下一条消息一起发给模型：
+
+```
+Ctrl+V → InputBox.onPaste（clipboardData.items 取 kind==='file' 且 image/ 前缀）
+        → AgentPanel.handleAddImages（MIME 白名单 png/jpeg/webp/gif + 每条 ≤9 张）
+        → 草稿 PendingImage[]（按会话保留，blob URL 预览）
+        → 发送时 AgentService.buildPromptContent：File → arrayBuffer → base64
+          content = [{type:'image', mediaType, data, name?}..., {type:'text', text}?]
+        → session.prompt（与 DSH WebUI sendSession 同一线上格式）
+```
+
+要点：
+
+- **对齐 DSH WebUI**：image part 的线上格式（纯 base64、不带 `data:` 前缀）、MIME 白名单、图片在前文本在后的顺序，全部照抄 `dsh-client-ui-conversation` 的 `sendSession/encodeImage`；历史里图片以 attachmentId 落盘，请求构建时由 DSH 重编码内联（见记忆 `dsh_image_pipeline_anchors`）。
+- **空文本带图可发**：`isEmpty = !text.trim() && images.length === 0`，只发图片时 content 只有 image parts；队列发送（排队消息）同样携带图片。
+- **blob URL 生命周期**：发送后草稿清空但 **URL 不 revoke**（保留给上屏消息缩略图渲染，泄漏上限 = 会话内发送量）；仅未发送就手动移除的图片立即 revoke。
+- **CSP 前置条件**：`agent.html` / `index.html` 的 `img-src` 必须含 `blob:`（2026-09-10 修复：原 `img-src 'self' data:` 把 blob 图片拦成空白缩略图）。断言图片真实加载要用 `img.complete && naturalWidth > 0`——CSP 拦截时 img 仍"可见"（容器有尺寸），`toBeVisible` 抓不住。
+- **单测/e2e**：`tests/agentImagePaste.test.tsx`（白名单/编码/组装/paste 行为全分支）+ `tests/e2e/agent/image-paste.spec.ts`（页面内 fetch hook 拦截 `session.prompt` 断言请求体，无真回合副作用）。
+
 ---
 
 ## 6. 问答与审批：经 `rpcId` 回传

@@ -214,18 +214,17 @@ dsh web --dump-config | Select-String '<插件名>'
 
 ## 3. 工程清单
 
-`harness/` 下 9 个 DSH 插件包 + 1 个扩展壳 + 1 份内核源码 + 1 份 profile。构建方式**完全一致**：`npm install` → `npm run build`（tsc）→ `dist/index.js`。
+`harness/` 下 8 个 DSH 插件包 + 1 个扩展壳 + 1 份内核源码 + 1 份 profile。构建方式**完全一致**：`npm install` → `npm run build`（tsc）→ `dist/index.js`。
 
 | 目录 | 职责 | `inject` | 与其他文档的分工 |
 |---|---|---|---|
 | [ds-engine-tools/](../../harness/ds-engine-tools) | 游戏运行时工具 9 个（HUD/场景大纲/UI 大纲/资产/鼠标键盘模拟/AI 事件） | `['tools']` | 本文档 §2 |
 | [ds-editor-tools/](../../harness/ds-editor-tools) | 编辑器 UI 工具 8 个，经 CDP :9222 点击/输入/滚动/截图落盘/发 AI 事件 | `['tools']` | 本文档 §2.2 ④ |
-| [ds-memory/](../../harness/ds-memory) | 记忆系统：5 个 memory_* 工具（memory_write 半自动：直接写 frontmatter + 同步索引，正文由 agent 按提醒手写 + 全库过时检查）+ 常驻记忆指导段 + 回合末提醒（`agent/turn-stopping` + `steer` 注入；**本回合已成功保存过记忆/经验则跳过**，配置 `reminderSkipTools`）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入，每会话去重；prefix 支持代码风格表达式组合多路径——`a \|\| b` 任一命中触发、`a && b` 会话内全部读过才触发，`&&` 优先级高于 `\|\|`，解析在 memoryTypes `parsePrefixExpr`、求值在 associate `evalPrefixGroups`） | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
+| [ds-memory/](../../harness/ds-memory) | 记忆系统：5 个 memory_* 工具（memory_write 半自动：直接写 frontmatter + 同步索引，正文由 agent 按提醒手写 + 全库过时检查）+ 常驻记忆指导段 + 回合末提醒（`agent/turn-stopping` + `steer` 注入；**本回合已成功保存过记忆则跳过**——跳过判定"各自只看自己"，默认仅 `memory_write`，`experience_save` 不抑制记忆提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入，每会话去重；prefix 支持代码风格表达式组合多路径——`a \|\| b` 任一命中触发、`a && b` 会话内全部读过才触发，`&&` 优先级高于 `\|\|`，解析在 memoryTypes `parsePrefixExpr`、求值在 associate `evalPrefixGroups`） | `['tools','systemPrompt']` | 挂载细节见 [插件安装](./dsh_plugin_install.md) |
 | [ds-feedback/](../../harness/ds-feedback) | 反馈飞轮：规则库段（order 3100）+ rule_propose/rule_apply | `['tools','systemPrompt']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
-| [ds-experience/](../../harness/ds-experience) | 经验飞轮：history_search/history_read + experience_save/search 4 工具 + 常驻经验指导段 + 回合末保存提醒（60s 冷却，`enableEndOfTurnReminder` 可关）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入、每会话去重；表达式 `a \|\| b`/`a && b` 与 ds-memory 同构，实现在 src/associate.ts，`enableAutoAssociate` 可关） | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
+| [ds-experience/](../../harness/ds-experience) | 经验飞轮：history_search/history_read + experience_save/search 4 工具 + 常驻经验指导段 + 回合末保存提醒（60s 冷却，`enableEndOfTurnReminder` 可关；**本回合已成功 `experience_save` 则跳过**——跳过判定"各自只看自己"，默认仅 `experience_save`，记忆保存不抑制经验提醒，配置 `reminderSkipTools` 可改）+ frontmatter `prefix:` 路径联想自动注入（读匹配文件即整篇注入、每会话去重；表达式 `a \|\| b`/`a && b` 与 ds-memory 同构，实现在 src/associate.ts，`enableAutoAssociate` 可关） | `['tools','systemPrompt','sessionQuery']` | [数据飞轮计划](./dsh_data_flywheel_plan.md) |
 | [ds-instructions/](../../harness/ds-instructions) | 目录指令：读文件触发 `.dsh/instructions/*.md` 注入 | `['tools','systemPrompt']` | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
 | [ds-sync/](../../harness/ds-sync) | 启动时把 `~/.dsh` 记忆/skills/profiles/presets 同步到项目 `.dsh` | `[]` | [插件安装](./dsh_plugin_install.md) §3 |
-| [ds-context-warning/](../../harness/ds-context-warning) | 上下文水位告警（100/200/250/300K 阈值） | `[]` | 本文档总览 |
 | [ds-plugin-manager/](../../harness/ds-plugin-manager) | 管理上面这些插件：create/mount/unmount 三个工具 | `['tools']` | 本文档 §2.2 ①② |
 | [vscode-ext/](../../harness/vscode-ext) | VS Code 扩展壳（自带 KernelManager + EngineBridge） | — | **未装配**，见 §2.4 |
 | [profile/](../../harness/profile) | 内置 profile 与 skills；实际生效的是 `~/.dsh` | — | [插件安装](./dsh_plugin_install.md) 踩坑 3 |
@@ -244,7 +243,7 @@ dsh web --dump-config | Select-String '<插件名>'
 | `unmountPluginTool` | [unmountPlugin.ts:24](../../harness/ds-plugin-manager/src/tools/unmountPlugin.ts) | 移除 junction + 删除 patch insert 行 | 与 mount 侧同用 `entryId` |
 | `apply`（引擎工具） | [ds-engine-tools/src/index.ts:41](../../harness/ds-engine-tools/src/index.ts) | 注册 9 个运行时工具 | `inject=['tools']`，多写少写都 boot 失败 |
 | `apply`（编辑器工具） | [ds-editor-tools/src/index.ts:43](../../harness/ds-editor-tools/src/index.ts) | 注册 8 个 CDP 工具，effect 卸载时 `disconnectCDP()` | 与引擎工具按通道分工，不交叉 |
-| `apply`（记忆） | [ds-memory/src/index.ts:69](../../harness/ds-memory/src/index.ts) | 注册 5 个 memory 工具 + 指导段 + 回合末提醒（`turn-stopping` + `steer`） | 提醒有 60s 冷却；本回合已保存过（`memory_write`/`experience_save`，见 `reminderSkipTools`）则跳过 |
+| `apply`（记忆） | [ds-memory/src/index.ts:69](../../harness/ds-memory/src/index.ts) | 注册 5 个 memory 工具 + 指导段 + 回合末提醒（`turn-stopping` + `steer`） | 提醒有 60s 冷却；本回合已保存过记忆（默认仅 `memory_write`，见 `reminderSkipTools`）则跳过 |
 | `getEngineContext` | [engineContext.ts:152](../../harness/ds-engine-tools/src/engineContext.ts) | 三种来源找 bridge（ctx / globalThis / env port） | 全落空返回 `null` |
 | `getEditorPage` | [cdpBridge.ts:24](../../harness/ds-editor-tools/src/cdpBridge.ts) | 懒连接 + 自动重连 CDP :9222，共享 Page | 编辑器需已开 remote-debugging |
 | `probePort` | [engineBridge.ts:175](../../harness/vscode-ext/src/bridge/engineBridge.ts) | 9877→9927 逐个 `GET /api/status` 探活 | 属 `vscode-ext/`（未装配），仅作对照 |

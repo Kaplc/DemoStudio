@@ -9,4 +9,4 @@ prefix: harness/ds-editor-tools
 
 **Why:** 早期 editor_* CDP 工具连到 Chrome DevTools 页面、AIModule 未就绪（旧结论"全走 emit_ai_event"因此产生）；CDP 通道迭代修复后编辑器 UI 工具已可靠，旧结论过时（2026-09-09 更新）。`editor_screenshot` 曾于 2026-09-06 按用户要求移除，2026-09-10 用户又明确要求加回——工具随用户需求反复，以当前会话工具清单为准。
 
-**How to apply:** 编辑器 UI 自动化直接用 editor_* 工具；游戏内状态/交互用 emit_ai_event / get_hud / mouse_click；需要看画面时 editor_screenshot → read_image 两步（注意模型须支持图像输入，flash 系无视觉能力，改用 PNG IHDR 字节验证尺寸）。
+**How to apply:** 编辑器 UI 自动化直接用 editor_* 工具；游戏内状态/交互用 emit_ai_event / get_hud / mouse_click；需要看画面时 editor_screenshot → read_image 两步（glm-5.3-flash 是 VLM，2026-09-10 起 settings.yaml 已声明 image 模态，read_image 可直接用；若换无视觉模型被门禁拦，才退回 PNG IHDR 字节验证）。

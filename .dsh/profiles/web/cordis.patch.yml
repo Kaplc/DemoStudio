@@ -51,18 +51,10 @@
 # ── 行为飞轮：持久会话索引 ──
 - id: session-query-sqlite
   config:
-    path: 'C:/Users/v_zhyyzheng/.dsh/session-query/index.sqlite'
+    path: 'C:/Users/Kaplc/.dsh/session-query/index.sqlite'
     openAt: first-search
 
 # ── DemoStudio 编辑器工具 ──
 - insert:
     - id: ds-editor-tools
       name: '@demostudio/ds-editor-tools'
-
-# ── DemoStudio 上下文警告 ──
-- insert:
-    - id: ds-context-warning
-      name: '@demostudio/ds-context-warning'
-      config:
-        projectRoot: 'E:/DemoStudio'
-        thresholdsK: [100,200,250,300]

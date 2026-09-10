@@ -233,7 +233,7 @@ export function apply(ctx: DSHContext): void {
 if (!resolved.enabled) return
 ```
 
-> 注意这是**各插件自己实现的约定**，不是 DSH 框架能力——`ds-memory` / `ds-feedback` / `ds-experience` / `ds-context-warning` / `ds-instructions` / `ds-sync` 都有，但新插件得自己写。所以想靠 `enabled: false` 停用插件，先确认该插件实现了这个开关；否则只能 `unmount_plugin` 或删 patch 行。
+> 注意这是**各插件自己实现的约定**，不是 DSH 框架能力——`ds-memory` / `ds-feedback` / `ds-experience` / `ds-instructions` / `ds-sync` 都有，但新插件得自己写。所以想靠 `enabled: false` 停用插件，先确认该插件实现了这个开关；否则只能 `unmount_plugin` 或删 patch 行。
 
 ---
 
@@ -349,7 +349,7 @@ dsh web --dump-config | grep ds-memory
 |---|---|---|
 | patch 行已存在但 config 要改 | `ensurePatchEntry` 返回 `skipped`，不会更新 | 手动编辑 patch 文件，或 unmount 后重新 mount |
 | `insert` 的 id 与树内已有行冲突 | 行为取决于行类型（insert 插入 / id 覆盖） | 新插件用全新 id；改 config 用 `- id: <已有行>` |
-| `config` 里 `enabled: false` | `apply` 开头直接 return，一切不注册 | 无需删行即可静默停用；**前提是插件自己实现了该开关**（ds-memory/feedback/experience/context-warning/instructions/sync 均有，新插件要自己写） |
+| `config` 里 `enabled: false` | `apply` 开头直接 return，一切不注册 | 无需删行即可静默停用；**前提是插件自己实现了该开关**（ds-memory/feedback/experience/instructions/sync 均有，新插件要自己写） |
 | web profile 改动 | `patchReload: live` 热重挂 | 无需重启，但多实例共用 home 会连带重挂 |
 | headless profile 改动 | 无热重载，下次启动才生效 | 重启内核；异步副作用需挂起定时器维持事件循环 |
 | mount 传入 `harness/` 之外的目录 | 工具返回 `安全限制：只能操作 harness/ 目录下的插件` | 传 `harness/ds-<短名>` 或 `harness/` 下的绝对路径 |

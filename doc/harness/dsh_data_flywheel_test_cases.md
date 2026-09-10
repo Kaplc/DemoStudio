@@ -13,14 +13,14 @@
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
 | [memoryTypes.test.ts](../../harness/ds-memory/tests/memoryTypes.test.ts) | KM-01：锁住记忆指导段四段格式与「什么不该存」文案 | 改 `memoryTypes.ts` 提示词后必跑 |
-| [endOfTurnReminder.test.ts](../../harness/ds-memory/tests/endOfTurnReminder.test.ts) | KM-06~08：回合末提醒接线（`turn-stopping` + `steer`、60s 冷却、子 agent 门控、中止/抛错兜底）+「本回合已保存过则跳过」判定 | 改 `index.ts` 提醒块或 `reminderSkipTools` |
+| [endOfTurnReminder.test.ts](../../harness/ds-memory/tests/endOfTurnReminder.test.ts) | KM-06~08：回合末提醒接线（`turn-stopping` + `steer`、60s 冷却、子 agent 门控、中止/抛错兜底）+「本回合已保存过记忆则跳过」判定（各自只看自己，`experience_save` 不抑制） | 改 `index.ts` 提醒块或 `reminderSkipTools` |
 | [ruleStore.test.ts](../../harness/ds-feedback/tests/ruleStore.test.ts) | RL-01~10：规则名校验、提案落盘、同名 mode 冲突、索引单行、超限截断 | 改 `ruleStore.ts` 落盘逻辑 |
 | [preScreen.test.ts](../../harness/ds-feedback/tests/preScreen.test.ts) | RL-12~13：纠正关键词预筛 + 提示块渲染 | 调关键词或摘录上限 |
 | [turnEnd.test.ts](../../harness/ds-feedback/tests/turnEnd.test.ts) | RL-14~16：回合末接线、agent 隔离、子 agent 门控、running 撤销补检 | 改 `index.ts` 空闲监听 |
 | [experienceStore.test.ts](../../harness/ds-experience/tests/experienceStore.test.ts) | EXP-01~03：episode 落盘、同名覆盖、非法名拒绝 + prefix frontmatter/索引标注/单行校验 | 改经验落盘格式 |
 | [historyTools.test.ts](../../harness/ds-experience/tests/historyTools.test.ts) | EXP-06~07 + cwd 过滤：报错透出、转录跳过注入 | 改历史检索/转录渲染 |
 | [associate.test.ts](../../harness/ds-experience/tests/associate.test.ts) | EXP-16~19：prefix 段级匹配、&&/|| 求值、组装文本、项目根推导 + 联想器集成（登记→确认→注入、子 agent 门控、AND 累计） | 改 `associate.ts` 联想逻辑 |
-| [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24：注册冒烟、回合末提醒（内容/冷却/门控）、联想装配与停用 warn | 改 `index.ts` 装配 |
+| [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24：注册冒烟、回合末提醒（内容/冷却/门控）+「本回合已 experience_save 则跳过」判定、联想装配与停用 warn | 改 `index.ts` 装配 |
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
@@ -96,7 +96,7 @@ it('不保存清单不再包含无差别的"调试修复配方"，改为限定�
 | KM-04 | 手动 | 一次无可复用根因的单点 bug 修复后等提取 | 不生成修复流水账记忆（宁缺毋滥） |
 | KM-05 | 手动 | 同一主题下连踩多个坑 | 合并进同一文件，每坑一个 `## 小节`，不拆碎 |
 | KM-06 | 单测 | 回合末提醒接线：`agent/turn-stopping` + `steer` 注入（文本/`source` 契约）、60s 冷却按 agent 隔离、子 agent 门控、signal 中止与 steer 抛错兜底、配置关闭时不注册监听（`endOfTurnReminder.test.ts`） | 全绿 |
-| KM-07 | 单测 | 提醒跳过判定：本回合 `memory_write` 或 `experience_save` 成功 → 跳过；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`endOfTurnReminder.test.ts`） | 全绿 |
+| KM-07 | 单测 | 提醒跳过判定（各自只看自己）：本回合 `memory_write` 成功 → 跳过；`experience_save` 成功 → **不跳过**（双写场景下只存了经验仍可能漏存记忆）；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`endOfTurnReminder.test.ts`） | 全绿 |
 | KM-08 | 单测 | `reminderSkipTools` 配置面：`[]` 关闭判定、自定义清单替换默认（`endOfTurnReminder.test.ts`） | 全绿 |
 
 KM-02 的单测部分锁的是「改了结构后解析函数还能吃下老格式」——`parseFrontmatter` 对 BOM、缺 `name`/`description`、无闭合 fence、空输入一律返回 `{}` 而非抛错（`memoryTypes.test.ts:27` 起 4 个 it）。

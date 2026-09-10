@@ -187,7 +187,7 @@ return { status: existing ? 'updated' : 'created', fileName }
 
 > 同名即覆盖、不产生副本——episode 是「某类任务怎么做」的一条路线，同类型第二次做应更新同一条，而不是堆出 `fix_junction_mount_2`。真实落盘格式见 `.dsh/experience/auto_scan_ds_instructions.md`：frontmatter 四键 `name/task_type/outcome/date` + `## Summary` / `## Lessons` / `## Effective Path` 三个固定小节。
 >
-> **触发方式**：主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）+ **回合末提醒兜底**（`session/event` 的 `turn/end` 注入"回合末经验提醒"，60 秒冷却，配置 `enableEndOfTurnReminder`）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
+> **触发方式**：主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）+ **回合末提醒兜底**（`session/event` 的 `turn/end` 注入"回合末经验提醒"，60 秒冷却，配置 `enableEndOfTurnReminder`；本回合已成功 `experience_save` 则跳过——与 ds-memory 的提醒"各自只看自己"，双写场景互不抑制）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
 
 ```ts
 // 此功能已被禁用，不再调用 LLM
@@ -267,7 +267,7 @@ const page = await host.ctx.sessionQuery.searchSessions({
 | ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段 + 回合末提醒 + prefix 联想齐全 |
 | ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 22 个 episode + INDEX.md |
 | ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；无 side-query/水位逻辑 |
-| ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
+| ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却；本回合已成功 `experience_save` 则跳过，`reminderSkipTools` 可改）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
 | session-query 持久索引 patch | ✅ 已写入配置 | `.dsh/profiles/{web,headless}/cordis.patch.yml` 均含 `path` + `openAt: first-search` |
 | session-query sqlite 文件 | ❌ 尚未建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 不存在（`first-search` 惰性，未跑过首搜） |
 | home 侧运行时 patch | ❌ 当前为空 | `%USERPROFILE%\.dsh\profiles\{web,headless}\cordis.patch.yml` 内容为 `[]` |

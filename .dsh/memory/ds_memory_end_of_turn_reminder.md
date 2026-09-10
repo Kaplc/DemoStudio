@@ -1,12 +1,13 @@
 ---
 name: ds_memory_end_of_turn_reminder
-description: ds-memory 回合末提醒机制（turn-stopping + steer；本回合已保存过记忆/经验则跳过）
+description: ds-memory 回合末提醒机制（turn-stopping + steer；本回合已保存过记忆则跳过，各自只看自己：默认仅 memory_write）
 type: project
 prefix: harness/ds-memory
 ---
 
 
-规则：ds-memory 在 `agent/turn-stopping`（回合即将关闭时）通过 `agent.steer()` 注入"检查是否需要保存记忆"提醒（配置 `enableEndOfTurnReminder`，默认开；form:'notice'；按 agent 记 60s 冷却；子 agent 不注入）。steer 会让驱动多跑一步处理提醒。**本回合已成功保存过记忆或经验则跳过提醒**（2026-09-11 新增）：`agent/pre-step` 记当前回合号、`tools/result` 登记保存类工具成功调用（默认 `memory_write` + `experience_save`，配置 `reminderSkipTools` 可改，`[]` 关闭判定），`savedTurn === 当前 turn` 即不注入；失败结果（isError）/非保存工具/别的回合不算。
+
+规则：ds-memory 在 `agent/turn-stopping`（回合即将关闭时）通过 `agent.steer()` 注入"检查是否需要保存记忆"提醒（配置 `enableEndOfTurnReminder`，默认开；form:'notice'；按 agent 记 60s 冷却；子 agent 不注入）。steer 会让驱动多跑一步处理提醒。**本回合已成功保存过记忆则跳过提醒**：`agent/pre-step` 记当前回合号、`tools/result` 登记保存类工具成功调用，`savedTurn === 当前 turn` 即不注入；失败结果（isError）/非保存工具/别的回合不算。**跳过判定"各自只看自己"（2026-09-10 修订）**：默认仅 `memory_write`（配置 `reminderSkipTools` 可改，`[]` 关闭判定）——同一次事件常需双写（结论进记忆、轨迹进经验），只存了经验不代表没漏存记忆，故 `experience_save` 不再抑制记忆提醒；经验侧由 ds-experience 的回合末提醒自行判定（那边默认仅认 `experience_save`）。
 
 **Problem:** 2026-09-10 前提醒从未生效且无日志痕迹；2026-09-11 用户要求改为回合末注入，并要求"已保存过就不再提醒"。
 **Cause:** ① `(session as any).agent` 恒 undefined（Session 无 agent 反向引用）且静默跳过；② WeakMap 反查 + `agent.inject` 版本——会话日志证实 turn/end 后零注入事件；③ 无保存判定时，刚 memory_write/experience_save 完的回合仍会被催一次。
