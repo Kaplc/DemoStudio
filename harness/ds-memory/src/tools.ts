@@ -5,23 +5,25 @@
  * @module tools
  */
 
-import { readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { memoryAge, memoryAgeDays, memoryFreshnessText } from './memoryAge.js'
 import {
-  buildManualWritePrompt,
+  buildBodyWriteReminder,
   MAX_MEMORY_CONTENT_CHARS,
   MEMORY_ENTRYPOINT,
   MEMORY_TYPES,
   STALE_MEMORY_DAYS,
   normalizeMemoryName,
   parsePrefixExpr,
+  renderMemoryFile,
 } from './memoryTypes.js'
-import { forgetMemories, readAllMemories, removeFromIndex } from './memoryStore.js'
+import { forgetMemories, readAllMemories, removeFromIndex, upsertIndexLine } from './memoryStore.js'
 import type { MemoryRecord } from './memoryStore.js'
+import { assertSafeWritePath, sanitizePathKey } from './security.js'
 
 /** 工具运行所需宿主环境（由 index.ts 装配时闭包注入）。 */
 export interface MemoryToolHost {
@@ -41,9 +43,10 @@ function clipContent(content: string): string {
 function describeRecord(record: MemoryRecord, nowMs: number) {
   return {
     file: record.fileName,
-    type: record.type,
+    // lossless JSON 禁止嵌套 undefined：可选字段缺失时整个省略，否则内核拒收工具返回（ToolOutputError）
+    ...(record.type !== undefined ? { type: record.type } : {}),
     age: memoryAge(record.mtimeMs, nowMs),
-    description: record.description,
+    ...(record.description !== undefined ? { description: record.description } : {}),
     content: clipContent(record.content.trim()),
     freshness_warning: memoryFreshnessText(record.mtimeMs, nowMs),
   }
@@ -62,19 +65,19 @@ function assertNotChildAgent(agent: Agent | undefined): void {
 // ---------------------------------------------------------------------------
 
 /**
- * 保存/更新一条记忆：工具只做参数校验 + 按 name/description 查重，
- * 返回写入指引提示词；落盘与索引同步由 agent 用 write/edit 手动完成，
- * 完成后按指引全库检查过时记忆。
+ * 保存/更新一条记忆（半自动）：工具直接写 frontmatter——新建文件只落头部格式，
+ * 已有文件原位更新头部（正文原样保留）——并同步 MEMORY.md 索引行；
+ * 返回结果 + 正文补写提醒，正文内容始终由 agent 用 write/edit 手动写入。
  */
 export function createMemoryWriteTool(host: MemoryToolHost) {
   return defineTool({
     name: 'memory_write',
-    description: '保存/更新一条跨会话持久记忆。本工具不直接落盘：校验参数并按 name/description 查重后返回写入指引（目标路径/frontmatter 格式/索引同步/全库过时检查），由你用 write/edit 手动完成三步才算保存。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动使用；同名或同描述的已有记忆会被指引更新而非新建。name 用语义化小写下划线（如 user_role）。',
+    description: '保存/更新一条跨会话持久记忆。本工具直接写入 frontmatter（新建文件只落头部格式；已有记忆按 name/description 查重后原位更新头部，正文原样保留）并同步 MEMORY.md 索引行；返回后你只需用 write/edit 手动补写正文（按条目格式），并顺便全库检查过时记忆。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动调用。name 用语义化小写下划线（如 user_role）。prefix 必填：声明联想触发路径；无联想或更新时保持原样填 hold。',
     parameters: {
       name: { type: 'string', required: true, description: '语义化小写下划线文件名（不含 .md），如 user_role' },
       type: { type: 'string', enum: MEMORY_TYPES, required: true, description: 'user=用户画像 | feedback=纠正与确认 | project=项目决策动态 | reference=外部系统指针' },
       description: { type: 'string', required: true, description: '一行描述，用于检索相关性判断与去重' },
-      prefix: { type: 'string', description: '可选联想前缀表达式：项目根相对路径，支持代码风格运算符组合多路径——`a || b` 任一命中触发、`a && b` 会话内全部读过才触发（如 `src/engine || doc/engine`、`src/engine && doc/editor`；`&&` 优先级高于 `||`；单值如 `src/engine`；`/` = 全局）。读到满足表达式的文件时本条记忆全文自动注入（每会话一次）。不写则只走按需检索' },
+      prefix: { type: 'string', required: true, description: '联想前缀表达式（必填）：项目根相对路径，支持代码风格运算符组合多路径——`a || b` 任一命中触发、`a && b` 会话内全部读过才触发（如 `src/engine || doc/engine`、`src/engine && doc/editor`；`&&` 优先级高于 `||`；单值如 `src/engine`；`/` = 全局）。读到满足表达式的文件时本条记忆全文自动注入（每会话一次）。无联想、或更新时保持已有联想不变，填 hold' },
       scope: { type: 'string', enum: ['private', 'team'], description: '记忆作用域，默认 private；当前仅实现 private' },
     },
     output: {
@@ -82,14 +85,15 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
         type: 'object',
         additionalProperties: false,
         properties: {
-          action: { type: 'string', enum: ['manual_write'], required: true },
+          action: { type: 'string', enum: ['write_frontmatter'], required: true },
           file: { type: 'string', required: true },
+          status: { type: 'string', enum: ['created', 'updated'], required: true },
           deduped_by: { type: 'string', enum: ['name', 'description'] },
           existing_file: { type: 'string' },
-          prompt: { type: 'string', required: true },
+          reminder: { type: 'string', required: true },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: value.prompt }],
+      render: (_args, value) => [{ type: 'text', text: value.reminder }],
     },
     async execute(args, exec) {
       assertNotChildAgent(exec.agent)
@@ -100,32 +104,46 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
       if (!(MEMORY_TYPES as readonly string[]).includes(args.type)) {
         throw new Error(`type "${args.type}" 非法；必须是 ${MEMORY_TYPES.join('/')}`)
       }
-      if (args.prefix !== undefined && parsePrefixExpr(args.prefix) === undefined) {
-        throw new Error(`prefix 表达式 "${args.prefix}" 无效：运算符用双字符 && / ||，至少含一个非空路径`)
+      // prefix 必填；`hold`（大小写不敏感，容忍空白/缺省）= 无联想/更新时保持原样——不参与表达式校验、不落 frontmatter
+      const declaredPrefix = args.prefix?.trim() ?? ''
+      const holdPrefix = declaredPrefix === '' || declaredPrefix.toLowerCase() === 'hold'
+      if (!holdPrefix && parsePrefixExpr(declaredPrefix) === undefined) {
+        throw new Error(`prefix 表达式 "${args.prefix}" 无效：运算符用双字符 && / ||，至少含一个非空路径；无联想填 hold`)
       }
       const all = await readAllMemories(host.memoryDirectory)
       const byName = all.find(record => record.fileName === fileName)
       const hit = byName ?? all.find(record => record.description !== undefined && record.description === args.description)
-      const filePath = join(host.memoryDirectory, hit?.fileName ?? fileName)
-      const mode = byName !== undefined
-        ? 'update-by-name'
-        : hit !== undefined ? 'update-by-description' : 'create'
-      const prompt = buildManualWritePrompt({
-        filePath,
-        mode,
-        existingFile: hit?.fileName,
-        type: args.type,
-        prefix: args.prefix,
-      })
+      // 查重定稿目标文件：命中已有记忆则原位更新它的头部（文件名/frontmatter name 不变），否则新建
+      const targetFileName = hit?.fileName ?? fileName
+      const targetBase = targetFileName.replace(/\.md$/, '')
+      const targetPath = join(host.memoryDirectory, sanitizePathKey(targetFileName))
+      // prefix：hold=更新时保留旧值（创建时无联想）；表达式=本次声明覆盖
+      const finalPrefix = holdPrefix ? hit?.prefix : declaredPrefix
+      const content = renderMemoryFile(targetBase, args.description, args.type, hit?.content ?? '', finalPrefix)
+      await assertSafeWritePath(host.memoryDirectory, targetFileName)
+      await mkdir(host.memoryDirectory, { recursive: true })
+      await writeFile(targetPath, content, 'utf8')
+      // 索引行与 frontmatter 同源（description + prefix 标注），工具一并同步
+      await upsertIndexLine(host.memoryDirectory, targetBase, `${args.description}${finalPrefix === undefined ? '' : `（prefix: ${finalPrefix}）`}`)
+      const status = hit === undefined ? 'created' as const : 'updated' as const
       const deduped_by = byName !== undefined
         ? 'name' as const
         : hit !== undefined ? 'description' as const : undefined
+      const reminder = buildBodyWriteReminder({
+        filePath: targetPath,
+        status,
+        ...(hit?.fileName !== undefined ? { existingFile: hit.fileName } : {}),
+        type: args.type,
+        ...(finalPrefix !== undefined ? { prefix: finalPrefix } : {}),
+      })
+      // lossless JSON 边界：可选字段有值才带上，显式 undefined 键会被内核拒收（ToolOutputError）
       return {
-        action: 'manual_write' as const,
-        file: filePath,
-        deduped_by,
-        existing_file: hit?.fileName,
-        prompt,
+        action: 'write_frontmatter' as const,
+        file: targetPath,
+        status,
+        ...(deduped_by !== undefined ? { deduped_by } : {}),
+        ...(hit?.fileName !== undefined ? { existing_file: hit.fileName } : {}),
+        reminder,
       }
     },
   })
@@ -193,9 +211,10 @@ export function createMemorySearchTool(host: MemoryToolHost) {
           count: all.length,
           memories: all.map(record => ({
             file: record.fileName,
-            type: record.type,
+            // lossless JSON 禁止嵌套 undefined：可选字段有值才带上
+            ...(record.type !== undefined ? { type: record.type } : {}),
             age: memoryAge(record.mtimeMs, now),
-            description: record.description,
+            ...(record.description !== undefined ? { description: record.description } : {}),
             content: '',
             freshness_warning: memoryFreshnessText(record.mtimeMs, now),
           })),

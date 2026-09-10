@@ -5,8 +5,10 @@
  */
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ModelSelector } from './ModelSelector'
+import { ContextRing } from './ContextRing'
 import { SlashMenu, useSlashCommand, registerDshCommandSource, registerDshSkillSource } from './slash-command'
 import { logger } from '../../engine/Logger'
+import type { ContextPressurePayload } from '../../types/agent'
 
 interface InputBoxProps {
   onSend: (text: string) => void
@@ -18,8 +20,13 @@ interface InputBoxProps {
   placeholder?: string
   currentModel?: { provider: string; model: string } | null
   onModelChange?: (provider: string, model: string) => void
+  /** 受控草稿：按会话保留输入内容（提供时以外部值为准，配合 onDraftChange） */
+  draft?: string
+  onDraftChange?: (text: string) => void
   /** Agent 服务实例（用于获取 DSH commands 和 skills） */
   agentService?: any
+  /** 上下文占用快照（输入框底部进度圈数据源，对齐 DSH WebUI ContextMeter） */
+  contextPressure?: ContextPressurePayload | null
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -32,8 +39,17 @@ export const InputBox: React.FC<InputBoxProps> = ({
   currentModel = null,
   onModelChange,
   agentService,
+  draft,
+  onDraftChange,
+  contextPressure,
 }) => {
-  const [text, setText] = useState('')
+  const [ownText, setOwnText] = useState('')
+  // 受控草稿优先（按会话保留），未提供时退回内部状态
+  const text = draft ?? ownText
+  const updateText = useCallback((v: string) => {
+    setOwnText(v)
+    onDraftChange?.(v)
+  }, [onDraftChange])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
 
@@ -65,7 +81,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
       logger.debug(`[InputBox] 命令选择: /${command.name}`)
       // 更新 React state 和 textarea
       if (newText !== undefined) {
-        setText(newText)
+        updateText(newText)
         // 同步更新 textarea（React controlled component）
         if (textareaRef.current) {
           textareaRef.current.value = newText
@@ -87,7 +103,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
     // 允许在 running 状态下发送（steer 模式）
     logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running})`)
     onSend(trimmed)
-    setText('')
+    updateText('')
   }
 
   // 加入发送队列：当前回合完成后由 AgentPanel 自动发送
@@ -96,7 +112,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
     if (!trimmed || disabled || !onQueueSend) return
     logger.info(`[InputBox] 消息加入队列: "${trimmed}"`)
     onQueueSend(trimmed)
-    setText('')
+    updateText('')
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -114,7 +130,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
-    setText(newValue)
+    updateText(newValue)
 
     // 触发斜杠命令检测
     const caret = e.target.selectionStart ?? newValue.length
@@ -182,6 +198,11 @@ export const InputBox: React.FC<InputBoxProps> = ({
             {/* 预留：+ 按钮、权限选择器 */}
           </div>
           <div className="composer__trailing">
+            {/* 上下文进度圈 - 对齐 DSH WebUI ContextMeter 位置（模型选择器后、停止/发送按钮前） */}
+            <ContextRing
+              usedTokens={contextPressure?.usedTokens}
+              contextWindow={contextPressure?.contextWindow}
+            />
             {/* 模型选择器 - 发送按钮左侧 */}
             <ModelSelector
               currentModel={currentModel}

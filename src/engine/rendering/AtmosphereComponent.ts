@@ -10,9 +10,11 @@
  *    "一个 Actor 只能挂一个 mesh"（构造时按类名后缀拒绝重复），大气/云层必须
  *    与行星本体 SphereMeshComponent 共存于同一 Actor —— 走 ShadowBlobComponent
  *    同款自托管外壳路径（ShadowBlob 先例：非 Mesh 派生的渲染附件组件）。
- *  - 几何半径固定 1，scale = radius × scale（外壳倍率）：Actor 变换只驱动本体
- *    mesh，子壳跟随 owner.root 位置自动同步；不读 owner 的 SphereMesh 半径，
- *    组件保持自包含（蓝图声明即完整外观，预览/运行时同源）。
+ *  - 几何半径固定 1，scale = 本体半径 × shellScale（外壳倍率）：本体半径在构造时
+ *    从 owner 的 SphereMeshComponent.radius 解析（壳必须晚于本体挂载），缺失时
+ *    兜底 1（倍率即半径，适配单位球）；Actor 变换只驱动本体 mesh，子壳跟随
+ *    owner.root 位置自动同步。运行时改本体 radius 不回缩放（行星半径蓝图定值，
+ *    不支持动态改）。
  *  - ShaderMaterial unlit（不受灯光）：行星光来自太阳方向光，Fresnel 用视线夹角
  *    近似即可，避免真实大气散射积分的复杂度；观察模式增强走 intensity setter。
  *  - renderOrder = 1：透明壳在行星本体之后绘制，保证混合正确。
@@ -26,6 +28,7 @@
 import * as THREE from 'three'
 import { ThreeObjectComponent } from './ThreeObjectComponent'
 import { ThreeObject } from './ThreeObject'
+import { SphereMeshComponent } from './SphereMeshComponent'
 import type { Actor } from '../entity/Actor'
 import type { EditableProperty } from '../entity/ActorComponent'
 
@@ -67,6 +70,8 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
   private _power: number
   /** 外壳半径倍率（相对行星本体半径；资产字段名 shellScale，scale 保留给 TransformComponent） */
   private _shellScale: number
+  /** 本体半径快照（构造时从 owner 的 SphereMeshComponent 解析；缺失兜底 1） */
+  private readonly _bodyRadius: number
 
   constructor(owner: Actor, options: Record<string, unknown> = {}, name = 'AtmosphereComponent') {
     super(owner, name)
@@ -75,6 +80,7 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this.baseIntensity = this._intensity
     this._power = typeof options.power === 'number' ? options.power : 2.6
     this._shellScale = typeof options.shellScale === 'number' ? Math.max(1.01, options.shellScale) : 1.05
+    this._bodyRadius = owner.getComponent(SphereMeshComponent)?.radius ?? 1
 
     const geo = new THREE.SphereGeometry(1, 48, 32)
     const mat = new THREE.ShaderMaterial({
@@ -90,7 +96,7 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
       side: THREE.BackSide,
     })
     this.obj = new ThreeObject(new THREE.Mesh(geo, mat))
-    this.obj.object.scale.setScalar(this._shellScale)
+    this.obj.object.scale.setScalar(this._bodyRadius * this._shellScale)
     this.obj.object.renderOrder = 1
     this.attachToRoot(this.obj)
   }
@@ -120,7 +126,7 @@ export class AtmosphereComponent extends ThreeObjectComponent<ThreeObject<THREE.
   get shellScale(): number { return this._shellScale }
   set shellScale(v: number) {
     this._shellScale = Math.max(1.01, v)
-    this.obj.object.scale.setScalar(this._shellScale)
+    this.obj.object.scale.setScalar(this._bodyRadius * this._shellScale)
   }
 
   /** Inspector 属性展示 */

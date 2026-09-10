@@ -22,7 +22,7 @@ import type {
   RetryScheduledPayload, RetryStartedPayload, CommandRunPayload, CommandDonePayload,
   CompactionStartPayload, CompactionSummaryPayload, CompactionEndPayload,
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
-  RequestHeaderPayload, SandboxModePayload, PlanModePayload,
+  RequestHeaderPayload, SandboxModePayload, PlanModePayload, ContextPressurePayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
 } from '../types/agent'
@@ -73,6 +73,16 @@ interface DshChunk {
   index?: number
   blockType?: string
   reason?: string
+  /** usage chunk 携带的该步 provider 用量（对齐 DSH StreamChunk usage） */
+  usage?: DshTokenUsage
+}
+
+/** provider 用量上报（对齐 DSH TokenUsage；prompt 侧含 cache 流量） */
+interface DshTokenUsage {
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
 }
 
 interface DshMessage {
@@ -94,6 +104,8 @@ interface DshEvent {
     chunk?: DshChunk
     // --- assistant/message ---
     message?: DshMessage
+    /** assistant/message 的最终 provider 用量（对齐 DSH SessionEventMap usage） */
+    usage?: DshTokenUsage
     // --- user/message ---
     content?: ContentPart[]
     source?: {
@@ -205,6 +217,23 @@ export interface HistoryPage {
   beforeSeq?: number
   /** 尾页 fold 出的未闭合回合半截段（仅尾部加载返回），续入实时缓冲用 */
   pendingTurnPartial?: PendingTurnPartial
+  /** 尾页事件中存在未闭合回合（turn/start 后无 turn/end，仅尾部加载返回）：
+   * 切换/恢复时据此重建运行态并续听，无需为探测单独再拉一次历史 */
+  unclosedTurn?: boolean
+}
+
+/**
+ * 页内回合边界判定（从尾向头扫描）：先遇 turn/end = 最后回合已闭合；
+ * 先遇 turn/start = 存在未闭合回合；都未遇到（如新会话仅权限固定事件）= 无回合。
+ * 与实时流语义一致：只看页窗口内的边界事件（与原断档续听探测同一盲区）。
+ */
+export function scanUnclosedTurn(events: Array<{ event: { type?: string } }>): boolean {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const t = events[i].event.type
+    if (t === 'turn/end') return false
+    if (t === 'turn/start') return true
+  }
+  return false
 }
 
 interface RpcResponse {
@@ -302,6 +331,13 @@ export class AgentService {
   private muxCleanup: (() => void) | null = null
   /** 已消费的最大事件 seq（推送/轮询/心跳三路共用，按 seq 去重） */
   private _lastSeq = -1
+  /**
+   * 会话切换窗口的事件暂存（非 null = 窗口开启）。切换到目标会话后、尾页 fold
+   * 立起 seq 基线前，mux 仍在推流目标会话的事件：此刻基线未立，直接消费会让
+   * 「已随 fold 上屏的历史」与「实时缓冲」双路径重复消费。暂存到 fold 完成后
+   * 按 seq 门限重放（seq ≤ 基线的被去重丢弃，> 基线的真正增量照常消费）。
+   */
+  private switchHoldback: DshEvent[] | null = null
   /** 当前 assistant 段的流式缓冲（推送与轮询共用同一套缓冲） */
   private assistantBuf = ''
   private reasoningBuf = ''
@@ -333,6 +369,11 @@ export class AgentService {
   private _workspaceCwd: string | null = null
   /** 上一次 request/header 中的模型名：仅模型真正切换时才上屏"模型切换" */
   private _lastHeaderModel: string | undefined
+  /** 上下文占用 fold（对齐 DSH contextPressure 投影的 last-wins 简化版）：
+   *  分母 = 最近一条 request/context 的路由容量；分子 = 最近一次 usage 上报
+   *  的实际占用（prompt + 输出）。任一缺失时进度圈不渲染（对齐 DSH 行为）。 */
+  private _ctxWindow: number | undefined
+  private _ctxUsedTokens: number | undefined
   /** 实例标识：HMR 会并存多个服务实例（旧实例泄漏时只写日志不进 UI），用于区分日志来源 */
   private readonly instanceId = (() => {
     const g = globalThis as unknown as Record<string, number | undefined>
@@ -410,6 +451,9 @@ export class AgentService {
     this.lastFlushSeq = undefined
     this.pendingTools.clear()
     this._lastHeaderModel = undefined
+    // 上下文占用 fold 随会话切换清零（新会话由历史 fold 重新 seed）
+    this._ctxWindow = undefined
+    this._ctxUsedTokens = undefined
   }
 
   /** 以服务端最新 seq 刷新去重基线（只推进游标，不消费历史事件进 UI） */
@@ -484,19 +528,11 @@ export class AgentService {
         if (!events.length) return
         const tailEvent = events[events.length - 1].event
         console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听探测: ${events.length} 事件, 尾=${tailEvent.type}@${tailEvent.seq}`)
-        // 从尾向头找回合边界：先遇 turn/end = 已闭合；先遇 turn/start = 未闭合；
-        // 两者都未遇到（如新会话仅有 permission/approval 固定事件）= 历史中无回合，无需续听
-        let unclosedTurn = false
-        for (let i = events.length - 1; i >= 0; i--) {
-          const t = events[i].event.type
-          if (t === 'turn/end') {
-            console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 最后回合已收尾，无需续听`)
-            return            // 最后回合已收尾 → 无未完成工作
-          }
-          if (t === 'turn/start') { unclosedTurn = true; break }  // 存在未闭合回合 → 续听
-        }
+        // 从尾向头找回合边界（scanUnclosedTurn）：先遇 turn/end = 已闭合；
+        // 先遇 turn/start = 未闭合；都未遇到 = 历史中无回合，无需续听
+        const unclosedTurn = scanUnclosedTurn(events)
         if (!unclosedTurn) {
-          console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 历史中无回合边界事件（如仅权限固定事件），无需续听`)
+          console.log(`[${logTime()}] [Trace][restore] ${this.instanceId} 断档续听: 最后回合已收尾或历史中无回合边界事件，无需续听`)
           return
         }
         console.log(`[${logTime()}]`, '[AgentService] 检测到未完成回合，启动断档续听（热刷新期间结果将补齐显示）')
@@ -1155,6 +1191,11 @@ export class AgentService {
    * @returns 是否为回合收尾事件（turn/end / session.idle） */
   private consumeSessionEvent(event: DshEvent): boolean {
     if (this.abortPolling) return false // stop 语义：中止后不再派发任何事件
+    // 切换窗口：目标会话事件暂存待重放，不进入实时消费（见 switchHoldback 注释）
+    if (this.switchHoldback) {
+      this.switchHoldback.push(event)
+      return false
+    }
     if (typeof event?.seq !== 'number' || event.seq <= this._lastSeq) {
       // [Trace] 收尾/整段/用户消息被基线抑制 = 恢复竞态的直接证据（chunk 被抑制是常态，不打）
       // 只记录 turn/end 事件，避免过多日志
@@ -1221,6 +1262,9 @@ export class AgentService {
         this.scheduleReasoningEmit() // live 推理：节流后实时下发（面板空闲时即时上屏）
       }
       if (chunk.type === 'finish') this.emit({ type: 'stepEnd', payload: { reason: chunk.reason, seq: event.seq, time } })
+      // usage chunk：该步的早期用量采样（对齐 DSH token-meter，采样后
+      // assistant/message 的最终用量会同 (turn,step) 覆盖，不重复计数）
+      if (chunk.type === 'usage' && chunk.usage) this.recordContextUsage(chunk.usage)
       return false
     }
 
@@ -1233,6 +1277,8 @@ export class AgentService {
           this.scheduleReasoningEmit()
         }
       }
+      // 最终用量采样：同一步的权威值，覆盖此前的 usage chunk
+      if (d?.usage) this.recordContextUsage(d.usage)
       return false
     }
 
@@ -1422,7 +1468,16 @@ export class AgentService {
       return false
     }
 
-    if (event.type === 'request/context') return false
+    // ─── 请求路由容量（进度圈分母） ───
+    // last-wins：模型未声明容量时清除（对齐 DSH contextPressure 折叠语义）
+    if (event.type === 'request/context') {
+      const win = (d as { contextWindow?: number } | undefined)?.contextWindow
+      if (win !== this._ctxWindow) {
+        this._ctxWindow = win
+        this.emitContextPressure(event.seq, time)
+      }
+      return false
+    }
 
     // ─── 沙箱/计划模式 ───
     if (event.type === 'sandbox/mode') {
@@ -1443,6 +1498,36 @@ export class AgentService {
     }
 
     return false
+  }
+
+  /**
+   * 记录一次 provider 用量采样并按需下发（上下文占用分子）。
+   * 占用 = prompt 侧（input + cache 流量）+ 该步输出 = 该步完成时的实际
+   * 上下文。对齐 DSH pressureTokens 语义的确定性近似：DSH 的 projectedTokens
+   * 依赖完整表面折算（编辑器无此 fold），而 prompt+output 恰是下一步请求
+   * 将看到的大小，每步边界推进一次。
+   */
+  private recordContextUsage(usage: DshTokenUsage): void {
+    const used = this.contextUsageTokens(usage)
+    if (used <= 0 || used === this._ctxUsedTokens) return
+    this._ctxUsedTokens = used
+    this.emitContextPressure(-1, Date.now())
+  }
+
+  /** 用量上报 → 上下文占用 token（prompt 侧 + 输出，对齐 DSH usageTokens 口径） */
+  private contextUsageTokens(usage: DshTokenUsage): number {
+    return (usage.inputTokens ?? 0)
+      + (usage.cacheReadTokens ?? 0)
+      + (usage.cacheWriteTokens ?? 0)
+      + (usage.outputTokens ?? 0)
+  }
+
+  /** 向 UI 下发当前上下文占用快照（进度圈数据源） */
+  private emitContextPressure(seq: number, time: number): void {
+    this.emit({
+      type: 'contextPressure',
+      payload: { usedTokens: this._ctxUsedTokens, contextWindow: this._ctxWindow, seq, time } as ContextPressurePayload,
+    })
   }
 
   /** 回合运行中的兜底心跳：mux 推送静默超过阈值时主动拉一次 history 补漏。
@@ -1585,16 +1670,13 @@ export class AgentService {
     /** 首次加载历史时可限制页数；不传则保持完整历史加载兼容。 */
     maxPages?: number
     maxMessages?: number
-  } = {}): Promise<{ messages: HistoryMessage[]; pendingTurnPartial?: PendingTurnPartial }> {
+  } = {}): Promise<{ messages: HistoryMessage[]; pendingTurnPartial?: PendingTurnPartial; unclosedTurn?: boolean }> {
     try {
       if (!this.sessionId) {
         console.warn(`[${logTime()}]`, '[AgentService] loadHistory: 无 sessionId')
         return { messages: [] }
       }
 
-      // fold 起点的去重基线：实时流在 fold 期间消费的 chunk 都以它为界，
-      // fold 结束时用于精确合并半截段（见 seedPendingTurn）
-      const foldBaselineSeq = this._lastSeq
       const allEvents: Array<{ event: DshEvent }> = []
       let beforeSeq = options.beforeSeq
       let pages = 0
@@ -1642,6 +1724,8 @@ export class AgentService {
       const compactionStates = new Map<string, CompactionState>()
       // 历史折叠中追踪上一个模型名：仅模型真正变化时才上屏"模型切换"
       let lastFoldHeaderModel: string | undefined
+      // 上下文占用 seed：仅全量加载时回写（分页 prepend 旧事件不回写，防旧值覆盖实时新值）
+      const seedPressure = options.beforeSeq === undefined
       // chunk 增量累积（对齐实时路径 assistantBuf 语义）：fold 期间遇到
       // assistant/chunk 先累积，边界处提交；assistant/message 到达时整段覆盖。
       let foldAssistantBuf = ''
@@ -1713,6 +1797,18 @@ export class AgentService {
             foldChunkDirty = true
             foldChunkLastSeq = event.seq
           }
+          if (seedPressure && chunk.type === 'usage' && chunk.usage) {
+            this._ctxUsedTokens = this.contextUsageTokens(chunk.usage)
+          }
+          continue
+        }
+
+        // ─── 请求路由容量（进度圈分母，last-wins） ───
+        if (event.type === 'request/context') {
+          if (seedPressure) {
+            const win = (d as { contextWindow?: number } | undefined)?.contextWindow
+            this._ctxWindow = win
+          }
           continue
         }
 
@@ -1752,6 +1848,7 @@ export class AgentService {
           foldChunkDirty = false
           const text = this.extractText(msg.content)
           const reasoning = this.extractReasoning(msg.content)
+          if (seedPressure && d?.usage) this._ctxUsedTokens = this.contextUsageTokens(d.usage)
           if (!text && !reasoning) continue
           const idx = messages.length
           messages.push({ role: 'assistant', content: text, reasoning: reasoning || undefined, seq: event.seq, ts: time })
@@ -1948,6 +2045,9 @@ export class AgentService {
         if (isTailLoad) pendingTurnPartial = partial
       }
 
+      // 尾页附带回合边界判定：切换/恢复据此重建运行态，免去单独的探测请求
+      const unclosedTurn = isTailLoad ? scanUnclosedTurn(allEvents) : undefined
+
       // fold 与去重基线在同一原子时刻推进（fold 循环同步执行，期间无 await）：
       // 实时流从此只消费 fold 之后的增量，消除「基线先立、fold 后拉」窗口内
       // 事件被 fold 与实时双路径重复消费的竞态
@@ -1963,7 +2063,16 @@ export class AgentService {
         messages.push({ role: 'tool', content: '', tool })
       }
 
-      return pendingTurnPartial ? { messages, pendingTurnPartial } : { messages }
+      // 全量 fold 完成后下发一次占用快照，进度圈在会话加载/切换后立即可用
+      if (seedPressure && (this._ctxUsedTokens !== undefined || this._ctxWindow !== undefined)) {
+        this.emitContextPressure(allEvents[allEvents.length - 1]?.event.seq ?? -1, Date.now())
+      }
+
+      return {
+        messages,
+        ...(pendingTurnPartial ? { pendingTurnPartial } : {}),
+        ...(unclosedTurn !== undefined ? { unclosedTurn } : {}),
+      }
     } catch (error) {
       console.error(`[${logTime()}]`, '[AgentService] 加载历史失败:', error)
       return { messages: [] }
@@ -1975,12 +2084,13 @@ export class AgentService {
    * 返回的 messages 只对应本次已加载窗口，不会再次扫描整个会话。
    */
   async loadHistoryPage(beforeSeq?: number): Promise<HistoryPage> {
-    const { messages, pendingTurnPartial } = await this.loadHistory({ beforeSeq, maxPages: 1 })
+    const { messages, pendingTurnPartial, unclosedTurn } = await this.loadHistory({ beforeSeq, maxPages: 1 })
     return {
       messages,
       hasMore: this.historyHasMore,
       beforeSeq: this.historyCursor,
       ...(pendingTurnPartial ? { pendingTurnPartial } : {}),
+      ...(unclosedTurn !== undefined ? { unclosedTurn } : {}),
     }
   }
 
@@ -2083,22 +2193,58 @@ export class AgentService {
     }
   }
 
-  async switchSession(sessionId: string): Promise<void> {
+  /**
+   * 切换会话并加载尾页历史（合并为一次 session.history RPC）。
+   * 原 refreshSeqBaseline（基线前跳）+ resumePendingTurnIfNeeded（未闭合回合探测）
+   * + loadHistoryPage（尾页加载）三次请求合并：尾页 fold 原子推进 seq 基线
+   * （loadHistory 内建语义），页内回合边界判定（unclosedTurn）恢复运行态——
+   * 这两份信息尾页本就齐备，单独请求属重复全量拉取。
+   * @returns 目标会话的尾页加载结果，调用方直接用于上屏
+   */
+  async switchSession(sessionId: string): Promise<HistoryPage> {
     this.abortPolling = true
     this.pendingQuestions.clear()
     this.pendingApprovals.clear()
     this.clearLiveBuffers() // 旧会话的半截 assistant/reasoning 缓冲不得串进新会话
     // 运行态属于「当前会话」：切换即归零；目标会话若有未闭合回合，
-    // 由断档续听探测并恢复运行态
+    // 由尾页 unclosedTurn 判定并恢复运行态
     await this.drainPollingLoop()
     this.setRunning(false)
     this.setSession(sessionId)
     this.persistSession()
-    // 新会话的 seq 从 0 起，必须立即重立基线，避免旧会话游标抑制新会话事件
-    await this.refreshSeqBaseline()
     this.abortPolling = false
-    this.resumePendingTurnIfNeeded()
-    console.log(`[${logTime()}] [AgentService] 切换到会话: ${sessionId}`)
+    // 加载窗口内 mux 仍在推流目标会话事件：基线未立前暂存不消费，fold
+    // 立起基线后按 seq 门限重放——已随 fold 上屏的被去重丢弃，真正增量照常消费
+    this.switchHoldback = []
+    let page: HistoryPage
+    try {
+      page = await this.loadHistoryPage()
+    } finally {
+      const held = this.switchHoldback
+      this.switchHoldback = null
+      let replayed = 0
+      for (const event of held) {
+        if (typeof event.seq === 'number' && event.seq > this._lastSeq) {
+          this.consumeSessionEvent(event)
+          replayed++
+        }
+      }
+      if (held.length > 0) {
+        console.log(`[${logTime()}] [Trace][switch] ${this.instanceId} 切换窗口暂存 ${held.length} 条，基线=${this._lastSeq}，重放 ${replayed} 条`)
+      }
+    }
+    await this.resumePendingTurnFromPage(page)
+    console.log(`[${logTime()}] [AgentService] 切换到会话: ${sessionId}（合并为 1 次 history RPC）`)
+    return page
+  }
+
+  /** 页内版断档续听：尾页判定出未闭合回合 → 恢复运行态；mux 离线才启动轮询回路 */
+  private async resumePendingTurnFromPage(page: HistoryPage): Promise<void> {
+    if (!page.unclosedTurn) return
+    console.log(`[${logTime()}]`, '[AgentService] 尾页判定到未完成回合，恢复运行态续听')
+    this.setRunning(true)
+    // mux 在线：session/event 推送 + 心跳兜底自动续听；离线才启动轮询回路
+    if (!this.isMuxAlive()) await this.pollForResponse()
   }
 
   async createSession(): Promise<string | null> {

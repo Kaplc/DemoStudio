@@ -20,17 +20,15 @@ import { StepProcess, type ProcessItem } from './agent/StepProcess'
 import { ThinkingCard } from './agent/ThinkingCard'
 import { InputBox } from './agent/InputBox'
 import { ConnectionIndicator } from './agent/ConnectionIndicator'
-import { ToolCard } from './agent/ToolCard'
 import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
 import { ApprovalCard } from './agent/ApprovalCard'
 import { ContextCard } from './agent/ContextCard'
-import { ModelSelector } from './agent/ModelSelector'
 import { SettingsPanel } from './agent/SettingsPanel'
 import { KernelUpdateModal } from './agent/KernelUpdateModal'
 import { SkillManager } from './agent/SkillManager'
@@ -175,6 +173,8 @@ export const AgentPanel: React.FC = () => {
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestionRequest[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalRequest[]>([])
+  // 上下文占用快照（输入框底部进度圈，对齐 DSH WebUI ContextMeter）
+  const [contextPressure, setContextPressure] = useState<ContextPressurePayload | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showKernelUpdate, setShowKernelUpdate] = useState(false)
   const [hasKernelUpdate, setHasKernelUpdate] = useState(false) // npm 有新版本标记
@@ -200,16 +200,33 @@ export const AgentPanel: React.FC = () => {
   }, [headerMenuOpen])
   const [currentModel, setCurrentModel] = useState<{ provider: string; model: string } | undefined>(undefined)
   const [isAgentRunning, setIsAgentRunning] = useState(false) // AI 是否正在运行
-  // 队列发送：输入框上方排队，回合正常完成后逐条自动发出。
-  // ref 镜像供 turnEnd（挂载一次的事件回调）与显示队列 drain 读取，规避闭包过期。
-  const [queuedSends, setQueuedSends] = useState<QueuedSend[]>([])
-  const queuedSendsRef = useRef<QueuedSend[]>([])
+  // ─── 按会话保留：输入框草稿 + 待发队列 ───
+  // key = agentService.getSessionId() || 'current'（与 historySessionKeyRef 同源）。
+  // 写穿式：任何变更立即落回 map，切换会话只做键切换与载入，无保存时序问题。
+  const draftsBySessionRef = useRef<Map<string, string>>(new Map())
+  const [composerDraft, setComposerDraft] = useState('')
+  const queuesBySessionRef = useRef<Map<string, QueuedSend[]>>(new Map())
+  const [queuedSends, setQueuedSends] = useState<QueuedSend[]>([]) // 当前会话队列（显示用）
+  const currentSessionKeyRef = useRef('current')
   const queuedSendSeqRef = useRef(0)
   /** 已取出待发送的队列项 id：等显示队列空闲（上轮结论打完）后真正 send。
-   *  期间仍留在可见队列中；stop / 切换会话时归 null，条目保留供用户手动处理。 */
+   *  期间仍留在会话队列中；stop / 切换会话时归 null（条目随旧会话队列保留）。 */
   const pendingQueuedSendRef = useRef<number | null>(null)
   /** drain 空闲分支发送排队消息用的间接引用（handleSend 定义在 drain 之后，避免 TDZ） */
   const sendNowRef = useRef<(text: string) => Promise<void> | void>(() => {})
+
+  /** 把当前会话队列同步到显示状态 */
+  const syncQueuedSendsState = useCallback(() => {
+    setQueuedSends(queuesBySessionRef.current.get(currentSessionKeyRef.current) ?? [])
+  }, [])
+
+  /** 切换会话键：作废待发标记，载入新键的草稿与队列（map 写穿式，无需在此保存旧键） */
+  const applySessionKey = useCallback((newKey: string) => {
+    pendingQueuedSendRef.current = null
+    currentSessionKeyRef.current = newKey
+    setComposerDraft(draftsBySessionRef.current.get(newKey) ?? '')
+    setQueuedSends(queuesBySessionRef.current.get(newKey) ?? [])
+  }, [])
   // 完整消息提交后递增，用于触发列表自动滚动
   const [contentVersion, setContentVersion] = useState(0)
   // 会话切换/恢复的代号：变化时通知 VirtualList 强制回到底部（旧会话的贴底状态不继承）
@@ -404,13 +421,16 @@ export const AgentPanel: React.FC = () => {
             // 等当前 assistant 段打字完成后再显示结束提示，避免系统消息插队。
             pendingTurnSystemRef.current = reasonMap[turnPayload?.reason?.kind] || '回合异常结束'
             drainQueueRef.current()
-          } else if (queuedSendsRef.current.length > 0) {
-            // 回合正常完成且有排队消息：取出队首，等显示队列空闲（上轮结论打完）后自动发送。
-            // 非 completed（停止/出错等）不动队列，条目留在输入框上方供用户手动处理。
-            const next = queuedSendsRef.current[0]
-            pendingQueuedSendRef.current = next.id
-            console.log(`[${logTime()}] [AgentPanel] 回合完成，接管队列发送: "${next.text.slice(0, 24)}"`)
-            drainQueueRef.current()
+          } else {
+            // 回合正常完成：按当前会话取出队首排队消息，等显示队列空闲（上轮结论打完）
+            // 后自动发送。非 completed（停止/出错等）不动队列，条目保留供用户手动处理。
+            const queue = queuesBySessionRef.current.get(currentSessionKeyRef.current) ?? []
+            if (queue.length > 0) {
+              const next = queue[0]
+              pendingQueuedSendRef.current = next.id
+              console.log(`[${logTime()}] [AgentPanel] 回合完成，接管队列发送: "${next.text.slice(0, 24)}"`)
+              drainQueueRef.current()
+            }
           }
           break
         }
@@ -501,6 +521,12 @@ export const AgentPanel: React.FC = () => {
           let msg = `模型切换: ${header?.model || '未知'}`
           if (header?.reasoningEffort) msg += ` · 推理${header.reasoningEffort}`
           pushSystem(msg)
+          break
+        }
+
+        case 'contextPressure': {
+          // 上下文占用快照：驱动输入框底部进度圈（实时 + 历史全量 fold 后各一次）
+          setContextPressure(event.payload as ContextPressurePayload)
           break
         }
 
@@ -788,9 +814,11 @@ export const AgentPanel: React.FC = () => {
       else if (!activeDisplayRef.current && displayQueueRef.current.length === 0 && pendingQueuedSendRef.current !== null) {
         const pendingId = pendingQueuedSendRef.current
         pendingQueuedSendRef.current = null
-        const item = queuedSendsRef.current.find(q => q.id === pendingId)
-        queuedSendsRef.current = queuedSendsRef.current.filter(q => q.id !== pendingId)
-        setQueuedSends(queuedSendsRef.current)
+        const key = currentSessionKeyRef.current
+        const queue = queuesBySessionRef.current.get(key) ?? []
+        const item = queue.find(q => q.id === pendingId)
+        queuesBySessionRef.current.set(key, queue.filter(q => q.id !== pendingId))
+        syncQueuedSendsState()
         if (item) {
           console.log(`[${logTime()}] [AgentPanel] 队列发送: "${item.text.slice(0, 24)}"`)
           void sendNowRef.current(item.text)
@@ -963,6 +991,7 @@ export const AgentPanel: React.FC = () => {
     reasoningTypewriter.reset,
     reasoningTypewriter.setFull,
     reasoningTypewriter.setSpeedMultiplier,
+    syncQueuedSendsState,
     typewriter.reset,
     typewriter.setFull,
     typewriter.setSpeedMultiplier,
@@ -1172,6 +1201,8 @@ export const AgentPanel: React.FC = () => {
       historyCursorRef.current = page.beforeSeq
       historyHasMoreRef.current = page.hasMore
       historySessionKeyRef.current = sessionKey
+      // 重连/HMR 恢复可能落在不同会话：同步会话键，载入该会话的草稿与队列
+      if (sessionKey !== currentSessionKeyRef.current) applySessionKey(sessionKey)
       historyVisibleStartRef.current = latestHistoryStart(restored)
       setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
       if (!restored.length) return
@@ -1189,7 +1220,7 @@ export const AgentPanel: React.FC = () => {
     } catch (err) {
       console.warn(`[${logTime()}]`, '[AgentPanel] 恢复历史失败:', err)
     }
-  }, [])
+  }, [applySessionKey])
 
   // 清空历史分页窗口（新建/切换会话时调用，实时消息不进入这个窗口）。
   const resetHistoryWindow = useCallback(() => {
@@ -1347,18 +1378,28 @@ export const AgentPanel: React.FC = () => {
     sendNowRef.current = handleSend
   }, [handleSend])
 
-  // 加入发送队列：当前回合完成后自动发出
+  // 加入发送队列：当前回合完成后自动发出（写穿到当前会话的队列）
   const handleQueueSend = useCallback((text: string) => {
-    const item: QueuedSend = { id: ++queuedSendSeqRef.current, text }
-    queuedSendsRef.current = [...queuedSendsRef.current, item]
-    setQueuedSends(queuedSendsRef.current)
+    const key = currentSessionKeyRef.current
+    const queue = queuesBySessionRef.current.get(key) ?? []
+    queuesBySessionRef.current.set(key, [...queue, { id: ++queuedSendSeqRef.current, text }])
+    syncQueuedSendsState()
     addConsoleOutput(`[Agent] 已加入发送队列: ${text}`)
-  }, [addConsoleOutput])
+  }, [addConsoleOutput, syncQueuedSendsState])
 
-  // 移除排队消息（仅限尚未取出的；已被接管的在下一次 drain 前移除则放弃发送）
+  // 移除排队消息（已被接管的在下一次 drain 前移除则放弃发送）
   const handleRemoveQueuedSend = useCallback((id: number) => {
-    queuedSendsRef.current = queuedSendsRef.current.filter(q => q.id !== id)
-    setQueuedSends(queuedSendsRef.current)
+    const key = currentSessionKeyRef.current
+    const queue = queuesBySessionRef.current.get(key)
+    if (!queue) return
+    queuesBySessionRef.current.set(key, queue.filter(q => q.id !== id))
+    syncQueuedSendsState()
+  }, [syncQueuedSendsState])
+
+  // 输入框草稿（受控）：按会话实时写入 map，切换会话后原样恢复
+  const handleDraftChange = useCallback((text: string) => {
+    draftsBySessionRef.current.set(currentSessionKeyRef.current, text)
+    setComposerDraft(text)
   }, [])
 
   // 停止 AI
@@ -1381,20 +1422,20 @@ export const AgentPanel: React.FC = () => {
   const handleSwitchSession = useCallback(async (sessionId: string) => {
     console.log(`[${logTime()}]`, '[AgentPanel] 切换会话:', sessionId)
     clearDisplayQueue()
-    // 队列发送绑定会话上下文，切换时整体清空，避免误发进另一个会话
-    queuedSendsRef.current = []
-    setQueuedSends([])
-    pendingQueuedSendRef.current = null
+    // 草稿与队列按会话保留（写穿式已随改动落 map），这里切换键并载入目标会话的；
+    // 待发标记作废——被接管的条目仍留在旧会话队列里，切回来时原样恢复
+    applySessionKey(sessionId)
     resetHistoryWindow()
-    await agentService.switchSession(sessionId)
+    // 切换与尾页加载已合并为一次 history RPC：返回时 seq 基线与运行态续听均已就绪
+    const page = await agentService.switchSession(sessionId)
     historySessionKeyRef.current = sessionId
     setPendingQuestions([]) // 清除旧会话的 pending questions
     setPendingApprovals([]) // 清除旧会话的 pending approvals
     setTodos([]) // 清除旧会话的任务面板快照
-    
-    // 加载历史消息
-    console.log(`[${logTime()}]`, '[AgentPanel] 开始加载历史消息')
-    const page = await agentService.loadHistoryPage()
+    setContextPressure(null) // 清除旧会话的占用快照（新会话由历史 fold 重新 seed）
+
+    // 历史消息随 switchSession 一并返回，无需二次请求
+    console.log(`[${logTime()}]`, '[AgentPanel] 历史尾页已随切换返回')
     const historyMessages = page.messages.map((msg, index) => toPanelHistoryMessage(msg, sessionId, index))
     loadedHistoryRef.current = historyMessages
     historyCursorRef.current = page.beforeSeq
@@ -1425,7 +1466,7 @@ export const AgentPanel: React.FC = () => {
     // 会话整体换血，通知 VirtualList 强制回到底部
     setSessionEpoch(v => v + 1)
     setShowSidebar(false)
-  }, [clearDisplayQueue, resetHistoryWindow])
+  }, [applySessionKey, clearDisplayQueue, resetHistoryWindow])
 
   // 新建会话
   const handleNewSession = useCallback(async () => {
@@ -1433,6 +1474,8 @@ export const AgentPanel: React.FC = () => {
     resetHistoryWindow()
     const sid = await agentService.createSession()
     if (sid) {
+      // 新会话从空草稿/空队列开始（旧会话的已随写穿留在各自键下）
+      applySessionKey(agentService.getSessionId() || sid)
       setTodos([]) // 新会话无任务
       setPendingQuestions([]) // 旧会话的问答卡片不带入新会话
       setPendingApprovals([]) // 旧会话的审批卡片不带入新会话
@@ -1454,13 +1497,18 @@ export const AgentPanel: React.FC = () => {
         ts: Date.now()
       }])
     }
-  }, [clearDisplayQueue, refreshSessions, resetHistoryWindow])
+  }, [applySessionKey, clearDisplayQueue, refreshSessions, resetHistoryWindow])
 
   // 删除会话（远程归档 + 本地黑名单，确保不会被 refreshSessions 拉回）
   const handleDeleteSession = useCallback(async (sessionId: string) => {
     await agentService.deleteSession(sessionId)
     refreshSessions()
+    // 被删会话的草稿与队列一并丢弃
+    draftsBySessionRef.current.delete(sessionId)
+    queuesBySessionRef.current.delete(sessionId)
     if (agentService.getSessionId() === null) {
+      // 删除的是当前会话：回到未 attached 状态键
+      if (currentSessionKeyRef.current !== 'current') applySessionKey('current')
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',
@@ -1468,7 +1516,7 @@ export const AgentPanel: React.FC = () => {
         ts: Date.now()
       }])
     }
-  }, [refreshSessions])
+  }, [applySessionKey, refreshSessions])
 
   // ─── 问答交互 ───
   const handleQuestionAnswer = useCallback(async (rpcId: string, answer: QuestionAnswer) => {
@@ -1983,6 +2031,8 @@ export const AgentPanel: React.FC = () => {
         onSend={handleSend}
         onQueueSend={handleQueueSend}
         onStop={handleStop}
+        draft={composerDraft}
+        onDraftChange={handleDraftChange}
         disabled={connectionState !== 'connected'}
         running={isAgentRunning}
         placeholder={
@@ -1993,6 +2043,7 @@ export const AgentPanel: React.FC = () => {
         currentModel={currentModel}
         onModelChange={handleModelChange}
         agentService={agentService}
+        contextPressure={contextPressure}
       />
     </div>
   )

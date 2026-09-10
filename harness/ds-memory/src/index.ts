@@ -4,7 +4,8 @@
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"记忆指导"段（含 MEMORY.md 索引，仅在有内容时注入）
  * - `ctx.tools.register()` × 5 — memory_write / memory_search / memory_forget / memory_review / memory_list
- * - `ctx.on('session/event')` — 回合末（turn/end）主动注入记忆提醒，提示 agent 检查是否需要保存记忆
+ * - `ctx.on('agent/pre-step')` — 回合末记忆提醒：新回合第一个 pre-step 追加一条
+ *   "检查是否需要保存记忆"的提醒（decision.messages，同 prefix 联想的投递通道）
  * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 路径自动联想：
  *   读到满足记忆 `prefix:` 表达式的文件时把该记忆全文自动注入（每会话一次）；
  *   表达式支持 `||`（任一路径命中）与 `&&`（会话内全部路径读过，跨读取累计）
@@ -23,8 +24,9 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
-import { deriveProjectRoot, registerAssociator } from './associate.js'
+import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { deriveProjectRoot, isChildAgent, registerAssociator } from './associate.js'
 import { truncateEntrypoint } from './memoryScan.js'
 import {
   MEMORY_ENTRYPOINT,
@@ -44,6 +46,21 @@ const SECTION_ORDER = 3200
 
 /** 回合末记忆提醒间隔（毫秒）：防止过于频繁地注入提醒。 */
 const REMINDER_COOLDOWN_MS = 60_000
+
+/**
+ * 回合末提醒注入文本。agent.inject 在 turn/end 时入队、下一回合 pre-step 进入上下文，
+ * 因此措辞按"上一回合已结束、本回合处理"书写。
+ */
+const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆提醒
+
+上一个回合已结束。快速回顾是否有值得跨会话记住的信息，有则本回合立即调用 memory_write 保存：
+- 用户纠正或确认了某个方向？
+- 做出了架构/设计/工作流决策？
+- 定位到可复用的根因教训？
+- 了解到用户的角色/偏好/工作习惯？
+- 拿到外部系统指针（看板/文档站 URL）？
+
+没有触发点就不要保存。`
 
 /** 插件配置（cordis.yml 可配置项）。 */
 export interface Config {
@@ -129,48 +146,48 @@ export function apply(ctx: Context, config?: Config): void {
   }
 
   // ── 回合末记忆提醒（可配置关闭） ──
+  // 投递通道：agent/pre-step + decision.messages（与 associate.ts 同款，是被 prefix 联想
+  // 长期验证能进入模型请求的路径）。不使用 session/event + agent.inject：Session 无 agent
+  // 反向引用需 WeakMap 反查、inject 投递链路不可观测，2026-09-10 实测注入从未落会话日志。
+  // 时机：新回合第一个 pre-step（此时上一个回合已结束），与 inject 的实际到达时机一致。
   if (resolved.enableEndOfTurnReminder) {
-    // 记录上次提醒时间，防止过于频繁
-    let lastReminderTime = 0
+    // 冷却按 agent 记（WeakMap 随 Agent 回收）；插件全局单水位会让多 agent 互相挤掉提醒
+    const lastReminderByAgent = new WeakMap<Agent, number>()
 
-    ctx.on('session/event', (session: Session, event: SessionEvent) => {
-      // 只在 turn/end 时触发
-      if (event.type !== 'turn/end') return
-
-      // 检查冷却时间
-      const now = Date.now()
-      if (now - lastReminderTime < REMINDER_COOLDOWN_MS) {
-        return
-      }
-
-      // 注入提醒消息
-      const reminderMessage = `## 回合末记忆提醒
-
-本回合即将结束。快速回顾是否有值得跨会话记住的信息：
-- 用户纠正或确认了某个方向？
-- 做出了架构/设计/工作流决策？
-- 定位到可复用的根因教训？
-- 了解到用户的角色/偏好/工作习惯？
-- 拿到外部系统指针（看板/文档站 URL）？
-
-如果有，立即调用 memory_write 保存。如果没有触发点，不要保存。`
-
+    ctx.on('agent/pre-step', async (
+      { agent, step, signal }: { agent: Agent; step: number; signal?: AbortSignal },
+      next,
+    ): Promise<PreStepDecision> => {
+      const decision = await next()
       try {
-        // 通过 agent.inject() 注入提醒
-        // 注意：需要获取当前 agent 的引用
-        // session 对象中有 agent 引用
-        const agent = (session as any).agent
-        if (agent && typeof agent.inject === 'function') {
-          agent.inject({
-            content: reminderMessage,
-            source: 'ds-memory:end-of-turn-reminder',
-          })
-          lastReminderTime = now
-          logger.info('已注入回合末记忆提醒')
+        if (decision.kind === 'reject') return decision
+        // 只在新回合第一步注入（每回合至多一条）
+        if (step !== 1) return decision
+        // 子 agent 上下文归属父 agent，不提醒
+        if (isChildAgent(agent)) return decision
+
+        const now = Date.now()
+        if (now - (lastReminderByAgent.get(agent) ?? 0) < REMINDER_COOLDOWN_MS) {
+          return decision
         }
+
+        signal?.throwIfAborted()
+        const message = createUserMessage({
+          content: [{ type: 'text', text: END_OF_TURN_REMINDER_TEXT }],
+          source: {
+            kind: 'plugin',
+            plugin: '@demostudio/ds-memory',
+            form: 'notice',
+            summary: '回合末记忆提醒',
+          },
+        })
+        lastReminderByAgent.set(agent, now)
+        logger.info('已注入回合末记忆提醒')
+        return { ...decision, messages: [...decision.messages, message] }
       } catch (error) {
         // 注入失败不应阻塞对话
-        logger.warn('回合末记忆提醒注入失败:', error)
+        if (!signal?.aborted) logger.warn('回合末记忆提醒注入失败: %o', error)
+        return decision
       }
     })
   }

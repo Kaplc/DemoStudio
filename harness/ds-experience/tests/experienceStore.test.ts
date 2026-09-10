@@ -115,3 +115,45 @@ describe('store 辅助', () => {
     expect(data.date).toBe('2026-08-30')
   })
 })
+
+describe('prefix 联想字段', () => {
+  it('save 写入 prefix frontmatter；INDEX 行带联想标注；readAllEpisodes 读回', async () => {
+    await saveExperience(dir, { ...input, prefix: 'harness || doc/harness' })
+    const file = await readFile(join(dir, 'fix_junction_mount.md'), 'utf8')
+    expect(file).toContain('prefix: harness || doc/harness')
+    const index = await readFile(join(dir, 'INDEX.md'), 'utf8')
+    expect(index).toContain('[联想 harness || doc/harness]')
+    const records = await readAllEpisodes(dir)
+    expect(records[0]!.prefix).toBe('harness || doc/harness')
+    expect(records[0]!.mtimeMs).toBeGreaterThan(0)
+  })
+
+  it('update 覆盖时旧 prefix 行不残留', async () => {
+    await saveExperience(dir, { ...input, prefix: 'src/engine' })
+    await saveExperience(dir, { ...input, summary: '第二次' })
+    const file = await readFile(join(dir, 'fix_junction_mount.md'), 'utf8')
+    expect(file).not.toContain('prefix:')
+    const index = await readFile(join(dir, 'INDEX.md'), 'utf8')
+    expect(index).not.toContain('[联想')
+  })
+
+  it('parseEpisodeFrontmatter 解析 prefix（含成对引号写法）；无 prefix 为 undefined', () => {
+    const withPrefix = parseEpisodeFrontmatter('---\nname: a\nprefix: src/engine\n---\nbody')
+    expect(withPrefix.data.prefix).toBe('src/engine')
+    const quoted = parseEpisodeFrontmatter("---\nname: a\nprefix: 'src/engine'\n---\nbody")
+    expect(quoted.data.prefix).toBe('src/engine')
+    const without = parseEpisodeFrontmatter('---\nname: a\n---\nbody')
+    expect(without.data.prefix).toBeUndefined()
+  })
+
+  it('renderIndexLine 带 prefix 标注；超长含 prefix 仍截断到上限', () => {
+    const line = renderIndexLine('p_name', 'feature', 'success', '概述', 'src/engine')
+    expect(line).toContain('[联想 src/engine]')
+    const long = renderIndexLine('p_name', 'feature', 'success', '概述', 'a/very/long/prefix/path/that/pushes/over/limit')
+    expect(long.length).toBeLessThanOrEqual(150)
+  })
+
+  it('含换行的 prefix 被 saveExperience 显式拒绝', async () => {
+    await expect(saveExperience(dir, { ...input, prefix: 'a\nb' })).rejects.toThrow(/single-line/)
+  })
+})

@@ -255,58 +255,16 @@ export function starTextureFor(bodyId: string): string | THREE.Texture | null {
   return bodyTextureUrl(bodyId) ?? makeStarTexture(bodyId)
 }
 
-// ─── 地球特写增强贴图（观察模式三件套：夜灯 / 地形凹凸）───
+// ─── 地球特写增强贴图（观察模式：地形凹凸）───
 // 确定性随机（mulberry32 固定种子）→ 贴图稳定，快照/重放观感一致。
 // 无 DOM canvas（单测/极简容器）返回 null，调用方跳过该层（材质保持默认）。
-
-/**
- * 地球夜面城市灯光图（equirect 512×256，配 albedo UV）。
- * 暖黄光点按"城市簇"分布：中纬度密、两极稀、经度成簇（模拟大陆城市群），
- * 面向日面时被光照淹没、夜面呈星点灯光 → emissiveMap 消费。
- */
-export function makeEarthNightTexture(): THREE.CanvasTexture | null {
-  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
-  if (!canvas) return null
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  const W = 512
-  const H = 256
-  canvas.width = W
-  canvas.height = H
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, W, H)
-  const rnd = mulberry32(0xe277)
-  // 32 个城市簇（每个 = 中心亮斑 + 周边灯点晕），中纬度带加权
-  for (let c = 0; c < 32; c++) {
-    const cx = rnd() * W
-    const cy = H * (0.28 + rnd() * 0.44) // 避开两极
-    const spread = 8 + rnd() * 22
-    for (let i = 0; i < 26; i++) {
-      const ang = rnd() * Math.PI * 2
-      const d = rnd() * spread
-      const x = cx + Math.cos(ang) * d
-      const y = cy + Math.sin(ang) * d * 0.6
-      const r = 0.6 + rnd() * 1.6
-      const warm = rnd()
-      ctx.fillStyle = warm > 0.75 ? '#ffe9b0' : warm > 0.4 ? '#ffd27a' : '#ffbe55'
-      ctx.globalAlpha = 0.55 + rnd() * 0.45
-      for (const dx of [0, -W, W]) {
-        ctx.beginPath()
-        ctx.arc(x + dx, y, r, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-  }
-  ctx.globalAlpha = 1
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
-  return tex
-}
+// 夜面城市灯光已按用户要求移除（2026-09-10）：原 makeEarthNightTexture 连同
+// EarthActor 的日面遮罩 shader 一并删除。
 
 /**
  * 地球地形凹凸灰度图（equirect 512×256，配 albedo UV）。
  * 低频"大陆板块"隆起 + 高频噪声细部；灰度 = 高度 → bumpMap 消费
- * （bumpScale 控强度）。与夜灯图同确定性风格。
+ * （bumpScale 控强度）。确定性风格。
  */
 export function makeEarthBumpTexture(): THREE.CanvasTexture | null {
   const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null

@@ -1005,6 +1005,14 @@ export class BlueprintPreviewManager {
     const maxDim = Math.max(size.x, size.y, size.z)
     const dist = maxDim * 2.5 + 2
 
+    // 大资产外壳的可见面在包络背面（如行星大气 BackSide 壳：看到的是壳的远侧），
+    // 相机远裁剪面太小会整块裁掉 → far 随包络扩大（只增不减，小资产不受影响）
+    const needFar = (dist + maxDim) * 1.5
+    if (this.camera.far < needFar) {
+      this.camera.far = needFar
+      this.camera.updateProjectionMatrix()
+    }
+
     this.camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist * 0.6)
     this.camera.lookAt(center)
     this.initFlyEuler()

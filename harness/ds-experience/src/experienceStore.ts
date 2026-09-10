@@ -27,6 +27,10 @@ export interface EpisodeRecord {
   taskType?: string
   outcome: EpisodeOutcome | undefined
   date?: string
+  /** 联想前缀表达式（可选），语义同 EpisodeInput.prefix。 */
+  prefix?: string
+  /** mtime（毫秒）：联想注入的新鲜度展示与排序依据。 */
+  mtimeMs: number
   /** frontmatter 之后的正文（含 Summary/Lessons 小节）。 */
   body: string
 }
@@ -50,6 +54,9 @@ export async function saveExperience(experienceDirectory: string, input: Episode
   if (input.taskType.trim() === '') throw new Error('task_type must be a non-empty string')
   if (input.summary.trim() === '') throw new Error('summary must be a non-empty string')
   if (input.lessons.trim() === '') throw new Error('lessons must be a non-empty string')
+  if (input.prefix !== undefined && /[\r\n]/.test(input.prefix)) {
+    throw new Error('prefix must be a single-line expression (use `a || b` / `a && b`)')
+  }
   const fileName = normalizeEpisodeName(input.name)
   const existing = await fileExists(episodeFilePath(experienceDirectory, fileName))
   const content = renderEpisodeFile({ ...input, name: fileName.replace(/\.md$/, '') }, todayIso())
@@ -68,13 +75,20 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-/** INDEX.md 单行索引：`- [name](name.md) — task_type · outcome · summary`，超长截断。 */
-export function renderIndexLine(name: string, taskType: string, outcome: string, summary: string): string {
-  const hook = `${taskType} · ${outcome} · ${summary.replace(/\n/g, ' ').trim()}`
-  const prefix = `- [${name}](${name}.md) — `
-  const budget = MAX_INDEX_LINE_LENGTH - prefix.length
+/** INDEX.md 单行索引：`- [name](name.md) — task_type · outcome · summary[ · prefix p]`，超长截断。 */
+export function renderIndexLine(
+  name: string,
+  taskType: string,
+  outcome: string,
+  summary: string,
+  prefix?: string,
+): string {
+  let hook = `${taskType} · ${outcome} · ${summary.replace(/\n/g, ' ').trim()}`
+  if (prefix !== undefined && prefix.trim() !== '') hook += ` · [联想 ${prefix.trim()}]`
+  const prefixText = `- [${name}](${name}.md) — `
+  const budget = MAX_INDEX_LINE_LENGTH - prefixText.length
   const text = hook.length > budget ? `${hook.slice(0, Math.max(1, budget - 1))}…` : hook
-  return `${prefix}${text}`
+  return `${prefixText}${text}`
 }
 
 /**
@@ -84,11 +98,11 @@ export function renderIndexLine(name: string, taskType: string, outcome: string,
 export async function upsertIndexLine(
   experienceDirectory: string,
   name: string,
-  input: Pick<EpisodeInput, 'taskType' | 'outcome' | 'summary'>,
+  input: Pick<EpisodeInput, 'taskType' | 'outcome' | 'summary' | 'prefix'>,
 ): Promise<void> {
   await mkdir(experienceDirectory, { recursive: true })
   const entryPath = join(experienceDirectory, EXPERIENCE_INDEX_FILE)
-  const line = renderIndexLine(name, input.taskType, input.outcome, input.summary)
+  const line = renderIndexLine(name, input.taskType, input.outcome, input.summary, input.prefix)
   let existing = ''
   try {
     existing = await readFile(entryPath, 'utf8')
@@ -123,7 +137,7 @@ export async function readAllEpisodes(experienceDirectory: string): Promise<Epis
     if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name === EXPERIENCE_INDEX_FILE) continue
     const filePath = join(experienceDirectory, entry.name)
     try {
-      const text = await readFile(filePath, 'utf8')
+      const [text, stats] = await Promise.all([readFile(filePath, 'utf8'), stat(filePath)])
       const { data, body } = parseEpisodeFrontmatter(text)
       records.push({
         fileName: entry.name,
@@ -132,6 +146,8 @@ export async function readAllEpisodes(experienceDirectory: string): Promise<Epis
         taskType: data.task_type,
         outcome: parseEpisodeOutcome(data.outcome),
         date: data.date,
+        prefix: data.prefix,
+        mtimeMs: stats.mtimeMs,
         body,
       })
     } catch {

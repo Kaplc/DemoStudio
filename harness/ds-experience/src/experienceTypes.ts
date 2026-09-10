@@ -30,6 +30,9 @@ export const MAX_INDEX_BYTES = 40_000
 /** INDEX.md 索引单行长度上限。 */
 export const MAX_INDEX_LINE_LENGTH = 150
 
+/** 单条经验正文的注入截断上限（与 memory 检索侧同语义）。 */
+export const MAX_EPISODE_CONTENT_CHARS = 8000
+
 /** episode 结果三值（frontmatter 的 outcome 字段，闭式）。 */
 export const EPISODE_OUTCOMES = ['success', 'partial', 'failure'] as const
 
@@ -81,6 +84,12 @@ export interface EpisodeInput {
   lessons: string
   /** 有效的落点（文件/目录/命令），可选。 */
   effectivePath?: string
+  /**
+   * 联想前缀表达式（可选）：项目根相对路径前缀，支持 `||`（任一命中）与
+   * `&&`（会话内全部读过才触发）组合多路径（如 `harness` / `src/engine || doc/engine`）。
+   * 会话中 Agent 读到满足表达式的文件时，本条经验全文会被自动注入（每会话一次）。
+   */
+  prefix?: string
 }
 
 /** 解析后的 frontmatter（字段均可缺省：半损坏文件仍可扫描）。 */
@@ -89,6 +98,8 @@ export interface EpisodeFrontmatter {
   task_type?: string
   outcome?: string
   date?: string
+  /** 联想前缀表达式（可选），语义同 EpisodeInput.prefix。 */
+  prefix?: string
 }
 
 /**
@@ -116,8 +127,40 @@ export function parseEpisodeFrontmatter(text: string): { data: EpisodeFrontmatte
     else if (key === 'task_type') data.task_type = value
     else if (key === 'outcome') data.outcome = value
     else if (key === 'date') data.date = value
+    else if (key === 'prefix') {
+      const prefix = unquoteFrontmatterValue(value)
+      if (prefix.length > 0) data.prefix = prefix
+    }
   }
   return { data, body }
+}
+
+/** 去掉 frontmatter 值两侧的成对引号（支持 `prefix: 'src/engine'` 写法）。 */
+function unquoteFrontmatterValue(value: string): string {
+  if (value.length >= 2) {
+    const head = value[0]!
+    const tail = value[value.length - 1]!
+    if ((head === tail) && (head === "'" || head === '"')) return value.slice(1, -1).trim()
+  }
+  return value
+}
+
+/**
+ * 解析 prefix 表达式为 DNF（OR 组的列表，每组是 AND 项列表）：
+ * - `harness` → `[['harness']]`（单项单组，读一次即触发）
+ * - `a || b` → `[['a'], ['b']]`（任一命中触发）
+ * - `a && b` → `[['a', 'b']]`（会话中全部读过才触发，可跨多次读取累计）
+ * - `a && b || c` → `[['a', 'b'], ['c']]`（`&&` 优先级高于 `||`，与代码一致）
+ * 空项/空组被丢弃；全部为空返回 undefined（视为未声明，不参与联想）。
+ */
+export function parsePrefixExpr(expr: string): string[][] | undefined {
+  const normalized = expr.trim()
+  if (normalized.length === 0) return undefined
+  const groups = normalized
+    .split('||')
+    .map(group => group.split('&&').map(term => term.trim()).filter(term => term.length > 0))
+    .filter(group => group.length > 0)
+  return groups.length === 0 ? undefined : groups
 }
 
 /** 校验 outcome 字段（宽松：未知值降级 undefined，文件仍可扫描）。 */
@@ -136,7 +179,17 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`
 }
 
-/** 按规范序列化一份 episode 文件（frontmatter：name/task_type/outcome/date + 固定小节）。 */
+/** 回合末经验提醒文本（turn/end 时经 agent.inject 注入，form='notice'）。 */
+export const END_OF_TURN_EXPERIENCE_REMINDER_TEXT = `## 回合末经验提醒
+
+本回合即将结束。若本回合完成过一次有复用价值的完整任务，考虑沉淀经验：
+- 下次做同类事会用到这条做事轨迹？
+- 踩了值得记录的坑（环境坑/易错点/反模式）？
+- 发现了比旧经验更优的路线（用同名覆盖更新，别丢旧坑信息）？
+
+有 → 立即调用 experience_save 保存（prefix 必填：声明联想触发路径，无联想填 hold）。没有 → 不保存。该消息来自插件机制而非用户，无需回复。`
+
+/** 按规范序列化一份 episode 文件（frontmatter：name/task_type/outcome/date[/prefix] + 固定小节）。 */
 export function renderEpisodeFile(input: EpisodeInput, date: string): string {
   const sections = [
     `## Summary\n\n${input.summary.trim()}`,
@@ -145,7 +198,10 @@ export function renderEpisodeFile(input: EpisodeInput, date: string): string {
   if (input.effectivePath !== undefined && input.effectivePath.trim() !== '') {
     sections.push(`## Effective Path\n\n${input.effectivePath.trim()}`)
   }
-  return `---\nname: ${input.name}\ntask_type: ${input.taskType}\noutcome: ${input.outcome}\ndate: ${date}\n---\n${sections.join('\n\n')}\n`
+  const prefixLine = input.prefix !== undefined && input.prefix.trim() !== ''
+    ? `\nprefix: ${input.prefix.trim()}`
+    : ''
+  return `---\nname: ${input.name}\ntask_type: ${input.taskType}\noutcome: ${input.outcome}\ndate: ${date}${prefixLine}\n---\n${sections.join('\n\n')}\n`
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +225,17 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 - 接到可能与过往工作重复的改动类任务 → 先 \`history_search\` 查历史会话（"上次怎么做的"）；命中后 \`history_read\` 读那场会话的任务转录。
 - 疑似有相似经验（同类任务以前做过）→ \`experience_search\` 按需检索经验库。
 - **完成一个有复用价值的任务后 → 主动调用 \`experience_save\` 沉淀经验**（你的职责：判断哪些工作值得记录，做完就存，不要等人提醒）。
+
+## prefix 路径自动联想（与记忆系统同构）
+
+- \`experience_save\` 的 \`prefix\` 参数**必填**（如 \`prefix: harness\`、\`prefix: src/engine || doc/engine\`）；会话中读到匹配路径的文件时，该经验**全文自动注入**（同会话同条只注入一次）。无联想、或更新同名经验时保持原样，填 \`hold\`（hold 不落 frontmatter）。
+- \`&&\` 优先级高于 \`||\`（\`a && b || c\` = (a且b) 或 c），段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`）。
+- **声明 prefix 的经验正文会被整篇加载**：Summary/Lessons 必须精炼，只留不可推导的核心（踩坑/有效路径），不写过程流水账。
+- 高频领域任务建议声明 prefix（如插件开发 → \`harness\`，资产 → \`asset\`），让下次做同类任务时自动想起。
+
+## 回合末提醒
+
+每个回合结束（turn/end）会收到一条"回合末经验提醒"（60 秒冷却，可配置关闭 \`enableEndOfTurnReminder\`）：按"是否完成过有复用价值的完整任务"自查，有则当回合 \`experience_save\`，没有则忽略；该消息来自插件机制而非用户，无需回复。
 
 ## 发现更优路线时
 

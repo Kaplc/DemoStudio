@@ -206,6 +206,8 @@ export type AgentEventType =
   // 请求配置
   | 'requestHeader'
   | 'requestContext'
+  // 上下文占用（对齐 DSH token-meter contextPressure 投影的编辑器简化 fold）
+  | 'contextPressure'
   // 沙箱/计划
   | 'sandboxMode'
   | 'planMode'
@@ -369,6 +371,22 @@ export interface RequestHeaderPayload {
   provider?: string
   reasoningEffort?: string
   reason: 'initial' | 'resume' | 'change'
+  seq: number
+  time: number
+}
+
+/**
+ * 上下文占用快照（contextPressure）：输入框底部进度圈的数据源。
+ * 对齐 DSH token-meter 的 last-wins 语义 —— usedTokens 来自最近一次
+ * provider usage 上报（该步完成时的实际占用 = prompt + 输出），contextWindow
+ * 来自最近一条 request/context 路由容量。任一字段缺失时 UI 不渲染（对齐
+ * DSH ContextMeter 无数据不出环的行为）。
+ */
+export interface ContextPressurePayload {
+  /** 最近一次 usage 上报的占用 token 数（未采样前缺失） */
+  usedTokens?: number
+  /** 最近一条 request/context 的路由容量（模型未声明或未请求前缺失） */
+  contextWindow?: number
   seq: number
   time: number
 }

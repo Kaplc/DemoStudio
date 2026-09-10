@@ -10,8 +10,10 @@
  *  - 继承 ThreeObjectComponent 而非 MeshComponent：MeshComponent 强制一个 Actor
  *    一个 mesh，云层必须与本体 SphereMeshComponent 共存 —— 同 AtmosphereComponent
  *    的自托管外壳路径（ShadowBlobComponent 先例）。
- *  - 几何半径固定 1，scale = altitude（外壳倍率）：挂 owner.root 自动跟随天体
- *    位移；半透明（depthWrite:false）+ renderOrder 1，与大气壳共存的绘制顺序 =
+ *  - 几何半径固定 1，scale = 本体半径 × altitude（外壳倍率，本体半径构造时从
+ *    owner 的 SphereMeshComponent.radius 解析、缺失兜底 1，壳必须晚于本体挂载；
+ *    运行时改本体 radius 不回缩放）：挂 owner.root 自动跟随天体位移；
+ *    半透明（depthWrite:false）+ renderOrder 1，与大气壳共存的绘制顺序 =
  *    本体(0) → 云(1) → 大气(2)（构造时按 altitude 与大气壳相对关系取 1）。
  *  - transparent 壳不进点击：星图点击是纯数学距离判定（planetAt），与 mesh 无关。
  *
@@ -21,6 +23,7 @@
 import * as THREE from 'three'
 import { ThreeObjectComponent } from './ThreeObjectComponent'
 import { ThreeObject } from './ThreeObject'
+import { SphereMeshComponent } from './SphereMeshComponent'
 import { loadTexture } from './TextureLoader'
 import type { Actor } from '../entity/Actor'
 import type { EditableProperty } from '../entity/ActorComponent'
@@ -80,6 +83,8 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
   private _opacity: number
   /** 基准不透明度快照（蓝图装配值；观察模式增益的复位依据） */
   public readonly baseOpacity: number
+  /** 本体半径快照（构造时从 owner 的 SphereMeshComponent 解析；缺失兜底 1） */
+  private readonly _bodyRadius: number
 
   constructor(owner: Actor, options: Record<string, unknown> = {}, name = 'CloudLayerComponent') {
     super(owner, name)
@@ -87,6 +92,7 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
     this._spin = typeof options.spin === 'number' ? options.spin : 0.02
     this._opacity = typeof options.opacity === 'number' ? THREE.MathUtils.clamp(options.opacity, 0, 1) : 0.85
     this.baseOpacity = this._opacity
+    this._bodyRadius = owner.getComponent(SphereMeshComponent)?.radius ?? 1
 
     const geo = new THREE.SphereGeometry(1, 48, 32)
     const mat = new THREE.MeshBasicMaterial({
@@ -107,7 +113,7 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
       }
     }
     this.obj = new ThreeObject(new THREE.Mesh(geo, mat))
-    this.obj.object.scale.setScalar(this._altitude)
+    this.obj.object.scale.setScalar(this._bodyRadius * this._altitude)
     this.obj.object.renderOrder = 1
     this.attachToRoot(this.obj)
   }
@@ -116,7 +122,7 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
   get altitude(): number { return this._altitude }
   set altitude(v: number) {
     this._altitude = Math.max(1.01, v)
-    this.obj.object.scale.setScalar(this._altitude)
+    this.obj.object.scale.setScalar(this._bodyRadius * this._altitude)
   }
 
   /** 自转速率 rad/s（0 = 静止；负值反转） */

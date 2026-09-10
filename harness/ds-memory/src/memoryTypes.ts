@@ -233,7 +233,7 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 - 了解到用户的角色、长期偏好、工作习惯（user）
 - 拿到看板/监控/文档站等外部系统指针（reference）
 
-memory_write **不直接落盘**：它做参数校验与查重后返回写入指引，你按指引手动完成三步——① 用 write/edit 写记忆文件（frontmatter + 条目格式）② 同步 MEMORY.md 索引行 ③ 按指引全库检查过时记忆并顺便更新/清理。三步做完才算保存完成。
+memory_write **只写 frontmatter**（新建文件或原位更新已有文件的头部）并同步 MEMORY.md 索引行；**正文内容由你在工具返回后用 write/edit 手动补写**（按下方条目格式），写完顺便全库检查过时记忆并更新/清理。正文写完才算保存完成。
 
 没有触发点就不要保存——宁缺毋滥，普通问答、实现细节和过程流水账不存（见上方"不要保存"清单）。用户显式要求时照办：删除用 memory_forget，整理审查用 memory_review。`
 
@@ -259,56 +259,45 @@ export const ASSOCIATE_LOAD_TEXT = `## prefix 自动联想（命中即自动加�
   - 混用时 \`&&\` 优先级高于 \`||\`（\`a && b || c\` = (a且b) 或 c），与代码语义一致。
 - \`prefix: /\` = 全局：读取任意文件都触发；**未声明 prefix 的记忆不会被自动加载**，只走 memory_search 按需检索。
 - ⚠️ 自动全文加载意味着正文会整篇进入上下文：声明 prefix 的记忆**必须最精炼**——只保留不可推导的核心事实（踩坑四段 / 规则三段 / 指针 URL），不要背景介绍、过程流水账或读代码可推导的内容。
-- prefix 是段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`），路径相对项目根；\`memory_write\` 的 \`prefix\` 参数可选，不带则只写不联想。`
+- prefix 是段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`），路径相对项目根；\`memory_write\` 的 \`prefix\` 参数**必填**——声明触发路径；无联想或更新时保持原样填 \`hold\`（hold 不落 frontmatter）。`
 
 // ---------------------------------------------------------------------------
-// memory_write 手动落盘指引（工具只校验+查重，返回本提示词由 agent 手动写文件）
+// memory_write 正文补写提醒（工具直接写 frontmatter + 索引，返回本提示词提醒 agent 补正文）
 // ---------------------------------------------------------------------------
 
-/** memory_write 手动落盘指引的组装输入。 */
-export interface ManualWritePromptInput {
+/** memory_write 正文补写提醒的组装输入。 */
+export interface BodyWriteReminderInput {
   /** 目标记忆文件绝对路径（已按查重结果定稿）。 */
   filePath: string
-  /** create=新建；update-by-name/update-by-description=命中已有记忆，应更新而非新建。 */
-  mode: 'create' | 'update-by-name' | 'update-by-description'
-  /** 命中的已有记忆文件名（mode 非 create 时存在）。 */
+  /** created=工具已新建文件（frontmatter + 空正文）；updated=工具已原位更新 frontmatter（正文原样保留）。 */
+  status: 'created' | 'updated'
+  /** 命中的已有记忆文件名（按描述去重时可能与请求 name 不同）。 */
   existingFile?: string
   /** 记忆类型（已校验的合法值）。 */
   type: string
-  /** 本次声明的联想前缀表达式（已校验；声明了就要写进 frontmatter）。 */
+  /** 最终写入 frontmatter 的联想前缀表达式（无则 undefined）。 */
   prefix?: string
 }
 
 /**
- * 组装 memory_write 的手动落盘指引提示词（纯函数）。
- * 三步缺一不可：写文件 → 同步索引 → 全库过时检查。
+ * 组装 memory_write 的正文补写提醒（纯函数）。
+ * frontmatter 与索引已由工具落盘，agent 只剩两件事：写正文 + 全库过时检查。
  */
-export function buildManualWritePrompt(input: ManualWritePromptInput): string {
-  const writeStep = input.mode === 'create'
-    ? `用 **write** 新建文件 \`${input.filePath}\``
-    : `用 **edit** 更新已有文件 \`${input.filePath}\`（按${input.mode === 'update-by-name' ? '同名' : '同描述'}命中 \`${input.existingFile}\`，不要新建重复文件）`
+export function buildBodyWriteReminder(input: BodyWriteReminderInput): string {
+  const bodyStep = input.status === 'created'
+    ? `用 **write** 或 **edit** 向 \`${input.filePath}\` 的 frontmatter 之后追加正文（当前为空）。`
+    : `用 **edit** 更新 \`${input.filePath}\` 的正文（frontmatter 已原位更新，正文原样保留——按新事实合并/修正，仍有效的旧条目别删）。${input.existingFile !== undefined && input.existingFile !== input.filePath.split(/[\\/]/).pop() ? `（按同描述命中 \`${input.existingFile}\`）` : ''}`
   return [
-    '## 记忆写入指引（memory_write 不直接落盘，按本指引手动完成三步）',
+    `## 正文补写提醒（memory_write 已写入 frontmatter${input.status === 'created' ? '，文件已新建' : '并原位更新'}，索引已同步）`,
     '',
-    `**① 写记忆文件**：${writeStep}。frontmatter 必含 name/description/type，可选 prefix（支持代码风格表达式：\`a || b\` 任一路径命中触发、\`a && b\` 会话内全部读过才触发，\`&&\` 优先级高于 \`||\`；\`/\` = 全局。带 prefix 的正文必须精炼——命中即整篇注入）：`,
-    '',
-    '```',
-    '---',
-    'name: <小写下划线名>',
-    'description: <一行描述>',
-    `type: ${input.type}`,
-    '---',
-    '<正文>',
-    '```',
+    `**只剩一步**：${bodyStep}`,
     '',
     '条目格式：踩坑/教训类用四段 **Problem:** → **Cause:** → **Solution:** → **Applicable:**；普通规则/约定用 规则 → **Why:** → **How to apply:**。一份文件一个主题；多条目每条一个 `## 短名` 小节，description 覆盖全部条目。相对日期转绝对日期。',
     ...(input.prefix !== undefined
-      ? [`本次声明的 prefix：写进 frontmatter 的 \`prefix: ${input.prefix}\` 行（更新已有记忆时如无变更则保留原行）。`]
+      ? [`本条声明了 prefix \`${input.prefix}\`：命中即整篇注入，**正文必须精炼**——只留不可推导的核心事实，不写过程流水账。`]
       : []),
     '',
-    '**② 同步 MEMORY.md 索引**：同名行原位替换 / 新记忆追加到末尾，格式 `- [name](name.md) — 一行钩子（概述）`。',
-    '',
-    '**③ 全库过时检查（必做）**：写完后通读记忆目录全部记忆，发现与当前事实冲突、含已过期日期、或内容已过时的条目，顺便用 edit 更新或删除（删除时同步移除索引行）。',
+    '正文写完后**顺便全库过时检查**：通读记忆目录，发现与当前事实冲突、含已过期日期或内容过时的条目，用 edit 修正或 memory_forget 删除。',
     '',
     '⚠️ 只留未来会话有用的信息；代码可推导的内容与一次性流水账不存。',
   ].join('\n')

@@ -3208,6 +3208,27 @@ html, body, #root {
   gap: 6px;
   margin-left: auto;
 }
+/* 上下文进度圈（对齐 DSH WebUI ContextMeter）：28px 圆形热区 + 14px SVG 圆环 */
+.composer__ctx-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+.composer__ctx-ring__track {
+  fill: none;
+  stroke: var(--dsw-alias-border-l3);
+  stroke-width: 2;
+}
+.composer__ctx-ring__fill {
+  fill: none;
+  stroke: var(--dsw-alias-label-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
 .composer__send,
 .composer__stop {
   width: 28px;

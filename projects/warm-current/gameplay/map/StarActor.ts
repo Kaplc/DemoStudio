@@ -19,7 +19,6 @@ import * as THREE from 'three'
 import { Actor, SphereMeshComponent, logger, CloudLayerComponent, AtmosphereComponent } from '@/engine'
 import {
   earthCloudsUrl,
-  makeEarthNightTexture,
   makeEarthBumpTexture,
 } from './starTextures'
 import { B } from '../core/balance'
@@ -84,8 +83,9 @@ export class EarthActor extends StarActor {
 
   /**
    * 地球特写增强（观察模式观感）：云层壳（错速自转）+ 大气 Fresnel 辉光壳
-   * + 夜面城市灯光 emissiveMap + 地形 bumpMap。全部类内装配，蓝图不感知
-   * （蓝图只定本体外观，引擎组件由 StarActor 基类钩子挂载）。
+   * + 地形 bumpMap。全部类内装配，蓝图不感知（蓝图只定本体外观，引擎组件由
+   * StarActor 基类钩子挂载）。夜面城市灯光已按用户要求移除（2026-09-10）：
+   * emissive 灯点在游戏环境光下不随昼夜变暗，观察视角总读作脏点。
    */
   protected override setupCloseup(): void {
     this.addComponent(CloudLayerComponent, {
@@ -102,21 +102,15 @@ export class EarthActor extends StarActor {
     })
     const mesh = this.getComponent(SphereMeshComponent)
     if (!mesh) {
-      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，夜灯/bump 贴图跳过（云层/大气已挂载）')
+      logger.warn('[StarActor] Earth 缺少 SphereMeshComponent，bump 贴图跳过（云层/大气已挂载）')
       return
-    }
-    const night = makeEarthNightTexture()
-    if (night) {
-      mesh.setEmissiveMap(night)
-      mesh.emissive = '#ffd9a0'
-      mesh.emissiveIntensity = 1.4
     }
     const bump = makeEarthBumpTexture()
     if (bump) {
       mesh.setBumpMap(bump)
       mesh.bumpScale = 0.06
     }
-    logger.info('[StarActor] Earth 特写增强装配完成（云层/大气/夜灯/bump）')
+    logger.info('[StarActor] Earth 特写增强装配完成（云层/大气/bump）')
   }
 }
 

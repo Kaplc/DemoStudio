@@ -10,6 +10,9 @@
     "electron:dev": "vite",
     "electron:build": "npm run build && electron-builder",
     "lint": "eslint src --ext .ts,.tsx",
+    "test:e2e": "playwright test -c playwright.e2e.config.ts",
+    "test:e2e:fish": "playwright test -c playwright.e2e.config.ts fish",
+    "test:e2e:warm": "playwright test -c playwright.e2e.config.ts warm",
     "smoke:ui": "node scripts/ui-compiler-smoke.mjs",
     "ui-compiler": "node scripts/ui-compiler-cli.mjs"
   },
