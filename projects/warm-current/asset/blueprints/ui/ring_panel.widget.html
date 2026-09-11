@@ -1,103 +1,107 @@
-<widget name="RingPanel" canvas="1920x1080" data-script="gameplay/ui/RingPanelScript">
+﻿<widget name="RingPanel" canvas="1920x1080" data-script="gameplay/ui/RingPanelScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; pointer-events: none; }
-    .Panel { width: 560px; height: 802px; position: absolute; left: 680px; top: 160px; display: flex; flex-direction: column; align-items: stretch; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
-    .PanelTitleRow { width: 532px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-    .PanelTitle { width: 220px; height: 34px; flex-shrink: 0; font-size: 22px; color: #ffb03d; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .StateText { width: 88px; height: 34px; flex-shrink: 0; font-size: 19px; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_panel_close { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_panel_close:hover { background-color: #3d566f; }
-    .Label_close_panel { width: 110px; height: 28px; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .LevelRow { width: 532px; height: 34px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .LevelText { width: 210px; height: 26px; flex-shrink: 0; font-size: 19px; color: #ffb03d; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .LevelBar { width: 100%; height: 8px; position: relative; }
-    .LevelFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffb03d; border-radius: 4px; }
-    .SlotsRow { width: 532px; height: 30px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .SlotsText { width: 210px; height: 26px; flex-shrink: 0; font-size: 20px; color: #43d17c; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .SlotsBar { width: 100%; height: 8px; position: relative; }
-    .SlotsFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #43d17c; border-radius: 4px; }
-    .SlotStrip { width: 532px; height: 244px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
-    .Btn_slot { width: 100px; height: 44px; flex-shrink: 0; position: relative; background-color: #22303c; border-radius: 6px; }
-    .Btn_slot:hover { background-color: #2c3e4c; }
-    .SlotFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #22303c; border-radius: 6px; }
-    .SlotNum { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; font-size: 17px; color: #5a707f; text-align: center; vertical-align: middle; line-height: 44px; text-shadow: 1px 1px 3px #00000099; }
-    .BuildRow { width: 532px; height: 34px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .BuildText { width: 210px; height: 26px; flex-shrink: 0; font-size: 19px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .BuildBar { width: 100%; height: 8px; position: relative; }
-    .BuildFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #7fdcff; border-radius: 4px; }
-    .BuildCtrl { width: 532px; height: 44px; margin-top: 6px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .Btn_pts { width: 44px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 8px; }
-    .Btn_pts:hover { background-color: #27506e; }
-    .Label_pts { width: 30px; height: 28px; font-size: 20px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .BuildPtsText { width: 150px; height: 28px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .BuildCostText { width: 220px; height: 28px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-align: right; text-shadow: 1px 1px 4px #00000066; }
-    .DetailBox { width: 532px; height: 170px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: column; background-color: #0a141d99; border-radius: 8px; padding: 8px 10px; }
-    .SlotInfoText { width: 512px; height: 26px; flex-shrink: 0; font-size: 18px; color: #cfe3ee; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .InstallList { width: 512px; height: 126px; margin-top: 6px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
-    .DemoRow { width: 512px; height: 48px; margin-top: 6px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .Btn_slot_demo { width: 150px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #4a2a2a; border-radius: 8px; }
-    .Btn_slot_demo:hover { background-color: #5c3434; }
+    .Panel { width: 1200px; height: 580px; position: absolute; left: 360px; top: 250px; display: flex; flex-direction: row; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 16px 18px; hit-test: block; }
+    .PanelLeft { width: 548px; height: 548px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .PanelRight { width: 596px; height: 548px; margin-left: 16px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .PanelTitleRow { width: 548px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .PanelTitle { width: 180px; height: 34px; flex-shrink: 0; font-size: 22px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .StateText { width: 120px; height: 34px; flex-shrink: 0; font-size: 19px; text-align: right; font-weight: bold; letter-spacing: 1px; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_panel_close { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_panel_close:hover { background-color: #143650; }
+    .Label_close_panel { width: 110px; height: 28px; font-size: 18px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .TitleDivider { width: 548px; height: 2px; margin-top: 8px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); border-radius: 1px; }
+    .LevelRow { width: 596px; height: 34px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .LevelText { width: 220px; height: 26px; flex-shrink: 0; font-size: 19px; color: #ffc46b; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .LevelBar { width: 100%; height: 8px; position: relative; background-color: #0a1826; border: 1px solid #16394e; }
+    .LevelFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(90deg, #b87a1e 0%, #ffb03d 100%); border-radius: 4px; }
+    .SlotsRow { width: 596px; height: 30px; margin-top: 10px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .SlotsText { width: 220px; height: 26px; flex-shrink: 0; font-size: 19px; color: #43d17c; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .SlotsBar { width: 100%; height: 8px; position: relative; background-color: #0a1826; border: 1px solid #16394e; }
+    .SlotsFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(90deg, #1fae6e 0%, #43d17c 100%); border-radius: 4px; }
+    .SlotStrip { width: 548px; height: 280px; margin-top: 12px; flex-shrink: 0; }
+    .BuildRow { width: 548px; height: 34px; margin-top: 12px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .BuildText { width: 220px; height: 26px; flex-shrink: 0; font-size: 19px; color: #6ee0ff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .BuildBar { width: 100%; height: 8px; position: relative; background-color: #0a1826; border: 1px solid #16394e; }
+    .BuildFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(90deg, #1f8fc0 0%, #4fd8ff 100%); border-radius: 4px; }
+    .BuildCtrl { width: 548px; height: 48px; margin-top: 10px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .Btn_pts { width: 48px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
+    .Btn_pts:hover { background-color: #143650; }
+    .Label_pts { width: 30px; height: 28px; font-size: 20px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .BuildPtsText { width: 160px; height: 28px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .BuildCostText { width: 100%; height: 28px; flex-shrink: 0; font-size: 18px; color: #8fbcd4; text-align: right; text-shadow: 1px 1px 4px #00000066; }
+    .DetailBox { width: 596px; height: 236px; margin-top: 12px; flex-shrink: 0; display: flex; flex-direction: column; background-image: linear-gradient(180deg, #0b1e30 0%, #071120 100%); border: 1px solid #1c4560; padding: 10px 12px; }
+    .SlotInfoText { width: 572px; height: 26px; flex-shrink: 0; font-size: 18px; color: #bfe8ff; font-weight: bold; letter-spacing: 1px; text-shadow: 1px 1px 4px #00000066; }
+    .InstallList { width: 572px; height: 128px; margin-top: 6px; flex-shrink: 0; }
+    .DemoRow { width: 572px; height: 48px; margin-top: 6px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .Btn_slot_demo { width: 150px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a1214; border: 1px solid #6e2a2a; }
+    .Btn_slot_demo:hover { background-color: #3a181a; }
     .Label_slot_demo { width: 130px; height: 26px; font-size: 17px; color: #ff9d8a; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .DemoText { width: 342px; height: 26px; flex-shrink: 0; font-size: 16px; color: #9fc4d8; text-align: right; text-shadow: 1px 1px 4px #00000066; }
-    .CoreRow { width: 532px; height: 34px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
-    .CoreText { width: 210px; height: 26px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .CoreBar { width: 100%; height: 10px; position: relative; }
+    .DemoText { width: 100%; height: 26px; flex-shrink: 0; font-size: 16px; color: #8fbcd4; text-align: right; text-shadow: 1px 1px 4px #00000066; }
+    .CoreRow { width: 596px; height: 34px; margin-top: 14px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 12px; }
+    .CoreText { width: 220px; height: 26px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CoreBar { width: 100%; height: 10px; position: relative; background-color: #0a1826; border: 1px solid #16394e; }
     .CoreFill { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #ffb03d; border-radius: 5px; }
-    .CoreStateText { width: 532px; height: 26px; margin-top: 4px; font-size: 18px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
-    .FlowText { width: 532px; height: 28px; margin-top: 6px; font-size: 19px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
-    .DemandText { width: 532px; height: 26px; margin-top: 4px; font-size: 18px; color: #9fc4d8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
-    .WarnText { width: 532px; height: 26px; min-height: 26px; margin-top: 4px; font-size: 18px; flex-shrink: 0; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CoreStateText { width: 596px; height: 26px; margin-top: 6px; font-size: 18px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
+    .FlowText { width: 596px; height: 28px; margin-top: 8px; font-size: 19px; color: #ffe9a8; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
+    .DemandText { width: 596px; height: 26px; margin-top: 4px; font-size: 18px; color: #8fbcd4; flex-shrink: 0; text-shadow: 1px 1px 4px #00000066; }
+    .WarnText { width: 596px; height: 26px; min-height: 26px; margin-top: 4px; font-size: 18px; flex-shrink: 0; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="Panel" data-name="Panel">
-      <div class="PanelTitleRow">
-        <text class="PanelTitle" data-name="HeadText">聚能环</text>
-        <text class="StateText" data-name="StateText">运转</text>
-        <button class="Btn_panel_close" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button>
-      </div>
-      <div class="LevelRow">
-        <text class="LevelText" data-name="LevelText">Lv1/25 覆盖4%</text>
-        <div class="LevelBar" data-name="LevelBar" data-comp="UIProgressBar" data-props='{"max":1,"value":0,"fillActorName":"LevelFill"}'>
-          <div class="LevelFill"></div>
+      <div class="PanelLeft" data-name="PanelLeft">
+        <div class="PanelTitleRow">
+          <text class="PanelTitle" data-name="HeadText">聚能环</text>
+          <text class="StateText" data-name="StateText">运转</text>
+          <button class="Btn_panel_close" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button>
+        </div>
+        <div class="TitleDivider"></div>
+        <div class="SlotStrip" data-name="SlotStrip" data-comp="UILayout" data-props='{"mode":"grid","columns":5,"spacingX":5,"spacingY":5,"autoLayout":true}'></div>
+        <div class="BuildRow">
+          <text class="BuildText" data-name="BuildText">建设 0%</text>
+          <div class="BuildBar" data-name="BuildBar" data-comp="UIProgressBar" data-props='{"max":1,"value":0,"fillActorName":"BuildFill"}'>
+            <div class="BuildFill"></div>
+          </div>
+        </div>
+        <div class="BuildCtrl">
+          <button class="Btn_pts" data-name="Btn_build_dec"><text class="Label_pts">−</text></button>
+          <text class="BuildPtsText" data-name="BuildPtsText">建设 1 点</text>
+          <button class="Btn_pts" data-name="Btn_build_inc"><text class="Label_pts">+</text></button>
+          <text class="BuildCostText" data-name="BuildCostText">2.0/s</text>
         </div>
       </div>
-      <div class="SlotsRow">
-        <text class="SlotsText" data-name="SlotsText">环段 1/25</text>
-        <div class="SlotsBar" data-name="SlotsBar" data-comp="UIProgressBar" data-props='{"max":25,"value":1,"fillActorName":"SlotsFill"}'>
-          <div class="SlotsFill"></div>
+      <div class="PanelRight" data-name="PanelRight">
+        <div class="LevelRow">
+          <text class="LevelText" data-name="LevelText">Lv1/25 覆盖4%</text>
+          <div class="LevelBar" data-name="LevelBar" data-comp="UIProgressBar" data-props='{"max":1,"value":0,"fillActorName":"LevelFill"}'>
+            <div class="LevelFill"></div>
+          </div>
         </div>
-      </div>
-      <div class="SlotStrip" data-name="SlotStrip"></div>
-      <div class="BuildRow">
-        <text class="BuildText" data-name="BuildText">建设 0%</text>
-        <div class="BuildBar" data-name="BuildBar" data-comp="UIProgressBar" data-props='{"max":1,"value":0,"fillActorName":"BuildFill"}'>
-          <div class="BuildFill"></div>
+        <div class="SlotsRow">
+          <text class="SlotsText" data-name="SlotsText">环段 1/25</text>
+          <div class="SlotsBar" data-name="SlotsBar" data-comp="UIProgressBar" data-props='{"max":25,"value":1,"fillActorName":"SlotsFill"}'>
+            <div class="SlotsFill"></div>
+          </div>
         </div>
-      </div>
-      <div class="BuildCtrl">
-        <button class="Btn_pts" data-name="Btn_build_dec"><text class="Label_pts">−</text></button>
-        <text class="BuildPtsText" data-name="BuildPtsText">建设 1 点</text>
-        <button class="Btn_pts" data-name="Btn_build_inc"><text class="Label_pts">+</text></button>
-        <text class="BuildCostText" data-name="BuildCostText">2.0/s</text>
-      </div>
-      <div class="DetailBox" data-name="DetailBox">
-        <text class="SlotInfoText" data-name="SlotInfoText">点槽位查看 · 点空槽安装建筑</text>
-        <div class="InstallList" data-name="InstallList"></div>
-        <div class="DemoRow">
-          <button class="Btn_slot_demo" data-name="Btn_slot_demo"><text class="Label_slot_demo">拆除建筑</text></button>
-          <text class="DemoText" data-name="DemoText"></text>
+        <div class="DetailBox" data-name="DetailBox">
+          <text class="SlotInfoText" data-name="SlotInfoText">点槽位查看 · 点空槽安装建筑</text>
+          <div class="InstallList" data-name="InstallList" data-comp="UILayout" data-props='{"mode":"grid","columns":3,"spacingX":6,"spacingY":6,"autoLayout":true}'></div>
+          <div class="DemoRow">
+            <button class="Btn_slot_demo" data-name="Btn_slot_demo"><text class="Label_slot_demo">拆除建筑</text></button>
+            <text class="DemoText" data-name="DemoText"></text>
+          </div>
         </div>
-      </div>
-      <div class="CoreRow">
-        <text class="CoreText" data-name="CoreText">堆心温度 100%</text>
-        <div class="CoreBar" data-name="CoreBar" data-comp="UIProgressBar" data-props='{"max":100,"value":100,"fillActorName":"CoreFill"}'>
-          <div class="CoreFill"></div>
+        <div class="CoreRow">
+          <text class="CoreText" data-name="CoreText">堆心温度 100%</text>
+          <div class="CoreBar" data-name="CoreBar" data-comp="UIProgressBar" data-props='{"max":100,"value":100,"fillActorName":"CoreFill"}'>
+            <div class="CoreFill"></div>
+          </div>
         </div>
+        <text class="CoreStateText" data-name="CoreStateText">满温运转</text>
+        <text class="FlowText" data-name="FlowText">净流 +0.0/s</text>
+        <text class="DemandText" data-name="DemandText">需求 0 t/s · 储量 0 t</text>
+        <text class="WarnText" data-name="WarnText"></text>
       </div>
-      <text class="CoreStateText" data-name="CoreStateText">满温运转</text>
-      <text class="FlowText" data-name="FlowText">净流 +0.0/s</text>
-      <text class="DemandText" data-name="DemandText">需求 0 t/s · 储量 0 t</text>
-      <text class="WarnText" data-name="WarnText"></text>
     </div>
   </div>
 </widget>
