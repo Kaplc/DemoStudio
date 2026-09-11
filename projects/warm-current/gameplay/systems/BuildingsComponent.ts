@@ -6,10 +6,14 @@
  *  - 磁场护盾发生器（shield）：耀斑期间保护背日半球罩内飞船（面朝太阳，容量限额，HazardsComponent 消费）。
  * 放置 = 建造：网格吸附坐标 + H3 造价即时结算；拆除按 refundPct 返还（造价+缓存物资折算）。
  * 放置合法性（placementIssue）为预览/放置共用单一口径（GameMode 建筑模式预览镜像）。
+ * 建筑强化（2026-09-11 玩家设计权扩展）：每座已放建筑一槽二选一分支（building 表 upgrades 键），
+ * 强化即时扣费即时生效（投入并入 invested → 返还公式自动折算）；拆强化花拆除费不返还。
+ * 强化数值消费统一收口 buildingEffectiveDef（半径/名额/缓存自动合成）。
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { buildingDefOf, buildingPos, resolveBuildingOrbit } from '../core/helpers'
+import type { BuildingUpgradeDef } from '../core/balance'
+import { buildingDefOf, buildingEffectiveDef, buildingPos, resolveBuildingOrbit } from '../core/helpers'
 import type { SimBuilding } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -46,7 +50,7 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (issue) { this.sc.hint(issue); return false }
     const def = buildingDefOf(typeId)!
     s.earthH3 -= def.cost
-    const b: SimBuilding = { id: maxBuildingId(s) + 1, type: typeId, x, y, stock: 0, invested: def.cost, ...resolveBuildingOrbit(s, x, y) }
+    const b: SimBuilding = { id: maxBuildingId(s) + 1, type: typeId, x, y, stock: 0, invested: def.cost, upgrade: null, ...resolveBuildingOrbit(s, x, y) }
     s.buildings.push(b)
     s.stats.buildingsBuilt++
     this.sc.emit({ type: 'building_built', text: def.name, value: def.cost, x, y })
@@ -75,19 +79,63 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
     return true
   }
 
-  /** 反向补给线卸货（Transport 调用）：建材入缓存（超容量截断） */
+  /** 反向补给线卸货（Transport 调用）：建材入缓存（超容量截断；缓存上限 = 强化合成值） */
   onDelivery(b: SimBuilding, materials: number): void {
     const p = buildingPos(this.sc.state, b)
     this.sc.emit({ type: 'unload', value: Math.round(materials), x: p.x, y: p.y })
-    const cap = buildingDefOf(b.type)?.bufferCap ?? 0
+    const cap = buildingEffectiveDef(b)?.bufferCap ?? 0
     if (cap <= 0) return
     b.stock = Math.min(cap, b.stock + materials)
   }
 
-  /** 缓存余量（反向航线装货量上限；非缓存建筑恒 0 → 船等待不发） */
+  /** 缓存余量（反向航线装货量上限；非缓存建筑恒 0 → 船等待不发；上限 = 强化合成值） */
   bufferLeft(b: SimBuilding): number {
-    const cap = buildingDefOf(b.type)?.bufferCap ?? 0
+    const cap = buildingEffectiveDef(b)?.bufferCap ?? 0
     return Math.max(0, cap - b.stock)
+  }
+
+  // ─── 建筑强化（一槽二选一分支，玩家设计权扩展） ───
+
+  /** 该建筑可装的强化分支清单（building 表 upgrades 键序；无强化表 = 空数组） */
+  upgradeBranches(b: SimBuilding): Array<{ id: string; def: BuildingUpgradeDef }> {
+    const ups = buildingDefOf(b.type)?.upgrades
+    if (!ups) return []
+    return Object.entries(ups).map(([id, def]) => ({ id, def }))
+  }
+
+  /** 安装强化分支（即时扣费即时生效；已装 = 先拆再装） */
+  tryInstallUpgrade(id: number, upgradeId: string): boolean {
+    const s = this.sc.state
+    if (s.flare.phase === 'active') { this.sc.hint('太阳耀斑 · 通讯中断，无法施工'); return false }
+    const b = s.buildings.find((x) => x.id === id)
+    if (!b) return false
+    const branch = this.upgradeBranches(b).find((u) => u.id === upgradeId)
+    if (!branch) { this.sc.hint('该建筑没有此强化分支'); return false }
+    if (b.upgrade === upgradeId) { this.sc.hint('已装有该强化'); return false }
+    if (s.earthH3 < branch.def.cost) { this.sc.hint(`H3 不足（需 ${branch.def.cost}）`); return false }
+    s.earthH3 -= branch.def.cost
+    s.ledger.buildingUpgrade += branch.def.cost
+    b.upgrade = upgradeId
+    b.invested += branch.def.cost // 并入投资 → 拆除返还公式自动折算
+    this.sc.emit({ type: 'upgrade_installed', text: branch.def.name, value: b.id })
+    return true
+  }
+
+  /** 拆强化（花拆除费 = 强化造价 × upgradeDemolishCostPct，不返还；投资同步回退） */
+  tryRemoveUpgrade(id: number): boolean {
+    const s = this.sc.state
+    if (s.flare.phase === 'active') { this.sc.hint('太阳耀斑 · 通讯中断，无法施工'); return false }
+    const b = s.buildings.find((x) => x.id === id)
+    if (!b || !b.upgrade) return false
+    const branch = this.upgradeBranches(b).find((u) => u.id === b.upgrade)
+    if (!branch) { b.upgrade = null; return true }
+    const fee = Math.round(branch.def.cost * B.upgradeDemolishCostPct)
+    if (s.earthH3 < fee) { this.sc.hint(`H3 不足（拆强化需 ${fee}）`); return false }
+    s.earthH3 -= fee // 纯损耗：不返还也不记收入账（与环段拆除「有意区分返还制」同口径）
+    b.upgrade = null
+    b.invested = Math.max(0, b.invested - branch.def.cost)
+    this.sc.emit({ type: 'upgrade_removed', text: branch.def.name, value: b.id })
+    return true
   }
 }
 

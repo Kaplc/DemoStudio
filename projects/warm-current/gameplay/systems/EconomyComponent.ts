@@ -21,8 +21,10 @@ export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   tickEconomy(dt: number): void {
     const s = this.sc.state
-    const coolPerS = 100 / Math.max(1, B.coreCoolSeconds)
-    const warmPerS = 100 / Math.max(1, B.coreWarmSeconds)
+    // 蓄热井乘区：降温时长 ×coolTimeMult（降得更慢）、回温时长 ×warmTimeMult（回得更快）
+    const ring = this.sc.ringMods
+    const coolPerS = 100 / Math.max(1, B.coreCoolSeconds * ring.coolTimeMult)
+    const warmPerS = 100 / Math.max(1, B.coreWarmSeconds * ring.warmTimeMult)
     // 燃料门：储量 > 0 = 运转（焚烧/计费照常、堆心回温），耗尽 = 断环（停烧停建、堆心降温）。
     if (s.earthH3 <= 0) {
       s.ring = 'decaying'

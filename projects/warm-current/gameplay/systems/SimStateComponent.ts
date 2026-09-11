@@ -6,7 +6,7 @@
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { createInitialState, deepSnapshot, mulberry32, ringLevelOf } from '../core/helpers'
+import { createInitialState, deepSnapshot, mulberry32, ringLevelOf, ringModsOf } from '../core/helpers'
 import type { SimEvent, SimShip, SimState } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -41,11 +41,16 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   // ─── 派生查询 ───
 
-  /** 实时焚烧（吨/秒）：随聚能环等级增长（B.levelBurn / level_burn 表），含节能修正 */
+  /** 环建筑全局乘区（稳压/馈线/泊位/施工/馈能/蓄热井聚合；拆除中槽位效果停摆） */
+  get ringMods(): ReturnType<typeof ringModsOf> {
+    return ringModsOf(this.state)
+  }
+
+  /** 实时焚烧（吨/秒）：随聚能环等级增长（B.levelBurn / level_burn 表）× 卡节能 × 环建筑焚烧乘区（封底 0.2） */
   get burnRate(): number {
     const s = this.state
-    const lv = ringLevelOf(s.nodes, s.ringBuildProgress).level
-    return (B.levelBurn[lv - 1] ?? B.levelBurn[B.levelBurn.length - 1] ?? 0) * s.mods.burnMult
+    const lv = ringLevelOf(s.ringSlots, s.ringBuildProgress).level
+    return (B.levelBurn[lv - 1] ?? B.levelBurn[B.levelBurn.length - 1] ?? 0) * s.mods.burnMult * this.ringMods.burnMult
   }
 
   /** 研究点数计费（吨/秒）：各线已分配点数合计 × 每点单价；储量耗尽不计费 */
@@ -55,11 +60,11 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return s.research.reduce((sum, l) => sum + l.points, 0) * B.researchPointCostPerS
   }
 
-  /** 聚能环建设灌入速率（吨/秒，即每秒实扣）：建设点数 × 每点单价；储量耗尽停建停费。
+  /** 聚能环建设灌入速率（吨/秒，即每秒实扣）：建设点数 × 每点单价 × 环建筑泵速乘区；储量耗尽停建停费。
    *  造价制下卡效果 ringBuildCostMult 不乘灌入速率，而是折扣本级造价（省总 H3 = 同速更快），见 RingBuildComponent。 */
   get ringBuildCost(): number {
     const s = this.state
-    return s.earthH3 > 0 ? s.ringBuild.points * B.ringBuild.costPerS : 0
+    return s.earthH3 > 0 ? s.ringBuild.points * B.ringBuild.costPerS * this.ringMods.buildPumpMult : 0
   }
 
   /** 已分配研究点总数（四线合计） */
@@ -70,18 +75,19 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
   /** 可用研究点 = 当前聚能环等级 − 已分配（每级 1 点，含开局 Lv1；等级只升不降，随建设流推进） */
   get unspentResearchPoints(): number {
     const s = this.state
-    return Math.max(0, ringLevelOf(s.nodes, s.ringBuildProgress).level - this.allocatedResearchPoints)
+    return Math.max(0, ringLevelOf(s.ringSlots, s.ringBuildProgress).level - this.allocatedResearchPoints)
   }
 
   /** 当前聚能环等级（1..ringLevels，随建设流派生；造船上限等消费方的唯一口径） */
   get ringLevel(): number {
-    return ringLevelOf(this.state.nodes, this.state.ringBuildProgress).level
+    return ringLevelOf(this.state.ringSlots, this.state.ringBuildProgress).level
   }
 
-  /** 飞船数量上限（ship_cap 表按当前等级；主动造船的在册+排队总数不可超，卡片/GM 加船可越限） */
+  /** 飞船数量上限（ship_cap 表按当前等级 + 扩容泊位加算；主动造船的在册+排队总数不可超，卡片/GM 加船可越限） */
   get shipCap(): number {
     const arr = B.shipCap
-    return arr[Math.min(this.ringLevel, arr.length) - 1]
+    const base = arr[Math.min(this.ringLevel, arr.length) - 1] ?? 0
+    return base + this.ringMods.shipCapAdd
   }
 
   /** 当前总需求（焚烧 + 研究点计费 + 建设计费，储量耗尽为 0） */

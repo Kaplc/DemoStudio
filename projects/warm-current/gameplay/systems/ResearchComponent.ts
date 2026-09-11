@@ -27,7 +27,7 @@ export class ResearchComponent extends BObjectComponent<WarmCurrentGameMode> {
     const s = this.sc.state
     // 海克斯选卡期间：GameMode.Tick 门已整体冻结仿真，此处自冻结为双保险防御
     if (s.pendingCard) return
-    if (s.nodes >= B.researchNodeCap) return
+    if (s.ringSlots >= B.researchSlotCap) return
     for (const line of s.research) {
       line.progress += researchRateOf(line, s) * dt
       if (line.progress >= 1) {

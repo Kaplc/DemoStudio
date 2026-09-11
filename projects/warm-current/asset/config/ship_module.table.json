@@ -1,0 +1,28 @@
+{
+  "_comment": "船用模块配置表（2026-09-11 玩家设计权扩展：造船时按船型兼容清单选配，仅本船生效）。行键 = 模块 id（SimShip.modules 元素，单船同模块只装一件）。\n cost=模块造价(H3，并入造船整单价，×船坞折扣；模块不占 ship_cap 名额，花钱即可)。\n mods=效果修正集（仅本船；键=loadMult 本船满载乘区 / fuelMult 本船油耗乘区 / speedMult 本船航速乘区 / workMult 装卸时长乘区 / antiFreeze 冻毁免疫）。\n 船型兼容清单见 ship_hull.table.json allowed 键；建成后不可改装。\n 加新模块：加一行 + 造船面板模块勾选列表自动多一行（ShipyardPanelScript 按表渲染）。",
+  "cargo_pod": {
+    "name": "货舱扩容", "desc": "本船满载 ×1.3",
+    "cost": 180,
+    "mods": { "loadMult": 1.3 }
+  },
+  "aux_tank": {
+    "name": "副油箱", "desc": "本船油耗 ×0.8",
+    "cost": 160,
+    "mods": { "fuelMult": 0.8 }
+  },
+  "ion_engine": {
+    "name": "离子引擎", "desc": "本船航速 ×1.2",
+    "cost": 200,
+    "mods": { "speedMult": 1.2 }
+  },
+  "pump": {
+    "name": "快速货泵", "desc": "装卸时间 ×0.6",
+    "cost": 140,
+    "mods": { "workMult": 0.6 }
+  },
+  "heater": {
+    "name": "防冻加热器", "desc": "耀斑冻毁免疫（罩外也存活）",
+    "cost": 320,
+    "mods": { "antiFreeze": true }
+  }
+}

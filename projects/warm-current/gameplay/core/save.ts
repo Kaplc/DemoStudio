@@ -11,7 +11,7 @@
 import type { KVValue } from '@/engine'
 import { B } from './balance'
 import { deepSnapshot, freshLedger, mulberry32 } from './helpers'
-import type { SimState } from './types'
+import type { SimBuilding, SimShip, SimState } from './types'
 
 /** 存档格式版本（payload 结构变更时 +1，读档兼容处理依据）。
  *  v2：SimState.stations（旧补给站）→ SimState.buildings（自由放置建筑，无法映射，旧档站点丢弃）。
@@ -32,8 +32,15 @@ import type { SimState } from './types'
  *      （freshLedger 合并兜底）、SimEvent.orbit_building_built 事件新增。
  *  v10：船坞独立造船面板（2026-09-09 用户需求：点船坞开独立面板，逐船一卡排队）——
  *      SimState.buildQueue 从剩余秒数组 number[] 升级为 SimShipBuild[]（{remain, total, dockId}），
- *      旧档读入时逐项映射 {remain: 原值, total: 原值, dockId: 0}（GM 无船坞归属口径）。 */
-export const SAVE_FORMAT_VERSION = 10
+ *      旧档读入时逐项映射 {remain: 原值, total: 原值, dockId: 0}（GM 无船坞归属口径）。
+ *  v11：聚能环槽位化 + 玩家设计权扩展（2026-09-11 两案合并迁移）——
+ *      ① 环槽位化：SimState.nodes（12 交点）→ ringSlots（25 槽位，round((n−1)×24/11)+1 等比映射）、
+ *      ringBuildings 新增全空（老档不送建筑，玩家重新构筑）、ringDemolish 补 null；
+ *      ② 船型模块：SimShip 增 hull='standard'/modules=[]（初始标准型裸船）、SimShipBuild 补
+ *      hull/modules；③ 建筑强化：SimBuilding 补 upgrade=null；④ 船耀斑订单 order/shelter 为
+ *      可选字段随 ships 序列化顺带保存（旧档缺失即未决策）；⑤ ledger 增 ringInstall/buildingUpgrade
+ *      （freshLedger 合并兜底）。 */
+export const SAVE_FORMAT_VERSION = 11
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -55,7 +62,8 @@ export interface SaveSlotMeta {
   savedAt: string | null
   time: number
   act: number
-  nodes: number
+  /** 已建成环段槽位数（v11 槽位制；旧档按等比映射折算） */
+  slots: number
   outcome: 'playing' | 'victory' | 'defeat'
   sandbox: boolean
 }
@@ -127,10 +135,18 @@ export function readSlotMetaFromPayload(payload: KVValue | null, slot: number): 
     savedAt: typeof p.savedAt === 'string' ? p.savedAt : null,
     time: s.time,
     act: (typeof s.act === 'number' ? s.act : 1) as SaveSlotMeta['act'],
-    nodes: typeof s.nodes === 'number' ? s.nodes : 0,
+    // v11 槽位制：新档直读 ringSlots；旧档（nodes 残留）按等比映射折算展示
+    slots: typeof s.ringSlots === 'number'
+      ? s.ringSlots
+      : legacyNodesToSlots(typeof s.nodes === 'number' ? s.nodes : 1),
     outcome: (s.outcome === 'victory' || s.outcome === 'defeat' ? s.outcome : 'playing') as SaveSlotMeta['outcome'],
     sandbox: s.sandbox === true,
   }
+}
+
+/** 旧 12 交点数 → 新 25 槽位数等比映射（1→1、12→25；与 restoreSimState 迁移同式） */
+function legacyNodesToSlots(nodes: number): number {
+  return Math.min(25, Math.max(1, Math.round((nodes - 1) * 24 / 11) + 1))
 }
 
 /**
@@ -173,15 +189,46 @@ export function restoreSimState(
   if (Array.isArray(sim.buildQueue)) {
     sim.buildQueue = sim.buildQueue.map((x) =>
       typeof x === 'number'
-        ? { remain: x, total: x, dockId: 0 }
+        ? { remain: x, total: x, dockId: 0, hull: 'standard', modules: [] }
         : {
             remain: typeof x?.remain === 'number' ? x.remain : 0,
             total: typeof x?.total === 'number' && x.total > 0 ? x.total : (typeof x?.remain === 'number' ? x.remain : 0),
             dockId: typeof x?.dockId === 'number' ? x.dockId : 0,
+            hull: typeof (x as { hull?: string })?.hull === 'string' ? (x as { hull: string }).hull : 'standard',
+            modules: Array.isArray((x as { modules?: string[] })?.modules) ? (x as { modules: string[] }).modules : [],
           },
     )
   } else {
     sim.buildQueue = []
+  }
+  // v10→v11 兼容（聚能环槽位化 + 玩家设计权扩展，2026-09-11 两案合并）：
+  // ① 12 交点 → 25 槽位等比映射（round((n−1)×24/11)+1；1→1、12→25），建设进度原样保留
+  if (typeof (sim as Partial<SimState>).ringSlots !== 'number') {
+    const legacyNodes = typeof (sim as unknown as Record<string, unknown>).nodes === 'number'
+      ? ((sim as unknown as Record<string, unknown>).nodes as number)
+      : 1
+    ;(sim as Partial<SimState>).ringSlots = Math.min(25, Math.max(1, Math.round((legacyNodes - 1) * 24 / 11) + 1))
+  }
+  delete (sim as unknown as Record<string, unknown>).nodes
+  // ② 环段建筑装入表：迁移初始全空（老档不送建筑，玩家重新构筑）+ 拆除目标补 null
+  if (!Array.isArray((sim as Partial<SimState>).ringBuildings)) {
+    ;(sim as Partial<SimState>).ringBuildings = Array.from({ length: Math.max(1, B.ringSlots) }, () => null)
+  }
+  const rd = (sim as Partial<SimState>).ringDemolish
+  if (!rd || typeof rd !== 'object' || typeof rd.slot !== 'number') sim.ringDemolish = null
+  else if (typeof rd.progress !== 'number' || rd.progress < 0) rd.progress = 0
+  // ③ 船型模块：存量船补标准型裸船（船的身份字段，建成后不可改装）
+  if (Array.isArray(sim.ships)) {
+    for (const ship of sim.ships) {
+      if (typeof (ship as Partial<SimShip>).hull !== 'string') (ship as Partial<SimShip>).hull = 'standard'
+      if (!Array.isArray((ship as Partial<SimShip>).modules)) (ship as Partial<SimShip>).modules = []
+    }
+  }
+  // ④ 建筑强化：存量建筑补 null（一槽二选一，未强化）
+  if (Array.isArray(sim.buildings)) {
+    for (const b of sim.buildings) {
+      if ((b as Partial<SimBuilding>).upgrade === undefined) (b as Partial<SimBuilding>).upgrade = null
+    }
   }
   // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
   // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键

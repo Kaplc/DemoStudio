@@ -14,20 +14,20 @@
 import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent } from '@/engine'
 import { starTextureFor } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
-import type { BuildingDef, OrbitBuildingDef, SolarFocusBody } from '../core/balance'
+import type { BuildingDef, BuildingUpgradeDef, OrbitBuildingDef, RingBuildingDef, ShipHullDef, ShipModuleDef, SolarFocusBody } from '../core/balance'
 import type { CardDef } from '../core/balance'
-import type { PlanetId, PlanetBodyId } from '../core/types'
+import type { PlanetId, PlanetBodyId, ShipOrder } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
 import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
-  alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, buildingPos, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
-  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, roundFuel, routeCycleSeconds, snapToGrid,
-  routeNetPerTrip, starLoad, starOfEndpoint, starPosAt,
+  alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, buildingEffectiveDef, buildingPos, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
+  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, ringModsOf, roundFuel, routeCycleSeconds, snapToGrid,
+  routeNetPerTrip, shipHullDefOf, shipModuleDefOf, shipPos, starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { RingLevelInfo } from '../core/helpers'
-import type { Endpoint, OrbitBuilding, SimBuilding, SimLedger, SimRoute, StarId } from '../core/types'
+import type { Endpoint, OrbitBuilding, SimBuilding, SimLedger, SimRoute, SimShip, SimState, StarId } from '../core/types'
 import { StarMapRenderComponent, planetStageOffset } from '../map/StarMapRenderComponent'
 import { SolarCameraActor } from '../map/SolarCameraActor'
 import { STAR_BLUEPRINTS, type StarBodyId } from '../map/StarActor'
@@ -91,13 +91,32 @@ export interface HudBuildingInfo {
   type: string
   /** 建筑名（building 表） */
   name: string
-  /** 功能半径（护盾建筑 > 0） */
+  /** 功能半径（护盾建筑 > 0；强化合成值） */
   radius: number
-  /** 护盾保全容量 */
+  /** 护盾保全容量（强化合成值） */
   cap: number
-  /** 缓存物资/上限（非缓存建筑 cap=0） */
+  /** 缓存物资/上限（非缓存建筑 cap=0；上限 = 强化合成值） */
   stock: number
   bufferCap: number
+  canDemolish: boolean
+}
+
+/** 建筑详情浮层数据（building_detail.widget 消费；强化分支装拆流，玩家设计权扩展） */
+export interface HudBuildingDetail {
+  id: number
+  type: string
+  name: string
+  /** 强化后有效数值摘要 */
+  radius: number
+  cap: number
+  bufferCap: number
+  stock: number
+  /** 当前已装强化分支（null = 未强化） */
+  upgrade: { id: string; name: string; desc: string } | null
+  /** 强化分支行（building 表 upgrades 键序；installed = 当前已装） */
+  branches: Array<{ id: string; name: string; desc: string; cost: number; installed: boolean; canInstall: boolean }>
+  /** 拆强化费（当前分支造价 × upgradeDemolishCostPct；未强化 0） */
+  removeFee: number
   canDemolish: boolean
 }
 
@@ -226,6 +245,24 @@ export interface HudShipBuildCard {
   progressPct: number
 }
 
+/** 船坞造船面板船型行（ship_hull 表投影，三步流第 1 步） */
+export interface HudHullRow {
+  id: string
+  name: string
+  desc: string
+  cost: number
+}
+
+/** 船坞造船面板模块行（ship_module 表投影，三步流第 2 步；allowed = 当前船型兼容） */
+export interface HudModuleRow {
+  id: string
+  name: string
+  desc: string
+  cost: number
+  /** 当前选中船型是否允许装载（false = 置灰） */
+  allowed: boolean
+}
+
 /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费） */
 export interface HudShipyard {
   /** 承接船坞的轨道建筑 id */
@@ -242,8 +279,12 @@ export interface HudShipyard {
   progressPct: number
   /** 建成且具造船能力（造船按钮开关） */
   canBuildShip: boolean
-  /** 经本船坞造船的折后造价 */
-  shipCost: number
+  /** 船坞造价乘区（整单价 = 船体+Σ模块 × 此值；面板三步流总价同源计算） */
+  costMult: number
+  /** 船型行（ship_hull 表键序） */
+  hulls: HudHullRow[]
+  /** 模块行（ship_module 表键序） */
+  modules: HudModuleRow[]
   /** 造船队列（逐船一卡，队首 = 建造中） */
   queue: HudShipBuildCard[]
   /** 船队总艘数 */
@@ -259,9 +300,20 @@ export interface HudShipyard {
 export interface WarmCurrentVM {
   time: number
   act: 1 | 2 | 3
-  nodes: number
-  /** 聚能环等级（按已覆盖交点数分阶，模块 03 §5；level 4 = 终局全球环网） */
+  /** 已建成环段槽位数（25 槽位制） */
+  ringSlots: number
+  /** 环段槽位总数（B.ringSlots） */
+  ringSlotsTotal: number
+  /** 环段建筑装入表（下标 = 槽位号；null = 空槽；槽位图/已装标记消费） */
+  ringBuildings: (string | null)[]
+  /** 拆除中的目标槽（null = 无；面板拆除进度弧 + 泵目标提示消费） */
+  ringDemolish: { slot: number; progress: number; active: boolean } | null
+  /** 聚能环等级（按已建成槽位数连续推导；level 25 = 全球组网） */
   ringLevel: RingLevelInfo
+  /** 环建筑乘区摘要（详情面板展示口径；burnMult 含防爆地板） */
+  ringMods: { burnMult: number; loadMult: number; shipCapAdd: number; buildPumpMult: number; researchMult: number; coolTimeMult: number; warmTimeMult: number }
+  /** 环建筑安装行（ring_building 表键序；canInstall = 预算足 & 非耀斑 & 对局中） */
+  ringInstallRows: Array<{ id: string; name: string; desc: string; cost: number; canInstall: boolean }>
   /** 堆心温度 0..100（100 = 满温；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
   coreTemp: number
   /** 堆心状态：warming = 升温中（有燃料），cooling = 降温中（断环） */
@@ -309,6 +361,10 @@ export interface WarmCurrentVM {
   orbitBuild: HudOrbitBuild | null
   /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费，点船坞打开） */
   shipyard: HudShipyard | null
+  /** 建筑详情浮层数据（null = 收起；BuildingDetailScript 消费，点建筑打开，强化装拆流） */
+  buildingDetail: HudBuildingDetail | null
+  /** 耀斑预警决策条（fleet_order_bar 消费；windowOpen = 预警期可下令） */
+  fleetOrders: { windowOpen: boolean; selectedCount: number; canHold: boolean }
   /** 航线编辑模式（HUD「航线编辑」按钮高亮态） */
   routeEditMode: boolean
   /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
@@ -364,6 +420,12 @@ export class WarmCurrentGameMode extends GameMode {
   orbitBuildSel: PlanetBodyId | null = null
   /** 船坞造船面板当前承接船坞 id（点船坞打开；null = 收起，ShipyardPanelScript 消费） */
   shipyardSel: number | null = null
+  /** 建筑详情浮层当前建筑 id（点建筑打开：强化分支装拆流；null = 收起） */
+  buildingDetailSel: number | null = null
+  /** 耀斑预警框选的船 id 集（决策条下达对象；耀斑结束自动清空） */
+  selectedShips: number[] = []
+  /** 框选手势进行中矩形（画布系；仅耀斑预警期空处按下拖动 = 框选；null = 无） */
+  boxDrag: { x0: number; y0: number; x1: number; y1: number } | null = null
 
   /** 建筑模式（建造面板选型后进入：星图网格线 + 吸附预览，点击落位 / Esc 取消） */
   buildMode: { typeId: string } | null = null
@@ -533,9 +595,17 @@ export class WarmCurrentGameMode extends GameMode {
           if (unloadSounds++ < 2) audioSys.play('wc.unload', { volume: 0.5 })
           break
         case 'route_built': audioSys.play('wc.ok'); break
-        case 'node_built':
+        case 'slot_built':
           audioSys.play('wc.ok', { volume: 0.6 })
-          this.toast(`聚能环新交点点亮（${ev.value ?? 0}/12）`, '#7fdcff')
+          this.toast(`第 ${ev.value ?? 0} 环段交付（毛坯空槽）— 可安装环建筑`, '#7fdcff')
+          break
+        case 'ring_installed':
+          audioSys.play('wc.build')
+          this.toast(`「${ev.text ?? '环建筑'}」已装入 ${ev.value !== undefined ? `第 ${ev.value + 1} 环段` : '环段'}`, '#7fdcff')
+          break
+        case 'ring_demolished':
+          audioSys.play('wc.ok', { volume: 0.4 })
+          this.toast(`环段建筑已拆除（${ev.text ?? ''}），槽位回空置可再装`, '#9fc4d8')
           break
         case 'route_deleted': audioSys.play('wc.bad', { volume: 0.5 }); break
         case 'ship_built': this.toast('新船下水，已入列空闲池', '#b8ffd8'); break
@@ -581,6 +651,14 @@ export class WarmCurrentGameMode extends GameMode {
         case 'building_demolished':
           if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
           this.toast(`建筑拆除，返还 ${Math.round(ev.value ?? 0)} H3`, '#9fc4d8')
+          break
+        case 'upgrade_installed':
+          this.toast(`「${ev.text ?? '强化'}」已装入建筑 #${ev.value ?? ''}`, '#7fdcff')
+          audioSys.play('wc.build')
+          break
+        case 'upgrade_removed':
+          this.toast(`建筑强化「${ev.text ?? ''}」已拆除（费用不返还）`, '#9fc4d8')
+          audioSys.play('wc.ok', { volume: 0.4 })
           break
         case 'act2':
           this.toast('第二幕 · 复苏：木卫二 / 引力窗口 / 极寒停航启用，需求暴涨！', '#ffb03d')
@@ -1000,6 +1078,71 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSel = null
   }
 
+  /** 打开建筑详情浮层（点地图建筑：强化分支装拆流；与其它浮层并存不互斥——浮层贴选中建筑） */
+  openBuildingDetail(id: number): void {
+    this.buildingDetailSel = id
+    audioSys.play('wc.draw', { volume: 0.3 })
+  }
+
+  /** 关闭建筑详情浮层（面板内 ✕ / 点空地 / 建筑被拆） */
+  closeBuildingDetail(): void {
+    this.buildingDetailSel = null
+  }
+
+  // ─── 耀斑预警框选指挥（玩家设计权扩展） ───
+
+  /** 船命中（画布坐标；冻毁船不可选；命中半径与建筑同量级） */
+  shipAt(p: { x: number; y: number }): SimShip | null {
+    const s = this.simState.state
+    for (const ship of s.ships) {
+      if (ship.state === 'frozen') continue
+      const pos = shipPos(s, ship)
+      if (dist(p.x, p.y, pos.x, pos.y) <= 16 + B.map.hitTolerance) return ship
+    }
+    return null
+  }
+
+  /** 点击增减框选（预警期点船） */
+  toggleShipSelection(shipId: number): void {
+    const idx = this.selectedShips.indexOf(shipId)
+    if (idx >= 0) this.selectedShips.splice(idx, 1)
+    else this.selectedShips.push(shipId)
+    audioSys.play('wc.draw', { volume: 0.25 })
+  }
+
+  /** 框选落点结算：矩形内全部在航船入选（替换式） */
+  selectShipsInRect(x0: number, y0: number, x1: number, y1: number): number {
+    const s = this.simState.state
+    const left = Math.min(x0, x1), right = Math.max(x0, x1)
+    const top = Math.min(y0, y1), bottom = Math.max(y0, y1)
+    const picked: number[] = []
+    for (const ship of s.ships) {
+      if (ship.state === 'frozen') continue
+      const pos = shipPos(s, ship)
+      if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom) picked.push(ship.id)
+    }
+    this.selectedShips = picked
+    return picked.length
+  }
+
+  clearShipSelection(): void {
+    this.selectedShips = []
+  }
+
+  /** 对框选船下达耀斑决策（照跑/就近靠站/原地待命；窗口外拒绝） */
+  orderSelectedShips(order: ShipOrder): number {
+    if (!this.hazards.orderWindowOpen()) {
+      this.simState.hint('仅在耀斑预警期可下令（需事件预警卡）')
+      return 0
+    }
+    let ok = 0
+    for (const id of [...this.selectedShips]) {
+      if (this.hazards.setShipOrder(id, order)) ok++
+    }
+    if (ok > 0) audioSys.play('wc.ok', { volume: 0.4 })
+    return ok
+  }
+
   private routeAt(p: { x: number; y: number }): SimRoute | null {
     for (const route of this.simState.state.routes) {
       const a = endpointPos(this.simState.state, route.from)
@@ -1060,6 +1203,11 @@ export class WarmCurrentGameMode extends GameMode {
     }
     const s = this.simState.state
     if (s.outcome === 'defeat' || s.pendingCard) return
+    // 耀斑预警期点船：增减框选（船优先于建筑/节点命中——船小且在航线附近移动）
+    if (this.hazards.orderWindowOpen()) {
+      const hitShip = this.shipAt(p)
+      if (hitShip) { this.toggleShipSelection(hitShip.id); return }
+    }
     const b = this.buildingAt(p)
     if (b) {
       // 航线编辑模式：可接航线建筑（中转站）优先作为拖线起点，点击选中留给非编辑态
@@ -1074,6 +1222,7 @@ export class WarmCurrentGameMode extends GameMode {
         return
       }
       this.selection = { type: 'building', id: b.id }
+      this.openBuildingDetail(b.id)
       return
     }
     // 近地轨道设施：船坞 → 船坞造船面板（造船入口）；其它类型（含在建）→ 轨道建设面板
@@ -1108,13 +1257,25 @@ export class WarmCurrentGameMode extends GameMode {
     // 编辑模式下可拖节点已在上面分流，落到这里 = 点了不可拖天体，同样开面板
     const body = this.bodyAt(p)
     if (body) { this.openPlanetInfo(body); return }
+    // 空处按下 + 耀斑预警期 = 开始框选手势（与相机右键平移不冲突；落点结算在 pointerUp）
+    if (this.hazards.orderWindowOpen()) {
+      this.boxDrag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }
+      return
+    }
     this.selection = null
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.buildingDetailSel = null
   }
 
   onMapPointerMove(p: { x: number; y: number }): void {
+    // 框选手势：刷新矩形对角（渲染层画选框，落点结算在 pointerUp）
+    if (this.boxDrag) {
+      this.boxDrag.x1 = p.x
+      this.boxDrag.y1 = p.y
+      return
+    }
     // 建筑模式：光标位置刷新网格吸附预览（渲染 ghost 消费）
     if (this.buildMode) {
       const snapped = snapToGrid(p.x, p.y)
@@ -1137,6 +1298,19 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   onMapPointerUp(p: { x: number; y: number }): void {
+    // 框选结算：矩形内全部在航船入选（替换式）；无位移 = 空点（清空选择）
+    const box = this.boxDrag
+    if (box) {
+      this.boxDrag = null
+      const moved = Math.hypot(p.x - box.x0, p.y - box.y0) > 8
+      if (moved) {
+        const n = this.selectShipsInRect(box.x0, box.y0, p.x, p.y)
+        if (n > 0) audioSys.play('wc.ok', { volume: 0.35 })
+      } else {
+        this.clearShipSelection()
+      }
+      return
+    }
     const drag = this.drag
     if (!drag) return
     this.drag = null
@@ -1276,6 +1450,9 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.buildingDetailSel = null
+    this.selectedShips = []
+    this.boxDrag = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -1302,6 +1479,9 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.buildingDetailSel = null
+    this.selectedShips = []
+    this.boxDrag = null
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
@@ -1370,7 +1550,7 @@ export class WarmCurrentGameMode extends GameMode {
     let buildingInfo: HudBuildingInfo | null = null
     if (this.selection?.type === 'building') {
       const b = s.buildings.find((x) => x.id === this.selection!.id)
-      const def = b ? buildingDefOf(b.type) : null
+      const def = b ? buildingEffectiveDef(b) : null
       if (b && def) {
         buildingInfo = {
           id: b.id,
@@ -1411,7 +1591,8 @@ export class WarmCurrentGameMode extends GameMode {
     }
     const shipRows: HudShipRow[] = s.ships.slice(0, 10).map((ship) => ({
       id: ship.id,
-      name: ship.name,
+      // 船型徽标并入行名（玩家设计权：船队可见差异化；模块缩写在航徽之后）
+      name: `${ship.name} · ${shipHullDefOf(ship.hull)?.name ?? ship.hull}${ship.modules.length ? `+${ship.modules.length}` : ''}`,
       state: ship.state,
       place: ship.mission ? '火星任务'
         : ship.state === 'idle' ? '基地待命'
@@ -1437,11 +1618,44 @@ export class WarmCurrentGameMode extends GameMode {
     const orbitBuild = this.orbitBuildSel ? this.buildOrbitBuild(this.orbitBuildSel) : null
     // 船坞造船面板数据（shipyardSel 为空 = 收起；船坞被拆/不存在 → null 收起）
     const shipyard = this.shipyardSel !== null ? this.buildShipyardVM(this.shipyardSel) : null
+    // 建筑详情浮层数据（buildingDetailSel 为空/建筑被拆 → null 收起）
+    const buildingDetail = this.buildingDetailSel !== null ? this.buildBuildingDetail(this.buildingDetailSel) : null
+    // 耀斑预警决策条（预警期 + 框选船非空 = 决策条上屏；canHold = 选中船全部未出发可待命）
+    const selShips = this.selectedShips
+      .map((id) => s.ships.find((x) => x.id === id))
+      .filter((x): x is NonNullable<typeof x> => !!x && x.state !== 'frozen')
+    const fleetOrders = {
+      windowOpen: this.hazards.orderWindowOpen(),
+      selectedCount: selShips.length,
+      canHold: selShips.length > 0 && selShips.every((x) => x.state === 'loading'),
+    }
+    const ringMods = ringModsOf(s)
+    const ringPlayable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const ringInstallRows: NonNullable<WarmCurrentVM['ringInstallRows']> = Object.entries(B.ringBuildings).map(([id, def]) => ({
+      id,
+      name: def.name,
+      desc: def.desc,
+      cost: def.cost,
+      canInstall: ringPlayable && s.earthH3 >= def.cost,
+    }))
     return {
       time: s.time,
       act: s.act,
-      nodes: s.nodes,
-      ringLevel: ringLevelOf(s.nodes, s.ringBuildProgress),
+      ringSlots: s.ringSlots,
+      ringSlotsTotal: B.ringSlots,
+      ringBuildings: s.ringBuildings,
+      ringDemolish: s.ringDemolish,
+      ringLevel: ringLevelOf(s.ringSlots, s.ringBuildProgress),
+      ringMods: {
+        burnMult: ringMods.burnMult,
+        loadMult: ringMods.loadMult,
+        shipCapAdd: ringMods.shipCapAdd,
+        buildPumpMult: ringMods.buildPumpMult,
+        researchMult: ringMods.researchMult,
+        coolTimeMult: ringMods.coolTimeMult,
+        warmTimeMult: ringMods.warmTimeMult,
+      },
+      ringInstallRows,
       coreTemp: s.coreTemp,
       coreState: s.earthH3 > 0 ? 'warming' : 'cooling',
       ring: s.ring,
@@ -1478,6 +1692,8 @@ export class WarmCurrentGameMode extends GameMode {
       planetInfo,
       orbitBuild,
       shipyard,
+      buildingDetail,
+      fleetOrders,
       routeEditMode: this.routeEditMode,
       shipRebuildCost: B.shipRebuildCost,
       hasShipyard: !!this.orbitBuildSel && this.orbitBuild.shipyardMults(this.orbitBuildSel) !== null,
@@ -1563,16 +1779,29 @@ export class WarmCurrentGameMode extends GameMode {
     }
   }
 
-  /** 船坞造船面板数据装配（shipyardSel → HudShipyard；逐船一卡队列 + 船队/上限口径） */
+  /** 船坞造船面板数据装配（shipyardSel → HudShipyard；船型/模块表行 + 逐船一卡队列 + 船队/上限口径） */
   private buildShipyardVM(dockId: number): HudShipyard | null {
     const s = this.simState.state
     const dock = s.orbitBuildings.find((x) => x.id === dockId)
     if (!dock) return null
     const def = orbitBuildingDefOf(dock.type)
     const yard = dock.built && isShipyardType(dock.type)
-    const shipCost = Math.round(B.shipBuildCost * (def?.shipBuildCostMult ?? 1))
+    const costMult = def?.shipBuildCostMult ?? 1
     const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
     const total = s.ships.length + s.buildQueue.length
+    const hulls: HudHullRow[] = Object.entries(B.shipHulls).map(([id, h]) => ({
+      id,
+      name: h.name,
+      desc: h.desc,
+      cost: h.cost,
+    }))
+    const modules: HudModuleRow[] = Object.entries(B.shipModules).map(([id, m]) => ({
+      id,
+      name: m.name,
+      desc: m.desc,
+      cost: m.cost,
+      allowed: true, // 兼容性随面板选中船型变化（ShipyardPanelScript 按 ship_hull.allowed 本地过滤）
+    }))
     return {
       dockId,
       name: def?.name ?? dock.type,
@@ -1581,7 +1810,9 @@ export class WarmCurrentGameMode extends GameMode {
       built: dock.built,
       progressPct: Math.round(dock.progress * 100),
       canBuildShip: yard,
-      shipCost,
+      costMult,
+      hulls,
+      modules,
       queue: s.buildQueue.map((q, i) => ({
         idx: i,
         remainS: Math.ceil(q.remain),
@@ -1592,6 +1823,39 @@ export class WarmCurrentGameMode extends GameMode {
       queueCount: s.buildQueue.length,
       cap: this.simState.shipCap,
       canQueue: yard && playable && total < this.simState.shipCap,
+    }
+  }
+
+  /** 建筑详情浮层数据装配（buildingDetailSel → HudBuildingDetail；强化分支装拆流） */
+  private buildBuildingDetail(id: number): HudBuildingDetail | null {
+    const s = this.simState.state
+    const b = s.buildings.find((x) => x.id === id)
+    if (!b) return null
+    const def = buildingEffectiveDef(b)
+    if (!def) return null
+    const base = buildingDefOf(b.type)
+    const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const branches = Object.entries(base?.upgrades ?? {}).map(([uid, u]: [string, BuildingUpgradeDef]) => ({
+      id: uid,
+      name: u.name,
+      desc: u.desc,
+      cost: u.cost,
+      installed: b.upgrade === uid,
+      canInstall: playable && s.earthH3 >= u.cost,
+    }))
+    const cur = b.upgrade ? (base?.upgrades?.[b.upgrade] ?? null) : null
+    return {
+      id: b.id,
+      type: b.type,
+      name: def.name,
+      radius: def.radius,
+      cap: def.shipCap,
+      bufferCap: def.bufferCap,
+      stock: Math.floor(b.stock),
+      upgrade: b.upgrade && cur ? { id: b.upgrade, name: cur.name, desc: cur.desc } : null,
+      branches,
+      removeFee: cur ? Math.round(cur.cost * B.upgradeDemolishCostPct) : 0,
+      canDemolish: s.flare.phase !== 'active',
     }
   }
 }

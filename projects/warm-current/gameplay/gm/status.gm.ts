@@ -2,6 +2,7 @@
  * status — 打印全局态势（储量/焚烧/堆心温度/幕/节点/船队/事件计时）
  */
 import type { GMCommandDef } from '@/engine'
+import { B } from '../core/balance'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 import { estimateNetFlow } from '../core/helpers'
 
@@ -15,7 +16,7 @@ export default {
     const s = mode.simState.state
     const sim = mode.simState
     ctx.output([
-      `t=${s.time.toFixed(0)}s 幕${s.act} 节点${s.nodes}/12 堆心温度${s.coreTemp.toFixed(0)}%`,
+      `t=${s.time.toFixed(0)}s 幕${s.act} 环段${s.ringSlots}/${B.ringSlots} 堆心温度${s.coreTemp.toFixed(0)}%`,
       `储量 ${s.earthH3.toFixed(0)} t · 需求 ${sim.demand.toFixed(1)}/s（焚烧 ${sim.burnRate.toFixed(1)} + 研究 ${sim.researchCost.toFixed(1)}）`,
       `净流估 ${estimateNetFlow(s, sim.demand).toFixed(1)}/s · 环 ${s.ring}（${s.earthH3 > 0 ? '升温中' : '降温中'}）`,
       `船 ${s.ships.length}（空闲${sim.idleShips} 冻毁${sim.frozenShips.length}）· 航线 ${s.routes.length} · 建筑 ${s.buildings.length}`,

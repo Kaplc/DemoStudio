@@ -1,7 +1,7 @@
 {
   "name": "ShipyardPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-d3bcc44d",
+  "sourceHash": "fnv1a-5178a1e9",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -103,12 +103,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 560,
-                "worldHeight": 560,
+                "worldWidth": 640,
+                "worldHeight": 720,
                 "anchor": "center",
                 "anchorOffset": [
                   0,
-                  20
+                  0
                 ],
                 "position": [
                   0,
@@ -145,8 +145,8 @@
                       1,
                       1
                     ],
-                    "worldWidth": 588,
-                    "worldHeight": 584,
+                    "worldWidth": 668,
+                    "worldHeight": 744,
                     "position": [
                       14,
                       -12,
@@ -168,8 +168,8 @@
                   "properties": {
                     "color": "#0e1a24e8",
                     "radius": 14,
-                    "width": 588,
-                    "height": 584,
+                    "width": 668,
+                    "height": 744,
                     "name": "ShipyardBody"
                   }
                 }
@@ -193,11 +193,11 @@
                           1,
                           1
                         ],
-                        "worldWidth": 530,
+                        "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
                           -15,
-                          258,
+                          338,
                           0
                         ]
                       }
@@ -230,7 +230,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 300,
+                            "worldWidth": 380,
                             "worldHeight": 34,
                             "position": [
                               -115,
@@ -252,7 +252,7 @@
                           "properties": {
                             "text": "船坞",
                             "name": "TitleText",
-                            "width": 300,
+                            "width": 380,
                             "height": 34,
                             "fontSize": 22,
                             "color": "#ffd9a8",
@@ -287,7 +287,7 @@
                             "worldWidth": 120,
                             "worldHeight": 44,
                             "position": [
-                              205,
+                              245,
                               0,
                               0
                             ]
@@ -410,11 +410,11 @@
                           1,
                           1
                         ],
-                        "worldWidth": 530,
+                        "worldWidth": 610,
                         "worldHeight": 28,
                         "position": [
                           -15,
-                          214,
+                          296,
                           0
                         ]
                       }
@@ -432,9 +432,9 @@
                       "properties": {
                         "text": "",
                         "name": "StatusText",
-                        "width": 530,
+                        "width": 610,
                         "height": 28,
-                        "fontSize": 19,
+                        "fontSize": 18,
                         "color": "#9fc4d8",
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 1,
@@ -446,7 +446,7 @@
                   "children": []
                 },
                 {
-                  "name": "QueueTitle",
+                  "name": "HullTitle",
                   "baseClass": "Actor",
                   "id": 13209,
                   "components": [
@@ -463,11 +463,303 @@
                           1,
                           1
                         ],
-                        "worldWidth": 530,
+                        "worldWidth": 610,
                         "worldHeight": 26,
                         "position": [
                           -15,
-                          179,
+                          259,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "① 选船型",
+                        "name": "HullTitle",
+                        "width": 610,
+                        "height": 26,
+                        "fontSize": 16,
+                        "color": "#7fdcff",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "HullList",
+                  "baseClass": "Actor",
+                  "id": 13210,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 612,
+                        "worldHeight": 128,
+                        "position": [
+                          -14,
+                          176,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "ModuleTitle",
+                  "baseClass": "Actor",
+                  "id": 13211,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 610,
+                        "worldHeight": 26,
+                        "position": [
+                          -15,
+                          89,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "② 选配模块（可不配）",
+                        "name": "ModuleTitle",
+                        "width": 610,
+                        "height": 26,
+                        "fontSize": 16,
+                        "color": "#7fdcff",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "ModuleList",
+                  "baseClass": "Actor",
+                  "id": 13212,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 612,
+                        "worldHeight": 128,
+                        "position": [
+                          -14,
+                          6,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "OrderTitle",
+                  "baseClass": "Actor",
+                  "id": 13213,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 610,
+                        "worldHeight": 26,
+                        "position": [
+                          -15,
+                          -81,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "③ 入队",
+                        "name": "OrderTitle",
+                        "width": 610,
+                        "height": 26,
+                        "fontSize": 16,
+                        "color": "#7fdcff",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "OrderText",
+                  "baseClass": "Actor",
+                  "id": 13214,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 610,
+                        "worldHeight": 26,
+                        "position": [
+                          -15,
+                          -113,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UITextComponent",
+                      "properties": {
+                        "text": "",
+                        "name": "OrderText",
+                        "width": 610,
+                        "height": 26,
+                        "fontSize": 16,
+                        "color": "#ffe9a8",
+                        "bold": true,
+                        "shadowColor": "#00000066",
+                        "shadowOffsetX": 1,
+                        "shadowOffsetY": 1,
+                        "shadowBlur": 4
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "QueueTitle",
+                  "baseClass": "Actor",
+                  "id": 13215,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 610,
+                        "worldHeight": 24,
+                        "position": [
+                          -15,
+                          -144,
                           0
                         ]
                       }
@@ -485,8 +777,8 @@
                       "properties": {
                         "text": "造船队列（队首建造中）",
                         "name": "QueueTitle",
-                        "width": 530,
-                        "height": 26,
+                        "width": 610,
+                        "height": 24,
                         "fontSize": 16,
                         "color": "#7fdcff",
                         "shadowColor": "#00000066",
@@ -501,7 +793,7 @@
                 {
                   "name": "ShipCardList",
                   "baseClass": "Actor",
-                  "id": 13210,
+                  "id": 13216,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -516,11 +808,11 @@
                           1,
                           1
                         ],
-                        "worldWidth": 532,
-                        "worldHeight": 300,
+                        "worldWidth": 612,
+                        "worldHeight": 150,
                         "position": [
                           -14,
-                          8,
+                          -237,
                           0
                         ]
                       }
@@ -548,7 +840,7 @@
                 {
                   "name": "Btn_yd_build",
                   "baseClass": "Actor",
-                  "id": 13211,
+                  "id": 13217,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -563,11 +855,11 @@
                           1,
                           1
                         ],
-                        "worldWidth": 530,
-                        "worldHeight": 56,
+                        "worldWidth": 610,
+                        "worldHeight": 52,
                         "position": [
                           -15,
-                          -178,
+                          -344,
                           0
                         ]
                       }
@@ -606,8 +898,8 @@
                       "properties": {
                         "color": "#2a5a3a",
                         "radius": 10,
-                        "width": 530,
-                        "height": 56,
+                        "width": 610,
+                        "height": 52,
                         "name": "Btn_yd_build"
                       }
                     }
@@ -616,7 +908,7 @@
                     {
                       "name": "BtnLabel",
                       "baseClass": "Actor",
-                      "id": 13212,
+                      "id": 13218,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -631,7 +923,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 400,
+                            "worldWidth": 480,
                             "worldHeight": 32,
                             "position": [
                               0,
@@ -653,7 +945,7 @@
                           "properties": {
                             "text": "造船",
                             "name": "BtnLabel",
-                            "width": 400,
+                            "width": 480,
                             "height": 32,
                             "fontSize": 20,
                             "color": "#b8ffd8",

@@ -1,0 +1,16 @@
+<widget name="ShipModuleCell" canvas="200x40">
+  <style>
+    .Btn_cell { width: 200px; height: 40px; position: relative; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 6px; background-color: #16323f; border-radius: 8px; }
+    .Btn_cell:hover { background-color: #1f4254; }
+    .CellName { width: 96px; height: 20px; font-size: 15px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000099; }
+    .CellDesc { width: 100px; height: 18px; font-size: 14px; color: #7fdcff; text-shadow: 1px 1px 4px #00000099; }
+    .CellCost { width: 52px; height: 18px; font-size: 14px; color: #ffe9a8; text-align: right; text-shadow: 1px 1px 4px #00000099; }
+  </style>
+  <div class="Root">
+    <button class="Btn_cell" data-name="Btn_cell">
+      <text class="CellName" data-name="CellName"></text>
+      <text class="CellDesc" data-name="CellDesc"></text>
+      <text class="CellCost" data-name="CellCost"></text>
+    </button>
+  </div>
+</widget>

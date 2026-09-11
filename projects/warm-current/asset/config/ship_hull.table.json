@@ -1,0 +1,23 @@
+{
+  "_comment": "船型配置表（2026-09-11 玩家设计权扩展：船队从同质单位变成玩家设计的舰队）。行键 = 船型 id（SimShip.hull，造船时定型、建成后不可改装、冻毁重建保留）。\n cost=船体造价(H3；整单价 = 船体 + Σ模块，×船坞折扣)；loadMult=本船型满载乘区；speedMult=本船型航速乘区；\n innate=内置特性清单（'anti_freeze'=耀斑冻毁免疫，罩外也存活）；allowed=可装模块 id 清单（'*'=全部；ship_module.table.json 行键）。\n 初始 3 艘 = 标准型裸船；ship_cap 不分船型照常计数，船型贵价本身就是经济闸门。\n 加新船型：加一行 + 造船面板船型页签自动多一档（ShipyardPanelScript 按表渲染）。",
+  "standard": {
+    "name": "标准型", "desc": "均衡船体 · 可装全部模块",
+    "cost": 180, "loadMult": 1.0, "speedMult": 1.0,
+    "innate": [], "allowed": ["*"]
+  },
+  "hauler": {
+    "name": "重载型", "desc": "满载 ×1.4 · 航速 ×0.85 · 限装货舱/货泵",
+    "cost": 260, "loadMult": 1.4, "speedMult": 0.85,
+    "innate": [], "allowed": ["cargo_pod", "pump"]
+  },
+  "courier": {
+    "name": "快速型", "desc": "满载 ×0.7 · 航速 ×1.35 · 限装引擎/油箱",
+    "cost": 240, "loadMult": 0.7, "speedMult": 1.35,
+    "innate": [], "allowed": ["ion_engine", "aux_tank"]
+  },
+  "guardian": {
+    "name": "防务型", "desc": "内置防冻（冻毁免疫）· 满载 ×0.8 · 限装货舱/油箱",
+    "cost": 320, "loadMult": 0.8, "speedMult": 1.0,
+    "innate": ["anti_freeze"], "allowed": ["cargo_pod", "aux_tank"]
+  }
+}

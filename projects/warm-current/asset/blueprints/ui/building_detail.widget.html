@@ -1,0 +1,38 @@
+<widget name="BuildingDetail" canvas="1920x1080" data-script="gameplay/ui/BuildingDetailScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; pointer-events: none; }
+    .Panel { width: 400px; height: 460px; position: absolute; left: 1480px; top: 220px; display: flex; flex-direction: column; align-items: stretch; background-color: #0e1a24f0; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .PanelTitleRow { width: 372px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 240px; height: 34px; flex-shrink: 0; font-size: 21px; color: #ffd9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_bd_close { width: 110px; height: 40px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
+    .Btn_bd_close:hover { background-color: #3d566f; }
+    .Label_bd_close { width: 100px; height: 28px; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .StatText { width: 372px; height: 52px; margin-top: 6px; flex-shrink: 0; font-size: 17px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .UpTitle { width: 372px; height: 26px; margin-top: 6px; flex-shrink: 0; font-size: 16px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .BranchList { width: 372px; height: 132px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+    .RemoveRow { width: 372px; height: 44px; margin-top: 8px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; }
+    .Btn_bd_remove { width: 150px; height: 40px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #4a2a2a; border-radius: 8px; }
+    .Btn_bd_remove:hover { background-color: #5c3434; }
+    .Label_bd_remove { width: 140px; height: 26px; font-size: 16px; color: #ff9d8a; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .RemoveText { width: 212px; height: 26px; flex-shrink: 0; font-size: 15px; color: #9fc4d8; text-align: right; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_bd_demolish { width: 372px; height: 44px; margin-top: 8px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #5c2020; border-radius: 8px; }
+    .Btn_bd_demolish:hover { background-color: #702828; }
+    .Label_bd_demolish { width: 340px; height: 28px; font-size: 17px; color: #ff8f7a; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="Panel" data-name="Panel">
+      <div class="PanelTitleRow">
+        <text class="TitleText" data-name="TitleText">建筑详情</text>
+        <button class="Btn_bd_close" data-name="Btn_bd_close"><text class="Label_bd_close">✕ 关闭</text></button>
+      </div>
+      <text class="StatText" data-name="StatText"></text>
+      <text class="UpTitle" data-name="UpTitle">强化（一槽二选一）</text>
+      <div class="BranchList" data-name="BranchList"></div>
+      <div class="RemoveRow">
+        <button class="Btn_bd_remove" data-name="Btn_bd_remove"><text class="Label_bd_remove">拆除强化</text></button>
+        <text class="RemoveText" data-name="RemoveText"></text>
+      </div>
+      <button class="Btn_bd_demolish" data-name="Btn_bd_demolish"><text class="Label_bd_demolish" data-name="DemolishLabel">拆除建筑</text></button>
+    </div>
+  </div>
+</widget>

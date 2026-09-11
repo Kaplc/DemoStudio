@@ -37,6 +37,9 @@ export interface SimRoute {
 
 export type ShipState = 'idle' | 'loading' | 'flying' | 'unloading' | 'frozen'
 
+/** 耀斑预警期临时决策（玩家设计权：框选直接指挥；耀斑结束清空） */
+export type ShipOrder = 'run' | 'shelter' | 'hold'
+
 export interface SimShip {
   id: number
   name: string
@@ -65,6 +68,14 @@ export interface SimShip {
   resumeDelay: number
   /** 火星环扩展模块任务船 */
   mission: boolean
+  /** 船型（ship_hull 表行键；造船时定型，建成后不可改装、冻毁重建保留） */
+  hull: string
+  /** 选配模块（ship_module 表行键；仅造船时选配，单船生效） */
+  modules: string[]
+  /** 耀斑预警决策（run=照跑 / shelter=就近靠站 / hold=原地待命；耀斑结束清空） */
+  order?: ShipOrder
+  /** 靠站改道插值段（画布系 from→to；存在时 shipPos 用此段插值，耀斑结束清空） */
+  shelter?: { fx: number; fy: number; tx: number; ty: number } | null
 }
 
 /** 造船队列项（逐船一卡：2026-09-09 用户需求——船坞面板每艘在造船一张卡片排队展示） */
@@ -75,6 +86,10 @@ export interface SimShipBuild {
   total: number
   /** 承接船坞的轨道建筑 id（全游戏唯一造船队列的归属记录；GM/桥无参路径 = 0 无船坞归属） */
   dockId: number
+  /** 船型（ship_hull 表行键；下线时注入新船） */
+  hull: string
+  /** 选配模块（ship_module 表行键；下线时注入新船） */
+  modules: string[]
 }
 
 /** 近地轨道建筑（2026-09-09 用户需求：点行星 → 轨道建设 → 建筑绕行星均布公转；表驱动类型） */
@@ -108,8 +123,10 @@ export interface SimBuilding {
   y: number
   /** 缓存物资（中转站：反向补给线运抵的建材，上限 B.buildings[type].bufferCap） */
   stock: number
-  /** 建造投入 H3（拆除返还折算用） */
+  /** 建造投入 H3（拆除返还折算用；强化投入并入 → 返还公式自动折算） */
   invested: number
+  /** 已装强化分支（building.table.json upgrades 行键；null/缺失 = 未强化；一槽二选一） */
+  upgrade?: string | null
   /** 轨道锚定天体（行星或卫星；缺失 = 未入轨静态建筑，旧档兼容口径） */
   anchor?: PlanetBodyId
   /** 轨道半径（px，距锚行星中心；放置过近按行星显示半径+pad 抬底） */
@@ -186,12 +203,18 @@ export interface SimLedger {
   reverseFuel: number
   /** 反向航线建材折算 H3 */
   materials: number
+  /** 环段建筑安装费 + 拆除费（一次性；环构筑经济池） */
+  ringInstall: number
+  /** 地图建筑强化：安装费（拆除费不返还也不计账——纯损耗） */
+  buildingUpgrade: number
 }
 
 export type SimEventType =
   | 'route_built'
   | 'route_deleted'
-  | 'node_built'
+  | 'slot_built'
+  | 'ring_installed'
+  | 'ring_demolished'
   | 'ship_built'
   | 'ship_rebuilt'
   | 'unload'
@@ -206,7 +229,10 @@ export type SimEventType =
   | 'frozen'
   | 'building_built'
   | 'orbit_building_built'
-  | 'building_demolished'  | 'act2'
+  | 'building_demolished'
+  | 'upgrade_installed'
+  | 'upgrade_removed'
+  | 'act2'
   | 'act3'
   | 'module_available'
   | 'victory'
@@ -233,12 +259,16 @@ export interface SimState {
   /** 燃料门：有燃料 running（焚烧/研究/建设照常），储量耗尽 decaying（停烧停建，堆心降温） */
   ring: 'running' | 'decaying'
   act: 1 | 2 | 3
-  /** 已解锁节点数 = 覆盖交点数 */
-  nodes: number
+  /** 已建成环段槽位数（25 槽位制：等级 = 已建成槽位数的连续推导；开局 1 格建成但空置） */
+  ringSlots: number
   /** 聚能环建设（脱离科研的独立流）：建设点数（默认 1、最低 1，ring_build 配置表可调） */
   ringBuild: { points: number }
-  /** 聚能环建设进度 0..1（当前交点；满 1 → 交点 +1 归零） */
+  /** 聚能环建设进度 0..1（当前槽位；满 1 → 槽位 +1 归零） */
   ringBuildProgress: number
+  /** 环段建筑装入表（下标 = 槽位号 0..ringSlotsTotal−1；null = 已建成空槽） */
+  ringBuildings: (string | null)[]
+  /** 拆除中的目标槽（active = 泵灌拆除中；false = 暂停保留进度），null = 无拆除目标 */
+  ringDemolish: { slot: number; progress: number; active: boolean } | null
   ships: SimShip[]
   routes: SimRoute[]
   /** 地图建筑（自由放置） */

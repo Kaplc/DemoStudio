@@ -5,7 +5,8 @@
  * 便于单测与快照。带 B 的数值读取（balance 运行时单例，配置表可覆盖）。
  */
 import { B, MAP_H, MAP_W, toWX, toWZ } from './balance'
-import type { BuildingDef, CardDef } from './balance'
+import type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef } from './balance'
+import { buildingEffectiveDef, ringModsOf, shipHullDefOf, shipModuleDefOf } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
   Endpoint, OrbitBuilding, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimResearchLine, SimRoute, SimShip, SimState, StarId,
@@ -32,45 +33,42 @@ export const LINE_DEFS: Array<{ id: ResearchLineId; name: string }> = [
   { id: 'expand', name: '扩张线' },
 ]
 
-// ─── 聚能环等级（模块 03 §5：交点 1:1 绑定覆盖，等级阶梯随研究/交点连续爬升） ───
+// ─── 聚能环等级（25 槽位制：每建成一级交付一个空槽位，等级 = 已建成槽位数的连续阶梯） ───
 
 export interface RingLevelInfo {
-  /** 当前等级 1..maxLevel（连续阶梯：研究推进即缓慢爬升，交点解锁即跳升） */
+  /** 当前等级 1..maxLevel（连续阶梯：当前格灌入即缓慢爬升，槽位交付即跳升） */
   level: number
-  /** 等级上限（B.ringLevels，默认 25；满级 = 覆盖 100% 全球组网） */
+  /** 等级上限（B.ringLevels，默认 25；满级 = 全球组网） */
   maxLevel: number
   /** 等级名（Lv1..Lv25） */
   name: string
-  /** 已满级（覆盖 100%，全球组网） */
+  /** 已满级（全球组网） */
   maxed: boolean
-  /** 全球覆盖度 0..1（= 已覆盖交点 / totalNodes，物理值随交点跳升） */
+  /** 全球覆盖度 0..1（= 已建成槽位 / ringSlots，物理值随交付跳升） */
   coverage: number
-  /** 升级进度 0..1（距下一级；建设流交点进度驱动，随建设连续推进、交点落成跳升；满级恒 1） */
+  /** 升级进度 0..1（距下一级；当前格建设流进度驱动，满级恒 1） */
   progress: number
 }
 
 /**
- * 聚能环等级推导：25 级阶梯铺在「开局 1 交点 → 12 交点全球组网」的旅程上
- * （按 2.5h 局时长 ≈ 每级 6 分钟）。连续进度 raw = (已覆盖交点−1 + 下一交点建设进度)
- * ÷ (totalNodes−1)：2026-09-08 建设脱离科研后，下一交点进度只由建设流推进
- * （建设点数控速，0 点停建则等级条冻结）；交点落成（建设满 1，唯一来源——选卡 +1
- * 已随交点单流化移除）→ 等级跳升、覆盖度 +1/12。覆盖度是物理值（交点/12）。科研进度不再入等级
- * （旧版用四线最靠前研究进度驱动，会让等级在停建时虚涨、焚烧随之虚增）。
+ * 聚能环等级推导（25 槽位制标尺）：连续进度 raw = (已建成槽位−1 + 当前格建设进度)
+ * ÷ (ringSlots−1)；当前格灌到一半等级条也在走，槽位交付（建设满 1，唯一来源）→
+ * 等级跳升、覆盖度 +1/25。消费方（焚烧/船帽/研究点）口径零改动——同一推导式换标尺。
  */
-export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo {
-  const total = Math.max(1, B.totalNodes)
+export function ringLevelOf(builtSlots: number, nextSlotProgress = 1): RingLevelInfo {
+  const total = Math.max(1, B.ringSlots)
   const maxLevel = Math.max(1, B.ringLevels)
-  const node = Math.max(1, Math.min(total, Math.round(nodes)))
-  const maxed = node >= total
-  const next = Math.max(0, Math.min(1, nextNodeProgress))
-  const raw = maxed ? 1 : Math.min(1, (node - 1 + next) / (total - 1))
+  const built = Math.max(1, Math.min(total, Math.round(builtSlots)))
+  const maxed = built >= total
+  const next = Math.max(0, Math.min(1, nextSlotProgress))
+  const raw = maxed ? 1 : Math.min(1, (built - 1 + next) / (total - 1))
   const level = Math.min(maxLevel, 1 + Math.floor(raw * (maxLevel - 1)))
   return {
     level,
     maxLevel,
     name: `Lv${level}`,
     maxed,
-    coverage: node / total,
+    coverage: built / total,
     progress: maxed ? 1 : (raw * (maxLevel - 1)) % 1,
   }
 }
@@ -79,14 +77,15 @@ export function ringLevelOf(nodes: number, nextNodeProgress = 1): RingLevelInfo 
  * 单线研究推进速率（进度/秒）：**纯点数驱动**（2026-09-08 用户拍板，废弃被动推进）：
  * 无点数速率为 0（研究完全靠分配点数，每点也是一份持续 H3 计费）；有点数时
  * 速率 = 基础 1/nodeInterval × 环运转加成 × 点数加成（每点 +researchPointRateAdd，加算）
- * × 生长修正（卡效果）；储量耗尽时点数加成失效（无 H3 支撑），速率为 0。
+ * × 环建筑研究乘区（研究馈能）× 生长修正（卡效果）；储量耗尽时点数加成失效（无 H3 支撑），速率为 0。
  */
 export function researchRateOf(line: SimResearchLine, state: SimState): number {
   if (line.points <= 0) return 0
   if (state.earthH3 <= 0) return 0
   const runningBonus = B.runningRateBonus
   const pointMult = 1 + line.points * B.researchPointRateAdd
-  return (1 / B.nodeInterval) * runningBonus * pointMult * line.nextMult
+  const ring = ringModsOf(state)
+  return (1 / B.nodeInterval) * runningBonus * pointMult * ring.researchMult * line.nextMult
 }
 
 /** 单线研究 H3 消耗速率（吨/秒，点数计费；储量耗尽不计费） */
@@ -97,16 +96,17 @@ export function researchCostOf(line: SimResearchLine, state: SimState): number {
 // ─── 聚能环建设（脱离科研的独立流，模块 03 §5 物理层） ───
 
 /**
- * 聚能环建设推进速率（交点进度/秒，详情面板 %/s 展示口径）：造价制——
- * 灌入速率（建设点数 × costPerS，0 点/断环为 0，与 SimStateComponent.ringBuildCost 同式）
+ * 聚能环建设推进速率（槽位进度/秒，详情面板 %/s 展示口径）：造价制——
+ * 灌入速率（建设点数 × costPerS × 环建筑泵速乘区，0 点/断环为 0，与 SimStateComponent.ringBuildCost 同式）
  * ÷ 本级有效造价（levelCost × ringBuildCostMult，卡折扣省总 H3）。
  * 实际扣费/账本在 RingBuildComponent.tickBuild（灌入即计费）。
  */
 export function ringBuildRateOf(state: SimState): number {
-  const base = B.ringBuild.levelCost[Math.min(state.nodes, B.ringBuild.levelCost.length - 1)]
+  const base = B.ringBuild.levelCost[Math.min(state.ringSlots, B.ringBuild.levelCost.length - 1)]
   const cost = base * state.mods.ringBuildCostMult
   if (!(cost > 0)) return 0
-  const pump = state.earthH3 > 0 ? state.ringBuild.points * B.ringBuild.costPerS : 0
+  const ring = ringModsOf(state)
+  const pump = state.earthH3 > 0 ? state.ringBuild.points * B.ringBuild.costPerS * ring.buildPumpMult : 0
   return pump / cost
 }
 
@@ -285,13 +285,73 @@ export function resetIds(): void {
   nextRouteId = 1; nextBuildingId = 1; nextShipId = 1
 }
 
-export function makeShip(index: number): SimShip {
+export function makeShip(index: number, hull = 'standard', modules: string[] = []): SimShip {
   return {
     id: nextShipId++, name: `船 ${index}`, state: 'idle', routeId: null,
     leg: 'outbound', progress: 0, legTime: 1, timer: 0,
     cargo: 0, materials: 0, roundFuel: 0, speedMult: 1,
     recalling: false, resumeDelay: 0, mission: false,
+    hull, modules,
   }
+}
+
+// ─── 船型模块（玩家设计权扩展：船队从同质单位变成玩家设计的舰队） ───
+
+export interface ShipMults {
+  /** 本船满载乘区 = 船型 × Σ模块（再叠全局 cargoMult / 环 loadMult 于 starLoad 内） */
+  loadMult: number
+  /** 本船油耗乘区（副油箱） */
+  fuelMult: number
+  /** 本船航速乘区 = 船型 × Σ模块（离子引擎） */
+  speedMult: number
+  /** 装卸时长乘区（快速货泵） */
+  workMult: number
+  /** 冻毁免疫（guardian 内置 / 防冻加热器，任一即免疫） */
+  antiFreeze: boolean
+}
+
+/** 本船船型定义（未知船型兜底 standard 表行；表被清空时 null） */
+export function shipHullOf(ship: Pick<SimShip, 'hull'>): ShipHullDef | null {
+  return shipHullDefOf(ship.hull) ?? shipHullDefOf('standard')
+}
+
+/** 本船船型是否允许装该模块（allowed 含 '*' = 不限） */
+export function hullAllowsModule(hullId: string, moduleId: string): boolean {
+  const hull = shipHullDefOf(hullId) ?? shipHullDefOf('standard')
+  if (!hull) return false
+  return hull.allowed.includes('*') || hull.allowed.includes(moduleId)
+}
+
+/** 造船整单价（船体 + Σ模块，H3；船坞折扣由调用方乘） */
+export function shipBuildPrice(hullId: string, modules: string[]): number {
+  const hull = shipHullDefOf(hullId)
+  if (!hull) return 0
+  let total = hull.cost
+  for (const id of modules) total += shipModuleDefOf(id)?.cost ?? 0
+  return total
+}
+
+/** 本船乘数聚合（船型 × 各模块线性叠乘；纯函数，读态即得） */
+export function shipMults(ship: Pick<SimShip, 'hull' | 'modules'>): ShipMults {
+  const hull = shipHullOf(ship)
+  const m: ShipMults = {
+    loadMult: hull?.loadMult ?? 1,
+    fuelMult: 1,
+    speedMult: hull?.speedMult ?? 1,
+    workMult: 1,
+    antiFreeze: hull?.innate.includes('anti_freeze') ?? false,
+  }
+  for (const id of ship.modules ?? []) {
+    const def: ShipModuleDef | null = shipModuleDefOf(id)
+    if (!def) continue
+    const e = def.mods
+    if (e.loadMult !== undefined) m.loadMult *= e.loadMult
+    if (e.fuelMult !== undefined) m.fuelMult *= e.fuelMult
+    if (e.speedMult !== undefined) m.speedMult *= e.speedMult
+    if (e.workMult !== undefined) m.workMult *= e.workMult
+    if (e.antiFreeze) m.antiFreeze = true
+  }
+  return m
 }
 
 export function freshMods(): SimState['mods'] {
@@ -306,7 +366,7 @@ export function freshMods(): SimState['mods'] {
 export function freshLedger(): SimLedger {
   return {
     unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0, orbitBuild: 0,
-    shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0,
+    shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0, ringInstall: 0, buildingUpgrade: 0,
   }
 }
 
@@ -314,7 +374,7 @@ export function freshLedger(): SimLedger {
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
   const income = l.unload + l.demolishRefund
-  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials
+  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade
   return { income, expense, net: income - expense }
 }
 
@@ -329,9 +389,12 @@ export function createInitialState(seed: number): SimState {
     coreTemp: 100,
     ring: 'running',
     act: 1,
-    nodes: B.startNodes,
+    // 25 槽位制：开局 1 格已建成但空置（第一分钟引导完成第一次安装，教学即机制）
+    ringSlots: B.startSlots,
     ringBuild: { points: B.ringBuild.defaultPoints },
     ringBuildProgress: 0,
+    ringBuildings: Array.from({ length: Math.max(1, B.ringSlots) }, () => null),
+    ringDemolish: null,
     ships,
     routes: [],
     buildings: [],
@@ -342,7 +405,7 @@ export function createInitialState(seed: number): SimState {
     gravity: { phase: 'idle', timer: B.gravity.period - B.gravity.warn - B.gravity.active },
     flare: { phase: 'idle', timer: 0, nextIn: Number.POSITIVE_INFINITY },
     module: { state: 'locked', shipId: null },
-    // 造船队列（逐船一卡 SimShipBuild：remain 倒计时 / dockId 承接船坞；GM 无参路径 dockId=0）
+    // 造船队列（逐船一卡 SimShipBuild：remain 倒计时 / dockId 承接船坞 / hull+modules 船级配置）
     buildQueue: [],
     mods: freshMods(),
     takenCards: [],
@@ -468,14 +531,23 @@ export function orbitBuildingPos(state: SimState, ob: Pick<OrbitBuilding, 'ancho
 
 // ─── 数值 ───
 
-export function starLoad(mods: SimState['mods'], star: StarId): number {
+/**
+ * 单船满载量（吨 H3）= 星表基础值 × 卡加成 × 全局 cargoMult × 环建筑 loadMult
+ * × 船级满载乘区（船型 × 货舱扩容；ship 缺省 = 无船级口径，供展示估算）。
+ */
+export function starLoad(mods: SimState['mods'], star: StarId, ship?: Pick<SimShip, 'hull' | 'modules'>, ring?: RingModSet): number {
   const def = B.stars[star]
   const add = star === 'moon' ? mods.moonLoadAdd : mods.otherLoadAdd
-  return Math.max(10, (def.load + add) * mods.cargoMult)
+  const ringLoad = ring?.loadMult ?? 1
+  const hullMult = ship ? shipMults(ship).loadMult : 1
+  return Math.max(10, (def.load + add) * mods.cargoMult * ringLoad * hullMult)
 }
 
-export function cargoCap(mods: SimState['mods']): number {
-  return B.cargoBase * mods.cargoMult
+/** 货舱基准（反向建材装货上限口径；ship 缺省 = 全局估算） */
+export function cargoCap(mods: SimState['mods'], ship?: Pick<SimShip, 'hull' | 'modules'>, ring?: RingModSet): number {
+  const hullMult = ship ? shipMults(ship).loadMult : 1
+  const ringLoad = ring?.loadMult ?? 1
+  return B.cargoBase * mods.cargoMult * ringLoad * hullMult
 }
 
 /** 航段秒数 = 距离系数 × T0 ÷ 航速倍率 */
@@ -483,9 +555,10 @@ export function legSeconds(distCoeff: number, speedMult: number): number {
   return (distCoeff * B.baseLegSeconds) / Math.max(0.1, speedMult)
 }
 
-/** 往返油耗 = 2 × 距离系数 × 基础油耗 × 油耗乘区（× 引力窗口折价） */
-export function roundFuel(mods: SimState['mods'], distCoeff: number, windowMult = 1): number {
-  return 2 * distCoeff * B.baseBurnPerLeg * mods.fuelMult * windowMult
+/** 往返油耗 = 2 × 距离系数 × 基础油耗 × 油耗乘区（× 引力窗口折价 × 船级油耗乘区） */
+export function roundFuel(mods: SimState['mods'], distCoeff: number, windowMult = 1, ship?: Pick<SimShip, 'hull' | 'modules'>, ring?: RingModSet): number {
+  const shipMult = ship ? shipMults(ship).fuelMult : 1
+  return 2 * distCoeff * B.baseBurnPerLeg * mods.fuelMult * windowMult * shipMult
 }
 
 /**
@@ -546,8 +619,13 @@ export function estimateNetFlow(state: SimState, demand: number): number {
   return income - demand - fleetMaintPerS(state.ships.length)
 }
 
-/** 船当前位置（星图画布坐标；耀斑护盾判定 / 渲染共用） */
+/** 船当前位置（星图画布坐标；耀斑护盾判定 / 渲染共用）。
+ *  靠站改道船（shelter 段存在）= 自定义插值段 from→to，与航线插值并行为两条口径。 */
 export function shipPos(state: SimState, ship: SimShip): { x: number; y: number } {
+  if (ship.shelter) {
+    const { fx, fy, tx, ty } = ship.shelter
+    return { x: fx + (tx - fx) * ship.progress, y: fy + (ty - fy) * ship.progress }
+  }
   if (ship.mission) {
     const a = starPosAt(state, 'earth'), b = starPosAt(state, 'mars')
     const t = ship.leg === 'outbound' ? ship.progress : 1 - ship.progress
@@ -564,4 +642,5 @@ export function deepSnapshot<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
-export type { BuildingDef, CardDef, SimBuilding, SimEvent, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }
+export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf } from './balance'
+export type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef, SimBuilding, SimEvent, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }

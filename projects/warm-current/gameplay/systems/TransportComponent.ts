@@ -11,7 +11,7 @@ import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
   legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff,
-  TUTORIAL_TARGETS,
+  TUTORIAL_TARGETS, shipMults, hullAllowsModule, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
 } from '../core/helpers'
 import { isShipyardType, orbitBuildingDefOf } from './OrbitBuildComponent'
 import type { Endpoint, SimRoute, SimShip, StarId } from '../core/types'
@@ -125,7 +125,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     ship.routeId = route.id
     ship.leg = 'outbound'
     ship.progress = 0
-    ship.timer = B.loadSeconds
+    ship.timer = B.loadSeconds * shipMults(ship).workMult
     ship.cargo = 0
     ship.materials = 0
     ship.recalling = false
@@ -161,6 +161,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     ship.materials = 0
     ship.recalling = false
     ship.mission = false
+    ship.order = undefined
+    ship.shelter = null
   }
 
   private detachShipToIdle(ship: SimShip): void {
@@ -175,6 +177,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.materials = 0
       ship.recalling = false
       ship.mission = false
+      ship.order = undefined
+      ship.shelter = null
     }
   }
 
@@ -196,17 +200,27 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     return true
   }
 
-  /** 主动造船（shipBuildCost H3 + shipBuildTime 秒；受聚能环等级飞船上限约束：
-   *  在册 + 建造排队总数 < ship_cap 表当前等级 cap，超限 hint 拒绝。
-   *  2026-09-09 造船入口收口：面板路径必传 orbitBuildingId（建成船坞），
-   *  乘区取传入船坞自己的表值（对着哪座坞造船就按哪座坞计价，与面板展示价同源）；
-   *  缺省（GM/调试桥）保持无船坞原价原时长） */
-  tryBuildShip(orbitBuildingId?: number): boolean {
+  /** 主动造船（船型 + 模块整单价 × 船坞折扣；受聚能环等级飞船上限约束：
+   *  在册 + 建造排队总数 < ship_cap 表当前等级 cap + 泊位加算，超限 hint 拒绝；
+   *  模块不占上限，花钱即可，且模块须在船型兼容清单内）。
+   *  2026-09-11 船型模块改版：hull = ship_hull 表行键，modules = ship_module 表行键
+   *  （去重；建成后不可改装，冻毁重建保留原配置）。2026-09-09 造船入口收口：面板路径必传
+   *  orbitBuildingId（建成船坞），乘区取传入船坞自己的表值；缺省（GM/调试桥）无船坞原价原时长 */
+  tryBuildShip(hullId: string, modules: string[], orbitBuildingId?: number): boolean {
     const s = this.sc.state
     const cap = this.sc.shipCap
     if (s.ships.length + s.buildQueue.length >= cap) {
       this.sc.hint(`飞船已达当前聚能环上限 ${cap} 艘（提升聚能环等级解锁更多船位）`)
       return false
+    }
+    const hull = shipHullDefOf(hullId)
+    if (!hull) { this.sc.hint('未知船型'); return false }
+    // 模块校验：表内存在 + 船型兼容清单 + 去重（单船同模块只装一件）
+    const mods: string[] = []
+    for (const id of modules) {
+      if (!shipModuleDefOf(id)) { this.sc.hint(`未知模块：${id}`); return false }
+      if (!hullAllowsModule(hullId, id)) { this.sc.hint(`${hull.name}不能装载「${shipModuleDefOf(id)!.name}」`); return false }
+      if (!mods.includes(id)) mods.push(id)
     }
     // 船坞乘区：面板路径传建成船坞 id；查不到/未建成/无造船能力 = 拒绝（面板只能对着建成船坞造船）
     let costMult = 1
@@ -218,16 +232,16 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       costMult = def.shipBuildCostMult
       speedMult = def.shipBuildSpeedMult
     }
-    const cost = Math.round(B.shipBuildCost * costMult)
+    const cost = Math.round(shipBuildPrice(hullId, mods) * costMult)
     if (s.earthH3 < cost) { this.sc.hint(`H3 不足（造船需 ${cost}）`); return false }
     s.earthH3 -= cost
     s.ledger.shipBuild += cost
-    // 逐船入队（每艘一卡；total 锁定本艘总时长，dockId 记录承接船坞，无参路径 = 0）
+    // 逐船入队（每艘一卡；total 锁定本艘总时长，dockId 记录承接船坞，hull/modules 随卡下线注入）
     const remainS = B.shipBuildTime / speedMult
-    s.buildQueue.push({ remain: remainS, total: remainS, dockId: orbitBuildingId ?? 0 })
+    s.buildQueue.push({ remain: remainS, total: remainS, dockId: orbitBuildingId ?? 0, hull: hullId, modules: mods })
     logger.info(
-      `[Transport] 造船入队：队列 ${s.buildQueue.length} 艘 · 本艘 ${remainS.toFixed(1)}s · ` +
-      `折后 ${cost} H3（船坞 ${orbitBuildingId ?? '无'}）`,
+      `[Transport] 造船入队：${hull.name}${mods.length ? ` + ${mods.length} 模块` : ''} · 队列 ${s.buildQueue.length} 艘 · ` +
+      `本艘 ${remainS.toFixed(1)}s · 折后 ${cost} H3（船坞 ${orbitBuildingId ?? '无'}）`,
     )
     return true
   }
@@ -272,8 +286,9 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (s.buildQueue.length === 0) return
     s.buildQueue[0].remain -= dt
     if (s.buildQueue[0].remain <= 0) {
-      s.buildQueue.shift()
-      s.ships.push(makeShip(s.ships.length + 1))
+      const card = s.buildQueue.shift()!
+      // 下线即定型：队列卡的船型/模块注入新船（建成后不可改装）
+      s.ships.push(makeShip(s.ships.length + 1, card.hull, card.modules))
       this.sc.emit({ type: 'ship_built' })
     }
   }
@@ -294,6 +309,9 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
           if (ship.mission) {
             // 模块在火星上船 → 返航
             ship.state = 'flying'; ship.leg = 'return'; ship.progress = 0
+          } else if (ship.order === 'hold') {
+            // 原地待命（耀斑预警决策）：取消本次出发，停在港口挂起（预警结束清决策后照常出发）
+            ship.timer = 0
           } else {
             this.departShip(ship)
           }
@@ -302,19 +320,24 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
         case 'flying': {
           if (flareActive) break // 失联停滞
           ship.progress += dt / Math.max(0.1, ship.legTime)
+          if (ship.shelter) {
+            // 靠站改道：抵达罩内安全点后原地等待耀斑结算（跑在爆发前 = 保全的赌性所在）
+            if (ship.progress >= 1) ship.progress = 1
+            break
+          }
           if (ship.progress >= 1) {
             ship.progress = 0
             if (ship.leg === 'outbound') {
               if (ship.mission) {
                 ship.state = 'loading'; ship.timer = B.moduleLoadSeconds
               } else {
-                ship.state = 'unloading'; ship.timer = B.unloadSeconds
+                ship.state = 'unloading'; ship.timer = B.unloadSeconds * shipMults(ship).workMult
               }
             } else {
               if (ship.mission) {
                 ship.state = 'unloading'; ship.timer = B.moduleUnloadSeconds
               } else {
-                ship.state = 'loading'; ship.timer = B.loadSeconds
+                ship.state = 'loading'; ship.timer = B.loadSeconds * shipMults(ship).workMult
                 if (ship.recalling) this.detachShipToIdle(ship)
               }
             }
@@ -332,27 +355,32 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     }
   }
 
-  /** 装货完成出发（锁定本次往返油耗/航速）；反向无需求/H3 不足时保持等待 */
+  /** 装货完成出发（锁定本次往返油耗/航速；反向无需求/H3 不足时保持等待）。
+   *  船级乘区：航速 = 全局 × 船型 × 模块（离子引擎）；满载 = 全局 × 环建筑 × 船型 × 货舱；
+   *  油耗同乘船级（副油箱）；反向建材上限再乘强化吊臂 hookMult。 */
   private departShip(ship: SimShip): void {
     const s = this.sc.state
     const route = s.routes.find((r) => r.id === ship.routeId)
     if (!route) { this.detachShipToIdle(ship); return }
-    const speed = s.mods.speedMult
+    const ring = this.sc.ringMods
+    const hull = shipMults(ship)
+    const speed = s.mods.speedMult * hull.speedMult
     if (route.direction === 'forward') {
       const star = starOfEndpoint(s, route.from) as StarId
       const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
       ship.speedMult = speed * (windowed ? B.gravity.speedMult : 1)
       ship.legTime = legSeconds(B.stars[star].dist, ship.speedMult)
-      ship.cargo = starLoad(s.mods, star)
-      ship.roundFuel = roundFuel(s.mods, B.stars[star].dist, windowed ? B.gravity.fuelMult : 1)
+      ship.cargo = starLoad(s.mods, star, ship, ring)
+      ship.roundFuel = roundFuel(s.mods, B.stars[star].dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
       ship.materials = 0
     } else {
       const b = buildingByEndpoint(s, route.to)
       if (!b) { this.detachShipToIdle(ship); return }
       const dist = supplyDistCoeff(s, route.to)
       const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
-      const fuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1)
-      const want = Math.min(cargoCap(s.mods), this.owner.buildings.bufferLeft(b))
+      const fuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
+      const capWithHook = cargoCap(s.mods, ship, ring) * buildingHookMult(b)
+      const want = Math.min(capWithHook, this.owner.buildings.bufferLeft(b))
       const affordable = Math.floor(Math.max(0, s.earthH3 - fuel) / B.materialH3PerUnit)
       const load = Math.min(want, affordable)
       if (load <= 0) return // 等待：缓存已满或 H3 不足油耗

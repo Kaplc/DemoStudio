@@ -1,13 +1,61 @@
 {
-  "_comment": "地图建筑配置表（建造面板行序 = 行键序）。行键 = 建筑类型 id（SimBuilding.type）。\n cost=放置造价(H3，点击星图落位即扣)；radius=功能半径(地图px，护盾=面朝太阳的背日半球罩投影半圆/服务范围，0=无)；\n bufferCap=缓存物资上限(中转站：反向补给线运抵建材入缓存)；shipCap=护盾保全容量(耀斑结算按最近就近分配名额)；\n resumeDelay=耀斑结束护盾内存活船恢复延迟(秒)；refundPct=拆除返还比例(按造价+缓存物资折算H3)；\n linkable=可否被航线链接(中转站 true：地球↔中转站补给线；false=不可接线的功能建筑)。\n 加新建筑：加一行 + 建造面板自动多一行（行池见 BuildPanelScript BUILD_ROWS），渲染外观在 StarMapRenderComponent 按类型分支。",
+  "_comment": "地图建筑配置表（建造面板行序 = 行键序）。行键 = 建筑类型 id（SimBuilding.type）。\n cost=放置造价(H3，点击星图落位即扣)；radius=功能半径(地图px，护盾=面朝太阳的背日半球罩投影半圆/服务范围，0=无)；\n bufferCap=缓存物资上限(中转站：反向补给线运抵建材入缓存)；shipCap=护盾保全容量(耀斑结算按最近就近分配名额)；\n resumeDelay=耀斑结束护盾内存活船恢复延迟(秒)；refundPct=拆除返还比例(按造价+缓存物资折算H3)；\n linkable=可否被航线链接(中转站 true：地球↔中转站补给线；false=不可接线的功能建筑)。\n 加新建筑：加一行 + 建造面板自动多一行（行池见 BuildPanelScript BUILD_ROWS），渲染外观在 StarMapRenderComponent 按类型分支。upgrades=强化分支表(2026-09-11 玩家设计权扩展：每座已放建筑一槽二选一；cost=安装造价即时扣费即时生效，mods=效果修正[bufferCapMult 缓存乘区/radiusMult 半径乘区/shipCapAdd 名额加算/hookMult 反向建材乘区]；拆强化=造价×global.upgradeDemolishCostPct 不返还；数值消费收口 buildingEffectiveDef)。",
   "relay": {
-    "name": "中转站", "desc": "被航线链接 · 缓存物资",
-    "cost": 150, "radius": 0, "bufferCap": 800,
-    "shipCap": 0, "resumeDelay": 0, "refundPct": 0.5, "linkable": true
+    "name": "中转站",
+    "desc": "被航线链接 · 缓存物资",
+    "cost": 150,
+    "radius": 0,
+    "bufferCap": 800,
+    "shipCap": 0,
+    "resumeDelay": 0,
+    "refundPct": 0.5,
+    "linkable": true,
+    "upgrades": {
+      "cold_store": {
+        "name": "冷库扩容",
+        "desc": "缓存上限 ×2（800→1600）",
+        "cost": 120,
+        "mods": {
+          "bufferCapMult": 2
+        }
+      },
+      "heavy_hook": {
+        "name": "重载吊臂",
+        "desc": "反向补给线单船建材 ×1.5",
+        "cost": 120,
+        "mods": {
+          "hookMult": 1.5
+        }
+      }
+    }
   },
   "shield": {
-    "name": "磁场护盾发生器", "desc": "耀斑护盾 · 背日罩内飞船免疫冻毁",
-    "cost": 220, "radius": 22, "bufferCap": 0,
-    "shipCap": 2, "resumeDelay": 3, "refundPct": 0.5, "linkable": false
+    "name": "磁场护盾发生器",
+    "desc": "耀斑护盾 · 背日罩内飞船免疫冻毁",
+    "cost": 220,
+    "radius": 22,
+    "bufferCap": 0,
+    "shipCap": 2,
+    "resumeDelay": 3,
+    "refundPct": 0.5,
+    "linkable": false,
+    "upgrades": {
+      "cap_plate": {
+        "name": "名额扩容",
+        "desc": "保全名额 +2（2→4）",
+        "cost": 160,
+        "mods": {
+          "shipCapAdd": 2
+        }
+      },
+      "range_coil": {
+        "name": "扩域线圈",
+        "desc": "罩半径 ×1.6（22→35）",
+        "cost": 160,
+        "mods": {
+          "radiusMult": 1.6
+        }
+      }
+    }
   }
 }

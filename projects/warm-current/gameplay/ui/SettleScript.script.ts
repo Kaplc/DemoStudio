@@ -48,7 +48,7 @@ export default class SettleScript extends BehaviourScript {
       this.binder.set(findText(this.actor, 'SettleSub'), '堆心温度归零 —— 人类文明失去最后的热源')
     }
     this.binder.set(findText(this.actor, 'SettleStats'),
-      `存活 ${fmtTime(vm.time)} · 第${['一', '二', '三'][vm.act - 1]}幕 · 交点 ${vm.nodes}/12\n`
+      `存活 ${fmtTime(vm.time)} · 第${['一', '二', '三'][vm.act - 1]}幕 · 环段 ${vm.ringSlots}/${vm.ringSlotsTotal}\n`
       + `累计送达 ${Math.round(vm.stats.delivered)}t · 冻毁 ${vm.stats.frozen} 艘\n`
       + `建筑 ${vm.stats.buildings} 座 · 解锁节点卡 ${vm.stats.cards} 张`)
     // 重试本幕：仅当存在幕入口快照（第一幕失败只能重开）

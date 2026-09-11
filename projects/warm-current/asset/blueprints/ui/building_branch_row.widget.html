@@ -1,0 +1,16 @@
+<widget name="BuildingBranchRow" canvas="372x60">
+  <style>
+    .Btn_row { width: 372px; height: 60px; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 8px; }
+    .Btn_row:hover { background-color: #27506e; }
+    .RowName { width: 352px; height: 22px; font-size: 16px; color: #cfe3ee; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000099; }
+    .RowDesc { width: 352px; height: 18px; font-size: 14px; color: #7fdcff; text-align: center; text-shadow: 1px 1px 4px #00000099; }
+    .RowCost { width: 352px; height: 16px; font-size: 14px; color: #ffe9a8; text-align: center; text-shadow: 1px 1px 4px #00000099; }
+  </style>
+  <div class="Root">
+    <button class="Btn_row" data-name="Btn_row">
+      <text class="RowName" data-name="RowName"></text>
+      <text class="RowDesc" data-name="RowDesc"></text>
+      <text class="RowCost" data-name="RowCost"></text>
+    </button>
+  </div>
+</widget>

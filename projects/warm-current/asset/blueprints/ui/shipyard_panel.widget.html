@@ -1,25 +1,35 @@
 <widget name="ShipyardPanel" canvas="1920x1080" data-script="gameplay/ui/ShipyardPanelScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
-    .PanelRoot { width: 560px; height: 560px; position: absolute; left: 680px; top: 240px; display: flex; flex-direction: column; gap: 8px; }
-    .ShipyardBody { width: 560px; height: 560px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 8px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
-    .PanelTitleRow { width: 530px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-    .TitleText { width: 300px; height: 34px; flex-shrink: 0; font-size: 22px; color: #ffd9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .PanelRoot { width: 640px; height: 720px; position: absolute; left: 640px; top: 180px; display: flex; flex-direction: column; gap: 8px; }
+    .ShipyardBody { width: 640px; height: 720px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .PanelTitleRow { width: 610px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 380px; height: 34px; flex-shrink: 0; font-size: 22px; color: #ffd9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .Btn_yd_close { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
     .Btn_yd_close:hover { background-color: #3d566f; }
     .Label_yd_close { width: 110px; height: 28px; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .StatusText { width: 530px; height: 28px; flex-shrink: 0; font-size: 19px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
-    .QueueTitle { width: 530px; height: 26px; flex-shrink: 0; font-size: 16px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; }
-    .ShipCardList { width: 532px; height: 300px; flex-shrink: 0; }
-    .Btn_yd_build { width: 530px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a5a3a; border-radius: 10px; }
+    .StatusText { width: 610px; height: 28px; flex-shrink: 0; font-size: 18px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .StepTitle { width: 610px; height: 26px; margin-top: 4px; flex-shrink: 0; font-size: 16px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .HullList { width: 612px; height: 128px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .ModuleList { width: 612px; height: 128px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .OrderText { width: 610px; height: 26px; flex-shrink: 0; font-size: 16px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .QueueTitle { width: 610px; height: 24px; flex-shrink: 0; font-size: 16px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; }
+    .ShipCardList { width: 612px; height: 150px; flex-shrink: 0; }
+    .Btn_yd_build { width: 610px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #2a5a3a; border-radius: 10px; }
     .Btn_yd_build:hover { background-color: #35704a; }
-    .BtnLabel { width: 400px; height: 32px; flex-shrink: 0; font-size: 20px; color: #b8ffd8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .BtnLabel { width: 480px; height: 32px; flex-shrink: 0; font-size: 20px; color: #b8ffd8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="PanelRoot" data-name="PanelRoot">
       <div class="ShipyardBody" data-name="ShipyardBody">
         <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">船坞</text><button class="Btn_yd_close" data-name="Btn_yd_close"><text class="Label_yd_close">✕ 关闭</text></button></div>
         <text class="StatusText" data-name="StatusText"></text>
+        <text class="StepTitle" data-name="HullTitle">① 选船型</text>
+        <div class="HullList" data-name="HullList"></div>
+        <text class="StepTitle" data-name="ModuleTitle">② 选配模块（可不配）</text>
+        <div class="ModuleList" data-name="ModuleList"></div>
+        <text class="StepTitle" data-name="OrderTitle">③ 入队</text>
+        <text class="OrderText" data-name="OrderText"></text>
         <text class="QueueTitle" data-name="QueueTitle">造船队列（队首建造中）</text>
         <div class="ShipCardList" data-name="ShipCardList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
         <button class="Btn_yd_build" data-name="Btn_yd_build"><text class="BtnLabel" data-name="BtnLabel">造船</text></button>

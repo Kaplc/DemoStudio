@@ -1,8 +1,11 @@
 {
-  "_comment": "聚能环建设参数（2026-09-08 造价制改版：每级交点有独立 H3 造价 level_cost.table.json，建设进度 = 已投入 ÷ 本级造价，灌满 → 交点 +1）。消费方 gameplay/core/balance.ts refreshBalanceFromConfigs 覆盖 B.ringBuild（字段取自本文件 ringBuild 键下）；RingBuildComponent.tickBuild 灌入即实扣 earthH3 并记 ledger.ringBuild。\n字段含义：\n  defaultPoints = 开局默认建设点数；\n  minPoints = 建设点数下限（回收封底，0 = 允许清空点数暂停建设）；\n  costPerS = 每点每秒灌入 H3（吨/秒/点）——全局建设速度杠杆（速度 = costPerS × 点数 ÷ 本级造价），原 rateAdd（每点加算倍率）随造价制移除（提速改调本值或表造价）；卡效果 ringBuildCostMult 造价制下折扣本级造价（省总 H3），不乘灌入速率。\n注：点数为 0 或断环（=储量耗尽）均停建，断环时还停费，无衰减乘区。",
+  "_comment": "聚能环建设参数（2026-09-08 造价制改版：每级交点有独立 H3 造价 level_cost.table.json，建设进度 = 已投入 ÷ 本级造价，灌满 → 交点 +1）。消费方 gameplay/core/balance.ts refreshBalanceFromConfigs 覆盖 B.ringBuild（字段取自本文件 ringBuild 键下）；RingBuildComponent.tickBuild 灌入即实扣 earthH3 并记 ledger.ringBuild。\n字段含义：\n  defaultPoints = 开局默认建设点数；\n  minPoints = 建设点数下限（回收封底，0 = 允许清空点数暂停建设）；\n  costPerS = 每点每秒灌入 H3（吨/秒/点）——全局建设速度杠杆（速度 = costPerS × 点数 ÷ 本级造价），原 rateAdd（每点加算倍率）随造价制移除（提速改调本值或表造价）；卡效果 ringBuildCostMult 造价制下折扣本级造价（省总 H3），不乘灌入速率。\n注：点数为 0 或断环（=储量耗尽）均停建，断环时还停费，无衰减乘区。\n2026-09-11 槽位化追加：demolishCostPct=环段建筑拆除费比例(造价×此值，不返还；走建设泵反向灌入≈同格建设时长×此值)；floorBurnMult=环建筑焚烧乘区防爆地板(阻止25格全稳压→焚烧归零的死平解)；floorMult=其余环建筑乘区封底(极端构筑保底)。",
   "ringBuild": {
     "defaultPoints": 1,
     "minPoints": 0,
-    "costPerS": 2
+    "costPerS": 2,
+    "demolishCostPct": 0.2,
+    "floorBurnMult": 0.2,
+    "floorMult": 0.5
   }
 }

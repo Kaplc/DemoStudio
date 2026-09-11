@@ -7,7 +7,7 @@
  * 星图布局用画布坐标（1920×1080，y 向下），与渲染/拾取约定一致。
  */
 import { ConfigRegistry } from '@/engine'
-import type { PlanetId, ResearchLineId, StarId } from './types'
+import type { PlanetId, ResearchLineId, SimBuilding, SimState, StarId } from './types'
 
 // ─── 类型 ───
 
@@ -66,6 +66,92 @@ export interface BuildingDef {
   refundPct: number
   /** 可否被航线链接（地球↔建筑 补给线） */
   linkable: boolean
+  /** 强化分支表（一槽二选一；行键 = SimBuilding.upgrade；缺省 = 该建筑无强化） */
+  upgrades?: Record<string, BuildingUpgradeDef>
+}
+
+/** 建筑强化分支定义（building.table.json 行内 upgrades 键；一槽二选一，装一拆一） */
+export interface BuildingUpgradeDef {
+  name: string
+  desc: string
+  /** 安装造价（H3，点击即扣；拆除费 = 造价 × 全局 demolishCostPct 不返还） */
+  cost: number
+  /** 效果修正（buildingEffectiveDef 合成；同键乘算/加算见字段语义） */
+  mods: {
+    /** 缓存上限乘区（×2 = 800→1600） */
+    bufferCapMult?: number
+    /** 功能半径乘区（×1.6 = 22→35） */
+    radiusMult?: number
+    /** 护盾保全名额加算（+2 = 2→4） */
+    shipCapAdd?: number
+    /** 反向补给线单船建材乘区（×1.5 重载吊臂） */
+    hookMult?: number
+  }
+}
+
+/** 环段建筑效果修正集（ringModsOf 聚合目标；乘算键线性叠乘、加算键加算，封底见 ringBuild.floor*） */
+export interface RingModSet {
+  /** 全局焚烧乘区（稳压环段 0.96/座；封底 floorBurnMult = 0.2） */
+  burnMult: number
+  /** 全船满载乘区（超导馈线 1.03/座） */
+  loadMult: number
+  /** 船队上限加算（扩容泊位 +1/座） */
+  shipCapAdd: number
+  /** 建设灌入泵速乘区（施工分段 1.05/座） */
+  buildPumpMult: number
+  /** 全线研究速率乘区（研究馈能 1.04/座） */
+  researchMult: number
+  /** 断环降温时长乘区（蓄热井 1.12/座 = 降得更慢） */
+  coolTimeMult: number
+  /** 堆心回温时长乘区（蓄热井 0.92/座 = 回得更快） */
+  warmTimeMult: number
+}
+
+/** 环上建筑定义（= ring_building.table.json 行，行键 = ringBuildings[] 元素；全局经济修正） */
+export interface RingBuildingDef {
+  name: string
+  desc: string
+  /** 安装造价（H3，点击即扣；拆除费 = 造价 × ringBuild.demolishCostPct 走建设泵反向灌入） */
+  cost: number
+  /** 每座效果（线性叠加；键 = RingModSet 字段） */
+  mods: Partial<RingModSet>
+}
+
+/** 船型定义（= ship_hull.table.json 行，行键 = SimShip.hull；造船时定型不可改装） */
+export interface ShipHullDef {
+  name: string
+  desc: string
+  /** 船体造价（H3；整单价 = 船体 + Σ模块，×船坞折扣） */
+  cost: number
+  /** 本船型满载乘区 */
+  loadMult: number
+  /** 本船型航速乘区 */
+  speedMult: number
+  /** 内置特性（'anti_freeze' = 冻毁免疫，罩外也存活） */
+  innate: string[]
+  /** 可装模块 id 清单（'*' = 全部） */
+  allowed: string[]
+}
+
+/** 船用模块定义（= ship_module.table.json 行，行键 = SimShip.modules 元素；仅本船生效） */
+export interface ShipModuleDef {
+  name: string
+  desc: string
+  /** 模块造价（H3；并入造船整单价） */
+  cost: number
+  /** 效果（仅本船；乘算叠加） */
+  mods: {
+    /** 本船满载乘区（货舱扩容 ×1.3） */
+    loadMult?: number
+    /** 本船油耗乘区（副油箱 ×0.8） */
+    fuelMult?: number
+    /** 本船航速乘区（离子引擎 ×1.2） */
+    speedMult?: number
+    /** 装卸时长乘区（快速货泵 ×0.6） */
+    workMult?: number
+    /** 耀斑冻毁免疫（防冻加热器） */
+    antiFreeze?: boolean
+  }
 }
 
 /** 卡 id（= cards.table.json 行键） */
@@ -207,10 +293,13 @@ export const B = {
   loadSeconds: 2,
   unloadSeconds: 2,
   dangerReserveSeconds: 60,
-  startNodes: 1,
-  researchNodeCap: 11,
-  totalNodes: 12,
-  /** 聚能环等级阶梯级数（满级 = 覆盖 100% 全球组网；25 级 × 2.5h 局时长 ≈ 每级 6 分钟） */
+  /** 开局已建成环段数（第 1 格建成但空置：第一分钟引导完成第一次安装） */
+  startSlots: 1,
+  /** 环段槽位总数（25 槽位制：每建成一级交付一个空槽位，等级 = 已建成槽位数推导） */
+  ringSlots: 25,
+  /** 研究线弹卡封顶已建成槽位数（达到后停弹卡；≈ 旧 11/12 交点口径的等比映射 22/25） */
+  researchSlotCap: 22,
+  /** 等级阶梯级数（= 环段数；每级 1 研究点，25 级 = 25 点与改版前总量一致） */
   ringLevels: 25,
   nodeInterval: 130,
   runningRateBonus: 1.25,
@@ -218,22 +307,26 @@ export const B = {
   researchPointRateAdd: 0.5,
   /** 研究点数计费：每点每秒消耗 H3（吨/秒/点；断环或储量耗尽不计费不加成） */
   researchPointCostPerS: 3,
-  /** 聚能环建设（造价制，2026-09-08 拍板：每级交点独立 H3 造价，进度 = 已投入 ÷ 本级造价。
+  /** 聚能环建设（造价制，2026-09-08 拍板：每级槽位独立 H3 造价，进度 = 已投入 ÷ 本级造价。
    *  ring_build.config.json（标量）+ level_cost.table.json（逐级造价）可覆盖：
    *  defaultPoints = 开局建设点数；minPoints = 最低保留点数（回收封底，0 = 可清空暂停建设）；
    *  costPerS = 每点每秒灌入 H3（吨/秒/点，灌入即计费；全局速度杠杆，速度 = costPerS × 点数 ÷ 本级造价）；
-   *  levelCost = 第 n 个交点的总造价（吨；灌满 → 交点点亮；运行时 × ringBuildCostMult 卡折扣）。
-   *  点数 0 或断环（=储量耗尽）停建，断环还停费，无衰减乘区。原 rateAdd/nodeInterval 随造价制移除
-   *  （提速调 costPerS，节奏调表造价）。 */
+   *  levelCost = 第 n 个环段的总造价（吨；灌满 → 交付；运行时 × ringBuildCostMult 卡折扣）。
+   *  demolishCostPct = 环段建筑拆除费比例（造价 × 此值，走建设泵反向灌入 ≈ 同格建设时长 × 此值）；
+   *  floorBurnMult / floorMult = 环建筑乘区防爆地板（焚烧乘区不低于 0.2，其余乘区不低于 0.5）。
+   *  点数 0 或断环（=储量耗尽）停建，断环还停费，无衰减乘区。 */
   ringBuild: {
     defaultPoints: 1,
     minPoints: 0,
     costPerS: 2,
-    levelCost: [107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107],
+    demolishCostPct: 0.2,
+    floorBurnMult: 0.2,
+    floorMult: 0.5,
+    levelCost: Array.from({ length: 25 }, () => 51),
   },
-  /** 堆心温度降温时长（秒）：储量耗尽（断环）期间堆心从满温缓降到 0 = 堆心熄灭 */
+  /** 堆心温度降温时长（秒）：储量耗尽（断环）期间堆心从满温缓降到 0 = 堆心熄灭（蓄热井 ×coolTimeMult） */
   coreCoolSeconds: 30,
-  /** 堆心温度升温时长（秒）：补入燃料后堆心从 0 缓慢回满（不会瞬间回满） */
+  /** 堆心温度升温时长（秒）：补入燃料后堆心从 0 缓慢回满（不会瞬间回满；蓄热井 ×warmTimeMult） */
   coreWarmSeconds: 10,
   initialShips: 3,
   shipBuildCost: 180,
@@ -241,6 +334,8 @@ export const B = {
   cargoBase: 200,
   shipRebuildCost: 150,
   materialH3PerUnit: 0.5,
+  /** 建筑强化拆除费比例（强化造价 × 此值，不返还；环段建筑另用 ringBuild.demolishCostPct） */
+  upgradeDemolishCostPct: 0.2,
   // 舰队维护费阶梯（按总船数升序查档：船越多维护费越高 → H3/秒 从地球储备持续扣除）
   fleetMaint: [
     { ships: 3, costPerS: 0 },
@@ -252,8 +347,9 @@ export const B = {
   // 飞船数量上限（按聚能环等级查 ship_cap 表 l1..l25；只挡主动造船，卡片/GM 加船可越限）。
   // 曲线 2+⌈0.4×等级⌉：Lv1=3（开局满编，升环解锁造船）→ Lv25=12（与 fleetMaint 顶档对齐）
   shipCap: [3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12, 12],
-  act2Nodes: 4,
-  act3Nodes: 8,
+  // 三幕门槛（环段口径：原 4/12、8/12 交点等比映射 → 8/25、16/25）
+  act2Slots: 8,
+  act3Slots: 16,
   act3SurviveSeconds: 240,
   moduleLegSeconds: 36,
   moduleLoadSeconds: 3,
@@ -271,11 +367,49 @@ export const B = {
   // 事件
   gravity: { period: 90, warn: 10, active: 20, speedMult: 2.0, fuelMult: 0.5 },
   flare: { minInterval: 100, maxInterval: 150, duration: 20, warnLead: 10, firstDelay: 60 },
-  // 地图建筑（building.table.json 覆盖；行键 = SimBuilding.type，建造面板行序 = 键序）
+  // 地图建筑（building.table.json 覆盖；行键 = SimBuilding.type，建造面板行序 = 键序。
+  // upgrades = 强化分支表（一槽二选一；玩家设计权扩展：装一拆一，拆除费不返还）
   buildings: {
-    relay: { name: '中转站', desc: '被航线链接 · 缓存物资', cost: 150, radius: 0, bufferCap: 800, shipCap: 0, resumeDelay: 0, refundPct: 0.5, linkable: true },
-    shield: { name: '磁场护盾发生器', desc: '耀斑护盾 · 半径内保全飞船', cost: 220, radius: 220, bufferCap: 0, shipCap: 2, resumeDelay: 3, refundPct: 0.5, linkable: false },
+    relay: {
+      name: '中转站', desc: '被航线链接 · 缓存物资', cost: 150, radius: 0, bufferCap: 800, shipCap: 0, resumeDelay: 0, refundPct: 0.5, linkable: true,
+      upgrades: {
+        cold_store: { name: '冷库扩容', desc: '缓存上限 ×2（800→1600）', cost: 120, mods: { bufferCapMult: 2 } },
+        heavy_hook: { name: '重载吊臂', desc: '反向补给线单船建材 ×1.5', cost: 120, mods: { hookMult: 1.5 } },
+      },
+    },
+    shield: {
+      name: '磁场护盾发生器', desc: '耀斑护盾 · 半径内保全飞船', cost: 220, radius: 220, bufferCap: 0, shipCap: 2, resumeDelay: 3, refundPct: 0.5, linkable: false,
+      upgrades: {
+        cap_plate: { name: '名额扩容', desc: '保全名额 +2（2→4）', cost: 160, mods: { shipCapAdd: 2 } },
+        range_coil: { name: '扩域线圈', desc: '罩半径 ×1.6（22→35）', cost: 160, mods: { radiusMult: 1.6 } },
+      },
+    },
   } as Record<string, BuildingDef>,
+  // 环上建筑（ring_building.table.json 覆盖；行键 = ringBuildings[] 元素，全局经济修正、
+  // 线性加算堆叠无上限、乘区防爆地板封底；环构筑 = 玩家亲手搭出的经济引擎）
+  ringBuildings: {
+    regulator: { name: '稳压环段', desc: '全局焚烧 −4%', cost: 200, mods: { burnMult: 0.96 } },
+    conduit: { name: '超导馈线', desc: '全船满载 +3%', cost: 260, mods: { loadMult: 1.03 } },
+    berth: { name: '扩容泊位', desc: '船队上限 +1', cost: 400, mods: { shipCapAdd: 1 } },
+    constr: { name: '施工分段', desc: '建设灌入速率 +5%', cost: 300, mods: { buildPumpMult: 1.05 } },
+    feeder: { name: '研究馈能', desc: '全线研究速率 +4%', cost: 240, mods: { researchMult: 1.04 } },
+    heatwell: { name: '蓄热井', desc: '断环降温时长 +12% · 回温提速 −8%', cost: 220, mods: { coolTimeMult: 1.12, warmTimeMult: 0.92 } },
+  } as Record<string, RingBuildingDef>,
+  // 船型（ship_hull.table.json 覆盖；行键 = SimShip.hull，造船时定型不可改装）
+  shipHulls: {
+    standard: { name: '标准型', desc: '均衡船体 · 可装全部模块', cost: 180, loadMult: 1.0, speedMult: 1.0, innate: [], allowed: ['*'] },
+    hauler: { name: '重载型', desc: '满载 ×1.4 · 航速 ×0.85 · 限装货舱/货泵', cost: 260, loadMult: 1.4, speedMult: 0.85, innate: [], allowed: ['cargo_pod', 'pump'] },
+    courier: { name: '快速型', desc: '满载 ×0.7 · 航速 ×1.35 · 限装引擎/油箱', cost: 240, loadMult: 0.7, speedMult: 1.35, innate: [], allowed: ['ion_engine', 'aux_tank'] },
+    guardian: { name: '防务型', desc: '内置防冻（冻毁免疫）· 满载 ×0.8 · 限装货舱/油箱', cost: 320, loadMult: 0.8, speedMult: 1.0, innate: ['anti_freeze'], allowed: ['cargo_pod', 'aux_tank'] },
+  } as Record<string, ShipHullDef>,
+  // 船用模块（ship_module.table.json 覆盖；行键 = SimShip.modules 元素，仅本船生效）
+  shipModules: {
+    cargo_pod: { name: '货舱扩容', desc: '本船满载 ×1.3', cost: 180, mods: { loadMult: 1.3 } },
+    aux_tank: { name: '副油箱', desc: '本船油耗 ×0.8', cost: 160, mods: { fuelMult: 0.8 } },
+    ion_engine: { name: '离子引擎', desc: '本船航速 ×1.2', cost: 200, mods: { speedMult: 1.2 } },
+    pump: { name: '快速货泵', desc: '装卸时间 ×0.6', cost: 140, mods: { workMult: 0.6 } },
+    heater: { name: '防冻加热器', desc: '耀斑冻毁免疫（罩外也存活）', cost: 320, mods: { antiFreeze: true } },
+  } as Record<string, ShipModuleDef>,
   // 近地轨道建筑（orbit_build.table.json 覆盖；行键 = OrbitBuilding.type，轨道建设面板行序 = 键序）
   orbitBuildings: {
     dock: { name: '船坞', desc: '轨道造船 · 造价 −25% / 提速 30%', cost: 260, buildTime: 60, shipBuildCostMult: 0.75, shipBuildSpeedMult: 1.3 },
@@ -321,6 +455,86 @@ export const B = {
   cards: [] as CardDef[],
 }
 
+// ─── 环建筑 / 船型模块 / 建筑强化（查表入口 + 乘区聚合，纯函数） ───
+
+/** 环上建筑定义查询（未知类型 null） */
+export function ringBuildingDefOf(id: string): RingBuildingDef | null {
+  return (B.ringBuildings as Record<string, RingBuildingDef | undefined>)[id] ?? null
+}
+
+/** 船型定义查询（未知船型 null） */
+export function shipHullDefOf(id: string): ShipHullDef | null {
+  return (B.shipHulls as Record<string, ShipHullDef | undefined>)[id] ?? null
+}
+
+/** 船用模块定义查询（未知模块 null） */
+export function shipModuleDefOf(id: string): ShipModuleDef | null {
+  return (B.shipModules as Record<string, ShipModuleDef | undefined>)[id] ?? null
+}
+
+/** 全零环乘区（无环建筑 / 兜底） */
+export function freshRingMods(): RingModSet {
+  return { burnMult: 1, loadMult: 1, shipCapAdd: 0, buildPumpMult: 1, researchMult: 1, coolTimeMult: 1, warmTimeMult: 1 }
+}
+
+/**
+ * 环建筑全局乘区聚合（方案口径：**线性加算堆叠**——每座按 (值−1) 加算进乘区，
+ * 25 格全稳压 = 1 − 25×4% → 封底 0.2；纯函数，读态即得）。
+ * 拆除中的目标槽建筑效果立即停摆（跳过统计，六型效果全为增益，停摆只亏不赚无拆机套利）。
+ * 防爆地板：焚烧乘区封底 floorBurnMult（阻止 25 格全稳压 → 焚烧归零的死平解），
+ * 其余乘算键封底 floorMult；加算与上限不封（极端构筑爽感保留）。
+ */
+export function ringModsOf(state: Pick<SimState, 'ringBuildings' | 'ringDemolish'>): RingModSet {
+  const m = freshRingMods()
+  const arr = state.ringBuildings ?? []
+  for (let i = 0; i < arr.length; i++) {
+    const id = arr[i]
+    if (!id) continue
+    if (state.ringDemolish && state.ringDemolish.active && i === state.ringDemolish.slot) continue
+    const def = ringBuildingDefOf(id)
+    if (!def) continue
+    const e = def.mods
+    // 线性加算：每座贡献 (值 − 1)（乘区键）或原值（加算键 shipCapAdd）
+    if (e.burnMult !== undefined) m.burnMult += e.burnMult - 1
+    if (e.loadMult !== undefined) m.loadMult += e.loadMult - 1
+    if (e.buildPumpMult !== undefined) m.buildPumpMult += e.buildPumpMult - 1
+    if (e.researchMult !== undefined) m.researchMult += e.researchMult - 1
+    if (e.coolTimeMult !== undefined) m.coolTimeMult += e.coolTimeMult - 1
+    if (e.warmTimeMult !== undefined) m.warmTimeMult += e.warmTimeMult - 1
+    if (e.shipCapAdd !== undefined) m.shipCapAdd += e.shipCapAdd
+  }
+  m.burnMult = Math.max(B.ringBuild.floorBurnMult, m.burnMult)
+  for (const k of ['loadMult', 'buildPumpMult', 'researchMult', 'coolTimeMult', 'warmTimeMult'] as const) {
+    m[k] = Math.max(B.ringBuild.floorMult, m[k])
+  }
+  return m
+}
+
+/**
+ * 建筑有效定义 = 表基值 + 已装强化修正合成（强化数值消费唯一出口：
+ * 护盾半径/名额、缓存上限等消费方一律走这里，改表/换分支即生效）。
+ * 返回新对象（不改 B 表值）；未知建筑类型返回 null。
+ */
+export function buildingEffectiveDef(b: Pick<SimBuilding, 'type' | 'upgrade'>): BuildingDef | null {
+  const base = (B.buildings as Record<string, BuildingDef | undefined>)[b.type] ?? null
+  if (!base) return null
+  const def: BuildingDef = { ...base }
+  const up = b.upgrade && base.upgrades ? base.upgrades[b.upgrade] : undefined
+  if (!up) return def
+  const e = up.mods
+  if (e.bufferCapMult !== undefined) def.bufferCap = Math.round(def.bufferCap * e.bufferCapMult)
+  if (e.radiusMult !== undefined) def.radius = def.radius * e.radiusMult
+  if (e.shipCapAdd !== undefined) def.shipCap = def.shipCap + e.shipCapAdd
+  return def
+}
+
+/** 建筑反向补给线建材乘区（重载吊臂 hookMult；无强化 = 1；buildingEffectiveDef 之外的独立修正键） */
+export function buildingHookMult(b: Pick<SimBuilding, 'type' | 'upgrade'>): number {
+  const base = (B.buildings as Record<string, BuildingDef | undefined>)[b.type]
+  const up = b.upgrade && base?.upgrades ? base.upgrades[b.upgrade] : undefined
+  return up?.mods.hookMult ?? 1
+}
+
 /** 代码内置默认卡库（cards.table.json 未加载时的兜底；与表内容保持同步） */
 export const DEFAULT_CARDS: CardDef[] = [
   { id: 'event_warning', name: '事件预警', type: 'unlock', line: 'infra', gain: '极寒停航提前 10 秒预告', cost: '该线下次生长 −10%', effects: { flareWarning: true, nextGrowth: { line: 'self', mult: 0.9 } } },
@@ -354,9 +568,9 @@ export function refreshBalanceFromConfigs(): void {
     const g = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.global')
     assignNumeric(B as unknown as Record<string, unknown>, g, [
       'earthH3Start', 'baseBurnPerLeg', 'baseLegSeconds', 'loadSeconds', 'unloadSeconds',
-      'dangerReserveSeconds', 'startNodes', 'researchNodeCap', 'totalNodes', 'ringLevels', 'nodeInterval',
+      'dangerReserveSeconds', 'startSlots', 'ringSlots', 'researchSlotCap', 'ringLevels', 'nodeInterval',
       'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'coreCoolSeconds', 'coreWarmSeconds', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
-      'shipRebuildCost', 'materialH3PerUnit', 'act2Nodes', 'act3Nodes', 'act3SurviveSeconds',
+      'shipRebuildCost', 'materialH3PerUnit', 'upgradeDemolishCostPct', 'act2Slots', 'act3Slots', 'act3SurviveSeconds',
       'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
     ])
   // 聚能环建设参数（独立配置 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底。
@@ -365,7 +579,7 @@ export function refreshBalanceFromConfigs(): void {
     const rbRaw = ConfigRegistry.getConfig<Record<string, unknown>>('warm-current.ring_build')
     const rbCfg = (rbRaw?.ringBuild ?? rbRaw) as Record<string, number>
     if (rbCfg) {
-      for (const k of ['defaultPoints', 'minPoints', 'costPerS'] as const) {
+      for (const k of ['defaultPoints', 'minPoints', 'costPerS', 'demolishCostPct', 'floorBurnMult', 'floorMult'] as const) {
         if (typeof rbCfg[k] === 'number') (B.ringBuild as unknown as Record<string, number>)[k] = rbCfg[k]
       }
     }
@@ -433,6 +647,52 @@ export function refreshBalanceFromConfigs(): void {
         const row = table.getRow(key)
         const def = (B.buildings as Record<string, BuildingDef | undefined>)[key]
         if (def && row) Object.assign(def, row)
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 环上建筑表（ring_building.table.json：行键 = 环建筑 id，整行覆盖默认值；
+  // 表新增行而代码无默认值时按兜底行插入，纯表驱动加环建筑）
+  try {
+    const table = ConfigRegistry.getTable<Partial<RingBuildingDef>>('warm-current.ring_building')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.ringBuildings as Record<string, RingBuildingDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.ringBuildings as Record<string, RingBuildingDef>)[key] = {
+          name: key, desc: '', cost: 0, mods: {}, ...row,
+        }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 船型表（ship_hull.table.json：行键 = SimShip.hull，整行覆盖；表加行即加船型）
+  try {
+    const table = ConfigRegistry.getTable<Partial<ShipHullDef>>('warm-current.ship_hull')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.shipHulls as Record<string, ShipHullDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.shipHulls as Record<string, ShipHullDef>)[key] = {
+          name: key, desc: '', cost: 0, loadMult: 1, speedMult: 1, innate: [], allowed: ['*'], ...row,
+        }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 船用模块表（ship_module.table.json：行键 = 模块 id，整行覆盖；表加行即加模块）
+  try {
+    const table = ConfigRegistry.getTable<Partial<ShipModuleDef>>('warm-current.ship_module')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.shipModules as Record<string, ShipModuleDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.shipModules as Record<string, ShipModuleDef>)[key] = {
+          name: key, desc: '', cost: 0, mods: {}, ...row,
+        }
       }
     }
   } catch { /* 未注册 → 默认值 */ }

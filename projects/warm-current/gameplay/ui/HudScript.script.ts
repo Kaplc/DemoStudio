@@ -28,6 +28,8 @@ import PlanetInfoScript, { PLANET_INFO_WIDGET } from './PlanetInfoScript.script'
 import StatsPanelScript, { STATS_PANEL_WIDGET } from './StatsPanelScript.script'
 import OrbitPanelScript, { ORBIT_BUILD_PANEL_WIDGET } from './OrbitPanelScript.script'
 import ShipyardPanelScript, { SHIPYARD_PANEL_WIDGET } from './ShipyardPanelScript.script'
+import BuildingDetailScript, { BUILDING_DETAIL_WIDGET } from './BuildingDetailScript.script'
+import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -66,6 +68,8 @@ export default class HudScript extends BehaviourScript {
   private planetInfoPanel: Actor | null = null
   private orbitPanel: Actor | null = null
   private shipyardPanel: Actor | null = null
+  private buildingDetailPanel: Actor | null = null
+  private fleetOrderBar: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -189,6 +193,12 @@ export default class HudScript extends BehaviourScript {
     // 船坞造船面板（居中位：星图点船坞弹出，ShipyardPanelScript 读 vm.shipyard 自驱动）
     this.shipyardPanel = this.world?.ui.spawnUIActor(SHIPYARD_PANEL_WIDGET) ?? null
     if (!this.shipyardPanel) logger.warn('[HudScript] shipyard_panel 生成失败')
+    // 建筑详情浮层（右侧：点地图建筑弹出，BuildingDetailScript 读 vm.buildingDetail 自驱动，强化装拆流）
+    this.buildingDetailPanel = this.world?.ui.spawnUIActor(BUILDING_DETAIL_WIDGET) ?? null
+    if (!this.buildingDetailPanel) logger.warn('[HudScript] building_detail 生成失败')
+    // 耀斑决策条（底部：预警期框选船上屏，FleetOrderBarScript 读 vm.fleetOrders 自驱动）
+    this.fleetOrderBar = this.world?.ui.spawnUIActor(FLEET_ORDER_BAR_WIDGET) ?? null
+    if (!this.fleetOrderBar) logger.warn('[HudScript] fleet_order_bar 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')

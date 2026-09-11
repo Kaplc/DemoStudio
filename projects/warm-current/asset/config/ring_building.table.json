@@ -1,0 +1,33 @@
+{
+  "_comment": "环上建筑配置表（2026-09-11 聚能环槽位化：25 环段槽位 × 环构筑经济引擎）。行键 = 环建筑 id（ringBuildings[] 元素）。\n 全部全局效果、线性加算堆叠、无上限（每座效果压低，靠数量堆出构筑）；乘区防爆地板见 ring_build.config.json（焚烧封底 20%、其余乘区封底 0.5）。\n cost=安装造价(H3，点击即扣入 ledger.ringInstall)；拆除费 = cost × ring_build.demolishCostPct（走建设泵反向灌入，拆除期间该座效果停摆）。\n mods=每座效果修正集（键=burnMult 全局焚烧乘区 / loadMult 全船满载乘区 / shipCapAdd 船队上限加算 / buildPumpMult 建设泵速乘区 / researchMult 研究速率乘区 / coolTimeMult 断环降温时长乘区 / warmTimeMult 回温时长乘区；乘算键逐座叠乘、加算键逐座加算）。\n 加新环建筑：加一行 + 安装列表自动多一行（RingPanelScript 按表渲染），无需改代码。",
+  "regulator": {
+    "name": "稳压环段", "desc": "全局焚烧 −4%",
+    "cost": 200,
+    "mods": { "burnMult": 0.96 }
+  },
+  "conduit": {
+    "name": "超导馈线", "desc": "全船满载 +3%",
+    "cost": 260,
+    "mods": { "loadMult": 1.03 }
+  },
+  "berth": {
+    "name": "扩容泊位", "desc": "船队上限 +1",
+    "cost": 400,
+    "mods": { "shipCapAdd": 1 }
+  },
+  "constr": {
+    "name": "施工分段", "desc": "建设灌入速率 +5%",
+    "cost": 300,
+    "mods": { "buildPumpMult": 1.05 }
+  },
+  "feeder": {
+    "name": "研究馈能", "desc": "全线研究速率 +4%",
+    "cost": 240,
+    "mods": { "researchMult": 1.04 }
+  },
+  "heatwell": {
+    "name": "蓄热井", "desc": "断环降温时长 +12% · 回温提速 −8%",
+    "cost": 220,
+    "mods": { "coolTimeMult": 1.12, "warmTimeMult": 0.92 }
+  }
+}

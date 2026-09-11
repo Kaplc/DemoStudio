@@ -90,7 +90,7 @@ test.describe('warm-current HUD 改版（topbar 并入 + 底部科研入口）',
       const out = { hudFound: !!hud, ringFound: !!ring }
       for (const n of ['TimeText', 'ReserveText', 'Btn_pause', 'Btn_speed', 'Btn_restart', 'Btn_info']) out[n] = !!window.__findRec(hud, n)
       out.noNodesTextInHud = !window.__findRec(hud, 'NodesText')
-      out.ringNodesBar = !!window.__findRec(ring, 'NodesBar')
+      out.ringNodesBar = !!window.__findRec(ring, 'SlotsBar')
       out.ringStateText = !!window.__findRec(ring, 'StateText')
       return out
     }`)
@@ -100,7 +100,7 @@ test.describe('warm-current HUD 改版（topbar 并入 + 底部科研入口）',
     }
     expect(res.noNodesTextInHud, 'HUD 顶栏不应再有 NodesText（已迁入 RingPanel）').toBe(true)
     expect(res.ringFound, '聚能环面板 RingPanel 应已生成').toBe(true)
-    expect(res.ringNodesBar, 'RingPanel 内应有交点进度条 NodesBar').toBe(true)
+    expect(res.ringNodesBar, 'RingPanel 内应有环段进度条 SlotsBar').toBe(true)
     expect(res.ringStateText, 'RingPanel 内应有状态徽标 StateText').toBe(true)
   })
 

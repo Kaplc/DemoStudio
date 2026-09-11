@@ -84,6 +84,10 @@ export interface MapViewProvider {
   buildMode: { typeId: string } | null
   /** 建筑模式光标（网格吸附坐标 + 合法性） */
   buildCursor: BuildCursor | null
+  /** 耀斑预警框选矩形（非空 = 画选框；落点结算在 GameMode） */
+  boxDrag: { x0: number; y0: number; x1: number; y1: number } | null
+  /** 框选中的船 id 集（光点高亮圈） */
+  selectedShips: number[]
 }
 
 /** 星球是否已解锁（对齐 TransportComponent.starUnlocked 语义） */
@@ -103,6 +107,8 @@ const C_SHIP_OUTBOUND = 0xff6a3d
 const C_SHIP_RETURN = 0x96bed6
 const C_SHIP_MATERIAL = 0xffb03d
 const C_SHIP_MISSION = 0xffe9a8
+const C_SHIP_SHELTER = 0x7dffb0
+const C_SHIP_HOLD = 0xbfe9ff
 
 // ─── 视图分组（星图切换：地球系 / 太阳系；ViewToggle → GameMode.setViewMode → applyViewMode） ───
 
@@ -355,6 +361,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private earthArc: THREE.Mesh | null = null
   private lastArcKey = ''
+  /** 25 段环段弧池（槽位化：逐段点亮；每段 = 贴地弧 mesh，已装段附小型建筑标记） */
+  private slotArcs: THREE.Mesh[] = []
+  private slotMarkers: THREE.Mesh[] = []
+  /** 框选矩形（耀斑预警框选手势；半透明面片） */
+  private boxQuad: THREE.Mesh | null = null
   /** 细轨道圈几何（1.5% 环宽，公转轨道专用；flatRingGeo 太粗） */
   private flatOrbitGeo!: THREE.RingGeometry
   /** 卫星环（卫星绕母星轨道圈，圆心每帧贴母星实时位置；id → mesh） */
@@ -754,6 +765,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         let color = C_SHIP_OUTBOUND
         if (ship.state === 'flying' && ship.leg === 'return') color = C_SHIP_RETURN
         else if (ship.materials > 0) color = C_SHIP_MATERIAL
+        // 耀斑决策视觉（玩家设计权）：框选 = 白亮 / 靠站 = 绿 / 待命 = 冰蓝
+        if (this.provider.selectedShips.includes(ship.id)) color = 0xffffff
+        else if (ship.order === 'shelter') color = C_SHIP_SHELTER
+        else if (ship.order === 'hold') color = C_SHIP_HOLD
         place(pos.x, pos.y, color, flareActive ? 24 + Math.random() * 10 : 30)
       })
     }
@@ -771,30 +786,76 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private syncNodes(): void {
     const { simState: sim } = this.provider
-    // 覆盖弧（节点/环状态变化才重建）
-    const arcKey = `${sim.state.nodes}`
+    // 25 段环段弧（槽位化：逐段点亮；已建成槽位段亮、已装段附建筑标记；段数/装入签名变化才重建）
+    const totalSlots = Math.max(1, B.ringSlots)
+    const installedSig = (sim.state.ringBuildings ?? []).map((x) => x ?? '-').join('').slice(0, totalSlots)
+    const arcKey = `${sim.state.ringSlots}/${totalSlots}/${installedSig}`
     if (arcKey !== this.lastArcKey) {
       this.lastArcKey = arcKey
       if (this.earthArc) {
         this.root3.remove(this.earthArc)
         this.earthArc.geometry.dispose()
         ;(this.earthArc.material as THREE.Material).dispose()
+        this.earthArc = null
       }
-      const coverage = sim.state.nodes / 12
+      for (const m of this.slotArcs) {
+        this.root3.remove(m)
+        m.geometry.dispose()
+        ;(m.material as THREE.Material).dispose()
+      }
+      this.slotArcs = []
+      for (const m of this.slotMarkers) {
+        this.root3.remove(m)
+        m.geometry.dispose()
+        ;(m.material as THREE.Material).dispose()
+      }
+      this.slotMarkers = []
+      // 每段 = 独立弧几何（2π/25 扇区留 12% 缺口显分段感），圆心 = 太阳、半径 = 地球轨道
       const arcRadius = orbitRadiusPx('earth')
-      const arcGeo = this.F.createRingGeometry(arcRadius - 7, arcRadius, 96, 1, -Math.PI / 2, coverage * Math.PI * 2)
-      arcGeo.rotateX(-Math.PI / 2)
-      const arcMat = this.F.createMeshBasicMaterial({ color: COLORS_ORANGE, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
-      this.earthArc = this.own(this.F.createMesh(arcGeo, arcMat)).object
-      this.earthArc.position.set(toWX(B.map.nodes.sun.x), 3.5, toWZ(B.map.nodes.sun.y))
-      this.earthArc.renderOrder = 11
-      // 聚能弧画在地球公转轨道上（圆心=太阳）＝太阳系全景信息，地球系视图不显示
-      this.sunGroup.add(this.earthArc)
+      const sector = (Math.PI * 2) / totalSlots
+      const gap = sector * 0.12
+      for (let i = 0; i < totalSlots; i++) {
+        if (i >= sim.state.ringSlots) break
+        const a0 = -Math.PI / 2 + i * sector + gap / 2
+        const geo = this.F.createRingGeometry(arcRadius - 7, arcRadius, 24, 1, a0, sector - gap)
+        geo.rotateX(-Math.PI / 2)
+        const installed = !!(sim.state.ringBuildings ?? [])[i]
+        const mat = this.F.createMeshBasicMaterial({
+          color: installed ? 0xffd98a : COLORS_ORANGE,
+          transparent: true,
+          opacity: installed ? 1 : 0.95,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+        const mesh = this.own(this.F.createMesh(geo, mat)).object
+        mesh.position.set(toWX(B.map.nodes.sun.x), 3.5, toWZ(B.map.nodes.sun.y))
+        mesh.renderOrder = 11
+        this.slotArcs.push(mesh)
+        // 聚能弧画在地球公转轨道上（圆心=太阳）＝太阳系全景信息，地球系视图不显示
+        this.sunGroup.add(mesh)
+        if (installed) {
+          // 已装格小型建筑标记（段中线小球，视觉 = 环上小建筑）
+          const mid = a0 + (sector - gap) / 2
+          const markerGeo = this.trackGeo(this.F.createSphereGeometry(4.5, 8, 8))
+          const markerMat = this.F.createMeshBasicMaterial({ color: 0xffe9a8 })
+          const marker = this.own(this.F.createMesh(markerGeo, markerMat)).object
+          marker.position.set(
+            toWX(B.map.nodes.sun.x) + Math.cos(mid) * (arcRadius - 3.5),
+            7,
+            toWZ(B.map.nodes.sun.y) + Math.sin(mid) * (arcRadius - 3.5),
+          )
+          marker.renderOrder = 12
+          this.slotMarkers.push(marker)
+          this.sunGroup.add(marker)
+        }
+      }
     }
-    if (this.earthArc) {
-      const pulse = sim.state.ring === 'decaying' ? 0.5 + 0.5 * Math.sin(this.animTime * 6) : 0
-      ;(this.earthArc.material as THREE.MeshBasicMaterial).color.setHex(
-        sim.state.ring === 'decaying' ? (pulse > 0.5 ? 0xe84545 : 0xbfe9ff) : COLORS_ORANGE)
+    // 断环脉冲着色（运转 = 橙；衰减 = 红蓝交替闪烁，与旧覆盖弧同语言）
+    if (this.slotArcs.length > 0) {
+      const decaying = sim.state.ring === 'decaying'
+      const pulse = decaying ? 0.5 + 0.5 * Math.sin(this.animTime * 6) : 0
+      const color = decaying ? (pulse > 0.5 ? 0xe84545 : 0xbfe9ff) : COLORS_ORANGE
+      for (const seg of this.slotArcs) (seg.material as THREE.MeshBasicMaterial).color.setHex(color)
     }
     // 星球状态（位置由蓝图 StarActor.syncFrom 唯一驱动；此处只写标签/窗口环/解锁透明度）
     for (const star of Object.values(B.stars)) {
@@ -1548,11 +1609,34 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.syncTutorial()
     this.syncMissionLine()
     this.syncDrag()
+    this.syncBoxDrag()
     this.syncBuildMode(cam ?? null)
     this.syncFx()
     this.syncFlare()
     this.syncLabelLod(cam ?? null)
     this.syncViewFilter()
+  }
+
+  /** 耀斑预警框选矩形（半透明冰蓝面片；GameMode.boxDrag 驱动，懒建常驻显隐） */
+  private syncBoxDrag(): void {
+    const box = this.provider.boxDrag
+    if (!box) {
+      if (this.boxQuad) this.boxQuad.visible = false
+      return
+    }
+    if (!this.boxQuad) {
+      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }))
+      this.boxQuad = this.own(this.F.createMesh(this.flatQuadGeo, mat)).object
+      this.boxQuad.position.y = 6
+      this.boxQuad.renderOrder = 13
+      this.systemGroup.add(this.boxQuad)
+    }
+    const w = Math.abs(box.x1 - box.x0)
+    const h = Math.abs(box.y1 - box.y0)
+    this.boxQuad.visible = w > 2 && h > 2
+    this.boxQuad.position.x = toWX((box.x0 + box.x1) / 2)
+    this.boxQuad.position.z = toWZ((box.y0 + box.y1) / 2)
+    this.boxQuad.scale.set(w, 1, h)
   }
 }
 

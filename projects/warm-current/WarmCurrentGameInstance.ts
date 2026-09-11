@@ -58,14 +58,30 @@ export interface WarmCurrentDebugBridge {
   forceBuild(): void
   forceResearch(): string | null
   chooseCardByIndex(i: number): boolean
-  setNodes(n: number): void
+  /** 直接建成 N 个环段（25 槽位制；旧 setNodes 口径更名） */
+  setSlots(n: number): void
   setH3(v: number): void
+  /** 环段建筑（环构筑）：安装 / 发起拆除（建设泵反向灌入）/ 泵目标切换 / 装入表探针 */
+  installRing(slot: number, buildingId: string): boolean
+  demolishRing(slot: number): boolean
+  setRingDemolishActive(active: boolean): void
+  ringInfo(): { built: number; total: number; buildings: (string | null)[]; demolish: { slot: number; progress: number; active: boolean } | null; fees: number[] } | null
   /** 建筑系统（building 表驱动）：放置（x/y 画布系，内部网格吸附）/ 拆除 / 选中 */
   placeBuilding(type: string, x: number, y: number): boolean
   /** 网格吸附预演（snapToGrid 同口径，不落盘）— e2e 按格点摆放建筑/选点位用 */
   snapPos(x: number, y: number): { x: number; y: number }
   demolishBuilding(id: number): boolean
   selectBuilding(id: number): void
+  /** 建筑强化（一槽二选一）：装 / 拆 */
+  installUpgrade(buildingId: number, upgradeId: string): boolean
+  removeUpgrade(buildingId: number): boolean
+  /** 船型模块造船（hull = ship_hull 行键；modules 逗号分隔 ship_module 行键；GM 无船坞 = 原价） */
+  buildShipHull(hull: string, modulesCsv?: string): boolean
+  /** 耀斑预警态（框选决策窗口；确定性验证用）+ 框选/决策直驱 */
+  beginFlareWarn(): void
+  selectShipsInRect(x0: number, y0: number, x1: number, y1: number): number
+  orderShips(order: string): number
+  clearShipSelection(): void
   /** 建筑模式（星图网格放置）：进入 / 取消 / 当前状态 */
   enterBuildMode(type: string): boolean
   cancelBuildMode(): void
@@ -348,7 +364,7 @@ export class WarmCurrentGameInstance extends GameInstance {
         const s = instance._gameMode?.simState.state
         return s ? s.routes.map((r) => ({ id: r.id, direction: r.direction, ships: r.shipIds.length })) : []
       },
-      buildShip: () => instance._gameMode?.transport.tryBuildShip() ?? false,
+      buildShip: () => instance._gameMode?.transport.tryBuildShip('standard', []) ?? false,
       rebuildShip: (shipId) => instance._gameMode?.transport.tryRebuildShip(shipId) ?? false,
       allocateResearch: (line, delta) =>
         instance._gameMode?.research.allocateResearch(line as import('./gameplay/core/types').ResearchLineId, delta) ?? false,
@@ -359,9 +375,15 @@ export class WarmCurrentGameInstance extends GameInstance {
       if (m) m.simState.state.ringBuildProgress = 1
     },
       chooseCardByIndex: (i) => instance._gameMode?.chooseCardByIndex(i) ?? false,
-      setNodes: (n) => {
+      setSlots: (n) => {
         const mode = instance._gameMode
-        if (mode) mode.simState.state.nodes = Math.max(1, Math.min(12, Math.round(n)))
+        if (!mode) return
+        const s = mode.simState.state
+        s.ringSlots = Math.max(1, Math.min(B.ringSlots, Math.round(n)))
+        // 装入表长度对齐（GM 抽象口径：表总长恒 ringSlots 总数）
+        if (!Array.isArray(s.ringBuildings) || s.ringBuildings.length !== B.ringSlots) {
+          s.ringBuildings = Array.from({ length: B.ringSlots }, (_, i) => s.ringBuildings?.[i] ?? null)
+        }
       },
       setH3: (v) => {
         const mode = instance._gameMode
@@ -377,8 +399,36 @@ export class WarmCurrentGameInstance extends GameInstance {
       demolishBuilding: (id) => instance._gameMode?.buildings.tryDemolish(id) ?? false,
       selectBuilding: (id) => {
         const mode = instance._gameMode
-        if (mode) mode.selection = { type: 'building', id }
+        if (mode) {
+          mode.selection = { type: 'building', id }
+          mode.openBuildingDetail(id)
+        }
       },
+      installRing: (slot, buildingId) => instance._gameMode?.ringBuild.installBuilding(slot, buildingId) ?? false,
+      demolishRing: (slot) => instance._gameMode?.ringBuild.startDemolish(slot) ?? false,
+      setRingDemolishActive: (active) => instance._gameMode?.ringBuild.setDemolishActive(active),
+      ringInfo: () => {
+        const mode = instance._gameMode
+        if (!mode) return null
+        const s = mode.simState.state
+        return {
+          built: s.ringSlots,
+          total: B.ringSlots,
+          buildings: s.ringBuildings,
+          demolish: s.ringDemolish,
+          fees: s.ringBuildings.map((_, i) => mode.ringBuild.demolishFeeOf(i)),
+        }
+      },
+      installUpgrade: (buildingId, upgradeId) => instance._gameMode?.buildings.tryInstallUpgrade(buildingId, upgradeId) ?? false,
+      removeUpgrade: (buildingId) => instance._gameMode?.buildings.tryRemoveUpgrade(buildingId) ?? false,
+      buildShipHull: (hull, modulesCsv) => {
+        const modules = (modulesCsv ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+        return instance._gameMode?.transport.tryBuildShip(hull, modules) ?? false
+      },
+      beginFlareWarn: () => instance._gameMode?.hazards.beginFlareWarn(),
+      selectShipsInRect: (x0, y0, x1, y1) => instance._gameMode?.selectShipsInRect(x0, y0, x1, y1) ?? 0,
+      orderShips: (order) => instance._gameMode?.orderSelectedShips(order as never) ?? 0,
+      clearShipSelection: () => instance._gameMode?.clearShipSelection(),
       enterBuildMode: (type) => instance._gameMode?.enterBuildMode(type) ?? false,
       cancelBuildMode: () => instance._gameMode?.cancelBuildMode(),
       buildModeInfo: () => instance._gameMode?.buildMode ?? null,
