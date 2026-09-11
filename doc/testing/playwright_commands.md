@@ -435,6 +435,10 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **50. 启动页工程卡片带入场动画，locator.click 等 stable 超时** —— 现象：`getByRole('button', { name: /WarmCurrent/ }).click()` 卡在 `waiting for element to be visible, enabled and stable` 直到超时（元素已 resolve）。原因：`startup-project-card` 有 CSS 入场动画，Playwright actionability 检查等不到 stable。规则：启动页卡片/菜单类元素**用 `page.evaluate` DOM 直点**（`(el).click()`）绕过 actionability；「打开工程」按钮同理，点完用 `browser_wait_for` 等重载。
 
+**51. evaluate 模板字符串是页面原文执行，不过 TS 转译** —— 现象：`page.evaluate(\`(() => { const b = (window as unknown as {...}).__warmCurrent; ... })()\`)` 报 `SyntaxError: Unexpected identifier 'as'`。原因：传**函数**给 evaluate/waitForFunction 时序列化的是编译产物（TS 已剥），传**字符串**则逐字进页面执行，串内 `as`/类型注解/泛型全是语法错误。规则：字符串 evaluate 串内一律纯 JS（页面内只写 `window.__warmCurrent`）；类型断言写在串外（`await page.evaluate(... ) as {...}`）。
+
+**52. 调试桥 `state()` 返回活引用，原子段多步读值不快照 = 别名污染** —— 现象：单次 evaluate 内「装 A → 读 → 拆 → 读 → 装 B → 读」，三个读全拿到同一个活对象，return 字面量在块尾才求值 → 三个值全是最终态（实测 warm 建筑强化断言装 cold_store 读到 heavy_hook）。原因：`state()` 回活 state、`find` 回活引用，JS 无快照语义。规则：原子段内每步操作后**立即提取原语值**（`const s1 = { upgrade: x.upgrade, invested: x.invested }`），return 里只引用原语；或让桥方法直接返回脱快照。
+
 ---
 
 

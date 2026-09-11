@@ -962,3 +962,27 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 - 数据入口：`src/editor/AgentService.ts` 的 `extractDiffsFromMeta` → `tests/extractDiffsFromMeta.test.ts`。
 - 真实链路：`tests/e2e/agent/tool-card-diff.spec.ts`——**用 `addInitScript` 把 `/api/*` 的 fetch 换成合成 RPC**（`session.list` / `session.history` 返回带 `meta.diffs` 的合成事件），因此不依赖 DSH 真身、无副作用；行号锚定的 `readTextFile` 也由页面内 stub 提供。这个"合成历史 + localStorage 命中恢复路径"的存根模式可复用到任何需要渲染既有转录的面板用例。
 - 样式：`src/styles/editor.css` 的 `.tool-diff*` 区段（在 `.tool-card__details` 之后）。
+
+---
+
+## 13. 供应商设置：模型上下文与视觉配置（2026-09-11）
+
+「更多」(⋮) → 「供应商设置」→ `SettingsPanel`。除 API Key 管理外，支持两层模型能力配置：
+
+- **添加自定义第三方**：模型列表是行编辑器，每行 = 模型 ID + 上下文大小（token，可留空）+ 视觉勾选（= `input: ['text','image']`）；
+- **编辑已有供应商**：卡片上的「编辑」按钮（仅 `settings.yaml` 里有用户级条目的供应商显示，纯内置目录不显示），可改显示名称 / Base URL / 模型行。写回走 `settings.mutate`（`op:'set', path:['providers', id]`），DSH 侧热加载即生效。
+
+### 13.1 为什么需要：模态声明是 DSH 的收图门禁
+
+DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.providers.<id>.models[].input` 声明，**不是模型真实能力**。手工声明且 pi-ai 内置目录无同名条目的模型（如 glm-5.3-flash）`input` 缺省兜底 `["text"]`，请求带图直接被 `dsh-llm-pi-ai` 的门禁抛 "does not support image input"。此前只能手工改 settings.yaml，且该文件被重写时声明会丢；这个面板把两类字段（`contextWindow` / `input`）的产品化入口补上了。
+
+### 13.2 写回语义（改这块别改回去）
+
+`rowToModel` 以**原始旧条目为底**合并：保留 `maxTokens` 等未编辑字段；上下文留空/非法 → 删除 `contextWindow` 键（跟随目录默认，而不是继承旧值）；视觉勾选 → 写 `input:['text','image']`，取消 → **删除 `input` 键**（回退内置目录默认模态）。`handleSaveProviderConfig` 传给 `buildModelsFromRows` 的合并底必须是 `existing.models` 原始数组——换成裁剪过的投影对象会把未知字段静默丢掉（首版踩过，测试 `settingsPanelModels.test.tsx` 锁定）。
+
+### 13.3 文件与测试分工
+
+- 组件：`src/components/agent/SettingsPanel.tsx`（`ModelRowsEditor` 行编辑器 + `rowToModel` / `buildModelsFromRows` / `formatContextWindow` 等导出纯函数）；
+- 样式：`src/styles/editor.css` 的 `.settings-panel__model-*` / `.settings-panel__config-edit` 区段；
+- 单测：`tests/settingsPanelModels.test.tsx`（mock 掉 AgentService，断言 `settings.mutate` 载荷形状；vitest `globals:false` 下 testing-library 不自动清 DOM，必须手动 `afterEach(cleanup)`）；
+- E2E：`e2e/agent/provider-model-config.spec.ts`——`addInitScript` hook `window.fetch` 按 RPC method 返回合成响应（`session.list` 命中 `demostudio.dsh.session` localStorage 映射走 recovering 路径），`settings.mutate` 只记录进 `window.__dshMutations` 不落真盘，全程无副作用。
