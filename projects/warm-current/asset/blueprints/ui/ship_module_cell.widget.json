@@ -1,7 +1,7 @@
 {
   "name": "ShipModuleCell",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-8b2e8a6c",
+  "sourceHash": "fnv1a-fa4477bc",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -22,14 +22,14 @@
           1
         ],
         "worldWidth": 200,
-        "worldHeight": 40
+        "worldHeight": 44
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
         "width": 200,
-        "height": 40,
+        "height": 44,
         "name": "Canvas",
         "zOrder": 0,
         "active": true
@@ -56,7 +56,7 @@
               1
             ],
             "worldWidth": 200,
-            "worldHeight": 40,
+            "worldHeight": 44,
             "position": [
               0,
               0,
@@ -93,7 +93,7 @@
                   1
                 ],
                 "worldWidth": 200,
-                "worldHeight": 40,
+                "worldHeight": 44,
                 "position": [
                   0,
                   0,
@@ -125,7 +125,7 @@
                 "color": "#16323f",
                 "radius": 8,
                 "width": 200,
-                "height": 40,
+                "height": 44,
                 "name": "Btn_cell"
               }
             }

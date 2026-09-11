@@ -1,7 +1,7 @@
 {
   "name": "RingInstallRow",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-663a6899",
+  "sourceHash": "fnv1a-afee7209",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -22,14 +22,14 @@
           1
         ],
         "worldWidth": 166,
-        "worldHeight": 36
+        "worldHeight": 44
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
         "width": 166,
-        "height": 36,
+        "height": 44,
         "name": "Canvas",
         "zOrder": 0,
         "active": true
@@ -56,7 +56,7 @@
               1
             ],
             "worldWidth": 166,
-            "worldHeight": 36,
+            "worldHeight": 44,
             "position": [
               0,
               0,
@@ -93,7 +93,7 @@
                   1
                 ],
                 "worldWidth": 166,
-                "worldHeight": 36,
+                "worldHeight": 44,
                 "position": [
                   0,
                   0,
@@ -125,7 +125,7 @@
                 "color": "#1d3a52",
                 "radius": 6,
                 "width": 166,
-                "height": 36,
+                "height": 44,
                 "name": "Btn_row"
               }
             }

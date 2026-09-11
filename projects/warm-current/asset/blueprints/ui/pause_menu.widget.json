@@ -1,7 +1,7 @@
 {
   "name": "PauseMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-7ed1abf3",
+  "sourceHash": "fnv1a-f22d59c3",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -351,7 +351,7 @@
                         "shadowColor": "#00000080",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
-                        "shadowBlur": 3
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -405,7 +405,7 @@
                         "shadowColor": "#00000080",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
-                        "shadowBlur": 3
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -624,7 +624,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -752,7 +752,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -973,7 +973,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1101,7 +1101,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1322,7 +1322,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1450,7 +1450,7 @@
                             "shadowColor": "#00000080",
                             "shadowOffsetX": 0,
                             "shadowOffsetY": 1,
-                            "shadowBlur": 3
+                            "shadowBlur": 4
                           }
                         }
                       ],
@@ -1566,7 +1566,7 @@
                         "shadowColor": "#ffffff59",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
-                        "shadowBlur": 2
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -1680,7 +1680,7 @@
                         "shadowColor": "#00000080",
                         "shadowOffsetX": 0,
                         "shadowOffsetY": 1,
-                        "shadowBlur": 3
+                        "shadowBlur": 4
                       }
                     }
                   ],
@@ -1736,7 +1736,7 @@
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 0,
                     "shadowOffsetY": 1,
-                    "shadowBlur": 3
+                    "shadowBlur": 4
                   }
                 }
               ],

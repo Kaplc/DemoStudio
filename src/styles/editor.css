@@ -5181,6 +5181,76 @@ html, body, #root {
   gap: 2px;
 }
 
+/* 模型能力标签（上下文 / 视觉） */
+.settings-panel__provider-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.settings-panel__model-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-base, #1e1e1e);
+  border: 1px solid var(--dsw-alias-border-l2, #3c3c3c);
+  color: var(--dsw-alias-label-secondary, #aaa);
+  font: var(--dsw-font-xxs);
+  white-space: nowrap;
+}
+
+/* 模型行编辑器 */
+.settings-panel__model-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-panel__model-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.settings-panel__model-id {
+  width: 100%;
+}
+
+.settings-panel__model-ctx {
+  width: 110px;
+}
+
+.settings-panel__model-vision {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: var(--dsw-font-xxs);
+  color: var(--dsw-alias-label-primary, #ccc);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-panel__model-vision input[type='checkbox'] {
+  accent-color: var(--dsw-alias-accent, #007acc);
+  cursor: pointer;
+}
+
+.settings-panel__model-remove {
+  padding: 4px 8px;
+}
+
+.settings-panel__model-add {
+  padding: 4px 10px;
+}
+
+/* 供应商配置编辑表单 */
+.settings-panel__config-edit {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 
 /* Agent 设置按钮 */
 .agent-panel__settings-btn {

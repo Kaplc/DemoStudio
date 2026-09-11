@@ -1,7 +1,7 @@
 {
   "name": "RingPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-981ab505",
+  "sourceHash": "fnv1a-49ba2d7c",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -105,11 +105,11 @@
                   1
                 ],
                 "worldWidth": 588,
-                "worldHeight": 784,
+                "worldHeight": 826,
                 "anchor": "center",
                 "anchorOffset": [
                   14,
-                  -12
+                  -33
                 ],
                 "position": [
                   0,
@@ -133,7 +133,7 @@
                 "color": "#0e1a24e8",
                 "radius": 14,
                 "width": 588,
-                "height": 784,
+                "height": 826,
                 "name": "Panel"
               }
             }
@@ -161,7 +161,7 @@
                     "worldHeight": 44,
                     "position": [
                       -14,
-                      358,
+                      379,
                       0
                     ]
                   }
@@ -432,7 +432,7 @@
                     "worldHeight": 34,
                     "position": [
                       -14,
-                      311,
+                      332,
                       0
                     ]
                   }
@@ -625,7 +625,7 @@
                     "worldHeight": 30,
                     "position": [
                       -14,
-                      271,
+                      292,
                       0
                     ]
                   }
@@ -818,7 +818,7 @@
                     "worldHeight": 244,
                     "position": [
                       -14,
-                      126,
+                      147,
                       0
                     ]
                   }
@@ -856,7 +856,7 @@
                     "worldHeight": 34,
                     "position": [
                       -14,
-                      -21,
+                      0,
                       0
                     ]
                   }
@@ -1049,7 +1049,7 @@
                     "worldHeight": 44,
                     "position": [
                       -14,
-                      -66,
+                      -45,
                       0
                     ]
                   }
@@ -1447,7 +1447,7 @@
                     "worldHeight": 186,
                     "position": [
                       -4,
-                      -189,
+                      -168,
                       0
                     ]
                   }
@@ -1545,10 +1545,10 @@
                           1
                         ],
                         "worldWidth": 512,
-                        "worldHeight": 84,
+                        "worldHeight": 126,
                         "position": [
                           -10,
-                          11,
+                          -10,
                           0
                         ]
                       }
@@ -1583,10 +1583,10 @@
                           1
                         ],
                         "worldWidth": 512,
-                        "worldHeight": 40,
+                        "worldHeight": 48,
                         "position": [
                           -10,
-                          -57,
+                          -103,
                           0
                         ]
                       }
@@ -1620,7 +1620,7 @@
                               1
                             ],
                             "worldWidth": 150,
-                            "worldHeight": 36,
+                            "worldHeight": 44,
                             "position": [
                               -181,
                               0,
@@ -1663,7 +1663,7 @@
                             "color": "#4a2a2a",
                             "radius": 8,
                             "width": 150,
-                            "height": 36,
+                            "height": 44,
                             "name": "Btn_slot_demo"
                           }
                         }
@@ -1813,7 +1813,7 @@
                     "worldHeight": 34,
                     "position": [
                       -14,
-                      -307,
+                      -286,
                       0
                     ]
                   }
@@ -2006,7 +2006,7 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      -341,
+                      -320,
                       0
                     ]
                   }
@@ -2059,7 +2059,7 @@
                     "worldHeight": 28,
                     "position": [
                       -14,
-                      -374,
+                      -353,
                       0
                     ]
                   }
@@ -2112,7 +2112,7 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      -405,
+                      -384,
                       0
                     ]
                   }
@@ -2165,7 +2165,7 @@
                     "worldHeight": 26,
                     "position": [
                       -14,
-                      -435,
+                      -414,
                       0
                     ]
                   }

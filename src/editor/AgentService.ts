@@ -396,6 +396,10 @@ export interface CustomProviderConfig {
   models: Array<{
     id: string
     name?: string
+    /** 上下文窗口大小（token 数） */
+    contextWindow?: number
+    /** 模态声明（含 'image' 表示支持视觉输入） */
+    input?: string[]
   }>
 }
 
