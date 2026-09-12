@@ -1,0 +1,18 @@
+{
+  "_comment": "矿种数据表（2026-09-12 行星全息勘探：DataTable 行表）。行键 = 矿种 id（MineralDepositDef.type 引用）。\n字段含义：\n  name = 显示名（全息面板/矿点提示）；\n  desc = 一句身份说明（面板详情行）；\n  color = 表现色 #RRGGBB（全息矿点标记 + 面板色点；THREE.Color 直读）。\n加矿种：加一行即可（矿点表引用新行键），代码零改动。",
+  "he3": {
+    "name": "氦-3 矿脉",
+    "desc": "聚变原料 · 直采即燃料",
+    "color": "#4fd8ff"
+  },
+  "metal": {
+    "name": "金属矿脉",
+    "desc": "精炼出售 · 折算燃料",
+    "color": "#ffb03d"
+  },
+  "ice": {
+    "name": "水冰矿脉",
+    "desc": "电解获氘 · 折算燃料",
+    "color": "#dff3ff"
+  }
+}

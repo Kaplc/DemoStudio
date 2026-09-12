@@ -12,19 +12,20 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [memoryTypes.test.ts](../../harness/ds-memory/tests/memoryTypes.test.ts) | KM-01：锁住记忆指导段四段格式与「什么不该存」文案 | 改 `memoryTypes.ts` 提示词后必跑 |
+| [memoryTypes.test.ts](../../harness/ds-memory/tests/memoryTypes.test.ts) | KM-01：锁住记忆指导段四段格式与「什么不该存」文案；prefix 触发文件列表的解析/序列化往返 | 改 `memoryTypes.ts` 提示词或 prefix 解析后必跑 |
+| [associate.test.ts（memory）](../../harness/ds-memory/tests/associate.test.ts) | matchTriggerFiles 精确匹配（多文件 OR、目录条目不命中子文件、反斜杠归一、win32 大小写）+ 注入文本组装 + 联想器集成（命中注入/同会话去重/子 agent·失败·未跟踪工具门控） | 改 `associate.ts` 联想逻辑 |
 | [endOfTurnReminder.test.ts](../../harness/ds-memory/tests/endOfTurnReminder.test.ts) | KM-06~08：回合末提醒接线（`turn-stopping` + `steer`、60s 冷却、子 agent 门控、中止/抛错兜底）+「本回合已保存过记忆则跳过」判定（各自只看自己，`experience_save` 不抑制） | 改 `index.ts` 提醒块或 `reminderSkipTools` |
 | [ruleStore.test.ts](../../harness/ds-feedback/tests/ruleStore.test.ts) | RL-01~10：规则名校验、提案落盘、同名 mode 冲突、索引单行、超限截断 | 改 `ruleStore.ts` 落盘逻辑 |
 | [preScreen.test.ts](../../harness/ds-feedback/tests/preScreen.test.ts) | RL-12~13：纠正关键词预筛 + 提示块渲染 | 调关键词或摘录上限 |
 | [turnEnd.test.ts](../../harness/ds-feedback/tests/turnEnd.test.ts) | RL-14~16：回合末接线、agent 隔离、子 agent 门控、running 撤销补检 | 改 `index.ts` 空闲监听 |
 | [experienceStore.test.ts](../../harness/ds-experience/tests/experienceStore.test.ts) | EXP-01~03：episode 落盘、同名覆盖、非法名拒绝 + prefix frontmatter/索引标注/单行校验 | 改经验落盘格式 |
 | [historyTools.test.ts](../../harness/ds-experience/tests/historyTools.test.ts) | EXP-06~07 + cwd 过滤：报错透出、转录跳过注入 | 改历史检索/转录渲染 |
-| [associate.test.ts](../../harness/ds-experience/tests/associate.test.ts) | EXP-16~19：prefix 段级匹配、&&/|| 求值、组装文本、项目根推导 + 联想器集成（登记→确认→注入、子 agent 门控、AND 累计） | 改 `associate.ts` 联想逻辑 |
+| [associate.test.ts](../../harness/ds-experience/tests/associate.test.ts) | EXP-16~19：prefix 文件列表精确匹配（任一命中触发、目录条目不命中子文件）、解析往返、组装文本、项目根推导 + 联想器集成（登记→确认→注入、子 agent 门控、列表外不触发） | 改 `associate.ts` 联想逻辑 |
 | [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24：注册冒烟、回合末提醒（内容/冷却/门控）+「本回合已 experience_save 则跳过」判定、联想装配与停用 warn | 改 `index.ts` 装配 |
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
-**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 80 个单测通过（6 文件，2026-09-10 实测）。
+**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 82 个单测通过（6 文件，2026-09-12 实测；ds-memory 同步翻新后 125 个全绿）。**2026-09-12 更新**：prefix 联想由目录前缀/&&·|| 表达式改为具体文件数组精确匹配，EXP-16~19 与 memory 侧 associate/memoryTypes/memoryWriteTool 用例同步翻新。
 
 ---
 
@@ -202,10 +203,10 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 | EXP-13 | ⚠️ 语义变更 | 现在只有主 agent 调 `experience_save` 才会覆盖，无自动 notice 通道 |
 | EXP-14 | ⚠️ 前提消失 | 后台提炼不存在了，也就无所谓「静默失败」 |
 | EXP-15 | ✅ 有效 | `history_search` → `history_read` → 模型复述，纯工具链，不依赖提炼 |
-| EXP-16 | ✅ 新增 | `associate.test.ts`：normalizeRelPath 越界/非法输入、matchExperiencePrefix 段级边界/全局 `/`/win32 大小写 |
-| EXP-17 | ✅ 新增 | `evalPrefixGroups` &&/|| 求值 + AND 跨调用累计（顺序不限）；`parsePrefixExpr` DNF 解析 |
+| EXP-16 | ✅ 2026-09-12 翻新 | `associate.test.ts`：normalizeRelPath 越界/非法输入、matchTriggerFiles 精确匹配/多文件 OR/目录条目不命中/反斜杠归一/win32 大小写 |
+| EXP-17 | ✅ 2026-09-12 翻新 | `parseTriggerFileList` 方括号数组/裸单文件/引号/反斜杠归一解析（旧 `parsePrefixExpr` &&/|| DNF 已随目录联想废弃删除） |
 | EXP-18 | ✅ 新增 | `composeExperienceAssociateMessage` 组装/预算截断/omitted 提示；`deriveExperienceProjectRoot` 形态推导 |
-| EXP-19 | ✅ 新增 | 联想器集成：pre-execute 登记→result 确认→pre-step 注入全文；子 agent/失败结果不注入；AND 前缀跨读取集齐才注入；同会话去重 |
+| EXP-19 | ✅ 2026-09-12 翻新 | 联想器集成：pre-execute 登记→result 确认→pre-step 注入全文；子 agent/失败结果/未跟踪工具不注入；读列表外文件不触发；同会话去重 |
 | EXP-20 | ✅ 新增 | `experienceStore.test.ts` prefix 往返：frontmatter 落盘/读回、INDEX 行 `[联想 …]` 标注、update 不残留、换行 prefix 拒绝 |
 
 > ~~这些不是「暂时红了」……修法只有两条~~ **已于 2026-09-09 按第一条修法执行**：`extractExperience.test.ts` 翻新为纯函数回归、`index.test.ts` 重写为提醒/联想装配用例。教训保留：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。

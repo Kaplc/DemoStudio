@@ -1,0 +1,19 @@
+{
+  "_comment": "矿建数据表（2026-09-12 行星全息勘探：DataTable 行表）。行键 = 矿建类型 id（SimMine.type），全息面板建造区行序 = 键序。\n字段含义：\n  name = 显示名；desc = 一句功能说明（建造区行文案）；\n  cost = 建造造价（H3，落位一次性扣除）；buildTime = 建造工期（秒，tickMines 灌进度）；\n  yieldPerS = 满负荷产出速率（H3 吨/秒；建成即采，受矿点余量门控，枯竭停采）；\n  minTypes = 可建矿种限制（mineral_type 行键逗号分隔；空 = 不限矿种）。\n加矿建：加一行即可（面板建造区自动多一行），代码零改动。",
+  "extractor": {
+    "name": "采矿机",
+    "desc": "低成本持续开采",
+    "cost": 150,
+    "buildTime": 12,
+    "yieldPerS": 0.5,
+    "minTypes": ""
+  },
+  "processor": {
+    "name": "冶炼厂",
+    "desc": "高投入高产出的精炼线",
+    "cost": 360,
+    "buildTime": 24,
+    "yieldPerS": 1.4,
+    "minTypes": ""
+  }
+}

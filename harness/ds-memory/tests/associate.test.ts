@@ -2,16 +2,17 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { relative, resolve, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import type { Context } from '@deepseek-ai/cordis'
 import {
   MAX_ASSOCIATE_TOTAL_CHARS,
   buildAssociateSummary,
   composeAssociateMessage,
   deriveProjectRoot,
-  evalPrefixGroups,
-  matchMemoryPrefix,
+  matchTriggerFiles,
   normalizeRelPath,
+  registerAssociator,
 } from '../src/associate.js'
-import { parsePrefixExpr } from '../src/memoryTypes.js'
+import { parseTriggerFileList } from '../src/memoryTypes.js'
 import { readAllMemories, writeMemory } from '../src/memoryStore.js'
 import { scanMemoryFiles } from '../src/memoryScan.js'
 
@@ -51,82 +52,47 @@ describe('normalizeRelPath', () => {
   })
 })
 
-describe('matchMemoryPrefix（段级前缀）', () => {
-  it('命中：前缀段与路径前缀一致', () => {
-    expect(matchMemoryPrefix('src/engine/a.ts', 'src/engine')).toBe(true)
-    expect(matchMemoryPrefix('src/engine/a/b/c.ts', 'src/engine')).toBe(true)
-    expect(matchMemoryPrefix('src/engine', 'src/engine')).toBe(true)
+describe('matchTriggerFiles（具体文件精确匹配）', () => {
+  it('命中：被读路径与列表中任一条目全等', () => {
+    expect(matchTriggerFiles('src/engine/a.ts', ['src/engine/a.ts'])).toBe(true)
+    expect(matchTriggerFiles('src/engine/a.ts', ['doc/x.md', 'src/engine/a.ts'])).toBe(true)
   })
 
-  it('不命中：段边界误匹配/前缀更长/非法段', () => {
-    expect(matchMemoryPrefix('src/engine2/a.ts', 'src/engine')).toBe(false)
-    expect(matchMemoryPrefix('lib/src/engine/a.ts', 'src/engine')).toBe(false)
-    expect(matchMemoryPrefix('src/engines/x.ts', 'src/engine')).toBe(false)
-    expect(matchMemoryPrefix('src/a.ts', 'src/engine')).toBe(false)
-    expect(matchMemoryPrefix('src/engine/a.ts', 'a/../src/engine')).toBe(false)
+  it('多文件列表任一命中即触发（OR 语义）', () => {
+    const files = ['harness/ds-memory/src/associate.ts', 'doc/engine/render.md']
+    expect(matchTriggerFiles('doc/engine/render.md', files)).toBe(true)
+    expect(matchTriggerFiles('harness/ds-memory/src/associate.ts', files)).toBe(true)
+    expect(matchTriggerFiles('src/other.ts', files)).toBe(false)
   })
 
-  it('prefix: / 全局匹配任意路径；空串/undefined 不匹配', () => {
-    expect(matchMemoryPrefix('anything/x.ts', '/')).toBe(true)
-    expect(matchMemoryPrefix('src/a.ts', '/')).toBe(true)
-    expect(matchMemoryPrefix('src/a.ts', '')).toBe(false)
-    expect(matchMemoryPrefix('src/a.ts', undefined)).toBe(false)
+  it('目录条目不再命中其下文件（旧目录联想已废弃）', () => {
+    expect(matchTriggerFiles('src/engine/a.ts', ['src/engine'])).toBe(false)
+    expect(matchTriggerFiles('src/engine/sub/deep.ts', ['src/engine'])).toBe(false)
+    expect(matchTriggerFiles('harness/a.ts', ['harness/'])).toBe(false)
   })
 
-  it('兼容反斜杠分隔；win32 忽略大小写', () => {
-    expect(matchMemoryPrefix('src\\engine\\a.ts', 'src/engine')).toBe(true)
-    expect(matchMemoryPrefix('src/engine/a.ts', 'src\\engine')).toBe(true)
+  it('不命中：同目录不同文件名/路径形似', () => {
+    expect(matchTriggerFiles('src/engine/a.ts', ['src/engine/a.ts.bak'])).toBe(false)
+    expect(matchTriggerFiles('src/engine/a.ts', ['src/engine2/a.ts'])).toBe(false)
+    expect(matchTriggerFiles('lib/src/engine/a.ts', ['src/engine/a.ts'])).toBe(false)
+  })
+
+  it('undefined / 空数组 / 全空条目不匹配', () => {
+    expect(matchTriggerFiles('src/engine/a.ts', undefined)).toBe(false)
+    expect(matchTriggerFiles('src/engine/a.ts', [])).toBe(false)
+    expect(matchTriggerFiles('src/engine/a.ts', ['  '])).toBe(false)
+  })
+
+  it('兼容反斜杠分隔（两侧归一）；win32 忽略大小写', () => {
+    expect(matchTriggerFiles('src\\engine\\a.ts', ['src/engine/a.ts'])).toBe(true)
+    expect(matchTriggerFiles('src/engine/a.ts', ['src\\engine\\a.ts'])).toBe(true)
     const expected = process.platform === 'win32'
-    expect(matchMemoryPrefix('SRC/Engine/a.ts', 'src/engine')).toBe(expected)
-  })
-})
-
-describe('evalPrefixGroups（&&/|| 求值与 AND 跨读取累计）', () => {
-  it('单前缀：命中即触发（旧语义），未命中返回剩余项', () => {
-    const groups = [['src/engine']]
-    expect(evalPrefixGroups(groups, 'src/engine/a.ts').triggered).toBe(true)
-    const miss = evalPrefixGroups(groups, 'src/engine2/a.ts')
-    expect(miss.triggered).toBe(false)
-    expect(miss.remaining).toEqual([['src/engine']])
+    expect(matchTriggerFiles('SRC/Engine/A.TS', ['src/engine/a.ts'])).toBe(expected)
   })
 
-  it('|| 任一组命中即触发', () => {
-    const groups = [['src/engine'], ['doc/engine']]
-    expect(evalPrefixGroups(groups, 'doc/engine/x.md').triggered).toBe(true)
-    const miss = evalPrefixGroups(groups, 'src/render/x.ts')
-    expect(miss.triggered).toBe(false)
-    expect(miss.remaining).toEqual(groups)
-  })
-
-  it('&& 跨调用累计：先读 a 不触发，再读 b 集齐触发', () => {
-    const groups = [['src/engine', 'doc/editor']]
-    const step1 = evalPrefixGroups(groups, 'src/engine/a.ts')
-    expect(step1.triggered).toBe(false)
-    expect(step1.remaining).toEqual([['doc/editor']])
-    expect(evalPrefixGroups(step1.remaining, 'doc/editor/readme.md').triggered).toBe(true)
-  })
-
-  it('&& 顺序不限：先读 b 后读 a 同样集齐', () => {
-    const step1 = evalPrefixGroups([['src/engine', 'doc/editor']], 'doc/editor/x.md')
-    expect(step1.triggered).toBe(false)
-    expect(step1.remaining).toEqual([['src/engine']])
-    expect(evalPrefixGroups(step1.remaining, 'src/engine/y.ts').triggered).toBe(true)
-  })
-
-  it('AND 与 OR 混合：a&&b 集齐 或 c 单独命中都触发', () => {
-    const groups = [['a', 'b'], ['c']]
-    expect(evalPrefixGroups(groups, 'c/x.ts').triggered).toBe(true)
-    const step1 = evalPrefixGroups(groups, 'a/1.ts')
-    expect(step1.triggered).toBe(false)
-    expect(step1.remaining).toEqual([['b'], ['c']])
-    expect(evalPrefixGroups(step1.remaining, 'b/2.ts').triggered).toBe(true)
-  })
-
-  it('全链路：parsePrefixExpr 解析表达式后求值；prefix: / 全局任意路径立即触发', () => {
-    const parsed = parsePrefixExpr('src/engine && doc/editor || harness')!
-    expect(evalPrefixGroups(parsed, 'harness/ds-memory/src/index.ts').triggered).toBe(true)
-    const global = parsePrefixExpr('/')!
-    expect(evalPrefixGroups(global, 'anywhere/file.txt').triggered).toBe(true)
+  it('全链路：parseTriggerFileList 解析 frontmatter 值后可匹配', () => {
+    const files = parseTriggerFileList('[src/engine/a.ts, doc/engine/b.md]')
+    expect(matchTriggerFiles('doc/engine/b.md', files)).toBe(true)
   })
 })
 
@@ -137,7 +103,7 @@ describe('composeAssociateMessage', () => {
     type: 'project',
     content: '**Problem:** 现象\n**Solution:** 解法',
     mtimeMs: now,
-    prefix: 'src/engine',
+    prefix: ['src/engine/a.ts'],
   }
 
   it('组出带触发路径与条目标题的消息，含时点警告', () => {
@@ -145,17 +111,18 @@ describe('composeAssociateMessage', () => {
     expect(text).toContain('## 自动联想记忆')
     expect(text).toContain('`src/engine/a.ts`')
     expect(text).toContain('### engine_pitfall.md [project]')
-    expect(text).toContain('prefix src/engine')
+    expect(text).toContain('prefix [src/engine/a.ts]')
     expect(text).toContain('**Problem:** 现象')
     expect(text).toContain('记忆是时点观察')
+    expect(text).toContain('以下记忆的 prefix 声明了当前读取的文件')
     expect(included).toEqual(['engine_pitfall.md'])
     expect(omitted).toBe(0)
   })
 
-  it('表达式 prefix 原样展示在条目标题中', () => {
-    const hit = { ...base, prefix: 'src/engine && doc/editor || harness' }
-    const { text } = composeAssociateMessage([hit], 'harness/a.ts', now)
-    expect(text).toContain('prefix src/engine && doc/editor || harness')
+  it('多文件触发列表以逗号拼接展示在条目标题中', () => {
+    const hit = { ...base, prefix: ['src/engine/a.ts', 'doc/engine/b.md'] }
+    const { text } = composeAssociateMessage([hit], 'src/engine/a.ts', now)
+    expect(text).toContain('prefix [src/engine/a.ts, doc/engine/b.md]')
   })
 
   it('超过 8000 字符的正文被截断并标注', () => {
@@ -219,22 +186,23 @@ describe('deriveProjectRoot', () => {
   })
 })
 
-describe('prefix 落盘 → 读取 → 扫描全链路', () => {
-  it('writeMemory 写入 prefix 行，readAllMemories/scanMemoryFiles 都能读回', async () => {
+describe('prefix 文件列表落盘 → 读取 → 扫描全链路', () => {
+  it('writeMemory 写入 prefix 数组行，readAllMemories/scanMemoryFiles 都能读回', async () => {
     const mem = await memoryDirectory()
     await writeMemory(mem, {
       name: 'engine_pitfall',
       content: '**Problem:** 现象',
       type: 'project',
       description: '引擎坑',
-      prefix: 'src/engine',
+      prefix: ['src/engine/a.ts', 'doc/engine/b.md'],
     })
     const text = await readFile(join(mem, 'engine_pitfall.md'), 'utf8')
-    expect(text).toContain('prefix: src/engine')
+    expect(text).toContain('prefix: [src/engine/a.ts, doc/engine/b.md]')
     const records = await readAllMemories(mem)
-    expect(records[0]?.prefix).toBe('src/engine')
+    expect(records[0]?.prefix).toEqual(['src/engine/a.ts', 'doc/engine/b.md'])
     const headers = await scanMemoryFiles(mem)
-    expect(headers.find(header => header.filename === 'engine_pitfall.md')?.prefix).toBe('src/engine')
+    expect(headers.find(header => header.filename === 'engine_pitfall.md')?.prefix)
+      .toEqual(['src/engine/a.ts', 'doc/engine/b.md'])
   })
 
   it('同名更新未带 prefix 时保留旧联想键；带新 prefix 时覆盖', async () => {
@@ -244,21 +212,160 @@ describe('prefix 落盘 → 读取 → 扫描全链路', () => {
       content: 'v1',
       type: 'project',
       description: '描述',
-      prefix: 'src/engine',
+      prefix: ['src/engine/a.ts'],
     })
     // 不带 prefix 更新 → 保留旧 prefix
     await writeMemory(mem, { name: 'dup_mem', content: 'v2', type: 'project', description: '描述' })
     let records = await readAllMemories(mem)
-    expect(records.find(record => record.fileName === 'dup_mem.md')?.prefix).toBe('src/engine')
+    expect(records.find(record => record.fileName === 'dup_mem.md')?.prefix).toEqual(['src/engine/a.ts'])
     // 带新 prefix 更新 → 覆盖
     await writeMemory(mem, {
       name: 'dup_mem',
       content: 'v3',
       type: 'project',
       description: '描述',
-      prefix: 'harness',
+      prefix: ['harness/ds-memory/src/tools.ts'],
     })
     records = await readAllMemories(mem)
-    expect(records.find(record => record.fileName === 'dup_mem.md')?.prefix).toBe('harness')
+    expect(records.find(record => record.fileName === 'dup_mem.md')?.prefix)
+      .toEqual(['harness/ds-memory/src/tools.ts'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// registerAssociator 集成：登记 → 结果确认 → 精确匹配 → pre-step 注入
+// ---------------------------------------------------------------------------
+
+type AnyHandler = (...args: never[]) => unknown
+
+function fakeCtx() {
+  const handlers = new Map<string, AnyHandler[]>()
+  const warns: unknown[][] = []
+  const ctx = {
+    on(event: string, handler: AnyHandler) {
+      const list = handlers.get(event) ?? []
+      list.push(handler)
+      handlers.set(event, list)
+    },
+    logger(name: string) {
+      void name
+      return {
+        warn: (...args: unknown[]) => warns.push(args),
+        info: (...args: unknown[]) => warns.push(args),
+        debug: () => {},
+      }
+    },
+  } as unknown as Context
+  return { ctx, handlers, warns }
+}
+
+/** 走一遍"读文件"事件序列：pre-execute 登记 → result 确认成功（异步匹配落定）。 */
+async function readAs(
+  handlers: Map<string, AnyHandler[]>,
+  agent: unknown,
+  token: string,
+  filePath: string,
+): Promise<void> {
+  const exec = { token, name: 'read', arguments: { file_path: filePath }, agent, parent: undefined, signal: { aborted: false } }
+  await handlers.get('tools/pre-execute')![0](exec as never, async () => ({}) as never)
+  handlers.get('tools/result')![0](exec as never, { isError: false } as never)
+  // projectHits 是 fire-and-forget 异步链（扫描记忆目录→匹配），并行负载下 10ms 不够，放宽等待
+  await new Promise(resolve => setTimeout(resolve, 50))
+}
+
+async function preStep(
+  handlers: Map<string, AnyHandler[]>,
+  agent: unknown,
+  step: number,
+): Promise<{ messages: unknown[] }> {
+  const decision = { kind: 'continue', messages: [{ role: 'user' }] }
+  let value: unknown
+  await handlers.get('agent/pre-step')![0]({ agent, step, signal: undefined } as never, async () => decision as never)
+    .then((v: unknown) => { value = v })
+  return value as { messages: unknown[] }
+}
+
+describe('registerAssociator 集成', () => {
+  it('读到 prefix 列表中的文件 → pre-step 注入记忆全文，同会话不重复', async () => {
+    const root = await memoryDirectory()
+    const memoryDir = join(root, '.dsh', 'memory')
+    await writeMemory(memoryDir, {
+      name: 'assoc_hit', content: '命中的记忆正文', type: 'project', description: '联想命中',
+      prefix: ['src/a.ts'],
+    })
+    const { ctx, handlers } = fakeCtx()
+    registerAssociator(ctx, { memoryDirectory: memoryDir, projectRoot: root })
+
+    const agent = { session: { header: {} } }
+    await readAs(handlers, agent, 't1', 'src/a.ts')
+    const first = await preStep(handlers, agent, 2)
+    expect(first.messages).toHaveLength(2)
+    const text = JSON.stringify(first.messages[1])
+    expect(text).toContain('自动联想记忆')
+    expect(text).toContain('assoc_hit.md')
+    expect(text).toContain('命中的记忆正文')
+
+    // 再次读取同文件：本会话已注入，不再追加消息
+    await readAs(handlers, agent, 't2', 'src/a.ts')
+    const second = await preStep(handlers, agent, 3)
+    expect(second.messages).toHaveLength(1)
+  })
+
+  it('读列表外的文件 / 未声明 prefix 的记忆不触发；多文件列表任一命中触发', async () => {
+    const root = await memoryDirectory()
+    const memoryDir = join(root, '.dsh', 'memory')
+    await writeMemory(memoryDir, {
+      name: 'multi_hit', content: '多文件联想', type: 'project', description: 'd',
+      prefix: ['src/x.ts', 'src/y.ts'],
+    })
+    await writeMemory(memoryDir, {
+      name: 'no_prefix', content: '无联想', type: 'project', description: 'd2',
+    })
+    const { ctx, handlers } = fakeCtx()
+    registerAssociator(ctx, { memoryDirectory: memoryDir, projectRoot: root })
+
+    const agent = { session: { header: {} } }
+    // 列表外的文件（即使是同目录）不触发
+    await readAs(handlers, agent, 'm1', 'src/z.ts')
+    const miss = await preStep(handlers, agent, 2)
+    expect(miss.messages).toHaveLength(1)
+    // 列表内第二个文件命中
+    await readAs(handlers, agent, 'm2', 'src/y.ts')
+    const hit = await preStep(handlers, agent, 3)
+    expect(hit.messages).toHaveLength(2)
+    expect(JSON.stringify(hit.messages[1])).toContain('multi_hit.md')
+  })
+
+  it('子 agent / 失败结果 / 未跟踪工具不触发注入', async () => {
+    const root = await memoryDirectory()
+    const memoryDir = join(root, '.dsh', 'memory')
+    await writeMemory(memoryDir, {
+      name: 'gated', content: '正文', type: 'project', description: 'd', prefix: ['src/a.ts'],
+    })
+    const { ctx, handlers } = fakeCtx()
+    registerAssociator(ctx, { memoryDirectory: memoryDir, projectRoot: root })
+
+    // 子 agent（delegationDepth>0）
+    const childAgent = { session: { header: { delegationDepth: 1 } } }
+    await readAs(handlers, childAgent, 'c1', 'src/a.ts')
+    const child = await preStep(handlers, childAgent, 2)
+    expect(child.messages).toHaveLength(1)
+
+    // 失败结果不登记
+    const mainAgent = { session: { header: {} } }
+    const exec = { token: 'f1', name: 'read', arguments: { file_path: 'src/a.ts' }, agent: mainAgent, parent: undefined, signal: { aborted: false } }
+    await handlers.get('tools/pre-execute')![0](exec as never, async () => ({}) as never)
+    handlers.get('tools/result')![0](exec as never, { isError: true } as never)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const failed = await preStep(handlers, mainAgent, 2)
+    expect(failed.messages).toHaveLength(1)
+
+    // 未跟踪工具（write）不登记
+    const writeExec = { token: 'w1', name: 'write', arguments: { file_path: 'src/a.ts' }, agent: mainAgent, parent: undefined, signal: { aborted: false } }
+    await handlers.get('tools/pre-execute')![0](writeExec as never, async () => ({}) as never)
+    handlers.get('tools/result')![0](writeExec as never, { isError: false } as never)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const untracked = await preStep(handlers, mainAgent, 3)
+    expect(untracked.messages).toHaveLength(1)
   })
 })

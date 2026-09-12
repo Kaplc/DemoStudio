@@ -28,6 +28,7 @@ export class SimulationComponent extends BObjectComponent<WarmCurrentGameMode> {
     this.owner.research.tickResearch(dt)
     this.owner.ringBuild.tickBuild(dt)
     this.owner.orbitBuild.tickBuild(dt)
+    this.owner.mining.tickMines(dt)
     this.owner.acts.tickActs()
     sc.checkDefeat()
   }

@@ -2,7 +2,7 @@
 name: edit_tool_strips_utf8_bom
 description: edit/write 重写文件会抹掉 UTF-8 BOM，导致本仓带 BOM 源文件 diff 首行出现噪音（含补回命令）
 type: project
-prefix: src/engine || projects/warm-current
+prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, projects/warm-current/gameplay/core/helpers.ts, src/engine/rendering/CanvasUIComponent.ts]
 ---
 
 **Problem:** 用 edit/write 改完文件后，`git diff` 首行凭空出现 BOM 差异（`﻿/**` → `/**`），像是自己动了文件头。

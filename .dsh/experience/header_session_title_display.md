@@ -3,7 +3,7 @@ name: header_session_title_display
 task_type: debug/feature
 outcome: success
 date: 2026-09-10
-prefix: src/components/agent || src/editor
+prefix: [src/editor/AgentService.ts, src/components/AgentPanel.tsx]
 ---
 ## Summary
 

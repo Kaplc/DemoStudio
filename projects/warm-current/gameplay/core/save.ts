@@ -39,8 +39,11 @@ import type { SimBuilding, SimShip, SimState } from './types'
  *      ② 船型模块：SimShip 增 hull='standard'/modules=[]（初始标准型裸船）、SimShipBuild 补
  *      hull/modules；③ 建筑强化：SimBuilding 补 upgrade=null；④ 船耀斑订单 order/shelter 为
  *      可选字段随 ships 序列化顺带保存（旧档缺失即未决策）；⑤ ledger 增 ringInstall/buildingUpgrade
- *      （freshLedger 合并兜底）。 */
-export const SAVE_FORMAT_VERSION = 11
+ *      （freshLedger 合并兜底）。 
+ *  v12：行星矿产开发（2026-09-12 用户需求：全息勘探 → 矿点造矿建 → 持续产出）——
+ *      SimState.mines 新增（旧档补空数组）、SimLedger 增 mineBuild/mining（freshLedger 合并兜底）、
+ *      SimEvent.mine_built 事件新增。 */
+export const SAVE_FORMAT_VERSION = 12
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -183,6 +186,8 @@ export function restoreSimState(
   if (typeof (sim as Partial<SimState>).ringBuildProgress !== 'number') sim.ringBuildProgress = 0
   // v8→v9 兼容（近地轨道建筑）：旧档无 orbitBuildings → 补空数组（纯增量字段，无迁移语义）
   if (!Array.isArray((sim as Partial<SimState>).orbitBuildings)) sim.orbitBuildings = []
+  // v11→v12 兼容（行星矿产开发）：旧档无 mines → 补空数组（纯增量字段，无迁移语义）
+  if (!Array.isArray((sim as Partial<SimState>).mines)) (sim as Partial<SimState>).mines = []
   // v9→v10 兼容（船坞独立造船面板）：buildQueue 剩余秒数组 → 逐船结构
   // （{remain, total, dockId}；旧档无船坞归属 → dockId=0、total=remain（进度从当前剩余继续），
   //  同 GM/桥无参路径口径）

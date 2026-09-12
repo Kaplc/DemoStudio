@@ -11,6 +11,7 @@ import {
   EXPERIENCE_INDEX_FILE,
   MAX_INDEX_LINE_LENGTH,
   normalizeEpisodeName,
+  normalizeTriggerFiles,
   parseEpisodeFrontmatter,
   parseEpisodeOutcome,
   renderEpisodeFile,
@@ -27,8 +28,8 @@ export interface EpisodeRecord {
   taskType?: string
   outcome: EpisodeOutcome | undefined
   date?: string
-  /** 联想前缀表达式（可选），语义同 EpisodeInput.prefix。 */
-  prefix?: string
+  /** 联想触发文件列表（可选），语义同 EpisodeInput.prefix。 */
+  prefix?: string[]
   /** mtime（毫秒）：联想注入的新鲜度展示与排序依据。 */
   mtimeMs: number
   /** frontmatter 之后的正文（含 Summary/Lessons 小节）。 */
@@ -54,15 +55,14 @@ export async function saveExperience(experienceDirectory: string, input: Episode
   if (input.taskType.trim() === '') throw new Error('task_type must be a non-empty string')
   if (input.summary.trim() === '') throw new Error('summary must be a non-empty string')
   if (input.lessons.trim() === '') throw new Error('lessons must be a non-empty string')
-  if (input.prefix !== undefined && /[\r\n]/.test(input.prefix)) {
-    throw new Error('prefix must be a single-line expression (use `a || b` / `a && b`)')
-  }
+  // prefix 条目规范化（反斜杠归一、去空项）；含换行条目在此抛错（frontmatter 单行约束）
+  const prefix = input.prefix === undefined ? undefined : normalizeTriggerFiles(input.prefix)
   const fileName = normalizeEpisodeName(input.name)
   const existing = await fileExists(episodeFilePath(experienceDirectory, fileName))
-  const content = renderEpisodeFile({ ...input, name: fileName.replace(/\.md$/, '') }, todayIso())
+  const content = renderEpisodeFile({ ...input, name: fileName.replace(/\.md$/, ''), prefix }, todayIso())
   await mkdir(experienceDirectory, { recursive: true })
   await writeFile(episodeFilePath(experienceDirectory, fileName), content, 'utf8')
-  await upsertIndexLine(experienceDirectory, fileName.replace(/\.md$/, ''), input)
+  await upsertIndexLine(experienceDirectory, fileName.replace(/\.md$/, ''), { ...input, prefix })
   return { status: existing ? 'updated' : 'created', fileName }
 }
 
@@ -75,16 +75,16 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-/** INDEX.md 单行索引：`- [name](name.md) — task_type · outcome · summary[ · prefix p]`，超长截断。 */
+/** INDEX.md 单行索引：`- [name](name.md) — task_type · outcome · summary[ · 联想 files]`，超长截断。 */
 export function renderIndexLine(
   name: string,
   taskType: string,
   outcome: string,
   summary: string,
-  prefix?: string,
+  prefix?: readonly string[],
 ): string {
   let hook = `${taskType} · ${outcome} · ${summary.replace(/\n/g, ' ').trim()}`
-  if (prefix !== undefined && prefix.trim() !== '') hook += ` · [联想 ${prefix.trim()}]`
+  if (prefix !== undefined && prefix.length > 0) hook += ` · [联想 ${prefix.join(', ')}]`
   const prefixText = `- [${name}](${name}.md) — `
   const budget = MAX_INDEX_LINE_LENGTH - prefixText.length
   const text = hook.length > budget ? `${hook.slice(0, Math.max(1, budget - 1))}…` : hook

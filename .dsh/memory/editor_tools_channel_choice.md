@@ -2,7 +2,7 @@
 name: editor_tools_channel_choice
 description: 编辑器/游戏两层工具通道选择规则；editor_screenshot 已于 2026-09-10 按用户要求加回（PNG 落盘 logs/screenshots/，配合 read_image）
 type: project
-prefix: harness/ds-editor-tools
+prefix: [harness/ds-editor-tools/src/index.ts, harness/ds-editor-tools/src/cdpBridge.ts]
 ---
 
 规则：DemoStudio 自动化按目标层选通道——**游戏运行层**（HUD/场景/游戏内按钮）走 `emit_ai_event`（ai.getHUD/ai.clickActor 等）及 get_hud/mouse_click 等运行层工具；**编辑器 UI**（面板/按钮/输入框）用 `editor_click`/`editor_read`/`editor_type`/`editor_scroll`/`editor_hover`/`editor_emit`（CDP :9222，已修复可用）；**画面截图**用 `editor_screenshot`（2026-09-10 按用户要求加回：CDP 截图 PNG 落盘，默认 `logs/screenshots/screenshot_*.png`，返回绝对路径后配合 `read_image` 查看）；`editor_restart` 高危（重启整个 Electron 应用）。

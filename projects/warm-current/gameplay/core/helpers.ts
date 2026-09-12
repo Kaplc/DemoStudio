@@ -367,14 +367,15 @@ export function freshLedger(): SimLedger {
   return {
     unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0, orbitBuild: 0,
     shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0, ringInstall: 0, buildingUpgrade: 0,
+    mineBuild: 0, mining: 0,
   }
 }
 
 /** 账本收支合计（旧档缺 ledger 字段时按零账本计） */
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
-  const income = l.unload + l.demolishRefund
-  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade
+  const income = l.unload + l.demolishRefund + l.mining
+  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.mineBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade
   return { income, expense, net: income - expense }
 }
 
@@ -399,6 +400,7 @@ export function createInitialState(seed: number): SimState {
     routes: [],
     buildings: [],
     orbitBuildings: [],
+    mines: [],
     research: LINE_DEFS.map((d) => ({ id: d.id, name: d.name, progress: 0, nextMult: 1, points: 0 })),
     pendingCard: null,
     cardQueue: [],

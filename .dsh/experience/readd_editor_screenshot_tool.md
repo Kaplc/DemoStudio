@@ -3,7 +3,7 @@ name: readd_editor_screenshot_tool
 task_type: feature
 outcome: success
 date: 2026-09-10
-prefix: harness/ds-editor-tools
+prefix: [harness/ds-editor-tools/src/tools/editorScreenshot.ts, harness/ds-editor-tools/src/cdpBridge.ts]
 ---
 ## Summary
 

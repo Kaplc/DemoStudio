@@ -2,7 +2,7 @@
 name: editor_mcp_roundtrip_pitfall
 description: 新增需渲染进程返回数据的编辑器 MCP/DSH 命令必须加入主进程往返模式 if 列表，否则返回空数据
 type: project
-prefix: electron
+prefix: electron/main.ts
 ---
 **Problem:** 给 MCP/DSH 加 get_scene_outline/get_ui_outline/get_assets 后调用返回空数据（只有 `{status:"ok", command:...}`，没有 outline/files 字段）。
 

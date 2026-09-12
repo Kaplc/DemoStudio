@@ -2,7 +2,7 @@
 name: grep_path_scope_false_negative
 description: 本仓 grep 工具按 path 圈目录会静默漏报（tests 目录实测假阴性），核验「某符号不存在」必须用 include 全仓搜索交叉复查
 type: project
-prefix: tests || e2e
+prefix: [tests/warmCurrentSlotsAndDesign.test.ts, e2e/warm/slots_design.spec.ts]
 ---
 
 **Problem:** 2026-09-11 核验两方案回归测试覆盖时，`grep` 带 `path: E:\DemoStudio\tests` 搜 `nodes`（文件 `tests/warm_ring_build.test.ts` 第 38/86 行明文含 `s.nodes`）与搜 `ringBuild|shipyard` 均返回 "No matches found"；同参数形式对 `E:\DemoStudio\e2e` 却正常命中。假阴性险些得出错误审计结论。

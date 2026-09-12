@@ -3,7 +3,7 @@ name: fill_two_plans_missing_regressions
 task_type: test/regression-fill
 outcome: success
 date: 2026-09-11
-prefix: tests || e2e/warm || doc/game
+prefix: [e2e/warm/slots_design.spec.ts, tests/warmCurrentSlotsAndDesign.test.ts]
 ---
 ## Summary
 

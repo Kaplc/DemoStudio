@@ -107,9 +107,21 @@ export interface OrbitBuilding {
   built: boolean
 }
 
-export type BuildingTypeId = 'relay' | 'shield'
+/** 行星矿产开发设施（2026-09-12 用户需求：全息勘探 → 矿点上造矿建 → 持续产出 H3） */
+export interface SimMine {
+  /** 矿点 id（mineral_deposit 表行键；一矿点至多一座矿建） */
+  depositId: string
+  /** 矿建类型（mine_building 表行键，B.mineBuildings 查数值） */
+  type: string
+  /** 建造进度 0..1（落位 0 起步，tickMines 灌进） */
+  progress: number
+  /** 是否建成（false = 在建；建成才开始产出） */
+  built: boolean
+  /** 该矿点已采出累计（吨；矿点余量 = 表 reserve − Σ同点 extracted） */
+  extracted: number
+}
 
-/** 地图建筑（建造面板选型 → 星图自由放置；type = building 表行键）。
+export type BuildingTypeId = 'relay' | 'shield'/** 地图建筑（建造面板选型 → 星图自由放置；type = building 表行键）。
  *  中转站（relay）：可被航线链接，反向补给线送建材入缓存；
  *  磁场护盾发生器（shield）：耀斑期间保护半径内飞船（容量限额）。
  *  入轨（2026-09-08 拍板）：靠近行星放置的建筑自动锚定该行星入轨绕其公转
@@ -195,6 +207,10 @@ export interface SimLedger {
   fleetMaint: number
   /** 近地轨道建筑建造（一次性：落位全款） */
   orbitBuild: number
+  /** 矿建建造（一次性：落位全款） */
+  mineBuild: number
+  /** 矿建产出（持续：建成矿建按 yieldPerS 采出，吨） */
+  mining: number
   /** 造船 */
   shipBuild: number
   /** 冻毁船重建 */
@@ -229,6 +245,7 @@ export type SimEventType =
   | 'frozen'
   | 'building_built'
   | 'orbit_building_built'
+  | 'mine_built'
   | 'building_demolished'
   | 'upgrade_installed'
   | 'upgrade_removed'
@@ -275,6 +292,8 @@ export interface SimState {
   buildings: SimBuilding[]
   /** 近地轨道建筑（点行星 → 轨道建设面板；绕锚行星均布公转） */
   orbitBuildings: OrbitBuilding[]
+  /** 矿产开发设施（全息勘探 → 矿点造矿建；一矿点一座） */
+  mines: SimMine[]
   research: SimResearchLine[]
   pendingCard: PendingCard | null
   /** 选卡排队（多线同时满进度） */

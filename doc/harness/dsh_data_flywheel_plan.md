@@ -88,7 +88,7 @@ export const SAVE_FLOW_TEXT = `## 记忆如何被保存
 
 > **为什么不写后台提取**：早期版本有回合末 side-query 提取，实践中要么漏存、要么滥存（把过程流水账全存进来）。现在改为「触发点绑定 + 回合末提醒」两段提示词，由主 agent 在回合内当场判定——它有完整上下文，比事后拿转录摘要判断准。
 
-> **memory_write 语义沿革**：全自动落盘 → 「返回指引、手动三步」（2026-09-09 上午）→ **「半自动：frontmatter 工具落盘、正文 agent 手写」**（2026-09-09 定稿）。现状：工具做校验（name/type/prefix 表达式）+ 按 name/description 查重后，**直接写 frontmatter**（新建文件只落头部、已有文件原位更新头部且正文原样保留）并同步 MEMORY.md 索引行，返回结果 + 正文补写提醒（`memoryTypes.ts` 的 `buildBodyWriteReminder`）——主 agent 只剩两步：① 用 write/edit 补写正文（按条目格式）② 顺便全库过时检查。格式确定性归工具、内容自由度归 agent。直接动机之一是内核 lossless JSON 边界：工具返回值不得含显式 `undefined` 键（否则 `ToolOutputError: value is not lossless JSON`），半自动把返回值收敛为纯字符串字段。
+> **memory_write 语义沿革**：全自动落盘 → 「返回指引、手动三步」（2026-09-09 上午）→ **「半自动：frontmatter 工具落盘、正文 agent 手写」**（2026-09-09 定稿）。现状：工具做校验（name/type/prefix 文件列表）+ 按 name/description 查重后，**直接写 frontmatter**（新建文件只落头部、已有文件原位更新头部且正文原样保留）并同步 MEMORY.md 索引行，返回结果 + 正文补写提醒（`memoryTypes.ts` 的 `buildBodyWriteReminder`）——主 agent 只剩两步：① 用 write/edit 补写正文（按条目格式）② 顺便全库过时检查。格式确定性归工具、内容自由度归 agent。直接动机之一是内核 lossless JSON 边界：工具返回值不得含显式 `undefined` 键（否则 `ToolOutputError: value is not lossless JSON`），半自动把返回值收敛为纯字符串字段。
 
 **读回路径**：[index.ts:89](../../harness/ds-memory/src/index.ts) 注册常驻段 `memory:guide`（order 3200），`text` 每次装配时重算，把截断后的 `MEMORY.md` 索引拼进段尾；主 agent 看到索引后按需调 `memory_search` 按文件名取正文。
 
@@ -268,6 +268,7 @@ const page = await host.ctx.sessionQuery.searchSessions({
 | ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 46 个 `.md`（45 个 episode + INDEX.md；2026-09-10 实测） |
 | ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；无 side-query/水位逻辑 |
 | ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却；本回合已成功 `experience_save` 则跳过，`reminderSkipTools` 可改）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
+| prefix 联想改文件数组精确匹配 | ✅ 2026-09-12 改造 | ds-memory/ds-experience 同步：frontmatter `prefix:` 由目录前缀/`&&`·`\|\|`表达式改为**具体文件路径数组**（读到列表任一文件即触发；旧目录前缀值不再命中，需改写为文件列表；`/` 全局不再支持）。解析 `parseTriggerFileList`、匹配 `matchTriggerFiles`；memory_write/experience_save 的 `prefix` 参数改为字符串数组（hold 语义保留，空数组等同 hold） |
 | session-query 持久索引 patch | ✅ 已写入配置 | `.dsh/profiles/{web,headless}/cordis.patch.yml` 均含 `path` + `openAt: first-search` |
 | session-query sqlite 文件 | ✅ 已建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 存在（约 36MB，2026-09-10 实测；`first-search` 惰性，首次搜索时建库） |
 | home 侧运行时 patch | ✅ 已写入（2026-09-10 实测） | `%USERPROFILE%\.dsh\profiles\{web,headless}\cordis.patch.yml` 含 8 条插件 `insert` + `session-query-sqlite` 覆盖；根级 `~/.dsh/cordis.patch.yml` 含 `agent-presets` roots（均由 `editor.bat` 生成写入） |

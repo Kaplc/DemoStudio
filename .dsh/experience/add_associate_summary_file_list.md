@@ -3,7 +3,7 @@ name: add_associate_summary_file_list
 task_type: feature
 outcome: success
 date: 2026-09-10
-prefix: harness/ds-memory || harness/ds-experience || src/components/agent
+prefix: [harness/ds-experience/src/associate.ts, harness/ds-memory/src/associate.ts, src/styles/editor.css]
 ---
 ## Summary
 

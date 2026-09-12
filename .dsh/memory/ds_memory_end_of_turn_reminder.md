@@ -2,7 +2,7 @@
 name: ds_memory_end_of_turn_reminder
 description: ds-memory 回合末提醒机制（turn-stopping + steer；本回合已保存过记忆则跳过，各自只看自己：默认仅 memory_write）
 type: project
-prefix: harness/ds-memory
+prefix: [harness/ds-memory/src/index.ts, harness/ds-memory/tests/endOfTurnReminder.test.ts]
 ---
 
 

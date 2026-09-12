@@ -3,7 +3,7 @@ name: remove_dsh_plugin_completely
 task_type: refactor/code-removal
 outcome: success
 date: 2026-09-10
-prefix: harness
+prefix: [editor.bat, scripts/sync-dsh-plugins.mjs]
 ---
 ## Summary
 

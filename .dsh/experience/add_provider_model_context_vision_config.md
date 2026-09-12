@@ -3,7 +3,7 @@ name: add_provider_model_context_vision_config
 task_type: feature
 outcome: success
 date: 2026-09-11
-prefix: src/components/agent || src/editor
+prefix: [src/components/agent/SettingsPanel.tsx, agent.html, e2e/agent/provider-model-config.spec.ts]
 ---
 ## Summary
 

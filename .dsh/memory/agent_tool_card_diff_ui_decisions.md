@@ -2,7 +2,7 @@
 name: agent_tool_card_diff_ui_decisions
 description: agent 面板 write/edit 工具卡片的 diff 视图三条用户决策：默认自动展开、长 diff 不折叠、行号 ctx 白/del 红带-/add 绿带+
 type: project
-prefix: src/components/agent || doc/editor
+prefix: [src/components/agent/ToolCard.tsx, src/components/agent/toolDiff.ts, tests/e2e/agent/tool-card-diff.spec.ts]
 ---
 
 **规则（2026-09-10 用户三轮反馈敲定，改这块别再改回去）：** agent 面板 write/edit 工具卡片的 diff 视图必须 ① **默认自动展开**（`useState(() => isDiffToolName(tool.name))`，点击头部仍可收起）；② **不折叠**——长 diff 全量渲染，不要「… 其余 N 行」折叠按钮（DSH WebUI 默认折到 16 行，本项目按用户要求去掉）；③ **行号列配色**：ctx 白（`--dsw-alias-label-primary`）、del 红（`--dsw-alias-state-error-primary` 且行号带 `-` 前缀）、add 绿（`--dsw-alias-state-success-primary` 且带 `+` 前缀），del/add 行另有红/绿底色。

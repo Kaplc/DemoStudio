@@ -2,7 +2,7 @@
 name: agent_window_log_pitfall
 description: Agent 独立窗口日志进不了主窗口 Console/日志文件的根因（renderer 单例不跨窗口）与已落地修复（2026-09-09 核实）
 type: project
-prefix: electron
+prefix: [electron/main.ts, src/engine/Logger.ts]
 ---
 **Problem:** agent 面板独立 Electron 窗口时，logger.info 既不显示在主窗口 Console 面板、也不写入 console_*.log。
 

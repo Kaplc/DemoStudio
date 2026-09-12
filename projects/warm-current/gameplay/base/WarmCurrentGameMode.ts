@@ -12,6 +12,7 @@
  * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
 import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent } from '@/engine'
+import * as THREE from 'three'
 import { starTextureFor } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
 import type { BuildingDef, BuildingUpgradeDef, OrbitBuildingDef, RingBuildingDef, ShipHullDef, ShipModuleDef, SolarFocusBody } from '../core/balance'
@@ -40,6 +41,7 @@ import { RingBuildComponent } from '../systems/RingBuildComponent'
 import { HazardsComponent } from '../systems/HazardsComponent'
 import { BuildingsComponent } from '../systems/BuildingsComponent'
 import { OrbitBuildComponent, isShipyardType, orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
+import { MiningComponent, mineDefOf, depositDefOf, depositsOf, depositLeft } from '../systems/MiningComponent'
 import { ActsComponent } from '../systems/ActsComponent'
 import { SimulationComponent } from '../systems/SimulationComponent'
 import { WarmCurrentPlayerController } from './WarmCurrentPlayerController'
@@ -186,6 +188,59 @@ export interface HudPlanetInfo {
   netFlow: number
   /** 是否航线端点（地球或资源星）— 面板据此显示拖线引导 */
   routable: boolean
+  /** 是否有已探明矿产（全息勘探入口按钮开关；表驱动） */
+  hasDeposits: boolean
+}
+
+/** 全息勘探面板矿点行（mineral_deposit 表投影 + 矿建状态） */
+export interface HudHoloDepositRow {
+  /** 矿点 id（表行键；选中态/定位参数） */
+  id: string
+  /** 矿种名（mineral_type.name） */
+  typeName: string
+  /** 矿种表现色（面板色点 + 选中描边） */
+  color: string
+  /** 总储量（吨） */
+  reserve: number
+  /** 余量（吨；reserve − Σ已采出，枯竭 0） */
+  left: number
+  /** 状态文案（未开发 / 建造中 x% / 开采中 · 剩余 N / 已枯竭） */
+  status: string
+  /** 该矿点矿建类型（mine_building 行键；未开发 null） */
+  mineType: string | null
+  /** 建造进度 0..1（未开发 0） */
+  progress: number
+  /** 是否选中（面板行高亮 + 全息标记外环） */
+  selected: boolean
+}
+
+/** 全息勘探面板建造区行（mine_building 表投影） */
+export interface HudHoloBuildRow {
+  id: string
+  name: string
+  desc: string
+  cost: number
+  buildTime: number
+  /** 产出速率展示（吨/秒） */
+  yieldPerS: number
+  /** 当前可建造（有选中矿点 & 预算足 & 非耀斑 & 无占用 & 矿种匹配 & 对局中） */
+  canBuild: boolean
+}
+
+/** 全息勘探面板数据（null = 收起；HologramPanelScript 消费） */
+export interface HudHologram {
+  /** 勘探目标天体 id */
+  body: string
+  /** 天体名（面板标题「全息勘探 · 月球」） */
+  bodyName: string
+  /** 矿点行（mineral_deposit 表序过滤本天体） */
+  deposits: HudHoloDepositRow[]
+  /** 建造区行（mine_building 表键序） */
+  buildRows: HudHoloBuildRow[]
+  /** 当前选中矿点 id（null = 未选中） */
+  selectedId: string | null
+  /** 选中矿点详情（多行文案；未选中给操作引导） */
+  detail: string
 }
 
 /** 轨道建设面板类型行（orbit_build.table 行投影） */
@@ -357,6 +412,8 @@ export interface WarmCurrentVM {
   routes: HudRouteRow[]
   /** 星球信息面板数据（null = 收起；PlanetInfoScript 消费） */
   planetInfo: HudPlanetInfo | null
+  /** 全息勘探面板数据（null = 收起；HologramPanelScript 消费，星球信息面板「全息勘探」打开） */
+  hologram: HudHologram | null
   /** 轨道建设面板数据（null = 收起；OrbitPanelScript 消费） */
   orbitBuild: HudOrbitBuild | null
   /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费，点船坞打开） */
@@ -394,6 +451,8 @@ export class WarmCurrentGameMode extends GameMode {
   readonly buildings: BuildingsComponent = this.addComponent(BuildingsComponent)
   /** 近地轨道建筑（点行星 → 轨道建设面板；船坞造船乘区） */
   readonly orbitBuild: OrbitBuildComponent = this.addComponent(OrbitBuildComponent)
+  /** 矿产开发（全息勘探 → 矿点造矿建 → 持续产出 H3） */
+  readonly mining: MiningComponent = this.addComponent(MiningComponent)
   readonly acts: ActsComponent = this.addComponent(ActsComponent)
   /** 总控编排器（固定顺序驱动各子系统 tick） */
   readonly sim: SimulationComponent = this.addComponent(SimulationComponent)
@@ -418,6 +477,12 @@ export class WarmCurrentGameMode extends GameMode {
   planetInfoSel: SolarBodyId | null = null
   /** 轨道建设面板当前锚天体（点星球信息面板「近地轨道建设」/ 点建成轨道设施打开；null = 收起） */
   orbitBuildSel: PlanetBodyId | null = null
+  /** 全息勘探目标天体（星球信息面板「全息勘探」打开；null = 收起。与观察模式互斥同款相机语义） */
+  hologramSel: PlanetBodyId | null = null
+  /** 全息勘探当前选中矿点（mineral_deposit 行键；点 3D 矿点/面板行设置，null = 未选中） */
+  holoDepositSel: string | null = null
+  /** 卫星全息跟随：上一帧卫星 Actor 世界位（pan 增量 = 公转漂移补偿） */
+  private holoLastTarget: { x: number; z: number } | null = null
   /** 船坞造船面板当前承接船坞 id（点船坞打开；null = 收起，ShipyardPanelScript 消费） */
   shipyardSel: number | null = null
   /** 建筑详情浮层当前建筑 id（点建筑打开：强化分支装拆流；null = 收起） */
@@ -488,6 +553,11 @@ export class WarmCurrentGameMode extends GameMode {
         this.cancelBuildMode()
         return
       }
+      // 全息勘探模式：Esc 先退全息回俯视（不误开暂停菜单）
+      if (this.hologramSel) {
+        this.closeHologram()
+        return
+      }
       // 行星观察模式：Esc 先退观察回行星系俯视（不误开暂停菜单）
       if (this.observeBody) {
         this.exitPlanetObserve()
@@ -540,6 +610,17 @@ export class WarmCurrentGameMode extends GameMode {
     const vm = this.viewMode
     const focus = this.planetFocusBody as PlanetId
     for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt, vm, focus)
+    // 卫星全息跟随：rig.pan 同步平移 target+camera（保持环绕几何），镜头锚住公转中的卫星
+    if (this.hologramSel) {
+      const holoActor = this.starActors.get(this.hologramSel)
+      if (holoActor) {
+        const p = holoActor.root.position
+        if (this.holoLastTarget) {
+          this.cameraActor.rig.pan(p.x - this.holoLastTarget.x, p.z - this.holoLastTarget.z)
+        }
+        this.holoLastTarget = { x: p.x, z: p.z }
+      }
+    }
     // rig.target 已由 focusOn 一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
     // rig.pan 成对移动 target 与相机，若只把 target 拉回舞台而相机留在原位，
     // 下次拖拽的 lookAt 会把镜头掰向舞台中心——右键平移退化成绕行星旋转
@@ -648,6 +729,11 @@ export class WarmCurrentGameMode extends GameMode {
           this.toast(`「${ev.text ?? '轨道设施'}」已建成 —— 点它打开轨道建设面板`, '#7fdcff')
           audioSys.play('wc.build')
           break
+        case 'mine_built':
+          if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
+          this.toast(`「${ev.text ?? '矿建'}」建成投产 —— 矿产直采入地球储备`, '#7fdcff')
+          audioSys.play('wc.build')
+          break
         case 'building_demolished':
           if (ev.x !== undefined && ev.y !== undefined) this.fx.pulses.push({ x: ev.x, y: ev.y, age: 0 })
           this.toast(`建筑拆除，返还 ${Math.round(ev.value ?? 0)} H3`, '#9fc4d8')
@@ -714,10 +800,14 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   /** 清观察态（不做取景复位）：observeBody 归零 + 关轨道旋转 + 恢复边缘平移 + 复位特写增益。
+   *  全息勘探同语义互斥收口（hologramSel 归零共用 orbitMode/边缘平移复位）。
    *  取景切换 / 重开 / 读档三条退出路径共用，保证清理不漏。 */
   private clearObserveState(): void {
-    if (!this.observeBody) return
+    if (!this.observeBody && !this.hologramSel) return
     this.observeBody = null
+    this.hologramSel = null
+    this.holoDepositSel = null
+    this.holoLastTarget = null
     this.cameraActor.rig.orbitMode = false
     this.cameraActor.rig.setEdgePanEnabled(true)
     this.resetObserveBoost()
@@ -771,6 +861,8 @@ export class WarmCurrentGameMode extends GameMode {
    *  ⚠ 仅限当前行星系内：不在该行星系时忽略（跨系观察先双击进入行星系） */
   enterPlanetObserve(body: PlanetId): void {
     if (this.viewMode !== 'earth' || this.planetFocusBody !== body) return
+    // 与全息勘探互斥：全息中先退出（复位俯视，随后观察重新取景）
+    if (this.hologramSel) this.closeHologram()
     // 建筑/航线编辑模式与观察互斥（左键在观察中是环绕拖拽，不能同时落位/拖线）
     if (this.buildMode) this.cancelBuildMode()
     if (this.routeEditMode) this.toggleRouteEditMode()
@@ -1039,6 +1131,7 @@ export class WarmCurrentGameMode extends GameMode {
 
   /** 打开星球信息面板（非航线编辑模式点星球 / 点不可拖天体；再点其它星球切换内容） */
   openPlanetInfo(body: SolarBodyId): void {
+    if (this.hologramSel) this.closeHologram()
     this.planetInfoSel = body
     this.orbitBuildSel = null
     this.shipyardSel = null
@@ -1052,6 +1145,7 @@ export class WarmCurrentGameMode extends GameMode {
 
   /** 打开轨道建设面板（星球信息面板「近地轨道建设」按钮 / 点已建成轨道设施） */
   openOrbitBuild(anchor: PlanetBodyId): void {
+    if (this.hologramSel) this.closeHologram()
     this.orbitBuildSel = anchor
     this.planetInfoSel = null
     this.shipyardSel = null
@@ -1066,6 +1160,7 @@ export class WarmCurrentGameMode extends GameMode {
 
   /** 打开船坞造船面板（星图点船坞轨道设施；与轨道建设/星球信息面板互斥） */
   openShipyardPanel(dockId: number): void {
+    if (this.hologramSel) this.closeHologram()
     this.shipyardSel = dockId
     this.planetInfoSel = null
     this.orbitBuildSel = null
@@ -1076,6 +1171,133 @@ export class WarmCurrentGameMode extends GameMode {
   /** 关闭船坞造船面板（面板内 ✕ / 点空地） */
   closeShipyardPanel(): void {
     this.shipyardSel = null
+  }
+
+  // ─── 全息勘探（2026-09-12：矿点检视 + 矿建落位） ───
+
+  /** 打开全息勘探（星球信息面板「全息勘探」按钮）。
+   *  相机语义与行星观察同款：斜视角环绕 + 关边缘平移；退出统一 focusSolarSystem 复位。
+   *  卫星随母星系判定（地月系内可全息月球）；取景收口真实 Actor 位置（卫星不在舞台中心，
+   *  Tick 逐帧 rig.pan 跟随公转漂移）。
+   *  ⚠ 仅限本行星系视角（太阳系全景行星公转漂移，镜头锚不住）；无矿点天体拒绝。 */
+  openHologram(body: PlanetBodyId): void {
+    const mc = B.map.moons[body as keyof typeof B.map.moons]
+    const systemRoot = mc ? mc.parent : body
+    if (this.viewMode !== 'earth' || this.planetFocusBody !== systemRoot) {
+      this.simState.hint('需进入该行星系（双击行星）后可全息勘探')
+      return
+    }
+    if (depositsOf(body).length === 0) {
+      this.simState.hint('该天体无已探明矿产')
+      return
+    }
+    // 与观察模式互斥：观察中先退出（复位俯视，随后全息重新取景）
+    if (this.observeBody) this.exitPlanetObserve()
+    this.hologramSel = body
+    this.holoDepositSel = null
+    this.holoLastTarget = null
+    const r = B.map.nodes[body].r
+    const actor = this.starActors.get(body as StarBodyId)
+    // 取景锚 = 天体真实位置（行星钉在舞台中心 = 原点；卫星用实时公转位），注视高度 = 球心
+    const wx = actor ? actor.root.position.x : 0
+    const wz = actor ? actor.root.position.z : 0
+    this.cameraActor.rig.setEdgePanEnabled(false)
+    this.cameraActor.observeFocus(wx, wz, r * 4.5, THREE.MathUtils.degToRad(35), r * 0.55)
+    this.cameraActor.rig.orbitMode = true
+    audioSys.play('wc.ok', { volume: 0.4 })
+    logger.info(`[WarmCurrent] 全息勘探：${PLANET_NAMES[body] ?? body}（拖拽环绕 · 点矿点选中 · Esc 退出）`)
+  }
+
+  /** 关闭全息勘探（面板 ✕ / Esc）：复位本行星系俯视取景。
+   *  字段清理交由 focusSolarSystem → clearObserveState（保证 orbitMode/边缘平移一并复位）。 */
+  closeHologram(): void {
+    if (!this.hologramSel) return
+    this.focusSolarSystem(this.planetFocusBody)
+    logger.info('[WarmCurrent] 全息勘探退出（回行星系俯视）')
+  }
+
+  /** 选中矿点（面板行点击；id 须属当前勘探天体） */
+  selectHoloDeposit(id: string | null): void {
+    if (id && depositDefOf(id)?.planet !== this.hologramSel) return
+    this.holoDepositSel = id
+    if (id) audioSys.play('wc.draw', { volume: 0.25 })
+  }
+
+  /** 全息视图点击拾取（Controller 左键轻点派发）：命中矿点 = 选中，空处 = 取消选中 */
+  onHologramTap(screenX: number, screenY: number): void {
+    if (!this.hologramSel) return
+    const id = this.starMap?.pickHoloDeposit(screenX, screenY) ?? null
+    this.selectHoloDeposit(id)
+  }
+
+  /** 矿点标记的屏幕坐标（e2e 真实点击测试用；null = 全息未开/无此矿点） */
+  holoMarkerScreenPos(depositId: string): { x: number; y: number } | null {
+    return this.starMap?.holoMarkerScreenPos(depositId) ?? null
+  }
+
+  /** 全息勘探面板数据装配（hologramSel → HudHologram；矿点行/建造行全表驱动） */
+  private buildHologram(body: PlanetBodyId): HudHologram {
+    const s = this.simState.state
+    const types = B.mineralTypes as Record<string, { name: string; desc: string; color: string } | undefined>
+    const deposits: HudHoloDepositRow[] = depositsOf(body).map(({ id, def }) => {
+      const t = types[def.type]
+      const mine = this.mining.mineAt(id)
+      const left = depositLeft(s, id)
+      let status: string
+      if (mine && !mine.built) status = `建造中 ${Math.floor(mine.progress * 100)}%`
+      else if (mine && left <= 0) status = '已枯竭'
+      else if (mine) status = `开采中 · 余 ${Math.round(left)} t`
+      else status = '未开发'
+      return {
+        id,
+        typeName: t?.name ?? def.type,
+        color: t?.color ?? '#4fd8ff',
+        reserve: def.reserve,
+        left,
+        status,
+        mineType: mine?.type ?? null,
+        progress: mine?.progress ?? 0,
+        selected: this.holoDepositSel === id,
+      }
+    })
+    const selDef = this.holoDepositSel ? depositDefOf(this.holoDepositSel) : null
+    let detail = '点矿点或列表行选中矿点'
+    if (selDef) {
+      const t = types[selDef.type]
+      const mine = this.mining.mineAt(this.holoDepositSel!)
+      const left = depositLeft(s, this.holoDepositSel!)
+      const lines = [
+        `${t?.name ?? selDef.type}（${t?.desc ?? ''}）`,
+        `储量 ${Math.round(left)} / ${selDef.reserve} t`,
+      ]
+      if (mine && !mine.built) {
+        const md = mineDefOf(mine.type)
+        lines.push(`${md?.name ?? mine.type} 建造中 ${Math.floor(mine.progress * 100)}%`)
+      } else if (mine) {
+        const md = mineDefOf(mine.type)
+        lines.push(left > 0
+          ? `${md?.name ?? mine.type} 运转中 · 产出 ${md?.yieldPerS ?? 0}/s`
+          : '矿点已枯竭 · 设施停摆')
+      }
+      detail = lines.join('\n')
+    }
+    const playable = s.outcome === 'playing' || s.sandbox
+    const buildRows: HudHoloBuildRow[] = Object.entries(B.mineBuildings).map(([id, def]) => {
+      const issue = this.holoDepositSel ? this.mining.placementIssue(this.holoDepositSel, id) : '未选中矿点'
+      return {
+        id, name: def.name, desc: def.desc, cost: def.cost,
+        buildTime: def.buildTime, yieldPerS: def.yieldPerS,
+        canBuild: playable && !issue,
+      }
+    })
+    return {
+      body,
+      bodyName: B.stars[body as StarId]?.name ?? PLANET_NAMES[body] ?? body,
+      deposits,
+      buildRows,
+      selectedId: this.holoDepositSel,
+      detail,
+    }
   }
 
   /** 打开建筑详情浮层（点地图建筑：强化分支装拆流；与其它浮层并存不互斥——浮层贴选中建筑） */
@@ -1165,6 +1387,9 @@ export class WarmCurrentGameMode extends GameMode {
       }
       return
     }
+    // 全息勘探模式：左键 = 环绕拖拽（相机层消费），矿点点选走 Controller 屏幕空间拾取，
+    // 星图点击判定全部冻结（面板行也可选中矿点）
+    if (this.hologramSel) return
     // 行星观察模式：左键 = 环绕拖拽（相机层消费），星图点击判定冻结；
     // 仅保留双击当前行星 = 退出观察回俯视（toggle 入口）
     if (this.observeBody) {
@@ -1615,6 +1840,8 @@ export class WarmCurrentGameMode extends GameMode {
     }))
     // 星球信息面板数据（planetInfoSel 为空 = 收起）
     const planetInfo = this.planetInfoSel ? this.buildPlanetInfo(this.planetInfoSel) : null
+    // 全息勘探面板数据（hologramSel 为空 = 收起）
+    const hologram = this.hologramSel ? this.buildHologram(this.hologramSel) : null
     // 轨道建设面板数据（orbitBuildSel 为空 = 收起）
     const orbitBuild = this.orbitBuildSel ? this.buildOrbitBuild(this.orbitBuildSel) : null
     // 船坞造船面板数据（shipyardSel 为空 = 收起；船坞被拆/不存在 → null 收起）
@@ -1691,6 +1918,7 @@ export class WarmCurrentGameMode extends GameMode {
       shipRows,
       routes,
       planetInfo,
+      hologram,
       orbitBuild,
       shipyard,
       buildingDetail,
@@ -1735,6 +1963,7 @@ export class WarmCurrentGameMode extends GameMode {
       demand: isEarth ? Math.round(this.simState.demand * 10) / 10 : 0,
       netFlow: isEarth ? Math.round(estimateNetFlow(s, this.simState.demand) * 10) / 10 : 0,
       routable: isEarth || !!starDef,
+      hasDeposits: depositsOf(body).length > 0,
     }
   }
 

@@ -2,6 +2,7 @@
 name: fix_model_image_input_gate
 description: glm-5.3-flash "does not support image input" 报错根因与修复：settings.yaml 手工声明模型需补 input:[text,image]，重写会冲掉声明导致复发；2026-09-11 起编辑器供应商设置面板可配，优先走 UI（prefix: harness）
 type: project
+prefix: [doc/editor/integration/agent_panel_system.md, doc/harness/harness_system.md]
 ---
 **Problem:** 请求带图时报 `DSH RPC session.prompt error: Model "glm-5.3-flash" does not support image input.`，尽管 glm-5.3-flash 官方就是 VLM。2026-09-10 修复过一次，之后复发。
 

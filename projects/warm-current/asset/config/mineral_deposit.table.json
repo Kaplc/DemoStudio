@@ -1,0 +1,12 @@
+{
+  "_comment": "矿点数据表（2026-09-12 行星全息勘探：DataTable 行表）。行键 = 矿点 id（SimMine.depositId），一矿点至多一座矿建。\n字段含义：\n  planet = 所在天体 id（行星或卫星；B.map.nodes 键）；\n  type = 矿种（mineral_type.table.json 行键）；\n  lat/lon = 纬度/经度（deg，lat -90~90 / lon 0~360；全息球面布置角，t=0 相位，随全息球自转整体旋转）；\n  reserve = 总储量（吨；矿建采出递减，归零 = 矿点枯竭停采）。\n加矿点：加一行即可（全息视图/面板自动出现），代码零改动。",
+  "e1": { "planet": "earth", "type": "metal", "lat": 22, "lon": 130, "reserve": 500 },
+  "m1": { "planet": "moon", "type": "he3", "lat": 18, "lon": 40, "reserve": 900 },
+  "m2": { "planet": "moon", "type": "he3", "lat": -30, "lon": 210, "reserve": 1400 },
+  "mc1": { "planet": "mercury", "type": "metal", "lat": 12, "lon": 100, "reserve": 1600 },
+  "mc2": { "planet": "mercury", "type": "metal", "lat": -42, "lon": 280, "reserve": 2200 },
+  "ma1": { "planet": "mars", "type": "metal", "lat": 26, "lon": 70, "reserve": 1200 },
+  "ma2": { "planet": "mars", "type": "he3", "lat": -18, "lon": 240, "reserve": 800 },
+  "eu1": { "planet": "europa", "type": "ice", "lat": 30, "lon": 160, "reserve": 1500 },
+  "eu2": { "planet": "europa", "type": "ice", "lat": -24, "lon": 330, "reserve": 1000 }
+}

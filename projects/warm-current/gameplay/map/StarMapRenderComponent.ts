@@ -24,6 +24,7 @@ import {
 } from './starfieldTile'
 import { SphereMeshComponent } from '@/engine'
 import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
+import { depositsOf, depositLeft } from '../systems/MiningComponent'
 import {
   endpointPos,
   buildingDefOf,
@@ -87,6 +88,10 @@ export interface MapViewProvider {
   boxDrag: { x0: number; y0: number; x1: number; y1: number } | null
   /** 框选中的船 id 集（光点高亮圈） */
   selectedShips: number[]
+  /** 全息勘探目标天体（null = 收起；非空 = 行星位置生成蓝色全息球 + 矿点标记） */
+  readonly hologramSel: string | null
+  /** 全息勘探当前选中矿点（null = 未选中；矿点外环高亮） */
+  readonly holoDepositSel: string | null
 }
 
 /** 星球是否已解锁（对齐 TransportComponent.starUnlocked 语义） */
@@ -107,6 +112,11 @@ const C_SHIP_MATERIAL = 0xffb03d
 const C_SHIP_MISSION = 0xffe9a8
 const C_SHIP_SHELTER = 0x7dffb0
 const C_SHIP_HOLD = 0xbfe9ff
+// 全息勘探（蓝色科幻透明感：壳/线框/环一圈青蓝，选中环冰蓝，枯竭灰）
+const C_HOLO_GLOW = 0x3fa9f5
+const C_HOLO_LINE = 0x4fd8ff
+const C_HOLO_SEL = 0xbfe9ff
+const C_HOLO_DEAD = 0x5a707f
 
 // ─── 视图分组（星图切换：地球系 / 太阳系；ViewToggle → GameMode.setViewMode → applyViewMode） ───
 
@@ -359,6 +369,29 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   /** 框选矩形（耀斑预警框选手势；半透明面片） */
   private boxQuad: THREE.Mesh | null = null
+
+  // ─── 全息勘探（provider.hologramSel 驱动；世界系悬浮全息球 + 矿点标记，随天体 Actor 走） ───
+  private holoRoot: THREE.Group | null = null
+  /** 已建全息组的天体（切换勘探目标重建） */
+  private holoBody: string | null = null
+  /** 自转子组（矿点标记/线框挂这里随球自转；壳/环对称静止） */
+  private holoSpin: THREE.Group | null = null
+  /** 扫描环（纬向上下巡游，全息"扫描中"质感） */
+  private holoScanRing: THREE.Mesh | null = null
+  /** 矿点标记池（键 = 矿点 id；菱形本体 + 辉光 + 建成光柱 + 建造进度弧） */
+  private holoMarkers = new Map<string, {
+    mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial
+    glow: THREE.Sprite; glowMat: THREE.SpriteMaterial
+    beam: THREE.Mesh; beamMat: THREE.MeshBasicMaterial
+    arc: THREE.Mesh; arcMat: THREE.MeshBasicMaterial
+    lastPct: number; color: number
+  }>()
+  /** 选中矿点外环（位置/朝向每帧贴选中标记） */
+  private holoSelRing: THREE.Mesh | null = null
+  /** 全息球半径（世界单位；星球显示半径 × B.holo.radiusMult） */
+  private holoRadius = 0
+  /** 全息重建型几何（进度弧等运行时重建体；disposeHolo 统一释放，不入 trackGeo 避免早释放歧义） */
+  private holoDisposables: Array<THREE.BufferGeometry> = []
   /** 细轨道圈几何（1.5% 环宽，公转轨道专用；flatRingGeo 太粗） */
   private flatOrbitGeo!: THREE.RingGeometry
   /** 卫星环（卫星绕母星轨道圈，圆心每帧贴母星实时位置；id → mesh） */
@@ -538,6 +571,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   override EndPlay(): void {
     // 摘除后处理（幂等；World 级销毁链 dispose 也会兜底）
     this.owner.world?.gameRenderer?.disablePostProcess()
+    this.disposeHolo()
     this.owner.root.remove(this.root3)
     for (const m of this.mats) m.dispose()
     for (const g of this.geos) g.dispose()
@@ -1275,6 +1309,233 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     }
   }
 
+  // ─── 全息勘探渲染 ───
+
+  /** 球面布置角 → 本地单位坐标（+Y = 北极；lat/lon 为 deg） */
+  private static latLonToLocal(latDeg: number, lonDeg: number): THREE.Vector3 {
+    const lat = (latDeg * Math.PI) / 180
+    const lon = (lonDeg * Math.PI) / 180
+    return new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon))
+  }
+
+  /** 生成全息组（蓝色科幻透明感：加色淡壳 + 经纬线框 + 赤道/子午环 + 扫描环 + 矿点标记）。
+   *  挂世界系（root3）每帧贴天体 Actor 位置（球心对球心，全息层包络真球）。 */
+  private buildHolo(body: string): void {
+    this.disposeHolo()
+    this.holoBody = body
+    const r = B.map.nodes[body as keyof typeof B.map.nodes]?.r ?? 30
+    const R = r * B.holo.radiusMult
+    this.holoRadius = R
+    const root = this.own(this.F.createGroup()).object
+    this.holoRoot = root
+    root.renderOrder = 15
+    this.root3.add(root)
+
+    // 加色淡壳（正球面朝相机的边缘自然更密 = 廉价菲涅尔）
+    const shellMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_GLOW, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }))
+    const shell = this.own(this.F.createMesh(this.unitSphere, shellMat)).object
+    shell.scale.setScalar(R)
+    shell.renderOrder = 15
+    root.add(shell)
+
+    // 自转子组：线框 + 矿点标记（赤道/子午/扫描环对称，不转）
+    const spin = this.own(this.F.createGroup()).object
+    this.holoSpin = spin
+    root.add(spin)
+    const wireGeo = this.trackGeo(this.F.createSphereGeometry(1, 24, 16))
+    const wireMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.1, wireframe: true, depthWrite: false }))
+    const wire = this.own(this.F.createMesh(wireGeo, wireMat)).object
+    wire.scale.setScalar(R)
+    wire.renderOrder = 16
+    spin.add(wire)
+
+    // 赤道环（预压平）+ 双子午环（XY 竖环转 90°）
+    const equatorMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }))
+    const equator = this.own(this.F.createMesh(this.flatOrbitGeo, equatorMat)).object
+    equator.scale.setScalar(R)
+    equator.renderOrder = 16
+    root.add(equator)
+    const merGeo = this.trackGeo(this.F.createRingGeometry(0.985, 1, 96))
+    for (const ry of [0, Math.PI / 2]) {
+      const mer = this.own(this.F.createMesh(merGeo, equatorMat)).object
+      mer.scale.setScalar(R)
+      mer.rotation.y = ry
+      mer.renderOrder = 16
+      root.add(mer)
+    }
+
+    // 扫描环（纬向巡游；syncHologram 每帧写 y）
+    const scanGeo = this.trackGeo(this.F.createRingGeometry(0.88, 1.0, 64))
+    scanGeo.rotateX(-Math.PI / 2)
+    const scanMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
+    const scan = this.own(this.F.createMesh(scanGeo, scanMat)).object
+    scan.scale.setScalar(R * 1.02)
+    scan.renderOrder = 17
+    this.holoScanRing = scan
+    root.add(scan)
+
+    // 矿点标记（表驱动：菱形 + 辉光 + 光柱 + 进度弧，全部随 spin 自转）
+    const octaGeo = this.trackGeo(new THREE.OctahedronGeometry(1, 0))
+    const cylGeo = this.trackGeo(new THREE.CylinderGeometry(0.12, 0.32, 1, 8, 1, true))
+    const arcBaseMat = { transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false } as const
+    for (const { id, def } of depositsOf(body)) {
+      const n = StarMapRenderComponent.latLonToLocal(def.lat, def.lon)
+      const pos = n.clone().multiplyScalar(R * 1.02)
+      const typeDef = (B.mineralTypes as Record<string, { color?: string } | undefined>)[def.type]
+      const color = new THREE.Color(typeDef?.color ?? '#4fd8ff').getHex()
+      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }))
+      const mesh = this.own(this.F.createMesh(octaGeo, mat)).object
+      mesh.position.copy(pos)
+      mesh.scale.setScalar(R * 0.09)
+      mesh.renderOrder = 18
+      spin.add(mesh)
+      const glowMat = this.trackMat(this.F.createSpriteMaterial({ map: this.tex.glow, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const glow = this.own(this.F.createSprite(glowMat)).object
+      // 辉光 = 标记子节点（随位随脉动）；局部 5 ≈ 世界 R*0.45（父缩放 R*0.09 叠乘）
+      glow.scale.setScalar(5)
+      mesh.add(glow)
+      // 建成光柱（沿法线外向；quaternion 对齐 = 组旋转下朝向稳定）
+      const beamMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const beam = this.own(this.F.createMesh(cylGeo, beamMat)).object
+      beam.position.copy(n.clone().multiplyScalar(R * 1.22))
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n)
+      beam.scale.set(R * 0.05, R * 0.42, R * 0.05)
+      beam.renderOrder = 18
+      beam.visible = false
+      spin.add(beam)
+      // 建造进度弧（切向环；几何按进度步进重建，铰在标记法平面）
+      const arcMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xffb03d, ...arcBaseMat, opacity: 0.9 }))
+      const arcGeo = new THREE.RingGeometry(R * 1.1, R * 1.17, 24, 1, 0, 0.01)
+      this.holoDisposables.push(arcGeo)
+      const arc = this.own(this.F.createMesh(arcGeo, arcMat)).object
+      arc.position.copy(pos)
+      arc.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n)
+      arc.renderOrder = 19
+      arc.visible = false
+      spin.add(arc)
+      this.holoMarkers.set(id, { mesh, mat, glow, glowMat, beam, beamMat, arc, arcMat, lastPct: -1, color })
+    }
+
+    // 选中外环（每帧贴选中标记；脉冲缩放）
+    const selGeo = this.trackGeo(this.F.createRingGeometry(1.35, 1.75, 32))
+    const selMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_SEL, transparent: true, opacity: 0.85, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
+    const selRing = this.own(this.F.createMesh(selGeo, selMat)).object
+    selRing.renderOrder = 20
+    selRing.visible = false
+    spin.add(selRing)
+    this.holoSelRing = selRing
+  }
+
+  /** 摘除全息组（切目标/收起共用；重建型几何即时释放，tracked 材质/几何留 EndPlay 统一兜底） */
+  private disposeHolo(): void {
+    if (this.holoRoot) {
+      this.root3.remove(this.holoRoot)
+      this.holoRoot = null
+      this.holoSpin = null
+      this.holoScanRing = null
+      this.holoSelRing = null
+    }
+    this.holoMarkers.clear()
+    this.holoBody = null
+    for (const g of this.holoDisposables) g.dispose()
+    this.holoDisposables = []
+  }
+
+  /** 全息组每帧同步：位置贴天体 Actor、自转、扫描环巡游、标记状态（枯竭灰化/建成光柱/进度弧）、选中环 */
+  private syncHologram(dt: number): void {
+    const body = this.provider.hologramSel
+    if (!body) {
+      if (this.holoRoot) this.holoRoot.visible = false
+      return
+    }
+    if (this.holoBody !== body || !this.holoRoot) this.buildHolo(body)
+    const root = this.holoRoot!
+    root.visible = true
+    const actor = this.provider.starActors?.get(body)
+    if (actor) root.position.copy(actor.root.position)
+    // 自转 + 扫描环巡游
+    this.holoSpin!.rotation.y += B.holo.spin * dt
+    this.holoScanRing!.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72
+    // 标记状态（读态：mines + depositLeft；枯竭灰化，建造中收进度弧，建成本色 + 光柱）
+    const s = this.provider.simState.state
+    for (const [id, mk] of this.holoMarkers) {
+      const mine = s.mines.find((m) => m.depositId === id) ?? null
+      const left = depositLeft(s, id)
+      const dead = !!mine && left <= 0
+      const col = dead ? C_HOLO_DEAD : mk.color
+      mk.mat.color.setHex(col)
+      mk.glowMat.color.setHex(col)
+      mk.beamMat.color.setHex(col)
+      mk.glow.visible = !dead
+      mk.beam.visible = !!mine?.built && !dead
+      const pulse = dead ? 0.8 : 1 + Math.sin(this.animTime * (mine?.built ? 7 : 4)) * 0.14
+      mk.mesh.scale.setScalar(this.holoRadius * 0.09 * pulse)
+      // 进度弧：建造中显示（步进 2% 重建几何；建成/未开发隐藏）
+      const pct = mine ? (mine.built ? 1 : mine.progress) : 0
+      const step = Math.round(pct * 50)
+      mk.arc.visible = !!mine && !mine.built
+      if (mk.arc.visible && step !== mk.lastPct) {
+        mk.lastPct = step
+        const R = this.holoRadius
+        const old = mk.arc.geometry
+        const geo = new THREE.RingGeometry(R * 1.1, R * 1.17, 24, 1, -Math.PI / 2, Math.max(0.02, pct * Math.PI * 2))
+        this.holoDisposables.push(geo)
+        mk.arc.geometry = geo
+        old.dispose()
+      }
+    }
+    // 选中环贴选中标记（切向朝向 = +Z 对准法线；脉冲缩放）
+    const selId = this.provider.holoDepositSel
+    const selMk = selId ? this.holoMarkers.get(selId) : null
+    const selRing = this.holoSelRing!
+    if (selMk) {
+      selRing.visible = true
+      selRing.position.copy(selMk.mesh.position)
+      selRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), selMk.mesh.position.clone().normalize())
+      selRing.scale.setScalar(this.holoRadius * 0.105 * (1 + Math.sin(this.animTime * 6) * 0.1))
+    } else {
+      selRing.visible = false
+    }
+  }
+
+  /** 屏幕坐标拾取矿点（Controller 左键轻点派发；矿点世界坐标投影到屏幕取最近，阈值 B.holo.pickRadius px） */
+  pickHoloDeposit(screenX: number, screenY: number): string | null {
+    if (!this.provider.hologramSel || !this.holoRoot?.visible) return null
+    const cam = this.lastCam
+    const el = this.owner.world?.gameRenderer?.uiLayer
+    if (!cam || !el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const v = new THREE.Vector3()
+    const limit = B.holo.pickRadius * B.holo.pickRadius
+    let best: string | null = null
+    let bestD = limit
+    for (const [id, mk] of this.holoMarkers) {
+      mk.mesh.getWorldPosition(v)
+      v.project(cam)
+      if (v.z > 1 || v.z < -1) continue
+      const sx = (v.x * 0.5 + 0.5) * rect.width + rect.left
+      const sy = (-v.y * 0.5 + 0.5) * rect.height + rect.top
+      const d = (sx - screenX) * (sx - screenX) + (sy - screenY) * (sy - screenY)
+      if (d < bestD) { bestD = d; best = id }
+    }
+    return best
+  }
+
+  /** 矿点标记的屏幕坐标（e2e 真实点击测试用；null = 全息未开/无此矿点/在相机后方） */
+  holoMarkerScreenPos(depositId: string): { x: number; y: number } | null {
+    if (!this.provider.hologramSel || !this.holoRoot?.visible) return null
+    const cam = this.lastCam
+    const el = this.owner.world?.gameRenderer?.uiLayer
+    const mk = this.holoMarkers.get(depositId)
+    if (!cam || !el || !mk) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const v = mk.mesh.getWorldPosition(new THREE.Vector3()).project(cam)
+    if (v.z > 1 || v.z < -1) return null
+    return { x: (v.x * 0.5 + 0.5) * rect.width + rect.left, y: (-v.y * 0.5 + 0.5) * rect.height + rect.top }
+  }
+
   // ─── 特效 ───
 
   private buildFxPools(): void {
@@ -1565,6 +1826,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.syncRoutes()
     this.syncShips()
     this.syncNodes()
+    this.syncHologram(dt)
     this.syncBuildings()
     this.syncTutorial()
     this.syncMissionLine()

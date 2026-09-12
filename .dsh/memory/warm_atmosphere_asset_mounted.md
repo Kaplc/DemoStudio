@@ -2,7 +2,7 @@
 name: warm_atmosphere_asset_mounted
 description: 地球大气+云层均由 earth.blueprint.json 资产声明（2026-09-10 大气 / 2026-09-12 云层），setupCloseup 只挂 bump+海洋粗糙度，运行时零外观挂载（prefix: projects/warm-current）
 type: project
-prefix: projects/warm-current
+prefix: projects/warm-current/asset/blueprints/stars/earth.blueprint.json
 ---
 
 # 地球外观组件归属：蓝图资产声明（大气 2026-09-10 / 云层 2026-09-12 用户决策）

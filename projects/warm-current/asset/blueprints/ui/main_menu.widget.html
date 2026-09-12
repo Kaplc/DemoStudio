@@ -1,118 +1,176 @@
 <widget name="WarmCurrentMenu" canvas="1920x1080" data-script="gameplay/menu/MainMenuScript">
   <style>
-    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(180deg, #02060c 0%, #071523 40%, #0b2135 72%, #050e18 100%); }
-    .Star1 { width: 4px; height: 4px; position: absolute; left: 320px; top: 150px; background-color: #cfe8ff; border-radius: 2px; }
-    .Star2 { width: 3px; height: 3px; position: absolute; left: 540px; top: 260px; background-color: #9fd0f0; border-radius: 2px; }
-    .Star3 { width: 5px; height: 5px; position: absolute; left: 900px; top: 100px; background-color: #e8f4ff; border-radius: 3px; }
-    .Star4 { width: 3px; height: 3px; position: absolute; left: 1140px; top: 300px; background-color: #cfe8ff; border-radius: 2px; }
-    .Star5 { width: 4px; height: 4px; position: absolute; left: 1700px; top: 400px; background-color: #9fd0f0; border-radius: 2px; }
-    .Star6 { width: 3px; height: 3px; position: absolute; left: 1450px; top: 180px; background-color: #cfe8ff; border-radius: 2px; }
-    .Star7 { width: 4px; height: 4px; position: absolute; left: 780px; top: 380px; background-color: #8fb8d8; border-radius: 2px; }
-    .Star8 { width: 3px; height: 3px; position: absolute; left: 400px; top: 470px; background-color: #9fd0f0; border-radius: 2px; }
-    .Star9 { width: 5px; height: 5px; position: absolute; left: 1800px; top: 620px; background-color: #cfe8ff; border-radius: 3px; }
-    .Star10 { width: 3px; height: 3px; position: absolute; left: 1250px; top: 520px; background-color: #8fb8d8; border-radius: 2px; }
-    .Star11 { width: 3px; height: 3px; position: absolute; left: 600px; top: 660px; background-color: #8fb8d8; border-radius: 2px; }
-    .Star12 { width: 4px; height: 4px; position: absolute; left: 1020px; top: 610px; background-color: #cfe8ff; border-radius: 2px; }
-    .Star13 { width: 3px; height: 3px; position: absolute; left: 240px; top: 560px; background-color: #8fb8d8; border-radius: 2px; }
-    .Star14 { width: 4px; height: 4px; position: absolute; left: 1340px; top: 700px; background-color: #cfe8ff; border-radius: 2px; }
-    .Star15 { width: 3px; height: 3px; position: absolute; left: 740px; top: 760px; background-color: #9fd0f0; border-radius: 2px; }
-    .Star16 { width: 4px; height: 4px; position: absolute; left: 1580px; top: 830px; background-color: #8fb8d8; border-radius: 2px; }
-    .Star17 { width: 3px; height: 3px; position: absolute; left: 180px; top: 320px; background-color: #9fd0f0; border-radius: 2px; }
-    .Star18 { width: 4px; height: 4px; position: absolute; left: 880px; top: 850px; background-color: #cfe8ff; border-radius: 2px; }
-    .SunHalo { width: 560px; height: 560px; position: absolute; left: -160px; top: 760px; background-color: #ffb03d10; border-radius: 280px; }
-    .SunOuter { width: 460px; height: 460px; position: absolute; left: -110px; top: 810px; background-color: #ffb03d1f; border-radius: 230px; }
-    .SunCore { width: 340px; height: 340px; position: absolute; left: -50px; top: 870px; background-color: #ffc95e2b; border-radius: 170px; }
-    .RingOuter { width: 440px; height: 440px; position: absolute; left: -60px; top: 820px; background-color: #ffb03d00; border-radius: 220px; border: 3px solid #ffb03d4d; }
-    .RingMid { width: 350px; height: 350px; position: absolute; left: -15px; top: 865px; background-color: #ffb03d00; border-radius: 175px; border: 2px solid #ffcf6a38; }
-    .RingDot { width: 16px; height: 16px; position: absolute; left: 152px; top: 948px; background-color: #ffcf6a; border-radius: 8px; }
-    .SunLabel { width: 300px; height: 26px; position: absolute; left: 96px; top: 800px; font-size: 15px; color: #d8b06a; letter-spacing: 6px; text-align: center; text-shadow: 0px 2px 4px #00000080; }
-    .Earth { width: 58px; height: 58px; position: absolute; left: 320px; top: 880px; background-color: #3f83a8; border-radius: 29px; }
-    .EarthAtmo { width: 72px; height: 72px; position: absolute; left: 313px; top: 873px; background-color: #2a86c22e; border-radius: 36px; }
-    .EarthLabel { width: 300px; height: 26px; position: absolute; left: 196px; top: 942px; font-size: 15px; color: #8fc3dc; letter-spacing: 6px; text-align: center; text-shadow: 0px 2px 4px #00000080; }
-    .Moon { width: 22px; height: 22px; position: absolute; left: 404px; top: 868px; background-color: #c9d4de; border-radius: 11px; }
-    .Mars { width: 40px; height: 40px; position: absolute; left: 620px; top: 836px; background-color: #e8926f; border-radius: 20px; }
-    .MarsLabel { width: 200px; height: 24px; position: absolute; left: 540px; top: 882px; font-size: 14px; color: #d8a58c; letter-spacing: 5px; text-align: center; text-shadow: 0px 2px 4px #00000080; }
-    .Jupiter { width: 66px; height: 66px; position: absolute; left: 1020px; top: 830px; background-color: #c9a678; border-radius: 33px; }
-    .JupiterLabel { width: 200px; height: 24px; position: absolute; left: 953px; top: 902px; font-size: 14px; color: #c3ab84; letter-spacing: 5px; text-align: center; text-shadow: 0px 2px 4px #00000080; }
-    .Route1 { width: 232px; height: 3px; position: absolute; left: 372px; top: 908px; background-color: #43d17c; opacity: 0.75; border-radius: 2px; }
-    .RouteDot1 { width: 7px; height: 7px; position: absolute; left: 462px; top: 906px; background-color: #7fe8a8; border-radius: 4px; }
-    .StarBand1 { width: 1750px; height: 3px; position: absolute; left: 85px; top: 590px; background-image: linear-gradient(90deg, #4fd8ff00 0%, #4fd8ff2b 22%, #4fd8ff14 55%, #4fd8ff26 80%, #4fd8ff00 100%); }
-    .StarBand2 { width: 1640px; height: 2px; position: absolute; left: 240px; top: 406px; background-image: linear-gradient(90deg, #4fd8ff00 0%, #4fd8ff21 30%, #4fd8ff12 60%, #4fd8ff1c 85%, #4fd8ff00 100%); }
-    .StarBand3 { width: 1520px; height: 2px; position: absolute; left: 300px; top: 702px; background-image: linear-gradient(90deg, #4fd8ff00 0%, #4fd8ff1c 35%, #4fd8ff10 65%, #4fd8ff18 90%, #4fd8ff00 100%); }
-    .TagAccent { width: 30px; height: 4px; position: absolute; left: 122px; top: 224px; background-color: #ffb03d; border-radius: 2px; }
-    .TagText { width: 420px; height: 30px; position: absolute; left: 168px; top: 210px; font-size: 18px; color: #4fd8ff; letter-spacing: 6px; font-weight: bold; text-shadow: 0px 2px 6px #00000099; }
-    .Title { width: 780px; height: 118px; position: absolute; left: 118px; top: 248px; font-size: 96px; color: #ffb03d; text-align: left; font-weight: bold; text-shadow: 0px 6px 18px #000000b3; }
-    .EnTitle { width: 620px; height: 34px; position: absolute; left: 122px; top: 380px; font-size: 22px; color: #9fc8e8; letter-spacing: 12px; text-shadow: 0px 2px 6px #00000080; }
-    .Desc { width: 640px; height: 60px; position: absolute; left: 122px; top: 434px; font-size: 19px; color: #c9b28a; line-height: 1.6; text-shadow: 0px 2px 4px #00000080; }
-    .StartBtnGlow { width: 460px; height: 116px; position: absolute; left: 112px; top: 530px; background-color: #ffb03d14; }
-    .StartButton { width: 440px; height: 96px; position: absolute; left: 122px; top: 540px; display: flex; justify-content: center; align-items: center; background-color: #ffb03d; border: 1px solid #ffcf6a; }
-    .StartButton:hover { background-color: #ffc65e; }
-    .StartButton:active { background-color: #e09400; }
-    .StartBtnText { width: 380px; height: 56px; font-size: 36px; color: #3a2200; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #ffffff59; }
-    .LoadButton { width: 440px; height: 80px; position: absolute; left: 122px; top: 656px; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
-    .LoadButton:hover { background-color: #143650; }
-    .LoadBtnText { width: 380px; height: 50px; font-size: 28px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .TipText { width: 620px; height: 64px; position: absolute; left: 122px; top: 762px; font-size: 17px; color: #9fc8e8; line-height: 1.6; text-shadow: 0px 2px 4px #00000080; }
-    .FooterLine { width: 1680px; height: 2px; position: absolute; left: 120px; top: 972px; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); opacity: 0.4; }
-    .FooterText { width: 620px; height: 26px; position: absolute; left: 122px; top: 990px; font-size: 14px; color: #6f8ba0; letter-spacing: 2px; text-shadow: 0px 2px 4px #00000066; }
-    .VersionText { width: 420px; height: 26px; position: absolute; left: 1380px; top: 990px; font-size: 14px; color: #6f8ba0; text-align: right; letter-spacing: 2px; text-shadow: 0px 2px 4px #00000066; }
+    /* ─── 底：对角深空渐变（SVG #bg）─── */
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-image: linear-gradient(135deg, #040914 0%, #08182a 52%, #120b18 100%); }
+
+    /* ─── 航线弧线（SVG 曲线的低透明直化近似）─── */
+    .RouteA { width: 1920px; height: 2px; position: absolute; left: 0px; top: 818px; background-color: #51ddeb14; }
+    .RouteB { width: 1920px; height: 1px; position: absolute; left: 0px; top: 849px; background-color: #ed8d6812; }
+
+    /* ─── 星点（SVG 15 颗）─── */
+    .Star { position: absolute; background-color: #b9f7ff; border-radius: 2px; }
+    .Star1 { width: 4px; height: 4px; left: 110px; top: 136px; }
+    .Star2 { width: 3px; height: 3px; left: 232px; top: 335px; opacity: 0.6; }
+    .Star3 { width: 3px; height: 3px; left: 390px; top: 176px; opacity: 0.55; }
+    .Star4 { width: 4px; height: 4px; left: 610px; top: 90px; opacity: 0.7; }
+    .Star5 { width: 3px; height: 3px; left: 742px; top: 284px; opacity: 0.5; }
+    .Star6 { width: 4px; height: 4px; left: 869px; top: 159px; }
+    .Star7 { width: 3px; height: 3px; left: 1052px; top: 84px; opacity: 0.5; }
+    .Star8 { width: 3px; height: 3px; left: 1270px; top: 166px; opacity: 0.6; }
+    .Star9 { width: 3px; height: 3px; left: 1661px; top: 124px; opacity: 0.65; }
+    .Star10 { width: 3px; height: 3px; left: 1812px; top: 286px; opacity: 0.55; }
+    .Star11 { width: 4px; height: 4px; left: 1760px; top: 610px; opacity: 0.75; }
+    .Star12 { width: 3px; height: 3px; left: 1028px; top: 620px; opacity: 0.5; }
+    .Star13 { width: 3px; height: 3px; left: 452px; top: 698px; opacity: 0.55; }
+    .Star14 { width: 3px; height: 3px; left: 722px; top: 856px; opacity: 0.65; }
+    .Star15 { width: 3px; height: 3px; left: 154px; top: 944px; opacity: 0.55; }
+
+    /* ─── 双色氛围辉光（SVG radial 的同心圆近似）─── */
+    .GlowCyanA { width: 680px; height: 680px; position: absolute; left: 1110px; top: 200px; background-color: #2fbae21a; border-radius: 340px; }
+    .GlowCyanB { width: 460px; height: 460px; position: absolute; left: 1220px; top: 310px; background-color: #2fbae226; border-radius: 230px; }
+    .GlowWarmA { width: 380px; height: 380px; position: absolute; left: 970px; top: 330px; background-color: #ff814e1c; border-radius: 190px; }
+    .GlowWarmB { width: 250px; height: 250px; position: absolute; left: 1035px; top: 395px; background-color: #ff814e28; border-radius: 125px; }
+
+    /* ─── 行星组（圆心 1415,583）：轨道盘面 → 光环 → 圆环描边 → 本体 ─── */
+    .PlanetHalo { width: 640px; height: 640px; position: absolute; left: 1095px; top: 263px; background-color: #7befff10; border-radius: 320px; }
+    .OrbitA { width: 860px; height: 284px; position: absolute; left: 985px; top: 441px; background-color: #67e9f414; border-radius: 142px; transform: rotate(-19deg); }
+    .OrbitB { width: 1010px; height: 416px; position: absolute; left: 910px; top: 375px; background-color: #e58c6b0d; border-radius: 208px; transform: rotate(18deg); }
+    .OrbitC { width: 700px; height: 180px; position: absolute; left: 1065px; top: 493px; background-color: #69ecf40d; border-radius: 90px; transform: rotate(54deg); }
+    .PlanetRing { width: 596px; height: 596px; position: absolute; left: 1117px; top: 285px; background-color: #7befffb3; border-radius: 298px; }
+    .Planet { width: 590px; height: 590px; position: absolute; left: 1120px; top: 288px; background-image: linear-gradient(145deg, #93f0ff 0%, #2388c4 26%, #12325d 65%, #071024 100%); border-radius: 295px; overflow: hidden; }
+    .Wave1 { width: 640px; height: 20px; position: absolute; left: -25px; top: 145px; background-color: #b7f6ff3d; border-radius: 10px; transform: rotate(-4deg); }
+    .Wave2 { width: 660px; height: 42px; position: absolute; left: -35px; top: 241px; background-color: #0a2d61a6; border-radius: 21px; transform: rotate(-3deg); }
+    .Wave3 { width: 640px; height: 23px; position: absolute; left: -25px; top: 381px; background-color: #7bdfe92e; border-radius: 11px; transform: rotate(3deg); }
+    .Wave4 { width: 460px; height: 18px; position: absolute; left: -77px; top: 286px; background-color: #70e7f526; border-radius: 9px; transform: rotate(84deg); }
+    .Wave5 { width: 520px; height: 37px; position: absolute; left: 93px; top: 276px; background-color: #091b42a6; border-radius: 18px; transform: rotate(96deg); }
+    .SunGlow { width: 130px; height: 130px; position: absolute; left: 1250px; top: 380px; background-color: #ff9a642e; border-radius: 65px; }
+    .Sun { width: 66px; height: 66px; position: absolute; left: 1282px; top: 412px; background-color: #ff9a64e6; border-radius: 33px; }
+    .SunCore { width: 18px; height: 18px; position: absolute; left: 1306px; top: 436px; background-color: #fff0d3; border-radius: 9px; }
+    .DotWarm { width: 20px; height: 20px; position: absolute; left: 1610px; top: 399px; background-color: #ffb26fe6; border-radius: 10px; }
+    .DotCyan { width: 12px; height: 12px; position: absolute; left: 1704px; top: 747px; background-color: #65efff; border-radius: 6px; }
+    .Beam1 { width: 40px; height: 1px; position: absolute; left: 1161px; top: 404px; background-color: #7ff3ff8c; transform: rotate(29deg); }
+    .Beam2 { width: 70px; height: 1px; position: absolute; left: 1629px; top: 375px; background-color: #ffac778c; transform: rotate(-36deg); }
+
+    /* ─── 标题块（左上）─── */
+    .TitleLine1 { width: 106px; height: 2px; position: absolute; left: 130px; top: 120px; background-color: #6feeff; }
+    .TitleLine2 { width: 54px; height: 1px; position: absolute; left: 130px; top: 130px; background-color: #6feeffa6; }
+    /* 标题不用 bold：UITextComponent bold 变体当前不渲染（引擎待查），靠大字号+字距支撑品牌感 */
+    .Title { width: 760px; height: 96px; position: absolute; left: 128px; top: 136px; font-size: 78px; letter-spacing: 16px; color: #eefcff; line-height: 96px; text-shadow: 0px 0px 18px #65efff4d; }
+    .TitleSub { width: 640px; height: 24px; position: absolute; left: 136px; top: 220px; font-size: 17px; letter-spacing: 7px; color: #80e9f5; line-height: 24px; text-shadow: 0px 2px 4px #00000099; }
+    .TitleTag { width: 560px; height: 18px; position: absolute; left: 137px; top: 266px; font-size: 12px; letter-spacing: 3px; color: #9aaebb; line-height: 18px; text-shadow: 0px 2px 4px #00000099; }
+
+    /* ─── 操作菜单（左侧）─── */
+    .MenuLineTop { width: 410px; height: 2px; position: absolute; left: 138px; top: 390px; background-image: linear-gradient(90deg, #65efff00 0%, #65efff 25%, #ef9b6f 75%, #ef9b6f00 100%); }
+    .MenuLineV { width: 1px; height: 440px; position: absolute; left: 138px; top: 390px; background-color: #64eafb2e; }
+    .MenuLineBottom { width: 350px; height: 1px; position: absolute; left: 138px; top: 830px; background-color: #64eafb24; }
+    .MenuCaption { width: 320px; height: 18px; position: absolute; left: 138px; top: 440px; font-size: 12px; letter-spacing: 4px; color: #77eefa; line-height: 18px; text-shadow: 0px 2px 4px #00000099; }
+
+    /* 主行动项（NEW EXPEDITION）：渐变底 + 青描边 + 左侧青条 */
+    .BtnPrimary { width: 355px; height: 62px; position: absolute; left: 138px; top: 495px; background-image: linear-gradient(135deg, #10283ae0 0%, #07111ec7 100%); border: 1px solid #58e4f3bf; }
+    .BtnPrimary:hover { opacity: 0.85; }
+    .BtnPrimary:active { opacity: 0.72; }
+    .ItemAccent { width: 16px; height: 62px; position: absolute; left: 0px; top: 0px; background-color: #65efff; }
+    .ItemLabel { width: 250px; height: 62px; position: absolute; left: 34px; top: 0px; font-size: 21px; letter-spacing: 4px; color: #f2ffff; line-height: 62px; text-shadow: 0px 2px 4px #00000099; }
+    .ItemNum { width: 40px; height: 62px; position: absolute; right: 14px; top: 0px; font-size: 16px; color: #72effa; line-height: 62px; text-align: right; text-shadow: 0px 2px 4px #00000099; }
+
+    /* 次行动项（CONTINUE）：暗底，hover 提亮 */
+    .BtnSecondary { width: 355px; height: 62px; position: absolute; left: 138px; top: 575px; background-color: #0b1827; border: 1px solid #6390a080; }
+    .BtnSecondary:hover { background-color: #14293a; }
+    .BtnSecondary:active { background-color: #0a1c2a; }
+    .BtnSecondary .ItemLabel { color: #c9e3ea; }
+    .BtnSecondary .ItemNum { color: #7f9aa4; }
+
+    /* 占位项（SETTINGS / EXIT）：纯 div 无 UIButton，天然不可点 */
+    .ItemGhost { width: 355px; height: 62px; position: absolute; left: 138px; top: 655px; background-color: #0b1827; border: 1px solid #6390a080; opacity: 0.82; }
+    .ItemGhostLow { top: 735px; border: 1px solid #6390a059; opacity: 0.68; }
+    .ItemGhost .ItemLabel { color: #c9e3ea; }
+    .ItemGhost .ItemNum { color: #7f9aa4; }
+    .ItemGhostLow .ItemLabel { color: #adc7cf; }
+
+    /* ─── 遥测块（右下）─── */
+    .TeleTitle { width: 300px; height: 16px; position: absolute; left: 1240px; top: 902px; font-size: 11px; letter-spacing: 3px; color: #83e8ef; line-height: 16px; text-shadow: 0px 2px 4px #00000099; }
+    .TeleVal1 { width: 250px; height: 20px; position: absolute; left: 1240px; top: 930px; font-size: 14px; letter-spacing: 2px; color: #d7faff; line-height: 20px; text-shadow: 0px 2px 4px #00000099; }
+    .TeleVal2 { width: 220px; height: 20px; position: absolute; left: 1482px; top: 930px; font-size: 14px; letter-spacing: 2px; color: #ffac76; line-height: 20px; text-shadow: 0px 2px 4px #00000099; }
+    .TeleLine { width: 530px; height: 1px; position: absolute; left: 1240px; top: 967px; background-image: linear-gradient(90deg, #65efff00 0%, #65efff 25%, #ef9b6f 75%, #ef9b6f00 100%); }
+
+    /* ─── 页脚 ─── */
+    .FooterDot { width: 8px; height: 8px; position: absolute; left: 135px; top: 1002px; background-color: #7cf5eb; border-radius: 4px; }
+    .FooterBuild { width: 420px; height: 18px; position: absolute; left: 155px; top: 998px; font-size: 12px; letter-spacing: 3px; color: #8eaab4; line-height: 18px; text-shadow: 0px 2px 4px #00000099; }
+    .FooterHint { width: 230px; height: 18px; position: absolute; left: 1560px; top: 998px; font-size: 12px; letter-spacing: 3px; color: #71919d; line-height: 18px; text-align: right; text-shadow: 0px 2px 4px #00000099; }
   </style>
   <div class="Root">
-    <div class="Star1"></div>
-    <div class="Star2"></div>
-    <div class="Star3"></div>
-    <div class="Star4"></div>
-    <div class="Star5"></div>
-    <div class="Star6"></div>
-    <div class="Star7"></div>
-    <div class="Star8"></div>
-    <div class="Star9"></div>
-    <div class="Star10"></div>
-    <div class="Star11"></div>
-    <div class="Star12"></div>
-    <div class="Star13"></div>
-    <div class="Star14"></div>
-    <div class="Star15"></div>
-    <div class="Star16"></div>
-    <div class="Star17"></div>
-    <div class="Star18"></div>
-    <div class="StarBand1"></div>
-    <div class="StarBand2"></div>
-    <div class="StarBand3"></div>
-    <div class="SunHalo"></div>
-    <div class="SunOuter"></div>
+    <div class="RouteA"></div>
+    <div class="RouteB"></div>
+    <div class="Star Star1"></div>
+    <div class="Star Star2"></div>
+    <div class="Star Star3"></div>
+    <div class="Star Star4"></div>
+    <div class="Star Star5"></div>
+    <div class="Star Star6"></div>
+    <div class="Star Star7"></div>
+    <div class="Star Star8"></div>
+    <div class="Star Star9"></div>
+    <div class="Star Star10"></div>
+    <div class="Star Star11"></div>
+    <div class="Star Star12"></div>
+    <div class="Star Star13"></div>
+    <div class="Star Star14"></div>
+    <div class="Star Star15"></div>
+    <div class="GlowCyanA"></div>
+    <div class="GlowCyanB"></div>
+    <div class="GlowWarmA"></div>
+    <div class="GlowWarmB"></div>
+    <div class="PlanetHalo"></div>
+    <div class="OrbitA"></div>
+    <div class="OrbitB"></div>
+    <div class="OrbitC"></div>
+    <div class="PlanetRing"></div>
+    <div class="Planet">
+      <div class="Wave1"></div>
+      <div class="Wave2"></div>
+      <div class="Wave3"></div>
+      <div class="Wave4"></div>
+      <div class="Wave5"></div>
+    </div>
+    <div class="SunGlow"></div>
+    <div class="Sun"></div>
     <div class="SunCore"></div>
-    <div class="RingOuter"></div>
-    <div class="RingMid"></div>
-    <div class="RingDot"></div>
-    <text class="SunLabel">SOL · 聚能环</text>
-    <div class="EarthAtmo"></div>
-    <div class="Earth"></div>
-    <text class="EarthLabel">EARTH · 地球</text>
-    <div class="Moon"></div>
-    <div class="Route1"></div>
-    <div class="RouteDot1"></div>
-    <div class="Mars"></div>
-    <text class="MarsLabel">MARS</text>
-    <div class="Jupiter"></div>
-    <text class="JupiterLabel">JUPITER</text>
-    <div class="TagAccent"></div>
-    <text class="TagText">HELIUM-3 EXPEDITION</text>
-    <text class="Title">暖流计划</text>
-    <text class="EnTitle">WARM CURRENT</text>
-    <text class="Desc">拖拽画线连接地球与远域星球
-建立氦-3 航线，让聚能环在深冬降临前持续运转</text>
-    <div class="StartBtnGlow"></div>
-    <button class="StartButton" data-name="Btn_new">
-      <text class="StartBtnText">▶ 新的远征</text>
+    <div class="DotWarm"></div>
+    <div class="DotCyan"></div>
+    <div class="Beam1"></div>
+    <div class="Beam2"></div>
+    <div class="TitleLine1"></div>
+    <div class="TitleLine2"></div>
+    <text class="Title">WARM</text>
+    <text class="TitleSub">CURRENT / ORBITAL LOGISTICS</text>
+    <text class="TitleTag">MISSION CONTROL // SYSTEM ONLINE</text>
+    <div class="MenuLineTop"></div>
+    <div class="MenuLineV"></div>
+    <div class="MenuLineBottom"></div>
+    <text class="MenuCaption">SELECT OPERATION</text>
+    <button class="BtnPrimary" data-name="Btn_new">
+      <div class="ItemAccent"></div>
+      <text class="ItemLabel">NEW EXPEDITION</text>
+      <text class="ItemNum">01</text>
     </button>
-    <button class="LoadButton" data-name="Btn_load">
-      <text class="LoadBtnText" data-name="Label_load">读取存档</text>
+    <button class="BtnSecondary" data-name="Btn_load">
+      <text class="ItemLabel" data-name="Label_load">CONTINUE</text>
+      <text class="ItemNum">02</text>
     </button>
-    <text class="TipText">游戏内按 Esc 呼出暂停菜单，可在三个存档槽间保存/读取
-关注引力窗口与极寒停航，规划每一条航线</text>
-    <div class="FooterLine"></div>
-    <text class="FooterText">DEMOSTUDIO · WARM CURRENT</text>
-    <text class="VersionText">SOL EXPEDITION BUILD 0.1</text>
+    <div class="ItemGhost">
+      <text class="ItemLabel">SETTINGS</text>
+      <text class="ItemNum">03</text>
+    </div>
+    <div class="ItemGhost ItemGhostLow">
+      <text class="ItemLabel">EXIT TO DESKTOP</text>
+      <text class="ItemNum">04</text>
+    </div>
+    <text class="TeleTitle">LIVE TELEMETRY</text>
+    <text class="TeleVal1">SOLAR WIND 24.8 km/s</text>
+    <text class="TeleVal2">CORE TEMP 31.4°</text>
+    <div class="TeleLine"></div>
+    <div class="FooterDot"></div>
+    <text class="FooterBuild">BUILD 0.9.7 // HELIOS NETWORK</text>
+    <text class="FooterHint">ENTER / SELECT</text>
   </div>
 </widget>

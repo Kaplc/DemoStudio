@@ -8,7 +8,7 @@ import {
   normalizeMemoryName,
   parseFrontmatter,
   parseMemoryType,
-  parsePrefixExpr,
+  parseTriggerFileList,
   renderMemoryFile,
 } from '../src/memoryTypes.js'
 import { renderIndexLine } from '../src/memoryStore.js'
@@ -85,57 +85,64 @@ describe('renderIndexLineHelper', () => {
   })
 })
 
-describe('renderMemoryFile / prefix 联想键', () => {
-  it('带 prefix 序列化出 prefix 行并可解析回', () => {
-    const file = renderMemoryFile('engine_pitfall', '引擎坑', 'project', '正文', 'src/engine')
-    expect(file).toContain('prefix: src/engine')
+describe('renderMemoryFile / prefix 联想键（触发文件列表）', () => {
+  it('带 prefix 序列化出方括号数组行并可解析回', () => {
+    const file = renderMemoryFile('engine_pitfall', '引擎坑', 'project', '正文', ['src/engine/a.ts'])
+    expect(file).toContain('prefix: [src/engine/a.ts]')
     const { data, body } = parseFrontmatter(file)
-    expect(data.prefix).toBe('src/engine')
+    expect(data.prefix).toEqual(['src/engine/a.ts'])
     expect(body).toBe('正文\n')
   })
 
-  it('不带 prefix 时不写 prefix 行；值为空串等同不带', () => {
-    expect(renderMemoryFile('a', 'd', 'user', 'c')).not.toContain('prefix:')
-    expect(renderMemoryFile('a', 'd', 'user', 'c', '  ')).not.toContain('prefix:')
+  it('多文件列表逗号分隔序列化，解析还原为数组', () => {
+    const file = renderMemoryFile('a', 'd', 'user', 'c', ['src/engine/a.ts', 'doc/engine/b.md'])
+    expect(file).toContain('prefix: [src/engine/a.ts, doc/engine/b.md]')
+    expect(parseFrontmatter(file).data.prefix).toEqual(['src/engine/a.ts', 'doc/engine/b.md'])
   })
 
-  it('解析带引号 prefix 值与全局 /', () => {
-    expect(parseFrontmatter("---\nprefix: 'src/engine'\n---\nx").data.prefix).toBe('src/engine')
-    expect(parseFrontmatter('---\nprefix: "/"\n---\nx').data.prefix).toBe('/')
+  it('不带 prefix / 空数组时不写 prefix 行', () => {
+    expect(renderMemoryFile('a', 'd', 'user', 'c')).not.toContain('prefix:')
+    expect(renderMemoryFile('a', 'd', 'user', 'c', [])).not.toContain('prefix:')
+  })
+
+  it('解析方括号数组 / 裸单文件 / 带引号写法；空值 undefined', () => {
+    expect(parseFrontmatter('---\nprefix: [src/engine/a.ts, doc/engine/b.md]\n---\nx').data.prefix)
+      .toEqual(['src/engine/a.ts', 'doc/engine/b.md'])
+    expect(parseFrontmatter('---\nprefix: src/engine/a.ts\n---\nx').data.prefix).toEqual(['src/engine/a.ts'])
+    expect(parseFrontmatter("---\nprefix: 'src/engine/a.ts'\n---\nx").data.prefix).toEqual(['src/engine/a.ts'])
     expect(parseFrontmatter('---\nprefix:\n---\nx').data.prefix).toBeUndefined()
   })
 })
 
-describe('parsePrefixExpr（&&/|| 组合表达式）', () => {
-  it('单值退化为单项单组（旧单前缀语义兼容）', () => {
-    expect(parsePrefixExpr('src/engine')).toEqual([['src/engine']])
-    expect(parsePrefixExpr('  src/engine  ')).toEqual([['src/engine']])
-    expect(parsePrefixExpr('/')).toEqual([['/']])
+describe('parseTriggerFileList（触发文件列表解析）', () => {
+  it('方括号数组按逗号拆分，去空白', () => {
+    expect(parseTriggerFileList('[src/engine/a.ts, doc/engine/b.md]'))
+      .toEqual(['src/engine/a.ts', 'doc/engine/b.md'])
+    expect(parseTriggerFileList('  [ a.ts ,  b.md ]  ')).toEqual(['a.ts', 'b.md'])
   })
 
-  it('|| 拆为多个 OR 组：任一路径命中触发', () => {
-    expect(parsePrefixExpr('src/engine || doc/engine')).toEqual([['src/engine'], ['doc/engine']])
+  it('裸单文件值退化为单项数组（兼容手写单文件省略方括号）', () => {
+    expect(parseTriggerFileList('src/engine/a.ts')).toEqual(['src/engine/a.ts'])
+    expect(parseTriggerFileList('  src/engine/a.ts  ')).toEqual(['src/engine/a.ts'])
   })
 
-  it('&& 合为一个 AND 组：会话内全部读过才触发', () => {
-    expect(parsePrefixExpr('src/engine && doc/editor')).toEqual([['src/engine', 'doc/editor']])
+  it('每项去成对引号；反斜杠归一为正斜杠', () => {
+    expect(parseTriggerFileList(`["a.ts", 'b.md']`)).toEqual(['a.ts', 'b.md'])
+    expect(parseTriggerFileList('[src\\engine\\a.ts]')).toEqual(['src/engine/a.ts'])
+    expect(parseTriggerFileList('src\\engine\\a.ts')).toEqual(['src/engine/a.ts'])
   })
 
-  it('&& 优先级高于 ||（与代码语义一致）', () => {
-    expect(parsePrefixExpr('a && b || c')).toEqual([['a', 'b'], ['c']])
-    expect(parsePrefixExpr('a || b && c')).toEqual([['a'], ['b', 'c']])
+  it('空项丢弃；全空/空串返回 undefined（视为未声明，不参与联想）', () => {
+    expect(parseTriggerFileList('[a.ts, , b.md]')).toEqual(['a.ts', 'b.md'])
+    expect(parseTriggerFileList('[]')).toBeUndefined()
+    expect(parseTriggerFileList('[  ]')).toBeUndefined()
+    expect(parseTriggerFileList('')).toBeUndefined()
+    expect(parseTriggerFileList('   ')).toBeUndefined()
   })
 
-  it('容忍多余空白与悬挂运算符（空项/空组丢弃）', () => {
-    expect(parsePrefixExpr(' a &&  b ')).toEqual([['a', 'b']])
-    expect(parsePrefixExpr('&& a ||')).toEqual([['a']])
-    expect(parsePrefixExpr('a && && b')).toEqual([['a', 'b']])
-  })
-
-  it('空/全空表达式返回 undefined（视为未声明，不参与联想）', () => {
-    expect(parsePrefixExpr('')).toBeUndefined()
-    expect(parsePrefixExpr('   ')).toBeUndefined()
-    expect(parsePrefixExpr('&& ||')).toBeUndefined()
+  it('目录型旧值解析为单项数组但按新语义不会命中其下文件（精确匹配由 associate 负责）', () => {
+    // 旧 frontmatter 的目录值不再被特殊解释，只是永远匹配不到任何具体文件
+    expect(parseTriggerFileList('src/engine')).toEqual(['src/engine'])
   })
 })
 
@@ -166,11 +173,12 @@ describe('KM-01 记忆指导段踩坑四段结构（数据飞轮·知识飞轮�
     expect(SAVE_FLOW_TEXT).toContain('memory_write')
     expect(SAVE_FLOW_TEXT).toContain('宁缺毋滥')
   })
-  it('指导段说明 prefix 自动联想：命中自动加载全文、正文须精炼', () => {
+  it('指导段说明 prefix 文件联想：命中自动加载全文、正文须精炼、只按具体文件精确匹配', () => {
     const section = memoryGuideSectionText(undefined)
-    expect(section).toContain('prefix 自动联想')
+    expect(section).toContain('prefix 文件联想')
     expect(section).toContain('全文会被自动注入')
     expect(section).toContain('必须最精炼')
-    expect(section).toContain('段级前缀')
+    expect(section).toContain('具体文件')
+    expect(section).not.toContain('段级前缀')
   })
 })

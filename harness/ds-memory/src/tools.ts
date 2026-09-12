@@ -13,12 +13,13 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { memoryAge, memoryAgeDays, memoryFreshnessText } from './memoryAge.js'
 import {
   buildBodyWriteReminder,
+  formatTriggerFiles,
   MAX_MEMORY_CONTENT_CHARS,
   MEMORY_ENTRYPOINT,
   MEMORY_TYPES,
   STALE_MEMORY_DAYS,
   normalizeMemoryName,
-  parsePrefixExpr,
+  normalizeTriggerFiles,
   renderMemoryFile,
 } from './memoryTypes.js'
 import { forgetMemories, readAllMemories, removeFromIndex, upsertIndexLine } from './memoryStore.js'
@@ -72,12 +73,12 @@ function assertNotChildAgent(agent: Agent | undefined): void {
 export function createMemoryWriteTool(host: MemoryToolHost) {
   return defineTool({
     name: 'memory_write',
-    description: '保存/更新一条跨会话持久记忆。本工具直接写入 frontmatter（新建文件只落头部格式；已有记忆按 name/description 查重后原位更新头部，正文原样保留）并同步 MEMORY.md 索引行；返回后你只需用 write/edit 手动补写正文（按条目格式），并顺便全库检查过时记忆。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动调用。name 用语义化小写下划线（如 user_role）。prefix 必填：声明联想触发路径；无联想或更新时保持原样填 hold。',
+    description: '保存/更新一条跨会话持久记忆。本工具直接写入 frontmatter（新建文件只落头部格式；已有记忆按 name/description 查重后原位更新头部，正文原样保留）并同步 MEMORY.md 索引行；返回后你只需用 write/edit 手动补写正文（按条目格式），并顺便全库检查过时记忆。发现值得跨会话记住的信息（用户纠正/确认、项目决策、踩坑根因教训、用户画像、外部系统指针）时当回合主动调用。name 用语义化小写下划线（如 user_role）。prefix 必填：声明联想触发的文件数组；无联想或更新时保持原样填 hold。',
     parameters: {
       name: { type: 'string', required: true, description: '语义化小写下划线文件名（不含 .md），如 user_role' },
       type: { type: 'string', enum: MEMORY_TYPES, required: true, description: 'user=用户画像 | feedback=纠正与确认 | project=项目决策动态 | reference=外部系统指针' },
       description: { type: 'string', required: true, description: '一行描述，用于检索相关性判断与去重' },
-      prefix: { type: 'string', required: true, description: '联想前缀表达式（必填）：项目根相对路径，支持代码风格运算符组合多路径——`a || b` 任一命中触发、`a && b` 会话内全部读过才触发（如 `src/engine || doc/engine`、`src/engine && doc/editor`；`&&` 优先级高于 `||`；单值如 `src/engine`；`/` = 全局）。读到满足表达式的文件时本条记忆全文自动注入（每会话一次）。无联想、或更新时保持已有联想不变，填 hold' },
+      prefix: { type: 'array', items: { type: 'string' }, required: true, description: '联想触发文件列表（必填）：项目根相对的**具体文件路径**数组，如 ["src/engine/foo.ts", "doc/engine/bar.md"]。会话中读到列表中的任一文件时本条记忆全文自动注入（每会话一次）。只按具体文件精确匹配，不支持目录/通配符/&&/|| 表达式。无联想、或更新时保持已有联想不变，填 hold' },
       scope: { type: 'string', enum: ['private', 'team'], description: '记忆作用域，默认 private；当前仅实现 private' },
     },
     output: {
@@ -104,12 +105,11 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
       if (!(MEMORY_TYPES as readonly string[]).includes(args.type)) {
         throw new Error(`type "${args.type}" 非法；必须是 ${MEMORY_TYPES.join('/')}`)
       }
-      // prefix 必填；`hold`（大小写不敏感，容忍空白/缺省）= 无联想/更新时保持原样——不参与表达式校验、不落 frontmatter
-      const declaredPrefix = args.prefix?.trim() ?? ''
-      const holdPrefix = declaredPrefix === '' || declaredPrefix.toLowerCase() === 'hold'
-      if (!holdPrefix && parsePrefixExpr(declaredPrefix) === undefined) {
-        throw new Error(`prefix 表达式 "${args.prefix}" 无效：运算符用双字符 && / ||，至少含一个非空路径；无联想填 hold`)
-      }
+      // prefix 必填；`hold`（大小写不敏感，容忍空数组/缺省/空白条目）= 无联想/更新时保持原样
+      // ——不落 frontmatter；含换行条目由 normalizeTriggerFiles 抛错（frontmatter 单行约束）
+      const declaredFiles = normalizeTriggerFiles(args.prefix)
+      const holdPrefix = declaredFiles === undefined
+        || (declaredFiles.length === 1 && declaredFiles[0]!.toLowerCase() === 'hold')
       const all = await readAllMemories(host.memoryDirectory)
       const byName = all.find(record => record.fileName === fileName)
       const hit = byName ?? all.find(record => record.description !== undefined && record.description === args.description)
@@ -117,14 +117,14 @@ export function createMemoryWriteTool(host: MemoryToolHost) {
       const targetFileName = hit?.fileName ?? fileName
       const targetBase = targetFileName.replace(/\.md$/, '')
       const targetPath = join(host.memoryDirectory, sanitizePathKey(targetFileName))
-      // prefix：hold=更新时保留旧值（创建时无联想）；表达式=本次声明覆盖
-      const finalPrefix = holdPrefix ? hit?.prefix : declaredPrefix
+      // prefix：hold=更新时保留旧值（创建时无联想）；文件列表=本次声明覆盖
+      const finalPrefix = holdPrefix ? hit?.prefix : declaredFiles
       const content = renderMemoryFile(targetBase, args.description, args.type, hit?.content ?? '', finalPrefix)
       await assertSafeWritePath(host.memoryDirectory, targetFileName)
       await mkdir(host.memoryDirectory, { recursive: true })
       await writeFile(targetPath, content, 'utf8')
       // 索引行与 frontmatter 同源（description + prefix 标注），工具一并同步
-      await upsertIndexLine(host.memoryDirectory, targetBase, `${args.description}${finalPrefix === undefined ? '' : `（prefix: ${finalPrefix}）`}`)
+      await upsertIndexLine(host.memoryDirectory, targetBase, `${args.description}${finalPrefix === undefined ? '' : `（prefix: ${formatTriggerFiles(finalPrefix)}）`}`)
       const status = hit === undefined ? 'created' as const : 'updated' as const
       const deduped_by = byName !== undefined
         ? 'name' as const

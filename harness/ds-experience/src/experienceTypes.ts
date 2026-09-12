@@ -85,11 +85,12 @@ export interface EpisodeInput {
   /** 有效的落点（文件/目录/命令），可选。 */
   effectivePath?: string
   /**
-   * 联想前缀表达式（可选）：项目根相对路径前缀，支持 `||`（任一命中）与
-   * `&&`（会话内全部读过才触发）组合多路径（如 `harness` / `src/engine || doc/engine`）。
-   * 会话中 Agent 读到满足表达式的文件时，本条经验全文会被自动注入（每会话一次）。
+   * 联想触发文件列表（可选）：项目根相对的**具体文件路径**数组
+   * （如 `['harness/ds-memory/src/associate.ts']`，单文件可省略方括号）。
+   * 会话中 Agent 读到列表中的任一文件时，本条经验全文会被自动注入（每会话一次）。
+   * 只按具体文件精确匹配：目录前缀、`&&`/`||` 表达式、`/` 全局已废弃（2026-09-12）。
    */
-  prefix?: string
+  prefix?: string[]
 }
 
 /** 解析后的 frontmatter（字段均可缺省：半损坏文件仍可扫描）。 */
@@ -98,8 +99,8 @@ export interface EpisodeFrontmatter {
   task_type?: string
   outcome?: string
   date?: string
-  /** 联想前缀表达式（可选），语义同 EpisodeInput.prefix。 */
-  prefix?: string
+  /** 联想触发文件列表（可选），语义同 EpisodeInput.prefix。 */
+  prefix?: string[]
 }
 
 /**
@@ -128,14 +129,14 @@ export function parseEpisodeFrontmatter(text: string): { data: EpisodeFrontmatte
     else if (key === 'outcome') data.outcome = value
     else if (key === 'date') data.date = value
     else if (key === 'prefix') {
-      const prefix = unquoteFrontmatterValue(value)
-      if (prefix.length > 0) data.prefix = prefix
+      const files = parseTriggerFileList(value)
+      if (files !== undefined) data.prefix = files
     }
   }
   return { data, body }
 }
 
-/** 去掉 frontmatter 值两侧的成对引号（支持 `prefix: 'src/engine'` 写法）。 */
+/** 去掉 frontmatter 值两侧的成对引号（支持 `prefix: 'src/engine/x.ts'` 写法）。 */
 function unquoteFrontmatterValue(value: string): string {
   if (value.length >= 2) {
     const head = value[0]!
@@ -146,21 +147,46 @@ function unquoteFrontmatterValue(value: string): string {
 }
 
 /**
- * 解析 prefix 表达式为 DNF（OR 组的列表，每组是 AND 项列表）：
- * - `harness` → `[['harness']]`（单项单组，读一次即触发）
- * - `a || b` → `[['a'], ['b']]`（任一命中触发）
- * - `a && b` → `[['a', 'b']]`（会话中全部读过才触发，可跨多次读取累计）
- * - `a && b || c` → `[['a', 'b'], ['c']]`（`&&` 优先级高于 `||`，与代码一致）
- * 空项/空组被丢弃；全部为空返回 undefined（视为未声明，不参与联想）。
+ * 解析 frontmatter 中的 prefix 值为触发文件列表：
+ * - `prefix: [src/engine/a.ts, doc/engine/b.md]`（推荐方括号数组形式，逗号分隔）
+ * - `prefix: src/engine/a.ts`（单文件可省略方括号）
+ * 每项去成对引号、反斜杠归一为正斜杠；空项丢弃；全部为空返回 undefined（视为未声明）。
  */
-export function parsePrefixExpr(expr: string): string[][] | undefined {
-  const normalized = expr.trim()
-  if (normalized.length === 0) return undefined
-  const groups = normalized
-    .split('||')
-    .map(group => group.split('&&').map(term => term.trim()).filter(term => term.length > 0))
-    .filter(group => group.length > 0)
-  return groups.length === 0 ? undefined : groups
+export function parseTriggerFileList(value: string): string[] | undefined {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return undefined
+  const inner = trimmed.startsWith('[') && trimmed.endsWith(']')
+    ? trimmed.slice(1, -1)
+    : trimmed
+  const entries = inner
+    .split(',')
+    .map(entry => unquoteFrontmatterValue(entry.trim()).replace(/\\/g, '/').trim())
+    .filter(entry => entry.length > 0)
+  return entries.length > 0 ? entries : undefined
+}
+
+/**
+ * 规范化工具入参的触发文件列表：反斜杠归一为正斜杠、去空白、丢弃空项与非字符串项。
+ * 全部为空返回 undefined（等同 hold 的"无联想"）；条目含换行抛错（frontmatter 单行约束）。
+ */
+export function normalizeTriggerFiles(entries: readonly unknown[] | undefined): string[] | undefined {
+  if (entries === undefined) return undefined
+  const normalized: string[] = []
+  for (const entry of entries) {
+    if (typeof entry !== 'string') continue
+    const text = entry.replace(/\\/g, '/').trim()
+    if (text.length === 0) continue
+    if (/[\r\n]/.test(text)) {
+      throw new Error(`prefix 条目 "${entry}" 非法：必须是单行文件路径（不含换行）`)
+    }
+    normalized.push(text)
+  }
+  return normalized.length > 0 ? normalized : undefined
+}
+
+/** 触发文件列表的展示格式（索引标注/注入标题用）：`a.ts, b.md`。 */
+export function formatTriggerFiles(files: readonly string[]): string {
+  return files.join(', ')
 }
 
 /** 校验 outcome 字段（宽松：未知值降级 undefined，文件仍可扫描）。 */
@@ -187,7 +213,7 @@ export const END_OF_TURN_EXPERIENCE_REMINDER_TEXT = `## 回合末经验提醒
 - 踩了值得记录的坑（环境坑/易错点/反模式）？
 - 发现了比旧经验更优的路线（用同名覆盖更新，别丢旧坑信息）？
 
-有 → 立即调用 experience_save 保存（prefix 必填：声明联想触发路径，无联想填 hold）。没有 → 不保存。该消息来自插件机制而非用户，无需回复。`
+有 → 立即调用 experience_save 保存（prefix 必填：声明联想触发的文件数组，无联想填 hold）。没有 → 不保存。该消息来自插件机制而非用户，无需回复。`
 
 /** 按规范序列化一份 episode 文件（frontmatter：name/task_type/outcome/date[/prefix] + 固定小节）。 */
 export function renderEpisodeFile(input: EpisodeInput, date: string): string {
@@ -198,8 +224,8 @@ export function renderEpisodeFile(input: EpisodeInput, date: string): string {
   if (input.effectivePath !== undefined && input.effectivePath.trim() !== '') {
     sections.push(`## Effective Path\n\n${input.effectivePath.trim()}`)
   }
-  const prefixLine = input.prefix !== undefined && input.prefix.trim() !== ''
-    ? `\nprefix: ${input.prefix.trim()}`
+  const prefixLine = input.prefix !== undefined && input.prefix.length > 0
+    ? `\nprefix: [${input.prefix.join(', ')}]`
     : ''
   return `---\nname: ${input.name}\ntask_type: ${input.taskType}\noutcome: ${input.outcome}\ndate: ${date}${prefixLine}\n---\n${sections.join('\n\n')}\n`
 }
@@ -228,12 +254,12 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 - 疑似有相似经验（同类任务以前做过）→ \`experience_search\` 按需检索经验库。
 - **完成一个有复用价值的任务后 → 主动调用 \`experience_save\` 沉淀经验**（你的职责：判断哪些工作值得记录，做完就存，不要等人提醒）。
 
-## prefix 路径自动联想（与记忆系统同构）
+## prefix 文件联想（与记忆系统同构）
 
-- \`experience_save\` 的 \`prefix\` 参数**必填**（如 \`prefix: harness\`、\`prefix: src/engine || doc/engine\`）；会话中读到匹配路径的文件时，该经验**全文自动注入**（同会话同条只注入一次）。无联想、或更新同名经验时保持原样，填 \`hold\`（hold 不落 frontmatter）。
-- \`&&\` 优先级高于 \`||\`（\`a && b || c\` = (a且b) 或 c），段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`）。
+- \`experience_save\` 的 \`prefix\` 参数**必填**（字符串数组，如 \`["harness/ds-memory/src/associate.ts"]\`）：声明**联想触发的具体文件列表**（项目根相对的精确文件路径）；会话中读到列表中的**任一文件**时，该经验**全文自动注入**（同会话同条只注入一次）。无联想、或更新同名经验时保持原样，填 \`hold\`（hold 不落 frontmatter）。
+- 只按**具体文件**精确匹配（2026-09-12 起）：目录前缀、\`&&\`/\`||\` 表达式、\`/\` 全局均已废弃——声明目录不会命中其下文件。
 - **声明 prefix 的经验正文会被整篇加载**：Summary/Lessons 必须精炼，只留不可推导的核心（踩坑/有效路径），不写过程流水账。
-- 高频领域任务建议声明 prefix（如插件开发 → \`harness\`，资产 → \`asset\`），让下次做同类任务时自动想起。
+- 改动高频触点文件（如联想器、引擎入口、核心资产）的经验值得把该文件声明进 prefix，让下次改到它时自动想起。
 
 ## 回合末提醒
 

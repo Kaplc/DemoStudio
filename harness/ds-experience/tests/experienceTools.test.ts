@@ -40,11 +40,11 @@ describe('experience_search 按文件名命中', () => {
     const save = createExperienceSaveTool({ experienceDirectory: dir, ctx })
     await save.execute({
       name: 'fix_junction_mount', task_type: 'build-fix', outcome: 'success',
-      summary: 'PowerShell junction 挂载', lessons: 'Git Bash mklink 会挂', prefix: 'hold',
+      summary: 'PowerShell junction 挂载', lessons: 'Git Bash mklink 会挂', prefix: ['hold'],
     } as never, exec)
     await save.execute({
       name: 'bump_dsh_kernel', task_type: 'build-fix', outcome: 'partial',
-      summary: '升级内核版本', lessons: 'patch 行要整行替换', prefix: 'hold',
+      summary: '升级内核版本', lessons: 'patch 行要整行替换', prefix: ['hold'],
     } as never, exec)
     const tool = createExperienceSearchTool({ experienceDirectory: dir, ctx })
     const value = await tool.execute({ names: ['fix_junction_mount'] } as never, exec)
@@ -61,7 +61,7 @@ describe('experience_search 按文件名命中', () => {
     const save = createExperienceSaveTool({ experienceDirectory: dir, ctx })
     await save.execute({
       name: 'some_episode', task_type: 'debug', outcome: 'failure',
-      summary: 's', lessons: 'l', prefix: 'hold',
+      summary: 's', lessons: 'l', prefix: ['hold'],
     } as never, exec)
     const tool = createExperienceSearchTool({ experienceDirectory: dir, ctx })
     const miss = await tool.execute({ names: ['ghost'] } as never, exec)
@@ -73,8 +73,8 @@ describe('experience_search 按文件名命中', () => {
   it('空数组返回全部经验摘要（不含正文过滤）', async () => {
     const ctx = mockCtx()
     const save = createExperienceSaveTool({ experienceDirectory: dir, ctx })
-    await save.execute({ name: 'a_one', task_type: 'feature', outcome: 'success', summary: 'a', lessons: 'l', prefix: 'hold' } as never, exec)
-    await save.execute({ name: 'b_two', task_type: 'debug', outcome: 'partial', summary: 'b', lessons: 'l', prefix: 'hold' } as never, exec)
+    await save.execute({ name: 'a_one', task_type: 'feature', outcome: 'success', summary: 'a', lessons: 'l', prefix: ['hold'] } as never, exec)
+    await save.execute({ name: 'b_two', task_type: 'debug', outcome: 'partial', summary: 'b', lessons: 'l', prefix: ['hold'] } as never, exec)
     const tool = createExperienceSearchTool({ experienceDirectory: dir, ctx })
     const value = await tool.execute({} as never, exec)
     expect(value.count).toBe(2)
@@ -103,12 +103,12 @@ describe('experience_save 工具', () => {
     const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
     const created = await tool.execute({
       name: 'tool_saved_episode', task_type: 'debug', outcome: 'failure',
-      summary: 's', lessons: 'l', prefix: 'hold',
+      summary: 's', lessons: 'l', prefix: ['hold'],
     } as never, exec)
     expect(created).toEqual({ status: 'created', file: 'tool_saved_episode.md' })
     const updated = await tool.execute({
       name: 'tool_saved_episode', task_type: 'debug', outcome: 'failure',
-      summary: 's2', lessons: 'l2', prefix: 'hold',
+      summary: 's2', lessons: 'l2', prefix: ['hold'],
     } as never, exec)
     expect(updated.status).toBe('updated')
   })
@@ -117,56 +117,72 @@ describe('experience_save 工具', () => {
     const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
     await tool.execute({
       name: 'hold_episode', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: 'src/engine',
+      summary: 's', lessons: 'l', prefix: ['src/engine/a.ts'],
     } as never, exec)
     await tool.execute({
       name: 'hold_episode', task_type: 'feature', outcome: 'success',
-      summary: 's2', lessons: 'l2', prefix: 'HOLD',
+      summary: 's2', lessons: 'l2', prefix: ['HOLD'],
     } as never, exec)
     const kept = await readFile(join(dir, 'hold_episode.md'), 'utf8')
-    expect(kept).toContain('prefix: src/engine')
+    expect(kept).toContain('prefix: [src/engine/a.ts]')
 
     await tool.execute({
       name: 'plain_hold_episode', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: 'HOLD',
+      summary: 's', lessons: 'l', prefix: ['HOLD'],
     } as never, exec)
     const fresh = await readFile(join(dir, 'plain_hold_episode.md'), 'utf8')
     expect(fresh).not.toContain('prefix:')
   })
 
-  it('非 hold 的无效 prefix 表达式抛错（提示可填 hold）', async () => {
+  it('prefix=空数组等同 hold：更新保留旧联想', async () => {
+    const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
+    await tool.execute({
+      name: 'empty_hold_episode', task_type: 'feature', outcome: 'success',
+      summary: 's', lessons: 'l', prefix: ['src/engine/a.ts'],
+    } as never, exec)
+    await tool.execute({
+      name: 'empty_hold_episode', task_type: 'feature', outcome: 'success',
+      summary: 's2', lessons: 'l2', prefix: [],
+    } as never, exec)
+    const kept = await readFile(join(dir, 'empty_hold_episode.md'), 'utf8')
+    expect(kept).toContain('prefix: [src/engine/a.ts]')
+  })
+
+  it('含换行的 prefix 条目抛错（frontmatter 单行约束）', async () => {
     const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
     await expect(tool.execute({
       name: 'bad_prefix', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: '&& ||',
-    } as never, exec)).rejects.toThrow(/无联想填 hold/)
+      summary: 's', lessons: 'l', prefix: ['a\nb'],
+    } as never, exec)).rejects.toThrow(/单行/)
   })
 
-  it('prefix 落盘 frontmatter，检索记录可读回', async () => {
+  it('prefix 文件列表落盘 frontmatter，检索记录可读回', async () => {
     const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
     await tool.execute({
       name: 'prefixed_episode', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: 'harness || doc/harness',
+      summary: 's', lessons: 'l', prefix: ['harness/a.ts', 'doc/b.md'],
     } as never, exec)
     const file = await readFile(join(dir, 'prefixed_episode.md'), 'utf8')
-    expect(file).toContain('prefix: harness || doc/harness')
+    expect(file).toContain('prefix: [harness/a.ts, doc/b.md]')
     const search = createExperienceSearchTool({ experienceDirectory: dir, ctx: mockCtx() })
     const value = await search.execute({ names: ['prefixed_episode'] } as never, exec)
     expect(value.count).toBe(1)
   })
 
-  it('prefix=hold 不写 prefix 行；含换行的 prefix 被显式校验拒绝', async () => {
+  it('prefix=hold 不写 prefix 行；条目反斜杠归一为正斜杠落盘', async () => {
     const tool = createExperienceSaveTool({ experienceDirectory: dir, ctx: mockCtx() })
     await tool.execute({
       name: 'plain_episode', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: 'hold',
+      summary: 's', lessons: 'l', prefix: ['hold'],
     } as never, exec)
     const file = await readFile(join(dir, 'plain_episode.md'), 'utf8')
     expect(file).not.toContain('prefix:')
-    await expect(tool.execute({
-      name: 'bad_prefix', task_type: 'feature', outcome: 'success',
-      summary: 's', lessons: 'l', prefix: 'a\nb',
-    } as never, exec)).rejects.toThrow(/single-line/)
+    await tool.execute({
+      name: 'slash_episode', task_type: 'feature', outcome: 'success',
+      summary: 's', lessons: 'l', prefix: ['src\\engine\\a.ts'],
+    } as never, exec)
+    const slashFile = await readFile(join(dir, 'slash_episode.md'), 'utf8')
+    expect(slashFile).toContain('prefix: [src/engine/a.ts]')
   })
 
   it('render 输出 created/updated 两种文案', () => {

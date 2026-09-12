@@ -18,11 +18,13 @@ export const STATS_PANEL_WIDGET = 'asset/blueprints/ui/stats_panel.widget.json'
 const LEDGER_ROWS: Array<{ node: string; pick: (l: import('../core/types').SimLedger) => number }> = [
   { node: 'Val_unload', pick: (l) => l.unload },
   { node: 'Val_refund', pick: (l) => l.demolishRefund },
+  { node: 'Val_mining', pick: (l) => l.mining },
   { node: 'Val_ring', pick: (l) => l.ringBurn },
   { node: 'Val_ringbuild', pick: (l) => l.ringBuild },
   { node: 'Val_research', pick: (l) => l.research },
   { node: 'Val_maint', pick: (l) => l.fleetMaint },
   { node: 'Val_orbit', pick: (l) => l.orbitBuild },
+  { node: 'Val_minebuild', pick: (l) => l.mineBuild },
   { node: 'Val_build', pick: (l) => l.shipBuild },
   { node: 'Val_rebuild', pick: (l) => l.shipRebuild },
   { node: 'Val_rfuel', pick: (l) => l.reverseFuel },

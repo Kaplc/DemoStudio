@@ -1,13 +1,12 @@
 /**
- * 记忆自动联想（prefix 路径召回）——"进行到哪块工作内容就自动想起对应记忆"。
+ * 记忆自动联想（prefix 文件召回）——"改到哪个文件就自动想起对应记忆"。
  *
  * 机制与 ds-instructions 同构但刻意轻量：
  * - 只跟踪读取类工具（read/read_image）的成功结果（tools/pre-execute 登记 →
  *   tools/result 确认，嵌套调用向 parent 汇总，失败/取消整体丢弃）；
- * - 被读文件相对项目根的路径做**段级前缀匹配**（src/engine 不命中 src/engine2），
- *   求值记忆 frontmatter 声明的 `prefix:` 表达式：支持代码风格 `||`（任一路径
- *   命中即触发）与 `&&`（会话中全部前缀被读过才触发，可跨多次读取累计，
- *   `&&` 优先级高于 `||`，与代码语义一致）；
+ * - 被读文件相对项目根的路径与记忆 frontmatter `prefix:` 声明的**具体文件列表**
+ *   做**精确匹配**：列表中任一文件命中即触发（2026-09-12 起目录前缀、`&&`/`||`
+ *   表达式、`/` 全局均废弃——声明目录不会命中其下文件）；
  * - agent/pre-step 时把命中记忆的**全文**作为 user message 注入下一次模型请求，
  *   source.kind='plugin'（history_read 会过滤这类注入）；
  * - 去重：同一 Agent 会话内同一条记忆只注入一次（WeakMap，随 Agent 回收）；
@@ -27,7 +26,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { memoryAge, memoryFreshnessText } from './memoryAge.js'
 import { scanMemoryFiles, type MemoryHeader } from './memoryScan.js'
-import { MAX_MEMORY_CONTENT_CHARS, parsePrefixExpr } from './memoryTypes.js'
+import { MAX_MEMORY_CONTENT_CHARS } from './memoryTypes.js'
 import { readAllMemories } from './memoryStore.js'
 
 /** 默认跟踪的"读取文件"工具（与 ds-instructions 一致；write/edit 不触发联想）。 */
@@ -48,7 +47,7 @@ const MEMORY_MUTATOR_TOOLS: ReadonlySet<string> = new Set([
 
 const isWindows = process.platform === 'win32'
 
-/** 平台一致的路径段比较键：win32 忽略大小写。 */
+/** 平台一致的路径比较键：win32 忽略大小写。 */
 export function pathCompareKey(value: string): string {
   return isWindows ? value.toLowerCase() : value
 }
@@ -79,22 +78,17 @@ export function normalizeRelPath(projectRoot: string, rawPath: unknown): string 
 }
 
 /**
- * 段级前缀匹配：prefix 的每一段按序等于被读路径的对应段。
- * `prefix: /`（或空段数组）为全局映射，匹配任意路径；
- * 空字符串/未声明不匹配（undefined 前缀由调用方过滤）。
+ * 精确文件匹配：被读路径与触发文件列表中的**任一条目**全等即命中
+ * （两侧反斜杠归一为正斜杠；win32 忽略大小写）。
+ * 目录条目不会命中其下文件——条目必须是具体文件路径（旧目录联想已废弃）。
  */
-export function matchMemoryPrefix(relPath: string, prefix: string | undefined): boolean {
-  if (prefix === undefined) return false
-  const normalized = prefix.trim()
-  if (normalized.length === 0) return false
-  const segments = splitPathSegments(normalized)
-  if (segments.some(segment => segment === '.' || segment === '..')) return false
-  const relSegments = splitPathSegments(relPath)
-  if (segments.length === 0) return true // `prefix: /` 全局
-  if (relSegments.length < segments.length) return false
-  return segments.every((segment, index) =>
-    pathCompareKey(relSegments[index]!) === pathCompareKey(segment),
-  )
+export function matchTriggerFiles(relPath: string, files: readonly string[] | undefined): boolean {
+  if (files === undefined) return false
+  const normalizedPath = pathCompareKey(relPath.replace(/\\/g, '/'))
+  return files.some((entry) => {
+    const normalizedEntry = entry.replace(/\\/g, '/').trim()
+    return normalizedEntry.length > 0 && pathCompareKey(normalizedEntry) === normalizedPath
+  })
 }
 
 /** 单条命中记忆的组装输入（纯数据）。 */
@@ -104,31 +98,7 @@ export interface AssociateHitInput {
   description?: string
   content: string
   mtimeMs: number
-  prefix?: string
-}
-
-/** 单条记忆 prefix 表达式（DNF）的一次路径求值结果。 */
-export interface PrefixGroupEval {
-  /** 是否有 OR 组在本次路径后全部满足（单前缀 = 单项单组，读一次即满足）。 */
-  triggered: boolean
-  /** 未满足组的剩余未匹配项（已剔除本次满足的组）；未触发时作为 AND 累计进度。 */
-  remaining: string[][]
-}
-
-/**
- * 对 prefix 表达式的 DNF 组应用一次被读路径（纯函数）：
- * 任一组全部项命中即 triggered；`&&` 语义靠跨调用累计实现——
- * 未触发的组返回剩余项，调用方保存进度，后续读取继续削减，集齐即触发。
- */
-export function evalPrefixGroups(groups: readonly (readonly string[])[], relPath: string): PrefixGroupEval {
-  let triggered = false
-  const remaining: string[][] = []
-  for (const group of groups) {
-    const rest = group.filter(term => !matchMemoryPrefix(relPath, term))
-    if (rest.length === 0) triggered = true
-    else remaining.push(rest)
-  }
-  return { triggered, remaining }
+  prefix?: string[]
 }
 
 /** 联想消息组装结果。 */
@@ -170,7 +140,7 @@ export function composeAssociateMessage(
     const ageText = memoryAge(hit.mtimeMs, now)
     const freshness = memoryFreshnessText(hit.mtimeMs, now)
     const typeTag = hit.type === undefined ? '' : ` [${hit.type}]`
-    const prefixTag = hit.prefix === undefined ? '' : ` · prefix ${hit.prefix}`
+    const prefixTag = hit.prefix === undefined ? '' : ` · prefix [${hit.prefix.join(', ')}]`
     const warnTag = freshness === '' ? '' : ' · ⚠️ 可能过期'
     const header = `### ${hit.fileName}${typeTag}（${ageText}${prefixTag}${warnTag}）`
     const block = body === '' ? header : `${header}\n\n${body}`
@@ -187,7 +157,7 @@ export function composeAssociateMessage(
   const lines = [
     `## 自动联想记忆（读取 \`${triggerPath}\` 触发）`,
     '',
-    '以下记忆在 frontmatter 声明了匹配当前读取路径的 prefix，全文已自动加载（同一会话内不重复注入）：',
+    '以下记忆的 prefix 声明了当前读取的文件，全文已自动加载（同一会话内不重复注入）：',
     '',
     blocks.join('\n\n'),
     '',
@@ -213,7 +183,7 @@ export function buildAssociateSummary(included: readonly string[], omitted: numb
 export interface AssociatorOptions {
   /** 记忆目录（绝对路径）。 */
   memoryDirectory: string
-  /** 项目根（绝对路径）：被读路径 containment 与前缀匹配的基准。 */
+  /** 项目根（绝对路径）：被读路径 containment 与触发文件匹配的基准。 */
   projectRoot: string
   /** 触发联想的工具名集合（默认 read/read_image）。 */
   trackedTools?: readonly string[]
@@ -247,12 +217,10 @@ export function registerAssociator(ctx: Context, options: AssociatorOptions): ()
     return headers
   }
 
-  /** 主 agent 的已注入记忆（fileName → 触发路径，仅首触发展示用）。 */
-  const pendingHits = new WeakMap<Agent, Map<string, { triggerPath: string; prefix: string }>>()
+  /** 主 agent 的待注入记忆（fileName → 触发路径与命中文件列表，仅首触发展示用）。 */
+  const pendingHits = new WeakMap<Agent, Map<string, { triggerPath: string; prefix: string[] }>>()
   /** 主 agent 的已注入记忆文件名集合（去重：同会话同记忆只注入一次）。 */
   const injectedByAgent = new WeakMap<Agent, Set<string>>()
-  /** AND 组的会话累计进度：fileName → 尚未集齐的 DNF 组（每组为剩余未命中项）。 */
-  const andProgress = new WeakMap<Agent, Map<string, string[][]>>()
 
   // ── tools/pre-execute：登记候选被读路径（result 成功才确认；嵌套向 parent 汇总） ──
   const executionCandidates = new Map<ToolExecutionToken, string[]>()
@@ -269,7 +237,7 @@ export function registerAssociator(ctx: Context, options: AssociatorOptions): ()
     return decision
   })
 
-  // ── tools/result：确认成功读取 → 前缀匹配 → 记入 pending，pre-step 统一注入 ──
+  // ── tools/result：确认成功读取 → 触发文件精确匹配 → 记入 pending，pre-step 统一注入 ──
   ctx.on('tools/result', (exec: ToolExecution, result: ToolExecutionResult) => {
     try {
       const ownCandidates = executionCandidates.get(exec.token) ?? []
@@ -300,39 +268,29 @@ export function registerAssociator(ctx: Context, options: AssociatorOptions): ()
   const projectHits = async (agent: Agent, rawPaths: readonly string[]): Promise<void> => {
     try {
       const headers = await memoryHeaders()
-      const candidates = headers.filter(header => parsePrefixExpr(header.prefix ?? '') !== undefined)
+      const candidates = headers.filter(header => header.prefix !== undefined && header.prefix.length > 0)
       if (candidates.length === 0) return
       const injected = injectedByAgent.get(agent)
       for (const rawPath of rawPaths) {
         const relPath = normalizeRelPath(options.projectRoot, rawPath)
         if (relPath === undefined) continue
         for (const header of candidates) {
-          if (injected?.has(header.filename)) continue // 本会话已注入过，不再累计/触发
-          const groups = parsePrefixExpr(header.prefix!)!
-          const progressMap = andProgress.get(agent)
-          const remaining = progressMap?.get(header.filename) ?? groups.map(group => [...group])
-          const evaluation = evalPrefixGroups(remaining, relPath)
-          if (evaluation.triggered) {
-            progressMap?.delete(header.filename)
-            let pending = pendingHits.get(agent)
-            if (pending === undefined) {
-              pending = new Map()
-              pendingHits.set(agent, pending)
-            }
-            if (!pending.has(header.filename)) {
-              pending.set(header.filename, { triggerPath: relPath, prefix: header.prefix! })
-            }
-          } else {
-            // AND 组未集齐：保存剩余进度，等后续读取继续削减（可跨多次读取累计，顺序不限）
-            if (progressMap === undefined) {
-              andProgress.set(agent, new Map())
-            }
-            andProgress.get(agent)!.set(header.filename, evaluation.remaining)
+          const files = header.prefix
+          if (files === undefined || files.length === 0) continue
+          if (injected?.has(header.filename)) continue // 本会话已注入过，不再触发
+          if (!matchTriggerFiles(relPath, files)) continue
+          let pending = pendingHits.get(agent)
+          if (pending === undefined) {
+            pending = new Map()
+            pendingHits.set(agent, pending)
+          }
+          if (!pending.has(header.filename)) {
+            pending.set(header.filename, { triggerPath: relPath, prefix: files })
           }
         }
       }
     } catch (error) {
-      logger.warn('associate prefix match failed: %o', error)
+      logger.warn('associate trigger-file match failed: %o', error)
     }
   }
 

@@ -5,7 +5,10 @@
  *  - Btn_new  → 'new'  （新开局，覆盖性进入星图；旧档保留不删，可从暂停菜单读回）
  *  - Btn_load → 'load' （读最近存档，无档则提示停留菜单）
  *
- * 「读取存档」标签的扫槽逻辑复用 core/save.findLatestSlotMeta（GameInstance 同口径），
+ * SETTINGS / EXIT TO DESKTOP 为设计稿占位项（纯 div、无 UIButton，天然不可点），
+ * 接线后端时把 .ItemGhost div 换成 <button> 并在此处 bind 即可。
+ *
+ * 「CONTINUE」标签的扫槽逻辑复用 core/save.findLatestSlotMeta（GameInstance 同口径），
  * UI 只消费摘要结果，不自带扫描实现（七角色审查建议：避免两处口径漂移）。
  */
 import { BehaviourScript, UIButtonComponent, UITextComponent, logger } from '@/engine'
@@ -27,21 +30,26 @@ export default class MainMenuScript extends BehaviourScript {
     void this.refreshLoadButton()
   }
 
-  /** 「读取存档」标签按最近档摘要刷新；三槽全空提示暂无存档 */
+  /** 「CONTINUE」标签按最近档摘要刷新；三槽全空保持默认文案 */
   private async refreshLoadButton(): Promise<void> {
     const label = this.findInChildren('Label_load')?.getComponent(UITextComponent)
-    if (!label) return
+    if (!label) {
+      logger.warn('[MainMenuScript] Label_load 未找到，跳过存档摘要刷新')
+      return
+    }
     const api = window.electronAPI
     if (!api?.readJsonFile) {
-      label.text = '读取存档（浏览器模式不可用）'
+      logger.info('[MainMenuScript] electronAPI 不可用（浏览器模式），CONTINUE 保持默认文案')
       return
     }
     const best = await findLatestSlotMeta(api.readJsonFile)
     if (best) {
-      label.text = `读取存档（槽${best.slot}）`
+      // 短后缀：标签盒宽 250px（21px 字 + 4px 字距），"SLOT n" 全称会折行
+      label.text = `CONTINUE · S${best.slot}`
       logger.info(`[MainMenuScript] 最近存档：槽${best.slot} @ ${best.savedAt}`)
     } else {
-      label.text = '读取存档（暂无存档）'
+      label.text = 'CONTINUE'
+      logger.info('[MainMenuScript] 三槽全空，CONTINUE 无可用存档')
     }
   }
 }

@@ -3,7 +3,7 @@ name: warm_stellaris_render_upgrade
 task_type: feature/rendering
 outcome: success
 date: 2026-09-12
-prefix: src/engine || projects/warm-current || e2e/warm
+prefix: [src/engine/rendering/CloudLayerComponent.ts, src/engine/rendering/SceneRenderHost.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts]
 ---
 ## Summary
 

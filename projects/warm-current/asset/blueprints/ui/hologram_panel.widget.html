@@ -1,0 +1,43 @@
+<widget name="HologramPanel" canvas="1920x1080" data-script="gameplay/ui/HologramPanelScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .PanelRoot { width: 500px; height: 620px; position: absolute; left: 1404px; top: 200px; display: flex; flex-direction: column; gap: 6px; }
+    .HoloBody { width: 500px; height: 620px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 12px 14px; hit-test: block; }
+    .PanelTitleRow { width: 470px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 340px; height: 34px; flex-shrink: 0; font-size: 22px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .TitleDivider { width: 470px; height: 2px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); border-radius: 1px; }
+    .Btn_close_panel { width: 110px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_close_panel:hover { background-color: #143650; }
+    .Label_close_panel { width: 100px; height: 28px; flex-shrink: 0; font-size: 17px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .HintText { width: 470px; height: 26px; flex-shrink: 0; font-size: 15px; color: #6f8ba0; text-shadow: 1px 1px 4px #00000066; }
+    .DepositRow { width: 470px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 8px; background-color: #0b1e30; border: 1px solid #1c4560; padding: 0px 10px; }
+    .DepositRow:hover { background-color: #143650; }
+    .Dot { width: 26px; height: 28px; flex-shrink: 0; font-size: 20px; color: #4fd8ff; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .DepositInfo { width: 250px; height: 28px; flex-shrink: 0; font-size: 17px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .DepositStatus { width: 150px; height: 28px; flex-shrink: 0; font-size: 15px; color: #8fbcd4; text-align: right; text-shadow: 1px 1px 4px #00000066; }
+    .DetailBox { width: 470px; height: 96px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; background-image: linear-gradient(180deg, #0b1e30 0%, #071120 100%); border: 1px solid #1c4560; padding: 8px 10px; }
+    .DetailText { width: 448px; height: 78px; flex-shrink: 0; font-size: 17px; line-height: 25px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .BuildRow { width: 470px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+    .BuildInfo { width: 350px; height: 52px; flex-shrink: 0; font-size: 16px; line-height: 24px; color: #bfe8ff; text-shadow: 1px 1px 6px #00000099; }
+    .Btn_build { width: 100px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0f2a1c; border: 1px solid #2a6e4a; }
+    .Btn_build:hover { background-color: #16382a; }
+    .BuildLabel { width: 90px; height: 28px; flex-shrink: 0; font-size: 18px; color: #7fe8a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="PanelRoot" data-name="PanelRoot">
+      <div class="HoloBody" data-name="HoloBody">
+        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">全息勘探</text><button class="Btn_close_panel" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button></div>
+        <div class="TitleDivider"></div>
+        <text class="HintText" data-name="HintText">拖拽旋转检视 · 点矿点或列表行选中 · Esc 退出</text>
+        <button class="DepositRow" data-name="DepositRow_0"><text class="Dot" data-name="Dot_0">◆</text><text class="DepositInfo" data-name="DepositInfo_0"></text><text class="DepositStatus" data-name="DepositStatus_0"></text></button>
+        <button class="DepositRow" data-name="DepositRow_1"><text class="Dot" data-name="Dot_1">◆</text><text class="DepositInfo" data-name="DepositInfo_1"></text><text class="DepositStatus" data-name="DepositStatus_1"></text></button>
+        <button class="DepositRow" data-name="DepositRow_2"><text class="Dot" data-name="Dot_2">◆</text><text class="DepositInfo" data-name="DepositInfo_2"></text><text class="DepositStatus" data-name="DepositStatus_2"></text></button>
+        <button class="DepositRow" data-name="DepositRow_3"><text class="Dot" data-name="Dot_3">◆</text><text class="DepositInfo" data-name="DepositInfo_3"></text><text class="DepositStatus" data-name="DepositStatus_3"></text></button>
+        <div class="DetailBox" data-name="DetailBox"><text class="DetailText" data-name="DetailText"></text></div>
+        <div class="BuildRow" data-name="BuildRow_0"><text class="BuildInfo" data-name="BuildInfo_0"></text><button class="Btn_build" data-name="Btn_build_0"><text class="BuildLabel">建造</text></button></div>
+        <div class="BuildRow" data-name="BuildRow_1"><text class="BuildInfo" data-name="BuildInfo_1"></text><button class="Btn_build" data-name="Btn_build_1"><text class="BuildLabel">建造</text></button></div>
+        <div class="BuildRow" data-name="BuildRow_2"><text class="BuildInfo" data-name="BuildInfo_2"></text><button class="Btn_build" data-name="Btn_build_2"><text class="BuildLabel">建造</text></button></div>
+      </div>
+    </div>
+  </div>
+</widget>

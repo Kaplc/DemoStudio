@@ -11,7 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   EPISODE_OUTCOMES,
   normalizeEpisodeName,
-  parsePrefixExpr,
+  normalizeTriggerFiles,
 } from './experienceTypes.js'
 import type { EpisodeOutcome } from './experienceTypes.js'
 import {
@@ -36,7 +36,7 @@ export interface ExperienceToolHost {
 export function createExperienceSaveTool(host: Pick<ExperienceToolHost, 'experienceDirectory' | 'ctx'>) {
   return defineTool({
     name: 'experience_save',
-    description: '把一次完整任务的做事轨迹沉淀为经验（episode）：怎么做的、什么有效、踩了什么坑。绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明路径联想，会话中读到匹配路径的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
+    description: '把一次完整任务的做事轨迹沉淀为经验（episode）：怎么做的、什么有效、踩了什么坑。绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明联想触发的文件数组，会话中读到列表中的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
     parameters: {
       name: { type: 'string', required: true, description: '经验名，语义化小写下划线（如 fix_junction_mount）' },
       task_type: { type: 'string', required: true, description: '任务类型短语（如 build-fix / feature / refactor / debug）' },
@@ -45,9 +45,10 @@ export function createExperienceSaveTool(host: Pick<ExperienceToolHost, 'experie
       lessons: { type: 'string', required: true, description: '学到什么：有效路径、踩的坑、下次怎么办' },
       effective_path: { type: 'string', description: '有效的落点（文件/目录/命令），可选' },
       prefix: {
-        type: 'string',
+        type: 'array',
+        items: { type: 'string' },
         required: true,
-        description: '联想前缀表达式（必填）：项目根相对路径前缀，支持 `a || b`（任一命中）与 `a && b`（全部读过才触发），如 `harness`、`src/engine || doc/engine`。声明后读到匹配文件时本条经验自动注入。无联想、或更新同名经验时保持已有联想不变，填 hold',
+        description: '联想触发文件列表（必填）：项目根相对的**具体文件路径**数组，如 ["harness/ds-memory/src/associate.ts", "src/engine/foo.ts"]。会话中读到列表中的任一文件时本条经验自动注入。只按具体文件精确匹配，不支持目录/通配符/&&/|| 表达式。无联想、或更新同名经验时保持已有联想不变，填 hold',
       },
     },
     output: {
@@ -67,13 +68,12 @@ export function createExperienceSaveTool(host: Pick<ExperienceToolHost, 'experie
       }],
     },
     async execute(args) {
-      // prefix 必填；`hold`（大小写不敏感）= 无联想/更新时保持原样——不参与表达式校验、不落 frontmatter
-      const declared = args.prefix?.trim() ?? ''
-      const hold = declared.toLowerCase() === 'hold' || declared === ''
-      if (!hold && parsePrefixExpr(declared) === undefined) {
-        throw new Error(`prefix 表达式 "${args.prefix}" 无效：运算符用双字符 && / ||，至少含一个非空路径；无联想填 hold`)
-      }
-      let prefix: string | undefined
+      // prefix 必填；`hold`（大小写不敏感，容忍空数组/缺省/空白条目）= 无联想/更新时保持原样
+      // ——不落 frontmatter；含换行条目由 normalizeTriggerFiles 抛错（frontmatter 单行约束）
+      const declared = normalizeTriggerFiles(args.prefix)
+      const hold = declared === undefined
+        || (declared.length === 1 && declared[0]!.toLowerCase() === 'hold')
+      let prefix: string[] | undefined
       if (hold) {
         // 更新同名 episode 时保持已有联想；新建则无联想
         const fileName = normalizeEpisodeName(args.name)

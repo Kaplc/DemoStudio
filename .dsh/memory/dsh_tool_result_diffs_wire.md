@@ -2,7 +2,7 @@
 name: dsh_tool_result_diffs_wire
 description: DSH write/edit 工具差异的线上格式：tool/result 的 meta.diffs=[{path,oldText,newText}]（带 3 行上下文、无起始行号）
 type: project
-prefix: src/components/agent || src/editor
+prefix: [src/components/agent/toolDiff.ts, src/editor/AgentService.ts]
 ---
 
 **Problem:** 想在编辑器 agent 面板的工具卡片上渲染 diff（红绿行 + 行号），却不知道差异数据从哪来——`tool/call` 事件只有 `name` + 原始 `arguments` 字符串，没有视图对象；`tool/result` 的正文只有一句 "has been edited successfully"。

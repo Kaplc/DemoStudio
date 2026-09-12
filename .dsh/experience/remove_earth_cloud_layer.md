@@ -3,7 +3,7 @@ name: remove_earth_cloud_layer
 task_type: refactor/code-removal
 outcome: success
 date: 2026-09-10
-prefix: projects/warm-current || e2e/warm
+prefix: [projects/warm-current/asset/blueprints/stars/earth.blueprint.json, projects/warm-current/gameplay/map/StarActor.ts]
 ---
 ## Summary
 

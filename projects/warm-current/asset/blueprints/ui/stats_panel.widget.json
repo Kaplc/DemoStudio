@@ -1,7 +1,7 @@
 {
   "name": "StatsPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-49611e7e",
+  "sourceHash": "fnv1a-80c269b8",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -62,11 +62,11 @@
               1
             ],
             "worldWidth": 594,
-            "worldHeight": 674,
+            "worldHeight": 746,
             "anchor": "center",
             "anchorOffset": [
               17,
-              -7
+              -13
             ],
             "position": [
               0,
@@ -105,7 +105,7 @@
               ]
             },
             "width": 594,
-            "height": 674,
+            "height": 746,
             "name": "StatsCard"
           }
         }
@@ -121,7 +121,7 @@
               "properties": {
                 "position": [
                   0,
-                  336.5,
+                  372.5,
                   0
                 ],
                 "rotation": [
@@ -182,7 +182,7 @@
                   1
                 ],
                 "worldWidth": 1,
-                "worldHeight": 674
+                "worldHeight": 746
               }
             },
             {
@@ -199,7 +199,7 @@
                 "name": "StatsCardBorderRight",
                 "color": "#2a5f7a",
                 "width": 8,
-                "height": 674
+                "height": 746
               }
             }
           ],
@@ -215,7 +215,7 @@
               "properties": {
                 "position": [
                   0,
-                  -336.5,
+                  -372.5,
                   0
                 ],
                 "rotation": [
@@ -276,7 +276,7 @@
                   1
                 ],
                 "worldWidth": 1,
-                "worldHeight": 674
+                "worldHeight": 746
               }
             },
             {
@@ -293,7 +293,7 @@
                 "name": "StatsCardBorderLeft",
                 "color": "#2a5f7a",
                 "width": 8,
-                "height": 674
+                "height": 746
               }
             }
           ],
@@ -321,7 +321,7 @@
                 "worldHeight": 44,
                 "position": [
                   -16,
-                  298,
+                  334,
                   0
                 ]
               }
@@ -723,7 +723,7 @@
                 "worldHeight": 28,
                 "position": [
                   -16,
-                  258,
+                  294,
                   0
                 ]
               }
@@ -777,7 +777,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  224,
+                  260,
                   0
                 ]
               }
@@ -924,7 +924,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  188,
+                  224,
                   0
                 ]
               }
@@ -1050,9 +1050,156 @@
           ]
         },
         {
-          "name": "SecHead_2",
+          "name": "LedgerRow_3",
           "baseClass": "Actor",
           "id": 13221,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  188,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_3",
+              "baseClass": "Actor",
+              "id": 13222,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "矿产直采",
+                    "name": "LedgerKey_3",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#8fbcd4",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_mining",
+              "baseClass": "Actor",
+              "id": 13223,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_mining",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#7fe8a8",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "SecHead_2",
+          "baseClass": "Actor",
+          "id": 13224,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1104,9 +1251,9 @@
           "children": []
         },
         {
-          "name": "LedgerRow_3",
+          "name": "LedgerRow_4",
           "baseClass": "Actor",
-          "id": 13222,
+          "id": 13225,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1141,9 +1288,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_3",
+              "name": "LedgerKey_4",
               "baseClass": "Actor",
-              "id": 13223,
+              "id": 13226,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1179,7 +1326,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "聚能环焚烧",
-                    "name": "LedgerKey_3",
+                    "name": "LedgerKey_4",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1196,7 +1343,7 @@
             {
               "name": "Val_ring",
               "baseClass": "Actor",
-              "id": 13224,
+              "id": 13227,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1251,9 +1398,9 @@
           ]
         },
         {
-          "name": "LedgerRow_4",
+          "name": "LedgerRow_5",
           "baseClass": "Actor",
-          "id": 13225,
+          "id": 13228,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1288,9 +1435,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_4",
+              "name": "LedgerKey_5",
               "baseClass": "Actor",
-              "id": 13226,
+              "id": 13229,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1326,7 +1473,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "聚能环建设",
-                    "name": "LedgerKey_4",
+                    "name": "LedgerKey_5",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1343,7 +1490,7 @@
             {
               "name": "Val_ringbuild",
               "baseClass": "Actor",
-              "id": 13227,
+              "id": 13230,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1398,9 +1545,9 @@
           ]
         },
         {
-          "name": "LedgerRow_5",
+          "name": "LedgerRow_6",
           "baseClass": "Actor",
-          "id": 13228,
+          "id": 13231,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1435,9 +1582,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_5",
+              "name": "LedgerKey_6",
               "baseClass": "Actor",
-              "id": 13229,
+              "id": 13232,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1473,7 +1620,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "研究点计费",
-                    "name": "LedgerKey_5",
+                    "name": "LedgerKey_6",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1490,7 +1637,7 @@
             {
               "name": "Val_research",
               "baseClass": "Actor",
-              "id": 13230,
+              "id": 13233,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1545,9 +1692,9 @@
           ]
         },
         {
-          "name": "LedgerRow_6",
+          "name": "LedgerRow_7",
           "baseClass": "Actor",
-          "id": 13231,
+          "id": 13234,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1582,9 +1729,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_6",
+              "name": "LedgerKey_7",
               "baseClass": "Actor",
-              "id": 13232,
+              "id": 13235,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1620,7 +1767,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "舰队维护费",
-                    "name": "LedgerKey_6",
+                    "name": "LedgerKey_7",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1637,7 +1784,7 @@
             {
               "name": "Val_maint",
               "baseClass": "Actor",
-              "id": 13233,
+              "id": 13236,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1692,9 +1839,9 @@
           ]
         },
         {
-          "name": "LedgerRow_7",
+          "name": "LedgerRow_8",
           "baseClass": "Actor",
-          "id": 13234,
+          "id": 13237,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1729,9 +1876,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_7",
+              "name": "LedgerKey_8",
               "baseClass": "Actor",
-              "id": 13235,
+              "id": 13238,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1767,7 +1914,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "轨道建筑",
-                    "name": "LedgerKey_7",
+                    "name": "LedgerKey_8",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1784,7 +1931,7 @@
             {
               "name": "Val_orbit",
               "baseClass": "Actor",
-              "id": 13236,
+              "id": 13239,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1839,9 +1986,9 @@
           ]
         },
         {
-          "name": "LedgerRow_8",
+          "name": "LedgerRow_9",
           "baseClass": "Actor",
-          "id": 13237,
+          "id": 13240,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1876,9 +2023,156 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_8",
+              "name": "LedgerKey_9",
               "baseClass": "Actor",
-              "id": 13238,
+              "id": 13241,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 268,
+                    "worldHeight": 30,
+                    "position": [
+                      -130,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "矿建建造",
+                    "name": "LedgerKey_9",
+                    "width": 268,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#8fbcd4",
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Val_minebuild",
+              "baseClass": "Actor",
+              "id": 13242,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 260,
+                    "worldHeight": 30,
+                    "position": [
+                      134,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "Val_minebuild",
+                    "width": 260,
+                    "height": 30,
+                    "fontSize": 19,
+                    "color": "#ff9d8a",
+                    "align": "right",
+                    "bold": true,
+                    "shadowColor": "#00000066",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "LedgerRow_10",
+          "baseClass": "Actor",
+          "id": 13243,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 528,
+                "worldHeight": 32,
+                "position": [
+                  -16,
+                  -96,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "LedgerKey_10",
+              "baseClass": "Actor",
+              "id": 13244,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1914,7 +2208,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "造船",
-                    "name": "LedgerKey_8",
+                    "name": "LedgerKey_10",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -1931,7 +2225,7 @@
             {
               "name": "Val_build",
               "baseClass": "Actor",
-              "id": 13239,
+              "id": 13245,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1986,9 +2280,9 @@
           ]
         },
         {
-          "name": "LedgerRow_9",
+          "name": "LedgerRow_11",
           "baseClass": "Actor",
-          "id": 13240,
+          "id": 13246,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2007,7 +2301,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -96,
+                  -132,
                   0
                 ]
               }
@@ -2023,9 +2317,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_9",
+              "name": "LedgerKey_11",
               "baseClass": "Actor",
-              "id": 13241,
+              "id": 13247,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2061,7 +2355,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "冻毁船重建",
-                    "name": "LedgerKey_9",
+                    "name": "LedgerKey_11",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2078,7 +2372,7 @@
             {
               "name": "Val_rebuild",
               "baseClass": "Actor",
-              "id": 13242,
+              "id": 13248,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2133,9 +2427,9 @@
           ]
         },
         {
-          "name": "LedgerRow_10",
+          "name": "LedgerRow_12",
           "baseClass": "Actor",
-          "id": 13243,
+          "id": 13249,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2154,7 +2448,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -132,
+                  -168,
                   0
                 ]
               }
@@ -2170,9 +2464,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_10",
+              "name": "LedgerKey_12",
               "baseClass": "Actor",
-              "id": 13244,
+              "id": 13250,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2208,7 +2502,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "反向航线油耗",
-                    "name": "LedgerKey_10",
+                    "name": "LedgerKey_12",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2225,7 +2519,7 @@
             {
               "name": "Val_rfuel",
               "baseClass": "Actor",
-              "id": 13245,
+              "id": 13251,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2280,9 +2574,9 @@
           ]
         },
         {
-          "name": "LedgerRow_11",
+          "name": "LedgerRow_13",
           "baseClass": "Actor",
-          "id": 13246,
+          "id": 13252,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2301,7 +2595,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -168,
+                  -204,
                   0
                 ]
               }
@@ -2317,9 +2611,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_11",
+              "name": "LedgerKey_13",
               "baseClass": "Actor",
-              "id": 13247,
+              "id": 13253,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2355,7 +2649,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "建材折算（送站）",
-                    "name": "LedgerKey_11",
+                    "name": "LedgerKey_13",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2372,7 +2666,7 @@
             {
               "name": "Val_mat",
               "baseClass": "Actor",
-              "id": 13248,
+              "id": 13254,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2429,7 +2723,7 @@
         {
           "name": "SecHead_3",
           "baseClass": "Actor",
-          "id": 13249,
+          "id": 13255,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2448,7 +2742,7 @@
                 "worldHeight": 28,
                 "position": [
                   -16,
-                  -202,
+                  -238,
                   0
                 ]
               }
@@ -2481,9 +2775,9 @@
           "children": []
         },
         {
-          "name": "LedgerRow_12",
+          "name": "LedgerRow_14",
           "baseClass": "Actor",
-          "id": 13250,
+          "id": 13256,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2502,7 +2796,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -236,
+                  -272,
                   0
                 ]
               }
@@ -2518,9 +2812,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_12",
+              "name": "LedgerKey_14",
               "baseClass": "Actor",
-              "id": 13251,
+              "id": 13257,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2556,7 +2850,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "收入合计",
-                    "name": "LedgerKey_12",
+                    "name": "LedgerKey_14",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2573,7 +2867,7 @@
             {
               "name": "Val_income",
               "baseClass": "Actor",
-              "id": 13252,
+              "id": 13258,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2628,9 +2922,9 @@
           ]
         },
         {
-          "name": "LedgerRow_13",
+          "name": "LedgerRow_15",
           "baseClass": "Actor",
-          "id": 13253,
+          "id": 13259,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2649,7 +2943,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -272,
+                  -308,
                   0
                 ]
               }
@@ -2665,9 +2959,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_13",
+              "name": "LedgerKey_15",
               "baseClass": "Actor",
-              "id": 13254,
+              "id": 13260,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2703,7 +2997,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "支出合计",
-                    "name": "LedgerKey_13",
+                    "name": "LedgerKey_15",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2720,7 +3014,7 @@
             {
               "name": "Val_expense",
               "baseClass": "Actor",
-              "id": 13255,
+              "id": 13261,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2775,9 +3069,9 @@
           ]
         },
         {
-          "name": "LedgerRow_14",
+          "name": "LedgerRow_16",
           "baseClass": "Actor",
-          "id": 13256,
+          "id": 13262,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2796,7 +3090,7 @@
                 "worldHeight": 32,
                 "position": [
                   -16,
-                  -308,
+                  -344,
                   0
                 ]
               }
@@ -2812,9 +3106,9 @@
           ],
           "children": [
             {
-              "name": "LedgerKey_14",
+              "name": "LedgerKey_16",
               "baseClass": "Actor",
-              "id": 13257,
+              "id": 13263,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2850,7 +3144,7 @@
                   "baseClass": "UITextComponent",
                   "properties": {
                     "text": "净结余",
-                    "name": "LedgerKey_14",
+                    "name": "LedgerKey_16",
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
@@ -2867,7 +3161,7 @@
             {
               "name": "Val_net",
               "baseClass": "Actor",
-              "id": 13258,
+              "id": 13264,
               "components": [
                 {
                   "baseClass": "UITransformComponent",

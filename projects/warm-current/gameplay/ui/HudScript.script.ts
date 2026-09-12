@@ -13,6 +13,7 @@
  *      ring_panel（聚能环信息面板，交点数由顶栏迁入此处）
  *      orbit_build_panel（近地轨道建设面板，GameMode.orbitBuildSel 状态驱动）
  *      shipyard_panel（船坞造船面板，GameMode.shipyardSel 状态驱动，点船坞打开；逐船一卡队列）
+ *      hologram_panel（全息勘探面板，GameMode.hologramSel 状态驱动，星球信息面板「全息勘探」打开）
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
@@ -30,6 +31,7 @@ import OrbitPanelScript, { ORBIT_BUILD_PANEL_WIDGET } from './OrbitPanelScript.s
 import ShipyardPanelScript, { SHIPYARD_PANEL_WIDGET } from './ShipyardPanelScript.script'
 import BuildingDetailScript, { BUILDING_DETAIL_WIDGET } from './BuildingDetailScript.script'
 import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScript.script'
+import HologramPanelScript, { HOLOGRAM_PANEL_WIDGET } from './HologramPanelScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -70,6 +72,7 @@ export default class HudScript extends BehaviourScript {
   private shipyardPanel: Actor | null = null
   private buildingDetailPanel: Actor | null = null
   private fleetOrderBar: Actor | null = null
+  private hologramPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -199,6 +202,9 @@ export default class HudScript extends BehaviourScript {
     // 耀斑决策条（底部：预警期框选船上屏，FleetOrderBarScript 读 vm.fleetOrders 自驱动）
     this.fleetOrderBar = this.world?.ui.spawnUIActor(FLEET_ORDER_BAR_WIDGET) ?? null
     if (!this.fleetOrderBar) logger.warn('[HudScript] fleet_order_bar 生成失败')
+    // 全息勘探面板（右侧：星球信息面板「全息勘探」弹出，HologramPanelScript 读 vm.hologram 自驱动）
+    this.hologramPanel = this.world?.ui.spawnUIActor(HOLOGRAM_PANEL_WIDGET) ?? null
+    if (!this.hologramPanel) logger.warn('[HudScript] hologram_panel 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')

@@ -2,7 +2,7 @@
 name: dsh_image_pipeline_anchors
 description: DSH 图像→模型链路锚点：能力门禁/附件化/请求构建/模型模态声明的关键包与行号；模型读不了图先查 settings.yaml input 声明
 type: project
-prefix: harness/ds-editor-tools
+prefix: [harness/ds-editor-tools/src/tools/editorScreenshot.ts, doc/editor/integration/agent_panel_system.md]
 ---
 
 

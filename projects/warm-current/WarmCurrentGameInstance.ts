@@ -95,6 +95,13 @@ export interface WarmCurrentDebugBridge {
   openOrbitBuild(anchor: string): void
   closeOrbitBuild(): void
   placeOrbitBuilding(type: string, anchor: string): boolean
+  /** 全息勘探（2026-09-12）：开合 / 选中矿点 / 落位矿建 / 面板数据快照 / 矿点屏幕坐标（真实点击测试） */
+  openHologram(body: string): void
+  closeHologram(): void
+  selectHoloDeposit(id: string | null): void
+  placeMine(depositId: string, typeId: string): boolean
+  holoInfo(): import('./gameplay/base/WarmCurrentGameMode').HudHologram | null
+  holoMarkerScreenPos(depositId: string): { x: number; y: number } | null
   /** 船坞造船面板（e2e 直驱）：打开第一个（或指定 id）已建成船坞 */
   openShipyard(id?: number): boolean
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
@@ -454,6 +461,13 @@ export class WarmCurrentGameInstance extends GameInstance {
       openOrbitBuild: (anchor) => instance._gameMode?.openOrbitBuild(anchor as PlanetBodyId),
       closeOrbitBuild: () => instance._gameMode?.closeOrbitBuild(),
       placeOrbitBuilding: (type, anchor) => instance._gameMode?.orbitBuild.tryPlace(type, anchor as PlanetBodyId) ?? false,
+      /** 全息勘探（2026-09-12）：开合 / 点选矿点 / 落位矿建 / 面板数据 / 矿点屏幕坐标（真实点击测试用） */
+      openHologram: (body) => instance._gameMode?.openHologram(body as PlanetBodyId),
+      closeHologram: () => instance._gameMode?.closeHologram(),
+      selectHoloDeposit: (id) => instance._gameMode?.selectHoloDeposit(id ?? null),
+      placeMine: (depositId, typeId) => instance._gameMode?.mining.tryPlace(depositId, typeId) ?? false,
+      holoInfo: () => instance._gameMode?.buildViewModel().hologram ?? null,
+      holoMarkerScreenPos: (depositId) => instance._gameMode?.holoMarkerScreenPos(depositId) ?? null,
       openShipyard: (id) => {
         const mode = instance._gameMode
         if (!mode) return false

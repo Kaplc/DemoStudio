@@ -3,7 +3,7 @@ name: fix_ds_memory_end_of_turn_reminder
 task_type: debug/build-fix
 outcome: success
 date: 2026-09-10
-prefix: harness/ds-memory
+prefix: harness/ds-memory/src/index.ts
 ---
 ## Summary
 

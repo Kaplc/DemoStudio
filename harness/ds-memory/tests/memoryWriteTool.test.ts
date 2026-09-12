@@ -26,7 +26,7 @@ describe('memory_write 半自动：frontmatter 工具落盘，正文提醒 agent
     const host = await makeHost()
     const tool = createMemoryWriteTool(host)
     const value = await tool.execute(
-      { name: 'user_role', type: 'user', description: '用户画像', prefix: 'hold' },
+      { name: 'user_role', type: 'user', description: '用户画像', prefix: ['hold'] },
       exec,
     )
     expect(value.action).toBe('write_frontmatter')
@@ -49,18 +49,19 @@ describe('memory_write 半自动：frontmatter 工具落盘，正文提醒 agent
     expect(value.reminder).toContain('全库过时检查')
   })
 
-  it('新建带 prefix：frontmatter 写入 prefix 行，索引行带标注，提醒含精炼要求', async () => {
+  it('新建带 prefix 文件列表：frontmatter 写入方括号数组行，索引行带标注，提醒含精炼要求', async () => {
     const host = await makeHost()
     const tool = createMemoryWriteTool(host)
     const value = await tool.execute(
-      { name: 'prefixed_mem', type: 'project', description: '带联想的记忆', prefix: 'src/engine || doc/engine' },
+      { name: 'prefixed_mem', type: 'project', description: '带联想的记忆', prefix: ['src/engine/a.ts', 'doc/engine/b.md'] },
       exec,
     )
     const file = await readFile(value.file, 'utf8')
-    expect(file).toContain('prefix: src/engine || doc/engine')
+    expect(file).toContain('prefix: [src/engine/a.ts, doc/engine/b.md]')
     const index = await readFile(join(host.memoryDirectory, 'MEMORY.md'), 'utf8')
-    expect(index).toContain('（prefix: src/engine || doc/engine）')
+    expect(index).toContain('（prefix: src/engine/a.ts, doc/engine/b.md）')
     expect(value.reminder).toContain('正文必须精炼')
+    expect(value.reminder).toContain('src/engine/a.ts')
   })
 
   it('同名已存在：原位更新 frontmatter（deduped_by=name），正文原样保留，索引行替换不重复', async () => {
@@ -70,7 +71,7 @@ describe('memory_write 半自动：frontmatter 工具落盘，正文提醒 agent
     })
     const tool = createMemoryWriteTool(host)
     const value = await tool.execute(
-      { name: 'dup_mem', type: 'feedback', description: '新描述', prefix: 'hold' },
+      { name: 'dup_mem', type: 'feedback', description: '新描述', prefix: ['hold'] },
       exec,
     )
     expect(value.status).toBe('updated')
@@ -96,7 +97,7 @@ describe('memory_write 半自动：frontmatter 工具落盘，正文提醒 agent
     })
     const tool = createMemoryWriteTool(host)
     const value = await tool.execute(
-      { name: 'brand_new', type: 'project', description: '完全相同的描述', prefix: 'hold' },
+      { name: 'brand_new', type: 'project', description: '完全相同的描述', prefix: ['hold'] },
       exec,
     )
     expect(value.status).toBe('updated')
@@ -109,46 +110,46 @@ describe('memory_write 半自动：frontmatter 工具落盘，正文提醒 agent
     expect(file).toContain('v1') // 正文保留
   })
 
-  it('更新时prefix=hold 保留旧值；声明新值则覆盖', async () => {
+  it('更新时prefix=hold 保留旧值；声明新文件列表则覆盖', async () => {
     const host = await makeHost()
     await writeMemory(host.memoryDirectory, {
-      name: 'p_mem', content: 'c', type: 'project', description: 'd', prefix: 'src/engine',
+      name: 'p_mem', content: 'c', type: 'project', description: 'd', prefix: ['src/engine/a.ts'],
     })
     const tool = createMemoryWriteTool(host)
-    await tool.execute({ name: 'p_mem', type: 'project', description: 'd2', prefix: 'hold' }, exec)
+    await tool.execute({ name: 'p_mem', type: 'project', description: 'd2', prefix: ['hold'] }, exec)
     const kept = await readFile(join(host.memoryDirectory, 'p_mem.md'), 'utf8')
-    expect(kept).toContain('prefix: src/engine')
-    await tool.execute({ name: 'p_mem', type: 'project', description: 'd3', prefix: 'harness' }, exec)
+    expect(kept).toContain('prefix: [src/engine/a.ts]')
+    await tool.execute({ name: 'p_mem', type: 'project', description: 'd3', prefix: ['harness/tools.ts'] }, exec)
     const replaced = await readFile(join(host.memoryDirectory, 'p_mem.md'), 'utf8')
-    expect(replaced).toContain('prefix: harness')
-    expect(replaced).not.toContain('prefix: src/engine')
+    expect(replaced).toContain('prefix: [harness/tools.ts]')
+    expect(replaced).not.toContain('prefix: [src/engine/a.ts]')
   })
 
   it('非法 name/type/prefix/scope 一律抛错，子 agent 被拒绝', async () => {
     const tool = createMemoryWriteTool(await makeHost())
-    await expect(tool.execute({ name: 'Bad Name', type: 'user', description: 'd', prefix: 'hold' }, exec)).rejects.toThrow()
-    await expect(tool.execute({ name: '', type: 'user', description: 'd', prefix: 'hold' }, exec)).rejects.toThrow()
-    await expect(tool.execute({ name: 'a/b', type: 'user', description: 'd', prefix: 'hold' }, exec)).rejects.toThrow()
-    await expect(tool.execute({ name: 'm1', type: 'wrong', description: 'd', prefix: 'hold' }, exec)).rejects.toThrow(/type/)
+    await expect(tool.execute({ name: 'Bad Name', type: 'user', description: 'd', prefix: ['hold'] }, exec)).rejects.toThrow()
+    await expect(tool.execute({ name: '', type: 'user', description: 'd', prefix: ['hold'] }, exec)).rejects.toThrow()
+    await expect(tool.execute({ name: 'a/b', type: 'user', description: 'd', prefix: ['hold'] }, exec)).rejects.toThrow()
+    await expect(tool.execute({ name: 'm1', type: 'wrong', description: 'd', prefix: ['hold'] }, exec)).rejects.toThrow(/type/)
     await expect(
-      tool.execute({ name: 'p_mem', type: 'project', description: 'd', prefix: '&& ||' }, exec),
-    ).rejects.toThrow(/prefix 表达式/)
+      tool.execute({ name: 'p_mem', type: 'project', description: 'd', prefix: ['a\nb'] }, exec),
+    ).rejects.toThrow(/单行/)
     await expect(
-      tool.execute({ name: 's_mem', type: 'user', description: 'd', scope: 'team', prefix: 'hold' }, exec),
+      tool.execute({ name: 's_mem', type: 'user', description: 'd', scope: 'team', prefix: ['hold'] }, exec),
     ).rejects.toThrow(/scope/)
     const childExec = {
       agent: { session: { header: { delegationDepth: 1 } } },
       signal: undefined,
     } as never
     await expect(
-      tool.execute({ name: 'child_mem', type: 'user', description: 'd', prefix: 'hold' }, childExec),
+      tool.execute({ name: 'child_mem', type: 'user', description: 'd', prefix: ['hold'] }, childExec),
     ).rejects.toThrow(/子 agent/)
   })
 })
 
-describe('prefix 必填与 hold 语义', () => {
-  it('hold（大小写不敏感、容忍空白）：新建不写 prefix 行、索引无联想标注、提醒无精炼要求', async () => {
-    for (const hold of ['hold', 'HOLD', '  hold  ']) {
+describe('prefix 必填与 hold 语义（文件数组）', () => {
+  it('hold（大小写不敏感、容忍空白条目；空数组同义）：新建不写 prefix 行、索引无联想标注、提醒无精炼要求', async () => {
+    for (const hold of [['hold'], ['HOLD'], ['  hold  '], []]) {
       const host = await makeHost()
       const tool = createMemoryWriteTool(host)
       const value = await tool.execute(
@@ -163,29 +164,37 @@ describe('prefix 必填与 hold 语义', () => {
     }
   })
 
-  it('更新时 prefix=hold 保留旧值；表达式覆盖旧值', async () => {
+  it('更新时 prefix=hold 保留旧值；声明新文件列表覆盖旧值', async () => {
     const host = await makeHost()
     await writeMemory(host.memoryDirectory, {
-      name: 'keep_p', content: 'c', type: 'project', description: 'd', prefix: 'src/engine',
+      name: 'keep_p', content: 'c', type: 'project', description: 'd', prefix: ['src/engine/a.ts'],
     })
     const tool = createMemoryWriteTool(host)
-    await tool.execute({ name: 'keep_p', type: 'project', description: 'd2', prefix: 'hold' }, exec)
+    await tool.execute({ name: 'keep_p', type: 'project', description: 'd2', prefix: ['hold'] }, exec)
     const kept = await readFile(join(host.memoryDirectory, 'keep_p.md'), 'utf8')
-    expect(kept).toContain('prefix: src/engine')
-    await tool.execute({ name: 'keep_p', type: 'project', description: 'd3', prefix: 'doc/editor' }, exec)
+    expect(kept).toContain('prefix: [src/engine/a.ts]')
+    await tool.execute({ name: 'keep_p', type: 'project', description: 'd3', prefix: ['doc/editor.md'] }, exec)
     const replaced = await readFile(join(host.memoryDirectory, 'keep_p.md'), 'utf8')
-    expect(replaced).toContain('prefix: doc/editor')
-    expect(replaced).not.toContain('prefix: src/engine')
+    expect(replaced).toContain('prefix: [doc/editor.md]')
+    expect(replaced).not.toContain('prefix: [src/engine/a.ts]')
   })
 
-  it('非 hold 的无效表达式仍抛错（提示可填 hold）', async () => {
+  it('含换行条目抛错（frontmatter 单行约束，提示可填 hold）', async () => {
     const tool = createMemoryWriteTool(await makeHost())
     await expect(
-      tool.execute({ name: 'bad_p', type: 'user', description: 'd', prefix: '&& ||' }, exec),
-    ).rejects.toThrow(/无联想填 hold/)
+      tool.execute({ name: 'bad_p', type: 'user', description: 'd', prefix: ['a\nb'] }, exec),
+    ).rejects.toThrow(/单行/)
     await expect(
-      tool.execute({ name: 'bad_p', type: 'user', description: 'd', prefix: ' && ' }, exec),
-    ).rejects.toThrow(/无联想填 hold/)
+      tool.execute({ name: 'bad_p', type: 'user', description: 'd', prefix: ['ok.ts', ' bad\nline.ts '] }, exec),
+    ).rejects.toThrow(/单行/)
+  })
+
+  it('条目反斜杠归一为正斜杠后落盘', async () => {
+    const host = await makeHost()
+    const tool = createMemoryWriteTool(host)
+    await tool.execute({ name: 'slash_mem', type: 'user', description: 'd', prefix: ['src\\engine\\a.ts'] }, exec)
+    const file = await readFile(join(host.memoryDirectory, 'slash_mem.md'), 'utf8')
+    expect(file).toContain('prefix: [src/engine/a.ts]')
   })
 })
 
@@ -197,7 +206,7 @@ describe('lossless JSON 边界（内核要求返回值 JSON round-trip 无损）
 
   it('memory_write 新建路径（deduped_by/existing_file 缺省为无键而非 undefined）', async () => {
     const tool = createMemoryWriteTool(await makeHost())
-    const value = await tool.execute({ name: 'fresh_mem', type: 'user', description: 'd', prefix: 'hold' }, exec)
+    const value = await tool.execute({ name: 'fresh_mem', type: 'user', description: 'd', prefix: ['hold'] }, exec)
     expectLossless(value)
     expect('deduped_by' in value).toBe(false)
     expect('existing_file' in value).toBe(false)
@@ -209,7 +218,7 @@ describe('lossless JSON 边界（内核要求返回值 JSON round-trip 无损）
       name: 'old_mem', content: 'v1', type: 'project', description: '旧',
     })
     const tool = createMemoryWriteTool(host)
-    const value = await tool.execute({ name: 'old_mem', type: 'project', description: '新', prefix: 'hold' }, exec)
+    const value = await tool.execute({ name: 'old_mem', type: 'project', description: '新', prefix: ['hold'] }, exec)
     expectLossless(value)
   })
 

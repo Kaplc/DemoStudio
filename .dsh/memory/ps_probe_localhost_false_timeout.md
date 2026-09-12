@@ -2,7 +2,7 @@
 name: ps_probe_localhost_false_timeout
 description: 环境坑：PowerShell Invoke-WebRequest 探 localhost:5173 假超时，Node fetch 同 URL 正常，别用 PS 结果误判 Vite 代理故障
 type: project
-prefix: tests/e2e
+prefix: [e2e/framework/session.ts, e2e/framework/fixtures.ts]
 ---
 
 **Problem:** 用 PowerShell `Invoke-WebRequest` POST 探测 `http://localhost:5173/api/*`（Vite 代理到 DSH :3080）稳定超时失败，误判为"代理坏了/服务挂了"；同一 URL 用 Node `fetch` 立即返回 200。

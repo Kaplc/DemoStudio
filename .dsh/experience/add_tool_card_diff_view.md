@@ -3,7 +3,7 @@ name: add_tool_card_diff_view
 task_type: feature
 outcome: success
 date: 2026-09-11
-prefix: src/components/agent || src/editor || doc/editor
+prefix: [src/components/agent/toolDiff.ts, src/editor/AgentService.ts, harness/dsh-source/packages/client/ui-tool/lib/types/client/tool/models/diff-card-model.d.ts]
 ---
 ## Summary
 

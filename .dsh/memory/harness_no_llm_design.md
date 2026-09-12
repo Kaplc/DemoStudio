@@ -2,7 +2,7 @@
 name: harness_no_llm_design
 description: 用户设计决策：harness 插件不做隐性后台 LLM 调用——检索纯文件读取 + agent 自觉调用
 type: project
-prefix: harness
+prefix: [harness/ds-memory/src/index.ts, harness/ds-experience/src/index.ts]
 ---
 规则：harness 插件不做隐性的后台 LLM 调用（side-query/自动提炼）；检索类工具一律纯文件读取，提炼/保存靠 system prompt 指导 + agent 当回合自觉调用工具。
 

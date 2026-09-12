@@ -3,7 +3,7 @@ name: warm_starmap_layout_declutter
 task_type: feature/layout-tuning
 outcome: success
 date: 2026-09-12
-prefix: projects/warm-current || e2e/warm
+prefix: [projects/warm-current/asset/config/star_map.config.json, tests/assetLintPolicy.test.ts]
 ---
 ## Summary
 

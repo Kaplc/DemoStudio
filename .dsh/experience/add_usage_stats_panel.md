@@ -3,7 +3,7 @@ name: add_usage_stats_panel
 task_type: feature
 outcome: success
 date: 2026-09-10
-prefix: src/components/agent || src/editor
+prefix: [src/components/agent/UsageStatsPanel.tsx, src/components/AgentPanel.tsx]
 ---
 ## Summary
 

@@ -3,7 +3,7 @@ name: fix_inspector_getproperties_key_case
 task_type: bugfix
 outcome: success
 date: 2026-09-10
-prefix: src/engine || tests
+prefix: [src/engine/tools/registerBuiltinComponents.ts, doc/editor/core/property_edit_system.md, playwright.e2e.config.ts]
 ---
 ## Summary
 

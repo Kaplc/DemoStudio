@@ -27,8 +27,8 @@ export interface MemoryRecord {
   name?: string
   description?: string
   type: MemoryType | undefined
-  /** frontmatter 声明的联想前缀（可选；读取该前缀下文件时自动加载全文）。 */
-  prefix?: string
+  /** frontmatter 声明的联想触发文件列表（可选；读到列表中的文件时自动加载全文）。 */
+  prefix?: string[]
   /** frontmatter 之后的正文。 */
   content: string
 }
@@ -50,8 +50,8 @@ export interface WriteInput {
   type: MemoryType
   /** 一行描述，检索相关性判断依据；同时作为去重键之一。 */
   description: string
-  /** 联想前缀（可选）：项目根相对路径前缀，读到该前缀下文件时自动注入全文。 */
-  prefix?: string
+  /** 联想触发文件列表（可选）：项目根相对的具体文件路径，读到列表中的文件时自动注入全文。 */
+  prefix?: string[]
 }
 
 /** 读入记忆目录下全部记忆（全量读取正文；跳过 MEMORY.md 与读取失败的文件）。 */

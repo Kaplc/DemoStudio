@@ -33,6 +33,12 @@ export default class PlanetInfoScript extends BehaviourScript {
       const sel = wcMode()?.planetInfoSel
       if (sel && sel !== 'sun') wcMode()?.openOrbitBuild(sel)
     }
+    // 全息勘探入口：打开该天体的全息视图（无矿点天体按钮隐藏；openHologram 内有系统视角门）
+    const holoBtn = findButton(this.actor, 'Btn_holo')
+    if (holoBtn) holoBtn.onClick = () => {
+      const sel = wcMode()?.planetInfoSel
+      if (sel && sel !== 'sun') wcMode()?.openHologram(sel)
+    }
     // 默认收起（脚本置位，先于首帧渲染）
     this.vis.set(this.actor, 'InfoBody', false)
     logger.info('[PlanetInfoScript] 星球信息面板就绪（默认收起）')
@@ -47,6 +53,8 @@ export default class PlanetInfoScript extends BehaviourScript {
     const info = mode.buildViewModel().planetInfo
     this.vis.set(this.actor, 'InfoBody', !!info)
     if (!info) return
+    // 全息勘探按钮：仅表里有矿点的天体显示（太阳恒隐藏）
+    this.vis.set(this.actor, 'Btn_holo', info.hasDeposits)
 
     this.binder.set(findText(this.actor, 'TitleText'), info.name)
     // 类型行：资源星带解锁状态；地球/装饰行星给身份说明

@@ -51,7 +51,7 @@
 # ── 行为飞轮：持久会话索引 ──
 - id: session-query-sqlite
   config:
-    path: 'C:/Users/v_zhyyzheng/.dsh/session-query/index.sqlite'
+    path: 'C:/Users/Kaplc/.dsh/session-query/index.sqlite'
     openAt: first-search
 
 # ── DemoStudio 编辑器工具 ──

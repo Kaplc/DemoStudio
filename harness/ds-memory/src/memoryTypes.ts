@@ -75,35 +75,61 @@ export interface MemoryFrontmatter {
   description?: string
   type?: MemoryType
   /**
-   * 联想前缀表达式（可选）：项目根相对路径前缀，支持 `||`（任一命中）与
-   * `&&`（会话内全部读过才触发）组合多路径（如 `src/engine || doc/engine`）。
-   * 会话中 Agent 读到满足表达式的文件时，本条记忆全文会被自动注入（每会话一次）。
+   * 联想触发文件列表（可选）：项目根相对的**具体文件路径**数组
+   * （如 `['src/engine/foo.ts', 'doc/engine/bar.md']`，单文件可省略方括号）。
+   * 会话中 Agent 读到列表中的任一文件时，本条记忆全文会被自动注入（每会话一次）。
+   * 只按具体文件精确匹配：目录前缀、`&&`/`||` 表达式、`/` 全局已废弃（2026-09-12）。
    */
-  prefix?: string
+  prefix?: string[]
 }
 
 /**
- * 解析 prefix 表达式为 DNF（OR 组的列表，每组是 AND 项列表）：
- * - `src/engine` → `[['src/engine']]`（单项单组，等同旧单前缀语义）
- * - `a || b` → `[['a'], ['b']]`（任一命中触发）
- * - `a && b` → `[['a', 'b']]`（会话中全部读过才触发，可跨多次读取累计）
- * - `a && b || c` → `[['a', 'b'], ['c']]`（`&&` 优先级高于 `||`，与代码一致）
- * 空项/空组被丢弃；全部为空返回 undefined（视为未声明，不参与联想）。
+ * 解析 frontmatter 中的 prefix 值为触发文件列表：
+ * - `prefix: [src/engine/a.ts, doc/engine/b.md]`（推荐方括号数组形式，逗号分隔）
+ * - `prefix: src/engine/a.ts`（单文件可省略方括号）
+ * 每项去成对引号、反斜杠归一为正斜杠；空项丢弃；全部为空返回 undefined（视为未声明）。
  */
-export function parsePrefixExpr(expr: string): string[][] | undefined {
-  const normalized = expr.trim()
-  if (normalized.length === 0) return undefined
-  const groups = normalized
-    .split('||')
-    .map(group => group.split('&&').map(term => term.trim()).filter(term => term.length > 0))
-    .filter(group => group.length > 0)
-  return groups.length === 0 ? undefined : groups
+export function parseTriggerFileList(value: string): string[] | undefined {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return undefined
+  const inner = trimmed.startsWith('[') && trimmed.endsWith(']')
+    ? trimmed.slice(1, -1)
+    : trimmed
+  const entries = inner
+    .split(',')
+    .map(entry => unquoteFrontmatterValue(entry.trim()).replace(/\\/g, '/').trim())
+    .filter(entry => entry.length > 0)
+  return entries.length > 0 ? entries : undefined
+}
+
+/**
+ * 规范化工具入参的触发文件列表：反斜杠归一为正斜杠、去空白、丢弃空项与非字符串项。
+ * 全部为空返回 undefined（等同 hold 的"无联想"）；条目含换行抛错（frontmatter 单行约束）。
+ */
+export function normalizeTriggerFiles(entries: readonly unknown[] | undefined): string[] | undefined {
+  if (entries === undefined) return undefined
+  const normalized: string[] = []
+  for (const entry of entries) {
+    if (typeof entry !== 'string') continue
+    const text = entry.replace(/\\/g, '/').trim()
+    if (text.length === 0) continue
+    if (/[\r\n]/.test(text)) {
+      throw new Error(`prefix 条目 "${entry}" 非法：必须是单行文件路径（不含换行）`)
+    }
+    normalized.push(text)
+  }
+  return normalized.length > 0 ? normalized : undefined
+}
+
+/** 触发文件列表的展示格式（索引标注/注入标题用）：`a.ts, b.md`。 */
+export function formatTriggerFiles(files: readonly string[]): string {
+  return files.join(', ')
 }
 
 /**
  * 解析记忆文件的 frontmatter + 正文。
  * 仅认 `---` 首尾围栏内每行一条 `key: value`；无围栏、空输入按无 frontmatter 处理。
- * prefix 值支持代码风格逻辑运算符组合多路径（`a || b` / `a && b`，见 parsePrefixExpr）。
+ * prefix 值为触发文件列表（`[a.ts, b.md]` 方括号数组或单文件裸值，见 parseTriggerFileList）。
  */
 export function parseFrontmatter(text: string): { data: MemoryFrontmatter; body: string } {
   const trimmed = text.replace(/^\uFEFF/, '')
@@ -125,8 +151,8 @@ export function parseFrontmatter(text: string): { data: MemoryFrontmatter; body:
     else if (key === 'description' && value.length > 0) data.description = value
     else if (key === 'type') data.type = parseMemoryType(value)
     else if (key === 'prefix') {
-      const prefix = unquoteFrontmatterValue(value)
-      if (prefix.length > 0) data.prefix = prefix
+      const files = parseTriggerFileList(value)
+      if (files !== undefined) data.prefix = files
     }
   }
   return { data, body }
@@ -144,16 +170,18 @@ function unquoteFrontmatterValue(value: string): string {
   return value
 }
 
-/** 按规范序列化一份记忆文件（FR-4 格式）。prefix 为可选联想前缀，缺省不写该行。 */
+/** 按规范序列化一份记忆文件（FR-4 格式）。prefix 为可选触发文件列表，缺省不写该行。 */
 export function renderMemoryFile(
   name: string,
   description: string,
   type: MemoryType,
   content: string,
-  prefix?: string,
+  prefix?: readonly string[],
 ): string {
   const normalizedContent = content.endsWith('\n') ? content : `${content}\n`
-  const prefixLine = prefix !== undefined && prefix.trim() !== '' ? `prefix: ${prefix.trim()}\n` : ''
+  const prefixLine = prefix !== undefined && prefix.length > 0
+    ? `prefix: [${prefix.join(', ')}]\n`
+    : ''
   return `---\nname: ${name}\ndescription: ${description}\ntype: ${type}\n${prefixLine}---\n${normalizedContent}`
 }
 
@@ -249,17 +277,14 @@ export const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆检查
 
 如果没有触发点，不要保存。宁缺毋滥。`
 
-/** prefix 自动联想说明文本：声明 prefix 的记忆命中后全文自动加载，正文必须精炼。 */
-export const ASSOCIATE_LOAD_TEXT = `## prefix 自动联想（命中即自动加载全文）
+/** prefix 文件联想说明文本：声明 prefix（触发文件列表）的记忆命中后全文自动加载，正文必须精炼。 */
+export const ASSOCIATE_LOAD_TEXT = `## prefix 文件联想（命中即自动加载全文）
 
-- 记忆文件 frontmatter 可加一行 \`prefix:\` 声明适用路径前缀（如 \`src/engine\`、\`harness\`）。会话中 Agent 读到该前缀下的文件时，本条记忆**全文会被自动注入**上下文（同一会话内同一条只注入一次），无需手动检索。
-- 支持代码风格逻辑运算符组合多文件/多目录：
-  - \`prefix: src/engine || doc/engine\` — **OR**：任一路径命中即触发；
-  - \`prefix: src/engine && doc/editor\` — **AND**：这些前缀在会话中**全部**被读过才触发（可跨多次读取累计，顺序不限）；
-  - 混用时 \`&&\` 优先级高于 \`||\`（\`a && b || c\` = (a且b) 或 c），与代码语义一致。
-- \`prefix: /\` = 全局：读取任意文件都触发；**未声明 prefix 的记忆不会被自动加载**，只走 memory_search 按需检索。
+- 记忆文件 frontmatter 可加一行 \`prefix:\` 声明**联想触发的具体文件列表**（项目根相对的精确文件路径，如 \`prefix: [src/engine/foo.ts, doc/engine/bar.md]\`）。会话中 Agent 读到列表中的**任一文件**时，本条记忆**全文会被自动注入**上下文（同一会话内同一条只注入一次），无需手动检索。
+- 只按**具体文件**精确匹配（2026-09-12 起）：目录前缀、\`&&\`/\`||\` 表达式、\`/\` 全局均已废弃——声明目录不会命中其下文件；未声明 prefix 的记忆不会被自动加载，只走 memory_search 按需检索。
+- 单文件可省略方括号写作 \`prefix: src/engine/foo.ts\`。
 - ⚠️ 自动全文加载意味着正文会整篇进入上下文：声明 prefix 的记忆**必须最精炼**——只保留不可推导的核心事实（踩坑四段 / 规则三段 / 指针 URL），不要背景介绍、过程流水账或读代码可推导的内容。
-- prefix 是段级前缀匹配（\`src/engine\` 不命中 \`src/engine2\`），路径相对项目根；\`memory_write\` 的 \`prefix\` 参数**必填**——声明触发路径；无联想或更新时保持原样填 \`hold\`（hold 不落 frontmatter）。`
+- \`memory_write\` 的 \`prefix\` 参数**必填**（字符串数组）：声明触发文件列表；无联想或更新时保持原样填 \`hold\`（hold 不落 frontmatter）。`
 
 // ---------------------------------------------------------------------------
 // memory_write 正文补写提醒（工具直接写 frontmatter + 索引，返回本提示词提醒 agent 补正文）
@@ -275,8 +300,8 @@ export interface BodyWriteReminderInput {
   existingFile?: string
   /** 记忆类型（已校验的合法值）。 */
   type: string
-  /** 最终写入 frontmatter 的联想前缀表达式（无则 undefined）。 */
-  prefix?: string
+  /** 最终写入 frontmatter 的触发文件列表（无则 undefined）。 */
+  prefix?: string[]
 }
 
 /**
@@ -293,8 +318,8 @@ export function buildBodyWriteReminder(input: BodyWriteReminderInput): string {
     `**只剩一步**：${bodyStep}`,
     '',
     '条目格式：踩坑/教训类用四段 **Problem:** → **Cause:** → **Solution:** → **Applicable:**；普通规则/约定用 规则 → **Why:** → **How to apply:**。一份文件一个主题；多条目每条一个 `## 短名` 小节，description 覆盖全部条目。相对日期转绝对日期。',
-    ...(input.prefix !== undefined
-      ? [`本条声明了 prefix \`${input.prefix}\`：命中即整篇注入，**正文必须精炼**——只留不可推导的核心事实，不写过程流水账。`]
+    ...(input.prefix !== undefined && input.prefix.length > 0
+      ? [`本条声明了 prefix \`[${input.prefix.join(', ')}]\`：命中即整篇注入，**正文必须精炼**——只留不可推导的核心事实，不写过程流水账。`]
       : []),
     '',
     '正文写完后**顺便全库过时检查**：通读记忆目录，发现与当前事实冲突、含已过期日期或内容过时的条目，用 edit 修正或 memory_forget 删除。',

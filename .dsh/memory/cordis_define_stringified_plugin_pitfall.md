@@ -2,7 +2,7 @@
 name: cordis_define_stringified_plugin_pitfall
 description: flash 模型调用 cordis_define 时嵌套对象参数被双重编码成字符串导致 oneOf 校验失败的环境坑，DeepSeek 模型正常
 type: project
-prefix: harness
+prefix: [harness/dsh-source/packages/core/tools/src/schema.ts, harness/dsh-source/packages/extensions/tool-cordis/src/index.ts]
 ---
 规则：使用部分模型（如 flash）调用 `cordis_define` 时，嵌套对象参数（尤其 `plugin` 字段）可能被序列化成**双重编码的 JSON 字符串**（形如 `plugin: "{\"idPrefix\": \"clk\", \"kind\": \"new\"}"`），导致宿主端 oneOf 校验报 `must match exactly one oneOf branch (matched 0)`。
 

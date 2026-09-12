@@ -3,7 +3,7 @@ name: fix_model_image_input_gate
 task_type: debug/config-fix
 outcome: success
 date: 2026-09-10
-prefix: harness
+prefix: doc/editor/integration/agent_panel_system.md
 ---
 ## Summary
 

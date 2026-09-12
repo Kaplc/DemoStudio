@@ -48,6 +48,42 @@ export interface OrbitBuildingDef {
   shipBuildSpeedMult: number
 }
 
+/** 矿种定义（= mineral_type.table.json 行，行键 = 矿点 type；2026-09-12 全息勘探） */
+export interface MineralTypeDef {
+  name: string
+  desc: string
+  /** 表现色（全息标记/面板色点；#RRGGBB） */
+  color: string
+}
+
+/** 矿点定义（= mineral_deposit.table.json 行，行键 = SimMine.depositId） */
+export interface MineralDepositDef {
+  /** 所在天体（行星或卫星 id） */
+  planet: string
+  /** 矿种（mineral_type.table.json 行键） */
+  type: string
+  /** 纬度（deg，-90~90；全息球面布置角） */
+  lat: number
+  /** 经度（deg，0~360；t=0 相位，全息球自转随 group 整体走） */
+  lon: number
+  /** 总储量（吨；矿建采出递减，归零 = 枯竭停采） */
+  reserve: number
+}
+
+/** 矿建定义（= mine_building.table.json 行，行键 = SimMine.type） */
+export interface MineBuildingDef {
+  name: string
+  desc: string
+  /** 建造造价（H3，选型落位时一次性扣除） */
+  cost: number
+  /** 建造工期（秒，tickMines 灌进度） */
+  buildTime: number
+  /** 满负荷产出速率（H3 吨/秒；受矿点余量门控，枯竭停采） */
+  yieldPerS: number
+  /** 可建矿种限制（mineral_type 行键逗号分隔；空 = 不限） */
+  minTypes: string
+}
+
 /** 建筑定义（= building.table.json 行，行键 = SimBuilding.type） */
 export interface BuildingDef {
   name: string
@@ -414,6 +450,38 @@ export const B = {
   orbitBuildings: {
     dock: { name: '船坞', desc: '轨道造船 · 造价 −25% / 提速 30%', cost: 260, buildTime: 60, shipBuildCostMult: 0.75, shipBuildSpeedMult: 1.3 },
   } as Record<string, OrbitBuildingDef>,
+  // 矿种（mineral_type.table.json 覆盖；行键 = 矿点 type，全息标记/面板色点用 color）
+  mineralTypes: {
+    he3: { name: '氦-3 矿脉', desc: '聚变原料 · 直采即燃料', color: '#4fd8ff' },
+    metal: { name: '金属矿脉', desc: '精炼出售 · 折算燃料', color: '#ffb03d' },
+    ice: { name: '水冰矿脉', desc: '电解获氘 · 折算燃料', color: '#dff3ff' },
+  } as Record<string, MineralTypeDef>,
+  // 矿点（mineral_deposit.table.json 覆盖；行键 = SimMine.depositId，一矿点至多一座矿建）
+  mineralDeposits: {
+    e1: { planet: 'earth', type: 'metal', lat: 22, lon: 130, reserve: 500 },
+    m1: { planet: 'moon', type: 'he3', lat: 18, lon: 40, reserve: 900 },
+    m2: { planet: 'moon', type: 'he3', lat: -30, lon: 210, reserve: 1400 },
+    mc1: { planet: 'mercury', type: 'metal', lat: 12, lon: 100, reserve: 1600 },
+    mc2: { planet: 'mercury', type: 'metal', lat: -42, lon: 280, reserve: 2200 },
+    ma1: { planet: 'mars', type: 'metal', lat: 26, lon: 70, reserve: 1200 },
+    ma2: { planet: 'mars', type: 'he3', lat: -18, lon: 240, reserve: 800 },
+    eu1: { planet: 'europa', type: 'ice', lat: 30, lon: 160, reserve: 1500 },
+    eu2: { planet: 'europa', type: 'ice', lat: -24, lon: 330, reserve: 1000 },
+  } as Record<string, MineralDepositDef>,
+  // 矿建（mine_building.table.json 覆盖；行键 = SimMine.type，全息面板建造区行序 = 键序）
+  mineBuildings: {
+    extractor: { name: '采矿机', desc: '低成本持续开采', cost: 150, buildTime: 12, yieldPerS: 0.5, minTypes: '' },
+    processor: { name: '冶炼厂', desc: '高投入高产出的精炼线', cost: 360, buildTime: 24, yieldPerS: 1.4, minTypes: '' },
+  } as Record<string, MineBuildingDef>,
+  // 全息勘探表现参数（代码常量：纯渲染值，不入表）
+  holo: {
+    /** 全息球半径 = 行星显示半径 × 此倍率 */
+    radiusMult: 1.55,
+    /** 自转速率（rad/s，表现值） */
+    spin: 0.12,
+    /** 矿点屏幕拾取半径（px） */
+    pickRadius: 26,
+  },
   // 近地轨道建设参数（orbit_build.config.json 覆盖）
   orbitBuild: {
     /** 轨道环半径（画布 px，距锚行星中心；建筑绕环均布） */
@@ -721,6 +789,41 @@ for (const k of ['ringRadius', 'orbitSpeed', 'maxPerType', 'labelHeight', 'label
         else if (row) (B.orbitBuildings as Record<string, OrbitBuildingDef>)[key] = {
           name: key, desc: '', cost: 0, buildTime: 0, shipBuildCostMult: 1, shipBuildSpeedMult: 1, ...row,
         }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 矿种/矿点/矿建三表（mineral_type / mineral_deposit / mine_building：整行覆盖 + 兜底行插入，纯表驱动）
+  try {
+    const table = ConfigRegistry.getTable<Partial<MineralTypeDef>>('warm-current.mineral_type')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.mineralTypes as Record<string, MineralTypeDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.mineralTypes as Record<string, MineralTypeDef>)[key] = { name: key, desc: '', color: '#4fd8ff', ...row }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+  try {
+    const table = ConfigRegistry.getTable<Partial<MineralDepositDef>>('warm-current.mineral_deposit')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.mineralDeposits as Record<string, MineralDepositDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.mineralDeposits as Record<string, MineralDepositDef>)[key] = { planet: 'earth', type: 'metal', lat: 0, lon: 0, reserve: 0, ...row }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+  try {
+    const table = ConfigRegistry.getTable<Partial<MineBuildingDef>>('warm-current.mine_building')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.mineBuildings as Record<string, MineBuildingDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.mineBuildings as Record<string, MineBuildingDef>)[key] = { name: key, desc: '', cost: 0, buildTime: 0, yieldPerS: 0, minTypes: '', ...row }
       }
     }
   } catch { /* 未注册 → 默认值 */ }

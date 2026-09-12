@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-cf70182d",
+  "sourceHash": "fnv1a-44ac799f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -87,22 +87,18 @@
           "baseClass": "UIImageComponent",
           "properties": {
             "gradient": {
-              "angle": 180,
+              "angle": 135,
               "stops": [
                 {
-                  "color": "#02060c",
+                  "color": "#040914",
                   "offset": 0
                 },
                 {
-                  "color": "#071523",
-                  "offset": 0.4
+                  "color": "#08182a",
+                  "offset": 0.52
                 },
                 {
-                  "color": "#0b2135",
-                  "offset": 0.72
-                },
-                {
-                  "color": "#050e18",
+                  "color": "#120b18",
                   "offset": 1
                 }
               ]
@@ -115,9 +111,113 @@
       ],
       "children": [
         {
-          "name": "Star1",
+          "name": "RouteA",
           "baseClass": "Actor",
           "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1920,
+                "worldHeight": 2,
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  0,
+                  260
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#51ddeb14",
+                "width": 1920,
+                "height": 8,
+                "name": "RouteA"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "RouteB",
+          "baseClass": "Actor",
+          "id": 13203,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1920,
+                "worldHeight": 1,
+                "anchor": "bottom-center",
+                "anchorOffset": [
+                  0,
+                  230
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ed8d6812",
+                "width": 1920,
+                "height": 8,
+                "name": "RouteB"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Star",
+          "baseClass": "Actor",
+          "id": 13204,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -136,8 +236,8 @@
                 "worldHeight": 4,
                 "anchor": "top-left",
                 "anchorOffset": [
-                  320,
-                  -150
+                  110,
+                  -136
                 ],
                 "position": [
                   0,
@@ -157,124 +257,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
+                "color": "#b9f7ff",
                 "radius": 2,
                 "width": 8,
                 "height": 8,
-                "name": "Star1"
+                "name": "Star"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star2",
-          "baseClass": "Actor",
-          "id": 13203,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 3,
-                "worldHeight": 3,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  540,
-                  -260
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#9fd0f0",
-                "radius": 2,
-                "width": 8,
-                "height": 8,
-                "name": "Star2"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Star3",
-          "baseClass": "Actor",
-          "id": 13204,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 5,
-                "worldHeight": 5,
-                "anchor": "top-center",
-                "anchorOffset": [
-                  -57.5,
-                  -100
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#e8f4ff",
-                "radius": 3,
-                "width": 8,
-                "height": 8,
-                "name": "Star3"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Star4",
+          "name": "Star_2",
           "baseClass": "Actor",
           "id": 13205,
           "components": [
@@ -293,10 +287,10 @@
                 ],
                 "worldWidth": 3,
                 "worldHeight": 3,
-                "anchor": "top-right",
+                "anchor": "top-left",
                 "anchorOffset": [
-                  -777,
-                  -300
+                  232,
+                  -335
                 ],
                 "position": [
                   0,
@@ -316,18 +310,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.6,
                 "width": 8,
                 "height": 8,
-                "name": "Star4"
+                "name": "Star_2"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star5",
+          "name": "Star_3",
           "baseClass": "Actor",
           "id": 13206,
           "components": [
@@ -344,12 +339,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 4,
-                "worldHeight": 4,
-                "anchor": "top-right",
+                "worldWidth": 3,
+                "worldHeight": 3,
+                "anchor": "top-left",
                 "anchorOffset": [
-                  -216,
-                  -400
+                  390,
+                  -176
                 ],
                 "position": [
                   0,
@@ -369,18 +364,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#9fd0f0",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.55,
                 "width": 8,
                 "height": 8,
-                "name": "Star5"
+                "name": "Star_3"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star6",
+          "name": "Star_4",
           "baseClass": "Actor",
           "id": 13207,
           "components": [
@@ -397,12 +393,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 3,
-                "worldHeight": 3,
-                "anchor": "top-right",
+                "worldWidth": 4,
+                "worldHeight": 4,
+                "anchor": "top-left",
                 "anchorOffset": [
-                  -467,
-                  -180
+                  610,
+                  -90
                 ],
                 "position": [
                   0,
@@ -422,18 +418,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.7,
                 "width": 8,
                 "height": 8,
-                "name": "Star6"
+                "name": "Star_4"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star7",
+          "name": "Star_5",
           "baseClass": "Actor",
           "id": 13208,
           "components": [
@@ -450,12 +447,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 4,
-                "worldHeight": 4,
+                "worldWidth": 3,
+                "worldHeight": 3,
                 "anchor": "top-left",
                 "anchorOffset": [
-                  780,
-                  -380
+                  742,
+                  -284
                 ],
                 "position": [
                   0,
@@ -475,18 +472,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#8fb8d8",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.5,
                 "width": 8,
                 "height": 8,
-                "name": "Star7"
+                "name": "Star_5"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star8",
+          "name": "Star_6",
           "baseClass": "Actor",
           "id": 13209,
           "components": [
@@ -503,12 +501,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 3,
-                "worldHeight": 3,
-                "anchor": "top-left",
+                "worldWidth": 4,
+                "worldHeight": 4,
+                "anchor": "top-center",
                 "anchorOffset": [
-                  400,
-                  -470
+                  -89,
+                  -159
                 ],
                 "position": [
                   0,
@@ -528,18 +526,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#9fd0f0",
+                "color": "#b9f7ff",
                 "radius": 2,
                 "width": 8,
                 "height": 8,
-                "name": "Star8"
+                "name": "Star_6"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star9",
+          "name": "Star_7",
           "baseClass": "Actor",
           "id": 13210,
           "components": [
@@ -556,12 +554,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 5,
-                "worldHeight": 5,
-                "anchor": "bottom-right",
+                "worldWidth": 3,
+                "worldHeight": 3,
+                "anchor": "top-center",
                 "anchorOffset": [
-                  -115,
-                  455
+                  93.5,
+                  -84
                 ],
                 "position": [
                   0,
@@ -581,18 +579,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
-                "radius": 3,
+                "color": "#b9f7ff",
+                "radius": 2,
+                "opacity": 0.5,
                 "width": 8,
                 "height": 8,
-                "name": "Star9"
+                "name": "Star_7"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star10",
+          "name": "Star_8",
           "baseClass": "Actor",
           "id": 13211,
           "components": [
@@ -611,10 +610,10 @@
                 ],
                 "worldWidth": 3,
                 "worldHeight": 3,
-                "anchor": "middle-right",
+                "anchor": "top-right",
                 "anchorOffset": [
-                  -667,
-                  18.5
+                  -647,
+                  -166
                 ],
                 "position": [
                   0,
@@ -634,18 +633,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#8fb8d8",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.6,
                 "width": 8,
                 "height": 8,
-                "name": "Star10"
+                "name": "Star_8"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star11",
+          "name": "Star_9",
           "baseClass": "Actor",
           "id": 13212,
           "components": [
@@ -664,10 +664,10 @@
                 ],
                 "worldWidth": 3,
                 "worldHeight": 3,
-                "anchor": "bottom-left",
+                "anchor": "top-right",
                 "anchorOffset": [
-                  600,
-                  417
+                  -256,
+                  -124
                 ],
                 "position": [
                   0,
@@ -687,18 +687,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#8fb8d8",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.65,
                 "width": 8,
                 "height": 8,
-                "name": "Star11"
+                "name": "Star_9"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star12",
+          "name": "Star_10",
           "baseClass": "Actor",
           "id": 13213,
           "components": [
@@ -715,11 +716,65 @@
                   1,
                   1
                 ],
+                "worldWidth": 3,
+                "worldHeight": 3,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -105,
+                  -286
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#b9f7ff",
+                "radius": 2,
+                "opacity": 0.55,
+                "width": 8,
+                "height": 8,
+                "name": "Star_10"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Star_11",
+          "baseClass": "Actor",
+          "id": 13214,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
                 "worldWidth": 4,
                 "worldHeight": 4,
-                "anchor": "bottom-center",
+                "anchor": "bottom-right",
                 "anchorOffset": [
-                  62,
+                  -156,
                   466
                 ],
                 "position": [
@@ -740,71 +795,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.75,
                 "width": 8,
                 "height": 8,
-                "name": "Star12"
+                "name": "Star_11"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star13",
-          "baseClass": "Actor",
-          "id": 13214,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 3,
-                "worldHeight": 3,
-                "anchor": "middle-left",
-                "anchorOffset": [
-                  240,
-                  -21.5
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#8fb8d8",
-                "radius": 2,
-                "width": 8,
-                "height": 8,
-                "name": "Star13"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Star14",
+          "name": "Star_12",
           "baseClass": "Actor",
           "id": 13215,
           "components": [
@@ -821,12 +824,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 4,
-                "worldHeight": 4,
-                "anchor": "bottom-right",
+                "worldWidth": 3,
+                "worldHeight": 3,
+                "anchor": "bottom-center",
                 "anchorOffset": [
-                  -576,
-                  376
+                  69.5,
+                  457
                 ],
                 "position": [
                   0,
@@ -846,18 +849,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.5,
                 "width": 8,
                 "height": 8,
-                "name": "Star14"
+                "name": "Star_12"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star15",
+          "name": "Star_13",
           "baseClass": "Actor",
           "id": 13216,
           "components": [
@@ -878,8 +882,8 @@
                 "worldHeight": 3,
                 "anchor": "bottom-left",
                 "anchorOffset": [
-                  740,
-                  317
+                  452,
+                  379
                 ],
                 "position": [
                   0,
@@ -899,18 +903,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#9fd0f0",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.55,
                 "width": 8,
                 "height": 8,
-                "name": "Star15"
+                "name": "Star_13"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star16",
+          "name": "Star_14",
           "baseClass": "Actor",
           "id": 13217,
           "components": [
@@ -927,12 +932,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 4,
-                "worldHeight": 4,
-                "anchor": "bottom-right",
+                "worldWidth": 3,
+                "worldHeight": 3,
+                "anchor": "bottom-left",
                 "anchorOffset": [
-                  -336,
-                  246
+                  722,
+                  221
                 ],
                 "position": [
                   0,
@@ -952,18 +957,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#8fb8d8",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.65,
                 "width": 8,
                 "height": 8,
-                "name": "Star16"
+                "name": "Star_14"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star17",
+          "name": "Star_15",
           "baseClass": "Actor",
           "id": 13218,
           "components": [
@@ -982,10 +988,10 @@
                 ],
                 "worldWidth": 3,
                 "worldHeight": 3,
-                "anchor": "top-left",
+                "anchor": "bottom-left",
                 "anchorOffset": [
-                  180,
-                  -320
+                  154,
+                  133
                 ],
                 "position": [
                   0,
@@ -1005,18 +1011,19 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#9fd0f0",
+                "color": "#b9f7ff",
                 "radius": 2,
+                "opacity": 0.55,
                 "width": 8,
                 "height": 8,
-                "name": "Star17"
+                "name": "Star_15"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Star18",
+          "name": "GlowCyanA",
           "baseClass": "Actor",
           "id": 13219,
           "components": [
@@ -1033,12 +1040,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 4,
-                "worldHeight": 4,
-                "anchor": "bottom-center",
+                "worldWidth": 680,
+                "worldHeight": 680,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -78,
-                  226
+                  -130,
+                  0
                 ],
                 "position": [
                   0,
@@ -1058,18 +1065,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#cfe8ff",
-                "radius": 2,
-                "width": 8,
-                "height": 8,
-                "name": "Star18"
+                "color": "#2fbae21a",
+                "radius": 340,
+                "width": 680,
+                "height": 680,
+                "name": "GlowCyanA"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "StarBand1",
+          "name": "GlowCyanB",
           "baseClass": "Actor",
           "id": 13220,
           "components": [
@@ -1086,12 +1093,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 1750,
-                "worldHeight": 3,
-                "anchor": "center",
+                "worldWidth": 460,
+                "worldHeight": 460,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  0,
-                  -51.5
+                  -240,
+                  0
                 ],
                 "position": [
                   0,
@@ -1111,41 +1118,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "gradient": {
-                  "angle": 90,
-                  "stops": [
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 0
-                    },
-                    {
-                      "color": "#4fd8ff2b",
-                      "offset": 0.22
-                    },
-                    {
-                      "color": "#4fd8ff14",
-                      "offset": 0.55
-                    },
-                    {
-                      "color": "#4fd8ff26",
-                      "offset": 0.8
-                    },
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 1
-                    }
-                  ]
-                },
-                "width": 1750,
-                "height": 8,
-                "name": "StarBand1"
+                "color": "#2fbae226",
+                "radius": 230,
+                "width": 460,
+                "height": 460,
+                "name": "GlowCyanB"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "StarBand2",
+          "name": "GlowWarmA",
           "baseClass": "Actor",
           "id": 13221,
           "components": [
@@ -1162,12 +1146,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 1640,
-                "worldHeight": 2,
-                "anchor": "top-right",
+                "worldWidth": 380,
+                "worldHeight": 380,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -40,
-                  -406
+                  -570,
+                  20
                 ],
                 "position": [
                   0,
@@ -1187,41 +1171,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "gradient": {
-                  "angle": 90,
-                  "stops": [
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 0
-                    },
-                    {
-                      "color": "#4fd8ff21",
-                      "offset": 0.3
-                    },
-                    {
-                      "color": "#4fd8ff12",
-                      "offset": 0.6
-                    },
-                    {
-                      "color": "#4fd8ff1c",
-                      "offset": 0.85
-                    },
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 1
-                    }
-                  ]
-                },
-                "width": 1640,
-                "height": 8,
-                "name": "StarBand2"
+                "color": "#ff814e1c",
+                "radius": 190,
+                "width": 380,
+                "height": 380,
+                "name": "GlowWarmA"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "StarBand3",
+          "name": "GlowWarmB",
           "baseClass": "Actor",
           "id": 13222,
           "components": [
@@ -1238,12 +1199,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 1520,
-                "worldHeight": 2,
-                "anchor": "bottom-right",
+                "worldWidth": 250,
+                "worldHeight": 250,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -100,
-                  376
+                  -635,
+                  20
                 ],
                 "position": [
                   0,
@@ -1263,41 +1224,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "gradient": {
-                  "angle": 90,
-                  "stops": [
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 0
-                    },
-                    {
-                      "color": "#4fd8ff1c",
-                      "offset": 0.35
-                    },
-                    {
-                      "color": "#4fd8ff10",
-                      "offset": 0.65
-                    },
-                    {
-                      "color": "#4fd8ff18",
-                      "offset": 0.9
-                    },
-                    {
-                      "color": "#4fd8ff00",
-                      "offset": 1
-                    }
-                  ]
-                },
-                "width": 1520,
-                "height": 8,
-                "name": "StarBand3"
+                "color": "#ff814e28",
+                "radius": 125,
+                "width": 250,
+                "height": 250,
+                "name": "GlowWarmB"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "SunHalo",
+          "name": "PlanetHalo",
           "baseClass": "Actor",
           "id": 13223,
           "components": [
@@ -1314,12 +1252,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 560,
-                "worldHeight": 560,
-                "anchor": "bottom-left",
+                "worldWidth": 640,
+                "worldHeight": 640,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -160,
-                  -240
+                  -185,
+                  -43
                 ],
                 "position": [
                   0,
@@ -1339,18 +1277,18 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#ffb03d10",
-                "radius": 280,
-                "width": 560,
-                "height": 560,
-                "name": "SunHalo"
+                "color": "#7befff10",
+                "radius": 320,
+                "width": 640,
+                "height": 640,
+                "name": "PlanetHalo"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "SunOuter",
+          "name": "OrbitA",
           "baseClass": "Actor",
           "id": 13224,
           "components": [
@@ -1360,19 +1298,19 @@
                 "rotation": [
                   0,
                   0,
-                  0
+                  -0.3316
                 ],
                 "scale": [
                   1,
                   1,
                   1
                 ],
-                "worldWidth": 460,
-                "worldHeight": 460,
-                "anchor": "bottom-left",
+                "worldWidth": 860,
+                "worldHeight": 284,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -110,
-                  -190
+                  -75,
+                  -43
                 ],
                 "position": [
                   0,
@@ -1392,20 +1330,126 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#ffb03d1f",
-                "radius": 230,
-                "width": 460,
-                "height": 460,
-                "name": "SunOuter"
+                "color": "#67e9f414",
+                "radius": 142,
+                "width": 860,
+                "height": 284,
+                "name": "OrbitA"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "SunCore",
+          "name": "OrbitB",
           "baseClass": "Actor",
           "id": 13225,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0.3142
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1010,
+                "worldHeight": 416,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  0,
+                  -43
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#e58c6b0d",
+                "radius": 208,
+                "width": 1010,
+                "height": 416,
+                "name": "OrbitB"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "OrbitC",
+          "baseClass": "Actor",
+          "id": 13226,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0.9425
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 700,
+                "worldHeight": 180,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  -155,
+                  -43
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#69ecf40d",
+                "radius": 90,
+                "width": 700,
+                "height": 180,
+                "name": "OrbitC"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "PlanetRing",
+          "baseClass": "Actor",
+          "id": 13227,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1420,11 +1464,830 @@
                   1,
                   1
                 ],
-                "worldWidth": 340,
-                "worldHeight": 340,
-                "anchor": "bottom-left",
+                "worldWidth": 596,
+                "worldHeight": 596,
+                "anchor": "middle-right",
                 "anchorOffset": [
-                  -50,
+                  -207,
+                  -43
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#7befffb3",
+                "radius": 298,
+                "width": 596,
+                "height": 596,
+                "name": "PlanetRing"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Planet",
+          "baseClass": "Actor",
+          "id": 13228,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 590,
+                "worldHeight": 590,
+                "anchor": "middle-right",
+                "anchorOffset": [
+                  -210,
+                  -43
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIMaskComponent",
+              "properties": {
+                "radius": 295
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "gradient": {
+                  "angle": 145,
+                  "stops": [
+                    {
+                      "color": "#93f0ff",
+                      "offset": 0
+                    },
+                    {
+                      "color": "#2388c4",
+                      "offset": 0.26
+                    },
+                    {
+                      "color": "#12325d",
+                      "offset": 0.65
+                    },
+                    {
+                      "color": "#071024",
+                      "offset": 1
+                    }
+                  ]
+                },
+                "radius": 295,
+                "width": 590,
+                "height": 590,
+                "name": "Planet"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Wave1",
+              "baseClass": "Actor",
+              "id": 13229,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      -0.0698
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 640,
+                    "worldHeight": 20,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      0,
+                      -145
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#b7f6ff3d",
+                    "radius": 10,
+                    "width": 640,
+                    "height": 20,
+                    "name": "Wave1"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Wave2",
+              "baseClass": "Actor",
+              "id": 13230,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      -0.0524
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 660,
+                    "worldHeight": 42,
+                    "anchor": "top-center",
+                    "anchorOffset": [
+                      0,
+                      -241
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#0a2d61a6",
+                    "radius": 21,
+                    "width": 660,
+                    "height": 42,
+                    "name": "Wave2"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Wave3",
+              "baseClass": "Actor",
+              "id": 13231,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0.0524
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 640,
+                    "worldHeight": 23,
+                    "anchor": "bottom-center",
+                    "anchorOffset": [
+                      0,
+                      186
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#7bdfe92e",
+                    "radius": 11,
+                    "width": 640,
+                    "height": 23,
+                    "name": "Wave3"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Wave4",
+              "baseClass": "Actor",
+              "id": 13232,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      1.4661
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 460,
+                    "worldHeight": 18,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      -77,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#70e7f526",
+                    "radius": 9,
+                    "width": 460,
+                    "height": 18,
+                    "name": "Wave4"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Wave5",
+              "baseClass": "Actor",
+              "id": 13233,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      1.6755
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 520,
+                    "worldHeight": 37,
+                    "anchor": "middle-right",
+                    "anchorOffset": [
+                      23,
+                      0.5
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#091b42a6",
+                    "radius": 18,
+                    "width": 520,
+                    "height": 37,
+                    "name": "Wave5"
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "SunGlow",
+          "baseClass": "Actor",
+          "id": 13234,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 130,
+                "worldHeight": 130,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -540,
+                  -380
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ff9a642e",
+                "radius": 65,
+                "width": 130,
+                "height": 130,
+                "name": "SunGlow"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Sun",
+          "baseClass": "Actor",
+          "id": 13235,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 66,
+                "worldHeight": 66,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -572,
+                  -412
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ff9a64e6",
+                "radius": 33,
+                "width": 66,
+                "height": 66,
+                "name": "Sun"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "SunCore",
+          "baseClass": "Actor",
+          "id": 13236,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 18,
+                "worldHeight": 18,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -596,
+                  -436
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#fff0d3",
+                "radius": 9,
+                "width": 18,
+                "height": 18,
+                "name": "SunCore"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "DotWarm",
+          "baseClass": "Actor",
+          "id": 13237,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 20,
+                "worldHeight": 20,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -290,
+                  -399
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ffb26fe6",
+                "radius": 10,
+                "width": 20,
+                "height": 20,
+                "name": "DotWarm"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "DotCyan",
+          "baseClass": "Actor",
+          "id": 13238,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 12,
+                "worldHeight": 12,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -204,
+                  321
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#65efff",
+                "radius": 6,
+                "width": 12,
+                "height": 12,
+                "name": "DotCyan"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Beam1",
+          "baseClass": "Actor",
+          "id": 13239,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0.5061
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 40,
+                "worldHeight": 1,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -719,
+                  -404
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#7ff3ff8c",
+                "width": 40,
+                "height": 8,
+                "name": "Beam1"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "Beam2",
+          "baseClass": "Actor",
+          "id": 13240,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  -0.6283
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 70,
+                "worldHeight": 1,
+                "anchor": "top-right",
+                "anchorOffset": [
+                  -221,
+                  -375
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#ffac778c",
+                "width": 70,
+                "height": 8,
+                "name": "Beam2"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TitleLine1",
+          "baseClass": "Actor",
+          "id": 13241,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 106,
+                "worldHeight": 2,
+                "anchor": "top-left",
+                "anchorOffset": [
+                  130,
+                  -120
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#6feeff",
+                "width": 106,
+                "height": 8,
+                "name": "TitleLine1"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TitleLine2",
+          "baseClass": "Actor",
+          "id": 13242,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 54,
+                "worldHeight": 1,
+                "anchor": "top-left",
+                "anchorOffset": [
+                  130,
                   -130
                 ],
                 "position": [
@@ -1445,904 +2308,17 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#ffc95e2b",
-                "radius": 170,
-                "width": 340,
-                "height": 340,
-                "name": "SunCore"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "RingOuter",
-          "baseClass": "Actor",
-          "id": 13226,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 446,
-                "worldHeight": 446,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  -60,
-                  -186
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffb03d00",
-                "radius": 220,
-                "width": 446,
-                "height": 446,
-                "name": "RingOuter"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "RingOuterBorderTop",
-              "baseClass": "Actor",
-              "id": 13227,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      221.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 446,
-                    "worldHeight": 3
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingOuterBorderTop",
-                    "color": "#ffb03d4d",
-                    "width": 446,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingOuterBorderRight",
-              "baseClass": "Actor",
-              "id": 13228,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      221.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 3,
-                    "worldHeight": 446
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingOuterBorderRight",
-                    "color": "#ffb03d4d",
-                    "width": 8,
-                    "height": 446
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingOuterBorderBottom",
-              "baseClass": "Actor",
-              "id": 13229,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      -221.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 446,
-                    "worldHeight": 3
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingOuterBorderBottom",
-                    "color": "#ffb03d4d",
-                    "width": 446,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingOuterBorderLeft",
-              "baseClass": "Actor",
-              "id": 13230,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      -221.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 3,
-                    "worldHeight": 446
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingOuterBorderLeft",
-                    "color": "#ffb03d4d",
-                    "width": 8,
-                    "height": 446
-                  }
-                }
-              ],
-              "children": []
-            }
-          ],
-          "sourceLayout": {
-            "border": [
-              3,
-              3,
-              3,
-              3
-            ]
-          }
-        },
-        {
-          "name": "RingMid",
-          "baseClass": "Actor",
-          "id": 13231,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 354,
-                "worldHeight": 354,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  -15,
-                  -139
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffb03d00",
-                "radius": 175,
-                "width": 354,
-                "height": 354,
-                "name": "RingMid"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "RingMidBorderTop",
-              "baseClass": "Actor",
-              "id": 13232,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      176,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 354,
-                    "worldHeight": 2
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingMidBorderTop",
-                    "color": "#ffcf6a38",
-                    "width": 354,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingMidBorderRight",
-              "baseClass": "Actor",
-              "id": 13233,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      176,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 2,
-                    "worldHeight": 354
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingMidBorderRight",
-                    "color": "#ffcf6a38",
-                    "width": 8,
-                    "height": 354
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingMidBorderBottom",
-              "baseClass": "Actor",
-              "id": 13234,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      -176,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 354,
-                    "worldHeight": 2
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingMidBorderBottom",
-                    "color": "#ffcf6a38",
-                    "width": 354,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "RingMidBorderLeft",
-              "baseClass": "Actor",
-              "id": 13235,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      -176,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 2,
-                    "worldHeight": 354
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "RingMidBorderLeft",
-                    "color": "#ffcf6a38",
-                    "width": 8,
-                    "height": 354
-                  }
-                }
-              ],
-              "children": []
-            }
-          ],
-          "sourceLayout": {
-            "border": [
-              2,
-              2,
-              2,
-              2
-            ]
-          }
-        },
-        {
-          "name": "RingDot",
-          "baseClass": "Actor",
-          "id": 13236,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 16,
-                "worldHeight": 16,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  152,
-                  116
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffcf6a",
-                "radius": 8,
-                "width": 16,
-                "height": 16,
-                "name": "RingDot"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "SunLabel",
-          "baseClass": "Actor",
-          "id": 13237,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 300,
-                "worldHeight": 26,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  96,
-                  254
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "SOL · 聚能环",
-                "name": "SunLabel",
-                "width": 300,
-                "height": 26,
-                "fontSize": 15,
-                "color": "#d8b06a",
-                "align": "center",
-                "letterSpacing": 6,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "EarthAtmo",
-          "baseClass": "Actor",
-          "id": 13238,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 72,
-                "worldHeight": 72,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  313,
-                  135
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#2a86c22e",
-                "radius": 36,
-                "width": 72,
-                "height": 72,
-                "name": "EarthAtmo"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Earth",
-          "baseClass": "Actor",
-          "id": 13239,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 58,
-                "worldHeight": 58,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  320,
-                  142
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#3f83a8",
-                "radius": 29,
-                "width": 58,
-                "height": 58,
-                "name": "Earth"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "EarthLabel",
-          "baseClass": "Actor",
-          "id": 13240,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 300,
-                "worldHeight": 26,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  196,
-                  112
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "EARTH · 地球",
-                "name": "EarthLabel",
-                "width": 300,
-                "height": 26,
-                "fontSize": 15,
-                "color": "#8fc3dc",
-                "align": "center",
-                "letterSpacing": 6,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Moon",
-          "baseClass": "Actor",
-          "id": 13241,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 22,
-                "worldHeight": 22,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  404,
-                  190
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#c9d4de",
-                "radius": 11,
-                "width": 22,
-                "height": 22,
-                "name": "Moon"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Route1",
-          "baseClass": "Actor",
-          "id": 13242,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 232,
-                "worldHeight": 3,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  372,
-                  169
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#43d17c",
-                "radius": 2,
-                "opacity": 0.75,
-                "width": 232,
+                "color": "#6feeffa6",
+                "width": 54,
                 "height": 8,
-                "name": "Route1"
+                "name": "TitleLine2"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "RouteDot1",
+          "name": "Title",
           "baseClass": "Actor",
           "id": 13243,
           "components": [
@@ -2359,12 +2335,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 7,
-                "worldHeight": 7,
-                "anchor": "bottom-left",
+                "worldWidth": 760,
+                "worldHeight": 96,
+                "anchor": "top-left",
                 "anchorOffset": [
-                  462,
-                  167
+                  128,
+                  -136
                 ],
                 "position": [
                   0,
@@ -2382,20 +2358,27 @@
               }
             },
             {
-              "baseClass": "UIImageComponent",
+              "baseClass": "UITextComponent",
               "properties": {
-                "color": "#7fe8a8",
-                "radius": 4,
-                "width": 8,
-                "height": 8,
-                "name": "RouteDot1"
+                "text": "WARM",
+                "name": "Title",
+                "width": 760,
+                "height": 96,
+                "fontSize": 78,
+                "color": "#eefcff",
+                "lineHeight": 1.23,
+                "letterSpacing": 16,
+                "shadowColor": "#65efff4d",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 0,
+                "shadowBlur": 18
               }
             }
           ],
           "children": []
         },
         {
-          "name": "Mars",
+          "name": "TitleSub",
           "baseClass": "Actor",
           "id": 13244,
           "components": [
@@ -2412,12 +2395,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 40,
-                "worldHeight": 40,
-                "anchor": "bottom-left",
+                "worldWidth": 640,
+                "worldHeight": 24,
+                "anchor": "top-left",
                 "anchorOffset": [
-                  620,
-                  204
+                  136,
+                  -220
                 ],
                 "position": [
                   0,
@@ -2435,20 +2418,27 @@
               }
             },
             {
-              "baseClass": "UIImageComponent",
+              "baseClass": "UITextComponent",
               "properties": {
-                "color": "#e8926f",
-                "radius": 20,
-                "width": 40,
-                "height": 40,
-                "name": "Mars"
+                "text": "CURRENT / ORBITAL LOGISTICS",
+                "name": "TitleSub",
+                "width": 640,
+                "height": 24,
+                "fontSize": 17,
+                "color": "#80e9f5",
+                "lineHeight": 1.41,
+                "letterSpacing": 7,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
               }
             }
           ],
           "children": []
         },
         {
-          "name": "MarsLabel",
+          "name": "TitleTag",
           "baseClass": "Actor",
           "id": 13245,
           "components": [
@@ -2465,12 +2455,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 200,
-                "worldHeight": 24,
-                "anchor": "bottom-left",
+                "worldWidth": 560,
+                "worldHeight": 18,
+                "anchor": "top-left",
                 "anchorOffset": [
-                  540,
-                  174
+                  137,
+                  -266
                 ],
                 "position": [
                   0,
@@ -2490,15 +2480,15 @@
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "MARS",
-                "name": "MarsLabel",
-                "width": 200,
-                "height": 24,
-                "fontSize": 14,
-                "color": "#d8a58c",
-                "align": "center",
-                "letterSpacing": 5,
-                "shadowColor": "#00000080",
+                "text": "MISSION CONTROL // SYSTEM ONLINE",
+                "name": "TitleTag",
+                "width": 560,
+                "height": 18,
+                "fontSize": 12,
+                "color": "#9aaebb",
+                "lineHeight": 1.5,
+                "letterSpacing": 3,
+                "shadowColor": "#00000099",
                 "shadowOffsetX": 0,
                 "shadowOffsetY": 2,
                 "shadowBlur": 4
@@ -2508,7 +2498,7 @@
           "children": []
         },
         {
-          "name": "Jupiter",
+          "name": "MenuLineTop",
           "baseClass": "Actor",
           "id": 13246,
           "components": [
@@ -2525,1158 +2515,12 @@
                   1,
                   1
                 ],
-                "worldWidth": 66,
-                "worldHeight": 66,
-                "anchor": "bottom-center",
-                "anchorOffset": [
-                  93,
-                  184
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#c9a678",
-                "radius": 33,
-                "width": 66,
-                "height": 66,
-                "name": "Jupiter"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "JupiterLabel",
-          "baseClass": "Actor",
-          "id": 13247,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 200,
-                "worldHeight": 24,
-                "anchor": "bottom-center",
-                "anchorOffset": [
-                  93,
-                  154
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "JUPITER",
-                "name": "JupiterLabel",
-                "width": 200,
-                "height": 24,
-                "fontSize": 14,
-                "color": "#c3ab84",
-                "align": "center",
-                "letterSpacing": 5,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "TagAccent",
-          "baseClass": "Actor",
-          "id": 13248,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 30,
-                "worldHeight": 4,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  122,
-                  -224
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffb03d",
-                "radius": 2,
-                "width": 30,
-                "height": 8,
-                "name": "TagAccent"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "TagText",
-          "baseClass": "Actor",
-          "id": 13249,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 420,
-                "worldHeight": 30,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  168,
-                  -210
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "HELIUM-3 EXPEDITION",
-                "name": "TagText",
-                "width": 420,
-                "height": 30,
-                "fontSize": 18,
-                "color": "#4fd8ff",
-                "bold": true,
-                "letterSpacing": 6,
-                "shadowColor": "#00000099",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 6
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Title",
-          "baseClass": "Actor",
-          "id": 13250,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 780,
-                "worldHeight": 118,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  118,
-                  -248
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "暖流计划",
-                "name": "Title",
-                "width": 780,
-                "height": 118,
-                "fontSize": 96,
-                "color": "#ffb03d",
-                "align": "left",
-                "bold": true,
-                "shadowColor": "#000000b3",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 6,
-                "shadowBlur": 18
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "EnTitle",
-          "baseClass": "Actor",
-          "id": 13251,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 620,
-                "worldHeight": 34,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  122,
-                  -380
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "WARM CURRENT",
-                "name": "EnTitle",
-                "width": 620,
-                "height": 34,
-                "fontSize": 22,
-                "color": "#9fc8e8",
-                "letterSpacing": 12,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 6
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Desc",
-          "baseClass": "Actor",
-          "id": 13252,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 640,
-                "worldHeight": 60,
-                "anchor": "top-left",
-                "anchorOffset": [
-                  122,
-                  -434
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "拖拽画线连接地球与远域星球\r\n建立氦-3 航线，让聚能环在深冬降临前持续运转",
-                "name": "Desc",
-                "width": 640,
-                "height": 60,
-                "fontSize": 19,
-                "color": "#c9b28a",
-                "lineHeight": 1.6,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "StartBtnGlow",
-          "baseClass": "Actor",
-          "id": 13253,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 460,
-                "worldHeight": 116,
-                "anchor": "middle-left",
-                "anchorOffset": [
-                  112,
-                  -48
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffb03d14",
-                "width": 460,
-                "height": 116,
-                "name": "StartBtnGlow"
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "Btn_new",
-          "baseClass": "Actor",
-          "id": 13254,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 442,
-                "worldHeight": 98,
-                "anchor": "middle-left",
-                "anchorOffset": [
-                  122,
-                  -49
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": {
-                "stateColors": {
-                  "hover": {
-                    "color": "#ffc65e"
-                  },
-                  "pressed": {
-                    "color": "#e09400"
-                  }
-                }
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#ffb03d",
-                "width": 442,
-                "height": 98,
-                "name": "Btn_new"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "Btn_newBorderTop",
-              "baseClass": "Actor",
-              "id": 13255,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      48.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 442,
-                    "worldHeight": 1
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_newBorderTop",
-                    "color": "#ffcf6a",
-                    "width": 442,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_newBorderRight",
-              "baseClass": "Actor",
-              "id": 13256,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      220.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 1,
-                    "worldHeight": 98
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_newBorderRight",
-                    "color": "#ffcf6a",
-                    "width": 8,
-                    "height": 98
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_newBorderBottom",
-              "baseClass": "Actor",
-              "id": 13257,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      -48.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 442,
-                    "worldHeight": 1
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_newBorderBottom",
-                    "color": "#ffcf6a",
-                    "width": 442,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_newBorderLeft",
-              "baseClass": "Actor",
-              "id": 13258,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      -220.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 1,
-                    "worldHeight": 98
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_newBorderLeft",
-                    "color": "#ffcf6a",
-                    "width": 8,
-                    "height": 98
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "StartBtnText",
-              "baseClass": "Actor",
-              "id": 13259,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 380,
-                    "worldHeight": 56,
-                    "position": [
-                      0,
-                      0,
-                      0
-                    ]
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UITextComponent",
-                  "properties": {
-                    "text": "▶ 新的远征",
-                    "name": "StartBtnText",
-                    "width": 380,
-                    "height": 56,
-                    "fontSize": 36,
-                    "color": "#3a2200",
-                    "align": "center",
-                    "bold": true,
-                    "shadowColor": "#ffffff59",
-                    "shadowOffsetX": 0,
-                    "shadowOffsetY": 1,
-                    "shadowBlur": 4
-                  }
-                }
-              ],
-              "children": []
-            }
-          ],
-          "sourceLayout": {
-            "border": [
-              1,
-              1,
-              1,
-              1
-            ]
-          }
-        },
-        {
-          "name": "Btn_load",
-          "baseClass": "Actor",
-          "id": 13260,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 442,
-                "worldHeight": 82,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  122,
-                  342
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UIButtonComponent",
-              "properties": {
-                "stateColors": {
-                  "hover": {
-                    "color": "#143650"
-                  }
-                }
-              }
-            },
-            {
-              "baseClass": "UIImageComponent",
-              "properties": {
-                "color": "#0d2434",
-                "width": 442,
-                "height": 82,
-                "name": "Btn_load"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "Btn_loadBorderTop",
-              "baseClass": "Actor",
-              "id": 13261,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      40.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 442,
-                    "worldHeight": 1
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_loadBorderTop",
-                    "color": "#235066",
-                    "width": 442,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_loadBorderRight",
-              "baseClass": "Actor",
-              "id": 13262,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      220.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 1,
-                    "worldHeight": 82
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_loadBorderRight",
-                    "color": "#235066",
-                    "width": 8,
-                    "height": 82
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_loadBorderBottom",
-              "baseClass": "Actor",
-              "id": 13263,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      0,
-                      -40.5,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 442,
-                    "worldHeight": 1
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_loadBorderBottom",
-                    "color": "#235066",
-                    "width": 442,
-                    "height": 8
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Btn_loadBorderLeft",
-              "baseClass": "Actor",
-              "id": 13264,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "position": [
-                      -220.5,
-                      0,
-                      0
-                    ],
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 1,
-                    "worldHeight": 82
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UIImageComponent",
-                  "properties": {
-                    "name": "Btn_loadBorderLeft",
-                    "color": "#235066",
-                    "width": 8,
-                    "height": 82
-                  }
-                }
-              ],
-              "children": []
-            },
-            {
-              "name": "Label_load",
-              "baseClass": "Actor",
-              "id": 13265,
-              "components": [
-                {
-                  "baseClass": "UITransformComponent",
-                  "properties": {
-                    "rotation": [
-                      0,
-                      0,
-                      0
-                    ],
-                    "scale": [
-                      1,
-                      1,
-                      1
-                    ],
-                    "worldWidth": 380,
-                    "worldHeight": 50,
-                    "position": [
-                      0,
-                      0,
-                      0
-                    ]
-                  }
-                },
-                {
-                  "baseClass": "CanvasUIComponent",
-                  "properties": {
-                    "markerOnly": true,
-                    "name": "UIMarker",
-                    "zOrder": 0
-                  }
-                },
-                {
-                  "baseClass": "UITextComponent",
-                  "properties": {
-                    "text": "读取存档",
-                    "name": "Label_load",
-                    "width": 380,
-                    "height": 50,
-                    "fontSize": 28,
-                    "color": "#4fd8ff",
-                    "align": "center",
-                    "bold": true,
-                    "shadowColor": "#00000080",
-                    "shadowOffsetX": 0,
-                    "shadowOffsetY": 1,
-                    "shadowBlur": 4
-                  }
-                }
-              ],
-              "children": []
-            }
-          ],
-          "sourceLayout": {
-            "border": [
-              1,
-              1,
-              1,
-              1
-            ]
-          }
-        },
-        {
-          "name": "TipText",
-          "baseClass": "Actor",
-          "id": 13266,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 620,
-                "worldHeight": 64,
-                "anchor": "bottom-left",
-                "anchorOffset": [
-                  122,
-                  254
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "游戏内按 Esc 呼出暂停菜单，可在三个存档槽间保存/读取\r\n关注引力窗口与极寒停航，规划每一条航线",
-                "name": "TipText",
-                "width": 620,
-                "height": 64,
-                "fontSize": 17,
-                "color": "#9fc8e8",
-                "lineHeight": 1.6,
-                "shadowColor": "#00000080",
-                "shadowOffsetX": 0,
-                "shadowOffsetY": 2,
-                "shadowBlur": 4
-              }
-            }
-          ],
-          "children": []
-        },
-        {
-          "name": "FooterLine",
-          "baseClass": "Actor",
-          "id": 13267,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 1680,
+                "worldWidth": 410,
                 "worldHeight": 2,
-                "anchor": "bottom-center",
+                "anchor": "top-left",
                 "anchorOffset": [
-                  0,
-                  106
+                  138,
+                  -390
                 ],
                 "position": [
                   0,
@@ -3700,28 +2544,35 @@
                   "angle": 90,
                   "stops": [
                     {
-                      "color": "#35c8f5",
+                      "color": "#65efff00",
                       "offset": 0
                     },
                     {
-                      "color": "#16405c",
+                      "color": "#65efff",
+                      "offset": 0.25
+                    },
+                    {
+                      "color": "#ef9b6f",
+                      "offset": 0.75
+                    },
+                    {
+                      "color": "#ef9b6f00",
                       "offset": 1
                     }
                   ]
                 },
-                "opacity": 0.4,
-                "width": 1680,
+                "width": 410,
                 "height": 8,
-                "name": "FooterLine"
+                "name": "MenuLineTop"
               }
             }
           ],
           "children": []
         },
         {
-          "name": "FooterText",
+          "name": "MenuLineV",
           "baseClass": "Actor",
-          "id": 13268,
+          "id": 13247,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -3736,12 +2587,116 @@
                   1,
                   1
                 ],
-                "worldWidth": 620,
-                "worldHeight": 26,
+                "worldWidth": 1,
+                "worldHeight": 440,
                 "anchor": "bottom-left",
                 "anchorOffset": [
-                  122,
-                  64
+                  138,
+                  250
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#64eafb2e",
+                "width": 8,
+                "height": 440,
+                "name": "MenuLineV"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "MenuLineBottom",
+          "baseClass": "Actor",
+          "id": 13248,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 350,
+                "worldHeight": 1,
+                "anchor": "bottom-left",
+                "anchorOffset": [
+                  138,
+                  249
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#64eafb24",
+                "width": 350,
+                "height": 8,
+                "name": "MenuLineBottom"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "MenuCaption",
+          "baseClass": "Actor",
+          "id": 13249,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 320,
+                "worldHeight": 18,
+                "anchor": "top-left",
+                "anchorOffset": [
+                  138,
+                  -440
                 ],
                 "position": [
                   0,
@@ -3761,14 +2716,15 @@
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "DEMOSTUDIO · WARM CURRENT",
-                "name": "FooterText",
-                "width": 620,
-                "height": 26,
-                "fontSize": 14,
-                "color": "#6f8ba0",
-                "letterSpacing": 2,
-                "shadowColor": "#00000066",
+                "text": "SELECT OPERATION",
+                "name": "MenuCaption",
+                "width": 320,
+                "height": 18,
+                "fontSize": 12,
+                "color": "#77eefa",
+                "lineHeight": 1.5,
+                "letterSpacing": 4,
+                "shadowColor": "#00000099",
                 "shadowOffsetX": 0,
                 "shadowOffsetY": 2,
                 "shadowBlur": 4
@@ -3778,9 +2734,1884 @@
           "children": []
         },
         {
-          "name": "VersionText",
+          "name": "Btn_new",
           "baseClass": "Actor",
-          "id": 13269,
+          "id": 13250,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 357,
+                "worldHeight": 64,
+                "anchor": "middle-left",
+                "anchorOffset": [
+                  138,
+                  13
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "stateColors": {
+                  "hover": {
+                    "opacity": 0.85
+                  },
+                  "pressed": {
+                    "opacity": 0.72
+                  }
+                }
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "gradient": {
+                  "angle": 135,
+                  "stops": [
+                    {
+                      "color": "#10283ae0",
+                      "offset": 0
+                    },
+                    {
+                      "color": "#07111ec7",
+                      "offset": 1
+                    }
+                  ]
+                },
+                "width": 357,
+                "height": 64,
+                "name": "Btn_new"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Btn_newBorderTop",
+              "baseClass": "Actor",
+              "id": 13251,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_newBorderTop",
+                    "color": "#58e4f3bf",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_newBorderRight",
+              "baseClass": "Actor",
+              "id": 13252,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_newBorderRight",
+                    "color": "#58e4f3bf",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_newBorderBottom",
+              "baseClass": "Actor",
+              "id": 13253,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_newBorderBottom",
+                    "color": "#58e4f3bf",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_newBorderLeft",
+              "baseClass": "Actor",
+              "id": 13254,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_newBorderLeft",
+                    "color": "#58e4f3bf",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemAccent",
+              "baseClass": "Actor",
+              "id": 13255,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 16,
+                    "worldHeight": 62,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      1,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "color": "#65efff",
+                    "width": 16,
+                    "height": 62,
+                    "name": "ItemAccent"
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemLabel",
+              "baseClass": "Actor",
+              "id": 13256,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 250,
+                    "worldHeight": 62,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      35,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "NEW EXPEDITION",
+                    "name": "ItemLabel",
+                    "width": 250,
+                    "height": 62,
+                    "fontSize": 21,
+                    "color": "#f2ffff",
+                    "align": "center",
+                    "lineHeight": 2.95,
+                    "letterSpacing": 4,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemNum",
+              "baseClass": "Actor",
+              "id": 13257,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 40,
+                    "worldHeight": 62,
+                    "anchor": "middle-right",
+                    "anchorOffset": [
+                      -15,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "01",
+                    "name": "ItemNum",
+                    "width": 40,
+                    "height": 62,
+                    "fontSize": 16,
+                    "color": "#72effa",
+                    "align": "right",
+                    "lineHeight": 3.88,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ],
+          "sourceLayout": {
+            "border": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "name": "Btn_load",
+          "baseClass": "Actor",
+          "id": 13258,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 357,
+                "worldHeight": 64,
+                "anchor": "bottom-left",
+                "anchorOffset": [
+                  138,
+                  441
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIButtonComponent",
+              "properties": {
+                "stateColors": {
+                  "hover": {
+                    "color": "#14293a"
+                  },
+                  "pressed": {
+                    "color": "#0a1c2a"
+                  }
+                }
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#0b1827",
+                "width": 357,
+                "height": 64,
+                "name": "Btn_load"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "Btn_loadBorderTop",
+              "baseClass": "Actor",
+              "id": 13259,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_loadBorderTop",
+                    "color": "#6390a080",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_loadBorderRight",
+              "baseClass": "Actor",
+              "id": 13260,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_loadBorderRight",
+                    "color": "#6390a080",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_loadBorderBottom",
+              "baseClass": "Actor",
+              "id": 13261,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_loadBorderBottom",
+                    "color": "#6390a080",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_loadBorderLeft",
+              "baseClass": "Actor",
+              "id": 13262,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_loadBorderLeft",
+                    "color": "#6390a080",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Label_load",
+              "baseClass": "Actor",
+              "id": 13263,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 250,
+                    "worldHeight": 62,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      35,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "CONTINUE",
+                    "name": "Label_load",
+                    "width": 250,
+                    "height": 62,
+                    "fontSize": 21,
+                    "color": "#c9e3ea",
+                    "align": "center",
+                    "lineHeight": 2.95,
+                    "letterSpacing": 4,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemNum_2",
+              "baseClass": "Actor",
+              "id": 13264,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 40,
+                    "worldHeight": 62,
+                    "anchor": "middle-right",
+                    "anchorOffset": [
+                      -15,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "02",
+                    "name": "ItemNum_2",
+                    "width": 40,
+                    "height": 62,
+                    "fontSize": 16,
+                    "color": "#7f9aa4",
+                    "align": "right",
+                    "lineHeight": 3.88,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ],
+          "sourceLayout": {
+            "border": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "name": "ItemGhost",
+          "baseClass": "Actor",
+          "id": 13265,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 357,
+                "worldHeight": 64,
+                "anchor": "bottom-left",
+                "anchorOffset": [
+                  138,
+                  361
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#0b1827",
+                "opacity": 0.82,
+                "width": 357,
+                "height": 64,
+                "name": "ItemGhost"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "ItemGhostBorderTop",
+              "baseClass": "Actor",
+              "id": 13266,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhostBorderTop",
+                    "color": "#6390a080",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhostBorderRight",
+              "baseClass": "Actor",
+              "id": 13267,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhostBorderRight",
+                    "color": "#6390a080",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhostBorderBottom",
+              "baseClass": "Actor",
+              "id": 13268,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhostBorderBottom",
+                    "color": "#6390a080",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhostBorderLeft",
+              "baseClass": "Actor",
+              "id": 13269,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhostBorderLeft",
+                    "color": "#6390a080",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemLabel_2",
+              "baseClass": "Actor",
+              "id": 13270,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 250,
+                    "worldHeight": 62,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      35,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "SETTINGS",
+                    "name": "ItemLabel_2",
+                    "width": 250,
+                    "height": 62,
+                    "fontSize": 21,
+                    "color": "#c9e3ea",
+                    "lineHeight": 2.95,
+                    "letterSpacing": 4,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemNum_3",
+              "baseClass": "Actor",
+              "id": 13271,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 40,
+                    "worldHeight": 62,
+                    "anchor": "middle-right",
+                    "anchorOffset": [
+                      -15,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "03",
+                    "name": "ItemNum_3",
+                    "width": 40,
+                    "height": 62,
+                    "fontSize": 16,
+                    "color": "#7f9aa4",
+                    "align": "right",
+                    "lineHeight": 3.88,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ],
+          "sourceLayout": {
+            "border": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "name": "ItemGhost_2",
+          "baseClass": "Actor",
+          "id": 13272,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 357,
+                "worldHeight": 64,
+                "anchor": "bottom-left",
+                "anchorOffset": [
+                  138,
+                  281
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#0b1827",
+                "opacity": 0.68,
+                "width": 357,
+                "height": 64,
+                "name": "ItemGhost_2"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "ItemGhost_2BorderTop",
+              "baseClass": "Actor",
+              "id": 13273,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhost_2BorderTop",
+                    "color": "#6390a059",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhost_2BorderRight",
+              "baseClass": "Actor",
+              "id": 13274,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhost_2BorderRight",
+                    "color": "#6390a059",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhost_2BorderBottom",
+              "baseClass": "Actor",
+              "id": 13275,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -31.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 357,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhost_2BorderBottom",
+                    "color": "#6390a059",
+                    "width": 357,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemGhost_2BorderLeft",
+              "baseClass": "Actor",
+              "id": 13276,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -178,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 64
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "ItemGhost_2BorderLeft",
+                    "color": "#6390a059",
+                    "width": 8,
+                    "height": 64
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemLabel_3",
+              "baseClass": "Actor",
+              "id": 13277,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 250,
+                    "worldHeight": 62,
+                    "anchor": "middle-left",
+                    "anchorOffset": [
+                      35,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "EXIT TO DESKTOP",
+                    "name": "ItemLabel_3",
+                    "width": 250,
+                    "height": 62,
+                    "fontSize": 21,
+                    "color": "#adc7cf",
+                    "lineHeight": 2.95,
+                    "letterSpacing": 4,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "ItemNum_4",
+              "baseClass": "Actor",
+              "id": 13278,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 40,
+                    "worldHeight": 62,
+                    "anchor": "middle-right",
+                    "anchorOffset": [
+                      -15,
+                      0
+                    ],
+                    "position": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "04",
+                    "name": "ItemNum_4",
+                    "width": 40,
+                    "height": 62,
+                    "fontSize": 16,
+                    "color": "#7f9aa4",
+                    "align": "right",
+                    "lineHeight": 3.88,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 0,
+                    "shadowOffsetY": 2,
+                    "shadowBlur": 4
+                  }
+                }
+              ],
+              "children": []
+            }
+          ],
+          "sourceLayout": {
+            "border": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "name": "TeleTitle",
+          "baseClass": "Actor",
+          "id": 13279,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 300,
+                "worldHeight": 16,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -380,
+                  162
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "LIVE TELEMETRY",
+                "name": "TeleTitle",
+                "width": 300,
+                "height": 16,
+                "fontSize": 11,
+                "color": "#83e8ef",
+                "lineHeight": 1.45,
+                "letterSpacing": 3,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TeleVal1",
+          "baseClass": "Actor",
+          "id": 13280,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 250,
+                "worldHeight": 20,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -430,
+                  130
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "SOLAR WIND 24.8 km/s",
+                "name": "TeleVal1",
+                "width": 250,
+                "height": 20,
+                "fontSize": 14,
+                "color": "#d7faff",
+                "lineHeight": 1.43,
+                "letterSpacing": 2,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TeleVal2",
+          "baseClass": "Actor",
+          "id": 13281,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 220,
+                "worldHeight": 20,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -218,
+                  130
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "CORE TEMP 31.4°",
+                "name": "TeleVal2",
+                "width": 220,
+                "height": 20,
+                "fontSize": 14,
+                "color": "#ffac76",
+                "lineHeight": 1.43,
+                "letterSpacing": 2,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TeleLine",
+          "baseClass": "Actor",
+          "id": 13282,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 530,
+                "worldHeight": 1,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -150,
+                  112
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "gradient": {
+                  "angle": 90,
+                  "stops": [
+                    {
+                      "color": "#65efff00",
+                      "offset": 0
+                    },
+                    {
+                      "color": "#65efff",
+                      "offset": 0.25
+                    },
+                    {
+                      "color": "#ef9b6f",
+                      "offset": 0.75
+                    },
+                    {
+                      "color": "#ef9b6f00",
+                      "offset": 1
+                    }
+                  ]
+                },
+                "width": 530,
+                "height": 8,
+                "name": "TeleLine"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "FooterDot",
+          "baseClass": "Actor",
+          "id": 13283,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 8,
+                "worldHeight": 8,
+                "anchor": "bottom-left",
+                "anchorOffset": [
+                  135,
+                  70
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "color": "#7cf5eb",
+                "radius": 4,
+                "width": 8,
+                "height": 8,
+                "name": "FooterDot"
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "FooterBuild",
+          "baseClass": "Actor",
+          "id": 13284,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -3796,10 +4627,10 @@
                   1
                 ],
                 "worldWidth": 420,
-                "worldHeight": 26,
-                "anchor": "bottom-right",
+                "worldHeight": 18,
+                "anchor": "bottom-left",
                 "anchorOffset": [
-                  -120,
+                  155,
                   64
                 ],
                 "position": [
@@ -3820,15 +4651,76 @@
             {
               "baseClass": "UITextComponent",
               "properties": {
-                "text": "SOL EXPEDITION BUILD 0.1",
-                "name": "VersionText",
+                "text": "BUILD 0.9.7 // HELIOS NETWORK",
+                "name": "FooterBuild",
                 "width": 420,
-                "height": 26,
-                "fontSize": 14,
-                "color": "#6f8ba0",
+                "height": 18,
+                "fontSize": 12,
+                "color": "#8eaab4",
+                "lineHeight": 1.5,
+                "letterSpacing": 3,
+                "shadowColor": "#00000099",
+                "shadowOffsetX": 0,
+                "shadowOffsetY": 2,
+                "shadowBlur": 4
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "FooterHint",
+          "baseClass": "Actor",
+          "id": 13285,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 230,
+                "worldHeight": 18,
+                "anchor": "bottom-right",
+                "anchorOffset": [
+                  -130,
+                  64
+                ],
+                "position": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UITextComponent",
+              "properties": {
+                "text": "ENTER / SELECT",
+                "name": "FooterHint",
+                "width": 230,
+                "height": 18,
+                "fontSize": 12,
+                "color": "#71919d",
                 "align": "right",
-                "letterSpacing": 2,
-                "shadowColor": "#00000066",
+                "lineHeight": 1.5,
+                "letterSpacing": 3,
+                "shadowColor": "#00000099",
                 "shadowOffsetX": 0,
                 "shadowOffsetY": 2,
                 "shadowBlur": 4

@@ -2,7 +2,7 @@
 name: dsh_mux_projection_frames
 description: DSH mux 下行帧不止 session/event：session/projection 承载 title/sessionStats 实时推送，编辑器曾因丢弃该帧导致面板标题不实时（prefix: src/editor || electron）
 type: project
-prefix: src/editor || electron
+prefix: [src/editor/AgentService.ts, electron/main.ts]
 ---
 
 **Problem:** 编辑器 agent 面板 2026-09-10 前只处理 mux 的 6 种帧（question/approval 4 种 + session/event + session/subscribed），`session/projection` 被静默丢弃——头部会话标题、侧边栏统计不实时，要重开面板（重挂载触发全量刷新）才更新。

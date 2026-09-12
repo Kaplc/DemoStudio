@@ -150,6 +150,10 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
 
 ## 五、运行入口
 
-- 编辑器 Dashboard → WarmCurrent → Launch → 主菜单（warm_menu.scene.json）→ 点「▶ 新的远征」切星图（`startNewGame`）后拖月球到地球建首条航线。
+- 编辑器 Dashboard → WarmCurrent → Launch → 主菜单（warm_menu.scene.json）→ 点「NEW EXPEDITION」（Btn_new）切星图（`startNewGame`）后拖月球到地球建首条航线。
 - GM 命令：`status/h3/node/ship/flare/window/win/sol`（GMRegistry glob 自动注册）。
-- e2e：`cd tests/e2e && npx playwright test warm-current`（dev server :5174 由外部管理）。
+- e2e：`npm run test:e2e:warm`（playwright.e2e.config.ts，dev server :5173 由外部管理）。
+
+## 六、后续变更
+
+- **2026-09-13 主菜单 SVG 重设计**：设计稿 `asset/ui/warm-main-menu.svg` 落地为 `main_menu.widget.html/json`（WARM 英文品牌太空 HUD 风，替换旧中文「暖流计划」版式）。行为契约不变：`Btn_new → 'new'`、`Btn_load → 'load'`（标签按最近存档槽位改写 `CONTINUE · S<n>`，`Label_load` 节点名保留）。设计稿四菜单项中 SETTINGS / EXIT TO DESKTOP 经用户决策（2026-09-13）为**占位禁用**：纯 div 无 UIButton 天然不可点，后端就绪后换 `<button>` 并在 MainMenuScript 绑定。渲染近似手法（引擎 UI 无 radial-gradient/SVG filter）：径向渐变→对角 linear-gradient、辉光→低透明同心圆、SVG 椭圆轨道环→低透明填充盘面 + `transform: rotate`（视觉旋转，不参与布局）、行星圆环描边→同心圆叠层（圆角元素上 CSS border 会发射直边条）、行星表面波浪→`overflow: hidden` 圆形遮罩内旋转条带。回归锁：`tests/warmMainMenuWidget.test.ts`（资产契约 12 例）+ `e2e/warm/main_menu.spec.ts`（运行时 4 例）。

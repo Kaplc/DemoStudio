@@ -12,9 +12,9 @@
  *   同一次事件常需双写（结论进记忆、轨迹进经验），只存了记忆不代表没漏存经验，
  *   所以记忆保存不抑制本提醒（记忆侧由 ds-memory 的回合末提醒自行判定）
  *   （agent/pre-step 记录当前回合号，tools/result 登记保存工具的成功调用）
- * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 路径自动联想：
- *   读到满足经验 `prefix:` 表达式的文件时把该经验全文自动注入（每会话一次）；
- *   表达式支持 `||`（任一路径命中）与 `&&`（会话内全部路径读过，跨读取累计）
+ * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 文件自动联想：
+ *   读到经验 `prefix:` 触发文件列表中的文件时把该经验全文自动注入（每会话一次）；
+ *   只按具体文件精确匹配（2026-09-12 起目录前缀、`&&`/`||` 表达式、`/` 全局废弃）
  *
  * 经验保存与检索完全由主 agent 自觉调用工具完成（system prompt 指导段 + 回合末提醒驱动），
  * 不做回合末自动提炼，不走 LLM 检索。
@@ -83,9 +83,9 @@ export interface Config {
    */
   reminderSkipTools?: string[]
   /**
-   * 是否启用 prefix 自动联想（默认 true）：读到声明了 prefix 的经验所适用
-   * 路径下的文件时自动注入其全文。联想基准的项目根从 experienceDir 推导
-   * （<root>/.dsh/experience 形态）；推导不出时联想自动停用并记 warn 日志。
+   * 是否启用 prefix 自动联想（默认 true）：读到经验 prefix 声明的触发文件列表
+   * 中的文件时自动注入其全文（按具体文件精确匹配）。联想基准的项目根从
+   * experienceDir 推导（<root>/.dsh/experience 形态）；推导不出时联想自动停用并记 warn 日志。
    */
   enableAutoAssociate?: boolean
 }
@@ -141,7 +141,7 @@ export function apply(ctx: Context, config?: Config): void {
     ctx.tools.register(tool)
   }
 
-  // ── prefix 路径自动联想（默认开；项目根推导不出时停用并 warn） ──
+  // ── prefix 文件自动联想（默认开；项目根推导不出时停用并 warn） ──
   if (resolved.enableAutoAssociate) {
     const associationRoot = deriveExperienceProjectRoot(experienceDirectory)
     if (associationRoot === undefined) {
@@ -154,7 +154,7 @@ export function apply(ctx: Context, config?: Config): void {
         experienceDirectory,
         projectRoot: associationRoot,
       })
-      logger.info('prefix 自动联想已启用（项目根 %s）', associationRoot)
+      logger.info('prefix 文件联想已启用（按具体文件精确匹配；项目根 %s）', associationRoot)
     }
   }
 

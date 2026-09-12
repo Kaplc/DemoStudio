@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#040914"/>
+      <stop offset="0.52" stop-color="#08182a"/>
+      <stop offset="1" stop-color="#120b18"/>
+    </linearGradient>
+    <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffb46c" stop-opacity="0.95"/>
+      <stop offset="0.34" stop-color="#ee6b42" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#b33b53" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="planet" cx="34%" cy="28%" r="75%">
+      <stop offset="0" stop-color="#93f0ff"/>
+      <stop offset="0.26" stop-color="#2388c4"/>
+      <stop offset="0.65" stop-color="#12325d"/>
+      <stop offset="1" stop-color="#071024"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10283a" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#07111e" stop-opacity="0.78"/>
+    </linearGradient>
+    <linearGradient id="cyanLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#65efff" stop-opacity="0"/>
+      <stop offset="0.25" stop-color="#65efff"/>
+      <stop offset="0.75" stop-color="#ef9b6f"/>
+      <stop offset="1" stop-color="#ef9b6f" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glowCyan" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+    <clipPath id="planetClip"><circle cx="385" cy="355" r="295"/></clipPath>
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse">
+      <path d="M72 0H0V72" fill="none" stroke="#4ed7e8" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+  <path d="M0 820 C390 690 590 900 940 790 S1530 610 1920 760" fill="none" stroke="#51ddeb" stroke-opacity="0.08" stroke-width="2"/>
+  <path d="M0 850 C390 720 600 930 940 820 S1530 640 1920 790" fill="none" stroke="#ed8d68" stroke-opacity="0.07" stroke-width="1"/>
+
+  <g fill="#b9f7ff">
+    <circle cx="112" cy="138" r="2"/><circle cx="234" cy="337" r="1.5"/><circle cx="392" cy="178" r="1.4"/>
+    <circle cx="612" cy="92" r="1.8"/><circle cx="744" cy="286" r="1.2"/><circle cx="871" cy="161" r="2"/>
+    <circle cx="1054" cy="86" r="1.2"/><circle cx="1272" cy="168" r="1.5"/><circle cx="1663" cy="126" r="1.6"/>
+    <circle cx="1814" cy="288" r="1.3"/><circle cx="1762" cy="612" r="1.9"/><circle cx="1030" cy="622" r="1.2"/>
+    <circle cx="454" cy="700" r="1.4"/><circle cx="724" cy="858" r="1.7"/><circle cx="156" cy="946" r="1.3"/>
+  </g>
+
+  <g opacity="0.7" filter="url(#glowSoft)">
+    <circle cx="1450" cy="540" r="340" fill="#2fbae2" opacity="0.13"/>
+    <circle cx="1160" cy="520" r="190" fill="#ff814e" opacity="0.12"/>
+  </g>
+
+  <g transform="translate(130 108)">
+    <path d="M0 12H106" stroke="#6feeff" stroke-width="2"/>
+    <path d="M0 22H54" stroke="#6feeff" stroke-width="1" opacity="0.65"/>
+    <text x="0" y="92" fill="#eefcff" font-family="Arial,Segoe UI,sans-serif" font-size="78" font-weight="700" letter-spacing="16">WARM</text>
+    <text x="6" y="128" fill="#80e9f5" font-family="Arial,Segoe UI,sans-serif" font-size="17" letter-spacing="7">CURRENT / ORBITAL LOGISTICS</text>
+    <text x="7" y="174" fill="#9aaebb" font-family="Arial,Segoe UI,sans-serif" font-size="12" letter-spacing="3">MISSION CONTROL // SYSTEM ONLINE</text>
+  </g>
+
+  <g transform="translate(138 390)">
+    <path d="M0 0H410" stroke="url(#cyanLine)" stroke-width="2"/>
+    <path d="M0 0V440" stroke="#64eafb" stroke-opacity="0.18" stroke-width="1"/>
+    <path d="M0 440H350" stroke="#64eafb" stroke-opacity="0.14" stroke-width="1"/>
+    <g font-family="Arial,Segoe UI,sans-serif">
+      <text x="0" y="62" fill="#77eefa" font-size="12" letter-spacing="4">SELECT OPERATION</text>
+      <g transform="translate(0 105)">
+        <rect width="355" height="62" fill="url(#panel)" stroke="#58e4f3" stroke-opacity="0.75"/>
+        <path d="M0 0H16V62H0" fill="#65efff"/>
+        <text x="34" y="39" fill="#f2ffff" font-size="21" letter-spacing="4">NEW EXPEDITION</text>
+        <text x="326" y="39" fill="#72effa" font-size="16">01</text>
+      </g>
+      <g transform="translate(0 185)" opacity="0.82">
+        <rect width="355" height="62" fill="#0b1827" stroke="#6390a0" stroke-opacity="0.5"/>
+        <text x="34" y="39" fill="#c9e3ea" font-size="21" letter-spacing="4">CONTINUE</text>
+        <text x="326" y="39" fill="#7f9aa4" font-size="16">02</text>
+      </g>
+      <g transform="translate(0 265)" opacity="0.82">
+        <rect width="355" height="62" fill="#0b1827" stroke="#6390a0" stroke-opacity="0.5"/>
+        <text x="34" y="39" fill="#c9e3ea" font-size="21" letter-spacing="4">SETTINGS</text>
+        <text x="326" y="39" fill="#7f9aa4" font-size="16">03</text>
+      </g>
+      <g transform="translate(0 345)" opacity="0.68">
+        <rect width="355" height="62" fill="#0b1827" stroke="#6390a0" stroke-opacity="0.35"/>
+        <text x="34" y="39" fill="#adc7cf" font-size="21" letter-spacing="4">EXIT TO DESKTOP</text>
+        <text x="326" y="39" fill="#7f9aa4" font-size="16">04</text>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(1030 228)">
+    <ellipse cx="385" cy="355" rx="430" ry="142" fill="none" stroke="#67e9f4" stroke-width="2" opacity="0.42" transform="rotate(-19 385 355)"/>
+    <ellipse cx="385" cy="355" rx="505" ry="208" fill="none" stroke="#e58c6b" stroke-width="1" opacity="0.28" transform="rotate(18 385 355)"/>
+    <ellipse cx="385" cy="355" rx="350" ry="90" fill="none" stroke="#69ecf4" stroke-width="1" opacity="0.25" transform="rotate(54 385 355)"/>
+    <circle cx="385" cy="355" r="295" fill="url(#planet)" stroke="#7befff" stroke-opacity="0.8" stroke-width="2" filter="url(#glowCyan)"/>
+    <g clip-path="url(#planetClip)" fill="none" stroke-linecap="round">
+      <path d="M107 224 C234 270 300 202 415 238 S603 294 687 240" stroke="#b7f6ff" stroke-opacity="0.27" stroke-width="20"/>
+      <path d="M100 337 C221 386 331 326 413 363 S571 422 691 350" stroke="#0a2d61" stroke-opacity="0.7" stroke-width="42"/>
+      <path d="M123 462 C232 417 301 481 416 448 S595 399 669 473" stroke="#7bdfe9" stroke-opacity="0.22" stroke-width="23"/>
+      <path d="M227 89 C260 213 201 307 272 427 S434 572 486 615" stroke="#70e7f5" stroke-opacity="0.19" stroke-width="18"/>
+      <path d="M420 52 C374 179 482 257 430 374 S340 510 372 626" stroke="#091b42" stroke-opacity="0.7" stroke-width="37"/>
+    </g>
+    <circle cx="285" cy="217" r="33" fill="#ff9a64" opacity="0.9" filter="url(#glowCyan)"/>
+    <circle cx="285" cy="217" r="9" fill="#fff0d3"/>
+    <circle cx="590" cy="181" r="10" fill="#ffb26f" opacity="0.9"/>
+    <circle cx="680" cy="397" r="6" fill="#65efff"/>
+    <path d="M168 186 L134 167" stroke="#7ff3ff" stroke-width="1" opacity="0.55"/>
+    <path d="M606 168 L662 127" stroke="#ffac77" stroke-width="1" opacity="0.55"/>
+  </g>
+
+  <g transform="translate(1240 915)" font-family="Arial,Segoe UI,sans-serif">
+    <text x="0" y="0" fill="#83e8ef" font-size="11" letter-spacing="3">LIVE TELEMETRY</text>
+    <text x="0" y="32" fill="#d7faff" font-size="14" letter-spacing="2">SOLAR WIND  24.8 km/s</text>
+    <text x="242" y="32" fill="#ffac76" font-size="14" letter-spacing="2">CORE TEMP  31.4°</text>
+    <path d="M0 52H530" stroke="url(#cyanLine)" stroke-width="1"/>
+  </g>
+
+  <g transform="translate(131 1010)" font-family="Arial,Segoe UI,sans-serif">
+    <circle cx="8" cy="-4" r="4" fill="#7cf5eb"/>
+    <text x="24" y="0" fill="#8eaab4" font-size="12" letter-spacing="3">BUILD 0.9.7 // HELIOS NETWORK</text>
+  </g>
+  <text x="1790" y="1010" fill="#71919d" font-family="Arial,Segoe UI,sans-serif" font-size="12" letter-spacing="3" text-anchor="end">ENTER / SELECT</text>
+</svg>

@@ -2,7 +2,7 @@
 name: blueprint_save_dumps_runtime_components
 description: 踩坑：蓝图编辑器保存会把运行时挂载组件随 persistentProps 全量写回资产，与运行时再挂载撞成重复实例（prefix: src/editor || projects/warm-current）
 type: project
-prefix: src/editor || projects/warm-current
+prefix: [projects/warm-current/asset/blueprints/stars/earth.blueprint.json, src/editor/Editor.ts]
 ---
 
 **Problem:** 用户在蓝图预览编辑任意属性并保存后，运行时才挂载的组件（如 setupCloseup 里 addComponent 的大气）被整块写进资产 JSON；下次生成时蓝图实例 + 运行时再挂载各一份 → 重复实例、表现叠光、AObject 同名组件告警。

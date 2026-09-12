@@ -2,7 +2,7 @@
 name: ds_instructions_lazy_injection
 description: ds-instructions 注入时机：global（prefix:/）已在 step1 自动注入，其余前缀仍是读到匹配文件才惰性注入（2026-09-09 更新）
 type: project
-prefix: harness/ds-instructions
+prefix: harness/ds-instructions/src/index.ts
 ---
 规则：ds-instructions 注入分两种时机——`prefix: /` 的全局指令在 agent **step 1 自动注入**（harness/ds-instructions/src/index.ts:325，每 agent 一次）；其余前缀指令仍是**惰性注入**：Agent 读到匹配路径的文件后才注入下一次模型请求。
 

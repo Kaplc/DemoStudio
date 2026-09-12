@@ -3,7 +3,7 @@ name: add_reminder_skip_when_already_saved
 task_type: feature/harness-plugin
 outcome: success
 date: 2026-09-10
-prefix: harness/ds-memory
+prefix: [harness/ds-memory/tests/endOfTurnReminder.test.ts, harness/ds-memory/REQUIREMENTS.md, harness/ds-memory/src/index.ts]
 ---
 ## Summary
 

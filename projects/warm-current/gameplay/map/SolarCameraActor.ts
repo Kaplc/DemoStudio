@@ -57,16 +57,17 @@ export class SolarCameraActor extends CameraActor {
   }
 
   /** 行星观察取景：斜视角（默认仰角 35°）对准 (wx, wz)，距离 d 夹紧到缩放范围。
+   *  targetY = 注视高度（默认 0 = 地面；全息勘探取行星球心，环绕旋转绕球心走）。
    *  搭配 rig.orbitMode = true 使用：右键拖拽绕行星环绕，up 用世界 +Y（斜视下北极朝上），
    *  退出观察须由 GameMode 调 focusOn 复位回垂直俯视（focusOn 会重设 up）。 */
-  observeFocus(wx: number, wz: number, d: number, pitch = THREE.MathUtils.degToRad(35)): void {
-    this.rig.target.set(wx, 0, wz)
+  observeFocus(wx: number, wz: number, d: number, pitch = THREE.MathUtils.degToRad(35), targetY = 0): void {
+    this.rig.target.set(wx, targetY, wz)
     const dd = THREE.MathUtils.clamp(d, this.rig.minDistance, this.rig.maxDistance)
     this.camera.up.set(0, 1, 0)
-    this.camera.position.set(wx, Math.sin(pitch) * dd, wz + Math.cos(pitch) * dd)
+    this.camera.position.set(wx, targetY + Math.sin(pitch) * dd, wz + Math.cos(pitch) * dd)
     this.camera.lookAt(this.rig.target)
     this.SyncToActor()
-    logger.info(`[SolarCamera] 行星观察 target(${wx.toFixed(0)}, ${wz.toFixed(0)}) dist=${dd.toFixed(0)} pitch=${THREE.MathUtils.radToDeg(pitch).toFixed(0)}°`)
+    logger.info(`[SolarCamera] 行星观察 target(${wx.toFixed(0)}, ${targetY.toFixed(0)}, ${wz.toFixed(0)}) dist=${dd.toFixed(0)} pitch=${THREE.MathUtils.radToDeg(pitch).toFixed(0)}°`)
   }
 
 
