@@ -1,4 +1,4 @@
-﻿/**
+/**
  * registerBuiltinComponents — 集中注册引擎内置 Component
  *
  * 每个注册项定义：
@@ -551,13 +551,14 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── UITooltipComponent ─── props: { text?, delay?, direction?, widgetPath? }
+  // ─── UITooltipComponent ─── props: { text?, title?, delay?, direction?, widgetPath? }
   // 悬停提示组件：挂在任意 UI 控件上，悬停 delay 秒后在宿主上方/下方动态生成 tooltip 面板。
   ComponentRegistry.register(
     'UITooltipComponent',
     (owner, p = {}) =>
       new UITooltipComponent(owner as Actor, {
         text: p.text as string | undefined,
+        title: p.title as string | undefined,
         delay: p.delay as number | undefined,
         direction: p.direction as 'top' | 'bottom' | undefined,
         widgetPath: p.widgetPath as string | undefined,
@@ -565,6 +566,7 @@ export function registerBuiltinComponents(): void {
     (c, p) => {
       const tip = c as UITooltipComponent
       if (p.text !== undefined) tip.text = p.text as string
+      if (p.title !== undefined) tip.title = p.title as string
       if (p.delay !== undefined) tip.delay = p.delay as number
       if (p.direction !== undefined) tip.direction = p.direction as 'top' | 'bottom'
       if (p.widgetPath !== undefined) tip.widgetPath = p.widgetPath as string
@@ -756,8 +758,9 @@ export function registerBuiltinComponents(): void {
     },
   )
 
-  // ─── CloudLayerComponent ─── props: { texture?, altitude?, spin?, opacity?, name? }
-  // 行星云层壳（贴图外壳 + Tick 错速自转；asset/ 路径走 loadTexture，无路径程序化兜底）。
+  // ─── CloudLayerComponent ─── props: { texture?, altitude?, spin?, uvDrift?, opacity?, name? }
+  // 行星云层壳（受光 Lambert + alphaMap + Tick 错速自转/UV 漂移；asset/ 路径走 loadTexture，
+  // 加载后异步柔化，无路径程序化兜底）。
   ComponentRegistry.register(
     'CloudLayerComponent',
     (owner, p = {}) => {
@@ -765,6 +768,7 @@ export function registerBuiltinComponents(): void {
         texture: p.texture as string | undefined,
         altitude: p.altitude as number | undefined,
         spin: p.spin as number | undefined,
+        uvDrift: p.uvDrift as number | undefined,
         opacity: p.opacity as number | undefined,
       }, (p.name as string) ?? 'CloudLayerComponent')
       return comp
@@ -773,6 +777,7 @@ export function registerBuiltinComponents(): void {
       const cc = c as CloudLayerComponent
       if (p.altitude !== undefined) cc.altitude = p.altitude as number
       if (p.spin !== undefined) cc.spin = p.spin as number
+      if (p.uvDrift !== undefined) cc.uvDrift = p.uvDrift as number
       if (p.opacity !== undefined) cc.opacity = p.opacity as number
     },
   )

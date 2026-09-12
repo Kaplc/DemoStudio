@@ -4,13 +4,14 @@
  * 2026-09-11 槽位化改版（方案 V1：25 级 = 25 环段槽位）：
  *  - 25 段槽位图（SlotStrip 动态生成 ring_slot_cell，5×5）：暗=未建成、蓝=当前建设格、
  *    橙=已建成空槽、亮橙=已装建筑、红=拆除中目标格；点格选中查看/安装
- *  - 安装流：选中已建成空槽 → InstallList 按 ring_building 表生成安装行（点击即扣）
+ *  - 安装流：选中已建成空槽 → InstallList 按 ring_building 表生成安装行（点击即扣）；
+ *    悬停安装行弹提示面板（tooltip.widget：名称/效果/造价/可装态，随行数据刷新）
  *  - 拆除流：选中已装槽 → 拆除按钮（费用 = 造价×demolishCostPct，走建设泵反向灌入）；
  *    泵目标切换：点建设格回灌建设、点拆除格续拆（双侧进度保留）
  *  - 升级瞬间：slot_built 事件 toast 由 GameMode 发；面板对应格状态色即闪现
  * 数据全部来自 GameMode.buildViewModel()，0.15s 差分刷新。
  */
-import { BehaviourScript, UIButtonComponent, UIImageComponent, UIProgressBarComponent, logger } from '@/engine'
+import { BehaviourScript, UIButtonComponent, UIImageComponent, UIProgressBarComponent, UITooltipComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
 import { B, ringBuildingDefOf } from '../core/balance'
 import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
@@ -323,8 +324,8 @@ export default class RingPanelScript extends BehaviourScript {
     this.binder.set(demoText, '')
   }
 
-  /** 安装行池同步（ring_building 表键序，行文本 = 名称+造价；点击安装到选中槽） */
-  private syncInstallRows(rows: Array<{ id: string; name: string; cost: number; canInstall: boolean }>): void {
+  /** 安装行池同步（ring_building 表键序，行文本 = 名称+造价；悬停弹提示面板，点击安装到选中槽） */
+  private syncInstallRows(rows: Array<{ id: string; name: string; desc: string; cost: number; canInstall: boolean }>): void {
     const world = this.world
     const list = findChild(this.actor, 'InstallList')
     if (!world || !list) return
@@ -338,6 +339,11 @@ export default class RingPanelScript extends BehaviourScript {
           const m = mode0()
           const id = this.installIds[idx]
           if (m && id) m.ringBuild.installBuilding(this.selectedSlot, id)
+        }
+        // 悬停提示面板（复用池行只挂一次；标题/正文随行数据刷新）
+        const btnActor = btn.owner
+        if (!btnActor.getComponent(UITooltipComponent)) {
+          btnActor.addComponent(UITooltipComponent, { delay: 0.25, direction: 'top' })
         }
       }
       this.installRows.push(row)
@@ -354,6 +360,13 @@ export default class RingPanelScript extends BehaviourScript {
       const cost = findText(this.installRows[i], 'RowCost')
       if (name) this.binder.set(name, rows[i].name)
       if (cost) this.binder.set(cost, `${rows[i].cost} H3`)
+      const tip = findChild(this.installRows[i], 'Btn_row')?.getComponent(UITooltipComponent)
+      if (tip) {
+        const text = `${rows[i].desc}\n造价 ${rows[i].cost} H3 · ${rows[i].canInstall ? '点击安装，立即扣费' : '暂不可安装'}`
+        // 差分守卫：refresh 每 0.15s 走到这里，等值不重写（避免 troika 无谓 sync）
+        if (tip.title !== rows[i].name) tip.title = rows[i].name
+        if (tip.text !== text) tip.text = text
+      }
     }
   }
 

@@ -6,13 +6,13 @@
  *  - 面板内 ✕ / 点空地 → GameMode.closeShipyardPanel() → vm.shipyard 为 null → 收起
  *  - 造船三步流（2026-09-11 船型模块改版，玩家设计权扩展）：
  *      ① 选船型（HullList 动态生成 ship_hull_cell，ship_hull 表驱动）
- *      ② 选配模块（ModuleList 动态生成 ship_module_cell，ship_module 表驱动；
- *         不兼容当前船型的模块置灰——ship_hull.allowed 清单）
- *      ③ 总价（船体 + Σ模块 × 船坞折扣）入队（transport.tryBuildShip(hull, modules, dockId)）
+ *      ② 选配插件（ModuleList 动态生成 ship_module_cell；只列当前船型 allowed 清单——
+ *         每个船自己的插件，配置表驱动；切船型自动换列）
+ *      ③ 总价（船体 + Σ插件 × 船坞折扣）入队（transport.tryBuildShip(hull, modules, dockId)）
  *  - 造船队列逐船一卡：容器 ShipCardList 挂 UILayout（vertical），卡片池随队列长度增删
  *  - 8Hz 差分同步；在建船坞只显示建造进度，无造船按钮
  */
-import { BehaviourScript, UIImageComponent, logger } from '@/engine'
+import { BehaviourScript, logger } from '@/engine'
 import type { Actor } from '@/engine'
 import { hullAllowsModule, shipBuildPrice, shipHullDefOf, shipModuleDefOf } from '../core/helpers'
 import { TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
@@ -27,16 +27,9 @@ export const SHIP_MODULE_CELL_WIDGET = 'asset/blueprints/ui/ship_module_cell.wid
 /** 卡片池容量上限（与飞船上限同量级取整；超出提示走 HUD 口径，不无限生成） */
 const MAX_CARDS = 12
 
-/** 船型/模块格选中标记色（底色差分：选中 = 亮金 / 未选 = 常态） */
-const CELL_SELECTED = '#3a5a2a'
-const CELL_NORMAL_HULL = '#1d3a52'
-const CELL_NORMAL_MODULE = '#16323f'
-const CELL_DISABLED = '#20303a'
-
 export default class ShipyardPanelScript extends BehaviourScript {
   private binder = new TextBinder()
   private vis = new VisBinder()
-  private colors = new Map<Actor, string>()
   private acc = 1
   /** 卡片 Actor 池（与队列前 N 项一一对应，随队列长度增删） */
   private cards: Actor[] = []
@@ -45,6 +38,13 @@ export default class ShipyardPanelScript extends BehaviourScript {
   /** 船型/模块格 Actor 池（表键序） */
   private hullCells: Actor[] = []
   private moduleCells: Actor[] = []
+  /** 格子 → 条目 id 实时映射（每帧随内容刷新；点击闭包只持 idx，杜绝捕获陈旧 viewmodel） */
+  private hullIds: string[] = []
+  private moduleIds: string[] = []
+  /** 选中态差分（按 Actor 实例做键；写原生 btn.checked，stateColors.checked 承载视觉） */
+  private checkedMap = new Map<Actor, boolean>()
+  /** 格子整体显隐差分（按 Actor 实例做键） */
+  private visMap = new Map<Actor, boolean>()
   /** 三步流选择状态（本地面板态；入队时随 tryBuildShip 提交） */
   private selHull = 'standard'
   private selModules: string[] = []
@@ -97,15 +97,23 @@ export default class ShipyardPanelScript extends BehaviourScript {
     // ─── 三步流：船型格 / 模块格 / 总价 ───
     this.syncHullCells(yd)
     this.syncModuleCells(yd)
-    // 兼容性收敛：切船型后保留的模块若不兼容则剔除（就地修正，UI 提示随格置灰）
+    // 兼容性收敛：切船型后保留的模块若不兼容则剔除（就地修正；面板只列本船型 allowed 清单）
     this.selModules = this.selModules.filter((id) => hullAllowsModule(this.selHull, id))
     const price = Math.round(shipBuildPrice(this.selHull, this.selModules) * yd.costMult)
-    const hullName = shipHullDefOf(this.selHull)?.name ?? this.selHull
-    const modNames = this.selModules.map((id) => shipModuleDefOf(id)?.name ?? id).join('+')
-    this.binder.set(findText(this.actor, 'OrderText'),
-      `已选：${hullName}${modNames ? ` + ${modNames}` : '（裸船）'} · 整单 ${price} H3${yd.canQueue ? '' : ' · 上限已满'}`)
-    this.vis.set(this.actor, 'Btn_yd_build', yd.canQueue)
-    this.binder.set(findText(this.actor, 'BtnLabel'), `下水 · ${price} H3`)
+    const hullDef = shipHullDefOf(this.selHull)
+    const hullPrice = Math.round((hullDef?.cost ?? 0) * yd.costMult)
+    const hullName = hullDef?.name ?? this.selHull
+    const modNames = this.selModules.map((id) => shipModuleDefOf(id)?.name ?? id)
+    const modPrice = this.selModules.reduce((sum, id) => sum + (shipModuleDefOf(id)?.cost ?? 0), 0)
+    const orderLines = [
+      `船体：${hullName} · ${hullPrice} H3`,
+      `插件：${modNames.length ? modNames.join('、') : '未选配'}${modPrice ? ` · ${Math.round(modPrice * yd.costMult)} H3` : ''}`,
+      `整单：${price} H3（船坞价 ×${yd.costMult.toFixed(2)}）`,
+      yd.canQueue ? '船坞空闲，可下水' : '⚠ 船队上限已满',
+    ]
+    this.binder.set(findText(this.actor, 'OrderText'), orderLines.join('\n'))
+    this.vis.set(this.actor, 'Btn_yd_build', true)
+    this.binder.set(findText(this.actor, 'BtnLabel'), yd.canQueue ? `下水 · ${price} H3` : `上限已满 · ${price} H3`)
 
     const fleetLine = `船队 ${yd.fleetShips + yd.queueCount}/${yd.cap}`
     this.binder.set(findText(this.actor, 'StatusText'), fleetLine)
@@ -133,33 +141,39 @@ export default class ShipyardPanelScript extends BehaviourScript {
     const world = this.world
     const list = findChild(this.actor, 'HullList')
     if (!world || !list) return
+    this.hullIds = yd.hulls.map((h) => h.id)
     while (this.hullCells.length < yd.hulls.length) {
       const idx = this.hullCells.length
       const cell = world.ui.spawnUIActor(SHIP_HULL_CELL_WIDGET, list)
       if (!cell) { logger.warn('[ShipyardPanelScript] 船型格生成失败'); break }
       const btn = findButton(cell, 'Btn_cell')
-      if (btn) btn.onClick = () => { this.selHull = yd.hulls[idx]?.id ?? 'standard' }
+      if (btn) btn.onClick = () => { this.selHull = this.hullIds[idx] ?? 'standard' }
       this.hullCells.push(cell)
-    }
-    while (this.hullCells.length > yd.hulls.length) {
-      const cell = this.hullCells.pop()
-      if (cell) world.actorMgr.DestroyActor(cell)
     }
     for (let i = 0; i < this.hullCells.length; i++) {
       const h = yd.hulls[i]
-      if (!h) break
+      // 池格只增不毁（销毁留幽灵）；表行不足时隐藏
+      this.setCellVisible(this.hullCells[i], !!h)
+      if (!h) continue
       this.setCellText(this.hullCells[i], 'CellName', h.name)
       this.setCellText(this.hullCells[i], 'CellDesc', h.desc)
       this.setCellText(this.hullCells[i], 'CellCost', `${Math.round(h.cost * yd.costMult)} H3`)
-      this.setCellColor(this.hullCells[i], this.selHull === h.id ? CELL_SELECTED : CELL_NORMAL_HULL)
+      // 选中态 = 引擎原生 checked（stateColors.checked 承载视觉，:checked 编译映射）
+      this.setCellChecked(this.hullCells[i], this.selHull === h.id)
     }
   }
 
-  /** 模块格池同步（ship_module 表键序；不兼容当前船型置灰，点击 = 勾选/取消，单船一件） */
+  /**
+   * 模块格池同步（只列当前船型 allowed 清单——每个船自己的插件，配置表驱动；点击 = 勾选/取消，单船一件）。
+   * 池按全表容量只增不毁：销毁是延迟提交，切船型高频增删会留下继续参与渲染的幽灵格，
+   * 与新生代交替上屏（表现即面板闪烁）；超编格子一律隐藏。
+   */
   private syncModuleCells(yd: { modules: Array<{ id: string; name: string; desc: string; cost: number }>; costMult: number }): void {
     const world = this.world
     const list = findChild(this.actor, 'ModuleList')
     if (!world || !list) return
+    const avail = yd.modules.filter((m) => hullAllowsModule(this.selHull, m.id))
+    this.moduleIds = avail.map((m) => m.id)
     while (this.moduleCells.length < yd.modules.length) {
       const idx = this.moduleCells.length
       const cell = world.ui.spawnUIActor(SHIP_MODULE_CELL_WIDGET, list)
@@ -167,8 +181,8 @@ export default class ShipyardPanelScript extends BehaviourScript {
       const btn = findButton(cell, 'Btn_cell')
       if (btn) {
         btn.onClick = () => {
-          const id = yd.modules[idx]?.id
-          if (!id || !hullAllowsModule(this.selHull, id)) return
+          const id = this.moduleIds[idx]
+          if (!id) return
           const at = this.selModules.indexOf(id)
           if (at >= 0) this.selModules.splice(at, 1)
           else this.selModules.push(id)
@@ -176,21 +190,17 @@ export default class ShipyardPanelScript extends BehaviourScript {
       }
       this.moduleCells.push(cell)
     }
-    while (this.moduleCells.length > yd.modules.length) {
-      const cell = this.moduleCells.pop()
-      if (cell) world.actorMgr.DestroyActor(cell)
-    }
     for (let i = 0; i < this.moduleCells.length; i++) {
-      const m = yd.modules[i]
-      if (!m) break
-      const allowed = hullAllowsModule(this.selHull, m.id)
-      this.setCellText(this.moduleCells[i], 'CellName', m.name)
-      this.setCellText(this.moduleCells[i], 'CellDesc', m.desc)
-      this.setCellText(this.moduleCells[i], 'CellCost', `${Math.round(m.cost * yd.costMult)}`)
-      const picked = this.selModules.includes(m.id)
-      this.setCellColor(this.moduleCells[i], !allowed ? CELL_DISABLED : picked ? CELL_SELECTED : CELL_NORMAL_MODULE)
-      const name = findText(this.moduleCells[i], 'CellName')
-      if (name) this.binder.set(name, `${picked ? '✔ ' : ''}${m.name}`)
+      const cell = this.moduleCells[i]
+      const m = avail[i]
+      // 超编格隐藏（visible 差分见 setCellVisible；UILayout 检测激活态变化会自动重排）
+      this.setCellVisible(cell, !!m)
+      if (!m) continue
+      this.setCellText(cell, 'CellName', m.name)
+      this.setCellText(cell, 'CellDesc', m.desc)
+      this.setCellText(cell, 'CellCost', `${Math.round(m.cost * yd.costMult)}`)
+      // 选中态只由 checked 底色表达（不再叠 ✔ 前缀，避免勾选切换的文本重排）
+      this.setCellChecked(cell, this.selModules.includes(m.id))
     }
   }
 
@@ -199,15 +209,22 @@ export default class ShipyardPanelScript extends BehaviourScript {
     if (t) this.binder.set(t, text)
   }
 
-  /** 格子底色差分（选中/禁用态视觉；按钮自身 Image 承载） */
-  private setCellColor(cell: Actor, color: string): void {
-    if (this.colors.get(cell) === color) return
-    this.colors.set(cell, color)
-    const img = findChild(cell, 'Btn_cell')?.getComponent(UIImageComponent)
-    if (img) img.color = color
+  /** 选中态差分（按 Actor 实例做键，同名子节点互不干扰；引擎原生 checked 态承载视觉） */
+  private setCellChecked(cell: Actor, on: boolean): void {
+    if (this.checkedMap.get(cell) === on) return
+    this.checkedMap.set(cell, on)
+    const btn = findButton(cell, 'Btn_cell')
+    if (btn) btn.checked = on
   }
 
-  /** 卡片池同步：不足补生成（挂 ShipCardList，UILayout 自动纵排），多余销毁 */
+  /** 格子整体显隐差分（超编池格隐藏不销毁：UI Actor 销毁延迟提交/不彻底会留幽灵格参与渲染） */
+  private setCellVisible(cell: Actor, on: boolean): void {
+    if (this.visMap.get(cell) === on) return
+    this.visMap.set(cell, on)
+    cell.root.visible = on
+  }
+
+  /** 卡片池同步：不足补生成（挂 ShipCardList，UILayout 自动横排），多余隐藏不销毁（销毁留幽灵格） */
   private syncCards(count: number): void {
     const world = this.world
     const list = this.findInChildren('ShipCardList')
@@ -222,11 +239,8 @@ export default class ShipyardPanelScript extends BehaviourScript {
       this.cards.push(card)
       this.cardTexts.set(card, '')
     }
-    while (this.cards.length > n) {
-      const card = this.cards.pop()
-      if (!card) break
-      this.cardTexts.delete(card)
-      world.actorMgr.DestroyActor(card)
+    for (let i = 0; i < this.cards.length; i++) {
+      this.setCellVisible(this.cards[i], i < n)
     }
   }
 
@@ -235,6 +249,9 @@ export default class ShipyardPanelScript extends BehaviourScript {
     this.cardTexts.clear()
     this.hullCells.length = 0
     this.moduleCells.length = 0
-    this.colors.clear()
+    this.hullIds.length = 0
+    this.moduleIds.length = 0
+    this.checkedMap.clear()
+    this.visMap.clear()
   }
 }

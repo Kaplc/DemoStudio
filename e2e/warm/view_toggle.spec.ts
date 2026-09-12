@@ -61,7 +61,7 @@ test.describe('warm-current 视角切换（开局地球系 + ViewToggle widget�
     const p = await probeCam(page)
     expect(p.viewMode, '开局视角模式应为地球系').toBe('earth')
     expect(Math.hypot(p.tx - p.ex, p.tz - p.ez), '相机 target 应锁定地球位置').toBeLessThan(5)
-    expect(Math.hypot(p.tx, p.tz), 'target 不在世界原点（非全景取景，地球轨道半径 250px）').toBeGreaterThan(100)
+    expect(Math.hypot(p.tx, p.tz), 'target 不在世界原点（非全景取景，地球轨道半径 460px）').toBeGreaterThan(100)
   })
 
   test('ViewToggle widget 存在且含地球系/太阳系两按钮', async ({ page }) => {

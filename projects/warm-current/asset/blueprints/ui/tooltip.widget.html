@@ -1,0 +1,14 @@
+<widget name="Tooltip" canvas="420x120">
+  <style>
+    .TooltipPanel { width: 420px; height: 120px; position: absolute; left: 0px; top: 0px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1px; background-color: #2a5f7a; z-order: 30; }
+    .TooltipInner { width: 418px; height: 118px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); z-order: 30; }
+    .TooltipTitle { width: 388px; height: 26px; flex-shrink: 0; font-size: 18px; color: #4fd8ff; font-weight: bold; text-align: center; letter-spacing: 1px; text-shadow: 1px 1px 4px #00000099; z-order: 30; }
+    .TooltipText { width: 388px; height: 48px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-align: center; line-height: 24px; text-shadow: 1px 1px 4px #00000099; z-order: 30; }
+  </style>
+  <div class="TooltipPanel">
+    <div class="TooltipInner">
+      <text class="TooltipTitle" data-name="TooltipTitle"></text>
+      <text class="TooltipText" data-name="TooltipText"></text>
+    </div>
+  </div>
+</widget>

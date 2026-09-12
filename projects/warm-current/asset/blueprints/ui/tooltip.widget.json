@@ -1,0 +1,281 @@
+{
+  "name": "Tooltip",
+  "baseClass": "Actor",
+  "sourceHash": "fnv1a-4cd890f2",
+  "components": [
+    {
+      "baseClass": "UITransformComponent",
+      "properties": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "worldWidth": 420,
+        "worldHeight": 120
+      }
+    },
+    {
+      "baseClass": "CanvasUIComponent",
+      "properties": {
+        "width": 420,
+        "height": 120,
+        "name": "Canvas",
+        "zOrder": 0,
+        "active": true
+      }
+    }
+  ],
+  "children": [
+    {
+      "name": "TooltipPanel",
+      "baseClass": "Actor",
+      "id": 13201,
+      "components": [
+        {
+          "baseClass": "UITransformComponent",
+          "properties": {
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ],
+            "worldWidth": 420,
+            "worldHeight": 120,
+            "anchor": "center",
+            "anchorOffset": [
+              0,
+              0
+            ],
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "baseClass": "CanvasUIComponent",
+          "properties": {
+            "markerOnly": true,
+            "name": "UIMarker",
+            "zOrder": 30
+          }
+        },
+        {
+          "baseClass": "UIImageComponent",
+          "properties": {
+            "color": "#2a5f7a",
+            "zOrder": 30,
+            "width": 420,
+            "height": 120,
+            "name": "TooltipPanel"
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "TooltipInner",
+          "baseClass": "Actor",
+          "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 418,
+                "worldHeight": 118,
+                "position": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 30
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "gradient": {
+                  "angle": 165,
+                  "stops": [
+                    {
+                      "color": "#0e2030ee",
+                      "offset": 0
+                    },
+                    {
+                      "color": "#081422e0",
+                      "offset": 0.5
+                    },
+                    {
+                      "color": "#0a1c2ce6",
+                      "offset": 1
+                    }
+                  ]
+                },
+                "zOrder": 30,
+                "width": 418,
+                "height": 118,
+                "name": "TooltipInner"
+              }
+            }
+          ],
+          "children": [
+            {
+              "name": "TooltipTitle",
+              "baseClass": "Actor",
+              "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 388,
+                    "worldHeight": 26,
+                    "position": [
+                      0,
+                      27,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 30
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "TooltipTitle",
+                    "width": 388,
+                    "height": 26,
+                    "fontSize": 18,
+                    "color": "#4fd8ff",
+                    "align": "center",
+                    "bold": true,
+                    "letterSpacing": 1,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4,
+                    "zOrder": 30
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "TooltipText",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 388,
+                    "worldHeight": 48,
+                    "position": [
+                      0,
+                      -16,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 30
+                  }
+                },
+                {
+                  "baseClass": "UITextComponent",
+                  "properties": {
+                    "text": "",
+                    "name": "TooltipText",
+                    "width": 388,
+                    "height": 48,
+                    "fontSize": 16,
+                    "color": "#bfe8ff",
+                    "align": "center",
+                    "lineHeight": 1.5,
+                    "shadowColor": "#00000099",
+                    "shadowOffsetX": 1,
+                    "shadowOffsetY": 1,
+                    "shadowBlur": 4,
+                    "zOrder": 30
+                  }
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ],
+      "sourceLayout": {
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

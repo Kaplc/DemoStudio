@@ -1,14 +1,14 @@
 <widget name="FleetOrderBar" canvas="1920x1080" data-script="gameplay/ui/FleetOrderBarScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; pointer-events: none; }
-    .Bar { width: 640px; height: 64px; position: absolute; left: 640px; top: 1000px; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; background-color: #0e1a24f0; border-radius: 14px; padding: 8px 12px; hit-test: block; }
+    .Bar { width: 640px; height: 64px; position: absolute; left: 640px; top: 1000px; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 8px 12px; hit-test: block; }
     .SelText { width: 170px; height: 40px; flex-shrink: 0; font-size: 16px; color: #ffe9a8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_order { width: 118px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 8px; }
-    .Btn_order:hover { background-color: #27506e; }
-    .Label_order { width: 106px; height: 26px; font-size: 16px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_order_clear { width: 90px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_order_clear:hover { background-color: #3d566f; }
-    .Label_clear { width: 80px; height: 26px; font-size: 16px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_order { width: 118px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
+    .Btn_order:hover { background-color: #143650; }
+    .Label_order { width: 106px; height: 26px; font-size: 16px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_order_clear { width: 90px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #1c4560; }
+    .Btn_order_clear:hover { background-color: #143650; }
+    .Label_clear { width: 80px; height: 26px; font-size: 16px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="Bar" data-name="Bar">

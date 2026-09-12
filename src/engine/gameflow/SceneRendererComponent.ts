@@ -9,6 +9,10 @@
  *  - UI 覆盖层宿主（挂载 GameUI 已废弃：UI 渲染统一走 UI 摄像机叠加）
  */
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { logger } from '../Logger'
 import { AObjectComponent } from '../entity/AObjectComponent'
 import { gizmos } from '../tools/Gizmos'
@@ -23,11 +27,31 @@ const _planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _ndc = new THREE.Vector2()
 const _worldOut = new THREE.Vector3()
 
+/** Bloom 参数（UnrealBloomPass） */
+export interface SceneBloomOptions {
+  /** 泛光强度（默认 0.75） */
+  strength?: number
+  /** 泛光半径 0~1（默认 0.5） */
+  radius?: number
+  /** 亮度阈值 0~1：高于此亮度的像素参与泛光（默认 0.72） */
+  threshold?: number
+}
+
+/** 后处理配置：开启后主场景走 EffectComposer 管线（RenderPass → Bloom → OutputPass） */
+export interface ScenePostProcessOptions {
+  /** Bloom（缺省 0.75/0.5/0.72） */
+  bloom?: SceneBloomOptions
+  /** 输出色调映射（默认 ACESFilmic；只作用于主场景，UI 叠加层自动中和） */
+  toneMapping?: THREE.ToneMapping
+}
+
 export interface SceneRendererComponentOptions {
   /** 相机投影模式，默认 'perspective'。2D 项目用 'orthographic' */
   cameraMode?: CameraMode
   /** 外部共享场景 */
   editorScene?: THREE.Scene
+  /** 后处理（缺省关闭：直渲染路径完全不变，既有项目零影响） */
+  postProcess?: ScenePostProcessOptions
 }
 
 export class SceneRendererComponent extends AObjectComponent<World> {
@@ -101,6 +125,27 @@ export class SceneRendererComponent extends AObjectComponent<World> {
   private _aspect = 1
   get aspect(): number { return this._aspect }
 
+  // ─── 后处理（opt-in：enablePostProcess 后主场景走 EffectComposer 管线） ───
+  private composer: EffectComposer | null = null
+  private renderPass: RenderPass | null = null
+  private bloomPass: UnrealBloomPass | null = null
+  private outputPass: OutputPass | null = null
+
+  /** 后处理状态快照（e2e/调试桥读取；enabled=false 时 bloom/toneMapping 为回退值） */
+  get postProcessInfo(): {
+    enabled: boolean
+    toneMapping: number
+    bloom: { strength: number; radius: number; threshold: number } | null
+  } {
+    return {
+      enabled: this.composer !== null,
+      toneMapping: this.renderer.toneMapping,
+      bloom: this.bloomPass
+        ? { strength: this.bloomPass.strength, radius: this.bloomPass.radius, threshold: this.bloomPass.threshold }
+        : null,
+    }
+  }
+
   // ─── 强制画面比例 ───
   private targetAspect: number | null = null
 
@@ -134,6 +179,11 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(this.renderer.domElement)
+
+    // ─── 后处理（opt-in，缺省关闭） ───
+    if (options.postProcess) {
+      this.enablePostProcess(options.postProcess)
+    }
 
     // ─── UI 覆盖层宿主 ───
     this.uiLayer = document.createElement('div')
@@ -322,6 +372,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
     const w = Math.round(canvasW)
     const h = Math.round(canvasH)
     this.renderer.setSize(w, h)
+    // 后处理管线同步尺寸（composer 内部按 pixelRatio 放大 RT）
+    this.composer?.setSize(w, h)
 
     // 同步 UI 独立叠加相机视锥（UICamera contain 模式：完整显示 1920×1080 画布）
     this._uiCam?.setCanvasSize(w, h)
@@ -361,6 +413,62 @@ export class SceneRendererComponent extends AObjectComponent<World> {
       this._uiCam = null
     }
     logger.info(`[SceneRendererComponent] UI 场景${scene ? '已挂载' : '已分离'}${scene ? '（双摄像机叠加渲染）' : ''}`)
+  }
+
+  // ════════════════════════════════════════════
+  //   后处理（opt-in）
+  // ════════════════════════════════════════════
+
+  /**
+   * 开启后处理管线（RenderPass → UnrealBloomPass → OutputPass）。
+   * 幂等：已开启时先关闭再按新参数重建。中间 RT 用 HalfFloat + 4x MSAA
+   * （直渲染路径的 antialias 只对画布生效，composer 必须自带 MSAA 才不发锯齿）。
+   * 色调映射在 OutputPass 统一应用（renderer.toneMapping 驱动）；UI 叠加层在
+   * UICamera.render 内临时中和 tonemapping，HUD 配色不受 ACES 影响。
+   * 运行中切换：composer 设定后每帧生效，无需重启渲染循环。
+   */
+  enablePostProcess(options: ScenePostProcessOptions = {}): void {
+    this.disablePostProcess()
+    const pr = this.renderer.getPixelRatio()
+    const size = this.renderer.getSize(new THREE.Vector2())
+    // HalfFloat：保留 HDR 亮度供 bloom 取阈值；samples=4 顶替直渲染的 antialias
+    const rt = new THREE.WebGLRenderTarget(
+      Math.max(1, Math.round(size.x * pr)),
+      Math.max(1, Math.round(size.y * pr)),
+      { type: THREE.HalfFloatType, samples: 4 },
+    )
+    this.composer = new EffectComposer(this.renderer, rt)
+    this.composer.setPixelRatio(pr)
+    this.composer.setSize(size.x, size.y)
+    this.renderPass = new RenderPass(this.scene, this.camera ?? new THREE.PerspectiveCamera())
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(Math.max(1, size.x), Math.max(1, size.y)),
+      options.bloom?.strength ?? 0.75,
+      options.bloom?.radius ?? 0.5,
+      options.bloom?.threshold ?? 0.72,
+    )
+    this.outputPass = new OutputPass()
+    this.composer.addPass(this.renderPass)
+    this.composer.addPass(this.bloomPass)
+    this.composer.addPass(this.outputPass)
+    this.renderer.toneMapping = options.toneMapping ?? THREE.ACESFilmicToneMapping
+    logger.info(
+      `[SceneRendererComponent] 后处理已开启: bloom(strength=${this.bloomPass.strength}, radius=${this.bloomPass.radius}, threshold=${this.bloomPass.threshold}) ` +
+      `toneMapping=${this.renderer.toneMapping}, rt=${Math.round(size.x * pr)}x${Math.round(size.y * pr)}@${pr}x MSAA4`,
+    )
+  }
+
+  /** 关闭后处理并回到直渲染路径（未开启时静默 no-op，幂等） */
+  disablePostProcess(): void {
+    if (!this.composer) return
+    this.bloomPass?.dispose()
+    this.composer.dispose()
+    this.composer = null
+    this.renderPass = null
+    this.bloomPass = null
+    this.outputPass = null
+    this.renderer.toneMapping = THREE.NoToneMapping
+    logger.info('[SceneRendererComponent] 后处理已关闭（回到直渲染路径）')
   }
 
   start() {
@@ -405,7 +513,13 @@ export class SceneRendererComponent extends AObjectComponent<World> {
 
       // 主场景：直接用游戏相机的引用渲染（不再复制同步）
       if (cam) {
-        this.renderer.render(this.scene, cam)
+        if (this.composer && this.renderPass) {
+          // 后处理路径：每帧同步相机委托的最新相机（RenderPass 相机可热替换）
+          this.renderPass.camera = cam
+          this.composer.render(dt)
+        } else {
+          this.renderer.render(this.scene, cam)
+        }
       } else {
         this.renderer.clear()
       }
@@ -494,6 +608,8 @@ export class SceneRendererComponent extends AObjectComponent<World> {
 
   dispose() {
     this.stop()
+    // 后处理资源（composer RT + bloom pass）先于渲染器销毁
+    this.disablePostProcess()
     // 断开容器尺寸监听（防止销毁后仍触发 resize）
     this.resizeObserver?.disconnect()
     this.resizeObserver = null

@@ -93,8 +93,32 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
 
 ## 三、渲染与门禁
 
-- **3D 标准**：XZ 地面 + 真实球体 + Lambert + 灯光 + 垂直俯视透视相机（fov50，`SolarCameraActor.place` 开局就位 y=3400，`applyViewMode` 取景 dist 太阳 480 / 地球 3200，up=(0,0,-1)）；
-  文字走 CanvasTexture Sprite（脏检查），实测 **71 fps**（旧 canvas2d 方案 8fps 已弃）。
+- **3D 标准**：XZ 地面 + 真实球体 + Standard/Lambert + 灯光 + 垂直俯视透视相机（fov50，`SolarCameraActor.place` 开局就位 y=3400，`applyViewMode` 取景 dist 太阳 480 / 地球 3200，up=(0,0,-1)）；
+  文字走 CanvasTexture Sprite（脏检查）。旧 canvas2d 方案 8fps 已弃。
+- **后处理（2026-09-12 群星观感改版）**：星图 `BeginPlay` 经 `world.gameRenderer.enablePostProcess`
+  开引擎级 EffectComposer（RenderPass → UnrealBloom 0.85/0.55/0.62 → OutputPass，HalfFloat + 4x MSAA），
+  ACES 色调映射只作用主场景（UICamera 渲染层中和，HUD 不被洗灰）；`EndPlay` 摘除。
+  e2e 断言桥：`__warmCurrent.renderInfo()`（enabled/toneMapping/bloom/ambientIntensity）。
+- **光照纪律（同日改版）**：ambient 0.85→0.22、定向补光 0.28（特写主光，方向 (300,800,200)）、
+  太阳点光 (2.4, decay=0, 无限程) 挂 root3 常显——太阳系全景行星按相对太阳方位出明暗面；
+  行星系视角聚焦行星钉在太阳位，点光落在球心无方向，特写明暗界线由定向光承担（点光因此不能进 sunGroup）。
+- **地球特写增强**：bump（程序化）+ 海洋 PBR 高光（`applyEarthOceanRoughness` 从真实 albedo 派生
+  海洋/陆地粗糙度分区，向阳海面出 GGX 高光）+ 大气 Fresnel 壳 + 双层受光动态云——全部蓝图资产声明
+  （`earth.blueprint.json`：AtmosphereComponent + CloudLayerComponent×2 低浓/高疏），运行时零挂载（防蓝图保存
+  全量写回撞出双实例）；CloudLayerComponent 引擎侧为 Lambert + alphaMap，加载后异步柔化（低通 +
+  密度=灰度×alpha 兼容黑底/白底alpha 两类云图 + 稀薄化削底带 + smoothstep 软阈值 + 极区纬度衰减），
+  双层 spin 0.35/0.55（慢于本体 1.0 → 云相对地表独立滑行）+ uvDrift 异速 → 视差体积感 + 云形演变；
+  **StarActor 构造须 enableTick()**——Actor 默认 `_bTickEnabled=false` 不进 World Tick 循环，
+  不开则 CloudLayerComponent.Tick（自转/漂移）永不执行（实测坑：云静止，回归锁
+  render_postprocess"云层独立运动"用 stepTicks 断言增量）；
+  StarActor root 加 23° 轴倾角（俯视特写看中纬度而非极区云带）。云图 `earth_clouds.png`
+  （4096×2048 NASA 系 fair_clouds，归属见 textures/LICENSE）。
+- **特写曝光（2026-09-12 三轮）**：ambient 0.22→0.12（背部阴影可读的前提）；定向主光 0.9 低仰角
+  掠射 (620,300,280)；行星系视角点光与主光**同向**（stage+(1670,810,750)，两光异向会出双 terminator
+  互相冲淡）功率 0.6 只做补强；太阳系全景点光回太阳位 2.4。
+- **特写曝光（2026-09-12 二轮）**：行星系视角聚焦行星钉在太阳位 → 太阳点光重定位到掠射位
+  （stage+(1500,900,850)）且功率 2.4→1.1（全景小行星口径）；bloom 阈值 0.62→0.85——受光云层
+  亮度 ~0.6，阈值低了会被 bloom 炸成无结构白穹（隔离截图法定位：逐个隐藏云/大气/关 bloom）。
 - 指针拾取不用编辑器注入 worldPos（那是 z=0 平面交点），Controller 自己射线 ∩ y=0 再 +半宽半高回画布系。
 - **CodeLint 全绿**：项目代码禁止裸 `new THREE.Mesh/Group/Line/*Geometry/*Material` → 全部改走
   `world.factory.createXxx`（本工程推动引擎 ThreeFactoryComponent 扩展：createRingGeometry 全参、
@@ -102,6 +126,8 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
   工厂在组件 BeginPlay 时取 `owner.world?.factory`（构造期 world 未就绪）；`this.F` 非空访问器统一使用。
 - 门禁链：`ui_compile` 三资产 0 error → run_asset_lint → `npx tsc --noEmit`（仅 hoi4 既有错误排除）→
   CodeLint 0 → 实机截图复核 → e2e 绿。
+- **渲染回归锁**：`e2e/warm/render_postprocess.spec.ts`（后处理开启 + ACES(4) + ambient ≤0.35 + 全景/特写
+  基准截图）与 `e2e/warm/earth_closeup.spec.ts`（大气/云层各恰好一层，全蓝图声明）。
 
 ## 四、踩坑清单（一手）
 

@@ -110,9 +110,14 @@ export class UICamera extends BObject {
   render(renderer: THREE.WebGLRenderer): void {
     if (!this._scene) return
     const prevAutoClear = renderer.autoClear
+    // 中和主场景后处理的色调映射：HUD 走直渲染路径，配色不被 ACES 洗灰
+    // （three 按 materialProperties.toneMapping 缓存两套 program，逐帧切换无重编译抖动）
+    const prevToneMapping = renderer.toneMapping
     renderer.autoClear = false
+    renderer.toneMapping = THREE.NoToneMapping
     renderer.clearDepth()
     renderer.render(this._scene, this.camera)
+    renderer.toneMapping = prevToneMapping
     renderer.autoClear = prevAutoClear
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "StatsPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-a3a7f01c",
+  "sourceHash": "fnv1a-49611e7e",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -61,12 +61,12 @@
               1,
               1
             ],
-            "worldWidth": 592,
-            "worldHeight": 672,
+            "worldWidth": 594,
+            "worldHeight": 674,
             "anchor": "center",
             "anchorOffset": [
-              16,
-              -6
+              17,
+              -7
             ],
             "position": [
               0,
@@ -87,19 +87,222 @@
         {
           "baseClass": "UIImageComponent",
           "properties": {
-            "color": "#0e1a24f2",
-            "radius": 14,
-            "width": 592,
-            "height": 672,
+            "gradient": {
+              "angle": 165,
+              "stops": [
+                {
+                  "color": "#0e2030ee",
+                  "offset": 0
+                },
+                {
+                  "color": "#081422e0",
+                  "offset": 0.5
+                },
+                {
+                  "color": "#0a1c2ce6",
+                  "offset": 1
+                }
+              ]
+            },
+            "width": 594,
+            "height": 674,
             "name": "StatsCard"
           }
         }
       ],
       "children": [
         {
-          "name": "TitleRow",
+          "name": "StatsCardBorderTop",
           "baseClass": "Actor",
           "id": 13202,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  336.5,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 594,
+                "worldHeight": 1
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "StatsCardBorderTop",
+                "color": "#2a5f7a",
+                "width": 594,
+                "height": 8
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "StatsCardBorderRight",
+          "baseClass": "Actor",
+          "id": 13203,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  296.5,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1,
+                "worldHeight": 674
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "StatsCardBorderRight",
+                "color": "#2a5f7a",
+                "width": 8,
+                "height": 674
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "StatsCardBorderBottom",
+          "baseClass": "Actor",
+          "id": 13204,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  0,
+                  -336.5,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 594,
+                "worldHeight": 1
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "StatsCardBorderBottom",
+                "color": "#2a5f7a",
+                "width": 594,
+                "height": 8
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "StatsCardBorderLeft",
+          "baseClass": "Actor",
+          "id": 13205,
+          "components": [
+            {
+              "baseClass": "UITransformComponent",
+              "properties": {
+                "position": [
+                  -296.5,
+                  0,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ],
+                "worldWidth": 1,
+                "worldHeight": 674
+              }
+            },
+            {
+              "baseClass": "CanvasUIComponent",
+              "properties": {
+                "markerOnly": true,
+                "name": "UIMarker",
+                "zOrder": 0
+              }
+            },
+            {
+              "baseClass": "UIImageComponent",
+              "properties": {
+                "name": "StatsCardBorderLeft",
+                "color": "#2a5f7a",
+                "width": 8,
+                "height": 674
+              }
+            }
+          ],
+          "children": []
+        },
+        {
+          "name": "TitleRow",
+          "baseClass": "Actor",
+          "id": 13206,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -136,7 +339,7 @@
             {
               "name": "StatsTitle",
               "baseClass": "Actor",
-              "id": 13203,
+              "id": 13207,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -176,8 +379,9 @@
                     "width": 380,
                     "height": 34,
                     "fontSize": 24,
-                    "color": "#7fdcff",
+                    "color": "#4fd8ff",
                     "bold": true,
+                    "letterSpacing": 2,
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -190,7 +394,7 @@
             {
               "name": "Btn_close",
               "baseClass": "Actor",
-              "id": 13204,
+              "id": 13208,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -205,11 +409,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 104,
-                    "worldHeight": 44,
+                    "worldWidth": 106,
+                    "worldHeight": 46,
                     "position": [
-                      212,
-                      0,
+                      213,
+                      -1,
                       0
                     ]
                   }
@@ -223,22 +427,11 @@
                   }
                 },
                 {
-                  "baseClass": "UILayoutComponent",
-                  "properties": {
-                    "mode": "horizontal",
-                    "spacingX": 0,
-                    "spacingY": 0,
-                    "justify": "center",
-                    "align": "center",
-                    "autoLayout": true
-                  }
-                },
-                {
                   "baseClass": "UIButtonComponent",
                   "properties": {
                     "stateColors": {
                       "hover": {
-                        "color": "#3d566f"
+                        "color": "#143650"
                       }
                     }
                   }
@@ -246,19 +439,206 @@
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#31445c",
-                    "radius": 8,
-                    "width": 104,
-                    "height": 44,
+                    "color": "#0d2434",
+                    "width": 106,
+                    "height": 46,
                     "name": "Btn_close"
                   }
                 }
               ],
               "children": [
                 {
+                  "name": "Btn_closeBorderTop",
+                  "baseClass": "Actor",
+                  "id": 13209,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          22.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 106,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "Btn_closeBorderTop",
+                        "color": "#2a5f7a",
+                        "width": 106,
+                        "height": 8
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Btn_closeBorderRight",
+                  "baseClass": "Actor",
+                  "id": 13210,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          52.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1,
+                        "worldHeight": 46
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "Btn_closeBorderRight",
+                        "color": "#2a5f7a",
+                        "width": 8,
+                        "height": 46
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Btn_closeBorderBottom",
+                  "baseClass": "Actor",
+                  "id": 13211,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -22.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 106,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "Btn_closeBorderBottom",
+                        "color": "#2a5f7a",
+                        "width": 106,
+                        "height": 8
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "Btn_closeBorderLeft",
+                  "baseClass": "Actor",
+                  "id": 13212,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          -52.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1,
+                        "worldHeight": 46
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "Btn_closeBorderLeft",
+                        "color": "#2a5f7a",
+                        "width": 8,
+                        "height": 46
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
                   "name": "Label_close",
                   "baseClass": "Actor",
-                  "id": 13205,
+                  "id": 13213,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -298,7 +678,7 @@
                         "width": 96,
                         "height": 28,
                         "fontSize": 18,
-                        "color": "#cfe3ee",
+                        "color": "#9fd8ef",
                         "align": "center",
                         "shadowColor": "#00000066",
                         "shadowOffsetX": 1,
@@ -307,19 +687,24 @@
                       }
                     }
                   ],
-                  "children": [],
-                  "sourceLayout": {
-                    "flexShrink": 0
-                  }
+                  "children": []
                 }
-              ]
+              ],
+              "sourceLayout": {
+                "border": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
             }
           ]
         },
         {
           "name": "SecHead",
           "baseClass": "Actor",
-          "id": 13206,
+          "id": 13214,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -359,7 +744,7 @@
                 "width": 528,
                 "height": 28,
                 "fontSize": 20,
-                "color": "#9fc4d8",
+                "color": "#8fbcd4",
                 "bold": true,
                 "shadowColor": "#00000066",
                 "shadowOffsetX": 1,
@@ -373,7 +758,7 @@
         {
           "name": "LedgerRow",
           "baseClass": "Actor",
-          "id": 13207,
+          "id": 13215,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -410,7 +795,7 @@
             {
               "name": "LedgerKey",
               "baseClass": "Actor",
-              "id": 13208,
+              "id": 13216,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -450,7 +835,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -463,7 +848,7 @@
             {
               "name": "Val_unload",
               "baseClass": "Actor",
-              "id": 13209,
+              "id": 13217,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -503,7 +888,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#b8ffd8",
+                    "color": "#7fe8a8",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -520,7 +905,7 @@
         {
           "name": "LedgerRow_2",
           "baseClass": "Actor",
-          "id": 13210,
+          "id": 13218,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -557,7 +942,7 @@
             {
               "name": "LedgerKey_2",
               "baseClass": "Actor",
-              "id": 13211,
+              "id": 13219,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -597,7 +982,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -610,7 +995,7 @@
             {
               "name": "Val_refund",
               "baseClass": "Actor",
-              "id": 13212,
+              "id": 13220,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -650,7 +1035,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#b8ffd8",
+                    "color": "#7fe8a8",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -667,7 +1052,7 @@
         {
           "name": "SecHead_2",
           "baseClass": "Actor",
-          "id": 13213,
+          "id": 13221,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -707,7 +1092,7 @@
                 "width": 528,
                 "height": 28,
                 "fontSize": 20,
-                "color": "#9fc4d8",
+                "color": "#8fbcd4",
                 "bold": true,
                 "shadowColor": "#00000066",
                 "shadowOffsetX": 1,
@@ -721,7 +1106,7 @@
         {
           "name": "LedgerRow_3",
           "baseClass": "Actor",
-          "id": 13214,
+          "id": 13222,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -758,7 +1143,7 @@
             {
               "name": "LedgerKey_3",
               "baseClass": "Actor",
-              "id": 13215,
+              "id": 13223,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -798,7 +1183,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -811,7 +1196,7 @@
             {
               "name": "Val_ring",
               "baseClass": "Actor",
-              "id": 13216,
+              "id": 13224,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -851,7 +1236,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -868,7 +1253,7 @@
         {
           "name": "LedgerRow_4",
           "baseClass": "Actor",
-          "id": 13217,
+          "id": 13225,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -905,7 +1290,7 @@
             {
               "name": "LedgerKey_4",
               "baseClass": "Actor",
-              "id": 13218,
+              "id": 13226,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -945,7 +1330,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -958,7 +1343,7 @@
             {
               "name": "Val_ringbuild",
               "baseClass": "Actor",
-              "id": 13219,
+              "id": 13227,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -998,7 +1383,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1015,7 +1400,7 @@
         {
           "name": "LedgerRow_5",
           "baseClass": "Actor",
-          "id": 13220,
+          "id": 13228,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1052,7 +1437,7 @@
             {
               "name": "LedgerKey_5",
               "baseClass": "Actor",
-              "id": 13221,
+              "id": 13229,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1092,7 +1477,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1105,7 +1490,7 @@
             {
               "name": "Val_research",
               "baseClass": "Actor",
-              "id": 13222,
+              "id": 13230,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1145,7 +1530,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1162,7 +1547,7 @@
         {
           "name": "LedgerRow_6",
           "baseClass": "Actor",
-          "id": 13223,
+          "id": 13231,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1199,7 +1584,7 @@
             {
               "name": "LedgerKey_6",
               "baseClass": "Actor",
-              "id": 13224,
+              "id": 13232,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1239,7 +1624,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1252,7 +1637,7 @@
             {
               "name": "Val_maint",
               "baseClass": "Actor",
-              "id": 13225,
+              "id": 13233,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1292,7 +1677,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1309,7 +1694,7 @@
         {
           "name": "LedgerRow_7",
           "baseClass": "Actor",
-          "id": 13226,
+          "id": 13234,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1346,7 +1731,7 @@
             {
               "name": "LedgerKey_7",
               "baseClass": "Actor",
-              "id": 13227,
+              "id": 13235,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1386,7 +1771,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1399,7 +1784,7 @@
             {
               "name": "Val_orbit",
               "baseClass": "Actor",
-              "id": 13228,
+              "id": 13236,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1439,7 +1824,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1456,7 +1841,7 @@
         {
           "name": "LedgerRow_8",
           "baseClass": "Actor",
-          "id": 13229,
+          "id": 13237,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1493,7 +1878,7 @@
             {
               "name": "LedgerKey_8",
               "baseClass": "Actor",
-              "id": 13230,
+              "id": 13238,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1533,7 +1918,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1546,7 +1931,7 @@
             {
               "name": "Val_build",
               "baseClass": "Actor",
-              "id": 13231,
+              "id": 13239,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1586,7 +1971,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1603,7 +1988,7 @@
         {
           "name": "LedgerRow_9",
           "baseClass": "Actor",
-          "id": 13232,
+          "id": 13240,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1640,7 +2025,7 @@
             {
               "name": "LedgerKey_9",
               "baseClass": "Actor",
-              "id": 13233,
+              "id": 13241,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1680,7 +2065,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1693,7 +2078,7 @@
             {
               "name": "Val_rebuild",
               "baseClass": "Actor",
-              "id": 13234,
+              "id": 13242,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1733,7 +2118,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1750,7 +2135,7 @@
         {
           "name": "LedgerRow_10",
           "baseClass": "Actor",
-          "id": 13235,
+          "id": 13243,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1787,7 +2172,7 @@
             {
               "name": "LedgerKey_10",
               "baseClass": "Actor",
-              "id": 13236,
+              "id": 13244,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1827,7 +2212,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1840,7 +2225,7 @@
             {
               "name": "Val_rfuel",
               "baseClass": "Actor",
-              "id": 13237,
+              "id": 13245,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1880,7 +2265,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -1897,7 +2282,7 @@
         {
           "name": "LedgerRow_11",
           "baseClass": "Actor",
-          "id": 13238,
+          "id": 13246,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -1934,7 +2319,7 @@
             {
               "name": "LedgerKey_11",
               "baseClass": "Actor",
-              "id": 13239,
+              "id": 13247,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -1974,7 +2359,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -1987,7 +2372,7 @@
             {
               "name": "Val_mat",
               "baseClass": "Actor",
-              "id": 13240,
+              "id": 13248,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2027,7 +2412,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -2044,7 +2429,7 @@
         {
           "name": "SecHead_3",
           "baseClass": "Actor",
-          "id": 13241,
+          "id": 13249,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2084,7 +2469,7 @@
                 "width": 528,
                 "height": 28,
                 "fontSize": 20,
-                "color": "#9fc4d8",
+                "color": "#8fbcd4",
                 "bold": true,
                 "shadowColor": "#00000066",
                 "shadowOffsetX": 1,
@@ -2098,7 +2483,7 @@
         {
           "name": "LedgerRow_12",
           "baseClass": "Actor",
-          "id": 13242,
+          "id": 13250,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2135,7 +2520,7 @@
             {
               "name": "LedgerKey_12",
               "baseClass": "Actor",
-              "id": 13243,
+              "id": 13251,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2175,7 +2560,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -2188,7 +2573,7 @@
             {
               "name": "Val_income",
               "baseClass": "Actor",
-              "id": 13244,
+              "id": 13252,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2228,7 +2613,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#b8ffd8",
+                    "color": "#7fe8a8",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -2245,7 +2630,7 @@
         {
           "name": "LedgerRow_13",
           "baseClass": "Actor",
-          "id": 13245,
+          "id": 13253,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2282,7 +2667,7 @@
             {
               "name": "LedgerKey_13",
               "baseClass": "Actor",
-              "id": 13246,
+              "id": 13254,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2322,7 +2707,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -2335,7 +2720,7 @@
             {
               "name": "Val_expense",
               "baseClass": "Actor",
-              "id": 13247,
+              "id": 13255,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2375,7 +2760,7 @@
                     "width": 260,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#ffb3a0",
+                    "color": "#ff9d8a",
                     "align": "right",
                     "bold": true,
                     "shadowColor": "#00000066",
@@ -2392,7 +2777,7 @@
         {
           "name": "LedgerRow_14",
           "baseClass": "Actor",
-          "id": 13248,
+          "id": 13256,
           "components": [
             {
               "baseClass": "UITransformComponent",
@@ -2429,7 +2814,7 @@
             {
               "name": "LedgerKey_14",
               "baseClass": "Actor",
-              "id": 13249,
+              "id": 13257,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2469,7 +2854,7 @@
                     "width": 268,
                     "height": 30,
                     "fontSize": 19,
-                    "color": "#9fc4d8",
+                    "color": "#8fbcd4",
                     "shadowColor": "#00000066",
                     "shadowOffsetX": 1,
                     "shadowOffsetY": 1,
@@ -2482,7 +2867,7 @@
             {
               "name": "Val_net",
               "baseClass": "Actor",
-              "id": 13250,
+              "id": 13258,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -2543,6 +2928,12 @@
           16,
           16,
           16
+        ],
+        "border": [
+          1,
+          1,
+          1,
+          1
         ]
       }
     }

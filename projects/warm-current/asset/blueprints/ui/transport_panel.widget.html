@@ -2,24 +2,26 @@
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
     .PanelRoot { width: 640px; height: 700px; position: absolute; left: 640px; top: 190px; display: flex; flex-direction: column; gap: 6px; }
-    .TransportBody { width: 640px; height: 700px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-color: #0e1a24e8; border-radius: 14px; padding: 12px 14px; hit-test: block; }
+    .TransportBody { width: 640px; height: 700px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 12px 14px; hit-test: block; }
     .PanelTitleRow { width: 610px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-    .PanelTitle { width: 300px; height: 34px; flex-shrink: 0; font-size: 22px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_close_panel { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_close_panel:hover { background-color: #3d566f; }
-    .Label_close_panel { width: 110px; height: 28px; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .FleetText { width: 610px; height: 30px; flex-shrink: 0; font-size: 20px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .PanelTitle { width: 300px; height: 34px; flex-shrink: 0; font-size: 22px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .TitleDivider { width: 610px; height: 2px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); border-radius: 1px; }
+    .Btn_close_panel { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_close_panel:hover { background-color: #143650; }
+    .Label_close_panel { width: 110px; height: 28px; font-size: 18px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .FleetText { width: 610px; height: 30px; flex-shrink: 0; font-size: 20px; color: #8fbcd4; text-shadow: 1px 1px 4px #00000066; }
     .ShipRow { width: 610px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 8px; }
-    .ShipText { width: 480px; height: 30px; flex-shrink: 0; font-size: 17px; color: #cfe3ee; text-shadow: 1px 1px 6px #00000099; }
-    .Btn_rebuild { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_rebuild:hover { background-color: #3d566f; }
-    .Label_rebuild { width: 110px; height: 28px; font-size: 16px; color: #ffd9a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .ShipText { width: 480px; height: 30px; flex-shrink: 0; font-size: 17px; color: #bfe8ff; text-shadow: 1px 1px 6px #00000099; }
+    .Btn_rebuild { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
+    .Btn_rebuild:hover { background-color: #143650; }
+    .Label_rebuild { width: 110px; height: 28px; font-size: 16px; color: #ffe9a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .MoreText { width: 610px; height: 24px; flex-shrink: 0; font-size: 16px; color: #6a8496; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="PanelRoot" data-name="PanelRoot">
       <div class="TransportBody" data-name="TransportBody">
         <div class="PanelTitleRow"><text class="PanelTitle">运输 · 船队</text><button class="Btn_close_panel" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button></div>
+        <div class="TitleDivider"></div>
         <text class="FleetText" data-name="FleetText">船队 3（空闲 3 · 在途 0 · 冻毁 0）</text>
         <div class="ShipRow"><text class="ShipText" data-name="ShipText_0"></text><button class="Btn_rebuild" data-name="Btn_rebuild_0"><text class="Label_rebuild">重建</text></button></div>
         <div class="ShipRow"><text class="ShipText" data-name="ShipText_1"></text><button class="Btn_rebuild" data-name="Btn_rebuild_1"><text class="Label_rebuild">重建</text></button></div>

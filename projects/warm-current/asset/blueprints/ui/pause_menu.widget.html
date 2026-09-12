@@ -1,23 +1,23 @@
 <widget name="PauseMenu" canvas="1920x1080" data-script="gameplay/ui/PauseMenuScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #050d14b0; }
-    .Panel { width: 680px; height: 800px; margin: 120px auto; display: flex; flex-direction: column; align-items: center; background-image: linear-gradient(165deg, #123049 0%, #0d2136 55%, #0a1728 100%); border-radius: 24px; }
-    .Title { width: 560px; height: 64px; margin-top: 44px; font-size: 44px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 0px 3px 10px #000000a6; }
+    .Panel { width: 680px; height: 800px; margin: 120px auto; display: flex; flex-direction: column; align-items: center; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; }
+    .Title { width: 560px; height: 64px; margin-top: 44px; font-size: 44px; color: #4fd8ff; text-align: center; font-weight: bold; letter-spacing: 4px; text-shadow: 0px 3px 10px #000000a6; }
     .SubTitle { width: 560px; height: 30px; margin-top: 8px; font-size: 17px; color: #6f8ba0; text-align: center; text-shadow: 0px 2px 4px #00000066; }
     .SlotHead { width: 580px; height: 28px; margin-top: 26px; display: flex; flex-direction: row; }
-    .HeadText { width: 340px; height: 26px; font-size: 16px; color: #9fc8e8; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .HeadText { width: 340px; height: 26px; font-size: 16px; color: #8fbcd4; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
     .SlotRow { width: 580px; height: 64px; margin-top: 10px; display: flex; flex-direction: row; gap: 10px; }
-    .SlotInfo { width: 320px; height: 60px; font-size: 17px; color: #cfe3ee; line-height: 1.4; text-shadow: 0px 1px 4px #00000080; }
-    .BtnSlot { width: 120px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #1d3a52; border-radius: 10px; }
-    .BtnSlot:hover { background-color: #27506e; }
-    .BtnSlot:active { background-color: #31638a; }
-    .BtnSlotText { width: 100px; height: 36px; font-size: 21px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
-    .ResumeButton { width: 380px; height: 76px; margin-top: 34px; display: flex; justify-content: center; align-items: center; background-color: #ffb03d; border-radius: 16px; }
+    .SlotInfo { width: 320px; height: 60px; font-size: 17px; color: #bfe8ff; line-height: 1.4; text-shadow: 0px 1px 4px #00000080; }
+    .BtnSlot { width: 120px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
+    .BtnSlot:hover { background-color: #143650; }
+    .BtnSlot:active { background-color: #1a5a80; }
+    .BtnSlotText { width: 100px; height: 36px; font-size: 21px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .ResumeButton { width: 380px; height: 76px; margin-top: 34px; display: flex; justify-content: center; align-items: center; background-color: #ffb03d; border: 1px solid #ffcf6a; }
     .ResumeButton:hover { background-color: #ffc65e; }
     .ResumeBtnText { width: 300px; height: 48px; font-size: 28px; color: #3a2200; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #ffffff59; }
-    .BackButton { width: 380px; height: 62px; margin-top: 16px; display: flex; justify-content: center; align-items: center; background-color: #5a2a22; border-radius: 16px; }
-    .BackButton:hover { background-color: #73362b; }
-    .BackBtnText { width: 300px; height: 40px; font-size: 23px; color: #ffb3a8; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
+    .BackButton { width: 380px; height: 62px; margin-top: 16px; display: flex; justify-content: center; align-items: center; background-color: #2a1214; border: 1px solid #6e2a2a; }
+    .BackButton:hover { background-color: #3a181a; }
+    .BackBtnText { width: 300px; height: 40px; font-size: 23px; color: #ff9d8a; text-align: center; font-weight: bold; text-shadow: 0px 1px 4px #00000080; }
     .HintText { width: 520px; height: 26px; margin-top: 16px; font-size: 15px; color: #6f8ba0; text-align: center; text-shadow: 0px 1px 4px #00000066; }
   </style>
   <div class="Root">

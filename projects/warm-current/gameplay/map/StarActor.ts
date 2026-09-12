@@ -17,7 +17,7 @@
  */
 import * as THREE from 'three'
 import { Actor, SphereMeshComponent, logger } from '@/engine'
-import { makeEarthBumpTexture } from './starTextures'
+import { makeEarthBumpTexture, applyEarthOceanRoughness } from './starTextures'
 import { B } from '../core/balance'
 import { hiddenActorIsolated } from '../core/helpers'
 import type { PlanetId } from '../core/types'
@@ -26,11 +26,19 @@ import type { SimState } from '../core/types'
 export abstract class StarActor extends Actor {
   /** 自转速率（rad/s 表现值，非仿真数值，不进 balance） */
   private static readonly SPIN_RATE = 1
+  /** 轴倾角（rad，~23° 地球倾角；俯视相机不再正对极轴——特写看到中纬度而非云图极区浓带） */
+  private static readonly AXIAL_TILT = 0.4
   /** 自转累计（rad） */
   private spin = 0
 
   constructor(name: string) {
     super(name)
+    // 倾角挂在 Actor root：本体 mesh / 云层壳 / 大气壳都是 root 子节点，整体倾斜后
+    // 各自的 rotation.y 自转仍是绕（倾斜后的）自身极轴
+    this.root.rotation.x = StarActor.AXIAL_TILT
+    // Actor 默认不参与 World Tick 循环（_bTickEnabled=false）——不开 Tick 的话
+    // 云层壳的自转/UV 漂移（CloudLayerComponent.Tick）永远不会执行（实测坑：云静止）
+    this.enableTick()
   }
 
   /** 特写增强装配点（子类覆写）：BeginPlay 时挂大气/bump 等，通用天体默认无 */
@@ -79,16 +87,15 @@ export class EarthActor extends StarActor {
   protected get body(): keyof typeof B.map.nodes { return 'earth' }
 
   /**
-   * 地球特写增强（观察模式观感）：地形 bumpMap。
-   * 大气辉光壳改为蓝图资产声明（2026-09-10 用户决策"资产挂组件"）：
-   * earth.blueprint.json 显式挂 AtmosphereComponent（颜色/强度/锐度/壳倍率在
-   * Inspector 调整后随资产保存），运行时不再硬编码挂载——此前蓝图实例与
-   * setupCloseup 各挂一个会叠出双层辉光（组件重复告警）。未声明大气的天体保持无大气。
+   * 地球特写增强装配点（观察模式观感）：地形 bumpMap + 海洋 PBR 高光。
+   * 大气辉光壳与云层壳均为蓝图资产声明（资产挂组件，2026-09-10 大气 / 2026-09-12 云层）：
+   * earth.blueprint.json 显式挂 AtmosphereComponent + CloudLayerComponent（参数在
+   * Inspector 调整后随资产保存），运行时不再硬编码挂载——运行时挂载与蓝图保存的
+   * 全量写回撞车会双实例叠光（组件重复告警）。其他天体未声明 = 无大气/云层。
    * 夜面城市灯光已按用户要求移除（2026-09-10）：emissive 灯点在游戏环境光下不随昼夜
    * 变暗，观察视角总读作脏点。
-   * 云层壳已按用户要求移除（2026-09-10）：无真云图资产（earthCloudsUrl 恒 null）→ 恒走
-   * 程序化云絮兜底，观察视角读作糊在球面上的灰斑，去掉后本体贴图细节更清楚。云层专属的
-   * 观察增益（opacity +0.1）与 earthCloudsUrl() 随之成为死代码，一并删除。
+   * 海洋高光（2026-09-12）：applyEarthOceanRoughness 从真实 albedo 派生海洋/陆地
+   * 粗糙度分区——向阳海面出 GGX 镜面高光，陆地保持哑光（异步解码后挂材质）。
    */
   protected override setupCloseup(): void {
     const mesh = this.getComponent(SphereMeshComponent)
@@ -101,7 +108,8 @@ export class EarthActor extends StarActor {
       mesh.setBumpMap(bump)
       mesh.bumpScale = 0.06
     }
-    logger.info('[StarActor] Earth 特写增强装配完成（bump；大气由蓝图声明、云层已移除）')
+    applyEarthOceanRoughness(mesh)
+    logger.info('[StarActor] Earth 特写增强装配完成（bump + 海洋粗糙度；大气/云层由蓝图声明）')
   }
 }
 

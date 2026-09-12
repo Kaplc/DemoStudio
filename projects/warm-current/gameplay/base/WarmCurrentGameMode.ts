@@ -703,8 +703,8 @@ export class WarmCurrentGameMode extends GameMode {
     if (!toSolar) this.planetFocusBody = body
     this.viewMode = toSolar ? 'solar' : 'earth'
     this.applyViewMode()
-    // 取景距离随星体尺寸：太阳 480（中景看轨道），地球 3200（月球环 1200 全入画留边），其余行星 220
-    const d = body === 'sun' ? 480 : body === 'earth' ? 3200 : 220
+    // 取景距离随星体尺寸：太阳 1000（中景看内系统：水/金/地轨道入画），地球 3200（月球环 1200 全入画留边），其余行星 220
+    const d = body === 'sun' ? 1000 : body === 'earth' ? 3200 : 220
     // 行星系取景目标 = 舞台中心（行星会被渲染钉在舞台中心，镜头只是切区）
     const off = this.viewMode === 'earth' ? planetStageOffset(this.planetFocusBody as PlanetId) : { x: 0, z: 0 }
     // 任何取景切换统一退出观察态（切太阳/切行星系/视角按钮都会走到这里）
@@ -777,7 +777,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.observeBody = body
 
     const rig = this.cameraActor.rig
-    // 观察距离 = 节点半径 × 4（r 11~96 → dist 44~384，近者被 minDistance 兜底到 80）
+    // 观察距离 = 节点半径 × 4（行星 r 11~46 → dist 44~184，近者被 minDistance 兜底到 80）
     const r = B.map.nodes[body].r
     // 定位用舞台偏移权威值（右键平移过地图时 rig.target 已偏离舞台，不可作锚点）
     const stage = planetStageOffset(body)
@@ -1180,7 +1180,8 @@ export class WarmCurrentGameMode extends GameMode {
     }
 
     // 双击行星 → 进入其行星系（加载遮罩过渡）
-    // ⚠ 行星命中优先于太阳（水星轨道 97 < 太阳命中半径 124，先判太阳会整颗吃掉水星）
+    // ⚠ 行星命中优先于太阳（历史教训：旧 AU×250 布局水星轨道 97 < 太阳命中半径 124，先判太阳会整颗吃掉水星；
+    //   2026-09-13 内系统重排后为 水星轨道 170 > 太阳命中半径 92，顺序保留作防御，勿改回先判太阳）
     // ⚠ 视图切换不受败局/选卡冻结影响（pendingCard 挂起期间航线交互冻结，但镜头必须可用）
     const planet = this.planetAt(p)
     if (planet) {

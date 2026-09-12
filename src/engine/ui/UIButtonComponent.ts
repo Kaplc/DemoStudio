@@ -41,11 +41,13 @@ export interface UIButtonStateVisual {
   opacity?: number
 }
 
-/** 交互态视觉表：状态机切换时按钮原生驱动同 Actor 的视觉 Image（键与 ButtonState 对齐） */
+/** 交互态视觉表：状态机切换时按钮原生驱动同 Actor 的视觉 Image（键与交互伪类对齐 + checked 选中态） */
 export interface UIButtonStateColors {
   hover?: UIButtonStateVisual
   pressed?: UIButtonStateVisual
   disabled?: UIButtonStateVisual
+  /** 选中态（btn.checked = true 且无更高优先级交互态时呈现；HTML 源 :checked 编译映射） */
+  checked?: UIButtonStateVisual
 }
 
 export interface UIButtonComponentOptions {
@@ -69,6 +71,10 @@ export class UIButtonComponent extends Component<Actor> {
   private _stateColors: UIButtonStateColors | null = null
   /** 基线视觉：离开常态应用状态色前捕获，回常态时还原（脚本在常态改色后基线跟随刷新） */
   private _baseVisual: { color: string; opacity: number } | null = null
+  /** 选中标记（应用态，与指针状态机独立）：checked=true 且无更高优先级交互态时呈现 stateColors.checked */
+  private _checked = false
+  /** 上一次 applyStateVisual 时点的是否选中（有效视觉键 diff 用） */
+  private _prevChecked = false
   /** 鼠标是否正在按住本按钮（onPress 置位 / onRelease 清除；长按期间保持 pressed 状态） */
   private _pointerPressed = false
 
@@ -118,6 +124,19 @@ export class UIButtonComponent extends Component<Actor> {
   set stateColors(v: UIButtonStateColors | null) {
     this._stateColors = v
     this._baseVisual = null
+    this.applyStateVisual(this._state, true)
+  }
+
+  /**
+   * 选中标记（应用态，与指针状态机独立）：
+   *  - true 时呈现 stateColors.checked（若无更高优先级交互态：disabled > pressed > hover）
+   *  - 指针状态机不读写本标记——选中感由业务自由维持，不会因鼠标移出/抬起丢失
+   *  - 视觉路径同 stateColors（applyStateVisual 驱动同 Actor 视觉 Image）
+   */
+  get checked(): boolean { return this._checked }
+  set checked(v: boolean) {
+    if (this._checked === v) return
+    this._checked = v
     this.applyStateVisual(this._state)
   }
 
@@ -187,26 +206,42 @@ export class UIButtonComponent extends Component<Actor> {
   }
 
   /**
-   * 状态机切换 → 驱动同 Actor 视觉 Image（stateColors 未配置或无目标 Image 时空转）：
+   * 有效视觉键 = 指针交互态；仅当指针处于常态时选中标记才以 'checked' 呈现
+   * （disabled > pressed > hover > checked > normal）
+   */
+  private effectiveVisualKey(state: ButtonState, checked: boolean): ButtonState | 'checked' {
+    if (state !== 'normal') return state
+    return checked ? 'checked' : 'normal'
+  }
+
+  /**
+   * 状态机/选中切换 → 驱动同 Actor 视觉 Image（stateColors 未配置或无目标 Image 时空转）：
    *  - 目标 = 同 Actor 首个非 isClickOnly 的 UIImageComponent（透明点击层永不参与）
    *  - 离开常态时捕获基线（脚本可在常态下改基色，如按建筑等级上色），回常态还原
    *  - 状态只覆盖其声明的属性（hover 仅 color → pressed 时 opacity 延续 hover 值，
-   *    回常态统一还原基线）
+   *    回常态统一还原基线）；checked 是"伪常态"——进出选中一律整层还原基线再呈现，
+   *  - forceRecapture：stateColors 热替换时无视键相同强制重捕获基线并重应用
    */
-  private applyStateVisual(prevState: ButtonState): void {
+  private applyStateVisual(prevState: ButtonState, forceRecapture = false): void {
     if (!this._stateColors) return
     const target = this.owner.getComponents(UIImageComponent).find((c) => !c.isClickOnly) ?? null
     if (!target) return
-    if (prevState === 'normal' || !this._baseVisual) {
+    const prevKey = this.effectiveVisualKey(prevState, this._prevChecked)
+    const nextKey = this.effectiveVisualKey(this._state, this._checked)
+    this._prevChecked = this._checked
+    if (nextKey === prevKey && !forceRecapture) return
+    const crossedChecked = prevKey === 'checked' || nextKey === 'checked'
+    if (prevKey === 'normal' || forceRecapture || !this._baseVisual) {
+      // 离开常态（或热替换/首启）：捕获基线
       this._baseVisual = { color: target.color, opacity: target.opacity }
-    }
-    if (this._state === 'normal') {
+    } else if (nextKey === 'normal' || crossedChecked) {
+      // 回常态 / 进出选中：整层还原基线（checked 不与交互态做部分覆盖链）
       target.color = this._baseVisual.color
       target.opacity = this._baseVisual.opacity
-      return
     }
-    const st = this._stateColors[this._state]
-    if (!st) return
+    if (nextKey === 'normal') return
+    const st = this._stateColors[nextKey]
+    if (!st) return // 目标键未声明视觉（如选中但未配 checked 色）→ 保持基线呈现
     if (st.color !== undefined) target.color = st.color
     if (st.opacity !== undefined) target.opacity = st.opacity
   }

@@ -4,3 +4,5 @@ https://creativecommons.org/licenses/by/4.0/
 Changes:
 - Rings created from the reference rectangle file.
 - earthcloudmapcolortrans.png was made from the earthcloudmapspec.jpg file
+- earth_clouds.png: NASA Visible Earth-derived cloud map, 4096x2048
+  (via turban/webgl-earth, github.com/turban/webgl-earth, images/fair_clouds_4k.png), repacked as-is.

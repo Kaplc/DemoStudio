@@ -13,7 +13,7 @@
     {
       "baseClass": "SphereMeshComponent",
       "properties": {
-        "radius": 96,
+        "radius": 64,
         "segments": [48, 32],
         "color": "#ffffff",
         "kind": "basic",

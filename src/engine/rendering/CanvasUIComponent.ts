@@ -453,7 +453,7 @@ export class CanvasUIComponent extends Component<Actor> {
   draw(fn: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
     this.ctx.clearRect(0, 0, this._width, this._height)
     fn(this.ctx, this._width, this._height)
-    // logger.debug(`[CanvasUIComponent] "${this.name}" 重绘 (${this._width}x${this._height})`)
+    this.markDirty()
   }
 
   /** 只标记纹理更新（外部已通过 this.ctx 直接绘制） */

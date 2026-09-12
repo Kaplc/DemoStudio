@@ -1,16 +1,16 @@
 <widget name="HexModal" canvas="1920x1080" data-script="gameplay/ui/HexModalScript">
   <style>
     .Dim { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; background-color: #050d14cc; hit-test: block; }
-    .HexPanel { width: 860px; height: 640px; margin: 220px auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; background-color: #10202ef2; border-radius: 20px; border: 2px solid #2a4a5e; padding: 24px; }
-    .HexTitle { width: 780px; height: 44px; flex-shrink: 0; font-size: 30px; color: #ffb03d; text-align: center; font-weight: bold; text-shadow: 1px 2px 5px #000000aa; }
+    .HexPanel { width: 860px; height: 640px; margin: 220px auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 24px; }
+    .HexTitle { width: 780px; height: 44px; flex-shrink: 0; font-size: 30px; color: #4fd8ff; text-align: center; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 2px 5px #000000aa; }
     .CardRow { width: 800px; height: 460px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; gap: 20px; }
-    .CardWrap { width: 250px; height: 450px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; background-color: #172c3c; border-radius: 14px; padding: 12px 10px; }
-    .CardName { width: 220px; height: 56px; flex-shrink: 0; font-size: 24px; color: #7fdcff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .CardGain { width: 220px; height: 170px; flex-shrink: 0; font-size: 20px; color: #7fe0a0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .CardCost { width: 220px; height: 110px; flex-shrink: 0; font-size: 20px; color: #ff8f7a; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_card { width: 220px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #ffae00; border-radius: 12px; }
-    .Btn_card:hover { background-color: #ffc233; }
-    .Label_card { width: 200px; height: 32px; font-size: 22px; color: #3d2600; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CardWrap { width: 250px; height: 450px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; background-image: linear-gradient(180deg, #0b1e30 0%, #071120 100%); border: 1px solid #1c4560; padding: 12px 10px; }
+    .CardName { width: 220px; height: 56px; flex-shrink: 0; font-size: 24px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .CardGain { width: 220px; height: 170px; flex-shrink: 0; font-size: 20px; color: #7fe8a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .CardCost { width: 220px; height: 110px; flex-shrink: 0; font-size: 20px; color: #ff9d8a; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_card { width: 220px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #ffb03d; border: 1px solid #ffcf6a; }
+    .Btn_card:hover { background-color: #ffc65e; }
+    .Label_card { width: 200px; height: 32px; font-size: 22px; color: #3a2200; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .HexHint { width: 780px; height: 36px; flex-shrink: 0; font-size: 20px; color: #6f8ba0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Dim">

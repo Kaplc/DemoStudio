@@ -17,6 +17,7 @@ import type { MenuAction } from './gameplay/menu/WarmCurrentMenuGameMode'
 import { WarmCurrentPlayerController } from './gameplay/base/WarmCurrentPlayerController'
 import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
 import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
+import { isShipyardType } from './gameplay/systems/OrbitBuildComponent'
 import { B } from './gameplay/core/balance'
 import { SAVE_KEY, SAVE_SLOT_FILES, SAVE_SLOT_COUNT, serializeSlot, readSlotMetaWithSlot, findLatestSlotMeta } from './gameplay/core/save'
 import type { Endpoint, PlanetBodyId, SimState } from './gameplay/core/types'
@@ -94,6 +95,8 @@ export interface WarmCurrentDebugBridge {
   openOrbitBuild(anchor: string): void
   closeOrbitBuild(): void
   placeOrbitBuilding(type: string, anchor: string): boolean
+  /** 船坞造船面板（e2e 直驱）：打开第一个（或指定 id）已建成船坞 */
+  openShipyard(id?: number): boolean
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
   setShipFlying(progress: number): boolean
   triggerFlare(): void
@@ -120,6 +123,15 @@ export interface WarmCurrentDebugBridge {
     cameraX: number
     cameraY: number
     cameraZ: number
+  } | null
+  /** 渲染管线快照（2026-09-12 后处理改版 e2e 断言用）：后处理/bloom/色调映射 + 环境光强度 */
+  renderInfo(): {
+    postProcess: {
+      enabled: boolean
+      toneMapping: number
+      bloom: { strength: number; radius: number; threshold: number } | null
+    }
+    ambientIntensity: number
   } | null
   /** 天体当前地图画布坐标（starPosAt 权威值；'sun'/'earth'/'moon'/行星名） */
   bodyPos(name: string): { x: number; y: number } | null
@@ -442,6 +454,15 @@ export class WarmCurrentGameInstance extends GameInstance {
       openOrbitBuild: (anchor) => instance._gameMode?.openOrbitBuild(anchor as PlanetBodyId),
       closeOrbitBuild: () => instance._gameMode?.closeOrbitBuild(),
       placeOrbitBuilding: (type, anchor) => instance._gameMode?.orbitBuild.tryPlace(type, anchor as PlanetBodyId) ?? false,
+      openShipyard: (id) => {
+        const mode = instance._gameMode
+        if (!mode) return false
+        const yards = mode.simState.state.orbitBuildings.filter((x) => x.built && isShipyardType(x.type))
+        const yard = id != null ? yards.find((x) => x.id === id) : yards[0]
+        if (!yard) return false
+        mode.openShipyardPanel(yard.id)
+        return true
+      },
       setShipFlying: (progress) => {
         const mode = instance._gameMode
         if (!mode) return false
@@ -477,6 +498,16 @@ export class WarmCurrentGameInstance extends GameInstance {
           cameraY: cam.y,
           cameraZ: cam.z,
         }
+      },
+      renderInfo: () => {
+        const renderer = instance.world?.gameRenderer
+        if (!renderer) return null
+        let ambientIntensity = -1
+        renderer.scene.traverse((obj) => {
+          const amb = obj as { isAmbientLight?: boolean; intensity?: number }
+          if (amb.isAmbientLight) ambientIntensity = amb.intensity ?? -1
+        })
+        return { postProcess: renderer.postProcessInfo, ambientIntensity }
       },
       bodyPos: (name) => {
         const mode = instance._gameMode

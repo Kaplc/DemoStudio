@@ -10,6 +10,7 @@
  * SphereMesh 材质上，Actor 销毁时经 ThreeObject.dispose 递归释放。
  */
 import * as THREE from 'three'
+import { logger } from '@/engine'
 
 // ─── Solar System Scope 真贴图（CC BY 4.0，1638×819 equirect）───
 // 来源 Solar System Scope / NASA imagery，经 Qt qt3d planets-qml 分发；
@@ -301,4 +302,74 @@ export function makeEarthBumpTexture(): THREE.CanvasTexture | null {
   const tex = new THREE.CanvasTexture(canvas)
   // 凹凸图是数据（非线性）贴图：不设 sRGB
   return tex
+}
+
+// ─── 地球海洋高光粗糙度分区（2026-09-12 群星观感改版：PBR 镜面反射）───
+
+/**
+ * 从真实 albedo（earth.jpg）派生海洋/陆地粗糙度分区：蓝主导像素（海洋）→ 低粗糙度
+ * （GGX 镜面高光），其余（陆地/冰盖）→ 高粗糙度（哑光）。与真实大陆形状对齐，
+ * 高光只落在海面上。异步入 Image 解码后回调挂材质（加载失败静默跳过，不阻塞装配）。
+ * 无 DOM 环境（单测）直接返回。
+ */
+export function applyEarthOceanRoughness(mesh: { setRoughnessMap(t: THREE.Texture | null): void }): void {
+  if (typeof document === 'undefined') return
+  const img = new Image()
+  img.onload = () => {
+    try {
+      const W = 512
+      const H = 256
+      // 1) albedo 画到采样画布，逐像素分类（海洋=蓝主导且足够蓝）
+      const s = document.createElement('canvas')
+      s.width = W
+      s.height = H
+      const sc = s.getContext('2d')
+      if (!sc) return
+      sc.drawImage(img, 0, 0, W, H)
+      const data = sc.getImageData(0, 0, W, H).data
+      // 2) 分类到 1/4 分辨率掩码（海洋暗=光滑 / 陆地亮=哑光）
+      const mW = W >> 2
+      const mH = H >> 2
+      const m = document.createElement('canvas')
+      m.width = mW
+      m.height = mH
+      const mc = m.getContext('2d')
+      if (!mc) return
+      const mid = mc.createImageData(mW, mH)
+      for (let y = 0; y < mH; y++) {
+        for (let x = 0; x < mW; x++) {
+          const sx = Math.min(W - 1, Math.floor((x * W) / mW))
+          const sy = Math.min(H - 1, Math.floor((y * H) / mH))
+          const i = (sy * W + sx) * 4
+          const r = data[i]
+          const b = data[i + 2]
+          const ocean = b > r + 12 && b > 70
+          // 粗糙度值：海洋 ~0.45（宽柔高光——0.28 以下 GGX 峰值过曝会被 bloom 炸成白穹）/ 陆地 ~0.92（哑光）
+          const v = ocean ? 115 : 235
+          const o = (y * mW + x) * 4
+          mid.data[o] = v
+          mid.data[o + 1] = v
+          mid.data[o + 2] = v
+          mid.data[o + 3] = 255
+        }
+      }
+      mc.putImageData(mid, 0, 0)
+      // 3) 放大回 W×H（canvas 双线性平滑 → 海岸线柔化，无硬边）
+      const f = document.createElement('canvas')
+      f.width = W
+      f.height = H
+      const fc = f.getContext('2d')
+      if (!fc) return
+      fc.imageSmoothingEnabled = true
+      fc.imageSmoothingQuality = 'high'
+      fc.drawImage(m, 0, 0, W, H)
+      const tex = new THREE.CanvasTexture(f)
+      // 粗糙度是数据（非线性）贴图：不设 sRGB
+      mesh.setRoughnessMap(tex)
+      logger.info('[starTextures] Earth 海洋粗糙度贴图装配完成（PBR 海洋高光）')
+    } catch (err) {
+      logger.warn(`[starTextures] Earth 海洋粗糙度贴图生成失败（跳过高光层）: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  img.src = earthUrl
 }

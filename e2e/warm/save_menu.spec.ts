@@ -151,7 +151,10 @@ test.describe('warm-current 存档/主菜单（Esc 三槽位 + 默认主菜单�
       const m = window.__warmCurrent.slotMeta(1)
       return { time: s.time, metaTime: m ? m.time : null, paused: window.__warmCurrent.mode().paused }
     }`)
-    expect(Math.abs((restored.time as number) - base)).toBeLessThan(1.0)
+    // 容差 3.0s：恢复后 rAF 插入的真实 dt 帧会推进 sim time；headless 软件渲染下
+    // 开 bloom 只有 ~2fps（单帧 dt 0.5s 级），1~2 帧即 1.5s 漂移（实测 1.45）。
+    // 断言意图不变：恢复值 ≈ 快照基线（base），而不是推进后的 drifted（= base+10）。
+    expect(Math.abs((restored.time as number) - base)).toBeLessThan(3.0)
     expect(restored.time as number).toBeLessThan(drifted)
     expect(restored.paused).toBe(false)
   })

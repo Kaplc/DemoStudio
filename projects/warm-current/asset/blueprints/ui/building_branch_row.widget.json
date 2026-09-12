@@ -1,7 +1,7 @@
 {
   "name": "BuildingBranchRow",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-c1e9fe9f",
+  "sourceHash": "fnv1a-b41d7ed7",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -56,10 +56,10 @@
               1
             ],
             "worldWidth": 372,
-            "worldHeight": 60,
+            "worldHeight": 62,
             "position": [
               0,
-              0,
+              -1,
               0
             ]
           }
@@ -92,10 +92,10 @@
                   1,
                   1
                 ],
-                "worldWidth": 372,
-                "worldHeight": 60,
+                "worldWidth": 374,
+                "worldHeight": 62,
                 "position": [
-                  0,
+                  1,
                   0,
                   0
                 ]
@@ -114,7 +114,7 @@
               "properties": {
                 "stateColors": {
                   "hover": {
-                    "color": "#27506e"
+                    "color": "#143650"
                   }
                 }
               }
@@ -122,19 +122,206 @@
             {
               "baseClass": "UIImageComponent",
               "properties": {
-                "color": "#1d3a52",
-                "radius": 8,
-                "width": 372,
-                "height": 60,
+                "color": "#0d2434",
+                "width": 374,
+                "height": 62,
                 "name": "Btn_row"
               }
             }
           ],
           "children": [
             {
-              "name": "RowName",
+              "name": "Btn_rowBorderTop",
               "baseClass": "Actor",
               "id": 13203,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      30.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 374,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_rowBorderTop",
+                    "color": "#1c4560",
+                    "width": 374,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_rowBorderRight",
+              "baseClass": "Actor",
+              "id": 13204,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      186.5,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 62
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_rowBorderRight",
+                    "color": "#1c4560",
+                    "width": 8,
+                    "height": 62
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_rowBorderBottom",
+              "baseClass": "Actor",
+              "id": 13205,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      0,
+                      -30.5,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 374,
+                    "worldHeight": 1
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_rowBorderBottom",
+                    "color": "#1c4560",
+                    "width": 374,
+                    "height": 8
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "Btn_rowBorderLeft",
+              "baseClass": "Actor",
+              "id": 13206,
+              "components": [
+                {
+                  "baseClass": "UITransformComponent",
+                  "properties": {
+                    "position": [
+                      -186.5,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "worldWidth": 1,
+                    "worldHeight": 62
+                  }
+                },
+                {
+                  "baseClass": "CanvasUIComponent",
+                  "properties": {
+                    "markerOnly": true,
+                    "name": "UIMarker",
+                    "zOrder": 0
+                  }
+                },
+                {
+                  "baseClass": "UIImageComponent",
+                  "properties": {
+                    "name": "Btn_rowBorderLeft",
+                    "color": "#1c4560",
+                    "width": 8,
+                    "height": 62
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "name": "RowName",
+              "baseClass": "Actor",
+              "id": 13207,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -174,7 +361,7 @@
                     "width": 352,
                     "height": 22,
                     "fontSize": 16,
-                    "color": "#cfe3ee",
+                    "color": "#bfe8ff",
                     "align": "center",
                     "bold": true,
                     "shadowColor": "#00000099",
@@ -189,7 +376,7 @@
             {
               "name": "RowDesc",
               "baseClass": "Actor",
-              "id": 13204,
+              "id": 13208,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -229,7 +416,7 @@
                     "width": 352,
                     "height": 18,
                     "fontSize": 14,
-                    "color": "#7fdcff",
+                    "color": "#4fd8ff",
                     "align": "center",
                     "shadowColor": "#00000099",
                     "shadowOffsetX": 1,
@@ -243,7 +430,7 @@
             {
               "name": "RowCost",
               "baseClass": "Actor",
-              "id": 13205,
+              "id": 13209,
               "components": [
                 {
                   "baseClass": "UITransformComponent",
@@ -294,7 +481,15 @@
               ],
               "children": []
             }
-          ]
+          ],
+          "sourceLayout": {
+            "border": [
+              1,
+              1,
+              1,
+              1
+            ]
+          }
         }
       ]
     }

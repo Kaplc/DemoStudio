@@ -32,11 +32,12 @@ export interface StyleElement {
   inlineDecls: Map<string, { value: string; important: boolean }>
   /** 计算样式（级联+继承后） */
   computed: Map<string, string>
-  /** 交互态声明（:hover/:active/:disabled 命中的 prop→value，仅 button 消费） */
+  /** 交互态声明（:hover/:active/:disabled/:checked 命中的 prop→value，仅 button 消费） */
   stateDecls: {
     hover: Map<string, string>
     active: Map<string, string>
     disabled: Map<string, string>
+    checked: Map<string, string>
   }
 }
 
@@ -231,7 +232,7 @@ export function computeStyles(
     interface Hit { spec: [number, number, number]; order: number; important: boolean; origin: number; value: string; line: number }
     const propHits = new Map<string, Hit>()
     const customHits = new Map<string, Hit>()
-    const stateSets: Array<{ kind: 'hover' | 'active' | 'disabled'; decls: Array<[string, string]> }> = []
+    const stateSets: Array<{ kind: 'hover' | 'active' | 'disabled' | 'checked'; decls: Array<[string, string]> }> = []
 
     const consider = (
       prop: string,
@@ -272,10 +273,12 @@ export function computeStyles(
     for (const rule of allRules) {
       if (!matchSelector(rule.selector, el, mc)) continue
       const spec = specificity(rule.selector.compounds)
-      // 交互态伪类（:hover/:active/:disabled）始终命中但只属于交互态：
+      // 交互态伪类（:hover/:active/:disabled/:checked）始终命中但只属于交互态：
       // 声明只进状态表，绝不进基础级联（否则 :active 色会以其更高特异性盖掉底色）
+      const isStatePseudoName = (name: string) =>
+        name === 'hover' || name === 'active' || name === 'disabled' || name === 'checked'
       const hasStatePseudo = (c: { pseudos: Array<{ name: string }> }) =>
-        c.pseudos.some((p) => p.name === 'hover' || p.name === 'active' || p.name === 'disabled')
+        c.pseudos.some((p) => isStatePseudoName(p.name))
       const lastIsState = hasStatePseudo(rule.selector.compounds[rule.selector.compounds.length - 1])
       const anyIsState = rule.selector.compounds.some(hasStatePseudo)
       if (!anyIsState) {
@@ -296,14 +299,14 @@ export function computeStyles(
       // 交互态伪类命中：收集状态声明
       const last = rule.selector.compounds[rule.selector.compounds.length - 1]
       for (const p of last.pseudos) {
-        if (p.name === 'hover' || p.name === 'active' || p.name === 'disabled') {
+        if (isStatePseudoName(p.name)) {
           const bucket: Array<[string, string]> = []
           for (const [prop, { value }] of rule.decls) {
             for (const ex of expandAll(prop, substituteVars(value, customScope))) {
               bucket.push([ex.prop, ex.value])
             }
           }
-          stateSets.push({ kind: p.name as 'hover' | 'active' | 'disabled', decls: bucket })
+          stateSets.push({ kind: p.name as 'hover' | 'active' | 'disabled' | 'checked', decls: bucket })
         }
       }
     }
@@ -359,7 +362,7 @@ export function buildStyleTree(
     siblingElementCount: 0,
     inlineDecls: node.attrs['style'] ? parseInline(node.attrs['style']) : new Map(),
     computed: new Map(),
-    stateDecls: { hover: new Map(), active: new Map(), disabled: new Map() },
+    stateDecls: { hover: new Map(), active: new Map(), disabled: new Map(), checked: new Map() },
   }
   if (parent) parent.children.push(el)
   const elementChildren = node.children.filter((c) => c.tag !== '#text')

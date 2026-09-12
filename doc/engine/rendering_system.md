@@ -177,8 +177,17 @@ this.controls?.update()
 for (const cb of this.updateCallbacks) cb(dt)
 
 // 主场景：直接用游戏相机的引用渲染（不再复制同步）
-if (cam) this.renderer.render(this.scene, cam)
-else this.renderer.clear()
+if (cam) {
+  if (this.composer && this.renderPass) {
+    // 后处理路径：每帧同步相机委托的最新相机（RenderPass 相机可热替换）
+    this.renderPass.camera = cam
+    this.composer.render(dt)
+  } else {
+    this.renderer.render(this.scene, cam)
+  }
+} else {
+  this.renderer.clear()
+}
 
 // UI 独立场景叠加渲染（UI 永远在顶层）
 this._uiCam?.render(this.renderer)
@@ -188,20 +197,40 @@ for (const cb of this.afterRenderCallbacks) cb()
 
 > 正交相机的处理反直觉：**只改左右、不改上下**。正交半高 `orthoSize` 是游戏设定的视野高度，渲染器若按视口比例同时改上下，游戏的 `SetOrtho` 就失效了；只伸缩左右 → 视野高度恒定、宽度随窗口变。透视相机则必须两边一起按 `aspect` 走，否则画面拉伸。`cam` 为 null 时执行 `renderer.clear()` 而非跳过——不清屏会残留上一帧。
 
-UI 叠加相机的合成（[UICamera.ts](../../src/engine/rendering/UICamera.ts:66)）：
+UI 叠加相机的合成（[UICamera.ts](../../src/engine/rendering/UICamera.ts:110)）：
 
 ```ts
 render(renderer: THREE.WebGLRenderer): void {
   if (!this._scene) return
   const prevAutoClear = renderer.autoClear
+  // 中和主场景后处理的色调映射：HUD 走直渲染路径，配色不被 ACES 洗灰
+  // （three 按 materialProperties.toneMapping 缓存两套 program，逐帧切换无重编译抖动）
+  const prevToneMapping = renderer.toneMapping
   renderer.autoClear = false
+  renderer.toneMapping = THREE.NoToneMapping
   renderer.clearDepth()
   renderer.render(this._scene, this.camera)
+  renderer.toneMapping = prevToneMapping
   renderer.autoClear = prevAutoClear
 }
 ```
 
-> 三步缺一不可：`autoClear=false` 保留主场景颜色；`clearDepth()` 让 UI 不参与 3D 遮挡；渲染后**必须还原** `autoClear`，否则下一帧主场景不清屏、画面叠成一团。用 `prevAutoClear` 局部变量存而非硬写 `true`，是因为调用方自己也会改这个标志。
+> 三步缺一不可：`autoClear=false` 保留主场景颜色；`clearDepth()` 让 UI 不参与 3D 遮挡；渲染后**必须还原** `autoClear`，否则下一帧主场景不清屏、画面叠成一团。用 `prevAutoClear` 局部变量存而非硬写 `true`，是因为调用方自己也会改这个标志。后处理开启时还要**临时置回 `NoToneMapping`**（见下节）——否则 UI 会被 ACES 再洗一遍，HUD 配色发灰。
+
+### 2.1 后处理管线（opt-in，2026-09-12）
+
+默认**关闭**：构造时不传 `postProcess` 就走直渲染路径，既有项目零影响。开启后主场景改走 `EffectComposer`：
+
+```
+RenderPass(scene, cam) → UnrealBloomPass(strength/radius/threshold) → OutputPass
+```
+
+- **中间 RT**：`WebGLRenderTarget(HalfFloatType, samples: 4)`——HalfFloat 保留 HDR 亮度给 bloom 取阈值；直渲染的 `antialias:true` 只对画布生效，composer 必须自带 4x MSAA 才不发锯齿。
+- **色调映射**：`OutputPass` 按 `renderer.toneMapping` 统一应用（默认 ACESFilmic），只作用于主场景；UI 叠加层在 `UICamera.render` 内中和。three r152+ 的规则：色调映射与 sRGB 输出只在渲染到画布（null target）时发生，所以 RenderPass 写入 RT 的是线性 HDR 值，bloom 在线性域取阈值，最后 OutputPass 一次完成 tonemap + sRGB。
+- **相机热替换**：相机委托每帧可能返回不同相机，`renderPass.camera = cam` 每帧同步。
+- **开关 API**：`enablePostProcess(options)` / `disablePostProcess()`（幂等，运行中可切换）；`postProcessInfo` getter 供调试桥/e2e 断言。
+- **尺寸同步**：`resize()` 里 `composer.setSize(w, h)`，与 renderer 同步（内部按 pixelRatio 放大）。
+- 项目侧用法（warm 星图）：`world.gameRenderer.enablePostProcess({ bloom: { strength, radius, threshold } })`，通常挂在星图渲染组件 `BeginPlay`、`EndPlay` 摘除。
 
 ---
 
@@ -289,6 +318,9 @@ if (this.rightDragging) return
 |---|---|---|---|
 | `setCameraProvider(fn)` | `gameflow/SceneRendererComponent.ts:51` | 注册相机委托，每帧取当前主相机 | 传 null 即解绑；会重建 OrbitControls（仍禁用交互） |
 | `attachUIScene(scene)` | `gameflow/SceneRendererComponent.ts:373` | 挂载/分离 UI 叠加场景 | 传 null 会 `_uiCam.EndPlay()` 并置空，下次重建 |
+| `enablePostProcess(opts)` | `gameflow/SceneRendererComponent.ts` | 开启 EffectComposer 管线（bloom + tonemapping） | 幂等（重建前先关）；不开则直渲染路径零变化 |
+| `disablePostProcess()` | `gameflow/SceneRendererComponent.ts` | 关闭后处理回直渲染 | dispose 链兜底调用；bloom pass 一并 dispose |
+| `postProcessInfo` getter | `gameflow/SceneRendererComponent.ts` | 后处理状态快照（enabled/toneMapping/bloom 参数） | e2e/调试桥断言用 |
 | `SceneRendererComponent.start()` | `gameflow/SceneRendererComponent.ts:389` | rAF 渲染循环 | 上下文丢失期间跳过渲染但**继续 rAF** |
 | `SceneRendererComponent.resize()` | `gameflow/SceneRendererComponent.ts:316` | 重算尺寸/比例，同步 UI 相机视锥 | 由 ResizeObserver 自动触发 |
 | `dispose()` | `gameflow/SceneRendererComponent.ts:520` | 停循环 + 断监听 + forceContextLoss | 必须调，WebGL 上下文不释放会耗尽浏览器额度 |
@@ -362,6 +394,14 @@ if (this.rightDragging) return
 **7. UI 盖不住 3D，或画面叠成一团** —— `UICamera.render()` 里 `autoClear=false` + `clearDepth()` + 还原 `autoClear` 三步缺一不可。少了还原，下一帧主场景不清屏，画面层层叠加。
 
 **8. 看到的 UI 和点到的 UI 错位** —— `attachUIScene(scene)` 和 `PhySys.setupUI(gameMgr.uiCamera)` 必须成对。只挂渲染不注入点击相机，点击会落到世界层。
+
+**9. 开了后处理 HUD 配色发灰** —— `OutputPass` 按 `renderer.toneMapping` 对主场景做 ACES，而 UI 叠加是 composer 渲染完**直绘画布**的，也会被 `renderer.toneMapping` 洗一遍 → HUD 被二次色调映射。修法：`UICamera.render` 里渲染前临时 `renderer.toneMapping = NoToneMapping`、渲染后还原（three 按材质缓存两套 program，逐帧切换无重编译抖动）。
+
+**10. composer 路径画面发锯齿（直渲染没有）** —— `renderer` 的 `antialias:true` 只对画布直渲染生效，EffectComposer 的中间 RT 不继承 MSAA。构造 composer 必须传自带 `samples: 4` 的 `WebGLRenderTarget`。同时注意 RT 要 `HalfFloatType`——默认 UnsignedByte 会把 HDR 亮度截到 1.0，bloom 阈值失效。
+
+**11. headless/软件渲染下开 bloom 掉到 2 fps** —— SwiftShader（无 GPU 的 CI/headless Chromium）跑 HalfFloat + MSAA4 + bloom 全是软件光栅化，帧时间以秒计。实机 GPU 无此问题（60fps+）；e2e 断言不要依赖流畅动画，只断状态与静态截图。
+
+**12. bloom 把受光云层/行星亮面炸成一片白穹** —— UnrealBloomPass 阈值是**线性 HDR 亮度**阈值：受光 Lambert 云层亮度约 0.6、行星日面更高，阈值 0.62 会把大面积亮部全部卷进泛光，糊成无结构的白穹。阈值必须只留真高亮源（太阳 basic 白贴图 ≈1.0）→ 实战取 0.85+；参数与画面内容联动，不是拍脑袋常数。诊断手法：变量隔离截图（逐个隐藏云层/大气/关 bloom）定位元凶，别对着最终图猜。
 
 **9. 正交相机视野高度被渲染器改掉** —— 渲染器对正交相机**只改左右**（`halfH = cam.top` 保持）。游戏想改半高必须调 `CameraComponent.SetOrtho`，指望渲染器代劳无效。
 

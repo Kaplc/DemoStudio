@@ -1,7 +1,7 @@
 {
   "name": "ViewLoading",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-038800c2",
+  "sourceHash": "fnv1a-6ebbe9a3",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -169,7 +169,7 @@
                     "width": 520,
                     "height": 60,
                     "fontSize": 42,
-                    "color": "#cfe3ee",
+                    "color": "#bfe8ff",
                     "align": "center",
                     "bold": true,
                     "letterSpacing": 12,
@@ -200,11 +200,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 460,
-                    "worldHeight": 8,
+                    "worldWidth": 462,
+                    "worldHeight": 10,
                     "position": [
-                      0,
-                      -44,
+                      1,
+                      -45,
                       0
                     ]
                   }
@@ -220,19 +220,206 @@
                 {
                   "baseClass": "UIImageComponent",
                   "properties": {
-                    "color": "#16222e",
-                    "radius": 4,
-                    "width": 460,
-                    "height": 8,
+                    "color": "#0a1826",
+                    "width": 462,
+                    "height": 10,
                     "name": "LoadingBar"
                   }
                 }
               ],
               "children": [
                 {
-                  "name": "LoadingBarFill",
+                  "name": "LoadingBarBorderTop",
                   "baseClass": "Actor",
                   "id": 13205,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          4.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 462,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "LoadingBarBorderTop",
+                        "color": "#16394e",
+                        "width": 462,
+                        "height": 8
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "LoadingBarBorderRight",
+                  "baseClass": "Actor",
+                  "id": 13206,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          230.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1,
+                        "worldHeight": 10
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "LoadingBarBorderRight",
+                        "color": "#16394e",
+                        "width": 8,
+                        "height": 10
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "LoadingBarBorderBottom",
+                  "baseClass": "Actor",
+                  "id": 13207,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          0,
+                          -4.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 462,
+                        "worldHeight": 1
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "LoadingBarBorderBottom",
+                        "color": "#16394e",
+                        "width": 462,
+                        "height": 8
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "LoadingBarBorderLeft",
+                  "baseClass": "Actor",
+                  "id": 13208,
+                  "components": [
+                    {
+                      "baseClass": "UITransformComponent",
+                      "properties": {
+                        "position": [
+                          -230.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ],
+                        "worldWidth": 1,
+                        "worldHeight": 10
+                      }
+                    },
+                    {
+                      "baseClass": "CanvasUIComponent",
+                      "properties": {
+                        "markerOnly": true,
+                        "name": "UIMarker",
+                        "zOrder": 0
+                      }
+                    },
+                    {
+                      "baseClass": "UIImageComponent",
+                      "properties": {
+                        "name": "LoadingBarBorderLeft",
+                        "color": "#16394e",
+                        "width": 8,
+                        "height": 10
+                      }
+                    }
+                  ],
+                  "children": []
+                },
+                {
+                  "name": "LoadingBarFill",
+                  "baseClass": "Actor",
+                  "id": 13209,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -267,7 +454,19 @@
                     {
                       "baseClass": "UIImageComponent",
                       "properties": {
-                        "color": "#6fc3ff",
+                        "gradient": {
+                          "angle": 90,
+                          "stops": [
+                            {
+                              "color": "#1f8fc0",
+                              "offset": 0
+                            },
+                            {
+                              "color": "#4fd8ff",
+                              "offset": 1
+                            }
+                          ]
+                        },
                         "radius": 4,
                         "width": 140,
                         "height": 8,
@@ -277,7 +476,15 @@
                   ],
                   "children": []
                 }
-              ]
+              ],
+              "sourceLayout": {
+                "border": [
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
             }
           ]
         }

@@ -44,8 +44,30 @@
         "intensity": 1,
         "power": 6,
         "shellScale": 1.01,
-        "haloScale": 2.6,
-        "haloIntensity": 0.9
+        "haloScale": 1.4,
+        "haloIntensity": 0.35
+      }
+    },
+    {
+      "baseClass": "CloudLayerComponent",
+      "properties": {
+        "name": "CloudLow",
+        "texture": "asset/textures/earth_clouds.png",
+        "altitude": 1.015,
+        "spin": 0.35,
+        "uvDrift": 0.004,
+        "opacity": 0.62
+      }
+    },
+    {
+      "baseClass": "CloudLayerComponent",
+      "properties": {
+        "name": "CloudHigh",
+        "texture": "asset/textures/earth_clouds.png",
+        "altitude": 1.05,
+        "spin": 0.55,
+        "uvDrift": 0.012,
+        "opacity": 0.3
       }
     }
   ],

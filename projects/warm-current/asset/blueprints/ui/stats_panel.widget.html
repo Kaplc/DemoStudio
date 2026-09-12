@@ -1,18 +1,18 @@
 <widget name="StatsPanel" canvas="1920x1080" data-script="gameplay/ui/StatsPanelScript">
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
-    .StatsCard { width: 560px; height: 640px; position: absolute; left: 680px; top: 210px; display: flex; flex-direction: column; gap: 4px; background-color: #0e1a24f2; border-radius: 14px; padding: 16px 16px; hit-test: block; }
+    .StatsCard { width: 560px; height: 640px; position: absolute; left: 680px; top: 210px; display: flex; flex-direction: column; gap: 4px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 16px 16px; hit-test: block; }
     .TitleRow { width: 528px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-    .StatsTitle { width: 380px; height: 34px; flex-shrink: 0; font-size: 24px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_close { width: 104px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_close:hover { background-color: #3d566f; }
-    .Label_close { width: 96px; height: 28px; flex-shrink: 0; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .SecHead { width: 528px; height: 28px; flex-shrink: 0; font-size: 20px; color: #9fc4d8; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .StatsTitle { width: 380px; height: 34px; flex-shrink: 0; font-size: 24px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_close { width: 104px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_close:hover { background-color: #143650; }
+    .Label_close { width: 96px; height: 28px; flex-shrink: 0; font-size: 18px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .SecHead { width: 528px; height: 28px; flex-shrink: 0; font-size: 20px; color: #8fbcd4; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .LedgerRow { width: 528px; height: 32px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-    .LedgerKey { width: 268px; height: 30px; flex-shrink: 0; font-size: 19px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .LedgerKey { width: 268px; height: 30px; flex-shrink: 0; font-size: 19px; color: #8fbcd4; text-shadow: 1px 1px 4px #00000066; }
     .LedgerVal { width: 260px; height: 30px; flex-shrink: 0; font-size: 19px; color: #ffe9a8; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .ValIn { color: #b8ffd8; }
-    .ValOut { color: #ffb3a0; }
+    .ValIn { color: #7fe8a8; }
+    .ValOut { color: #ff9d8a; }
   </style>
   <div class="StatsCard">
     <div class="TitleRow">

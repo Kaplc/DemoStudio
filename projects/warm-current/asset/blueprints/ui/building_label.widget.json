@@ -1,7 +1,7 @@
 {
   "name": "BuildingLabel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-ab8d03a9",
+  "sourceHash": "fnv1a-985924c8",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -88,7 +88,7 @@
             "width": 480,
             "height": 60,
             "fontSize": 44,
-            "color": "#9fffd0",
+            "color": "#bfe8ff",
             "align": "center",
             "bold": true,
             "shadowColor": "#000000cc",
@@ -143,7 +143,7 @@
             "width": 480,
             "height": 44,
             "fontSize": 34,
-            "color": "#7fa8bc",
+            "color": "#8fbcd4",
             "align": "center",
             "shadowColor": "#000000aa",
             "shadowOffsetX": 1,

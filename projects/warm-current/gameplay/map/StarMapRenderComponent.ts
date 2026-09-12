@@ -5,7 +5,6 @@
  *  - 地图铺 XZ 平面（世界 x/z = 地图坐标 − 半宽/半高），文字用 CanvasTexture Sprite（自动朝向相机）
  *  - 星球 = 球体网格（Lambert 材质 + 场景灯光），护盾 = 半透明球形气泡
  *  - 航线 = 贴地细长面片（预旋转压平），飞船 = 球体 + 加色辉光 Sprite
- *  - 聚能环覆盖弧/建材进度弧 = 贴地 RingGeometry（仅状态变化时重建）
  * 指针拾取由 Controller 用自身相机射线 ∩ y=0 平面完成（编辑器注入的 worldPos 是 z=0 平面）。
  * 仿真坐标（星图画布系 1920×1080，y 向下）保持不变，渲染层做 map→world 换算。
  */
@@ -99,7 +98,6 @@ function starUnlocked(s: SimState, id: StarId): boolean {
 
 // ─── 颜色 ───
 
-const COLORS_ORANGE = 0xff6a3d
 const C_ROUTE_FORWARD = 0x78beeb
 const C_ROUTE_REVERSE = 0xffb03d
 const C_ROUTE_SELECTED = 0xdff3ff
@@ -359,11 +357,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private shipPool: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; glow: THREE.Sprite; glowMat: THREE.SpriteMaterial }> = []
   private readonly SHIP_CAP = 64
 
-  private earthArc: THREE.Mesh | null = null
-  private lastArcKey = ''
-  /** 25 段环段弧池（槽位化：逐段点亮；每段 = 贴地弧 mesh，已装段附小型建筑标记） */
-  private slotArcs: THREE.Mesh[] = []
-  private slotMarkers: THREE.Mesh[] = []
   /** 框选矩形（耀斑预警框选手势；半透明面片） */
   private boxQuad: THREE.Mesh | null = null
   /** 细轨道圈几何（1.5% 环宽，公转轨道专用；flatRingGeo 太粗） */
@@ -379,6 +372,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private static readonly BUILDING_LABEL_WIDGET = 'asset/blueprints/ui/building_label.widget.json'
   /** 轨道环装饰（锚天体 id → 环 mesh；有轨道建筑的天体显示，行星系视角可见） */
   private orbitRings = new Map<string, ThreeObject>()
+
+  /** 太阳主光（点光；applyViewMode 按视角重定位——行星系视角钉扎行星在太阳位，光须拖到掠射位） */
+  private sunLight: THREE.PointLight | null = null
 
   /** 建筑模式组（网格线 + 放置 ghost；挂 systemGroup 保持贴地图坐标系） */
   private buildGroup!: THREE.Group
@@ -441,6 +437,17 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       logger.error('[StarMap] World 工厂不可用，星图将无法创建渲染对象')
       return
     }
+    // ─── 后处理（2026-09-12 群星观感改版）：bloom 让太阳/飞船辉光柔和泛光，
+    // ACES 色调映射给全画面上"胶片感"。阈值 0.85 只取真高亮源（太阳 ~1.0）；
+    // 受光云层亮度 ~0.6，阈值低了会被 bloom 炸成一整片白穹（实测坑，见渲染文档踩坑 12）───
+    const gameRenderer = this.owner.world?.gameRenderer
+    if (gameRenderer) {
+      gameRenderer.enablePostProcess({
+        bloom: { strength: 0.85, radius: 0.55, threshold: 0.85 },
+      })
+    } else {
+      logger.warn('[StarMap] World 无 gameRenderer，跳过后处理（无 bloom/ACES，直渲染路径）')
+    }
     this.root3 = this.own(this.F.createGroup()).object
     this.tutGroup = this.own(this.F.createGroup()).object
     this.flareGroup = this.own(this.F.createGroup()).object
@@ -477,10 +484,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       }
     }
 
-    // ─── 灯光（3D 标准：球体材质需要光照） ───
-    this.root3.add(new THREE.AmbientLight(0xcfe3ee, 0.85))
-    const dir = new THREE.DirectionalLight(0xfff0dd, 1.15)
-    dir.position.set(300, 800, 200)
+    // ─── 灯光（3D 标准：球体材质需要光照；2026-09-12 群星观感改版：
+    // 环境光压到低位（暗面沉下去，背部阴影才明显），定向主光低仰角掠射
+    // （terminator 斜穿可见面）；行星系视角点光与主光同向只做补强 → 单一明确明暗界线） ───
+    this.root3.add(new THREE.AmbientLight(0xcfe3ee, 0.12))
+    // 定向主光：低仰角掠射（旧 (300,800,200) 近顶射，可见半球顶过曝且明暗界线模糊）
+    const dir = new THREE.DirectionalLight(0xfff0dd, 0.9)
+    dir.position.set(620, 300, 280)
     this.root3.add(dir)
 
     // ─── 地面（星空背景：tile 平铺放大地面，只画一次传一次） ───
@@ -526,6 +536,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }
 
   override EndPlay(): void {
+    // 摘除后处理（幂等；World 级销毁链 dispose 也会兜底）
+    this.owner.world?.gameRenderer?.disablePostProcess()
     this.owner.root.remove(this.root3)
     for (const m of this.mats) m.dispose()
     for (const g of this.geos) g.dispose()
@@ -571,13 +583,17 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const sunWZ = toWZ(sun.y)
     const sunGlowMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff8c2e, transparent: true, opacity: 0.18, depthWrite: false }))
     const sunGlow = this.own(this.F.createMesh(this.unitSphere, sunGlowMat)).object
-    sunGlow.scale.setScalar(sun.r * 1.35)
+    sunGlow.scale.setScalar(sun.r * 1.18)
     sunGlow.position.set(sunWX, sun.r * 0.5, sunWZ)
     sunGlow.renderOrder = 11
     this.sunGroup.add(sunGlow)
-    const sunLight = new THREE.PointLight(0xffc46b, 1.6, 2200)
+    // 主光：太阳点光源（decay=0 不衰减 + distance=0 不限程 → 海王星也有向阳面，
+    // 明暗界线按各行星相对太阳的方位展开，替代旧定向光的"全场平行光"；
+    // 挂 root3 而非 sunGroup——sunGroup 在行星系视图整组隐藏，灯光不能跟着灭）
+    const sunLight = new THREE.PointLight(0xffd9a0, 2.4, 0, 0)
     sunLight.position.set(sunWX, 80, sunWZ)
-    this.sunGroup.add(sunLight)
+    this.sunLight = sunLight
+    this.root3.add(sunLight)
     // 太阳标签
     const sunLabel = new SpriteLabel(this.F, this.owner, this.sunGroup)
     sunLabel.set('太阳', 24, '#ffd9a0')
@@ -647,10 +663,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.moonRings.set(mid, moonOrbit)
       this.systemGroup.add(moonOrbit)
     }
-    // 地球标签（锚在太阳下缘：聚能环的属主标注，随弧归太阳系视图）
+    // 地球标签（锚在聚能弧环外缘正下方：标注弧的属主，随弧归太阳系视图；
+    // 不再贴太阳下缘——旧锚点距太阳表面 26px，读起来像太阳的第二个标签）
     const earthLabel = new SpriteLabel(this.F, this.owner, this.sunGroup)
     earthLabel.set('地球', 22, '#cfe8f5')
-    earthLabel.setPos(sun.x, sun.y + sun.r + 26, 96)
+    earthLabel.setPos(sun.x, sun.y + orbitRadiusPx('earth') + 28, 96)
   }
 
   /** 兜底建球（无蓝图/蓝图缺 SphereMesh 时保星图不缺星；Lambert 纯色） */
@@ -786,77 +803,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private syncNodes(): void {
     const { simState: sim } = this.provider
-    // 25 段环段弧（槽位化：逐段点亮；已建成槽位段亮、已装段附建筑标记；段数/装入签名变化才重建）
-    const totalSlots = Math.max(1, B.ringSlots)
-    const installedSig = (sim.state.ringBuildings ?? []).map((x) => x ?? '-').join('').slice(0, totalSlots)
-    const arcKey = `${sim.state.ringSlots}/${totalSlots}/${installedSig}`
-    if (arcKey !== this.lastArcKey) {
-      this.lastArcKey = arcKey
-      if (this.earthArc) {
-        this.root3.remove(this.earthArc)
-        this.earthArc.geometry.dispose()
-        ;(this.earthArc.material as THREE.Material).dispose()
-        this.earthArc = null
-      }
-      for (const m of this.slotArcs) {
-        this.root3.remove(m)
-        m.geometry.dispose()
-        ;(m.material as THREE.Material).dispose()
-      }
-      this.slotArcs = []
-      for (const m of this.slotMarkers) {
-        this.root3.remove(m)
-        m.geometry.dispose()
-        ;(m.material as THREE.Material).dispose()
-      }
-      this.slotMarkers = []
-      // 每段 = 独立弧几何（2π/25 扇区留 12% 缺口显分段感），圆心 = 太阳、半径 = 地球轨道
-      const arcRadius = orbitRadiusPx('earth')
-      const sector = (Math.PI * 2) / totalSlots
-      const gap = sector * 0.12
-      for (let i = 0; i < totalSlots; i++) {
-        if (i >= sim.state.ringSlots) break
-        const a0 = -Math.PI / 2 + i * sector + gap / 2
-        const geo = this.F.createRingGeometry(arcRadius - 7, arcRadius, 24, 1, a0, sector - gap)
-        geo.rotateX(-Math.PI / 2)
-        const installed = !!(sim.state.ringBuildings ?? [])[i]
-        const mat = this.F.createMeshBasicMaterial({
-          color: installed ? 0xffd98a : COLORS_ORANGE,
-          transparent: true,
-          opacity: installed ? 1 : 0.95,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        })
-        const mesh = this.own(this.F.createMesh(geo, mat)).object
-        mesh.position.set(toWX(B.map.nodes.sun.x), 3.5, toWZ(B.map.nodes.sun.y))
-        mesh.renderOrder = 11
-        this.slotArcs.push(mesh)
-        // 聚能弧画在地球公转轨道上（圆心=太阳）＝太阳系全景信息，地球系视图不显示
-        this.sunGroup.add(mesh)
-        if (installed) {
-          // 已装格小型建筑标记（段中线小球，视觉 = 环上小建筑）
-          const mid = a0 + (sector - gap) / 2
-          const markerGeo = this.trackGeo(this.F.createSphereGeometry(4.5, 8, 8))
-          const markerMat = this.F.createMeshBasicMaterial({ color: 0xffe9a8 })
-          const marker = this.own(this.F.createMesh(markerGeo, markerMat)).object
-          marker.position.set(
-            toWX(B.map.nodes.sun.x) + Math.cos(mid) * (arcRadius - 3.5),
-            7,
-            toWZ(B.map.nodes.sun.y) + Math.sin(mid) * (arcRadius - 3.5),
-          )
-          marker.renderOrder = 12
-          this.slotMarkers.push(marker)
-          this.sunGroup.add(marker)
-        }
-      }
-    }
-    // 断环脉冲着色（运转 = 橙；衰减 = 红蓝交替闪烁，与旧覆盖弧同语言）
-    if (this.slotArcs.length > 0) {
-      const decaying = sim.state.ring === 'decaying'
-      const pulse = decaying ? 0.5 + 0.5 * Math.sin(this.animTime * 6) : 0
-      const color = decaying ? (pulse > 0.5 ? 0xe84545 : 0xbfe9ff) : COLORS_ORANGE
-      for (const seg of this.slotArcs) (seg.material as THREE.MeshBasicMaterial).color.setHex(color)
-    }
     // 星球状态（位置由蓝图 StarActor.syncFrom 唯一驱动；此处只写标签/窗口环/解锁透明度）
     for (const star of Object.values(B.stars)) {
       const sv = this.starViews[star.id]!
@@ -1458,6 +1404,20 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     // 舞台初始位移（每帧由 syncStage 按聚焦行星实时位置精调：行星钉在舞台中心，本地内容按相对几何贴放）
     const stage = solar ? { x: 0, z: 0 } : planetStageOffset(focus)
     this.stageGroup.position.set(stage.x, 0, stage.z)
+    // 主光随视角重定位：太阳系全景挂太阳位（行星按相对太阳方位出明暗面）；
+    // 行星系视角聚焦行星被钉在太阳位——点光若留原位会悬在钉扎行星北极上方，
+    // decay=0 全强度打爆顶盖（bloom 糊成光穹）→ 拖远到掠射位，terminator 斜穿可见面
+    if (this.sunLight) {
+      if (solar) {
+        this.sunLight.position.set(toWX(B.map.nodes.sun.x), 80, toWZ(B.map.nodes.sun.y))
+        this.sunLight.intensity = 2.4
+      } else {
+        // 特写：与定向主光同向（620,300,280 归一 ×2000）只做补强——两光同向保证
+        // 单一明确明暗界线（异向双光会出双 terminator 互相冲淡），功率压低防过曝
+        this.sunLight.position.set(stage.x + 1670, 810, stage.z + 750)
+        this.sunLight.intensity = 0.6
+      }
+    }
     this.sunGroup.visible = solar
     // 太阳本体球是蓝图 Actor（不在 sunGroup，也不在 starViews——buildNodes 只建行星视图），行星系须单独隐藏
     const sunActor = this.provider.starActors?.get('sun')

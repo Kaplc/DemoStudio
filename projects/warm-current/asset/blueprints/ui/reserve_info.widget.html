@@ -2,13 +2,14 @@
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
     .Dim { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; background-color: #050a10a8; font-size: 16px; text-shadow: 1px 1px 4px #00000066; }
-    .InfoCard { width: 520px; height: 280px; position: absolute; left: 48px; top: 84px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; background-color: #0e1a24f0; border-radius: 14px; padding: 16px 20px; }
-    .InfoTitle { width: 400px; height: 34px; flex-shrink: 0; font-size: 23px; color: #7fdcff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
-    .Btn_close_info { width: 104px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #31445c; border-radius: 8px; }
-    .Btn_close_info:hover { background-color: #3d566f; }
-    .Label_close_info { width: 96px; height: 28px; flex-shrink: 0; font-size: 18px; color: #cfe3ee; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .InfoCard { width: 520px; height: 280px; position: absolute; left: 48px; top: 84px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 16px 20px; }
+    .InfoTitle { width: 400px; height: 34px; flex-shrink: 0; font-size: 23px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .TitleDivider { width: 480px; height: 2px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); border-radius: 1px; }
+    .Btn_close_info { width: 104px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_close_info:hover { background-color: #143650; }
+    .Label_close_info { width: 96px; height: 28px; flex-shrink: 0; font-size: 18px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .InfoRow { width: 480px; height: 36px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
-    .InfoKey { width: 240px; height: 30px; flex-shrink: 0; font-size: 20px; color: #9fc4d8; text-shadow: 1px 1px 4px #00000066; }
+    .InfoKey { width: 240px; height: 30px; flex-shrink: 0; font-size: 20px; color: #8fbcd4; text-shadow: 1px 1px 4px #00000066; }
     .InfoVal { width: 240px; height: 30px; flex-shrink: 0; font-size: 20px; color: #ffe9a8; text-align: right; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
@@ -18,6 +19,7 @@
         <text class="InfoTitle">储量详情</text>
         <button class="Btn_close_info" data-name="Btn_close_info"><text class="Label_close_info">✕ 关闭</text></button>
       </div>
+      <div class="TitleDivider"></div>
       <div class="InfoRow">
         <text class="InfoKey">当前储量</text>
         <text class="InfoVal" data-name="Val_reserve">1000 t</text>

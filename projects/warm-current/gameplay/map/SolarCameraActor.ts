@@ -24,7 +24,8 @@ export class SolarCameraActor extends CameraActor {
 
     this.rig = new CameraRigComponent(this, 'SolarRig')
     this.rig.target = new THREE.Vector3(0, 0, 0)
-    // 真实比例星图：海王星轨道 7525px（AU×250），拉远上限 12000 = 全系统入画 + 余量；
+    // 星图轨道半径：外行星按 AU×250（海王星轨道 7517px），内系统手动重排防拥挤（见 star_map 配置注释）；
+    // 拉远上限 12000 = 全系统入画 + 余量；
     // 拉近下限 60：贴近单颗星球（r 11~96）仍留画面余量
     this.rig.minDistance = 60
     this.rig.maxDistance = 12000
@@ -47,7 +48,7 @@ export class SolarCameraActor extends CameraActor {
   /** 垂直俯视就位（up = 世界 -Z，画布"北"朝屏幕上方；开局对准太阳） */
   place(): void {
     this.rig.target.set(0, 0, 0)
-    const d = 3400 // 开局见内太阳系全景（火星轨道 381 舒适入画，木星轨道 1301 可见外圈）
+    const d = 3400 // 开局见内太阳系全景（火星轨道 680 舒适入画，木星轨道 1301 可见外圈）
     this.camera.up.set(0, 0, -1)
     this.camera.position.set(0, d, 0)
     this.camera.lookAt(this.rig.target)

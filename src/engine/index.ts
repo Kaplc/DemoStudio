@@ -1,4 +1,5 @@
 export { SceneRendererComponent } from './gameflow/SceneRendererComponent'
+export type { SceneRendererComponentOptions, ScenePostProcessOptions, SceneBloomOptions } from './gameflow/SceneRendererComponent'
 export { Compositor2D } from './rendering/Compositor2D'
 export type { SceneRenderHost } from './rendering/SceneRenderHost'
 export { logger, Logger } from './Logger'

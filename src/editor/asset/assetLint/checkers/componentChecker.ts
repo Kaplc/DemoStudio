@@ -431,6 +431,7 @@ class UITooltipComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UITooltipComponent'
   schema: FieldSpec[] = [
     { field: 'properties.text', type: 'string', label: '提示文本' },
+    { field: 'properties.title', type: 'string', label: '标题文本（tooltip 资产内 TooltipTitle 节点）' },
     { field: 'properties.delay', type: 'number', min: 0, label: '悬停延迟（秒）' },
     { field: 'properties.direction', type: 'string', enum: ['top', 'bottom'], label: '弹出方向' },
     { field: 'properties.widgetPath', type: 'string', label: 'tooltip widget 资产路径' },
@@ -468,7 +469,7 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:UIButtonComponent'
   schema: FieldSpec[] = [
     { field: 'properties.pressScale', type: 'number', min: 0, max: 1, label: '按下缩放比例' },
-    { field: 'properties.stateColors', type: 'object', label: '交互态视觉表（HTML 源 :hover/:active/:disabled 编译映射）' },
+    { field: 'properties.stateColors', type: 'object', label: '交互态视觉表（HTML 源 :hover/:active/:disabled/:checked 编译映射）' },
     { field: 'properties.stateColors.hover', type: 'object', label: 'hover 态视觉' },
     { field: 'properties.stateColors.hover.color', type: 'color', label: 'hover 填充色' },
     { field: 'properties.stateColors.hover.opacity', type: 'number', min: 0, max: 1, label: 'hover 不透明度' },
@@ -478,6 +479,9 @@ class UIButtonComponentChecker extends AbstractAssetChecker {
     { field: 'properties.stateColors.disabled', type: 'object', label: 'disabled 态视觉' },
     { field: 'properties.stateColors.disabled.color', type: 'color', label: 'disabled 填充色' },
     { field: 'properties.stateColors.disabled.opacity', type: 'number', min: 0, max: 1, label: 'disabled 不透明度' },
+    { field: 'properties.stateColors.checked', type: 'object', label: 'checked 选中态视觉（btn.checked 驱动）' },
+    { field: 'properties.stateColors.checked.color', type: 'color', label: 'checked 填充色' },
+    { field: 'properties.stateColors.checked.opacity', type: 'number', min: 0, max: 1, label: 'checked 不透明度' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]
 }
@@ -602,13 +606,14 @@ class AtmosphereComponentChecker extends AbstractAssetChecker {
 }
 registerAssetChecker('comp:AtmosphereComponent', AtmosphereComponentChecker)
 
-/** comp:CloudLayerComponent — 行星云层壳：texture 云图路径；altitude 外壳高度倍率 ≥1.01；spin 自转速率 rad/s；opacity [0,1]。 */
+/** comp:CloudLayerComponent — 行星云层壳：texture 云图路径；altitude 外壳高度倍率 ≥1.01；spin 自转速率 rad/s；uvDrift alphaMap 经度漂移速率（UV offset.x/s）；opacity [0,1]。 */
 class CloudLayerComponentChecker extends AbstractAssetChecker {
   readonly kind = 'comp:CloudLayerComponent'
   schema: FieldSpec[] = [
     { field: 'properties.texture', type: 'string', label: '云层贴图路径' },
     { field: 'properties.altitude', type: 'number', min: 1.01, label: '外壳高度倍率' },
     { field: 'properties.spin', type: 'number', label: '自转速率（rad/s）' },
+    { field: 'properties.uvDrift', type: 'number', label: 'UV 漂移速率（offset.x/s）' },
     { field: 'properties.opacity', type: 'number', min: 0, max: 1, label: '不透明度' },
     { field: 'properties.name', type: 'string', label: '组件名' },
   ]

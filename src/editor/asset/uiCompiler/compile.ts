@@ -918,9 +918,9 @@ class Emitter {
         break
     }
 
-    // 非 button 元素携带交互态伪类：引擎仅按钮有 hover/pressed 状态机 → 披露
+    // 非 button 元素携带交互态伪类：引擎仅按钮有 hover/pressed/checked 状态机 → 披露
     for (const [kind, decls] of [
-      [':hover', el.stateDecls.hover], [':active', el.stateDecls.active], [':disabled', el.stateDecls.disabled],
+      [':hover', el.stateDecls.hover], [':active', el.stateDecls.active], [':disabled', el.stateDecls.disabled], [':checked', el.stateDecls.checked],
     ] as Array<[string, Map<string, string>]>) {
       if (decls.size > 0 && box.tag !== 'button') {
         this.warnings.push({
@@ -1632,12 +1632,13 @@ class Emitter {
     return [nums[0], nums[1], nums[2] ?? 0, color]
   }
 
-  /** 按钮交互态（:hover/:active/:disabled）→ UIButtonComponent.stateColors 原生透传（引擎状态机直接驱动视觉 Image） */
+  /** 按钮交互态（:hover/:active/:disabled/:checked）→ UIButtonComponent.stateColors 原生透传（引擎状态机直接驱动视觉 Image） */
   private emitButtonStates(el: StyleElement, node: Record<string, unknown>): void {
-    const states: Array<['hover' | 'active' | 'disabled', Map<string, string>, 'hover' | 'pressed' | 'disabled']> = [
+    const states: Array<['hover' | 'active' | 'disabled' | 'checked', Map<string, string>, 'hover' | 'pressed' | 'disabled' | 'checked']> = [
       ['hover', el.stateDecls.hover, 'hover'],
       ['active', el.stateDecls.active, 'pressed'],
       ['disabled', el.stateDecls.disabled, 'disabled'],
+      ['checked', el.stateDecls.checked, 'checked'],
     ]
     // emitButtonStates 仅由 emitButton 调用（UIButtonComponent 必已发射），兜底防御
     let btnComp = (node.components as Array<{ baseClass: string; properties: Record<string, unknown> }>)
