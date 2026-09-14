@@ -51,7 +51,14 @@ import type { SimBuilding, SimShip, SimState } from './types'
  *      ② supplyStreak/supplyAwarded 新增（旧档补 0/false）；③ SimRoute.direction 扩展
  *      relay_in/relay_out（旧档只有前两值，无需迁移）、SimRoute.stats 补零；
  *      ④ SimState.shipDesigns 新增（旧档补空数组）；⑤ SimBuilding.stockH3 补 0；
- *      ⑥ mods.miningMult 补 1（freshMods 合并兜底）。 */
+ *      ⑥ mods.miningMult 补 1（freshMods 合并兜底）。
+ *  v14 追记（2026-09-14，版本号不 bump）：舱内附件二批（用户拍板 A+B 组五模块，纯表驱动）——
+ *      SimLedger.insuranceRecover 新增（freshLedger 合并兜底，旧档自动补 0）；
+ *      SimShip.modules 允许携带新附件行（cryo_pod/slingshot/insurance_pod/evade_pkg/drone_rack），
+ *      无结构变更、旧档无需迁移。
+ *  v14 追记二（2026-09-14，版本号不 bump，读态兜底）：三部位设计工坊——
+ *      SimPayloadDesign.slotType 新增（部位 payload/fuel/engine；旧档缺省 payload，
+ *      消费侧 `?? 'payload'` 兜底），uid 前缀按部位 pd/fd/ed，旧档无需迁移。 */
 export const SAVE_FORMAT_VERSION = 14
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */

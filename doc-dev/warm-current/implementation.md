@@ -23,7 +23,7 @@ projects/warm-current/
    ├─ base/    WarmCurrentGameMode（组件宿主+VM+指针命中）/ PlayerController（射线∩y=0）/ Pawn / audio
    ├─ core/    balance（B 单例+配置覆盖）/ helpers（纯函数+初始状态）/ types / cards / save（三槽位序列化）
    ├─ systems/ 10 个 BObjectComponent（见下）
-   ├─ map/     StarMapRenderComponent（3D 星图渲染器）+ StarActor（天体蓝图 Actor）/ starTextures（程序化贴图）/ starfieldTile（平铺星空）/ SolarCameraActor（云台相机）
+├─ map/     StarMapRenderComponent（3D 星图渲染器）+ StarActor（天体蓝图 Actor）/ starTextures（程序化贴图 + 全景天空 URL）/ SolarCameraActor（云台相机）
    ├─ menu/    WarmCurrentMenuGameMode / Pawn / PlayerController / MainMenuScript
    ├─ ui/      uiCommon + 15 个 *.script.ts（HudScript / HexModalScript / SettleScript / 各面板）
    └─ gm/      status/h3/node/ship/flare/window/win/sol 八条 GM 命令

@@ -140,11 +140,11 @@ test.describe('warm-current 槽位化 + 玩家设计权探针', () => {
       b.setH3(1e9)
       const slots = b.state().ringSlots
       const rejectedIncompatible = b.buildShipHull('hauler', 'ion_engine')
-      const ok = b.buildShipHull('hauler', 'cargo_pod')
+      const ok = b.buildShipHull('hauler', 'cargo_hold')
       const ledger = b.state().ledger.shipBuild
       b.stepTicks(960) // 16s > 无船坞工期 15s → 下线
       const st = b.state()
-      const launched = st.ships.find((s) => s.hull === 'hauler' && s.modules.includes('cargo_pod'))
+      const launched = st.ships.find((s) => s.hull === 'hauler' && s.modules.includes('cargo_hold'))
       return { slots, rejectedIncompatible, ok, ledger, launched: !!launched, modules: launched ? launched.modules : [] }
     })()`) as { slots: number; rejectedIncompatible: boolean; ok: boolean; ledger: number; launched: boolean; modules: string[] }
     expect(ship.slots).toBe(8)
@@ -152,7 +152,7 @@ test.describe('warm-current 槽位化 + 玩家设计权探针', () => {
     expect(ship.ok).toBe(true)
     expect(ship.ledger).toBe(440) // 整单价 260 + 180（无船坞原价）
     expect(ship.launched).toBe(true)
-    expect(ship.modules).toEqual(['cargo_pod'])
+    expect(ship.modules).toEqual(['cargo_hold'])
 
     // ─── ③ 建筑强化：冷库装拆计费（安装并入 invested / 拆除 20% 不返还）+ 换装吊臂 ───
     const upgrade = await page.evaluate(`(() => {

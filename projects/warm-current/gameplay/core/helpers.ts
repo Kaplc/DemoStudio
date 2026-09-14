@@ -308,6 +308,16 @@ export interface ShipMults {
   workMult: number
   /** 冻毁免疫（guardian 内置 / 防冻加热器，任一即免疫） */
   antiFreeze: boolean
+  /** 挂靠中转站时该站 H3 缓存上限乘区（低温中转罐；缺省 1） */
+  bufferCapMult: number
+  /** 引力窗口内油耗折价加深乘区（引力弹弓计算器；缺省 1，窗外不生效） */
+  windowFuelMult: number
+  /** 耀斑冻毁货物损失乘区（货损保险舱；缺省 1） */
+  flareLossMult: number
+  /** 耀斑自动规避（耀斑规避程序；任一件即真） */
+  autoEvade: boolean
+  /** 舰队维护费分摊乘区（维护无人机架；缺省 1） */
+  maintMult: number
 }
 
 /** 本船船型定义（未知船型兜底 standard 表行；表被清空时 null） */
@@ -384,6 +394,11 @@ export function shipMults(ship: Pick<SimShip, 'hull' | 'modules'>): ShipMults {
     speedMult: hull?.speedMult ?? 1,
     workMult: 1,
     antiFreeze: hull?.innate.includes('anti_freeze') ?? false,
+    bufferCapMult: 1,
+    windowFuelMult: 1,
+    flareLossMult: 1,
+    autoEvade: false,
+    maintMult: 1,
   }
   for (const id of ship.modules ?? []) {
     const def: ShipModuleDef | null = shipModuleDefOf(id)
@@ -394,6 +409,11 @@ export function shipMults(ship: Pick<SimShip, 'hull' | 'modules'>): ShipMults {
     if (e.speedMult !== undefined) m.speedMult *= e.speedMult
     if (e.workMult !== undefined) m.workMult *= e.workMult
     if (e.antiFreeze) m.antiFreeze = true
+    if (e.bufferCapMult !== undefined) m.bufferCapMult *= e.bufferCapMult
+    if (e.windowFuelMult !== undefined) m.windowFuelMult *= e.windowFuelMult
+    if (e.flareLossMult !== undefined) m.flareLossMult *= e.flareLossMult
+    if (e.autoEvade) m.autoEvade = true
+    if (e.maintMult !== undefined) m.maintMult *= e.maintMult
   }
   return m
 }
@@ -411,14 +431,14 @@ export function freshLedger(): SimLedger {
   return {
     unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0, orbitBuild: 0,
     shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0, ringInstall: 0, buildingUpgrade: 0,
-    mineBuild: 0, mining: 0,
+    mineBuild: 0, mining: 0, insuranceRecover: 0,
   }
 }
 
 /** 账本收支合计（旧档缺 ledger 字段时按零账本计） */
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
-  const income = l.unload + l.demolishRefund + l.mining
+  const income = l.unload + l.demolishRefund + l.mining + (l.insuranceRecover ?? 0)
   const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.mineBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade
   return { income, expense, net: income - expense }
 }
@@ -523,26 +543,46 @@ export const SLOT_TYPE_NAMES: Record<string, string> = {
 
 // ─── 荷载设计工坊（2026-09-13：主体+附件合成一件自定义荷载，纯函数供 GameMode/面板共用） ───
 
+// ─── 设计工坊合成器（2026-09-14 三部位泛化：荷载/燃料/引擎皆可设计） ───
+
+/** 部位 → 主体角色字段名（ship_module 表行上的 role 键；设计工坊/装配台/合成器共用，改口径只改此处） */
+export const SLOT_ROLE_KEY: Record<string, string> = {
+  payload: 'payloadRole',
+  fuel: 'fuelRole',
+  engine: 'engineRole',
+}
+
+/** 设计部位（SimPayloadDesign.slotType）→ 合成件槽型（同部位直通；旧档未知值兜底 payload） */
+function designSlotType(slotType: string): string {
+  return slotType in SLOT_ROLE_KEY ? slotType : 'payload'
+}
+
 /**
- * 荷载设计 → 合成模块定义（主体无效/非 chassis = null；纯函数读静态表）：
- * 效果 = 主体 × 各附件乘算叠乘（antiFreeze 一票即真），造价 = (主体 + Σ附件) × 组装溢价（5 取整），
- * 槽型恒为 payload——多附件并一件占 1 荷载槽，槽位效率是 15% 溢价买来的核心价值。
+ * 设计 → 合成模块定义（三部位通用，纯函数读静态表）：
+ *  - 部位由 d.slotType 决定（payload/fuel/engine；旧档缺省 payload），合成件 slotType 随部位——
+ *    多附件并一件占对应槽位，槽位效率是 15% 溢价买来的核心价值；
+ *  - 主体校验 = 该部位角色键（payloadRole/fuelRole/engineRole）=== 'chassis'（部位选错 = null）；
+ *  - 附件合成不拒部位（payloadRole='attachment' 的改装件，旧档跨部位设计宽容；工坊编辑区勾选按 fits 契合收敛），乘算叠乘，
+ *    antiFreeze/autoEvade 一票即真；
+ *  - 造价 = (主体 + Σ附件) × 组装溢价（5 取整）。
  */
 export function payloadDesignModuleDef(d: SimPayloadDesign): ShipModuleDef | null {
+  const slot = designSlotType(d.slotType)
   const chassis = shipModuleDefOf(d.chassis)
-  if (!chassis || chassis.payloadRole !== 'chassis') return null
+  if (!chassis || (chassis as unknown as Record<string, unknown>)[SLOT_ROLE_KEY[slot]] !== 'chassis') return null
   const mods: ShipModuleDef['mods'] = { ...chassis.mods }
   let cost = chassis.cost
   const parts: string[] = []
   for (const id of d.attachments) {
     const def = shipModuleDefOf(id)
     if (!def || def.payloadRole !== 'attachment') continue
-    for (const key of ['loadMult', 'fuelMult', 'speedMult', 'workMult'] as const) {
+    for (const key of ['loadMult', 'fuelMult', 'speedMult', 'workMult', 'bufferCapMult', 'windowFuelMult', 'flareLossMult', 'maintMult'] as const) {
       const a = mods[key]
       const b = def.mods[key]
       if (a !== undefined || b !== undefined) mods[key] = (a ?? 1) * (b ?? 1)
     }
     if (def.mods.antiFreeze) mods.antiFreeze = true
+    if (def.mods.autoEvade) mods.autoEvade = true
     cost += def.cost
     parts.push(def.name)
   }
@@ -550,29 +590,30 @@ export function payloadDesignModuleDef(d: SimPayloadDesign): ShipModuleDef | nul
     name: d.name,
     desc: `${chassis.name}${parts.length ? ` + ${parts.join(' + ')}` : ''}`,
     cost: Math.round((cost * PAYLOAD_ASSEMBLY_MULT) / 5) * 5,
-    slotType: 'payload',
+    slotType: slot,
     mods,
   }
 }
 
-/** 荷载设计清单 → 自定义模块注册表投影（setDynamicShipModules 入参；无效设计跳过） */
+/** 荷载设计清单 → 自定义模块注册表投影（setDynamicShipModules 入参；无效设计跳过，旧档缺 slotType 按荷载部位） */
 export function payloadDesignDefsOf(designs: SimPayloadDesign[]): Record<string, ShipModuleDef> {
   const out: Record<string, ShipModuleDef> = {}
   for (const d of designs) {
-    const def = payloadDesignModuleDef(d)
+    const def = payloadDesignModuleDef({ ...d, slotType: d.slotType ?? 'payload' })
     if (def) out[d.uid] = def
   }
   return out
 }
 
-/** 下一个荷载设计 uid（pdN 取现存最大 N+1；删除后不复用，存档 ships/模板引用永不断链） */
-export function nextPayloadUid(designs: SimPayloadDesign[]): string {
+/** 下一个设计 uid（部位前缀 pd/fd/ed + 现存最大 N+1；删除后不复用，存档引用永不断链） */
+export function nextPayloadUid(designs: SimPayloadDesign[], slotType: string): string {
+  const prefix = slotType === 'fuel' ? 'fd' : slotType === 'engine' ? 'ed' : 'pd'
   let max = 0
   for (const d of designs) {
-    const m = /^pd(\d+)$/.exec(d.uid)
+    const m = new RegExp(`^${prefix}(\\d+)$`).exec(d.uid)
     if (m) max = Math.max(max, Number(m[1]))
   }
-  return `pd${max + 1}`
+  return `${prefix}${max + 1}`
 }
 
 /** 试航预估结果（给定船级配置 × 目标星的一条往返账；读态即得，不改状态） */
@@ -838,10 +879,16 @@ export function legSeconds(distCoeff: number, speedMult: number): number {
   return (distCoeff * B.baseLegSeconds) / Math.max(0.1, speedMult)
 }
 
-/** 往返油耗 = 2 × 距离系数 × 基础油耗 × 油耗乘区（× 引力窗口折价 × 船级油耗乘区） */
+/** 往返油耗 = 2 × 距离系数 × 基础油耗 × 油耗乘区（× 引力窗口折价 × 船级油耗乘区；
+ *  2026-09-14 舱内附件二批：引力弹弓计算器在窗口内再加深 ×windowFuelMult，B.convoyFuelFloor 封底——
+ *  地板 = 基础油耗 × floor（默认 0.2），窗口折价与加深叠乘不得击穿） */
 export function roundFuel(mods: SimState['mods'], distCoeff: number, windowMult = 1, ship?: Pick<SimShip, 'hull' | 'modules'>, ring?: RingModSet): number {
-  const shipMult = ship ? shipMults(ship).fuelMult : 1
-  return 2 * distCoeff * B.baseBurnPerLeg * mods.fuelMult * windowMult * shipMult
+  const shipMult = ship ? shipMults(ship) : null
+  let windowed = windowMult
+  if (windowMult !== 1 && shipMult) {
+    windowed = Math.max(B.convoyFuelFloor, windowMult * shipMult.windowFuelMult)
+  }
+  return 2 * distCoeff * B.baseBurnPerLeg * mods.fuelMult * windowed * (shipMult?.fuelMult ?? 1)
 }
 
 /**

@@ -253,8 +253,10 @@ export default class ShipyardPanelScript extends BehaviourScript {
     const mode = wcMode()
     if (!world || !list || !mode) return
     const sel = yd.selSlot
+    // 荷载槽口径（2026-09-14）：清单只出玩家保存的荷载设计，空清单 = 引导去工坊合成
+    const emptyPayload = !!sel && sel.type === 'payload' && yd.slotOptions.length === 0
     this.binder.set(findText(this.actor, 'ModuleTitle'), sel
-      ? `② 本船插件 · ${sel.typeName}（${sel.used}/${sel.cap}）`
+      ? `② 本船插件 · ${sel.typeName}（${sel.used}/${sel.cap}）${emptyPayload ? ' · 尚无设计，去「荷载设计」合成一件' : ''}`
       : '② 本船插件（点部位选件 · 可不配）')
     this.optionIds = yd.slotOptions.map((o) => o.id)
     while (this.optionCells.length < yd.slotOptions.length) {

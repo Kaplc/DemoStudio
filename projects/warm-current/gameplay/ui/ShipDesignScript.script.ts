@@ -185,8 +185,10 @@ export default class ShipDesignScript extends BehaviourScript {
     const mode = wcMode()
     if (!world || !list || !mode) return
     const sel = vm.selSlot
+    // 荷载槽口径（2026-09-14）：清单只出玩家保存的荷载设计，空清单 = 引导去工坊合成
+    const emptyPayload = !!sel && sel.type === 'payload' && vm.slotOptions.length === 0
     this.binder.set(findText(this.actor, 'ModuleTitle'), sel
-      ? `② 部件选择 · ${sel.typeName}（${sel.used}/${sel.cap}）`
+      ? `② 部件选择 · ${sel.typeName}（${sel.used}/${sel.cap}）${emptyPayload ? ' · 尚无设计，去「荷载设计」合成一件' : ''}`
       : '② 部件选择（点击装配台部位）')
     this.optionIds = vm.slotOptions.map((o) => o.id)
     while (this.optionCells.length < vm.slotOptions.length) {

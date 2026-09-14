@@ -120,16 +120,17 @@ test.describe('warm-current 火箭设计工坊', () => {
       // ── 部位选件制（火箭三部位：payload 荷载 / fuel 燃料 / engine 引擎） ──
       m.selectShipyardSlot('payload', 0)
       const vm2 = b.vm().shipDesign
-      const options = vm2.slotOptions.length          // payload 槽型 6 件现货（3 货舱档 + 泵×2 + 加热器）
+      const options = vm2.slotOptions.length          // 2026-09-14 口径：荷载部位清单只出玩家保存的设计（无设计 = 0 行，现货舱内件收口工坊合成）
       const selTypeName = vm2.selSlot ? vm2.selSlot.typeName : ''
-      m.pickShipyardSlotModule('payload', 0, 'cargo_x') // 空槽装入高档
+      // 部位选件机制（装入/对调/换装/卸下）经共享选择态在数据层验证（pickShipyardSlotModule 校验不依赖清单渲染）
+      m.pickShipyardSlotModule('payload', 0, 'cargo_hold') // 空槽装入固体货仓（×1.3）
       m.selectShipyardSlot('payload', 1)
-      m.pickShipyardSlotModule('payload', 1, 'cargo_s') // 第二荷载装低档
+      m.pickShipyardSlotModule('payload', 1, 'cryo_tank') // 第二荷载装低温液罐（×1.1）
       m.selectShipyardSlot('payload', 0)
-      m.pickShipyardSlotModule('payload', 0, 'cargo_s') // 目标件已装另一实例 → 对调
+      m.pickShipyardSlotModule('payload', 0, 'cryo_tank') // 目标件已装另一实例 → 对调
       const afterSwap = b.vm().shipDesign.slotCells.filter((c) => c.type === 'payload').map((c) => c.module)
-      m.pickShipyardSlotModule('payload', 0, 'cargo_pod') // 原位换装：轻量 → 标准
-      m.pickShipyardSlotModule('payload', 0, 'cargo_pod') // 再点已装件 = 卸下
+      m.pickShipyardSlotModule('payload', 0, 'cargo_hold') // 原位换装：低温液罐 → 固体货仓
+      m.pickShipyardSlotModule('payload', 0, 'cargo_hold') // 再点已装件 = 卸下
       m.pickShipyardSlotModule('fuel', 0, 'aux_tank')   // hauler 不兼容副油箱 → 拒绝
       const vm3 = b.vm().shipDesign
       return {
@@ -140,15 +141,15 @@ test.describe('warm-current 火箭设计工坊', () => {
       }
     }`)
     expect(designed.toggled).toBe(2)                  // 旧入口：货舱+货泵 = 2 格填充（泵现占荷载槽）
-    expect(designed.options).toBe(6)                  // payload 槽型 6 件现货部件
+    expect(designed.options).toBe(0)                  // 2026-09-14 口径：荷载部位清单只出玩家保存的设计（现货舱内件收口工坊合成）
     expect(designed.selTypeName).toBe('荷载')
-    expect(designed.afterSwap).toEqual(['轻量货舱', '特扩货舱'])  // 对调：#0↔#1
+    expect(designed.afterSwap).toEqual(['低温液罐', '固体货仓'])  // 对调：#0↔#1
     // 卸下 #0 后同型实例左移补位（清单序派生：模块清单唯一权威，同类槽位互换数值不变）
-    expect(designed.finalCells).toEqual(['特扩货舱', '', ''])
+    expect(designed.finalCells).toEqual(['固体货仓', '', ''])
     expect(designed.slotLine2).toContain('荷载 1/2')
     expect(designed.slotLine2).toContain('燃料 0/1')  // allowed 拒绝 aux_tank
     expect(designed.slotLine2).not.toContain('功能')  // 功能槽已下线（2026-09-13 三部位改版）
-    expect(designed.price2).toBe(260 + 300)           // hauler 船体 + 特扩货舱
+    expect(designed.price2).toBe(260 + 180)           // hauler 船体 + 固体货仓
 
     // ── 3. 试航卡：月球吞吐率 > 0、未解锁木卫二标幕数、反推非负 ──
     const trials = await evalInGame<Array<{ star: string; unlocked: boolean; throughput: number; shipsForGap: number }>>(page, `() => {

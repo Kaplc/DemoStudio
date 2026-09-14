@@ -27,6 +27,8 @@ import jupiterUrl from '../../asset/textures/jupiter.jpg'
 import saturnUrl from '../../asset/textures/saturn.jpg'
 import uranusUrl from '../../asset/textures/uranus.jpg'
 import neptuneUrl from '../../asset/textures/neptune.jpg'
+// 银河全景（天空盒背景）：SSS galaxy_starfield，4096×2048 equirect，CC BY 4.0 同源
+import galaxySkyUrl from '../../asset/textures/galaxy_starfield.jpg'
 
 /** 天体 → SSS 真贴图 URL（官方未提供的 europa/未知天体不在表中 → null） */
 export function bodyTextureUrl(bodyId: string): string | null {
@@ -246,6 +248,16 @@ export function makeStarTexture(bodyId: string): THREE.CanvasTexture | null {
  */
 export function starTextureFor(bodyId: string): string | THREE.Texture | null {
   return bodyTextureUrl(bodyId) ?? makeStarTexture(bodyId)
+}
+
+/**
+ * 星空全景贴图统一入口（场景背景天空盒）：SSS 银河全景 equirect，
+ * 调用方经 Image 异步解码后走 SceneComponent.setBackgroundTexture。
+ * URL import 恒非空（构建期保证资产存在），返回 string | null 对齐
+ * bodyTextureUrl 签名便于测试与未来多天空切换扩展。
+ */
+export function skyTextureUrl(): string | null {
+  return galaxySkyUrl
 }
 
 // ─── 地球特写增强贴图（观察模式：地形凹凸）───

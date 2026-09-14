@@ -1,7 +1,7 @@
 {
   "name": "ShipyardPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-7ddb2e3d",
+  "sourceHash": "fnv1a-891c198a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1003,6 +1003,8 @@
                                 "mode": "vertical",
                                 "spacingX": 0,
                                 "spacingY": 6,
+                                "justify": "start",
+                                "autoHeight": true,
                                 "autoLayout": true
                               }
                             }
@@ -3439,10 +3441,10 @@
                                   1
                                 ],
                                 "worldWidth": 720,
-                                "worldHeight": 210,
+                                "worldHeight": 272,
                                 "position": [
                                   0,
-                                  -65,
+                                  -96,
                                   0
                                 ]
                               }
@@ -3461,6 +3463,8 @@
                                 "mode": "vertical",
                                 "spacingX": 0,
                                 "spacingY": 6,
+                                "justify": "start",
+                                "autoHeight": true,
                                 "autoLayout": true
                               }
                             }
@@ -4288,6 +4292,8 @@
                                 "mode": "vertical",
                                 "spacingX": 0,
                                 "spacingY": 4,
+                                "justify": "start",
+                                "autoHeight": true,
                                 "autoLayout": true
                               }
                             }

@@ -9,51 +9,57 @@
     .Btn_pd_close { box-sizing: border-box; width: 130px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
     .Btn_pd_close:hover { background-color: #143650; }
     .Label_pd_close { width: 120px; height: 30px; font-size: 19px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .MainRow { width: 1880px; height: 900px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
-    .TopRow { width: 1880px; height: 260px; flex-shrink: 0; display: flex; flex-direction: row; gap: 16px; }
-    .ChassisCol { width: 932px; height: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
-    .AttachCol { width: 932px; height: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    .TabRow { width: 1880px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; gap: 14px; align-items: center; }
+    .Btn_pd_tab { box-sizing: border-box; width: 220px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_pd_tab:hover { background-color: #143650; }
+    .Label_pd_tab_payload, .Label_pd_tab_fuel, .Label_pd_tab_engine { width: 200px; height: 32px; font-size: 19px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .MainRow { width: 1880px; height: 528px; flex-shrink: 0; display: flex; flex-direction: row; gap: 16px; }
+    .LeftCol { width: 932px; height: 528px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+    .RightCol { width: 932px; height: 528px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
     .StepTitle { height: 26px; flex-shrink: 0; font-size: 17px; color: #4fd8ff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .ChassisTitle { width: 720px; }
     .AttachTitle { width: 720px; }
-    .ChassisList { width: 720px; height: 220px; flex-shrink: 0; }
-    .AttachmentList { width: 720px; height: 220px; flex-shrink: 0; }
-    .SynthRow { width: 1880px; height: 120px; flex-shrink: 0; display: flex; flex-direction: row; gap: 16px; }
-    .SynthText { box-sizing: border-box; width: 1290px; height: 110px; flex-shrink: 0; font-size: 16px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; background-color: #0a1826; border: 1px dashed #235066; padding: 8px 12px; }
-    .Btn_pd_save { box-sizing: border-box; width: 574px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .ChassisList { width: 720px; height: 240px; flex-shrink: 0; }
+    .AttachmentList { width: 720px; height: 554px; flex-shrink: 0; }
+    .SynthText { box-sizing: border-box; width: 932px; height: 200px; flex-shrink: 0; font-size: 16px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; background-color: #0a1826; border: 1px dashed #235066; padding: 8px 12px; }
+    .Btn_pd_save { box-sizing: border-box; width: 932px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
     .Btn_pd_save:hover { background-color: #143650; }
-    .Label_pd_save { width: 560px; height: 32px; font-size: 17px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
-    .DesignTitle { width: 1880px; }
-    .DesignList { width: 1880px; height: 260px; flex-shrink: 0; }
-    .Btn_pd_ddel { box-sizing: border-box; width: 574px; height: 46px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Label_pd_save { width: 916px; height: 32px; font-size: 17px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .DesignTitleRow { width: 1880px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .DesignTitle { width: 1400px; }
+    .Btn_pd_ddel { box-sizing: border-box; width: 400px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
     .Btn_pd_ddel:hover { background-color: #143650; }
-    .Label_pd_ddel { width: 560px; height: 28px; font-size: 16px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Label_pd_ddel { width: 388px; height: 28px; font-size: 15px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .DesignList { width: 1880px; height: 210px; flex-shrink: 0; }
     .BottomHint { width: 1880px; height: 26px; flex-shrink: 0; font-size: 15px; color: #6f8ba0; text-shadow: 1px 1px 4px #00000066; }
   </style>
   <div class="Root">
     <div class="PanelRoot" data-name="PanelRoot">
       <div class="PayloadBody" data-name="PayloadBody">
-        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">🧩 荷载设计工坊</text><text class="StatusText" data-name="StatusText"></text><button class="Btn_pd_close" data-name="Btn_pd_close"><text class="Label_pd_close">✕ 关闭</text></button></div>
+        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">🧩 设计工坊</text><text class="StatusText" data-name="StatusText"></text><button class="Btn_pd_close" data-name="Btn_pd_close"><text class="Label_pd_close">✕ 关闭</text></button></div>
+        <div class="TabRow" data-name="TabRow">
+          <button class="Btn_pd_tab" data-name="Btn_pd_tab_payload"><text class="Label_pd_tab_payload">🧩 荷载</text></button>
+          <button class="Btn_pd_tab" data-name="Btn_pd_tab_fuel"><text class="Label_pd_tab_fuel">⛽ 燃料</text></button>
+          <button class="Btn_pd_tab" data-name="Btn_pd_tab_engine"><text class="Label_pd_tab_engine">🚀 引擎</text></button>
+        </div>
         <div class="MainRow" data-name="MainRow">
-          <div class="TopRow" data-name="TopRow">
-            <div class="ChassisCol" data-name="ChassisCol">
-              <text class="StepTitle ChassisTitle" data-name="ChassisTitle">① 荷载主体（单选）</text>
-              <div class="ChassisList" data-name="ChassisList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
-            </div>
-            <div class="AttachCol" data-name="AttachCol">
-              <text class="StepTitle AttachTitle" data-name="AttachTitle">② 舱内附件（多选勾选）</text>
-              <div class="AttachmentList" data-name="AttachmentList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
-            </div>
-          </div>
-          <div class="SynthRow" data-name="SynthRow">
+          <div class="LeftCol" data-name="LeftCol">
+            <text class="StepTitle ChassisTitle" data-name="ChassisTitle">① 荷载主体（单选）</text>
+            <div class="ChassisList" data-name="ChassisList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"justify":"start","autoHeight":true,"autoLayout":true}'></div>
             <text class="SynthText" data-name="SynthText">③ 合成预览</text>
-            <button class="Btn_pd_save" data-name="Btn_pd_save"><text class="Label_pd_save">💾 存为荷载模板（火箭「荷载」槽可选装）</text></button>
+            <button class="Btn_pd_save" data-name="Btn_pd_save"><text class="Label_pd_save Btn_save_label" data-name="Btn_save_label">💾 存为荷载模板（火箭「荷载」槽可选装）</text></button>
           </div>
+          <div class="RightCol" data-name="RightCol">
+            <text class="StepTitle AttachTitle" data-name="AttachTitle">② 舱内附件（多选勾选）</text>
+            <div class="AttachmentList" data-name="AttachmentList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"justify":"start","autoHeight":true,"autoLayout":true}'></div>
+          </div>
+        </div>
+        <div class="DesignTitleRow" data-name="DesignTitleRow">
           <text class="StepTitle DesignTitle" data-name="DesignTitle">已存荷载设计（点击载入编辑区）</text>
-          <div class="DesignList" data-name="DesignList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
           <button class="Btn_pd_ddel" data-name="Btn_pd_ddel"><text class="Label_pd_ddel">🗑 删除所选荷载（被引用时不可删）</text></button>
         </div>
-        <text class="BottomHint" data-name="BottomHint">提示：① 选荷载主体 → ② 勾舱内附件（可多件）→ 合成为一件自定义荷载（造价含组装溢价，只占 1 个荷载槽）→ 存为模板；回到火箭设计工坊点「荷载」部位即可选装；已被飞船/船型模板引用的荷载不可删除。</text>
+        <div class="DesignList" data-name="DesignList" data-comp="UILayout" data-props='{"mode":"grid","columns":2,"spacingX":440,"spacingY":6,"justify":"start","autoHeight":true,"autoLayout":true}'></div>
+        <text class="BottomHint" data-name="BottomHint">提示：部位页签切换（荷载/燃料/引擎）→ ① 选该部位主体 → ② 勾改装件（须契合主体，可多件）→ 合成为一件自定义部件（造价含组装溢价，占对应部位 1 槽）→ 存为模板；火箭设计工坊各部位槽只显示已保存的设计（现货档位件仅作合成原料）；已被飞船/船型模板引用的设计不可删除。</text>
       </div>
     </div>
   </div>

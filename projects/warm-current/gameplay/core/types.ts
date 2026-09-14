@@ -242,6 +242,8 @@ export interface SimLedger {
   ringInstall: number
   /** 地图建筑强化：安装费（拆除费不返还也不计账——纯损耗） */
   buildingUpgrade: number
+  /** 保险抢救到账（2026-09-14 舱内附件二批：货损保险舱耀斑冻毁损失减半的 H3 回款，收入项） */
+  insuranceRecover: number
 }
 
 export type SimEventType =
@@ -262,6 +264,7 @@ export type SimEventType =
   | 'flare_start'
   | 'flare_end'
   | 'frozen'
+  | 'insurance_recover'
   | 'building_built'
   | 'orbit_building_built'
   | 'mine_built'
@@ -286,13 +289,15 @@ export interface SimEvent {
 }
 
 /** 荷载设计模板行（2026-09-13 荷载设计工坊：主体 chassis + 附件 attachments 合成一件自定义荷载；
- *  uid = 稳定 id（pd1/pd2…，删除后不复用），SimShip.modules 与船型模板以 uid 引用合成件） */
+ *  uid = 稳定 id（部位前缀 pd/fd/ed + 递增，删除后不复用），SimShip.modules 与船型模板以 uid 引用合成件） */
 export interface SimPayloadDesign {
   uid: string
   name: string
-  /** 主体模块 id（ship_module 表 payloadRole='chassis' 行键，如 cargo_pod） */
+  /** 部位（payload/fuel/engine；合成件 slotType 与装配台槽位归属随此字段；旧档缺省 = payload） */
+  slotType: string
+  /** 主体模块 id（ship_module 表 chassis 行键，如 cargo_hold/cryo_tank/aux_tank/ion_engine） */
   chassis: string
-  /** 附件模块 id 清单（payloadRole='attachment' 行键，如 pump/heater；单设计同件至多一件） */
+  /** 附件模块 id 清单（attachment 行键，跨部位通用改装件池；单设计同件至多一件） */
   attachments: string[]
 }
 

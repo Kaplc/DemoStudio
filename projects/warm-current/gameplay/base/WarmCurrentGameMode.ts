@@ -11,9 +11,9 @@
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
  * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
-import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent } from '@/engine'
+import { CameraComponent, GameMode, Instantiate, SphereMeshComponent, audioSys, logger, AtmosphereComponent, LoadingSettle } from '@/engine'
 import * as THREE from 'three'
-import { starTextureFor } from '../map/starTextures'
+import { starTextureFor, skyTextureUrl } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
 import type { BuildingDef, BuildingUpgradeDef, OrbitBuildingDef, RingBuildingDef, ShipHullDef, ShipModuleDef, SolarFocusBody } from '../core/balance'
 import type { CardDef } from '../core/balance'
@@ -26,7 +26,7 @@ import {
   fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, pendingRingNodeCount, placedRingNodes, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, ringModsOf, roundFuel, routeCycleSeconds, snapToGrid,
   routeNetPerTrip, shipHullDefOf, shipModuleDefOf, shipPos, starLoad, starOfEndpoint, starPosAt,
   supplyRateOf, starStockOf, starStockCapOf, starMiningRate, shipTrialOf, shipsNeededFor,
-  hullSlotCapacity, modulesSlotUsage, hullHasSlotFor, hullAllowsModule, SLOT_TYPE_NAMES, shipBuildPrice,
+  hullSlotCapacity, modulesSlotUsage, hullHasSlotFor, hullAllowsModule, SLOT_ROLE_KEY, SLOT_TYPE_NAMES, shipBuildPrice,
   nextPayloadUid, payloadDesignDefsOf, payloadDesignModuleDef, setDynamicShipModules, shipModuleEntries, isDynamicShipModule,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
@@ -72,6 +72,9 @@ const PLANET_NAMES: Record<string, string> = {
   earth: '地球', mercury: '水星', venus: '金星',
   jupiter: '木星', saturn: '土星', uranus: '天王星', neptune: '海王星',
 }
+
+/** 天空全景 LoadingSettle 任务序号（多局/重入保证任务 id 唯一，对齐 starTextures 惯例） */
+let skySettleSeq = 0
 
 function segDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
   const abx = b.x - a.x
@@ -383,9 +386,13 @@ export interface HudPayloadRow {
  *  编辑区选主体/勾附件 → 合成预览（效果/造价）→ 存为荷载模板；
  *  模板在火箭设计工坊的「荷载」槽位部位清单里可选装） */
 export interface HudPayloadDesign {
-  /** 荷载主体行（ship_module payloadRole='chassis' 行，表序） */
+  /** 部位页签（payload/fuel/engine 固定三页；2026-09-14 三部位工坊） */
+  tabs: Array<{ type: string; name: string }>
+  /** 当前页签（payload/fuel/engine） */
+  selTab: string
+  /** 当前页主体行（按部位角色过滤 payloadRole/fuelRole/engineRole='chassis'，表序） */
   chassis: HudModuleRow[]
-  /** 舱内附件行（payloadRole='attachment' 行，表序；勾选多选） */
+  /** 改装件池行（attachment 行，跨部位通用，表序；勾选多选） */
   attachments: HudModuleRow[]
   /** 编辑区当前选中主体 id */
   selChassis: string
@@ -743,7 +750,52 @@ export class WarmCurrentGameMode extends GameMode {
     this.cameraActor.place()
     // 开局即地球系取景：只看地月小星系（其余星球未解锁，全景留给右下角视角切换）
     this.focusSolarSystem('earth')
+    // 银河全景天空（SSS equirect → scene.background）：异步解码不阻塞取景，失败走纯黑兜底
+    this.applySkyTexture()
     logger.info('[WarmCurrent] 开局取景：地球系（地月小星系）')
+  }
+
+  /**
+   * 星空全景天空装配（SSS 银河全景 equirect → scene.background 天空盒渲染）：
+   * Image 异步解码后经 SceneComponent.setBackgroundTexture 上屏（引擎统一设置
+   * mapping/colorSpace）。加载失败静默保持纯黑背景（2026-09-07 拍板的兜底口径；
+   * 2026-09-14 起为唯一兜底——程序化星空瓦片已整体移除）。登记 LoadingSettle
+   * 供 loading 面板等待（对齐 Earth 海洋粗糙度贴图惯例；id 带序号防重入提前 settle）。
+   * 无 DOM 环境（单测）直接返回。
+   */
+  /** 当前装配的天空背景纹理（替换/EndPlay 时 dispose，防同 World 多局累积泄漏） */
+  private skyTex: THREE.Texture | null = null
+
+  private applySkyTexture(): void {
+    const url = skyTextureUrl()
+    if (!url || typeof Image === 'undefined') return
+    const world = this.world
+    if (!world) {
+      logger.warn('[WarmCurrent] 银河全景天空跳过：InitGame 阶段 World 未就绪')
+      return
+    }
+    const finishSettle = LoadingSettle.task('scene-enter', `warm-sky-panorama#${++skySettleSeq}`)
+    const img = new Image()
+    img.onload = () => {
+      try {
+        // 旧天空纹理（上一局装配的）先行释放，再挂新纹理
+        this.skyTex?.dispose()
+        const tex = new THREE.Texture(img)
+        tex.needsUpdate = true
+        this.skyTex = tex
+        world.sceneComp.setBackgroundTexture(tex)
+        logger.info('[WarmCurrent] 银河全景天空装配完成（SSS equirect → scene.background）')
+      } catch (err) {
+        logger.warn(`[WarmCurrent] 银河全景天空装配失败（保持纯黑兜底）: ${err instanceof Error ? err.message : String(err)}`)
+      } finally {
+        finishSettle()
+      }
+    }
+    img.onerror = () => {
+      logger.warn('[WarmCurrent] 银河全景贴图加载失败，保持纯黑兜底')
+      finishSettle()
+    }
+    img.src = url
   }
 
   override spawnPlayerInternal() {
@@ -1147,6 +1199,9 @@ export class WarmCurrentGameMode extends GameMode {
     // 相机 Actor 是 GameMode 自建自管的（非场景资产节点），销毁时走 Actor 统一销毁
     // （已托管 → World 销毁队列；未托管 → 本地 EndPlay，hoi4 同款）
     this.cameraActor.destroy()
+    // 天空背景纹理 GameMode 持引用装配（不在 factory 追踪体系），EndPlay 统一释放
+    this.skyTex?.dispose()
+    this.skyTex = null
     super.EndPlay()
   }
 
@@ -1414,15 +1469,26 @@ export class WarmCurrentGameMode extends GameMode {
   /** 荷载设计面板开合（null 语义 = 收起；PayloadDesignScript 消费，与火箭设计居中互斥） */
   payloadDesignOpen = false
 
-  /** 荷载编辑区当前选中主体（chassis 模块 id；默认标准货舱） */
-  payloadEdChassis = 'cargo_pod'
+  /** 设计工坊当前部位页签（payload/fuel/engine；三部位统一设计流，2026-09-14 泛化） */
+  payloadEdTab: 'payload' | 'fuel' | 'engine' = 'payload'
+
+  /** 荷载编辑区当前选中主体（chassis 模块 id；默认固体货仓） */
+  payloadEdChassis = 'cargo_hold'
 
   /** 荷载编辑区当前勾选附件（attachment 模块 id 清单；单设计同件至多一件） */
   payloadEdAttachments: string[] = []
 
+  /** 改装件是否契合部位（2026-09-14 用户口径：附件要契合当前选择的主体——
+   *  表行 fits 声明可搭部位清单，缺省 = 通用件；合成宽放行、编辑区严收敛，同一谓词） */
+  private fitsAttachment(moduleId: string, slotType: 'payload' | 'fuel' | 'engine'): boolean {
+    const fits = shipModuleDefOf(moduleId)?.fits
+    return !Array.isArray(fits) || fits.length === 0 || fits.includes(slotType)
+  }
+
   /** 打开荷载设计面板（火箭设计工坊「荷载设计」按钮；与火箭设计互斥开合） */
   openPayloadDesign(): void {
     this.payloadDesignOpen = true
+    this.payloadEdTab = 'payload'
     this.designOpen = false
     this.planetInfoSel = null
     this.shipyardSel = null
@@ -1436,31 +1502,49 @@ export class WarmCurrentGameMode extends GameMode {
     this.payloadDesignOpen = false
   }
 
-  /** 荷载编辑区选主体（单选；非法 id 忽略） */
+  /** 切换设计工坊部位页签（payload/fuel/engine；主体跨页保持，附件按 fits 契合收敛） */
+  selectPayloadTab(tab: 'payload' | 'fuel' | 'engine'): void {
+    if (tab !== 'payload' && tab !== 'fuel' && tab !== 'engine') return
+    this.payloadEdTab = tab
+    // 改装件契合主体：切页自动剔除不适配已勾件（保证「勾选清单 = 可保存清单」）
+    this.payloadEdAttachments = this.payloadEdAttachments.filter((id) => this.fitsAttachment(id, tab))
+  }
+
+  /** 荷载编辑区选主体（单选；非法 id 忽略；角色键 = SLOT_ROLE_KEY 单一数据源） */
   selectPayloadChassis(moduleId: string): void {
-    if (shipModuleDefOf(moduleId)?.payloadRole !== 'chassis') return
+    const roleKey = SLOT_ROLE_KEY[this.payloadEdTab] ?? 'payloadRole'
+    if ((shipModuleDefOf(moduleId) as unknown as Record<string, unknown> | null)?.[roleKey] !== 'chassis') return
     this.payloadEdChassis = moduleId
   }
 
-  /** 荷载编辑区勾/取消附件（多选；非法 id 忽略） */
+  /** 荷载编辑区勾/取消附件（多选；非法 id 忽略；不契合当前部位的新勾拒绝） */
   togglePayloadAttachment(moduleId: string): void {
     if (shipModuleDefOf(moduleId)?.payloadRole !== 'attachment') return
     const at = this.payloadEdAttachments.indexOf(moduleId)
+    // 已勾件恒可取消（保证能移除）；新勾须契合当前部位（fits 缺省 = 通用件）
+    if (at < 0 && !this.fitsAttachment(moduleId, this.payloadEdTab)) return
     if (at >= 0) this.payloadEdAttachments.splice(at, 1)
     else this.payloadEdAttachments.push(moduleId)
   }
 
-  /** 保存当前编辑区为荷载设计模板（名字自动编号；uid 递增不复用，随档走） */
+  /** 保存当前编辑区为设计模板（部位 = 当前页签；uid 前缀随部位递增不复用，随档走） */
   savePayloadDesign(): boolean {
     const s = this.simState.state
-    const def = payloadDesignModuleDef({ uid: '', name: '', chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
-    if (!def) return false
-    const uid = nextPayloadUid(s.payloadDesigns)
-    const name = `自定义荷载 ${s.payloadDesigns.length + 1}`
-    s.payloadDesigns.push({ uid, name, chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
+    const slotType = this.payloadEdTab
+    const def = payloadDesignModuleDef({ uid: '', name: '', slotType, chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
+    if (!def) {
+      // 跨页签选件保持下主体与部位错配是常态（如荷载页选的货仓切到燃料页）：显式引导而非静默失败
+      const partName = SLOT_TYPE_NAMES[slotType] ?? '荷载'
+      this.simState.hint(`请先选择${partName}主体再保存`)
+      logger.warn(`[WarmCurrent] 设计保存失败：${slotType} 部位主体无效 chassis=${this.payloadEdChassis}`)
+      return false
+    }
+    const uid = nextPayloadUid(s.payloadDesigns, slotType)
+    const name = `自定义${SLOT_TYPE_NAMES[slotType] ?? '荷载'} ${s.payloadDesigns.filter((d) => (d.slotType ?? 'payload') === slotType).length + 1}`
+    s.payloadDesigns.push({ uid, name, slotType, chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
     this.syncDynamicPayloadModules()
     this.simState.hint(`已保存「${name}」（${def.cost} H3）`)
-    logger.info(`[WarmCurrent] 荷载设计保存：${uid} ${name} chassis=${this.payloadEdChassis} attachments=${this.payloadEdAttachments.join(',')}`)
+    logger.info(`[WarmCurrent] 设计保存：${uid} ${name} slotType=${slotType} chassis=${this.payloadEdChassis} attachments=${this.payloadEdAttachments.join(',')}`)
     return true
   }
 
@@ -1487,14 +1571,19 @@ export class WarmCurrentGameMode extends GameMode {
     return true
   }
 
-  /** 载入荷载设计模板 → 编辑区（返回是否成功；script 据此刷新勾选态） */
+  /** 载入设计模板 → 编辑区（按模板部位切页签；返回是否成功；script 据此刷新勾选态） */
   loadPayloadDesign(idx: number): boolean {
     const s = this.simState.state
     const d = s.payloadDesigns[idx]
-    if (!d || shipModuleDefOf(d.chassis)?.payloadRole !== 'chassis') return false
+    if (!d) return false
+    const slot = (d.slotType ?? 'payload') as 'payload' | 'fuel' | 'engine'
+    const roleKey = SLOT_ROLE_KEY[slot] ?? 'payloadRole'
+    if ((shipModuleDefOf(d.chassis) as unknown as Record<string, unknown> | null)?.[roleKey] !== 'chassis') return false
+    this.payloadEdTab = slot
     this.payloadEdChassis = d.chassis
-    this.payloadEdAttachments = d.attachments.filter((id) => shipModuleDefOf(id)?.payloadRole === 'attachment')
+    this.payloadEdAttachments = d.attachments.filter((id) => shipModuleDefOf(id)?.payloadRole === 'attachment' && this.fitsAttachment(id, slot))
     this.simState.hint(`已载入「${d.name}」`)
+    logger.info(`[WarmCurrent] 设计载入：${d.uid} ${d.name} → 编辑区（${slot} 页）`)
     return true
   }
 
@@ -1503,12 +1592,18 @@ export class WarmCurrentGameMode extends GameMode {
     setDynamicShipModules(payloadDesignDefsOf(this.simState.state.payloadDesigns ?? []))
   }
 
-  /** 荷载设计工坊面板数据（payloadDesignOpen = false 时不出） */
+  /** 荷载设计工坊面板数据（payloadDesignOpen = false 时不出；三部位页签制） */
   private buildPayloadDesignVM(): HudPayloadDesign {
     const s = this.simState.state
+    const slotType = this.payloadEdTab
+    const roleKey = SLOT_ROLE_KEY[slotType] ?? 'payloadRole'
+    const partName = SLOT_TYPE_NAMES[slotType] ?? '荷载'
+    const tabs = (['payload', 'fuel', 'engine'] as const).map((type) => ({ type, name: SLOT_TYPE_NAMES[type] ?? type }))
     const chassis: HudModuleRow[] = []
     const attachments: HudModuleRow[] = []
+    // 已勾件恒入清单（保证不适配的已勾件在面板上可见可取消），新行按 fits 契合过滤
     for (const [id, m] of shipModuleEntries()) {
+      const known = m.payloadRole === 'attachment' && (this.fitsAttachment(id, slotType) || this.payloadEdAttachments.includes(id))
       const row: HudModuleRow = {
         id,
         name: m.name,
@@ -1519,10 +1614,10 @@ export class WarmCurrentGameMode extends GameMode {
         slotFull: false,
         slotLabel: null,
       }
-      if (m.payloadRole === 'chassis') chassis.push(row)
-      else if (m.payloadRole === 'attachment') attachments.push(row)
+      if ((m as unknown as Record<string, unknown>)[roleKey] === 'chassis') chassis.push(row)
+      else if (known) attachments.push(row)
     }
-    const draft: SimPayloadDesign = { uid: '', name: '', chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] }
+    const draft: SimPayloadDesign = { uid: '', name: '', slotType, chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] }
     const synth = payloadDesignModuleDef(draft)
     // 预览效果行 = 主体/附件各自的表文案（表驱动，不在此复述数值）
     const effectParts: string[] = []
@@ -1533,15 +1628,17 @@ export class WarmCurrentGameMode extends GameMode {
       if (def) effectParts.push(def.desc)
     }
     const designs: HudPayloadRow[] = s.payloadDesigns.map((d, idx) => {
-      const def = payloadDesignModuleDef(d)
+      const def = payloadDesignModuleDef({ ...d, slotType: d.slotType ?? 'payload' })
       return { idx, uid: d.uid, name: d.name, summary: def?.desc ?? d.chassis, cost: def?.cost ?? 0 }
     })
     return {
+      tabs,
       chassis,
       attachments,
+      selTab: slotType,
       selChassis: this.payloadEdChassis,
       selAttachments: [...this.payloadEdAttachments],
-      synthName: `预览：自定义荷载 ${s.payloadDesigns.length + 1}`,
+      synthName: `预览：自定义${partName} ${s.payloadDesigns.filter((d) => (d.slotType ?? 'payload') === slotType).length + 1}`,
       synthDesc: synth ? `${synth.desc}\n${effectParts.join(' · ')}` : '',
       synthCost: synth?.cost ?? 0,
       designs,
@@ -1613,9 +1710,16 @@ export class WarmCurrentGameMode extends GameMode {
     if (!sel) return []
     const hereId = this.shipyardSelModules
       .filter((id) => shipModuleDefOf(id)?.slotType === sel.type)[sel.idx]
-    // 静态表 + 自定义荷载注册表合成条目（部位选件清单：现货件在前，玩家设计荷载追加在后）
+    // 静态表 + 自定义设计注册表合成条目（部位选件清单：现货件在前，玩家设计追加在后）
+    // 三部位统一收口（2026-09-14 用户口径：部位清单显示玩家保存后的设计）：
+    // payload/fuel/engine 槽现货档位件（货舱/油箱/引擎档/泵/加热器/舱内附件）不再直接可选装——
+    // 它们是设计工坊的合成原料，清单只出玩家保存的设计（payloadDesigns 投影，键序）；
+    // 无设计 = 空清单（面板出引导文案）。
+    // 谓词：动态设计件恒放行；现货件无任何部位角色（chassis/attachment）才放行——
+    // 现存 16 件现货件全部带角色，第二析取支是给未来"无角色新件"留的安全阀。
     return shipModuleEntries()
       .filter(([, m]) => m.slotType === sel.type)
+      .filter(([id, m]) => sel.type === 'payload' || sel.type === 'fuel' || sel.type === 'engine' ? isDynamicShipModule(id) || (m.payloadRole !== 'chassis' && m.payloadRole !== 'attachment' && m.fuelRole !== 'chassis' && m.engineRole !== 'chassis') : true)
       .map(([id, m]) => ({
         id,
         name: m.name,
@@ -2953,11 +3057,13 @@ export class WarmCurrentGameMode extends GameMode {
   /**
    * 一键推荐配置（能过关但非最优——《火箭工坊》同款兜底）：
    * 启发式 = 重载型双货舱 + 货泵（当级性价比最高的运量配置）；耀斑期倾向防务型防冻。
+   * 2026-09-14 荷载口径收口：现货舱内件不可直接选装后，推荐不再含泵——货泵类效果
+   * 走荷载设计工坊合成（自产合成件 id 因人而异，推荐只落静态表通用件）。
    */
   recommendShipDesign(): { hull: string; modules: string[] } {
     const flareRisk = this.simState.state.flare.phase !== 'idle'
-    if (flareRisk) return { hull: 'guardian', modules: ['cargo_pod'] }
-    return { hull: 'hauler', modules: ['cargo_pod', 'pump'] }
+    if (flareRisk) return { hull: 'guardian', modules: ['cargo_hold'] }
+    return { hull: 'hauler', modules: ['cargo_hold'] }
   }
 
   /** 一键推荐并应用到面板选择（shipyard_panel「⚙ 一键推荐配置」按钮） */
@@ -2966,7 +3072,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.setShipyardHull(rec.hull)
     this.shipyardSelModules = []
     for (const id of rec.modules) this.toggleShipyardModule(id)
-    this.simState.hint('已填入推荐配置（能过关但非最优，按需微调）')
+    this.simState.hint('已填入推荐配置（能过关但非最优，按需微调；货舱为现货件，不在「荷载」部位清单展示）')
   }
 
   /** 建筑详情浮层数据装配（buildingDetailSel → HudBuildingDetail；强化分支装拆流） */

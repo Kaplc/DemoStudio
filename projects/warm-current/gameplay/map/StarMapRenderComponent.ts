@@ -15,13 +15,6 @@ import type { Actor } from '@/engine'
 import type { AnchoredWidgetHandle } from '@/engine'
 import { UITextComponent } from '@/engine'
 import { B, MAP_H, MAP_W, toWX, toWZ } from '../core/balance'
-import {
-  makeStarfieldTileTexture,
-  GROUND_W,
-  GROUND_H,
-  TILE_SIZE,
-  STARFIELD_TILE_SEED,
-} from './starfieldTile'
 import { SphereMeshComponent } from '@/engine'
 import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import { depositsOf, depositLeft } from '../systems/MiningComponent'
@@ -190,17 +183,17 @@ function configureTexture(tex: THREE.Texture): void {
 }
 
 /**
- * 星空背景：可无缝平铺的小 tile（512²）+ RepeatWrapping 重复拼接出超大地面
- * （GROUND_W×GROUND_H = 19456×18432，海王星轨道 7517px 也被星空覆盖）。星点尺度与旧版全图 canvas 一致。
- * 无 canvas 环境（单测）返回 null → 地面退化为纯色。
+ * 星空底板尺寸（沿用原星空地面覆盖范围：海王星轨道 7517px + 相机 12000 高度
+ * 视野边距；星空画面已由 GameMode.applySkyTexture 全景背景负责，此板仅遮底）。
  */
-function makeStarfieldTexture(): THREE.CanvasTexture | null {
-  const tex = makeStarfieldTileTexture({ seed: STARFIELD_TILE_SEED })
-  if (!tex) return null
-  tex.repeat.set(GROUND_W / TILE_SIZE, GROUND_H / TILE_SIZE)
-  return tex
-}
+const GROUND_PLANE_W = 19456
+const GROUND_PLANE_H = 18432
 
+/**
+ * 星空背景：星图天空由 GameMode.applySkyTexture 装配为场景背景全景（SSS 银河
+ * equirect → scene.background 天空盒）；此处的纯黑地面仅兜底遮底（全知视角拉高时
+ * 背景未加载/加载失败场景不穿帮），星点由全景提供，不再程序化平铺。
+ */
 function makeGlowTexture(): THREE.CanvasTexture {
   const size = 64
   const c = document.createElement('canvas')
@@ -413,6 +406,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }>()
   /** 选中矿点外环（位置/朝向每帧贴选中标记） */
   private holoSelRing: THREE.Mesh | null = null
+  /** 勘探期间被隐藏真球的天体 id（null = 无；恢复显隐用，applyViewMode 复算视图口径） */
+  private holoHiddenBody: string | null = null
   /** 全息球半径（世界单位；星球显示半径 × B.holo.radiusMult） */
   private holoRadius = 0
   /** 全息重建型几何（进度弧等运行时重建体；disposeHolo 统一释放，不入 trackGeo 避免早释放歧义） */
@@ -537,7 +532,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.systemGroup = this.own(this.F.createGroup()).object
     // 舞台分组：只有行星系 gameplay 内容（systemGroup）挂这里，进入行星系时迁到
     // 太阳位（planetStageOffset 锚点 = 世界原点），聚焦行星钉在原点、其余行星隐藏；
-    // 星空地面恒挂世界系（不随舞台走，行星系背景静止）；太阳系全景时舞台回原点、sunGroup 全显
+    // 纯黑底板恒挂世界系（不随舞台走，行星系背景静止）；太阳系全景时舞台回原点、sunGroup 全显
     this.stageGroup = this.own(this.F.createGroup()).object
     this.root3.add(this.sunGroup, this.stageGroup)
     this.stageGroup.add(this.systemGroup)
@@ -575,26 +570,16 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     dir.position.set(620, 300, 280)
     this.root3.add(dir)
 
-    // ─── 地面（星空背景：tile 平铺放大地面，只画一次传一次） ───
-    const groundGeo = this.trackGeo(this.F.createPlaneGeometry(GROUND_W, GROUND_H))
+    // ─── 地面（纯黑底板：遮底兜底；星空由 GameMode.applySkyTexture 的全景背景提供） ───
+    const groundGeo = this.trackGeo(this.F.createPlaneGeometry(GROUND_PLANE_W, GROUND_PLANE_H))
     groundGeo.rotateX(-Math.PI / 2)
-    const starTex = makeStarfieldTexture()
-    if (starTex) {
-      this.tex.starfield = starTex
-    } else {
-      logger.warn('[StarMap] 星空 tile 生成失败（无 2D canvas 环境？），地面退化为纯色')
-    }
-    const groundMat = this.trackMat(
-      this.tex.starfield
-        ? this.F.createMeshBasicMaterial({ map: this.tex.starfield, depthWrite: false })
-        : this.F.createMeshBasicMaterial({ color: 0x000000, depthWrite: false }),
-    )
+    const groundMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x000000, depthWrite: false }))
     const ground = this.own(this.F.createMesh(groundGeo, groundMat)).object
     ground.position.y = -0.5
     ground.renderOrder = 0
-    // 星空地面恒挂世界系（不进舞台组）：行星系视图下舞台每帧平移补偿聚焦行星的公转位移，
-    // 星空若随舞台走，背景会跟着漂移（看起来"还是原来太阳系在动"）；固定后背景静止，
-    // 行星系读作"行星种在舞台中心的定场小星系"
+    // 纯黑底板恒挂世界系（不进舞台组）：行星系视图下舞台每帧平移补偿聚焦行星的公转位移，
+    // 底板若随舞台走，背景会跟着漂移（看起来"还是原来太阳系在动"）；固定后背景静止，
+    // 行星系读作"行星种在舞台中心的定场小星系"。星空画面由场景背景全景负责，底板只遮底。
     this.root3.add(ground)
 
     this.tex.glow = makeGlowTexture()
@@ -1799,11 +1784,28 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     g.visible = true
   }
 
+  /** 勘探期间目标天体真球显隐仲裁（全息开 = 隐藏真球留全息球；关/切 = 按视图分组口径恢复） */
+  private syncHoloBodyMesh(body: string | null): void {
+    // 目标天体真球：勘探期间隐藏（全息球同大替换本体，避免双层叠显）
+    const targetMesh = body
+      ? this.provider.starActors?.get(body)?.getComponent(SphereMeshComponent)?.obj.object ?? null
+      : null
+    if (targetMesh) targetMesh.visible = false
+    // 上一帧隐藏的天体：全息关闭/切换后恢复（直接按视图分组口径复算，
+    // 不走 applyViewMode——那是全量重算 + 每次打日志，逐帧调用会刷屏）
+    if (this.holoHiddenBody && this.holoHiddenBody !== body) {
+      const prevMesh = this.provider.starActors?.get(this.holoHiddenBody)?.getComponent(SphereMeshComponent)?.obj.object ?? null
+      if (prevMesh) prevMesh.visible = this.visibleBodySet().has(this.holoHiddenBody)
+    }
+    this.holoHiddenBody = targetMesh ? body : null
+  }
+
   /** 全息组每帧同步：位置贴天体 Actor、自转、扫描环巡游、标记状态（枯竭灰化/建成光柱/进度弧）、选中环 */
   private syncHologram(dt: number): void {
     const body = this.provider.hologramSel
     if (!body) {
       if (this.holoRoot) this.holoRoot.visible = false
+      this.syncHoloBodyMesh(null)
       return
     }
     if (this.holoBody !== body || !this.holoRoot) this.buildHolo(body)
@@ -1817,6 +1819,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const actor = this.provider.starActors?.get(body)
       if (actor) root.position.copy(actor.root.position)
     }
+    // 真球显隐（2026-09-14 用户定案：全息球与模型同大后，勘探期间隐藏真球只留全息球，
+    // 关闭/切换恢复视图分组显隐口径；earth 全息为远处独立投影体，真球保持视图原状）
+    this.syncHoloBodyMesh(body === 'earth' ? null : body)
     // 自转 + 扫描环巡游（全息地球慢自转：球面落位需要稳态读感；地球无扫描环）
     this.holoSpin!.rotation.y += (body === 'earth' ? B.holoEarth.spin : B.holo.spin) * dt
     if (this.holoScanRing) this.holoScanRing.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72

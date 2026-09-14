@@ -1,7 +1,7 @@
 {
   "name": "ShipDesignPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-f3440fe9",
+  "sourceHash": "fnv1a-9e541968",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -1077,6 +1077,8 @@
                                         "mode": "vertical",
                                         "spacingX": 0,
                                         "spacingY": 6,
+                                        "justify": "start",
+                                        "autoHeight": true,
                                         "autoLayout": true
                                       }
                                     }
@@ -1833,6 +1835,8 @@
                                         "mode": "vertical",
                                         "spacingX": 0,
                                         "spacingY": 4,
+                                        "justify": "start",
+                                        "autoHeight": true,
                                         "autoLayout": true
                                       }
                                     }
@@ -1916,10 +1920,10 @@
                                   1
                                 ],
                                 "worldWidth": 720,
-                                "worldHeight": 210,
+                                "worldHeight": 470,
                                 "position": [
                                   0,
-                                  -85,
+                                  -215,
                                   0
                                 ]
                               }
@@ -1938,6 +1942,8 @@
                                 "mode": "vertical",
                                 "spacingX": 0,
                                 "spacingY": 6,
+                                "justify": "start",
+                                "autoHeight": true,
                                 "autoLayout": true
                               }
                             }
@@ -6592,7 +6598,7 @@
                     {
                       "baseClass": "UITextComponent",
                       "properties": {
-                        "text": "提示：① 选箭体（型号）→ ② 装配台点部位 → ② 区挑部件（同功能多档选数值，再点已装件=卸下）；「荷载设计」可自合成荷载件（主体+附件并一件占 1 槽）；下水需先造船坞；设计模板随存档保存。",
+                        "text": "提示：① 选箭体（型号）→ ② 装配台点部位 → ② 区挑部件（同功能多档选数值，再点已装件=卸下）；「荷载」部位只显示已保存的设计——去「荷载设计」合成（主体+附件并一件占 1 槽）；下水需先造船坞；设计模板随存档保存。",
                         "name": "BottomHint",
                         "width": 1880,
                         "height": 26,

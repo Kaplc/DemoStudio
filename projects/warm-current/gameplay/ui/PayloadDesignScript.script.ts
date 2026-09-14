@@ -54,6 +54,10 @@ export default class PayloadDesignScript extends BehaviourScript {
     }
     bind('Btn_pd_close', () => wcMode()?.closePayloadDesign())
     bind('Btn_pd_save', () => wcMode()?.savePayloadDesign())
+    // 部位页签（2026-09-14 三部位工坊：荷载/燃料/引擎统一设计流）
+    bind('Btn_pd_tab_payload', () => wcMode()?.selectPayloadTab('payload'))
+    bind('Btn_pd_tab_fuel', () => wcMode()?.selectPayloadTab('fuel'))
+    bind('Btn_pd_tab_engine', () => wcMode()?.selectPayloadTab('engine'))
     bind('Btn_pd_ddel', () => {
       const mode = wcMode()
       if (!mode) return
@@ -70,6 +74,9 @@ export default class PayloadDesignScript extends BehaviourScript {
     logger.info('[PayloadDesignScript] 荷载设计工坊就绪（主体+附件合成流，默认收起）')
   }
 
+  /** 页签高亮差分键（Actor → 上次选中部位） */
+  private tabSelMap = new Map<Actor, string>()
+
   override onUpdate(dt: number): void {
     const mode = wcMode()
     if (!mode) return
@@ -80,13 +87,27 @@ export default class PayloadDesignScript extends BehaviourScript {
     this.vis.set(this.actor, 'PayloadBody', !!vm)
     if (!vm) return
 
-    this.binder.set(findText(this.actor, 'TitleText'), '🧩 荷载设计工坊')
+    this.binder.set(findText(this.actor, 'TitleText'), '🧩 设计工坊')
     this.binder.set(findText(this.actor, 'StatusText'),
-      `已存 ${vm.designs.length} 件荷载设计 · 火箭设计工坊「荷载」槽可选装`)
-
+      `已存 ${vm.designs.length} 件设计 · 火箭设计工坊对应部位槽可选装`)
+    // 部位页签高亮（选中 = 名称提亮）
+    const tabBtnNames: Record<string, string> = { payload: 'Btn_pd_tab_payload', fuel: 'Btn_pd_tab_fuel', engine: 'Btn_pd_tab_engine' }
+    for (const tab of vm.tabs) {
+      const btnActor = findChild(this.actor, tabBtnNames[tab.type] ?? '')
+      if (!btnActor) continue
+      const on = vm.selTab === tab.type
+      if (this.tabSelMap.get(btnActor) !== (on ? '1' : '0')) {
+        this.tabSelMap.set(btnActor, on ? '1' : '0')
+        this.colors.set(findText(btnActor, `Label_pd_tab_${tab.type}`), on ? '#4fd8ff' : '#9fd8ef')
+      }
+    }
+    const partName = vm.selTab === 'fuel' ? '燃料' : vm.selTab === 'engine' ? '引擎' : '荷载'
+    this.binder.set(findText(this.actor, 'ChassisTitle'), `① ${partName}主体（单选）`)
+    this.binder.set(findText(this.actor, 'AttachTitle'), '② 改装件（多选勾选，须契合主体）')
+    this.binder.set(findText(this.actor, 'Btn_save_label'), `💾 存为${partName}模板（火箭「${partName}」槽可选装）`)
     this.syncChassisCells(vm)
     this.syncAttachmentCells(vm)
-    this.binder.set(findText(this.actor, 'SynthText'), vm.synthDesc ? `${vm.synthName}\n${vm.synthDesc}\n合成造价：${vm.synthCost} H3（含组装溢价）` : '请选择荷载主体')
+    this.binder.set(findText(this.actor, 'SynthText'), vm.synthDesc ? `${vm.synthName}\n${vm.synthDesc}\n合成造价：${vm.synthCost} H3（含组装溢价）` : `请选择${partName}主体`)
     this.syncDesignCells(vm)
   }
 
@@ -217,5 +238,6 @@ export default class PayloadDesignScript extends BehaviourScript {
     this.checkedMap.clear()
     this.visMap.clear()
     this.attachSelMap.clear()
+    this.tabSelMap.clear()
   }
 }

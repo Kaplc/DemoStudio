@@ -185,8 +185,16 @@ export interface ShipModuleDef {
   /** 槽位类型（ship_hull.slots 行键；缺省 = 不占槽，仅受 allowed 兼容约束） */
   slotType?: string
   /** 荷载件角色（2026-09-13 荷载设计工坊：chassis = 可作荷载主体的货舱档位 /
-   *  attachment = 可合成进自定义荷载的舱内附件；缺省 = 非荷载件） */
+   *  attachment = 可合成进自定义荷载的舱内附件；缺省 = 非荷载件。
+   *  2026-09-14 三部位工坊：attachment 升级为跨部位通用改装件池） */
   payloadRole?: 'chassis' | 'attachment'
+  /** 燃料件角色（2026-09-14 三部位工坊：chassis = 可作燃料主体的油箱档位；缺省 = 非燃料件） */
+  fuelRole?: 'chassis'
+  /** 引擎件角色（2026-09-14 三部位工坊：chassis = 可作引擎主体的引擎档位；缺省 = 非引擎件） */
+  engineRole?: 'chassis'
+  /** 改装件可搭部位声明（2026-09-14 用户口径：附件要契合当前选择的主体）——
+   *  attachment 行限此清单内的部位页签可选；缺省 = 跨部位通用件（兼容旧档与未来新件） */
+  fits?: Array<'payload' | 'fuel' | 'engine'>
   /** 效果（仅本船；乘算叠加） */
   mods: {
     /** 本船满载乘区（货舱扩容 ×1.3） */
@@ -199,6 +207,16 @@ export interface ShipModuleDef {
     workMult?: number
     /** 耀斑冻毁免疫（防冻加热器） */
     antiFreeze?: boolean
+    /** 挂靠中转站时该站 H3 缓存上限乘区（2026-09-14 舱内附件二批：低温中转罐 ×1.5） */
+    bufferCapMult?: number
+    /** 引力窗口内油耗折价加深乘区（引力弹弓计算器 ×0.5；B.convoyFuelFloor 封底） */
+    windowFuelMult?: number
+    /** 耀斑冻毁货物损失乘区（货损保险舱 ×0.5 = 抢救 50% 折 H3 到账） */
+    flareLossMult?: number
+    /** 耀斑自动规避（耀斑规避程序：预警自动靠站 + 期间不停滞 + 结束免冻毁） */
+    autoEvade?: boolean
+    /** 舰队维护费分摊乘区（维护无人机架 ×0.25，本船按船级份额折减） */
+    maintMult?: number
   }
 }
 
@@ -394,6 +412,10 @@ export const B = {
   cargoBase: 200,
   shipRebuildCost: 150,
   materialH3PerUnit: 0.5,
+  /** 引力窗口油耗折价地板（2026-09-14 舱内附件二批：引力弹弓计算器 windowFuelMult 加深后封底，防无限叠深） */
+  convoyFuelFloor: 0.2,
+  /** 耀斑规避程序免冻后的恢复延迟秒数（对齐护盾罩 resumeDelay 口径，保全不白拿） */
+  evadeResumeDelay: 3,
   /** 建筑强化拆除费比例（强化造价 × 此值，不返还；环段建筑另用 ringBuild.demolishCostPct） */
   upgradeDemolishCostPct: 0.2,
   // 舰队维护费阶梯（按总船数升序查档：船越多维护费越高 → H3/秒 从地球储备持续扣除）
@@ -463,27 +485,37 @@ export const B = {
   // 2026-09-13 火箭三部位改版：payload 荷载 / fuel 燃料 / engine 引擎，功能槽下线）
   shipHulls: {
     standard: { name: '标准型', desc: '均衡船体 · 3 槽全能拼装', cost: 180, loadMult: 1.0, speedMult: 1.0, innate: [], allowed: ['*'], slots: { payload: 1, fuel: 1, engine: 1 } },
-    hauler: { name: '重载型', desc: '满载 ×1.4 · 航速 ×0.85 · 双荷载专精', cost: 260, loadMult: 1.4, speedMult: 0.85, innate: [], allowed: ['cargo_s', 'cargo_pod', 'cargo_x', 'pump_s', 'pump'], slots: { payload: 2, fuel: 1 } },
+    hauler: { name: '重载型', desc: '满载 ×1.4 · 航速 ×0.85 · 双荷载专精', cost: 260, loadMult: 1.4, speedMult: 0.85, innate: [], allowed: ['cargo_hold', 'cryo_tank', 'pump_s', 'pump', 'cryo_pod', 'slingshot', 'insurance_pod', 'evade_pkg', 'drone_rack'], slots: { payload: 2, fuel: 1 } },
     courier: { name: '快速型', desc: '满载 ×0.7 · 航速 ×1.35 · 双引擎专精', cost: 240, loadMult: 0.7, speedMult: 1.35, innate: [], allowed: ['engine_s', 'ion_engine', 'engine_x', 'tank_s', 'aux_tank', 'tank_x'], slots: { engine: 2, fuel: 1 } },
-    guardian: { name: '防务型', desc: '内置防冻（冻毁免疫）· 满载 ×0.8', cost: 320, loadMult: 0.8, speedMult: 1.0, innate: ['anti_freeze'], allowed: ['cargo_s', 'cargo_pod', 'cargo_x', 'tank_s', 'aux_tank', 'tank_x'], slots: { payload: 1, fuel: 1 } },
+    guardian: { name: '防务型', desc: '内置防冻（冻毁免疫）· 满载 ×0.8', cost: 320, loadMult: 0.8, speedMult: 1.0, innate: ['anti_freeze'], allowed: ['cargo_hold', 'cryo_tank', 'tank_s', 'aux_tank', 'tank_x', 'cryo_pod', 'slingshot', 'insurance_pod', 'evade_pkg', 'drone_rack'], slots: { payload: 1, fuel: 1 } },
   } as Record<string, ShipHullDef>,
   // 船用模块（ship_module.table.json 覆盖；行键 = SimShip.modules 元素，仅本船生效。
   // slotType = 占用槽位类型（ship_hull.slots 行键）；缺省 = 不占槽仅受 allowed 约束。
   // 2026-09-13 部位选件制：每 slotType 多档同功能部件，行序 = 部位清单展示序（低档在前）。
   // 2026-09-13 火箭三部位改版：泵/加热器并入荷载舱（payloadRole='attachment'），货舱档位 = 荷载主体）
   shipModules: {
-    cargo_s: { name: '轻量货舱', desc: '本船满载 ×1.15', cost: 100, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.15 } },
-    cargo_pod: { name: '标准货舱', desc: '本船满载 ×1.3', cost: 180, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.3 } },
-    cargo_x: { name: '特扩货舱', desc: '本船满载 ×1.5', cost: 300, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.5 } },
-    tank_s: { name: '简易副油箱', desc: '本船油耗 ×0.9', cost: 90, slotType: 'fuel', mods: { fuelMult: 0.9 } },
-    aux_tank: { name: '副油箱', desc: '本船油耗 ×0.8', cost: 160, slotType: 'fuel', mods: { fuelMult: 0.8 } },
-    tank_x: { name: '深冷油箱', desc: '本船油耗 ×0.65', cost: 300, slotType: 'fuel', mods: { fuelMult: 0.65 } },
-    engine_s: { name: '巡航引擎', desc: '本船航速 ×1.1', cost: 120, slotType: 'engine', mods: { speedMult: 1.1 } },
-    ion_engine: { name: '离子引擎', desc: '本船航速 ×1.2', cost: 200, slotType: 'engine', mods: { speedMult: 1.2 } },
-    engine_x: { name: '聚变引擎', desc: '本船航速 ×1.35', cost: 340, slotType: 'engine', mods: { speedMult: 1.35 } },
-    pump_s: { name: '备用货泵', desc: '装卸时间 ×0.8', cost: 80, slotType: 'payload', payloadRole: 'attachment', mods: { workMult: 0.8 } },
-    pump: { name: '快速货泵', desc: '装卸时间 ×0.6', cost: 140, slotType: 'payload', payloadRole: 'attachment', mods: { workMult: 0.6 } },
-    heater: { name: '防冻加热器', desc: '耀斑冻毁免疫（罩外也存活）', cost: 320, slotType: 'payload', payloadRole: 'attachment', mods: { antiFreeze: true } },
+    // 2026-09-14 荷载双主体（用户拍板：主体 = 功能基体而非容量档位）：固体货仓 = 杂货运输基体
+    // （旧标准货舱数值延续），低温液罐 = 低温专线基体（防冻免疫 + 站端缓存放大 + 罐组自重吃载）
+    cargo_hold: { name: '固体货仓', desc: '本船满载 ×1.3', cost: 180, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.3 } },
+    cryo_tank: { name: '低温液罐', desc: '耀斑冻毁免疫 · 挂靠中转站卸货时该站 H3 缓存上限 ×1.25 · 本船满载 ×1.1', cost: 380, slotType: 'payload', payloadRole: 'chassis', mods: { antiFreeze: true, bufferCapMult: 1.25, loadMult: 1.1 } },
+    tank_s: { name: '简易副油箱', desc: '本船油耗 ×0.9', cost: 90, slotType: 'fuel', fuelRole: 'chassis', mods: { fuelMult: 0.9 } },
+    aux_tank: { name: '副油箱', desc: '本船油耗 ×0.8', cost: 160, slotType: 'fuel', fuelRole: 'chassis', mods: { fuelMult: 0.8 } },
+    tank_x: { name: '深冷油箱', desc: '本船油耗 ×0.65', cost: 300, slotType: 'fuel', fuelRole: 'chassis', mods: { fuelMult: 0.65 } },
+    engine_s: { name: '巡航引擎', desc: '本船航速 ×1.1', cost: 120, slotType: 'engine', engineRole: 'chassis', mods: { speedMult: 1.1 } },
+    ion_engine: { name: '离子引擎', desc: '本船航速 ×1.2', cost: 200, slotType: 'engine', engineRole: 'chassis', mods: { speedMult: 1.2 } },
+    engine_x: { name: '聚变引擎', desc: '本船航速 ×1.35', cost: 340, slotType: 'engine', engineRole: 'chassis', mods: { speedMult: 1.35 } },
+    pump_s: { name: '备用货泵', desc: '装卸时间 ×0.8', cost: 80, slotType: 'payload', payloadRole: 'attachment', fits: ['payload'], mods: { workMult: 0.8 } },
+    pump: { name: '快速货泵', desc: '装卸时间 ×0.6', cost: 140, slotType: 'payload', payloadRole: 'attachment', fits: ['payload'], mods: { workMult: 0.6 } },
+    heater: { name: '防冻加热器', desc: '耀斑冻毁免疫（罩外也存活）', cost: 320, slotType: 'payload', payloadRole: 'attachment', fits: ['payload'], mods: { antiFreeze: true } },
+    // 2026-09-14 舱内附件二批（A+B 组五模块，用户拍板；ship_module.table.json 同步五行）：
+    // 低温中转罐=挂靠中转站卸货放大 H3 缓存上限（bufferCapMult）｜引力弹弓计算器=窗口油耗加深
+    // （windowFuelMult，B.convoyFuelFloor 封底）｜货损保险舱=冻毁抢救折 H3 入账（flareLossMult）｜
+    // 耀斑规避程序=自动靠站+不停滞+免冻毁（autoEvade，evadeResumeDelay）｜维护无人机架=维护费份额折减（maintMult）
+    cryo_pod: { name: '低温中转罐', desc: '挂靠中转站卸货时该站 H3 缓存上限 ×1.5', cost: 200, slotType: 'payload', payloadRole: 'attachment', fits: ['payload'], mods: { bufferCapMult: 1.5 } },
+    slingshot: { name: '引力弹弓计算器', desc: '引力窗口内油耗折价加深（窗口油耗 ×0.5）', cost: 160, slotType: 'payload', payloadRole: 'attachment', fits: ['fuel'], mods: { windowFuelMult: 0.5 } },
+    insurance_pod: { name: '货损保险舱', desc: '耀斑冻毁损失减半（抢救 50% 货物折 H3 到账）', cost: 180, slotType: 'payload', payloadRole: 'attachment', fits: ['payload'], mods: { flareLossMult: 0.5 } },
+    evade_pkg: { name: '耀斑规避程序', desc: '预警自动靠站 · 耀斑期间不停滞 · 结束免冻毁（3s 恢复延迟）', cost: 300, slotType: 'payload', payloadRole: 'attachment', mods: { autoEvade: true } },
+    drone_rack: { name: '维护无人机架', desc: '本船维护费份额 ×0.25', cost: 180, slotType: 'payload', payloadRole: 'attachment', mods: { maintMult: 0.25 } },
   } as Record<string, ShipModuleDef>,
   // 近地轨道建筑（orbit_build.table.json 覆盖；行键 = OrbitBuilding.type，轨道建设面板行序 = 键序）
   orbitBuildings: {
@@ -519,8 +551,10 @@ export const B = {
   } as Record<string, MineBuildingDef>,
   // 全息勘探表现参数（代码常量：纯渲染值，不入表）
   holo: {
-    /** 全息球半径 = 行星显示半径 × 此倍率 */
-    radiusMult: 1.55,
+    /** 全息球半径 = 行星显示半径 × 此倍率。
+     *  2026-09-14 用户定案：与模型同大（1.0），配合"勘探期间隐藏真球"口径——
+     *  全息球替换星球本体显示，不再放大包络形成双层洋葱观感 */
+    radiusMult: 1,
     /** 自转速率（rad/s，表现值） */
     spin: 0.12,
     /** 矿点屏幕拾取半径（px） */
@@ -733,6 +767,7 @@ export function refreshBalanceFromConfigs(): void {
       'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'coreCoolSeconds', 'coreWarmSeconds', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'upgradeDemolishCostPct', 'act2Slots', 'act3Slots', 'act3SurviveSeconds',
       'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
+      'convoyFuelFloor', 'evadeResumeDelay',
     ])
   // 聚能环建设参数（独立配置 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底。
   // 注：文件内容包在 "ringBuild" 键下，getConfig 返回顶层 → 取 rbCfg.ringBuild 解包）

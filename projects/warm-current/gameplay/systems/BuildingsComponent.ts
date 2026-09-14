@@ -13,8 +13,8 @@
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import type { BuildingUpgradeDef } from '../core/balance'
-import { angularDistDeg, buildingDefOf, buildingEffectiveDef, buildingPos, isMeltedAt, resolveBuildingOrbit, surfaceBuildingPos } from '../core/helpers'
-import type { SimBuilding } from '../core/types'
+import { angularDistDeg, buildingDefOf, buildingEffectiveDef, buildingPos, isMeltedAt, resolveBuildingOrbit, shipMults, surfaceBuildingPos } from '../core/helpers'
+import type { SimBuilding, SimShip } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
 export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
@@ -126,9 +126,13 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
     return Math.max(0, cap - b.stock)
   }
 
-  /** 缓存上限（有效值，强化合成；H3 缓存（relay_in/relay_out）与建材缓存各自独立按此计） */
-  bufferCapOf(b: SimBuilding): number {
-    return buildingEffectiveDef(b)?.bufferCap ?? 0
+  /** 缓存上限（有效值，强化合成；H3 缓存（relay_in/relay_out）与建材缓存各自独立按此计。
+   *  2026-09-14 舱内附件二批：可选挂靠船（bufferCapOf 调用点 = relay_in/relay_out 装卸口，
+   *  传当前装卸船）——低温中转罐 bufferCapMult 在挂靠卸货时放大该站 H3 缓存上限（取整）。 */
+  bufferCapOf(b: SimBuilding, dockedShip?: Pick<SimShip, 'hull' | 'modules'>): number {
+    const base = buildingEffectiveDef(b)?.bufferCap ?? 0
+    if (!dockedShip) return base
+    return Math.round(base * shipMults(dockedShip).bufferCapMult)
   }
 
   /** 中转站 H3 缓存余量（relay_in 入站卸货截断口径） */

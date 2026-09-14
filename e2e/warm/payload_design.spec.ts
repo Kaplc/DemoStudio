@@ -11,7 +11,7 @@
  *  ② 编辑合成：选主体（cargo_x）+ 勾附件（pump+heater）→ selChassis/selAttachments/
  *     合成造价 875（=(300+140+320)×1.15 进 5 取整）/ 预览文案含件名
  *  ③ 保存：payloadDesigns 入状态（uid=pd1）→ 合成定义可查（slotType=payload、cost=875）
- *  ④ 装配联动：standard 荷载槽部位清单含 pd1（6 现货+1 设计=7 行）→ 选装 → 整单价 180+875=1055；
+ *  ④ 装配联动：standard 荷载槽部位清单只出玩家保存的设计（pd1/pd2=2 行）→ 选装 → 整单价 180+875=1055；
  *     装配台荷载格显示「自定义荷载 1」
  *  ⑤ 兼容闸：courier 无荷载槽 → pick 拒绝；hauler 白名单旁路（自定义荷载只受槽位闸）→ 接受
  *  ⑥ 引用保护与 uid 不复用：船型模板/现役飞船引用 → 删除拒绝；解除后可删；删后再存 uid 跳号（pd3）
@@ -102,18 +102,18 @@ test.describe('warm-current 荷载设计工坊', () => {
     expect(entry.designOpen).toBe(false)  // 与火箭设计互斥
     expect(entry.hasVM).toBe(true)
     expect(entry.chassis).toBe(3)         // 轻量/标准/特扩货舱
-    expect(entry.attachments).toBe(3)     // 备用货泵/快速货泵/防冻加热器
+    expect(entry.attachments).toBe(8)     // 备用货泵/快速货泵/防冻加热器 + 二批五附件
     expect(entry.designs).toBe(0)
     expect(entry.canSave).toBe(true)
 
-    // ── 2. 编辑合成：选特扩货舱 + 勾快速货泵/防冻加热器 → 预览造价 875 ──
+    // ── 2. 编辑合成：选低温液罐 + 勾快速货泵/防冻加热器 → 预览造价 965 ──
     const edited = await evalInGame<{
       selChassis: string; selAttachments: string[]; synthCost: number
       synthHasChassis: boolean; synthHasPump: boolean; synthHasHeater: boolean
     }>(page, `() => {
       const b = window.__warmCurrent
       const m = b.mode()
-      m.selectPayloadChassis('cargo_x')
+      m.selectPayloadChassis('cryo_tank')
       m.togglePayloadAttachment('pump')
       m.togglePayloadAttachment('heater')
       const vm = b.vm().payloadDesign
@@ -121,14 +121,14 @@ test.describe('warm-current 荷载设计工坊', () => {
         selChassis: vm.selChassis,
         selAttachments: vm.selAttachments,
         synthCost: vm.synthCost,
-        synthHasChassis: vm.synthDesc.includes('特扩货舱'),
+        synthHasChassis: vm.synthDesc.includes('低温液罐'),
         synthHasPump: vm.synthDesc.includes('快速货泵'),
         synthHasHeater: vm.synthDesc.includes('防冻加热器'),
       }
     }`)
-    expect(edited.selChassis).toBe('cargo_x')
+    expect(edited.selChassis).toBe('cryo_tank')
     expect(edited.selAttachments).toEqual(['pump', 'heater'])
-    expect(edited.synthCost).toBe(875)    // (300+140+320)×1.15 = 874 → 5 取整 875
+    expect(edited.synthCost).toBe(965)    // (380+140+320)×1.15 = 966 → 5 取整 965
     expect(edited.synthHasChassis).toBe(true)
     expect(edited.synthHasPump).toBe(true)
     expect(edited.synthHasHeater).toBe(true)
@@ -151,7 +151,7 @@ test.describe('warm-current 荷载设计工坊', () => {
     expect(saved.uid1).toBe('pd1')
     expect(saved.uid2).toBe('pd2')
     // 注册表投影验证：火箭设计荷载槽部位清单含 pd1（注册表生效的直接证据）
-    const def = await evalInGame<{ cost: number; slot: string; name: string }>(page, `() => {
+    const def = await evalInGame<{ cost: number; slot: string; name: string; options: number }>(page, `() => {
       const b = window.__warmCurrent
       const m = b.mode()
       m.openShipDesign()
@@ -159,13 +159,14 @@ test.describe('warm-current 荷载设计工坊', () => {
       m.selectShipyardSlot('payload', 0)
       const vm = b.vm().shipDesign
       const opt = vm.slotOptions.find((o) => o.id === 'pd1')
-      return { cost: opt ? opt.cost : -1, slot: opt ? (opt.slotType ?? '') : '', name: opt ? opt.name : '' }
+      return { cost: opt ? opt.cost : -1, slot: opt ? (opt.slotType ?? '') : '', name: opt ? opt.name : '', options: vm.slotOptions.length }
     }`)
     expect(def.cost).toBe(875)
     expect(def.slot).toBe('payload')
     expect(def.name).toBe('自定义荷载 1')
+    expect(def.options).toBe(2) // 荷载槽只出玩家保存的设计（pd1/pd2；现货舱内件收口工坊合成）
 
-    // ── 4. 装配联动：standard 荷载槽 7 行（6 现货 + 1 设计）→ 选装 pd1 → 整单价 1055 ──
+    // ── 4. 装配联动：standard 荷载槽 2 行（只出设计件）→ 选装 pd1 → 整单价 1055 ──
     const installed = await evalInGame<{ options: number; cells: string[]; price: number }>(page, `() => {
       const b = window.__warmCurrent
       const m = b.mode()
@@ -182,7 +183,7 @@ test.describe('warm-current 荷载设计工坊', () => {
         price: vm2.price,
       }
     }`)
-    expect(installed.options).toBe(8) // 6 件现货（3 货舱档+泵×2+加热器）+ pd1/pd2 两件设计
+    expect(installed.options).toBe(2) // 荷载槽只出玩家保存的设计（pd1/pd2；2026-09-14 现货件收口工坊合成）
     expect(installed.cells).toContain('自定义荷载 1')
     expect(installed.price).toBe(180 + 875) // standard 船体 + 合成荷载
 
@@ -221,7 +222,7 @@ test.describe('warm-current 荷载设计工坊', () => {
       })()
       m.simState.state.ships[0].modules = m.simState.state.ships[0].modules.filter((x) => x !== 'pd1')
       const deleted = m.deletePayloadDesign(0)                     // 引用全解除 → 删除成功
-      m.selectPayloadChassis('cargo_s')
+      m.selectPayloadChassis('cryo_tank')
       m.savePayloadDesign()                                        // uid 跳号：pd1 已占用过 → pd3
       const nextUid = m.simState.state.payloadDesigns[m.simState.state.payloadDesigns.length - 1].uid
       return { tmplBlocked, shipBlocked, deleted, nextUid }

@@ -8,7 +8,7 @@
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { fleetMaintPerS } from '../core/helpers'
+import { fleetMaintPerS, shipMults } from '../core/helpers'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
 export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
@@ -37,10 +37,14 @@ export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
     s.ledger.mining += B.earthBaseYield * dt
     // 舰队维护费：按总船数查 fleet_maint 阶梯（H3/秒），与环焚烧/研究计费同池争夺地球储备，
     // 储备归零同样触发断环降温（维护费也是生存压力的一部分）。
+    // 2026-09-14 舱内附件二批：维护费按船级份额分摊——维护无人机架（maintMult）按本船份额折减，
+    // 全队总额 = 阶梯费率 × Σ份额/船数（守恒：无该件时 Σ=船数，退化为平均分摊）。
     // 建设计费不在本处：造价制下 RingBuildComponent.tickBuild 灌入即实扣（进度 = 投入/本级造价）
     const burn = this.sc.burnRate
     const rc = this.sc.researchCost
-    const maint = fleetMaintPerS(s.ships.length)
+    const maint = s.ships.length > 0
+      ? (fleetMaintPerS(s.ships.length) / s.ships.length) * s.ships.reduce((sum, sh) => sum + shipMults(sh).maintMult, 0)
+      : fleetMaintPerS(s.ships.length)
     s.earthH3 -= (burn + rc + maint) * dt
     // 收支账本（统计面板）：持续项按速率×时长累计（ringBuild 由 RingBuildComponent 按实灌累计）
     const led = s.ledger

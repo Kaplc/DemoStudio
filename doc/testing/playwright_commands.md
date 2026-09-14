@@ -439,6 +439,12 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **52. 调试桥 `state()` 返回活引用，原子段多步读值不快照 = 别名污染** —— 现象：单次 evaluate 内「装 A → 读 → 拆 → 读 → 装 B → 读」，三个读全拿到同一个活对象，return 字面量在块尾才求值 → 三个值全是最终态（实测 warm 建筑强化断言装 cold_store 读到 heavy_hook）。原因：`state()` 回活 state、`find` 回活引用，JS 无快照语义。规则：原子段内每步操作后**立即提取原语值**（`const s1 = { upgrade: x.upgrade, invested: x.invested }`），return 里只引用原语；或让桥方法直接返回脱快照。
 
+**53. `ui_compile` 资产路径基准是项目根（非仓库根），Knot MCP 客户端断连可直调 HTTP 通道** —— 现象：传 `src/projects/warm-current/.../ship_design.widget.json` 报「源文件不存在」，但文件实际存在；且 Knot 的 demostudio-editor MCP 偶发 `transport error: transport closed`。原因：`compileUiSourceToAsset` 的路径解析基准是**编辑器工作目录（项目根）**，warm-current 项目位于仓库的 `projects/`（非 fish 的 `src/projects/`）；MCP stdio 服务断连不影响主进程能力。规则：**路径按项目根写**（`projects/warm-current/asset/blueprints/ui/xxx.widget.json`）；MCP 客户端断连时改用 `POST http://127.0.0.1:9877/api/command`，body `{"command":"ui_compile","params":{"asset":"..."}}`（主进程白名单原样支持 ui_compile/ui_decompile/run_asset_lint 等），编译/lint/落盘链路完全同源。
+
+**54. `ai.getHUD` 根列表含全部 UI 实例（含游离根），同名节点测量必须看子树归属** —— 现象：`ai.getHUD` 返回的 roots 里同一 widget 名出现多次（如 ShipHullCell ×4 / ShipModuleCell ×13 与面板并列），`ai.getActor('ModuleList')` 按名全局取首个命中，量到的可能是别的面板的同名节点（shipyard 与 ship_design 共享 MainRow/HullList/ModuleList 等大量节点名）。原因：getHUD 逐个遍历 `getAllUIActors()`（每个 spawn 的 widget 都是独立根）；findActorByName 全局递归取首个。规则：**测量带结构的面板先 `ai.getHUD` 导出整树**（`resp.result.hud` 数组，含 path/position/worldSize/zOrder/children），解析出目标面板子树再下钻（如 `ShipDesignPanel → Root → PanelRoot → DesignBody → MainRow → PartsCol`），不要按名直接 getActor；roots 里出现"面板外"的格子根 = 遗留游离实例（脚本清池只置 `visible=false` 不销毁），重启游戏即清，测量时注意别把它当面板子树。
+
+**55. warm 游戏链路全断（菜单进不去/桥消失/evaluate 超时）→ 切 demostudio-editor MCP 的 cdp_* 直通** —— 现象：playwright MCP 的 `browser_evaluate`/`browser_run_code_unsafe` 反复 10s 超时（游戏主循环占满 rAF 时易发），游戏主菜单 Enter 无效（视口未聚焦，坑 39 的 keyPress 桥也够不着），页面 reload 后 `window.__warmCurrent` 为 undefined（桥在 WarmCurrentGameMode 装配后才安装）。规则：**整套流程切 demostudio-editor MCP 的 `cdp_evaluate` 直通**——① 启动页：`document.querySelectorAll('.startup-project-card')` 是 **div 不是 button**（button 选择器选不中），点卡片（`.click()`）→ 点「打开工程」按钮 → 点 Launch；② 开新战役不走键盘：桥装好后直接 `window.__warmCurrent.startNewGame()`；③ 开面板：`g.mode().openPayloadDesign()`；④ 几何断言：`window.__ai.emit('ai.getHUD',{})` 下钻面板子树读 `position/worldSize`（坑 54）；⑤ 交互自测：直调 GameMode 方法（`selectPayloadChassis`/`togglePayloadAttachment`）后读 `g.vm().payloadDesign`。另：**hidden 页 `browser_take_screenshot` 经常拿到场景切换前的陈旧帧**（截图 URL 与页面状态对不上），UI 布局验证以 getHUD 几何数据为权威结论，截图只做辅助目检。
+
 ---
 
 

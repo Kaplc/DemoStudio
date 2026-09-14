@@ -6,9 +6,11 @@
  * 玩家设计权扩展（2026-09-11）：耀斑预警期框选飞船直接下达决策——照跑 / 就近靠站
  * （改道飞向最近罩内安全点，爆发前抵达=保全的赌性）/ 原地待命（未出发船取消本次出发）；
  * 爆发即通讯中断决策锁定，耀斑结束决策清空一切回到常规。船级防冻（guardian 内置 /
- * 加热器模块）罩外也存活。
+ * 加热器模块）罩外也存活。2026-09-14 舱内附件二批：耀斑规避程序（autoEvade）——
+ * 爆发瞬间自动靠站改道、耀斑期间不停滞、结束免冻毁（evadeResumeDelay 恢复延迟）；
+ * 货损保险舱（flareLossMult）冻毁前按损失乘区抢救货物折 H3 到账（ledger.insuranceRecover）。
  */
-import { BObjectComponent } from '@/engine'
+import { BObjectComponent, logger } from '@/engine'
 import { B } from '../core/balance'
 import { buildingEffectiveDef, buildingPos, endpointPos, shipMults, shipPos } from '../core/helpers'
 import type { SimBuilding, SimShip, ShipOrder } from '../core/types'
@@ -69,7 +71,35 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (f.nextIn <= 0) {
       f.phase = 'active'
       f.timer = B.flare.duration
+      this.autoEvadeDispatch()
       this.sc.emit({ type: 'flare_start' })
+    }
+  }
+
+  /** 耀斑规避程序（2026-09-14 舱内附件二批）：爆发瞬间自动给罩外飞行船下靠站决策。
+   *  复用 shelterTarget 几何口径；无护盾建筑/罩满/在装卸或任务船不动（玩家资产无自动改道语义）。
+   *  耀斑期间规避船照常推进（tickShips 的 flareActive 停滞分支跳过 autoEvade 船），
+   *  结束结算 autoEvade 免冻毁 + evadeResumeDelay 恢复延迟——保全不白拿。 */
+  private autoEvadeDispatch(): void {
+    const s = this.sc.state
+    for (const ship of s.ships) {
+      if (ship.state !== 'flying' || ship.mission || ship.shelter) continue
+      if (!shipMults(ship).autoEvade) continue
+      if (ship.routeId == null) continue
+      const from = shipPos(s, ship)
+      const target = this.shelterTarget(s, from)
+      if (!target) continue
+      const shields = s.buildings.filter((b) => (buildingEffectiveDef(b)?.radius ?? 0) > 0)
+      const cap = shields.reduce((sum, b) => sum + (buildingEffectiveDef(b)?.shipCap ?? 0), 0)
+      const used = s.ships.filter((x) => x.shelter).length
+      if (used >= cap) continue
+      const speed = Math.max(0.1, s.mods.speedMult * shipMults(ship).speedMult)
+      const dist = Math.hypot(target.x - from.x, target.y - from.y)
+      ship.order = 'shelter'
+      ship.shelter = { fx: from.x, fy: from.y, tx: target.x, ty: target.y }
+      ship.progress = 0
+      ship.legTime = dist / speed
+      logger.info(`[Hazards] 规避程序自动改道：船 ${ship.id} → 罩内安全点（建筑 ${target.b.id}，航程 ${dist.toFixed(0)}px）`)
     }
   }
 
@@ -215,7 +245,7 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
     const assigned = new Map<number, number>() // buildingId → 已占名额
     const saved = new Set<number>()
     for (const ship of flying) {
-      if (shipMults(ship).antiFreeze) continue // 船级防冻：冻毁免疫（罩外也存活，照常飞）
+      if (shipMults(ship).antiFreeze || shipMults(ship).autoEvade) continue // 船级防冻/规避程序：冻毁免疫（罩外也存活，照常飞）
       const pos = shipPos(s, ship)
       let best: SimBuilding | null = null
       let bestD = Infinity
@@ -234,8 +264,22 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
       }
     }
     let frozen = 0
+    let recovered = 0
     for (const ship of flying) {
-      if (saved.has(ship.id) || shipMults(ship).antiFreeze) continue
+      const m = shipMults(ship)
+      if (saved.has(ship.id) || m.antiFreeze || m.autoEvade) {
+        // 规避程序免冻 = 罩内保全同款恢复延迟（B.evadeResumeDelay），保全不白拿
+        if (!saved.has(ship.id) && m.autoEvade) ship.resumeDelay = B.evadeResumeDelay
+        continue
+      }
+      // 2026-09-14 舱内附件二批：货损保险舱（flareLossMult）——冻毁前抢救部分货物折 H3 到账
+      const lossMult = m.flareLossMult ?? 1
+      const salvage = (ship.cargo + ship.materials * B.materialH3PerUnit) * (1 - lossMult)
+      if (salvage > 0) {
+        s.earthH3 += salvage
+        s.ledger.insuranceRecover += salvage
+        recovered += salvage
+      }
       ship.state = 'frozen'
       // 线路评级：冻毁计入该船所属航线统计（清 routeId 前取）
       const route = ship.routeId != null ? s.routes.find((r) => r.id === ship.routeId) : undefined
@@ -253,6 +297,7 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
         }
       }
     }
+    if (recovered > 0) this.sc.emit({ type: 'insurance_recover', value: recovered })
     // 航线清掉冻毁船
     for (const route of s.routes) {
       route.shipIds = route.shipIds.filter((id) => s.ships.find((x) => x.id === id)?.state !== 'frozen')

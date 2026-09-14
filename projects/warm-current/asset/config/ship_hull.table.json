@@ -1,5 +1,5 @@
 {
-  "_comment": "船型配置表（2026-09-11 玩家设计权扩展：船队从同质单位变成玩家设计的舰队）。行键 = 船型 id（SimShip.hull，造船时定型、建成后不可改装、冻毁重建保留）。\n cost=船体造价(H3；整单价 = 船体 + Σ模块，×船坞折扣)；loadMult=本船型满载乘区；speedMult=本船航速乘区；\n innate=内置特性清单（'anti_freeze'=耀斑冻毁免疫，罩外也存活）；allowed=可装模块 id 清单（'*'=全部；ship_module.table.json 行键；自定义荷载设计不受 allowed 限制，只受槽位闸约束）。\n 初始 3 艘 = 标准型裸船；ship_cap 不分船型照常计数，船型贵价本身就是经济闸门。\n slots = 槽位表（槽位类型 → 数量；模块按 ship_module.slotType 占槽，与 allowed 白名单双闸；缺省 = 仅 allowed）。\n加新船型：加一行 + 造船面板船型页签自动多一档（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——standard 4 槽全能 / hauler 双货舱 / courier 双引擎 / guardian 双槽内置防冻。\n2026-09-13 部位选件制：ship_module 每槽型多档化（cargo_s/pod/x、tank_s/aux/x、engine_s/ion/x、pump_s/pump），allowed 白名单按槽型档位同步扩展——专精船型仍只开本职能槽位件，全能 standard 走 '*'。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload（荷载）、tank→fuel（燃料），功能槽 utility 下线——泵/加热器并入荷载舱（ship_module payloadRole），荷载可经荷载设计工坊合成自定义件（多附件并一件，占 1 荷载槽）。",
+  "_comment": "船型配置表（2026-09-11 玩家设计权扩展：船队从同质单位变成玩家设计的舰队）。行键 = 船型 id（SimShip.hull，造船时定型、建成后不可改装、冻毁重建保留）。\n cost=船体造价(H3；整单价 = 船体 + Σ模块，×船坞折扣)；loadMult=本船型满载乘区；speedMult=本船航速乘区；\n innate=内置特性清单（'anti_freeze'=耀斑冻毁免疫，罩外也存活）；allowed=可装模块 id 清单（'*'=全部；ship_module.table.json 行键；自定义荷载设计不受 allowed 限制，只受槽位闸约束）。\n 初始 3 艘 = 标准型裸船；ship_cap 不分船型照常计数，船型贵价本身就是经济闸门。\n slots = 槽位表（槽位类型 → 数量；模块按 ship_module.slotType 占槽，与 allowed 白名单双闸；缺省 = 仅 allowed）。\n加新船型：加一行 + 造船面板船型页签自动多一档（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——standard 4 槽全能 / hauler 双货舱 / courier 双引擎 / guardian 双槽内置防冻。\n2026-09-13 部位选件制：ship_module 每槽型多档化（cargo_s/pod/x、tank_s/aux/x、engine_s/ion/x、pump_s/pump），allowed 白名单按槽型档位同步扩展——专精船型仍只开本职能槽位件，全能 standard 走 '*'。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload（荷载）、tank→fuel（燃料），功能槽 utility 下线——泵/加热器并入荷载舱（ship_module payloadRole），荷载可经荷载设计工坊合成自定义件（多附件并一件，占 1 荷载槽）。\n2026-09-14 荷载双主体（用户拍板：主体 = 功能基体而非容量档位）：ship_module 主体改双行——固体货仓 cargo_hold + 低温液罐 cryo_tank（轻量/标准/特扩货舱三档下线），本表 allowed 白名单同步换 id。",
   "standard": {
     "name": "标准型",
     "desc": "均衡船体 · 3 槽全能拼装",
@@ -24,11 +24,15 @@
     "speedMult": 0.85,
     "innate": [],
     "allowed": [
-      "cargo_s",
-      "cargo_pod",
-      "cargo_x",
+      "cargo_hold",
+      "cryo_tank",
       "pump_s",
-      "pump"
+      "pump",
+      "cryo_pod",
+      "slingshot",
+      "insurance_pod",
+      "evade_pkg",
+      "drone_rack"
     ],
     "slots": {
       "payload": 2,
@@ -65,12 +69,16 @@
       "anti_freeze"
     ],
     "allowed": [
-      "cargo_s",
-      "cargo_pod",
-      "cargo_x",
+      "cargo_hold",
+      "cryo_tank",
       "tank_s",
       "aux_tank",
-      "tank_x"
+      "tank_x",
+      "cryo_pod",
+      "slingshot",
+      "insurance_pod",
+      "evade_pkg",
+      "drone_rack"
     ],
     "slots": {
       "payload": 1,

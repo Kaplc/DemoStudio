@@ -1,17 +1,7 @@
 {
-  "_comment": "船用模块配置表（2026-09-11 玩家设计权扩展：造船时按船型兼容清单选配，仅本船生效）。行键 = 模块 id（SimShip.modules 元素，单船同模块只装一件）。\n cost=模块造价(H3，并入造船整单价，×船坞折扣；模块不占 ship_cap 名额，花钱即可)。\n mods=效果修正集（仅本船；键=loadMult 本船满载乘区 / fuelMult 本船油耗乘区 / speedMult 本船航速乘区 / workMult 装卸时长乘区 / antiFreeze 冻毁免疫）。\n 船型兼容清单见 ship_hull.table.json allowed 键；建成后不可改装。\n slotType = 占用槽位类型（ship_hull.slots 行键；缺省 = 不占槽仅受 allowed 约束）。\n payloadRole = 荷载件角色（2026-09-13 荷载设计工坊：'chassis'=可作荷载主体的货舱档位 / 'attachment'=可合成进自定义荷载的舱内附件；缺省 = 非荷载件）。\n加新模块：加一行 + 造船面板模块勾选列表自动多一行（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——cargo_pod→cargo / aux_tank→tank / ion_engine→engine / pump,heater→utility。\n2026-09-13 部位选件制（用户需求：点部位 → 同功能多档部件挑数值）：每 slotType 2~3 档同功能部件，行序 = 设计工坊部位清单展示序（低档在前）；性能/造价单调递增。旧 id 全部保留（存档 shipDesigns/SimShip.modules 兼容）。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload、tank→fuel；功能槽 utility 下线——泵/加热器改占荷载槽（payloadRole='attachment'），并与货舱档位（payloadRole='chassis'）在荷载设计工坊合成为自定义荷载（主体+附件并一件，造价 ×1.15 组装溢价，占 1 荷载槽）。",
-  "cargo_s": {
-    "name": "轻量货舱",
-    "desc": "本船满载 ×1.15",
-    "cost": 100,
-    "mods": {
-      "loadMult": 1.15
-    },
-    "slotType": "payload",
-    "payloadRole": "chassis"
-  },
-  "cargo_pod": {
-    "name": "标准货舱",
+  "_comment": "船用模块配置表（2026-09-11 玩家设计权扩展：造船时按船型兼容清单选配，仅本船生效）。行键 = 模块 id（SimShip.modules 元素，单船同模块只装一件）。\n cost=模块造价(H3，并入造船整单价，×船坞折扣；模块不占 ship_cap 名额，花钱即可)。\n mods=效果修正集（仅本船；键=loadMult 本船满载乘区 / fuelMult 本船油耗乘区 / speedMult 本船航速乘区 / workMult 装卸时长乘区 / antiFreeze 冻毁免疫）。\n 船型兼容清单见 ship_hull.table.json allowed 键；建成后不可改装。\n slotType = 占用槽位类型（ship_hull.slots 行键；缺省 = 不占槽仅受 allowed 约束）。\n payloadRole = 荷载件角色（2026-09-13 荷载设计工坊：'chassis'=荷载主体 / 'attachment'=可合成进自定义荷载的舱内附件；缺省 = 非荷载件）。\n加新模块：加一行 + 造船面板模块勾选列表自动多一行（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——cargo_pod→cargo / aux_tank→tank / ion_engine→engine / pump,heater→utility。\n2026-09-13 部位选件制（用户需求：点部位 → 同功能多档部件挑数值）：每 slotType 2~3 档同功能部件，行序 = 设计工坊部位清单展示序（低档在前）；性能/造价单调递增。旧 id 全部保留（存档 shipDesigns/SimShip.modules 兼容）。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload、tank→fuel；功能槽 utility 下线——泵/加热器改占荷载槽（payloadRole='attachment'），并与货舱档位（payloadRole='chassis'）在荷载设计工坊合成为自定义荷载（主体+附件并一件，造价 ×1.15 组装溢价，占 1 荷载槽）。\n2026-09-14 荷载双主体（用户拍板：主体 = 功能基体而非容量档位）：货舱三档（cargo_s/cargo_pod/cargo_x）下线，主体改双行——固体货仓 cargo_hold（旧标准货舱数值延续，杂货运输基体）+ 低温液罐 cryo_tank（低温专线基体：antiFreeze + 挂靠中转站 H3 缓存 ×1.25 + 满载 ×1.1，罐组自重吃载）。旧存档 chassis='cargo_pod' 读态退化为无效主体（合成判 null，设计件不可装），存档仍可读、重开设计即愈。\n2026-09-14 三部位设计工坊（用户拍板：引擎/燃料部也能设计）：燃料三档（tank_s/aux_tank/tank_x）与引擎三档（engine_s/ion_engine/engine_x）升设计主体（fuelRole/engineRole='chassis'），设计工坊改部位页签制（荷载/燃料/引擎）；attachment 改装件池跨部位通用（任一部位设计均可勾选并件）；合成件 slotType 随部位占对应槽；装配台三部位槽位清单同口径收口（只出玩家保存的设计）。设计记录 SimPayloadDesign.slotType 随档（旧档缺省 payload），uid 前缀按部位 pd/fd/ed。\n2026-09-14 改装件契合主体（用户拍板：附加的东西要契合当前选择的主体）：attachment 行新增 fits 声明可搭部位清单（缺省 = 通用件）——货运件（泵×2/加热器/中转罐/保险舱）仅荷载、弹弓计算器仅燃料、规避程序/无人机架通用；工坊清单按页签过滤、新勾拒绝、切页剔除、载入收敛；合成器不拒跨部位附件（旧档设计宽容）。",
+  "cargo_hold": {
+    "name": "固体货仓",
     "desc": "本船满载 ×1.3",
     "cost": 180,
     "mods": {
@@ -20,12 +10,14 @@
     "slotType": "payload",
     "payloadRole": "chassis"
   },
-  "cargo_x": {
-    "name": "特扩货舱",
-    "desc": "本船满载 ×1.5",
-    "cost": 300,
+  "cryo_tank": {
+    "name": "低温液罐",
+    "desc": "耀斑冻毁免疫 · 挂靠中转站卸货时该站 H3 缓存上限 ×1.25 · 本船满载 ×1.1",
+    "cost": 380,
     "mods": {
-      "loadMult": 1.5
+      "antiFreeze": true,
+      "bufferCapMult": 1.25,
+      "loadMult": 1.1
     },
     "slotType": "payload",
     "payloadRole": "chassis"
@@ -37,7 +29,8 @@
     "mods": {
       "fuelMult": 0.9
     },
-    "slotType": "fuel"
+    "slotType": "fuel",
+    "fuelRole": "chassis"
   },
   "aux_tank": {
     "name": "副油箱",
@@ -46,7 +39,8 @@
     "mods": {
       "fuelMult": 0.8
     },
-    "slotType": "fuel"
+    "slotType": "fuel",
+    "fuelRole": "chassis"
   },
   "tank_x": {
     "name": "深冷油箱",
@@ -55,7 +49,8 @@
     "mods": {
       "fuelMult": 0.65
     },
-    "slotType": "fuel"
+    "slotType": "fuel",
+    "fuelRole": "chassis"
   },
   "engine_s": {
     "name": "巡航引擎",
@@ -64,7 +59,8 @@
     "mods": {
       "speedMult": 1.1
     },
-    "slotType": "engine"
+    "slotType": "engine",
+    "engineRole": "chassis"
   },
   "ion_engine": {
     "name": "离子引擎",
@@ -73,7 +69,8 @@
     "mods": {
       "speedMult": 1.2
     },
-    "slotType": "engine"
+    "slotType": "engine",
+    "engineRole": "chassis"
   },
   "engine_x": {
     "name": "聚变引擎",
@@ -82,7 +79,8 @@
     "mods": {
       "speedMult": 1.35
     },
-    "slotType": "engine"
+    "slotType": "engine",
+    "engineRole": "chassis"
   },
   "pump_s": {
     "name": "备用货泵",
@@ -92,7 +90,8 @@
       "workMult": 0.8
     },
     "slotType": "payload",
-    "payloadRole": "attachment"
+    "payloadRole": "attachment",
+    "fits": ["payload"]
   },
   "pump": {
     "name": "快速货泵",
@@ -102,7 +101,8 @@
       "workMult": 0.6
     },
     "slotType": "payload",
-    "payloadRole": "attachment"
+    "payloadRole": "attachment",
+    "fits": ["payload"]
   },
   "heater": {
     "name": "防冻加热器",
@@ -110,6 +110,60 @@
     "cost": 320,
     "mods": {
       "antiFreeze": true
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment",
+    "fits": ["payload"]
+  },
+  "cryo_pod": {
+    "name": "低温中转罐",
+    "desc": "挂靠中转站卸货时该站 H3 缓存上限 ×1.5",
+    "cost": 200,
+    "mods": {
+      "bufferCapMult": 1.5
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment",
+    "fits": ["payload"]
+  },
+  "slingshot": {
+    "name": "引力弹弓计算器",
+    "desc": "引力窗口内油耗折价加深（窗口油耗 ×0.5）",
+    "cost": 160,
+    "mods": {
+      "windowFuelMult": 0.5
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment",
+    "fits": ["fuel"]
+  },
+  "insurance_pod": {
+    "name": "货损保险舱",
+    "desc": "耀斑冻毁损失减半（抢救 50% 货物折 H3 到账）",
+    "cost": 180,
+    "mods": {
+      "flareLossMult": 0.5
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment",
+    "fits": ["payload"]
+  },
+  "evade_pkg": {
+    "name": "耀斑规避程序",
+    "desc": "预警自动靠站 · 耀斑期间不停滞 · 结束免冻毁（3s 恢复延迟）",
+    "cost": 300,
+    "mods": {
+      "autoEvade": true
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment"
+  },
+  "drone_rack": {
+    "name": "维护无人机架",
+    "desc": "本船维护费份额 ×0.25",
+    "cost": 180,
+    "mods": {
+      "maintMult": 0.25
     },
     "slotType": "payload",
     "payloadRole": "attachment"

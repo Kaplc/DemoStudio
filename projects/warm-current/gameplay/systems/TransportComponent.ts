@@ -360,7 +360,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
           break
         }
         case 'flying': {
-          if (flareActive) break // 失联停滞
+          // 失联停滞（规避程序船例外：自动靠站已改道罩内，照常推进——保全不白拿）
+          if (flareActive && !shipMults(ship).autoEvade) break
           ship.progress += dt / Math.max(0.1, ship.legTime)
           if (ship.shelter) {
             // 靠站改道：抵达罩内安全点后原地等待耀斑结算（跑在爆发前 = 保全的赌性所在）
@@ -432,7 +433,9 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       s.starStock[star] = stock - take
       this.dryHinted.delete(star) // 恢复出货：清沿提示键
     } else if (route.direction === 'relay_out') {
-      // 出站回运：货源 = 中转站 H3 缓存（第一段转运的货在此变现）
+      // 出站回运：货源 = 中转站 H3 缓存（第一段转运的货在此变现）。
+      // 上限只按 stock 截断（入站 relay_in 已按缓存截断过；低温中转罐只在卸货口生效，
+      // 取货不随挂靠船浮动——避免普通船在罐船填过的站上被 800−stock 额外截断）
       const b = buildingByEndpoint(s, route.from)
       if (!b) { this.detachShipToIdle(ship); return }
       const stock = b.stockH3 ?? 0
@@ -533,7 +536,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       // 入站转运：卸入中转站 H3 缓存（cap 截断；油费船已付，转运损耗 = 无，价值在两段距离差）
       const b = buildingByEndpoint(s, route.to)
       if (b) {
-        const cap = this.owner.buildings.bufferCapOf(b)
+        // 低温中转罐：挂靠船卸货时缓存上限按船级乘区放大（bufferCapMult）
+        const cap = this.owner.buildings.bufferCapOf(b, ship)
         const room = Math.max(0, cap - (b.stockH3 ?? 0))
         const drop = Math.min(ship.cargo, room)
         b.stockH3 = (b.stockH3 ?? 0) + drop
