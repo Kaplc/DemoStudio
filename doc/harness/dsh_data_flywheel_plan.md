@@ -187,7 +187,7 @@ return { status: existing ? 'updated' : 'created', fileName }
 
 > 同名即覆盖、不产生副本——episode 是「某类任务怎么做」的一条路线，同类型第二次做应更新同一条，而不是堆出 `fix_junction_mount_2`。真实落盘格式见 `.dsh/experience/auto_scan_ds_instructions.md`：frontmatter 四键 `name/task_type/outcome/date` + `## Summary` / `## Lessons` / `## Effective Path` 三个固定小节。
 >
-> **触发方式**：主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）+ **回合末提醒兜底**（`session/event` 的 `turn/end` 注入"回合末经验提醒"，60 秒冷却，配置 `enableEndOfTurnReminder`；本回合已成功 `experience_save` 则跳过——与 ds-memory 的提醒"各自只看自己"，双写场景互不抑制）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
+> **触发方式**：主 agent 自觉调 `experience_save`（指导段 `experienceGuideSectionText` 驱动）+ **回合末提醒兜底**（2026-09-13 起由通用提醒插件 `@demostudio/ds-reminder` 注入"回合末经验提醒"：`turn/end` + `agent.inject`，60 秒冷却，文案在 `.dsh/reminder/experience-end-of-turn.md` 实时读取；本回合已成功 `experience_save` 则跳过——与记忆提醒"各自只看自己"，双写场景互不抑制）。`extractFromSession` 在 [extractExperience.ts:94](../../harness/ds-experience/src/extractExperience.ts) 已被禁用，函数体只留日志并返回空结果：
 
 ```ts
 // 此功能已被禁用，不再调用 LLM
@@ -195,7 +195,7 @@ _ctx.logger?.info('ds-experience: extractFromSession 已被禁用，经验保存
 return { ok: true, saved: [], updated: [] }
 ```
 
-> 2026-09-09 起经验侧对齐了 ds-memory 的两条**确定性**链路（对 LLM 自动提炼裁撤决策的补充而非回退——不加任何模型请求）：① 回合末提醒（纯文本注入）；② frontmatter `prefix:` 路径自动联想（associate.ts，读到满足表达式的文件时该经验全文注入，每会话去重；表达式支持 `||`/`&&`；注入卡片的摘要列出实际装入的文件名，首行条数、逐行一个）。早期"LLM 自动提炼"的失衡教训仍然成立：判定永远在主 agent，插件只给触发信号。
+> 2026-09-09 起经验侧对齐了 ds-memory 的两条**确定性**链路（对 LLM 自动提炼裁撤决策的补充而非回退——不加任何模型请求）：① 回合末提醒（纯文本注入，2026-09-13 起由 `@demostudio/ds-reminder` 承载）；② frontmatter `prefix:` 路径自动联想（associate.ts，读到触发列表中的文件时该经验全文注入，每会话去重；2026-09-12 起为具体文件路径数组精确匹配；注入卡片的摘要列出实际装入的文件名，首行条数、逐行一个）。早期"LLM 自动提炼"的失衡教训仍然成立：判定永远在主 agent，插件只给触发信号。
 
 **② 历史会话检索**（[historyTools.ts:75](../../harness/ds-experience/src/historyTools.ts)）
 
@@ -264,10 +264,11 @@ const page = await host.ctx.sessionQuery.searchSessions({
 | ds-feedback 提案落盘 | ✅ 已有数据 | `.dsh/rules/pending/ui_default_no_icon.proposed.md`（date 2026-09-02） |
 | ds-feedback active 规则 | ⚠️ 空库 | `RULES.md` 仅标题头，无 active 规则行 |
 | ds-feedback 运行时激活 | ✅ 已激活（2026-09-10 实测） | `harness/ds-feedback/dist/index.js` 存在；`~/.dsh/profiles/{web,headless}/node_modules/@demostudio/ds-feedback` junction 已挂载 |
-| ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段 + 回合末提醒 + prefix 联想齐全 |
+| ds-experience 插件全套代码 | ✅ 代码已实现 | 4 个工具 + 指导段 + prefix 联想齐全（回合末提醒 2026-09-13 移交 ds-reminder） |
 | ds-experience 数据落盘 | ✅ 已有数据 | `.dsh/experience/` 46 个 `.md`（45 个 episode + INDEX.md；2026-09-10 实测） |
 | ds-experience 回合末自动提炼 | ❌ 已删除，仓库无实现 | `extractFromSession` 禁用；无 side-query/水位逻辑 |
-| ds-experience 回合末提醒 + prefix 联想 | ✅ 2026-09-09 新增 | `index.ts` 注册 `turn/end` 提醒（60s 冷却；本回合已成功 `experience_save` 则跳过，`reminderSkipTools` 可改）与 associate 联想（`enableEndOfTurnReminder`/`enableAutoAssociate` 可关）；零 LLM |
+| ds-experience prefix 联想 | ✅ 2026-09-09 新增 | associate 联想（`enableAutoAssociate` 可关）；零 LLM |
+| 回合末提醒收敛为 ds-reminder 插件 | ✅ 2026-09-13 提取 | `harness/ds-reminder`：配置声明提醒条目（通道 steer/inject、skipTools 跳过判定、60s 冷却、子 agent 门控），文案文件化 `.dsh/reminder/*.md` 实时读取；当前三条（memory-end-of-turn 认 `memory_write` / experience-end-of-turn 认 `experience_save` / doc-update-reminder 文档同步检查，各自只看自己）；`scripts/sync-dsh-plugins.mjs` 已加 `reminderDir` + reminders 挂载块（reminders 全量替换，新增提醒 = 加条目 + 放文案文件） |
 | prefix 联想改文件数组精确匹配 | ✅ 2026-09-12 改造 | ds-memory/ds-experience 同步：frontmatter `prefix:` 由目录前缀/`&&`·`\|\|`表达式改为**具体文件路径数组**（读到列表任一文件即触发；旧目录前缀值不再命中，需改写为文件列表；`/` 全局不再支持）。解析 `parseTriggerFileList`、匹配 `matchTriggerFiles`；memory_write/experience_save 的 `prefix` 参数改为字符串数组（hold 语义保留，空数组等同 hold） |
 | session-query 持久索引 patch | ✅ 已写入配置 | `.dsh/profiles/{web,headless}/cordis.patch.yml` 均含 `path` + `openAt: first-search` |
 | session-query sqlite 文件 | ✅ 已建库 | `C:/Users/Kaplc/.dsh/session-query/index.sqlite` 存在（约 36MB，2026-09-10 实测；`first-search` 惰性，首次搜索时建库） |

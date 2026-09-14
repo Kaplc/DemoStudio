@@ -125,6 +125,8 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 | `firstResult` | ai.ts:33 | 取 results[0] + 三种静默失败转可读错误 | 恒真断言的天敌 |
 | `getHUDRoots` | ai.ts:68 | HUD 全部根 Actor | 返回是数组不是单节点 |
 | `clickActor` | ai.ts:103 | 带轮询重试的点击 | 成功后等 600ms 吸收点击冷却 |
+| `mouseClick` / `mouseDrag` / `mouseMove` | ai.ts:132+ | 模拟真实输入（完整按下+释放 / 支持右键 button=2 / hover） | drag 回执即时返回（`async: true`），位移效果需轮询 projectScreenPos 确认 |
+| `projectScreenPos` | ai.ts:132+ | 世界→屏幕投影查询（`inFront=false` = 界外坐标不可信） | 与 mouseClick 组成"投影→点击"纯玩家链；用例见 e2e/warm/player_input.spec.ts |
 | `PROJECTS` / `getProject` | projects.ts:10 / :27 | 项目注册表 / 按 id 取描述符 | 新项目接入点 |
 | `test.extend` | fixtures.ts:32 | `game` fixture + `project` 选项 | spec 一律从这里 import test/expect |
 

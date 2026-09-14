@@ -212,8 +212,12 @@ private handleMuxFrame(frame: unknown): void {
     const questions = payload.questions as QuestionItem[] | undefined
     const sessionId = payload.sessionId as string | undefined
     if (questions && sessionId) {
-      // 只处理当前会话的问题（mux 可能推送其他会话的 pending 帧）
-      if (sessionId !== this.sessionId) return
+      if (sessionId !== this.sessionId) {
+        // 非当前会话：存入跨会话待定表 + 记通知气泡（切到该会话时 adopt 成可回答卡片）
+        this.crossQuestions.set(rpcId, { rpcId, sessionId, questions })
+        this.applyNoticeAction({ type: 'question-requested', ... })
+        return
+      }
       const req: PendingQuestionRequest = { rpcId, sessionId, questions }
       this.pendingQuestions.set(rpcId, req)
       this.emit({ type: 'questionRequest', payload: req })
@@ -229,7 +233,10 @@ private handleMuxFrame(frame: unknown): void {
 
 **`session/projection` 分支（投影实时推送）**：DSH host 在投影（`title`/`sessionStats` 等）变化时主动推 `{ type: 'session/projection', sessionId, key, value, seq }` 帧——这是 DSH WebUI 会话标题实时刷新的同一机制。编辑器侧把它合并进会话列表缓存并广播 `sessionsUpdated` 事件：`mergeProjectionFrame`（纯函数）按 `${sessionId}:${key}` 记 seq 水位做 last-wins 去重（`seq <= 水位` 的帧丢弃，对齐 WebUI `projectionStore.apply`）；会话不在缓存（blank→listed 过渡）或未跟踪键走 300ms 防抖 `listSessions()` 全量刷新。`session/subscribed` 分支同时做水位截断（对齐 WebUI `projectionStore.truncate`）：agent 重启后基线回退，高于 `lastSeq` 的本地水位不可信，丢弃后防抖全量重种。
 
-**每个分支都先比 `sessionId !== this.sessionId` 再 return**——mux 是整个连接的**多路复用**流，会把同一 DSH 上其他会话的 pending 帧一起推过来（编辑器内嵌面板和独立窗口共享 :3080）。少了这道判断，A 会话会渲染出 B 会话的问答卡片。
+**mux 是整个连接的`多路复用`流：所有会话的帧都推过来**（DSH `events.mux` 的 `session/event` 是 `ctx.on('session/event')` 全会话广播、无订阅过滤；question/approval 待定请求在开流时还会按稳定 rpcId 重放）。按会话分两条路：
+
+- **当前会话**（`sid === this.sessionId`）：`session/event` 进 `consumeSessionEvent` 完整消费管线；question/approval 进 `pendingQuestions`/`pendingApprovals` 弹出可操作卡片。
+- **其他会话**（§14 跨会话动态气泡）：`session/event` 只提炼回合边界（`consumeForeignSessionEvent`：turn/start 清过期结算、turn/end 按 completed/error/blocked 记账）；question/approval 存进 `crossQuestions`/`crossApprovals` 并记通知——切到该会话时 `adoptCrossSessionRequests` 把它们升级回可操作卡片（修复了"切到有提问的会话卡片不出现"的历史缺口），同时该会话的气泡全部视为已读清除。
 
 `session/subscribed` 分支是订阅握手，它带的 `lastSeq` 用来前跳 `_lastSeq` 基线：
 
@@ -772,6 +779,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `AgentPanel` 消息列表 | `onEvent(cb)` 订阅事件流；`message` / `reasoning.delta` / `turnStart` 驱动显示队列与打字机 | [UI 面板组件](../ui/ui_components_system.md) |
 | `SessionSidebar` | `listSessions()` 拉列表；切换/新建/删除全部回写 localStorage 映射；按 `updatedAt` 自动分组——超过 3 天的会话收进「3 天前的会话（N）」折叠组（默认收起，点击展开，`sessionGrouping.ts` 纯逻辑），当前会话与缺 `updatedAt` 的会话始终平铺在近期组 | [UI 面板组件](../ui/ui_components_system.md) |
 | `SessionTitle`（头部当前会话标题） | 头部左侧显示当前会话标题投影：`resolveSessionTitle` 纯函数解析——无会话回退「Agent」、blank 新会话或标题投影仍回退 sessionId 原文时显示「新会话」，其余显示标题原文；实时性由 `session/projection` 投影帧合并 → `sessionsUpdated` 事件驱动（§3.2），`turnEnd`/切换/连接时另有 `refreshSessions()` 全量对账 | [UI 面板组件](../ui/ui_components_system.md) |
+| `SessionNoticeStack`（跨会话动态气泡） | 消息区左上角浮层，提醒**非当前会话**的动态：回合完成（绿）/出错（红）/阻塞（黄）/等待批准（黄）/等待回答（蓝），数据见 §14；点击气泡切到该会话（气泡随切换视为已读），× 手动关闭 | [UI 面板组件](../ui/ui_components_system.md) |
 | `InputBox` | `isRunning()` 决定 send/steer 分流与 placeholder；停止按钮仅 running 时出现 | [UI 面板组件](../ui/ui_components_system.md) |
 | `ContextRing`（输入框进度圈） | `contextPressure` 事件驱动；分子分母任一缺失不出环（§4.5） | [UI 面板组件](../ui/ui_components_system.md) |
 | `QuestionCard` / `ApprovalCard` | `question/requested`、`approval/requested` 渲染交互卡，回答经 `answerQuestion(rpcId)` 回传 | [UI 面板组件](../ui/ui_components_system.md) |
@@ -920,9 +928,11 @@ deriveDiffsFromArgs(name,args)          d.meta.diffs（DSH 已应用 hunk）
 
 ```ts
 const diffs = tool.diffs?.length ? tool.diffs
-  : (tool.status === 'running' || tool.status === 'pending') ? deriveDiffsFromArgs(tool.name, tool.args)
-  : null   // 失败/无 diffs（旧会话回放）→ 通用 JSON 视图
+  : tool.status === 'failure' ? null                    // 失败 → 通用 JSON 视图（入参未生效，不派生）
+  : deriveDiffsFromArgs(tool.name, tool.args)           // 进行中意图 + 无权威 hunk 的兜底派生
 ```
+
+派生兜底覆盖 settle 后的场景（2026-09-13 用户反馈）：**DSH `write` 新建文件（`before === null`）时 `presentResult` 直接给 `meta.diffs: []`**（`dsh-tool-fs` 不为全新文件产 hunk），权威路拿不到数据；编辑器侧改从入参派生 content 全 add 视图，write 卡片与 edit 一样展示 diff 而不是退回原始 JSON。成功 edit 无权威 diffs（旧会话回放）同理派生 `old_string → new_string`。
 
 `tool.diffs` 的入口是 `AgentService.extractDiffsFromMeta(meta)`（模块级纯函数，防御式收窄，对齐 DSH `dsh-tool-fs` 的 `diffsFromMeta`）：形状不符整表拒绝返回 `undefined`，宁可回退通用卡片也不渲染半份 diff。**实时路径（`handleSessionEvent` 的 `tool/result`）与历史 fold 路径（`loadHistory`）都要接**——两处都已接，漏一处就是"实时有、切会话后没了"。
 
@@ -954,6 +964,7 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 | 默认展开 | edit/write 卡片 `useState(() => isDiffToolName(tool.name))`，点击头部仍可收起 | `tests/toolCardDiff.test.tsx` 收起/再展开用例 |
 | 不折叠 | 长 diff 全量渲染，**没有**「其余 N 行」折叠（DSH WebUI 默认折 16 行，这里按用户要求去掉） | 同上「30 行直接全部渲染」用例 |
 | 行号配色 | ctx 白（`label-primary`）、del 红（`state-error-primary` + `-`）、add 绿（`state-success-primary` + `+`） | `tests/e2e/agent/tool-card-diff.spec.ts` 断言 computedStyle 精确 RGB |
+| write 新建文件兜底 | 无权威 hunk 的 settled success 也派生 diff（DSH write 新文件 `meta.diffs` 为空数组），只有 failure 才退通用视图 | `tests/toolCardDiff.test.tsx` + e2e「write 新建文件（meta.diffs 空数组）」用例 |
 
 ### 12.5 文件与测试分工
 
@@ -986,3 +997,34 @@ DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.pr
 - 样式：`src/styles/editor.css` 的 `.settings-panel__model-*` / `.settings-panel__config-edit` 区段；
 - 单测：`tests/settingsPanelModels.test.tsx`（mock 掉 AgentService，断言 `settings.mutate` 载荷形状；vitest `globals:false` 下 testing-library 不自动清 DOM，必须手动 `afterEach(cleanup)`）；
 - E2E：`e2e/agent/provider-model-config.spec.ts`——`addInitScript` hook `window.fetch` 按 RPC method 返回合成响应（`session.list` 命中 `demostudio.dsh.session` localStorage 映射走 recovering 路径），`settings.mutate` 只记录进 `window.__dshMutations` 不落真盘，全程无副作用。
+
+## 14. 跨会话动态气泡栈（2026-09-13）
+
+消息区左上角浮层（`SessionNoticeStack`），提醒**非当前会话**的动态：回合完成 / 出错 / 阻塞 / 等待批准 / 等待回答。解决的问题是"同一个 DSH 上跑着多个会话（并行 agent、子代理），别的会话完成了、出错了、卡在等审批时，当前面板毫无感知"。
+
+**展示策略（2026-09-14 用户反馈"不能挡住当前会话的内容"）**：新动态到达 → 展开单行紧凑气泡 8 秒 → 自动收起成角落小徽标（状态点 + 数量）。点徽标重新展开并保持（pinned，定时器到点不收）；栈尾「‹」按钮立即收起（用 suppress 标记吞掉同一次 idsKey 变化的自动展开，否则收起会被 effect 覆盖——状态机坑，改动别丢）。
+
+### 14.1 数据从哪来：mux 本来就全会话广播
+
+不需要新连接、新 RPC——DSH `events.mux` 的 `session/event` 是 `ctx.on('session/event')` **全会话广播**（无订阅过滤），question/approval 待定请求在开流时按稳定 rpcId 重放。编辑器此前把这些帧按 `sessionId !== this.sessionId` 直接丢弃；现在由 `AgentService.consumeForeignSessionEvent` + question/approval 分支的跨会话路径提炼成通知动作。
+
+### 14.2 归约与清除路径
+
+全部通知语义在纯函数层 `src/editor/sessionNotices.ts`（`reduceSessionNotices`，可辨识联合动作 + 不可变归约）：
+
+- **回合结算**（`turn-ended`）按 `${sessionId}:turn` upsert——同一会话只保留最新一条；该会话 **turn/start 时旧结算过期移除**（`turn-started`）。aborted/interrupted/max-tokens（用户主动停止/常规截断）不打扰。
+- **等待通知**（question/approval）按 rpcId/approvalId 增删；resolved 帧到达即清除（mux 重连基线重放同 id 不会重复）。
+- **清除路径**：点开该会话（切换时 `session-viewed` 全清，视为已读）、手动 ×（`dismiss`）、会话归档（`session-removed`）。
+- 容量上限 `MAX_SESSION_NOTICES = 8`，溢出淘汰最旧；归约无变化时返回原数组引用，服务层据此跳过 `sessionNotice` 广播。
+
+### 14.3 切换会话的 adopt 语义（改这块别改回去）
+
+`switchSession` 做两件事：① 目标会话的气泡全清（面板上已可见）；② `adoptCrossSessionRequests` 把目标会话在跨会话表里的待定问答/审批移进 `pendingQuestions`/`pendingApprovals`，面板切换后从 `getPendingQuestions()`/`getPendingApprovals()` **取种子而不是清空**——否则切到有提问/审批的会话卡片不出现（这也是本次顺手修复的历史缺口）。adopt 不 emit：面板 await 切换后再取 getter，避免被 `setPendingQuestions([])` 时序冲掉。
+
+### 14.4 文件与测试分工
+
+- 纯函数：`src/editor/sessionNotices.ts`（reducer + id 帮助函数，types 在 `types/agent.ts` 的 `SessionNotice*`）；
+- 接线：`AgentService.ts` 的 `applyNoticeAction` / `consumeForeignSessionEvent` / `adoptCrossSessionRequests`，mux 分派见 §3.2；
+- UI：`src/components/agent/SessionNoticeStack.tsx`（无 icon/emoji，状态色只用状态点，2026-09-14 用户决策去掉左色条：绿=完成、红=出错、黄=阻塞/待批准、蓝=待回答）+ `.session-notice*` 样式区段；
+- 单测：`tests/sessionNotices.test.ts`（reducer 全分支：upsert 保序、引用相等跳广播、容量淘汰、各类清除路径）；
+- E2E：`tests/e2e/agent/session-notice-bubble.spec.ts`——无副作用：mock WebSocket（实例收集在 `window.__noticeE2E.sockets`）+ 合成 fetch RPC，直接向 mux onmessage 投递合成帧；覆盖"当前会话不出泡 / 四类通知上泡 / 重放去重 / 关闭 / 决议清除 / 点击切换 + adopt 卡片"。注意入口直接 goto `/agent.html`（`/?agentWindow=1` 的重定向窗口期 evaluate 会撞 context destroyed）。

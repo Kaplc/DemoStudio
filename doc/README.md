@@ -92,7 +92,7 @@
 | 文件 | 说明 |
 |---|---|
 | [`integration/mcp_integration.md`](./editor/integration/mcp_integration.md) | MCP 集成与调试桥：三客户端配置 / 9 个工具清单 / 多实例端口 |
-| [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 / 使用统计 |
+| [`integration/agent_panel_system.md`](./editor/integration/agent_panel_system.md) | Agent 面板与事件流：连接状态机 / 双通道事件 / 会话恢复 / 使用统计 / 跨会话动态气泡 |
 | [`integration/electron_main_ipc.md`](./editor/integration/electron_main_ipc.md) | Electron 主进程与 IPC：启动编排 / 30+ 通道清单 / 往返模式 / DSH 状态机 |
 
 ---

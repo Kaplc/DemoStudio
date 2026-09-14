@@ -14,18 +14,18 @@
 |---|---|---|
 | [memoryTypes.test.ts](../../harness/ds-memory/tests/memoryTypes.test.ts) | KM-01：锁住记忆指导段四段格式与「什么不该存」文案；prefix 触发文件列表的解析/序列化往返 | 改 `memoryTypes.ts` 提示词或 prefix 解析后必跑 |
 | [associate.test.ts（memory）](../../harness/ds-memory/tests/associate.test.ts) | matchTriggerFiles 精确匹配（多文件 OR、目录条目不命中子文件、反斜杠归一、win32 大小写）+ 注入文本组装 + 联想器集成（命中注入/同会话去重/子 agent·失败·未跟踪工具门控） | 改 `associate.ts` 联想逻辑 |
-| [endOfTurnReminder.test.ts](../../harness/ds-memory/tests/endOfTurnReminder.test.ts) | KM-06~08：回合末提醒接线（`turn-stopping` + `steer`、60s 冷却、子 agent 门控、中止/抛错兜底）+「本回合已保存过记忆则跳过」判定（各自只看自己，`experience_save` 不抑制） | 改 `index.ts` 提醒块或 `reminderSkipTools` |
+| [reminder.test.ts（ds-reminder）](../../harness/ds-reminder/tests/reminder.test.ts) | KM-06~08（2026-09-13 起随提醒移交）：回合末提醒装配/配置面、双通道注入（steer/inject 与 source 契约）、60s 冷却、子 agent 门控、中止/抛错兜底、「本回合已保存过则跳过」判定（各自只看自己）+ 文本文件读取/内联回退/热更新 | 改 `harness/ds-reminder` 提醒引擎或提醒配置 |
 | [ruleStore.test.ts](../../harness/ds-feedback/tests/ruleStore.test.ts) | RL-01~10：规则名校验、提案落盘、同名 mode 冲突、索引单行、超限截断 | 改 `ruleStore.ts` 落盘逻辑 |
 | [preScreen.test.ts](../../harness/ds-feedback/tests/preScreen.test.ts) | RL-12~13：纠正关键词预筛 + 提示块渲染 | 调关键词或摘录上限 |
 | [turnEnd.test.ts](../../harness/ds-feedback/tests/turnEnd.test.ts) | RL-14~16：回合末接线、agent 隔离、子 agent 门控、running 撤销补检 | 改 `index.ts` 空闲监听 |
 | [experienceStore.test.ts](../../harness/ds-experience/tests/experienceStore.test.ts) | EXP-01~03：episode 落盘、同名覆盖、非法名拒绝 + prefix frontmatter/索引标注/单行校验 | 改经验落盘格式 |
 | [historyTools.test.ts](../../harness/ds-experience/tests/historyTools.test.ts) | EXP-06~07 + cwd 过滤：报错透出、转录跳过注入 | 改历史检索/转录渲染 |
 | [associate.test.ts](../../harness/ds-experience/tests/associate.test.ts) | EXP-16~19：prefix 文件列表精确匹配（任一命中触发、目录条目不命中子文件）、解析往返、组装文本、项目根推导 + 联想器集成（登记→确认→注入、子 agent 门控、列表外不触发） | 改 `associate.ts` 联想逻辑 |
-| [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24：注册冒烟、回合末提醒（内容/冷却/门控）+「本回合已 experience_save 则跳过」判定、联想装配与停用 warn | 改 `index.ts` 装配 |
+| [index.test.ts](../../harness/ds-experience/tests/index.test.ts) | EXP-20~24（2026-09-13 翻新）：注册冒烟、提醒移交断言（不再注册 session/event 提醒监听）、联想装配与停用 warn | 改 `index.ts` 装配 |
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
-**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 82 个单测通过（6 文件，2026-09-12 实测；ds-memory 同步翻新后 125 个全绿）。**2026-09-12 更新**：prefix 联想由目录前缀/&&·|| 表达式改为具体文件数组精确匹配，EXP-16~19 与 memory 侧 associate/memoryTypes/memoryWriteTool 用例同步翻新。
+**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 82 个单测通过（6 文件，2026-09-12 实测；ds-memory 同步翻新后 125 个全绿）。**2026-09-12 更新**：prefix 联想由目录前缀/&&·|| 表达式改为具体文件数组精确匹配，EXP-16~19 与 memory 侧 associate/memoryTypes/memoryWriteTool 用例同步翻新。**2026-09-13 更新**：回合末提醒从 ds-memory/ds-experience 提取为 `@demostudio/ds-reminder`（文案文件化 `.dsh/reminder/*.md`），KM-06~08 随迁至 `harness/ds-reminder/tests/reminder.test.ts`（35 用例），ds-memory 删除 `endOfTurnReminder.test.ts`（125→106 用例）、ds-experience `index.test.ts` 翻新（72 用例全绿）。
 
 ---
 
@@ -63,7 +63,7 @@ cd harness/ds-experience && npm install && npm run build && npm test
 
 | 编号 | 管什么 | 对应插件 | 主要测试文件 |
 |---|---|---|---|
-| KM | 知识飞轮：ds-memory 提示词结构化 | ds-memory | `memoryTypes.test.ts`、`endOfTurnReminder.test.ts` |
+| KM | 知识飞轮：ds-memory 提示词结构化 + 回合末提醒（ds-reminder） | ds-memory + ds-reminder | `memoryTypes.test.ts`；`harness/ds-reminder/tests/reminder.test.ts` |
 | RL | 反馈飞轮：规则提案/应用 + 回合末预筛 | ds-feedback | `ruleStore.test.ts`、`tools.test.ts`、`preScreen.test.ts`、`turnEnd.test.ts` |
 | SQ | 会话索引：`session-query-sqlite` patch | 内核 + profile patch | 无（纯手动） |
 | EXP | 经验插件：落盘/检索/历史转录 | ds-experience | `experienceStore.test.ts`、`experienceTools.test.ts`、`historyTools.test.ts`、`extractExperience.test.ts`、`index.test.ts` |
@@ -96,9 +96,9 @@ it('不保存清单不再包含无差别的"调试修复配方"，改为限定�
 | KM-03 | 手动 | 真实踩一个可复用坑 → 等提取 → 查 `.dsh/memory/` | 新记忆按 Problem/Cause/Solution/Applicable 四段组织 |
 | KM-04 | 手动 | 一次无可复用根因的单点 bug 修复后等提取 | 不生成修复流水账记忆（宁缺毋滥） |
 | KM-05 | 手动 | 同一主题下连踩多个坑 | 合并进同一文件，每坑一个 `## 小节`，不拆碎 |
-| KM-06 | 单测 | 回合末提醒接线：`agent/turn-stopping` + `steer` 注入（文本/`source` 契约）、60s 冷却按 agent 隔离、子 agent 门控、signal 中止与 steer 抛错兜底、配置关闭时不注册监听（`endOfTurnReminder.test.ts`） | 全绿 |
-| KM-07 | 单测 | 提醒跳过判定（各自只看自己）：本回合 `memory_write` 成功 → 跳过；`experience_save` 成功 → **不跳过**（双写场景下只存了经验仍可能漏存记忆）；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`endOfTurnReminder.test.ts`） | 全绿 |
-| KM-08 | 单测 | `reminderSkipTools` 配置面：`[]` 关闭判定、自定义清单替换默认（`endOfTurnReminder.test.ts`） | 全绿 |
+| KM-06 | 单测 | 回合末提醒接线（2026-09-13 起在 ds-reminder）：装配/配置面（默认两条、通道按需注册、无效条目丢弃）+ `agent/turn-stopping` + `steer` 注入（文本/`source` 契约）、60s 冷却按 agent 隔离、子 agent 门控、signal 中止与 steer 抛错兜底（`reminder.test.ts`） | 全绿 |
+| KM-07 | 单测 | 提醒跳过判定（各自只看自己）：本回合 `memory_write` 成功 → 记忆提醒跳过；`experience_save` 成功 → **不跳过**（双写场景下只存了经验仍可能漏存记忆）；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`reminder.test.ts`） | 全绿 |
+| KM-08 | 单测 | 提醒配置面：`skipTools` 自定义清单替换默认、`reminders: []` 不注册监听、文案文件实时读取/内联回退/热更新（`reminder.test.ts`） | 全绿 |
 
 KM-02 的单测部分锁的是「改了结构后解析函数还能吃下老格式」——`parseFrontmatter` 对 BOM、缺 `name`/`description`、无闭合 fence、空输入一律返回 `{}` 而非抛错（`memoryTypes.test.ts:27` 起 4 个 it）。
 
@@ -197,8 +197,8 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 |---|---|---|
 | EXP-08 | ✅ 已翻新（2026-09-09） | 脱节的 `saved`/`maxTurn` 断言删除；`extractExperience.test.ts` 只留 `parseExtractionOutput` 纯函数回归（4 例） |
 | EXP-09 | ✅ 已删除 | 失败路径随提炼禁用一并移除，无对应断言 |
-| EXP-10 | ✅ 已翻新（2026-09-09） | `index.test.ts` 重写：注册冒烟 + 回合末提醒（内容/60s 冷却/事件门控/无 inject 不抛）+ 联想装配（标准目录启用、非标形态 warn 停用、配置关断） |
-| EXP-11 | ✅ 前提重述 | 「跑任务→回合末提醒→agent 自觉 experience_save」，提醒已落地（`index.test.ts` 锁文本与冷却） |
+| EXP-10 | ✅ 2026-09-13 再翻新 | `index.test.ts`：注册冒烟 + 提醒移交断言（不再注册 session/event 提醒监听）+ 联想装配（标准目录启用、非标形态 warn 停用、配置关断）；回合末提醒用例随移交迁至 `ds-reminder/tests/reminder.test.ts` |
+| EXP-11 | ✅ 前提重述 | 「跑任务→回合末提醒→agent 自觉 experience_save」，提醒由 `@demostudio/ds-reminder` 承载（`reminder.test.ts` 锁文本/冷却/文件热更新） |
 | EXP-12 | ✅ 随提炼退役 | 水位机制无对应断言 |
 | EXP-13 | ⚠️ 语义变更 | 现在只有主 agent 调 `experience_save` 才会覆盖，无自动 notice 通道 |
 | EXP-14 | ⚠️ 前提消失 | 后台提炼不存在了，也就无所谓「静默失败」 |
@@ -290,7 +290,7 @@ SP-04 是唯一有单测的 SP 用例，覆盖最容易忽略的空库分支（`
 
 **1. `npx vitest run` 报 `Cannot find package '@deepseek-ai/dsh-llm'`** —— 依赖没装（新 clone / 换机器常见；2026-09-10 实测本机三插件依赖均已装好，可直接跑）。规则：先 `npm install`；**这类「Failed to load url」是环境问题不是用例失败**，别去改测试代码。
 
-**2. 用例跟着实现走，实现变了测试没变 → 恒红**（两代同型坑）—— ① `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`：`src/selectMemories.ts` 已删除，孤儿测试还在（**已删，2026-09-10 复核全绿**）。② `endOfTurnReminder.test.ts` 锁的还是「`agent/pre-step` 新回合第一步注入」的旧实现，而提醒早已改走 `agent/turn-stopping` + `steer`——5 个用例恒红（**2026-09-10 已按现行实现翻新**，并补上「本回合已保存过则跳过」用例）。规则：**改提醒投递通道（pre-step ↔ turn-stopping/steer ↔ inject）必须同步 `endOfTurnReminder.test.ts`**；这类「Failed to load / 断言 undefined」是**假红**，最坏后果是掩盖真实回归信号，别当成环境噪声绕过。
+**2. 用例跟着实现走，实现变了测试没变 → 恒红**（两代同型坑）—— ① `selectMemories.test.ts` 报 `Failed to load url ../src/selectMemories.js`：`src/selectMemories.ts` 已删除，孤儿测试还在（**已删，2026-09-10 复核全绿**）。② `endOfTurnReminder.test.ts` 锁的还是「`agent/pre-step` 新回合第一步注入」的旧实现，而提醒早已改走 `agent/turn-stopping` + `steer`——5 个用例恒红（**2026-09-10 已按现行实现翻新**，并补上「本回合已保存过则跳过」用例；2026-09-13 随提醒移交整体迁至 `harness/ds-reminder/tests/reminder.test.ts`）。规则：**改提醒投递通道（pre-step ↔ turn-stopping/steer ↔ inject）必须同步 `ds-reminder/tests/reminder.test.ts`**；这类「Failed to load / 断言 undefined」是**假红**，最坏后果是掩盖真实回归信号，别当成环境噪声绕过。
 
 **3. EXP-08/09/10/11/12 的断言曾与代码永久冲突（2026-09-09 已翻新/删除，见 §4.3）** —— `extractFromSession` 恒定返回 `{ ok: true, saved: [], updated: [] }`，测试却断言 `saved` 非空、`maxTurn` 推进，而 `ExtractResult` 已移除 `maxTurn`。规则：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
 

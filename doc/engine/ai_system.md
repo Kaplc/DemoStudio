@@ -148,7 +148,7 @@ export function registerBuiltinAIHandlers(): void {
 
 四处反直觉：
 
-**① `emit` 完全同步，绝不 await 处理器。** 处理器返回 Promise 时 `results` 里存的是**未决的 Promise 对象**，不是结果。`ai.mouseDrag` 就是 async 处理器（`:618`，内部 `await new Promise(setTimeout)` 逐步移动鼠标）——直接读 `results[0].ok` 只会拿到 `undefined`。
+**① `emit` 完全同步，绝不 await 处理器。** 处理器返回 Promise 时 `results` 里存的是**未决的 Promise 对象**，不是结果。历史上 `ai.mouseDrag` 踩过这个坑（async 处理器导致 `results[0].ok` 恒 undefined）——**2026-09-13 起已改回同步处理器**：校验与"按下"同步完成、多步移动用 `void (async () => …)()` 后台推进，回执即时可读（带 `async: true` 标记）。新增处理器务必保持同步返回，长耗时动作一律后台化。
 
 **② await 的责任被推给桥接层**（`EditorInitializer.ts:487`）：
 
@@ -224,14 +224,20 @@ export function registerGMBridge(): void {
 
 找它的处理器别只搜 `registerBuiltinAIHandlers`。
 
-**`ai.mouseClick`（`:522`）**——走完整输入管线，不是简单设状态：
+**`ai.mouseClick`（`:762`）**——走完整输入管线，且是**完整按下+释放序列**（2026-09-13 修复）：
 
 ```ts
-    // 执行完整点击管线：InputSys.handlePointerDown → PhySys.raycastClick → controller
+    // 完整点击管线：handlePointerDown → raycastClick（UI/world 仲裁）→ controller → handlePointerUp
     const consumed = gi.inputSys.handlePointerDown(p.screenX, p.screenY, worldPos, gi.controller, button)
+    // 释放：分发 handleRelease（按钮恢复 normal 态 / released 订阅者结算），与真实点击同构
+    gi.inputSys.handlePointerUp(worldPos, gi.controller, button)
 ```
 
+旧版只调 `handlePointerDown` 从不释放——UI 按钮"碰巧能点"（`handleClick` 在按下结算）掩盖了两个问题：`BindMouseButton('released')` 订阅者（warm 星图结算 / 全息轻点落位）永不触发；`button=2` 时 `CameraRigComponent.rightDragging` 卡 true，之后每次指针移动都在平移相机。回归锁：`e2e/warm/player_input.spec.ts`。
+
 与 `ai.clickActor` 是两条路，但**殊途同归**：2026-09-07 起 `clickActor` 不再直接 `triggerClick()`，而是把目标命中层中心反投屏幕坐标后走同一条 `InputSys.handlePointerDown → PhySys.raycastClick` 管线——隐藏按钮（父链 `visible=false`）点不响、500ms 点击冷却同样生效、被 UI 拦截画布挡住就拒绝，与真实鼠标完全同语义。`mouseClick` 需要自己提供 `screenX/screenY`，`clickActor` 按目标自动算坐标；自动化测试优先 `clickActor`，验证指定屏幕坐标的管线行为才用 `mouseClick`。
+
+**`ai.projectScreenPos`（`:846`）**——世界→屏幕投影查询（观测类只读，2026-09-13 新增）：把 `actor`（取 root 世界位）或 `worldPos` 投到屏幕像素坐标，返回 `{ ok, screenX, screenY, inFront }`。`inFront=false`（NDC z 出 [-1,1]，点在相机界外）时坐标不可信。供 AI 精确点击不可 Clickable 的世界空间目标（星球/全息标记等 getHUD 看不到的对象），与 `mouseClick` 组成"投影 → 点击"纯玩家操作链；投影换算与 `clickActor` 反投同式（`PhySys.viewportElement` rect 基）。
 
 其余事件（载荷与用途详见 [AIEvents.ts](../../src/engine/ai/AIEvents.ts)）：
 
@@ -243,11 +249,12 @@ export function registerGMBridge(): void {
 | `ai.transformActor` | `:208` | 移动/旋转/缩放，三字段可缺省 |
 | `ai.clickActor` | `:248` | 按 name / text / path 找按钮，**反投屏幕坐标走射线管线触发**（隐藏/被拦截/冷却窗内拒绝），path 最精确（取自 `getHUD`） |
 | `ai.getActor` / `ai.getHUD` | `:420` / `:624` | 单 Actor 详情（位置/缩放/激活/按钮/组件） / 递归 UI 树，带 `path` 供 clickActor 回查 |
-| `ai.scrollCamera` | `:459` | 滚轮缩放（正=拉远，负=拉近） |
-| `ai.mouseMove` / `mouseDrag` / `keyPress` / `keyRelease` | `:543` / `:562` / `:596` / `:610` | 模拟输入，`mouseDrag` 是 async |
-| `ai.getSceneOutline` | `:733` | 场景 Actor 大纲，`maxDepth` 缺省 6 |
+| `ai.scrollCamera` | `:696` | 滚轮缩放（正=拉远，负=拉近） |
+| `ai.mouseMove` / `mouseDrag` / `keyPress` / `keyRelease` | `:785` / `:807` / `:890` / `:904` | 模拟输入；`mouseDrag` 校验/按下同步、多步移动后台推进（`button` 可选，2=右键拖拽平移/环绕相机） |
+| `ai.projectScreenPos` | `:846` | 世界→屏幕投影查询（观测类；`inFront=false` = 相机界外坐标不可信） |
+| `ai.getSceneOutline` | `:1027` | 场景 Actor 大纲，`maxDepth` 缺省 6 |
 
-> `ai.getComponent` / `ai.setProperty` / `ai.callActor` 三个泛型 RPC 事件**在 `AIEvents.ts` 有常量和 payload 类型、也在 `BUILTIN_EVENTS` 里，但 `registerBuiltinAIHandlers.ts` 中没有对应的 `ai.register` 调用**——声明了但没实现，emit 返回 `handled: false`。这是当前代码的事实状态，别把它们写进可用事件清单。
+> 20 个内置事件全部有处理器实现（2026-09-13 核对）：`getComponent` / `setProperty` / `callActor` 三个泛型 RPC 也已实现（`:555` / `:600` / `:654`）。新增事件必须同步 `BUILTIN_EVENTS` 数组，否则 HMR 重载后旧处理器残留。
 
 ---
 
@@ -265,7 +272,7 @@ export function registerGMBridge(): void {
 | `detachContext()` / `reset()` | `AIModule.ts:82` / `:89` | 清上下文（`reset` 是 `GameSingleton` 实现） | 只清上下文，**不清注册表** |
 | `requireWorld(ctx)` | `registerBuiltinAIHandlers.ts:68` | 处理器守卫：无 world 返回 null + warn | 一律返回 `{ ok: false, error: '游戏未运行' }` |
 | `findActorByName(world, name)` | `registerBuiltinAIHandlers.ts:77` | 递归查找（3D Actor + UI Actor 树） | 匹配 `a.name` **或** `a.root.name` |
-| `registerBuiltinAIHandlers()` | `registerBuiltinAIHandlers.ts:128` | 清表 + 注册 15 个引擎事件 | 幂等；新增事件必须同步 `BUILTIN_EVENTS`（`:100`） |
+| `registerBuiltinAIHandlers()` | `registerBuiltinAIHandlers.ts:151` | 清表 + 注册 20 个引擎事件 | 幂等；新增事件必须同步 `BUILTIN_EVENTS`（`:119`） |
 | `registerGMBridge()` | [registerGMBridge.ts:28](../../src/engine/gm/registerGMBridge.ts) | 注册 `ai.gmCommand` | 不在 `BUILTIN_EVENTS` 内，单独 clearEvent |
 | `registerEditorAIHandlers()` | `EditorInitializer.ts:97` | 注册 `ai.selectActor` / `ai.dragActor` | 受 `_editorAIHandlersInstalled`（`:358`）保护 |
 | `case 'ai_event'` | `EditorInitializer.ts:477` | MCP → `emit` 的桥接 | 倒序取最后一个非 undefined，兼容 Promise |
@@ -313,7 +320,7 @@ export function registerGMBridge(): void {
 
 **4. DSH 侧嵌套 payload 传到引擎后子对象丢失** —— 经 `engineBridge.callTool` 转发时嵌套对象被序列化成字符串，子字段丢失。规则：DSH 工具直接 `fetch('/api/command')` 打 HTTP，入口做 `typeof payload === 'string' ? JSON.parse(payload) : payload` 兜底。
 
-**5. `ai.mouseDrag` 返回值拿到 `undefined`** —— 它是 async 处理器，`emit` 不 await，`results` 里是未决 Promise。规则：调用方必须自己判 thenable 再 await（`EditorInitializer.ts:487` 的倒序扫描干的就是这个）。
+**5. `ai.mouseDrag` 返回值拿到 `undefined`** —— 旧版它是 async 处理器，`emit` 不 await，`results` 里是未决 Promise。**2026-09-13 已修复**：处理器改回同步（校验+按下同步返回 `{ ok, …, async: true }`，多步移动/释放后台推进）；新增处理器同样必须同步返回，长耗时动作后台化（规则见 §2 反直觉①）。
 
 **6. `ai.showMessage` 发了但屏幕没反应，也不报错** —— `ToastSystem.instance.attached` 为 false 时静默降级为日志，返回仍是 `{ ok: true }`。规则：要确认消息上屏，先确认游戏在运行。
 
