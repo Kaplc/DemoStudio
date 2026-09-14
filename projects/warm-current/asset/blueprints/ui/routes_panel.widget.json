@@ -1,7 +1,7 @@
 {
   "name": "RoutesPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-bc8ec9f9",
+  "sourceHash": "fnv1a-9818b3bc",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -145,11 +145,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 670,
-                    "worldHeight": 526,
+                    "worldWidth": 640,
+                    "worldHeight": 500,
                     "position": [
-                      15,
-                      -13,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -183,8 +183,8 @@
                         }
                       ]
                     },
-                    "width": 670,
-                    "height": 526,
+                    "width": 640,
+                    "height": 500,
                     "name": "RoutesBody"
                   }
                 }
@@ -200,7 +200,7 @@
                       "properties": {
                         "position": [
                           0,
-                          262.5,
+                          249.5,
                           0
                         ],
                         "rotation": [
@@ -213,7 +213,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 670,
+                        "worldWidth": 640,
                         "worldHeight": 1
                       }
                     },
@@ -230,7 +230,7 @@
                       "properties": {
                         "name": "RoutesBodyBorderTop",
                         "color": "#2a5f7a",
-                        "width": 670,
+                        "width": 640,
                         "height": 8
                       }
                     }
@@ -246,7 +246,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          334.5,
+                          319.5,
                           0,
                           0
                         ],
@@ -261,7 +261,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 526
+                        "worldHeight": 500
                       }
                     },
                     {
@@ -278,7 +278,7 @@
                         "name": "RoutesBodyBorderRight",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 526
+                        "height": 500
                       }
                     }
                   ],
@@ -294,7 +294,7 @@
                       "properties": {
                         "position": [
                           0,
-                          -262.5,
+                          -249.5,
                           0
                         ],
                         "rotation": [
@@ -307,7 +307,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 670,
+                        "worldWidth": 640,
                         "worldHeight": 1
                       }
                     },
@@ -324,7 +324,7 @@
                       "properties": {
                         "name": "RoutesBodyBorderBottom",
                         "color": "#2a5f7a",
-                        "width": 670,
+                        "width": 640,
                         "height": 8
                       }
                     }
@@ -340,7 +340,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          -334.5,
+                          -319.5,
                           0,
                           0
                         ],
@@ -355,7 +355,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 526
+                        "worldHeight": 500
                       }
                     },
                     {
@@ -372,7 +372,7 @@
                         "name": "RoutesBodyBorderLeft",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 526
+                        "height": 500
                       }
                     }
                   ],
@@ -399,8 +399,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          228,
+                          0,
+                          215,
                           0
                         ]
                       }
@@ -491,7 +491,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              246,
+                              244,
                               -1,
                               0
                             ]
@@ -801,8 +801,8 @@
                         "worldWidth": 610,
                         "worldHeight": 2,
                         "position": [
-                          -15,
-                          199,
+                          0,
+                          186,
                           0
                         ]
                       }
@@ -861,8 +861,8 @@
                         "worldWidth": 610,
                         "worldHeight": 30,
                         "position": [
-                          -15,
-                          177,
+                          0,
+                          164,
                           0
                         ]
                       }
@@ -914,8 +914,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          132,
+                          0,
+                          119,
                           0
                         ]
                       }
@@ -2239,8 +2239,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          78,
+                          0,
+                          65,
                           0
                         ]
                       }
@@ -3564,8 +3564,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          24,
+                          0,
+                          11,
                           0
                         ]
                       }
@@ -4889,8 +4889,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          -30,
+                          0,
+                          -43,
                           0
                         ]
                       }
@@ -6214,8 +6214,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          -84,
+                          0,
+                          -97,
                           0
                         ]
                       }
@@ -7539,8 +7539,8 @@
                         "worldWidth": 610,
                         "worldHeight": 48,
                         "position": [
-                          -15,
-                          -138,
+                          0,
+                          -151,
                           0
                         ]
                       }
@@ -8864,8 +8864,8 @@
                         "worldWidth": 610,
                         "worldHeight": 40,
                         "position": [
-                          -15,
-                          -188,
+                          0,
+                          -201,
                           0
                         ]
                       }
@@ -8918,8 +8918,8 @@
                         "worldWidth": 610,
                         "worldHeight": 20,
                         "position": [
-                          -15,
-                          -224,
+                          0,
+                          -237,
                           0
                         ]
                       }

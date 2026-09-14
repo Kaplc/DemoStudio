@@ -36,7 +36,12 @@ export interface HUDNode {
   type: string
   active: boolean
   text?: string
-  buttonState?: Record<string, unknown>
+  /** UIButtonComponent 状态机当前态（normal/hover/pressed/disabled） */
+  buttonState?: string
+  /** UI 画布世界坐标 [x, y, z]（画布 1920×1080 px 语义） */
+  position?: [number, number, number]
+  /** UI 画布世界尺寸 [w, h] */
+  worldSize?: [number, number]
   children: HUDNode[]
 }
 
@@ -80,6 +85,41 @@ export interface GMResult {
 export interface ClickActorResult {
   ok?: boolean
   error?: string
+}
+
+/** ai.mouseClick 回执（完整按下+释放序列；consumed = 是否有 ClickableComponent 消费按下） */
+export interface MouseClickResult {
+  ok?: boolean
+  error?: string
+  screenX?: number
+  screenY?: number
+  button?: number
+  consumed?: boolean
+}
+
+/** ai.mouseDrag 回执（校验同步返回，多步移动后台推进 async=true；非左键不触发 ClickableComponent） */
+export interface MouseDragResult {
+  ok?: boolean
+  error?: string
+  startX?: number
+  startY?: number
+  endX?: number
+  endY?: number
+  steps?: number
+  button?: number
+  /** true = 多步移动在后台推进（回执即时返回，位移效果需自行轮询） */
+  async?: boolean
+}
+
+/** ai.projectScreenPos 回执（世界→屏幕投影查询；inFront=false 时坐标不可信） */
+export interface ProjectScreenPosResult {
+  ok?: boolean
+  error?: string
+  actor?: string
+  world?: [number, number, number]
+  screenX?: number
+  screenY?: number
+  inFront?: boolean
 }
 
 /** 项目描述符：一个新项目接入框架 = 在 projects.ts 登记一条 */

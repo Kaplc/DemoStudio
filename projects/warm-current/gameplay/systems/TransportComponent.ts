@@ -11,10 +11,12 @@ import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
   legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff,
-  TUTORIAL_TARGETS, shipMults, hullAllowsModule, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
+  TUTORIAL_TARGETS, shipMults, hullAllowsModule, hullHasSlotFor, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
+  relayLegDistCoeff, buildingPos,
 } from '../core/helpers'
+import { depositDefOf } from './MiningComponent'
 import { isShipyardType, orbitBuildingDefOf } from './OrbitBuildComponent'
-import type { Endpoint, SimRoute, SimShip, StarId } from '../core/types'
+import type { Endpoint, SimRoute, SimShip, SimState, StarId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
 export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
@@ -30,8 +32,12 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
   }
 
   /**
-   * 建立/延长航线。合法组合：地球↔资源星（正向）、地球↔中转站（反向补给线）。
-   * 已存在同端点航线 = 再派 1 艘（平行线捷径）。
+   * 建立/延长航线（2026-09-13 中转链扩展）。合法组合：
+   *  - 星↔地（forward）：正向运 H3（星端从堆场装货）
+   *  - 星↔中转站（relay_in）：正向 H3 入站缓存（中转链第一段）
+   *  - 中转站→地（relay_out，拖向 = 从站拖到地）：站内 H3 回运地球（中转链第二段）
+   *  - 地→中转站（reverse，拖向 = 从地拖到站）：反向补给线送建材
+   * 已存在同端点同流向航线 = 再派 1 艘（平行线捷径；地球↔中转站允许建材线与 H3 线共存）。
    * 航线可空船创建：无空闲船时航线保留，造船后从航线面板补派。
    */
   tryCreateRoute(a: Endpoint, b: Endpoint): boolean {
@@ -51,8 +57,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (endpointKey(a) === endpointKey(b)) { this.sc.hint('航线两端不能是同一节点'); return false }
 
     const kinds = [a.kind, b.kind]
-    let forward: { star: StarId } | null = null
-    let reverseToBuilding: number | null = null
+    let direction: SimRoute['direction'] | null = null
     if (kinds.includes('earth') && kinds.includes('star')) {
       const starEp = a.kind === 'star' ? a : b
       const star = (starEp as { kind: 'star'; star: StarId }).star
@@ -60,28 +65,60 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
         this.sc.hint(`${B.stars[star].name}将在第${B.stars[star].unlockAct}幕解锁`)
         return false
       }
-      forward = { star }
+      direction = 'forward'
+    } else if (kinds.includes('star') && kinds.includes('building')) {
+      const starEp = a.kind === 'star' ? a : b
+      const star = (starEp as { kind: 'star'; star: StarId }).star
+      if (!this.starUnlocked(star)) {
+        this.sc.hint(`${B.stars[star].name}将在第${B.stars[star].unlockAct}幕解锁`)
+        return false
+      }
+      const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
+      const bd = buildingByEndpoint(s, bEp)
+      if (!bd) { this.sc.hint('建筑不存在'); return false }
+      const def = buildingDefOf(bd.type)
+      if (!def?.linkable) { this.sc.hint(`${def?.name ?? '该建筑'}不能接入航线`); return false }
+      direction = 'relay_in'
     } else if (kinds.includes('earth') && kinds.includes('building')) {
       const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
       const bd = buildingByEndpoint(s, bEp)
       if (!bd) { this.sc.hint('建筑不存在'); return false }
       const def = buildingDefOf(bd.type)
       if (!def?.linkable) { this.sc.hint(`${def?.name ?? '该建筑'}不能接入航线`); return false }
-      reverseToBuilding = bd.id
+      // 拖向即意图：从站拖到地 = 站内 H3 回运（中转链第二段）；从地拖到站 = 建材补给线（原有）
+      direction = a.kind === 'building' ? 'relay_out' : 'reverse'
     } else {
-      this.sc.hint('航线必须是「星—地」或「地—中转站」组合')
+      this.sc.hint('航线必须是「星—地」「星—中转站」或「地—中转站」组合')
       return false
     }
 
-    // 已存在 → 派 1 艘
-    const existing = findRoute(s, a, b)
+    // 已存在同端点同流向 → 派 1 艘（地球↔中转站：建材线 / H3 线按拖向分别查找，可共存）
+    const existing = findRoute(s, a, b, [direction])
     if (existing) return this.tryAddShip(existing.id)
 
-    if (!forward && reverseToBuilding === null) { this.sc.hint('航线不合法'); return false }
+    // 归一化端点方向（from → to 与流向语义一致）
+    let from: Endpoint
+    let to: Endpoint
+    if (direction === 'forward') {
+      const starEp = a.kind === 'star' ? a : b
+      from = { kind: 'star', star: (starEp as { kind: 'star'; star: StarId }).star }
+      to = { kind: 'earth' }
+    } else if (direction === 'relay_in') {
+      const starEp = a.kind === 'star' ? a : b
+      const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
+      from = { kind: 'star', star: (starEp as { kind: 'star'; star: StarId }).star }
+      to = { kind: 'building', buildingId: bEp.buildingId }
+    } else if (direction === 'relay_out') {
+      const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
+      from = { kind: 'building', buildingId: bEp.buildingId }
+      to = { kind: 'earth' }
+    } else {
+      const bEp = (a.kind === 'building' ? a : b) as { kind: 'building'; buildingId: number }
+      from = { kind: 'earth' }
+      to = { kind: 'building', buildingId: bEp.buildingId }
+    }
 
-    const route: SimRoute = forward
-      ? { id: this.nextRouteId(), from: { kind: 'star', star: forward.star }, to: { kind: 'earth' }, direction: 'forward', shipIds: [] }
-      : { id: this.nextRouteId(), from: { kind: 'earth' }, to: { kind: 'building', buildingId: reverseToBuilding! }, direction: 'reverse', shipIds: [] }
+    const route: SimRoute = { id: this.nextRouteId(), from, to, direction, shipIds: [], stats: { trips: 0, loaded: 0, frozen: 0 } }
     s.routes.push(route)
     if (!this.assignIdleShip(route)) {
       this.sc.hint('空船建线：航线已建立（无空闲船），造船后从航线面板补派')
@@ -202,10 +239,10 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   /** 主动造船（船型 + 模块整单价 × 船坞折扣；受聚能环等级飞船上限约束：
    *  在册 + 建造排队总数 < ship_cap 表当前等级 cap + 泊位加算，超限 hint 拒绝；
-   *  模块不占上限，花钱即可，且模块须在船型兼容清单内）。
-   *  2026-09-11 船型模块改版：hull = ship_hull 表行键，modules = ship_module 表行键
-   *  （去重；建成后不可改装，冻毁重建保留原配置）。2026-09-09 造船入口收口：面板路径必传
-   *  orbitBuildingId（建成船坞），乘区取传入船坞自己的表值；缺省（GM/调试桥）无船坞原价原时长 */
+   *  模块不占上限，花钱即可。2026-09-13 槽位制：每件模块过 allowed 兼容 ∧ slotType 槽位余量
+   *  （hullHasSlotFor 单一口径），单船同模块只装一件。建成后不可改装，冻毁重建保留原配置）。
+   *  造船入口收口：面板路径必传 orbitBuildingId（建成船坞），乘区取传入船坞自己的表值；
+   *  缺省（GM/调试桥）无船坞原价原时长 */
   tryBuildShip(hullId: string, modules: string[], orbitBuildingId?: number): boolean {
     const s = this.sc.state
     const cap = this.sc.shipCap
@@ -215,12 +252,17 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     }
     const hull = shipHullDefOf(hullId)
     if (!hull) { this.sc.hint('未知船型'); return false }
-    // 模块校验：表内存在 + 船型兼容清单 + 去重（单船同模块只装一件）
+    // 模块校验：表内存在 + allowed 兼容 + 槽位余量 + 去重（单船同模块只装一件）
     const mods: string[] = []
     for (const id of modules) {
       if (!shipModuleDefOf(id)) { this.sc.hint(`未知模块：${id}`); return false }
       if (!hullAllowsModule(hullId, id)) { this.sc.hint(`${hull.name}不能装载「${shipModuleDefOf(id)!.name}」`); return false }
-      if (!mods.includes(id)) mods.push(id)
+      if (mods.includes(id)) continue
+      if (!hullHasSlotFor(hullId, mods, id)) {
+        this.sc.hint(`${hull.name}的「${shipModuleDefOf(id)!.name}」槽位已满`)
+        return false
+      }
+      mods.push(id)
     }
     // 船坞乘区：面板路径传建成船坞 id；查不到/未建成/无造船能力 = 拒绝（面板只能对着建成船坞造船）
     let costMult = 1
@@ -355,7 +397,8 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     }
   }
 
-  /** 装货完成出发（锁定本次往返油耗/航速；反向无需求/H3 不足时保持等待）。
+  /** 装货完成出发（锁定本次往返油耗/航速；正向从星球堆场取货、出站线从站缓存取货，
+   *  无货等待重试；反向无需求/H3 不足时保持等待）。
    *  船级乘区：航速 = 全局 × 船型 × 模块（离子引擎）；满载 = 全局 × 环建筑 × 船型 × 货舱；
    *  油耗同乘船级（副油箱）；反向建材上限再乘强化吊臂 hookMult。 */
   private departShip(ship: SimShip): void {
@@ -365,19 +408,57 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     const ring = this.sc.ringMods
     const hull = shipMults(ship)
     const speed = s.mods.speedMult * hull.speedMult
-    if (route.direction === 'forward') {
+    const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
+    if (route.direction === 'forward' || route.direction === 'relay_in') {
+      // 正向（入地/入站）：货源 = 星球堆场（2026-09-13 堆场耦合——产量层与运力层咬合点）
       const star = starOfEndpoint(s, route.from) as StarId
-      const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
+      const load = starLoad(s.mods, star, ship, ring)
+      const stock = s.starStock[star] ?? 0
+      const take = Math.min(load, stock)
+      if (take <= 0) {
+        this.hintStarDry(s, star)
+        ship.timer = 1 // 1s 后重试（等矿建补货；不出发不扣时）
+        return
+      }
+      if (take < load) this.hintStarLow(s, star)
+      const dist = route.direction === 'forward'
+        ? B.stars[star].dist
+        : relayLegDistCoeff(s, star, route.to.kind === 'building' ? route.to.buildingId : 0)
       ship.speedMult = speed * (windowed ? B.gravity.speedMult : 1)
-      ship.legTime = legSeconds(B.stars[star].dist, ship.speedMult)
-      ship.cargo = starLoad(s.mods, star, ship, ring)
-      ship.roundFuel = roundFuel(s.mods, B.stars[star].dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
+      ship.legTime = legSeconds(dist, ship.speedMult)
+      ship.cargo = take
+      ship.roundFuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
       ship.materials = 0
+      s.starStock[star] = stock - take
+      this.dryHinted.delete(star) // 恢复出货：清沿提示键
+    } else if (route.direction === 'relay_out') {
+      // 出站回运：货源 = 中转站 H3 缓存（第一段转运的货在此变现）
+      const b = buildingByEndpoint(s, route.from)
+      if (!b) { this.detachShipToIdle(ship); return }
+      const stock = b.stockH3 ?? 0
+      const take = Math.min(cargoCap(s.mods, ship, ring), stock)
+      if (take <= 0) {
+        if (!this.relayDryHinted) {
+          this.relayDryHinted = true
+          this.sc.hint(`${buildingDefOf(b.type)?.name ?? '中转站'}无 H3 可运（先建星→站航线转运）`)
+        }
+        ship.timer = 1
+        return
+      }
+      this.relayDryHinted = false
+      const dist = supplyDistCoeff(s, route.from)
+      const fuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
+      ship.speedMult = speed * (windowed ? B.gravity.speedMult : 1)
+      ship.legTime = legSeconds(dist, ship.speedMult)
+      ship.roundFuel = fuel
+      ship.cargo = take
+      ship.materials = 0
+      b.stockH3 = stock - take
     } else {
+      // 反向建材补给线（原有）
       const b = buildingByEndpoint(s, route.to)
       if (!b) { this.detachShipToIdle(ship); return }
       const dist = supplyDistCoeff(s, route.to)
-      const windowed = s.gravity.phase === 'active' && windowAffected(s, route)
       const fuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
       const capWithHook = cargoCap(s.mods, ship, ring) * buildingHookMult(b)
       const want = Math.min(capWithHook, this.owner.buildings.bufferLeft(b))
@@ -400,7 +481,29 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     ship.progress = 0
   }
 
-  /** 卸货完成（仅在卸货点触发：正向=地球 / 反向=站点 / 任务返航=地球） */
+  /** 堆场无货沿提示（星 → 已提示；恢复有货后清键，避免逐帧刷屏） */
+  private dryHinted = new Set<string>()
+  private hintStarDry(s: SimState, star: StarId): void {
+    if (this.dryHinted.has(star)) return
+    this.dryHinted.add(star)
+    const stock = s.starStock[star] ?? 0
+    if (stock <= 0) {
+      const hasMines = s.mines.some((m) => depositDefOf(m.depositId)?.planet === star)
+      this.sc.hint(hasMines
+        ? `${B.stars[star].name}堆场已空 · 等待矿建产出（可在全息勘探扩产）`
+        : `${B.stars[star].name}堆场已空 · 尚无矿建产出（全息勘探建采矿机/冶炼厂补货）`)
+    }
+  }
+  private hintStarLow(s: SimState, star: StarId): void {
+    if (this.dryHinted.has(star)) return
+    this.dryHinted.add(star)
+    this.sc.hint(`${B.stars[star].name}堆场存量不足 · 本趟部分装载（运力超过产量）`)
+  }
+
+  /** 出站无货提示沿 */
+  private relayDryHinted = false
+
+  /** 卸货完成（仅在卸货点触发：正向/出站=地球 / relay_in=中转站 / 反向=站点 / 任务返航=地球） */
   private completeUnload(ship: SimShip): void {
     const s = this.sc.state
     if (ship.mission) {
@@ -418,13 +521,32 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     }
     const route = s.routes.find((r) => r.id === ship.routeId)
     if (!route) { this.detachShipToIdle(ship); return }
-    if (route.direction === 'forward') {
+    if (route.direction === 'forward' || route.direction === 'relay_out') {
       const net = Math.max(0, ship.cargo - ship.roundFuel)
       s.earthH3 += net
       s.ledger.unload += net
       s.stats.delivered += net
+      if (route.stats) { route.stats.trips++; route.stats.loaded += ship.cargo }
       const p = starPosAt(s, 'earth')
       this.sc.emit({ type: 'unload', value: Math.round(net), x: p.x, y: p.y })
+    } else if (route.direction === 'relay_in') {
+      // 入站转运：卸入中转站 H3 缓存（cap 截断；油费船已付，转运损耗 = 无，价值在两段距离差）
+      const b = buildingByEndpoint(s, route.to)
+      if (b) {
+        const cap = this.owner.buildings.bufferCapOf(b)
+        const room = Math.max(0, cap - (b.stockH3 ?? 0))
+        const drop = Math.min(ship.cargo, room)
+        b.stockH3 = (b.stockH3 ?? 0) + drop
+        if (route.stats) { route.stats.trips++; route.stats.loaded += ship.cargo }
+        const p = buildingPos(s, b)
+        this.sc.emit({ type: 'unload', value: Math.round(drop), x: p.x, y: p.y })
+        if (drop < ship.cargo) {
+          // 站满：剩余随船带回堆场（不罚没），短暂延迟后重试
+          const star = starOfEndpoint(s, route.from) as StarId | null
+          if (star) s.starStock[star] = (s.starStock[star] ?? 0) + (ship.cargo - drop)
+          this.sc.hint('中转站缓存已满 · 剩余货随船退回堆场（扩缓存或加密出站班次）')
+        }
+      }
     } else {
       const b = buildingByEndpoint(s, route.to)
       if (b) {

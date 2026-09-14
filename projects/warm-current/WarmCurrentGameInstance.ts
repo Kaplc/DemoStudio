@@ -9,8 +9,8 @@
  * window.__warmCurrent 调试桥供 GM/e2e 驱动（组件 API：mode.transport.* 等）。
  */
 import * as THREE from 'three'
-import { ConfigRegistry, GameInstance, logger, PhySys, SaveSlotComponent } from '@/engine'
-import type { PlayerController, KVValue } from '@/engine'
+import { ConfigRegistry, GameInstance, LoadingSettle, logger, PhySys, SaveSlotComponent, UIScriptComponent } from '@/engine'
+import type { Actor, PlayerController, KVValue } from '@/engine'
 import { WarmCurrentGameMode, WARM_CURRENT_SCENE } from './gameplay/base/WarmCurrentGameMode'
 import { WarmCurrentMenuGameMode } from './gameplay/menu/WarmCurrentMenuGameMode'
 import type { MenuAction } from './gameplay/menu/WarmCurrentMenuGameMode'
@@ -19,8 +19,15 @@ import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
 import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
 import { isShipyardType } from './gameplay/systems/OrbitBuildComponent'
 import { B } from './gameplay/core/balance'
+import LoadingPanelScript, { LOADING_WIDGET } from './gameplay/ui/LoadingPanelScript.script'
+
 import { SAVE_KEY, SAVE_SLOT_FILES, SAVE_SLOT_COUNT, serializeSlot, readSlotMetaWithSlot, findLatestSlotMeta } from './gameplay/core/save'
 import type { Endpoint, PlanetBodyId, SimState } from './gameplay/core/types'
+
+/** loading 面板结算组名（引擎 CloudLayerComponent / warm starTextures 同名登记） */
+const LOADING_GROUP = 'scene-enter'
+let loadingSeq = 0
+const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
 
 declare global {
   interface Window {
@@ -43,6 +50,9 @@ export interface WarmCurrentDebugBridge {
   pointerDown(x: number, y: number): void
   pointerMove(x: number, y: number): void
   pointerUp(x: number, y: number): void
+  /** 真实 InputSys 点击管线（down+up 同步成对；e2e 屏幕坐标交互——全息轻点等——共用，
+   *  绕过 DOM 投递但走完整 controller.OnPointerDownScreen + released 广播链） */
+  inputTap(x: number, y: number): void
   /** 端点名 → 建航线：'earth' | 'moon' | 'europa' | 'mars' | 'building:<id>' */
   createRoute(a: string, b: string): boolean
   addShip(routeId: number): boolean
@@ -102,6 +112,12 @@ export interface WarmCurrentDebugBridge {
   placeMine(depositId: string, typeId: string): boolean
   holoInfo(): import('./gameplay/base/WarmCurrentGameMode').HudHologram | null
   holoMarkerScreenPos(depositId: string): { x: number; y: number } | null
+  /** 全息地球（2026-09-12）：工具切换 / 节点直落 / 地表建筑 / 节点屏幕坐标 / 目标 lat-lon 屏幕坐标 */
+  setHoloTool(kind: 'ring' | 'building' | null, typeId?: string): void
+  placeRingNode(lat: number, lon: number): string | null
+  placeSurfaceBuilding(typeId: string, lat: number, lon: number): boolean
+  holoNodeScreenPos(slot: number): { x: number; y: number } | null
+  holoSurfaceScreenPos(lat: number, lon: number): { x: number; y: number } | null
   /** 船坞造船面板（e2e 直驱）：打开第一个（或指定 id）已建成船坞 */
   openShipyard(id?: number): boolean
   /** 把第一艘在途船拨到指定航段进度（0~1）— 耀斑护盾判定用 */
@@ -155,6 +171,13 @@ export class WarmCurrentGameInstance extends GameInstance {
   private _menuMode: WarmCurrentMenuGameMode | null = null
   private _controller: WarmCurrentPlayerController | null = null
   private _configTimer: ReturnType<typeof setInterval> | null = null
+
+  /** loading 面板状态（进图遮罩：菜单亮出 → 切换销毁 → 星图 setup 同任务重建 → 结算关闭） */
+  private _loading: { actor: Actor; script: LoadingPanelScript | null } | null = null
+  private _loadingActive = false
+  private _loadingStage = ''
+  private _loadingTimeout: ReturnType<typeof setTimeout> | null = null
+  private _loadingSettleCancel: (() => void) | null = null
 
   /** 三槽位存档（KV 内存优先，暂停菜单显式落盘/回读） */
   readonly saveSlots: SaveSlotComponent[]
@@ -232,21 +255,99 @@ export class WarmCurrentGameInstance extends GameInstance {
       return
     }
     logger.info(`[WarmCurrent] 主菜单读取存档：最近档槽${best.slot} @ ${best.savedAt}`)
-    await this.switchToMapSceneAsync()
-    const ok = await this.loadSlot(best.slot)
-    if (!ok) logger.error(`[WarmCurrent] 主菜单读取槽${best.slot}失败`)
-  }
-
-  /** 异步包装：先切星图场景，GameMode 就绪后 resolve（供读档 await） */
-  private async switchToMapSceneAsync(): Promise<void> {
-    if (!this.switchToMapScene()) throw new Error('切换星图场景失败')
-    // SwitchToScene 同步完成 GameMode 创建，这里让出一次微任务确保 BeginPlay 完整跑完
-    await Promise.resolve()
+    await this.enterMapWithLoading(async () => {
+      if (!this.switchToMapScene()) return
+      const ok = await this.loadSlot(best.slot)
+      if (!ok) logger.error(`[WarmCurrent] 主菜单读取槽${best.slot}失败`)
+    })
   }
 
   /** 进入星图场景开始新的一局（菜单「新的远征」入口） */
   startNewGame(): void {
-    this.switchToMapScene()
+    void this.enterMapWithLoading(() => {
+      this.switchToMapScene()
+    })
+  }
+
+  /**
+   * 进图统一入口（新的远征 / 读档）：loading 面板全程遮罩，完全加载完毕才关闭。
+   * 流程：当前场景（菜单）亮面板 → 让出两帧真上屏 → 登记结算监听 → 同步切换
+   * （菜单面板随场景销毁，星图 setup 回调同任务重建——同步切换无渲染帧空隙）
+   * → 云图柔化/海洋贴图/配置覆盖等尾任务全部结算 → 关面板。
+   */
+  private async enterMapWithLoading(runSwitch: () => void | Promise<void>): Promise<void> {
+    this._loadingActive = true
+    this._loadingStage = '正在连接星域…'
+    this.spawnLoadingPanel()
+    await nextFrame()
+    await nextFrame()
+    // 结算监听必须在切换前登记：云图/海洋任务在切换的 BeginPlay 内 begin
+    this._loadingSettleCancel = LoadingSettle.onSettled(LOADING_GROUP, () => this.finishLoading())
+    const finishEnter = LoadingSettle.task(LOADING_GROUP, `enter-map#${++loadingSeq}`)
+    try {
+      await runSwitch()
+    } finally {
+      finishEnter()
+    }
+    this.setLoadingStage('正在整备大气层…')
+    // 安全网：任何尾任务异常挂起也保证面板最终关闭
+    this._loadingTimeout = setTimeout(() => {
+      logger.warn('[WarmCurrent] loading 等待超时（20s），强制关闭面板')
+      this.finishLoading()
+    }, 20_000)
+  }
+
+  /** 生成 loading 面板（显式顶层：挂 uiScene 根、排 HUD 子树之后 → 盖过全部常驻/浮动面板） */
+  private spawnLoadingPanel(): void {
+    this.destroyLoadingPanel()
+    // null = 显式顶层（undefined 会回落挂 HUD 子树，但 16 个子面板在其后生成、
+    // 树序渲染会把它们压在面板之上——实测踩坑）
+    const actor = this.world.ui.spawnUIActor(LOADING_WIDGET, null)
+    if (!actor) {
+      logger.error('[WarmCurrent] loading 面板生成失败（继续加载，仅无遮罩）')
+      return
+    }
+    const script = (actor.getComponent(UIScriptComponent)?.instance as LoadingPanelScript | null) ?? null
+    this._loading = { actor, script }
+    if (script && this._loadingStage) script.setStage(this._loadingStage)
+  }
+
+  private destroyLoadingPanel(): void {
+    const panel = this._loading
+    this._loading = null
+    if (!panel || panel.actor.bPendingDestroy) return
+    this.world.ui.destroyUIActor(panel.actor)
+  }
+
+  /** 面板脚本挂载回调（脚本 onStart 触发；跨场景重建时回填引用并推送当前阶段） */
+  onLoadingPanelMounted(script: LoadingPanelScript): void {
+    if (!this._loading) return
+    this._loading.script = script
+    if (this._loadingStage) script.setStage(this._loadingStage)
+  }
+
+  onLoadingPanelDestroyed(script: LoadingPanelScript): void {
+    const panel = this._loading
+    if (panel?.script === script) panel.script = null
+  }
+
+  private setLoadingStage(stage: string): void {
+    this._loadingStage = stage
+    if (this._loading?.script) this._loading.script.setStage(stage)
+  }
+
+  /** 全部尾任务结算：关面板（幂等；超时安全网同走此处） */
+  private finishLoading(): void {
+    if (!this._loadingActive) return
+    this._loadingActive = false
+    if (this._loadingTimeout) {
+      clearTimeout(this._loadingTimeout)
+      this._loadingTimeout = null
+    }
+    this._loadingSettleCancel?.()
+    this._loadingSettleCancel = null
+    this.destroyLoadingPanel()
+    logger.info('[WarmCurrent] 完全加载完毕，loading 面板关闭')
   }
 
   /** 切换星图场景（mode="warm-main" → WarmCurrentGameMode） */
@@ -265,6 +366,12 @@ export class WarmCurrentGameInstance extends GameInstance {
       } else {
         logger.error('[WarmCurrent] controller 未就绪')
       }
+      // loading 面板跨场景重建：菜单侧面板已随 DestroyAllActors 销毁，此处同任务
+      // 重建（整个切换是单次同步任务，中间无渲染帧，玩家看不到面板消失）
+      if (this._loadingActive) {
+        this._loadingStage = '正在生成天体与星图…'
+        this.spawnLoadingPanel()
+      }
       this.installDebugBridge()
       this.watchConfigs()
     })
@@ -275,6 +382,8 @@ export class WarmCurrentGameInstance extends GameInstance {
   /** 配置表异步就绪后补一次 refresh+重开（InitGame 时可能尚未加载完） */
   private watchConfigs(): void {
     if (this._configTimer) return
+    // 配置覆盖也是进图尾任务之一：登记进结算组，应用完毕（或超时兜底）才放行关面板
+    const finishCfg = LoadingSettle.task(LOADING_GROUP, `config-apply#${++loadingSeq}`)
     const started = Date.now()
     this._configTimer = setInterval(() => {
       let ready = false
@@ -290,6 +399,7 @@ export class WarmCurrentGameInstance extends GameInstance {
           logger.info('[WarmCurrent] 配置表就绪，应用覆盖值')
           this._gameMode.restart()
         }
+        finishCfg()
       }
     }, 100)
   }
@@ -351,7 +461,8 @@ export class WarmCurrentGameInstance extends GameInstance {
   private installDebugBridge(): void {
     const instance = this
     const bridge: WarmCurrentDebugBridge = {
-      ready: () => !!instance._gameMode && !!instance._gameMode.world,
+      // loading 面板活跃期不算就绪：e2e/GM 在面板关闭（完全加载完毕）后才操作
+      ready: () => !!instance._gameMode && !!instance._gameMode.world && !instance._loadingActive,
       mode: () => instance._gameMode,
       menuMode: () => instance._menuMode,
       state: () => instance._gameMode?.simState.state ?? null,
@@ -362,6 +473,11 @@ export class WarmCurrentGameInstance extends GameInstance {
       pointerDown: (x, y) => instance._gameMode?.onMapPointerDown({ x, y }),
       pointerMove: (x, y) => instance._gameMode?.onMapPointerMove({ x, y }),
       pointerUp: (x, y) => instance._gameMode?.onMapPointerUp({ x, y }),
+      inputTap: (x, y) => {
+        const controller = instance.controller
+        instance.inputSys.handlePointerDown(x, y, undefined, controller, 0)
+        instance.inputSys.handlePointerUp(undefined, controller, 0)
+      },
       createRoute: (a, b) => {
         const mode = instance._gameMode
         if (!mode) return false
@@ -402,6 +518,10 @@ export class WarmCurrentGameInstance extends GameInstance {
         // 装入表长度对齐（GM 抽象口径：表总长恒 ringSlots 总数）
         if (!Array.isArray(s.ringBuildings) || s.ringBuildings.length !== B.ringSlots) {
           s.ringBuildings = Array.from({ length: B.ringSlots }, (_, i) => s.ringBuildings?.[i] ?? null)
+        }
+        // 节点落位表长度对齐（v13；GM 抽象口径同上）
+        if (!Array.isArray(s.ringNodes) || s.ringNodes.length !== B.ringSlots) {
+          s.ringNodes = Array.from({ length: B.ringSlots }, (_, i) => s.ringNodes?.[i] ?? null)
         }
       },
       setH3: (v) => {
@@ -468,6 +588,15 @@ export class WarmCurrentGameInstance extends GameInstance {
       placeMine: (depositId, typeId) => instance._gameMode?.mining.tryPlace(depositId, typeId) ?? false,
       holoInfo: () => instance._gameMode?.buildViewModel().hologram ?? null,
       holoMarkerScreenPos: (depositId) => instance._gameMode?.holoMarkerScreenPos(depositId) ?? null,
+      /** 全息地球（2026-09-12）：工具/直落/地表建筑/屏幕投影（真实点击测试用） */
+      setHoloTool: (kind, typeId) => instance._gameMode?.setHoloTool(kind, typeId),
+      placeRingNode: (lat, lon) => {
+        const mode = instance._gameMode
+        return mode ? mode.placeRingNodeAt(lat, lon) : '游戏未就绪'
+      },
+      placeSurfaceBuilding: (typeId, lat, lon) => instance._gameMode?.buildings.tryPlaceSurface(typeId, lat, lon) ?? false,
+      holoNodeScreenPos: (slot) => instance._gameMode?.holoNodeScreenPos(slot) ?? null,
+      holoSurfaceScreenPos: (lat, lon) => instance._gameMode?.holoLatLonScreenPos(lat, lon) ?? null,
       openShipyard: (id) => {
         const mode = instance._gameMode
         if (!mode) return false

@@ -89,6 +89,21 @@ export class ThreeFactoryComponent extends AObjectComponent {
     return new THREE.CapsuleGeometry(radius, Math.max(0, length), capSegments, radialSegments)
   }
 
+  createOctahedronGeometry(radius = 1, detail = 0): THREE.OctahedronGeometry {
+    return new THREE.OctahedronGeometry(radius, detail)
+  }
+
+  createCylinderGeometry(
+    radiusTop: number,
+    radiusBottom: number,
+    height: number,
+    radialSegments = 32,
+    heightSegments = 1,
+    openEnded = false,
+  ): THREE.CylinderGeometry {
+    return new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, heightSegments, openEnded)
+  }
+
   createRingGeometry(
     innerRadius: number,
     outerRadius: number,

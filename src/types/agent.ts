@@ -270,6 +270,8 @@ export type AgentEventType =
   | 'runningChange'
   // 会话列表快照更新（session/projection 投影帧实时合并 / listSessions 全量刷新后推送）
   | 'sessionsUpdated'
+  // 跨会话动态通知更新（其他会话的完成/出错/待批准/待回答，驱动消息区左上气泡栈）
+  | 'sessionNotice'
 
 export interface AgentEvent {
   type: AgentEventType
@@ -286,6 +288,28 @@ export interface SessionInfo {
 /** sessionsUpdated 事件 payload：合并投影帧 / 全量刷新后的最新会话列表快照 */
 export interface SessionsUpdatedPayload {
   sessions: SessionInfo[]
+}
+
+// ─── 跨会话动态通知（消息区左上气泡栈的数据源，对齐 mux 全会话广播帧） ───
+
+/** 通知类别：completed/error/blocked 来自其他会话的 turn/end，approval/question 来自跨会话服务端请求帧 */
+export type SessionNoticeKind = 'completed' | 'error' | 'blocked' | 'approval' | 'question'
+
+/** 一条跨会话动态通知（一个气泡） */
+export interface SessionNotice {
+  /** 稳定 id：回合结算 `${sessionId}:turn`、问答 `${sessionId}:question:${rpcId}`、审批 `${sessionId}:approval:${approvalId}` */
+  id: string
+  sessionId: string
+  kind: SessionNoticeKind
+  /** 展示摘要：错误信息 / 工具名 / 首个问题文本（展示层再按 kind 拼前缀） */
+  detail?: string
+  /** 发生时间（epoch ms），用于容量溢出时淘汰最旧 */
+  at: number
+}
+
+/** sessionNotice 事件 payload：归约后的全量通知快照（面板直接整体采纳） */
+export interface SessionNoticeUpdatePayload {
+  notices: SessionNotice[]
 }
 
 // ─── 使用统计（对齐 DSH token-meter / session-stats 投影） ───

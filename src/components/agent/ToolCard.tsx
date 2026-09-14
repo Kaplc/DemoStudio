@@ -3,8 +3,9 @@
  * 参考 DSH Web UI 的 ToolRow 设计
  *
  * write/edit 工具卡片默认自动展开，渲染 diff 视图（行号 + 红/绿行 + 上下文，对齐 DSH DiffBlock 风格）：
- * - 进行中（无 result）：从入参派生"将要做的修改"（deriveDiffsFromArgs）
- * - 已完成：展示 result meta 携带的已应用权威 hunk（tool.diffs，含 3 行上下文）
+ * - 权威路：已完成展示 result meta 携带的已应用权威 hunk（tool.diffs，含 3 行上下文）
+ * - 派生路：无权威 hunk 时从入参派生"将要做的修改"（deriveDiffsFromArgs）——进行中意图，
+ *   以及 write 新建文件兜底（DSH 对 before===null 不产 hunk，meta.diffs 为空数组，用户反馈 2026-09-13）
  * - 失败/非文件工具：回退通用 JSON 视图（输入/输出）
  * - 默认全量展开不折叠（用户决策 2026-09-10：剩余行数也要直接显示）
  * - edit/write 卡片默认自动展开（用户决策 2026-09-10），点击头部仍可收起/再展开
@@ -127,13 +128,14 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
     return truncate(JSON.stringify(obj), 60)
   }, [tool.args, tool.name])
 
-  // diff 数据源：settle 后用权威 meta.diffs；进行中从入参派生意图（失败不派生，走通用视图展示错误）
+  // diff 数据源：settle 后用权威 meta.diffs；无权威 hunk 时从入参派生（意图 + 兜底）。
+  // 兜底场景：DSH write 新建文件（before===null）result meta.diffs 是空数组（dsh-tool-fs 不产 hunk），
+  // 编辑器侧派生 content 全 add 视图，让 write 与 edit 一样展示 diff 而不是退回原始 JSON（用户反馈 2026-09-13）。
+  // failure 不派生：失败调用的入参未生效，走通用视图展示错误。
   const diffs = useMemo(() => {
     if (tool.diffs && tool.diffs.length > 0) return tool.diffs
-    if (tool.status === 'running' || tool.status === 'pending') {
-      return deriveDiffsFromArgs(tool.name, tool.args)
-    }
-    return null
+    if (tool.status === 'failure') return null
+    return deriveDiffsFromArgs(tool.name, tool.args)
   }, [tool.diffs, tool.name, tool.args, tool.status])
 
   return (

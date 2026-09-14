@@ -5,6 +5,7 @@
  */
 import { emitAIEventTool } from './tools/emitAIEvent.js'
 import { mouseClickTool, mouseMoveTool, mouseDragTool, keyPressTool } from './tools/mouseSimulation.js'
+import { projectScreenPosTool } from './tools/projectScreenPos.js'
 import { getHUDTool } from './tools/getHUD.js'
 import { getSceneOutlineTool } from './tools/getSceneOutline.js'
 import { getUiOutlineTool } from './tools/getUiOutline.js'
@@ -21,6 +22,7 @@ const ALL_TOOLS = [
   mouseMoveTool,
   mouseDragTool,
   keyPressTool,
+  projectScreenPosTool,
   getHUDTool,
   getSceneOutlineTool,
   getUiOutlineTool,

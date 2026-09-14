@@ -78,6 +78,29 @@ const patchContent = `# Your patch layer for this dsh profile, applied after eve
       config:
         experienceDir: '${yamlPath}/.dsh/experience'
 
+# ── DemoStudio 回合末提醒 ──
+# reminders 为全量替换（缺省 = 内置两条默认提醒）；新增提醒 = 在此加条目 + .dsh/reminder/ 放文案文件
+- insert:
+    - id: ds-reminder
+      name: '@demostudio/ds-reminder'
+      config:
+        reminderDir: '${yamlPath}/.dsh/reminder'
+        reminders:
+          - id: memory-end-of-turn
+            file: memory-end-of-turn.md
+            channel: steer
+            skipTools: [memory_write]
+            summary: 回合末记忆提醒
+          - id: experience-end-of-turn
+            file: experience-end-of-turn.md
+            channel: inject
+            skipTools: [experience_save]
+            summary: 回合末经验提醒
+          - id: doc-update-reminder
+            file: 文档更新提醒.md
+            channel: inject
+            summary: 文档更新提醒
+
 # ── 行为飞轮：持久会话索引 ──
 - id: session-query-sqlite
   config:

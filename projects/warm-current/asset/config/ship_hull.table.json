@@ -1,23 +1,80 @@
 {
-  "_comment": "船型配置表（2026-09-11 玩家设计权扩展：船队从同质单位变成玩家设计的舰队）。行键 = 船型 id（SimShip.hull，造船时定型、建成后不可改装、冻毁重建保留）。\n cost=船体造价(H3；整单价 = 船体 + Σ模块，×船坞折扣)；loadMult=本船型满载乘区；speedMult=本船型航速乘区；\n innate=内置特性清单（'anti_freeze'=耀斑冻毁免疫，罩外也存活）；allowed=可装模块 id 清单（'*'=全部；ship_module.table.json 行键）。\n 初始 3 艘 = 标准型裸船；ship_cap 不分船型照常计数，船型贵价本身就是经济闸门。\n 加新船型：加一行 + 造船面板船型页签自动多一档（ShipyardPanelScript 按表渲染）。",
+  "_comment": "船型配置表（2026-09-11 玩家设计权扩展：船队从同质单位变成玩家设计的舰队）。行键 = 船型 id（SimShip.hull，造船时定型、建成后不可改装、冻毁重建保留）。\n cost=船体造价(H3；整单价 = 船体 + Σ模块，×船坞折扣)；loadMult=本船型满载乘区；speedMult=本船航速乘区；\n innate=内置特性清单（'anti_freeze'=耀斑冻毁免疫，罩外也存活）；allowed=可装模块 id 清单（'*'=全部；ship_module.table.json 行键；自定义荷载设计不受 allowed 限制，只受槽位闸约束）。\n 初始 3 艘 = 标准型裸船；ship_cap 不分船型照常计数，船型贵价本身就是经济闸门。\n slots = 槽位表（槽位类型 → 数量；模块按 ship_module.slotType 占槽，与 allowed 白名单双闸；缺省 = 仅 allowed）。\n加新船型：加一行 + 造船面板船型页签自动多一档（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——standard 4 槽全能 / hauler 双货舱 / courier 双引擎 / guardian 双槽内置防冻。\n2026-09-13 部位选件制：ship_module 每槽型多档化（cargo_s/pod/x、tank_s/aux/x、engine_s/ion/x、pump_s/pump），allowed 白名单按槽型档位同步扩展——专精船型仍只开本职能槽位件，全能 standard 走 '*'。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload（荷载）、tank→fuel（燃料），功能槽 utility 下线——泵/加热器并入荷载舱（ship_module payloadRole），荷载可经荷载设计工坊合成自定义件（多附件并一件，占 1 荷载槽）。",
   "standard": {
-    "name": "标准型", "desc": "均衡船体 · 可装全部模块",
-    "cost": 180, "loadMult": 1.0, "speedMult": 1.0,
-    "innate": [], "allowed": ["*"]
+    "name": "标准型",
+    "desc": "均衡船体 · 3 槽全能拼装",
+    "cost": 180,
+    "loadMult": 1.0,
+    "speedMult": 1.0,
+    "innate": [],
+    "allowed": [
+      "*"
+    ],
+    "slots": {
+      "payload": 1,
+      "fuel": 1,
+      "engine": 1
+    }
   },
   "hauler": {
-    "name": "重载型", "desc": "满载 ×1.4 · 航速 ×0.85 · 限装货舱/货泵",
-    "cost": 260, "loadMult": 1.4, "speedMult": 0.85,
-    "innate": [], "allowed": ["cargo_pod", "pump"]
+    "name": "重载型",
+    "desc": "满载 ×1.4 · 航速 ×0.85 · 双荷载专精",
+    "cost": 260,
+    "loadMult": 1.4,
+    "speedMult": 0.85,
+    "innate": [],
+    "allowed": [
+      "cargo_s",
+      "cargo_pod",
+      "cargo_x",
+      "pump_s",
+      "pump"
+    ],
+    "slots": {
+      "payload": 2,
+      "fuel": 1
+    }
   },
   "courier": {
-    "name": "快速型", "desc": "满载 ×0.7 · 航速 ×1.35 · 限装引擎/油箱",
-    "cost": 240, "loadMult": 0.7, "speedMult": 1.35,
-    "innate": [], "allowed": ["ion_engine", "aux_tank"]
+    "name": "快速型",
+    "desc": "满载 ×0.7 · 航速 ×1.35 · 双引擎专精",
+    "cost": 240,
+    "loadMult": 0.7,
+    "speedMult": 1.35,
+    "innate": [],
+    "allowed": [
+      "engine_s",
+      "ion_engine",
+      "engine_x",
+      "tank_s",
+      "aux_tank",
+      "tank_x"
+    ],
+    "slots": {
+      "engine": 2,
+      "fuel": 1
+    }
   },
   "guardian": {
-    "name": "防务型", "desc": "内置防冻（冻毁免疫）· 满载 ×0.8 · 限装货舱/油箱",
-    "cost": 320, "loadMult": 0.8, "speedMult": 1.0,
-    "innate": ["anti_freeze"], "allowed": ["cargo_pod", "aux_tank"]
+    "name": "防务型",
+    "desc": "内置防冻（冻毁免疫）· 满载 ×0.8",
+    "cost": 320,
+    "loadMult": 0.8,
+    "speedMult": 1.0,
+    "innate": [
+      "anti_freeze"
+    ],
+    "allowed": [
+      "cargo_s",
+      "cargo_pod",
+      "cargo_x",
+      "tank_s",
+      "aux_tank",
+      "tank_x"
+    ],
+    "slots": {
+      "payload": 1,
+      "fuel": 1
+    }
   }
 }

@@ -48,12 +48,14 @@ export const AI_EVENT_SET_PROPERTY = 'ai.setProperty'
 /** 泛型 RPC：调用 Actor 或组件的白名单方法（setPosition/SetActive/applyPatch 等） */
 export const AI_EVENT_CALL_ACTOR = 'ai.callActor'
 
-/** 模拟鼠标点击（屏幕坐标，经 InputSys 完整管线：raycast → ClickableComponent → controller） */
+/** 模拟鼠标点击（屏幕坐标，经 InputSys 完整管线：raycast → ClickableComponent → controller；完整按下+释放序列） */
 export const AI_EVENT_MOUSE_CLICK = 'ai.mouseClick'
 /** 模拟鼠标移动（屏幕坐标，触发 hover 射线检测 + 拖拽分发） */
 export const AI_EVENT_MOUSE_MOVE = 'ai.mouseMove'
-/** 模拟鼠标拖拽（按下→移动→释放 完整序列） */
+/** 模拟鼠标拖拽（按下→移动→释放 完整序列，支持指定按键） */
 export const AI_EVENT_MOUSE_DRAG = 'ai.mouseDrag'
+/** 世界→屏幕投影查询（把世界点/Actor 位置投到屏幕像素坐标，观测类只读） */
+export const AI_EVENT_PROJECT_SCREEN_POS = 'ai.projectScreenPos'
 /** 模拟键盘按下 */
 export const AI_EVENT_KEY_PRESS = 'ai.keyPress'
 /** 模拟键盘释放 */
@@ -214,7 +216,7 @@ export interface AIGetSceneOutlinePayload {
   activeOnly?: boolean
 }
 
-/** ai.mouseClick payload：模拟鼠标点击（屏幕坐标） */
+/** ai.mouseClick payload：模拟鼠标点击（屏幕坐标，完整按下+释放序列） */
 export interface AIMouseClickPayload {
   /** 屏幕 X 坐标（像素） */
   screenX: number
@@ -222,7 +224,7 @@ export interface AIMouseClickPayload {
   screenY: number
   /** 鼠标按键：0=左键（默认），2=右键 */
   button?: number
-  /** 世界坐标（可选，传入则同时触发 controller.OnPointerDown） */
+  /** 世界坐标（可选，传入则同时触发 controller.OnPointerDown/OnPointerUp） */
   worldPos?: [number, number, number]
 }
 
@@ -250,6 +252,32 @@ export interface AIMouseDragPayload {
   steps?: number
   /** 每步间隔毫秒（可选，默认 16，即一帧） */
   stepDelayMs?: number
+  /** 鼠标按键（可选，默认 0=左键；2=右键拖拽平移/环绕） */
+  button?: number
+}
+
+/** ai.projectScreenPos payload：世界→屏幕投影查询（观测类只读） */
+export interface AIProjectScreenPosPayload {
+  /** Actor 名称（精确匹配，取其 root 世界位置投影；提供时优先于 worldPos） */
+  actor?: string
+  /** 世界坐标 [x, y, z]（actor 缺省时使用） */
+  worldPos?: [number, number, number]
+}
+
+/** ai.projectScreenPos 返回：屏幕像素坐标 + 可见性（NDC z 出 [-1,1] = 在相机界外，坐标不可信） */
+export interface AIProjectScreenPosResult {
+  ok: boolean
+  error?: string
+  /** 回显查询来源的 Actor 名 */
+  actor?: string
+  /** 实际参与投影的世界坐标（actor 查询时为其 root 世界位） */
+  world?: [number, number, number]
+  /** 屏幕 X 坐标（像素，视口坐标系） */
+  screenX?: number
+  /** 屏幕 Y 坐标（像素，视口坐标系） */
+  screenY?: number
+  /** 点是否在相机前界内（false = 背面/被裁剪，screenX/Y 不可信） */
+  inFront?: boolean
 }
 
 /** ai.keyPress payload：模拟键盘按键（单次触发） */

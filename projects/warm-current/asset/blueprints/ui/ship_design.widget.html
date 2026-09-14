@@ -1,0 +1,113 @@
+<widget name="ShipDesignPanel" canvas="1920x1080" data-script="gameplay/ui/ShipDesignScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .PanelRoot { width: 1920px; height: 1080px; position: absolute; left: 0px; top: 0px; }
+    .DesignBody { box-sizing: border-box; width: 1920px; height: 1080px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 10px; background-image: linear-gradient(165deg, #0e2030f2 0%, #081422e8 50%, #0a1c2cee 100%); border: 1px solid #2a5f7a; padding: 20px; hit-test: block; }
+    .PanelTitleRow { width: 1880px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 520px; height: 36px; flex-shrink: 0; font-size: 26px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .StatusText { width: 520px; height: 30px; flex-shrink: 0; font-size: 18px; color: #8fbcd4; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_dsn_close { box-sizing: border-box; width: 130px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_dsn_close:hover { background-color: #143650; }
+    .Label_dsn_close { width: 120px; height: 30px; font-size: 19px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .MainRow { width: 1880px; height: 900px; flex-shrink: 0; display: flex; flex-direction: row; gap: 16px; }
+    .PartsCol { width: 720px; height: 900px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    .PartsTopRow { width: 720px; height: 388px; flex-shrink: 0; display: flex; flex-direction: row; gap: 12px; }
+    .HullSub { width: 320px; height: 388px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    .TplSub { width: 388px; height: 388px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    .BenchCol { width: 560px; height: 900px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+    .CardCol { width: 560px; height: 900px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+    .StepTitle { height: 26px; flex-shrink: 0; font-size: 17px; color: #4fd8ff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .HullTitle { width: 320px; }
+    .ModuleTitle { width: 720px; }
+    .TplTitle { width: 388px; }
+    .HullList { width: 320px; height: 354px; flex-shrink: 0; }
+    .ModuleList { width: 720px; height: 210px; flex-shrink: 0; }
+    .BenchTitle { width: 300px; }
+    .BenchTitleRow { width: 560px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .Btn_dsn_payload { box-sizing: border-box; width: 180px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_dsn_payload:hover { background-color: #143650; }
+    .Label_dsn_payload { width: 168px; height: 26px; font-size: 16px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .BenchFrame { width: 560px; height: 700px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background-image: linear-gradient(180deg, #0a1826 0%, #0c2234 100%); border: 1px dashed #2a5f7a; }
+    .ShipNameText { width: 520px; height: 36px; flex-shrink: 0; margin-bottom: 24px; font-size: 24px; color: #ffe9a8; font-weight: bold; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .SlotGrid { width: 530px; height: 208px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px; }
+    .SlotCell { box-sizing: border-box; width: 258px; height: 60px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; background-color: #0d2434; border: 1px solid #235066; padding: 0px 12px; }
+    .SlotCell:hover { background-color: #143650; }
+    .SlotCell:checked { background-color: #14486b; }
+    .SlotTypeName { width: 64px; height: 28px; flex-shrink: 0; font-size: 16px; color: #6f9ab0; text-shadow: 1px 1px 4px #00000066; }
+    .SlotModuleName { width: 170px; height: 28px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .SlotRowText { width: 560px; height: 26px; flex-shrink: 0; font-size: 16px; color: #ffe9a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .CardTitle { width: 560px; }
+    .TrialText { width: 560px; height: 200px; flex-shrink: 0; font-size: 16px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_dsn_recommend { box-sizing: border-box; width: 560px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_dsn_recommend:hover { background-color: #143650; }
+    .Label_dsn_recommend { width: 540px; height: 32px; font-size: 18px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .OrderText { width: 560px; height: 110px; flex-shrink: 0; font-size: 17px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
+    .DockRow { width: 560px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
+    .Btn_dsn_order { box-sizing: border-box; width: 180px; height: 56px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0f2a1c; border: 1px solid #2a6e4a; }
+    .Btn_dsn_order:hover { background-color: #16382a; }
+    .Btn_dsn_order:disabled { background-color: #141a1e; }
+    .Label_dsn_order { width: 168px; height: 32px; font-size: 15px; color: #7fe8a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .DockEmptyText { width: 560px; height: 56px; flex-shrink: 0; font-size: 17px; color: #6f8ba0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_dsn_save { box-sizing: border-box; width: 388px; height: 52px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_dsn_save:hover { background-color: #143650; }
+    .Label_dsn_save { width: 374px; height: 30px; font-size: 17px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_dsn_ddel { box-sizing: border-box; width: 388px; height: 46px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_dsn_ddel:hover { background-color: #143650; }
+    .Label_dsn_ddel { width: 374px; height: 28px; font-size: 16px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .DesignList { width: 388px; height: 226px; flex-shrink: 0; }
+    .BottomHint { width: 1880px; height: 26px; flex-shrink: 0; font-size: 15px; color: #6f8ba0; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="PanelRoot" data-name="PanelRoot">
+      <div class="DesignBody" data-name="DesignBody">
+        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">🚀 火箭设计工坊</text><text class="StatusText" data-name="StatusText"></text><button class="Btn_dsn_close" data-name="Btn_dsn_close"><text class="Label_dsn_close">✕ 关闭</text></button></div>
+        <div class="MainRow" data-name="MainRow">
+          <div class="PartsCol" data-name="PartsCol">
+            <div class="PartsTopRow" data-name="PartsTopRow">
+              <div class="HullSub" data-name="HullSub">
+                <text class="StepTitle HullTitle" data-name="HullTitle">① 箭体（船型）</text>
+                <div class="HullList" data-name="HullList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
+              </div>
+              <div class="TplSub" data-name="TplSub">
+                <text class="StepTitle TplTitle" data-name="TplTitle">设计模板（点击载入）</text>
+                <button class="Btn_dsn_save" data-name="Btn_dsn_save"><text class="Label_dsn_save">💾 存当前方案为模板</text></button>
+                <button class="Btn_dsn_ddel" data-name="Btn_dsn_ddel"><text class="Label_dsn_ddel">🗑 删除所选模板</text></button>
+                <div class="DesignList" data-name="DesignList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":4,"autoLayout":true}'></div>
+              </div>
+            </div>
+            <text class="StepTitle ModuleTitle" data-name="ModuleTitle">② 部件选择（点击装配台部位）</text>
+            <div class="ModuleList" data-name="ModuleList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
+          </div>
+          <div class="BenchCol" data-name="BenchCol">
+            <div class="BenchTitleRow" data-name="BenchTitleRow"><text class="StepTitle BenchTitle" data-name="BenchTitle">③ 装配台</text><button class="Btn_dsn_payload" data-name="Btn_dsn_payload"><text class="Label_dsn_payload">🧩 荷载设计</text></button></div>
+            <div class="BenchFrame" data-name="BenchFrame">
+              <text class="ShipNameText" data-name="ShipNameText"></text>
+              <div class="SlotGrid" data-name="SlotGrid">
+                <button class="SlotCell" data-name="SlotCell_0"><text class="SlotTypeName" data-name="SlotTypeName_0"></text><text class="SlotModuleName" data-name="SlotModuleName_0"></text></button>
+                <button class="SlotCell" data-name="SlotCell_1"><text class="SlotTypeName" data-name="SlotTypeName_1"></text><text class="SlotModuleName" data-name="SlotModuleName_1"></text></button>
+                <button class="SlotCell" data-name="SlotCell_2"><text class="SlotTypeName" data-name="SlotTypeName_2"></text><text class="SlotModuleName" data-name="SlotModuleName_2"></text></button>
+                <button class="SlotCell" data-name="SlotCell_3"><text class="SlotTypeName" data-name="SlotTypeName_3"></text><text class="SlotModuleName" data-name="SlotModuleName_3"></text></button>
+                <button class="SlotCell" data-name="SlotCell_4"><text class="SlotTypeName" data-name="SlotTypeName_4"></text><text class="SlotModuleName" data-name="SlotModuleName_4"></text></button>
+                <button class="SlotCell" data-name="SlotCell_5"><text class="SlotTypeName" data-name="SlotTypeName_5"></text><text class="SlotModuleName" data-name="SlotModuleName_5"></text></button>
+              </div>
+            </div>
+            <text class="SlotRowText" data-name="SlotRowText"></text>
+          </div>
+          <div class="CardCol" data-name="CardCol">
+            <text class="StepTitle CardTitle" data-name="CardTitle">④ 性能卡（试航预估 · 三星口径）</text>
+            <text class="TrialText" data-name="TrialText"></text>
+            <button class="Btn_dsn_recommend" data-name="Btn_dsn_recommend"><text class="Label_dsn_recommend">⚙ 一键推荐配置（能过关但非最优）</text></button>
+            <text class="OrderText" data-name="OrderText"></text>
+            <div class="DockRow" data-name="DockRow">
+              <button class="Btn_dsn_order" data-name="DockOrderBtn_0"><text class="Label_dsn_order" data-name="DockOrderLabel_0"></text></button>
+              <button class="Btn_dsn_order" data-name="DockOrderBtn_1"><text class="Label_dsn_order" data-name="DockOrderLabel_1"></text></button>
+              <button class="Btn_dsn_order" data-name="DockOrderBtn_2"><text class="Label_dsn_order" data-name="DockOrderLabel_2"></text></button>
+            </div>
+            <text class="DockEmptyText" data-name="DockEmptyText"></text>
+          </div>
+        </div>
+        <text class="BottomHint" data-name="BottomHint">提示：① 选箭体（型号）→ ② 装配台点部位 → ② 区挑部件（同功能多档选数值，再点已装件=卸下）；「荷载设计」可自合成荷载件（主体+附件并一件占 1 槽）；下水需先造船坞；设计模板随存档保存。</text>
+      </div>
+    </div>
+  </div>
+</widget>

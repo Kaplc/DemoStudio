@@ -101,6 +101,7 @@ export type { ComponentFactory, ComponentConfigurator } from './tools/ComponentR
 export { ActorRegistry } from './tools/ActorRegistry'
 export type { ActorFactory } from './tools/ActorRegistry'
 export { ObjectRegistry } from './tools/ObjectRegistry'
+export { LoadingSettle } from './tools/LoadingSettle'
 export { BlueprintRegistry } from './asset/BlueprintRegistry'
 export type {
   BlueprintAsset,

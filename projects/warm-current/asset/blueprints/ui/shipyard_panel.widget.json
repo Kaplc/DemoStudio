@@ -1,7 +1,7 @@
 {
   "name": "ShipyardPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-6efde0d1",
+  "sourceHash": "fnv1a-7ddb2e3d",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -145,11 +145,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 1430,
-                    "worldHeight": 730,
+                    "worldWidth": 1400,
+                    "worldHeight": 700,
                     "position": [
-                      15,
-                      -15,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -183,8 +183,8 @@
                         }
                       ]
                     },
-                    "width": 1430,
-                    "height": 730,
+                    "width": 1400,
+                    "height": 700,
                     "name": "ShipyardBody"
                   }
                 }
@@ -200,7 +200,7 @@
                       "properties": {
                         "position": [
                           0,
-                          364.5,
+                          349.5,
                           0
                         ],
                         "rotation": [
@@ -213,7 +213,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 1430,
+                        "worldWidth": 1400,
                         "worldHeight": 1
                       }
                     },
@@ -230,7 +230,7 @@
                       "properties": {
                         "name": "ShipyardBodyBorderTop",
                         "color": "#2a5f7a",
-                        "width": 1430,
+                        "width": 1400,
                         "height": 8
                       }
                     }
@@ -246,7 +246,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          714.5,
+                          699.5,
                           0,
                           0
                         ],
@@ -261,7 +261,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 730
+                        "worldHeight": 700
                       }
                     },
                     {
@@ -278,7 +278,7 @@
                         "name": "ShipyardBodyBorderRight",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 730
+                        "height": 700
                       }
                     }
                   ],
@@ -294,7 +294,7 @@
                       "properties": {
                         "position": [
                           0,
-                          -364.5,
+                          -349.5,
                           0
                         ],
                         "rotation": [
@@ -307,7 +307,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 1430,
+                        "worldWidth": 1400,
                         "worldHeight": 1
                       }
                     },
@@ -324,7 +324,7 @@
                       "properties": {
                         "name": "ShipyardBodyBorderBottom",
                         "color": "#2a5f7a",
-                        "width": 1430,
+                        "width": 1400,
                         "height": 8
                       }
                     }
@@ -340,7 +340,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          -714.5,
+                          -699.5,
                           0,
                           0
                         ],
@@ -355,7 +355,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 730
+                        "worldHeight": 700
                       }
                     },
                     {
@@ -372,7 +372,7 @@
                         "name": "ShipyardBodyBorderLeft",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 730
+                        "height": 700
                       }
                     }
                   ],
@@ -399,8 +399,8 @@
                         "worldWidth": 1372,
                         "worldHeight": 44,
                         "position": [
-                          -14,
-                          328,
+                          1,
+                          313,
                           0
                         ]
                       }
@@ -491,7 +491,7 @@
                             "worldWidth": 320,
                             "worldHeight": 28,
                             "position": [
-                              150,
+                              149,
                               0,
                               0
                             ]
@@ -545,7 +545,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              627,
+                              625,
                               -1,
                               0
                             ]
@@ -855,8 +855,8 @@
                         "worldWidth": 1372,
                         "worldHeight": 464,
                         "position": [
-                          -14,
-                          66,
+                          1,
+                          51,
                           0
                         ]
                       }
@@ -1086,7 +1086,7 @@
                             {
                               "baseClass": "UITextComponent",
                               "properties": {
-                                "text": "② 本船插件（按船型配置表，可不配）",
+                                "text": "② 本船插件（点部位选件 · 可不配）",
                                 "name": "ModuleTitle",
                                 "width": 720,
                                 "height": 24,
@@ -1103,7 +1103,7 @@
                           "children": []
                         },
                         {
-                          "name": "ModuleList",
+                          "name": "SlotRowText",
                           "baseClass": "Actor",
                           "id": 13223,
                           "components": [
@@ -1121,10 +1121,2328 @@
                                   1
                                 ],
                                 "worldWidth": 720,
-                                "worldHeight": 434,
+                                "worldHeight": 24,
                                 "position": [
                                   0,
-                                  -15,
+                                  190,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "",
+                                "name": "SlotRowText",
+                                "width": 720,
+                                "height": 24,
+                                "fontSize": 15,
+                                "color": "#ffe9a8",
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "SlotGrid",
+                          "baseClass": "Actor",
+                          "id": 13224,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 720,
+                                "worldHeight": 126,
+                                "position": [
+                                  0,
+                                  109,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            }
+                          ],
+                          "children": [
+                            {
+                              "name": "SlotCell_0",
+                              "baseClass": "Actor",
+                              "id": 13225,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      -136,
+                                      35,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_0"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_0BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13226,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_0BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_0BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13227,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_0BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_0BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13228,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_0BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_0BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13229,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_0BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_0",
+                                  "baseClass": "Actor",
+                                  "id": 13230,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_0",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_0",
+                                  "baseClass": "Actor",
+                                  "id": 13231,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_0",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "SlotCell_1",
+                              "baseClass": "Actor",
+                              "id": 13232,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      136,
+                                      35,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_1"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_1BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13233,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_1BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_1BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13234,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_1BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_1BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13235,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_1BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_1BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13236,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_1BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_1",
+                                  "baseClass": "Actor",
+                                  "id": 13237,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_1",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_1",
+                                  "baseClass": "Actor",
+                                  "id": 13238,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_1",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "SlotCell_2",
+                              "baseClass": "Actor",
+                              "id": 13239,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      -136,
+                                      -33,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_2"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_2BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13240,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_2BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_2BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13241,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_2BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_2BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13242,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_2BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_2BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13243,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_2BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_2",
+                                  "baseClass": "Actor",
+                                  "id": 13244,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_2",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_2",
+                                  "baseClass": "Actor",
+                                  "id": 13245,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_2",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "SlotCell_3",
+                              "baseClass": "Actor",
+                              "id": 13246,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      136,
+                                      -33,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_3"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_3BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13247,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_3BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_3BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13248,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_3BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_3BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13249,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_3BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_3BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13250,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_3BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_3",
+                                  "baseClass": "Actor",
+                                  "id": 13251,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_3",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_3",
+                                  "baseClass": "Actor",
+                                  "id": 13252,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_3",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "SlotCell_4",
+                              "baseClass": "Actor",
+                              "id": 13253,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      -136,
+                                      -101,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_4"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_4BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13254,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_4BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_4BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13255,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_4BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_4BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13256,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_4BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_4BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13257,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_4BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_4",
+                                  "baseClass": "Actor",
+                                  "id": 13258,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_4",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_4",
+                                  "baseClass": "Actor",
+                                  "id": 13259,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_4",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "SlotCell_5",
+                              "baseClass": "Actor",
+                              "id": 13260,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 258,
+                                    "worldHeight": 56,
+                                    "position": [
+                                      136,
+                                      -101,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      },
+                                      "checked": {
+                                        "color": "#14486b"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 258,
+                                    "height": 56,
+                                    "name": "SlotCell_5"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "SlotCell_5BorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13261,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_5BorderTop",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_5BorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13262,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_5BorderRight",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_5BorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13263,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -27.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 258,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_5BorderBottom",
+                                        "color": "#235066",
+                                        "width": 258,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotCell_5BorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13264,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -128.5,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 56
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "SlotCell_5BorderLeft",
+                                        "color": "#235066",
+                                        "width": 8,
+                                        "height": 56
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotTypeName_5",
+                                  "baseClass": "Actor",
+                                  "id": 13265,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 64,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          -84,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotTypeName_5",
+                                        "width": 64,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#6f9ab0",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "SlotModuleName_5",
+                                  "baseClass": "Actor",
+                                  "id": 13266,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 28,
+                                        "position": [
+                                          43,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "",
+                                        "name": "SlotModuleName_5",
+                                        "width": 170,
+                                        "height": 28,
+                                        "fontSize": 16,
+                                        "color": "#bfe8ff",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "padding": [
+                                  0,
+                                  12,
+                                  0,
+                                  12
+                                ],
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "name": "ModuleList",
+                          "baseClass": "Actor",
+                          "id": 13267,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 720,
+                                "worldHeight": 210,
+                                "position": [
+                                  0,
+                                  -65,
                                   0
                                 ]
                               }
@@ -1154,7 +3472,7 @@
                     {
                       "name": "OrderCol",
                       "baseClass": "Actor",
-                      "id": 13224,
+                      "id": 13268,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -1191,7 +3509,7 @@
                         {
                           "name": "OrderTitle",
                           "baseClass": "Actor",
-                          "id": 13225,
+                          "id": 13269,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1245,7 +3563,7 @@
                         {
                           "name": "OrderText",
                           "baseClass": "Actor",
-                          "id": 13226,
+                          "id": 13270,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1261,10 +3579,10 @@
                                   1
                                 ],
                                 "worldWidth": 322,
-                                "worldHeight": 356,
+                                "worldHeight": 240,
                                 "position": [
                                   0,
-                                  24,
+                                  82,
                                   0
                                 ]
                               }
@@ -1283,9 +3601,370 @@
                                 "text": "",
                                 "name": "OrderText",
                                 "width": 322,
-                                "height": 356,
+                                "height": 240,
                                 "fontSize": 16,
                                 "color": "#ffe9a8",
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "Btn_yd_recommend",
+                          "baseClass": "Actor",
+                          "id": 13271,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 324,
+                                "worldHeight": 50,
+                                "position": [
+                                  1,
+                                  -69,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UIButtonComponent",
+                              "properties": {
+                                "stateColors": {
+                                  "hover": {
+                                    "color": "#143650"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "baseClass": "UIImageComponent",
+                              "properties": {
+                                "color": "#0d2434",
+                                "width": 324,
+                                "height": 50,
+                                "name": "Btn_yd_recommend"
+                              }
+                            }
+                          ],
+                          "children": [
+                            {
+                              "name": "Btn_yd_recommendBorderTop",
+                              "baseClass": "Actor",
+                              "id": 13272,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "position": [
+                                      0,
+                                      24.5,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 324,
+                                    "worldHeight": 1
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "name": "Btn_yd_recommendBorderTop",
+                                    "color": "#2a5f7a",
+                                    "width": 324,
+                                    "height": 8
+                                  }
+                                }
+                              ],
+                              "children": []
+                            },
+                            {
+                              "name": "Btn_yd_recommendBorderRight",
+                              "baseClass": "Actor",
+                              "id": 13273,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "position": [
+                                      161.5,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 1,
+                                    "worldHeight": 50
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "name": "Btn_yd_recommendBorderRight",
+                                    "color": "#2a5f7a",
+                                    "width": 8,
+                                    "height": 50
+                                  }
+                                }
+                              ],
+                              "children": []
+                            },
+                            {
+                              "name": "Btn_yd_recommendBorderBottom",
+                              "baseClass": "Actor",
+                              "id": 13274,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "position": [
+                                      0,
+                                      -24.5,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 324,
+                                    "worldHeight": 1
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "name": "Btn_yd_recommendBorderBottom",
+                                    "color": "#2a5f7a",
+                                    "width": 324,
+                                    "height": 8
+                                  }
+                                }
+                              ],
+                              "children": []
+                            },
+                            {
+                              "name": "Btn_yd_recommendBorderLeft",
+                              "baseClass": "Actor",
+                              "id": 13275,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "position": [
+                                      -161.5,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 1,
+                                    "worldHeight": 50
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "name": "Btn_yd_recommendBorderLeft",
+                                    "color": "#2a5f7a",
+                                    "width": 8,
+                                    "height": 50
+                                  }
+                                }
+                              ],
+                              "children": []
+                            },
+                            {
+                              "name": "Label_yd_recommend",
+                              "baseClass": "Actor",
+                              "id": 13276,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 300,
+                                    "worldHeight": 28,
+                                    "position": [
+                                      0,
+                                      0,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UITextComponent",
+                                  "properties": {
+                                    "text": "⚙ 一键推荐配置",
+                                    "name": "Label_yd_recommend",
+                                    "width": 300,
+                                    "height": 28,
+                                    "fontSize": 16,
+                                    "color": "#9fd8ef",
+                                    "align": "center",
+                                    "shadowColor": "#00000066",
+                                    "shadowOffsetX": 1,
+                                    "shadowOffsetY": 1,
+                                    "shadowBlur": 4
+                                  }
+                                }
+                              ],
+                              "children": []
+                            }
+                          ],
+                          "sourceLayout": {
+                            "border": [
+                              1,
+                              1,
+                              1,
+                              1
+                            ]
+                          }
+                        },
+                        {
+                          "name": "TrialText",
+                          "baseClass": "Actor",
+                          "id": 13277,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 322,
+                                "worldHeight": 148,
+                                "position": [
+                                  0,
+                                  -174,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "",
+                                "name": "TrialText",
+                                "width": 322,
+                                "height": 148,
+                                "fontSize": 14,
+                                "color": "#7fdcff",
                                 "shadowColor": "#00000066",
                                 "shadowOffsetX": 1,
                                 "shadowOffsetY": 1,
@@ -1302,7 +3981,7 @@
                 {
                   "name": "BottomRow",
                   "baseClass": "Actor",
-                  "id": 13227,
+                  "id": 13278,
                   "components": [
                     {
                       "baseClass": "UITransformComponent",
@@ -1320,8 +3999,8 @@
                         "worldWidth": 1372,
                         "worldHeight": 148,
                         "position": [
-                          -14,
-                          -248,
+                          1,
+                          -263,
                           0
                         ]
                       }
@@ -1339,7 +4018,7 @@
                     {
                       "name": "QueueCol",
                       "baseClass": "Actor",
-                      "id": 13228,
+                      "id": 13279,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -1354,10 +4033,10 @@
                               1,
                               1
                             ],
-                            "worldWidth": 1102,
+                            "worldWidth": 720,
                             "worldHeight": 148,
                             "position": [
-                              -135,
+                              -326,
                               0,
                               0
                             ]
@@ -1376,7 +4055,7 @@
                         {
                           "name": "QueueTitle",
                           "baseClass": "Actor",
-                          "id": 13229,
+                          "id": 13280,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1391,7 +4070,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 1102,
+                                "worldWidth": 720,
                                 "worldHeight": 24,
                                 "position": [
                                   0,
@@ -1413,7 +4092,7 @@
                               "properties": {
                                 "text": "造船队列（队首建造中）",
                                 "name": "QueueTitle",
-                                "width": 1102,
+                                "width": 720,
                                 "height": 24,
                                 "fontSize": 16,
                                 "color": "#4fd8ff",
@@ -1430,7 +4109,7 @@
                         {
                           "name": "ShipCardList",
                           "baseClass": "Actor",
-                          "id": 13230,
+                          "id": 13281,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1445,7 +4124,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 1102,
+                                "worldWidth": 720,
                                 "worldHeight": 118,
                                 "position": [
                                   0,
@@ -1478,9 +4157,804 @@
                       ]
                     },
                     {
+                      "name": "DesignCol",
+                      "baseClass": "Actor",
+                      "id": 13282,
+                      "components": [
+                        {
+                          "baseClass": "UITransformComponent",
+                          "properties": {
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "scale": [
+                              1,
+                              1,
+                              1
+                            ],
+                            "worldWidth": 372,
+                            "worldHeight": 148,
+                            "position": [
+                              230,
+                              0,
+                              0
+                            ]
+                          }
+                        },
+                        {
+                          "baseClass": "CanvasUIComponent",
+                          "properties": {
+                            "markerOnly": true,
+                            "name": "UIMarker",
+                            "zOrder": 0
+                          }
+                        }
+                      ],
+                      "children": [
+                        {
+                          "name": "DesignTitle",
+                          "baseClass": "Actor",
+                          "id": 13283,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 372,
+                                "worldHeight": 24,
+                                "position": [
+                                  0,
+                                  62,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UITextComponent",
+                              "properties": {
+                                "text": "设计模板（点击载入）",
+                                "name": "DesignTitle",
+                                "width": 372,
+                                "height": 24,
+                                "fontSize": 16,
+                                "color": "#4fd8ff",
+                                "bold": true,
+                                "shadowColor": "#00000066",
+                                "shadowOffsetX": 1,
+                                "shadowOffsetY": 1,
+                                "shadowBlur": 4
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "DesignList",
+                          "baseClass": "Actor",
+                          "id": 13284,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 372,
+                                "worldHeight": 64,
+                                "position": [
+                                  0,
+                                  12,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            },
+                            {
+                              "baseClass": "UILayoutComponent",
+                              "properties": {
+                                "mode": "vertical",
+                                "spacingX": 0,
+                                "spacingY": 4,
+                                "autoLayout": true
+                              }
+                            }
+                          ],
+                          "children": []
+                        },
+                        {
+                          "name": "DesignBtnRow",
+                          "baseClass": "Actor",
+                          "id": 13285,
+                          "components": [
+                            {
+                              "baseClass": "UITransformComponent",
+                              "properties": {
+                                "rotation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "worldWidth": 372,
+                                "worldHeight": 48,
+                                "position": [
+                                  0,
+                                  -50,
+                                  0
+                                ]
+                              }
+                            },
+                            {
+                              "baseClass": "CanvasUIComponent",
+                              "properties": {
+                                "markerOnly": true,
+                                "name": "UIMarker",
+                                "zOrder": 0
+                              }
+                            }
+                          ],
+                          "children": [
+                            {
+                              "name": "Btn_yd_save",
+                              "baseClass": "Actor",
+                              "id": 13286,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 185,
+                                    "worldHeight": 50,
+                                    "position": [
+                                      -93.5,
+                                      -1,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 185,
+                                    "height": 50,
+                                    "name": "Btn_yd_save"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "Btn_yd_saveBorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13287,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          24.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 185,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_saveBorderTop",
+                                        "color": "#2a5f7a",
+                                        "width": 185,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_saveBorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13288,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          92,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 50
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_saveBorderRight",
+                                        "color": "#2a5f7a",
+                                        "width": 8,
+                                        "height": 50
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_saveBorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13289,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -24.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 185,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_saveBorderBottom",
+                                        "color": "#2a5f7a",
+                                        "width": 185,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_saveBorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13290,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -92,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 50
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_saveBorderLeft",
+                                        "color": "#2a5f7a",
+                                        "width": 8,
+                                        "height": 50
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Label_yd_save",
+                                  "baseClass": "Actor",
+                                  "id": 13291,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 26,
+                                        "position": [
+                                          0,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "存为模板",
+                                        "name": "Label_yd_save",
+                                        "width": 170,
+                                        "height": 26,
+                                        "fontSize": 15,
+                                        "color": "#9fd8ef",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            },
+                            {
+                              "name": "Btn_yd_ddel",
+                              "baseClass": "Actor",
+                              "id": 13292,
+                              "components": [
+                                {
+                                  "baseClass": "UITransformComponent",
+                                  "properties": {
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ],
+                                    "worldWidth": 185,
+                                    "worldHeight": 50,
+                                    "position": [
+                                      97.5,
+                                      -1,
+                                      0
+                                    ]
+                                  }
+                                },
+                                {
+                                  "baseClass": "CanvasUIComponent",
+                                  "properties": {
+                                    "markerOnly": true,
+                                    "name": "UIMarker",
+                                    "zOrder": 0
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIButtonComponent",
+                                  "properties": {
+                                    "stateColors": {
+                                      "hover": {
+                                        "color": "#143650"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "baseClass": "UIImageComponent",
+                                  "properties": {
+                                    "color": "#0d2434",
+                                    "width": 185,
+                                    "height": 50,
+                                    "name": "Btn_yd_ddel"
+                                  }
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "name": "Btn_yd_ddelBorderTop",
+                                  "baseClass": "Actor",
+                                  "id": 13293,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          24.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 185,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_ddelBorderTop",
+                                        "color": "#2a5f7a",
+                                        "width": 185,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_ddelBorderRight",
+                                  "baseClass": "Actor",
+                                  "id": 13294,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          92,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 50
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_ddelBorderRight",
+                                        "color": "#2a5f7a",
+                                        "width": 8,
+                                        "height": 50
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_ddelBorderBottom",
+                                  "baseClass": "Actor",
+                                  "id": 13295,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          0,
+                                          -24.5,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 185,
+                                        "worldHeight": 1
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_ddelBorderBottom",
+                                        "color": "#2a5f7a",
+                                        "width": 185,
+                                        "height": 8
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Btn_yd_ddelBorderLeft",
+                                  "baseClass": "Actor",
+                                  "id": 13296,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "position": [
+                                          -92,
+                                          0,
+                                          0
+                                        ],
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 1,
+                                        "worldHeight": 50
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UIImageComponent",
+                                      "properties": {
+                                        "name": "Btn_yd_ddelBorderLeft",
+                                        "color": "#2a5f7a",
+                                        "width": 8,
+                                        "height": 50
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                },
+                                {
+                                  "name": "Label_yd_ddel",
+                                  "baseClass": "Actor",
+                                  "id": 13297,
+                                  "components": [
+                                    {
+                                      "baseClass": "UITransformComponent",
+                                      "properties": {
+                                        "rotation": [
+                                          0,
+                                          0,
+                                          0
+                                        ],
+                                        "scale": [
+                                          1,
+                                          1,
+                                          1
+                                        ],
+                                        "worldWidth": 170,
+                                        "worldHeight": 26,
+                                        "position": [
+                                          0,
+                                          0,
+                                          0
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "CanvasUIComponent",
+                                      "properties": {
+                                        "markerOnly": true,
+                                        "name": "UIMarker",
+                                        "zOrder": 0
+                                      }
+                                    },
+                                    {
+                                      "baseClass": "UITextComponent",
+                                      "properties": {
+                                        "text": "删除所选模板",
+                                        "name": "Label_yd_ddel",
+                                        "width": 170,
+                                        "height": 26,
+                                        "fontSize": 15,
+                                        "color": "#9fd8ef",
+                                        "align": "center",
+                                        "shadowColor": "#00000066",
+                                        "shadowOffsetX": 1,
+                                        "shadowOffsetY": 1,
+                                        "shadowBlur": 4
+                                      }
+                                    }
+                                  ],
+                                  "children": []
+                                }
+                              ],
+                              "sourceLayout": {
+                                "border": [
+                                  1,
+                                  1,
+                                  1,
+                                  1
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
                       "name": "Btn_yd_build",
                       "baseClass": "Actor",
-                      "id": 13231,
+                      "id": 13298,
                       "components": [
                         {
                           "baseClass": "UITransformComponent",
@@ -1536,7 +5010,7 @@
                         {
                           "name": "Btn_yd_buildBorderTop",
                           "baseClass": "Actor",
-                          "id": 13232,
+                          "id": 13299,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1583,7 +5057,7 @@
                         {
                           "name": "Btn_yd_buildBorderRight",
                           "baseClass": "Actor",
-                          "id": 13233,
+                          "id": 13300,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1630,7 +5104,7 @@
                         {
                           "name": "Btn_yd_buildBorderBottom",
                           "baseClass": "Actor",
-                          "id": 13234,
+                          "id": 13301,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1677,7 +5151,7 @@
                         {
                           "name": "Btn_yd_buildBorderLeft",
                           "baseClass": "Actor",
-                          "id": 13235,
+                          "id": 13302,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",
@@ -1724,7 +5198,7 @@
                         {
                           "name": "BtnLabel",
                           "baseClass": "Actor",
-                          "id": 13236,
+                          "id": 13303,
                           "components": [
                             {
                               "baseClass": "UITransformComponent",

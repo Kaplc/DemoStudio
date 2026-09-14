@@ -146,6 +146,7 @@ export function solveLayout(rootEl: StyleElement, ctx: SolveContext): Box {
   const box = solve.buildBox(rootEl, 'block')
   if (!box) throw new LayoutError('根元素 display:none 不可编译', rootEl.node.line)
   solve.layoutRoot(box, rootEl.computed, rootEl)
+  solve.auditBoxOverflow(box)
   return box
 }
 
@@ -163,6 +164,43 @@ class Solver {
 
   private warn(line: number, message: string): void {
     this.ctx.warnings.push({ line, message })
+  }
+
+  /**
+   * 盒溢出审计（全树，solveLayout 终排后执行）：
+   * 子项边盒占位（border + padding + width/height + border）超出父内容盒 → warn。
+   * 背景：content-box 语义下声明宽不含 padding/border（CSS 标准），「width + padding + border」
+   * 组合极易静默溢出（占位 = 声明 + padding×2 + border×2），布局偏差编译期不可见、
+   * 只能上屏后肉眼找——这里把溢出变成显式告警，并给出 box-sizing: border-box 修复路径。
+   * 已显式声明 box-sizing 的元素视为知情选择（故意溢出的装饰等），不重复提示。
+   * 每个父容器每方向只报首条（同类多子项不刷屏）。
+   */
+  auditBoxOverflow(box: Box): void {
+    const reported = new Set<object>()
+    const walk = (parent: Box): void => {
+      for (const child of parent.children) {
+        if (child.kind === 'text') continue
+        const bw = child.bl + child.pl + child.w + child.pr + child.br
+        const bh = child.bt + child.pt + child.h + child.pb + child.bb
+        const boxSizingDeclared = this.num(child.el, 'box-sizing') !== undefined
+        if (!boxSizingDeclared && (child.pl + child.pr + child.bl + child.br > 0) && bw > parent.w + 2.5 && !reported.has(parent)) {
+          reported.add(parent)
+          this.warn(
+            child.line,
+            `水平溢出：子元素占位 ${Math.round(bw)}px（声明宽 ${Math.round(child.w)} + padding/border ${Math.round(bw - child.w)}，content-box 语义）超出父内容盒 ${Math.round(parent.w)}px——若需占位=声明宽，请声明 box-sizing: border-box`,
+          )
+        }
+        if (!boxSizingDeclared && (child.pt + child.pb + child.bt + child.bb > 0) && bh > parent.h + 2.5 && !reported.has(parent)) {
+          reported.add(parent)
+          this.warn(
+            child.line,
+            `垂直溢出：子元素占位 ${Math.round(bh)}px（声明高 ${Math.round(child.h)} + padding/border ${Math.round(bh - child.h)}，content-box 语义）超出父内容盒 ${Math.round(parent.h)}px——若需占位=声明高，请声明 box-sizing: border-box`,
+          )
+        }
+        walk(child)
+      }
+    }
+    walk(box)
   }
 
   private fail(line: number, message: string): never {
@@ -974,7 +1012,12 @@ class Solver {
     const crossAvail = (isRow ? box.h : box.w) - (isRow ? box.pt + box.pb : box.pl + box.pr)
 
     // flex-basis / 主轴基准尺寸
-    interface FlexItem { box: Box; grow: number; shrink: number; basisMain: number; marginMain: number }
+    // 2026-09-13 修复（SlotGrid 案）：主轴基准统一用 **边盒口径**（border-box 尺寸）。
+    // 此前 basis = item.w（内容盒），而游标推进/行宽都按边盒累加（cursor += w + pad + border），
+    // 有 padding/border 的子项 basis 少算 padBorder → 行宽塌陷 → center 偏移/换行错位
+    // （border-box 声明的子项尤甚：渲染占位 = 声明宽，basis 却是声明 − padBorder）。
+    // CSS 语义：flex-basis/auto 的 used size 按 box-sizing 解读，分布作用在 border box 上。
+    interface FlexItem { box: Box; grow: number; shrink: number; basisMain: number; marginMain: number; padBorderMain: number }
     const flexItems: FlexItem[] = []
       // flex column 子项交叉轴（宽）auto 语义：CSS flexbox 列向子项宽度 =
       // fit-content（shrink-to-fit），不由行向主轴基准决定——此前把行向基准
@@ -998,9 +1041,15 @@ class Solver {
         ? null
         : this.resolveLen(item.el, 'flex-basis', mainAvail, fs, viewport)
       const mainSize = isRow ? item.w : item.h
-      const basisMain = basisLen ?? mainSize
+      const padBorderMain = isRow ? item.pl + item.pr + item.bl + item.br : item.pt + item.pb + item.bt + item.bb
+      const boxSizing = this.num(item.el, 'box-sizing') ?? 'content-box'
+      // 统一边盒基准：mainSize 恒为内容盒（resolveChildWidth 产出，border-box 已预扣）→ 补回 padBorder；
+      // 显式 flex-basis 按 box-sizing 解读（border-box 声明 = 边盒口径，直接用）
+      const basisMain = basisLen !== null
+        ? (boxSizing === 'border-box' ? basisLen : basisLen + padBorderMain)
+        : mainSize + padBorderMain
       const marginMain = isRow ? item.ml + item.mr : item.mt + item.mb
-      flexItems.push({ box: item, grow, shrink, basisMain, marginMain })
+      flexItems.push({ box: item, grow, shrink, basisMain, marginMain, padBorderMain })
     }
 
     // 换行分行
@@ -1008,6 +1057,21 @@ class Solver {
     if (!wrap) {
       lines.push(flexItems)
     } else {
+      // content-box 陷阱提示（2026-09-13 SlotGrid 案）：wrap 容器内「显式宽 + padding/border +
+      // 未声明 box-sizing」的子项，占位 = 声明 + padBorder，作者极易按 border-box 心智算列宽 →
+      // 提前换行/溢出的静默布局偏差。每容器提示一次，给出修复路径。
+      const trap = flexItems.find((fi) =>
+        fi.box.w > 0
+        && fi.box.pl + fi.box.pr + fi.box.bl + fi.box.br > 0
+        && this.num(fi.box.el, 'box-sizing') === undefined
+        && this.resolveLen(fi.box.el, 'width', mainAvail, fs, viewport) !== null)
+      if (trap) {
+        const bw = trap.box.bl + trap.box.pl + trap.box.w + trap.box.pr + trap.box.br
+        this.warn(
+          trap.box.line,
+          `flex-wrap 子元素占位 ${Math.round(bw)}px（声明宽 ${Math.round(trap.box.w)} + padding/border ${Math.round(bw - trap.box.w)}，content-box 语义）——若按声明宽算换行列宽，请声明 box-sizing: border-box`,
+        )
+      }
       let cur: FlexItem[] = []
       let curSum = 0
       for (const fi of flexItems) {
@@ -1051,11 +1115,13 @@ class Solver {
         }
       }
 
-      // 主轴尺寸写回（子树布局延后到定位后终排）
+      // 主轴尺寸写回（子树布局延后到定位后终排）：
+      // basisMain 为边盒口径 → 写回内容盒（w/h）需扣回主轴 padding/border，
+      // 游标推进（下方 cursor += w + pad + border + margin）再加回，行宽自洽
       for (const fi of line) {
         const b = fi.box
-        if (isRow) b.w = Math.max(0, fi.basisMain)
-        else b.h = Math.max(0, fi.basisMain)
+        if (isRow) b.w = Math.max(0, fi.basisMain - fi.padBorderMain)
+        else b.h = Math.max(0, fi.basisMain - fi.padBorderMain)
       }
 
       // 交叉轴尺寸（align-items/align-self：stretch 交叉尺寸未显式者拉伸）

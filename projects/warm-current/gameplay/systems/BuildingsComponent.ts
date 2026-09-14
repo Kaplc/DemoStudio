@@ -13,7 +13,7 @@
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import type { BuildingUpgradeDef } from '../core/balance'
-import { buildingDefOf, buildingEffectiveDef, buildingPos, resolveBuildingOrbit } from '../core/helpers'
+import { angularDistDeg, buildingDefOf, buildingEffectiveDef, buildingPos, isMeltedAt, resolveBuildingOrbit, surfaceBuildingPos } from '../core/helpers'
 import type { SimBuilding } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -40,6 +40,38 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
       if (Math.hypot(x - p.x, y - p.y) < B.build.minSpacing) return '与其他建筑距离过近'
     }
     return null
+  }
+
+  /** 全息地球地表落位合法性（预览/放置共用口径）：null = 可放置，否则为原因文案。
+   *  门槛链 = 耀斑 → 预算 → 融化圈（必须落在某环节点融冰范围内）→ 球面角距。
+   *  地表建筑不走网格吸附/入轨（surface 记录落位，画布位 = surfaceBuildingPos 投影）。 */
+  surfacePlacementIssue(typeId: string, lat: number, lon: number): string | null {
+    const s = this.sc.state
+    const def = buildingDefOf(typeId)
+    if (!def) return '未知建筑类型'
+    if (s.flare.phase === 'active') return '太阳耀斑 · 通讯中断，无法建造'
+    if (s.earthH3 < def.cost) return `H3 不足（需 ${def.cost}）`
+    if (!isMeltedAt(s, lat, lon)) return '该区域仍被冰雪覆盖（先落位环节点融冰）'
+    for (const b of s.buildings) {
+      if (!b.surface) continue
+      if (angularDistDeg(lat, lon, b.surface.lat, b.surface.lon) < B.holoEarth.minSpacingDeg) return '与其他地表建筑距离过近'
+    }
+    return null
+  }
+
+  /** 全息地球地表放置（lat/lon 度）：成功扣 H3 入状态（surface 记录落位；画布位 = 地球投影） */
+  tryPlaceSurface(typeId: string, lat: number, lon: number): boolean {
+    const issue = this.surfacePlacementIssue(typeId, lat, lon)
+    if (issue) { this.sc.hint(issue); return false }
+    const s = this.sc.state
+    const def = buildingDefOf(typeId)!
+    s.earthH3 -= def.cost
+    const b: SimBuilding = { id: maxBuildingId(s) + 1, type: typeId, x: 0, y: 0, stock: 0, invested: def.cost, upgrade: null, surface: { lat, lon } }
+    s.buildings.push(b)
+    s.stats.buildingsBuilt++
+    const p = surfaceBuildingPos(s, lat, lon)
+    this.sc.emit({ type: 'building_built', text: `${def.name}（地表 ${Math.round(lat)}°,${Math.round(lon)}°）`, value: def.cost, x: p.x, y: p.y })
+    return true
   }
 
   /** 放置建筑（画布系坐标，调用方负责网格吸附）；成功扣 H3 并入状态。
@@ -92,6 +124,16 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
   bufferLeft(b: SimBuilding): number {
     const cap = buildingEffectiveDef(b)?.bufferCap ?? 0
     return Math.max(0, cap - b.stock)
+  }
+
+  /** 缓存上限（有效值，强化合成；H3 缓存（relay_in/relay_out）与建材缓存各自独立按此计） */
+  bufferCapOf(b: SimBuilding): number {
+    return buildingEffectiveDef(b)?.bufferCap ?? 0
+  }
+
+  /** 中转站 H3 缓存余量（relay_in 入站卸货截断口径） */
+  h3BufferLeft(b: SimBuilding): number {
+    return Math.max(0, this.bufferCapOf(b) - (b.stockH3 ?? 0))
   }
 
   // ─── 建筑强化（一槽二选一分支，玩家设计权扩展） ───

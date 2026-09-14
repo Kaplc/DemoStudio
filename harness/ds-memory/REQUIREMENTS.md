@@ -48,6 +48,7 @@
 - 常驻指导：通过 `ctx.systemPrompt.section()` 注入"记忆指导"段（内容见 FR-6），主 agent 在回合过程中自觉判断并调用 `memory_write` 保存。
 - 回合结束轻量提醒：监听 `agent/turn-stopping`，每回合注入一行短提醒（约 30 token）：「如果本回合出现了值得长期记住的信息（用户偏好/纠正/项目决策/外部系统指针），请用 memory_write 保存；否则忽略」。
 - **现状补充（2026-09-11）**：投递通道是 `agent/turn-stopping` + `agent.steer()`（回合即将关闭时注入，驱动多跑一步）；**本回合已成功保存过记忆则跳过**——`agent/pre-step` 记当前回合号、`tools/result` 登记保存类工具（默认仅 `memory_write`，配置 `reminderSkipTools` 可改），命中即不提醒（"刚存完又被催一次"是噪声）。跳过判定"各自只看自己"：同一次事件常需双写（结论进记忆、轨迹进经验），只存了经验不代表没漏存记忆，故 `experience_save` 不再抑制记忆提醒；经验侧由 ds-experience 的回合末提醒自行判定（那边默认仅认 `experience_save`）。
+- **现状（2026-09-13）**：回合末提醒整体移交 `@demostudio/ds-reminder` 通用提醒插件（提醒文本文件化为 `.dsh/reminder/memory-end-of-turn.md`，跳过判定语义不变）；本插件不再注册任何提醒监听，`enableEndOfTurnReminder`/`reminderSkipTools` 配置项随之移除。
 
 ### FR-3 AI 选择检索注入（P0）
 - 每次请求前：扫描 `.dsh/memory/` 下所有 `.md` 文件（排除 `MEMORY.md`，上限 200 个文件，按 mtime 新→旧排序取前 200），读取 frontmatter 生成清单（`[type] filename (ISO时间): description`）。
@@ -120,7 +121,7 @@
 - `src/index.ts` — 插件入口：`ctx.effect()` 内注册 section、工具、事件监听
 
 **事件接入**：
-- `agent/turn-stopping`：每回合注入轻量提取提醒（约 30 token，一行）
+- ~~`agent/turn-stopping`：每回合注入轻量提取提醒~~（2026-09-13 起由 `@demostudio/ds-reminder` 提供，本插件不再监听）
 - `agent/request`（或等价前置事件）：注入相关记忆（FR-3）
 - `turn/end`：可选用作兜底记录（如延迟索引更新），不阻塞主流程
 
@@ -197,3 +198,4 @@
 
 - **2026-09-01 写入路径回归第 4 条原案（主 agent 主动写）**：实现期曾引入"形态二"后台提取（`agent/status` 空闲防抖 → side-query 判读转录 → 插件直接落盘），已整体移除（`extractMemories.ts`、`notifySaved`、水位/防抖状态机、`extractModel`/`extractProvider` 配置）。理由：主 agent 是唯一看到完整上下文（含工具结果）的一方，转录渲染的重截断损害保存质量；后台提取依赖空闲窗口（会话中断即丢）；每回合一次 side-query 是纯增成本。保存指导改为 `SAVE_FLOW_TEXT` 触发点绑定（纠正/决策/踩坑根因/用户画像/外部指针 → 当回合立即 `memory_write`）。`agent/turn-stopping` 轻量提醒不采用——回合收尾注入的消息只能影响下一回合，对"本回合记得保存"无效。
 - **2026-09-01 子 agent 边界收紧**：`memory_write` / `memory_forget` / `memory_review(apply=true)` 在工具 execute 层拒绝子 agent（`delegationDepth > 0`）调用——委托上下文归属父 agent，由父决定是否保存；`memory_search` 只读，子 agent 仍可用。
+- **2026-09-13 回合末提醒移交 ds-reminder**：机制（turn-stopping+steer、已保存跳过、60s 冷却、子 agent 门控）与文案（现 `.dsh/reminder/memory-end-of-turn.md`）原样平移到通用提醒插件 `@demostudio/ds-reminder`；本插件删除提醒代码与 `endOfTurnReminder.test.ts`，移除 `enableEndOfTurnReminder`/`reminderSkipTools` 配置。跳过判定"各自只看自己"语义不变（ds-reminder 中记忆条只认 `memory_write`）。

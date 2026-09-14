@@ -108,6 +108,7 @@ export default class RoutesPanelScript extends BehaviourScript {
     const flare = vm.flarePhase === 'active'
     const selectedId = mode.selection?.type === 'route' ? mode.selection.id : -1
     const rows = vm.routes
+    const dirLabel = (d: string): string => d === 'forward' ? '正向' : d === 'relay_in' ? '星→站' : d === 'relay_out' ? '站→地' : '补给'
     for (let i = 0; i < ROUTE_ROWS; i++) {
       const row = rows[i]
       this.rowRouteIds[i] = row ? row.id : -1
@@ -116,9 +117,14 @@ export default class RoutesPanelScript extends BehaviourScript {
       const name = findText(this.actor, `Label_name_${i}`)
       this.binder.set(name, row.name)
       this.colors.set(name, row.id === selectedId ? '#ffe9a8' : '#7fdcff')
-      const netLine = row.direction === 'forward' ? `单船净 +${Math.round(row.net)}t` : `载建材 ${Math.round(row.net)}`
+      const netLine = row.direction === 'reverse' ? `载建材 ${Math.round(row.net)}` : `单船净 +${Math.round(row.net)}t`
+      // 线路评级（2026-09-13）：完成趟数 · 累计装载 · 冻毁（冻毁 > 0 红色警示）
+      const grade = `${dirLabel(row.direction)} · ${row.stats.trips} 趟 · 运 ${Math.round(row.stats.loaded)}t`
+        + (row.stats.frozen > 0 ? ` · ☠${row.stats.frozen}` : '')
       this.binder.set(findText(this.actor, `RouteInfo_${i}`),
-        `配船 ${row.ships} · 往返 ${row.cycle.toFixed(0)}s\n${netLine}`)
+        `配船 ${row.ships} · 往返 ${row.cycle.toFixed(0)}s · ${netLine}\n${grade}`)
+      const infoText = findText(this.actor, `RouteInfo_${i}`)
+      if (row.stats.frozen > 0) this.colors.set(infoText, '#ff8f5a')
       this.vis.set(this.actor, `Btn_add_${i}`, !flare && vm.fleet.idle > 0)
       this.vis.set(this.actor, `Btn_recall_${i}`, !flare && row.ships > 0)
       this.vis.set(this.actor, `Btn_del_${i}`, !flare)

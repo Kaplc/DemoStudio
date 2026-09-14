@@ -10,7 +10,7 @@
  * SphereMesh 材质上，Actor 销毁时经 ThreeObject.dispose 递归释放。
  */
 import * as THREE from 'three'
-import { logger } from '@/engine'
+import { LoadingSettle, logger } from '@/engine'
 
 // ─── Solar System Scope 真贴图（CC BY 4.0，1638×819 equirect）───
 // 来源 Solar System Scope / NASA imagery，经 Qt qt3d planets-qml 分发；
@@ -314,6 +314,8 @@ export function makeEarthBumpTexture(): THREE.CanvasTexture | null {
  */
 export function applyEarthOceanRoughness(mesh: { setRoughnessMap(t: THREE.Texture | null): void }): void {
   if (typeof document === 'undefined') return
+  // 逐像素分类 + 放大是 10^2ms 级主线程同步段，登记进 LoadingSettle 供 loading 面板等待
+  const finishSettle = LoadingSettle.task('scene-enter', `earth-ocean-roughness#${++oceanSettleSeq}`)
   const img = new Image()
   img.onload = () => {
     try {
@@ -369,7 +371,16 @@ export function applyEarthOceanRoughness(mesh: { setRoughnessMap(t: THREE.Textur
       logger.info('[starTextures] Earth 海洋粗糙度贴图装配完成（PBR 海洋高光）')
     } catch (err) {
       logger.warn(`[starTextures] Earth 海洋粗糙度贴图生成失败（跳过高光层）: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      finishSettle()
     }
+  }
+  img.onerror = () => {
+    logger.warn('[starTextures] Earth albedo 加载失败，海洋粗糙度跳过')
+    finishSettle()
   }
   img.src = earthUrl
 }
+
+/** LoadingSettle 任务序号（多局/重入保证任务 id 唯一） */
+let oceanSettleSeq = 0

@@ -24,7 +24,7 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage, SessionsUpdatedPayload, FileDiff } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage, SessionsUpdatedPayload, SessionNotice, SessionNoticeUpdatePayload, FileDiff } from '../types/agent'
 import { IMAGE_MEDIA_TYPES } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
@@ -36,6 +36,7 @@ import { SkillManager } from './agent/SkillManager'
 import { FileManager } from './agent/FileManager'
 import { SessionTitle } from './agent/SessionTitle'
 import { UsageStatsPanel } from './agent/UsageStatsPanel'
+import { SessionNoticeStack } from './agent/SessionNoticeStack'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -172,6 +173,8 @@ export const AgentPanel: React.FC = () => {
   // 不累积历史；下一轮开始（turnStart / 用户新消息）时清空。
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [sessions, setSessions] = useState<SessionInfo[]>([])
+  // 跨会话动态通知（消息区左上气泡栈）：初始值取服务快照，之后由 sessionNotice 事件全量同步
+  const [sessionNotices, setSessionNotices] = useState<SessionNotice[]>(() => agentService.getSessionNotices())
   const [showSidebar, setShowSidebar] = useState(false)
   const [showPluginCenter, setShowPluginCenter] = useState(false)
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
@@ -244,6 +247,9 @@ export const AgentPanel: React.FC = () => {
   const [contentVersion, setContentVersion] = useState(0)
   // 会话切换/恢复的代号：变化时通知 VirtualList 强制回到底部（旧会话的贴底状态不继承）
   const [sessionEpoch, setSessionEpoch] = useState(0)
+  // 会话切换/新建的过场加载态：目标会话历史尾页就绪前，消息区只显示 loading，
+  // 不让旧会话内容残留到新历史突然替换
+  const [switchingSession, setSwitchingSession] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const scrollToBottomRef = useRef<(behavior?: ScrollBehavior) => void>(() => {})
 
@@ -612,6 +618,13 @@ export const AgentPanel: React.FC = () => {
           // 直接采纳，头部标题与侧边栏不再依赖重开面板才刷新
           const list = (event.payload as SessionsUpdatedPayload | undefined)?.sessions
           if (list) setSessions(list)
+          break
+        }
+
+        case 'sessionNotice': {
+          // 跨会话动态（其他会话完成/出错/待批准/待回答）：服务归约后的全量快照直接采纳
+          const payload = event.payload as SessionNoticeUpdatePayload | undefined
+          if (payload) setSessionNotices(payload.notices)
           break
         }
 
@@ -1506,41 +1519,58 @@ export const AgentPanel: React.FC = () => {
     // 待发标记作废——被接管的条目仍留在旧会话队列里，切回来时原样恢复
     applySessionKey(sessionId)
     resetHistoryWindow()
-    // 切换与尾页加载已合并为一次 history RPC：返回时 seq 基线与运行态续听均已就绪
-    const page = await agentService.switchSession(sessionId)
-    historySessionKeyRef.current = sessionId
-    setPendingQuestions([]) // 清除旧会话的 pending questions
-    setPendingApprovals([]) // 清除旧会话的 pending approvals
-    setTodos([]) // 清除旧会话的任务面板快照
-    setContextPressure(null) // 清除旧会话的占用快照（新会话由历史 fold 重新 seed）
+    // 目标会话历史就绪前只显示加载态：先清掉旧会话内容，避免切换期间残留或闪跳
+    setMessages([])
+    setSwitchingSession(true)
+    try {
+      // 切换与尾页加载已合并为一次 history RPC：返回时 seq 基线与运行态续听均已就绪
+      const page = await agentService.switchSession(sessionId)
+      historySessionKeyRef.current = sessionId
+      // 目标会话的 pending 问答/审批从服务取种子（switchSession 已把跨会话待定请求
+      // adopt 进来），而不是清空——否则切到有提问/审批的会话时卡片不出现
+      setPendingQuestions(agentService.getPendingQuestions())
+      setPendingApprovals(agentService.getPendingApprovals())
+      setTodos([]) // 清除旧会话的任务面板快照
+      setContextPressure(null) // 清除旧会话的占用快照（新会话由历史 fold 重新 seed）
 
-    // 历史消息随 switchSession 一并返回，无需二次请求
-    console.log(`[${logTime()}]`, '[AgentPanel] 历史尾页已随切换返回')
-    const historyMessages = page.messages.map((msg, index) => toPanelHistoryMessage(msg, sessionId, index))
-    loadedHistoryRef.current = historyMessages
-    historyCursorRef.current = page.beforeSeq
-    historyHasMoreRef.current = page.hasMore
-    historyVisibleStartRef.current = latestHistoryStart(historyMessages)
-    setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
-    console.log(`[${logTime()}]`, '[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
-    // 尾页若有未闭合回合的半截段（切换到运行中会话）：已随 fold 上屏回放，
-    // 同时续入实时缓冲，让后续增量接在同一段上（对齐 WebUI PartialAccumulator）
-    if (page.pendingTurnPartial) agentService.seedPendingTurn(page.pendingTurnPartial)
-    if (historyMessages.length > 0) {
-      setMessages(historyMessages.slice(historyVisibleStartRef.current))
-      // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
-      // 整表投影，历史里最后一次 write 即为该会话的当前列表）
-      const lastTodo = [...historyMessages]
-        .reverse()
-        .find(m => m.role === 'todo' && m.todos && m.todos.length > 0)
-      setTodos(lastTodo?.todos ?? [])
-    } else {
+      // 历史消息随 switchSession 一并返回，无需二次请求
+      console.log(`[${logTime()}]`, '[AgentPanel] 历史尾页已随切换返回')
+      const historyMessages = page.messages.map((msg, index) => toPanelHistoryMessage(msg, sessionId, index))
+      loadedHistoryRef.current = historyMessages
+      historyCursorRef.current = page.beforeSeq
+      historyHasMoreRef.current = page.hasMore
+      historyVisibleStartRef.current = latestHistoryStart(historyMessages)
+      setHasOlderHistory(historyVisibleStartRef.current > 0 || page.hasMore)
+      console.log(`[${logTime()}]`, '[AgentPanel] 当前历史窗口消息数量:', historyMessages.length)
+      // 尾页若有未闭合回合的半截段（切换到运行中会话）：已随 fold 上屏回放，
+      // 同时续入实时缓冲，让后续增量接在同一段上（对齐 WebUI PartialAccumulator）
+      if (page.pendingTurnPartial) agentService.seedPendingTurn(page.pendingTurnPartial)
+      if (historyMessages.length > 0) {
+        setMessages(historyMessages.slice(historyVisibleStartRef.current))
+        // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
+        // 整表投影，历史里最后一次 write 即为该会话的当前列表）
+        const lastTodo = [...historyMessages]
+          .reverse()
+          .find(m => m.role === 'todo' && m.todos && m.todos.length > 0)
+        setTodos(lastTodo?.todos ?? [])
+      } else {
+        setMessages([{
+          id: `sys-${Date.now()}`,
+          role: 'system',
+          content: `已切换到会话 ${sessionId.slice(0, 12)}...`,
+          ts: Date.now()
+        }])
+      }
+    } catch (error) {
+      console.error(`[${logTime()}]`, '[AgentPanel] 切换会话失败:', error)
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',
-        content: `已切换到会话 ${sessionId.slice(0, 12)}...`,
+        content: `切换会话失败: ${error instanceof Error ? error.message : '未知错误'}`,
         ts: Date.now()
       }])
+    } finally {
+      setSwitchingSession(false)
     }
 
     // 会话整体换血，通知 VirtualList 强制回到底部
@@ -1552,30 +1582,46 @@ export const AgentPanel: React.FC = () => {
   const handleNewSession = useCallback(async () => {
     clearDisplayQueue()
     resetHistoryWindow()
-    const sid = await agentService.createSession()
-    if (sid) {
-      // 新会话从空草稿/空队列开始（旧会话的已随写穿留在各自键下）
-      applySessionKey(agentService.getSessionId() || sid)
-      setTodos([]) // 新会话无任务
-      setPendingQuestions([]) // 旧会话的问答卡片不带入新会话
-      setPendingApprovals([]) // 旧会话的审批卡片不带入新会话
-      setSessionEpoch(v => v + 1) // 会话整体换血，滚动状态不继承（回到底部贴底）
-      setMessages([{
-        id: `sys-${Date.now()}`,
-        role: 'system',
-        content: '新会话已创建',
-        ts: Date.now()
-      }])
-      refreshSessions()
-      setShowSidebar(false)
-    } else {
+    // 会话创建 RPC 期间同样显示加载态（与切换会话共用一套覆盖层）
+    setMessages([])
+    setSwitchingSession(true)
+    try {
+      const sid = await agentService.createSession()
+      if (sid) {
+        // 新会话从空草稿/空队列开始（旧会话的已随写穿留在各自键下）
+        applySessionKey(agentService.getSessionId() || sid)
+        setTodos([]) // 新会话无任务
+        setPendingQuestions([]) // 旧会话的问答卡片不带入新会话
+        setPendingApprovals([]) // 旧会话的审批卡片不带入新会话
+        setSessionEpoch(v => v + 1) // 会话整体换血，滚动状态不继承（回到底部贴底）
+        setMessages([{
+          id: `sys-${Date.now()}`,
+          role: 'system',
+          content: '新会话已创建',
+          ts: Date.now()
+        }])
+        refreshSessions()
+        setShowSidebar(false)
+      } else {
+        setTodos([])
+        setMessages([{
+          id: `sys-${Date.now()}`,
+          role: 'system',
+          content: '新建会话失败，请检查 Agent 连接状态或预设配置',
+          ts: Date.now()
+        }])
+      }
+    } catch (error) {
+      console.error(`[${logTime()}]`, '[AgentPanel] 新建会话失败:', error)
       setTodos([])
       setMessages([{
         id: `sys-${Date.now()}`,
         role: 'system',
-        content: '新建会话失败，请检查 Agent 连接状态或预设配置',
+        content: `新建会话失败: ${error instanceof Error ? error.message : '未知错误'}`,
         ts: Date.now()
       }])
+    } finally {
+      setSwitchingSession(false)
     }
   }, [applySessionKey, clearDisplayQueue, refreshSessions, resetHistoryWindow])
 
@@ -2061,6 +2107,20 @@ export const AgentPanel: React.FC = () => {
               ? () => <ThinkingCard />
               : undefined
           }
+        />
+        {/* 会话切换/新建加载态：目标会话历史就绪前覆盖消息区（旧内容已清空） */}
+        {switchingSession && (
+          <div className="agent-panel__session-loading" role="status">
+            <span className="agent-panel__session-loading-spinner" />
+            <span>正在加载会话记录…</span>
+          </div>
+        )}
+        {/* 跨会话动态气泡（左上角浮层）：其他会话完成/出错/待批准/待回答提醒 */}
+        <SessionNoticeStack
+          notices={sessionNotices}
+          sessions={sessions}
+          onOpen={(sid) => { void handleSwitchSession(sid) }}
+          onDismiss={(id) => agentService.dismissSessionNotice(id)}
         />
         {showScrollToBottom && (
           <button

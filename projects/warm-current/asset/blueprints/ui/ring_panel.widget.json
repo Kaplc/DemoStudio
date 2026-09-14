@@ -1,7 +1,7 @@
 {
   "name": "RingPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-be307c6c",
+  "sourceHash": "fnv1a-13f018ee",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -492,7 +492,7 @@
                             "worldWidth": 120,
                             "worldHeight": 34,
                             "position": [
-                              30,
+                              29,
                               0,
                               0
                             ]
@@ -547,7 +547,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              215,
+                              213,
                               -1,
                               0
                             ]
@@ -1053,10 +1053,10 @@
                               1,
                               1
                             ],
-                            "worldWidth": 318,
+                            "worldWidth": 316,
                             "worldHeight": 10,
                             "position": [
-                              117,
+                              116,
                               -1,
                               0
                             ]
@@ -1074,7 +1074,7 @@
                           "baseClass": "UIImageComponent",
                           "properties": {
                             "color": "#0a1826",
-                            "width": 318,
+                            "width": 316,
                             "height": 10,
                             "name": "BuildBar"
                           }
@@ -1112,7 +1112,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 318,
+                                "worldWidth": 316,
                                 "worldHeight": 1
                               }
                             },
@@ -1129,7 +1129,7 @@
                               "properties": {
                                 "name": "BuildBarBorderTop",
                                 "color": "#16394e",
-                                "width": 318,
+                                "width": 316,
                                 "height": 8
                               }
                             }
@@ -1145,7 +1145,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  158.5,
+                                  157.5,
                                   0,
                                   0
                                 ],
@@ -1206,7 +1206,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 318,
+                                "worldWidth": 316,
                                 "worldHeight": 1
                               }
                             },
@@ -1223,7 +1223,7 @@
                               "properties": {
                                 "name": "BuildBarBorderBottom",
                                 "color": "#16394e",
-                                "width": 318,
+                                "width": 316,
                                 "height": 8
                               }
                             }
@@ -1239,7 +1239,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  -158.5,
+                                  -157.5,
                                   0,
                                   0
                                 ],
@@ -1295,7 +1295,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 316,
+                                "worldWidth": 314,
                                 "worldHeight": 8,
                                 "anchor": "center",
                                 "anchorOffset": [
@@ -1334,7 +1334,7 @@
                                   ]
                                 },
                                 "radius": 4,
-                                "width": 316,
+                                "width": 314,
                                 "height": 8,
                                 "name": "BuildFill"
                               }
@@ -2268,10 +2268,10 @@
                               1,
                               1
                             ],
-                            "worldWidth": 366,
+                            "worldWidth": 364,
                             "worldHeight": 10,
                             "position": [
-                              117,
+                              116,
                               -1,
                               0
                             ]
@@ -2289,7 +2289,7 @@
                           "baseClass": "UIImageComponent",
                           "properties": {
                             "color": "#0a1826",
-                            "width": 366,
+                            "width": 364,
                             "height": 10,
                             "name": "LevelBar"
                           }
@@ -2327,7 +2327,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -2344,7 +2344,7 @@
                               "properties": {
                                 "name": "LevelBarBorderTop",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -2360,7 +2360,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  182.5,
+                                  181.5,
                                   0,
                                   0
                                 ],
@@ -2421,7 +2421,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -2438,7 +2438,7 @@
                               "properties": {
                                 "name": "LevelBarBorderBottom",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -2454,7 +2454,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  -182.5,
+                                  -181.5,
                                   0,
                                   0
                                 ],
@@ -2510,7 +2510,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 364,
+                                "worldWidth": 362,
                                 "worldHeight": 8,
                                 "anchor": "center",
                                 "anchorOffset": [
@@ -2549,7 +2549,7 @@
                                   ]
                                 },
                                 "radius": 4,
-                                "width": 364,
+                                "width": 362,
                                 "height": 8,
                                 "name": "LevelFill"
                               }
@@ -2678,10 +2678,10 @@
                               1,
                               1
                             ],
-                            "worldWidth": 366,
+                            "worldWidth": 364,
                             "worldHeight": 10,
                             "position": [
-                              117,
+                              116,
                               -1,
                               0
                             ]
@@ -2699,7 +2699,7 @@
                           "baseClass": "UIImageComponent",
                           "properties": {
                             "color": "#0a1826",
-                            "width": 366,
+                            "width": 364,
                             "height": 10,
                             "name": "SlotsBar"
                           }
@@ -2737,7 +2737,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -2754,7 +2754,7 @@
                               "properties": {
                                 "name": "SlotsBarBorderTop",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -2770,7 +2770,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  182.5,
+                                  181.5,
                                   0,
                                   0
                                 ],
@@ -2831,7 +2831,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -2848,7 +2848,7 @@
                               "properties": {
                                 "name": "SlotsBarBorderBottom",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -2864,7 +2864,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  -182.5,
+                                  -181.5,
                                   0,
                                   0
                                 ],
@@ -2920,7 +2920,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 364,
+                                "worldWidth": 362,
                                 "worldHeight": 8,
                                 "anchor": "center",
                                 "anchorOffset": [
@@ -2959,7 +2959,7 @@
                                   ]
                                 },
                                 "radius": 4,
-                                "width": 364,
+                                "width": 362,
                                 "height": 8,
                                 "name": "SlotsFill"
                               }
@@ -2997,11 +2997,11 @@
                           1,
                           1
                         ],
-                        "worldWidth": 622,
-                        "worldHeight": 258,
+                        "worldWidth": 596,
+                        "worldHeight": 236,
                         "position": [
-                          13,
-                          59,
+                          0,
+                          70,
                           0
                         ]
                       }
@@ -3030,8 +3030,8 @@
                             }
                           ]
                         },
-                        "width": 622,
-                        "height": 258,
+                        "width": 596,
+                        "height": 236,
                         "name": "DetailBox"
                       }
                     }
@@ -3047,7 +3047,7 @@
                           "properties": {
                             "position": [
                               0,
-                              128.5,
+                              117.5,
                               0
                             ],
                             "rotation": [
@@ -3060,7 +3060,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 622,
+                            "worldWidth": 596,
                             "worldHeight": 1
                           }
                         },
@@ -3077,7 +3077,7 @@
                           "properties": {
                             "name": "DetailBoxBorderTop",
                             "color": "#1c4560",
-                            "width": 622,
+                            "width": 596,
                             "height": 8
                           }
                         }
@@ -3093,7 +3093,7 @@
                           "baseClass": "UITransformComponent",
                           "properties": {
                             "position": [
-                              310.5,
+                              297.5,
                               0,
                               0
                             ],
@@ -3108,7 +3108,7 @@
                               1
                             ],
                             "worldWidth": 1,
-                            "worldHeight": 258
+                            "worldHeight": 236
                           }
                         },
                         {
@@ -3125,7 +3125,7 @@
                             "name": "DetailBoxBorderRight",
                             "color": "#1c4560",
                             "width": 8,
-                            "height": 258
+                            "height": 236
                           }
                         }
                       ],
@@ -3141,7 +3141,7 @@
                           "properties": {
                             "position": [
                               0,
-                              -128.5,
+                              -117.5,
                               0
                             ],
                             "rotation": [
@@ -3154,7 +3154,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 622,
+                            "worldWidth": 596,
                             "worldHeight": 1
                           }
                         },
@@ -3171,7 +3171,7 @@
                           "properties": {
                             "name": "DetailBoxBorderBottom",
                             "color": "#1c4560",
-                            "width": 622,
+                            "width": 596,
                             "height": 8
                           }
                         }
@@ -3187,7 +3187,7 @@
                           "baseClass": "UITransformComponent",
                           "properties": {
                             "position": [
-                              -310.5,
+                              -297.5,
                               0,
                               0
                             ],
@@ -3202,7 +3202,7 @@
                               1
                             ],
                             "worldWidth": 1,
-                            "worldHeight": 258
+                            "worldHeight": 236
                           }
                         },
                         {
@@ -3219,7 +3219,7 @@
                             "name": "DetailBoxBorderLeft",
                             "color": "#1c4560",
                             "width": 8,
-                            "height": 258
+                            "height": 236
                           }
                         }
                       ],
@@ -3246,8 +3246,8 @@
                             "worldWidth": 572,
                             "worldHeight": 26,
                             "position": [
-                              -12,
-                              105,
+                              1,
+                              94,
                               0
                             ]
                           }
@@ -3301,8 +3301,8 @@
                             "worldWidth": 572,
                             "worldHeight": 128,
                             "position": [
-                              -12,
-                              22,
+                              1,
+                              11,
                               0
                             ]
                           }
@@ -3349,8 +3349,8 @@
                             "worldWidth": 572,
                             "worldHeight": 48,
                             "position": [
-                              -12,
-                              -72,
+                              1,
+                              -83,
                               0
                             ]
                           }
@@ -3767,7 +3767,7 @@
                         "worldHeight": 34,
                         "position": [
                           0,
-                          -101,
+                          -79,
                           0
                         ]
                       }
@@ -3854,10 +3854,10 @@
                               1,
                               1
                             ],
-                            "worldWidth": 366,
+                            "worldWidth": 364,
                             "worldHeight": 12,
                             "position": [
-                              117,
+                              116,
                               -1,
                               0
                             ]
@@ -3875,7 +3875,7 @@
                           "baseClass": "UIImageComponent",
                           "properties": {
                             "color": "#0a1826",
-                            "width": 366,
+                            "width": 364,
                             "height": 12,
                             "name": "CoreBar"
                           }
@@ -3913,7 +3913,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -3930,7 +3930,7 @@
                               "properties": {
                                 "name": "CoreBarBorderTop",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -3946,7 +3946,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  182.5,
+                                  181.5,
                                   0,
                                   0
                                 ],
@@ -4007,7 +4007,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 366,
+                                "worldWidth": 364,
                                 "worldHeight": 1
                               }
                             },
@@ -4024,7 +4024,7 @@
                               "properties": {
                                 "name": "CoreBarBorderBottom",
                                 "color": "#16394e",
-                                "width": 366,
+                                "width": 364,
                                 "height": 8
                               }
                             }
@@ -4040,7 +4040,7 @@
                               "baseClass": "UITransformComponent",
                               "properties": {
                                 "position": [
-                                  -182.5,
+                                  -181.5,
                                   0,
                                   0
                                 ],
@@ -4096,7 +4096,7 @@
                                   1,
                                   1
                                 ],
-                                "worldWidth": 364,
+                                "worldWidth": 362,
                                 "worldHeight": 10,
                                 "anchor": "center",
                                 "anchorOffset": [
@@ -4123,7 +4123,7 @@
                               "properties": {
                                 "color": "#ffb03d",
                                 "radius": 5,
-                                "width": 364,
+                                "width": 362,
                                 "height": 10,
                                 "name": "CoreFill"
                               }
@@ -4165,7 +4165,7 @@
                         "worldHeight": 26,
                         "position": [
                           0,
-                          -137,
+                          -115,
                           0
                         ]
                       }
@@ -4218,7 +4218,7 @@
                         "worldHeight": 28,
                         "position": [
                           0,
-                          -172,
+                          -150,
                           0
                         ]
                       }
@@ -4271,7 +4271,7 @@
                         "worldHeight": 26,
                         "position": [
                           0,
-                          -203,
+                          -181,
                           0
                         ]
                       }
@@ -4324,7 +4324,7 @@
                         "worldHeight": 26,
                         "position": [
                           0,
-                          -233,
+                          -211,
                           0
                         ]
                       }

@@ -1,15 +1,19 @@
 /**
- * MiningComponent — 行星矿产开发系统组件（2026-09-12：全息勘探 → 矿点造矿建 → 持续产出 H3）
+ * MiningComponent — 行星矿产开发系统组件（2026-09-13 供应链重构：全息勘探 → 矿点造矿建 → 产出入星球堆场）
  *
  * 配置表驱动（mineral_type / mineral_deposit / mine_building 三表 → B.mineralTypes /
  * B.mineralDeposits / B.mineBuildings）：加矿种/矿点/矿建只改表。
  * 建造 = 全息面板选矿点选型落位（一次性扣全款）→ tickMines 按工期灌进度 → 满格建成开采。
- * 产出 = yieldPerS 直采 H3 入地球储备（受矿点余量门控：枯竭停采，extracted 累计）。
+ * 产出（2026-09-13 重构）：
+ *  - 资源星（moon/europa/mars）：yieldPerS 采入该星堆场 starStock（受矿点余量 + 堆场上限双门控，
+ *    堆满停产——必须由航线运回才到手，产量层与运力层在此咬合）
+ *  - 普通行星（earth/mercury/...）：维持直采地球储备（无航线可达，堆场无意义）
+ * 产量乘区 = 环建筑采矿馈能 miningMult × 卡 miningMult。
  * 落位合法性（placementIssue）为面板预览/落位共用单一口径。
  */
 import { BObjectComponent, logger } from '@/engine'
 import { B, type MineBuildingDef, type MineralDepositDef } from '../core/balance'
-import { starPosAt } from '../core/helpers'
+import { starMiningRate, starStockCapOf, starPosAt } from '../core/helpers'
 import type { PlanetBodyId, SimState, StarId } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -78,11 +82,17 @@ export class MiningComponent extends BObjectComponent<WarmCurrentGameMode> {
     return true
   }
 
-  /** 建造推进 + 开采产出（SimulationComponent 编排调用）：
-   *  在建矿建按工期灌进度（满 1 → 建成发事件）；建成矿建按 yieldPerS 采出
-   *  （受矿点余量门控：本帧采到枯竭即截断，之后停采；产出直入地球储备记账 ledger.mining） */
+  /**
+   * 建造推进 + 开采产出（SimulationComponent 编排调用）：
+   *  在建矿建按工期灌进度（满 1 → 建成发事件）。
+   *  建成矿建按 yieldPerS × 产量乘区采出，双门控：矿点余量（枯竭停采）+ 堆场上限（堆满停产）。
+   *  资源星产出落 starStock（本地堆场，等船运）；普通行星直入地球储备（老口径）。
+   *  瓶颈沿触发 hint（堆满/枯竭只在状态翻转时提示一次，不刷屏）。
+   */
   tickMines(dt: number): void {
     const s = this.sc.state
+    const ring = this.sc.ringMods
+    const miningMult = ring.miningMult * s.mods.miningMult
     for (const mine of s.mines) {
       const def = mineDefOf(mine.type)
       if (!def) continue
@@ -99,17 +109,42 @@ export class MiningComponent extends BObjectComponent<WarmCurrentGameMode> {
         continue
       }
       if (def.yieldPerS <= 0) continue
+      const dep = depositDefOf(mine.depositId)
+      const body = dep?.planet ?? ''
       const left = depositLeft(s, mine.depositId)
       if (left <= 0) continue
-      const n = Math.min(def.yieldPerS * dt, left)
+      // 产量上限：资源星受堆场余量门控（堆满停产）；普通行星直采无堆场门
+      let stockLeft = Infinity
+      const cap = starStockCapOf(body)
+      if (Number.isFinite(cap)) {
+        stockLeft = Math.max(0, cap - (s.starStock[body] ?? 0))
+        if (stockLeft <= 0) {
+          if (this.stockFullStars && !this.stockFullStars.has(body)) {
+            this.stockFullStars.add(body)
+            this.sc.hint(`${B.stars[body as StarId]?.name ?? body}堆场已满 · 运力不足，停产待运`)
+          }
+          continue
+        }
+      }
+      this.stockFullStars?.delete(body)
+      const n = Math.min(def.yieldPerS * miningMult * dt, left, stockLeft)
       mine.extracted += n
-      s.earthH3 += n
+      if (Number.isFinite(cap)) s.starStock[body] = (s.starStock[body] ?? 0) + n
+      else s.earthH3 += n
       s.ledger.mining += n
     }
   }
 
+  /** 堆满沿触发记录（天体 → 本 tick 是否已提示；采出后清键，避免逐帧刷 hint） */
+  private stockFullStars = new Set<string>()
+
   /** 某矿点的矿建（无 → null） */
   mineAt(depositId: string) {
     return this.sc.state.mines.find((m) => m.depositId === depositId) ?? null
+  }
+
+  /** 该天体矿建总产量速率（吨/秒，满负荷口径；面板/试航展示用） */
+  miningRateAt(body: string): number {
+    return starMiningRate(this.sc.state, body, this.sc.ringMods)
   }
 }

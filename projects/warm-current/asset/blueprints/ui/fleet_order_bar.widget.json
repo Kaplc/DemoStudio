@@ -363,7 +363,7 @@
                     "worldWidth": 170,
                     "worldHeight": 40,
                     "position": [
-                      -250,
+                      -254,
                       8,
                       0
                     ]
@@ -417,7 +417,7 @@
                     "worldWidth": 120,
                     "worldHeight": 46,
                     "position": [
-                      -97,
+                      -101,
                       7,
                       0
                     ]
@@ -726,7 +726,7 @@
                     "worldWidth": 120,
                     "worldHeight": 46,
                     "position": [
-                      31,
+                      27,
                       7,
                       0
                     ]
@@ -1035,7 +1035,7 @@
                     "worldWidth": 120,
                     "worldHeight": 46,
                     "position": [
-                      159,
+                      155,
                       7,
                       0
                     ]
@@ -1344,7 +1344,7 @@
                     "worldWidth": 92,
                     "worldHeight": 46,
                     "position": [
-                      273,
+                      269,
                       7,
                       0
                     ]

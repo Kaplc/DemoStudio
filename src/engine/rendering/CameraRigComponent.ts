@@ -161,7 +161,10 @@ export class CameraRigComponent extends Component {
     this.unsubMouseButton = null
     this.unsubPointerMove?.()
     this.unsubPointerMove = null
-    if (!input) return
+    if (!input) {
+      logger.warn(`[CameraRig] bindInput: input 为 null，跳过订阅（owner=${this.owner.root.name}）`)
+      return
+    }
     // 滚轮缩放：delta 约定与 PlayerController.OnScroll 一致（正=拉远，负=拉近）
     this.unsubScroll = input.BindScroll((delta) => this.zoom(delta))
     // 鼠标按钮：右键按下开始拖拽平移，右键释放结束；
@@ -189,6 +192,7 @@ export class CameraRigComponent extends Component {
 
     // 指针移动：右键按住期间按屏幕位移平移（跟手拖拽地图）
     this.unsubPointerMove = input.BindPointerMove((sx, sy) => this.onRightPanMove(sx, sy))
+    logger.info(`[CameraRig] bindInput: 滚轮/鼠标按钮/指针移动订阅完成（owner=${this.owner.root.name}）`)
   }
 
   /** 记录最近鼠标屏幕坐标（client 坐标；由 PlayerController.OnPointerMoveScreen 转发） */
@@ -256,7 +260,8 @@ export class CameraRigComponent extends Component {
     // 右键拖拽平移中 → 屏蔽屏幕边缘平移（避免拖拽时鼠标贴近边缘导致画面乱跳）
     if (this.rightDragging) return
     if (this.mouseX < 0 || this.mouseY < 0) return
-    const cam = this._camera?.camera
+    // 惰性解析相机（同 onRightPanMove：手动 new 挂载不进组件表，BeginPlay 永不执行）
+    const cam = this.resolveCamera()?.camera
     if (!cam) return
     const el = PhySys.viewportElement
     if (!el) return
@@ -307,6 +312,7 @@ export class CameraRigComponent extends Component {
    * 否则放置模式将无法用右键取消。
    */
   beginRightPan(): void {
+    logger.info(`[CameraRig] beginRightPan: rightDragging ${this.rightDragging} → true（owner=${this.owner.root.name}）`)
     if (this.rightDragging) {
       this.dragLastX = this.mouseX
       this.dragLastY = this.mouseY
@@ -323,6 +329,7 @@ export class CameraRigComponent extends Component {
 
   /** 右键释放：结束拖拽平移 */
   endRightPan(): void {
+    logger.info(`[CameraRig] endRightPan: rightDragging → false（owner=${this.owner.root.name}）`)
     this.rightDragging = false
     this.dragLastX = -1
     this.dragLastY = -1
@@ -385,10 +392,16 @@ export class CameraRigComponent extends Component {
     }
 
     if (!this.rightDragging) return
-    const cam = this._camera?.camera
-    if (!cam) return
+    // 惰性解析相机（不能用裸 _camera：本组件被手动 new 挂载时不进 Actor 组件表，
+    // BeginPlay 永不执行——未滚过滚轮前 _camera 恒 null，右键平移会静默失效，2026-09-13 e2e 揪出）
+    const cam = this.resolveCamera()?.camera
+    if (!cam) {
+      logger.warn(`[CameraRig] onRightPanMove: rightDragging 但相机未解析（owner=${this.owner.root.name}）`)
+      return
+    }
     // 起点未记录（按下时鼠标尚未移动过）→ 以本次位置为起点
     if (this.dragLastX < 0 || this.dragLastY < 0) {
+      logger.info(`[CameraRig] onRightPanMove: 初始化拖拽起点 (${sx.toFixed(0)}, ${sy.toFixed(0)})`)
       this.dragLastX = sx
       this.dragLastY = sy
       return

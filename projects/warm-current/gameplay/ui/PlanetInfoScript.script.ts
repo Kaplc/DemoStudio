@@ -53,8 +53,10 @@ export default class PlanetInfoScript extends BehaviourScript {
     const info = mode.buildViewModel().planetInfo
     this.vis.set(this.actor, 'InfoBody', !!info)
     if (!info) return
-    // 全息勘探按钮：仅表里有矿点的天体显示（太阳恒隐藏）
-    this.vis.set(this.actor, 'Btn_holo', info.hasDeposits)
+    // 全息投影入口：地球 = 全息地球建造场景（恒显）；其他天体 = 矿点勘探（仅表里有矿点；太阳恒隐藏）
+    this.vis.set(this.actor, 'Btn_holo', info.body === 'earth' || info.hasDeposits)
+    const holoLabel = findText(this.actor, 'Label_holo')
+    if (holoLabel) this.binder.set(holoLabel, info.body === 'earth' ? '🌐 全息地球' : '📡 全息勘探')
 
     this.binder.set(findText(this.actor, 'TitleText'), info.name)
     // 类型行：资源星带解锁状态；地球/装饰行星给身份说明
@@ -63,13 +65,20 @@ export default class PlanetInfoScript extends BehaviourScript {
     else if (info.kind === '行星') kind += ' · 非资源星'
     this.binder.set(findText(this.actor, 'KindText'), kind)
 
-    // 主信息：地球 = 收支态势；资源星 = 运力参数（锁定星以解锁提示替代）
+    // 主信息：地球 = 收支态势；资源星 = 运力参数 + 堆场水位（2026-09-13 堆场耦合）
     let main: string
     if (info.body === 'earth') {
       const flow = info.netFlow >= 0 ? `+${info.netFlow}` : `${info.netFlow}`
       main = `储量 ${info.earthH3} t · 需求 ${info.demand}/s\n净流 ${flow}/s`
     } else if (info.kind === '资源星' && info.unlocked) {
       main = `单船满载 ${info.load} t\n单程油耗 ${info.fuel} H3 · 单程约 ${Math.round(info.legS)}s`
+      if (info.stockyard) {
+        const y = info.stockyard
+        const pct = y.cap > 0 ? Math.floor((y.stock / y.cap) * 100) : 0
+        main += `\n堆场 ${Math.floor(y.stock)}/${y.cap} t（${pct}%）· 产量 ${y.miningRate}/s`
+        if (pct >= 100) main += '\n⚠ 堆场已满 · 加船运回！'
+        else if (y.miningRate <= 0) main += '\n⚠ 无矿建产出（全息勘探开发）'
+      }
     } else if (info.kind === '资源星') {
       main = `解锁后可从地球拖线建立氦-3 航线`
     } else {

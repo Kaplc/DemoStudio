@@ -1,0 +1,4 @@
+# cordis.patch.yml 留空数组占位：本插件全部贡献走代码注册（无工具、无 systemPrompt section，
+# 只有事件监听）。挂载 insert 行由 scripts/sync-dsh-plugins.mjs 统一生成到
+# .dsh/profiles/{web,headless}/cordis.patch.yml（editor.bat 复制到 ~/.dsh/profiles/）。
+[]

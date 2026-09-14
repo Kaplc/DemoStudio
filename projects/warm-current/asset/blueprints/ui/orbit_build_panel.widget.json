@@ -1,7 +1,7 @@
 {
   "name": "OrbitBuildPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-be22dad9",
+  "sourceHash": "fnv1a-13e769d6",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -145,11 +145,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 590,
-                    "worldHeight": 586,
+                    "worldWidth": 560,
+                    "worldHeight": 560,
                     "position": [
-                      15,
-                      -13,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -183,8 +183,8 @@
                         }
                       ]
                     },
-                    "width": 590,
-                    "height": 586,
+                    "width": 560,
+                    "height": 560,
                     "name": "OrbitBody"
                   }
                 }
@@ -200,7 +200,7 @@
                       "properties": {
                         "position": [
                           0,
-                          292.5,
+                          279.5,
                           0
                         ],
                         "rotation": [
@@ -213,7 +213,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 590,
+                        "worldWidth": 560,
                         "worldHeight": 1
                       }
                     },
@@ -230,7 +230,7 @@
                       "properties": {
                         "name": "OrbitBodyBorderTop",
                         "color": "#2a5f7a",
-                        "width": 590,
+                        "width": 560,
                         "height": 8
                       }
                     }
@@ -246,7 +246,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          294.5,
+                          279.5,
                           0,
                           0
                         ],
@@ -261,7 +261,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 586
+                        "worldHeight": 560
                       }
                     },
                     {
@@ -278,7 +278,7 @@
                         "name": "OrbitBodyBorderRight",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 586
+                        "height": 560
                       }
                     }
                   ],
@@ -294,7 +294,7 @@
                       "properties": {
                         "position": [
                           0,
-                          -292.5,
+                          -279.5,
                           0
                         ],
                         "rotation": [
@@ -307,7 +307,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 590,
+                        "worldWidth": 560,
                         "worldHeight": 1
                       }
                     },
@@ -324,7 +324,7 @@
                       "properties": {
                         "name": "OrbitBodyBorderBottom",
                         "color": "#2a5f7a",
-                        "width": 590,
+                        "width": 560,
                         "height": 8
                       }
                     }
@@ -340,7 +340,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          -294.5,
+                          -279.5,
                           0,
                           0
                         ],
@@ -355,7 +355,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 586
+                        "worldHeight": 560
                       }
                     },
                     {
@@ -372,7 +372,7 @@
                         "name": "OrbitBodyBorderLeft",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 586
+                        "height": 560
                       }
                     }
                   ],
@@ -399,8 +399,8 @@
                         "worldWidth": 530,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          258,
+                          0,
+                          245,
                           0
                         ]
                       }
@@ -491,7 +491,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              206,
+                              204,
                               -1,
                               0
                             ]
@@ -801,8 +801,8 @@
                         "worldWidth": 530,
                         "worldHeight": 2,
                         "position": [
-                          -15,
-                          229,
+                          0,
+                          216,
                           0
                         ]
                       }
@@ -861,8 +861,8 @@
                         "worldWidth": 530,
                         "worldHeight": 28,
                         "position": [
-                          -15,
-                          208,
+                          0,
+                          195,
                           0
                         ]
                       }
@@ -914,8 +914,8 @@
                         "worldWidth": 530,
                         "worldHeight": 56,
                         "position": [
-                          -15,
-                          160,
+                          0,
+                          147,
                           0
                         ]
                       }
@@ -1315,8 +1315,8 @@
                         "worldWidth": 530,
                         "worldHeight": 56,
                         "position": [
-                          -15,
-                          98,
+                          0,
+                          85,
                           0
                         ]
                       }
@@ -1716,8 +1716,8 @@
                         "worldWidth": 530,
                         "worldHeight": 56,
                         "position": [
-                          -15,
-                          36,
+                          0,
+                          23,
                           0
                         ]
                       }
@@ -2117,8 +2117,8 @@
                         "worldWidth": 530,
                         "worldHeight": 56,
                         "position": [
-                          -15,
-                          -26,
+                          0,
+                          -39,
                           0
                         ]
                       }

@@ -23,7 +23,14 @@ export type Endpoint =
   | { kind: 'star'; star: StarId }
   | { kind: 'building'; buildingId: number }
 
-export type RouteDirection = 'forward' | 'reverse'
+/**
+ * 航线流向（2026-09-13 供应链重构扩展）：
+ *  - forward：星→地 正向运 H3（原有）
+ *  - reverse：地→建筑 反向送建材（原有）
+ *  - relay_in：星→中转站 正向 H3 入站缓存（中转链第一段；中转站 stockH3）
+ *  - relay_out：中转站→地 正向 H3 出站回地球（中转链第二段）
+ */
+export type RouteDirection = 'forward' | 'reverse' | 'relay_in' | 'relay_out'
 
 /** 航线：同两端点唯一（重复画线 = 派 1 艘船） */
 export interface SimRoute {
@@ -33,6 +40,8 @@ export interface SimRoute {
   direction: RouteDirection
   /** 该航线上的船（光点 = 真船） */
   shipIds: number[]
+  /** 线路评级统计（2026-09-13：累计完成趟数/累计装载/累计冻毁；旧档缺失按零兜底） */
+  stats?: { trips: number; loaded: number; frozen: number }
 }
 
 export type ShipState = 'idle' | 'loading' | 'flying' | 'unloading' | 'frozen'
@@ -57,8 +66,7 @@ export interface SimShip {
   /** 舱内 H3（正向） */
   cargo: number
   /** 舱内建材（反向） */
-  materials: number
-  /** 本次往返油耗（出发时锁定，含引力窗口折价） */
+  materials: number  /** 本次往返油耗（出发时锁定，含引力窗口折价） */
   roundFuel: number
   /** 本次往返航速倍率（出发时锁定） */
   speedMult: number
@@ -107,6 +115,12 @@ export interface OrbitBuilding {
   built: boolean
 }
 
+/** 聚能环节点球面落位（全息地球场景，2026-09-12：lat/lon 为度；下标 = 环段槽位号） */
+export interface SimRingNode {
+  lat: number
+  lon: number
+}
+
 /** 行星矿产开发设施（2026-09-12 用户需求：全息勘探 → 矿点上造矿建 → 持续产出 H3） */
 export interface SimMine {
   /** 矿点 id（mineral_deposit 表行键；一矿点至多一座矿建） */
@@ -135,10 +149,15 @@ export interface SimBuilding {
   y: number
   /** 缓存物资（中转站：反向补给线运抵的建材，上限 B.buildings[type].bufferCap） */
   stock: number
+  /** 缓存 H3（中转站：relay_in 正向航线运抵，relay_out 出站装货；上限与建材各自独立计 bufferCap；旧档缺失补 0） */
+  stockH3?: number
   /** 建造投入 H3（拆除返还折算用；强化投入并入 → 返还公式自动折算） */
   invested: number
   /** 已装强化分支（building.table.json upgrades 行键；null/缺失 = 未强化；一槽二选一） */
   upgrade?: string | null
+  /** 全息地球地表落位（lat/lon 度；存在 = 地表建筑，画布位 = 地球 + 经度方位投影，
+   *  不参与网格/入轨；落位必须位于环节点融化圈内） */
+  surface?: { lat: number; lon: number }
   /** 轨道锚定天体（行星或卫星；缺失 = 未入轨静态建筑，旧档兼容口径） */
   anchor?: PlanetBodyId
   /** 轨道半径（px，距锚行星中心；放置过近按行星显示半径+pad 抬底） */
@@ -266,11 +285,33 @@ export interface SimEvent {
   y?: number
 }
 
+/** 荷载设计模板行（2026-09-13 荷载设计工坊：主体 chassis + 附件 attachments 合成一件自定义荷载；
+ *  uid = 稳定 id（pd1/pd2…，删除后不复用），SimShip.modules 与船型模板以 uid 引用合成件） */
+export interface SimPayloadDesign {
+  uid: string
+  name: string
+  /** 主体模块 id（ship_module 表 payloadRole='chassis' 行键，如 cargo_pod） */
+  chassis: string
+  /** 附件模块 id 清单（payloadRole='attachment' 行键，如 pump/heater；单设计同件至多一件） */
+  attachments: string[]
+}
+
 /** 模拟器可观测快照（重试本幕） */
-export interface SimState {
-  seed: number
+export interface SimState {  seed: number
   time: number
   earthH3: number
+  /** 星球堆场（2026-09-13 供应链重构：资源星矿建产出落此，必须由航线运回才到手；
+   *  键 = 天体 id，资源星受 B.starStockCap 上限门控（堆满停产），旧档缺失按初始堆场补齐） */
+  starStock: Record<string, number>
+  /** 净流入连续 ≥0 累计秒（供应链口径幕目标「稳定供应」进度；断供归零） */
+  supplyStreak: number
+  /** 本幕「稳定供应」奖励已发（进新幕重置；达成 = streak ≥ B.supplyStreakGoal） */
+  supplyAwarded: boolean
+  /** 船型设计模板（2026-09-13 船队设计工坊：保存 hull+modules 组合随时载入；旧档补空数组） */
+  shipDesigns: Array<{ name: string; hull: string; modules: string[] }>
+  /** 荷载设计模板（2026-09-13 荷载设计工坊：主体+附件合成一件自定义荷载，uid 稳定 id；
+   *  SimShip.modules / shipDesigns.modules 以 uid 引用，删除时有引用保护；旧档补空数组） */
+  payloadDesigns: Array<SimPayloadDesign>
   /** 堆心温度 0..100（100 = 满温运转；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
   coreTemp: number
   /** 燃料门：有燃料 running（焚烧/研究/建设照常），储量耗尽 decaying（停烧停建，堆心降温） */
@@ -284,6 +325,9 @@ export interface SimState {
   ringBuildProgress: number
   /** 环段建筑装入表（下标 = 槽位号 0..ringSlotsTotal−1；null = 已建成空槽） */
   ringBuildings: (string | null)[]
+  /** 环节点球面落位表（下标 = 槽位号；null = 已交付但未在全息地球落位）。
+   *  已落位节点在冰盖上融化一圈冰雪（全息地球场景可视化 + 地表建筑放置门槛）。 */
+  ringNodes: (SimRingNode | null)[]
   /** 拆除中的目标槽（active = 泵灌拆除中；false = 暂停保留进度），null = 无拆除目标 */
   ringDemolish: { slot: number; progress: number; active: boolean } | null
   ships: SimShip[]
@@ -330,6 +374,8 @@ export interface SimMods {
   moonLoadAdd: number
   /** 其他星满载加成（月球富集 −10） */
   otherLoadAdd: number
+  /** 矿建产出乘区（采矿馈能环建筑线性加算；卡效果同键叠乘） */
+  miningMult: number
   /** 单节点消耗乘区（节能/tradeoff 叠乘） */
   burnMult: number
   /** 聚能环建设计费乘区（环网扩容卡 −25%，叠乘） */

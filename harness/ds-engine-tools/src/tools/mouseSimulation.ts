@@ -45,6 +45,9 @@ async function callAIEventRaw(ctx: unknown, event: string, payload: Record<strin
   return r?.result ?? r
 }
 
+/** 供同目录其他工具复用编辑器 HTTP 通道（projectScreenPos 等） */
+export { callAIEventRaw }
+
 // ═══════════════════════════════════════
 //  1. mouse_click — 模拟鼠标点击
 // ═══════════════════════════════════════
@@ -57,12 +60,12 @@ const mouseClickSchema = z.object({
 
 export const mouseClickTool = defineTool({
   name: 'mouse_click',
-  description: `模拟玩家鼠标点击游戏画面（走完整射线管线：屏幕坐标 → PhySys 射线检测 → ClickableComponent/Controller）。
+  description: `模拟玩家鼠标点击游戏画面（完整按下+释放序列，走完整射线管线：屏幕坐标 → PhySys 射线检测 → ClickableComponent/Controller → released 分发）。
 
 适用场景：
 - 点击游戏内 UI 按钮（已知屏幕坐标时）
-- 点击游戏场景中的建筑/道具
-- 触发任何需要真实鼠标点击的交互
+- 点击游戏场景中的建筑/道具/星球
+- 触发任何需要真实鼠标点击的交互（含轻点判定：warm 全息轻点落位）
 
 与 ai.clickActor 的区别：clickActor 按名称触发（不需要坐标），mouse_click 按屏幕坐标触发（真实模拟）。
 
@@ -143,21 +146,24 @@ const mouseDragSchema = z.object({
   endY: z.number().describe('结束屏幕 Y 坐标（像素）'),
   steps: z.number().optional().describe('移动步数（默认 10，越多越平滑）'),
   stepDelayMs: z.number().optional().describe('每步间隔毫秒（默认 16，即一帧）'),
+  button: z.number().optional().describe('鼠标按键：0=左键（默认），2=右键（相机平移/环绕拖拽）'),
 })
 
 export const mouseDragTool = defineTool({
   name: 'mouse_drag',
-  description: `模拟玩家鼠标拖拽（按下→多步移动→释放，完整序列）。
+  description: `模拟玩家鼠标拖拽（按下→多步移动→释放，完整序列），支持指定按键。
 
 适用场景：
 - 拖拽滚动列表
-- 拖拽移动游戏内物品
+- 拖拽移动游戏内物品 / 拖线建航线
+- 右键拖拽平移/环绕摄像机（button: 2）
 - 滑动解锁/滑块操作
 - 任何需要按住拖动的交互
 
 用法示例：
 - 从屏幕中央向右拖拽 200px：mouse_drag({startX: 960, startY: 540, endX: 1160, endY: 540})
-- 慢速向上滑动：mouse_drag({startX: 500, startY: 600, endX: 500, endY: 200, steps: 20, stepDelayMs: 50})`,
+- 慢速向上滑动：mouse_drag({startX: 500, startY: 600, endX: 500, endY: 200, steps: 20, stepDelayMs: 50})
+- 右键拖拽平移相机：mouse_drag({startX: 800, startY: 400, endX: 500, endY: 400, button: 2})`,
   parameters: {
     startX: { type: 'number', required: true, description: '起始屏幕 X 坐标（像素）' },
     startY: { type: 'number', required: true, description: '起始屏幕 Y 坐标（像素）' },
@@ -165,6 +171,7 @@ export const mouseDragTool = defineTool({
     endY: { type: 'number', required: true, description: '结束屏幕 Y 坐标（像素）' },
     steps: { type: 'number', description: '移动步数（默认 10）' },
     stepDelayMs: { type: 'number', description: '每步间隔毫秒（默认 16）' },
+    button: { type: 'number', description: '鼠标按键：0=左键（默认），2=右键（相机平移/环绕）' },
   },
   output: {
     schema: { type: 'json' },
@@ -173,12 +180,13 @@ export const mouseDragTool = defineTool({
   execute: async (args: unknown, ctx?: unknown): Promise<JsonValue> => {
     const parsed = mouseDragSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
-    const { startX, startY, endX, endY, steps, stepDelayMs } = parsed.data
+    const { startX, startY, endX, endY, steps, stepDelayMs, button } = parsed.data
     try {
       const result = await callAIEventRaw(ctx, 'ai.mouseDrag', {
         startX, startY, endX, endY,
         steps: steps ?? 10,
         stepDelayMs: stepDelayMs ?? 16,
+        button: button ?? 0,
       })
       return result ?? { ok: true, startX, startY, endX, endY }
     } catch (err) {

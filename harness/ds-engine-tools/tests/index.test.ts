@@ -10,8 +10,8 @@ describe('ds-engine-tools 插件入口', () => {
     expect(inject).toEqual(['tools'])
   })
 
-  it('ALL_TOOLS 包含 9 个工具', () => {
-    expect(ALL_TOOLS).toHaveLength(9)
+  it('ALL_TOOLS 包含 10 个工具', () => {
+    expect(ALL_TOOLS).toHaveLength(10)
   })
 
   it('每个工具都有 name/description/parameters/execute', () => {
@@ -38,6 +38,7 @@ describe('ds-engine-tools 插件入口', () => {
       'mouse_click',
       'mouse_drag',
       'mouse_move',
+      'project_screen_pos',
     ])
   })
 
@@ -57,7 +58,7 @@ describe('ds-engine-tools 插件入口', () => {
         effect: (fn: () => void) => fn(),
       }
       apply(ctx)
-      expect(registered).toHaveLength(9)
+      expect(registered).toHaveLength(10)
     })
 
     it('直接注册工具（无 effect）', async () => {
@@ -67,7 +68,7 @@ describe('ds-engine-tools 插件入口', () => {
         tools: { register: (tool: unknown) => registered.push(tool) },
       }
       apply(ctx)
-      expect(registered).toHaveLength(9)
+      expect(registered).toHaveLength(10)
     })
 
     it('tools 为空时不注册', async () => {

@@ -42,8 +42,17 @@ import type { SimBuilding, SimShip, SimState } from './types'
  *      （freshLedger 合并兜底）。 
  *  v12：行星矿产开发（2026-09-12 用户需求：全息勘探 → 矿点造矿建 → 持续产出）——
  *      SimState.mines 新增（旧档补空数组）、SimLedger 增 mineBuild/mining（freshLedger 合并兜底）、
- *      SimEvent.mine_built 事件新增。 */
-export const SAVE_FORMAT_VERSION = 12
+ *      SimEvent.mine_built 事件新增。
+ *  v13：全息地球建造场景（2026-09-12 用户需求：环节点空间落位 + 冰雪融化 + 地表建筑）——
+ *      SimState.ringNodes 新增（旧档/新档补 null 数组，长度随 ringBuildings 对齐；已交付槽位
+ *      待玩家在全息地球点球面落位）、SimBuilding.surface 可选字段（纯增量，无需迁移）。
+ *  v14：供应链重构（2026-09-13：月球 H3 稳定运回 + 船队设计工坊）——
+ *      ① SimState.starStock 新增（旧档按初始堆场补齐，防旧档船装不到货死锁）；
+ *      ② supplyStreak/supplyAwarded 新增（旧档补 0/false）；③ SimRoute.direction 扩展
+ *      relay_in/relay_out（旧档只有前两值，无需迁移）、SimRoute.stats 补零；
+ *      ④ SimState.shipDesigns 新增（旧档补空数组）；⑤ SimBuilding.stockH3 补 0；
+ *      ⑥ mods.miningMult 补 1（freshMods 合并兜底）。 */
+export const SAVE_FORMAT_VERSION = 14
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
 export const SAVE_KEY = 'warmCurrentSave'
@@ -188,6 +197,14 @@ export function restoreSimState(
   if (!Array.isArray((sim as Partial<SimState>).orbitBuildings)) sim.orbitBuildings = []
   // v11→v12 兼容（行星矿产开发）：旧档无 mines → 补空数组（纯增量字段，无迁移语义）
   if (!Array.isArray((sim as Partial<SimState>).mines)) (sim as Partial<SimState>).mines = []
+  // v12→v13 兼容（全息地球建造场景）：ringNodes 补 null 数组（长度与 ringBuildings 对齐；
+  // 已交付槽位 = 待落位节点，位置由玩家在全息地球点球面决定，旧档不代填）
+  if (!Array.isArray((sim as Partial<SimState>).ringNodes)) {
+    ;(sim as Partial<SimState>).ringNodes = Array.from(
+      { length: Array.isArray(sim.ringBuildings) ? sim.ringBuildings.length : Math.max(1, B.ringSlots) },
+      () => null,
+    )
+  }
   // v9→v10 兼容（船坞独立造船面板）：buildQueue 剩余秒数组 → 逐船结构
   // （{remain, total, dockId}；旧档无船坞归属 → dockId=0、total=remain（进度从当前剩余继续），
   //  同 GM/桥无参路径口径）
@@ -238,6 +255,35 @@ export function restoreSimState(
   // 旧档无 ledger（H3 收支账本为后续新增）→ 零账本兜底（统计从读档时刻重新累计）；
   // 旧档账本缺新字段（如 overclock→research 改名后的 research）→ 按零账本补齐缺失键
   sim.ledger = { ...freshLedger(), ...(typeof sim.ledger === 'object' && sim.ledger !== null ? sim.ledger : {}) }
+  // v13→v14 兼容（供应链重构，2026-09-13）：
+  // ① 星球堆场：旧档缺失 → 按初始堆场补齐（月球 600 等；不给旧档玩家一上来船装不到货死锁）
+  if (!sim.starStock || typeof sim.starStock !== 'object') {
+    const stock: Record<string, number> = {}
+    for (const [star, cap] of Object.entries(B.starStockCap)) {
+      const init = (B.starStockInitial as Record<string, number>)[star] ?? 0
+      stock[star] = Math.min(init, cap)
+    }
+    sim.starStock = stock
+  }
+  // ② 稳供 streak（供应链口径幕目标进度）
+  if (typeof (sim as Partial<SimState>).supplyStreak !== 'number') (sim as Partial<SimState>).supplyStreak = 0
+  if (typeof (sim as Partial<SimState>).supplyAwarded !== 'boolean') (sim as Partial<SimState>).supplyAwarded = false
+  // ③ 船型设计模板（船队设计工坊）
+  if (!Array.isArray((sim as Partial<SimState>).shipDesigns)) (sim as Partial<SimState>).shipDesigns = []
+  // ③b 荷载设计模板（荷载设计工坊，2026-09-13：旧档缺失补空数组）
+  if (!Array.isArray((sim as Partial<SimState>).payloadDesigns)) (sim as Partial<SimState>).payloadDesigns = []
+  // ④ 中转站 H3 缓存（中转链）
+  if (Array.isArray(sim.buildings)) {
+    for (const b of sim.buildings) {
+      if (typeof (b as Partial<SimBuilding>).stockH3 !== 'number') (b as Partial<SimBuilding>).stockH3 = 0
+    }
+  }
+  // ⑤ 航线评级统计补零（旧档缺失；direction 的 relay_* 为新值旧档天然不存在，无需迁移）
+  if (Array.isArray(sim.routes)) {
+    for (const r of sim.routes) {
+      if (!r.stats || typeof r.stats !== 'object') r.stats = { trips: 0, loaded: 0, frozen: 0 }
+    }
+  }
   // v6→v7 兼容（堆心温度）：旧档 continuity/bufferLeft/bufferTotal 下线 →
   // coreTemp 按旧字段折算（运转满温；断环取缓冲剩余比例），旧字段删除
   const legacy = sim as unknown as Record<string, unknown>
@@ -253,6 +299,8 @@ export function restoreSimState(
   if (sim.mods && typeof sim.mods === 'object') {
     delete (sim.mods as unknown as Record<string, unknown>).bufferAdd
     delete (sim.mods as unknown as Record<string, unknown>).recoverMult
+    // v13→v14 兼容：mods.miningMult 补 1（产量层乘区，2026-09-13 新增）
+    if (typeof (sim.mods as Partial<SimState['mods']>).miningMult !== 'number') (sim.mods as SimState['mods']).miningMult = 1
   }
   return { state: deepSnapshot(sim), rng: mulberry32(sim.seed) }
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HudScript — 主 HUD 行为脚本（hud.widget.json 根节点）
  *
  * 职责：
@@ -32,6 +32,8 @@ import ShipyardPanelScript, { SHIPYARD_PANEL_WIDGET } from './ShipyardPanelScrip
 import BuildingDetailScript, { BUILDING_DETAIL_WIDGET } from './BuildingDetailScript.script'
 import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScript.script'
 import HologramPanelScript, { HOLOGRAM_PANEL_WIDGET } from './HologramPanelScript.script'
+import ShipDesignScript, { SHIP_DESIGN_WIDGET } from './ShipDesignScript.script'
+import PayloadDesignScript, { PAYLOAD_DESIGN_WIDGET } from './PayloadDesignScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -73,6 +75,8 @@ export default class HudScript extends BehaviourScript {
   private buildingDetailPanel: Actor | null = null
   private fleetOrderBar: Actor | null = null
   private hologramPanel: Actor | null = null
+  private shipDesignPanel: Actor | null = null
+  private payloadDesignPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -92,9 +96,18 @@ export default class HudScript extends BehaviourScript {
         if (inst.isOpen) wcMode()?.closeOrbitBuild()
         continue
       }
-      // 状态驱动面板（船坞造船）：同轨道建设口径
+      // 状态驱动面板（船坞造船 / 火箭设计）：同轨道建设口径
       if (inst instanceof ShipyardPanelScript) {
         if (inst.isOpen) wcMode()?.closeShipyardPanel()
+        continue
+      }
+      if (inst instanceof ShipDesignScript) {
+        if (inst.isOpen) wcMode()?.closeShipDesign()
+        continue
+      }
+      // 状态驱动面板（荷载设计）：同火箭设计口径
+      if (inst instanceof PayloadDesignScript) {
+        if (inst.isOpen) wcMode()?.closePayloadDesign()
         continue
       }
       const panel = inst as unknown as { isOpen: boolean, close: () => void }
@@ -102,6 +115,13 @@ export default class HudScript extends BehaviourScript {
         panel.close()
         logger.info(`[HudScript] ${p.label}关闭（居中互斥）`)
       }
+    }
+    // 状态驱动面板（火箭设计）：无 open/close 方法，走 GameMode 方法开合（同轨道/船坞口径）
+    const targetInst = target.actor()?.getComponent(UIScriptComponent)?.instance
+    if (targetInst instanceof ShipDesignScript) {
+      if (targetInst.isOpen) wcMode()?.closeShipDesign()
+      else wcMode()?.openShipDesign()
+      return
     }
     toggleSubPanel(target.actor(), target.is, target.label)
   }
@@ -152,7 +172,12 @@ export default class HudScript extends BehaviourScript {
     const orbitEntry: CenterPanelEntry = { actor: () => this.orbitPanel, is: (s) => s instanceof OrbitPanelScript, label: '轨道建设面板' }
     // 船坞造船面板（居中位，GameMode.shipyardSel 状态驱动开合：点船坞打开，只登记用于被其它居中面板收起）
     const shipyardEntry: CenterPanelEntry = { actor: () => this.shipyardPanel, is: (s) => s instanceof ShipyardPanelScript, label: '船坞造船面板' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry]
+    // 火箭设计工坊（居中位，GameMode.designOpen 状态驱动开合：底部 HUD 入口）
+    const designEntry: CenterPanelEntry = { actor: () => this.shipDesignPanel, is: (s) => s instanceof ShipDesignScript, label: '火箭设计工坊' }
+    // 荷载设计工坊（居中位，GameMode.payloadDesignOpen 状态驱动开合：火箭设计工坊「荷载设计」入口）
+    const payloadEntry: CenterPanelEntry = { actor: () => this.payloadDesignPanel, is: (s) => s instanceof PayloadDesignScript, label: '荷载设计工坊' }
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, designEntry, payloadEntry]
+    bind('Btn_design', () => this.toggleCenterPanel(designEntry))
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
     bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
     bind('Btn_transport', () => this.toggleCenterPanel(transportEntry))
@@ -205,6 +230,12 @@ export default class HudScript extends BehaviourScript {
     // 全息勘探面板（右侧：星球信息面板「全息勘探」弹出，HologramPanelScript 读 vm.hologram 自驱动）
     this.hologramPanel = this.world?.ui.spawnUIActor(HOLOGRAM_PANEL_WIDGET) ?? null
     if (!this.hologramPanel) logger.warn('[HudScript] hologram_panel 生成失败')
+    // 火箭设计工坊（居中位：底部 HUD「火箭设计」弹出，ShipDesignScript 读 vm.shipDesign 自驱动）
+    this.shipDesignPanel = this.world?.ui.spawnUIActor(SHIP_DESIGN_WIDGET) ?? null
+    if (!this.shipDesignPanel) logger.warn('[HudScript] ship_design 生成失败')
+    // 荷载设计工坊（居中位：火箭设计工坊「荷载设计」弹出，PayloadDesignScript 读 vm.payloadDesign 自驱动）
+    this.payloadDesignPanel = this.world?.ui.spawnUIActor(PAYLOAD_DESIGN_WIDGET) ?? null
+    if (!this.payloadDesignPanel) logger.warn('[HudScript] payload_design 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')
@@ -228,6 +259,23 @@ export default class HudScript extends BehaviourScript {
     // ─── 顶部状态栏（原 TopBarScript 并入）：态势摘要 + 时间控制双态 ───
     this.binder.set(findText(this.actor, 'TimeText'), fmtTime(vm.time))
     this.binder.set(findText(this.actor, 'ReserveText'), `储量 ${Math.floor(vm.reserve)} t`)
+    // 供应链口径 chip（2026-09-13）：净流入 + 稳供进度 / 断环倒计时
+    const net = Math.round(vm.netFlow * 10) / 10
+    const supplyText = findText(this.actor, 'SupplyText')
+    let supplyLine: string
+    let supplyColor = '#7fdcff'
+    if (vm.netFlow >= 0) {
+      supplyLine = vm.supplyStreak >= vm.supplyGoal
+        ? `净流 +${net}/s · ✔ 稳定供应达成（+${vm.supplyReward}t）`
+        : `净流 +${net}/s · 稳供 ${Math.floor(vm.supplyStreak)}/${vm.supplyGoal}s`
+      if (vm.supplyStreak >= vm.supplyGoal) supplyColor = '#7fe8a8'
+    } else {
+      const secs = vm.reserveSeconds != null ? Math.max(0, Math.floor(vm.reserveSeconds)) : Math.floor(vm.reserve / Math.max(0.1, vm.demand - vm.supplyRate))
+      supplyLine = `净流 ${net}/s · ⚠ 断环倒计时 ${secs}s`
+      supplyColor = '#ff8f5a'
+    }
+    this.binder.set(supplyText, supplyLine)
+    this.colors.set(supplyText, supplyColor)
     const playable = vm.outcome === 'playing' || vm.sandbox
     const pauseLabel = findText(this.actor, 'Label_pause')
     this.binder.set(pauseLabel, vm.paused ? '继续' : '暂停')

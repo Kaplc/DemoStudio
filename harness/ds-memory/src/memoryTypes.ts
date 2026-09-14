@@ -265,7 +265,7 @@ memory_write **只写 frontmatter**（新建文件或原位更新已有文件的
 
 没有触发点就不要保存——宁缺毋滥，普通问答、实现细节和过程流水账不存（见上方"不要保存"清单）。用户显式要求时照办：删除用 memory_forget，整理审查用 memory_review。`
 
-/** 回合末记忆提醒文本（新增机制）。 */
+/** 记忆指导段内的"回合末记忆检查"小节（行为指导；提醒投递由 @demostudio/ds-reminder 负责）。 */
 export const END_OF_TURN_REMINDER_TEXT = `## 回合末记忆检查
 
 每回合结束前，快速回顾本回合是否有值得跨会话记住的信息。如果有，立即调用 memory_write 保存。常见触发点：

@@ -23,13 +23,16 @@ import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
 import {
   alignMoonRelativeAngle, buildingByEndpoint, buildingDefOf, buildingEffectiveDef, buildingPos, estimateNetFlow, endpointPos, findRoute, ledgerTotals,
-  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, ringModsOf, roundFuel, routeCycleSeconds, snapToGrid,
+  fleetMaintPerS, hiddenActorIsolated, legSeconds, moonRelativeAngle, orbitBuildingPos, pendingRingNodeCount, placedRingNodes, resetMoonPhaseAdj, ringBuildRateOf, ringLevelOf, ringModsOf, roundFuel, routeCycleSeconds, snapToGrid,
   routeNetPerTrip, shipHullDefOf, shipModuleDefOf, shipPos, starLoad, starOfEndpoint, starPosAt,
+  supplyRateOf, starStockOf, starStockCapOf, starMiningRate, shipTrialOf, shipsNeededFor,
+  hullSlotCapacity, modulesSlotUsage, hullHasSlotFor, hullAllowsModule, SLOT_TYPE_NAMES, shipBuildPrice,
+  nextPayloadUid, payloadDesignDefsOf, payloadDesignModuleDef, setDynamicShipModules, shipModuleEntries, isDynamicShipModule,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
-import type { RingLevelInfo } from '../core/helpers'
+import type { RingLevelInfo, SimPayloadDesign } from '../core/helpers'
 import type { Endpoint, OrbitBuilding, SimBuilding, SimLedger, SimRoute, SimShip, SimState, StarId } from '../core/types'
-import { StarMapRenderComponent, planetStageOffset } from '../map/StarMapRenderComponent'
+import { StarMapRenderComponent, holoEarthAnchor, planetStageOffset } from '../map/StarMapRenderComponent'
 import { SolarCameraActor } from '../map/SolarCameraActor'
 import { STAR_BLUEPRINTS, type StarBodyId } from '../map/StarActor'
 import type { BuildCursor, DragState, MapFx, MapSelection } from '../map/StarMapRenderComponent'
@@ -82,7 +85,7 @@ function segDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { 
 
 export interface HudRouteInfo {
   name: string
-  direction: 'forward' | 'reverse'
+  direction: import('../core/types').RouteDirection
   ships: number
   net: number
   cycle: number
@@ -150,15 +153,17 @@ export interface HudShipRow {
 /** 航线管理面板行（routes_panel.widget 消费，全部航线的紧凑视图） */
 export interface HudRouteRow {
   id: number
-  /** 行名（正向「月球线」，反向「供应线·木卫二」） */
+  /** 行名（正向「月球线」，反向「供应线·木卫二」，中转链「月球→站 3」「站 3→地球」） */
   name: string
-  direction: 'forward' | 'reverse'
+  direction: import('../core/types').RouteDirection
   /** 在线配船数 */
   ships: number
-  /** 单趟净补（正向 t）/ 单趟载建材（反向） */
+  /** 单趟净补（正向/出站 t）/ 单趟载建材（反向）/ 单趟入站（relay_in） */
   net: number
   /** 往返时长（秒，展示用） */
   cycle: number
+  /** 线路评级统计（完成趟数/累计装载/累计冻毁；旧档缺省全 0） */
+  stats: { trips: number; loaded: number; frozen: number }
 }
 
 /** 星球信息面板数据（planet_info.widget 消费；非航线编辑模式点星球打开） */
@@ -190,6 +195,8 @@ export interface HudPlanetInfo {
   routable: boolean
   /** 是否有已探明矿产（全息勘探入口按钮开关；表驱动） */
   hasDeposits: boolean
+  /** 资源星堆场水位（stock/cap 吨 + 满负荷矿建产量 t/s；地球/装饰行星 null） */
+  stockyard: { stock: number; cap: number; miningRate: number } | null
 }
 
 /** 全息勘探面板矿点行（mineral_deposit 表投影 + 矿建状态） */
@@ -227,6 +234,36 @@ export interface HudHoloBuildRow {
   canBuild: boolean
 }
 
+/** 全息地球建造工具行（ring = 环节点落位 / building 表行键 = 地表建筑） */
+export interface HudHoloToolRow {
+  /** 工具 id（'ring' 或 building 表行键） */
+  id: string
+  name: string
+  desc: string
+  /** 选中态（当前放置工具） */
+  selected: boolean
+  /** 可选用（预算/对局/有待落位节点） */
+  canUse: boolean
+}
+
+/** 全息地球态（仅 body==='earth' 非空；节点统计 + 建造工具行 + ghost 提示） */
+export interface HudHoloEarth {
+  /** 待落位节点数（已交付槽位未落位） */
+  pendingNodes: number
+  /** 已落位节点数 */
+  placedNodes: number
+  /** 已建成环段数（节点来源） */
+  builtSlots: number
+  /** 单节点融冰角半径（度） */
+  meltRadiusDeg: number
+  /** 建造工具行（ring + building 表键序） */
+  tools: HudHoloToolRow[]
+  /** 是否有激活的放置工具 */
+  toolActive: boolean
+  /** 指针落点校验文案（ghost；空 = 指针不在球面/无工具） */
+  ghostLabel: string
+}
+
 /** 全息勘探面板数据（null = 收起；HologramPanelScript 消费） */
 export interface HudHologram {
   /** 勘探目标天体 id */
@@ -241,6 +278,10 @@ export interface HudHologram {
   selectedId: string | null
   /** 选中矿点详情（多行文案；未选中给操作引导） */
   detail: string
+  /** 该天体堆场水位（null = 非资源星/地球；头部行展示「堆场 X/Y t · 产量 Z/s」） */
+  stockyard: { stock: number; cap: number; miningRate: number } | null
+  /** 全息地球态（仅 body==='earth'；节点统计 + 建造工具行） */
+  earth: HudHoloEarth | null
 }
 
 /** 轨道建设面板类型行（orbit_build.table 行投影） */
@@ -316,6 +357,127 @@ export interface HudModuleRow {
   cost: number
   /** 当前选中船型是否允许装载（false = 置灰） */
   allowed: boolean
+  /** 槽位类型（ship_hull.slots 行键；null = 不占槽） */
+  slotType: string | null
+  /** 当前选择下该槽型是否已满（满槽 = 置灰不可再选） */
+  slotFull: boolean
+  /** 槽位占用展示（「货舱 1/2」；null = 不占槽） */
+  slotLabel: string | null
+  /** 设计工坊部位选件制：该件是否装在当前选中部位实例上（勾选态；缺省 = 非部位清单行） */
+  here?: boolean
+}
+
+/** 荷载设计模板行（payloadDesigns 投影；2026-09-13 荷载设计工坊） */
+export interface HudPayloadRow {
+  idx: number
+  /** 合成件 id（uid，如 pd1） */
+  uid: string
+  name: string
+  /** 合成描述（主体 + 附件顿号串） */
+  summary: string
+  /** 合成造价（含组装溢价） */
+  cost: number
+}
+
+/** 荷载设计工坊面板数据（null = 收起；PayloadDesignScript 消费。
+ *  编辑区选主体/勾附件 → 合成预览（效果/造价）→ 存为荷载模板；
+ *  模板在火箭设计工坊的「荷载」槽位部位清单里可选装） */
+export interface HudPayloadDesign {
+  /** 荷载主体行（ship_module payloadRole='chassis' 行，表序） */
+  chassis: HudModuleRow[]
+  /** 舱内附件行（payloadRole='attachment' 行，表序；勾选多选） */
+  attachments: HudModuleRow[]
+  /** 编辑区当前选中主体 id */
+  selChassis: string
+  /** 编辑区当前勾选的附件 id 清单 */
+  selAttachments: string[]
+  /** 合成预览：名称 / 效果描述 / 造价（含组装溢价） */
+  synthName: string
+  synthDesc: string
+  synthCost: number
+  /** 已存荷载设计模板（payloadDesigns 键序） */
+  designs: HudPayloadRow[]
+  canSave: boolean
+}
+
+/** 试航行（船坞面板试航卡：船级配置 × 目标星一条往返账；2026-09-13 船队设计工坊） */export interface HudTrialRow {
+  star: string
+  starName: string
+  /** 是否已解锁（未解锁仅展示第 X 幕） */
+  unlocked: boolean
+  unlockAct: number
+  /** 单船满载（吨） */
+  load: number
+  /** 往返轮时（秒） */
+  cycleS: number
+  /** 往返油耗（吨） */
+  fuel: number
+  /** 单趟净赚（吨） */
+  net: number
+  /** 单线吞吐率（吨/秒） */
+  throughput: number
+  /** 线路反推：补当前供应缺口需几艘（0 = 缺口已满足；未解锁 = -1） */
+  shipsForGap: number
+}
+
+/** 船型设计模板行（shipDesigns 投影；2026-09-13 船队设计工坊） */
+export interface HudDesignRow {
+  idx: number
+  name: string
+  hullName: string
+  /** 模块名顿号串（空 = 裸船） */
+  modules: string
+}
+
+/** 装配台槽位格（火箭设计面板；ship_hull.slots 表序展开，每格 = 槽型 + 已装模块） */
+export interface HudDesignSlotCell {
+  type: string
+  typeName: string
+  /** 同槽型实例序（0 起；点部位选件 = (type, slotIdx) 二元定位） */
+  slotIdx: number
+  /** 已装模块名（空 = 空槽） */
+  module: string
+  filled: boolean
+  /** 是否为当前选中部位（高亮） */
+  sel: boolean
+}
+
+/** 可下单船坞行（火箭设计面板下水区；canOrder = 建成 + 对局中 + cap 余量） */
+export interface HudDesignDock {
+  id: number
+  name: string
+  anchorName: string
+  costMult: number
+  canOrder: boolean
+}
+
+/** 火箭设计面板数据（null = 收起；ShipDesignScript 消费。
+ *  设计字段与 HudShipyard 同源（同一选择态/校验口径），下单走 orderFromDesign(dockId)） */
+export interface HudShipDesign {
+  /** 船型行（ship_hull 表键序） */
+  hulls: HudHullRow[]
+  /** 当前选中部位（null = 未选：② 区出引导文案不出清单） */
+  selSlot: { type: string; typeName: string; idx: number; used: number; cap: number } | null
+  /** 选中部位的部件清单（ship_module 同 slotType 行，表序 = 低档在前；here = 已装本实例） */
+  slotOptions: HudModuleRow[]
+  /** 装配台槽位格（slots 表序展开） */
+  slotCells: HudDesignSlotCell[]
+  /** 槽位占用行（「货舱 1/2」） */
+  slotRows: Array<{ name: string; used: number; cap: number }>
+  /** 试航行（三星口径 + 线路反推） */
+  trials: HudTrialRow[]
+  /** 设计模板 */
+  designs: HudDesignRow[]
+  canSaveDesign: boolean
+  /** 可下单船坞（建成船坞；空 = 只能设计不能下水） */
+  docks: HudDesignDock[]
+  /** 整单价（船体+Σ模块 × 首坞折扣；无坞原价） */
+  price: number
+  fleetShips: number
+  queueCount: number
+  cap: number
+  /** 有可下单船坞 */
+  canQueue: boolean
 }
 
 /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费） */
@@ -338,8 +500,20 @@ export interface HudShipyard {
   costMult: number
   /** 船型行（ship_hull 表键序） */
   hulls: HudHullRow[]
-  /** 模块行（ship_module 表键序） */
-  modules: HudModuleRow[]
+  /** 当前选中部位（部位选件制；null = 未选：② 区出引导文案不出清单） */
+  selSlot: { type: string; typeName: string; idx: number; used: number; cap: number } | null
+  /** 选中部位的部件清单（ship_module 同 slotType 行，表序 = 低档在前；here = 已装本实例） */
+  slotOptions: HudModuleRow[]
+  /** 装配台槽位格（slots 表序展开，与设计面板同源） */
+  slotCells: HudDesignSlotCell[]
+  /** 当前船型槽位占用行（slots 表键序；「货舱 1/2」展示口径） */
+  slotRows: Array<{ name: string; used: number; cap: number }>
+  /** 试航行（三星口径；未解锁星标幕数） */
+  trials: HudTrialRow[]
+  /** 船型设计模板（保存/载入/删除） */
+  designs: HudDesignRow[]
+  /** 当前选择是否为有效可存配置（有船型即可存） */
+  canSaveDesign: boolean
   /** 造船队列（逐船一卡，队首 = 建造中） */
   queue: HudShipBuildCard[]
   /** 船队总艘数 */
@@ -366,7 +540,7 @@ export interface WarmCurrentVM {
   /** 聚能环等级（按已建成槽位数连续推导；level 25 = 全球组网） */
   ringLevel: RingLevelInfo
   /** 环建筑乘区摘要（详情面板展示口径；burnMult 含防爆地板） */
-  ringMods: { burnMult: number; loadMult: number; shipCapAdd: number; buildPumpMult: number; researchMult: number; coolTimeMult: number; warmTimeMult: number }
+  ringMods: { burnMult: number; loadMult: number; miningMult: number; shipCapAdd: number; buildPumpMult: number; researchMult: number; coolTimeMult: number; warmTimeMult: number }
   /** 环建筑安装行（ring_building 表键序；canInstall = 预算足 & 非耀斑 & 对局中） */
   ringInstallRows: Array<{ id: string; name: string; desc: string; cost: number; canInstall: boolean }>
   /** 堆心温度 0..100（100 = 满温；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
@@ -380,6 +554,16 @@ export interface WarmCurrentVM {
   /** 研究点数计费速率（H3/秒，四线合计；储量耗尽为 0） */
   researchCost: number
   netFlow: number
+  /** 当前满负荷到手供应速率（吨/秒，Σ各正向/出站线吞吐；收支与稳供口径） */
+  supplyRate: number
+  /** 预计断环倒计时（秒 = 储量 ÷ 净流出速率；净流为正 = null） */
+  reserveSeconds: number | null
+  /** 「稳定供应」幕目标进度（秒；goal/reward 见 B） */
+  supplyStreak: number
+  supplyGoal: number
+  supplyReward: number
+  /** 星球堆场水位（星图水位条/面板消费：键 = 资源星 id） */
+  starStocks: Record<string, { stock: number; cap: number; miningRate: number }>
   danger: boolean
   windowPhase: 'idle' | 'warn' | 'active'
   windowRemain: number
@@ -418,6 +602,10 @@ export interface WarmCurrentVM {
   orbitBuild: HudOrbitBuild | null
   /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费，点船坞打开） */
   shipyard: HudShipyard | null
+  /** 火箭设计面板数据（null = 收起；ShipDesignScript 消费，底部 HUD「火箭设计」打开） */
+  shipDesign: HudShipDesign | null
+  /** 荷载设计工坊面板数据（null = 收起；2026-09-13 荷载设计） */
+  payloadDesign: HudPayloadDesign | null
   /** 建筑详情浮层数据（null = 收起；BuildingDetailScript 消费，点建筑打开，强化装拆流） */
   buildingDetail: HudBuildingDetail | null
   /** 耀斑预警决策条（fleet_order_bar 消费；windowOpen = 预警期可下令） */
@@ -481,10 +669,24 @@ export class WarmCurrentGameMode extends GameMode {
   hologramSel: PlanetBodyId | null = null
   /** 全息勘探当前选中矿点（mineral_deposit 行键；点 3D 矿点/面板行设置，null = 未选中） */
   holoDepositSel: string | null = null
+  /** 全息地球放置工具（null = 未选；ring = 落位环节点，building = 放置地表建筑） */
+  holoPlaceTool: { kind: 'ring' } | { kind: 'building'; typeId: string } | null = null
+  /** 全息地球放置预览（指针球面交点 + 校验结果；渲染 ghost 与面板提示消费，null = 无工具/未悬停） */
+  holoGhost: { lat: number; lon: number; valid: boolean; label: string } | null = null
+  /** 全息地球当前工具种类（渲染 ghost 预览圈半径口径；MapViewProvider 消费） */
+  get holoToolKind(): 'ring' | 'building' | null {
+    return this.holoPlaceTool?.kind ?? null
+  }
   /** 卫星全息跟随：上一帧卫星 Actor 世界位（pan 增量 = 公转漂移补偿） */
   private holoLastTarget: { x: number; z: number } | null = null
   /** 船坞造船面板当前承接船坞 id（点船坞打开；null = 收起，ShipyardPanelScript 消费） */
   shipyardSel: number | null = null
+  /** 船坞面板三步流选择（2026-09-13 从面板脚本迁入 GameMode：试航卡/槽位校验需要权威读态） */
+  shipyardSelHull = 'standard'
+  shipyardSelModules: string[] = []
+  /** 设计工坊当前选中的装配台部位（槽型 + 同型实例序；null = 未选，② 区不出部件清单。
+   *  2026-09-13 部位选件制：点部位 → 该槽型多档部件挑选，换装/卸下都以实例为单位） */
+  shipyardSelSlot: { type: string; idx: number } | null = null
   /** 建筑详情浮层当前建筑 id（点建筑打开：强化分支装拆流；null = 收起） */
   buildingDetailSel: number | null = null
   /** 耀斑预警框选的船 id 集（决策条下达对象；耀斑结束自动清空） */
@@ -535,6 +737,7 @@ export class WarmCurrentGameMode extends GameMode {
     // 配置表覆盖默认值 + 重置仿真状态（改表重开一局即生效）
     refreshBalanceFromConfigs()
     this.simState.reset()
+    this.syncDynamicPayloadModules()
     super.InitGame()
     this.cameraManager.RegisterCamera(this.gameCamera)
     this.cameraActor.place()
@@ -553,8 +756,12 @@ export class WarmCurrentGameMode extends GameMode {
         this.cancelBuildMode()
         return
       }
-      // 全息勘探模式：Esc 先退全息回俯视（不误开暂停菜单）
+      // 全息勘探模式：Esc 先清放置工具，再退全息回俯视（不误开暂停菜单）
       if (this.hologramSel) {
+        if (this.holoPlaceTool) {
+          this.setHoloTool(null)
+          return
+        }
         this.closeHologram()
         return
       }
@@ -610,8 +817,9 @@ export class WarmCurrentGameMode extends GameMode {
     const vm = this.viewMode
     const focus = this.planetFocusBody as PlanetId
     for (const sa of this.starActors.values()) (sa as import('../map/StarActor').StarActor).syncFrom(this.simState.state, sdt, vm, focus)
-    // 卫星全息跟随：rig.pan 同步平移 target+camera（保持环绕几何），镜头锚住公转中的卫星
-    if (this.hologramSel) {
+    // 卫星全息跟随：rig.pan 同步平移 target+camera（保持环绕几何），镜头锚住公转中的卫星。
+    // 全息地球不参与（投影在远处独立锚点，静态；真球位置与之无关）
+    if (this.hologramSel && this.hologramSel !== 'earth') {
       const holoActor = this.starActors.get(this.hologramSel)
       if (holoActor) {
         const p = holoActor.root.position
@@ -678,7 +886,7 @@ export class WarmCurrentGameMode extends GameMode {
         case 'route_built': audioSys.play('wc.ok'); break
         case 'slot_built':
           audioSys.play('wc.ok', { volume: 0.6 })
-          this.toast(`第 ${ev.value ?? 0} 环段交付（毛坯空槽）— 可安装环建筑`, '#7fdcff')
+          this.toast(`第 ${ev.value ?? 0} 环段交付（毛坯空槽）— 全息地球可落位环节点 / 环面板可装建筑`, '#7fdcff')
           break
         case 'ring_installed':
           audioSys.play('wc.build')
@@ -807,6 +1015,8 @@ export class WarmCurrentGameMode extends GameMode {
     this.observeBody = null
     this.hologramSel = null
     this.holoDepositSel = null
+    this.holoPlaceTool = null
+    this.holoGhost = null
     this.holoLastTarget = null
     this.cameraActor.rig.orbitMode = false
     this.cameraActor.rig.setEdgePanEnabled(true)
@@ -1162,6 +1372,9 @@ export class WarmCurrentGameMode extends GameMode {
   openShipyardPanel(dockId: number): void {
     if (this.hologramSel) this.closeHologram()
     this.shipyardSel = dockId
+    this.shipyardSelHull = 'standard'
+    this.shipyardSelModules = []
+    this.shipyardSelSlot = null
     this.planetInfoSel = null
     this.orbitBuildSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
@@ -1173,13 +1386,334 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSel = null
   }
 
+  // ─── 火箭设计工坊（2026-09-13：底部 HUD 入口的独立设计面板，不依赖船坞） ───
+
+  /** 火箭设计面板开合（null = 收起；ShipDesignScript 消费） */
+  designOpen = false
+
+  /** 打开火箭设计面板（底部 HUD「火箭设计」按钮；选择态与船坞面板共享——
+   *  船坞里配到一半的方案来这里接着调，反之亦然） */
+  openShipDesign(): void {
+    if (this.hologramSel) this.closeHologram()
+    this.designOpen = true
+    this.payloadDesignOpen = false
+    this.planetInfoSel = null
+    this.shipyardSel = null
+    this.orbitBuildSel = null
+    audioSys.play('wc.draw', { volume: 0.3 })
+    logger.info('[WarmCurrent] 火箭设计工坊：打开')
+  }
+
+  /** 关闭火箭设计面板 */
+  closeShipDesign(): void {
+    this.designOpen = false
+  }
+
+  // ─── 荷载设计工坊（2026-09-13：火箭三部位改版——荷载单独设计，主体+附件合成一件自定义荷载） ───
+
+  /** 荷载设计面板开合（null 语义 = 收起；PayloadDesignScript 消费，与火箭设计居中互斥） */
+  payloadDesignOpen = false
+
+  /** 荷载编辑区当前选中主体（chassis 模块 id；默认标准货舱） */
+  payloadEdChassis = 'cargo_pod'
+
+  /** 荷载编辑区当前勾选附件（attachment 模块 id 清单；单设计同件至多一件） */
+  payloadEdAttachments: string[] = []
+
+  /** 打开荷载设计面板（火箭设计工坊「荷载设计」按钮；与火箭设计互斥开合） */
+  openPayloadDesign(): void {
+    this.payloadDesignOpen = true
+    this.designOpen = false
+    this.planetInfoSel = null
+    this.shipyardSel = null
+    this.orbitBuildSel = null
+    audioSys.play('wc.draw', { volume: 0.3 })
+    logger.info('[WarmCurrent] 荷载设计工坊：打开')
+  }
+
+  /** 关闭荷载设计面板 */
+  closePayloadDesign(): void {
+    this.payloadDesignOpen = false
+  }
+
+  /** 荷载编辑区选主体（单选；非法 id 忽略） */
+  selectPayloadChassis(moduleId: string): void {
+    if (shipModuleDefOf(moduleId)?.payloadRole !== 'chassis') return
+    this.payloadEdChassis = moduleId
+  }
+
+  /** 荷载编辑区勾/取消附件（多选；非法 id 忽略） */
+  togglePayloadAttachment(moduleId: string): void {
+    if (shipModuleDefOf(moduleId)?.payloadRole !== 'attachment') return
+    const at = this.payloadEdAttachments.indexOf(moduleId)
+    if (at >= 0) this.payloadEdAttachments.splice(at, 1)
+    else this.payloadEdAttachments.push(moduleId)
+  }
+
+  /** 保存当前编辑区为荷载设计模板（名字自动编号；uid 递增不复用，随档走） */
+  savePayloadDesign(): boolean {
+    const s = this.simState.state
+    const def = payloadDesignModuleDef({ uid: '', name: '', chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
+    if (!def) return false
+    const uid = nextPayloadUid(s.payloadDesigns)
+    const name = `自定义荷载 ${s.payloadDesigns.length + 1}`
+    s.payloadDesigns.push({ uid, name, chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] })
+    this.syncDynamicPayloadModules()
+    this.simState.hint(`已保存「${name}」（${def.cost} H3）`)
+    logger.info(`[WarmCurrent] 荷载设计保存：${uid} ${name} chassis=${this.payloadEdChassis} attachments=${this.payloadEdAttachments.join(',')}`)
+    return true
+  }
+
+  /**
+   * 删除荷载设计模板（引用保护：舰队在船 / 船型模板 / 当前装配选择引用该 uid 时拒绝——
+   * 合成件定义随模板删除，引用船会静默丢效果，宁可让玩家先解除引用）。
+   */
+  deletePayloadDesign(idx: number): boolean {
+    const s = this.simState.state
+    if (idx < 0 || idx >= s.payloadDesigns.length) return false
+    const uid = s.payloadDesigns[idx].uid
+    const refs: string[] = []
+    if (s.ships.some((sh) => sh.modules?.includes(uid))) refs.push('现役飞船')
+    if (s.shipDesigns.some((d) => d.modules.includes(uid))) refs.push('船型模板')
+    if (this.shipyardSelModules.includes(uid)) refs.push('当前装配')
+    if (refs.length > 0) {
+      this.simState.hint(`「${s.payloadDesigns[idx].name}」正被${refs.join('、')}引用，先解除引用再删除`)
+      return false
+    }
+    const [gone] = s.payloadDesigns.splice(idx, 1)
+    this.syncDynamicPayloadModules()
+    this.simState.hint(`已删除「${gone.name}」`)
+    logger.info(`[WarmCurrent] 荷载设计删除：${gone.uid} ${gone.name}`)
+    return true
+  }
+
+  /** 载入荷载设计模板 → 编辑区（返回是否成功；script 据此刷新勾选态） */
+  loadPayloadDesign(idx: number): boolean {
+    const s = this.simState.state
+    const d = s.payloadDesigns[idx]
+    if (!d || shipModuleDefOf(d.chassis)?.payloadRole !== 'chassis') return false
+    this.payloadEdChassis = d.chassis
+    this.payloadEdAttachments = d.attachments.filter((id) => shipModuleDefOf(id)?.payloadRole === 'attachment')
+    this.simState.hint(`已载入「${d.name}」`)
+    return true
+  }
+
+  /** 自定义荷载注册表同步（payloadDesigns → 合成模块投影；开关面板零成本幂等） */
+  private syncDynamicPayloadModules(): void {
+    setDynamicShipModules(payloadDesignDefsOf(this.simState.state.payloadDesigns ?? []))
+  }
+
+  /** 荷载设计工坊面板数据（payloadDesignOpen = false 时不出） */
+  private buildPayloadDesignVM(): HudPayloadDesign {
+    const s = this.simState.state
+    const chassis: HudModuleRow[] = []
+    const attachments: HudModuleRow[] = []
+    for (const [id, m] of shipModuleEntries()) {
+      const row: HudModuleRow = {
+        id,
+        name: m.name,
+        desc: m.desc,
+        cost: m.cost,
+        allowed: true,
+        slotType: m.slotType ?? null,
+        slotFull: false,
+        slotLabel: null,
+      }
+      if (m.payloadRole === 'chassis') chassis.push(row)
+      else if (m.payloadRole === 'attachment') attachments.push(row)
+    }
+    const draft: SimPayloadDesign = { uid: '', name: '', chassis: this.payloadEdChassis, attachments: [...this.payloadEdAttachments] }
+    const synth = payloadDesignModuleDef(draft)
+    // 预览效果行 = 主体/附件各自的表文案（表驱动，不在此复述数值）
+    const effectParts: string[] = []
+    const chassisDef = shipModuleDefOf(this.payloadEdChassis)
+    if (chassisDef) effectParts.push(chassisDef.desc)
+    for (const id of this.payloadEdAttachments) {
+      const def = shipModuleDefOf(id)
+      if (def) effectParts.push(def.desc)
+    }
+    const designs: HudPayloadRow[] = s.payloadDesigns.map((d, idx) => {
+      const def = payloadDesignModuleDef(d)
+      return { idx, uid: d.uid, name: d.name, summary: def?.desc ?? d.chassis, cost: def?.cost ?? 0 }
+    })
+    return {
+      chassis,
+      attachments,
+      selChassis: this.payloadEdChassis,
+      selAttachments: [...this.payloadEdAttachments],
+      synthName: `预览：自定义荷载 ${s.payloadDesigns.length + 1}`,
+      synthDesc: synth ? `${synth.desc}\n${effectParts.join(' · ')}` : '',
+      synthCost: synth?.cost ?? 0,
+      designs,
+      canSave: !!synth,
+    }
+  }
+
+  /** 槽位制选择收敛（船坞面板/设计面板共用：切船型后不兼容/满槽模块剔除） */
+  private normalizeShipyardSelection(): { usage: Record<string, number>; capacity: Record<string, number> } {
+    this.shipyardSelModules = this.shipyardSelModules.filter((id) =>
+      hullHasSlotFor(this.shipyardSelHull, this.shipyardSelModules.filter((x) => x !== id), id))
+    const usage = modulesSlotUsage(this.shipyardSelHull, this.shipyardSelModules)
+    const capacity = hullSlotCapacity(this.shipyardSelHull)
+    return { usage, capacity }
+  }
+
+  /** 可下单船坞清单（建成船坞，id 升序；下单入口在设计面板/船坞面板） */
+  private availableDocks(): OrbitBuilding[] {
+    const s = this.simState.state
+    return s.orbitBuildings
+      .filter((x) => x.built && isShipyardType(x.type))
+      .sort((a, b) => a.id - b.id)
+  }
+
+  /** 装配台槽位格 + 选中部位（设计/船坞两面板共用；切船型后槽型表失配 = 视为未选） */
+  private buildSlotCells(
+    usage: Record<string, number>,
+    capacity: Record<string, number>,
+  ): {
+    sel: { type: string; typeName: string; idx: number; used: number; cap: number } | null
+    slotCells: HudDesignSlotCell[]
+  } {
+    const raw = this.shipyardSelSlot
+    const sel = raw && (capacity[raw.type] ?? 0) > raw.idx ? raw : null
+    // 装配台槽位格（ship_hull.slots 表序展开；每格 = 槽型 + 同型实例序 + 已装模块名 + 选中态）
+    const slotCells: HudDesignSlotCell[] = []
+    for (const [type, cap] of Object.entries(capacity)) {
+      const typeMods = this.shipyardSelModules.filter((id) => shipModuleDefOf(id)?.slotType === type)
+      for (let i = 0; i < cap; i++) {
+        const mid = typeMods[i]
+        slotCells.push({
+          type,
+          typeName: SLOT_TYPE_NAMES[type] ?? type,
+          slotIdx: i,
+          module: mid ? shipModuleDefOf(mid)?.name ?? mid : '',
+          filled: !!mid,
+          sel: !!sel && sel.type === type && sel.idx === i,
+        })
+      }
+    }
+    const selSlot = sel
+      ? {
+          type: sel.type,
+          typeName: SLOT_TYPE_NAMES[sel.type] ?? sel.type,
+          idx: sel.idx,
+          used: usage[sel.type] ?? 0,
+          cap: capacity[sel.type] ?? 0,
+        }
+      : null
+    return { sel: selSlot, slotCells }
+  }
+
+  /** 部位选件清单（选中槽型的 ship_module 行，表序 = 低档在前；here = 本实例当前所装件） */
+  private buildSlotOptions(
+    sel: { type: string; idx: number } | null,
+    usage: Record<string, number>,
+    capacity: Record<string, number>,
+  ): HudModuleRow[] {
+    if (!sel) return []
+    const hereId = this.shipyardSelModules
+      .filter((id) => shipModuleDefOf(id)?.slotType === sel.type)[sel.idx]
+    // 静态表 + 自定义荷载注册表合成条目（部位选件清单：现货件在前，玩家设计荷载追加在后）
+    return shipModuleEntries()
+      .filter(([, m]) => m.slotType === sel.type)
+      .map(([id, m]) => ({
+        id,
+        name: m.name,
+        desc: m.desc,
+        cost: m.cost,
+        allowed: hullAllowsModule(this.shipyardSelHull, id),
+        slotType: m.slotType ?? null,
+        // 部位选件制无「满槽置灰」：同槽异件 = 原位换装，选择校验在 pickShipyardSlotModule
+        slotFull: false,
+        slotLabel: `${SLOT_TYPE_NAMES[sel.type] ?? sel.type} ${usage[sel.type] ?? 0}/${capacity[sel.type] ?? 0}`,
+        here: hereId === id,
+      }))
+  }
+
+  private buildShipDesignVM(): HudShipDesign {
+    const s = this.simState.state
+    const { usage, capacity } = this.normalizeShipyardSelection()
+    const hulls: HudHullRow[] = Object.entries(B.shipHulls).map(([id, h]) => ({
+      id, name: h.name, desc: h.desc, cost: h.cost,
+    }))
+    const { sel: selSlot, slotCells } = this.buildSlotCells(usage, capacity)
+    const slotOptions = this.buildSlotOptions(selSlot, usage, capacity)
+    const slotRows = Object.entries(capacity).map(([type, cap]) => ({
+      name: SLOT_TYPE_NAMES[type] ?? type,
+      used: usage[type] ?? 0,
+      cap,
+    }))
+    // 试航行 + 反推（与船坞面板同口径）
+    const gap = Math.max(0, this.simState.demand - supplyRateOf(s))
+    const trials: HudTrialRow[] = (['moon', 'europa', 'mars'] as StarId[]).map((star) => {
+      const trial = shipTrialOf(s, this.shipyardSelHull, this.shipyardSelModules, star, ringModsOf(s))
+      const unlocked = this.transport.starUnlocked(star)
+      return {
+        star,
+        starName: B.stars[star].name,
+        unlocked,
+        unlockAct: B.stars[star].unlockAct,
+        load: Math.round(trial?.load ?? 0),
+        cycleS: Math.round(trial?.cycleS ?? 0),
+        fuel: Math.round(trial?.fuel ?? 0),
+        net: Math.round(trial?.net ?? 0),
+        throughput: Math.round((trial?.throughput ?? 0) * 10) / 10,
+        shipsForGap: unlocked ? shipsNeededFor(trial, gap) : -1,
+      }
+    })
+    const designs: HudDesignRow[] = s.shipDesigns.map((d, idx) => ({
+      idx,
+      name: d.name,
+      hullName: shipHullDefOf(d.hull)?.name ?? d.hull,
+      modules: d.modules.map((id) => shipModuleDefOf(id)?.name ?? id).join('、'),
+    }))
+    // 可下单船坞（价格乘区取首坞；无坞 = 只能设计不能下水）
+    const docks = this.availableDocks().map((d) => {
+      const def = orbitBuildingDefOf(d.type)
+      return {
+        id: d.id,
+        name: def?.name ?? d.type,
+        anchorName: PLANET_NAMES[d.anchor] ?? B.stars[d.anchor as StarId]?.name ?? d.anchor,
+        costMult: def?.shipBuildCostMult ?? 1,
+        canOrder: s.ships.length + s.buildQueue.length < this.simState.shipCap
+          && (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active',
+      }
+    })
+    const priceMult = docks[0]?.costMult ?? 1
+    const price = Math.round(shipBuildPrice(this.shipyardSelHull, this.shipyardSelModules) * priceMult)
+    return {
+      hulls,
+      selSlot,
+      slotOptions,
+      slotCells,
+      slotRows,
+      trials,
+      designs,
+      canSaveDesign: true,
+      docks,
+      price,
+      fleetShips: s.ships.length,
+      queueCount: s.buildQueue.length,
+      cap: this.simState.shipCap,
+      canQueue: docks.some((d) => d.canOrder),
+    }
+  }
+
+  /** 设计面板下单（指定承接船坞；校验/计费口径在 transport.tryBuildShip） */
+  orderFromDesign(dockId: number): boolean {
+    return this.transport.tryBuildShip(this.shipyardSelHull, this.shipyardSelModules, dockId)
+  }
+
   // ─── 全息勘探（2026-09-12：矿点检视 + 矿建落位） ───
 
-  /** 打开全息勘探（星球信息面板「全息勘探」按钮）。
+  /** 打开全息勘探（星球信息面板按钮）。
+   *  Earth = 全息地球建造场景（2026-09-12）：相机拉远到全息投影，HUD 进建造模式，
+   *  环节点球面落位 + 冰雪融化可视化 + 融化区内放地表建筑；无需矿点门槛。
+   *  其他天体 = 矿点勘探（必须有矿点）。
    *  相机语义与行星观察同款：斜视角环绕 + 关边缘平移；退出统一 focusSolarSystem 复位。
    *  卫星随母星系判定（地月系内可全息月球）；取景收口真实 Actor 位置（卫星不在舞台中心，
    *  Tick 逐帧 rig.pan 跟随公转漂移）。
-   *  ⚠ 仅限本行星系视角（太阳系全景行星公转漂移，镜头锚不住）；无矿点天体拒绝。 */
+   *  ⚠ 仅限本行星系视角（太阳系全景行星公转漂移，镜头锚不住）。 */
   openHologram(body: PlanetBodyId): void {
     const mc = B.map.moons[body as keyof typeof B.map.moons]
     const systemRoot = mc ? mc.parent : body
@@ -1187,7 +1721,8 @@ export class WarmCurrentGameMode extends GameMode {
       this.simState.hint('需进入该行星系（双击行星）后可全息勘探')
       return
     }
-    if (depositsOf(body).length === 0) {
+    const isEarth = body === 'earth'
+    if (!isEarth && depositsOf(body).length === 0) {
       this.simState.hint('该天体无已探明矿产')
       return
     }
@@ -1196,16 +1731,27 @@ export class WarmCurrentGameMode extends GameMode {
     this.hologramSel = body
     this.holoDepositSel = null
     this.holoLastTarget = null
+    this.holoPlaceTool = null
+    this.holoGhost = null
     const r = B.map.nodes[body].r
     const actor = this.starActors.get(body as StarBodyId)
     // 取景锚 = 天体真实位置（行星钉在舞台中心 = 原点；卫星用实时公转位），注视高度 = 球心
     const wx = actor ? actor.root.position.x : 0
     const wz = actor ? actor.root.position.z : 0
     this.cameraActor.rig.setEdgePanEnabled(false)
-    this.cameraActor.observeFocus(wx, wz, r * 4.5, THREE.MathUtils.degToRad(35), r * 0.55)
+    if (isEarth) {
+      // 全息地球：摄像机移动到很远的地方，在场景远处独立投影位创建全息地球
+      // （不包络真球；锚点 = 行星系舞台 + B.holoEarth 偏移，渲染层同口径）
+      const R = r * B.holoEarth.radiusMult
+      const a = holoEarthAnchor()
+      this.cameraActor.observeFocus(a.x, a.z, R * B.holoEarth.camDistMult, THREE.MathUtils.degToRad(B.holoEarth.camPitchDeg), 0)
+      this.toast('全息地球已投影 — 右侧选建造工具，点球面落位', '#7fdcff')
+    } else {
+      this.cameraActor.observeFocus(wx, wz, r * 4.5, THREE.MathUtils.degToRad(35), r * 0.55)
+    }
     this.cameraActor.rig.orbitMode = true
     audioSys.play('wc.ok', { volume: 0.4 })
-    logger.info(`[WarmCurrent] 全息勘探：${PLANET_NAMES[body] ?? body}（拖拽环绕 · 点矿点选中 · Esc 退出）`)
+    logger.info(`[WarmCurrent] 全息${isEarth ? '地球建造' : '勘探'}：${PLANET_NAMES[body] ?? body}（拖拽环绕 · Esc 退出）`)
   }
 
   /** 关闭全息勘探（面板 ✕ / Esc）：复位本行星系俯视取景。
@@ -1223,11 +1769,118 @@ export class WarmCurrentGameMode extends GameMode {
     if (id) audioSys.play('wc.draw', { volume: 0.25 })
   }
 
-  /** 全息视图点击拾取（Controller 左键轻点派发）：命中矿点 = 选中，空处 = 取消选中 */
+  // ─── 全息地球建造（环节点落位 / 地表建筑放置） ───
+
+  /** 选择放置工具（面板行点击；kind=null 清除。建筑 typeId 非法忽略） */
+  setHoloTool(kind: 'ring' | 'building' | null, typeId?: string): void {
+    if (kind === null || (this.holoPlaceTool?.kind === kind && (kind !== 'building' || (this.holoPlaceTool as { typeId: string }).typeId === typeId))) {
+      // 再点同工具 = 取消
+      this.holoPlaceTool = null
+      this.holoGhost = null
+      return
+    }
+    if (kind === 'ring') {
+      this.holoPlaceTool = { kind: 'ring' }
+    } else {
+      if (!buildingDefOf(typeId ?? '')) return
+      this.holoPlaceTool = { kind: 'building', typeId: typeId! }
+    }
+    audioSys.play('wc.draw', { volume: 0.25 })
+  }
+
+  /** 环节点落位合法性（null = 可落位）：须有待落位的已交付槽位 */
+  private holoRingNodeIssue(): string | null {
+    const s = this.simState.state
+    if (s.flare.phase === 'active') return '太阳耀斑 · 通讯中断，无法落位'
+    if (pendingRingNodeCount(s) <= 0) return '无待落位节点（建设泵交付新环段后可落位）'
+    return null
+  }
+
+  /** 全息视图左键轻点（Controller 派发）：放置工具激活 = 球面落位；否则 = 矿点拾取 */
   onHologramTap(screenX: number, screenY: number): void {
     if (!this.hologramSel) return
+    if (this.holoPlaceTool && this.hologramSel === 'earth') {
+      this.applyHoloToolAt(screenX, screenY)
+      return
+    }
     const id = this.starMap?.pickHoloDeposit(screenX, screenY) ?? null
     this.selectHoloDeposit(id)
+  }
+
+  /** 工具落位（轻点处球面交点）：环节点连续落位不退工具；地表建筑一次一放 */
+  private applyHoloToolAt(screenX: number, screenY: number): void {
+    const hit = this.starMap?.pickHoloSurface(screenX, screenY)
+    if (!hit) return
+    const tool = this.holoPlaceTool!
+    if (tool.kind === 'ring') {
+      const issue = this.placeRingNodeAt(hit.lat, hit.lon)
+      if (issue) {
+        this.simState.hint(issue)
+        audioSys.play('wc.bad', { volume: 0.4 })
+        return
+      }
+      audioSys.play('wc.build')
+      this.toast(`环节点已落位（${Math.round(hit.lat)}°, ${Math.round(hit.lon)}°）— 周边冰雪开始消融`, '#7fe0a0')
+      return
+    }
+    const ok = this.buildings.tryPlaceSurface(tool.typeId, hit.lat, hit.lon)
+    if (ok) {
+      audioSys.play('wc.build')
+      this.setHoloTool(null)
+    } else {
+      audioSys.play('wc.bad', { volume: 0.5 })
+    }
+  }
+
+  /** 环节点直落（屏幕落位/GM 共用校验链；返回 null = 成功，否则为拒绝原因） */
+  placeRingNodeAt(lat: number, lon: number): string | null {
+    const issue = this.holoRingNodeIssue()
+    if (issue) return issue
+    const s = this.simState.state
+    const idx = s.ringNodes.findIndex((n, i) => i < s.ringSlots && !n)
+    if (idx < 0) return '无待落位槽位'
+    s.ringNodes[idx] = { lat, lon }
+    return null
+  }
+
+  /** 全息地球指针悬停（Controller 移动派发）：更新放置预览（渲染 ghost + 面板校验文案） */
+  onHologramHover(screenX: number, screenY: number): void {
+    if (!this.hologramSel || this.hologramSel !== 'earth' || !this.holoPlaceTool) {
+      this.holoGhost = null
+      return
+    }
+    const hit = this.starMap?.pickHoloSurface(screenX, screenY)
+    if (!hit) {
+      this.holoGhost = null
+      return
+    }
+    const tool = this.holoPlaceTool
+    if (tool.kind === 'ring') {
+      const issue = this.holoRingNodeIssue()
+      this.holoGhost = {
+        ...hit,
+        valid: !issue,
+        label: issue ?? `环节点 · 融冰半径 ${B.holoEarth.meltRadiusDeg}°（点击落位）`,
+      }
+      return
+    }
+    const def = buildingDefOf(tool.typeId)
+    const issue = this.buildings.surfacePlacementIssue(tool.typeId, hit.lat, hit.lon)
+    this.holoGhost = {
+      ...hit,
+      valid: !issue,
+      label: issue ?? `${def?.name ?? tool.typeId} · ${def?.cost ?? 0} H3（点击放置）`,
+    }
+  }
+
+  /** 环节点标记的屏幕坐标（e2e/引导探针；null = 全息未开/未落位该槽） */
+  holoNodeScreenPos(slot: number): { x: number; y: number } | null {
+    return this.starMap?.holoNodeScreenPos(slot) ?? null
+  }
+
+  /** 目标 lat/lon 球面点的屏幕坐标（e2e 真实点击测试用；含当前自转相位） */
+  holoLatLonScreenPos(lat: number, lon: number): { x: number; y: number } | null {
+    return this.starMap?.holoLatLonScreenPos(lat, lon) ?? null
   }
 
   /** 矿点标记的屏幕坐标（e2e 真实点击测试用；null = 全息未开/无此矿点） */
@@ -1290,6 +1943,37 @@ export class WarmCurrentGameMode extends GameMode {
         canBuild: playable && !issue,
       }
     })
+    // 全息地球态（仅 Earth）：节点统计 + 建造工具行（ring + building 表键序）+ ghost 提示
+    let earth: HudHoloEarth | null = null
+    if (body === 'earth') {
+      const pending = pendingRingNodeCount(s)
+      const placed = placedRingNodes(s)
+      const tools: HudHoloToolRow[] = [
+        {
+          id: 'ring',
+          name: '⚡ 环节点',
+          desc: `点球面落位待建节点 · 融冰 ${B.holoEarth.meltRadiusDeg}°`,
+          selected: this.holoPlaceTool?.kind === 'ring',
+          canUse: playable && pending > 0,
+        },
+        ...Object.entries(B.buildings).map(([id, def]) => ({
+          id,
+          name: def.name,
+          desc: `地表建筑 · 需融化区 · ${def.cost} H3`,
+          selected: this.holoPlaceTool?.kind === 'building' && (this.holoPlaceTool as { typeId: string }).typeId === id,
+          canUse: playable && s.earthH3 >= def.cost,
+        })),
+      ]
+      earth = {
+        pendingNodes: pending,
+        placedNodes: placed.length,
+        builtSlots: s.ringSlots,
+        meltRadiusDeg: B.holoEarth.meltRadiusDeg,
+        tools,
+        toolActive: !!this.holoPlaceTool,
+        ghostLabel: this.holoGhost?.label ?? '',
+      }
+    }
     return {
       body,
       bodyName: B.stars[body as StarId]?.name ?? PLANET_NAMES[body] ?? body,
@@ -1297,6 +1981,10 @@ export class WarmCurrentGameMode extends GameMode {
       buildRows,
       selectedId: this.holoDepositSel,
       detail,
+      stockyard: (B.starStockCap as Record<string, number | undefined>)[body] !== undefined
+        ? { stock: Math.floor(starStockOf(s, body)), cap: (B.starStockCap as Record<string, number>)[body], miningRate: Math.round(starMiningRate(s, body) * 10) / 10 }
+        : null,
+      earth,
     }
   }
 
@@ -1552,7 +2240,7 @@ export class WarmCurrentGameMode extends GameMode {
     }
   }
 
-  /** 拖线视觉合法性（权威判定在 transport.tryCreateRoute） */
+  /** 拖线视觉合法性（权威判定在 transport.tryCreateRoute；2026-09-13 镜像中转链组合） */
   private dragValidity(a: Endpoint, b: Endpoint): boolean {
     const s = this.simState.state
     const ka = a.kind, kb = b.kind
@@ -1566,6 +2254,11 @@ export class WarmCurrentGameMode extends GameMode {
     }
     if (ka === 'earth' && kb === 'star') return this.transport.starUnlocked((b as { star: StarId }).star)
     if (ka === 'star' && kb === 'earth') return this.transport.starUnlocked((a as { star: StarId }).star)
+    // 中转链星段（星↔中转站，relay_in）
+    if ((ka === 'star' && kb === 'building') || (ka === 'building' && kb === 'star')) {
+      const star = ka === 'star' ? (a as { star: StarId }).star : (b as { star: StarId }).star
+      return this.transport.starUnlocked(star) && (ka === 'building' ? this.buildingLinkable(a) : this.buildingLinkable(b))
+    }
     if (ka === 'earth' && kb === 'building') return this.buildingLinkable(b)
     if (ka === 'building' && kb === 'earth') return this.buildingLinkable(a)
     return false
@@ -1664,6 +2357,8 @@ export class WarmCurrentGameMode extends GameMode {
   restart(): void {
     refreshBalanceFromConfigs()
     this.simState.reset()
+    this.syncDynamicPayloadModules()
+    this.payloadDesignOpen = false
     resetMoonPhaseAdj()
     this.moonAngleAtLeave = null
     this.clearObserveState()
@@ -1682,6 +2377,9 @@ export class WarmCurrentGameMode extends GameMode {
     this.fx.pulses.length = 0
     this.fx.floats.length = 0
     this.toasts.length = 0
+    // 取景复位：重开 = 新的一局，镜头回地球系初始取景
+    // （clearObserveState 只清观察态不动镜头——从全息地球/行星观察态重开时相机须显式归位）
+    this.focusSolarSystem('earth')
   }
 
   /**
@@ -1693,6 +2391,7 @@ export class WarmCurrentGameMode extends GameMode {
     if (!pack) return null
     this.simState.state = pack.state
     this.simState.rng = pack.rng
+    this.syncDynamicPayloadModules()
     resetMoonPhaseAdj()
     this.moonAngleAtLeave = null
     this.clearObserveState()
@@ -1713,6 +2412,8 @@ export class WarmCurrentGameMode extends GameMode {
     this.toasts.length = 0
     // 恢复后按新档状态决定运行/冻结（与 closePauseMenu 同规则：playing/sandbox 恢复运行，胜负终局保持冻结）
     if (pack.state.outcome === 'playing' || pack.state.sandbox) this.paused = false
+    // 取景复位：视图不入存档，读档统一回地球系初始取景（镜头从全息地球/观察态归位）
+    this.focusSolarSystem('earth')
     logger.info(`[WarmCurrent] 存档恢复完成（act=${pack.state.act} time=${pack.state.time.toFixed(0)}s）`)
     return pack
   }
@@ -1764,8 +2465,16 @@ export class WarmCurrentGameMode extends GameMode {
       const route = s.routes.find((r) => r.id === this.selection!.id)
       if (route) {
         const star = starOfEndpoint(s, route.from) ?? starOfEndpoint(s, route.to)
+        const starName = star ? B.stars[star].name : '?'
+        const bName = (id: number) => {
+          const b = s.buildings.find((x) => x.id === id)
+          return b ? `${buildingDefOf(b.type)?.name ?? '站'} ${b.id}` : '站'
+        }
         routeInfo = {
-          name: route.direction === 'forward' ? `${star ? B.stars[star].name : '?'}线` : '中转站供应线',
+          name: route.direction === 'forward' ? `${starName}线`
+            : route.direction === 'relay_in' ? `${starName} → ${bName(route.to.kind === 'building' ? route.to.buildingId : 0)}`
+            : route.direction === 'relay_out' ? `${bName(route.from.kind === 'building' ? route.from.buildingId : 0)} → 地球`
+            : '中转站供应线',
           direction: route.direction,
           ships: route.shipIds.length,
           net: routeNetPerTrip(s, route),
@@ -1800,11 +2509,23 @@ export class WarmCurrentGameMode extends GameMode {
       cost: def.cost,
       canPlace: playable && s.earthH3 >= def.cost,
     }))
-    // 航线管理面板行：全部航线紧凑视图（正向「月球线」/ 反向「供应线·中转站 N」，命名与运输面板 routeNameOf 同口径）
+    // 航线管理面板行：全部航线紧凑视图（正向「月球线」/ 反向「供应线·中转站 N」/
+    // 中转链「月球 → 站 N」「站 N → 地球」，与运输面板 routeNameOf 同口径）
     const routeNameOf = (route: SimRoute): string => {
       if (route.direction === 'forward') {
         const star = starOfEndpoint(s, route.from)
         return `${star ? B.stars[star].name : '?'}线`
+      }
+      const bName = (id: number) => {
+        const b = s.buildings.find((x) => x.id === id)
+        return b ? `${buildingDefOf(b.type)?.name ?? '站'} ${b.id}` : '站'
+      }
+      if (route.direction === 'relay_in') {
+        const star = starOfEndpoint(s, route.from)
+        return `${star ? B.stars[star].name : '?'} → ${bName(route.to.kind === 'building' ? route.to.buildingId : 0)}`
+      }
+      if (route.direction === 'relay_out') {
+        return `${bName(route.from.kind === 'building' ? route.from.buildingId : 0)} → 地球`
       }
       const b = buildingByEndpoint(s, route.to)
       const def = b ? buildingDefOf(b.type) : null
@@ -1837,6 +2558,7 @@ export class WarmCurrentGameMode extends GameMode {
       ships: route.shipIds.length,
       net: routeNetPerTrip(s, route),
       cycle: routeCycleSeconds(s, route),
+      stats: route.stats ?? { trips: 0, loaded: 0, frozen: 0 },
     }))
     // 星球信息面板数据（planetInfoSel 为空 = 收起）
     const planetInfo = this.planetInfoSel ? this.buildPlanetInfo(this.planetInfoSel) : null
@@ -1846,6 +2568,10 @@ export class WarmCurrentGameMode extends GameMode {
     const orbitBuild = this.orbitBuildSel ? this.buildOrbitBuild(this.orbitBuildSel) : null
     // 船坞造船面板数据（shipyardSel 为空 = 收起；船坞被拆/不存在 → null 收起）
     const shipyard = this.shipyardSel !== null ? this.buildShipyardVM(this.shipyardSel) : null
+    // 火箭设计面板数据（底部 HUD 入口；不依赖船坞，无坞也能设计）
+    const shipDesign = this.designOpen ? this.buildShipDesignVM() : null
+    // 荷载设计面板数据（火箭设计工坊「荷载设计」入口；与火箭设计互斥开合）
+    const payloadDesign = this.payloadDesignOpen ? this.buildPayloadDesignVM() : null
     // 建筑详情浮层数据（buildingDetailSel 为空/建筑被拆 → null 收起）
     const buildingDetail = this.buildingDetailSel !== null ? this.buildBuildingDetail(this.buildingDetailSel) : null
     // 耀斑预警决策条（预警期 + 框选船非空 = 决策条上屏；canHold = 选中船全部未出发可待命）
@@ -1877,6 +2603,7 @@ export class WarmCurrentGameMode extends GameMode {
       ringMods: {
         burnMult: ringMods.burnMult,
         loadMult: ringMods.loadMult,
+        miningMult: ringMods.miningMult,
         shipCapAdd: ringMods.shipCapAdd,
         buildPumpMult: ringMods.buildPumpMult,
         researchMult: ringMods.researchMult,
@@ -1891,6 +2618,19 @@ export class WarmCurrentGameMode extends GameMode {
       demand,
       researchCost: sc.researchCost,
       netFlow: estimateNetFlow(s, demand),
+      // 供应链口径：满负荷到手速率 + 断环倒计时（净流出时储量可烧秒数）+ 稳供幕目标进度
+      supplyRate: supplyRateOf(s),
+      reserveSeconds: demand > supplyRateOf(s)
+        ? s.earthH3 / Math.max(0.01, demand - supplyRateOf(s))
+        : null,
+      supplyStreak: s.supplyStreak,
+      supplyGoal: B.supplyStreakGoal,
+      supplyReward: B.supplyStreakReward,
+      starStocks: Object.fromEntries((['moon', 'europa', 'mars'] as StarId[]).map((star) => [star, {
+        stock: starStockOf(s, star),
+        cap: B.starStockCap[star],
+        miningRate: starMiningRate(s, star, ringMods),
+      }])),
       danger: s.earthH3 > 0 && demand > 0 && s.earthH3 < demand * B.dangerReserveSeconds,
       windowPhase: s.gravity.phase,
       windowRemain: Math.max(0, Math.ceil(s.gravity.timer)),
@@ -1921,6 +2661,8 @@ export class WarmCurrentGameMode extends GameMode {
       hologram,
       orbitBuild,
       shipyard,
+      shipDesign,
+      payloadDesign,
       buildingDetail,
       fleetOrders,
       routeEditMode: this.routeEditMode,
@@ -1964,6 +2706,9 @@ export class WarmCurrentGameMode extends GameMode {
       netFlow: isEarth ? Math.round(estimateNetFlow(s, this.simState.demand) * 10) / 10 : 0,
       routable: isEarth || !!starDef,
       hasDeposits: depositsOf(body).length > 0,
+      stockyard: starDef
+        ? { stock: Math.floor(starStockOf(s, body)), cap: B.starStockCap[body as StarId], miningRate: Math.round(starMiningRate(s, body, ringModsOf(s)) * 10) / 10 }
+        : null,
     }
   }
 
@@ -2009,7 +2754,7 @@ export class WarmCurrentGameMode extends GameMode {
     }
   }
 
-  /** 船坞造船面板数据装配（shipyardSel → HudShipyard；船型/模块表行 + 逐船一卡队列 + 船队/上限口径） */
+  /** 船坞造船面板数据装配（shipyardSel → HudShipyard；船型/模块表行 + 槽位占用 + 三星试航 + 设计模板 + 逐船一卡队列） */
   private buildShipyardVM(dockId: number): HudShipyard | null {
     const s = this.simState.state
     const dock = s.orbitBuildings.find((x) => x.id === dockId)
@@ -2025,12 +2770,42 @@ export class WarmCurrentGameMode extends GameMode {
       desc: h.desc,
       cost: h.cost,
     }))
-    const modules: HudModuleRow[] = Object.entries(B.shipModules).map(([id, m]) => ({
-      id,
-      name: m.name,
-      desc: m.desc,
-      cost: m.cost,
-      allowed: true, // 兼容性随面板选中船型变化（ShipyardPanelScript 按 ship_hull.allowed 本地过滤）
+    // 槽位口径：切换船型后不兼容/满槽模块剔除（就地修正，与面板显示一致）
+    this.shipyardSelModules = this.shipyardSelModules.filter((id) => hullHasSlotFor(this.shipyardSelHull, this.shipyardSelModules.filter((x) => x !== id), id))
+    const usage = modulesSlotUsage(this.shipyardSelHull, this.shipyardSelModules)
+    const capacity = hullSlotCapacity(this.shipyardSelHull)
+    // 部位选件制（2026-09-13）：与设计面板同源——点槽位格出该槽型多档部件
+    const { sel: selSlot, slotCells } = this.buildSlotCells(usage, capacity)
+    const slotOptions = this.buildSlotOptions(selSlot, usage, capacity)
+    // 槽位占用行（ship_hull.slots 表键序）
+    const slotRows = Object.entries(capacity).map(([type, cap]) => ({
+      name: SLOT_TYPE_NAMES[type] ?? type,
+      used: usage[type] ?? 0,
+      cap,
+    }))
+    // 试航行（三星口径）+ 线路反推（补当前供应缺口）
+    const gap = Math.max(0, this.simState.demand - supplyRateOf(s))
+    const trials: HudTrialRow[] = (['moon', 'europa', 'mars'] as StarId[]).map((star) => {
+      const trial = shipTrialOf(s, this.shipyardSelHull, this.shipyardSelModules, star, ringModsOf(s))
+      const unlocked = this.transport.starUnlocked(star)
+      return {
+        star,
+        starName: B.stars[star].name,
+        unlocked,
+        unlockAct: B.stars[star].unlockAct,
+        load: Math.round(trial?.load ?? 0),
+        cycleS: Math.round(trial?.cycleS ?? 0),
+        fuel: Math.round(trial?.fuel ?? 0),
+        net: Math.round(trial?.net ?? 0),
+        throughput: Math.round((trial?.throughput ?? 0) * 10) / 10,
+        shipsForGap: unlocked ? shipsNeededFor(trial, gap) : -1,
+      }
+    })
+    const designs: HudDesignRow[] = s.shipDesigns.map((d, idx) => ({
+      idx,
+      name: d.name,
+      hullName: shipHullDefOf(d.hull)?.name ?? d.hull,
+      modules: d.modules.map((id) => shipModuleDefOf(id)?.name ?? id).join('、'),
     }))
     return {
       dockId,
@@ -2042,7 +2817,13 @@ export class WarmCurrentGameMode extends GameMode {
       canBuildShip: yard,
       costMult,
       hulls,
-      modules,
+      selSlot,
+      slotOptions,
+      slotCells,
+      slotRows,
+      trials,
+      designs,
+      canSaveDesign: yard,
       queue: s.buildQueue.map((q, i) => ({
         idx: i,
         remainS: Math.ceil(q.remain),
@@ -2054,6 +2835,138 @@ export class WarmCurrentGameMode extends GameMode {
       cap: this.simState.shipCap,
       canQueue: yard && playable && total < this.simState.shipCap,
     }
+  }
+
+  // ─── 船型设计模板 + 一键推荐（2026-09-13 船队设计工坊；面板按钮调用） ───
+
+  /** 船坞面板：选船型（不兼容/满槽模块自动剔除；槽型表随船型变 → 部位选中失效） */
+  setShipyardHull(hullId: string): void {
+    if (!shipHullDefOf(hullId)) return
+    this.shipyardSelHull = hullId
+    this.shipyardSelModules = this.shipyardSelModules.filter((id) => hullAllowsModule(hullId, id))
+    this.shipyardSelSlot = null
+  }
+
+  /** 船坞面板：勾选/取消模块（槽位校验：hullHasSlotFor 单一口径；单船同模块一件） */
+  toggleShipyardModule(moduleId: string): void {
+    if (!shipModuleDefOf(moduleId)) return
+    const mods = this.shipyardSelModules
+    const at = mods.indexOf(moduleId)
+    if (at >= 0) {
+      mods.splice(at, 1)
+      return
+    }
+    if (!hullHasSlotFor(this.shipyardSelHull, mods, moduleId)) {
+      this.simState.hint(`${shipModuleDefOf(moduleId)!.name}槽位已满（${shipHullDefOf(this.shipyardSelHull)?.name ?? this.shipyardSelHull}）`)
+      return
+    }
+    mods.push(moduleId)
+  }
+
+  // ─── 部位选件制（2026-09-13 设计工坊：点部位 → 同功能多档部件挑数值） ───
+
+  /** 装配台点部位（槽型 + 同型实例序；② 区据选出该槽型部件清单） */
+  selectShipyardSlot(type: string, idx: number): void {
+    const cap = hullSlotCapacity(this.shipyardSelHull)[type] ?? 0
+    if (idx < 0 || idx >= cap) return
+    this.shipyardSelSlot = { type, idx }
+  }
+
+  /**
+   * 部位选件（(type, idx) 定位实例；模块清单点击入口）：
+   *  再点已装本实例的件 = 卸下；本实例已有他件 = 原位换装（其余实例不动）；
+   *  目标件已装同级另一实例 = 两实例对调；空实例 = 装入（单船同模块一件约束保留）。
+   *  实例 ↔ 模块的对应由 shipyardSelModules 表序派生（同槽型过滤后按下标），无需独立存储；
+   *  卸下后同型实例左移补位（模块清单是唯一权威，同类槽位互换、聚合数值不变）。
+   */
+  pickShipyardSlotModule(type: string, idx: number, moduleId: string): void {
+    const def = shipModuleDefOf(moduleId)
+    if (!def || def.slotType !== type) return
+    if (!hullAllowsModule(this.shipyardSelHull, moduleId)) {
+      this.simState.hint(`${def.name}与${shipHullDefOf(this.shipyardSelHull)?.name ?? this.shipyardSelHull}不兼容`)
+      return
+    }
+    const mods = this.shipyardSelModules
+    const typeIdxs = mods
+      .map((id, i) => (shipModuleDefOf(id)?.slotType === type ? i : -1))
+      .filter((i) => i >= 0)
+    const hereAt = typeIdxs[idx] ?? -1
+    if (hereAt >= 0) {
+      if (mods[hereAt] === moduleId) {
+        mods.splice(hereAt, 1) // 再点 = 卸下
+        return
+      }
+      const otherAt = mods.indexOf(moduleId)
+      if (otherAt >= 0 && otherAt !== hereAt) {
+        // 目标件已装同级另一实例 → 两实例互换（单船同模块一件口径不破）
+        const moved = mods[hereAt]
+        mods[hereAt] = moduleId
+        mods[otherAt] = moved
+        this.simState.hint(`已对调：${def.name} ↔ ${shipModuleDefOf(moved)?.name ?? moved}`)
+        return
+      }
+      const old = mods[hereAt]
+      mods[hereAt] = moduleId // 原位换装
+      this.simState.hint(`已换装：${shipModuleDefOf(old)?.name ?? old} → ${def.name}`)
+      return
+    }
+    if (mods.includes(moduleId)) {
+      mods.splice(mods.indexOf(moduleId), 1) // 同模块单件：该件在别的实例上 → 点选 = 卸下
+      return
+    }
+    const used = mods.filter((id) => shipModuleDefOf(id)?.slotType === type).length
+    const cap = hullSlotCapacity(this.shipyardSelHull)[type] ?? 0
+    if (used >= cap) return // 防御（空实例时 used < cap 恒成立）
+    mods.push(moduleId)
+  }
+
+  /** 保存当前面板选择为设计模板（名字自动编号；存进 SimState 随档走） */
+  saveShipDesign(): boolean {
+    const s = this.simState.state
+    const name = `配置 ${s.shipDesigns.length + 1}`
+    s.shipDesigns.push({ name, hull: this.shipyardSelHull, modules: [...this.shipyardSelModules] })
+    this.simState.hint(`已保存「${name}」（${shipHullDefOf(this.shipyardSelHull)?.name ?? this.shipyardSelHull}）`)
+    return true
+  }
+
+  /** 删除设计模板 */
+  deleteShipDesign(idx: number): boolean {
+    const s = this.simState.state
+    if (idx < 0 || idx >= s.shipDesigns.length) return false
+    const [gone] = s.shipDesigns.splice(idx, 1)
+    this.simState.hint(`已删除「${gone.name}」`)
+    return true
+  }
+
+  /** 载入设计模板 → 面板选择（返回是否成功；script 据此刷新勾选态） */
+  loadShipDesign(idx: number): boolean {
+    const s = this.simState.state
+    const d = s.shipDesigns[idx]
+    if (!d || !shipHullDefOf(d.hull)) return false
+    this.shipyardSelHull = d.hull
+    this.shipyardSelModules = d.modules.filter((id) => hullAllowsModule(d.hull, id))
+    this.shipyardSelSlot = null
+    this.simState.hint(`已载入「${d.name}」`)
+    return true
+  }
+
+  /**
+   * 一键推荐配置（能过关但非最优——《火箭工坊》同款兜底）：
+   * 启发式 = 重载型双货舱 + 货泵（当级性价比最高的运量配置）；耀斑期倾向防务型防冻。
+   */
+  recommendShipDesign(): { hull: string; modules: string[] } {
+    const flareRisk = this.simState.state.flare.phase !== 'idle'
+    if (flareRisk) return { hull: 'guardian', modules: ['cargo_pod'] }
+    return { hull: 'hauler', modules: ['cargo_pod', 'pump'] }
+  }
+
+  /** 一键推荐并应用到面板选择（shipyard_panel「⚙ 一键推荐配置」按钮） */
+  applyShipyardRecommend(): void {
+    const rec = this.recommendShipDesign()
+    this.setShipyardHull(rec.hull)
+    this.shipyardSelModules = []
+    for (const id of rec.modules) this.toggleShipyardModule(id)
+    this.simState.hint('已填入推荐配置（能过关但非最优，按需微调）')
   }
 
   /** 建筑详情浮层数据装配（buildingDetailSel → HudBuildingDetail；强化分支装拆流） */

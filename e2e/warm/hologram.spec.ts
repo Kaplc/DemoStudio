@@ -61,7 +61,7 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     // 卫星全息：聚焦体保持母星（地月系聚焦 earth），全息目标 = moon
     expect(opened.focus).toBe('earth')
     expect(opened.body).toBe('moon')
-    expect(opened.depositCount).toBe(2)
+    expect(opened.depositCount).toBe(4) // 2026-09-13 供应链重构：月球扩至 4 矿点（m1..m4）
     expect(opened.buildCount).toBe(2)
     expect(opened.firstDeposit.typeName).toContain('氦-3')
     // 斜视角：相机 y < 距离（35° 仰角）→ 不再垂直俯视
@@ -77,7 +77,7 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
       b.stepTicks(760)
       const mine = b.state().mines.find((m) => m.depositId === 'm1')
       const extractedAt0 = mine.extracted
-      b.stepTicks(120) // +2s 产出 0.5/s ≈ 1.0 t
+      b.stepTicks(120) // +2s 产出 2.5/s ≈ 5.0 t（2026-09-13 产量层重订：产出入星球堆场）
       const extractedAt1 = b.state().mines.find((m) => m.depositId === 'm1').extracted
       return {
         ok, h3Before, afterPlace, cost: h3Before - afterPlace,
@@ -90,8 +90,8 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     expect(mined.cost).toBe(150)
     expect(mined.built).toBe(true)
     expect(mined.extractedAt0).toBeGreaterThan(0)
-    expect(mined.delta).toBeGreaterThan(0.5)
-    expect(mined.delta).toBeLessThan(2)
+    expect(mined.delta).toBeGreaterThan(4)
+    expect(mined.delta).toBeLessThan(6)
     expect(String(mined.holoInfoBuilt)).toContain('开采中')
 
     // ── 3. 真实点击拾取（轻点矿点 → 选中态进 vm） ──

@@ -37,6 +37,7 @@ import { ThreeObjectComponent } from './ThreeObjectComponent'
 import { ThreeObject } from './ThreeObject'
 import { SphereMeshComponent } from './SphereMeshComponent'
 import { TextureRegistry } from '../asset/TextureRegistry'
+import { LoadingSettle } from '../tools/LoadingSettle'
 import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
 import type { EditableProperty } from '../entity/ActorComponent'
@@ -93,6 +94,9 @@ function makeFallbackCloudTexture(): THREE.Texture | null {
  * 输出为数据纹理（不设 sRGB——alphaMap 取灰度值，sRGB 解码会压中灰）。
  * 无 DOM canvas（单测/极简容器）返回 null，调用方保留原始 alphaMap。
  */
+/** LoadingSettle 任务序号（同名云层节点多实例时保证任务 id 唯一） */
+let settleSeq = 0
+
 function softenCloudAlpha(img: HTMLImageElement): THREE.CanvasTexture | null {
   const sw = img.naturalWidth || img.width
   const sh = img.naturalHeight || img.height
@@ -186,6 +190,9 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
       if (typeof document !== 'undefined') {
         const url = TextureRegistry.resolve(path) ?? path
         const img = new Image()
+        // 柔化是 ~1s 级主线程同步管线（4096×2048 逐像素），登记进 LoadingSettle
+        // 供 loading 面板等「完全加载完毕」再关闭（onerror 也必须结算）
+        const finishSettle = LoadingSettle.task('scene-enter', `cloud:${this.name}#${++settleSeq}`)
         img.onload = () => {
           const soft = softenCloudAlpha(img)
           if (soft) {
@@ -196,10 +203,12 @@ export class CloudLayerComponent extends ThreeObjectComponent<ThreeObject<THREE.
           }
           mat.visible = true
           mat.needsUpdate = true
+          finishSettle()
         }
         img.onerror = () => {
           logger.warn(`[CloudLayerComponent] ${this.name} 云图加载失败：${url}`)
           mat.visible = true
+          finishSettle()
         }
         img.src = url
       } else {

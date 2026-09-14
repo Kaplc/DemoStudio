@@ -367,7 +367,7 @@
                     "worldHeight": 64,
                     "position": [
                       -24,
-                      252,
+                      255,
                       0
                     ]
                   }
@@ -423,7 +423,7 @@
                     "worldHeight": 40,
                     "position": [
                       -24,
-                      184,
+                      187,
                       0
                     ]
                   }
@@ -477,7 +477,7 @@
                     "worldHeight": 150,
                     "position": [
                       -24,
-                      73,
+                      76,
                       0
                     ]
                   }
@@ -531,7 +531,7 @@
                     "worldHeight": 64,
                     "position": [
                       -23,
-                      -50,
+                      -47,
                       0
                     ]
                   }
@@ -840,7 +840,7 @@
                     "worldHeight": 64,
                     "position": [
                       -23,
-                      -130,
+                      -127,
                       0
                     ]
                   }
@@ -1149,7 +1149,7 @@
                     "worldHeight": 64,
                     "position": [
                       -23,
-                      -210,
+                      -207,
                       0
                     ]
                   }

@@ -25,6 +25,7 @@ import {
 import { SphereMeshComponent } from '@/engine'
 import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import { depositsOf, depositLeft } from '../systems/MiningComponent'
+import { placedRingNodes, vecToLatLon } from '../core/helpers'
 import {
   endpointPos,
   buildingDefOf,
@@ -92,6 +93,10 @@ export interface MapViewProvider {
   readonly hologramSel: string | null
   /** 全息勘探当前选中矿点（null = 未选中；矿点外环高亮） */
   readonly holoDepositSel: string | null
+  /** 全息地球放置预览（null = 无工具/指针不在球面；valid/label 由 GameMode 校验口径给出） */
+  readonly holoGhost: { lat: number; lon: number; valid: boolean; label: string } | null
+  /** 全息地球当前放置工具（'ring' = 环节点落位 / 'building' = 地表建筑 / null = 未选） */
+  readonly holoToolKind: string | null
 }
 
 /** 星球是否已解锁（对齐 TransportComponent.starUnlocked 语义） */
@@ -106,6 +111,11 @@ function starUnlocked(s: SimState, id: StarId): boolean {
 const C_ROUTE_FORWARD = 0x78beeb
 const C_ROUTE_REVERSE = 0xffb03d
 const C_ROUTE_SELECTED = 0xdff3ff
+/** 中转链线色（2026-09-13：星→站 0x8fe89a 绿 / 站→地 0x8fe89a 绿；与正向蓝/补给橙区分） */
+const C_ROUTE_RELAY = 0x7fe8a8
+/** 堆场水位条色（青蓝；满仓转红） */
+const C_STOCK_BAR = 0x4fd8ff
+const C_STOCK_BAR_FULL = 0xe84545
 const C_SHIP_OUTBOUND = 0xff6a3d
 const C_SHIP_RETURN = 0x96bed6
 const C_SHIP_MATERIAL = 0xffb03d
@@ -117,6 +127,11 @@ const C_HOLO_GLOW = 0x3fa9f5
 const C_HOLO_LINE = 0x4fd8ff
 const C_HOLO_SEL = 0xbfe9ff
 const C_HOLO_DEAD = 0x5a707f
+// 全息地球（冰盖白蓝 / 融化圈青绿 / 节点金 = 已装环建筑）
+const C_HOLO_ICE = 0xcfe8f5
+const C_HOLO_MELT = 0x59e8a8
+const C_HOLO_NODE = 0x7fdcff
+const C_HOLO_NODE_FITTED = 0xffb03d
 
 // ─── 视图分组（星图切换：地球系 / 太阳系；ViewToggle → GameMode.setViewMode → applyViewMode） ───
 
@@ -153,6 +168,16 @@ function satellitesOf(parent: PlanetId): string[] {
  */
 export function planetStageOffset(_body: PlanetId): { x: number; z: number } {
   return { x: toWX(B.map.nodes.sun.x), z: toWZ(B.map.nodes.sun.y) }
+}
+
+/**
+ * 全息地球投影锚点（行星系舞台 + 远处偏移，2026-09-12 用户定案：全息地球创建在场景远处
+ * 独立投影位，不包络真球）。渲染层定位与 GameMode 取景共用单一口径；锚点读舞台配置
+ * （舞台锚 = 太阳节点画布位 → 世界原点），偏移值在 B.holoEarth。
+ */
+export function holoEarthAnchor(): { x: number; z: number } {
+  const stage = planetStageOffset('earth')
+  return { x: stage.x + B.holoEarth.anchorOffsetX, z: stage.z + B.holoEarth.anchorOffsetZ }
 }
 
 // ─── 纹理工厂（一次性生成） ───
@@ -392,6 +417,30 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private holoRadius = 0
   /** 全息重建型几何（进度弧等运行时重建体；disposeHolo 统一释放，不入 trackGeo 避免早释放歧义） */
   private holoDisposables: Array<THREE.BufferGeometry> = []
+  /** 全息地球层自持资源（材质/几何/冰盖纹理；签名变化重建与 disposeHolo 统一释放） */
+  private holoEarthDisposables: Array<{ dispose(): void }> = []
+  // ─── 全息地球（Earth 专属：冰盖壳 + 环节点标记 + 地表建筑标记 + 放置 ghost） ───
+  /** 节点/地表建筑签名（变化时重建冰盖纹理与标记组） */
+  private holoEarthSig = ''
+  /** 冰盖壳 mesh（挂 holoSpin 随球自转；融化圈在纹理上挖洞） */
+  private holoIceMesh: THREE.Mesh | null = null
+  private holoIceMat: THREE.MeshBasicMaterial | null = null
+  private holoIceTex: THREE.CanvasTexture | null = null
+  /** 环节点标记池（键 = 槽位号；标记 + 辉光 + 光柱 + 融化环 + 融化盘） */
+  private holoNodeMarkers = new Map<number, {
+    group: THREE.Group; mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial
+    glowMat: THREE.SpriteMaterial
+    beamMat: THREE.MeshBasicMaterial
+    ring: THREE.Mesh; ringMat: THREE.MeshBasicMaterial
+    disc: THREE.Mesh; discMat: THREE.MeshBasicMaterial
+    rDeg: number
+  }>()
+  /** 地表建筑标记池（键 = 建筑 id；小几何 + 色点） */
+  private holoSurfaceMarkers = new Map<number, THREE.Mesh>()
+  /** 放置 ghost（工具激活时贴指针球面点；绿 = 可放 / 红 = 拒绝） */
+  private holoGhostGroup: THREE.Group | null = null
+  private holoGhostRing: THREE.Mesh | null = null
+  private holoGhostMat: THREE.MeshBasicMaterial | null = null
   /** 细轨道圈几何（1.5% 环宽，公转轨道专用；flatRingGeo 太粗） */
   private flatOrbitGeo!: THREE.RingGeometry
   /** 卫星环（卫星绕母星轨道圈，圆心每帧贴母星实时位置；id → mesh） */
@@ -554,6 +603,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.tex.vignette = makeVignetteTexture()
 
     this.buildShips()
+    this.buildStockBars()
     this.buildNodes()
     this.buildTutorial()
     this.buildDrag()
@@ -605,6 +655,49 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       mesh.add(glow)
       this.shipPool.push({ mesh, mat, glow, glowMat })
       this.systemGroup.add(mesh)
+    }
+  }
+
+  // ─── 堆场水位条（2026-09-13 供应链重构：资源星旁小横条，宽度 ∝ 水位，满仓红色） ───
+
+  /** 水位条池（与 B.starStockCap 键序一致；贴地 quad 复用 flatQuadGeo） */
+  private stockBars: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; star: string }> = []
+
+  private buildStockBars(): void {
+    for (const star of Object.keys(B.starStockCap)) {
+      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_STOCK_BAR, transparent: true, opacity: 0.85, depthWrite: false }))
+      const mesh = this.own(this.F.createMesh(this.flatQuadGeo, mat)).object
+      mesh.position.y = 2.2
+      mesh.renderOrder = 11
+      mesh.visible = false
+      this.stockBars.push({ mesh, mat, star })
+      this.systemGroup.add(mesh)
+    }
+  }
+
+  private syncStockBars(): void {
+    const sim = this.provider.simState
+    const solar = this.viewMode === 'solar'
+    for (const bar of this.stockBars) {
+      const node = (B.map.nodes as Record<string, { x: number; y: number; r: number } | undefined>)[bar.star]
+      const cap = (B.starStockCap as Record<string, number | undefined>)[bar.star]
+      if (!node || !cap || sim.state.act < (B.stars[bar.star as StarId]?.unlockAct ?? 1)) {
+        bar.mesh.visible = false
+        continue
+      }
+      const pos = starPosAt(sim.state, bar.star as StarId)
+      const c = starPosAt(sim.state, this.provider.planetFocusBody)
+      if (!solar && Math.hypot(pos.x - c.x, pos.y - c.y) > EARTH_VIEW_RADIUS_PX) {
+        bar.mesh.visible = false
+        continue
+      }
+      const ratio = Math.max(0, Math.min(1, (sim.state.starStock?.[bar.star] ?? 0) / cap))
+      const w = Math.max(2, node.r * 1.6 * ratio)
+      bar.mesh.visible = ratio > 0.001
+      bar.mesh.position.set(toWX(pos.x), 2.2, toWZ(pos.y + node.r + 14))
+      bar.mesh.scale.set(w, 1, 4)
+      bar.mat.color.setHex(ratio >= 1 ? C_STOCK_BAR_FULL : C_STOCK_BAR)
+      bar.mat.opacity = ratio >= 1 ? 0.95 : 0.85
     }
   }
 
@@ -781,7 +874,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         q.mat.color.setHex(C_ROUTE_REVERSE)
         q.mat.opacity = 0.7
       } else {
-        q.mat.color.setHex(route.direction === 'reverse' ? C_ROUTE_REVERSE : C_ROUTE_FORWARD)
+        // 中转链两段共用绿色（星→站 / 站→地）；反向补给线橙色虚线；正向星线蓝色实线
+        const base = route.direction === 'reverse' ? C_ROUTE_REVERSE
+          : route.direction === 'relay_in' || route.direction === 'relay_out' ? C_ROUTE_RELAY
+          : C_ROUTE_FORWARD
+        q.mat.color.setHex(base)
         q.mat.opacity = 0.28
       }
     }
@@ -1324,7 +1421,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.disposeHolo()
     this.holoBody = body
     const r = B.map.nodes[body as keyof typeof B.map.nodes]?.r ?? 30
-    const R = r * B.holo.radiusMult
+    // 全息地球用更大的包络倍率（留球面落位/建筑操作空间），矿点勘探维持原倍率
+    const R = r * (body === 'earth' ? B.holoEarth.radiusMult : B.holo.radiusMult)
     this.holoRadius = R
     const root = this.own(this.F.createGroup()).object
     this.holoRoot = root
@@ -1364,19 +1462,23 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       root.add(mer)
     }
 
-    // 扫描环（纬向巡游；syncHologram 每帧写 y）
-    const scanGeo = this.trackGeo(this.F.createRingGeometry(0.88, 1.0, 64))
-    scanGeo.rotateX(-Math.PI / 2)
-    const scanMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
-    const scan = this.own(this.F.createMesh(scanGeo, scanMat)).object
-    scan.scale.setScalar(R * 1.02)
-    scan.renderOrder = 17
-    this.holoScanRing = scan
-    root.add(scan)
+    // 扫描环（纬向巡游；syncHologram 每帧写 y）。全息地球不带扫描环
+    // （2026-09-13 用户定案：移除——冰盖上巡游亮环干扰融冰读感；矿点勘探保留）
+    this.holoScanRing = null
+    if (body !== 'earth') {
+      const scanGeo = this.trackGeo(this.F.createRingGeometry(0.88, 1.0, 64))
+      scanGeo.rotateX(-Math.PI / 2)
+      const scanMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const scan = this.own(this.F.createMesh(scanGeo, scanMat)).object
+      scan.scale.setScalar(R * 1.02)
+      scan.renderOrder = 17
+      this.holoScanRing = scan
+      root.add(scan)
+    }
 
     // 矿点标记（表驱动：菱形 + 辉光 + 光柱 + 进度弧，全部随 spin 自转）
-    const octaGeo = this.trackGeo(new THREE.OctahedronGeometry(1, 0))
-    const cylGeo = this.trackGeo(new THREE.CylinderGeometry(0.12, 0.32, 1, 8, 1, true))
+    const octaGeo = this.trackGeo(this.F.createOctahedronGeometry(1, 0))
+    const cylGeo = this.trackGeo(this.F.createCylinderGeometry(0.12, 0.32, 1, 8, 1, true))
     const arcBaseMat = { transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false } as const
     for (const { id, def } of depositsOf(body)) {
       const n = StarMapRenderComponent.latLonToLocal(def.lat, def.lon)
@@ -1405,7 +1507,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       spin.add(beam)
       // 建造进度弧（切向环；几何按进度步进重建，铰在标记法平面）
       const arcMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xffb03d, ...arcBaseMat, opacity: 0.9 }))
-      const arcGeo = new THREE.RingGeometry(R * 1.1, R * 1.17, 24, 1, 0, 0.01)
+      const arcGeo = this.F.createRingGeometry(R * 1.1, R * 1.17, 24, 1, 0, 0.01)
       this.holoDisposables.push(arcGeo)
       const arc = this.own(this.F.createMesh(arcGeo, arcMat)).object
       arc.position.copy(pos)
@@ -1424,6 +1526,12 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     selRing.visible = false
     spin.add(selRing)
     this.holoSelRing = selRing
+
+    // 全息地球附加层（冰盖 + 节点标记 + 地表建筑标记 + 放置 ghost；syncHologram 按签名重建）
+    if (body === 'earth') {
+      this.holoEarthSig = ''
+      this.buildHoloEarth(spin, R)
+    }
   }
 
   /** 摘除全息组（切目标/收起共用；重建型几何即时释放，tracked 材质/几何留 EndPlay 统一兜底） */
@@ -1439,6 +1547,256 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.holoBody = null
     for (const g of this.holoDisposables) g.dispose()
     this.holoDisposables = []
+    this.disposeHoloEarth()
+  }
+
+  /** 摘除全息地球附加层（冰盖纹理/节点标记/地表标记/ghost；切目标与签名重建共用） */
+  private disposeHoloEarth(): void {
+    this.holoIceMesh = null
+    this.holoIceMat = null
+    this.holoIceTex = null
+    this.holoNodeMarkers.clear()
+    this.holoSurfaceMarkers.clear()
+    this.holoGhostGroup = null
+    this.holoGhostRing = null
+    this.holoGhostMat = null
+    for (const d of this.holoEarthDisposables) d.dispose()
+    this.holoEarthDisposables = []
+    this.holoEarthSig = ''
+  }
+
+  // ─── 全息地球附加层（冰盖 / 环节点 / 地表建筑 / ghost） ───
+
+  /** 搭建全息地球附加层（挂 holoSpin 随球自转；节点/建筑内容按签名延迟到 syncHologram 重建） */
+  private buildHoloEarth(spin: THREE.Group, R: number): void {
+    // 冰盖壳：等距圆柱纹理，融化圈处挖洞露出全息底色（"当前被冰雪覆盖的范围"）
+    this.holoIceMat = this.F.createMeshBasicMaterial({ color: C_HOLO_ICE, transparent: true, opacity: 0.86, depthWrite: false })
+    const ice = this.own(this.F.createMesh(this.unitSphere, this.holoIceMat)).object
+    ice.scale.setScalar(R * 1.004)
+    ice.renderOrder = 16
+    ice.visible = false // 首帧签名重建后可见（无节点 = 全冰覆盖）
+    spin.add(ice)
+    this.holoIceMesh = ice
+
+    // 放置 ghost：切面圆环 + 淡盘（环工具 = 融冰圈预告半径；建筑工具 = 落位圈）
+    const ghostGroup = this.own(this.F.createGroup()).object
+    const ghostMat = this.F.createMeshBasicMaterial({ color: 0x43d17c, transparent: true, opacity: 0.65, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+    const ghostGeo = this.F.createRingGeometry(0.92, 1, 48)
+    const ghostRing = this.own(this.F.createMesh(ghostGeo, ghostMat)).object
+    ghostRing.renderOrder = 31
+    ghostGroup.add(ghostRing)
+    ghostGroup.visible = false
+    spin.add(ghostGroup)
+    this.holoGhostGroup = ghostGroup
+    this.holoGhostRing = ghostRing
+    this.holoGhostMat = ghostMat
+    this.holoEarthDisposables.push(ghostMat, ghostGeo)
+  }
+
+  /** 全息地球内容差分（签名 = 环节点落位 + 地表建筑 + 各自融冰半径；变化才重建） */
+  private syncHoloEarth(): void {
+    const s = this.provider.simState.state
+    const nodes = placedRingNodes(s)
+    const surf = s.buildings.filter((b) => b.surface).map((b) => ({ id: b.id, type: b.type, lat: b.surface!.lat, lon: b.surface!.lon }))
+    const sig = JSON.stringify(nodes) + '|' + JSON.stringify(surf)
+    if (sig === this.holoEarthSig) return
+    this.holoEarthSig = sig
+    this.rebuildHoloEarth(nodes, surf)
+  }
+
+  /** 重建冰盖纹理 + 节点/地表建筑标记（落位/拆建筑/装环建筑时触发；低频事件） */
+  private rebuildHoloEarth(
+    nodes: Array<{ slot: number; lat: number; lon: number; rDeg: number }>,
+    surf: Array<{ id: number; type: string; lat: number; lon: number }>,
+  ): void {
+    const spin = this.holoSpin
+    if (!spin) return
+    // 旧整层移除并释放（冰盖/ghost/标记都随 holoEarthDisposables 生命周期走）
+    if (this.holoIceMesh) spin.remove(this.holoIceMesh)
+    if (this.holoGhostGroup) spin.remove(this.holoGhostGroup)
+    for (const mk of this.holoNodeMarkers.values()) spin.remove(mk.group)
+    for (const m of this.holoSurfaceMarkers.values()) spin.remove(m)
+    this.holoNodeMarkers.clear()
+    this.holoSurfaceMarkers.clear()
+    for (const d of this.holoEarthDisposables) d.dispose()
+    this.holoEarthDisposables = []
+    this.holoIceMesh = null
+    this.holoIceMat = null
+    this.holoIceTex = null
+    this.holoGhostGroup = null
+    this.holoGhostRing = null
+    this.holoGhostMat = null
+
+    const R = this.holoRadius
+    this.buildHoloEarth(spin, R)
+    const s = this.provider.simState.state
+    const add = <T extends { dispose(): void }>(d: T): T => { this.holoEarthDisposables.push(d); return d }
+
+    // 冰盖纹理重绘（等距圆柱 512×256；融化圈逐行精确挖洞）
+    const tex = this.paintIceTexture(nodes)
+    if (tex) {
+      this.holoIceTex = tex
+      add(tex)
+      // 经 buildHoloEarth 重建后非空；TS 对属性收窄跨方法调用不失效，此处局部化断言
+      const iceMat = this.holoIceMat as THREE.MeshBasicMaterial | null
+      if (iceMat) {
+        iceMat.map = tex
+        iceMat.needsUpdate = true
+      }
+      const iceMesh = this.holoIceMesh as THREE.Mesh | null
+      if (iceMesh) iceMesh.visible = true
+    }
+
+    // 环节点标记（标记球 + 辉光 + 热柱 + 融化环/盘；金 = 已装环建筑，青 = 毛坯槽）
+    const nodeGeo = add(this.F.createSphereGeometry(1, 12, 10))
+    const cylGeo = add(this.F.createCylinderGeometry(0.1, 0.28, 1, 8, 1, true))
+    const ringGeo = add(this.F.createRingGeometry(0.94, 1, 64))
+    const discGeo = add(this.F.createRingGeometry(0, 1, 48))
+    for (const n of nodes) {
+      const fitted = !!s.ringBuildings[n.slot]
+      const color = fitted ? C_HOLO_NODE_FITTED : C_HOLO_NODE
+      const dir = StarMapRenderComponent.latLonToLocal(n.lat, n.lon)
+      const group = this.own(this.F.createGroup()).object
+      group.position.copy(dir).multiplyScalar(R * 1.006)
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+      group.renderOrder = 18
+      const mat = add(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }))
+      const mesh = this.own(this.F.createMesh(nodeGeo, mat)).object
+      mesh.scale.setScalar(R * 0.05)
+      mesh.renderOrder = 18
+      group.add(mesh)
+      const glowMat = add(this.F.createSpriteMaterial({ map: this.tex.glow, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const glow = this.own(this.F.createSprite(glowMat)).object
+      glow.scale.setScalar(3)
+      mesh.add(glow)
+      const beamMat = add(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const beam = this.own(this.F.createMesh(cylGeo, beamMat)).object
+      beam.position.y = R * 0.11
+      beam.scale.set(R * 0.035, R * 0.22, R * 0.035)
+      beam.renderOrder = 18
+      group.add(beam)
+      // 融化环 + 淡盘（切面朝外；半径 = 球面角距弦长 R·sin(rDeg)）
+      const chord = R * Math.sin(Math.min(Math.PI / 2 - 1e-3, n.rDeg * Math.PI / 180))
+      const ringMat = add(this.F.createMeshBasicMaterial({ color: C_HOLO_MELT, transparent: true, opacity: 0.8, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const ring = this.own(this.F.createMesh(ringGeo, ringMat)).object
+      ring.rotation.x = -Math.PI / 2
+      ring.scale.setScalar(chord)
+      ring.renderOrder = 19
+      group.add(ring)
+      const discMat = add(this.F.createMeshBasicMaterial({ color: C_HOLO_MELT, transparent: true, opacity: 0.07, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
+      const disc = this.own(this.F.createMesh(discGeo, discMat)).object
+      disc.rotation.x = -Math.PI / 2
+      disc.scale.setScalar(chord)
+      disc.renderOrder = 17
+      group.add(disc)
+      spin.add(group)
+      this.holoNodeMarkers.set(n.slot, { group, mesh, mat, glowMat, beamMat, ring, ringMat, disc, discMat, rDeg: n.rDeg })
+    }
+
+    // 地表建筑标记（类型色小几何 + 立杆；贴融化区地表）
+    const surfGeo = add(this.F.createBoxGeometry(1, 1, 1))
+    for (const b of surf) {
+      const color = StarMapRenderComponent.BUILDING_COLORS[b.type] ?? 0x9fdcff
+      const dir = StarMapRenderComponent.latLonToLocal(b.lat, b.lon)
+      const mat = add(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }))
+      const mesh = this.own(this.F.createMesh(surfGeo, mat)).object
+      mesh.position.copy(dir).multiplyScalar(R * 1.015)
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+      mesh.scale.set(R * 0.045, R * 0.07, R * 0.045)
+      mesh.renderOrder = 18
+      spin.add(mesh)
+      this.holoSurfaceMarkers.set(b.id, mesh)
+    }
+  }
+
+  /**
+   * 冰盖纹理绘制（等距圆柱投影 512×256）：
+   *  - 底图 = 冰白（纬度渐变 + 稀疏噪点），画满 = 全球冰封（暖流计划开局态）
+   *  - 每个融化圈（球冠角半径 rDeg）逐行精确求经度半跨挖洞（球面余弦定理），
+   *    含极冠整行退化与经度环绕（u 取模由行矩形跨边界自然覆盖）
+   *  UV 映射（three SphereGeometry）：u = 0.5 − lon/360（mod 1）、画布 y = (0.5 − lat/180)×H
+   */
+  private paintIceTexture(nodes: Array<{ lat: number; lon: number; rDeg: number }>): THREE.CanvasTexture | null {
+    if (typeof document === 'undefined') return null
+    const W = 512
+    const H = 256
+    const c = document.createElement('canvas')
+    c.width = W
+    c.height = H
+    const g = c.getContext('2d')!
+    // 底图：纬度渐变冰白（极地更亮）+ 噪点冰纹
+    const grad = g.createLinearGradient(0, 0, 0, H)
+    grad.addColorStop(0, '#eef7fd')
+    grad.addColorStop(0.5, '#cfe4f2')
+    grad.addColorStop(1, '#e8f4fc')
+    g.fillStyle = grad
+    g.fillRect(0, 0, W, H)
+    g.fillStyle = 'rgba(255,255,255,0.5)'
+    for (let i = 0; i < 420; i++) {
+      const x = Math.random() * W
+      const y = Math.random() * H
+      g.fillRect(x, y, 1 + Math.random() * 2, 1)
+    }
+    // 融化圈挖洞（destination-out；逐行精确半跨）
+    g.globalCompositeOperation = 'destination-out'
+    const yToLat = (y: number): number => (0.5 - y / H) * 180
+    const latToY = (lat: number): number => (0.5 - lat / 180) * H
+    for (const n of nodes) {
+      const rRad = Math.min(179, n.rDeg) * Math.PI / 180
+      const lat0 = Math.max(-89.9, Math.min(89.9, n.lat))
+      const lat0Rad = lat0 * Math.PI / 180
+      const y0 = latToY(n.lat)
+      const spanY = (n.rDeg / 180) * H
+      const yA = Math.max(0, Math.floor(y0 - spanY))
+      const yB = Math.min(H - 1, Math.ceil(y0 + spanY))
+      const u0 = ((0.5 - n.lon / 360) % 1 + 1) % 1 * W
+      for (let y = yA; y <= yB; y++) {
+        const lat = yToLat(y + 0.5) * Math.PI / 180
+        const denom = Math.cos(lat0Rad) * Math.cos(lat)
+        let half: number // 经度半跨（rad）
+        if (denom < 1e-6) {
+          // 行纬圈退化（极区）：冠心更近极 = 整行融，否则该行不触冠
+          half = Math.abs(lat0) > Math.abs(yToLat(y + 0.5)) ? Math.PI : -1
+        } else {
+          const cosD = (Math.cos(rRad) - Math.sin(lat0Rad) * Math.sin(lat)) / denom
+          half = cosD <= -1 ? Math.PI : cosD >= 1 ? -1 : Math.acos(cosD)
+        }
+        if (half < 0) continue
+        if (half >= Math.PI - 1e-4) {
+          g.fillRect(0, y, W, 1)
+          continue
+        }
+        const dx = (half / (2 * Math.PI)) * W
+        for (const ox of [-W, 0, W]) g.fillRect(u0 + ox - dx, y, dx * 2, 1)
+      }
+    }
+    g.globalCompositeOperation = 'source-over'
+    const tex = new THREE.CanvasTexture(c)
+    configureTexture(tex)
+    return tex
+  }
+
+  /** 全息地球 ghost 每帧同步（provider.holoGhost；环工具 = 融冰圈预告半径，建筑工具 = 落位圈） */
+  private syncHoloGhost(): void {
+    const g = this.holoGhostGroup
+    const mat = this.holoGhostMat
+    if (!g || !mat) return
+    const ghost = this.provider.holoGhost
+    if (!ghost || !this.provider.hologramSel) {
+      g.visible = false
+      return
+    }
+    const R = this.holoRadius
+    const dir = StarMapRenderComponent.latLonToLocal(ghost.lat, ghost.lon)
+    g.position.copy(dir).multiplyScalar(R * 1.012)
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+    const isRingTool = this.provider.holoToolKind === 'ring'
+    const previewDeg = isRingTool ? B.holoEarth.meltRadiusDeg : 6
+    const chord = R * Math.sin(Math.min(Math.PI / 2 - 1e-3, previewDeg * Math.PI / 180))
+    if (this.holoGhostRing) this.holoGhostRing.scale.setScalar(chord)
+    mat.color.setHex(ghost.valid ? 0x43d17c : 0xe84545)
+    mat.opacity = ghost.valid ? 0.7 : 0.9
+    g.visible = true
   }
 
   /** 全息组每帧同步：位置贴天体 Actor、自转、扫描环巡游、标记状态（枯竭灰化/建成光柱/进度弧）、选中环 */
@@ -1451,11 +1809,24 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     if (this.holoBody !== body || !this.holoRoot) this.buildHolo(body)
     const root = this.holoRoot!
     root.visible = true
-    const actor = this.provider.starActors?.get(body)
-    if (actor) root.position.copy(actor.root.position)
-    // 自转 + 扫描环巡游
-    this.holoSpin!.rotation.y += B.holo.spin * dt
-    this.holoScanRing!.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72
+    // 定位：全息地球贴远处投影锚点（独立全息体，不随真球）；矿点勘探全息球包络天体 Actor
+    if (body === 'earth') {
+      const a = holoEarthAnchor()
+      root.position.set(a.x, 0, a.z)
+    } else {
+      const actor = this.provider.starActors?.get(body)
+      if (actor) root.position.copy(actor.root.position)
+    }
+    // 自转 + 扫描环巡游（全息地球慢自转：球面落位需要稳态读感；地球无扫描环）
+    this.holoSpin!.rotation.y += (body === 'earth' ? B.holoEarth.spin : B.holo.spin) * dt
+    if (this.holoScanRing) this.holoScanRing.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72
+    // 全息地球附加层：内容差分重建 + 放置 ghost（节点标记呼吸）
+    if (body === 'earth') {
+      this.syncHoloEarth()
+      this.syncHoloGhost()
+      const pulse = 1 + Math.sin(this.animTime * 3.2) * 0.12
+      for (const mk of this.holoNodeMarkers.values()) mk.mesh.scale.setScalar(this.holoRadius * 0.05 * pulse)
+    }
     // 标记状态（读态：mines + depositLeft；枯竭灰化，建造中收进度弧，建成本色 + 光柱）
     const s = this.provider.simState.state
     for (const [id, mk] of this.holoMarkers) {
@@ -1478,7 +1849,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         mk.lastPct = step
         const R = this.holoRadius
         const old = mk.arc.geometry
-        const geo = new THREE.RingGeometry(R * 1.1, R * 1.17, 24, 1, -Math.PI / 2, Math.max(0.02, pct * Math.PI * 2))
+        const geo = this.F.createRingGeometry(R * 1.1, R * 1.17, 24, 1, -Math.PI / 2, Math.max(0.02, pct * Math.PI * 2))
         this.holoDisposables.push(geo)
         mk.arc.geometry = geo
         old.dispose()
@@ -1532,6 +1903,70 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const rect = el.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) return null
     const v = mk.mesh.getWorldPosition(new THREE.Vector3()).project(cam)
+    if (v.z > 1 || v.z < -1) return null
+    return { x: (v.x * 0.5 + 0.5) * rect.width + rect.left, y: (-v.y * 0.5 + 0.5) * rect.height + rect.top }
+  }
+
+  // ─── 全息地球拾取 ───
+
+  /** 屏幕坐标 → 全息地球球面点（射线 ∩ 球；命中换算到球体自转系 lat/lon，null = 未开/未命中）。
+   *  球心 = holoRoot 世界位（行星 Actor 位置），半径 = holoRadius；spin 逆变换 = 去掉 holoSpin.y。 */
+  pickHoloSurface(screenX: number, screenY: number): { lat: number; lon: number } | null {
+    if (!this.provider.hologramSel || !this.holoRoot?.visible) return null
+    const cam = this.lastCam
+    const el = this.owner.world?.gameRenderer?.uiLayer
+    if (!cam || !el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const ndc = new THREE.Vector2(
+      ((screenX - rect.left) / rect.width) * 2 - 1,
+      -((screenY - rect.top) / rect.height) * 2 + 1,
+    )
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(ndc, cam)
+    const center = this.holoRoot.position
+    const oc = ray.ray.origin.clone().sub(center)
+    // |O + tD − C|² = R² ：取较小正根（近半球面）
+    const b = oc.dot(ray.ray.direction)
+    const c = oc.lengthSq() - this.holoRadius * this.holoRadius
+    const disc = b * b - c
+    if (disc < 0) return null
+    const t = -b - Math.sqrt(disc)
+    if (t <= 0) return null
+    const hit = ray.ray.at(t, new THREE.Vector3()).sub(center)
+    // 逆自旋（holoSpin 绕本地 Y）：lat/lon 定义在球体自身坐标系
+    hit.applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.holoSpin!.rotation.y)
+    const len = hit.length()
+    if (len < 1e-4) return null
+    return vecToLatLon({ x: hit.x / len, y: hit.y / len, z: hit.z / len })
+  }
+
+  /** 环节点标记的屏幕坐标（e2e/引导探针；null = 全息未开/未落位该槽） */
+  holoNodeScreenPos(slot: number): { x: number; y: number } | null {
+    if (!this.provider.hologramSel || !this.holoRoot?.visible) return null
+    const mk = this.holoNodeMarkers.get(slot)
+    const cam = this.lastCam
+    const el = this.owner.world?.gameRenderer?.uiLayer
+    if (!mk || !cam || !el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const v = mk.group.getWorldPosition(new THREE.Vector3()).project(cam)
+    if (v.z > 1 || v.z < -1) return null
+    return { x: (v.x * 0.5 + 0.5) * rect.width + rect.left, y: (-v.y * 0.5 + 0.5) * rect.height + rect.top }
+  }
+
+  /** 目标 lat/lon 的球面点屏幕坐标（e2e 真实点击测试用；含当前自转相位，null = 全息未开/背面） */
+  holoLatLonScreenPos(lat: number, lon: number): { x: number; y: number } | null {
+    if (!this.provider.hologramSel || !this.holoRoot?.visible) return null
+    const cam = this.lastCam
+    const el = this.owner.world?.gameRenderer?.uiLayer
+    if (!cam || !el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const dir = StarMapRenderComponent.latLonToLocal(lat, lon)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.holoSpin!.rotation.y)
+    const world = this.holoRoot.position.clone().add(dir.multiplyScalar(this.holoRadius))
+    const v = world.project(cam)
     if (v.z > 1 || v.z < -1) return null
     return { x: (v.x * 0.5 + 0.5) * rect.width + rect.left, y: (-v.y * 0.5 + 0.5) * rect.height + rect.top }
   }
@@ -1825,6 +2260,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.syncStage()
     this.syncRoutes()
     this.syncShips()
+    this.syncStockBars()
     this.syncNodes()
     this.syncHologram(dt)
     this.syncBuildings()

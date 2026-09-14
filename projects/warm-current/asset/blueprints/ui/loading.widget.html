@@ -1,0 +1,33 @@
+<widget name="LoadingPanel" canvas="1920x1080" data-script="gameplay/ui/LoadingPanelScript">
+  <style>
+    .Dim { position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; background-color: #050d18f5; hit-test: block; }
+    .Box { position: absolute; left: 660px; top: 320px; width: 600px; height: 440px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422f0 50%, #0a1c2cf0 100%); border: 1px solid #2a5f7a; }
+    .TitleText { width: 400px; height: 56px; font-size: 40px; color: #e8f6ff; text-align: center; letter-spacing: 6px; text-shadow: 1px 2px 6px #00000099; }
+    .SubText { width: 420px; height: 24px; font-size: 15px; color: #5e93b4; text-align: center; letter-spacing: 3px; text-shadow: 1px 1px 4px #00000088; }
+    .SpinRing { position: relative; left: 0px; top: 0px; width: 120px; height: 120px; }
+    .Seg { position: absolute; width: 8px; height: 20px; background-color: #6fd8ff; }
+    .StageText { width: 420px; height: 34px; font-size: 22px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000088; }
+    .TipText { position: absolute; left: 0px; top: 980px; width: 1920px; height: 24px; font-size: 15px; color: #4a7a94; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Dim"></div>
+  <div class="Box">
+    <text class="TitleText">暖流计划</text>
+    <text class="SubText">WARM CURRENT · ORBITAL LOGISTICS</text>
+    <div class="SpinRing">
+      <div class="Seg" data-name="SpinSeg_0" style="left: 102px; top: 50px;"></div>
+      <div class="Seg" data-name="SpinSeg_1" style="left: 96px; top: 73px;"></div>
+      <div class="Seg" data-name="SpinSeg_2" style="left: 79px; top: 90px;"></div>
+      <div class="Seg" data-name="SpinSeg_3" style="left: 56px; top: 96px;"></div>
+      <div class="Seg" data-name="SpinSeg_4" style="left: 33px; top: 90px;"></div>
+      <div class="Seg" data-name="SpinSeg_5" style="left: 16px; top: 73px;"></div>
+      <div class="Seg" data-name="SpinSeg_6" style="left: 10px; top: 50px;"></div>
+      <div class="Seg" data-name="SpinSeg_7" style="left: 16px; top: 27px;"></div>
+      <div class="Seg" data-name="SpinSeg_8" style="left: 33px; top: 10px;"></div>
+      <div class="Seg" data-name="SpinSeg_9" style="left: 56px; top: 4px;"></div>
+      <div class="Seg" data-name="SpinSeg_10" style="left: 79px; top: 10px;"></div>
+      <div class="Seg" data-name="SpinSeg_11" style="left: 96px; top: 27px;"></div>
+    </div>
+    <text class="StageText" data-name="StageText">正在连接星域…</text>
+  </div>
+  <text class="TipText" data-name="TipText">提示：拖拽画线，把氦-3 拉回地球</text>
+</widget>

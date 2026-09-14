@@ -79,6 +79,10 @@ export class WarmCurrentPlayerController extends PlayerController {
     this.lastScreen = { x: screenX, y: screenY }
     // 转发给相机云台（屏幕边缘平移的鼠标位置源）
     this.mode.cameraActor?.rig.setMouseScreen(screenX, screenY)
+    // 全息地球建造模式：指针球面交点 → 放置预览（渲染 ghost + 面板校验文案）
+    if (this.mode.hologramSel === 'earth' && this.mode.holoPlaceTool) {
+      this.mode.onHologramHover(screenX, screenY)
+    }
     const map = this.toMap(screenX, screenY)
     if (map) {
       this.lastMap = map

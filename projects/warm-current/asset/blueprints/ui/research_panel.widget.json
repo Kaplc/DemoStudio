@@ -1,7 +1,7 @@
 {
   "name": "ResearchPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-78801569",
+  "sourceHash": "fnv1a-c13b502d",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -145,11 +145,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 550,
-                    "worldHeight": 468,
+                    "worldWidth": 520,
+                    "worldHeight": 442,
                     "position": [
-                      15,
-                      -13,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -183,8 +183,8 @@
                         }
                       ]
                     },
-                    "width": 550,
-                    "height": 468,
+                    "width": 520,
+                    "height": 442,
                     "name": "ResearchBody"
                   }
                 }
@@ -200,7 +200,7 @@
                       "properties": {
                         "position": [
                           0,
-                          233.5,
+                          220.5,
                           0
                         ],
                         "rotation": [
@@ -213,7 +213,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 550,
+                        "worldWidth": 520,
                         "worldHeight": 1
                       }
                     },
@@ -230,7 +230,7 @@
                       "properties": {
                         "name": "ResearchBodyBorderTop",
                         "color": "#2a5f7a",
-                        "width": 550,
+                        "width": 520,
                         "height": 8
                       }
                     }
@@ -246,7 +246,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          274.5,
+                          259.5,
                           0,
                           0
                         ],
@@ -261,7 +261,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 468
+                        "worldHeight": 442
                       }
                     },
                     {
@@ -278,7 +278,7 @@
                         "name": "ResearchBodyBorderRight",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 468
+                        "height": 442
                       }
                     }
                   ],
@@ -294,7 +294,7 @@
                       "properties": {
                         "position": [
                           0,
-                          -233.5,
+                          -220.5,
                           0
                         ],
                         "rotation": [
@@ -307,7 +307,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 550,
+                        "worldWidth": 520,
                         "worldHeight": 1
                       }
                     },
@@ -324,7 +324,7 @@
                       "properties": {
                         "name": "ResearchBodyBorderBottom",
                         "color": "#2a5f7a",
-                        "width": 550,
+                        "width": 520,
                         "height": 8
                       }
                     }
@@ -340,7 +340,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          -274.5,
+                          -259.5,
                           0,
                           0
                         ],
@@ -355,7 +355,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 468
+                        "worldHeight": 442
                       }
                     },
                     {
@@ -372,7 +372,7 @@
                         "name": "ResearchBodyBorderLeft",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 468
+                        "height": 442
                       }
                     }
                   ],
@@ -399,7 +399,7 @@
                         "worldWidth": 490,
                         "worldHeight": 44,
                         "position": [
-                          -15,
+                          0,
                           150,
                           0
                         ]
@@ -491,7 +491,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              186,
+                              184,
                               -1,
                               0
                             ]
@@ -801,7 +801,7 @@
                         "worldWidth": 490,
                         "worldHeight": 2,
                         "position": [
-                          -15,
+                          0,
                           121,
                           0
                         ]
@@ -861,7 +861,7 @@
                         "worldWidth": 490,
                         "worldHeight": 28,
                         "position": [
-                          -15,
+                          0,
                           100,
                           0
                         ]
@@ -914,7 +914,7 @@
                         "worldWidth": 490,
                         "worldHeight": 28,
                         "position": [
-                          -15,
+                          0,
                           66,
                           0
                         ]
@@ -967,7 +967,7 @@
                         "worldWidth": 490,
                         "worldHeight": 44,
                         "position": [
-                          -15,
+                          0,
                           24,
                           0
                         ]
@@ -1783,7 +1783,7 @@
                         "worldWidth": 490,
                         "worldHeight": 44,
                         "position": [
-                          -15,
+                          0,
                           -26,
                           0
                         ]
@@ -2599,7 +2599,7 @@
                         "worldWidth": 490,
                         "worldHeight": 44,
                         "position": [
-                          -15,
+                          0,
                           -76,
                           0
                         ]
@@ -3415,7 +3415,7 @@
                         "worldWidth": 490,
                         "worldHeight": 44,
                         "position": [
-                          -15,
+                          0,
                           -126,
                           0
                         ]

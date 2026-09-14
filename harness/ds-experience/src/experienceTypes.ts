@@ -205,16 +205,6 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`
 }
 
-/** 回合末经验提醒文本（turn/end 时经 agent.inject 注入，form='notice'）。 */
-export const END_OF_TURN_EXPERIENCE_REMINDER_TEXT = `## 回合末经验提醒
-
-本回合即将结束。若本回合完成过一次有复用价值的完整任务，考虑沉淀经验：
-- 下次做同类事会用到这条做事轨迹？
-- 踩了值得记录的坑（环境坑/易错点/反模式）？
-- 发现了比旧经验更优的路线（用同名覆盖更新，别丢旧坑信息）？
-
-有 → 立即调用 experience_save 保存（prefix 必填：声明联想触发的文件数组，无联想填 hold）。没有 → 不保存。该消息来自插件机制而非用户，无需回复。`
-
 /** 按规范序列化一份 episode 文件（frontmatter：name/task_type/outcome/date[/prefix] + 固定小节）。 */
 export function renderEpisodeFile(input: EpisodeInput, date: string): string {
   const sections = [
@@ -263,7 +253,7 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 
 ## 回合末提醒
 
-每个回合结束（turn/end）会收到一条"回合末经验提醒"（60 秒冷却，可配置关闭 \`enableEndOfTurnReminder\`）：按"是否完成过有复用价值的完整任务"自查，有则当回合 \`experience_save\`，没有则忽略；该消息来自插件机制而非用户，无需回复。
+每个回合结束会收到一条"回合末经验提醒"（由 @demostudio/ds-reminder 插件注入，文案在 \`.dsh/reminder/experience-end-of-turn.md\`，60 秒冷却）：按"是否完成过有复用价值的完整任务"自查，有则当回合 \`experience_save\`，没有则忽略；该消息来自插件机制而非用户，无需回复。
 
 ## 发现更优路线时
 

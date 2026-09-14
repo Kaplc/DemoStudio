@@ -18,7 +18,10 @@ import type {
   HUDFlatEntry,
   HUDNode,
   HUDQueryResult,
+  MouseClickResult,
+  MouseDragResult,
   OutlineQueryResult,
+  ProjectScreenPosResult,
   SceneOutlineNode,
 } from './types'
 
@@ -122,6 +125,38 @@ export async function clickActor(
 /** ai.gmCommand 执行 GM 命令（等价游戏内控制台），返回 { ok, message } */
 export async function gm(page: Page, command: string, args?: string[]): Promise<GMResult> {
   return firstResult<GMResult>(await emitAI<GMResult>(page, 'ai.gmCommand', { command, args }), 'ai.gmCommand')
+}
+
+/** ai.mouseClick 模拟完整鼠标点击（按下+释放；2026-09-13 起补齐释放，released 订阅者可结算） */
+export async function mouseClick(
+  page: Page,
+  args: { screenX: number, screenY: number, button?: number },
+): Promise<MouseClickResult> {
+  return firstResult<MouseClickResult>(await emitAI<MouseClickResult>(page, 'ai.mouseClick', args), 'ai.mouseClick')
+}
+
+/** ai.mouseDrag 模拟拖拽（按下→多步移动→释放；button 2 = 右键拖拽平移/环绕相机） */
+export async function mouseDrag(
+  page: Page,
+  args: { startX: number, startY: number, endX: number, endY: number, button?: number, steps?: number, stepDelayMs?: number },
+): Promise<MouseDragResult> {
+  return firstResult<MouseDragResult>(await emitAI<MouseDragResult>(page, 'ai.mouseDrag', args), 'ai.mouseDrag')
+}
+
+/** ai.mouseMove 模拟鼠标移动（hover 射线 + 拖拽分发 + 相机边缘平移位置源） */
+export async function mouseMove(page: Page, args: { screenX: number, screenY: number }): Promise<{ ok?: boolean }> {
+  return firstResult<{ ok?: boolean }>(await emitAI<{ ok?: boolean }>(page, 'ai.mouseMove', args), 'ai.mouseMove')
+}
+
+/** ai.projectScreenPos 世界→屏幕投影查询（观测类；投影 → mouseClick 组成纯玩家点击链） */
+export async function projectScreenPos(
+  page: Page,
+  args: { actor?: string, worldPos?: [number, number, number] },
+): Promise<ProjectScreenPosResult> {
+  return firstResult<ProjectScreenPosResult>(
+    await emitAI<ProjectScreenPosResult>(page, 'ai.projectScreenPos', args),
+    'ai.projectScreenPos',
+  )
 }
 
 /** 深度平铺多根 HUD 树，便于断言与调试输出 */

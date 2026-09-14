@@ -1263,11 +1263,23 @@ class Emitter {
     const props: Record<string, unknown> = {
       text,
       name: nodeName,
+      // 文字排版区域 = 内容盒（UIText 绘制基准）
       width: Math.max(8, Math.round(box.w)),
       height: Math.max(8, Math.round(box.h)),
     }
     this.applyTextProps(el, props)
     ;(node.components as unknown[]).push({ baseClass: 'UITextComponent', properties: props })
+    // 2026-09-13 修复：UITransform 尺寸与其他元素统一为边盒口径（通用发射路径
+    // worldWidth = w+padding+border），此前 text 合并节点输出内容盒——带 padding/border
+    // 的 text 合并节点（如 SlotCell）视觉框比声明窄一个 padBorder。纯文字节点
+    // 无 padding/border 时两者相等，既有资产不受影响。
+    const bbW = box.w + box.pl + box.pr + box.bl + box.br
+    const bbH = box.h + box.pt + box.pb + box.bt + box.bb
+    const tf = (node.components as unknown[]).find((c) => (c as { baseClass: string }).baseClass === 'UITransformComponent') as { properties: Record<string, unknown> } | undefined
+    if (tf) {
+      tf.properties.worldWidth = this.wx(bbW)
+      tf.properties.worldHeight = this.wy(bbH)
+    }
   }
 
   private emitInput(box: Box, node: Record<string, unknown>): void {

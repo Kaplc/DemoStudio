@@ -46,7 +46,7 @@ export interface UIButtonStateColors {
   hover?: UIButtonStateVisual
   pressed?: UIButtonStateVisual
   disabled?: UIButtonStateVisual
-  /** 选中态（btn.checked = true 且无更高优先级交互态时呈现；HTML 源 :checked 编译映射） */
+  /** 选中态（btn.checked = true 且无更高优先级交互态时呈现；hover 不掩盖本态） */
   checked?: UIButtonStateVisual
 }
 
@@ -129,7 +129,7 @@ export class UIButtonComponent extends Component<Actor> {
 
   /**
    * 选中标记（应用态，与指针状态机独立）：
-   *  - true 时呈现 stateColors.checked（若无更高优先级交互态：disabled > pressed > hover）
+   *  - true 时呈现 stateColors.checked（优先级：disabled > pressed > checked > hover）
    *  - 指针状态机不读写本标记——选中感由业务自由维持，不会因鼠标移出/抬起丢失
    *  - 视觉路径同 stateColors（applyStateVisual 驱动同 Actor 视觉 Image）
    */
@@ -206,12 +206,15 @@ export class UIButtonComponent extends Component<Actor> {
   }
 
   /**
-   * 有效视觉键 = 指针交互态；仅当指针处于常态时选中标记才以 'checked' 呈现
-   * （disabled > pressed > hover > checked > normal）
+   * 有效视觉键（2026-09-13 语义反转：checked 压过 hover）：
+   * disabled > pressed > checked > hover > normal
+   *  - checked 是持久选中态，瞬态 hover 不应掩盖它（用户反馈：选中插件后悬停不应再变色）
+   *  - pressed 仍压过 checked（按下瞬间保留按压反馈）
    */
   private effectiveVisualKey(state: ButtonState, checked: boolean): ButtonState | 'checked' {
-    if (state !== 'normal') return state
-    return checked ? 'checked' : 'normal'
+    if (state === 'normal') return checked ? 'checked' : 'normal'
+    if (state === 'hover' && checked) return 'checked'
+    return state
   }
 
   /**

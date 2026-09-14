@@ -1,7 +1,7 @@
 {
   "name": "TransportPanel",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-4483857d",
+  "sourceHash": "fnv1a-e7be4658",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -145,11 +145,11 @@
                       1,
                       1
                     ],
-                    "worldWidth": 670,
-                    "worldHeight": 726,
+                    "worldWidth": 640,
+                    "worldHeight": 700,
                     "position": [
-                      15,
-                      -13,
+                      0,
+                      0,
                       0
                     ]
                   }
@@ -183,8 +183,8 @@
                         }
                       ]
                     },
-                    "width": 670,
-                    "height": 726,
+                    "width": 640,
+                    "height": 700,
                     "name": "TransportBody"
                   }
                 }
@@ -200,7 +200,7 @@
                       "properties": {
                         "position": [
                           0,
-                          362.5,
+                          349.5,
                           0
                         ],
                         "rotation": [
@@ -213,7 +213,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 670,
+                        "worldWidth": 640,
                         "worldHeight": 1
                       }
                     },
@@ -230,7 +230,7 @@
                       "properties": {
                         "name": "TransportBodyBorderTop",
                         "color": "#2a5f7a",
-                        "width": 670,
+                        "width": 640,
                         "height": 8
                       }
                     }
@@ -246,7 +246,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          334.5,
+                          319.5,
                           0,
                           0
                         ],
@@ -261,7 +261,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 726
+                        "worldHeight": 700
                       }
                     },
                     {
@@ -278,7 +278,7 @@
                         "name": "TransportBodyBorderRight",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 726
+                        "height": 700
                       }
                     }
                   ],
@@ -294,7 +294,7 @@
                       "properties": {
                         "position": [
                           0,
-                          -362.5,
+                          -349.5,
                           0
                         ],
                         "rotation": [
@@ -307,7 +307,7 @@
                           1,
                           1
                         ],
-                        "worldWidth": 670,
+                        "worldWidth": 640,
                         "worldHeight": 1
                       }
                     },
@@ -324,7 +324,7 @@
                       "properties": {
                         "name": "TransportBodyBorderBottom",
                         "color": "#2a5f7a",
-                        "width": 670,
+                        "width": 640,
                         "height": 8
                       }
                     }
@@ -340,7 +340,7 @@
                       "baseClass": "UITransformComponent",
                       "properties": {
                         "position": [
-                          -334.5,
+                          -319.5,
                           0,
                           0
                         ],
@@ -355,7 +355,7 @@
                           1
                         ],
                         "worldWidth": 1,
-                        "worldHeight": 726
+                        "worldHeight": 700
                       }
                     },
                     {
@@ -372,7 +372,7 @@
                         "name": "TransportBodyBorderLeft",
                         "color": "#2a5f7a",
                         "width": 8,
-                        "height": 726
+                        "height": 700
                       }
                     }
                   ],
@@ -399,8 +399,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          328,
+                          0,
+                          315,
                           0
                         ]
                       }
@@ -491,7 +491,7 @@
                             "worldWidth": 122,
                             "worldHeight": 46,
                             "position": [
-                              246,
+                              244,
                               -1,
                               0
                             ]
@@ -801,8 +801,8 @@
                         "worldWidth": 610,
                         "worldHeight": 2,
                         "position": [
-                          -15,
-                          299,
+                          0,
+                          286,
                           0
                         ]
                       }
@@ -861,8 +861,8 @@
                         "worldWidth": 610,
                         "worldHeight": 30,
                         "position": [
-                          -15,
-                          277,
+                          0,
+                          264,
                           0
                         ]
                       }
@@ -914,8 +914,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          234,
+                          0,
+                          221,
                           0
                         ]
                       }
@@ -1314,8 +1314,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          184,
+                          0,
+                          171,
                           0
                         ]
                       }
@@ -1714,8 +1714,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          134,
+                          0,
+                          121,
                           0
                         ]
                       }
@@ -2114,8 +2114,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          84,
+                          0,
+                          71,
                           0
                         ]
                       }
@@ -2514,8 +2514,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          34,
+                          0,
+                          21,
                           0
                         ]
                       }
@@ -2914,8 +2914,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          -16,
+                          0,
+                          -29,
                           0
                         ]
                       }
@@ -3314,8 +3314,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          -66,
+                          0,
+                          -79,
                           0
                         ]
                       }
@@ -3714,8 +3714,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          -116,
+                          0,
+                          -129,
                           0
                         ]
                       }
@@ -4114,8 +4114,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          -166,
+                          0,
+                          -179,
                           0
                         ]
                       }
@@ -4514,8 +4514,8 @@
                         "worldWidth": 610,
                         "worldHeight": 44,
                         "position": [
-                          -15,
-                          -216,
+                          0,
+                          -229,
                           0
                         ]
                       }
@@ -4914,8 +4914,8 @@
                         "worldWidth": 610,
                         "worldHeight": 24,
                         "position": [
-                          -15,
-                          -256,
+                          0,
+                          -269,
                           0
                         ]
                       }

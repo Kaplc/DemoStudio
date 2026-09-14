@@ -237,6 +237,9 @@ export class HazardsComponent extends BObjectComponent<WarmCurrentGameMode> {
     for (const ship of flying) {
       if (saved.has(ship.id) || shipMults(ship).antiFreeze) continue
       ship.state = 'frozen'
+      // 线路评级：冻毁计入该船所属航线统计（清 routeId 前取）
+      const route = ship.routeId != null ? s.routes.find((r) => r.id === ship.routeId) : undefined
+      if (route?.stats) route.stats.frozen++
       ship.routeId = null
       ship.order = undefined
       ship.shelter = null

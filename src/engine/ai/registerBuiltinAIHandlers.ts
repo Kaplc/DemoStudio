@@ -25,6 +25,7 @@ import {
   AI_EVENT_MOUSE_CLICK,
   AI_EVENT_MOUSE_MOVE,
   AI_EVENT_MOUSE_DRAG,
+  AI_EVENT_PROJECT_SCREEN_POS,
   AI_EVENT_KEY_PRESS,
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
@@ -43,6 +44,7 @@ import {
   type AIMouseClickPayload,
   type AIMouseMovePayload,
   type AIMouseDragPayload,
+  type AIProjectScreenPosPayload,
   type AIKeyPayload,
   type AIActorInfo,
   type AIGameStateSnapshot,
@@ -132,6 +134,7 @@ const BUILTIN_EVENTS = [
   AI_EVENT_MOUSE_CLICK,
   AI_EVENT_MOUSE_MOVE,
   AI_EVENT_MOUSE_DRAG,
+  AI_EVENT_PROJECT_SCREEN_POS,
   AI_EVENT_KEY_PRESS,
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
@@ -752,7 +755,10 @@ export function registerBuiltinAIHandlers(): void {
     return { ok: true, delta: p.delta, distance }
   })
 
-  // ─── ai.mouseClick — 模拟鼠标点击（经 InputSys 完整管线：raycast → ClickableComponent → controller） ───
+  // ─── ai.mouseClick — 模拟鼠标点击（经 InputSys 完整管线：raycast → ClickableComponent → controller；
+  //      完整按下+释放序列。2026-09-13 修复：旧版只调 handlePointerDown 从不释放，
+  //      BindMouseButton('released') 订阅者（warm 星图结算/全息轻点）永不触发，
+  //      且 button=2 时 CameraRig.rightDragging 卡死导致后续 mouse_move 全程平移相机） ───
   ai.register(AI_EVENT_MOUSE_CLICK, (payload: unknown, ctx: AIEventContext) => {
     const world = requireWorld(ctx)
     if (!world) return { ok: false, error: '游戏未运行' }
@@ -767,10 +773,12 @@ export function registerBuiltinAIHandlers(): void {
       ? new THREE.Vector3(p.worldPos[0], p.worldPos[1], p.worldPos[2])
       : undefined
 
-    // 执行完整点击管线：InputSys.handlePointerDown → PhySys.raycastClick → controller
+    // 完整点击管线：handlePointerDown → raycastClick（UI/world 仲裁）→ controller → handlePointerUp
     const consumed = gi.inputSys.handlePointerDown(p.screenX, p.screenY, worldPos, gi.controller, button)
-    logger.info(`[AI] mouseClick: (${p.screenX}, ${p.screenY}) button=${button} consumed=${consumed}`)
-    return { ok: true, screenX: p.screenX, screenY: p.screenY, consumed }
+    // 释放：分发 handleRelease（按钮恢复 normal 态 / released 订阅者结算），与真实点击同构
+    gi.inputSys.handlePointerUp(worldPos, gi.controller, button)
+    logger.info(`[AI] mouseClick: (${p.screenX}, ${p.screenY}) button=${button} consumed=${consumed} released=true`)
+    return { ok: true, screenX: p.screenX, screenY: p.screenY, button, consumed }
   })
 
   // ─── ai.mouseMove — 模拟鼠标移动（触发 hover 射线检测 + 拖拽分发） ───
@@ -792,8 +800,11 @@ export function registerBuiltinAIHandlers(): void {
     return { ok: true, screenX: p.screenX, screenY: p.screenY }
   })
 
-  // ─── ai.mouseDrag — 模拟鼠标拖拽（按下→多步移动→释放，完整序列） ───
-  ai.register(AI_EVENT_MOUSE_DRAG, async (payload: unknown, ctx: AIEventContext) => {
+  // ─── ai.mouseDrag — 模拟鼠标拖拽（按下→多步移动→释放；button 可选默认左键，
+  //      2026-09-13 起 button=2 走右键拖拽 → CameraRig 平移/环绕，与真实玩家右键拖拽同链路。
+  //      校验与按下同步完成、多步移动后台推进（AIModule.emit 同步聚合返回值，async 处理器
+  //      的回执是 Promise——校验必须同步才可见；时序语义由 stepDelayMs 在后台保持） ───
+  ai.register(AI_EVENT_MOUSE_DRAG, (payload: unknown, ctx: AIEventContext) => {
     const world = requireWorld(ctx)
     if (!world) return { ok: false, error: '游戏未运行' }
     const gi = ctx.gameInstance
@@ -805,25 +816,74 @@ export function registerBuiltinAIHandlers(): void {
     }
     const steps = Math.max(1, p.steps ?? 10)
     const stepDelay = Math.max(0, p.stepDelayMs ?? 16)
+    const button = p.button ?? 0
 
-    // 1. 按下
-    gi.inputSys.handlePointerDown(p.startX, p.startY, undefined, gi.controller, 0)
+    // 1. 按下（同步；button 透传：非左键不触发 ClickableComponent，仅广播给订阅者如相机右键平移）
+    gi.inputSys.handlePointerDown(p.startX, p.startY, undefined, gi.controller, button)
 
-    // 2. 逐步移动
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps
-      const x = p.startX + (p.endX - p.startX) * t
-      const y = p.startY + (p.endY - p.startY) * t
-      gi.inputSys.handlePointerMove(x, y, undefined, gi.controller)
-      if (stepDelay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, stepDelay))
+    // 2. 多步移动 + 释放：后台推进（保持 stepDelayMs 时序语义；emit 不等待）
+    void (async () => {
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps
+        const x = p.startX + (p.endX - p.startX) * t
+        const y = p.startY + (p.endY - p.startY) * t
+        gi.inputSys.handlePointerMove(x, y, undefined, gi.controller)
+        if (stepDelay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, stepDelay))
+        }
       }
+      // 3. 释放（同键释放，右键拖拽的 rightDragging/orbitDragging 由 released 收口）
+      gi.inputSys.handlePointerUp(undefined, gi.controller, button)
+      logger.info(`[AI] mouseDrag: (${p.startX},${p.startY}) → (${p.endX},${p.endY}) steps=${steps} button=${button} 完成`)
+    })()
+
+    logger.info(`[AI] mouseDrag: 排队 (${p.startX},${p.startY}) → (${p.endX},${p.endY}) steps=${steps} button=${button}`)
+    return { ok: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps, button, async: true }
+  })
+
+  // ─── ai.projectScreenPos — 世界→屏幕投影查询（观测类只读：把世界点/Actor 位置投到屏幕像素坐标，
+  //      供 AI 精确点击世界空间目标——星球/全息标记等不可 Clickable 的 3D 对象，替代 GM 坐标探针） ───
+  ai.register(AI_EVENT_PROJECT_SCREEN_POS, (payload: unknown, ctx: AIEventContext) => {
+    const world = requireWorld(ctx)
+    if (!world) return { ok: false, error: '游戏未运行' }
+    const gi = ctx.gameInstance
+    if (!gi) return { ok: false, error: '无 GameInstance' }
+    const p = (payload ?? {}) as AIProjectScreenPosPayload
+    if (!p.actor && !p.worldPos) return { ok: false, error: '缺少 actor 或 worldPos' }
+    const vp = PhySys.viewportElement
+    if (!vp) return { ok: false, error: '视口未就绪' }
+    const rect = vp.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return { ok: false, error: '视口尺寸为 0' }
+    const cam = gi.getActiveCamera()
+    if (!cam) return { ok: false, error: '主相机未就绪' }
+
+    // 世界点来源：actor 优先（root 世界位），否则显式 worldPos
+    const point = new THREE.Vector3()
+    if (p.actor) {
+      const actor = findActorByName(world, p.actor)
+      if (!actor) return { ok: false, error: `未找到 Actor: ${p.actor}` }
+      actor.root.getWorldPosition(point)
+    } else {
+      point.set(p.worldPos![0], p.worldPos![1], p.worldPos![2])
     }
 
-    // 3. 释放
-    gi.inputSys.handlePointerUp(undefined, gi.controller, 0)
-    logger.info(`[AI] mouseDrag: (${p.startX},${p.startY}) → (${p.endX},${p.endY}) steps=${steps}`)
-    return { ok: true, startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY, steps }
+    // 相机矩阵刷新（同 PhySys.screenToRay 的防陈旧矩阵处理）后投影；换算与 clickActor 反投同式
+    cam.updateMatrixWorld()
+    const v = point.clone().project(cam)
+    // NDC z 出 [-1,1] = 点在相机前后界之外（背面/被裁剪），像素坐标不可信
+    const inFront = v.z >= -1 && v.z <= 1
+    const screenX = rect.left + ((v.x + 1) / 2) * rect.width
+    const screenY = rect.top + ((1 - v.y) / 2) * rect.height
+    const source = p.actor ? `actor=${p.actor}` : `worldPos=(${p.worldPos![0]}, ${p.worldPos![1]}, ${p.worldPos![2]})`
+    logger.info(`[AI] projectScreenPos: ${source} → screen(${Math.round(screenX)}, ${Math.round(screenY)}) inFront=${inFront}`)
+    return {
+      ok: true,
+      actor: p.actor,
+      world: [point.x, point.y, point.z],
+      screenX,
+      screenY,
+      inFront,
+    }
   })
 
   // ─── ai.keyPress — 模拟键盘按下 ───

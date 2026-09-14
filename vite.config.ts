@@ -68,6 +68,67 @@ function unicodeFontsCachePlugin(): Plugin {
   }
 }
 
+/**
+ * 全量禁用自动热重载：任何文件改动都不再触发 HMR / 整页刷新，统一手动 F5 后生效。
+ * 文件监听必须保留（server.watch: {}）——改动仍会使 Vite 模块缓存失效，F5 拿到的就是新代码。
+ *
+ * 两层拦截缺一不可（对齐 vite 6.4 hmr 实现语义）：
+ * 1. hotUpdate 返回 []：跳过所有模块的 HMR 更新（react-refresh / css / ts / 资产 JSON /
+ *    游戏运行时数据 / widget HTML 一视同仁），终端也不再刷 "hmr update" 日志。
+ *    但 vite 有一条硬编码旁路：更新列表为空且文件以 .html 结尾时仍会广播 full-reload；
+ * 2. 再包一层 hot channel send，丢弃 full-reload / update 推送，把 .html 旁路与
+ *    optimizeDeps 重发现等零散 reload 一并拦下。ws 连接保留，报错浮层与自定义事件不受影响。
+ */
+function noAutoReloadPlugin(): Plugin {
+  const isReloadPush = (payload: unknown): boolean => {
+    const type = (payload as { type?: string } | null)?.type
+    return type === 'full-reload' || type === 'update'
+  }
+  return {
+    name: 'no-auto-reload',
+    hotUpdate: {
+      order: 'post',
+      handler: () => [],
+    },
+    configureServer(server) {
+      const client = server.environments.client
+      if (client) {
+        const hot = client.hot as unknown as { send: (payload: unknown) => void }
+        const originalSend = hot.send.bind(hot)
+        hot.send = (payload) => {
+          if (!isReloadPush(payload)) originalSend(payload)
+        }
+      }
+      // server.ws 是旧式插件用的广播口，一并拦截
+      if (server.ws) {
+        const ws = server.ws as unknown as { send: (payload: unknown) => void }
+        const originalSend = ws.send.bind(ws)
+        ws.send = (payload) => {
+          if (!isReloadPush(payload)) originalSend(payload)
+        }
+      }
+    },
+  }
+}
+
+/**
+ * electron 主进程 / preload 重建后不再自动重启应用或刷新页面（配合 no-auto-reload 的手动重载策略）：
+ *   - 首次构建（process.electronApp 尚不存在）必须拉起 Electron，否则 npm run dev 起不来。
+ *     注意 vite-plugin-electron 只把「两个 entry 都完成首轮构建后最后收尾的那个」的 onstart
+ *     当作启动点调用一次，之后每次重建各调各的 onstart，所以两个 entry 都要带首启分支。
+ *   - 主进程代码重建只提示：F5 无法替换主进程代码，需重启 npm run dev。
+ *   - preload 重建只提示：按 F5 刷新页面后生效。
+ */
+function manualElectronOnstart(label: string, howToApply: string) {
+  return (args: { startup(): void; reload(): void }) => {
+    if (!(process as { electronApp?: unknown }).electronApp) {
+      args.startup()
+      return
+    }
+    console.log(`[electron] ${label}已重新构建（不自动重载），${howToApply}`)
+  }
+}
+
 export default defineConfig({
   // 相对路径 base：Electron 生产模式 loadFile（file:// 协议）加载 dist/*.html 时，
   // 绝对路径 /assets/* 会 404，必须用 ./assets/* 相对引用（dev/preview 模式同样兼容）。
@@ -90,9 +151,9 @@ export default defineConfig({
     },
   },
   server: {
-    // 资产 JSON（scene/blueprint）必须参与文件监听，
-    // 否则修改 .scene.json / .blueprint.json 不会触发 Vite 重载，
-    // import.meta.glob 读取到的始终是缓存旧内容。
+    // 文件监听必须保留：改动虽不再触发自动重载（见 no-auto-reload 插件），
+    // 但要靠它使 Vite 模块缓存失效——手动 F5 才能拿到新代码；
+    // 同时 electron 主进程/preload 的 rebuild watch 也依赖它。
     watch: {},
     // 代理 DSH RPC 请求，绕过 CORS（开发模式下浏览器直连 DSH 用）
     proxy: {
@@ -117,25 +178,12 @@ export default defineConfig({
   plugins: [
     react(),
     unicodeFontsCachePlugin(),
-    {
-      // 资产 JSON（widget/scene/blueprint/config/table）更新不触发 HMR 整页/引擎刷新：
-      // 这些文件由编辑器保存机制驱动（writeJsonFile → loadFromJson/loadSceneAsset/ConfigLoader → 预览重建），
-      // 不需要 Vite 热更新传播；文件本身仍被监听，直接改盘不会影响运行中的编辑器。
-      // 不在此过滤的话，import.meta.glob 的依赖链会把整个引擎模块树都重载一遍。
-      // 游戏运行时数据（src/projects/{name}/data/*.json，如 fish 存档 save.json）同理排除：
-      // 游戏中保存存档落盘不应触发整页热重载（会杀掉运行中的游戏会话）。
-      // widget 的 HTML 源（*.widget.html）同理排除：UI 源由编辑器编译/反编译链路驱动，
-      // 且 MockElectronAPI 的 glob 会把它拉进模块图，html 落盘会触发整页刷新杀掉游戏会话。
-      name: 'ignore-asset-json-hmr',
-      handleHotUpdate({ file }) {
-        if (/(?:widget|scene|blueprint|config|table)\.json$/.test(file)) return []
-        if (/[/\\]src[/\\]projects[/\\][^/\\]+[/\\]data[/\\].+\.json$/i.test(file)) return []
-        if (/\.widget\.html$/i.test(file)) return []
-      },
-    },
+    noAutoReloadPlugin(),
     electron([
       {
         entry: 'electron/main.ts',
+        // 主进程不再自动重启 Electron：重建只提示，重启 npm run dev 后生效
+        onstart: manualElectronOnstart('主进程代码', '重启 npm run dev 后生效'),
         vite: {
           build: {
             outDir: 'dist-electron',
@@ -147,9 +195,8 @@ export default defineConfig({
       },
       {
         entry: 'electron/preload.ts',
-        onstart(args) {
-          args.reload()
-        },
+        // preload 不再自动刷新页面（原 args.reload()）：重建只提示，F5 后生效
+        onstart: manualElectronOnstart('preload', '按 F5 刷新页面后生效'),
         vite: {
           build: {
             outDir: 'dist-electron',

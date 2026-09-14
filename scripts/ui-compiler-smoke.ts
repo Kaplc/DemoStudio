@@ -114,6 +114,55 @@ if (!rf.ok) {
   }
 }
 
+// ─── 2c. box-sizing 边盒语义 + 盒溢出审计（2026-09-13 供应链重构 SlotGrid 案） ───
+{
+  // border-box：声明宽 = 占位宽（padding/border 内扣），flex-wrap 两列不溢出
+  // cell 内放 text 子元素（对齐真实 SlotCell 结构——裸文本 div 走 text 合并发射路径，
+  // worldWidth = 内容盒，与通用元素的边盒口径不同，是另一条已知不一致）
+  const bb = compileWidgetHtml(`<widget name="BB" canvas="800x600"><style>
+    .grid { width: 530px; height: 208px; display: flex; flex-direction: row; flex-wrap: wrap; gap: 14px; }
+    .cell { width: 258px; height: 60px; box-sizing: border-box; padding: 0px 12px; border: 1px solid #235066; background-color: #0d2434; }
+  </style><div class="grid"><div class="cell"><text>a</text></div><div class="cell"><text>b</text></div><div class="cell"><text>c</text></div><div class="cell"><text>d</text></div></div></widget>`)
+  if (!bb.ok) { bad('border-box 用例编译'); for (const e of bb.errors) console.log('   ', e.message) }
+  else {
+    const find = (n: any, name: string): any => {
+      if (n.name === name) return n
+      for (const c of n.children ?? []) { const r = find(c, name); if (r) return r }
+      return null
+    }
+    const g = find(bb.doc, 'grid')
+    const cells = (g.children as any[]).filter((c) => /cell/.test(c.name))
+    const w0 = cells[0].components[0].properties.worldWidth as number
+    // 引擎 position = 相对父中心，且以边盒中心为基准：
+    // cell1 边盒左缘 = CSS left 272（border-box 占位即声明宽），边盒中心 = 272+129 = 401
+    // → position.x = 401 − 265（父中心）= 136
+    const x1 = cells[1].components[0].properties.position[0] as number
+    if (Math.abs(w0 - 258) < 0.6) ok(`border-box 占位 = 声明宽（${Math.round(w0)} = 258，padding/border 内扣）`)
+    else bad(`border-box 占位异常: ${w0}（应 258）`)
+    if (Math.abs(x1 - 136) < 1) ok(`flex-wrap 第 2 列位置正确（position.x ${Math.round(x1)} ≈ 136，即 CSS left 272）`)
+    else bad(`flex-wrap 第 2 列位置异常: ${x1}（应 136）`)
+    if (bb.warnings.filter((w) => /溢出/.test(w.message)).length === 0) ok('border-box 用例零溢出告警')
+    else bad(`border-box 用例误报溢出: ${JSON.stringify(bb.warnings)}`)
+  }
+  // content-box 忘写 border-box：占位 = 声明 + padding/border → 溢出告警（贴边 ≤2.5px 豁免）
+  const cb = compileWidgetHtml(`<widget name="CB" canvas="800x600"><style>
+    .grid { width: 530px; height: 208px; display: flex; flex-direction: row; flex-wrap: wrap; gap: 14px; }
+    .cell { width: 258px; height: 60px; padding: 0px 12px; border: 1px solid #235066; background-color: #0d2434; }
+    .edge { width: 530px; height: 20px; border: 1px solid gray; }
+  </style><div class="grid"><div class="cell"><text>a</text></div><div class="cell"><text>b</text></div><div class="edge"><text>e</text></div></div></widget>`)
+  if (!cb.ok) bad('content-box 用例编译')
+  else {
+    // content-box 下 cell 占位 284 → 提前换行（2 列变 1 行的静默布局偏差）：
+    // 提示口径 = flex-wrap 容器内「显式宽 + padding/border + 未声明 box-sizing」子项
+    const hints = cb.warnings.filter((w) => /box-sizing: border-box/.test(w.message))
+    if (hints.length >= 1) ok(`content-box + padding/border 组合提示直出（${hints.length} 条，含修复路径）`)
+    else bad(`content-box 提示缺失: ${JSON.stringify(cb.warnings)}`)
+    // 贴边 border 的 edge（溢出 2px ≤ 2.5）不触发溢出告警
+    if (!cb.warnings.some((w) => /溢出/.test(w.message))) ok('贴边 border（2px）豁免不告警')
+    else bad('贴边 border 误报溢出')
+  }
+}
+
 // ─── 3. 越界硬报错 ───
 const expectFail = (label: string, src: string): void => {
   const r = compileWidgetHtml(src)

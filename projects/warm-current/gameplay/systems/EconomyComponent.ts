@@ -32,6 +32,9 @@ export class EconomyComponent extends BObjectComponent<WarmCurrentGameMode> {
       return
     }
     s.ring = 'running'
+    // 地球本地产线（2026-09-13 可选件：氘氚备用堆，global.config earthBaseYield 可开；默认 0）
+    s.earthH3 += B.earthBaseYield * dt
+    s.ledger.mining += B.earthBaseYield * dt
     // 舰队维护费：按总船数查 fleet_maint 阶梯（H3/秒），与环焚烧/研究计费同池争夺地球储备，
     // 储备归零同样触发断环降温（维护费也是生存压力的一部分）。
     // 建设计费不在本处：造价制下 RingBuildComponent.tickBuild 灌入即实扣（进度 = 投入/本级造价）

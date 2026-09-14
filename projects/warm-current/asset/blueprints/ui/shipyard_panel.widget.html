@@ -2,7 +2,7 @@
   <style>
     .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
     .PanelRoot { width: 1400px; height: 700px; position: absolute; left: 260px; top: 190px; display: flex; flex-direction: column; gap: 8px; }
-    .ShipyardBody { width: 1400px; height: 700px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 8px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 14px; hit-test: block; }
+    .ShipyardBody { box-sizing: border-box; width: 1400px; height: 700px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 8px; background-image: linear-gradient(165deg, #0e2030ee 0%, #081422e0 50%, #0a1c2ce6 100%); border: 1px solid #2a5f7a; padding: 14px; hit-test: block; }
     .PanelTitleRow { width: 1372px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
     .TitleText { width: 420px; height: 34px; flex-shrink: 0; font-size: 22px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
     .StatusText { width: 320px; height: 28px; flex-shrink: 0; font-size: 18px; color: #8fbcd4; text-align: center; text-shadow: 1px 1px 4px #00000066; }
@@ -16,14 +16,35 @@
     .StepTitle { height: 24px; flex-shrink: 0; font-size: 16px; color: #4fd8ff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .HullTitle { width: 320px; }
     .ModuleTitle { width: 720px; }
+    .SlotRowText { width: 720px; height: 24px; flex-shrink: 0; font-size: 15px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
+    .SlotGrid { width: 720px; height: 126px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px; }
+    .SlotCell { box-sizing: border-box; width: 258px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; background-color: #0d2434; border: 1px solid #235066; padding: 0px 12px; }
+    .SlotCell:hover { background-color: #143650; }
+    .SlotCell:checked { background-color: #14486b; }
+    .SlotTypeName { width: 64px; height: 28px; flex-shrink: 0; font-size: 16px; color: #6f9ab0; text-shadow: 1px 1px 4px #00000066; }
+    .SlotModuleName { width: 170px; height: 28px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
     .OrderTitle { width: 322px; }
     .HullList { width: 320px; height: 434px; flex-shrink: 0; }
-    .ModuleList { width: 720px; height: 434px; flex-shrink: 0; }
-    .OrderText { width: 322px; height: 356px; flex-shrink: 0; font-size: 16px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
+    .ModuleList { width: 720px; height: 210px; flex-shrink: 0; }
+    .OrderText { width: 322px; height: 240px; flex-shrink: 0; font-size: 16px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_yd_recommend { width: 322px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_yd_recommend:hover { background-color: #143650; }
+    .Label_yd_recommend { width: 300px; height: 28px; font-size: 16px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .TrialText { width: 322px; height: 148px; flex-shrink: 0; font-size: 14px; color: #7fdcff; text-shadow: 1px 1px 4px #00000066; }
     .BottomRow { width: 1372px; height: 148px; flex-shrink: 0; display: flex; flex-direction: row; gap: 10px; }
-    .QueueCol { width: 1102px; height: 148px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
-    .QueueTitle { width: 1102px; }
-    .ShipCardList { width: 1102px; height: 118px; flex-shrink: 0; }
+    .QueueCol { width: 720px; height: 148px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+    .QueueTitle { width: 720px; }
+    .ShipCardList { width: 720px; height: 118px; flex-shrink: 0; }
+    .DesignCol { width: 372px; height: 148px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+    .DesignTitle { width: 372px; }
+    .DesignList { width: 372px; height: 64px; flex-shrink: 0; }
+    .DesignBtnRow { width: 372px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; gap: 6px; }
+    .Btn_yd_save { width: 183px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_yd_save:hover { background-color: #143650; }
+    .Btn_yd_ddel { width: 183px; height: 48px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_yd_ddel:hover { background-color: #143650; }
+    .Label_yd_save { width: 170px; height: 26px; font-size: 15px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Label_yd_ddel { width: 170px; height: 26px; font-size: 15px; color: #9fd8ef; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .Btn_yd_build { width: 260px; height: 148px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0f2a1c; border: 1px solid #2a6e4a; }
     .Btn_yd_build:hover { background-color: #16382a; }
     .BtnLabel { width: 220px; height: 64px; flex-shrink: 0; font-size: 20px; color: #7fe8a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
@@ -38,18 +59,37 @@
             <div class="HullList" data-name="HullList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
           </div>
           <div class="ModuleCol" data-name="ModuleCol">
-            <text class="StepTitle ModuleTitle" data-name="ModuleTitle">② 本船插件（按船型配置表，可不配）</text>
+            <text class="StepTitle ModuleTitle" data-name="ModuleTitle">② 本船插件（点部位选件 · 可不配）</text>
+            <text class="SlotRowText" data-name="SlotRowText"></text>
+            <div class="SlotGrid" data-name="SlotGrid">
+              <button class="SlotCell" data-name="SlotCell_0"><text class="SlotTypeName" data-name="SlotTypeName_0"></text><text class="SlotModuleName" data-name="SlotModuleName_0"></text></button>
+              <button class="SlotCell" data-name="SlotCell_1"><text class="SlotTypeName" data-name="SlotTypeName_1"></text><text class="SlotModuleName" data-name="SlotModuleName_1"></text></button>
+              <button class="SlotCell" data-name="SlotCell_2"><text class="SlotTypeName" data-name="SlotTypeName_2"></text><text class="SlotModuleName" data-name="SlotModuleName_2"></text></button>
+              <button class="SlotCell" data-name="SlotCell_3"><text class="SlotTypeName" data-name="SlotTypeName_3"></text><text class="SlotModuleName" data-name="SlotModuleName_3"></text></button>
+              <button class="SlotCell" data-name="SlotCell_4"><text class="SlotTypeName" data-name="SlotTypeName_4"></text><text class="SlotModuleName" data-name="SlotModuleName_4"></text></button>
+              <button class="SlotCell" data-name="SlotCell_5"><text class="SlotTypeName" data-name="SlotTypeName_5"></text><text class="SlotModuleName" data-name="SlotModuleName_5"></text></button>
+            </div>
             <div class="ModuleList" data-name="ModuleList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
           </div>
           <div class="OrderCol" data-name="OrderCol">
             <text class="StepTitle OrderTitle" data-name="OrderTitle">③ 入队</text>
             <text class="OrderText" data-name="OrderText"></text>
+            <button class="Btn_yd_recommend" data-name="Btn_yd_recommend"><text class="Label_yd_recommend">⚙ 一键推荐配置</text></button>
+            <text class="TrialText" data-name="TrialText"></text>
           </div>
         </div>
         <div class="BottomRow" data-name="BottomRow">
           <div class="QueueCol" data-name="QueueCol">
             <text class="StepTitle QueueTitle" data-name="QueueTitle">造船队列（队首建造中）</text>
             <div class="ShipCardList" data-name="ShipCardList" data-comp="UILayout" data-props='{"mode":"horizontal","wrap":true,"spacingX":6,"spacingY":6,"autoLayout":true}'></div>
+          </div>
+          <div class="DesignCol" data-name="DesignCol">
+            <text class="StepTitle DesignTitle" data-name="DesignTitle">设计模板（点击载入）</text>
+            <div class="DesignList" data-name="DesignList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":4,"autoLayout":true}'></div>
+            <div class="DesignBtnRow" data-name="DesignBtnRow">
+              <button class="Btn_yd_save" data-name="Btn_yd_save"><text class="Label_yd_save">存为模板</text></button>
+              <button class="Btn_yd_ddel" data-name="Btn_yd_ddel"><text class="Label_yd_ddel">删除所选模板</text></button>
+            </div>
           </div>
           <button class="Btn_yd_build" data-name="Btn_yd_build"><text class="BtnLabel" data-name="BtnLabel">造船</text></button>
         </div>

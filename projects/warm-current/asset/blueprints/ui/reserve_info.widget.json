@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentReserveInfo",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-589bd624",
+  "sourceHash": "fnv1a-f401da8a",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -565,10 +565,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 106,
-                        "worldHeight": 46,
+                        "worldWidth": 104,
+                        "worldHeight": 44,
                         "position": [
-                          189,
+                          188,
                           -1,
                           0
                         ]
@@ -596,8 +596,8 @@
                       "baseClass": "UIImageComponent",
                       "properties": {
                         "color": "#0d2434",
-                        "width": 106,
-                        "height": 46,
+                        "width": 104,
+                        "height": 44,
                         "name": "Btn_close_info"
                       }
                     }
@@ -613,7 +613,7 @@
                           "properties": {
                             "position": [
                               0,
-                              22.5,
+                              21.5,
                               0
                             ],
                             "rotation": [
@@ -626,7 +626,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 106,
+                            "worldWidth": 104,
                             "worldHeight": 1
                           }
                         },
@@ -643,7 +643,7 @@
                           "properties": {
                             "name": "Btn_close_infoBorderTop",
                             "color": "#2a5f7a",
-                            "width": 106,
+                            "width": 104,
                             "height": 8
                           }
                         }
@@ -659,7 +659,7 @@
                           "baseClass": "UITransformComponent",
                           "properties": {
                             "position": [
-                              52.5,
+                              51.5,
                               0,
                               0
                             ],
@@ -674,7 +674,7 @@
                               1
                             ],
                             "worldWidth": 1,
-                            "worldHeight": 46
+                            "worldHeight": 44
                           }
                         },
                         {
@@ -691,7 +691,7 @@
                             "name": "Btn_close_infoBorderRight",
                             "color": "#2a5f7a",
                             "width": 8,
-                            "height": 46
+                            "height": 44
                           }
                         }
                       ],
@@ -707,7 +707,7 @@
                           "properties": {
                             "position": [
                               0,
-                              -22.5,
+                              -21.5,
                               0
                             ],
                             "rotation": [
@@ -720,7 +720,7 @@
                               1,
                               1
                             ],
-                            "worldWidth": 106,
+                            "worldWidth": 104,
                             "worldHeight": 1
                           }
                         },
@@ -737,7 +737,7 @@
                           "properties": {
                             "name": "Btn_close_infoBorderBottom",
                             "color": "#2a5f7a",
-                            "width": 106,
+                            "width": 104,
                             "height": 8
                           }
                         }
@@ -753,7 +753,7 @@
                           "baseClass": "UITransformComponent",
                           "properties": {
                             "position": [
-                              -52.5,
+                              -51.5,
                               0,
                               0
                             ],
@@ -768,7 +768,7 @@
                               1
                             ],
                             "worldWidth": 1,
-                            "worldHeight": 46
+                            "worldHeight": 44
                           }
                         },
                         {
@@ -785,7 +785,7 @@
                             "name": "Btn_close_infoBorderLeft",
                             "color": "#2a5f7a",
                             "width": 8,
-                            "height": 46
+                            "height": 44
                           }
                         }
                       ],

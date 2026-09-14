@@ -656,10 +656,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 320,
+                        "worldWidth": 316,
                         "worldHeight": 60,
                         "position": [
-                          -130,
+                          -132,
                           2,
                           0
                         ]
@@ -678,7 +678,7 @@
                       "properties": {
                         "text": "",
                         "name": "SlotInfo1",
-                        "width": 320,
+                        "width": 316,
                         "height": 60,
                         "fontSize": 17,
                         "color": "#bfe8ff",
@@ -713,7 +713,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          101,
+                          97,
                           3,
                           0
                         ]
@@ -1025,7 +1025,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          233,
+                          229,
                           3,
                           0
                         ]
@@ -1373,10 +1373,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 320,
+                        "worldWidth": 316,
                         "worldHeight": 60,
                         "position": [
-                          -130,
+                          -132,
                           2,
                           0
                         ]
@@ -1395,7 +1395,7 @@
                       "properties": {
                         "text": "",
                         "name": "SlotInfo2",
-                        "width": 320,
+                        "width": 316,
                         "height": 60,
                         "fontSize": 17,
                         "color": "#bfe8ff",
@@ -1430,7 +1430,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          101,
+                          97,
                           3,
                           0
                         ]
@@ -1742,7 +1742,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          233,
+                          229,
                           3,
                           0
                         ]
@@ -2090,10 +2090,10 @@
                           1,
                           1
                         ],
-                        "worldWidth": 320,
+                        "worldWidth": 316,
                         "worldHeight": 60,
                         "position": [
-                          -130,
+                          -132,
                           2,
                           0
                         ]
@@ -2112,7 +2112,7 @@
                       "properties": {
                         "text": "",
                         "name": "SlotInfo3",
-                        "width": 320,
+                        "width": 316,
                         "height": 60,
                         "fontSize": 17,
                         "color": "#bfe8ff",
@@ -2147,7 +2147,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          101,
+                          97,
                           3,
                           0
                         ]
@@ -2459,7 +2459,7 @@
                         "worldWidth": 122,
                         "worldHeight": 58,
                         "position": [
-                          233,
+                          229,
                           3,
                           0
                         ]

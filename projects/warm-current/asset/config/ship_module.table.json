@@ -1,28 +1,117 @@
 {
-  "_comment": "船用模块配置表（2026-09-11 玩家设计权扩展：造船时按船型兼容清单选配，仅本船生效）。行键 = 模块 id（SimShip.modules 元素，单船同模块只装一件）。\n cost=模块造价(H3，并入造船整单价，×船坞折扣；模块不占 ship_cap 名额，花钱即可)。\n mods=效果修正集（仅本船；键=loadMult 本船满载乘区 / fuelMult 本船油耗乘区 / speedMult 本船航速乘区 / workMult 装卸时长乘区 / antiFreeze 冻毁免疫）。\n 船型兼容清单见 ship_hull.table.json allowed 键；建成后不可改装。\n 加新模块：加一行 + 造船面板模块勾选列表自动多一行（ShipyardPanelScript 按表渲染）。",
+  "_comment": "船用模块配置表（2026-09-11 玩家设计权扩展：造船时按船型兼容清单选配，仅本船生效）。行键 = 模块 id（SimShip.modules 元素，单船同模块只装一件）。\n cost=模块造价(H3，并入造船整单价，×船坞折扣；模块不占 ship_cap 名额，花钱即可)。\n mods=效果修正集（仅本船；键=loadMult 本船满载乘区 / fuelMult 本船油耗乘区 / speedMult 本船航速乘区 / workMult 装卸时长乘区 / antiFreeze 冻毁免疫）。\n 船型兼容清单见 ship_hull.table.json allowed 键；建成后不可改装。\n slotType = 占用槽位类型（ship_hull.slots 行键；缺省 = 不占槽仅受 allowed 约束）。\n payloadRole = 荷载件角色（2026-09-13 荷载设计工坊：'chassis'=可作荷载主体的货舱档位 / 'attachment'=可合成进自定义荷载的舱内附件；缺省 = 非荷载件）。\n加新模块：加一行 + 造船面板模块勾选列表自动多一行（ShipyardPanelScript 按表渲染）。\n2026-09-13 船队设计工坊：槽位制——cargo_pod→cargo / aux_tank→tank / ion_engine→engine / pump,heater→utility。\n2026-09-13 部位选件制（用户需求：点部位 → 同功能多档部件挑数值）：每 slotType 2~3 档同功能部件，行序 = 设计工坊部位清单展示序（低档在前）；性能/造价单调递增。旧 id 全部保留（存档 shipDesigns/SimShip.modules 兼容）。\n2026-09-13 火箭三部位改版（用户需求：槽位 = 荷载/燃料/引擎）：槽型更名 cargo→payload、tank→fuel；功能槽 utility 下线——泵/加热器改占荷载槽（payloadRole='attachment'），并与货舱档位（payloadRole='chassis'）在荷载设计工坊合成为自定义荷载（主体+附件并一件，造价 ×1.15 组装溢价，占 1 荷载槽）。",
+  "cargo_s": {
+    "name": "轻量货舱",
+    "desc": "本船满载 ×1.15",
+    "cost": 100,
+    "mods": {
+      "loadMult": 1.15
+    },
+    "slotType": "payload",
+    "payloadRole": "chassis"
+  },
   "cargo_pod": {
-    "name": "货舱扩容", "desc": "本船满载 ×1.3",
+    "name": "标准货舱",
+    "desc": "本船满载 ×1.3",
     "cost": 180,
-    "mods": { "loadMult": 1.3 }
+    "mods": {
+      "loadMult": 1.3
+    },
+    "slotType": "payload",
+    "payloadRole": "chassis"
+  },
+  "cargo_x": {
+    "name": "特扩货舱",
+    "desc": "本船满载 ×1.5",
+    "cost": 300,
+    "mods": {
+      "loadMult": 1.5
+    },
+    "slotType": "payload",
+    "payloadRole": "chassis"
+  },
+  "tank_s": {
+    "name": "简易副油箱",
+    "desc": "本船油耗 ×0.9",
+    "cost": 90,
+    "mods": {
+      "fuelMult": 0.9
+    },
+    "slotType": "fuel"
   },
   "aux_tank": {
-    "name": "副油箱", "desc": "本船油耗 ×0.8",
+    "name": "副油箱",
+    "desc": "本船油耗 ×0.8",
     "cost": 160,
-    "mods": { "fuelMult": 0.8 }
+    "mods": {
+      "fuelMult": 0.8
+    },
+    "slotType": "fuel"
+  },
+  "tank_x": {
+    "name": "深冷油箱",
+    "desc": "本船油耗 ×0.65",
+    "cost": 300,
+    "mods": {
+      "fuelMult": 0.65
+    },
+    "slotType": "fuel"
+  },
+  "engine_s": {
+    "name": "巡航引擎",
+    "desc": "本船航速 ×1.1",
+    "cost": 120,
+    "mods": {
+      "speedMult": 1.1
+    },
+    "slotType": "engine"
   },
   "ion_engine": {
-    "name": "离子引擎", "desc": "本船航速 ×1.2",
+    "name": "离子引擎",
+    "desc": "本船航速 ×1.2",
     "cost": 200,
-    "mods": { "speedMult": 1.2 }
+    "mods": {
+      "speedMult": 1.2
+    },
+    "slotType": "engine"
+  },
+  "engine_x": {
+    "name": "聚变引擎",
+    "desc": "本船航速 ×1.35",
+    "cost": 340,
+    "mods": {
+      "speedMult": 1.35
+    },
+    "slotType": "engine"
+  },
+  "pump_s": {
+    "name": "备用货泵",
+    "desc": "装卸时间 ×0.8",
+    "cost": 80,
+    "mods": {
+      "workMult": 0.8
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment"
   },
   "pump": {
-    "name": "快速货泵", "desc": "装卸时间 ×0.6",
+    "name": "快速货泵",
+    "desc": "装卸时间 ×0.6",
     "cost": 140,
-    "mods": { "workMult": 0.6 }
+    "mods": {
+      "workMult": 0.6
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment"
   },
   "heater": {
-    "name": "防冻加热器", "desc": "耀斑冻毁免疫（罩外也存活）",
+    "name": "防冻加热器",
+    "desc": "耀斑冻毁免疫（罩外也存活）",
     "cost": 320,
-    "mods": { "antiFreeze": true }
+    "mods": {
+      "antiFreeze": true
+    },
+    "slotType": "payload",
+    "payloadRole": "attachment"
   }
 }

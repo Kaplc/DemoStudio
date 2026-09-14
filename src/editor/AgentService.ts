@@ -27,9 +27,11 @@ import type {
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
   PendingImage, PromptContentPart,
   SessionUsageEntry, SessionInfo, SessionsUpdatedPayload,
+  SessionNotice, SessionNoticeUpdatePayload,
   FileDiff,
 } from '../types/agent'
 import type { SessionStatsProjection } from '../types/agent'
+import { reduceSessionNotices, type SessionNoticeAction } from './sessionNotices'
 import { logTime } from '../utils/logTime'
 
 /** session.prompt 接受的图片 MIME 白名单（对齐 DSH dsh-client-ui-conversation imageMediaType） */
@@ -482,6 +484,13 @@ export class AgentService {
   private pendingQuestions: Map<string, PendingQuestionRequest> = new Map()
   /** 当前 pending 的工具审批请求（key = rpcId） */
   private pendingApprovals: Map<string, PendingApprovalRequest> = new Map()
+  // ─── 跨会话动态（消息区左上气泡栈）：mux 对所有会话广播，这里只跟踪非当前会话 ───
+  /** 跨会话通知快照（经 sessionNotice 事件全量推给面板） */
+  private sessionNotices: SessionNotice[] = []
+  /** 其他会话的 pending 问答（key = rpcId；切到该会话时 adopt 进 pendingQuestions 变成可回答卡片） */
+  private crossQuestions: Map<string, PendingQuestionRequest> = new Map()
+  /** 其他会话的 pending 审批（key = rpcId；同上 adopt 进 pendingApprovals） */
+  private crossApprovals: Map<string, PendingApprovalRequest> = new Map()
   /** 本地已删除会话黑名单（DSH 不支持远程删除时的兜底） */
   private deletedSessionIds: Set<string> = new Set()
   /** 实时工具调用缓存：callId -> 工具名（供 tool/result 配对） */
@@ -895,8 +904,16 @@ export class AgentService {
       const questions = payload.questions as QuestionItem[] | undefined
       const sessionId = payload.sessionId as string | undefined
       if (questions && sessionId) {
-        // 只处理当前会话的问题（mux 可能推送其他会话的 pending 帧）
-        if (sessionId !== this.sessionId) return
+        // 非当前会话的问题：存入跨会话待定表并记通知气泡（切到该会话时 adopt 成可回答卡片）
+        if (sessionId !== this.sessionId) {
+          const req: PendingQuestionRequest = { rpcId, sessionId, questions }
+          this.crossQuestions.set(rpcId, req)
+          this.applyNoticeAction({
+            type: 'question-requested', sessionId, rpcId, at: Date.now(),
+            detail: questions.length > 1 ? `${questions.length} 个问题：${questions[0]?.question ?? ''}` : questions[0]?.question,
+          })
+          return
+        }
         const req: PendingQuestionRequest = { rpcId, sessionId, questions }
         this.pendingQuestions.set(rpcId, req)
         console.log(`[${logTime()}] [AgentService] question/requested: rpcId=${rpcId}, ${questions.length} 个问题`)
@@ -910,6 +927,8 @@ export class AgentService {
       const outcome = payload.outcome as string | undefined
       if (questionRpcId) {
         this.pendingQuestions.delete(questionRpcId)
+        this.crossQuestions.delete(questionRpcId)
+        this.applyNoticeAction({ type: 'question-resolved', questionRpcId })
         console.log(`[${logTime()}] [AgentService] question/resolved: rpcId=${questionRpcId}, outcome=${outcome}`)
         this.emit({ type: 'questionResolved', payload: { rpcId: questionRpcId, outcome } })
       }
@@ -922,8 +941,20 @@ export class AgentService {
       const toolName = payload.toolName as string | undefined
       const sessionId = payload.sessionId as string | undefined
       if (approvalId && toolName && sessionId) {
-        // 只处理当前会话的审批（mux 可能推送其他会话的 pending 帧）
-        if (sessionId !== this.sessionId) return
+        // 非当前会话的审批：存入跨会话待定表并记通知气泡（切到该会话时 adopt 成可决议卡片）
+        if (sessionId !== this.sessionId) {
+          const req: PendingApprovalRequest = {
+            rpcId,
+            sessionId,
+            approvalId,
+            toolName,
+            callId: payload.callId as string | undefined,
+            reason: payload.reason as string | undefined,
+          }
+          this.crossApprovals.set(rpcId, req)
+          this.applyNoticeAction({ type: 'approval-requested', sessionId, approvalId, detail: toolName, at: Date.now() })
+          return
+        }
         const req: PendingApprovalRequest = {
           rpcId,
           sessionId,
@@ -947,16 +978,27 @@ export class AgentService {
         for (const [rpcId, req] of this.pendingApprovals) {
           if (req.approvalId === approvalId) this.pendingApprovals.delete(rpcId)
         }
+        for (const [rpcId, req] of this.crossApprovals) {
+          if (req.approvalId === approvalId) this.crossApprovals.delete(rpcId)
+        }
+        this.applyNoticeAction({ type: 'approval-resolved', approvalId })
         this.emit({ type: 'approvalResolved', payload: { approvalId, outcome } })
       }
       return
     }
 
-    // ── session/event：AI 回复事件的实时推送主通道（与 DSH WebUI 同源） ──
+    // ── session/event：AI 回复事件的实时推送主通道（与 DSH WebUI 同源）──
+    // mux 是多路复用的：所有会话的事件都会推过来（DSH events.mux 无订阅过滤），
+    // 当前会话走完整消费管线，其他会话只提炼动态进通知气泡
     if (method === 'session/event') {
       const sid = payload.sessionId as string | undefined
       const event = payload.event as DshEvent | undefined
-      if (event && sid === this.sessionId) this.consumeSessionEvent(event)
+      if (!event) return
+      if (sid === this.sessionId) {
+        this.consumeSessionEvent(event)
+      } else if (sid) {
+        this.consumeForeignSessionEvent(sid, event)
+      }
       return
     }
 
@@ -1012,6 +1054,69 @@ export class AgentService {
         this.emit({ type: 'sessionsUpdated', payload: { sessions } satisfies SessionsUpdatedPayload })
       })
     }, 300)
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  跨会话动态通知（消息区左上气泡栈）
+  // ═══════════════════════════════════════════════════════════
+
+  /** 应用一条通知动作：归约变化才广播 sessionNotice 全量快照 */
+  private applyNoticeAction(action: SessionNoticeAction): void {
+    const next = reduceSessionNotices(this.sessionNotices, action)
+    if (next === this.sessionNotices) return
+    this.sessionNotices = next
+    console.log(`[${logTime()}] [AgentService] sessionNotice: ${action.type} → ${next.length} 条通知`)
+    this.emit({ type: 'sessionNotice', payload: { notices: next } satisfies SessionNoticeUpdatePayload })
+  }
+
+  /** 当前跨会话通知快照（面板挂载时初始化用） */
+  getSessionNotices(): SessionNotice[] {
+    return this.sessionNotices
+  }
+
+  /** 用户手动关闭一条通知 */
+  dismissSessionNotice(id: string): void {
+    this.applyNoticeAction({ type: 'dismiss', id })
+  }
+
+  /**
+   * 提炼其他会话的 session/event 帧为动态通知（当前会话事件不走这里）。
+   * 只关心回合边界：turn/start 清过期结算、turn/end 按结束原因记账；
+   * aborted/interrupted（用户主动停止）与 max-tokens 不打扰。
+   */
+  private consumeForeignSessionEvent(sessionId: string, event: DshEvent): void {
+    if (event.type === 'turn/start') {
+      this.applyNoticeAction({ type: 'turn-started', sessionId })
+      return
+    }
+    if (event.type === 'turn/end') {
+      const kind = event.data?.reason?.kind as string | undefined
+      if (kind === 'completed') {
+        this.applyNoticeAction({ type: 'turn-ended', sessionId, kind: 'completed', at: Date.now() })
+      } else if (kind === 'error') {
+        const message = event.data?.reason?.error?.message
+        this.applyNoticeAction({ type: 'turn-ended', sessionId, kind: 'error', ...(message ? { detail: message } : {}), at: Date.now() })
+      } else if (kind === 'blocked') {
+        const detail = (event.data?.reason?.reason as { reason?: string } | undefined)?.reason
+        this.applyNoticeAction({ type: 'turn-ended', sessionId, kind: 'blocked', ...(detail ? { detail } : {}), at: Date.now() })
+      }
+    }
+  }
+
+  /** 会话切换时 adopt 跨会话待定请求：目标会话的问答/审批从气泡升级为可操作卡片 */
+  private adoptCrossSessionRequests(sessionId: string): void {
+    for (const [rpcId, req] of Array.from(this.crossQuestions)) {
+      if (req.sessionId !== sessionId) continue
+      this.crossQuestions.delete(rpcId)
+      this.pendingQuestions.set(rpcId, req)
+      console.log(`[${logTime()}] [AgentService] adopt 跨会话问答: rpcId=${rpcId}, ${req.questions.length} 个问题`)
+    }
+    for (const [rpcId, req] of Array.from(this.crossApprovals)) {
+      if (req.sessionId !== sessionId) continue
+      this.crossApprovals.delete(rpcId)
+      this.pendingApprovals.set(rpcId, req)
+      console.log(`[${logTime()}] [AgentService] adopt 跨会话审批: rpcId=${rpcId}, tool=${req.toolName}`)
+    }
   }
 
   /** 获取当前 pending 的问题请求 */
@@ -2466,6 +2571,10 @@ export class AgentService {
     this.setRunning(false)
     this.setSession(sessionId)
     this.persistSession()
+    // 目标会话已有动态：面板上可见即视为已读，清掉它的气泡；
+    // 它的待定问答/审批从跨会话表 adopt 进当前会话（面板随后从 getter 种子出卡片）
+    this.applyNoticeAction({ type: 'session-viewed', sessionId })
+    this.adoptCrossSessionRequests(sessionId)
     this.abortPolling = false
     // 加载窗口内 mux 仍在推流目标会话事件：基线未立前暂存不消费，fold
     // 立起基线后按 seq 门限重放——已随 fold 上屏的被去重丢弃，真正增量照常消费
@@ -2546,6 +2655,14 @@ export class AgentService {
       console.log(`[${logTime()}] [AgentService] 归档不可用，使用本地黑名单: ${sessionId}`)
     }
     this.deletedSessionIds.add(sessionId)
+    // 归档会话的气泡与跨会话待定请求一并作废
+    this.applyNoticeAction({ type: 'session-removed', sessionId })
+    for (const [rpcId, req] of Array.from(this.crossQuestions)) {
+      if (req.sessionId === sessionId) this.crossQuestions.delete(rpcId)
+    }
+    for (const [rpcId, req] of Array.from(this.crossApprovals)) {
+      if (req.sessionId === sessionId) this.crossApprovals.delete(rpcId)
+    }
     if (this.sessionId === sessionId) {
       // 当前会话被删除：同步清除实时流状态与持久化映射，避免下次刷新重复尝试恢复
       this.clearLiveBuffers()

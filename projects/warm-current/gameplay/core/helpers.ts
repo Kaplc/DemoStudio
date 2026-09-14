@@ -4,12 +4,12 @@
  * core 铁律：这里全部是无状态纯函数（或纯数据工厂），不依赖引擎对象，
  * 便于单测与快照。带 B 的数值读取（balance 运行时单例，配置表可覆盖）。
  */
-import { B, MAP_H, MAP_W, toWX, toWZ } from './balance'
+import { B, MAP_H, MAP_W, PAYLOAD_ASSEMBLY_MULT, toWX, toWZ } from './balance'
 import type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef } from './balance'
-import { buildingEffectiveDef, ringModsOf, shipHullDefOf, shipModuleDefOf } from './balance'
+import { buildingEffectiveDef, isDynamicShipModule, ringBuildingDefOf, ringModsOf, shipHullDefOf, shipModuleDefOf } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
-  Endpoint, OrbitBuilding, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimResearchLine, SimRoute, SimShip, SimState, StarId,
+  Endpoint, OrbitBuilding, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimPayloadDesign, SimResearchLine, SimRoute, SimShip, SimState, StarId,
 } from './types'
 
 // ─── 确定性随机（耀斑调度可复现） ───
@@ -315,11 +315,55 @@ export function shipHullOf(ship: Pick<SimShip, 'hull'>): ShipHullDef | null {
   return shipHullDefOf(ship.hull) ?? shipHullDefOf('standard')
 }
 
-/** 本船船型是否允许装该模块（allowed 含 '*' = 不限） */
+/**
+ * 本船船型是否允许装该模块（'*' = 不限；slots 存在时还需槽位余量，见 hullHasSlotFor）。
+ * 2026-09-13 荷载设计工坊：自定义合成荷载旁路 allowed 白名单（专精船型的白名单按现货件圈定，
+ * 玩家自设计荷载是"自己的件"），只受槽位闸约束——courier 无荷载槽自然装不上。
+ */
 export function hullAllowsModule(hullId: string, moduleId: string): boolean {
   const hull = shipHullDefOf(hullId) ?? shipHullDefOf('standard')
   if (!hull) return false
+  if (isDynamicShipModule(moduleId)) return true
   return hull.allowed.includes('*') || hull.allowed.includes(moduleId)
+}
+
+/**
+ * 船型槽位容量（槽位类型 → 数量；缺省 slots = 空 —— 模块只受 allowed 约束）。
+ * 2026-09-13 船队设计工坊：装船校验 = allowed 兼容 ∧ slotType 有对应槽 ∧ 同槽型未满。
+ */
+export function hullSlotCapacity(hullId: string): Record<string, number> {
+  const hull = shipHullDefOf(hullId) ?? shipHullDefOf('standard')
+  return { ...(hull?.slots ?? {}) }
+}
+
+/** 已选模块集对船型各槽型的占用计数（槽位类型 → 已装数） */
+export function modulesSlotUsage(hullId: string, modules: string[]): Record<string, number> {
+  const used: Record<string, number> = {}
+  for (const id of modules) {
+    const t = shipModuleDefOf(id)?.slotType
+    if (!t) continue
+    used[t] = (used[t] ?? 0) + 1
+  }
+  return used
+}
+
+/** 该模块能否再装一件（兼容 + 槽位余量；单船同模块仍只装一件的规则在调用方去重） */
+export function hullHasSlotFor(hullId: string, modules: string[], moduleId: string): boolean {
+  if (!hullAllowsModule(hullId, moduleId)) return false
+  const type = shipModuleDefOf(moduleId)?.slotType
+  if (!type) return true // 不占槽的模块只受 allowed 约束
+  const cap = hullSlotCapacity(hullId)[type] ?? 0
+  const used = modulesSlotUsage(hullId, modules)[type] ?? 0
+  return used < cap
+}
+
+/** 装船合法性总口径（预览/入队共用）：每件模块都过 allowed + 槽位闸 */
+export function modulesFitHull(hullId: string, modules: string[]): boolean {
+  for (let i = 0; i < modules.length; i++) {
+    const partial = modules.filter((_, j) => j !== i)
+    if (!hullHasSlotFor(hullId, partial, modules[i])) return false
+  }
+  return true
 }
 
 /** 造船整单价（船体 + Σ模块，H3；船坞折扣由调用方乘） */
@@ -357,7 +401,7 @@ export function shipMults(ship: Pick<SimShip, 'hull' | 'modules'>): ShipMults {
 export function freshMods(): SimState['mods'] {
   return {
     fuelMult: 1, speedMult: 1, cargoMult: 1, moonLoadAdd: 0, otherLoadAdd: 0,
-    burnMult: 1, ringBuildCostMult: 1, gravityAdd: 0,
+    burnMult: 1, ringBuildCostMult: 1, gravityAdd: 0, miningMult: 1,
     flareWarning: false, fleetBonus: 0,
   }
 }
@@ -383,10 +427,21 @@ export function createInitialState(seed: number): SimState {
   resetIds()
   const ships: SimShip[] = []
   for (let i = 0; i < B.initialShips; i++) ships.push(makeShip(i + 1))
+  // 星球堆场：开局旧文明储备散货（月球 600 ≈ 3 船满载，教学期缓冲；资源星矿建产出续填）
+  const starStock: Record<string, number> = {}
+  for (const [star, cap] of Object.entries(B.starStockCap)) {
+    const init = (B.starStockInitial as Record<string, number>)[star] ?? 0
+    starStock[star] = Math.min(init, cap)
+  }
   return {
     seed,
     time: 0,
     earthH3: B.earthH3Start,
+    starStock,
+    supplyStreak: 0,
+    supplyAwarded: false,
+    shipDesigns: [],
+    payloadDesigns: [],
     coreTemp: 100,
     ring: 'running',
     act: 1,
@@ -395,6 +450,8 @@ export function createInitialState(seed: number): SimState {
     ringBuild: { points: B.ringBuild.defaultPoints },
     ringBuildProgress: 0,
     ringBuildings: Array.from({ length: Math.max(1, B.ringSlots) }, () => null),
+    // 全息地球节点落位表（开局 1 格已交付待落位，玩家在全息地球点球面落位）
+    ringNodes: Array.from({ length: Math.max(1, B.ringSlots) }, () => null),
     ringDemolish: null,
     ships,
     routes: [],
@@ -418,6 +475,147 @@ export function createInitialState(seed: number): SimState {
     ledger: freshLedger(),
     actSnapshots: { act2: null, act3: null },
   }
+}
+
+// ─── 星球堆场（2026-09-13 供应链重构：产量层 → 堆场缓冲 → 运力层） ───
+
+/** 星球堆场上限（吨；非资源星/未知天体 = Infinity——普通行星矿建直采不走堆场） */
+export function starStockCapOf(body: string): number {
+  return (B.starStockCap as Record<string, number | undefined>)[body] ?? Infinity
+}
+
+/** 星球堆场当前库存（吨；未解锁/旧档缺键 = 0） */
+export function starStockOf(state: SimState, body: string): number {
+  return state.starStock?.[body] ?? 0
+}
+
+/**
+ * 该天体矿建总产量速率（吨/秒，试航卡/堆场水位展示用）：
+ * Σ建成矿建 yieldPerS × 环采矿乘区 × 卡 miningMult（余量门控是 tick 时点态，这里给满负荷口径）。
+ */
+export function starMiningRate(state: SimState, body: string, ring?: RingModSet): number {
+  const miningMult = (ring?.miningMult ?? 1) * state.mods.miningMult
+  let rate = 0
+  for (const mine of state.mines) {
+    if (!mine.built) continue
+    const dep = depositOfSafe(mine.depositId)
+    if (dep !== body) continue
+    const def = (B.mineBuildings as Record<string, { yieldPerS: number } | undefined>)[mine.type]
+    rate += def?.yieldPerS ?? 0
+  }
+  return rate * miningMult
+}
+
+/** 矿点 → 所在天体（未知矿点 ''；避免 helpers ↔ MiningComponent 循环依赖的本地查询） */
+function depositOfSafe(depositId: string): string {
+  return (B.mineralDeposits as Record<string, { planet: string } | undefined>)[depositId]?.planet ?? ''
+}
+
+// ─── 船队设计工坊（2026-09-13：试航预估 + 线路反推，纯函数供面板与单测共用） ───
+
+/** 槽位类型显示名（面板槽位行/模块行共用；加槽位类型 = 加一行）。
+ *  2026-09-13 火箭三部位改版（用户需求）：cargo→payload（荷载）、tank→fuel（燃料），功能槽下线 */
+export const SLOT_TYPE_NAMES: Record<string, string> = {
+  payload: '荷载',
+  fuel: '燃料',
+  engine: '引擎',
+}
+
+// ─── 荷载设计工坊（2026-09-13：主体+附件合成一件自定义荷载，纯函数供 GameMode/面板共用） ───
+
+/**
+ * 荷载设计 → 合成模块定义（主体无效/非 chassis = null；纯函数读静态表）：
+ * 效果 = 主体 × 各附件乘算叠乘（antiFreeze 一票即真），造价 = (主体 + Σ附件) × 组装溢价（5 取整），
+ * 槽型恒为 payload——多附件并一件占 1 荷载槽，槽位效率是 15% 溢价买来的核心价值。
+ */
+export function payloadDesignModuleDef(d: SimPayloadDesign): ShipModuleDef | null {
+  const chassis = shipModuleDefOf(d.chassis)
+  if (!chassis || chassis.payloadRole !== 'chassis') return null
+  const mods: ShipModuleDef['mods'] = { ...chassis.mods }
+  let cost = chassis.cost
+  const parts: string[] = []
+  for (const id of d.attachments) {
+    const def = shipModuleDefOf(id)
+    if (!def || def.payloadRole !== 'attachment') continue
+    for (const key of ['loadMult', 'fuelMult', 'speedMult', 'workMult'] as const) {
+      const a = mods[key]
+      const b = def.mods[key]
+      if (a !== undefined || b !== undefined) mods[key] = (a ?? 1) * (b ?? 1)
+    }
+    if (def.mods.antiFreeze) mods.antiFreeze = true
+    cost += def.cost
+    parts.push(def.name)
+  }
+  return {
+    name: d.name,
+    desc: `${chassis.name}${parts.length ? ` + ${parts.join(' + ')}` : ''}`,
+    cost: Math.round((cost * PAYLOAD_ASSEMBLY_MULT) / 5) * 5,
+    slotType: 'payload',
+    mods,
+  }
+}
+
+/** 荷载设计清单 → 自定义模块注册表投影（setDynamicShipModules 入参；无效设计跳过） */
+export function payloadDesignDefsOf(designs: SimPayloadDesign[]): Record<string, ShipModuleDef> {
+  const out: Record<string, ShipModuleDef> = {}
+  for (const d of designs) {
+    const def = payloadDesignModuleDef(d)
+    if (def) out[d.uid] = def
+  }
+  return out
+}
+
+/** 下一个荷载设计 uid（pdN 取现存最大 N+1；删除后不复用，存档 ships/模板引用永不断链） */
+export function nextPayloadUid(designs: SimPayloadDesign[]): string {
+  let max = 0
+  for (const d of designs) {
+    const m = /^pd(\d+)$/.exec(d.uid)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return `pd${max + 1}`
+}
+
+/** 试航预估结果（给定船级配置 × 目标星的一条往返账；读态即得，不改状态） */
+export interface ShipTrial {
+  /** 单船满载（吨；含卡/环/船级乘区） */
+  load: number
+  /** 单程航时（秒） */
+  legS: number
+  /** 往返轮时（秒，= 2×leg + 装 + 卸） */
+  cycleS: number
+  /** 往返油耗（吨） */
+  fuel: number
+  /** 单趟净赚（吨 = 载 − 油耗） */
+  net: number
+  /** 单线吞吐率（吨/秒 = net ÷ cycle） */
+  throughput: number
+}
+
+/**
+ * 试航预估（船坞面板试航卡 / 线路反推共用口径）：
+ * 满载 = starLoad（星基础 × 卡 × 环 × 船级），轮时 = legSeconds×2 + 装卸×workMult，
+ * 油耗 = roundFuel（×船级油乘），吞吐 = 净赚 ÷ 轮时。未知星返回 null。
+ */
+export function shipTrialOf(state: SimState, hullId: string, modules: string[], star: StarId, ring?: RingModSet): ShipTrial | null {
+  const def = B.stars[star]
+  if (!def) return null
+  const shipLike = { hull: hullId, modules }
+  const m = shipMults(shipLike)
+  const load = starLoad(state.mods, star, shipLike, ring)
+  const leg = legSeconds(def.dist, state.mods.speedMult * m.speedMult)
+  const cycle = leg * 2 + B.loadSeconds * m.workMult + B.unloadSeconds * m.workMult
+  const fuel = roundFuel(state.mods, def.dist, 1, shipLike, ring)
+  const net = Math.max(0, load - fuel)
+  return { load, legS: leg, cycleS: cycle, fuel, net, throughput: net / Math.max(0.1, cycle) }
+}
+
+/**
+ * 线路反推（试航卡旁行）：要补上缺口 gap（吨/秒），用该配置船需要几艘。
+ * 返回向上取整船数（0 = 缺口已满足或吞吐为 0）。
+ */
+export function shipsNeededFor(trial: ShipTrial | null, gap: number): number {
+  if (!trial || trial.throughput <= 0 || gap <= 0) return 0
+  return Math.ceil(gap / trial.throughput)
 }
 
 // ─── 端点 ───
@@ -445,11 +643,17 @@ export function endpointName(state: SimState, e: Endpoint): string {
   return `${buildingDefOf(b.type)?.name ?? b.type} ${b.id}`
 }
 
-export function findRoute(state: SimState, a: Endpoint, b: Endpoint): SimRoute | undefined {
+/**
+ * 同两端点查航线（重复画线 = 派 1 艘船）。dirs 传定时只匹配指定流向
+ * （2026-09-13 中转链：地球↔中转站允许 reverse 建材线与 relay_out H3 线共存）。
+ */
+export function findRoute(state: SimState, a: Endpoint, b: Endpoint, dirs?: SimRoute['direction'][]): SimRoute | undefined {
   const ka = endpointKey(a), kb = endpointKey(b)
   return state.routes.find((r) => {
     const ra = endpointKey(r.from), rb = endpointKey(r.to)
-    return (ra === ka && rb === kb) || (ra === kb && rb === ka)
+    const geo = (ra === ka && rb === kb) || (ra === kb && rb === ka)
+    if (!geo) return false
+    return !dirs || dirs.includes(r.direction)
   })
 }
 
@@ -496,10 +700,87 @@ export function resolveBuildingOrbit(state: SimState, x: number, y: number): { a
  * 同时自绕行星公转）；未入轨（旧档 / 远离行星放置）= 静态放置坐标。
  */
 export function buildingPos(state: SimState, b: SimBuilding): { x: number; y: number } {
+  // 全息地球地表建筑：星图位 = 地球实时位 + 经度方位投影（半径 = 地球显示半径 × 全息球倍率，
+  // 与全息球面点的星图投影同径——全息图上建筑贴在哪，星图就在地球周围同方位）
+  if (b.surface) return surfaceBuildingPos(state, b.surface.lat, b.surface.lon)
   if (!b.anchor || typeof b.orbitR !== 'number' || typeof b.orbitA0 !== 'number') return { x: b.x, y: b.y }
   const a = starPosAt(state, b.anchor)
   const ang = b.orbitA0 + (B.build.orbitSpeed / Math.max(1, b.orbitR)) * state.time
   return { x: a.x + Math.cos(ang) * b.orbitR, y: a.y + Math.sin(ang) * b.orbitR }
+}
+
+// ─── 全息地球（2026-09-12：环节点空间落位 + 冰雪融化 + 地表建筑放置门槛） ───
+
+/** 度 → 弧度（球面参数全用度出入，弧度只做中间量） */
+const DEG = Math.PI / 180
+
+/**
+ * lat/lon（度）→ 单位球向量（+Y = 北极；与渲染 latLonToLocal 同式）。
+ * x = cos(lat)cos(lon) / y = sin(lat) / z = cos(lat)sin(lon)
+ */
+export function latLonToVec(latDeg: number, lonDeg: number): { x: number; y: number; z: number } {
+  const lat = latDeg * DEG
+  const lon = lonDeg * DEG
+  return { x: Math.cos(lat) * Math.cos(lon), y: Math.sin(lat), z: Math.cos(lat) * Math.sin(lon) }
+}
+
+/** 单位球向量 → lat/lon（度；latLonToVec 逆变换） */
+export function vecToLatLon(v: { x: number; y: number; z: number }): { lat: number; lon: number } {
+  return { lat: Math.asin(Math.max(-1, Math.min(1, v.y))) / DEG, lon: Math.atan2(v.z, v.x) / DEG }
+}
+
+/** 两球面点角距（度；弦长换算，0~180） */
+export function angularDistDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const a = latLonToVec(lat1, lon1)
+  const b = latLonToVec(lat2, lon2)
+  const chord = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+  return 2 * Math.asin(Math.min(1, chord / 2)) / DEG
+}
+
+/** 环节点融冰半径（度）：安装的环建筑可带 meltRadiusDeg 覆盖，默认全局 B.holoEarth.meltRadiusDeg */
+export function ringNodeMeltRadiusDeg(state: Pick<SimState, 'ringBuildings'>, slot: number): number {
+  const id = state.ringBuildings?.[slot]
+  const override = id ? ringBuildingDefOf(id)?.meltRadiusDeg : undefined
+  return override ?? B.holoEarth.meltRadiusDeg
+}
+
+/** 已落位环节点清单（读态聚合：下标 = 槽位号；空数组 = 全部待落位） */
+export function placedRingNodes(state: Pick<SimState, 'ringSlots' | 'ringNodes' | 'ringBuildings'>): Array<{ slot: number; lat: number; lon: number; rDeg: number }> {
+  const out: Array<{ slot: number; lat: number; lon: number; rDeg: number }> = []
+  const nodes = state.ringNodes ?? []
+  for (let i = 0; i < state.ringSlots && i < nodes.length; i++) {
+    const n = nodes[i]
+    if (n) out.push({ slot: i, lat: n.lat, lon: n.lon, rDeg: ringNodeMeltRadiusDeg(state as Pick<SimState, 'ringBuildings'>, i) })
+  }
+  return out
+}
+
+/** 待落位节点数（已交付槽位中位置为 null 的；全息面板/HUD 提示消费） */
+export function pendingRingNodeCount(state: Pick<SimState, 'ringSlots' | 'ringNodes'>): number {
+  const nodes = state.ringNodes ?? []
+  let n = 0
+  for (let i = 0; i < state.ringSlots && i < nodes.length; i++) if (!nodes[i]) n++
+  return n
+}
+
+/** 球面点是否已融化（任一环节点融冰圈内 = 地表建筑可放置） */
+export function isMeltedAt(state: Pick<SimState, 'ringSlots' | 'ringNodes' | 'ringBuildings'>, lat: number, lon: number): boolean {
+  for (const n of placedRingNodes(state)) {
+    if (angularDistDeg(lat, lon, n.lat, n.lon) <= n.rDeg) return true
+  }
+  return false
+}
+
+/**
+ * 全息地球地表建筑星图投影（画布系）：地球实时位 + 方位角 = 经度、离盘心距离 =
+ * 地球显示半径 × 全息球倍率（纬度只决定全息图上的高度，星图俯视投影退化为方位点）。
+ * 渲染/拾取/航线/护盾判定统一走 buildingPos → 此函数（无独立口径）。
+ */
+export function surfaceBuildingPos(state: SimState, lat: number, lon: number): { x: number; y: number } {
+  const e = earthPos(state)
+  const R = B.map.nodes.earth.r * B.holoEarth.radiusMult
+  const v = latLonToVec(lat, lon)
+  return { x: e.x + v.x * R, y: e.y + v.z * R }
 }
 
 /** 建筑放置吸附（世界原点锚定的方格网，画布系进出；放置/预览/网格线同一口径） */
@@ -574,12 +855,21 @@ export function fleetMaintPerS(fleetSize: number): number {
   return Math.max(0, hit.costPerS)
 }
 
-/** 该航线是否受引力窗口影响（木卫二正向线 / 木卫二线中点补给站） */
+/** 该航线是否受引力窗口影响（木卫二相关线：正向星端 / 中转链星段） */
 export function windowAffected(state: SimState, route: SimRoute): boolean {
   return starOfEndpoint(state, route.from) === 'europa' || starOfEndpoint(state, route.to) === 'europa'
 }
 
-/** 航线单船净补/载建材（展示用） */
+/** 星 ↔ 建筑距离系数（中转链星段航时/油耗口径：画布距离 ÷ 1AU=250px） */
+export function relayLegDistCoeff(state: SimState, star: StarId, buildingId: number): number {
+  const b = state.buildings.find((x) => x.id === buildingId)
+  if (!b) return 1
+  const p = buildingPos(state, b)
+  const sp = starPosAt(state, star)
+  return Math.max(0.1, Math.hypot(p.x - sp.x, p.y - sp.y) / 250)
+}
+
+/** 航线单船净补/载建材（展示用；relay_out = 单趟回运吨，relay_in = 单趟入站吨） */
 export function routeNetPerTrip(state: SimState, route: SimRoute): number {
   if (route.direction === 'forward') {
     const star = starOfEndpoint(state, route.from)!
@@ -587,19 +877,60 @@ export function routeNetPerTrip(state: SimState, route: SimRoute): number {
     const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.fuelMult : 1
     return load - roundFuel(state.mods, B.stars[star].dist, w)
   }
+  if (route.direction === 'relay_in') {
+    const star = starOfEndpoint(state, route.from)!
+    const dist = relayLegDistCoeff(state, star, route.to.kind === 'building' ? route.to.buildingId : 0)
+    const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.fuelMult : 1
+    return starLoad(state.mods, star) - roundFuel(state.mods, dist, w)
+  }
+  if (route.direction === 'relay_out') {
+    const b = buildingByEndpoint(state, route.from)
+    const dist = b ? supplyDistCoeff(state, { kind: 'building', buildingId: b.id }) : 1
+    const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.fuelMult : 1
+    return cargoCap(state.mods) - roundFuel(state.mods, dist, w)
+  }
   return Math.round(cargoCap(state.mods))
 }
 
 /** 航线往返时长（展示用，秒） */
 export function routeCycleSeconds(state: SimState, route: SimRoute): number {
+  const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.speedMult : 1
   if (route.direction === 'forward') {
     const star = starOfEndpoint(state, route.from)!
-    const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.speedMult : 1
     const leg = legSeconds(B.stars[star].dist, state.mods.speedMult * w)
+    return leg * 2 + B.loadSeconds + B.unloadSeconds
+  }
+  if (route.direction === 'relay_in') {
+    const star = starOfEndpoint(state, route.from)!
+    const dist = relayLegDistCoeff(state, star, route.to.kind === 'building' ? route.to.buildingId : 0)
+    const leg = legSeconds(dist, state.mods.speedMult * w)
+    return leg * 2 + B.loadSeconds + B.unloadSeconds
+  }
+  if (route.direction === 'relay_out') {
+    const b = buildingByEndpoint(state, route.from)
+    const dist = b ? supplyDistCoeff(state, { kind: 'building', buildingId: b.id }) : 1
+    const leg = legSeconds(dist, state.mods.speedMult * w)
     return leg * 2 + B.loadSeconds + B.unloadSeconds
   }
   const leg = legSeconds(supplyDistCoeff(state, route.to), state.mods.speedMult)
   return leg * 2 + B.loadSeconds + B.unloadSeconds
+}
+
+/**
+ * 当前总到手供应速率（吨/秒，2026-09-13 供应链重构：Acts 稳供 streak / HUD 收支消费）：
+ * Σ各线（正向/中转出站）配船 × 单趟净 ÷ 往返时长。堆场缺货等点态约束不在此口径
+ * （这里是满负荷吞吐上限，实际到手见 ledger.unload 累计）。
+ */
+export function supplyRateOf(state: SimState): number {
+  let rate = 0
+  for (const route of state.routes) {
+    const n = route.shipIds.length
+    if (n === 0) continue
+    if (route.direction !== 'forward' && route.direction !== 'relay_out') continue
+    const cycle = Math.max(1, routeCycleSeconds(state, route))
+    rate += (n * Math.max(0, routeNetPerTrip(state, route))) / cycle
+  }
+  return rate
 }
 
 /** 粗估净流（吨/秒，展示用）：卸货收入 − 反向支出 − 舰队维护费 − 环焚烧 */
@@ -609,8 +940,16 @@ export function estimateNetFlow(state: SimState, demand: number): number {
     const n = route.shipIds.length
     if (n === 0) continue
     const cycle = Math.max(1, routeCycleSeconds(state, route))
-    if (route.direction === 'forward') income += (n * routeNetPerTrip(state, route)) / cycle
-    else {
+    if (route.direction === 'forward' || route.direction === 'relay_out') {
+      income += (n * routeNetPerTrip(state, route)) / cycle
+    } else if (route.direction === 'relay_in') {
+      // 中转链星段不入地球：只计油耗成本（转运的变现看 relay_out 段）
+      const star = starOfEndpoint(state, route.from)
+      const dist = star
+        ? relayLegDistCoeff(state, star, route.to.kind === 'building' ? route.to.buildingId : 0)
+        : 1
+      income -= (n * roundFuel(state.mods, dist)) / cycle
+    } else {
       const dist = supplyDistCoeff(state, route.to)
       const st = buildingByEndpoint(state, route.to)
       const cap = st ? buildingDefOf(st.type)?.bufferCap ?? 0 : 0
@@ -644,5 +983,5 @@ export function deepSnapshot<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
-export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf } from './balance'
-export type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef, SimBuilding, SimEvent, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }
+export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf, isDynamicShipModule, setDynamicShipModules, shipModuleEntries, PAYLOAD_ASSEMBLY_MULT } from './balance'
+export type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef, SimBuilding, SimEvent, SimPayloadDesign, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }

@@ -131,6 +131,8 @@ export interface RingModSet {
   burnMult: number
   /** 全船满载乘区（超导馈线 1.03/座） */
   loadMult: number
+  /** 矿建产出乘区（采矿馈能 1.05/座；2026-09-13 供应链重构产量层杠杆） */
+  miningMult: number
   /** 船队上限加算（扩容泊位 +1/座） */
   shipCapAdd: number
   /** 建设灌入泵速乘区（施工分段 1.05/座） */
@@ -151,6 +153,8 @@ export interface RingBuildingDef {
   cost: number
   /** 每座效果（线性叠加；键 = RingModSet 字段） */
   mods: Partial<RingModSet>
+  /** 本座节点融冰角半径覆盖（度；缺省 = B.holoEarth.meltRadiusDeg，全息地球消费） */
+  meltRadiusDeg?: number
 }
 
 /** 船型定义（= ship_hull.table.json 行，行键 = SimShip.hull；造船时定型不可改装） */
@@ -165,8 +169,11 @@ export interface ShipHullDef {
   speedMult: number
   /** 内置特性（'anti_freeze' = 冻毁免疫，罩外也存活） */
   innate: string[]
-  /** 可装模块 id 清单（'*' = 全部） */
+  /** 可装模块 id 清单（'*' = 全部；slots 存在时为兼容兜底，两者同时生效） */
   allowed: string[]
+  /** 槽位表（2026-09-13 船队设计工坊：槽位类型 → 数量；模块按 slotType 占槽。
+   *  缺省 = 无槽位口径（退回 allowed 白名单）；加槽位类型 = 新增键 */
+  slots?: Record<string, number>
 }
 
 /** 船用模块定义（= ship_module.table.json 行，行键 = SimShip.modules 元素；仅本船生效） */
@@ -175,6 +182,11 @@ export interface ShipModuleDef {
   desc: string
   /** 模块造价（H3；并入造船整单价） */
   cost: number
+  /** 槽位类型（ship_hull.slots 行键；缺省 = 不占槽，仅受 allowed 兼容约束） */
+  slotType?: string
+  /** 荷载件角色（2026-09-13 荷载设计工坊：chassis = 可作荷载主体的货舱档位 /
+   *  attachment = 可合成进自定义荷载的舱内附件；缺省 = 非荷载件） */
+  payloadRole?: 'chassis' | 'attachment'
   /** 效果（仅本船；乘算叠加） */
   mods: {
     /** 本船满载乘区（货舱扩容 ×1.3） */
@@ -199,6 +211,8 @@ export interface CardEffects {
   fuelMult?: number; speedMult?: number; cargoMult?: number; burnMult?: number
   /** 聚能环建设计费乘区（环网扩容 0.75，叠乘） */
   ringBuildCostMult?: number
+  /** 矿建产出乘区（产量层卡效果，叠乘） */
+  miningMult?: number
   moonLoadAdd?: number; otherLoadAdd?: number; gravityAdd?: number; fleetBonus?: number
   flareWarning?: boolean
   /** 本次点亮交点数（双生节点=2，缺省 1） */
@@ -364,6 +378,16 @@ export const B = {
   coreCoolSeconds: 30,
   /** 堆心温度升温时长（秒）：补入燃料后堆心从 0 缓慢回满（不会瞬间回满；蓄热井 ×warmTimeMult） */
   coreWarmSeconds: 10,
+  /** 地球本地产线（吨/秒，2026-09-13 供应链重构可选件：氘氚备用堆，默认 0 = 关闭；global.config 可开） */
+  earthBaseYield: 0,
+  /** 「稳定供应」幕目标：净流入连续 ≥0 达此秒数发一次性奖励（进新幕重置） */
+  supplyStreakGoal: 60,
+  /** 「稳定供应」一次性奖励（吨 H3） */
+  supplyStreakReward: 300,
+  /** 星球堆场（键 = 资源星 id，资源星矿建产出落此、堆满停产；航线装货从这里扣）。
+   *  初始值 = 开局旧文明储备留下的散货（月球 600 ≈ 3 船满载，教学期缓冲），运行时可被采满。 */
+  starStockCap: { moon: 800, europa: 2000, mars: 4000 } as Record<StarId, number>,
+  starStockInitial: { moon: 600, europa: 600, mars: 1000 } as Record<StarId, number>,
   initialShips: 3,
   shipBuildCost: 180,
   shipBuildTime: 15,
@@ -396,10 +420,12 @@ export const B = {
     europa: { id: 'europa', name: '木卫二', load: 600, dist: 3.0, unlockAct: 2 },
     mars: { id: 'mars', name: '火星', load: 1500, dist: 6.0, unlockAct: 3 },
   } as Record<StarId, StarBalance>,
-  // 等级焚烧表（下标 = 聚能环等级 − 1）：等级提升 → H3 消耗每一级翻倍
-  // 指数曲线 burn(l) = 2^l：Lv1(开局1交点)=2 → Lv25(满级12交点全球组网)=2^25，每一级都是上一级的翻倍（×2）
+  // 等级焚烧表（下标 = 聚能环等级 − 1）：多项式曲线（2026-09-13 供应链重构供需咬合重订）
+  // burn(l) = round(2 + 5.0×(l−1)^1.22)：Lv1=2（开局 400s 缓冲）→ Lv8=56 / Lv16=133 / Lv25=241
+  // （旧指数 2^l 与线性运力差 5 个数量级，中后期必死；多项式让每级焚烧 ≤ 单船最大吞吐增量，
+  //  满编终局供给 ≥ 焚烧+计费需求，tests/warmSupplyMatch.test.ts 锁定咬合）
   // 与 asset/config/level_burn.table.json 双写同步（tests/warm_level_burn.test.ts 锁定）
-  levelBurn: Array.from({ length: 25 }, (_, i) => 2 ** (i + 1)),
+  levelBurn: Array.from({ length: 25 }, (_, i) => Math.round(2 + 5.0 * Math.pow(i, 1.22))),
   // 事件
   gravity: { period: 90, warn: 10, active: 20, speedMult: 2.0, fuelMult: 0.5 },
   flare: { minInterval: 100, maxInterval: 150, duration: 20, warnLead: 10, firstDelay: 60 },
@@ -426,25 +452,38 @@ export const B = {
   ringBuildings: {
     regulator: { name: '稳压环段', desc: '全局焚烧 −4%', cost: 200, mods: { burnMult: 0.96 } },
     conduit: { name: '超导馈线', desc: '全船满载 +3%', cost: 260, mods: { loadMult: 1.03 } },
+    excavator: { name: '采矿馈能', desc: '矿建产出 +5%', cost: 240, mods: { miningMult: 1.05 } },
     berth: { name: '扩容泊位', desc: '船队上限 +1', cost: 400, mods: { shipCapAdd: 1 } },
     constr: { name: '施工分段', desc: '建设灌入速率 +5%', cost: 300, mods: { buildPumpMult: 1.05 } },
     feeder: { name: '研究馈能', desc: '全线研究速率 +4%', cost: 240, mods: { researchMult: 1.04 } },
     heatwell: { name: '蓄热井', desc: '断环降温时长 +12% · 回温提速 −8%', cost: 220, mods: { coolTimeMult: 1.12, warmTimeMult: 0.92 } },
   } as Record<string, RingBuildingDef>,
-  // 船型（ship_hull.table.json 覆盖；行键 = SimShip.hull，造船时定型不可改装）
+  // 船型（ship_hull.table.json 覆盖；行键 = SimShip.hull，造船时定型不可改装。
+  // slots = 槽位表（槽位类型 → 数量；模块按 slotType 占槽），与 allowed 白名单双闸。
+  // 2026-09-13 火箭三部位改版：payload 荷载 / fuel 燃料 / engine 引擎，功能槽下线）
   shipHulls: {
-    standard: { name: '标准型', desc: '均衡船体 · 可装全部模块', cost: 180, loadMult: 1.0, speedMult: 1.0, innate: [], allowed: ['*'] },
-    hauler: { name: '重载型', desc: '满载 ×1.4 · 航速 ×0.85 · 限装货舱/货泵', cost: 260, loadMult: 1.4, speedMult: 0.85, innate: [], allowed: ['cargo_pod', 'pump'] },
-    courier: { name: '快速型', desc: '满载 ×0.7 · 航速 ×1.35 · 限装引擎/油箱', cost: 240, loadMult: 0.7, speedMult: 1.35, innate: [], allowed: ['ion_engine', 'aux_tank'] },
-    guardian: { name: '防务型', desc: '内置防冻（冻毁免疫）· 满载 ×0.8 · 限装货舱/油箱', cost: 320, loadMult: 0.8, speedMult: 1.0, innate: ['anti_freeze'], allowed: ['cargo_pod', 'aux_tank'] },
+    standard: { name: '标准型', desc: '均衡船体 · 3 槽全能拼装', cost: 180, loadMult: 1.0, speedMult: 1.0, innate: [], allowed: ['*'], slots: { payload: 1, fuel: 1, engine: 1 } },
+    hauler: { name: '重载型', desc: '满载 ×1.4 · 航速 ×0.85 · 双荷载专精', cost: 260, loadMult: 1.4, speedMult: 0.85, innate: [], allowed: ['cargo_s', 'cargo_pod', 'cargo_x', 'pump_s', 'pump'], slots: { payload: 2, fuel: 1 } },
+    courier: { name: '快速型', desc: '满载 ×0.7 · 航速 ×1.35 · 双引擎专精', cost: 240, loadMult: 0.7, speedMult: 1.35, innate: [], allowed: ['engine_s', 'ion_engine', 'engine_x', 'tank_s', 'aux_tank', 'tank_x'], slots: { engine: 2, fuel: 1 } },
+    guardian: { name: '防务型', desc: '内置防冻（冻毁免疫）· 满载 ×0.8', cost: 320, loadMult: 0.8, speedMult: 1.0, innate: ['anti_freeze'], allowed: ['cargo_s', 'cargo_pod', 'cargo_x', 'tank_s', 'aux_tank', 'tank_x'], slots: { payload: 1, fuel: 1 } },
   } as Record<string, ShipHullDef>,
-  // 船用模块（ship_module.table.json 覆盖；行键 = SimShip.modules 元素，仅本船生效）
+  // 船用模块（ship_module.table.json 覆盖；行键 = SimShip.modules 元素，仅本船生效。
+  // slotType = 占用槽位类型（ship_hull.slots 行键）；缺省 = 不占槽仅受 allowed 约束。
+  // 2026-09-13 部位选件制：每 slotType 多档同功能部件，行序 = 部位清单展示序（低档在前）。
+  // 2026-09-13 火箭三部位改版：泵/加热器并入荷载舱（payloadRole='attachment'），货舱档位 = 荷载主体）
   shipModules: {
-    cargo_pod: { name: '货舱扩容', desc: '本船满载 ×1.3', cost: 180, mods: { loadMult: 1.3 } },
-    aux_tank: { name: '副油箱', desc: '本船油耗 ×0.8', cost: 160, mods: { fuelMult: 0.8 } },
-    ion_engine: { name: '离子引擎', desc: '本船航速 ×1.2', cost: 200, mods: { speedMult: 1.2 } },
-    pump: { name: '快速货泵', desc: '装卸时间 ×0.6', cost: 140, mods: { workMult: 0.6 } },
-    heater: { name: '防冻加热器', desc: '耀斑冻毁免疫（罩外也存活）', cost: 320, mods: { antiFreeze: true } },
+    cargo_s: { name: '轻量货舱', desc: '本船满载 ×1.15', cost: 100, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.15 } },
+    cargo_pod: { name: '标准货舱', desc: '本船满载 ×1.3', cost: 180, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.3 } },
+    cargo_x: { name: '特扩货舱', desc: '本船满载 ×1.5', cost: 300, slotType: 'payload', payloadRole: 'chassis', mods: { loadMult: 1.5 } },
+    tank_s: { name: '简易副油箱', desc: '本船油耗 ×0.9', cost: 90, slotType: 'fuel', mods: { fuelMult: 0.9 } },
+    aux_tank: { name: '副油箱', desc: '本船油耗 ×0.8', cost: 160, slotType: 'fuel', mods: { fuelMult: 0.8 } },
+    tank_x: { name: '深冷油箱', desc: '本船油耗 ×0.65', cost: 300, slotType: 'fuel', mods: { fuelMult: 0.65 } },
+    engine_s: { name: '巡航引擎', desc: '本船航速 ×1.1', cost: 120, slotType: 'engine', mods: { speedMult: 1.1 } },
+    ion_engine: { name: '离子引擎', desc: '本船航速 ×1.2', cost: 200, slotType: 'engine', mods: { speedMult: 1.2 } },
+    engine_x: { name: '聚变引擎', desc: '本船航速 ×1.35', cost: 340, slotType: 'engine', mods: { speedMult: 1.35 } },
+    pump_s: { name: '备用货泵', desc: '装卸时间 ×0.8', cost: 80, slotType: 'payload', payloadRole: 'attachment', mods: { workMult: 0.8 } },
+    pump: { name: '快速货泵', desc: '装卸时间 ×0.6', cost: 140, slotType: 'payload', payloadRole: 'attachment', mods: { workMult: 0.6 } },
+    heater: { name: '防冻加热器', desc: '耀斑冻毁免疫（罩外也存活）', cost: 320, slotType: 'payload', payloadRole: 'attachment', mods: { antiFreeze: true } },
   } as Record<string, ShipModuleDef>,
   // 近地轨道建筑（orbit_build.table.json 覆盖；行键 = OrbitBuilding.type，轨道建设面板行序 = 键序）
   orbitBuildings: {
@@ -456,11 +495,14 @@ export const B = {
     metal: { name: '金属矿脉', desc: '精炼出售 · 折算燃料', color: '#ffb03d' },
     ice: { name: '水冰矿脉', desc: '电解获氘 · 折算燃料', color: '#dff3ff' },
   } as Record<string, MineralTypeDef>,
-  // 矿点（mineral_deposit.table.json 覆盖；行键 = SimMine.depositId，一矿点至多一座矿建）
+  // 矿点（mineral_deposit.table.json 覆盖；行键 = SimMine.depositId，一矿点至多一座矿建。
+  // 2026-09-13 供应链重构：月球扩至 4 点（m3/m4）——堆场产量层主角化，与表双写同步）
   mineralDeposits: {
     e1: { planet: 'earth', type: 'metal', lat: 22, lon: 130, reserve: 500 },
     m1: { planet: 'moon', type: 'he3', lat: 18, lon: 40, reserve: 900 },
     m2: { planet: 'moon', type: 'he3', lat: -30, lon: 210, reserve: 1400 },
+    m3: { planet: 'moon', type: 'he3', lat: 8, lon: 150, reserve: 1200 },
+    m4: { planet: 'moon', type: 'he3', lat: -44, lon: 300, reserve: 1600 },
     mc1: { planet: 'mercury', type: 'metal', lat: 12, lon: 100, reserve: 1600 },
     mc2: { planet: 'mercury', type: 'metal', lat: -42, lon: 280, reserve: 2200 },
     ma1: { planet: 'mars', type: 'metal', lat: 26, lon: 70, reserve: 1200 },
@@ -468,10 +510,12 @@ export const B = {
     eu1: { planet: 'europa', type: 'ice', lat: 30, lon: 160, reserve: 1500 },
     eu2: { planet: 'europa', type: 'ice', lat: -24, lon: 330, reserve: 1000 },
   } as Record<string, MineralDepositDef>,
-  // 矿建（mine_building.table.json 覆盖；行键 = SimMine.type，全息面板建造区行序 = 键序）
+  // 矿建（mine_building.table.json 覆盖；行键 = SimMine.type，全息面板建造区行序 = 键序。
+  // 2026-09-13 供应链重构：产出改入星球堆场（产量层主角化），数值随之上调——
+  // 资源星堆场靠矿建填充，运力层（船队）从堆场拉货；普通行星矿建仍直采地球储备）
   mineBuildings: {
-    extractor: { name: '采矿机', desc: '低成本持续开采', cost: 150, buildTime: 12, yieldPerS: 0.5, minTypes: '' },
-    processor: { name: '冶炼厂', desc: '高投入高产出的精炼线', cost: 360, buildTime: 24, yieldPerS: 1.4, minTypes: '' },
+    extractor: { name: '采矿机', desc: '低成本持续开采 · 产入星球堆场', cost: 150, buildTime: 12, yieldPerS: 2.5, minTypes: '' },
+    processor: { name: '冶炼厂', desc: '高投入高产出的精炼线 · 产入星球堆场', cost: 360, buildTime: 24, yieldPerS: 7, minTypes: '' },
   } as Record<string, MineBuildingDef>,
   // 全息勘探表现参数（代码常量：纯渲染值，不入表）
   holo: {
@@ -481,6 +525,25 @@ export const B = {
     spin: 0.12,
     /** 矿点屏幕拾取半径（px） */
     pickRadius: 26,
+  },
+  // 全息地球建造场景表现参数（2026-09-12：环节点空间落位 + 冰雪融化 + 地表建筑）
+  holoEarth: {
+    /** 全息地球半径 = 地球显示半径 × 此倍率（比矿点勘探全息球更大，留球面操作空间） */
+    radiusMult: 3.2,
+    /** 全息投影锚点偏移（相对行星系舞台）：全息地球创建在场景远处独立投影位，
+     *  不包络真球；相机飞行到此取景（地球系内月球轨道 1200，2600 在其外两倍余量） */
+    anchorOffsetX: 0,
+    anchorOffsetZ: 2600,
+    /** 进入时相机取景距离 = 全息球半径 × 此值（"摄像机移动到很远的地方"） */
+    camDistMult: 4.4,
+    /** 相机取景仰角（度） */
+    camPitchDeg: 28,
+    /** 每个环节点融冰角半径（度，球面角；环建筑 meltRadiusDeg 可逐座覆盖） */
+    meltRadiusDeg: 26,
+    /** 自转速率（rad/s，表现值；比矿点勘探慢，利于点选落位） */
+    spin: 0.045,
+    /** 地表建筑最小球面角距（度；过密放置防重叠） */
+    minSpacingDeg: 10,
   },
   // 近地轨道建设参数（orbit_build.config.json 覆盖）
   orbitBuild: {
@@ -535,14 +598,43 @@ export function shipHullDefOf(id: string): ShipHullDef | null {
   return (B.shipHulls as Record<string, ShipHullDef | undefined>)[id] ?? null
 }
 
-/** 船用模块定义查询（未知模块 null） */
-export function shipModuleDefOf(id: string): ShipModuleDef | null {
-  return (B.shipModules as Record<string, ShipModuleDef | undefined>)[id] ?? null
+// ─── 自定义荷载合成模块注册表（2026-09-13 荷载设计工坊） ───
+//
+// 荷载设计工坊把「主体 + 附件」合成一件自定义荷载（uid 稳定 id，随存档走），
+// 合成定义挂到本注册表后，shipModuleDefOf 对全部下游（乘区聚合/整单价/槽位校验/清单渲染）
+// 透明生效——静态表 B.shipModules 不被污染（换档/重开不泄漏）。
+// 同步时机：InitGame / restoreFromSave / restart / 保存或删除荷载设计（GameMode.syncDynamicPayloadModules）。
+
+let dynamicShipModules: Record<string, ShipModuleDef> = {}
+
+/** 自定义模块注册表整表替换（幂等；payloadDesigns 投影） */
+export function setDynamicShipModules(defs: Record<string, ShipModuleDef>): void {
+  dynamicShipModules = defs
 }
+
+/** 是否自定义合成模块（uid 形如 pd1/pd2…；allowed 白名单旁路 + 删除引用保护的判据） */
+export function isDynamicShipModule(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(dynamicShipModules, id)
+}
+
+/** 船用模块定义查询（自定义荷载优先，未命中回静态表；两处都无 = null） */
+export function shipModuleDefOf(id: string): ShipModuleDef | null {
+  return (dynamicShipModules as Record<string, ShipModuleDef | undefined>)[id]
+    ?? (B.shipModules as Record<string, ShipModuleDef | undefined>)[id]
+    ?? null
+}
+
+/** 全量模块条目（静态表序在前 + 自定义荷载追加在后；部位选件清单渲染用） */
+export function shipModuleEntries(): Array<[string, ShipModuleDef]> {
+  return [...Object.entries(B.shipModules), ...Object.entries(dynamicShipModules)]
+}
+
+/** 自定义荷载组装溢价（主体+附件合成一件的槽位效率税；×1.15 = 花 15% 溢价省一个槽位） */
+export const PAYLOAD_ASSEMBLY_MULT = 1.15
 
 /** 全零环乘区（无环建筑 / 兜底） */
 export function freshRingMods(): RingModSet {
-  return { burnMult: 1, loadMult: 1, shipCapAdd: 0, buildPumpMult: 1, researchMult: 1, coolTimeMult: 1, warmTimeMult: 1 }
+  return { burnMult: 1, loadMult: 1, miningMult: 1, shipCapAdd: 0, buildPumpMult: 1, researchMult: 1, coolTimeMult: 1, warmTimeMult: 1 }
 }
 
 /**
@@ -565,6 +657,7 @@ export function ringModsOf(state: Pick<SimState, 'ringBuildings' | 'ringDemolish
     // 线性加算：每座贡献 (值 − 1)（乘区键）或原值（加算键 shipCapAdd）
     if (e.burnMult !== undefined) m.burnMult += e.burnMult - 1
     if (e.loadMult !== undefined) m.loadMult += e.loadMult - 1
+    if (e.miningMult !== undefined) m.miningMult += e.miningMult - 1
     if (e.buildPumpMult !== undefined) m.buildPumpMult += e.buildPumpMult - 1
     if (e.researchMult !== undefined) m.researchMult += e.researchMult - 1
     if (e.coolTimeMult !== undefined) m.coolTimeMult += e.coolTimeMult - 1
@@ -572,7 +665,7 @@ export function ringModsOf(state: Pick<SimState, 'ringBuildings' | 'ringDemolish
     if (e.shipCapAdd !== undefined) m.shipCapAdd += e.shipCapAdd
   }
   m.burnMult = Math.max(B.ringBuild.floorBurnMult, m.burnMult)
-  for (const k of ['loadMult', 'buildPumpMult', 'researchMult', 'coolTimeMult', 'warmTimeMult'] as const) {
+  for (const k of ['loadMult', 'miningMult', 'buildPumpMult', 'researchMult', 'coolTimeMult', 'warmTimeMult'] as const) {
     m[k] = Math.max(B.ringBuild.floorMult, m[k])
   }
   return m
