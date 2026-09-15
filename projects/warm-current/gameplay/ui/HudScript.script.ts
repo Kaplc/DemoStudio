@@ -21,7 +21,6 @@ import { ColorBinder, TextBinder, VisBinder, findButton, findText, fmtTime, wcMo
 import ResearchPanelScript, { RESEARCH_PANEL_WIDGET } from './ResearchPanelScript.script'
 import RingPanelScript, { RING_PANEL_WIDGET } from './RingPanelScript.script'
 import ReserveInfoScript, { RESERVE_INFO_WIDGET } from './ReserveInfoScript.script'
-import ViewToggleScript, { VIEW_TOGGLE_WIDGET } from './ViewToggleScript.script'
 import BuildPanelScript, { BUILD_PANEL_WIDGET } from './BuildPanelScript.script'
 import TransportPanelScript, { TRANSPORT_PANEL_WIDGET } from './TransportPanelScript.script'
 import RoutesPanelScript, { ROUTES_PANEL_WIDGET } from './RoutesPanelScript.script'
@@ -80,7 +79,6 @@ export default class HudScript extends BehaviourScript {
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
-  private viewToggle: Actor | null = null
   /** 居中二级面板互斥登记（科研/建造/运输，onStart 填充） */
   private centerPanels: CenterPanelEntry[] = []
   private acc = 1
@@ -242,10 +240,8 @@ export default class HudScript extends BehaviourScript {
     // 聚能环详情面板（底部「聚能环」入口开关：状态/交点/建设点数/延续/缓冲/净流，RingPanelScript 自驱动）
     this.ringPanel = this.world?.ui.spawnUIActor(RING_PANEL_WIDGET) ?? null
     if (!this.ringPanel) logger.warn('[HudScript] ring_panel 生成失败')
-    // 视角切换 widget 一次生成（右下角常驻，ViewToggleScript 自驱动选中态）
-    this.viewToggle = this.world?.ui.spawnUIActor(VIEW_TOGGLE_WIDGET) ?? null
-    if (!this.viewToggle) logger.warn('[HudScript] view_toggle 生成失败')
-    logger.info('[HudScript] HUD 按钮已绑定，科研/储量详情/聚能环/视角切换/海克斯/结算子面板已生成')
+    // 视角切换 widget 已下架（2026-09-14 视角锁定地球系；view_toggle 资产与脚本保留在库未挂）
+    logger.info('[HudScript] HUD 按钮已绑定，科研/储量详情/聚能环/海克斯/结算子面板已生成')
   }
 
   override onUpdate(dt: number): void {

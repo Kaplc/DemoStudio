@@ -183,16 +183,9 @@ function configureTexture(tex: THREE.Texture): void {
 }
 
 /**
- * 星空底板尺寸（沿用原星空地面覆盖范围：海王星轨道 7517px + 相机 12000 高度
- * 视野边距；星空画面已由 GameMode.applySkyTexture 全景背景负责，此板仅遮底）。
- */
-const GROUND_PLANE_W = 19456
-const GROUND_PLANE_H = 18432
-
-/**
  * 星空背景：星图天空由 GameMode.applySkyTexture 装配为场景背景全景（SSS 银河
- * equirect → scene.background 天空盒）；此处的纯黑地面仅兜底遮底（全知视角拉高时
- * 背景未加载/加载失败场景不穿帮），星点由全景提供，不再程序化平铺。
+ * equirect → scene.background 天空盒），星点全部由全景提供（2026-09-14 移除
+ * 纯黑遮底底板：全景未加载/加载失败时 renderer 清屏色本身就是纯黑，底板冗余）。
  */
 function makeGlowTexture(): THREE.CanvasTexture {
   const size = 64
@@ -570,18 +563,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     dir.position.set(620, 300, 280)
     this.root3.add(dir)
 
-    // ─── 地面（纯黑底板：遮底兜底；星空由 GameMode.applySkyTexture 的全景背景提供） ───
-    const groundGeo = this.trackGeo(this.F.createPlaneGeometry(GROUND_PLANE_W, GROUND_PLANE_H))
-    groundGeo.rotateX(-Math.PI / 2)
-    const groundMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x000000, depthWrite: false }))
-    const ground = this.own(this.F.createMesh(groundGeo, groundMat)).object
-    ground.position.y = -0.5
-    ground.renderOrder = 0
-    // 纯黑底板恒挂世界系（不进舞台组）：行星系视图下舞台每帧平移补偿聚焦行星的公转位移，
-    // 底板若随舞台走，背景会跟着漂移（看起来"还是原来太阳系在动"）；固定后背景静止，
-    // 行星系读作"行星种在舞台中心的定场小星系"。星空画面由场景背景全景负责，底板只遮底。
-    this.root3.add(ground)
-
+    // 地面底板已移除（2026-09-14）：星空全由 scene.background 全景负责（见文件头
+    // makeGlowTexture 上方注释），全景加载失败时清屏色即纯黑，无需遮底板兜底。
     this.tex.glow = makeGlowTexture()
     this.tex.dash = makeDashTexture()
     this.tex.noise = makeNoiseTexture()
@@ -703,7 +686,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     // 明暗界线按各行星相对太阳的方位展开，替代旧定向光的"全场平行光"；
     // 挂 root3 而非 sunGroup——sunGroup 在行星系视图整组隐藏，灯光不能跟着灭）
     const sunLight = new THREE.PointLight(0xffd9a0, 2.4, 0, 0)
-    sunLight.position.set(sunWX, 80, sunWZ)
+    // 灯位随太阳半径抬起（点光源不裁剪但灯心埋进球体语义不对；抬到表面外照亮行星向阳面）
+    sunLight.position.set(sunWX, sun.r * 1.25, sunWZ)
     this.sunLight = sunLight
     this.root3.add(sunLight)
     // 太阳标签

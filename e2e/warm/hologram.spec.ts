@@ -2,7 +2,7 @@
  * warm-current 全息勘探 e2e（2026-09-12：行星矿产开发）
  *
  * 覆盖：
- *  1. 开合：openHologram 需本行星系视角（地球系开月球全息 ✓）；closeHologram 复位俯视取景
+ *  1. 开合：openHologram 需本行星系视角（地球系开月球全息 ✓）；closeHologram 复位斜视取景（2026-09-14 垂直俯视已移除）
  *  2. 表驱动数据：月球 2 条 he3 矿点行 + 2 行矿建（extractor/processor）
  *  3. 落位：placeMine 扣款 → stepTicks 灌工期建成 → 产出递增（extracted 门控在储量内）
  *  4. 真实点击拾取：holoMarkerScreenPos 投影坐标 → page.mouse 真实 down/up（位移 0 = 轻点）
@@ -121,7 +121,7 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     await page.waitForTimeout(600)
     await page.screenshot({ path: 'test-results/holo_moon.png' })
 
-    // ── 4. 关闭：复位俯视取景 ──
+    // ── 4. 关闭：复位斜视取景（2026-09-14 垂直俯视已移除，全取景恒斜视角） ──
     const closed = await page.evaluate(`(() => {
       const b = window.__warmCurrent
       b.closeHologram()
@@ -130,21 +130,17 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     })()`) as Record<string, any>
     expect(closed.holo).toBeNull()
     expect(closed.viewMode).toBe('earth')
-    // 复位垂直俯视：camera z ≈ 0（正上方），y = 距离
-    expect(Math.abs(closed.camZ)).toBeLessThan(2)
+    // 斜视角复位：相机 z 明显非零（35° 仰角 → z ≈ cos35°×3200 ≈ 2600；垂直俯视时代此值 ≈ 0）
+    expect(closed.camZ).toBeGreaterThan(100)
   })
 
   test('太阳系全景拒绝开全息（取景门）', async ({ page }) => {
     test.setTimeout(120_000)
     await bootToMap(page)
-    // 切太阳系全景（真实 ViewToggle 按钮路径）
-    const clicked = await page.evaluate(`(() => {
-      const ai = window.__ai
-      const r = ai.emit('ai.clickActor', { name: 'Btn_view_solar' })
-      return JSON.stringify(r?.results?.[0] ?? {})
-    })()`)
-    expect(clicked).toContain('ok')
-    await page.waitForTimeout(900)
+    // 切太阳系全景：玩家入口（ViewToggle 按钮/双击/点太阳）已于 2026-09-14 屏蔽，
+    // 此处走开发直调路径 focusSolarSystem('sun') 验证取景门本身仍生效
+    await page.evaluate(`(() => { window.__warmCurrent.mode().focusSolarSystem('sun') })()`)
+    await page.waitForTimeout(300)
     const denied = await page.evaluate(`(() => {
       const b = window.__warmCurrent
       b.openHologram('moon')

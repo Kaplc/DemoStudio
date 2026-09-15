@@ -1,5 +1,5 @@
 /**
- * CameraRigComponent — 摄像机云台组件（滚轮缩放 + 平移 + 屏幕边缘平移 + 右键拖拽平移）
+ * CameraRigComponent — 摄像机云台组件（滚轮缩放 + 平移 + 屏幕边缘平移 + 右键拖拽平移/轨道环绕）
  *
  * 挂载到摄像机 Actor 上（与 CameraComponent 同一 Actor），集中管理俯瞰相机
  * （RTS / 基地类）的交互行为：
@@ -7,6 +7,8 @@
  *  - pan(dx, dz)：水平平移注视目标与相机（含边界限制）
  *  - 屏幕边缘平移：鼠标贴近视口边缘时持续平移（部落冲突风格边缘滚动）
  *  - 右键拖拽平移：按住右键拖动地图（屏幕位移 → 世界位移，跟手比例）
+ *  - 轨道环绕（orbitMode）：右键/左键拖拽绕 target 球面旋转（warm 行星观察/聚焦视角；
+ *    左键是否参与环绕由 leftOrbitEnabled 独立开关，聚焦默认视角下左键留给地图交互）
  *
  * 驱动方式：
  *  - 滚轮：PlayerController.OnScroll → rig.zoom(delta)
@@ -59,6 +61,10 @@ export class CameraRigComponent extends Component {
 
   /** 轨道环绕模式（true = 右键拖拽变为绕 target 球面旋转，false = 默认平移；行星观察视角用） */
   public orbitMode = false
+  /** 左键拖拽环绕开关（orbitMode = true 时生效）：true = 左键拖拽也环绕（行星观察/全息——
+   *  该态星图点击判定已冻结，左键空闲）；false = 左键留给地图交互（聚焦默认视角下
+   *  耀斑框选/拖线仍可用，环绕只归右键）。默认 true，历史行为（观察态双键环绕）不变。 */
+  public leftOrbitEnabled = true
   /** 轨道旋转灵敏度（弧度/像素） */
   public orbitSensitivity = 0.005
   /** 轨道仰角范围（弧度，限制在极点内侧避免 up 向量退化翻转） */
@@ -108,6 +114,7 @@ export class CameraRigComponent extends Component {
       EdgePanSpeed: this.edgePanSpeed,
       EdgePanEnabled: this.edgePanEnabled,
       RightPanSensitivity: this.rightPanSensitivity,
+      LeftOrbitEnabled: this.leftOrbitEnabled,
     }
   }
 
@@ -168,7 +175,8 @@ export class CameraRigComponent extends Component {
     // 滚轮缩放：delta 约定与 PlayerController.OnScroll 一致（正=拉远，负=拉近）
     this.unsubScroll = input.BindScroll((delta) => this.zoom(delta))
     // 鼠标按钮：右键按下开始拖拽平移，右键释放结束；
-    // 轨道模式（orbitMode）下左键按下/释放驱动环绕旋转（行星观察视角：左键拖 = 环绕）
+    // 轨道模式（orbitMode）下左键按下/释放驱动环绕旋转（行星观察视角：左键拖 = 环绕；
+    // leftOrbitEnabled = false 时左键不参与环绕，留给地图交互——warm 聚焦默认视角）
     this.unsubMouseButton = input.BindMouseButton((button, eventType) => {
       if (button === 2) {
         if (eventType === 'pressed') this.beginRightPan()
@@ -176,7 +184,7 @@ export class CameraRigComponent extends Component {
         return
       }
       if (button === 0) {
-        if (this.orbitMode && eventType === 'pressed') {
+        if (this.orbitMode && this.leftOrbitEnabled && eventType === 'pressed') {
           this.orbitDragging = true
           this.dragLastX = this.mouseX
           this.dragLastY = this.mouseY
@@ -359,7 +367,7 @@ export class CameraRigComponent extends Component {
       this.target.y + Math.sin(nextPitch) * distance,
       this.target.z + horiz * Math.cos(nextYaw),
     )
-    // up 用世界 +Y：斜视角下行星北极朝屏幕上方（垂直俯视由 focusOn 复位为 -Z）
+    // up 用世界 +Y：斜视角下行星北极朝屏幕上方（warm 已于 2026-09-14 移除垂直俯视机位，恒斜视角）
     cam.up.set(0, 1, 0)
     cam.lookAt(this.target)
     // 写回 Actor root，否则每帧 SyncFromActor 会把相机位置覆盖回去

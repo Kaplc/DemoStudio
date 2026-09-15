@@ -7,8 +7,8 @@
  *     - button=2 时 CameraRig.rightDragging 卡 true → 之后每次 mouse_move 都平移相机
  *     正向断言用 HUD 暂停按钮：动作生效（Label 暂停→继续，按下结算）+ 按钮态回
  *     normal（handleRelease 已分发）；回归断言用"右键 click 后大位移 mouse_move 不平移"。
- *  2. ai.mouseDrag button 参数：button=2 右键拖拽平移相机（与真实玩家右键拖拽同链路）；
- *     左键拖拽不平移（相机语义归右键，回归锁）。
+ *  2. ai.mouseDrag button 参数：button=2 右键拖拽（2026-09-15 聚焦环绕改版后 = 绕聚焦天体
+ *     环绕：相机位移、注视距离不变、地球恒居画面中心；左键拖拽不动相机——左键留地图交互）。
  *  3. ai.projectScreenPos 世界→屏幕投影查询：actor 命中 / worldPos / 相机界外
  *     （inFront=false）/ 未知 actor / 缺参 全分支。投影 → mouseClick 组成纯玩家点击链。
  *
@@ -184,12 +184,23 @@ test.describe('warm-current 纯玩家输入链路（mouseClick 完整释放 / mo
     await game.waitHUD((n) => n.text === '暂停' && !n.path.startsWith('/HUD/'), 10_000)
   })
 
-  test('mouseDrag：右键拖拽平移相机；左键拖拽不平移；右键轻点不卡滞（回归锁）', async ({ game, page }) => {
+  test('mouseDrag：右键拖拽环绕聚焦天体（地球居中·距离不变）；左键拖拽不动相机；右键轻点不卡滞（回归锁）', async ({ game, page }) => {
     await freezeSim(page)
     const p0 = await projectScreenPos(page, { actor: 'EarthActor' })
     expect(p0.ok && p0.inFront).toBeTruthy()
 
-    // ── 右键拖拽 300px：地球屏幕坐标显著位移（相机平移生效，与真实玩家右键拖拽同链路） ──
+    // 相机状态探针（聚焦环绕断言用：位置 + 与注视点距离；2026-09-15 聚焦环绕改版）
+    const camProbe = (): Promise<{ cx: number, cy: number, cz: number, dist: number }> =>
+      page.evaluate(`(() => {
+        const m = window.__warmCurrent.mode()
+        const c = m.cameraActor.camera.position
+        const t = m.cameraActor.rig.target
+        return { cx: c.x, cy: c.y, cz: c.z, dist: Math.hypot(c.x - t.x, c.y - t.y, c.z - t.z) }
+      })()`)
+
+    // ── 右键拖拽 300px = 绕地球环绕（2026-09-15 聚焦环绕改版，取代旧右键平移）：
+    //    相机位移显著、注视距离严格不变、地球保持画面中心（区别于平移的"整体滑动"） ──
+    const cam0 = await camProbe()
     const drag = await mouseDrag(page, {
       startX: p0.screenX! + 150,
       startY: p0.screenY! + 80,
@@ -213,12 +224,24 @@ test.describe('warm-current 纯玩家输入链路（mouseClick 完整释放 / mo
       stable = Math.abs(next.screenX! - cur.screenX!) < 1 && Math.abs(next.screenY! - cur.screenY!) < 1 ? stable + 1 : 0
       cur = next
     }
+    const cam1 = await camProbe()
+    expect(
+      Math.hypot(cam1.cx - cam0.cx, cam1.cz - cam0.cz),
+      '右键拖拽后相机位置应显著移动（环绕生效）',
+    ).toBeGreaterThan(100)
+    expect(
+      Math.abs(cam1.dist - cam0.dist),
+      '环绕不应改变注视距离（聚焦天体恒定，区别于平移/缩放）',
+    ).toBeLessThan(5)
     expect(
       Math.abs(cur.screenX! - p0.screenX!),
-      '右键拖拽 300px 后地球屏幕位移应显著（>100px，相机平移生效）',
-    ).toBeGreaterThan(100)
+      '环绕时地球应保持画面中心（聚焦语义，屏幕位移≈0）',
+    ).toBeLessThan(20)
+    expect(Math.abs(cur.screenY! - p0.screenY!)).toBeLessThan(20)
 
-    // ── 左键拖拽回归锁：同幅拖拽不平移相机（星图左键语义 = 选择/拖线，相机归右键） ──
+    // ── 左键拖拽回归锁：聚焦默认视角左键留地图交互（leftOrbitEnabled=false），
+    //    相机完全不动（既不平移也不环绕；耀斑框选/拖线交互不受相机层侵吞） ──
+    const camBase = await camProbe()
     const base = await projectScreenPos(page, { actor: 'EarthActor' })
     await mouseDrag(page, {
       startX: base.screenX! + 150,
@@ -238,24 +261,35 @@ test.describe('warm-current 纯玩家输入链路（mouseClick 完整释放 / mo
       afterLeft = next
       if (settled) break
     }
+    const camAfterLeft = await camProbe()
+    expect(
+      Math.hypot(camAfterLeft.cx - camBase.cx, camAfterLeft.cz - camBase.cz),
+      '左键拖拽不应移动相机（左键环绕已让位地图交互）',
+    ).toBeLessThan(1)
     expect(
       Math.abs(afterLeft.screenX! - base.screenX!),
-      '左键拖拽不应平移相机',
+      '左键拖拽地球应保持画面中心',
     ).toBeLessThan(30)
 
     // ── 右键轻点不卡滞（旧版 bug 回归锁）：click button=2 后大位移 mouse_move，
-    //    地球屏幕坐标几乎不动（旧版 rightDragging 卡 true → 移动即平移） ──
+    //    相机几乎不动（旧版 rightDragging 卡 true → 移动即平移；环绕态同口径收口） ──
     const p2 = await projectScreenPos(page, { actor: 'EarthActor' })
+    const cam2 = await camProbe()
     const click2 = await mouseClick(page, { screenX: p2.screenX! + 180, screenY: p2.screenY! + 120, button: 2 })
     expect(click2.ok).toBe(true)
     await mouseMove(page, { screenX: p2.screenX! - 180, screenY: p2.screenY! - 120 })
     await page.waitForTimeout(500)
     const p3 = await projectScreenPos(page, { actor: 'EarthActor' })
+    const cam3 = await camProbe()
     expect(
       Math.abs(p3.screenX! - p2.screenX!),
-      '右键 click + mouse_move 不应平移相机（rightDragging 已被释放收口）',
+      '右键 click + mouse_move 不应移动相机（rightDragging 已被释放收口）',
     ).toBeLessThan(25)
     expect(Math.abs(p3.screenY! - p2.screenY!)).toBeLessThan(25)
+    expect(
+      Math.hypot(cam3.cx - cam2.cx, cam3.cz - cam2.cz),
+      '右键轻点 + mouse_move 相机位置不应漂移',
+    ).toBeLessThan(25)
   })
 
   test('输入事件参数校验：mouseClick/mouseDrag 缺参应拒绝（引擎层分支）', async ({ page }) => {

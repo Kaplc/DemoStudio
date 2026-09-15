@@ -280,34 +280,34 @@ export const COLORS = {
 
 // ─── 星图布局（每行星系一张子表；扁平 nodes/moons 由 flattenMapSystems 派生） ───
 
-/** 代码内置默认星图子表（star_map.config.json 未加载时兜底；与表内容保持同步） */
+/** 代码内置默认星图子表（star_map.config.json 未加载时兜底；与表内容保持同步，2026-09-15 半径 ×1.3） */
 export const DEFAULT_MAP_SYSTEMS = {
   solar: {
     center: 'sun',
     nodes: {
-      sun: { x: 960, y: 540, r: 96 },
-      mercury: { x: 932, y: 447, r: 11 },
-      venus: { x: 1131, y: 599, r: 17 },
-      earth: { x: 960, y: 790, r: 38 },
-      mars: { x: 1230, y: 271, r: 34 },
-      jupiter: { x: -296, y: 877, r: 46 },
-      saturn: { x: 3263, y: 1158, r: 40 },
-      uranus: { x: -3674, y: -703, r: 24 },
-      neptune: { x: 8418, y: -407, r: 23 },
+      sun: { x: 960, y: 540, r: 84 },
+      mercury: { x: 911, y: 377, r: 15 },
+      venus: { x: 1244, y: 638, r: 23 },
+      earth: { x: 960, y: 1000, r: 50 },
+      mars: { x: 1442, y: 60, r: 44 },
+      jupiter: { x: -296, y: 877, r: 60 },
+      saturn: { x: 3263, y: 1158, r: 52 },
+      uranus: { x: -3674, y: -703, r: 31 },
+      neptune: { x: 8418, y: -407, r: 30 },
     },
   },
   earth: {
     center: 'earth',
     nodes: {
-      earth: { x: 960, y: 540, r: 38 },
-      moon: { x: 2160, y: 540, r: 17 },
+      earth: { x: 960, y: 540, r: 50 },
+      moon: { x: 2160, y: 540, r: 22 },
     },
   },
   jupiter: {
     center: 'jupiter',
     nodes: {
-      jupiter: { x: 960, y: 540, r: 46 },
-      europa: { x: 960, y: 464, r: 30 },
+      jupiter: { x: 960, y: 540, r: 60 },
+      europa: { x: 960, y: 464, r: 39 },
     },
   },
 } as Record<string, MapSystemCfg>
@@ -612,6 +612,8 @@ export const B = {
   map: {
     hitTolerance: 28,
     routeHitDistance: 14,
+    /** 滚轮聚焦吸附容差（px，屏幕空间）：拉近滚动时光标距天体屏幕中心 ≤ 投影半径 + 此值即吸附聚焦 */
+    focusSnapTolerance: 36,
     systems: DEFAULT_MAP_SYSTEMS,
     nodes: DEFAULT_MAP_FLAT.nodes as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
     moons: DEFAULT_MAP_FLAT.moons as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
@@ -964,10 +966,11 @@ for (const k of ['ringRadius', 'orbitSpeed', 'maxPerType', 'labelHeight', 'label
 
   // 星图布局：systems 子表逐系逐节点合并（默认值兜底；config 新子表可直接追加），合并后重展开扁平 nodes/moons
   try {
-    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; systems?: Record<string, Partial<MapSystemCfg>> }>('warm-current.star_map')
+    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; focusSnapTolerance?: number; systems?: Record<string, Partial<MapSystemCfg>> }>('warm-current.star_map')
     if (mp) {
       if (mp.hitTolerance !== undefined) B.map.hitTolerance = mp.hitTolerance
       if (mp.routeHitDistance !== undefined) B.map.routeHitDistance = mp.routeHitDistance
+      if (mp.focusSnapTolerance !== undefined) B.map.focusSnapTolerance = mp.focusSnapTolerance
       if (mp.systems) {
         for (const [sid, sys] of Object.entries(mp.systems)) {
           if (!sys) continue

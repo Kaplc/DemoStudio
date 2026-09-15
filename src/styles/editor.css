@@ -1802,12 +1802,15 @@ html, body, #root {
   gap: 4px;
   max-width: min(260px, 55%);
   overflow-y: auto;
+  overflow-x: hidden; /* 只纵向排列：横向超出一律裁剪，不出滚动条（2026-09-14 用户反馈） */
   padding: 2px; /* 给 hover 阴影留边，避免被 overflow 裁切 */
 }
 .session-notice {
   display: flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%; /* 约束子项不超过栈宽（align-items: flex-start 不拉伸，长内容靠内层省略号） */
+  min-width: 0;
   padding: 4px 5px 4px 8px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 8px;
@@ -1819,7 +1822,7 @@ html, body, #root {
 }
 .session-notice:hover {
   background: var(--dsw-alias-interactive-bg-hover);
-  transform: translateX(1px);
+  transform: translateY(-1px);
 }
 .session-notice:focus-visible {
   outline: 1px solid var(--dsw-alias-border-focus, #6BA8FF);

@@ -137,12 +137,18 @@ export interface WarmCurrentDebugBridge {
   loadSlot(n: number): Promise<boolean>
   slotMeta(n: number): ReturnType<typeof readSlotMetaWithSlot>
   togglePauseMenu(): boolean
-  /** 视图状态快照（视角/行星系 e2e 用） */
+  /** 视图状态快照（视角/行星系 e2e 用；2026-09-15 聚焦环绕改版补相机交互标志与观察态） */
   view(): {
     viewMode: 'earth' | 'solar'
     planetFocusBody: string
     viewSwitching: boolean
     loadingPanel: boolean
+    /** 当前观察天体（null = 未在观察；行星/卫星聚焦观察态） */
+    observeBody: string | null
+    /** 相机云台交互标志（聚焦环绕语义断言用） */
+    orbitMode: boolean
+    leftOrbitEnabled: boolean
+    edgePanEnabled: boolean
     cameraX: number
     cameraY: number
     cameraZ: number
@@ -632,11 +638,16 @@ export class WarmCurrentGameInstance extends GameInstance {
         const mode = instance._gameMode
         if (!mode) return null
         const cam = mode.gameCamera.camera.position
+        const rig = mode.cameraActor.rig
         return {
           viewMode: mode.viewMode,
           planetFocusBody: mode.planetFocusBody,
           viewSwitching: mode.viewSwitching,
           loadingPanel: !!mode.viewLoadingPanel,
+          observeBody: mode.observeBody ?? null,
+          orbitMode: rig.orbitMode,
+          leftOrbitEnabled: rig.leftOrbitEnabled,
+          edgePanEnabled: rig.edgePanEnabled,
           cameraX: cam.x,
           cameraY: cam.y,
           cameraZ: cam.z,

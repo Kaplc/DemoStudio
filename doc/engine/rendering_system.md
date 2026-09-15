@@ -241,7 +241,7 @@ RenderPass(scene, cam) → UnrealBloomPass(strength/radius/threshold) → Output
 | [CameraComponent.ts](../../src/engine/rendering/CameraComponent.ts) | 持 THREE 相机，管投影矩阵 | `mode` 只有 `'perspective' \| 'orthographic'`；构造 `(owner, name, mode)`，第二参仍是 name（snake/eatfish 兼容） |
 | [CameraActor.ts](../../src/engine/rendering/CameraActor.ts) | 把相机提升为 Actor | 内部 `new CameraComponent(this, `${name}Camera`, mode)`，参数全转发到组件 |
 | [PlayerCameraManager.ts](../../src/engine/rendering/PlayerCameraManager.ts) | 选活跃相机 | 注册时 `priority >=` 就顶替当前活跃 |
-| [CameraRigComponent.ts](../../src/engine/rendering/CameraRigComponent.ts) | 俯瞰相机交互（缩放+平移+边缘平移+右键拖拽） | 与 CameraComponent 挂同一 Actor，`BeginPlay` 里 `getComponent(CameraComponent)` |
+| [CameraRigComponent.ts](../../src/engine/rendering/CameraRigComponent.ts) | 俯瞰相机交互（缩放+平移+边缘平移+右键拖拽/轨道环绕） | 与 CameraComponent 挂同一 Actor，`BeginPlay` 里 `getComponent(CameraComponent)`；`orbitMode` 切环绕语义，`leftOrbitEnabled` 独立开关左键环绕 |
 | [CameraZoomComponent.ts](../../src/engine/rendering/CameraZoomComponent.ts) | 只要滚轮缩放的轻量版 | `zoom()` 与 Rig 逐行相同，但无平移/边缘/拖拽 |
 | [UICamera.ts](../../src/engine/rendering/UICamera.ts) | UI 独立正交相机，contain 模式 | 画布固定 1920×1080 设计像素（`UI_CANVAS_W/H`） |
 
@@ -339,10 +339,11 @@ if (this.rightDragging) return
 | `ThreeObject.dispose()` | `ThreeObject.ts:64` | 递归释放 geo/mat/texture | 幂等；`disposeGeometry=false` 跳过共享几何 |
 | `MeshComponent` 构造 | `MeshComponent.ts:33` | 抽象基类保护 + 单 Mesh 校验 | `new.target === MeshComponent` 直接 throw |
 | `BoxMeshComponent.size` setter | `BoxMeshComponent.ts:74` | 重建 BoxGeometry 并 dispose 旧的 | 走 `createBoxGeometry`（带追踪） |
-| `CameraRigComponent.bindInput(input)` | `CameraRigComponent.ts:136` | 订阅滚轮/右键/指针移动 | 重复调用先取消旧订阅；传 null 只取消 |
-| `CameraRigComponent.zoom(delta)` | `CameraRigComponent.ts:169` | 沿视线缩放，clamp 到 [min,max] | delta>0 拉远；末尾 `SyncToActor()` |
-| `CameraRigComponent.pan(dx, dz)` | `CameraRigComponent.ts:194` | 平移 target 与相机，clamp ±panLimit | 末尾 `SyncToActor()` |
-| `CameraRigComponent.Tick(dt)` | `CameraRigComponent.ts:215` | 屏幕边缘平移 | 需外部每帧驱动；`rightDragging` 时跳过 |
+| `CameraRigComponent.bindInput(input)` | `CameraRigComponent.ts:~140` | 订阅滚轮/鼠标按钮/指针移动 | 重复调用先取消旧订阅；传 null 只取消；orbitMode 下左键环绕受 `leftOrbitEnabled` 门控 |
+| `CameraRigComponent.zoom(delta)` | `CameraRigComponent.ts:~175` | 沿视线缩放，clamp 到 [min,max] | delta>0 拉远；末尾 `SyncToActor()` |
+| `CameraRigComponent.pan(dx, dz)` | `CameraRigComponent.ts:~200` | 平移 target 与相机，clamp ±panLimit | 末尾 `SyncToActor()`；也用于公转天体的逐帧跟随（warm 全息/卫星观察） |
+| `CameraRigComponent.Tick(dt)` | `CameraRigComponent.ts:~260` | 屏幕边缘平移 | 需外部每帧驱动；`rightDragging` 或 `edgePanEnabled=false` 时跳过 |
+| `CameraRigComponent.orbitRotate(dy, dp)` | `CameraRigComponent.ts:~350` | orbitMode 下拖拽绕 target 球面旋转 | yaw 无限位、pitch 夹紧防 up 退化；距离不变，末尾 `SyncToActor()` |
 | `CameraZoomComponent.zoom(delta)` | `CameraZoomComponent.ts:54` | 只要缩放时的轻量版 | 与 Rig 的 zoom 逻辑相同 |
 | `Compositor2D.render()` | `Compositor2D.ts:41` | NDC 空间 2D 叠加 | 仅 `editor/SceneViewport.ts:726` 的 `createCompositor2D()` 定义处 new；该方法当前无调用方 |
 | `CameraOverlayRenderer`（pip/split/full） | `CameraOverlayRenderer.ts:54` | 多相机画中画/分屏叠加 | 未从 `engine/index.ts` 导出，src 下无 new；**未接线** |

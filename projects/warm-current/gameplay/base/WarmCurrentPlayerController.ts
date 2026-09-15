@@ -89,4 +89,12 @@ export class WarmCurrentPlayerController extends PlayerController {
       this.mode.onMapPointerMove(map)
     }
   }
+
+  /** 滚轮（InputSys.handleScroll 时序：云台 zoom 先行，本虚方法后行）：
+   *  拉近滚动（delta < 0）且光标位置已知时交给 GameMode 做聚焦吸附判定——
+   *  光标附近有本系天体即切换聚焦（观察取景覆盖本次缩放），否则维持已发生的普通缩放。 */
+  override OnScroll(delta: number): void {
+    if (delta >= 0 || !this.lastScreen) return
+    this.mode.tryScrollFocusAt(this.lastScreen.x, this.lastScreen.y)
+  }
 }

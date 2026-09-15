@@ -7,7 +7,8 @@
  * HUD 不在此构建（HUDClass 指向 hud.widget.json，由 gameplay/ui/*.script.ts 消费 buildViewModel）。
  * 指针事件经 WarmCurrentPlayerController 进来后做节点/航线几何命中，转成组件指令；
  * 建筑模式（buildMode）下指针变为放置：网格吸附预览 + 点击落位（Esc 取消，优先于暂停菜单）。
- * 太阳系取景：SolarCameraActor 云台（滚轮缩放 + 右键/边缘平移）+ sol GM 命令聚焦天体。
+ * 太阳系取景：SolarCameraActor 云台（滚轮缩放；行星系聚焦 = 右键环绕 + 滚轮缩放，
+ * 太阳系全景 = 右键/边缘平移）+ 双击天体聚焦观察（行星/卫星）+ sol GM 命令聚焦天体。
  * Esc：togglePauseMenu 呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单），打开时强制暂停。
  * 海克斯三选一：节点达成弹卡即整体暂停仿真（paused=true），选卡后恢复运行（2026-09-08 拍板）。
  */
@@ -17,7 +18,7 @@ import { starTextureFor, skyTextureUrl } from '../map/starTextures'
 import { B, MAP_H, MAP_W, toWX, toWZ, refreshBalanceFromConfigs } from '../core/balance'
 import type { BuildingDef, BuildingUpgradeDef, OrbitBuildingDef, RingBuildingDef, ShipHullDef, ShipModuleDef, SolarFocusBody } from '../core/balance'
 import type { CardDef } from '../core/balance'
-import type { PlanetId, PlanetBodyId, ShipOrder } from '../core/types'
+import type { PlanetId, MoonId, PlanetBodyId, ShipOrder } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
 import { getCardDef } from '../core/cards'
 import { restoreSimState } from '../core/save'
@@ -719,8 +720,12 @@ export class WarmCurrentGameMode extends GameMode {
   /** 当前加载遮罩面板（null = 无；e2e 断言切换收尾后必须归零） */
   viewLoadingPanel: import('@/engine').Actor | null = null
 
-  /** 行星观察模式当前观察的天体（null = 未在观察；行星系内双击聚焦行星进入，Esc 退出） */
-  observeBody: PlanetId | null = null
+  /** 行星观察模式当前观察的天体（null = 未在观察；行星系内双击聚焦进入，Esc 退出。
+   *  2026-09-15 聚焦环绕改版：卫星（月球）也可双击聚焦观察，类型放宽到 MoonId） */
+  observeBody: PlanetId | MoonId | null = null
+  /** 卫星观察逐帧跟随的上一帧位置（null = 无跟随； observeBody 为卫星时每帧 rig.pan
+   *  成对平移 target+相机，跟随卫星公转漂移——与全息卫星跟随 holoLastTarget 同口径） */
+  private observeFollowLast: { x: number; z: number } | null = null
 
 
   /** 事件 toast 队列（HudScript 每帧消费渲染） */
@@ -734,7 +739,8 @@ export class WarmCurrentGameMode extends GameMode {
 
   constructor() {
     super()
-    // 太阳系云台相机（3D 标准）：fov 50，缩放边界随视图模式切换（applyViewMode：地球系 80~520 / 太阳系 60~12000）
+    // 太阳系云台相机（3D 标准）：fov 50，缩放边界随视图模式切换（applyViewMode：拉远上限地球系 5200 / 太阳系 12000，
+    // 拉近下限 = 聚焦天体半径 ×1.15 动态贴合——相机可一路滚到近乎贴着星球表面）
     // 相机 Actor 构造但不托管：由 BeginPlay 的 spawnActor 交给 World（hoi4 同款）
     this.cameraActor = new SolarCameraActor(MAP_W, MAP_H)
     this.gameCamera = this.cameraActor.cameraComponent
@@ -748,7 +754,7 @@ export class WarmCurrentGameMode extends GameMode {
     super.InitGame()
     this.cameraManager.RegisterCamera(this.gameCamera)
     this.cameraActor.place()
-    // 开局即地球系取景：只看地月小星系（其余星球未解锁，全景留给右下角视角切换）
+    // 开局即地球系取景：只看地月小星系（2026-09-14 视角锁定地球系，太阳系/其它行星系切换入口已全部移除）
     this.focusSolarSystem('earth')
     // 银河全景天空（SSS equirect → scene.background）：异步解码不阻塞取景，失败走纯黑兜底
     this.applySkyTexture()
@@ -881,7 +887,21 @@ export class WarmCurrentGameMode extends GameMode {
         this.holoLastTarget = { x: p.x, z: p.z }
       }
     }
-    // rig.target 已由 focusOn 一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
+    // 卫星观察跟随（2026-09-15 聚焦环绕改版）：双击聚焦卫星后逐帧 rig.pan 跟随其公转漂移
+    // （成对平移 target+相机保持环绕几何，与全息卫星跟随同口径）。观察行星不参与
+    // （舞台钉扎静态，注视点恒在舞台中心）。
+    if (this.observeBody) {
+      const mc = B.map.moons[this.observeBody as keyof typeof B.map.moons]
+      const actor = mc ? this.starActors.get(this.observeBody as StarBodyId) : undefined
+      if (actor) {
+        const p = actor.root.position
+        if (this.observeFollowLast) {
+          this.cameraActor.rig.pan(p.x - this.observeFollowLast.x, p.z - this.observeFollowLast.z)
+        }
+        this.observeFollowLast = { x: p.x, z: p.z }
+      }
+    }
+    // rig.target 已由取景（observeFocus）一次性定到舞台中心（舞台静态：行星钉死），这里禁止逐帧复位：
     // rig.pan 成对移动 target 与相机，若只把 target 拉回舞台而相机留在原位，
     // 下次拖拽的 lookAt 会把镜头掰向舞台中心——右键平移退化成绕行星旋转
     this.starMap?.render(this.paused ? 0 : dt * this.timeScale, this.gameCamera.camera)
@@ -1031,11 +1051,12 @@ export class WarmCurrentGameMode extends GameMode {
   //  太阳系取景（sol GM 命令 + 缩放相机）
   // ═══════════════════════════════════════════
 
-  /** 地球系视图缩放范围（min/max 距离）：独立小星系取景（月球轨道 1200：特写 80 ~ 全景 5200） */
-  private static readonly EARTH_VIEW_MIN_DIST = 80
+  /** 地球系视图拉远上限（距离）：独立小星系取景（月球轨道 1200：全景 5200 全入画留边）。
+   *  拉近下限不设静态值：applyViewMode 按聚焦天体半径动态贴合（applyZoomFloor ×1.15）。 */
   private static readonly EARTH_VIEW_MAX_DIST = 5200
 
-  /** 聚焦指定天体：太阳 = 太阳系全景；行星 = 进入其行星系（跟随取景）。机位数学在 SolarCameraActor.focusOn */
+  /** 聚焦指定天体（内部机制保留供 e2e/开发直调；玩家入口已于 2026-09-14 全部屏蔽）：
+   *  太阳 = 太阳系全景；行星 = 进入其行星系（跟随取景）。机位数学在 SolarCameraActor.observeFocus（恒斜视角）。 */
   focusSolarSystem(body: SolarFocusBody): void {
     const toSolar = body === 'sun'
     // 月球相位对齐（仅地月系）：离开地月系时记录相位，切回地月系（含从其它行星系切回）时拨回
@@ -1055,12 +1076,30 @@ export class WarmCurrentGameMode extends GameMode {
     const off = this.viewMode === 'earth' ? planetStageOffset(this.planetFocusBody as PlanetId) : { x: 0, z: 0 }
     // 任何取景切换统一退出观察态（切太阳/切行星系/视角按钮都会走到这里）
     this.clearObserveState()
-    this.cameraActor.focusOn(off.x, off.z, d)
-    logger.info(`[WarmCurrent] 太阳系取景 → ${body} (dist=${d}, mode=${this.viewMode})`)
+    // 恒斜视角取景（2026-09-14 移除垂直俯视）：地球 3200 斜视地月系，太阳 1000 斜视内系统
+    this.cameraActor.observeFocus(off.x, off.z, d)
+    // 相机交互语义随视图收敛（2026-09-15 聚焦环绕改版）：行星系聚焦 = 环绕，太阳系全景 = 自由平移
+    this.applyFocusCameraMode(toSolar)
+    logger.info(`[WarmCurrent] 太阳系取景 → ${body} (dist=${d}, mode=${this.viewMode}，斜视角)`)
   }
 
-  /** 清观察态（不做取景复位）：observeBody 归零 + 关轨道旋转 + 恢复边缘平移 + 复位特写增益。
-   *  全息勘探同语义互斥收口（hologramSel 归零共用 orbitMode/边缘平移复位）。
+  /** 行星系聚焦默认相机交互语义（2026-09-15 聚焦环绕改版）：
+   *  行星系聚焦态（body ≠ sun）：右键拖拽 = 绕聚焦天体环绕（orbitMode），滚轮缩放不变；
+   *  屏蔽空间自由平移——右键平移被环绕取代，边缘平移关闭（防拖走注视点破坏聚焦）；
+   *  左键环绕关闭（leftOrbitEnabled=false），左键留给地图交互（耀斑框选/拖线仍可用）。
+   *  太阳系全景：保持历史自由平移（右键平移 + 边缘平移；玩家入口已屏蔽，仅内部/e2e 可达）。
+   *  观察态（enterPlanetObserve/enterMoonObserve/openHologram）在取景后自行开左键环绕。 */
+  private applyFocusCameraMode(solar: boolean): void {
+    const rig = this.cameraActor.rig
+    rig.orbitMode = !solar
+    rig.leftOrbitEnabled = false
+    rig.setEdgePanEnabled(solar)
+    logger.info(`[WarmCurrent] 聚焦相机语义：${solar ? '太阳系全景（右键/边缘自由平移）' : '行星系聚焦环绕（右键环绕 · 滚轮缩放 · 边缘平移关 · 左键留地图交互）'}`)
+  }
+
+  /** 清观察态（不做取景复位）：observeBody 归零 + 相机交互回落视图默认语义
+   *  （applyFocusCameraMode：行星系 = 聚焦环绕，太阳系 = 自由平移）+ 复位特写增益。
+   *  全息勘探/卫星观察同语义互斥收口（hologramSel 归零共用）。
    *  取景切换 / 重开 / 读档三条退出路径共用，保证清理不漏。 */
   private clearObserveState(): void {
     if (!this.observeBody && !this.hologramSel) return
@@ -1070,33 +1109,101 @@ export class WarmCurrentGameMode extends GameMode {
     this.holoPlaceTool = null
     this.holoGhost = null
     this.holoLastTarget = null
-    this.cameraActor.rig.orbitMode = false
-    this.cameraActor.rig.setEdgePanEnabled(true)
+    this.observeFollowLast = null
+    this.applyFocusCameraMode(this.viewMode === 'solar')
     this.resetObserveBoost()
   }
 
 
-  /** 视图模式 → 相机缩放边界（视图隔离：地球系锁死地月尺度，滚轮拉远也只见地月） */
+  /** 缩放下限贴球心（2026-09-15 贴地缩放）：min 距离 = 天体显示半径 × 1.15。
+   *  注视点抬到球心高度（StarActor 球心 y = r×0.55）后，任意环绕俯仰角相机到球面
+   *  都保有 ≥15% 半径余量——滚轮可一路贴近星球表面而不穿入球体。下限 24 防小微天体过近。 */
+  private applyZoomFloor(bodyR: number): void {
+    this.cameraActor.rig.minDistance = Math.max(24, bodyR * 1.15)
+  }
+
+  /** 视图模式 → 相机缩放边界（视图隔离：地球系锁死地月尺度，滚轮拉远也只见地月；
+   *  拉近下限 = 聚焦天体半径动态贴合，贴地特写） */
   private applyViewMode(): void {
     const solar = this.viewMode === 'solar'
     const rig = this.cameraActor.rig
-    rig.minDistance = solar ? 60 : WarmCurrentGameMode.EARTH_VIEW_MIN_DIST
+    const focusR = solar ? B.map.nodes.sun.r : B.map.nodes[this.planetFocusBody as PlanetId].r
+    this.applyZoomFloor(focusR)
     rig.maxDistance = solar ? 12000 : WarmCurrentGameMode.EARTH_VIEW_MAX_DIST
     // 星图渲染分组同步切换（其它行星/轨道/太阳光晕显隐）
     this.starMap?.setViewMode(this.viewMode)
-    logger.info(`[WarmCurrent] 视图隔离：${solar ? '太阳系全景（缩放 60~12000）' : `地球系小星系（缩放 ${WarmCurrentGameMode.EARTH_VIEW_MIN_DIST}~${WarmCurrentGameMode.EARTH_VIEW_MAX_DIST}，只见地月）`}`)
+    logger.info(`[WarmCurrent] 视图隔离：${solar ? `太阳系全景（缩放 ${this.cameraActor.rig.minDistance.toFixed(0)}~12000）` : `地球系小星系（缩放 ${this.cameraActor.rig.minDistance.toFixed(0)}~${WarmCurrentGameMode.EARTH_VIEW_MAX_DIST}，只见地月）`}`)
   }
 
-  /** 视角切换（ViewToggle widget 按钮）：earth = 地球系（行星系），solar = 太阳系全景。
-   *  ⚠ 按钮路径绕过 enterPlanetSystem 的观察 toggle：已在地球系 = 复位俯视取景，不进观察 */
+  // ─── 滚轮聚焦吸附（2026-09-15：拉近滚动时光标附近有天体 → 聚焦切换到该天体） ───
+
+  /** 滚轮聚焦吸附：拉近滚动（delta < 0）时若光标附近有本行星系天体，聚焦吸附到该天体
+   *  （复用双击聚焦入口 enterPlanetObserve/enterMoonObserve：环绕语义 + 公转跟随 + 缩放下限贴合一体生效）。
+   *  经 PlayerController.OnScroll 在云台缩放之后调用：命中即以观察取景覆盖本次缩放，
+   *  未命中维持普通缩放；已聚焦该天体时不重复吸附（滚轮继续贴近）。
+   *  只在本行星系视角生效（跨系聚焦已被视角锁定屏蔽）；建筑落位/拖线/全息中滚轮只缩放不切换。 */
+  tryScrollFocusAt(screenX: number, screenY: number): void {
+    if (this.viewMode !== 'earth' || this.viewSwitching) return
+    if (this.buildMode || this.routeEditMode || this.hologramSel) return
+    const body = this.bodyNearScreen(screenX, screenY)
+    if (!body || body === this.observeBody) return
+    logger.info(`[WarmCurrent] 滚轮聚焦吸附 → ${PLANET_NAMES[body] ?? body}（光标 ${screenX.toFixed(0)},${screenY.toFixed(0)}）`)
+    if (body === this.planetFocusBody) this.enterPlanetObserve(body as PlanetId)
+    else this.enterMoonObserve(body as MoonId)
+  }
+
+  /** 光标附近天体拾取（屏幕空间）：本系成员（聚焦行星 + 其卫星）球心投影到视口，
+   *  取「光标距屏幕中心 ≤ 投影半径 + focusSnapTolerance」中最近者；无则 null。
+   *  屏幕半径用球心 + 相机右轴偏移 r 的差分投影求取（免推 fov/距离换算，任意焦距精确）。 */
+  private bodyNearScreen(screenX: number, screenY: number): StarBodyId | null {
+    const el = this.world?.gameRenderer?.uiLayer
+    const cam = this.gameCamera.camera
+    if (!el || !cam) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return null
+    const focus = this.planetFocusBody as PlanetId
+    const members: StarBodyId[] = [focus]
+    for (const [id, mc] of Object.entries(B.map.moons)) {
+      if (mc.parent === focus) members.push(id as MoonId)
+    }
+    cam.updateMatrixWorld()
+    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0)
+    const v = new THREE.Vector3()
+    const tol = B.map.focusSnapTolerance
+    let best: StarBodyId | null = null
+    let bestDist = Infinity
+    for (const id of members) {
+      const actor = this.starActors.get(id)
+      if (!actor) continue
+      v.copy(actor.root.position).project(cam)
+      // NDC z 出 [-1,1] = 球心在相机前/后界之外（背面/被裁剪），像素坐标不可信
+      if (v.z < -1 || v.z > 1) continue
+      const cx = rect.left + ((v.x + 1) / 2) * rect.width
+      const cy = rect.top + ((1 - v.y) / 2) * rect.height
+      const ex = v.copy(actor.root.position).addScaledVector(right, B.map.nodes[id].r).project(cam)
+      const px = rect.left + ((ex.x + 1) / 2) * rect.width
+      const py = rect.top + ((1 - ex.y) / 2) * rect.height
+      const screenR = Math.hypot(px - cx, py - cy)
+      const d = Math.hypot(screenX - cx, screenY - cy)
+      if (d <= Math.max(screenR + 14, tol) && d < bestDist) {
+        bestDist = d
+        best = id
+      }
+    }
+    return best
+  }
+
+  /** 视角切换（历史 ViewToggle widget 按钮路径；2026-09-14 起 widget 已下架，仅存作兼容入口）：
+   *  solar = 已屏蔽（视角锁定地球系）；earth = 回地球系默认取景。
+   *  ⚠ 按钮路径绕过 enterPlanetSystem 的观察 toggle：已在地球系 = 复位默认斜视取景，不进观察 */
   setViewMode(mode: 'earth' | 'solar'): void {
     if (this.viewSwitching) return
     if (mode === 'solar') {
-      this.switchView('solar')
+      logger.warn('[WarmCurrent] 太阳系全景视角已屏蔽（2026-09-14 锁定地球视角），忽略 setViewMode(\'solar\')')
       return
     }
     if (this.viewMode === 'earth' && this.planetFocusBody === 'earth') {
-      // 已在地球系：复位俯视取景（观察态由 focusSolarSystem 统一清理）
+      // 已在地球系：复位默认斜视取景（观察态由 focusSolarSystem 统一清理）
       this.focusSolarSystem('earth')
       return
     }
@@ -1105,8 +1212,13 @@ export class WarmCurrentGameMode extends GameMode {
 
 
 
-  /** 双击行星进入其行星系（加载遮罩过渡；已在同一行星系则切换行星观察视角） */
+  /** 双击行星（2026-09-14 视角锁定地球系：仅地球响应——双击地球 = 切换行星观察视角；
+   *  双击其它行星不再切换行星系，仅提示）。 */
   enterPlanetSystem(body: SolarBodyId): void {
+    if (body !== 'earth') {
+      logger.warn(`[WarmCurrent] 行星系切换已屏蔽（2026-09-14 锁定地球视角），忽略双击 → ${body}`)
+      return
+    }
     // 切换进行中忽略（450ms 窗口内 toggle 会先观察再被延迟取景清掉，镜头闪跳）
     if (this.viewSwitching) return
     if (this.viewMode === 'earth' && this.planetFocusBody === body) {
@@ -1131,19 +1243,58 @@ export class WarmCurrentGameMode extends GameMode {
     this.observeBody = body
 
     const rig = this.cameraActor.rig
-    // 观察距离 = 节点半径 × 4（行星 r 11~46 → dist 44~184，近者被 minDistance 兜底到 80）
+    // 观察距离 = 节点半径 × 4；缩放下限贴球心（可滚到近乎贴着行星表面）
     const r = B.map.nodes[body].r
     // 定位用舞台偏移权威值（右键平移过地图时 rig.target 已偏离舞台，不可作锚点）
     const stage = planetStageOffset(body)
     // 边缘平移会拖走注视点破坏环绕，观察期间关闭（退出/切视图时恢复）
     rig.setEdgePanEnabled(false)
-    this.cameraActor.observeFocus(stage.x, stage.z, r * 4)
+    // 注视点 = 球心高度（StarActor 球心 y = r×0.55）：特写行星屏幕居中，缩放下限以球心计量
+    this.applyZoomFloor(r)
+    this.cameraActor.observeFocus(stage.x, stage.z, r * 4, THREE.MathUtils.degToRad(35), r * 0.55)
     rig.orbitMode = true
+    // 观察态星图点击判定冻结，左键空闲 → 左键拖拽也环绕（双键环绕，历史交互不变）
+    rig.leftOrbitEnabled = true
+    // 行星钉在舞台中心（静态），无公转跟随
+    this.observeFollowLast = null
     // 特写观感增强：被观察行星的大气提亮（组件在无此挂载的天体上自动跳过）
     this.applyObserveBoost(body)
     audioSys.play('wc.ok', { volume: 0.4 })
     logger.info(`[WarmCurrent] 行星观察：${PLANET_NAMES[body] ?? body}（拖拽环绕 · 滚轮缩放 · Esc/再双击退出）`)
 
+  }
+
+  /** 进入卫星观察视角（2026-09-15 聚焦环绕改版）：双击卫星（月球）聚焦，相机绕卫星环绕，
+   *  并在 Tick 逐帧 rig.pan 跟随卫星公转漂移（卫星不在舞台中心，注视点必须跟走）；
+   *  Esc/再双击退出回行星系默认聚焦取景。卫星无大气壳，进入时统一复位特写增益
+   *  （从行星观察切换过来时清掉该行星的 ×1.8 增益）。
+   *  ⚠ 仅限卫星母星系视角（月球须在地月系：公转跟随依赖本系舞台钉扎口径）。 */
+  enterMoonObserve(body: MoonId): void {
+    const mc = B.map.moons[body]
+    if (!mc || this.viewMode !== 'earth' || this.planetFocusBody !== mc.parent) return
+    // 与全息勘探互斥：全息中先退出（复位默认取景，随后观察重新取景）
+    if (this.hologramSel) this.closeHologram()
+    // 建筑/航线编辑模式与观察互斥（左键在观察中是环绕拖拽，不能同时落位/拖线）
+    if (this.buildMode) this.cancelBuildMode()
+    if (this.routeEditMode) this.toggleRouteEditMode()
+    this.observeBody = body
+    // 观察距离 = 卫星半径 × 4；缩放下限贴球心（卫星特写可滚到近乎贴着表面）
+    const r = B.map.nodes[body].r
+    // 取景锚 = 卫星真实位置（ Actor root 权威值；卫星不在舞台中心，随公转走）
+    const actor = this.starActors.get(body as StarBodyId)
+    const wx = actor ? actor.root.position.x : 0
+    const wz = actor ? actor.root.position.z : 0
+    const rig = this.cameraActor.rig
+    rig.setEdgePanEnabled(false)
+    // 注视点 = 球心高度：特写卫星屏幕居中，缩放下限以球心计量
+    this.applyZoomFloor(r)
+    this.cameraActor.observeFocus(wx, wz, r * 4, THREE.MathUtils.degToRad(35), r * 0.55)
+    rig.orbitMode = true
+    rig.leftOrbitEnabled = true
+    this.observeFollowLast = { x: wx, z: wz }
+    this.resetObserveBoost()
+    audioSys.play('wc.ok', { volume: 0.4 })
+    logger.info(`[WarmCurrent] 卫星观察：${PLANET_NAMES[body] ?? body}（环绕跟随公转 · 滚轮缩放 · Esc/再双击退出）`)
   }
 
   /**
@@ -1166,26 +1317,32 @@ export class WarmCurrentGameMode extends GameMode {
     }
   }
 
-  /** 退出行星观察视角：复位该行星系俯视取景（focusSolarSystem 顺带清观察状态与轨道开关） */
+  /** 退出行星/卫星观察视角：复位该行星系默认聚焦取景（斜视 + 聚焦环绕语义，
+   *  focusSolarSystem 顺带清观察状态与相机交互开关） */
   exitPlanetObserve(): void {
     if (!this.observeBody) return
     this.focusSolarSystem(this.planetFocusBody)
-    logger.info('[WarmCurrent] 行星观察退出（回行星系俯视）')
+    logger.info('[WarmCurrent] 行星观察退出（回行星系斜视取景）')
   }
 
 
 
-  /** 统一视图切换：加载遮罩先上屏（盖住舞台搬移/镜头跳转防穿帮），下一拍再切 */
+  /** 统一视图切换：加载遮罩先上屏（盖住舞台搬移/镜头跳转防穿帮），下一拍再切。
+   *  2026-09-14 视角锁定地球系：solar 目标已屏蔽（防御性兜底，玩家入口均已封）。 */
   private switchView(target: 'solar' | SolarBodyId): void {
     if (this.viewSwitching) return
-    if (target === 'solar' && this.viewMode === 'solar') return
+    if (target === 'solar') {
+      logger.warn('[WarmCurrent] 太阳系全景视角已屏蔽（2026-09-14 锁定地球视角），忽略 switchView(\'solar\')')
+      return
+    }
+    // solar 已在上方屏蔽返回；此处 target 收窄为 SolarBodyId
     this.viewSwitching = true
     const panel = this.world?.ui.spawnUIActor(VIEW_LOADING_WIDGET) ?? null
     this.viewLoadingPanel = panel
     if (!panel) logger.warn('[WarmCurrent] 视图切换加载遮罩生成失败，退化为硬切')
     window.setTimeout(() => {
       try {
-        this.focusSolarSystem(target === 'solar' ? 'sun' : target)
+        this.focusSolarSystem(target)
       } finally {
         // 遮罩销毁失败不得卡死 viewSwitching（否则后续所有切换永久失灵）
         try { panel?.destroy() } catch (e) { logger.error(`[WarmCurrent] 加载遮罩销毁失败：${e}`) }
@@ -1327,22 +1484,8 @@ export class WarmCurrentGameMode extends GameMode {
     return dist(p.x, p.y, s0.x, s0.y) <= s0.r + B.map.hitTolerance
   }
 
-  /** 双击判定状态（行星系入口）：最近一次点中的行星 + 时刻 */
-  private lastPlanetClick: { body: PlanetId | null; t: number } = { body: null, t: 0 }
-
-  /** 行星本体命中（含未解锁装饰行星；太阳与卫星不参与双击进入行星系）。
-   *  ⚠ 判定收口到"真实 Actor 世界位置"（行星系视角下隐藏天体 Actor 已移远景，
-   *  看不见 = 点不到；太阳系全景 Actor 全在公转位，渲染在哪就点哪）。 */
-  private planetAt(p: { x: number; y: number }): PlanetId | null {
-    for (const body of Object.keys(B.map.nodes) as Array<keyof typeof B.map.nodes>) {
-      if (body === 'sun') continue
-      if (B.map.moons[body as keyof typeof B.map.moons]) continue
-      const pos = this.starActorWorldPos(body)
-      if (!pos) continue
-      if (dist(p.x, p.y, pos.x, pos.y) <= B.map.nodes[body].r + B.map.hitTolerance) return body as PlanetId
-    }
-    return null
-  }
+  /** 双击判定状态（聚焦入口）：最近一次点中的天体（行星/卫星）+ 时刻 */
+  private lastPlanetClick: { body: PlanetId | MoonId | null; t: number } = { body: null, t: 0 }
 
   /** 天体蓝图 Actor 的世界位置 → 星图画布坐标（Actor 不存在 = 蓝图生成失败，按同口径
    *  隔离计算兜底：hiddenActorIsolated → 画布系减舞台位移，与 Actor 主分支同构——
@@ -1381,8 +1524,11 @@ export class WarmCurrentGameMode extends GameMode {
     return null
   }
 
-  /** 任意天体命中（星球信息面板用：行星 + 卫星，含未解锁资源星；太阳走聚焦取景不进面板）。
-   *  与 planetAt 的差异 = 含卫星（planetAt 专供双击进行星系，有意排除卫星），同收口真实 Actor 世界位置。 */
+  /** 任意天体命中（双击聚焦 + 星球信息面板共用：行星 + 卫星，含未解锁资源星；
+   *  太阳走聚焦取景不进面板）。2026-09-15 起双击聚焦也走本判定（原 planetAt 排除卫星
+   *  的旧口径随"月球可双击聚焦"移除，判定统一收口此处）。
+   *  ⚠ 判定收口到"真实 Actor 世界位置"（行星系视角下隐藏天体 Actor 已移远景，
+   *  看不见 = 点不到；太阳系全景 Actor 全在公转位，渲染在哪就点哪）。 */
   private bodyAt(p: { x: number; y: number }): SolarBodyId | null {
     for (const body of Object.keys(B.map.nodes) as Array<SolarBodyId>) {
       if (body === 'sun') continue
@@ -1848,12 +1994,17 @@ export class WarmCurrentGameMode extends GameMode {
       // （不包络真球；锚点 = 行星系舞台 + B.holoEarth 偏移，渲染层同口径）
       const R = r * B.holoEarth.radiusMult
       const a = holoEarthAnchor()
+      // 缩放下限贴全息球心（锚点 y=0 = 球心）：可滚到近乎贴着全息球面落位
+      this.applyZoomFloor(R)
       this.cameraActor.observeFocus(a.x, a.z, R * B.holoEarth.camDistMult, THREE.MathUtils.degToRad(B.holoEarth.camPitchDeg), 0)
       this.toast('全息地球已投影 — 右侧选建造工具，点球面落位', '#7fdcff')
     } else {
+      this.applyZoomFloor(r)
       this.cameraActor.observeFocus(wx, wz, r * 4.5, THREE.MathUtils.degToRad(35), r * 0.55)
     }
     this.cameraActor.rig.orbitMode = true
+    // 全息态星图点击判定冻结（放置工具走屏幕空间拾取），左键空闲 → 左键也环绕（历史交互不变）
+    this.cameraActor.rig.leftOrbitEnabled = true
     audioSys.play('wc.ok', { volume: 0.4 })
     logger.info(`[WarmCurrent] 全息${isEarth ? '地球建造' : '勘探'}：${PLANET_NAMES[body] ?? body}（拖拽环绕 · Esc 退出）`)
   }
@@ -1863,7 +2014,7 @@ export class WarmCurrentGameMode extends GameMode {
   closeHologram(): void {
     if (!this.hologramSel) return
     this.focusSolarSystem(this.planetFocusBody)
-    logger.info('[WarmCurrent] 全息勘探退出（回行星系俯视）')
+    logger.info('[WarmCurrent] 全息勘探退出（回行星系斜视取景）')
   }
 
   /** 选中矿点（面板行点击；id 须属当前勘探天体） */
@@ -2183,40 +2334,49 @@ export class WarmCurrentGameMode extends GameMode {
     // 星图点击判定全部冻结（面板行也可选中矿点）
     if (this.hologramSel) return
     // 行星观察模式：左键 = 环绕拖拽（相机层消费），星图点击判定冻结；
-    // 仅保留双击当前行星 = 退出观察回俯视（toggle 入口）
+    // 双击当前观察天体 = 退出回默认聚焦；双击另一可观察天体 = 切换聚焦（地球 ↔ 月球，
+    // 2026-09-15 聚焦环绕改版）。命中收口 bodyAt（行星 + 卫星；非本系天体已隔离远景 → 点不到）。
     if (this.observeBody) {
-      const planet = this.planetAt(p)
+      const hit = this.bodyAt(p)
       const now = performance.now()
-      if (planet === this.observeBody && this.lastPlanetClick.body === planet && now - this.lastPlanetClick.t < 350) {
+      if (hit && this.lastPlanetClick.body === hit && now - this.lastPlanetClick.t < 350) {
         this.lastPlanetClick = { body: null, t: 0 }
-        this.exitPlanetObserve()
+        if (hit === this.observeBody) {
+          this.exitPlanetObserve()
+        } else if (B.map.moons[hit as keyof typeof B.map.moons]) {
+          this.enterMoonObserve(hit as MoonId)
+        } else {
+          this.enterPlanetObserve(hit as PlanetId)
+        }
       } else {
-        this.lastPlanetClick = planet ? { body: planet, t: now } : { body: null, t: 0 }
+        this.lastPlanetClick = hit ? { body: hit as PlanetId | MoonId, t: now } : { body: null, t: 0 }
       }
       return
     }
 
-    // 双击行星 → 进入其行星系（加载遮罩过渡）
-    // ⚠ 行星命中优先于太阳（历史教训：旧 AU×250 布局水星轨道 97 < 太阳命中半径 124，先判太阳会整颗吃掉水星；
-    //   2026-09-13 内系统重排后为 水星轨道 170 > 太阳命中半径 92，顺序保留作防御，勿改回先判太阳）
-    // ⚠ 视图切换不受败局/选卡冻结影响（pendingCard 挂起期间航线交互冻结，但镜头必须可用）
-    const planet = this.planetAt(p)
-    if (planet) {
+    // 双击天体 → 聚焦观察（2026-09-15 聚焦环绕改版：月球可双击聚焦观察）：
+    // 行星走 enterPlanetSystem（视角锁定下仅 earth 响应），卫星走 enterMoonObserve。
+    // 命中收口 bodyAt（行星 + 卫星，真实 Actor 世界位置；行星系视角下非本系天体已隔离
+    // 远景 12000 → 点不到，本系内可命中 = 聚焦行星 + 其卫星）。
+    // ⚠ 双击判定不受败局/选卡冻结影响（pendingCard 挂起期间镜头必须可用）
+    // ⚠ 单击天体不 return：继续走建筑/节点/航线判定（行星/卫星也可能是资源星节点/拖线端点）
+    const hit = this.bodyAt(p)
+    if (hit) {
       const now = performance.now()
-      if (this.lastPlanetClick.body === planet && now - this.lastPlanetClick.t < 350) {
+      if (this.lastPlanetClick.body === hit && now - this.lastPlanetClick.t < 350) {
         this.lastPlanetClick = { body: null, t: 0 }
         this.orbitBuildSel = null
-        this.enterPlanetSystem(planet)
+        if (B.map.moons[hit as keyof typeof B.map.moons]) this.enterMoonObserve(hit as MoonId)
+        else this.enterPlanetSystem(hit as PlanetId)
         audioSys.play('wc.ok', { volume: 0.4 })
         return
       }
-      this.lastPlanetClick = { body: planet, t: now }
-      // 单击行星：不参与太阳聚焦，继续走建筑/节点/航线判定（行星也可能是资源星节点）
+      this.lastPlanetClick = { body: hit as PlanetId | MoonId, t: now }
     }
-    // 太阳：点击聚焦取景（不参与航线/选择）
+    // 太阳：2026-09-14 视角锁定地球系，点击太阳不再切太阳系全景（仅提示）
     if (this.sunAt(p)) {
-      this.focusSolarSystem('sun')
-      audioSys.play('wc.ok', { volume: 0.4 })
+      this.simState.hint('太阳系全景已屏蔽（当前锁定地球视角）')
+      logger.warn('[WarmCurrent] 点击太阳忽略：太阳系全景视角已屏蔽')
       return
     }
     const s = this.simState.state
