@@ -488,13 +488,25 @@ export class BlueprintEditorService {
    * 拖拽松手已通过 commitPreviewTransform 提交（含撤回点），此处仅兜底未走统一入口的预览态修改。
    */
   static async updateFromPreview(assetPath: string, data: BlueprintAsset): Promise<void> {
-    // 确保工作副本存在：首次拖拽（无副本）先读盘建立
+    // 确保工作副本存在：首次同步（无副本）先读盘建立
     const wc = await this.getWorkingCopy(assetPath)
+    const key = diskPathToAssetKey(assetPath)
     if (!wc.ok) {
-      logger.error(`[BlueprintEdit] 预览同步失败（无法建立工作副本）: ${assetPath}: ${wc.error}`)
+      // 磁盘无 json：新建资产场景（如 MCP ui_compile 编译新写的 .widget.html，同名
+      // .widget.json 尚未落盘）。旧逻辑直接放弃 → saveAssetOnly 报「没有打开的工作副本」。
+      // 现改以「内存文档 + 新 key」建立工作副本（主进程 writeJsonFile 落盘时自动建目录）。
+      const shapeErr = ops.validateAssetShape(data)
+      if (shapeErr) {
+        logger.error(`[BlueprintEdit] 预览同步失败（无法建立工作副本，且内存文档非合法资产: ${shapeErr}）: ${assetPath}`)
+        return
+      }
+      this.workingCopies.set(key, data)
+      this.dirtyKeys.add(key)
+      BlueprintRegistry.loadFromJson(key, data)
+      try { BlueprintRegistry.resolve(key) } catch { /* 依赖未注册蓝图等仅告警，不阻断 */ }
+      logger.info(`[BlueprintEdit] 预览同步按新建资产建立工作副本（磁盘无 json）: ${key}（pos ${logPos(data)}）`)
       return
     }
-    const key = wc.key
     this.workingCopies.set(key, data)
     this.dirtyKeys.add(key)
     // 注册表同步（撤销/保存后 spawn 用新数据；预览自身已是内存最新，无需 bump）

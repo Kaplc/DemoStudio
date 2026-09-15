@@ -22,6 +22,8 @@ user-invocable: true
    - 跨阶段共享是否经 GameInstance 的组件（resources/training）而非散落各处
    - 是否绕开 World 生命周期（`SpawnActor`/`DestroyAllActors`)直接操作 THREE 对象
    - Pawn 是否保持占位空壳（无化身阶段不塞逻辑）
+   - `addComponent` 是否使用类版新写法 `addComponent(XxxComponent, ...args)`（owner 自动注入）；`addComponent(new XxxComponent(owner))` 内联实例旧写法一律报违规
+   - 项目代码是否裸 `new THREE.<几何体/网格/材质/线段>`——必须经 `ThreeFactoryComponent`（`world.factory.createXxx` / `factory.createCanvasTexture`），绕开工厂直接 new 一律报违规
 5. **结合关联文档**：涉及战斗/关卡玩法时对照 `doc/projects/battle_system.md` / `doc/projects/level_system.md` 确认既有设计意图，避免误报。
 
 ## 审查报告格式
