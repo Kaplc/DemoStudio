@@ -132,6 +132,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── 读取文本文件（codeLint 源码扫描用）───
   readTextFile: (relativePath: string) => ipcRenderer.invoke('read-text-file', relativePath),
 
+  // ─── 读取图片文件（agent 面板 read_image 工具卡片内嵌渲染）───
+  readImageFile: (imagePath: string) => ipcRenderer.invoke('read-image-file', imagePath),
+
   // ─── 列出目录下的文件（返回 {name, size, mtime}[]，仅顶层，不含子目录）───
   listDirFiles: (relativePath: string) => ipcRenderer.invoke('list-dir-files', relativePath),
 

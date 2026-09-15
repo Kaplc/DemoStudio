@@ -7,6 +7,8 @@
  * - 派生路：无权威 hunk 时从入参派生"将要做的修改"（deriveDiffsFromArgs）——进行中意图，
  *   以及 write 新建文件兜底（DSH 对 before===null 不产 hunk，meta.diffs 为空数组，用户反馈 2026-09-13）
  * - 失败/非文件工具：回退通用 JSON 视图（输入/输出）
+ * - read_image 图片视图（2026-09-15 用户反馈）：展开渲染目标图片本身（IPC 读文件 → data URL），
+ *   替代原始 JSON 输入/输出；读取失败（浏览器模式/路径非法/文件缺失）回退通用视图
  * - 头部摘要（2026-09-15 用户反馈：grep 只显示 include 漏了 pattern）：≥2 个单行短字符串参数时
  *   以 key=value 全展示；单个字符串参数仍只显示值；多行/超长值（write content、长 old_string）
  *   不进摘要，展开卡片查看
@@ -20,6 +22,7 @@ import type { ToolState, FileDiff } from '../../types/agent'
 import {
   deriveDiffsFromArgs, buildDiffRows, formatDiffRowsForCopy, resolveDiffStartLines, isDiffToolName,
 } from './toolDiff'
+import { openImageLightbox } from './ImageLightbox'
 
 interface ToolCardProps {
   tool: ToolState
@@ -50,6 +53,31 @@ async function readDiffFile(path: string): Promise<string | null> {
   try {
     const res = await api.readTextFile(path)
     return res?.success ? (res.data ?? null) : null
+  } catch {
+    return null
+  }
+}
+
+/** read_image 等图片查看工具：展开渲染图片视图而非原始 JSON */
+function isImageToolName(name: string): boolean {
+  return name === 'read_image'
+}
+
+/** 提取图片查看工具的入参路径（read_image 的 file_path） */
+function extractImagePath(args: unknown): string | null {
+  if (!args || typeof args !== 'object') return null
+  const p = (args as Record<string, unknown>).file_path
+  return typeof p === 'string' && p ? p : null
+}
+
+/** Electron IPC 读本地图片 → data URL（浏览器模式 / 读取失败返回 null，由调用方回退通用视图） */
+async function readImageFileAsDataUrl(imagePath: string): Promise<string | null> {
+  const api = window.electronAPI
+  if (!api?.readImageFile) return null
+  try {
+    const res = await api.readImageFile(imagePath)
+    if (!res?.success || !res.data) return null
+    return `data:${res.mime ?? 'image/png'};base64,${res.data}`
   } catch {
     return null
   }
@@ -162,6 +190,31 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
     return deriveDiffsFromArgs(tool.name, tool.args)
   }, [tool.diffs, tool.name, tool.args, tool.status])
 
+  // ── read_image 图片视图（2026-09-15 用户反馈：展开渲染目标图片而非原始 JSON）──
+  // 展开时异步 IPC 读文件；加载中抑制通用视图避免闪烁；失败回退通用输入/输出。
+  const imagePath = useMemo(
+    () => (isImageToolName(tool.name) ? extractImagePath(tool.args) : null),
+    [tool.name, tool.args],
+  )
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [imageFailed, setImageFailed] = useState(false)
+
+  useEffect(() => {
+    if (!imagePath) return
+    let cancelled = false
+    setImageSrc(null)
+    setImageFailed(false)
+    readImageFileAsDataUrl(imagePath).then((url) => {
+      if (cancelled) return
+      if (url) setImageSrc(url)
+      else setImageFailed(true)
+    })
+    return () => { cancelled = true }
+  }, [imagePath])
+
+  // 图片视图生效判定：加载成功渲染图片本体；读取中抑制通用视图；失败放行回退
+  const suppressGenericView = imagePath !== null && !imageFailed
+
   return (
     <div className={`tool-card tool-card--${tool.status}`}>
       <div
@@ -179,25 +232,42 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
 
       {expanded && (
         <div className="tool-card__details">
-          {diffs && diffs.length > 0 ? (
-            <DiffBody diffs={diffs} />
-          ) : (
-            argsStr && (
-              <div className="tool-card__section">
-                <div className="tool-card__section-label">输入</div>
-                <div className="md-code-block">
-                  <pre><code>{argsStr}</code></pre>
+          {imagePath !== null && imageSrc !== null ? (
+            /* 图片视图：渲染目标图片 + 路径标注，替代原始 JSON 输入/输出；双击开浮窗放大（2026-09-16） */
+            <figure className="tool-image">
+              <img
+                className="tool-image__img"
+                src={imageSrc}
+                alt={imagePath}
+                draggable={false}
+                title="双击放大"
+                onDoubleClick={() => openImageLightbox(imageSrc, imagePath)}
+              />
+              <figcaption className="tool-image__path" title={imagePath}>{imagePath}</figcaption>
+            </figure>
+          ) : !suppressGenericView && (
+            <>
+              {diffs && diffs.length > 0 ? (
+                <DiffBody diffs={diffs} />
+              ) : (
+                argsStr && (
+                  <div className="tool-card__section">
+                    <div className="tool-card__section-label">输入</div>
+                    <div className="md-code-block">
+                      <pre><code>{argsStr}</code></pre>
+                    </div>
+                  </div>
+                )
+              )}
+              {(!diffs || !diffs.length || tool.status === 'failure') && resultStr && (
+                <div className="tool-card__section">
+                  <div className="tool-card__section-label">输出</div>
+                  <div className={`md-code-block ${tool.status === 'failure' ? 'md-code-block--error' : ''}`}>
+                    <pre><code>{resultStr}</code></pre>
+                  </div>
                 </div>
-              </div>
-            )
-          )}
-          {(!diffs || !diffs.length || tool.status === 'failure') && resultStr && (
-            <div className="tool-card__section">
-              <div className="tool-card__section-label">输出</div>
-              <div className={`md-code-block ${tool.status === 'failure' ? 'md-code-block--error' : ''}`}>
-                <pre><code>{resultStr}</code></pre>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       )}

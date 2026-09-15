@@ -24,7 +24,7 @@ import { SessionSidebar } from './agent/SessionSidebar'
 import { PluginControlCenter } from './PluginControlCenter'
 import { useTypewriter } from './agent/useTypewriter'
 import { VirtualList } from './agent/VirtualList'
-import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage, SessionsUpdatedPayload, SessionNotice, SessionNoticeUpdatePayload, FileDiff } from '../types/agent'
+import type { Message, ConnectionState, ToolState, SessionInfo, PendingQuestionRequest, QuestionAnswer, RetryAttempt, ContextEventPayload, PendingApprovalRequest, ApprovalOutcome, TodoWritePayload, ReasoningDeltaPayload, ContentDeltaPayload, TodoItem, ContextPressurePayload, PendingImage, SessionsUpdatedPayload, SessionNotice, SessionNoticeUpdatePayload, SessionRunStatus, SessionStatusUpdatePayload, FileDiff } from '../types/agent'
 import { IMAGE_MEDIA_TYPES } from '../types/agent'
 import { QuestionCard } from './agent/QuestionCard'
 import { TodoPanel } from './agent/TodoPanel'
@@ -37,6 +37,7 @@ import { FileManager } from './agent/FileManager'
 import { SessionTitle } from './agent/SessionTitle'
 import { UsageStatsPanel } from './agent/UsageStatsPanel'
 import { SessionNoticeStack } from './agent/SessionNoticeStack'
+import { ImageLightboxHost } from './agent/ImageLightbox'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -159,6 +160,23 @@ export const AgentPanel: React.FC = () => {
     }
   }, [])
 
+  // F5 刷新面板（2026-09-15）：独立 agent 窗口（agent.html）没有编辑器全局快捷键接管，
+  // 内嵌主窗口时焦点在聊天输入框又会被 KeyboardShortcuts 的 INPUT/TEXTAREA 守卫跳过——
+  // 两种形态都"按 F5 没反应"。这里在面板层（两窗口共用组件）统一兜底。
+  // 让路规则：defaultPrevented（编辑器全局快捷键已处理过）不重复刷新；
+  // Shift+F5（编辑器=停止游戏）/ Ctrl·Cmd+F5 不接管，保持编辑器语义。
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'F5' || e.ctrlKey || e.metaKey || e.shiftKey) return
+      if (e.defaultPrevented) return
+      e.preventDefault()
+      console.log(`[${logTime()}] [AgentPanel] F5 刷新：重新加载面板页面`)
+      window.location.reload()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'sys-0',
@@ -175,6 +193,8 @@ export const AgentPanel: React.FC = () => {
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   // 跨会话动态通知（消息区左上气泡栈）：初始值取服务快照，之后由 sessionNotice 事件全量同步
   const [sessionNotices, setSessionNotices] = useState<SessionNotice[]>(() => agentService.getSessionNotices())
+  // 会话状态灯（绿=运行中/红=失败）：初始值取服务快照，之后由 sessionStatusUpdate 事件全量同步
+  const [sessionStatuses, setSessionStatuses] = useState<Record<string, SessionRunStatus>>(() => agentService.getSessionStatuses())
   const [showSidebar, setShowSidebar] = useState(false)
   const [showPluginCenter, setShowPluginCenter] = useState(false)
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
@@ -625,6 +645,13 @@ export const AgentPanel: React.FC = () => {
           // 跨会话动态（其他会话完成/出错/待批准/待回答）：服务归约后的全量快照直接采纳
           const payload = event.payload as SessionNoticeUpdatePayload | undefined
           if (payload) setSessionNotices(payload.notices)
+          break
+        }
+
+        case 'sessionStatusUpdate': {
+          // 会话状态灯（绿=运行中/红=失败）：服务归约后的全量快照直接采纳
+          const payload = event.payload as SessionStatusUpdatePayload | undefined
+          if (payload) setSessionStatuses(payload.statuses)
           break
         }
 
@@ -2027,6 +2054,7 @@ export const AgentPanel: React.FC = () => {
       {showSidebar && (
         <SessionSidebar
           sessions={sessions}
+          sessionStatuses={sessionStatuses}
           currentSessionId={agentService.getSessionId() || undefined}
           onSwitch={handleSwitchSession}
           onNew={handleNewSession}
@@ -2202,6 +2230,9 @@ export const AgentPanel: React.FC = () => {
         agentService={agentService}
         contextPressure={contextPressure}
       />
+
+      {/* 图片浮动放大窗宿主（双击聊天中的图片缩略图打开，Esc/遮罩/✕/双击大图关闭，2026-09-16） */}
+      <ImageLightboxHost />
     </div>
   )
 }

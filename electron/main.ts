@@ -1202,6 +1202,49 @@ ipcMain.handle('read-text-file', async (_event, relativePath: string) => {
   }
 })
 
+// ─── 读取图片文件（agent 面板 read_image 工具卡片内嵌渲染）───
+
+/** 允许内嵌渲染的图片扩展名 → MIME（对齐 read_image 支持的 PNG/JPEG/WebP/GIF，另收 BMP） */
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+}
+
+ipcMain.handle('read-image-file', async (_event, imagePath: string) => {
+  try {
+    if (typeof imagePath !== 'string' || !imagePath) {
+      return { success: false, error: 'imagePath 必须是非空字符串' }
+    }
+    const fullPath = path.resolve(APP_ROOT, imagePath)
+    // 路径逃逸防护：解析后必须仍在项目根内（与 read-text-file 同规则）
+    const rel = path.relative(APP_ROOT, fullPath)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      console.warn(`[read-image-file] 拒绝项目根外路径: ${imagePath}`)
+      return { success: false, error: `非法路径: ${imagePath}` }
+    }
+    const ext = path.extname(fullPath).toLowerCase()
+    const mime = IMAGE_MIME_BY_EXT[ext]
+    if (!mime) {
+      console.warn(`[read-image-file] 不支持的图片格式: ${imagePath} (ext=${ext || '(无)'})`)
+      return { success: false, error: `不支持的图片格式: ${ext || '(无扩展名)'}` }
+    }
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`[read-image-file] 文件不存在: ${imagePath}`)
+      return { success: false, error: `文件不存在: ${imagePath}` }
+    }
+    const data = fs.readFileSync(fullPath)
+    console.log(`[read-image-file] ${imagePath} (${data.length} bytes, ${mime})`)
+    return { success: true, data: data.toString('base64'), mime }
+  } catch (err) {
+    console.error('读取图片文件失败:', err)
+    return { success: false, error: String(err) }
+  }
+})
+
 // ─── 写入 JSON 文件（蓝图资产编辑等）───
 
 ipcMain.handle('write-json-file', async (_event, relativePath: string, data: unknown) => {

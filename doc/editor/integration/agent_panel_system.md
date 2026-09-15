@@ -966,14 +966,15 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 | 行号配色 | ctx 白（`label-primary`）、del 红（`state-error-primary` + `-`）、add 绿（`state-success-primary` + `+`） | `tests/e2e/agent/tool-card-diff.spec.ts` 断言 computedStyle 精确 RGB |
 | write 新建文件兜底 | 无权威 hunk 的 settled success 也派生 diff（DSH write 新文件 `meta.diffs` 为空数组），只有 failure 才退通用视图 | `tests/toolCardDiff.test.tsx` + e2e「write 新建文件（meta.diffs 空数组）」用例 |
 | 头部摘要全参数 | grep 等 ≥2 个单行短字符串参数以 `key=value` 全展示（旧逻辑只显第一个字符串值，pattern 被吞）；单个仍只显值，多行/超长值不进摘要 | `tests/toolCardDiff.test.tsx` 摘要用例 + e2e「grep 卡片头部摘要 key=value 全展示」用例 |
+| read_image 图片视图 | 展开渲染目标图片本体（`<img>` data URL）+ 路径标注，**替代**原始 JSON 输入/输出；读取失败回退通用视图（2026-09-15） | `tests/toolCardDiff.test.tsx` 图片视图用例 + e2e「read_image 展开渲染目标图片 / IPC 读取失败回退」用例 |
 
 ### 12.5 文件与测试分工
 
 - 纯函数：`src/components/agent/toolDiff.ts`（`isDiffToolName` / `deriveDiffsFromArgs` / `alignDiffRows` / `buildDiffRows` / `formatDiffRowsForCopy` / `resolveDiffStartLines`）→ `tests/toolDiff.test.ts` 全分支。
-- 组件：`src/components/agent/ToolCard.tsx`（`DiffBody` + 头部摘要 memo）→ `tests/toolCardDiff.test.tsx`（自动展开/回退/复制/行号锚定/摘要多参数）。
+- 组件：`src/components/agent/ToolCard.tsx`（`DiffBody` + 头部摘要 memo + 图片视图）→ `tests/toolCardDiff.test.tsx`（自动展开/回退/复制/行号锚定/摘要多参数/图片视图）。
 - 数据入口：`src/editor/AgentService.ts` 的 `extractDiffsFromMeta` → `tests/extractDiffsFromMeta.test.ts`。
-- 真实链路：`tests/e2e/agent/tool-card-diff.spec.ts`——**用 `addInitScript` 把 `/api/*` 的 fetch 换成合成 RPC**（`session.list` / `session.history` 返回带 `meta.diffs` 的合成事件），因此不依赖 DSH 真身、无副作用；行号锚定的 `readTextFile` 也由页面内 stub 提供。这个"合成历史 + localStorage 命中恢复路径"的存根模式可复用到任何需要渲染既有转录的面板用例。
-- 样式：`src/styles/editor.css` 的 `.tool-diff*` 区段（在 `.tool-card__details` 之后）。
+- 真实链路：`tests/e2e/agent/tool-card-diff.spec.ts`——**用 `addInitScript` 把 `/api/*` 的 fetch 换成合成 RPC**（`session.list` / `session.history` 返回带 `meta.diffs` 的合成事件），因此不依赖 DSH 真身、无副作用；行号锚定的 `readTextFile` 与图片渲染的 `readImageFile` 也由页面内 stub 提供。这个"合成历史 + localStorage 命中恢复路径"的存根模式可复用到任何需要渲染既有转录的面板用例。
+- 样式：`src/styles/editor.css` 的 `.tool-diff*` 与 `.tool-image*` 区段（在 `.tool-card__details` 之后）。
 
 ### 12.6 头部摘要：多参数 key=value 展示（2026-09-15）
 
@@ -984,6 +985,45 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 - 多行或超长值（write 的 content、长 old_string）不进摘要——展开卡片里看得到；无字符串参数时回退整体 JSON（如 mouse_click）。
 
 动机：旧逻辑只取**第一个**字符串参数值，grep `{include, pattern}` 的头部只显示 `*.ts`，pattern 完全不可见（用户反馈 2026-09-15）。`.tool-card__summary` 本身有 nowrap + ellipsis，超宽整行由 CSS 视觉截断，不撑破布局。
+
+### 12.7 read_image 图片视图（2026-09-15）
+
+`read_image` 卡片展开后渲染**目标图片本体**（`<img>`）+ 一行路径标注，替代原来的「输入 JSON / 输出文本」原始视图（用户反馈：截图卡片展开是一堆转义路径和截断的 base64，看不出图）。数据链路：
+
+```
+展开/挂载 → readImageFileAsDataUrl(args.file_path)
+  → ipc 'read-image-file'（main.ts）：路径逃逸防护（与 read-text-file 同规则，限项目根内）
+    + 扩展名白名单（png/jpg/jpeg/gif/webp/bmp）→ { success, data: base64, mime }
+  → data URL → <img>（.tool-image__img，max-height 320px）
+```
+
+行为约定（改这块别再改回去）：
+
+- **加载中抑制通用视图**（防"JSON 闪一下再变图"）；**失败回退**通用输入/输出——无 electronAPI（浏览器模式）、路径在项目根外、扩展名不在白名单、文件缺失，全都走回退，不渲染半张图；
+- 卡片仍**默认收起**（非 diff 工具），图片在挂载时即预加载，展开时通常已就绪；
+- DSH 侧 result 的 `<path>/<type>/<content>` 文本形状不参与渲染——图片永远从磁盘路径现读，文件被删时诚实回退并显示原始输出。
+
+### 12.8 图片浮动放大窗（2026-09-16）
+
+缩略图太小看不清细节，**双击**聊天中的任意图片缩略图打开全屏浮窗放大（`ImageLightbox`）。两个入口：
+
+- 用户消息的粘贴图片缩略图（`MessageBubble` 的 `.message__image-thumb`，src 是 blob URL）；
+- `read_image` 工具卡片的图片视图（§12.7 的 `.tool-image__img`，src 是 data URL）。
+
+架构：**模块级单例 store + 单宿主挂载**——缩略图位于 memo 化的深层组件里，用 `openImageLightbox(src, name?)`（模块级订阅通知）触发，免去层层传 props；`<ImageLightboxHost />` 在 `AgentPanel` 根部挂载一次（`agent.html` 独立窗口与内嵌面板同源覆盖），无浮窗时渲染 null 不占 DOM。
+
+交互约定（改这块别再改回去）：
+
+- **打开**：双击缩略图；**关闭四路径**：Esc / 右上角 ✕ / 点击遮罩 / 双击大图（与打开手势对称）；
+- 点击大图本身**不**关闭（`stopPropagation`，防止看清细节的点击误关）；
+- 标题栏 = 文件名/路径 + onLoad 回填的原始像素尺寸（`name · 1084×741`），大图 `object-fit: contain` 适配视口不裁切；
+- 浮层 `position: fixed; z-index: 20000`（高于编辑器现有全部浮层的 16000）。
+
+文件与测试分工：
+
+- 组件：`src/components/agent/ImageLightbox.tsx`（store + Host）；挂载点 `src/components/AgentPanel.tsx` 根部；入口接线 `MessageBubble.tsx` / `ToolCard.tsx`；样式 `src/styles/editor.css` 的 `.image-lightbox*` 区段；
+- 单测：`tests/imageLightbox.test.tsx`（开关/四条关闭路径/尺寸回填/双击入口 A、B；**模块级 open/close 必须包 `act()`**，否则 setState 不同步刷 DOM）；双击大图关闭在 jsdom 层覆盖；
+- E2E：`tests/e2e/agent/image-lightbox.spec.ts`——合成 read_image 历史存根（同 §12.5 模式），断言 `naturalWidth > 0` 真渲染 + Esc/✕/遮罩三条关闭路径。
 
 ---
 
@@ -1039,3 +1079,54 @@ DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.pr
 - UI：`src/components/agent/SessionNoticeStack.tsx`（无 icon/emoji，状态色只用状态点，2026-09-14 用户决策去掉左色条：绿=完成、红=出错、黄=阻塞/待批准、蓝=待回答）+ `.session-notice*` 样式区段；
 - 单测：`tests/sessionNotices.test.ts`（reducer 全分支：upsert 保序、引用相等跳广播、容量淘汰、各类清除路径）；
 - E2E：`tests/e2e/agent/session-notice-bubble.spec.ts`——无副作用：mock WebSocket（实例收集在 `window.__noticeE2E.sockets`）+ 合成 fetch RPC，直接向 mux onmessage 投递合成帧；覆盖"当前会话不出泡 / 四类通知上泡 / 重放去重 / 关闭 / 决议清除 / 点击切换 + adopt 卡片"。注意入口直接 goto `/agent.html`（`/?agentWindow=1` 的重定向窗口期 evaluate 会撞 context destroyed）。
+
+## 15. F5 刷新面板（2026-09-15）
+
+Agent 界面（独立窗口 `agent.html` / 内嵌面板）支持 F5 刷新页面。背景：主编辑器窗口的 F5 由全局快捷键接管（`KeyboardShortcuts` → `location.reload`），但独立 agent 窗口没有任何 F5 处理；内嵌面板下焦点在聊天输入框时又被 `handleKeyboardShortcut` 的 INPUT/TEXTAREA 守卫跳过——两种形态都"按 F5 没反应"。
+
+### 15.1 实现与让路规则（改这块别改回去）
+
+面板层 window keydown 兜底（`AgentPanel` 挂载期 effect，组件卸载时移除）：
+
+- 仅接**裸 F5**：`Ctrl/Cmd/Shift` 修饰键组合不接管——Shift+F5=停止游戏、Ctrl+F5 硬刷新留给编辑器语义；
+- `e.defaultPrevented` 为真直接跳过：编辑器全局快捷键先处理过时不重复 reload。两边监听都在 window 冒泡层，无论注册顺序谁先命中，同一次按键只发生一次刷新；
+- 命中即 `preventDefault()` + `location.reload()`，并打 `[AgentPanel] F5 刷新` 日志（agent 窗口日志经 console-message 落 `logs/console_*.log`）。
+
+为什么放面板层而不是 `agent-main.tsx`：`AgentPanel` 是两个窗口共用的组件，一处注册同时覆盖独立窗口与内嵌面板，内嵌面板还顺带修掉"焦点在输入框时 F5 失效"（编辑器守卫的本意是防 ` 反引号/Ctrl+Z 等打字冲突，F5 无此冲突）。刷新只是 UI 页面重载：agent 进程与会话状态在 DSH 侧不受影响，重挂载后走 §4 的会话恢复。
+
+### 15.2 测试与防假阳性判别器
+
+E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 + fetch 合成 RPC；入口直接 goto `/agent.html`，见 §14.4 重定向坑）。覆盖：页面焦点 F5 重载、输入框焦点 F5 重载、defaultPrevented 不重复触发、Shift/Ctrl+F5 不接管。
+
+**判别器与两条 e2e 机制坑（探针实测，改判别逻辑前先读懂）**：e2e 跑在 headless Chromium 里，但 headless 下 F5 **没有**浏览器默认刷新（真实桌面/有头环境才有）——"页面重载了"本身已基本构成证据，但为防将来环境变化引入假阳性，仍用 sessionStorage 记录 keydown 派发内的 `defaultPrevented` 终值做双重证明（面板 handler preventDefault 后重载才来自它）。实现上有两个坑：
+
+1. **判别监听必须"后注册、同步读"**：面板 handler 在组件 mount 时注册（早），spec 在面板挂载后**再注册一个排在最后的 `once` 冒泡监听**，同一次 keydown 派发内它最后执行，同步把 `defaultPrevented` 写进 sessionStorage（跨重载存活）。不能在 addInitScript 里预挂捕获监听 + 微任务落值——trusted 按键派发中，捕获阶段排队的微任务会在 bubble 之前执行，读到面板 preventDefault 之前的旧值 `'false'`（探针实测）。
+2. **合成事件必须派到 `document.body`，不能 `window.dispatchEvent`**：直接派发在 window 上时事件 target 就是 window，capture/bubble 之分塌缩成注册顺序，捕获阶段抢先的 preventDefault 排不到面板 handler 前面，"让路"分支会误触发刷新。
+
+真实按键用例同时断言"重载发生"（window probe 丢失 + `waitForEvent('load', 15s)`，headless 无默认刷新时禁用 handler 会挂满 15s 才红）与 `f5Prevented === 'true'`；已做回滚验证（禁用 handler → 两条真实按键用例变红，判别器有效）。
+
+## 16. 会话列表状态灯（2026-09-16）
+
+侧边栏每个会话条目右缘垂直居中的 8px 状态点：**绿=回合运行中（呼吸脉冲动画）、红=上次回合以错误收尾（静态）**，无灯 = 空闲/正常收尾。让用户不开会话也能一眼看出"哪个会话还在跑、哪个刚失败了"。
+
+### 16.1 数据从哪来：与气泡同一根，回合边界推导
+
+数据源与 §14 跨会动态气泡完全同根——mux `session/event` 全会话广播，不接 host 流（`host/session-status` 在编辑器未消费的 `/api/events.host` 上，turn 边界推导已足够，见 memory:dsh_mux_projection_frames 的决策）。钩子在 `handleMuxFrame` 的 `session/event` 分支里，**在 current/foreign 分流之前**统一翻译：`turn/start` → running；`turn/end` 的 `reason.kind === 'error'` → error，其余收尾（completed/blocked/aborted/max-tokens）→ 清灯。
+
+### 16.2 归约与生命周期（改这块别改回去）
+
+全部状态灯语义在纯函数层 `src/editor/sessionStatusLights.ts`（`reduceSessionStatusLights`，`Record<sessionId, 'running' | 'error'>` 不可变归约，无变化返回原引用跳过广播）。与 §14 通知的**语义差异是刻意设计**：通知是"一次性事件提醒"（切会话即已读清除），状态灯是"持久状态标记"——**error 灯保留到该会话下次 turn/start 才翻绿**，不随查看/切换清除。生命周期四条：
+
+- **权威运行态种子**：`session.list` 每行自带 schema 保证的 `running` 布尔（`dsh-host-apiproxy/lib/types/api/sessions.schema.js:34`，DSH 查询时权威计算）。`listSessions` 对 `running:true` 的行直接应用 `turn-started` 动作点灯（归约幂等，无变化不广播）——面板重载/首挂载不用等第一个 turn/start 帧就能看到"谁在跑"。**只种开不清**：清灯仍由 turn/end 帧负责，RPC 快照可能略旧，种灭会把刚亮的灯闪灭。
+- **mux 流重建清 running 灯**：`connectMux()` 开头 `stream-reopened` 清全部 running（断连期间外部会话可能已结束，防僵尸绿灯），error 灯保留；当前会话若 `_isRunning` 立即用 `turn-started` 重种。
+- **删除会话**：`deleteSession` 里与通知的 `session-removed` 并排发同名的状态灯动作。
+- **初始状态**：内存表不做持久化，面板挂载从 `getSessionStatuses()` 取种子；error 灯要等本连接期内观察到 turn/end|error 帧才可见（可接受的最终一致）。
+
+子代理会话的可见性注意（真机实测）：子代理在 DSH 侧是独立会话（origin=subagent，无 title 投影），首回合结束前可能被 blank 过滤挡在列表外，其回合结束后的 sessionStats 投影帧才触发防抖全量刷新让它入列（§3.2 blank→listed 过渡）——所以"子代理运行中"的灯依赖列表里已有它的条目。
+
+### 16.3 文件与测试分工
+
+- 纯函数：`src/editor/sessionStatusLights.ts`；types：`types/agent.ts` 的 `SessionRunStatus` / `SessionStatusUpdatePayload` / `sessionStatusUpdate` 事件；
+- 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession`；
+- UI：`SessionSidebar.tsx` 的 `renderItem`（`.session-status-light--{running|error}`，`data-session-id`/`data-status` 是 e2e 锚点，别删）+ `.session-status-light*` 样式区段；面板经 `sessionStatusUpdate` 事件全量同步后透传 prop；
+- 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`）。

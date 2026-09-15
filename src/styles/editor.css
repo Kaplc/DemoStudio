@@ -2330,6 +2330,7 @@ html, body, #root {
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   display: block;
+  cursor: zoom-in; /* 双击开浮窗放大（2026-09-16） */
 }
 
 /* 消息底部操作栏 */
@@ -2752,6 +2753,80 @@ html, body, #root {
 .tool-diff__copy:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
+
+/* --- 工具卡片图片视图（read_image 展开渲染目标图片，2026-09-15 用户反馈）--- */
+.tool-image {
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.tool-image__img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  object-fit: contain;
+  cursor: zoom-in; /* 双击开浮窗放大（2026-09-16） */
+}
+.tool-image__path {
+  max-width: 100%;
+  font-family: var(--dsw-font-family-code);
+  font-size: 10px;
+  color: var(--dsw-alias-label-caption);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* --- 图片浮动放大窗（双击聊天中的图片缩略图打开，2026-09-16）---
+   打开：双击用户消息缩略图 / 工具卡片图片；关闭：Esc / 点击遮罩 / ✕ / 双击大图 */
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 20000; /* 高于编辑器全部浮层（现有最高 16000） */
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, #000 78%, transparent);
+  backdrop-filter: blur(3px);
+}
+.image-lightbox__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.92);
+  font: var(--dsw-font-xs);
+}
+.image-lightbox__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--dsw-font-family-code);
+}
+.image-lightbox__close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.image-lightbox__close:hover { background: rgba(255, 255, 255, 0.12); }
+.image-lightbox__img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain; /* 大图适配视口不裁切 */
+  cursor: zoom-out;    /* 双击大图关闭 */
 }
 
 /* 推理块折叠动画 */
@@ -3320,6 +3395,7 @@ html, body, #root {
   padding: 20px;
 }
 .session-sidebar__item {
+  position: relative; /* 状态灯锚定基准（右缘垂直居中的状态点） */
   padding: 8px 12px;
   cursor: pointer;
   border-left: 3px solid transparent;
@@ -3364,6 +3440,28 @@ html, body, #root {
 .session-sidebar__delete:hover {
   color: var(--dsw-alias-state-error-primary);
   background: var(--dsw-alias-interactive-bg-hover-danger, rgba(242,90,90,0.15));
+}
+/* --- 会话侧边栏：状态灯（绿=回合运行中/红=上次回合失败），锚定列表项右缘垂直居中 --- */
+.session-status-light {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  pointer-events: none; /* 纯状态展示：不拦截点击/悬停（悬停穿透到列表项本身） */
+}
+.session-status-light--running {
+  background: var(--dsw-alias-state-success-primary);
+  animation: session-status-light-pulse 1.2s ease-in-out infinite;
+}
+.session-status-light--error {
+  background: var(--dsw-alias-state-error-primary);
+}
+@keyframes session-status-light-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--dsw-alias-state-success-primary); }
+  50% { opacity: 0.45; box-shadow: none; }
 }
 /* --- 会话侧边栏：3 天前会话折叠组（默认收起） --- */
 .session-sidebar__group {

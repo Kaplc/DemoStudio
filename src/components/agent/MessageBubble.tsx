@@ -4,9 +4,9 @@
  *
  * 使用 React.memo 避免父组件重渲染时不必要的更新。
  */
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { ReasoningBlock } from './ReasoningBlock'
+import { openImageLightbox } from './ImageLightbox'
 import type { Message } from '../../types/agent'
 
 interface MessageBubbleProps {
@@ -85,7 +85,7 @@ const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) 
 
       {/* 消息内容 */}
       <div className="message__body">
-        {/* 用户消息携带的图片缩略图（渲染在文本之前；blob URL 由发送时保留） */}
+        {/* 用户消息携带的图片缩略图（渲染在文本之前；blob URL 由发送时保留；双击开浮窗放大 2026-09-16） */}
         {isUser && message.images && message.images.length > 0 && (
           <div className="message__images">
             {message.images.map(img => (
@@ -94,7 +94,8 @@ const MessageBubbleInner: React.FC<MessageBubbleProps> = ({ message, isFinal }) 
                 className="message__image-thumb"
                 src={img.previewUrl}
                 alt={img.name || '消息图片'}
-                title={img.name || '消息图片'}
+                title={img.name || '消息图片（双击放大）'}
+                onDoubleClick={() => openImageLightbox(img.previewUrl, img.name || '消息图片')}
               />
             ))}
           </div>

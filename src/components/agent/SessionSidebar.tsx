@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import type { SessionInfo } from '../../types/agent'
+import type { SessionInfo, SessionRunStatus } from '../../types/agent'
 import { splitSessionsByAge } from './sessionGrouping'
 // 直连 Logger 模块（勿用 '../../engine' barrel）：本组件在 Agent 独立入口（agent.html）
 // 的依赖闭包内，barrel 会把整个引擎拉进 agent 图（见 devdoc/agent-window-independent-entry）
@@ -7,6 +7,8 @@ import { logger } from '../../engine/Logger'
 
 interface SessionSidebarProps {
   sessions: SessionInfo[]
+  /** 会话状态灯表（绿=回合运行中/红=上次回合失败），无条目 = 无灯 */
+  sessionStatuses?: Record<string, SessionRunStatus>
   currentSessionId?: string
   onSwitch: (sessionId: string) => void
   onNew: () => void
@@ -16,6 +18,7 @@ interface SessionSidebarProps {
 
 export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   sessions,
+  sessionStatuses,
   currentSessionId,
   onSwitch,
   onNew,
@@ -51,30 +54,48 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     logger.info(`[SessionSidebar] ${next ? '展开' : '折叠'} 3 天前会话组（${olderSessions.length} 个）`)
   }
 
-  const renderItem = (s: SessionInfo, extraClass = '') => (
-    <div
-      key={s.sessionId}
-      className={`session-sidebar__item ${s.sessionId === currentSessionId ? 'session-sidebar__item--active' : ''} ${extraClass}`}
-      onClick={() => onSwitch(s.sessionId)}
-    >
-      <div className="session-sidebar__item-row">
-        <div className="session-sidebar__item-title">
-          {s.title || s.sessionId.slice(0, 12) + '...'}
+  /** 状态灯描述文案（title 悬停提示） */
+  const statusTitle: Record<SessionRunStatus, string> = {
+    running: '运行中',
+    error: '上次回合失败',
+  }
+
+  const renderItem = (s: SessionInfo, extraClass = '') => {
+    const status: SessionRunStatus | undefined = sessionStatuses?.[s.sessionId]
+    return (
+      <div
+        key={s.sessionId}
+        className={`session-sidebar__item ${s.sessionId === currentSessionId ? 'session-sidebar__item--active' : ''} ${extraClass}`}
+        onClick={() => onSwitch(s.sessionId)}
+      >
+        <div className="session-sidebar__item-row">
+          <div className="session-sidebar__item-title">
+            {s.title || s.sessionId.slice(0, 12) + '...'}
+          </div>
+          <button
+            className="session-sidebar__delete"
+            title="删除会话"
+            onClick={(e) => { e.stopPropagation(); onDelete(s.sessionId) }}
+          >
+            🗑
+          </button>
         </div>
-        <button
-          className="session-sidebar__delete"
-          title="删除会话"
-          onClick={(e) => { e.stopPropagation(); onDelete(s.sessionId) }}
-        >
-          🗑
-        </button>
+        <div className="session-sidebar__item-meta">
+          {s.turns !== undefined && <span>{s.turns} 轮</span>}
+          <span>{formatTime(s.updatedAt)}</span>
+        </div>
+        {status && (
+          <span
+            className={`session-status-light session-status-light--${status}`}
+            data-testid="session-status-light"
+            data-session-id={s.sessionId}
+            data-status={status}
+            title={statusTitle[status]}
+          />
+        )}
       </div>
-      <div className="session-sidebar__item-meta">
-        {s.turns !== undefined && <span>{s.turns} 轮</span>}
-        <span>{formatTime(s.updatedAt)}</span>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="session-sidebar">

@@ -28,10 +28,12 @@ import type {
   PendingImage, PromptContentPart,
   SessionUsageEntry, SessionInfo, SessionsUpdatedPayload,
   SessionNotice, SessionNoticeUpdatePayload,
+  SessionRunStatus, SessionStatusUpdatePayload,
   FileDiff,
 } from '../types/agent'
 import type { SessionStatsProjection } from '../types/agent'
 import { reduceSessionNotices, type SessionNoticeAction } from './sessionNotices'
+import { reduceSessionStatusLights, type SessionStatusAction, type SessionStatusMap } from './sessionStatusLights'
 import { logTime } from '../utils/logTime'
 
 /** session.prompt 接受的图片 MIME 白名单（对齐 DSH dsh-client-ui-conversation imageMediaType） */
@@ -819,6 +821,12 @@ export class AgentService {
   /** 建立 mux 下行流连接（浏览器: WebSocket，Electron: IPC） */
   private connectMux(): void {
     this.disconnectMux() // 清理旧连接
+    // 新流开始：旧流期间的 running 灯不可信（断连期间外部会话可能已结束），全清防僵尸；
+    // error 灯是事实记录保留；当前会话若仍在回合中，用本地运行态立即重种
+    this.applyStatusAction({ type: 'stream-reopened' })
+    if (this._isRunning && this.sessionId) {
+      this.applyStatusAction({ type: 'turn-started', sessionId: this.sessionId })
+    }
     const api = window.electronAPI
 
     if (api?.onDshMuxFrame) {
@@ -994,6 +1002,12 @@ export class AgentService {
       const sid = payload.sessionId as string | undefined
       const event = payload.event as DshEvent | undefined
       if (!event) return
+      // 回合边界先翻译为状态灯动作（全会话统一，与后续 current/foreign 分流互不影响）
+      if (sid && event.type === 'turn/start') {
+        this.applyStatusAction({ type: 'turn-started', sessionId: sid })
+      } else if (sid && event.type === 'turn/end') {
+        this.applyStatusAction({ type: 'turn-ended', sessionId: sid, kind: event.data?.reason?.kind === 'error' ? 'error' : 'settled' })
+      }
       if (sid === this.sessionId) {
         this.consumeSessionEvent(event)
       } else if (sid) {
@@ -1072,6 +1086,27 @@ export class AgentService {
   /** 当前跨会话通知快照（面板挂载时初始化用） */
   getSessionNotices(): SessionNotice[] {
     return this.sessionNotices
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  会话列表状态灯（绿=回合运行中 / 红=上次回合失败）
+  // ═══════════════════════════════════════════════════════════
+
+  /** 状态灯表：与通知同一 mux 数据源（session/event 回合边界），经 sessionStatusUpdate 事件全量推给面板 */
+  private sessionStatuses: SessionStatusMap = {}
+
+  /** 应用一条状态灯动作：归约变化才广播 sessionStatusUpdate 全量快照 */
+  private applyStatusAction(action: SessionStatusAction): void {
+    const next = reduceSessionStatusLights(this.sessionStatuses, action)
+    if (next === this.sessionStatuses) return
+    this.sessionStatuses = next
+    console.log(`[${logTime()}] [AgentService] sessionStatus: ${action.type}(${('sessionId' in action) ? action.sessionId : '-'}) → ${Object.keys(next).length} 个灯`)
+    this.emit({ type: 'sessionStatusUpdate', payload: { statuses: next } satisfies SessionStatusUpdatePayload })
+  }
+
+  /** 当前状态灯快照（面板挂载时初始化用） */
+  getSessionStatuses(): Record<string, SessionRunStatus> {
+    return this.sessionStatuses
   }
 
   /** 用户手动关闭一条通知 */
@@ -2473,8 +2508,9 @@ export class AgentService {
   // --- 会话管理 ---
   async listSessions(): Promise<SessionListItem[]> {
     try {
-      const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
-      const items: SessionListItem[] = (value?.items || [])
+      const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; running?: boolean; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
+      const rawItems = value?.items || []
+      const items: SessionListItem[] = rawItems
         .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
         .map(item => ({
           sessionId: item.sessionId,
@@ -2484,6 +2520,14 @@ export class AgentService {
           agentPreset: item.agentPreset,
         }))
       this.sessionsCache = items
+      // 权威运行态种子：行内 running=true（DSH schema 保证的布尔字段）直接点亮状态灯，
+      // 面板重载/首挂载时无需等第一个 turn/start 帧（归约幂等，无变化不广播）。
+      // 只种开不清：清灯仍由 turn/end 帧负责，避免 RPC 快照略旧时把刚亮的灯闪灭。
+      for (const item of rawItems) {
+        if (item.running && !this.deletedSessionIds.has(item.sessionId)) {
+          this.applyStatusAction({ type: 'turn-started', sessionId: item.sessionId })
+        }
+      }
       return items
     } catch (err) {
       console.warn(`[${logTime()}] [AgentService] session.list 失败，回退缓存列表:`, err)
@@ -2657,6 +2701,8 @@ export class AgentService {
     this.deletedSessionIds.add(sessionId)
     // 归档会话的气泡与跨会话待定请求一并作废
     this.applyNoticeAction({ type: 'session-removed', sessionId })
+    // 状态灯同步作废（删掉的会话不再在列表里亮灯）
+    this.applyStatusAction({ type: 'session-removed', sessionId })
     for (const [rpcId, req] of Array.from(this.crossQuestions)) {
       if (req.sessionId === sessionId) this.crossQuestions.delete(rpcId)
     }

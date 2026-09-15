@@ -272,6 +272,8 @@ export type AgentEventType =
   | 'sessionsUpdated'
   // 跨会话动态通知更新（其他会话的完成/出错/待批准/待回答，驱动消息区左上气泡栈）
   | 'sessionNotice'
+  // 会话状态灯更新（其他/当前会话的运行中/失败，驱动侧边栏列表状态灯）
+  | 'sessionStatusUpdate'
 
 export interface AgentEvent {
   type: AgentEventType
@@ -305,6 +307,16 @@ export interface SessionNotice {
   detail?: string
   /** 发生时间（epoch ms），用于容量溢出时淘汰最旧 */
   at: number
+}
+
+// ─── 会话列表状态灯（侧边栏每项右侧的状态点，数据源与通知同一根：mux session/event 回合边界） ───
+
+/** 会话状态灯：running=回合进行中（绿），error=上次回合以错误收尾（红）；无条目 = 无灯 */
+export type SessionRunStatus = 'running' | 'error'
+
+/** sessionStatusUpdate 事件 payload：归约后的全量状态灯快照 */
+export interface SessionStatusUpdatePayload {
+  statuses: Record<string, SessionRunStatus>
 }
 
 /** sessionNotice 事件 payload：归约后的全量通知快照（面板直接整体采纳） */
