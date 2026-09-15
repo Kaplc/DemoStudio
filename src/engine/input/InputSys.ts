@@ -16,6 +16,7 @@ import * as THREE from 'three'
 import { PhySys } from '../physics/PhySys'
 import { BObject } from '../entity/BObject'
 import { InputPromptSystem } from '../ui/InputPromptSystem'
+import { UITextInputComponent } from '../ui/UITextInputComponent'
 import { GMModule } from '../gm/GMModule'
 import type { PlayerController } from './PlayerController'
 
@@ -42,8 +43,13 @@ export class InputSys extends BObject {
   ): boolean {
     // 输入设备检测：鼠标按下 → 设备切换为 mouse（触发提示文本刷新）
     InputPromptSystem.instance.setDevice('mouse')
+    // 焦点快照：通用文本输入的"点外面失焦"需区分"焦点被本次点击的宿主回调接管"
+    const focusBefore = UITextInputComponent.focusedInput
     // 仅左键参与点击检测（右键用于摄像机平移等，不应误触 UI/建筑点击）
     const consumed = button === 0 ? PhySys.raycastClick(screenX, screenY) : false
+    // 通用文本输入焦点仲裁（与滚轮命中链派发同构）：命中链上有输入框 → 聚焦；
+    // 点在输入框外且焦点未被宿主回调（如 GM 控制台）接管 → 失焦。右键不参与。
+    if (button === 0) UITextInputComponent.focusFromHit(PhySys.lastHitClickable, focusBefore)
     // 广播鼠标按钮事件（外部组件可 BindMouseButton 订阅，如摄像机右键平移）
     controller?.inputComponent.ProcessMouseButton(button, 'pressed')
     // 已被 ClickableComponent 消费（UI 按钮/建筑点击）→ 不再下发 controller，
@@ -103,12 +109,22 @@ export class InputSys extends BObject {
   /**
    * 键盘按下。
    * GM 控制台优先消费：面板打开时按键不穿透游戏；未打开时检测 G+M 组合键。
+   * 其次是聚焦中的 UI 文本输入框（打字不触发游戏热键；未消费键如 Escape 仍下发）。
    */
   handleKeyDown(key: string, controller?: PlayerController | null): void {
     // 输入设备检测：键盘事件 → 设备切换为 keyboard（触发提示文本刷新）
     InputPromptSystem.instance.setDevice('keyboard')
     // GM 模块全局键盘钩子（控制台打开 → 消费输入；G+M → 开关面板）
     if (GMModule.handleGlobalKeyDown(key)) return
+    // 聚焦中的 UI 输入框优先（通用文本焦点路由）；Escape 先失焦再放行（再按才触游戏）
+    const focused = UITextInputComponent.focusedInput
+    if (focused) {
+      if (focused.handleKey(key)) return
+      if (key === 'Escape') {
+        focused.blur()
+        return
+      }
+    }
     controller?.ProcessInput(key, 'pressed')
   }
 
@@ -123,10 +139,15 @@ export class InputSys extends BObject {
   //   滚轮
   // ════════════════════════════════════════════
 
-  /** 滚轮滚动 */
-  handleScroll(delta: number, controller?: PlayerController | null): void {
+  /**
+   * 滚轮滚动。带屏幕坐标时 UI 层优先消费（与 handlePointerDown 的点击仲裁同口径）：
+   * 指针在 UI 上（滚动容器滚动 / hit-test: block 面板）滚轮不下发场景，相机缩放不再误触。
+   */
+  handleScroll(delta: number, controller?: PlayerController | null, screenX?: number, screenY?: number): void {
     // GM 模块全局滚轮钩子（控制台打开 → 命令列表滚动，消费不穿透游戏）
     if (GMModule.handleGlobalScroll(delta)) return
+    // UI 层优先（滚动容器 / 拦截画布命中即消费）
+    if (screenX !== undefined && screenY !== undefined && PhySys.raycastScroll(screenX, screenY, delta)) return
     if (!controller) return
     // 输入系统触发到 Controller 的输入组件（外部组件可 BindScroll 订阅）
     controller.inputComponent.ProcessScroll(delta)

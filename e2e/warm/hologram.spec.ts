@@ -2,7 +2,8 @@
  * warm-current 全息勘探 e2e（2026-09-12：行星矿产开发）
  *
  * 覆盖：
- *  1. 开合：openHologram 需本行星系视角（地球系开月球全息 ✓）；closeHologram 复位斜视取景（2026-09-14 垂直俯视已移除）
+ *  1. 开合：openHologram 需本行星系视角（地球系开月球全息 ✓）；closeHologram 保持当前相机位置
+ *     （2026-09-15 用户定案：关闭不重新取景，玩家环绕/缩放出的视角原样保留）
  *  2. 表驱动数据：月球 2 条 he3 矿点行 + 2 行矿建（extractor/processor）
  *  3. 落位：placeMine 扣款 → stepTicks 灌工期建成 → 产出递增（extracted 门控在储量内）
  *  4. 真实点击拾取：holoMarkerScreenPos 投影坐标 → page.mouse 真实 down/up（位移 0 = 轻点）
@@ -121,17 +122,31 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     await page.waitForTimeout(600)
     await page.screenshot({ path: 'test-results/holo_moon.png' })
 
-    // ── 4. 关闭：复位斜视取景（2026-09-14 垂直俯视已移除，全取景恒斜视角） ──
+    // ── 4. 关闭：保持当前相机位置（2026-09-15 用户定案：关闭不重新取景） ──
+    // 同帧前后对照（before/close/after 同步执行，无帧间隔漂移）：关闭后相机 xyz 与关闭前逐位一致
+    // （旧实现 focusSolarSystem 复位 → 相机飞回 dist=3200 斜视取景，z ≈ 2600，可强区分）
     const closed = await page.evaluate(`(() => {
       const b = window.__warmCurrent
+      const before = b.view()
       b.closeHologram()
-      const v = b.view()
-      return { holo: b.holoInfo(), viewMode: v?.viewMode, camY: v?.cameraY, camZ: v?.cameraZ }
+      const after = b.view()
+      return {
+        holo: b.holoInfo(), viewMode: after?.viewMode,
+        before: { x: before?.cameraX, y: before?.cameraY, z: before?.cameraZ },
+        after: { x: after?.cameraX, y: after?.cameraY, z: after?.cameraZ },
+        orbitMode: after?.orbitMode, leftOrbitEnabled: after?.leftOrbitEnabled, edgePanEnabled: after?.edgePanEnabled,
+      }
     })()`) as Record<string, any>
     expect(closed.holo).toBeNull()
     expect(closed.viewMode).toBe('earth')
-    // 斜视角复位：相机 z 明显非零（35° 仰角 → z ≈ cos35°×3200 ≈ 2600；垂直俯视时代此值 ≈ 0）
-    expect(closed.camZ).toBeGreaterThan(100)
+    // 相机原位保持：xyz 与关闭前完全一致
+    expect(closed.after.x).toBe(closed.before.x)
+    expect(closed.after.y).toBe(closed.before.y)
+    expect(closed.after.z).toBe(closed.before.z)
+    // 相机交互回落视图默认语义：行星系聚焦环绕（右键环绕 · 左键留地图交互 · 边缘平移关）
+    expect(closed.orbitMode).toBe(true)
+    expect(closed.leftOrbitEnabled).toBe(false)
+    expect(closed.edgePanEnabled).toBe(false)
   })
 
   test('太阳系全景拒绝开全息（取景门）', async ({ page }) => {

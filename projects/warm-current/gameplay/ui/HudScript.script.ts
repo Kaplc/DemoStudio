@@ -17,7 +17,7 @@
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
-import { ColorBinder, TextBinder, VisBinder, findButton, findText, fmtTime, wcMode } from './uiCommon'
+import { ColorBinder, TextBinder, VisBinder, findButton, findText, fmtGameClock, wcMode } from './uiCommon'
 import ResearchPanelScript, { RESEARCH_PANEL_WIDGET } from './ResearchPanelScript.script'
 import RingPanelScript, { RING_PANEL_WIDGET } from './RingPanelScript.script'
 import ReserveInfoScript, { RESERVE_INFO_WIDGET } from './ReserveInfoScript.script'
@@ -253,7 +253,7 @@ export default class HudScript extends BehaviourScript {
     const vm = mode.buildViewModel()
 
     // ─── 顶部状态栏（原 TopBarScript 并入）：态势摘要 + 时间控制双态 ───
-    this.binder.set(findText(this.actor, 'TimeText'), fmtTime(vm.time))
+    this.binder.set(findText(this.actor, 'TimeText'), fmtGameClock(vm.time))
     this.binder.set(findText(this.actor, 'ReserveText'), `储量 ${Math.floor(vm.reserve)} t`)
     // 供应链口径 chip（2026-09-13）：净流入 + 稳供进度 / 断环倒计时
     const net = Math.round(vm.netFlow * 10) / 10

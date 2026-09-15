@@ -10,8 +10,16 @@
  * 渲染：内部持有 UITextComponent 显示「文本 + 光标」，背景由宿主面板的
  * UIImageComponent 提供（与 UIText 同风格：尺寸权威在 uitransform）。
  *
- * 键盘路由：组件不直接监听全局键盘（引擎键盘事件走 InputSys → Controller 管线），
- * 由使用方（GMConsoleHUD/GMModule）在控制台打开时把按键转交 handleKey(key)。
+ * 键盘路由（2026-09-16 起双轨）：
+ *  - 通用：InputSys.handleKeyDown 把按键先交给**聚焦中的输入框**（静态注册表
+ *    focusedInput；handleKey 返回 false 的键如 Escape 仍下发游戏）；
+ *    InputSys.handlePointerDown 经 focusFromHit 做"点输入框聚焦 / 点外面失焦"。
+ *  - GM 控制台：仍走 GMModule.handleGlobalKeyDown 优先钩子（在通用路由之前，
+ *    行为不变——其输入框自动补聚焦，与注册表互斥语义兼容）。
+ *
+ * 命中面：BeginPlay 自动确保 ClickableComponent（layer='ui'）——编译期 <input>
+ * 节点只有 marker 画布没有 clickable，点不中就无法聚焦；宿主自管点击（如 GM
+ * bindClickToFocus）会复用同一 clickable 并覆盖回调槽位，互不冲突。
  *
  * 用法：
  *   const input = new UITextInputComponent(actor, { placeholder: '输入命令...' })
@@ -23,6 +31,9 @@ import { UITextComponent } from './UITextComponent'
 import { logger } from '../Logger'
 import type { EditableProperty } from '../entity/ActorComponent'
 import type { Actor } from '../entity/Actor'
+import { ClickableComponent } from '../physics/ClickableComponent'
+import { CanvasUIComponent } from '../rendering/CanvasUIComponent'
+import { UITransformComponent } from './UITransformComponent'
 import * as THREE from 'three'
 import { Text as TroikaText, getSelectionRects, getCaretAtPoint } from 'troika-three-text'
 
@@ -50,6 +61,37 @@ export interface UITextInputComponentOptions {
 }
 
 export class UITextInputComponent extends UITextComponent {
+  /** 当前持有键盘焦点的输入框（引擎级单例；InputSys 键盘路由/失焦仲裁的权威源） */
+  private static _focusedInput: UITextInputComponent | null = null
+  /** 点击命中层（isClickOnly canvas / 复用背景画布；BeginPlay 创建，仅保证可命中） */
+  private _hitLayer: CanvasUIComponent | null = null
+
+  /** 当前聚焦的输入框（null = 无；InputSys 键盘路由查询入口） */
+  static get focusedInput(): UITextInputComponent | null {
+    return UITextInputComponent._focusedInput
+  }
+
+  /**
+   * 点击命中后的焦点仲裁（InputSys.handlePointerDown 调用，与滚轮的命中链派发同构）：
+   * 命中链（命中者 + 祖先）上有输入框 → 聚焦之；点在输入框外且焦点未被本次点击的
+   * 宿主回调接管（如 GM 控制台在 onMouseDown 内自行聚焦/切换）→ 失焦。
+   * @param clickable 最近一次点击解析出的 UI 命中（PhySys.lastHitClickable）
+   * @param focusBefore 点击前的焦点输入框
+   */
+  static focusFromHit(clickable: ClickableComponent | null, focusBefore: UITextInputComponent | null): void {
+    let a: Actor | null = clickable?.owner ?? null
+    while (a) {
+      const input = a.getComponent(UITextInputComponent)
+      if (input) {
+        input.focus()
+        return
+      }
+      a = a.parent
+    }
+    const current = UITextInputComponent._focusedInput
+    if (current && current === focusBefore) current.blur()
+  }
+
   /** 当前输入文本 */
   private _value = ''
   /** 占位提示 */
@@ -149,20 +191,24 @@ export class UITextInputComponent extends UITextComponent {
     this._onTextChanged = fn
   }
 
-  /** 聚焦：显示光标，进入输入态（光标到末尾，无选择） */
+  /** 聚焦：显示光标，进入输入态（光标到末尾，无选择）；互斥——旧焦点自动失焦并让出注册表 */
   focus(): void {
     if (this._focused) return
+    const prev = UITextInputComponent._focusedInput
+    if (prev && prev !== this) prev.blur()
     this._focused = true
+    UITextInputComponent._focusedInput = this
     this._selectionStart = this._value.length
     this._cursorPos = this._value.length
     this.refreshText()
     logger.info('[UITextInputComponent] 聚焦输入框')
   }
 
-  /** 失焦：隐藏光标（value 为空时显示占位符，清除选择区） */
+  /** 失焦：隐藏光标（value 为空时显示占位符，清除选择区）；仅持有注册表者可清除 */
   blur(): void {
     if (!this._focused) return
     this._focused = false
+    if (UITextInputComponent._focusedInput === this) UITextInputComponent._focusedInput = null
     this._selectionStart = 0
     this._cursorPos = 0
     this.refreshText()
@@ -496,7 +542,49 @@ export class UITextInputComponent extends UITextComponent {
     return out
   }
 
+  override BeginPlay(): void {
+    super.BeginPlay()
+    this._ensureClickable()
+    this._ensureHitLayer()
+  }
+
+  /**
+   * 确保输入框可被点击命中（通用聚焦路由的命中面）：编译期 <input> 节点只有
+   * marker 画布没有 clickable，缺了它点击永远落不到输入框上。宿主自管点击
+   * （GM bindClickToFocus）走 getComponent 复用同一实例，仅覆盖回调槽位，无冲突。
+   */
+  private _ensureClickable(): void {
+    let clickable = this.owner.getComponent(ClickableComponent)
+    if (!clickable) {
+      clickable = new ClickableComponent(this.owner)
+      this.owner.addComponent(clickable)
+    }
+    clickable.layer = 'ui'
+  }
+
+  /** 确保有命中网格：复用节点上已有的非 marker 画布（背景 UIImage）；没有则补一层 isClickOnly 透明命中画布 */
+  private _ensureHitLayer(): void {
+    if (this._hitLayer) return
+    const existing = this.owner.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
+    if (existing) {
+      this._hitLayer = existing
+      return
+    }
+    const size = this.owner.getComponent(UITransformComponent)?.getWorldSize() ?? [64, 64]
+    const canvas = new CanvasUIComponent(this.owner, {
+      width: 64, height: 64,
+      worldWidth: Math.max(1, size[0]), worldHeight: Math.max(1, size[1]),
+      name: 'InputHitLayer',
+    })
+    canvas.isClickOnly = true
+    canvas.zOrder = 0
+    this.owner.addComponent(canvas)
+    this._hitLayer = canvas
+  }
+
   override EndPlay(): void {
+    if (UITextInputComponent._focusedInput === this) UITextInputComponent._focusedInput = null
+    this._hitLayer = null
     this.disposeSelectionMesh()
     super.EndPlay()
   }

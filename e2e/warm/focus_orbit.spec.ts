@@ -12,7 +12,8 @@
  *  1. 开局默认聚焦环绕：orbitMode=true / leftOrbitEnabled=false / edgePanEnabled=false，
  *     target 钉地球（舞台中心），注视距离 3200
  *  2. 双击月球聚焦：observeBody='moon'、双键环绕开启、target≈月球实时位置、特写距离
- *  3. 聚焦月球时逐帧跟随公转：仿真推进后 target 仍锁定月球（rig.pan 成对平移）
+ *  3. 聚焦月球时逐帧跟随公转：仿真推进后 target 仍锁定月球（2026-09-15 五版·原地转头
+ *     口径：只拉 rig.target，相机位置不动——注视距离随公转自然漂移，不断言恒定）
  *  4. 再双击月球 = 退出回默认聚焦（observeBody 归零、target 回地球、环绕语义回落）
  *  5. 观察中双击另一天体 = 切换聚焦（地球 ↔ 月球）；Esc = 退出
  *  6. 太阳系全景下双击月球被门禁拒绝（仅地月系可聚焦卫星）
@@ -82,7 +83,8 @@ function probe(page: Page): Promise<FocusProbe> {
   })()`) as Promise<FocusProbe>
 }
 
-/** 等相机停稳（headless 拖拽步进定时器可能被节流到 1s/步，轮询至连续两次读数一致） */
+/** 等相机停稳（轮询至连续两次读数一致；拖拽完成前置等待见调用点——ai.mouseDrag 为
+ *  后台步进 + headless 定时器节流 ~1s/步，停稳判定必须放在拖拽必然结束后才有意义） */
 async function waitCameraSettled(page: Page, deadlineMs = 14_000): Promise<FocusProbe> {
   const deadline = Date.now() + deadlineMs
   let cur = await probe(page)
@@ -114,6 +116,8 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
 
     // ── 2. 双击月球 = 聚焦月球：观察态 + 双键环绕 + target 贴月球实时位置 + 特写距离 ──
     await page.evaluate(`(() => { window.__warmCurrent.doubleClickPlanet('moon') })()`)
+    // 即时 probe（滑移亚秒收敛，此前两次运行 70~95 区间均通过）；不用 waitCameraSettled——
+    // 它是拖拽停稳口径，会捕到滑移欠冲拐点（distMoon < 70 的瞬间）误判收敛
     const p1 = await probe(page)
     expect(p1.observeBody, '双击月球应进入卫星观察').toBe('moon')
     expect(p1.orbitMode, '卫星观察为环绕语义').toBe(true)
@@ -127,10 +131,11 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
     expect(p1.distMoon, '特写取景应贴月球（3D 球心距离）').toBeGreaterThan(70)
     expect(p1.distMoon).toBeLessThan(95)
 
-    // ── 3. 聚焦月球时逐帧跟随公转：仿真 +20s（月球切向 ≈3.3px/s → 位移 ≈66px），target 跟上 ──
+    // ── 3. 聚焦月球时逐帧跟随公转：仿真 +2000s（2026-09-15 真实恒星月 2360592 游戏秒/圈
+    //      = 39343 仿真秒/圈，ω≈1.59e-4 rad/仿真秒 → 转 18° 位移 ≈382px），target 跟上 ──
     await page.evaluate(`(() => {
       const m = window.__warmCurrent.mode()
-      m.simState.state.time += 20
+      m.simState.state.time += 2000
       window.__warmCurrent.stepTicks(1)
     })()`)
     const p2 = await probe(page)
@@ -142,9 +147,11 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
       Math.hypot(p2.tx - p2.moonX, p2.tz - p2.moonZ),
       '跟随公转：target 应继续锁定月球新位置',
     ).toBeLessThan(5)
+    // 原地转头口径（2026-09-15 五版）：跟随只把 rig.target 拉向月球实时位，相机位置归玩家
+    // 不动（旧"rig.pan 成对平移锁注视距离"口径已废弃——距离随公转自然漂移，不断言恒定）
     expect(
-      Math.abs(p2.distMoon - p1.distMoon),
-      '跟随为成对平移，注视距离保持',
+      Math.hypot(p2.cx - p1.cx, p2.cz - p1.cz),
+      '原地转头跟随：相机位置不动（跟随不平移镜头）',
     ).toBeLessThan(3)
 
     // ── 4. 观察态右键拖拽 = 绕月球环绕：相机位移、注视距离不变、target 仍锁定月球 ──
@@ -161,11 +168,28 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
       stepDelayMs: 16,
     })
     expect(drag.ok, `右键环绕拖拽应 ok：${drag.error ?? ''}`).toBe(true)
+    // ai.mouseDrag 是"排队后台步进"（同步返回 async:true），headless 隐藏页定时器节流下步间隔
+    // 1s~3s 随负载浮动：任何固定时长的保底等待都可能落进步间空档，把半程误判成终点
+    // （实测位移减半 48~55 反复）——改等处理器完成日志这一确定性信号（[AI] mouseDrag: … 完成，
+    // Logger 落 page console），再做停稳读数
+    await page.waitForEvent(
+      'console',
+      {
+        predicate: (m) => m.text().includes('mouseDrag') && m.text().includes('完成'),
+        timeout: 30_000,
+      },
+    )
     const p3 = await waitCameraSettled(page)
+    // 期望位移按 p2 实际几何推导（绝对阈值对俯仰角脆弱：环绕水平位移 = R×cos(pitch)×1.003，
+    // pitch 随双击聚焦逼近几何浮动 35°~55°+，固定 60 会在陡俯仰局误红）：
+    // 水平环绕半径 R_h = |相机−target| 的水平投影，210px（8 步扣首步）×0.005 = 1.05 rad；
+    // 拖拽期间月球公转已近乎静止（2026-09-15 真实恒星月周期），40% 容差全为几何浮动余量
+    const rHoriz = Math.hypot(p2.cx - p2.tx, p2.cz - p2.tz)
+    const expectChord = 2 * rHoriz * Math.sin((210 * 0.005) / 2) * 0.6
     expect(
       Math.hypot(p3.cx - p2.cx, p3.cz - p2.cz),
-      '环绕拖拽应显著移动相机',
-    ).toBeGreaterThan(60)
+      '环绕拖拽应显著移动相机（按实际环绕半径推期望弦长）',
+    ).toBeGreaterThan(expectChord)
     expect(
       Math.abs(p3.distMoon - p2.distMoon),
       '环绕不改变与月球的注视距离',

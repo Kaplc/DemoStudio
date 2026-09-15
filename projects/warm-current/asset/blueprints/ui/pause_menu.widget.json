@@ -1,7 +1,7 @@
 {
   "name": "PauseMenu",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-f8a8be46",
+  "sourceHash": "fnv1a-ee5fabc0",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -80,7 +80,8 @@
           "properties": {
             "markerOnly": true,
             "name": "UIMarker",
-            "zOrder": 0
+            "zOrder": 0,
+            "hitTest": "block"
           }
         },
         {

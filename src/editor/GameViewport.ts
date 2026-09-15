@@ -116,7 +116,7 @@ export function handleGameMouseUp(
 }
 
 /**
- * 处理 Game 视口的滚轮事件（→ InputSys.handleScroll）
+ * 处理 Game 视口的滚轮事件（→ InputSys.handleScroll，携带屏幕坐标供 UI 层优先消费）
  */
 export function handleGameWheel(
   e: WheelEvent,
@@ -125,7 +125,7 @@ export function handleGameWheel(
   e.preventDefault()
   const inst = game?.instance
   if (inst) {
-    inst.inputSys.handleScroll(e.deltaY, inst.controller)
+    inst.inputSys.handleScroll(e.deltaY, inst.controller, e.clientX, e.clientY)
   }
 }
 

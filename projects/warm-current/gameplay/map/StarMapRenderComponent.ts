@@ -15,10 +15,10 @@ import type { Actor } from '@/engine'
 import type { AnchoredWidgetHandle } from '@/engine'
 import { UITextComponent } from '@/engine'
 import { B, MAP_H, MAP_W, toWX, toWZ } from '../core/balance'
-import { SphereMeshComponent } from '@/engine'
+import { SphereMeshComponent, AtmosphereComponent, CloudLayerComponent } from '@/engine'
 import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import { depositsOf, depositLeft } from '../systems/MiningComponent'
-import { placedRingNodes, vecToLatLon } from '../core/helpers'
+import { placedRingNodes, vecToLatLon, spinAngleOf } from '../core/helpers'
 import {
   endpointPos,
   buildingDefOf,
@@ -118,7 +118,6 @@ const C_SHIP_HOLD = 0xbfe9ff
 // 全息勘探（蓝色科幻透明感：壳/线框/环一圈青蓝，选中环冰蓝，枯竭灰）
 const C_HOLO_GLOW = 0x3fa9f5
 const C_HOLO_LINE = 0x4fd8ff
-const C_HOLO_SEL = 0xbfe9ff
 const C_HOLO_DEAD = 0x5a707f
   // 全息地球（融化圈青绿 / 节点金 = 已装环建筑；冰盖白蓝已随冰盖层移除）
 
@@ -387,8 +386,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     arc: THREE.Mesh; arcMat: THREE.MeshBasicMaterial
     lastPct: number; color: number
   }>()
-  /** 选中矿点外环（位置/朝向每帧贴选中标记） */
-  private holoSelRing: THREE.Mesh | null = null
   /** 勘探期间被隐藏真球的天体 id（null = 无；恢复显隐用，applyViewMode 复算视图口径） */
   private holoHiddenBody: string | null = null
   /** 全息球半径（世界单位；星球显示半径 × B.holo.radiusMult） */
@@ -1445,14 +1442,17 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const mat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }))
       const mesh = this.own(this.F.createMesh(octaGeo, mat)).object
       mesh.position.copy(pos)
-      mesh.scale.setScalar(R * 0.09)
+      mesh.scale.setScalar(R * 0.05)
       mesh.renderOrder = 18
+      mesh.visible = false
       spin.add(mesh)
       const glowMat = this.trackMat(this.F.createSpriteMaterial({ map: this.tex.glow, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
       const glow = this.own(this.F.createSprite(glowMat)).object
-      // 辉光 = 标记子节点（随位随脉动）；局部 5 ≈ 世界 R*0.45（父缩放 R*0.09 叠乘）
-      glow.scale.setScalar(5)
-      mesh.add(glow)
+      // 高亮点 = 矿点常显标记（世界 0.08R）；不挂 mesh 下——菱形仅选中时显示，挂子节点会连带隐藏
+      glow.position.copy(pos)
+      glow.scale.setScalar(R * 0.08)
+      glow.renderOrder = 18
+      spin.add(glow)
       // 建成光柱（沿法线外向；quaternion 对齐 = 组旋转下朝向稳定）
       const beamMat = this.trackMat(this.F.createMeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }))
       const beam = this.own(this.F.createMesh(cylGeo, beamMat)).object
@@ -1474,15 +1474,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       spin.add(arc)
       this.holoMarkers.set(id, { mesh, mat, glow, glowMat, beam, beamMat, arc, arcMat, lastPct: -1, color })
     }
-
-    // 选中外环（每帧贴选中标记；脉冲缩放）
-    const selGeo = this.trackGeo(this.F.createRingGeometry(1.35, 1.75, 32))
-    const selMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_SEL, transparent: true, opacity: 0.85, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
-    const selRing = this.own(this.F.createMesh(selGeo, selMat)).object
-    selRing.renderOrder = 20
-    selRing.visible = false
-    spin.add(selRing)
-    this.holoSelRing = selRing
   }
 
   /** 摘除全息组（切目标/收起共用；重建型几何即时释放，tracked 材质/几何留 EndPlay 统一兜底） */
@@ -1492,7 +1483,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.holoRoot = null
       this.holoSpin = null
       this.holoScanRing = null
-      this.holoSelRing = null
     }
     this.holoMarkers.clear()
     this.holoBody = null
@@ -1654,17 +1644,23 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   /** 勘探期间目标天体真球显隐仲裁（全息开 = 隐藏真球留全息球；关/切 = 按视图分组口径恢复） */
   private syncHoloBodyMesh(body: string | null): void {
     // 目标天体真球：勘探期间隐藏（全息球同大替换本体，避免双层叠显）
-    const targetMesh = body
-      ? this.provider.starActors?.get(body)?.getComponent(SphereMeshComponent)?.obj.object ?? null
-      : null
-    if (targetMesh) targetMesh.visible = false
+    const targetActor = body ? this.provider.starActors?.get(body) ?? null : null
+    if (targetActor) this.setBodyShellVisible(targetActor, false)
     // 上一帧隐藏的天体：全息关闭/切换后恢复（直接按视图分组口径复算，
     // 不走 applyViewMode——那是全量重算 + 每次打日志，逐帧调用会刷屏）
     if (this.holoHiddenBody && this.holoHiddenBody !== body) {
-      const prevMesh = this.provider.starActors?.get(this.holoHiddenBody)?.getComponent(SphereMeshComponent)?.obj.object ?? null
-      if (prevMesh) prevMesh.visible = this.visibleBodySet().has(this.holoHiddenBody)
+      const prevActor = this.provider.starActors?.get(this.holoHiddenBody) ?? null
+      if (prevActor) this.setBodyShellVisible(prevActor, this.visibleBodySet().has(this.holoHiddenBody))
     }
-    this.holoHiddenBody = targetMesh ? body : null
+    this.holoHiddenBody = targetActor ? body : null
+  }
+
+  /** 天体全部视觉壳显隐：本体球 + 大气壳（含光晕）+ 云层壳（地球蓝图两层）。
+   *  全息替换本体必须整组仲裁——只藏 SphereMesh 会漏壳组件，云层透出全息球。 */
+  private setBodyShellVisible(actor: Actor, visible: boolean): void {
+    actor.getComponent(SphereMeshComponent)?.setVisible(visible)
+    actor.getComponent(AtmosphereComponent)?.setVisible(visible)
+    for (const cloud of actor.getComponents(CloudLayerComponent)) cloud.setVisible(visible)
   }
 
   /** 全息组每帧同步：位置贴天体 Actor、自转、扫描环巡游、标记状态（枯竭灰化/建成光柱/进度弧）、选中环 */
@@ -1691,8 +1687,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const moonSv = this.starViews.moon
       if (moonSv) moonSv.sub.sprite.visible = false
     }
-    // 自转 + 扫描环巡游（2026-09-15 起地球全息同口径走 B.holo.spin；地球/月球无扫描环）
-    this.holoSpin!.rotation.y += B.holo.spin * dt
+    // 自转（2026-09-15 真实周期口径）：地球/月球自转角 = 天体历法纯函数（spinAngleOf，
+    // 与真球 mesh 同源同角——地表建筑/环节点钉在真实转动的球面，关闭再开全息相位连续）；
+    // 其余天体保持 B.holo.spin 巡游速率不变
+    if (B.celestial.spinPeriodS[body]) this.holoSpin!.rotation.y = spinAngleOf(this.provider.simState.state, body)
+    else this.holoSpin!.rotation.y += B.holo.spin * dt
     if (this.holoScanRing) this.holoScanRing.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72
     // 全息地球附加层：内容差分重建 + 放置 ghost（节点标记呼吸；ghost 随重建层走）
     if (body === 'earth') {
@@ -1702,8 +1701,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const pulse = 1 + Math.sin(this.animTime * 3.2) * 0.12
       for (const mk of this.holoNodeMarkers.values()) mk.mesh.scale.setScalar(this.holoRadius * 0.05 * pulse)
     }
-    // 标记状态（读态：mines + depositLeft；枯竭灰化，建造中收进度弧，建成本色 + 光柱）
+    // 标记状态（读态：mines + depositLeft；常显高亮点，菱形仅选中时定位；枯竭灰化，建造中收进度弧，建成本色 + 光柱）
     const s = this.provider.simState.state
+    const selId = this.provider.holoDepositSel
     for (const [id, mk] of this.holoMarkers) {
       const mine = s.mines.find((m) => m.depositId === id) ?? null
       const left = depositLeft(s, id)
@@ -1711,11 +1711,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       const col = dead ? C_HOLO_DEAD : mk.color
       mk.mat.color.setHex(col)
       mk.glowMat.color.setHex(col)
+      mk.glowMat.opacity = dead ? 0.45 : 1
       mk.beamMat.color.setHex(col)
-      mk.glow.visible = !dead
       mk.beam.visible = !!mine?.built && !dead
       const pulse = dead ? 0.8 : 1 + Math.sin(this.animTime * (mine?.built ? 7 : 4)) * 0.14
-      mk.mesh.scale.setScalar(this.holoRadius * 0.09 * pulse)
+      mk.mesh.visible = selId === id
+      mk.mesh.scale.setScalar(this.holoRadius * 0.05 * pulse)
+      mk.glow.scale.setScalar(this.holoRadius * 0.08 * pulse)
       // 进度弧：建造中显示（步进 2% 重建几何；建成/未开发隐藏）
       const pct = mine ? (mine.built ? 1 : mine.progress) : 0
       const step = Math.round(pct * 50)
@@ -1730,18 +1732,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         old.dispose()
       }
     }
-    // 选中环贴选中标记（切向朝向 = +Z 对准法线；脉冲缩放）
-    const selId = this.provider.holoDepositSel
-    const selMk = selId ? this.holoMarkers.get(selId) : null
-    const selRing = this.holoSelRing!
-    if (selMk) {
-      selRing.visible = true
-      selRing.position.copy(selMk.mesh.position)
-      selRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), selMk.mesh.position.clone().normalize())
-      selRing.scale.setScalar(this.holoRadius * 0.105 * (1 + Math.sin(this.animTime * 6) * 0.1))
-    } else {
-      selRing.visible = false
-    }
+    // 选中环已按 2026-09-15 用户定案移除（选中反馈 = 菱形定位标记本身）
   }
 
   /** 屏幕坐标拾取矿点（Controller 左键轻点派发；矿点世界坐标投影到屏幕取最近，阈值 B.holo.pickRadius px） */

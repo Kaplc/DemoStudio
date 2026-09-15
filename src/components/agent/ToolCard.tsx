@@ -7,6 +7,9 @@
  * - 派生路：无权威 hunk 时从入参派生"将要做的修改"（deriveDiffsFromArgs）——进行中意图，
  *   以及 write 新建文件兜底（DSH 对 before===null 不产 hunk，meta.diffs 为空数组，用户反馈 2026-09-13）
  * - 失败/非文件工具：回退通用 JSON 视图（输入/输出）
+ * - 头部摘要（2026-09-15 用户反馈：grep 只显示 include 漏了 pattern）：≥2 个单行短字符串参数时
+ *   以 key=value 全展示；单个字符串参数仍只显示值；多行/超长值（write content、长 old_string）
+ *   不进摘要，展开卡片查看
  * - 默认全量展开不折叠（用户决策 2026-09-10：剩余行数也要直接显示）
  * - edit/write 卡片默认自动展开（用户决策 2026-09-10），点击头部仍可收起/再展开
  *
@@ -26,6 +29,11 @@ function truncate(str: string, max: number): string {
   if (str.length <= max) return str
   return str.slice(0, max) + '...'
 }
+
+/** 摘要取值上限：单个值 / key=value 对内单值（超过则不进摘要）/ 多参数整行 */
+const SUMMARY_VALUE_MAX = 60
+const SUMMARY_PAIR_VALUE_MAX = 60
+const SUMMARY_MULTI_MAX = 120
 
 /** 缓存 JSON.stringify 结果，避免每次 render 重新序列化 */
 function useSerializedJson(value: unknown): string {
@@ -106,6 +114,9 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
   const resultStr = useSerializedJson(tool.result)
 
   // 摘要：显示参数的关键信息（memoize）
+  // 2026-09-15 用户反馈：grep 只显示第一个字符串参数（include=*.ts），pattern 被吞——
+  // 改为收集全部"单行短字符串"参数：≥2 个时以 key=value 全展示（与入参顺序一致）；
+  // 仅 1 个时仍只显示值（read/glob/write 头部外观不变）；多行/超长值不进摘要，展开可见。
   const summary = useMemo(() => {
     // ask_user_question 特殊摘要：显示问题文本
     if (tool.name === 'ask_user_question' && tool.args && typeof tool.args === 'object') {
@@ -121,11 +132,24 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
     const obj = tool.args as Record<string, unknown>
     const keys = Object.keys(obj)
     if (keys.length === 0) return ''
+    let firstString = ''
+    const shortKeys: string[] = []
+    const shortVals: string[] = []
     for (const k of keys) {
       const v = obj[k]
-      if (typeof v === 'string' && v.length > 0) return truncate(v, 60)
+      if (typeof v !== 'string' || v.length === 0) continue
+      if (firstString === '') firstString = v
+      if (v.length <= SUMMARY_PAIR_VALUE_MAX && !v.includes('\n')) {
+        shortKeys.push(k)
+        shortVals.push(v)
+      }
     }
-    return truncate(JSON.stringify(obj), 60)
+    if (shortKeys.length >= 2) {
+      return truncate(shortKeys.map((k, i) => `${k}=${shortVals[i]}`).join(' '), SUMMARY_MULTI_MAX)
+    }
+    if (shortKeys.length === 1) return truncate(shortVals[0], SUMMARY_VALUE_MAX)
+    if (firstString !== '') return truncate(firstString, SUMMARY_VALUE_MAX)
+    return truncate(JSON.stringify(obj), SUMMARY_VALUE_MAX)
   }, [tool.args, tool.name])
 
   // diff 数据源：settle 后用权威 meta.diffs；无权威 hunk 时从入参派生（意图 + 兜底）。

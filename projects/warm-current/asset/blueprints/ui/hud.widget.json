@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentHud",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-ec8b9022",
+  "sourceHash": "fnv1a-8ad00687",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -359,10 +359,10 @@
                       1,
                       1
                     ],
-                    "worldWidth": 100,
+                    "worldWidth": 170,
                     "worldHeight": 30,
                     "position": [
-                      -862,
+                      -827,
                       0,
                       0
                     ]
@@ -379,9 +379,9 @@
                 {
                   "baseClass": "UITextComponent",
                   "properties": {
-                    "text": "0:00",
+                    "text": "第1天 00:00",
                     "name": "TimeText",
-                    "width": 100,
+                    "width": 170,
                     "height": 30,
                     "fontSize": 22,
                     "color": "#bfe8ff",
@@ -415,7 +415,7 @@
                     "worldWidth": 192,
                     "worldHeight": 46,
                     "position": [
-                      -702,
+                      -632,
                       -1,
                       0
                     ]
@@ -725,7 +725,7 @@
                     "worldWidth": 332,
                     "worldHeight": 46,
                     "position": [
-                      -426,
+                      -356,
                       -1,
                       0
                     ]
@@ -1035,7 +1035,7 @@
                     "worldWidth": 2,
                     "worldHeight": 30,
                     "position": [
-                      -245,
+                      -175,
                       0,
                       0
                     ]
@@ -1082,7 +1082,7 @@
                     "worldWidth": 98,
                     "worldHeight": 46,
                     "position": [
-                      -181,
+                      -111,
                       -1,
                       0
                     ]
@@ -1390,7 +1390,7 @@
                     "worldWidth": 98,
                     "worldHeight": 46,
                     "position": [
-                      -69,
+                      1,
                       -1,
                       0
                     ]
@@ -1698,7 +1698,7 @@
                     "worldWidth": 98,
                     "worldHeight": 46,
                     "position": [
-                      43,
+                      113,
                       -1,
                       0
                     ]
@@ -2006,7 +2006,7 @@
                     "worldWidth": 2,
                     "worldHeight": 30,
                     "position": [
-                      107,
+                      177,
                       0,
                       0
                     ]
@@ -2044,7 +2044,7 @@
                     "worldWidth": 142,
                     "worldHeight": 46,
                     "position": [
-                      193,
+                      263,
                       -1,
                       0
                     ]
@@ -2353,7 +2353,7 @@
                     "worldWidth": 142,
                     "worldHeight": 46,
                     "position": [
-                      349,
+                      419,
                       -1,
                       0
                     ]

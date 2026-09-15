@@ -59,6 +59,8 @@ export class UIScrollContainerComponent extends Component<Actor> {
   private _bounceTween: { kill(): void } | null = null
   /** 内容 wrapper 基准本地位置（refresh 首次快照，滚动在其上叠加） */
   private _contentBase: [number, number] | null = null
+  /** 上次 refresh 测得的轴向内容尺寸（变化才重钉起始边，避免覆盖定制的内容位置） */
+  private _lastAxisSize: number | null = null
   /** 滚动条（程序化创建） */
   private _scrollbarTrack: Actor | null = null
   private _scrollbarThumb: Actor | null = null
@@ -164,6 +166,18 @@ export class UIScrollContainerComponent extends Component<Actor> {
     // 内容层更换（引用变化）时重拍基准位置
     if (this._content !== content) this._contentBase = null
     this._content = content
+    // 轴向内容尺寸变化（动态增删子项/展开收起）→ 重钉起始边（垂直=顶边贴视口顶，
+    // 水平=左边贴视口左，CSS overflow 纵向流排的顶部对齐语义）：编译期烘焙的位置
+    // 只对当时的内容尺寸成立，不重钉的话内容缩回后起始边悬空、maxScroll 失真。
+    const axisSize = this._direction === 'vertical' ? this._contentSize[1] : this._contentSize[0]
+    if (axisSize !== this._lastAxisSize) {
+      const [vw, vh] = this._viewSize()
+      const pos = content.root.position
+      this._contentBase = this._direction === 'vertical'
+        ? [pos.x, vh / 2 - axisSize / 2]
+        : [-(vw / 2 - axisSize / 2), pos.y]
+      this._lastAxisSize = axisSize
+    }
     this._clampOffset()
     this._applyOffset()
     this._updateScrollbar()
@@ -211,6 +225,12 @@ export class UIScrollContainerComponent extends Component<Actor> {
       this.owner.addComponent(clickable)
     }
     clickable.layer = 'ui'
+    // 滚轮滚动（PhySys.raycastScroll UI 层命中仲裁后沿命中链派发；deltaY 屏幕 px → 世界单位）
+    clickable.onScroll = (delta) => {
+      const rect = PhySys.viewportElement?.getBoundingClientRect()
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
+      this.scrollBy(delta * worldPerPx)
+    }
   }
 
   /** 透明点击层（isClickOnly canvas：仅命中不渲染；zOrder 低于内容不挡按钮） */

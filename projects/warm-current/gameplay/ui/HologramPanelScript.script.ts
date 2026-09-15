@@ -11,8 +11,8 @@
  *  - 色点 ◆ = 矿种表现色（ColorBinder 差分写色）
  *  - 8Hz 差分同步；矿点行池 HOLO_DEPOSIT_ROWS / 建造行池 HOLO_BUILD_ROWS / 工具行池 HOLO_TOOL_ROWS
  */
-import { BehaviourScript, logger } from '@/engine'
-import { ColorBinder, TextBinder, VisBinder, findButton, findText, wcMode } from './uiCommon'
+import { BehaviourScript, logger, UIScrollContainerComponent, UITransformComponent } from '@/engine'
+import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
 
 /** 全息勘探面板 widget 资产路径（HudScript 生成入口） */
 export const HOLOGRAM_PANEL_WIDGET = 'asset/blueprints/ui/hologram_panel.widget.json'
@@ -35,6 +35,15 @@ export default class HologramPanelScript extends BehaviourScript {
   private rowBuildIds: string[] = new Array(HOLO_BUILD_ROWS).fill('')
   /** 行号 → 当前绑定工具 id（'ring' 或 building 表行键） */
   private rowToolIds: string[] = new Array(HOLO_TOOL_ROWS).fill('')
+  /** 滚动容器（懒查找缓存；行显隐后重排 + refresh 用） */
+  private scroll: UIScrollContainerComponent | null = null
+
+  /** 滚动区内行名，按堆叠序（与 widget 源顺序一致；隐藏行出流） */
+  private static readonly SCROLL_ROWS = [
+    'DepositRow_0', 'DepositRow_1', 'DepositRow_2', 'DepositRow_3',
+    'DetailBox', 'Btn_tool_ring', 'ToolRow_0', 'ToolRow_1', 'ToolRow_2',
+    'BuildRow_0', 'BuildRow_1', 'BuildRow_2',
+  ]
 
   /** 面板当前是否展开（唯一权威 = GameMode.hologramSel） */
   get isOpen(): boolean {
@@ -46,7 +55,7 @@ export default class HologramPanelScript extends BehaviourScript {
       const btn = findButton(this.actor, name)
       if (btn) btn.onClick = fn
     }
-    // 面板内 ✕ 关闭 = 退出全息（复位俯视取景）
+    // 面板内 ✕ 关闭 = 退出全息（保持当前相机位置，2026-09-15 用户定案：关闭不重新取景）
     bind('Btn_panel_close', () => wcMode()?.closeHologram())
     // 矿点行：点行选中；再点同行取消（3D 标记外环同步高亮）
     for (let i = 0; i < HOLO_DEPOSIT_ROWS; i++) {
@@ -161,5 +170,48 @@ export default class HologramPanelScript extends BehaviourScript {
         `${row.name} · ${row.cost} H3 · 工期 ${row.buildTime}s\n产出 ${row.yieldPerS}/s · ${row.desc}`)
       this.vis.set(this.actor, `Btn_build_${i}`, row.canBuild)
     }
+
+    // 可见行重排（内容层是编译期烘焙的静态位置，行显隐必须重排；hidden 行出流）
+    this.relayoutScrollRows()
+  }
+
+  /**
+   * 滚动区可见行重排：按 SCROLL_ROWS 序从内容层顶部堆叠可见行（隐藏行不占位），
+   * 内容高写回后 refresh() 重测（引擎侧重钉起始边 + 钳制偏移 + 刷滚动条）。
+   * 8Hz 调用无害：位置写值幂等，refresh 尺寸不变时不重钉。
+   */
+  private relayoutScrollRows(): void {
+    if (!this.scroll) {
+      const scrollActor = findChild(this.actor, 'HoloScroll')
+      this.scroll = scrollActor?.getComponent(UIScrollContainerComponent) ?? null
+      if (!this.scroll) return
+    }
+    const content = this.scroll.contentActor
+    const contentTf = content?.getComponent(UITransformComponent)
+    if (!content || !contentTf) return
+    const GAP = 6
+    const visible: Array<{ tf: UITransformComponent; h: number }> = []
+    let total = 0
+    for (const name of HologramPanelScript.SCROLL_ROWS) {
+      const row = findChild(content, name)
+      const tf = row?.getComponent(UITransformComponent)
+      if (!row || !tf) continue
+      if (!row.root.visible) continue
+      const h = tf.getWorldSize()[1]
+      visible.push({ tf, h })
+      total += h
+    }
+    total += GAP * Math.max(0, visible.length - 1)
+    // 从内容层顶部堆叠（内容层坐标 +y 朝上；首行中心 = total/2 - 行高/2）
+    let cum = 0
+    for (const { tf, h } of visible) {
+      const p = tf.owner.root.position
+      tf.setPosition(p.x, total / 2 - cum - h / 2, p.z)
+      cum += h + GAP
+    }
+    // 内容高写回 + 重测（钳制滚动范围 / 刷滚动条 / 起始边重钉在引擎侧）
+    const [cw] = contentTf.getWorldSize()
+    if (Math.abs(contentTf.getWorldSize()[1] - total) > 0.01) contentTf.setWorldSize(cw, total)
+    this.scroll.refresh()
   }
 }

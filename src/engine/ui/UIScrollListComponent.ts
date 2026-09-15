@@ -557,6 +557,14 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
       }
     }
     clickable.onDragEnd = () => this._bounceBack()
+    // 滚轮滚动（PhySys.raycastScroll UI 层命中仲裁后沿命中链派发；"往下滚 = 看后面"，与拖拽互补）
+    clickable.onScroll = (delta) => {
+      const rect = PhySys.viewportElement?.getBoundingClientRect()
+      const worldPerPx = rect && rect.height > 0 ? UI_CANVAS_H / rect.height : 1
+      const [iw, ih] = this._itemSize
+      const step = this._direction === 'vertical' ? ih + this._spacing : iw + this._spacing
+      this.scrollBy((delta * worldPerPx) / step)
+    }
   }
 
   /** 解绑 item 拖拽（draggable=false 时） */
@@ -566,6 +574,7 @@ export class UIScrollListComponent extends ActorComponent<Actor> {
     clickable.onDragStart = null
     clickable.onDragMove = null
     clickable.onDragEnd = null
+    clickable.onScroll = null
     this._dragSession = null
   }
 

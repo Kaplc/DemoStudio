@@ -98,7 +98,8 @@ test.describe('warm-current 视角锁定地球系（切换屏蔽 + 恒斜视角�
     expect(after.focus, 'enterPlanetSystem(mars) 应被屏蔽，聚焦保持地球').toBe('earth')
     expect(Math.hypot(after.tx - after.ex, after.tz - after.ez), '相机 target 仍锁定地球').toBeLessThan(5)
 
-    // ── 5. 地球系内自动跟随公转：推进仿真 30s（角速度 ≈0.011 rad/s → 位移 ≈ 82px） ──
+    // ── 5. 地球系内自动跟随公转：推进仿真 30s（2026-09-15 真实恒星年周期下地球位移
+    //      ≈0.5px 近乎静止，断言退化为 target 恒锁地球的回归保护） ──
     await page.evaluate(`(() => {
       const m = window.__warmCurrent.mode()
       m.simState.state.time += 30

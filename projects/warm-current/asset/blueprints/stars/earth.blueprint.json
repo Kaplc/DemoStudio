@@ -54,8 +54,8 @@
         "name": "CloudLow",
         "texture": "asset/textures/earth_clouds.png",
         "altitude": 1.015,
-        "spin": 0.35,
-        "uvDrift": 0.004,
+        "spin": -0.0049,
+        "uvDrift": 0.0001,
         "opacity": 0.62
       }
     },
@@ -65,8 +65,8 @@
         "name": "CloudHigh",
         "texture": "asset/textures/earth_clouds.png",
         "altitude": 1.05,
-        "spin": 0.55,
-        "uvDrift": 0.012,
+        "spin": -0.0056,
+        "uvDrift": 0.00025,
         "opacity": 0.3
       }
     }

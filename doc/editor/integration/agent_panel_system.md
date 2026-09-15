@@ -965,14 +965,25 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 | 不折叠 | 长 diff 全量渲染，**没有**「其余 N 行」折叠（DSH WebUI 默认折 16 行，这里按用户要求去掉） | 同上「30 行直接全部渲染」用例 |
 | 行号配色 | ctx 白（`label-primary`）、del 红（`state-error-primary` + `-`）、add 绿（`state-success-primary` + `+`） | `tests/e2e/agent/tool-card-diff.spec.ts` 断言 computedStyle 精确 RGB |
 | write 新建文件兜底 | 无权威 hunk 的 settled success 也派生 diff（DSH write 新文件 `meta.diffs` 为空数组），只有 failure 才退通用视图 | `tests/toolCardDiff.test.tsx` + e2e「write 新建文件（meta.diffs 空数组）」用例 |
+| 头部摘要全参数 | grep 等 ≥2 个单行短字符串参数以 `key=value` 全展示（旧逻辑只显第一个字符串值，pattern 被吞）；单个仍只显值，多行/超长值不进摘要 | `tests/toolCardDiff.test.tsx` 摘要用例 + e2e「grep 卡片头部摘要 key=value 全展示」用例 |
 
 ### 12.5 文件与测试分工
 
 - 纯函数：`src/components/agent/toolDiff.ts`（`isDiffToolName` / `deriveDiffsFromArgs` / `alignDiffRows` / `buildDiffRows` / `formatDiffRowsForCopy` / `resolveDiffStartLines`）→ `tests/toolDiff.test.ts` 全分支。
-- 组件：`src/components/agent/ToolCard.tsx`（`DiffBody`）→ `tests/toolCardDiff.test.tsx`（自动展开/回退/复制/行号锚定）。
+- 组件：`src/components/agent/ToolCard.tsx`（`DiffBody` + 头部摘要 memo）→ `tests/toolCardDiff.test.tsx`（自动展开/回退/复制/行号锚定/摘要多参数）。
 - 数据入口：`src/editor/AgentService.ts` 的 `extractDiffsFromMeta` → `tests/extractDiffsFromMeta.test.ts`。
 - 真实链路：`tests/e2e/agent/tool-card-diff.spec.ts`——**用 `addInitScript` 把 `/api/*` 的 fetch 换成合成 RPC**（`session.list` / `session.history` 返回带 `meta.diffs` 的合成事件），因此不依赖 DSH 真身、无副作用；行号锚定的 `readTextFile` 也由页面内 stub 提供。这个"合成历史 + localStorage 命中恢复路径"的存根模式可复用到任何需要渲染既有转录的面板用例。
 - 样式：`src/styles/editor.css` 的 `.tool-diff*` 区段（在 `.tool-card__details` 之后）。
+
+### 12.6 头部摘要：多参数 key=value 展示（2026-09-15）
+
+卡片头部 `tool-card__summary` 的摘要规则（`ToolCard.tsx` 的 summary memo）：
+
+- 收集入参里全部**单行、≤60 字符**的字符串值：≥2 个时按入参顺序以 `key=value` 拼接展示（如 grep 的 `include=*.ts pattern=关闭`），整行超 120 字符截断；
+- 只有 1 个时仍只显示值不带键名（read/glob/write 的头部外观不变）；
+- 多行或超长值（write 的 content、长 old_string）不进摘要——展开卡片里看得到；无字符串参数时回退整体 JSON（如 mouse_click）。
+
+动机：旧逻辑只取**第一个**字符串参数值，grep `{include, pattern}` 的头部只显示 `*.ts`，pattern 完全不可见（用户反馈 2026-09-15）。`.tool-card__summary` 本身有 nowrap + ellipsis，超宽整行由 CSS 视觉截断，不撑破布局。
 
 ---
 

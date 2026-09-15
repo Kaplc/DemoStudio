@@ -13,7 +13,8 @@
  * 使用方式：
  * - ClickableComponent 在 BeginPlay/EndPlay 时自动 register/unregister
  * - GameInstance 在阶段切换时调用 PhySys.setup(camera, uiEl) 更新相机
- * - InputSys.handlePointerDown/Move 内部调用 PhySys.raycastClick/Hover
+ * - InputSys.handlePointerDown/Move 内部调用 PhySys.raycastClick/Hover，
+ *   handleScroll 内部调用 raycastScroll（滚轮同样 UI 层优先消费）
  */
 import * as THREE from 'three'
 import type { ClickableComponent } from './ClickableComponent'
@@ -48,6 +49,14 @@ class PhySysImpl implements GameSingleton {
 
   /** 当前处于按下状态的 ClickableComponent（mouseup 时向其分发释放；null = 无） */
   private _pressedClickable: ClickableComponent | null = null
+
+  /** 最近一次 raycastClick 解析出的 UI 命中 clickable（null = 未命中；通用输入焦点仲裁用） */
+  private _lastHitClickable: ClickableComponent | null = null
+
+  /** 最近一次点击的 UI 命中 clickable（InputSys 焦点仲裁读取；raycastClick 入口清空重记） */
+  get lastHitClickable(): ClickableComponent | null {
+    return this._lastHitClickable
+  }
 
   // ═══════════════════════════════════
   //  ClickableComponent 注册表（按层分流）
@@ -174,6 +183,7 @@ class PhySysImpl implements GameSingleton {
 
   /** 点击检测：UI 层优先（UI 永远在顶层），世界层按射线最近命中仲裁（UE 语义：游戏输入是 UI 未命中时的兜底） */
   raycastClick(screenX: number, screenY: number): boolean {
+    this._lastHitClickable = null
     // 1. UI 层：zOrder 竞争（clickable 与 block 画布），命中即消费
     if (this._uiCamera) {
       const uiRay = this.screenToRay(screenX, screenY, this._uiCamera)
@@ -184,6 +194,7 @@ class PhySysImpl implements GameSingleton {
           return true
         }
         if (top?.kind === 'clickable' && top.clickable) {
+          this._lastHitClickable = top.clickable
           if (top.clickable.handleClick(uiRay)) {
             this._pressedClickable = top.clickable
             return true
@@ -202,6 +213,7 @@ class PhySysImpl implements GameSingleton {
       return true
     }
     if (top?.kind === 'clickable' && top.clickable) {
+      this._lastHitClickable = top.clickable
       if (top.clickable.handleClick(raycaster)) {
         this._pressedClickable = top.clickable
         return true
@@ -219,6 +231,21 @@ class PhySysImpl implements GameSingleton {
     const c = this._pressedClickable
     this._pressedClickable = null
     if (c && c.bEnabled) c.handleRelease()
+  }
+
+  /**
+   * 滚轮检测：与 raycastClick 同口径的 UI 层优先仲裁——UI 最前端命中（clickable 或
+   * block 画布）即消费滚轮（滚动容器沿命中链滚动），世界/控制器不再收到。
+   * 返回 true = 已被 UI 消费。未命中 UI 返回 false 交由控制器（相机缩放等）。
+   */
+  raycastScroll(screenX: number, screenY: number, delta: number): boolean {
+    if (!this._uiCamera) return false
+    const uiRay = this.screenToRay(screenX, screenY, this._uiCamera)
+    if (!uiRay) return false
+    const top = this.resolveUIStage(uiRay)
+    if (!top) return false
+    top.clickable?.handleScrollChain(delta)
+    return true
   }
 
   /**

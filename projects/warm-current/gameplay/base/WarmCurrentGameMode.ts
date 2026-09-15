@@ -1,4 +1,4 @@
-﻿/**
+/**
  * WarmCurrentGameMode — 游戏规则胶水（hoi4 base/ 架构位）
  *
  * 仿真子系统全部做成 GameMode 上的引擎组件（对齐 SpawnComponent/CameraComponent 惯例）：
@@ -1251,7 +1251,7 @@ export class WarmCurrentGameMode extends GameMode {
    *  ⚠ 仅限当前行星系内：不在该行星系时忽略（跨系观察先双击进入行星系） */
   enterPlanetObserve(body: PlanetId): void {
     if (this.viewMode !== 'earth' || this.planetFocusBody !== body) return
-    // 与全息勘探互斥：全息中先退出（复位俯视，随后观察重新取景）
+    // 与全息勘探互斥：全息中先退出（保持相机原位不重新取景，随后观察重新取景）
     if (this.hologramSel) this.closeHologram()
     // 建筑/航线编辑模式与观察互斥（左键在观察中是环绕拖拽，不能同时落位/拖线）
     if (this.buildMode) this.cancelBuildMode()
@@ -1291,7 +1291,7 @@ export class WarmCurrentGameMode extends GameMode {
   enterMoonObserve(body: MoonId): void {
     const mc = B.map.moons[body]
     if (!mc || this.viewMode !== 'earth' || this.planetFocusBody !== mc.parent) return
-    // 与全息勘探互斥：全息中先退出（复位默认取景，随后观察重新取景）
+    // 与全息勘探互斥：全息中先退出（保持相机原位不重新取景，随后观察重新取景）
     if (this.hologramSel) this.closeHologram()
     // 建筑/航线编辑模式与观察互斥（左键在观察中是环绕拖拽，不能同时落位/拖线）
     if (this.buildMode) this.cancelBuildMode()
@@ -1991,7 +1991,7 @@ export class WarmCurrentGameMode extends GameMode {
    *  Earth = 全息地球建造场景（2026-09-12 立项；2026-09-15 起与矿点勘探同口径原地包络，
    *  勘探期间真球隐藏）：HUD 进建造模式，环节点球面落位 + 融化区内放地表建筑；无需矿点门槛。
    *  其他天体 = 矿点勘探（必须有矿点）。
-   *  相机语义与行星观察同款：斜视角环绕 + 关边缘平移；退出统一 focusSolarSystem 复位。
+   *  相机语义与行星观察同款：斜视角环绕 + 关边缘平移；退出保持当前视角（closeHologram 不重新取景）。
    *  卫星随母星系判定（地月系内可全息月球）；取景收口真实 Actor 位置（卫星不在舞台中心，
    *  Tick 逐帧 rig.pan 跟随公转漂移）。
    *  ⚠ 仅限本行星系视角（太阳系全景行星公转漂移，镜头锚不住）。 */
@@ -2032,12 +2032,15 @@ export class WarmCurrentGameMode extends GameMode {
     logger.info(`[WarmCurrent] 全息${isEarth ? '地球建造' : '勘探'}：${PLANET_NAMES[body] ?? body}（拖拽环绕 · Esc 退出）`)
   }
 
-  /** 关闭全息勘探（面板 ✕ / Esc）：复位本行星系俯视取景。
-   *  字段清理交由 focusSolarSystem → clearObserveState（保证 orbitMode/边缘平移一并复位）。 */
+  /** 关闭全息勘探（面板 ✕ / Esc）：保持当前相机位置（2026-09-15 用户定案：关闭不重新取景，
+   *  玩家环绕/缩放出的视角原样保留）。字段与相机交互清理交由 clearObserveState
+   *  （hologramSel/orbitMode/边缘平移/特写增益一并回落视图默认语义），不飞镜头；
+   *  缩放下限回落聚焦天体口径（全息期间可能贴合过更小的卫星球面）。 */
   closeHologram(): void {
     if (!this.hologramSel) return
-    this.focusSolarSystem(this.planetFocusBody)
-    logger.info('[WarmCurrent] 全息勘探退出（回行星系斜视取景）')
+    this.clearObserveState()
+    this.applyZoomFloor(B.map.nodes[this.planetFocusBody as PlanetId].r)
+    logger.info('[WarmCurrent] 全息勘探关闭（保持当前相机位置）')
   }
 
   /** 选中矿点（面板行点击；id 须属当前勘探天体） */

@@ -549,6 +549,20 @@ export const B = {
     extractor: { name: '采矿机', desc: '低成本持续开采 · 产入星球堆场', cost: 150, buildTime: 12, yieldPerS: 2.5, minTypes: '' },
     processor: { name: '冶炼厂', desc: '高投入高产出的精炼线 · 产入星球堆场', cost: 360, buildTime: 24, yieldPerS: 7, minTypes: '' },
   } as Record<string, MineBuildingDef>,
+  // 天体历法（2026-09-15 真实自转公转周期；代码常量：世界观设定非平衡数值，不入表）。
+  // 时间比例 1 仿真秒（真实秒）= 60 游戏秒 = 1 游戏分钟，游戏时 = state.time × 60；
+  // 周期一律按游戏秒记（真实值），角速度 = 2π × timeScale ÷ 周期（rad/仿真秒）。
+  // 未列出的天体回退旧观感速率（公转 ∝ 1/轨道半径，自转 1 rad/s），行为不变。
+  celestial: {
+    /** 时间比例：1 仿真秒 = 60 游戏秒（1 游戏分钟）；倍速经 state.time 同步放大 */
+    timeScale: 60,
+    /** 自转周期（游戏秒，真实值）：earth = 恒星日 23h56m04s（对应太阳日 ≈86400 游戏秒）；
+     *  moon = 潮汐锁定，与绕地公转同周期（同一面恒朝地球） */
+    spinPeriodS: { earth: 86164, moon: 2360592 } as Record<string, number | undefined>,
+    /** 公转周期（游戏秒，真实值）：earth = 恒星年 365.256d（绕日）；
+     *  moon = 恒星月 27.3217d（绕地） */
+    orbitPeriodS: { earth: 31558150, moon: 2360592 } as Record<string, number | undefined>,
+  },
   // 全息勘探表现参数（代码常量：纯渲染值，不入表）
   holo: {
     /** 全息球半径 = 行星显示半径 × 此倍率。

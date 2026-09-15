@@ -66,6 +66,8 @@ export class ClickableComponent extends Component<Actor> {
    * 用于拖拽松手后的收尾（如滚动列表回弹到边界）。
    */
   onDragEnd: (() => void) | null = null
+  /** 滚轮回调（滚轮命中 UI 后由 PhySys.raycastScroll 沿命中链派发；delta = 滚轮 deltaY） */
+  onScroll: ((delta: number) => void) | null = null
 
   /** 点击冷却时间 (ms) */
   clickCooldown = 500
@@ -267,6 +269,23 @@ export class ClickableComponent extends Component<Actor> {
       }
     }
     this.onDragMove?.(screenX, screenY)
+  }
+
+  /**
+   * 滚轮命中派发：从命中者起沿 owner 祖先链找第一个声明 onScroll 的 clickable
+   * （列表行按钮命中 → 滚动落到其所在滚动容器），找到即派发。返回是否派发了滚轮。
+   */
+  handleScrollChain(delta: number): boolean {
+    let a: Actor | null = this.owner
+    while (a) {
+      const c = a.getComponent(ClickableComponent)
+      if (c && c.bEnabled && !c.isDestroyed() && c.onScroll) {
+        c.onScroll(delta)
+        return true
+      }
+      a = a.parent
+    }
+    return false
   }
 
   /**

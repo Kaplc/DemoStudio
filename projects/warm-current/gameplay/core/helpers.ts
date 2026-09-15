@@ -165,8 +165,24 @@ export function tutorialRingRadius(body: TutorialBodyId): number {
   return B.map.nodes[body].r + TUTORIAL_RING_PAD
 }
 
-/** 行星角速度 ∝ 1/轨道半径（远轨道更慢，开普勒式观感）；地球再慢 30%（聚能环叙事：近"静止"） */
+/** 天体历法时间（游戏秒）：时间比例 1 仿真秒（真实秒）= 60 游戏秒 = 1 游戏分钟；
+ *  倍速经 state.time 同步放大（暂停不进秒）。真实自转公转周期的统一时间基准 */
+export function celestialTime(state: SimState): number {
+  return state.time * B.celestial.timeScale
+}
+
+/** 周期（游戏秒）→ 角速度（rad/仿真秒）：仿真秒先按时间比例放大为游戏秒再除周期 */
+function periodAngularSpeed(periodGameS: number): number {
+  return (Math.PI * 2 * B.celestial.timeScale) / periodGameS
+}
+
+/**
+ * 行星公转角速度：配置了真实周期（B.celestial.orbitPeriodS，2026-09-15 起 earth/moon）
+ * 走真实值；其余行星回退旧观感速率 ∝ 1/轨道半径（开普勒式，地球 0.7 叙事系数只作用于回退路径）
+ */
 function orbitAngularSpeed(body: PlanetBodyId): number {
+  const period = B.celestial.orbitPeriodS[body]
+  if (period) return periodAngularSpeed(period)
   return (ORBIT_SPEED_COEFF * (body === 'earth' ? 0.7 : 1)) / Math.max(120, orbitRadiusPx(body))
 }
 
@@ -184,12 +200,15 @@ function orbitPhase(body: PlanetBodyId): number {
 // 角度加在 moon 分支的 a 上，地球/太阳位置不受影响；restart/读档须 resetMoonPhaseAdj()。
 let moonPhaseAdj = 0
 
-/** 月球当前相对地球的相位角（rad，含校正量；渲染/记录共用同一口径） */
+/** 月球当前相对地球的相位角（rad，含校正量；渲染/记录共用同一口径）。
+ *  2026-09-15 起走真实恒星月周期（B.celestial.orbitPeriodS.moon），未配置回退旧观感速率 */
 export function moonRelativeAngle(state: SimState): number {
   const mc = B.map.moons.moon
   const m = B.map.nodes.moon
   const p0 = B.map.nodes[mc.parent]
-  return Math.atan2(m.y - p0.y, m.x - p0.x) + state.time * (MOON_SPEED_COEFF / mc.radius) + moonPhaseAdj
+  const period = B.celestial.orbitPeriodS.moon
+  const w = period ? periodAngularSpeed(period) : MOON_SPEED_COEFF / mc.radius
+  return Math.atan2(m.y - p0.y, m.x - p0.x) + state.time * w + moonPhaseAdj
 }
 
 /** 校正相位：使月球当前相对地球的角度 = targetAngle（立即生效，星图/天体 Actor 下帧贴上） */
@@ -200,6 +219,21 @@ export function alignMoonRelativeAngle(state: SimState, targetAngle: number): vo
 /** 重置校正（重开一局 / 读档：仿真时间归零，旧校正量失效） */
 export function resetMoonPhaseAdj(): void {
   moonPhaseAdj = 0
+}
+
+/**
+ * 天体自转角（rad；写入星球 mesh rotation.y，渲染/全息层/拾取逆变换共用同一角度源）：
+ *  - earth：真实恒星日（B.celestial.spinPeriodS，游戏秒 86164）；取负号 = 顺行自转
+ *    （three.js rotation.y 与 (X,Z) 方位角反号，负角速度才与公转同向）
+ *  - moon：潮汐锁定 = 负公转角（moonRelativeAngle 含视图切换校正），同一面恒朝地球
+ *  - 其余天体：回退旧 1 rad/s 表现值（= state.time，含倍速，行为与历史版本逐位一致）
+ * 纯函数（确定性/快照安全，暂停时 state.time 不进秒 → 自然停转）。
+ */
+export function spinAngleOf(state: SimState, body: string): number {
+  const period = (B.celestial.spinPeriodS as Record<string, number | undefined>)[body]
+  if (!period) return state.time
+  if (body === 'moon') return -moonRelativeAngle(state)
+  return -(Math.PI * 2 * celestialTime(state)) / period
 }
 
 /** 天体当前位置（地图画布系）：行星绕太阳公转，卫星绕 parent 行星（t = 仿真时间，太阳静态） */

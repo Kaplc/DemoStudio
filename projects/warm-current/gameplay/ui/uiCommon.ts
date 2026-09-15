@@ -76,3 +76,27 @@ export function fmtTime(sec: number): string {
   const s = Math.max(0, Math.floor(sec))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
+
+// ─── 游戏历（2026-09-15 真实自转公转周期配套：1 仿真秒 = 1 游戏分钟，见 B.celestial） ───
+
+/** 仿真秒 → 游历秒（×60）与日内时刻（HH:MM）共用换算；86400 游历秒 = 1 游历日，
+ *  与真实地球自转同源的昼夜钟（太阳日 ≈86400 游历秒） */
+function gameClockParts(sec: number): { d: number; hh: string; mm: string } {
+  const gs = Math.max(0, Math.floor(sec)) * 60
+  const d = Math.floor(gs / 86400)
+  const h = Math.floor((gs % 86400) / 3600)
+  const m = Math.floor((gs % 3600) / 60)
+  return { d, hh: String(h).padStart(2, '0'), mm: String(m).padStart(2, '0') }
+}
+
+/** 游历时刻（HUD 时钟）：`第N天 HH:MM` */
+export function fmtGameClock(sec: number): string {
+  const { d, hh, mm } = gameClockParts(sec)
+  return `第${d + 1}天 ${hh}:${mm}`
+}
+
+/** 游历时长（结算屏存活时长）：`N天HH:MM`，首日内省略天数 */
+export function fmtGameDur(sec: number): string {
+  const { d, hh, mm } = gameClockParts(sec)
+  return d > 0 ? `${d}天${hh}:${mm}` : `${hh}:${mm}`
+}

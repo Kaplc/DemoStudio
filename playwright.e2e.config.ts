@@ -35,6 +35,9 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
     viewport: { width: 1600, height: 900 },
     headless: true,
+    // ⚠ 不加 --disable-background-timer-throttling 等反节流 flags（2026-09-15 实测）：
+    // 关掉节流后帧密度骤变，aimAt 滑移收敛/双击链路时序全变（focus_orbit §2 双击失焦），
+    // 既有 spec 全部要在新时序下重校。节流环境下的应对在 spec 内做确定性等待（见各注释）。
     // 失败现场：截图 + trace（console/network/DOM 回放包），与框架的游戏侧证据互补
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

@@ -19,17 +19,13 @@ import * as THREE from 'three'
 import { Actor, SphereMeshComponent, logger } from '@/engine'
 import { makeEarthBumpTexture, applyEarthOceanRoughness } from './starTextures'
 import { B } from '../core/balance'
-import { hiddenActorIsolated } from '../core/helpers'
+import { hiddenActorIsolated, spinAngleOf } from '../core/helpers'
 import type { PlanetId } from '../core/types'
 import type { SimState } from '../core/types'
 
 export abstract class StarActor extends Actor {
-  /** 自转速率（rad/s 表现值，非仿真数值，不进 balance） */
-  private static readonly SPIN_RATE = 1
   /** 轴倾角（rad，~23° 地球倾角；俯视相机不再正对极轴——特写看到中纬度而非云图极区浓带） */
   private static readonly AXIAL_TILT = 0.4
-  /** 自转累计（rad） */
-  private spin = 0
 
   constructor(name: string) {
     super(name)
@@ -58,13 +54,14 @@ export abstract class StarActor extends Actor {
    * sync 跳过重置跳变：sim.restart 时位置可能大角度跳变，
    * 直接按 teleport 处理（无补间，重开一局跳变符合预期）。
    */
-  syncFrom(sim: SimState, dt: number, viewMode: 'solar' | 'earth' = 'solar', focus: PlanetId = 'earth'): void {
+  syncFrom(sim: SimState, _dt: number, viewMode: 'solar' | 'earth' = 'solar', focus: PlanetId = 'earth'): void {
     const iso = hiddenActorIsolated(sim, this.body, viewMode, focus)
     const r = B.map.nodes[this.body as 'sun'].r
     this.setPosition(iso.x, r * 0.55, iso.z)
-    this.spin += dt * StarActor.SPIN_RATE
+    // 自转 = 天体历法纯函数（2026-09-15：earth/moon 真实周期——恒星日 / 潮汐锁定；
+    // 其余天体回退旧 1 rad/s 表现值。暂停时 state.time 不进秒 → 自然停转）
     const mesh = this.getComponent(SphereMeshComponent)
-    if (mesh) mesh.obj.object.rotation.y = this.spin
+    if (mesh) mesh.obj.object.rotation.y = spinAngleOf(sim, this.body)
     else logger.warn(`[StarActor] ${this.name} 缺少 SphereMeshComponent（蓝图未声明？）`)
   }
 
