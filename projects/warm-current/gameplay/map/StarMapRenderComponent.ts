@@ -120,8 +120,8 @@ const C_HOLO_GLOW = 0x3fa9f5
 const C_HOLO_LINE = 0x4fd8ff
 const C_HOLO_SEL = 0xbfe9ff
 const C_HOLO_DEAD = 0x5a707f
-// 全息地球（冰盖白蓝 / 融化圈青绿 / 节点金 = 已装环建筑）
-const C_HOLO_ICE = 0xcfe8f5
+  // 全息地球（融化圈青绿 / 节点金 = 已装环建筑；冰盖白蓝已随冰盖层移除）
+
 const C_HOLO_MELT = 0x59e8a8
 const C_HOLO_NODE = 0x7fdcff
 const C_HOLO_NODE_FITTED = 0xffb03d
@@ -161,16 +161,6 @@ function satellitesOf(parent: PlanetId): string[] {
  */
 export function planetStageOffset(_body: PlanetId): { x: number; z: number } {
   return { x: toWX(B.map.nodes.sun.x), z: toWZ(B.map.nodes.sun.y) }
-}
-
-/**
- * 全息地球投影锚点（行星系舞台 + 远处偏移，2026-09-12 用户定案：全息地球创建在场景远处
- * 独立投影位，不包络真球）。渲染层定位与 GameMode 取景共用单一口径；锚点读舞台配置
- * （舞台锚 = 太阳节点画布位 → 世界原点），偏移值在 B.holoEarth。
- */
-export function holoEarthAnchor(): { x: number; z: number } {
-  const stage = planetStageOffset('earth')
-  return { x: stage.x + B.holoEarth.anchorOffsetX, z: stage.z + B.holoEarth.anchorOffsetZ }
 }
 
 // ─── 纹理工厂（一次性生成） ───
@@ -405,15 +395,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private holoRadius = 0
   /** 全息重建型几何（进度弧等运行时重建体；disposeHolo 统一释放，不入 trackGeo 避免早释放歧义） */
   private holoDisposables: Array<THREE.BufferGeometry> = []
-  /** 全息地球层自持资源（材质/几何/冰盖纹理；签名变化重建与 disposeHolo 统一释放） */
+  /** 全息地球层自持资源（ghost 材质/几何 + 节点/建筑标记资源；签名变化重建与 disposeHolo 统一释放） */
   private holoEarthDisposables: Array<{ dispose(): void }> = []
-  // ─── 全息地球（Earth 专属：冰盖壳 + 环节点标记 + 地表建筑标记 + 放置 ghost） ───
-  /** 节点/地表建筑签名（变化时重建冰盖纹理与标记组） */
+  // ─── 全息地球（Earth 专属：环节点标记 + 地表建筑标记 + 放置 ghost；冰盖层已移除） ───
+  /** 节点/地表建筑签名（变化时重建标记组） */
   private holoEarthSig = ''
-  /** 冰盖壳 mesh（挂 holoSpin 随球自转；融化圈在纹理上挖洞） */
-  private holoIceMesh: THREE.Mesh | null = null
-  private holoIceMat: THREE.MeshBasicMaterial | null = null
-  private holoIceTex: THREE.CanvasTexture | null = null
   /** 环节点标记池（键 = 槽位号；标记 + 辉光 + 光柱 + 融化环 + 融化盘） */
   private holoNodeMarkers = new Map<number, {
     group: THREE.Group; mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial
@@ -1389,9 +1375,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private buildHolo(body: string): void {
     this.disposeHolo()
     this.holoBody = body
+    // 全息球半径统一 = 天体显示半径 × B.holo.radiusMult（2026-09-15 用户定案：
+    // 地球不再用 holoEarth.radiusMult 远处投影特判，与月球矿点勘探同口径原地包络）
     const r = B.map.nodes[body as keyof typeof B.map.nodes]?.r ?? 30
-    // 全息地球用更大的包络倍率（留球面落位/建筑操作空间），矿点勘探维持原倍率
-    const R = r * (body === 'earth' ? B.holoEarth.radiusMult : B.holo.radiusMult)
+    const R = r * B.holo.radiusMult
     this.holoRadius = R
     const root = this.own(this.F.createGroup()).object
     this.holoRoot = root
@@ -1431,10 +1418,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       root.add(mer)
     }
 
-    // 扫描环（纬向巡游；syncHologram 每帧写 y）。全息地球不带扫描环
-    // （2026-09-13 用户定案：移除——冰盖上巡游亮环干扰融冰读感；矿点勘探保留）
+    // 扫描环（纬向巡游；syncHologram 每帧写 y）。全息地球/月球不带扫描环
+    // （2026-09-13 用户定案：地球移除——冰盖上巡游亮环干扰融冰读感；
+    //   2026-09-15 用户定案：月球移除——月球无矿点勘探语义，巡游亮环属多余装饰）
     this.holoScanRing = null
-    if (body !== 'earth') {
+    if (body !== 'earth' && body !== 'moon') {
       const scanGeo = this.trackGeo(this.F.createRingGeometry(0.88, 1.0, 64))
       scanGeo.rotateX(-Math.PI / 2)
       const scanMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }))
@@ -1495,12 +1483,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     selRing.visible = false
     spin.add(selRing)
     this.holoSelRing = selRing
-
-    // 全息地球附加层（冰盖 + 节点标记 + 地表建筑标记 + 放置 ghost；syncHologram 按签名重建）
-    if (body === 'earth') {
-      this.holoEarthSig = ''
-      this.buildHoloEarth(spin, R)
-    }
   }
 
   /** 摘除全息组（切目标/收起共用；重建型几何即时释放，tracked 材质/几何留 EndPlay 统一兜底） */
@@ -1519,11 +1501,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.disposeHoloEarth()
   }
 
-  /** 摘除全息地球附加层（冰盖纹理/节点标记/地表标记/ghost；切目标与签名重建共用） */
+  /** 摘除全息地球附加层（节点标记/地表标记/ghost；切目标与签名重建共用） */
   private disposeHoloEarth(): void {
-    this.holoIceMesh = null
-    this.holoIceMat = null
-    this.holoIceTex = null
     this.holoNodeMarkers.clear()
     this.holoSurfaceMarkers.clear()
     this.holoGhostGroup = null
@@ -1534,20 +1513,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.holoEarthSig = ''
   }
 
-  // ─── 全息地球附加层（冰盖 / 环节点 / 地表建筑 / ghost） ───
+  // ─── 全息地球附加层（环节点 / 地表建筑 / ghost；冰盖层已移除 2026-09-15 用户定案） ───
 
-  /** 搭建全息地球附加层（挂 holoSpin 随球自转；节点/建筑内容按签名延迟到 syncHologram 重建） */
-  private buildHoloEarth(spin: THREE.Group, R: number): void {
-    // 冰盖壳：等距圆柱纹理，融化圈处挖洞露出全息底色（"当前被冰雪覆盖的范围"）
-    this.holoIceMat = this.F.createMeshBasicMaterial({ color: C_HOLO_ICE, transparent: true, opacity: 0.86, depthWrite: false })
-    const ice = this.own(this.F.createMesh(this.unitSphere, this.holoIceMat)).object
-    ice.scale.setScalar(R * 1.004)
-    ice.renderOrder = 16
-    ice.visible = false // 首帧签名重建后可见（无节点 = 全冰覆盖）
-    spin.add(ice)
-    this.holoIceMesh = ice
-
-    // 放置 ghost：切面圆环 + 淡盘（环工具 = 融冰圈预告半径；建筑工具 = 落位圈）
+  /** 搭建全息地球放置 ghost（挂 holoSpin 随球自转；环工具 = 融冰圈预告半径，建筑工具 = 落位圈） */
+  private buildHoloEarth(spin: THREE.Group, _R: number): void {
     const ghostGroup = this.own(this.F.createGroup()).object
     const ghostMat = this.F.createMeshBasicMaterial({ color: 0x43d17c, transparent: true, opacity: 0.65, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
     const ghostGeo = this.F.createRingGeometry(0.92, 1, 48)
@@ -1573,15 +1542,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.rebuildHoloEarth(nodes, surf)
   }
 
-  /** 重建冰盖纹理 + 节点/地表建筑标记（落位/拆建筑/装环建筑时触发；低频事件） */
+  /** 重建节点/地表建筑标记（落位/拆建筑/装环建筑时触发；低频事件；冰盖纹理已随层移除） */
   private rebuildHoloEarth(
     nodes: Array<{ slot: number; lat: number; lon: number; rDeg: number }>,
     surf: Array<{ id: number; type: string; lat: number; lon: number }>,
   ): void {
     const spin = this.holoSpin
     if (!spin) return
-    // 旧整层移除并释放（冰盖/ghost/标记都随 holoEarthDisposables 生命周期走）
-    if (this.holoIceMesh) spin.remove(this.holoIceMesh)
+    // 旧整层移除并释放（ghost/标记随 holoEarthDisposables 生命周期走）
     if (this.holoGhostGroup) spin.remove(this.holoGhostGroup)
     for (const mk of this.holoNodeMarkers.values()) spin.remove(mk.group)
     for (const m of this.holoSurfaceMarkers.values()) spin.remove(m)
@@ -1589,9 +1557,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.holoSurfaceMarkers.clear()
     for (const d of this.holoEarthDisposables) d.dispose()
     this.holoEarthDisposables = []
-    this.holoIceMesh = null
-    this.holoIceMat = null
-    this.holoIceTex = null
     this.holoGhostGroup = null
     this.holoGhostRing = null
     this.holoGhostMat = null
@@ -1600,21 +1565,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.buildHoloEarth(spin, R)
     const s = this.provider.simState.state
     const add = <T extends { dispose(): void }>(d: T): T => { this.holoEarthDisposables.push(d); return d }
-
-    // 冰盖纹理重绘（等距圆柱 512×256；融化圈逐行精确挖洞）
-    const tex = this.paintIceTexture(nodes)
-    if (tex) {
-      this.holoIceTex = tex
-      add(tex)
-      // 经 buildHoloEarth 重建后非空；TS 对属性收窄跨方法调用不失效，此处局部化断言
-      const iceMat = this.holoIceMat as THREE.MeshBasicMaterial | null
-      if (iceMat) {
-        iceMat.map = tex
-        iceMat.needsUpdate = true
-      }
-      const iceMesh = this.holoIceMesh as THREE.Mesh | null
-      if (iceMesh) iceMesh.visible = true
-    }
 
     // 环节点标记（标记球 + 辉光 + 热柱 + 融化环/盘；金 = 已装环建筑，青 = 毛坯槽）
     const nodeGeo = add(this.F.createSphereGeometry(1, 12, 10))
@@ -1678,73 +1628,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     }
   }
 
-  /**
-   * 冰盖纹理绘制（等距圆柱投影 512×256）：
-   *  - 底图 = 冰白（纬度渐变 + 稀疏噪点），画满 = 全球冰封（暖流计划开局态）
-   *  - 每个融化圈（球冠角半径 rDeg）逐行精确求经度半跨挖洞（球面余弦定理），
-   *    含极冠整行退化与经度环绕（u 取模由行矩形跨边界自然覆盖）
-   *  UV 映射（three SphereGeometry）：u = 0.5 − lon/360（mod 1）、画布 y = (0.5 − lat/180)×H
-   */
-  private paintIceTexture(nodes: Array<{ lat: number; lon: number; rDeg: number }>): THREE.CanvasTexture | null {
-    if (typeof document === 'undefined') return null
-    const W = 512
-    const H = 256
-    const c = document.createElement('canvas')
-    c.width = W
-    c.height = H
-    const g = c.getContext('2d')!
-    // 底图：纬度渐变冰白（极地更亮）+ 噪点冰纹
-    const grad = g.createLinearGradient(0, 0, 0, H)
-    grad.addColorStop(0, '#eef7fd')
-    grad.addColorStop(0.5, '#cfe4f2')
-    grad.addColorStop(1, '#e8f4fc')
-    g.fillStyle = grad
-    g.fillRect(0, 0, W, H)
-    g.fillStyle = 'rgba(255,255,255,0.5)'
-    for (let i = 0; i < 420; i++) {
-      const x = Math.random() * W
-      const y = Math.random() * H
-      g.fillRect(x, y, 1 + Math.random() * 2, 1)
-    }
-    // 融化圈挖洞（destination-out；逐行精确半跨）
-    g.globalCompositeOperation = 'destination-out'
-    const yToLat = (y: number): number => (0.5 - y / H) * 180
-    const latToY = (lat: number): number => (0.5 - lat / 180) * H
-    for (const n of nodes) {
-      const rRad = Math.min(179, n.rDeg) * Math.PI / 180
-      const lat0 = Math.max(-89.9, Math.min(89.9, n.lat))
-      const lat0Rad = lat0 * Math.PI / 180
-      const y0 = latToY(n.lat)
-      const spanY = (n.rDeg / 180) * H
-      const yA = Math.max(0, Math.floor(y0 - spanY))
-      const yB = Math.min(H - 1, Math.ceil(y0 + spanY))
-      const u0 = ((0.5 - n.lon / 360) % 1 + 1) % 1 * W
-      for (let y = yA; y <= yB; y++) {
-        const lat = yToLat(y + 0.5) * Math.PI / 180
-        const denom = Math.cos(lat0Rad) * Math.cos(lat)
-        let half: number // 经度半跨（rad）
-        if (denom < 1e-6) {
-          // 行纬圈退化（极区）：冠心更近极 = 整行融，否则该行不触冠
-          half = Math.abs(lat0) > Math.abs(yToLat(y + 0.5)) ? Math.PI : -1
-        } else {
-          const cosD = (Math.cos(rRad) - Math.sin(lat0Rad) * Math.sin(lat)) / denom
-          half = cosD <= -1 ? Math.PI : cosD >= 1 ? -1 : Math.acos(cosD)
-        }
-        if (half < 0) continue
-        if (half >= Math.PI - 1e-4) {
-          g.fillRect(0, y, W, 1)
-          continue
-        }
-        const dx = (half / (2 * Math.PI)) * W
-        for (const ox of [-W, 0, W]) g.fillRect(u0 + ox - dx, y, dx * 2, 1)
-      }
-    }
-    g.globalCompositeOperation = 'source-over'
-    const tex = new THREE.CanvasTexture(c)
-    configureTexture(tex)
-    return tex
-  }
-
   /** 全息地球 ghost 每帧同步（provider.holoGhost；环工具 = 融冰圈预告半径，建筑工具 = 落位圈） */
   private syncHoloGhost(): void {
     const g = this.holoGhostGroup
@@ -1795,22 +1678,25 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     if (this.holoBody !== body || !this.holoRoot) this.buildHolo(body)
     const root = this.holoRoot!
     root.visible = true
-    // 定位：全息地球贴远处投影锚点（独立全息体，不随真球）；矿点勘探全息球包络天体 Actor
-    if (body === 'earth') {
-      const a = holoEarthAnchor()
-      root.position.set(a.x, 0, a.z)
-    } else {
-      const actor = this.provider.starActors?.get(body)
-      if (actor) root.position.copy(actor.root.position)
-    }
+    // 定位：全息球包络天体 Actor（2026-09-15 用户定案：地球不再远处独立投影，
+    // 与月球矿点勘探同口径原地包络，全息球心 = 真球球心）
+    const actor = this.provider.starActors?.get(body)
+    if (actor) root.position.copy(actor.root.position)
     // 真球显隐（2026-09-14 用户定案：全息球与模型同大后，勘探期间隐藏真球只留全息球，
-    // 关闭/切换恢复视图分组显隐口径；earth 全息为远处独立投影体，真球保持视图原状）
-    this.syncHoloBodyMesh(body === 'earth' ? null : body)
-    // 自转 + 扫描环巡游（全息地球慢自转：球面落位需要稳态读感；地球无扫描环）
-    this.holoSpin!.rotation.y += (body === 'earth' ? B.holoEarth.spin : B.holo.spin) * dt
+    // 关闭/切换恢复视图分组显隐口径；2026-09-15 起地球也走真球消失口径）
+    this.syncHoloBodyMesh(body)
+    // 月球全息期间隐藏副标（2026-09-15 用户定案：月球是纯"满载信息展示"天体，
+    // 头顶"满载 N/船"悬浮字与全息球读感冲突；关闭勘探由 syncLabelLod 恢复显隐口径）
+    if (body === 'moon') {
+      const moonSv = this.starViews.moon
+      if (moonSv) moonSv.sub.sprite.visible = false
+    }
+    // 自转 + 扫描环巡游（2026-09-15 起地球全息同口径走 B.holo.spin；地球/月球无扫描环）
+    this.holoSpin!.rotation.y += B.holo.spin * dt
     if (this.holoScanRing) this.holoScanRing.position.y = Math.sin(this.animTime * 0.8) * this.holoRadius * 0.72
-    // 全息地球附加层：内容差分重建 + 放置 ghost（节点标记呼吸）
+    // 全息地球附加层：内容差分重建 + 放置 ghost（节点标记呼吸；ghost 随重建层走）
     if (body === 'earth') {
+      if (!this.holoGhostGroup) this.buildHoloEarth(this.holoSpin!, this.holoRadius)
       this.syncHoloEarth()
       this.syncHoloGhost()
       const pulse = 1 + Math.sin(this.animTime * 3.2) * 0.12

@@ -560,22 +560,12 @@ export const B = {
     /** 矿点屏幕拾取半径（px） */
     pickRadius: 26,
   },
-  // 全息地球建造场景表现参数（2026-09-12：环节点空间落位 + 冰雪融化 + 地表建筑）
+  // 全息地球建造参数（2026-09-15 起全息地球与矿点勘探同口径原地包络，
+  // 表现参数（半径倍率/投影锚点/相机取景/自转）已移除，走 B.holo 通用口径；
+  // 此处仅存游戏性数值）
   holoEarth: {
-    /** 全息地球半径 = 地球显示半径 × 此倍率（比矿点勘探全息球更大，留球面操作空间） */
-    radiusMult: 3.2,
-    /** 全息投影锚点偏移（相对行星系舞台）：全息地球创建在场景远处独立投影位，
-     *  不包络真球；相机飞行到此取景（地球系内月球轨道 1200，2600 在其外两倍余量） */
-    anchorOffsetX: 0,
-    anchorOffsetZ: 2600,
-    /** 进入时相机取景距离 = 全息球半径 × 此值（"摄像机移动到很远的地方"） */
-    camDistMult: 4.4,
-    /** 相机取景仰角（度） */
-    camPitchDeg: 28,
     /** 每个环节点融冰角半径（度，球面角；环建筑 meltRadiusDeg 可逐座覆盖） */
     meltRadiusDeg: 26,
-    /** 自转速率（rad/s，表现值；比矿点勘探慢，利于点选落位） */
-    spin: 0.045,
     /** 地表建筑最小球面角距（度；过密放置防重叠） */
     minSpacingDeg: 10,
   },
@@ -612,8 +602,11 @@ export const B = {
   map: {
     hitTolerance: 28,
     routeHitDistance: 14,
-    /** 滚轮聚焦吸附容差（px，屏幕空间）：拉近滚动时光标距天体屏幕中心 ≤ 投影半径 + 此值即吸附聚焦 */
-    focusSnapTolerance: 36,
+    /** 滚轮聚焦拾取圈半径（px，屏幕空间·固定值不随缩放变化）：光标距天体投影中心 ≤ 此值，
+     *  或落在本体投影圆盘内即命中，圈内就近胜出；圈外无命中时全屏兜底聚焦本系天体
+     *  （聚焦 = 镜头 lerp 平滑看向目标不瞬跳，镜头远近交给滚轮）。
+     *  2026-09-15 六版 36→60：实测 36px 圈对卫星太小（地月屏距大，光标须贴很近才命中）。 */
+    focusSnapTolerance: 60,
     systems: DEFAULT_MAP_SYSTEMS,
     nodes: DEFAULT_MAP_FLAT.nodes as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
     moons: DEFAULT_MAP_FLAT.moons as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,

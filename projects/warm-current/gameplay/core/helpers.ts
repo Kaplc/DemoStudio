@@ -816,10 +816,11 @@ export function isMeltedAt(state: Pick<SimState, 'ringSlots' | 'ringNodes' | 'ri
  * 全息地球地表建筑星图投影（画布系）：地球实时位 + 方位角 = 经度、离盘心距离 =
  * 地球显示半径 × 全息球倍率（纬度只决定全息图上的高度，星图俯视投影退化为方位点）。
  * 渲染/拾取/航线/护盾判定统一走 buildingPos → 此函数（无独立口径）。
+ * 2026-09-15 全息地球改原地包络后倍率 = B.holo.radiusMult（=1，与全息球半径同口径）。
  */
 export function surfaceBuildingPos(state: SimState, lat: number, lon: number): { x: number; y: number } {
   const e = earthPos(state)
-  const R = B.map.nodes.earth.r * B.holoEarth.radiusMult
+  const R = B.map.nodes.earth.r * B.holo.radiusMult
   const v = latLonToVec(lat, lon)
   return { x: e.x + v.x * R, y: e.y + v.z * R }
 }

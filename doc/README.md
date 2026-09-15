@@ -97,7 +97,7 @@
 
 ---
 
-## 4. 项目模块（src/projects/，5 篇）
+## 4. 项目模块（src/projects/，6 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -106,6 +106,7 @@
 | [`projects/battle_system.md`](./projects/battle_system.md) | 攻打战斗系统：敌方基地 / 放兵 / 兵 AI / 防御塔 / 胜负结算 |
 | [`projects/gameplay_code_standard.md`](./projects/gameplay_code_standard.md) | gameplay 代码规范：七角色职责边界与越界红线 |
 | [`projects/muzzle_flash_component.md`](./projects/muzzle_flash_component.md) | MuzzleFlashComponent 组件（fish 项目）：炮口闪光特效 |
+| [`projects/warm_scroll_focus.md`](./projects/warm_scroll_focus.md) | 滚轮聚焦吸附与行星观察视角（warm-current）：吸附判定/滑移转头/观察态交互 |
 
 ## 5. 游戏设计（doc/game/，17 篇）
 
@@ -176,7 +177,7 @@
 
 ## 统计
 
-9 个模块共 **75 篇文档**（含元文档 1 + 开发方案 1）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / 游戏设计 17 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。`doc/` 下共 **76 个 `.md`**（含本索引）。
+9 个模块共 **76 篇文档**（含元文档 1 + 开发方案 1）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 6 / 游戏设计 17 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。`doc/` 下共 **77 个 `.md`**（含本索引）。
 
 > **范式状态**：2026-09-03 完成一次全量范式改造（覆盖当时的 48 篇，编辑器 15 / 引擎 13 / 项目 5 / Harness 9 / 测试 3 / 总览 1 等）；此后文档增至 75 篇，新增的 `doc/game/`（14 篇设计文档，沿用设计文档结构）等未纳入新范式。2026-09-10 只做了事实与索引核对（修正失真表述、补齐索引与统计），**未重新做全量范式审计**；断链 0、孤儿 0（实测）。
 >

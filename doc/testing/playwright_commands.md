@@ -445,6 +445,8 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **55. warm 游戏链路全断（菜单进不去/桥消失/evaluate 超时）→ 切 demostudio-editor MCP 的 cdp_* 直通** —— 现象：playwright MCP 的 `browser_evaluate`/`browser_run_code_unsafe` 反复 10s 超时（游戏主循环占满 rAF 时易发），游戏主菜单 Enter 无效（视口未聚焦，坑 39 的 keyPress 桥也够不着），页面 reload 后 `window.__warmCurrent` 为 undefined（桥在 WarmCurrentGameMode 装配后才安装）。规则：**整套流程切 demostudio-editor MCP 的 `cdp_evaluate` 直通**——① 启动页：`document.querySelectorAll('.startup-project-card')` 是 **div 不是 button**（button 选择器选不中），点卡片（`.click()`）→ 点「打开工程」按钮 → 点 Launch；② 开新战役不走键盘：桥装好后直接 `window.__warmCurrent.startNewGame()`；③ 开面板：`g.mode().openPayloadDesign()`；④ 几何断言：`window.__ai.emit('ai.getHUD',{})` 下钻面板子树读 `position/worldSize`（坑 54）；⑤ 交互自测：直调 GameMode 方法（`selectPayloadChassis`/`togglePayloadAttachment`）后读 `g.vm().payloadDesign`。另：**hidden 页 `browser_take_screenshot` 经常拿到场景切换前的陈旧帧**（截图 URL 与页面状态对不上），UI 布局验证以 getHUD 几何数据为权威结论，截图只做辅助目检。
 
+**56. canvas 内渲染的 UI（菜单/HUD/弹窗）`dispatchEvent` 永远点不中** —— 现象：游戏菜单按钮（如 warm 的 Btn_new）、HUD 元素按坑 1 的规则 `dispatchEvent('click')` 无任何反应，元素确实存在且 `ai.getHUD` 能看到。原因：这些 UI 不是 DOM 元素，是引擎画进 `<canvas>` 的像素（UICamera 合成），DOM 事件派发到 canvas 上不会触发引擎的 `hitTest` 命中链路——坑 1 的 dispatchEvent 规则只对真实 DOM（React 面板）有效。规则：**canvas 内 UI 必须真实鼠标点击 `page.mouse.click(x, y)`**（或 MCP `cdp_mouse_click`），坐标从 `ai.getHUD` 树的世界位换算（canvas 布局公式），**截图上的视觉坐标因 DPI 缩放不可信**；能走 `ai.clickActor` 的场景优先走它（免坐标，坑 40/44）。
+
 ---
 
 
