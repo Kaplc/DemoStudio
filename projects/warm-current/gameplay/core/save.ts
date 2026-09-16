@@ -11,7 +11,7 @@
 import type { KVValue } from '@/engine'
 import { B } from './balance'
 import { deepSnapshot, freshLedger, mulberry32 } from './helpers'
-import type { SimBuilding, SimShip, SimState } from './types'
+import type { OrbitBuilding, SimBuilding, SimShip, SimState } from './types'
 
 /** 存档格式版本（payload 结构变更时 +1，读档兼容处理依据）。
  *  v2：SimState.stations（旧补给站）→ SimState.buildings（自由放置建筑，无法映射，旧档站点丢弃）。
@@ -58,7 +58,11 @@ import type { SimBuilding, SimShip, SimState } from './types'
  *      无结构变更、旧档无需迁移。
  *  v14 追记二（2026-09-14，版本号不 bump，读态兜底）：三部位设计工坊——
  *      SimPayloadDesign.slotType 新增（部位 payload/fuel/engine；旧档缺省 payload，
- *      消费侧 `?? 'payload'` 兜底），uid 前缀按部位 pd/fd/ed，旧档无需迁移。 */
+ *      消费侧 `?? 'payload'` 兜底），uid 前缀按部位 pd/fd/ed，旧档无需迁移。
+ *  v14 追记三（2026-09-16，版本号不 bump，读态兜底）：空间站模块（orbit_build 表新增 station +
+ *      station_module 新表）——OrbitBuilding.modules 可选字段新增（station 布局插配清单；
+ *      旧档缺失 = 空布局，读入补 []；SimLedger.stationModule 计费键 freshLedger 合并兜底）。
+ *      与 stockH3 同款可选字段读态兜底先例，零结构迁移。 */
 export const SAVE_FORMAT_VERSION = 14
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
@@ -283,6 +287,12 @@ export function restoreSimState(
   if (Array.isArray(sim.buildings)) {
     for (const b of sim.buildings) {
       if (typeof (b as Partial<SimBuilding>).stockH3 !== 'number') (b as Partial<SimBuilding>).stockH3 = 0
+    }
+  }
+  // ④b 轨道建筑舱段布局（2026-09-16 空间站模块：可选字段读态兜底，旧档缺失补空数组）
+  if (Array.isArray((sim as Partial<SimState>).orbitBuildings)) {
+    for (const ob of (sim as Partial<SimState>).orbitBuildings ?? []) {
+      if (!Array.isArray((ob as Partial<OrbitBuilding>).modules)) (ob as OrbitBuilding).modules = []
     }
   }
   // ⑤ 航线评级统计补零（旧档缺失；direction 的 relay_* 为新值旧档天然不存在，无需迁移）

@@ -22,8 +22,9 @@ export default class ReserveInfoScript extends BehaviourScript {
   get isOpen(): boolean { return this.openState }
 
   override onStart(): void {
-    // 默认隐藏（与 seed json active=false 双保险，SettleScript 同款）
-    this.actor.root.visible = false
+    // 默认隐藏。面板根显隐统一走 bActive：UIManager 会把二级面板根默认整树
+    // 失活，直接写 root.visible 无法解除整树失活（applyActiveTree 父链压制）。
+    this.actor.bActive = false
     // 绑定关闭通道：面板内 ✕ + 遮罩空白点击
     const bind = (name: string, fn: () => void): void => {
       const btn = findButton(this.actor, name)
@@ -38,7 +39,7 @@ export default class ReserveInfoScript extends BehaviourScript {
   open(): void {
     if (this.openState) return
     this.openState = true
-    this.actor.root.visible = true
+    this.actor.bActive = true
     logger.info('[ReserveInfoScript] 储量详情面板打开')
   }
 
@@ -46,7 +47,7 @@ export default class ReserveInfoScript extends BehaviourScript {
   close(): void {
     if (!this.openState) return
     this.openState = false
-    this.actor.root.visible = false
+    this.actor.bActive = false
     logger.info('[ReserveInfoScript] 储量详情面板关闭')
   }
 

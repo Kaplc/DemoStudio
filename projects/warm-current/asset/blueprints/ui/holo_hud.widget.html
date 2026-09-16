@@ -1,0 +1,44 @@
+<widget name="HoloHud" canvas="1920x1080" data-script="gameplay/ui/HoloHudScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .HoloBar { width: 1364px; height: 114px; position: absolute; left: 350px; top: 946px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+    .ToolStrip { box-sizing: border-box; width: 1364px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 12px; }
+    .ToolBtn { width: 150px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #35c8f5; }
+    .ToolBtn:hover { background-color: #143650; }
+    .ToolLabel { width: 138px; height: 30px; flex-shrink: 0; font-size: 17px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 0px 0px 6px #35c8f566; }
+    .ToolRow { width: 150px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: center; }
+    .MainRow { box-sizing: border-box; width: 1364px; height: 60px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 12px; background-image: linear-gradient(165deg, #0a2c42ee 0%, #061a2ae0 50%, #08243ae6 100%); border: 1px solid #35c8f5; box-shadow: 0px 0px 18px #35c8f533; padding: 0px 16px; hit-test: block; }
+    .TitleText { width: 150px; height: 30px; flex-shrink: 0; font-size: 20px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 0px 0px 6px #35c8f566; }
+    .TitleDivider { width: 2px; height: 30px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); }
+    .StatusText { width: 380px; height: 30px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_bar { width: 96px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #235066; }
+    .Btn_bar:hover { background-color: #143650; }
+    .Btn_bar:active { background-color: #1a5a80; }
+    .Label_bar { width: 84px; height: 30px; flex-shrink: 0; font-size: 18px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_holo_exit { width: 96px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0f2a1c; border: 1px solid #2a6e4a; }
+    .Btn_holo_exit:hover { background-color: #16382a; }
+    .Label_exit { width: 84px; height: 30px; flex-shrink: 0; font-size: 18px; color: #7fe8a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="HoloBar" data-name="HoloBar">
+      <div class="ToolStrip" data-name="ToolStrip">
+        <button class="ToolBtn" data-name="HoloBtn_ring_tool"><text class="ToolLabel" data-name="HoloToolRingLabel">⚡ 环节点</text></button>
+        <div class="ToolRow" data-name="HoloToolRow_0"><button class="ToolBtn" data-name="HoloBtn_tool_0"><text class="ToolLabel" data-name="HoloToolLabel_0">选用</text></button></div>
+        <div class="ToolRow" data-name="HoloToolRow_1"><button class="ToolBtn" data-name="HoloBtn_tool_1"><text class="ToolLabel" data-name="HoloToolLabel_1">选用</text></button></div>
+        <div class="ToolRow" data-name="HoloToolRow_2"><button class="ToolBtn" data-name="HoloBtn_tool_2"><text class="ToolLabel" data-name="HoloToolLabel_2">选用</text></button></div>
+      </div>
+      <div class="MainRow" data-name="MainRow">
+        <text class="TitleText" data-name="HoloTitle">全息地球</text>
+        <div class="TitleDivider"></div>
+        <text class="StatusText" data-name="HoloStatus"></text>
+        <button class="Btn_bar" data-name="HoloBtn_build"><text class="Label_bar">建造</text></button>
+        <button class="Btn_bar" data-name="HoloBtn_transport"><text class="Label_bar">运输</text></button>
+        <button class="Btn_bar" data-name="HoloBtn_routes"><text class="Label_bar">航线</text></button>
+        <button class="Btn_bar" data-name="HoloBtn_research"><text class="Label_bar">☰ 科研</text></button>
+        <button class="Btn_bar" data-name="HoloBtn_ring"><text class="Label_bar">聚能环</text></button>
+        <button class="Btn_bar" data-name="HoloBtn_design"><text class="Label_bar">🚀 火箭设计</text></button>
+        <button class="Btn_holo_exit" data-name="HoloBtn_holo_exit"><text class="Label_exit">✕ 退出</text></button>
+      </div>
+    </div>
+  </div>
+</widget>

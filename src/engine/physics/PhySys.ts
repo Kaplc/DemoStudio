@@ -17,7 +17,7 @@
  *   handleScroll 内部调用 raycastScroll（滚轮同样 UI 层优先消费）
  */
 import * as THREE from 'three'
-import type { ClickableComponent } from './ClickableComponent'
+import { ClickableComponent } from './ClickableComponent'
 import type { CanvasUIComponent } from '../rendering/CanvasUIComponent'
 import { logger } from '../Logger'
 import type { GameSingleton } from '../gameflow/Game'
@@ -226,11 +226,27 @@ class PhySysImpl implements GameSingleton {
   /**
    * 释放检测：鼠标释放时对按中的对象分发 handleRelease（无需射线，
    * 拖出按钮/窗口外松开也能恢复）。幂等：无按中对象时直接返回。
+   *
+   * 祖先链终止：与 dispatchDragMove 的转发配对——按中者沿链转发过拖拽会话时，
+   * 释放也要沿链触发容器的 forwardDragEnd（滚动回弹收尾），否则容器会话悬挂。
    */
   raycastRelease(): void {
     const c = this._pressedClickable
     this._pressedClickable = null
-    if (c && c.bEnabled) c.handleRelease()
+    if (!c) return
+    if (c.bEnabled) c.handleRelease()
+    // 终止转发条件与 dispatchDragMove 一致：按中者无自身拖拽语义才沿链找容器
+    if (!c.onDragMove) {
+      let a: import('../entity/Actor').Actor | null = c.owner.parent
+      while (a) {
+        const pc = a.getComponent(ClickableComponent)
+        if (pc && pc.bEnabled && !pc.isDestroyed() && pc.onDragMove) {
+          pc.forwardDragEnd()
+          break
+        }
+        a = a.parent
+      }
+    }
   }
 
   /**
@@ -251,10 +267,29 @@ class PhySysImpl implements GameSingleton {
   /**
    * 拖拽移动分发：鼠标移动时对按中的对象分发 handleDragMove（无需射线，
    * 拖出命中区域外仍持续收到——拖拽滚动依赖此特性）。幂等：无按中对象时直接返回。
+   *
+   * 祖先链转发：按中者是滚动容器子孙（行按钮/子列表 item）时，沿 owner 祖先链把
+   * 拖拽会话转发给容器的 clickable（forwardDragMove，独立会话不受容器自身
+   * _pressed 门卫影响）——行按钮自身无拖拽语义，容器借转发维持"内容跟随手指"。
+   * 行按钮绑定了自身 onDragMove 时跳过转发（专用拖拽优先，如列表 item 复用槽）。
    */
   dispatchDragMove(screenX: number, screenY: number): void {
     const c = this._pressedClickable
-    if (c && c.bEnabled && !c.isDestroyed()) c.handleDragMove(screenX, screenY)
+    if (c && c.bEnabled && !c.isDestroyed()) {
+      c.handleDragMove(screenX, screenY)
+      // 转发条件：按中者未声明自身拖拽语义（声明者自负，避免双重滚动）
+      if (!c.onDragMove) {
+        let a: import('../entity/Actor').Actor | null = c.owner.parent
+        while (a) {
+          const pc = a.getComponent(ClickableComponent)
+          if (pc && pc.bEnabled && !pc.isDestroyed() && pc.onDragMove) {
+            pc.forwardDragMove(screenX, screenY)
+            break
+          }
+          a = a.parent
+        }
+      }
+    }
   }
   /** 是否处于拖拽中（按下且尚未释放）；InputSys 据此跳过拖拽期间的 hover 射线检测 */
   get isDragging(): boolean {
@@ -309,10 +344,11 @@ class PhySysImpl implements GameSingleton {
   /** UI 层解析：clickable（zOrder 竞争）+ 屏幕 block 画布 → 最前端命中；无命中返回 null */
   private resolveUIStage(uiRay: THREE.Raycaster): HitCandidate | null {
     const candidates: HitCandidate[] = []
+    let seq = 0
     for (const c of this._uiClickables) {
       if (!c.bEnabled || c.isDestroyed()) continue
       const hit = c.hitTest(uiRay)
-      if (hit) candidates.push({ kind: 'clickable', clickable: c, distance: hit.distance, z: c.uiZOrder })
+      if (hit) candidates.push({ kind: 'clickable', clickable: c, distance: hit.distance, z: c.uiZOrder, seq: seq++ })
     }
     for (const b of this._uiBlockers) {
       // 载体：视觉块的 panel（旧语义/代码构建 UI）或 marker 的射线 mesh（V2 节点级命中）
@@ -439,6 +475,12 @@ export interface HitCandidate {
   distance: number
   /** UI 层级（遮挡竞争平局用；world 层 3D 物体恒 0） */
   z: number
+  /**
+   * 注册序（UI clickable 候选独有；本轮仲裁内的遍历序号 = PhySys 注册序）。
+   * 同 z 同 kind 平局时后注册者胜——滚动容器子按钮/子列表普遍注册晚于容器，
+   * 代表树更叶端、视觉更靠前的元素。
+   */
+  seq?: number
   /** kind='clickable' 时的组件 */
   clickable?: ClickableComponent
   /** kind='blocked' 时拦截画布的 owner（alwaysOnTop 视觉优先权判定用） */
@@ -450,7 +492,8 @@ export const SAME_PLANE_EPS = 1e-3
 
 /**
  * 取最前端命中：射线最近者；同面（距离差 < SAME_PLANE_EPS）按 zOrder 高者胜、
- * 同 z 时 clickable 优先于拦截画布（对齐 UE 绘制序语义）。空集返回 null。
+ * 同 z 时 clickable 优先于拦截画布（对齐 UE 绘制序语义）、同 z 同 kind 按注册序
+ * 后者胜（seq，见 HitCandidate.seq）。空集返回 null。
  */
 export function pickFrontmostHit(candidates: HitCandidate[]): HitCandidate | null {
   let best: HitCandidate | null = null
@@ -462,7 +505,9 @@ export function pickFrontmostHit(candidates: HitCandidate[]): HitCandidate | nul
     if (c.distance < best.distance - SAME_PLANE_EPS) {
       best = c
     } else if (c.distance <= best.distance + SAME_PLANE_EPS) {
-      const cWins = c.z > best.z || (c.z === best.z && c.kind === 'clickable' && best.kind === 'blocked')
+      const cWins = c.z > best.z
+        || (c.z === best.z && c.kind === 'clickable' && best.kind === 'blocked')
+        || (c.z === best.z && c.kind === best.kind && (c.seq ?? -1) > (best.seq ?? -1))
       if (cWins) best = c
     }
   }

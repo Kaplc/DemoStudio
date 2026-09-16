@@ -114,8 +114,9 @@ export class MiningComponent extends BObjectComponent<WarmCurrentGameMode> {
       const left = depositLeft(s, mine.depositId)
       if (left <= 0) continue
       // 产量上限：资源星受堆场余量门控（堆满停产）；普通行星直采无堆场门
+      // 2026-09-16 空间站中继货舱：锚定该天体的建成站 relay_bay 上限 +400（传 state 叠加）
       let stockLeft = Infinity
-      const cap = starStockCapOf(body)
+      const cap = starStockCapOf(body, s)
       if (Number.isFinite(cap)) {
         stockLeft = Math.max(0, cap - (s.starStock[body] ?? 0))
         if (stockLeft <= 0) {

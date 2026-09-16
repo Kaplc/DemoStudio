@@ -330,6 +330,8 @@ interface BuildingView {
   orbit: { obId: number } | null
   /** 轨道建筑建造进度环（在建时显示，满格消失；地图建筑恒 null） */
   progressRing: THREE.Mesh | null
+  /** 空间站舱段点阵（2026-09-16 空间站模块：每舱一小球绕核心；非空间站恒空） */
+  stationModules: THREE.Mesh[]
 }
 
 /** 半球罩极轴（罩体朝背日侧弯曲），定向用单位向量 */
@@ -360,6 +362,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private unitSphere!: THREE.SphereGeometry
   /** 单位半球罩（护盾气泡：+Y = 罩体极轴，罩底开口朝 -Y） */
   private unitDome!: THREE.SphereGeometry
+  /** 空间站舱段点阵共享材质（懒建单例；buildOrbitView 与 syncBuildings 差分共用，避免逐 Pod 重复建材质） */
+  private _stationPodMat: THREE.MeshBasicMaterial | null = null
 
   private routeQuads = new Map<string, { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; dashTex?: THREE.Texture }>()
   private routeSig = ''
@@ -585,6 +589,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.flatQuadGeo.dispose()
     this.flatRingGeo.dispose()
     this.flatOrbitGeo.dispose()
+  }
+
+  /** 舱段点阵共享材质懒建（单例；EndPlay 经 mats 统一 dispose） */
+  private stationPodMat(): THREE.MeshBasicMaterial {
+    if (!this._stationPodMat) {
+      this._stationPodMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xe6d8ff, transparent: true, opacity: 0.9 }))
+    }
+    return this._stationPodMat
   }
 
   // ─── 飞船池 ───
@@ -927,6 +939,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     relay: 0xffb03d,
     shield: 0x5ac8ff,
     dock: 0x7dffb0,
+    station: 0xc9a8ff,
   }
 
   private buildBuildingView(b: SimBuilding): BuildingView {
@@ -961,10 +974,11 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const p0 = buildingPos(this.provider.simState.state, b)
     group.position.set(toWX(p0.x), 0, toWZ(p0.y))
     this.systemGroup.add(group)
-    return { group, bubble, dome, rim, core, title, sub, type: b.type, orbit: null, progressRing: null }
+    return { group, bubble, dome, rim, core, title, sub, type: b.type, orbit: null, progressRing: null, stationModules: [] }
   }
 
-  /** 轨道建筑视图（近地轨道建设 2026-09-09）：核心球 + 建造进度环，定位走 orbitBuildingPos */
+  /** 轨道建筑视图（近地轨道建设 2026-09-09）：核心球 + 建造进度环，定位走 orbitBuildingPos。
+   *  空间站分支（2026-09-16 空间站模块）：核心球 + 舱段点阵（每装一舱加一小球，布局可视化）。 */
   private buildOrbitView(ob: OrbitBuilding): BuildingView {
     const def = orbitBuildingDefOf(ob.type)
     const color = StarMapRenderComponent.BUILDING_COLORS[ob.type] ?? 0x7dffb0
@@ -975,6 +989,17 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     core.position.y = 8
     core.renderOrder = 12
     group.add(core)
+    // 空间站舱段点阵：初始 0 舱，安装时 syncBuildings 差分增删小球（绕核心圆周均布）
+    const stationModules: THREE.Mesh[] = []
+    if (ob.type === 'station') {
+      for (let i = 0; i < (ob.modules?.length ?? 0); i++) {
+        const pod = this.own(this.F.createMesh(this.unitSphere, this.stationPodMat())).object
+        pod.scale.setScalar(2.2)
+        pod.renderOrder = 12
+        group.add(pod)
+        stationModules.push(pod)
+      }
+    }
     // 建造进度环（在建显示：按 progress 扫弧；满格建成移除）
     let progressRing: THREE.Mesh | null = null
     if (!ob.built) {
@@ -989,7 +1014,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const p0 = orbitBuildingPos(this.provider.simState.state, ob)
     group.position.set(toWX(p0.x), 0, toWZ(p0.y))
     this.systemGroup.add(group)
-    return { group, bubble: null, dome: null, rim: null, core, title, sub, type: ob.type, orbit: { obId: ob.id }, progressRing }
+    return { group, bubble: null, dome: null, rim: null, core, title, sub, type: ob.type, orbit: { obId: ob.id }, progressRing, stationModules }
   }
 
   private disposeBuilding(v: BuildingView, key: string): void {
@@ -1056,6 +1081,27 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         // 建造进度环：随 progress 缩放（0 → 收缩点，1 → 满环后随建成移除）
         view.progressRing.scale.setScalar(4 + ob.progress * 14)
         ;(view.progressRing.material as THREE.MeshBasicMaterial).opacity = ob.built ? 0 : 0.85
+      }
+      // 空间站舱段点阵差分（2026-09-16 空间站模块）：布局数量变 → 增删小球；
+      // 小球绕核心圆周均布并随时间缓旋（布局可视化，站体呼吸感）
+      if (view.type === 'station') {
+        const want = ob.built ? (ob.modules?.length ?? 0) : 0
+        while (view.stationModules.length < want) {
+          const pod = this.own(this.F.createMesh(this.unitSphere, this.stationPodMat())).object
+          pod.scale.setScalar(2.2)
+          pod.renderOrder = 12
+          view.group.add(pod)
+          view.stationModules.push(pod)
+        }
+        while (view.stationModules.length > want) {
+          const pod = view.stationModules.pop()
+          if (pod) view.group.remove(pod)
+        }
+        const spin = sim.state.time * 0.4
+        for (let i = 0; i < view.stationModules.length; i++) {
+          const a = spin + (2 * Math.PI * i) / Math.max(1, view.stationModules.length)
+          view.stationModules[i].position.set(Math.cos(a) * 11, 8 + Math.sin(a * 2) * 1.5, Math.sin(a) * 11)
+        }
       }
       const name = def?.name ?? ob.type
       this.ensureBuildingLabel(
@@ -1389,30 +1435,37 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     shell.renderOrder = 15
     root.add(shell)
 
-    // 自转子组：线框 + 矿点标记（赤道/子午/扫描环对称，不转）
+    // 自转子组：矿点标记（经纬线/扫描环对称，不转）
     const spin = this.own(this.F.createGroup()).object
     this.holoSpin = spin
     root.add(spin)
-    const wireGeo = this.trackGeo(this.F.createSphereGeometry(1, 24, 16))
-    const wireMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.1, wireframe: true, depthWrite: false }))
-    const wire = this.own(this.F.createMesh(wireGeo, wireMat)).object
-    wire.scale.setScalar(R)
-    wire.renderOrder = 16
-    spin.add(wire)
+    // 线框球已移除（2026-09-16 用户定案：全息球只保留经纬线，SphereGeometry wireframe 的三角面斜线不要）
 
-    // 赤道环（预压平）+ 双子午环（XY 竖环转 90°）
+    // 赤道环（预压平）+ 经线环（XY 竖环绕 Y 轴步进；每 30° 一条 = 12 条经线方向，含本初子午线/180°）
     const equatorMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }))
     const equator = this.own(this.F.createMesh(this.flatOrbitGeo, equatorMat)).object
     equator.scale.setScalar(R)
     equator.renderOrder = 16
     root.add(equator)
     const merGeo = this.trackGeo(this.F.createRingGeometry(0.985, 1, 96))
-    for (const ry of [0, Math.PI / 2]) {
+    for (const ryDeg of [0, 30, 60, 90, 120, 150]) {
       const mer = this.own(this.F.createMesh(merGeo, equatorMat)).object
       mer.scale.setScalar(R)
-      mer.rotation.y = ry
+      mer.rotation.y = (ryDeg * Math.PI) / 180
       mer.renderOrder = 16
       root.add(mer)
+    }
+
+    // 纬度环（每 15° 一条 = ±15°~±75° 共 10 条，与 12 条经线方向视觉平衡；与赤道同款水平环几何；缩放 = 纬圈半径 R·cos(lat)，y = R·sin(lat)）
+    for (const latDeg of [15, 30, 45, 60, 75]) {
+      const rad = (latDeg * Math.PI) / 180
+      for (const sign of [1, -1]) {
+        const lat = this.own(this.F.createMesh(this.flatOrbitGeo, equatorMat)).object
+        lat.scale.setScalar(Math.cos(rad) * R)
+        lat.position.y = Math.sin(rad) * R * sign
+        lat.renderOrder = 16
+        root.add(lat)
+      }
     }
 
     // 扫描环（纬向巡游；syncHologram 每帧写 y）。全息地球/月球不带扫描环

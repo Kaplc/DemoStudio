@@ -61,14 +61,41 @@ export class ColorBinder {
   }
 }
 
-/** 可见性差分缓存（按节点名；宿主树固定时安全） */
+/** 可见性差分缓存（按节点名；宿主树固定时安全）
+ *
+ * 走引擎 Actor.bActive 而非直接写 root.visible：bActive 的 setter 会 applyActiveTree
+ * 递归整树（子树全停渲染）；直接写 visible 只藏单个节点，面板根/边框/标题/装饰仍
+ * 留在绘制路径 —— warm 18 个常驻面板因此全量提交 GPU（2665 draw call → 20fps）。
+ */
 export class VisBinder {
   private last = new Map<string, boolean>()
   set(root: Actor | null, name: string, visible: boolean): void {
     if (this.last.get(name) === visible) return
     this.last.set(name, visible)
     const a = findChild(root, name)
-    if (a) a.root.visible = visible
+    if (!a) return
+    // 兜底：显示子节点时同步激活面板根。引擎 applyActiveTree 的生效值 =
+    // 自身 bActive && 父链 effective —— 面板根失活时，子节点置 true 依然不可见。
+    // UIManager 会把二级面板根默认整树失活，仅置 Body 会导致面板永远打不开，
+    // 故此处统一兜底激活（对未失活的面板是无害的重复置位）。
+    if (visible && root && !root.bActive) root.bActive = true
+    a.bActive = visible
+  }
+
+  /**
+   * 面板级显隐：同时作用"面板根"与"内容 Body"两处。
+   *
+   * 引擎 applyActiveTree 的生效值 = 自身 bActive && 父链 effective，即面板根失活时
+   * 子节点无论 bActive 为何都不可见。故 UIManager 把面板根默认整树失活后，仅把
+   * Body 置 true 无法让面板显形 —— 必须同步激活面板根，否则面板永远打不开。
+   *
+   * @param panel 面板根 Actor
+   * @param bodyName 内容 Body 子节点名（传空串表示无 Body，只切面板根）
+   */
+  setPanel(panel: Actor | null, bodyName: string, visible: boolean): void {
+    if (!panel) return
+    if (panel.bActive !== visible) panel.bActive = visible
+    if (bodyName) this.set(panel, bodyName, visible)
   }
 }
 

@@ -13,7 +13,8 @@ export default class SettleScript extends BehaviourScript {
   private shown: 'victory' | 'defeat' | null = null
 
   override onStart(): void {
-    this.actor.root.visible = false
+    // 面板根显隐统一走 bActive（理由同 HexModalScript）
+    this.actor.bActive = false
     const bind = (name: string, fn: () => void): void => {
       const btn = findButton(this.actor, name)
       if (btn) btn.onClick = fn
@@ -34,7 +35,7 @@ export default class SettleScript extends BehaviourScript {
     const want = s.outcome === 'playing' ? null : s.outcome
     if (want !== this.shown) {
       this.shown = want
-      this.actor.root.visible = want !== null
+      this.actor.bActive = want !== null
     }
     if (!want) return
     const vm = mode.buildViewModel()

@@ -333,6 +333,36 @@ export interface HudOrbitBuild {
   hasShipyard: boolean
 }
 
+/** 空间站舱段面板模块行（station_module 表投影；2026-09-16 空间站模块） */
+export interface HudStationModuleRow {
+  id: string
+  name: string
+  desc: string
+  /** 安装造价（H3；已装行展示「已装入」） */
+  cost: number
+  /** 本站已装该舱段 */
+  installed: boolean
+  /** 可点击（未装且预算足；已装行 = 可卸下恒可点） */
+  canToggle: boolean
+}
+
+/** 空间站舱段面板数据（null = 收起；StationPanelScript 消费） */
+export interface HudStation {
+  /** 空间站设施 id（OrbitBuilding.id） */
+  id: number
+  /** 站名 + 编号（标题「空间站 1」） */
+  name: string
+  /** 锚定天体名（副标题「月球轨道」） */
+  anchorName: string
+  built: boolean
+  /** 建造中百分比（0~100） */
+  progressPct: number
+  /** 当前布局舱段数 / 池容量 */
+  moduleCount: number
+  /** 舱段模块池（station_module 表键序） */
+  modules: HudStationModuleRow[]
+}
+
 /** 船坞造船面板在造船卡片行（逐船一卡：队列每项一张卡片，2026-09-09 用户需求） */
 export interface HudShipBuildCard {
   /** 队列序号（0 = 队首建造中） */
@@ -610,6 +640,8 @@ export interface WarmCurrentVM {
   orbitBuild: HudOrbitBuild | null
   /** 船坞造船面板数据（null = 收起；ShipyardPanelScript 消费，点船坞打开） */
   shipyard: HudShipyard | null
+  /** 空间站舱段面板数据（null = 收起；StationPanelScript 消费，点空间站打开；2026-09-16 空间站模块） */
+  station: HudStation | null
   /** 火箭设计面板数据（null = 收起；ShipDesignScript 消费，底部 HUD「火箭设计」打开） */
   shipDesign: HudShipDesign | null
   /** 荷载设计工坊面板数据（null = 收起；2026-09-13 荷载设计） */
@@ -689,6 +721,8 @@ export class WarmCurrentGameMode extends GameMode {
   private holoLastTarget: { x: number; z: number } | null = null
   /** 船坞造船面板当前承接船坞 id（点船坞打开；null = 收起，ShipyardPanelScript 消费） */
   shipyardSel: number | null = null
+  /** 空间站舱段面板当前空间站 id（2026-09-16 空间站模块：点空间站打开；null = 收起，StationPanelScript 消费） */
+  stationSel: number | null = null
   /** 船坞面板三步流选择（2026-09-13 从面板脚本迁入 GameMode：试航卡/槽位校验需要权威读态） */
   shipyardSelHull = 'standard'
   shipyardSelModules: string[] = []
@@ -1576,6 +1610,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = body
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.stationSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
     logger.info(`[WarmCurrent] 星球信息面板：${PLANET_NAMES[body] ?? body}`)
   }
@@ -1591,6 +1626,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.orbitBuildSel = anchor
     this.planetInfoSel = null
     this.shipyardSel = null
+    this.stationSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
     logger.info(`[WarmCurrent] 轨道建设面板：${anchor}`)
   }
@@ -1600,7 +1636,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.orbitBuildSel = null
   }
 
-  /** 打开船坞造船面板（星图点船坞轨道设施；与轨道建设/星球信息面板互斥） */
+  /** 打开船坞造船面板（星图点船坞轨道设施；与轨道建设/空间站/星球信息面板互斥） */
   openShipyardPanel(dockId: number): void {
     if (this.hologramSel) this.closeHologram()
     this.shipyardSel = dockId
@@ -1609,6 +1645,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSelSlot = null
     this.planetInfoSel = null
     this.orbitBuildSel = null
+    this.stationSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
     logger.info(`[WarmCurrent] 船坞造船面板：dock ${dockId}`)
   }
@@ -1616,6 +1653,24 @@ export class WarmCurrentGameMode extends GameMode {
   /** 关闭船坞造船面板（面板内 ✕ / 点空地） */
   closeShipyardPanel(): void {
     this.shipyardSel = null
+  }
+
+  // ─── 空间站舱段面板（2026-09-16 空间站模块：点空间站打开，插配布局） ───
+
+  /** 打开空间站舱段面板（星图点空间站轨道设施；与船坞/轨道建设/星球信息面板互斥） */
+  openStationPanel(obId: number): void {
+    if (this.hologramSel) this.closeHologram()
+    this.stationSel = obId
+    this.planetInfoSel = null
+    this.orbitBuildSel = null
+    this.shipyardSel = null
+    audioSys.play('wc.draw', { volume: 0.3 })
+    logger.info(`[WarmCurrent] 空间站舱段面板：station ${obId}`)
+  }
+
+  /** 关闭空间站舱段面板（面板内 ✕ / 点空地） */
+  closeStationPanel(): void {
+    this.stationSel = null
   }
 
   // ─── 火箭设计工坊（2026-09-13：底部 HUD 入口的独立设计面板，不依赖船坞） ───
@@ -1631,6 +1686,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.payloadDesignOpen = false
     this.planetInfoSel = null
     this.shipyardSel = null
+    this.stationSel = null
     this.orbitBuildSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
     logger.info('[WarmCurrent] 火箭设计工坊：打开')
@@ -1669,6 +1725,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.designOpen = false
     this.planetInfoSel = null
     this.shipyardSel = null
+    this.stationSel = null
     this.orbitBuildSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
     logger.info('[WarmCurrent] 荷载设计工坊：打开')
@@ -2446,10 +2503,12 @@ export class WarmCurrentGameMode extends GameMode {
       this.openBuildingDetail(b.id)
       return
     }
-    // 近地轨道设施：船坞 → 船坞造船面板（造船入口）；其它类型（含在建）→ 轨道建设面板
+    // 近地轨道设施：船坞 → 船坞造船面板（造船入口）；空间站 → 舱段面板（布局设计）；
+    // 其它类型（含在建）→ 轨道建设面板
     const ob = this.orbitBuildingAt(p)
     if (ob) {
       if (isShipyardType(ob.type)) this.openShipyardPanel(ob.id)
+      else if (ob.type === 'station') this.openStationPanel(ob.id)
       else this.openOrbitBuild(ob.anchor)
       return
     }
@@ -2487,6 +2546,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.stationSel = null
     this.buildingDetailSel = null
   }
 
@@ -2693,6 +2753,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.stationSel = null
     this.buildingDetailSel = null
     this.selectedShips = []
     this.boxDrag = null
@@ -2726,6 +2787,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.shipyardSel = null
+    this.stationSel = null
     this.buildingDetailSel = null
     this.selectedShips = []
     this.boxDrag = null
@@ -2983,6 +3045,7 @@ export class WarmCurrentGameMode extends GameMode {
       hologram,
       orbitBuild,
       shipyard,
+      station: this.stationSel ? this.buildStation(this.stationSel) : null,
       shipDesign,
       payloadDesign,
       buildingDetail,
@@ -3073,6 +3136,35 @@ export class WarmCurrentGameMode extends GameMode {
       buildings,
       shipCost: Math.round(B.shipBuildCost * (shipyard?.costMult ?? 1)),
       hasShipyard: shipyard !== null,
+    }
+  }
+
+  /** 空间站舱段面板数据装配（stationSel → HudStation；station_module 表键序模块池 + 已装态） */
+  private buildStation(obId: number): HudStation | null {
+    const s = this.simState.state
+    const ob = s.orbitBuildings.find((x) => x.id === obId && x.type === 'station')
+    if (!ob) return null
+    const def = orbitBuildingDefOf('station')
+    const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
+    const mods = ob.modules ?? []
+    return {
+      id: ob.id,
+      name: `${def?.name ?? '空间站'} ${ob.id}`,
+      anchorName: `${PLANET_NAMES[ob.anchor] ?? B.stars[ob.anchor as StarId]?.name ?? ob.anchor}轨道`,
+      built: ob.built,
+      progressPct: Math.round(ob.progress * 100),
+      moduleCount: mods.length,
+      modules: Object.entries(B.stationModules).map(([id, m]) => {
+        const installed = mods.includes(id)
+        return {
+          id,
+          name: m.name,
+          desc: m.desc,
+          cost: m.cost,
+          installed,
+          canToggle: installed || (playable && s.earthH3 >= m.cost),
+        }
+      }),
     }
   }
 

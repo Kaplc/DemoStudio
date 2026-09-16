@@ -4,5 +4,10 @@
     "name": "船坞", "desc": "轨道造船 · 造价 −25% / 提速 30%",
     "cost": 260, "buildTime": 60,
     "shipBuildCostMult": 0.75, "shipBuildSpeedMult": 1.3
+  },
+  "station": {
+    "name": "空间站", "desc": "多用途轨道站 · 点站插配舱段（泊位/调度/中继/科研/维修）",
+    "cost": 400, "buildTime": 90,
+    "shipBuildCostMult": 1, "shipBuildSpeedMult": 1
   }
 }

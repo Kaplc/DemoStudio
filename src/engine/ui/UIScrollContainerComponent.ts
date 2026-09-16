@@ -233,7 +233,13 @@ export class UIScrollContainerComponent extends Component<Actor> {
     }
   }
 
-  /** 透明点击层（isClickOnly canvas：仅命中不渲染；zOrder 低于内容不挡按钮） */
+  /**
+   * 透明点击层（isClickOnly canvas：仅命中不渲染）。
+   * 命中锁定（方案 A）：clickable.setTargets([视口 panel]) 把射线目标钉在本容器的
+   * 视口矩形上——否则 getTargets 默认过采整个子树 mesh（子行按钮文字/HitLayer），
+   * 与子按钮同面竞争时按注册序容器先注册恒胜，行按钮 hover/click 被吞。
+   * zOrder=-1：命中层在内容之下（纯命中不渲染），同面仲裁让位 zOrder≥0 的子按钮。
+   */
   private _ensureHitLayer(): void {
     if (this._hitLayer) return
     const existing = this.owner.getComponents(CanvasUIComponent).find((c) => !c.isMarkerOnly)
@@ -249,11 +255,14 @@ export class UIScrollContainerComponent extends Component<Actor> {
       name: 'ScrollHitLayer',
     })
     canvas.isClickOnly = true
-    canvas.zOrder = 0
+    canvas.zOrder = -1
     this.owner.addComponent(canvas)
     this._hitLayer = canvas
+    // 射线目标锁定视口矩形（复用/新建两条路径都要锁，见方法注释"命中锁定"）
+    const clickable = this.owner.getComponent(ClickableComponent)
+    if (clickable && canvas.panel) clickable.setTargets([canvas.panel])
     this._bindDrag()
-    logger.debug(`[UIScrollContainerComponent] "${this.owner.root.name}" 已创建透明点击层 (${vw.toFixed(2)}x${vh.toFixed(2)})`)
+    logger.debug(`[UIScrollContainerComponent] "${this.owner.root.name}" 已创建透明点击层 (${vw.toFixed(2)}x${vh.toFixed(2)})，命中锁定视口 panel`)
   }
 
   /** 绑定容器拖拽滚动（内容跟随手指 + 越界回弹；绑定后自动启用"拖拽取消点击"） */

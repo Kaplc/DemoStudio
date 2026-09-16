@@ -113,6 +113,9 @@ export interface OrbitBuilding {
   progress: number
   /** 是否建成（false = 在建；造船等能力需 built=true） */
   built: boolean
+  /** 舱段模块布局（2026-09-16 空间站模块：station 类型的插配清单，station_module 表行键；
+   *  同型单件、付费即装；读态缺省 = 空布局，旧档缺失无需迁移，可选字段随快照保存） */
+  modules?: string[]
 }
 
 /** 聚能环节点球面落位（全息地球场景，2026-09-12：lat/lon 为度；下标 = 环段槽位号） */
@@ -244,6 +247,8 @@ export interface SimLedger {
   buildingUpgrade: number
   /** 保险抢救到账（2026-09-14 舱内附件二批：货损保险舱耀斑冻毁损失减半的 H3 回款，收入项） */
   insuranceRecover: number
+  /** 空间站舱段安装费（2026-09-16 空间站模块：即时扣费一次性；拆除不返还沿建筑强化先例不入账） */
+  stationModule: number
 }
 
 export type SimEventType =

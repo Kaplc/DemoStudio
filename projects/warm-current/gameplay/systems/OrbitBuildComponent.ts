@@ -8,7 +8,7 @@
  * 轨道位置：orbitBuildingPos 纯时间函数（渲染/拾取/相机无 tick 同步）。
  */
 import { BObjectComponent, logger } from '@/engine'
-import { B, type OrbitBuildingDef } from '../core/balance'
+import { B, type OrbitBuildingDef, type StationModuleDef } from '../core/balance'
 import { orbitBuildingPos } from '../core/helpers'
 import type { OrbitBuilding, PlanetBodyId, SimState } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
@@ -16,6 +16,11 @@ import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 /** 轨道建筑类型定义查询（未知类型 null） */
 export function orbitBuildingDefOf(type: string): OrbitBuildingDef | null {
   return (B.orbitBuildings as Record<string, OrbitBuildingDef | undefined>)[type] ?? null
+}
+
+/** 空间站舱段模块定义查询（未知模块 null；station_module 表 / B.stationModules） */
+export function stationModuleDefOf(id: string): StationModuleDef | null {
+  return (B.stationModules as Record<string, StationModuleDef | undefined>)[id] ?? null
 }
 
 /** 同锚轨道建筑的均布相位（2π/n 重排；第 n 座落位时对全环重排，环上永远均匀）。
@@ -107,6 +112,40 @@ export class OrbitBuildComponent extends BObjectComponent<WarmCurrentGameMode> {
     const def = orbitBuildingDefOf(ob.type)
     if (!def) return null
     return { costMult: def.shipBuildCostMult, speedMult: def.shipBuildSpeedMult }
+  }
+
+  // ─── 空间站舱段布局（2026-09-16 空间站模块：玩家设计空间站布局） ───
+
+  /**
+   * 插配/卸下空间站舱段模块（station 面板行点击唯一入口）。
+   * 校验链：建成空间站 → 已建成（在建无能力）→ 未知模块拒绝 → 同型单件（已装 = 卸下免费；
+   * 未装 = 安装即时扣费入 ledger.stationModule，拆除不返还沿建筑强化先例）。
+   * 布局写入 OrbitBuilding.modules（可选字段随快照保存）。
+   */
+  toggleStationModule(obId: number, moduleId: string): boolean {
+    const s = this.sc.state
+    const ob = s.orbitBuildings.find((x) => x.id === obId && x.type === 'station')
+    if (!ob) { this.sc.hint('未找到该空间站'); return false }
+    if (!ob.built) { this.sc.hint('空间站建造中 · 建成后方可插配舱段'); return false }
+    const def = stationModuleDefOf(moduleId)
+    if (!def) { this.sc.hint('未知舱段模块'); return false }
+    const mods = ob.modules ?? (ob.modules = [])
+    const at = mods.indexOf(moduleId)
+    if (at >= 0) {
+      // 卸下：免费（拆除不返还指拆掉已花钱装的件不退费；卸下动作本身无费用）
+      mods.splice(at, 1)
+      logger.info(`[OrbitBuild] 空间站#${ob.id} 卸下舱段 ${def.name}（余 ${mods.length} 件）`)
+      return true
+    }
+    if (s.earthH3 < def.cost) {
+      this.sc.hint(`H3 不足（${def.name} 需 ${def.cost}）`)
+      return false
+    }
+    s.earthH3 -= def.cost
+    s.ledger.stationModule += def.cost
+    mods.push(moduleId)
+    logger.info(`[OrbitBuild] 空间站#${ob.id} 安装舱段 ${def.name}（${def.cost} H3，布局 ${mods.length} 件）`)
+    return true
   }
 }
 

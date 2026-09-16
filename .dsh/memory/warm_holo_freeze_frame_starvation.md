@@ -1,16 +1,20 @@
 ---
-name: warm_holo_freeze_frame_starvation
-description: warm 月球全息"卡死"根因=渲染帧饥饿（rAF 1~11fps）而非逻辑死锁；运动最重的视图最先读作卡死
+name: warm_holo_freeze_ui_panels_always_render
+description: warm 全息"卡死"根因=18 个常驻 UI widget 全量参与渲染（3403 mesh / 2665 draw call），关闭态只藏 Body 未整树失活 → 20fps；已用 UIManager 统一开关 + VisBinder 走 bActive 修复至 59.6fps
 type: project
-prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts, projects/warm-current/gameplay/ui/HologramPanelScript.script.ts]
+prefix: [projects/warm-current/gameplay/ui/uiCommon.ts, src/engine/ui/UIManager.ts, projects/warm-current/gameplay/ui/HudScript.script.ts]
 ---
 
-# warm 月球全息"卡死"= 渲染帧饥饿，非逻辑死锁（2026-09-16 定案）
+# warm 全息"卡死"= 常驻 UI 面板全量渲染（2026-09-16 定案并修复，推翻同日"帧饥饿"旧结论）
 
-**Problem:** 用户报告"点开月球全息 → UI 异常直接卡死，地球全息没事"（2026-09-16 00:26~00:32 三次会话）。游戏日志无异常无死锁：冻结"后"用户点击仍被处理（game B 全息打开后 30s 内聚能环按钮正常响应）；openHologram 同步流程日志完整走完。
+**Problem:** 用户报告"点开月球全息 → UI 卡死，地球全息没事"。此前（2026-09-16 早些）误诊为"渲染帧饥饿 rAF 1~11fps，环境级根因未锁定"。
 
-**Cause:** 编辑器页面渲染帧饥饿——rAF 实测仅 1~11fps（窗口可见/未最小化/反节流开关全开/GPU 硬件加速正常的前提下），JS 主线程 evaluate 全程 2ms 健康。月球全息是**运动最重视图**：月球公转漂移 → Tick 逐帧 rig.pan 跟随 + 环绕控制，低帧率下相机 1 秒级跳变 + 合成器陈旧帧混显 → 读作"UI 异常 + 直接卡死"。地球全息画面近静态，同帧率下勉强可读，故用户感知"月球卡地球不卡"。全息代码本身零问题（全链路审计 + 6 次实机复现全通过）。
+**Cause:** `HudScript.onStart` 一次性 spawn 18 个 widget（HUD + 17 个二级面板），3403 mesh / 2665 draw call **常驻绘制路径**。面板"关闭"仅由各脚本 `vis.set(actor, 'XxxBody', false)` 隐藏 Body 子节点，面板根与边框/标题/装饰仍 `visible=true` 全部提交 GPU。实测：全部 UI 可见 20~25fps，隐藏全部 UI 62.8fps。JS 侧极廉价（starMap.render 0.008ms/call、buildViewModel 0.003ms/call），纯绘制调用开销。"地球没事"是错觉（地球全息同样 19.6fps），月球因公转跟随逐帧 `rig.pan` 在低帧率下抖动更显眼。
 
-**Solution:** 诊断"卡死"类问题时**先测 rAF 实际帧率**（page.evaluate 内 rAF 计数 2s），不要只看 JS 心跳/日志静默——主线程活着 ≠ 画面在动。修复方向：① 播放时降低机器负载/重启编辑器对比；② 引擎侧可加 dt 钳制（帧间隔超阈值暂停仿真防追赶暴跳）+ 帧率恶化告警日志。
+**Solution（已落地，三处）:** ① `uiCommon.ts` 的 `VisBinder.set` 走 `a.bActive`（`applyActiveTree` 整树级联），并在显示子节点时**兜底激活面板根**；② `UIManager` 加 `autoDeactivatePanels`（默认 true），二级面板生成即整树失活；③ 5 个面板脚本（HexModal/Settle/ReserveInfo/StatsPanel + 3 处 cell 池）的面板根显隐从 `root.visible` 统一改为 `bActive`。实测：空闲 20→60.3fps，月球全息 17.6→60fps，可见 mesh 352→117。测试 `tests/uiPanelDeactivate.test.ts`（11 绿）。
 
-**Applicable:** warm/hoi4/fish 一切"画面卡死但日志正常"的排障；低帧率下运动最重的视图（相机跟随/环绕/全息动画）最先被读作卡死。
+**踩坑 1（豁免判据·曾致改动完全空转）:** 首版豁免用 `parent instanceof HUD` —— 但二级面板不传 parent 时 `spawnUIActor` 内默认 `parent = this._hud`，与 `createHUD` 传的 HUD 内容 widget **parent 完全相同**，该判据把全部 17 个二级面板一并豁免，UIManager 改动对 warm **零生效**（实测 `inactivePanels=0`，页面 `spawnUIActor` 源码仍含旧判据）。正确判据 = `createHUD` 期间置位的私有标志 `_spawningHudContent`（`attachUI` 在 spawn 之后调用，比对不了 `hud.uiActor` 引用）。教训：**验证 HMR 是否真生效** —— 改完引擎代码页面仍跑旧码，须重开一局（或确认 `spawnUIActor.toString()` 含新代码）再断言。
+
+**踩坑 2（面板永远打不开·未引爆的冲突）:** `applyActiveTree` 生效值 = 自身 `bActive && 父链 effective`。面板根一旦失活，脚本只置 Body 为真 → 仍不可见，**面板永远打不开**（实测手动 `hp.bActive=false` 后 `openHologram` 得到 `visibleMesh=0`）。故 VisBinder 必须兜底激活面板根，且直接写 `root.visible` 的脚本必须改走 `bActive`，否则权威分裂（一次 `bActive` 写入会从根重算并无声覆盖手写的 `visible`）。
+
+**Applicable:** warm 及一切"多 widget 常驻 + 脚本自驱动显隐"的项目（hoi4 有自己的 uiCommon 无 VisBinder，不受影响）；诊断"卡死"先测 draw call 再按层二分，勿只看 JS 心跳。

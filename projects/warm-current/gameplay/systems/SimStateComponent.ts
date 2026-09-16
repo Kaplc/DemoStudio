@@ -6,7 +6,7 @@
  */
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
-import { createInitialState, deepSnapshot, mulberry32, ringLevelOf, ringModsOf } from '../core/helpers'
+import { createInitialState, deepSnapshot, mulberry32, ringLevelOf, ringModsOf, stationShipCapAdd } from '../core/helpers'
 import type { SimEvent, SimShip, SimState } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
 
@@ -83,11 +83,14 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return ringLevelOf(this.state.ringSlots, this.state.ringBuildProgress).level
   }
 
-  /** 飞船数量上限（ship_cap 表按当前等级 + 扩容泊位加算；主动造船的在册+排队总数不可超，卡片/GM 加船可越限） */
+  /** 飞船数量上限（ship_cap 表按当前等级 + 扩容泊位加算 + 空间站泊位舱加算；
+   *  主动造船的在册+排队总数不可超，卡片/GM 加船可越限） */
   get shipCap(): number {
     const arr = B.shipCap
     const base = arr[Math.min(this.ringLevel, arr.length) - 1] ?? 0
-    return base + this.ringMods.shipCapAdd
+    // 2026-09-16 空间站泊位舱：Σ建成空间站 berth shipCapAdd（轨道泊位扩容叙事）
+    const stationAdd = stationShipCapAdd(this.state.orbitBuildings.filter((x) => x.type === 'station' && x.built))
+    return base + this.ringMods.shipCapAdd + stationAdd
   }
 
   /** 当前总需求（焚烧 + 研究点计费 + 建设计费，储量耗尽为 0） */

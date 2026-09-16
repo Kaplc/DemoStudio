@@ -8,18 +8,38 @@
 
 **分工**：本文档只讲 **VS Code 内置浏览器**。本地 Chrome + CDP `:9222` 那套归 [playwright_mcp_commands.md](./playwright_mcp_commands.md)，方法论与用例组织归 [playwright_testing.md](./playwright_testing.md)。三篇打开的是同一个 Vite 页面，页面内调试桥与绝大多数踩坑通用，差异只在**浏览器怎么起、元素怎么点、产物落在哪**。
 
+**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
 ---
 
 ## 1. 先记住这几个文件
 
 | 文件 | 一句话职责 | 你要改它的场景 |
-|---|---|---|
+|**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
+---|**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
+---|**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
+---|
 | [MockElectronAPI.ts](../../src/editor/MockElectronAPI.ts) | 浏览器模式下 `window.electronAPI` 的降级实现（内存缓存，不落盘） | 某个 IPC 能力在浏览器里缺失或行为不一致 |
 | [App.tsx](../../src/App.tsx) | 启动页工程卡片与「打开工程」按钮（调试第一个要点的东西） | 启动页/工程选择交互变了 |
 | [EditorInitializer.ts](../../src/editor/EditorInitializer.ts) | 挂 `window.__ai` 调试桥（`:336`）+ 调 `installBlueprintWindowApi()`（`:414`） | 加一个新的页面内 AI 事件入口 |
 | [windowApi.ts](../../src/editor/blueprintEdit/windowApi.ts) | 把 `BlueprintEditorService` 暴露成 `window.blueprintEditor`（`:38`） | 改蓝图编辑的页面内调用接口 |
 
 **关键心智模型**：这条路径下 `window.electronAPI` 是 `MockElectronAPI` 注入的假实现，`readJsonFile` 返回深拷贝、`writeJsonFile` **只写内存不落盘**。所以浏览器里「保存成功」不等于磁盘变了，**任何落盘结论必须回 Electron 复验**。反过来，页面内的东西（`window.__ai` / `window.blueprintEditor` / React DOM）都是**真实例**，可以直接断言。
+
+**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
 
 ---
 
@@ -152,7 +172,15 @@ writeJsonFile: async (relativePath: string, data: unknown) => {
 能力差异表（`MockElectronAPI.ts` 行号为据）：
 
 | 能力 | 浏览器模式（Mock） | Electron 模式 |
-|---|---|---|
+|**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
+---|**57. 改完引擎/脚本源码后页面仍跑旧码（HMR 不重建已创建实例），必须重开一局并"源码验身"** —— 现象：改了 `UIManager.spawnUIActor` 的判据后，浏览器里实测面板状态毫无变化，误以为"改动不生效/方向错了"。原因：Vite HMR 只替换模块，**不会重建已经创建的对象实例**（已在跑的 `UIManager`、已 spawn 的 Actor），`page.reload()` 后游戏也要重新进关卡才重新走装配链路。规则：**验证前先"源码验身"** —— `ui.spawnUIActor.toString().match(/新加的标志名/g)` 命中数 >0 才算新码在位；不在位就重开：Game 菜单 → `Launch Game`（Ctrl+Enter）→ 桥未就位时 `window.__warmCurrent.menuMode().onMenuAction('start')` 进关卡（坑 55）。**不要拿旧码下的实测数据去反推代码正确性**（本次据此差点误判"UIManager 改动零生效"这一正确结论为误报）。
+
+**58. 轮询式等待别写进 `browser_evaluate`（工具 10s 硬超时），且"没抛错"不等于调用生效** —— 现象：`new Promise(res => { setInterval(...) })` 等游戏就绪，直接"请求超时 超时时间:10000 ms"；另外调 `mode.toggleResearch()` 这类**不存在的方法**时 `?.` 短路静默 no-op，回来看面板没打开，误判成"改动导致面板打不开"。规则：① 等待改写为**多次短查询**（每次 `browser_evaluate` 立刻返回状态，由调用方轮询），不要在一次 evaluate 里 setInterval；② 调 API 前先用 `Object.getOwnPropertyNames(mode.constructor.prototype)` 确认方法名存在（实例上 `Object.keys(mode)` 常为空，方法在原型上）；③ 判断"调用是否真的生效"以**运行日志为准**（`logs/console_*.log` 里搜对应 logger 输出），而不是只看返回值不报错。
+
+---|---|
 | `readJsonFile`（`:203`） | 读内存缓存，返回**深拷贝**；未命中才 fetch | 真读盘 |
 | `writeJsonFile`（`:229`） | **只写内存，不落盘**，仍返 `{success:true}` | 真写盘 |
 | `writeTextFile`（`:239`） | 只写 `textCache`，不落盘 | 真写盘 |
@@ -447,9 +475,11 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **56. canvas 内渲染的 UI（菜单/HUD/弹窗）`dispatchEvent` 永远点不中** —— 现象：游戏菜单按钮（如 warm 的 Btn_new）、HUD 元素按坑 1 的规则 `dispatchEvent('click')` 无任何反应，元素确实存在且 `ai.getHUD` 能看到。原因：这些 UI 不是 DOM 元素，是引擎画进 `<canvas>` 的像素（UICamera 合成），DOM 事件派发到 canvas 上不会触发引擎的 `hitTest` 命中链路——坑 1 的 dispatchEvent 规则只对真实 DOM（React 面板）有效。规则：**canvas 内 UI 必须真实鼠标点击 `page.mouse.click(x, y)`**（或 MCP `cdp_mouse_click`），坐标从 `ai.getHUD` 树的世界位换算（canvas 布局公式），**截图上的视觉坐标因 DPI 缩放不可信**；能走 `ai.clickActor` 的场景优先走它（免坐标，坑 40/44）。
 
+**57. 新增资产 json 不被 `import.meta.glob(eager)` 拾取 → touch 引用文件 mtime 强制失效** —— 现象：新增 `asset/blueprints/ui/holo_hud.widget.json` 后运行时 spawn 报「蓝图未注册」，`ai.getHUD` 里 widget 列表数量不含新文件；静态类型/常量改动（如行为脚本 `.script.ts` 新文件）同样可能不被 glob 拾取。原因：与坑 41 同源——eager glob 在**打开工程时一次性注册**，Vite HMR 只推送"已有依赖图中文件"的更新，**新增文件不触发任何模块失效**。规则：**touch 一个被 glob 引用的入口文件的 mtime**（如 PowerShell `(Get-Item 'projects/warm-current/asset/index.ts').LastWriteTime = Get-Date`）让 Vite 将其父模块图标记失效 → **Reload 页面** → 新文件被拾取（注册数量 +1 验证）。
+
+**58. 编辑器服务层（MCP 命令处理器/bp 编译管线）改动后，运行中的页面仍跑旧码 → MCP 命令复现旧 bug** —— 现象：修复 `BlueprintEditorService.isSourceManaged` 源码管辖误拦 widget 后，MCP `ui_compile` 仍报同一错误（"该资产由 .blueprint.ts 编译生成"）。原因：该服务在编辑器页面模块图内运行，深层模块改动 **HMR 不生效**（§6 开头总规则/坑 41 同源），MCP 命令进入的还是旧实现。规则：**编辑器侧 TS 代码改动后，先 `cdp_navigate` 重载页面再复测 MCP 命令**；急验证可绕开页面走离线 CLI（如 `node scripts/ui-compiler-cli.mjs compile <html 路径>`），或直接 `POST http://127.0.0.1:9877/api/command`（坑 53）。另：**兄弟 widget 节点撞名会让 `ai.clickActor` 二义命中**（本次 warm 的 hologram_panel 与 holo_hud 同用 Btn_tool_ring 等名，射线点错面板）——专属 widget 的节点建议带独特前缀（如 `Holo` 前缀），改节点名后重编译 widget + reload 再测。
+
 ---
-
-
 
 ## 7. 边界条件
 

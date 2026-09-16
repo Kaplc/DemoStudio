@@ -88,8 +88,9 @@ export default class HologramPanelScript extends BehaviourScript {
         mode.setHoloTool('building', id)
       })
     }
-    // 默认收起（脚本置位，先于首帧渲染）
-    this.vis.set(this.actor, 'HoloBody', false)
+    // 默认收起（脚本置位，先于首帧渲染）。走 setPanel：UIManager 会把面板根整树
+    // 失活，此处需同步置面板根，保证后续打开时不被父链 effective 压制。
+    this.vis.setPanel(this.actor, 'HoloBody', false)
     logger.info('[HologramPanelScript] 全息勘探面板就绪（默认收起）')
   }
 
@@ -100,7 +101,7 @@ export default class HologramPanelScript extends BehaviourScript {
     if (this.acc < 0.12) return
     this.acc = 0
     const holo = mode.buildViewModel().hologram
-    this.vis.set(this.actor, 'HoloBody', !!holo)
+    this.vis.setPanel(this.actor, 'HoloBody', !!holo)
     if (!holo) return
 
     const isEarth = holo.body === 'earth'

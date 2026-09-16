@@ -95,6 +95,30 @@ export class UIManager extends AObjectComponent<World> {
   private _pendingDestroy: Actor[] = []
   /** UI 是否正在运行 */
   private _running = false
+
+  /**
+   * 面板"关闭即整树失活"统一开关（默认 true）。
+   *
+   * 背景（warm 月球全息卡死根因，实测）：HUD 一次性 spawn 十几个二级面板常驻，
+   * 脚本"关闭"面板只隐藏 Body 子节点（root.visible=false），面板根与边框/标题/
+   * 装饰仍 visible=true → 全量留在绘制路径（3403 mesh / 2665 draw call → 20fps）。
+   *
+   * 开启后：spawnUIActor 生成的二级面板（蓝图未显式声明 active）一律 bActive=false
+   * 整树失活，由脚本显式打开时才提交渲染。引擎 bActive 的 setter 会 applyActiveTree
+   * 递归整树，故整棵子树都不再绘制。
+   *
+   * 关闭（设为 false）可回退到历史行为：面板一律 active，仅靠脚本自行隐藏。
+   */
+  public autoDeactivatePanels = true
+
+  /**
+   * createHUD 生成 HUD 内容 widget 期间置位（见 createHUD）。
+   * 不能用 `parent instanceof HUD` 区分"HUD 内容 widget"与"二级面板" —— 二级面板
+   * 不传 parent 时默认 `parent = this._hud`，两者 parent 同为 HUD 实例，该判据会把
+   * 全部二级面板一并豁免（对 warm 零生效）。同理不能比对 `hud.uiActor` 引用：
+   * attachUI 在 spawnUIActor 之后调用，spawn 时点该字段尚未赋值。
+   */
+  private _spawningHudContent = false
   /** UI Actor 列表自上次通知后是否有变化（commitSpawn/commitDestroy/destroyAll 标记，World 消费后通知大纲） */
   private _uiListDirty = false
 
@@ -322,6 +346,15 @@ export class UIManager extends AObjectComponent<World> {
     // 5. 挂载到父 Actor（undefined = 未指定 → 默认 HUD；null = 显式顶层 → 跳过挂载）
     if (parent === undefined) parent = this._hud
     if (parent) actor.attachTo(parent)
+
+    // 5.2 面板"关闭即整树失活"统一开关（warm 全息卡死根因，见 autoDeactivatePanels 注释）。
+    // 二级面板（非 HUD 内容 widget、蓝图未显式声明 active）默认整树失活：bActive setter
+    // 会 applyActiveTree 递归整树，面板根/边框/标题/装饰全部不提交渲染，由脚本显式打开。
+    const isHudContent = this._spawningHudContent
+    if (this.autoDeactivatePanels && !isHudContent && resolved.active === undefined && parent) {
+      actor.bActive = false
+      logger.info(`[UIManager] 二级面板默认整树失活: "${resolved.name}" (${path}) → bActive=false`)
+    }
     // 5.5 world 归属：内联子节点（spawnChildObjects attachTo 挂树）不经 SpawnActor，
     // 不会被 commitSpawn 设置 world（字段恒 null）→ 显式整树传播，
     // 供依赖 owner.world 的组件（UIScrollListComponent 等）在 BeginPlay 时取用。
@@ -421,7 +454,15 @@ export class UIManager extends AObjectComponent<World> {
     hud.blueprintPath = hudClass
     this.owner.actorMgr.SpawnActor(hud)
 
-    const ui = this.spawnUIActor(hudClass, hud)
+    // 置位：让 spawnUIActor 识别这是 HUD 内容 widget（常驻，必须可见），
+    // 不被"面板默认整树失活"开关影响。
+    this._spawningHudContent = true
+    let ui: Actor | null = null
+    try {
+      ui = this.spawnUIActor(hudClass, hud)
+    } finally {
+      this._spawningHudContent = false
+    }
     if (ui) hud.attachUI(ui)
 
     this._hud = hud

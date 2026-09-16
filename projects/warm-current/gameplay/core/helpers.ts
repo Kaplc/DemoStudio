@@ -5,8 +5,8 @@
  * 便于单测与快照。带 B 的数值读取（balance 运行时单例，配置表可覆盖）。
  */
 import { B, MAP_H, MAP_W, PAYLOAD_ASSEMBLY_MULT, toWX, toWZ } from './balance'
-import type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef } from './balance'
-import { buildingEffectiveDef, isDynamicShipModule, ringBuildingDefOf, ringModsOf, shipHullDefOf, shipModuleDefOf } from './balance'
+import type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef, StationModuleDef } from './balance'
+import { buildingEffectiveDef, isDynamicShipModule, ringBuildingDefOf, ringModsOf, shipHullDefOf, shipModuleDefOf, stationModuleMultsFrom, stationStockCapAdd } from './balance'
 import { DEFAULT_CARDS } from './balance'
 import type {
   Endpoint, OrbitBuilding, PlanetBodyId, PlanetId, ResearchLineId, SimBuilding, SimEvent, SimLedger, SimPayloadDesign, SimResearchLine, SimRoute, SimShip, SimState, StarId,
@@ -85,7 +85,9 @@ export function researchRateOf(line: SimResearchLine, state: SimState): number {
   const runningBonus = B.runningRateBonus
   const pointMult = 1 + line.points * B.researchPointRateAdd
   const ring = ringModsOf(state)
-  return (1 / B.nodeInterval) * runningBonus * pointMult * ring.researchMult * line.nextMult
+  // 2026-09-16 空间站科研舱：Σ建成空间站 lab researchMult（乘区叠乘）
+  const station = stationModuleMultsFrom(state.orbitBuildings.filter((x) => x.type === 'station' && x.built))
+  return (1 / B.nodeInterval) * runningBonus * pointMult * ring.researchMult * station.researchMult * line.nextMult
 }
 
 /** 单线研究 H3 消耗速率（吨/秒，点数计费；储量耗尽不计费） */
@@ -465,7 +467,7 @@ export function freshLedger(): SimLedger {
   return {
     unload: 0, demolishRefund: 0, ringBurn: 0, ringBuild: 0, research: 0, fleetMaint: 0, orbitBuild: 0,
     shipBuild: 0, shipRebuild: 0, reverseFuel: 0, materials: 0, ringInstall: 0, buildingUpgrade: 0,
-    mineBuild: 0, mining: 0, insuranceRecover: 0,
+    mineBuild: 0, mining: 0, insuranceRecover: 0, stationModule: 0,
   }
 }
 
@@ -473,7 +475,7 @@ export function freshLedger(): SimLedger {
 export function ledgerTotals(led: SimLedger | undefined): { income: number; expense: number; net: number } {
   const l = led ?? freshLedger()
   const income = l.unload + l.demolishRefund + l.mining + (l.insuranceRecover ?? 0)
-  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.mineBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade
+  const expense = l.ringBurn + l.ringBuild + l.research + l.fleetMaint + l.orbitBuild + l.mineBuild + l.shipBuild + l.shipRebuild + l.reverseFuel + l.materials + l.ringInstall + l.buildingUpgrade + (l.stationModule ?? 0)
   return { income, expense, net: income - expense }
 }
 
@@ -533,9 +535,13 @@ export function createInitialState(seed: number): SimState {
 
 // ─── 星球堆场（2026-09-13 供应链重构：产量层 → 堆场缓冲 → 运力层） ───
 
-/** 星球堆场上限（吨；非资源星/未知天体 = Infinity——普通行星矿建直采不走堆场） */
-export function starStockCapOf(body: string): number {
-  return (B.starStockCap as Record<string, number | undefined>)[body] ?? Infinity
+/** 星球堆场上限（吨；非资源星/未知天体 = Infinity——普通行星矿建直采不走堆场）。
+ *  2026-09-16 空间站中继货舱：传入 state 时叠加锚定该天体的建成空间站 stockCapAdd；
+ *  不传 = 基准上限（旧调用口径不变，消费点逐步接线）。 */
+export function starStockCapOf(body: string, state?: Pick<SimState, 'orbitBuildings'>): number {
+  const base = (B.starStockCap as Record<string, number | undefined>)[body] ?? Infinity
+  if (!state || !Number.isFinite(base)) return base
+  return base + stationStockCapAdd(state.orbitBuildings, body)
 }
 
 /** 星球堆场当前库存（吨；未解锁/旧档缺键 = 0） */
@@ -974,9 +980,15 @@ export function routeNetPerTrip(state: SimState, route: SimRoute): number {
   return Math.round(cargoCap(state.mods))
 }
 
-/** 航线往返时长（展示用，秒） */
+/** 航线往返时长（展示用，秒）。
+ *  2026-09-16 空间站调度中枢：站相关流向（relay_in/relay_out/reverse，建筑端点锚天体
+ *  有建成空间站）装卸段 ×Σ锚站 dispatch workMult（往返两段的装卸同折；
+ *  forward 星→地不经建筑端点不折）。 */
 export function routeCycleSeconds(state: SimState, route: SimRoute): number {
   const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.speedMult : 1
+  // 站相关流向：从/to 端点解析出空间站，Σ其调度中枢 workMult（缺省 1）
+  const stationWorkMult = routeStationWorkMult(state, route)
+  const loadUnload = (B.loadSeconds + B.unloadSeconds) * stationWorkMult
   if (route.direction === 'forward') {
     const star = starOfEndpoint(state, route.from)!
     const leg = legSeconds(B.stars[star].dist, state.mods.speedMult * w)
@@ -986,16 +998,35 @@ export function routeCycleSeconds(state: SimState, route: SimRoute): number {
     const star = starOfEndpoint(state, route.from)!
     const dist = relayLegDistCoeff(state, star, route.to.kind === 'building' ? route.to.buildingId : 0)
     const leg = legSeconds(dist, state.mods.speedMult * w)
-    return leg * 2 + B.loadSeconds + B.unloadSeconds
+    return leg * 2 + loadUnload
   }
   if (route.direction === 'relay_out') {
     const b = buildingByEndpoint(state, route.from)
     const dist = b ? supplyDistCoeff(state, { kind: 'building', buildingId: b.id }) : 1
     const leg = legSeconds(dist, state.mods.speedMult * w)
-    return leg * 2 + B.loadSeconds + B.unloadSeconds
+    return leg * 2 + loadUnload
   }
   const leg = legSeconds(supplyDistCoeff(state, route.to), state.mods.speedMult)
-  return leg * 2 + B.loadSeconds + B.unloadSeconds
+  return leg * 2 + loadUnload
+}
+
+/** 站相关航线的装卸乘区（routeCycleSeconds 内部用）：航线两端解析出建筑锚天体，
+ *  Σ锚定该天体的建成空间站调度中枢 workMult。
+ *  2026-09-16 审查归位：Endpoint.buildingId 全工程唯一语义 = 地图建筑（中转站可接航线），
+ *  轨道建筑 id 是独立序列，禁止按 buildingId 撞号查站——统一走「端点→锚天体」口径
+ *  （与中继货舱/泊位舱的 anchor 匹配同款）；forward 端点全为天体，天然恒 1。 */
+function routeStationWorkMult(state: SimState, route: SimRoute): number {
+  let mult = 1
+  for (const ep of [route.from, route.to]) {
+    if (ep.kind !== 'building') continue
+    const b = state.buildings.find((x) => x.id === ep.buildingId)
+    if (!b) continue
+    const anchor = b.anchor ?? resolveBuildingOrbit(state, b.x, b.y)?.anchor
+    if (!anchor) continue
+    const stations = state.orbitBuildings.filter((x) => x.type === 'station' && x.built && x.anchor === anchor)
+    mult *= stationModuleMultsFrom(stations).workMult
+  }
+  return mult
 }
 
 /**
@@ -1065,5 +1096,6 @@ export function deepSnapshot<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
-export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf, isDynamicShipModule, setDynamicShipModules, shipModuleEntries, PAYLOAD_ASSEMBLY_MULT } from './balance'
+export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf, isDynamicShipModule, setDynamicShipModules, shipModuleEntries, PAYLOAD_ASSEMBLY_MULT, stationModuleMultsFrom, stationShipCapAdd, stationStockCapAdd, stationMaintMult, freshStationMults } from './balance'
+export type { StationModuleMults } from './balance'
 export type { BuildingDef, BuildingUpgradeDef, CardDef, RingBuildingDef, RingModSet, ShipHullDef, ShipModuleDef, SimBuilding, SimEvent, SimPayloadDesign, SimRoute, SimShip, SimState, StarId, MAP_H, MAP_W }

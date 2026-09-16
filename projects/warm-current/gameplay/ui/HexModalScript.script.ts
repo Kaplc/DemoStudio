@@ -16,7 +16,9 @@ export default class HexModalScript extends BehaviourScript {
   private lastPend: unknown = null
 
   override onStart(): void {
-    this.actor.root.visible = false
+    // 面板根显隐统一走 bActive：UIManager 会把二级面板根默认整树失活，
+    // 直接写 root.visible 不触发 applyActiveTree、也无法解除整树失活。
+    this.actor.bActive = false
     for (let i = 0; i < 3; i++) {
       const btn = findButton(this.actor, `Btn_card${i}`)
       if (btn) btn.onClick = () => wcMode()?.chooseCardByIndex(i)
@@ -33,7 +35,7 @@ export default class HexModalScript extends BehaviourScript {
     const want = !!vm.pending
     if (want !== this.shown) {
       this.shown = want
-      this.actor.root.visible = want
+      this.actor.bActive = want
       logger.info(want
         ? `[HexModalScript] 弹窗显示：「${vm.pending!.lineName}」三选一（仿真暂停）`
         : '[HexModalScript] 选卡完成，弹窗关闭（仿真恢复）')

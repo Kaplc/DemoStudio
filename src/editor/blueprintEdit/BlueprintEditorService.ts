@@ -44,8 +44,15 @@ export interface BlueprintEditResult {
 
 // ─── 源码管辖守卫（doc-dev/bp-ts-compile：.blueprint.ts 编译产物编辑器只读） ───
 
-/** 资产是否由 .blueprint.ts 编译生成（带 sourceHash 标记） */
-export function isSourceManaged(asset: unknown): boolean {
+/** 资产是否由 .blueprint.ts 编译生成（带 sourceHash 标记）
+ *
+ *  注意：UI widget 编译产物同样带 sourceHash（uiCompiler 的 .widget.html 源指纹），
+ *  但 widget 的"源"是同名 .widget.html（ui_compile / 反编译回写链路自管），不是
+ *  .blueprint.ts——带 assetPath 时对 .widget.json 一律豁免，否则 MCP ui_compile
+ *  编译落盘会被误拦（2026-09-16 回归，c027e10 引入）。
+ */
+export function isSourceManaged(asset: unknown, assetPath?: string): boolean {
+  if (assetPath && /\.widget\.json$/i.test(assetPath)) return false
   return !!(asset as { sourceHash?: string } | null)?.sourceHash
 }
 
@@ -359,7 +366,7 @@ export class BlueprintEditorService {
     if (persist) {
       // 源码管辖：编译产物任何路径都不落盘（预览态编辑 persist=false 不受影响；
       // save/saveAssetOnly 另有同款守卫）
-      if (isSourceManaged(oldAsset)) {
+      if (isSourceManaged(oldAsset, assetPath)) {
         logger.warn(`[BlueprintEdit] applyBatch 落盘被拦（源码管辖）: ${key}`)
         return { ok: false, error: SOURCE_MANAGED_ERROR, asset: oldAsset, types: this.listTypes() }
       }
@@ -405,7 +412,7 @@ export class BlueprintEditorService {
     const key = diskPathToAssetKey(assetPath)
     const asset = this.workingCopies.get(key)
     if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
-    if (isSourceManaged(asset)) {
+    if (isSourceManaged(asset, assetPath)) {
       logger.warn(`[BlueprintEdit] save 被拦（源码管辖）: ${key}`)
       return { ok: false, error: SOURCE_MANAGED_ERROR, asset, types: this.listTypes() }
     }
@@ -436,7 +443,7 @@ export class BlueprintEditorService {
     const key = diskPathToAssetKey(assetPath)
     const asset = this.workingCopies.get(key)
     if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
-    if (isSourceManaged(asset)) {
+    if (isSourceManaged(asset, assetPath)) {
       logger.warn(`[BlueprintEdit] saveAssetOnly 被拦（源码管辖）: ${key}`)
       return { ok: false, error: SOURCE_MANAGED_ERROR, asset, types: this.listTypes() }
     }

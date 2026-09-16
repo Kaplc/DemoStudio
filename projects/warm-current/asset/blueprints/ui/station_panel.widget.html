@@ -1,0 +1,27 @@
+<widget name="StationPanel" canvas="1920x1080" data-script="gameplay/ui/StationPanelScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .PanelRoot { width: 620px; height: 620px; position: absolute; left: 650px; top: 230px; display: flex; flex-direction: column; gap: 8px; }
+    .StationBody { box-sizing: border-box; width: 620px; height: 620px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; background-image: linear-gradient(165deg, #1a1430ee 0%, #100c22e0 50%, #141030e6 100%); border: 1px solid #6a5ac8; padding: 12px 14px; hit-test: block; }
+    .PanelTitleRow { width: 590px; height: 44px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+    .TitleText { width: 380px; height: 34px; flex-shrink: 0; font-size: 22px; color: #c9a8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px 4px #00000066; }
+    .TitleDivider { width: 590px; height: 2px; flex-shrink: 0; background-image: linear-gradient(90deg, #a88ff5 0%, #3a2f6c 100%); border-radius: 1px; }
+    .AnchorText { width: 590px; height: 26px; flex-shrink: 0; font-size: 17px; color: #9f8fdf; text-shadow: 1px 1px 4px #00000066; }
+    .LayoutText { width: 590px; height: 26px; flex-shrink: 0; font-size: 17px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
+    .ModuleList { width: 590px; height: 396px; flex-shrink: 0; }
+    .Btn_panel_close { width: 120px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #141030; border: 1px solid #6a5ac8; }
+    .Btn_panel_close:hover { background-color: #241d50; }
+    .Label_close_panel { width: 110px; height: 28px; font-size: 17px; color: #bfaef5; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="PanelRoot" data-name="PanelRoot">
+      <div class="StationBody" data-name="StationBody">
+        <div class="PanelTitleRow"><text class="TitleText" data-name="TitleText">空间站</text><button class="Btn_panel_close" data-name="Btn_panel_close"><text class="Label_close_panel">✕ 关闭</text></button></div>
+        <div class="TitleDivider"></div>
+        <text class="AnchorText" data-name="AnchorText"></text>
+        <text class="LayoutText" data-name="LayoutText"></text>
+        <div class="ModuleList" data-name="ModuleList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"autoLayout":true}'></div>
+      </div>
+    </div>
+  </div>
+</widget>

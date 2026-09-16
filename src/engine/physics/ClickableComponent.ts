@@ -288,6 +288,33 @@ export class ClickableComponent extends Component<Actor> {
     return false
   }
 
+  /** 祖先链拖拽转发会话标记（forwardDragMove 首次置位，forwardDragEnd 清除） */
+  private _forwardSession = false
+
+  /**
+   * 祖先链转发入口（PhySys.dispatchDragMove 专用）：容器自身未被按下（按下的是
+   * 其子孙按钮），不能走 handleDragMove（有 _pressed 门卫）——独立会话状态：
+   * 首次调用触发 onDragStart（容器建立拖拽会话），后续透传 onDragMove（内容跟随手指）。
+   */
+  forwardDragMove(screenX: number, screenY: number): void {
+    if (!this.onDragMove) return
+    if (!this._forwardSession) {
+      this._forwardSession = true
+      this.onDragStart?.(screenX, screenY)
+    }
+    this.onDragMove?.(screenX, screenY)
+  }
+
+  /**
+   * 转发会话终止（PhySys.raycastRelease 配对调用）：触发 onDragEnd 收尾
+   * （滚动容器越界回弹）。未处于转发会话时幂等空转。
+   */
+  forwardDragEnd(): void {
+    if (!this._forwardSession) return
+    this._forwardSession = false
+    this.onDragEnd?.()
+  }
+
   /**
    * 处理释放事件（mouseup 时由 PhySys 对按中的对象分发，无需射线）。
    * 无论鼠标在哪里松开（拖出按钮/窗口外），只要之前按下过就恢复。

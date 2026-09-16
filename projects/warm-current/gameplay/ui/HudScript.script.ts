@@ -14,6 +14,7 @@
  *      orbit_build_panel（近地轨道建设面板，GameMode.orbitBuildSel 状态驱动）
  *      shipyard_panel（船坞造船面板，GameMode.shipyardSel 状态驱动，点船坞打开；逐船一卡队列）
  *      hologram_panel（全息勘探面板，GameMode.hologramSel 状态驱动，星球信息面板「全息勘探」打开）
+ *      holo_hud（全息态底部 HUD：vm.hologram 非空 = 隐藏 BottomBar 显形全息底栏，HoloHudScript 自驱动）
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
@@ -28,9 +29,11 @@ import PlanetInfoScript, { PLANET_INFO_WIDGET } from './PlanetInfoScript.script'
 import StatsPanelScript, { STATS_PANEL_WIDGET } from './StatsPanelScript.script'
 import OrbitPanelScript, { ORBIT_BUILD_PANEL_WIDGET } from './OrbitPanelScript.script'
 import ShipyardPanelScript, { SHIPYARD_PANEL_WIDGET } from './ShipyardPanelScript.script'
+import StationPanelScript, { STATION_PANEL_WIDGET } from './StationPanelScript.script'
 import BuildingDetailScript, { BUILDING_DETAIL_WIDGET } from './BuildingDetailScript.script'
 import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScript.script'
 import HologramPanelScript, { HOLOGRAM_PANEL_WIDGET } from './HologramPanelScript.script'
+import { HOLO_HUD_WIDGET } from './HoloHudScript.script'
 import ShipDesignScript, { SHIP_DESIGN_WIDGET } from './ShipDesignScript.script'
 import PayloadDesignScript, { PAYLOAD_DESIGN_WIDGET } from './PayloadDesignScript.script'
 
@@ -71,9 +74,11 @@ export default class HudScript extends BehaviourScript {
   private planetInfoPanel: Actor | null = null
   private orbitPanel: Actor | null = null
   private shipyardPanel: Actor | null = null
+  private stationPanel: Actor | null = null
   private buildingDetailPanel: Actor | null = null
   private fleetOrderBar: Actor | null = null
   private hologramPanel: Actor | null = null
+  private holoHud: Actor | null = null
   private shipDesignPanel: Actor | null = null
   private payloadDesignPanel: Actor | null = null
   private statsPanel: Actor | null = null
@@ -97,6 +102,11 @@ export default class HudScript extends BehaviourScript {
       // 状态驱动面板（船坞造船 / 火箭设计）：同轨道建设口径
       if (inst instanceof ShipyardPanelScript) {
         if (inst.isOpen) wcMode()?.closeShipyardPanel()
+        continue
+      }
+      // 状态驱动面板（空间站舱段）：同船坞口径
+      if (inst instanceof StationPanelScript) {
+        if (inst.isOpen) wcMode()?.closeStationPanel()
         continue
       }
       if (inst instanceof ShipDesignScript) {
@@ -170,11 +180,13 @@ export default class HudScript extends BehaviourScript {
     const orbitEntry: CenterPanelEntry = { actor: () => this.orbitPanel, is: (s) => s instanceof OrbitPanelScript, label: '轨道建设面板' }
     // 船坞造船面板（居中位，GameMode.shipyardSel 状态驱动开合：点船坞打开，只登记用于被其它居中面板收起）
     const shipyardEntry: CenterPanelEntry = { actor: () => this.shipyardPanel, is: (s) => s instanceof ShipyardPanelScript, label: '船坞造船面板' }
+    // 空间站舱段面板（居中位，GameMode.stationSel 状态驱动开合：点空间站打开，只登记用于被其它居中面板收起）
+    const stationEntry: CenterPanelEntry = { actor: () => this.stationPanel, is: (s) => s instanceof StationPanelScript, label: '空间站舱段面板' }
     // 火箭设计工坊（居中位，GameMode.designOpen 状态驱动开合：底部 HUD 入口）
     const designEntry: CenterPanelEntry = { actor: () => this.shipDesignPanel, is: (s) => s instanceof ShipDesignScript, label: '火箭设计工坊' }
     // 荷载设计工坊（居中位，GameMode.payloadDesignOpen 状态驱动开合：火箭设计工坊「荷载设计」入口）
     const payloadEntry: CenterPanelEntry = { actor: () => this.payloadDesignPanel, is: (s) => s instanceof PayloadDesignScript, label: '荷载设计工坊' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, designEntry, payloadEntry]
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, stationEntry, designEntry, payloadEntry]
     bind('Btn_design', () => this.toggleCenterPanel(designEntry))
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
     bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
@@ -219,6 +231,9 @@ export default class HudScript extends BehaviourScript {
     // 船坞造船面板（居中位：星图点船坞弹出，ShipyardPanelScript 读 vm.shipyard 自驱动）
     this.shipyardPanel = this.world?.ui.spawnUIActor(SHIPYARD_PANEL_WIDGET) ?? null
     if (!this.shipyardPanel) logger.warn('[HudScript] shipyard_panel 生成失败')
+    // 空间站舱段面板（居中位：星图点空间站弹出，StationPanelScript 读 vm.station 自驱动）
+    this.stationPanel = this.world?.ui.spawnUIActor(STATION_PANEL_WIDGET) ?? null
+    if (!this.stationPanel) logger.warn('[HudScript] station_panel 生成失败')
     // 建筑详情浮层（右侧：点地图建筑弹出，BuildingDetailScript 读 vm.buildingDetail 自驱动，强化装拆流）
     this.buildingDetailPanel = this.world?.ui.spawnUIActor(BUILDING_DETAIL_WIDGET) ?? null
     if (!this.buildingDetailPanel) logger.warn('[HudScript] building_detail 生成失败')
@@ -228,6 +243,9 @@ export default class HudScript extends BehaviourScript {
     // 全息勘探面板（右侧：星球信息面板「全息勘探」弹出，HologramPanelScript 读 vm.hologram 自驱动）
     this.hologramPanel = this.world?.ui.spawnUIActor(HOLOGRAM_PANEL_WIDGET) ?? null
     if (!this.hologramPanel) logger.warn('[HudScript] hologram_panel 生成失败')
+    // 全息态底部 HUD（vm.hologram 非空 = 隐藏 BottomBar 换全息底栏，HoloHudScript 自驱动，默认收起）
+    this.holoHud = this.world?.ui.spawnUIActor(HOLO_HUD_WIDGET) ?? null
+    if (!this.holoHud) logger.warn('[HudScript] holo_hud 生成失败')
     // 火箭设计工坊（居中位：底部 HUD「火箭设计」弹出，ShipDesignScript 读 vm.shipDesign 自驱动）
     this.shipDesignPanel = this.world?.ui.spawnUIActor(SHIP_DESIGN_WIDGET) ?? null
     if (!this.shipDesignPanel) logger.warn('[HudScript] ship_design 生成失败')
@@ -280,6 +298,9 @@ export default class HudScript extends BehaviourScript {
     this.vis.set(this.actor, 'Btn_pause', playable)
     this.vis.set(this.actor, 'Btn_speed', playable)
     this.vis.set(this.actor, 'Btn_restart', playable)
+
+    // ─── 底部 HUD 切换：全息态隐藏普通底栏，换全息底栏（holo_hud 自驱动显形） ───
+    this.vis.set(this.actor, 'BottomBar', !vm.hologram)
 
     // ─── 底部 bar：科研徽标（均进度 + 空闲/总船数，面板收起时也能看到概况） ───
     const lineSum = Math.round(

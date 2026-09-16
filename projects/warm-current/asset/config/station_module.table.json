@@ -1,0 +1,33 @@
+{
+  "_comment": "空间站舱段模块配置表（2026-09-16 空间站模块：玩家在建成空间站上插配布局，OrbitBuilding.modules）。行键 = 模块 id（单站同模块只装一件，同型单件）。\n cost=安装造价(H3，即时扣费入 ledger.stationModule；拆除不返还，沿建筑强化先例)。\n mods=效果修正集（仅本站；键=shipCapAdd 船队上限加算 / workMult 本站相关流向装卸乘区 / stockCapAdd 本站锚定天体堆场上限加算 / researchMult 研究速率乘区 / maintMult 舰队维护费乘区）。\n 每件都挂在既有模拟机制上（2026-09-14 设计口径：模块必须有独立模拟落点，不做无机制纯数值件）：\n  berth 泊位舱=SimStateComponent.shipCap 加算（扩展轨道泊位叙事）；\n  dispatch 调度中枢=routeCycleSeconds 站相关流向（relay_in/relay_out/reverse）装卸 ×0.8；\n  relay_bay 中继货舱=starStockCapOf 锚天体 +400（堆满停产线外扩，产量层↔运力层缓冲）；\n  lab 科研舱=researchRateOf ×1.2（点数驱动基础上的整体乘区）；\n  repair_bay 维修坞=EconomyComponent.tickEconomy 舰队维护费 ×0.8。\n 加新模块：加一行即生效（stationModuleMultsFrom 聚合器通用；station 面板行池 6 容量内自动多一行）。",
+  "berth": {
+    "name": "泊位舱",
+    "desc": "船队上限 +1",
+    "cost": 260,
+    "mods": { "shipCapAdd": 1 }
+  },
+  "dispatch": {
+    "name": "调度中枢",
+    "desc": "本站相关航线（中转/供应线）装卸时长 ×0.8",
+    "cost": 220,
+    "mods": { "workMult": 0.8 }
+  },
+  "relay_bay": {
+    "name": "中继货舱",
+    "desc": "本站锚定天体堆场上限 +400",
+    "cost": 240,
+    "mods": { "stockCapAdd": 400 }
+  },
+  "lab": {
+    "name": "科研舱",
+    "desc": "研究速率 ×1.2",
+    "cost": 300,
+    "mods": { "researchMult": 1.2 }
+  },
+  "repair_bay": {
+    "name": "维修坞",
+    "desc": "舰队维护费 ×0.8",
+    "cost": 280,
+    "mods": { "maintMult": 0.8 }
+  }
+}

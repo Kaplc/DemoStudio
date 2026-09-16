@@ -7,7 +7,7 @@
  * 星图布局用画布坐标（1920×1080，y 向下），与渲染/拾取约定一致。
  */
 import { ConfigRegistry } from '@/engine'
-import type { PlanetId, ResearchLineId, SimBuilding, SimState, StarId } from './types'
+import type { OrbitBuilding, PlanetId, ResearchLineId, SimBuilding, SimState, StarId } from './types'
 
 // ─── 类型 ───
 
@@ -46,6 +46,24 @@ export interface OrbitBuildingDef {
   shipBuildCostMult: number
   /** 造船时长除数（>1 = 经此建筑造船更快） */
   shipBuildSpeedMult: number
+}
+
+/** 空间站舱段模块定义（= station_module.table.json 行，行键 = OrbitBuilding.modules 元素；
+ *  2026-09-16 空间站模块：玩家在建成空间站上插配舱段布局，效果全局收口 stationModuleMultsFrom） */
+export interface StationModuleDef {
+  name: string
+  desc: string
+  /** 安装造价（H3，即时扣费入 ledger.stationModule；拆除不返还） */
+  cost: number
+  /** 效果修正集（仅本站；键 = shipCapAdd 船队上限加算 / workMult 站线装卸乘区 /
+   *  stockCapAdd 锚星堆场上限加算 / researchMult 研究速率乘区 / maintMult 维护费乘区） */
+  mods: {
+    shipCapAdd?: number
+    workMult?: number
+    stockCapAdd?: number
+    researchMult?: number
+    maintMult?: number
+  }
 }
 
 /** 矿种定义（= mineral_type.table.json 行，行键 = 矿点 type；2026-09-12 全息勘探） */
@@ -520,7 +538,19 @@ export const B = {
   // 近地轨道建筑（orbit_build.table.json 覆盖；行键 = OrbitBuilding.type，轨道建设面板行序 = 键序）
   orbitBuildings: {
     dock: { name: '船坞', desc: '轨道造船 · 造价 −25% / 提速 30%', cost: 260, buildTime: 60, shipBuildCostMult: 0.75, shipBuildSpeedMult: 1.3 },
+    // 2026-09-16 空间站（用户需求：空间站模块 + 玩家设计布局）：建成后可插配舱段模块
+    station: { name: '空间站', desc: '多用途轨道站 · 点站插配舱段（泊位/调度/中继/科研/维修）', cost: 400, buildTime: 90, shipBuildCostMult: 1, shipBuildSpeedMult: 1 },
   } as Record<string, OrbitBuildingDef>,
+  // 空间站舱段模块（station_module.table.json 覆盖；行键 = OrbitBuilding.modules 元素。
+  // 每件都挂在既有模拟机制上：泊位舱=船队上限加算 / 调度中枢=站线装卸乘区 / 中继货舱=
+  // 锚星堆场加算 / 科研舱=研究速率乘区 / 维修坞=维护费乘区；同型单件是面板约束，聚合器按件累加）
+  stationModules: {
+    berth: { name: '泊位舱', desc: '船队上限 +1', cost: 260, mods: { shipCapAdd: 1 } },
+    dispatch: { name: '调度中枢', desc: '本站相关航线（中转/供应线）装卸时长 ×0.8', cost: 220, mods: { workMult: 0.8 } },
+    relay_bay: { name: '中继货舱', desc: '本站锚定天体堆场上限 +400', cost: 240, mods: { stockCapAdd: 400 } },
+    lab: { name: '科研舱', desc: '研究速率 ×1.2', cost: 300, mods: { researchMult: 1.2 } },
+    repair_bay: { name: '维修坞', desc: '舰队维护费 ×0.8', cost: 280, mods: { maintMult: 0.8 } },
+  } as Record<string, StationModuleDef>,
   // 矿种（mineral_type.table.json 覆盖；行键 = 矿点 type，全息标记/面板色点用 color）
   mineralTypes: {
     he3: { name: '氦-3 矿脉', desc: '聚变原料 · 直采即燃料', color: '#4fd8ff' },
@@ -739,6 +769,64 @@ export function buildingHookMult(b: Pick<SimBuilding, 'type' | 'upgrade'>): numb
   return up?.mods.hookMult ?? 1
 }
 
+// ─── 空间站舱段模块聚合（2026-09-16 空间站模块：玩家布局 → 效果收口） ───
+
+/** 空间站舱段模块效果集（键语义 = StationModuleDef.mods；聚合器输出缺省值形态） */
+export interface StationModuleMults {
+  shipCapAdd: number
+  workMult: number
+  stockCapAdd: number
+  researchMult: number
+  maintMult: number
+}
+
+/** 单站空效果集（读态缺省：无 modules 或缺键按基准值） */
+export function freshStationMults(): StationModuleMults {
+  return { shipCapAdd: 0, workMult: 1, stockCapAdd: 0, researchMult: 1, maintMult: 1 }
+}
+
+/** 单站模块效果聚合（Σ建成空间站 modules 逐件折算；乘区键叠乘、加算键累加；
+ *  同型单件是面板约束，聚合器按件累加——数据层宽容，旧档/重复件不炸） */
+export function stationModuleMultsFrom(stations: Array<Pick<OrbitBuilding, 'type' | 'modules'>>): StationModuleMults {
+  const m = freshStationMults()
+  for (const st of stations) {
+    if (st.type !== 'station' || !Array.isArray(st.modules)) continue
+    for (const id of st.modules) {
+      const def = (B.stationModules as Record<string, StationModuleDef | undefined>)[id]
+      if (!def?.mods) continue
+      if (def.mods.shipCapAdd !== undefined) m.shipCapAdd += def.mods.shipCapAdd
+      if (def.mods.workMult !== undefined) m.workMult *= def.mods.workMult
+      if (def.mods.stockCapAdd !== undefined) m.stockCapAdd += def.mods.stockCapAdd
+      if (def.mods.researchMult !== undefined) m.researchMult *= def.mods.researchMult
+      if (def.mods.maintMult !== undefined) m.maintMult *= def.mods.maintMult
+    }
+  }
+  return m
+}
+
+/** 全局船队上限加算（Σ建成空间站泊位舱 shipCapAdd；无泊位舱 = 0） */
+export function stationShipCapAdd(stations: Array<Pick<OrbitBuilding, 'type' | 'modules'>>): number {
+  return stationModuleMultsFrom(stations).shipCapAdd
+}
+
+/** 某天体的堆场上限加算（Σ锚定该天体的建成空间站中继货舱 stockCapAdd；无 = 0） */
+export function stationStockCapAdd(stations: Array<Pick<OrbitBuilding, 'type' | 'modules' | 'anchor'>>, body: string): number {
+  let add = 0
+  for (const st of stations) {
+    if (st.type !== 'station' || st.anchor !== body || !Array.isArray(st.modules)) continue
+    for (const id of st.modules) {
+      const def = (B.stationModules as Record<string, StationModuleDef | undefined>)[id]
+      if (def?.mods.stockCapAdd !== undefined) add += def.mods.stockCapAdd
+    }
+  }
+  return add
+}
+
+/** 单站维修坞维护费乘区（模块缺省 1；无该件 = 1） */
+export function stationMaintMult(st: Pick<OrbitBuilding, 'type' | 'modules'>): number {
+  return stationModuleMultsFrom([st]).maintMult
+}
+
 /** 代码内置默认卡库（cards.table.json 未加载时的兜底；与表内容保持同步） */
 export const DEFAULT_CARDS: CardDef[] = [
   { id: 'event_warning', name: '事件预警', type: 'unlock', line: 'infra', gain: '极寒停航提前 10 秒预告', cost: '该线下次生长 −10%', effects: { flareWarning: true, nextGrowth: { line: 'self', mult: 0.9 } } },
@@ -925,6 +1013,22 @@ for (const k of ['ringRadius', 'orbitSpeed', 'maxPerType', 'labelHeight', 'label
         if (def && row) Object.assign(def, row)
         else if (row) (B.orbitBuildings as Record<string, OrbitBuildingDef>)[key] = {
           name: key, desc: '', cost: 0, buildTime: 0, shipBuildCostMult: 1, shipBuildSpeedMult: 1, ...row,
+        }
+      }
+    }
+  } catch { /* 未注册 → 默认值 */ }
+
+  // 空间站舱段模块表（station_module.table.json：行键 = 模块 id，整行覆盖 + 兜底行插入，
+  // 模式与 orbit_buildings 一致；纯表驱动加舱段）
+  try {
+    const table = ConfigRegistry.getTable<Partial<StationModuleDef>>('warm-current.station_modules')
+    if (table) {
+      for (const key of table.getRowNames()) {
+        const row = table.getRow(key)
+        const def = (B.stationModules as Record<string, StationModuleDef | undefined>)[key]
+        if (def && row) Object.assign(def, row)
+        else if (row) (B.stationModules as Record<string, StationModuleDef>)[key] = {
+          name: key, desc: '', cost: 0, mods: {}, ...row,
         }
       }
     }

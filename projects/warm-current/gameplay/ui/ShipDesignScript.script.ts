@@ -326,7 +326,9 @@ export default class ShipDesignScript extends BehaviourScript {
   private setCellVisible(cell: Actor, on: boolean): void {
     if (this.visMap.get(cell) === on) return
     this.visMap.set(cell, on)
-    cell.root.visible = on
+    // 统一走 bActive：与面板显隐机制一致（直接写 visible 会被 bActive 的
+    // applyActiveTree 从父链重算时覆盖）
+    cell.bActive = on
   }
 
   override onDestroy(): void {
