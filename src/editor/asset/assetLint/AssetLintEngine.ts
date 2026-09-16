@@ -214,9 +214,21 @@ class AssetLintEngine {
     }
   }
 
-  /** 校验单个文档：walk → 派发 → checker.run。 */
+  /** 校验单个文档：svg 直接派发 doc:svg；其余 walk → 派发 → checker.run。 */
   private validateDoc(f: AssetFile): LintIssue[] {
     const issues: LintIssue[] = []
+    // SVG 贴图是纯文本文档（AssetFile.doc = 字符串），不走 walkDocument（JSON 结构遍历）
+    if (/\.svg$/i.test(f.path)) {
+      const res = resolveChecker('doc:svg')
+      if (res.type === 'checker') {
+        return res.checker.run(f.doc, this.makeContext(f.path, '<svg 根>'))
+      }
+      issues.push(
+        this.makeIssue(f.path, '<svg 根>', '-', 'unknown-doc', 'warn', 'doc:svg 检查器未注册（checkers barrel 未导入）'),
+      )
+      return issues
+    }
+
     const { rootKind, tasks } = walkDocument(f.doc)
 
     if (!rootKind) {

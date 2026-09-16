@@ -5,6 +5,8 @@
  */
 import * as THREE from 'three'
 import { CanvasUIComponent, type UIHitTestMode } from '../rendering/CanvasUIComponent'
+import { loadSVGImage, isSVGUrl } from '../rendering/SVGTexture'
+import { TextureRegistry } from '../asset/TextureRegistry'
 import { type EditableProperty } from '../entity/Component'
 import { logger } from '../Logger'
 import type { Actor } from '../entity/Actor'
@@ -38,7 +40,8 @@ export interface UIImageComponentOptions {
 export class UIImageComponent extends CanvasUIComponent {
   protected _color: string
   protected _radius: number
-  protected _image: HTMLImageElement | null
+  /** 位图来源：栅格位图为 HTMLImageElement，SVG 经 loadSVGImage 栅格化为 canvas */
+  protected _image: HTMLImageElement | HTMLCanvasElement | null
   private _gradient: UIImageComponentOptions['gradient']
 
   constructor(owner: Actor, options: UIImageComponentOptions = {}) {
@@ -137,9 +140,30 @@ export class UIImageComponent extends CanvasUIComponent {
     return out
   }
 
-  /** 异步加载图片，完成后自动重绘 */
+  /**
+   * 异步加载图片，完成后自动重绘。
+   * 先过 TextureRegistry.resolve（asset/ 路径翻译打包 URL，非 asset/ 原样）——
+   * widget img 写 "asset/..." 相对路径此前会 404，现已与 3D 贴图同一解析通道。
+   * SVG 来源（.svg 后缀 / dev 下内联 data URI）分流 loadSVGImage（控件位图尺寸 ×2 超采样，
+   * 光栅化为 canvas）；其余格式走 new Image()。
+   * 控件后续 resize 不重栅格（缩小无碍、放大会糊，v1 接受）。
+   */
   loadImage(src: string): void {
+    const resolved = TextureRegistry.resolve(src) ?? src
     logger.info(`[UIImageComponent] 加载图片: ${src}`)
+    if (isSVGUrl(resolved)) {
+      const [w, h] = this.getSize()
+      void loadSVGImage(resolved, { width: w, height: h, density: 2 })
+        .then((canvas) => {
+          this._image = canvas
+          this.redraw()
+          logger.info(`[UIImageComponent] SVG 加载完成: ${src} (${canvas.width}x${canvas.height})`)
+        })
+        .catch((err: unknown) => {
+          logger.error(`[UIImageComponent] SVG 加载失败: ${src} — ${err instanceof Error ? err.message : String(err)}`)
+        })
+      return
+    }
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
@@ -150,7 +174,7 @@ export class UIImageComponent extends CanvasUIComponent {
     img.onerror = () => {
       logger.error(`[UIImageComponent] 图片加载失败: ${src}`)
     }
-    img.src = src
+    img.src = resolved
   }
 
   protected redraw(): void {

@@ -46,6 +46,10 @@ export { UIScriptComponent } from './ui/UIScriptComponent'
 export { SpriteComponent } from './rendering/SpriteComponent'
 export { ClickableComponent } from './physics/ClickableComponent'
 export { loadTexture, clearTextureCache } from './rendering/TextureLoader'
+export { loadSVGImage, loadSVGTexture, clearSVGTextureCache } from './rendering/SVGTexture'
+
+export type { SVGRenderOptions } from './rendering/SVGTexture'
+
 export { PlayerCameraManager } from './rendering/PlayerCameraManager'
 export { InputComponent } from './input/InputComponent'
 export type { InputEventType } from './input/InputComponent'

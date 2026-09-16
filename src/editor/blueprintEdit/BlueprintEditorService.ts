@@ -42,6 +42,17 @@ export interface BlueprintEditResult {
   types?: BlueprintTypes
 }
 
+// ─── 源码管辖守卫（doc-dev/bp-ts-compile：.blueprint.ts 编译产物编辑器只读） ───
+
+/** 资产是否由 .blueprint.ts 编译生成（带 sourceHash 标记） */
+export function isSourceManaged(asset: unknown): boolean {
+  return !!(asset as { sourceHash?: string } | null)?.sourceHash
+}
+
+const SOURCE_MANAGED_ERROR =
+  '该资产由 .blueprint.ts 编译生成（源码管辖）：请修改源码后执行 bp_compile；' +
+  '如需转手写资产，删除 json 中的 sourceHash 字段'
+
 // ─── 文件读写（经 Electron IPC） ───
 
 interface FileResult {
@@ -346,6 +357,12 @@ export class BlueprintEditorService {
 
     // 仅显式保存时写盘
     if (persist) {
+      // 源码管辖：编译产物任何路径都不落盘（预览态编辑 persist=false 不受影响；
+      // save/saveAssetOnly 另有同款守卫）
+      if (isSourceManaged(oldAsset)) {
+        logger.warn(`[BlueprintEdit] applyBatch 落盘被拦（源码管辖）: ${key}`)
+        return { ok: false, error: SOURCE_MANAGED_ERROR, asset: oldAsset, types: this.listTypes() }
+      }
       const written = await writeAsset(assetPath, newAsset)
       if (!written.ok) {
         // 写盘失败：回滚副本 + 注册表
@@ -388,6 +405,10 @@ export class BlueprintEditorService {
     const key = diskPathToAssetKey(assetPath)
     const asset = this.workingCopies.get(key)
     if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
+    if (isSourceManaged(asset)) {
+      logger.warn(`[BlueprintEdit] save 被拦（源码管辖）: ${key}`)
+      return { ok: false, error: SOURCE_MANAGED_ERROR, asset, types: this.listTypes() }
+    }
     logger.info(`[BlueprintEdit] save 开始: ${key}（pos ${logPos(asset)}，dirty=${this.dirtyKeys.has(key)}）`)
     const written = await writeAsset(assetPath, asset)
     if (!written.ok) {
@@ -415,6 +436,10 @@ export class BlueprintEditorService {
     const key = diskPathToAssetKey(assetPath)
     const asset = this.workingCopies.get(key)
     if (!asset) return { ok: false, error: '没有打开的工作副本（请先编辑再保存）', types: this.listTypes() }
+    if (isSourceManaged(asset)) {
+      logger.warn(`[BlueprintEdit] saveAssetOnly 被拦（源码管辖）: ${key}`)
+      return { ok: false, error: SOURCE_MANAGED_ERROR, asset, types: this.listTypes() }
+    }
     logger.info(`[BlueprintEdit] saveAssetOnly 开始: ${key}`)
     const written = await writeAsset(assetPath, asset)
     if (!written.ok) {

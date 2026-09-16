@@ -549,6 +549,30 @@ export function registerGlobalEventListeners(callbacks: {
             }
             break
           }
+          case 'bp_reload': {
+            // 蓝图 TS 源外部编译落盘后的热刷新（doc-dev/bp-ts-compile P2，MCP bp_compile 成功后调用）：
+            // 丢弃工作副本/撤销栈（外部编译产物 = 权威），注册表恢复磁盘版，并 bump 已开页签重读
+            const bpSrcPath = (params?.asset as string | undefined)?.trim()
+            if (!bpSrcPath || !bpSrcPath.endsWith('.blueprint.ts')) {
+              const msg = { status: 'error', command: 'bp_reload', message: '缺少 asset 参数（需 .blueprint.ts 路径）' }
+              addConsoleOutput('[MCP] bp_reload: 缺少 asset 参数')
+              if (requestId) window.electronAPI?.sendMCPResponse?.(requestId, msg)
+              break
+            }
+            const bpJsonPath = bpSrcPath.replace(/\.blueprint\.ts$/i, '.blueprint.json')
+            BlueprintEditorService.closeAsset(bpJsonPath)
+            useEditorStore.getState().bumpBlueprintEdit(bpJsonPath)
+            addConsoleOutput(`[MCP] bp_reload: ${bpJsonPath}（工作副本已清 + 页签 bump 重读）`)
+            if (requestId) {
+              window.electronAPI?.sendMCPResponse?.(requestId, {
+                status: 'ok',
+                command: 'bp_reload',
+                asset: bpJsonPath,
+                message: '注册表已恢复磁盘版本，页签已触发重读',
+              })
+            }
+            break
+          }
           case 'send_input':
             if (params?.key) {
               window.dispatchEvent(new KeyboardEvent('keydown', { key: params.key, bubbles: true }))

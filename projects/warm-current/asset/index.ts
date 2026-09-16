@@ -25,7 +25,8 @@ export function registerWarmCurrentAssets(): void {
   )
 
   // 贴图资产（SSS 天体贴图等）：import 得到打包 URL（dev 文件路径 / build 带 hash），glob 自动收集零代码
-  const textureModules = import.meta.glob<{ default: string }>('./textures/*.{jpg,png,webp}', {
+  // 注意：glob 模式是 vite 静态分析的字面量，不能提共享常量拼后缀——其他项目要用 SVG 各自照抄此行
+  const textureModules = import.meta.glob<{ default: string }>('./textures/**/*.{jpg,png,webp,svg}', {
     eager: true,
     query: '?url',
   })

@@ -73,6 +73,8 @@ export interface BlueprintAsset {
   rotation?: [number, number, number]
   /** 缩放 */
   scale?: [number, number, number]
+  /** bp 编译产物标记（.blueprint.ts 的 fnv1a）；运行时忽略，编辑器据此判定"源码管辖"（doc-dev/bp-ts-compile） */
+  sourceHash?: string
 }
 
 // ─── resolve 后的扁平化结果（继承链已合并，视为只读） ───

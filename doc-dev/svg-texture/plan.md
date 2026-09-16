@@ -1,6 +1,7 @@
 # SVG 贴图功能实施方案（一期：SVG → CanvasTexture）
 
-> 状态：方案待拍板，未动码。
+> 状态：已实施（2026-09-16）。M1–M7 全量落地 + 单测 28 例全绿 + MT 目检通过（真实浏览器解码像素断言 + 球面截图 doc-dev/svg-texture/mt-visual.png）。
+> 实施增量（方案未预见）：① vite dev 下 svg `?url` 内联成 data URI，svg 判定用 isSVGUrl()（后缀 + data:image/svg+xml 双形态，SVGTexture 导出共用）；② warm glob 扩为 `./textures/**/*.{...}`（svgtest 子目录样例需要递归，平铺布局行为不变）；③ three 0.170 needsUpdate 只写 setter，单测断言用 version 递增。
 > 范围：SVG 文件作为贴图资产，两端消费——UI（widget `<img>`）与局内模型（蓝图/组件 texture 属性）。
 > 明确不做（二期候选见 §9）：内联 `<svg>` 标签、编译期烘焙 PNG、SVGLoader 挤出 3D 几何、SVG 热重载。
 

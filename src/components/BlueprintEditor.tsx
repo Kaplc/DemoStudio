@@ -38,6 +38,8 @@ interface BlueprintData {
   baseClass: string
   components?: Array<{ id?: number; name?: string; baseClass: string; properties?: Record<string, unknown>; _remove?: boolean }>
   children?: BlueprintChildNode[]
+  /** bp 编译产物标记（sourceHash 存在 = 源码管辖，编辑器只读） */
+  sourceHash?: string
 }
 
 /** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
@@ -451,7 +453,10 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
       }
       if (saveData) BlueprintEditorService.updateFromPreview(assetPath, saveData as unknown as BlueprintAsset)
       const r = await BlueprintEditorService.save(assetPath)
-      if (!r.ok) console.error('[BlueprintEditor] 保存失败:', r.error)
+      if (!r.ok) {
+        console.error('[BlueprintEditor] 保存失败:', r.error)
+        setSaveError(r.error ?? '保存失败（未知错误）')
+      }
 
       // 通知其他页签/面板刷新 + 触发行内 useEffect 重建预览
       useEditorStore.getState().bumpBlueprintEdit(assetPath)
@@ -485,9 +490,22 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
   }
 
   const filename = assetPath.split('/').pop() ?? assetPath
+  /** 源码管辖（.blueprint.ts 编译产物）：顶部 banner + 保存按钮置灰 */
+  const sourceManaged = !!data.sourceHash
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
+      {/* 源码管辖提示条 */}
+      {sourceManaged && (
+        <div style={{
+          padding: '4px 16px', fontSize: 11,
+          background: 'rgba(80, 160, 255, 0.12)', borderBottom: '1px solid var(--border)',
+          color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          🔒 源码管辖：本资产由 <code style={{ color: 'var(--accent)' }}>{filename.replace(/\.json$/i, '.ts')}</code> 编译生成，
+          修改请编辑源码后执行 bp_compile；删除 json 中的 sourceHash 可转手写资产
+        </div>
+      )}
       {/* 基类信息条 */}
       <div style={{
         padding: '6px 16px', borderBottom: '1px solid var(--border)',
@@ -527,11 +545,12 @@ export function BlueprintEditor({ assetPath }: BlueprintEditorProps) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || sourceManaged}
+          title={sourceManaged ? '源码管辖：请修改 .blueprint.ts 源码后执行 bp_compile' : '保存 (Ctrl+S)'}
           style={{
-            fontSize: 11, padding: '3px 12px', cursor: saving ? 'default' : 'pointer',
-            background: saving ? 'var(--bg-tertiary)' : 'var(--accent)',
-            color: saving ? 'var(--text-dim)' : '#fff',
+            fontSize: 11, padding: '3px 12px', cursor: (saving || sourceManaged) ? 'default' : 'pointer',
+            background: (saving || sourceManaged) ? 'var(--bg-tertiary)' : 'var(--accent)',
+            color: (saving || sourceManaged) ? 'var(--text-dim)' : '#fff',
             border: 'none', borderRadius: 3,
             display: 'inline-flex', alignItems: 'center', gap: 4,
           }}

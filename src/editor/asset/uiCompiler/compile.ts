@@ -70,8 +70,8 @@ class CompileFail extends Error {
   }
 }
 
-/** FNV-1a 32 位 hash（sourceHash：源文件内容指纹） */
-function fnv1a(str: string): string {
+/** FNV-1a 32 位 hash（sourceHash：源文件内容指纹）。导出供 bpCompiler 复用（同格式同值，勿复制实现） */
+export function fnv1a(str: string): string {
   let h = 0x811c9dc5
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)
@@ -118,7 +118,7 @@ export const UNSUPPORTED_TAGS: Record<string, string> = {
   video: '引擎无视频控件（UI 层不支持视频播放）',
   audio: '引擎 UI 层不支持音频控件（用游戏脚本播放）',
   canvas: '引擎 UI 不支持位图画布（用 UIImage + 贴图）',
-  svg: '引擎不支持 SVG 矢量（转贴图后用 img）',
+  svg: 'SVG 不作内联标签支持：存为 asset/textures/*.svg 资产后用 <img src> 引用',
   math: '引擎不支持数学标记',
   iframe: '引擎不支持内嵌网页',
   object: '引擎不支持嵌入式对象',

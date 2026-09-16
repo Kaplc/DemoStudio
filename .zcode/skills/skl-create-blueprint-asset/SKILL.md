@@ -1,6 +1,6 @@
 ---
 name: skl-create-blueprint-asset
-description: '创建 DemoStudio 蓝图资产（.blueprint.json）。使用时机：用户要求新建/编辑蓝图资产文件，如 "创建一个房屋蓝图"、"写 beach house 的 blueprint"、"蓝图里加子 Actor/组件"、"引用另一个蓝图"。规则与资产检查器（assetLint doc:blueprint / node / comp）一致，创建的资产必须零 lint 错误。'
+description: '创建 DemoStudio 蓝图资产（.blueprint.json，或 TS 源 .blueprint.ts）。使用时机：用户要求新建/编辑蓝图资产文件，如 "创建一个房屋蓝图"、"写 beach house 的 blueprint"、"蓝图里加子 Actor/组件"、"引用另一个蓝图"。规则与资产检查器（assetLint doc:blueprint / node / comp）一致，创建的资产必须零 lint 错误。'
 argument-hint: '蓝图名称或蓝图用途描述'
 ---
 
@@ -10,6 +10,45 @@ argument-hint: '蓝图名称或蓝图用途描述'
 - 用户要求新建蓝图资产文件（`asset/blueprints/**/*.blueprint.json`）
 - 修改现有蓝图的 `components` / `children`（子 Actor、组件、引用）
 - 蓝图由 `asset/index.ts` 的 `import.meta.glob('./blueprints/**/*.blueprint.json')` **自动注册**，注册 key 从文件路径推导（`asset/...`），**JSON 内无需写 path 字段**
+
+## 源码格式（.blueprint.ts，doc-dev/bp-ts-compile 方案）
+
+含**重复结构**（N 个同构子节点）、**跨文件共享常量**、**表驱动参数**的蓝图，优先写 TS 源而非手编 json（手写 json 仍完全合法，简单蓝图直接写 json 即可）。
+
+**文件约定**：
+- 路径：与产物同目录同名，`<project>/asset/blueprints/xxx.blueprint.ts`（snake_case）
+- 必须 `export default defineBlueprint({ build })`；`build()` 应为**纯函数**（禁 `Date.now()` / `Math.random()`，否则每次编译产物 diff 抖动）
+- 只可 import：`@/editor/asset/bpCompiler/dsl`（helper）、`import type` 引擎类型、工程 gameplay/config 下的纯数据模块。**禁止 import 引擎运行时**（`@/engine` barrel 会拖入 three，误 import 打包即报错）
+
+**DSL helper**（`src/editor/asset/bpCompiler/dsl.ts`）：
+```ts
+import { defineBlueprint, comp, transform, mesh, scriptRef } from '@/editor/asset/bpCompiler/dsl'
+// comp(baseClass, properties?, name?)                    通用组件
+// transform(position, rotation?, scale?)                 语法糖：rotation 缺省[0,0,0]、scale 缺省[1,1,1]
+// mesh(properties)                                       语法糖 = BoxMeshComponent（MeshComponent 抽象基类禁挂）
+// scriptRef(scriptId, args?)                             语法糖 = UIScriptComponent { script, args? }
+// children 用普通对象字面量：{ name, baseClass|ref, components, children, active?, overrides? }
+
+export default defineBlueprint({
+  build: () => ({
+    name: 'Demo',
+    baseClass: 'Actor',
+    components: [transform([0, 0, 0]), comp('SphereMeshComponent', { radius: 1 })],
+    children: [
+      { name: 'Pylon', baseClass: 'Actor', components: [transform([0, 1, 0])] },  // 子节点必须显式 baseClass 或 ref
+      ...Array.from({ length: 8 }, (_, i) => ({                                   // 循环生成 = TS 的核心价值
+        name: `Pillar${i}`, baseClass: 'Actor', components: [transform([Math.cos(i) * 3, 0, Math.sin(i) * 3])],
+      })),
+    ],
+  }),
+})
+```
+
+**编译与源码管辖**：
+- 编译：MCP `bp_compile`（参数 asset = 源路径）或 `npm run bp -- <xxx.blueprint.ts>`；全量 `npm run bp:all`。编译内含 assetLint 零 error 门槛，未过不落盘
+- **产物 json 由源码管辖**：不要手改带 `sourceHash` 的 json（会被下次编译覆盖）；编辑器保存也会被拦
+- **子节点 id 可省略**：编译器按深度先序从 10001 起确定性分配（显式 id 优先保留）——与手写 json 的「id 必填」不同
+- 逃生门：删除 json 中的 `sourceHash` 字段即转回手写资产
 
 ## 文件位置与命名
 - 路径：`src/projects/<project>/asset/blueprints/**/*.blueprint.json`（如 `asset/blueprints/beach_house.blueprint.json`、`asset/blueprints/buildings/townhall.blueprint.json`）
@@ -170,4 +209,5 @@ argument-hint: '蓝图名称或蓝图用途描述'
 ## 参考
 - 类型定义：`src/engine/asset/BlueprintAsset.ts`（含继承链 resolve 逻辑）
 - 检查器：`src/editor/asset/assetLint/checkers/docCheckers.ts`、`componentChecker.ts`
-- 现有示例：`src/projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`
+- TS 源方案：`doc-dev/bp-ts-compile/plan.md`；DSL：`src/editor/asset/bpCompiler/dsl.ts`
+- 现有示例：`src/projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`；TS 源示例：`projects/warm-current/asset/blueprints/stars/earth.blueprint.ts`（+ 共享参数表 starDefs.ts）

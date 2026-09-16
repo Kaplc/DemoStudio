@@ -14,7 +14,9 @@
     "test:e2e:fish": "playwright test -c playwright.e2e.config.ts fish",
     "test:e2e:warm": "playwright test -c playwright.e2e.config.ts warm",
     "smoke:ui": "node scripts/ui-compiler-smoke.mjs",
-    "ui-compiler": "node scripts/ui-compiler-cli.mjs"
+    "ui-compiler": "node scripts/ui-compiler-cli.mjs",
+    "bp": "node scripts/bp-compile-gate.mjs",
+    "bp:all": "node scripts/bp-compile-all.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-sc": "^5.3.0",

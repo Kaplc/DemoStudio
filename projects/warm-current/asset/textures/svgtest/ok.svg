@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- SVG 贴图示例：工程名暖流主题圆环徽标。
+       引用方式：蓝图组件 texture 写 "asset/textures/svgtest/ok.svg"，
+       或 widget <img src="asset/textures/svgtest/ok.svg">。
+       规则：根元素必须带 viewBox + 显式 width/height（assetLint doc:svg 校验），
+       内容不得引用外链资源（canvas 污染 → GPU 上传静默失败）。 -->
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#ff5533" stroke-width="6"/>
+  <circle cx="32" cy="32" r="12" fill="#ffaa33"/>
+</svg>

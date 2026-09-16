@@ -22,7 +22,15 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { cdpTools, handleCdpTool } from './mcp-cdp.mjs'
+
+const execFileP = promisify(execFile)
+/** 仓库根（mcp-server.mjs 位于 <repo>/editor/ 下）；spawn gate 的 cwd 锚点 */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 // 解析 --port 参数（多实例场景下连接指定编辑器实例）
 function resolveEditorPort() {
@@ -111,6 +119,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'bp_compile',
+      description:
+        '编译蓝图 TS 源（*.blueprint.ts）为 .blueprint.json（doc-dev/bp-ts-compile 方案）。' +
+        '流程：读取 .blueprint.ts → esbuild 打包执行 build() → compileBlueprint → assetLint 零错误门槛 → 覆写 .blueprint.json。' +
+        'Node 侧直编，编辑器离线可用；成功后自动尝试通知在线编辑器热刷新，未刷新时需 F5 或重开资产页签才能看到新内容。' +
+        '错误信息面向源（path 指认构造树位置）。参数 asset = 蓝图 TS 源路径（仓库相对路径，如 ' +
+        'projects/warm-current/asset/blueprints/stars/earth.blueprint.ts，或 src/projects/... 内部根同规则）',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            description: '蓝图 TS 源路径（.../asset/blueprints/xxx.blueprint.ts，仓库相对或绝对路径）',
+          },
+        },
+        required: ['asset'],
+      },
+    },
+    {
       name: 'get_scene_outline',
       description:
         '获取编辑器当前场景的 Actor 大纲树（3D + UI Actor 层级结构）。' +
@@ -192,6 +219,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const result = await callEditor('ui_decompile', { asset })
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    }
+  }
+
+  if (name === 'bp_compile') {
+    const asset = args?.asset || ''
+    if (!asset) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ status: 'error', message: '缺少 asset 参数（需 .blueprint.ts 路径）' }, null, 2) }],
+      }
+    }
+    // 不走 callEditor：gate 即权威管线（Node 侧直编，编辑器离线可用，TC-D3）
+    try {
+      const { stdout, stderr } = await execFileP(
+        'node',
+        ['scripts/bp-compile-gate.mjs', asset],
+        { cwd: REPO_ROOT, timeout: 30000, windowsHide: true },
+      )
+      let text = (stdout + stderr).trim()
+      // 落盘成功后尝试通知在线编辑器热刷新（bp_reload：注册表重读 + 页签 bump）；离线时静默跳过
+      const reload = await callEditor('bp_reload', { asset })
+      if (reload?.status === 'ok') text += '\n🔄 已通知编辑器热刷新（注册表已重读）'
+      return {
+        content: [{ type: 'text', text }],
+      }
+    } catch (err) {
+      // 失败透传：合并 gate 的 stdout/stderr 原样返回（AI 可据 path/message 一次修正，TC-D2）
+      const out = [err.stdout, err.stderr].filter(Boolean).join('\n').trim()
+      const hint = err.killed ? '（30s 超时被终止——检查 build() 是否含死循环）' : ''
+      return {
+        content: [{ type: 'text', text: `❌ bp_compile 失败（exit=${err.code ?? '?'}）${hint}\n${out || err.message}` }],
+      }
     }
   }
 

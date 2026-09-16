@@ -2,7 +2,22 @@
 
 > 2026-09-16 定稿。对标 UI 资产 HTML 源格式方案（doc-dev/ui-html-source-format，已实施），
 > 把同一套"单一事实源 + 编译器 + assetLint 零错误门槛 + MCP 工具 + 离线 gate"管线移植到蓝图资产。
-> **本方案未实施**；实施顺序见 §11。
+> **2026-09-16 已实施**：P0 主干 + P1 试点迁移（stars 三件语义等价）+ P2（bp_reload / 只读 banner / skill 章节）全部落地，
+> 48 用例验收见同目录 test-cases.md（G2 良性循环可编译、G3 引擎导入打包成功两项为实测观察修正）。
+
+## 实施差异记录（相对本方案）
+
+- **Node 侧 lint 需注册组件工厂**（§6.2 原文只提 checkers barrel）：gate 额外显式调用
+  `registerBuiltinComponents()`，否则 resolveChecker 工厂判定从紧，合法游戏组件（SphereMesh 等）
+  在 Node 下全被误报 unknown-kind error。
+- **gate 启动器需 `?url` stub 插件 + 异步 build**：bp-compile-main 引工厂注册会拖入
+  TroikaFontPreload 的 woff?url 导入，buildSync 不支持插件，改用 `esbuild.build()` + stub。
+- **dsl.mesh() 发 BoxMeshComponent**：MeshComponent 是抽象基类（assetLint `mesh-base-class-forbidden`
+  禁挂），语法糖固定到具体派生类。
+- **applyBatch 的 persist=true 落盘也守卫**（§8.2 原文只拦 save/saveAssetOnly）：
+  dispatch（MCP/window API）编辑类 op 带 persist=true 会写盘，源码管辖须全路径封堵。
+- **bp_reload 需加 electron/main.ts 往返白名单**：否则主进程不转发渲染进程，命令到不了 EditorInitializer。
+- **用户源加载用 require 代替 import**（§6.2 原文 import 临时 cjs）：cjs 产物不支持顶层 await。
 
 ## 1. 背景与目标
 
@@ -285,6 +300,8 @@ function isSourceManaged(asset: unknown): boolean {
 
 ## 10. 测试计划（`tests/bpCompiler.test.ts`）
 
+> 用例明细：同目录 `test-cases.md`（48 例：P0×35 / P1×8 / P2×5，含 fixture 与环境约定）。
+
 vitest 直接 `import` fixture 的 `.blueprint.ts`（vite 转译，`@` 别名 vitest.config.ts:9 已有），
 **单测不经过 esbuild 打包**（那是 Node 管线的事）：
 
@@ -309,11 +326,13 @@ Node 管线本身（esbuild 打包 / 落盘 / exit code）由试点迁移做人�
 4. MCP `bp_compile` 工具。
 5. `BlueprintAsset.ts` 加 `sourceHash?`；`BlueprintEditorService` 保存守卫。
 
-**DoD 验收**：
-- [ ] `npm run bp -- projects/warm-current/asset/blueprints/stars/earth.blueprint.ts` 编译 + lint 全绿落盘；
-- [ ] 蓝图编辑器打开产物正常预览；游戏运行 spawn 无差异（编译 json 与手写 json 同格式）；
-- [ ] 编辑器对带 sourceHash 的资产 Ctrl+S 被拦且提示正确；
-- [ ] vitest 全绿；`npx tsc --noEmit` 不引入新错（基线全绿须保持）。
+**DoD 验收**（2026-09-16 全部通过）：
+- [x] `npm run bp -- projects/warm-current/asset/blueprints/stars/earth.blueprint.ts` 编译 + lint 全绿落盘；
+- [x] 蓝图编辑器打开产物正常预览；游戏运行 spawn 无差异（编译 json 与手写 json 同格式；
+      语义等价由一次性 node 脚本对 git HEAD 深度比较证明，resolve 产物无 sourceHash 由 TC-E6 锁定）；
+- [x] 编辑器对带 sourceHash 的资产 Ctrl+S 被拦且提示正确（TC-E1/E2 服务层 vitest 锁定）；
+- [x] vitest 全绿（新增 26 例；全量 11 失败经 stash 对照确认为基线既有，与本次无关）；
+      `npx tsc --noEmit` 保持全绿。
 
 ### P1
 6. 试点迁移：stars 系列 3 件先行（earth / mars / jupiter + 共享 `starDefs.ts` 参数表），

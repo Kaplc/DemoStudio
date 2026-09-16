@@ -49,6 +49,7 @@ export interface FieldSpec {
 /**
  * 派发键（命名空间消歧义）：
  *   doc:scene / doc:blueprint  — 文档根（每文件命中一次）
+ *   doc:svg                    — SVG 贴图资产（纯文本文档，不走 walkDocument 结构遍历）
  *   node:<SceneNode.type>      - 场景/蓝图内联节点（box/sphere/actor/ref/...）
  *   comp:<Component.type>      - 蓝图 component（mesh/sprite/camera/...）
  */
@@ -56,6 +57,7 @@ export type CheckerKind =
   | 'doc:scene'
   | 'doc:blueprint'
   | 'doc:ui-design'
+  | 'doc:svg'
   | `node:${string}`
   | `comp:${string}`
 

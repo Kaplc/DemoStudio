@@ -3,10 +3,12 @@
  *
  * ElectronAssetSource（默认）：用既有 listProjectAssets + readJsonFile 做真磁盘扫描，
  *   能抓到解析失败 / 未注册的坏文件。readJsonFile 返回 {success, data?, error?} 信封。
+ *   .svg 贴图资产走 readTextFile 读纯文本（doc:svg 检查器消费字符串）。
  * RegistryAssetSource（降级）：window.electronAPI 不存在时，遍历 AssetRegistry /
- *   BlueprintRegistry 内存态。抓不到 parse 失败文件，但能校验已加载资产。
+ *   BlueprintRegistry 内存态。抓不到 parse 失败文件，但能校验已加载资产；
+ *   svg 无内存注册态（贴图不进 Registry），降级源不扫 svg（svg 校验仅 Electron 环境生效）。
  *
- * 两者都按扩展名过滤只收 *.scene.json / *.blueprint.json / *.widget.json。
+ * 收集范围：*.scene.json / *.blueprint.json / *.widget.json / *.svg。
  */
 import { AssetRegistry, BlueprintRegistry } from '../../../engine'
 import type { AssetFile } from './types'
@@ -16,8 +18,9 @@ export interface AssetSource {
   list(folder: string): Promise<AssetFile[]>
 }
 
-/** 仅收场景/蓝图/widget 资产（按命名约定）。 */
-const ASSET_EXT_RE = /\.(scene|blueprint|widget)\.json$/i
+/** 仅收场景/蓝图/widget 资产与 SVG 贴图（按命名约定）。 */
+const ASSET_EXT_RE = /\.(scene|blueprint|widget)\.json$|\.svg$/i
+const SVG_EXT_RE = /\.svg$/i
 
 /** 从资产路径推导展示用扩展名标签（降级源无磁盘 ext 字段）。 */
 function extOf(path: string): string {
@@ -47,6 +50,17 @@ class ElectronAssetSource implements AssetSource {
     for (const e of entries) {
       if (!ASSET_EXT_RE.test(e.path)) continue
       try {
+        // SVG 贴图：readTextFile 读纯文本，doc 为字符串（doc:svg 检查器消费）
+        if (SVG_EXT_RE.test(e.path)) {
+          if (!api.readTextFile) continue // 无文本 IPC 能力：静默跳过（防御）
+          const result = await api.readTextFile(e.path) // { success, data?, error? }
+          if (result.success) {
+            files.push({ path: e.path, ext: e.ext, ok: true, doc: result.data })
+          } else {
+            files.push({ path: e.path, ext: e.ext, ok: false, doc: null, error: result.error ?? '读取失败' })
+          }
+          continue
+        }
         const result = await api.readJsonFile(e.path) // { success, data?, error? }
         if (result.success) {
           files.push({ path: e.path, ext: e.ext, ok: true, doc: result.data })

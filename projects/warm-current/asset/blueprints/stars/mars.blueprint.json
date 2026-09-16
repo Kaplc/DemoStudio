@@ -5,21 +5,37 @@
     {
       "baseClass": "TransformComponent",
       "properties": {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "scale": [1, 1, 1]
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
       }
     },
     {
       "baseClass": "SphereMeshComponent",
       "properties": {
         "radius": 34,
-        "segments": [48, 32],
+        "segments": [
+          48,
+          32
+        ],
         "color": "#ffffff",
         "texture": "asset/textures/mars.jpg",
         "name": "MarsMesh"
       }
     }
   ],
-  "children": []
+  "children": [],
+  "sourceHash": "fnv1a-13b17753"
 }
