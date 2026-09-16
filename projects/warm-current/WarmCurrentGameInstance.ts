@@ -114,6 +114,8 @@ export interface WarmCurrentDebugBridge {
   holoMarkerScreenPos(depositId: string): { x: number; y: number } | null
   /** 全息地球（2026-09-12）：工具切换 / 节点直落 / 地表建筑 / 节点屏幕坐标 / 目标 lat-lon 屏幕坐标 */
   setHoloTool(kind: 'ring' | 'building' | null, typeId?: string): void
+  /** 面板内容分类切换（2026-09-18 底部分类改版：ring/resources/surface/orbit，e2e 直驱） */
+  setHoloTab(tab: 'ring' | 'resources' | 'surface' | 'orbit'): void
   placeRingNode(lat: number, lon: number): string | null
   placeSurfaceBuilding(typeId: string, lat: number, lon: number): boolean
   holoNodeScreenPos(slot: number): { x: number; y: number } | null
@@ -596,6 +598,7 @@ export class WarmCurrentGameInstance extends GameInstance {
       holoMarkerScreenPos: (depositId) => instance._gameMode?.holoMarkerScreenPos(depositId) ?? null,
       /** 全息地球（2026-09-12）：工具/直落/地表建筑/屏幕投影（真实点击测试用） */
       setHoloTool: (kind, typeId) => instance._gameMode?.setHoloTool(kind, typeId),
+      setHoloTab: (tab) => instance._gameMode?.setHoloTab(tab),
       placeRingNode: (lat, lon) => {
         const mode = instance._gameMode
         return mode ? mode.placeRingNodeAt(lat, lon) : '游戏未就绪'

@@ -51,8 +51,11 @@ export default class PlanetInfoScript extends BehaviourScript {
     if (this.acc < 0.12) return
     this.acc = 0
     const info = mode.buildViewModel().planetInfo
-    this.vis.set(this.actor, 'InfoBody', !!info)
-    if (!info) return
+    const holo = mode.buildViewModel().hologram
+    // 全息态隐藏入口面板（2026-09-18 用户定案：进全息后左侧星球信息面板不显示，
+    // 退出全息自动恢复——planetInfoSel 未清，面板随差分置位回显）
+    this.vis.set(this.actor, 'InfoBody', !!info && !holo)
+    if (!info || holo) return
     // 全息投影入口：地球 = 全息地球建造场景（恒显）；其他天体 = 矿点勘探（仅表里有矿点；太阳恒隐藏）
     this.vis.set(this.actor, 'Btn_holo', info.body === 'earth' || info.hasDeposits)
     const holoLabel = findText(this.actor, 'Label_holo')

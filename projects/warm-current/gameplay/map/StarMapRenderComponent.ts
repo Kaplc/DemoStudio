@@ -18,6 +18,7 @@ import { B, MAP_H, MAP_W, toWX, toWZ } from '../core/balance'
 import { SphereMeshComponent, AtmosphereComponent, CloudLayerComponent } from '@/engine'
 import { orbitBuildingDefOf } from '../systems/OrbitBuildComponent'
 import { depositsOf, depositLeft } from '../systems/MiningComponent'
+import { earthHoloContourTexture } from './starTextures'
 import { placedRingNodes, vecToLatLon, spinAngleOf } from '../core/helpers'
 import {
   endpointPos,
@@ -394,6 +395,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private holoHiddenBody: string | null = null
   /** 全息球半径（世界单位；星球显示半径 × B.holo.radiusMult） */
   private holoRadius = 0
+  /** 全息地球大陆轮廓贴图（earthHoloContourTexture；随全息组生命周期，关闭/切目标释放，
+   *  重开从页面级缓存 canvas 重建 CanvasTexture，逐像素派生不重复计算） */
+  private holoContourTex: THREE.CanvasTexture | null = null
   /** 全息重建型几何（进度弧等运行时重建体；disposeHolo 统一释放，不入 trackGeo 避免早释放歧义） */
   private holoDisposables: Array<THREE.BufferGeometry> = []
   /** 全息地球层自持资源（ghost 材质/几何 + 节点/建筑标记资源；签名变化重建与 disposeHolo 统一释放） */
@@ -905,8 +909,14 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       sv.mat.opacity = unlocked ? 1 : 0.25
       sv.mat.transparent = !unlocked
       const pos = starPosAt(sim.state, star.id)
-      const sub = unlocked ? `满载 ${Math.round(starLoad(sim.state.mods, star.id))}/船` : `第${star.unlockAct}幕解锁`
-      sv.sub.set(sub, 16, unlocked ? '#8fb2c6' : '#48606f')
+      // 月球悬浮字整体下架（2026-09-19 用户定案：头顶"满载 N/船"悬浮字移除，
+      // 月球满载信息由星球信息面板/全息面板承载；其余天体照旧）
+      if (star.id === 'moon') {
+        sv.sub.clear()
+      } else {
+        const sub = unlocked ? `满载 ${Math.round(starLoad(sim.state.mods, star.id))}/船` : `第${star.unlockAct}幕解锁`
+        sv.sub.set(sub, 16, unlocked ? '#8fb2c6' : '#48606f')
+      }
       // 注意：此标签父级 = systemGroup（组自身零位移），世界坐标 setPos 语义成立；
       // 与建筑视图标签（父级 = 已定位的视图组，须写本地偏移）不同，勿混用两种口径
       sv.sub.setPos(pos.x, pos.y + sv.radius + 30, 82)
@@ -1439,6 +1449,25 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const spin = this.own(this.F.createGroup()).object
     this.holoSpin = spin
     root.add(spin)
+    // 大陆轮廓层（earth 专属，2026-09-17 用户需求：全息球贴全息风大陆轮廓）：
+    // earth.jpg 派生海岸线亮线 + 陆地淡填充的透明贴图，加色叠在淡壳上（DoubleSide，
+    // 背面大陆隐约可见 = 全息透视感）；挂 spin 与真球同源自转，保持 SphereGeometry
+    // 默认 UV 放置（与真球 earth.jpg 同向，屏幕东西 = 真实地理；勿加 repeat.x 镜像，
+    // 2026-09-17 实测会把日本翻到中国左边，见 earthHoloContourTexture 注释）
+    if (body === 'earth') {
+      const contourTex = earthHoloContourTexture()
+      if (contourTex) {
+        const contourMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, map: contourTex, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }))
+        const contour = this.own(this.F.createMesh(this.unitSphere, contourMat)).object
+        contour.scale.setScalar(R * 1.002)
+        contour.renderOrder = 16
+        spin.add(contour)
+        this.holoContourTex = contourTex
+        logger.info('[StarMapRender] 全息地球大陆轮廓层已挂载（随球自转，贴图异步就绪）')
+      } else {
+        logger.info('[StarMapRender] 全息地球跳过大陆轮廓层（无 DOM 环境，贴图不可用）')
+      }
+    }
     // 线框球已移除（2026-09-16 用户定案：全息球只保留经纬线，SphereGeometry wireframe 的三角面斜线不要）
 
     // 赤道环（预压平）+ 经线环（XY 竖环绕 Y 轴步进；每 30° 一条 = 12 条经线方向，含本初子午线/180°）
@@ -1536,6 +1565,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.holoRoot = null
       this.holoSpin = null
       this.holoScanRing = null
+      // 大陆轮廓贴图随全息组释放（canvas 缓存页面级留存，重开重建贴图零重算）
+      this.holoContourTex?.dispose()
+      this.holoContourTex = null
     }
     this.holoMarkers.clear()
     this.holoBody = null
@@ -1734,12 +1766,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     // 真球显隐（2026-09-14 用户定案：全息球与模型同大后，勘探期间隐藏真球只留全息球，
     // 关闭/切换恢复视图分组显隐口径；2026-09-15 起地球也走真球消失口径）
     this.syncHoloBodyMesh(body)
-    // 月球全息期间隐藏副标（2026-09-15 用户定案：月球是纯"满载信息展示"天体，
-    // 头顶"满载 N/船"悬浮字与全息球读感冲突；关闭勘探由 syncLabelLod 恢复显隐口径）
-    if (body === 'moon') {
-      const moonSv = this.starViews.moon
-      if (moonSv) moonSv.sub.sprite.visible = false
-    }
     // 自转（2026-09-15 真实周期口径）：地球/月球自转角 = 天体历法纯函数（spinAngleOf，
     // 与真球 mesh 同源同角——地表建筑/环节点钉在真实转动的球面，关闭再开全息相位连续）；
     // 其余天体保持 B.holo.spin 巡游速率不变
@@ -1985,7 +2011,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const inView = this.visibleBodySet()
     for (const [body, sv] of Object.entries(this.starViews)) {
       if (!sv) continue
-      const show = inView.has(body)
+      // 月球悬浮字已下架（2026-09-19），LOD 不再点亮，防空文本 sprite 被误显示
+      const show = inView.has(body) && body !== 'moon'
       sv.sub.sprite.material.opacity = subA
       sv.sub.sprite.visible = show && subA > 0.02
     }

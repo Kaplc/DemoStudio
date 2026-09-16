@@ -1996,8 +1996,7 @@ html, body, #root {
 /* 各事件类型图标语义色 */
 .agent-event-card--command .agent-event-card__icon { color: var(--dsw-alias-state-business-primary); }
 .agent-event-card--compaction .agent-event-card__icon { color: var(--dsw-alias-state-info-primary); }
-.agent-event-card--retry .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
-.agent-event-card--error .agent-event-card__icon { color: var(--dsw-alias-state-error-primary); }
+/* retry / error 卡片已于 2026-09-18 改为 .message--system 居中样式，配色规则随之移除 */
 .agent-event-card--max-tokens .agent-event-card__icon { color: var(--dsw-alias-state-warning-primary); }
 
 /* --- 上下文注入卡片（对齐 DSH WebUI ContextInjectionRow）--- */
@@ -2780,6 +2779,11 @@ html, body, #root {
   color: var(--dsw-alias-label-caption);
   overflow-wrap: anywhere;
   user-select: text;
+}
+.tool-image--missing {
+  padding: 8px 12px 0;
+  font: var(--dsw-font-caption1, 12px/1.4 inherit);
+  color: var(--dsw-alias-label-caption);
 }
 
 /* --- 图片浮动放大窗（双击聊天中的图片缩略图打开，2026-09-16）---

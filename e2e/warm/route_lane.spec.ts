@@ -52,7 +52,9 @@ async function probeRender(page: Page): Promise<{
     let maxLanePerRoute = 0
     for (const v of byRoute.values()) maxLanePerRoute = Math.max(maxLanePerRoute, v)
     // 航线中轴线 = 首条航线两端天体（月球→地球）世界坐标连线
-    // 注意：星球 mesh.position 是相对 Actor root 的局部坐标，须读 matrixWorld 平移分量
+    // 注意：星球 mesh.position 是相对 Actor root 的局部坐标，须读 matrixWorld 平移分量；
+    // 飞船同样必须读 matrixWorld——船挂 systemGroup（map 空间），星球 Actor 是世界坐标定位
+    // （舞台钉扎改版后两者局部系不同，混读会凭空产出 ≈460 的假偏轴，2026-09-19 实测）
     const wm = (m) => { const e = m.matrixWorld.elements; return { x: e[12], y: e[13], z: e[14] } }
     const moonP = wm(sm.starViews.moon.body)
     const earthP = wm(sm.starViews.earth.body)
@@ -64,7 +66,8 @@ async function probeRender(page: Page): Promise<{
     for (const s of sm.shipPool) {
       if (!s.mesh.visible) continue
       shipCount++
-      const d = Math.abs((s.mesh.position.x - moonP.x) * dz - (s.mesh.position.z - moonP.z) * dx) / len
+      const p = wm(s.mesh)
+      const d = Math.abs((p.x - moonP.x) * dz - (p.z - moonP.z) * dx) / len
       maxRouteOffset = Math.max(maxRouteOffset, d)
     }
     return {
@@ -103,19 +106,27 @@ test.describe('warm-current 运输连线：单线多船（共用一条运输线�
   })
 
   test('一条航线挂 3 艘船 → 共用 1 条运输线（多船同线，无平行线）', async ({ page }) => {
-    const res = await evalInGame<{ ok: boolean; ships: number; routes: number }>(page, `() => {
+    const res = await evalInGame<{ ok: boolean; ships: number; routes: number; flying: number }>(page, `() => new Promise((resolve) => {
       const b = window.__warmCurrent
       b.createRoute('moon', 'earth')
       const r = b.routes()[0]
-      if (!r) return { ok: false, ships: 0, routes: 0 }
+      if (!r) { resolve({ ok: false, ships: 0, routes: 0, flying: 0 }); return }
       b.addShip(r.id)
       b.addShip(r.id)
-      b.stepTicks(2)
-      return { ok: true, ships: b.routes()[0].ships, routes: b.routes().length }
-    }`)
+      // 2026-09 起新船入列先在月球装货（loadSeconds=2s；stepTicks 每步 dt=1/60s，
+      // 需 ≥120 步才起飞）。装货中的船渲染在月面泊位（偏离航线中轴 ≈460），
+      // 断言对象必须是在航船——先推进到三船全部 state='flying' 再取证。
+      b.stepTicks(160)
+      const flying = b.mode().simState.state.ships.filter((s) => s.state === 'flying').length
+      // render（syncShips）由 rAF 驱动、manualTick 不带渲染：等两帧让在航船摆上运输线
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        resolve({ ok: true, ships: b.routes()[0].ships, routes: b.routes().length, flying })
+      }))
+    })`)
     expect(res.ok).toBe(true)
     expect(res.routes).toBe(1)
     expect(res.ships).toBe(3)
+    expect(res.flying, '推进装货时长后三船应全部起飞（在航）').toBe(3)
 
     const probe = await probeRender(page)
 

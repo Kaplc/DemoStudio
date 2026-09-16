@@ -1,18 +1,46 @@
 /**
- * holoHudModel — 全息 HUD 底栏的纯呈现口径（无引擎依赖，单测锁定）
+ * holoHudModel — 全息 HUD 底栏与全息面板的纯呈现口径（无引擎依赖，单测锁定）
  *
- * 全息态底部 HUD（holo_hud.widget）的文案/可见性判定抽在此处，
- * 单测 tests/warm/holo_hud_model.test.ts 锁定口径；脚本只做差分套用。
+ * 全息态底部 HUD（holo_hud.widget）/ 全息面板（hologram_panel.widget）的文案/可见性
+ * 判定抽在此处，单测 tests/warm/holo_hud_model.test.ts 锁定口径；脚本只做差分套用。
  * 注意：此文件不是 .script.ts（不注册为脚本），仅被脚本与测试 import。
  */
-import type { HudHologram, HudHoloToolRow } from '../base/WarmCurrentGameMode'
+import type { HoloTab, HudHologram, HudHoloToolRow } from '../base/WarmCurrentGameMode'
 
-/** 全息 HUD 工具按钮池容量（ring 1 行 + 矿建表行；当前 mine_building 2 行恰好占满） */
+/** 全息面板地表建筑工具行池容量（building 表行；超出表行数的类型不显示） */
 export const HOLO_TOOL_ROWS = 3
+
+/** 底部工具条分类按钮（固定 4 个：环节点 + 资源/地表建筑/轨道建筑，2026-09-18 改版） */
+export const HOLO_TABS: HoloTab[] = ['ring', 'resources', 'surface', 'orbit']
+
+/** 分类按钮标签（ring 含 ⚡ 前缀；选中态 ● 前缀由 holoTabButtonLabel 统一加） */
+const TAB_LABELS: Record<HoloTab, string> = {
+  ring: '⚡ 环节点',
+  resources: '资源',
+  surface: '地表建筑',
+  orbit: '轨道建筑',
+}
+
+/** 底部工具条分类按钮文案：选中分类加 ● 前缀（金色由颜色层表达） */
+export function holoTabButtonLabel(tab: HoloTab, selected: boolean): string {
+  const label = TAB_LABELS[tab]
+  return selected && tab !== 'ring' ? `● ${label}` : label
+}
+
+/** 工具按钮标签：选中态加 ● 前缀（金色由颜色层表达）；无行时回退占位文案 */
+export function holoToolLabel(row: HudHoloToolRow | undefined, fallback: string): string {
+  if (!row) return fallback
+  return row.selected ? `● ${row.name}` : row.name
+}
 
 /** 模式标题：全息地球态不带天体名（地球是唯一建造场景）；勘探态带天体名 */
 export function holoHudModeTitle(holo: HudHologram): string {
   return holo.body === 'earth' ? '全息地球' : `全息勘探 · ${holo.bodyName}`
+}
+
+/** 全息面板标题后缀：地球态跟随底部分类（资源/地表建造/轨道建造/环节点）；勘探态 = 勘探 */
+export function holoPanelTitleSuffix(tab: HoloTab): string {
+  return tab === 'ring' ? '环节点' : tab === 'resources' ? '资源' : tab === 'surface' ? '地表建造' : '轨道建造'
 }
 
 /** 状态行：地球态 = ghost 校验文案 > 工具落点引导 > 节点统计；勘探态 = 选中详情首行 > 操作引导 */
@@ -25,10 +53,4 @@ export function holoHudStatusLine(holo: HudHologram): string {
   }
   if (holo.selectedId && holo.detail) return holo.detail.split('\n')[0] ?? ''
   return '拖拽旋转检视 · 点矿点或列表行选中 · Esc 退出'
-}
-
-/** 工具按钮标签：选中态加 ● 前缀（金色由颜色层表达）；无行时回退占位文案 */
-export function holoToolLabel(row: HudHoloToolRow | undefined, fallback: string): string {
-  if (!row) return fallback
-  return row.selected ? `● ${row.name}` : row.name
 }

@@ -83,6 +83,38 @@ async function readImageFileAsDataUrl(imagePath: string): Promise<string | null>
   }
 }
 
+// ─── 图片 data URL 会话级缓存（用户需求 2026-09-16：文件被删后，只要面板未刷新/未重启，已看过的图持续可见）───
+// LRU：Map 插入序即访问序（命中先 delete 再 set 触碰），超限淘汰最旧。只缓存成功读取，失败不缓存（重挂载可重试）。
+const imageDataUrlCache = new Map<string, string>()
+const IMAGE_CACHE_MAX = 40
+
+function touchImageDataUrlCache(imagePath: string, dataUrl: string): void {
+  imageDataUrlCache.delete(imagePath)
+  imageDataUrlCache.set(imagePath, dataUrl)
+  while (imageDataUrlCache.size > IMAGE_CACHE_MAX) {
+    const oldest = imageDataUrlCache.keys().next().value
+    if (oldest === undefined) break
+    imageDataUrlCache.delete(oldest)
+  }
+}
+
+/** 带会话缓存的图片加载：命中直接返回（卡片卸载/切会话/虚拟列表重挂载不重读盘） */
+async function readImageFileAsDataUrlCached(imagePath: string): Promise<string | null> {
+  const cached = imageDataUrlCache.get(imagePath)
+  if (cached) {
+    touchImageDataUrlCache(imagePath, cached) // LRU 触碰
+    return cached
+  }
+  const dataUrl = await readImageFileAsDataUrl(imagePath)
+  if (dataUrl) touchImageDataUrlCache(imagePath, dataUrl)
+  return dataUrl
+}
+
+/** 清空图片缓存（仅测试用：用例间隔离模块级状态） */
+export function clearImageDataUrlCacheForTest(): void {
+  imageDataUrlCache.clear()
+}
+
 /** diff 视图主体（展开卡片内的行序列 + 复制）。默认全量展开不折叠（用户决策 2026-09-10）。 */
 const DiffBody: React.FC<{ diffs: FileDiff[] }> = ({ diffs }) => {
   const [copied, setCopied] = useState(false)
@@ -204,7 +236,8 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
     let cancelled = false
     setImageSrc(null)
     setImageFailed(false)
-    readImageFileAsDataUrl(imagePath).then((url) => {
+    // 带会话缓存：文件被删后重挂载仍命中已看过的图（未刷新/未重启期间持续可见）
+    readImageFileAsDataUrlCached(imagePath).then((url) => {
       if (cancelled) return
       if (url) setImageSrc(url)
       else setImageFailed(true)
@@ -232,6 +265,12 @@ const ToolCardInner: React.FC<ToolCardProps> = ({ tool }) => {
 
       {expanded && (
         <div className="tool-card__details">
+          {imagePath !== null && imageFailed && (
+            /* 图片加载失败提示：区分"功能未生效"与"文件已删/不可读"，避免误判（2026-09-16） */
+            <div className="tool-image tool-image--missing">
+              图片无法加载（文件可能已被删除或不在项目根内），已回退原始视图
+            </div>
+          )}
           {imagePath !== null && imageSrc !== null ? (
             /* 图片视图：渲染目标图片 + 路径标注，替代原始 JSON 输入/输出；双击开浮窗放大（2026-09-16） */
             <figure className="tool-image">

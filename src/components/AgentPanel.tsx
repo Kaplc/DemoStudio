@@ -38,6 +38,7 @@ import { SessionTitle } from './agent/SessionTitle'
 import { UsageStatsPanel } from './agent/UsageStatsPanel'
 import { SessionNoticeStack } from './agent/SessionNoticeStack'
 import { ImageLightboxHost } from './agent/ImageLightbox'
+import { appendLiveCard } from './agent/liveCardGuard'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -740,14 +741,27 @@ export const AgentPanel: React.FC = () => {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
       liveAssistantIdRef.current = id
       console.log(`[${logTime()}] [AgentPanel] live 推理卡片创建: ${id} (${text.length} 字符)`)
-      setMessages(cur => [...cur, {
-        id,
-        role: 'assistant' as const,
-        content: '',
-        reasoning: text,
-        streaming: true,
-        ts: Date.now(),
-      }])
+      setMessages(cur => {
+        // 创建判定必须在 updater 内用新鲜列表复查半截段守卫：切换/恢复把历史窗口
+        // setMessages 进来后、messagesRef（useEffect 里才同步）尚未更新的窗口内，
+        // delta 会穿过上面的旧列表守卫——若按旧列表判定会建出 live 卡并排在历史
+        // 半截段之后，同一段推理文本上屏两张卡。以真实 cur 为准：尾是半截段就
+        // 放弃 live（ref 一并作废），增量留在服务端缓冲由 flush 原地替换半截段。
+        // （裁决逻辑在 appendLiveCard，竞态顺序见 tests/agentLiveCardRace.test.ts）
+        const next = appendLiveCard(cur, {
+          id,
+          role: 'assistant' as const,
+          content: '',
+          reasoning: text,
+          streaming: true,
+          ts: Date.now(),
+        })
+        if (next === cur) {
+          liveAssistantIdRef.current = null
+          console.log(`[${logTime()}] [AgentPanel] live 推理卡片创建放弃（列表尾为半截段）: ${id}`)
+        }
+        return next
+      })
     } else {
       setMessages(cur => cur.map(message => message.id === liveId ? { ...message, reasoning: text } : message))
     }
@@ -767,14 +781,24 @@ export const AgentPanel: React.FC = () => {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
       liveAssistantIdRef.current = id
       console.log(`[${logTime()}] [AgentPanel] live 正文卡片创建: ${id} (${text.length} 字符)`)
-      setMessages(cur => [...cur, {
-        id,
-        role: 'assistant' as const,
-        content: text,
-        reasoning: '',
-        streaming: true,
-        ts: Date.now(),
-      }])
+      setMessages(cur => {
+        // 与 handleLiveReasoning 同构：创建判定在 updater 内对新鲜列表复查半截段守卫
+        // （appendLiveCard），防「历史窗口已装上、messagesRef 未同步」窗口内的 delta
+        // 建出重复卡片。
+        const next = appendLiveCard(cur, {
+          id,
+          role: 'assistant' as const,
+          content: text,
+          reasoning: '',
+          streaming: true,
+          ts: Date.now(),
+        })
+        if (next === cur) {
+          liveAssistantIdRef.current = null
+          console.log(`[${logTime()}] [AgentPanel] live 正文卡片创建放弃（列表尾为半截段）: ${id}`)
+        }
+        return next
+      })
     } else {
       setMessages(cur => cur.map(message => message.id === liveId ? { ...message, content: text } : message))
     }
@@ -1281,6 +1305,9 @@ export const AgentPanel: React.FC = () => {
         { id: 'sys-0', role: 'system', content: '对话已恢复', ts: Date.now() },
         ...restored.slice(historyVisibleStartRef.current),
       ])
+      // 整表替换会丢弃替换前的任何 live 卡片：ref 必须作废，否则后续 delta 走
+      // 按 id 原地更新却找不到卡片，文本被静默吞掉（半截段冻结在回放前缀）。
+      liveAssistantIdRef.current = null
       setSessionEpoch(v => v + 1)
       console.log(`[${logTime()}] [AgentPanel] 已恢复最近 ${HISTORY_TURNS_PER_PAGE} 轮历史消息，窗口内 ${restored.length} 条`)
     } catch (err) {
@@ -1574,6 +1601,9 @@ export const AgentPanel: React.FC = () => {
       if (page.pendingTurnPartial) agentService.seedPendingTurn(page.pendingTurnPartial)
       if (historyMessages.length > 0) {
         setMessages(historyMessages.slice(historyVisibleStartRef.current))
+        // 整表替换丢弃替换前的任何 live 卡片：ref 作废（同 restoreHistory，
+        // 防陈旧 ref 把后续 delta 吞在按 id 更空的 map 里）。
+        liveAssistantIdRef.current = null
         // 从历史恢复任务面板：取窗口内最后一条 todo 快照（webui 的 todos 是
         // 整表投影，历史里最后一次 write 即为该会话的当前列表）
         const lastTodo = [...historyMessages]
@@ -1844,26 +1874,20 @@ export const AgentPanel: React.FC = () => {
         )
       }
 
-      if (msg.role === 'retry' && msg.retries) {
+      // 重试 / 回合错误：与系统消息（会话已恢复等）同款居中弱化样式，
+      // 不再使用全宽 agent-event-card（2026-09-18 用户定案）
+      if (msg.role === 'retry') {
         return (
-          <div key={msg.id} className="agent-event-card agent-event-card--retry">
-            <div className="agent-event-card__head">
-              <span className="agent-event-card__icon"><Icon name="rotate-cw" /></span>
-              <span className="agent-event-card__label">重试</span>
-              <span className="agent-event-card__value">{msg.content}</span>
-            </div>
+          <div key={msg.id} className="message message--system">
+            <div className="message__body">{msg.content}</div>
           </div>
         )
       }
 
       if (msg.role === 'turn-error') {
         return (
-          <div key={msg.id} className="agent-event-card agent-event-card--error">
-            <div className="agent-event-card__head">
-              <span className="agent-event-card__icon"><Icon name="circle-x" /></span>
-              <span className="agent-event-card__label">错误</span>
-              <span className="agent-event-card__value">{msg.content}</span>
-            </div>
+          <div key={msg.id} className="message message--system">
+            <div className="message__body">{msg.content}</div>
           </div>
         )
       }

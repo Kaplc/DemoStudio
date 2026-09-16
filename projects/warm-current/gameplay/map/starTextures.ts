@@ -396,3 +396,129 @@ export function applyEarthOceanRoughness(mesh: { setRoughnessMap(t: THREE.Textur
 
 /** LoadingSettle 任务序号（多局/重入保证任务 id 唯一） */
 let oceanSettleSeq = 0
+
+// ─── 全息地球大陆轮廓贴图（2026-09-17 用户需求：全息球贴全息风大陆轮廓）───
+
+/** 轮廓画布工作分辨率（2048×1024 POT：覆盖 earth.jpg 原生 1638×819 的精度上限，mipmap 友好） */
+const HOLO_CONTOUR_W = 2048
+const HOLO_CONTOUR_H = 1024
+
+/** 生成的轮廓画布缓存（页面级：多次开关全息 / 重开对局只算一次逐像素分类） */
+let holoContourCanvas: HTMLCanvasElement | null = null
+/** 画布是否已填充完成（false = 贴图透明占位，构建完成后 needsUpdate 补上传） */
+let holoContourReady = false
+/** 在途构建 promise（并发去重；失败可重试） */
+let holoContourBuilding: Promise<void> | null = null
+/** 构建在途期间创建的贴图（就绪后对其 needsUpdate；同一时刻全息只开一份） */
+let holoContourPendingTex: THREE.CanvasTexture | null = null
+
+/**
+ * 全息地球大陆轮廓透明贴图（equirect 2048×1024，覆盖 earth.jpg 原生 1638×819 精度）：
+ * 从 earth.jpg 逐像素分类海陆（与 applyEarthOceanRoughness 同口径：蓝主导 = 海洋），
+ * 海岸线 = 陆/海交界亮芯 + 1px 柔化圈，陆地内部淡填充，海洋全透明；加色混合叠在
+ * 全息球上 = 全息风大陆轮廓。
+ *
+ * 东西向口径（2026-09-17 用户实测纠错）：保持 SphereGeometry 默认 UV 放置，不做 repeat.x
+ * 镜像——本作 latLonToLocal 框架（环节点/地表建筑落位口径）+ 地球系取景相机（框架 90E
+ * 附近）下，默认放置在屏幕上东西与真实地理一致（日本在中国右边），且与真球 mesh
+ * （同工厂球 + earth.jpg 默认 UV）朝向 1:1 一致；加 repeat.x=-1 镜像反而把东西翻转
+ * （日本跑到中国左边）。
+ *
+ * 贴图同步返回（CanvasTexture 透明占位），像素派生异步（Image 解码 + 逐像素分类
+ * 一次性行为，页面级缓存），就绪后写同一 canvas 并 needsUpdate；无 DOM 环境（单测）
+ * 返回 null，调用方跳过该层。
+ */
+export function earthHoloContourTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
+  if (!holoContourCanvas) {
+    holoContourCanvas = document.createElement('canvas')
+    holoContourCanvas.width = HOLO_CONTOUR_W
+    holoContourCanvas.height = HOLO_CONTOUR_H
+  }
+  const tex = new THREE.CanvasTexture(holoContourCanvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  // 注意：不做 repeat.x 镜像（2026-09-17 实测会把东西翻转），见函数注释「东西向口径」
+  if (!holoContourReady && !holoContourBuilding) {
+    const canvas = holoContourCanvas
+    holoContourBuilding = buildHoloContourCanvas(canvas)
+      .then(() => {
+        holoContourReady = true
+        holoContourBuilding = null
+        if (holoContourPendingTex) holoContourPendingTex.needsUpdate = true
+        holoContourPendingTex = null
+        logger.info('[starTextures] 全息地球大陆轮廓贴图就绪（earth.jpg → 2048×1024 海岸线/陆地填充）')
+      })
+      .catch((err) => {
+        holoContourBuilding = null
+        holoContourPendingTex = null
+        logger.warn(`[starTextures] 全息大陆轮廓贴图生成失败（本次全息无轮廓层）: ${err instanceof Error ? err.message : String(err)}`)
+      })
+  }
+  holoContourPendingTex = holoContourReady ? null : tex
+  return tex
+}
+
+/** 逐像素海陆分类 + 陆/海交界提取（4-邻域双向边界 = 亮芯，外扩 1px = 柔化圈），像素直出 */
+async function buildHoloContourCanvas(canvas: HTMLCanvasElement): Promise<void> {
+  const W = HOLO_CONTOUR_W
+  const H = HOLO_CONTOUR_H
+  const img = new Image()
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error('earth.jpg 解码失败'))
+    img.src = earthUrl
+  })
+  const s = document.createElement('canvas')
+  s.width = W
+  s.height = H
+  const sc = s.getContext('2d')
+  if (!sc) throw new Error('2d context 不可用')
+  sc.drawImage(img, 0, 0, W, H)
+  const data = sc.getImageData(0, 0, W, H).data
+  // 海陆掩码（1 = 陆地/冰盖）：蓝主导且足够蓝 = 海洋，其余 = 陆地
+  const land = new Uint8Array(W * H)
+  for (let i = 0; i < W * H; i++) {
+    const r = data[i * 4]
+    const b = data[i * 4 + 2]
+    land[i] = b > r + 12 && b > 70 ? 0 : 1
+  }
+  // Pass1：海岸线掩码（4 邻域含异类；经度环绕 / 纬度钳制）
+  const border = new Uint8Array(W * H)
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x
+      const up = land[Math.max(0, y - 1) * W + x]
+      const dn = land[Math.min(H - 1, y + 1) * W + x]
+      const lf = land[y * W + (x - 1 + W) % W]
+      const rt = land[y * W + (x + 1) % W]
+      border[i] = land[i] !== up || land[i] !== dn || land[i] !== lf || land[i] !== rt ? 1 : 0
+    }
+  }
+  // Pass2：输出 = 亮芯（海岸线 α255）+ 柔化圈（亮芯外扩 1px α90）+ 陆地淡填充（α≈0.14）+ 海洋透明
+  const out = sc.createImageData(W, H)
+  const o = out.data
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x
+      let alpha: number
+      if (border[i]) {
+        alpha = 255
+      } else {
+        const upB = border[Math.max(0, y - 1) * W + x]
+        const dnB = border[Math.min(H - 1, y + 1) * W + x]
+        const lfB = border[y * W + (x - 1 + W) % W]
+        const rtB = border[y * W + (x + 1) % W]
+        alpha = upB || dnB || lfB || rtB ? 90 : land[i] ? 36 : 0
+      }
+      const p = i * 4
+      o[p] = 255
+      o[p + 1] = 255
+      o[p + 2] = 255
+      o[p + 3] = alpha
+    }
+  }
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('2d context 不可用')
+  ctx.clearRect(0, 0, W, H)
+  ctx.putImageData(out, 0, 0)
+}

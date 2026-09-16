@@ -6,13 +6,19 @@
  *  - 面板内 ✕ / Esc → GameMode.closeHologram() → vm.hologram 为 null → 收起
  *  - 矿点行（mineral_deposit 表序）：点行 = 选中/取消该矿点（再点同行取消；3D 外环同步高亮）
  *  - 建造区（mine_building 表键序）：「建造」→ MiningComponent.tryPlace(选中矿点, 类型)
- *  - 全息地球态（body==='earth'）：节点工具行（⚡ 环节点落位）+ 地表建筑工具行
- *    （building 表行键；点「选用」进入放置，点球面落位，融化圈门槛在 GameMode 校验）
+ *  - 全息地球态（body==='earth'）内容按底部分类切换（2026-09-18 改版，tab 口径在
+ *    GameMode.holoTab / vm.hologram.earth.tab，底部按钮在 HoloHudScript）：
+ *      ring      = 环节点视图（⚡ 环节点行：统计 + 落位状态）
+ *      resources = 矿点行 + 矿建建造区
+ *      surface   = 地表建筑工具行（点「选用」进入放置，点球面落位，融化圈门槛在 GameMode 校验）
+ *      orbit     = 轨道建筑类型行（orbit_build 表投影，「建造」→ OrbitBuildComponent.tryPlace）
  *  - 色点 ◆ = 矿种表现色（ColorBinder 差分写色）
  *  - 8Hz 差分同步；矿点行池 HOLO_DEPOSIT_ROWS / 建造行池 HOLO_BUILD_ROWS / 工具行池 HOLO_TOOL_ROWS
+ *    / 轨道行池 HOLO_ORBIT_ROWS
  */
 import { BehaviourScript, logger, UIScrollContainerComponent, UITransformComponent } from '@/engine'
 import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
+import { HOLO_TOOL_ROWS, holoPanelTitleSuffix } from './holoHudModel'
 
 /** 全息勘探面板 widget 资产路径（HudScript 生成入口） */
 export const HOLOGRAM_PANEL_WIDGET = 'asset/blueprints/ui/hologram_panel.widget.json'
@@ -21,8 +27,10 @@ export const HOLOGRAM_PANEL_WIDGET = 'asset/blueprints/ui/hologram_panel.widget.
 const HOLO_DEPOSIT_ROWS = 4
 /** 建造行池容量（超出 mine_building 表行数的类型不显示） */
 const HOLO_BUILD_ROWS = 3
-/** 全息地球工具行池容量（ring 1 行 + building 表行；超出表行数的类型不显示） */
-const HOLO_TOOL_ROWS = 3
+/** 全息地球地表建筑工具行池容量（building 表行；超出表行数的类型不显示） */
+const HOLO_TOOL_ROWS_POOL = HOLO_TOOL_ROWS
+/** 轨道建筑行池容量（超出 orbit_build 表行数的类型不显示） */
+const HOLO_ORBIT_ROWS = 4
 
 export default class HologramPanelScript extends BehaviourScript {
   private binder = new TextBinder()
@@ -33,8 +41,10 @@ export default class HologramPanelScript extends BehaviourScript {
   private rowDepositIds: string[] = new Array(HOLO_DEPOSIT_ROWS).fill('')
   /** 行号 → 当前绑定矿建类型 id */
   private rowBuildIds: string[] = new Array(HOLO_BUILD_ROWS).fill('')
-  /** 行号 → 当前绑定工具 id（'ring' 或 building 表行键） */
-  private rowToolIds: string[] = new Array(HOLO_TOOL_ROWS).fill('')
+  /** 行号 → 当前绑定工具 id（building 表行键） */
+  private rowToolIds: string[] = new Array(HOLO_TOOL_ROWS_POOL).fill('')
+  /** 行号 → 当前绑定轨道建筑类型 id */
+  private rowOrbitIds: string[] = new Array(HOLO_ORBIT_ROWS).fill('')
   /** 滚动容器（懒查找缓存；行显隐后重排 + refresh 用） */
   private scroll: UIScrollContainerComponent | null = null
 
@@ -42,6 +52,7 @@ export default class HologramPanelScript extends BehaviourScript {
   private static readonly SCROLL_ROWS = [
     'DepositRow_0', 'DepositRow_1', 'DepositRow_2', 'DepositRow_3',
     'DetailBox', 'Btn_tool_ring', 'ToolRow_0', 'ToolRow_1', 'ToolRow_2',
+    'OrbitIntro', 'OrbitRow_0', 'OrbitRow_1', 'OrbitRow_2', 'OrbitRow_3',
     'BuildRow_0', 'BuildRow_1', 'BuildRow_2',
   ]
 
@@ -75,17 +86,23 @@ export default class HologramPanelScript extends BehaviourScript {
         mode.mining.tryPlace(mode.holoDepositSel, typeId)
       })
     }
-    // 全息地球工具行：ring = 环节点落位 / building = 地表建筑（再点 = 取消工具）
-    bind('Btn_tool_ring', () => {
-      const mode = wcMode()
-      if (mode) mode.setHoloTool('ring')
-    })
-    for (let i = 0; i < HOLO_TOOL_ROWS; i++) {
+    // 全息地球地表建筑工具行：点「选用」进入放置（再点 = 取消工具）
+    for (let i = 0; i < HOLO_TOOL_ROWS_POOL; i++) {
       bind(`Btn_tool_${i}`, () => {
         const mode = wcMode()
         const id = this.rowToolIds[i]
         if (!mode || !id) return
         mode.setHoloTool('building', id)
+      })
+    }
+    // 轨道建筑「建造」：投放 earth 轨道施工（预算/上限校验在 OrbitBuildComponent）
+    for (let i = 0; i < HOLO_ORBIT_ROWS; i++) {
+      bind(`Btn_orbit_${i}`, () => {
+        const mode = wcMode()
+        const typeId = this.rowOrbitIds[i]
+        if (!mode || !typeId) return
+        mode.orbitBuild.tryPlace(typeId, 'earth')
+        logger.info(`[HologramPanelScript] 全息轨道建造：${typeId} @ earth`)
       })
     }
     // 默认收起（脚本置位，先于首帧渲染）。走 setPanel：UIManager 会把面板根整树
@@ -105,8 +122,11 @@ export default class HologramPanelScript extends BehaviourScript {
     if (!holo) return
 
     const isEarth = holo.body === 'earth'
+    const e = holo.earth
+    // 面板内容分类（地球态跟随底部按钮；勘探态不分组）
+    const tab = e?.tab ?? 'resources'
     this.binder.set(findText(this.actor, 'TitleText'),
-      isEarth ? `全息地球 · ${holo.bodyName}建造` : `全息勘探 · ${holo.bodyName}`)
+      isEarth ? `全息地球 · ${holoPanelTitleSuffix(tab)}` : `全息勘探 · ${holo.bodyName}`)
 
     // 堆场水位行（资源星专属；2026-09-13 堆场耦合——产量入堆场、船从堆场拉货）
     this.vis.set(this.actor, 'StockText', !isEarth && !!holo.stockyard)
@@ -117,20 +137,24 @@ export default class HologramPanelScript extends BehaviourScript {
         `堆场 ${Math.floor(y.stock)}/${y.cap} t（${pct}%）· 产量 ${y.miningRate}/s${pct >= 100 ? ' · ⚠ 已满停产' : ''}`)
     }
 
-    // 全息地球工具区显隐（矿点勘探态整组隐藏）
-    this.vis.set(this.actor, 'Btn_tool_ring', isEarth)
-    for (let i = 0; i < HOLO_TOOL_ROWS; i++) this.vis.set(this.actor, `ToolRow_${i}`, isEarth)
     // 提示行口径分支
     this.binder.set(findText(this.actor, 'HintText'), isEarth
       ? '右键拖拽旋转 · 选中工具后点球面落位 · Esc 取消/退出'
       : '拖拽旋转检视 · 点矿点或列表行选中 · Esc 退出')
 
+    // ── 内容分组显隐（2026-09-18 底部分类改版；勘探态保持矿点 + 矿建全显） ──
+    const showDeposits = !isEarth || tab === 'resources'
+    const showRing = isEarth && tab === 'ring'
+    const showSurface = isEarth && tab === 'surface'
+    const showOrbit = isEarth && tab === 'orbit'
+    const showMineBuild = !isEarth || tab === 'resources'
+
     // 矿点行池（表序；色点 = 矿种表现色，状态列带选中标记）
     for (let i = 0; i < HOLO_DEPOSIT_ROWS; i++) {
       const row = holo.deposits[i]
       this.rowDepositIds[i] = row?.id ?? ''
-      this.vis.set(this.actor, `DepositRow_${i}`, !!row)
-      if (!row) continue
+      this.vis.set(this.actor, `DepositRow_${i}`, !!row && showDeposits)
+      if (!row || !showDeposits) continue
       this.colors.set(findText(this.actor, `Dot_${i}`), row.color)
       this.binder.set(findText(this.actor, `DepositInfo_${i}`),
         `${row.typeName} · 余 ${Math.round(row.left)}/${row.reserve} t`)
@@ -138,35 +162,54 @@ export default class HologramPanelScript extends BehaviourScript {
         `${row.selected ? '▶ ' : ''}${row.status}`)
     }
 
-    // 全息地球态：节点统计行 + 工具行池 + ghost 校验文案
-    if (isEarth && holo.earth) {
-      const e = holo.earth
-      this.binder.set(findText(this.actor, 'ToolRingInfo'),
-        `⚡ 环节点 已落位 ${e.placedNodes}/${e.builtSlots} · 融冰 ${e.meltRadiusDeg}°`)
-      this.binder.set(findText(this.actor, 'ToolRingStatus'),
-        e.tools[0]?.selected ? '▶ 点球面落位' : `${e.pendingNodes} 待落位`)
-      for (let i = 0; i < HOLO_TOOL_ROWS; i++) {
+    // 全息地球态：节点统计行 + 地表建筑工具行池 + ghost 校验文案
+    if (isEarth && e) {
+      this.vis.set(this.actor, 'Btn_tool_ring', showRing)
+      if (showRing) {
+        this.binder.set(findText(this.actor, 'ToolRingInfo'),
+          `⚡ 环节点 已落位 ${e.placedNodes}/${e.builtSlots} · 融冰 ${e.meltRadiusDeg}°`)
+        this.binder.set(findText(this.actor, 'ToolRingStatus'),
+          e.tools[0]?.selected ? '▶ 点球面落位' : `${e.pendingNodes} 待落位`)
+      }
+      for (let i = 0; i < HOLO_TOOL_ROWS_POOL; i++) {
         const row = e.tools[i + 1] // 下标 0 = ring 工具行，建筑行顺延
         this.rowToolIds[i] = row?.id ?? ''
-        if (!row) continue
+        this.vis.set(this.actor, `ToolRow_${i}`, !!row && showSurface)
+        if (!row || !showSurface) continue
         this.binder.set(findText(this.actor, `ToolInfo_${i}`), `${row.name} · ${row.desc}`)
         const label = findText(this.actor, `ToolLabel_${i}`)
         if (label) this.binder.set(label, row.selected ? '已选' : '选用')
         this.vis.set(this.actor, `Btn_tool_${i}`, row.canUse || row.selected)
       }
-      // 详情 = ghost 校验 / 工具引导（建筑模式下覆盖矿点详情）
-      this.binder.set(findText(this.actor, 'DetailText'),
-        e.ghostLabel || (e.toolActive ? '移动指针选择落点…' : '选上方工具后在球面点击落位；融化圈内可放地表建筑'))
+      // 轨道建筑行池（表序；「建造」按钮按 canBuild 显隐）
+      this.vis.set(this.actor, 'OrbitIntro', showOrbit)
+      if (showOrbit) this.binder.set(findText(this.actor, 'OrbitIntro'), e.orbitIntro)
+      for (let i = 0; i < HOLO_ORBIT_ROWS; i++) {
+        const row = e.orbitRows[i]
+        this.rowOrbitIds[i] = row?.id ?? ''
+        this.vis.set(this.actor, `OrbitRow_${i}`, !!row && showOrbit)
+        if (!row || !showOrbit) continue
+        this.binder.set(findText(this.actor, `OrbitInfo_${i}`),
+          `${row.name} · ${row.cost} H3 · 工期 ${row.buildTime}s\n${row.desc}（${row.count}/${row.max}）`)
+        this.vis.set(this.actor, `Btn_orbit_${i}`, row.canBuild)
+      }
+      // 详情 = 分类引导 / ghost 校验 / 工具引导
+      let detail: string
+      if (tab === 'orbit') detail = '点「建造」投放轨道施工 · 建成后点轨道设施管理（船坞点开造船）'
+      else if (tab === 'surface') detail = e.ghostLabel || (e.toolActive ? '移动指针选择落点…' : '点「选用」进入放置 · 融化圈内点球面落位')
+      else if (tab === 'ring') detail = e.ghostLabel || (e.toolActive ? '移动指针选择落点…' : '点底部「⚡ 环节点」选落位工具 · 点球面落位')
+      else detail = holo.detail
+      this.binder.set(findText(this.actor, 'DetailText'), detail)
     } else {
       this.binder.set(findText(this.actor, 'DetailText'), holo.detail)
     }
 
-    // 建造区行池（表键序；无选中/预算不足 → 按钮隐藏；全息地球态矿建行仍按选中矿点驱动）
+    // 建造区行池（表键序；无选中/预算不足 → 按钮隐藏；全息地球态归「资源」分类）
     for (let i = 0; i < HOLO_BUILD_ROWS; i++) {
       const row = holo.buildRows[i]
       this.rowBuildIds[i] = row?.id ?? ''
-      this.vis.set(this.actor, `BuildRow_${i}`, !!row)
-      if (!row) continue
+      this.vis.set(this.actor, `BuildRow_${i}`, !!row && showMineBuild)
+      if (!row || !showMineBuild) continue
       this.binder.set(findText(this.actor, `BuildInfo_${i}`),
         `${row.name} · ${row.cost} H3 · 工期 ${row.buildTime}s\n产出 ${row.yieldPerS}/s · ${row.desc}`)
       this.vis.set(this.actor, `Btn_build_${i}`, row.canBuild)

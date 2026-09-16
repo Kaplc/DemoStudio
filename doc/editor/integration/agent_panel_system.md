@@ -853,6 +853,9 @@ const handleRestartAgent = useCallback(async () => {
 **8. `session.create` 的 cwd 必须是绝对路径**
 现象：新建会话报 `cwd must be an absolute path`。原因：DSH 侧强校验。规则：用 `resolveWorkspaceCwd()` 三级回退（`getAppInfo().appRoot` → `__DEMOSTUDIO_ROOT__` → `'.'`），别手写相对路径。
 
+**9. 切回运行中会话出现两张相同思考卡（live 卡创建竞态，2026-09-16 修复）**
+现象：切走再切回一个正在输出思考的会话，同一段推理文本上屏两张卡，且半截段永久残留（flush 的原地替换不再命中它）。原因有两层：① `handleSwitchSession`/`restoreHistory` 把历史窗口（尾为 `pendingPartial` 半截段）`setMessages` 整表装入后，`messagesRef` 要到 useEffect 提交才同步；该窗口内到达的 `reasoning.delta` 穿过基于 `messagesRef` 的旧守卫，live 卡被追加到历史半截段之后（React 函数式更新按入队顺序链接，必然排在历史窗口后面）。flush 抵达时列表尾已是 live 卡，`replacingPartial` 判定失效。② 整表替换丢弃了替换前的 live 卡但 `liveAssistantIdRef` 未作废，后续 delta 走按 id 原地更新找不到卡片，文本被静默吞掉。规则：live 卡创建裁决必须放进 `setMessages` updater 用新鲜 `cur` 复查（`appendLiveCard` 纯函数，`src/components/agent/liveCardGuard.ts`）；整表替换后必须 `liveAssistantIdRef.current = null`。竞态顺序的回归判别器见 `tests/agentLiveCardRace.test.tsx`（含"旧代码必红"的双向验证）。
+
 ---
 
 ## 10. 边界条件
@@ -966,7 +969,7 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 | 行号配色 | ctx 白（`label-primary`）、del 红（`state-error-primary` + `-`）、add 绿（`state-success-primary` + `+`） | `tests/e2e/agent/tool-card-diff.spec.ts` 断言 computedStyle 精确 RGB |
 | write 新建文件兜底 | 无权威 hunk 的 settled success 也派生 diff（DSH write 新文件 `meta.diffs` 为空数组），只有 failure 才退通用视图 | `tests/toolCardDiff.test.tsx` + e2e「write 新建文件（meta.diffs 空数组）」用例 |
 | 头部摘要全参数 | grep 等 ≥2 个单行短字符串参数以 `key=value` 全展示（旧逻辑只显第一个字符串值，pattern 被吞）；单个仍只显值，多行/超长值不进摘要 | `tests/toolCardDiff.test.tsx` 摘要用例 + e2e「grep 卡片头部摘要 key=value 全展示」用例 |
-| read_image 图片视图 | 展开渲染目标图片本体（`<img>` data URL）+ 路径标注，**替代**原始 JSON 输入/输出；读取失败回退通用视图（2026-09-15） | `tests/toolCardDiff.test.tsx` 图片视图用例 + e2e「read_image 展开渲染目标图片 / IPC 读取失败回退」用例 |
+| read_image 图片视图 | 展开渲染目标图片本体（`<img>` data URL）+ 路径标注，**替代**原始 JSON 输入/输出；读取失败显示失败提示行并回退通用视图（2026-09-15）；**会话级缓存**：文件被删后未刷新/未重启期间已看过的图持续可见（2026-09-16） | `tests/toolCardDiff.test.tsx` 图片视图/缓存用例 + e2e「read_image 展开渲染目标图片 / IPC 读取失败回退」用例 |
 
 ### 12.5 文件与测试分工
 
@@ -991,17 +994,20 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 `read_image` 卡片展开后渲染**目标图片本体**（`<img>`）+ 一行路径标注，替代原来的「输入 JSON / 输出文本」原始视图（用户反馈：截图卡片展开是一堆转义路径和截断的 base64，看不出图）。数据链路：
 
 ```
-展开/挂载 → readImageFileAsDataUrl(args.file_path)
-  → ipc 'read-image-file'（main.ts）：路径逃逸防护（与 read-text-file 同规则，限项目根内）
-    + 扩展名白名单（png/jpg/jpeg/gif/webp/bmp）→ { success, data: base64, mime }
-  → data URL → <img>（.tool-image__img，max-height 320px）
+展开/挂载 → readImageFileAsDataUrlCached(args.file_path)
+  ├─ 会话缓存命中（LRU Map，40 条）→ 直接返回 data URL，不读盘
+  └─ 未命中 → ipc 'read-image-file'（main.ts）：路径逃逸防护（与 read-text-file 同规则，限项目根内）
+       + 扩展名白名单（png/jpg/jpeg/gif/webp/bmp）→ { success, data: base64, mime }
+     → data URL → 写入缓存 → <img>（.tool-image__img，max-height 320px）
 ```
 
 行为约定（改这块别再改回去）：
 
 - **加载中抑制通用视图**（防"JSON 闪一下再变图"）；**失败回退**通用输入/输出——无 electronAPI（浏览器模式）、路径在项目根外、扩展名不在白名单、文件缺失，全都走回退，不渲染半张图；
+- **失败回退时在通用视图上方显示一行失败提示**（`.tool-image--missing`「图片无法加载（文件可能已被删除或不在项目根内）…」，2026-09-16）——否则用户分不清"功能没生效"还是"文件没了"；
+- **会话级缓存**（2026-09-16 用户需求）：data URL 存模块级 LRU Map（40 条，只缓存成功读取），切会话/虚拟列表滚动/新回合上屏导致的卡片卸载重挂载命中缓存不重读盘——**文件被删后，只要面板未刷新、编辑器未重启，已看过的图持续可见**；刷新/重启按设计失效（内存缓存，不落盘）；
 - 卡片仍**默认收起**（非 diff 工具），图片在挂载时即预加载，展开时通常已就绪；
-- DSH 侧 result 的 `<path>/<type>/<content>` 文本形状不参与渲染——图片永远从磁盘路径现读，文件被删时诚实回退并显示原始输出。
+- DSH 侧 result 的 `<path>/<type>/<content>` 文本形状不参与渲染——图片永远从磁盘路径现读，文件被删时诚实回退并显示原始输出（有缓存前已看过的除外，见上条）。
 
 ### 12.8 图片浮动放大窗（2026-09-16）
 
@@ -1130,3 +1136,19 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 - 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession`；
 - UI：`SessionSidebar.tsx` 的 `renderItem`（`.session-status-light--{running|error}`，`data-session-id`/`data-status` 是 e2e 锚点，别删）+ `.session-status-light*` 样式区段；面板经 `sessionStatusUpdate` 事件全量同步后透传 prop；
 - 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`）。
+
+## 17. 重试 / 回合错误状态行：与系统消息同款居中（2026-09-18）
+
+`llm/retry` 折叠出的 retry 行（"N 次重试"）与 `turn/end(error)` 折叠出的 turn-error 行（如 "Connection error."）原来渲染为全宽 `agent-event-card`（icon + 标签 + 值）。用户定案：**这两条与系统消息（"会话已恢复"等）同款居中弱化样式**——弱状态提示不值得占一整行卡片。
+
+### 17.1 实现（改这块别改回去）
+
+- 渲染分支：`AgentPanel.tsx` `renderNode` 的 `retry` / `turn-error` 分支直接输出 `.message.message--system` + `.message__body`（与 `MessageBubble` 系统消息同一套类，样式自动跟随未来调整）；retry 分支**不要求 `msg.retries` 存在**（content 恒有值，缺明细也应居中而不是退回左对齐气泡）。
+- 样式复用零新增 CSS；原 `--retry` / `--error` 两条 icon 配色规则已随卡片移除（`editor.css` 的 `agent-event-card` 区段留有注释锚点）。
+- **范围**：`turn-max-tokens`（上下文截断）仍是事件卡——用户只圈了重试/错误两条，别顺手扩大。
+
+### 17.2 文件与测试分工
+
+- 改动：`src/components/AgentPanel.tsx`（两个渲染分支）+ `src/styles/editor.css`（删两条死规则）；
+- 单测：`tests/agentStatusRows.test.tsx`（居中类名 + 旧卡片类名绝迹 + 无 retries 防御分支 + max-tokens 范围外回归锁；回滚验证 4 红 1 绿判别器有效）；
+- E2E：`tests/e2e/agent/status-rows-centered.spec.ts`（合成 5×`llm/retry` + `turn/end` error 历史，与内置"对话已恢复"系统消息 computedStyle 同款断言：text-align center / 同色 / margin 对称）。

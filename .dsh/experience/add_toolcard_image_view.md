@@ -7,12 +7,12 @@ prefix: [src/components/agent/ToolCard.tsx, electron/main.ts, tests/e2e/agent/to
 ---
 ## Summary
 
-read_image 工具卡片展开渲染图片本体（IPC read-image-file 读盘 → data URL + 路径标注，替代原始 JSON 输入/输出），任一环失败回退通用视图；vitest 19 例 + e2e 合成历史 6 例全绿，文档 §12.7 同步
+read_image 工具卡片展开渲染图片本体（IPC read-image-file → data URL + 会话级 LRU 缓存 40 条 + 失败提示行回退），文件被删后未刷新/未重启期间已看过的图持续可见；vitest 21 例 + e2e 6 例全绿，文档 §12.7 同步
 
 ## Lessons
 
-1. 渲染进程加载本地图片别用 <img src="file://">：编辑器页面跑在 http://localhost（vite dev）下 file:// 子资源被跨域拦截——复用 read-text-file 模式新开 read-image-file IPC（root 逃逸防护与 read-text-file 同规则 + png/jpg/jpeg/gif/webp/bmp 白名单 → base64+mime → data URL），浏览器模式无 electronAPI 自然回退。2. testing-library 的 waitFor 只在回调抛错时重试，回调返回 null 算通过——`waitFor(() => querySelector(...))` 首次拿到 null 即失败退出；必须回调内 expect(...).not.toBeNull() 或 throw。3. 渲染策略：加载中抑制通用视图（防 JSON 闪现再变图）；DSH result 的 <path>/<type>/<content> 文本完全不解析——永远从磁盘现读，文件被删诚实回退。4. electron/main.ts+preload.ts 保存后 vite 自动重编译 dist-electron 产物（改完即见于文件），但运行中的主进程要重启编辑器才加载新 IPC——用户有其他会话在跑时别主动 editor_restart，交付时说明"重启后生效"。5. e2e 复用 stubAgentPage 合成历史装置加 opts.imageData（默认 1x1 PNG base64 成功、null 模拟 IPC 失败），naturalWidth===1 断言 Chromium 真实解码。决策规则见 memory:agent_tool_card_diff_ui_decisions 第六条。
+1. 渲染进程加载本地图片别用 <img src="file://">：编辑器页面跑在 http://localhost（vite dev）下 file:// 子资源被跨域拦截——复用 read-text-file 模式新开 read-image-file IPC（root 逃逸防护与 read-text-file 同规则 + png/jpg/jpeg/gif/webp/bmp 白名单 → base64+mime → data URL），浏览器模式无 electronAPI 自然回退。2. testing-library 的 waitFor 只在回调抛错时重试，回调返回 null 算通过——必须回调内 expect/throw。3. 渲染策略：加载中抑制通用视图（防 JSON 闪现再变图）；DSH result 的 <path>/<type>/<content> 文本完全不解析——永远从磁盘现读；失败回退必须带一行失败提示（.tool-image--missing），否则用户分不清"功能没生效"还是"文件没了"（2026-09-16 实际发生）。4. 会话缓存：模块级 Map 做 LRU（40 条，命中 delete+set 触碰），卡片卸载/切会话/重挂载不重读盘，文件被删后未刷新期间已看过的图持续可见；只缓存成功；导出 clearImageDataUrlCacheForTest 供 vitest 用例间隔离（模块级状态跨用例泄漏是必踩坑）。5. "没有效果"先查数据源存活再怀疑代码：test-results/ 是 playwright 输出目录每次跑测试被清空，历史卡片引用的图多半已删；实机验证用 CDP 直连（端口按 electron PID 扫 Get-NetTCPConnection 监听端口找，CDP 端口在 5 万段而非 9222），page.evaluate 里直接调 window.electronAPI.readImageFile 断言 success/len/拒绝路径。6. electron/main.ts+preload.ts 保存后 vite 自动重编译 dist-electron，但运行中的主进程要重启编辑器才加载新 IPC；若编辑器在改动之后启动则无需重启。规则见 memory:agent_tool_card_diff_ui_decisions 第六条。
 
 ## Effective Path
 
-src/components/agent/ToolCard.tsx（图片视图 + suppressGenericView）+ electron/main.ts（read-image-file）+ tests/e2e/agent/tool-card-diff.spec.ts（stubAgentPage opts.imageData）
+src/components/agent/ToolCard.tsx（readImageFileAsDataUrlCached + imageDataUrlCache LRU 40）+ electron/main.ts（read-image-file）+ tests/e2e/agent/tool-card-diff.spec.ts（stubAgentPage opts.imageData）

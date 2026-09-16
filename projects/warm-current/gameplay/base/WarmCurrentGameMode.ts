@@ -238,6 +238,9 @@ export interface HudHoloBuildRow {
   canBuild: boolean
 }
 
+/** 全息地球面板内容分类（底部资源/地表建筑/轨道建筑按钮驱动；ring = 环节点工具视图） */
+export type HoloTab = 'ring' | 'resources' | 'surface' | 'orbit'
+
 /** 全息地球建造工具行（ring = 环节点落位 / building 表行键 = 地表建筑） */
 export interface HudHoloToolRow {
   /** 工具 id（'ring' 或 building 表行键） */
@@ -250,8 +253,10 @@ export interface HudHoloToolRow {
   canUse: boolean
 }
 
-/** 全息地球态（仅 body==='earth' 非空；节点统计 + 建造工具行 + ghost 提示） */
+/** 全息地球态（仅 body==='earth' 非空；面板分类 + 节点统计 + 建造工具行 + 轨道建筑行 + ghost 提示） */
 export interface HudHoloEarth {
+  /** 面板内容分类（底部资源/地表建筑/轨道建筑/环节点按钮选中态，HologramPanelScript 按此切换内容组） */
+  tab: HoloTab
   /** 待落位节点数（已交付槽位未落位） */
   pendingNodes: number
   /** 已落位节点数 */
@@ -262,6 +267,10 @@ export interface HudHoloEarth {
   meltRadiusDeg: number
   /** 建造工具行（ring + building 表键序） */
   tools: HudHoloToolRow[]
+  /** 轨道建筑类型行（orbit_build 表投影，anchor=earth；轨道分类内容组，2026-09-18 底部分类改版） */
+  orbitRows: HudOrbitBuildRow[]
+  /** 轨道分类船坞引导行（船坞就绪口径与轨道建设面板 FleetText 同源） */
+  orbitIntro: string
   /** 是否有激活的放置工具 */
   toolActive: boolean
   /** 指针落点校验文案（ghost；空 = 指针不在球面/无工具） */
@@ -711,6 +720,8 @@ export class WarmCurrentGameMode extends GameMode {
   holoDepositSel: string | null = null
   /** 全息地球放置工具（null = 未选；ring = 落位环节点，building = 放置地表建筑） */
   holoPlaceTool: { kind: 'ring' } | { kind: 'building'; typeId: string } | null = null
+  /** 全息地球面板内容分类（底部资源/地表建筑/轨道建筑按钮；开全息重置为 resources，2026-09-18 改版） */
+  holoTab: HoloTab = 'resources'
   /** 全息地球放置预览（指针球面交点 + 校验结果；渲染 ghost 与面板提示消费，null = 无工具/未悬停） */
   holoGhost: { lat: number; lon: number; valid: boolean; label: string } | null = null
   /** 全息地球当前工具种类（渲染 ghost 预览圈半径口径；MapViewProvider 消费） */
@@ -2071,6 +2082,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.holoLastTarget = null
     this.holoPlaceTool = null
     this.holoGhost = null
+    this.holoTab = 'resources'
     const r = B.map.nodes[body].r
     const actor = this.starActors.get(body as StarBodyId)
     // 取景锚 = 天体真实位置（行星钉在舞台中心 = 原点；卫星用实时公转位），注视高度 = 球心
@@ -2108,6 +2120,14 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   // ─── 全息地球建造（环节点落位 / 地表建筑放置） ───
+
+  /** 切换面板内容分类（底部资源/地表建筑/轨道建筑按钮；同值重复点击幂等忽略） */
+  setHoloTab(tab: HoloTab): void {
+    if (this.holoTab === tab) return
+    this.holoTab = tab
+    audioSys.play('wc.draw', { volume: 0.2 })
+    logger.info(`[WarmCurrent] 全息面板切换分类：${tab}`)
+  }
 
   /** 选择放置工具（面板行点击；kind=null 清除。建筑 typeId 非法忽略） */
   setHoloTool(kind: 'ring' | 'building' | null, typeId?: string): void {
@@ -2302,12 +2322,19 @@ export class WarmCurrentGameMode extends GameMode {
           canUse: playable && s.earthH3 >= def.cost,
         })),
       ]
+      const earthYard = this.orbitBuild.shipyardMults('earth')
+      const earthShipCost = Math.round(B.shipBuildCost * (earthYard?.costMult ?? 1))
       earth = {
+        tab: this.holoTab,
         pendingNodes: pending,
         placedNodes: placed.length,
         builtSlots: s.ringSlots,
         meltRadiusDeg: B.holoEarth.meltRadiusDeg,
         tools,
+        orbitRows: this.orbitBuildTypeRows('earth'),
+        orbitIntro: earthYard
+          ? `船坞就绪 · 点轨道上的船坞打开造船面板（${earthShipCost} H3/艘）`
+          : `造船 ${earthShipCost} H3（建船坞解锁 · 点船坞造船）`,
         toolActive: !!this.holoPlaceTool,
         ghostLabel: this.holoGhost?.label ?? '',
       }
@@ -3097,12 +3124,11 @@ export class WarmCurrentGameMode extends GameMode {
     }
   }
 
-  /** 轨道建设面板数据装配（orbitBuildSel → HudOrbitBuild；表驱动类型行 + 在册设施行） */
-  private buildOrbitBuild(anchor: PlanetBodyId): HudOrbitBuild {
+  /** 轨道建筑类型行投影（orbit_build 表驱动；轨道建设面板与全息地球「轨道建筑」分类共用） */
+  private orbitBuildTypeRows(anchor: PlanetBodyId): HudOrbitBuildRow[] {
     const s = this.simState.state
     const playable = (s.outcome === 'playing' || s.sandbox) && s.flare.phase !== 'active'
-    const shipyard = this.orbitBuild.shipyardMults(anchor)
-    const rows: HudOrbitBuildRow[] = Object.entries(B.orbitBuildings).map(([id, def]) => {
+    return Object.entries(B.orbitBuildings).map(([id, def]) => {
       const count = s.orbitBuildings.filter((x) => x.type === id && x.anchor === anchor).length
       return {
         id,
@@ -3115,6 +3141,13 @@ export class WarmCurrentGameMode extends GameMode {
         canBuild: playable && count < B.orbitBuild.maxPerType && s.earthH3 >= def.cost,
       }
     })
+  }
+
+  /** 轨道建设面板数据装配（orbitBuildSel → HudOrbitBuild；表驱动类型行 + 在册设施行） */
+  private buildOrbitBuild(anchor: PlanetBodyId): HudOrbitBuild {
+    const s = this.simState.state
+    const shipyard = this.orbitBuild.shipyardMults(anchor)
+    const rows = this.orbitBuildTypeRows(anchor)
     const buildings: HudOrbitBuildingRow[] = s.orbitBuildings
       .filter((x) => x.anchor === anchor)
       .map((x) => {
