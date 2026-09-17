@@ -2,7 +2,7 @@
  * e2e/framework/projects — 项目描述符注册表
  *
  * 新项目接入框架只需两步：
- * ① 在 src/projects/<项目>/register.ts 确认 ProjectModule.name（工程卡显示名）
+ * ① 在 projects/<项目>/register.ts 确认 ProjectModule.name（工程卡显示名）
  * ② 在下方 PROJECTS 加一条 ProjectDescriptor（或在 spec 里调 registerProject 临时注册）
  */
 import type { ProjectDescriptor } from './types'
@@ -11,7 +11,7 @@ export const PROJECTS: Record<string, ProjectDescriptor> = {
   fish: {
     id: 'fish',
     cardName: 'ClashMaster',
-    description: '部落冲突风格养成+战斗（src/projects/fish）',
+    description: '部落冲突风格养成+战斗（projects/fish）',
   },
   warm: {
     id: 'warm',

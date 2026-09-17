@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：新增放兵/建造/出海/UI 联动等 gameplay 功能前决定代码落点；`ag-gameplay-reviewer` 子代理审查改动时的**唯一判定依据**；纠结"定时器该放哪""掠夺累计该记在哪"时；重构已有 gameplay 代码前确认归属。
 >
-> 代码位置：`src/projects/fish/gameplay/`（各阶段 `{menu,base,game,level}/` 下的 GameMode/Controller/Pawn 三件套）、引擎基类 `src/engine/`（`gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts`、`gameflow/GameInstance.ts`、`gameflow/World.ts`、`entity/Component.ts`）。
+> 代码位置：`projects/fish/gameplay/`（各阶段 `{menu,base,game,level}/` 下的 GameMode/Controller/Pawn 三件套）、引擎基类 `src/engine/`（`gameflow/GameMode.ts`、`input/PlayerController.ts`、`entity/Pawn.ts`、`gameflow/GameState.ts`、`gameflow/GameInstance.ts`、`gameflow/World.ts`、`entity/Component.ts`）。
 
 ---
 
@@ -14,9 +14,9 @@
 |---|---|---|
 | [GameMode.ts](../../src/engine/gameflow/GameMode.ts) | 规则权威基类：持有 `gameState`/`cameraManager`/`controller`，统一驱动生命周期 | 所有 GameMode 的基类，加通用生命周期逻辑时 |
 | [PlayerController.ts](../../src/engine/input/PlayerController.ts) | 输入操作者基类：持有 `pawn`+`inputComponent`，屏幕/世界坐标输入回调 | 加新的输入回调类型时 |
-| [FishLevelGameMode.ts](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 战斗规则权威（放兵/掠夺/胜负），**本规范的最佳正面样例** | 改战斗规则、加战斗逻辑方法 |
-| [FishLevelPlayerController.ts](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) | 战斗输入操作者（长按放兵定时器/坐标记录），**"操作归 Controller"的纠正后样板** | 改放兵交互、长按/连点手势 |
-| [FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts) | 阶段路由 + 跨阶段共享组件持有者 + 调试桥 | 加阶段、加跨阶段共享数据 |
+| [FishLevelGameMode.ts](../../projects/fish/gameplay/level/FishLevelGameMode.ts) | 战斗规则权威（放兵/掠夺/胜负），**本规范的最佳正面样例** | 改战斗规则、加战斗逻辑方法 |
+| [FishLevelPlayerController.ts](../../projects/fish/gameplay/level/FishLevelPlayerController.ts) | 战斗输入操作者（长按放兵定时器/坐标记录），**"操作归 Controller"的纠正后样板** | 改放兵交互、长按/连点手势 |
+| [FishGameInstance.ts](../../projects/fish/gameplay/FishGameInstance.ts) | 阶段路由 + 跨阶段共享组件持有者 + 调试桥 | 加阶段、加跨阶段共享数据 |
 | [World.ts](../../src/engine/gameflow/World.ts) | 场景世界：Actor 生成/销毁/查询/场景切换 | 加对象生命周期或场景切换能力 |
 
 **关键心智模型**：七角色里只有 **GameMode 是规则权威、Controller 是操作执行者**，其余五个都是"被二者使用的容器/模块"。判断归属时不要问"这段代码跟谁有关"，而要问"**这段代码是规则、是操作、还是数据**"——规则进 GameMode，操作进 Controller，数据按"全局可观察/单点行为/跨阶段共享"分流到 GameState/组件/GameInstance。最容易误解的一点：**Controller 持有 `gameMode` 引用，但 GameMode 绝不反向调用 Controller**——需要通知时 GameMode 只暴露公开回调（如 `onLootDisplayChange`），由订阅方自己去读。
@@ -98,7 +98,7 @@ get placeTroopId(): string | null {
 
 **③ Pawn —— 玩家世界化身**
 
-做位置/移动/动作/属性（`FishCannon` 的 `SetLevel`/`SetAimTarget`/`SetFiring`）。**无物理化身的阶段（base/level）Pawn 保持空壳**——[FishLevelPawn.ts](../../src/projects/fish/gameplay/level/FishLevelPawn.ts) 就是占位。Pawn 被动响应 Controller 命令，不主动查询输入、不碰规则。
+做位置/移动/动作/属性（`FishCannon` 的 `SetLevel`/`SetAimTarget`/`SetFiring`）。**无物理化身的阶段（base/level）Pawn 保持空壳**——[FishLevelPawn.ts](../../projects/fish/gameplay/level/FishLevelPawn.ts) 就是占位。Pawn 被动响应 Controller 命令，不主动查询输入、不碰规则。
 
 **④ GameState —— 可观察的全局状态**
 
@@ -120,7 +120,7 @@ get placeTroopId(): string | null {
 
 ### 2.4 真实教训：长按放兵定时器为什么必须在 Controller
 
-这是本规范最有价值的一条红线，它是被真实纠正出来的。当前 [FishLevelPlayerController.ts](../../src/projects/fish/gameplay/level/FishLevelPlayerController.ts) 的正确写法：
+这是本规范最有价值的一条红线，它是被真实纠正出来的。当前 [FishLevelPlayerController.ts](../../projects/fish/gameplay/level/FishLevelPlayerController.ts) 的正确写法：
 
 ```ts
 /** 长按连续放兵间隔（秒）：按住期间每隔该时长放一个兵 */

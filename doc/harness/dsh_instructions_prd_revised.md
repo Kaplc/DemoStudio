@@ -24,7 +24,7 @@
 | [files.ts](../../harness/ds-instructions/src/files.ts) | 指令加载与缓存（版本+size 校验） | 改缓存策略、安全兜底 |
 | [render.ts](../../harness/ds-instructions/src/render.ts) | 正文渲染、`<system-reminder>` 边界、字节预算 | 改注入正文措辞/截断策略 |
 
-**当前指令目录实况**（`.dsh/instructions/`）：`engine.instructions.md`（`prefix: src/engine`）、`harness.instructions.md`（`prefix: harness`）、`global.instructions.md`（`prefix: /`）。默认映射里的 `project.instructions.md` **当前不存在**——读到 `src/projects/**` 不会注入任何指令（见 §5 FR-1）。
+**当前指令目录实况**（`.dsh/instructions/`）：`engine.instructions.md`（`prefix: src/engine`）、`harness.instructions.md`（`prefix: harness`）、`global.instructions.md`（`prefix: /`）。默认映射里的 `project.instructions.md` **当前不存在**——读到 `projects/**` 不会注入任何指令（见 §5 FR-1）。
 
 ---
 
@@ -209,7 +209,7 @@ DSH 官方的 `@deepseek-ai/dsh-agent-instructions` 已解决 `AGENTS.md` / `CLA
 **成功标准（12 条）**：
 
 1. Agent 成功读取 `src/engine/Entity.ts` 后，下一次模型请求包含 `engine.instructions.md`。
-2. Agent 成功读取 `src/projects/snake/SnakePawn.ts` 后，下一次模型请求包含 `project.instructions.md`。
+2. Agent 成功读取 `projects/snake/SnakePawn.ts` 后，下一次模型请求包含 `project.instructions.md`。
 3. 同一 session 中，同一指令文件且内容 digest 未变化时只注入一次。
 4. 指令文件内容发生变化后，下一次相关文件读取会注入更新后的内容。
 5. 不同 Agent 或不同 session 的去重状态互不影响。
@@ -244,7 +244,7 @@ DSH 官方的 `@deepseek-ai/dsh-agent-instructions` 已解决 `AGENTS.md` / `CLA
 
 | 编号 | 需求摘要 | 落地状态 | 源码证据 |
 |---|---|---|---|
-| FR-1 | `src/engine` → `engine.instructions.md`，`src/projects` → `project.instructions.md` | **部分实现** | 默认映射在 [config.ts:11](../../harness/ds-instructions/src/config.ts)；但 `.dsh/instructions/` 下**无** `project.instructions.md`，后半条与成功标准 2 当前不成立 |
+| FR-1 | `src/engine` → `engine.instructions.md`，`projects` → `project.instructions.md` | **部分实现** | 默认映射在 [config.ts:11](../../harness/ds-instructions/src/config.ts)；但 `.dsh/instructions/` 下**无** `project.instructions.md`，后半条与成功标准 2 当前不成立（2026-09-17 工程单根化迁移后默认映射为 `src/engine` + `projects` 两条） |
 | FR-2 | 路径前缀最长匹配优先，`src/engine2` 不得匹配 `engine` | 已实现 | `matchMapping` 段级比较 [mapping.ts:37](../../harness/ds-instructions/src/mapping.ts) + 段数倒序 [config.ts:143](../../harness/ds-instructions/src/config.ts) |
 | FR-3 | 路径规范化：相对/绝对/`\`、`..` 越界拒绝、平台一致比较 | 已实现 | `normalizeTouchedPath` [mapping.ts:19](../../harness/ds-instructions/src/mapping.ts)、`containedRelative` [config.ts:175](../../harness/ds-instructions/src/config.ts)、`pathCompareKey` [config.ts:117](../../harness/ds-instructions/src/config.ts) |
 | FR-4 | 不把 `process.cwd()` 固定当项目根，支持 `projectRoot`/`instructionsDir` 显式配置 | 已实现 | `resolveSessionConfig` [state.ts:41](../../harness/ds-instructions/src/state.ts)；两 profile patch 均写了 `projectRoot: 'E:/DemoStudio'` |
@@ -353,7 +353,7 @@ npm run lint      # oxlint src tests
 9. **只改了 `harness/profile` 却发现不生效** —— 现象：patch 改了但插件行为没变。原因：实际运行的是 `~/.dsh/profiles/{web,headless}`。规则：挂载前先确认哪套 profile 生效，两边都要建 junction 与 patch 行。
 10. **用 Node `fs` 兜底时绕过了沙箱** —— 现象：能读到项目根之外的指令文件。原因：Node `fs` 不继承 `ctx.fs` 的沙箱策略。规则：Node 兜底必须 `realpath` 后做 containment，断链视为不存在、指向项目外的链接拒绝读取（[files.ts:109](../../harness/ds-instructions/src/files.ts)）。
 11. **frontmatter 写了却没生效** —— 现象：新增指令文件后读对应目录不注入。三个原因逐一排查：文件名不以 `.instructions.md` 结尾；`prefix:` 不在文件头部前 4096 字节内；该 prefix 已被显式 `mappings` 占用（显式优先，自动扫描不覆盖）。
-12. **默认映射指向的文件不存在** —— 现象：读了 `src/projects/**` 却毫无反应且不报错。原因：`.dsh/instructions/` 下没有 `project.instructions.md`。规则：新增映射前先确认指令文件已创建，否则是静默无操作。
+12. **默认映射指向的文件不存在** —— 现象：读了 `projects/**` 却毫无反应且不报错。原因：`.dsh/instructions/` 下没有 `project.instructions.md`。规则：新增映射前先确认指令文件已创建，否则是静默无操作。
 
 ---
 

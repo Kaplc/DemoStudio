@@ -132,11 +132,11 @@ export class ConfigRegistry {
    * name 规则：`{projectName}.{文件名}`（cannon.config.json → fish.cannon）。
    * 需归一化的字段先经 registerConfigTransform / registerTableTransform 注册 transform
    * （须在本方法之前调用，加载为 fire-and-forget 异步，读取期间 transform 已就绪）。
-   * basePath：配置目录相对仓库根路径。内置工程默认 `src/projects/<name>/asset/config`；
-   * 外部根工程（projects/<name>）显式传 `projects/<name>/asset/config`（read-json-file 无根限制）。
+   * basePath：配置目录相对仓库根路径，缺省 `projects/<name>/asset/config`（工程单根：
+   * 全部工程位于仓库根 projects/ 下，见 doc-dev/projects-root-unification）。
    */
   static registerGlob(projectName: string, modules: ConfigGlobModules, basePath?: string): void {
-    const base = basePath ?? `src/projects/${projectName}/asset/config`
+    const base = basePath ?? `projects/${projectName}/asset/config`
     let configCount = 0
     for (const key of Object.keys(modules.configModules ?? {})) {
       if (!key.endsWith('.config.json')) continue

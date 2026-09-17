@@ -17,7 +17,7 @@ description: 创建 DemoStudio 配置表资产（asset/config/*.config.json 单�
 | 数据表 | `*.table.json` | 键值行表 | `loadTable<Row>(name, path, transform?)` | `getTable<Row>(name)` |
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/config/<描述>.config.json`
+- 路径：`projects/<project>/asset/config/<描述>.config.json`
 - 配置名：`{project}.{文件名}`（`cannon.config.json` → `fish.cannon`）
 
 ## 半自动注册

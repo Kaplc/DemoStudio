@@ -9,8 +9,8 @@
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
 | [SaveSlotComponent.ts](../../src/engine/gameflow/SaveSlotComponent.ts) | 全部实现：KV 表 / load / flush / 自动 flush 策略 | 加加密、加多槽位、改落盘策略 |
-| [FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts) | 唯一在用的宿主：装配 + 钩子转发 + 手动存读档 | 新项目接入存档时照抄它的结构 |
-| [FishSaveAdapter.ts](../../src/projects/fish/gameplay/common/FishSaveAdapter.ts) | fish 的 KV schema 适配层（版本迁移/回填） | 改存档字段结构时 |
+| [FishGameInstance.ts](../../projects/fish/gameplay/FishGameInstance.ts) | 唯一在用的宿主：装配 + 钩子转发 + 手动存读档 | 新项目接入存档时照抄它的结构 |
+| [FishSaveAdapter.ts](../../projects/fish/gameplay/common/FishSaveAdapter.ts) | fish 的 KV schema 适配层（版本迁移/回填） | 改存档字段结构时 |
 | [main.ts](../../electron/main.ts) | writeJsonFile IPC：.json 校验 + 路径逃逸防护 | 动 IPC 白名单时才碰 |
 
 **关键心智模型**：**内存优先，落盘是显式动作**。所有 `set/delete` 只改内存 Map 并置 `_dirty`，不触发任何 IO——`flush()`（或 autoFlush 策略）才是唯一写盘点。头注释明示设计决策："不依赖 GameInstance 快照虚方法，游戏侧无需实现序列化钩子"，存什么、什么时候存完全由游戏代码用 KV 自由组织。
@@ -20,9 +20,9 @@
 ### 2.1 宿主装配（fish 是唯一参照实现）
 
 ```ts
-// src/projects/fish/gameplay/FishGameInstance.ts:143
+// projects/fish/gameplay/FishGameInstance.ts:143
 this.save = new SaveSlotComponent(this, {
-  filePath: FISH_SAVE_FILE,   // src/projects/fish/data/save.json
+  filePath: FISH_SAVE_FILE,   // projects/fish/data/save.json
 })
 this.addComponent(this.save)
 ```
@@ -88,7 +88,7 @@ async flush(force = false): Promise<boolean> {
 }
 ```
 
-`!dirty && !force` 直接返回 true——无改动时不重写文件。`force=true` 的用途见 fish 注释："首次游玩也能创建存档文件"（空表也写出一个 `{}`，让"存档存在"成为可判定状态）。整表序列化为 plain object 后走 `writeJsonFile`，与蓝图资产写盘共用同一条 IPC，main.ts 侧强校验 `.json` 后缀与路径逃逸（`..`），所以 filePath **必须在项目根目录内**——约定 `src/projects/<game>/data/*.json`。
+`!dirty && !force` 直接返回 true——无改动时不重写文件。`force=true` 的用途见 fish 注释："首次游玩也能创建存档文件"（空表也写出一个 `{}`，让"存档存在"成为可判定状态）。整表序列化为 plain object 后走 `writeJsonFile`，与蓝图资产写盘共用同一条 IPC，main.ts 侧强校验 `.json` 后缀与路径逃逸（`..`），所以 filePath **必须在项目根目录内**——约定 `projects/<game>/data/*.json`。
 
 ### 2.4 自动 flush：钩子由宿主显式转发
 
@@ -168,7 +168,7 @@ function warnOnceNoIO(op: string): void {
 
 **2. 配了 autoFlush 却从来没自动落盘** —— 原因：钩子不是自动的，宿主 GameInstance 必须在 tick/stop/destroy 里显式转发 `save.tick/onStop/onDestroy`（组件注释"钩子由宿主 GameInstance 显式转发"）。规则：接入 autoFlush 时三处转发一个都不能少，缺哪条对应策略就静默失效。
 
-**3. flush 报错或写到了奇怪的地方** —— 原因：filePath 不在项目根目录内（main.ts 逃逸防护拒绝 `..`）或不是 `.json` 结尾（IPC 强校验）。规则：路径固定用 `src/projects/<game>/data/xxx.json` 相对路径。
+**3. flush 报错或写到了奇怪的地方** —— 原因：filePath 不在项目根目录内（main.ts 逃逸防护拒绝 `..`）或不是 `.json` 结尾（IPC 强校验）。规则：路径固定用 `projects/<game>/data/xxx.json` 相对路径。
 
 **4. Playwright 浏览器模式测存档，刷新后进度丢失** —— 原因：无 electronAPI，降级纯内存模式（控制台有且仅有一条 WARN）。规则：浏览器模式只测 KV 逻辑不测落盘；落盘验证去 Electron 里做。
 

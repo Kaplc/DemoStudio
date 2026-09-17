@@ -42,7 +42,7 @@ import {
   registerPreviewBaseline, unregisterPreviewBaseline,
 } from './PreviewSaveCollector'
 
-/** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
+/** 磁盘路径（projects/...）→ 蓝图注册 key（asset/...） */
 function diskPathToAssetKey(diskPath: string): string {
   const idx = diskPath.indexOf('/asset/')
   return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
@@ -76,7 +76,7 @@ export class UIPreviewManager {
   private lastTime = 0
   /** 当前 widget 注册 key（asset/...）—— Outline/外部按 key 查找预览时使用 */
   private _currentWidgetKey: string | null = null
-  /** 当前 widget 磁盘路径（src/projects/...）—— 服务层读盘/写盘/撤销时使用 */
+  /** 当前 widget 磁盘路径（projects/...）—— 服务层读盘/写盘/撤销时使用 */
   private _currentWidgetDiskPath: string | null = null
 
   /** 当前预览 widget JSON 的可变深拷贝。loadWidget 时建立，collectSaveData 据此生成保存数据。 */
@@ -794,7 +794,7 @@ export class UIPreviewManager {
 
   /** 加载 widget 蓝图到预览场景（与 BlueprintPreviewManager.loadBlueprint 同接口）
    *  @param path     蓝图注册 key（asset/...）
-   *  @param diskPath 磁盘路径（src/projects/...，可选；提交/保存经服务层时必需） */
+   *  @param diskPath 磁盘路径（projects/...，可选；提交/保存经服务层时必需） */
   loadBlueprint(path: string, diskPath?: string): boolean {
     // 本次 spawn 全程使用本管理器的预览工厂（多页签并发时覆盖 current）
     PreviewObjectFactoryComponent.setCurrent(this.previewFactory)

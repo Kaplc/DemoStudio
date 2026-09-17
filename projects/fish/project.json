@@ -2,8 +2,8 @@
   "name": "ClashMaster",
   "description": "部落冲突 — 村庄建设、兵种训练、攻城战斗、关卡挑战",
   "version": "1.0.0",
-  "main": "src/projects/fish/index.ts",
+  "main": "projects/fish/index.ts",
   "tags": ["game", "clash", "2d"],
   "renderMode": "2d",
-  "defaultScene": "src/projects/fish/asset/fish_menu.scene.json"
+  "defaultScene": "projects/fish/asset/fish_menu.scene.json"
 }

@@ -471,3 +471,48 @@ test('工程卡全量可见（单根发现）', async ({ page }) => {
 ## 6. 工作量
 
 改点约 25 文件，绝大多数为常量/注释/文案；真实逻辑改动约 9 处（registry 静态轨删除、PROJECT_ROOTS、AssetBrowser 前缀、Mock glob/path、ui-compiler prefix、gitignore、source 字段退役、fish basePath、ConfigRegistry 缺省翻转）。另新增 3 个单测文件约 260 行 + 1 个可选 e2e spec。预计半天含验证。
+
+---
+
+## 7. 实施记录（2026-09-17 已完成）
+
+**Commit ① 纯搬移**：`git mv` 三工程完成，`fish/data/save.json` 旧存档随目录物理迁移。坑：dev server（vite watcher）持有 `src/projects` 目录句柄导致 `git mv` Permission denied——先停 `npm run electron:dev` 进程树再搬移，全部改完后重启 dev（本次迁移本来就要删 `.vite` 缓存重启）。
+
+**Commit ② 路径单根化**：方案 §2 A~G 全部落地，另加方案外的必要项：
+
+| 项 | 说明 |
+|---|---|
+| A 组 | 3×project.json 前缀、3×register.ts import `'../../src/projects/registry'`、FishConfigLoader 显式 basePath、FishSaveAdapter 常量、ConfigRegistry 缺省翻转 + engine 6 文件注释 |
+| B 组 | registry.ts 删 3 个静态 import，`ALL_PROJECTS = []` 纯 glob 收集，覆盖分支退化为重名兜底 |
+| C 组 | projectRoots.ts `PROJECT_ROOTS = ['projects']`；main.ts 注释/模板文案（模板 `import ... from '../../src/projects/registry'` 为合法残留，registry 仍在 src） |
+| D 组 | AssetBrowser 恒 projects/ 前缀；**source 字段全链退役**（editorStore.Project / mockProjectScan / electron.d.ts / main.ts discover 赋值 / projectMerge 双参退化单参去重）；MockElectronAPI glob 数组收窄单前缀（readTextFile 的 key 翻转同步改为 `projects/` → `../../projects/`）；mockPath 删 `../`→`src/` 分支；codeLint/各 PreviewManager/windowApi 等 15 文件文案批量替换 |
+| E 组 | ui-compiler-main prefix 收窄、bp-compile-all `roots = ['projects']`、ui-compiler-smoke / ui-snapshot 路径、**tmp-verify-assets.js 直接删除**（一次性脚本）、mcp-server.mjs 三工具文案、demostudio.config.json 删陈旧 Snake 条目 |
+| F 组 | bpSourceGuard ASSET_PATH、widget-save-region / ui-golden-capture 路径常量、e2e framework 注释、.gitignore 删旧两条、**ds-instructions DEFAULT_MAPPINGS 删 src/projects 条目**（连带 mapping.test.ts 3 处 + lifecycle.test.ts 1 处同步改） |
+| 新测试 | §3.1/3.2/3.3 三个单测落地（26 例）+ e2e `home/project_cards.spec.ts`；已 `git add -f`（.gitignore:154 `tests/*`） |
+| G 组 | external_project_roots.md 顶部退役横幅；projects.instructions.md applyTo/标题/模板路径全改；doc/README.md §4 标题；system_overview.md §1/§5.1/§6/§7/§9 全面改写（项目清单 6 个单根口径、registry 表格、统计命令）；**doc/ 下 61 个 md 批量替换路径引用**（保护 `src/projects/registry` 真实路径，链接不断）；五套 skills 目录（.dsh/.github/.cursor/.zcode/.agent）批量替换 |
+
+**方案偏差/特情**：
+- 方案 §2.G 的 `AGENTS.md` 在仓库根不存在（仅 harness/dsh-source 下有，属 DSH 源码库），跳过。
+- `tests/externalRoots.test.ts` 实际不存在（mockProjectScan/mockPath/projectMerge 注释里的引用是过时的），由 §3.2 新测试替代，注释已同步指向新测试。
+- MockElectronAPI 头注释改路径时踩了"`*/` 字面量终止块注释"坑（main.ts create-project 模板注释里预警过的同一坑），tsc 立即暴露，`*\/` 转义修复。
+- e2e/README.md 与 doc/harness/dsh_instructions_prd_revised.md FR-1 行顺手同步。
+
+**验证结果**：
+- `npx tsc --noEmit` 全绿；`tests/projectRoots + mockProjectBridge + projectsRootGuard` 26/26 通过（含守卫 A1 六源码区残留清零）。
+- `npm run smoke:ui` 全过；`npm run bp:all` 3/3（全部来自 projects/ 单根）。
+- vitest 全量：602 通过 / 12 失败（warmSupplyChain 等 4 文件）。经 git diff + 依赖闭包核对判定为**既有基线失败，与迁移无关**：① warm 三文件（11 例）依赖的 projects/warm-current/gameplay/** 本次零改动（git diff 仅 ConfigLoader 注释 2 行），且测试不调 registerGlob、测试环境（无 electronAPI）下 ConfigRegistry 新旧缺省 basePath 同样加载不到表，行为同构；② imageLightbox（1 例）依赖 agent 面板组件（MessageBubble/ToolCard），迁移零触碰。
+- 实机验证（dev server 重启后）：vite :5173 正常出编辑器页面（eager glob 收集 6 工程 registry 未炸）；CDP 直连页面调 `discoverProjectsScan` 返回全部 6 工程（Arena/Demo2D/ClashMaster/Hello/Hoi4/WarmCurrent），defaultScene 全部 `projects/` 前缀——§4 验证第 4 条的工程发现双保险通过。
+- 事故与恢复（环境层，与迁移代码无关）：验证过程中用 git worktree + junction node_modules 做基线对照，`git worktree remove --force` 跟随 junction 把主仓 node_modules 整个删空；已 `npm ci` 全量重建（822 packages，vitest 3.2.7 复跑结果与事故前逐位一致）。连带影响：项目 node_modules 里的 harness 插件 junction（@demostudio/ds-*）一并丢失，已手动重建 7 个（patch 配置在用户级 ~/.dsh 未受影响）；`.vite` 缓存已清、dev server 已按 §4 第 3 条重启。
+- Electron 手动链路深层（打开工程跑游戏 / fish 存档读回 / 浏览器 Mock 模式 / create-project）：需交互验证，见 §4 第 4~6、10 条清单。
+
+### 7.1 追加：registry 最终搬移，src/projects 彻底删除（2026-09-17 同日）
+
+方案原决定"registry.ts 保留在 src/projects"（§1.1），实施后用户裁定 `src/projects` 目录不再保留。追加执行：
+
+- `git mv src/projects/registry.ts` → **`src/editor/projects/registry.ts`**（编辑器侧注册中心归属 editor 层），空目录 `src/projects/` 删除
+- registry.ts 内部 `../engine` → `../../engine`；src 消费方 3 处更新（`editor/index.ts` 与 `EditorInitializer.ts` 改 `./projects/registry`、`stores/editorStore.ts` 惰性 import 改 `../editor/projects/registry`）
+- 6×`register.ts` + main.ts create-project 模板：import 与注释 `'../../src/projects/registry'` → `'../../src/editor/projects/registry'`（相对深度不变）
+- 守卫测试收紧：删除 `REGISTRY_PATH_RE` 豁免——代码区 `src/projects` 字面量从此**零残留零豁免**
+- 文档：10 个 md 的 registry 链接同步；projects/README.md 重写为单根口径；fish devdocs README 路径更新
+- 验证：tsc 全绿；vitest 全量 602/12 与搬移前逐位一致（零回归）；CDP 实机——编辑器页面动态 import `/src/editor/projects/registry.ts` 成功（4 导出齐全）、`discoverProjectsScan` 6 工程全发现
+- 本方案文档 §1~§6 为迁移前现状快照，其中的 `src/projects/registry` 表述按历史保留，registry 最终位置以本节为准

@@ -336,7 +336,7 @@ apply: (assetPath, op, params) => BlueprintEditorService.apply(assetPath, op, pa
 // Playwright 中调用
 await page.evaluate(() => window.__ai.emit('ai.getState', {}))
 await page.evaluate(() => window.__ai.listEvents())
-await page.evaluate(() => window.blueprintEditor.apply('src/projects/fish/asset/blueprints/x.bp.json', 'addComponent', {...}))
+await page.evaluate(() => window.blueprintEditor.apply('projects/fish/asset/blueprints/x.bp.json', 'addComponent', {...}))
 ```
 
 **为什么 Playwright 下用它远比 HTTP 可靠**：

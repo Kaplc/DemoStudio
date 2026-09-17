@@ -8,7 +8,7 @@
  * 手动存档模型：游戏过程所有变化只写内存 KV（零 IO），玩家在存档菜单
  * （Esc → save_menu.widget.json）点"保存存档"才整表落盘、"读取存档"整表回读。
  *
- * 存档文件：src/projects/fish/data/save.json（SaveSlotComponent 经
+ * 存档文件：projects/fish/data/save.json（SaveSlotComponent 经
  * readJsonFile/writeJsonFile IPC 落盘；扁平 KV 键，某键缺失退回该项默认值）。
  *
  * KV Schema v2（v1 → v2 迁移：补 gem/等级/战绩/成就新键，v1 旧值保留）：
@@ -39,7 +39,7 @@ import type { TroopType } from './types'
 import type { FishGameInstance } from '../FishGameInstance'
 
 /** 存档文件路径（相对仓库根；IPC 强制 .json 后缀 + 仓库根内路径） */
-export const FISH_SAVE_FILE = 'src/projects/fish/data/save.json'
+export const FISH_SAVE_FILE = 'projects/fish/data/save.json'
 /** 存档 schema 版本（不符 → 整表作废走全新开局，下次 flush 自愈覆盖） */
 export const FISH_SAVE_VERSION = 2
 

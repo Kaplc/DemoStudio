@@ -3,7 +3,7 @@
  *
  * 覆盖链路：主菜单 HUD → 开始游戏进基地 → 基地 HUD 完整 → GM 桥可用 → 状态快照健康
  * 断言点全部来自真实资产/脚本（main_menu.widget / base_hud.widget / BaseHud.script.ts），
- * 项目名来自 src/projects/fish/register.ts 的 ProjectModule.name = 'ClashMaster'。
+ * 项目名来自 projects/fish/register.ts 的 ProjectModule.name = 'ClashMaster'。
  */
 import { test, expect } from '../framework/fixtures'
 import type { HUDNode } from '../framework/types'

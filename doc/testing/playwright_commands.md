@@ -226,7 +226,7 @@ onClick={() => setSelected(p.name)}
 onDoubleClick={() => selected === p.name && onSelect(p)}
 ```
 
-讲解：`onClick` **只做选中**（`setSelected`），打开是 `onDoubleClick`，且要求 `selected === p.name`。所以单击卡片不会打开工程。方式 A 走两步绕开双击，比 `dispatchEvent('dblclick')` 更贴近真实交互。卡片文案是**显示名** `ClashMaster`（`src/projects/fish/project.json` 的 `name`），`fish` 只是 **folder 名**——启动页上没有 `fish` 卡片不是 bug，但资产路径仍用 `src/projects/fish/...`。
+讲解：`onClick` **只做选中**（`setSelected`），打开是 `onDoubleClick`，且要求 `selected === p.name`。所以单击卡片不会打开工程。方式 A 走两步绕开双击，比 `dispatchEvent('dblclick')` 更贴近真实交互。卡片文案是**显示名** `ClashMaster`（`projects/fish/project.json` 的 `name`），`fish` 只是 **folder 名**——启动页上没有 `fish` 卡片不是 bug，但资产路径仍用 `projects/fish/...`。
 
 判据：`read_page` 快照中出现工程卡片选中态、且主界面标题变为已打开工程（`editor.getState` AI 事件已于 2026-09-03 移除，不能再作为判据）。
 
@@ -391,7 +391,7 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **14. 打开工程卡片单击无效** —— 原因：卡片 `onClick` 仅选中（`App.tsx:213`），打开要 `onDoubleClick`。规则：走 §3.2 的「选中 + 点「打开工程」」两步。
 
-**15. 启动页找不到 `fish` 卡片** —— 原因：`fish` 是 folder 名，显示名是 `ClashMaster`（`src/projects/fish/project.json` 的 `name`）。规则：卡片找 `ClashMaster`，资产路径仍用 `src/projects/fish/...`。
+**15. 启动页找不到 `fish` 卡片** —— 原因：`fish` 是 folder 名，显示名是 `ClashMaster`（`projects/fish/project.json` 的 `name`）。规则：卡片找 `ClashMaster`，资产路径仍用 `projects/fish/...`。
 
 **16. 打开资产预览原有一键事件已移除** —— 规则：`editor.openBlueprint` 事件已于 2026-09-03 移除，走资产树双击卡片；双击路径不稳定时先展开目录再精准定位卡片文本。
 
@@ -443,7 +443,7 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **40. 点击进入关卡后固定等 2.5s 仍读到旧阶段（误判点击无效）** —— 现象：向 StartButton 派发点击后等 2.5s 读 `_phase` 仍是 `menu`，连续换坐标重试；实际最后一击已生效，只是场景切换是**异步加载**（卸 HUD、建基地 Actor、装配相机），耗时超过固定等待。规则：**点击后不要固定等待，轮询断言直到状态翻转**（`ai.getState` 的 `phase` 从 menu → base/game，或 `__ai.emit('ai.clickActor')` 前后各读一次），超时再重试。另一个稳定做法：**点 UI 按钮优先用 `ai.clickActor`（按 name/text 定位，不依赖坐标换算）**——canvas 坐标点击要自己算世界→屏幕映射（HALF_W=4.8/HALF_H=2.7），偏 20px 就 miss；但注意阶段切换后原按钮已销毁，"未找到 Actor" 可能恰恰说明已切走。坐标点击也可用 MCP 的 `cdp_mouse_click`（Input.dispatchMouseEvent 原生点击）；2026-09-03 之前它调用报"未知工具"，根因是 `editor/mcp-cdp.mjs` 的 `cdpTools` 数组定义了该工具但 `handleCdpTool` switch 缺 case（落到 default 返回 null），已补全 mouse_click/mouse_move/key_press 三个 case——**改 `editor/mcp-*.mjs` 必须重启 MCP 服务才生效**（stdio 进程不热更）。
 
-**41. 改 `.scene.json` 后运行时仍加载旧场景（stop/launch 无效）** —— 现象：编辑并保存场景 JSON 后 `stop_game`+`launchGame` 重启游戏实例，`SwitchToScene` 日志里 objects 数量还是旧的。原因：场景 JSON 经 `import.meta.glob(eager)` 在 **打开工程时一次性注册** 进 `AssetRegistry`（`editorStore.setCurrentProject → registerProjectAssets`，只跑一次）；Vite HMR 会更新 JSON 模块本身，但**不会重跑注册**，注册表 Map 里仍是旧引用。规则：改场景资产要看到运行时效果，**Reload 页面**（或重新走一次项目切换）再启动游戏；急验证可用热注入——CDP `import('/src/projects/fish/<项目>/asset/<场景>.scene.json?import&fresh=' + Date.now())` 拿新模块后 `AssetRegistry.registerAll({ scenes: [新场景] })`（按 name 覆盖 Map 项），再 launchGame。另注意：CDP `evaluate` 里动态 `import('/src/....json?import&t=' + Date.now())` 与页面模块图是**两个实例**（坑 7 同源），用带时间戳的模块只能做"数据验证"，别把它当页面真身。
+**41. 改 `.scene.json` 后运行时仍加载旧场景（stop/launch 无效）** —— 现象：编辑并保存场景 JSON 后 `stop_game`+`launchGame` 重启游戏实例，`SwitchToScene` 日志里 objects 数量还是旧的。原因：场景 JSON 经 `import.meta.glob(eager)` 在 **打开工程时一次性注册** 进 `AssetRegistry`（`editorStore.setCurrentProject → registerProjectAssets`，只跑一次）；Vite HMR 会更新 JSON 模块本身，但**不会重跑注册**，注册表 Map 里仍是旧引用。规则：改场景资产要看到运行时效果，**Reload 页面**（或重新走一次项目切换）再启动游戏；急验证可用热注入——CDP `import('/projects/fish/<项目>/asset/<场景>.scene.json?import&fresh=' + Date.now())` 拿新模块后 `AssetRegistry.registerAll({ scenes: [新场景] })`（按 name 覆盖 Map 项），再 launchGame。另注意：CDP `evaluate` 里动态 `import('/src/....json?import&t=' + Date.now())` 与页面模块图是**两个实例**（坑 7 同源），用带时间戳的模块只能做"数据验证"，别把它当页面真身。
 
 **42. Playwright MCP `browser_take_screenshot` 的 `filename` 受允许根目录白名单限制** —— 现象：传工作区相对路径（`hex.png`）或 `E:/DemoStudio/...` 绝对路径都拿不到文件（前者落在 MCP 进程 CWD，后者直接报 `File access denied ... outside allowed roots`）。原因：MCP 服务的截图输出受 `allowed roots` 约束（本机为 `C:\Users\<user>\background_agent_cli` 及其 `.playwright-mcp`），工作区路径不在白名单内。规则：**filename 传白名单内的绝对路径**（如 `C:/Users/<user>/background_agent_cli/.playwright-mcp/xx.png`），需要入库/查看时再 `Copy-Item` 复制回 `E:\DemoStudio\.playwright-mcp\`（目录不存在先 `New-Item -ItemType Directory -Force`）。游戏画面是 canvas 内绘制（非 DOM），视觉断言只能靠截图或引擎侧探针（`findActorByName('HexModal').root.visible` 等），DOM 查询无效。
 
@@ -467,7 +467,7 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 
 **52. 调试桥 `state()` 返回活引用，原子段多步读值不快照 = 别名污染** —— 现象：单次 evaluate 内「装 A → 读 → 拆 → 读 → 装 B → 读」，三个读全拿到同一个活对象，return 字面量在块尾才求值 → 三个值全是最终态（实测 warm 建筑强化断言装 cold_store 读到 heavy_hook）。原因：`state()` 回活 state、`find` 回活引用，JS 无快照语义。规则：原子段内每步操作后**立即提取原语值**（`const s1 = { upgrade: x.upgrade, invested: x.invested }`），return 里只引用原语；或让桥方法直接返回脱快照。
 
-**53. `ui_compile` 资产路径基准是项目根（非仓库根），Knot MCP 客户端断连可直调 HTTP 通道** —— 现象：传 `src/projects/warm-current/.../ship_design.widget.json` 报「源文件不存在」，但文件实际存在；且 Knot 的 demostudio-editor MCP 偶发 `transport error: transport closed`。原因：`compileUiSourceToAsset` 的路径解析基准是**编辑器工作目录（项目根）**，warm-current 项目位于仓库的 `projects/`（非 fish 的 `src/projects/`）；MCP stdio 服务断连不影响主进程能力。规则：**路径按项目根写**（`projects/warm-current/asset/blueprints/ui/xxx.widget.json`）；MCP 客户端断连时改用 `POST http://127.0.0.1:9877/api/command`，body `{"command":"ui_compile","params":{"asset":"..."}}`（主进程白名单原样支持 ui_compile/ui_decompile/run_asset_lint 等），编译/lint/落盘链路完全同源。
+**53. `ui_compile` 资产路径基准是项目根（非仓库根），Knot MCP 客户端断连可直调 HTTP 通道** —— 现象：传 `projects/warm-current/.../ship_design.widget.json` 报「源文件不存在」，但文件实际存在；且 Knot 的 demostudio-editor MCP 偶发 `transport error: transport closed`。原因：`compileUiSourceToAsset` 的路径解析基准是**编辑器工作目录（项目根）**，warm-current 项目位于仓库的 `projects/`（非 fish 的 `projects/`）；MCP stdio 服务断连不影响主进程能力。规则：**路径按项目根写**（`projects/warm-current/asset/blueprints/ui/xxx.widget.json`）；MCP 客户端断连时改用 `POST http://127.0.0.1:9877/api/command`，body `{"command":"ui_compile","params":{"asset":"..."}}`（主进程白名单原样支持 ui_compile/ui_decompile/run_asset_lint 等），编译/lint/落盘链路完全同源。
 
 **54. `ai.getHUD` 根列表含全部 UI 实例（含游离根），同名节点测量必须看子树归属** —— 现象：`ai.getHUD` 返回的 roots 里同一 widget 名出现多次（如 ShipHullCell ×4 / ShipModuleCell ×13 与面板并列），`ai.getActor('ModuleList')` 按名全局取首个命中，量到的可能是别的面板的同名节点（shipyard 与 ship_design 共享 MainRow/HullList/ModuleList 等大量节点名）。原因：getHUD 逐个遍历 `getAllUIActors()`（每个 spawn 的 widget 都是独立根）；findActorByName 全局递归取首个。规则：**测量带结构的面板先 `ai.getHUD` 导出整树**（`resp.result.hud` 数组，含 path/position/worldSize/zOrder/children），解析出目标面板子树再下钻（如 `ShipDesignPanel → Root → PanelRoot → DesignBody → MainRow → PartsCol`），不要按名直接 getActor；roots 里出现"面板外"的格子根 = 遗留游离实例（脚本清池只置 `visible=false` 不销毁），重启游戏即清，测量时注意别把它当面板子树。
 

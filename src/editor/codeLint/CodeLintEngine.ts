@@ -2,7 +2,7 @@
  * codeLint/CodeLintEngine — 代码扫描检查核心引擎（模块级单例，事件驱动）
  *
  * 无定时器，检查只在两类事件发生时触发：
- *   1. 打开/切换工程 → 对 src/projects/<currentProject.folder>/ 全量扫描一次
+ *   1. 打开/切换工程 → 对 projects/<currentProject.folder>/ 全量扫描一次
  *   2. 源码文件变化（主进程 fs.watch 推送 src-changed）→ 去抖后增量重扫，
  *      由"内容指纹（djb2）缓存"决定哪些文件真正变了才重新解析
  *      （未变文件复用上次 issue，跳过 createSourceFile + AST 遍历）。
@@ -78,7 +78,7 @@ class CodeLintEngine {
 
   /**
    * 日志用工程标签：显示名 + folder（如 ClashMaster(folder=fish)）。
-   * 消除"打开的是部落冲突、目录却是 src/projects/fish/"的歧义。
+   * 消除"打开的是部落冲突、目录却是 projects/fish/"的歧义。
    */
   private projectLabel(folder: string): string {
     const p = useEditorStore.getState().currentProject
@@ -124,7 +124,7 @@ class CodeLintEngine {
       logger.info('[CodeLint] 工程切换: 无工程 → 停止扫描与监听')
       return
     }
-    logger.info(`[CodeLint] 工程切换: ${this.projectLabel(folder)} → 全量扫描 src/projects/${folder}/`)
+    logger.info(`[CodeLint] 工程切换: ${this.projectLabel(folder)} → 全量扫描 projects/${folder}/`)
     this.startWatch(folder)
     void this.scanOnce()
   }
@@ -145,7 +145,7 @@ class CodeLintEngine {
       logger.debug(`[CodeLint] src-changed: ${changedFolder} → 300ms 去抖后增量重扫`)
       this.scheduleScan()
     })
-    logger.info(`[CodeLint] 建立源码监听: src/projects/${folder}/（src-changed 300ms 去抖）`)
+    logger.info(`[CodeLint] 建立源码监听: projects/${folder}/（src-changed 300ms 去抖）`)
   }
 
   /** 停止目录监听 + 取消 src-changed 订阅。 */

@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：AI 接到「做一个 HUD / 面板 / 弹窗 / 列表」任务从零写 widget 时、改现有 widget 时、编译报错不知道怎么改时、不确定某个 HTML/CSS 写法支不支持时。
 >
-> 代码位置：你写的源在 `src/projects/<project>/asset/blueprints/ui/*.widget.html`；编译器在 `src/editor/asset/uiCompiler/`
+> 代码位置：你写的源在 `projects/<project>/asset/blueprints/ui/*.widget.html`；编译器在 `src/editor/asset/uiCompiler/`
 >
 > **单位总则（UI 一元化）**：UI 世界 1 单位 = 1 设计像素。你写的 px 就是落盘值、就是运行时值——**全程无换算**。旧米制时代的 `world="9.6x5.4"` 属性已废弃（写了只是告警并忽略）；`data-props` 里的 itemSize/spacing 等也一律写 px。
 
@@ -17,7 +17,7 @@
 | [compile.ts](../../../src/editor/asset/uiCompiler/compile.ts) | HTML → json 全管线：解析 → 级联 → 布局求解 → 发射 | 查"某个写法支不支持"的最终依据 |
 | [decompile.ts](../../../src/editor/asset/uiCompiler/decompile.ts) | json → 规范形 HTML | 理解为什么保存后源变成一堆 absolute |
 | [uiSourceActions.ts](../../../src/editor/asset/uiSourceActions.ts) | 编辑器编译动作：编译 → lint 门槛 → 落盘 | 排查"编译了但没落盘" |
-| [toast.widget.html](../../../src/projects/fish/asset/blueprints/ui/toast.widget.html) | 最小可编译范例（9 行） | 新 widget 从它抄骨架 |
+| [toast.widget.html](../../../projects/fish/asset/blueprints/ui/toast.widget.html) | 最小可编译范例（9 行） | 新 widget 从它抄骨架 |
 | [ui_source_format_system.md](./ui_source_format_system.md) | 兄弟文档：编译/反编译**机制** | 要改编译器、查 map 规则细节时去那边 |
 
 **与兄弟文档的分工**（别走错门）：
@@ -44,7 +44,7 @@
 
 ## 1. 30 秒最小骨架
 
-[toast.widget.html](../../../src/projects/fish/asset/blueprints/ui/toast.widget.html) 是仓库里最小的合法 widget，全文 9 行：
+[toast.widget.html](../../../projects/fish/asset/blueprints/ui/toast.widget.html) 是仓库里最小的合法 widget，全文 9 行：
 
 ```html
 <widget name="Toast" canvas="1920x1080">
@@ -259,7 +259,7 @@ private nameOf(el: StyleElement, box: Box | null, usedNames: Set<string>, fallba
 }
 ```
 
-**关键规则**：gameplay 脚本用 `findInChildren('节点名')` 查找控件——**被脚本引用的节点名必须与脚本逐字一致**。改现有资产时先查脚本（`src/projects/<project>/gameplay/**/*.script.ts`）引用了哪些名字；新资产给关键控件起语义化 class 名（`Btn_close`、`DailyList`、`Title`）。
+**关键规则**：gameplay 脚本用 `findInChildren('节点名')` 查找控件——**被脚本引用的节点名必须与脚本逐字一致**。改现有资产时先查脚本（`projects/<project>/gameplay/**/*.script.ts`）引用了哪些名字；新资产给关键控件起语义化 class 名（`Btn_close`、`DailyList`、`Title`）。
 
 重名会自动加后缀（`Btn_2`、`Btn_3`）。**这不是警告而是既定行为**——所以同一个 class 用在多个元素上时，第二个以后的名字会变，脚本里按名字找会找不到（见 §9 坑 2）。
 
@@ -267,7 +267,7 @@ private nameOf(el: StyleElement, box: Box | null, usedNames: Set<string>, fallba
 
 ## 6. 行为与交互
 
-- **面板行为**：根标签 `data-script="gameplay/base/MyPanel"`，脚本 id 必须真实存在于 `src/projects/<project>/gameplay/**/*.script.ts`。
+- **面板行为**：根标签 `data-script="gameplay/base/MyPanel"`，脚本 id 必须真实存在于 `projects/<project>/gameplay/**/*.script.ts`。
 - **按钮状态**：`:hover/:active/:disabled` 的颜色/透明度由引擎原生驱动——编译器写入 `UIButtonComponent.stateColors`，状态机切换时按钮自己给背景 Image 上色，**无需任何脚本**（也不要再写轮询 `state` 改 `image.color` 的脚本，会跟原生驱动打架）。
 - **输入框**：`<input>` 自带焦点/占位符；`placeholder` 属性直接写。
 - **点击行为**：按钮的响应逻辑写在 data-script 指向的脚本里，不在 HTML 里。
@@ -313,7 +313,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 
 ### 配方 A：全屏对话框（遮罩 + 居中面板 + 内衬）
 
-参考 [tasks_ui.widget.html](../../../src/projects/fish/asset/blueprints/ui/tasks_ui.widget.html) 的结构（该源是保存回写后的规范形，全是 absolute；**新写的源用 flex 即可**）：
+参考 [tasks_ui.widget.html](../../../projects/fish/asset/blueprints/ui/tasks_ui.widget.html) 的结构（该源是保存回写后的规范形，全是 absolute；**新写的源用 flex 即可**）：
 
 ```html
 <widget name="MyPanel" canvas="1920x1080" data-script="gameplay/base/MyPanel">
@@ -345,7 +345,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 .TopBar { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
 ```
 
-效果：运行时 `applyAnchor` 让它**填满父容器**，视口比例切换（引擎视口重排 `relayoutForViewport`）时尺寸/位置自动跟随，子元素锚点随新容器重算。实测见 [base_hud.widget.html](../../../src/projects/fish/asset/blueprints/ui/base_hud.widget.html) 的 `.TopBar`。
+效果：运行时 `applyAnchor` 让它**填满父容器**，视口比例切换（引擎视口重排 `relayoutForViewport`）时尺寸/位置自动跟随，子元素锚点随新容器重算。实测见 [base_hud.widget.html](../../../projects/fish/asset/blueprints/ui/base_hud.widget.html) 的 `.TopBar`。
 
 **为什么不用旧的 `width: 1920px; height: 1080px` 写法**：旧写法编译为 `center` 锚 + 快照尺寸，16:9 视口下视觉完全等效，但**视口比例切换时是重排盲区**——根面板变大/变宽，center 容器居中不动、尺寸不变，整个 HUD 纹丝不动（base_hud 2026-09-04 实测踩坑）。见 §14 坑 15。
 
@@ -359,7 +359,7 @@ emitDataScript(el: StyleElement, node: Record<string, unknown>): void {
 .CardList { width: 880px; height: 380px; }
 ```
 
-实际用法见 [tasks_ui.widget.html](../../../src/projects/fish/asset/blueprints/ui/tasks_ui.widget.html)：
+实际用法见 [tasks_ui.widget.html](../../../projects/fish/asset/blueprints/ui/tasks_ui.widget.html)：
 
 ```html
 <div class="AchievementList" data-comp="UILayout" data-props='{"mode":"grid","columns":4,"spacingX":0.12,"spacingY":0.1,"autoLayout":true}'></div>
@@ -403,7 +403,7 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 })
 ```
 
-实际例子见 [gm_panel.widget.html](../../../src/projects/fish/asset/blueprints/ui/gm_panel.widget.html) 的命令列表：
+实际例子见 [gm_panel.widget.html](../../../projects/fish/asset/blueprints/ui/gm_panel.widget.html) 的命令列表：
 
 ```html
 <div class="GM_CmdList" data-comp="UIScrollList" data-props='{"itemWidget":"asset/blueprints/ui/gm_cmd_item.widget.json","itemSize":[540,48],"spacing":4,"zOrderLift":0,"draggable":true,"scrollbar":true}'></div>
@@ -429,7 +429,7 @@ const overflowHidden = ['overflow-x', 'overflow-y'].some((p) => {
 - `hit-test: block` 写在**节点级**：编译器落到该节点 marker 块，引擎懒创建 UI_HIT_LAYER 透明射线 mesh（相机不渲染、零绘制成本，仅射线可命中）。**无背景的纯容器/透明遮罩层也能拦截**，不再要求节点自带视觉。
 - 挡住的区域内按钮照常可点：点击归属按"射线最近 + zOrder 最高"仲裁（同面时 `z-index` 高者胜、clickable 优先于底板），底板 block 不会吃掉自己上面的按钮；面板树 `alwaysOnTop` 时对 3D 物体拥有视觉优先权（所见即所点）。
 - `hit-test: hitTestInvisible` / `pointer-events: none`：显式声明穿透（默认行为一致，用于表达意图）。
-- 现成例子：[building_info.widget.html](../../../src/projects/fish/asset/blueprints/ui/building_info.widget.html) 的 `.Card`、GM 控制台根画布（代码声明 `hitTest: 'block'`，走视觉块 panel 旧通道）。
+- 现成例子：[building_info.widget.html](../../../projects/fish/asset/blueprints/ui/building_info.widget.html) 的 `.Card`、GM 控制台根画布（代码声明 `hitTest: 'block'`，走视觉块 panel 旧通道）。
 
 ### 什么时候才用 absolute
 
@@ -539,7 +539,7 @@ function assertNoEventAttrs(node: HtmlNode): void {
 
 1. 写/改 `.widget.html`（与目标 `.widget.json` 同目录同名）。
 2. 调 MCP 工具 `ui_compile`，**参数 asset 传 `.widget.json` 路径**：
-   `{"asset": "src/projects/fish/asset/blueprints/ui/my_panel.widget.json"}`
+   `{"asset": "projects/fish/asset/blueprints/ui/my_panel.widget.json"}`
 3. 成功：json 自动落盘（已过 assetLint 零错误门槛），`warnings[]` 逐条确认可接受（多为 §10 文本估算）。
 4. 失败：`errors[{line, message}]` 行号指向 `.widget.html`——按行修源重试。**不要手改 json**。
 5. 预览确认：资产面板选中 widget 走 UIPreviewManager 2D 预览，或进游戏实测。
@@ -713,12 +713,12 @@ if (!assetPath || !assetPath.endsWith('.widget.json')) {
 
 ## 16. 完整参考实例
 
-fish 项目 `src/projects/fish/asset/blueprints/ui/` 下全部 23 个 widget 都是此格式编写的，推荐阅读顺序（从简到繁）：
+fish 项目 `projects/fish/asset/blueprints/ui/` 下全部 23 个 widget 都是此格式编写的，推荐阅读顺序（从简到繁）：
 
 | 文件 | 学什么 |
 |---|---|
-| [toast.widget.html](../../../src/projects/fish/asset/blueprints/ui/toast.widget.html) | 最小面板（9 行） |
-| [pause_menu.widget.html](../../../src/projects/fish/asset/blueprints/ui/pause_menu.widget.html) | 纵向菜单按钮栈 + 装饰条 |
-| [tasks_ui.widget.html](../../../src/projects/fish/asset/blueprints/ui/tasks_ui.widget.html) | 全屏对话框 + 两个 UILayout grid 动态列表 + 按钮 |
-| [gm_panel.widget.html](../../../src/projects/fish/asset/blueprints/ui/gm_panel.widget.html) | 输入框 / 滚动列表 / 输入行 / 角标关闭按钮全家桶 |
-| [barracks_ui.widget.html](../../../src/projects/fish/asset/blueprints/ui/barracks_ui.widget.html) | 标题装饰条 + 卡片网格 + 多状态文本 |
+| [toast.widget.html](../../../projects/fish/asset/blueprints/ui/toast.widget.html) | 最小面板（9 行） |
+| [pause_menu.widget.html](../../../projects/fish/asset/blueprints/ui/pause_menu.widget.html) | 纵向菜单按钮栈 + 装饰条 |
+| [tasks_ui.widget.html](../../../projects/fish/asset/blueprints/ui/tasks_ui.widget.html) | 全屏对话框 + 两个 UILayout grid 动态列表 + 按钮 |
+| [gm_panel.widget.html](../../../projects/fish/asset/blueprints/ui/gm_panel.widget.html) | 输入框 / 滚动列表 / 输入行 / 角标关闭按钮全家桶 |
+| [barracks_ui.widget.html](../../../projects/fish/asset/blueprints/ui/barracks_ui.widget.html) | 标题装饰条 + 卡片网格 + 多状态文本 |

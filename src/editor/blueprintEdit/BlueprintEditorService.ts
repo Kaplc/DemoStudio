@@ -68,7 +68,7 @@ interface FileResult {
   error?: string
 }
 
-/** 磁盘路径 → 蓝图注册 key（asset/...）。输入如 src/projects/fish/asset/blueprints/foo.blueprint.json */
+/** 磁盘路径 → 蓝图注册 key（asset/...）。输入如 projects/fish/asset/blueprints/foo.blueprint.json */
 function diskPathToAssetKey(diskPath: string): string {
   // 取 "asset/" 之后的部分；找不到则原样返回
   const idx = diskPath.indexOf('/asset/')

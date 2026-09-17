@@ -115,7 +115,7 @@ registerCommand('toggle_game', (_args, ctx) => {
 registerCommand('ui.compile', (args, ctx) => {
   const asset = args[0]
   if (!asset) {
-    ctx.output('用法: ui.compile <widget资产路径>（如 src/projects/fish/asset/blueprints/ui/toast.widget.json）')
+    ctx.output('用法: ui.compile <widget资产路径>（如 projects/fish/asset/blueprints/ui/toast.widget.json）')
     return
   }
   void (async () => {

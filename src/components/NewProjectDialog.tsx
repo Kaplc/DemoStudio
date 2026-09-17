@@ -38,7 +38,7 @@ export function NewProjectDialog() {
 
       if (result.success) {
         // 不自动进入工程：新建会触发 vite 对新 register.ts 的热重载（整页刷新 →
-        // discoverProjects 重新扫描，拿到带 defaultScene/source 的完整工程条目），
+        // discoverProjects 重新扫描，拿到带 defaultScene 的完整工程条目），
         // 用户从工程列表点"打开工程"进入，避免用内存里的残缺条目（无 defaultScene）进编辑器
         addConsoleOutput(`✅ 工程 "${projectName}" (${mode.toUpperCase()}) 已创建，热重载后从工程列表打开`)
         setShowNewProjectDialog(false)

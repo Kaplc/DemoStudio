@@ -20,7 +20,7 @@
 ### 2.1 装配与前置校验
 
 ```ts
-// src/projects/arena/gameplay/ArenaPlayerPawn.ts:48-60 —— 标准装配
+// projects/arena/gameplay/ArenaPlayerPawn.ts:48-60 —— 标准装配
 this.collider = this.addComponent(CapsuleColliderComponent)
 this.charCtrl = this.addComponent(CharacterControllerComponent)
 ```

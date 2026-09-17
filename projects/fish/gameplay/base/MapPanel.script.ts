@@ -26,7 +26,7 @@ import type { Actor } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
-/** 关卡卡片 widget 路径（相对 src/projects/，由 BlueprintRegistry 注册） */
+/** 关卡卡片 widget 路径（相对工程 asset/，由 BlueprintRegistry 注册） */
 const LEVEL_CARD_BLUEPRINT = 'asset/blueprints/ui/level_card.widget.json'
 
 /** 在 Actor 子树中按 root.name 递归查找子 Actor */

@@ -10,7 +10,7 @@ interface ProjectStore {
   setProjects: (projects: Project[]) => void
 }
 
-// 预设示例工程
+// 预设示例工程（IPC 不可用时的兜底列表；路径为仓库根相对，工程单根 projects/ 前缀）
 const DEFAULT_PROJECTS: Project[] = [
   {
     name: 'Demo2D',
@@ -18,9 +18,8 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', '2d', 'sprite'],
     folder: 'demo2d',
-    source: 'builtin',
     renderMode: '2d',
-    defaultScene: 'src/projects/demo2d/demo2d.scene.json',
+    defaultScene: 'projects/demo2d/demo2d.scene.json',
   },
   {
     name: 'ClashMaster',
@@ -28,9 +27,8 @@ const DEFAULT_PROJECTS: Project[] = [
     version: '1.0.0',
     tags: ['game', 'clash', '2d'],
     folder: 'fish',
-    source: 'builtin',
     renderMode: '2d',
-    defaultScene: 'src/projects/fish/asset/fish_menu.scene.json',
+    defaultScene: 'projects/fish/asset/fish_menu.scene.json',
   },
 ]
 
@@ -45,11 +43,8 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       if (window.electronAPI?.discoverProjectsScan) {
         const scanned = await window.electronAPI.discoverProjectsScan()
         if (scanned.length > 0) {
-          // 双轨合并：内置在前（根序），外部同名覆盖内置（mergeProjects 语义，tests/externalRoots.test.ts 锁定）。
-          // source 缺省（旧 IPC）视为内置，向后兼容。
-          const external = scanned.filter(p => p.source === 'external')
-          const builtin = scanned.filter(p => p.source !== 'external')
-          set({ projects: mergeProjects(builtin, external), loading: false })
+          // 单根发现：按 folder 去重后即全量工程列表（mergeProjects 语义，tests/mockProjectBridge.test.ts 锁定）
+          set({ projects: mergeProjects(scanned), loading: false })
           return
         }
       }

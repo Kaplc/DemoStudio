@@ -10,7 +10,7 @@ description: 创建 DemoStudio 场景资产（.scene.json）。使用时机：�
 - 修改现有场景的 `objects` 数组
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/*.scene.json`
+- 路径：`projects/<project>/asset/*.scene.json`
 - 命名：`<描述>.scene.json`
 
 ## 场景根结构

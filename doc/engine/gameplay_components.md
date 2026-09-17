@@ -11,22 +11,22 @@
 | [HealthComponent.ts](../../src/engine/gameplay/HealthComponent.ts) | 血量结算：damage/heal/revive + 无敌帧 + 阵营 | 加护甲/暴击等伤害规则、接掉落逻辑 |
 | [StateMachineComponent.ts](../../src/engine/gameplay/StateMachineComponent.ts) | 表驱动 FSM：状态表 + 转换表 + 首 Tick 自动启动 | 加并行状态/嵌套状态（先想清楚，明确不做行为树） |
 | [registerBuiltinComponents.ts](../../src/engine/tools/registerBuiltinComponents.ts) | 两个组件的场景资产工厂注册 | 给组件加可在资产里配的 props |
-| [SlimeActor.ts](../../src/projects/arena/gameplay/SlimeActor.ts) | 两个组件的完整装配范本（血量 + 六态 FSM） | 写新敌人时照抄结构 |
+| [SlimeActor.ts](../../projects/arena/gameplay/SlimeActor.ts) | 两个组件的完整装配范本（血量 + 六态 FSM） | 写新敌人时照抄结构 |
 
-**关键心智模型**：这两个组件只做**数值与状态判定**，不做任何表现——受击特效、死亡动画、切状态的动画播放在哪，全部由游戏代码订阅委托或在 `onEnter/onExit` 里干。头注释写明 HealthComponent 是"从 fish 手写的 TroopHealth / GameMode 建筑血量 Map 下沉为引擎组件"的产物，fish 的 [TroopHealthComponent.ts](../../src/projects/fish/gameplay/battle/troops/TroopHealthComponent.ts) 是它的 gameplay 层前身（耦合了 GameMode 回调），新项目一律用引擎版。
+**关键心智模型**：这两个组件只做**数值与状态判定**，不做任何表现——受击特效、死亡动画、切状态的动画播放在哪，全部由游戏代码订阅委托或在 `onEnter/onExit` 里干。头注释写明 HealthComponent 是"从 fish 手写的 TroopHealth / GameMode 建筑血量 Map 下沉为引擎组件"的产物，fish 的 [TroopHealthComponent.ts](../../projects/fish/gameplay/battle/troops/TroopHealthComponent.ts) 是它的 gameplay 层前身（耦合了 GameMode 回调），新项目一律用引擎版。
 
 ## 2. HealthComponent：一次 `damage()` 结算了什么
 
 ### 2.1 调用方与装配
 
 ```ts
-// src/projects/arena/gameplay/SlimeActor.ts:73 —— 装配
+// projects/arena/gameplay/SlimeActor.ts:73 —— 装配
 this.health = this.addComponent(HealthComponent)
 
-// src/projects/arena/gameplay/SlimeActor.ts:112 —— 接触伤害，source 传自己
+// projects/arena/gameplay/SlimeActor.ts:112 —— 接触伤害，source 传自己
 otherHealth.damage(SLIME_DAMAGE, this)
 
-// src/projects/arena/gameplay/PlayerCombatComponent.ts:168 —— 攻击结算
+// projects/arena/gameplay/PlayerCombatComponent.ts:168 —— 攻击结算
 const health = target?.getComponent(HealthComponent)
 ```
 
@@ -106,7 +106,7 @@ Inspector / AI `setProperty` / GM 改血量走 `set` 直写，**故意绕过** d
 ### 3.1 表驱动：状态表 + 转换表
 
 ```ts
-// src/projects/arena/gameplay/SlimeActor.ts:227 —— 转换表（注册序即优先级）
+// projects/arena/gameplay/SlimeActor.ts:227 —— 转换表（注册序即优先级）
 this.fsm
   .addTransition({ from: 'idle', to: 'dead', when: () => this.health.isDead })
   .addTransition({ from: 'idle', to: 'chase', when: () => distToTarget() < AGGRO_RANGE })
@@ -218,7 +218,7 @@ if (fsm && fsm.current) {
 
 ## 6. 踩坑清单（都有代码依据）
 
-**1. 挂了 HealthComponent 永远无敌 / FSM 不切状态** —— 原因：owner 没 `enableTick()`，两个组件的 `Tick` 根本不被调用。规则：装配处显式 `enableTick()`，且 Actor 的 `Tick` 里不能漏 `super.Tick(dt)`（组件链由它驱动，[SlimeActor.ts:277](../../src/projects/arena/gameplay/SlimeActor.ts) 注释原话"绝不能漏"）。
+**1. 挂了 HealthComponent 永远无敌 / FSM 不切状态** —— 原因：owner 没 `enableTick()`，两个组件的 `Tick` 根本不被调用。规则：装配处显式 `enableTick()`，且 Actor 的 `Tick` 里不能漏 `super.Tick(dt)`（组件链由它驱动，[SlimeActor.ts:277](../../projects/arena/gameplay/SlimeActor.ts) 注释原话"绝不能漏"）。
 
 **2. GM/AI 灌血没触发受击表现** —— 原因：`hp` 可编辑字段是状态注入通道，直写内部字段、不进 damage 管线、不发委托（代码注释明确"不走 damage 事件管线"）。规则：需要触发表现一律走 `damage()`，直写只用于调试与状态同步。
 

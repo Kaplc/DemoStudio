@@ -12,7 +12,7 @@ argument-hint: '蓝图名称或蓝图用途描述'
 - 蓝图由 `asset/index.ts` 的 `import.meta.glob('./blueprints/**/*.blueprint.json')` **自动注册**，注册 key 从文件路径推导（`asset/...`），**JSON 内无需写 path 字段**
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/blueprints/**/*.blueprint.json`（如 `asset/blueprints/beach_house.blueprint.json`、`asset/blueprints/buildings/townhall.blueprint.json`）
+- 路径：`projects/<project>/asset/blueprints/**/*.blueprint.json`（如 `asset/blueprints/beach_house.blueprint.json`、`asset/blueprints/buildings/townhall.blueprint.json`）
 - 命名：`<描述>.blueprint.json`（snake_case）
 - 一个 Blueprint = "这个 Actor 子类默认长什么样"（对应 Unity Prefab / UE Blueprint Class 的类定义 + CDO 默认值），可被场景 `ref` 节点或其他蓝图 `ref` 引用
 
@@ -170,4 +170,4 @@ argument-hint: '蓝图名称或蓝图用途描述'
 ## 参考
 - 类型定义：`src/engine/asset/BlueprintAsset.ts`（含继承链 resolve 逻辑）
 - 检查器：`src/editor/asset/assetLint/checkers/docCheckers.ts`、`componentChecker.ts`
-- 现有示例：`src/projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`
+- 现有示例：`projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`

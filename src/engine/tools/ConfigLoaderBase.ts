@@ -10,8 +10,8 @@
  *     constructor(log = defaultLog) { super('fish', log) }
  *     override init(): void {
  *       this.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)
- *       this.loadConfig<CannonConfig>('fish.cannon', 'src/projects/fish/asset/config/cannon.config.json')
- *       this.loadTable<TroopType>('fish.troop', 'src/projects/fish/asset/config/troop.table.json', transform)
+ *       this.loadConfig<CannonConfig>('fish.cannon', 'projects/fish/asset/config/cannon.config.json')
+ *       this.loadTable<TroopType>('fish.troop', 'projects/fish/asset/config/troop.table.json', transform)
  *       this.log('[Config] ClashMaster 配置表已注册')
  *     }
  *   }
@@ -87,7 +87,7 @@ export abstract class ConfigLoaderBase {
   /**
    * 批量注册 asset/config/ 下所有配置（glob 结果由 asset/config/index.ts 提供）。
    * name 推导：`{projectName}.{文件名}`（cannon.config.json → fish.cannon）。
-   * basePath：外部根工程传 `projects/<name>/asset/config`（缺省 = 内置轨 src/projects）。
+   * basePath：配置目录相对仓库根路径，缺省 `projects/<name>/asset/config`（工程单根）。
    */
   protected registerGlob(
     configModules?: Record<string, unknown>,

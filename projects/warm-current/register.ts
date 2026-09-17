@@ -2,11 +2,11 @@
  * WarmCurrent — 项目注册模块（外部工程根，hoi4 同款）
  *
  * 《暖流计划》：拖拽画线建立星际航线，拉回氦-3 维持聚能环运转。
- * 与内置工程同一套 ProjectModule 契约；经 src/projects/registry.ts 的
+ * 与内置工程同一套 ProjectModule 契约；经 src/editor/projects/registry.ts 的
  * import.meta.glob 自动发现并入注册表。
  */
 import { GameModeRegistry, GMRegistry, ActorRegistry } from '@/engine'
-import type { ProjectModule } from '../../src/projects/registry'
+import type { ProjectModule } from '../../src/editor/projects/registry'
 import { WarmCurrentGameInstance, initWarmCurrentConfigs } from './'
 import { WarmCurrentGameMode } from './gameplay/base/WarmCurrentGameMode'
 import { WarmCurrentMenuGameMode } from './gameplay/menu/WarmCurrentMenuGameMode'

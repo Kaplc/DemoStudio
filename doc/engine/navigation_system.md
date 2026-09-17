@@ -26,11 +26,11 @@
 
 全仓 grep `NavigationModule` / `NavGrid` / `findPath`，**真实调用方只有两个文件**（都在 fish 项目，引擎侧只有 `src/engine/index.ts:212-214` 的 re-export）：
 ```ts
-// src/projects/fish/gameplay/level/FishLevelGameMode.ts:122（构造函数内，只 new 一次）
+// projects/fish/gameplay/level/FishLevelGameMode.ts:122（构造函数内，只 new 一次）
 import { NavigationModule } from '@/engine/navigation/NavigationModule'
 readonly navigation: NavigationModule
 this.navigation = new NavigationModule()
-// src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts:220
+// projects/fish/gameplay/battle/troops/TroopMoveComponent.ts:220
 this.path = this.gm.navigation.findPath(pos, edgePoint)
 ```
 调用链很窄，但**是接线的**：`FishLevelGameMode` 持有实例并在 `BeginPlay` 建网格（§2.2），`TroopMoveComponent` 每 24 帧寻一次路并沿路点走（§3）。
@@ -190,7 +190,7 @@ return path.length > 0 ? path : null
 
 ## 3. 路径怎么被消费
 
-**唯一消费方**是 [TroopMoveComponent.ts](../../src/projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)（fish 项目兵移动组件），每帧 `Tick` 里做三件事：
+**唯一消费方**是 [TroopMoveComponent.ts](../../projects/fish/gameplay/battle/troops/TroopMoveComponent.ts)（fish 项目兵移动组件），每帧 `Tick` 里做三件事：
 
 **① 终点不是建筑中心，而是攻击距离边界**（`Tick` 内）
 ```ts

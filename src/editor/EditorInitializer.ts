@@ -1,10 +1,10 @@
 /**
  * EditorInitializer — 编辑器初始化逻辑
  *
- * 委托 projects/registry.ts 自动扫描注册所有项目。
- * 不再直接感知具体项目类，新增项目只需在 projects/registry.ts 注册即可。
+ * 委托 editor/projects/registry.ts 自动扫描注册所有项目。
+ * 不再直接感知具体项目类，新增项目只需在 projects/<folder>/ 建 register.ts 即可。
  */
-import { registerAllProjectModules } from '../projects/registry'
+import { registerAllProjectModules } from './projects/registry'
 import { installBlueprintWindowApi } from './blueprintEdit/windowApi'
 import { BlueprintEditorService } from './blueprintEdit/BlueprintEditorService'
 import { editorBus } from './EditorEvents'
@@ -523,7 +523,7 @@ export function registerGlobalEventListeners(callbacks: {
           }
           case 'ui_compile': {
             // UI 源格式编译（方案 devdoc/ui-html-source-format）：
-            // params.asset = widget 资产路径（src/projects/.../xxx.widget.json）
+            // params.asset = widget 资产路径（projects/.../xxx.widget.json）
             // 流程：读 .widget.html → 编译 → assetLint 零错误门槛 → 落盘 + 预览同步
             const assetPath = (params?.asset as string | undefined)?.trim()
             if (!assetPath || !assetPath.endsWith('.widget.json')) {

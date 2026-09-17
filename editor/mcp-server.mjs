@@ -88,13 +88,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         '编译 UI 资产 HTML 源（*.widget.html）为 widget.json（devdoc/ui-html-source-format 方案）。' +
         '流程：读取 .widget.html → 编译 → assetLint 零错误门槛 → 覆写 .widget.json 并同步编辑器预览。' +
         '错误信息面向源文件（line 指向 .widget.html）。参数 asset = widget 资产路径' +
-        '（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json），源文件为同目录同名 .widget.html',
+        '（projects/<folder>/asset/blueprints/ui/xxx.widget.json），源文件为同目录同名 .widget.html',
       inputSchema: {
         type: 'object',
         properties: {
           asset: {
             type: 'string',
-            description: 'widget 资产路径（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
+            description: 'widget 资产路径（projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
           },
         },
         required: ['asset'],
@@ -106,13 +106,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         '反编译 widget.json → 回写 .widget.html（与 ui_compile 反向）。' +
         '流程：读取已落盘的 .widget.json → 反编译为 HTML → 覆写同目录同名 .widget.html。' +
         '适用于手动保存后需要同步源文件的场景。参数 asset = widget 资产路径' +
-        '（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）。',
+        '（projects/<folder>/asset/blueprints/ui/xxx.widget.json）。',
       inputSchema: {
         type: 'object',
         properties: {
           asset: {
             type: 'string',
-            description: 'widget 资产路径（src/projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
+            description: 'widget 资产路径（projects/<folder>/asset/blueprints/ui/xxx.widget.json）',
           },
         },
         required: ['asset'],
@@ -125,7 +125,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         '流程：读取 .blueprint.ts → esbuild 打包执行 build() → compileBlueprint → assetLint 零错误门槛 → 覆写 .blueprint.json。' +
         'Node 侧直编，编辑器离线可用；成功后自动尝试通知在线编辑器热刷新，未刷新时需 F5 或重开资产页签才能看到新内容。' +
         '错误信息面向源（path 指认构造树位置）。参数 asset = 蓝图 TS 源路径（仓库相对路径，如 ' +
-        'projects/warm-current/asset/blueprints/stars/earth.blueprint.ts，或 src/projects/... 内部根同规则）',
+        'projects/warm-current/asset/blueprints/stars/earth.blueprint.ts）',
       inputSchema: {
         type: 'object',
         properties: {

@@ -1,7 +1,7 @@
-﻿/**
+/**
  * BlueprintRegistry — Blueprint 蓝图注册中心
  *
- * 以蓝图资产文件路径（相对于 src/projects/）为 key 管理 BlueprintAsset。
+ * 以蓝图资产文件路径（相对于工程根 projects/，如 `fish/asset/blueprints/x.blueprint.json`）为 key 管理 BlueprintAsset。
  *
  * 核心能力 resolve(path)：
  *   - 直接查找 assets Map（无继承链，parent 已移除）

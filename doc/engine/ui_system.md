@@ -27,7 +27,7 @@
 
 入口有两条：**玩家登录链建 HUD**（`GameMode.SpawnPlayer` → PC，见下），**运行时动态弹面板**（项目代码直接调 `world.ui.spawnUIActor`）。
 
-HUD 由 `GameMode.HUDClass` 声明，值就是一个 widget 蓝图路径（[FishBaseGameMode.ts](../../src/projects/fish/gameplay/base/FishBaseGameMode.ts):37）：
+HUD 由 `GameMode.HUDClass` 声明，值就是一个 widget 蓝图路径（[FishBaseGameMode.ts](../../projects/fish/gameplay/base/FishBaseGameMode.ts):37）：
 
 ```ts
 override HUDClass = 'asset/blueprints/ui/base_hud.widget.json'

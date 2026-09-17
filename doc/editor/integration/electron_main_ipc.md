@@ -10,7 +10,7 @@
 |---|---|---|
 | [main.ts](../../../electron/main.ts) | 主进程全部：窗口/IPC/日志/MCP/DSH | 加 IPC 通道、改启动流程 |
 | [preload.ts](../../../electron/preload.ts) | contextBridge 白名单：渲染进程可见的 electronAPI | 加通道时必须同步在这里暴露 |
-| [projectRoots.ts](../../../electron/projectRoots.ts) | 双工程根解析（内置 src/projects + 外部 projects/） | 改路径解析/逃逸防护规则 |
+| [projectRoots.ts](../../../electron/projectRoots.ts) | 工程根解析（工程单根 projects/，根数组遍历结构） | 改路径解析/逃逸防护规则 |
 | [MockElectronAPI.ts](../../../src/editor/MockElectronAPI.ts) | 浏览器模式的 electronAPI 假实现 | 渲染侧新 API 需要浏览器调试时 |
 
 **关键心智模型**：渲染进程**没有任何系统能力**，一切走 `preload.ts` 白名单 → `ipcMain.handle`。main.ts 头部注释写明启动编排："app 就绪后立即创建无边框加载窗口 (loading.html)，纯色底即时出窗 → 等待 Vite 开发服务器就绪 / 直接加载打包文件 → 就绪后关闭加载窗口，创建有边框编辑器主窗口"。加载窗先出是为了消灭白屏观感，不是装饰。
@@ -80,7 +80,7 @@ MCP 工具要操作**活在渲染进程里的编辑器状态**（当前选择、
 - **相对路径强制**：一律相对 `APP_ROOT`（`__dirname/..` = 仓库根）解析，[projectRoots.ts](../../../electron/projectRoots.ts) 统一处理
 - **`.json` 后缀强校验**：writeJsonFile 拒绝非 .json 目标（SaveSlot/配置编辑器/蓝图写盘全部受益）
 - **路径逃逸防护**：拒绝 `..` 等逃出项目根的路径——这就是为什么 SaveSlotComponent 的 filePath 必须在项目根内（[save_slot_component.md](../../engine/save_slot_component.md) 踩坑 3 的根源）
-- **双工程根**：`resolveProjectRoots` 同时认内置 `src/projects/` 与外部 `projects/`（方案见 [external_project_roots.md](../../dev/external_project_roots.md)）
+- **双工程根**：`resolveProjectRoots` 同时认内置 `projects/` 与外部 `projects/`（方案见 [external_project_roots.md](../../dev/external_project_roots.md)）
 
 ## 5. 日志与 MCP 端口池
 

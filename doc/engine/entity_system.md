@@ -94,7 +94,7 @@ if (isMeshComponent(component)) {
 }
 ```
 
-> **为什么推荐类版 `this.addComponent(BoxMeshComponent, 'ClickZoneMesh')`**：owner 自动传入少写一遍 `this`，且 `...args` 与构造参数编译期严格匹配（不是 `any` 透传）；实例版留给「先配置再挂载」的写法（如 `initClickable` 里先设回调再 `this.addComponent(this.clickable)`，见 [FishHouseActor.ts:103](../../src/projects/fish/gameplay/base/FishHouseActor.ts)）。**Mesh 约束判断用的是类名后缀**：`BoxMeshComponent` / `CapsuleMeshComponent` 全在禁区。被拒时**仍返回组件实例**（不入列），所以拿到返回值不等于挂上了。
+> **为什么推荐类版 `this.addComponent(BoxMeshComponent, 'ClickZoneMesh')`**：owner 自动传入少写一遍 `this`，且 `...args` 与构造参数编译期严格匹配（不是 `any` 透传）；实例版留给「先配置再挂载」的写法（如 `initClickable` 里先设回调再 `this.addComponent(this.clickable)`，见 [FishHouseActor.ts:103](../../projects/fish/gameplay/base/FishHouseActor.ts)）。**Mesh 约束判断用的是类名后缀**：`BoxMeshComponent` / `CapsuleMeshComponent` 全在禁区。被拒时**仍返回组件实例**（不入列），所以拿到返回值不等于挂上了。
 
 ### 2.3 BeginPlay 递归传播
 
@@ -150,7 +150,7 @@ if (this.bHasBegunPlay && component.bEnabled) { component.BeginPlay() }   // 补
 return component
 ```
 
-> **为什么需要这段**：`FishHouseActor.BeginPlay` 里才挂 `BoxMeshComponent` / `LineComponent`（[FishHouseActor.ts:55](../../src/projects/fish/gameplay/base/FishHouseActor.ts)）。没有自动补发，这些组件永远收不到 `BeginPlay`，几何/材质初始化全部缺席。代价是**热挂载的组件必须自己保证幂等**。
+> **为什么需要这段**：`FishHouseActor.BeginPlay` 里才挂 `BoxMeshComponent` / `LineComponent`（[FishHouseActor.ts:55](../../projects/fish/gameplay/base/FishHouseActor.ts)）。没有自动补发，这些组件永远收不到 `BeginPlay`，几何/材质初始化全部缺席。代价是**热挂载的组件必须自己保证幂等**。
 
 ### 2.4 Tick 与 EndPlay
 

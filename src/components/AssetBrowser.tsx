@@ -30,11 +30,9 @@ const ASSET_PATTERNS: AssetKind[] = [
 ]
 
 /** 按文件名匹配资产类型；不在白名单返回 null（project.json、其他 json、代码等不显示） */
-/** 工程的仓库根相对前缀（外部根目录工程支持）：内置 src/projects/<folder>，外部 projects/<folder> */
-function projectAssetRoot(project: { folder: string; source?: 'builtin' | 'external' }): string {
-  return project.source === 'external'
-    ? `projects/${project.folder}`
-    : `src/projects/${project.folder}`
+/** 工程的仓库根相对前缀（工程单根：全部工程位于 projects/<folder>） */
+function projectAssetRoot(project: { folder: string }): string {
+  return `projects/${project.folder}`
 }
 
 function classify(filename: string): AssetKind | null {
@@ -108,7 +106,7 @@ function buildAssetTemplate(kind: string, name: string): unknown {
 
 interface TreeNode {
   name: string
-  /** 文件 = 完整相对路径（src/projects/...）；目录 = 相对 asset/ 的路径（右键创建资产时定位目录） */
+  /** 文件 = 完整相对路径（projects/...）；目录 = 相对 asset/ 的路径（右键创建资产时定位目录） */
   path: string
   isDir: boolean
   kind?: AssetKind

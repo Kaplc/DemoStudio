@@ -4,7 +4,7 @@
  * 资产注册通过 registerAssets 延迟加载（打开工程时调用）。
  */
 import { GameModeRegistry, ActorRegistry, GMRegistry, GMModule } from '@/engine'
-import type { ProjectModule } from '../registry'
+import type { ProjectModule } from '../../src/editor/projects/registry'
 import { FishGameInstance, initFishConfigs } from './'
 import { FishMainMenuGameMode } from './gameplay/menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './gameplay/base/FishBaseGameMode'

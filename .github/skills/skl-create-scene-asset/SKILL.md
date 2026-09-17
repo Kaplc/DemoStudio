@@ -12,7 +12,7 @@ argument-hint: '场景名称或场景用途描述'
 - 场景资产由 `asset/index.ts` 的 `import.meta.glob('./**/*.scene.json')` **自动注册**，按 `name` 字段注册到 AssetRegistry，**无需手动注册**
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/*.scene.json`（子目录也可，如 `asset/blueprints/beach_house_parts.scene.json`）
+- 路径：`projects/<project>/asset/*.scene.json`（子目录也可，如 `asset/blueprints/beach_house_parts.scene.json`）
 - 命名：`<描述>.scene.json`（如 `fish.scene.json`、`fish_menu.scene.json`）
 - 按 `name` 字段（非文件名）注册，可通过 `World.SwitchToScene('FishMenu')` 按场景名切换
 
@@ -177,4 +177,4 @@ argument-hint: '场景名称或场景用途描述'
 ## 参考
 - 类型定义：`src/engine/asset/SceneAsset.ts`
 - 检查器：`src/editor/asset/assetLint/checkers/docCheckers.ts`、`nodeCheckers.ts`、`componentChecker.ts`
-- 现有示例：`src/projects/fish/asset/fish.scene.json`、`src/projects/fish/asset/blueprints/beach_house_parts.scene.json`
+- 现有示例：`projects/fish/asset/fish.scene.json`、`projects/fish/asset/blueprints/beach_house_parts.scene.json`

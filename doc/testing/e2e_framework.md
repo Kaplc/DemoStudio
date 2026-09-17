@@ -105,7 +105,7 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 
 ## 3. 新项目接入：三步
 
-1. 在 `src/projects/<项目>/register.ts` 确认 `ProjectModule.name`（编辑器工程卡显示名，如 fish 的 `'ClashMaster'`）；
+1. 在 `projects/<项目>/register.ts` 确认 `ProjectModule.name`（编辑器工程卡显示名，如 fish 的 `'ClashMaster'`）；
 2. 在 [projects.ts](../../e2e/framework/projects.ts) 的 `PROJECTS` 加一条 `{ id, cardName, description }`；
 3. 建项目文件夹 `e2e/<项目>/`，写 `<场景>.spec.ts`：`test.use({ project: '<id>' })`，用 `game.*` 写冒烟链路。
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dir = 'src/projects/fish/asset/blueprints/ui';
+const dir = 'projects/fish/asset/blueprints/ui';
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.widget.json')).sort();
 
 const r = (v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);

@@ -16,7 +16,7 @@ export class WarmCurrentConfigLoader extends ConfigLoaderBase {
   override init(): void {
     // 纯数据表：无 transform（B 侧消费时自行按已知键挑选），直接注册 glob。
     // 注册名规则：warm-current.<文件名去扩展>（ConfigLoaderBase 实现）。
-    // 外部工程根：显式传 projects/ 前缀（内置轨默认 src/projects/）。
+    // 显式传 basePath 保持自文档化（ConfigRegistry 缺省值即 projects/，漏传也已无害）。
     this.registerGlob(configGlob.configModules, configGlob.tableModules, 'projects/warm-current/asset/config')
     this.log('[WarmCurrent/Config] 配置表已注册（8 张）')
   }

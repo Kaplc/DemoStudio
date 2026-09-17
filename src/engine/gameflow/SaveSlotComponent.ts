@@ -3,7 +3,7 @@
  *
  * 挂到 GameInstance 上即可获得 KV 风格的持久化能力：
  *   const save = new SaveSlotComponent(instance, {
- *     filePath: 'src/projects/fish/data/save.kv.json',
+ *     filePath: 'projects/fish/data/save.kv.json',
  *   })
  *   instance.addComponent(save)
  *
@@ -20,7 +20,7 @@
  * 路径约束（避免常见误用）：
  *  - 必须是 `.json` 结尾（writeJsonFile IPC 在 main.ts 已强校验）
  *  - 必须在项目根目录（baseDir）之内（main.ts 路径逃逸防护会拒绝 .. 等）
- *  - 推荐约定：<repoRoot>/src/projects/<game>/data/*.json
+ *  - 推荐约定：<repoRoot>/projects/<game>/data/*.json
  *
  * 浏览器降级：渲染进程无 electronAPI.writeJsonFile 时（编辑器 Mock 或纯页面），
  *  改走内存模式（data 实际不落盘，刷新即丢，控制台 WARN 一次），保证开发不阻塞。
@@ -32,7 +32,7 @@ import type { GameInstance } from './GameInstance'
 export interface SaveSlotComponentOptions {
   /**
    * 相对于项目根目录（electron/main.ts 中 baseDir = __dirname/.. = 仓库根）的 JSON 文件路径。
-   * 约定：`src/projects/<game>/data/<scope>.json`，如 `src/projects/fish/data/save.kv.json`
+   * 约定：`projects/<game>/data/<scope>.json`，如 `projects/fish/data/save.kv.json`
    */
   filePath: string
   /**

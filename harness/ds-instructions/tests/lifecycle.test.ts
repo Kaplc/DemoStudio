@@ -432,7 +432,7 @@ describe('嵌套与并发（§14.3）', () => {
   it('并行读取 engine 与 project 合并为一条消息，顺序稳定', async () => {
     await harness({ engine: 'engine rules', project: 'project rules' })
     const agent = stubAgent(root)
-    readTouch(agent, join(root, 'src/projects/snake/SnakePawn.ts'))
+    readTouch(agent, join(root, 'projects/snake/SnakePawn.ts'))
     readTouch(agent, join(root, 'src/engine/Entity.ts'))
 
     const decision = await prestep(agent)

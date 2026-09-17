@@ -79,7 +79,7 @@ flowchart TD
     M["Game.shutdown"] --> N["singleton.reset() → detachContext()<br/>Game.ts:293"]
 ```
 
-**①②③ 注册发生在编辑器启动，不是游戏启动**（[registry.ts:70](../../src/projects/registry.ts)）：
+**①②③ 注册发生在编辑器启动，不是游戏启动**（[registry.ts:70](../../src/editor/projects/registry.ts)）：
 
 ```ts
   registerBuiltinAIHandlers()      // 内置 AI 事件处理器（幂等）

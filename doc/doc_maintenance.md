@@ -31,7 +31,7 @@ flowchart TD
     R["doc/README.md<br/>唯一索引"] --> O["system_overview.md<br/>架构总览"]
     R --> E["engine/ 21 篇<br/>src/engine/"]
     R --> ED["editor/ 18 篇<br/>src/editor/ + src/components/"]
-    R --> P["projects/ 5 篇<br/>src/projects/"]
+    R --> P["projects/ 5 篇<br/>projects/"]
     R --> G["game/ 14 篇<br/>暖流计划设计文档"]
     R --> H["harness/ 9 篇<br/>DSH 集成"]
     R --> T["testing/ 4 篇<br/>Playwright"]
@@ -48,14 +48,14 @@ flowchart TD
 |---|---|
 | `src/engine/` | `doc/engine/` |
 | `src/editor/`、`src/components/`（React 面板） | `doc/editor/<子目录>` |
-| `src/projects/`、`projects/`（外部根工程） | `doc/projects/` |
+| `projects/`、`projects/`（外部根工程） | `doc/projects/` |
 | `editor/`（MCP 桥，现为 .mjs 实现）、`harness/`、`scripts/` | `doc/harness/` |
 | 游戏设计文档（无对应源码目录，按主题归属） | `doc/game/` |
 | 测试/调试方法 | `doc/testing/` |
 
 编辑器二级子目录：`core`（核心与视口）、`blueprint`（蓝图与撤销）、`asset`（预览与检查）、`ui`（面板与 UI 增强）、`integration`（外部集成）。
 
-> **归属铁律的实际判例**：`muzzle_flash_component.md` 曾因「组件」二字被放在 `doc/engine/`，但它描述的类定义在 `src/projects/fish/gameplay/`，已于 2026-09-03 移入 `doc/projects/`。判断时只看 `class Xxx` 定义在哪个目录，不看它继承谁。
+> **归属铁律的实际判例**：`muzzle_flash_component.md` 曾因「组件」二字被放在 `doc/engine/`，但它描述的类定义在 `projects/fish/gameplay/`，已于 2026-09-03 移入 `doc/projects/`。判断时只看 `class Xxx` 定义在哪个目录，不看它继承谁。
 
 ### 2.2 现状基线（2026-09-10 实测）
 
@@ -281,9 +281,9 @@ Get-ChildItem $root -Recurse -Filter *.md | ForEach-Object {
 | `src/engine/ui/ToastSystem.ts` 头注释 | 「超出时新通知顶掉最旧的非 critical」与实现相反（实际排队等空位） |
 | `src/engine/ui/UIScrollListComponent.ts` | 「UI 画布高恒定 5.4」 |
 | `src/engine/gameflow/SceneRendererComponent.ts`、`src/editor/asset/RuntimeUIEditor.ts` | 多处 9.6×5.4 画布尺寸 |
-| `src/projects/registry.ts` 头注释 | 「必须在本文件 ALL_PROJECTS 数组加入」——外部工程已 glob 自动 |
+| `src/editor/projects/registry.ts` 头注释 | 「必须在本文件 ALL_PROJECTS 数组加入」——外部工程已 glob 自动 |
 | `src/engine/rendering/AtmosphereComponent.ts` | 示例字段 `scale`（实际为 `shellScale`） |
-| `src/projects/warm-current/gameplay/map/StarActor.ts` | 「BeginPlay 挂大气/bump」——大气已改资产声明 |
+| `projects/warm-current/gameplay/map/StarActor.ts` | 「BeginPlay 挂大气/bump」——大气已改资产声明 |
 
 ### 8.5 其他
 

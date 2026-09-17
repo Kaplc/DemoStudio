@@ -10,7 +10,6 @@ import z from '@deepseek-ai/schemastery'
 /** 默认映射：DemoStudio 引擎/项目代码区 → 指令文件名（位于指令目录下）。 */
 export const DEFAULT_MAPPINGS: readonly MappingRule[] = [
   { prefix: 'src/engine', file: 'engine.instructions.md' },
-  { prefix: 'src/projects', file: 'project.instructions.md' },
   { prefix: 'projects', file: 'project.instructions.md' },
 ]
 

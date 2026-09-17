@@ -2,7 +2,7 @@
  * ui-compiler 冒烟回归（TS）— 由 scripts/ui-compiler-smoke.mjs 打包执行
  *
  * 覆盖：
- *  1. 旧资产回归：src/projects 各工程 asset/blueprints/ui 下全部 .widget.html 编译成功
+ *  1. 旧资产回归：projects/ 各工程 asset/blueprints/ui 下全部 .widget.html 编译成功
  *  2. 完整映射综合用例：块级流/内联混排/flex(wrap+grow)/grid/表格/列表标记/
  *     @media/渐变/transform/绝对定位/命名色/calc/var/实体/inline style
  *  3. 越界硬报错：未知标签/未知 CSS 属性/内嵌 script/兄弟选择器
@@ -20,7 +20,7 @@ const bad = (msg: string): void => { failures++; console.log(`❌ ${msg}`) }
 
 // ─── 1. 旧资产回归 ───
 const uiDirs = new Set<string>()
-for (const p of ['src/projects/fish/asset/blueprints/ui']) {
+for (const p of ['projects/fish/asset/blueprints/ui']) {
   if (fs.existsSync(p)) uiDirs.add(p)
 }
 for (const dir of uiDirs) {
@@ -770,7 +770,7 @@ expectFail('事件属性', '<widget name="x"><div onclick="go()">x</div></widget
       walk(root, { x: cw / 2, y: ch / 2 }, { pw: cw, ph: ch }, 'root')
       return out
     }
-    const dir = 'src/projects/fish/asset/blueprints/ui'
+    const dir = 'projects/fish/asset/blueprints/ui'
     for (const f of ['building_info', 'building_collect', 'base_hologram']) {
       const src = fs.readFileSync(path.join(dir, `${f}.widget.html`), 'utf-8')
       const r1 = compileWidgetHtml(src)

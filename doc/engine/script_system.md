@@ -15,7 +15,7 @@
 | [ScriptRegistry.ts](../../src/engine/script/ScriptRegistry.ts) | 「脚本 id → 构造器」的静态 Map，负责 `create` 与批量注册 | 改 id 推导规则、加注册诊断 |
 | [BehaviourScript.ts](../../src/engine/script/BehaviourScript.ts) | 脚本基类：`actor` / `world` / `gameMode` / `findInChildren`，三个生命周期空实现 | 给所有脚本加一个通用能力 |
 | [UIScriptComponent.ts](../../src/engine/ui/UIScriptComponent.ts) | 唯一挂载点：`BeginPlay` 里 new 脚本、`Tick` 里转发 `onUpdate`、`EndPlay` 里收尾 | 改脚本的实例化/驱动时机 |
-| [index.ts](../../src/projects/fish/asset/index.ts)（项目资产入口） | `import.meta.glob` 扫描 `../gameplay/**/*.script.ts` 交给注册中心 | 新项目接入脚本扫描 |
+| [index.ts](../../projects/fish/asset/index.ts)（项目资产入口） | `import.meta.glob` 扫描 `../gameplay/**/*.script.ts` 交给注册中心 | 新项目接入脚本扫描 |
 
 **关键心智模型**：脚本**不自己注册**（没有 `ScriptRegistry.register` 散落在业务代码里），靠**文件路径**被 glob 捡走；脚本也**不被引擎直接驱动**，它是 `UIScriptComponent` 的附属品——组件活着脚本才 Tick，组件销毁脚本就死。所以「脚本为什么没跑」的第一个排查点永远是**组件那行 `script` 字段**，不是脚本文件本身。
 
@@ -28,7 +28,7 @@
 注册链路有三级，脚本作者只参与第 ① 级（按约定命名 + 默认导出）：
 
 ```ts
-// src/projects/fish/asset/index.ts
+// projects/fish/asset/index.ts
 const scriptModules = import.meta.glob<{ default: BehaviourScriptConstructor }>(
   '../gameplay/**/*.script.ts',
   { eager: true },
@@ -43,7 +43,7 @@ AssetRegistry.registerAll({
 
 > **为什么 `eager: true`**：非 eager 的 glob 返回的是「路径 → 动态 import 函数」的懒加载表，`ScriptRegistry.register` 需要的是**构造器本身**。用懒加载就得在 `create` 时 `await`，而 `UIScriptComponent.BeginPlay()` 是同步的，做不到。代价是工程打开时所有脚本模块被一次性求值——脚本文件顶层的重活会拖慢注册。
 
-> **注意 glob 的范围是 `../gameplay/**`**：相对 `asset/index.ts` 往上一级再进 `gameplay`，**只扫项目 `gameplay/` 目录**。把脚本文件放到 `src/projects/fish/asset/` 或 `src/projects/fish/hud/` 下都不会被捡到（旧文档写「扫描所有 `*.script.ts`」是错的）。
+> **注意 glob 的范围是 `../gameplay/**`**：相对 `asset/index.ts` 往上一级再进 `gameplay`，**只扫项目 `gameplay/` 目录**。把脚本文件放到 `projects/fish/asset/` 或 `projects/fish/hud/` 下都不会被捡到（旧文档写「扫描所有 `*.script.ts`」是错的）。
 
 id 由文件路径推导，没有第二种写法：
 
@@ -164,7 +164,7 @@ override EndPlay() {
 `onUpdate` 的写法有个**必须遵守的性能约束**：每帧都在跑，只有值变了才写组件。`BattleHud.script.ts` 的倒计时段是标准写法：
 
 ```ts
-// src/projects/fish/gameplay/battle/BattleHud.script.ts:290
+// projects/fish/gameplay/battle/BattleHud.script.ts:290
 if (this.timerText) {
   const sec = gm.getTimeRemainingSec()
   if (sec !== this.lastTimerSec) {
@@ -184,7 +184,7 @@ if (this.timerText) {
 资产侧不直接写 JSON，写在 `.widget.html` 源里，由 UI 编译器发射成组件：
 
 ```html
-<!-- src/projects/fish/asset/blueprints/ui/base_hud.widget.html -->
+<!-- projects/fish/asset/blueprints/ui/base_hud.widget.html -->
 <widget name="FishBaseHUD" canvas="1920x1080" world="9.6x5.4" data-script="gameplay/base/BaseHud">
 ```
 
@@ -205,7 +205,7 @@ if (this.timerText) {
 脚本内查节点用 `findInChildren`，它沿 `root.name` 精确匹配递归（[BehaviourScript.ts:63](../../src/engine/script/BehaviourScript.ts)，底层 `Actor.getChildren` 见 [Actor.ts:292](../../src/engine/entity/Actor.ts)）：
 
 ```ts
-// src/projects/fish/gameplay/base/BaseHud.script.ts:60
+// projects/fish/gameplay/base/BaseHud.script.ts:60
 const buildBtnActor = this.findInChildren('Btn_build')
 const buildBtn = buildBtnActor?.getComponent(UIButtonComponent)
 if (buildBtn) {

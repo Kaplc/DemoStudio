@@ -88,7 +88,7 @@ this.onControllerReady(ctrl)
 return this.onStart(ctrl)
 ```
 
-**这里有个真实的重复调用**：`SetGameMode` 内部已调过 `gm.InitGame()` + `gm.StartPlay()`，`start()` 又调一遍。走基类 `start()` 的项目，`InitGame`/`StartPlay`/`SpawnPlayer()` 各执行两次，第二个 Controller 覆盖第一个——规则：这两个方法**必须保持幂等**。**Fish 绕开了这条路径**（[FishGameInstance.ts:170](../../src/projects/fish/gameplay/FishGameInstance.ts)），整个覆写 `start()` 且不调 `super.start()`：`this.loadSaveAsync()` 后按 `initialMode` 分派到 `switchToPhase('base'|'game'|'menu')`。`loadSaveAsync()` 是 **fire-and-forget**（内部 `void this.save.load().then(...)`）——`start()` 必须同步返回 boolean，所以「开局头几帧存档还没就绪」是设计使然，下游靠 `_kvReady` 标志 + `tryRestoreBaseLayout()` 门控处理。
+**这里有个真实的重复调用**：`SetGameMode` 内部已调过 `gm.InitGame()` + `gm.StartPlay()`，`start()` 又调一遍。走基类 `start()` 的项目，`InitGame`/`StartPlay`/`SpawnPlayer()` 各执行两次，第二个 Controller 覆盖第一个——规则：这两个方法**必须保持幂等**。**Fish 绕开了这条路径**（[FishGameInstance.ts:170](../../projects/fish/gameplay/FishGameInstance.ts)），整个覆写 `start()` 且不调 `super.start()`：`this.loadSaveAsync()` 后按 `initialMode` 分派到 `switchToPhase('base'|'game'|'menu')`。`loadSaveAsync()` 是 **fire-and-forget**（内部 `void this.save.load().then(...)`）——`start()` 必须同步返回 boolean，所以「开局头几帧存档还没就绪」是设计使然，下游靠 `_kvReady` 标志 + `tryRestoreBaseLayout()` 门控处理。
 
 **⑤ `SetGameMode`：World 显式接管 GameMode 生命周期**（[World.ts:172](../../src/engine/gameflow/World.ts)）：
 
@@ -106,7 +106,7 @@ if (this._running) { gm.BeginPlay() }
 
 ### 2.3 每帧怎么走
 
-`inst.tick(dt)` 由项目实现，主流写法是转发给 World（[FishGameInstance.ts:957](../../src/projects/fish/gameplay/FishGameInstance.ts)）：`this.world.manualTick(dt)`。`World.manualTick` 与私有 `World.tick` **逻辑完全平行**（[World.ts:333](../../src/engine/gameflow/World.ts)），六步顺序严格固定：
+`inst.tick(dt)` 由项目实现，主流写法是转发给 World（[FishGameInstance.ts:957](../../projects/fish/gameplay/FishGameInstance.ts)）：`this.world.manualTick(dt)`。`World.manualTick` 与私有 `World.tick` **逻辑完全平行**（[World.ts:333](../../src/engine/gameflow/World.ts)），六步顺序严格固定：
 
 ```ts
 manualTick(dt: number) {
@@ -147,7 +147,7 @@ this._instance?.markDestroyed() // 显式终态标记（幂等）
 GameInstance.setCurrent(null)
 ```
 
-`teardown()` 与 `markDestroyed()` 是双保险：`World.Destroy` 内的 `reclaimForWorld` 靠 `world` 字段隐式回收 GameInstance，显式调用保证**未来子类没有 world 字段也不会泄漏**；`setCurrent(null)` 必须在 destroy 之后、渲染器清理之前。之后是项目自己的 `destroy()`（[FishGameInstance.ts:1060](../../src/projects/fish/gameplay/FishGameInstance.ts)）——`this.stop()` → `save.onDestroy()`（自动落盘）→ 解订 `unsubGameState` → `this.world.Destroy()`。Fish 覆写 `start()` 没走基类订阅路径，所以有自己的 `unsubGameState` 字段；**覆写 `destroy()` 时不调 `super.destroy()` 就会漏掉基类的清理**（这里正是如此）。
+`teardown()` 与 `markDestroyed()` 是双保险：`World.Destroy` 内的 `reclaimForWorld` 靠 `world` 字段隐式回收 GameInstance，显式调用保证**未来子类没有 world 字段也不会泄漏**；`setCurrent(null)` 必须在 destroy 之后、渲染器清理之前。之后是项目自己的 `destroy()`（[FishGameInstance.ts:1060](../../projects/fish/gameplay/FishGameInstance.ts)）——`this.stop()` → `save.onDestroy()`（自动落盘）→ 解订 `unsubGameState` → `this.world.Destroy()`。Fish 覆写 `start()` 没走基类订阅路径，所以有自己的 `unsubGameState` 字段；**覆写 `destroy()` 时不调 `super.destroy()` 就会漏掉基类的清理**（这里正是如此）。
 
 最后 `World.Destroy()` 收尾（[World.ts:774](../../src/engine/gameflow/World.ts)）：
 
@@ -294,7 +294,7 @@ this.SpawnActor(actor)
 
 按名切换时（[World.ts:671](../../src/engine/gameflow/World.ts)）先查 `AssetRegistry.getScene`，再查 `GameModeRegistry.has(mode)`，任一缺失都 `return false`。
 
-**GameMode 继承 + 注册**（[fish/register.ts:19](../../src/projects/fish/register.ts)）——`mode` 字符串来自 `SceneAsset.mode`，`SwitchToScene` 靠它查表构造；注册中心是 `register` / `create`（未注册返回 null）/ `has` 三个静态方法（[GameModeRegistry.ts:20](../../src/engine/tools/GameModeRegistry.ts)）：
+**GameMode 继承 + 注册**（[fish/register.ts:19](../../projects/fish/register.ts)）——`mode` 字符串来自 `SceneAsset.mode`，`SwitchToScene` 靠它查表构造；注册中心是 `register` / `create`（未注册返回 null）/ `has` 三个静态方法（[GameModeRegistry.ts:20](../../src/engine/tools/GameModeRegistry.ts)）：
 
 ```ts
 GameModeRegistry.register('menu', FishMainMenuGameMode)
@@ -303,9 +303,9 @@ GameModeRegistry.register('game', FishGameMode)
 GameModeRegistry.register('level', FishLevelGameMode)
 ```
 
-覆写 GameMode 的第一个坑记在 [FishLevelGameMode.ts:132](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) 的注释里：`override StartPlay()` 首行必须 `super.StartPlay()`，因为基类内含 `SpawnPlayer()`（创建 `FishLevelPlayerController`）——漏掉则 `mode.controller` 为 null → `setupLevelPhase` 拿不到控制器 → `InputSys.handlePointerDown` 无 Controller 可转发 → 点击场景永远放不了兵。
+覆写 GameMode 的第一个坑记在 [FishLevelGameMode.ts:132](../../projects/fish/gameplay/level/FishLevelGameMode.ts) 的注释里：`override StartPlay()` 首行必须 `super.StartPlay()`，因为基类内含 `SpawnPlayer()`（创建 `FishLevelPlayerController`）——漏掉则 `mode.controller` 为 null → `setupLevelPhase` 拿不到控制器 → `InputSys.handlePointerDown` 无 Controller 可转发 → 点击场景永远放不了兵。
 
-GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](../../src/projects/registry.ts)）：`GameFactoryRegistry.register(project.name, (container) => project.createGameInstance(container))`。所以新项目**不需要手写注册游戏工厂**——只要在 `ALL_PROJECTS` 里导出 `ProjectModule` 即可；但 **GameMode 必须手动 `GameModeRegistry.register`**。
+GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](../../src/editor/projects/registry.ts)）：`GameFactoryRegistry.register(project.name, (container) => project.createGameInstance(container))`。所以新项目**不需要手写注册游戏工厂**——只要在 `ALL_PROJECTS` 里导出 `ProjectModule` 即可；但 **GameMode 必须手动 `GameModeRegistry.register`**。
 
 ---
 
@@ -367,7 +367,7 @@ GameInstance 工厂**由项目模块自动注册**（[projects/registry.ts:92](.
 **1. `spawnFromBlueprint` 后 Actor 不显示/不动** —— `SpawnActor` 只是入队，落地在 `commitSpawn()`，后者只在 `World.tick`/`BeginPlay` 里被调；世界还没 `BeginPlay` 时生成的 Actor 一直停在 `pendingSpawn`。规则：不要假设 `spawnActor()` 返回后 Actor 已可用，需要立即可见就调 `world.manualTick(0)` 强制提交一次（AI 事件处理器就是这么做的，[registerBuiltinAIHandlers.ts:190](../../src/engine/ai/registerBuiltinAIHandlers.ts)）。
 **2. 场景切换后新场景 Actor 全没初始化** —— `BeginPlay()` 里 `commitActorChanges()` 必须排在逐个 `BeginPlay` 之前（[World.ts:294](../../src/engine/gameflow/World.ts)）。
 **3. 覆写 `StartPlay` 忘了 `super.StartPlay()` → 点击场景无反应** —— 基类 `StartPlay` 内含 `SpawnPlayer()`（[GameMode.ts:93](../../src/engine/gameflow/GameMode.ts)），漏掉则 `mode.controller` 为 null，`start()` 直接 `return false`，InputSys 无 Controller 可转发。
-**4. GameMode 自己 new 的 Actor 泄漏** —— `reclaimForWorld` 只认 `world` 字段或 owner 链能上溯到本 World 的对象。GameMode 构造里 `new BaseCameraActor()` 时还没有 world 归属；正常路径由 `extraSetup` 里 `spawnActor(mode.baseCamera)` 托管，但**裸调 `SwitchToScene`（不执行 extraSetup，如 GM 命令切场景）时无人托管**就永久泄漏。规则：GameMode 自己 new 的 Actor，必须在 `EndPlay` 里自己 `destroy()` 兜底（[FishLevelGameMode.ts:171](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) 即如此）。
+**4. GameMode 自己 new 的 Actor 泄漏** —— `reclaimForWorld` 只认 `world` 字段或 owner 链能上溯到本 World 的对象。GameMode 构造里 `new BaseCameraActor()` 时还没有 world 归属；正常路径由 `extraSetup` 里 `spawnActor(mode.baseCamera)` 托管，但**裸调 `SwitchToScene`（不执行 extraSetup，如 GM 命令切场景）时无人托管**就永久泄漏。规则：GameMode 自己 new 的 Actor，必须在 `EndPlay` 里自己 `destroy()` 兜底（[FishLevelGameMode.ts:171](../../projects/fish/gameplay/level/FishLevelGameMode.ts) 即如此）。
 **5. 顶层 `position/rotation/scale` 写了不生效** —— 严格模式（组件优先）：位置一律写在 `transform`/`uitransform` 组件的 properties 里。顶层字段存在即报 `childTransformViolation` 错误且**不应用该值**；蓝图根节点、ref 子节点、内联子节点三处都校验。
 **6. 切换工程/重复启动导致二次 dispose** —— `shutdown` 靠 `_shutdown` 布尔标记防重（effect cleanup 和切换工程可能同时触发），`createInstance` 里也内置了「已有实例先 shutdown」。规则：外部不要再包一层自己的防重，会与引擎状态机打架。
 **7. `SwitchScene` 残留诊断误报** —— baseline 必须在 `newMode` **构造之前**打快照（[World.ts:693](../../src/engine/gameflow/World.ts)），否则 newMode 构造期创建的对象被算成「旧场景残留」；直接调 `SwitchScene` 时用 `ownedBy(o, newMode)` 过滤兜底。

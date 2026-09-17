@@ -13,8 +13,6 @@ export interface Project {
   renderMode?: '2d' | '3d'
   /** 默认场景资产路径（相对于项目根），点击项目时加载此场景并读取其 mode */
   defaultScene?: string
-  /** 工程轨道：builtin=内置案例（src/projects/），external=外部工程（projects/）；缺省视为内置 */
-  source?: 'builtin' | 'external'
 }
 
 export interface GameState {
@@ -56,7 +54,7 @@ export interface AssetSelection {
   kind: string
   /** 类型图标 */
   icon: string
-  /** 文件完整相对路径（src/projects/...） */
+  /** 文件完整相对路径（projects/...） */
   path: string
   /** 文件名 */
   name: string
@@ -216,10 +214,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   setProjects: (projects) => set({ projects }),
   // 切项目时清空动态页签 + 资产，避免残留旧项目数据
   // registry 惰性加载：Agent 独立窗口（agent.html）依赖本 store，但不需要
-  // projects/registry（顶层静态导入会连带全部游戏资产/gameplay 脚本进入 agent 图）。
+  // editor/projects/registry（顶层静态导入会连带全部游戏资产/gameplay 脚本进入 agent 图）。
   // 动态 import 斩断该依赖边；主编辑器首次切工程时一次性完成加载（microtask 按序执行，连续切换无竞态）。
   setCurrentProject: (project) => {
-    void import('../projects/registry')
+    void import('../editor/projects/registry')
       .then(({ registerProjectAssets, clearProjectAssets }) => {
         // 先注册/清空资产，再切换 currentProject，保证状态一致（资产就绪后才对外可见）
         if (project) {

@@ -1,6 +1,6 @@
 # 代码扫描检查系统（CodeLint）
 
-> **一句话定位**：扫描当前工程 `src/projects/<folder>/` 下的 `.ts/.tsx` 源码，用轻量 TS 语法树找出违反项目约定的写法（`addComponent(new X)` 旧写法、裸 `new THREE.Mesh`），违规列表进面板、新违规进日志。
+> **一句话定位**：扫描当前工程 `projects/<folder>/` 下的 `.ts/.tsx` 源码，用轻量 TS 语法树找出违反项目约定的写法（`addComponent(new X)` 旧写法、裸 `new THREE.Mesh`），违规列表进面板、新违规进日志。
 >
 > **什么时候会用到你**：新增/修改一条源码规则检查器时；排查「面板里的代码问题不消失 / 保存源码后不重扫 / MCP `run_code_lint` 返回空」时；理解「为什么资产变化和源码变化不会互相触发重扫」时。
 >
@@ -116,7 +116,7 @@ private onProjectChanged(folder: string | null): void {
     logger.info('[CodeLint] 工程切换: 无工程 → 停止扫描与监听')
     return
   }
-  logger.info(`[CodeLint] 工程切换: ${this.projectLabel(folder)} → 全量扫描 src/projects/${folder}/`)
+  logger.info(`[CodeLint] 工程切换: ${this.projectLabel(folder)} → 全量扫描 projects/${folder}/`)
   this.startWatch(folder)
   void this.scanOnce()
 }
@@ -152,7 +152,7 @@ private startWatch(folder: string): void {
     logger.debug(`[CodeLint] src-changed: ${changedFolder} → 300ms 去抖后增量重扫`)
     this.scheduleScan()
   })
-  logger.info(`[CodeLint] 建立源码监听: src/projects/${folder}/（src-changed 300ms 去抖）`)
+  logger.info(`[CodeLint] 建立源码监听: projects/${folder}/（src-changed 300ms 去抖）`)
 }
 ```
 
@@ -341,7 +341,7 @@ private validateFile(f: CodeFileEntry & { text: string }): CodeIssue[] {
 
 `setParentNodes = false` —— 建 parent 指针要额外遍历和内存，而检查器只用 `forEachChild` 自上而下走，用不到 parent。
 
-`fileName` 传 `f.path`（相对路径如 `src/projects/fish/gameplay/foo.ts`）而不是绝对路径。因为检查器产 issue 时用的是 `sourceFile.fileName`，面板和日志直接拿它显示 —— 用相对路径才不会把用户机器的绝对路径泄进面板。
+`fileName` 传 `f.path`（相对路径如 `projects/fish/gameplay/foo.ts`）而不是绝对路径。因为检查器产 issue 时用的是 `sourceFile.fileName`，面板和日志直接拿它显示 —— 用相对路径才不会把用户机器的绝对路径泄进面板。
 
 **注意 `ctx.projectFolder` 取的是 `this.folder`（当前打开工程）**，不是 `folderOverride`。MCP 旁路扫描另一个工程时，checker 拿到的 `projectFolder` 仍是当前工程。目前两个内置 checker 都把 ctx 写成 `_ctx` 忽略掉了，所以没暴露问题 —— 但**新 checker 如果要用 ctx，旁路扫描下会拿到错误的工程名**。
 
@@ -491,7 +491,7 @@ const totalIssueCount = codeLintIssueCount + assetLintIssueCount
 
 | 处理器 | 位置 | 干什么 |
 |---|---|---|
-| `list-project-src` | `electron/main.ts:1479` | 递归列 `src/projects/<folder>` 下 `.ts/.tsx`，排除 `.d.ts` |
+| `list-project-src` | `electron/main.ts:1479` | 递归列 `projects/<folder>` 下 `.ts/.tsx`，排除 `.d.ts` |
 | `watch-project-assets` | `electron/main.ts:1540` | 建 asset(1549) + src(1577) 两个 watcher，按扩展名分流 |
 | `closeProjectWatchers` | `electron/main.ts:1516` | **同时**关 asset + src watcher 与两个去抖定时器 |
 | `stop-watch-project-assets` | `electron/main.ts:1596` | 调 `closeProjectWatchers()`，不区分来源 |

@@ -19,7 +19,7 @@ argument-hint: '配置表名称或用途描述'
 | 数据表 | `*.table.json` | UE 风格键值行表 `{ "行名": 行数据 }` | `loadTable<Row>(name, path, transform?)` | `getTable<Row>(name)`（可能 undefined） |
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/config/<描述>.config.json` 或 `<描述>.table.json`
+- 路径：`projects/<project>/asset/config/<描述>.config.json` 或 `<描述>.table.json`
 - 阶段独用配置可放 `gameplay/{mode}/config/`（如 `gameplay/game/config/`）
 - 示例：`cannon.config.json`、`fish.config.json`、`boss.config.json`、`school.config.json`、`troop.table.json`
 - 配置名由文件名推导：`{project}.{文件名}`（`cannon.config.json` → `fish.cannon`）
@@ -28,7 +28,7 @@ argument-hint: '配置表名称或用途描述'
 
 1. **半自动注册（新增文件无需改 ConfigLoader）**：`asset/config/index.ts` 用 `import.meta.glob` 自动扫描所有 `.config.json` / `.table.json`，配置名与加载路径自动推导：
    ```typescript
-   // src/projects/<project>/asset/config/index.ts
+   // projects/<project>/asset/config/index.ts
    import type { ConfigGlobModules } from '@/engine'
    export const configGlob: ConfigGlobModules = {
      configModules: import.meta.glob('./**/*.config.json'),
@@ -37,7 +37,7 @@ argument-hint: '配置表名称或用途描述'
    ```
    配置加载器（继承 `ConfigLoaderBase`）的 `init()` 中只需注册**代码相关**部分：
    ```typescript
-   // src/projects/<project>/<Project>ConfigLoader.ts
+   // projects/<project>/<Project>ConfigLoader.ts
    this.registerDefaults('fish.cannon', DEFAULT_CANNON_CONFIG)                    // 同步 fallback（手动）
    this.registerConfigTransform<GameConfig>('fish.eatfish', (raw) => ({ ... }))   // 归一化（手动）
    this.registerTableTransform<TroopType>('fish.troop', (row) => ({ ... }))       // 行归一化（手动）
@@ -140,7 +140,7 @@ export interface CannonConfig {
 
 ## 参考
 - 加载机制：`src/engine/tools/ConfigRegistry.ts`（stripMeta/mergeConfig/loadConfig/loadTable/registerGlob）、`src/engine/tools/ConfigLoaderBase.ts`（加载器基类）、`src/engine/tools/DataTable.ts`（行表类）
-- 扫描入口：`src/projects/fish/asset/config/index.ts`、`src/projects/eatfish/asset/config/index.ts`
-- 注册示例：`src/projects/fish/FishConfigLoader.ts`、`src/projects/eatfish/EatFishConfigLoader.ts`
-- 类型/默认值：`src/projects/fish/gameplay/common/types.ts`
-- 现有资产：`src/projects/fish/asset/config/`（cannon/fish/boss/school/troop）、`src/projects/eatfish/asset/config/`（eatfish.config.json / fish.table.json）
+- 扫描入口：`projects/fish/asset/config/index.ts`、`projects/eatfish/asset/config/index.ts`
+- 注册示例：`projects/fish/FishConfigLoader.ts`、`projects/eatfish/EatFishConfigLoader.ts`
+- 类型/默认值：`projects/fish/gameplay/common/types.ts`
+- 现有资产：`projects/fish/asset/config/`（cannon/fish/boss/school/troop）、`projects/eatfish/asset/config/`（eatfish.config.json / fish.table.json）

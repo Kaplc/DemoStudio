@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：第一次接触本仓库想建立全局认知时、要改某个功能但不知道该看哪篇文档时、判断一段代码属于「引擎 / 编辑器 / 项目 / 资产」哪一层时、新增子系统后要同步架构认知时。
 >
-> 代码位置：`src/engine/`（引擎）、`src/editor/` + `src/components/` + `src/stores/`（编辑器）、`src/projects/`（游戏项目）
+> 代码位置：`src/engine/`（引擎）、`src/editor/` + `src/components/` + `src/stores/`（编辑器）、`projects/`（游戏项目，工程单根）
 >
 > 统计基准：2026-09-10 全量实扫（`find` / `grep` + 逐后缀计数），**非沿用旧稿数字**
 
@@ -16,8 +16,8 @@
 |---|---|---|---|
 | **引擎层** | `src/engine/` | 运行时通用能力：对象层级 + 组件 + 游戏流 + 渲染/UI/输入/物理 | 加组件、改游戏流、改渲染或命中逻辑 |
 | **编辑器层** | `src/editor/` + `src/components/` + `src/stores/` | 编辑期能力：视口、选择变换、蓝图编辑、资产检查 | 改面板、改编辑器行为、加调试能力 |
-| **项目层** | `src/projects/` + `projects/`（外部根） | 具体游戏的玩法实现（每个目录一个游戏；外部根工程由 glob 自动并入） | 写玩法、加关卡、加 GameMode |
-| **资产层** | `src/projects/*/asset/` | 数据资产：场景 / 蓝图 / UI widget / 配置表，由 `import.meta.glob` 自动注册 | 配场景、写蓝图、调数值 |
+| **项目层** | `projects/`（工程单根） | 具体游戏的玩法实现（每个目录一个游戏；由 glob 自动发现并入注册表） | 写玩法、加关卡、加 GameMode |
+| **资产层** | `projects/*/asset/` | 数据资产：场景 / 蓝图 / UI widget / 配置表，由 `import.meta.glob` 自动注册 | 配场景、写蓝图、调数值 |
 
 **关键心智模型**：本仓库是**单向依赖链**——`projects/` → `editor/` → `engine/`，**引擎永远不反向 import 编辑器或项目**。
 
@@ -29,9 +29,9 @@
 
 ```mermaid
 flowchart LR
-    subgraph PROJ[项目层 src/projects + projects（外部根）]
+    subgraph PROJ[项目层 projects/（工程单根）]
         Fish["fish（ClashMaster）<br/>完整参照实现"]
-        Others["内部 arena / demo2d<br/>外部 warm-current / hoi4 / hello"]
+        Others["arena / demo2d<br/>warm-current / hoi4 / hello"]
     end
     subgraph EDIT[编辑器层 src/editor + components + stores]
         Core["Editor 核心<br/>生命周期 / 事件总线"]
@@ -142,31 +142,26 @@ export { NavigationModule } from './navigation/NavigationModule'
 
 ## 5. 项目与资产
 
-### 5.1 项目清单（内置 3 个 + 外部根工程 3 个）
+### 5.1 项目清单（工程单根 projects/，共 6 个）
 
-实扫得到 **内置 3 个项目**（`src/projects/`：fish / arena / demo2d；旧稿写的 snake / racing / eatfish 与 `mainmenu` **均已删除**）+ **外部根工程 3 个**（仓库根 `projects/`：warm-current / hoi4 / hello）。每个工程含 `project.json` + `register.ts`：
+实扫得到 **6 个项目**（`projects/`：fish / arena / demo2d / warm-current / hoi4 / hello；旧稿写的 snake / racing / eatfish 与 `mainmenu` **均已删除**；原内置 3 个已于 2026-09-17 从 src 下迁入，见 doc-dev/projects-root-unification）。每个工程含 `project.json` + `register.ts`：
 
 ```ts
-const ALL_PROJECTS: ProjectModule[] = [
-  demo2DProject,
-  fishMasterProject,
-  arenaProject,
-]
-
-// 外部工程根（仓库根 projects/）自动收集：eager glob，同名覆盖内置并告警
+// src/editor/projects/registry.ts —— 工程统一走 glob 自动发现（eager），无静态 import 轨
 const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/*/register.ts', { eager: true })
+const ALL_PROJECTS: ProjectModule[] = []   // glob 收集结果按序填入（重名兜底覆盖 + warn）
 ```
 
-> **这段代码说明什么**（[registry.ts:81](../src/projects/registry.ts#L81)）：**内置项目是手写数组，外部根工程走 `import.meta.glob` 自动扫描**（同名外部工程优先覆盖内置，支持"复制 fish 到 projects/ 魔改、不污染案例库"）。新增内置项目改数组；新增外部工程只需建目录 + `register.ts`，但要重启 dev server（eager glob 不热更）。逐条依据见 [外部根目录工程方案](./dev/external_project_roots.md)。
+> **这段代码说明什么**（[registry.ts](../src/editor/projects/registry.ts)）：**全部项目走 `import.meta.glob` 自动扫描**，无需改 registry——新建工程目录 + `register.ts` 后重启 dev server 即被并入（eager glob 不热更）。设计沿革（内置/外部双轨）见 [外部根目录工程方案](./dev/external_project_roots.md)（已退役）与 [单根化迁移方案](../../doc-dev/projects-root-unification/plan.md)。
 
 | 项目（`ProjectModule.name`） | 目录 | 玩法 | ts/tsx | 文档 |
 |---|---|---|---:|---|
-| `ClashMaster` | `src/projects/fish/` | 基地建造 + 兵种训练 + 攻打敌方基地，**完整参照实现** | 82 | [ClashMaster](./projects/clash_master.md)、[关卡](./projects/level_system.md)、[战斗](./projects/battle_system.md)、[炮口闪光](./projects/muzzle_flash_component.md) |
-| `Arena` | `src/projects/arena/` | 第三人称动作 Roguelite 竞技场（引擎深水区测试场） | 14 | — |
-| `Demo2D` | `src/projects/demo2d/` | 2D 正交相机 + Sprite 演示 | 8 | — |
-| `WarmCurrent` | `projects/warm-current/`（外部） | 《暖流计划》拖拽画线星际物流生存 | 59 | [实现报告](../doc-dev/warm-current/implementation.md) |
-| `Hoi4` | `projects/hoi4/`（外部） | HOI4-like 大战略 demo | 56 | — |
-| `Hello` | `projects/hello/`（外部） | 外部工程根示例（最小 3D 工程） | 7 | — |
+| `ClashMaster` | `projects/fish/` | 基地建造 + 兵种训练 + 攻打敌方基地，**完整参照实现** | 82 | [ClashMaster](./projects/clash_master.md)、[关卡](./projects/level_system.md)、[战斗](./projects/battle_system.md)、[炮口闪光](./projects/muzzle_flash_component.md) |
+| `Arena` | `projects/arena/` | 第三人称动作 Roguelite 竞技场（引擎深水区测试场） | 14 | — |
+| `Demo2D` | `projects/demo2d/` | 2D 正交相机 + Sprite 演示 | 8 | — |
+| `WarmCurrent` | `projects/warm-current/` | 《暖流计划》拖拽画线星际物流生存 | 59 | [实现报告](../doc-dev/warm-current/implementation.md) |
+| `Hoi4` | `projects/hoi4/` | HOI4-like 大战略 demo | 56 | — |
+| `Hello` | `projects/hello/` | 外部工程根示例（最小 3D 工程） | 7 | — |
 
 `fish/` 与 `arena/` 都有 `gameplay/` 目录（fish 77 个 ts，按 `menu` / `base` / `level` / `battle` / `game` / `gm` / `common` 分包；arena 14 个），也是新项目的结构样板；外部根工程 hoi4 / warm-current 同样按此结构。写 gameplay 代码前必读 [gameplay 代码规范](./projects/gameplay_code_standard.md)。
 
@@ -183,7 +178,7 @@ const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/
 
 > **口径**：上表只统计 `src/` 递归（内置工程）。仓库根 `projects/` 外部根工程的资产不在此列。
 
-> **资产文件新增无需改代码**：项目 `asset/` 目录由 `import.meta.glob` 自动注册（见 `src/projects/fish/asset/index.ts` 的 `registerFishAssets`）。**这条只对资产成立，对 `gameplay/` 下的 `.ts` 不成立**。
+> **资产文件新增无需改代码**：项目 `asset/` 目录由 `import.meta.glob` 自动注册（见 `projects/fish/asset/index.ts` 的 `registerFishAssets`）。**这条只对资产成立，对 `gameplay/` 下的 `.ts` 不成立**。
 
 ---
 
@@ -199,10 +194,10 @@ const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/
 | 编辑器 .ts/.tsx 文件 | 74 | `find src/editor -name "*.ts*"`（根 24 + asset 36 / blueprintEdit 5 / codeLint 8 / configEdit 1） |
 | React 面板文件 | 61 | `find src/components -name "*.ts*"`（根 27 + agent 33 + icons 1） |
 | zustand store | 4 | `ls src/stores`（4 个 store + `projectMerge.ts` 纯函数） |
-| 游戏项目 | 3 内置 + 3 外部 | `ls -d src/projects/*/` + `ls -d projects/*/` |
+| 游戏项目 | 6（工程单根） | `ls -d projects/*/` |
 | 资产总数（6 类，仅 src/） | 94 | 逐后缀 `find src`（9+21+27+27+5+5） |
-| GM 命令文件 | 12 | `find src -name "*.gm.ts"`（fish 8 + arena 4） |
-| 行为脚本文件 | 17 | `find src/projects -name "*.script.ts"` |
+| GM 命令文件 | 12 | `find projects -name "*.gm.ts"`（fish 8 + arena 4） |
+| 行为脚本文件 | 17 | `find projects -name "*.script.ts"` |
 | `doc/` 文档总数 | 75 | `find doc -name "*.md"` |
 
 文档分布：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 5 / Harness 9 / 测试 4 / 游戏设计 14（`doc/game/`）/ 开发方案 1 / 根级 2（README + 维护规范）。完整索引见 [doc/README.md](./README.md)。
@@ -216,10 +211,10 @@ const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/
 | 引擎统一出口 | [index.ts](../src/engine/index.ts) | 274 个对外符号的唯一契约面（169 条 export） | 新增引擎能力必须在这里补 export |
 | 内置组件注册 | [registerBuiltinComponents.ts:56](../src/engine/tools/registerBuiltinComponents.ts#L56) | 注册 38 个组件工厂 | 幂等（`_registered` 标记） |
 | 内置 Actor 注册 | [registerBuiltinActors.ts:15](../src/engine/tools/registerBuiltinActors.ts#L15) | 注册 `'Actor'` 蓝图默认 baseClass | 项目行为类在各项目 `register.ts` 里注册 |
-| 项目模块收集 | [registry.ts:81](../src/projects/registry.ts#L81) | `ALL_PROJECTS` 内置手写数组 + 外部根 glob 并入 | **新增内置项目必须改这里**；外部工程建目录即可 |
-| 项目批量注册 | [registry.ts:76](../src/projects/registry.ts#L76) | 注册组件/Actor/AI/GM + 游戏工厂 | 配置表延迟到 `initProjectConfigs` |
-| 配置表延迟加载 | [registry.ts:105](../src/projects/registry.ts#L105) | 按项目名加载配置表 | 打开工程时才调 |
-| 工程资产注册/清理 | [registry.ts:119](../src/projects/registry.ts#L119) / [:130](../src/projects/registry.ts#L130) | 切工程时清旧资产再注册新资产 | 直接 `reset` + `clearAll` 三个注册表 |
+| 项目模块收集 | [registry.ts](../src/editor/projects/registry.ts) | `ALL_PROJECTS` 由 glob 收集填入（无静态 import 轨，重名兜底覆盖） | 新增项目建目录 + register.ts 即可（需重启 dev server） |
+| 项目批量注册 | [registry.ts:76](../src/editor/projects/registry.ts#L76) | 注册组件/Actor/AI/GM + 游戏工厂 | 配置表延迟到 `initProjectConfigs` |
+| 配置表延迟加载 | [registry.ts:105](../src/editor/projects/registry.ts#L105) | 按项目名加载配置表 | 打开工程时才调 |
+| 工程资产注册/清理 | [registry.ts:119](../src/editor/projects/registry.ts#L119) / [:130](../src/editor/projects/registry.ts#L130) | 切工程时清旧资产再注册新资产 | 直接 `reset` + `clearAll` 三个注册表 |
 | 编辑器启动 | [Editor.ts:38](../src/editor/Editor.ts#L38) | `init` 按顺序拉起子系统 | ⚠️ 只能调一次（见 §9 坑 2） |
 | 编辑器销毁 | [Editor.ts:123](../src/editor/Editor.ts#L123) | 执行 `cleanupFns` 收摊 | 所有清理函数都在 `init` 里 push |
 | 事件桥接 | [EditorInitializer.ts:67](../src/editor/EditorInitializer.ts#L67) | `editorBus` → zustand 的 3 条映射 | 加底层→UI 通知就在这加一行 |
@@ -297,7 +292,7 @@ const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/
 **5. 以为「项目都是自动扫描注册的」**
 
 现象：资产确实由 `import.meta.glob` 自动注册，外部根工程（`projects/`）也被 glob 自动并入，于是以为内置项目同样自动，结果新增内置项目后 `ALL_PROJECTS` 没加条目，游戏工厂永远查不到。
-规则：**资产全自动；外部根工程自动（eager glob，改完需重启 dev server）；内置项目必须手改数组**。`src/projects/registry.ts:81` 的 `ALL_PROJECTS` 数组新增内置项目必须手动加。
+规则：**资产全自动；工程统一自动（eager glob，改完需重启 dev server）**。`src/editor/projects/registry.ts` 不再维护静态数组（2026-09-17 单根化迁移后 ALL_PROJECTS 只由 glob 收集）。
 
 **6. 把统计口径混为一谈**
 

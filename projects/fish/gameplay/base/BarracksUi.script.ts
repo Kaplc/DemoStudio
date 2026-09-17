@@ -28,7 +28,7 @@ import type { Actor } from '@/engine'
 import type { FishBaseGameMode } from './FishBaseGameMode'
 import type { FishGameInstance } from '../FishGameInstance'
 
-/** 兵种卡片蓝图路径（相对 src/projects/，由 BlueprintRegistry 注册） */
+/** 兵种卡片蓝图路径（相对工程 asset/，由 BlueprintRegistry 注册） */
 const TROOP_CARD_BLUEPRINT = 'asset/blueprints/ui/troop_card.widget.json'
 
 /** 兵种色数字 → CSS hex（如 0xe53935 → "#e53935"） */

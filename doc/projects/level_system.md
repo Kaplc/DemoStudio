@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：新增一个关卡（加表行 + 场景资产）、改解锁条件或星级规则、排查「卡片点了没反应 / 关卡锁着进不去 / 星级没涨 / 回基地卡住」。
 >
-> 代码位置：`src/projects/fish/gameplay/level/`、`src/projects/fish/gameplay/base/MapPanel.script.ts`、`src/projects/fish/gameplay/common/ProgressionService.ts`
+> 代码位置：`projects/fish/gameplay/level/`、`projects/fish/gameplay/base/MapPanel.script.ts`、`projects/fish/gameplay/common/ProgressionService.ts`
 
 ---
 
@@ -12,10 +12,10 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts) | 阶段路由主人：`enterLevel` / `switchToPhase` / `returnToBase`，持有 `_levelId` | 加阶段、改场景选择规则、改进关校验 |
-| [MapPanel.script.ts](../../src/projects/fish/gameplay/base/MapPanel.script.ts) | 读 `fish.levels` 表动态生成关卡卡片，判锁 + 展示星级 | 改卡片外观、改解锁文案、加字段展示 |
-| [ProgressionService.ts](../../src/projects/fish/gameplay/common/ProgressionService.ts) | 评星 + 写 `levelRecords` + 判解锁 + 三星首杀发宝石 | 改星级规则、改解锁口径、加奖励 |
-| [FishLevelGameMode.ts](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 关卡战斗本体（敌方建筑 / 放兵 / 胜负 / 结算弹面板） | 改战斗玩法，见 [battle_system.md](./battle_system.md) |
+| [FishGameInstance.ts](../../projects/fish/gameplay/FishGameInstance.ts) | 阶段路由主人：`enterLevel` / `switchToPhase` / `returnToBase`，持有 `_levelId` | 加阶段、改场景选择规则、改进关校验 |
+| [MapPanel.script.ts](../../projects/fish/gameplay/base/MapPanel.script.ts) | 读 `fish.levels` 表动态生成关卡卡片，判锁 + 展示星级 | 改卡片外观、改解锁文案、加字段展示 |
+| [ProgressionService.ts](../../projects/fish/gameplay/common/ProgressionService.ts) | 评星 + 写 `levelRecords` + 判解锁 + 三星首杀发宝石 | 改星级规则、改解锁口径、加奖励 |
+| [FishLevelGameMode.ts](../../projects/fish/gameplay/level/FishLevelGameMode.ts) | 关卡战斗本体（敌方建筑 / 放兵 / 胜负 / 结算弹面板） | 改战斗玩法，见 [battle_system.md](./battle_system.md) |
 
 **关键心智模型**：关卡**不新增阶段枚举**。`_levelId` 非空就走关卡场景，`null` 就走海域场景，两者共用 `switchToPhase('game')`；场景资产里的 `mode: "level"` 决定 `World` 创建哪个 GameMode。所以「加关卡」不需要改任何阶段调度代码。
 
@@ -25,13 +25,13 @@
 
 ### 2.1 谁发起了它
 
-基地 HUD 的「地图」按钮打开关卡选择面板（[BaseHud.script.ts:70](../../src/projects/fish/gameplay/base/BaseHud.script.ts)）：
+基地 HUD 的「地图」按钮打开关卡选择面板（[BaseHud.script.ts:70](../../projects/fish/gameplay/base/BaseHud.script.ts)）：
 
 ```ts
 mapBtn.onClick = () => mode.toggleMapPanel()
 ```
 
-`toggleMapPanel` 在 [FishBaseGameMode.ts:260](../../src/projects/fish/gameplay/base/FishBaseGameMode.ts)：
+`toggleMapPanel` 在 [FishBaseGameMode.ts:260](../../projects/fish/gameplay/base/FishBaseGameMode.ts)：
 
 ```ts
 toggleMapPanel() {
@@ -72,7 +72,7 @@ flowchart TD
   N --> O["Pause → DestroyAllActors → setupLevelPhase → BeginPlay"]
 ```
 
-**① 地图面板读表生成卡片**（[MapPanel.script.ts:62](../../src/projects/fish/gameplay/base/MapPanel.script.ts) 起）：
+**① 地图面板读表生成卡片**（[MapPanel.script.ts:62](../../projects/fish/gameplay/base/MapPanel.script.ts) 起）：
 
 ```ts
 const levelTable = inst?.getLevelTable()
@@ -112,7 +112,7 @@ cardBtn.onClick = () => {
 
 `enterLevel` 同步返回 boolean，`void` 只是显式丢弃返回值。面板先判一次锁，`enterLevel` 内再判一次——**双保险**，防调试桥 `__fishBattle.enterLevel` 绕过 UI 直进锁着的关。
 
-**④ `enterLevel` 本体**（[FishGameInstance.ts:849](../../src/projects/fish/gameplay/FishGameInstance.ts)）：
+**④ `enterLevel` 本体**（[FishGameInstance.ts:849](../../projects/fish/gameplay/FishGameInstance.ts)）：
 
 ```ts
 enterLevel(id: string): boolean {
@@ -182,7 +182,7 @@ mode.onBattleOver = () => {
 
 ### 2.3 结算与返回
 
-胜负一定，[FishLevelGameMode.ts:714](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) 的 `finishBattle` 收口：
+胜负一定，[FishLevelGameMode.ts:714](../../projects/fish/gameplay/level/FishLevelGameMode.ts) 的 `finishBattle` 收口：
 
 ```ts
 private finishBattle(win: boolean): void {
@@ -205,7 +205,7 @@ private finishBattle(win: boolean): void {
 
 `battleEnded` 和 `lootSettled` 是**两把锁**：前者停兵 AI/防御塔，后者保掠夺只入账一次（缺一个会出现「大本营已炸，防御塔还在打最后一颗弹丸」或重复发钱）。顺序是**先发钱 → 再 `setPhase('gameover')` → 再评星**，评星在 `onBattleOver` 里，`try/catch` 保证星级存档异常不吞掉结算面板。结算面板在此 `spawnUIActor` 动态生成，并非常驻 HUD——`HUDClass` 是 `battle_hud`（战斗中的兵种卡片栏）。
 
-星级在 [ProgressionService.ts:71](../../src/projects/fish/gameplay/common/ProgressionService.ts) 算：
+星级在 [ProgressionService.ts:71](../../projects/fish/gameplay/common/ProgressionService.ts) 算：
 
 ```ts
 static evaluateStars(destroyRate: number, townhallDestroyed: boolean): number {
@@ -219,7 +219,7 @@ static evaluateStars(destroyRate: number, townhallDestroyed: boolean): number {
 
 三条**独立累加**（不是互斥档位）：100% 全拆自动拿 3 星，因为它同时满足 50% 和大本营两个条件。
 
-返回基地有两条路：结算面板的「回基地」按钮（[BattleResult.script.ts:60](../../src/projects/fish/gameplay/battle/BattleResult.script.ts) `backBtn.onClick = () => inst.returnToBase()`），以及出海玩法 `gameState.phase === 'gameover'` 的自动回城（`FishGameInstance.ts:703`）。两条都收敛到 `returnToBase()`（`FishGameInstance.ts:791`）：
+返回基地有两条路：结算面板的「回基地」按钮（[BattleResult.script.ts:60](../../projects/fish/gameplay/battle/BattleResult.script.ts) `backBtn.onClick = () => inst.returnToBase()`），以及出海玩法 `gameState.phase === 'gameover'` 的自动回城（`FishGameInstance.ts:703`）。两条都收敛到 `returnToBase()`（`FishGameInstance.ts:791`）：
 
 ```ts
 returnToBase() {
@@ -242,7 +242,7 @@ returnToBase() {
 
 ## 3. 关卡数据与存档
 
-**配置表** [levels.table.json](../../src/projects/fish/asset/config/levels.table.json)：键是关卡 id，行结构由 [types.ts:343](../../src/projects/fish/gameplay/common/types.ts) 的 `LevelType` 定义。
+**配置表** [levels.table.json](../../projects/fish/asset/config/levels.table.json)：键是关卡 id，行结构由 [types.ts:343](../../projects/fish/gameplay/common/types.ts) 的 `LevelType` 定义。
 
 | 字段 | 谁读它 | 说明 |
 |---|---|---|
@@ -270,7 +270,7 @@ isLevelUnlocked(requirement: { levelId: string, stars: number } | undefined): bo
 
 **写点**在 `settleBattle`（`ProgressionService.ts:94`），只增不减：`bestStars` 和 `bestDestroyRate` 都取 `Math.max`，三星首杀通过 `addGems` 回调发 10 宝石。
 
-**存档**：`levelRecords` 走 `SaveSlotComponent`，文件是 [FishSaveAdapter.ts:42](../../src/projects/fish/gameplay/common/FishSaveAdapter.ts) 定义的 `src/projects/fish/data/save.json`。写入分三层——`settleBattle` 里 `save.set` 只改内存；资源/训练变化经 `syncRuntimeKeys` 监听器（`FishGameInstance.ts:155`）同步；**真正落盘只有玩家点存档菜单的 `saveGame()`**（`FishGameInstance.ts:203`，内部 `syncRuntimeKeys` + `writeMetaKeys` + `save.flush(true)`）。战斗打完不点保存就退出，星级会丢。另有 `clearedLevels`（`FishSaveAdapter.ts:196`）记录通关 id，现阶段只写不读。
+**存档**：`levelRecords` 走 `SaveSlotComponent`，文件是 [FishSaveAdapter.ts:42](../../projects/fish/gameplay/common/FishSaveAdapter.ts) 定义的 `projects/fish/data/save.json`。写入分三层——`settleBattle` 里 `save.set` 只改内存；资源/训练变化经 `syncRuntimeKeys` 监听器（`FishGameInstance.ts:155`）同步；**真正落盘只有玩家点存档菜单的 `saveGame()`**（`FishGameInstance.ts:203`，内部 `syncRuntimeKeys` + `writeMetaKeys` + `save.flush(true)`）。战斗打完不点保存就退出，星级会丢。另有 `clearedLevels`（`FishSaveAdapter.ts:196`）记录通关 id，现阶段只写不读。
 
 ---
 
@@ -278,19 +278,19 @@ isLevelUnlocked(requirement: { levelId: string, stars: number } | undefined): bo
 
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| `toggleMapPanel` / `closeMapPanel` | [FishBaseGameMode.ts:260](../../src/projects/fish/gameplay/base/FishBaseGameMode.ts) / [:282](../../src/projects/fish/gameplay/base/FishBaseGameMode.ts) | 开关关卡选择面板 | 打开前强制 `exitBuildMode()` |
-| `MapPanelScript.onStart` | [MapPanel.script.ts:43](../../src/projects/fish/gameplay/base/MapPanel.script.ts) | 读表生成卡片 + 判锁 + 绑点击 | 表未加载时只 warn，列表为空 |
-| `enterLevel(id)` | [FishGameInstance.ts:849](../../src/projects/fish/gameplay/FishGameInstance.ts) | 校验 → 设 `_levelId` → 切场景 | 返回 `boolean`，失败只 warn |
-| `switchToPhase(phase)` | [FishGameInstance.ts:589](../../src/projects/fish/gameplay/FishGameInstance.ts) | 按 `_levelId` 选场景名 → `SwitchToScene` | 场景未注册 / mode 未注册都返回 false |
+| `toggleMapPanel` / `closeMapPanel` | [FishBaseGameMode.ts:260](../../projects/fish/gameplay/base/FishBaseGameMode.ts) / [:282](../../projects/fish/gameplay/base/FishBaseGameMode.ts) | 开关关卡选择面板 | 打开前强制 `exitBuildMode()` |
+| `MapPanelScript.onStart` | [MapPanel.script.ts:43](../../projects/fish/gameplay/base/MapPanel.script.ts) | 读表生成卡片 + 判锁 + 绑点击 | 表未加载时只 warn，列表为空 |
+| `enterLevel(id)` | [FishGameInstance.ts:849](../../projects/fish/gameplay/FishGameInstance.ts) | 校验 → 设 `_levelId` → 切场景 | 返回 `boolean`，失败只 warn |
+| `switchToPhase(phase)` | [FishGameInstance.ts:589](../../projects/fish/gameplay/FishGameInstance.ts) | 按 `_levelId` 选场景名 → `SwitchToScene` | 场景未注册 / mode 未注册都返回 false |
 | `World.SwitchToScene` | [World.ts:671](../../src/engine/gameflow/World.ts) | 按 name 查资产 → 按 mode 建 GameMode → 切 | `extraSetup` 在 `BeginPlay` 前跑 |
-| `setupLevelPhase` | [FishGameInstance.ts:716](../../src/projects/fish/gameplay/FishGameInstance.ts) | 托管相机、接 controller、注结算回调 | controller 为空会 `logger.error` |
-| `FishLevelGameMode.BeginPlay` | [FishLevelGameMode.ts:141](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 收建筑、建寻路网格、读 `timeLimit` | `collectBuildings` 必须在此（ref 节点已建网格） |
-| `finishBattle(win)` | [FishLevelGameMode.ts:714](../../src/projects/fish/gameplay/level/FishLevelGameMode.ts) | 掠夺入账 → gameover → 评星 → 弹结算面板 | `battleEnded` / `lootSettled` 双锁 |
-| `evaluateStars` | [ProgressionService.ts:71](../../src/projects/fish/gameplay/common/ProgressionService.ts) | 50% / 大本营 / 100% 三条独立累加 | 100% 必得 3 星 |
-| `settleBattle` | [ProgressionService.ts:94](../../src/projects/fish/gameplay/common/ProgressionService.ts) | 写 `levelRecords`，三星首杀发宝石 | `levelId` 为 null（普通出征）时只上报成就 |
-| `isLevelUnlocked` | [ProgressionService.ts:129](../../src/projects/fish/gameplay/common/ProgressionService.ts) | 实时比对前置关卡星级 | 未解锁用 `debug` 级日志，不刷屏 |
-| `returnToBase` | [FishGameInstance.ts:791](../../src/projects/fish/gameplay/FishGameInstance.ts) | 清 `_levelId` / 相机 / controller → 切 base | 清 `_gameMode` 与 `_levelGameMode` 两处 |
-| `saveGame` | [FishGameInstance.ts:203](../../src/projects/fish/gameplay/FishGameInstance.ts) | 全量采集 + `flush(true)` 落盘 | 唯一常规写盘入口 |
+| `setupLevelPhase` | [FishGameInstance.ts:716](../../projects/fish/gameplay/FishGameInstance.ts) | 托管相机、接 controller、注结算回调 | controller 为空会 `logger.error` |
+| `FishLevelGameMode.BeginPlay` | [FishLevelGameMode.ts:141](../../projects/fish/gameplay/level/FishLevelGameMode.ts) | 收建筑、建寻路网格、读 `timeLimit` | `collectBuildings` 必须在此（ref 节点已建网格） |
+| `finishBattle(win)` | [FishLevelGameMode.ts:714](../../projects/fish/gameplay/level/FishLevelGameMode.ts) | 掠夺入账 → gameover → 评星 → 弹结算面板 | `battleEnded` / `lootSettled` 双锁 |
+| `evaluateStars` | [ProgressionService.ts:71](../../projects/fish/gameplay/common/ProgressionService.ts) | 50% / 大本营 / 100% 三条独立累加 | 100% 必得 3 星 |
+| `settleBattle` | [ProgressionService.ts:94](../../projects/fish/gameplay/common/ProgressionService.ts) | 写 `levelRecords`，三星首杀发宝石 | `levelId` 为 null（普通出征）时只上报成就 |
+| `isLevelUnlocked` | [ProgressionService.ts:129](../../projects/fish/gameplay/common/ProgressionService.ts) | 实时比对前置关卡星级 | 未解锁用 `debug` 级日志，不刷屏 |
+| `returnToBase` | [FishGameInstance.ts:791](../../projects/fish/gameplay/FishGameInstance.ts) | 清 `_levelId` / 相机 / controller → 切 base | 清 `_gameMode` 与 `_levelGameMode` 两处 |
+| `saveGame` | [FishGameInstance.ts:203](../../projects/fish/gameplay/FishGameInstance.ts) | 全量采集 + `flush(true)` 落盘 | 唯一常规写盘入口 |
 
 ---
 
@@ -319,7 +319,7 @@ isLevelUnlocked(requirement: { levelId: string, stars: number } | undefined): bo
 
 ## 6. 踩坑清单
 
-**1. 卡片点了没反应，日志刷「关卡未解锁」却看不到** —— `isLevelUnlocked` 用 `logger.debug` 输出，默认不可见；面板侧只在点击时才 `logger.warn`。规则：先查 `levelRecords[前置关].bestStars`；要强制写 3★，停游戏后直接改存档 `src/projects/fish/data/save.json` 的 `levelRecords.<关卡id>.bestStars = 3` 再重进（`ProgressionService.gmUnlockLevel()` 全仓无调用方、也未注册 GM 命令，控制台不可达，要用得先加一条 `*.gm.ts` 包装）。
+**1. 卡片点了没反应，日志刷「关卡未解锁」却看不到** —— `isLevelUnlocked` 用 `logger.debug` 输出，默认不可见；面板侧只在点击时才 `logger.warn`。规则：先查 `levelRecords[前置关].bestStars`；要强制写 3★，停游戏后直接改存档 `projects/fish/data/save.json` 的 `levelRecords.<关卡id>.bestStars = 3` 再重进（`ProgressionService.gmUnlockLevel()` 全仓无调用方、也未注册 GM 命令，控制台不可达，要用得先加一条 `*.gm.ts` 包装）。
 
 **2. 页面 hidden 导致 tick 停摆，动态生成的面板卡在 pendingSpawn** —— Playwright 集成浏览器 `visibilityState` 常为 hidden，rAF 暂停 → 游戏 tick 停 → `spawnUIActor` 的关卡卡片停在 pendingSpawn 队列，`MapPanelScript.onStart` 根本不执行。规则：浏览器验证时手动 `__fishBattle.startTickDriver()` 驱动，真实 Electron 无此问题。
 

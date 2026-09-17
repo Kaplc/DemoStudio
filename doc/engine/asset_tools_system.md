@@ -45,7 +45,7 @@ void import("../projects/registry")                 // 动态 import：斩断 ag
 > **为什么用动态 `import`**：Agent 独立窗口（`agent.html`）也依赖这个 store，顶层静态导入会把**全部游戏资产和 gameplay 脚本**拖进 agent 的依赖图。动态 import 斩断这条边，只有主编辑器首次切工程时才加载一次。
 > **为什么先注册资产再 `set(currentProject)`**：资产未就绪时 UI 就可见的话，场景大纲、蓝图下拉框会读到空注册表。
 
-`registerProjectAssets` 定义在 [registry.ts](../../src/projects/registry.ts):119：
+`registerProjectAssets` 定义在 [registry.ts](../../src/editor/projects/registry.ts):119：
 
 ```ts
 export function registerProjectAssets(name: string): void {
@@ -62,7 +62,7 @@ export function registerProjectAssets(name: string): void {
 
 ### 2.2 注册链路：`import.meta.glob` 怎么做到「新增文件不用改代码」
 
-[fish/asset/index.ts](../../src/projects/fish/asset/index.ts) 全文就是注册逻辑：
+[fish/asset/index.ts](../../projects/fish/asset/index.ts) 全文就是注册逻辑：
 
 ```ts
 export function registerFishAssets(): void {
@@ -173,7 +173,7 @@ export function registerBuiltinComponents(): void {
   // ... 几百行 ComponentRegistry.register(...) 调用
 ```
 
-> **为什么需要它**：这两个函数在 [registry.ts](../../src/projects/registry.ts):80 被 `registerAllProjectModules` 调用，而后者在 HMR 重载时会再跑一遍。没有标记，每次热更新都会重建全部工厂。
+> **为什么需要它**：这两个函数在 [registry.ts](../../src/editor/projects/registry.ts):80 被 `registerAllProjectModules` 调用，而后者在 HMR 重载时会再跑一遍。没有标记，每次热更新都会重建全部工厂。
 
 `ComponentRegistry.create` 还藏了一个**很有价值的自诊断**——工厂漏接检测：
 
@@ -207,7 +207,7 @@ function runWithDropCheck(type: string, context: string, props: PropertyPatch, r
 
 ### 3.2 GameMode 工厂
 
-[GameModeRegistry.ts](../../src/engine/tools/GameModeRegistry.ts):20 最简单——`mode` 字符串 → 构造函数，`create(mode)` 未注册返回 `null`。它是**场景资产与 gameplay 之间的唯一接缝**：`SceneAsset.mode` 通过它决定起哪个 GameMode。注册写在项目侧（[fish/register.ts](../../src/projects/fish/register.ts):20）：
+[GameModeRegistry.ts](../../src/engine/tools/GameModeRegistry.ts):20 最简单——`mode` 字符串 → 构造函数，`create(mode)` 未注册返回 `null`。它是**场景资产与 gameplay 之间的唯一接缝**：`SceneAsset.mode` 通过它决定起哪个 GameMode。注册写在项目侧（[fish/register.ts](../../projects/fish/register.ts):20）：
 
 ```ts
 GameModeRegistry.register('menu', FishMainMenuGameMode)   // 项目 register.ts 里一行一个 mode
@@ -236,20 +236,20 @@ throw new Error(`[ConfigRegistry] 配置 "${name}" 未注册（需先 registerDe
 
 > 这个设计让 `loadConfig` 可以 **fire-and-forget**（`void this.loadConfig(...)`）：JSON 经 IPC 异步读，但消费方（GameMode / Pawn 构造）是同步的。竞态下最多首帧用默认值，**不抛错、不返回 undefined**。
 >
-> 反过来 `getTable` 返回 `undefined` 而不是抛错，因为数据表**经常真的没配**。消费方一律 `?? null` 或 `if` 守卫——`FishGameInstance.ts:965` 即 `ConfigRegistry.getTable<LevelType>('fish.levels')`（[FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts)），调用侧再 `?? null`。
+> 反过来 `getTable` 返回 `undefined` 而不是抛错，因为数据表**经常真的没配**。消费方一律 `?? null` 或 `if` 守卫——`FishGameInstance.ts:965` 即 `ConfigRegistry.getTable<LevelType>('fish.levels')`（[FishGameInstance.ts](../../projects/fish/gameplay/FishGameInstance.ts)），调用侧再 `?? null`。
 
 半自动注册（[ConfigRegistry.ts](../../src/engine/tools/ConfigRegistry.ts):136）：
 
 ```ts
 const rel = key.replace(/^\.\//, '')
 const name = `${projectName}.${rel.replace(/\.config\.json$/, '')}`   // cannon.config.json → fish.cannon
-const path = `src/projects/${projectName}/asset/config/${rel}`
+const path = `projects/${projectName}/asset/config/${rel}`
 void this.loadConfig(name, path, this.configTransforms.get(name) as ((raw: any) => unknown) | undefined)
 ```
 
 **规则**：`cannon.config.json` → `fish.cannon`。注意**配置名前缀来自 `ConfigLoaderBase` 构造参数**（`super('fish', log)`），不是 `ProjectModule.name`（那个是 `'ClashMaster'`）。
 
-**`transform` 必须先注册**：`registerGlob` 内部是 `void loadConfig(...)` 立刻发起异步加载，晚注册的 transform 读不到。[FishConfigLoader.ts](../../src/projects/fish/FishConfigLoader.ts) 的顺序是铁律——先 `registerDefaults` / `registerTableTransform`，最后一行才 `registerGlob`。
+**`transform` 必须先注册**：`registerGlob` 内部是 `void loadConfig(...)` 立刻发起异步加载，晚注册的 transform 读不到。[FishConfigLoader.ts](../../projects/fish/FishConfigLoader.ts) 的顺序是铁律——先 `registerDefaults` / `registerTableTransform`，最后一行才 `registerGlob`。
 
 `mergeConfig`（[ConfigRegistry.ts:222](../../src/engine/tools/ConfigRegistry.ts)）的语义：**顶层键整体替换，不做深合并**。数组尤其危险——JSON 里写了一半数组，不会和默认值的另一半合并，而是整个覆盖。
 
@@ -282,7 +282,7 @@ acquire(opts?: any): T {
 }
 ```
 
-> **`maxSize` 超限时会「偷」一个正在活跃的对象**，不是拒绝分配。被偷的对象仍被业务逻辑引用，但已 `deactivate` + `root.visible = false`——表现为「子弹飞到一半凭空消失」。容量要按同屏峰值配，[FishObjectPools.ts](../../src/projects/fish/gameplay/game/FishObjectPools.ts):38 给的是子弹 30 / 网 20 / 闪光 30 / 气泡 15 / 兵种每类 50。`maxSize = 0` 表示**不限制**，永不回收。
+> **`maxSize` 超限时会「偷」一个正在活跃的对象**，不是拒绝分配。被偷的对象仍被业务逻辑引用，但已 `deactivate` + `root.visible = false`——表现为「子弹飞到一半凭空消失」。容量要按同屏峰值配，[FishObjectPools.ts](../../projects/fish/gameplay/game/FishObjectPools.ts):38 给的是子弹 30 / 网 20 / 闪光 30 / 气泡 15 / 兵种每类 50。`maxSize = 0` 表示**不限制**，永不回收。
 >
 > 隐藏靠 `root.visible = false`，对象**始终留在场景图里**，不参与活跃逻辑但也不销毁。
 

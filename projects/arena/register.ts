@@ -5,7 +5,7 @@
  * GM 命令零修改自动扫描（gameplay/gm/*.gm.ts）。
  */
 import { GameModeRegistry, GMRegistry, logger } from '@/engine'
-import type { ProjectModule } from '../registry'
+import type { ProjectModule } from '../../src/editor/projects/registry'
 import { ArenaGameInstance } from './gameplay/ArenaGameInstance'
 import { ArenaGameMode } from './gameplay/ArenaGameMode'
 import { registerArenaAssets } from './asset'

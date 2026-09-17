@@ -137,7 +137,7 @@ export class FishGameInstance extends GameInstance {
     // 训练部队组件：军队容量 40
     this.training = new TrainingComponent(this, { maxHousing: 40 })
     this.addComponent(this.training)
-    // 存档组件：整张 KV 表落盘到 src/projects/fish/data/save.json
+    // 存档组件：整张 KV 表落盘到 projects/fish/data/save.json
     // （手动存档模型：游戏过程只写内存 KV，不配置 autoFlush；
     //   唯一写盘入口是存档菜单"保存存档" → saveGame() → flush(force)）
     this.save = new SaveSlotComponent(this, {

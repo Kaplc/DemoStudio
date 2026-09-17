@@ -1,6 +1,6 @@
 /**
  * SceneAsset — 声明式场景资产类型定义
- * 由 JSON 文件描述（如 src/projects/fish/asset/fish_base.scene.json），
+ * 由 JSON 文件描述（如 projects/fish/asset/fish_base.scene.json），
  * SceneLoader 读取后归集为节点列表，由 World 层实例化为 Actor。
  *
  * 节点只保留新格式两类：

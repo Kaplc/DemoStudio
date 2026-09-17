@@ -51,7 +51,7 @@ export default defineBlueprint({
 - 逃生门：删除 json 中的 `sourceHash` 字段即转回手写资产
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/blueprints/**/*.blueprint.json`（如 `asset/blueprints/beach_house.blueprint.json`、`asset/blueprints/buildings/townhall.blueprint.json`）
+- 路径：`projects/<project>/asset/blueprints/**/*.blueprint.json`（如 `asset/blueprints/beach_house.blueprint.json`、`asset/blueprints/buildings/townhall.blueprint.json`）
 - 命名：`<描述>.blueprint.json`（snake_case）
 - 一个 Blueprint = "这个 Actor 子类默认长什么样"（对应 Unity Prefab / UE Blueprint Class 的类定义 + CDO 默认值），可被场景 `ref` 节点或其他蓝图 `ref` 引用
 
@@ -210,4 +210,4 @@ export default defineBlueprint({
 - 类型定义：`src/engine/asset/BlueprintAsset.ts`（含继承链 resolve 逻辑）
 - 检查器：`src/editor/asset/assetLint/checkers/docCheckers.ts`、`componentChecker.ts`
 - TS 源方案：`doc-dev/bp-ts-compile/plan.md`；DSL：`src/editor/asset/bpCompiler/dsl.ts`
-- 现有示例：`src/projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`；TS 源示例：`projects/warm-current/asset/blueprints/stars/earth.blueprint.ts`（+ 共享参数表 starDefs.ts）
+- 现有示例：`projects/fish/asset/blueprints/foundation.blueprint.json`（内联）、`beach_house_luxury.blueprint.json`（ref 引用）、`buildings/townhall.blueprint.json`；TS 源示例：`projects/warm-current/asset/blueprints/stars/earth.blueprint.ts`（+ 共享参数表 starDefs.ts）

@@ -1,12 +1,12 @@
 /**
- * projects/registry — 项目模块自动注册中心
+ * editor/projects/registry — 项目模块自动注册中心（编辑器侧）
  *
  * 每个项目通过 ProjectModule 接口自描述需要注册什么，
  * registry.ts 统一收集并自动完成注册。
  *
  * 新增游戏项目只需：
- *   1. 在项目目录下创建 register.ts，导出 ProjectModule
- *   2. 在本文件的 ALL_PROJECTS 数组中加入 import + 条目
+ *   1. 在 projects/<folder>/ 下创建 register.ts，导出 ProjectModule
+ *   2. 重启 dev server（或整页刷新）后被 import.meta.glob 自动发现
  */
 import type * as THREE from 'three'
 import {
@@ -21,9 +21,9 @@ import {
   registerGMBridge,
   registerBuiltinGMCommands,
   logger,
-} from '../engine'
-import { registerBuiltinAIHandlers } from '../engine/ai'
-import type { GameInstance } from '../engine'
+} from '../../engine'
+import { registerBuiltinAIHandlers } from '../../engine/ai'
+import type { GameInstance } from '../../engine'
 
 // ─── 项目注册模块接口 ───
 
@@ -44,16 +44,10 @@ export interface ProjectModule {
   registerAssets?: () => void
 }
 
-// ─── 逐个导入项目注册模块 ───
-
-import { demo2DProject } from './demo2d/register'
-import { fishMasterProject } from './fish/register'
-import { arenaProject } from './arena/register'
-
-// ─── 外部工程根（仓库根下 projects/）自动收集 ───
-// 内置工程走上方静态 import（ALL_PROJECTS 数组），外部工程走本 glob 动态并入同一个注册表。
+// ─── 工程根（仓库根下 projects/，单根）自动收集 ───
+// 全部工程（内置案例与用户自建同轨）走本 glob 动态收集进同一个注册表。
 // eager: true —— GameFactoryRegistry 的工厂签名是同步的（createGameInstance 同步契约），
-// 懒加载会破坏该契约。代价：新增外部工程后需重启 dev server（或整页刷新）才能被发现，
+// 懒加载会破坏该契约。代价：新增工程后需重启 dev server（或整页刷新）才能被发现，
 // 符合"创建工程"的交互节奏（见 doc/dev/external_project_roots.md §2）。
 const externalModules = import.meta.glob<{ default: ProjectModule }>('/projects/*/register.ts', { eager: true })
 
@@ -71,25 +65,21 @@ for (const [globPath, mod] of Object.entries(externalModules)) {
     if (candidate) {
       externalProjects.push(candidate)
     } else {
-      logger.warn(`[Registry] 外部工程模块缺少 ProjectModule 导出（跳过）: ${globPath}`)
+      logger.warn(`[Registry] 工程模块缺少 ProjectModule 导出（跳过）: ${globPath}`)
     }
   } catch (err) {
-    logger.warn(`[Registry] 外部工程模块解析失败（跳过）: ${globPath} — ${String(err)}`)
+    logger.warn(`[Registry] 工程模块解析失败（跳过）: ${globPath} — ${String(err)}`)
   }
 }
 
-const ALL_PROJECTS: ProjectModule[] = [
-  demo2DProject,
-  fishMasterProject,
-  arenaProject,
-]
+const ALL_PROJECTS: ProjectModule[] = []
 
-// 外部并入：同名（ProjectModule.name 相同）覆盖内置并告警（刻意支持"复制 fish 到 projects/
-// 魔改、不污染案例库"的工作流）；无冲突追加尾部
+// 重名兜底：同名（ProjectModule.name 相同）后者覆盖前者并告警（正常不会发生——
+// folder 唯一即 name 唯一；发生时说明有人复制工程改漏了 name，覆盖 + warn 足够定位）
 for (const ext of externalProjects) {
   const idx = ALL_PROJECTS.findIndex(p => p.name === ext.name)
   if (idx >= 0) {
-    logger.warn(`[Registry] 外部工程 "${ext.name}" 覆盖内置同名工程（外部优先，可魔改不污染案例库）`)
+    logger.warn(`[Registry] 工程 "${ext.name}" 重名，后者覆盖前者（请检查 folder/name 是否改漏）`)
     ALL_PROJECTS[idx] = ext
   } else {
     ALL_PROJECTS.push(ext)

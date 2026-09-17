@@ -35,7 +35,7 @@ async function readSource(srcPath: string): Promise<string | null> {
 
 /**
  * 编译 .widget.html → 覆写 .widget.json（lint 零错误门槛 + 预览同步）。
- * @param assetPath widget 资产路径（src/projects/.../xxx.widget.json）
+ * @param assetPath widget 资产路径（projects/.../xxx.widget.json）
  */
 export async function compileUiSourceToAsset(assetPath: string): Promise<UiCompileAction> {
   const srcPath = assetPath.replace(/\.widget\.json$/i, '.widget.html')
@@ -88,7 +88,7 @@ export async function compileUiSourceToAsset(assetPath: string): Promise<UiCompi
 /**
  * 反编译 widget.json → 回写 .widget.html（MCP ui_decompile 命令 / 手动触发）。
  * 读取已落盘的 json → 反编译 → 回写源文件。
- * @param assetPath widget 资产路径（src/projects/.../xxx.widget.json）
+ * @param assetPath widget 资产路径（projects/.../xxx.widget.json）
  */
 export async function decompileWidgetAsset(assetPath: string): Promise<UiCompileAction> {
   const out: UiCompileAction = { ok: false, errors: [], lintIssues: [], warnings: [] }

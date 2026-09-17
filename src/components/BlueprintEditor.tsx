@@ -42,7 +42,7 @@ interface BlueprintData {
   sourceHash?: string
 }
 
-/** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
+/** 磁盘路径（projects/...）→ 蓝图注册 key（asset/...） */
 function diskPathToAssetKey(diskPath: string): string {
   const idx = diskPath.indexOf('/asset/')
   return idx >= 0 ? diskPath.slice(idx + 1) : diskPath

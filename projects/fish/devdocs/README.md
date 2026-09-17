@@ -1,6 +1,6 @@
 # ClashMaster 功能规划文档索引
 
-> 本目录（`src/projects/fish/devdocs/`）存放 fish（ClashMaster）项目自身的功能规划文档，按系统分子目录，每个模块一份独立文档。
+> 本目录（`projects/fish/devdocs/`）存放 fish（ClashMaster）项目自身的功能规划文档，按系统分子目录，每个模块一份独立文档。
 > 系统级实现文档见仓库根目录 `doc/`（项目总览：`doc/projects/clash_master.md`，战斗系统：`doc/projects/battle_system.md`）。
 
 ## 文档目录

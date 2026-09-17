@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：改炮口闪光的大小/时长/亮度、排查「闪光不出现」「闪一下就没」「闪光被别人带崩了」、往别的地方加同类短命特效时决定「用组件还是用对象池」。
 >
-> 代码位置：`src/projects/fish/gameplay/game/comp/`
+> 代码位置：`projects/fish/gameplay/game/comp/`
 
 ---
 
@@ -12,10 +12,10 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [MuzzleFlashComponent.ts](../../src/projects/fish/gameplay/game/comp/MuzzleFlashComponent.ts) | 闪光本体：组合 `SpriteComponent` 建面片，`flash()` 触发、`Tick` 跑动画 | 改闪光外观、时长、放大速度、透明度 |
-| [FishCannon.ts](../../src/projects/fish/gameplay/game/FishCannon.ts) | 炮台 Pawn：构造时挂载组件，`tryFire()` 里触发一次 | 改触发时机/触发尺寸、换触发源 |
+| [MuzzleFlashComponent.ts](../../projects/fish/gameplay/game/comp/MuzzleFlashComponent.ts) | 闪光本体：组合 `SpriteComponent` 建面片，`flash()` 触发、`Tick` 跑动画 | 改闪光外观、时长、放大速度、透明度 |
+| [FishCannon.ts](../../projects/fish/gameplay/game/FishCannon.ts) | 炮台 Pawn：构造时挂载组件，`tryFire()` 里触发一次 | 改触发时机/触发尺寸、换触发源 |
 | [SpriteComponent.ts](../../src/engine/rendering/SpriteComponent.ts) | 引擎精灵组件：共享单位平面 + 每实例材质，提供 `setTexture` / `setOpacity` | 需要纹理/透明度之外的渲染能力 |
-| [FishFlash.ts](../../src/projects/fish/gameplay/game/FishFlash.ts) | 池化版通用闪光（对比物，非本组件依赖） | 要写「世界任意位置的一次性闪光」别抄本组件 |
+| [FishFlash.ts](../../projects/fish/gameplay/game/FishFlash.ts) | 池化版通用闪光（对比物，非本组件依赖） | 要写「世界任意位置的一次性闪光」别抄本组件 |
 
 **关键心智模型**：本组件**不是**对象池特效——它是**每个炮台常驻一份、反复复用同一张面片**的状态机。同一个闪光面片被无限次重播，靠 `age = 0` 重置，不回收、不新建。这是它与 `FishFlash` 的根本分野（见 §6 坑 4）。
 
@@ -25,7 +25,7 @@
 
 ### 2.1 谁触发了它
 
-调用方只有一处——`FishCannon.tryFire()`，在子弹发出之后触发（[FishCannon.ts:97](../../src/projects/fish/gameplay/game/FishCannon.ts)）：
+调用方只有一处——`FishCannon.tryFire()`，在子弹发出之后触发（[FishCannon.ts:97](../../projects/fish/gameplay/game/FishCannon.ts)）：
 
 ```ts
 // ─── 炮口闪光（MuzzleFlashComponent 自管动画；位置已固定在炮口，随 root 旋转自动跟随） ───
@@ -132,7 +132,7 @@ override Tick(dt: number): void {
 
 ## 3. 可调参数与配置对应
 
-组件三个公有字段都能在运行期直接改（[MuzzleFlashComponent.ts:51-55](../../src/projects/fish/gameplay/game/comp/MuzzleFlashComponent.ts)）：
+组件三个公有字段都能在运行期直接改（[MuzzleFlashComponent.ts:51-55](../../projects/fish/gameplay/game/comp/MuzzleFlashComponent.ts)）：
 
 | 组件字段 | 默认值 | 含义 | 对应来源 |
 |---|---|---|---|
@@ -140,7 +140,7 @@ override Tick(dt: number): void {
 | `grow` | `6` | 每秒放大系数，`scale = 1 + grow × age` | 硬编码默认值，无配置项 |
 | `baseOpacity` | `0.9` | 触发瞬间不透明度 | 硬编码默认值，无配置项 |
 
-**唯一的外部输入是触发尺寸**，来自炮台配置表（[cannon.config.json](../../src/projects/fish/asset/config/cannon.config.json)）：
+**唯一的外部输入是触发尺寸**，来自炮台配置表（[cannon.config.json](../../projects/fish/asset/config/cannon.config.json)）：
 
 ```ts
 this.getComponent(MuzzleFlashComponent)?.flash(cfg.netRadius * 2.6)
@@ -148,7 +148,7 @@ this.getComponent(MuzzleFlashComponent)?.flash(cfg.netRadius * 2.6)
 
 `cfg` 是 `ConfigRegistry.getConfig<CannonConfig>('fish.cannon')` 按 `level` 取的一档，`netRadius` 随炮等级递增（0.8 → 2.6），所以**炮等级越高，闪光越大**（初始尺寸 2.08 → 6.76）。2.6 这个倍数是经验值，写在 `FishCannon` 里而非组件里。
 
-**资产挂载？没有。** 全仓 `grep MuzzleFlash` 只命中两个 `.ts` 文件——组件是 `FishCannon` 构造函数里用代码挂的（[FishCannon.ts:35](../../src/projects/fish/gameplay/game/FishCannon.ts)），**不在任何蓝图/场景资产里**。别去 `cannon.blueprint.json` 找它，那份蓝图属于 ClashMaster 的建筑炮台 `CannonActor`，跟 `FishCannon` 不是一个东西。
+**资产挂载？没有。** 全仓 `grep MuzzleFlash` 只命中两个 `.ts` 文件——组件是 `FishCannon` 构造函数里用代码挂的（[FishCannon.ts:35](../../projects/fish/gameplay/game/FishCannon.ts)），**不在任何蓝图/场景资产里**。别去 `cannon.blueprint.json` 找它，那份蓝图属于 ClashMaster 的建筑炮台 `CannonActor`，跟 `FishCannon` 不是一个东西。
 
 ---
 
@@ -204,7 +204,7 @@ this.getComponent(MuzzleFlashComponent)?.flash(cfg.netRadius * 2.6)
 
 **4. 别把本组件当「通用闪光」用——它不是对象池，位置是写死的。**
 
-面片位置在构造时钉死在炮台本地坐标 `(0, 1.4, 0.3)`，靠挂在 `owner.root` 下随炮台旋转。它天生只服务「炮台炮口」这一个点。**规则**：要在世界任意位置放一次性闪光（比如鱼被捕获的光环），用池化的 [FishFlash.ts](../../src/projects/fish/gameplay/game/FishFlash.ts) + `pools.acquireFlash({...})`，它每次 `activate` 都重设位置与纹理。
+面片位置在构造时钉死在炮台本地坐标 `(0, 1.4, 0.3)`，靠挂在 `owner.root` 下随炮台旋转。它天生只服务「炮台炮口」这一个点。**规则**：要在世界任意位置放一次性闪光（比如鱼被捕获的光环），用池化的 [FishFlash.ts](../../projects/fish/gameplay/game/FishFlash.ts) + `pools.acquireFlash({...})`，它每次 `activate` 都重设位置与纹理。
 
 **5. `tryFire()` 里闪光在子弹之后触发，但两者互不阻塞。**
 

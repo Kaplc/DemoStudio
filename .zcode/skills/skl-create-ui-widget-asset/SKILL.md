@@ -31,7 +31,7 @@ doc/editor/ui/ui_widget_html_manual.md
 
 ### 1. 文件位置与命名
 
-- 源文件：`src/projects/<project>/asset/blueprints/ui/<描述>.widget.html`
+- 源文件：`projects/<project>/asset/blueprints/ui/<描述>.widget.html`
 - 编译产物：同目录同名 `<描述>.widget.json`（ui 目录下 .json 自动注册，无需写 path）
 - 编辑器保存 json 会自动反编译回写 html（渲染等效的"规范形"，属正常现象，别手工对抗）
 
@@ -57,7 +57,7 @@ doc/editor/ui/ui_widget_html_manual.md
 写完源文件后**必须调用 MCP `ui_compile` 工具**（不要用 CLI——CLI 不带 assetLint 门槛），**asset 参数传 `.widget.json` 路径**：
 
 ```json
-{ "asset": "src/projects/<project>/asset/blueprints/ui/<描述>.widget.json" }
+{ "asset": "projects/<project>/asset/blueprints/ui/<描述>.widget.json" }
 ```
 
 - 成功：json 自动落盘（已过 assetLint 零 error 门槛）；`warnings[]` 多为文本估算披露，逐条确认可接受
@@ -86,4 +86,4 @@ doc/editor/ui/ui_widget_html_manual.md
 - 系统文档：`doc/editor/ui/ui_source_format_system.md`（编译链路/双向同步/边界条件，改编译器时读）
 - 映射面全集：`devdoc/ui-html-source-format/full-mapping.md`
 - 编译器实现：`src/editor/asset/uiCompiler/`；组件实现：`src/engine/ui/`
-- 示例源：`src/projects/fish/asset/blueprints/ui/`（toast 最小例 → tasks_ui 动态列表 → gm_panel 全家桶）
+- 示例源：`projects/fish/asset/blueprints/ui/`（toast 最小例 → tasks_ui 动态列表 → gm_panel 全家桶）

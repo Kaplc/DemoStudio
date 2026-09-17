@@ -1,10 +1,12 @@
 ---
-description: "Use when creating or modifying files under src/projects/ or projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, asset/config/, gameplay/, hud/)."
-applyTo: "src/projects/**,projects/**"
+description: "Use when creating or modifying files under projects/. Covers project folder structure, file placement, naming conventions, and migration rules for game projects (asset/, asset/config/, gameplay/, hud/)."
+applyTo: "projects/**"
 ---
-# src/projects 工程文件夹结构规则
+# projects/ 工程文件夹结构规则
 
-`src/projects/` 下的每个游戏项目文件夹必须遵循以下目录结构：
+> 工程单根：全部游戏工程位于仓库根 `projects/`（2026-09-17 单根化迁移，原内置轨已退役，见 doc-dev/projects-root-unification/plan.md）。
+
+`projects/` 下的每个游戏项目文件夹必须遵循以下目录结构：
 
 ```
 {ProjectName}/
@@ -60,7 +62,7 @@ asset/
 - **asset/index.ts 模板**：
 
 ```typescript
-// src/projects/{name}/asset/index.ts
+// projects/{name}/asset/index.ts
 import { AssetRegistry } from '@/engine'
 import type { SceneAsset, BlueprintAsset } from '@/engine'
 
@@ -93,7 +95,7 @@ export function register{Name}Assets(): void {
 - **`asset/config/index.ts` 模板**：
 
 ```typescript
-// src/projects/{name}/asset/config/index.ts
+// projects/{name}/asset/config/index.ts
 import type { ConfigGlobModules } from '@/engine'
 
 export const configGlob: ConfigGlobModules = {
@@ -256,7 +258,7 @@ scene.add(mesh)
 在每个项目的 `register.ts` 文件中注册：
 
 ```typescript
-// src/projects/fish/register.ts
+// projects/fish/register.ts
 import { GameModeRegistry } from '@/engine'
 import { FishMainMenuGameMode } from './gameplay/menu/FishMainMenuGameMode'
 import { FishBaseGameMode } from './gameplay/base/FishBaseGameMode'

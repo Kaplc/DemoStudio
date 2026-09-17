@@ -36,7 +36,7 @@
 }
 ```
 - 根画布：像素 1920×1080 ↔ 世界 9.6×5.4（比例一致）
-- `UIScriptComponent` 可选，`script` id 必须对应 `src/projects/<project>/gameplay/**/*.script.ts`
+- `UIScriptComponent` 可选，`script` id 必须对应 `projects/<project>/gameplay/**/*.script.ts`
 
 ### 控件节点（标准四件套）
 ```json
@@ -55,7 +55,7 @@
 - `id` 全文件唯一（10000 起步）、`name` 全文件唯一（AI 定位控件靠 name）
 
 ### 资产注册
-- 路径 `src/projects/<project>/asset/blueprints/ui/*.widget.json` 由 `import.meta.glob` 自动注册，**无需写 path 字段**
+- 路径 `projects/<project>/asset/blueprints/ui/*.widget.json` 由 `import.meta.glob` 自动注册，**无需写 path 字段**
 - 运行时动态 UI：`world.ui.spawnUIActor('asset/blueprints/ui/xxx.widget.json')`
 
 ## 3. 锚点系统（九宫格）

@@ -213,7 +213,7 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 |---|---|---|
 | `window.__ai` | [EditorInitializer.ts:336](../../src/editor/EditorInitializer.ts) | `emit(event, payload)` / `listEvents()`——**页面内唯一的 AI 事件总入口** |
 | `window.blueprintEditor` | [windowApi.ts:41](../../src/editor/blueprintEdit/windowApi.ts)（安装点 [EditorInitializer.ts:413](../../src/editor/EditorInitializer.ts)） | `read` / `listTypes` / `apply` / `dispatch`——蓝图资产读改，与 Inspector 同一套实现 |
-| `window.__fishBattle` | [FishGameInstance.ts:273](../../src/projects/fish/gameplay/FishGameInstance.ts)（安装点 `:177`） | 战斗调试桥，见下表 |
+| `window.__fishBattle` | [FishGameInstance.ts:273](../../projects/fish/gameplay/FishGameInstance.ts)（安装点 `:177`） | 战斗调试桥，见下表 |
 | `window.__mcp_findEl` | [mcp-cdp.mjs](../../editor/mcp-cdp.mjs) 的 `EVALHelper` | `cdp_*` 注入的选择器解析函数（CSS / `text=` / XPath） |
 
 `window.__ai` 的真实定义（`EditorInitializer.ts:336-339`）：
@@ -228,7 +228,7 @@ hidden 页面点击（绕过 `browser_click` 超时）：
 
 讲解：清理函数里 `delete (window as any).__ai`（`EditorInitializer.ts:342`）——**编辑器卸载后这个桥会消失**，断言报 `window.__ai is undefined` 时先确认页面还活着，别急着改代码。
 
-`window.__fishBattle` 的方法（[FishGameInstance.ts:273-365](../../src/projects/fish/gameplay/FishGameInstance.ts)，`fish` 项目专用）：
+`window.__fishBattle` 的方法（[FishGameInstance.ts:273-365](../../projects/fish/gameplay/FishGameInstance.ts)，`fish` 项目专用）：
 
 | 方法 | 能拿什么 |
 |---|---|

@@ -12,7 +12,7 @@
 | 用例 | 结果 | 方式 |
 |---|---|---|
 | TC-A1 | ✅ | grep 审计：agent 图内 barrel 导入清零；tsc 全绿 |
-| TC-A2 | ✅ | 浏览器 UI 实测：startup 选工程 + 菜单切工程，`performance` 确认 `/src/projects/registry` 动态加载，Launch/Stop 正常 |
+| TC-A2 | ✅ | 浏览器 UI 实测：startup 选工程 + 菜单切工程，`performance` 确认 `/src/editor/projects/registry` 动态加载，Launch/Stop 正常 |
 | TC-A3 | ✅ | 固化为 `e2e/agent-entry-graph.e2e.spec.ts`（6 用例）：静态闭包零游戏/registry/main chunk；动态出口白名单（registry 惰性 + Mock 伪文件系统 glob）；dev 运行时资源审计；AgentPanel 存在性 |
 | TC-A4 | ✅ | 浏览器 UI 实测（含于 TC-A2 流程）：项目切换/启动/停止/控制台零报错 |
 | TC-B1 | ✅ | Playwright 直开 `/agent.html`：面板全屏、无编辑器 DOM、无 canvas、`--dsw-*` 有值 |
@@ -63,7 +63,7 @@
 
 - **步骤**（自动化脚本，落 `e2e/agent-entry-graph.e2e.spec.ts`）：
   1. dev 模式请求 `agent.html`，收集 Vite 模块图（`import.meta.glob` 不可用时用页面 `performance.getEntriesByType('resource')` 或构建产物分析）
-  2. 断言：模块列表不含 `/src/engine/index`、`/src/projects/registry`、编辑器重组件（Editor、视口等）
+  2. 断言：模块列表不含 `/src/engine/index`、`/src/editor/projects/registry`、编辑器重组件（Editor、视口等）
   3. 断言：包含 AgentPanel、AgentService、agent/* 组件
 - **预期**：agent 图 = 面板闭包，无引擎/项目/编辑器重模块
 - **备注**：构建产物分析法更严格——比较 `dist/agent.html` 关联 chunk 总体积 < 主入口体积的 1/3（阈值可调）

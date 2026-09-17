@@ -53,7 +53,7 @@
 - [ ] 每个控件节点含 `CanvasUIComponent`（markerOnly: true, name: "UIMarker"）
 - [ ] 无顶层 `position`/`rotation`/`scale`；组件 properties 内仅变换组件有变换字段
 - [ ] 所有 `id`、`name` 唯一
-- [ ] `script` 引用的脚本 id 真实存在（`src/projects/<project>/gameplay/**/*.script.ts`）
+- [ ] `script` 引用的脚本 id 真实存在（`projects/<project>/gameplay/**/*.script.ts`）
 - [ ] 颜色格式 hex / rgba() 合法；数值在组件 schema 范围内
 
 ## H. 完成态验证

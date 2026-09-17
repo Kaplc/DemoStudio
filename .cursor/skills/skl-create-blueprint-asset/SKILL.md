@@ -11,7 +11,7 @@ description: 创建 DemoStudio 蓝图资产（.blueprint.json）。使用时机�
 - 蓝图由 `asset/index.ts` 的 `import.meta.glob` **自动注册**，注册 key 从文件路径推导
 
 ## 文件位置与命名
-- 路径：`src/projects/<project>/asset/blueprints/**/*.blueprint.json`
+- 路径：`projects/<project>/asset/blueprints/**/*.blueprint.json`
 - 命名：`<描述>.blueprint.json`（snake_case）
 
 ## 蓝图根结构

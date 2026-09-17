@@ -21,13 +21,13 @@
 全部调用方在 arena 项目（fish/clash_master 尚未接入）：
 
 ```ts
-// src/projects/arena/gameplay/SlimeActor.ts:91 —— 3D 衰减播放，最大可闻 40 米
+// projects/arena/gameplay/SlimeActor.ts:91 —— 3D 衰减播放，最大可闻 40 米
 audioSys.playAt('enemy.hit', this.root.position, { maxDistance: 40 })
 
-// src/projects/arena/gameplay/PlayerCombatComponent.ts:106 —— 连招挥击，2D 全局
+// projects/arena/gameplay/PlayerCombatComponent.ts:106 —— 连招挥击，2D 全局
 audioSys.play(COMBO[this._stage].swingSfx, { volume: 0.8 })
 
-// src/projects/arena/gameplay/ArenaGameMode.ts:189 —— 每帧把玩家位置注入为监听点
+// projects/arena/gameplay/ArenaGameMode.ts:189 —— 每帧把玩家位置注入为监听点
 audioSys.setListener(p.x, p.y, p.z)
 ```
 

@@ -1,11 +1,11 @@
 /**
  * Hoi4 — 项目注册模块（外部工程根）
  *
- * 与内置工程同一套 ProjectModule 契约；经 src/projects/registry.ts 的
+ * 与内置工程同一套 ProjectModule 契约；经 src/editor/projects/registry.ts 的
  * import.meta.glob 自动发现并入注册表。
  */
 import { GameModeRegistry, GMRegistry } from '@/engine'
-import type { ProjectModule } from '../../src/projects/registry'
+import type { ProjectModule } from '../../src/editor/projects/registry'
 import { Hoi4GameInstance, initHoi4Configs } from './'
 import { Hoi4GameMode } from './gameplay/base/Hoi4GameMode'
 import { registerHoi4Assets } from './asset'

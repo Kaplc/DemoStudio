@@ -4,7 +4,7 @@
 >
 > **什么时候会用到你**：给项目加一条调试命令（加钱/跳关/清存档）、排查「命令没生效 / 提示未知命令 / 参数报错」、改 GM 控制台面板样式或交互、从 AI / Playwright 远程驱动游戏状态。
 >
-> 代码位置：`src/engine/gm/`（引擎核心）+ `src/projects/<项目>/gameplay/gm/*.gm.ts`（项目命令）
+> 代码位置：`src/engine/gm/`（引擎核心）+ `projects/<项目>/gameplay/gm/*.gm.ts`（项目命令）
 
 ---
 
@@ -29,7 +29,7 @@
 
 **① 内置命令 —— 编辑器启动时注册一次**
 
-`src/projects/registry.ts` 的 `registerAllProjectModules`（由 `EditorInitializer.registerAllProjects` → `Editor.ts:50` 调用）：
+`src/editor/projects/registry.ts` 的 `registerAllProjectModules`（由 `EditorInitializer.registerAllProjects` → `Editor.ts:50` 调用）：
 
 ```ts
 // 注册 GM 命令系统（内置命令 + ai.gmCommand 桥接，幂等）
@@ -41,7 +41,7 @@ registerGMBridge()
 
 **② 项目命令 —— 项目 `register.ts` 里一行 glob，新增文件零改代码**
 
-[register.ts:25](../../src/projects/fish/register.ts)：
+[register.ts:25](../../projects/fish/register.ts)：
 
 ```ts
 GMRegistry.registerProjectGlob(
@@ -241,7 +241,7 @@ if (!this.panelAssetPath) {
 this.loadPanelFromAsset()
 ```
 
-`panelAssetPath` 用 **getter 而不是实例字段**，因为基类构造函数里就要读它，而子类实例字段要到 `super()` 返回后才初始化——用字段会读到 `undefined`。项目侧覆写两个 getter 即可换皮（[FishGMConsoleHUD.ts](../../src/projects/fish/gameplay/gm/FishGMConsoleHUD.ts)）：`panelAssetPath` 指向 `asset/blueprints/ui/gm_panel.widget.json`，`readyMessage` 返回主题欢迎语。
+`panelAssetPath` 用 **getter 而不是实例字段**，因为基类构造函数里就要读它，而子类实例字段要到 `super()` 返回后才初始化——用字段会读到 `undefined`。项目侧覆写两个 getter 即可换皮（[FishGMConsoleHUD.ts](../../projects/fish/gameplay/gm/FishGMConsoleHUD.ts)）：`panelAssetPath` 指向 `asset/blueprints/ui/gm_panel.widget.json`，`readyMessage` 返回主题欢迎语。
 
 `loadPanelFromAsset` 做四件事：`spawnUIActor` 生成资产树 → `attachTo(this)` → 递归给每个 `CanvasUIComponent` 的 `zOrder` 加 `GM_ZORDER_BASE`（1000，远高于 `UIManager.FLOAT_LAYER_BIAS = 100`，保证盖过任何浮动面板）→ 按组件名绑定控件。绑定规则有两种约定（[GMConsoleHUD.ts:158](../../src/engine/gm/GMConsoleHUD.ts)）：
 
@@ -300,7 +300,7 @@ const bind = (a: Actor): void => {
 | `GMConsoleHUD.appendOutput(text)` | [GMConsoleHUD.ts:334](../../src/engine/gm/GMConsoleHUD.ts) | 追加输出，滚动窗口 12 行 | `MAX_OUTPUT_LINES = 12`（`GMConsoleHUD.ts:38`） |
 | `GameInstance.teardown()` | [GameInstance.ts:171](../../src/engine/gameflow/GameInstance.ts) | 调 `this.gm.dispose()` 关面板复位开关 | 由 `Game.shutdown` 在实例 destroy 之后调用 |
 
-**fish 项目现有命令**（`src/projects/fish/gameplay/gm/`）：`addCoins(amount:int)`、`addElixir(amount:int)`、`addTroop(troopId:string, count:int)`、`fastTrain(scale:float，默认 0.01)`、`unlockBattle`（每兵种注入 999 军队）、`winLevel`、`clearEnemies`、`resetSave`——共 8 条，加 5 条内置。
+**fish 项目现有命令**（`projects/fish/gameplay/gm/`）：`addCoins(amount:int)`、`addElixir(amount:int)`、`addTroop(troopId:string, count:int)`、`fastTrain(scale:float，默认 0.01)`、`unlockBattle`（每兵种注入 999 军队）、`winLevel`、`clearEnemies`、`resetSave`——共 8 条，加 5 条内置。
 
 ---
 

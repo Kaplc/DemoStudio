@@ -64,7 +64,7 @@ export function sourcePathOf(widgetPath: string): string {
 
 /**
  * 保存 widget.json 后调用：反编译回写 .widget.html（TC-D1）。
- * @param widgetPath 资产路径（src/projects/.../xxx.widget.json）
+ * @param widgetPath 资产路径（projects/.../xxx.widget.json）
  * @param widgetDoc  刚落盘的 json 文档
  */
 export async function decompileBackOnSave(

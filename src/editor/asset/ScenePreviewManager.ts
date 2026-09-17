@@ -31,7 +31,7 @@ import type { NodeTemplate } from '../blueprintEdit/nodeTemplates'
 import { editorBus } from '../EditorEvents'
 import { EditorEvent } from '../EditorEventNames'
 
-/** 磁盘路径（src/projects/...）→ 撤销栈 key（asset/...），与蓝图/UI 资产同粒度 */
+/** 磁盘路径（projects/...）→ 撤销栈 key（asset/...），与蓝图/UI 资产同粒度 */
 function diskPathToAssetKey(diskPath: string): string {
   const idx = diskPath.indexOf('/asset/')
   return idx >= 0 ? diskPath.slice(idx + 1) : diskPath

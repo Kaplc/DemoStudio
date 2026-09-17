@@ -21,9 +21,9 @@ describe('默认映射（§5.1）', () => {
     expect(touch?.instructionFile).toBe('engine.instructions.md')
   })
 
-  it('src/projects/snake/X.ts 命中 project.instructions.md', () => {
+  it('projects/snake/X.ts 命中 project.instructions.md', () => {
     const resolved = boundRoot('E:/DemoStudio')
-    const touch = resolveTouch('E:/DemoStudio', 'src/projects/snake/SnakePawn.ts', resolved)
+    const touch = resolveTouch('E:/DemoStudio', 'projects/snake/SnakePawn.ts', resolved)
     expect(touch?.instructionFile).toBe('project.instructions.md')
   })
 
@@ -150,7 +150,7 @@ describe('最长前缀优先（§5.1 显式映射）', () => {
         { prefix: 'src/engine', file: '../escape.md' },
         { prefix: '', file: 'empty.md' },
         { prefix: 'a/../b', file: 'ok.md' },
-        { prefix: 'src/projects', file: 'project.instructions.md' },
+        { prefix: 'src/misc', file: 'project.instructions.md' },
       ],
     })
     expect(resolved.mappings).toHaveLength(1)
@@ -197,7 +197,7 @@ describe('默认配置值（§8.4）', () => {
     expect(resolved.trackedTools.has('edit')).toBe(false)
     expect(DEFAULT_MAPPINGS).toEqual([
       { prefix: 'src/engine', file: 'engine.instructions.md' },
-      { prefix: 'src/projects', file: 'project.instructions.md' },
+      { prefix: 'projects', file: 'project.instructions.md' },
     ])
   })
 

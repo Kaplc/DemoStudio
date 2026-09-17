@@ -1,8 +1,10 @@
 # 外部根目录工程支持方案（External Project Roots）
 
-> **一句话定位**：在保留 `src/projects/` 全部现有工程为"内置案例"的前提下，新增仓库根下 `projects/` 作为第二个工程根，供 `create-project` 落盘与用户自建工程，两条根通过 `import.meta.glob` 与双根扫描汇入同一套注册与发现机制。
-> **什么时候会用到你**：实现"新建工程不再写进 `src/projects/`"改造时；排查"外部工程不被发现/资产读不到/蓝图保存路径错误"问题时；后续评估"任意磁盘目录作为工程根"二期方案时。
-> **代码位置**：`src/projects/registry.ts`、`electron/main.ts`、`src/stores/projectStore.ts`、`src/stores/editorStore.ts`、`src/editor/MockElectronAPI.ts`、`tsconfig.json`、`.gitignore`
+> ⚠️ **本文档描述的双轨机制已于 2026-09-17 退役**（[doc-dev/projects-root-unification](../../doc-dev/projects-root-unification/plan.md) 单根化迁移：`projects/` 全部工程已迁入仓库根 `projects/`，`PROJECT_ROOTS` 收窄为 `['projects']`，`source` 字段删除，registry 静态 import 轨删除）。正文保留作历史与设计背景，现状以该迁移方案为准。
+
+> **一句话定位**：在保留 `projects/` 全部现有工程为"内置案例"的前提下，新增仓库根下 `projects/` 作为第二个工程根，供 `create-project` 落盘与用户自建工程，两条根通过 `import.meta.glob` 与双根扫描汇入同一套注册与发现机制。
+> **什么时候会用到你**：实现"新建工程不再写进 `projects/`"改造时；排查"外部工程不被发现/资产读不到/蓝图保存路径错误"问题时；后续评估"任意磁盘目录作为工程根"二期方案时。
+> **代码位置**：`src/editor/projects/registry.ts`、`electron/main.ts`、`src/stores/projectStore.ts`、`src/stores/editorStore.ts`、`src/editor/MockElectronAPI.ts`、`tsconfig.json`、`.gitignore`
 
 **状态**：已实施（2026-09-04，方案 §5 改造点已全部落地并经运行时验证；新增 §10 实施踩坑清单）。
 
@@ -12,12 +14,12 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [`registry.ts`](../../src/projects/registry.ts) | 项目模块注册中心：`ProjectModule` 契约（registry.ts:27）+ `ALL_PROJECTS` 静态数组（registry.ts:52）+ 延迟配置加载 | 给外部工程并入注册表加 glob 收集逻辑时 |
+| [`registry.ts`](../../src/editor/projects/registry.ts) | 项目模块注册中心：`ProjectModule` 契约（registry.ts:27）+ `ALL_PROJECTS` 静态数组（registry.ts:52）+ 延迟配置加载 | 给外部工程并入注册表加 glob 收集逻辑时 |
 | [`main.ts`](../../electron/main.ts) | 主进程 IPC：工程发现/资产列表/文件读写/创建工程全部在此 | 双根扫描、`asset-file-ops` 路径校验、`create-project` 改落盘根时 |
 | [projectStore.ts](../../src/stores/projectStore.ts) | 工程列表 state + `discoverProjects` 发现逻辑 + `DEFAULT_PROJECTS` 兜底 | 加 `source` 字段区分内外部、Mock 模式适配时 |
 | [editorStore.ts](../../src/stores/editorStore.ts) | `Project` 类型定义地 + `setCurrentProject` 打开工程链路（editorStore.ts:219） | `Project` 加 `source`、按 source 解析 defaultScene 时 |
 
-**关键心智模型**：这不是一次"迁移"，而是一次"分流"。`src/projects/` 一个字都不动，它继续作为内置案例轨道；外部工程走全新通道，两条轨道在两个汇合点（`GameFactoryRegistry` 工厂注册、工程发现列表）合流。所有改造点都围绕"单根假设"展开——把写死的 `src/projects` 换成"根数组遍历"。
+**关键心智模型**：这不是一次"迁移"，而是一次"分流"。当时的 `src/projects/` 一个字都不动，它继续作为内置案例轨道；外部工程走全新通道，两条轨道在两个汇合点（`GameFactoryRegistry` 工厂注册、工程发现列表）合流。所有改造点都围绕"单根假设"展开——把写死的 src/projects 硬编码换成"根数组遍历"。（历史背景：此双轨设计已于 2026-09-17 被单根化迁移取代。）
 
 ---
 
@@ -32,7 +34,7 @@
 **关键设计：内置静态 + 外部 glob 的混合注册**。内置项目保留静态 import（`ALL_PROJECTS` 数组不动），外部工程用一条 glob 动态并入同一个注册表：
 
 ```ts
-// src/projects/registry.ts 追加（或独立 externalRegistry.ts）
+// src/editor/projects/registry.ts 追加（或独立 externalRegistry.ts）
 const externalModules = import.meta.glob('/projects/*/register.ts', { eager: true })
 for (const [path, mod] of Object.entries(externalModules)) {
   // 从 path 推导工程名 → 并入 projectModuleMap + GameFactoryRegistry
@@ -48,7 +50,7 @@ for (const [path, mod] of Object.entries(externalModules)) {
 ```mermaid
 flowchart LR
     subgraph 内置案例轨道
-        A["src/projects/<br/>fish / snake / racing..."] -->|静态 import| R["registry.ts<br/>ALL_PROJECTS"]
+        A["projects/<br/>fish / snake / racing..."] -->|静态 import| R["registry.ts<br/>ALL_PROJECTS"]
     end
     subgraph 外部工程轨道
         B["projects/<br/>用户工程 + create-project 产物"] -->|"import.meta.glob<br/>eager"| R
@@ -164,17 +166,17 @@ Mock 模式（浏览器无 `electronAPI`）里，`import.meta.glob` 返回的 ke
 ```ts
 function normalizePath(globPath: string): string {
   // import.meta.glob 返回 key 如 "../projects/fish/project.json"
-  // readJsonFile 期望的路径如 "src/projects/fish/asset/fish_menu.scene.json"
+  // readJsonFile 期望的路径如 "projects/fish/asset/fish_menu.scene.json"
   // Windows 上 glob key 可能含反斜杠 \，统一转正斜杠再处理
   return globPath.replace(/\\/g, '/').replace(/^\.\.\//, 'src/')
 }
 ```
 
-讲解：现在的规则是"剥掉一层 `../` 换成 `src/`"。引入外部根后，Mock 的 glob 会同时匹配到 `../projects/...`（→ `src/projects/...`）与 `../../projects/...`（→ `projects/...`）两种前缀，`normalizePath` 必须区分这两种情况做双前缀翻译，否则外部工程的资产在浏览器调试模式下全部 404。这是整个方案里**最隐蔽的改造点**，测试清单里单独列了一条。
+讲解：现在的规则是"剥掉一层 `../` 换成 `src/`"。引入外部根后，Mock 的 glob 会同时匹配到 `../projects/...`（→ `projects/...`）与 `../../projects/...`（→ `projects/...`）两种前缀，`normalizePath` 必须区分这两种情况做双前缀翻译，否则外部工程的资产在浏览器调试模式下全部 404。这是整个方案里**最隐蔽的改造点**，测试清单里单独列了一条。
 
 ### 4.4 创建工程的现状
 
-`create-project`（[main.ts:1063](../../electron/main.ts) 起）改造前只生成两个文件且落 `src/projects/`；**现已落地**：落盘根改为 `path.join(APP_ROOT, 'projects', folder)`（main.ts:1066-1070），并额外生成 `register.ts` 模板（main.ts:1115-1134）。下方为改造前代码快照：
+`create-project`（[main.ts:1063](../../electron/main.ts) 起）改造前只生成两个文件且落 `projects/`；**现已落地**：落盘根改为 `path.join(APP_ROOT, 'projects', folder)`（main.ts:1066-1070），并额外生成 `register.ts` 模板（main.ts:1115-1134）。下方为改造前代码快照：
 
 ```ts
 ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' | '3d' = '3d') => {
@@ -210,14 +212,14 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
 |---|---|
 | [editorStore.ts](../../src/stores/editorStore.ts) | `Project` 类型加 `source: 'builtin' \| 'external'`；`setCurrentProject` 链路按 source 解析 defaultScene 路径 |
 | [projectStore.ts](../../src/stores/projectStore.ts) | `DEFAULT_PROJECTS` 兜底条目补 `source`；`discoverProjects` 合并双轨结果 |
-| [MockElectronAPI.ts](../../src/editor/MockElectronAPI.ts) | `normalizePath`（MockElectronAPI.ts:68）双前缀翻译：`../projects/` → `src/projects/`，`../../projects/` → `projects/`；Mock 模式 glob 扩到 `/projects/**` |
+| [MockElectronAPI.ts](../../src/editor/MockElectronAPI.ts) | `normalizePath`（MockElectronAPI.ts:68）双前缀翻译：`../projects/` → `projects/`，`../../projects/` → `projects/`；Mock 模式 glob 扩到 `/projects/**` |
 
 ### 5.3 配置与工具链
 
 | 文件 | 改造点 |
 |---|---|
 | `tsconfig.json` | include 加 `"projects"`（现状 include 为 `["src", "electron", "tests"]`，不加则外部工程游离在 `npx tsc --noEmit` 类型检查门外） |
-| `.gitignore` | 加 `projects/*/data/`（对齐现状 `src/projects/*/data/*` 规则，.gitignore:53）；`src/projects/*/data/` 保留 |
+| `.gitignore` | 加 `projects/*/data/`（对齐现状 `projects/*/data/*` 规则，.gitignore:53）；`projects/*/data/` 保留 |
 | `.github/instructions/projects.instructions.md` | `applyTo` 扩到 `projects/**` |
 | `harness/ds-instructions` | 路径前缀映射（`harness/ds-instructions/src/config.ts`）加一条 `projects` 映射，否则 AI agent 改外部工程时不会自动注入规范 |
 | `editor/mcp-server.mjs`、`scripts/ui-compiler-*` | 路径前缀按根数组适配 |
@@ -239,7 +241,7 @@ ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' 
 
 | 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
-| `create-project` IPC | 创建动作落盘根从 `src/projects/` 改为 `projects/`，模板升级 | 本文档 §4.4 |
+| `create-project` IPC | 创建动作落盘根从 `projects/` 改为 `projects/`，模板升级 | 本文档 §4.4 |
 | 编辑器启动 / projectStore | 启动时 `discoverProjects()` 双根扫描合流 | 本文档 §4.1 |
 | Mock 浏览器调试模式 | glob 前缀双轨翻译 | 本文档 §4.3 |
 

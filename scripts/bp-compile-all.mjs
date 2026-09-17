@@ -2,7 +2,7 @@
  * bp-compile-all — 全量编译所有蓝图 TS 源（doc-dev/bp-ts-compile 方案 §6.3 P1）
  *
  * 用法: node scripts/bp-compile-all.mjs [--check]
- *   收集内部根 src/projects 与外部根 projects 下 asset/blueprints 目录树中的
+ *   收集工程根 projects/ 下 asset/blueprints 目录树中的
  *   .blueprint.ts 源，逐个走权威管线（bp-compile-gate.mjs），任一失败即非零退出。
  *   --check 原样透传（CI/全量门用：产物与源不一致即失败）。
  */
@@ -24,7 +24,7 @@ function collect(dir, out = []) {
   return out
 }
 
-const roots = ['src/projects', 'projects'].map((r) => path.join(repoRoot, r))
+const roots = ['projects'].map((r) => path.join(repoRoot, r))
 // <root>/<project folder>/asset/blueprints 下的全部源
 const sources = roots.flatMap((root) => {
   if (!fs.existsSync(root)) return []

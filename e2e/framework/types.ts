@@ -126,7 +126,7 @@ export interface ProjectScreenPosResult {
 export interface ProjectDescriptor {
   /** 框架内项目 id（spec 里 test.use({ project: 'fish' }) 用的键） */
   id: string
-  /** 编辑器首页工程卡的显示名前缀（点击选卡用，与 src/projects/*/register.ts 的 name 一致） */
+  /** 编辑器首页工程卡的显示名前缀（点击选卡用，与 projects/*/register.ts 的 name 一致） */
   cardName: string
   /** 一句话说明（报告/文档用） */
   description?: string

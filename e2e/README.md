@@ -47,7 +47,7 @@ test('示例：主菜单开始按钮存在', async ({ game }) => {
 
 ## 新项目接入（三步）
 
-1. 确认工程卡显示名：`src/projects/<项目>/register.ts` 里 `ProjectModule.name`；
+1. 确认工程卡显示名：`projects/<项目>/register.ts` 里 `ProjectModule.name`；
 2. 在 [`framework/projects.ts`](./framework/projects.ts) 的 `PROJECTS` 加一条 `{ id, cardName, description }`；
 3. 按上面的模板写冒烟用例（建议先覆盖：主菜单 → 核心场景切换 → 关键 HUD 节点 → `gm('help')` 通断）。
 

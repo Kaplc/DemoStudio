@@ -6,7 +6,7 @@
  *
  * 用法：
  *   window.blueprintEditor.listTypes()
- *   await window.blueprintEditor.read('src/projects/fish/asset/blueprints/beach_house.blueprint.json')
+ *   await window.blueprintEditor.read('projects/fish/asset/blueprints/beach_house.blueprint.json')
  *   await window.blueprintEditor.apply(path, 'addComponent', { type:'SpriteComponent', props:{ width:1, height:1 } })
  *   await window.blueprintEditor.dispatch('addComponent', { assetPath: path, type:'SpriteComponent', ... })
  */

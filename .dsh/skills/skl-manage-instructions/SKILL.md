@@ -28,7 +28,7 @@ argument-hint: '指令类型和内容描述，如"引擎开发规范"、"项目�
 ```
 .dsh/instructions/
 ├── engine.instructions.md    # ← src/engine/** 读取后注入
-├── project.instructions.md   # ← src/projects/** 读取后注入
+├── project.instructions.md   # ← projects/** 读取后注入
 └── custom.instructions.md    # ← 自定义映射路径读取后注入
 ```
 
@@ -37,7 +37,7 @@ argument-hint: '指令类型和内容描述，如"引擎开发规范"、"项目�
 | 映射路径 | 指令文件 | 触发条件 |
 |----------|----------|----------|
 | `src/engine/**` | `engine.instructions.md` | Agent 读取引擎代码时 |
-| `src/projects/**` | `project.instructions.md` | Agent 读取项目代码时 |
+| `projects/**` | `project.instructions.md` | Agent 读取项目代码时 |
 
 ### 2.3 指令文件格式
 

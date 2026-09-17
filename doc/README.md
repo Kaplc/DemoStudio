@@ -97,7 +97,7 @@
 
 ---
 
-## 4. 项目模块（src/projects/，6 篇）
+## 4. 项目模块（projects/，6 篇）
 
 | 文件 | 说明 |
 |---|---|
@@ -185,5 +185,5 @@
 > 2026-09-03 改造相对旧体系的三处结构性变更（历史记录）：
 >
 > 1. **拆分**：`engine/input_physics_script_system.md`（一篇塞输入/物理/脚本三个系统）拆为 `input_system.md` / `physics_system.md` / `script_system.md` 三篇独立文档。
-> 2. **归位**：`engine/muzzle_flash_component.md` 描述的组件实际位于 `src/projects/fish/`，按「文档落点由源码目录决定」的归属铁律移入 `projects/`。
+> 2. **归位**：`engine/muzzle_flash_component.md` 描述的组件实际位于 `projects/fish/`，按「文档落点由源码目录决定」的归属铁律移入 `projects/`。
 > 3. **升级**：其余旧范式文档（概述 → 核心类表格 → 使用方法 …）全部按新范式整体重写，重写过程逐篇重读源码核对，纠正了一批沿袭多年的事实错误（详见 [`doc_maintenance.md`](./doc_maintenance.md) §5）。

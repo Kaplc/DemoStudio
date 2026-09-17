@@ -71,7 +71,8 @@ export class FishConfigLoader extends ConfigLoaderBase {
     }))
 
     // ─── 自动注册 asset/config/ 下所有配置文件（路径/name 由 glob 推导） ───
-    this.registerGlob(configGlob.configModules, configGlob.tableModules)
+    // 显式传 basePath 保持自文档化（ConfigRegistry 缺省值单根化后，漏传也已无害）
+    this.registerGlob(configGlob.configModules, configGlob.tableModules, 'projects/fish/asset/config')
 
     this.log('[Config] ClashMaster 配置表已注册')
   }

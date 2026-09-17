@@ -26,7 +26,7 @@ let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
 let _gameRunning = false
 
-// ─── 双工程根（外部根目录工程支持）：内置 src/projects/ + 外部 projects/ ───
+// ─── 工程根（单根）：全部工程位于仓库根 projects/（doc-dev/projects-root-unification） ───
 const APP_ROOT = path.join(__dirname, '..')
 
 // ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 孤儿进程独立运行） ───
@@ -1062,8 +1062,7 @@ ipcMain.handle('read-log-file', async (_event, options?: { tail?: number }) => {
 
 ipcMain.handle('create-project', async (_event, projectName: string, mode: '2d' | '3d' = '3d') => {
   try {
-    // 新建工程统一落盘到外部工程根 projects/（内置 src/projects/ 保留为只读案例轨道，
-    // 见 doc/dev/external_project_roots.md）
+    // 新建工程统一落盘到工程根 projects/（工程单根，见 doc-dev/projects-root-unification）
     const folder = projectName.toLowerCase()
     const projectDir = path.join(APP_ROOT, 'projects', folder)
     if (fs.existsSync(projectDir)) {
@@ -1119,11 +1118,11 @@ export { }
     const registerTs = `/**
  * ${projectName} — 项目注册模块（自动生成骨架）
  *
- * 本文件位于外部工程根，经 src/projects/registry.ts 的 import.meta.glob
+ * 本文件位于外部工程根，经 src/editor/projects/registry.ts 的 import.meta.glob
  * 自动发现并注册（无需修改内置代码）。
  * 实现 GameMode/GameInstance 后，在 index.ts 导出实例类并补全下方工厂。
  */
-import type { ProjectModule } from '../../src/projects/registry'
+import type { ProjectModule } from '../../src/editor/projects/registry'
 
 export const projectNameProject: ProjectModule = {
   name: '${projectName}',
@@ -1443,15 +1442,13 @@ function extractCapabilities(packageJson: any): string[] {
 
 ipcMain.handle('discover-projects', async () => {
   try {
-    // 双根扫描：内置 src/projects/ + 外部 projects/（外部根可能不存在，懒创建）
+    // 扫描工程根 projects/（根可能不存在，懒创建；多根遍历结构保留，当前单根）
     const roots = resolveProjectRoots(APP_ROOT)
     if (roots.length === 0) return []
 
-    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string; source: 'builtin' | 'external' }> = []
+    const projects: Array<{ name: string; description: string; version: string; tags: string[]; folder: string; renderMode?: '2d' | '3d'; defaultScene?: string }> = []
 
     for (const projectsDir of roots) {
-      const source: 'builtin' | 'external'
-        = path.relative(APP_ROOT, projectsDir).replace(/\\/g, '/') === 'projects' ? 'external' : 'builtin'
       const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
 
       for (const entry of entries) {
@@ -1468,7 +1465,6 @@ ipcMain.handle('discover-projects', async () => {
             folder: entry.name,
             renderMode: data.renderMode === '2d' ? '2d' : '3d',
             defaultScene: data.defaultScene || undefined,
-            source,
           })
         } catch {
           // 单个 project.json 解析失败不影响其他
@@ -1520,7 +1516,7 @@ ipcMain.handle('list-project-assets', async (_event, folder: string) => {
   }
 })
 
-// ─── 资产文件操作（删除/重命名/系统定位；仅限 src/projects/*/asset/** 内）───
+// ─── 资产文件操作（删除/重命名/系统定位；仅限 projects/*/asset/** 内）───
 
 ipcMain.handle('asset-file-ops', async (_event, op: string, relPath: string, newName?: string) => {
   try {

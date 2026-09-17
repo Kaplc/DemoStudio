@@ -3,7 +3,7 @@
 /**
  * codeLint/CodeSource — 源码文件来源（环境抽象）
  *
- * ElectronCodeSource（默认）：调用 listProjectSrc（列出 src/projects/<folder> 下所有
+ * ElectronCodeSource（默认）：调用 listProjectSrc（列出 projects/<folder> 下所有
  *   .ts/.tsx，排除 .d.ts）+ readTextFile（{success, data?, error?} 信封）读文本。
  *   - Electron：主进程真磁盘扫描（IPC list-project-src / read-text-file）
  *   - 浏览器 dev：MockElectronAPI 提供同签名实现（枚举复用其既有 allFileKeys 按 folder

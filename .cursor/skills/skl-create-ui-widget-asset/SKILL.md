@@ -15,7 +15,7 @@ description: 创建 DemoStudio UI widget 资产。核心理念：只写普通 HT
 
 ## 主路径：.widget.html + MCP ui_compile
 
-1. 写源文件 `src/projects/<project>/asset/blueprints/ui/<描述>.widget.html`
+1. 写源文件 `projects/<project>/asset/blueprints/ui/<描述>.widget.html`
 
 ```html
 <widget name="Toast" canvas="960x180" world="4.8x0.9" anchor="top-center" offset="0,0.55">
@@ -30,7 +30,7 @@ description: 创建 DemoStudio UI widget 资产。核心理念：只写普通 HT
 ```
 
 2. 调 MCP `ui_compile` 工具编译（不要用 CLI，无 lint 门槛），**asset 传 .widget.json 路径**：
-   `{ "asset": "src/projects/<project>/asset/blueprints/ui/<描述>.widget.json" }`
+   `{ "asset": "projects/<project>/asset/blueprints/ui/<描述>.widget.json" }`
 3. 失败按 `errors[{line,message}]` 行号修源重试，不要手改 json
 
 速记：布局流式优先（遮罩 absolute + 面板 `margin:auto` 居中 + 内容 flex 栈）；动态列表容器挂 `data-comp="UILayout"` + 显式宽高；被脚本引用的 class 名逐字保留（脚本 findInChildren 按名查找）；禁区：`<script>`/onclick/overflow:hidden/@keyframes/兄弟选择器。
@@ -42,4 +42,4 @@ description: 创建 DemoStudio UI widget 资产。核心理念：只写普通 HT
 ## 参考
 - **使用手册（写法权威）**：`doc/editor/ui/ui_widget_html_manual.md`
 - 系统文档：`doc/editor/ui/ui_source_format_system.md`
-- 示例：`src/projects/fish/asset/blueprints/ui/`（toast 最小例 → tasks_ui 动态列表 → gm_panel 全家桶）
+- 示例：`projects/fish/asset/blueprints/ui/`（toast 最小例 → tasks_ui 动态列表 → gm_panel 全家桶）

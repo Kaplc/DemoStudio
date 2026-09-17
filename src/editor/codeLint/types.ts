@@ -8,7 +8,7 @@
 
 /** 单条代码违规。file::line::col::rule::message 组成去重指纹。无 severity（一律按 error 输出）。 */
 export interface CodeIssue {
-  /** 源码文件相对路径（如 src/projects/fish/gameplay/foo.ts） */
+  /** 源码文件相对路径（如 projects/fish/gameplay/foo.ts） */
   file: string
   /** 行号（1 起） */
   line: number
@@ -22,7 +22,7 @@ export interface CodeIssue {
 
 /** 检查器运行时上下文。 */
 export interface CheckerContext {
-  /** 当前工程子目录名（对应 src/projects/<folder>，如 'fish'） */
+  /** 当前工程子目录名（对应 projects/<folder>，如 'fish'） */
   projectFolder: string
 }
 

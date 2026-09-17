@@ -8,7 +8,7 @@
  * 提供与 Electron IPC 完全兼容的 Mock 实现。
  *
  * 特性：
- *  - discoverProjectsScan() → 自动扫描 src/projects/*\/project.json
+ *  - discoverProjectsScan() → 自动扫描 projects/*\/project.json（glob 形态）
  *  - readJsonFile(path)   → 返回预加载的场景/配置 JSON
  *  - LogFile 写入         → console 输出
  *
@@ -20,44 +20,44 @@ import { normalizeGlobPath } from './mockPath'
 import { scanProjectsFrom } from './mockProjectScan'
 
 // ─── 预加载所有工程/场景 JSON（import.meta.glob eager） ───
-// 双工程根：内置 src/projects/*（相对本目录 ../projects/）+ 外部 projects/*（相对本目录 ../../projects/）
-// 外部根可能不存在 → glob 用 <root>/{,**/} 兼容形态，目录不存在时匹配为空
+// 工程单根：projects/*（相对本目录 src/editor/ 上跳两层 ../../projects/）
+// 目录可能不存在 → glob 用 {,**/} 兼容形态，目录不存在时匹配为空
 
 const projectJsonModules = import.meta.glob<Record<string, unknown>>(
-  ['../projects/*/project.json', '../../projects/*/project.json'],
+  ['../../projects/*/project.json'],
   { eager: true, import: 'default' },
 )
 
 const sceneJsonModules = import.meta.glob<Record<string, unknown>>(
-  ['../projects/**/*.scene.json', '../../projects/**/*.scene.json'],
+  ['../../projects/**/*.scene.json'],
   { eager: true, import: 'default' },
 )
 
 const blueprintJsonModules = import.meta.glob<Record<string, unknown>>(
-  ['../projects/**/*.blueprint.json', '../../projects/**/*.blueprint.json'],
+  ['../../projects/**/*.blueprint.json'],
   { eager: true, import: 'default' },
 )
 
 const widgetJsonModules = import.meta.glob<Record<string, unknown>>(
-  ['../projects/**/*.widget.json', '../../projects/**/*.widget.json'],
+  ['../../projects/**/*.widget.json'],
   { eager: true, import: 'default' },
 )
 
 const configJsonModules = import.meta.glob<Record<string, unknown>>(
-  ['../projects/**/{*.config.json,*.table.json}', '../../projects/**/{*.config.json,*.table.json}'],
+  ['../../projects/**/{*.config.json,*.table.json}'],
   { eager: true, import: 'default' },
 )
 
 // 所有项目文件路径（仅取 glob keys，不 import 内容；供 listProjectAssets 列资产用）
 const allFileKeys = Object.keys(import.meta.glob(
-  ['../projects/**/*.*', '../../projects/**/*.*'],
+  ['../../projects/**/*.*'],
 ))
 
 // 源码原始文本映射（codeLint readTextFile 用）：?raw 的 default 导出即文件内容字符串（纯文本）。
 // 注意：不能 fetch('/path?raw') —— Vite dev 对 .ts 的 ?raw 响应是模块代码（export default "..." 包装），
 // 而非纯文本；import.meta.glob 的 loader 在运行时解析模块取 default，才是真实文件内容。
 const rawSrcModules = import.meta.glob<string>(
-  ['../projects/**/*.{ts,tsx,html}', '../../projects/**/*.{ts,tsx,html}'],
+  ['../../projects/**/*.{ts,tsx,html}'],
   { query: '?raw', import: 'default' },
 )
 
@@ -72,9 +72,8 @@ const jsonCache = new Map<string, unknown>()
 const textCache = new Map<string, string>()
 
 function normalizePath(globPath: string): string {
-  // 双前缀翻译（tests/externalRoots.test.ts 锁定）：
-  //   "../../projects/foo/..."（外部工程）→ "projects/foo/..."
-  //   "../projects/fish/..."（内置工程）  → "src/projects/fish/..."
+  // 单前缀翻译（tests/mockProjectBridge.test.ts 锁定）：
+  //   "../../projects/foo/..."（工程根）→ "projects/foo/..."
   // Windows 上 glob key 可能含反斜杠 \，统一转正斜杠再处理
   return normalizeGlobPath(globPath)
 }
@@ -115,12 +114,10 @@ interface ProjectMeta {
   folder: string
   renderMode?: '2d' | '3d'
   defaultScene?: string
-  /** 工程轨道（外部根目录工程支持）：builtin=内置案例，external=外部工程 */
-  source: 'builtin' | 'external'
 }
 
 function scanProjects(): ProjectMeta[] {
-  // 双前缀 key 都能被发现（内置 ../projects/ + 外部 ../../projects/），带 source 字段
+  // 单前缀 key（../../projects/，工程根）全量发现
   return scanProjectsFrom(Object.entries(projectJsonModules)) as ProjectMeta[]
 }
 
@@ -249,8 +246,8 @@ const mockAPI = {
   },
 
   listProjectAssets: async (folder: string) => {
-    // 双工程根前缀：内置 ../projects/<folder>/ + 外部 ../../projects/<folder>/
-    const prefixes = [`../projects/${folder}/asset/`, `../../projects/${folder}/asset/`]
+    // 工程根前缀：../../projects/<folder>/
+    const prefixes = [`../../projects/${folder}/asset/`]
     const result: Array<{ path: string; ext: string; size: number }> = []
     for (const key of allFileKeys) {
       if (!prefixes.some(p => key.startsWith(p))) continue
@@ -299,14 +296,14 @@ const mockAPI = {
 
   listProjectSrc: async (folder: string) => {
     // 复用既有 allFileKeys（keys-only glob）按 folder 前缀过滤，不新增模块注册
-    // 双工程根前缀：内置 ../projects/<folder>/ + 外部 ../../projects/<folder>/
-    const prefixes = [`../projects/${folder}/`, `../../projects/${folder}/`]
+    // 工程根前缀：../../projects/<folder>/
+    const prefixes = [`../../projects/${folder}/`]
     const result: string[] = []
     for (const key of allFileKeys) {
       if (!prefixes.some(p => key.startsWith(p))) continue
       if (!/\.(ts|tsx)$/i.test(key)) continue
       if (/\.d\.ts$/i.test(key)) continue // 排除声明文件
-      result.push(normalizePath(key)) // src/... 形式，与 Electron 通道一致
+      result.push(normalizePath(key)) // projects/... 形式，与 Electron 通道一致
     }
     return result
   },
@@ -316,8 +313,8 @@ const mockAPI = {
     if (textCache.has(relativePath)) {
       return { success: true, data: textCache.get(relativePath)! }
     }
-    // 路径归一化为 glob key（src/projects/... → ../projects/...）
-    const key = relativePath.replace(/^src\//, '../')
+    // 路径归一化为 glob key（projects/... → ../../projects/...）
+    const key = relativePath.replace(/^projects\//, '../../projects/')
     const loader = rawSrcModules[key]
     if (loader) {
       try {

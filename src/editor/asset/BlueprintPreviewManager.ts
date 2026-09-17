@@ -34,7 +34,7 @@ import type { SceneTreeNode } from '../SelectionManager'
 import { uniqueNodeName, nextChildId, reassignChildIds } from '../blueprintEdit/nodeTemplates'
 import { useEditorStore } from '../../stores/editorStore'
 
-/** 磁盘路径（src/projects/...）→ 蓝图注册 key（asset/...） */
+/** 磁盘路径（projects/...）→ 蓝图注册 key（asset/...） */
 function diskPathToAssetKey(diskPath: string): string {
   const idx = diskPath.indexOf('/asset/')
   return idx >= 0 ? diskPath.slice(idx + 1) : diskPath
@@ -53,7 +53,7 @@ export class BlueprintPreviewManager {
   private lastTime = 0
   /** 当前蓝图注册 key（asset/...，loadBlueprint 传入，供 Outline 查询） */
   private _currentBlueprintKey: string | null = null
-  /** 当前蓝图磁盘路径（src/projects/...，BlueprintEditor 传入，供服务层读盘/写盘） */
+  /** 当前蓝图磁盘路径（projects/...，BlueprintEditor 传入，供服务层读盘/写盘） */
   private _currentBlueprintDiskPath: string | null = null
 
   /**
@@ -342,7 +342,7 @@ export class BlueprintPreviewManager {
   /**
    * 加载蓝图到预览场景。
    * @param path     蓝图注册 key（asset/...）
-   * @param diskPath 磁盘路径（src/projects/...，可选；提交/保存经服务层时必需）
+   * @param diskPath 磁盘路径（projects/...，可选；提交/保存经服务层时必需）
    */
   loadBlueprint(path: string, diskPath?: string): boolean {
     // logger.debug(`[BlueprintPreview] loadBlueprint 开始 path=${path} 摄像机=${this.camera.position.x.toFixed(3)},${this.camera.position.y.toFixed(3)},${this.camera.position.z.toFixed(3)}`)

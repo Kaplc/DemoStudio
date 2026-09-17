@@ -61,7 +61,7 @@ export {
 } from './EditorInitializer'
 export type { InitLogger } from './EditorInitializer'
 
-export { initProjectConfigs } from '../projects/registry'
+export { initProjectConfigs } from './projects/registry'
 
 export { FpsTracker } from './FpsTracker'
 export type { FrameCallback, FrameInfo } from './FpsTracker'

@@ -4,11 +4,11 @@
 >
 > **什么时候会用到你**：新建游戏项目要照抄骨架时、排查「项目没出现在工程列表 / 点开始没进基地 / 进关卡白屏 / 存档没落盘」时、想知道某个玩法文件属于哪个阶段时。
 >
-> 代码位置：`src/projects/fish/`
+> 代码位置：`projects/fish/`
 
 战斗规则见 [battle_system.md](./battle_system.md)，关卡流程见 [level_system.md](./level_system.md)，七角色职责边界见 [gameplay_code_standard.md](./gameplay_code_standard.md)。本文档只讲**项目骨架与阶段路由**。
 
-**关于命名**：项目原名为 FishMaster / 捕鱼达人，2026-08-15 起仅**表现层**（显示名/UI 文案/GM 面板主题）改名为 ClashMaster，**目录/类名/文件名保持 `fish` 前缀不动**——`fishMasterProject`、`FishGameInstance`、`src/projects/fish/` 都不是笔误。
+**关于命名**：项目原名为 FishMaster / 捕鱼达人，2026-08-15 起仅**表现层**（显示名/UI 文案/GM 面板主题）改名为 ClashMaster，**目录/类名/文件名保持 `fish` 前缀不动**——`fishMasterProject`、`FishGameInstance`、`projects/fish/` 都不是笔误。
 
 ---
 
@@ -16,10 +16,10 @@
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [register.ts](../../src/projects/fish/register.ts) | 项目自描述：注册 mode→GameMode 映射、GM 命令 glob、行为类 Actor | 加一个新阶段、注册新的蓝图 baseClass 类 |
-| [FishGameInstance.ts](../../src/projects/fish/gameplay/FishGameInstance.ts) | 阶段路由中枢：`switchToPhase` 切场景 + `setupXxxPhase` 接线，持有跨阶段服务 | 加阶段、改切换时的清理逻辑、改存档时机 |
-| [asset/index.ts](../../src/projects/fish/asset/index.ts) | 资产自动注册：`import.meta.glob` 扫场景/蓝图/widget/脚本 | 加新资产类型（通常不用改，加文件即可） |
-| [FishConfigLoader.ts](../../src/projects/fish/FishConfigLoader.ts) | 配置表加载：注册默认值 + transform + glob 扫描 `asset/config/` | 加一张新配置表或给配置加归一化字段 |
+| [register.ts](../../projects/fish/register.ts) | 项目自描述：注册 mode→GameMode 映射、GM 命令 glob、行为类 Actor | 加一个新阶段、注册新的蓝图 baseClass 类 |
+| [FishGameInstance.ts](../../projects/fish/gameplay/FishGameInstance.ts) | 阶段路由中枢：`switchToPhase` 切场景 + `setupXxxPhase` 接线，持有跨阶段服务 | 加阶段、改切换时的清理逻辑、改存档时机 |
+| [asset/index.ts](../../projects/fish/asset/index.ts) | 资产自动注册：`import.meta.glob` 扫场景/蓝图/widget/脚本 | 加新资产类型（通常不用改，加文件即可） |
+| [FishConfigLoader.ts](../../projects/fish/FishConfigLoader.ts) | 配置表加载：注册默认值 + transform + glob 扫描 `asset/config/` | 加一张新配置表或给配置加归一化字段 |
 
 **关键心智模型**：目录名、类名、文件名**全部保留 `fish` 前缀不动**。别被名字骗了——`FishGameMode` 是传统出海玩法，`FishLevelGameMode` 才是部落冲突攻城战斗。
 
@@ -29,7 +29,7 @@
 
 ### 2.1 谁注册了它
 
-内置项目（`src/projects/`）**不是被扫描发现的**，而是在 registry 里手写 import 的；仓库根 `projects/` 下的外部工程则走 glob 自动并入——这是新人最容易误解的一点。
+内置项目（`projects/`）**不是被扫描发现的**，而是在 registry 里手写 import 的；仓库根 `projects/` 下的外部工程则走 glob 自动并入——这是新人最容易误解的一点。
 
 ```ts
 import { demo2DProject } from './demo2d/register'
@@ -39,9 +39,9 @@ import { arenaProject } from './arena/register'
 const ALL_PROJECTS: ProjectModule[] = [demo2DProject, fishMasterProject, arenaProject]
 ```
 
-> **为什么不自动扫描内置项目**：`ProjectModule` 里有工厂函数和 glob 调用，必须静态 import 才能保证 Vite 把整棵依赖打进包里。**外部工程**（`projects/*/register.ts`）由 `import.meta.glob('/projects/*/register.ts', { eager: true })` 收集后并入同一个 `ALL_PROJECTS`（同名外部工程覆盖内置并 `logger.warn`，见 [registry.ts:58-97](../../src/projects/registry.ts)）——新增外部工程**不需要改 registry**，只有加内置项目才要手写 import + 数组条目。
+> **为什么不自动扫描内置项目**：`ProjectModule` 里有工厂函数和 glob 调用，必须静态 import 才能保证 Vite 把整棵依赖打进包里。**外部工程**（`projects/*/register.ts`）由 `import.meta.glob('/projects/*/register.ts', { eager: true })` 收集后并入同一个 `ALL_PROJECTS`（同名外部工程覆盖内置并 `logger.warn`，见 [registry.ts:58-97](../../src/editor/projects/registry.ts)）——新增外部工程**不需要改 registry**，只有加内置项目才要手写 import + 数组条目。
 
-[register.ts](../../src/projects/fish/register.ts) 把四类东西一次性注册掉：
+[register.ts](../../projects/fish/register.ts) 把四类东西一次性注册掉：
 
 ```ts
 // ─── mode → GameMode 映射（key 是场景资产的 mode 字段值，不是阶段名）───
@@ -71,7 +71,7 @@ export const fishMasterProject: ProjectModule = {
 
 > **反直觉处**：`GameModeRegistry.register` 的第一个参数**不是阶段名，是场景资产里的 `mode` 字段值**。`SwitchToScene` 拿场景资产的 `mode` 查表决定 new 哪个 GameMode。`game` 与 `level` 是两个不同 mode——`game` 阶段到底走哪个 GameMode，取决于加载的场景资产写的是 `"mode": "game"` 还是 `"mode": "level"`。`eager: true` 也是必需的：GMRegistry 要同步拿到全部命令做 `help`/`list`，懒加载会出现「输命令提示不存在」。
 
-`registerAssets` 指向 [asset/index.ts](../../src/projects/fish/asset/index.ts)，用 glob 扫完四类资产：
+`registerAssets` 指向 [asset/index.ts](../../projects/fish/asset/index.ts)，用 glob 扫完四类资产：
 
 ```ts
 const scenes = Object.values(
@@ -118,7 +118,7 @@ export function registerProjectAssets(name: string): void {
 
 配置表走另一条路（`initProjectConfigs` → `initFishConfigs`），**延迟到工程被选中才加载**，避免编辑器启动时读所有项目的配置。
 
-**③ 构造期：服务装配一次**（[FishGameInstance.ts:129](../../src/projects/fish/gameplay/FishGameInstance.ts)）
+**③ 构造期：服务装配一次**（[FishGameInstance.ts:129](../../projects/fish/gameplay/FishGameInstance.ts)）
 
 ```ts
 new FishConfigLoader((msg) => logger.info(msg)).init()
@@ -133,7 +133,7 @@ this._wireServices()
 
 关键设计：**钱包、训练、生产、进度四个服务挂在 GameInstance 上，不挂在 GameMode 上**。GameMode 每次切场景都销毁重建，但金币和军队要跨阶段保留——这是它们必须待在 Instance 层的唯一理由。
 
-**④ `start()`：由 `initialMode` 决定首阶段**（[:170](../../src/projects/fish/gameplay/FishGameInstance.ts)）
+**④ `start()`：由 `initialMode` 决定首阶段**（[:170](../../projects/fish/gameplay/FishGameInstance.ts)）
 
 ```ts
 ToastSystem.instance.attach(this.world.ui, 'asset/blueprints/ui/toast.widget.json')
@@ -213,11 +213,11 @@ flowchart TD
     F -->|"BattleResult/PauseMenu.script<br/>Btn_returnBase → inst.returnToBase()"| C
 ```
 
-**menu → base**：按钮逻辑在 [MainMenu.script.ts](../../src/projects/fish/gameplay/menu/MainMenu.script.ts) 的 `onStart` 里——`this.button.onClick = () => mode.startGame()`，不手写遍历。
+**menu → base**：按钮逻辑在 [MainMenu.script.ts](../../projects/fish/gameplay/menu/MainMenu.script.ts) 的 `onStart` 里——`this.button.onClick = () => mode.startGame()`，不手写遍历。
 
 > **注意**：`setupMenuPhase` 里还有一段**递归遍历 HUD 绑定所有 `UIButtonComponent`** 的兜底逻辑，两者并存意味着菜单按钮可能被绑两次——新加菜单 UI 优先走 widget 挂脚本（`data-script`）。
 
-**base 阶段**：`setupBasePhase`（[:641](../../src/projects/fish/gameplay/FishGameInstance.ts)）建相机并接管持久化门控：
+**base 阶段**：`setupBasePhase`（[:641](../../projects/fish/gameplay/FishGameInstance.ts)）建相机并接管持久化门控：
 
 ```ts
 this._baseLayoutBuilt = false
@@ -234,7 +234,7 @@ this.setupCamera(mode.baseCamera.cameraComponent, 12, 16, 18)
 
 > **`_baseRestored` 这个闸门是干什么的**：`BeginPlay` 里 `ClashBaseBuilder` 先按 `INITIAL_LAYOUT` 建默认布局。若此时 `onLayoutChange` 就生效，会**把默认布局写进 `baseBuildings` 键、覆盖玩家存档**。所以恢复完成前一律静音。
 
-**base → level / 回城**：`enterLevel`（[:849](../../src/projects/fish/gameplay/FishGameInstance.ts)）先校验再切；`returnToBase`（[:791](../../src/projects/fish/gameplay/FishGameInstance.ts)）反向清空：
+**base → level / 回城**：`enterLevel`（[:849](../../projects/fish/gameplay/FishGameInstance.ts)）先校验再切；`returnToBase`（[:791](../../projects/fish/gameplay/FishGameInstance.ts)）反向清空：
 
 ```ts
 // enterLevel：校验 → 置 _levelId → 解绑 → 切
@@ -255,14 +255,14 @@ this._returningToBase = false
 this.switchToPhase('base')
 ```
 
-> **为什么离开前必须手动 `Unpossess()` + `cameraManager.Clear()`**：`SwitchToScene` 只销毁 Actor，**不清 GameInstance 持有的 `_controller` / `_baseGameMode` / `_levelGameMode` 引用**。不手动解绑，旧 Controller 会悬挂，旧相机继续参与 `syncCamera` 竞争。真实调用方：[BattleResult.script.ts:60](../../src/projects/fish/gameplay/battle/BattleResult.script.ts)、[PauseMenu.script.ts:36](../../src/projects/fish/gameplay/level/PauseMenu.script.ts)，以及 `setupGamePhase` 里 GameOver 的自动回城。
+> **为什么离开前必须手动 `Unpossess()` + `cameraManager.Clear()`**：`SwitchToScene` 只销毁 Actor，**不清 GameInstance 持有的 `_controller` / `_baseGameMode` / `_levelGameMode` 引用**。不手动解绑，旧 Controller 会悬挂，旧相机继续参与 `syncCamera` 竞争。真实调用方：[BattleResult.script.ts:60](../../projects/fish/gameplay/battle/BattleResult.script.ts)、[PauseMenu.script.ts:36](../../projects/fish/gameplay/level/PauseMenu.script.ts)，以及 `setupGamePhase` 里 GameOver 的自动回城。
 
 ### 3.3 表现层定制点
 
 | 想改什么 | 改哪里 | 备注 |
 |---|---|---|
-| 项目显示名 | [project.json](../../src/projects/fish/project.json) + `stores/projectStore.ts:46` + `register.ts` 的 `name` | **三处必须同步** |
-| 主菜单 UI | `asset/blueprints/ui/main_menu.widget.json` + [MainMenu.script.ts](../../src/projects/fish/gameplay/menu/MainMenu.script.ts) | 交互态色由编译器透传到 `UIScript.args` |
+| 项目显示名 | [project.json](../../projects/fish/project.json) + `stores/projectStore.ts:46` + `register.ts` 的 `name` | **三处必须同步** |
+| 主菜单 UI | `asset/blueprints/ui/main_menu.widget.json` + [MainMenu.script.ts](../../projects/fish/gameplay/menu/MainMenu.script.ts) | 交互态色由编译器透传到 `UIScript.args` |
 | 基地 HUD / 建筑菜单 / 地图面板 | `asset/blueprints/ui/{base_hud,build_menu,base_map}.widget.json` + `gameplay/base/*.script.ts` | UI 结构与行为解耦 |
 | GM 面板主题 | `asset/blueprints/ui/gm_panel.widget.json` | 资产驱动，改样式不改代码 |
 | 新增 GM 命令 | 在 `gameplay/gm/` 下新建 `*.gm.ts` | glob 自动注册 |
@@ -275,22 +275,22 @@ this.switchToPhase('base')
 
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| `registerAllProjectModules` | [registry.ts:76](../../src/projects/registry.ts) | 注册引擎内置件 + 所有项目工厂 | 编辑器启动调一次 |
-| `registerProjectAssets` | [registry.ts:119](../../src/projects/registry.ts) | 清旧资产 → 注册新工程资产 | 先 `clearProjectAssets()` 再注册 |
-| `registerFishAssets` | [asset/index.ts:14](../../src/projects/fish/asset/index.ts) | glob 扫场景/蓝图/脚本并注册 | 新增资产文件无需改此文件 |
-| `start` | [:170](../../src/projects/fish/gameplay/FishGameInstance.ts) | 挂 Toast/色盲/调试桥 → 异步读档 → 按 `initialMode` 切首阶段 | 必须同步返回，存档不 await |
-| `switchToPhase` | [:589](../../src/projects/fish/gameplay/FishGameInstance.ts) | 算场景名 → `SwitchToScene` → 分派 setup | `_levelId` 决定 game 走 level 还是普通玩法 |
-| `setupMenuPhase` | [:608](../../src/projects/fish/gameplay/FishGameInstance.ts) | 接 `onStartGame`、注册相机、`PhySys.setup` | 递归绑 HUD 所有 `UIButtonComponent` |
-| `setupBasePhase` | [:641](../../src/projects/fish/gameplay/FishGameInstance.ts) | 复位门控位、接 `onLayoutBuilt/onLayoutChange`、`spawnActor(baseCamera)` | 恢复期静音 `onLayoutChange` |
-| `setupGamePhase` | [:681](../../src/projects/fish/gameplay/FishGameInstance.ts) | 出征玩法：注册相机、绑 pawn、订阅 `gameState` | GameOver 时自动 `returnToBase()` |
-| `setupLevelPhase` | [:716](../../src/projects/fish/gameplay/FishGameInstance.ts) | 注册战斗相机、订阅结算、接 `onBattleOver` | 先退订旧 `unsubGameState` 再订阅 |
-| `enterLevel` | [:849](../../src/projects/fish/gameplay/FishGameInstance.ts) | 校验关卡存在 + 解锁 → 置 `_levelId` → 切 game 阶段 | 走 `progression.isLevelUnlocked` |
-| `returnToBase` | [:791](../../src/projects/fish/gameplay/FishGameInstance.ts) | 退订 + 清四个引用 + 切回 base | 不手动清会悬挂旧 Controller |
-| `saveGame` | [:204](../../src/projects/fish/gameplay/FishGameInstance.ts) | 采集布局快照 → `flush(true)` 强制落盘 | **唯一的常规写盘入口** |
-| `tryRestoreBaseLayout` | [:237](../../src/projects/fish/gameplay/FishGameInstance.ts) | 双就绪门控，置 `_pendingRestore` | 无 `baseBuildings` 键则保留默认布局 |
-| `tick` | [:936](../../src/projects/fish/gameplay/FishGameInstance.ts) | menu 直接返回；base 推进训练/生产/恢复；game 驱动 world | menu 阶段只跑 `save.tick(dt)` |
-| `ProductionService.update` | [ProductionService.ts:284](../../src/projects/fish/gameplay/base/ProductionService.ts) | 产出结算 + 升级/研究/清障队列推进 | 由 GameInstance 的 base 分支驱动 |
-| `spawnObstaclesForBase` | [ObstacleSystem.ts:63](../../src/projects/fish/gameplay/base/ObstacleSystem.ts) | 生成障碍物（树/石头，占格不可建） | 在 `FishBaseGameMode.BeginPlay` 调用 |
+| `registerAllProjectModules` | [registry.ts:76](../../src/editor/projects/registry.ts) | 注册引擎内置件 + 所有项目工厂 | 编辑器启动调一次 |
+| `registerProjectAssets` | [registry.ts:119](../../src/editor/projects/registry.ts) | 清旧资产 → 注册新工程资产 | 先 `clearProjectAssets()` 再注册 |
+| `registerFishAssets` | [asset/index.ts:14](../../projects/fish/asset/index.ts) | glob 扫场景/蓝图/脚本并注册 | 新增资产文件无需改此文件 |
+| `start` | [:170](../../projects/fish/gameplay/FishGameInstance.ts) | 挂 Toast/色盲/调试桥 → 异步读档 → 按 `initialMode` 切首阶段 | 必须同步返回，存档不 await |
+| `switchToPhase` | [:589](../../projects/fish/gameplay/FishGameInstance.ts) | 算场景名 → `SwitchToScene` → 分派 setup | `_levelId` 决定 game 走 level 还是普通玩法 |
+| `setupMenuPhase` | [:608](../../projects/fish/gameplay/FishGameInstance.ts) | 接 `onStartGame`、注册相机、`PhySys.setup` | 递归绑 HUD 所有 `UIButtonComponent` |
+| `setupBasePhase` | [:641](../../projects/fish/gameplay/FishGameInstance.ts) | 复位门控位、接 `onLayoutBuilt/onLayoutChange`、`spawnActor(baseCamera)` | 恢复期静音 `onLayoutChange` |
+| `setupGamePhase` | [:681](../../projects/fish/gameplay/FishGameInstance.ts) | 出征玩法：注册相机、绑 pawn、订阅 `gameState` | GameOver 时自动 `returnToBase()` |
+| `setupLevelPhase` | [:716](../../projects/fish/gameplay/FishGameInstance.ts) | 注册战斗相机、订阅结算、接 `onBattleOver` | 先退订旧 `unsubGameState` 再订阅 |
+| `enterLevel` | [:849](../../projects/fish/gameplay/FishGameInstance.ts) | 校验关卡存在 + 解锁 → 置 `_levelId` → 切 game 阶段 | 走 `progression.isLevelUnlocked` |
+| `returnToBase` | [:791](../../projects/fish/gameplay/FishGameInstance.ts) | 退订 + 清四个引用 + 切回 base | 不手动清会悬挂旧 Controller |
+| `saveGame` | [:204](../../projects/fish/gameplay/FishGameInstance.ts) | 采集布局快照 → `flush(true)` 强制落盘 | **唯一的常规写盘入口** |
+| `tryRestoreBaseLayout` | [:237](../../projects/fish/gameplay/FishGameInstance.ts) | 双就绪门控，置 `_pendingRestore` | 无 `baseBuildings` 键则保留默认布局 |
+| `tick` | [:936](../../projects/fish/gameplay/FishGameInstance.ts) | menu 直接返回；base 推进训练/生产/恢复；game 驱动 world | menu 阶段只跑 `save.tick(dt)` |
+| `ProductionService.update` | [ProductionService.ts:284](../../projects/fish/gameplay/base/ProductionService.ts) | 产出结算 + 升级/研究/清障队列推进 | 由 GameInstance 的 base 分支驱动 |
+| `spawnObstaclesForBase` | [ObstacleSystem.ts:63](../../projects/fish/gameplay/base/ObstacleSystem.ts) | 生成障碍物（树/石头，占格不可建） | 在 `FishBaseGameMode.BeginPlay` 调用 |
 
 ---
 
@@ -321,7 +321,7 @@ this.switchToPhase('base')
 
 | # | 现象 | 原因 | 规则 |
 |---|---|---|---|
-| 1 | 改场景 `name` 后阶段切换失败 | `SwitchToScene` 按 `SceneAsset.name` 查表 | 改 `fish.scene.json` 的 `name` 必须同步 [:592](../../src/projects/fish/gameplay/FishGameInstance.ts) 的 `'ClashMaster'` 回退串 |
+| 1 | 改场景 `name` 后阶段切换失败 | `SwitchToScene` 按 `SceneAsset.name` 查表 | 改 `fish.scene.json` 的 `name` 必须同步 [:592](../../projects/fish/gameplay/FishGameInstance.ts) 的 `'ClashMaster'` 回退串 |
 | 2 | 项目显示名与工厂 key 对不上 | 名字散在 `project.json`、`stores/projectStore.ts:46`、`register.ts` | 三处同步改 |
 | 3 | 改了 widget/蓝图 JSON 页面没变化 | `registerProjectAssets` 只在打开工程时跑一次，HMR 不重注册 | 必须 reload 页面再验证 |
 | 4 | 默认布局覆盖玩家存档布局 | `ClashBaseBuilder.build` 先建默认布局，`onLayoutChange` 过早写进 `baseBuildings` | `_baseRestored` 置位前静音写入 |
