@@ -1,0 +1,17 @@
+<widget name="ShipStackRow" canvas="530x52">
+  <style>
+    .Btn_stack_row { box-sizing: border-box; width: 530px; height: 52px; position: relative; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; background-color: #0d2434; border: 1px solid #1c4560; padding: 0px 12px; }
+    .Btn_stack_row:hover { background-color: #143650; }
+    .Btn_stack_row:checked { background-color: #14486b; border: 1px solid #4fd8ff; }
+    .RowType { width: 60px; height: 26px; flex-shrink: 0; font-size: 15px; color: #6f9ab0; text-align: left; text-shadow: 1px 1px 4px #00000066; }
+    .RowModule { width: 300px; height: 26px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-align: left; text-shadow: 1px 1px 4px #00000066; }
+    .RowRemoveMark { width: 40px; height: 26px; flex-shrink: 0; font-size: 16px; color: #6f8ba0; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <button class="Btn_stack_row" data-name="Btn_stack_row">
+      <text class="RowType" data-name="RowType"></text>
+      <text class="RowModule" data-name="RowModule"></text>
+      <text class="RowRemoveMark" data-name="RowRemoveMark"></text>
+    </button>
+  </div>
+</widget>

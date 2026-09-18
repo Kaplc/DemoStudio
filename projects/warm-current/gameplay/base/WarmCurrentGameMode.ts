@@ -489,6 +489,40 @@ export interface HudDesignSlotCell {
   sel: boolean
 }
 
+/**
+ * 装配台堆叠行（2026-09-17 堆叠式装配台：《缺氧》火箭编辑器形态——
+ * 垂直箭体+部位实例行，每部位尾随一行加号，点击加号装新件，玩家自由组合） */
+export interface HudStackRow {
+  /** 行定位键：'__hull__' | '__add__<type>' | '<type>#<idx>' */
+  rowId: string
+  /** hull = 箭体行（点击无效）；module = 已装/空实例行；add = 加号行 */
+  kind: 'hull' | 'module' | 'add'
+  /** 所属部位（hull 行 = ''） */
+  type: string
+  typeName: string
+  /** 同槽型实例序（module/add 行有效） */
+  idx: number
+  /** 已装模块名（hull 行 = 船型名；空行/加号行 = ''） */
+  moduleName: string
+  filled: boolean
+  /** 当前选中部位（module 行） */
+  sel: boolean
+  /** 加号行可点（空实例存在 = 未满）；满槽 = false 占位 */
+  addable: boolean
+  /** 实例行可快捷移除（已装件） */
+  removable: boolean
+  /** 引导短句（加号行/空行提示；其余 = ''） */
+  hint: string
+}
+
+/** 装配台「+ 加号」部位选择小面板（2026-09-17 三轮口径：点 + → 用户选部位，不默认荷载） */
+export interface HudShipAddMenu {
+  /** 面板开合（GameMode.shipyardAddMenuOpen 投影） */
+  open: boolean
+  /** 部位选项（船型槽型表键序：荷载/燃料/引擎；empty = 该部位无空位则置灰） */
+  parts: Array<{ type: string; name: string; empty: boolean }>
+}
+
 /** 可下单船坞行（火箭设计面板下水区；canOrder = 建成 + 对局中 + cap 余量） */
 export interface HudDesignDock {
   id: number
@@ -509,6 +543,10 @@ export interface HudShipDesign {
   slotOptions: HudModuleRow[]
   /** 装配台槽位格（slots 表序展开） */
   slotCells: HudDesignSlotCell[]
+  /** 装配台堆叠行（2026-09-17 堆叠式：箭体行 + 部位实例行 + 尾随加号行，缺氧火箭编辑器形态） */
+  stackRows: HudStackRow[]
+  /** 「+ 加号」部位选择小面板（2026-09-17 三轮口径：点 + → 选荷载/燃料/引擎；open=false 收起） */
+  addMenu: HudShipAddMenu
   /** 槽位占用行（「货舱 1/2」） */
   slotRows: Array<{ name: string; used: number; cap: number }>
   /** 试航行（三星口径 + 线路反推） */
@@ -553,6 +591,10 @@ export interface HudShipyard {
   slotOptions: HudModuleRow[]
   /** 装配台槽位格（slots 表序展开，与设计面板同源） */
   slotCells: HudDesignSlotCell[]
+  /** 装配台堆叠行（2026-09-17 堆叠式，与设计面板同源投影） */
+  stackRows: HudStackRow[]
+  /** 「+ 加号」部位选择小面板（与设计面板同源投影） */
+  addMenu: HudShipAddMenu
   /** 当前船型槽位占用行（slots 表键序；「货舱 1/2」展示口径） */
   slotRows: Array<{ name: string; used: number; cap: number }>
   /** 试航行（三星口径；未解锁星标幕数） */
@@ -740,6 +782,8 @@ export class WarmCurrentGameMode extends GameMode {
   /** 设计工坊当前选中的装配台部位（槽型 + 同型实例序；null = 未选，② 区不出部件清单。
    *  2026-09-13 部位选件制：点部位 → 该槽型多档部件挑选，换装/卸下都以实例为单位） */
   shipyardSelSlot: { type: string; idx: number } | null = null
+  /** 装配台「+ 加号」部位选择小面板（2026-09-17 三轮口径：点 + → 用户选荷载/燃料/引擎；false = 收起） */
+  shipyardAddMenuOpen = false
   /** 建筑详情浮层当前建筑 id（点建筑打开：强化分支装拆流；null = 收起） */
   buildingDetailSel: number | null = null
   /** 耀斑预警框选的船 id 集（决策条下达对象；耀斑结束自动清空） */
@@ -1654,6 +1698,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSelHull = 'standard'
     this.shipyardSelModules = []
     this.shipyardSelSlot = null
+    this.shipyardAddMenuOpen = false
     this.planetInfoSel = null
     this.orbitBuildSel = null
     this.stationSel = null
@@ -1697,6 +1742,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.payloadDesignOpen = false
     this.planetInfoSel = null
     this.shipyardSel = null
+    this.shipyardAddMenuOpen = false
     this.stationSel = null
     this.orbitBuildSel = null
     audioSys.play('wc.draw', { volume: 0.3 })
@@ -1946,6 +1992,73 @@ export class WarmCurrentGameMode extends GameMode {
     return { sel: selSlot, slotCells }
   }
 
+  /**
+   * 装配台堆叠行（2026-09-17 二轮反馈精简：缺氧火箭「从底部往上堆」口径）：
+   *  - 不再展开预定空槽位行，只列「已装实例行」——玩家看到的就是装了的东西；
+   *  - 全装配台只有一枚加号行（固定在末尾，始终可点）：点击 = 顺序定位第一个
+   *    有空位的部位（荷载→燃料→引擎），② 区出该部位部件清单；满员 = 提示船型已满；
+   *  - 已装行点击 = 选中该实例换装/卸下（原口径不变）。
+   * 设计面板/船坞面板同源共用此投影，选择态权威仍在 shipyardSelSlot/shipyardSelModules。
+   */
+  private buildStackRows(
+    usage: Record<string, number>,
+    capacity: Record<string, number>,
+  ): HudStackRow[] {
+    const rows: HudStackRow[] = []
+    for (const [type, cap] of Object.entries(capacity)) {
+      const typeName = SLOT_TYPE_NAMES[type] ?? type
+      const typeMods = this.shipyardSelModules.filter((id) => shipModuleDefOf(id)?.slotType === type)
+      for (let i = 0; i < typeMods.length; i++) {
+        const mid = typeMods[i]
+        rows.push({
+          rowId: `${type}#${i}`,
+          kind: 'module',
+          type,
+          typeName,
+          idx: i,
+          moduleName: mid ? shipModuleDefOf(mid)?.name ?? mid : '',
+          filled: true,
+          sel: !!this.shipyardSelSlot && this.shipyardSelSlot.type === type && this.shipyardSelSlot.idx === i,
+          addable: false,
+          removable: true,
+          hint: '',
+        })
+      }
+    }
+    // 单一加号行：点击 = 弹出部位选择小面板（用户指定装什么，不默认荷载）
+    const types = Object.keys(capacity)
+    const firstOpen = types.find((t) => (usage[t] ?? 0) < (capacity[t] ?? 0)) ?? ''
+    const addType = firstOpen || types[0] || ''
+    const used = usage[addType] ?? 0
+    rows.push({
+      rowId: '__add__',
+      kind: 'add',
+      type: addType,
+      typeName: SLOT_TYPE_NAMES[addType] ?? addType,
+      idx: used,
+      moduleName: '',
+      filled: false,
+      sel: false,
+      addable: !!firstOpen,
+      removable: false,
+      hint: firstOpen ? '选择要加装的部位' : `${shipHullDefOf(this.shipyardSelHull)?.name ?? this.shipyardSelHull}槽位已满`,
+    })
+    return rows
+  }
+
+  /** 「+ 加号」部位选择小面板投影（船型槽型表键序；empty = 该部位无空位置灰） */
+  private buildAddMenu(
+    usage: Record<string, number>,
+    capacity: Record<string, number>,
+  ): HudShipAddMenu {
+    const parts = Object.keys(capacity).map((type) => ({
+      type,
+      name: SLOT_TYPE_NAMES[type] ?? type,
+      empty: (usage[type] ?? 0) < (capacity[type] ?? 0),
+    }))
+    return { open: this.shipyardAddMenuOpen, parts }
+  }
+
   /** 部位选件清单（选中槽型的 ship_module 行，表序 = 低档在前；here = 本实例当前所装件） */
   private buildSlotOptions(
     sel: { type: string; idx: number } | null,
@@ -1986,6 +2099,8 @@ export class WarmCurrentGameMode extends GameMode {
       id, name: h.name, desc: h.desc, cost: h.cost,
     }))
     const { sel: selSlot, slotCells } = this.buildSlotCells(usage, capacity)
+    const stackRows = this.buildStackRows(usage, capacity)
+    const addMenu = this.buildAddMenu(usage, capacity)
     const slotOptions = this.buildSlotOptions(selSlot, usage, capacity)
     const slotRows = Object.entries(capacity).map(([type, cap]) => ({
       name: SLOT_TYPE_NAMES[type] ?? type,
@@ -2035,6 +2150,8 @@ export class WarmCurrentGameMode extends GameMode {
       selSlot,
       slotOptions,
       slotCells,
+      stackRows,
+      addMenu,
       slotRows,
       trials,
       designs,
@@ -3223,6 +3340,8 @@ export class WarmCurrentGameMode extends GameMode {
     const capacity = hullSlotCapacity(this.shipyardSelHull)
     // 部位选件制（2026-09-13）：与设计面板同源——点槽位格出该槽型多档部件
     const { sel: selSlot, slotCells } = this.buildSlotCells(usage, capacity)
+    const stackRows = this.buildStackRows(usage, capacity)
+    const addMenu = this.buildAddMenu(usage, capacity)
     const slotOptions = this.buildSlotOptions(selSlot, usage, capacity)
     // 槽位占用行（ship_hull.slots 表键序）
     const slotRows = Object.entries(capacity).map(([type, cap]) => ({
@@ -3267,6 +3386,8 @@ export class WarmCurrentGameMode extends GameMode {
       selSlot,
       slotOptions,
       slotCells,
+      stackRows,
+      addMenu,
       slotRows,
       trials,
       designs,
@@ -3292,6 +3413,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSelHull = hullId
     this.shipyardSelModules = this.shipyardSelModules.filter((id) => hullAllowsModule(hullId, id))
     this.shipyardSelSlot = null
+    this.shipyardAddMenuOpen = false
   }
 
   /** 船坞面板：勾选/取消模块（槽位校验：hullHasSlotFor 单一口径；单船同模块一件） */
@@ -3317,6 +3439,37 @@ export class WarmCurrentGameMode extends GameMode {
     const cap = hullSlotCapacity(this.shipyardSelHull)[type] ?? 0
     if (idx < 0 || idx >= cap) return
     this.shipyardSelSlot = { type, idx }
+  }
+
+  /**
+   * 装配台点「+ 加号」（2026-09-17 三轮口径：用户指定部位，不默认荷载）：
+   * 打开装配台内的小面板让用户选「荷载 / 燃料 / 引擎」；选了部位 =
+   * selectShipyardSlot(type, 该部位下一空实例)。船型无任何空位时按钮置灰本就进不来。
+   */
+  openShipyardAddMenu(): void {
+    const cap = hullSlotCapacity(this.shipyardSelHull)
+    const usage = modulesSlotUsage(this.shipyardSelHull, this.shipyardSelModules)
+    const open = Object.keys(cap).filter((t) => (usage[t] ?? 0) < (cap[t] ?? 0))
+    if (open.length === 0) return
+    this.shipyardAddMenuOpen = true
+    logger.info(`[WarmCurrent] 装配台加号 → 部位选择（空位部位：${open.join('/')}）`)
+  }
+
+  /** 部位选择小面板：选部位（type 非法/该部位无空位忽略；选定即关面板） */
+  pickShipyardAddPart(type: string): void {
+    if (!this.shipyardAddMenuOpen) return
+    this.shipyardAddMenuOpen = false
+    const cap = hullSlotCapacity(this.shipyardSelHull)[type] ?? 0
+    if (cap <= 0) return
+    const used = this.shipyardSelModules.filter((id) => shipModuleDefOf(id)?.slotType === type).length
+    if (used >= cap) return
+    this.selectShipyardSlot(type, used)
+    audioSys.play('wc.draw', { volume: 0.25 })
+  }
+
+  /** 部位选择小面板：关闭（再点加号行 = 重开） */
+  closeShipyardAddMenu(): void {
+    this.shipyardAddMenuOpen = false
   }
 
   /**
@@ -3393,6 +3546,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.shipyardSelHull = d.hull
     this.shipyardSelModules = d.modules.filter((id) => hullAllowsModule(d.hull, id))
     this.shipyardSelSlot = null
+    this.shipyardAddMenuOpen = false
     this.simState.hint(`已载入「${d.name}」`)
     return true
   }

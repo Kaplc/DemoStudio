@@ -1,0 +1,15 @@
+<widget name="ShipStackAdd" canvas="530x44">
+  <style>
+    .Btn_stack_add { box-sizing: border-box; width: 530px; height: 44px; position: relative; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; background-color: #0a1c2c; border: 1px dashed #2a5f7a; }
+    .Btn_stack_add:hover { background-color: #143650; }
+    .Btn_stack_add:disabled { background-color: #0a1620; }
+    .RowAddMark { width: 32px; height: 28px; flex-shrink: 0; font-size: 22px; color: #4fd8ff; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .RowAddLabel { width: 380px; height: 24px; flex-shrink: 0; font-size: 15px; color: #7fdcff; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <button class="Btn_stack_add" data-name="Btn_stack_add">
+      <text class="RowAddMark" data-name="RowAddMark"></text>
+      <text class="RowAddLabel" data-name="RowAddLabel"></text>
+    </button>
+  </div>
+</widget>

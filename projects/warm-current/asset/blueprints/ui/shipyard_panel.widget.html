@@ -16,13 +16,14 @@
     .StepTitle { height: 24px; flex-shrink: 0; font-size: 16px; color: #4fd8ff; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
     .HullTitle { width: 320px; }
     .ModuleTitle { width: 720px; }
-    .SlotRowText { width: 720px; height: 24px; flex-shrink: 0; font-size: 15px; color: #ffe9a8; text-shadow: 1px 1px 4px #00000066; }
-    .SlotGrid { width: 720px; height: 126px; flex-shrink: 0; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px; }
-    .SlotCell { box-sizing: border-box; width: 258px; height: 56px; flex-shrink: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; background-color: #0d2434; border: 1px solid #235066; padding: 0px 12px; }
-    .SlotCell:hover { background-color: #143650; }
-    .SlotCell:checked { background-color: #14486b; }
-    .SlotTypeName { width: 64px; height: 28px; flex-shrink: 0; font-size: 16px; color: #6f9ab0; text-shadow: 1px 1px 4px #00000066; }
-    .SlotModuleName { width: 170px; height: 28px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .StackList { width: 720px; height: 214px; flex-shrink: 0; }
+    .ModuleCol { position: relative; }
+    .AddMenu { position: absolute; left: 140px; top: 40px; width: 440px; height: 260px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; background-image: linear-gradient(170deg, #0c2234f5 0%, #0a1a2af5 100%); border: 1px solid #4fd8ff; z-order: 20; }
+    .AddMenuTitle { width: 400px; height: 28px; flex-shrink: 0; font-size: 18px; color: #4fd8ff; font-weight: bold; text-align: center; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_add_part { box-sizing: border-box; width: 340px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #2a5f7a; }
+    .Btn_add_part:hover { background-color: #143650; }
+    .Btn_add_part:disabled { background-color: #141a1e; }
+    .Label_add_part { width: 320px; height: 26px; font-size: 16px; color: #ffe9a8; text-align: center; text-shadow: 1px 1px 4px #00000066; }
     .OrderTitle { width: 322px; }
     .HullList { width: 320px; height: 434px; flex-shrink: 0; }
     .ModuleList { width: 720px; height: 272px; flex-shrink: 0; }
@@ -60,16 +61,14 @@
           </div>
           <div class="ModuleCol" data-name="ModuleCol">
             <text class="StepTitle ModuleTitle" data-name="ModuleTitle">② 本船插件（点部位选件 · 可不配）</text>
-            <text class="SlotRowText" data-name="SlotRowText"></text>
-            <div class="SlotGrid" data-name="SlotGrid">
-              <button class="SlotCell" data-name="SlotCell_0"><text class="SlotTypeName" data-name="SlotTypeName_0"></text><text class="SlotModuleName" data-name="SlotModuleName_0"></text></button>
-              <button class="SlotCell" data-name="SlotCell_1"><text class="SlotTypeName" data-name="SlotTypeName_1"></text><text class="SlotModuleName" data-name="SlotModuleName_1"></text></button>
-              <button class="SlotCell" data-name="SlotCell_2"><text class="SlotTypeName" data-name="SlotTypeName_2"></text><text class="SlotModuleName" data-name="SlotModuleName_2"></text></button>
-              <button class="SlotCell" data-name="SlotCell_3"><text class="SlotTypeName" data-name="SlotTypeName_3"></text><text class="SlotModuleName" data-name="SlotModuleName_3"></text></button>
-              <button class="SlotCell" data-name="SlotCell_4"><text class="SlotTypeName" data-name="SlotTypeName_4"></text><text class="SlotModuleName" data-name="SlotModuleName_4"></text></button>
-              <button class="SlotCell" data-name="SlotCell_5"><text class="SlotTypeName" data-name="SlotTypeName_5"></text><text class="SlotModuleName" data-name="SlotModuleName_5"></text></button>
-            </div>
+            <div class="StackList" data-name="StackList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":4,"justify":"end","autoHeight":true,"autoLayout":true}'></div>
             <div class="ModuleList" data-name="ModuleList" data-comp="UILayout" data-props='{"mode":"vertical","spacingX":0,"spacingY":6,"justify":"start","autoHeight":true,"autoLayout":true}'></div>
+            <div class="AddMenu" data-name="AddMenu">
+              <text class="AddMenuTitle" data-name="AddMenuTitle">选择要加装的部位</text>
+              <button class="Btn_add_part" data-name="Btn_add_payload"><text class="Label_add_part" data-name="Label_add_payload">荷载</text></button>
+              <button class="Btn_add_part" data-name="Btn_add_fuel"><text class="Label_add_part" data-name="Label_add_fuel">燃料</text></button>
+              <button class="Btn_add_part" data-name="Btn_add_engine"><text class="Label_add_part" data-name="Label_add_engine">引擎</text></button>
+            </div>
           </div>
           <div class="OrderCol" data-name="OrderCol">
             <text class="StepTitle OrderTitle" data-name="OrderTitle">③ 入队</text>

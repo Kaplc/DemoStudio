@@ -4,9 +4,12 @@
  * 职责（数据由 GameMode.shipyardSel + shipyardSelHull/shipyardSelModules/shipyardSelSlot 驱动，本脚本只做差分呈现）：
  *  - 星图点船坞 → GameMode.openShipyardPanel(dockId) → vm.shipyard 非空 → 面板展开
  *  - 面板内 ✕ / 点空地 → GameMode.closeShipyardPanel() → vm.shipyard 为 null → 收起
- *  - 造船三步流（2026-09-13 部位选件制改版，选择态权威在 GameMode，与火箭设计工坊同源）：
+ *  - 造船三步流（2026-09-17 堆叠式装配台改版，选择态权威在 GameMode，与火箭设计工坊同源）：
  *      ① 选船型（HullList 动态生成 ship_hull_cell，ship_hull 表驱动；点击 → mode.setShipyardHull）
- *      ② 点部位选件（SlotGrid 静态槽位格按钮池：点击 → mode.selectShipyardSlot；
+ *      ② 堆叠式装配台（StackList 垂直堆叠行池：已装实例行 + 末尾单一加号行，justify=end 从底部往上堆；
+ *         加号行点击 → mode.openShipyardAddMenu() 弹出部位选择小面板（AddMenu：荷载/燃料/引擎）；
+ *         选部位 → mode.pickShipyardAddPart(type) = selectShipyardSlot 定位空实例；
+ *         已装行点击 → mode.selectShipyardSlot(type, idx) 换装/卸下；
  *         ModuleList 出该槽型多档部件：点击 → mode.pickShipyardSlotModule 换装/卸下）
  *      ③ 总价（船体 + Σ模块 × 船坞折扣）入队（transport.tryBuildShip(hull, modules, dockId)）
  *  - 试航卡（TrialText：三星口径吞吐/净赚/轮时 + 线路反推「补缺口需 N 艘」）
@@ -15,7 +18,7 @@
  *  - 造船队列逐船一卡：容器 ShipCardList 挂 UILayout（vertical），卡片池随队列长度增删
  *  - 8Hz 差分同步；在建船坞只显示建造进度，无造船按钮
  */
-import { BehaviourScript, UIButtonComponent, logger } from '@/engine'
+import { BehaviourScript, logger } from '@/engine'
 import type { Actor } from '@/engine'
 import { shipBuildPrice, shipHullDefOf, shipModuleDefOf } from '../core/helpers'
 import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
@@ -26,11 +29,14 @@ export const SHIPYARD_PANEL_WIDGET = 'asset/blueprints/ui/shipyard_panel.widget.
 export const SHIP_BUILD_CARD_WIDGET = 'asset/blueprints/ui/ship_build_card.widget.json'
 export const SHIP_HULL_CELL_WIDGET = 'asset/blueprints/ui/ship_hull_cell.widget.json'
 export const SHIP_MODULE_CELL_WIDGET = 'asset/blueprints/ui/ship_module_cell.widget.json'
+/** 堆叠行 / 加号行 widget 资产路径（2026-09-17 堆叠式装配台，与火箭设计工坊共用） */
+export const SHIP_STACK_ROW_WIDGET = 'asset/blueprints/ui/ship_stack_row.widget.json'
+export const SHIP_STACK_ADD_WIDGET = 'asset/blueprints/ui/ship_stack_add.widget.json'
 
 /** 卡片池容量上限（与飞船上限同量级取整；超出提示走 HUD 口径，不无限生成） */
 const MAX_CARDS = 12
-/** 静态槽位格池容量（船型最大槽位数 = hauler 4；6 取整防扩展溢出） */
-const SLOT_CELLS = 6
+/** 堆叠行池容量上限（船型最大槽位数 = hauler 4；含箭体行 + 加号行取整防扩展溢出） */
+const STACK_ROW_CAP = 12
 
 export default class ShipyardPanelScript extends BehaviourScript {
   private binder = new TextBinder()
@@ -50,16 +56,17 @@ export default class ShipyardPanelScript extends BehaviourScript {
   private optionIds: string[] = []
   private designIdxs: number[] = []
   /** 槽位格 → (槽型, 实例序)（点击 selectShipyardSlot 用；随 VM 刷新） */
-  private slotCellDefs: Array<{ type: string; idx: number } | null> = new Array(SLOT_CELLS).fill(null)
+  private stackRowDefs: Array<{ type: string; idx: number }> = []
+  private stackAddDefs: Array<{ type: string; idx: number }> = []
+  /** 堆叠行池（2026-09-17 堆叠式装配台；行 VM 序驱动，只增不毁） */
+  private stackRowCells: Actor[] = []
+  private stackAddCells: Actor[] = []
   /** 选中态差分（按 Actor 实例做键；写原生 btn.checked，stateColors.checked 承载视觉） */
   private checkedMap = new Map<Actor, boolean>()
   /** 可点态差分（按 Actor 实例做键；disabled 置灰） */
   private enabledMap = new Map<Actor, boolean>()
   /** 格子整体显隐差分（按 Actor 实例做键） */
   private visMap = new Map<Actor, boolean>()
-  /** 槽位格填充/选中态文字色差分（Actor → filled/sel 组合键） */
-  private slotFilledMap = new Map<Actor, boolean>()
-  private slotSelMap = new Map<Actor, string>()
   /** 最近载入的模板下标（删除按钮目标；null = 删最后一个） */
   private lastLoadedDesign: number | null = null
 
@@ -82,13 +89,10 @@ export default class ShipyardPanelScript extends BehaviourScript {
     })
     // 一键推荐配置（《火箭工坊》兜底：能过关但非最优）
     bind('Btn_yd_recommend', () => wcMode()?.applyShipyardRecommend())
-    // 装配台槽位格按钮池（点击 = 选中部位 → ModuleList 出该槽型部件清单）
-    for (let i = 0; i < SLOT_CELLS; i++) {
-      bind(`SlotCell_${i}`, () => {
-        const def = this.slotCellDefs[i]
-        if (def) wcMode()?.selectShipyardSlot(def.type, def.idx)
-      })
-    }
+    // 「+ 加号」部位选择小面板（三轮口径：点 + → 用户选荷载/燃料/引擎）
+    bind('Btn_add_payload', () => wcMode()?.pickShipyardAddPart('payload'))
+    bind('Btn_add_fuel', () => wcMode()?.pickShipyardAddPart('fuel'))
+    bind('Btn_add_engine', () => wcMode()?.pickShipyardAddPart('engine'))
     // 设计模板：存 / 删
     bind('Btn_yd_save', () => wcMode()?.saveShipDesign())
     bind('Btn_yd_ddel', () => {
@@ -104,7 +108,8 @@ export default class ShipyardPanelScript extends BehaviourScript {
     })
     // 默认收起（脚本置位，先于首帧渲染；禁 active=false 种子——显隐一律走脚本）
     this.vis.set(this.actor, 'ShipyardBody', false)
-    logger.info('[ShipyardPanelScript] 船坞造船面板就绪（槽位制三步流 + 试航卡 + 设计模板，默认收起）')
+    this.vis.set(this.actor, 'AddMenu', false)
+    logger.info('[ShipyardPanelScript] 船坞造船面板就绪（堆叠式装配台 + 试航卡 + 设计模板，默认收起）')
   }
 
   override onUpdate(dt: number): void {
@@ -130,13 +135,12 @@ export default class ShipyardPanelScript extends BehaviourScript {
       return
     }
 
-    // ─── 三步流：船型格 / 部位格 + 选件清单 / 总价 ───
+    // ─── 三步流：船型格 / 堆叠装配台 + 选件清单 / 总价 ───
     this.syncHullCells(yd)
-    this.syncSlotCells(yd)
+    this.syncStackRows(yd)
+    this.syncAddMenu(yd.addMenu)
     this.syncSlotOptions(yd)
     this.syncDesignCells(yd)
-    const slotLine = yd.slotRows.map((r) => `${r.name} ${r.used}/${r.cap}`).join(' · ')
-    this.binder.set(findText(this.actor, 'SlotRowText'), slotLine ? `槽位：${slotLine}` : '槽位：无（仅兼容约束）')
     const price = Math.round(shipBuildPrice(mode.shipyardSelHull, mode.shipyardSelModules) * yd.costMult)
     const hullDef = shipHullDefOf(mode.shipyardSelHull)
     const hullPrice = Math.round((hullDef?.cost ?? 0) * yd.costMult)
@@ -214,31 +218,75 @@ export default class ShipyardPanelScript extends BehaviourScript {
     }
   }
 
-  /** 装配台静态槽位格差分（6 格按钮池：槽型名 + 已装模块名；选中提亮、填充态模块名换绿） */
-  private syncSlotCells(yd: {
-    slotCells: Array<{ type: string; typeName: string; slotIdx: number; module: string; filled: boolean; sel: boolean }>
-  }): void {
-    for (let i = 0; i < SLOT_CELLS; i++) {
-      const cell = findChild(this.actor, `SlotCell_${i}`)
-      if (!cell) continue
-      const data = yd.slotCells[i]
-      // VisBinder.set 的查找起点必须是面板根（传 cell 自身会在其子树里找同名节点 → 永远找不到）
-      this.vis.set(this.actor, `SlotCell_${i}`, !!data)
-      this.slotCellDefs[i] = data ? { type: data.type, idx: data.slotIdx } : null
-      if (!data) continue
-      this.binder.set(findText(cell, `SlotTypeName_${i}`), data.typeName)
-      this.binder.set(findText(cell, `SlotModuleName_${i}`), data.module || '（空）')
-      if (this.slotFilledMap.get(cell) !== data.filled) {
-        this.slotFilledMap.set(cell, data.filled)
-        // 填充态反馈 = 模块名换绿（格底色编译期固化，运行时改文字色是安全口径）
-        this.colors.set(findText(cell, `SlotModuleName_${i}`), data.filled ? '#7fe8a8' : '#6f9ab0')
+  /**
+   * 装配台堆叠行池差分（2026-09-17 堆叠式装配台，与火箭设计工坊同源同构；
+   * 箭体行/实例行 = ship_stack_row，加号行 = ship_stack_add；点击 = selectShipyardSlot）
+   */
+  private syncStackRows(yd: { stackRows: Array<{ rowId: string; kind: string; type: string; typeName: string; idx: number; moduleName: string; filled: boolean; sel: boolean; addable: boolean; removable: boolean; hint: string }> }): void {
+    const world = this.world
+    const list = findChild(this.actor, 'StackList')
+    const mode = wcMode()
+    if (!world || !list || !mode) return
+    const moduleRows = yd.stackRows.filter((r) => r.kind !== 'add')
+    const addRows = yd.stackRows.filter((r) => r.kind === 'add')
+    // 实例行池（箭体行 + 部位实例行）
+    this.stackRowDefs = moduleRows.map((r) => ({ type: r.type, idx: r.idx }))
+    while (this.stackRowCells.length < moduleRows.length && this.stackRowCells.length < STACK_ROW_CAP) {
+      const idx = this.stackRowCells.length
+      const cell = world.ui.spawnUIActor(SHIP_STACK_ROW_WIDGET, list)
+      if (!cell) { logger.warn('[ShipyardPanelScript] 堆叠行生成失败'); break }
+      const btn = findButton(cell, 'Btn_stack_row')
+      if (btn) {
+        btn.onClick = () => {
+          const def = this.stackRowDefs[idx]
+          if (def && def.type) mode.selectShipyardSlot(def.type, def.idx)
+        }
       }
-      const selKey = `${data.filled ? 1 : 0}${data.sel ? 1 : 0}`
-      if (this.slotSelMap.get(cell) !== selKey) {
-        this.slotSelMap.set(cell, selKey)
-        this.colors.set(findText(cell, `SlotTypeName_${i}`), data.sel ? '#4fd8ff' : '#6f9ab0')
+      this.stackRowCells.push(cell)
+    }
+    for (let i = 0; i < this.stackRowCells.length; i++) {
+      const cell = this.stackRowCells[i]
+      const r = moduleRows[i]
+      this.setCellVisible(cell, !!r)
+      if (!r) continue
+      this.setCellText(cell, 'RowType', r.typeName)
+      this.setCellText(cell, 'RowModule', r.moduleName || r.hint)
+      this.setCellText(cell, 'RowRemoveMark', r.removable ? '−' : '')
+      this.setSelfChecked(cell, r.sel)
+    }
+    // 加号行池（每部位尾行；点击 = 定位下一空实例）
+    this.stackAddDefs = addRows.map((r) => ({ type: r.type, idx: r.idx }))
+    while (this.stackAddCells.length < addRows.length && this.stackAddCells.length < STACK_ROW_CAP) {
+      const idx = this.stackAddCells.length
+      const cell = world.ui.spawnUIActor(SHIP_STACK_ADD_WIDGET, list)
+      if (!cell) { logger.warn('[ShipyardPanelScript] 加号行生成失败'); break }
+      const btn = findButton(cell, 'Btn_stack_add')
+      if (btn) {
+        btn.onClick = () => mode.openShipyardAddMenu()
       }
-      this.setSelfChecked(cell, data.sel)
+      this.stackAddCells.push(cell)
+    }
+    for (let i = 0; i < this.stackAddCells.length; i++) {
+      const cell = this.stackAddCells[i]
+      const r = addRows[i]
+      this.setCellVisible(cell, !!r)
+      if (!r) continue
+      this.setCellText(cell, 'RowAddMark', r.addable ? '+' : '')
+      this.setCellText(cell, 'RowAddLabel', r.addable ? '添加模块' : `${r.typeName}已满`)
+      const btn = findButton(cell, 'Btn_stack_add')
+      if (btn) btn.state = r.addable ? 'normal' : 'disabled'
+    }
+  }
+
+  /** 「+ 加号」部位选择小面板（AddMenu 显隐 + 三按钮可用态；open 权威 = GameMode.shipyardAddMenuOpen） */
+  private syncAddMenu(menu: { open: boolean; parts: Array<{ type: string; name: string; empty: boolean }> }): void {
+    this.vis.set(this.actor, 'AddMenu', menu.open)
+    if (!menu.open) return
+    for (const p of menu.parts) {
+      const btn = findButton(this.actor, `Btn_add_${p.type}`)
+      if (btn) btn.state = p.empty ? 'normal' : 'disabled'
+      const label = findText(this.actor, `Label_add_${p.type}`)
+      if (label) this.binder.set(label, p.empty ? p.name : `${p.name}（已满）`)
     }
   }
 
@@ -330,11 +378,11 @@ export default class ShipyardPanelScript extends BehaviourScript {
     if (btn) btn.checked = on
   }
 
-  /** 选中态写格子自身按钮（SlotCell 按钮即格根，无内层 Btn_cell） */
+  /** 选中态写堆叠行按钮（按钮在子节点 Btn_stack_row 上；getComponent 只查自身不递归，必须 findButton） */
   private setSelfChecked(cell: Actor, on: boolean): void {
     if (this.checkedMap.get(cell) === on) return
     this.checkedMap.set(cell, on)
-    const btn = cell.getComponent(UIButtonComponent)
+    const btn = findButton(cell, 'Btn_stack_row')
     if (btn) btn.checked = on
   }
 
@@ -384,11 +432,12 @@ export default class ShipyardPanelScript extends BehaviourScript {
     this.hullIds.length = 0
     this.optionIds.length = 0
     this.designIdxs.length = 0
-    this.slotCellDefs.length = 0
+    this.stackRowCells.length = 0
+    this.stackAddCells.length = 0
+    this.stackRowDefs.length = 0
+    this.stackAddDefs.length = 0
     this.checkedMap.clear()
     this.enabledMap.clear()
     this.visMap.clear()
-    this.slotFilledMap.clear()
-    this.slotSelMap.clear()
   }
 }
