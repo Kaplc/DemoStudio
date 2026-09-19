@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>滚轮落点平移算法 · 可视化讲解（warm 星图相机）</title>
+<style>
+  :root{
+    --bg:#0b1520; --panel:#101f2e; --panel2:#0e1a27;
+    --ink:#cfe3ee; --dim:#7c93a3; --cyan:#58c2d8; --amber:#f0b35c;
+    --green:#7fd08a; --red:#e07a7a; --line:#234054;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; background:#060d14; overflow:hidden;
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif; color:var(--ink);}
+  #stage{position:absolute; left:50%; top:50%; width:1280px; height:720px;
+    transform-origin:center center; background:var(--bg);
+    box-shadow:0 0 60px rgba(0,0,0,.6);}
+  .slide{position:absolute; inset:0; padding:36px 48px 60px; display:none; flex-direction:column;}
+  .slide.active{display:flex;}
+  h1{font-size:44px; letter-spacing:2px;}
+  h2{font-size:28px; color:var(--cyan); border-left:6px solid var(--cyan);
+    padding-left:14px; margin-bottom:18px; letter-spacing:1px;}
+  .sub{color:var(--dim); font-size:16px; margin-top:10px; line-height:1.7;}
+  .cover-kicker{color:var(--amber); font-size:18px; letter-spacing:6px; margin-bottom:18px;}
+  .formula{font-family:Consolas,Monaco,monospace; background:var(--panel2);
+    border:1px solid var(--line); border-radius:8px; padding:14px 18px;
+    color:#dceaf4; font-size:17px; line-height:1.8;}
+  .formula b{color:var(--amber); font-weight:600;}
+  .formula i{color:var(--cyan); font-style:normal;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px;}
+  .cap{color:var(--dim); font-size:14px; line-height:1.6;}
+  .badge{display:inline-block; padding:2px 10px; border-radius:4px; font-size:13px; margin-right:8px;}
+  .ok{background:rgba(127,208,138,.15); color:var(--green); border:1px solid rgba(127,208,138,.4);}
+  .bad{background:rgba(224,122,122,.12); color:var(--red); border:1px solid rgba(224,122,122,.4);}
+  .flow{display:flex; align-items:stretch; gap:0; margin-top:30px;}
+  .fbox{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 14px; text-align:center; opacity:0; transform:translateY(14px); transition:all .5s;}
+  .fbox.in{opacity:1; transform:none;}
+  .fbox .t{font-size:17px; color:var(--cyan); margin-bottom:8px;}
+  .fbox .d{font-size:13px; color:var(--dim); line-height:1.55;}
+  .farrow{width:44px; display:flex; align-items:center; justify-content:center;
+    color:var(--amber); font-size:22px; opacity:0; transition:opacity .4s;}
+  .farrow.in{opacity:1;}
+  .cards{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;}
+  .gcard{opacity:0; transform:translateY(14px); transition:all .5s;}
+  .gcard.in{opacity:1; transform:none;}
+  .gcard h3{font-size:17px; color:var(--cyan); margin-bottom:8px;}
+  .gcard p{font-size:13.5px; color:var(--dim); line-height:1.65;}
+  .gcard .f{margin-top:10px; font-family:Consolas,monospace; font-size:13.5px; color:#dceaf4;}
+  button{background:var(--panel); color:var(--ink); border:1px solid var(--cyan);
+    border-radius:6px; padding:7px 18px; font-size:14px; cursor:pointer; font-family:inherit;}
+  button:hover{background:rgba(88,194,216,.15);}
+  button.primary{background:rgba(88,194,216,.18);}
+  #nav{position:absolute; bottom:0; left:0; right:0; height:44px; display:flex;
+    align-items:center; gap:14px; padding:0 48px; border-top:1px solid var(--line);
+    background:rgba(14,26,39,.9);}
+  #dots{display:flex; gap:8px; flex:1;}
+  .dot{width:9px; height:9px; border-radius:50%; background:var(--line); cursor:pointer;}
+  .dot.on{background:var(--cyan);}
+  #pageno{color:var(--dim); font-size:13px; min-width:52px; text-align:right;}
+  .hint{color:var(--dim); font-size:12px;}
+  .ro{font-family:Consolas,monospace; font-size:14px; line-height:2; color:#dceaf4;}
+  .ro b{color:var(--amber); font-weight:600;}
+  .ro i{color:var(--cyan); font-style:normal;}
+  table{border-collapse:collapse; width:100%; font-size:14px;}
+  th,td{border:1px solid var(--line); padding:8px 12px; text-align:left;}
+  th{color:var(--cyan); background:var(--panel2);}
+  td{color:var(--ink);}
+  td.m{font-family:Consolas,monospace; color:#dceaf4;}
+  .two{display:flex; gap:24px; flex:1; min-height:0;}
+  .col{flex:1; min-width:0; display:flex; flex-direction:column; gap:12px;}
+  svg text{font-family:"Microsoft YaHei",sans-serif;}
+  /* SVG 随所在弹性列自适应缩放：定宽 SVG 在窄列里会溢出、被右列卡片盖住（第 4 页裁字根因） */
+  svg{max-width:100%; height:auto;}
+  @keyframes flowdot{0%{offset-distance:0%; opacity:0}8%{opacity:1}92%{opacity:1}100%{offset-distance:100%; opacity:0}}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ═══════════ 1 对中停止点（核心几何） ═══════════ -->
+  <section class="slide active">
+    <h2>一、对中停止点怎么算</h2>
+    <div class="two">
+      <div class="col" style="justify-content:center;">
+        <svg id="svg4" width="760" height="560" viewBox="0 0 760 560"></svg>
+      </div>
+      <div class="col" style="justify-content:center; gap:14px;">
+        <div class="formula" style="font-size:19px;">
+          <i>stopPoint</i> = <b>P</b> − <i>v̂</i> × <b>floor</b><br>
+          <span style="color:var(--dim); font-size:14px;">P = 天体球心&nbsp;&nbsp;v̂ = 当前视线方向（单位向量）<br>floor = max(24, 半径×1.15) = 停止半径</span>
+        </div>
+        <div class="card">
+          <div style="font-size:15px; color:var(--cyan); margin-bottom:6px;">把公式拆开看：点 − 向量 = 点</div>
+          <div class="ro" style="font-size:13px; line-height:1.85;">
+            <b>P</b> = 天体球心 —— 是一个<b style="color:var(--ink)">点</b>（三维坐标）<br>
+            <i>v̂</i> = 单位视线方向（cam.getWorldDirection，从相机指向前方）—— 是方向<br>
+            <b>floor</b> = max(24, r×1.15) —— 是标量距离<br>
+            <i>v̂</i> × <b>floor</b> = 方向乘距离 = 一个<b style="color:var(--ink)">位移向量</b>（长度恰好为 floor、指向视线前方）<br>
+            <b>P</b> − 位移向量 = 从球心出发，朝视线的<b style="color:var(--amber)">反方向</b>（也就是朝相机这一侧）走 floor 那么长，落下来的那个坐标 —— 这就是 S
+          </div>
+        </div>
+        <div class="card cap" style="font-size:14px; color:var(--ink); line-height:1.8;">
+          S 就是<b style="color:var(--amber)">过球心、平行于视线的直线</b> ∩ 停止半径球面的相机侧交点（另一交点在天体背后）。<b style="color:var(--cyan)">锚点是球心</b>——不是从相机打向目标的视线连线（相机歪着时两者是平行线，见下一页红圈对比）。相机到达 S 时：
+          <span class="formula" style="display:block; margin-top:8px; font-size:15px;">P − C = P − (P − v̂·floor) = v̂ · floor</span>
+          球心到相机的连线<b>恰好等于视线方向</b> → 球心投在视线轴上 → <b style="color:var(--green)">屏幕正中心</b>。视线冻结期间 S 是<b style="color:var(--ink)">静止点</b> → 每滚一次都朝同一点直线收敛，<b style="color:var(--amber)">越滚越近、也越滚越居中</b>。
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:4px;"><button class="primary" data-replay="0">▶ 重播</button></div>
+  </section>
+
+  <!-- ═══════════ 2 歪着时 S 怎么算（S 不含相机位置） ═══════════ -->
+  <section class="slide">
+    <h2>二、歪着时 S 怎么算 —— 先懂几何，再套公式</h2>
+    <div class="two">
+      <div class="col" style="justify-content:center;">
+        <svg id="svg5b" width="760" height="560" viewBox="0 0 760 560"></svg>
+      </div>
+      <div class="col" style="justify-content:center; gap:14px;">
+        <div class="card" style="border-color:rgba(127,208,138,.45);">
+          <div style="font-size:15px; color:var(--green); margin-bottom:6px;">第一步 · 几何原理（先懂"为什么"）</div>
+          <div class="cap" style="font-size:13px; color:var(--ink); line-height:1.8;">
+            ① 相机只有两样东西：<b>站位</b>（人在哪）和<b>朝向</b>（脸朝哪）。滚轮只挪站位，朝向焊死不动。<br>
+            ② "对中" = 球心出现在画面正中心 —— 画面中心就是沿脸方向的那条直线（视线轴）。<br>
+            ③ 倒着想：人站在哪，球心才正好在脸的正前方？—— 从球心出发、朝脸的<b style="color:var(--amber)">反方向</b>退 74：站到那里，球心就在正前方 74 处，天然居中。<br>
+            ④ 左图两条平行线：过相机的视线 ∥ 过球心的线（S 在这上面）。相机只需<b>走过去</b>，不用转头，球心自己滑进画面中心。
+          </div>
+        </div>
+        <div class="formula" style="font-size:15px; line-height:2;">
+          第二步 · 公式计算（把几何翻译成坐标）：<br>
+          ① 读方向：<i>v̂</i> = (0.454, −0.891)（−63°，只看脸朝哪）<br>
+          ② 位移 = <i>v̂</i> × 74 = (33.6, −65.9)（朝脸反方向退 74）<br>
+          ③ S = (500,120) − 位移 = <b>(466.4, 185.9)</b>
+        </div>
+        <div class="card cap" style="font-size:12.5px; line-height:1.8;">
+          附注：24° = |−39.0°−(−63°)|，P 处楔形与 C 处偏角是<b style="color:var(--green)">内错角</b>（平行线被截线 CP 所截）。<b style="color:var(--red)">红点</b>方向含站位（移动靶）、<b style="color:var(--amber)">黄点 S</b> 方向只含姿态（恒定不动）—— 所以公式只认球心和朝向，不认相机站位。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 3 收敛模拟（交互） ═══════════ -->
+  <section class="slide">
+    <h2>三、逐滚收敛 · 交互模拟</h2>
+    <div class="two">
+      <div class="col" style="flex:1.35;">
+        <svg id="svg5" width="700" height="470" viewBox="0 0 700 470"></svg>
+      </div>
+      <div class="col" style="flex:1;">
+        <div class="card">
+          <div class="cap" style="margin-bottom:8px;">相机看到的（朝向冻结的取景框）</div>
+          <svg id="svg5scr" width="280" height="170" viewBox="0 0 280 170"></svg>
+        </div>
+        <div class="card ro" id="ro5"></div>
+        <div style="display:flex; gap:10px;">
+          <button class="primary" id="btn5step">🖱 滚一滚（拉近）</button>
+          <button id="btn5auto">⏩ 自动滚到停</button>
+          <button id="btn5reset">↺ 重置</button>
+        </div>
+        <div class="cap">每点一次 = 滚一格：step = min(rig.step, 到停止点剩余距离)，offAxis（目标偏离视线轴的角度）一路收敛到 0。<span style="color:var(--red)">红圈</span> = 相机→球心连线 ∩ 停止球面：每滚一步就沿圆滑动（移动靶），飞到它目标仍偏着不居中；<span style="color:var(--amber)">黄点 S</span> 锚定球心（P − v̂×floor）恒定不动，才是算法的停止点。琥珀虚线是逼近路径 C→S，不是视线。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 导航 -->
+  <div id="nav">
+    <button id="prev">← 上一页</button>
+    <div id="dots"></div>
+    <span class="hint">←/→ 或空格翻页</span>
+    <button id="next">下一页 →</button>
+    <span id="pageno">1 / 3</span>
+  </div>
+</div>
+
+<script>
+/* ═══════════ 幻灯片框架 ═══════════ */
+const stage = document.getElementById('stage');
+const slides = [...document.querySelectorAll('.slide')];
+const dots = document.getElementById('dots');
+let cur = 0;
+slides.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 0 ? ' on' : '');
+  d.onclick = () => go(i);
+  dots.appendChild(d);
+});
+function fit(){
+  const s = Math.min(innerWidth / 1280, innerHeight / 720);
+  stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+function go(i){
+  i = Math.max(0, Math.min(slides.length - 1, i));
+  slides[cur].classList.remove('active');
+  cur = i;
+  slides[cur].classList.add('active');
+  [...dots.children].forEach((d, k) => d.classList.toggle('on', k === cur));
+  document.getElementById('pageno').textContent = `${cur + 1} / ${slides.length}`;
+  onEnter(cur);
+}
+document.getElementById('prev').onclick = () => go(cur - 1);
+document.getElementById('next').onclick = () => go(cur + 1);
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') go(cur + 1);
+  if (e.key === 'ArrowLeft') go(cur - 1);
+});
+document.querySelectorAll('[data-replay]').forEach(b => b.onclick = () => onEnter(+b.dataset.replay));
+
+/* ═══════════ SVG 小工具 ═══════════ */
+const NS = 'http://www.w3.org/2000/svg';
+function el(parent, tag, attrs, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+}
+function clear(svg){ while (svg.firstChild) svg.removeChild(svg.firstChild); }
+const norm = v => { const l = Math.hypot(v.x, v.y) || 1; return { x: v.x / l, y: v.y / l }; };
+const D2R = Math.PI / 180;
+/* 相机图标（指向 deg 方向） */
+function drawCamera(parent, x, y, deg, color, scale = 1){
+  const g = el(parent, 'g', { transform: `translate(${x},${y}) rotate(${deg}) scale(${scale})` });
+  el(g, 'rect', { x: -16, y: -8, width: 22, height: 16, rx: 3, fill: color, stroke: '#0b1520', 'stroke-width': 1.5 });
+  el(g, 'path', { d: 'M6,-8 L20,-15 L20,15 L6,8 Z', fill: color, stroke: '#0b1520', 'stroke-width': 1.5 });
+  return g;
+}
+/* 视锥（沿 deg 方向张 ±half 度、长 len） */
+function conePath(x, y, deg, len, half){
+  const a = deg * D2R, h = half * D2R;
+  const p1 = { x: x + Math.cos(a - h) * len, y: y + Math.sin(a - h) * len };
+  const p2 = { x: x + Math.cos(a + h) * len, y: y + Math.sin(a + h) * len };
+  return `M${x},${y} L${p1.x.toFixed(1)},${p1.y.toFixed(1)} A${len},${len} 0 0 1 ${p2.x.toFixed(1)},${p2.y.toFixed(1)} Z`;
+}
+function planet(parent, x, y, r, fill = '#3e7ea8'){
+  const g = el(parent, 'g', {});
+  el(g, 'circle', { cx: x, cy: y, r: r, fill: fill, stroke: '#8fd0e8', 'stroke-width': 1.5 });
+  el(g, 'circle', { cx: x - r * 0.3, cy: y - r * 0.3, r: r * 0.55, fill: 'rgba(255,255,255,.12)' });
+  return g;
+}
+/* 取景小屏：朝向冻结的相机看到什么 */
+function drawScreenView(svg, cam, viewDeg, P, pr, focal = 230){
+  clear(svg);
+  el(svg, 'rect', { x: 0, y: 0, width: 280, height: 170, rx: 8, fill: '#071019', stroke: 'var(--line)' });
+  el(svg, 'line', { x1: 140, y1: 78, x2: 140, y2: 92, stroke: 'var(--dim)' });
+  el(svg, 'line', { x1: 133, y1: 85, x2: 147, y2: 85, stroke: 'var(--dim)' });
+  const v = { x: Math.cos(viewDeg * D2R), y: Math.sin(viewDeg * D2R) };
+  const g = { x: P.x - cam.x, y: P.y - cam.y };
+  const dist = Math.hypot(g.x, g.y) || 1;
+  const cross = v.x * g.y - v.y * g.x;
+  const dot = v.x * g.x + v.y * g.y;
+  const alpha = Math.atan2(cross, dot);            // 目标偏离视线的有符号角（atan2 只看比值，cross/dot 必须同口径，都除或都不除 dist）
+  const offAxis = Math.abs(alpha);
+  let sx = 140 + Math.tan(alpha) * focal;
+  sx = Math.max(-40, Math.min(320, sx));
+  const sr = Math.max(2, Math.min(90, focal * pr / dist));
+  el(svg, 'circle', { cx: sx, cy: 85, r: sr, fill: '#3e7ea8', stroke: '#8fd0e8', 'stroke-width': 1 });
+  el(svg, 'text', { x: 12, y: 20, fill: 'var(--dim)', 'font-size': 12 }, '取景框（十字 = 屏幕中心）');
+  return { alpha, offAxis, sx, sr };
+}
+
+/* ═══════════ Slide 1：停止点几何（分步揭示） ═══════════ */
+function buildSlide4(){
+  const svg = document.getElementById('svg4');
+  clear(svg);
+  el(svg, 'rect', { x: 1, y: 1, width: 758, height: 558, rx: 10, fill: '#071019', stroke: 'var(--line)' });
+  const P = { x: 470, y: 120 }, r = 40, f = 74;
+  const Vdeg = -115, V = { x: Math.cos(Vdeg * D2R), y: Math.sin(Vdeg * D2R) };
+  const S = { x: P.x - V.x * f, y: P.y - V.y * f };
+  const C0 = { x: S.x - V.x * 330, y: S.y - V.y * 330 };
+  planet(svg, P.x, P.y, r);
+  el(svg, 'text', { x: P.x + 52, y: P.y + 4, fill: 'var(--dim)', 'font-size': 14 }, '球心 P，半径 r');
+  const floorC = el(svg, 'circle', { cx: P.x, cy: P.y, r: f, fill: 'rgba(240,179,92,.05)', stroke: 'var(--amber)', 'stroke-dasharray': '5 4', opacity: 0 });
+  const ray = el(svg, 'line', { x1: C0.x, y1: C0.y, x2: P.x, y2: P.y, stroke: 'rgba(88,194,216,.7)', 'stroke-width': 2, opacity: 0 });
+  const cone = el(svg, 'path', { d: conePath(C0.x, C0.y, Vdeg, 300, 13), fill: 'rgba(88,194,216,.08)', stroke: 'rgba(88,194,216,.35)', opacity: 0 });
+  const cam = drawCamera(svg, C0.x, C0.y, Vdeg, 'var(--cyan)');
+  cam.setAttribute('opacity', 0);
+  const stop = el(svg, 'circle', { cx: S.x, cy: S.y, r: 6, fill: 'var(--amber)', opacity: 0 });
+  const stopLbl = el(svg, 'text', { x: S.x + 26, y: S.y + 16, fill: 'var(--amber)', 'font-size': 15, opacity: 0 }, '停止点 S');
+  const stopLbl2 = el(svg, 'text', { x: S.x + 26, y: S.y + 37, fill: 'var(--amber)', 'font-size': 13, opacity: 0 }, '（过球心 ∥ 视线 ∩ 停止球面）');
+  const fLbl = el(svg, 'text', { x: (P.x + S.x) / 2 + 14, y: (P.y + S.y) / 2, fill: 'var(--amber)', 'font-size': 14, opacity: 0 }, 'floor');
+  const proof = el(svg, 'g', { opacity: 0 });
+  const ghostCam = drawCamera(proof, S.x, S.y, Vdeg, 'var(--green)');
+  el(proof, 'line', { x1: S.x, y1: S.y, x2: P.x, y2: P.y, stroke: 'var(--green)', 'stroke-width': 2.5 });
+  const pl = el(proof, 'text', { x: 280, y: 320, fill: 'var(--green)', 'font-size': 14, 'text-anchor': 'middle' }, '到位：P−C = v̂·floor → 目标在屏幕正中心');
+  const seq = [
+    [120, () => { cam.setAttribute('opacity', 1); cone.setAttribute('opacity', 1); ray.setAttribute('opacity', 1); el(svg, 'text', { x: 24, y: 44, fill: 'var(--cyan)', 'font-size': 14 }, '① 冻结的视线方向 v̂（滚轮平移全程不变）'); }],
+    [1250, () => { floorC.setAttribute('opacity', 1); fLbl.setAttribute('opacity', 1); el(svg, 'text', { x: 24, y: 68, fill: 'var(--amber)', 'font-size': 14 }, '② 停止半径球面：floor = max(24, r×1.15)'); }],
+    [2450, () => { stop.setAttribute('opacity', 1); stopLbl.setAttribute('opacity', 1); stopLbl2.setAttribute('opacity', 1); el(svg, 'text', { x: 24, y: 92, fill: 'var(--amber)', 'font-size': 14 }, '③ 停止点 S = P − v̂ × floor（退到球面上）'); }],
+    [3700, () => { proof.setAttribute('opacity', 1); cam.setAttribute('opacity', .25); el(svg, 'text', { x: 24, y: 116, fill: 'var(--green)', 'font-size': 14 }, '④ 相机到 S：球心恰在视线上 → 屏幕正中心'); }],
+  ];
+  const timers = seq.map(([d, f]) => setTimeout(f, d));
+  return () => timers.forEach(clearTimeout);
+}
+
+/* ═══════════ Slide 2：歪着时 S 怎么算 —— S 的公式里没有相机位置 ═══════════ */
+function buildSlide5b(){
+  const svg = document.getElementById('svg5b');
+  clear(svg);
+  el(svg, 'rect', { x: 1, y: 1, width: 758, height: 558, rx: 10, fill: '#071019', stroke: 'var(--line)' });
+  // 与第 6 页交互模拟同一组实数：P=(500,120) r=40 floor=74 v̂=−63° C=(130,420)
+  const P = { x: 500, y: 120 }, r = 40, f = 74;
+  const Vdeg = -63, V = { x: Math.cos(Vdeg * D2R), y: Math.sin(Vdeg * D2R) };
+  const C = { x: 130, y: 420 };
+  const S = { x: P.x - V.x * f, y: P.y - V.y * f };            // (466.4, 185.9) 锚定球心
+  const toC = norm({ x: C.x - P.x, y: C.y - P.y });
+  const R = { x: P.x + toC.x * f, y: P.y + toC.y * f };        // (442.5, 166.6) 锚定"指向相机"方向
+  el(svg, 'text', { x: 24, y: 504, fill: 'var(--cyan)', 'font-size': 14 }, '① 同一个方向 v̂，两种锚点：过 C 的视线射线 vs 过 P 的平行线');
+  el(svg, 'text', { x: 24, y: 528, fill: 'var(--dim)', 'font-size': 13 }, '② 视线射线不穿过球心 —— 拿它定不了 S；S 锚在过 P 的平行线上');
+  el(svg, 'text', { x: 24, y: 552, fill: 'var(--dim)', 'font-size': 13 }, '③ 24° = |−39.0° −(−63°)|（指向球心方向 −39.0°）；P 处楔形与 C 处偏角是内错角（平行线被截线 CP 所截）');
+  // 视线射线：从相机沿 v̂ 无限延长，擦着球心旁边出画（这就是"歪"）
+  el(svg, 'line', { x1: C.x, y1: C.y, x2: C.x + V.x * 471, y2: C.y + V.y * 471, stroke: 'rgba(88,194,216,.45)', 'stroke-width': 1.5, 'stroke-dasharray': '2 6' });
+  el(svg, 'path', { d: conePath(C.x, C.y, Vdeg, 210, 13), fill: 'rgba(88,194,216,.10)', stroke: 'rgba(88,194,216,.4)' });
+  drawCamera(svg, C.x, C.y, Vdeg, 'var(--cyan)');
+  el(svg, 'text', { x: C.x + 26, y: C.y + 30, fill: 'var(--dim)', 'font-size': 13 }, '相机 C（歪 24°）');
+  // 过 P ∥ v̂ 的平行线（S 的锚定线）+ 指向 v̂ 前方的箭头
+  el(svg, 'line', { x1: P.x - V.x * 110, y1: P.y - V.y * 110, x2: P.x + V.x * 120, y2: P.y + V.y * 120, stroke: 'rgba(88,194,216,.85)', 'stroke-width': 2, 'stroke-dasharray': '7 5' });
+  el(svg, 'path', { d: 'M554.5,13.1 L552.6,27.8 L543.7,23.3 Z', fill: 'var(--cyan)' });
+  el(svg, 'text', { x: 536, y: 64, fill: 'var(--cyan)', 'font-size': 13, 'font-style': 'italic' }, 'v̂');
+  // 停止半径球面 + 球心
+  el(svg, 'circle', { cx: P.x, cy: P.y, r: f, fill: 'rgba(240,179,92,.05)', stroke: 'var(--amber)', 'stroke-dasharray': '5 4', opacity: .85 });
+  el(svg, 'text', { x: 585, y: 55, fill: 'var(--amber)', 'font-size': 12.5, opacity: .85 }, '停止半径球面 f=74');
+  planet(svg, P.x, P.y, r);
+  el(svg, 'text', { x: 470, y: 84, fill: 'var(--dim)', 'font-size': 14, 'text-anchor': 'end' }, '球心 P');
+  // 红点：假停止点（锚定"指向相机"方向，随相机移动）
+  el(svg, 'line', { x1: C.x, y1: C.y, x2: P.x, y2: P.y, stroke: 'rgba(224,122,122,.7)', 'stroke-width': 1.5, 'stroke-dasharray': '6 5' });
+  el(svg, 'circle', { cx: R.x, cy: R.y, r: 7, fill: 'none', stroke: 'var(--red)', 'stroke-width': 2 });
+  el(svg, 'text', { x: R.x - 12, y: R.y - 10, fill: 'var(--red)', 'font-size': 12.5, 'text-anchor': 'end' }, '假停止点：沿「指向相机」退 74');
+  // 黄点 S：真停止点（锚定球心，视线冻结期恒定不动）
+  el(svg, 'circle', { cx: S.x, cy: S.y, r: 6, fill: 'var(--amber)' });
+  el(svg, 'text', { x: S.x + 12, y: S.y - 8, fill: 'var(--amber)', 'font-size': 15 }, '停止点 S');
+  el(svg, 'text', { x: S.x + 12, y: S.y + 12, fill: 'var(--amber)', 'font-size': 12 }, '沿 −v̂ 退 74（过 P ∥ v̂）');
+  // 两方向夹角 = offAxis
+  el(svg, 'path', { d: 'M477.3,164.6 A50,50 0 0 1 461.2,151.5', fill: 'none', stroke: 'var(--green)', 'stroke-width': 1.5 });
+  el(svg, 'text', { x: 464, y: 173, fill: 'var(--green)', 'font-size': 12, 'text-anchor': 'middle' }, '24°');
+}
+
+/* ═══════════ Slide 3：逐滚收敛模拟 ═══════════ */
+const S5 = {
+  P: { x: 500, y: 120 }, r: 40, f: 74,
+  C0: { x: 130, y: 420 },
+  viewDeg: -63,
+  baseStep: 78,
+  C: null, parked: false, anim: null,
+};
+function s5Stop(){ const V = { x: Math.cos(S5.viewDeg * D2R), y: Math.sin(S5.viewDeg * D2R) };
+  return { x: S5.P.x - V.x * S5.f, y: S5.P.y - V.y * S5.f }; }
+function s5Reset(){
+  S5.C = { ...S5.C0 }; S5.parked = false;
+  if (S5.anim){ cancelAnimationFrame(S5.anim); S5.anim = null; }
+  s5Render();
+}
+function s5Step(){
+  if (S5.parked) return;
+  const S = s5Stop();
+  const to = { x: S.x - S5.C.x, y: S.y - S5.C.y };
+  const d = Math.hypot(to.x, to.y);
+  if (d < 1){ S5.parked = true; s5Render(); return; }
+  const step = Math.min(S5.baseStep, d);
+  const from = { ...S5.C };
+  const to2 = { x: S5.C.x + to.x / d * step, y: S5.C.y + to.y / d * step };
+  const t0 = performance.now();
+  function anim(now){
+    const t = Math.min(1, (now - t0) / 260);
+    const e = t * (2 - t);
+    S5.C = { x: from.x + (to2.x - from.x) * e, y: from.y + (to2.y - from.y) * e };
+    if (Math.hypot(S.x - S5.C.x, S.y - S5.C.y) < 0.5) S5.parked = true;
+    s5Render();
+    if (t < 1) S5.anim = requestAnimationFrame(anim);
+  }
+  S5.anim = requestAnimationFrame(anim);
+}
+function s5Render(){
+  const svg = document.getElementById('svg5');
+  const S = s5Stop();
+  clear(svg);
+  el(svg, 'rect', { x: 1, y: 1, width: 698, height: 468, rx: 10, fill: '#071019', stroke: 'var(--line)' });
+  el(svg, 'circle', { cx: S5.P.x, cy: S5.P.y, r: S5.f, fill: 'rgba(240,179,92,.05)', stroke: 'rgba(240,179,92,.55)', 'stroke-dasharray': '5 4' });
+  el(svg, 'text', { x: S5.P.x + S5.f + 10, y: S5.P.y - S5.f - 6, fill: 'var(--amber)', 'font-size': 13 }, '停止半径球面 floor = max(24, r×1.15)');
+  planet(svg, S5.P.x, S5.P.y, S5.r);
+  el(svg, 'circle', { cx: S.x, cy: S.y, r: 5, fill: 'var(--amber)' });
+  el(svg, 'text', { x: S.x + 10, y: S.y + 24, fill: 'var(--amber)', 'font-size': 13 }, '对中停止点 S');
+  const line = el(svg, 'line', { x1: S5.C.x, y1: S5.C.y, x2: S.x, y2: S.y, stroke: 'var(--amber)', 'stroke-dasharray': '5 5', opacity: .7 });
+  const V = { x: Math.cos(S5.viewDeg * D2R), y: Math.sin(S5.viewDeg * D2R) };
+  el(svg, 'path', { d: conePath(S5.C.x, S5.C.y, S5.viewDeg, 210, 14), fill: 'rgba(88,194,216,.10)', stroke: 'rgba(88,194,216,.45)' });
+  drawCamera(svg, S5.C.x, S5.C.y, S5.viewDeg, S5.parked ? 'var(--green)' : 'var(--cyan)');
+  const toP = { x: S5.P.x - S5.C.x, y: S5.P.y - S5.C.y };
+  const distP = Math.hypot(toP.x, toP.y) || 1;
+  // 红圈：相机→球心连线 ∩ 停止球面 = "假停止点"——每滚一步随相机沿圆滑动（对比：S 锚定球心恒定不动）
+  const fakeS = { x: S5.P.x - toP.x / distP * S5.f, y: S5.P.y - toP.y / distP * S5.f };
+  el(svg, 'circle', { cx: fakeS.x, cy: fakeS.y, r: 7, fill: 'none', stroke: 'rgba(224,122,122,.95)', 'stroke-width': 2 });
+  const a1 = Math.atan2(V.y, V.x), a2 = Math.atan2(toP.y, toP.x);
+  el(svg, 'path', { d: `M${S5.C.x + 66 * Math.cos(a1)},${S5.C.y + 66 * Math.sin(a1)} A66,66 0 0 1 ${S5.C.x + 66 * Math.cos(a2)},${S5.C.y + 66 * Math.sin(a2)}`,
+    fill: 'none', stroke: 'var(--green)', 'stroke-width': 1.5 });
+  el(svg, 'text', { x: S5.C.x + 78 * Math.cos((a1 + a2) / 2), y: S5.C.y + 78 * Math.sin((a1 + a2) / 2), fill: 'var(--green)', 'font-size': 12 },
+    'offAxis ' + (Math.abs(a2 - a1) * 180 / Math.PI).toFixed(1) + '°');
+  // 取景小窗
+  const scr = document.getElementById('svg5scr');
+  const info = drawScreenView(scr, S5.C, S5.viewDeg, S5.P, S5.r, 235);
+  // 读数
+  const remain = Math.hypot(S.x - S5.C.x, S.y - S5.C.y);
+  document.getElementById('ro5').innerHTML =
+    `相机-球心距离 <b>${distP.toFixed(0)}</b>（停止半径 <i>${S5.f}</i>）<br>` +
+    `到停止点剩余 <b>${remain.toFixed(0)}</b> ｜ 本滚步长 <i>${Math.min(S5.baseStep, Math.max(0, remain)).toFixed(0)}</i><br>` +
+    `目标偏离视线轴 <b>${(info.offAxis * 180 / Math.PI).toFixed(1)}°</b>` +
+    (S5.parked ? ' ｜ <span style="color:var(--green)">✔ 已对中停止：距离=停止半径，目标在屏幕正中心</span>' : '');
+}
+
+/* ═══════════ 进入页面时触发 ═══════════ */
+let cleanup = null;
+const builders = {
+  0: () => buildSlide4(),
+  2: () => { s5Reset(); return () => {}; },
+};
+function onEnter(i){
+  if (cleanup){ cleanup(); cleanup = null; }
+  if (builders[i]) cleanup = builders[i]() || null;
+}
+document.getElementById('btn5step').onclick = () => s5Step();
+document.getElementById('btn5auto').onclick = () => {
+  const tick = () => { if (S5.parked || cur !== 2) return; s5Step(); setTimeout(tick, 340); };
+  tick();
+};
+document.getElementById('btn5reset').onclick = () => s5Reset();
+
+buildSlide5b();
+onEnter(0);
+</script>
+</body>
+</html>

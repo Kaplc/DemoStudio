@@ -53,6 +53,12 @@ export interface WarmCurrentDebugBridge {
   /** 真实 InputSys 点击管线（down+up 同步成对；e2e 屏幕坐标交互——全息轻点等——共用，
    *  绕过 DOM 投递但走完整 controller.OnPointerDownScreen + released 广播链） */
   inputTap(x: number, y: number): void
+  /** 真实 InputSys 滚轮管线：光标先移到落点（controller.lastScreen + 云台 mouse 位），
+   *  再 handleScroll 走 GM/UI 仲裁 → 云台 zoom → OnScroll 渐进转头（e2e 滚轮用例共用） */
+  inputScroll(delta: number, x: number, y: number): void
+  /** 真实 InputSys 右键拖拽管线（button=2 down → 插值 move ×steps → up）：
+   *  走 ProcessMouseButton/ProcessPointerMove 广播 → 云台环绕/平移（e2e 右键环绕用例共用） */
+  inputRightDrag(x0: number, y0: number, x1: number, y1: number, steps: number): void
   /** 端点名 → 建航线：'earth' | 'moon' | 'europa' | 'mars' | 'building:<id>' */
   createRoute(a: string, b: string): boolean
   addShip(routeId: number): boolean
@@ -485,6 +491,25 @@ export class WarmCurrentGameInstance extends GameInstance {
         const controller = instance.controller
         instance.inputSys.handlePointerDown(x, y, undefined, controller, 0)
         instance.inputSys.handlePointerUp(undefined, controller, 0)
+      },
+      inputScroll: (delta, x, y) => {
+        const controller = instance.controller
+        // 与真实滚轮同链路：光标先落位（lastScreen 是 OnScroll 渐进转头的坐标源），再滚动
+        instance.inputSys.handlePointerMove(x, y, undefined, controller)
+        instance.inputSys.handleScroll(delta, controller, x, y)
+      },
+      inputRightDrag: (x0, y0, x1, y1, steps) => {
+        const controller = instance.controller
+        instance.inputSys.handlePointerDown(x0, y0, undefined, controller, 2)
+        for (let i = 1; i <= steps; i++) {
+          instance.inputSys.handlePointerMove(
+            x0 + ((x1 - x0) * i) / steps,
+            y0 + ((y1 - y0) * i) / steps,
+            undefined,
+            controller,
+          )
+        }
+        instance.inputSys.handlePointerUp(undefined, controller, 2)
       },
       createRoute: (a, b) => {
         const mode = instance._gameMode

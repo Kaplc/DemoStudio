@@ -47,6 +47,9 @@ export class CameraRigComponent extends Component {
   public maxDistance = 50
   /** 每次滚动的步长（世界单位） */
   public step = 3
+  /** 滚轮缩放总开关（false = zoom() 跳过）：滚轮缩放被外部整体上收时用
+   *  （warm 落点放大 = 相机沿相机→天体连线平移，由 GameMode 分派，普通缩放走 zoom(delta, true)） */
+  public zoomEnabled = true
   /** 平移边界：target 可移动的世界范围（x/z 各 ±panLimit） */
   public panLimit = 20
 
@@ -214,8 +217,10 @@ export class CameraRigComponent extends Component {
    * 距离被限制在 [minDistance, maxDistance] 范围内；缩放后写回 Actor root，
    * 避免每帧 SyncFromActor 把相机位置覆盖回去。
    * delta 约定（与 PlayerController.OnScroll 一致）：delta > 0（向下滚）→ 拉远；< 0 → 拉近。
+   * zoomEnabled = false 时直接跳过（滚轮缩放被外部整体上收，如 warm 落点放大平移）。
    */
   zoom(delta: number): void {
+    if (!this.zoomEnabled) return
     const cam = this.resolveCamera()?.camera
     if (!cam) return
     // 相机当前位置相对注视目标的方向与距离

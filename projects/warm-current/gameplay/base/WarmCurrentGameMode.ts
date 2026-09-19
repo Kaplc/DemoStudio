@@ -833,6 +833,23 @@ export class WarmCurrentGameMode extends GameMode {
     // 相机 Actor 构造但不托管：由 BeginPlay 的 spawnActor 交给 World（hoi4 同款）
     this.cameraActor = new SolarCameraActor(MAP_W, MAP_H)
     this.gameCamera = this.cameraActor.cameraComponent
+    // 滚轮落点平移组件的 warm 状态注入：候选 = 聚焦行星 + 本系卫星（球心取 Actor 实时位，
+    // 半径取 B.map.nodes），门槛 = 行星系视角且非切换中（瞄准滑移由组件自查 isAiming）
+    this.cameraActor.scrollPan.source = {
+      candidates: () => {
+        const focus = this.planetFocusBody as PlanetId
+        const out: Array<{ id: StarBodyId; pos: THREE.Vector3; r: number }> = []
+        const focusActor = this.starActors.get(focus)
+        if (focusActor) out.push({ id: focus, pos: focusActor.root.position, r: B.map.nodes[focus].r })
+        for (const [id, mc] of Object.entries(B.map.moons)) {
+          if (mc.parent !== focus) continue
+          const a = this.starActors.get(id as StarBodyId)
+          if (a) out.push({ id: id as StarBodyId, pos: a.root.position, r: B.map.nodes[id as StarBodyId].r })
+        }
+        return out
+      },
+      allowed: () => this.viewMode === 'earth' && !this.viewSwitching,
+    }
     // （2026-09-15 三版）平滑聚焦补间已退役：聚焦=只切瞄准点，镜头交给玩家滚轮，
     // 不再挂 onManualCameraInput → cancelFlyTo 钩子
   }
@@ -897,8 +914,9 @@ export class WarmCurrentGameMode extends GameMode {
 
   override spawnPlayerInternal() {
     const controller = new WarmCurrentPlayerController(this)
-    // 装配期：相机云台接输入（滚轮缩放 + 右键拖拽平移；规范 §2.5 唯一例外现场，hoi4 同款）
+    // 装配期：相机云台接输入（右键拖拽平移/环绕；滚轮缩放已上收）+ 滚轮落点平移组件接输入
     this.cameraActor.rig.bindInput(controller.inputComponent)
+    this.cameraActor.scrollPan.bindInput(controller.inputComponent)
     // Esc：建筑模式中先取消放置（不误开暂停菜单），否则呼出/关闭暂停菜单（存档槽 + 继续 + 回主菜单）
     controller.inputComponent.BindAction('wc-pause-menu', 'Escape', 'pressed', () => {
       if (this.buildMode) {
@@ -1228,73 +1246,6 @@ export class WarmCurrentGameMode extends GameMode {
     // 星图渲染分组同步切换（其它行星/轨道/太阳光晕显隐）
     this.starMap?.setViewMode(this.viewMode)
     logger.info(`[WarmCurrent] 视图隔离：${solar ? `太阳系全景（缩放 ${this.cameraActor.rig.minDistance.toFixed(0)}~12000）` : `地球系小星系（缩放 ${this.cameraActor.rig.minDistance.toFixed(0)}~${WarmCurrentGameMode.EARTH_VIEW_MAX_DIST}，只见地月）`}`)
-  }
-
-  // ─── 滚轮聚焦吸附（2026-09-15：拉近滚动时光标附近有天体 → 聚焦切换到该天体） ───
-
-  /** 滚轮聚焦吸附：拉近滚动（delta < 0）时吸附聚焦——以光标为圆心画 focusSnapTolerance 圈，
-   *  圈内离光标最近的本系天体为聚焦目标；圈外无命中且未观察态全屏兜底聚焦本系天体。
-   *  （复用双击聚焦入口 enterPlanetObserve/enterMoonObserve：环绕语义 + 公转跟随 + 缩放下限贴合一体生效）。
-   *  （2026-09-15 四版）聚焦只换"看向"不换"看多远"：镜头 lerp 滑向目标（距离/姿态保持），
-   *  不自动取景；已聚焦该天体时不重复吸附。
-   *  只在本行星系视角生效（跨系聚焦已被视角锁定屏蔽）；建筑落位/拖线/全息中滚轮只缩放不切换。 */
-  tryScrollFocusAt(screenX: number, screenY: number): void {
-    if (this.viewMode !== 'earth' || this.viewSwitching) return
-    if (this.buildMode || this.routeEditMode || this.hologramSel) return
-    const body = this.bodyNearScreen(screenX, screenY)
-      ?? (this.observeBody ? null : this.planetFocusBody as StarBodyId)
-    if (!body || body === this.observeBody) return
-    logger.info(`[WarmCurrent] 滚轮聚焦吸附（镜头看向不跳变） → ${PLANET_NAMES[body] ?? body}（光标 ${screenX.toFixed(0)},${screenY.toFixed(0)}）`)
-    if (body === this.planetFocusBody) this.enterPlanetObserve(body as PlanetId)
-    else this.enterMoonObserve(body as MoonId)
-  }
-
-  /** 光标附近天体拾取（屏幕空间·固定像素圈口径）：以光标为圆心画 focusSnapTolerance（固定 px）圈，
-   *  本系成员（聚焦行星 + 其卫星）中"被圈碰到"的天体里取离光标最近者；圈外无命中返回 null
-   *  （tryScrollFocusAt 走全屏兜底）。命中 = 光标距投影中心 ≤ tol（圈盖住中心）
-   *  或光标落在本体投影圆盘内（≤ screenR，大天体盘内任意点可拾）；二者取像素距离近者胜。
-   *  判定范围与缩放无关：tol 是固定像素，不随天体投影半径/镜头远近膨胀（2026-09-15 五版，用户口径）。
-   *  屏幕半径用球心 + 相机右轴偏移 r 的差分投影求取（免推 fov/距离换算，任意焦距精确）。 */
-  private bodyNearScreen(screenX: number, screenY: number): StarBodyId | null {
-    const el = this.world?.gameRenderer?.uiLayer
-    const cam = this.gameCamera.camera
-    if (!el || !cam) return null
-    const rect = el.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return null
-    const focus = this.planetFocusBody as PlanetId
-    const members: StarBodyId[] = [focus]
-    for (const [id, mc] of Object.entries(B.map.moons)) {
-      if (mc.parent === focus) members.push(id as MoonId)
-    }
-    cam.updateMatrixWorld()
-    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0)
-    const v = new THREE.Vector3()
-    const tol = B.map.focusSnapTolerance
-    let best: StarBodyId | null = null
-    let bestDist = Infinity
-    for (const id of members) {
-      const actor = this.starActors.get(id)
-      if (!actor) continue
-      v.copy(actor.root.position).project(cam)
-      // NDC z 出 [-1,1] = 球心在相机前/后界之外（背面/被裁剪），像素坐标不可信
-      if (v.z < -1 || v.z > 1) continue
-      const cx = rect.left + ((v.x + 1) / 2) * rect.width
-      const cy = rect.top + ((1 - v.y) / 2) * rect.height
-      const ex = v.copy(actor.root.position).addScaledVector(right, B.map.nodes[id].r).project(cam)
-      const px = rect.left + ((ex.x + 1) / 2) * rect.width
-      const py = rect.top + ((1 - ex.y) / 2) * rect.height
-      const screenR = Math.hypot(px - cx, py - cy)
-      const d = Math.hypot(screenX - cx, screenY - cy)
-      // 固定像素圈：中心入圈（d ≤ tol）或光标在本体盘内（d ≤ screenR）；不做盘缘外扩
-      if (d <= tol || d <= screenR) {
-        const score = Math.min(d, screenR)
-        if (score < bestDist) {
-          bestDist = score
-          best = id
-        }
-      }
-    }
-    return best
   }
 
   /** 视角切换（历史 ViewToggle widget 按钮路径；2026-09-14 起 widget 已下架，仅存作兼容入口）：

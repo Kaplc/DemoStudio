@@ -14,6 +14,7 @@
  */
 import * as THREE from 'three'
 import { CameraActor, CameraRigComponent, logger } from '@/engine'
+import { StarScrollPanComponent } from './StarScrollPanComponent'
 
 /** 瞄准滑移每帧追踪系数（0~1，指数趋近；0.6 秒内残差收敛到 1/10000 → ≈0.226/帧@60fps） */
 const AIM_LERP = 1 - Math.pow(0.0001, 1 / (0.6 * 60))
@@ -22,6 +23,8 @@ const AIM_EPSILON = 1
 
 export class SolarCameraActor extends CameraActor {
   readonly rig: CameraRigComponent
+  /** 滚轮落点平移组件（warm 滚轮镜头控制唯一实现；warm 状态经 source 注入） */
+  readonly scrollPan: StarScrollPanComponent
 
   /** 瞄准滑移锚点（返回每帧实时锚点：行星舞台 / 卫星公转实时位）；null = 无滑移 */
   private aimAnchor: (() => THREE.Vector3) | null = null
@@ -42,6 +45,8 @@ export class SolarCameraActor extends CameraActor {
     this.enableTick()
 
     this.rig = new CameraRigComponent(this, 'SolarRig')
+    // 滚轮落点平移组件：类版挂载（进组件表，BeginPlay 托管）；warm 状态由 GameMode 装配 source
+    this.scrollPan = this.addComponent(StarScrollPanComponent)
     this.rig.target = new THREE.Vector3(0, 0, 0)
     // 星图轨道半径：外行星按 AU×250（海王星轨道 7517px），内系统手动重排防拥挤（见 star_map 配置注释）；
     // 拉远上限 12000 = 全系统入画 + 余量；
@@ -51,6 +56,10 @@ export class SolarCameraActor extends CameraActor {
     // 平移上限 9000：可拖到海王星（轨道 7525）外缘
     this.rig.panLimit = 9000
     this.rig.edgePanSpeed = 60
+    // 滚轮缩放整体上收并移除普通视线缩放（2026-09-18 落点平移定版）：滚轮只做
+    // scrollPan 的"沿相机↔目标连线平移"（目标 = 命中天体或黄道面空目标，朝向完全固定），
+    // 且滚轮选中目标即缓存为 rig.target → 右键拖拽绕该目标环绕观察（orbitMode）
+    this.rig.zoomEnabled = false
   }
 
   /** 斜视角就位（up = 世界 +Y；开局由 focusSolarSystem('earth') 立即重取景到地月系）。
@@ -110,6 +119,12 @@ export class SolarCameraActor extends CameraActor {
     const cam = this.camera
     cam.up.set(0, 1, 0)
     cam.lookAt(this.rig.target)
+    this.cameraComponent.SyncToActor()
+  }
+
+  /** 相机位移后只写回 Actor root、不重摆 lookAt（滚轮落点平移专用：
+   *  朝向完全固定 = 真平移，屏幕上天体沿原方向原地放大/缩小） */
+  syncCameraTransform(): void {
     this.cameraComponent.SyncToActor()
   }
 
