@@ -1,7 +1,7 @@
 {
   "name": "ShipModuleCell",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-65c752ba",
+  "sourceHash": "fnv1a-6be4be2f",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,14 +21,14 @@
           1,
           1
         ],
-        "worldWidth": 720,
+        "worldWidth": 620,
         "worldHeight": 64
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
-        "width": 720,
+        "width": 620,
         "height": 64,
         "name": "Canvas",
         "zOrder": 0,
@@ -55,7 +55,7 @@
               1,
               1
             ],
-            "worldWidth": 720,
+            "worldWidth": 620,
             "worldHeight": 64,
             "position": [
               0,
@@ -92,7 +92,7 @@
                   1,
                   1
                 ],
-                "worldWidth": 720,
+                "worldWidth": 620,
                 "worldHeight": 64,
                 "position": [
                   0,
@@ -123,7 +123,7 @@
               "baseClass": "UIImageComponent",
               "properties": {
                 "color": "#0d2434",
-                "width": 720,
+                "width": 620,
                 "height": 64,
                 "name": "Btn_cell"
               }
@@ -153,7 +153,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 720,
+                    "worldWidth": 620,
                     "worldHeight": 1
                   }
                 },
@@ -170,7 +170,7 @@
                   "properties": {
                     "name": "Btn_cellBorderTop",
                     "color": "#1c4560",
-                    "width": 720,
+                    "width": 620,
                     "height": 8
                   }
                 }
@@ -186,7 +186,7 @@
                   "baseClass": "UITransformComponent",
                   "properties": {
                     "position": [
-                      359.5,
+                      309.5,
                       0,
                       0
                     ],
@@ -247,7 +247,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 720,
+                    "worldWidth": 620,
                     "worldHeight": 1
                   }
                 },
@@ -264,7 +264,7 @@
                   "properties": {
                     "name": "Btn_cellBorderBottom",
                     "color": "#1c4560",
-                    "width": 720,
+                    "width": 620,
                     "height": 8
                   }
                 }
@@ -280,7 +280,7 @@
                   "baseClass": "UITransformComponent",
                   "properties": {
                     "position": [
-                      -359.5,
+                      -309.5,
                       0,
                       0
                     ],
@@ -339,7 +339,7 @@
                     "worldWidth": 138.6667,
                     "worldHeight": 40,
                     "position": [
-                      -277.6667,
+                      -227.6667,
                       0,
                       0
                     ]
@@ -391,7 +391,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 438.6667,
+                    "worldWidth": 338.6667,
                     "worldHeight": 40,
                     "position": [
                       23,
@@ -413,7 +413,7 @@
                   "properties": {
                     "text": "",
                     "name": "CellDesc",
-                    "width": 439,
+                    "width": 339,
                     "height": 40,
                     "fontSize": 14,
                     "color": "#4fd8ff",
@@ -448,7 +448,7 @@
                     "worldWidth": 68.6667,
                     "worldHeight": 20,
                     "position": [
-                      288.6667,
+                      238.6667,
                       0,
                       0
                     ]

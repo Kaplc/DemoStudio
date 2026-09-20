@@ -652,6 +652,11 @@ export const B = {
      *  （普通视线缩放已移除）。
      *  2026-09-15 六版 36→60：实测 36px 圈对卫星太小（地月屏距大，光标须贴很近才命中）。 */
     focusSnapTolerance: 60,
+    /** 滚轮拉近两段式对齐距离（世界单位，2026-09-20 用户口径：视口对齐提前于最近距离
+     *  完成）：拉近先滚向「注视点 − 视线̂ × 此值」的对齐停止点（在该距离处目标恰好
+     *  居中屏幕），对齐后沿相机→目标方向直进到最近停止距离 max(24, r×1.15)。
+     *  实际生效值 = max(本值, 最近停止距离)。 */
+    scrollAlignDistance: 200,
     systems: DEFAULT_MAP_SYSTEMS,
     nodes: DEFAULT_MAP_FLAT.nodes as Record<'sun' | PlanetId | 'moon' | 'europa', MapNodeCfg>,
     moons: DEFAULT_MAP_FLAT.moons as Record<'moon' | 'europa', { parent: PlanetId; radius: number }>,
@@ -1078,11 +1083,12 @@ for (const k of ['ringRadius', 'orbitSpeed', 'maxPerType', 'labelHeight', 'label
 
   // 星图布局：systems 子表逐系逐节点合并（默认值兜底；config 新子表可直接追加），合并后重展开扁平 nodes/moons
   try {
-    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; focusSnapTolerance?: number; systems?: Record<string, Partial<MapSystemCfg>> }>('warm-current.star_map')
+    const mp = ConfigRegistry.getConfig<{ hitTolerance?: number; routeHitDistance?: number; focusSnapTolerance?: number; scrollAlignDistance?: number; systems?: Record<string, Partial<MapSystemCfg>> }>('warm-current.star_map')
     if (mp) {
       if (mp.hitTolerance !== undefined) B.map.hitTolerance = mp.hitTolerance
       if (mp.routeHitDistance !== undefined) B.map.routeHitDistance = mp.routeHitDistance
       if (mp.focusSnapTolerance !== undefined) B.map.focusSnapTolerance = mp.focusSnapTolerance
+      if (mp.scrollAlignDistance !== undefined) B.map.scrollAlignDistance = mp.scrollAlignDistance
       if (mp.systems) {
         for (const [sid, sys] of Object.entries(mp.systems)) {
           if (!sys) continue

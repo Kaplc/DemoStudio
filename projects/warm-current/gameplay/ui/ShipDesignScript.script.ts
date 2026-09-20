@@ -1,27 +1,33 @@
 /**
  * ShipDesignScript — 火箭设计工坊 widget 行为脚本（ship_design.widget.json 根节点）
  *
- * 职责（数据由 GameMode.designOpen 驱动，本脚本只做差分呈现）：
+ * 职责（数据由 GameMode.buildViewModel 驱动，本脚本只做差分呈现）：
  *  - 底部 HUD「火箭设计」→ GameMode.openShipDesign() → vm.shipDesign 非空 → 面板展开
- *  - 堆叠式装配台（2026-09-17 三轮口径：缺氧火箭「从底部往上堆」）：
- *      ① 左 船型清单（HullList，点击 → mode.setShipyardHull）+ 设计模板
- *      ③ 中 装配台（StackList 垂直堆叠行池 justify=end：只列已装实例行 + 末尾单一加号行；
+ *  - 左侧导航四页制（2026-09-20 全面页化：选中页独占右侧内容区，页面间纯切换不共用列）：
+ *      火箭    = PageRocket（② 部件选择 + ③ 装配台 + ④ 性能卡）
+ *      荷载    = PageSynth 合成工坊（部位页签预选 payload）
+ *      箭体    = PageHull（① 箭体清单 + 设计模板）
+ *      引擎设计 = PageSynth（部位页签预选 engine）
+ *    合成工坊（原 payload_design 独立面板）已并入本面板：页签（荷载/燃料/引擎）三步流
+ *    ① 主体单选 → ② 改装件多选勾选 → 合成预览 / 存模板 / 已存清单（载入/删除）
+ *  - 装配台堆叠式（2026-09-17 三轮口径：缺氧火箭「从底部往上堆」）：
+ *      ③ 装配台（StackList 垂直堆叠行池 justify=end：已装实例行 + 末尾单一加号行；
  *         加号行点击 → mode.openShipyardAddMenu() 弹出部位选择小面板（AddMenu：荷载/燃料/引擎）；
  *         选部位 → mode.pickShipyardAddPart(type) = selectShipyardSlot 定位空实例 → ② 区出清单；
  *         已装行点击 → mode.selectShipyardSlot(type, idx) 换装/卸下；选中行描边高亮）
- *      ② 左下 部件选择（上下文清单：装配台选中部位 → vm.slotOptions 出该槽型多档部件，
+ *      ② 部件选择（上下文清单：装配台选中部位 → vm.slotOptions 出该槽型多档部件，
  *         点击 → mode.pickShipyardSlotModule 换装/卸下；未选部位 = 引导文案）
- *      ④ 右 性能卡（试航三星 + 线路反推 / 一键推荐 / 订单与下水按钮池）
- *  - 选择态权威在 GameMode（shipyardSelHull/shipyardSelModules/shipyardSelSlot，与船坞面板共享船型与模块选择）
+ *      ④ 性能卡（试航三星 + 线路反推 / 一键推荐 / 订单与下水按钮池）
+ *  - 选择态权威在 GameMode（shipyardSelHull/shipyardSelModules/shipyardSelSlot，与船坞面板共享）
  *  - 下水：每建成船坞一枚按钮（orderFromDesign(dockId)，校验/计费在 TransportComponent）；
  *    无坞 → 空态文案引导近地轨道建设
- *  - 设计模板：存为模板 / 点击载入 / 删除所选（GameMode.saveShipDesign 等，随存档走）
+ *  - 设计模板 / 合成设计：存为模板/载入/删除（GameMode.saveShipDesign/savePayloadDesign 等，随存档走）
  *  - 8Hz 差分同步
  */
 import { BehaviourScript, logger } from '@/engine'
 import type { Actor } from '@/engine'
 import { shipHullDefOf, shipModuleDefOf } from '../core/helpers'
-import type { HudShipDesign } from '../base/WarmCurrentGameMode'
+import type { HudPayloadDesign, HudShipDesign } from '../base/WarmCurrentGameMode'
 import { ColorBinder, TextBinder, VisBinder, findButton, findChild, findText, wcMode } from './uiCommon'
 import { SHIP_HULL_CELL_WIDGET, SHIP_MODULE_CELL_WIDGET, SHIP_STACK_ROW_WIDGET, SHIP_STACK_ADD_WIDGET } from './ShipyardPanelScript.script'
 
@@ -32,6 +38,9 @@ export const SHIP_DESIGN_WIDGET = 'asset/blueprints/ui/ship_design.widget.json'
 const STACK_ROW_CAP = 12
 /** 下水按钮池容量（同型船坞上限 orbit_build.maxPerType = 3） */
 const DOCK_BTNS = 3
+
+/** 导航页（rocket=装配；hull=船型+模板；synth=合成工坊，部位页签见 synthNavKey/payloadEdTab） */
+type NavPage = 'rocket' | 'hull' | 'synth'
 
 export default class ShipDesignScript extends BehaviourScript {
   private binder = new TextBinder()
@@ -58,6 +67,25 @@ export default class ShipDesignScript extends BehaviourScript {
   private visMap = new Map<Actor, boolean>()
   /** 最近载入的模板下标（删除按钮目标；null = 删最后一个） */
   private lastLoadedDesign: number | null = null
+  /** 导航当前页（synth 页内部位页签由 GameMode.payloadEdTab 权威） */
+  private navPage: NavPage = 'rocket'
+  /** 合成页导航来源（荷载/引擎设计按钮各预选对应页签；页签行切到 fuel 时导航保持原高亮） */
+  private synthNavKey: 'payload' | 'engine' = 'payload'
+  /** 导航按钮选中态差分（按钮名 → 上次 checked） */
+  private navCheckedMap = new Map<string, boolean>()
+  /** 合成页页签高亮差分（Actor → 上次选中部位） */
+  private tabSelMap = new Map<Actor, string>()
+  /** 合成页：主体/改装件/已存设计格池与条目映射（原 PayloadDesignScript 逻辑并入） */
+  private chassisCells: Actor[] = []
+  private attachCells: Actor[] = []
+  private pdCells: Actor[] = []
+  private chassisIds: string[] = []
+  private attachIds: string[] = []
+  private pdIdxs: number[] = []
+  /** 附件勾选态差分键（Actor → 上次选中组合串） */
+  private attachSelMap = new Map<Actor, string>()
+  /** 最近载入的合成设计下标（删除按钮目标；null = 删最后一个） */
+  private lastPdLoaded: number | null = null
 
   /** 面板当前是否展开（HudScript 居中互斥读取；唯一权威 = GameMode.designOpen） */
   get isOpen(): boolean {
@@ -70,8 +98,35 @@ export default class ShipDesignScript extends BehaviourScript {
       if (btn) btn.onClick = fn
     }
     bind('Btn_dsn_close', () => wcMode()?.closeShipDesign())
-    // 荷载设计工坊入口（2026-09-13 火箭三部位改版：荷载单独设计，与本面板互斥开合）
-    bind('Btn_dsn_payload', () => wcMode()?.openPayloadDesign())
+    // 左侧导航四页制（2026-09-20）：全部页内切换，荷载/引擎设计各预选合成页签
+    bind('Btn_nav_rocket', () => { this.navPage = 'rocket' })
+    bind('Btn_nav_hull', () => { this.navPage = 'hull' })
+    bind('Btn_nav_payload', () => {
+      this.navPage = 'synth'
+      this.synthNavKey = 'payload'
+      wcMode()?.selectPayloadTab('payload')
+    })
+    bind('Btn_nav_engine', () => {
+      this.navPage = 'synth'
+      this.synthNavKey = 'engine'
+      wcMode()?.selectPayloadTab('engine')
+    })
+    // 合成页部位页签（主体跨页保持，附件按 fits 契合收敛）
+    bind('Btn_pd_tab_payload', () => wcMode()?.selectPayloadTab('payload'))
+    bind('Btn_pd_tab_fuel', () => wcMode()?.selectPayloadTab('fuel'))
+    bind('Btn_pd_tab_engine', () => wcMode()?.selectPayloadTab('engine'))
+    bind('Btn_pd_save', () => wcMode()?.savePayloadDesign())
+    bind('Btn_pd_ddel', () => {
+      const mode = wcMode()
+      if (!mode) return
+      const designs = mode.simState.state.payloadDesigns
+      if (designs.length === 0) return
+      const idx = this.lastPdLoaded != null && this.lastPdLoaded < designs.length
+        ? this.lastPdLoaded
+        : designs.length - 1
+      mode.deletePayloadDesign(idx)
+      this.lastPdLoaded = null
+    })
     bind('Btn_dsn_recommend', () => wcMode()?.applyShipyardRecommend())
     // 「+ 加号」部位选择小面板（三轮口径：点 + → 用户选荷载/燃料/引擎，不默认荷载）
     bind('Btn_add_payload', () => wcMode()?.pickShipyardAddPart('payload'))
@@ -97,10 +152,13 @@ export default class ShipDesignScript extends BehaviourScript {
         if (id >= 0) wcMode()?.orderFromDesign(id)
       })
     }
-    // 默认收起（脚本置位，先于首帧渲染）
+    // 默认收起（脚本置位，先于首帧渲染）；导航默认停在火箭装配页
     this.vis.set(this.actor, 'DesignBody', false)
     this.vis.set(this.actor, 'AddMenu', false)
-    logger.info('[ShipDesignScript] 火箭设计工坊就绪（堆叠式装配台：底部起堆 + 加号弹部位选择，默认收起）')
+    this.vis.set(this.actor, 'PageRocket', true)
+    this.vis.set(this.actor, 'PageHull', false)
+    this.vis.set(this.actor, 'PageSynth', false)
+    logger.info('[ShipDesignScript] 火箭设计工坊就绪（导航四页全量切换 + 堆叠式装配台，默认收起）')
   }
 
   /** 下水按钮池当前绑定的船坞 id（-1 = 空槽） */
@@ -112,26 +170,32 @@ export default class ShipDesignScript extends BehaviourScript {
     this.acc += dt
     if (this.acc < 0.12) return
     this.acc = 0
-    const vm = mode.buildViewModel().shipDesign
+    const vms = mode.buildViewModel()
+    const vm = vms.shipDesign
     this.vis.set(this.actor, 'DesignBody', !!vm)
     if (!vm) return
 
-    this.binder.set(findText(this.actor, 'TitleText'), '🚀 火箭设计工坊')
+    // ─── 导航页切换（选中页独占右侧内容区）+ 导航高亮 + 标题随页 ───
+    this.vis.set(this.actor, 'PageRocket', this.navPage === 'rocket')
+    this.vis.set(this.actor, 'PageHull', this.navPage === 'hull')
+    this.vis.set(this.actor, 'PageSynth', this.navPage === 'synth')
+    this.syncNavChecked()
+    this.binder.set(findText(this.actor, 'TitleText'), this.pageTitle())
     this.binder.set(findText(this.actor, 'StatusText'),
       `船队 ${vm.fleetShips + vm.queueCount}/${vm.cap} · ${vm.docks.length ? `${vm.docks.length} 座船坞可下水` : '未建船坞（仅设计）'}`)
 
-    // ─── 左：① 船型 + ② 部位选件清单 ───
+    // ─── 装配页：① 船型 + ② 部位选件清单（船型格即使不在本页也保持池同步，切页即现） ───
     this.syncHullCells(vm)
     this.syncSlotOptions(vm)
 
-    // ─── 中：装配台（堆叠式：已装实例行 + 单一加号行，从底部往上堆） ───
+    // ─── 装配页：装配台（堆叠式：已装实例行 + 单一加号行，从底部往上堆） ───
     const hullDef = shipHullDefOf(mode.shipyardSelHull)
     this.binder.set(findText(this.actor, 'ShipNameText'), hullDef?.name ?? mode.shipyardSelHull)
     this.syncStackRows(vm)
     this.syncAddMenu(vm.addMenu)
     this.syncDesignCells(vm)
 
-    // ─── 右：性能卡 ───
+    // ─── 装配页：性能卡 ───
     const trialLines: string[] = []
     for (const t of vm.trials) {
       if (!t.unlocked) {
@@ -149,6 +213,35 @@ export default class ShipDesignScript extends BehaviourScript {
     ]
     this.binder.set(findText(this.actor, 'OrderText'), orderLines.join('\n'))
     this.syncDockButtons(vm)
+
+    // ─── 合成页（荷载/引擎设计导航进入）：主体/改装件/合成预览/已存设计 ───
+    if (this.navPage === 'synth') this.syncSynthPage(vms.payloadDesign)
+  }
+
+  /** 面板标题随页切换 */
+  private pageTitle(): string {
+    if (this.navPage === 'hull') return '📐 箭体设计'
+    if (this.navPage === 'synth') {
+      const tab = wcMode()?.payloadEdTab ?? 'payload'
+      return tab === 'fuel' ? '⛽ 燃料设计' : tab === 'engine' ? '⚙ 引擎设计' : '🧩 荷载设计'
+    }
+    return '🚀 火箭设计工坊'
+  }
+
+  /** 导航选中态差分（:checked 底色由按钮状态机原生驱动；合成页按部位页签归属荷载/引擎高亮） */
+  private syncNavChecked(): void {
+    const on: Record<string, boolean> = {
+      rocket: this.navPage === 'rocket',
+      hull: this.navPage === 'hull',
+      payload: this.navPage === 'synth' && this.synthNavKey === 'payload',
+      engine: this.navPage === 'synth' && this.synthNavKey === 'engine',
+    }
+    for (const key of Object.keys(on)) {
+      if (this.navCheckedMap.get(key) === on[key]) continue
+      this.navCheckedMap.set(key, on[key])
+      const btn = findButton(this.actor, `Btn_nav_${key}`)
+      if (btn) btn.checked = on[key]
+    }
   }
 
   /** 船型格池（点击 = mode.setShipyardHull） */
@@ -184,10 +277,10 @@ export default class ShipDesignScript extends BehaviourScript {
     const mode = wcMode()
     if (!world || !list || !mode) return
     const sel = vm.selSlot
-    // 荷载槽口径（2026-09-14）：清单只出玩家保存的荷载设计，空清单 = 引导去工坊合成
+    // 荷载槽口径（2026-09-14）：清单只出玩家保存的设计，空清单 = 引导去「荷载」页合成
     const emptyPayload = !!sel && sel.type === 'payload' && vm.slotOptions.length === 0
     this.binder.set(findText(this.actor, 'ModuleTitle'), sel
-      ? `② 部件选择 · ${sel.typeName}（${sel.used}/${sel.cap}）${emptyPayload ? ' · 尚无设计，去「荷载设计」合成一件' : ''}`
+      ? `② 部件选择 · ${sel.typeName}（${sel.used}/${sel.cap}）${emptyPayload ? ' · 尚无设计，去左侧「荷载」页合成一件' : ''}`
       : '② 部件选择（点击装配台部位）')
     this.optionIds = vm.slotOptions.map((o) => o.id)
     while (this.optionCells.length < vm.slotOptions.length) {
@@ -341,6 +434,135 @@ export default class ShipDesignScript extends BehaviourScript {
     }
   }
 
+  // ─── 合成页（原 PayloadDesignScript 逻辑并入；数据 = vm.payloadDesign，部位页签权威在 GameMode） ───
+
+  /** 合成页整页差分（页签高亮 + 主体/改装件/合成预览/已存设计清单） */
+  private syncSynthPage(pd: HudPayloadDesign | null): void {
+    if (!pd) return
+    const mode = wcMode()
+    if (!mode) return
+    // 页签高亮（选中 = 名称提亮，差分键按 Actor）
+    const tabBtnNames: Record<string, string> = { payload: 'Btn_pd_tab_payload', fuel: 'Btn_pd_tab_fuel', engine: 'Btn_pd_tab_engine' }
+    for (const tab of pd.tabs) {
+      const btnActor = findChild(this.actor, tabBtnNames[tab.type] ?? '')
+      if (!btnActor) continue
+      const isOn = pd.selTab === tab.type
+      if (this.tabSelMap.get(btnActor) !== (isOn ? '1' : '0')) {
+        this.tabSelMap.set(btnActor, isOn ? '1' : '0')
+        this.colors.set(findText(btnActor, `Label_pd_tab_${tab.type}`), isOn ? '#4fd8ff' : '#9fd8ef')
+      }
+    }
+    const partName = pd.selTab === 'fuel' ? '燃料' : pd.selTab === 'engine' ? '引擎' : '荷载'
+    this.binder.set(findText(this.actor, 'ChassisTitle'), `① ${partName}主体（单选）`)
+    this.binder.set(findText(this.actor, 'AttachTitle'), '② 改装件（多选勾选，须契合主体）')
+    this.binder.set(findText(this.actor, 'Label_pd_save'), `💾 存为${partName}模板（火箭「${partName}」槽可选装）`)
+    this.binder.set(findText(this.actor, 'PdTitle'), `已存${partName}设计（点击载入编辑区）`)
+    this.binder.set(findText(this.actor, 'Label_pd_ddel'), `🗑 删除所选${partName}设计（被引用时不可删）`)
+    this.syncChassisCells(pd)
+    this.syncAttachmentCells(pd)
+    this.binder.set(findText(this.actor, 'SynthText'), pd.synthDesc ? `${pd.synthName}\n${pd.synthDesc}\n合成造价：${pd.synthCost} H3（含组装溢价）` : `请选择${partName}主体`)
+    this.syncPdDesignCells(pd)
+  }
+
+  /** 主体格池（单选；点击 = mode.selectPayloadChassis） */
+  private syncChassisCells(pd: HudPayloadDesign): void {
+    const world = this.world
+    const list = findChild(this.actor, 'ChassisList')
+    const mode = wcMode()
+    if (!world || !list || !mode) return
+    this.chassisIds = pd.chassis.map((c) => c.id)
+    while (this.chassisCells.length < pd.chassis.length) {
+      const idx = this.chassisCells.length
+      const cell = world.ui.spawnUIActor(SHIP_MODULE_CELL_WIDGET, list)
+      if (!cell) { logger.warn('[ShipDesignScript] 主体格生成失败'); break }
+      const btn = findButton(cell, 'Btn_cell')
+      if (btn) btn.onClick = () => {
+        const id = this.chassisIds[idx]
+        if (id) mode.selectPayloadChassis(id)
+      }
+      this.chassisCells.push(cell)
+    }
+    for (let i = 0; i < this.chassisCells.length; i++) {
+      const cell = this.chassisCells[i]
+      const c = pd.chassis[i]
+      this.setCellVisible(cell, !!c)
+      if (!c) continue
+      this.setCellText(cell, 'CellName', c.name)
+      this.setCellText(cell, 'CellDesc', c.desc)
+      this.setCellText(cell, 'CellCost', `${c.cost} H3`)
+      this.setCellChecked(cell, pd.selChassis === c.id)
+    }
+  }
+
+  /** 改装件格池（多选勾选；点击 = mode.togglePayloadAttachment） */
+  private syncAttachmentCells(pd: HudPayloadDesign): void {
+    const world = this.world
+    const list = findChild(this.actor, 'AttachmentList')
+    const mode = wcMode()
+    if (!world || !list || !mode) return
+    this.attachIds = pd.attachments.map((a) => a.id)
+    while (this.attachCells.length < pd.attachments.length) {
+      const idx = this.attachCells.length
+      const cell = world.ui.spawnUIActor(SHIP_MODULE_CELL_WIDGET, list)
+      if (!cell) { logger.warn('[ShipDesignScript] 改装件格生成失败'); break }
+      const btn = findButton(cell, 'Btn_cell')
+      if (btn) btn.onClick = () => {
+        const id = this.attachIds[idx]
+        if (id) mode.togglePayloadAttachment(id)
+      }
+      this.attachCells.push(cell)
+    }
+    for (let i = 0; i < this.attachCells.length; i++) {
+      const cell = this.attachCells[i]
+      const a = pd.attachments[i]
+      this.setCellVisible(cell, !!a)
+      if (!a) continue
+      this.setCellText(cell, 'CellName', a.name)
+      this.setCellText(cell, 'CellDesc', a.desc)
+      this.setCellText(cell, 'CellCost', `${a.cost} H3`)
+      const isOn = pd.selAttachments.includes(a.id)
+      const selKey = isOn ? '1' : '0'
+      if (this.attachSelMap.get(cell) !== selKey) {
+        this.attachSelMap.set(cell, selKey)
+        // 勾选反馈 = 名称提亮（格底色编译期固化，运行时改文字色是安全口径）
+        this.colors.set(findText(cell, 'CellName'), isOn ? '#4fd8ff' : '#bfe8ff')
+      }
+      this.setCellChecked(cell, isOn)
+    }
+  }
+
+  /** 已存合成设计格池（点击 = 载入编辑区） */
+  private syncPdDesignCells(pd: HudPayloadDesign): void {
+    const world = this.world
+    const list = findChild(this.actor, 'PdDesignList')
+    const mode = wcMode()
+    if (!world || !list || !mode) return
+    this.pdIdxs = pd.designs.map((d) => d.idx)
+    while (this.pdCells.length < pd.designs.length) {
+      const idx = this.pdCells.length
+      const cell = world.ui.spawnUIActor(SHIP_MODULE_CELL_WIDGET, list)
+      if (!cell) { logger.warn('[ShipDesignScript] 合成设计格生成失败'); break }
+      const btn = findButton(cell, 'Btn_cell')
+      if (btn) {
+        btn.onClick = () => {
+          const di = this.pdIdxs[idx]
+          if (di != null && mode.loadPayloadDesign(di)) this.lastPdLoaded = di
+        }
+      }
+      this.pdCells.push(cell)
+    }
+    for (let i = 0; i < this.pdCells.length; i++) {
+      const cell = this.pdCells[i]
+      const d = pd.designs[i]
+      this.setCellVisible(cell, !!d)
+      if (!d) continue
+      this.setCellText(cell, 'CellName', d.name)
+      this.setCellText(cell, 'CellDesc', d.summary)
+      this.setCellText(cell, 'CellCost', `${d.cost} H3`)
+      this.setCellChecked(cell, this.lastPdLoaded === d.idx)
+    }
+  }
+
   private setCellText(cell: Actor, name: string, text: string): void {
     const t = findText(cell, name)
     if (t) this.binder.set(t, text)
@@ -387,8 +609,17 @@ export default class ShipDesignScript extends BehaviourScript {
     this.stackAddCells.length = 0
     this.stackRowDefs.length = 0
     this.stackAddDefs.length = 0
+    this.chassisCells.length = 0
+    this.attachCells.length = 0
+    this.pdCells.length = 0
+    this.chassisIds.length = 0
+    this.attachIds.length = 0
+    this.pdIdxs.length = 0
     this.checkedMap.clear()
     this.enabledMap.clear()
     this.visMap.clear()
+    this.navCheckedMap.clear()
+    this.tabSelMap.clear()
+    this.attachSelMap.clear()
   }
 }

@@ -37,6 +37,8 @@ const EDGE_PAN_SPEED = 10
 const _tmpForward = new THREE.Vector3()
 const _tmpRight = new THREE.Vector3()
 const _tmpTop = new THREE.Vector3()
+/** 轨道环绕复用：世界 up（无滚转偏航轴） */
+const _orbitUp = new THREE.Vector3(0, 1, 0)
 
 export class CameraRigComponent extends Component {
   /** 注视目标（缩放/平移围绕该点），默认世界原点 */
@@ -73,6 +75,11 @@ export class CameraRigComponent extends Component {
   /** 轨道仰角范围（弧度，限制在极点内侧避免 up 向量退化翻转） */
   public orbitPitchMin = -Math.PI / 2 + 0.15
   public orbitPitchMax = Math.PI / 2 - 0.15
+  /** 环绕保持屏幕偏移（不回中，2026-09-20）：false（默认）= 经典环绕，lookAt(target) 把目标摆到屏幕中心；
+   *  true = 相机位置绕目标公转的同时，朝向绕同一球面增量同步旋转——目标在屏幕上的位置保持不变
+   *  （偏轴目标不甩回中心、居中目标依旧居中），只有"世界绕目标转"。warm 右键环绕滚轮缓存目标用：
+   *  目标是落点拾取的，可能在屏幕任意位置，回中会猛甩视角。 */
+  public orbitKeepOffset = false
 
 
   /** 同一 Actor 上的 CameraComponent（BeginPlay 时查找） */
@@ -355,26 +362,50 @@ export class CameraRigComponent extends Component {
    * @param deltaYaw 水平旋转增量（弧度，正 = 相机绕 target 向右环绕）
    * @param deltaPitch 仰角增量（弧度，正 = 相机升高）
    */
+  /** 实时滚转修正（2026-09-20 用户口径：滚动/环绕时实时修正 roll）：视轴保持不动，
+   *  把相机 up 重置为世界 up 在视轴垂面内的投影——roll 恒归零、地平线恒水平。
+   *  视线近竖直（与世界 up 夹角 <~2.5°，投影退化）时跳过。 */
+  scrubRoll(): void {
+    const cam = this.resolveCamera()?.camera
+    if (!cam) return
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
+    if (Math.abs(fwd.dot(_orbitUp)) > 0.999) return
+    const right = new THREE.Vector3().crossVectors(fwd, _orbitUp).normalize()
+    const upFree = new THREE.Vector3().crossVectors(right, fwd).normalize()
+    // 由 (右轴, 无滚转 up, 后轴) 重建旋转：local −Z → 视轴不变，roll 归零
+    const back = new THREE.Vector3().crossVectors(right, upFree)
+    cam.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, upFree, back))
+  }
+
   private orbitRotate(deltaYaw: number, deltaPitch: number): void {
     const cam = this.resolveCamera()?.camera
     if (!cam) return
     const dir = cam.position.clone().sub(this.target)
     const distance = dir.length()
     if (distance < 1e-6) return
-    // 当前球面坐标（Y-up：yaw 绕世界 Y 轴，pitch 为相对水平面的仰角）
+    // 仰角夹紧（pitch = 偏移方向相对水平面的仰角，防越过极点导致 up 退化）。
+    // 注意量纲：绕右轴旋转 dPitch 后仰角变化 = −dPitch（dPitch>0 是压低相机），
+    // 故仰角增量 ∈ [min−pitch, max−pitch] 对应 dPitch ∈ [pitch−max, pitch−min]——
+    // 界限写反会在极限处把相机「反向全速修正」顶过天顶，视角来回翻转卡死。
     const pitch = Math.asin(THREE.MathUtils.clamp(dir.y / distance, -1, 1))
-    const yaw = Math.atan2(dir.x, dir.z)
-    const nextPitch = THREE.MathUtils.clamp(pitch + deltaPitch, this.orbitPitchMin, this.orbitPitchMax)
-    const nextYaw = yaw + deltaYaw
-    const horiz = Math.cos(nextPitch) * distance
-    cam.position.set(
-      this.target.x + horiz * Math.sin(nextYaw),
-      this.target.y + Math.sin(nextPitch) * distance,
-      this.target.z + horiz * Math.cos(nextYaw),
-    )
-    // up 用世界 +Y：斜视角下行星北极朝屏幕上方（warm 已于 2026-09-14 移除垂直俯视机位，恒斜视角）
-    cam.up.set(0, 1, 0)
-    cam.lookAt(this.target)
+    const dPitch = THREE.MathUtils.clamp(deltaPitch, pitch - this.orbitPitchMax, pitch - this.orbitPitchMin)
+    // 公转：先绕世界 Y 偏航，再绕相机右轴（= cross(世界up, 偏移方向)，恒水平）俯仰
+    const qYaw = new THREE.Quaternion().setFromAxisAngle(_orbitUp, deltaYaw)
+    dir.applyQuaternion(qYaw)
+    const right = new THREE.Vector3().crossVectors(_orbitUp, dir)
+    if (right.lengthSq() < 1e-8) return // 过极点退化（仰角夹紧后实际不可达，防御）
+    right.normalize()
+    const qPitch = new THREE.Quaternion().setFromAxisAngle(right, dPitch)
+    dir.applyQuaternion(qPitch)
+    cam.position.copy(this.target).add(dir)
+    if (this.orbitKeepOffset) {
+      // 不回中环绕：相机朝向应用同一 R（世界系 premultiply）——目标屏幕位保持
+      cam.quaternion.premultiply(qPitch.clone().multiply(qYaw))
+      // 实时滚转修正：合成路径残余的 roll 逐步归零（视轴不受影响）
+      this.scrubRoll()
+    } else {
+      cam.lookAt(this.target)
+    }
     // 写回 Actor root，否则每帧 SyncFromActor 会把相机位置覆盖回去
     this._camera!.SyncToActor()
   }

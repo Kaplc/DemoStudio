@@ -385,6 +385,11 @@ function s5Render(){
   const line = el(svg, 'line', { x1: S5.C.x, y1: S5.C.y, x2: S.x, y2: S.y, stroke: 'var(--amber)', 'stroke-dasharray': '5 5', opacity: .7 });
   const V = { x: Math.cos(S5.viewDeg * D2R), y: Math.sin(S5.viewDeg * D2R) };
   el(svg, 'path', { d: conePath(S5.C.x, S5.C.y, S5.viewDeg, 210, 14), fill: 'rgba(88,194,216,.10)', stroke: 'rgba(88,194,216,.45)' });
+  // 视线射线延长（虚点线，同第 2 页）：显示视口朝向——歪着时它不穿过球心，offAxis 收敛到 0 时才指向球心
+  let rayT = 471;
+  if (S5.C.x + V.x * rayT > 690) rayT = (690 - S5.C.x) / V.x;
+  if (S5.C.y + V.y * rayT < 6) rayT = (S5.C.y - 6) / -V.y;
+  el(svg, 'line', { x1: S5.C.x, y1: S5.C.y, x2: S5.C.x + V.x * rayT, y2: S5.C.y + V.y * rayT, stroke: 'rgba(88,194,216,.5)', 'stroke-width': 1.5, 'stroke-dasharray': '2 6' });
   drawCamera(svg, S5.C.x, S5.C.y, S5.viewDeg, S5.parked ? 'var(--green)' : 'var(--cyan)');
   const toP = { x: S5.P.x - S5.C.x, y: S5.P.y - S5.C.y };
   const distP = Math.hypot(toP.x, toP.y) || 1;

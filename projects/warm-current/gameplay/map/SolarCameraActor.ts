@@ -60,6 +60,9 @@ export class SolarCameraActor extends CameraActor {
     // scrollPan 的"沿相机↔目标连线平移"（目标 = 命中天体或黄道面空目标，朝向完全固定），
     // 且滚轮选中目标即缓存为 rig.target → 右键拖拽绕该目标环绕观察（orbitMode）
     this.rig.zoomEnabled = false
+    // 右键环绕不回中（2026-09-20）：环绕锚点 = 滚轮缓存目标，可能偏在屏幕任意位置——
+    // 公转 + 朝向同步旋转保持目标屏幕位，不再 lookAt 回中猛甩视角
+    this.rig.orbitKeepOffset = true
   }
 
   /** 斜视角就位（up = 世界 +Y；开局由 focusSolarSystem('earth') 立即重取景到地月系）。

@@ -35,7 +35,6 @@ import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScri
 import HologramPanelScript, { HOLOGRAM_PANEL_WIDGET } from './HologramPanelScript.script'
 import { HOLO_HUD_WIDGET } from './HoloHudScript.script'
 import ShipDesignScript, { SHIP_DESIGN_WIDGET } from './ShipDesignScript.script'
-import PayloadDesignScript, { PAYLOAD_DESIGN_WIDGET } from './PayloadDesignScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
 const SETTLE_WIDGET = 'asset/blueprints/ui/settle.widget.json'
@@ -80,7 +79,6 @@ export default class HudScript extends BehaviourScript {
   private hologramPanel: Actor | null = null
   private holoHud: Actor | null = null
   private shipDesignPanel: Actor | null = null
-  private payloadDesignPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
   private ringPanel: Actor | null = null
@@ -111,11 +109,6 @@ export default class HudScript extends BehaviourScript {
       }
       if (inst instanceof ShipDesignScript) {
         if (inst.isOpen) wcMode()?.closeShipDesign()
-        continue
-      }
-      // 状态驱动面板（荷载设计）：同火箭设计口径
-      if (inst instanceof PayloadDesignScript) {
-        if (inst.isOpen) wcMode()?.closePayloadDesign()
         continue
       }
       const panel = inst as unknown as { isOpen: boolean, close: () => void }
@@ -184,9 +177,7 @@ export default class HudScript extends BehaviourScript {
     const stationEntry: CenterPanelEntry = { actor: () => this.stationPanel, is: (s) => s instanceof StationPanelScript, label: '空间站舱段面板' }
     // 火箭设计工坊（居中位，GameMode.designOpen 状态驱动开合：底部 HUD 入口）
     const designEntry: CenterPanelEntry = { actor: () => this.shipDesignPanel, is: (s) => s instanceof ShipDesignScript, label: '火箭设计工坊' }
-    // 荷载设计工坊（居中位，GameMode.payloadDesignOpen 状态驱动开合：火箭设计工坊「荷载设计」入口）
-    const payloadEntry: CenterPanelEntry = { actor: () => this.payloadDesignPanel, is: (s) => s instanceof PayloadDesignScript, label: '荷载设计工坊' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, stationEntry, designEntry, payloadEntry]
+    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, stationEntry, designEntry]
     bind('Btn_design', () => this.toggleCenterPanel(designEntry))
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
     bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
@@ -249,9 +240,6 @@ export default class HudScript extends BehaviourScript {
     // 火箭设计工坊（居中位：底部 HUD「火箭设计」弹出，ShipDesignScript 读 vm.shipDesign 自驱动）
     this.shipDesignPanel = this.world?.ui.spawnUIActor(SHIP_DESIGN_WIDGET) ?? null
     if (!this.shipDesignPanel) logger.warn('[HudScript] ship_design 生成失败')
-    // 荷载设计工坊（居中位：火箭设计工坊「荷载设计」弹出，PayloadDesignScript 读 vm.payloadDesign 自驱动）
-    this.payloadDesignPanel = this.world?.ui.spawnUIActor(PAYLOAD_DESIGN_WIDGET) ?? null
-    if (!this.payloadDesignPanel) logger.warn('[HudScript] payload_design 生成失败')
     // 储量详情 widget 一次生成（默认隐藏，脚本自驱动显隐）
     this.reserveInfo = this.world?.ui.spawnUIActor(RESERVE_INFO_WIDGET) ?? null
     if (!this.reserveInfo) logger.warn('[HudScript] reserve_info 生成失败')

@@ -1,7 +1,7 @@
 {
   "name": "ShipHullCell",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-6b033f30",
+  "sourceHash": "fnv1a-55a1a7e3",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -21,14 +21,14 @@
           1,
           1
         ],
-        "worldWidth": 320,
+        "worldWidth": 300,
         "worldHeight": 84
       }
     },
     {
       "baseClass": "CanvasUIComponent",
       "properties": {
-        "width": 320,
+        "width": 300,
         "height": 84,
         "name": "Canvas",
         "zOrder": 0,
@@ -55,7 +55,7 @@
               1,
               1
             ],
-            "worldWidth": 320,
+            "worldWidth": 300,
             "worldHeight": 86,
             "position": [
               0,
@@ -92,7 +92,7 @@
                   1,
                   1
                 ],
-                "worldWidth": 322,
+                "worldWidth": 302,
                 "worldHeight": 86,
                 "position": [
                   1,
@@ -123,7 +123,7 @@
               "baseClass": "UIImageComponent",
               "properties": {
                 "color": "#0d2434",
-                "width": 322,
+                "width": 302,
                 "height": 86,
                 "name": "Btn_cell"
               }
@@ -153,7 +153,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 322,
+                    "worldWidth": 302,
                     "worldHeight": 1
                   }
                 },
@@ -170,7 +170,7 @@
                   "properties": {
                     "name": "Btn_cellBorderTop",
                     "color": "#1c4560",
-                    "width": 322,
+                    "width": 302,
                     "height": 8
                   }
                 }
@@ -186,7 +186,7 @@
                   "baseClass": "UITransformComponent",
                   "properties": {
                     "position": [
-                      160.5,
+                      150.5,
                       0,
                       0
                     ],
@@ -247,7 +247,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 322,
+                    "worldWidth": 302,
                     "worldHeight": 1
                   }
                 },
@@ -264,7 +264,7 @@
                   "properties": {
                     "name": "Btn_cellBorderBottom",
                     "color": "#1c4560",
-                    "width": 322,
+                    "width": 302,
                     "height": 8
                   }
                 }
@@ -280,7 +280,7 @@
                   "baseClass": "UITransformComponent",
                   "properties": {
                     "position": [
-                      -160.5,
+                      -150.5,
                       0,
                       0
                     ],
@@ -336,7 +336,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 300,
+                    "worldWidth": 280,
                     "worldHeight": 24,
                     "position": [
                       0,
@@ -358,7 +358,7 @@
                   "properties": {
                     "text": "",
                     "name": "CellName",
-                    "width": 300,
+                    "width": 280,
                     "height": 24,
                     "fontSize": 17,
                     "color": "#bfe8ff",
@@ -391,7 +391,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 300,
+                    "worldWidth": 280,
                     "worldHeight": 20,
                     "position": [
                       0,
@@ -413,7 +413,7 @@
                   "properties": {
                     "text": "",
                     "name": "CellDesc",
-                    "width": 300,
+                    "width": 280,
                     "height": 20,
                     "fontSize": 14,
                     "color": "#4fd8ff",
@@ -445,7 +445,7 @@
                       1,
                       1
                     ],
-                    "worldWidth": 300,
+                    "worldWidth": 280,
                     "worldHeight": 18,
                     "position": [
                       0,
@@ -467,7 +467,7 @@
                   "properties": {
                     "text": "",
                     "name": "CellCost",
-                    "width": 300,
+                    "width": 280,
                     "height": 18,
                     "fontSize": 14,
                     "color": "#ffe9a8",

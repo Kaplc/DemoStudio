@@ -1690,7 +1690,6 @@ export class WarmCurrentGameMode extends GameMode {
   openShipDesign(): void {
     if (this.hologramSel) this.closeHologram()
     this.designOpen = true
-    this.payloadDesignOpen = false
     this.planetInfoSel = null
     this.shipyardSel = null
     this.shipyardAddMenuOpen = false
@@ -1706,9 +1705,8 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   // ─── 荷载设计工坊（2026-09-13：火箭三部位改版——荷载单独设计，主体+附件合成一件自定义荷载） ───
-
-  /** 荷载设计面板开合（null 语义 = 收起；PayloadDesignScript 消费，与火箭设计居中互斥） */
-  payloadDesignOpen = false
+  // 2026-09-20 起并入火箭设计工坊左侧导航页（荷载/引擎设计页签），面板级开合字段已移除；
+  // 合成编辑区状态（payloadEdTab/payloadEdChassis/payloadEdAttachments）保留在本类，VM 随 designOpen 出。
 
   /** 设计工坊当前部位页签（payload/fuel/engine；三部位统一设计流，2026-09-14 泛化） */
   payloadEdTab: 'payload' | 'fuel' | 'engine' = 'payload'
@@ -1724,24 +1722,6 @@ export class WarmCurrentGameMode extends GameMode {
   private fitsAttachment(moduleId: string, slotType: 'payload' | 'fuel' | 'engine'): boolean {
     const fits = shipModuleDefOf(moduleId)?.fits
     return !Array.isArray(fits) || fits.length === 0 || fits.includes(slotType)
-  }
-
-  /** 打开荷载设计面板（火箭设计工坊「荷载设计」按钮；与火箭设计互斥开合） */
-  openPayloadDesign(): void {
-    this.payloadDesignOpen = true
-    this.payloadEdTab = 'payload'
-    this.designOpen = false
-    this.planetInfoSel = null
-    this.shipyardSel = null
-    this.stationSel = null
-    this.orbitBuildSel = null
-    audioSys.play('wc.draw', { volume: 0.3 })
-    logger.info('[WarmCurrent] 荷载设计工坊：打开')
-  }
-
-  /** 关闭荷载设计面板 */
-  closePayloadDesign(): void {
-    this.payloadDesignOpen = false
   }
 
   /** 切换设计工坊部位页签（payload/fuel/engine；主体跨页保持，附件按 fits 契合收敛） */
@@ -1834,7 +1814,7 @@ export class WarmCurrentGameMode extends GameMode {
     setDynamicShipModules(payloadDesignDefsOf(this.simState.state.payloadDesigns ?? []))
   }
 
-  /** 荷载设计工坊面板数据（payloadDesignOpen = false 时不出；三部位页签制） */
+  /** 荷载设计工坊面板数据（designOpen 期间随部位页签出；三部位页签制，2026-09-20 并入导航页） */
   private buildPayloadDesignVM(): HudPayloadDesign {
     const s = this.simState.state
     const slotType = this.payloadEdTab
@@ -2835,7 +2815,6 @@ export class WarmCurrentGameMode extends GameMode {
     refreshBalanceFromConfigs()
     this.simState.reset()
     this.syncDynamicPayloadModules()
-    this.payloadDesignOpen = false
     resetMoonPhaseAdj()
     this.moonAngleAtLeave = null
     this.clearObserveState()
@@ -3049,8 +3028,8 @@ export class WarmCurrentGameMode extends GameMode {
     const shipyard = this.shipyardSel !== null ? this.buildShipyardVM(this.shipyardSel) : null
     // 火箭设计面板数据（底部 HUD 入口；不依赖船坞，无坞也能设计）
     const shipDesign = this.designOpen ? this.buildShipDesignVM() : null
-    // 荷载设计面板数据（火箭设计工坊「荷载设计」入口；与火箭设计互斥开合）
-    const payloadDesign = this.payloadDesignOpen ? this.buildPayloadDesignVM() : null
+    // 荷载/燃料/引擎合成页数据（2026-09-20 并入火箭设计工坊导航页；面板开着即出，随部位页签过滤）
+    const payloadDesign = this.designOpen ? this.buildPayloadDesignVM() : null
     // 建筑详情浮层数据（buildingDetailSel 为空/建筑被拆 → null 收起）
     const buildingDetail = this.buildingDetailSel !== null ? this.buildBuildingDetail(this.buildingDetailSel) : null
     // 耀斑预警决策条（预警期 + 框选船非空 = 决策条上屏；canHold = 选中船全部未出发可待命）
