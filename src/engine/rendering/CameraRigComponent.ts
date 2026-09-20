@@ -431,7 +431,11 @@ export class CameraRigComponent extends Component {
       this.dragLastX = sx
       this.dragLastY = sy
       if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return
-      this.orbitRotate(dx * this.orbitSensitivity, dy * this.orbitSensitivity)
+      // 垂直分量取反（2026-09-20 用户反馈「上下反向了」）：屏幕坐标 y 向下为正，直接传入
+      // 会导致下拖=压低相机、上拖=升高，与主流 orbit 交互（three.js OrbitControls/Maya/
+      // Google Earth 的"下拖推球面→相机升高俯角增大"）相反。取反后：下拖=升高（更俯视）、
+      // 上拖=压低（趋向平视）。水平分量不变（右拖=绕目标向右环绕）。
+      this.orbitRotate(dx * this.orbitSensitivity, -dy * this.orbitSensitivity)
       return
     }
 

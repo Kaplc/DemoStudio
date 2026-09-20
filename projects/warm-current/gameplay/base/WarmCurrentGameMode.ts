@@ -849,6 +849,49 @@ export class WarmCurrentGameMode extends GameMode {
         return out
       },
       allowed: () => this.viewMode === 'earth' && !this.viewSwitching,
+      // 共享锁定变量（2026-09-20 用户口径）：滚轮拉近锁定的目标即唯一锁定变量 rig.target，
+      // 观察态（双击/滚轮建立）内滚轮重新锁定 → warm 跟随对象同步切换；俯视态保持落点
+      // 平移定版语义（只写 rig.target，不扰地图交互/不进观察）；空目标 → 观察软退出
+      onLock: (id) => {
+        if (this.viewMode !== 'earth' || this.viewSwitching) return
+        if (id === null) {
+          // 空目标（黄道落点）：观察态软退出——observeBody 归零 + 语义回落默认（左键回
+          // 地图交互），不做 focusSolarSystem 复位取景（镜头位置/注视点归滚轮锁定）
+          if (this.observeBody) {
+            this.observeBody = null
+            this.observeFollowLast = null
+            this.pendingObserveClick = null
+            this.cameraActor.rig.leftOrbitEnabled = false
+            this.cameraActor.rig.orbitMode = true
+            logger.info('[WarmCurrent] 滚轮锁定空目标：观察态软退出（镜头归滚轮）')
+          }
+          return
+        }
+        // 俯视态：落点平移定版——锁定只写 rig.target（组件已写），观察态不动
+        if (!this.observeBody) return
+        // 观察态内重新锁定：跟随对象切换（观察语义开关已就位，只换对象 + 缩放下限贴新目标）
+        if (B.map.moons[id as keyof typeof B.map.moons]) {
+          if (this.observeBody !== id) {
+            this.resetObserveBoost()
+            this.observeBody = id as MoonId
+            const a = this.starActors.get(id as StarBodyId)
+            this.observeFollowLast = a ? { x: a.root.position.x, z: a.root.position.z } : null
+            this.applyZoomFloor(B.map.nodes[id as StarBodyId].r)
+            logger.info(`[WarmCurrent] 滚轮锁定卫星：跟随切换 → ${PLANET_NAMES[id] ?? id}`)
+          }
+        } else if (id === this.planetFocusBody) {
+          if (this.observeBody !== id) {
+            this.resetObserveBoost()
+            this.observeBody = id as PlanetId
+            this.observeFollowLast = null
+            this.applyZoomFloor(B.map.nodes[id as PlanetId].r)
+            logger.info(`[WarmCurrent] 滚轮锁定聚焦体：跟随切换 → ${PLANET_NAMES[id] ?? id}`)
+          }
+        } else {
+          // 非本系天体不会出现在候选里，防御性忽略
+          logger.warn(`[WarmCurrent] 滚轮锁定忽略非候选天体：${id}`)
+        }
+      },
     }
     // （2026-09-15 三版）平滑聚焦补间已退役：聚焦=只切瞄准点，镜头交给玩家滚轮，
     // 不再挂 onManualCameraInput → cancelFlyTo 钩子

@@ -3,13 +3,14 @@
  *
  * 职责（数据由 GameMode.buildViewModel 驱动，本脚本只做差分呈现）：
  *  - 底部 HUD「火箭设计」→ GameMode.openShipDesign() → vm.shipDesign 非空 → 面板展开
- *  - 左侧导航四页制（2026-09-20 全面页化：选中页独占右侧内容区，页面间纯切换不共用列）：
+ *  - 左侧导航五页制（2026-09-20 合成页签并入导航：选中页独占右侧内容区，页面间纯切换不共用列）：
  *      火箭    = PageRocket（② 部件选择 + ③ 装配台 + ④ 性能卡）
  *      荷载    = PageSynth 合成工坊（部位页签预选 payload）
+ *      燃料    = PageSynth（部位页签预选 fuel）
  *      箭体    = PageHull（① 箭体清单 + 设计模板）
  *      引擎设计 = PageSynth（部位页签预选 engine）
- *    合成工坊（原 payload_design 独立面板）已并入本面板：页签（荷载/燃料/引擎）三步流
- *    ① 主体单选 → ② 改装件多选勾选 → 合成预览 / 存模板 / 已存清单（载入/删除）
+ *    合成工坊（原 payload_design 独立面板）已并入本面板：原页内部位页签行（荷载/燃料/引擎）
+ *    移除，改由左侧导航承载（三步流 ① 主体单选 → ② 改装件多选勾选 → 合成预览/存模板/已存清单）
  *  - 装配台堆叠式（2026-09-17 三轮口径：缺氧火箭「从底部往上堆」）：
  *      ③ 装配台（StackList 垂直堆叠行池 justify=end：已装实例行 + 末尾单一加号行；
  *         加号行点击 → mode.openShipyardAddMenu() 弹出部位选择小面板（AddMenu：荷载/燃料/引擎）；
@@ -39,7 +40,7 @@ const STACK_ROW_CAP = 12
 /** 下水按钮池容量（同型船坞上限 orbit_build.maxPerType = 3） */
 const DOCK_BTNS = 3
 
-/** 导航页（rocket=装配；hull=船型+模板；synth=合成工坊，部位页签见 synthNavKey/payloadEdTab） */
+/** 导航页（rocket=装配；hull=船型+模板；synth=合成工坊，部位页签 = GameMode.payloadEdTab） */
 type NavPage = 'rocket' | 'hull' | 'synth'
 
 export default class ShipDesignScript extends BehaviourScript {
@@ -67,14 +68,10 @@ export default class ShipDesignScript extends BehaviourScript {
   private visMap = new Map<Actor, boolean>()
   /** 最近载入的模板下标（删除按钮目标；null = 删最后一个） */
   private lastLoadedDesign: number | null = null
-  /** 导航当前页（synth 页内部位页签由 GameMode.payloadEdTab 权威） */
+  /** 导航当前页（合成页高亮/标题/内容均由 GameMode.payloadEdTab 单一权威推导） */
   private navPage: NavPage = 'rocket'
-  /** 合成页导航来源（荷载/引擎设计按钮各预选对应页签；页签行切到 fuel 时导航保持原高亮） */
-  private synthNavKey: 'payload' | 'engine' = 'payload'
-  /** 导航按钮选中态差分（按钮名 → 上次 checked） */
+  /** 导航按钮选中态差分（按钮名 → 上次 checked；合成页按部位页签归属荷载/引擎高亮） */
   private navCheckedMap = new Map<string, boolean>()
-  /** 合成页页签高亮差分（Actor → 上次选中部位） */
-  private tabSelMap = new Map<Actor, string>()
   /** 合成页：主体/改装件/已存设计格池与条目映射（原 PayloadDesignScript 逻辑并入） */
   private chassisCells: Actor[] = []
   private attachCells: Actor[] = []
@@ -98,23 +95,14 @@ export default class ShipDesignScript extends BehaviourScript {
       if (btn) btn.onClick = fn
     }
     bind('Btn_dsn_close', () => wcMode()?.closeShipDesign())
-    // 左侧导航四页制（2026-09-20）：全部页内切换，荷载/引擎设计各预选合成页签
+    // 左侧导航五页制（2026-09-20 合成页签并入导航）：全部页内切换，荷载/燃料/引擎设计各预选合成页签
     bind('Btn_nav_rocket', () => { this.navPage = 'rocket' })
     bind('Btn_nav_hull', () => { this.navPage = 'hull' })
-    bind('Btn_nav_payload', () => {
-      this.navPage = 'synth'
-      this.synthNavKey = 'payload'
-      wcMode()?.selectPayloadTab('payload')
-    })
-    bind('Btn_nav_engine', () => {
-      this.navPage = 'synth'
-      this.synthNavKey = 'engine'
-      wcMode()?.selectPayloadTab('engine')
-    })
-    // 合成页部位页签（主体跨页保持，附件按 fits 契合收敛）
-    bind('Btn_pd_tab_payload', () => wcMode()?.selectPayloadTab('payload'))
-    bind('Btn_pd_tab_fuel', () => wcMode()?.selectPayloadTab('fuel'))
-    bind('Btn_pd_tab_engine', () => wcMode()?.selectPayloadTab('engine'))
+    bind('Btn_nav_payload', () => { this.navPage = 'synth'; wcMode()?.selectPayloadTab('payload') })
+    bind('Btn_nav_fuel', () => { this.navPage = 'synth'; wcMode()?.selectPayloadTab('fuel') })
+    bind('Btn_nav_engine', () => { this.navPage = 'synth'; wcMode()?.selectPayloadTab('engine') })
+    // 合成页部位页签已并入左侧导航（原页内 TabRow 移除）；页签权威 = GameMode.payloadEdTab，
+    // 由导航按钮 selectPayloadTab 切换（主体跨页保持，附件按 fits 契合收敛）
     bind('Btn_pd_save', () => wcMode()?.savePayloadDesign())
     bind('Btn_pd_ddel', () => {
       const mode = wcMode()
@@ -228,13 +216,15 @@ export default class ShipDesignScript extends BehaviourScript {
     return '🚀 火箭设计工坊'
   }
 
-  /** 导航选中态差分（:checked 底色由按钮状态机原生驱动；合成页按部位页签归属荷载/引擎高亮） */
+  /** 导航选中态差分（:checked 底色由按钮状态机原生驱动；合成页高亮由 payloadEdTab 推导：
+   *  payload 键覆盖荷载+燃料两按钮，engine 键对应引擎设计按钮；载入跨部位模板时自动跟随） */
   private syncNavChecked(): void {
+    const tab = wcMode()?.payloadEdTab ?? 'payload'
     const on: Record<string, boolean> = {
       rocket: this.navPage === 'rocket',
       hull: this.navPage === 'hull',
-      payload: this.navPage === 'synth' && this.synthNavKey === 'payload',
-      engine: this.navPage === 'synth' && this.synthNavKey === 'engine',
+      payload: this.navPage === 'synth' && tab !== 'engine',
+      engine: this.navPage === 'synth' && tab === 'engine',
     }
     for (const key of Object.keys(on)) {
       if (this.navCheckedMap.get(key) === on[key]) continue
@@ -436,22 +426,11 @@ export default class ShipDesignScript extends BehaviourScript {
 
   // ─── 合成页（原 PayloadDesignScript 逻辑并入；数据 = vm.payloadDesign，部位页签权威在 GameMode） ───
 
-  /** 合成页整页差分（页签高亮 + 主体/改装件/合成预览/已存设计清单） */
+  /** 合成页整页差分（主体/改装件/合成预览/已存设计清单；页签高亮已随 TabRow 并入导航） */
   private syncSynthPage(pd: HudPayloadDesign | null): void {
     if (!pd) return
     const mode = wcMode()
     if (!mode) return
-    // 页签高亮（选中 = 名称提亮，差分键按 Actor）
-    const tabBtnNames: Record<string, string> = { payload: 'Btn_pd_tab_payload', fuel: 'Btn_pd_tab_fuel', engine: 'Btn_pd_tab_engine' }
-    for (const tab of pd.tabs) {
-      const btnActor = findChild(this.actor, tabBtnNames[tab.type] ?? '')
-      if (!btnActor) continue
-      const isOn = pd.selTab === tab.type
-      if (this.tabSelMap.get(btnActor) !== (isOn ? '1' : '0')) {
-        this.tabSelMap.set(btnActor, isOn ? '1' : '0')
-        this.colors.set(findText(btnActor, `Label_pd_tab_${tab.type}`), isOn ? '#4fd8ff' : '#9fd8ef')
-      }
-    }
     const partName = pd.selTab === 'fuel' ? '燃料' : pd.selTab === 'engine' ? '引擎' : '荷载'
     this.binder.set(findText(this.actor, 'ChassisTitle'), `① ${partName}主体（单选）`)
     this.binder.set(findText(this.actor, 'AttachTitle'), '② 改装件（多选勾选，须契合主体）')
@@ -619,7 +598,6 @@ export default class ShipDesignScript extends BehaviourScript {
     this.enabledMap.clear()
     this.visMap.clear()
     this.navCheckedMap.clear()
-    this.tabSelMap.clear()
     this.attachSelMap.clear()
   }
 }

@@ -52,6 +52,10 @@ export interface StarScrollPanSource {
   candidates(): StarScrollCandidate[]
   /** 滚轮控制是否允许（行星系视角且非切换中；瞄准滑移由组件自查 isAiming） */
   allowed(): boolean
+  /** 拉近锁定回调（2026-09-20 共享锁定变量口径）：锁定变量唯一事实源 = rig.target，
+   *  滚轮锁定即通知 warm 态同步观察对象（天体 id → observeBody 跟随切换；null = 空目标
+   *  → 观察软退出）。与本滚是否实际推进无关（同"目标缓存选中即写"口径）。 */
+  onLock?(id: string | null): void
 }
 
 export class StarScrollPanComponent extends Component {
@@ -209,6 +213,10 @@ export class StarScrollPanComponent extends Component {
     // 目标缓存（选中即写，与本滚是否实际推进无关）：rig.target = 目标点
     // （天体球心 / 黄道面落点）→ 右键拖拽绕该点环绕观察（orbitKeepOffset 不回中）
     actor.rig.target.copy(target.pos)
+    // 共享锁定变量（2026-09-20 用户口径）：滚轮锁定即通知 warm 态同步观察对象
+    // （天体 → observeBody 跟随切换；空目标 → 观察软退出），与 rig.target 同拍
+    if (target.id === ECLIPTIC_ID) this.source?.onLock?.(null)
+    else this.source?.onLock?.(target.id)
     const floor = Math.max(24, target.r * 1.15)
     // 对齐距离（2026-09-20 用户口径：视口对齐提前在最近距离前完成）——生效值不低于
     // 最近停止距离，否则直进段没有余地
