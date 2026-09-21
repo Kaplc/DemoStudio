@@ -15,4 +15,4 @@ warm 全息地球底栏改版：业务 6 按钮下架，工具条改 4 固定按
 
 ## Effective Path
 
-projects/warm-current/gameplay/ui/holoHudModel.ts || projects/warm-current/gameplay/ui/HoloHudScript.script.ts || projects/warm-current/gameplay/ui/HologramPanelScript.script.ts || projects/warm-current/asset/blueprints/ui/holo_hud.widget.html || e2e/warm/holo_tabs.spec.ts
+projects/warm-current/gameplay/ui/holoHudModel.ts || projects/warm-current/gameplay/ui/HoloHudScript.script.ts || projects/warm-current/gameplay/ui/HologramPanelScript.script.ts || projects/warm-current/asset/blueprints/ui/holo_hud.widget.html || projects/warm-current/e2e/holo_tabs.spec.ts

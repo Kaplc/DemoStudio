@@ -3,7 +3,7 @@ name: fill_two_plans_missing_regressions
 task_type: test/regression-fill
 outcome: success
 date: 2026-09-11
-prefix: [e2e/warm/slots_design.spec.ts, tests/warmCurrentSlotsAndDesign.test.ts]
+prefix: [projects/warm-current/e2e/slots_design.spec.ts, tests/warmCurrentSlotsAndDesign.test.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ prefix: [e2e/warm/slots_design.spec.ts, tests/warmCurrentSlotsAndDesign.test.ts]
 
 ## Effective Path
 
-tests/warmCurrentSlotsAndDesign.test.ts || e2e/warm/slots_design.spec.ts
+tests/warmCurrentSlotsAndDesign.test.ts || projects/warm-current/e2e/slots_design.spec.ts

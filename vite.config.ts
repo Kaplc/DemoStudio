@@ -141,12 +141,13 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
     outDir: 'dist',
-    // 双入口 MPA：主编辑器（index.html）+ Agent 独立窗口（agent.html）。
-    // 两入口模块图分离，agent 图只含面板闭包（无引擎/项目），HMR 按入口分窗隔离。
+    // 三入口 MPA：主编辑器（index.html）+ Agent 独立窗口（agent.html）+ 性能分析器（perf.html）。
+    // 各入口模块图分离，agent/perf 图只含各自面板闭包（无引擎/项目），HMR 按入口分窗隔离。
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         agent: path.resolve(__dirname, 'agent.html'),
+        perf: path.resolve(__dirname, 'perf.html'),
       },
     },
   },

@@ -3,11 +3,11 @@ name: warm_pure_player_capability_audit
 task_type: feature/tooling
 outcome: success
 date: 2026-09-13
-prefix: [src/engine/ai/registerBuiltinAIHandlers.ts, src/engine/input/InputSys.ts, projects/warm-current/gameplay/base/WarmCurrentPlayerController.ts, e2e/warm/player_input.spec.ts]
+prefix: [src/engine/ai/registerBuiltinAIHandlers.ts, src/engine/input/InputSys.ts, projects/warm-current/gameplay/base/WarmCurrentPlayerController.ts, projects/warm-current/e2e/player_input.spec.ts]
 ---
 ## Summary
 
-（两轮更新）评估并补齐"纯玩家操作 warm-current"的工具缺口：修复 mouseClick 只按不抬 + mouseDrag 无右键参数 + 新增 projectScreenPos 投影查询 + 顺手修掉 CameraRig 裸 _camera 潜伏 bug；e2e/warm/player_input.spec.ts 4 用例全绿回归锁。
+（两轮更新）评估并补齐"纯玩家操作 warm-current"的工具缺口：修复 mouseClick 只按不抬 + mouseDrag 无右键参数 + 新增 projectScreenPos 投影查询 + 顺手修掉 CameraRig 裸 _camera 潜伏 bug；projects/warm-current/e2e/player_input.spec.ts 4 用例全绿回归锁。
 
 ## Lessons
 

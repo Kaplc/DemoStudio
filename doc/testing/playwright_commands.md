@@ -500,3 +500,5 @@ s.call(input,'词'); input.dispatchEvent(new Event('input',{bubbles:true}))
 | MCP `:9877` 的 `ai_event` | 只转发给 Electron mainWindow | 浏览器实例内用 `window.__ai` |
 | PowerShell 无 `tail` / `head` | 管道不支持 | 用 `Select-Object -Last N` / `-First N` |
 | 需要 AI 自己读截图 | MCP 沙箱目录在工作区外 | 用本路径，产物落工作区内 |
+
+**59. 跨 `page.evaluate` 往返断言"时窗敏感"语义（冷却窗/双击窗/滑移窗）必然漂移** —— 现象：`ai.clickActor` 冷却窗连点断言（<500ms 应被拒）在 headless 下从未成立——两次 `page.evaluate` 往返各 0.3~1s，实测间隔 881ms > 500ms，冷却窗早过期；同理双击 350ms 窗、aimAt 滑移窗都受往返延迟支配。规则：**时窗内多步操作必须合进同一次 evaluate 原子执行**（in-page 同步连发 `__ai.emit` 两次，间隔微秒级），窗外只做状态前置（如轮询展开面板）与事后断言；选被点按钮时避开会改可见性的（改了就会被"命中层不可见"拒绝，测不到冷却语义）。诊断此类问题用一次性探针脚本打印 `__ai.emit` 完整回执（ok/error 原文），别只盯着 spec 的布尔断言猜。

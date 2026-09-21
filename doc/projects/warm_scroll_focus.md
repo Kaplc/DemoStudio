@@ -2,13 +2,13 @@
 
 > **一句话定位**：地球系视角下滚轮拉近时，光标附近有天体就"原地转头"聚焦它并进入环绕观察态，而不是普通缩放。
 > **什么时候会用到你**：调星球聚焦/观察交互手感时；排查"单击星球不弹信息面板""滚轮一滚视角乱转"时；给聚焦吸附加新天体类型时。
-> 代码位置：`projects/warm-current/gameplay/base/WarmCurrentGameMode.ts`、`projects/warm-current/gameplay/map/SolarCameraActor.ts`、`projects/warm-current/gameplay/base/WarmCurrentPlayerController.ts`
+> 代码位置：`projects/warm-current/gameplay/systems/ViewDirectorComponent.ts`（2026-09-20 自 WarmCurrentGameMode 下沉观察态/取景决策，GameMode 保留转发门面）、`projects/warm-current/gameplay/map/SolarCameraActor.ts`、`projects/warm-current/gameplay/base/WarmCurrentPlayerController.ts`
 
 ## 1. 先记住这几个文件
 
 | 文件 | 一句话职责 | 你要改它的场景 |
 |---|---|---|
-| [WarmCurrentGameMode.ts](../../projects/warm-current/gameplay/base/WarmCurrentGameMode.ts) | 吸附判定 + 观察态进出（`tryScrollFocusAt` / `enterPlanetObserve` / `enterMoonObserve`） | 改吸附触发条件、拾取口径、观察态行为 |
+| [ViewDirectorComponent.ts](../../projects/warm-current/gameplay/systems/ViewDirectorComponent.ts) | 观察态进出 + 取景/相机语义（`enterPlanetObserve` / `enterMoonObserve` / `clearObserveState`；滚轮吸附在 SolarCameraActor.scrollPan） | 改观察态行为、取景距离、相机交互语义 |
 | [SolarCameraActor.ts](../../projects/warm-current/gameplay/map/SolarCameraActor.ts) | 相机"瞄准滑移"执行者（`aimAt` 逐帧 lerp 注视点与距离） | 改转头手感、滑移打断逻辑 |
 | [WarmCurrentPlayerController.ts](../../projects/warm-current/gameplay/base/WarmCurrentPlayerController.ts) | 滚轮输入转发（拉近滚动 → GameMode 判定） | 改输入触发时机（如放宽到 delta>0） |
 | [balance.ts](../../projects/warm-current/gameplay/core/balance.ts) | `B.map.focusSnapTolerance` 吸附像素圈半径 | 调吸附灵敏度 |
@@ -188,12 +188,12 @@ if (this.aimAnchor) {
 
 | 方法 | 位置 | 干什么 | 注意 |
 |---|---|---|---|
-| `OnScroll` | WarmCurrentPlayerController.ts:95 | 拉近滚动转发 GameMode 判定 | 只转 delta<0，无守卫 |
-| `tryScrollFocusAt` | WarmCurrentGameMode.ts:1151 | 吸附总入口：守卫 + 拾取 + 兜底 + 分流 | 观察态兜底返回 null |
-| `bodyNearScreen` | WarmCurrentGameMode.ts:1168 | 固定像素圈屏幕拾取 | tol=60px 固定，不随缩放膨胀 |
-| `enterPlanetObserve` | WarmCurrentGameMode.ts:1251 | 进行星观察（锚=舞台钉扎点） | 先清全息/建造/拖线互斥态 |
-| `enterMoonObserve` | WarmCurrentGameMode.ts:1290 | 进卫星观察（锚=公转实时位） | observeFollowLast 置值供 Tick 跟随 |
-| `enterPlanetSystem` | WarmCurrentGameMode.ts | 双击地球 toggle 观察（退出入口） | 双击其它行星已屏蔽 |
+| `OnScroll` | WarmCurrentPlayerController.ts:95 | 拉近滚动转发滚轮吸附判定 | 只转 delta<0，无守卫 |
+| `tryScrollFocusAt` | StarScrollPanComponent.ts（2026-09-19 自 GameMode 收编） | 吸附总入口：守卫 + 拾取 + 兜底 + 分流 | 观察态兜底返回 null |
+| `bodyNearScreen` | StarScrollPanComponent.ts | 固定像素圈屏幕拾取 | tol=60px 固定，不随缩放膨胀 |
+| `enterPlanetObserve` | ViewDirectorComponent.ts（2026-09-20 下沉） | 进行星观察（锚=舞台钉扎点） | 先清全息/建造/拖线互斥态 |
+| `enterMoonObserve` | ViewDirectorComponent.ts | 进卫星观察（锚=公转实时位） | observeFollowLast 置值供 Tick 跟随 |
+| `enterPlanetSystem` | ViewDirectorComponent.ts | 双击地球 toggle 观察（退出入口） | 双击其它行星已屏蔽 |
 | `aimAt` / `isAiming` | SolarCameraActor.ts:86 / :102 | 滑移启动/状态查询 | 锚点是闭包，支持实时跟踪 |
 | `SyncCameraLook` | SolarCameraActor.ts:113 | 写 target 后摆正朝向（原地转头） | 不动相机位置 |
 | `focusSnapTolerance` | balance.ts:609 | 吸附像素圈半径（B.map） | star_map.config 可覆盖 |

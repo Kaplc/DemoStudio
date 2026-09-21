@@ -126,8 +126,8 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
   工厂在组件 BeginPlay 时取 `owner.world?.factory`（构造期 world 未就绪）；`this.F` 非空访问器统一使用。
 - 门禁链：`ui_compile` 三资产 0 error → run_asset_lint → `npx tsc --noEmit`（仅 hoi4 既有错误排除）→
   CodeLint 0 → 实机截图复核 → e2e 绿。
-- **渲染回归锁**：`e2e/warm/render_postprocess.spec.ts`（后处理开启 + ACES(4) + ambient ≤0.35 + 全景/特写
-  基准截图）与 `e2e/warm/earth_closeup.spec.ts`（大气/云层各恰好一层，全蓝图声明）。
+- **渲染回归锁**：`projects/warm-current/e2e/render_postprocess.spec.ts`（后处理开启 + ACES(4) + ambient ≤0.35 + 全景/特写
+  基准截图）与 `projects/warm-current/e2e/earth_closeup.spec.ts`（大气/云层各恰好一层，全蓝图声明）。
 
 ## 四、踩坑清单（一手）
 
@@ -156,4 +156,4 @@ setNodes(8)+time=300 推三幕 → 火星模块任务胜利 → restart → 重�
 
 ## 六、后续变更
 
-- **2026-09-13 主菜单 SVG 重设计**：设计稿 `asset/ui/warm-main-menu.svg` 落地为 `main_menu.widget.html/json`（WARM 英文品牌太空 HUD 风，替换旧中文「暖流计划」版式）。行为契约不变：`Btn_new → 'new'`、`Btn_load → 'load'`（标签按最近存档槽位改写 `CONTINUE · S<n>`，`Label_load` 节点名保留）。设计稿四菜单项中 SETTINGS / EXIT TO DESKTOP 经用户决策（2026-09-13）为**占位禁用**：纯 div 无 UIButton 天然不可点，后端就绪后换 `<button>` 并在 MainMenuScript 绑定。渲染近似手法（引擎 UI 无 radial-gradient/SVG filter）：径向渐变→对角 linear-gradient、辉光→低透明同心圆、SVG 椭圆轨道环→低透明填充盘面 + `transform: rotate`（视觉旋转，不参与布局）、行星圆环描边→同心圆叠层（圆角元素上 CSS border 会发射直边条）、行星表面波浪→`overflow: hidden` 圆形遮罩内旋转条带。回归锁：`tests/warmMainMenuWidget.test.ts`（资产契约 12 例）+ `e2e/warm/main_menu.spec.ts`（运行时 4 例）。
+- **2026-09-13 主菜单 SVG 重设计**：设计稿 `asset/ui/warm-main-menu.svg` 落地为 `main_menu.widget.html/json`（WARM 英文品牌太空 HUD 风，替换旧中文「暖流计划」版式）。行为契约不变：`Btn_new → 'new'`、`Btn_load → 'load'`（标签按最近存档槽位改写 `CONTINUE · S<n>`，`Label_load` 节点名保留）。设计稿四菜单项中 SETTINGS / EXIT TO DESKTOP 经用户决策（2026-09-13）为**占位禁用**：纯 div 无 UIButton 天然不可点，后端就绪后换 `<button>` 并在 MainMenuScript 绑定。渲染近似手法（引擎 UI 无 radial-gradient/SVG filter）：径向渐变→对角 linear-gradient、辉光→低透明同心圆、SVG 椭圆轨道环→低透明填充盘面 + `transform: rotate`（视觉旋转，不参与布局）、行星圆环描边→同心圆叠层（圆角元素上 CSS border 会发射直边条）、行星表面波浪→`overflow: hidden` 圆形遮罩内旋转条带。回归锁：`tests/warmMainMenuWidget.test.ts`（资产契约 12 例）+ `projects/warm-current/e2e/main_menu.spec.ts`（运行时 4 例）。

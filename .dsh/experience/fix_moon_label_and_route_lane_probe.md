@@ -3,7 +3,7 @@ name: fix_moon_label_and_route_lane_probe
 task_type: debug/feature
 outcome: success
 date: 2026-09-17
-prefix: [e2e/warm/route_lane.spec.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts]
+prefix: [projects/warm-current/e2e/route_lane.spec.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ prefix: [e2e/warm/route_lane.spec.ts, projects/warm-current/gameplay/map/StarMap
 
 ## Effective Path
 
-projects/warm-current/gameplay/map/StarMapRenderComponent.ts || e2e/warm/route_lane.spec.ts || e2e/warm/moon_label.spec.ts
+projects/warm-current/gameplay/map/StarMapRenderComponent.ts || projects/warm-current/e2e/route_lane.spec.ts || projects/warm-current/e2e/moon_label.spec.ts

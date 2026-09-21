@@ -171,6 +171,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.removeListener('dsh-mux-frame', handler) }
   },
 
+  // ─── DSH Host 事件流下行桥（/api/events.host，host/session-status 等主机级帧） ───
+  dshHostConnect: () => ipcRenderer.invoke('dsh-host-connect'),
+  dshHostDisconnect: () => ipcRenderer.invoke('dsh-host-disconnect'),
+  onDshHostFrame: (callback: (frame: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, frame: unknown) => callback(frame)
+    ipcRenderer.on('dsh-host-frame', handler)
+    return () => { ipcRenderer.removeListener('dsh-host-frame', handler) }
+  },
+
   // DSH Respond 代理（client-response 信封，用于 question 回答）
   dshRespond: (message: unknown) => ipcRenderer.invoke('dsh-respond', message),
 
@@ -189,6 +198,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => ipcRenderer.invoke('dsh-open-agent-window'),
+
+  // 性能分析器独立窗口（perf.html，单例；随主窗口关闭级联关闭）
+  dshOpenPerfWindow: () => ipcRenderer.invoke('dsh-open-perf-window'),
+
+  // 性能快照往返：perf 窗口拉取（samples>0 附带历史）；编辑器窗口收到 perf-collect 后回传
+  perfGetSnapshot: <T = unknown>(samples?: number) =>
+    ipcRenderer.invoke('perf-get-snapshot', samples) as Promise<T>,
+  onPerfCollect: (callback: (requestId: string, samples?: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, requestId: string, samples?: number) =>
+      callback(requestId, samples)
+    ipcRenderer.on('perf-collect', handler)
+    return () => {
+      ipcRenderer.removeListener('perf-collect', handler)
+    }
+  },
+  sendPerfCollectResult: (requestId: string, data: unknown) => {
+    ipcRenderer.send('perf-collect-result', requestId, data)
+  },
 
   // DSH 内核版本管理
   dshListVersions: () => ipcRenderer.invoke('dsh-list-versions'),

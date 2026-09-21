@@ -19,6 +19,11 @@ export default class PauseMenuScript extends BehaviourScript {
     const inst = GameInstance.current as WarmCurrentGameInstance | null
     if (!mode) { logger.warn('[PauseMenuScript] gameMode 未就绪'); return }
 
+    // 二级面板默认整树失活（UIManager.autoDeactivatePanels，2026-09-16 帧饥饿修复）：
+    // 本面板语义是 spawn=打开 / destroy=关闭，onStart 兜底激活面板根（对齐 uiCommon.VisBinder
+    // 的"显示时兜底激活"约定），否则菜单不可见且 ai.clickActor 报"命中层不可见"。
+    this.actor.bActive = true
+
     // 三槽位：保存 / 读取
     for (let n = 1; n <= 3; n++) {
       const saveBtn = this.findInChildren(`Btn_save${n}`)?.getComponent(UIButtonComponent)

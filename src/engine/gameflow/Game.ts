@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Game — 游戏入口类
  * Viewport 通过此类管理游戏的生命周期
  * 职责：创建并包装 GameInstance、管理 Tick/Camera 同步的注册/注销、输入路由
@@ -28,6 +28,7 @@ import { ThreeObject } from '../rendering/ThreeObject'
 import { ThreeObjectFactory } from './ThreeObjectFactory'
 import type { World } from './World'
 import type { OObject } from '../entity/OObject'
+import { PerfStatsCollector } from '../debug/perf/PerfStatsCollector'
 
 /**
  * 游戏运行级单例接口：有运行状态的全局单例（如 PhySys / AIModule）。
@@ -248,6 +249,10 @@ export class Game {
     } else {
       logger.warn('[Game] 游戏实例无 world 字段，AI 事件模块上下文未附加')
     }
+
+    // 性能采集器随游戏启动（window.__dsPerf / ai.getPerfStats 的数据源；
+    // renderer.info autoReset 接管见 PerfStatsCollector）
+    PerfStatsCollector.instance().start(world ?? null)
     return true
   }
 
@@ -297,6 +302,9 @@ export class Game {
       s.reset()
       logger.info(`[Game] 单例已回收: ${s.name}`)
     }
+
+    // 性能采集器停采（快照冻结为 running:false，历史保留供面板/AI 读终值）
+    PerfStatsCollector.instance().stop()
     this._singletons = []
 
     // 统一释放本 Game 创建的全部 THREE 对象（GPU 资源：geometry/material/texture）

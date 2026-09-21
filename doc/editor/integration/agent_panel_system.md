@@ -664,6 +664,8 @@ export interface PendingQuestionRequest {
 }
 ```
 
+**紧凑化定案（2026-09-20）**：用户反馈提问卡片占画面太多，`.question-card` 样式整体收紧——窄卡 780px→`min(560px, 100%-48px)`（不再与输入框等宽）、内距/字号/行距全线下调（标题 14px→13px、选项内距 8px→4px、行号圆 22px→18px）、选项区加 `max-height: min(40vh, 320px)` 限高滚动防多选项撑爆消息区。结构与视觉层级（eyebrow/标题/选项/自定义输入/页脚）不变。回归锁：`tests/e2e/agent/question-card-compact.spec.ts`（宽度/行高/页脚/整卡高度预算 + 限高滚动 + 回答链路）。
+
 ### 6.2 回答出去（`answerQuestion`）
 
 `QuestionCard` 只产出 `answer` 结构，**不碰通信**；提交由 `AgentPanel.handleQuestionAnswer` 调服务：
@@ -1115,16 +1117,20 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 
 侧边栏每个会话条目右缘垂直居中的 8px 状态点：**绿=回合运行中（呼吸脉冲动画）、红=上次回合以错误收尾（静态）**，无灯 = 空闲/正常收尾。让用户不开会话也能一眼看出"哪个会话还在跑、哪个刚失败了"。
 
-### 16.1 数据从哪来：与气泡同一根，回合边界推导
+### 16.1 数据从哪来：host 状态机权威帧为主，回合边界推导兜底（2026-09-21 改版）
 
-数据源与 §14 跨会动态气泡完全同根——mux `session/event` 全会话广播，不接 host 流（`host/session-status` 在编辑器未消费的 `/api/events.host` 上，turn 边界推导已足够，见 memory:dsh_mux_projection_frames 的决策）。钩子在 `handleMuxFrame` 的 `session/event` 分支里，**在 current/foreign 分流之前**统一翻译：`turn/start` → running；`turn/end` 的 `reason.kind === 'error'` → error，其余收尾（completed/blocked/aborted/max-tokens）→ 清灯。
+**权威实时源**：独立 host 事件流 `/api/events.host`（WebSocket 单向下行，客户端发消息会被服务端 1008 关闭）。DSH 侧链路：`dsh-agent-loop` 的 `ReactLoopAgent.setPhase` 在 agent 状态机每次变迁 emit `agent/status`（status = idle|running）→ `dsh-host-apiproxy` 推 `host/session-status {sessionId, running}`。编辑器 main 进程 `connectHostWs` 桥（与 mux 桥同构，5s 重连）经 `dsh-host-frame` IPC 转发，`AgentService.handleHostFrame` 消费：`running:true` → `turn-started`（等价新回合，顺带翻旧 error 灯）；`running:false` → 新动作 `host-idle`（**只清 running，不覆盖 turn/end(error) 记下的红灯**），同时记入 `hostIdleConfirmed` 权威 idle 表。选这条流的理由：状态机任何一次变迁（完成/abort/crash/teardown）必补 running:false，**turn/end 事件丢失（僵尸回合，2026-09-20 实测）也能自愈**——这是 WebUI 同源做法。
+
+**兜底推导**：mux `session/event` 的回合边界翻译保留原样——`handleMuxFrame` 的 `session/event` 分支在 current/foreign 分流之前统一翻译：`turn/start` → running；`turn/end` 的 `reason.kind === 'error'` → error，其余收尾 → 清灯。与 host 帧幂等归约，mux 单独挂掉时灯仍可用。
+
+**流打开语义**：host 流不补发快照（对齐 WebUI），（重）开流即触发 `listSessions()` 用行内权威 running 重播种。
 
 ### 16.2 归约与生命周期（改这块别改回去）
 
 全部状态灯语义在纯函数层 `src/editor/sessionStatusLights.ts`（`reduceSessionStatusLights`，`Record<sessionId, 'running' | 'error'>` 不可变归约，无变化返回原引用跳过广播）。与 §14 通知的**语义差异是刻意设计**：通知是"一次性事件提醒"（切会话即已读清除），状态灯是"持久状态标记"——**error 灯保留到该会话下次 turn/start 才翻绿**，不随查看/切换清除。生命周期四条：
 
-- **权威运行态种子**：`session.list` 每行自带 schema 保证的 `running` 布尔（`dsh-host-apiproxy/lib/types/api/sessions.schema.js:34`，DSH 查询时权威计算）。`listSessions` 对 `running:true` 的行直接应用 `turn-started` 动作点灯（归约幂等，无变化不广播）——面板重载/首挂载不用等第一个 turn/start 帧就能看到"谁在跑"。**只种开不清**：清灯仍由 turn/end 帧负责，RPC 快照可能略旧，种灭会把刚亮的灯闪灭。
-- **mux 流重建清 running 灯**：`connectMux()` 开头 `stream-reopened` 清全部 running（断连期间外部会话可能已结束，防僵尸绿灯），error 灯保留；当前会话若 `_isRunning` 立即用 `turn-started` 重种。
+- **权威运行态种子**：`session.list` 每行自带 schema 保证的 `running` 布尔（`dsh-host-apiproxy/lib/types/api/sessions.schema.js:34`，DSH 查询时权威计算）。`listSessions` 对 `running:true` 的行直接应用 `turn-started` 动作点灯（归约幂等，无变化不广播）——面板重载/首挂载不用等第一个 turn/start 帧就能看到"谁在跑"。**只种开不清**：清灯仍由 turn/end 帧（现在还有 host-idle 帧）负责，避免 RPC 快照略旧时把刚亮的灯闪灭。**hostIdleConfirmed 过滤**：host 状态机已判 idle 的会话，迟到的陈旧快照（RPC 响应晚于 running:false 帧）不得复活其灯。
+- **mux 流重建清 running 灯**：`connectMux()` 开头 `stream-reopened` 清全部 running（断连期间外部会话可能已结束，防僵尸绿灯），error 灯保留；当前会话若 `_isRunning` 立即用 `turn-started` 重种。host 流重连不 clear（与 mux 同开时避免二次 clear 清掉刚重种的当前会话灯），只重播种。
 - **删除会话**：`deleteSession` 里与通知的 `session-removed` 并排发同名的状态灯动作。
 - **初始状态**：内存表不做持久化，面板挂载从 `getSessionStatuses()` 取种子；error 灯要等本连接期内观察到 turn/end|error 帧才可见（可接受的最终一致）。
 
@@ -1133,9 +1139,9 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 ### 16.3 文件与测试分工
 
 - 纯函数：`src/editor/sessionStatusLights.ts`；types：`types/agent.ts` 的 `SessionRunStatus` / `SessionStatusUpdatePayload` / `sessionStatusUpdate` 事件；
-- 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession`；
+- 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession`；host 流：`connectHostStream` / `handleHostFrame` / `handleHostSessionStatus` / `hostIdleConfirmed` 种子过滤，main 进程 `connectHostWs` 桥（`dsh-host-frame` IPC），preload `dshHostConnect/onDshHostFrame`；
 - UI：`SessionSidebar.tsx` 的 `renderItem`（`.session-status-light--{running|error}`，`data-session-id`/`data-status` 是 e2e 锚点，别删）+ `.session-status-light*` 样式区段；面板经 `sessionStatusUpdate` 事件全量同步后透传 prop；
-- 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`）。
+- 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播 + host-idle 只清 running）；`tests/agentHostStatusStream.test.ts`（host 帧 → 灯、权威 idle 记账、种子过滤、僵尸自愈、error 灯保护、畸形帧安全）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`，含 host 帧驱动用例）。
 
 ## 17. 重试 / 回合错误状态行：与系统消息同款居中（2026-09-18）
 
@@ -1152,3 +1158,122 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 - 改动：`src/components/AgentPanel.tsx`（两个渲染分支）+ `src/styles/editor.css`（删两条死规则）；
 - 单测：`tests/agentStatusRows.test.tsx`（居中类名 + 旧卡片类名绝迹 + 无 retries 防御分支 + max-tokens 范围外回归锁；回滚验证 4 红 1 绿判别器有效）；
 - E2E：`tests/e2e/agent/status-rows-centered.spec.ts`（合成 5×`llm/retry` + `turn/end` error 历史，与内置"对话已恢复"系统消息 computedStyle 同款断言：text-align center / 同色 / margin 对称）。
+
+## 18. 输出速度时速表：输入框右下角的汽车仪表（2026-09-19）
+
+`composer` 右下角常驻一个汽车时速表（SVG 表盘 + 弹簧指针 + 数字读数）：**指针与主读数恒一致 = 实时输出速度**（流式回合里摆动、工具间隙回落、turn/end 归零），主读数按表盘分区变色（绿 → 黄 ≥60% → 红 ≥85%）。tooltip 说明"近 5 秒滚动估算"口径。会话平均速度展示曾实现过（空闲回落显示平均值），2026-09-19 按用户要求**整体移除**（指针为 0 时显示平均像 bug；主读数只反映实时）——`SessionInfo.stats` 透传与 `averageTokPerSecond` 一并回退，别再加回来。
+
+### 18.1 数据通道（客户端估算）
+
+实时速度：`src/components/agent/tokenSpeed.ts` 的 `createTokenSpeedTracker`。AgentPanel 在事件分派处用 `reasoning.delta` / `content.delta`（60ms 节流**全量文本**）喂 `observe(kind, text, now)`，内部按长度差分取追加量（文本变短 = 新段/切会话，整段重计）、按 CJK≈1 token/字 + 其余≈4 字符/token 估算，5s 滚动窗口求速度；面板 300ms 心跳重算驱动指针（读数取整到 0.1 才 setState）。采样放在 `handleLive*` **之前**——显示队列忙碌丢弃上屏时增量仍要计入速度。`turnEnd` 时 `reset()` 清基线与样本，防跨回合/跨会话串算。
+
+**DSH WebUI 没有实时表**：它的 tok/s 全部来自 sessionStats 投影的回合结算均值（stats 条 + 每回合 footer hover，`decodeTokens/(decodeMs/1000)`）。实时指针是编辑器侧扩展，因此 tooltip 明确标注"估算"。
+
+### 18.2 SpeedGauge 组件
+
+`src/components/agent/SpeedGauge.tsx`：46×32 viewBox，表盘量程 0–120 tok/s（超速指针钳制在红线端），±102° 扫掠，绿（0–60%）/黄（60–85%）/红（85–100%）三段分区弧 + 每 20 tok/s 大刻度；指针为 `<g>` 绕轴心 CSS rotate，`transition: transform 0.55s cubic-bezier(0.22,1.2,0.36,1)` 弹簧曲线（汽车表过冲手感）；右侧数字读数列（tabular-nums，<10 保 1 位小数）。InputBox 在 `composer__trailing` 里把它放在 ContextRing 之前（DSH 的 ContextMeter 无数据不出环，时速表常驻）。
+
+### 18.3 测试与踩坑
+
+- 单测：`tests/tokenSpeed.test.ts`（估算/差分/变短重置/双通道基线/窗口衰减/500ms 兜底/reset/格式化全分支）；`tests/speedGauge.test.tsx`（指针角映射、量程钳制、分区色类、表盘结构）。
+- E2E：`tests/e2e/agent/speed-gauge.spec.ts`——伪 WebSocket 接管 `/api/events.mux`，页面内 `__pushMuxFrame` 注入合成 `session/event` 帧，走真实「mux 帧 → 服务端缓冲 → 60ms 节流 content.delta → 采样 → 心跳」管线断言指针偏转与 turn/end 归零。
+- **踩坑：`assistant/chunk` 的 `text-delta` 是增量不是全量**（服务端 `assistantBuf += chunk.text`）。测试注入若每帧发累计全量文本，缓冲会二次方膨胀（16→48→96→160…），读数飙到数百 tok/s 且表像"坏了"——排查时先核对注入形状再怀疑估算器。
+
+## 19. 虚拟会话数据层：后台会话持续接收 + 切换零 RPC 快速路径（2026-09-20）
+
+解决的问题有两个，同一根因：① 切到后台运行中的会话要等一次 `session.history` RPC，DSH host 繁忙时（数百会话全量扫描、多会话并发回合）30s 超时，切换表现为"卡在加载态"；② host 真过载时（2026-09-20 实测 23:08 起 `session.list` 连败 664 次），面板的投影帧防抖全量刷新仍在高频重发，火上浇油。方案：mux `session/event` 本就全会话广播（§14.1），foreign 事件此前只提炼通知、其余丢弃——现在把它们 fold 进**虚拟会话缓冲**，切换时零 RPC 直接上屏。
+
+### 19.1 数据层：sessionGhostStore（改治理参数先读这）
+
+`src/editor/sessionGhostStore.ts`（纯类，无 window/RPC 依赖）：每个 foreign 会话一个 `SessionGhost { events[]（原始事件缓冲）, firstSeq/lastSeq（水位）, running, approxChars, dropped }`。语义：
+
+- **fold**：按 seq 水位去重（mux 重放/乱序帧丢弃）；`turn/start` 置 running（**dropped 会话从零重跟踪复活**——新回合事件完整，快速路径重新可用）；`turn/end` 清 running。事件不做白名单过滤（history fold 认得自己的子集，多存只多耗内存且上限受控，漏存则丢消息）。
+- **硬降级**：单会话超 `GHOST_MAX_EVENTS`(3000 条) 或 `GHOST_MAX_CHARS`(≈3MB) → `dropped=true` 清空缓冲释放内存，切换回退 RPC。
+- **LRU**：会话数上限 `GHOST_MAX_SESSIONS`(8)，优先淘汰「非 running 且最不活跃」。
+- **mux 重连整体作废**：`connectMux()` 开头 `ghostStore.clearAll()`——断流期间事件有缺口，残缺缓冲宁可走 RPC 也不上屏。`deleteSession` 同步 `discard`。
+
+### 19.2 切换快速路径（对面板透明）
+
+`switchSession` 的加载段改为 `loadTailPageOrGhost(sessionId)`：有未 dropped 的缓冲 → `foldGhost()` 用与 RPC 尾页**同一个** `foldEvents()`（从 `loadHistory` 整段抽取，两条路径的消息形状/半截段/unclosedTurn 判定完全一致）产出 `HistoryPage`，`ghostServed: true` 标记；缓冲覆盖不到的更早历史交给现有分页机制（`beforeSeq = firstSeq` 上翻拉取）。切换后 seq 基线 = 缓冲尾，mux 增量经 switchHoldback 重放无缝续接（§3 既有机制）。
+面板 `handleSwitchSession` 零改动。
+
+**上翻补拉（不满一屏自动触发）**：ghost 缓冲只覆盖面板存活期间收到的事件，切回去的消息经常不满一屏——容器滚不动就没有 scroll 事件，`VirtualList` 只在 scroll 里触发的 `onReachTop` 永远不发生，表现为"往上滚动拉不到历史"。`VirtualList` 已加自动补拉 effect：`canLoadMore` 且 `scrollHeight <= clientHeight` 时代用户触发一次加载，items/heightVersion 变化后仍不满屏则链式续拉，直到满屏或 `hasMore` 翻 false（父组件 `historyLoadingRef` 防重入、RPC 失败 items 不变自然停止，无死循环）。分页锚点 = `beforeSeq`（缓冲首条 seq），与 RPC 尾页的分页机制完全同一套。
+**上翻加载的视口锚定（总高增量补偿，2026-09-21）**：prepend 的新消息渲染测量会持续改写 totalHeight，一次估算补偿（scrollTop += heightDelta）在测量完成后失准——旧内容整体位移，用户视口跳走。`VirtualList` 的补偿收敛：滚顶触发加载且用户非贴底时置补偿标记，此后 totalHeight 每增长就把增量补进 scrollTop（视口相对旧内容不动），400ms 无增长/2s 超时/用户 wheel 终止。**不依赖 item key**——renderNodes 把连续 assistant/tool 聚合成 step 节点，prepend 改变聚合边界后旧 key 会消失（key 锚定方案实测失效的原因）。e2e：ghost-switch 用例 4（滚顶二次加载后 scrollTop 停在新页高度处而非 0）。
+
+**挂载首测与贴底跟随（RO 单一写入者，2026-09-21）**：edit/write 工具卡落地时过程区自动展开，节点实际高度（600px+）远超估算（100px）——`measureRef` 若在提交期把真实高度**静默预写**进缓存，RO 首次通知会因值相等被吞（`changed=false` 不 bump），offsets 不重算，贴底 rAF 读到的 scrollHeight 还是估算 spacer，流就停在与真实底差几百 px 处；工具执行期事件静默无后续触发，表现为"edit 工具不跟到最新"。修复：`measureRef` 只登记 `data-vl-key` + `observe`，高度缓存的唯一写入者是 itemRO（observe 首次通知 + 后续尺寸变化），挂载首测与"卡片折叠/展开"走同一条 heightVersion → offsets 重算 → 贴底重吸附管道。**别把预写加回去**，也别在 measureRef 里直接 setState（提交期同步 bump 会与 prepend 视口锚定的补偿记账赛跑，实测打破 ghost-switch 用例 4）。回归锁：`tests/virtualListMeasure.test.tsx`（首测≠估算重算/估算一致稳定/ref 重挂幂等）+ `tests/e2e/agent/tool-card-scroll-follow.spec.ts`（edit 卡落地静默期贴底、result 换权威 diff 后仍贴底、用户上翻即停；回滚验证恢复预写 → 贴底断言红）。
+
+**运行中会话切换后的增量语义（2026-09-20 定稿：原地续写，别改回丢弃）**：列表尾是 pendingPartial 半截段时，live reasoning/content 的节流全量增量**原地写进半截段**（`handleLiveReasoning`/`handleLiveContent` 的续写分支 + updater 内新鲜复查，不追加新卡——防重复卡的裁决 `appendLiveCard` 仍守着 live 创建路径），`streaming` 置 true 让半截段展开贴底跟随。历史教训：守卫曾把增量静默丢弃等 flush，纯思考长回合没有 tool/step 边界，切换后 UI 完全冻结（用户感知"卡住"，F5 后 live 卡抢先创建才侥幸恢复）。flush 的 `replacingPartial` 原地替换语义不受续写影响。e2e：用例 3 锁"无 flush 边界增量续写可见"，用例 2 锁"flush 替换 + 推理块贴底"。
+
+**运行态恢复的窗口盲区与状态灯兜底（2026-09-21）**：切换归零运行态后靠 `resumePendingTurnFromPage` 的 `page.unclosedTurn`（尾页窗口内 turn/start 后无 turn/end）恢复。但 ghost 缓冲只覆盖「切走之后」的事件——回合在切走前就开始时缓冲里只有无边界意义的增量，`scanUnclosedTurn` 扫不到任何回合边界判 false，切回后输入框误判未运行（超长回合的 RPC 尾页窗口同理）。兜底：恢复判定并入状态灯的跨会话运行态记忆（`sessionStatuses[sid] === 'running'`，turn/end 未见过灯就不灭），`!unclosedTurn && !remembered` 才跳过恢复。注意这与"僵尸绿灯"（§16 的 host 僵尸回合）共享同一数据源——灯僵绿时输入框也会显示运行中，两者一致地反映 host 的回合未闭合状态；根治僵尸要靠尾页回合边界对账（未实施）。回归锁：`tests/agentSwitchRunningRestore.test.ts`（ghost 盲区恢复 / 收尾不误恢复 / RPC 窗口回归锁 / 空闲不误恢复，回滚验证精确红核心用例）。
+
+### 19.3 session.list 并发治理（P1 止血）
+
+`listSessions` 加两道闸：① **single-flight**——并发调用复用同一在途 Promise（面板挂载/投影刷新/preset 拉取同时触发只发一次 RPC）；② **失败指数退避**——连败 `streak` 后 `2^min(streak,6)` 秒（封顶 60s）内直接回缓存不发请求（投影帧已实时合并进缓存，回退缓存与失败回退同语义），成功清零。`listSessionUsage`（使用统计面板）不治理——用户显式打开时应真发。
+
+### 19.4 文件与测试分工
+
+- 数据层：`src/editor/sessionGhostStore.ts`（`DshEvent` 为此从 AgentService 加了 export）；
+- 接线：`AgentService.ts` 的 `consumeForeignSessionEvent`（fold 入口）/ `connectMux`（clearAll）/ `deleteSession`（discard）/ `loadHistory` → `foldEvents` 抽取 / `loadTailPageOrGhost` + `foldGhost` / `listSessions` 治理；`HistoryPage.ghostServed` 遥测标记；
+- 单测：`tests/sessionGhostStore.test.ts`（fold/去重/超限降级/复活/LRU/take 14 例）；`tests/agentGhostSwitch.test.ts`（快速路径零 RPC、基线衔接、RPC 回退、dropped 回退、mux 重连清空 5 例）；`tests/agentListBackoff.test.ts`（single-flight 合并、退避窗口、成功清零 3 例）；
+- E2E：`tests/e2e/agent/ghost-switch.spec.ts`（§14.4 同款 mock WS + 合成 RPC，回滚验证：禁用快速路径 → 用例 1/2 红、用例 3 绿，判别器有效）；
+- `ReasoningBlock.tsx` 贴底 effect 依赖补 `expanded`（非 bare 形态的防御性修复；当前唯一用点是 StepProcess bare 模式，其贴底由 StepProcess 自己的 signature effect 保证）。
+
+## 20. 队列发送：撤回与重新编辑（2026-09-21）
+
+### 20.1 数据流（改这块先读这里）
+
+AI 运行期间点时钟按钮（`.composer__queue`）→ `handleQueueSend` 把 `{id, text, images?}` 追加进 `queuesBySessionRef`（按会话写穿的 Map，键与草稿同源），显示态 `queuedSends` 渲染为输入框上方的「队列」chip 条。回合 **completed** 结束时 `turnEnd` 分支接管队首（`pendingQueuedSendRef.current = id`），显示队列空闲（上轮结论打完）后 drain 的空闲分支真正 `sendNowRef` 发出并把条目移出队列；**非 completed（停止/出错）不动队列**，条目保留。
+
+### 20.2 撤回与重新编辑（改这块别改回去）
+
+每个 chip 两个操作：**铅笔按钮（title=撤回重新编辑）** `handleEditQueuedSend` —— 条目移出队列、文本并入输入框草稿（草稿为空直接放入，**已有草稿换行追加**，两边都不丢）、图片放回图片草稿（blob URL 一直未 revoke 可直接复用；草稿已满 9 张时只提示「超出部分未恢复」）、**已被接管的条目同时作废 `pendingQueuedSendRef`**（drain 空闲分支在队列里找不到该条目自然放弃，绝不偷发）、最后聚焦输入框光标置尾。**× 按钮（title=移除）** `handleRemoveQueuedSend` 保持原语义：只移除不回填。
+
+- 撤回取回编辑**不触发任何发送**——`session.prompt` 只有用户真正 send/接管发送时才调用；
+- 聚焦依赖 `composerInputRef`：AgentPanel 声明、`InputBox` 新增 `inputRef` prop 用回调 ref 挂到内部 textarea（`textareaRef` 因此从 `useRef<HTMLTextAreaElement>(null)` 改为 `useRef<HTMLTextAreaElement | null>(null)`，React 18 类型下回调 ref 需要 current 可写）。
+
+### 20.3 文件与测试分工
+
+- 实现：`src/components/AgentPanel.tsx`（`handleEditQueuedSend` + chip 铅笔按钮 + `composerInputRef`）；`src/components/agent/InputBox.tsx`（`inputRef` prop）；样式 `src/styles/editor.css` `.agent-send-queue__edit`（与 `__remove` 同规格紧凑小圆钮）；
+- 单测：`tests/agentQueueEdit.test.tsx`（空草稿回填 / 换行追加 / 多条取回目标条 / × 不回填回归锁 / 接管后撤回放弃自动发送 / 图片恢复 / 图片超上限只提示，7 例）；
+- E2E：`tests/e2e/agent/send-queue-edit.spec.ts`（mock WS + fetch stub 记录 `session.prompt`，主链路 / × 回归 / 多条取回 / chip 与按钮紧凑热区规格，4 例）。
+
+## 21. 模型芯片的外部变更实时失效（2026-09-21，对齐 DSH WebUI）
+
+输入框旁的模型芯片（`ModelSelector`）当前模型来自 `session.models` RPC 的 `current`（host 侧持久化，UI 不存），此前只在挂载和打开下拉时拉取——模型在面板外部被改（供应商设置编辑、host 重启恢复 last-logged、切到别的会话）时芯片显示陈旧。本轮对齐 WebUI `ModelDirectory` 的失效语义：**外部变更自动重拉，芯片标签始终反映 host 真相**。
+
+### 21.1 失效源与链路（改这块别改回去）
+
+- **host/remote-event 白名单事件**：`handleHostFrame` 消费 `host/remote-event { event, args }` 帧（host 流对 `API_REMOTE_FORWARDED_EVENTS` 的 verbatim 转发），命中 `llm/adapters-updated` 或 `settings/document-updated`（`dsh-api-remotes` 白名单内，即 WebUI 同款两个失效源）→ `notifyModelDirectoryChanged`；
+- **会话切换**：`setSession(id)` 非空即失效（模型目录按会话隔离，对齐 WebUI per-session directory）；
+- **host 事件流（重）开**：host 重启后模型选择回到 last-logged（对齐 WebUI `connection/reset` → `resetConnected`）。
+- 三路统一进 `notifyModelDirectoryChanged(reason)`：**300ms 尾沿防抖**（settings 编辑期间 document-updated 连发合并为一次）→ 广播 `modelDirectoryChanged` 事件 → `ModelSelector` 订阅后自动 `loadModels()`（重拉 `session.models`，**无需打开下拉**，芯片标签实时更新；失败保留上次好状态，与 WebUI 一致）。
+
+### 21.2 文件与测试分工
+
+- 实现：`AgentService.ts`（`handleHostFrame` remote-event 分支 / `notifyModelDirectoryChanged` / `setSession` 与 `connectHostStream` 的失效触发）；`ModelSelector.tsx`（`modelDirectoryChanged` 订阅重拉）；types：`AgentEventType` 的 `modelDirectoryChanged` + `ModelDirectoryChangedPayload`；
+- 单测：`tests/agentHostStatusStream.test.ts` 第二个 describe（白名单命中+防抖合并 / 白名单外不触发 / 会话切换失效 / host 流重开失效，4 例）；
+- E2E：`tests/e2e/agent/model-selector-live.spec.ts`（stub `session.models` 可变 current + host 帧投递：芯片免开下拉自动更新 / 连发合并为一次重拉，1 例，已回滚验证）。
+
+## 22. 半截段原地采纳：切回运行中会话的思考卡（2026-09-21）
+
+用户症状：切回一个正在思考的会话后，"有两个思考卡片，下面那个很卡"。两个根因，都在 `consumeDisplayItem`：
+
+1. **flush 清空重放（"很卡"）**：切回后半截段一直经续写分支（§19.2）实时上屏，flush 抵达时旧的 `replacingPartial` 分支却把半截段**清空**再用打字机从零重放整段（30→200 字/秒）——用户已经看过的前缀被按打字机速度重打一遍，长段（2k-12k 字符实测）要 20-120s，期间增量被丢弃、面板越落越远。
+2. **a-skip 捷径无守卫（"两个思考卡片"）**：队列积压时（`queueLength > 0`）的加速路径直接 `append` 完整段，不查半截段 → 半截段永久残留 + 同一段推理文本两截（截断前缀 + 下方全文，StepProcess 聚成"推理 N 段"看起来就是两张思考卡）。触发前提是消费时有积压（打字机回放占用显示）+ 半截段在列表里，即 HMR/重连恢复（`ready{restored}`）恰好落在回放期间——所以"时不时"才复现。
+
+### 22.1 修复语义（改这块别改回去）
+
+`consumeDisplayItem` 消费 assistant 段时，从列表尾向前**扫描**最后一个 `pendingPartial`（不能只看末位——`ready{restored}` 恢复路径的 `pushSystem('会话已恢复')` 会把半截段顶离尾部）：
+
+- **命中半截段 → 原地采纳**：flush 的全量快照（回放前缀 + 新增量）直接写进半截段的位置（id 换成 `next.id`、`pendingPartial` 清除、`streaming` true），**跳过打字机回放**，直接 `finishAssistantDisplay()` 释放队列。文本跳变量 ≤ 一个节流窗口（60ms），对比 20-120s 重放是严格更优。
+- **adopting（live 卡在屏）且半截段残留 → 原地补全 live 卡 + 移除半截段**：ready 恢复路径下半截段被系统行顶离尾部、增量建了 live 卡，live 文本 = 前缀 + 新增量已含半截段全部内容，留着必然同文两截。
+- **a-skip 捷径加守卫**：`messagesRef` 中存在任何 `pendingPartial` 时不得走 a-skip 直接 append（同链前一段刚采纳掉半截段的场景由 `partialExistsAtConsume` 陈旧预判兜底：跳过回放的追加一律直接补全量，防空串丢文本）。
+- **无半截段的普通 flush 行为不变**：照旧打字机渐进回放（回归锁）。
+
+`partialExistsAtConsume`（同步 `messagesRef` 预判，仅供"跳过回放"分支选择）与 updater 内新鲜扫描（写入位置的权威）的分工：同一 drain 链内 messagesRef 尚未重同步，陈旧预判可能多判——此时追加路径按"补全量"处理，两个判定收敛，不会丢文本。
+
+### 22.2 文件与测试分工
+
+- 实现：`src/components/AgentPanel.tsx` 的 `consumeDisplayItem`（a-skip 守卫 + 扫描采纳 + 免重放分支）；
+- 单测：`tests/agentPartialAdopt.test.tsx`（切回续写后 flush 全量立即落位 / 队列积压 + 半截段在尾不复制 / 无半截段照旧回放的回归锁，3 例；回滚验证：恢复旧实现后前两例精确变红，且探针复现"推理 2 段"双卡 DOM）；
+- 关联：§19.2 的原地续写是本节的上半场（flush 前不冻结），本节是下半场（flush 时不清空重放），两者合起来才是完整的"切回思考中会话"体验。

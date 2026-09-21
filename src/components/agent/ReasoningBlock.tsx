@@ -103,12 +103,15 @@ const ReasoningBlockInner: React.FC<ReasoningBlockProps> = ({ content, streaming
 
   // 流式时贴底：内容增长后把滚动容器推到最新位置
   // bare 模式下也启用 —— 块自身限高滚动，跟随最新推理内容
+  // expanded 必须进依赖：切换/恢复场景下组件带着流式内容新挂载，首帧是折叠态
+  // （effect 展开链路在挂载后才置 true）——若 expanded 不在依赖里，展开翻转不会
+  // 重跑本 effect，贴底要等下一个 delta 才发生，表现为"思考卡停在半截不跟最新"。
   useEffect(() => {
     if (!streaming || !stickToBottomRef.current) return
     // 非 bare 才要求已展开；bare 恒为展开（且挂载序上 expandedRef 可能尚未同步）
     if (!bare && !expandedRef.current) return
     scrollPreToBottom()
-  }, [content, streaming, bare, scrollPreToBottom])
+  }, [content, streaming, bare, expanded, scrollPreToBottom])
 
   // 平滑吐字动画（自适应速率）：流式期间持续 rAF，每帧先按积压算目标速率并缓动
   // 当前速率，再按 dt 步进 shown 指针（小数进位累计，逐字吐出）。积压见底时速率

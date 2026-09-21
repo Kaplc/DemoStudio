@@ -39,6 +39,7 @@ import { UsageStatsPanel } from './agent/UsageStatsPanel'
 import { SessionNoticeStack } from './agent/SessionNoticeStack'
 import { ImageLightboxHost } from './agent/ImageLightbox'
 import { appendLiveCard } from './agent/liveCardGuard'
+import { createTokenSpeedTracker } from './agent/tokenSpeed'
 
 /** step 子项：可辨识联合，便于按 type 收窄 */
 type StepItem =
@@ -192,6 +193,10 @@ export const AgentPanel: React.FC = () => {
   // 不累积历史；下一轮开始（turnStart / 用户新消息）时清空。
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [sessions, setSessions] = useState<SessionInfo[]>([])
+  // ─── 输出速度时速表（输入框右下角）───
+  // 实时速度：delta 事件喂滚动窗口追踪器（observe 自动差分追加量），300ms 心跳重算驱动指针
+  const [liveSpeed, setLiveSpeed] = useState(0)
+  const tokenSpeedRef = useRef(createTokenSpeedTracker())
   // 跨会话动态通知（消息区左上气泡栈）：初始值取服务快照，之后由 sessionNotice 事件全量同步
   const [sessionNotices, setSessionNotices] = useState<SessionNotice[]>(() => agentService.getSessionNotices())
   // 会话状态灯（绿=运行中/红=失败）：初始值取服务快照，之后由 sessionStatusUpdate 事件全量同步
@@ -250,6 +255,8 @@ export const AgentPanel: React.FC = () => {
   const pendingQueuedSendRef = useRef<number | null>(null)
   /** drain 空闲分支发送排队消息用的间接引用（handleSend 定义在 drain 之后，避免 TDZ） */
   const sendNowRef = useRef<(text: string, images?: PendingImage[]) => Promise<void> | void>(() => {})
+  /** 输入框 textarea 引用：撤回排队消息回填草稿后聚焦输入框（InputBox 内部 textarea 挂到此外部 ref） */
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null)
 
   /** 把当前会话队列同步到显示状态 */
   const syncQueuedSendsState = useCallback(() => {
@@ -413,11 +420,14 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'reasoning.delta': {
+          // 时速表采样在 handleLive 之前：显示队列忙碌丢弃上屏时增量仍要计入速度
+          tokenSpeedRef.current.observe('reasoning', (event.payload as ReasoningDeltaPayload)?.text || '', Date.now())
           handleLiveReasoning((event.payload as ReasoningDeltaPayload)?.text || '')
           break
         }
 
         case 'content.delta': {
+          tokenSpeedRef.current.observe('content', (event.payload as ContentDeltaPayload)?.text || '', Date.now())
           handleLiveContent((event.payload as ContentDeltaPayload)?.text || '')
           break
         }
@@ -448,6 +458,7 @@ export const AgentPanel: React.FC = () => {
         case 'turnEnd': {
           console.log(`[${logTime()}] [AgentPanel] AI 回合结束: reason=${(event.payload as any)?.reason?.kind || 'unknown'}`)
           setIsAgentRunning(false) // turn 结束，AI 不再运行
+          tokenSpeedRef.current.reset() // 时速表归零：清基线与样本，防跨回合/跨会话串算
           void refreshSessions() // 回合结束刷新会话列表：标题/统计投影可能已更新（头部标题与侧边栏保持新鲜）
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
@@ -694,6 +705,15 @@ export const AgentPanel: React.FC = () => {
     }
   }, [])
 
+  // 时速表心跳：300ms 重算滚动窗口估算驱动指针与读数（读数取整到 0.1 才 setState，避免空转重渲）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const speed = tokenSpeedRef.current.speed(Date.now())
+      setLiveSpeed(prev => (Math.round(prev * 10) === Math.round(speed * 10) ? prev : speed))
+    }, 300)
+    return () => clearInterval(timer)
+  }, [])
+
   // [Trace] 渲染管线追踪：每条消息首次进入 messages 列表时记录一次。
   // 同一内容出现两行 = 落盘侧重复（对照 panel-recv/入队日志定位层级）；
   // panel-recv 两行但本日志一行 = 入队被去重；本日志两行同内容 = setMessages 双追加。
@@ -733,9 +753,26 @@ export const AgentPanel: React.FC = () => {
   const handleLiveReasoning = useCallback((text: string) => {
     if (!text) return
     if (activeDisplayRef.current || displayQueueRef.current.length > 0 || displayPhaseRef.current) return
-    // 恢复窗口守卫：列表尾是历史回放的半截段时不去 live——live 卡 = 回放前缀 + 新增量，
-    // 会与半截段重复上屏；增量留在缓冲，flush 完整段走队列原地替换半截段。
-    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) return
+    // 半截段续写：列表尾是历史 fold 的半截段时，把节流全量增量**原地写进半截段**
+    // （seedPendingTurn 已把增量续入同一缓冲，emit 的 text = 回放前缀 + 新增量的
+    // 全量快照，直接赋值即正确），而不是静默丢弃等 flush——纯思考长回合没有
+    // tool/step 边界，丢弃意味着切换后到 flush 前 UI 完全冻结（用户感知"卡住"，
+    // 2026-09-20 实测）。原地更新不追加新卡（重复卡的根源仍在），flush 的
+    // replacingPartial 原地替换语义不受影响；streaming 置 true 让半截段进入
+    // 流式形态（展开 + 贴底跟随），第一条 delta 即"解冻"。
+    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) {
+      setMessages(cur => {
+        const lastIndex = cur.length - 1
+        // updater 内新鲜复查（竞态教训见 tests/agentLiveCardRace.test.ts）：
+        // 排队期间尾可能已不是半截段（flush 先到），那时放弃本次续写即可
+        if (lastIndex < 0 || !cur[lastIndex].pendingPartial) return cur
+        const updated = cur.slice()
+        updated[lastIndex] = { ...updated[lastIndex], reasoning: text, streaming: true }
+        return updated
+      })
+      setContentVersion(v => v + 1)
+      return
+    }
     const liveId = liveAssistantIdRef.current
     if (!liveId) {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
@@ -775,7 +812,19 @@ export const AgentPanel: React.FC = () => {
   const handleLiveContent = useCallback((text: string) => {
     if (!text) return
     if (activeDisplayRef.current || displayQueueRef.current.length > 0 || displayPhaseRef.current) return
-    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) return
+    // 半截段续写（与 handleLiveReasoning 同构，更新 content 字段）：切换到
+    // 思考中会话后正文增量原地续写进半截段，不等 flush（防 UI 冻结，见上）。
+    if (messagesRef.current[messagesRef.current.length - 1]?.pendingPartial) {
+      setMessages(cur => {
+        const lastIndex = cur.length - 1
+        if (lastIndex < 0 || !cur[lastIndex].pendingPartial) return cur
+        const updated = cur.slice()
+        updated[lastIndex] = { ...updated[lastIndex], content: text, streaming: true }
+        return updated
+      })
+      setContentVersion(v => v + 1)
+      return
+    }
     const liveId = liveAssistantIdRef.current
     if (!liveId) {
       const id = `a-live-${Date.now()}-${liveSequenceRef.current++}`
@@ -979,8 +1028,13 @@ export const AgentPanel: React.FC = () => {
       return
     }
 
-    // 如果队列还有积压项，当前段跳过打字机直接上屏（加速追赶）
-    if (queueLength > 0 && next.kind === 'assistant') {
+    // 如果队列还有积压项，当前段跳过打字机直接上屏（加速追赶）。
+    // 存在半截段时不得走此捷径：a-skip 直接 append 会把半截段永久留在列表里，
+    // 同一段推理文本出现两截（截断前缀 + 下方全文，即"两个思考卡片"），
+    // 且半截段此后既不续写也不被替换——必须走下方原地采纳路径。
+    // 用 some() 而非尾部判定：ready 恢复路径的系统提示行会把半截段顶离尾部。
+    const hasPartialBeforeSkip = messagesRef.current.some(m => m.pendingPartial)
+    if (queueLength > 0 && next.kind === 'assistant' && !hasPartialBeforeSkip) {
       const msgId = `a-skip-${Date.now()}-${messageSequenceRef.current++}`
       const hasReasoning = !!next.reasoning
       const hasContent = !!next.content
@@ -1012,33 +1066,50 @@ export const AgentPanel: React.FC = () => {
     }
 
     // [Trace] 末尾为半截段时本段将原地替换：恢复竞态下此路径是否走到是关键证据
-    const lastBeforeDrain = messagesRef.current[messagesRef.current.length - 1]
-    if (lastBeforeDrain?.pendingPartial) {
-      console.log(`[${logTime()}] [Trace][partial] 消费 ${next.id} 时末尾为半截段，将原地替换`)
+    // 半截段原地采纳预判（同步镜像，仅用于「跳过打字机回放」的分支选择；
+    // 写入位置以 updater 内新鲜 cur 为准）：切回运行中会话后，半截段一直经
+    // 续写分支实时上屏，flush 的全量快照直接落位即可。若仍走「清空 + 打字机
+    // 重放」，用户已看到的整段前缀会以 30~200 字/秒重打一遍（长段 20-120s），
+    // 期间增量被丢弃、面板越落越远——即用户反馈的"下面那个卡片很卡"。
+    // （2026-09-21 修复；同一 drain 链内的后继段同样免重放直接补全量。）
+    // some() 而非尾部判定：ready 恢复路径的系统提示行会把半截段顶离尾部。
+    const partialExistsAtConsume = messagesRef.current.some(m => m.pendingPartial)
+    if (partialExistsAtConsume) {
+      console.log(`[${logTime()}] [Trace][partial] 消费 ${next.id} 时存在半截段，将原地采纳（免重放）`)
     }
 
     setMessages(cur => {
-      // 历史回放的半截段（切换到运行中会话）：首个 live 段抵达时原地替换。
+      // 历史回放的半截段（切换/恢复到运行中会话）：首个 live 段抵达时原地替换。
       // live 段内容 = 回放前缀 + 新增量（seedPendingTurn 续入同一缓冲），
-      // 不替换的话同一段文本会出现两截。
-      const lastIndex = cur.length - 1
-      const replacingPartial = lastIndex >= 0 && !!cur[lastIndex].pendingPartial
+      // 不替换的话同一段文本会出现两截。半截段可能已被系统提示行顶离尾部
+      // （ready 恢复路径 pushSystem），故从尾部向前扫描而非只看末位。
+      let partialIndex = -1
+      for (let i = cur.length - 1; i >= 0; i--) {
+        if (cur[i].pendingPartial) { partialIndex = i; break }
+      }
 
-      if (adopting && !replacingPartial) {
+      if (adopting) {
+        // live 卡原地补全（推理已实时上屏，免回放）；若半截段仍残留（ready 恢复
+        // 路径下 deltas 建了 live 卡、半截段被系统行顶离尾部），live 文本 = 前缀 +
+        // 新增量已含其全部内容，留着必然同文两截 → 一并移除。
         const index = cur.findIndex(message => message.id === next.id)
         if (index !== -1) {
-          const updated = cur.slice()
+          let updated = cur.slice()
           updated[index] = { ...updated[index], reasoning: next.reasoning ?? updated[index].reasoning, streaming: true }
+          if (partialIndex >= 0) updated = updated.filter((_, i) => i !== partialIndex)
           return updated
         }
       }
-      if (replacingPartial) {
+      if (partialIndex >= 0) {
+        // 半截段原地采纳：直接写入 flush 的全量快照（含已实时上屏的前缀），
+        // 不清空、不重放。pendingPartial 不随 spread 带入（半截段语义终结，
+        // 后续增量归下一段的 live 卡）。
         const updated = cur.slice()
-        updated[lastIndex] = {
+        updated[partialIndex] = {
           id: next.id,
           role: 'assistant' as const,
-          content: '',
-          reasoning: '',
+          content: next.content || '',
+          reasoning: next.reasoning ?? '',
           streaming: true,
           ts: Date.now(),
         }
@@ -1047,19 +1118,21 @@ export const AgentPanel: React.FC = () => {
       return [...cur, {
         id: next.id,
         role: 'assistant' as const,
-        content: '',
+        content: partialExistsAtConsume ? (next.content || '') : '',
         // 非采纳路径先给空串由打字机渐进回填；采纳但 live 卡片已丢失（会话被整体替换）
         // 时直接补全量推理，避免文本丢失——此时跳过回放是可接受的降级。
-        reasoning: adopting ? (next.reasoning ?? '') : '',
+        // 半截段预判为真但新鲜判定已无半截（同一 drain 链里前一段刚采纳掉半截段）
+        // 时同样直接补全量：对应分支跳过了回放，空串起步会静默丢掉整段文本。
+        reasoning: (adopting || partialExistsAtConsume) ? (next.reasoning ?? '') : '',
         streaming: true,
         ts: Date.now(),
       }]
     })
     setContentVersion(v => v + 1)
 
-    if (adopting) {
-      // live 推理/正文已实时上屏（flush 前的末次 delta 保证全量）：原地补全收尾，
-      // 跳过打字机回放。正文首字符落地时本段过程已被"结论打断"，StepProcess 自动折叠推理区。
+    if (adopting || partialExistsAtConsume) {
+      // live 卡原地补全 / 半截段原地落位：推理已全量在屏，跳过打字机回放直接收尾
+      // 释放队列（正文首字符落地时本段过程已被"结论打断"，StepProcess 自动折叠推理区）
       finishAssistantDisplay()
     } else if (next.reasoning) {
       displayPhaseRef.current = 'reasoning'
@@ -1507,6 +1580,52 @@ export const AgentPanel: React.FC = () => {
   /** 每条消息最多携带的图片数（对齐 DSH WebUI 常用量级） */
   const MAX_IMAGES_PER_MESSAGE = 9
 
+  // 撤回排队消息回输入框重新编辑：条目移出队列，文本并入草稿、图片放回图片草稿。
+  // 已被接管（等上轮结论显示完就发）的条目撤回时作废待发标记——下一次 drain 空闲分支
+  // 在队列里找不到该条目，自然放弃自动发送。
+  const handleEditQueuedSend = useCallback((id: number) => {
+    const key = currentSessionKeyRef.current
+    const queue = queuesBySessionRef.current.get(key)
+    const item = queue?.find(q => q.id === id)
+    if (!item) {
+      console.warn(`[${logTime()}] [AgentPanel] 撤回排队消息失败: 条目不存在 id=${id}`)
+      return
+    }
+    if (pendingQueuedSendRef.current === id) {
+      pendingQueuedSendRef.current = null
+      console.log(`[${logTime()}] [AgentPanel] 撤回已接管的排队消息，放弃自动发送: "${item.text.slice(0, 24)}"`)
+    }
+    queuesBySessionRef.current.set(key, (queue ?? []).filter(q => q.id !== id))
+    syncQueuedSendsState()
+    // 文本回草稿：草稿为空直接放入；已有内容换行追加，两边内容都不丢
+    const existingDraft = draftsBySessionRef.current.get(key) ?? ''
+    const mergedDraft = existingDraft.trim() ? `${existingDraft}\n${item.text}` : item.text
+    draftsBySessionRef.current.set(key, mergedDraft)
+    setComposerDraft(mergedDraft)
+    // 图片放回图片草稿（超上限部分不恢复并提示；blob URL 一直保留未 revoke，可直接复用）
+    if (item.images?.length) {
+      const existingImages = imagesBySessionRef.current.get(key) ?? []
+      const room = Math.max(0, MAX_IMAGES_PER_MESSAGE - existingImages.length)
+      const restored = item.images.slice(0, room)
+      if (restored.length > 0) {
+        const nextImages = [...existingImages, ...restored]
+        imagesBySessionRef.current.set(key, nextImages)
+        setComposerImages(nextImages)
+      }
+      if (restored.length < item.images.length) {
+        pushSystem(`每条消息最多 ${MAX_IMAGES_PER_MESSAGE} 张图片，超出部分未恢复`)
+      }
+    }
+    console.log(`[${logTime()}] [AgentPanel] 撤回排队消息重新编辑: "${item.text.slice(0, 24)}", images=${item.images?.length ?? 0}`)
+    addConsoleOutput(`[Agent] 撤回排队消息重新编辑: ${item.text}`)
+    // 聚焦输入框并把光标移到末尾，方便直接续改
+    const input = composerInputRef.current
+    if (input) {
+      input.focus()
+      input.selectionStart = input.selectionEnd = input.value.length
+    }
+  }, [addConsoleOutput, pushSystem, syncQueuedSendsState])
+
   // 待发送图片收集（粘贴/拖拽入口）：MIME 白名单过滤 + 数量上限，超高部分提示忽略
   const handleAddImages = useCallback((files: File[]) => {
     const accepted = files.filter(f => (IMAGE_MEDIA_TYPES as readonly string[]).includes(f.type))
@@ -1681,25 +1800,6 @@ export const AgentPanel: React.FC = () => {
       setSwitchingSession(false)
     }
   }, [applySessionKey, clearDisplayQueue, refreshSessions, resetHistoryWindow])
-
-  // 删除会话（远程归档 + 本地黑名单，确保不会被 refreshSessions 拉回）
-  const handleDeleteSession = useCallback(async (sessionId: string) => {
-    await agentService.deleteSession(sessionId)
-    refreshSessions()
-    // 被删会话的草稿与队列一并丢弃
-    draftsBySessionRef.current.delete(sessionId)
-    queuesBySessionRef.current.delete(sessionId)
-    if (agentService.getSessionId() === null) {
-      // 删除的是当前会话：回到未 attached 状态键
-      if (currentSessionKeyRef.current !== 'current') applySessionKey('current')
-      setMessages([{
-        id: `sys-${Date.now()}`,
-        role: 'system',
-        content: '会话已删除，请新建会话或切换到其他会话',
-        ts: Date.now()
-      }])
-    }
-  }, [applySessionKey, refreshSessions])
 
   // ─── 问答交互 ───
   const handleQuestionAnswer = useCallback(async (rpcId: string, answer: QuestionAnswer) => {
@@ -2082,7 +2182,6 @@ export const AgentPanel: React.FC = () => {
           currentSessionId={agentService.getSessionId() || undefined}
           onSwitch={handleSwitchSession}
           onNew={handleNewSession}
-          onDelete={handleDeleteSession}
           onClose={() => setShowSidebar(false)}
         />
       )}
@@ -2222,6 +2321,15 @@ export const AgentPanel: React.FC = () => {
             >
               <span className="agent-send-queue__text">{q.text}</span>
               <button
+                className="agent-send-queue__edit"
+                onClick={() => handleEditQueuedSend(q.id)}
+                title="撤回重新编辑"
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11.5 2.2a1.8 1.8 0 0 1 2.6 2.6L5.6 13.3l-3.4.9.9-3.4 8.4-8.6z" />
+                </svg>
+              </button>
+              <button
                 className="agent-send-queue__remove"
                 onClick={() => handleRemoveQueuedSend(q.id)}
                 title="移除"
@@ -2239,6 +2347,7 @@ export const AgentPanel: React.FC = () => {
         onStop={handleStop}
         draft={composerDraft}
         onDraftChange={handleDraftChange}
+        inputRef={composerInputRef}
         images={composerImages}
         onAddImages={handleAddImages}
         onRemoveImage={handleRemoveImage}
@@ -2253,6 +2362,7 @@ export const AgentPanel: React.FC = () => {
         onModelChange={handleModelChange}
         agentService={agentService}
         contextPressure={contextPressure}
+        liveSpeed={liveSpeed}
       />
 
       {/* 图片浮动放大窗宿主（双击聊天中的图片缩略图打开，Esc/遮罩/✕/双击大图关闭，2026-09-16） */}

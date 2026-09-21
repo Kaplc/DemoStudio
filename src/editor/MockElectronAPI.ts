@@ -148,6 +148,11 @@ const mockAPI = {
 
   sendMCPResponse: () => {},
 
+  // 性能分析器（浏览器模式：无采集器，面板走"未运行"空态；不含 dshOpenPerfWindow —— 菜单项降级提示）
+  perfGetSnapshot: async () => ({ running: false, current: null }),
+  onPerfCollect: () => (() => {}),
+  sendPerfCollectResult: () => {},
+
   reportGameState: async () => {},
 
   sendAppReady: () => {},

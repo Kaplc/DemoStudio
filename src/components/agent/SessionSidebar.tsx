@@ -12,7 +12,6 @@ interface SessionSidebarProps {
   currentSessionId?: string
   onSwitch: (sessionId: string) => void
   onNew: () => void
-  onDelete: (sessionId: string) => void
   onClose: () => void
 }
 
@@ -22,7 +21,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   currentSessionId,
   onSwitch,
   onNew,
-  onDelete,
   onClose,
 }) => {
   /** 「3 天前会话」折叠组展开态：默认收起（自动折叠） */
@@ -72,13 +70,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           <div className="session-sidebar__item-title">
             {s.title || s.sessionId.slice(0, 12) + '...'}
           </div>
-          <button
-            className="session-sidebar__delete"
-            title="删除会话"
-            onClick={(e) => { e.stopPropagation(); onDelete(s.sessionId) }}
-          >
-            🗑
-          </button>
         </div>
         <div className="session-sidebar__item-meta">
           {s.turns !== undefined && <span>{s.turns} 轮</span>}

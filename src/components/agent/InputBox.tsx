@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ModelSelector } from './ModelSelector'
 import { ContextRing } from './ContextRing'
+import { SpeedGauge } from './SpeedGauge'
 import { SlashMenu, useSlashCommand, registerDshCommandSource, registerDshSkillSource } from './slash-command'
 import { logger } from '../../engine/Logger'
 import type { ContextPressurePayload, PendingImage } from '../../types/agent'
@@ -27,12 +28,16 @@ interface InputBoxProps {
   agentService?: any
   /** 上下文占用快照（输入框底部进度圈数据源，对齐 DSH WebUI ContextMeter） */
   contextPressure?: ContextPressurePayload | null
+  /** 实时输出速度 tok/s（滚动窗口估算，时速表指针与读数数据源） */
+  liveSpeed?: number
   /** 待发送图片草稿（粘贴/拖拽收集，随下一条消息一起发送） */
   images?: PendingImage[]
   /** 收集粘贴的图片文件（MIME 校验与上限在面板侧统一处理） */
   onAddImages?: (files: File[]) => void
   /** 移除一张待发送图片 */
   onRemoveImage?: (id: string) => void
+  /** 外部 textarea 引用：面板撤回排队消息回填草稿后聚焦输入框用（可选） */
+  inputRef?: React.MutableRefObject<HTMLTextAreaElement | null>
 }
 
 export const InputBox: React.FC<InputBoxProps> = ({
@@ -48,9 +53,11 @@ export const InputBox: React.FC<InputBoxProps> = ({
   draft,
   onDraftChange,
   contextPressure,
+  liveSpeed = 0,
   images = [],
   onAddImages,
   onRemoveImage,
+  inputRef,
 }) => {
   const [ownText, setOwnText] = useState('')
   // 受控草稿优先（按会话保留），未提供时退回内部状态
@@ -59,7 +66,8 @@ export const InputBox: React.FC<InputBoxProps> = ({
     setOwnText(v)
     onDraftChange?.(v)
   }, [onDraftChange])
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // | null 初始值 → MutableRefObject：回调 ref 需要把实例同步到外部 inputRef（React 18 类型下 current 可写）
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
 
   // 注册 DSH command 和 skill 来源（如果有 agentService）
@@ -217,7 +225,10 @@ export const InputBox: React.FC<InputBoxProps> = ({
           <div className="composer__grow">
             <div className="composer__mirror" ref={mirrorRef} aria-hidden="true" />
             <textarea
-              ref={textareaRef}
+              ref={(el) => {
+                textareaRef.current = el
+                if (inputRef) inputRef.current = el
+              }}
               className="composer__input"
               value={text}
               onChange={handleInput}
@@ -246,6 +257,8 @@ export const InputBox: React.FC<InputBoxProps> = ({
             {/* 预留：+ 按钮、权限选择器 */}
           </div>
           <div className="composer__trailing">
+            {/* 输出速度时速表（右下角）：实时指针，对齐 DSH WebUI tok/s 语义的编辑器扩展 */}
+            <SpeedGauge speed={liveSpeed} />
             {/* 上下文进度圈 - 对齐 DSH WebUI ContextMeter 位置（模型选择器后、停止/发送按钮前） */}
             <ContextRing
               usedTokens={contextPressure?.usedTokens}

@@ -72,6 +72,9 @@ export function VirtualList<T>({
   const prevItemCountRef = useRef(0)
   const previousFirstKeyRef = useRef<string | undefined>(undefined)
   const previousTotalHeightRef = useRef(0)
+  // ─── 上翻加载的视口锚定（防跳变）───
+  // ─── 上翻加载的视口锚定（补偿状态 refs，区块在 offsets 定义之后）───
+  const anchorStartedAtRef = useRef(0)
 
   const updateNearBottom = useCallback((nearBottom: boolean) => {
     if (isNearBottomRef.current === nearBottom) return
@@ -98,6 +101,56 @@ export function VirtualList<T>({
     }
     return { offsets: off, totalHeight: total }
   }, [items, estimatedItemHeight, getItemKey, heightVersion])
+
+  // ─── 上翻加载的视口锚定：总高增量补偿收敛 ───
+  // prepend 后新增消息渲染测量会持续改写 totalHeight——若只做一次估算补偿，
+  // 测量完成后旧内容整体位移，用户视口里的内容跳走（"不从我停止滚动的地方
+  // 开始"）。方案：滚顶触发加载且用户不在贴底时置补偿标记；此后 totalHeight
+  // 每增长一次就把增量补进 scrollTop（视口相对旧内容保持不动），400ms 无增长
+  // /超时/用户滚动（wheel/touchmove）则结束。不依赖 item key——renderNodes
+  // 会把连续 assistant/tool 消息聚合成 step 节点，prepend 改变聚合边界后
+  // 旧 key 会消失，key 锚定不可靠。
+  const compensateRef = useRef(false)
+  const compensateLastTotalRef = useRef(0)
+  const compensateCleanupRef = useRef<(() => void) | null>(null)
+  const startCompensation = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    compensateRef.current = true
+    compensateLastTotalRef.current = totalHeight
+    anchorStartedAtRef.current = Date.now()
+    compensateCleanupRef.current?.()
+    const onUserScroll = () => { compensateRef.current = false }
+    el.addEventListener('wheel', onUserScroll, { passive: true })
+    el.addEventListener('touchmove', onUserScroll, { passive: true })
+    compensateCleanupRef.current = () => {
+      el.removeEventListener('wheel', onUserScroll)
+      el.removeEventListener('touchmove', onUserScroll)
+      compensateCleanupRef.current = null
+    }
+  }, [totalHeight])
+
+  useLayoutEffect(() => {
+    if (!compensateRef.current) return
+    const el = containerRef.current
+    if (!el) return
+    const growth = totalHeight - compensateLastTotalRef.current
+    if (growth > 0) {
+      el.scrollTop += growth
+      lastScrollTopRef.current = el.scrollTop
+    }
+    compensateLastTotalRef.current = totalHeight
+    // 400ms 内 totalHeight 无增长（effect 不再重跑）则由超时清理；超时上限 2s
+    if (Date.now() - anchorStartedAtRef.current > 2000) {
+      compensateRef.current = false
+      compensateCleanupRef.current?.()
+    }
+    const timer = window.setTimeout(() => {
+      compensateRef.current = false
+      compensateCleanupRef.current?.()
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [totalHeight])
 
   // 二分查找：找到 scrollTop 对应的起始 index
   const findStartIndex = useCallback((scroll: number): number => {
@@ -130,8 +183,31 @@ export function VirtualList<T>({
       updateNearBottom(false)
     }
 
-    if (canLoadMore && current < 80) onReachTop?.()
-  }, [canLoadMore, onReachTop, updateNearBottom])
+    if (canLoadMore && current < 80) {
+      // 上翻加载：非贴底状态启动视口补偿（prepend 后总高增量会持续补进 scrollTop，
+      // 用户视口相对旧内容保持不动）；贴底时 prepend 由贴底跟随 effect 接管
+      if (!isNearBottomRef.current) startCompensation()
+      onReachTop?.()
+    }
+  }, [canLoadMore, onReachTop, updateNearBottom, startCompensation])
+
+  // 内容不足一屏且还有更早历史时自动补拉（链式拉到满屏或拉完）。
+  // 虚拟会话快速路径（2026-09-20）的缓冲只覆盖面板存活期间收到的事件，切回去的
+  // 消息经常不满一屏——容器滚不动就没有 scroll 事件，上方只在 scroll 里触发的
+  // onReachTop 永远不会发生，表现为"往上滚动拉不到历史消息"。这里在布局收敛后
+  // 检查可滚动性，不满屏就代用户触发一次加载；加载完成后 items/heightVersion
+  // 变化会重跑本 effect，仍不满屏则继续，直到满屏或 canLoadMore 翻 false。
+  // 父组件的加载防重入（historyLoadingRef）保证并发触发安全；RPC 失败时 items
+  // 不变、effect 不重跑，自然停止不循环。
+  useEffect(() => {
+    if (!canLoadMore || !onReachTop) return
+    const el = containerRef.current
+    if (!el) return
+    if (el.scrollHeight <= el.clientHeight + 1) {
+      if (!isNearBottomRef.current) startCompensation()
+      onReachTop?.()
+    }
+  }, [items, containerHeight, heightVersion, canLoadMore, onReachTop, startCompensation])
 
   useEffect(() => {
     onNearBottomChange?.(true)
@@ -177,16 +253,17 @@ export function VirtualList<T>({
     }
   }, [])
 
-  // 测量已渲染 item 的真实高度
+  // 测量已渲染 item 的真实高度。这里只登记观察，不写缓存：
+  // 高度缓存的唯一写入者是 itemRO（observe 的首次通知 + 后续尺寸变化），
+  // 挂载首测因此与"卡片折叠/展开"走同一条 heightVersion → offsets 重算 →
+  // 贴底重吸附管道。若在此静默预写缓存，RO 首次通知会因值相等被吞（changed=false
+  // 不 bump），贴底 rAF 读到的 scrollHeight 仍是估算 spacer——高节点（edit/write
+  // 自动展开的 diff 过程区 600px+ vs 估算 100px）落地后停在与真实底差几百 px 处，
+  // 工具执行期无后续事件触发追平，表现为"滚动条不跟到最新"（2026-09-21 用户报告）。
   const measureRef = useCallback((key: string, node: HTMLElement | null) => {
     if (!node) return
     node.setAttribute('data-vl-key', key)
     itemRORef.current?.observe(node)
-    const h = node.getBoundingClientRect().height
-    const cached = heightCacheRef.current.get(key)
-    if (cached !== h) {
-      heightCacheRef.current.set(key, h)
-    }
   }, [])
 
   // 新消息到达或内容流式更新时自动滚动
@@ -315,6 +392,7 @@ export function VirtualList<T>({
     <div
       ref={containerRef}
       className={className}
+      data-vl-container=""
       onScroll={handleScroll}
       style={{ overflow: 'auto', position: 'relative' }}
     >

@@ -22,7 +22,7 @@ import type {
   RetryScheduledPayload, RetryStartedPayload, CommandRunPayload, CommandDonePayload,
   CompactionStartPayload, CompactionSummaryPayload, CompactionEndPayload,
   ToolDispatchStartPayload, ToolDispatchPayload, TodoWritePayload,
-  RequestHeaderPayload, SandboxModePayload, PlanModePayload, ContextPressurePayload,
+  RequestHeaderPayload, SandboxModePayload, PlanModePayload, ContextPressurePayload, ModelDirectoryChangedPayload,
   ContextCardInfo, ContextEventPayload, KnownContextForm,
   ApprovalOutcome, PendingApprovalRequest, ReasoningDeltaPayload, ContentDeltaPayload,
   PendingImage, PromptContentPart,
@@ -34,6 +34,7 @@ import type {
 import type { SessionStatsProjection } from '../types/agent'
 import { reduceSessionNotices, type SessionNoticeAction } from './sessionNotices'
 import { reduceSessionStatusLights, type SessionStatusAction, type SessionStatusMap } from './sessionStatusLights'
+import { SessionGhostStore, type SessionGhost } from './sessionGhostStore'
 import { logTime } from '../utils/logTime'
 
 /** session.prompt 接受的图片 MIME 白名单（对齐 DSH dsh-client-ui-conversation imageMediaType） */
@@ -67,7 +68,6 @@ export async function encodeImagePart(file: File): Promise<PromptContentPart> {
 
 /** 会话列表条目：listSessions 返回 / 会话列表缓存的统一形状 */
 export type SessionListItem = SessionInfo & { agentPreset?: string }
-
 /** session/projection 推送帧的编辑器侧形状（对齐 DSH WebUI mux 帧：扁平 sessionId/key/value/seq） */
 export interface ProjectionFrame {
   sessionId?: string
@@ -171,6 +171,7 @@ const SESSION_STORAGE_KEY = 'demostudio.dsh.session'   // localStorage: { sessio
 const DSH_DEFAULT_PORT = 3080                          // 与 electron/main.ts 保持一致
 const AGENT_READY_WAIT_TIMEOUT_MS = 60000              // 等主进程引导完成（认领/冷启动）上限
 const MAIN_READY_POLL_INTERVAL_MS = 500                // dsh-status 轮询间隔
+const DEGRADED_WATCH_POLL_MS = 3000                    // degraded 兜底：dsh-status 轮询间隔
 
 // --- 内部类型 ---
 interface ContentPart {
@@ -209,7 +210,7 @@ interface DshMessage {
 }
 
 /** DSH 事件完整形状（覆盖所有 48 种 SessionEvent） */
-interface DshEvent {
+export interface DshEvent {
   type: string
   seq: number
   time?: number
@@ -336,6 +337,8 @@ export interface HistoryPage {
   /** 尾页事件中存在未闭合回合（turn/start 后无 turn/end，仅尾部加载返回）：
    * 切换/恢复时据此重建运行态并续听，无需为探测单独再拉一次历史 */
   unclosedTurn?: boolean
+  /** 本页来自虚拟会话缓冲（零 RPC 快速路径），遥测/测试用 */
+  ghostServed?: boolean
 }
 
 /**
@@ -442,12 +445,23 @@ export class AgentService {
   private historyHasMore = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  /** degraded 兜底自愈：轮询 dsh-status，主进程恢复 ready 后自动重连 */
+  private _degradedWatchTimer: ReturnType<typeof setInterval> | null = null
   /** HMR 存活标记：防止 dispose 后被 GC */
   private _hmrAlive = true
   /** AI 是否正在运行（用于判断是否使用 steer 模式） */
   private _isRunning = false
   // --- Mux WS 下行流（question/requested、session/event 等帧） ---
   private muxWs: WebSocket | null = null
+  /** host 事件流（/api/events.host）浏览器模式 WS；Electron 模式为 null（走 IPC） */
+  private hostWs: WebSocket | null = null
+  private hostCleanup: (() => void) | null = null
+  /** host 状态机权威判定为 idle 的会话表：host/session-status running:false 落过账的会话，
+   *  之后迟到的陈旧 session.list 快照（RPC 响应晚于帧）不得复活其 running 灯。
+   *  只有 host 自己的 running:true（新回合开始）才移除。 */
+  private hostIdleConfirmed = new Set<string>()
+  /** 模型目录失效通知的尾沿防抖定时器（settings 编辑期间 document-updated 连发） */
+  private modelDirNotifyTimer: ReturnType<typeof setTimeout> | null = null
   private muxCleanup: (() => void) | null = null
   // --- 会话列表实时性（session/projection 投影帧 → sessionsUpdated 事件） ---
   /** 会话列表缓存：listSessions 权威数据 + 投影帧实时合并，经 sessionsUpdated 事件推给面板 */
@@ -456,6 +470,15 @@ export class AgentService {
   private projectionSeqs = new Map<string, number>()
   /** 投影帧触发的防抖全量刷新定时器（覆盖 blank→listed 等结构性变化，300ms 合并窗口） */
   private projectionRefreshTimer: ReturnType<typeof setTimeout> | null = null
+  // --- 虚拟会话数据层（foreign 会话事件持续 fold，切换零 RPC 快速路径） ---
+  private readonly ghostStore = new SessionGhostStore()
+  // --- session.list 并发治理：single-flight + 失败指数退避 ---
+  /** 进行中的 listSessions 请求（并发调用复用同一 Promise，防 mux 帧风暴自我 DDoS） */
+  private listInFlight: Promise<SessionListItem[]> | null = null
+  /** 连续失败次数（成功清零；决定退避时长 2^n 秒） */
+  private listFailStreak = 0
+  /** 退避窗口截止时间：窗口内的 listSessions 直接回缓存不发请求 */
+  private listBackoffUntil = 0
   /** 已消费的最大事件 seq（推送/轮询/心跳三路共用，按 seq 去重） */
   private _lastSeq = -1
   /**
@@ -588,6 +611,8 @@ export class AgentService {
     // 上下文占用 fold 随会话切换清零（新会话由历史 fold 重新 seed）
     this._ctxWindow = undefined
     this._ctxUsedTokens = undefined
+    // 模型目录按会话隔离（对齐 WebUI per-session ModelDirectory）：切会话即失效重拉
+    if (id) this.notifyModelDirectoryChanged('session-changed')
   }
 
   /** 以服务端最新 seq 刷新去重基线（只推进游标，不消费历史事件进 UI） */
@@ -726,8 +751,9 @@ export class AgentService {
         this.setState('degraded')
         this.emit({
           type: 'error',
-          payload: { message: 'DSH Agent 故障（自愈失败），请在面板手动重启' },
+          payload: { message: 'DSH Agent 故障（自愈失败），内核恢复可达后将自动重连，也可在面板手动重启' },
         })
+        this.startDegradedWatch()
         throw error
       }
       this.setState('error')
@@ -752,8 +778,9 @@ export class AgentService {
           this.reconnectAttempts = 0
           this.emit({ type: 'ready', payload: { sessionId: this.sessionId, recovered: true, restored: true } })
 
-          // 启动 mux 下行流（接收 question/requested 等实时帧）
+          // 启动 mux 下行流（接收 question/requested 等实时帧）+ host 事件流（运行态权威源）
           this.connectMux()
+          this.connectHostStream()
           // 刷新期间若有进行中的回合 → 断档续听补齐
           this.resumePendingTurnIfNeeded()
           return
@@ -787,8 +814,9 @@ export class AgentService {
       this.reconnectAttempts = 0
       this.emit({ type: 'ready', payload: { sessionId: this.sessionId } })
 
-      // 启动 mux 下行流（接收 question/requested 等实时帧）
+      // 启动 mux 下行流（接收 question/requested 等实时帧）+ host 事件流（运行态权威源）
       this.connectMux()
+      this.connectHostStream()
     } catch (error) {
       this.setState('error')
       this.emit({
@@ -803,6 +831,7 @@ export class AgentService {
   disconnect(): void {
     this.abortPolling = true
     this.disconnectMux()
+    this.disconnectHostStream()
     this.clearLiveBuffers()
     this.setSession(null)
     this.setRunning(false)
@@ -811,7 +840,36 @@ export class AgentService {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+    this.stopDegradedWatch()
     this.setState('idle')
+  }
+
+  /**
+   * degraded 兜底自愈：降频轮询主进程 dsh-status。主进程侧的 auto-claim 探测
+   * 认领（或手动重启成功）后 ready 翻真，此处自动发起 connect，面板免手动干预。
+   * 仅 Electron 模式存在 degraded（浏览器模式 waitForAgentReady 直通），无需另判。
+   */
+  private startDegradedWatch(): void {
+    const api = window.electronAPI
+    if (!api?.dshStatus || this._degradedWatchTimer) return
+    this._degradedWatchTimer = setInterval(async () => {
+      if (this.state !== 'degraded') { this.stopDegradedWatch(); return }
+      try {
+        const status = await api.dshStatus()
+        if (status?.ready && this.state === 'degraded') {
+          console.log(`[${logTime()}] [AgentService] 主进程已恢复 agent(lifecycle=${status.lifecycle})，自动重连`)
+          this.stopDegradedWatch()
+          await this.connect()
+        }
+      } catch { /* 瞬时查询失败忽略，下一轮继续 */ }
+    }, DEGRADED_WATCH_POLL_MS)
+  }
+
+  private stopDegradedWatch(): void {
+    if (this._degradedWatchTimer) {
+      clearInterval(this._degradedWatchTimer)
+      this._degradedWatchTimer = null
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -821,6 +879,9 @@ export class AgentService {
   /** 建立 mux 下行流连接（浏览器: WebSocket，Electron: IPC） */
   private connectMux(): void {
     this.disconnectMux() // 清理旧连接
+    // 虚拟会话缓冲整体作废：断流期间其他会话的事件有缺口，残留缓冲不完整，
+    // 据此 fold 出的尾页会缺消息——宁可退回 RPC 兜底也不上屏残缺内容
+    this.ghostStore.clearAll()
     // 新流开始：旧流期间的 running 灯不可信（断连期间外部会话可能已结束），全清防僵尸；
     // error 灯是事实记录保留；当前会话若仍在回合中，用本地运行态立即重种
     this.applyStatusAction({ type: 'stream-reopened' })
@@ -874,6 +935,123 @@ export class AgentService {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  Host 事件流下行（/api/events.host，host/session-status 等）
+  //  运行态的权威实时源（对齐 DSH WebUI）：host agent 状态机每次
+  //  变迁推一帧，turn/end 事件丢失也能自愈（状态机必补 running:false）。
+  //  mux 的 turn/start|end 推导保留作兜底，两者幂等归约。
+  // ═══════════════════════════════════════════════════════════
+
+  /** 建立 host 事件流连接（浏览器: WebSocket，Electron: IPC）。单向下行，客户端不发任何消息 */
+  private connectHostStream(): void {
+    this.disconnectHostStream() // 清理旧连接
+    const api = window.electronAPI
+
+    if (api?.onDshHostFrame) {
+      // Electron 模式：main 进程 WS → IPC 转发
+      api.dshHostConnect().catch(() => {})
+      this.hostCleanup = api.onDshHostFrame((frame: unknown) => this.handleHostFrame(frame))
+    } else {
+      // 浏览器模式：直接 WebSocket（Vite WS 代理转发到 DSH :3080）
+      try {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const ws = new WebSocket(`${protocol}//${location.host}/api/events.host`)
+        this.hostWs = ws
+
+        ws.onmessage = (ev) => {
+          try { this.handleHostFrame(JSON.parse(ev.data)) } catch { /* 忽略解析失败 */ }
+        }
+        ws.onerror = () => { console.warn(`[${logTime()}]`, '[AgentService] host WS 错误') }
+        ws.onclose = () => {
+          this.hostWs = null
+          // 自动重连（仅在连接状态时）；重连后重播种权威运行态（断连期间可能错过状态变迁）
+          if (this.state === 'connected') {
+            setTimeout(() => {
+              if (this.state !== 'connected') return
+              this.connectHostStream()
+              this.listSessions().catch(() => { /* 种子失败有退避，不打断 */ })
+            }, 3000)
+          }
+        }
+      } catch (err) {
+        console.warn(`[${logTime()}]`, '[AgentService] host WS 创建失败:', err)
+      }
+    }
+
+    console.log(`[${logTime()}]`, '[AgentService] host 事件流已启动')
+    // 流（重）开即重播种：host 流不补发快照（对齐 WebUI），权威 running 以 session.list 行内标志补齐
+    this.listSessions().catch(() => { /* 失败有退避与缓存兜底 */ })
+    // host 重启/流重建后模型选择可能回到 last-logged（对齐 WebUI connection/reset → resetConnected）
+    this.notifyModelDirectoryChanged('host-stream-open')
+  }
+
+  /** 断开 host 事件流 */
+  private disconnectHostStream(): void {
+    if (this.hostWs) { this.hostWs.close(); this.hostWs = null }
+    if (this.hostCleanup) { this.hostCleanup(); this.hostCleanup = null }
+    if (window.electronAPI?.dshHostDisconnect) {
+      window.electronAPI.dshHostDisconnect().catch(() => {})
+    }
+  }
+
+  /**
+   * 处理 host 事件流帧（hostFrameSchema，裸帧；兼容 server-request 信封解包）。
+   * 已消费：host/session-status（运行态权威翻转）。
+   * 仅记日志：host/session-added|removed、host/agent-error（将来的列表增删/错误气泡可接）。
+   * 忽略：host/workspace-*、host/remote-event 等与面板无关帧。
+   */
+  private handleHostFrame(frame: unknown): void {
+    const f = frame as { type?: string; method?: string; payload?: Record<string, unknown> } | null
+    if (!f) return
+    const type = f.method || f.type
+    const payload = (f.payload ?? f) as { sessionId?: string; running?: boolean; message?: string; event?: string; args?: unknown[] }
+    if (typeof type !== 'string') return
+    if (type === 'host/session-status' && payload.sessionId && typeof payload.running === 'boolean') {
+      this.handleHostSessionStatus(payload.sessionId, payload.running)
+      return
+    }
+    if (type === 'host/agent-error') {
+      console.warn(`[${logTime()}] [AgentService] host agent-error: ${payload.sessionId ?? ''} ${payload.message ?? ''}`)
+      return
+    }
+    if (type === 'host/session-added' || type === 'host/session-removed') {
+      console.log(`[${logTime()}] [AgentService] host ${type}: ${payload.sessionId ?? ''}`)
+      return
+    }
+    if (type === 'host/remote-event') {
+      // 主机级 owner 事件白名单转发（API_REMOTE_FORWARDED_EVENTS）。模型目录相关的两个
+      // 对齐 DSH WebUI 的失效源：供应商/适配器配置变更、settings 文档变更 → 重拉 session.models
+      const evtName = payload.event as string | undefined
+      if (evtName === 'llm/adapters-updated' || evtName === 'settings/document-updated') {
+        this.notifyModelDirectoryChanged(`host-remote:${evtName}`)
+      }
+      return
+    }
+  }
+
+  /** 模型目录失效通知（300ms 尾沿防抖）：设置编辑期间 settings/document-updated 可能连发 */
+  private notifyModelDirectoryChanged(reason: string): void {
+    if (this.modelDirNotifyTimer) clearTimeout(this.modelDirNotifyTimer)
+    this.modelDirNotifyTimer = setTimeout(() => {
+      this.modelDirNotifyTimer = null
+      console.log(`[${logTime()}] [AgentService] 模型目录失效: ${reason} → 通知重拉`)
+      this.emit({ type: 'modelDirectoryChanged', payload: { reason } satisfies ModelDirectoryChangedPayload })
+    }, 300)
+  }
+
+  /** host/session-status → 状态灯动作 + 权威 idle 记账（种子过滤依据） */
+  private handleHostSessionStatus(sessionId: string, running: boolean): void {
+    if (running) {
+      this.hostIdleConfirmed.delete(sessionId)
+      // 与 turn/start 同义：新回合开始（顺带翻掉旧 error 灯，语义一致）
+      this.applyStatusAction({ type: 'turn-started', sessionId })
+    } else {
+      this.hostIdleConfirmed.add(sessionId)
+      // 权威 idle：只清 running，不覆盖 mux turn/end(error) 记下的红灯
+      this.applyStatusAction({ type: 'host-idle', sessionId })
+    }
+  }
+
   /** HMR：释放旧实例持有的下行流（浏览器 WS / IPC 监听 / 心跳 / 轮询）。
    * Electron main 的 WS 桥保留不断开，由新实例复用。
    * 旧实例置为 idle，掐断其 WS 重连定时器等复活路径。 */
@@ -884,6 +1062,9 @@ export class AgentService {
     this.clearLiveBuffers()
     if (this.muxWs) { this.muxWs.close(); this.muxWs = null }
     if (this.muxCleanup) { this.muxCleanup(); this.muxCleanup = null }
+    if (this.hostWs) { this.hostWs.close(); this.hostWs = null }
+    if (this.hostCleanup) { this.hostCleanup(); this.hostCleanup = null }
+    if (this.modelDirNotifyTimer) { clearTimeout(this.modelDirNotifyTimer); this.modelDirNotifyTimer = null }
     this.setState('idle')
   }
 
@@ -897,6 +1078,7 @@ export class AgentService {
     console.log(`[${logTime()}] [Trace][svc-lifecycle] ${this.instanceId} reattachLiveStream: 重挂 mux 下行流`)
     this.abortPolling = false
     this.connectMux()
+    this.connectHostStream()
     this.resumePendingTurnIfNeeded()
   }
 
@@ -1120,6 +1302,9 @@ export class AgentService {
    * aborted/interrupted（用户主动停止）与 max-tokens 不打扰。
    */
   private consumeForeignSessionEvent(sessionId: string, event: DshEvent): void {
+    // 虚拟会话数据层：foreign 事件先 fold 进该会话的虚拟缓冲（切换零 RPC 快速路径
+    // 的数据源），再做通知提炼。缓冲内去重由 store 按 seq 水位自理。
+    this.ghostStore.fold(sessionId, event)
     if (event.type === 'turn/start') {
       this.applyNoticeAction({ type: 'turn-started', sessionId })
       return
@@ -2046,9 +2231,31 @@ export class AgentService {
       console.log(`[${logTime()}] [AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
       if (!allEvents.length) return { messages: [] }
 
-      allEvents.sort((a, b) => a.event.seq - b.event.seq)
+      const tailLoad = options.beforeSeq === undefined
+      return this.foldEvents(allEvents, { tailLoad, seedPressure: tailLoad })
+    } catch (error) {
+      console.error(`[${logTime()}]`, '[AgentService] 加载历史失败:', error)
+      return { messages: [] }
+    }
+  }
 
-      const messages: HistoryMessage[] = []
+  /**
+   * 把按 seq 升序的事件流 fold 成历史消息（整段复用）：loadHistory 的 RPC 页与
+   * 虚拟会话缓冲（sessionGhostStore）共用同一套 fold 语义，保证「RPC 尾页上屏」与
+   * 「虚拟会话快速上屏」两条路径产出的消息形状、半截段与回合边界判定完全一致。
+   * fold 与去重基线在同一原子时刻推进（fold 循环同步执行，期间无 await）：
+   * 实时流从此只消费 fold 之后的增量，消除「基线先立、fold 后拉」窗口内
+   * 事件被 fold 与实时双路径重复消费的竞态。
+   * @param opts.tailLoad 尾部加载（切换/恢复）：产出 pendingTurnPartial 与 unclosedTurn
+   * @param opts.seedPressure fold 完成后下发上下文占用快照（分页 prepend 不回写，防旧值覆盖实时新值）
+   */
+  private foldEvents(
+    allEvents: Array<{ event: DshEvent }>,
+    opts: { tailLoad: boolean; seedPressure: boolean },
+  ): { messages: HistoryMessage[]; pendingTurnPartial?: PendingTurnPartial; unclosedTurn?: boolean } {
+    allEvents.sort((a, b) => a.event.seq - b.event.seq)
+
+    const messages: HistoryMessage[] = []
       const pendingTools = new Map<string, ToolState>()
       const turnAssistantIndices = new Map<number, number[]>()
       // 重试链：retryId -> RetryAttempt[]
@@ -2062,7 +2269,7 @@ export class AgentService {
       // 历史折叠中追踪上一个模型名：仅模型真正变化时才上屏"模型切换"
       let lastFoldHeaderModel: string | undefined
       // 上下文占用 seed：仅全量加载时回写（分页 prepend 旧事件不回写，防旧值覆盖实时新值）
-      const seedPressure = options.beforeSeq === undefined
+      const seedPressure = opts.seedPressure
       // chunk 增量累积（对齐实时路径 assistantBuf 语义）：fold 期间遇到
       // assistant/chunk 先累积，边界处提交；assistant/message 到达时整段覆盖。
       let foldAssistantBuf = ''
@@ -2366,7 +2573,7 @@ export class AgentService {
 
       // 尾部半截段：回合未闭合且仍有未提交 chunk → 回放为半截 assistant 消息，
       // 经 pendingTurnPartial 续入实时缓冲（对齐 WebUI PartialAccumulator 语义）
-      const isTailLoad = options.beforeSeq === undefined
+      const isTailLoad = opts.tailLoad
       let pendingTurnPartial: PendingTurnPartial | undefined
       if (foldChunkDirty) {
         const partial: PendingTurnPartial = {
@@ -2413,10 +2620,6 @@ export class AgentService {
         ...(pendingTurnPartial ? { pendingTurnPartial } : {}),
         ...(unclosedTurn !== undefined ? { unclosedTurn } : {}),
       }
-    } catch (error) {
-      console.error(`[${logTime()}]`, '[AgentService] 加载历史失败:', error)
-      return { messages: [] }
-    }
   }
 
   /**
@@ -2507,32 +2710,49 @@ export class AgentService {
 
   // --- 会话管理 ---
   async listSessions(): Promise<SessionListItem[]> {
-    try {
-      const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; running?: boolean; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
-      const rawItems = value?.items || []
-      const items: SessionListItem[] = rawItems
-        .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
-        .map(item => ({
-          sessionId: item.sessionId,
-          title: item.projections?.values?.title || item.sessionId,
-          updatedAt: item.updatedAt,
-          turns: item.projections?.values?.sessionStats?.turns,
-          agentPreset: item.agentPreset,
-        }))
-      this.sessionsCache = items
-      // 权威运行态种子：行内 running=true（DSH schema 保证的布尔字段）直接点亮状态灯，
-      // 面板重载/首挂载时无需等第一个 turn/start 帧（归约幂等，无变化不广播）。
-      // 只种开不清：清灯仍由 turn/end 帧负责，避免 RPC 快照略旧时把刚亮的灯闪灭。
-      for (const item of rawItems) {
-        if (item.running && !this.deletedSessionIds.has(item.sessionId)) {
-          this.applyStatusAction({ type: 'turn-started', sessionId: item.sessionId })
+    // 退避窗口内不发请求：连续失败说明 DSH host 过载（或不可达），高频重试只会
+    // 加剧排队（投影帧驱动的防抖刷新每 300ms 一发，30s 超时堆积成请求风暴）。
+    // 投影帧已实时合并进缓存，回退缓存列表与失败回退同语义。
+    if (Date.now() < this.listBackoffUntil) return this.sessionsCache
+    // single-flight：进行中的请求直接复用（面板挂载、投影刷新、preset 拉取并发触发）
+    if (this.listInFlight) return this.listInFlight
+    this.listInFlight = (async () => {
+      try {
+        const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; running?: boolean; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
+        const rawItems = value?.items || []
+        const items: SessionListItem[] = rawItems
+          .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
+          .map(item => ({
+            sessionId: item.sessionId,
+            title: item.projections?.values?.title || item.sessionId,
+            updatedAt: item.updatedAt,
+            turns: item.projections?.values?.sessionStats?.turns,
+            agentPreset: item.agentPreset,
+          }))
+        this.sessionsCache = items
+        this.listFailStreak = 0
+        this.listBackoffUntil = 0
+        // 权威运行态种子：行内 running=true（DSH schema 保证的布尔字段）直接点亮状态灯，
+        // 面板重载/首挂载时无需等第一个 turn/start 帧（归约幂等，无变化不广播）。
+        // 只种开不清：清灯仍由 turn/end 帧负责，避免 RPC 快照略旧时把刚亮的灯闪灭。
+        // hostIdleConfirmed 过滤：host 状态机已权威判定 idle 的会话，迟到的陈旧快照不得复活灯。
+        for (const item of rawItems) {
+          if (item.running && !this.deletedSessionIds.has(item.sessionId) && !this.hostIdleConfirmed.has(item.sessionId)) {
+            this.applyStatusAction({ type: 'turn-started', sessionId: item.sessionId })
+          }
         }
+        return items
+      } catch (err) {
+        this.listFailStreak++
+        const backoffMs = Math.min(60_000, 1000 * 2 ** Math.min(this.listFailStreak, 6))
+        this.listBackoffUntil = Date.now() + backoffMs
+        console.warn(`[${logTime()}] [AgentService] session.list 失败（连续第 ${this.listFailStreak} 次，退避 ${Math.round(backoffMs / 1000)}s），回退缓存列表:`, err)
+        return this.sessionsCache
+      } finally {
+        this.listInFlight = null
       }
-      return items
-    } catch (err) {
-      console.warn(`[${logTime()}] [AgentService] session.list 失败，回退缓存列表:`, err)
-      return this.sessionsCache
-    }
+    })()
+    return this.listInFlight
   }
 
   /**
@@ -2625,7 +2845,7 @@ export class AgentService {
     this.switchHoldback = []
     let page: HistoryPage
     try {
-      page = await this.loadHistoryPage()
+      page = await this.loadTailPageOrGhost(sessionId)
     } finally {
       const held = this.switchHoldback
       this.switchHoldback = null
@@ -2640,15 +2860,61 @@ export class AgentService {
         console.log(`[${logTime()}] [Trace][switch] ${this.instanceId} 切换窗口暂存 ${held.length} 条，基线=${this._lastSeq}，重放 ${replayed} 条`)
       }
     }
-    await this.resumePendingTurnFromPage(page)
-    console.log(`[${logTime()}] [AgentService] 切换到会话: ${sessionId}（合并为 1 次 history RPC）`)
+    await this.resumePendingTurnFromPage(page, sessionId)
+    console.log(`[${logTime()}] [AgentService] 切换到会话: ${sessionId}（${page.ghostServed ? '虚拟会话快速路径，0 RPC' : '合并为 1 次 history RPC'}）`)
     return page
   }
 
-  /** 页内版断档续听：尾页判定出未闭合回合 → 恢复运行态；mux 离线才启动轮询回路 */
-  private async resumePendingTurnFromPage(page: HistoryPage): Promise<void> {
-    if (!page.unclosedTurn) return
-    console.log(`[${logTime()}]`, '[AgentService] 尾页判定到未完成回合，恢复运行态续听')
+  /**
+   * 尾页加载（切换用）：优先虚拟会话缓冲（sessionGhostStore），缓冲不存在、已
+   * 超限降级（dropped）或 fold 失败时回退 session.history RPC。快速路径产出与
+   * RPC 尾页完全同构的 HistoryPage（同一 foldEvents），对面板透明。
+   */
+  private async loadTailPageOrGhost(sessionId: string): Promise<HistoryPage> {
+    const ghost = this.ghostStore.take(sessionId)
+    if (ghost && !ghost.dropped && ghost.events.length > 0) {
+      try {
+        return this.foldGhost(ghost)
+      } catch (err) {
+        // fold 失败不得卡死切换：作废缓冲回退 RPC 路径
+        console.warn(`[${logTime()}] [AgentService] 虚拟会话 fold 失败，回退 history RPC:`, err)
+      }
+    }
+    return this.loadHistoryPage()
+  }
+
+  /** 把虚拟会话缓冲 fold 成切换页：缓冲覆盖不到的更早历史交给现有分页机制（beforeSeq = 首条 seq） */
+  private foldGhost(ghost: SessionGhost): HistoryPage {
+    const events = [...ghost.events].sort((a, b) => a.event.seq - b.event.seq)
+    const folded = this.foldEvents(events, { tailLoad: true, seedPressure: false })
+    const firstSeq = ghost.firstSeq
+    const hasMore = typeof firstSeq === 'number' && firstSeq > 0
+    this.historyCursor = hasMore ? firstSeq : undefined
+    this.historyHasMore = hasMore
+    return {
+      messages: folded.messages,
+      hasMore,
+      ...(hasMore ? { beforeSeq: firstSeq } : {}),
+      ...(folded.pendingTurnPartial ? { pendingTurnPartial: folded.pendingTurnPartial } : {}),
+      ...(folded.unclosedTurn !== undefined ? { unclosedTurn: folded.unclosedTurn } : {}),
+      ghostServed: true,
+    }
+  }
+
+  /** 页内版断档续听：尾页判定出未闭合回合 → 恢复运行态；mux 离线才启动轮询回路。
+   *  盲区兜底：ghost 缓冲只覆盖「切走之后」的事件、超长回合的 turn/start 也可能
+   *  落在 RPC 尾页窗口之外——此时窗口内没有任何回合边界，scanUnclosedTurn 判
+   *  false，但回合确实未闭合（2026-09-21 用户实测：运行中切走再切回，输入框
+   *  误判未运行）。以状态灯的跨会话运行态记忆兜底：turn/end 未被见过 → 灯仍
+   *  是 running → 真在跑；turn/end 已见 → 灯被清 → 不误恢复。 */
+  private async resumePendingTurnFromPage(page: HistoryPage, sessionId: string): Promise<void> {
+    const rememberedRunning = this.sessionStatuses[sessionId] === 'running'
+    if (!page.unclosedTurn && !rememberedRunning) return
+    if (page.unclosedTurn) {
+      console.log(`[${logTime()}]`, '[AgentService] 尾页判定到未完成回合，恢复运行态续听')
+    } else {
+      console.log(`[${logTime()}]`, `[AgentService] 尾页窗口未含回合边界（切走前已开回合的盲区），按状态灯运行态记忆恢复: ${sessionId.slice(0, 12)}`)
+    }
     this.setRunning(true)
     // mux 在线：session/event 推送 + 心跳兜底自动续听；离线才启动轮询回路
     if (!this.isMuxAlive()) await this.pollForResponse()
@@ -2703,6 +2969,8 @@ export class AgentService {
     this.applyNoticeAction({ type: 'session-removed', sessionId })
     // 状态灯同步作废（删掉的会话不再在列表里亮灯）
     this.applyStatusAction({ type: 'session-removed', sessionId })
+    // 虚拟会话缓冲一并作废
+    this.ghostStore.discard(sessionId)
     for (const [rpcId, req] of Array.from(this.crossQuestions)) {
       if (req.sessionId === sessionId) this.crossQuestions.delete(rpcId)
     }

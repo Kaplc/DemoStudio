@@ -40,6 +40,7 @@ let _dshBootstrapInFlight = false           // 探测/spawn 流程防重入（ac
 let _dshRestartCount = 0                    // 自愈已重试次数
 let _dshRestartTimer: NodeJS.Timeout | null = null
 let _dshHeartbeatTimer: NodeJS.Timeout | null = null
+let _dshAutoClaimTimer: NodeJS.Timeout | null = null
 
 
 const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
@@ -78,6 +79,7 @@ const DSH_SPAWN_READY_TIMEOUT_MS = 30000 // spawn 后等待端口就绪上限
 const DSH_AGENT_MAX_RESTARTS = 5        // 崩溃自愈次数上限，超限进入 degraded 终态
 const DSH_AGENT_RESTART_BASE_MS = 2000  // 自愈退避基础延迟
 const DSH_AGENT_RESTART_MAX_MS = 60000  // 自愈退避延迟上限
+const DSH_AUTOCLAIM_PROBE_MS = 10000    // degraded 兜底探测周期：内核晚到/外部拉起后自动认领
 
 /**
  * 获取系统 Node.js 路径
@@ -612,6 +614,28 @@ function registerDshOwnership(source: string): void {
   }
 }
 
+/**
+ * degraded 终态兜底：降频探测 :3080，内核一旦可达（spawn 就绪晚于等待窗口 /
+ * 用户手动拉起）即重新引导认领。只认领不重拉——探测通过才走 bootstrap 的
+ * 认领路径，避免绕过崩溃自愈 5 次重试上限形成 respawn 循环。
+ * 生命周期离开 degraded（认领成功/停机）后探测循环自动退出。
+ */
+function startDshAutoClaimWatch(): void {
+  if (_dshAutoClaimTimer) return
+  console.log(`[DSH] degraded 兜底：每 ${DSH_AUTOCLAIM_PROBE_MS / 1000}s 探测 :${DSH_PORT_DEFAULT}，内核可达后自动认领`)
+  _dshAutoClaimTimer = setInterval(() => {
+    if (_dshLifecycle !== 'degraded') {
+      clearInterval(_dshAutoClaimTimer!)
+      _dshAutoClaimTimer = null
+      return
+    }
+    void probeDshAlive().then((alive) => {
+      if (alive && _dshLifecycle === 'degraded') void bootstrapDSH('auto-claim')
+    })
+  }, DSH_AUTOCLAIM_PROBE_MS)
+  _dshAutoClaimTimer.unref?.()
+}
+
 /** 崩溃自愈入口：非主动停机的 exit 回调统一走这里 */
 function onDshChildExited(code: number | null): void {
   if (_dshShuttingDown) return           // 主动停机中，不需要自愈
@@ -623,6 +647,7 @@ function onDshChildExited(code: number | null): void {
   if (_dshRestartCount >= DSH_AGENT_MAX_RESTARTS) {
     _dshLifecycle = 'degraded'
     console.error(`[DSH] 自愈重试已达上限(${DSH_AGENT_MAX_RESTARTS})，进入 degraded 终态。可在 Agent 面板手动重启。`)
+    startDshAutoClaimWatch()
     return
   }
 
@@ -679,6 +704,7 @@ async function bootstrapDSH(source: string = 'startup'): Promise<void> {
     _dshLifecycle = 'degraded'
     _dshPort = 0
     console.error(`[DSH] 引导失败(${source}) → degraded: ${err instanceof Error ? err.message : String(err)}`)
+    startDshAutoClaimWatch()
   } finally {
     _dshBootstrapInFlight = false
   }
@@ -695,6 +721,7 @@ async function stopDSHService(): Promise<void> {
   _dshShuttingDown = true
   _dshLifecycle = 'off'
   if (_dshRestartTimer) { clearTimeout(_dshRestartTimer); _dshRestartTimer = null }
+  if (_dshAutoClaimTimer) { clearInterval(_dshAutoClaimTimer); _dshAutoClaimTimer = null }
   disconnectMuxWs()
   stopDshEditorHeartbeat()
   _dshChild = null
@@ -886,6 +913,44 @@ ipcMain.handle('dsh-open-agent-window', () => {
   return { ok: true }
 })
 
+// 性能分析器独立窗口（perf.html，单例；随主窗口关闭级联关闭）
+ipcMain.handle('dsh-open-perf-window', () => {
+  openPerfWindow()
+  return { ok: true }
+})
+
+// 性能快照往返：perf 窗口 invoke → 转发编辑器窗口 perf-collect → perf-collect-result 回传 resolve。
+// 与 MCP 往返同语义（挂起等待渲染进程回传，5s 超时返回空态）——绝不能落进 fire-and-forget，
+// 否则面板永远拿不到数据（同 editor_mcp 教训：需要渲染进程返回数据的命令必须走往返）。
+const _perfPending = new Map<string, (data: unknown) => void>()
+let _perfRequestSeq = 0
+ipcMain.handle('perf-get-snapshot', (_event, samples?: number) => {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) {
+    return Promise.resolve({ running: false, current: null })
+  }
+  const requestId = `perf-${Date.now()}-${++_perfRequestSeq}`
+  return new Promise<unknown>((resolve) => {
+    const timer = setTimeout(() => {
+      _perfPending.delete(requestId)
+      console.warn(`[Perf] 快照拉取超时: ${requestId}`)
+      resolve({ running: false, current: null, timeout: true })
+    }, 5000)
+    _perfPending.set(requestId, (data) => {
+      clearTimeout(timer)
+      resolve(data)
+    })
+    win.webContents.send('perf-collect', requestId, samples)
+  })
+})
+ipcMain.on('perf-collect-result', (_event, requestId: string, data: unknown) => {
+  const resolve = _perfPending.get(requestId)
+  if (resolve) {
+    _perfPending.delete(requestId)
+    resolve(data ?? null)
+  }
+})
+
 // DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS）
 ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
   const rpcId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -951,6 +1016,56 @@ function disconnectMuxWs(): void {
 // DSH 内核启动后自动连 mux WS（在 dsh-status 查询 ready 时触发也可）
 ipcMain.handle('dsh-mux-connect', () => { connectMuxWs() })
 ipcMain.handle('dsh-mux-disconnect', () => { disconnectMuxWs() })
+
+// --- DSH Host 事件流 WS 下行桥（/api/events.host） ---
+// 主机级帧（host/session-status、host/session-added|removed、host/agent-error 等）。
+// 与 mux 桥同构：main 进程连 WS → 解析 JSON 帧 → IPC 广播渲染进程；
+// 单向下行协议：客户端发送任何消息会被服务端以 1008 "downlink only" 关闭，绝不上行。
+let _hostWs: import('ws').WebSocket | null = null
+let _hostReconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function connectHostWs(): void {
+  if (_hostWs) return
+  try {
+    const WebSocket = require('ws') as typeof import('ws').default
+    const ws = new WebSocket('ws://127.0.0.1:3080/api/events.host', { headers: { Origin: 'http://127.0.0.1:3080' } })
+    _hostWs = ws
+
+    ws.on('open', () => { console.log('[DSH-host] WS 已连接') })
+
+    ws.on('message', (raw: Buffer) => {
+      try {
+        const frame = JSON.parse(raw.toString())
+        // 广播到所有渲染进程
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('dsh-host-frame', frame)
+        }
+      } catch { /* 解析失败忽略 */ }
+    })
+
+    ws.on('close', () => {
+      console.log('[DSH-host] WS 已断开，5s 后重连')
+      _hostWs = null
+      _hostReconnectTimer = setTimeout(connectHostWs, 5000)
+    })
+
+    ws.on('error', (err: Error) => {
+      console.error('[DSH-host] WS 错误:', err.message)
+      ws.close()
+    })
+  } catch (err) {
+    console.error('[DSH-host] WS 初始化失败:', err)
+    _hostReconnectTimer = setTimeout(connectHostWs, 5000)
+  }
+}
+
+function disconnectHostWs(): void {
+  if (_hostReconnectTimer) { clearTimeout(_hostReconnectTimer); _hostReconnectTimer = null }
+  if (_hostWs) { _hostWs.close(); _hostWs = null }
+}
+
+ipcMain.handle('dsh-host-connect', () => { connectHostWs() })
+ipcMain.handle('dsh-host-disconnect', () => { disconnectHostWs() })
 
 // DSH Respond 代理（client-response 信封，type 不是 client-request）
 // 用于回答 question/requested 等需要 client-response 的场景
@@ -2312,6 +2427,69 @@ function openAgentWindow(): void {
     void _dshWebuiWindow.loadURL(`${VITE_URL}/agent.html`)
   } else {
     void _dshWebuiWindow.loadFile(path.join(__dirname, '../dist/agent.html'))
+  }
+}
+
+/**
+ * 性能分析器独立窗口：加载独立入口 perf.html（perf-main.tsx 全屏渲染 PerfProfilerPanel），
+ * 与主编辑器分入口加载（依赖闭包只有面板 + 快照类型，无引擎），HMR 分窗隔离。
+ * - 单例：重复调用时聚焦已有窗口；
+ * - 纯只读面板：1s 轮询 perf-get-snapshot 往返，关窗即停（无写操作）。
+ */
+let _perfWindow: BrowserWindow | null = null
+
+function openPerfWindow(): void {
+  if (_perfWindow && !_perfWindow.isDestroyed()) {
+    if (_perfWindow.isMinimized()) _perfWindow.restore()
+    _perfWindow.focus()
+    console.log('[Perf] 性能分析器窗口已存在，聚焦')
+    return
+  }
+
+  console.log('[Perf] 打开性能分析器窗口')
+  _perfWindow = new BrowserWindow({
+    width: 560,
+    height: 760,
+    minWidth: 420,
+    minHeight: 480,
+    title: '性能分析器',
+    backgroundColor: '#1e1e1e',
+    icon: path.join(__dirname, '../assets/icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      // 后台不停摆：最小化时轮询/动画不降频（性能观察窗口不应失真）
+      backgroundThrottling: false,
+    },
+    show: false,
+  })
+
+  _perfWindow.once('ready-to-show', () => _perfWindow?.show())
+  _perfWindow.on('closed', () => { _perfWindow = null })
+
+  // 每个新 BrowserWindow 都必须单独挂 console-message 写日志（跨窗口单例/回调不可见，见 agent 窗口同款）
+  _perfWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (sourceId.startsWith('devtools://')) return
+    const logLevel = ['verbose', 'info', 'warning', 'error'][level] || 'info'
+    const now = new Date().toISOString()
+    const lineStr = `[${now}][PERF:${logLevel.toUpperCase()}] ${message} (${sourceId}:${line})\n`
+    try {
+      ensureLogDir()
+      fs.appendFileSync(CONSOLE_LOG_FILE, lineStr, 'utf-8')
+    } catch {}
+  })
+
+  if (isDev) {
+    _perfWindow.webContents.openDevTools({ mode: 'detach' })
+  }
+
+  // 加载性能分析器独立入口（perf.html → perf-main.tsx，仅挂载面板，不初始化引擎）
+  if (isDev) {
+    void _perfWindow.loadURL(`${VITE_URL}/perf.html`)
+  } else {
+    void _perfWindow.loadFile(path.join(__dirname, '../dist/perf.html'))
   }
 }
 

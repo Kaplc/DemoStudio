@@ -233,7 +233,7 @@ export function registerGMBridge(): void {
     gi.inputSys.handlePointerUp(worldPos, gi.controller, button)
 ```
 
-旧版只调 `handlePointerDown` 从不释放——UI 按钮"碰巧能点"（`handleClick` 在按下结算）掩盖了两个问题：`BindMouseButton('released')` 订阅者（warm 星图结算 / 全息轻点落位）永不触发；`button=2` 时 `CameraRigComponent.rightDragging` 卡 true，之后每次指针移动都在平移相机。回归锁：`e2e/warm/player_input.spec.ts`。
+旧版只调 `handlePointerDown` 从不释放——UI 按钮"碰巧能点"（`handleClick` 在按下结算）掩盖了两个问题：`BindMouseButton('released')` 订阅者（warm 星图结算 / 全息轻点落位）永不触发；`button=2` 时 `CameraRigComponent.rightDragging` 卡 true，之后每次指针移动都在平移相机。回归锁：`projects/warm-current/e2e/player_input.spec.ts`。
 
 与 `ai.clickActor` 是两条路，但**殊途同归**：2026-09-07 起 `clickActor` 不再直接 `triggerClick()`，而是把目标命中层中心反投屏幕坐标后走同一条 `InputSys.handlePointerDown → PhySys.raycastClick` 管线——隐藏按钮（父链 `visible=false`）点不响、500ms 点击冷却同样生效、被 UI 拦截画布挡住就拒绝，与真实鼠标完全同语义。`mouseClick` 需要自己提供 `screenX/screenY`，`clickActor` 按目标自动算坐标；自动化测试优先 `clickActor`，验证指定屏幕坐标的管线行为才用 `mouseClick`。
 

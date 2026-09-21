@@ -6,8 +6,9 @@
  * 这里只镜像 e2e 断言真正用到的字段（与 src/engine/ai/AIEvents.ts 保持同步，字段少而准）。
  */
 
-/** AIModule.emit 的聚合返回（首个处理器的返回值在 results[0]） */
+/** AIModule.emit 的聚合返回（handled=是否有处理器接手；首个处理器的返回值在 results[0]） */
 export interface AIEventEnvelope<T = unknown> {
+  handled?: boolean
   results?: T[]
 }
 
@@ -126,7 +127,7 @@ export interface ProjectScreenPosResult {
 export interface ProjectDescriptor {
   /** 框架内项目 id（spec 里 test.use({ project: 'fish' }) 用的键） */
   id: string
-  /** 编辑器首页工程卡的显示名前缀（点击选卡用，与 projects/*/register.ts 的 name 一致） */
+  /** 编辑器首页工程卡的显示名前缀（点击选卡用，与 projects 下各项目 register.ts 的 name 一致） */
   cardName: string
   /** 一句话说明（报告/文档用） */
   description?: string

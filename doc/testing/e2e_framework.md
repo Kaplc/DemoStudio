@@ -1,10 +1,10 @@
 # E2E 回归框架（e2e Framework）
 
-> **一句话定位**：`e2e/` 下所有项目共用的 Playwright 端到端回归框架——一条 `npm run test:e2e` 从「编辑器首页」自动引导到「任意已注册项目的游戏运行中」，用通用 `ai.*` 事件断言，失败自动落盘游戏运行时证据（控制台日志/GameState/HUD/截图）。
+> **一句话定位**：引擎层（根 `e2e/`）与项目层（`projects/*/e2e/`，自动扫描）共用的 Playwright 端到端回归框架——从「编辑器首页」自动引导到「任意项目的游戏运行中」，用通用 `ai.*` 事件断言，失败自动落盘游戏运行时证据（控制台日志/GameState/HUD/截图）。
 >
 > **什么时候会用到你**：给新项目补 e2e 时；改了 gameplay/HUD 要回归验证时；排查「e2e 挂在引导路径」时；要给日志自愈喂结构化失败报告时。
 >
-> 代码位置：`e2e/framework/`（框架本体）+ `e2e/<项目>/*.spec.ts`（用例，一项目一文件夹）+ `playwright.e2e.config.ts`（配置）
+> 代码位置：`e2e/framework/`（框架本体）+ `e2e/agent|home|perf/`（引擎/编辑器层用例）+ `projects/<项目>/e2e/*.spec.ts`（项目回归用例，自动扫描）+ `playwright.e2e.config.ts`（配置）
 
 ---
 
@@ -14,10 +14,19 @@
 |---|---|---|
 | [session.ts](../../e2e/framework/session.ts) | `GameSession`：引导（boot）+ 查询/操作包装 + 失败自动取证 | 改引导路径、加失败证据类型 |
 | [ai.ts](../../e2e/framework/ai.ts) | `window.__ai` 事件桥封装：emit/断言辅助/点击冷却 | 新增一种 ai 事件的封装 |
-| [projects.ts](../../e2e/framework/projects.ts) | 项目描述符注册表（新项目接入点） | **新项目接入框架时** |
+| [projects.ts](../../e2e/framework/projects.ts) | 项目描述符自动扫描（读 register.ts 提取 ProjectModule.name，零注册） | 新项目解析异常时排查 / registerProject 静态覆盖 |
 | [fixtures.ts](../../e2e/framework/fixtures.ts) | 对外入口：`test`/`expect` + `game` fixture（自动 boot + 取证） | 加新的 fixture 选项 |
 
 **关键心智模型**：框架断言**只走通用 `ai.*` 事件**（`ai.getState`/`ai.getHUD`/`ai.clickActor`/`ai.gmCommand`），不 import 任何引擎代码、不碰项目私有调试桥——所以 fish 的用例和 warm 的用例跑在同一个框架上，新项目零适配。与 warm 老 spec（直接 import `@playwright/test` + 摸 `window.__warmCurrent` 私有桥）的分工见 [playwright_testing.md](./playwright_testing.md)。
+
+**用例分层：项目 vs 引擎**（`playwright.e2e.config.ts` 的 `projects` 按 **testDir** 划分，2026-09-22 定稿）：
+
+| 层 | 位置 | 判定依据 | 入口 |
+|---|---|---|---|
+| `engine` | 根 `e2e/`（agent、home、perf…） | 测引擎/编辑器能力 + 测试框架本体，不依赖具体游戏项目 | `npm run test:e2e` |
+| `projects` | `projects/<项目>/e2e/`（fish、warm-current…） | 测某个游戏项目的玩法行为，走框架 boot | `npm run test:e2e:project -- projects/<项目>` |
+
+规则：**没有全量入口**——跑测试必须指定引擎或具体项目目录（2026-09-22 用户决策）。`engine` 层 = 根 `e2e/` 下的一切 spec（新增目录自动归入）；`projects` 层 = `projects/*/e2e/` 正则自动扫描（新项目零注册）。分层按**目录**不按引导方式——`e2e/perf` 借 fish boot 当宿主，但断言的是引擎采集器指标，归 engine 层。
 
 ---
 
@@ -41,10 +50,10 @@ flowchart TD
 ### 2.1 spec 侧：两行接入
 
 ```ts
-// e2e/fish/smoke.spec.ts（每个项目一个文件夹）
-import { test, expect } from '../framework/fixtures'
+// projects/fish/e2e/smoke.spec.ts（项目用例住项目工程里的 e2e/ 目录）
+import { test, expect } from '../../../e2e/framework/fixtures'
 
-test.use({ project: 'fish' })
+test.use({ project: 'fish' })   // id = projects/ 下的文件夹名
 
 test('主菜单 → 开始游戏 → 基地 HUD 完整', async ({ game }) => {
   const startButtons = await game.findHUD((n) => n.name === 'StartButton')
@@ -103,13 +112,18 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 
 ---
 
-## 3. 新项目接入：三步
+## 3. 新项目接入：零注册（自动扫描）
 
-1. 在 `projects/<项目>/register.ts` 确认 `ProjectModule.name`（编辑器工程卡显示名，如 fish 的 `'ClashMaster'`）；
-2. 在 [projects.ts](../../e2e/framework/projects.ts) 的 `PROJECTS` 加一条 `{ id, cardName, description }`；
-3. 建项目文件夹 `e2e/<项目>/`，写 `<场景>.spec.ts`：`test.use({ project: '<id>' })`，用 `game.*` 写冒烟链路。
+框架自动扫描 `projects/*/e2e/*.spec.ts`，**新项目不用改任何框架/配置代码**：
 
-不需要暴露任何项目私有调试桥。临时用例也可以在 spec 里 `registerProject()` 内联注册，不动公共表。
+1. 建目录 `projects/<项目>/e2e/`，写 `<场景>.spec.ts`：`import { test, expect } from '../../../e2e/framework/fixtures'` + `test.use({ project: '<项目>' })`（id = **文件夹名**），用 `game.*` 写冒烟链路；
+2. 跑 `npm run test:e2e:project -- projects/<项目>`。
+
+工程卡显示名（cardName）由框架读 `projects/<id>/register.ts` 的 `ProjectModule.name` **文本提取**（`ProjectModule = { name: '...' }` 契约形状；不能 import——register.ts 的 `import.meta.glob`/`@/engine` 是 vite 专属，Playwright 进程加载不了）。两处例外走 `registerProject()` 静态覆盖：register 缺 name、或目录名与卡片名实在无法对应。项目 spec 不需要暴露任何项目私有调试桥。
+
+该链路的回归锁在 [tests/e2eFrameworkAutoScan.test.ts](../../tests/e2eFrameworkAutoScan.test.ts)：parseCardName 契约单测 + `--list` 收集层 + 真实"复制 hello 改名成新工程 → 零注册实跑全绿"生命周期（dev server 不在线自动跳过实跑段）。
+
+**⚠ 新建工程在现役 dev server 上不会自动出现在首页**（`vite.config.ts` 的 noAutoReloadPlugin `hotUpdate: () => []` 把"新增目录"型 glob 扩展更新整个拦截，改动型失效不受影响）——需要重启 dev server；测试里的解法是 bump `MockElectronAPI.ts`/`registry.ts` 的 mtime 强制重新 transform（glob 重扫文件系统）。
 
 ---
 
@@ -126,8 +140,8 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 | `getHUDRoots` | ai.ts:68 | HUD 全部根 Actor | 返回是数组不是单节点 |
 | `clickActor` | ai.ts:103 | 带轮询重试的点击 | 成功后等 600ms 吸收点击冷却 |
 | `mouseClick` / `mouseDrag` / `mouseMove` | ai.ts:132+ | 模拟真实输入（完整按下+释放 / 支持右键 button=2 / hover） | drag 回执即时返回（`async: true`），位移效果需轮询 projectScreenPos 确认 |
-| `projectScreenPos` | ai.ts:132+ | 世界→屏幕投影查询（`inFront=false` = 界外坐标不可信） | 与 mouseClick 组成"投影→点击"纯玩家链；用例见 e2e/warm/player_input.spec.ts |
-| `PROJECTS` / `getProject` | projects.ts:10 / :27 | 项目注册表 / 按 id 取描述符 | 新项目接入点 |
+| `projectScreenPos` | ai.ts:132+ | 世界→屏幕投影查询（`inFront=false` = 界外坐标不可信） | 与 mouseClick 组成"投影→点击"纯玩家链；用例见 projects/warm-current/e2e/player_input.spec.ts |
+| `PROJECTS` / `resolveProject` | projects.ts / fixtures.ts | 静态覆盖表+缓存 / 自动扫描解析描述符 | 新项目零注册（§3） |
 | `test.extend` | fixtures.ts:32 | `game` fixture + `project` 选项 | spec 一律从这里 import test/expect |
 
 ## 5. 流程影响：牵动哪些功能
@@ -136,7 +150,7 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 
 | 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
-| `npm run test:e2e` / `test:e2e:fish` / `test:e2e:warm` | Playwright CLI 入口（package.json scripts） | [playwright_testing.md](./playwright_testing.md) |
+| `npm run test:e2e`（引擎层=根 e2e）/ `test:e2e:project -- projects/<项目>`（项目层）/ `test:e2e:fish` / `test:e2e:warm`；**无全量入口** | Playwright CLI 入口（package.json scripts）；分层见 §1 的 projects 配置 | [playwright_testing.md](./playwright_testing.md) |
 | Vite dev server（:5173+） | 页面提供方；多实例端口递增用 `E2E_BASE_URL` 指路 | [playwright_commands.md](./playwright_commands.md) |
 | AI 事件系统 | 框架所有断言/操作的执行层 | [../engine/ai_system.md](../engine/ai_system.md) |
 | GM 命令系统 | `game.gm()` 做测试置位（加钱/跳关） | [../engine/gm_system.md](../engine/gm_system.md) |
@@ -145,7 +159,7 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 
 | 下游功能 | 波及点 | 相关文档 |
 |---|---|---|
-| 项目 e2e 用例 | fish 已有 smoke；warm 老 spec（`e2e/warm/`）同 config 共存，可逐步迁移 | [../../e2e/fish/smoke.spec.ts](../../e2e/fish/smoke.spec.ts) |
+| 项目 e2e 用例 | fish 已有 smoke；warm 老 spec（`projects/warm-current/e2e/`）同 config 共存，可逐步迁移 | [../../projects/fish/e2e/smoke.spec.ts](../../projects/fish/e2e/smoke.spec.ts) |
 | 日志自愈（规划中） | `e2e-report.json` + 失败四件套是自愈循环的机器可读证据 | 本文档 §2.4 |
 | 编辑器重启/MCP | 框架跑在独立 headless 浏览器，不干扰 Electron 编辑器实例 | [../editor/integration/electron_main_ipc.md](../editor/integration/electron_main_ipc.md) |
 
@@ -166,7 +180,7 @@ if (testInfo.status !== 'failed' && testInfo.status !== 'timedOut') return
 | 条件 | 行为 | 怎么应对 |
 |---|---|---|
 | dev server 未启动 | 用例在 goto 时报连接失败 | 先 `npm run dev`；多实例端口用 `E2E_BASE_URL` |
-| 项目未注册 | `getProject` 抛可读错误 | projects.ts 登记（§3 三步） |
+| 项目无法解析 | `resolveProject` 抛可读错误 | 确认 `projects/<id>/register.ts` 存在且含 `ProjectModule.name`；或 registerProject 静态覆盖（§3） |
 | 游戏未运行时调 ai 查询 | 处理器返回 `{ ok:false, error:'游戏未运行' }` | `firstResult`/`getHUDRoots` 抛可读错误 |
 | 处理器内部抛异常 | `results[0]` 为 undefined，不抛 | `firstResult` 转 `可读错误`，证据在 game-console.log |
 | boot 双尝试仍失败 | 抛最后一次错误，报告含截图+trace+四件套 | 看 error-context.md 页面快照定位 |

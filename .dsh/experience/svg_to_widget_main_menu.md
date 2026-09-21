@@ -3,7 +3,7 @@ name: svg_to_widget_main_menu
 task_type: feature/ui-asset
 outcome: success
 date: 2026-09-12
-prefix: [projects/warm-current/asset/ui/warm-main-menu.svg, projects/warm-current/asset/blueprints/ui/main_menu.widget.html, e2e/warm/main_menu.spec.ts]
+prefix: [projects/warm-current/asset/ui/warm-main-menu.svg, projects/warm-current/asset/blueprints/ui/main_menu.widget.html, projects/warm-current/e2e/main_menu.spec.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ prefix: [projects/warm-current/asset/ui/warm-main-menu.svg, projects/warm-curren
 
 ## Effective Path
 
-["projects/warm-current/asset/blueprints/ui/main_menu.widget.html", "e2e/warm/main_menu.spec.ts", "tests/warmMainMenuWidget.test.ts"]
+["projects/warm-current/asset/blueprints/ui/main_menu.widget.html", "projects/warm-current/e2e/main_menu.spec.ts", "tests/warmMainMenuWidget.test.ts"]

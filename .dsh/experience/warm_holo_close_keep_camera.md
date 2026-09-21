@@ -3,7 +3,7 @@ name: warm_holo_close_keep_camera
 task_type: feature/gameplay-camera
 outcome: success
 date: 2026-09-16
-prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, e2e/warm/hologram.spec.ts, e2e/warm/focus_orbit.spec.ts, playwright.e2e.config.ts]
+prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, projects/warm-current/e2e/hologram.spec.ts, projects/warm-current/e2e/focus_orbit.spec.ts, playwright.e2e.config.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, e2e/warm/ho
 
 ## Effective Path
 
-projects/warm-current/gameplay/base/WarmCurrentGameMode.ts（closeHologram） || e2e/warm/hologram.spec.ts（§4 同帧对照锁） || e2e/warm/focus_orbit.spec.ts（§3/§4 断言现代化）
+projects/warm-current/gameplay/base/WarmCurrentGameMode.ts（closeHologram） || projects/warm-current/e2e/hologram.spec.ts（§4 同帧对照锁） || projects/warm-current/e2e/focus_orbit.spec.ts（§3/§4 断言现代化）

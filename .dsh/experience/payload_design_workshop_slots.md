@@ -3,7 +3,7 @@ name: payload_design_workshop_slots
 task_type: feature/gameplay-ui
 outcome: success
 date: 2026-09-14
-prefix: [projects/warm-current/asset/config/ship_hull.table.json, projects/warm-current/asset/config/ship_module.table.json, projects/warm-current/gameplay/core/balance.ts, projects/warm-current/gameplay/ui/PayloadDesignScript.script.ts, e2e/warm/payload_design.spec.ts]
+prefix: [projects/warm-current/asset/config/ship_hull.table.json, projects/warm-current/asset/config/ship_module.table.json, projects/warm-current/gameplay/core/balance.ts, projects/warm-current/gameplay/ui/PayloadDesignScript.script.ts, projects/warm-current/e2e/payload_design.spec.ts]
 ---
 ## Summary
 

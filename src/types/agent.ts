@@ -274,10 +274,18 @@ export type AgentEventType =
   | 'sessionNotice'
   // 会话状态灯更新（其他/当前会话的运行中/失败，驱动侧边栏列表状态灯）
   | 'sessionStatusUpdate'
+  // 模型目录失效（host 推送 llm/adapters-updated / settings/document-updated、
+  // 会话切换、host 事件流重开——驱动 ModelSelector 重拉 session.models，对齐 WebUI）
+  | 'modelDirectoryChanged'
 
 export interface AgentEvent {
   type: AgentEventType
   payload?: unknown
+}
+
+/** modelDirectoryChanged 事件 payload：失效原因（日志与排查用） */
+export interface ModelDirectoryChangedPayload {
+  reason: string
 }
 
 export interface SessionInfo {

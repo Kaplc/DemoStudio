@@ -15,12 +15,12 @@
  */
 import { test as base, expect } from '@playwright/test'
 import { GameSession } from './session'
-import { getProject } from './projects'
+import { resolveProject } from './projects'
 
 export { expect }
 
 export interface GameTestOptions {
-  /** 项目 id（e2e/framework/projects.ts 里注册的键），默认 fish */
+  /** 项目 id = projects/ 下的文件夹名（如 'fish'、'warm-current'），描述符自动扫描，默认 fish */
   project: string
 }
 
@@ -33,7 +33,7 @@ export const test = base.extend<GameFixtures & GameTestOptions>({
   project: ['fish', { option: true }],
 
   game: async ({ page, project }, use, testInfo) => {
-    const session = await GameSession.boot(page, getProject(project))
+    const session = await GameSession.boot(page, await resolveProject(project))
     await use(session)
     await session.attachEvidenceIfFailed(testInfo)
   },

@@ -78,6 +78,11 @@ export interface ElectronAPI {
   dshMuxDisconnect: () => Promise<void>
   onDshMuxFrame: (callback: (frame: unknown) => void) => () => void
 
+  // --- DSH Host 事件流下行桥（/api/events.host，host/session-status 等主机级帧） ---
+  dshHostConnect: () => Promise<void>
+  dshHostDisconnect: () => Promise<void>
+  onDshHostFrame: (callback: (frame: unknown) => void) => () => void
+
   // DSH Respond 代理（client-response 信封，用于 question 回答）
   dshRespond: (message: unknown) => Promise<{ accepted?: boolean; reason?: string }>
 
@@ -90,6 +95,13 @@ export interface ElectronAPI {
 
   // Agent 独立窗口（编辑器自身 AgentUI 全屏承载，单例；随主窗口关闭级联关闭）
   dshOpenAgentWindow: () => Promise<{ ok: boolean }>
+
+  // 性能分析器独立窗口（perf.html，单例；随主窗口关闭级联关闭）
+  dshOpenPerfWindow: () => Promise<{ ok: boolean }>
+  // 性能快照往返：perf 窗口拉取（samples>0 附带历史）；编辑器窗口侧应答 perf-collect
+  perfGetSnapshot: (samples?: number) => Promise<unknown>
+  onPerfCollect: (callback: (requestId: string, samples?: number) => void) => () => void
+  sendPerfCollectResult: (requestId: string, data: unknown) => void
 
   // DSH 内核版本管理
   dshListVersions: () => Promise<{ current: string; latestNpm?: string; error?: string }>

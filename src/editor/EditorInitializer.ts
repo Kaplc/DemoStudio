@@ -327,6 +327,16 @@ export function registerGlobalEventListeners(callbacks: {
       }
     })
 
+    // 性能分析器独立窗口快照拉取（perf-collect 往返）：读 window.__dsPerf 回传主进程。
+    // 面板 1s 轮询、关窗即停——本侧无自持定时器，纯被动应答（首帧 samples>0 附带历史供趋势图）。
+    if (window.electronAPI.onPerfCollect) {
+      electronCleanup = window.electronAPI.onPerfCollect((requestId, samples) => {
+        const collector = (window as unknown as { __dsPerf?: { buildResult(samples?: number): unknown } }).__dsPerf
+        const data = collector ? collector.buildResult(samples ?? 0) : { running: false, current: null }
+        window.electronAPI?.sendPerfCollectResult?.(requestId, data)
+      })
+    }
+
     if (window.electronAPI.onMCPCommand) {
       mcpCleanup = window.electronAPI.onMCPCommand(async (command, params, requestId) => {
         addConsoleOutput(`[MCP] 收到命令: ${command}`)

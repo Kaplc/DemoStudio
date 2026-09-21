@@ -24,6 +24,9 @@ export type SessionStatusAction =
   | { type: 'turn-ended'; sessionId: string; kind: 'error' | 'settled' }
   /** mux 下行流重建（connect/reconnect/HMR reattach）：running 灯不可信，全清 */
   | { type: 'stream-reopened' }
+  /** host 状态机权威 idle（/api/events.host 的 host/session-status running:false）：
+   *  只清 running 灯——error 灯是 turn/end(error) 的事实记录，host idle 不覆盖 */
+  | { type: 'host-idle'; sessionId: string }
   /** 会话删除/归档 */
   | { type: 'session-removed'; sessionId: string }
 
@@ -54,6 +57,14 @@ export function reduceSessionStatusLights(map: SessionStatusMap, action: Session
       if (runningIds.length === 0) return map
       const next = { ...map }
       for (const id of runningIds) delete next[id]
+      return next
+    }
+
+    case 'host-idle': {
+      // 权威 idle 只清 running；无灯或 error 灯都原样保留（引用相等 → 调用方跳过广播）
+      if (map[action.sessionId] !== 'running') return map
+      const next = { ...map }
+      delete next[action.sessionId]
       return next
     }
 

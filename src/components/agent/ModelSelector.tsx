@@ -78,6 +78,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (!disabled) loadModels()
   }, [disabled, loadModels])
 
+  // host 推送的目录失效（llm/adapters-updated / settings/document-updated、会话切换、
+  // host 事件流重开）→ 自动重拉 session.models，即使下拉未打开也保持芯片标签最新
+  //（对齐 DSH WebUI ModelDirectory 的失效语义：外部变更不需要用户手动打开刷新）
+  useEffect(() => {
+    if (disabled) return
+    return agentService.onEvent((e) => {
+      if (e.type === 'modelDirectoryChanged') {
+        console.log(`[${logTime()}] [ModelSelector] 目录失效自动重拉: ${(e.payload as { reason?: string })?.reason ?? ''}`)
+        loadModels()
+      }
+    })
+  }, [disabled, loadModels])
+
   // 打开时刷新
   useEffect(() => {
     if (open) {

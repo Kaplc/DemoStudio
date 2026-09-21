@@ -3,7 +3,7 @@ name: holo_earth_contour_texture
 task_type: feature/rendering
 outcome: success
 date: 2026-09-16
-prefix: [projects/warm-current/gameplay/map/starTextures.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts, e2e/warm/holo_contour.spec.ts]
+prefix: [projects/warm-current/gameplay/map/starTextures.ts, projects/warm-current/gameplay/map/StarMapRenderComponent.ts, projects/warm-current/e2e/holo_contour.spec.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ warm 全息地球大陆轮廓层（earth.jpg 逐像素派生海岸线/陆地填�
 
 ## Effective Path
 
-projects/warm-current/gameplay/map/starTextures.ts || projects/warm-current/gameplay/map/StarMapRenderComponent.ts || e2e/warm/holo_contour.spec.ts
+projects/warm-current/gameplay/map/starTextures.ts || projects/warm-current/gameplay/map/StarMapRenderComponent.ts || projects/warm-current/e2e/holo_contour.spec.ts

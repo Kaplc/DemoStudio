@@ -66,6 +66,9 @@ export const AI_EVENT_GET_HUD = 'ai.getHUD'
 /** 获取场景 Actor 大纲（递归遍历 3D + UI Actor 树，返回名称/类型/组件摘要） */
 export const AI_EVENT_GET_SCENE_OUTLINE = 'ai.getSceneOutline'
 
+/** 读取性能快照（PerfStatsCollector：帧率/draw call/场景计数/JS 堆；payload {samples?} 附带历史） */
+export const AI_EVENT_GET_PERF_STATS = 'ai.getPerfStats'
+
 // ═══════════════════════════════════════
 //  Payload 类型
 // ═══════════════════════════════════════

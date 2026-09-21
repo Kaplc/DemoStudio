@@ -70,6 +70,19 @@ export function MenuBar() {
         })
         break
       }
+      case 'open-perf-window': {
+        const api = window.electronAPI
+        if (!api?.dshOpenPerfWindow) {
+          addConsoleOutput('[Perf] 当前环境不支持独立窗口（浏览器模式）')
+          break
+        }
+        api.dshOpenPerfWindow().then(() => {
+          addConsoleOutput('[Perf] 性能分析器窗口已打开')
+        }).catch((error: Error) => {
+          addConsoleOutput(`[Perf] 打开性能分析器窗口失败: ${error.message}`)
+        })
+        break
+      }
       case 'agent-settings':
         // TODO: 打开 Agent 设置
         addConsoleOutput('[Agent] 设置功能开发中...')
@@ -133,6 +146,12 @@ export function MenuBar() {
       label: 'Agent',
       items: [
         { label: '打开 Agent', shortcut: 'Ctrl+Shift+A', action: 'open-agent-window' },
+      ],
+    },
+    {
+      label: 'Window',
+      items: [
+        { label: '性能分析器', action: 'open-perf-window' },
       ],
     },
     {

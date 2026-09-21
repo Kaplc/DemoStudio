@@ -1,9 +1,10 @@
 ---
-name: warm_holo_freeze_ui_panels_always_render
-description: warm 全息"卡死"根因=18 个常驻 UI widget 全量参与渲染（3403 mesh / 2665 draw call），关闭态只藏 Body 未整树失活 → 20fps；已用 UIManager 统一开关 + VisBinder 走 bActive 修复至 59.6fps
+name: warm_holo_freeze_frame_starvation
+description: （已修正）warm 全息"卡死"根因 2026-09-16 定案为 UI 常驻面板全量渲染（18 widget / 2665 draw call → 20fps），非帧饥饿——旧"帧饥饿"结论已推翻；修复=二级面板整树失活（60fps，可见 mesh 352→117）；诊断"卡死"先测 renderer.info.render.calls 再按层二分
 type: project
 prefix: [projects/warm-current/gameplay/ui/uiCommon.ts, src/engine/ui/UIManager.ts, projects/warm-current/gameplay/ui/HudScript.script.ts]
 ---
+
 
 # warm 全息"卡死"= 常驻 UI 面板全量渲染（2026-09-16 定案并修复，推翻同日"帧饥饿"旧结论）
 
@@ -15,6 +16,6 @@ prefix: [projects/warm-current/gameplay/ui/uiCommon.ts, src/engine/ui/UIManager.
 
 **踩坑 1（豁免判据·曾致改动完全空转）:** 首版豁免用 `parent instanceof HUD` —— 但二级面板不传 parent 时 `spawnUIActor` 内默认 `parent = this._hud`，与 `createHUD` 传的 HUD 内容 widget **parent 完全相同**，该判据把全部 17 个二级面板一并豁免，UIManager 改动对 warm **零生效**（实测 `inactivePanels=0`，页面 `spawnUIActor` 源码仍含旧判据）。正确判据 = `createHUD` 期间置位的私有标志 `_spawningHudContent`（`attachUI` 在 spawn 之后调用，比对不了 `hud.uiActor` 引用）。教训：**验证 HMR 是否真生效** —— 改完引擎代码页面仍跑旧码，须重开一局（或确认 `spawnUIActor.toString()` 含新代码）再断言。
 
-**踩坑 2（面板永远打不开·未引爆的冲突）:** `applyActiveTree` 生效值 = 自身 `bActive && 父链 effective`。面板根一旦失活，脚本只置 Body 为真 → 仍不可见，**面板永远打不开**（实测手动 `hp.bActive=false` 后 `openHologram` 得到 `visibleMesh=0`）。故 VisBinder 必须兜底激活面板根，且直接写 `root.visible` 的脚本必须改走 `bActive`，否则权威分裂（一次 `bActive` 写入会从根重算并无声覆盖手写的 `visible`）。
+**踩坑 2（面板永远打不开·冲突已于 2026-09-21 真实引爆）:** `applyActiveTree` 生效值 = 自身 `bActive && 父链 effective`。面板根一旦失活，脚本只置 Body 为真 → 仍不可见，**面板永远打不开**（实测手动 `hp.bActive=false` 后 `openHologram` 得到 `visibleMesh=0`）。故 VisBinder 必须兜底激活面板根，且直接写 `root.visible` 的脚本必须改走 `bActive`，否则权威分裂（一次 `bActive` 写入会从根重算并无声覆盖手写的 `visible`）。**引爆实录（2026-09-21）**：不走 VisBinder 的独立 spawn 面板（PauseMenu）无人兜底激活根 → spawn 即整树不可见（玩家 Esc 菜单打不开，e2e 报 ai.clickActor"命中层不可见"）——修法 = 这类面板在脚本 `onStart` 置 `this.actor.bActive = true`（spawn=打开 语义；先例 PauseMenuScript，详见 experience:fix_warm_e2e_baseline_reds）。新增不走 VisBinder 的动态面板一律要带这个兜底。
 
 **Applicable:** warm 及一切"多 widget 常驻 + 脚本自驱动显隐"的项目（hoi4 有自己的 uiCommon 无 VisBinder，不受影响）；诊断"卡死"先测 draw call 再按层二分，勿只看 JS 心跳。

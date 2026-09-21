@@ -30,6 +30,7 @@ import {
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
   AI_EVENT_GET_SCENE_OUTLINE,
+  AI_EVENT_GET_PERF_STATS,
   type AINotifyPayload,
   type AISpawnActorPayload,
   type AIDestroyActorPayload,
@@ -58,6 +59,7 @@ import { World } from '../gameflow/World'
 import { ActorRegistry } from '../tools/ActorRegistry'
 import { Instantiate } from '../asset/BlueprintAsset'
 import { ToastSystem } from '../ui/ToastSystem'
+import { PerfStatsCollector } from '../debug/perf/PerfStatsCollector'
 import { UIButtonComponent } from '../ui/UIButtonComponent'
 import { UITextComponent } from '../ui/UITextComponent'
 import { UIImageComponent } from '../ui/UIImageComponent'
@@ -139,6 +141,7 @@ const BUILTIN_EVENTS = [
   AI_EVENT_KEY_RELEASE,
   AI_EVENT_GET_HUD,
   AI_EVENT_GET_SCENE_OUTLINE,
+  AI_EVENT_GET_PERF_STATS,
 ]
 
 /**
@@ -1069,6 +1072,21 @@ export function registerBuiltinAIHandlers(): void {
 
     logger.info(`[AI] getSceneOutline: ${getAllActors().length} 个 3D Actor + ${uiActors.length} 个 UI 根 Actor`)
     return { ok: true, outline }
+  })
+
+  // ─── ai.getPerfStats — 读取性能快照（帧率/draw call/场景计数/JS 堆） ───
+  // 游戏未运行返回最近冻结快照（running:false）；payload {samples?: number} 附带历史
+  ai.register(AI_EVENT_GET_PERF_STATS, (payload: unknown) => {
+    const p = (payload ?? {}) as { samples?: number }
+    // samples 夹取 [0,120]（历史环形缓冲上限）：默认 0 不带历史，控 AI 上下文体积
+    const samples = Math.max(0, Math.min(120, Math.floor(p.samples ?? 0)))
+    const result = PerfStatsCollector.instance().buildResult(samples)
+    if (!result.current) {
+      return { ok: false, running: false, error: '性能采集器无快照（游戏从未启动过）' }
+    }
+    const calls = (result.current.modules.render as { calls?: number } | undefined)?.calls
+    logger.info(`[AI] getPerfStats: drawCalls=${calls ?? '?'} running=${result.running} samples=${samples}`)
+    return { ok: true, ...result }
   })
 
   logger.info(`[AIModule] 内置事件处理器已注册: ${ai.listEvents().join(', ')}`)

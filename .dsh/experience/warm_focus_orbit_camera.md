@@ -3,7 +3,7 @@ name: warm_focus_orbit_camera
 task_type: feature/gameplay-camera
 outcome: success
 date: 2026-09-15
-prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, src/engine/rendering/CameraRigComponent.ts, projects/warm-current/WarmCurrentGameInstance.ts, e2e/warm/focus_orbit.spec.ts, projects/warm-current/gameplay/map/SolarCameraActor.ts]
+prefix: [projects/warm-current/gameplay/base/WarmCurrentGameMode.ts, src/engine/rendering/CameraRigComponent.ts, projects/warm-current/WarmCurrentGameInstance.ts, projects/warm-current/e2e/focus_orbit.spec.ts, projects/warm-current/gameplay/map/SolarCameraActor.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ warm 行星系聚焦环绕改版：聚焦天体默认右键环绕（关平移/�
 
 ## Effective Path
 
-projects/warm-current/gameplay/base/WarmCurrentGameMode.ts（applyFocusCameraMode/enterMoonObserve/Tick 跟随块） || src/engine/rendering/CameraRigComponent.ts（leftOrbitEnabled） || e2e/warm/focus_orbit.spec.ts
+projects/warm-current/gameplay/base/WarmCurrentGameMode.ts（applyFocusCameraMode/enterMoonObserve/Tick 跟随块） || src/engine/rendering/CameraRigComponent.ts（leftOrbitEnabled） || projects/warm-current/e2e/focus_orbit.spec.ts

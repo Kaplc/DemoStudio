@@ -3,7 +3,7 @@ name: warm_view_lock_camera_tilt
 task_type: feature
 outcome: success
 date: 2026-09-14
-prefix: [projects/warm-current/gameplay/map/SolarCameraActor.ts, e2e/warm/view_toggle.spec.ts]
+prefix: [projects/warm-current/gameplay/map/SolarCameraActor.ts, projects/warm-current/e2e/view_toggle.spec.ts]
 ---
 ## Summary
 
@@ -15,4 +15,4 @@ warm 视角锁定地球系改造：下架 ViewToggle widget（HudScript 不再 s
 
 ## Effective Path
 
-projects/warm-current/gameplay/map/SolarCameraActor.ts || e2e/warm/view_toggle.spec.ts
+projects/warm-current/gameplay/map/SolarCameraActor.ts || projects/warm-current/e2e/view_toggle.spec.ts

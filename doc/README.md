@@ -166,19 +166,21 @@
 |---|---|
 | [`doc_maintenance.md`](./doc_maintenance.md) | **文档维护作业规范**：体系归属 / 四类维护作业 / 断链巡检脚本 / 维护踩坑清单（智能体与人共用） |
 
-## 9. 开发方案（doc/dev/，1 篇）
+## 9. 开发方案（doc/dev/，3 篇）
 
 > 落盘待实施的设计方案，实施完成后内容应随代码现状更新或归档。
 
 | 文件 | 说明 |
 |---|---|
 | [`dev/external_project_roots.md`](./dev/external_project_roots.md) | 外部根目录工程支持方案：内置案例 + `projects/` 外部根双轨注册与发现 |
+| [`dev/ui_batching_plan.md`](./dev/ui_batching_plan.md) | UI 合批优化方案：Unity UGUI 式图集 + 树序合并 mesh + 顶点 alpha（待实施，P0 实测先行） |
+| [`dev/perf_profiler_plan.md`](./dev/perf_profiler_plan.md) | 性能分析器方案：引擎采集器 + Window 菜单独立面板 + ai.getPerfStats AI 读数（待实施） |
 
 ---
 
 ## 统计
 
-9 个模块共 **77 篇文档**（含元文档 1 + 开发方案 1）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 6 / 游戏设计 18 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 1。`doc/` 下共 **78 个 `.md`**（含本索引）。
+9 个模块共 **79 篇文档**（含元文档 1 + 开发方案 3）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 6 / 游戏设计 18 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 3。`doc/` 下共 **80 个 `.md`**（含本索引）。
 
 > **范式状态**：2026-09-03 完成一次全量范式改造（覆盖当时的 48 篇，编辑器 15 / 引擎 13 / 项目 5 / Harness 9 / 测试 3 / 总览 1 等）；此后文档增至 75 篇，新增的 `doc/game/`（14 篇设计文档，沿用设计文档结构）等未纳入新范式。2026-09-10 只做了事实与索引核对（修正失真表述、补齐索引与统计），**未重新做全量范式审计**；断链 0、孤儿 0（实测）。
 >

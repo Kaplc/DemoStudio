@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 /**
- * DemoStudio E2E 回归配置（testDir ./e2e）
+ * DemoStudio E2E 回归配置
  *
  * 前置：dev server 已在运行（npm run dev / electron:dev；默认 :5173，
  * 多实例递增到 5174+ 时用环境变量指路：E2E_BASE_URL=http://localhost:5174）
@@ -13,12 +13,33 @@ import { defineConfig } from '@playwright/test'
  *   - 失败证据   test-results/e2e/<spec>/*（Playwright 截图+trace）
  *                + 框架自动 attach 的 game-console.log / game-state.json / game-hud.json / game-final.png
  *
- * 用例分两类：
- *   - framework 规格的新用例：import { test, expect } from './framework/fixtures'（推荐）
+ * 用例分两类（按写法）：
+ *   - framework 规格的新用例：import { test, expect } from '<root>/e2e/framework/fixtures'（推荐）
  *   - 既有 warm_* 用例：直接 import '@playwright/test'，继续可用，逐步迁移
+ *
+ * 用例分两层（按 testDir 划分，报告与 CLI --project 都按此分组，见 projects 配置）：
+ *   - engine（引擎/编辑器侧 + 测试框架）：根目录 e2e/ 下的一切 spec——agent（agent 面板）、
+ *     home（首页工程卡）、perf（性能分析器，借 fish boot 当宿主，断言的是引擎指标）；
+ *     根 e2e/ 下新增目录自动归入本层，无需改配置
+ *   - projects（游戏项目回归）：projects/<项目>/e2e/ 下的 spec——目录约定自动扫描，
+ *     新项目零注册（只需在 projects/<id>/e2e/ 写 spec，描述符从 register.ts 自动解析）
+ *
+ * ⚠ 没有全量入口：跑测试必须指定 engine（npm run test:e2e）或具体项目
+ *   （npm run test:e2e:project -- projects/<id>），项目 vs 引擎不混跑（2026-09-22 用户决策）。
  */
 export default defineConfig({
-  testDir: './e2e',
+  projects: [
+    {
+      name: 'engine',
+      testDir: './e2e',
+    },
+    {
+      name: 'projects',
+      testDir: './projects',
+      // 只收 projects/<项目>/e2e/ 下的 spec（gameplay 等目录里的 *.spec.ts 不收）
+      testMatch: /[\\/]e2e[\\/].+\.spec\.ts$/,
+    },
+  ],
   // 游戏引导（选卡→打开工程→Launch→整页重载进游戏）单次就要 30s 量级，boot 自愈重试后更长
   timeout: 240_000,
   expect: { timeout: 15_000 },
