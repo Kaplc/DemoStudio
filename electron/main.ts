@@ -952,14 +952,15 @@ ipcMain.on('perf-collect-result', (_event, requestId: string, data: unknown) => 
 })
 
 // DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS）
-ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown) => {
+ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown, timeoutMs?: number) => {
   const rpcId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   try {
     const res = await fetch(`http://127.0.0.1:3080/api/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-      signal: AbortSignal.timeout(30000),
+      // 默认 30s；长耗时调用（如 /compact 压缩摘要）由调用方显式传更大的 timeoutMs
+      signal: AbortSignal.timeout(timeoutMs ?? 30000),
     })
     return await res.json()
   } catch (err) {

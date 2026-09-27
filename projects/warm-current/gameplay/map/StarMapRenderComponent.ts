@@ -26,15 +26,20 @@ import {
   buildingPos,
   orbitBuildingPos,
   orbitRadiusPx,
+  quadBezierPoint,
   shipPos,
   starLoad,
   starPosAt,
+  transferArcControl,
+  transferArcPoint,
+  TRANSFER_ARC_SEGMENTS,
   windowAffected,
   TUTORIAL_TARGETS,
   TUTORIAL_RING_PAD,
 } from '../core/helpers'
-import type { Endpoint, OrbitBuilding, PlanetId, SimBuilding, SimState, StarId } from '../core/types'
+import type { Endpoint, OrbitBuilding, PlanetId, SimBuilding, SimRoute, SimShip, SimState, StarId } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
+import type { BpOverlay } from '../systems/OrbitBlueprintComponent'
 
 /** 拖线状态（GameMode 维护，渲染只读；坐标 = 星图画布系） */
 export interface DragState {
@@ -91,6 +96,12 @@ export interface MapViewProvider {
   readonly holoGhost: { lat: number; lon: number; valid: boolean; label: string } | null
   /** 全息地球当前放置工具（'ring' = 环节点落位 / 'building' = 地表建筑 / null = 未选） */
   readonly holoToolKind: string | null
+  /** 轨道蓝图台激活（2026-09-29 航线编辑合并态：全息网格 + 轨道环示意 + 弧线航线） */
+  readonly blueprintActive: boolean
+  /** 轨道放置 ghost（null = 无工具/指针不在轨道环上；valid/label 口径 = 蓝图组件） */
+  readonly blueprintGhost: { x: number; y: number; valid: boolean; label: string } | null
+  /** 轨道编辑 overlay（null = 无选中；sel 环 + 预览环 + 预览点 + 半径/相位手柄位） */
+  readonly blueprintOverlay: BpOverlay | null
 }
 
 /** 星球是否已解锁（对齐 TransportComponent.starUnlocked 语义） */
@@ -366,7 +377,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   /** 空间站舱段点阵共享材质（懒建单例；buildOrbitView 与 syncBuildings 差分共用，避免逐 Pod 重复建材质） */
   private _stationPodMat: THREE.MeshBasicMaterial | null = null
 
-  private routeQuads = new Map<string, { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; dashTex?: THREE.Texture }>()
+  /** 航线视图（2026-09-29 转移轨道弧 ribbon：键 `id:0`；几何逐帧重写顶点） */
+  private routeQuads = new Map<string, { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; geo: THREE.BufferGeometry; dashTex?: THREE.Texture }>()
   private routeSig = ''
 
   private shipPool: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; glow: THREE.Sprite; glowMat: THREE.SpriteMaterial }> = []
@@ -433,6 +445,25 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private static readonly BUILDING_LABEL_WIDGET = 'asset/blueprints/ui/building_label.widget.json'
   /** 轨道环装饰（锚天体 id → 环 mesh；有轨道建筑的天体显示，行星系视角可见） */
   private orbitRings = new Map<string, ThreeObject>()
+
+  // ─── 轨道蓝图台（2026-09-29：全息网格共用 buildGroup；轨道编辑 overlay + 放置 ghost） ───
+  /** 行星绕日轨道环引用（天体 id → 环 mesh；buildNodes 建环时登记；蓝图台按地月系口径显隐） */
+  private planetOrbitRings = new Map<string, THREE.Mesh>()
+  /** 蓝图 overlay 组（sel 环/预览环/手柄/ghost/标签；挂 systemGroup 随舞台系） */
+  private bpGroup!: THREE.Group
+  private bpSelRing!: THREE.Mesh
+  private bpSelMat!: THREE.MeshBasicMaterial
+  private bpPreviewRing!: THREE.Mesh
+  private bpPreviewMat!: THREE.MeshBasicMaterial
+  private bpBodyGhost!: THREE.Mesh
+  private bpRadHandle!: THREE.Mesh
+  private bpPhHandle!: THREE.Mesh
+  private bpHandleMat!: THREE.MeshBasicMaterial
+  private bpGhostRing!: THREE.Mesh
+  private bpGhostBody!: THREE.Mesh
+  private bpGhostMat!: THREE.MeshBasicMaterial
+  private bpEditLabel!: SpriteLabel
+  private bpGhostLabel!: SpriteLabel
 
   /** 太阳主光（点光；applyViewMode 按视角重定位——行星系视角钉扎行星在太阳位，光须拖到掠射位） */
   private sunLight: THREE.PointLight | null = null
@@ -570,6 +601,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.buildFlare()
     this.buildMissionLine()
     this.buildBuildMode()
+    this.buildBlueprint()
 
     this.owner.root.add(this.root3)
     // 开局即地球系视图（GameMode.focusSolarSystem 在 starMap 就绪前已跑过）：补应用一次视图分组，太阳本体球不漏显
@@ -709,6 +741,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         orbit.renderOrder = 9
         // 绕日轨道圈（圆心=太阳）属太阳系全景信息：地球系视图以地球为中心自成小系，一律归太阳系视图
         this.sunGroup.add(orbit)
+        // 轨道蓝图台：登记环引用（蓝图态按地月系口径增亮/显隐）
+        this.planetOrbitRings.set(body, orbit)
       }
       const bpActor = this.provider.starActors?.get(body)
       let mesh: THREE.Mesh
@@ -780,15 +814,63 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     return mesh
   }
 
-  // ─── 航线 ───
+  // ─── 航线（2026-09-29 转移轨道弧：绕公共主天体弯曲的 ribbon，端点随公转逐帧重建） ───
 
-  private makeRouteQuad(): { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial } {
-    const mat = this.trackMat(this.F.createMeshBasicMaterial({ transparent: true, depthWrite: false }))
-    const mesh = this.own(this.F.createMesh(this.flatQuadGeo, mat)).object
+  /** 航线 ribbon 装配：(SEG+1) 排 × 2 顶点的三角条带，位置/UV 逐帧重写（弧长 UV 编码虚线密度） */
+  private makeRouteRibbon(): { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; geo: THREE.BufferGeometry } {
+    const mat = this.trackMat(this.F.createMeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide }))
+    const geo = this.F.createBufferGeometry()
+    const pos = new Float32Array((TRANSFER_ARC_SEGMENTS + 1) * 2 * 3)
+    const uv = new Float32Array((TRANSFER_ARC_SEGMENTS + 1) * 2 * 2)
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    const idx: number[] = []
+    for (let i = 0; i < TRANSFER_ARC_SEGMENTS; i++) {
+      const a = i * 2
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+    geo.setIndex(idx)
+    const mesh = this.own(this.F.createMesh(geo, mat)).object
     mesh.position.y = 1.5
     mesh.renderOrder = 10
+    mesh.frustumCulled = false
     this.systemGroup.add(mesh)
-    return { mesh, mat }
+    return { mesh, mat, geo }
+  }
+
+  /** 重写 ribbon 顶点：转移弧采样 + 垂宽展开（画布系 → 世界系纯平移，切向量同向） */
+  private updateRouteRibbon(
+    q: { geo: THREE.BufferGeometry },
+    route: Pick<SimRoute, 'from' | 'to'>,
+    width: number,
+  ): void {
+    const s = this.provider.simState.state
+    const p0 = endpointPos(s, route.from)
+    const p1 = endpointPos(s, route.to)
+    const c = transferArcControl(s, route.from, route.to)
+    const pos = q.geo.getAttribute('position') as THREE.BufferAttribute
+    const uv = q.geo.getAttribute('uv') as THREE.BufferAttribute
+    const half = Math.max(0.5, width / 2)
+    const chordW = Math.hypot(toWX(p1.x) - toWX(p0.x), toWZ(p1.y) - toWZ(p0.y))
+    for (let i = 0; i <= TRANSFER_ARC_SEGMENTS; i++) {
+      const t = i / TRANSFER_ARC_SEGMENTS
+      const p = quadBezierPoint(p0, c, p1, t)
+      // 解析切向（二次贝塞尔导数）；画布 (x,y) ↔ 世界 (x,z) 同构
+      const dx = 2 * (1 - t) * (c.x - p0.x) + 2 * t * (p1.x - c.x)
+      const dy = 2 * (1 - t) * (c.y - p0.y) + 2 * t * (p1.y - c.y)
+      const dl = Math.hypot(dx, dy) || 1
+      const nx = -dy / dl
+      const nz = dx / dl
+      const wx = toWX(p.x)
+      const wz = toWZ(p.y)
+      pos.setXYZ(i * 2, wx + nx * half, 0, wz + nz * half)
+      pos.setXYZ(i * 2 + 1, wx - nx * half, 0, wz - nz * half)
+      const u = (t * Math.max(1, chordW)) / 26
+      uv.setXY(i * 2, u, 0)
+      uv.setXY(i * 2 + 1, u, 1)
+    }
+    pos.needsUpdate = true
+    uv.needsUpdate = true
   }
 
   private syncRoutes(): void {
@@ -799,42 +881,22 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       for (const q of this.routeQuads.values()) {
         this.systemGroup.remove(q.mesh)
         q.mat.dispose()
+        q.geo.dispose()
         q.dashTex?.dispose()
       }
       this.routeQuads.clear()
-      // 每条航线共用一条运输线（多船同线，不再按船数画平行线）
+      // 每条航线共用一条转移轨道弧（多船同弧，不再按船数画平行线）
       for (const route of sim.state.routes) {
-        this.routeQuads.set(`${route.id}:0`, this.makeRouteQuad())
+        this.routeQuads.set(`${route.id}:0`, this.makeRouteRibbon())
       }
     }
     const windowActive = sim.state.gravity.phase === 'active'
     for (const route of sim.state.routes) {
-      const from = endpointPos(sim.state, route.from)
-      const to = endpointPos(sim.state, route.to)
       const selected = selection?.type === 'route' && selection.id === route.id
       const windowed = windowActive && windowAffected(sim.state, route)
-      const dx = to.x - from.x
-      const dy = to.y - from.y
-      const len = Math.hypot(dx, dy)
-      // 贴地 quad 的长度轴 = local X；rotation.y = atan2(-dz, dx)
-      const angleY = Math.atan2(-(toWZ(to.y) - toWZ(from.y)), toWX(to.x) - toWX(from.x))
       const q = this.routeQuads.get(`${route.id}:0`)
       if (!q) continue
-      q.mesh.position.set(toWX((from.x + to.x) / 2), 1.5, toWZ((from.y + to.y) / 2))
-      q.mesh.rotation.y = angleY
-      q.mesh.scale.set(len, 1, selected ? 2 : windowed ? 1.8 : 1)
-      const wantDash = !selected && !windowed && route.direction === 'reverse'
-      if (wantDash && !q.dashTex) {
-        const tex = this.tex.dash.clone()
-        tex.needsUpdate = true
-        tex.repeat.set(Math.max(1, len / 26), 1)
-        q.dashTex = tex
-      }
-      const wantMap = wantDash ? q.dashTex! : null
-      if (q.mat.map !== wantMap) {
-        q.mat.map = wantMap
-        q.mat.needsUpdate = true
-      }
+      this.updateRouteRibbon(q, route, selected ? 2.6 : windowed ? 2.2 : 1.4)
       if (selected) {
         q.mat.color.setHex(C_ROUTE_SELECTED)
         q.mat.opacity = 0.95
@@ -847,12 +909,34 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
           : route.direction === 'relay_in' || route.direction === 'relay_out' ? C_ROUTE_RELAY
           : C_ROUTE_FORWARD
         q.mat.color.setHex(base)
-        q.mat.opacity = 0.28
+        q.mat.opacity = 0.45
+      }
+      // 反向补给线虚线（UV 已按弧长编码，贴图 repeat 恒 1）
+      const wantDash = !selected && !windowed && route.direction === 'reverse'
+      if (wantDash && !q.dashTex) {
+        const tex = this.tex.dash.clone()
+        tex.needsUpdate = true
+        q.dashTex = tex
+      }
+      const wantMap = wantDash ? q.dashTex! : null
+      if (q.mat.map !== wantMap) {
+        q.mat.map = wantMap
+        q.mat.needsUpdate = true
       }
     }
   }
 
   // ─── 飞船 ───
+
+  /** 船渲染位（2026-09-29 转移轨道弧）：航线船沿弧取点（与 ribbon 同一口径，视觉贴合弧线）；
+   *  任务船（直线火星任务）/ 靠站改道船（自定义插值段）保持 shipPos 原口径。 */
+  private shipRenderPos(state: SimState, ship: SimShip): { x: number; y: number } {
+    if (ship.shelter || ship.mission) return shipPos(state, ship)
+    const route = state.routes.find((r) => r.id === ship.routeId)
+    if (!route) return shipPos(state, ship)
+    const t = ship.leg === 'outbound' ? ship.progress : 1 - ship.progress
+    return transferArcPoint(state, route, t)
+  }
 
   private syncShips(): void {
     const { simState: sim } = this.provider
@@ -876,7 +960,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       route.shipIds.forEach((shipId) => {
         const ship = sim.state.ships.find((s) => s.id === shipId)
         if (!ship || ship.state === 'frozen') return
-        const pos = shipPos(sim.state, ship)
+        const pos = this.shipRenderPos(sim.state, ship)
         // 多船共用一条运输线：不做 lane 横向偏移，全部沿航线中轴线行进
         let color = C_SHIP_OUTBOUND
         if (ship.state === 'flying' && ship.leg === 'return') color = C_SHIP_RETURN
@@ -920,7 +1004,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       // 注意：此标签父级 = systemGroup（组自身零位移），世界坐标 setPos 语义成立；
       // 与建筑视图标签（父级 = 已定位的视图组，须写本地偏移）不同，勿混用两种口径
       sv.sub.setPos(pos.x, pos.y + sv.radius + 30, 82)
-      if (star.id === 'europa' && sim.state.gravity.phase !== 'idle') {
+      // 木卫二引力窗口环：蓝图台已移除木卫二本体，窗口环随之不在蓝图台出现（悬空伪影）
+      if (star.id === 'europa' && sim.state.gravity.phase !== 'idle' && !this.provider.blueprintActive) {
         const active = sim.state.gravity.phase === 'active'
         sv.windowRing.visible = true
         sv.windowRing.position.set(toWX(pos.x), 4, toWZ(pos.y))
@@ -1056,7 +1141,9 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const [anchor, ring] of this.orbitRings) {
       const ap = starPosAt(sim.state, anchor as PlanetId)
       ring.object.position.set(toWX(ap.x), 1, toWZ(ap.y))
-      ring.object.scale.setScalar(B.orbitBuild.ringRadius)
+      // 环半径 = 该锚首座设施的本征环（2026-09-29 轨道编辑可调；缺省统一环）
+      const ob = sim.state.orbitBuildings.find((x) => x.anchor === anchor)
+      ring.object.scale.setScalar(ob?.ringR ?? B.orbitBuild.ringRadius)
     }
     // 拆除 → 视图回收
     for (const [id, view] of this.buildingViews) {
@@ -1228,9 +1315,19 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }
 
   private syncBuildMode(cam: THREE.Camera | null): void {
-    const on = !!this.provider.buildMode
+    const placing = !!this.provider.buildMode
+    // 全息网格地图：蓝图台常驻显示（2026-09-29），非蓝图态仅建造工具激活时显示
+    const on = placing || this.provider.blueprintActive
     this.buildGroup.visible = on
     if (!on) {
+      this.ghostRing.visible = false
+      this.ghostLabel.clear()
+      return
+    }
+    // 网格线按相机视野铺设。此前只在 placing 时调用——蓝图台空手态组可见但没有 gridLines
+    // 子节点，肉眼"看不见网格"（2026-09-29 用户反馈修复）
+    this.ensureGridCoverage(cam)
+    if (!placing) {
       this.ghostRing.visible = false
       this.ghostLabel.clear()
       return
@@ -1252,6 +1349,141 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.ghostLabel.setPos(cur.x + 30, cur.y + 26, 60)
     } else {
       this.ghostLabel.clear()
+    }
+  }
+
+  // ─── 轨道蓝图台 overlay（2026-09-29：sel 环/预览环/预览体/KSP 手柄/轨道放置 ghost） ───
+
+  /** overlay 装配（BeginPlay 一次；默认整组隐藏，syncBlueprint 差分点亮） */
+  private buildBlueprint(): void {
+    this.bpGroup = this.own(this.F.createGroup()).object
+    this.bpSelMat = this.trackMat(this.F.createMeshBasicMaterial({ color: C_HOLO_LINE, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }))
+    this.bpSelRing = this.own(this.F.createMesh(this.flatOrbitGeo, this.bpSelMat)).object
+    this.bpSelRing.position.y = 3
+    this.bpSelRing.renderOrder = 22
+    this.bpPreviewMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x43d17c, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }))
+    this.bpPreviewRing = this.own(this.F.createMesh(this.flatOrbitGeo, this.bpPreviewMat)).object
+    this.bpPreviewRing.position.y = 3.5
+    this.bpPreviewRing.renderOrder = 23
+    const handleGeo = this.trackGeo(this.F.createOctahedronGeometry(9, 0))
+    const phGeo = this.trackGeo(this.F.createBoxGeometry(13, 9, 13))
+    this.bpHandleMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.95, depthWrite: false }))
+    this.bpRadHandle = this.own(this.F.createMesh(handleGeo, this.bpHandleMat)).object
+    this.bpRadHandle.position.y = 10
+    this.bpRadHandle.renderOrder = 24
+    this.bpPhHandle = this.own(this.F.createMesh(phGeo, this.bpHandleMat)).object
+    this.bpPhHandle.position.y = 10
+    this.bpPhHandle.renderOrder = 24
+    this.bpBodyGhost = this.own(this.F.createMesh(handleGeo, this.bpPreviewMat)).object
+    this.bpBodyGhost.position.y = 8
+    this.bpBodyGhost.renderOrder = 23
+    this.bpGhostMat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0x43d17c, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }))
+    this.bpGhostRing = this.own(this.F.createMesh(this.flatRingGeo, this.bpGhostMat)).object
+    this.bpGhostRing.position.y = 8
+    this.bpGhostRing.renderOrder = 30
+    this.bpGhostBody = this.own(this.F.createMesh(handleGeo, this.bpGhostMat)).object
+    this.bpGhostBody.position.y = 8
+    this.bpGhostBody.renderOrder = 30
+    this.bpEditLabel = new SpriteLabel(this.F, this.owner, this.bpGroup, 66)
+    this.bpGhostLabel = new SpriteLabel(this.F, this.owner, this.bpGroup, 66)
+    this.bpGroup.add(this.bpSelRing, this.bpPreviewRing, this.bpBodyGhost, this.bpRadHandle, this.bpPhHandle, this.bpGhostRing, this.bpGhostBody)
+    this.bpGroup.visible = false
+    this.systemGroup.add(this.bpGroup)
+    logger.info('[StarMapRender] 轨道蓝图台 overlay 已装配')
+  }
+
+  /** 轨道蓝图台每帧同步：轨道环示意增亮（行星绕日环 + 卫星环）+ 放置 ghost + 轨道编辑 overlay */
+  private syncBlueprint(): void {
+    const bp = this.provider.blueprintActive
+    // 行星绕日环：非蓝图态太阳系全景可见（挂 sunGroup）。2026-09-29 二次决策：太阳移除 +
+    // 地球冻结不公转——蓝图台绕日环整体退场（含地球环），地月系只剩月球绕地环
+    for (const [, ring] of this.planetOrbitRings) {
+      if (ring.visible !== !bp) ring.visible = !bp
+      ;(ring.material as THREE.MeshBasicMaterial).opacity = bp ? 0.5 : 0.2
+    }
+    // 卫星环：蓝图态显示月球环（地月系轨道 = 放置/编辑目标）；木卫二环随星球移除不显示；
+    // 非蓝图态按视图口径
+    for (const [mid, mc] of Object.entries(B.map.moons)) {
+      const ring = this.moonRings.get(mid)
+      if (!ring) continue
+      const want = bp ? mid === 'moon' : this.viewMode === 'earth' && this.provider.planetFocusBody === mc.parent
+      if (ring.visible !== want) ring.visible = want
+      ;(ring.material as THREE.MeshBasicMaterial).opacity = bp ? 0.45 : 0.22
+    }
+    // 全息质感（2026-09-29 用户反馈"地球/月球应该是全息的"）：蓝图台地月本体转半透明青调
+    // （可透视网格/轨道环），退出还原。render 序里 syncBlueprint 晚于 syncNodes，材质权威归此处；
+    // 还原值与 syncNodes 的解锁口径一致（月球 act≥1 → 不透明）
+    for (const body of ['earth', 'moon'] as const) {
+      const sv = this.starViews[body]
+      if (!sv) continue
+      const mat = sv.mat
+      const wantOpacity = bp ? 0.5 : 1
+      if (mat.opacity !== wantOpacity) mat.opacity = wantOpacity
+      mat.transparent = bp
+      mat.depthWrite = !bp
+      mat.emissive.setHex(bp ? 0x1f4f7a : 0x000000)
+    }
+    const g = bp ? this.provider.blueprintGhost : null
+    const hasGhost = bp && !!this.provider.buildMode && !!g
+    const ov = bp ? this.provider.blueprintOverlay : null
+    this.bpGroup.visible = hasGhost || !!ov
+    if (!bp) {
+      this.bpEditLabel.clear()
+      this.bpGhostLabel.clear()
+      return
+    }
+    // 放置 ghost（轨道环吸附落位预览：绿 = 可放 / 红 = 拒绝 + 校验文案）
+    if (hasGhost && g) {
+      this.bpGhostRing.visible = true
+      this.bpGhostBody.visible = true
+      this.bpGhostRing.position.set(toWX(g.x), 8, toWZ(g.y))
+      this.bpGhostRing.scale.setScalar(18 + Math.sin(this.animTime * 6) * 2)
+      this.bpGhostBody.position.set(toWX(g.x), 8, toWZ(g.y))
+      this.bpGhostBody.rotation.y = this.animTime * 1.2
+      this.bpGhostMat.color.setHex(g.valid ? 0x43d17c : 0xe84545)
+      this.bpGhostMat.opacity = g.valid ? 0.7 : 0.9
+      if (g.label) {
+        this.bpGhostLabel.set(g.label, 16, g.valid ? '#c8f5d8' : '#ffc0b8')
+        this.bpGhostLabel.setPos(Math.min(MAP_W - 160, g.x + 30), Math.max(40, g.y + 26), 60)
+      } else {
+        this.bpGhostLabel.clear()
+      }
+    } else {
+      this.bpGhostRing.visible = false
+      this.bpGhostBody.visible = false
+      this.bpGhostLabel.clear()
+    }
+    // 轨道编辑 overlay（KSP 式：sel 环 + 预览环 + 预览体 + 半径/相位手柄 + 读数标签）
+    if (ov) {
+      this.bpSelRing.visible = true
+      this.bpSelRing.position.set(toWX(ov.cx), 3, toWZ(ov.cy))
+      this.bpSelRing.scale.setScalar(ov.r)
+      const e = ov.edit
+      this.bpPreviewRing.visible = !!e
+      if (e) {
+        this.bpPreviewRing.position.set(toWX(ov.cx), 3.5, toWZ(ov.cy))
+        this.bpPreviewRing.scale.setScalar(e.r)
+      }
+      this.bpBodyGhost.visible = true
+      this.bpBodyGhost.position.set(toWX(ov.gx), 8, toWZ(ov.gy))
+      this.bpRadHandle.visible = true
+      this.bpRadHandle.position.set(toWX(ov.radX), 10, toWZ(ov.radY))
+      this.bpRadHandle.rotation.y = this.animTime * 1.5
+      this.bpPhHandle.visible = true
+      this.bpPhHandle.position.set(toWX(ov.phX), 10, toWZ(ov.phY))
+      this.bpHandleMat.color.setHex(e ? 0xffe9a8 : 0xdff3ff)
+      // 读数：拖拽中 = 预览值；未拖拽 = 当前轨道/当前相位（预览点即建筑位）
+      const rShow = Math.round(e ? e.r : ov.r)
+      const degShow = Math.round((Math.atan2(ov.gy - ov.cy, ov.gx - ov.cx) * 180) / Math.PI)
+      this.bpEditLabel.set(e ? `轨道 ${rShow} · 相位 ${degShow}°` : `轨道 ${rShow}（拖 ◇ 半径 / ▫ 相位）`, 15, '#dff0fa')
+      this.bpEditLabel.setPos(Math.min(MAP_W - 220, ov.gx + 34), Math.max(40, ov.gy - 34), 60)
+    } else {
+      this.bpSelRing.visible = false
+      this.bpPreviewRing.visible = false
+      this.bpBodyGhost.visible = false
+      this.bpRadHandle.visible = false
+      this.bpPhHandle.visible = false
+      this.bpEditLabel.clear()
     }
   }
 
@@ -1286,10 +1518,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }
 
   private syncTutorial(): void {
-    // 引导双环锚在地月之间：只在地月系视角显示（其它行星系舞台/太阳系全景不显示，防止环漂在错误区域）
+    // 引导双环锚在地月之间：地月系视角与轨道蓝图台（全息俯视，引导即在蓝图台拖月→地）都显示；
+    // 其它行星系舞台不显示（防止环漂在错误区域）
     const on = this.provider.simState.state.tutorial
-      && this.viewMode === 'earth'
-      && this.provider.planetFocusBody === 'earth'
+      && (this.provider.planetFocusBody === 'earth' || this.provider.blueprintActive)
     this.tutGroup.visible = on
     for (const ring of this.tutRings) ring.visible = on
     for (const arrow of this.tutArrows) arrow.visible = on
@@ -1338,7 +1570,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
 
   private syncMissionLine(): void {
     const sim = this.provider.simState.state
-    this.missionLine.visible = sim.module.state === 'mission'
+    // 2026-09-29 蓝图台移除其他星球：火星本体不再显示，任务线（地→火）随之不在蓝图台出现
+    this.missionLine.visible = sim.module.state === 'mission' && !this.provider.blueprintActive
     if (!this.missionLine.visible) return
     const a = starPosAt(sim, 'earth')
     const b = starPosAt(sim, 'mars')
@@ -2027,9 +2260,12 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.applyViewMode()
   }
 
-  /** 当前视图应显示的天体集合：太阳系=行星（卫星/卫星环属行星系细节，不显示）；行星系=聚焦行星 + 其卫星 */
+  /** 当前视图应显示的天体集合：太阳系=行星（卫星/卫星环属行星系细节，不显示）；行星系=聚焦行星 + 其卫星。
+   *  轨道蓝图台（2026-09-29 二次决策：纯地月系工作台）：地球 + 月球本体可见（全息质感见
+   *  syncBlueprint 材质接管），太阳与其他星球本体隐藏（太阳走 sunActor 分支单独隐藏） */
   private visibleBodySet(): Set<string> {
     if (this.viewMode === 'solar') {
+      if (this.provider.blueprintActive) return new Set(['earth', 'moon'])
       const out = new Set<string>(Object.keys(B.map.nodes))
       for (const mid of Object.keys(B.map.moons)) out.delete(mid)
       return out
@@ -2060,12 +2296,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
         this.sunLight.intensity = 0.6
       }
     }
-    this.sunGroup.visible = solar
+    // 2026-09-29 二次决策：太阳移除——蓝图台隐藏太阳组（光晕/标签/全部行星绕日环含地球环）
+    this.sunGroup.visible = solar && !this.provider.blueprintActive
     // 太阳本体球是蓝图 Actor（不在 sunGroup，也不在 starViews——buildNodes 只建行星视图），行星系须单独隐藏
     const sunActor = this.provider.starActors?.get('sun')
     if (sunActor) {
       const sunMesh = sunActor.getComponent(SphereMeshComponent)
-      if (sunMesh) sunMesh.obj.object.visible = solar
+      if (sunMesh) sunMesh.obj.object.visible = solar && !this.provider.blueprintActive
     }
     const inView = this.visibleBodySet()
     for (const [body, view] of Object.entries(this.starViews)) {
@@ -2082,9 +2319,10 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const [id, view] of this.buildingViews) {
       const ob = id.startsWith('ob') ? this.provider.simState.state.orbitBuildings.find((x) => `ob${x.id}` === id) : null
       if (ob) {
-        // 轨道建筑：锚在聚焦天体系内才显示（锚 = 聚焦行星或其卫星）
+        // 轨道建筑：锚在聚焦天体系内才显示（锚 = 聚焦行星或其卫星）；
+        // 轨道蓝图台例外：全景俯视是轨道编辑的工作台，全部轨道设施显形（2026-09-29）
         const mc = (B.map.moons as Record<string, { parent: PlanetId } | undefined>)[ob.anchor]
-        view.group.visible = !solar && (ob.anchor === focus || mc?.parent === focus)
+        view.group.visible = (solar && this.provider.blueprintActive) || (!solar && (ob.anchor === focus || mc?.parent === focus))
         continue
       }
       const b = this.provider.simState.state.buildings.find((x) => `b${x.id}` === id)
@@ -2215,6 +2453,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.syncDrag()
     this.syncBoxDrag()
     this.syncBuildMode(cam ?? null)
+    this.syncBlueprint()
     this.syncFx()
     this.syncFlare()
     this.syncLabelLod(cam ?? null)

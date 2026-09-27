@@ -3,7 +3,8 @@
  *
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"记忆指导"段（含 MEMORY.md 索引，仅在有内容时注入）
- * - `ctx.tools.register()` × 5 — memory_write / memory_search / memory_forget / memory_review / memory_list
+ * - `ctx.tools.register()` × 6 — memory_write / memory_search / memory_reinforce（复盘确认
+ *   "真用到了"后强化使用计数，落 .usage.json）/ memory_forget / memory_review / memory_list
  * - `ctx.on('tools/pre-execute'/'tools/result'/'agent/pre-step')` — prefix 文件自动联想：
  *   读到记忆 `prefix:` 触发文件列表中的文件时把该记忆全文自动注入（每会话一次）；
  *   只按具体文件精确匹配（2026-09-12 起目录前缀、`&&`/`||` 表达式、`/` 全局废弃）
@@ -97,7 +98,7 @@ export function apply(ctx: Context, config?: Config): void {
     text: () => memoryGuideSectionText(readEntrypointSync(memoryDirectory)),
   })
 
-  // ── 5 个显式记忆工具 ──
+  // ── 6 个显式记忆工具 ──
   for (const tool of createMemoryTools({
     memoryDirectory,
     ctx,

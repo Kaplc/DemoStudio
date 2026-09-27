@@ -1,4 +1,4 @@
-﻿/**
+/**
  * helpers — 纯逻辑工具（对 SimState 的纯函数 + 初始状态工厂）
  *
  * core 铁律：这里全部是无状态纯函数（或纯数据工厂），不依赖引擎对象，
@@ -238,9 +238,13 @@ export function spinAngleOf(state: SimState, body: string): number {
   return -(Math.PI * 2 * celestialTime(state)) / period
 }
 
-/** 天体当前位置（地图画布系）：行星绕太阳公转，卫星绕 parent 行星（t = 仿真时间，太阳静态） */
+/** 天体当前位置（地图画布系）：行星绕太阳公转，卫星绕 parent 行星（t = 仿真时间，太阳静态）。
+ *  例外（2026-09-29 用户决策：移除太阳、地球不公转）：地球恒在布局位（= 初相位位置）。
+ *  地月系几何（月球环带/航线距离/补给经济）本就以地球为基准，冻结不影响任何相对量；
+ *  仅地-日相对几何变化，而太阳/其他行星已从蓝图台退场，无显示消费方。 */
 export function starPosAt(state: SimState, body: SolarBodyId): { x: number; y: number } {
   if (body === 'sun') return B.map.nodes.sun
+  if (body === 'earth') return { x: B.map.nodes.earth.x, y: B.map.nodes.earth.y }
   // 卫星：轨道中心 = parent 实时位置（布局中的锚点 = 相对 parent 的初相位）
   const moonCfg = (B.map.moons as Record<string, { parent: PlanetId; radius: number } | undefined>)[body]
   if (moonCfg) {
@@ -887,11 +891,16 @@ export function supplyDistCoeff(state: SimState, e: Endpoint): number {
 
 /** 轨道建筑实时位置（画布系，渲染/拾取的唯一口径）：
  *  绕锚行星固定环半径公转（ω = B.orbitBuild.orbitSpeed / ringRadius，与地图建筑入轨同口径，
- *  纯时间函数 → 无需 tick、快照/读档/重放天然确定） */
-export function orbitBuildingPos(state: SimState, ob: Pick<OrbitBuilding, 'anchor' | 'a0'>): { x: number; y: number } {
+ *  纯时间函数 → 无需 tick、快照/读档/重放天然确定）。
+ *  2026-09-29 轨道蓝图台：ringR 可选本征环半径（KSP 式轨道编辑可调），缺省统一环。 */
+export function orbitBuildingPos(
+  state: SimState,
+  ob: Pick<OrbitBuilding, 'anchor' | 'a0'> & { ringR?: number },
+): { x: number; y: number } {
   const a = starPosAt(state, ob.anchor)
-  const ang = ob.a0 + (B.orbitBuild.orbitSpeed / Math.max(1, B.orbitBuild.ringRadius)) * state.time
-  return { x: a.x + Math.cos(ang) * B.orbitBuild.ringRadius, y: a.y + Math.sin(ang) * B.orbitBuild.ringRadius }
+  const ringR = Math.max(1, ob.ringR ?? B.orbitBuild.ringRadius)
+  const ang = ob.a0 + (B.orbitBuild.orbitSpeed / ringR) * state.time
+  return { x: a.x + Math.cos(ang) * ringR, y: a.y + Math.sin(ang) * ringR }
 }
 
 // ─── 数值 ───
@@ -948,6 +957,45 @@ export function windowAffected(state: SimState, route: SimRoute): boolean {
   return starOfEndpoint(state, route.from) === 'europa' || starOfEndpoint(state, route.to) === 'europa'
 }
 
+// ─── 借站补给（2026-09-27 中转站枢纽折扣） ───
+
+/** 点到线段最短距离（画布 px；纯几何，端点外投/closest-point 夹取） */
+export function distPointSegment(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const abx = b.x - a.x
+  const aby = b.y - a.y
+  const l2 = abx * abx + aby * aby
+  if (l2 <= 0) return Math.hypot(p.x - a.x, p.y - a.y)
+  let t = ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2
+  t = Math.max(0, Math.min(1, t))
+  return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t))
+}
+
+/**
+ * 借站补给判定（线段版）：线段 a→b 距任一中转站（relay）实时位 ≤ B.hubRelayRadius
+ * → 油耗 ×B.hubRelayDiscount；多站命中取最优（最低），不叠加。
+ * 中转站由此升格「补给枢纽」：放置位即策略——摆进远程线沿线 = 给该线减负
+ * （"远程货源借月球/中转站补给接力"）。判活实时算（buildingPos 随公转/放置变化，
+ * 出发/展示时各自判定，站拆了折扣即消失）。
+ */
+export function hubRelayMultForSegment(state: SimState, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  if (!(B.hubRelayDiscount < 1) || !(B.hubRelayRadius > 0)) return 1
+  let best = 1
+  for (const bd of state.buildings) {
+    if (bd.type !== 'relay') continue
+    const p = buildingPos(state, bd)
+    if (distPointSegment(p, a, b) <= B.hubRelayRadius) best = Math.min(best, B.hubRelayDiscount)
+  }
+  return best
+}
+
+/** 借站补给判定（航线版）：仅 forward 星→地专线生效（中转链两段/反向建材线端点即站，不重复打折） */
+export function hubRelayMult(state: SimState, route: SimRoute): number {
+  if (route.direction !== 'forward') return 1
+  const star = starOfEndpoint(state, route.from)
+  if (!star) return 1
+  return hubRelayMultForSegment(state, starPosAt(state, star), starPosAt(state, 'earth'))
+}
+
 /** 星 ↔ 建筑距离系数（中转链星段航时/油耗口径：画布距离 ÷ 1AU=250px） */
 export function relayLegDistCoeff(state: SimState, star: StarId, buildingId: number): number {
   const b = state.buildings.find((x) => x.id === buildingId)
@@ -963,7 +1011,8 @@ export function routeNetPerTrip(state: SimState, route: SimRoute): number {
     const star = starOfEndpoint(state, route.from)!
     const load = starLoad(state.mods, star)
     const w = state.gravity.phase === 'active' && windowAffected(state, route) ? B.gravity.fuelMult : 1
-    return load - roundFuel(state.mods, B.stars[star].dist, w)
+    // 借站补给：途经中转站的 forward 线油耗折扣进净补展示（与 departShip 实发同口径）
+    return load - roundFuel(state.mods, B.stars[star].dist, w) * hubRelayMult(state, route)
   }
   if (route.direction === 'relay_in') {
     const star = starOfEndpoint(state, route.from)!
@@ -1094,6 +1143,85 @@ export function shipPos(state: SimState, ship: SimShip): { x: number; y: number 
 
 export function deepSnapshot<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
+}
+
+// ─── 转移轨道弧（2026-09-29 轨道蓝图台：真实火箭转移轨道观感） ───
+//
+// 航线不再画直弦，而是绕公共主天体弯曲的二次贝塞尔弧（以主天体为焦点的转移
+// 椭圆观感：弧背向主天体鼓出 = 曲率凹向引力中心）。纯函数、读态即得——行星
+// 公转时弧随端点实时重建，渲染/飞船投影/单测共用同一口径。
+
+/** 弧弯折系数（弧控制点外推量 = 弦长 × 此值；0 = 退化为直弦） */
+export const TRANSFER_ARC_BEND = 0.24
+
+/** 转移弧采样段数（ribbon 渲染/飞船取点共用；弧平滑度） */
+export const TRANSFER_ARC_SEGMENTS = 24
+
+/** 二次贝塞尔取点（t ∈ 0..1；t=0/1 恰为端点） */
+export function quadBezierPoint(
+  p0: { x: number; y: number },
+  c: { x: number; y: number },
+  p1: { x: number; y: number },
+  t: number,
+): { x: number; y: number } {
+  const u = 1 - t
+  return {
+    x: u * u * p0.x + 2 * u * t * c.x + t * t * p1.x,
+    y: u * u * p0.y + 2 * u * t * c.y + t * t * p1.y,
+  }
+}
+
+/** 卫星端点 → 母星 id（资源星是卫星子集：moon→earth / europa→jupiter；非卫星 null） */
+function moonParentOfEndpoint(state: SimState, e: Endpoint): PlanetId | null {
+  const id = e.kind === 'star' ? e.star : e.kind === 'building' ? buildingByEndpoint(state, e)?.anchor : undefined
+  if (!id) return null
+  return (B.map.moons as Record<string, { parent: PlanetId } | undefined>)[id]?.parent ?? null
+}
+
+/**
+ * 航线两端点的公共主天体（转移弧环绕中心）：
+ * 任一端点是卫星（或锚定卫星母星的建筑）→ 母星（地月线绕地球弯）；
+ * 任一端点是入轨建筑 → 其锚天体（站线绕锚行星弯）；其余（星↔地等行星际线）→ 太阳。
+ */
+export function routePrimaryOf(state: SimState, a: Endpoint, b: Endpoint): { x: number; y: number } {
+  const moonParent = moonParentOfEndpoint(state, a) ?? moonParentOfEndpoint(state, b)
+  if (moonParent) return starPosAt(state, moonParent)
+  const anchor = a.kind === 'building' ? buildingByEndpoint(state, a)?.anchor : b.kind === 'building' ? buildingByEndpoint(state, b)?.anchor : undefined
+  if (anchor) return starPosAt(state, anchor as SolarBodyId)
+  return starPosAt(state, 'sun')
+}
+
+/** 转移弧控制点：弦中点沿「中点 − 主天体」方向外推 弦长 × TRANSFER_ARC_BEND。
+ *  弦退化（端点重合）或中点恰在主天体上时返回弦中点（直弦兜底）。 */
+export function transferArcControl(
+  state: SimState,
+  a: Endpoint,
+  b: Endpoint,
+): { x: number; y: number } {
+  const pa = endpointPos(state, a)
+  const pb = endpointPos(state, b)
+  const mx = (pa.x + pb.x) / 2
+  const my = (pa.y + pb.y) / 2
+  const primary = routePrimaryOf(state, a, b)
+  const dx = mx - primary.x
+  const dy = my - primary.y
+  const dl = Math.hypot(dx, dy)
+  const len = Math.hypot(pb.x - pa.x, pb.y - pa.y)
+  if (dl < 1e-3 || len < 1e-3) return { x: mx, y: my }
+  const k = (TRANSFER_ARC_BEND * len) / dl
+  return { x: mx + dx * k, y: my + dy * k }
+}
+
+/** 航线转移弧上 t 处的点（渲染 ribbon / 飞船投影共用；t=0 起点、t=1 终点） */
+export function transferArcPoint(
+  state: SimState,
+  route: Pick<SimRoute, 'from' | 'to'>,
+  t: number,
+): { x: number; y: number } {
+  const p0 = endpointPos(state, route.from)
+  const p1 = endpointPos(state, route.to)
+  const c = transferArcControl(state, route.from, route.to)
+  return quadBezierPoint(p0, c, p1, t)
 }
 
 export { buildingEffectiveDef, buildingHookMult, ringModsOf, freshRingMods, ringBuildingDefOf, shipHullDefOf, shipModuleDefOf, isDynamicShipModule, setDynamicShipModules, shipModuleEntries, PAYLOAD_ASSEMBLY_MULT, stationModuleMultsFrom, stationShipCapAdd, stationStockCapAdd, stationMaintMult, freshStationMults } from './balance'

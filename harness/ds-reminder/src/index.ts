@@ -7,9 +7,9 @@
  * 注入前实时读取文件内容——改文件即生效，无需重编译或重启 agent。
  * 默认内置两条提醒（从 ds-memory / ds-experience 平移，行为逐字保留）：
  * - `memory-end-of-turn`：steer 通道（agent/turn-stopping + agent.steer()，回合多跑一步），
- *   文本文件 `.dsh/reminder/memory-end-of-turn.md`，跳过判定 memory_write
+ *   文本文件 `.dsh/reminder/memory-end-of-turn.md`，跳过判定 memory_write / memory_reinforce
  * - `experience-end-of-turn`：inject 通道（session/event turn/end + agent.inject()，入队下一回合），
- *   文本文件 `.dsh/reminder/experience-end-of-turn.md`，跳过判定 experience_save
+ *   文本文件 `.dsh/reminder/experience-end-of-turn.md`，跳过判定 experience_save / experience_reinforce
  *
  * 机制要点（与原实现逐条对齐）：
  * - 跳过判定"各自只看自己"：每条提醒只认自己的 skipTools；双写场景（结论进记忆 + 轨迹进经验）互不抑制
@@ -101,7 +101,8 @@ export interface NormalizedReminder {
 
 /**
  * 默认提醒条目：文本全部来自 .dsh/reminder/ 下的文件（不内联），插件配置只声明读哪个文件。
- * 默认两条为 ds-memory / ds-experience 平移的记忆与经验提醒。
+ * 默认两条为 ds-memory / ds-experience 平移的记忆与经验复盘提醒。
+ * skipTools 含 reinforce：本回合做过复盘强化（即使没保存新内容）也算已处理，不再催。
  * 注意：必须声明在 Config schema 之前——schema 的 default 值在模块加载时求值。
  */
 export const DEFAULT_REMINDERS: readonly ReminderConfig[] = [
@@ -109,14 +110,14 @@ export const DEFAULT_REMINDERS: readonly ReminderConfig[] = [
     id: 'memory-end-of-turn',
     file: 'memory-end-of-turn.md',
     channel: 'steer',
-    skipTools: ['memory_write'],
+    skipTools: ['memory_write', 'memory_reinforce'],
     summary: '回合末记忆提醒',
   },
   {
     id: 'experience-end-of-turn',
     file: 'experience-end-of-turn.md',
     channel: 'inject',
-    skipTools: ['experience_save'],
+    skipTools: ['experience_save', 'experience_reinforce'],
     summary: '回合末经验提醒',
   },
 ]

@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
-import { apply } from '../src/index.js'
+import { DEFAULT_REMINDERS, apply } from '../src/index.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 桩件：最小 ctx（只捕获 ctx.on 与 logger）、带 steer/inject 间谍的 agent
@@ -154,6 +154,12 @@ describe('装配与配置面', () => {
     expect(handlers.has('agent/status')).toBe(true)
     expect(handlers.has('agent/pre-step')).toBe(true)
     expect(handlers.has('tools/result')).toBe(true)
+  })
+
+  it('默认 skipTools 含保存工具与复盘强化工具（各自只看自己）', () => {
+    const byId = new Map(DEFAULT_REMINDERS.map(reminder => [reminder.id, reminder]))
+    expect(byId.get('memory-end-of-turn')?.skipTools).toEqual(['memory_write', 'memory_reinforce'])
+    expect(byId.get('experience-end-of-turn')?.skipTools).toEqual(['experience_save', 'experience_reinforce'])
   })
 
   it('enabled: false — 一切静默，什么都不注册', () => {
@@ -317,6 +323,20 @@ describe('steer 通道（默认记忆提醒）', () => {
 
     expect(agent.steer).not.toHaveBeenCalled()
     expect(logger.info).toHaveBeenCalledWith('提醒 %s：回合 %d 已成功调用 %s，跳过', 'memory-end-of-turn', 7, 'memory_write')
+  })
+
+  it('本回合 memory_reinforce 成功：同样跳过（复盘强化也算已处理）', async () => {
+    const { handlers, logger } = setupPlugin()
+    const turnStopping = getHandler<TurnStoppingHandler>(handlers, 'agent/turn-stopping')
+    const preStep = getHandler<PreStepHandler>(handlers, 'agent/pre-step')
+    const toolResult = getHandler<ToolResultHandler>(handlers, 'tools/result')
+    const agent = makeAgent()
+    await saveInTurn(preStep, toolResult, agent, 9, 'memory_reinforce')
+
+    await turnStopping({ agent, turn: 9, signal: liveSignal() })
+
+    expect(agent.steer).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith('提醒 %s：回合 %d 已成功调用 %s，跳过', 'memory-end-of-turn', 9, 'memory_reinforce')
   })
 
   it('本回合 experience_save 成功：不抑制记忆提醒（各自只看自己）', async () => {
@@ -543,6 +563,15 @@ describe('inject 通道（默认经验提醒）', () => {
     await saveInTurn(setup.preStep, setup.toolResult, other, 3, 'memory_write')
     setup.sessionEvent(otherSession, turnEndEvent())
     expect(other.inject).toHaveBeenCalledTimes(1)
+  })
+
+  it('本回合 experience_reinforce 成功：同样跳过（复盘强化也算已处理）', async () => {
+    const setup = setupInject()
+    const agent = makeAgent()
+    registerAgent(setup, agent)
+    await saveInTurn(setup.preStep, setup.toolResult, agent, 4, 'experience_reinforce')
+    setup.sessionEvent(agent.session as unknown as Session, turnEndEvent())
+    expect(agent.inject).not.toHaveBeenCalled()
   })
 
   it('保存失败（isError）/ 更早回合保存 / 未观测回合号：仍提醒（fail-open）', async () => {

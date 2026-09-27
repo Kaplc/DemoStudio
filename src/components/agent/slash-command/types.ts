@@ -16,7 +16,9 @@ export interface SlashCommand {
   /** 命令分组 */
   group?: string
   /** 本地执行处理函数。可选：DSH 内置命令 / skill 只需展示名称，
-   * 选中后由输入框把 "/name args" 文本发给 DSH，由后端执行。 */
+   * 选中后由输入框回填 "/name args" 文本；提交时 AgentPanel.handleSend 裁决
+   * （AgentService.resolveSlashSubmission）并经 commands.execute RPC 由后端执行
+   * ——DSH 后端不会解析用户消息里的命令文本（2026-09-27 修复）。 */
   handler?: (args?: string) => void | Promise<void>
 }
 

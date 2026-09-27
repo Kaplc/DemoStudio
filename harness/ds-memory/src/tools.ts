@@ -25,6 +25,7 @@ import {
 import { forgetMemories, readAllMemories, removeFromIndex, upsertIndexLine } from './memoryStore.js'
 import type { MemoryRecord } from './memoryStore.js'
 import { assertSafeWritePath, sanitizePathKey } from './security.js'
+import { MAX_USAGE_NOTE_CHARS, reinforceUsage, removeUsageEntries } from './usageStore.js'
 
 /** 工具运行所需宿主环境（由 index.ts 装配时闭包注入）。 */
 export interface MemoryToolHost {
@@ -59,6 +60,13 @@ function assertNotChildAgent(agent: Agent | undefined): void {
   if (typeof depth === 'number' && depth > 0) {
     throw new Error('子 agent 不能修改持久记忆（上下文归属父 agent）。如需保存，请在回复中说明，由父 agent 调用 memory_write。')
   }
+}
+
+/** 复盘留痕 note 的截断（超长保留头部，见 usageStore.MAX_USAGE_NOTE_CHARS）。 */
+function clipUsageNote(note: string | undefined): string | undefined {
+  if (note === undefined) return undefined
+  const trimmed = note.trim()
+  return trimmed === '' ? undefined : trimmed.slice(0, MAX_USAGE_NOTE_CHARS)
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +239,66 @@ export function createMemorySearchTool(host: MemoryToolHost) {
 }
 
 // ---------------------------------------------------------------------------
+// memory_reinforce
+// ---------------------------------------------------------------------------
+
+/**
+ * memory_reinforce：复盘确认"真用到了"后强化一条记忆的使用计数（落 .usage.json，
+ * 不触碰记忆文件本体——mtime 是新鲜度判定与排序依据，不能被计数污染）。
+ */
+export function createMemoryReinforceTool(host: MemoryToolHost) {
+  return defineTool({
+    name: 'memory_reinforce',
+    description: '强化一条记忆的使用计数：仅在回合末复盘确认它**真的被用到了**（指导了行动/提供了关键信息）才调用，可带 note 留痕。注入了但没用上的记忆不调用——被注入却从未被强化是低价值信号。返回累计使用次数：达到多次（如 ≥3）、沉淀的是反复出现的做事模式且尚无对应经验时，用 experience_save 提炼为经验（新经验的唯一创建入口）。',
+    parameters: {
+      name: { type: 'string', required: true, description: '记忆名（不含 .md，如 user_role）' },
+      note: { type: 'string', description: '本回合用在什么事上的一句留痕（如"修复月球全息卡死时参考取证路径"），可选' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          file: { type: 'string', required: true },
+          total_uses: { type: 'integer', required: true },
+          last_used_at: { type: 'string', required: true },
+          notes: { type: 'array', required: true, items: { type: 'string' } },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: [
+          `已强化 ${value.file}：累计使用 ${value.total_uses} 次（最近 ${value.last_used_at}）。`,
+          ...(value.notes.length > 0 ? [`留痕（新→旧）：\n${value.notes.map(n => `- ${n}`).join('\n')}`] : []),
+          '累计多次（如 ≥3）且沉淀反复做事模式、尚无对应经验时，考虑用 experience_save 提炼为经验。',
+        ].join('\n'),
+      }],
+    },
+    async execute(args, exec) {
+      assertNotChildAgent(exec.agent)
+      const fileName = normalizeMemoryName(args.name)
+      const all = await readAllMemories(host.memoryDirectory)
+      if (!all.some(record => record.fileName === fileName)) {
+        throw new Error(`记忆 "${fileName}" 不存在；用 memory_search 或 memory_list 确认名称。`)
+      }
+      const entry = await reinforceUsage(
+        host.memoryDirectory,
+        fileName,
+        clipUsageNote(args.note),
+        new Set(all.map(record => record.fileName)),
+      )
+      host.ctx.logger?.info(`ds-memory: memory_reinforce ${fileName} → ${entry.uses} 次`)
+      return {
+        file: fileName,
+        total_uses: entry.uses,
+        last_used_at: new Date(entry.lastUsedAt).toISOString(),
+        notes: entry.notes,
+      }
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // memory_forget
 // ---------------------------------------------------------------------------
 
@@ -268,6 +336,8 @@ export function createMemoryForgetTool(host: MemoryToolHost) {
         ...(args.name === undefined ? {} : { name: args.name }),
         ...(args.description_keyword === undefined ? {} : { descriptionContains: args.description_keyword }),
       })
+      // 删除记忆的同时清理其使用强化计数（防 .usage.json 孤儿条目膨胀）
+      await removeUsageEntries(host.memoryDirectory, deleted)
       return {
         deleted,
         ...(deleted.length === 0 ? { note: '未找到匹配项；可先用 memory_search 确认记忆名。' } : {}),
@@ -403,6 +473,8 @@ export function createMemoryReviewTool(host: MemoryToolHost) {
           await removeFromIndex(host.memoryDirectory, record.fileName.replace(/\.md$/, ''))
           applied.push(record.fileName)
         }
+        // 删除记忆的同时清理其使用强化计数
+        await removeUsageEntries(host.memoryDirectory, applied)
       }
       exec.signal.throwIfAborted()
       return {
@@ -456,11 +528,12 @@ export function createMemoryListTool(host: MemoryToolHost) {
 // 汇总
 // ---------------------------------------------------------------------------
 
-/** 创建全部 5 个记忆工具。 */
+/** 创建全部 6 个记忆工具。 */
 export function createMemoryTools(host: MemoryToolHost) {
   return [
     createMemoryWriteTool(host),
     createMemorySearchTool(host),
+    createMemoryReinforceTool(host),
     createMemoryForgetTool(host),
     createMemoryReviewTool(host),
     createMemoryListTool(host),

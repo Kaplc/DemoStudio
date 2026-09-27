@@ -84,6 +84,9 @@ export interface SimShip {
   order?: ShipOrder
   /** 靠站改道插值段（画布系 from→to；存在时 shipPos 用此段插值，耀斑结束清空） */
   shelter?: { fx: number; fy: number; tx: number; ty: number } | null
+  /** 地球港到达时间（仿真秒；undefined = 未在港外排队）。2026-09-27 节点吞吐上限：
+   *  到港卸货遇泊位满置此字段原地待命，tickBerthQueue 按此值 FIFO 依序靠泊 */
+  waitPort?: number
 }
 
 /** 造船队列项（逐船一卡：2026-09-09 用户需求——船坞面板每艘在造船一张卡片排队展示） */
@@ -116,6 +119,9 @@ export interface OrbitBuilding {
   /** 舱段模块布局（2026-09-16 空间站模块：station 类型的插配清单，station_module 表行键；
    *  同型单件、付费即装；读态缺省 = 空布局，旧档缺失无需迁移，可选字段随快照保存） */
   modules?: string[]
+  /** 本座轨道环半径（px，距锚天体中心；2026-09-29 轨道蓝图台：KSP 式轨道编辑可调；
+   *  缺省 = B.orbitBuild.ringRadius 统一环，旧档缺失无需迁移，可选字段随快照保存） */
+  ringR?: number
 }
 
 /** 聚能环节点球面落位（全息地球场景，2026-09-12：lat/lon 为度；下标 = 环段槽位号） */
@@ -161,8 +167,10 @@ export interface SimBuilding {
   /** 全息地球地表落位（lat/lon 度；存在 = 地表建筑，画布位 = 地球 + 经度方位投影，
    *  不参与网格/入轨；落位必须位于环节点融化圈内） */
   surface?: { lat: number; lon: number }
-  /** 轨道锚定天体（行星或卫星；缺失 = 未入轨静态建筑，旧档兼容口径） */
-  anchor?: PlanetBodyId
+  /** 轨道锚定天体（行星、卫星或太阳；缺失 = 未入轨静态建筑，旧档兼容口径）。
+   *  2026-09-29 轨道蓝图台放宽到 'sun'：轨道环放置可把建筑放到行星的绕日轨道上
+   *  （buildingPos 走 starPosAt，太阳静态锚天然支持），绕日公转与行星同周期观感。 */
+  anchor?: PlanetBodyId | 'sun'
   /** 轨道半径（px，距锚行星中心；放置过近按行星显示半径+pad 抬底） */
   orbitR?: number
   /** t=0 相位角（rad）：实时相位 = orbitA0 + ω·time，ω = orbitSpeed/orbitR（纯时间函数） */

@@ -434,8 +434,10 @@ export class CameraRigComponent extends Component {
       // 垂直分量取反（2026-09-20 用户反馈「上下反向了」）：屏幕坐标 y 向下为正，直接传入
       // 会导致下拖=压低相机、上拖=升高，与主流 orbit 交互（three.js OrbitControls/Maya/
       // Google Earth 的"下拖推球面→相机升高俯角增大"）相反。取反后：下拖=升高（更俯视）、
-      // 上拖=压低（趋向平视）。水平分量不变（右拖=绕目标向右环绕）。
-      this.orbitRotate(dx * this.orbitSensitivity, -dy * this.orbitSensitivity)
+      // 上拖=压低（趋向平视）。
+      // 水平分量取反（2026-09-26 用户要求翻转左右环绕方向）：右拖=绕目标向左环绕（世界
+      // 跟手向右转，"抓住球面拖拽"手感，与垂直轴取反后的抓球语义一致）；左拖=向右环绕。
+      this.orbitRotate(-dx * this.orbitSensitivity, -dy * this.orbitSensitivity)
       return
     }
 

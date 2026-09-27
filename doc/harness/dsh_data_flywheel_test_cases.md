@@ -25,7 +25,7 @@
 
 **关键心智模型**：用例分**单测**（vitest，锁行为，`mkdtemp` 临时目录 + mock `ctx`，不碰真实数据）与**手动**（真实交互式内核会话，验 LLM 行为、事件时序、落盘副作用）。手动用例不是「单测跑绿就算过」。
 
-**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 82 个单测通过（6 文件，2026-09-12 实测；ds-memory 同步翻新后 125 个全绿）。**2026-09-12 更新**：prefix 联想由目录前缀/&&·|| 表达式改为具体文件数组精确匹配，EXP-16~19 与 memory 侧 associate/memoryTypes/memoryWriteTool 用例同步翻新。**2026-09-13 更新**：回合末提醒从 ds-memory/ds-experience 提取为 `@demostudio/ds-reminder`（文案文件化 `.dsh/reminder/*.md`），KM-06~08 随迁至 `harness/ds-reminder/tests/reminder.test.ts`（35 用例），ds-memory 删除 `endOfTurnReminder.test.ts`（125→106 用例）、ds-experience `index.test.ts` 翻新（72 用例全绿）。
+**2026-09-09 更新**：§4.3/§7 记录的「EXP-08/09/10 与代码脱节」已修复——提炼相关断言删除（只留 `parseExtractionOutput` 纯函数回归），`index.test.ts` 翻新为回合末提醒 + 联想装配用例，新增 `associate.test.ts`。当前 ds-experience 全部 82 个单测通过（6 文件，2026-09-12 实测；ds-memory 同步翻新后 125 个全绿）。**2026-09-12 更新**：prefix 联想由目录前缀/&&·|| 表达式改为具体文件数组精确匹配，EXP-16~19 与 memory 侧 associate/memoryTypes/memoryWriteTool 用例同步翻新。**2026-09-13 更新**：回合末提醒从 ds-memory/ds-experience 提取为 `@demostudio/ds-reminder`（文案文件化 `.dsh/reminder/*.md`），KM-06~08 随迁至 `harness/ds-reminder/tests/reminder.test.ts`（35 用例），ds-memory 删除 `endOfTurnReminder.test.ts`（125→106 用例）、ds-experience `index.test.ts` 翻新（72 用例全绿）。**2026-09-30 更新**：复盘强化闭环落地——`memory_reinforce`/`experience_reinforce` 双工具 + `.usage.json` 计数（KM-09、EXP-21 新增），`experience_save` 语义降级为"覆盖更新/从多次被强化的记忆提炼"（EXP-22），ds-reminder skipTools 扩展认 reinforce（两侧 reminder.test.ts +9 用例），提醒文案改复盘清单（`.dsh/reminder/*.md`）；实测 ds-memory 118 / ds-experience 79 / ds-reminder 38 用例全绿。
 
 ---
 
@@ -97,8 +97,9 @@ it('不保存清单不再包含无差别的"调试修复配方"，改为限定�
 | KM-04 | 手动 | 一次无可复用根因的单点 bug 修复后等提取 | 不生成修复流水账记忆（宁缺毋滥） |
 | KM-05 | 手动 | 同一主题下连踩多个坑 | 合并进同一文件，每坑一个 `## 小节`，不拆碎 |
 | KM-06 | 单测 | 回合末提醒接线（2026-09-13 起在 ds-reminder）：装配/配置面（默认两条、通道按需注册、无效条目丢弃）+ `agent/turn-stopping` + `steer` 注入（文本/`source` 契约）、60s 冷却按 agent 隔离、子 agent 门控、signal 中止与 steer 抛错兜底（`reminder.test.ts`） | 全绿 |
-| KM-07 | 单测 | 提醒跳过判定（各自只看自己）：本回合 `memory_write` 成功 → 记忆提醒跳过；`experience_save` 成功 → **不跳过**（双写场景下只存了经验仍可能漏存记忆）；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`reminder.test.ts`） | 全绿 |
+| KM-07 | 单测 | 提醒跳过判定（各自只看自己）：本回合 `memory_write` / `memory_reinforce` 成功 → 记忆提醒跳过；`experience_save` 成功 → **不跳过**（双写场景下只存了经验仍可能漏存记忆）；失败（`isError`）、非保存工具、别的回合、别的 agent、缺 agent/未观测回合号 → 照常提醒（`reminder.test.ts`） | 全绿 |
 | KM-08 | 单测 | 提醒配置面：`skipTools` 自定义清单替换默认、`reminders: []` 不注册监听、文案文件实时读取/内联回退/热更新（`reminder.test.ts`） | 全绿 |
+| KM-09 | 单测 | memory_reinforce（2026-09-30）：usageStore 首次/累计强化、note 截断与上限 10 条、pruneTo 孤儿清理、损坏 JSON 自愈、removeUsageEntries；工具层累计次数返回（lossless JSON roundtrip）、不存在记忆报错、子 agent 拒绝、forget 联动清理（`usageReinforce.test.ts` 12 用例） | 全绿 |
 
 KM-02 的单测部分锁的是「改了结构后解析函数还能吃下老格式」——`parseFrontmatter` 对 BOM、缺 `name`/`description`、无闭合 fence、空输入一律返回 `{}` 而非抛错（`memoryTypes.test.ts:27` 起 4 个 it）。
 
@@ -208,6 +209,8 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 | EXP-18 | ✅ 新增 | `composeExperienceAssociateMessage` 组装/预算截断/omitted 提示；`deriveExperienceProjectRoot` 形态推导 |
 | EXP-19 | ✅ 2026-09-12 翻新 | 联想器集成：pre-execute 登记→result 确认→pre-step 注入全文；子 agent/失败结果/未跟踪工具不注入；读列表外文件不触发；同会话去重 |
 | EXP-20 | ✅ 新增 | `experienceStore.test.ts` prefix 往返：frontmatter 落盘/读回、INDEX 行 `[联想 …]` 标注、update 不残留、换行 prefix 拒绝 |
+| EXP-21 | ✅ 2026-09-30 新增 | experience_reinforce：usageStore 首次/累计强化、notes 新→旧、pruneTo 孤儿清理、上限 10 条、removeUsageEntries；工具层累计次数返回（lossless JSON roundtrip）、不存在经验报错、子 agent 拒绝（`usageReinforce.test.ts` 10 用例） |
+| EXP-22 | ✅ 2026-09-30 语义变更 | `index.test.ts` 注册冒烟 4→5 工具（+experience_reinforce）；`experience_save` 语义降级为"同名覆盖更新 / 从多次被强化的记忆提炼新经验"两场景，提醒跳过判定扩展认 `experience_reinforce`（`reminder.test.ts`） |
 
 > ~~这些不是「暂时红了」……修法只有两条~~ **已于 2026-09-09 按第一条修法执行**：`extractExperience.test.ts` 翻新为纯函数回归、`index.test.ts` 重写为提醒/联想装配用例。教训保留：**被测能力移除后必须同步翻新或删除测试**，留着永远红的断言会掩盖真实回归信号。
 
@@ -229,7 +232,7 @@ EXP-06/07 锁的是历史转录的**过滤语义**（`historyTools.test.ts:36`�
 | SQ-05 | 手动 | 回退 `openAt: never` | 全文搜索报 `SESSION_QUERY_SEARCH_DISABLED`；`history_read` 精确读仍可用 |
 | SP-01 | 手动 | 段序 | 2900(内核) < 3000(experience) < 3100(feedback) < 3200(memory) < 3300(instructions) |
 | SP-02 | 手动 | 清空经验库后新会话 | guide 注入但无索引部分；非空后索引出现 |
-| SP-03 | 手动 | 问模型工具清单 | 6 个新工具在册：rule_propose / rule_apply / history_search / history_read / experience_save / experience_search |
+| SP-03 | 手动 | 问模型工具清单 | 8 个工具在册：rule_propose / rule_apply / history_search / history_read / experience_save / experience_search / memory_reinforce / experience_reinforce |
 | SP-04 | 单测 | `ruleStore.test.ts:153` 空库模式 | 段文本含「规则库当前为空」，不列规则、不报错 |
 | M-01 | 手动 | `dsh --profile {web,headless} --dump-config` | 三行在册（ds-feedback / ds-experience insert + session-query-sqlite 覆盖） |
 | M-02 | 手动 | 插件行加 `enabled: false` | section/工具/事件监听全部消失，其余插件不受影响 |

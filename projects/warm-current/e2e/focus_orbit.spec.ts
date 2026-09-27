@@ -18,6 +18,8 @@
  *  5. 观察中双击另一天体 = 切换聚焦（地球 ↔ 月球）；Esc = 退出
  *  6. 太阳系全景下双击月球被门禁拒绝（仅地月系可聚焦卫星）
  *  7. 聚焦态边缘平移关闭：鼠标贴视口边缘相机不动
+ *  8. 环绕水平方向已翻转（2026-09-26 用户要求）：向左拖 = 绕 target 向右环绕
+ *     （方向锁 = 第 4 节 xz 偏移叉积断言；垂直轴 2026-09-20 已先行翻转，同为抓球语义）
  *
  * 前置：dev server 已在 :5173 运行（npm run dev）；跑法 npm run test:e2e:warm
  */
@@ -198,6 +200,17 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
       Math.hypot(p3.tx - p3.moonX, p3.tz - p3.moonZ),
       '环绕 + 跟随复合：target 仍锁定月球',
     ).toBeLessThan(5)
+    // 方向锁（2026-09-26 用户要求翻转左右环绕方向）：水平分量已取反，向左拖（dx<0）
+    // = yaw>0（偏移绕世界 +Y 正转、方位角减少），p2→p3 的 xz 偏移叉积应为负；
+    // 旧约定（右拖=向右环绕，未翻转）下该叉积为正。叉积对 yaw 无回绕歧义，锁符号即锁方向
+    const o2x = p2.cx - p2.tx
+    const o2z = p2.cz - p2.tz
+    const o3x = p3.cx - p3.tx
+    const o3z = p3.cz - p3.tz
+    expect(
+      o2x * o3z - o2z * o3x,
+      '向左拖拽应产生向右环绕（水平翻转方向锁：叉积 < 0）',
+    ).toBeLessThan(0)
 
     // ── 5. 再双击月球 = 退出回默认聚焦：observeBody 归零、target 回地球、语义回落 ──
     await page.evaluate(`(() => { window.__warmCurrent.doubleClickPlanet('moon') })()`)

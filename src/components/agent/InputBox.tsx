@@ -118,7 +118,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
       logger.debug('[InputBox] submit 跳过: 空内容或禁用')
       return
     }
-    // 允许在 running 状态下发送（steer 模式）
+    // 允许在 running 状态下发送（Ctrl/Cmd+Enter 插话 steer 模式；运行中 Enter 已改走排队）
     logger.info(`[InputBox] 发送消息: "${trimmed}" (running=${running}, images=${images.length})`)
     onSend(trimmed, images)
     updateText('')
@@ -154,10 +154,16 @@ export const InputBox: React.FC<InputBoxProps> = ({
       return
     }
 
-    // 原有的 Enter 发送逻辑
+    // Enter 手势路由（2026-09-27 对齐 DSH WebUI ComposerSubmissionPolicy，默认 busyEnter=queue）：
+    // 空闲 Enter=直接发送；运行中 Enter=排队待发送（当前回合完成后自动发出），
+    // Ctrl/Cmd+Enter=插话引导（steer，立即注入当前回合）；Shift+Enter 换行。
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
-      submit()
+      if (running && !(e.ctrlKey || e.metaKey)) {
+        queueSend()
+      } else {
+        submit()
+      }
     }
   }
 
@@ -191,9 +197,9 @@ export const InputBox: React.FC<InputBoxProps> = ({
 
   const isEmpty = !text.trim() && images.length === 0
 
-  // 动态 placeholder：AI 运行时显示 steer 提示
+  // 动态 placeholder：AI 运行时提示排队/插话两种手势
   const dynamicPlaceholder = running
-    ? 'AI 运行中，输入消息将引导 AI（Enter 发送）...'
+    ? 'AI 运行中：Enter 排队待发送 / Ctrl+Enter 插话引导...'
     : placeholder
 
   return (
@@ -302,7 +308,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
                 className={`composer__send ${isEmpty ? 'composer__send--disabled' : ''} ${running ? 'composer__send--steer' : ''}`}
                 onClick={submit}
                 disabled={disabled || isEmpty}
-                title={running ? '引导 AI (Enter)' : '发送 (Enter)'}
+                title={running ? '插话引导 AI (Ctrl+Enter)' : '发送 (Enter)'}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8.3125 15.0195C8.70103 15.0195 9.01562 14.7049 9.01562 14.3164V4.87793L11.8359 7.69824C12.1108 7.97313 12.5559 7.97313 12.8308 7.69824C13.1057 7.42335 13.1057 6.97827 12.8308 6.70337L8.99487 2.86743C8.86255 2.73511 8.68466 2.66113 8.49878 2.66113C8.31289 2.66113 8.13501 2.73511 8.00269 2.86743L4.16675 6.70337C3.89185 6.97827 3.89185 7.42335 4.16675 7.69824C4.44164 7.97313 4.88673 7.97313 5.16162 7.69824L7.98047 4.87793V14.3164C7.98047 14.7049 8.29506 15.0195 8.3125 15.0195Z" />

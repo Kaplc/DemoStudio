@@ -89,12 +89,12 @@ const patchContent = `# Your patch layer for this dsh profile, applied after eve
           - id: memory-end-of-turn
             file: memory-end-of-turn.md
             channel: steer
-            skipTools: [memory_write]
+            skipTools: [memory_write, memory_reinforce]
             summary: 回合末记忆提醒
           - id: experience-end-of-turn
             file: experience-end-of-turn.md
             channel: inject
-            skipTools: [experience_save]
+            skipTools: [experience_save, experience_reinforce]
             summary: 回合末经验提醒
           - id: doc-update-reminder
             file: 文档更新提醒.md

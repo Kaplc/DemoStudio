@@ -10,7 +10,7 @@ import { BObjectComponent, logger } from '@/engine'
 import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
-  legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff,
+  legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff, hubRelayMult,
   TUTORIAL_TARGETS, shipMults, hullAllowsModule, hullHasSlotFor, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
   relayLegDistCoeff, buildingPos,
 } from '../core/helpers'
@@ -200,6 +200,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     ship.mission = false
     ship.order = undefined
     ship.shelter = null
+    ship.waitPort = undefined
   }
 
   private detachShipToIdle(ship: SimShip): void {
@@ -216,6 +217,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.mission = false
       ship.order = undefined
       ship.shelter = null
+      ship.waitPort = undefined
     }
   }
 
@@ -233,6 +235,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       else ship.recalling = true
     }
     s.routes.splice(idx, 1)
+    this.hubHinted.delete(routeId)
     this.sc.emit({ type: 'route_deleted' })
     return true
   }
@@ -298,6 +301,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     s.ledger.shipRebuild += B.shipRebuildCost
     ship.state = 'idle'
     ship.routeId = null
+    ship.waitPort = undefined
     s.stats.rebuiltCount++
     this.sc.emit({ type: 'ship_rebuilt' })
     return true
@@ -337,6 +341,7 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   tickShips(dt: number): void {
     const s = this.sc.state
+    this.tickBerthQueue(s)
     const flareActive = s.flare.phase === 'active'
     for (const ship of s.ships) {
       if (ship.resumeDelay > 0) {
@@ -369,19 +374,29 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
             break
           }
           if (ship.progress >= 1) {
-            ship.progress = 0
-            if (ship.leg === 'outbound') {
-              if (ship.mission) {
-                ship.state = 'loading'; ship.timer = B.moduleLoadSeconds
-              } else {
-                ship.state = 'unloading'; ship.timer = B.unloadSeconds * shipMults(ship).workMult
-              }
+            if (ship.leg === 'outbound' && ship.mission) {
+              // 模块船抵达火星上货（非地球港，无泊位概念）
+              ship.progress = 0
+              ship.state = 'loading'; ship.timer = B.moduleLoadSeconds
+            } else if (ship.leg === 'return' && !ship.mission) {
+              // 回程抵达资源星装货
+              ship.progress = 0
+              ship.state = 'loading'; ship.timer = B.loadSeconds * shipMults(ship).workMult
+              if (ship.recalling) this.detachShipToIdle(ship)
+            } else if (!this.unloadsAtEarth(s, ship)) {
+              // 卸货点 = 建筑端点（relay_in 入站 / 反向建材线入站）：不占地球泊位，直接卸
+              ship.progress = 0
+              ship.state = 'unloading'; ship.timer = B.unloadSeconds * shipMults(ship).workMult
             } else {
-              if (ship.mission) {
-                ship.state = 'unloading'; ship.timer = B.moduleUnloadSeconds
-              } else {
-                ship.state = 'loading'; ship.timer = B.loadSeconds * shipMults(ship).workMult
-                if (ship.recalling) this.detachShipToIdle(ship)
+              // 到港卸货（地球港）：泊位有限（2026-09-27 节点吞吐上限）——
+              // 记到达时间原地待命，tickBerthQueue 下帧起按 FIFO 放空泊靠泊（唯一放行口径）
+              ship.progress = 1
+              if (ship.waitPort === undefined) {
+                ship.waitPort = s.time
+                logger.info(
+                  `[Transport] ${ship.name} 到港 · 地球港泊位 ${this.earthBerthsOccupied(s)}/${B.portBerths}` +
+                  ` · 港外排队第 ${this.earthBerthWaiting(s)} 位`,
+                )
               }
             }
           }
@@ -395,6 +410,63 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
         default:
           break
       }
+    }
+  }
+
+  // ─── 地球港泊位（2026-09-27 节点吞吐上限：卸货占泊，满泊排队，N 船 ≠ N 倍收益） ───
+
+  /** 该船是否在地球港卸货（泊位口径）：正向/出站线到地球卸 + 模块任务返航卸地球；
+   *  relay_in/反向线卸在建筑端点，不占地球泊位。 */
+  unloadsAtEarth(s: SimState, ship: SimShip): boolean {
+    if (ship.mission) return ship.leg === 'return'
+    const route = s.routes.find((r) => r.id === ship.routeId)
+    if (!route) return false
+    return route.direction === 'forward' || route.direction === 'relay_out'
+  }
+
+  /** 当前地球港占用泊位数（派生值：卸货中的地球卸货船，无需独立容器，快照/读档天然一致） */
+  private earthBerthsOccupied(s: SimState): number {
+    let n = 0
+    for (const x of s.ships) if (x.state === 'unloading' && this.unloadsAtEarth(s, x)) n++
+    return n
+  }
+
+  /** 港外排队船数（flying + 已记到达时间） */
+  private earthBerthWaiting(s: SimState): number {
+    let n = 0
+    for (const x of s.ships) if (x.state === 'flying' && x.waitPort !== undefined) n++
+    return n
+  }
+
+  /**
+   * 泊位结算（tickShips 每帧首调）：占用 = 派生（unloading 且卸货点=地球）；
+   * 空泊按 waitPort FIFO 依序放行排队船（同帧到达按船 id 稳定排序），
+   * 放行 = 唯一入卸货口（到港分支只记时间不放行，单写者无竞态）。
+   * 拥塞可见性：满泊首帧发一次 hint（清队复位）。
+   */
+  private tickBerthQueue(s: SimState): void {
+    const waiting = s.ships
+      .filter((x) => x.state === 'flying' && x.waitPort !== undefined && x.resumeDelay <= 0 && this.unloadsAtEarth(s, x))
+      .sort((a, b) => (a.waitPort! - b.waitPort!) || (a.id - b.id))
+    if (waiting.length === 0) {
+      this.portQueueHinted = false
+      return
+    }
+    let free = B.portBerths - this.earthBerthsOccupied(s)
+    if (free <= 0) {
+      if (!this.portQueueHinted) {
+        this.portQueueHinted = true
+        this.sc.hint(`地球港泊位已满（${B.portBerths}）· 到港船只排队等待卸货`)
+      }
+      return
+    }
+    for (let i = 0; i < waiting.length && free > 0; i++, free--) {
+      const ship = waiting[i]
+      ship.waitPort = undefined
+      ship.progress = 0
+      ship.state = 'unloading'
+      ship.timer = ship.mission ? B.moduleUnloadSeconds : B.unloadSeconds * shipMults(ship).workMult
+      logger.info(`[Transport] 泊位腾出 · ${ship.name} 依序靠泊卸货（余排队 ${waiting.length - i - 1} 艘）`)
     }
   }
 
@@ -428,7 +500,10 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       ship.speedMult = speed * (windowed ? B.gravity.speedMult : 1)
       ship.legTime = legSeconds(dist, ship.speedMult)
       ship.cargo = take
-      ship.roundFuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring)
+      // 借站补给接力（2026-09-27 枢纽折扣）：途经中转站的 forward 线油耗打折（与 routeNetPerTrip 展示同口径）
+      const hubMult = hubRelayMult(s, route)
+      ship.roundFuel = roundFuel(s.mods, dist, windowed ? B.gravity.fuelMult : 1, ship, ring) * hubMult
+      if (hubMult < 1) this.hintHubRelay(route)
       ship.materials = 0
       s.starStock[star] = stock - take
       this.dryHinted.delete(star) // 恢复出货：清沿提示键
@@ -505,6 +580,18 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
 
   /** 出站无货提示沿 */
   private relayDryHinted = false
+
+  /** 借站补给折扣首航提示沿（每航线一次；删线即清，重建重提示） */
+  private hubHinted = new Set<number>()
+  private hintHubRelay(route: SimRoute): void {
+    if (this.hubHinted.has(route.id)) return
+    this.hubHinted.add(route.id)
+    logger.info(`[Transport] 航线 ${route.id} 途经中转站 · 借站补给接力（往返油耗 ×${B.hubRelayDiscount}）`)
+    this.sc.hint('航线途经中转站 · 借站补给接力，油耗打折')
+  }
+
+  /** 港泊拥塞提示沿（tickBerthQueue 清队复位） */
+  private portQueueHinted = false
 
   /** 卸货完成（仅在卸货点触发：正向/出站=地球 / relay_in=中转站 / 反向=站点 / 任务返航=地球） */
   private completeUnload(ship: SimShip): void {

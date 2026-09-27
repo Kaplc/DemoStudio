@@ -1,0 +1,45 @@
+{
+  "add_prefix_bool_expr_associate.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526418520,
+    "notes": [
+      "实施复盘强化时按其\"两侧同构四处同步 + 验证梯度\"教训执行"
+    ]
+  },
+  "add_reminder_skip_when_already_saved.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526418606,
+    "notes": [
+      "改 ds-reminder skipTools 时参考\"各自只看自己\"语义与同步面清单"
+    ]
+  },
+  "extract_ds_reminder_plugin.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526418674,
+    "notes": [
+      "skipTools 改动验证时参考其 sync 脚本幂等与 patch 验证路径"
+    ]
+  },
+  "remove_dsh_plugin_completely.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526780171,
+    "notes": [
+      "排查 patch 回写时靠其\"editor.bat 启动重生成+复制 / sync 脚本是复活源\"教训定位时序"
+    ]
+  },
+  "implement_slash_command_execute_wire.md": {
+    "uses": 2,
+    "lastUsedAt": 1790528764400,
+    "notes": [
+      "修复 images 缺字段：wire 协议差异与 typert 信封知识直接指导定位与修复",
+      "诊断 /compact 被当普通消息：拦截链路行为与 wire 要点全来自它，据此发现\"拦截分支根本没执行\""
+    ]
+  },
+  "diagnose_first_message_thinking_card_missing.md": {
+    "uses": 1,
+    "lastUsedAt": 1790528399967,
+    "notes": [
+      "沿用其\"读 console log 时序、看该有日志的地方有没有日志\"取证法定位旧模块缓存"
+    ]
+  }
+}

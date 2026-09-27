@@ -532,7 +532,7 @@ const handleSend = useCallback(async (text: string) => {
 }, [addConsoleOutput, pushSystem, refreshSessions])
 ```
 
-判据只有一个：`agentService.isRunning()`。UI 上 `InputBox` 只是把 placeholder 换成「AI 运行中，输入消息将引导 AI」、给按钮加 `composer__card--steer` 样式；`submit()` 里注释明写「允许在 running 状态下发送（steer 模式）」，不拦。
+判据只有一个：`agentService.isRunning()`。但**手势路由在 `InputBox.onKeyDown`**（2026-09-27 对齐 DSH WebUI `ComposerSubmissionPolicy` 的默认 `busyEnter=queue`）：空闲 Enter 直接发送；**运行中 Enter 默认排队**（`handleQueueSend` 入队待发送，等当前回合真实结束后由队列 drain 发出——引导消息不再立即插进当前回合，用户气泡也不会出现在两段思考中间）；**Ctrl/Cmd+Enter 才是插话引导**（走 `handleSend` 的 steer 分支，立即注入当前回合）。placeholder 与发送按钮 title 同步提示两种手势，队列按钮保留。send/steer 的服务侧语义不变。
 
 ### 5.2 `send` —— `mode: 'queue'`
 
@@ -664,7 +664,9 @@ export interface PendingQuestionRequest {
 }
 ```
 
-**紧凑化定案（2026-09-20）**：用户反馈提问卡片占画面太多，`.question-card` 样式整体收紧——窄卡 780px→`min(560px, 100%-48px)`（不再与输入框等宽）、内距/字号/行距全线下调（标题 14px→13px、选项内距 8px→4px、行号圆 22px→18px）、选项区加 `max-height: min(40vh, 320px)` 限高滚动防多选项撑爆消息区。结构与视觉层级（eyebrow/标题/选项/自定义输入/页脚）不变。回归锁：`tests/e2e/agent/question-card-compact.spec.ts`（宽度/行高/页脚/整卡高度预算 + 限高滚动 + 回答链路）。
+**紧凑化定案（2026-09-20）**：用户反馈提问卡片占画面太多，`.question-card` 样式整体收紧——内距/字号/行距全线下调（标题 14px→13px、选项内距 8px→4px、行号圆 22px→18px）、选项区加 `max-height: min(40vh, 320px)` 限高滚动防多选项撑爆消息区。结构与视觉层级（eyebrow/标题/选项/自定义输入/页脚）不变。回归锁：`tests/e2e/agent/question-card-compact.spec.ts`（宽度/行高/页脚/整卡高度预算 + 限高滚动 + 回答链路）。
+
+**宽度改回与输入框等宽（2026-09-27）**：用户决策撤销 560px 窄卡（当时随紧凑化一并收窄），宽度改为与输入框可见面等宽 `calc(min(780px, 100%) - 48px)`（composer 外层 `max-width: min(780px, 100%)` 含 24px 侧边距，可见面即该值）；内距/字号/限高滚动等紧凑化其余部分保留。回归锁的宽度断言同步改为「卡片与 `.composer__card` boundingBox 等宽（±1px）」。
 
 ### 6.2 回答出去（`answerQuestion`）
 
@@ -1224,6 +1226,8 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 
 AI 运行期间点时钟按钮（`.composer__queue`）→ `handleQueueSend` 把 `{id, text, images?}` 追加进 `queuesBySessionRef`（按会话写穿的 Map，键与草稿同源），显示态 `queuedSends` 渲染为输入框上方的「队列」chip 条。回合 **completed** 结束时 `turnEnd` 分支接管队首（`pendingQueuedSendRef.current = id`），显示队列空闲（上轮结论打完）后 drain 的空闲分支真正 `sendNowRef` 发出并把条目移出队列；**非 completed（停止/出错）不动队列**，条目保留。
 
+2026-09-27 起运行中 **Enter 是入队的默认手势**（此前只有时钟按钮能入队，Enter 直接 steer 插话）；排队/插话的手势路由见 §5.1。
+
 ### 20.2 撤回与重新编辑（改这块别改回去）
 
 每个 chip 两个操作：**铅笔按钮（title=撤回重新编辑）** `handleEditQueuedSend` —— 条目移出队列、文本并入输入框草稿（草稿为空直接放入，**已有草稿换行追加**，两边都不丢）、图片放回图片草稿（blob URL 一直未 revoke 可直接复用；草稿已满 9 张时只提示「超出部分未恢复」）、**已被接管的条目同时作废 `pendingQueuedSendRef`**（drain 空闲分支在队列里找不到该条目自然放弃，绝不偷发）、最后聚焦输入框光标置尾。**× 按钮（title=移除）** `handleRemoveQueuedSend` 保持原语义：只移除不回填。
@@ -1277,3 +1281,38 @@ AI 运行期间点时钟按钮（`.composer__queue`）→ `handleQueueSend` 把 
 - 实现：`src/components/AgentPanel.tsx` 的 `consumeDisplayItem`（a-skip 守卫 + 扫描采纳 + 免重放分支）；
 - 单测：`tests/agentPartialAdopt.test.tsx`（切回续写后 flush 全量立即落位 / 队列积压 + 半截段在尾不复制 / 无半截段照旧回放的回归锁，3 例；回滚验证：恢复旧实现后前两例精确变红，且探针复现"推理 2 段"双卡 DOM）；
 - 关联：§19.2 的原地续写是本节的上半场（flush 前不冻结），本节是下半场（flush 时不清空重放），两者合起来才是完整的"切回思考中会话"体验。
+
+## 23. 斜杠命令执行：/compact 不再被当普通消息发送（2026-09-27）
+
+用户症状：输入框敲 `/compact` 回车，命令没有执行，而是以一条普通用户消息出现在对话里（模型收到字面文本后只能散文回复"没有可压缩的历史内容"）。
+
+### 23.1 根因：两个错误假设叠加
+
+1. **面板 slash 菜单是纯展示**（`src/components/agent/slash-command/`）：`builtin-commands.ts` 硬编码命令清单，`useSlashCommand.selectCommand` 选中后只把 `/name ` 文本回填输入框；`types.ts` 注释假设"文本发给 DSH 由后端执行"。
+2. **DSH 后端不解析用户消息里的命令**：`parseCommand` 全仓唯一调用点是 `CommandRuntime.execute`（@Remote RPC，dsh-commands 包）——带 `/` 前缀的消息原样进模型。官方 DSH WebUI（`dsh-client-ui-commands` + `dsh-client-ui-input-trigger`）是**客户端裁决**：Enter 时输入机轮询 trigger source 的 `matchEnter`，按会话命令目录（`commands.list` RPC，按 session 缓存）解析，命中 → `commands.execute` RPC（生命周期落 command/run + command/done 事件）；目录未命中 → default-sink 当普通消息（**有意兜底**，供未知命令/路径类文本）。
+
+### 23.2 修复语义（改这块别改回去）
+
+提交链路对齐官方裁决语义，落点在 `AgentPanel.handleSend` 最顶部（乐观上屏用户气泡之前）：
+
+- `/` 开头（无图片附件）→ `agentService.resolveSlashSubmission(text)`：
+  - 目录命中且执行返回 → `{handled:true, outcome}`：**不进对话、不发模型**；命令生命周期由事件流渲染（`执行命令: /xxx` / `上下文压缩开始/完成` 系统行），裁决层只在 error outcome 时补一条 `命令出错: …`；
+  - 非 `/`、token 非法、目录未命中、执行 admission miss（`commands.execute` 返回 undefined）→ `{handled:false}`：回退普通消息（官方 default-sink）；
+  - 目录拉取/执行 RPC 失败 → `{handled:true, outcome:error}`：**命令文本绝不静默降级为消息发给模型**——那正是修复前的根因路径；
+- 带图片附件时不拦截（命令图片白名单语义复杂，按普通消息处理，与旧行为一致）。
+
+### 23.3 wire 协议：typert remote 端点与 unary 路由不同
+
+`commands/list`、`commands.execute` 不在 host-apiproxy 的 UNARY_ROUTES 表里，走 **TypertGatewayService 的 `/api` 拦截器**（dsh-api-gateway），与 unary 路由三点差异（`AgentService.listCommands/executeCommand` 已封装）：
+
+1. method 是 `namespace/method` 形式（`commands/list`），POST `/api/commands/list`；
+2. payload 必须是**恰好一个 `args` 字段**的包装对象；
+3. 会话标识字段名是 `agentId`（不是 unary 的 `sessionId`）；`commands.execute` 返回 `undefined` = admission miss（未注册命令），`{commandId, result:{kind,text?}}` = 已执行。
+
+命令超时放宽：`commands.execute` 显式传 120s（`/compact` 压缩摘要耗时长；`rpc()` 与 `dsh-rpc` IPC 桥加了可选 `timeoutMs` 参数，默认行为不变）。
+
+### 23.4 文件与测试分工
+
+- 实现：`AgentPanel.handleSend`（拦截）+ `AgentService` 的 `listCommands/executeCommand/resolveSlashSubmission/parseSlashToken` + `slash-command/builtin-commands.ts`（菜单候选改为拉取 `commands.list` 真实目录，失败/为空回退硬编码清单）+ `electron/main.ts`/`preload.ts`（dshRpc 超时透传）；
+- 单测：`tests/agentSlashCommandResolve.test.ts`（parseSlashToken 语法 + 裁决全分支 + typert 信封线格式 + 目录缓存）+ `tests/agentSlashCommandPanel.test.tsx`（面板拦截：命中不发消息/错误系统行/未命中回退/普通消息回归锁）；
+- e2e：`tests/e2e/agent/slash-command-execute.spec.ts`（合成 commands/list+execute 存根 + mux command/run 帧：命中不发 prompt、用户气泡不上屏、`执行命令: /compact` 系统行；未命中回退普通消息）。

@@ -16,7 +16,7 @@ import { WarmCurrentMenuGameMode } from './gameplay/menu/WarmCurrentMenuGameMode
 import type { MenuAction } from './gameplay/menu/WarmCurrentMenuGameMode'
 import { WarmCurrentPlayerController } from './gameplay/base/WarmCurrentPlayerController'
 import { WarmCurrentConfigLoader } from './WarmCurrentConfigLoader'
-import { endpointPos, snapToGrid, starPosAt } from './gameplay/core/helpers'
+import { endpointPos, snapToGrid, starPosAt, transferArcPoint } from './gameplay/core/helpers'
 import { isShipyardType } from './gameplay/systems/OrbitBuildComponent'
 import { B } from './gameplay/core/balance'
 import LoadingPanelScript, { LOADING_WIDGET } from './gameplay/ui/LoadingPanelScript.script'
@@ -172,6 +172,8 @@ export interface WarmCurrentDebugBridge {
   } | null
   /** 天体当前地图画布坐标（starPosAt 权威值；'sun'/'earth'/'moon'/行星名） */
   bodyPos(name: string): { x: number; y: number } | null
+  /** 航线转移轨道弧采样（2026-09-29 轨道蓝图台；t ∈ 0..1，返回画布坐标；无航线 = null） */
+  routeArcSample(routeId: number, t: number): { x: number; y: number } | null
   /** 天体蓝图 Actor 当前世界坐标（渲染位置；含行星系舞台变换） */
   bodyWorldPos(name: string): { x: number; y: number; z: number } | null
   /** 原子双击行星（单次调用内同步两次按下-抬起，走真实 onMapPointerDown 双击链路） */
@@ -531,6 +533,13 @@ export class WarmCurrentGameInstance extends GameInstance {
       routes: () => {
         const s = instance._gameMode?.simState.state
         return s ? s.routes.map((r) => ({ id: r.id, direction: r.direction, ships: r.shipIds.length })) : []
+      },
+      routeArcSample: (routeId, t) => {
+        const mode = instance._gameMode
+        if (!mode) return null
+        const route = mode.simState.state.routes.find((r) => r.id === routeId)
+        if (!route) return null
+        return transferArcPoint(mode.simState.state, route, Math.max(0, Math.min(1, t)))
       },
       buildShip: () => instance._gameMode?.transport.tryBuildShip('standard', []) ?? false,
       rebuildShip: (shipId) => instance._gameMode?.transport.tryRebuildShip(shipId) ?? false,

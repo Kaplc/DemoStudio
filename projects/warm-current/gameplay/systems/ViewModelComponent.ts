@@ -645,8 +645,10 @@ export interface WarmCurrentVM {
   buildingDetail: HudBuildingDetail | null
   /** 耀斑预警决策条（fleet_order_bar 消费；windowOpen = 预警期可下令） */
   fleetOrders: { windowOpen: boolean; selectedCount: number; canHold: boolean }
-  /** 航线编辑模式（HUD「航线编辑」按钮高亮态） */
+  /** 航线编辑模式（2026-09-29 起为轨道蓝图台合并态；HUD「航线编辑」按钮高亮态） */
   routeEditMode: boolean
+  /** 轨道蓝图台上下文提示（随子状态切换：放置/轨道编辑/拖线；蓝图态 TutText 接管显示） */
+  blueprintHint: string
   /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
   shipRebuildCost: number
   /** 当前轨道锚是否有建成船坞（轨道建设面板文案开关；折扣态判定在 GameMode，UI 不持规则） */
@@ -901,6 +903,7 @@ export class ViewModelComponent extends BObjectComponent<WarmCurrentGameMode> {
       buildingDetail,
       fleetOrders,
       routeEditMode: this.owner.routeEditMode,
+      blueprintHint: this.owner.blueprint.hint(),
       shipRebuildCost: B.shipRebuildCost,
       hasShipyard: !!this.owner.orbitBuildSel && this.owner.orbitBuild.shipyardMults(this.owner.orbitBuildSel) !== null,
       tutorial: s.tutorial,

@@ -30,8 +30,8 @@ import type { SolarBodyId } from '../core/helpers'
 import { restoreSimState } from '../core/save'
 import {
   buildingByEndpoint, buildingDefOf, endpointPos, findRoute,
-  resetMoonPhaseAdj, roundFuel, snapToGrid,
-  starLoad, starOfEndpoint,
+  hubRelayMultForSegment, resetMoonPhaseAdj, roundFuel, snapToGrid,
+  starLoad, starOfEndpoint, starPosAt,
   TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { Endpoint, SimRoute, SimShip, SimState, StarId } from '../core/types'
@@ -50,6 +50,8 @@ import { PanelStateComponent } from '../systems/PanelStateComponent'
 import { FleetCommandComponent } from '../systems/FleetCommandComponent'
 import { HologramComponent } from '../systems/HologramComponent'
 import { ViewDirectorComponent } from '../systems/ViewDirectorComponent'
+import { OrbitBlueprintComponent } from '../systems/OrbitBlueprintComponent'
+import type { BpOverlay } from '../systems/OrbitBlueprintComponent'
 import type {
   HoloTab, HudDesignRow, HudDesignSlotCell, HudHoloBuildRow, HudHoloDepositRow, HudHoloEarth,
   HudHoloToolRow, HudHologram, HudHullRow, HudModuleRow, HudPayloadDesign, HudPayloadRow,
@@ -130,6 +132,8 @@ export class WarmCurrentGameMode extends GameMode {
   readonly holo: HologramComponent = this.addComponent(HologramComponent)
   /** 星图视图/相机决策（视图模式/观察态/取景/相机交互语义/滚轮注入） */
   readonly view: ViewDirectorComponent = this.addComponent(ViewDirectorComponent)
+  /** 轨道蓝图台（2026-09-29 航线编辑合并建造+航线：轨道环吸附放置 + KSP 式轨道编辑 + 模式状态机） */
+  readonly blueprint: OrbitBlueprintComponent = this.addComponent(OrbitBlueprintComponent)
 
   /** 太阳系云台相机（滚轮缩放 + 右键/边缘平移；群星式） */
   readonly cameraActor: SolarCameraActor
@@ -159,6 +163,10 @@ export class WarmCurrentGameMode extends GameMode {
   get holoToolKind(): 'ring' | 'building' | null {
     return this.holo.holoPlaceTool?.kind ?? null
   }
+  /** 轨道蓝图台渲染投影（MapViewProvider；蓝图态 = routeEditMode 开，2026-09-29） */
+  get blueprintActive(): boolean { return this.routeEditMode }
+  get blueprintGhost(): { x: number; y: number; valid: boolean; label: string } | null { return this.blueprint.ghostView }
+  get blueprintOverlay(): BpOverlay | null { return this.blueprint.overlayView }
   /** 船坞造船面板/空间站/星球信息/建筑详情选择态（下沉 PanelStateComponent 后的兼容只读视图） */
   get planetInfoSel(): SolarBodyId | null { return this.panels.planetInfoSel }
   get orbitBuildSel(): PlanetBodyId | null { return this.panels.orbitBuildSel }
@@ -240,6 +248,11 @@ export class WarmCurrentGameMode extends GameMode {
     controller.inputComponent.BindAction('wc-pause-menu', 'Escape', 'pressed', () => {
       if (this.buildMode) {
         this.cancelBuildMode()
+        return
+      }
+      // 轨道蓝图台：Esc 退出蓝图态（放置工具已由上一分支先取消）
+      if (this.routeEditMode) {
+        this.toggleRouteEditMode()
         return
       }
       // 全息勘探模式：Esc 先清放置工具，再退全息回俯视（不误开暂停菜单）
@@ -372,7 +385,9 @@ export class WarmCurrentGameMode extends GameMode {
   //  建筑模式（建造面板选型 → 星图网格放置）
   // ═══════════════════════════════════════════
 
-  /** 进入建筑模式（建造面板「放置」按钮；预算校验通过才进入；与航线编辑模式互斥） */
+  /** 进入建筑模式（建造面板「放置」按钮；预算校验通过才进入）。
+   *  2026-09-29 轨道蓝图台合并：蓝图态（routeEditMode 开）内建造工具 = 轨道环放置
+   *  （ghost 吸附轨道环，见 OrbitBlueprintComponent）；非蓝图态保持网格吸附放置。 */
   enterBuildMode(typeId: string): boolean {
     const def = buildingDefOf(typeId)
     if (!def) return false
@@ -382,8 +397,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildMode = { typeId }
     this.buildCursor = null
     this.drag = null
-    this.routeEditMode = false
-    logger.info(`[WarmCurrent] 建筑模式：${def.name}（点击星图落位，Esc 取消）`)
+    logger.info(`[WarmCurrent] 建筑模式：${def.name}（${this.routeEditMode ? '轨道环放置' : '点击星图落位'}，Esc 取消）`)
     return true
   }
 
@@ -399,23 +413,21 @@ export class WarmCurrentGameMode extends GameMode {
   //  航线编辑模式（底部 HUD「航线编辑」开关）
   // ═══════════════════════════════════════════
 
-  /** 切换航线编辑模式：开启 = 星图节点可拖线；关闭 = 点星球打开信息面板。与建筑模式互斥。 */
+  /**
+   * 切换轨道蓝图台（2026-09-29 航线编辑合并升级，原「航线编辑模式」）：
+   * 开启 = 全息俯视取景 + 全息网格地图 + 轨道环示意；同一模式内拖天体/建筑建航线
+   * （真实转移轨道弧）、建造面板选型后点轨道环放置建筑、点轨道设施进入 KSP 式
+   * 轨道蓝图编辑。关闭 = 清编辑态回地球系默认交互（点星球 = 信息面板）。
+   */
   toggleRouteEditMode(): void {
     if (this.routeEditMode) {
       this.routeEditMode = false
-      this.drag = null
-      this.feedback.toast('航线编辑已退出 — 点星球查看信息', '#9fc4d8')
-      audioSys.play('wc.ok', { volume: 0.3 })
-      logger.info('[WarmCurrent] 航线编辑模式退出')
+      this.blueprint.exit()
       return
     }
-    if (this.buildMode) this.cancelBuildMode()
+    this.cancelBuildMode()
     this.routeEditMode = true
-    this.panels.closePlanetInfo()
-    this.panels.closeOrbitBuild()
-    this.feedback.toast('航线编辑：从星球拖线到地球即可建立航线（再点按钮退出）', '#7fdcff')
-    audioSys.play('wc.ok', { volume: 0.5 })
-    logger.info('[WarmCurrent] 航线编辑模式进入')
+    this.blueprint.enter()
   }
 
 // ─── 星图指针交互 ───
@@ -546,6 +558,16 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   onMapPointerDown(p: { x: number; y: number }): void {
+    // 轨道蓝图台放置分支（建造工具 × 蓝图态）：ghost 吸附轨道环落位（成功即退出工具）
+    if (this.buildMode && this.routeEditMode) {
+      if (this.blueprint.placeAtGhost()) {
+        audioSys.play('wc.build')
+        this.cancelBuildMode()
+      } else {
+        audioSys.play('wc.bad', { volume: 0.5 })
+      }
+      return
+    }
     // 建筑模式优先：点击 = 网格吸附落位（成功即退出模式，失败提示后留在模式中可换点）
     if (this.buildMode) {
       const snapped = snapToGrid(p.x, p.y)
@@ -558,6 +580,9 @@ export class WarmCurrentGameMode extends GameMode {
       }
       return
     }
+    // 轨道蓝图台：轨道编辑手柄/选中优先消费；未消费 → 落入既有拖线判定
+    // （链路建筑按住拖 = 建航线；点轨道设施/入轨建筑 = 轨道编辑选中）
+    if (this.routeEditMode && this.blueprint.onPointerDown(p)) return
     // 全息勘探模式：左键 = 环绕拖拽（相机层消费），矿点点选走 Controller 屏幕空间拾取，
     // 星图点击判定全部冻结（面板行也可选中矿点）
     if (this.hologramSel) return
@@ -604,7 +629,9 @@ export class WarmCurrentGameMode extends GameMode {
    *  二次消费 lastPlanetClick 被误判为双击（双击聚焦语义只属俯视路径） */
   private resolveMapClick(p: { x: number; y: number }, allowDouble: boolean): void {
     const s = this.simState.state
-    if (allowDouble) {
+    // 轨道蓝图台（2026-09-29）：月球本体已可见——双击天体切观察视角的语义在蓝图台关闭，
+    // 防拖线/检视意图误触相机跳转（蓝图台取景由 enterBlueprintView 权威管理）
+    if (allowDouble && !this.routeEditMode) {
       const dbl = this.hit.bodyAt(p)
       if (dbl) {
         const now = performance.now()
@@ -698,6 +725,14 @@ export class WarmCurrentGameMode extends GameMode {
       this.boxDrag.y1 = p.y
       return
     }
+    // 轨道蓝图台：KSP 手柄拖拽更新（半径/相位实时预览）
+    if (this.routeEditMode && this.blueprint.onDragMove(p)) return
+    // 蓝图台放置：ghost 吸附轨道环（替代网格吸附光标）
+    if (this.buildMode && this.routeEditMode) {
+      this.blueprint.updatePlaceGhost(p)
+      this.buildCursor = null
+      return
+    }
     // 建筑模式：光标位置刷新网格吸附预览（渲染 ghost 消费）
     if (this.buildMode) {
       const snapped = snapToGrid(p.x, p.y)
@@ -748,11 +783,15 @@ export class WarmCurrentGameMode extends GameMode {
       }
       return
     }
+    // 轨道蓝图台：KSP 手柄拖拽收尾（应用轨道半径/相位）
+    if (this.routeEditMode && this.blueprint.endDragApply()) return
     const drag = this.drag
     if (!drag) return
     this.drag = null
     const hover = this.hit.nodeAt(p)
     if (!hover) return
+    // 轨道蓝图台点按仲裁：按住在入轨建筑上未拖动 = 切轨道编辑选中（而非"站→自己"非法线报错）
+    if (this.routeEditMode && this.blueprint.noteDragClick(drag.fromEp, hover)) return
     const ok = this.transport.tryCreateRoute(drag.fromEp, hover)
     if (ok) {
       audioSys.play('wc.ok')
@@ -820,10 +859,14 @@ export class WarmCurrentGameMode extends GameMode {
   }
 
   private forwardLabel(star: StarId): string {
-    const mods = this.simState.state.mods
+    const s = this.simState.state
+    const mods = s.mods
     const load = Math.round(starLoad(mods, star))
-    const fuel = Math.round(roundFuel(mods, B.stars[star].dist))
-    return `单船 ${load}t · 油耗 ${fuel} · 净补 ${load - fuel}`
+    // 借站补给预览：拖线段途经中转站时实时展示折后油耗（与 departShip 实发同口径）
+    const hubMult = hubRelayMultForSegment(s, starPosAt(s, star), starPosAt(s, 'earth'))
+    const fuel = Math.round(roundFuel(mods, B.stars[star].dist) * hubMult)
+    const tag = hubMult < 1 ? ' · 借站补给' : ''
+    return `单船 ${load}t · 油耗 ${fuel} · 净补 ${load - fuel}${tag}`
   }
 
   // ═══════════════════════════════════════════
@@ -889,6 +932,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildMode = null
     this.buildCursor = null
     this.routeEditMode = false
+    this.blueprint.resetState()
     this.panels.closeAll()
     this.fleet.clearShipSelection()
     this.boxDrag = null
@@ -918,6 +962,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildMode = null
     this.buildCursor = null
     this.routeEditMode = false
+    this.blueprint.resetState()
     this.panels.closeAll()
     this.fleet.clearShipSelection()
     this.boxDrag = null

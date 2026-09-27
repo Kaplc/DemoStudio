@@ -85,6 +85,8 @@ export default class HudScript extends BehaviourScript {
   /** 居中二级面板互斥登记（科研/建造/运输，onStart 填充） */
   private centerPanels: CenterPanelEntry[] = []
   private acc = 1
+  /** TutText 的 widget 静态教学文案（onStart 捕获；蓝图台提示退出后恢复） */
+  private tutDefaultText = ''
 
   /** 居中面板互斥开关：只收起其它「展开中」的居中面板（只关不开，对关闭面板 toggle 会误开），再 toggle 目标 */
   private toggleCenterPanel(target: CenterPanelEntry): void {
@@ -139,6 +141,8 @@ export default class HudScript extends BehaviourScript {
     }
     // 选中面板：无选中内容时整体隐藏（onUpdate 差分驱动显隐）
     this.vis.set(this.actor, 'SelPanel', false)
+    // 捕获 TutText 静态教学文案（轨道蓝图台提示接管/恢复用，2026-09-29）
+    this.tutDefaultText = findText(this.actor, 'TutText')?.text ?? ''
     bind('Btn_mission', () => wcMode()?.transport.startMarsMission())
     bind('Btn_demolish', () => {
       const m = wcMode()
@@ -354,8 +358,16 @@ export default class HudScript extends BehaviourScript {
       }
     }
 
-    // ─── 教学提示 ───
-    this.vis.set(this.actor, 'TutText', vm.tutorial)
+    // ─── 教学提示 / 轨道蓝图台提示（2026-09-29：蓝图态接管 TutText 显示上下文提示，
+    // 退出恢复 widget 静态教学文案——onStart 捕获的初始文本回写） ───
+    const tut = findText(this.actor, 'TutText')
+    if (vm.routeEditMode) {
+      this.vis.set(this.actor, 'TutText', true)
+      this.binder.set(tut, vm.blueprintHint)
+    } else {
+      this.vis.set(this.actor, 'TutText', vm.tutorial)
+      if (tut && tut.text !== this.tutDefaultText) this.binder.set(tut, this.tutDefaultText)
+    }
   }
 
   override onDestroy(): void {

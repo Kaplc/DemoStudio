@@ -105,6 +105,22 @@ export class OrbitBuildComponent extends BObjectComponent<WarmCurrentGameMode> {
     return this.sc.state.orbitBuildings.find((x) => x.anchor === anchor && x.built && isShipyardType(x.type)) ?? null
   }
 
+  /** 轨道编辑应用（2026-09-29 轨道蓝图台 · KSP 式拖拽落点）：改本座轨道环半径/相位，
+   *  保持当下视觉角连续（a0 = a − ω·time，orbitBuildingPos 纯时间函数口径）。
+   *  半径钳制 = 锚天体显示半径 + orbitMinPad 起、720 封顶（统一环观感量级）。 */
+  setOrbitRing(obId: number, ringR: number, a: number): boolean {
+    const s = this.sc.state
+    const ob = s.orbitBuildings.find((x) => x.id === obId)
+    if (!ob) return false
+    const bodyR = B.map.nodes[ob.anchor]?.r ?? 40
+    const rc = Math.max(bodyR + B.build.orbitMinPad, Math.min(720, ringR))
+    const w = B.orbitBuild.orbitSpeed / Math.max(1, rc)
+    ob.ringR = rc
+    ob.a0 = a - w * s.time
+    logger.info(`[OrbitBuild] 轨道编辑 轨道设施#${ob.id}（@${ob.anchor}）→ 环半径 ${Math.round(rc)}px 相位 ${(a % (Math.PI * 2)).toFixed(2)}`)
+    return true
+  }
+
   /** 造船乘区（建成船坞的表值乘区；无 → null = 原价原时长） */
   shipyardMults(anchor: PlanetBodyId): { costMult: number; speedMult: number } | null {
     const ob = this.builtShipyardAt(anchor)

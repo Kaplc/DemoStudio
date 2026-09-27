@@ -13,9 +13,25 @@
 import { BObjectComponent } from '@/engine'
 import { B } from '../core/balance'
 import type { BuildingUpgradeDef } from '../core/balance'
-import { angularDistDeg, buildingDefOf, buildingEffectiveDef, buildingPos, isMeltedAt, resolveBuildingOrbit, shipMults, surfaceBuildingPos } from '../core/helpers'
-import type { SimBuilding, SimShip } from '../core/types'
+import { angularDistDeg, buildingDefOf, buildingEffectiveDef, buildingPos, isMeltedAt, resolveBuildingOrbit, shipMults, starPosAt, surfaceBuildingPos } from '../core/helpers'
+import type { PlanetBodyId, SimBuilding, SimShip } from '../core/types'
 import type { WarmCurrentGameMode } from '../base/WarmCurrentGameMode'
+
+/** 轨道蓝图台：本征轨道半径钳制上限（px；太阳锚/行星锚共用，防把轨道拖到星图外） */
+const ORBIT_R_MAX_PX = 3600
+
+/** 轨道锚体的最小本征轨道半径（天体显示半径 + 间距；太阳锚用日距净空） */
+export function orbitRadiusClampFor(anchor: PlanetBodyId | 'sun'): { min: number; max: number } {
+  const bodyR = anchor === 'sun' ? B.map.nodes.sun.r : B.map.nodes[anchor].r
+  const min = bodyR + (anchor === 'sun' ? B.build.sunClearance : B.build.orbitMinPad)
+  return { min, max: ORBIT_R_MAX_PX }
+}
+
+/** 钳制到合法轨道半径区间 */
+export function clampOrbitRadius(anchor: PlanetBodyId | 'sun', r: number): number {
+  const { min, max } = orbitRadiusClampFor(anchor)
+  return Math.max(min, Math.min(max, r))
+}
 
 export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
   constructor(owner: WarmCurrentGameMode) {
@@ -86,6 +102,54 @@ export class BuildingsComponent extends BObjectComponent<WarmCurrentGameMode> {
     s.buildings.push(b)
     s.stats.buildingsBuilt++
     this.sc.emit({ type: 'building_built', text: def.name, value: def.cost, x, y })
+    return true
+  }
+
+  // ─── 轨道蓝图台（2026-09-29：任意轨道放置 + KSP 式轨道编辑） ───
+
+  /** 轨道放置合法性（预览/落位共用口径）：在轨道点 (anchor, r, a) 的实时落位上复用
+   *  地面口径（耀斑/预算/日距/建筑间距）；r 先钳制到合法区间（预览与落位同钳制）。 */
+  orbitPlacementIssue(typeId: string, anchor: PlanetBodyId | 'sun', r: number, a: number): string | null {
+    const s = this.sc.state
+    const rc = clampOrbitRadius(anchor, r)
+    const c = starPosAt(s, anchor)
+    return this.placementIssue(typeId, c.x + Math.cos(a) * rc, c.y + Math.sin(a) * rc)
+  }
+
+  /** 轨道放置（轨道蓝图台专用）：显式锚天体 + 本征轨道半径/相位落位，绕锚公转
+   *  （锚可为太阳 = 建筑上行星绕日轨道）。成功扣 H3 并入状态，返回新建筑 id。 */
+  tryPlaceOnOrbit(typeId: string, anchor: PlanetBodyId | 'sun', r: number, a: number): number | null {
+    const s = this.sc.state
+    const def = buildingDefOf(typeId)
+    if (!def) { this.sc.hint('未知建筑类型'); return null }
+    const rc = clampOrbitRadius(anchor, r)
+    const c = starPosAt(s, anchor)
+    const x = c.x + Math.cos(a) * rc
+    const y = c.y + Math.sin(a) * rc
+    const issue = this.placementIssue(typeId, x, y)
+    if (issue) { this.sc.hint(issue); return null }
+    s.earthH3 -= def.cost
+    const w = B.build.orbitSpeed / Math.max(1, rc)
+    const b: SimBuilding = {
+      id: maxBuildingId(s) + 1, type: typeId, x, y, stock: 0, invested: def.cost, upgrade: null,
+      anchor, orbitR: rc, orbitA0: a - w * s.time,
+    }
+    s.buildings.push(b)
+    s.stats.buildingsBuilt++
+    this.sc.emit({ type: 'building_built', text: `${def.name}（轨道 r=${Math.round(rc)}）`, value: def.cost, x, y })
+    return b.id
+  }
+
+  /** 轨道编辑应用（KSP 式拖拽落点）：改本征轨道半径/相位，保持当下视觉角连续
+   *  （a0 = a − ω·time，纯时间函数口径 → 快照/读档天然确定）。 */
+  setOrbit(id: number, r: number, a: number): boolean {
+    const s = this.sc.state
+    const b = s.buildings.find((x) => x.id === id)
+    if (!b || !b.anchor) return false
+    const rc = clampOrbitRadius(b.anchor, r)
+    const w = B.build.orbitSpeed / Math.max(1, rc)
+    b.orbitR = rc
+    b.orbitA0 = a - w * s.time
     return true
   }
 

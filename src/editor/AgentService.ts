@@ -64,6 +64,40 @@ export async function encodeImagePart(file: File): Promise<PromptContentPart> {
   }
 }
 
+// ─── DSH 斜杠命令（commands.list / commands.execute，typert remote 端点） ───
+
+/** commands.list 返回的命令描述符（对齐 dsh-commands CommandDescriptor） */
+export interface DshCommandDescriptor {
+  name: string
+  description: string
+  input?: { hint: string; images?: boolean }
+}
+
+/** commands.execute 返回的命令执行结果（对齐 dsh-commands CommandResult） */
+export interface DshCommandOutcome {
+  kind: 'success' | 'error'
+  text?: string
+}
+
+/** 提交链路的斜杠命令裁决结果：handled=true 已由 commands.execute 接管（不进对话） */
+export interface SlashSubmissionVerdict {
+  handled: boolean
+  outcome?: DshCommandOutcome
+}
+
+/**
+ * 斜杠提交裁决：提交链路里把 "/xxx" 文本路由到 DSH 命令执行（2026-09-27 修复）。
+ *
+ * 背景：DSH 后端只在 commands.execute RPC 内解析命令（parseCommand 全仓唯一调用点），
+ * 不会解析用户消息里的 "/xxx"——普通消息发送会让模型收到字面命令文本。
+ * 官方 DSH WebUI 语义（dsh-client-ui-commands matchEnter）：命中目录 → 执行；
+ * 目录未命中 → default-sink 当普通消息（有意兜底，供未知命令/路径类文本）。
+ */
+export function parseSlashToken(line: string): string | undefined {
+  const match = /^\/([a-z][a-z0-9_-]*)(?=$|[\t\n\r ])/u.exec(line.trim())
+  return match?.[1]
+}
+
 // ─── session/projection 投影帧合并（纯函数，供单测与 mux 分支共用） ───
 
 /** 会话列表条目：listSessions 返回 / 会话列表缓存的统一形状 */
@@ -706,7 +740,11 @@ export class AgentService {
   }
 
   // --- DSH RPC 通用调用（通过 Electron IPC 代理，绕过 CORS）---
-  async rpc(method: string, payload: Record<string, unknown> = {}): Promise<unknown> {
+  /**
+   * @param timeoutMs - 超时毫秒数；默认浏览器模式 15s / Electron 模式 30s（与历史行为一致）。
+   * 长耗时调用（如 /compact 的压缩摘要）应显式传更大的值。
+   */
+  async rpc(method: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
     const api = window.electronAPI
     if (!api?.dshRpc) {
       // 浏览器模式回退：通过 Vite 代理（/api -> DSH :3080）
@@ -715,7 +753,7 @@ export class AgentService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(timeoutMs ?? 15000),
       })
       const json = (await res.json()) as RpcResponse
       if (json.result?.ok === false) throw new Error(json.result.error?.message || 'RPC error')
@@ -723,7 +761,7 @@ export class AgentService {
     }
 
     // Electron 模式：通过 IPC 代理
-    const json = (await api.dshRpc(method, payload)) as RpcResponse
+    const json = (await api.dshRpc(method, payload, timeoutMs)) as RpcResponse
     if (json.result?.ok === false) {
       throw new Error(`DSH RPC ${method} error: ${json.result.error?.message || 'unknown'}`)
     }
@@ -1572,6 +1610,94 @@ export class AgentService {
         type: 'error',
         payload: { message: error instanceof Error ? error.message : '引导失败' },
       })
+    }
+  }
+
+  // ─── DSH 斜杠命令：目录拉取 + 命令执行 + 提交裁决（对齐 DSH WebUI matchEnter 语义） ───
+
+  /** 命令目录缓存（按 sessionId；TTL 内复用——命令注册集会话内极少变化） */
+  private commandCatalogCache = new Map<string, { items: DshCommandDescriptor[]; fetchedAt: number }>()
+  /** 命令目录缓存 TTL */
+  private static readonly COMMAND_CATALOG_TTL_MS = 60_000
+
+  /**
+   * 拉取当前会话可用的 DSH 命令目录（commands/list）。
+   * typert remote 端点与 unary 路由协议不同：method 为 "commands/list"（namespace/method），
+   * payload 必须是恰好一个 args 字段的包装对象，会话标识字段名为 agentId。
+   * RPC 失败时抛错（由调用方决定回退策略）；value 非数组时按空目录处理。
+   */
+  async listCommands(): Promise<DshCommandDescriptor[]> {
+    if (!this.sessionId) return []
+    const cached = this.commandCatalogCache.get(this.sessionId)
+    const now = Date.now()
+    if (cached && now - cached.fetchedAt < AgentService.COMMAND_CATALOG_TTL_MS) {
+      return cached.items
+    }
+    console.log(`[${logTime()}] [AgentService] commands/list: sessionId=${this.sessionId}`)
+    const value = await this.rpc('commands/list', { args: { agentId: this.sessionId } }) as DshCommandDescriptor[] | undefined
+    const items = Array.isArray(value) ? value : []
+    this.commandCatalogCache.set(this.sessionId, { items, fetchedAt: now })
+    console.log(`[${logTime()}] [AgentService] commands/list: ${items.length} 个命令`)
+    return items
+  }
+
+  /**
+   * 执行一条 DSH 斜杠命令（commands/execute）。
+   * 返回 undefined 表示后端未注册该命令（admission miss），调用方应回退普通消息发送；
+   * 命令生命周期（command/run、command/done）由后端落事件、mux 推送、面板渲染。
+   * 压缩类命令耗时长，超时放宽到 120s。
+   */
+  async executeCommand(line: string): Promise<DshCommandOutcome | undefined> {
+    if (!this.sessionId) {
+      throw new Error('未连接到 DSH')
+    }
+    console.log(`[${logTime()}] [AgentService] commands/execute: line="${line}"`)
+    const value = await this.rpc(
+      'commands/execute',
+      // descriptor 三参数：agent(agentId)/line/images——images 必填（typert strict 校验，
+      // 缺字段报 "args fields do not match the descriptor: missing images"），无图提交传空数组
+      { args: { agentId: this.sessionId, line, images: [] } },
+      120_000,
+    ) as { commandId: string; result: DshCommandOutcome } | undefined
+    if (value === undefined) {
+      console.log(`[${logTime()}] [AgentService] commands/execute: 未命中（admission miss）`)
+      return undefined
+    }
+    console.log(`[${logTime()}] [AgentService] commands/execute: kind=${value.result.kind}${value.result.text ? `, text="${value.result.text}"` : ''}`)
+    return value.result
+  }
+
+  /**
+   * 提交链路的斜杠命令裁决：/ 开头文本 → 命令目录裁决 → commands.execute。
+   *
+   * - 目录命中且执行返回结果 → { handled: true, outcome }（不进对话，结果由事件渲染 + outcome 附加反馈）
+   * - 非 / 开头、token 非法、目录未命中、执行 admission miss → { handled: false }（回退普通消息，对齐官方 default-sink）
+   * - 目录拉取/执行 RPC 失败 → { handled: true, outcome: error }：命令文本绝不静默降级为普通消息发给模型
+   *   （那正是 2026-09-27 修复前 "/compact 被当消息发送" 的根因路径）。
+   */
+  async resolveSlashSubmission(line: string): Promise<SlashSubmissionVerdict> {
+    const trimmed = line.trim()
+    const token = parseSlashToken(trimmed)
+    if (!token) return { handled: false }
+    let catalog: DshCommandDescriptor[]
+    try {
+      catalog = await this.listCommands()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[${logTime()}] [AgentService] 命令目录拉取失败，拒绝降级为普通消息:`, message)
+      return { handled: true, outcome: { kind: 'error', text: `命令目录不可用: ${message}` } }
+    }
+    // 目录为空（拉取成功但零命令）时不做成员判断，直接交给后端裁决：
+    // commands.execute 是权威——未注册命令返回 admission miss，仍会安全回退普通消息。
+    if (catalog.length > 0 && !catalog.some(c => c.name === token)) return { handled: false }
+    try {
+      const outcome = await this.executeCommand(trimmed)
+      if (outcome === undefined) return { handled: false } // admission miss → 官方 default-sink 语义
+      return { handled: true, outcome }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[${logTime()}] [AgentService] 命令执行失败: ${token}:`, message)
+      return { handled: true, outcome: { kind: 'error', text: message } }
     }
   }
 

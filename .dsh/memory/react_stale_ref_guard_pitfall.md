@@ -1,6 +1,6 @@
 ---
 name: react_stale_ref_guard_pitfall
-description: React 函数式更新排队期守卫读滞后镜像 → 重复 UI 元素竞态（含 2026-09-21 flush 原地采纳语义）
+description: React 函数式更新排队期守卫读滞后镜像 → 重复 UI 元素/静默吞 delta 竞态；2026-09-27 追加：handleNewSession 异步窗口孤儿 ref 致新会话首轮思考卡丢失（时速表照跳）
 type: project
 prefix: [src/components/AgentPanel.tsx, src/components/agent/liveCardGuard.ts]
 ---
@@ -18,4 +18,6 @@ prefix: [src/components/AgentPanel.tsx, src/components/agent/liveCardGuard.ts]
 **2026-09-20 更新（处置语义变更，竞态原则不变）：** 半截段守卫的处置已从"丢弃增量等 flush"改为"**原地续写**"（`handleLiveReasoning`/`handleLiveContent` 的续写分支：尾为 pendingPartial 时节流全量增量直接写进半截段 + streaming:true，理由是丢弃会让纯思考长回合切换后 UI 冻结到 flush，见 doc/editor/integration/agent_panel_system.md §19.2）。updater 内新鲜复查原则原样适用（续写分支同样用 cur 复查尾），appendLiveCard 仍守 live 创建路径，判别器 tests/agentLiveCardRace.test.tsx 回归通过。
 
 **2026-09-21 更新（flush 侧配套语义，§22）：** 切回后 flush 抵达时对半截段**原地采纳免重放**（用户症状"下面那个思考卡很卡"= 旧 replacingPartial 清空半截段后按打字机 30~200 字/秒重放整段已上屏前缀 20-120s）。要点：① 半截段判定用**从尾向前扫描**而非只看末位——`ready{restored}` 恢复路径的 `pushSystem('会话已恢复')` 会把半截段顶离尾部，只认尾会让半截段永久残留成"两个思考卡片"；② a-skip 快速路径（queueLength>0 免回放直接 append）在存在半截段时必须让路，否则半截段残留 + 全文追加 = 同文两截；③ adopting 时 live 文本已含半截段全部内容，残留半截段一并移除；④ 同一 drain 链内 messagesRef 未重同步，陈旧预判多判时按"补全量"收敛，不会丢文本。判别器 tests/agentPartialAdopt.test.tsx（回滚验证双红：重放例 + 双卡例）。
+
+**2026-09-27 追加（孤儿 ref 的"异步窗口重建"变体——新会话首轮思考卡静默丢失）：** `handleNewSession` 虽经 `clearDisplayQueue`→`finalizeLiveReasoning` 先清了 `liveAssistantIdRef`，但 `await createSession()` 窗口内旧会话（仍在思考流式中）的 reasoning.delta 会**重建 live 卡**并重新武装 ref；RPC 返回后 `setMessages(['新会话已创建'])` 整表替换丢卡 → ref 再次悬挂。后果签名：新会话首轮**时速表正常跳动但思考链卡永不出现且零日志**——`reasoning.delta` 分支时速表采样在 handleLive 之前（时 表≠delta 未到），`handleLiveReasoning` 走 else 分支按 id 更新、id 匹配不到 = 静默 no-op（创建/放弃日志都不会打）；"正在思考"占位卡因 `awaitingFirstOutput` 判定无输出而常驻。同一 void 还存在于 `handleSwitchSession` 空历史 else 分支（有历史分支 1743 行已补 null）。修法：RPC 返回后的整表 setMessages 旁**再作废一次 ref**（"清一次防不住异步窗口内的重建"，整表替换与 ref 作废必须成对出现在替换点，不能只依赖入口处清理）。诊断反推技巧：时速表 5s 滚动窗口在跳 = 5 秒内必有 delta；队列可证空闲 + 无创建/放弃日志 ⇒ 唯一剩余路径是 ghost else 分支。
 

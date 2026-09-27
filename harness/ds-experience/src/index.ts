@@ -4,8 +4,10 @@
  * 注册即副作用，全部贡献挂在插件 fiber 上（卸载自动回滚）：
  * - `ctx.systemPrompt.section()` — 常驻"经验库指导"段（order 3000；含 INDEX.md 索引，
  *   仅在有内容时注入；分工声明：记忆=事实与规则，经验=做事轨迹）
- * - `ctx.tools.register()` × 4 — history_search / history_read（包装 ctx.sessionQuery）/
- *   experience_save / experience_search（按文件名直接读取）
+ * - `ctx.tools.register()` × 5 — history_search / history_read（包装 ctx.sessionQuery）/
+ *   experience_save（仅两种场景：同名覆盖更新、从多次被强化的记忆提炼新经验）/
+ *   experience_search（按文件名直接读取）/ experience_reinforce（复盘确认"真用到了"
+ *   后强化使用计数，落 .usage.json）
  * - `ctx.on('session/event')` — 回合末经验提醒：2026-09-13 起移交给 @demostudio/ds-reminder
  *   通用提醒插件（提醒文本在 .dsh/reminder/experience-end-of-turn.md；inject 通道注入，
  *   跳过判定只认 experience_save——与记忆提醒"各自只看自己"，双写场景互不抑制）
@@ -96,7 +98,7 @@ export function apply(ctx: Context, config?: Config): void {
     text: () => experienceGuideSectionText(readIndexSync(experienceDirectory)),
   })
 
-  // ── 4 个显式工具 ──
+  // ── 5 个显式工具 ──
   for (const tool of createHistoryTools({ ctx })) {
     ctx.tools.register(tool)
   }

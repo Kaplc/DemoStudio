@@ -23,15 +23,30 @@ const dshBuiltinCommands: SlashCommand[] = [
 
 /**
  * 创建 DSH Command 命令来源
- * 直接返回固定的内置命令列表
+ * 优先拉取后端真实命令目录（commands.list，只显示实际可执行的命令）；
+ * 拉取失败或为空时回退到上面的硬编码清单（2026-09-27 起对齐 DSH 命令目录语义）
  */
-export function createDshCommandSource(_getAgentService: () => any): CommandSource {
+export function createDshCommandSource(getAgentService: () => any): CommandSource {
   return {
     name: 'dsh-commands',
     trigger: '/',
     order: 5,  // 最高优先级
     candidates: async (query) => {
       logger.debug(`[SlashCommand] 获取命令: "${query}"`)
+      const agentService = getAgentService()
+      if (agentService?.sessionId) {
+        try {
+          const list = await agentService.listCommands() as Array<{ name: string; description: string }>
+          if (list.length > 0) {
+            return list
+              .filter(cmd => cmd.name.includes(query))
+              .map(cmd => ({ name: cmd.name, description: cmd.description }))
+          }
+          logger.debug('[SlashCommand] commands/list 为空，回退内置清单')
+        } catch (error) {
+          logger.warn(`[SlashCommand] commands/list 拉取失败，回退内置清单: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
       return dshBuiltinCommands.filter(cmd => cmd.name.includes(query))
     },
   }

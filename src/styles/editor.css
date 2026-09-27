@@ -3028,11 +3028,12 @@ html, body, #root {
 .tool-card__code--error code { color: var(--dsw-alias-state-error-primary); }
 
 /* --- QuestionCard（DSH ask_user_question 交互卡片）---
-   2026-09-20 用户反馈"占画面太多"：紧凑化——窄卡（780→560px）+ 收紧内距/字号/行距，
-   选项区限高滚动。结构与视觉层级不变（eyebrow/标题/选项/自定义输入/页脚）。 */
+   2026-09-20 用户反馈"占画面太多"：紧凑化——收紧内距/字号/行距，选项区限高滚动。
+   2026-09-27 用户决策：宽度改回与输入框一致（窄卡 560px 撤销），内距/限高紧凑化保留。
+   结构与视觉层级不变（eyebrow/标题/选项/自定义输入/页脚）。 */
 .question-card {
-  /* 紧凑窄卡：不再与输入框等宽（旧 780px 同 .approval-card），居中于输入区上方 */
-  width: min(560px, calc(100% - 48px));
+  /* 与输入框可见面等宽：composer 外层 max-width min(780px,100%) 含 24px 侧边距 */
+  width: calc(min(780px, 100%) - 48px);
   box-sizing: border-box;
   margin: 4px auto;
   background: var(--dsw-alias-bg-elevated, #252526);

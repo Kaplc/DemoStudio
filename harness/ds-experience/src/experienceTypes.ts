@@ -235,14 +235,15 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 你有跨会话经验库，存放于项目根 \`.dsh/experience/\`，记录"一次完整任务是怎么做的"。与记忆系统的分工（硬约束）：
 - **记忆（ds-memory）** = 事实与规则 — **禁止把经验轨迹/任务过程写进 memory_write**。
 - **经验（本插件）** = 做事轨迹（怎么做的、什么有效、踩了什么）— **禁止把事实/规则写进 experience_save**。
-- 同一次事件常需**双写**：蒸馏后的结论/规则进记忆（memory_write），做事轨迹进本库（experience_save）。
+- 经验的唯一新货源是"**多次被强化的记忆提炼**"：踩坑/教训先存为记忆 → 反复被强化使用 → 累计多次后才提炼为经验。**不要为单个任务直接新建经验**——经验从反复被验证的记忆中结晶，不是每任务一条。
 - **Lessons 引用而不复述**：规则已沉淀进记忆时写"规则见 memory:条目名"，不要复述规则本身——两库 prefix 相近会被同时注入，复述浪费上下文（记忆侧同理不复述轨迹）。
 
 ## 何时用经验工具
 
 - 接到可能与过往工作重复的改动类任务 → 先 \`history_search\` 查历史会话（"上次怎么做的"）；命中后 \`history_read\` 读那场会话的任务转录。
 - 疑似有相似经验（同类任务以前做过）→ \`experience_search\` 按需检索经验库。
-- **完成一个有复用价值的任务后 → 主动调用 \`experience_save\` 沉淀经验**（你的职责：判断哪些工作值得记录，做完就存，不要等人提醒）。
+- **\`experience_save\` 只用于两种场景**：①同名覆盖更新已有经验（内容与实际做法脱节/发现更优路线）②从**多次被强化的记忆**提炼新经验（新经验的唯一创建入口）。"踩了新坑"类事件走记忆通道（memory_write 存根因教训），不直接存经验。
+- **\`experience_reinforce\`**：回合末复盘确认某条被召回的经验**真的被用到了**才调用（强化使用计数，可带 note）；没用上的不动——"被注入却从未被强化"是低价值信号的淘汰依据。
 
 ## prefix 文件联想（与记忆系统同构）
 
@@ -253,11 +254,11 @@ export function experienceGuideSectionText(indexText: string | undefined): strin
 
 ## 回合末提醒
 
-每个回合结束会收到一条"回合末经验提醒"（由 @demostudio/ds-reminder 插件注入，文案在 \`.dsh/reminder/experience-end-of-turn.md\`，60 秒冷却）：按"是否完成过有复用价值的完整任务"自查，有则当回合 \`experience_save\`，没有则忽略；该消息来自插件机制而非用户，无需回复。
+每个回合结束会收到一条"回合末经验复盘"（由 @demostudio/ds-reminder 插件注入，文案在 \`.dsh/reminder/experience-end-of-turn.md\`，60 秒冷却）：按清单复盘——被召回的经验中真用到的 \`experience_reinforce\` 强化、脱节的 \`experience_save\` 同名覆盖更新；都没有则**不调用任何工具，回复只输出一个句号「。」**（不输出复盘说明或思考过程）。该消息来自插件机制而非用户，无需回复。
 
 ## 发现更优路线时
 
-- 保存前先 \`experience_search\` 查同类旧经验，读到旧 lessons 后对比。
+- 更新前先 \`experience_search\` 查同类旧经验，读到旧 lessons 后对比。
 - **旧路线已过时**（新做法明确更优）→ 用相同 name 覆盖，在 lessons 中保留旧路线的教训作为对比参考。
 - **两条路线各有适用场景**（如不同规模/约束下分别更优）→ 用不同 name 新建，lessons 中互相引用。
 - **不管哪种方式，都不要丢失旧经验中"踩了什么坑"的信息**——那是最有复用价值的部分。`,

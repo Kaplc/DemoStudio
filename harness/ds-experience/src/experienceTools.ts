@@ -1,6 +1,7 @@
 /**
- * 经验库工具：experience_save / experience_search。
- * save 落盘 episode + INDEX.md 索引；search 按文件名直接读取。
+ * 经验库工具：experience_save / experience_search / experience_reinforce。
+ * save 落盘 episode + INDEX.md 索引（仅两种场景：同名覆盖更新、从多次被强化的记忆提炼新经验）；
+ * search 按文件名直接读取；reinforce 复盘确认"真用到了"后强化使用计数（.usage.json）。
  * 经验保存与检索完全由主 agent 自觉调用工具完成，不走 LLM。
  *
  * @module experienceTools
@@ -19,6 +20,7 @@ import {
   saveExperience,
 } from './experienceStore.js'
 import type { EpisodeRecord } from './experienceStore.js'
+import { MAX_USAGE_NOTE_CHARS, reinforceUsage } from './usageStore.js'
 
 /** 工具运行所需宿主环境（由 index.ts 装配时闭包注入）。 */
 export interface ExperienceToolHost {
@@ -36,7 +38,7 @@ export interface ExperienceToolHost {
 export function createExperienceSaveTool(host: Pick<ExperienceToolHost, 'experienceDirectory' | 'ctx'>) {
   return defineTool({
     name: 'experience_save',
-    description: '把一次完整任务的做事轨迹沉淀为经验（episode）：怎么做的、什么有效、踩了什么坑。绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明联想触发的文件数组，会话中读到列表中的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
+    description: '沉淀/更新一条经验（episode，做事轨迹：怎么做的、什么有效、踩了什么坑）。**只用于两种场景**：①同名覆盖更新已有经验（内容脱节/发现更优路线）②从多次被强化的记忆提炼新经验（新经验的唯一创建入口）——不要在"完成一个任务"后直接新建经验。绝不替代 memory_write（事实/规则进记忆，做事轨迹进经验）。同名 episode 会被覆盖更新。prefix 必填：声明联想触发的文件数组，会话中读到列表中的文件时本条经验全文自动注入；无联想或更新时保持原样填 hold。',
     parameters: {
       name: { type: 'string', required: true, description: '经验名，语义化小写下划线（如 fix_junction_mount）' },
       task_type: { type: 'string', required: true, description: '任务类型短语（如 build-fix / feature / refactor / debug）' },
@@ -198,10 +200,75 @@ export function asOutcome(value: string): EpisodeOutcome {
   return (EPISODE_OUTCOMES as readonly string[]).includes(value) ? value as EpisodeOutcome : 'success'
 }
 
-/** 创建 2 个经验库工具。 */
+// ---------------------------------------------------------------------------
+// experience_reinforce
+// ---------------------------------------------------------------------------
+
+/**
+ * experience_reinforce：复盘确认"真用到了"后强化一条经验的使用计数（落 .usage.json，
+ * 不触碰经验文件本体——mtime 是联想注入的新鲜度展示与排序依据，不能被计数污染）。
+ */
+export function createExperienceReinforceTool(host: Pick<ExperienceToolHost, 'experienceDirectory' | 'ctx'>) {
+  return defineTool({
+    name: 'experience_reinforce',
+    description: '强化一条经验的使用计数：仅在回合末复盘确认它**真的被用到了**（指导了行动/提供了关键信息）才调用，可带 note 留痕。注入了但没用上的经验不调用——被注入却从未被强化是低价值信号。强化后顺带检查经验内容与本回合实际做法是否脱节：脱节用 experience_save 同名覆盖更新（别丢旧坑信息）。',
+    parameters: {
+      name: { type: 'string', required: true, description: '经验名（不含 .md，如 fix_junction_mount）' },
+      note: { type: 'string', description: '本回合用在什么事上的一句留痕（如"改联想器时参考双侧同步教训"），可选' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          file: { type: 'string', required: true },
+          total_uses: { type: 'integer', required: true },
+          last_used_at: { type: 'string', required: true },
+          notes: { type: 'array', required: true, items: { type: 'string' } },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: [
+          `已强化 ${value.file}：累计使用 ${value.total_uses} 次（最近 ${value.last_used_at}）。`,
+          ...(value.notes.length > 0 ? [`留痕（新→旧）：\n${value.notes.map(n => `- ${n}`).join('\n')}`] : []),
+          '经验内容与本回合实际做法脱节时，用 experience_save 同名覆盖更新（别丢旧坑信息）。',
+        ].join('\n'),
+      }],
+    },
+    async execute(args, exec) {
+      const depth = (exec.agent?.session.header as { delegationDepth?: number } | undefined)?.delegationDepth
+      if (typeof depth === 'number' && depth > 0) {
+        throw new Error('子 agent 不能修改经验库（上下文归属父 agent）。如需强化，请在回复中说明，由父 agent 调用 experience_reinforce。')
+      }
+      const fileName = normalizeEpisodeName(args.name)
+      const all = await readAllEpisodes(host.experienceDirectory)
+      if (!all.some(episode => episode.fileName === fileName)) {
+        throw new Error(`经验 "${fileName}" 不存在；用 experience_search 确认名称。`)
+      }
+      const note = args.note?.trim()
+      const entry = await reinforceUsage(
+        host.experienceDirectory,
+        fileName,
+        note === undefined || note === '' ? undefined : note.slice(0, MAX_USAGE_NOTE_CHARS),
+        new Set(all.map(episode => episode.fileName)),
+      )
+      host.ctx.logger?.info(`ds-experience: experience_reinforce ${fileName} → ${entry.uses} 次`)
+      return {
+        file: fileName,
+        total_uses: entry.uses,
+        last_used_at: new Date(entry.lastUsedAt).toISOString(),
+        notes: entry.notes,
+      }
+    },
+  })
+}
+
+/** 创建 3 个经验库工具。 */
 export function createExperienceTools(host: ExperienceToolHost) {
   return [
     createExperienceSaveTool(host),
     createExperienceSearchTool(host),
+    createExperienceReinforceTool(host),
   ]
 }

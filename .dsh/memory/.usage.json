@@ -1,0 +1,45 @@
+{
+  "experience_generation_per_task_rejected.md": {
+    "uses": 2,
+    "lastUsedAt": 1790529224673,
+    "notes": [
+      "改两个回合末提醒文案的句号指令时，依据其 How to apply 保持复盘清单结构不动、只改无事可做分支",
+      "本任务的需求源头与实施依据：每任务一条被否定、复盘强化闭环方案"
+    ]
+  },
+  "ds_reminder_plugin.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526410069,
+    "notes": [
+      "改 skipTools 时靠它预判挂载块全量替换语义，提前发现 sync 脚本覆盖坑"
+    ]
+  },
+  "harness_no_llm_design.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526410128,
+    "notes": [
+      "reinforce 工具设计时对齐零 LLM 确定性机制约束"
+    ]
+  },
+  "memory_write_manual_flow.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526410198,
+    "notes": [
+      "写 memory_reinforce 返回值时按 lossless JSON 条件展开约束"
+    ]
+  },
+  "ds_memory_no_auto_search.md": {
+    "uses": 1,
+    "lastUsedAt": 1790526410254,
+    "notes": [
+      "调研联想机制与改动落点（associate.ts）时参考三通道现状"
+    ]
+  },
+  "reminder_skiptools_config_override.md": {
+    "uses": 1,
+    "lastUsedAt": 1790527320094,
+    "notes": [
+      "重启验证时按其三步闭环检查 home 侧 patch 现状与 ds-sync 回写方向"
+    ]
+  }
+}

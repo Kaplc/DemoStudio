@@ -434,6 +434,16 @@ export const B = {
   convoyFuelFloor: 0.2,
   /** 耀斑规避程序免冻后的恢复延迟秒数（对齐护盾罩 resumeDelay 口径，保全不白拿） */
   evadeResumeDelay: 3,
+  /** 地球港泊位数（2026-09-27 节点吞吐上限）：同时在地球卸货的船 ≤ 泊位数，
+   *  满泊位时到港船原地排队（SimShip.waitPort 记到达时间，FIFO 依序靠泊）。
+   *  泊位在卸货期间占用（unloadSeconds 即装卸速率旋钮）→ 同线堆船不再线性增益，
+   *  远线与近线在地球港争泊 = 真调度题。global.config 可覆盖（portBerths）。 */
+  portBerths: 2,
+  /** 借站补给半径（2026-09-27 枢纽折扣）：星→地 forward 航线段（两端实时位连线）
+   *  距任一中转站（relay）实时位 ≤ 此值 → 该线往返油耗打折。global.config 可覆盖。 */
+  hubRelayRadius: 300,
+  /** 借站补给折扣（往返油耗乘区；<1 生效，多站命中取最优不叠加） */
+  hubRelayDiscount: 0.8,
   /** 建筑强化拆除费比例（强化造价 × 此值，不返还；环段建筑另用 ringBuild.demolishCostPct） */
   upgradeDemolishCostPct: 0.2,
   // 舰队维护费阶梯（按总船数升序查档：船越多维护费越高 → H3/秒 从地球储备持续扣除）
@@ -870,7 +880,7 @@ export function refreshBalanceFromConfigs(): void {
       'runningRateBonus', 'researchPointRateAdd', 'researchPointCostPerS', 'coreCoolSeconds', 'coreWarmSeconds', 'initialShips', 'shipBuildCost', 'shipBuildTime', 'cargoBase',
       'shipRebuildCost', 'materialH3PerUnit', 'upgradeDemolishCostPct', 'act2Slots', 'act3Slots', 'act3SurviveSeconds',
       'moduleLegSeconds', 'moduleLoadSeconds', 'moduleUnloadSeconds',
-      'convoyFuelFloor', 'evadeResumeDelay',
+      'convoyFuelFloor', 'evadeResumeDelay', 'portBerths', 'hubRelayRadius', 'hubRelayDiscount',
     ])
   // 聚能环建设参数（独立配置 warm-current.ring_build；字段级覆盖，未配置字段保留 B 兜底。
   // 注：文件内容包在 "ringBuild" 键下，getConfig 返回顶层 → 取 rbCfg.ringBuild 解包）

@@ -11,6 +11,7 @@
 import { BObjectComponent } from '@/engine'
 import { B, MAP_H, MAP_W } from '../core/balance'
 import { buildingDefOf, buildingPos, hiddenActorIsolated, orbitBuildingPos } from '../core/helpers'
+import { BLUEPRINT_BODIES } from './OrbitBlueprintComponent'
 import type { Endpoint, OrbitBuilding, SimBuilding, PlanetId } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
 import type { StarBodyId } from '../map/StarActor'
@@ -73,8 +74,10 @@ export class MapHitTestComponent extends BObjectComponent<WarmCurrentGameMode> {
     return best
   }
 
-  /** 天体当前视图下是否可点（与渲染 visibleBodySet 同口径：行星系视角 = 聚焦行星 + 其卫星） */
+  /** 天体当前视图下是否可点（与渲染 visibleBodySet 同口径：行星系视角 = 聚焦行星 + 其卫星）。
+   *  轨道蓝图台（2026-09-29）：太阳已移除——不可点（点地图中心不再误出"全景已屏蔽"提示） */
   starActorPickable(body: SolarBodyId): boolean {
+    if (this.owner.routeEditMode && body === 'sun') return false
     if (this.owner.viewMode === 'solar') return true
     const focus = this.owner.planetFocusBody as PlanetId
     if (body === focus) return true
@@ -109,6 +112,9 @@ export class MapHitTestComponent extends BObjectComponent<WarmCurrentGameMode> {
   nodeAt(p: { x: number; y: number }): Endpoint | null {
     const s = this.owner.simState.state
     for (const star of Object.values(B.stars)) {
+      // 轨道蓝图台（2026-09-29 其他星球移除）：补给线端点只留月球（地月系），
+      // europa/mars 端点不命中（星球本体已退场，不可向空处拖线）
+      if (this.owner.routeEditMode && !BLUEPRINT_BODIES.has(star.id)) continue
       if (!this.owner.transport.starUnlocked(star.id)) continue
       const pos = this.starActorWorldPos(star.id)
       if (!pos) continue
@@ -137,6 +143,9 @@ export class MapHitTestComponent extends BObjectComponent<WarmCurrentGameMode> {
   bodyAt(p: { x: number; y: number }): SolarBodyId | null {
     for (const body of Object.keys(B.map.nodes) as Array<SolarBodyId>) {
       if (body === 'sun') continue
+      // 轨道蓝图台（2026-09-29 其他星球移除）：地月系之外的天体不可点——
+      // 信息面板/双击聚焦一并收口（不显示的天体点不到）
+      if (this.owner.routeEditMode && !BLUEPRINT_BODIES.has(body)) continue
       if (!this.starActorPickable(body)) continue
       const pos = this.starActorWorldPos(body)
       if (!pos) continue

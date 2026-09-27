@@ -73,7 +73,7 @@ export class ViewDirectorComponent extends BObjectComponent<WarmCurrentGameMode>
         }
         return out
       },
-      allowed: () => this.viewMode === 'earth' && !this.viewSwitching,
+      allowed: () => (this.viewMode === 'earth' || this.owner.routeEditMode) && !this.viewSwitching,
       // 共享锁定变量（2026-09-20 用户口径）：滚轮拉近锁定的目标即唯一锁定变量 rig.target，
       // 观察态（双击/滚轮建立）内滚轮重新锁定 → warm 跟随对象同步切换；俯视态保持落点
       // 平移定版语义（只写 rig.target，不扰地图交互/不进观察）；空目标 → 观察软退出
@@ -152,6 +152,38 @@ export class ViewDirectorComponent extends BObjectComponent<WarmCurrentGameMode>
   /** 地球系视图拉远上限（距离）：独立小星系取景（月球轨道 1200：全景 5200 全入画留边）。
    *  拉近下限不设静态值：applyViewMode 按聚焦天体半径动态贴合（applyZoomFloor ×1.15）。 */
   private static readonly EARTH_VIEW_MAX_DIST = 5200
+
+  /** 轨道蓝图台俯视取景距离：地月系工作台入画（月球环 1200px 为视野主体；玩家可滚轮拉远） */
+  private static readonly BLUEPRINT_VIEW_DIST = 4600
+
+  /** 进入轨道蓝图台俯视取景（2026-09-29 轨道蓝图台）：近垂直俯视（88°），
+   *  全息网格 + 轨道环示意的镜头基础。这是 2026-09-14「锁定地球视角」后唯一合法的
+   *  太阳系全景进入路径（旧全景按钮/点太阳路径仍保持屏蔽）。
+   *  2026-09-29 二次决策：太阳移除 + 地球冻结不公转 → 取景中心 = 冻结的地球
+   *  （纯地月系工作台），不再对准日心。 */
+  enterBlueprintView(): void {
+    if (this.viewSwitching) return
+    // 月球相位回拨记账（离开地月系，回地球系时对齐——与 focusSolarSystem 同口径）
+    if (this.viewMode === 'earth' && this.planetFocusBody === 'earth') {
+      this.moonAngleAtLeave = moonRelativeAngle(this.owner.simState.state)
+    }
+    this.viewMode = 'solar'
+    this.applyViewMode()
+    this.clearObserveState()
+    // 近垂直俯视（88°，90° 会与 up=(0,1,0) 平行使 lookAt 退化）：轨道环读成圆，
+    // KSP 式蓝图编辑的几何基准
+    const ep = starPosAt(this.owner.simState.state, 'earth')
+    this.owner.cameraActor.observeFocus(toWX(ep.x), toWZ(ep.y), ViewDirectorComponent.BLUEPRINT_VIEW_DIST, THREE.MathUtils.degToRad(88))
+    this.applyFocusCameraMode(true)
+    logger.info(`[WarmCurrent] 轨道蓝图台取景：地月系俯视（心 = 地球）dist=${ViewDirectorComponent.BLUEPRINT_VIEW_DIST} pitch=88°`)
+  }
+
+  /** 退出轨道蓝图台取景：回地球系默认聚焦取景（模式级退出重取景，同 exitPlanetObserve 口径；
+   *  focusSolarSystem 顺带完成月球相位对齐与相机交互语义回落） */
+  exitBlueprintView(): void {
+    this.focusSolarSystem('earth')
+    logger.info('[WarmCurrent] 轨道蓝图台取景退出（回地球系）')
+  }
 
   /** 聚焦指定天体（内部机制保留供 e2e/开发直调；玩家入口已于 2026-09-14 全部屏蔽）：
    *  太阳 = 太阳系全景；行星 = 进入其行星系（跟随取景）。机位数学在 SolarCameraActor.observeFocus（恒斜视角）。 */

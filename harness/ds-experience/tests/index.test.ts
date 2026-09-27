@@ -62,13 +62,13 @@ function fakeCtx(): TestSetup {
 }
 
 describe('apply 注册冒烟', () => {
-  it('注册 1 个指导段 + 4 个工具', () => {
+  it('注册 1 个指导段 + 5 个工具', () => {
     const setup = fakeCtx()
     apply(setup.ctx, { experienceDir: dir })
     expect(setup.sections).toHaveLength(1)
     expect(setup.sections[0]!.name).toBe('experience:guide')
     expect(setup.registeredTools.sort()).toEqual([
-      'experience_save', 'experience_search', 'history_read', 'history_search',
+      'experience_reinforce', 'experience_save', 'experience_search', 'history_read', 'history_search',
     ])
   })
 

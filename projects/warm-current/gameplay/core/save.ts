@@ -62,7 +62,11 @@ import type { OrbitBuilding, SimBuilding, SimShip, SimState } from './types'
  *  v14 追记三（2026-09-16，版本号不 bump，读态兜底）：空间站模块（orbit_build 表新增 station +
  *      station_module 新表）——OrbitBuilding.modules 可选字段新增（station 布局插配清单；
  *      旧档缺失 = 空布局，读入补 []；SimLedger.stationModule 计费键 freshLedger 合并兜底）。
- *      与 stockH3 同款可选字段读态兜底先例，零结构迁移。 */
+ *      与 stockH3 同款可选字段读态兜底先例，零结构迁移。
+ *  v14 追记四（2026-09-29，版本号不 bump，纯增量）：轨道蓝图台——SimBuilding.anchor 放宽到
+ *      'sun'（轨道环放置上行星绕日轨道；旧档 anchor 均为行星/卫星，读入无迁移）；
+ *      OrbitBuilding.ringR 可选字段新增（KSP 式轨道编辑的本征环半径；旧档缺失 = 统一环
+ *      B.orbitBuild.ringRadius，读态兜底口径，零结构迁移）。 */
 export const SAVE_FORMAT_VERSION = 14
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */

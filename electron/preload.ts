@@ -160,7 +160,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dshStatus: () => ipcRenderer.invoke('dsh-status'),
 
   // ─── DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）───
-  dshRpc: (method: string, payload: unknown) => ipcRenderer.invoke('dsh-rpc', method, payload),
+  dshRpc: (method: string, payload: unknown, timeoutMs?: number) => ipcRenderer.invoke('dsh-rpc', method, payload, timeoutMs),
 
   // ─── DSH Mux WS 下行桥（question/requested 等事件帧推送） ───
   dshMuxConnect: () => ipcRenderer.invoke('dsh-mux-connect'),

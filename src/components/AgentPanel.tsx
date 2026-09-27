@@ -1505,6 +1505,24 @@ export const AgentPanel: React.FC = () => {
     const isRunning = agentService.isRunning()
     console.log(`[${logTime()}] [AgentPanel] handleSend: text="${text}", images=${images.length}, isRunning=${isRunning}`)
 
+    // 斜杠命令拦截（2026-09-27）：/ 开头且无图片附件 → 会话命令目录裁决，
+    // 命中则走 commands.execute RPC（不进对话、不发模型）；未命中回退普通消息（对齐官方 default-sink）。
+    // 带图片时不拦截：命令图片白名单语义复杂，按普通消息处理（与旧行为一致）。
+    const trimmedText = text.trim()
+    if (trimmedText.startsWith('/') && images.length === 0) {
+      const verdict = await agentService.resolveSlashSubmission(trimmedText)
+      if (verdict.handled) {
+        addConsoleOutput(`[Agent] 执行命令: ${trimmedText}`)
+        // 命令生命周期（command/run、command/done）与压缩进度由事件流渲染成系统消息；
+        // 这里只补充裁决层拿到的即时错误（事件渲染在此之前可能尚未到达）。
+        if (verdict.outcome?.kind === 'error') {
+          pushSystem(`命令出错: ${verdict.outcome.text ?? '未知错误'}`)
+        }
+        return
+      }
+      console.log(`[${logTime()}] [AgentPanel] 未命中 DSH 命令目录，按普通消息发送: "${trimmedText}"`)
+    }
+
     try {
       setMessages(prev => [...prev, {
         id: `u-${Date.now()}`,
