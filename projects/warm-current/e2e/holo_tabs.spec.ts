@@ -96,7 +96,7 @@ const VIS_SNAPSHOT_FN = `() => {
     holoBtnBuild: !!window.__findRec(holoHud, 'HoloBtn_build'),
     holoBtnRoutes: !!window.__findRec(holoHud, 'HoloBtn_routes'),
     holoBtnDesign: !!window.__findRec(holoHud, 'HoloBtn_design'),
-    mainHudBtnBuild: !!window.__findRec(mainHud, 'Btn_build'),
+    mainHudBtnEdit: !!window.__findRec(mainHud, 'Btn_edit'),
     mainHudBtnRoutes: !!window.__findRec(mainHud, 'Btn_routes'),
     deposit0: act(holoPanel, 'DepositRow_0'),
     ringRow: act(holoPanel, 'Btn_tool_ring'),
@@ -141,7 +141,7 @@ test.describe('warm-current 全息底栏分类改版（资源/地表建筑/轨�
     for (const k of ['holoBtnBuild', 'holoBtnRoutes', 'holoBtnDesign']) {
       expect(inHolo[k], `全息底栏业务按钮 ${k} 应已下架`).toBe(false)
     }
-    expect(inHolo.mainHudBtnBuild, '主 HUD 建造入口应保留').toBe(true)
+    expect(inHolo.mainHudBtnEdit, '主 HUD 编辑入口应保留（建造+航线编辑合并）').toBe(true)
     expect(inHolo.mainHudBtnRoutes, '主 HUD 航线入口应保留').toBe(true)
     expect(await hudText(page, 'HologramPanel', 'TitleText')).toBe('全息地球 · 资源')
     // 资源分类默认内容：地球矿点行 + 矿建建造区

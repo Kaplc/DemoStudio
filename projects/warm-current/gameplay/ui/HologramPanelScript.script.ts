@@ -95,14 +95,20 @@ export default class HologramPanelScript extends BehaviourScript {
         mode.setHoloTool('building', id)
       })
     }
-    // 轨道建筑「建造」：投放 earth 轨道施工（预算/上限校验在 OrbitBuildComponent）
+    // 轨道建筑「建造」：进编辑台（全息俯视轨道蓝图台，2026-09-29 合并口径）并选型
+    // 轨道放置（蓝图态内 enterBuildMode = 轨道环放置）；预算校验在 enterBuildMode，
+    // 失败（H3 不足）回退退出编辑台，不留无工具的编辑态
     for (let i = 0; i < HOLO_ORBIT_ROWS; i++) {
       bind(`Btn_orbit_${i}`, () => {
         const mode = wcMode()
         const typeId = this.rowOrbitIds[i]
         if (!mode || !typeId) return
-        mode.orbitBuild.tryPlace(typeId, 'earth')
-        logger.info(`[HologramPanelScript] 全息轨道建造：${typeId} @ earth`)
+        if (!mode.routeEditMode) mode.toggleRouteEditMode()
+        if (!mode.enterBuildMode(typeId)) {
+          if (mode.routeEditMode) mode.toggleRouteEditMode()
+          return
+        }
+        logger.info(`[HologramPanelScript] 轨道建筑进编辑台放置：${typeId}`)
       })
     }
     // 默认收起（脚本置位，先于首帧渲染）。走 setPanel：UIManager 会把面板根整树
@@ -195,7 +201,7 @@ export default class HologramPanelScript extends BehaviourScript {
       }
       // 详情 = 分类引导 / ghost 校验 / 工具引导
       let detail: string
-      if (tab === 'orbit') detail = '点「建造」投放轨道施工 · 建成后点轨道设施管理（船坞点开造船）'
+      if (tab === 'orbit') detail = '点「建造」进编辑台选型 · 点轨道环放置（点轨道设施编辑轨道）'
       else if (tab === 'surface') detail = e.ghostLabel || (e.toolActive ? '移动指针选择落点…' : '点「选用」进入放置 · 融化圈内点球面落位')
       else if (tab === 'ring') detail = e.ghostLabel || (e.toolActive ? '移动指针选择落点…' : '点底部「⚡ 环节点」选落位工具 · 点球面落位')
       else detail = holo.detail

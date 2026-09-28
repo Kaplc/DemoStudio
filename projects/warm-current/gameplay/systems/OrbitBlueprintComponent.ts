@@ -1,9 +1,11 @@
 /**
  * OrbitBlueprintComponent — 轨道蓝图台组件（2026-09-29：航线编辑合并建造+航线的统一模式）
  *
- * 用户需求：点底部「航线编辑」进入全息俯视角 + 全息网格地图；允许把建筑放置在任意
+ * 用户需求：点底部「编辑」进入全息俯视角 + 全息网格地图；允许把建筑放置在任意
  * 轨道上（轨道环吸附示意）；航线按真实火箭转移轨道弧连接放置的建筑；并支持 KSP 式
  * 的轨道蓝图编辑（拖动手柄实时改轨道半径/相位，松开应用）。
+ * 2026-09-29 编辑合并：底部「建造」+「航线编辑」合并为「编辑」按钮直开本台并预选
+ * 轨道放置工具（中转站）；建造面板独立入口下架（选型并入编辑台）。
  *
  * 职责（权威状态机，GameMode.routeEditMode = 开关；渲染层经 GameMode 只读投影消费）：
  *  - 模式进出：enter（关面板/清拖拽/切全息俯视取景）/ exit（回地球系取景）；
@@ -99,10 +101,12 @@ export class OrbitBlueprintComponent extends BObjectComponent<WarmCurrentGameMod
     m.drag = null
     m.panels.closePlanetInfo()
     m.panels.closeOrbitBuild()
+    m.cancelBuildMode()
+    m.setHoloTool(null)
     m.view.enterBlueprintView()
-    m.feedback.toast('轨道蓝图台：拖天体/建筑建航线 · 建造面板选型后点轨道环放置 · 点轨道设施编辑轨道', '#7fdcff')
+    m.feedback.toast('编辑台：拖天体/建筑建航线 · 点轨道环放置建筑 · 点轨道设施编辑轨道', '#7fdcff')
     audioSys.play('wc.ok', { volume: 0.5 })
-    logger.info('[OrbitBlueprint] 轨道蓝图台进入（全息俯视 + 网格 + 轨道示意）')
+    logger.info('[OrbitBlueprint] 编辑台进入（全息俯视 + 网格 + 轨道示意）')
   }
 
   /** 退出轨道蓝图台：清编辑态 → 回地球系默认取景 */
@@ -393,6 +397,6 @@ export class OrbitBlueprintComponent extends BObjectComponent<WarmCurrentGameMod
     if (m.buildMode) return '轨道放置：点轨道环落位（Esc 取消）· 指针靠近青色示意环自动吸附'
     if (this.dragging) return '轨道编辑：拖动手柄调整轨道 · 松开应用'
     if (this.orbitSel) return '轨道编辑：拖 ◇ 半径手柄升降轨道 · 拖 ▫ 相位手柄沿环转动 · 再点建筑取消'
-    return '拖天体/建筑建航线（真实转移轨道）· 建造面板选型后点轨道环放置建筑 · 点轨道设施编辑轨道'
+    return '编辑台：拖天体/建筑建航线（真实转移轨道）· 点轨道环放置已选中建筑 · 点轨道设施编辑轨道'
   }
 }

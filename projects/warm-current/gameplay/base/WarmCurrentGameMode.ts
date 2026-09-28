@@ -933,6 +933,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildCursor = null
     this.routeEditMode = false
     this.blueprint.resetState()
+    this.starMap?.restoreBlueprintBodies()
     this.panels.closeAll()
     this.fleet.clearShipSelection()
     this.boxDrag = null
@@ -963,6 +964,7 @@ export class WarmCurrentGameMode extends GameMode {
     this.buildCursor = null
     this.routeEditMode = false
     this.blueprint.resetState()
+    this.starMap?.restoreBlueprintBodies()
     this.panels.closeAll()
     this.fleet.clearShipSelection()
     this.boxDrag = null

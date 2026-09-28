@@ -405,6 +405,8 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   }>()
   /** 勘探期间被隐藏真球的天体 id（null = 无；恢复显隐用，applyViewMode 复算视图口径） */
   private holoHiddenBody: string | null = null
+  /** 蓝图态被隐藏真球的天体集（2026-09-29 俯视编辑台复用全息球；退出/关全息全量恢复） */
+  private blueprintHiddenBodies = new Set<string>()
   /** 全息球半径（世界单位；星球显示半径 × B.holo.radiusMult） */
   private holoRadius = 0
   /** 全息地球大陆轮廓贴图（earthHoloContourTexture；随全息组生命周期，关闭/切目标释放，
@@ -1397,31 +1399,40 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     const bp = this.provider.blueprintActive
     // 行星绕日环：非蓝图态太阳系全景可见（挂 sunGroup）。2026-09-29 二次决策：太阳移除 +
     // 地球冻结不公转——蓝图台绕日环整体退场（含地球环），地月系只剩月球绕地环
+    // （显隐口径唯一：visibleBodySet / sunActor 分支；透明度不再蓝图态覆写）
     for (const [, ring] of this.planetOrbitRings) {
       if (ring.visible !== !bp) ring.visible = !bp
-      ;(ring.material as THREE.MeshBasicMaterial).opacity = bp ? 0.5 : 0.2
     }
     // 卫星环：蓝图态显示月球环（地月系轨道 = 放置/编辑目标）；木卫二环随星球移除不显示；
-    // 非蓝图态按视图口径
+    // 非蓝图态按视图口径（显隐权威在本方法；透明度走 buildNodes 原值，不再蓝图态覆写）
     for (const [mid, mc] of Object.entries(B.map.moons)) {
       const ring = this.moonRings.get(mid)
       if (!ring) continue
       const want = bp ? mid === 'moon' : this.viewMode === 'earth' && this.provider.planetFocusBody === mc.parent
       if (ring.visible !== want) ring.visible = want
-      ;(ring.material as THREE.MeshBasicMaterial).opacity = bp ? 0.45 : 0.22
     }
-    // 全息质感（2026-09-29 用户反馈"地球/月球应该是全息的"）：蓝图台地月本体转半透明青调
-    // （可透视网格/轨道环），退出还原。render 序里 syncBlueprint 晚于 syncNodes，材质权威归此处；
-    // 还原值与 syncNodes 的解锁口径一致（月球 act≥1 → 不透明）
-    for (const body of ['earth', 'moon'] as const) {
-      const sv = this.starViews[body]
-      if (!sv) continue
-      const mat = sv.mat
-      const wantOpacity = bp ? 0.5 : 1
-      if (mat.opacity !== wantOpacity) mat.opacity = wantOpacity
-      mat.transparent = bp
-      mat.depthWrite = !bp
-      mat.emissive.setHex(bp ? 0x1f4f7a : 0x000000)
+    // 俯视编辑台复用全息球管线（2026-09-29「与点星球全息同表现」）：buildHolo('earth') =
+    // 淡壳 + 经纬线 + 大陆轮廓（无扫描环/无矿点标记——蓝图态跳过），真球经
+    // syncHoloBodyMesh 蓝图分支整壳隐藏；退出/关全息按视图口径全量恢复。
+    // 旧"地月本体半透明青调材质 hack"删除（材质权威归还 syncNodes，防双写互踩）。
+    // ⚠ 仅蓝图态接管（本方法在 render 序晚于 syncHologram，无门控会每帧覆写
+    // holoRoot.visible/syncHoloBodyMesh——非蓝图态勘探全息球被压灭、真球被恢复叠显）；
+    // 非蓝图态全息球显隐/真球显隐权威完整归还 syncHologram。仅现存全息组就是地球时
+    // 复用（上次勘探残留其他天体组须重建，防标记层混入）
+    if (bp) {
+      if (!this.holoRoot || this.holoBody !== 'earth') this.buildHolo('earth')
+      if (this.holoRoot) {
+        this.holoRoot.visible = true
+        // 定位 + 自转与 syncHologram 同源（2026-09-29 修复：全息球悬在世界原点）。
+        // buildHolo 把全息根挂 root3 世界原点（= 旧太阳位 960,540），勘探态靠
+        // syncHologram 每帧贴 Actor，但蓝图态 hologramSel 为空、syncHologram 早退
+        // 无人定位 → 球心偏离地球本位 460px。球心 = 地球 Actor 中心（与"原地包络"
+        // 同口径），自转角 = spinAngleOf 纯函数，与真球/勘探全息同相位连续
+        const earthActor = this.provider.starActors?.get('earth') ?? null
+        if (earthActor) this.holoRoot.position.copy(earthActor.root.position)
+        if (this.holoSpin) this.holoSpin.rotation.y = spinAngleOf(this.provider.simState.state, 'earth')
+      }
+      this.syncHoloBodyMesh(null)
     }
     const g = bp ? this.provider.blueprintGhost : null
     const hasGhost = bp && !!this.provider.buildMode && !!g
@@ -1745,10 +1756,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       root.add(scan)
     }
 
-    // 矿点标记（表驱动：菱形 + 辉光 + 光柱 + 进度弧，全部随 spin 自转）
+    // 矿点标记（表驱动：菱形 + 辉光 + 光柱 + 进度弧，全部随 spin 自转）。
+    // 蓝图态（2026-09-29 俯视编辑台复用全息球）跳过：地月系无矿点勘探语义，
+    // 全息球只承担"与点星球全息同表现"的观感（淡壳/经纬线/大陆轮廓）
     const octaGeo = this.trackGeo(this.F.createOctahedronGeometry(1, 0))
     const cylGeo = this.trackGeo(this.F.createCylinderGeometry(0.12, 0.32, 1, 8, 1, true))
     const arcBaseMat = { transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false } as const
+    if (!this.provider.blueprintActive) {
     for (const { id, def } of depositsOf(body)) {
       const n = StarMapRenderComponent.latLonToLocal(def.lat, def.lon)
       const pos = n.clone().multiplyScalar(R * 1.02)
@@ -1788,6 +1802,7 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       arc.visible = false
       spin.add(arc)
       this.holoMarkers.set(id, { mesh, mat, glow, glowMat, beam, beamMat, arc, arcMat, lastPct: -1, color })
+    }
     }
   }
 
@@ -1959,8 +1974,28 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     g.visible = true
   }
 
-  /** 勘探期间目标天体真球显隐仲裁（全息开 = 隐藏真球留全息球；关/切 = 按视图分组口径恢复） */
+  /** 勘探期间目标天体真球显隐仲裁（全息开 = 隐藏真球留全息球；关/切 = 按视图分组口径恢复）。
+   *  蓝图态（2026-09-29 俯视编辑台复用全息球）批量隐藏地月真球（全息球替换本体观感），
+   *  全息/蓝图全部关闭时一次恢复全部（直接复算视图口径，防逐个泄漏）。 */
   private syncHoloBodyMesh(body: string | null): void {
+    // 蓝图态批量隐藏（每帧差分，恢复点在下方全量分支——蓝图台退出才走）
+    if (this.provider.blueprintActive) {
+      for (const id of ['earth', 'moon']) {
+        const actor = this.provider.starActors?.get(id) ?? null
+        if (actor) this.setBodyShellVisible(actor, false)
+        if (!this.blueprintHiddenBodies.has(id)) this.blueprintHiddenBodies.add(id)
+      }
+      this.holoHiddenBody = null
+      return
+    }
+    // 蓝图态刚退出（本帧 blueprintActive 已关且仍有待恢复项）：全量按视图口径恢复
+    if (this.blueprintHiddenBodies.size > 0) {
+      for (const id of this.blueprintHiddenBodies) {
+        const prevActor = this.provider.starActors?.get(id) ?? null
+        if (prevActor) this.setBodyShellVisible(prevActor, this.visibleBodySet().has(id))
+      }
+      this.blueprintHiddenBodies.clear()
+    }
     // 目标天体真球：勘探期间隐藏（全息球同大替换本体，避免双层叠显）
     const targetActor = body ? this.provider.starActors?.get(body) ?? null : null
     if (targetActor) this.setBodyShellVisible(targetActor, false)
@@ -1981,6 +2016,16 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     for (const cloud of actor.getComponents(CloudLayerComponent)) cloud.setVisible(visible)
   }
 
+  /** 重开/读档路径恢复（GameMode 调用）：蓝图态隐藏的地月真球按视图口径全量复位，
+   *  防旧档/重开后地月永久隐身（syncHoloBodyMesh 的全量恢复分支只在逐帧调用时触发） */
+  restoreBlueprintBodies(): void {
+    for (const id of this.blueprintHiddenBodies) {
+      const actor = this.provider.starActors?.get(id) ?? null
+      if (actor) this.setBodyShellVisible(actor, this.visibleBodySet().has(id))
+    }
+    this.blueprintHiddenBodies.clear()
+  }
+
   /** 全息组每帧同步：位置贴天体 Actor、自转、扫描环巡游、标记状态（枯竭灰化/建成光柱/进度弧）、选中环 */
   private syncHologram(dt: number): void {
     const body = this.provider.hologramSel
@@ -1999,6 +2044,13 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     // 真球显隐（2026-09-14 用户定案：全息球与模型同大后，勘探期间隐藏真球只留全息球，
     // 关闭/切换恢复视图分组显隐口径；2026-09-15 起地球也走真球消失口径）
     this.syncHoloBodyMesh(body)
+    // 月球副标隐藏（2026-09-15 用户定案：全息开启期间隐藏"满载 N/船"悬浮文字——
+    // 全息球本身即信息载体，头顶文字与全息读感冲突；关闭勘探后由 syncLabelLod
+    // 每帧重算显隐自动恢复，无需额外恢复逻辑）
+    if (body === 'moon') {
+      const sv = this.starViews['moon']
+      if (sv) sv.sub.sprite.visible = false
+    }
     // 自转（2026-09-15 真实周期口径）：地球/月球自转角 = 天体历法纯函数（spinAngleOf，
     // 与真球 mesh 同源同角——地表建筑/环节点钉在真实转动的球面，关闭再开全息相位连续）；
     // 其余天体保持 B.holo.spin 巡游速率不变

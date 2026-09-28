@@ -3,12 +3,16 @@
  *
  * 职责：
  *  - 顶部状态栏（并入主 HUD）：时间/交点/储量摘要 + 暂停/倍速/重开 + 「储量详情」入口（开关 reserve_info widget）
- *  - 底部 bar：「建造」「运输」「航线」「☰ 科研」「聚能环」入口（前两个 + 聚能环为居中二级面板同屏互斥；航线为右侧独立面板）+ 科研徽标（均进度/船队概况）
+ *  - 底部 bar：「编辑」（轨道蓝图台入口，原「建造」+「航线编辑」合并）「运输」「航线」
+ *    「☰ 科研」「聚能环」入口（后两个 + 聚能环为居中二级面板同屏互斥；航线为右侧独立面板）
+ *    + 科研徽标（均进度/船队概况）
  *  - 绑定火星任务按钮；海克斯三选一弹窗（hex_modal）由其脚本自驱动（弹卡即暂停，选卡恢复）
  *  - 8Hz 差分同步 GameMode.buildViewModel()（文本/颜色/可见性三 binder，避免逐帧重绘）
  *  - toast 队列渲染（mode.toasts 末 4 条）
- *  - 生成独立子 widget（一次生成，各自脚本自驱动）：
- *      research_panel（科研二级面板）、build_panel（建造二级面板）、transport_panel（运输二级面板）、
+ *  生成独立子 widget（一次生成，各自脚本自驱动）：
+ *      research_panel（科研二级面板）、build_panel（建造二级面板，「编辑」入口开关——
+ *      2026-09-29 建造/航线编辑合并，建造选型并入轨道编辑台，无独立居中入口）、
+ *      transport_panel（运输二级面板）、
  *      routes_panel（航线管理面板）、hex_modal（海克斯三选一）、settle（结算）
  *      ring_panel（聚能环信息面板，交点数由顶栏迁入此处）
  *      orbit_build_panel（近地轨道建设面板，GameMode.orbitBuildSel 状态驱动）
@@ -166,9 +170,8 @@ export default class HudScript extends BehaviourScript {
       wcMode()?.restart()
     })
     bind('Btn_info', () => toggleSubPanel(this.reserveInfo, s => s instanceof ReserveInfoScript, '储量详情'))
-    // ─── 居中二级面板（科研/建造/运输，同屏互斥） ───
+    // ─── 居中二级面板（科研/运输，同屏互斥） ───
     const researchEntry: CenterPanelEntry = { actor: () => this.researchPanel, is: (s) => s instanceof ResearchPanelScript, label: '科研面板' }
-    const buildEntry: CenterPanelEntry = { actor: () => this.buildPanel, is: (s) => s instanceof BuildPanelScript, label: '建造面板' }
     const transportEntry: CenterPanelEntry = { actor: () => this.transportPanel, is: (s) => s instanceof TransportPanelScript, label: '运输面板' }
     const statsEntry: CenterPanelEntry = { actor: () => this.statsPanel, is: (s) => s instanceof StatsPanelScript, label: '收支统计面板' }
     // 聚能环详情面板（居中大面板，与其它居中面板同屏互斥）
@@ -181,22 +184,41 @@ export default class HudScript extends BehaviourScript {
     const stationEntry: CenterPanelEntry = { actor: () => this.stationPanel, is: (s) => s instanceof StationPanelScript, label: '空间站舱段面板' }
     // 火箭设计工坊（居中位，GameMode.designOpen 状态驱动开合：底部 HUD 入口）
     const designEntry: CenterPanelEntry = { actor: () => this.shipDesignPanel, is: (s) => s instanceof ShipDesignScript, label: '火箭设计工坊' }
-    this.centerPanels = [researchEntry, buildEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, stationEntry, designEntry]
+    // 建造面板已下架独立入口（2026-09-29 编辑合并）：建造选型并入轨道蓝图台
+    //（蓝图态内点轨道环放置，无需独立面板占居中位）
+    this.centerPanels = [researchEntry, transportEntry, statsEntry, ringEntry, orbitEntry, shipyardEntry, stationEntry, designEntry]
     bind('Btn_design', () => this.toggleCenterPanel(designEntry))
     bind('Btn_research', () => this.toggleCenterPanel(researchEntry))
-    bind('Btn_build', () => this.toggleCenterPanel(buildEntry))
     bind('Btn_transport', () => this.toggleCenterPanel(transportEntry))
     bind('Btn_stats', () => this.toggleCenterPanel(statsEntry))
     bind('Btn_ring', () => this.toggleCenterPanel(ringEntry))
-    // ─── 航线管理入口（右侧独立面板，不占居中区，不参与居中互斥） ───
-    bind('Btn_routes', () => toggleSubPanel(this.routesPanel, s => s instanceof RoutesPanelScript, '航线管理面板'))
-    // ─── 航线编辑模式开关（进入后星图节点才可拖线；退出后点星球 = 信息面板） ───
-    bind('Btn_routeedit', () => {
+    // ─── 编辑入口（2026-09-29「建造 + 航线编辑」合并）：单击进轨道蓝图台（全息俯视
+    // 编辑态）+ 开建造面板（预选轨道放置：中转站）；台内点编辑 = 收建造面板（留在
+    // 全息俯视继续编辑）；台内面板关着再点 = 退出编辑台 ───
+    bind('Btn_edit', () => {
       const m = wcMode()
       if (!m) return
+      if (!m.routeEditMode) {
+        m.toggleRouteEditMode()
+        const entered = m.enterBuildMode('relay')
+        if (entered) {
+          const bp = this.buildPanel?.getComponent(UIScriptComponent)?.instance
+          if (bp instanceof BuildPanelScript) bp.open()
+          logger.info('[HudScript] 编辑台进入（建造面板开 · 预选轨道放置：中转站）')
+        }
+        return
+      }
+      const bp = this.buildPanel?.getComponent(UIScriptComponent)?.instance
+      if (bp instanceof BuildPanelScript && bp.isOpen) {
+        bp.close()
+        logger.info('[HudScript] 建造面板收起（留在编辑台）')
+        return
+      }
       m.toggleRouteEditMode()
-      logger.info(`[HudScript] 航线编辑切换 → ${m.routeEditMode}`)
+      logger.info(`[HudScript] 编辑台退出 → ${m.routeEditMode}`)
     })
+    // ─── 航线管理入口（右侧独立面板，不占居中区，不参与居中互斥） ───
+    bind('Btn_routes', () => toggleSubPanel(this.routesPanel, s => s instanceof RoutesPanelScript, '航线管理面板'))
     // 独立子面板一次生成（各自脚本自驱动可见性）
     this.hexModal = this.world?.ui.spawnUIActor(HEX_WIDGET) ?? null
     this.settleModal = this.world?.ui.spawnUIActor(SETTLE_WIDGET) ?? null
@@ -299,11 +321,6 @@ export default class HudScript extends BehaviourScript {
       vm.research.reduce((sum, l) => sum + l.progress, 0) / Math.max(1, vm.research.length) * 100,
     )
     this.binder.set(findText(this.actor, 'ResearchBadge'), `均 ${lineSum}% · 船 ${vm.fleet.idle}/${vm.fleet.total}`)
-
-    // ─── 底部 bar：航线编辑按钮激活态（金色 + ● 前缀，模式开关的可见反馈） ───
-    const routeEditLabel = findText(this.actor, 'Label_routeedit')
-    this.binder.set(routeEditLabel, vm.routeEditMode ? '● 航线编辑' : '航线编辑')
-    this.colors.set(routeEditLabel, vm.routeEditMode ? '#ffe9a8' : '#7fdcff')
 
     // ─── 事件横幅 ───
     let ev = ''

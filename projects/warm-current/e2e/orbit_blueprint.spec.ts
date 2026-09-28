@@ -5,9 +5,10 @@
  *   1. 点「航线编辑」进入统一蓝图台：全息俯视（取景中心 = 冻结地球 + 近垂直 88° 相机）+
  *      全息网格地图（buildGroup 常驻）+ 轨道环示意 + vm.blueprintHint 上下文提示
  *   2. 太阳与其他星球移除（2026-09-29）：蓝图台 = 纯地月系工作台——太阳组（本体/光晕/
- *      标签/绕日环）不可见、地球冻结不公转；月球本体可见且全息质感（半透明青调）、
+ *      标签/绕日环）不可见、地球冻结不公转；地月真球整壳隐藏、全息球替换本体
+ *      （2026-09-29 全息统一：buildHolo('earth') 与点星球全息勘探同表现），
  *      全息网格线常驻（空手态也铺设）；水星/火星/木卫二本体点不到（命中收口），
- *      太阳不可点，火星/金星/地球绕日环不吸附，月球环保留；渲染侧行星本体与绕日环不可见
+ *      太阳不可点，火星/金星/地球绕日环不吸附，月球环保留；
  *   3. 任意轨道放置：建造面板选型（enterBuildMode）→ 指针吸附月球轨道环（ghost 锚=地球）
  *      → 点按落位（anchor=earth orbitR≈1200，扣预算，自动退出放置工具）
  *   4. 真实转移轨道航线：月→地建线后弧端点恒等天体、t=0.5 背向主天体（地球）鼓出
@@ -104,9 +105,8 @@ test.describe('warm-current 轨道蓝图台（全息俯视 + 任意轨道放置 
       sunGroupVisible: boolean
       marsBodyVisible: boolean
       earthBodyVisible: boolean
-      earthHoloOpacity: number
       moonBodyVisible: boolean
-      moonHoloOpacity: number
+      holoRootVisible: boolean
       gridLinesReady: boolean
       earthRingVisible: boolean
       marsRingVisible: boolean
@@ -124,6 +124,8 @@ test.describe('warm-current 轨道蓝图台（全息俯视 + 任意轨道放置 
         x: e.x + Math.cos(0.3) * 1200, y: e.y + Math.sin(0.3) * 1200,
       })
       // 渲染口径：太阳组/行星本体/绕日环不可见（私有字段反射；权威交互口径已另行断言）
+      // 2026-09-29 全息统一口径：蓝图态真球整壳隐藏（syncHoloBodyMesh 蓝图分支），
+      // 全息球（buildHolo('earth')）替换本体——与点星球全息勘探同表现
       const sm = m.starMap
       return {
         mercuryHit: hitAt('mercury'),
@@ -137,9 +139,8 @@ test.describe('warm-current 轨道蓝图台（全息俯视 + 任意轨道放置 
         sunGroupVisible: sm.sunGroup.visible,
         marsBodyVisible: sm.starViews.mars.body.visible,
         earthBodyVisible: sm.starViews.earth.body.visible,
-        earthHoloOpacity: sm.starViews.earth.mat.opacity,
         moonBodyVisible: sm.starViews.moon.body.visible,
-        moonHoloOpacity: sm.starViews.moon.mat.opacity,
+        holoRootVisible: !!(sm.holoRoot && sm.holoRoot.visible),
         gridLinesReady: !!sm.gridLines && sm.gridLines.visible,
         earthRingVisible: sm.planetOrbitRings.get('earth').visible,
         marsRingVisible: sm.planetOrbitRings.get('mars').visible,
@@ -158,10 +159,9 @@ test.describe('warm-current 轨道蓝图台（全息俯视 + 任意轨道放置 
     expect(removedSnap.moonRingSnap!.anchor).toBe('earth')
     expect(removedSnap.sunGroupVisible, '太阳组（本体光晕/标签/绕日环）不可见').toBe(false)
     expect(removedSnap.marsBodyVisible, '火星本体不可见').toBe(false)
-    expect(removedSnap.earthBodyVisible, '地球本体可见').toBe(true)
-    expect(removedSnap.earthHoloOpacity, '地球本体全息半透明').toBeCloseTo(0.5, 1)
-    expect(removedSnap.moonBodyVisible, '月球本体可见').toBe(true)
-    expect(removedSnap.moonHoloOpacity, '月球本体全息半透明').toBeCloseTo(0.5, 1)
+    expect(removedSnap.earthBodyVisible, '地球真球整壳隐藏（全息球替换本体）').toBe(false)
+    expect(removedSnap.moonBodyVisible, '月球真球整壳隐藏（全息球替换本体）').toBe(false)
+    expect(removedSnap.holoRootVisible, '全息球显形（与点星球全息勘探同表现）').toBe(true)
     expect(removedSnap.gridLinesReady, '全息网格线已铺设（蓝图台空手态）').toBe(true)
     expect(removedSnap.earthRingVisible, '地球绕日环不可见').toBe(false)
     expect(removedSnap.marsRingVisible, '火星绕日环不可见').toBe(false)
