@@ -6,8 +6,9 @@
  * 都保持接近恒定的屏幕手感（固定步长在远距离会显得"滚不动"、近距离又太跳）。
  * 聚焦滑移口径（2026-09-15 五版）：聚焦 = 原地转头看向（注视点 lerp，相机位置不动），
  * 镜头位置/远近完全归玩家滚轮与拖拽。
- * 交互语义由 GameMode.applyFocusCameraMode 随视图切换（2026-09-15 聚焦环绕改版）：
- * 行星系聚焦 = 右键拖拽绕聚焦天体环绕（orbitMode，边缘平移关）；太阳系全景 = 自由平移。
+ * 交互语义由 ViewDirector.applyFocusCameraMode 随视图收敛（2026-09-28 俯视平移定版）：
+ * 俯视态（行星系聚焦 / 蓝图台全景）= 右键自由平移（orbitMode=false）；轨道环绕只留
+ * 观察态/全息特写（双击/开全息后自行开 orbitMode，边缘平移关）。
  * 生命周期对齐 hoi4：GameMode 构造时创建（不托管），BeginPlay 由 World spawn。
  * 缩放边界：默认太阳系全景 60~12000；GameMode.applyViewMode 按视图模式切换
  * （地球系视图锁死地月尺度，滚轮只见地月——边界数值在 GameMode，本类只管机位数学）。
@@ -58,7 +59,8 @@ export class SolarCameraActor extends CameraActor {
     this.rig.edgePanSpeed = 60
     // 滚轮缩放整体上收并移除普通视线缩放（2026-09-18 落点平移定版）：滚轮只做
     // scrollPan 的"沿相机↔目标连线平移"（目标 = 命中天体或黄道面空目标，朝向完全固定），
-    // 且滚轮选中目标即缓存为 rig.target → 右键拖拽绕该目标环绕观察（orbitMode）
+    // 且滚轮选中目标即缓存为 rig.target（观察态环绕锚点；俯视态右键平移不触发环绕，
+    // 2026-09-28 俯视平移定版）
     this.rig.zoomEnabled = false
     // 右键环绕不回中（2026-09-20）：环绕锚点 = 滚轮缓存目标，可能偏在屏幕任意位置——
     // 公转 + 朝向同步旋转保持目标屏幕位，不再 lookAt 回中猛甩视角

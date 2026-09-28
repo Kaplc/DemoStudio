@@ -143,8 +143,8 @@ test.describe('warm-current 全息勘探（行星矿产开发）', () => {
     expect(closed.after.x).toBe(closed.before.x)
     expect(closed.after.y).toBe(closed.before.y)
     expect(closed.after.z).toBe(closed.before.z)
-    // 相机交互回落视图默认语义：行星系聚焦环绕（右键环绕 · 左键留地图交互 · 边缘平移关）
-    expect(closed.orbitMode).toBe(true)
+    // 相机交互回落视图默认语义：行星系俯视右键平移（2026-09-28 定版 · 左键留地图交互 · 边缘平移关）
+    expect(closed.orbitMode).toBe(false)
     expect(closed.leftOrbitEnabled).toBe(false)
     expect(closed.edgePanEnabled).toBe(false)
   })

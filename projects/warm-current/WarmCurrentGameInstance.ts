@@ -134,7 +134,6 @@ export interface WarmCurrentDebugBridge {
   triggerWindow(): void
   suppressFlare(): void
   startMission(): boolean
-  retryAct(): boolean
   enterSandbox(): void
   restart(): void
   togglePause(): void
@@ -661,7 +660,6 @@ export class WarmCurrentGameInstance extends GameInstance {
       triggerWindow: () => instance._gameMode?.hazards.triggerWindow(),
       suppressFlare: () => instance._gameMode?.hazards.suppressFlare(),
       startMission: () => instance._gameMode?.transport.startMarsMission() ?? false,
-      retryAct: () => instance._gameMode?.simState.retryAct() ?? false,
       enterSandbox: () => instance._gameMode?.simState.enterSandbox(),
       restart: () => instance._gameMode?.restart(),
       togglePause: () => instance._gameMode?.togglePause(),

@@ -4,7 +4,7 @@
  * 前置：dev server 已在 :5173 运行（npm run electron:dev 或 vite）
  * 流程：选 WarmCurrent 工程卡 → 打开工程 → ▶ 运行游戏（默认进主菜单）→
  *       点「Btn_new」进星图（__warmCurrent 桥在 switchToMapScene 才挂载，菜单阶段不存在）→
- *       等桥就绪 + 冻结仿真（防自然 defeat 弹 SettleModal/HexModal 全屏 Dim 拦截层干扰）→
+ *       等桥就绪 + 冻结仿真（防 HexModal 弹卡全屏 Dim 拦截层干扰；2026-09-30 败局线已下线）→
  *       验证顶栏并入主 HUD / 底部科研入口开合链路 / research_panel 无入口按钮 / 二级按钮回调
  * 注意：ai.clickActor 已改射线语义（走 InputSys → PhySys 完整管线，与真实鼠标同路），
  *       ClickComponent.clickCooldown=500ms——back-to-back 连点会被冷却吞掉，
@@ -75,8 +75,8 @@ test.describe('warm-current HUD 改版（topbar 并入 + 底部科研入口）',
       return r?.results?.[0]?.ok === true
     }, { timeout: 60_000, polling: 500 })
     await waitGameReady(page)
-    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防自然 defeat
-    // 抢先弹出 SettleModal/HexModal 的全屏 Dim 拦截层干扰 UI 点击测试
+    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防研究推进
+    // 弹出 HexModal 的全屏 Dim 拦截层干扰 UI 点击测试
     await page.evaluate(`(() => { const m = window.__warmCurrent.mode(); if (m && !m.paused) m.togglePause() })()`)
   })
 

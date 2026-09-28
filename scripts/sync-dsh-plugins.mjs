@@ -70,6 +70,9 @@ const patchContent = `# Your patch layer for this dsh profile, applied after eve
       name: '@demostudio/ds-feedback'
       config:
         ruleDir: '${yamlPath}/.dsh/rules'
+        lossDir: '${yamlPath}/.dsh/loss'
+        gradientDir: '${yamlPath}/.dsh/gradient'
+        reminderDir: '${yamlPath}/.dsh/reminder'
 
 # ── DemoStudio 行为飞轮 ──
 - insert:

@@ -68,8 +68,8 @@ test.describe('warm-current UI 点击拦截回归（research_panel hit-test 收�
       return r?.results?.[0]?.ok === true
     }, { timeout: 60_000, polling: 500 })
     await waitGameReady(page)
-    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防自然 defeat
-    // 抢先弹出 SettleModal/HexModal 的全屏 Dim 拦截层干扰拦截画布计数
+    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防研究推进
+    // 弹出 HexModal 的全屏 Dim 拦截层干扰拦截画布计数
     await page.evaluate(`(() => { const m = window.__warmCurrent.mode(); if (m && !m.paused) m.togglePause() })()`)
   })
 

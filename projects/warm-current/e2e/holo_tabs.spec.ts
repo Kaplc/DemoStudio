@@ -111,7 +111,7 @@ test.describe('warm-current 全息底栏分类改版（资源/地表建筑/轨�
   test('入口面板隐藏恢复 + 底栏 4 按钮 + 分类内容切换全链路', async ({ page }) => {
     test.setTimeout(240_000)
     await bootToMap(page)
-    // 冻结仿真（防自然 defeat 弹卡干扰 UI；UI 差分同步不受暂停影响）
+    // 冻结仿真（防 HexModal 弹卡干扰 UI；UI 差分同步不受暂停影响）
     await page.evaluate(`(() => { const m = window.__warmCurrent.mode(); if (m && !m.paused) m.togglePause() })()`)
 
     // ── 1. 开星球信息面板（全息入口）→ 面板显形 ──

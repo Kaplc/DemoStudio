@@ -32,7 +32,6 @@ import {
   buildingByEndpoint, buildingDefOf, endpointPos, findRoute,
   hubRelayMultForSegment, resetMoonPhaseAdj, roundFuel, snapToGrid,
   starLoad, starOfEndpoint, starPosAt,
-  TUTORIAL_TARGETS,
 } from '../core/helpers'
 import type { Endpoint, SimRoute, SimShip, SimState, StarId } from '../core/types'
 import { StarMapRenderComponent } from '../map/StarMapRenderComponent'
@@ -652,7 +651,7 @@ export class WarmCurrentGameMode extends GameMode {
       logger.warn('[WarmCurrent] 点击太阳忽略：太阳系全景视角已屏蔽')
       return
     }
-    if (s.outcome === 'defeat' || s.pendingCard) return
+    if (s.pendingCard) return
     // 耀斑预警期点船：增减框选（船优先于建筑/节点命中——船小且在航线附近移动）
     if (this.hazards.orderWindowOpen()) {
       const hitShip = this.shipAt(p)
@@ -804,16 +803,8 @@ export class WarmCurrentGameMode extends GameMode {
 
   /** 拖线视觉合法性（权威判定在 transport.tryCreateRoute；2026-09-13 镜像中转链组合） */
   private dragValidity(a: Endpoint, b: Endpoint): boolean {
-    const s = this.simState.state
     const ka = a.kind, kb = b.kind
     if (ka === kb) return false
-    if (s.tutorial) {
-      // 引导端点取 core 单一数据源（权威判定在 transport.tryCreateRoute，此处只做视觉镜像）
-      const [tutStar, tutPlanet] = TUTORIAL_TARGETS
-      const starEp: Endpoint = { kind: 'star', star: tutStar }
-      const planetEp: Endpoint = { kind: tutPlanet }
-      return (this.epEq(a, starEp) && this.epEq(b, planetEp)) || (this.epEq(a, planetEp) && this.epEq(b, starEp))
-    }
     if (ka === 'earth' && kb === 'star') return this.transport.starUnlocked((b as { star: StarId }).star)
     if (ka === 'star' && kb === 'earth') return this.transport.starUnlocked((a as { star: StarId }).star)
     // 中转链星段（星↔中转站，relay_in）

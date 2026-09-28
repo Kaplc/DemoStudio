@@ -34,6 +34,12 @@ import type {
 import type { SessionStatsProjection } from '../types/agent'
 import { reduceSessionNotices, type SessionNoticeAction } from './sessionNotices'
 import { reduceSessionStatusLights, type SessionStatusAction, type SessionStatusMap } from './sessionStatusLights'
+import {
+  computeHealthScores,
+  parseGradientLedgerText,
+  parseGradientProposalText,
+} from './lossSignals'
+import type { GradientLedgerRow, GradientProposalEntry } from './lossSignals'
 import { SessionGhostStore, type SessionGhost } from './sessionGhostStore'
 import { logTime } from '../utils/logTime'
 
@@ -453,21 +459,6 @@ export interface SettingsDescribeResult {
   }>
 }
 
-export interface ProviderInfo {
-  /** Provider route key (如 'deepseek-official', 'openai') */
-  provider: string
-  /** 人类可读的显示名称 */
-  displayName: string
-  /** 设置命名空间 */
-  settingsNs: string
-  /** 设置路径 */
-  settingsPath: string[]
-  /** 是否已激活 */
-  active: boolean
-  /** 是否声明式 */
-  declared?: boolean
-}
-
 export class AgentService {
   private state: ConnectionState = 'idle'
   private listeners: Set<(event: AgentEvent) => void> = new Set()
@@ -560,11 +551,18 @@ export class AgentService {
   private _workspaceCwd: string | null = null
   /** 上一次 request/header 中的模型名：仅模型真正切换时才上屏"模型切换" */
   private _lastHeaderModel: string | undefined
+  /** 模型显示名索引：`provider|model` → 目录 name（与 id 同值不入索引）。
+   *  数据源是最近一次 session.models（getModels 时全量重建）；
+   *  「模型切换」系统消息用它显示名称而非真实 id，fold 前由 loadHistory 预热。 */
+  private modelNameIndex: Map<string, string> = new Map()
   /** 上下文占用 fold（对齐 DSH contextPressure 投影的 last-wins 简化版）：
    *  分母 = 最近一条 request/context 的路由容量；分子 = 最近一次 usage 上报
    *  的实际占用（prompt + 输出）。任一缺失时进度圈不渲染（对齐 DSH 行为）。 */
   private _ctxWindow: number | undefined
   private _ctxUsedTokens: number | undefined
+  /** 会话 → 权威占用快照（数据源 = dsh-token-meter contextPressure 投影：mux 投影帧 +
+   *  session.list 行内收割）。切会话从这里即时恢复进度圈，不再单纯依赖历史 fold seed。 */
+  private contextPressureBySession = new Map<string, { usedTokens?: number; contextWindow?: number }>()
   /** 实例标识：HMR 会并存多个服务实例（旧实例泄漏时只写日志不进 UI），用于区分日志来源 */
   private readonly instanceId = (() => {
     const g = globalThis as unknown as Record<string, number | undefined>
@@ -642,9 +640,13 @@ export class AgentService {
     this.lastFlushSeq = undefined
     this.pendingTools.clear()
     this._lastHeaderModel = undefined
-    // 上下文占用 fold 随会话切换清零（新会话由历史 fold 重新 seed）
-    this._ctxWindow = undefined
-    this._ctxUsedTokens = undefined
+    // 上下文占用切换到目标会话的权威投影快照（缺失则清零，由历史 fold / 后续投影帧补种）
+    const seeded = id ? this.contextPressureBySession.get(id) : undefined
+    this._ctxWindow = seeded?.contextWindow
+    this._ctxUsedTokens = seeded?.usedTokens
+    if (this._ctxWindow !== undefined || this._ctxUsedTokens !== undefined) {
+      this.emitContextPressure(-1, Date.now())
+    }
     // 模型目录按会话隔离（对齐 WebUI per-session ModelDirectory）：切会话即失效重拉
     if (id) this.notifyModelDirectoryChanged('session-changed')
   }
@@ -1268,6 +1270,12 @@ export class AgentService {
 
   /** 消费 session/projection 帧：合并进缓存并推送 sessionsUpdated；会话不在缓存走防抖全量刷新 */
   private consumeProjectionFrame(frame: ProjectionFrame): void {
+    // contextPressure 不是会话列表字段：直入占用快照通道（当前会话实时下发 UI）。
+    // 不拦截的话会落进 ignored → 每回合一次防抖全量 session.list（RPC 放大）。
+    if (frame.key === 'contextPressure') {
+      this.consumeContextPressureFrame(frame)
+      return
+    }
     const result = mergeProjectionFrame(this.sessionsCache, this.projectionSeqs, frame)
     if (result.kind === 'applied') {
       console.log(`[${logTime()}] [AgentService] session/projection 合并: ${frame.sessionId}:${frame.key} (seq=${frame.seq}) → sessionsUpdated`)
@@ -2110,7 +2118,7 @@ export class AgentService {
       if (modelChanged) {
         this.emit({
           type: 'requestHeader',
-          payload: { model, provider: header?.config?.provider, reasoningEffort, reason: reason as any, seq: event.seq, time } as RequestHeaderPayload,
+          payload: { model, modelName: this.resolveModelDisplayName(header?.config?.provider, model), provider: header?.config?.provider, reasoningEffort, reason: reason as any, seq: event.seq, time } as RequestHeaderPayload,
         })
       }
       return false
@@ -2176,6 +2184,31 @@ export class AgentService {
       type: 'contextPressure',
       payload: { usedTokens: this._ctxUsedTokens, contextWindow: this._ctxWindow, seq, time } as ContextPressurePayload,
     })
+  }
+
+  /** contextPressure 投影帧（dsh-token-meter 权威占用，wire 视图 {contextWindow?, pressureTokens?, projectedTokens?}）：
+   *  按会话入快照缓存；当前会话立即下发 UI（切会话恢复与回合内实时更新同一通道） */
+  private consumeContextPressureFrame(frame: ProjectionFrame): void {
+    const { sessionId, value } = frame
+    if (!sessionId || typeof value !== 'object' || value === null) return
+    const v = value as { contextWindow?: unknown; projectedTokens?: unknown; pressureTokens?: unknown }
+    const usedTokens = typeof v.projectedTokens === 'number'
+      ? v.projectedTokens
+      : typeof v.pressureTokens === 'number' ? v.pressureTokens : undefined
+    const contextWindow = typeof v.contextWindow === 'number' ? v.contextWindow : undefined
+    if (usedTokens === undefined && contextWindow === undefined) return
+    this.contextPressureBySession.set(sessionId, { usedTokens, contextWindow })
+    if (sessionId === this.sessionId) {
+      if (contextWindow !== undefined) this._ctxWindow = contextWindow
+      if (usedTokens !== undefined) this._ctxUsedTokens = usedTokens
+      this.emitContextPressure(frame.seq ?? -1, Date.now())
+    }
+  }
+
+  /** 当前会话的占用快照（面板切会话后恢复进度圈；投影缺失时为 null，等历史 fold seed） */
+  getContextPressureSnapshot(): ContextPressurePayload | null {
+    if (this._ctxUsedTokens === undefined && this._ctxWindow === undefined) return null
+    return { usedTokens: this._ctxUsedTokens, contextWindow: this._ctxWindow, seq: -1, time: Date.now() }
   }
 
   /** 回合运行中的兜底心跳：mux 推送静默超过阈值时主动拉一次 history 补漏。
@@ -2356,6 +2389,9 @@ export class AgentService {
 
       console.log(`[${logTime()}] [AgentService] 历史事件数量: ${allEvents.length}（${pages} 页）`)
       if (!allEvents.length) return { messages: [] }
+
+      // fold 循环同步执行不能 await，显示名索引必须在进入 fold 前预热
+      await this.ensureModelNameIndex()
 
       const tailLoad = options.beforeSeq === undefined
       return this.foldEvents(allEvents, { tailLoad, seedPressure: tailLoad })
@@ -2687,9 +2723,11 @@ export class AgentService {
           // 格式化推理强度
           let effortLabel = ''
           if (reasoningEffort) effortLabel = ` · 推理${reasoningEffort}`
+          // 优先显示目录里的模型名称（索引由 loadHistory 预热/ModelSelector 刷新），无匹配回退 id
+          const modelLabel = model !== undefined ? this.resolveModelDisplayName(header?.config?.provider, model) : '未知'
           messages.push({
             role: 'system',
-            content: `模型切换: ${model || '未知'}${effortLabel}`,
+            content: `模型切换: ${modelLabel}${effortLabel}`,
             seq: event.seq,
             ts: time,
           })
@@ -2844,10 +2882,29 @@ export class AgentService {
     if (this.listInFlight) return this.listInFlight
     this.listInFlight = (async () => {
       try {
-        const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; running?: boolean; updatedAt?: number; blank?: boolean; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number } } } }> }
+        const value = (await this.rpc('session.list')) as { items?: Array<{ sessionId: string; running?: boolean; updatedAt?: number; blank?: boolean; origin?: 'subagent'; agentPreset?: string; projections?: { values?: { title?: string; sessionStats?: { turns?: number }; contextPressure?: { contextWindow?: number; projectedTokens?: number; pressureTokens?: number } } } }> }
         const rawItems = value?.items || []
+        // 权威占用快照收割（dsh-token-meter contextPressure 投影视图）：切会话即时恢复进度圈的数据底座
+        for (const item of rawItems) {
+          const cp = item.projections?.values?.contextPressure
+          if (!cp) continue
+          const usedTokens = cp.projectedTokens ?? cp.pressureTokens
+          if (usedTokens === undefined && cp.contextWindow === undefined) continue
+          this.contextPressureBySession.set(item.sessionId, { usedTokens, contextWindow: cp.contextWindow })
+        }
+        // 当前会话尚无占用数据（挂载早期，fold seed 未到）而收割到了 → 立即补种下发
+        if (this.sessionId && this._ctxUsedTokens === undefined && this._ctxWindow === undefined) {
+          const cur = this.contextPressureBySession.get(this.sessionId)
+          if (cur && (cur.usedTokens !== undefined || cur.contextWindow !== undefined)) {
+            this._ctxUsedTokens = cur.usedTokens
+            this._ctxWindow = cur.contextWindow
+            this.emitContextPressure(-1, Date.now())
+          }
+        }
         const items: SessionListItem[] = rawItems
-          .filter(item => !item.blank && !this.deletedSessionIds.has(item.sessionId))
+          // 子代理会话（origin=subagent）不入列表：对齐 DSH WebUI sessionVisible 的
+          // origin 过滤——子代理属于父会话的委派树，不是面板可切换的顶层会话。
+          .filter(item => !item.blank && item.origin !== 'subagent' && !this.deletedSessionIds.has(item.sessionId))
           .map(item => ({
             sessionId: item.sessionId,
             title: item.projections?.values?.title || item.sessionId,
@@ -2929,6 +2986,88 @@ export class AgentService {
       return entries
     } catch (err) {
       console.warn(`[${logTime()}] [AgentService] 使用统计加载失败:`, err)
+      return []
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  损失信号健康分 + 梯度候选（数据源：.dsh/loss、.dsh/gradient 本地文件）
+  // ═══════════════════════════════════════════════════════════
+
+  /** 每会话健康分快照（loadHealthScores 成功后更新；无信号会话无条目） */
+  private healthScores: Record<string, number> = {}
+
+  /** 当前健康分快照（面板挂载/刷新时初始化用） */
+  getHealthScores(): Record<string, number> {
+    return this.healthScores
+  }
+
+  /**
+   * 读取 .dsh/loss/signals.jsonl 并重算每会话健康分（客户端纯计算，
+   * 与内核 lossStore 同公式；文件不存在 = 无信号 = 空表，不报错）。
+   */
+  async loadHealthScores(): Promise<Record<string, number>> {
+    try {
+      const api = window.electronAPI
+      const result = await api?.readTextFile('.dsh/loss/signals.jsonl')
+      if (result?.success) {
+        this.healthScores = computeHealthScores(result.data as string)
+      } else {
+        // 文件不存在（探针还没落过信号）按空表处理，不算错误
+        this.healthScores = {}
+      }
+    } catch (err) {
+      console.warn(`[${logTime()}] [AgentService] 健康分加载失败:`, err)
+      this.healthScores = {}
+    }
+    return this.healthScores
+  }
+
+  /**
+   * 列出梯度候选（.dsh/gradient/pending/*.md）。
+   * 坏文件计入 brokenNames 不阻塞列表；目录不存在（还没提过候选）返回空表。
+   */
+  async listGradientProposals(): Promise<{ proposals: GradientProposalEntry[]; brokenNames: string[] }> {
+    try {
+      const api = window.electronAPI
+      const list = await api?.listDirFiles('.dsh/gradient/pending')
+      if (!list?.success) return { proposals: [], brokenNames: [] }
+      const files = (list.data as Array<{ name: string; size: number; mtime: number }>)
+        .filter(file => file.name.endsWith('.proposed.md'))
+        .sort((a, b) => a.mtime - b.mtime)
+      const proposals: GradientProposalEntry[] = []
+      const brokenNames: string[] = []
+      for (const file of files) {
+        try {
+          const content = await api?.readTextFile(`.dsh/gradient/pending/${file.name}`)
+          if (!content?.success) {
+            brokenNames.push(file.name)
+            continue
+          }
+          const parsed = parseGradientProposalText(content.data as string)
+          if (parsed === undefined) brokenNames.push(file.name)
+          else proposals.push(parsed)
+        } catch {
+          brokenNames.push(file.name)
+        }
+      }
+      return { proposals, brokenNames }
+    } catch (err) {
+      console.warn(`[${logTime()}] [AgentService] 梯度候选加载失败:`, err)
+      return { proposals: [], brokenNames: [] }
+    }
+  }
+
+  /** 读取梯度应用台账最近 limit 条（时间升序取尾；文件不存在返回 []） */
+  async readGradientLedger(limit = 10): Promise<GradientLedgerRow[]> {
+    try {
+      const api = window.electronAPI
+      const result = await api?.readTextFile('.dsh/gradient/applied.jsonl')
+      if (!result?.success) return []
+      const rows = parseGradientLedgerText(result.data as string)
+      return rows.slice(-limit)
+    } catch (err) {
+      console.warn(`[${logTime()}] [AgentService] 梯度台账读取失败:`, err)
       return []
     }
   }
@@ -3147,9 +3286,37 @@ export class AgentService {
     const sid = sessionId || this.sessionId
     if (!sid) throw new Error('无活跃会话')
     const value = await this.rpc('session.models', { sessionId: sid }) as ModelsResult
+    this.indexModelNames(value?.groups)
     return {
       groups: value?.groups || [],
       current: value?.current || null,
+    }
+  }
+
+  /** 用最近一次目录全量重建显示名索引（同值不入索引，缺省回退 id） */
+  private indexModelNames(groups?: ModelGroup[]): void {
+    this.modelNameIndex.clear()
+    for (const g of groups ?? []) {
+      for (const m of g.models ?? []) {
+        if (m.name && m.name !== m.id) this.modelNameIndex.set(`${g.id}|${m.id}`, m.name)
+      }
+    }
+  }
+
+  /** 解析模型显示名：目录 name 优先，无匹配回退 id，model 缺失回退"未知" */
+  resolveModelDisplayName(provider: string | undefined, model: string | undefined): string {
+    if (!model) return '未知'
+    return this.modelNameIndex.get(`${provider}|${model}`) || model
+  }
+
+  /** fold 前预热显示名索引（fold 循环同步执行不能 await）：索引为空时拉一次目录，失败回退 id */
+  private async ensureModelNameIndex(): Promise<void> {
+    if (this.modelNameIndex.size > 0) return
+    try {
+      await this.getModels()
+    } catch (err) {
+      // 目录不可用（无会话/host 短暂离线）：模型切换消息回退显示 id，不阻塞历史加载
+      console.info(`[${logTime()}] [AgentService] 模型名索引预热失败，模型切换消息回退显示 id:`, err instanceof Error ? err.message : err)
     }
   }
 
@@ -3212,12 +3379,6 @@ export class AgentService {
   async mutateSettings(ns: string, ops: SettingsPathOp[]): Promise<void> {
     await this.rpc('settings.mutate', { ns, ops })
     console.log(`[${logTime()}] [AgentService] 设置已更新: ns=${ns}, ${ops.length} 个操作`)
-  }
-
-  /** 获取 LLM provider 列表 */
-  async getLlmProviders(): Promise<ProviderInfo[]> {
-    const value = await this.rpc('llm.providers', {}) as { providers?: ProviderInfo[] }
-    return value?.providers || []
   }
 }
 

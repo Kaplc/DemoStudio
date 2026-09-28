@@ -576,7 +576,7 @@ export interface WarmCurrentVM {
   ringMods: { burnMult: number; loadMult: number; miningMult: number; shipCapAdd: number; buildPumpMult: number; researchMult: number; coolTimeMult: number; warmTimeMult: number }
   /** 环建筑安装行（ring_building 表键序；canInstall = 预算足 & 非耀斑 & 对局中） */
   ringInstallRows: Array<{ id: string; name: string; desc: string; cost: number; canInstall: boolean }>
-  /** 堆心温度 0..100（100 = 满温；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
+  /** 堆心温度 0..100（100 = 满温；无燃料持续降温，2026-09-30 起归零仅停摆展示、不再判负） */
   coreTemp: number
   /** 堆心状态：warming = 升温中（有燃料），cooling = 降温中（断环） */
   coreState: 'warming' | 'cooling'
@@ -647,18 +647,18 @@ export interface WarmCurrentVM {
   fleetOrders: { windowOpen: boolean; selectedCount: number; canHold: boolean }
   /** 航线编辑模式（2026-09-29 起为轨道蓝图台合并态；HUD「航线编辑」按钮高亮态） */
   routeEditMode: boolean
-  /** 轨道蓝图台上下文提示（随子状态切换：放置/轨道编辑/拖线；蓝图态 TutText 接管显示） */
+  /** 轨道蓝图台上下文提示（随子状态切换：放置/轨道编辑/拖线；编辑台底栏状态行消费） */
   blueprintHint: string
   /** 造船/重建造价（面板按钮标签用，配置表驱动防硬编码漂移） */
   shipRebuildCost: number
   /** 当前轨道锚是否有建成船坞（轨道建设面板文案开关；折扣态判定在 GameMode，UI 不持规则） */
   hasShipyard: boolean
-  tutorial: boolean
   paused: boolean
   timeScale: number
   moduleState: 'locked' | 'available' | 'mission' | 'delivered'
   canStartMission: boolean
-  outcome: 'playing' | 'victory' | 'defeat'
+  /** 对局结局（2026-09-30 失败线下线：只剩 playing/victory） */
+  outcome: 'playing' | 'victory'
   sandbox: boolean
   stats: { delivered: number; frozen: number; buildings: number; cards: number }
 }
@@ -906,7 +906,6 @@ export class ViewModelComponent extends BObjectComponent<WarmCurrentGameMode> {
       blueprintHint: this.owner.blueprint.hint(),
       shipRebuildCost: B.shipRebuildCost,
       hasShipyard: !!this.owner.orbitBuildSel && this.owner.orbitBuild.shipyardMults(this.owner.orbitBuildSel) !== null,
-      tutorial: s.tutorial,
       paused: this.owner.paused,
       timeScale: this.owner.timeScale,
       moduleState: s.module.state,

@@ -3,7 +3,7 @@
  *
  * 第一幕→第二幕：建成 ≥8 环段（解锁木卫二/引力窗口/极寒停航，需求暴涨）；
  * 第二幕→第三幕：存续满 240s 且建成 ≥16 环段（解锁火星 + 环扩展模块任务）。
- * 幕切换不回退；进入新幕时打幕入口快照（重试本幕）。
+ * 幕切换不回退（2026-09-30 环熄灭失败线下线，幕入口快照/重试本幕机制已移除）。
  *
  * 2026-09-13 供应链重构：每幕叠加「稳定供应」目标（供应链口径，与环段门槛并存不替换）——
  * 净流入连续 ≥ supplyStreakGoal 秒发一次性奖励（supplyStreakReward 吨）；断供 streak 归零，
@@ -27,14 +27,12 @@ export class ActsComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (s.act === 1 && s.ringSlots >= B.act2Slots) {
       s.act = 2
       s.flare.nextIn = B.flare.firstDelay + this.sc.rng() * (B.flare.maxInterval - B.flare.minInterval)
-      s.actSnapshots.act2 = JSON.stringify(this.sc.snapshot())
       this.resetSupplyStreak(s)
       this.sc.emit({ type: 'act2' })
     }
     if (s.act === 2 && s.time >= B.act3SurviveSeconds && s.ringSlots >= B.act3Slots) {
       s.act = 3
       s.module.state = 'available'
-      s.actSnapshots.act3 = JSON.stringify(this.sc.snapshot())
       this.resetSupplyStreak(s)
       this.sc.emit({ type: 'act3' })
       this.sc.emit({ type: 'module_available' })

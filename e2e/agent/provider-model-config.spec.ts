@@ -7,9 +7,9 @@
  * 全程不碰真实 DSH 配置。
  *
  * 覆盖：
- * 1. 供应商卡片展示模型能力标签（glm-5.3-flash · 1M）
- * 2. 编辑 glm2：改上下文 + 勾视觉 → settings.mutate 载荷正确（保留 maxTokens）
- * 3. 添加自定义供应商：模型行上下文 + 视觉 → mutate 载荷含 input:['text','image']
+ * 1. 只渲染用户级自定义供应商（glm2）；预设目录条目（deepseek-official / zai）不出现
+ * 2. 编辑 glm2：改名称 + 上下文 + 勾视觉 → mutate 载荷含 name/input 且保留 maxTokens
+ * 3. 添加自定义供应商：名称留空 → mutate 载荷无 name 键（回退按 ID 显示），含 input:['text','image']
  */
 import { expect, test, type Page } from '@playwright/test'
 
@@ -54,9 +54,11 @@ async function installStubs(page: Page) {
         case 'session.history':
           return ok({ events: [] })
         case 'llm.providers':
+          // 预设供应商目录：面板已不再消费该数据，保留在 stub 中用于断言"预设不渲染"
           return ok({
             providers: [
-              { provider: 'glm2', displayName: 'glm2', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'glm2'], active: true },
+              { provider: 'glm2', displayName: 'glm2', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'glm2'], active: true, declared: true },
+              { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'deepseek-official'], active: false },
               { provider: 'zai', displayName: 'zai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'zai'], active: false },
             ],
           })
@@ -88,21 +90,30 @@ test.describe('供应商设置 · 模型上下文与视觉配置', () => {
     await installStubs(page)
   })
 
-  test('供应商卡片展示模型上下文标签，编辑入口存在', async ({ page }) => {
+  test('只渲染用户级自定义供应商，预设目录条目不出现', async ({ page }) => {
     await openSettings(page)
     const glm2Card = page.locator('.settings-panel__provider', { hasText: 'glm2' })
     // contextWindow 1000000 → 展示为 1M
     await expect(glm2Card.locator('.settings-panel__model-tag')).toHaveText(/glm-5\.3-flash\s*·\s*1M/)
+    // 自定义供应商条目：编辑 + 删除供应商入口始终可用
     await expect(glm2Card.getByRole('button', { name: '编辑' })).toBeVisible()
-    // zai 无用户级配置 → 无编辑入口
-    const zaiCard = page.locator('.settings-panel__provider', { hasText: 'zai' })
-    await expect(zaiCard.getByRole('button', { name: '编辑' })).toHaveCount(0)
+    await expect(glm2Card.getByRole('button', { name: '删除供应商' })).toBeVisible()
+    // 预设目录条目（deepseek-official / zai）不再渲染
+    await expect(page.locator('.settings-panel__provider', { hasText: 'deepseek-official' })).toHaveCount(0)
+    await expect(page.locator('.settings-panel__provider', { hasText: 'zai' })).toHaveCount(0)
+    // 列表里只有用户级条目
+    await expect(page.locator('.settings-panel__provider')).toHaveCount(1)
   })
 
-  test('编辑 glm2：改上下文勾视觉 → mutate 载荷含 input 且保留 maxTokens', async ({ page }) => {
+  test('编辑 glm2：改名称/上下文/视觉 → mutate 载荷含 name+input 且保留 maxTokens', async ({ page }) => {
     await openSettings(page)
     const glm2Card = page.locator('.settings-panel__provider', { hasText: 'glm2' })
     await glm2Card.getByRole('button', { name: '编辑' }).click()
+
+    // 名称行在模型 ID 前面：回填旧名称，改成新显示名
+    const nameInput = page.locator('.settings-panel__config-edit .settings-panel__model-name')
+    await expect(nameInput).toHaveValue('glm-5.3-flash')
+    await nameInput.fill('GLM 5.3 Flash')
 
     const ctxInput = page.locator('.settings-panel__config-edit .settings-panel__model-ctx')
     await expect(ctxInput).toHaveValue('1000000')
@@ -116,11 +127,11 @@ test.describe('供应商设置 · 模型上下文与视觉配置', () => {
     expect(mutation.ops[0].op).toBe('set')
     expect(mutation.ops[0].path).toEqual(['providers', 'glm2'])
     expect(mutation.ops[0].value.models).toEqual([
-      { id: 'glm-5.3-flash', name: 'glm-5.3-flash', contextWindow: 2000000, maxTokens: 131072, input: ['text', 'image'] },
+      { id: 'glm-5.3-flash', name: 'GLM 5.3 Flash', contextWindow: 2000000, maxTokens: 131072, input: ['text', 'image'] },
     ])
   })
 
-  test('添加自定义供应商：模型行上下文与视觉写入 mutate 载荷', async ({ page }) => {
+  test('添加自定义供应商：名称留空 → 载荷无 name 键，模型行上下文与视觉写入', async ({ page }) => {
     await openSettings(page)
     await page.getByRole('button', { name: '+ 添加自定义第三方' }).click()
     await page.getByPlaceholder('如: my-proxy, moonshot, qwen').fill('e2e-vision')
@@ -133,8 +144,9 @@ test.describe('供应商设置 · 模型上下文与视觉配置', () => {
     await page.waitForFunction(() => (window as any).__dshMutations.length > 0)
     const mutation = await page.evaluate(() => (window as any).__dshMutations[0])
     expect(mutation.ops[0].path).toEqual(['providers', 'e2e-vision'])
+    // 名称留空 = 不写 name 键，选择器/切换消息回退按 ID 显示
     expect(mutation.ops[0].value.models).toEqual([
-      { id: 'my-vl-model', name: 'my-vl-model', contextWindow: 128000, input: ['text', 'image'] },
+      { id: 'my-vl-model', contextWindow: 128000, input: ['text', 'image'] },
     ])
   })
 })

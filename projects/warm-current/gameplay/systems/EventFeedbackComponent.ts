@@ -116,7 +116,6 @@ export class EventFeedbackComponent extends BObjectComponent<WarmCurrentGameMode
           this.toast('第三幕 · 质变：火星已解锁 —— 运回环扩展模块，点亮全球环网！', '#ffe9a8')
           break
         case 'victory': audioSys.play('wc.win'); break
-        case 'defeat': audioSys.play('wc.lose'); break
         default: break
       }
     }

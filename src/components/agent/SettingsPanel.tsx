@@ -1,9 +1,9 @@
 /**
  * SettingsPanel - Agent 设置面板
  *
+ * 只管理用户级自定义第三方供应商（settings.yaml llm-pi-ai.providers），预设供应商目录不在此展示。
  * 包含：
- * - API Key 配置（按 Provider 分组）
- * - 供应商编辑（显示名称 / Base URL / 模型列表）
+ * - 自定义第三方供应商增删改（显示名称 / 协议 / Base URL / API Key / 模型列表）
  * - 模型能力配置（上下文大小 contextWindow、视觉 input: [text, image]）
  * - 连接状态
  */
@@ -11,7 +11,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   agentService,
   type CredentialInfo,
-  type ProviderInfo,
   type SettingsDescribeResult,
 } from '../../editor/AgentService'
 
@@ -32,23 +31,20 @@ export interface ProviderModelInfo {
   input?: string[]
 }
 
-/** Provider 配置状态 */
+/** Provider 配置状态（仅用户级自定义第三方供应商，来自 settings.yaml llm-pi-ai.providers） */
 interface ProviderConfig {
   id: string
   name: string
-  configured: boolean
   apiKeyEnv?: string
   hasApiKey: boolean
-  isCustom?: boolean
   baseURL?: string
   api?: string
   models?: ProviderModelInfo[]
-  /** 是否存在用户级配置（settings.yaml 有该 provider 条目），可进入"编辑" */
-  canEditConfig: boolean
 }
 
-/** 模型编辑行（表单态：上下文用字符串承载输入，空串 = 不设置） */
+/** 模型编辑行（表单态：上下文用字符串承载输入，空串 = 不设置；名称空串 = 回退按 ID 显示） */
 export interface ModelRow {
+  name: string
   id: string
   contextWindow: string
   vision: boolean
@@ -56,14 +52,15 @@ export interface ModelRow {
 
 /** 空模型行 */
 export function emptyModelRow(): ModelRow {
-  return { id: '', contextWindow: '', vision: false }
+  return { name: '', id: '', contextWindow: '', vision: false }
 }
 
 /** settings.yaml 模型条目 → 表单行 */
 export function modelToRow(m: unknown): ModelRow {
-  if (typeof m === 'string') return { id: m, contextWindow: '', vision: false }
+  if (typeof m === 'string') return { name: '', id: m, contextWindow: '', vision: false }
   const obj = (m || {}) as ProviderModelInfo
   return {
+    name: typeof obj.name === 'string' ? obj.name : '',
     id: obj.id || '',
     contextWindow: obj.contextWindow ? String(obj.contextWindow) : '',
     vision: Array.isArray(obj.input) && obj.input.includes('image'),
@@ -72,12 +69,16 @@ export function modelToRow(m: unknown): ModelRow {
 
 /**
  * 表单行 → settings.yaml 模型条目。
- * 以旧条目（原始对象）为底保留未知字段（maxTokens 等）；上下文为空/非法则删除 contextWindow，
+ * 以旧条目（原始对象）为底保留未知字段（maxTokens 等）；名称填写才写 name 键（清空则删除，
+ * 显示名回退按 ID）；上下文为空/非法则删除 contextWindow，
  * 视觉未勾选则删除 input（回退内置目录默认模态），勾选则写 ['text','image']。
  */
 export function rowToModel(row: ModelRow, prev?: Record<string, unknown>): Record<string, unknown> {
   const ctx = parseInt(row.contextWindow, 10)
-  const next: Record<string, unknown> = { ...(prev || {}), id: row.id, name: (prev?.name as string) || row.id }
+  const next: Record<string, unknown> = { ...(prev || {}), id: row.id }
+  const name = row.name.trim()
+  if (name) next.name = name
+  else delete next.name
   if (Number.isFinite(ctx) && ctx > 0) next.contextWindow = ctx
   else delete next.contextWindow
   if (row.vision) next.input = ['text', 'image']
@@ -160,6 +161,14 @@ const ModelRowsEditor: React.FC<{
         <div key={i} className="settings-panel__model-row" data-model-row>
           <input
             type="text"
+            className="settings-panel__input settings-panel__model-name"
+            placeholder="名称（可选）"
+            title="模型显示名称（可选）：选择模型与切换消息优先显示它，留空显示模型 ID"
+            value={row.name}
+            onChange={(e) => update(i, { name: e.target.value })}
+          />
+          <input
+            type="text"
             className="settings-panel__input settings-panel__model-id"
             placeholder="模型 ID（如 gpt-4o）"
             title="模型 ID"
@@ -234,41 +243,34 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
     models: [emptyModelRow()],
   })
 
-  // 加载 Provider 和凭证信息
+  // 加载 Provider 和凭证信息（只加载用户级自定义第三方供应商）
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      // 先获取 Provider 列表与 settings.describe
-      const [providerList, settingsDesc] = await Promise.all([
-        agentService.getLlmProviders(),
-        agentService.describeSettings('llm-pi-ai').catch(() => ({ namespaces: [] } as SettingsDescribeResult)),
-      ])
+      const settingsDesc = await agentService
+        .describeSettings('llm-pi-ai')
+        .catch(() => ({ namespaces: [] } as SettingsDescribeResult))
 
-      // 提取已在 llm-pi-ai 中声明或自定义的 providers 配置
+      // 预设供应商目录不再展示：列表完全以 settings.yaml 用户级 llm-pi-ai.providers 为准
       const piAiNs = settingsDesc.namespaces?.find(n => n.ns === 'llm-pi-ai')
       const userProviders = (piAiNs?.user as any)?.providers || {}
       setUserProviders(userProviders)
 
-      // 从 Provider 推导凭证引用名
-      const refs = providerList
-        .map(p => {
-          const custom = userProviders[p.provider]
-          return custom?.apiKeyEnv || deriveKeyRef(p.provider)
-        })
+      const entries = Object.entries(userProviders) as [string, any][]
+
+      // 从各供应商声明的 apiKeyEnv（缺省按 ID 推导）查询凭证状态
+      const refs = entries
+        .map(([id, cfg]) => cfg?.apiKeyEnv || deriveKeyRef(id))
         .filter(ref => ref.length > 0)
 
-      // 查询凭证状态
       const credentialMap = refs.length > 0
         ? await agentService.describeCredentials(refs)
         : {}
 
-      // 合并 Provider 和凭证信息
-      const configs: ProviderConfig[] = providerList.map(p => {
-        const custom = userProviders[p.provider]
-        const keyRef = custom?.apiKeyEnv || deriveKeyRef(p.provider)
+      const configs: ProviderConfig[] = entries.map(([id, custom]) => {
+        const keyRef = custom?.apiKeyEnv || deriveKeyRef(id)
         const cred = credentialMap[keyRef]
-        const isCustom = Boolean(custom && (custom.baseURL || p.declared))
         const models = Array.isArray(custom?.models)
           ? custom.models
               .map((m: any): ProviderModelInfo =>
@@ -280,19 +282,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
           : undefined
 
         return {
-          id: p.provider,
-          name: p.displayName || p.provider,
-          configured: p.active || false,
+          id,
+          name: custom?.displayName || id,
           apiKeyEnv: keyRef,
           hasApiKey: cred?.configured || false,
-          isCustom,
           baseURL: custom?.baseURL,
           api: custom?.api,
           models,
-          canEditConfig: Boolean(custom),
         }
       })
 
+      console.info(`[SettingsPanel] 加载自定义供应商: ${configs.length} 个`)
       setProviders(configs)
       setCredentials(Object.values(credentialMap))
     } catch (err) {
@@ -322,7 +322,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
     setSaving(true)
     setError(null)
     try {
-      const keyRef = deriveKeyRef(providerId)
+      // 优先用供应商声明用户级配置里的 apiKeyEnv，与删除 Key 的取法一致
+      const keyRef = providers.find(p => p.id === providerId)?.apiKeyEnv || deriveKeyRef(providerId)
       await agentService.setCredential(keyRef, apiKeyInput.trim())
       
       // 更新本地状态
@@ -341,7 +342,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
     } finally {
       setSaving(false)
     }
-  }, [apiKeyInput])
+  }, [apiKeyInput, providers])
 
   // 删除 API Key
   const handleDeleteApiKey = useCallback(async (providerId: string) => {
@@ -581,7 +582,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
               </button>
             </div>
             <p className="settings-panel__hint">
-              支持配置主流云端模型（DeepSeek、OpenAI 等）以及自定义兼容第三方大模型 API
+              通过添加自定义第三方供应商，接入任意兼容 OpenAI / Anthropic 协议的大模型 API
             </p>
 
             {/* 新增自定义第三方 Provider 表单 */}
@@ -651,7 +652,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                 </div>
 
                 <div className="settings-panel__form-row">
-                  <label>模型列表（可设置每个模型的上下文大小与视觉能力）</label>
+                  <label>模型列表（名称 = 显示名，可留空；可设上下文大小与视觉能力）</label>
                   <ModelRowsEditor
                     rows={customForm.models}
                     onChange={(models) => setCustomForm(prev => ({ ...prev, models }))}
@@ -686,9 +687,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                     <div className="settings-panel__provider-info">
                       <span className="settings-panel__provider-name">{provider.name}</span>
                       <span className="settings-panel__provider-id">{provider.id}</span>
-                      {provider.isCustom && (
-                        <span className="settings-panel__badge settings-panel__badge--custom">第三方</span>
-                      )}
                     </div>
                     <div className="settings-panel__provider-status">
                       {provider.hasApiKey ? (
@@ -784,24 +782,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                           删除 Key
                         </button>
                       )}
-                      {provider.canEditConfig && (
-                        <button
-                          className="settings-panel__btn settings-panel__btn--secondary"
-                          onClick={() => openConfigEditor(provider)}
-                          disabled={saving}
-                        >
-                          编辑
-                        </button>
-                      )}
-                      {provider.isCustom && (
-                        <button
-                          className="settings-panel__btn settings-panel__btn--danger"
-                          onClick={() => handleDeleteCustomProvider(provider.id)}
-                          disabled={saving}
-                        >
-                          删除供应商
-                        </button>
-                      )}
+                      <button
+                        className="settings-panel__btn settings-panel__btn--secondary"
+                        onClick={() => openConfigEditor(provider)}
+                        disabled={saving}
+                      >
+                        编辑
+                      </button>
+                      <button
+                        className="settings-panel__btn settings-panel__btn--danger"
+                        onClick={() => handleDeleteCustomProvider(provider.id)}
+                        disabled={saving}
+                      >
+                        删除供应商
+                      </button>
                     </div>
                   )}
 
@@ -829,7 +823,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                         />
                       </div>
                       <div className="settings-panel__form-row">
-                        <label>模型列表（上下文单位为 token；视觉 = 支持图像输入）</label>
+                        <label>模型列表（名称 = 显示名，可留空；上下文单位为 token，视觉 = 支持图像输入）</label>
                         <ModelRowsEditor
                           rows={configForm.models}
                           onChange={(models) => setConfigForm(prev => ({ ...prev, models }))}
@@ -857,7 +851,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 
               {providers.length === 0 && !loading && (
                 <div className="settings-panel__empty">
-                  暂无可用的 Provider
+                  暂无自定义供应商，点击右上角「+ 添加自定义第三方」接入模型服务
                 </div>
               )}
             </div>
@@ -882,7 +876,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
               </details>
               <details>
                 <summary>支持哪些模型？</summary>
-                <p>支持所有主流 AI 模型，包括 DeepSeek、GPT-4、Claude 等。配置对应的 API Key 后即可使用。</p>
+                <p>由自定义供应商的模型列表决定：添加供应商时填写模型 ID（可设置上下文大小与视觉能力），兼容 OpenAI / Anthropic 协议的服务均可接入。</p>
               </details>
             </div>
           </div>

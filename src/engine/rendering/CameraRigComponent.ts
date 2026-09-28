@@ -7,8 +7,8 @@
  *  - pan(dx, dz)：水平平移注视目标与相机（含边界限制）
  *  - 屏幕边缘平移：鼠标贴近视口边缘时持续平移（部落冲突风格边缘滚动）
  *  - 右键拖拽平移：按住右键拖动地图（屏幕位移 → 世界位移，跟手比例）
- *  - 轨道环绕（orbitMode）：右键/左键拖拽绕 target 球面旋转（warm 行星观察/聚焦视角；
- *    左键是否参与环绕由 leftOrbitEnabled 独立开关，聚焦默认视角下左键留给地图交互）
+ *  - 轨道环绕（orbitMode）：右键/左键拖拽绕 target 球面旋转（warm 行星观察/全息特写；
+ *    左键是否参与环绕由 leftOrbitEnabled 独立开关，俯视态下左键留给地图交互）
  *
  * 驱动方式：
  *  - 滚轮：PlayerController.OnScroll → rig.zoom(delta)

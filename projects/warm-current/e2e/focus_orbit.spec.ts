@@ -1,24 +1,27 @@
 /**
- * warm-current 聚焦环绕改版 e2e（2026-09-15：行星系聚焦相机语义 + 月球双击聚焦）
+ * warm-current 相机交互语义 e2e（2026-09-15 聚焦环绕改版 → 2026-09-28 俯视平移定版）
  *
- * 需求：进入行星系后默认聚焦地球，相机运动 = 环绕（右键拖拽绕聚焦天体旋转）而非
- * 空间自由平移（右键平移被取代、边缘平移关闭）；双击月球 = 聚焦月球（环绕 + 逐帧
- * 跟随公转），再双击/Esc 退出回默认聚焦；观察中双击另一天体 = 切换聚焦。
+ * 需求（2026-09-28 用户口径"进入俯视角状态右键就变成平移镜头、关闭轨道旋转模式"）：
+ * 俯视态（行星系默认取景 / 蓝图台）右键拖拽 = 平移镜头，轨道旋转模式关闭；双击月球 =
+ * 聚焦月球（观察态保留环绕 + 逐帧跟随公转），再双击/Esc 退出回默认取景；观察中双击
+ * 另一天体 = 切换聚焦。（2026-09-15 版"俯视态右键环绕取代平移"已废止。）
  *
  * ⚠ 坑 46（doc/testing/playwright_commands.md）：warm 游戏 e2e 一个 spec 合并为一个 test，
  * 断言按节组织（beforeEach 二次启动链路会超时）。
  *
  * 不变量：
- *  1. 开局默认聚焦环绕：orbitMode=true / leftOrbitEnabled=false / edgePanEnabled=false，
+ *  1. 开局默认俯视平移：orbitMode=false / leftOrbitEnabled=false / edgePanEnabled=false，
  *     target 钉地球（舞台中心），注视距离 3200
+ *  1b. 俯视态右键拖拽 = 平移镜头：target 与相机同向等距移动（offset 保持），非环绕
  *  2. 双击月球聚焦：observeBody='moon'、双键环绕开启、target≈月球实时位置、特写距离
  *  3. 聚焦月球时逐帧跟随公转：仿真推进后 target 仍锁定月球（2026-09-15 五版·原地转头
  *     口径：只拉 rig.target，相机位置不动——注视距离随公转自然漂移，不断言恒定）
- *  4. 再双击月球 = 退出回默认聚焦（observeBody 归零、target 回地球、环绕语义回落）
- *  5. 观察中双击另一天体 = 切换聚焦（地球 ↔ 月球）；Esc = 退出
- *  6. 太阳系全景下双击月球被门禁拒绝（仅地月系可聚焦卫星）
- *  7. 聚焦态边缘平移关闭：鼠标贴视口边缘相机不动
- *  8. 环绕水平方向已翻转（2026-09-26 用户要求）：向左拖 = 绕 target 向右环绕
+ *  4. 观察态右键拖拽 = 绕月球环绕（环绕只属特写观察态）
+ *  5. 再双击月球 = 退出回默认取景（observeBody 归零、target 回地球、语义回落俯视平移）
+ *  6. 观察中双击另一天体 = 切换聚焦（地球 ↔ 月球）；Esc = 退出
+ *  7. 太阳系全景下双击月球被门禁拒绝（仅地月系可聚焦卫星）
+ *  8. 俯视态边缘平移关闭：鼠标贴视口边缘相机不动
+ *  9. 环绕水平方向已翻转（2026-09-26 用户要求）：向左拖 = 绕 target 向右环绕
  *     （方向锁 = 第 4 节 xz 偏移叉积断言；垂直轴 2026-09-20 已先行翻转，同为抓球语义）
  *
  * 前置：dev server 已在 :5173 运行（npm run dev）；跑法 npm run test:e2e:warm
@@ -100,21 +103,67 @@ async function waitCameraSettled(page: Page, deadlineMs = 14_000): Promise<Focus
   return cur
 }
 
-test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双击聚焦）', () => {
-  test('默认环绕语义 + 月球聚焦/跟随/退出/切换/门禁/边缘平移关（单 test 分节）', async ({ page }) => {
+test.describe('warm-current 相机交互语义（2026-09-28 俯视平移定版 + 月球双击特写环绕）', () => {
+  test('俯视平移语义 + 月球聚焦/跟随/退出/切换/门禁/边缘平移关（单 test 分节）', async ({ page }) => {
     test.setTimeout(240_000)
     await bootToMap(page)
 
-    // ── 1. 开局默认聚焦环绕语义：orbitMode=true（右键环绕取代自由平移）、
-    //      左键留地图交互、边缘平移关；target 钉地球（舞台中心）、注视距离 3200 ──
+    // ── 1. 开局默认俯视平移语义：orbitMode=false（2026-09-28 俯视平移定版：右键平移、
+    //      轨道旋转关闭）、左键留地图交互、边缘平移关；target 钉地球（舞台中心）、注视距离 3200 ──
     const p0 = await probe(page)
     expect(p0.viewMode, '开局应为地球系视角').toBe('earth')
     expect(p0.observeBody, '开局不应处于观察态').toBeNull()
-    expect(p0.orbitMode, '行星系聚焦默认环绕（右键拖拽绕地球）').toBe(true)
-    expect(p0.leftOrbitEnabled, '聚焦默认左键留地图交互（不环绕）').toBe(false)
-    expect(p0.edgePanEnabled, '聚焦默认关闭边缘平移（防拖走注视点）').toBe(false)
+    expect(p0.orbitMode, '俯视态默认右键平移（轨道旋转模式已关闭）').toBe(false)
+    expect(p0.leftOrbitEnabled, '俯视默认左键留地图交互（不环绕）').toBe(false)
+    expect(p0.edgePanEnabled, '俯视默认关闭边缘平移').toBe(false)
     expect(Math.hypot(p0.tx, p0.tz), 'target 应钉在舞台中心（地球钉扎点）').toBeLessThan(5)
     expect(Math.abs(p0.distTarget - 3200), '默认取景注视距离 3200（地月系全景）').toBeLessThan(5)
+
+    // ── 1b. 俯视态右键拖拽 = 平移镜头（2026-09-28 定版核心锁）：target 与相机同向等距
+    //      移动（offset 矢量保持 → 注视距离不变）；旧环绕语义下 target 恒钉死、只有相机转 ──
+    const dragRect = await page.evaluate(`(() => {
+      const r = [...document.querySelectorAll('canvas')]
+        .map((c) => c.getBoundingClientRect())
+        .filter((r) => r.width > 100 && r.height > 100)
+        .sort((a, c) => c.width * c.height - a.width * a.height)[0]
+      return { left: r.left, top: r.top, width: r.width, height: r.height }
+    })()`) as { left: number, top: number, width: number, height: number }
+    const panBefore = await probe(page)
+    const panDrag = await mouseDrag(page, {
+      startX: dragRect.left + dragRect.width / 2 - 120,
+      startY: dragRect.top + dragRect.height / 2,
+      endX: dragRect.left + dragRect.width / 2 + 120,
+      endY: dragRect.top + dragRect.height / 2,
+      button: 2,
+      steps: 8,
+      stepDelayMs: 16,
+    })
+    expect(panDrag.ok, `俯视态右键拖拽应 ok：${panDrag.error ?? ''}`).toBe(true)
+    // ai.mouseDrag 是排队后台步进（headless 节流 1~3s/步），等处理器完成日志再读数（同 §4 口径）
+    await page.waitForEvent(
+      'console',
+      {
+        predicate: (m) => m.text().includes('mouseDrag') && m.text().includes('完成'),
+        timeout: 30_000,
+      },
+    )
+    const panAfter = await probe(page)
+    expect(
+      Math.hypot(panAfter.tx - panBefore.tx, panAfter.tz - panBefore.tz),
+      '右键拖拽应平移注视点（target 显著移动，轨道旋转已关闭不再钉死 target）',
+    ).toBeGreaterThan(300)
+    expect(
+      Math.abs((panAfter.cx - panAfter.tx) - (panBefore.cx - panBefore.tx)),
+      '平移保持相机-target x 偏移（相机与 target 同向等距移动）',
+    ).toBeLessThan(1)
+    expect(
+      Math.abs((panAfter.cz - panAfter.tz) - (panBefore.cz - panBefore.tz)),
+      '平移保持相机-target z 偏移（相机与 target 同向等距移动）',
+    ).toBeLessThan(1)
+    expect(
+      Math.abs(panAfter.distTarget - panBefore.distTarget),
+      '平移不改变注视距离（区别于环绕的距离恒定 + target 钉死组合）',
+    ).toBeLessThan(2)
 
     // ── 2. 双击月球 = 聚焦月球：观察态 + 双键环绕 + target 贴月球实时位置 + 特写距离 ──
     await page.evaluate(`(() => { window.__warmCurrent.doubleClickPlanet('moon') })()`)
@@ -217,7 +266,7 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
     const p4 = await probe(page)
     expect(p4.observeBody, '再双击月球应退出观察').toBeNull()
     expect(p4.leftOrbitEnabled, '退出后左键回落地图交互').toBe(false)
-    expect(p4.orbitMode, '退出后保持聚焦环绕（默认语义）').toBe(true)
+    expect(p4.orbitMode, '退出观察回落俯视平移（2026-09-28 定版默认语义）').toBe(false)
     expect(Math.hypot(p4.tx, p4.tz), '退出后 target 回地球钉扎点').toBeLessThan(5)
     expect(Math.abs(p4.distTarget - 3200), '退出后复位默认取景距离').toBeLessThan(5)
 
@@ -257,8 +306,8 @@ test.describe('warm-current 聚焦环绕改版（默认聚焦环绕 + 月球双�
     await page.evaluate(`(() => { window.__warmCurrent.mode().focusSolarSystem('earth') })()`)
     await page.waitForTimeout(300)
     const p9 = await probe(page)
-    expect(p9.orbitMode, '回地球系恢复聚焦环绕语义').toBe(true)
-    expect(p9.edgePanEnabled, '聚焦态边缘平移关闭').toBe(false)
+    expect(p9.orbitMode, '回地球系恢复俯视平移语义（2026-09-28 定版）').toBe(false)
+    expect(p9.edgePanEnabled, '俯视态边缘平移关闭').toBe(false)
     const rect = await page.evaluate(`(() => {
       const r = [...document.querySelectorAll('canvas')]
         .map((c) => c.getBoundingClientRect())

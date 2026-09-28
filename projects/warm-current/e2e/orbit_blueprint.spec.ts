@@ -14,9 +14,13 @@
  *   4. 真实转移轨道航线：月→地建线后弧端点恒等天体、t=0.5 背向主天体（地球）鼓出
  *   5. KSP 式轨道蓝图编辑：点轨道设施（船坞）选中 → 拖 ◇ 半径手柄 96→300 →
  *      松开应用（ringR=300，orbitBuildingPos 立即生效）→ 再点取消选中
- *   6. 退出蓝图台：回地球系取景，建筑保留
+ *   6. 编辑模式滚轮吸附模型（2026-09-28 用户口径）：吸附保留——悬地球拉近吸附锁定球心；
+ *      吸附态右键拖拽 = 纯平移不旋转，平移即解除吸附锁定（target 离开球心）；
+ *      平移后再滚轮悬地球可重新吸附（滚轮持续放大吸附目标）
+ *   7. 退出蓝图台：回地球系取景，建筑保留
  */
 import { expect, test, type Page } from '@playwright/test'
+import { mouseDrag, projectScreenPos } from '../../../e2e/framework/ai'
 
 /** 等待游戏桥接就绪（window.__warmCurrent.ready()） */
 async function waitGameReady(page: Page): Promise<void> {
@@ -319,7 +323,90 @@ test.describe('warm-current 轨道蓝图台（全息俯视 + 任意轨道放置 
     expect(dragSnap.posRadius, '轨道设施当下位置随新环生效（距锚 300）').toBeCloseTo(300, 0)
     expect(dragSnap.overlayGone, '再点建筑取消选中').toBe(true)
 
-    // ── 5. 退出蓝图台：回地球系，资产保留 ──
+    // ── 6. 编辑模式滚轮吸附模型（2026-09-28 用户口径：吸附保留 + 右键平移不旋转 +
+    //        平移解除锁定）：
+    //   6a. 光标悬地球（吸附圈内）拉近 → 注视点吸附地球球心（3D 距离 < 3）
+    //   6b. 吸附态右键拖拽 → 纯平移：target 显著移离球心（= 解除吸附锁定）+ 相机-target
+    //       偏移矢量保持（旋转则 target 恒钉死只转相机——target 移动即判非旋转）
+    //   6c. 平移后再滚轮悬地球 → 按光标重新吸附（无粘滞，锁定不随平移复挂） ──
+    const earthProj = await projectScreenPos(page, { actor: 'EarthActor' })
+    expect(earthProj.ok && earthProj.inFront, '地球应可投影（吸附模型前置）').toBe(true)
+    await page.mouse.move(earthProj.screenX!, earthProj.screenY!)
+    await page.mouse.wheel(0, -120)
+    await page.waitForTimeout(300)
+    const snapA = await evalInGame<{
+      t: { x: number; y: number; z: number }
+      c: { x: number; y: number; z: number }
+      earthW: { x: number; y: number; z: number }
+    }>(page, `() => {
+      const m = window.__warmCurrent.mode()
+      const t = m.cameraActor.rig.target
+      const c = m.gameCamera.camera.position
+      const e = m.starActors.get('earth').root.position
+      return { t: { x: t.x, y: t.y, z: t.z }, c: { x: c.x, y: c.y, z: c.z }, earthW: { x: e.x, y: e.y, z: e.z } }
+    }`)
+    expect(
+      Math.hypot(snapA.t.x - snapA.earthW.x, snapA.t.y - snapA.earthW.y, snapA.t.z - snapA.earthW.z),
+      '6a 滚轮拉近应吸附锁定地球球心（编辑模式吸附保留）',
+    ).toBeLessThan(3)
+
+    // 6b. 吸附态右键拖拽 = 平移解除锁定（mouseDrag 排队后台步进，等处理器完成日志再读数，
+    //     同 focus_orbit §4 口径）
+    const panDrag = await mouseDrag(page, {
+      startX: earthProj.screenX! - 120,
+      startY: earthProj.screenY!,
+      endX: earthProj.screenX! + 120,
+      endY: earthProj.screenY!,
+      button: 2,
+      steps: 8,
+      stepDelayMs: 16,
+    })
+    expect(panDrag.ok, `吸附态右键拖拽应 ok：${panDrag.error ?? ''}`).toBe(true)
+    await page.waitForEvent(
+      'console',
+      {
+        predicate: (m) => m.text().includes('mouseDrag') && m.text().includes('完成'),
+        timeout: 30_000,
+      },
+    )
+    const panB = await evalInGame<{
+      t: { x: number; y: number; z: number }
+      c: { x: number; y: number; z: number }
+    }>(page, `() => {
+      const m = window.__warmCurrent.mode()
+      const t = m.cameraActor.rig.target
+      const c = m.gameCamera.camera.position
+      return { t: { x: t.x, y: t.y, z: t.z }, c: { x: c.x, y: c.y, z: c.z } }
+    }`)
+    expect(
+      Math.hypot(panB.t.x - snapA.t.x, panB.t.y - snapA.t.y, panB.t.z - snapA.t.z),
+      '6b 右键拖拽应平移注视点（target 离开地球球心 = 解除吸附锁定；旋转则 target 恒钉死）',
+    ).toBeGreaterThan(300)
+    expect(
+      Math.abs((panB.c.x - panB.t.x) - (snapA.c.x - snapA.t.x))
+      + Math.abs((panB.c.y - panB.t.y) - (snapA.c.y - snapA.t.y))
+      + Math.abs((panB.c.z - panB.t.z) - (snapA.c.z - snapA.t.z)),
+      '6b 平移保持相机-target 偏移矢量（同向等距移动，非绕球心旋转）',
+    ).toBeLessThan(2)
+
+    // 6c. 平移后再滚轮悬地球 → 按光标重新吸附（平移已解除旧锁，滚轮持续可吸附放大）
+    const earthProj2 = await projectScreenPos(page, { actor: 'EarthActor' })
+    expect(earthProj2.ok && earthProj2.inFront, '平移后地球应仍可投影（重吸附前置）').toBe(true)
+    await page.mouse.move(earthProj2.screenX!, earthProj2.screenY!)
+    await page.mouse.wheel(0, -120)
+    await page.waitForTimeout(300)
+    const snapC = await evalInGame<{ t: { x: number; y: number; z: number }; earthW: { x: number; y: number; z: number } }>(page, `() => {
+      const m = window.__warmCurrent.mode()
+      const t = m.cameraActor.rig.target
+      const e = m.starActors.get('earth').root.position
+      return { t: { x: t.x, y: t.y, z: t.z }, earthW: { x: e.x, y: e.y, z: e.z } }
+    }`)
+    expect(
+      Math.hypot(snapC.t.x - snapC.earthW.x, snapC.t.y - snapC.earthW.y, snapC.t.z - snapC.earthW.z),
+      '6c 平移后滚轮悬地球应重新吸附锁定球心（滚轮持续可吸附放大）',
+    ).toBeLessThan(3)
+
+    // ── 7. 退出蓝图台：回地球系，资产保留 ──
     await page.evaluate(`(() => { window.__warmCurrent.setRouteEditMode(false) })()`)
     await expect.poll(async () => {
       return page.evaluate(`(() => window.__warmCurrent.routeEditMode())()`)

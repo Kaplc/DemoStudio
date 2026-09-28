@@ -11,7 +11,7 @@ import { B } from '../core/balance'
 import {
   endpointKey, endpointPos, findRoute, makeShip, starOfEndpoint, starPosAt, windowAffected,
   legSeconds, roundFuel, starLoad, cargoCap, buildingByEndpoint, buildingDefOf, supplyDistCoeff, hubRelayMult,
-  TUTORIAL_TARGETS, shipMults, hullAllowsModule, hullHasSlotFor, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
+  shipMults, hullAllowsModule, hullHasSlotFor, shipBuildPrice, shipHullDefOf, shipModuleDefOf, buildingHookMult,
   relayLegDistCoeff, buildingPos,
 } from '../core/helpers'
 import { depositDefOf } from './MiningComponent'
@@ -44,15 +44,6 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
     const s = this.sc.state
     if (s.outcome !== 'playing' && !s.sandbox) return false
     if (s.flare.phase === 'active') { this.sc.hint('太阳耀斑 · 通讯中断，无法修改航线'); return false }
-
-    // 首次引导：只认 月球↔地球（端点取 core 单一数据源 TUTORIAL_TARGETS，
-    // 渲染层教学环 / GameMode.dragValidity 消费同一常量，改引导只需改一处）
-    if (s.tutorial) {
-      const [tutStar, tutPlanet] = TUTORIAL_TARGETS
-      const ok = (endpointKey(a) === tutPlanet && endpointKey(b) === `star:${tutStar}`) ||
-        (endpointKey(b) === tutPlanet && endpointKey(a) === `star:${tutStar}`)
-      if (!ok) { this.sc.hint(`再试一次，从${B.stars[tutStar].name}拖一条线到地球`); return false }
-    }
 
     if (endpointKey(a) === endpointKey(b)) { this.sc.hint('航线两端不能是同一节点'); return false }
 
@@ -124,12 +115,10 @@ export class TransportComponent extends BObjectComponent<WarmCurrentGameMode> {
       this.sc.hint('空船建线：航线已建立（无空闲船），造船后从航线面板补派')
       const pos = endpointPos(s, route.from)
       this.sc.emit({ type: 'route_built', x: pos.x, y: pos.y })
-      s.tutorial = false
       return true
     }
     const pos = endpointPos(s, route.from)
     this.sc.emit({ type: 'route_built', x: pos.x, y: pos.y })
-    s.tutorial = false
     return true
   }
 

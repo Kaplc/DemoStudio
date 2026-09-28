@@ -145,28 +145,6 @@ export function systemFamilyIds(focus: PlanetId): string[] {
   return out
 }
 
-// ─── 首次引导（单一数据源：规则判定 / 渲染定位 / 测试 共用） ───
-
-/**
- * 首次引导的航线端点（顺序即教学双环顺序）：月球 → 地球。
- *
- * ⚠ 权威在 TransportComponent.tryCreateRoute（引导只认 moon↔earth）。
- * 三方消费本常量，不得各自硬编码（改引导只改这一处）：
- *   1. TransportComponent.tryCreateRoute —— 建线规则判定
- *   2. WarmCurrentGameMode.dragValidity —— 拖线视觉合法性（规则镜像）
- *   3. StarMapRenderComponent.buildTutorial/syncTutorial —— 教学双环定位
- */
-export const TUTORIAL_TARGETS = ['moon', 'earth'] as const satisfies ReadonlyArray<SolarBodyId>
-
-export type TutorialBodyId = (typeof TUTORIAL_TARGETS)[number]
-
-/** 教学环缩放半径 = 天体显示半径 + 边距（渲染层画环共用，保证环不贴星球边缘） */
-export const TUTORIAL_RING_PAD = 12
-
-export function tutorialRingRadius(body: TutorialBodyId): number {
-  return B.map.nodes[body].r + TUTORIAL_RING_PAD
-}
-
 /** 天体历法时间（游戏秒）：时间比例 1 仿真秒（真实秒）= 60 游戏秒 = 1 游戏分钟；
  *  倍速经 state.time 同步放大（暂停不进秒）。真实自转公转周期的统一时间基准 */
 export function celestialTime(state: SimState): number {
@@ -528,12 +506,10 @@ export function createInitialState(seed: number): SimState {
     buildQueue: [],
     mods: freshMods(),
     takenCards: [],
-    tutorial: true,
     outcome: 'playing',
     sandbox: false,
     stats: { delivered: 0, frozenCount: 0, rebuiltCount: 0, buildingsBuilt: 0, cardsTaken: 0 },
     ledger: freshLedger(),
-    actSnapshots: { act2: null, act3: null },
   }
 }
 

@@ -203,7 +203,8 @@ export interface MarsModule {
   shipId: number | null
 }
 
-export type SimOutcome = 'playing' | 'victory' | 'defeat'
+/** 对局结局（2026-09-30 环熄灭失败线下线：堆心温度归零不再判负，只剩胜利结算） */
+export type SimOutcome = 'playing' | 'victory'
 
 export interface SimStats {
   /** 累计卸货 H3 */
@@ -288,7 +289,6 @@ export type SimEventType =
   | 'act3'
   | 'module_available'
   | 'victory'
-  | 'defeat'
   | 'hint'
 
 export interface SimEvent {
@@ -330,7 +330,7 @@ export interface SimState {  seed: number
   /** 荷载设计模板（2026-09-13 荷载设计工坊：主体+附件合成一件自定义荷载，uid 稳定 id；
    *  SimShip.modules / shipDesigns.modules 以 uid 引用，删除时有引用保护；旧档补空数组） */
   payloadDesigns: Array<SimPayloadDesign>
-  /** 堆心温度 0..100（100 = 满温运转；无燃料持续降温，归零 = 堆心熄灭 = 终结） */
+  /** 堆心温度 0..100（100 = 满温运转；无燃料持续降温，2026-09-30 起归零仅停摆展示、不再判负） */
   coreTemp: number
   /** 燃料门：有燃料 running（焚烧/研究/建设照常），储量耗尽 decaying（停烧停建，堆心降温） */
   ring: 'running' | 'decaying'
@@ -369,16 +369,12 @@ export interface SimState {  seed: number
   mods: SimMods
   /** 已拿卡（解锁型不重复出现） */
   takenCards: CardId[]
-  /** 首次画线引导（仅首局、无航线时） */
-  tutorial: boolean
   outcome: SimOutcome
   /** 胜利后沙盒模式（无失败压力） */
   sandbox: boolean
   stats: SimStats
   /** H3 收支账本（对局累计，统计面板消费；结构化克隆安全） */
   ledger: SimLedger
-  /** 幕入口快照（重试本幕用） */
-  actSnapshots: { act2: string | null; act3: string | null }
 }
 
 export interface SimMods {

@@ -1,7 +1,7 @@
 {
   "name": "@demostudio/ds-feedback",
   "version": "0.1.0",
-  "description": "DSH 反馈飞轮插件：用户纠正沉淀为持久规则（.dsh/rules/ 提案-确认制 rule_propose/rule_apply + 常驻规则段注入 + 回合末纠正关键词预筛（零模型请求）命中后在规则段挂提示、由主 agent 自行判定并提案，apply 后当前会话立即生效）。与 ds-instructions（用户手工目录指令）完全解耦。",
+  "description": "DSH 反馈飞轮插件：用户纠正沉淀为持久规则（.dsh/rules/ 提案-确认制 rule_propose/rule_apply + 常驻规则段注入 + 回合末纠正关键词预筛命中后挂提示）、损失探针（turn-error/retry/steer/纠正预筛零成本落盘 .dsh/loss/signals.jsonl + 会话健康分 + 规则段损失摘要块）与文本梯度候选（.dsh/gradient/ pending→apply 两段式 gradient_propose/list/apply + 应用台账）。与 ds-instructions（用户手工目录指令）完全解耦。",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

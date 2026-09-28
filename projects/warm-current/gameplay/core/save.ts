@@ -66,7 +66,10 @@ import type { OrbitBuilding, SimBuilding, SimShip, SimState } from './types'
  *  v14 追记四（2026-09-29，版本号不 bump，纯增量）：轨道蓝图台——SimBuilding.anchor 放宽到
  *      'sun'（轨道环放置上行星绕日轨道；旧档 anchor 均为行星/卫星，读入无迁移）；
  *      OrbitBuilding.ringR 可选字段新增（KSP 式轨道编辑的本征环半径；旧档缺失 = 统一环
- *      B.orbitBuild.ringRadius，读态兜底口径，零结构迁移）。 */
+ *      B.orbitBuild.ringRadius，读态兜底口径，零结构迁移）。
+ *  v14 追记五（2026-09-30，版本号不 bump，读态兜底）：环熄灭失败线下线——
+ *      outcome 'defeat' 读入映射 'playing'（败局档复活为进行中对局，堆心温度仅展示）；
+ *      SimState.actSnapshots（幕入口快照/重试本幕机制）字段删除（旧档残留读入时清）。 */
 export const SAVE_FORMAT_VERSION = 14
 
 /** payload 在 KV 表里的 key（每槽文件只存这一项） */
@@ -91,7 +94,8 @@ export interface SaveSlotMeta {
   act: number
   /** 已建成环段槽位数（v11 槽位制；旧档按等比映射折算） */
   slots: number
-  outcome: 'playing' | 'victory' | 'defeat'
+  /** 对局结局（2026-09-30 失败线下线：只剩 playing/victory，旧档 'defeat' 读入映射 'playing'） */
+  outcome: 'playing' | 'victory'
   sandbox: boolean
 }
 
@@ -166,7 +170,7 @@ export function readSlotMetaFromPayload(payload: KVValue | null, slot: number): 
     slots: typeof s.ringSlots === 'number'
       ? s.ringSlots
       : legacyNodesToSlots(typeof s.nodes === 'number' ? s.nodes : 1),
-    outcome: (s.outcome === 'victory' || s.outcome === 'defeat' ? s.outcome : 'playing') as SaveSlotMeta['outcome'],
+    outcome: (s.outcome === 'victory' ? 'victory' : 'playing') as SaveSlotMeta['outcome'],
     sandbox: s.sandbox === true,
   }
 }
@@ -316,6 +320,10 @@ export function restoreSimState(
   delete legacy.continuity
   delete legacy.bufferLeft
   delete legacy.bufferTotal
+  // v14 追记五（2026-09-30 环熄灭失败线下线）：旧档 outcome 'defeat' 复活为进行中（堆心温度仅展示
+  // 不再判负）；actSnapshots（幕入口快照/重试本幕）字段删除，残留清掉
+  if ((sim as unknown as { outcome?: string }).outcome === 'defeat') sim.outcome = 'playing'
+  delete (sim as unknown as Record<string, unknown>).actSnapshots
   // v6→v7 兼容：mods 里已删除的字段（bufferAdd/recoverMult）从旧档清除
   if (sim.mods && typeof sim.mods === 'object') {
     delete (sim.mods as unknown as Record<string, unknown>).bufferAdd

@@ -1,0 +1,31 @@
+<widget name="EditHud" canvas="1920x1080" data-script="gameplay/ui/EditHudScript">
+  <style>
+    .Root { width: 100%; height: 100%; position: absolute; left: 0px; top: 0px; }
+    .EditBar { width: 1364px; height: 114px; position: absolute; left: 350px; top: 946px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+    .ToolStrip { box-sizing: border-box; width: 1364px; height: 48px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 12px; }
+    .ToolBtn { width: 150px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0d2434; border: 1px solid #35c8f5; }
+    .ToolBtn:hover { background-color: #143650; }
+    .ToolLabel { width: 138px; height: 30px; flex-shrink: 0; font-size: 17px; color: #4fd8ff; text-align: center; font-weight: bold; text-shadow: 0px 0px 6px #35c8f566; }
+    .MainRow { box-sizing: border-box; width: 1364px; height: 60px; flex-shrink: 0; display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 12px; background-image: linear-gradient(165deg, #0a2c42ee 0%, #061a2ae0 50%, #08243ae6 100%); border: 1px solid #35c8f5; box-shadow: 0px 0px 18px #35c8f533; padding: 0px 16px; hit-test: block; }
+    .TitleText { width: 150px; height: 30px; flex-shrink: 0; font-size: 20px; color: #4fd8ff; font-weight: bold; letter-spacing: 2px; text-shadow: 0px 0px 6px #35c8f566; }
+    .TitleDivider { width: 2px; height: 30px; flex-shrink: 0; background-image: linear-gradient(90deg, #35c8f5 0%, #16405c 100%); }
+    .StatusText { width: 1040px; height: 30px; flex-shrink: 0; font-size: 16px; color: #bfe8ff; text-shadow: 1px 1px 4px #00000066; }
+    .Btn_exit { width: 96px; height: 44px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; background-color: #0f2a1c; border: 1px solid #2a6e4a; }
+    .Btn_exit:hover { background-color: #16382a; }
+    .Label_exit { width: 84px; height: 30px; flex-shrink: 0; font-size: 18px; color: #7fe8a8; text-align: center; font-weight: bold; text-shadow: 1px 1px 4px #00000066; }
+  </style>
+  <div class="Root">
+    <div class="EditBar" data-name="EditBar">
+      <div class="ToolStrip" data-name="ToolStrip">
+        <button class="ToolBtn" data-name="EditBtn_build"><text class="ToolLabel" data-name="EditBuildLabel">建造选型</text></button>
+        <button class="ToolBtn" data-name="EditBtn_cancel"><text class="ToolLabel" data-name="EditCancelLabel">取消放置</text></button>
+      </div>
+      <div class="MainRow" data-name="MainRow">
+        <text class="TitleText" data-name="EditTitle">轨道蓝图台</text>
+        <div class="TitleDivider"></div>
+        <text class="StatusText" data-name="EditStatus"></text>
+        <button class="Btn_exit" data-name="EditBtn_exit"><text class="Label_exit">✕ 退出</text></button>
+      </div>
+    </div>
+  </div>
+</widget>

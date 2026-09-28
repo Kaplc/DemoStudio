@@ -9,6 +9,8 @@ interface SessionSidebarProps {
   sessions: SessionInfo[]
   /** 会话状态灯表（绿=回合运行中/红=上次回合失败），无条目 = 无灯 */
   sessionStatuses?: Record<string, SessionRunStatus>
+  /** 会话健康分表（损失信号派生：max(0,100−Σweight)），无条目 = 无徽标 */
+  healthScores?: Record<string, number>
   currentSessionId?: string
   onSwitch: (sessionId: string) => void
   onNew: () => void
@@ -18,6 +20,7 @@ interface SessionSidebarProps {
 export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   sessions,
   sessionStatuses,
+  healthScores,
   currentSessionId,
   onSwitch,
   onNew,
@@ -60,6 +63,9 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
 
   const renderItem = (s: SessionInfo, extraClass = '') => {
     const status: SessionRunStatus | undefined = sessionStatuses?.[s.sessionId]
+    // 健康分徽标：有损失记录才展示（<60 红 / 60-89 黄 / ≥90 绿）
+    const score = healthScores?.[s.sessionId]
+    const scoreClass = score === undefined ? '' : score >= 90 ? 'good' : score >= 60 ? 'fair' : 'poor'
     return (
       <div
         key={s.sessionId}
@@ -75,6 +81,17 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           {s.turns !== undefined && <span>{s.turns} 轮</span>}
           <span>{formatTime(s.updatedAt)}</span>
         </div>
+        {score !== undefined && (
+          <span
+            className={`session-health session-health--${scoreClass}`}
+            data-testid="session-health"
+            data-session-id={s.sessionId}
+            data-score={score}
+            title={`会话健康分 ${score}/100（损失信号扣减，详见 .dsh/loss/signals.jsonl）`}
+          >
+            {score}
+          </span>
+        )}
         {status && (
           <span
             className={`session-status-light session-status-light--${status}`}

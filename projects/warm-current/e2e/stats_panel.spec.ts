@@ -12,7 +12,7 @@
  *
  * 前置：dev server 已在 :5173 运行（npm run electron:dev 或 vite）
  * 流程：同 warm_hud.spec.ts —— 选 WarmCurrent 工程卡 → 打开工程 → ▶ → Btn_new 进星图 →
- *       等桥就绪 + 冻结仿真（防自然 defeat 弹窗拦截层干扰）→ 验证收支面板开合链路。
+ *       等桥就绪 + 冻结仿真（防 HexModal 弹卡拦截层干扰）→ 验证收支面板开合链路。
  */
 import { expect, test, type Page } from '@playwright/test'
 
@@ -79,7 +79,7 @@ test.describe('warm-current 收支统计面板（种子失活坑回归）', () =
       return r?.results?.[0]?.ok === true
     }, { timeout: 60_000, polling: 500 })
     await waitGameReady(page)
-    // 冻结仿真：暂停态 sim.runTick 不推进，防自然 defeat 弹窗干扰
+    // 冻结仿真：暂停态 sim.runTick 不推进，防 HexModal 弹卡干扰
     await page.evaluate(`(() => { const m = window.__warmCurrent.mode(); if (m && !m.paused) m.togglePause() })()`)
   })
 

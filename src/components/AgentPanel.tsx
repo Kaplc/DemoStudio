@@ -36,6 +36,7 @@ import { SkillManager } from './agent/SkillManager'
 import { FileManager } from './agent/FileManager'
 import { SessionTitle } from './agent/SessionTitle'
 import { UsageStatsPanel } from './agent/UsageStatsPanel'
+import { GradientPanel } from './agent/GradientPanel'
 import { SessionNoticeStack } from './agent/SessionNoticeStack'
 import { ImageLightboxHost } from './agent/ImageLightbox'
 import { appendLiveCard } from './agent/liveCardGuard'
@@ -201,6 +202,8 @@ export const AgentPanel: React.FC = () => {
   const [sessionNotices, setSessionNotices] = useState<SessionNotice[]>(() => agentService.getSessionNotices())
   // 会话状态灯（绿=运行中/红=失败）：初始值取服务快照，之后由 sessionStatusUpdate 事件全量同步
   const [sessionStatuses, setSessionStatuses] = useState<Record<string, SessionRunStatus>>(() => agentService.getSessionStatuses())
+  // 会话健康分（损失信号派生 max(0,100−Σweight)，无记录无徽标）：connected/turnEnd 时重算
+  const [healthScores, setHealthScores] = useState<Record<string, number>>(() => agentService.getHealthScores())
   const [showSidebar, setShowSidebar] = useState(false)
   const [showPluginCenter, setShowPluginCenter] = useState(false)
   const [pluginStats, setPluginStats] = useState({ total: 0, active: 0 })
@@ -216,6 +219,8 @@ export const AgentPanel: React.FC = () => {
   const [showExperienceManager, setShowExperienceManager] = useState(false)
   // Token 消耗统计弹窗（头部「更多」下拉菜单入口）
   const [showUsageStats, setShowUsageStats] = useState(false)
+  // 文本梯度候选弹窗（头部「更多」下拉菜单入口）
+  const [showGradientPanel, setShowGradientPanel] = useState(false)
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [currentPreset, setCurrentPreset] = useState<string | null>(null)
   // 头部右侧「更多」下拉菜单（插件控制中心 / 设置）
@@ -460,6 +465,7 @@ export const AgentPanel: React.FC = () => {
           setIsAgentRunning(false) // turn 结束，AI 不再运行
           tokenSpeedRef.current.reset() // 时速表归零：清基线与样本，防跨回合/跨会话串算
           void refreshSessions() // 回合结束刷新会话列表：标题/统计投影可能已更新（头部标题与侧边栏保持新鲜）
+          void agentService.loadHealthScores().then(scores => setHealthScores(scores)) // 回合结束重算健康分（探针可能刚落了损失信号）
           const turnPayload = event.payload as any
           if (turnPayload?.reason?.kind !== 'completed') {
             // 非正常结束的回合显示系统消息
@@ -568,9 +574,9 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'requestHeader': {
-          // AgentService 已过滤：只有模型真正变化时才 emit
+          // AgentService 已过滤：只有模型真正变化时才 emit；modelName = 目录显示名（回退 id）
           const header = event.payload as any
-          let msg = `模型切换: ${header?.model || '未知'}`
+          let msg = `模型切换: ${header?.modelName || header?.model || '未知'}`
           if (header?.reasoningEffort) msg += ` · 推理${header.reasoningEffort}`
           pushSystem(msg)
           break
@@ -642,6 +648,7 @@ export const AgentPanel: React.FC = () => {
             pushSystem('已连接到 DSH Agent')
           }
           refreshSessions()
+          void agentService.loadHealthScores().then(scores => setHealthScores(scores))
           break
         }
 
@@ -650,6 +657,7 @@ export const AgentPanel: React.FC = () => {
           // 直接采纳，头部标题与侧边栏不再依赖重开面板才刷新
           const list = (event.payload as SessionsUpdatedPayload | undefined)?.sessions
           if (list) setSessions(list)
+          void agentService.loadHealthScores().then(scores => setHealthScores(scores))
           break
         }
 
@@ -1722,7 +1730,9 @@ export const AgentPanel: React.FC = () => {
       setPendingQuestions(agentService.getPendingQuestions())
       setPendingApprovals(agentService.getPendingApprovals())
       setTodos([]) // 清除旧会话的任务面板快照
-      setContextPressure(null) // 清除旧会话的占用快照（新会话由历史 fold 重新 seed）
+      // 目标会话的占用快照：switchSession 已从权威投影缓存恢复，取当前值而不是清空
+      //（清空会让进度圈消失到 fold seed 为止——投影缺失的会话才真正无数据）
+      setContextPressure(agentService.getContextPressureSnapshot())
 
       // 历史消息随 switchSession 一并返回，无需二次请求
       console.log(`[${logTime()}]`, '[AgentPanel] 历史尾页已随切换返回')
@@ -2182,6 +2192,12 @@ export const AgentPanel: React.FC = () => {
                 </button>
                 <button
                   className="dropdown-item"
+                  onClick={() => { setHeaderMenuOpen(false); setShowGradientPanel(true) }}
+                >
+                  <span>梯度候选</span>
+                </button>
+                <button
+                  className="dropdown-item"
                   onClick={() => { setHeaderMenuOpen(false); setShowSettings(true) }}
                 >
                   <span>供应商设置</span>
@@ -2197,6 +2213,7 @@ export const AgentPanel: React.FC = () => {
         <SessionSidebar
           sessions={sessions}
           sessionStatuses={sessionStatuses}
+          healthScores={healthScores}
           currentSessionId={agentService.getSessionId() || undefined}
           onSwitch={handleSwitchSession}
           onNew={handleNewSession}
@@ -2244,6 +2261,11 @@ export const AgentPanel: React.FC = () => {
       {/* Token 消耗统计弹窗 */}
       {showUsageStats && (
         <UsageStatsPanel onClose={() => setShowUsageStats(false)} />
+      )}
+
+      {/* 文本梯度候选弹窗 */}
+      {showGradientPanel && (
+        <GradientPanel onClose={() => setShowGradientPanel(false)} />
       )}
 
       {/* DSH 内核更新浮动窗口 */}

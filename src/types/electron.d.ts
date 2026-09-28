@@ -43,6 +43,8 @@ export interface ElectronAPI {
   listProjectSrc: (folder: string) => Promise<string[]>
   /** 读取文本文件（codeLint 源码扫描用），返回 {success, data?, error?} 信封 */
   readTextFile: (relativePath: string) => Promise<{ success: boolean; data?: string; error?: string }>
+  /** 列出目录下的文件（返回 {name,size,mtime}[]，仅顶层，不含子目录；仅收 .md），返回 {success, data?, error?} 信封 */
+  listDirFiles: (relativePath: string) => Promise<{ success: boolean; data?: Array<{ name: string; size: number; mtime: number }>; error?: string }>
   /** 读取图片文件（agent 面板 read_image 卡片内嵌渲染），返回 base64 + MIME 信封 */
   readImageFile: (imagePath: string) => Promise<{ success: boolean; data?: string; mime?: string; error?: string }>
   /** 监听某工程目录（asset + src，覆盖上一次监听）；返回是否成功 */

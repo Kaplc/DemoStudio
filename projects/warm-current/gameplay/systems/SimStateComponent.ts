@@ -1,7 +1,7 @@
 ﻿/**
  * SimStateComponent — 仿真状态持有组件（GameMode 上的组件位）
  *
- * 持有 SimState 纯数据 + 事件队列 + 确定性 rng；快照/重试本幕/沙盒/派生查询。
+ * 持有 SimState 纯数据 + 事件队列 + 确定性 rng；快照/沙盒/派生查询。
  * 子系统组件（transport/economy/research/hazards/buildings/acts）都经 mode.simState 读写状态。
  */
 import { BObjectComponent } from '@/engine'
@@ -118,7 +118,7 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     return this.state.ships.filter((s) => s.state === state).length
   }
 
-  // ─── 快照 / 终局 ───
+  // ─── 快照 / 沙盒 ───
 
   snapshot(): SimState {
     return deepSnapshot(this.state)
@@ -128,20 +128,7 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     this.state = deepSnapshot(snapshot)
   }
 
-  /** 重试本幕（恢复幕入口快照） */
-  retryAct(): boolean {
-    const s = this.state
-    const snap = s.act === 3 ? s.actSnapshots.act3 : s.act === 2 ? s.actSnapshots.act2 : null
-    if (!snap) return false
-    const restored = JSON.parse(snap) as SimState
-    restored.outcome = 'playing'
-    restored.sandbox = false
-    this.state = restored
-    this.hint(`重试第${restored.act}幕`)
-    return true
-  }
-
-  /** 胜利后进入沙盒（无失败压力） */
+  /** 胜利后进入沙盒（自由扩建，无终局压力） */
   enterSandbox(): void {
     this.state.sandbox = true
     this.state.outcome = 'playing'
@@ -150,13 +137,5 @@ export class SimStateComponent extends BObjectComponent<WarmCurrentGameMode> {
     if (this.state.earthH3 < B.earthH3Start) this.state.earthH3 = B.earthH3Start
   }
 
-  /** 堆心温度归零 → 堆心熄灭 → 失败（唯一硬性失败线） */
-  checkDefeat(): void {
-    const s = this.state
-    if (s.coreTemp <= 0 && !s.sandbox) {
-      s.coreTemp = 0
-      s.outcome = 'defeat'
-      this.emit({ type: 'defeat' })
-    }
-  }
+  // 2026-09-30 环熄灭失败线下线：checkDefeat/retryAct 已移除（堆心温度仅作展示指标，不再判负）。
 }

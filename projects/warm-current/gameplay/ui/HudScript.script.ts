@@ -19,6 +19,8 @@
  *      shipyard_panel（船坞造船面板，GameMode.shipyardSel 状态驱动，点船坞打开；逐船一卡队列）
  *      hologram_panel（全息勘探面板，GameMode.hologramSel 状态驱动，星球信息面板「全息勘探」打开）
  *      holo_hud（全息态底部 HUD：vm.hologram 非空 = 隐藏 BottomBar 显形全息底栏，HoloHudScript 自驱动）
+ *      edit_hud（编辑台专用底部 HUD：vm.routeEditMode = 隐藏 BottomBar 显形编辑台底栏，
+ *      EditHudScript 自驱动——建造选型/取消放置/退出编辑，2026-09-30）
  */
 import { BehaviourScript, UIScriptComponent, logger } from '@/engine'
 import type { Actor } from '@/engine'
@@ -38,6 +40,7 @@ import BuildingDetailScript, { BUILDING_DETAIL_WIDGET } from './BuildingDetailSc
 import FleetOrderBarScript, { FLEET_ORDER_BAR_WIDGET } from './FleetOrderBarScript.script'
 import HologramPanelScript, { HOLOGRAM_PANEL_WIDGET } from './HologramPanelScript.script'
 import { HOLO_HUD_WIDGET } from './HoloHudScript.script'
+import { EDIT_HUD_WIDGET } from './EditHudScript.script'
 import ShipDesignScript, { SHIP_DESIGN_WIDGET } from './ShipDesignScript.script'
 
 const HEX_WIDGET = 'asset/blueprints/ui/hex_modal.widget.json'
@@ -82,6 +85,7 @@ export default class HudScript extends BehaviourScript {
   private fleetOrderBar: Actor | null = null
   private hologramPanel: Actor | null = null
   private holoHud: Actor | null = null
+  private editHud: Actor | null = null
   private shipDesignPanel: Actor | null = null
   private statsPanel: Actor | null = null
   private reserveInfo: Actor | null = null
@@ -89,8 +93,6 @@ export default class HudScript extends BehaviourScript {
   /** 居中二级面板互斥登记（科研/建造/运输，onStart 填充） */
   private centerPanels: CenterPanelEntry[] = []
   private acc = 1
-  /** TutText 的 widget 静态教学文案（onStart 捕获；蓝图台提示退出后恢复） */
-  private tutDefaultText = ''
 
   /** 居中面板互斥开关：只收起其它「展开中」的居中面板（只关不开，对关闭面板 toggle 会误开），再 toggle 目标 */
   private toggleCenterPanel(target: CenterPanelEntry): void {
@@ -145,8 +147,6 @@ export default class HudScript extends BehaviourScript {
     }
     // 选中面板：无选中内容时整体隐藏（onUpdate 差分驱动显隐）
     this.vis.set(this.actor, 'SelPanel', false)
-    // 捕获 TutText 静态教学文案（轨道蓝图台提示接管/恢复用，2026-09-29）
-    this.tutDefaultText = findText(this.actor, 'TutText')?.text ?? ''
     bind('Btn_mission', () => wcMode()?.transport.startMarsMission())
     bind('Btn_demolish', () => {
       const m = wcMode()
@@ -263,6 +263,11 @@ export default class HudScript extends BehaviourScript {
     // 全息态底部 HUD（vm.hologram 非空 = 隐藏 BottomBar 换全息底栏，HoloHudScript 自驱动，默认收起）
     this.holoHud = this.world?.ui.spawnUIActor(HOLO_HUD_WIDGET) ?? null
     if (!this.holoHud) logger.warn('[HudScript] holo_hud 生成失败')
+    // 编辑台专用底部 HUD（vm.routeEditMode = 隐藏 BottomBar 换编辑台底栏，EditHudScript 自驱动，默认收起；
+    // 建造面板引用由 EditHudScript 运行时惰性自查——spawn 只入队、BeginPlay 下一帧才派发，
+    // onStart 互传引用时对方 instance 必为 null，不能在这里接线）
+    this.editHud = this.world?.ui.spawnUIActor(EDIT_HUD_WIDGET) ?? null
+    if (!this.editHud) logger.warn('[HudScript] edit_hud 生成失败')
     // 火箭设计工坊（居中位：底部 HUD「火箭设计」弹出，ShipDesignScript 读 vm.shipDesign 自驱动）
     this.shipDesignPanel = this.world?.ui.spawnUIActor(SHIP_DESIGN_WIDGET) ?? null
     if (!this.shipDesignPanel) logger.warn('[HudScript] ship_design 生成失败')
@@ -313,8 +318,9 @@ export default class HudScript extends BehaviourScript {
     this.vis.set(this.actor, 'Btn_speed', playable)
     this.vis.set(this.actor, 'Btn_restart', playable)
 
-    // ─── 底部 HUD 切换：全息态隐藏普通底栏，换全息底栏（holo_hud 自驱动显形） ───
-    this.vis.set(this.actor, 'BottomBar', !vm.hologram)
+    // ─── 底部 HUD 切换：全息态换全息底栏（holo_hud 自驱动显形）；编辑态换编辑台底栏
+    // （edit_hud 自驱动显形，2026-09-30 用户需求：编辑模式专用底部 HUD） ───
+    this.vis.set(this.actor, 'BottomBar', !vm.hologram && !vm.routeEditMode)
 
     // ─── 底部 bar：科研徽标（均进度 + 空闲/总船数，面板收起时也能看到概况） ───
     const lineSum = Math.round(
@@ -373,17 +379,6 @@ export default class HudScript extends BehaviourScript {
       } else {
         this.vis.set(this.actor, `Toast_${i}`, false)
       }
-    }
-
-    // ─── 教学提示 / 轨道蓝图台提示（2026-09-29：蓝图态接管 TutText 显示上下文提示，
-    // 退出恢复 widget 静态教学文案——onStart 捕获的初始文本回写） ───
-    const tut = findText(this.actor, 'TutText')
-    if (vm.routeEditMode) {
-      this.vis.set(this.actor, 'TutText', true)
-      this.binder.set(tut, vm.blueprintHint)
-    } else {
-      this.vis.set(this.actor, 'TutText', vm.tutorial)
-      if (tut && tut.text !== this.tutDefaultText) this.binder.set(tut, this.tutDefaultText)
     }
   }
 

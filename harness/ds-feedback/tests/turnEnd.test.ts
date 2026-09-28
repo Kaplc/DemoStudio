@@ -86,6 +86,7 @@ function install(autoDetect = true): {
     },
     tools: { register: () => {} },
     effect: (fn: () => () => void) => fn(),
+    logger: () => ({ info: () => {}, warn: () => {}, debug: () => {} }),
   } as unknown as Context
   apply(ctx, { ruleDir: dir, autoDetect })
   return { sections, statusHandlers }

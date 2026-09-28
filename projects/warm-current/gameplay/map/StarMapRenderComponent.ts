@@ -34,8 +34,6 @@ import {
   transferArcPoint,
   TRANSFER_ARC_SEGMENTS,
   windowAffected,
-  TUTORIAL_TARGETS,
-  TUTORIAL_RING_PAD,
 } from '../core/helpers'
 import type { Endpoint, OrbitBuilding, PlanetId, SimBuilding, SimRoute, SimShip, SimState, StarId } from '../core/types'
 import type { SolarBodyId } from '../core/helpers'
@@ -480,10 +478,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
   private ghostMat!: THREE.MeshBasicMaterial
   private ghostLabel!: SpriteLabel
 
-  private tutGroup!: THREE.Group
-  private tutRings: THREE.Mesh[] = []
-  private tutArrows: THREE.Mesh[] = []
-
   private dragQuad!: THREE.Mesh
   private dragMat!: THREE.MeshBasicMaterial
   private dragRing!: THREE.Mesh
@@ -543,7 +537,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       logger.warn('[StarMap] World 无 gameRenderer，跳过后处理（无 bloom/ACES，直渲染路径）')
     }
     this.root3 = this.own(this.F.createGroup()).object
-    this.tutGroup = this.own(this.F.createGroup()).object
     this.flareGroup = this.own(this.F.createGroup()).object
     this.sunGroup = this.own(this.F.createGroup()).object
     this.systemGroup = this.own(this.F.createGroup()).object
@@ -597,7 +590,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.buildShips()
     this.buildStockBars()
     this.buildNodes()
-    this.buildTutorial()
     this.buildDrag()
     this.buildFxPools()
     this.buildFlare()
@@ -1495,72 +1487,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
       this.bpRadHandle.visible = false
       this.bpPhHandle.visible = false
       this.bpEditLabel.clear()
-    }
-  }
-
-
-  // ─── 引导 ───
-
-  private buildTutorial(): void {
-    for (const body of TUTORIAL_TARGETS) {
-      const p = B.map.nodes[body]
-      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff6a3d, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }))
-      const ring = this.own(this.F.createMesh(this.flatRingGeo, mat)).object
-      ring.position.set(toWX(p.x), 6, toWZ(p.y))
-      ring.renderOrder = 20
-      this.tutRings.push(ring)
-      this.systemGroup.add(ring)
-    }
-    const tri = this.F.createBufferGeometry()
-    tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-      14, 0, 0, -9, 0, 10, -9, 0, -10,
-    ]), 3))
-    tri.computeVertexNormals()
-    this.trackGeo(tri)
-    for (let i = 0; i < 3; i++) {
-      const mat = this.trackMat(this.F.createMeshBasicMaterial({ color: 0xff6a3d, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
-      const arrow = this.own(this.F.createMesh(tri, mat)).object
-      arrow.position.y = 8
-      arrow.renderOrder = 21
-      this.tutArrows.push(arrow)
-      this.systemGroup.add(arrow)
-    }
-    this.root3.add(this.tutGroup)
-  }
-
-  private syncTutorial(): void {
-    // 引导双环锚在地月之间：地月系视角与轨道蓝图台（全息俯视，引导即在蓝图台拖月→地）都显示；
-    // 其它行星系舞台不显示（防止环漂在错误区域）
-    const on = this.provider.simState.state.tutorial
-      && (this.provider.planetFocusBody === 'earth' || this.provider.blueprintActive)
-    this.tutGroup.visible = on
-    for (const ring of this.tutRings) ring.visible = on
-    for (const arrow of this.tutArrows) arrow.visible = on
-    if (!on) return
-    const t = this.animTime
-    const pulse = 1 + Math.sin(t * 4) * 0.12
-    const sim = this.provider.simState.state
-    // 引导端点取 core 单一数据源（TUTORIAL_TARGETS = 月球 → 地球）：
-    // 规则权威在 TransportComponent.tryCreateRoute，此处只消费不重定义（避免改引导要改多处）
-    const [moonId, earthId] = TUTORIAL_TARGETS
-    const moon = starPosAt(sim, moonId)
-    const earth = starPosAt(sim, earthId)
-    // 回退口径统一为「配置显示半径 + 边距」（曾：moon 硬编码 36 而实际 r=17，缺视图时环大一倍）
-    const moonR = this.starViews[moonId]?.radius ?? B.map.nodes[moonId].r
-    const earthR = this.starViews[earthId]?.radius ?? B.map.nodes[earthId].r
-    this.tutRings[0].position.set(toWX(moon.x), 6, toWZ(moon.y))
-    this.tutRings[0].scale.setScalar((moonR + TUTORIAL_RING_PAD) * pulse)
-    this.tutRings[1].position.set(toWX(earth.x), 6, toWZ(earth.y))
-    this.tutRings[1].scale.setScalar((earthR + TUTORIAL_RING_PAD) * pulse)
-    const angleY = Math.atan2(-(toWZ(earth.y) - toWZ(moon.y)), toWX(earth.x) - toWX(moon.x))
-    const dx = earth.x - moon.x
-    const dy = earth.y - moon.y
-    for (let i = 0; i < 3; i++) {
-      const tt = ((t * 0.35 + i / 3) % 1)
-      const arrow = this.tutArrows[i]
-      arrow.position.set(toWX(moon.x + dx * tt), 8, toWZ(moon.y + dy * tt))
-      arrow.rotation.y = angleY
-      ;(arrow.material as THREE.MeshBasicMaterial).opacity = Math.sin(tt * Math.PI) * 0.9
     }
   }
 
@@ -2500,7 +2426,6 @@ export class StarMapRenderComponent extends ActorComponent<Actor> {
     this.syncNodes()
     this.syncHologram(dt)
     this.syncBuildings()
-    this.syncTutorial()
     this.syncMissionLine()
     this.syncDrag()
     this.syncBoxDrag()

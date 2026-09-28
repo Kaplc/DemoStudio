@@ -59,7 +59,7 @@ test.describe('warm-current 地球特写（大气/云层资产声明）', () => 
     const click = await game.clickActor({ name: 'Btn_new' })
     expect(click.ok, '点 Btn_new 应进星图（主菜单按钮）').toBe(true)
     await waitWarmMap(page)
-    // 冻结仿真：防自然 defeat 弹全屏 Dim 拦截层（doc/testing/playwright_commands.md 坑 45）
+    // 冻结仿真：防 HexModal 弹卡全屏 Dim 拦截层（doc/testing/playwright_commands.md 坑 45）
     await page.evaluate(`(() => { window.__warmCurrent.mode().togglePause() })()`)
   })
 

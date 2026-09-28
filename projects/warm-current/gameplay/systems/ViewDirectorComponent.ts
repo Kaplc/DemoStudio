@@ -80,14 +80,14 @@ export class ViewDirectorComponent extends BObjectComponent<WarmCurrentGameMode>
       onLock: (id) => {
         if (this.viewMode !== 'earth' || this.viewSwitching) return
         if (id === null) {
-          // 空目标（黄道落点）：观察态软退出——observeBody 归零 + 语义回落默认（左键回
-          // 地图交互），不做 focusSolarSystem 复位取景（镜头位置/注视点归滚轮锁定）
+          // 空目标（黄道落点）：观察态软退出——observeBody 归零 + 相机交互语义回落视图默认
+          // （applyFocusCameraMode：2026-09-28 俯视平移定版 → 俯视态右键平移 orbitMode=false），
+          // 不做 focusSolarSystem 复位取景（镜头位置/注视点归滚轮锁定）
           if (this.observeBody) {
             this.observeBody = null
             this.observeFollowLast = null
             this.owner.pendingObserveClick = null
-            this.owner.cameraActor.rig.leftOrbitEnabled = false
-            this.owner.cameraActor.rig.orbitMode = true
+            this.applyFocusCameraMode(false)
             logger.info('[WarmCurrent] 滚轮锁定空目标：观察态软退出（镜头归滚轮）')
           }
           return
@@ -208,23 +208,25 @@ export class ViewDirectorComponent extends BObjectComponent<WarmCurrentGameMode>
     this.clearObserveState()
     // 恒斜视角取景（2026-09-14 移除垂直俯视）：地球 3200 斜视地月系，太阳 1000 斜视内系统
     this.owner.cameraActor.observeFocus(off.x, off.z, d)
-    // 相机交互语义随视图收敛（2026-09-15 聚焦环绕改版）：行星系聚焦 = 环绕，太阳系全景 = 自由平移
+    // 相机交互语义随视图收敛（2026-09-28 俯视平移定版）：俯视态右键一律平移，
+    // 轨道旋转只留特写观察态（语义细节见 applyFocusCameraMode 注释）
     this.applyFocusCameraMode(toSolar)
     logger.info(`[WarmCurrent] 太阳系取景 → ${body} (dist=${d}, mode=${this.viewMode}，斜视角)`)
   }
 
-  /** 行星系聚焦默认相机交互语义（2026-09-15 聚焦环绕改版）：
-   *  行星系聚焦态（body ≠ sun）：右键拖拽 = 绕聚焦天体环绕（orbitMode），滚轮缩放不变；
-   *  屏蔽空间自由平移——右键平移被环绕取代，边缘平移关闭（防拖走注视点破坏聚焦）；
-   *  左键环绕关闭（leftOrbitEnabled=false），左键留给地图交互（耀斑框选/拖线仍可用）。
-   *  太阳系全景：保持历史自由平移（右键平移 + 边缘平移；玩家入口已屏蔽，仅内部/e2e 可达）。
-   *  观察态（enterPlanetObserve/enterMoonObserve/openHologram）在取景后自行开左键环绕。 */
+  /** 相机交互语义随视图收敛（2026-09-28 俯视平移定版，用户口径"进入俯视角状态右键就变成
+   *  平移镜头、关闭轨道旋转模式"，推翻 2026-09-15 聚焦环绕改版的俯视态右键环绕）：
+   *  俯视态（行星系聚焦 / 蓝图台全景）右键拖拽一律 = 平移镜头（orbitMode=false），
+   *  轨道旋转模式在俯视态关闭——环绕只保留给特写观察态（双击行星/卫星
+   *  enterPlanetObserve/enterMoonObserve）与全息特写（openHologram），三者在取景后自行
+   *  开启环绕并开左键。差异仅剩边缘平移：蓝图台全景开（历史口径），行星系俯视关；
+   *  左键恒留地图交互（leftOrbitEnabled=false，耀斑框选/拖线可用）。滚轮缩放/落点平移不变。 */
   private applyFocusCameraMode(solar: boolean): void {
     const rig = this.owner.cameraActor.rig
-    rig.orbitMode = !solar
+    rig.orbitMode = false
     rig.leftOrbitEnabled = false
     rig.setEdgePanEnabled(solar)
-    logger.info(`[WarmCurrent] 聚焦相机语义：${solar ? '太阳系全景（右键/边缘自由平移）' : '行星系聚焦环绕（右键环绕 · 滚轮缩放 · 边缘平移关 · 左键留地图交互）'}`)
+    logger.info(`[WarmCurrent] 相机交互语义：${solar ? '蓝图台全景俯视（右键/边缘自由平移）' : '行星系俯视（右键平移 · 边缘平移关 · 左键留地图交互 · 双击天体进环绕特写）'}`)
   }
 
   /** 清观察态（不做取景复位）：observeBody 归零 + 相机交互回落视图默认语义

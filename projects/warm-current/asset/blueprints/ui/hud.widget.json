@@ -1,7 +1,7 @@
 {
   "name": "WarmCurrentHud",
   "baseClass": "Actor",
-  "sourceHash": "fnv1a-cb7da27c",
+  "sourceHash": "fnv1a-02a689f2",
   "components": [
     {
       "baseClass": "UITransformComponent",
@@ -6181,66 +6181,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "TutText",
-          "baseClass": "Actor",
-          "id": 13319,
-          "components": [
-            {
-              "baseClass": "UITransformComponent",
-              "properties": {
-                "rotation": [
-                  0,
-                  0,
-                  0
-                ],
-                "scale": [
-                  1,
-                  1,
-                  1
-                ],
-                "worldWidth": 1100,
-                "worldHeight": 56,
-                "anchor": "bottom-center",
-                "anchorOffset": [
-                  0,
-                  254
-                ],
-                "position": [
-                  0,
-                  0,
-                  0
-                ]
-              }
-            },
-            {
-              "baseClass": "CanvasUIComponent",
-              "properties": {
-                "markerOnly": true,
-                "name": "UIMarker",
-                "zOrder": 0
-              }
-            },
-            {
-              "baseClass": "UITextComponent",
-              "properties": {
-                "text": "点底部「航线编辑」进入后，把「月球」拖到「地球」建立第一条氦-3 航线",
-                "name": "TutText",
-                "width": 1100,
-                "height": 56,
-                "fontSize": 26,
-                "color": "#ffb03d",
-                "align": "center",
-                "bold": true,
-                "shadowColor": "#000000cc",
-                "shadowOffsetX": 1,
-                "shadowOffsetY": 2,
-                "shadowBlur": 5
-              }
-            }
-          ],
-          "children": []
         }
       ]
     }

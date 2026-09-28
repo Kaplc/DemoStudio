@@ -84,8 +84,8 @@ test.describe('ai.clickActor 射线语义（走 InputSys → PhySys 完整管线
       return r?.results?.[0]?.ok === true
     }, { timeout: 60_000, polling: 500 })
     await waitGameReady(page)
-    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防自然 defeat
-    // 抢先弹出 SettleModal/HexModal 的全屏 Dim 拦截层干扰 UI 点击测试
+    // 冻结仿真时间：暂停态 sim.runTick 不推进（GameMode.Tick 判 paused），防研究推进
+    // 弹出 HexModal 的全屏 Dim 拦截层干扰 UI 点击测试
     await page.evaluate(`(() => { const m = window.__warmCurrent.mode(); if (m && !m.paused) m.togglePause() })()`)
   })
 

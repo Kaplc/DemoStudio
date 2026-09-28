@@ -70,7 +70,6 @@ test('借站补给：途经中转站的 forward 线油耗 ×0.8，首航日志�
     const b = window.__warmCurrent
     const mode = b.mode()
     const s = mode.simState.state
-    s.tutorial = false
     s.starStock.moon = 800
     // 中转站落在 月球→地球 线段中点（画布系权威值；站带内 300px ≫ 天体漂移量）
     const moon = b.bodyPos('moon')
@@ -95,7 +94,6 @@ test('无站无线不折扣：月球线基准油耗 40（对照组）', async ({
     const b = window.__warmCurrent
     const mode = b.mode()
     const s = mode.simState.state
-    s.tutorial = false
     s.starStock.moon = 800
     const ok = mode.transport.tryCreateRoute({ kind: 'star', star: 'moon' }, { kind: 'earth' })
     b.stepTicks(150)
@@ -120,7 +118,6 @@ test('地球港泊位：满泊排队 / 让泊 FIFO 放行 / N 船 ≠ N 倍收�
     const b = window.__warmCurrent
     const mode = b.mode()
     const s = mode.simState.state
-    s.tutorial = false
     s.starStock.moon = 800
     const mk = ${MK_SHIP_FN}
     const ok = mode.transport.tryCreateRoute({ kind: 'star', star: 'moon' }, { kind: 'earth' })
@@ -158,7 +155,6 @@ test('满泊时 relay_in 直接卸入站缓存：不排地球队', async ({ page
     const b = window.__warmCurrent
     const mode = b.mode()
     const s = mode.simState.state
-    s.tutorial = false
     s.starStock.moon = 800
     const mk = ${MK_SHIP_FN}
     for (let i = 0; i < 2; i++) s.ships.push(mk(2000 + i, 'blocker', { mission: true, leg: 'return', state: 'unloading', timer: 99999 }))

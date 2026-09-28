@@ -497,6 +497,8 @@ export interface TodoWritePayload {
 
 export interface RequestHeaderPayload {
   model?: string
+  /** 模型显示名（模型目录里的 name，缺省回退 model id）：系统消息用它展示 */
+  modelName?: string
   provider?: string
   reasoningEffort?: string
   reason: 'initial' | 'resume' | 'change'

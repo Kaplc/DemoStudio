@@ -168,7 +168,7 @@ export default class RingPanelScript extends BehaviourScript {
     // ─── 选中格详情 + 安装/拆除流 ───
     this.refreshDetail(vm)
 
-    // ─── 堆心温度（0-100%）：满温运转，断环缓降，归零 = 堆心熄灭 = 终结 ───
+    // ─── 堆心温度（0-100%）：满温运转，断环缓降（2026-09-30 起仅展示指标，归零不再判负） ───
     const temp = Math.max(0, Math.min(100, vm.coreTemp))
     const tempText = findText(this.actor, 'CoreText')
     this.binder.set(tempText, `堆心温度 ${temp.toFixed(0)}%`)
@@ -181,7 +181,7 @@ export default class RingPanelScript extends BehaviourScript {
       if (coreImg.color !== c) coreImg.color = c
     }
 
-    // ─── 堆心状态行：升温中/降温中 + 预计抵达满温/熄灭的秒数（蓄热井乘区含在内） ───
+    // ─── 堆心状态行：升温中/降温中 + 预计抵达满温/归零的秒数（蓄热井乘区含在内） ───
     const ring = vm.ringMods
     const rate = vm.coreState === 'cooling'
       ? 100 / Math.max(1, B.coreCoolSeconds * ring.coolTimeMult)
@@ -189,7 +189,7 @@ export default class RingPanelScript extends BehaviourScript {
     const remain = vm.coreState === 'cooling' ? temp / rate : (100 - temp) / rate
     const stateLine = findText(this.actor, 'CoreStateText')
     this.binder.set(stateLine, vm.coreState === 'cooling'
-      ? `降温中 · ${remain.toFixed(0)}s 后熄灭`
+      ? `降温中 · ${remain.toFixed(0)}s 后归零`
       : temp >= 100 ? '满温运转' : `升温中 · ${remain.toFixed(0)}s 后满温`)
     this.colors.set(stateLine, vm.coreState === 'cooling' ? WARN_COLOR : '#ffe9a8')
 
