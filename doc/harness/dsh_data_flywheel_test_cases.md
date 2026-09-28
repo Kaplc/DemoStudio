@@ -65,6 +65,7 @@ cd harness/ds-experience && npm install && npm run build && npm test
 |---|---|---|---|
 | KM | 知识飞轮：ds-memory 提示词结构化 + 回合末提醒（ds-reminder） | ds-memory + ds-reminder | `memoryTypes.test.ts`；`harness/ds-reminder/tests/reminder.test.ts` |
 | RL | 反馈飞轮：规则提案/应用 + 回合末预筛 | ds-feedback | `ruleStore.test.ts`、`tools.test.ts`、`preScreen.test.ts`、`turnEnd.test.ts` |
+| LG | 损失-梯度闭环：损失探针/健康分/梯度候选 | ds-feedback + 编辑器面板 | `harness/ds-feedback/tests/lossStore.test.ts`、`gradientStore.test.ts`、`lossGradient.test.ts`；`tests/lossSignals.test.tsx` |
 | SQ | 会话索引：`session-query-sqlite` patch | 内核 + profile patch | 无（纯手动） |
 | EXP | 经验插件：落盘/检索/历史转录 | ds-experience | `experienceStore.test.ts`、`experienceTools.test.ts`、`historyTools.test.ts`、`extractExperience.test.ts`、`index.test.ts` |
 | SP | systemPrompt 装配：段序与工具清单 | 三插件 + ds-instructions | `ruleStore.test.ts`（空库分支） |
@@ -171,6 +172,17 @@ expect(sectionText(sections, agent)).not.toContain('## ⚠ 回合末纠正提示
 ```
 
 > 后半段（撤下）比前半段（挂上）更重要：提示挂在规则段里，下回合不撤就会**永久污染后续每一回合的 system prompt**，模型会一直以为用户刚纠正了它。水位增量推进就是为这个。
+
+### 4.2b LG 损失-梯度闭环（2026-09-30 新增）
+
+| 编号 | 类型 | 文件 | 锁什么 |
+|---|---|---|---|
+| LG-01~09 | vitest | `lossStore.test.ts` | 信号 JSONL 追加/去重（1s 同信号）/过滤/坏行跳过/健康分公式/摘要聚合/lossless 往返/2MB 压缩保留最近 1000 行 |
+| LG-10~17 | vitest | `gradientStore.test.ts` | 候选 pending 往返/同名幂等/非法名与空字段逐项抛错/坏文件进 broken 不拖垮列表/台账追加截断 |
+| LG-18~32 | vitest | `lossGradient.test.ts` | 探针事件分类（error/max-tokens→turn_error、aborted、llm/retry 宽松比较、inbox/spliced 仅 next-step 非 canceled、completed 不记）/子 agent 不采集/rule_propose 强信号/规则段损失摘要块合成与 agent 隔离/enableLossProbe 关闭/gradient 三工具三分发（rule created+mode 语义+冲突检测、reminder 追加+超预算拒绝+目标不存在、instruction 仅建议）/台账留痕 |
+| LG-33~49 | vitest | `tests/lossSignals.test.tsx` | 编辑器侧同公式健康分重算/徽标三档配色与 data-score/GradientPanel ready-empty-broken-error-Escape 五分支 |
+
+关键不变量：**信号只是 loss 值**——探针只记录不判定；候选 propose 绝不生效；apply 走台账可回滚。验证探针落盘用 `vi.waitFor`（fire-and-forget 写盘，同步读会竞态假红）。
 
 ### 4.3 SQ / EXP / SP / M
 

@@ -41,5 +41,88 @@
     "notes": [
       "沿用其\"读 console log 时序、看该有日志的地方有没有日志\"取证法定位旧模块缓存"
     ]
+  },
+  "add_provider_model_context_vision_config.md": {
+    "uses": 2,
+    "lastUsedAt": 1790604316576,
+    "notes": [
+      "名称字段用例沿用其 e2e stub 模式（mutate 载荷精确断言）",
+      "移除预设供应商改版时按其 e2e stub 模式改写用例 1，并按 lint 门禁口径验证"
+    ]
+  },
+  "e2e_split_engine_vs_projects.md": {
+    "uses": 5,
+    "lastUsedAt": 1790613315327,
+    "notes": [
+      "编辑器长驻 vite glob 冻结坑实爆：新 widget/脚本不注册，utimes bump asset/index.ts 后变换产物纳入，待用户刷新页面生效",
+      "playwright 过滤器用正斜杠路径 + projects 层定向跑法",
+      "playwright 路径过滤用正斜杠 projects/warm-current/e2e/xxx.spec.ts 直跑定向 spec",
+      "playwright 过滤器继续用正斜杠路径命中新 spec",
+      "playwright 过滤器按 lesson 4 用正斜杠路径命中 spec"
+    ]
+  },
+  "add_tool_card_diff_view.md": {
+    "uses": 2,
+    "lastUsedAt": 1790605997714,
+    "notes": [
+      "按钮没风格用 computedStyle 探针取证（lesson 10\"能断言的别只截图\"）而非截图猜",
+      "查 session.models/selectModel 行为先查 harness/dsh-source 源码镜像而非打包 bundle"
+    ]
+  },
+  "add_usage_stats_panel.md": {
+    "uses": 1,
+    "lastUsedAt": 1790608446548,
+    "notes": [
+      "据其\"session.list 行内自带 projections.values\"事实设计占用快照收割"
+    ]
+  },
+  "send_queue_edit_feature.md": {
+    "uses": 1,
+    "lastUsedAt": 1790608460106,
+    "notes": [
+      "tsc 红在并行会话的 warm 半成品，按 lesson ⑥\"错误文件与改动域求交集\"判定不阻塞"
+    ]
+  },
+  "fix_inspector_getproperties_key_case.md": {
+    "uses": 1,
+    "lastUsedAt": 1790609842925,
+    "notes": [
+      "按其 lessons 里的既有红清单把 FleetMaint\"新局账本全零\"判定为基线红（账本键数演进陈旧断言）"
+    ]
+  },
+  "warm_focus_orbit_camera.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611825635,
+    "notes": [
+      "按其 applyFocusCameraMode 单点收口与受影响 spec 断言图实施俯视平移定版；约定写代码注释不建文档"
+    ]
+  },
+  "warm_holo_close_keep_camera.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611825843,
+    "notes": [
+      "按 lesson1 日志取证法 grep 控制台取景日志，还原用户进出蓝图台/右键拖拽的真实操作序列定读法"
+    ]
+  },
+  "warm_holo_tab_rework.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611991856,
+    "notes": [
+      "ui_compile 走编辑器 MCP HTTP(9877 /api/command, Node fetch) 编译新 widget；换底栏三件套模式复用"
+    ]
+  },
+  "fix_warm_e2e_baseline_reds.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611991981,
+    "notes": [
+      "新面板默认收起走 setPanel(root,...) 兜底激活根（PauseMenu spawn=失活先例）"
+    ]
+  },
+  "orbit_blueprint_unified_mode.md": {
+    "uses": 1,
+    "lastUsedAt": 1790614652910,
+    "notes": [
+      "按 lesson8 并行会话 tsc 判定法核实 tutorial 红属他人半成品（改动集 0 命中+上轮绿+时间窗吻合）不代修；§6 断言按 lesson4/5 先推导不变量（球心抬离黄道面的 y 判别）再写"
+    ]
   }
 }

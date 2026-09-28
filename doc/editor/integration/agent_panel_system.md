@@ -461,27 +461,36 @@ seedPendingTurn(partial: PendingTurnPartial): void {
 
 三个分支讲清了 fold 与 live 缓冲的三重关系，判定全靠 `throughSeq` 与缓冲末 chunk 的 seq 比较。最后一个分支是**已知会重复**的退化路径，源码用 `console.warn` 明说了——排查"消息重复"时搜这条 warn 就能定位。
 
-### 4.5 附带产物：上下文占用 fold 与输入框进度圈
+### 4.5 附带产物：上下文占用 fold 与输入框进度圈（2026-09-30 起双源：权威投影 + 事件 fold）
 
-输入框底部的上下文进度圈（`ContextRing`，对齐 DSH WebUI 的 ContextMeter）的数据链路是一条**独立的轻量 fold**，与消息 fold 同源不同算：
+输入框底部的上下文进度圈（`ContextRing`，对齐 DSH WebUI 的 ContextMeter）的数据链路，2026-09-30 起以 **DSH 权威 `contextPressure` 会话投影**为主、事件 fold 为兜底：
 
 ```
-DSH 事件流 ──┬─ request/context      → _ctxWindow（分母，last-wins，无声明时清除）
-             ├─ assistant/chunk(usage) → _ctxUsedTokens（分子，早期采样）
-             └─ assistant/message(usage)→ _ctxUsedTokens（分子，同一步权威值覆盖）
-                        │
-                        ▼
-          emit('contextPressure', { usedTokens, contextWindow })
-                        │
-                        ▼
-          AgentPanel case 'contextPressure' → setContextPressure → InputBox → ContextRing
+权威源（切会话即时恢复）：
+  dsh-token-meter contextPressure 投影 ─┬─ mux session/projection 帧（key=contextPressure）
+                                        │    └─ consumeContextPressureFrame：按会话入 contextPressureBySession 缓存，
+                                        │       当前会话实时下发 UI（wire 视图 {contextWindow, projectedTokens}）
+                                        └─ session.list 行内 projections.values.contextPressure
+                                             └─ listSessions 收割进同一缓存；当前会话无数据时挂载补种
+兜底源（投影缺失的会话）：
+  DSH 事件流 ──┬─ request/context      → _ctxWindow（分母，last-wins，无声明时清除）
+               ├─ assistant/chunk(usage) → _ctxUsedTokens（分子，早期采样）
+               └─ assistant/message(usage)→ _ctxUsedTokens（分子，同一步权威值覆盖）
+                          │
+                          ▼
+            emit('contextPressure', { usedTokens, contextWindow })
+                          │
+                          ▼
+            AgentPanel case 'contextPressure' → setContextPressure → InputBox → ContextRing
 ```
 
-要点三条：
+要点四条：
 
-- **分子口径**：`input + cacheRead + cacheWrite + output`，即"该步完成时的实际占用"，恰是下一步请求将看到的确定性近似。DSH 的 `projectedTokens` 依赖完整表面折算（响应 compaction 立时缩小），编辑器没有表面 meter，靠下一次 usage 采样自校正——compaction 后的第一步会把分子拉回真实值。
-- **双路 seed 与重置**：实时路径在 `handleSessionEvent` 里三处采样；`loadHistory` 全量 fold 时按同口径回放 seed（分页 prepend 不回写，防旧值覆盖实时新值），fold 完成后 emit 一次让切换会话后进度圈立即可用。`setSession` 清零 fold 状态（已并入"全清"清单）。
+- **切会话不再丢圈（2026-09-30 修复的根因）**：此前 `setSession` 清零 + 面板盲清 `setContextPressure(null)`，新会话全靠历史 fold seed——折叠页里没有 usage/request/context 事件（或分页没扫到）时圈永久消失。现在 `setSession` 从 `contextPressureBySession` 恢复目标会话快照并 emit，面板 `handleSwitchSession` 改取 `agentService.getContextPressureSnapshot()` 而非盲清（注意顺序：switchSession 内的 emit 在前，面板取值在后，不能用清空盖掉）。
+- **分子口径**：`input + cacheRead + cacheWrite + output`，即"该步完成时的实际占用"，恰是下一步请求将看到的确定性近似。投影权威值是 `projectedTokens`（含表面折算，响应 compaction 立时缩小），`pressureTokens` 是 prompt 侧采样；投影帧/收割优先吃 `projectedTokens`。fold 分子靠下一次 usage 采样自校正——compaction 后的第一步会把分子拉回真实值。
+- **双路 seed 与重置**：实时路径在 `handleSessionEvent` 里三处采样；`loadHistory` 全量 fold 按同口径回放 seed（分页 prepend 不回写，防旧值覆盖实时新值），仅当投影缓存无该会话数据时才是唯一数据源。`setSession` 的清零改为"换目标会话快照"。
 - **无数据不出环**：`usedTokens` 或 `contextWindow` 任一缺失，`ContextRing` 返回 null（对齐 DSH ContextMeter 行为）——新会话首条消息前、模型未声明容量时，输入框不显示圈。
+- **顺带修掉的放大器**：contextPressure 投影帧此前落进 `mergeProjectionFrame` 的未知键分支 → `ignored` → 每帧触发 300ms 防抖全量 `session.list`；现已在 `consumeProjectionFrame` 入口拦截直入快照通道。E2E：`e2e/agent/context-ring-session-switch.spec.ts`（session.list 行内投影收割：挂载即现圈 + 切会话换占比）。
 
 ---
 
@@ -1037,12 +1046,12 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 
 ---
 
-## 13. 供应商设置：模型上下文与视觉配置（2026-09-11）
+## 13. 供应商设置：模型上下文与视觉配置（2026-09-11；2026-09-30 起仅自定义第三方）
 
-「更多」(⋮) → 「供应商设置」→ `SettingsPanel`。除 API Key 管理外，支持两层模型能力配置：
+「更多」(⋮) → 「供应商设置」→ `SettingsPanel`。**2026-09-30 起面板只管理用户级自定义第三方供应商**（`settings.yaml` 的 `llm-pi-ai.providers` 用户级条目），DSH 预设供应商目录（deepseek-official / anthropic 等）不再展示——列表完全以 `settings.describe('llm-pi-ai')` 的 `user.providers` 为准构建，不再调用 `llm.providers` RPC（该包装方法 `AgentService.getLlmProviders` 已随预设展示一并移除）。模型能力配置两层：
 
-- **添加自定义第三方**：模型列表是行编辑器，每行 = 模型 ID + 上下文大小（token，可留空）+ 视觉勾选（= `input: ['text','image']`）；
-- **编辑已有供应商**：卡片上的「编辑」按钮（仅 `settings.yaml` 里有用户级条目的供应商显示，纯内置目录不显示），可改显示名称 / Base URL / 模型行。写回走 `settings.mutate`（`op:'set', path:['providers', id]`），DSH 侧热加载即生效。
+- **添加自定义第三方**：模型列表是行编辑器，每行 = 模型名称（显示名，可留空）+ 模型 ID + 上下文大小（token，可留空）+ 视觉勾选（= `input: ['text','image']`）；名称填写才写 `name` 键、清空则删除（`rowToModel`，回退按 ID 显示）；
+- **编辑已有供应商**：卡片上的「编辑」「删除供应商」按钮对所有条目可用（列表内全部是用户级条目），可改显示名称 / Base URL / 模型行。写回走 `settings.mutate`（`op:'set', path:['providers', id]`），DSH 侧热加载即生效。
 
 ### 13.1 为什么需要：模态声明是 DSH 的收图门禁
 
@@ -1050,14 +1059,13 @@ DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.pr
 
 ### 13.2 写回语义（改这块别改回去）
 
-`rowToModel` 以**原始旧条目为底**合并：保留 `maxTokens` 等未编辑字段；上下文留空/非法 → 删除 `contextWindow` 键（跟随目录默认，而不是继承旧值）；视觉勾选 → 写 `input:['text','image']`，取消 → **删除 `input` 键**（回退内置目录默认模态）。`handleSaveProviderConfig` 传给 `buildModelsFromRows` 的合并底必须是 `existing.models` 原始数组——换成裁剪过的投影对象会把未知字段静默丢掉（首版踩过，测试 `settingsPanelModels.test.tsx` 锁定）。
+`rowToModel` 以**原始旧条目为底**合并：保留 `maxTokens` 等未编辑字段；上下文留空/非法 → 删除 `contextWindow` 键（跟随目录默认，而不是继承旧值）；视觉勾选 → 写 `input:['text','image']`，取消 → **删除 `input` 键**（回退内置目录默认模态）。`handleSaveProviderConfig` 传给 `buildModelsFromRows` 的合并底必须是 `existing.models` 原始数组——换成裁剪过的投影对象会把未知字段静默丢掉（首版踩过，现由 e2e「编辑 glm2」用例锁定）。
 
 ### 13.3 文件与测试分工
 
 - 组件：`src/components/agent/SettingsPanel.tsx`（`ModelRowsEditor` 行编辑器 + `rowToModel` / `buildModelsFromRows` / `formatContextWindow` 等导出纯函数）；
 - 样式：`src/styles/editor.css` 的 `.settings-panel__model-*` / `.settings-panel__config-edit` 区段；
-- 单测：`tests/settingsPanelModels.test.tsx`（mock 掉 AgentService，断言 `settings.mutate` 载荷形状；vitest `globals:false` 下 testing-library 不自动清 DOM，必须手动 `afterEach(cleanup)`）；
-- E2E：`e2e/agent/provider-model-config.spec.ts`——`addInitScript` hook `window.fetch` 按 RPC method 返回合成响应（`session.list` 命中 `demostudio.dsh.session` localStorage 映射走 recovering 路径），`settings.mutate` 只记录进 `window.__dshMutations` 不落真盘，全程无副作用。
+- E2E：`e2e/agent/provider-model-config.spec.ts`——`addInitScript` hook `window.fetch` 按 RPC method 返回合成响应（`session.list` 命中 `demostudio.dsh.session` localStorage 映射走 recovering 路径），`settings.mutate` 只记录进 `window.__dshMutations` 不落真盘全程无副作用；用例 1 断言预设目录条目（deepseek-official / zai）不渲染、列表只含用户级条目（历史单测 `settingsPanelModels.test.tsx` 已随组件测试下线移除，合并语义由 e2e 覆盖）。
 
 ## 14. 跨会话动态气泡栈（2026-09-13）
 
@@ -1136,7 +1144,7 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 - **删除会话**：`deleteSession` 里与通知的 `session-removed` 并排发同名的状态灯动作。
 - **初始状态**：内存表不做持久化，面板挂载从 `getSessionStatuses()` 取种子；error 灯要等本连接期内观察到 turn/end|error 帧才可见（可接受的最终一致）。
 
-子代理会话的可见性注意（真机实测）：子代理在 DSH 侧是独立会话（origin=subagent，无 title 投影），首回合结束前可能被 blank 过滤挡在列表外，其回合结束后的 sessionStats 投影帧才触发防抖全量刷新让它入列（§3.2 blank→listed 过渡）——所以"子代理运行中"的灯依赖列表里已有它的条目。
+子代理会话不入列表（2026-09-28 起）：子代理在 DSH 侧是独立会话（header 带 `origin: 'subagent'` + `parentSession` 指向父会话，`dsh-subagent/lib/index.js` 的 `childSessionMeta`），DSH 服务端 `session.list` **不过滤 origin、全量返回**，但 WebUI 侧边栏用 `sessionVisible`（`dsh-client-ui-workspace/lib/client.js`）显式滤掉 `origin === 'subagent'`——子代理只出现在父会话的目录树里。编辑器 `listSessions` 的行过滤最初只有 blank + 本地删除黑名单，漏了 origin 过滤，导致子代理首回合跑完（sessionStats/title 投影落地、不再 blank）后就以任务首条消息的截断标题出现在会话列表里（真机实测）；现已对齐 WebUI 补上 `item.origin !== 'subagent'`。注意两条刻意**不滤** origin 的路径：① 状态灯表仍对子代理记账（mux 回合边界翻译与 `session.list` 种子都遍历全量行）——列表不渲染其条目，记账只为跨会话运行态语义完整；② `listSessionUsage` 不过滤——子代理的 token 消耗是真实用量，使用统计面板保留。
 
 ### 16.3 文件与测试分工
 
@@ -1216,7 +1224,7 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 
 - 数据层：`src/editor/sessionGhostStore.ts`（`DshEvent` 为此从 AgentService 加了 export）；
 - 接线：`AgentService.ts` 的 `consumeForeignSessionEvent`（fold 入口）/ `connectMux`（clearAll）/ `deleteSession`（discard）/ `loadHistory` → `foldEvents` 抽取 / `loadTailPageOrGhost` + `foldGhost` / `listSessions` 治理；`HistoryPage.ghostServed` 遥测标记；
-- 单测：`tests/sessionGhostStore.test.ts`（fold/去重/超限降级/复活/LRU/take 14 例）；`tests/agentGhostSwitch.test.ts`（快速路径零 RPC、基线衔接、RPC 回退、dropped 回退、mux 重连清空 5 例）；`tests/agentListBackoff.test.ts`（single-flight 合并、退避窗口、成功清零 3 例）；
+- 单测：`tests/sessionGhostStore.test.ts`（fold/去重/超限降级/复活/LRU/take 14 例）；`tests/agentGhostSwitch.test.ts`（快速路径零 RPC、基线衔接、RPC 回退、dropped 回退、mux 重连清空 5 例）；`tests/agentListBackoff.test.ts`（single-flight 合并、退避窗口、成功清零、子代理 origin 过滤 4 例）；
 - E2E：`tests/e2e/agent/ghost-switch.spec.ts`（§14.4 同款 mock WS + 合成 RPC，回滚验证：禁用快速路径 → 用例 1/2 红、用例 3 绿，判别器有效）；
 - `ReasoningBlock.tsx` 贴底 effect 依赖补 `expanded`（非 bare 形态的防御性修复；当前唯一用点是 StepProcess bare 模式，其贴底由 StepProcess 自己的 signature effect 保证）。
 
@@ -1257,6 +1265,10 @@ AI 运行期间点时钟按钮（`.composer__queue`）→ `handleQueueSend` 把 
 - 实现：`AgentService.ts`（`handleHostFrame` remote-event 分支 / `notifyModelDirectoryChanged` / `setSession` 与 `connectHostStream` 的失效触发）；`ModelSelector.tsx`（`modelDirectoryChanged` 订阅重拉）；types：`AgentEventType` 的 `modelDirectoryChanged` + `ModelDirectoryChangedPayload`；
 - 单测：`tests/agentHostStatusStream.test.ts` 第二个 describe（白名单命中+防抖合并 / 白名单外不触发 / 会话切换失效 / host 流重开失效，4 例）；
 - E2E：`tests/e2e/agent/model-selector-live.spec.ts`（stub `session.models` 可变 current + host 帧投递：芯片免开下拉自动更新 / 连发合并为一次重拉，1 例，已回滚验证）。
+
+### 21.3 模型显示名（2026-09-30）
+
+模型名称优先于 id 展示的链路：`session.models` 的 `models[].name`（来自 settings.yaml 用户级条目）→ `ModelSelector` 芯片与下拉本就 `name || id`；「模型切换」系统消息两路（实时 `requestHeader` 事件 payload.modelName / 历史折叠 foldEvents 的 system 行）改用 `AgentService.modelNameIndex`（`provider|model` → name，`getModels` 时全量重建）解析显示名，无匹配回退 id。fold 循环同步执行不能 await，索引由 `loadHistory` 在 fold 前经 `ensureModelNameIndex` 预热（索引空时拉一次目录，失败回退 id 不阻塞历史）。E2E：`e2e/agent/model-switch-name.spec.ts`（合成 request/header + session.models：带 name 显示名称 / 无 name 回退 id）。
 
 ## 22. 半截段原地采纳：切回运行中会话的思考卡（2026-09-21）
 
@@ -1316,3 +1328,27 @@ AI 运行期间点时钟按钮（`.composer__queue`）→ `handleQueueSend` 把 
 - 实现：`AgentPanel.handleSend`（拦截）+ `AgentService` 的 `listCommands/executeCommand/resolveSlashSubmission/parseSlashToken` + `slash-command/builtin-commands.ts`（菜单候选改为拉取 `commands.list` 真实目录，失败/为空回退硬编码清单）+ `electron/main.ts`/`preload.ts`（dshRpc 超时透传）；
 - 单测：`tests/agentSlashCommandResolve.test.ts`（parseSlashToken 语法 + 裁决全分支 + typert 信封线格式 + 目录缓存）+ `tests/agentSlashCommandPanel.test.tsx`（面板拦截：命中不发消息/错误系统行/未命中回退/普通消息回归锁）；
 - e2e：`tests/e2e/agent/slash-command-execute.spec.ts`（合成 commands/list+execute 存根 + mux command/run 帧：命中不发 prompt、用户气泡不上屏、`执行命令: /compact` 系统行；未命中回退普通消息）。
+
+## 24. 会话健康分徽标 + 文本梯度候选弹窗（2026-09-30）
+
+agent 面板接入"损失采集-文本梯度"自优化闭环的两个展示口（闭环机制见 [损失-梯度计划](../../harness/dsh_loss_gradient_plan.md)）：
+
+### 24.1 会话健康分徽标（SessionSidebar 行内）
+
+- **数据源**：`.dsh/loss/signals.jsonl`（内核 ds-feedback 损失探针落盘），编辑器经 `electronAPI.readTextFile` 读入后**客户端重算**健康分 `max(0, 100−Σweight)`（与内核 lossStore 同公式、两侧独立实现；插件无自定义 RPC 能力，走文件通道零新 IPC）。
+- **接线**：照抄状态灯链的变体——AgentService 增加 `healthScores` 快照 + `loadHealthScores()`（连接建立、`sessionsUpdated`、`turnEnd` 三个时机重算），AgentPanel 持 `healthScores` state 下发给 `SessionSidebar` 新 prop。
+- **渲染**：行内右缘（状态灯内侧 `right:24px`）紧凑数字章，≥90 绿 / 60-89 黄 / <60 红；**无损失记录的会话无徽标**（空表 = 无条目）。
+- 纯解析/聚合在 `src/editor/lossSignals.ts`（parseSignalsFile / computeHealthScores，坏行跳过）。
+
+### 24.2 文本梯度候选弹窗（头部「更多」→「梯度候选」）
+
+- **落点**：照 UsageStatsPanel 骨架（overlay+Esc+loading/ready/error 三相+挂载即加载）+ FileManager 的读 `.dsh/` 目录模式；数据走 `AgentService.listGradientProposals()`（listDirFiles 只收 .md，恰好 pending/*.md 可用）与 `readGradientLedger()`（applied.jsonl 最近 10 条）。
+- **只读面板**：候选落地动作不在面板做（`.dsh/` 内无 rename IPC，且落地语义属 agent 工具链）——候选由 agent 回合末复盘 `gradient_propose` 提出、用户确认后 `gradient_apply` 落地；面板负责总览（name/kind 徽标/target/delta 两行截断/evidence/date）与台账溯源，刷新按钮手动重拉（agent 写文件不产生编辑器可感知的 mux 帧，实时推送需新开 fs.watch handler，暂不做）。
+- **紧凑预算**：小内距小字号、列表限高滚动（候选 240px / 台账 140px）、delta 两行截断。
+
+### 24.3 文件与测试分工
+
+- 纯层：`src/editor/lossSignals.ts`（解析+健康分，坏行容错）；
+- 服务：`AgentService.loadHealthScores/getHealthScores/listGradientProposals/readGradientLedger`（文件缺失按空表处理，不算错误）；
+- 组件：`SessionSidebar`（healthScores prop + 徽标）、`GradientPanel`（弹窗）、`AgentPanel`（接线三处+菜单项）、`editor.css`（`.session-health`、`.gradient-panel` 区块）；
+- 单测：`tests/lossSignals.test.tsx`（纯函数全分支 + 徽标三档配色 + 弹窗 ready/empty/broken/error/Escape，17 例）。

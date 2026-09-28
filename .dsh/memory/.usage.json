@@ -41,5 +41,126 @@
     "notes": [
       "重启验证时按其三步闭环检查 home 侧 patch 现状与 ds-sync 回写方向"
     ]
+  },
+  "dsh_mux_projection_frames.md": {
+    "uses": 2,
+    "lastUsedAt": 1790608446819,
+    "notes": [
+      "沿用其投影帧消费架构扩展 contextPressure 键拦截",
+      "loss 探针选型：mux session/event 帧含 turn/end reason 与 llm/retry 完整结构，据 api-proxy.js 锚点确认插件进程内订阅优于 HTTP SSE"
+    ]
+  },
+  "session_status_lights_design.md": {
+    "uses": 2,
+    "lastUsedAt": 1790531060991,
+    "notes": [
+      "诊断\"子代理会话出现在会话列表\"时，用其中\"子代理 origin=subagent 首回合结束前被 blank 过滤、回合结束后才入列\"的既有记录解释出现时序，并定位到编辑器 listSessions 缺 origin 过滤",
+      "健康分徽标照抄状态灯接线链：AgentService map+归约广播 → AgentPanel 采纳 → SessionSidebar 行内渲染"
+    ]
+  },
+  "grep_path_scope_false_negative.md": {
+    "uses": 3,
+    "lastUsedAt": 1790615519497,
+    "notes": [
+      "tests/ 目录 grep 工具再次假阴性（0 命中），改用 Select-String 交叉核对捞出 21 处 tutorial 残留",
+      "两次实锤：grep path 圈 tests/ 漏掉 warmCurrentCoreTemp.test.ts（靠 tsc 兜底抓到 checkDefeat 引用）；残留核验改用全仓 include 搜索才找到 SlotsAndDesign 里的 actSnapshots 死引用",
+      "tests 目录搜 SettingsPanel 零命中后按记忆要求全仓 include 交叉复查"
+    ]
+  },
+  "targeted_regression_first.md": {
+    "uses": 4,
+    "lastUsedAt": 1790615519576,
+    "notes": [
+      "本次只跑改动域 vitest + port_hub/edit_hud 两 spec 定向 e2e，未跑全量",
+      "只跑 edit_hud 定向 spec + 模型单测，未跑 warm 全量",
+      "只跑改动域 no_defeat+hud 两个 spec（6 用例 4.1min），未跑 warm 全量",
+      "只定向跑 provider-model-config.spec.ts，未跑全量回归"
+    ]
+  },
+  "root_lint_script_broken.md": {
+    "uses": 4,
+    "lastUsedAt": 1790615519658,
+    "notes": [
+      "按记忆走 node 直连二进制跑 tsc/vitest/playwright；5173 被占时 vite 落 5174 + E2E_BASE_URL 指路，二次 electron DSH degraded 属预期",
+      "eslint 破损判定 + tsc/vitest/定向 e2e 门禁 + 自起 5174 dev server",
+      "按门禁口径 npx tsc --noEmit + npx vitest run + npx playwright test -c playwright.e2e.config.ts 执行",
+      "沙箱关态选 npx tsc --noEmit + 定向 playwright 作为门禁"
+    ]
+  },
+  "ps_probe_localhost_false_timeout.md": {
+    "uses": 2,
+    "lastUsedAt": 1790609842520,
+    "notes": [
+      "e2e 前用 node fetch 探活 5173（不用 Invoke-WebRequest）",
+      "用 node fetch 探 5173 而非 Invoke-WebRequest"
+    ]
+  },
+  "agentservice_stub_surface_sync.md": {
+    "uses": 2,
+    "lastUsedAt": 1790604316854,
+    "notes": [
+      "payload 加 modelName 字段不触 5 个桩的方法面，判定无需同步",
+      "据其判定\"移除\"公开方法不破坏桩，无需同步 5 个测试桩"
+    ]
+  },
+  "edit_tool_strips_utf8_bom.md": {
+    "uses": 3,
+    "lastUsedAt": 1790615519736,
+    "notes": [
+      "改完 8 个已跟踪源文件后按记忆做 HEAD vs 工作区字节级 BOM 对比（本次全部干净）",
+      "按其 Solution 用 Node execSync 头 3 字节对比 HEAD 复查 6 个改动文件（全 ok，样本无 BOM 与 2026-09-18 复核一致）",
+      "18 个改动文件字节级比对 HEAD，SimStateComponent.ts BOM 被抹已按记忆命令补回"
+    ]
+  },
+  "editor_cdp_live_port_discovery.md": {
+    "uses": 1,
+    "lastUsedAt": 1790609842671,
+    "notes": [
+      "netstat 按进程扫 CDP 端口 + /json/list 区分 agent.html 与编辑器页面（编辑器工具连错窗口时改用 Node playwright 直连）"
+    ]
+  },
+  "gameplay_edit_stale_module_cache.md": {
+    "uses": 3,
+    "lastUsedAt": 1790611991744,
+    "notes": [
+      "判定编辑器 vite 冻结模块图需刷新页面才见新 HUD；e2e 用自起新鲜 dev server",
+      "改 gameplay 相机语义后放弃编辑器内热验证，以 playwright 自起新页面的定向 e2e 为权威验证",
+      "改完 gameplay TS 后提醒：编辑器里运行中的游戏仍是旧代码，需刷新页面重开工程才能实机生效"
+    ]
+  },
+  "warm_gamemode_componentization.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611825020,
+    "notes": [
+      "edit 报 EIO(Win32 1175) 按经验判定瞬时错原样重试即过；相机语义改动定位在下沉后的 ViewDirectorComponent"
+    ]
+  },
+  "warm_panel_close_camera_semantics.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611825473,
+    "notes": [
+      "翻转 hologram.spec §4 回落断言时保持\"关全息不重设相机\"语义与相机原位锁不动"
+    ]
+  },
+  "warm_holo_freeze_frame_starvation.md": {
+    "uses": 1,
+    "lastUsedAt": 1790611991447,
+    "notes": [
+      "编辑台 HUD 用 setPanel(root+Body 双置) + spawn 即整树失活机制设计显隐"
+    ]
+  },
+  "warm_topdown_right_pan_semantics.md": {
+    "uses": 1,
+    "lastUsedAt": 1790614682503,
+    "notes": [
+      "精化吸附模型回合严格按其 How to apply 执行：只回滚 candidates 门控、未动 applyFocusCameraMode 单点收口、orbitMode 未翻回"
+    ]
+  },
+  "warm_planets_removed_earth_moon_scope.md": {
+    "uses": 1,
+    "lastUsedAt": 1790615519810,
+    "notes": [
+      "用\"地球冻结\"决策归因 warmCelestial 公转基线红为天体域，非本次改动"
+    ]
   }
 }

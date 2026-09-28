@@ -319,7 +319,8 @@ const page = await host.ctx.sessionQuery.searchSessions({
 |---|---|---|
 | system prompt 装配 | 四段按 3000 / 3100 / 3200 / 3300 排序，全部每步重算 | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
 | ds-instructions | 手工规范进 `.dsh/instructions`，纠正沉淀进 `.dsh/rules`，互不读写 | [ds-instructions PRD](./dsh_instructions_prd_revised.md) |
-| agent 工具清单 | 新增 6 个工具（rule_propose/rule_apply/history_search/history_read/experience_save/experience_search） | [Harness 工程](./harness_system.md) |
+| agent 工具清单 | 新增 9 个工具（rule_propose/rule_apply/gradient_propose/gradient_list/gradient_apply/history_search/history_read/experience_save/experience_search） | [Harness 工程](./harness_system.md) |
+| 损失采集-梯度闭环 | ds-feedback 内置损失探针（`.dsh/loss/signals.jsonl` + 会话健康分 + 规则段损失摘要块）与文本梯度候选（`.dsh/gradient/` pending→apply + 台账） | [损失-梯度计划](./dsh_loss_gradient_plan.md) |
 | 项目可迁移快照 | `.dsh/{memory,rules,experience}` 随 git 走，session-query 索引在 home 属派生数据 | [插件安装](./dsh_plugin_install.md) |
 
 ---

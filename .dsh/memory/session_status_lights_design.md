@@ -1,6 +1,6 @@
 ---
 name: session_status_lights_design
-description: 会话状态灯设计定案：session.list 行内权威 running 字段做种子（只种开不清）+ turn 边界帧实时翻转 + 流重建清 running；含子代理入列时序坑与 e2e stub 状态翻转要求
+description: 会话状态灯设计定案：session.list 行内权威 running 字段做种子（只种开不清）+ turn 边界帧实时翻转 + 流重建清 running；子代理会话 2026-09-28 起被 listSessions 的 origin 过滤挡在列表外（灯表仍记账）；含 e2e stub 状态翻转要求
 type: project
 prefix: [src/editor/sessionStatusLights.ts, src/editor/AgentService.ts]
 ---
@@ -11,4 +11,4 @@ prefix: [src/editor/sessionStatusLights.ts, src/editor/AgentService.ts]
 
 **Why:** 面板重载/首挂载时没有 turn/start 帧（旧回合已在进行），只有种子能让"谁在跑"立即可见；设计语义与 §14 通知刻意不同——通知是事件提醒（切会话清除），状态灯是持久状态标记（error 不随查看清除）。
 
-**How to apply:** 改 `sessionStatusLights.ts` / `AgentService` 状态灯接线前先读 doc/editor/integration/agent_panel_system.md §16。子代理会话入列时序坑：子代理（origin=subagent）无 title 投影，首回合结束前可能被 blank 过滤挡在列表外，其 sessionStats 投影帧（回合结束才发）才触发防抖全量刷新让它入列——"子代理运行中亮灯"依赖列表已有其条目。e2e stub 陷阱：stub 的 session.list 若恒返回 running:true，面板收 turnEnd 后的回合结束刷新会把灯重新点亮（种子盖过实时帧），stub 必须建模状态翻转（`__statusE2E.listRunning` 可变标志）。
+**How to apply:** 改 `sessionStatusLights.ts` / `AgentService` 状态灯接线前先读 doc/editor/integration/agent_panel_system.md §16。子代理会话不入列表（2026-09-28 起）：`listSessions` 行过滤含 `origin !== 'subagent'`（对齐 WebUI `sessionVisible`）——此前只滤 blank，子代理首回合跑完（sessionStats 投影落地、不再 blank）就以任务首条消息的截断标题混进列表；灯表仍对子代理记账（mux 帧翻译与种子循环遍历全量行），只是列表不渲染其条目，`listSessionUsage` 也不滤（token 用量是真实消耗）。e2e stub 陷阱：stub 的 session.list 若恒返回 running:true，面板收 turnEnd 后的回合结束刷新会把灯重新点亮（种子盖过实时帧），stub 必须建模状态翻转（`__statusE2E.listRunning` 可变标志）。

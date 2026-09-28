@@ -150,6 +150,7 @@
 | [`harness/slash_command_system.md`](./harness/slash_command_system.md) | 斜杠命令系统：触发检测 / 命令注册 / DSH 集成 |
 | [`harness/dsh_data_flywheel_plan.md`](./harness/dsh_data_flywheel_plan.md) | 数据飞轮实施计划：知识（ds-memory）/ 反馈（ds-feedback）/ 行为（ds-experience）三层 |
 | [`harness/dsh_data_flywheel_test_cases.md`](./harness/dsh_data_flywheel_test_cases.md) | 数据飞轮测试用例集：KM / RL / SQ / EXP / SP / M 编号体系与手动用例 |
+| [`harness/dsh_loss_gradient_plan.md`](./harness/dsh_loss_gradient_plan.md) | 损失采集-文本梯度-回归安全网：损失探针 / 会话健康分 / gradient_propose-apply 候选闭环 |
 
 ## 7. 测试模块（4 篇）
 
