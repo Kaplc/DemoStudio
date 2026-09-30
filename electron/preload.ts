@@ -180,9 +180,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.removeListener('dsh-host-frame', handler) }
   },
 
-  // DSH Respond 代理（client-response 信封，用于 question 回答）
-  dshRespond: (message: unknown) => ipcRenderer.invoke('dsh-respond', message),
-
   // DSH 手动重启（degraded 终态的恢复入口）
   dshRestart: () => ipcRenderer.invoke('dsh-restart'),
 

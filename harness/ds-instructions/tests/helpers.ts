@@ -9,9 +9,12 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { agentEvents, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
+import { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { FsTargetKey, FsVersion, FileSystem, type FsDirEntry, type FsEditOutcome, type FsEditRequest, type FsInfo, type FsPathInfo, type FsTarget, type FsWriteIntent, type FsWriteOutcome } from '@deepseek-ai/dsh-fs'
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
+
+/** 0.1.7 移除了运行时 CallId 构造函数（ToolCallId 只剩编译期品牌）：恒等实现保旧 helper 契约 */
+const CallId = (id: string): ToolCallId => id as ToolCallId
 import { Session, SessionId, SESSION_FORMAT_VERSION, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
 import type { ToolExecution, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 
@@ -123,13 +126,22 @@ export class RecordingFileSystem extends FileSystem {
 /** 构造满足 Agent 结构的内存桩（与官方测试一致的桩形状）。 */
 export function stubAgent(cwd?: string, seed: SessionEvent[] = []): Agent {
   const id = SessionId('s1')
-  const session = Session.create(id, seed, cwd === undefined ? undefined : { version: SESSION_FORMAT_VERSION, id, createdAt: 0, cwd })
+  const session = Session.create(id, seed, cwd === undefined ? undefined : { version: SESSION_FORMAT_VERSION, id, createdAt: 0, cwd, isSeeded: false })
   return {
     ctx: new Context(),
     id: SessionId('a1'),
     options: {},
     session,
-    inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
+    // 0.1.7：dsh-agent 不再导出 Inbox；插件源码不消费 inbox，测试桩给兼容形状即可
+    inbox: {
+      nextTurn: [],
+      nextStep: [],
+      hasPending: false,
+      append: () => {},
+      prepend: () => {},
+      clear: () => {},
+      claim: () => [],
+    },
     status: 'idle',
     send: () => {},
     followup: () => {},

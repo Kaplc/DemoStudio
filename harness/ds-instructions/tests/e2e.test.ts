@@ -13,8 +13,12 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import SessionProjection from '@deepseek-ai/dsh-session-projection'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
-import { CallId, createUserMessage, LlmAdapter, LlmRuntime, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, LlmAdapter, LlmRuntime, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk, type ToolCallId } from '@deepseek-ai/dsh-llm'
+
+/** 0.1.7 移除了运行时 CallId 构造函数：恒等实现 */
+const CallId = (id: string): ToolCallId => id as ToolCallId
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -100,6 +104,7 @@ async function harness(buildScript: (dir: string) => StreamChunk[][]): Promise<A
   await ctx.plugin(LocalFileSystem, { cwd: '/' })
   await ctx.plugin(ToolFs)
   await ctx.plugin(Instructions, { projectRoot: workdir })
+  await ctx.plugin(SessionProjection) // 0.1.7：AgentLoop 注入 sessionProjections 服务
   await ctx.plugin(AgentLoop, { agents: [] })
   adapter = new MockAdapter(buildScript(workdir))
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -136,7 +141,7 @@ function requestText(request: GenerateOptions): string {
 }
 
 function durableInstructionEvents(agent: Agent): SessionEvent[] {
-  return agent.session.events.filter(event => event.type === 'user/message'
+  return agent.session.snapshotEvents().filter(event => event.type === 'user/message'
     && (event.data.source as { kind?: string }).kind === 'agent-instructions')
 }
 
@@ -158,8 +163,9 @@ describe('集成：真实 read 工具 → 下一次请求注入', () => {
     expect(adapter!.requests.length).toBeGreaterThanOrEqual(2)
     // 请求 1：无指令
     expect(requestText(adapter!.requests[0]!)).not.toContain('ENGINE_RULE_PROBE')
-    // system prompt 段在首次请求即注册
-    expect(adapter!.requests[0]!.system).toContain('DemoStudio may provide directory-specific instructions')
+    // system prompt 段在首次请求即注册（0.1.7：loop 请求的 system prompt 是 messages 首条 system 消息）
+    const firstSystem = adapter!.requests[0]!.messages.find((m) => (m as { role?: string }).role === 'system')
+    expect(JSON.stringify(firstSystem)).toContain('DemoStudio may provide directory-specific instructions')
     // 请求 2：包含指令内容与路径
     const second = requestText(adapter!.requests[1]!)
     expect(second).toContain('ENGINE_RULE_PROBE')

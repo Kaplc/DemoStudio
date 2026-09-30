@@ -14,6 +14,7 @@ import fs from 'fs'
 import http from 'http'
 import net from 'net'
 import { spawn, exec, execSync, type ChildProcess } from 'child_process'
+import { randomUUID } from 'node:crypto'
 import {
   appRootFromMainDir,
   resolveProjectRoots,
@@ -21,6 +22,7 @@ import {
   relativeRootFor,
   isProjectAssetRel,
 } from './projectRoots'
+import { compareVersions, isValidUpdateTarget, normalizeVersion } from './dshKernelVersion'
 
 let mainWindow: BrowserWindow | null = null
 let loadingWindow: BrowserWindow | null = null
@@ -29,98 +31,25 @@ let _gameRunning = false
 // ─── 工程根（单根）：全部工程位于仓库根 projects/（doc-dev/projects-root-unification） ───
 const APP_ROOT = path.join(__dirname, '..')
 
-// ─── DSH 服务管理（agent 常驻化：探测 → 认领 → 孤儿进程独立运行） ───
-// 生命周期状态机：off → probing → claimed(复用旧实例) | spawning → running → restart-wait(自愈中) | degraded(自愈超限终态)
-type DshLifecycle = 'off' | 'probing' | 'claimed' | 'spawning' | 'running' | 'restart-wait' | 'degraded'
-let _dshLifecycle: DshLifecycle = 'off'
-let _dshPort = 0
-let _dshChild: ChildProcess | null = null   // 本实例 spawn 的 agent 子进程（认领的旧 agent 无此句柄）
-let _dshShuttingDown = false                // 主动停机标志：抑制 exit 回调触发自愈
-let _dshBootstrapInFlight = false           // 探测/spawn 流程防重入（activate 重复 startApp 场景）
-let _dshRestartCount = 0                    // 自愈已重试次数
-let _dshRestartTimer: NodeJS.Timeout | null = null
-let _dshHeartbeatTimer: NodeJS.Timeout | null = null
-let _dshAutoClaimTimer: NodeJS.Timeout | null = null
 
-
-const DSH_SOURCE_DIR = path.join(__dirname, '..', 'harness', 'dsh-source')
-
-// 优先全局 npm 安装的 DSH
-function getDshCliPath(): string {
-  const candidates: string[] = []
-  try {
-    const { execSync } = require('child_process')
-    const globalDir = execSync('npm root -g', { encoding: 'utf-8' }).trim()
-    candidates.push(path.join(globalDir, '@deepseek-ai', 'dsh', 'lib', 'bin.js'))
-  } catch {
-    // npm 可能因 node 不在 PATH 无法运行，继续尝试其他来源
-  }
-  // 回退：where npm.cmd 推导全局 node_modules（npm shim 目录 + node_modules）
-  try {
-    const where = execSync(process.platform === 'win32' ? 'where npm.cmd' : 'which npm', {
-      encoding: 'utf-8', timeout: 5000,
-    }).trim().split('\n')[0]
-    if (where) {
-      candidates.push(path.join(path.dirname(where), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))
-    }
-  } catch { /* ignore */ }
-  const cli = candidates.find((p) => fs.existsSync(p))
-  if (cli) console.log(`[DSH] 使用 DSH CLI: ${cli}`)
-  return cli || ''
-}
-
-// 所有权协议目录与关键参数（watcher 与本文件共享同一套语义）
-const DSH_PORT_DEFAULT = 3080
-const DSH_STATE_DIR = path.join(__dirname, '..', 'cache', 'dsh-runtime')
-const DSH_EDITOR_HEARTBEAT_MS = 2000    // 编辑器心跳周期
-const DSH_OWNER_GRACE_MS = 30000        // 孤儿宽限时长：全部编辑器消失后 watcher 再等这么久才收割 agent
-const DSH_PROBE_TIMEOUT_MS = 1500       // /api/session.list 探测超时
-const DSH_SPAWN_READY_TIMEOUT_MS = 30000 // spawn 后等待端口就绪上限
-const DSH_AGENT_MAX_RESTARTS = 5        // 崩溃自愈次数上限，超限进入 degraded 终态
-const DSH_AGENT_RESTART_BASE_MS = 2000  // 自愈退避基础延迟
-const DSH_AGENT_RESTART_MAX_MS = 60000  // 自愈退避延迟上限
-const DSH_AUTOCLAIM_PROBE_MS = 10000    // degraded 兜底探测周期：内核晚到/外部拉起后自动认领
-
-/**
- * 获取系统 Node.js 路径
- * DSH 要求 Node.js ^22.19.0 || >=24.0.0，而 Electron 内置的 Node.js 版本较低
- * 因此需要使用系统安装的 Node.js 来启动 DSH
- */
-function getSystemNodePath(): string {
-  // 候选来源：where/which 结果 + Windows 注册表 InstallPath（Node 安装器写入，可能不在 PATH 中）
-  const candidates: string[] = []
-  try {
-    const cmd = process.platform === 'win32' ? 'where node' : 'which node'
-    const result = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim()
-    // Windows 的 where 命令可能返回多行，每行都是候选
-    candidates.push(...result.split('\n').map((l) => l.trim()).filter(Boolean))
-  } catch {
-    // where/which 未找到，继续尝试注册表
-  }
-  if (process.platform === 'win32') {
-    for (const key of [
-      'HKLM\\SOFTWARE\\Node.js',
-      'HKLM\\SOFTWARE\\WOW6432Node\\Node.js',
-      'HKCU\\SOFTWARE\\Node.js',
-    ]) {
-      try {
-        const reg = execSync(`reg query "${key}" /v InstallPath`, { encoding: 'utf-8', timeout: 5000 })
-        const m = reg.match(/InstallPath\s+REG_SZ\s+(.+)/)
-        if (m) candidates.push(path.join(m[1].trim().replace(/\\$/, ''), 'node.exe'))
-      } catch {
-        // 注册表键不存在，继续下一个
-      }
-    }
-  }
-  const nodePath = candidates.find((p) => fs.existsSync(p))
-  if (nodePath) {
-    console.log(`[DSH] 使用系统 Node.js: ${nodePath}`)
-    return nodePath
-  }
-  console.warn('[DSH] 无法找到系统 Node.js，将使用 Electron 内置 Node.js（可能版本不兼容）')
-  return process.execPath
-}
-
+// ─── DSH 内核适配层（electron/dsh/）：协议知识只存在于 adapters/<ver>.ts，内核升级/回滚零编辑器改动 ───
+import { DIALECT_VERSION } from './dsh/gateway'
+import { initDshContext } from './dsh/context'
+import { getInstalledDshVersion } from './dsh/kernel'
+import {
+  bootstrapDSH,
+  stopDSHService,
+  restartDshAgent,
+  resetSelfHealCounters,
+  getDshStatusSnapshot,
+  getDshPort,
+  isDshServiceActive,
+  killProcessTree,
+  readDshOwner,
+} from './dsh/lifecycle'
+import { connectMuxWs, disconnectMuxWs, connectHostWs, disconnectHostWs } from './dsh/streamBridge'
+import { dshRpcRequest } from './dsh/rpcProxy'
+import { getActiveAdapter, getActiveKernelVersion, isActiveAdapterExact } from './dsh/registry'
 // ─── 蓝图编辑 MCP 往返：requestId → 待解析的 HTTP 响应 ───
 let _blueprintReqSeq = 0
 interface PendingBlueprintReq {
@@ -367,367 +296,21 @@ async function waitForDevServer(): Promise<void> {
   })
 }
 
-// ─── DSH agent 常驻化管理（探测 → 认领 → 所有权 watchdog → 崩溃自愈） ───
-
-interface DshOwner {
-  port?: number
-  agentPid?: number
-  watchdogPid?: number
-  claimedAt?: number
-  /** 认领来源：spawn=本实例新拉起 claim=接管幸存实例 auto-restart=崩溃自愈 */
-  source?: string
-}
-
-function ensureDshStateDir(): string {
-  const editorsDir = path.join(DSH_STATE_DIR, 'editors')
-  if (!fs.existsSync(editorsDir)) fs.mkdirSync(editorsDir, { recursive: true })
-  return DSH_STATE_DIR
-}
-
-/** 平台无关 PID 存活检测（signal 0 探活；EPERM 视为存活） */
-function isPidAlive(pid?: number | null): boolean {
-  if (!pid || !Number.isFinite(pid)) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
-
-/** 强制结束进程树（Windows taskkill /T /F），返回是否发出了终止命令 */
-function killProcessTree(pid?: number | null): boolean {
-  if (!isPidAlive(pid)) return false
-  console.log(`[DSH] 终止进程树: ${pid}`)
-  try {
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
-    } else {
-      try { process.kill(pid!, 'SIGTERM') } catch { /* already gone */ }
+// ─── DSH 适配层上下文注入（模块在 electron/dsh/；环境依赖在此一次性交给适配层，适配层零 electron import） ───
+initDshContext({
+  appRoot: APP_ROOT,
+  logDir: LOG_DIR,
+  sourceDir: path.join(__dirname, '..', 'harness', 'dsh-source'),
+  stateDir: path.join(__dirname, '..', 'cache', 'dsh-runtime'),
+  scriptsDir: path.join(__dirname, '..', 'scripts'),
+  isDev,
+  getMcpApiPort: () => MCP_API_PORT,
+  broadcast: (channel, payload) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload)
     }
-  } catch (err) {
-    console.error(`[DSH] 终止进程树失败(PID=${pid}): ${String(err)}`)
-  }
-  return true
-}
-
-/** 通过 netstat 反查监听指定端口（127.0.0.1）的进程 PID，用于认领旧 agent 时登记其 PID */
-function findDshAgentPidByPort(port: number): number | null {
-  try {
-    const out = execSync('netstat -ano -p tcp', { encoding: 'utf-8', timeout: 5000 })
-    for (const line of out.split(/\r?\n/)) {
-      const cols = line.trim().split(/\s+/)
-      // 形如: TCP  127.0.0.1:3080  0.0.0.0:0  LISTENING  12345
-      if (cols.length >= 5 && cols[0] === 'TCP' && cols[3] === 'LISTENING') {
-        const local = cols[1]
-        const addr = local.split(':')
-        const p = Number(addr[addr.length - 1])
-        const hostPart = local.slice(0, local.length - String(p || '').length - 1)
-        if (p === port && (hostPart === '127.0.0.1' || hostPart === '0.0.0.0')) {
-          return Number(cols[4])
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(`[DSH] netstat 反查端口 ${port} 失败: ${String(err)}`)
-  }
-  return null
-}
-
-/** 编辑器心跳：向注册表写入/续期本实例的心跳文件（watcher 据此判断编辑器存活性） */
-function writeDshEditorHeartbeat(): void {
-  try {
-    ensureDshStateDir()
-    const file = path.join(DSH_STATE_DIR, 'editors', `${process.pid}.json`)
-    fs.writeFileSync(file, JSON.stringify({
-      pid: process.pid,
-      startedAt: Date.now(),
-      heartbeatAt: Date.now(),
-    }))
-  } catch (err) {
-    console.error(`[DSH] 写入编辑器心跳失败: ${String(err)}`)
-  }
-}
-
-function startDshEditorHeartbeat(): void {
-  writeDshEditorHeartbeat()
-  if (_dshHeartbeatTimer) clearInterval(_dshHeartbeatTimer)
-  _dshHeartbeatTimer = setInterval(writeDshEditorHeartbeat, DSH_EDITOR_HEARTBEAT_MS)
-  _dshHeartbeatTimer.unref?.()
-}
-
-/** 停止心跳并注销自己的心跳文件 */
-function stopDshEditorHeartbeat(): void {
-  if (_dshHeartbeatTimer) { clearInterval(_dshHeartbeatTimer); _dshHeartbeatTimer = null }
-  try {
-    fs.rmSync(path.join(DSH_STATE_DIR, 'editors', `${process.pid}.json`), { force: true })
-  } catch { /* ignore */ }
-}
-
-/**
- * 探测 DSH 是否存活：POST /api/session.list（与 renderer 同一 RPC 协议，零内核假设）。
- * 返回 true 表示 :3080 上有可用的 DSH web 服务。
- */
-async function probeDshAlive(port: number = DSH_PORT_DEFAULT, timeoutMs = DSH_PROBE_TIMEOUT_MS): Promise<boolean> {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/session.list`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: `probe-${process.pid}`, method: 'session.list', payload: {} }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!res.ok) return false
-    await res.json()
-    return true
-  } catch {
-    return false
-  }
-}
-
-function readDshOwner(): DshOwner | null {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(DSH_STATE_DIR, 'owner.json'), 'utf-8')) as DshOwner
-  } catch { return null }
-}
-
-function writeDshOwner(patch: Partial<DshOwner>): void {
-  try {
-    ensureDshStateDir()
-    const next: DshOwner = { ...(readDshOwner() || {}), ...patch }
-    fs.writeFileSync(path.join(DSH_STATE_DIR, 'owner.json'), JSON.stringify(next, null, 2))
-  } catch (err) {
-    console.error(`[DSH] 写入 owner.json 失败: ${String(err)}`)
-  }
-}
-
-/** 确保存在存活的 watcher 进程守护当前 agent（认领旧 agent 后必须调用） */
-/**
- * spawn 新的 DSH agent 并等待就绪；成功后进入 running 并认领登记。
- *
- * 关键设计：通过 scripts/dsh-agent-launcher.cmd 间接启动 node 进程。
- * launcher 立即退出 → DSH agent 成为孤儿进程（被系统收养）→ 脱离 Electron 进程树。
- * 这样 vite-plugin-electron 的 treeKillSync（taskkill /T /F）不会连带杀死 DSH。
- */
-async function spawnDshAgent(): Promise<void> {
-  const cliPath = getDshCliPath()
-  if (!fs.existsSync(cliPath)) {
-    throw new Error(`DSH CLI 不存在（本地和全局均未找到）`)
-  }
-
-  const launcherPath = path.join(__dirname, '..', 'scripts', 'dsh-agent-launcher.cmd')
-  if (!fs.existsSync(launcherPath)) {
-    throw new Error(`DSH launcher 脚本不存在: ${launcherPath}`)
-  }
-
-  console.log(`[DSH] 启动 DSH 内核 (web profile, port ${DSH_PORT_DEFAULT})...`)
-  _dshLifecycle = 'spawning'
-
-  // DSH 输出写入日志文件（不再 pipe 到主进程，因为进程将脱离）
-  const dshLogFile = path.join(LOG_DIR, 'dsh-agent.log')
-  try { fs.writeFileSync(dshLogFile, '', 'utf-8') } catch { /* ignore */ }
-
-  const nodePath = getSystemNodePath()
-  // 通过 launcher.cmd 间接启动：cmd.exe → start /b node → cmd.exe 退出 → node 成为孤儿
-  const launcher = spawn('cmd.exe', ['/c', launcherPath,
-    nodePath, cliPath, DSH_SOURCE_DIR, dshLogFile,
-    isDev ? 'development' : 'production',
-    String(MCP_API_PORT),
-  ], {
-    cwd: DSH_SOURCE_DIR,
-    stdio: 'ignore',        // launcher 自身的 stdio 不需要（DSH 输出已重定向到日志文件）
-    windowsHide: true,
-  })
-
-  // launcher 会立即退出（start /b 是 fire-and-forget），不绑定生命周期
-  launcher.on('error', (err) => {
-    console.error(`[DSH] launcher 启动失败: ${err.message}`)
-  })
-  launcher.on('exit', (code) => {
-    if (code !== 0) {
-      console.error(`[DSH] launcher 异常退出: code=${code}`)
-    }
-  })
-
-  // 就绪等待：RPC 探测（launcher 退出后无法通过 stdout 检测就绪）
-  const deadline = Date.now() + DSH_SPAWN_READY_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    if (_dshShuttingDown) {
-      console.log('[DSH] 就绪等待期间触发停机，中止启动流程')
-      return
-    }
-    if (_dshPort === 0) {
-      const ok = await probeDshAlive()
-      if (ok) _dshPort = DSH_PORT_DEFAULT
-    }
-    if (_dshPort !== 0) break
-    await new Promise(r => setTimeout(r, 500))
-  }
-
-  if (_dshPort === 0) {
-    throw new Error(`agent 在 ${DSH_SPAWN_READY_TIMEOUT_MS}ms 内未就绪（端口 ${DSH_PORT_DEFAULT} 无响应）`)
-  }
-
-  registerDshOwnership('spawn')
-  _dshLifecycle = 'running'
-  _dshRestartCount = 0
-  connectMuxWs()
-  const owner = readDshOwner()
-  console.log(`[DSH] 内核运行中: http://127.0.0.1:${_dshPort} (agentPid=${owner?.agentPid ?? '?'})`)
-
-  // 定期将 DSH 日志回显到主进程控制台（方便调试，不阻塞）
-  void tailDshLog(dshLogFile)
-}
-
-/** 后台尾随 DSH 日志文件，将新内容回显到主进程控制台 */
-async function tailDshLog(logFile: string): Promise<void> {
-  let pos = 0
-  const readNew = () => {
-    try {
-      const stat = fs.statSync(logFile)
-      if (stat.size <= pos) return
-      const fd = fs.openSync(logFile, 'r')
-      const buf = Buffer.alloc(stat.size - pos)
-      fs.readSync(fd, buf, 0, buf.length, pos)
-      fs.closeSync(fd)
-      pos = stat.size
-      const text = buf.toString('utf-8')
-      text.split(/\r?\n/).forEach(line => {
-        const t = line.trim()
-        if (t) console.log(`[DSH:log] ${t}`)
-      })
-    } catch { /* 文件可能尚未创建 */ }
-  }
-  // 每秒检查一次新日志，直到 DSH 停止或进程关闭
-  while (!_dshShuttingDown && _dshLifecycle !== 'off') {
-    readNew()
-    await new Promise(r => setTimeout(r, 1000))
-  }
-}
-
-/** 认领登记：反查 agent PID → 写 owner.json */
-function registerDshOwnership(source: string): void {
-  let agentPid = _dshChild?.pid ?? null
-  if (!agentPid) agentPid = findDshAgentPidByPort(_dshPort || DSH_PORT_DEFAULT)
-  writeDshOwner({ port: _dshPort, agentPid: agentPid ?? undefined, claimedAt: Date.now(), source })
-  if (!agentPid) {
-    console.warn('[DSH] 未能确定 agent PID（netstat 反查失败），优雅停机时将退化为按端口收尾')
-  }
-}
-
-/**
- * degraded 终态兜底：降频探测 :3080，内核一旦可达（spawn 就绪晚于等待窗口 /
- * 用户手动拉起）即重新引导认领。只认领不重拉——探测通过才走 bootstrap 的
- * 认领路径，避免绕过崩溃自愈 5 次重试上限形成 respawn 循环。
- * 生命周期离开 degraded（认领成功/停机）后探测循环自动退出。
- */
-function startDshAutoClaimWatch(): void {
-  if (_dshAutoClaimTimer) return
-  console.log(`[DSH] degraded 兜底：每 ${DSH_AUTOCLAIM_PROBE_MS / 1000}s 探测 :${DSH_PORT_DEFAULT}，内核可达后自动认领`)
-  _dshAutoClaimTimer = setInterval(() => {
-    if (_dshLifecycle !== 'degraded') {
-      clearInterval(_dshAutoClaimTimer!)
-      _dshAutoClaimTimer = null
-      return
-    }
-    void probeDshAlive().then((alive) => {
-      if (alive && _dshLifecycle === 'degraded') void bootstrapDSH('auto-claim')
-    })
-  }, DSH_AUTOCLAIM_PROBE_MS)
-  _dshAutoClaimTimer.unref?.()
-}
-
-/** 崩溃自愈入口：非主动停机的 exit 回调统一走这里 */
-function onDshChildExited(code: number | null): void {
-  if (_dshShuttingDown) return           // 主动停机中，不需要自愈
-  if (_dshLifecycle !== 'running') return // 自愈路径上被再次 kill 属预期，忽略
-
-  _dshPort = 0
-  disconnectMuxWs()
-
-  if (_dshRestartCount >= DSH_AGENT_MAX_RESTARTS) {
-    _dshLifecycle = 'degraded'
-    console.error(`[DSH] 自愈重试已达上限(${DSH_AGENT_MAX_RESTARTS})，进入 degraded 终态。可在 Agent 面板手动重启。`)
-    startDshAutoClaimWatch()
-    return
-  }
-
-  const delay = Math.min(DSH_AGENT_RESTART_BASE_MS * Math.pow(2, _dshRestartCount), DSH_AGENT_RESTART_MAX_MS)
-  _dshRestartCount++
-  _dshLifecycle = 'restart-wait'
-  console.warn(`[DSH] agent 异常退出(code=${code})，${delay}ms 后进行第 ${_dshRestartCount}/${DSH_AGENT_MAX_RESTARTS} 次自愈重启`)
-  _dshRestartTimer = setTimeout(async () => {
-    _dshRestartTimer = null
-    if (_dshShuttingDown) return
-    try {
-      await bootstrapDSH('auto-restart')
-    } catch (err) {
-      console.error(`[DSH] 自愈重启失败: ${String(err)}`)
-      onDshChildExited(null) // 以新一轮退出继续计数/终态判定
-    }
-  }, delay)
-  _dshRestartTimer.unref?.()
-}
-
-/**
- * DSH 引导入口：探测 :3080 存活则认领，否则 spawn 新 agent。
- * 非阻塞、可重入安全（bootstrapInFlight 保护）；每次成功后都会建立/确认所有权。
- */
-async function bootstrapDSH(source: string = 'startup'): Promise<void> {
-  if (_dshBootstrapInFlight) {
-    console.log(`[DSH] 引导流程进行中，忽略本次触发 (${source})`)
-    return
-  }
-  _dshBootstrapInFlight = true
-  _dshShuttingDown = false
-
-  try {
-    startDshEditorHeartbeat()
-    _dshLifecycle = 'probing'
-    const alive = await probeDshAlive()
-
-    if (alive) {
-      // ── 认领幸存 agent ──
-      _dshPort = DSH_PORT_DEFAULT
-      console.log(`[DSH] 探测到幸存 agent (port=${_dshPort})，执行认领 (${source})`)
-      registerDshOwnership('claim')
-      _dshLifecycle = 'claimed'
-      connectMuxWs()
-      console.log(`[DSH] 认领完成: http://127.0.0.1:${_dshPort} (agentPid=${readDshOwner()?.agentPid ?? '?'})`)
-      return
-    }
-
-    // ── spawn 新 agent ──
-    await spawnDshAgent()
-  } catch (err) {
-    // 引导失败（如 dsh-cli 缺失 / 就绪超时）：清理残留子进程后终态降级，不阻断编辑器其余功能
-    if (_dshChild) { killProcessTree(_dshChild.pid); _dshChild = null }
-    _dshLifecycle = 'degraded'
-    _dshPort = 0
-    console.error(`[DSH] 引导失败(${source}) → degraded: ${err instanceof Error ? err.message : String(err)}`)
-    startDshAutoClaimWatch()
-  } finally {
-    _dshBootstrapInFlight = false
-  }
-}
-
-/**
- * 优雅停机：注销本实例心跳，断开 mux WS，重置本地状态。
- * agent 为孤儿进程独立运行，编辑器退出不影响其生命周期。
- * 需要停止 agent 请使用 stop-dsh.bat。
- */
-async function stopDSHService(): Promise<void> {
-  if (_dshLifecycle === 'off') return
-  console.log('[DSH] 编辑器关闭，注销本实例（agent 为孤儿进程，继续运行）')
-  _dshShuttingDown = true
-  _dshLifecycle = 'off'
-  if (_dshRestartTimer) { clearTimeout(_dshRestartTimer); _dshRestartTimer = null }
-  if (_dshAutoClaimTimer) { clearInterval(_dshAutoClaimTimer); _dshAutoClaimTimer = null }
-  disconnectMuxWs()
-  stopDshEditorHeartbeat()
-  _dshChild = null
-  _dshPort = 0
-}
-
+  },
+})
 // ═══════════════════════════════════════
 //  启动流程
 // ═══════════════════════════════════════
@@ -792,32 +375,26 @@ ipcMain.handle('show-message-box', async (_event, options: Electron.MessageBoxOp
 })
 
 // ─── DSH 内核版本管理（异步，不阻塞主进程） ───
-const execAsync = (cmd: string, opts: { cwd?: string; timeout?: number }) =>
+const execAsync = (cmd: string, opts: { cwd?: string; timeout?: number; maxBuffer?: number }) =>
   new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    exec(cmd, { encoding: 'utf-8', ...opts }, (err, stdout, stderr) => {
+    exec(cmd, { encoding: 'utf-8', maxBuffer: 1024 * 1024, ...opts }, (err, stdout, stderr) => {
       if (err) reject(err)
       else resolve({ stdout, stderr })
     })
   })
 
-// 获取 DSH 版本信息（只从 npm registry 获取最新版本）
+// 获取 DSH 版本信息（运行内核 = 全局 npm 安装版本；最新版本从 npm registry 获取）
 ipcMain.handle('dsh-list-versions', async () => {
   try {
-    if (!fs.existsSync(path.join(DSH_SOURCE_DIR, '.git'))) {
-      return { current: '', latestNpm: '', error: 'DSH 源码目录不存在' }
+    const current = getInstalledDshVersion()
+    if (!current) {
+      return { current: '', latestNpm: '', error: '未找到全局安装的 DSH 内核' }
     }
-
-    // 当前版本
-    let current = ''
-    try {
-      const { stdout } = await execAsync('git describe --tags --exact-match 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 5000 })
-      current = stdout.trim()
-    } catch { /* 不在 tag 上 */ }
 
     // 从 npm registry 获取最新版本
     let latestNpm = ''
     try {
-      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: APP_ROOT, timeout: 10000 })
       latestNpm = stdout.trim()
     } catch { /* 网络不可用或包不存在 */ }
 
@@ -827,83 +404,96 @@ ipcMain.handle('dsh-list-versions', async () => {
   }
 })
 
-// 快速检查是否有新版本（只查 npm registry）
+// 快速检查是否有新版本（对比运行内核版本与 npm registry 最新版）
 ipcMain.handle('dsh-check-update', async () => {
   try {
+    const current = getInstalledDshVersion()
+
     // npm 最新版本
     let latestNpm = ''
     try {
-      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: DSH_SOURCE_DIR, timeout: 10000 })
+      const { stdout } = await execAsync('npm view @deepseek-ai/dsh version --registry=https://registry.npmmirror.com 2>nul', { cwd: APP_ROOT, timeout: 10000 })
       latestNpm = stdout.trim()
     } catch { /* 网络不可用 */ }
 
-    return { hasUpdate: !!latestNpm, latestNpm }
+    // 双方可解析才做语义化比较（cmp===1 才算有更新）；任一侧缺失/不可解析时不误报
+    const cmp = latestNpm && current ? compareVersions(latestNpm, current) : null
+    return { hasUpdate: cmp === 1, latestNpm }
   } catch (err) {
     return { hasUpdate: false, latestNpm: '', error: String(err) }
   }
 })
 
-// 切换到指定 tag/branch：git checkout + install + build（进度通过 dsh-update-progress 事件推送）
+// 切换内核版本：npm 全局安装指定版本（npmmirror 镜像）→ 重启 agent 加载新内核。
+// 历史教训（2026-09-30）：旧实现把 npm 版本号当 git tag `git checkout <ver>` 到 harness/dsh-source，
+// 两层断裂——①本地从未 fetch 远程 tag；②远程 tag 名是 dsh-v<ver> 而 npm 版本号无前缀，
+// checkout 必然 pathspec 不匹配。且 dsh-source 构建产物不参与运行（launcher 只用全局 npm 的 CLI），
+// git 路径整体作废，故改为安装真正生效的全局包。进度通过 dsh-update-progress 事件推送。
 ipcMain.handle('dsh-switch-version', async (event, target: string) => {
   const sendProgress = (step: string, detail?: string) => {
     event.sender.send('dsh-update-progress', { step, detail })
   }
+  const version = normalizeVersion(target)
+  if (!isValidUpdateTarget(version)) {
+    const msg = `非法的目标版本: ${target}`
+    console.warn(`[DSH] ${msg}`)
+    sendProgress('error', msg)
+    return { ok: false, error: msg }
+  }
   try {
-    sendProgress('checkout', `正在切换到 ${target}...`)
-    await execAsync(`git checkout ${target}`, { cwd: DSH_SOURCE_DIR, timeout: 30000 })
-
-    sendProgress('install', '正在安装依赖...')
-    try {
-      await execAsync('pnpm install --prefer-offline --registry=https://registry.npmmirror.com', { cwd: DSH_SOURCE_DIR, timeout: 120000 })
-    } catch { /* 依赖安装失败不中断 */ }
-
-    sendProgress('build', '正在构建 DSH 内核...')
-    await execAsync('pnpm run build', { cwd: DSH_SOURCE_DIR, timeout: 120000 })
-
-    sendProgress('restart', '正在重启 DSH 服务...')
+    // 1. 先停当前 agent：释放全局包目录的文件句柄，避免 Windows 下 npm 覆盖安装撞 EBUSY/EPERM
+    sendProgress('download', `正在下载内核 ${version}...`)
+    const owner = readDshOwner()
+    if (owner?.agentPid) {
+      console.log(`[DSH] 版本切换：先终止当前 agent PID=${owner.agentPid}，释放内核文件`)
+      killProcessTree(owner.agentPid)
+    }
     await stopDSHService()
-    _dshRestartCount = 0
-    _dshShuttingDown = false
+
+    // 2. npm 全局安装目标版本（走 npmmirror 镜像；maxBuffer 放宽防审计告警刷爆 1MB 默认上限）
+    console.log(`[DSH] 版本切换：npm install -g @deepseek-ai/dsh@${version}`)
+    await execAsync(
+      `npm install -g @deepseek-ai/dsh@${version} --registry=https://registry.npmmirror.com`,
+      { cwd: APP_ROOT, timeout: 300000, maxBuffer: 10 * 1024 * 1024 },
+    )
+
+    // 3. 校验安装结果（读 package.json 实证，防止 npm 静默装了别的版本）
+    const installed = getInstalledDshVersion()
+    if (normalizeVersion(installed) !== version) {
+      throw new Error(`安装后版本校验失败：期望 ${version}，实际 ${installed || '未找到'}`)
+    }
+
+    // 4. 重启 agent 加载新内核
+    sendProgress('restart', '正在重启 DSH 服务...')
+    resetSelfHealCounters()
     void bootstrapDSH('version-switch')
 
-    sendProgress('done', `已切换到 ${target}，更新完成！`)
+    sendProgress('done', `已切换到 ${version}，更新完成！`)
     return { ok: true }
   } catch (err) {
-    sendProgress('error', String(err))
-    return { ok: false, error: String(err) }
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[DSH] 版本切换失败: ${msg}`)
+    // 失败自愈：重新拉起当前可用内核，不让编辑器停在无 agent 状态
+    resetSelfHealCounters()
+    void bootstrapDSH('version-switch-rollback')
+    sendProgress('error', msg)
+    return { ok: false, error: msg }
   }
 })
 
-// DSH 服务状态查询（让渲染进程能即时知道 DSH 是否可用 + 端口 + 生命周期阶段）
+// DSH 服务状态查询（渲染进程即时感知可用性 + 端口 + 生命周期 + 当前适配器/内核版本）
 ipcMain.handle('dsh-status', () => ({
-  ready: _dshPort !== 0,
-  port: _dshPort,
+  ...getDshStatusSnapshot(),
   enginePort: MCP_API_PORT,
-  lifecycle: _dshLifecycle,
-  agentPid: readDshOwner()?.agentPid ?? null,
+  kernelVersion: getActiveKernelVersion(),
+  adapter: getActiveAdapter().id,
+  adapterExact: isActiveAdapterExact(),
+  dialectVersion: DIALECT_VERSION,
 }))
 
-// DSH 手动重启（degraded 终态的恢复入口：杀旧进程 → 等端口释放 → 重新引导）
+// DSH 手动重启（degraded 终态的恢复入口：杀旧进程 → 等端口释放 → 重新引导，编排见 lifecycle.restartDshAgent）
 ipcMain.handle('dsh-restart', async () => {
-  console.log('[DSH] 收到手动重启请求')
-  // 先杀旧 agent 进程（stopDSHService 只注销心跳不杀进程）
-  const owner = readDshOwner()
-  if (owner?.agentPid) {
-    console.log(`[DSH] 手动重启：终止旧 agent PID=${owner.agentPid}`)
-    killProcessTree(owner.agentPid)
-  }
-  await stopDSHService()
-  _dshRestartCount = 0
-  _dshShuttingDown = false
-  // 等待端口 3080 释放
-  const deadline = Date.now() + 8000
-  while (Date.now() < deadline) {
-    const alive = await probeDshAlive(DSH_PORT_DEFAULT, 500).catch(() => false)
-    if (!alive) break
-    await new Promise(r => setTimeout(r, 300))
-  }
-  console.log('[DSH] 手动重启：端口已释放，启动新 agent')
-  void bootstrapDSH('manual-restart')
+  await restartDshAgent('manual-restart')
   return { ok: true }
 })
 
@@ -951,138 +541,18 @@ ipcMain.on('perf-collect-result', (_event, requestId: string, data: unknown) => 
   }
 })
 
-// DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS）
-ipcMain.handle('dsh-rpc', async (_event, method: string, payload: unknown, timeoutMs?: number) => {
-  const rpcId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  try {
-    const res = await fetch(`http://127.0.0.1:3080/api/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-      // 默认 30s；长耗时调用（如 /compact 压缩摘要）由调用方显式传更大的 timeoutMs
-      signal: AbortSignal.timeout(timeoutMs ?? 30000),
-    })
-    return await res.json()
-  } catch (err) {
-    return { type: 'server-response', rpcId, result: { ok: false, error: { message: String(err) } } }
-  }
-})
+// ─── DSH RPC / 流桥：IPC 薄委托（实现在 electron/dsh/{rpcProxy,streamBridge}） ───
+// RPC 翻译表、流端点、事件归一化、瀑布登记全部随「活跃适配器」走（registry 按内核版本自动选择）。
+// 交互瀑布应答由渲染层经 dsh-rpc('$events/result') 直发（dsh017 已登记透传），无专用 respond IPC。
 
-// --- DSH Mux WS 下行桥 ---
-// 事件下行流（question/requested、session/event 等）走 WebSocket，
-// main 进程连接 DSH WS → 解析 JSON 帧 → IPC 转发渲染进程
-let _muxWs: import('ws').WebSocket | null = null
-let _muxReconnectTimer: ReturnType<typeof setTimeout> | null = null
+// DSH RPC 代理：渲染进程 → main → DSH :3080（绕过 CORS；鉴权 cookie 由适配层按适配器附带）
+ipcMain.handle('dsh-rpc', (_event, method: string, payload: unknown, timeoutMs?: number) =>
+  dshRpcRequest(method, payload, timeoutMs))
 
-function connectMuxWs(): void {
-  if (_muxWs) return
-  try {
-    const WebSocket = require('ws') as typeof import('ws').default
-    const ws = new WebSocket('ws://127.0.0.1:3080/api/events.mux', { headers: { Origin: 'http://127.0.0.1:3080' } })
-    _muxWs = ws
-
-    ws.on('open', () => { console.log('[DSH-mux] WS 已连接') })
-
-    ws.on('message', (raw: Buffer) => {
-      try {
-        const frame = JSON.parse(raw.toString())
-        // 广播到所有渲染进程
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.webContents.send('dsh-mux-frame', frame)
-        }
-      } catch { /* 解析失败忽略 */ }
-    })
-
-    ws.on('close', () => {
-      console.log('[DSH-mux] WS 已断开，5s 后重连')
-      _muxWs = null
-      _muxReconnectTimer = setTimeout(connectMuxWs, 5000)
-    })
-
-    ws.on('error', (err: Error) => {
-      console.error('[DSH-mux] WS 错误:', err.message)
-      ws.close()
-    })
-  } catch (err) {
-    console.error('[DSH-mux] WS 初始化失败:', err)
-    _muxReconnectTimer = setTimeout(connectMuxWs, 5000)
-  }
-}
-
-function disconnectMuxWs(): void {
-  if (_muxReconnectTimer) { clearTimeout(_muxReconnectTimer); _muxReconnectTimer = null }
-  if (_muxWs) { _muxWs.close(); _muxWs = null }
-}
-
-// DSH 内核启动后自动连 mux WS（在 dsh-status 查询 ready 时触发也可）
 ipcMain.handle('dsh-mux-connect', () => { connectMuxWs() })
 ipcMain.handle('dsh-mux-disconnect', () => { disconnectMuxWs() })
-
-// --- DSH Host 事件流 WS 下行桥（/api/events.host） ---
-// 主机级帧（host/session-status、host/session-added|removed、host/agent-error 等）。
-// 与 mux 桥同构：main 进程连 WS → 解析 JSON 帧 → IPC 广播渲染进程；
-// 单向下行协议：客户端发送任何消息会被服务端以 1008 "downlink only" 关闭，绝不上行。
-let _hostWs: import('ws').WebSocket | null = null
-let _hostReconnectTimer: ReturnType<typeof setTimeout> | null = null
-
-function connectHostWs(): void {
-  if (_hostWs) return
-  try {
-    const WebSocket = require('ws') as typeof import('ws').default
-    const ws = new WebSocket('ws://127.0.0.1:3080/api/events.host', { headers: { Origin: 'http://127.0.0.1:3080' } })
-    _hostWs = ws
-
-    ws.on('open', () => { console.log('[DSH-host] WS 已连接') })
-
-    ws.on('message', (raw: Buffer) => {
-      try {
-        const frame = JSON.parse(raw.toString())
-        // 广播到所有渲染进程
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.webContents.send('dsh-host-frame', frame)
-        }
-      } catch { /* 解析失败忽略 */ }
-    })
-
-    ws.on('close', () => {
-      console.log('[DSH-host] WS 已断开，5s 后重连')
-      _hostWs = null
-      _hostReconnectTimer = setTimeout(connectHostWs, 5000)
-    })
-
-    ws.on('error', (err: Error) => {
-      console.error('[DSH-host] WS 错误:', err.message)
-      ws.close()
-    })
-  } catch (err) {
-    console.error('[DSH-host] WS 初始化失败:', err)
-    _hostReconnectTimer = setTimeout(connectHostWs, 5000)
-  }
-}
-
-function disconnectHostWs(): void {
-  if (_hostReconnectTimer) { clearTimeout(_hostReconnectTimer); _hostReconnectTimer = null }
-  if (_hostWs) { _hostWs.close(); _hostWs = null }
-}
-
 ipcMain.handle('dsh-host-connect', () => { connectHostWs() })
 ipcMain.handle('dsh-host-disconnect', () => { disconnectHostWs() })
-
-// DSH Respond 代理（client-response 信封，type 不是 client-request）
-// 用于回答 question/requested 等需要 client-response 的场景
-ipcMain.handle('dsh-respond', async (_event, message: unknown) => {
-  try {
-    const res = await fetch('http://127.0.0.1:3080/api/respond', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
-      signal: AbortSignal.timeout(15000),
-    })
-    return await res.json()
-  } catch (err) {
-    return { accepted: false, reason: String(err) }
-  }
-})
 
 // 切换当前焦点窗口的 DevTools（开发用）
 ipcMain.handle('toggle-dev-tools', () => {
@@ -2025,25 +1495,8 @@ async function startMCPServer() {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ status: 'ok', command: 'dsh-restart', message: 'DSH 重启中...' }))
 
-            // 异步重启：杀旧进程 → 等端口释放 → 启新进程
-            const owner = readDshOwner()
-            console.log(`[MCP] dsh-restart: agentPid=${owner?.agentPid}, port=${owner?.port}`)
-            if (owner?.agentPid) {
-              killProcessTree(owner.agentPid)
-            }
-            stopDSHService().then(async () => {
-              _dshRestartCount = 0
-              _dshShuttingDown = false
-              // 等待端口 3080 释放
-              const deadline = Date.now() + 8000
-              while (Date.now() < deadline) {
-                const alive = await probeDshAlive(DSH_PORT_DEFAULT, 500).catch(() => false)
-                if (!alive) break
-                await new Promise(r => setTimeout(r, 300))
-              }
-              console.log('[MCP] dsh-restart: 端口已释放，启动新 agent')
-              void bootstrapDSH('mcp-restart')
-            }).catch(err => console.error(`[MCP] dsh-restart 失败: ${err}`))
+            // 异步重启：杀旧进程 → 等端口释放 → 启新进程（编排收敛在 electron/dsh/lifecycle.restartDshAgent）
+            void restartDshAgent('mcp-restart').catch(err => console.error(`[MCP] dsh-restart 失败: ${err}`))
             return
           }
           if (cmd.command === 'editor-restart') {
@@ -2061,10 +1514,9 @@ async function startMCPServer() {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({
               status: 'ok',
-              ready: _dshPort !== 0,
-              port: _dshPort,
+              ...getDshStatusSnapshot(),
               enginePort: MCP_API_PORT,
-              lifecycle: _dshLifecycle,
+              adapter: getActiveAdapter().id,
             }))
             return
           }
@@ -2281,9 +1733,9 @@ async function startMCPServer() {
           const { message, history } = JSON.parse(body)
 
           // 优先代理到 DSH 服务（常驻 agent；端口固定 :3080 由 bootstrapDSH 就绪后标记）
-          if (_dshPort !== 0 && (_dshLifecycle === 'running' || _dshLifecycle === 'claimed')) {
+          if (isDshServiceActive()) {
             try {
-              const dshPort = _dshPort
+              const dshPort = getDshPort()
               const dshRes = await fetch(`http://127.0.0.1:${dshPort}/chat-sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2383,7 +1835,7 @@ function openAgentWindow(): void {
     return
   }
 
-  console.log(`[DSH] 打开 Agent 独立窗口 (agent ${_dshPort !== 0 ? `就绪:${_dshPort}` : '未就绪，窗口内自动等待'})`)
+  console.log(`[DSH] 打开 Agent 独立窗口 (agent ${getDshPort() !== 0 ? `就绪:${getDshPort()}` : '未就绪，窗口内自动等待'})`)
   _dshWebuiWindow = new BrowserWindow({
     width: 1100,
     height: 780,

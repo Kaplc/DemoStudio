@@ -5,7 +5,7 @@
  * 需要游戏正在运行。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { getEngineContext } from '../engineContext.js'
 
 const EDITOR_MCP_PORT_DEFAULT = 9877

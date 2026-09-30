@@ -625,9 +625,9 @@ export const AgentPanel: React.FC = () => {
         }
 
         case 'approvalResolved': {
-          // 卡片移除由决议广播驱动（本端提交或他端/撤销决议都走这里）
-          const { approvalId } = event.payload as { approvalId: string }
-          setPendingApprovals(prev => prev.filter(a => a.approvalId !== approvalId))
+          // 卡片移除由决议广播驱动（本端提交或他端/撤销决议都走这里）；rpcId 兜底配对（0.1.7 瀑布 eventId）
+          const { approvalId, rpcId } = event.payload as { approvalId?: string; rpcId?: string }
+          setPendingApprovals(prev => prev.filter(a => !((approvalId !== undefined && a.approvalId === approvalId) || (rpcId !== undefined && a.rpcId === rpcId))))
           break
         }
 
@@ -1268,7 +1268,7 @@ export const AgentPanel: React.FC = () => {
     /** write/edit 工具的已应用差异 hunk（result meta 携带，展开卡片渲染 diff 视图） */
     diffs?: FileDiff[]
   }) => {
-    console.log(`[${logTime()}]`, '[AgentPanel] toolResult, tool:', payload.name, 'status:', payload.status)
+    console.log(`[${logTime()}]`, '[AgentPanel] toolResult, tool:', payload.name, 'id:', payload.id, 'status:', payload.status)
     const previous = pendingToolStatesRef.current.get(payload.id)
     pendingToolStatesRef.current.set(payload.id, {
       id: payload.id,
@@ -2216,6 +2216,7 @@ export const AgentPanel: React.FC = () => {
           healthScores={healthScores}
           currentSessionId={agentService.getSessionId() || undefined}
           onSwitch={handleSwitchSession}
+          onStopSession={(sid) => { void agentService.cancelSession(sid) }}
           onNew={handleNewSession}
           onClose={() => setShowSidebar(false)}
         />

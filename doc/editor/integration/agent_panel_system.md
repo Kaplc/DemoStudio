@@ -656,81 +656,56 @@ Ctrl+V → InputBox.onPaste（clipboardData.items 取 kind==='file' 且 image/ �
 
 ---
 
-## 6. 问答与审批：经 `rpcId` 回传
+## 6. 问答与审批：`$events` 瀑布与 `$events/result` 回传（0.1.7）
 
-### 6.1 请求进来（`question/requested`）
+> **协议变更（2026-10-01 实测定案）**：内核 0.1.7 起，交互请求不再走旧 mux 帧 `approval/requested|question/requested` + `/api/respond` 应答（两通道均已不存在），改走 `/api/remote.mux` 的 **`$events` 网关通知流**：
+> - 开流首帧 `{type:'ready', clientId, host:{home}}`——`clientId` 是本流代的应答身份；
+> - 待应答事件以 `{type:'waterfall', event:'approval/request'|'user-questions/request', eventId, agentId, request}` 投递（`request` 是 host 投影后的 JSON 安全载荷，`agent`/`signal` 已剥离）；
+> - **开流/重连时网关把全部仍 pending 的瀑布重放给新客户端**（新 eventId），与旧协议"稳定 rpcId 重放"等价；
+> - 决议回程是 **unary RPC `POST /api/$events/result`**，body 为 client-request 信封，payload 恰好一个 args 字段：`{args:{clientId, eventId, outcome}}`，outcome 三选一 `{kind:'result', value?}` / `{kind:'rejected', error:{name,message,code?,details?}}` / `{kind:'next'}`；
+> - 任一客户端 `result`/`rejected` 决议后，网关对其余投递方广播 `{type:'cancel', eventId}`（应答方自己不会收到——它在决议前已被摘除投递）。
 
-mux 推来 `question/requested` 帧 → `handleMuxFrame` 存进 `pendingQuestions: Map<rpcId, PendingQuestionRequest>` 并 `emit({ type: 'questionRequest' })` → `AgentPanel` 存进 `pendingQuestions` state → 渲染 `QuestionCard`。
+### 6.1 请求进来（main 桥翻译帧）
 
-`PendingQuestionRequest` 三字段（`types/agent.ts:397`）：
+`electron/main.ts` 的 mux 桥把 `$events` waterfall 帧翻译为渲染层既有的 server-request 形状（**rpcId=eventId**，payload 原样透传 request + 附 `eventId`/`clientId`）：
 
 ```ts
-export interface PendingQuestionRequest {
-  /** mux 帧的 rpcId，也是 respond 的回执标识 */
-  rpcId: string
-  sessionId: string
-  questions: QuestionItem[]
-}
+broadcastMuxFrame({ type: 'server-request', rpcId: eventId, method: 'approval/request',
+  payload: { ...request, eventId, clientId } })   // user-questions/request → method:'question/request'
 ```
+
+`handleMuxFrame` 的 approval/question 分支同时接受新旧 method 名（旧名保留兼容），存进 `pendingApprovals`/`pendingQuestions` 并 emit → `AgentPanel` 渲染 `ApprovalCard`/`QuestionCard`。**新协议无 approvalId/sessionId 字段**：`approvalId` 回落为 eventId（与 cancel 翻译帧的配对 id 一致），`sessionId` 回落当前会话（面板是单活跃会话视图）。`PendingApprovalRequest`/`PendingQuestionRequest` 均带可选 `clientId`（缺省=旧帧/桥未就绪，不可应答）。
+
+断开时桥把本代未决议的 eventId 全部广播 resolved（防死卡），重连后网关重放生成新卡。
 
 **紧凑化定案（2026-09-20）**：用户反馈提问卡片占画面太多，`.question-card` 样式整体收紧——内距/字号/行距全线下调（标题 14px→13px、选项内距 8px→4px、行号圆 22px→18px）、选项区加 `max-height: min(40vh, 320px)` 限高滚动防多选项撑爆消息区。结构与视觉层级（eyebrow/标题/选项/自定义输入/页脚）不变。回归锁：`tests/e2e/agent/question-card-compact.spec.ts`（宽度/行高/页脚/整卡高度预算 + 限高滚动 + 回答链路）。
 
 **宽度改回与输入框等宽（2026-09-27）**：用户决策撤销 560px 窄卡（当时随紧凑化一并收窄），宽度改为与输入框可见面等宽 `calc(min(780px, 100%) - 48px)`（composer 外层 `max-width: min(780px, 100%)` 含 24px 侧边距，可见面即该值）；内距/字号/限高滚动等紧凑化其余部分保留。回归锁的宽度断言同步改为「卡片与 `.composer__card` boundingBox 等宽（±1px）」。
 
-### 6.2 回答出去（`answerQuestion`）
+### 6.2 回答出去（`respondRemoteEvent`）
 
-`QuestionCard` 只产出 `answer` 结构，**不碰通信**；提交由 `AgentPanel.handleQuestionAnswer` 调服务：
-
-```ts
-const handleQuestionAnswer = useCallback(async (rpcId: string, answer: QuestionAnswer) => {
-  const ok = await agentService.answerQuestion(rpcId, answer)
-  if (ok) {
-    setPendingQuestions(prev => prev.filter(q => q.rpcId !== rpcId))
-    pushSystem('已提交回答')
-  } else {
-    pushSystem('回答提交失败')
-  }
-}, [pushSystem])
-```
+`QuestionCard`/`ApprovalCard` 只产出 answer/outcome 结构，**不碰通信**；提交由 `AgentPanel.handleQuestionAnswer`/`handleApprovalAnswer` 调服务，最终都汇入：
 
 ```ts
-async answerQuestion(rpcId: string, answer: QuestionAnswer): Promise<boolean> {
-  const req = this.pendingQuestions.get(rpcId)
-  if (!req) {
-    console.warn(`[${logTime()}] [AgentService] answerQuestion: rpcId=${rpcId} 不在 pending 列表中`)
-    return false
-  }
-  const ok = await this.respond(rpcId, {
-    ok: true,
-    value: { sessionId: req.sessionId, answer },
-  })
-  if (ok) this.pendingQuestions.delete(rpcId)
-  return ok
+private async respondRemoteEvent(eventId: string, clientId: string | undefined, outcome: Record<string, unknown>): Promise<boolean> {
+  // Electron 模式：dshRpc('$events/result', { args: { clientId, eventId, outcome } })
+  //   → main 桥 POST /api/$events/result（method 无点号原样透传，复用 dsh-rpc 通道）
+  // 浏览器模式：直接 POST /api/$events/result（Vite 代理），body 为 client-request 信封
 }
 ```
 
-**为什么 `rpcId` 是唯一钥匙**：DSH 的问答是请求-响应配对，mux 只告诉客户端 `rpcId`，回执必须用同一个 id 发回去，DSH 才能把答案对上当时挂起的那个 `ask_user_question` 调用。不在 `pendingQuestions` 里的 rpcId 直接返回 `false`（例如已被 `question/resolved` 广播清掉、或属于别的会话）。
+各封装：
+- `answerApproval(rpcId, outcome)`：outcome 值 `{kind:'result', value:'allowed-once'|'rejected'}`（对齐 WebUI `PendingApproval.answer`——outcomes 字符串就是瀑布结果值）；
+- `answerQuestion(rpcId, answer)`：`{kind:'result', value:answer}`，answer 即 WebUI `QuestionComposer` 的 `{answers:[{id, selected, custom?}]}`；
+- `cancelQuestion(rpcId)`：`{kind:'rejected', error:{name:'Error', message:'the user cancelled ask_user_question', code:'ASK_CANCELLED'}}`（对齐 WebUI `questionError` 线格式）。
 
-### 6.3 `respond` 走的是另一种信封
+**为什么 `eventId`（=rpcId）是唯一钥匙**：网关按 `pendingRemoteEvents.get(eventId)` 配对决议，`clientId` 校验投递归属；不在 pending 里的 rpcId 直接返回 `false`。决议成功后 **AgentService 自己 emit `approvalResolved`/`questionResolved`**（网关不给应答方回 cancel），面板据此即时移除卡片；他端决议则经桥的 cancel 翻译帧移除。
 
-```ts
-private async respond(rpcId: string, result: {...}): Promise<boolean> {
-  const api = window.electronAPI
-  const message = { type: 'client-response', rpcId, result }
+### 6.3 多客户端语义（编辑器与 WebUI 并存）
 
-  if (api?.dshRespond) {
-    // Electron 模式：通过专用 IPC（client-response 信封，非 client-request）
-    const resp = await api.dshRespond(message)
-    return resp?.accepted === true
-  }
-  // 浏览器模式：直接 POST /api/respond（Vite 代理到 DSH :3080）
-  // ...
-}
-```
+每个客户端连接各得一份瀑布投递（各带 clientId）；**第一个 `result` 决议生效**，其余客户端收到 cancel 清卡。所以：编辑器点「允许一次」后 WebUI 的审批卡也会消失，反之亦然；同一审批不需要两边各答一次。`approval/asked`/`approval/decided` 审计对仍作为**持久会话事件**经 `session/follow` 广播（`consumeSessionEvent` 不消费它们，仅落转录）。
 
-**`respond` 不能用 `rpc()`**：`rpc()` 发的是 `client-request` 信封（新请求），而回答是 `client-response`（回执），两者协议不同，所以 preload 专门开了 `dshRespond` 通道（[preload.ts:172](../../../electron/preload.ts)）。
-
-审批（`approval/requested` → `answerApproval(rpcId, outcome)`）走**完全相同**的 `respond` 通路，只是 `outcome` 限定为 `'allowed-once' | 'rejected'`；决议广播 `approval/resolved` 按 `approvalId` 反查并删除 pending，卡片随即移除。
+回归锁：`tests/dshRemoteEventWaterfall.test.ts`（帧接收新旧名/approvalId 回落/clientId 透传 + 三种 outcome 线格式 + resolved 移除）+ `tests/e2e/agent/approval-card.spec.ts`（卡片渲染 → 决议 → $events/result 信封逐字段断言 → 卡片移除，回滚探针双红验证）。
 
 ---
 
@@ -799,7 +774,7 @@ private async respond(rpcId: string, result: {...}): Promise<boolean> {
 | `ConnectionIndicator` | 状态灯映射八态；`degraded` 点击 → `handleRestartAgent()` → `dshRestart()` IPC | [UI 面板组件](../ui/ui_components_system.md) |
 | `ModelSelector` / `SettingsPanel` / `SkillManager` | 直接 import `agentService` 单例调 `getModels` / `selectModel` / `describeSettings` / `rpc('skill.list')` | [UI 面板组件](../ui/ui_components_system.md) |
 | 插件服务 `PluginService` | `isConnected()` 作为插件操作的前置校验 | [编辑器核心](../core/core_system.md) |
-| DSH 内核版本管理 | `dshCheckUpdate` 每 30 分钟轮询，`KernelUpdateModal` 提示升级 | [DSH 引擎集成](../../harness/dsh_engine_integration.md) |
+| DSH 内核版本管理 | `dshCheckUpdate` 每 30 分钟轮询（运行版本 vs npm 最新版语义化比较），`KernelUpdateModal` 提示升级；更新 = `dshSwitchVersion` 走 npmmirror 全局安装 + 自动重启 agent（会先杀当前 agent，进行中会话回合中断、会话自动恢复） | [DSH 引擎集成](../../harness/dsh_engine_integration.md) |
 
 ### 8.3 边界：agent 生死不归这里管
 
@@ -1048,14 +1023,14 @@ hunk 里**没有起始行号**（`computeHunkDiffs` 丢掉了 `hunk.oldStart/new
 
 ## 13. 供应商设置：模型上下文与视觉配置（2026-09-11；2026-09-30 起仅自定义第三方）
 
-「更多」(⋮) → 「供应商设置」→ `SettingsPanel`。**2026-09-30 起面板只管理用户级自定义第三方供应商**（`settings.yaml` 的 `llm-pi-ai.providers` 用户级条目），DSH 预设供应商目录（deepseek-official / anthropic 等）不再展示——列表完全以 `settings.describe('llm-pi-ai')` 的 `user.providers` 为准构建，不再调用 `llm.providers` RPC（该包装方法 `AgentService.getLlmProviders` 已随预设展示一并移除）。模型能力配置两层：
+「更多」(⋮) → 「供应商设置」→ `SettingsPanel`。**2026-09-30 起面板只管理用户级自定义第三方供应商**（活动 profile patch 的 `llm-pi-ai` config 覆盖条目，见 13.4），DSH 预设供应商目录（deepseek-official / anthropic 等）不再展示——列表完全以 `settings.describe('llm-pi-ai')` 的 `user.providers` 为准构建，不再调用 `llm.providers` RPC（该包装方法 `AgentService.getLlmProviders` 已随预设展示一并移除）。模型能力配置两层：
 
 - **添加自定义第三方**：模型列表是行编辑器，每行 = 模型名称（显示名，可留空）+ 模型 ID + 上下文大小（token，可留空）+ 视觉勾选（= `input: ['text','image']`）；名称填写才写 `name` 键、清空则删除（`rowToModel`，回退按 ID 显示）；
 - **编辑已有供应商**：卡片上的「编辑」「删除供应商」按钮对所有条目可用（列表内全部是用户级条目），可改显示名称 / Base URL / 模型行。写回走 `settings.mutate`（`op:'set', path:['providers', id]`），DSH 侧热加载即生效。
 
 ### 13.1 为什么需要：模态声明是 DSH 的收图门禁
 
-DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.providers.<id>.models[].input` 声明，**不是模型真实能力**。手工声明且 pi-ai 内置目录无同名条目的模型（如 glm-5.3-flash）`input` 缺省兜底 `["text"]`，请求带图直接被 `dsh-llm-pi-ai` 的门禁抛 "does not support image input"。此前只能手工改 settings.yaml，且该文件被重写时声明会丢；这个面板把两类字段（`contextWindow` / `input`）的产品化入口补上了。
+DSH 判断"模型能否收图"看的是模型条目的 `input` 声明（2026-09-30 起落在活动 profile patch 的 `llm-pi-ai` 条目，内核 0.1.7 已移除 `~/.dsh/settings.yaml`），**不是模型真实能力**。手工声明且 pi-ai 内置目录无同名条目的模型（如 glm-5.3-flash）`input` 缺省兜底 `["text"]`，请求带图直接被 `dsh-llm-pi-ai` 的门禁抛 "does not support image input"。此前只能手工改文件，且该文件被重写时声明会丢；这个面板把两类字段（`contextWindow` / `input`）的产品化入口补上了。
 
 ### 13.2 写回语义（改这块别改回去）
 
@@ -1066,6 +1041,14 @@ DSH 判断"模型能否收图"看的是 `~/.dsh/settings.yaml` 里 `llm-pi-ai.pr
 - 组件：`src/components/agent/SettingsPanel.tsx`（`ModelRowsEditor` 行编辑器 + `rowToModel` / `buildModelsFromRows` / `formatContextWindow` 等导出纯函数）；
 - 样式：`src/styles/editor.css` 的 `.settings-panel__model-*` / `.settings-panel__config-edit` 区段；
 - E2E：`e2e/agent/provider-model-config.spec.ts`——`addInitScript` hook `window.fetch` 按 RPC method 返回合成响应（`session.list` 命中 `demostudio.dsh.session` localStorage 映射走 recovering 路径），`settings.mutate` 只记录进 `window.__dshMutations` 不落真盘全程无副作用；用例 1 断言预设目录条目（deepseek-official / zai）不渲染、列表只含用户级条目（历史单测 `settingsPanelModels.test.tsx` 已随组件测试下线移除，合并语义由 e2e 覆盖）。
+
+### 13.4 持久化链路与启动管线合并保护（2026-09-30 修复"重启就丢"）
+
+**调用侧与 DSH WebUI 完全同源**：面板 → `AgentService.mutateSettings` → `settings.mutate` RPC（与 WebUI `ui-settings` 客户端同一 Remote 方法）→ 内核 `SettingsForms.write` → `configEditor.edit` → 写**活动 profile patch** `~/.dsh/profiles/web/cordis.patch.yml` 顶层的 `- id: llm-pi-ai` config 覆盖条目。内核 0.1.7 起 `settings.yaml` 已移除（旧文档/记忆中的 settings.yaml 均指此文件的史前形态，启动时会被一次性改名 `.imported` 并迁入 profile）；同一文件还承载 `agent-default-model`（默认模型）与 `ui-settings-general`（欢迎通知）等内核/用户条目。
+
+**丢配置根因（2026-09-30 定案）**：`editor.bat` 启动管线用 `copy /Y` 把项目侧生成的 patch **整文件覆盖**到 home 侧——该文件同时是内核设置的持久化存储，一覆盖，供应商面板/设置页写入的自定义供应商、默认模型全部丢失（DSH WebUI 不丢是因为纯 DSH 环境没人覆盖这个文件）。
+
+**修复**：`scripts/sync-dsh-plugins.mjs` 生成项目侧 patch 后，用 `scripts/dsh-patch-merge.mjs`（纯函数：`splitTopLevelBlocks` / `isManagedBlock` / `mergeProfilePatch`）**合并写入** home 侧三份文件（web/headless profile patch + `~/.dsh/cordis.patch.yml`）：DemoStudio 托管块（`ds-*` insert / `preset-*` insert / `session-query-sqlite`）以新生成内容为准，其余顶层条目（内核设置写入 + 用户手工添加）原样保留追加在后；`editor.bat` 中的 `copy /Y` 已移除。合并幂等（重跑字节稳定，SHA256 已验证）。单测：`tests/dshPatchMerge.test.ts`（11 例，含"copy /Y 会丢、合并保留"回归锁）。
 
 ## 14. 跨会话动态气泡栈（2026-09-13）
 
@@ -1129,9 +1112,9 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 
 ### 16.1 数据从哪来：host 状态机权威帧为主，回合边界推导兜底（2026-09-21 改版）
 
-**权威实时源**：独立 host 事件流 `/api/events.host`（WebSocket 单向下行，客户端发消息会被服务端 1008 关闭）。DSH 侧链路：`dsh-agent-loop` 的 `ReactLoopAgent.setPhase` 在 agent 状态机每次变迁 emit `agent/status`（status = idle|running）→ `dsh-host-apiproxy` 推 `host/session-status {sessionId, running}`。编辑器 main 进程 `connectHostWs` 桥（与 mux 桥同构，5s 重连）经 `dsh-host-frame` IPC 转发，`AgentService.handleHostFrame` 消费：`running:true` → `turn-started`（等价新回合，顺带翻旧 error 灯）；`running:false` → 新动作 `host-idle`（**只清 running，不覆盖 turn/end(error) 记下的红灯**），同时记入 `hostIdleConfirmed` 权威 idle 表。选这条流的理由：状态机任何一次变迁（完成/abort/crash/teardown）必补 running:false，**turn/end 事件丢失（僵尸回合，2026-09-20 实测）也能自愈**——这是 WebUI 同源做法。
+**权威实时源**：host 状态机帧 `host/session-status {sessionId, running}`。0.1.1 时代经独立 `/api/events.host` 流（WS 单向下行，客户端发消息会被 1008 关闭）；**0.1.7+ 该端点已随 WS 合流移除**，同词汇帧改由 mux 桥 `$events` 流的 `api-session/status` emit 翻译产生（`streamBridge.translateEventsItem` → 同一 `dsh-host-frame` IPC 通道，渲染层零感知）。DSH 侧链路：`dsh-agent-loop` 的 `ReactLoopAgent.setPhase` 在 agent 状态机每次变迁 emit `agent/status`（status = idle|running）→ 内核网关广播 `api-session/status`。主进程 `connectHostWs` 按适配器 `hostStream` capability 守卫：0.1.7+ 不连（端点不存在，内核 webserver 对未注册 upgrade 直接 `socket.destroy()`，客户端表现为 "socket hang up" 5s 重连死循环，2026-09-30 修复）。`AgentService.handleHostFrame` 消费：`running:true` → `turn-started`（等价新回合，顺带翻旧 error 灯）；`running:false` → 新动作 `host-idle`（**只清 running，不覆盖 turn/end(error) 记下的红灯**），同时记入 `hostIdleConfirmed` 权威 idle 表。选这条流的理由：状态机任何一次变迁（完成/abort/crash/teardown）必补 running:false，**turn/end 事件丢失（僵尸回合，2026-09-20 实测）也能自愈**——这是 WebUI 同源做法。
 
-**兜底推导**：mux `session/event` 的回合边界翻译保留原样——`handleMuxFrame` 的 `session/event` 分支在 current/foreign 分流之前统一翻译：`turn/start` → running；`turn/end` 的 `reason.kind === 'error'` → error，其余收尾 → 清灯。与 host 帧幂等归约，mux 单独挂掉时灯仍可用。
+**兜底推导**：mux `session/event` 的回合边界翻译保留原样——`handleMuxFrame` 的 `session/event` 分支在 current/foreign 分流之前统一翻译：`turn/start` → running；`turn/end` 的 `reason.kind === 'error'` → error，其余收尾 → 清灯。与 host 帧幂等归约。（0.1.7 下 host 帧本身随 mux `$events` 流而来，mux 断则两者同断；重连后 `listSessions` 种子重播种恢复权威态。）
 
 **流打开语义**：host 流不补发快照（对齐 WebUI），（重）开流即触发 `listSessions()` 用行内权威 running 重播种。
 
@@ -1149,9 +1132,15 @@ E2E：`e2e/agent/f5-refresh.spec.ts`（无副作用：localStorage 合成会话 
 ### 16.3 文件与测试分工
 
 - 纯函数：`src/editor/sessionStatusLights.ts`；types：`types/agent.ts` 的 `SessionRunStatus` / `SessionStatusUpdatePayload` / `sessionStatusUpdate` 事件；
-- 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession`；host 流：`connectHostStream` / `handleHostFrame` / `handleHostSessionStatus` / `hostIdleConfirmed` 种子过滤，main 进程 `connectHostWs` 桥（`dsh-host-frame` IPC），preload `dshHostConnect/onDshHostFrame`；
-- UI：`SessionSidebar.tsx` 的 `renderItem`（`.session-status-light--{running|error}`，`data-session-id`/`data-status` 是 e2e 锚点，别删）+ `.session-status-light*` 样式区段；面板经 `sessionStatusUpdate` 事件全量同步后透传 prop；
-- 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播 + host-idle 只清 running）；`tests/agentHostStatusStream.test.ts`（host 帧 → 灯、权威 idle 记账、种子过滤、僵尸自愈、error 灯保护、畸形帧安全）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`，含 host 帧驱动用例）。
+- 接线：`AgentService.ts` 的 `applyStatusAction` / `getSessionStatuses` / mux `session/event` 分支 / `connectMux` / `deleteSession` / `cancelSession`；host 流：`connectHostStream` / `handleHostFrame` / `handleHostSessionStatus` / `hostIdleConfirmed` 种子过滤，main 进程 `connectHostWs` 桥（`dsh-host-frame` IPC），preload `dshHostConnect/onDshHostFrame`；
+- UI：`SessionSidebar.tsx` 的 `renderItem`（`.session-status-light--{running|error}`，`data-session-id`/`data-status` 是 e2e 锚点，别删；`--actionable` = running 灯可点击变体）+ `.session-status-light*` 样式区段；面板经 `sessionStatusUpdate` 事件全量同步后透传 prop；
+- 单测：`tests/sessionStatusLights.test.ts`（全分支含引用相等跳广播 + host-idle 只清 running）；`tests/agentHostStatusStream.test.ts`（host 帧 → 灯、权威 idle 记账、种子过滤、僵尸自愈、error 灯保护、畸形帧安全）；`tests/agentCancelSession.test.ts`（cancelSession 载荷/乐观清灯/陈旧种子不复活/失败保留）；`tests/sessionSidebarStopLight.test.tsx`（灯点击交互契约）；E2E：`tests/e2e/agent/session-status-light.spec.ts`（§14.4 同款 mock WebSocket 无副作用组合，computedStyle 精确断言绿 `#22C55E`/红 `#F25A5A`，含 host 帧驱动与僵尸灯点击停止用例）。
+
+### 16.4 僵尸绿灯的真实根源与手动清除（2026-09-30）
+
+**内核侧语义（0.1.7-rc.2 源码定案）**：`session.list` 行内 `running` 不是持久化扫描，而是 **`ctx.agents.get(session.id)?.status === 'running'`**（`dsh-api-session-controller/lib/types/list.js:93`）——内核内存里活 Agent 实例的状态。回合异常中止（LLM 连接错误反复、编辑器/机器中途掉电、内核重启吃掉在途回合）可能把 Agent 循环**滞留在 `status='running'`**：此后无任何 turn/end、无 `api-session/status(false)` 变迁（状态机不再变迁就没有事件），`session.list` 恒报 `running:true`，种子按 §16.2 持续点灯 → **灯僵绿**。2026-09-20（session.list 过载风暴夜）与 2026-09-29 内核升级夜（`0.1.7-rc.2` 连接错误潮）两次实锤；注意 2026-09-21 的 host 流自愈（§16.1）只覆盖"状态机会再次变迁"的场景，**僵尸循环永不变迁，自愈路径天然够不着**。
+
+**编辑器为何不做自动清除**：无法安全区分僵尸与真跑——行内 `updatedAt` 在回合进行中**不推进**（实测真跑 14 分钟的回合 age=14min，与僵尸无异），0.1.7 起 mux 单会话 follow 架构下外部会话事件也不可达，任何"长时间无活动"启发式都会误杀真跑的长回合。**手动清除入口**：running 灯可点击（`--actionable` 变体，title 带提示）→ `AgentService.cancelSession(sessionId)` → `session.cancel` 强迫状态机归位 → 成功后按权威 idle 记账（`hostIdleConfirmed`）乐观清灯，内核随后补发的 `host/session-status running:false` 帧幂等重申；陈旧的 `running:true` 种子不得复活灯。error 灯保持纯展示（`pointer-events: none` 穿透，点击落到列表项=切换）。诊断仍按 memory:session_light_zombie_turn 三步取证；灯僵绿+`session.list running:true` = 内核僵尸 Agent 实锤，点灯或重启内核清除。
 
 ## 17. 重试 / 回合错误状态行：与系统消息同款居中（2026-09-18）
 
@@ -1352,3 +1341,23 @@ agent 面板接入"损失采集-文本梯度"自优化闭环的两个展示口�
 - 服务：`AgentService.loadHealthScores/getHealthScores/listGradientProposals/readGradientLedger`（文件缺失按空表处理，不算错误）；
 - 组件：`SessionSidebar`（healthScores prop + 徽标）、`GradientPanel`（弹窗）、`AgentPanel`（接线三处+菜单项）、`editor.css`（`.session-health`、`.gradient-panel` 区块）；
 - 单测：`tests/lossSignals.test.tsx`（纯函数全分支 + 徽标三档配色 + 弹窗 ready/empty/broken/error/Escape，17 例）。
+
+## 25. 内核 0.1.7-rc.2 适配：正文经 assistant/message 回退上屏（2026-09-29）
+
+**症状**：回合结束后面板只有思考卡与注入卡，最终结论正文不显示；刷新（重开/切会话）后才出现。
+
+**根因（内核事件契约变更）**：DSH 内核 0.1.7-rc.2 起，chunk 增量不再产出 `assistant/chunk` **会话事件**（v4 会话格式整个事件表里已无此类型），流式 delta 改走进程内 `agent/assistant-stream` 瞬态帧，客户端侧要经 `session.follow`（typert 流，`assistantStream: true` 显式订阅）才有。编辑器走 mux `session/event`（只广播持久事件）→ 实时路径收到的正文只剩持久化的 `assistant/message`（落盘顺序：step/start → … → **assistant/message** → tool/call… → **step/end** → turn/end）。推理侧早有回退（`handleSessionEvent` 的 assistant/message 分支把 reasoning 并入缓冲），正文侧没有 → flush 恒为 `content=0`，正文只能靠历史 fold 的 assistant/message 分支在刷新后出现。
+
+**修复**：同一分支补正文回退（与推理回退同构）——`extractText(msg.content)` 非空且 `assistantBuf` 为空时并入缓冲并 `scheduleContentEmit()`；随后的末次 content.delta 与 step/end flush 即把整段正文带上屏（live 卡一次性出现，无逐字流式——数据源本身没有增量）。旧内核/流式供应商下 text-delta 已把缓冲填满，回退为 no-op 不双份。锚点：`src/editor/AgentService.ts` handleSessionEvent 的 assistant/message 分支；判别器 `tests/assistantMessageTextFallback.test.ts`（回滚双红验证）。
+
+**取证口径（2026-09-29 实测）**：v4 会话文件为 `~/.dsh/sessions/<proj>/session.v4.jsonl.zstd`（原 session.jsonl.zstd 名已变）；对照升级前后 console log 的「消息入队 content=N字符」——旧内核 flush 一律带正文（140/606/1517 字符…），新内核全程 content=0 而思考卡正常（reasoning 走了回退），即此契约变更指纹。另：ds-reminder 的回合末提醒经 turn-stopping 钩子 splice 进 inbox 后**回合继续同一回合的下一 step**（无 turn/end），提醒处理完才收尾——提醒后输入框仍显示"运行中"属正确语义。
+
+## 26. 思考卡真流式恢复：瞬态帧旁路 seq 去重闸（2026-09-29）
+
+**症状**：升级 0.1.7-rc.2 后思考卡从不逐字流式，每段在回合边界一次性弹出（用户观感「思考卡片丢失流式输出了」；卡片限高滚动停在底部时可见文本从半句开始，像丢了前缀，实为滚动视图切头）。**日志指纹**：每段「live 推理卡片创建 N 字符」与 flush「消息入队 reasoning=N字符」恒等；对照 09-27 健康期 create 2 字符 → flush 8825 字符。取证锚点：console log 的 create/flush 字符数对 + `~/.dsh/sessions/<proj>/session.v4.jsonl.zstd` 内 `stream.reasoning-chunks` 的真实时间线（模型 22:34:37.7 开始吐字，编辑器 22:34:41.99 才收到）。
+
+**根因**：主进程 follow 流桥（electron/main.ts `handleMuxFollowValue`）把 assistant-stream 瞬态帧翻译回 `assistant/chunk` 事件形状时标了 `seq: meta.cursor`——cursor 只随持久事件推进，与渲染层 `_lastSeq` 由同一批事件锁步（恒相等），`consumeSessionEvent` 的 seq 去重闸（`seq <= _lastSeq` 静默丢弃）把**每个**瞬态帧都吞掉，丢弃率 100%。**WebUI 权威语义**（dsh-agent `runtime-types.d.ts` AssistantStreamFrame + api-session-controller `transport.js`）：瞬态帧用与持久 seq 无关的密集 `revision` 做连续性校验，从不参与持久 seq 去重；「实时事件仍是呈现数据而非回放来源」——瞬态帧只走实时通道一次，旁路去重安全。
+
+**修复**：① 桥发瞬态帧改带 `transient: true`（无 seq）；② `AgentService.consumeSessionEvent` 对 transient 事件旁路 seq 闸直入 `handleSessionEvent`（不推进 `_lastSeq`、切换窗口内直接丢弃不暂存，防旧会话增量串进新会话）；③ chunk 分支的 `*BufLastSeq` 水位只在 `typeof event.seq === 'number'` 时写入——瞬态帧不得污染持久水位，否则 `seedPendingTurn` 的 adopt 拿它与 fold 的 throughSeq 比较会退化成拼接采纳（重复文本）。瞬态 `chunk` 就是原始 StreamChunk（`reasoning-delta`/`text-delta` 词表），与渲染层旧分支同词表，桥无需展开。follow 流必须 `assistantStream: true` 订阅（桥已传）；snapshot 携带在途流基线（重连恢复半截思考，编辑器桥尚未接，现状由历史 fold 的 seedPendingTurn 兜底）。
+
+**测试**：单测 `tests/muxTransientChunkStream.test.ts`（旁路/旧内核去重回归锁/端到端 flush 全文/回退 no-op/切换窗口丢弃/正文旁路 6 例，走 `consumeSessionEvent` 全链路）；e2e `tests/e2e/agent/live-reasoning-stream.spec.ts`（mux 帧 → 建卡 → 增长 → flush 原地采纳不重复；判别器=毒帧形状 seq=水位 仍被闸吞；回滚验证：短路旁路分支 e2e 红、恢复绿）。断言选择器用 `.reasoning-block__text`（bare 模式根元素无 `.reasoning-block` 类）。

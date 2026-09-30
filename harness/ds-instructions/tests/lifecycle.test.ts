@@ -7,7 +7,10 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, CallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
+
+/** 0.1.7 移除了运行时 CallId 构造函数：恒等实现 */
+const CallId = (id: string): ToolCallId => id as ToolCallId
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
 import type { ToolExecutionToken } from '@deepseek-ai/dsh-tools'
@@ -496,11 +499,11 @@ describe('session 恢复、重建与压缩（§14.3）', () => {
       durableEvents.push(appendDurable(ctx!, original, message))
     }
 
-    const resumed = stubAgent(root, [...original.session.events])
+    const resumed = stubAgent(root, [...original.session.snapshotEvents()])
     readTouch(resumed, join(root, 'src/engine/b.ts'))
     const second = await prestep(resumed)
     expect(instructionMessages(second.messages)).toHaveLength(0)
-    expect(resumed.session.events.filter(event => event.type === 'user/message'
+    expect(resumed.session.snapshotEvents().filter(event => event.type === 'user/message'
       && (event.data.source as { kind?: string }).kind === 'agent-instructions')).toHaveLength(1)
   })
 
@@ -512,7 +515,7 @@ describe('session 恢复、重建与压缩（§14.3）', () => {
     for (const message of instructionMessages(first.messages)) appendDurable(ctx!, original, message)
 
     fs!.entries.set(join(root, ENGINE_REL), { type: 'file', content: 'offline v2', version: 'v-offline' })
-    const resumed = stubAgent(root, [...original.session.events])
+    const resumed = stubAgent(root, [...original.session.snapshotEvents()])
     readTouch(resumed, join(root, 'src/engine/b.ts'))
     const second = await prestep(resumed)
     const injected = instructionMessages(second.messages)
@@ -528,7 +531,7 @@ describe('session 恢复、重建与压缩（§14.3）', () => {
     for (const message of instructionMessages(first.messages)) appendDurable(ctx!, original, message)
 
     fs!.entries.delete(join(root, ENGINE_REL))
-    const resumed = stubAgent(root, [...original.session.events])
+    const resumed = stubAgent(root, [...original.session.snapshotEvents()])
     readTouch(resumed, join(root, 'src/engine/b.ts'))
     const second = await prestep(resumed)
     expect(instructionMessages(second.messages)[0]!.source)
@@ -553,11 +556,12 @@ describe('session 恢复、重建与压缩（§14.3）', () => {
       content: [{ type: 'text', text: 'compressed summary' }],
       source: { kind: 'plugin', plugin: 'compact' },
     }), {
-      surfaceOp: { op: 'replace', start: durableSeqs[0]!, end: durableSeqs[1]! },
+      // 0.1.7：replace op 字段从 start/end 改名 startSeq/endSeq
+      surfaceOp: { op: 'replace', startSeq: durableSeqs[0]!, endSeq: durableSeqs[1]! },
       sourceEventSeqs: durableSeqs,
     })
 
-    const resumed = stubAgent(root, [...agent.session.events])
+    const resumed = stubAgent(root, [...agent.session.snapshotEvents()])
     readTouch(resumed, join(root, 'src/engine/b.ts'))
     const second = await prestep(resumed)
     const injected = instructionMessages(second.messages)

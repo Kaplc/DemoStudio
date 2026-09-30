@@ -199,6 +199,16 @@ export function extractDiffsFromMeta(meta: unknown): FileDiff[] | undefined {
   }
   return valid.length > 0 ? valid : undefined
 }
+
+/**
+ * 从 tool/result 事件 data 中提取差异（方言字段优先）：主进程适配层的 eventMap 归一化
+ * 已把内核 meta.diffs 加法提升为 data.diffs，此处优先读方言字段；字段缺失（旧会话回放、
+ * 浏览器模式直连内核）时回落旧 meta 收窄——两条路共用同一套 hunk 校验规则。
+ */
+export function extractDiffsFromResultData(d: { diffs?: unknown; meta?: unknown } | undefined | null): FileDiff[] | undefined {
+  if (d && Array.isArray(d.diffs)) return extractDiffsFromMeta({ diffs: d.diffs })
+  return extractDiffsFromMeta(d?.meta)
+}
 const RECONNECT_BASE_DELAY = 1000 // 重连基础延迟 ms
 const RECONNECT_MAX_DELAY = 16000 // 重连最大延迟 ms
 const RECONNECT_MAX_ATTEMPTS = 5  // 最大重连次数
@@ -1130,13 +1140,16 @@ export class AgentService {
     const payload = (f.payload || f) as Record<string, unknown>
     const rpcId = f.rpcId
 
-    if (method === 'question/requested' && rpcId) {
+    // ── question 请求：0.1.7 起 $events 瀑布 user-questions/request 的翻译帧
+    //    （method='question/request'；'question/requested' 为 0.1.6 前旧帧名，保留兼容）──
+    if ((method === 'question/requested' || method === 'question/request') && rpcId) {
       const questions = payload.questions as QuestionItem[] | undefined
-      const sessionId = payload.sessionId as string | undefined
+      const sessionId = (payload.sessionId as string | undefined) ?? this.sessionId ?? ''
       if (questions && sessionId) {
+        const clientId = payload.clientId as string | undefined
         // 非当前会话的问题：存入跨会话待定表并记通知气泡（切到该会话时 adopt 成可回答卡片）
-        if (sessionId !== this.sessionId) {
-          const req: PendingQuestionRequest = { rpcId, sessionId, questions }
+        if (payload.sessionId && sessionId !== this.sessionId) {
+          const req: PendingQuestionRequest = { rpcId, sessionId, questions, clientId }
           this.crossQuestions.set(rpcId, req)
           this.applyNoticeAction({
             type: 'question-requested', sessionId, rpcId, at: Date.now(),
@@ -1144,9 +1157,9 @@ export class AgentService {
           })
           return
         }
-        const req: PendingQuestionRequest = { rpcId, sessionId, questions }
+        const req: PendingQuestionRequest = { rpcId, sessionId, questions, clientId }
         this.pendingQuestions.set(rpcId, req)
-        console.log(`[${logTime()}] [AgentService] question/requested: rpcId=${rpcId}, ${questions.length} 个问题`)
+        console.log(`[${logTime()}] [AgentService] ${method}: rpcId=${rpcId}, ${questions.length} 个问题`)
         this.emit({ type: 'questionRequest', payload: req })
       }
       return
@@ -1165,14 +1178,17 @@ export class AgentService {
       return
     }
 
-    // ── approval/requested：工具越权审批请求（与 DSH WebUI 同一瀑布） ──
-    if (method === 'approval/requested' && rpcId) {
-      const approvalId = payload.approvalId as string | undefined
+    // ── approval 请求：0.1.7 起 $events 瀑布 approval/request 的翻译帧
+    //    （method='approval/request'；'approval/requested' 为 0.1.6 前旧帧名，保留兼容）──
+    if ((method === 'approval/requested' || method === 'approval/request') && rpcId) {
+      // 新协议无 approvalId：回落为 eventId（与 approval/resolved 翻译帧的配对 id 一致）
+      const approvalId = (payload.approvalId as string | undefined) ?? rpcId
       const toolName = payload.toolName as string | undefined
-      const sessionId = payload.sessionId as string | undefined
+      const sessionId = (payload.sessionId as string | undefined) ?? this.sessionId ?? ''
       if (approvalId && toolName && sessionId) {
+        const clientId = payload.clientId as string | undefined
         // 非当前会话的审批：存入跨会话待定表并记通知气泡（切到该会话时 adopt 成可决议卡片）
-        if (sessionId !== this.sessionId) {
+        if (payload.sessionId && sessionId !== this.sessionId) {
           const req: PendingApprovalRequest = {
             rpcId,
             sessionId,
@@ -1180,6 +1196,7 @@ export class AgentService {
             toolName,
             callId: payload.callId as string | undefined,
             reason: payload.reason as string | undefined,
+            clientId,
           }
           this.crossApprovals.set(rpcId, req)
           this.applyNoticeAction({ type: 'approval-requested', sessionId, approvalId, detail: toolName, at: Date.now() })
@@ -1192,9 +1209,10 @@ export class AgentService {
           toolName,
           callId: payload.callId as string | undefined,
           reason: payload.reason as string | undefined,
+          clientId,
         }
         this.pendingApprovals.set(rpcId, req)
-        console.log(`[${logTime()}] [AgentService] approval/requested: rpcId=${rpcId}, tool=${toolName}`)
+        console.log(`[${logTime()}] [AgentService] ${method}: rpcId=${rpcId}, tool=${toolName}`)
         this.emit({ type: 'approvalRequest', payload: req })
       }
       return
@@ -1391,58 +1409,83 @@ export class AgentService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  回答问题（POST /api/respond）
+  //  交互瀑布应答（0.1.7：POST /api/$events/result，对齐 WebUI ClientRemoteEvents.answer）
   // ═══════════════════════════════════════════════════════════
 
-  /** 发送 client-response 到 DSH（对齐 DSH 官方 ClientResponse 信封） */
-  private async respond(rpcId: string, result: { ok: boolean; value?: unknown; error?: { code: string; message: string; details: unknown } }): Promise<boolean> {
-    const api = window.electronAPI
-    const message = { type: 'client-response', rpcId, result }
-
-    if (api?.dshRespond) {
-      // Electron 模式：通过专用 IPC（client-response 信封，非 client-request）
-      const resp = await api.dshRespond(message)
-      return resp?.accepted === true
+  /**
+   * 应答一个 $events 瀑布事件（审批/提问的统一回程）。
+   * 线格式与 WebUI 完全一致：POST /api/$events/result，body 为 client-request 信封，
+   * payload 恰好一个 args 字段 {clientId, eventId, outcome}；outcome 三选一：
+   * {kind:'result', value} / {kind:'rejected', error} / {kind:'next'}。
+   */
+  private async respondRemoteEvent(eventId: string, clientId: string | undefined, outcome: Record<string, unknown>): Promise<boolean> {
+    if (!clientId) {
+      console.warn(`[${logTime()}] [AgentService] respondRemoteEvent: eventId=${eventId.slice(0, 8)}… 缺 clientId（旧协议帧或桥未就绪），无法应答`)
+      return false
     }
-
-    // 浏览器模式：直接 POST /api/respond（Vite 代理到 DSH :3080）
+    if (window.electronAPI?.dshRpc) {
+      // Electron 模式：复用 dsh-rpc 桥（method 无点号原样透传 → POST /api/$events/result）
+      const resp = await window.electronAPI.dshRpc('$events/result', { args: { clientId, eventId, outcome } })
+      const ok = resp?.result?.ok === true
+      if (!ok) console.warn(`[${logTime()}] [AgentService] $events/result 失败: eventId=${eventId.slice(0, 8)}… resp=${JSON.stringify(resp?.result ?? {}).slice(0, 160)}`)
+      return ok
+    }
+    // 浏览器模式：直接 POST（Vite 代理到 DSH :3080）
     try {
-      const res = await fetch('/api/respond', {
+      const res = await fetch('/api/$events/result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message),
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          method: '$events/result',
+          payload: { args: { clientId, eventId, outcome } },
+        }),
         signal: AbortSignal.timeout(15000),
       })
-      const json = await res.json() as { accepted?: boolean; reason?: string }
-      return json?.accepted === true
+      if (!res.ok) {
+        console.warn(`[${logTime()}] [AgentService] $events/result HTTP ${res.status}: eventId=${eventId.slice(0, 8)}…`)
+        return false
+      }
+      const json = await res.json() as { result?: { ok?: boolean } }
+      return json?.result?.ok === true
     } catch (err) {
-      console.error(`[${logTime()}]`, '[AgentService] respond 失败:', err)
+      console.error(`[${logTime()}]`, '[AgentService] $events/result 请求失败:', err)
       return false
     }
   }
 
-  /** 回答一组问题（对齐 DSH QuestionResponsePayload.answer 格式） */
+  /** 回答一组问题（answer 值对齐 WebUI QuestionComposer：{answers:[{id,selected,custom?}]}） */
   async answerQuestion(rpcId: string, answer: QuestionAnswer): Promise<boolean> {
     const req = this.pendingQuestions.get(rpcId)
     if (!req) {
       console.warn(`[${logTime()}] [AgentService] answerQuestion: rpcId=${rpcId} 不在 pending 列表中`)
       return false
     }
-    const ok = await this.respond(rpcId, {
-      ok: true,
-      value: { sessionId: req.sessionId, answer },
-    })
-    if (ok) this.pendingQuestions.delete(rpcId)
+    const ok = await this.respondRemoteEvent(rpcId, req.clientId, { kind: 'result', value: answer })
+    if (ok) {
+      this.pendingQuestions.delete(rpcId)
+      // 网关不会给应答方回 cancel 帧（应答前已摘除投递）：卡片移除由本端事件驱动
+      this.emit({ type: 'questionResolved', payload: { rpcId, outcome: 'answered' } })
+    }
     return ok
   }
 
-  /** 取消/关闭一组问题 */
+  /** 取消/关闭一组问题（对齐 WebUI questionError 的线格式 ASK_CANCELLED） */
   async cancelQuestion(rpcId: string): Promise<boolean> {
-    const ok = await this.respond(rpcId, {
-      ok: false,
-      error: { code: 'cancelled', message: '用户关闭了问题', details: {} },
+    const req = this.pendingQuestions.get(rpcId)
+    if (!req) {
+      console.warn(`[${logTime()}] [AgentService] cancelQuestion: rpcId=${rpcId} 不在 pending 列表中`)
+      return false
+    }
+    const ok = await this.respondRemoteEvent(rpcId, req.clientId, {
+      kind: 'rejected',
+      error: { name: 'Error', message: 'the user cancelled ask_user_question', code: 'ASK_CANCELLED' },
     })
-    if (ok) this.pendingQuestions.delete(rpcId)
+    if (ok) {
+      this.pendingQuestions.delete(rpcId)
+      this.emit({ type: 'questionResolved', payload: { rpcId, outcome: 'cancelled' } })
+    }
     return ok
   }
 
@@ -1451,22 +1494,19 @@ export class AgentService {
     return Array.from(this.pendingApprovals.values())
   }
 
-  /** 提交审批决议（对齐 DSH PendingApproval.answer 的响应信封） */
+  /** 提交审批决议（value 对齐 WebUI PendingApproval.answer： outcomes 原样作为瀑布结果值） */
   async answerApproval(rpcId: string, outcome: ApprovalOutcome): Promise<boolean> {
     const req = this.pendingApprovals.get(rpcId)
     if (!req) {
       console.warn(`[${logTime()}] [AgentService] answerApproval: rpcId=${rpcId} 不在 pending 列表中`)
       return false
     }
-    const ok = await this.respond(rpcId, {
-      ok: true,
-      value: {
-        sessionId: req.sessionId,
-        approvalId: req.approvalId,
-        outcome,
-      },
-    })
-    if (ok) this.pendingApprovals.delete(rpcId)
+    const ok = await this.respondRemoteEvent(rpcId, req.clientId, { kind: 'result', value: outcome })
+    if (ok) {
+      this.pendingApprovals.delete(rpcId)
+      // 网关不会给应答方回 cancel 帧（应答前已摘除投递）：卡片移除由本端事件驱动
+      this.emit({ type: 'approvalResolved', payload: { approvalId: req.approvalId, rpcId, outcome } })
+    }
     return ok
   }
 
@@ -1735,6 +1775,28 @@ export class AgentService {
     }
   }
 
+  /**
+   * 停止指定会话的回合（跨会话远程停止；也是内核僵尸 Agent 的手动清除入口）。
+   * 内核 running 判定 = ctx.agents 内活 Agent 实例的 status（dsh-api-session-controller
+   * list.js），回合异常中止（连接错误/进程被杀）可能把循环滞留在 'running'——
+   * session.list 恒报 running:true、无任何收尾帧 → 状态灯僵绿（0.1.7-rc.2 实测）。
+   * session.cancel 强迫状态机归位；成功后按权威 idle 记账乐观清灯
+   * （host/session-status running:false 帧随后幂等重申）。
+   * @returns 取消请求是否被内核受理（会话无运行中回合时内核也会受理，返回 true）
+   */
+  async cancelSession(sessionId: string): Promise<boolean> {
+    console.log(`[${logTime()}] [AgentService] 取消会话回合: sessionId=${sessionId}`)
+    try {
+      const result = await this.rpc('session.cancel', { sessionId })
+      console.log(`[${logTime()}] [AgentService] 取消命令已发送:`, result)
+      this.handleHostSessionStatus(sessionId, false)
+      return true
+    } catch (error) {
+      console.warn(`[${logTime()}] [AgentService] 取消会话失败: ${sessionId}:`, error)
+      return false
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  session/event 统一分发 —— 完整对齐 DSH SessionEventMap（48 种事件）
   //  主通道：mux WS 推送（session/event 帧，与 DSH WebUI 同源）；
@@ -1844,8 +1906,19 @@ export class AgentService {
    * @returns 是否为回合收尾事件（turn/end / session.idle） */
   private consumeSessionEvent(event: DshEvent): boolean {
     if (this.abortPolling) return false // stop 语义：中止后不再派发任何事件
-    // 切换窗口：目标会话事件暂存待重放，不进入实时消费（见 switchHoldback 注释）
+    // 瞬态 assistant/chunk（0.1.7 桥从 session.follow 的 assistant-stream 翻译，带 transient
+    // 标记、无 seq）：只经实时通道到达一次，历史 fold/轮询永不重放，无需也不能参与 seq 去重
+    // ——seq 去重闸为持久事件设计，cursor 水位与渲染层 _lastSeq 由同一批持久事件锁步推进
+    // （恒相等），带 cursor 序号的瞬态帧会被整体吞掉（2026-09-29 思考卡流式全灭的根因）。
+    // 对齐 WebUI：瞬态帧的连续性由桥侧 revision 语义保证，呈现数据不作回放来源。
+    if ((event as { transient?: boolean }).transient === true) {
+      this.lastEventAt = Date.now()
+      return this.handleSessionEvent(event)
+    }
+    // 切换窗口：目标会话事件暂存待重放，不进入实时消费（见 switchHoldback 注释）。
+    // 瞬态帧例外：切走会话的吐字增量没有回放价值，直接丢弃（防旧会话增量串进新会话缓冲）。
     if (this.switchHoldback) {
+      if ((event as { transient?: boolean }).transient === true) return false
       this.switchHoldback.push(event)
       return false
     }
@@ -1904,15 +1977,24 @@ export class AgentService {
     if (event.type === 'assistant/chunk') {
       const chunk = d?.chunk
       if (!chunk) return false
+      // 水位只记持久事件序号：瞬态帧（transient，无 seq）不得覆盖 *BufLastSeq——
+      // seedPendingTurn 的 adopt 拿它和 fold 的 throughSeq 比较，混入瞬态值会让
+      // 「fold 覆盖 live 区间」判定失效、退化成拼接采纳（重复文本）。
       if (chunk.type === 'text-delta' && chunk.text) {
         this.assistantBuf += chunk.text
-        this.assistantBufLastSeq = event.seq
+        if (typeof event.seq === 'number') this.assistantBufLastSeq = event.seq
         this.scheduleContentEmit() // live 正文：节流后实时下发（面板空闲时即时上屏）
       }
       if (chunk.type === 'reasoning-delta' && chunk.text) {
+        const segmentStart = !this.reasoningBuf
         this.reasoningBuf += chunk.text
-        this.reasoningBufLastSeq = event.seq
+        if (typeof event.seq === 'number') this.reasoningBufLastSeq = event.seq
         this.scheduleReasoningEmit() // live 推理：节流后实时下发（面板空闲时即时上屏）
+        // 分段首帧落一条日志：流式活着（0.1.7 瞬态流恢复）还是死了（只剩 flush 回退）
+        // 靠它一比对 flush 字符数即可判别——「思考卡不流式」类症状的取证锚点。
+        if (segmentStart) {
+          console.log(`[${logTime()}] [Trace][stream] ${this.instanceId} 推理瞬态流分段起始: ${this.sessionId?.slice(0, 20)}…`)
+        }
       }
       if (chunk.type === 'finish') this.emit({ type: 'stepEnd', payload: { reason: chunk.reason, seq: event.seq, time } })
       // usage chunk：该步的早期用量采样（对齐 DSH token-meter，采样后
@@ -1928,6 +2010,20 @@ export class AgentService {
         if (reasoningPart?.text && !this.reasoningBuf) {
           this.reasoningBuf = reasoningPart.text
           this.scheduleReasoningEmit()
+        }
+        // 正文回退（与推理回退同构）：内核 0.1.7-rc.2 起 chunk 增量不再产出
+        // assistant/chunk 会话事件（改走 session.follow 的瞬态 assistant-stream
+        // 帧，编辑器未接），最终正文只随持久化的 assistant/message 落地——
+        // 实时路径此前只认 text-delta，flush 恒为 content=0，面板全程收不到
+        // 结论，刷新后经历史 fold 才显示。缓冲为空（本步没有 text-delta 流，
+        // 旧内核流式场景下缓冲已有全文）时把整段正文并入缓冲，随后的末次
+        // content.delta 与 step/end flush 即把正文带上屏；流式内核下为 no-op，
+        // 不会双份。
+        const messageText = this.extractText(msg.content)
+        if (messageText && !this.assistantBuf) {
+          this.assistantBuf = messageText
+          this.assistantBufLastSeq = event.seq
+          this.scheduleContentEmit()
         }
       }
       // 最终用量采样：同一步的权威值，覆盖此前的 usage chunk
@@ -1988,8 +2084,8 @@ export class AgentService {
       }
       const pendingName = callId ? this.pendingTools.get(callId) : undefined
       if (callId) this.pendingTools.delete(callId)
-      // write/edit 工具的已应用差异（result meta 携带，面板展开卡片渲染 diff 视图）
-      const diffs = extractDiffsFromMeta(d?.meta)
+      // write/edit 工具的已应用差异（方言字段 diffs 优先，缺失回落 result meta——适配层 eventMap 归一化）
+      const diffs = extractDiffsFromResultData(d)
       this.emit({
         type: 'toolResult',
         payload: {
@@ -2477,8 +2573,8 @@ export class AgentService {
           if (tool) {
             tool.status = isToolResultFailure(d) ? 'failure' : 'success'
             tool.result = d?.message?.content
-            // write/edit 工具的已应用差异（与实时路径同源：result meta.diffs）
-            const foldDiffs = extractDiffsFromMeta(d?.meta)
+            // write/edit 工具的已应用差异（与实时路径同源：方言字段 diffs 优先，缺失回落 meta）
+            const foldDiffs = extractDiffsFromResultData(d)
             if (foldDiffs) tool.diffs = foldDiffs
             tool.error = d?.error ? { name: d.error.name ?? '', code: d.error.code ?? '' } : undefined
             tool.resultTime = time

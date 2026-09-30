@@ -36,6 +36,25 @@ import type { ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 
 export const name = '@demostudio/ds-reminder'
 
+/**
+ * 0.1.7 起内核删除了共享 'plugin' source kind（MessageSourceMap 改为 merge-extensible：
+ * 每个生产者在自己的模块声明自有 kind，消费者对未知 kind 直落）。本插件声明 'ds-reminder'，
+ * 携带识别信息与上下文形态（form: 'notice' 要求一行 summary，见内核 ContextForm 契约）。
+ */
+export interface ReminderNoticeSource {
+  kind: 'ds-reminder'
+  /** 产出方标识（原 'plugin' kind 的 plugin 字段语义）。 */
+  plugin: string
+  form: 'notice'
+  summary: string
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'ds-reminder': ReminderNoticeSource
+  }
+}
+
 /** 本插件只监听事件、读文件与注入消息：logger/ctx.on 均为 Context 内建能力，无需 inject 服务。 */
 export const inject: string[] = []
 
@@ -301,7 +320,7 @@ export function apply(ctx: Context, config?: Config): void {
       const message = createUserMessage({
         content: [{ type: 'text', text }],
         source: {
-          kind: 'plugin',
+          kind: 'ds-reminder',
           plugin: name,
           form: 'notice',
           summary: reminder.summary,
@@ -368,8 +387,16 @@ export function apply(ctx: Context, config?: Config): void {
   // ── inject 通道：turn/end 时经 agent.inject 入队，下一回合开头进入对话 ──
   if (injectReminders.length > 0) {
     // 双保险登记：agent/created 覆盖新建 agent；agent/status 幂等补登（覆盖插件晚于 agent 挂载的场景）
-    ctx.on('agent/created', (payload: { agent: Agent }) => rememberAgent(payload.agent))
-    ctx.on('agent/status', (payload: { agent: Agent }) => rememberAgent(payload.agent))
+    // 0.1.7：agent/created 监听器同样要求返回 Promise<undefined> | undefined
+    ctx.on('agent/created', (payload: { agent: Agent }): undefined => {
+      rememberAgent(payload.agent)
+      return undefined
+    })
+    // 0.1.7：agent/status 监听器签名要求返回 Promise<undefined> | undefined（事件可被监听方接管）
+    ctx.on('agent/status', (payload: { agent: Agent }): undefined => {
+      rememberAgent(payload.agent)
+      return undefined
+    })
 
     ctx.on('session/event', (session: Session, event: SessionEvent): void => {
       // 只在 turn/end 时触发

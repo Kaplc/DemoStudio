@@ -21,9 +21,10 @@
     ]
   },
   "remove_dsh_plugin_completely.md": {
-    "uses": 1,
-    "lastUsedAt": 1790526780171,
+    "uses": 2,
+    "lastUsedAt": 1790699399158,
     "notes": [
+      "\"复活源是 sync-dsh-plugins.mjs\"定向了启动管线修复点",
       "排查 patch 回写时靠其\"editor.bat 启动重生成+复制 / sync 脚本是复活源\"教训定位时序"
     ]
   },
@@ -36,24 +37,27 @@
     ]
   },
   "diagnose_first_message_thinking_card_missing.md": {
-    "uses": 1,
-    "lastUsedAt": 1790528399967,
+    "uses": 2,
+    "lastUsedAt": 1790694845594,
     "notes": [
+      "沿用日志管线取证法（live 卡创建/消息入队时序对照）",
       "沿用其\"读 console log 时序、看该有日志的地方有没有日志\"取证法定位旧模块缓存"
     ]
   },
   "add_provider_model_context_vision_config.md": {
-    "uses": 2,
-    "lastUsedAt": 1790604316576,
+    "uses": 3,
+    "lastUsedAt": 1790699399097,
     "notes": [
+      "写回链路（settings.mutate）与 dsh-source 镜像查证法直接支撑根因定位",
       "名称字段用例沿用其 e2e stub 模式（mutate 载荷精确断言）",
       "移除预设供应商改版时按其 e2e stub 模式改写用例 1，并按 lint 门禁口径验证"
     ]
   },
   "e2e_split_engine_vs_projects.md": {
-    "uses": 5,
-    "lastUsedAt": 1790613315327,
+    "uses": 6,
+    "lastUsedAt": 1790704803309,
     "notes": [
+      "playwright 过滤器/路径正则口径用于构造 tests/e2e 全量跑命令",
       "编辑器长驻 vite glob 冻结坑实爆：新 widget/脚本不注册，utimes bump asset/index.ts 后变换产物纳入，待用户刷新页面生效",
       "playwright 过滤器用正斜杠路径 + projects 层定向跑法",
       "playwright 路径过滤用正斜杠 projects/warm-current/e2e/xxx.spec.ts 直跑定向 spec",
@@ -123,6 +127,28 @@
     "lastUsedAt": 1790614652910,
     "notes": [
       "按 lesson8 并行会话 tsc 判定法核实 tutorial 红属他人半成品（改动集 0 命中+上轮绿+时间窗吻合）不代修；§6 断言按 lesson4/5 先推导不变量（球心抬离黄道面的 y 判别）再写"
+    ]
+  },
+  "fix_partial_adopt_on_switch_back.md": {
+    "uses": 1,
+    "lastUsedAt": 1790694845541,
+    "notes": [
+      "按其\"先读 console [Trace] 管线取证再推演\"路径定位 flush content=0"
+    ]
+  },
+  "question_card_compact.md": {
+    "uses": 1,
+    "lastUsedAt": 1790701304746,
+    "notes": [
+      "其 lesson2（respond 响应形状）直接预警 question-card-compact.spec 会因应答通道更换而红，提前同步了 stub"
+    ]
+  },
+  "wire_dsh_host_events_stream.md": {
+    "uses": 2,
+    "lastUsedAt": 1790708038755,
+    "notes": [
+      "按其记录的 e2e MockWebSocket 依赖决策不动浏览器分支，按桥结构定位守卫点",
+      "其 lesson5（MockWebSocket emitFrame 广播 server-request 信封）套用在 approval-card.spec 的帧投递设计"
     ]
   }
 }

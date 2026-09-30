@@ -5,7 +5,7 @@
  * 优先使用活动预览管理器的 getActorTree，否则从运行中 World 获取。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { getEngineContext } from '../engineContext.js'
 
 const EDITOR_MCP_PORT_DEFAULT = 9877

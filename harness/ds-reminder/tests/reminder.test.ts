@@ -247,7 +247,7 @@ describe('steer 通道（默认记忆提醒）', () => {
     expect(agent.steer).toHaveBeenCalledTimes(1)
     expect(messageText(steeredMessage(agent))).toBe(MEMORY_TEXT)
     expect(steeredMessage(agent).source).toEqual({
-      kind: 'plugin',
+      kind: 'ds-reminder',
       plugin: '@demostudio/ds-reminder',
       form: 'notice',
       summary: '回合末记忆提醒',
@@ -506,7 +506,7 @@ describe('inject 通道（默认经验提醒）', () => {
     expect(agent.inject).toHaveBeenCalledTimes(1)
     expect(messageText(injectedMessage(agent))).toBe(EXPERIENCE_TEXT)
     expect(injectedMessage(agent).source).toEqual({
-      kind: 'plugin',
+      kind: 'ds-reminder',
       plugin: '@demostudio/ds-reminder',
       form: 'notice',
       summary: '回合末经验提醒',

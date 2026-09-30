@@ -26,7 +26,7 @@ export interface EditorClickResult {
   ok: boolean
   selector?: string
   matched?: number
-  text?: string | null
+  text?: string
   error?: string
 }
 
@@ -53,12 +53,11 @@ export async function editorClick(args: EditorClickArgs): Promise<EditorClickRes
       await locator.first().click({ force, timeout: timeoutMs })
     }
 
-    return {
-      ok: true,
-      selector,
-      matched: count,
-      text: text?.trim().slice(0, 200) ?? null,
-    }
+    // 严格不发 null：output.schema 声明 text 为 string，空文本直接省略字段
+    const result: EditorClickResult = { ok: true, selector, matched: count }
+    const trimmed = text?.trim().slice(0, 200)
+    if (trimmed) result.text = trimmed
+    return result
   } catch (err) {
     return { ok: false, selector, error: `点击失败: ${err}` }
   }

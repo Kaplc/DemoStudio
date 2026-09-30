@@ -82,19 +82,11 @@ call :createJunctions "%~dp0.dsh\profiles"
 echo.
 
 REM ── 动态生成 cordis.patch.yml（当前项目根绝对路径，适配任意设备） ──
-echo       生成 cordis.patch.yml...
+REM    脚本内部同时"合并写入"home 侧（~/.dsh/profiles/）：生成块为准 + 保留内核设置
+REM    写入/用户手工添加的条目（自定义供应商/默认模型等）。绝不能在这里用 copy /Y
+REM    整文件覆盖 home 侧——那会把供应商面板 settings.mutate 写入的配置抹掉（2026-09-30 修复）。
+echo       生成并合并 cordis.patch.yml...
 node "%~dp0scripts\sync-dsh-plugins.mjs"
-
-REM ── 复制到运行时目录（~/.dsh/profiles/） ──
-echo       复制到运行时目录...
-for %%P in (web headless) do (
-    if exist "%~dp0.dsh\profiles\%%P\cordis.patch.yml" (
-        copy /Y "%~dp0.dsh\profiles\%%P\cordis.patch.yml" "%USERPROFILE%\.dsh\profiles\%%P\cordis.patch.yml" >nul 2>nul
-    )
-)
-if exist "%~dp0.dsh\profiles\cordis.patch.yml" (
-    copy /Y "%~dp0.dsh\profiles\cordis.patch.yml" "%USERPROFILE%\.dsh\cordis.patch.yml" >nul 2>nul
-)
 echo.
 
 REM ─── 同步本地 Presets 到系统目录 ───

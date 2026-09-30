@@ -93,10 +93,11 @@ export function visibleInstructionState(
     if (!isOwnChange(change, resolved)) return
     if (visibleNow) visible.set(change.path, change)
   }
-  for (const [seq, event] of agent.session.events.entries()) {
+  // 0.1.7：session.events 集合移除，snapshotEvents() 返回全量冻结事件数组；seq 直接取自事件
+  for (const event of agent.session.snapshotEvents()) {
     if (event.type !== 'user/message' || !isInstructionSource(event.data.source)) continue
     for (const change of parseInstructionChanges(event.data.source)) {
-      consume(change, visibleSeqs.has(seq))
+      consume(change, visibleSeqs.has(event.seq))
     }
   }
   for (const message of authorityMessages) {

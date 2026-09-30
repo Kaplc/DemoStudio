@@ -18,13 +18,13 @@ export interface EditorScreenshotArgs {
 export interface EditorScreenshotResult {
   ok: boolean
   /** PNG 绝对路径（用 read_image 读取） */
-  path?: string | null
+  path?: string
   /** 文件字节数 */
-  bytes?: number | null
-  /** 视口宽度（可获取时） */
-  width?: number | null
-  /** 视口高度（可获取时） */
-  height?: number | null
+  bytes?: number
+  /** 图片宽度（解析自 PNG IHDR，未知时省略） */
+  width?: number
+  /** 图片高度（解析自 PNG IHDR，未知时省略） */
+  height?: number
   error?: string
 }
 
@@ -41,6 +41,14 @@ function defaultScreenshotDir(): string {
 function formatTimestamp(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+/** 从 PNG buffer 的 IHDR 块解析图片尺寸。CDP attach 下 page.viewportSize() 可能为 null，
+ *  曾导致返回 width:null 撞 output.schema（"value.width must be a number"）——PNG 头才是真值。 */
+function pngSize(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 24) return null
+  if (buffer.readUInt32BE(0) !== 0x89504e47) return null // \x89PNG 签名
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
 }
 
 export async function editorScreenshot(args: EditorScreenshotArgs): Promise<EditorScreenshotResult> {
@@ -61,18 +69,18 @@ export async function editorScreenshot(args: EditorScreenshotArgs): Promise<Edit
     })
     writeFileSync(absPath, buffer)
 
-    const vp = page.viewportSize()
     console.log('[editorScreenshot] 截图已保存:', absPath, `${buffer.length} bytes`)
-    return {
-      ok: true,
-      path: absPath,
-      bytes: buffer.length,
-      width: vp?.width ?? null,
-      height: vp?.height ?? null,
+    // 严格不发 null：output.schema 声明 number/string，未知字段直接省略（schema 无 required）
+    const result: EditorScreenshotResult = { ok: true, path: absPath, bytes: buffer.length }
+    const size = pngSize(buffer)
+    if (size) {
+      result.width = size.width
+      result.height = size.height
     }
+    return result
   } catch (err) {
     console.warn('[editorScreenshot] 截图失败:', err)
-    return { ok: false, path: null, bytes: null, width: null, height: null, error: `截图失败: ${err}` }
+    return { ok: false, error: `截图失败: ${err}` }
   }
 }
 

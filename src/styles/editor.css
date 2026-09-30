@@ -2084,9 +2084,10 @@ html, body, #root {
 }
 .agent-context-card__body {
   box-sizing: border-box;
-  width: calc(100% - 22px);
+  /* 与折叠行头部同宽对齐（2026-09-30 用户反馈：展开正文左缘凹进 22px 视觉不对齐，不再照搬 WebUI 的标题缩进设计） */
+  width: 100%;
   max-height: 141px;
-  margin: 4px 0 4px 22px;
+  margin: 4px 0;
   padding: 10px 16px 12px 12px;
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
@@ -3468,6 +3469,16 @@ html, body, #root {
 .session-status-light--running {
   background: var(--dsw-alias-state-success-primary);
   animation: session-status-light-pulse 1.2s ease-in-out infinite;
+}
+/* 运行中灯可点击（停止该会话回合/清理内核僵尸灯，2026-09-30）：仅 actionable 变体解除穿透 */
+.session-status-light--actionable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.session-status-light--actionable:hover {
+  animation: none;
+  opacity: 1;
+  box-shadow: 0 0 4px var(--dsw-alias-state-success-primary);
 }
 .session-status-light--error {
   background: var(--dsw-alias-state-error-primary);

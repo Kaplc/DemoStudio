@@ -214,7 +214,7 @@ export function apply(ctx: Context, config?: Config): void {
       const timer = setTimeout(() => {
         activeTimers.delete(timer)
         state.timer = null
-        const { transcript, maxTurn } = renderTurnTranscript(agent.session.events, { watermark: state.watermark })
+        const { transcript, maxTurn } = renderTurnTranscript(agent.session.snapshotEvents(), { watermark: state.watermark })
         if (maxTurn <= state.watermark || transcript === '') return
         state.watermark = maxTurn
         const excerpts = screenTranscript(transcript)

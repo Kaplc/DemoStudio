@@ -13,6 +13,8 @@ interface SessionSidebarProps {
   healthScores?: Record<string, number>
   currentSessionId?: string
   onSwitch: (sessionId: string) => void
+  /** 点击运行中状态灯 → 停止该会话回合（跨会话远程停止/僵尸灯清理）；缺省 = 灯纯展示 */
+  onStopSession?: (sessionId: string) => void
   onNew: () => void
   onClose: () => void
 }
@@ -23,6 +25,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   healthScores,
   currentSessionId,
   onSwitch,
+  onStopSession,
   onNew,
   onClose,
 }) => {
@@ -94,11 +97,18 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         )}
         {status && (
           <span
-            className={`session-status-light session-status-light--${status}`}
+            className={`session-status-light session-status-light--${status}${status === 'running' && onStopSession ? ' session-status-light--actionable' : ''}`}
             data-testid="session-status-light"
             data-session-id={s.sessionId}
             data-status={status}
-            title={statusTitle[status]}
+            title={status === 'running' && onStopSession ? '运行中（点击停止该会话回合）' : statusTitle[status]}
+            onClick={status === 'running' && onStopSession
+              ? (e) => {
+                  e.stopPropagation() // 灯点击 = 停止该会话，不触发列表项的切换
+                  logger.info(`[SessionSidebar] 点击状态灯停止会话: ${s.sessionId}`)
+                  onStopSession(s.sessionId)
+                }
+              : undefined}
           />
         )}
       </div>

@@ -12,7 +12,7 @@
  */
 import { z } from 'zod'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { callAIEventRaw } from './mouseSimulation.js'
 
 const projectScreenPosSchema = z.object({

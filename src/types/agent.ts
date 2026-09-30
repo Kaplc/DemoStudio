@@ -552,12 +552,14 @@ export interface QuestionItem {
   multiSelect?: boolean
 }
 
-/** 一个待回答的问题请求（对应 mux 帧 question/requested） */
+/** 一个待回答的问题请求（0.1.7 起对应 $events 瀑布 user-questions/request 的翻译帧） */
 export interface PendingQuestionRequest {
-  /** mux 帧的 rpcId，也是 respond 的回执标识 */
+  /** 瀑布 eventId（翻译帧的 rpcId），也是 $events/result 的应答关联 id */
   rpcId: string
   sessionId: string
   questions: QuestionItem[]
+  /** $events 流的客户端身份（应答必带；缺省=旧帧/桥未就绪，不可应答） */
+  clientId?: string
 }
 
 /** 单个问题的回答 */
@@ -572,17 +574,17 @@ export interface QuestionAnswer {
   answers: QuestionAnswerItem[]
 }
 
-// ─── 工具审批（对齐 DSH approval/request 瀑布与 host-apiproxy events.schema） ───
+// ─── 工具审批（对齐 DSH 0.1.7 approval/request 瀑布：$events 帧 + $events/result 应答） ───
 
 /** 客户端可回答的审批结论（其余 resolved 值由 host 广播，不受理） */
 export type ApprovalOutcome = 'allowed-once' | 'rejected'
 
-/** mux 帧 approval/requested 的待审批请求 */
+/** $events 瀑布 approval/request 翻译帧的待审批请求 */
 export interface PendingApprovalRequest {
-  /** server-request 信封的 rpcId，respond 回执标识 */
+  /** 瀑布 eventId（翻译帧的 rpcId），也是 $events/result 的应答关联 id */
   rpcId: string
   sessionId: string
-  /** 服务端签发的一次性审批 id（approval/resolved 按它配对） */
+  /** 决议配对 id：新协议下缺省回落为 eventId（approval/resolved 按 it 配对移除卡片） */
   approvalId: string
   /** 请求越权执行的工具名 */
   toolName: string
@@ -590,4 +592,6 @@ export interface PendingApprovalRequest {
   callId?: string
   /** 请求方的可读原因（headline 优先展示它） */
   reason?: string
+  /** $events 流的客户端身份（应答必带；缺省=旧帧/桥未就绪，不可应答） */
+  clientId?: string
 }

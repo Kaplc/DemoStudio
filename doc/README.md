@@ -137,12 +137,13 @@
 
 ---
 
-## 6. Harness 模块（DSH 内核集成，9 篇）
+## 6. Harness 模块（DSH 内核集成，10 篇）
 
 | 文件 | 说明 |
 |---|---|
 | [`harness/harness_system.md`](./harness/harness_system.md) | **Harness 工程**：VS Code 扩展 + DSH 内核集成 + 引擎 agent 插件包 |
 | [`harness/dsh_engine_integration.md`](./harness/dsh_engine_integration.md) | **DSH 与引擎集成架构**：agent 常驻化 / watchdog / 崩溃自愈 / 会话恢复 |
+| [`harness/dsh_kernel_adapter.md`](./harness/dsh_kernel_adapter.md) | **DSH 内核适配层**：编辑器方言冻结 + 可插拔版本适配器（升级/回滚零编辑器改动）+ 升级 SOP |
 | [`harness/dsh_vscode_demostudio_prd.md`](./harness/dsh_vscode_demostudio_prd.md) | DSH VS Code DemoStudio PRD |
 | [`harness/dsh_instructions_prd_revised.md`](./harness/dsh_instructions_prd_revised.md) | ds-instructions 插件 PRD（修订版）：路径前缀 → 目录指令映射 |
 | [`harness/dsh_plugin_install.md`](./harness/dsh_plugin_install.md) | DSH 插件安装与加载：junction / patch 行 / 启动加载流程（含 ds-memory、ds-sync） |
@@ -169,7 +170,7 @@
 |---|---|
 | [`doc_maintenance.md`](./doc_maintenance.md) | **文档维护作业规范**：体系归属 / 四类维护作业 / 断链巡检脚本 / 维护踩坑清单（智能体与人共用） |
 
-## 9. 开发方案（doc/dev/，3 篇）
+## 9. 开发方案（doc/dev/，4 篇）
 
 > 落盘待实施的设计方案，实施完成后内容应随代码现状更新或归档。
 
@@ -178,12 +179,13 @@
 | [`dev/external_project_roots.md`](./dev/external_project_roots.md) | 外部根目录工程支持方案：内置案例 + `projects/` 外部根双轨注册与发现 |
 | [`dev/ui_batching_plan.md`](./dev/ui_batching_plan.md) | UI 合批优化方案：Unity UGUI 式图集 + 树序合并 mesh + 顶点 alpha（待实施，P0 实测先行） |
 | [`dev/perf_profiler_plan.md`](./dev/perf_profiler_plan.md) | 性能分析器方案：引擎采集器 + Window 菜单独立面板 + ai.getPerfStats AI 读数（待实施） |
+| [`dev/dsh_kernel_adapter_plan.md`](./dev/dsh_kernel_adapter_plan.md) | DSH 内核适配层方案：编辑器方言冻结 + `electron/dsh/` 适配层 + 能力档案 + 契约测试（待实施） |
 
 ---
 
 ## 统计
 
-9 个模块共 **81 篇文档**（含元文档 1 + 开发方案 3）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 6 / 游戏设计 19 / Harness 9 / 测试 4 / 元文档 1 / 开发方案 3。`doc/` 下共 **82 个 `.md`**（含本索引）。
+9 个模块共 **83 篇文档**（含元文档 1 + 开发方案 4）：总览 1 / 引擎 21 / 编辑器 18（core 4 / blueprint 2 / asset 3 / ui 6 / integration 3）/ 项目 6 / 游戏设计 19 / Harness 10 / 测试 4 / 元文档 1 / 开发方案 4。`doc/` 下共 **84 个 `.md`**（含本索引）。
 
 > **范式状态**：2026-09-03 完成一次全量范式改造（覆盖当时的 48 篇，编辑器 15 / 引擎 13 / 项目 5 / Harness 9 / 测试 3 / 总览 1 等）；此后文档增至 75 篇，新增的 `doc/game/`（14 篇设计文档，沿用设计文档结构）等未纳入新范式。2026-09-10 只做了事实与索引核对（修正失真表述、补齐索引与统计），**未重新做全量范式审计**；断链 0、孤儿 0（实测）。
 >

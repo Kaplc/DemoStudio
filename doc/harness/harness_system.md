@@ -323,8 +323,8 @@ dsh web --dump-config | Select-String '<插件名>'
 **7. 误以为 `harness/dsh-source` 就是编辑器实际运行的内核**
 
 现象：改了 `dsh-source` 的构建产物，编辑器 agent 行为没变。
-原因：`getDshCliPath()` 只把**全局 npm** 的 `@deepseek-ai/dsh` 作为 CLI 候选，`harness/dsh-source` 从未进入候选列表（它只当 `cwd` 和版本切换目录）。运行时 CLI 与源码副本是两套。
-规则：改内核行为要动全局 npm 那套，或走 `dsh-switch-version`（git checkout + pnpm install + pnpm run build）重建后再确认。切换/版本管理见 [DSH 引擎集成](./dsh_engine_integration.md)。
+原因：`getDshCliPath()` 只把**全局 npm** 的 `@deepseek-ai/dsh` 作为 CLI 候选，`harness/dsh-source` 从未进入候选列表（它只当 `cwd` 和源码参考仓）。运行时 CLI 与源码副本是两套。
+规则：改内核行为要动全局 npm 那套（如 `npm install -g @deepseek-ai/dsh@<版本>`，走 npmmirror 镜像）。`dsh-switch-version` 已按此实现（2026-09-30 起）：npm 全局安装指定版本 + 重启 agent——**不再 git checkout `dsh-source`**（旧实现把 npm 版本号当 git tag 用，而远程 tag 名是 `dsh-v<版本>`，checkout 必然 pathspec 不匹配，且源码仓构建产物不参与运行）。切换/版本管理见 [DSH 引擎集成](./dsh_engine_integration.md)。
 
 ---
 

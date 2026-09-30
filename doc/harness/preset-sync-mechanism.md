@@ -162,7 +162,7 @@ if (rows.has('agent-presets')) {
 
 `composedOverlays` 排在所有 `--patch` overlay 之后（同函数 `:146-151`），把整行的 `roots` **整段替换**成 `SHIPPED_PRESET_ROOT`（`profile-boot.ts:35`，CLI 自带的 `config/agent-presets/`）。任何层配的 `roots` 都被冲掉。
 
-> **版本注记（2026-09-10 实测）**：上面引用的行号与强制替换逻辑属于**运行中的全局 DSH 0.1.1-rc.2**（boot 时最后一层仍把 `roots` 换成 `SHIPPED_PRESET_ROOT`）。checkout 的 `harness/dsh-source` 已升到 **0.1.2-alpha.1**——该版本 `apps/cli/src/profile-boot.ts` 里这段替换已删除，`composeProfile` 只按 `bundlePatches → profile.patches → homePatches → overlays` 组合。0.1.2 起 `roots` 补丁的新落点是 **home 层 `~/.dsh/cordis.patch.yml`**（由 `editor.bat` 复制 `scripts/sync-dsh-plugins.mjs` 生成的文件而来）：homePatches 叠加在 profile 层之后，**优先级高于 profile**——当前该文件承载的正是 `agent-presets` 的 `roots` 配置。注意：在 rc.2 下这份 home 层 `roots` 同样会被上述最后一层替换冲掉（preset 发现实际仍靠 `includeUserRoot` 追加的 home 用户根），升级到 0.1.2+ 后 `roots` 才真正生效。
+> **版本注记（2026-09-10 实测；2026-09-30 更新同步方式）**：上面引用的行号与强制替换逻辑属于**运行中的全局 DSH 0.1.1-rc.2**（boot 时最后一层仍把 `roots` 换成 `SHIPPED_PRESET_ROOT`）。checkout 的 `harness/dsh-source` 已升到 **0.1.2-alpha.1**——该版本 `apps/cli/src/profile-boot.ts` 里这段替换已删除，`composeProfile` 只按 `bundlePatches → profile.patches → homePatches → overlays` 组合。0.1.2 起 `roots` 补丁的新落点是 **home 层 `~/.dsh/cordis.patch.yml`**（由 `scripts/sync-dsh-plugins.mjs` **合并写入**——2026-09-30 起不再是 editor.bat `copy /Y` 整文件覆盖：内核 0.1.7 的设置持久化也在 profile patch 里，整文件覆盖会抹掉供应商面板/设置页写入的用户条目，详见 doc/editor/integration/agent_panel_system.md §13.4）：homePatches 叠加在 profile 层之后，**优先级高于 profile**——当前该文件承载的正是 `agent-presets` 的 `roots` 配置。注意：在 rc.2 下这份 home 层 `roots` 同样会被上述最后一层替换冲掉（preset 发现实际仍靠 `includeUserRoot` 追加的 home 用户根），升级到 0.1.2+ 后 `roots` 才真正生效。
 
 真正让 `game-editor` 被发现的，是 `includeUserRoot` 默认为 true 时自动追加的 home 用户根（`index.ts:133-135`）：
 
@@ -255,6 +255,11 @@ this.resolvedRoots = config.includeUserRoot
 现象：preset 在列表里但选不了。
 原因：`scanRoot` 写入 `broken: 'the composition file agent.cordis.yml is missing — ...'`，preset 仍被返回但所有挂载路径拒绝它。
 规则：排查时查 `broken` 字段。Windows 上另需注意 `tool-bash` 未配 `disabled: !!js process.platform === 'win32'` 会让 shell 工具调用失败。
+
+**8. 内核升级改包名后 preset 卡片显示「加载失败」**
+现象：2026-09-30 发现 `game-editor` 卡片挂红色「加载失败」徽章，文件本身没动过。
+原因：健康检查（`discovery.ts` 的 `compositionProblem`）对每个启用行做 `packageInstalled` 上行 node_modules 解析；内核 0.1.7-rc.2 下线了 `@deepseek-ai/dsh-workflow-worker-thread`（worker 行现改用 `@deepseek-ai/dsh-workflow-ptc` + `provider: spawn`，见已装内核 `dsh-web-app/presets/standard.patch.yml`），preset 里按旧版 0.1.2 抄的该行解析失败 → 整卡标记 broken。一个死行拖垮整卡，其余 22 个包都是好的。
+规则：升级内核后设置页出现「加载失败」= 行里声明了已改名的包。修法：对照运行中内核自带的 `dsh-web-app/presets/*.patch.yml` 找到新包名替换死行；roster 每次读取都重扫，改完无需重启，重开设置页即恢复。改 home 权威拷贝后镜像到项目 `.dsh/presets/`。
 
 ---
 

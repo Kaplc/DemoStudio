@@ -7,8 +7,8 @@
  *   - 命令行展示（可选，来自关联的工具调用）
  *   - [拒绝] [允许一次] 两个动作，一次性闩锁（answered 后禁用）
  *
- * 决议通过 AgentService.answerApproval(rpcId, outcome) 以 client-response
- * 信封回传；卡片移除由 approval/resolved 广播驱动。
+ * 决议通过 AgentService.answerApproval(rpcId, outcome) 走 $events/result
+ * （0.1.7 瀑布协议）回传；卡片移除由本端事件与 approval/resolved 广播驱动。
  */
 import React, { useState } from 'react'
 import type { PendingApprovalRequest, ApprovalOutcome } from '../../types/agent'

@@ -9,7 +9,7 @@
  *   - getHUD 返回完整 UI 树结构，包含文字内容、按钮状态等 UI 特有信息
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { getEngineContext } from '../engineContext.js'
 
 const EDITOR_MCP_PORT_DEFAULT = 9877

@@ -222,6 +222,7 @@ export class PerfStatsCollector {
       getSnapshot: () => this.getSnapshot(),
       getHistory: (n: number) => this.getHistory(n),
       isRunning: () => this.isRunning(),
+      buildResult: (samples?: number) => this.buildResult(samples),
     }
     logger.info('[PerfCollector] window.__dsPerf 已挂载')
   }

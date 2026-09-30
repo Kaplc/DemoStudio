@@ -278,7 +278,7 @@ if (saved?.sessionId) {
 | 上游 | 怎么驱动 | 相关文档 |
 |---|---|---|
 | 编辑器启动 | `startApp()` 内 `void bootstrapDSH('startup')` | [编辑器核心](../editor/core/core_system.md) |
-| 版本切换 | `dsh-switch-version` → `stopDSHService()` → `bootstrapDSH('version-switch')` | [工程总览](./harness_system.md) |
+| 版本切换 | `dsh-switch-version`（npm 全局安装指定版本 + 杀 agent 释放文件句柄 + 版本校验）→ `stopDSHService()` → `bootstrapDSH('version-switch')`；失败自愈回滚重启。运行版本读全局包 `package.json`（`getInstalledDshVersion`），与 npm registry 最新版语义化比较（`compareVersions`，纯函数在 `electron/dshKernelVersion.ts`） | [工程总览](./harness_system.md) |
 | 面板手动重启 | `dsh-restart` IPC → `bootstrapDSH('manual-restart')` | [Agent 面板](../editor/integration/agent_panel_system.md) |
 | MCP 命令 | `/api/command` 的 `dsh-restart` → `bootstrapDSH('mcp-restart')` | [MCP 集成](../editor/integration/mcp_integration.md) |
 | 关窗退出 | `window-all-closed` → `stopDSHService()` → `process.exit(0)` | [编辑器核心](../editor/core/core_system.md) |

@@ -14,6 +14,7 @@ interface KernelUpdateModalProps {
 type UpdatePhase = 'loading' | 'ready' | 'switching' | 'done' | 'error'
 
 const STEP_LABELS: Record<string, string> = {
+  download: '下载内核...',
   checkout: '切换版本...',
   install: '安装依赖...',
   build: '构建内核...',

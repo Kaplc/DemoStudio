@@ -15,9 +15,10 @@
     ]
   },
   "harness_no_llm_design.md": {
-    "uses": 1,
-    "lastUsedAt": 1790526410128,
+    "uses": 2,
+    "lastUsedAt": 1790692563139,
     "notes": [
+      "解释插件设计原则时引用\"零隐性 LLM 调用\"决策作为核心设计依据",
       "reinforce 工具设计时对齐零 LLM 确定性机制约束"
     ]
   },
@@ -29,23 +30,27 @@
     ]
   },
   "ds_memory_no_auto_search.md": {
-    "uses": 1,
-    "lastUsedAt": 1790526410254,
+    "uses": 2,
+    "lastUsedAt": 1790692563088,
     "notes": [
+      "解释记忆插件工作原理时，三通道机制、prefix 文件数组语义与实现位置构成回答主框架",
       "调研联想机制与改动落点（associate.ts）时参考三通道现状"
     ]
   },
   "reminder_skiptools_config_override.md": {
-    "uses": 1,
-    "lastUsedAt": 1790527320094,
+    "uses": 2,
+    "lastUsedAt": 1790699372351,
     "notes": [
+      "home/项目侧 patch 双源同步机制直接指导了丢配置根因定位，其第③步已随本次合并写入改造而简化更新",
       "重启验证时按其三步闭环检查 home 侧 patch 现状与 ds-sync 回写方向"
     ]
   },
   "dsh_mux_projection_frames.md": {
-    "uses": 2,
-    "lastUsedAt": 1790608446819,
+    "uses": 4,
+    "lastUsedAt": 1790708038648,
     "notes": [
+      "0.1.7 单 WS 端点定案是根因判断的核心依据",
+      "muxFrameSchema/hostFrameSchema 帧清单直接构成方言帧词汇要素",
       "沿用其投影帧消费架构扩展 contextPressure 键拦截",
       "loss 探针选型：mux session/event 帧含 turn/end reason 与 llm/retry 完整结构，据 api-proxy.js 锚点确认插件进程内订阅优于 HTTP SSE"
     ]
@@ -68,9 +73,14 @@
     ]
   },
   "targeted_regression_first.md": {
-    "uses": 4,
-    "lastUsedAt": 1790615519576,
+    "uses": 9,
+    "lastUsedAt": 1790708038594,
     "notes": [
+      "改动域定向回归（host 帧链路 27 例）替代全量",
+      "按改动域定向回归 + 域交集判定 16 红（agent 域 1 红 vs 游戏域 15 环境红）",
+      "只跑改动域单测+审批/提问相关 3 个 e2e spec，未跑全量",
+      "验证只跑新增单测+tsc，未跑全量回归",
+      "只跑新判别器+contextRing+agentUnclosedTurn 三个改动域套件",
       "本次只跑改动域 vitest + port_hub/edit_hud 两 spec 定向 e2e，未跑全量",
       "只跑 edit_hud 定向 spec + 模型单测，未跑 warm 全量",
       "只跑改动域 no_defeat+hud 两个 spec（6 用例 4.1min），未跑 warm 全量",
@@ -78,9 +88,14 @@
     ]
   },
   "root_lint_script_broken.md": {
-    "uses": 4,
-    "lastUsedAt": 1790615519658,
+    "uses": 9,
+    "lastUsedAt": 1790708038518,
     "notes": [
+      "按记忆选择 tsc+定向vitest 验证路径，grantWrite 沙箱失败按既定方案升级恢复",
+      "门禁选型（tsc+vitest+playwright、npx 可用态）与 5174/5173 端口约定贯穿本次验证",
+      "按其沙箱态选型用 npx tsc/vitest（当前 danger-full-access）跑通门禁",
+      "按其沙箱故障签名（grantWrite Win32 5）识别 pwsh 全挂并升级授权跑测试",
+      "门禁按 npx tsc --noEmit + npx vitest run 执行",
       "按记忆走 node 直连二进制跑 tsc/vitest/playwright；5173 被占时 vite 落 5174 + E2E_BASE_URL 指路，二次 electron DSH degraded 属预期",
       "eslint 破损判定 + tsc/vitest/定向 e2e 门禁 + 自起 5174 dev server",
       "按门禁口径 npx tsc --noEmit + npx vitest run + npx playwright test -c playwright.e2e.config.ts 执行",
@@ -96,9 +111,11 @@
     ]
   },
   "agentservice_stub_surface_sync.md": {
-    "uses": 2,
-    "lastUsedAt": 1790604316854,
+    "uses": 4,
+    "lastUsedAt": 1790701304696,
     "notes": [
+      "对照 5 个 hoisted 桩核对本次未加公开方法、无需补桩",
+      "写入方案风险边界：P2 给渲染层加公开面时 5 个 hoisted 桩同步",
       "payload 加 modelName 字段不触 5 个桩的方法面，判定无需同步",
       "据其判定\"移除\"公开方法不破坏桩，无需同步 5 个测试桩"
     ]
@@ -129,9 +146,10 @@
     ]
   },
   "warm_gamemode_componentization.md": {
-    "uses": 1,
-    "lastUsedAt": 1790611825020,
+    "uses": 2,
+    "lastUsedAt": 1790704754941,
     "notes": [
+      "行级 marker 脚本搬运大块代码 + Select-Object 管道缓冲坑，两条都直接套用",
       "edit 报 EIO(Win32 1175) 按经验判定瞬时错原样重试即过；相机语义改动定位在下沉后的 ViewDirectorComponent"
     ]
   },
@@ -161,6 +179,65 @@
     "lastUsedAt": 1790615519810,
     "notes": [
       "用\"地球冻结\"决策归因 warmCelestial 公转基线红为天体域，非本次改动"
+    ]
+  },
+  "agent_window_log_pitfall.md": {
+    "uses": 1,
+    "lastUsedAt": 1790693099034,
+    "notes": [
+      "诊断 agent 面板日志双条问题时用它排除\"跨窗口转发导致 console 双打\"假设（转发目标是主窗口 Console 面板而非 DevTools）"
+    ]
+  },
+  "dsh_session_jsonl_zstd_inspect.md": {
+    "uses": 1,
+    "lastUsedAt": 1790694845327,
+    "notes": [
+      "按多帧 zstd 配方解码 session-c18792be 取证；发现 v4 文件名已变并更新本条"
+    ]
+  },
+  "dsh_kernel_update_path.md": {
+    "uses": 3,
+    "lastUsedAt": 1790706527214,
+    "notes": [
+      "按其诊断手法经 MCP 9877 dsh-status 探到 adapter=dsh017，完成适配层实机验证",
+      "0.1.7 三波破坏实录（鉴权/RPC改名/WS合流/翻译表/单活跃follow/compat补丁）是适配层方案的事实底座",
+      "由\"内核 2026-09-29 升级 0.1.7-rc.2\"锁定今天行为突变的时间锚点"
+    ]
+  },
+  "dsh_kernel_v4_no_chunk_events.md": {
+    "uses": 1,
+    "lastUsedAt": 1790698287901,
+    "notes": [
+      "chunk 事件消失与 transient 瞬态帧约定构成方案背景第②波与方言帧词汇素材"
+    ]
+  },
+  "dsh_tool_result_diffs_wire.md": {
+    "uses": 1,
+    "lastUsedAt": 1790698288012,
+    "notes": [
+      "meta.diffs wire 形状收窄列为渲染层泄漏点，归一化上收 eventMap"
+    ]
+  },
+  "session_light_zombie_turn.md": {
+    "uses": 2,
+    "lastUsedAt": 1790708038701,
+    "notes": [
+      "确认 host 帧消费链后安全收窄 host 桥连接",
+      "僵尸回合作为\"语义级变化翻译吸收不了\"的典型案例进方案边界一节"
+    ]
+  },
+  "git_stash_pathspec_stale_snapshot_pitfall.md": {
+    "uses": 1,
+    "lastUsedAt": 1790704755020,
+    "notes": [
+      "基线判定弃用 stash/HEAD 交换（并行会话在飞），改用代码路径证明"
+    ]
+  },
+  "agent_panel_ui_compact_preference.md": {
+    "uses": 1,
+    "lastUsedAt": 1790708013410,
+    "notes": [
+      "改上下文卡片展开宽度时按此保留 141px 限高紧凑预算并写进 e2e 断言"
     ]
   }
 }

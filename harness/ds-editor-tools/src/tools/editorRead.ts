@@ -20,8 +20,8 @@ export interface EditorReadArgs {
 export interface EditorReadResult {
   ok: boolean
   selector?: string
-  /** 单个元素结果 */
-  text?: string | null
+  /** 单个元素结果（读取不到时省略字段，不回 null——output.schema 声明 string） */
+  text?: string
   /** all=true 时返回多个 */
   items?: string[]
   error?: string
@@ -63,7 +63,11 @@ export async function editorRead(args: EditorReadArgs): Promise<EditorReadResult
     } else {
       text = await el.textContent().catch(() => null)
     }
-    return { ok: true, selector, text: text?.trim() ?? null }
+    // 严格不发 null：读不到就省略字段（output.schema 声明 text 为 string）
+    const trimmed = text?.trim()
+    return trimmed !== undefined && trimmed !== ''
+      ? { ok: true, selector, text: trimmed }
+      : { ok: true, selector }
   } catch (err) {
     return { ok: false, selector, error: `读取失败: ${err}` }
   }

@@ -234,7 +234,7 @@ export function apply(ctx: Context, config?: Partial<Config>): void {
     const known = openSteps.get(session)
     if (known !== undefined) return known
     let open = false
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       if (event.type === 'step/start') open = true
       else if (event.type === 'step/end' || event.type === 'turn/end') open = false
     }

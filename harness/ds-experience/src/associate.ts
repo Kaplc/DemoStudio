@@ -7,7 +7,8 @@
  *   做**精确匹配**：列表中任一文件命中即触发（2026-09-12 起目录前缀、`&&`/`||`
  *   表达式、`/` 全局均废弃——声明目录不会命中其下文件）；
  * - agent/pre-step 时把命中经验的**全文**（Summary/Lessons/Effective Path）作为
- *   user message 注入下一次模型请求，source.kind='plugin'（history_read 会过滤）；
+ *   user message 注入下一次模型请求，source.kind='ds-experience'（0.1.7 起无共享
+ *   'plugin' kind，插件按 merge-extensible 惯例声明自有 kind，见文件尾部增强）；
  * - 去重：同一 Agent 会话内同一条经验只注入一次（WeakMap，随 Agent 回收）；
  * - 只服务主 agent（delegationDepth=0）；子 agent 上下文归属父 agent，不注入；
  * - 纯 frontmatter + 正文文件读取（readAllEpisodes）+ 内存 TTL 缓存，零 LLM 调用。
@@ -26,6 +27,25 @@ import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@de
 import { MAX_EPISODE_CONTENT_CHARS } from './experienceTypes.js'
 import { readAllEpisodes } from './experienceStore.js'
 import type { EpisodeRecord } from './experienceStore.js'
+
+/**
+ * 0.1.7 起内核删除了共享 'plugin' source kind（MessageSourceMap 改为 merge-extensible：
+ * 每个生产者在自己的模块声明自有 kind，消费者对未知 kind 直落）。本插件声明 'ds-experience'，
+ * 携带识别信息与上下文形态（form: 'recall' 即召回注入；summary 供展示行）。
+ */
+export interface ExperienceRecallSource {
+  kind: 'ds-experience'
+  /** 产出方标识（原 'plugin' kind 的 plugin 字段语义）。 */
+  plugin: string
+  form: 'recall'
+  summary: string
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'ds-experience': ExperienceRecallSource
+  }
+}
 
 /** 默认跟踪的"读取文件"工具（与 ds-instructions / ds-memory 一致；write/edit 不触发联想）。 */
 export const DEFAULT_ASSOCIATE_TOOLS: readonly string[] = ['read', 'read_image']
@@ -333,7 +353,7 @@ export function registerExperienceAssociator(ctx: Context, options: AssociatorOp
       const message = createUserMessage({
         content: [{ type: 'text', text: composed.text }],
         source: {
-          kind: 'plugin',
+          kind: 'ds-experience',
           plugin: '@demostudio/ds-experience',
           form: 'recall',
           summary: buildAssociateSummary(composed.included, composed.omitted),

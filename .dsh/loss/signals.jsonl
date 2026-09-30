@@ -1,0 +1,70 @@
+{"ts":1790645182732,"sessionId":"session-5c3bbb78-9592-4614-bb5e-0d79b9fd57a6","turn":2,"kind":"turn_error","weight":8,"excerpt":"no adapter registered for provider \"zai\""}
+{"ts":1790646298931,"sessionId":"session-5e66df3b-bab0-47c1-a261-bd0861158da4","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790646462594,"sessionId":"session-1e90c468-8628-4c2a-a42a-28960ca2641e","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790646512114,"sessionId":"session-7798d526-3b09-49ec-935a-007976745579","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790692294467,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790692540875,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":2,"kind":"steer_interrupt","weight":3}
+{"ts":1790692584156,"sessionId":"session-a1639232-286d-4822-b553-8727c52ee877","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790694148626,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694149877,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790694150499,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694152928,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694157389,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694163394,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694163689,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"steer_interrupt","weight":3}
+{"ts":1790694164051,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694165132,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694165594,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":1,"kind":"turn_error","weight":8,"excerpt":"Connection error."}
+{"ts":1790694168352,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694172393,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694181006,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":3,"kind":"turn_error","weight":8,"excerpt":"Connection error."}
+{"ts":1790694243016,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":2,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694244651,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":2,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694246678,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":2,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694251250,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":2,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694260437,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":2,"kind":"turn_error","weight":8,"excerpt":"Connection error."}
+{"ts":1790694271494,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":4,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694273691,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":4,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694275769,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":4,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694279864,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":4,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694306169,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694307934,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694310170,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694314294,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790694322184,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":3,"kind":"turn_error","weight":8,"excerpt":"Connection error."}
+{"ts":1790694323015,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":4,"kind":"turn_error","weight":8,"excerpt":"terminated"}
+{"ts":1790694338110,"sessionId":"session-a1639232-286d-4822-b553-8727c52ee877","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790695010048,"sessionId":"session-9b514d3a-fd8a-4b2d-9557-f2c0652b8915","turn":4,"kind":"steer_interrupt","weight":3}
+{"ts":1790695131697,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":2,"kind":"steer_interrupt","weight":3}
+{"ts":1790696841493,"sessionId":"session-c18792be-a10a-42f5-af69-dd358af844e7","turn":5,"kind":"turn_error","weight":8,"excerpt":"no adapter registered for provider \"glmen\""}
+{"ts":1790696860897,"sessionId":"session-1c74dc62-9eef-4e92-99ec-0c205e4fb9b7","turn":3,"kind":"turn_error","weight":8,"excerpt":"no adapter registered for provider \"glmen\""}
+{"ts":1790697298318,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790697950813,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"retry","weight":5,"excerpt":"Request timed out."}
+{"ts":1790698005688,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":1,"kind":"turn_aborted","weight":4}
+{"ts":1790698217941,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790698228824,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":2,"kind":"steer_interrupt","weight":3}
+{"ts":1790698373531,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790698807649,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"steer_interrupt","weight":3}
+{"ts":1790698864491,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790698876830,"sessionId":"session-b2a33ccc-bfc6-4c91-bb8f-fb390c528984","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790698920610,"sessionId":"session-576f503a-a168-439e-8396-632a1fe48ddf","turn":0,"kind":"steer_interrupt","weight":3}
+{"ts":1790698996572,"sessionId":"session-576f503a-a168-439e-8396-632a1fe48ddf","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790699160910,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790699419689,"sessionId":"session-2adad719-c148-4b3b-b786-68255e67f15b","turn":1,"kind":"correction_hint","weight":3,"excerpt":"直接和dsh调用相同的rpc方法不就可以了吗应该不需要自己重新实现一套吧"}
+{"ts":1790700705188,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"steer_interrupt","weight":3}
+{"ts":1790703018431,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"retry","weight":5,"excerpt":"Request timed out."}
+{"ts":1790703074980,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"retry","weight":5,"excerpt":"Request timed out."}
+{"ts":1790703649141,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"retry","weight":5,"excerpt":"Connection error."}
+{"ts":1790704521597,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"retry","weight":5,"excerpt":"Request timed out."}
+{"ts":1790704676173,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"steer_interrupt","weight":3}
+{"ts":1790704886623,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"correction_hint","weight":3,"excerpt":"要实现的目标是内核有破坏性更新，适配器可以根据内核版本单独编写然后替换可拆卸的，就即使回退内核通过可拆卸方式替换旧的适配器达到不需要更新编辑器部分的代码来保证功能正常运行，同时可以自动识别当前内核版本自动选择已经注册好的适配器"}
+{"ts":1790706282560,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":4,"kind":"steer_interrupt","weight":3}
+{"ts":1790706307880,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":3,"kind":"correction_hint","weight":3,"excerpt":"要实现的目标是内核有破坏性更新，适配器可以根据内核版本单独编写然后替换可拆卸的，就即使回退内核通过可拆卸方式替换旧的适配器达到不需要更新编辑器部分的代码来保证功能正常运行，同时可以自动识别当前内核版本自动选择已经注册好的适配器"}
+{"ts":1790706475112,"sessionId":"session-ac5e9c2d-4f2e-458e-82af-88370d59f13d","turn":5,"kind":"steer_interrupt","weight":3}
+{"ts":1790706801355,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":1,"kind":"retry","weight":5,"excerpt":"500: {\"code\":\"1234\",\"message\":\"Internal network failure, error id: 20260930023243c0c9976a788a4e49, please try again later.\"}"}
+{"ts":1790707128336,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790707291393,"sessionId":"session-f78db23a-0dbf-4aa5-8fa8-3444dc5c7135","turn":2,"kind":"steer_interrupt","weight":3}
+{"ts":1790707615724,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790707797044,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":1,"kind":"retry","weight":5,"excerpt":"500: {\"code\":\"1234\",\"message\":\"Internal network failure, error id: 202609300249191b2b718e6f5642db, please try again later.\"}"}
+{"ts":1790707953591,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":1,"kind":"steer_interrupt","weight":3}
+{"ts":1790708663349,"sessionId":"session-13710708-6666-4028-8d4d-43fe199ab145","turn":2,"kind":"steer_interrupt","weight":3}

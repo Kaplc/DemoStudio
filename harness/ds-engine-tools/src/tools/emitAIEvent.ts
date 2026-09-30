@@ -10,7 +10,7 @@
  */
 import { z } from 'zod'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { getEngineContext } from '../engineContext.js'
 import { requiresApproval, askUser } from '../guards.js'
 

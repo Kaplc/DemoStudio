@@ -13,7 +13,7 @@ export interface EditorHoverArgs {
 export interface EditorHoverResult {
   ok: boolean
   selector?: string
-  text?: string | null
+  text?: string
   error?: string
 }
 
@@ -27,7 +27,9 @@ export async function editorHover(args: EditorHoverArgs): Promise<EditorHoverRes
     await locator.first().waitFor({ state: 'visible', timeout: timeoutMs })
     const text = await locator.first().textContent().catch(() => null)
     await locator.first().hover({ timeout: timeoutMs })
-    return { ok: true, selector, text: text?.trim().slice(0, 200) ?? null }
+    // 严格不发 null：output.schema 声明 text 为 string，空文本直接省略字段
+    const trimmed = text?.trim().slice(0, 200)
+    return trimmed ? { ok: true, selector, text: trimmed } : { ok: true, selector }
   } catch (err) {
     return { ok: false, selector, error: `悬停失败: ${err}` }
   }

@@ -59,7 +59,9 @@ const makeAgent = (events: SessionEvent[], delegationDepth?: number): Agent =>
   ({
     session: {
       header: delegationDepth === undefined ? {} : { delegationDepth },
+      // 0.1.7：session.events 集合移除，生产代码改走 snapshotEvents()（冻结快照数组）
       events,
+      snapshotEvents: () => events,
     },
   }) as unknown as Agent
 

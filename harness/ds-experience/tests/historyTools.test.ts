@@ -17,7 +17,7 @@ const userMsg = (text: string) => ev('user/message', createUserMessage({
 
 const pluginMsg = (text: string) => ev('user/message', createUserMessage({
   content: [{ type: 'text', text }],
-  source: { kind: 'plugin', plugin: 'ds-memory', form: 'recall' },
+  source: { kind: 'ds-experience', plugin: 'ds-memory', form: 'recall' },
 }))
 
 const toolResultMsg = () => ev('user/message', {

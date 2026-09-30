@@ -70,12 +70,20 @@ export interface ElectronAPI {
     enginePort: number
     lifecycle: 'off' | 'probing' | 'claimed' | 'spawning' | 'running' | 'restart-wait' | 'degraded'
     agentPid: number | null
+    /** 内核适配层上报（electron/dsh/registry 按安装的内核版本自动选择；老版本主进程缺省） */
+    kernelVersion?: string
+    /** 活跃适配器 id（如 dsh017） */
+    adapter?: string
+    /** 适配器与内核版本是否精确匹配（false = 未知版本回落最新适配器） */
+    adapterExact?: boolean
+    /** 编辑器方言版本（electron/dsh/gateway DIALECT_VERSION） */
+    dialectVersion?: number
   }>
 
   // DSH RPC 代理（绕过 CORS，通过 main 进程转发到 DSH :3080）
   dshRpc: (method: string, payload: unknown, timeoutMs?: number) => Promise<{ type: string; result?: { ok?: boolean; value?: unknown; error?: { message?: string } } }>
 
-  // --- DSH Mux WS 下行桥（question/requested 等事件帧推送） ---
+  // --- DSH Mux WS 下行桥（0.1.7 remote.mux：$events 瀑布/会话事件翻译帧推送） ---
   dshMuxConnect: () => Promise<void>
   dshMuxDisconnect: () => Promise<void>
   onDshMuxFrame: (callback: (frame: unknown) => void) => () => void
@@ -84,9 +92,6 @@ export interface ElectronAPI {
   dshHostConnect: () => Promise<void>
   dshHostDisconnect: () => Promise<void>
   onDshHostFrame: (callback: (frame: unknown) => void) => () => void
-
-  // DSH Respond 代理（client-response 信封，用于 question 回答）
-  dshRespond: (message: unknown) => Promise<{ accepted?: boolean; reason?: string }>
 
   // DSH 手动重启（degraded 终态的恢复入口）
   dshRestart: () => Promise<{ ok: boolean }>
